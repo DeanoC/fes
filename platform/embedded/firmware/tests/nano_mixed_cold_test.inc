@@ -164,6 +164,34 @@ static int mixed_runtime(uint64_t owner,unsigned mode)
         PROT_READ|PROT_WRITE,MAP_ANONYMOUS|MAP_PRIVATE|MAP_FIXED_NOREPLACE,-1,0);
     assert(configuration_memory==(void *)(uintptr_t)FES_NANO_CONFIG_BASE);
     assert(fes_nano_platform_identity_setup()==1 && fes_nano_platform_configuration_setup()==1 && fes_nano_platform_sd_setup()==1);
+#ifdef FES_TEST_FIRMWARE_MMU
+    assert(!fes_nano_cold_mmu_admit()); /* Shared USB must be completely bound. */
+    if(mode>=68 && mode<=73) {
+        shared_usb_setup();
+        if(mode==72)mmu_scr|=1; /* Missing startup enable cannot use cache-off. */
+        else if(mode==73) {mmu_drop_mair=1;assert(fes_nano_mmu_platform_enable()<0);mmu_scr|=1;}
+        else fes_test_mmu_start();
+        if(mode==68)mmu_tcr^=0x100;
+        else if(mode==69)mmu_mair^=0x400;
+        else if(mode==70)mmu_root^=4096;
+        else if(mode==71)sctlr&=~1ULL;
+        else assert(mode==72 || mode==73);
+        unsigned reads=mmu_device_reads,writes=mmu_device_writes;
+        const uint32_t fids[]={FES_EMBEDDED_USB_CALL,FES_EMBEDDED_SD_CALL,FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_TAPE_CALL};
+        const uint64_t cookies[]={FES_EMBEDDED_USB_COOKIE,FES_EMBEDDED_SD_COOKIE,FES_EMBEDDED_BRIDGE_COOKIE,FES_EMBEDDED_TAPE_COOKIE};
+        for(unsigned i=0;i<4;i++) {
+            fes_nano_owned_call(fids[i],0,owner,cookies[i],1,reply);
+            assert(reply[0] && !reply[2] && !reply[3] && fes_nano_owned_bridges.failed);
+            if(i==0)assert(reply[0]==FES_EMBEDDED_USB_NOT_READY && reply[1]==(uint64_t)FES_EMBEDDED_USB_TAG<<32);
+            if(i==1)assert(reply[0]==FES_EMBEDDED_SD_NOT_READY && reply[1]==(uint64_t)FES_EMBEDDED_SD_TAG<<32);
+            if(i==2)assert(reply[0]==FES_EMBEDDED_BRIDGE_NOT_READY && reply[1]==(uint64_t)FES_EMBEDDED_BRIDGE_TAG<<32);
+            assert(reads==mmu_device_reads && writes==mmu_device_writes);
+        }
+        assert(mmu_writes==(mode==72 ? 0U:mode==73 ? 1U:4U) && !fes_nano_mmu_platform_scope());
+        puts("PASS changed MMU registers deny every owned channel without device I/O or fallback");return 0;
+    }
+    if(mode>=60 && mode<=67) {shared_usb_setup();return fes_test_mmu_failure(mode);}
+#endif
 #ifdef FES_TEST_SHARED_USB
     shared_usb_start(owner);
 #endif
@@ -228,6 +256,23 @@ static int mixed_runtime(uint64_t owner,unsigned mode)
             mixed_control[FES_EMBEDDED_REG_PENDING/4]=1;
             mixed_control[FES_EMBEDDED_REG_GENERATION_LO/4]=1;
             mixed_control[FES_EMBEDDED_REG_REQUEST_GENERATION_LO/4]=1;
+#ifdef FES_TEST_FIRMWARE_MMU
+            if(mode==74) {
+                assert(p->active && fes_nano_owned_usb.reservation &&
+                    fes_nano_owned_usb.platform->active && fes_nano_owned_usb.platform->confirmed &&
+                    !fes_nano_owned_sd.active && !fes_nano_owned_bridges.closure_valid);
+                unsigned reads=mmu_device_reads,writes=mmu_device_writes;
+                mmu_tcr^=0x100;
+                mixed_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CLOSE,owner,generation+1,reply);
+                assert(reply[0]==FES_EMBEDDED_BRIDGE_NOT_READY && reply[1]==(uint64_t)FES_EMBEDDED_BRIDGE_TAG<<32 &&
+                    !reply[2] && !reply[3] && fes_nano_owned_bridges.failed);
+                assert(reads==mmu_device_reads && writes==mmu_device_writes && bridge==5 &&
+                    p->active && !fes_nano_owned_bridges.closure_valid &&
+                    fes_nano_owned_usb.reservation && fes_nano_owned_usb.platform->active &&
+                    fes_nano_owned_usb.platform->confirmed && !fes_nano_owned_sd.active && mmu_writes==4);
+                puts("PASS active reader CPU fault retains USB/reader reservations without I/O or false drain");return 0;
+            }
+#endif
         }
 #ifdef FES_TEST_INITIAL_TAPE
         if(mixed_tape(owner,generation+1))return 0;

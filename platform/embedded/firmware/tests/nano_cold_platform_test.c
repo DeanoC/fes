@@ -51,6 +51,10 @@ static uint32_t per0=FES_NANO_MASTER_RESET,bridge=15;
 static uint32_t power[4]={0x90000021,0,0,0},pch_request=0x23,pch_status=0x23,boot_config=0x0070021e;
 static unsigned release_locked=1,current_el=12;
 static uint64_t mpidr,sctlr;
+#ifdef FES_TEST_FIRMWARE_MMU
+#include "nano_mmu_test_platform.inc"
+static void shared_usb_setup(void);
+#endif
 #if defined(FES_NANO_HPS_IO_OBSERVE) && FES_NANO_HPS_IO_OBSERVE
 static unsigned hps_io_reads,hps_io_fault;
 static const struct fes_nano_hps_io_register hps_io_rows[FES_NANO_HPS_IO_COUNT]=FES_NANO_HPS_IO_REGISTERS;
@@ -277,6 +281,9 @@ static void fixture_owned_call(uint32_t fid,uint64_t x1,uint64_t x2,uint64_t x3,
 #endif
 uint32_t mmio_read_32(uintptr_t a)
 {
+#ifdef FES_TEST_FIRMWARE_MMU
+    mmu_device_reads++;
+#endif
 #ifdef FES_TEST_SHARED_USB
     if(a>=FES_NANO_USB_BASE && a<FES_NANO_USB_BASE+0x1000)return shared_usb_read(a);
 #endif
@@ -528,6 +535,9 @@ uint32_t mmio_read_32(uintptr_t a)
 }
 uint16_t mmio_read_16(uintptr_t a) { (void)a;assert(0);return 0; }
 void mmio_write_32(uintptr_t a,uint32_t v) {
+#ifdef FES_TEST_FIRMWARE_MMU
+    mmu_device_writes++;
+#endif
 #ifdef FES_TEST_SHARED_USB
     if(a>=FES_NANO_USB_BASE && a<FES_NANO_USB_BASE+0x1000) {shared_usb_write(a,v);return;}
 #endif
@@ -711,6 +721,9 @@ static void barrier(void *p) { (void)p; }
 #endif
 int main(int argc,char **argv)
 {
+#ifdef FES_TEST_FIRMWARE_MMU
+    mpidr=0x81000000ULL;sctlr=0x30c5183aULL;
+#endif
     assert(argc==2);unsigned mutation=atoi(argv[1]);
 #ifdef FES_TEST_PROGRAM_ROLES
     unsigned mixed_case=mutation;mutation=0;

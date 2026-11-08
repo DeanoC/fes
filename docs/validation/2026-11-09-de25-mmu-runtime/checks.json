@@ -1,0 +1,230 @@
+{
+  "status": "scoped-prototype-checks-passed",
+  "base": "db4645cb63a2d1d86c544ad3bb0aa5ae8ef35221",
+  "checks": {
+    "0": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4010717822238803,
+      "log_sha256": "c5d13e615d22d28c8294d55012672165e970e4f4578681af61d5a7db28b37623"
+    },
+    "1": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.001960014924407,
+      "log_sha256": "161bf344e713c8d981e0d3169c088a5f75fb0f7a8de3a7dd9cbfa9d5d16beee1"
+    },
+    "2": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "db4645cb63a2d1d86c544ad3bb0aa5ae8ef35221",
+        "--head",
+        "db4645cb63a2d1d86c544ad3bb0aa5ae8ef35221"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20127340406179428,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "3": {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20120481518097222,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "4": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"docs/validation/2026-11-09-de25-mmu-runtime/README.md\", \"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/nano_cold_platform.c\", \"platform/embedded/firmware/nano_cpu_mode.h\", \"platform/embedded/firmware/nano_firmware_ram.py\", \"platform/embedded/firmware/nano_mmu.c\", \"platform/embedded/firmware/nano_mmu.h\", \"platform/embedded/firmware/nano_mmu_platform.c\", \"platform/embedded/firmware/nano_mmu_platform.h\", \"platform/embedded/firmware/nano_owned_sip.inc\", \"platform/embedded/firmware/prepare_nano_owned.py\", \"platform/embedded/firmware/tests/nano_cold_platform_test.c\", \"platform/embedded/firmware/tests/nano_mixed_cold_test.inc\", \"platform/embedded/firmware/tests/nano_mixed_usb_test.inc\", \"platform/embedded/firmware/tests/nano_mmu_test.c\", \"platform/embedded/firmware/tests/nano_mmu_test_platform.inc\", \"platform/embedded/nano/cold_profile.py\", \"tests/test_nano_coherent_snapshot.py\", \"tests/test_nano_mixed_cold.py\", \"tests/test_nano_mmu_runtime.py\", \"tests/test_nano_rom_owner.py\"]"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 330.4575349870138,
+      "log_sha256": "48e1b7bc1e21ee4508f327957620698eb571deec0a06624f136812d3bfba00d2"
+    },
+    "5": {
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.804990531876683,
+      "log_sha256": "dbe036bed3ef167b1b67bf32995b1f1c6272d7c810828a9ec3c98318c9007fb8"
+    },
+    "6": {
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "90s",
+        "./sdcontrol",
+        "./sdhci",
+        "./fat",
+        "./packagestore"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.007077267160639,
+      "log_sha256": "fec155e9c2df6a1e40a919326e731a92b6e795ac7efaa651cf9e8c57c5d7466b"
+    },
+    "7": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 144.91369351791218,
+      "log_sha256": "d085663f3e4e729947774da6d57cbf3ff468873efd1cc27f4b643129ce25d76f"
+    },
+    "8": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py",
+        "--allow-dirty"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 24.821802557911724,
+      "log_sha256": "dc83c287909f097e24a7ed8256efdd4e153e38f0ef88eee8bf33c849f57a7d0f"
+    },
+    "9": {
+      "argv": [
+        "/usr/bin/python3",
+        "sources/misteross/prototypes/de25_board_control/verify.py",
+        "--standalone"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 56.64871639688499,
+      "log_sha256": "af29b5e552586128687727d9acbc98ae59ba1496d1052185093ac5873344e7a8"
+    },
+    "10": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.20415966399014,
+      "log_sha256": "040209b6900b7d193d79a2b97f795aa6427e91b39a3b9d2bb6f812c75f4c7c45"
+    },
+    "focused-all": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "test_nano_mmu_runtime",
+        "test_nano_firmware_mmu",
+        "test_nano_mixed_cold",
+        "test_nano_rom_owner",
+        "test_nano_coherent_snapshot",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 30.222117213066667,
+      "log_sha256": "dc68067fe48489bbf7186931b2de042fe059e3a8e1e92290eac41fb1dd94e3c1"
+    },
+    "cross-final": {
+      "argv": [
+        "python3",
+        "out/nano-mmu-runtime-20261108/cross_final.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.6024620498064905,
+      "log_sha256": "a27bafe4f97040f3dd2610b92ed80256f9366e1426d86d9e70d6c41ffe2ec1a2"
+    },
+    "mmu-active-final": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "test_nano_mmu_runtime",
+        "test_nano_mixed_cold.NanoMixedColdTests.test_actual_mmu_profile_launch_tape_return_and_failures",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 10.007828770205379,
+      "log_sha256": "cdc2c119be16b52b32624906e8ea9d784f95fc167763641fc484254b5521935c"
+    }
+  },
+  "parent_tests": 1765,
+  "existing_skips": 3,
+  "joined_modes_final": 55,
+  "fpga_modules": 214,
+  "fpga_unfinished_modules_completed": 3,
+  "original_sweep_timeout_retained": true,
+  "bounds_increased": false,
+  "final_tag_and_active_reader_refinement_after_broad_checks": true,
+  "default_behavior_proof": {
+    "status": "passed",
+    "default_sip_source_reconstructed_byte_for_byte": true,
+    "removed_selected_blocks": 2,
+    "default_cold_instructions_and_relocations_unchanged": true,
+    "compiler_inputs": "same selected compiler/header/constant inputs for baseline and current guard",
+    "scope": "unselected executable behavior; not a rebuilt whole boot image or unchanged image identity",
+    "hardware_actions": false
+  },
+  "profile_boot_installed": false,
+  "hardware_actions": false,
+  "ordinary_core_load_acceptance": false,
+  "goal_complete": false
+}

@@ -13,6 +13,7 @@
 #include "nano_program.h"
 #include "generated/fes_de25_ddr_probe.h"
 #include "fes_nano_cold_profile.h"
+#include "nano_cpu_mode.h"
 #define FES_COLD_READ32(a) mmio_read_32(a)
 #define FES_COLD_READ16(a) mmio_read_16(a)
 #define FES_COLD_WRITE32(a,v) mmio_write_32(a,v)
@@ -45,7 +46,7 @@ static int hps_io_owns(void *context,uint64_t owner,uint64_t generation)
 {
     struct fes_nano_cold *s=context;
     struct fes_nano_bridge_snapshot observed={0};
-    return GET_EL(read_current_el())==MODE_EL3 && !(read_sctlr_el3()&5U) &&
+    return GET_EL(read_current_el())==MODE_EL3 && FES_COLD_CPU_MODE() &&
         fes_nano_cold_cpu_release_locked()==1 && captured.core==MPIDR_AFFLVL1_VAL(read_mpidr()) &&
         !s->control_expected && !s->ddr_expected && !fes_nano_owned_bridges.device_lease &&
         fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)==1 &&
@@ -114,7 +115,7 @@ static int smmu_owns(void *context)
         (p->stage==FES_ID_DDR_PREPARE || p->stage==FES_ID_DDR_RELEASE) &&
         s->control_expected==1 && !s->ddr_expected && fes_nano_owned_bridges.state.reset==13;
 #endif
-    return GET_EL(read_current_el())==MODE_EL3 && !(read_sctlr_el3()&5U) &&
+    return GET_EL(read_current_el())==MODE_EL3 && FES_COLD_CPU_MODE() &&
         fes_nano_cold_cpu_release_locked()==1 && control_scope &&
         fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)==1;
 }
@@ -270,7 +271,7 @@ static uint64_t fabric_configuration_generation;
 #endif
 static int cold_master_cpu_scope(void)
 {
-    return GET_EL(read_current_el())==MODE_EL3 && !(read_sctlr_el3()&5U) &&
+    return GET_EL(read_current_el())==MODE_EL3 && FES_COLD_CPU_MODE() &&
         fes_nano_cold_cpu_release_locked()==1 && captured.core==MPIDR_AFFLVL1_VAL(read_mpidr());
 }
 static int cold_master_owns(void *context,uint64_t owner,uint64_t epoch)
@@ -732,10 +733,9 @@ int fes_nano_platform_control_target(unsigned open)
 static int identity_read(void *context, uint32_t offset, uint32_t *value)
 {
     struct fes_nano_cold *s=context;
-    /* The inspected pin has no EL3 MMU setup. This diagnostic requires both
-     * translation and data cache disabled. A changed context needs separate
-     * qualification; never turn translation off as a fallback. */
-    if (!identity_probe.active || !s->control_expected || (read_sctlr_el3()&5U) ||
+    /* Each CSR uses the explicitly selected live CPU contract. Never change
+     * translation or cache state as a fallback after a failed observation. */
+    if (!identity_probe.active || !s->control_expected || !FES_COLD_CPU_MODE() ||
         (offset>FES_EMBEDDED_REG_ACK_COOKIE_HI &&
          (!identity_probe.reader || (offset!=0x8c && offset!=0x90))) || offset&3U ||
         fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1) return -1;
@@ -744,13 +744,13 @@ static int identity_read(void *context, uint32_t offset, uint32_t *value)
     *value=mmio_read_32(FES_NANO_CONTROL_BASE+offset);
     NOTICE("FES_NANO_IDENTITY_ACCESS phase=after ordinal=%u offset=%x value=%x\n",identity_probe.reads,offset,*value);
     dsbsy();
-    return (read_sctlr_el3()&5U) || fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 ? -1 : 0;
+    return !FES_COLD_CPU_MODE() || fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 ? -1 : 0;
 }
 static int identity_write(void *context, uint32_t offset, uint32_t value)
 {
     struct fes_nano_cold *s=context;
     if (!identity_probe.reader || !identity_probe.active || !s->control_expected ||
-        (read_sctlr_el3()&5U) ||
+        !FES_COLD_CPU_MODE() ||
         fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1) return -1;
     switch(offset) {
     case FES_EMBEDDED_REG_REQUEST_GENERATION_LO:case FES_EMBEDDED_REG_REQUEST_GENERATION_HI:
@@ -762,7 +762,7 @@ static int identity_write(void *context, uint32_t offset, uint32_t value)
     NOTICE("FES_NANO_READER_WRITE phase=before offset=%x value=%x\n",offset,value);
     mmio_write_32(FES_NANO_CONTROL_BASE+offset,value);dsbsy();
     NOTICE("FES_NANO_READER_WRITE phase=after offset=%x value=%x\n",offset,value);
-    return (read_sctlr_el3()&5U) || fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 ? -1 : 0;
+    return !FES_COLD_CPU_MODE() || fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 ? -1 : 0;
 }
 static int identity_contain(void *context)
 {
@@ -785,7 +785,7 @@ int fes_nano_platform_identity_setup(void)
     unsigned context_nonzero=0,map_nonzero=0;
     for(unsigned i=0;i<32;i++) { context_nonzero|=context[i];map_nonzero|=map[i]; }
     uint64_t sctlr=read_sctlr_el3();
-    unsigned qualified=context_nonzero && map_nonzero && !(sctlr&5U) &&
+    unsigned qualified=context_nonzero && map_nonzero && FES_COLD_CPU_MODE_FROM(sctlr) &&
         FES_NANO_CONTROL_BASE>=0x20000000UL && FES_NANO_CONTROL_BASE<=0x3fffff00UL &&
         !(FES_NANO_CONTROL_BASE&3U);
     struct fes_nano_identity_ops io={.context=&provider,.configured=identity_configured,.read32=identity_read,.contain=identity_contain,.trace=identity_trace,.write32=identity_write};
@@ -815,7 +815,7 @@ static uint64_t configuration_hash_ticks;
 struct fes_nano_configuration *fes_nano_platform_configuration(void) { return &configuration; }
 int fes_nano_platform_configuration_diagnostic_ready(void)
 {
-    return !(read_sctlr_el3()&5U) && !provider.control_expected &&
+    return FES_COLD_CPU_MODE() && !provider.control_expected &&
            fes_nano_cold_owns(&provider,provider.record.boot.owner,provider.record.boot.epoch)==1;
 }
 static int configuration_guard(void *context,uint64_t owner,uint64_t generation)
@@ -847,7 +847,7 @@ static int configuration_check(void *context, uint64_t address, uint32_t bytes, 
 {
     struct fes_nano_cold *s=context;
     uint8_t observed[48];const uint8_t *expected;
-    if(whole>1 || s->control_expected || (read_sctlr_el3()&5U) ||
+    if(whole>1 || s->control_expected || !FES_COLD_CPU_MODE() ||
        fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 ||
        configuration_guard(context,configuration.owner,configuration.generation) ||
        address<FES_NANO_CONFIG_BASE || address-FES_NANO_CONFIG_BASE>UINT32_MAX)return -1;
@@ -979,7 +979,7 @@ static void configuration_trace(void *context, unsigned stage, uint32_t complete
 int fes_nano_platform_configuration_setup(void)
 {
     static const uint8_t context[32]=FES_NANO_HPS_CONTEXT_SHA;
-    unsigned qualified=!(read_sctlr_el3()&5U) &&
+    unsigned qualified=FES_COLD_CPU_MODE() &&
         FES_NANO_CONFIG_BASE==0x94800000ULL && FES_NANO_CONFIG_ARENA_SIZE==(8U<<20) &&
         FES_NANO_CONFIG_CHUNK>0 && FES_NANO_CONFIG_CHUNK<=0xffff0U && !(FES_NANO_CONFIG_CHUNK&63U);
     struct fes_nano_program_ops program={&provider,configuration_guard,configuration_descriptor};
@@ -1038,5 +1038,25 @@ int fes_nano_platform_sd_setup(void)
                                        ops,FES_NANO_SD_QUALIFIED);
     if (result) { fes_nano_platform_sd_report(); return -1; }
     return 1;
+}
+#endif
+
+#if defined(FES_NANO_FIRMWARE_MMU) && FES_NANO_FIRMWARE_MMU
+int fes_nano_cold_mmu_admit(void)
+{
+    /* Do not recurse through the bridge CPU callback while ARMING. The cold
+     * engine independently reads the complete live reset/CPU/master scope. */
+    struct fes_nano_bridges *b=&fes_nano_owned_bridges;
+    return capture_valid && captured.core==0 && provider.valid && !provider.failed &&
+        !provider.control_expected && !provider.ddr_expected &&
+        provider.devices_attempted && provider.devices_bound &&
+        sd_platform.initialized && !sd_platform.failed && !sd_platform.active && !sd_platform.prepared &&
+        usb_platform.initialized && !usb_platform.failed && !usb_platform.active && !usb_platform.confirmed &&
+        usb_composition.initialized && !usb_composition.failed &&
+        b->initialized && !b->failed && !b->device_lease &&
+        b->state.reset==FES_NANO_BRIDGES_ALL && b->state.masters_contained &&
+        b->state.never_enabled && b->state.owner==provider.record.boot.owner &&
+        b->epoch==provider.record.boot.epoch &&
+        fes_nano_cold_owns(&provider,provider.record.boot.owner,provider.record.boot.epoch)==1;
 }
 #endif

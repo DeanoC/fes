@@ -52,7 +52,7 @@ class NanoCoherentSnapshotTests(unittest.TestCase):
         platform, declarations = re.subn(r'(?m)^static int cold_master_snapshot\([^;{]*\);\n', '', platform)
         self.assertEqual(declarations, 1)
         names = ('cold_master_cpu_scope', 'master_failure', 'cold_producer_sample', 'cold_master_snapshot')
-        bodies = ''.join(function(platform, name) for name in names)
+        bodies = '#include \"nano_cpu_mode.h\"\n' + ''.join(function(platform, name) for name in names)
         for before, after in zip(names, ('observed_cpu_scope', 'observed_failure', 'observed_producer_sample', 'observed_master_snapshot')):
             bodies = bodies.replace(before, after)
         with tempfile.TemporaryDirectory(prefix='fes-nano-owner-cpu-') as tmp:

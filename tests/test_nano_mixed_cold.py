@@ -28,7 +28,10 @@ class NanoMixedColdTests(unittest.TestCase):
     def test_actual_initial_tape_supplier_dispatch_hash_and_return(self):
         self.exercise(True, initial_tape=True)
 
-    def exercise(self, shared_usb, initial_tape=False):
+    def test_actual_mmu_profile_launch_tape_return_and_failures(self):
+        self.exercise(True, initial_tape=True, firmware_mmu=True)
+
+    def exercise(self, shared_usb, initial_tape=False, firmware_mmu=False):
         reference = Path(os.environ.get('FES_NANO_SHA_REFERENCE', str(
             ROOT / 'out/terasic-git-restore-tfa/plat/intel/soc/common/lib/sha/sha.c')))
         if not reference.is_file():
@@ -38,7 +41,7 @@ class NanoMixedColdTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(reference.with_name('sha.h').read_bytes()).hexdigest(),
                          '76a51a6aba59f84f754d9b8102394ff12ce0cdad1fb89cec61130543b73f66fb')
         evidence = os.environ.get('FES_NANO_MIXED_COLD_EVIDENCE')
-        target = Path(evidence + ('-initial-tape' if initial_tape else '-shared-usb' if shared_usb else '')).absolute() if evidence else None
+        target = Path(evidence + ('-mmu' if firmware_mmu else '-initial-tape' if initial_tape else '-shared-usb' if shared_usb else '')).absolute() if evidence else None
         if target is not None:
             self.assertTrue(target.is_relative_to(ROOT / 'out') and not target.exists())
             target.mkdir(parents=True)
@@ -50,6 +53,12 @@ class NanoMixedColdTests(unittest.TestCase):
                 '#define GET_EL(v) (((v)>>2)&3)\n#define MPIDR_AFFLVL1_VAL(v) (((v)>>8)&255)\n'
                 'uint64_t read_current_el(void);\nuint64_t read_mpidr(void);\nuint64_t read_sctlr_el3(void);\n'
                 'uint64_t read_cntpct_el0(void);\nuint32_t read_cntfrq_el0(void);\nvoid dsbsy(void);\n')
+            if firmware_mmu:
+                with (base/'arch_helpers.h').open('a') as stream:
+                    stream.write('uint64_t read_midr(void),read_id_aa64mmfr0_el1(void),read_daif(void),read_scr_el3(void);\n'
+                        'uint64_t read_mair_el3(void),read_tcr_el3(void),read_ttbr0_el3(void);\n'
+                        'void write_mair_el3(uint64_t),write_tcr_el3(uint64_t),write_ttbr0_el3(uint64_t),write_sctlr_el3(uint64_t);\n'
+                        'void tlbialle3(void),isb(void);\n')
             (base / 'drivers/delay_timer.h').write_text('void udelay(unsigned);\n')
             (base / 'lib/mmio.h').write_text('#include <stdint.h>\nuint32_t mmio_read_32(uintptr_t);\n'
                 'uint16_t mmio_read_16(uintptr_t);\nvoid mmio_write_32(uintptr_t,uint32_t);\nvoid mmio_write_16(uintptr_t,uint16_t);\n')
@@ -111,6 +120,8 @@ class NanoMixedColdTests(unittest.TestCase):
                     '#define FES_NANO_HPS_IO_SHA FES_NANO_USB_BOARD_DIGEST\n')
             if initial_tape:
                 profile += '#define FES_NANO_INITIAL_TAPE 1\n'
+            if firmware_mmu:
+                profile += '#define FES_NANO_FIRMWARE_MMU 1\n'
             (base / 'fes_nano_cold_profile.h').write_text(profile)
             sources = ('nano_cold_platform.c', 'nano_cold.c', 'nano_boot.c', 'nano_bridges.c',
                 'nano_bridge_sip.c', 'nano_sd.c', 'nano_usb_service.c', 'nano_sd_platform.c',
@@ -120,6 +131,8 @@ class NanoMixedColdTests(unittest.TestCase):
                 sources += ('nano_usb_platform.c', 'nano_usb_board.c', 'nano_usb_composition.c', 'nano_hps_io.c')
             if initial_tape:
                 sources += ('nano_tape.c', 'nano_tape_service.c', 'tests/nano_tape_endpoint_test.c')
+            if firmware_mmu:
+                sources += ('nano_mmu.c','nano_mmu_platform.c')
             command = ['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-Wno-unused-const-variable',
                 '-DFES_TEST_PROGRAM_ROLES', '-DFES_TEST_HPS_CONTEXT', '-DFES_TEST_CONFIGURATION_EPOCHS',
                 '-fsanitize=undefined', '-fno-sanitize-recover=all', '-I' + str(base), '-I' + str(FW),
@@ -128,6 +141,9 @@ class NanoMixedColdTests(unittest.TestCase):
                 command.insert(1, '-DFES_TEST_SHARED_USB')
             if initial_tape:
                 command.insert(1, '-DFES_TEST_INITIAL_TAPE')
+            if firmware_mmu:
+                command[1:1]=['-DFES_TEST_FIRMWARE_MMU','-fno-pie','-no-pie',
+                              '-Wl,--defsym,fes_nano_mmu_root=0x8003c000']
             result = subprocess.run(command, capture_output=True, text=True, timeout=30)
             if target is not None:
                 (target / 'compile.log').write_text(result.stdout + result.stderr)
@@ -137,6 +153,8 @@ class NanoMixedColdTests(unittest.TestCase):
                 modes += (21, 22, 23, 24, 25, 26)
             if initial_tape:
                 modes += (30,31,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51)
+            if firmware_mmu:
+                modes += tuple(range(60,75))
             for mode in modes:
                 with self.subTest(mode=mode):
                     result = subprocess.run([base / 'mixed', str(mode)], capture_output=True, text=True, timeout=30)
@@ -144,8 +162,15 @@ class NanoMixedColdTests(unittest.TestCase):
                         (target / ('case-' + str(mode) + '.log')).write_text(result.stdout + result.stderr)
                     self.assertEqual(result.returncode, 0, result.stderr + result.stdout[-5000:])
                     self.assertIn('PASS', result.stdout)
-                    if initial_tape and mode in (31,33,34,35,38,40,41,42,43,44,45,46,47,48,49,50,51):
+                    tape_engine_failure = (mode in (31,33,34,35,38,40,41,42,43,44,45,46,47,48,49,50,51)
+                                           and not (firmware_mmu and mode==31))
+                    if initial_tape and tape_engine_failure:
                         self.assertEqual(result.stdout.count('FES_NANO_TAPE_FAILURE '), 1)
+                    if firmware_mmu and mode==31:
+                        # The live entry gate rejects before the engine starts:
+                        # the C fixture also asserts zero endpoint accesses.
+                        self.assertNotIn('FES_NANO_TAPE_FAILURE ',result.stdout)
+                        self.assertNotIn('FES_NANO_TAPE_COST ',result.stdout)
                     if initial_tape:
                         costs = re.findall(r'FES_NANO_TAPE_COST owner=([0-9a-f]+) generation=(\d+) '
                             r'kind=(\w+) calls=(\d+) samples=(\d+) period=(\d+) ticks=([0-9a-f]+) '
@@ -209,7 +234,7 @@ class NanoMixedColdTests(unittest.TestCase):
                                 with self.assertRaises(ValueError):tape_ownership_cost.decode(changed, ownership_profile)
                         contained = re.findall(r'FES_NANO_TAPE_CONTAINMENT owner=([0-9a-f]+) '
                             r'generation=(\d+) attempted=(\d+) status=(-?\d+)', result.stdout)
-                        if mode in (31,33,34,35,38,40,41,42,43,44,45,46,47,48,49,50,51):
+                        if tape_engine_failure:
                             self.assertEqual(len(contained), 1)
                             self.assertEqual(contained[0][:2], costs[0][:2])
                             self.assertEqual(contained[0][2], '1')
@@ -256,10 +281,13 @@ class NanoMixedColdTests(unittest.TestCase):
                     source_files += [ROOT / name for name in ('platform/embedded/nano/usb_readiness.py',
                         'platform/embedded/nano/hps_io.py', 'tests/fixtures/nano-usb-board/hps_bootloader_handoff.bin')]
                 source_files.append(Path(__file__))
+                if firmware_mmu:
+                    source_files += [FW/name for name in ('nano_mmu.h','nano_mmu_platform.h',
+                        'tests/nano_mmu_test_platform.inc')]
                 (target / 'contract.json').write_text(json.dumps(dict(command=command,
                     profile=profile, source_sha256={str(p.relative_to(ROOT)):
                         hashlib.sha256(p.read_bytes()).hexdigest() for p in source_files},
-                    shared_usb=shared_usb, modes=list(modes),
+                    shared_usb=shared_usb, firmware_mmu=firmware_mmu, modes=list(modes),
                     vendor_sha256=hashlib.sha256(reference.read_bytes()).hexdigest(),
                     scope='actual strong cold/SD/ROM/stop engines and optional confirmed shared USB board/master composition; pinned SHA; injected MMIO/transport; no matched board boot or USB enumeration'), indent=2) + '\n')
 

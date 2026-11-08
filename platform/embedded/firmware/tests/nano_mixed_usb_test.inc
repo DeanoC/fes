@@ -41,13 +41,20 @@ static void shared_usb_call(unsigned op,uint64_t owner,uint64_t gen,uint64_t rep
 {
     fes_nano_owned_call(FES_EMBEDDED_USB_CALL,op,owner,FES_EMBEDDED_USB_COOKIE,gen,reply);
 }
-static void shared_usb_start(uint64_t owner)
+static void shared_usb_setup(void)
 {
     shared_usb_regs[0x40/4]=0x4f543200;
     shared_usb_regs[0x48/4]=1U<<19|3U<<14|2U<<3;
     shared_usb_regs[0x4c/4]=2048U<<16;
     shared_usb_regs[0x10/4]=1U<<31;
     assert(fes_nano_platform_usb_setup()==1 && shared_boot->retained_bound);
+}
+static void shared_usb_start(uint64_t owner)
+{
+    shared_usb_setup();
+#ifdef FES_TEST_FIRMWARE_MMU
+    fes_test_mmu_start();
+#endif
     uint64_t reply[4];
     shared_usb_call(FES_EMBEDDED_USB_ACQUIRE,owner,0,reply);assert(!reply[0]);
     shared_usb_regs[12/4]=1U<<29|1U<<4;

@@ -19,6 +19,18 @@ plus the existing complete cold-image RAM and chain checks. This tool does not
 enable the MMU or change the current boot selection. The [static-link result](../../../docs/validation/2026-11-08-de25-el3-static-mmu/README.md)
 records the linked prototype and remaining runtime and hardware work.
 
+The `nano_mmu` prototype adds a one-attempt enable transition and fresh CPU/MMU
+scope checks through `nano_mmu_platform`. It retains the vendor's SCTLR settings,
+sets only M/C/WXN, verifies each selected register write, and retires partial or
+changed profiles without a cache-off fallback. The explicit
+`FES_NANO_FIRMWARE_MMU` test selection connects these checks to the existing cold
+callbacks and every owned SiP channel. Injected-register tests execute the real
+adapter, boot/master ownership checks, shared USB, tape, configuration and return
+engines. This selection is not yet exposed by the matched boot producers: late
+startup installation, source-bound profile receipts and boot trace admission are
+the next integration step. Current board images still use the existing mode.
+See the [runtime scope checks](../../../docs/validation/2026-11-09-de25-mmu-runtime/README.md).
+
 `nano_tape` is a secure-side initial-tape engine for the existing
 Avalon computer mailbox. The owned TF-A export includes its service; existing
 profiles leave the channel unready. Its trusted supplier holds the secure

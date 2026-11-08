@@ -18,6 +18,9 @@ static unsigned fes_nano_mailbox_polls;
 #include "nano_computer_control.inc"
 #include "nano_window_control.inc"
 #include "nano_program_control.inc"
+#if defined(FES_NANO_FIRMWARE_MMU) && FES_NANO_FIRMWARE_MMU
+#include "nano_mmu_platform.h"
+#endif
 
 static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
                                 uint64_t x3, uint64_t x4, uint64_t r[4])
@@ -37,6 +40,22 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
         goto out;
 #endif
     }
+#if defined(FES_NANO_FIRMWARE_MMU) && FES_NANO_FIRMWARE_MMU
+    /* Check every owned channel under its existing lock, including SD/USB
+     * queries. A damaged/partial CPU profile retains resources and exposes no
+     * success fields. Do not run reset/recovery writes in an unknown context. */
+    if (!fes_nano_mmu_platform_scope()) {
+        fes_nano_owned_bridges.failed=1;
+        if(fid==FES_EMBEDDED_USB_CALL && x3==FES_EMBEDDED_USB_COOKIE) {
+            r[0]=FES_EMBEDDED_USB_NOT_READY;r[1]=(uint64_t)FES_EMBEDDED_USB_TAG<<32;
+        } else if(fid==FES_EMBEDDED_SD_CALL && x3==FES_EMBEDDED_SD_COOKIE) {
+            r[0]=FES_EMBEDDED_SD_NOT_READY;r[1]=(uint64_t)FES_EMBEDDED_SD_TAG<<32;
+        } else if(fid==FES_EMBEDDED_BRIDGE_CALL && x3==FES_EMBEDDED_BRIDGE_COOKIE) {
+            r[0]=FES_EMBEDDED_BRIDGE_NOT_READY;r[1]=(uint64_t)FES_EMBEDDED_BRIDGE_TAG<<32;
+        }
+        goto out;
+    }
+#endif
     if (fid == FES_EMBEDDED_USB_CALL && x3 == FES_EMBEDDED_USB_COOKIE) {
         fes_nano_usb_service_sip(&fes_nano_owned_usb,x1,x2,x4,
             request_type != NO_REQUEST || fes_nano_configuration_busy(configuration),r);

@@ -263,7 +263,7 @@ def install(source, profile):
     (include / 'nano_vendor_entry.inc').write_text(vendor_source((source / COMMON).read_text()))
     (source / ENTRY).write_text(entry_source((source / ENTRY).read_text(), chain))
     (include / 'fes_nano_ram_entry.h').write_text(assembly_header(chain))
-    for name in ('nano_firmware_entry.inc', 'nano_firmware_fault.inc', 'nano_firmware_decode.inc', 'nano_firmware_cache.inc', 'nano_firmware_exit_cache.inc', 'nano_firmware_ram.h'):
+    for name in ('nano_firmware_entry.inc', 'nano_firmware_fault.inc', 'nano_firmware_decode.inc', 'nano_firmware_cache.inc', 'nano_firmware_exit_cache.inc', 'nano_firmware_ram.h', 'nano_cpu_mode.h'):
         (include / name).write_bytes((HERE / name).read_bytes())
     platform = source / PLATFORM
     text = platform.read_text()
@@ -279,7 +279,7 @@ def install(source, profile):
     call_sources = nano_firmware_call.install(source)
     percpu_sources = nano_firmware_percpu.install(source)
     names = [ENTRY, COMMON, CACHE, PLATFORM, INCLUDE+'/fes_nano_ram_entry.h', INCLUDE+'/nano_vendor_entry.inc', INCLUDE+'/nano_firmware_entry.inc', INCLUDE+'/nano_firmware_fault.inc', INCLUDE+'/nano_firmware_decode.inc', INCLUDE+'/nano_firmware_cache.inc', INCLUDE+'/nano_firmware_exit_cache.inc', INCLUDE+'/nano_firmware_status.inc',
-             INCLUDE+'/nano_firmware_ram.h', 'plat/intel/soc/common/nano_cold_platform.c']
+             INCLUDE+'/nano_firmware_ram.h', INCLUDE+'/nano_cpu_mode.h', 'plat/intel/soc/common/nano_cold_platform.c']
     return dict(contract=dict(CONTRACT), chain_sha256=chain,
                 sources={name:hashlib.sha256((source/name).read_bytes()).hexdigest() for name in dict.fromkeys(names+runtime_sources+call_sources+percpu_sources)})
 
