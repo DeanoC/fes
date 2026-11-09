@@ -48,6 +48,13 @@ All seven selected checks pass: planner/whitespace checks, parent Python
 regressions, generated consumer consistency and native firmware/FPGA lifecycle
 integration. The latter uses real patched firmware C and Verilated endpoint RTL
 with injected physical boundaries. The source snapshots remained unchanged.
+The full Nano ARM64 launcher cross-build passes from committed source
+`25b561cf49e0d21992f1afcfa40af9b6b130364f`, based on
+`1551559ac01565e412c12f5800a5114cacdf012b`. All 2118 compiler input hashes match
+the current source. ELF SHA-256:
+`0349ec9d5087786796a735dc39965c3f4fe879f8c032fd2a24a320e13c0c6751`.
+This compiles the new API alongside the launcher; it does not start native
+networking. No matched entry/BL31/FIT/SOF was rebuilt or deployed.
 All evidence and source digests are recorded in
 `out/nano-network-delivery-20261110/validation.json`. This milestone does not
 qualify physical native Ethernet, NIC stop/drain, SD writes, power-cut recovery,
