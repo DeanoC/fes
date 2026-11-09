@@ -101,6 +101,9 @@ with mouse packets.
   - Game 1 reached 84 White stones and was stopped by the player script's
     15-minute cap. Its final board (84 White, 85 Black) has no five in a
     row for either side, so it was a long game, not a missed result.
+  - The earlier `white_moves` value was a logged-move count (82); the
+    final-board census is 84 (+2), and the record does not explain the extra
+    stone beyond the +1 seen in each won game.
   - Board play totals 39:44.
 - **`m2` (20:34–21:01).** Six launches, all "Game won by White", with 14,
   17, 9, 25, 27 and 26 White stones on the final board. Board play 14:21.

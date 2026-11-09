@@ -123,7 +123,7 @@
      }
     ],
     "board_play_seconds": 2384,
-    "note": "board play is long because the player script ran 10-15 s per move under Powerboat load 55-66; on screen Black replies within about 1 s on both packages (stone counts from the recordings)",
+    "note": "board play is long because the player script ran 10-15 s per move under Powerboat load 55-66; on screen Black replies within about 1 s on both packages (stone counts from the recordings). The earlier white_moves value was a logged-move count (82); the final-board census is 84 (+2), and the record does not explain the extra stone beyond the +1 seen in each won game.",
     "first_board_frames": [
      "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c"
     ],

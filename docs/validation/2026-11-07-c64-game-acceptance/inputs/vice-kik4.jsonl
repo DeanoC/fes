@@ -1,0 +1,75 @@
+{"op": "sleep", "s": 5}
+{"op": "grab", "name": "ref-00-basic"}
+{"op": "type", "text": "LOAD\"*\",8,1\n"}
+{"op": "sleep", "s": 60}
+{"op": "grab", "name": "ref-01-loaded"}
+{"op": "type", "text": "RUN\n"}
+{"op": "sleep", "s": 20}
+{"op": "grab", "name": "ref-02-trainer"}
+{"op": "key", "name": "space", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 6}
+{"op": "key", "name": "l", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 10}
+{"op": "grab", "name": "ref-03-hiload"}
+{"op": "key", "name": "n", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 5}
+{"op": "key", "name": "n", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 12}
+{"op": "grab", "name": "ref-04-title"}
+{"op": "key", "name": "f1", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 1}
+{"op": "key", "name": "f1", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "ref-05-twojoy"}
+{"op": "joydown", "port": 2, "dirs": "R"}
+{"op": "sleep", "s": 1}
+{"op": "key", "name": "f7", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 6}
+{"op": "grab", "name": "ref-06-start-p2held"}
+{"op": "sleep", "s": 8}
+{"op": "grab", "name": "ref-07-p2held"}
+{"op": "joyup", "port": 2}
+{"op": "sleep", "s": 1}
+{"op": "joydown", "port": 1, "dirs": "R"}
+{"op": "sleep", "s": 8}
+{"op": "grab", "name": "ref-08-p1held"}
+{"op": "joydown", "port": 2, "dirs": "R"}
+{"op": "sleep", "s": 75}
+{"op": "grab", "name": "ref-09-course1"}
+{"op": "sleep", "s": 30}
+{"op": "grab", "name": "ref-10-course2"}
+{"op": "sleep", "s": 120}
+{"op": "grab", "name": "ref-11-after-race"}
+{"op": "joyup", "port": 1}
+{"op": "joyup", "port": 2}
+{"op": "sleep", "s": 10}
+{"op": "key", "name": "f1", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 1}
+{"op": "key", "name": "f1", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 1}
+{"op": "key", "name": "f7", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 4}
+{"op": "wander", "port": 1, "seconds": 150, "seed": 11, "grab_every": 30, "prefix": "ref-p0"}
+{"op": "key", "name": "f1", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 1}
+{"op": "key", "name": "f1", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 1}
+{"op": "key", "name": "f7", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 4}
+{"op": "wander", "port": 2, "seconds": 150, "seed": 12, "grab_every": 30, "prefix": "ref-p1"}
+{"op": "key", "name": "f1", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 1}
+{"op": "key", "name": "f1", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 1}
+{"op": "key", "name": "f7", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 4}
+{"op": "wander", "port": 1, "seconds": 150, "seed": 13, "grab_every": 30, "prefix": "ref-p2"}
+{"op": "key", "name": "f1", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 1}
+{"op": "key", "name": "f1", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 1}
+{"op": "key", "name": "f7", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 4}
+{"op": "wander", "port": 2, "seconds": 150, "seed": 14, "grab_every": 30, "prefix": "ref-p3"}
+{"op": "grab", "name": "ref-12-end"}
+{"op": "quit"}

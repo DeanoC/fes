@@ -96,7 +96,7 @@ MACHINE_SOURCES = (
         "fes_i386_ras", "fes_i386_fetchbuf", "fes_i386_qalign", "fes_i386_frontend", "fes_i386_amode", "fes_i386_dfwd", "fes_i386_agu",
         "fes_i386_ucode_pkg", "fes_i386_ucode_rom", "fes_i386_decode", "fes_i386_seq", "fes_i386_dops",
         "fes_i386_shift", "fes_i386_shflags", "fes_i386_exctl", "fes_i386_muldiv", "fes_i386_ex",
-        "fes_i386_l1i", "fes_i386_l1d", "fes_i386_biu", "fes_i386_gov_rom", "fes_i386_governor", "fes_i386_cpu")),
+        "fes_i386_tlb", "fes_i386_l1i", "fes_i386_l1d", "fes_i386_biu", "fes_i386_gov_rom", "fes_i386_governor", "fes_i386_cpu")),
     *(f"cores/fes-common/vendor/kf8259/{name}.sv" for name in (
         "KF8259", "KF8259_Bus_Control_Logic", "KF8259_Control_Logic", "KF8259_In_Service",
         "KF8259_Interrupt_Request", "KF8259_Priority_Resolver")),
