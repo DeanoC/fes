@@ -1,0 +1,31 @@
+=== K A SHIFT+L 5 NL SHIFT+9 K A SHIFT+U SHIFT+L SHIFT+Y X Y SHIFT+Y NL SHIFT+9 D B SHIFT+I 3 SHIFT+O NL SHIFT+9 F I SHIFT+L 1 SHIFT+4 5 NL SHIFT+9 K B SHIFT+I 2 SHIFT+O SHIFT+L 7 NL
+sys: ff c0 fe ff 48 40 00 00 28 40 41 40 41 40 42 40 5e 40 02 00 00 00 00 00 00 00 6f 07 00 00 22 03 42 40 00 37 21 17 ff ff
+VARS=4028 E_LINE=4041 D_FILE=4041 DF_EA=4042 DF_END=405e
+prog:
+vars: 66 05 00 86 3d 3e 01 a7 03 00 00 00 00 07 00 00 00 ee 01 00 05 00 ff ff 80
+eline:
+screen:
+   0||
+   1||
+   2||
+   3||
+   4||
+   5||
+   6||
+   7||
+   8||
+   9||
+  10||
+  11||
+  12||
+  13||
+  14||
+  15||
+  16||
+  17||
+  18||
+  19||
+  20||
+  21||
+  22||
+  23|0/-2|
