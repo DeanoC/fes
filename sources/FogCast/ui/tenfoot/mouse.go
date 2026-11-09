@@ -40,6 +40,10 @@ func (a *App) HandlePlayMouseMotion(id int, dx, dy float64) bool {
 		return true
 	}
 	a.mu.Lock()
+	if a.playHIDInputBlockedLocked() {
+		a.mu.Unlock()
+		return true
+	}
 	m := a.mouse(id)
 	m.x = math.Max(-32768, math.Min(32767, m.x+dx))
 	m.y = math.Max(-32768, math.Min(32767, m.y+dy))
@@ -67,6 +71,10 @@ func (a *App) HandlePlayMouseButton(id, button int, down bool) bool {
 		return true
 	}
 	a.mu.Lock()
+	if a.playHIDInputBlockedLocked() {
+		a.mu.Unlock()
+		return true
+	}
 	m := a.mouse(id)
 	mask := uint8(1)
 	if button == 3 {
@@ -96,6 +104,10 @@ func (a *App) HandlePlayMouseReport(id int, dx, dy int16, buttons uint8) bool {
 		return false
 	}
 	a.mu.Lock()
+	if a.playHIDInputBlockedLocked() {
+		a.mu.Unlock()
+		return true
+	}
 	a.mouse(id).buttons = buttons & 3
 	event := remoteinput.MouseEvent(dx, dy, a.mouseButtons())
 	a.mu.Unlock()

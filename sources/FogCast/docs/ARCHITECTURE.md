@@ -4102,7 +4102,11 @@ focus moves. A refused surround closes the plane, and the setting stays off
 for that session. UI navigation is suppressed at both launcher and target;
 held keys and controller buttons require release and a fresh press, including B
 when Stop fails. Button releases still clear suppression while Stop is pending
-or retryable. Failed close retains
+or retryable. During Stop and retry-Stop, gameplay delivery admits only key and
+button releases, zero axes, and mouse reports with no motion or held buttons.
+Keyboard recovery keys still reach the normal navigation path, so Escape and
+Backspace can return the captured display or retry Stop. Mouse events rejected
+by this fence do not accumulate motion or buttons for a later replay. Failed close retains
 focus for an explicit retry. Stop retains the display binding and pending display
 reply until idle or a replacement session is confirmed. If Stop fails, Back,
 controller B and shell exit can return the captured plane; a late open does not

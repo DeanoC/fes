@@ -2974,14 +2974,6 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 	if a == nil {
 		return false
 	}
-	if down {
-		a.mu.Lock()
-		blocked := a.playHIDInputBlockedLocked()
-		a.mu.Unlock()
-		if blocked {
-			return true
-		}
-	}
 	a.mu.Lock()
 	waitingForHost := a.kitHost && (a.hostAwaitStatus || a.kitHostPreparing)
 	a.mu.Unlock()
@@ -3084,14 +3076,6 @@ func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
 }
 
 func (a *App) handlePlayHIDKey(name string, down bool, now time.Time) bool {
-	if down {
-		a.mu.Lock()
-		blocked := a.playHIDInputBlockedLocked()
-		a.mu.Unlock()
-		if blocked {
-			return true
-		}
-	}
 	if a.handlePlayingRoomKey(name, down, now) {
 		return true
 	}
@@ -3162,6 +3146,22 @@ func (a *App) SendCoreKey(event remoteinput.Event) {
 	a.SendPlayHID(event)
 }
 
+// neutralPlayHIDEvent only clears input state; mouse reports carry both a
+// transient motion vector and a complete button snapshot.
+func neutralPlayHIDEvent(event remoteinput.Event) bool {
+	if event.Device == remoteinput.DeviceMouse {
+		return event.Kind == remoteinput.KindRelative && event.Action == remoteinput.ActionRelative && event.Value == 0 && event.Code == 0
+	}
+	switch event.Kind {
+	case remoteinput.KindAxis:
+		return event.Action == remoteinput.ActionAbsolute && event.Value == 0
+	case remoteinput.KindKey, remoteinput.KindButton:
+		return event.Action == remoteinput.ActionRelease
+	default:
+		return false
+	}
+}
+
 // SendPlayHID posts one play-session HID event. Foreign kit leases fail closed.
 func (a *App) SendPlayHID(event remoteinput.Event) bool {
 	if a == nil {
@@ -3170,9 +3170,9 @@ func (a *App) SendPlayHID(event remoteinput.Event) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	ready := a.forwardsPlayHIDLocked()
-	blockedPress := event.Action == remoteinput.ActionPress && a.playHIDInputBlockedLocked()
+	blocked := a.playHIDInputBlockedLocked() && !neutralPlayHIDEvent(event)
 	foreign := a.playHIDFailClosedLocked()
-	if !ready || blockedPress || foreign || a.client == nil {
+	if !ready || blocked || foreign || a.client == nil {
 		return false
 	}
 	if (event.Action == remoteinput.ActionPress || event.Kind == remoteinput.KindAxis && event.Value != 0 || event.Device == remoteinput.DeviceMouse && (event.Value != 0 || event.Code != 0)) && a.playHIDPending >= maxPendingPlayHID {
