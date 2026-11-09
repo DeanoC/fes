@@ -310,13 +310,21 @@ host. Results:
   to play. Stop and relaunch boots disk 1 again. Neither disk record changed.
   Night Shift's swap also ran, but its fruit-code manual check stops play.
 
+The [main-package record](validation/2026-11-08-atari-st-main-package/summary.md)
+reran Xenon, Gomoku, The Lurking Horror and the Terramex swap on main's sealed
+package `2b54eb67` (fes `25204901`). Each passes two Kit A runs; no core defect
+was found. Typed input through the host can arrive with late key-ups that make
+TOS auto-repeat keys (#1582). That spoiled two Lurking Horror attempts, so the
+second counted run checks each typed command on screen before Enter.
+
 Still owed:
 
-- A disk swap from tenfoot. The ST package has no session display, so today
-  an ST disk is swapped only through the host API.
-- Runs on a seal of main's ST tree. The ST producer stopped at its source read
-  audit on 7 November; #1544 (merged 8 November) fixed it and sealed main's
-  tree as `1f3b21b7…`, so only the rerun remains.
+- A swap from tenfoot. The ST package has no session display, and
+  tenfoot has no ST swap control, so case 4 swaps through the host API.
+- A gameplay reference for Xenon and Gomoku. Hatari's command interface has
+  no joystick or mouse-move events.
+- Protected originals. [#1541](https://github.com/DeanoC/fes/issues/1541)
+  tracks running IPF images directly.
 
 ## PC/XT development packages
 
