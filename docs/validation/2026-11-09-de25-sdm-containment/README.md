@@ -57,6 +57,14 @@ recorded evidence path. The first missing-module preflight and patch-context
 whitespace refusal remain retained. The patch was regenerated with zero context;
 all eight supplier results and executed model bytes are unchanged and rechecked.
 
+Parent validation ran 64 planner cases and 1,690 parent cases (45 skipped).
+The precommit run retained one source-provenance error: the fixture selected
+HEAD while its factory recipe came from the modified working tree. After
+commit a0c127a260714d528c23b5eb87b880e6388c7156, that exact test passed against the
+matching Git snapshot. The remaining planned consistency check and `make check`
+pass (41 consumers/45 fixtures). No entire-parent rerun is claimed; new-head CI
+remains pending. The precommit failure log remains preserved.
+
 Next: a clean committed-source producer build and matching image preparation,
 then an approved exact-stack boot/ordinary-programming check. Independent
 physical fence/reset qualification must precede intentional failed-transfer

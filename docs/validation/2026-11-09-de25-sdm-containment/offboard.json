@@ -113,5 +113,19 @@
   "runtime_recovery_policy_changed": false,
   "normal_admission_changed": false,
   "powerboat_evidence": "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/smmu-producer-integration-20261109",
-  "patch_context_reencoding_preserves_all_supplier_and_executed_model_bytes": true
+  "patch_context_reencoding_preserves_all_supplier_and_executed_model_bytes": true,
+  "source_commit": "a0c127a260714d528c23b5eb87b880e6388c7156",
+  "parent_checks": {
+    "scope_base": "c95aed6291143d92b76bc912eb96bae2de56a30d",
+    "always_run_planner_cases": 64,
+    "parent_run_cases": 1690,
+    "parent_skips": 45,
+    "precommit_errors": 1,
+    "retained_failure": "test_factory_sdk_uses_original_git_producer_and_current_factory_verifier refused changed uncommitted recipe vs HEAD",
+    "after_commit_failed_case_passed": true,
+    "remaining_planned_consistency_passed": true,
+    "make_check": "41 consumers/45 fixtures match",
+    "full_test_changed_rerun_after_commit": false,
+    "new_head_CI": "pending"
+  }
 }
