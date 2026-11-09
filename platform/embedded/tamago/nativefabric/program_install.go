@@ -133,7 +133,7 @@ func (b *ProgramBackend) Install(ctx context.Context, generation uint64, plan *P
 	return nil
 }
 
-func (s *ProgramService) install(ctx context.Context, generation uint64, plan *ProgramInstall) error {
+func (s *ProgramService) install(ctx context.Context, generation uint64, plan *ProgramInstall) (result error) {
 	p, view, err := s.begin(ctx)
 	if err != nil {
 		return err
@@ -142,6 +142,10 @@ func (s *ProgramService) install(ctx context.Context, generation uint64, plan *P
 	if view.State != ProgramReady || view.Generation != generation || generation > math.MaxUint64-2 || plan == nil || plan.loader != p.loader || plan.content == nil {
 		return ErrProgramSession
 	}
+	if err := p.pauseNetwork(ctx); err != nil {
+		return err
+	}
+	defer p.finishNetwork(&result)
 	work, cancel := context.WithTimeout(ctx, 100*time.Second)
 	defer cancel()
 	view.State = ProgramLoading

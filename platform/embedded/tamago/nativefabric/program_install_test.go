@@ -65,10 +65,13 @@ func programUpload(f *programTestFiles, r packagestore.Request) map[string][]byt
 	return files
 }
 
-func newProgramInstallFixture(t *testing.T) (*programMenuFixture, *ProgramBackend, *ProgramInstall, map[string][]byte) {
+func newProgramInstallFixture(t *testing.T, beforeFrontend ...func(*programMenuFixture)) (*programMenuFixture, *ProgramBackend, *ProgramInstall, map[string][]byte) {
 	t.Helper()
 	f := newProgramMenuFixture(t, "")
 	request, _, _ := addROMProgram(t, f.r, 0, 8192)
+	for _, setup := range beforeFrontend {
+		setup(f)
+	}
 	b, err := NewProgramBackend(f.s, []ProgramEntry{{ID: "existing", Title: "Existing core", Request: request}})
 	if err != nil {
 		t.Fatal(err)

@@ -14,13 +14,16 @@ import (
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
-func backendFixture(t *testing.T) (*serviceFixture, *ProgramBackend, *hostclient.Client) {
+func backendFixture(t *testing.T, beforeFrontend ...func(*serviceFixture)) (*serviceFixture, *ProgramBackend, *hostclient.Client) {
 	t.Helper()
 	f := serviceTest(t)
 	var entries []ProgramEntry
 	for i := range 2 {
 		r, _, _ := addProgram(t, f.loader, f.files, i)
 		entries = append(entries, ProgramEntry{ID: fmt.Sprintf("native-%d", i), Title: fmt.Sprintf("Native %d", i), Request: r})
+	}
+	for _, setup := range beforeFrontend {
+		setup(f)
 	}
 	b, err := NewProgramBackend(f.s, entries)
 	if err != nil {

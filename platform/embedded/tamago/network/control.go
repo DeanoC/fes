@@ -6,6 +6,7 @@ import (
 	"errors"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -37,6 +38,27 @@ type linkController struct {
 	link      *Link
 	dma       DMAControl
 	paused    bool
+	assigned  atomic.Bool
+}
+
+// Claim transfers this active controller to one lifecycle owner, without IO.
+// Copies share the claim. The caller must stop using the handle independently;
+// claiming it supplies no platform or DMA authority of its own.
+func (c *Controller) Claim() error {
+	if c == nil || c.state == nil {
+		return ErrControl
+	}
+	if !c.state.operation.TryLock() {
+		return ErrBusy
+	}
+	defer c.state.operation.Unlock()
+	if err := c.state.link.Available(); err != nil {
+		return err
+	}
+	if !c.state.assigned.CompareAndSwap(false, true) {
+		return ErrControl
+	}
+	return nil
 }
 
 // NewController binds once, without hardware IO. A missing control supplier

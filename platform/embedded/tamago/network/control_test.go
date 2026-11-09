@@ -107,6 +107,9 @@ func TestControllerWaitsForRXAndTXBeforePlatformDrain(t *testing.T) {
 			if !errors.Is(c.ResumeNetwork(context.Background()), ErrBusy) {
 				t.Fatal("concurrent control admitted")
 			}
+			if !errors.Is(c.Claim(), ErrBusy) {
+				t.Fatal("ownership transferred during drain")
+			}
 			close(d.release)
 			if err = controlResult(t, ioDone); err != nil {
 				t.Fatal(err)

@@ -1,5 +1,21 @@
 # Native contained-fabric endpoint
 
+`ProgramService.AttachNetwork` transfers one active controller before frontend
+ownership. Attachment claims the shared handle without hardware IO. Once bound,
+launch, return, installation, running Park and menu shutdown drain networking
+before native storage/configuration/closure. Healthy Ready/Running completion
+restarts it; terminal Park and failure leave it stopped. Rejected stale requests
+do not touch the controller. Initial menu construction precedes network startup.
+
+Presentation and other frontend failures also drain before ordinary firmware
+cleanup. An uncertain drain or restart retires in software without issuing more
+firmware calls or changing the cached Held/identity observations. Restart errors
+propagate through the original service API; no successful launch or installation
+is published after that failure. This requires an explicitly qualified supplier
+for the same boot/device/DMA scope, including coexistence during healthy frame
+and computer control. No such Nano supplier is enabled; its firmware MAC lease,
+DMA drain and physical Ethernet qualification remain separate work.
+
 `ProgramSource` downloads an existing Nano export over HTTP: the normal
 `FES/CORESEL.JSN` and `FES/UI.JSON` select the archive, metadata, ROM sources and
 optional tape. It uses the same control-file decoders and package/ROM validator

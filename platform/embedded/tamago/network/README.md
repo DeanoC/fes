@@ -65,8 +65,12 @@ paused. This does not promise sockets survive a long FPGA configuration.
 The gate alone supplies no DMA fence. There is no default supplier, no buffer
 free or descriptor reallocation, and no automatic recovery. The current Nano
 profile has no qualified NIC lease/drain supplier and still disables Ethernet.
-Before enabling it for core loads, the runtime must apply the qualified control
-to every FPGA lifecycle path, including presentation failures and final shutdown.
+The native `ProgramService.AttachNetwork` now claims the active controller once
+before frontend ownership and guards configuration, return, install, Park,
+presentation-failure cleanup and shutdown. Initial menu construction occurs
+before network startup. Unknown drain/restart retires without more firmware IO.
+Enabling the Nano still requires a source-bound firmware MAC lease/drain supplier
+and a qualified policy for ordinary frame/computer control while it is active.
 The model test exchanges actual HTTP through XGMAC descriptors and the IP stack
 across three short pause/resume cycles; its model-only callbacks are not firmware
 or physical DMA proof.

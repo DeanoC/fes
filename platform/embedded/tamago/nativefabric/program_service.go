@@ -13,6 +13,7 @@ import (
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
+	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 )
 
@@ -81,6 +82,7 @@ type programService struct {
 	execution      ProgramFetchObservation
 	menu           *programServiceMenu
 	preferences    *ProgramPreferences
+	network        *network.Controller
 }
 
 // NewProgramService takes exclusive lifecycle ownership of this verifier once.
@@ -151,6 +153,14 @@ func (s *ProgramService) begin(ctx context.Context) (*programService, ProgramSer
 // fail is terminal. Close is attempted at most once if control was opened;
 // failed transfers/regions and plans stay retained and SD is never resumed.
 func (p *programService) fail(err error) error {
+	if p.network != nil {
+		cleanup, done := context.WithTimeout(context.Background(), 5*time.Second)
+		networkErr := p.pauseNetwork(cleanup)
+		done()
+		if networkErr != nil {
+			return p.networkFailure(errors.Join(err, networkErr))
+		}
+	}
 	p.preferences.seal(err)
 	if p.computer != nil && !p.closed {
 		p.closed = true
@@ -174,7 +184,7 @@ func (p *programService) fail(err error) error {
 // Content rejection leaves healthy SD usable. After containment, any uncertainty
 // retires the service. Success requires live identity, stable held fetch samples
 // and independent fetch-counter progress after one Run, within the existing bound.
-func (s *ProgramService) Launch(ctx context.Context, generation uint64, request packagestore.Request) (ProgramSession, error) {
+func (s *ProgramService) Launch(ctx context.Context, generation uint64, request packagestore.Request) (_ ProgramSession, result error) {
 	p, view, err := s.begin(ctx)
 	if err != nil {
 		return ProgramSession{}, err
@@ -183,6 +193,10 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	if view.State != ProgramReady || view.Generation != generation || generation > math.MaxUint64-2 {
 		return ProgramSession{}, ErrProgramSession
 	}
+	if err := p.pauseNetwork(ctx); err != nil {
+		return ProgramSession{}, err
+	}
+	defer p.finishNetwork(&result)
 	view.State, view.Error = ProgramLoading, ""
 	p.publish(view)
 	if p.menu != nil {
@@ -318,7 +332,7 @@ func (s *ProgramService) Park(ctx context.Context, session ProgramSession) (Comp
 	return s.finish(ctx, session, false)
 }
 
-func (s *ProgramService) finish(ctx context.Context, session ProgramSession, resume bool) (ComputerObservation, error) {
+func (s *ProgramService) finish(ctx context.Context, session ProgramSession, resume bool) (_ ComputerObservation, result error) {
 	p, view, err := s.begin(ctx)
 	if err != nil {
 		return ComputerObservation{}, err
@@ -327,6 +341,10 @@ func (s *ProgramService) finish(ctx context.Context, session ProgramSession, res
 	if !p.session(view, session) {
 		return ComputerObservation{}, ErrProgramSession
 	}
+	if err := p.pauseNetwork(ctx); err != nil {
+		return ComputerObservation{}, err
+	}
+	defer p.finishNetwork(&result)
 	view.State = ProgramReturning
 	p.publish(view)
 	control, cancel := context.WithTimeout(context.Background(), 5*time.Second)

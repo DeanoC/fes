@@ -231,7 +231,7 @@ func (s *ProgramService) presentMenu(ctx context.Context, frame *stdimage.RGBA, 
 
 // ParkMenu is final application shutdown from a displayed Ready menu. It
 // independently closes once and leaves SD contained, with no later launch.
-func (s *ProgramService) ParkMenu(ctx context.Context) error {
+func (s *ProgramService) ParkMenu(ctx context.Context) (result error) {
 	p, view, err := s.begin(ctx)
 	if err != nil {
 		return err
@@ -240,6 +240,10 @@ func (s *ProgramService) ParkMenu(ctx context.Context) error {
 	if p.menu == nil || view.State != ProgramReady || view.Generation == math.MaxUint64 {
 		return ErrProgramSession
 	}
+	if err := p.pauseNetwork(ctx); err != nil {
+		return err
+	}
+	defer p.finishNetwork(&result)
 	p.preferences.seal(nil)
 	checkpoint := false
 	if p.preferences != nil {
