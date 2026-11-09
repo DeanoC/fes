@@ -2,12 +2,60 @@ package rooms
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/localcores"
 	lua "github.com/yuin/gopher-lua"
 )
+
+func TestHomeRestartsPartialPictureOnChanges(t *testing.T) {
+	held := blockingLocalCores{fakeLocalCores: &fakeLocalCores{cores: []localcores.Core{{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true}}}, release: make(chan struct{})}
+	t.Cleanup(func() {
+		select {
+		case <-held.release:
+		default:
+			close(held.release)
+		}
+	})
+	r := newRoom(t, examplePack(t, "example.fes-cores"), Options{Local: held, Width: 1280, Height: 720})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	r.Step(time.Now())
+	r.Hover("family:2")
+	r.Resize(800, 600)
+	r.Step(time.Now())
+	r.presentFrame(false)
+	r.Step(time.Now())
+	close(held.release)
+	f := stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
+	if got := r.Destination().Label; got != "ZX Spectrum" {
+		t.Fatalf("focus changed to %q", got)
+	}
+	hits := map[string]int{}
+	for _, h := range f.Hits {
+		if strings.HasPrefix(h.ID, "family:") {
+			hits[h.ID]++
+			if h.X+h.W > 800 {
+				t.Fatalf("stale hit after resize: %+v", h)
+			}
+		}
+	}
+	if len(hits) != 4 {
+		t.Fatalf("family hits = %v", hits)
+	}
+	for id, count := range hits {
+		if count != 1 {
+			t.Fatalf("duplicate hit %s: %d", id, count)
+		}
+	}
+	same := r.Step(time.Now())
+	if &f.Ops[0] != &same.Ops[0] {
+		t.Fatal("completed picture was not reused")
+	}
+}
 
 func TestHomeReusesFrameAndRedrawsChanges(t *testing.T) {
 	for _, size := range [][2]int{{1280, 720}, {470, 350}, {300, 350}} {
@@ -75,7 +123,14 @@ func TestHomeReplacesReusedCheckingFrame(t *testing.T) {
 	if err := r.Load(); err != nil {
 		t.Fatal(err)
 	}
-	checking := r.Step(time.Now())
+	checking := stepUntil(t, r, func(f Frame) bool {
+		for _, h := range f.Hits {
+			if h.ID == "family:4" {
+				return true
+			}
+		}
+		return false
+	})
 	same := r.Step(time.Now())
 	if &checking.Ops[0] != &same.Ops[0] {
 		t.Fatal("unchanged Checking frame was rebuilt")
@@ -108,8 +163,16 @@ func TestHomeReusesCompletedSlowPaint(t *testing.T) {
 	if !r.frameReady || r.frameOverruns != 1 || len(first.Ops) == 0 {
 		t.Fatal("completed slow paint was not presented as one soft overrun")
 	}
+	completed := stepUntil(t, r, func(f Frame) bool {
+		for _, h := range f.Hits {
+			if h.ID == "family:4" {
+				return true
+			}
+		}
+		return false
+	})
 	next := r.Step(time.Now())
-	if r.frameOverruns != 0 || &first.Ops[0] != &next.Ops[0] {
-		t.Fatal("unchanged Home repeated its slow paint instead of reusing it")
+	if r.frameOverruns != 0 || &completed.Ops[0] != &next.Ops[0] {
+		t.Fatal("completed Home did not reuse its picture")
 	}
 }
