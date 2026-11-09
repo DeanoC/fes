@@ -198,6 +198,23 @@ far:    ret
         """, 0x300)
         self.assertEqual(image[:5], bytes([0x20, 0x00, 0xc3, 0x00, 0x02]))
 
+    def test_a_chained_jr_follows_its_jump_when_it_moves(self):
+        # The first jr grows, moving the jp the second one goes by.
+        image = assemble("""
+        floatorder
+        org 0
+        jr nz,far1
+        jr z,far2
+        jp far2
+        org 8
+        ret
+        org 0x200
+far1:   ret
+far2:   ret
+        """, 0x300)
+        self.assertEqual(image[:9], bytes([0xc2, 0x00, 0x02, 0x28, 0x00,
+                                           0xc3, 0x01, 0x02, 0xc9]))
+
     def test_labels_after_a_jump_share_a_section(self):
         image = assemble("""
         floatlimit 8
