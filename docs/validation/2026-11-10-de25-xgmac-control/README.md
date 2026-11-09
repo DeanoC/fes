@@ -53,6 +53,13 @@ Commands, source snapshots and results remain under
 All six affected checks pass, including parent Python regressions and generated
 consumer consistency. The complete XGMAC/network race suites pass independently;
 selected source snapshots and BSP references remain unchanged across validation.
+The full Nano ARM64 launcher cross-build passes from committed source
+`762efbfc11696289a761f69772c4235ed308462b`, based on
+`e2137b54bbedb34cefd78405758b5a491918bdcc`. All 2121 compiler input hashes
+match the current source. ELF SHA-256:
+`c801ff31904fdfcf52332a2a1d9d4ded579a67489f069da48e5edc024ce3a156`.
+Network stays disabled, SD read-only and preferences volatile. No matched
+entry/BL31/FIT/SOF was rebuilt or deployed; cross-building is not physical proof.
 No kit/card/programmer or remote builder was touched. The source-bound firmware
 MAC lease, private peripheral generation, active-core coexistence and independent
 DMA fence are still required before selecting native Ethernet. Existing boot,
