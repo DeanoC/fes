@@ -38,5 +38,5 @@ int fes_nano_mmu_enable(struct fes_nano_mmu *, const struct fes_nano_mmu_policy 
 /* COLD is admitted only before NS execution (SCR.NS=0). ACTIVE checks all
  * selected MMU registers afresh. A failed/partial profile has no off fallback. */
 int fes_nano_mmu_scope(struct fes_nano_mmu *, const struct fes_nano_mmu_policy *,
-                       struct fes_nano_mmu_ops);
+                       void *, int (*observe)(void *, struct fes_nano_mmu_registers *));
 #endif

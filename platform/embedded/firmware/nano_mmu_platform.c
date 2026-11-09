@@ -95,7 +95,7 @@ static struct fes_nano_mmu_ops operations(void)
 int fes_nano_mmu_platform_enable(void)
 { return fes_nano_mmu_enable(&mmu,&policy,operations()); }
 int fes_nano_mmu_platform_scope(void)
-{ return fes_nano_mmu_scope(&mmu,&policy,operations()); }
+{ return fes_nano_mmu_scope(&mmu,&policy,0,observe); }
 static void report(const char *phase)
 {
     struct fes_nano_mmu_registers r;observe(0,&r);

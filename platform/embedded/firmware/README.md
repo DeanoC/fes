@@ -1846,3 +1846,12 @@ changed-descriptor controls against the actual production tables. These checks
 exercise address selection and translation; they perform no Nano MMIO and do
 not qualify physical cache/device behavior. A fresh matched hardware test is
 still required before claiming that startup or ordinary core admission works.
+
+
+The live MMU scope API passes only its observation context and callback as
+scalar arguments. It preserves every live register observation and predicate,
+with the original cold enable callback table. The selected ARM build has an
+eight-instruction wrapper with no stack/callback-table copies. Mutable MMU
+lifecycle/failure state retains secure NC OCRAM storage; memory descriptors and
+the tape deadline are unchanged. See the scalar-scope validation record for
+source/compiled checks and the remaining physical trial.

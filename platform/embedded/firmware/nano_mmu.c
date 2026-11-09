@@ -82,14 +82,14 @@ int fes_nano_mmu_enable(struct fes_nano_mmu *s, const struct fes_nano_mmu_policy
     return 0;
 }
 int fes_nano_mmu_scope(struct fes_nano_mmu *s, const struct fes_nano_mmu_policy *p,
-                       struct fes_nano_mmu_ops io)
+                       void *context, int (*observe)(void *, struct fes_nano_mmu_registers *))
 {
     struct fes_nano_mmu_registers r;
     if (!s || s->stage==FES_MMU_FAILED) return 0;
-    if (!policy_ok(p) || !io.observe || s->first_error ||
+    if (!policy_ok(p) || !observe || s->first_error ||
         (s->stage!=FES_MMU_COLD && s->stage!=FES_MMU_ACTIVE)) {fail(s,-8);return 0;}
     unsigned stage=s->stage;
-    if (io.observe(io.context,&r) || s->stage!=stage) {fail(s,-8);return 0;}
+    if (observe(context,&r) || s->stage!=stage) {fail(s,-8);return 0;}
     if (stage==FES_MMU_COLD) {
         if (s->attempted || s->writes || s->memory_verified || !boot_ok(&r)) {fail(s,-8);return 0;}
         return 1;

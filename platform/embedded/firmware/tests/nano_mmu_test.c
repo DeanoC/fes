@@ -73,14 +73,14 @@ static void failed_stays_failed(struct fixture *f)
     assert(f->state.stage==FES_MMU_FAILED && f->state.first_error);
     unsigned events=f->events,writes=f->writes;
     int error=f->state.first_error;
-    assert(!fes_nano_mmu_scope(&f->state,&f->policy,ops(f)));
+    assert(!fes_nano_mmu_scope(&f->state,&f->policy,f,observe));
     assert(fes_nano_mmu_enable(&f->state,&f->policy,ops(f))<0);
     assert(f->events==events && f->writes==writes && f->state.first_error==error);
 }
 int main(void)
 {
     struct fixture f=canonical();
-    assert(fes_nano_mmu_scope(&f.state,&f.policy,ops(&f))==1 && !f.writes);
+    assert(fes_nano_mmu_scope(&f.state,&f.policy,&f,observe)==1 && !f.writes);
     f=canonical();
     assert(!fes_nano_mmu_enable(&f.state,&f.policy,ops(&f)));
     assert(f.state.stage==FES_MMU_ACTIVE && f.state.attempted && f.state.writes==4);
@@ -89,7 +89,7 @@ int main(void)
     assert(f.registers.sctlr==(0x30c5183aULL|FES_NANO_MMU_SET));
     unsigned events=f.events;
     f.registers.scr|=1;f.registers.daif&=~0x100ULL;
-    assert(fes_nano_mmu_scope(&f.state,&f.policy,ops(&f))==1);
+    assert(fes_nano_mmu_scope(&f.state,&f.policy,&f,observe)==1);
     assert(fes_nano_mmu_enable(&f.state,&f.policy,ops(&f))<0);
     failed_stays_failed(&f);
     for(unsigned n=1;n<=events;n++) {
@@ -144,7 +144,7 @@ int main(void)
         case 11:f.policy.root+=4096;break;
         case 12:f.state.memory_verified=0;break;
         }
-        assert(!fes_nano_mmu_scope(&f.state,&f.policy,ops(&f)));
+        assert(!fes_nano_mmu_scope(&f.state,&f.policy,&f,observe));
         f.registers=saved;failed_stays_failed(&f);
     }
     for(unsigned mode=0;mode<4;mode++) {
@@ -160,11 +160,22 @@ int main(void)
         assert(fes_nano_mmu_enable(&f.state,&f.policy,io)<0 && !f.events);
         failed_stays_failed(&f);
     }
+    /* Scope still makes exactly one fresh observation and latches failures. */
+    for(unsigned active=0;active<2;active++) {
+        f=canonical();if(active)assert(!fes_nano_mmu_enable(&f.state,&f.policy,ops(&f)));
+        unsigned prior=f.events;
+        assert(fes_nano_mmu_scope(&f.state,&f.policy,&f,observe)==1 && f.events==prior+1);
+        f.fail_event=f.events+1;
+        assert(!fes_nano_mmu_scope(&f.state,&f.policy,&f,observe));failed_stays_failed(&f);
+        f=canonical();if(active)assert(!fes_nano_mmu_enable(&f.state,&f.policy,ops(&f)));
+        prior=f.events;
+        assert(!fes_nano_mmu_scope(&f.state,&f.policy,&f,0) && f.events==prior);failed_stays_failed(&f);
+    }
     f=canonical();f.reenter=1;
     assert(fes_nano_mmu_enable(&f.state,&f.policy,ops(&f))<0 && f.writes==1);
     failed_stays_failed(&f);
     f=canonical();f.registers.scr|=1;
-    assert(!fes_nano_mmu_scope(&f.state,&f.policy,ops(&f)) && !f.writes);
+    assert(!fes_nano_mmu_scope(&f.state,&f.policy,&f,observe) && !f.writes);
     f.registers.scr&=~1ULL;failed_stays_failed(&f);
     for(unsigned n=1;n<=2;n++) {
         f=canonical();f.corrupt_flush=n;
@@ -175,14 +186,14 @@ int main(void)
      * the first cold scope check. Restoring it cannot revive that boot. */
     f=canonical();f.registers.scr=0x239;f.registers.mmfr0=0x101122;
     f.registers.sctlr=0xc5183a;f.registers.daif=0x2c0;
-    assert(!fes_nano_mmu_scope(&f.state,&f.policy,ops(&f)) && !f.writes);
+    assert(!fes_nano_mmu_scope(&f.state,&f.policy,&f,observe) && !f.writes);
     f.registers.scr=0x238;failed_stays_failed(&f);
     /* A fresh boot after the repaired helper retains the unchanged guard. */
     f=canonical();f.registers.scr=0x238;f.registers.mmfr0=0x101122;
     f.registers.sctlr=0xc5183a;f.registers.daif=0x2c0;
-    assert(fes_nano_mmu_scope(&f.state,&f.policy,ops(&f))==1);
+    assert(fes_nano_mmu_scope(&f.state,&f.policy,&f,observe)==1);
     assert(!fes_nano_mmu_enable(&f.state,&f.policy,ops(&f)) && f.state.memory_verified);
     f.registers.scr|=1;
-    assert(fes_nano_mmu_scope(&f.state,&f.policy,ops(&f))==1);
+    assert(fes_nano_mmu_scope(&f.state,&f.policy,&f,observe)==1);
     printf("PASS one-attempt MMU enable: %u callback failures, dropped writes, CPU/attribute faults, NS-before-enable and replay\n",events);
 }
