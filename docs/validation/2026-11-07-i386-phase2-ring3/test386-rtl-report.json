@@ -1,0 +1,28 @@
+{
+ "posts": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  8
+ ],
+ "errors": [],
+ "forgiven": [],
+ "stop": {
+  "why": 6,
+  "vector": 0,
+  "linear": "000f267c",
+  "bytes": "0f22c0ea8426d000e9b3000000c1e0"
+ },
+ "end": {
+  "reason": "unbuilt",
+  "retirements": 793777,
+  "cs": "f000",
+  "eip": "0000267c"
+ },
+ "text": "",
+ "stop_listing": "mov    cr0, eax"
+}

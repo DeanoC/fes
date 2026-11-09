@@ -89,6 +89,8 @@ module plane_top (
         .present_waitrequest(present_waitrequest), .present_readdatavalid(present_readdatavalid),
         .capture_address(capture_address), .capture_burstcount(capture_burstcount), .capture_write(capture_write),
         .capture_writedata(capture_writedata), .capture_waitrequest(capture_waitrequest),
+        .ems_address(29'd0), .ems_read(1'b0), .ems_write(1'b0), .ems_writedata(64'd0), .ems_byteenable(8'd0),
+        .ems_waitrequest(), .ems_readdatavalid(),
         .aux_address(29'd0), .aux_burstcount(8'd1), .aux_read(1'b0), .aux_write(1'b0), .aux_writedata(64'd0),
         .aux_byteenable(8'd0),
         .aux_waitrequest(), .aux_readdatavalid(),

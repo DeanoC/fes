@@ -574,6 +574,12 @@ so the governor, CPU profile and Sound Blaster are set at reset. The clock
 bytes are captured with the rest but the [wall clock](#wall-clock) overwrites
 them at the next launch.
 
+With `fes.memory.hps-ddr`, the host zeroes the machine's guest memory at every
+launch while held, before the record restore: guest RAM at window
+`0x04000000..0x04FFFFFF` and VRAM at `0x00800000..0x0083FFFF`. A launch starts
+from a cold machine's memory, not the previous run's. The machine never clears
+memory itself, so a guest reset keeps it, as an AT's does.
+
 ## Wall clock
 
 `fes.rtc.wall-clock` 1.0 (bit 18) sets the machine's clock from the kit's
@@ -590,8 +596,11 @@ rejected word is not consumed. Words are binary, first-named byte low:
 | 3 | Second | Weekday | second 0..59, weekday 1 (Sunday)..7 |
 
 The host has three duties. It sends the date's own weekday, counted as the
-MC146818 counts it. It clamps a leap second to 59. It clamps a kit time before
-1980 to 1980-01-01 00:00:00, a Tuesday (3). The machine does not compare the
+MC146818 counts it. It clamps a leap second to 59. It never sends an unsynced
+kit clock: a kit time before 2026-01-01 (a kit that never synced counts from
+1970) is replaced by the game record's last clock, when its CMOS bytes hold a
+valid time no earlier than that, or else by 2026-01-01 12:00:00, a Thursday
+(5). A synced kit time is sent as it is. The machine does not compare the
 weekday with the date. Like the MC146818, it stores the weekday it is given.
 The machine converts to its guest's BCD or binary and 12- or 24-hour forms. A
 guest that changes the time keeps it until Stop.

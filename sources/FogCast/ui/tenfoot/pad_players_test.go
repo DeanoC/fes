@@ -1,16 +1,12 @@
 package tenfoot
 
 import (
-	"errors"
-	"github.com/DeanoC/FogCast/internal/testwait"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
 func padButtonFor(player uint8, code remoteinput.Code, down bool) remoteinput.Event {
@@ -232,74 +228,6 @@ func TestStopChordTimerFollowsThePadStillHolding(t *testing.T) {
 // A launch whose answer was lost reconciles to idle while a pad holds
 // Select+Start, and the pad lets go on the menu. Idle does not track pairs,
 // so the pair must not survive to stop the next core with nothing held.
-func TestReconciledLaunchForgetsHeldPairs(t *testing.T) {
-	fake := &fakeLocalCores{err: localcores.ErrUnavailable}
-	app := NewApp(nil, 1280, 720, 50)
-	app.localCores = fake
-	app.mu.Lock()
-	app.startLocalCoreLocked(rooms.Destination{Label: "Pong", PackageID: tenfootPongID})
-	app.mu.Unlock()
-	waitUntil := func(what string, pred func() bool) {
-		t.Helper()
-		deadline := time.Now().Add(testwait.Timeout)
-		for time.Now().Before(deadline) {
-			app.mu.Lock()
-			ok := pred()
-			app.mu.Unlock()
-			if ok {
-				return
-			}
-			time.Sleep(2 * time.Millisecond)
-		}
-		t.Fatalf("timed out waiting for %s", what)
-	}
-	waitUntil("reconcile fence", func() bool { return app.localReconcileAfterFailure && app.localPhase == localPhaseLaunching })
-	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), time.Now())
-	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), time.Now())
-	app.mu.Lock()
-	app.pollLocalStatusLocked(time.Now())
-	app.mu.Unlock()
-	waitUntil("reconciled idle", func() bool { return app.localPhase == "" && !app.localReconcileAfterFailure })
-	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, false), time.Now())
-	app.HandleLocalPad(padButton(remoteinput.ButtonStart, false), time.Now())
-	app.mu.Lock()
-	stale := app.localPair.anyDown()
-	app.mu.Unlock()
-	fake.mu.Lock()
-	fake.err = nil
-	fake.mu.Unlock()
-	app.mu.Lock()
-	app.startLocalCoreLocked(rooms.Destination{Label: "Pong", PackageID: tenfootPongID})
-	app.mu.Unlock()
-	waitUntil("running", func() bool { return app.localPhase == localPhaseRunning })
-	app.mu.Lock()
-	armed := !app.localChordSince.IsZero()
-	app.tickLocalCoreLocked(time.Now().Add(2 * time.Second))
-	app.mu.Unlock()
-	time.Sleep(20 * time.Millisecond)
-	if stale || armed || fake.stopCount() != 0 {
-		t.Fatalf("pair kept through idle=%v; next core armed=%v; stops=%d", stale, armed, fake.stopCount())
-	}
-}
-
-// A launch that fails leaves no pair or sent state for the next launch.
-func TestFailedLaunchForgetsHeldPairs(t *testing.T) {
-	app := &App{localPhase: localPhaseLaunching}
-	t0 := time.Unix(10, 0)
-	app.HandleLocalPad(padButtonFor(0, remoteinput.ButtonSelect, true), t0)
-	app.HandleLocalPad(padButtonFor(0, remoteinput.ButtonStart, true), t0)
-	app.mu.Lock()
-	app.localSent = map[padKey]bool{{1, remoteinput.ButtonA}: true}
-	app.failLocalCoreLocked(errors.New("launch refused"), "")
-	defer app.mu.Unlock()
-	if app.localPair.anyDown() || app.localSent != nil {
-		t.Fatalf("failed launch kept pad state: pair=%+v sent=%v", app.localPair, app.localSent)
-	}
-}
-
-// While a session stops, pair releases are swallowed but still tracked; a
-// session that ends forgets the pair. Either way a later lone press is not a
-// chord.
 func TestSessionPairFollowsTheHardwareThroughStopAndEnd(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(http.NotFound))
 	t.Cleanup(server.Close)

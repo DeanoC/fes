@@ -24,8 +24,9 @@ type hardDiskCatalog interface {
 // for, about 1 Mbit/s: a 128 MiB image gets about 18 minutes.
 const hardDiskImportRate = 128 << 10
 
-// hardDiskImportBudget is the time an import of size bytes may take.
-func hardDiskImportBudget(size int64) time.Duration {
+// HardDiskImportBudget is the time an import of size bytes may take. The
+// CLI waits this long plus its own margin.
+func HardDiskImportBudget(size int64) time.Duration {
 	return time.Minute + time.Duration(size/hardDiskImportRate)*time.Second
 }
 
@@ -49,7 +50,7 @@ func (s *Service) ImportHardDiskMedia(parent context.Context, size int64, body i
 		return HardDiskMedia{}, false, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "request",
 			Message: "hard-disk image must be 1 to 128 MiB in whole 512-byte sectors"}
 	}
-	ctx, cancel := serviceTimeout(parent, max(s.uploadTimeout, hardDiskImportBudget(size)))
+	ctx, cancel := serviceTimeout(parent, max(s.uploadTimeout, HardDiskImportBudget(size)))
 	defer cancel()
 	// The catalog hashes every byte it stores, so the master boot record is
 	// kept as it streams past rather than read back.

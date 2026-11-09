@@ -19,12 +19,8 @@ import tomllib
 BINARIES = ('mister-agent', 'mister-runtime', 'fogcast-kit', 'fogcast-tenfoot')
 INTERFACES = {'runtime-protocol': '2', 'maintenance': 'fes-kit-maintenance-v1',
               'software-admission': 'fes-kit-software-v1'}
-# ADVERTISES lists what a bundle offers a base supervisor beyond INTERFACES.
-# These keys go only into the bundle manifest, never into the image's
-# software base: a supervisor uses one when present and treats its absence as
-# an older bundle. kit-host: bin/fogcast-kit has a `host` mode, the kit's
-# FogCast host (#863 slice 5).
-ADVERTISES = {'kit-host': '1.0'}
+# The image requires the supervised kit host provided by the bundle.
+ADVERTISES = {'kit-host': '1.0', 'kit-launcher-host': '1.0'}
 MENU_SELECTION = 'usr/share/mister-runtime/selections/fes-menu.package.toml'
 INTERFACE_KEY = re.compile(r'[a-zA-Z0-9][a-zA-Z0-9._+-]{0,127}')
 VERSION = re.compile(r'(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})')
@@ -156,10 +152,14 @@ def base_contract(target, executables, board='de10-nano'):
             missing = set(inspect(p)['required']) - provided
             if missing:
                 raise ValueError(f'unresolved base symbols in {p}: {sorted(missing)}')
-    abi = {'format': 1, 'architecture': abi_name, 'libraries': inventory}
+    # The launcher is started by the base supervisor, so its invocation is
+    # part of the ABI just as much as the system libraries it links. The old
+    # supervisor passes -catalog-config; this one uses the local-host options.
+    abi = {'format': 2, 'architecture': abi_name, 'libraries': inventory,
+           'launcher_supervisor': 'local-host-v1'}
     digest = hashlib.sha256(json.dumps(abi, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     return {'board': board, 'architecture': architecture,
-            'base_contract': 'fes-kit-base-v1-' + digest, 'interfaces': INTERFACES}
+            'base_contract': 'fes-kit-base-v2-' + digest, 'interfaces': INTERFACES}
 
 
 def menu_requirements(target):
@@ -281,7 +281,7 @@ def assemble(target, fogcast, runtime_revision, window_driver):
         os.rename(payload, destination)
     base = target / 'etc/fes/software-base.json'
     base.parent.mkdir(parents=True, exist_ok=True)
-    base.write_text(json.dumps({**contract, 'requires': requires}, sort_keys=True, separators=(',', ':')) + '\n')
+    base.write_text(json.dumps({**contract, 'requires': {**requires, **ADVERTISES}}, sort_keys=True, separators=(',', ':')) + '\n')
     for name in BINARIES:
         p = target / 'usr/sbin' / name
         p.unlink()
@@ -312,8 +312,8 @@ def pack_update(base_root, payload, output, version, fogcast, runtime_revision):
     # The bundle lists the menu interfaces its runtime admits. A base image
     # holds back a bundle that does not cover its own menu, so refuse it here.
     provides = runtime_menu_interfaces(payload / 'bin/mister-runtime')
-    if missing := unmet(provides, requires):
-        raise ValueError('new runtime does not accept the base image menu interfaces: ' + ', '.join(missing))
+    if missing := unmet({**provides, **ADVERTISES}, requires):
+        raise ValueError('new bundle does not accept the base image required interfaces: ' + ', '.join(missing))
     revision = (fogcast / 'bin/kit-software.revision').read_text().strip()
     if not re.fullmatch(r'[a-f0-9]{40}', revision) or not re.fullmatch(r'[a-f0-9]{40}', runtime_revision):
         raise ValueError('software provenance requires full source revisions')

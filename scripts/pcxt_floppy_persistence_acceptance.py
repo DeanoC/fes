@@ -44,30 +44,108 @@ class PhaseDeadline:
         return left
 
 
-def bounded_source_command(argv, deadline, *, cwd=None):
+class SourceCleanupError(pa.AcceptanceError):
+    # Callers write this into failed-phase evidence; wrappers must not turn an
+    # unknown source subprocess into an ordinary, safely handed-back failure.
+    source_cleanup_incomplete = True
+
+
+def bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, safe_python=False, cache_prefix=None):
     """Bound and reap an owned Git/GitHub process group without pipe hangs."""
+    if app._OBSERVER_GUARD_FD is None:
+        return _bounded_source_command(argv, deadline, cwd=cwd, maximum_seconds=maximum_seconds,
+                                       safe_python=safe_python, cache_prefix=cache_prefix)
+    # The observer can be killed at its hard deadline while a source command
+    # is in another process group. A small supervisor survives that death and
+    # retains the guard fd until it has killed and reaped the command group.
+    parent_pid = os.getpid()
+    with tempfile.TemporaryFile() as result_file:
+        pid = os.fork()
+        if pid == 0:
+            parent_dead = [False]
+            def cancel(_signum, _frame):
+                parent_dead[0] = True
+            signal.signal(signal.SIGTERM, cancel)
+            libc = app.ctypes.CDLL(None, use_errno=True)
+            if libc.prctl(1, signal.SIGTERM, 0, 0, 0) != 0 or os.getppid() != parent_pid:
+                os._exit(1)
+            os.write(app._OBSERVER_GUARD_FD, b'S')
+            cleanup_verified = [True]  # no command has started yet
+            try:
+                value = _bounded_source_command(argv, deadline, cwd=cwd, maximum_seconds=maximum_seconds,
+                    safe_python=safe_python, cache_prefix=cache_prefix, cancelled=lambda: parent_dead[0],
+                    started=lambda: cleanup_verified.__setitem__(0, False),
+                    cleaned=lambda: cleanup_verified.__setitem__(0, True))
+                if parent_dead[0]:
+                    raise pa.AcceptanceError('source observer exited')
+                if not cleanup_verified[0]:
+                    raise SourceCleanupError('source process cleanup was not verified')
+                result_file.write(value); result_file.flush()
+            except BaseException:
+                if cleanup_verified[0]:
+                    os.write(app._OBSERVER_GUARD_FD, b'C')
+                os._exit(1)
+            os.write(app._OBSERVER_GUARD_FD, b'C')
+            os._exit(0)
+        _, status = os.waitpid(pid, 0)
+        if status != 0:
+            raise pa.AcceptanceError('source process failed or cleanup was unverified')
+        result_file.seek(0)
+        return result_file.read(16*1024*1024+1)
+
+
+def _bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, safe_python=False,
+                            cache_prefix=None, cancelled=lambda: False,
+                            started=lambda: None, cleaned=lambda: None):
     deadline.remaining(1)
     with tempfile.TemporaryFile() as output:
         environment = dict(os.environ, GIT_NO_REPLACE_OBJECTS='1')
-        proc=subprocess.Popen(argv,cwd=cwd,stdout=output,stderr=subprocess.DEVNULL,start_new_session=True,env=environment)
+        if safe_python:
+            environment.pop('PYTHONPATH',None); environment.pop('PYTHONHOME',None)
+            environment['PYTHONNOUSERSITE']='1'
+            environment['PYTHONDONTWRITEBYTECODE']='1'
+            environment['PYTHONPYCACHEPREFIX']=str(cache_prefix)
+        started()
+        try:
+            proc=subprocess.Popen(argv,cwd=cwd,stdout=output,stderr=subprocess.DEVNULL,start_new_session=True,env=environment)
+        except BaseException as exc:
+            # Popen can fail after forking but before returning the handle.
+            raise SourceCleanupError('source process start cleanup unverified') from exc
+        identity_lost = False
         try:
             # Keep the leader unreaped until its entire group is killed. This
             # prevents PID/group reuse when an exited leader leaves children.
-            end=time.monotonic()+min(20,deadline.remaining(1))
+            end=time.monotonic()+min(maximum_seconds,deadline.remaining(1))
             while True:
-                observed=os.waitid(os.P_PID,proc.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT)
+                if cancelled(): raise pa.AcceptanceError('source observer exited')
+                try:
+                    observed=os.waitid(os.P_PID,proc.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT)
+                except OSError as exc:
+                    # Without an owned unreaped child, a numeric process group
+                    # is no longer a safe signal target.
+                    identity_lost = True
+                    raise SourceCleanupError('source process ownership unverified; no signal sent') from exc
                 if observed is not None:break
                 left=min(end-time.monotonic(),deadline.remaining(1))
                 if left<=0:raise pa.AcceptanceError('source process deadline expired')
                 time.sleep(min(.05,left))
         finally:
-            try:os.killpg(proc.pid,signal.SIGKILL)
-            except ProcessLookupError:pass
-            try:proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:raise pa.AcceptanceError('source process cleanup failed') from None
-        try:os.killpg(proc.pid,0)
-        except ProcessLookupError:pass
-        else:raise pa.AcceptanceError('source process group remains; identity unsafe')
+            if not identity_lost:
+                active_error = sys.exception()
+                try:
+                    try:os.killpg(proc.pid,signal.SIGKILL)
+                    except ProcessLookupError:pass
+                    proc.wait(timeout=5)
+                    # A deadline or cancellation must not skip group proof.
+                    try:os.killpg(proc.pid,0)
+                    except ProcessLookupError:pass
+                    else:raise RuntimeError('source process group remains')
+                    cleaned()
+                except BaseException as exc:
+                    failure = SourceCleanupError('source process cleanup unverified')
+                    if active_error is not None:
+                        failure.add_note('source check also failed: '+repr(active_error))
+                    raise failure from exc
         if proc.returncode:raise pa.AcceptanceError('source process failed')
         deadline.remaining(1)
         output.seek(0);result=output.read(16*1024*1024+1)
@@ -81,6 +159,9 @@ SOURCE_PATHS = ['scripts/pcxt_floppy_persistence_acceptance.py', 'scripts/pcxt_h
                 'scripts/pcxt_gameplay_probe.py', 'scripts/pcxt_game_audio_capture.py',
                 'scripts/pcxt_capture_fanout.py', 'scripts/pcxt_v4l2_capture.c',
                 'scripts/package_acceptance.py', 'scripts/diagnostic_identity.py', 'scripts/input_diagnostic.py',
+                'scripts/pcxt_selected_source.py', 'scripts/bundle.py', 'scripts/recipes.py',
+                'scripts/artifact_cache.py', 'scripts/core_dev_accept.py', 'scripts/core_dev.py',
+                'scripts/package_acceptance_isolated.py', 'scripts/module_sources.py', 'scripts/optional_cores.py',
                 'sources/misteross/scripts/core_package.py', 'sources/misteross/scripts/rfc3986_validator.py',
                 'sources/misteross/cores/fes-pcxt/firmware/hardware-dos.json',
                 'sources/misteross/cores/fes-pcxt/sim/bios.lock']
@@ -188,6 +269,8 @@ def require_historical_main(args, deadline=None):
         actual_tip = live.get('sha') if isinstance(live, dict) else None
         if not isinstance(actual_tip, str) or not re.fullmatch(r'[0-9a-f]{40}', actual_tip):
             raise ValueError('live main tip is malformed')
+        if getattr(args, 'selected_prepared', None) is not None and actual_tip != tip:
+            raise ValueError('selected main source is no longer current')
         observations = getattr(args, 'source_tip_observations', None)
         if observations is None:
             observations = []
@@ -615,6 +698,170 @@ def check_matching_sources(provenance, source_commit):
         raise pa.AcceptanceError('host, software and package source commits differ')
 
 
+def add_selected_source_arguments(parser):
+    parser.add_argument('--selected-prepared', type=Path, help='identity-v2 current-main prepared receipt')
+    parser.add_argument('--selected-prepared-sha256', help='pinned prepared receipt digest')
+    parser.add_argument('--selected-source-checkout', type=Path, help='clean canonical selected source snapshot')
+    parser.add_argument('--producer-source-checkout', type=Path, help='clean canonical original producer snapshot')
+
+
+def selected_receipt_files(args):
+    """Recheck the bytes bound by the complete, earlier resolver proof."""
+    prepared = Path(args.selected_prepared)
+    raw, digest = pa._read_archive(prepared, maximum=65536)
+    if digest != args.selected_prepared_sha256:
+        raise ValueError('prepared receipt changed')
+    doc = json.loads(raw)
+    for key in ('archive', 'selection', 'source_selection'):
+        record = doc[key]
+        name = record['path']
+        if not isinstance(name, str) or not re.fullmatch(r'[a-zA-Z0-9_.-]+', name) or name in ('.', '..'):
+            raise ValueError('invalid prepared member')
+        _, observed = pa._read_archive(prepared.parent / name,
+                                       maximum=65 * 1024 * 1024 if key == 'archive' else 65536)
+        if observed != record['sha256']:
+            raise ValueError('prepared member changed')
+    _, archive_sha = pa._read_archive(args.archive)
+    if archive_sha != args.archive_sha256:
+        raise ValueError('session archive changed')
+
+
+def selected_proof_key(args, root):
+    names = ('selected_prepared', 'selected_prepared_sha256', 'selected_source_checkout',
+             'producer_source_checkout', 'source_repository', 'source_commit', 'source_observed_tip',
+             'source_minimum_tip', 'source_tool_commit', 'source_base', 'source_diff_sha256',
+             'source_historical_main', 'source_main', 'source_pr', 'archive', 'archive_sha256',
+             'package_id', 'rbf_sha256')
+    return (str(root), *(getattr(args, name, None) for name in names))
+
+
+def selected_source_admission(provenance, args, *, root):
+    values=[getattr(args,name,None) for name in ('selected_prepared','selected_prepared_sha256',
+            'selected_source_checkout','producer_source_checkout')]
+    if all(value is None for value in values):
+        return False
+    if (any(value is None for value in values) or getattr(args,'source_repository',None) != 'DeanoC/fes'
+            or not getattr(args,'source_historical_main',False)
+            or getattr(args,'source_main',False) or getattr(args,'source_pr',None) is not None
+            or not isinstance(args.selected_prepared_sha256,str) or not HEX64.fullmatch(args.selected_prepared_sha256)
+            or getattr(args,'source_minimum_tip',None)!=getattr(args,'source_observed_tip',None)):
+        raise pa.AcceptanceError('selected package requires complete exact-current historical identity')
+    deadline=PhaseDeadline(time.monotonic()+100)
+    try:
+        # Authenticate the entire imported scripts directory, including helper
+        # dependencies, and refuse untracked import candidates.
+        if bounded_source_command(['git','status','--porcelain','--untracked-files=normal','--','scripts'],deadline,cwd=root):
+            raise ValueError('diagnostic scripts have local changes')
+        for checkout,revision in ((args.selected_source_checkout,args.source_observed_tip),
+                                  (args.producer_source_checkout,args.source_commit)):
+            path=Path(checkout)
+            if not path.is_absolute() or path!=path.resolve(strict=True) or not path.is_dir():
+                raise ValueError('source snapshot path is not canonical')
+            head=bounded_source_command(['git','rev-parse','HEAD'],deadline,cwd=path).decode('ascii').strip()
+            status=bounded_source_command(['git','status','--porcelain','--untracked-files=normal'],deadline,cwd=path)
+            if head!=revision or status:
+                raise ValueError('source snapshot differs from expected clean commit')
+        proof = getattr(args, '_selected_source_proof', None)
+        if proof is not None and proof['owner_pid'] != os.getpid():
+            # The read-only observer inherits proof from the owner. It must
+            # still authenticate the exact bytes and clean source checkouts;
+            # the cache is evidence of an earlier resolution, not a claim
+            # that the shared resolver cache cannot subsequently change.
+            if proof['key'] != selected_proof_key(args, root):
+                raise ValueError('selected package proof identity changed')
+            selected_receipt_files(args)
+            result = proof['result']
+        else:
+            with tempfile.TemporaryDirectory(prefix='pcxt-source-cache-') as cache:
+                argv=[sys.executable,'-I','-B','-X','pycache_prefix='+cache,str(root/'scripts/pcxt_selected_source.py'),
+                  '--prepared',str(args.selected_prepared),'--prepared-sha256',args.selected_prepared_sha256,
+                  '--source-checkout',str(args.selected_source_checkout),'--producer-checkout',str(args.producer_source_checkout),
+                  '--archive-sha256',args.archive_sha256,'--package-id',args.package_id,'--rbf-sha256',args.rbf_sha256,
+                  '--producer',args.source_commit,'--selected',args.source_observed_tip]
+                raw=bounded_source_command(argv,deadline,cwd=root,maximum_seconds=85,safe_python=True,cache_prefix=cache)
+            result=json.loads(raw)
+            selected_receipt_files(args)
+        for checkout,revision in ((args.selected_source_checkout,args.source_observed_tip),
+                                  (args.producer_source_checkout,args.source_commit)):
+            if (bounded_source_command(['git','rev-parse','HEAD'],deadline,cwd=checkout).decode('ascii').strip()!=revision
+                    or bounded_source_command(['git','status','--porcelain','--untracked-files=normal'],deadline,cwd=checkout)):
+                raise ValueError('source snapshot changed during verification')
+        if (not isinstance(result,dict) or result.get('producer_commit')!=args.source_commit
+                or result.get('selected_commit')!=args.source_observed_tip
+                or result.get('archive_sha256')!=args.archive_sha256 or result.get('package_id')!=args.package_id
+                or result.get('rbf_sha256')!=args.rbf_sha256 or result.get('prepared_sha256')!=args.selected_prepared_sha256):
+            raise ValueError('selected package evidence differs')
+        if proof is None or proof['owner_pid'] == os.getpid():
+            args._selected_source_proof = {'owner_pid': os.getpid(), 'key': selected_proof_key(args, root),
+                                           'result': result.copy()}
+        provenance['selected_package']=result
+        return True
+    except (OSError,ValueError,TypeError,KeyError,UnicodeError,subprocess.SubprocessError,json.JSONDecodeError) as exc:
+        raise pa.AcceptanceError('selected package source could not be independently verified') from exc
+
+
+def check_source_admission(provenance, args, *, root=None, receipt_boundary=False):
+    """Keep same-source default; admit one pinned software source with identical ABI trees.
+
+    The existing provenance check already pins the host binary, both receipts,
+    installed bundle and base image. This exception establishes equality of the
+    runtime and contract *source trees*, not equality of the complete software
+    bundles or proof that the live target is compatible. Normal live package,
+    ABI, ownership and session checks remain mandatory.
+    """
+    root = Path(root) if root is not None else Path(__file__).resolve().parent.parent
+    selected = selected_source_admission(provenance,args,root=root)
+    if receipt_boundary and selected and getattr(args, 'source_historical_main', False):
+        # The source provenance call immediately before success-receipt
+        # creation is the final opportunity to reject a selected package whose
+        # reviewed main tip moved after the scenario's post-run observation.
+        require_source(args, PhaseDeadline(args.phase_deadline_monotonic))
+    companion = getattr(args, 'compatible_software_source', None)
+    if companion is None:
+        check_matching_sources(provenance, args.source_commit)
+        return
+    if ((getattr(args, 'source_main', False) is not True and not selected)
+            or (getattr(args, 'source_historical_main', False) and not selected)
+            or getattr(args, 'source_pr', None) is not None
+            or not isinstance(args.source_commit, str) or not re.fullmatch(r'[0-9a-f]{40}', args.source_commit)
+            or not isinstance(companion, str) or not re.fullmatch(r'[0-9a-f]{40}', companion)
+            or companion == args.source_commit
+            or provenance['host']['source_commit'] != args.source_commit
+            or provenance['software']['source_commit'] != companion):
+        raise pa.AcceptanceError('invalid explicitly pinned companion software source')
+    paths = ('sources/libmister-runtime', 'sources/mister-packages')
+    root = Path(root) if root is not None else Path(__file__).resolve().parent.parent
+    deadline = PhaseDeadline(time.monotonic() + 5)
+    def trees(commit):
+        raw = bounded_source_command(['git', 'ls-tree', '-z', commit, '--', *paths], deadline, cwd=root)
+        rows = {}
+        for row in raw.split(b'\0'):
+            if not row:
+                continue
+            match = re.fullmatch(rb'040000 tree ([0-9a-f]{40})\t([^\t\n]+)', row)
+            if not match:
+                raise ValueError('unexpected source tree entry')
+            name = match.group(2).decode('ascii')
+            if name not in paths or name in rows:
+                raise ValueError('duplicate or unexpected source tree')
+            rows[name] = match.group(1).decode('ascii')
+        if set(rows) != set(paths):
+            raise ValueError('source tree missing')
+        return rows
+    try:
+        producer_trees, software_trees = trees(args.source_commit), trees(companion)
+        if producer_trees != software_trees:
+            raise ValueError('runtime or ABI contract source differs')
+    except (OSError, ValueError, UnicodeError, subprocess.SubprocessError):
+        raise pa.AcceptanceError('companion runtime or contract source could not be verified') from None
+    provenance['companion_software'] = {
+        'policy': 'identical-runtime-and-contract-source-trees-v1',
+        'source_commit': companion,
+        'trees': producer_trees,
+        'scope': 'runtime and contract source equality only; software bundles differ',
+    }
+
+
 def guarded_observation(original_validate_once, runner, owned, args, disk_sha, observer=None):
     """Recheck private host and writable binding on both owned session snapshots."""
     def validate_media(foreground, targeted):
@@ -646,6 +893,8 @@ def main(argv=None):
     original_parser, original_source = app.parser, app.source_provenance
     original_validate_once, original_run_com = app._validate_active_once, app.run_com
     original_runner, original_validate = app.pa.Runner, app.validate_active
+    original_verify_disk = app.verify_disk
+    receipt_gate = {'scenario_complete': False, 'pending': False, 'record': None}
     def parser():
         p = original_parser()
         p.add_argument('--phase', required=True, choices=('write', 'verify'))
@@ -659,6 +908,8 @@ def main(argv=None):
         p.add_argument('--source-observed-tip', help='reviewed full live main tip in historical mode')
         p.add_argument('--source-diff-sha256', help='reviewed raw producer-to-tip diff SHA-256 in historical mode')
         p.add_argument('--source-minimum-tip', help='last accepted main tip; write receipt tip on restart')
+        p.add_argument('--compatible-software-source', help='explicit software source with identical runtime and contract source trees')
+        add_selected_source_arguments(p)
         p.add_argument('--phase-deadline-monotonic', required=True, type=float)
         p.add_argument('--host-pid', required=True, type=int)
         p.add_argument('--write-receipt', type=Path)
@@ -666,15 +917,31 @@ def main(argv=None):
         return p
     def source(args, font):
         result, host_raw, software_raw = original_source(args, font)
-        check_matching_sources(result, args.source_commit)
         if args.source_main or args.source_historical_main:
             result['main_source'] = main_source_evidence(args)
         result['diagnostic_file_sha256']['scripts/pcxt_floppy_persistence_acceptance.py'] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
         result['diagnostic_file_sha256']['scripts/pcxt_health_evidence.py'] = hashlib.sha256(Path(health_evidence.__file__).read_bytes()).hexdigest()
+        receipt_boundary = receipt_gate['pending']
+        receipt_gate['pending'] = False
+        try:
+            check_source_admission(result, args, receipt_boundary=receipt_boundary)
+        finally:
+            record = receipt_gate['record']
+            if (receipt_boundary and record is not None
+                    and getattr(args, 'source_historical_main', False)):
+                record['source_minimum_tip'] = args.source_minimum_tip
+                record['source_tip_observations'] = list(args.source_tip_observations)
         return result, host_raw, software_raw
+
+    def verify_disk(path, selected_scenario):
+        result = original_verify_disk(path, selected_scenario)
+        if receipt_gate['scenario_complete']:
+            receipt_gate['pending'] = True
+        return result
     def guarded(runner, owned, args, disk_sha):
         return guarded_observation(original_validate_once, runner, owned, args, disk_sha, observer)
     def scenario(runner, owned, args, rec, input_session_id, font):
+        receipt_gate['record'] = rec
         try:
             if not math.isfinite(args.phase_deadline_monotonic) or args.phase_deadline_monotonic <= time.monotonic()+1:
                 raise pa.AcceptanceError('valid floppy phase deadline required')
@@ -691,7 +958,9 @@ def main(argv=None):
             for name in ('fes.media.pcxt-floppy', 'fes.media.pcxt-floppy-write'):
                 if not any(i.get('id') == name and i.get('major') == 1 and i.get('minor') == 0 and i.get('required') is True for i in interfaces if isinstance(i, dict)):
                     raise pa.AcceptanceError('archive lacks the writable PC/XT floppy contract')
-            return run_phase(runner, owned, args, rec, input_session_id, font)
+            result = run_phase(runner, owned, args, rec, input_session_id, font)
+            receipt_gate['scenario_complete'] = True
+            return result
         finally:
             if getattr(args, 'source_historical_main', False):
                 rec['source_minimum_tip'] = args.source_minimum_tip
@@ -724,6 +993,7 @@ def main(argv=None):
             HEALTH_UNSAFE=True
             raise
     app.parser, app.source_provenance, app._validate_active_once, app.run_com = parser, source, guarded, scenario
+    app.verify_disk = verify_disk
     app.pa.Runner,app.validate_active=ObservedRunner,observed_validate
     try:
         app.install_signal_handler()
@@ -731,6 +1001,7 @@ def main(argv=None):
     finally:
         app.pa.Runner,app.validate_active=original_runner,original_validate
         app.parser, app.source_provenance, app._validate_active_once, app.run_com = original_parser, original_source, original_validate_once, original_run_com
+        app.verify_disk = original_verify_disk
         active_error=sys.exception()
         try: observer.close()
         except BaseException:

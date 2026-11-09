@@ -15,32 +15,10 @@ import (
 	"github.com/DeanoC/FogCast/appliance/software"
 )
 
-func writeManifest(t *testing.T, root, interfaces string) {
-	t.Helper()
-	if err := os.WriteFile(filepath.Join(root, "manifest.json"), []byte(`{"interfaces":{`+interfaces+`}}`), 0o444); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestOnlyABundleAdvertisingKitHostGetsAHost(t *testing.T) {
-	for interfaces, want := range map[string]bool{
-		`"runtime-protocol":"2","kit-host":"1.0"`: true,
-		`"kit-host":"1.3"`:                        true,
-		`"runtime-protocol":"2"`:                  false,
-		`"kit-host":"2.0"`:                        false,
-	} {
-		root := t.TempDir()
-		writeManifest(t, root, interfaces)
-		c := &ProcessController{}
-		c.planHostLocked(root, []string{"FES_SOFTWARE_MANAGED=1"})
-		if got := c.hostPlan != nil; got != want {
-			t.Fatalf("%s: host planned %v, want %v", interfaces, got, want)
-		}
-	}
-	c := &ProcessController{}
-	c.planHostLocked(t.TempDir(), nil)
-	if c.hostPlan != nil {
-		t.Fatal("planned a host without a manifest")
+func TestLauncherUsesKitHost(t *testing.T) {
+	args := strings.Join(launcherArgs(), " ")
+	if !strings.Contains(args, "-api http://127.0.0.1:8787 -kit-host") {
+		t.Fatalf("launcher args = %s", args)
 	}
 }
 
@@ -58,9 +36,9 @@ func publishLauncherReady(t *testing.T, c *ProcessController, bundle string) {
 	}
 }
 
-// The host starts once the launcher is ready and restarts alone; the agent,
+// The host starts before launcher readiness and restarts alone; the agent,
 // runtime and launcher keep running.
-func TestHostStartsAfterLauncherReadinessAndRestartsAlone(t *testing.T) {
+func TestHostStartsBeforeLauncherReadinessAndRestartsAlone(t *testing.T) {
 	c := &ProcessController{RunDir: t.TempDir(), active: "accepted"}
 	defer func() { _ = c.Stop(context.Background()) }()
 	startSleepTrio(t, c)
@@ -69,16 +47,11 @@ func TestHostStartsAfterLauncherReadinessAndRestartsAlone(t *testing.T) {
 	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
 		t.Fatal(err)
 	}
-	if c.host != nil {
-		t.Fatal("host started before the launcher was ready")
+	if c.host == nil {
+		t.Fatal("host did not start before launcher readiness")
 	}
-	publishLauncherReady(t, c, "other")
-	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil || c.host != nil {
-		t.Fatalf("host started for another bundle's readiness: %v", err)
-	}
-	publishLauncherReady(t, c, "accepted")
-	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil || c.host == nil {
-		t.Fatalf("host not started after readiness: %v", err)
+	if _, err := os.Stat(filepath.Join(c.RunDir, "launcher-ready.json")); !os.IsNotExist(err) {
+		t.Fatalf("unexpected launcher readiness marker: %v", err)
 	}
 	first := c.host
 	if err := first.cmd.Process.Signal(syscall.SIGTERM); err != nil {
@@ -117,14 +90,29 @@ func TestHostStartsAfterLauncherReadinessAndRestartsAlone(t *testing.T) {
 	}
 }
 
-// A bundle without kit-host keeps today's three services.
-func TestNoHostWithoutTheAdvertisement(t *testing.T) {
-	c := &ProcessController{RunDir: t.TempDir(), active: "accepted"}
+// Activation health polling must also retry a host that dies before the
+// launcher can report its first frame; the regular supervisor tick is blocked
+// until activation finishes.
+func TestActivationHealthRetriesHostBeforeLauncherReadiness(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted", hostPlan: &hostPlan{path: "/bin/sleep", args: []string{"60"}}}
 	defer func() { _ = c.Stop(context.Background()) }()
 	startSleepTrio(t, c)
-	publishLauncherReady(t, c, "accepted")
-	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil || c.host != nil {
-		t.Fatalf("host %v err %v", c.host, err)
+	_ = c.Healthy(context.Background(), "different") // also starts the host
+	first := c.host
+	if first == nil {
+		t.Fatal("health did not start host")
+	}
+	if err := first.cmd.Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	<-first.done
+	deadline := time.Now().Add(5 * time.Second)
+	for c.host == first && time.Now().Before(deadline) {
+		_ = c.Healthy(context.Background(), "different")
+		time.Sleep(50 * time.Millisecond)
+	}
+	if c.host == first {
+		t.Fatal("activation health did not restart host")
 	}
 }
 
@@ -306,5 +294,42 @@ func TestServerReportsAHostFaultWithoutRefusingSoftwareRequests(t *testing.T) {
 	server.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/kit/software/releases", bytes.NewReader(archive)))
 	if w.Code == http.StatusServiceUnavailable {
 		t.Fatalf("a host fault refused an upload: %d %s", w.Code, w.Body.String())
+	}
+}
+
+// A launcher reattaching to a live game must not present an idle frame or
+// publish launcher readiness, and the supervisor must leave the game running.
+func TestLauncherRestartDoesNotRequireReadyFrame(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted"}
+	defer func() { _ = c.Stop(context.Background()) }()
+	startSleepTrio(t, c)
+	c.hostPlan = &hostPlan{path: "/bin/sleep", args: []string{"60"}}
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	firstHost := c.host
+	oldLauncher := c.children[2]
+	runtimePID, agentPID := c.children[0].cmd.Process.Pid, c.children[1].cmd.Process.Pid
+	if err := oldLauncher.cmd.Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	<-oldLauncher.done
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	launcher := c.children[2]
+	if launcher == oldLauncher {
+		t.Fatal("launcher was not restarted")
+	}
+	for i := 0; i < 3; i++ {
+		if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if c.children[2] != launcher || c.host != firstHost || c.children[0].cmd.Process.Pid != runtimePID || c.children[1].cmd.Process.Pid != agentPID {
+		t.Fatal("readiness-free restart replaced a running service")
+	}
+	if _, err := os.Stat(filepath.Join(c.RunDir, "launcher-ready.json")); !os.IsNotExist(err) {
+		t.Fatalf("unexpected readiness marker: %v", err)
 	}
 }

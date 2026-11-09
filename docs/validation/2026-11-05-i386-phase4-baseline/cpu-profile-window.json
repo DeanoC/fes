@@ -1,0 +1,282 @@
+{
+ "end": {
+  "reason": "rtl-window",
+  "steps": 79806217,
+  "cycles": 329457645,
+  "seconds": 3.295
+ },
+ "rtl_begin": {
+  "cycle": 327457645,
+  "flips": 4
+ },
+ "rtl": {
+  "retired": 213827,
+  "oracle_steps": 0,
+  "protected_steps": 0,
+  "parked_clocks": 9918,
+  "tf_retired": 0,
+  "pe_retired": 0,
+  "pe_entries": 0,
+  "vga_loads": 0,
+  "replays": 0,
+  "port0_reads": 18,
+  "port0_writes": 111626,
+  "smc_stores": 0,
+  "smc_addresses": 0,
+  "smc_executed": 0,
+  "smc_restarts": 0
+ },
+ "window": {
+  "from": 3.274576,
+  "to": 3.294576,
+  "from_cycle": 327457645,
+  "cycles": 2000000,
+  "rtl_clocks": 2000000,
+  "retired": 213827,
+  "pm_retired": 0,
+  "commits": 384050,
+  "issued": 585331,
+  "wrong_path_uops": 201278,
+  "redirects": 100466,
+  "frames": 174,
+  "polls_3da": 0,
+  "l1d_waits": 4,
+  "l1i_waits": 5,
+  "prefixes": 0,
+  "cpi": 9.353355750209282,
+  "causes": {
+   "retired uops": 384053,
+   "redirect: refill": 513543,
+   "redirect: wrong-path uops": 201278,
+   "fetch and L1I": 2,
+   "L1D and port 0": 148,
+   "microcode": 436224,
+   "interlock: AGI": 100460,
+   "interlock: store-to-load": 22324,
+   "interlock: flags": 0,
+   "interlock: ESP": 0,
+   "interlock: segment": 0,
+   "multiply and divide": 279050,
+   "I/O and VGA: I/O": 60656,
+   "I/O and VGA: MMIO load": 0,
+   "I/O and VGA: store buffer full": 2262,
+   "halt": 0,
+   "other": 0
+  },
+  "buckets": {
+   "issue_first": 372890,
+   "issue_more": 212441,
+   "halt": 0,
+   "frz_l1d": 148,
+   "frz_mmio": 0,
+   "frz_md": 279050,
+   "frz_io": 5046,
+   "frz_inta": 0,
+   "frz_store": 2262,
+   "refill": 513483,
+   "refill_l1i": 60,
+   "fe_l1i": 0,
+   "fe_empty": 2,
+   "d_stop": 0,
+   "gov": 0,
+   "agi": 100460,
+   "seg": 0,
+   "st_ld": 22324,
+   "flag": 0,
+   "sp": 0,
+   "temp": 435702,
+   "urom": 0,
+   "str": 522,
+   "io_serial": 45692,
+   "replay_serial": 0,
+   "other_wait": 0,
+   "parked_io": 9918,
+   "parked_halt": 0,
+   "reset": 0
+  },
+  "classes": {
+   "jcc": {
+    "n": 11162,
+    "taken": 10988,
+    "own": 11162,
+    "next": 131856
+   },
+   "jmp": {
+    "n": 175,
+    "taken": 175,
+    "own": 1169,
+    "next": 1950
+   },
+   "jmp_ind": {
+    "n": 0,
+    "taken": 0,
+    "own": 0,
+    "next": 0
+   },
+   "call": {
+    "n": 11163,
+    "taken": 11163,
+    "own": 132206,
+    "next": 122793
+   },
+   "call_ind": {
+    "n": 22326,
+    "taken": 22326,
+    "own": 290269,
+    "next": 245586
+   },
+   "ret": {
+    "n": 33489,
+    "taken": 33489,
+    "own": 368379,
+    "next": 569292
+   },
+   "far_call": {
+    "n": 11162,
+    "taken": 11162,
+    "own": 234402,
+    "next": 200916
+   },
+   "far_jmp": {
+    "n": 0,
+    "taken": 0,
+    "own": 0,
+    "next": 0
+   },
+   "retf": {
+    "n": 11162,
+    "taken": 11162,
+    "own": 200916,
+    "next": 122782
+   },
+   "int": {
+    "n": 0,
+    "taken": 0,
+    "own": 0,
+    "next": 0
+   },
+   "iret": {
+    "n": 0,
+    "taken": 0,
+    "own": 0,
+    "next": 0
+   },
+   "loop": {
+    "n": 0,
+    "taken": 0,
+    "own": 0,
+    "next": 0
+   },
+   "jcxz": {
+    "n": 0,
+    "taken": 0,
+    "own": 0,
+    "next": 0
+   },
+   "rep_str": {
+    "n": 174,
+    "taken": 0,
+    "own": 5742,
+    "next": 0
+   },
+   "str": {
+    "n": 0,
+    "taken": 0,
+    "own": 0,
+    "next": 0
+   },
+   "io": {
+    "n": 348,
+    "taken": 0,
+    "own": 15312,
+    "next": 0
+   },
+   "mul": {
+    "n": 11162,
+    "taken": 0,
+    "own": 22324,
+    "next": 0
+   },
+   "div": {
+    "n": 11162,
+    "taken": 0,
+    "own": 256726,
+    "next": 0
+   },
+   "shift": {
+    "n": 0,
+    "taken": 0,
+    "own": 0,
+    "next": 0
+   },
+   "pushpop": {
+    "n": 0,
+    "taken": 0,
+    "own": 0,
+    "next": 0
+   },
+   "segload": {
+    "n": 0,
+    "taken": 0,
+    "own": 0,
+    "next": 0
+   },
+   "mem_op": {
+    "n": 44648,
+    "taken": 0,
+    "own": 122812,
+    "next": 0
+   },
+   "other": {
+    "n": 45694,
+    "taken": 0,
+    "own": 338562,
+    "next": 0
+   },
+   "delivery": {
+    "n": 0,
+    "taken": 0,
+    "own": 0,
+    "next": 0
+   }
+  },
+  "redirects_by_class": {
+   "jcc": {
+    "taken": 10988,
+    "clocks": 131856,
+    "per_taken": 12.0
+   },
+   "jmp": {
+    "taken": 175,
+    "clocks": 1950,
+    "per_taken": 11.14
+   },
+   "call": {
+    "taken": 11163,
+    "clocks": 122793,
+    "per_taken": 11.0
+   },
+   "call_ind": {
+    "taken": 22326,
+    "clocks": 245586,
+    "per_taken": 11.0
+   },
+   "ret": {
+    "taken": 33489,
+    "clocks": 569292,
+    "per_taken": 17.0
+   },
+   "far_call": {
+    "taken": 11162,
+    "clocks": 200916,
+    "per_taken": 18.0
+   },
+   "retf": {
+    "taken": 11162,
+    "clocks": 122782,
+    "per_taken": 11.0
+   }
+  }
+ },
+ "failures": []
+}

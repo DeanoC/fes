@@ -15,14 +15,27 @@ Two profiles:
          else. The simulation suites boot it.
   games  build/sim/fes-pc386/freedos-games.img: the setup the acceptance games
          run in, as the FogCast builder's image will be. FDCONFIG.SYS loads
-         UMBM, which hands the machine's upper RAM (C800h-EFFFh) to DOS as
-         upper memory blocks (DOS=UMB), then HIMEMX high with all extended
-         memory as XMS. POST leaves A20 off, so HIMEMX picks a real A20
-         method by itself. The kernel stays low (no DOS=HIGH), so Ultima
-         VII's Voodoo memory manager can turn A20 off again on exit.
+         UMBM, which hands the machine's upper RAM below the EMS board's
+         frame (C800h-DFFFh) to DOS as upper memory blocks (DOS=UMB), then
+         HIMEMX high with all extended memory as XMS. POST leaves A20 off,
+         so HIMEMX picks a real A20 method by itself. A boot menu offers
+         three setups and takes the first after 3 seconds, so runs that
+         press nothing get it:
+           1  the kernel stays low (no DOS=HIGH), so Ultima VII's Voodoo
+              memory manager can turn A20 off again on exit; the kernel's
+              data, FILES=30, BUFFERS=16 and the shell go to upper memory
+              (DOSDATA=UMB, FILESHIGH, BUFFERSHIGH, SHELLHIGH)
+           2  DOS=HIGH,UMB for programs that need more conventional memory
+              (Falcon 3.0); not for Ultima VII, because the kernel in the HMA
+              holds an XMS A20 lock that makes Voodoo's global disable fail
+           3  entry 1 with the EMS board's driver FESEMS.SYS
+              (cores/fes-pc386/sim/fesems.asm) high, for the titles that need
+              expanded memory; not for Ultima VII, whose menu refuses to run
+              while any expanded memory manager is resident
          AUTOEXEC.BAT sets BLASTER from CMOS 60h-62h with FESENV.COM
-         (cores/fes-pc386/sim/fesenv.asm) and loads CuteMouse high. MEM is in
-         C:\\FDOS\\BIN with them.
+         (cores/fes-pc386/sim/fesenv.asm), loads CuteMouse high and gives it
+         a non-null default event handler with MOUSEDEF.COM
+         (cores/fes-pc386/sim/mousedef.asm). MEM is in C:\\FDOS\\BIN with them.
 
 No network access occurs unless --download is given. The packages are fetched
 at the commits in cores/fes-pc386/sim/freedos.lock (each package repository's
@@ -68,10 +81,14 @@ from scripts import test_fes_i386_test386 as test386
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = ROOT / 'cores/fes-pc386/sim/freedos.lock'
 FESENV = ROOT / 'cores/fes-pc386/sim/fesenv.asm'
+MOUSEDEF = ROOT / 'cores/fes-pc386/sim/mousedef.asm'
+FESEMS = ROOT / 'cores/fes-pc386/sim/fesems.asm'
 BUILD = ROOT / 'build/sim/fes-pc386/freedos'
 
 CYLINDERS, HEADS, SPT = 65, 16, 63
 TOTAL_SECTORS = CYLINDERS * HEADS * SPT
+# The largest disk the machine's ATA window holds (128 MiB, fes.media.ata-disk).
+MAX_CYLINDERS = 128 * 1024 * 1024 // (HEADS * SPT * 512)
 PARTITION_START = SPT                  # cylinder 0, head 1, sector 1
 PARTITION_SECTORS = TOTAL_SECTORS - PARTITION_START
 # DOS FORMAT's FAT16 cluster for 16-128 MiB. mtools would pick 512 bytes,
@@ -84,7 +101,8 @@ FILE_TIME = 1793016000
 
 SHELL = 'SHELL=C:\\COMMAND.COM C:\\ /E:1024 /P=C:\\AUTOEXEC.BAT\r\n'
 # Each profile: its image, the lock's packages it takes, its FDCONFIG.SYS and
-# AUTOEXEC.BAT, and the files in C:\FDOS\BIN (a package file, or fesenv.asm).
+# AUTOEXEC.BAT, and the files in C:\FDOS\BIN (a package file, or a local
+# program's source, which the build assembles).
 PROFILES = {
     'boot': {
         'image': ROOT / 'build/sim/fes-pc386/freedos.img',
@@ -96,14 +114,22 @@ PROFILES = {
     'games': {
         'image': ROOT / 'build/sim/fes-pc386/freedos-games.img',
         'packages': ('kernel', 'freecom', 'fdisk', 'himemx', 'jemm', 'ctmouse', 'mem'),
-        'fdconfig': ('FILES=20\r\nBUFFERS=16\r\nDOS=UMB\r\n'
-                     'DEVICE=C:\\FDOS\\BIN\\UMBM.EXE /I=C800-EFFF\r\n'
-                     'DEVICEHIGH=C:\\FDOS\\BIN\\HIMEMX.EXE /VERBOSE\r\n' + SHELL),
+        'fdconfig': ('MENUDEFAULT=1,3\r\n'
+                     'MENU 1 - Games: DOS in conventional memory (default; Ultima VII needs this)\r\n'
+                     'MENU 2 - More memory: DOS=HIGH, not for Ultima VII\r\n'
+                     'MENU 3 - EMS: as 1 with the EMS board driver, not for Ultima VII\r\n'
+                     '13?DOS=UMB\r\n13?DOSDATA=UMB\r\n2?DOS=HIGH,UMB\r\n'
+                     'DEVICE=C:\\FDOS\\BIN\\UMBM.EXE /I=C800-DFFF\r\n'
+                     'DEVICEHIGH=C:\\FDOS\\BIN\\HIMEMX.EXE /VERBOSE\r\n'
+                     '3?DEVICEHIGH=C:\\FDOS\\BIN\\FESEMS.SYS\r\n'
+                     '13?FILESHIGH=30\r\n13?BUFFERSHIGH=16\r\n2?FILES=30\r\n2?BUFFERS=16\r\n'
+                     '13?' + SHELL.replace('SHELL=', 'SHELLHIGH=') + '2?' + SHELL),
         'autoexec': ('@ECHO OFF\r\nPROMPT $P$G\r\nPATH C:\\FDOS\\BIN;C:\\\r\n'
-                     'FESENV > C:\\FDOS\\FESENV.BAT\r\nCALL C:\\FDOS\\FESENV.BAT\r\nLH CTMOUSE\r\nVER\r\n'),
+                     'FESENV > C:\\FDOS\\FESENV.BAT\r\nCALL C:\\FDOS\\FESENV.BAT\r\nLH CTMOUSE\r\nMOUSEDEF\r\n'
+                     'VER\r\n'),
         'bin': {'HIMEMX.EXE': ('himemx', 'BIN/HimemX.exe'), 'UMBM.EXE': ('jemm', 'BIN/UMBM.EXE'),
                 'CTMOUSE.EXE': ('ctmouse', 'BIN/CTMOUSE.EXE'), 'MEM.EXE': ('mem', 'BIN/MEM.EXE'),
-                'FESENV.COM': None},
+                'FESENV.COM': FESENV, 'MOUSEDEF.COM': MOUSEDEF, 'FESEMS.SYS': FESEMS},
     },
 }
 
@@ -119,11 +145,10 @@ def lock() -> dict:
 def inputs_key(profile: str = 'boot') -> str:
     """Identity of everything a profile's image is built from: the profile, the
     lock (package commits and file hashes), the builder, NASM helper and
-    assembler version, and FESENV's source when the image carries it."""
+    assembler version, and the source of each local program the image carries."""
     digest = hashlib.sha256(profile.encode() + b'\0')
     sources = [LOCK.resolve(), Path(__file__).resolve(), Path(test386.__file__).resolve()]
-    if 'FESENV.COM' in PROFILES[profile]['bin']:
-        sources.append(FESENV.resolve())
+    sources += [source.resolve() for source in PROFILES[profile]['bin'].values() if isinstance(source, Path)]
     for path in sources:
         digest.update(path.relative_to(ROOT).as_posix().encode())
         digest.update(b'\0')
@@ -212,20 +237,25 @@ def mtools(*command: str, env: dict) -> None:
         raise ImageError(' '.join(command) + ' failed:\n' + result.stdout + result.stderr)
 
 
-def build(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
+def system_disk(profile: str, cylinders: int, work: Path, download: bool = False, jobs: int = 4) -> tuple[Path, dict]:
+    """A profile's FreeDOS disk of `cylinders` cylinders, built in work (emptied
+    first) as work/disk.img, and the lock's pins of the packages it took."""
+    if not 1 <= cylinders <= MAX_CYLINDERS:
+        raise ImageError(f'{cylinders} cylinders is outside 1-{MAX_CYLINDERS} (the 128 MiB ATA disk limit)')
     spec = PROFILES[profile]
     packages = {name: lock()['packages'][name] for name in spec['packages']}
     trees = {name: package(name, pins, download) for name, pins in packages.items()}
     nasm = test386.nasm(download, jobs)
-    work = work_directory(profile)
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
 
-    image = bytearray(TOTAL_SECTORS * 512)
+    total = cylinders * HEADS * SPT
+    partition = total - PARTITION_START
+    image = bytearray(total * 512)
     mbr = bytearray(512)
     mbr[:446] = mbr_code(trees['fdisk'] / 'SOURCE/FDISK/bootnorm.c')
-    entry = bytes((0x80,)) + chs(PARTITION_START) + bytes((0x06,)) + chs(TOTAL_SECTORS - 1) + \
-        PARTITION_START.to_bytes(4, 'little') + PARTITION_SECTORS.to_bytes(4, 'little')
+    entry = bytes((0x80,)) + chs(PARTITION_START) + bytes((0x06,)) + chs(total - 1) + \
+        PARTITION_START.to_bytes(4, 'little') + partition.to_bytes(4, 'little')
     mbr[0x1be:0x1ce] = entry
     mbr[510:] = b'\x55\xaa'
     image[:512] = mbr
@@ -235,7 +265,7 @@ def build(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
     env = dict(os.environ, MTOOLS_SKIP_CHECK='1', MTOOLSRC='/dev/null', SOURCE_DATE_EPOCH=str(FILE_TIME), TZ='UTC')
     volume = f'{disk}@@{PARTITION_START * 512}'
     mtools('mformat', '-i', volume, '-h', str(HEADS), '-s', str(SPT), '-c', str(CLUSTER_SECTORS),
-           '-H', str(PARTITION_START), '-T', str(PARTITION_SECTORS), '-N', f'{VOLUME_SERIAL:08x}',
+           '-H', str(PARTITION_START), '-T', str(partition), '-N', f'{VOLUME_SERIAL:08x}',
            '-v', 'FREEDOS', '::', env=env)
 
     # The kernel's boot code around the BPB mformat wrote, as SYS installs it.
@@ -267,13 +297,18 @@ def build(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
     if spec['bin']:
         mtools('mmd', '-i', volume, '::FDOS', '::FDOS/BIN', env=env)
     for name, source in spec['bin'].items():
-        if source is None:
-            assemble(nasm, FESENV, staged / name)
+        if isinstance(source, Path):
+            assemble(nasm, source, staged / name)
         else:
             shutil.copyfile(trees[source[0]] / source[1], staged / name)
         os.utime(staged / name, (FILE_TIME, FILE_TIME))
         mtools('mcopy', '-m', '-i', volume, str(staged / name), '::FDOS/BIN/' + name, env=env)
+    return disk, packages
 
+
+def build(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
+    spec = PROFILES[profile]
+    disk, packages = system_disk(profile, CYLINDERS, work_directory(profile), download, jobs)
     target = spec['image']
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(disk, target)

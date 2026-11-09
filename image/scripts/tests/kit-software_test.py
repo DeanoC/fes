@@ -149,7 +149,7 @@ class SoftwareABI(unittest.TestCase):
             contract = {'board': 'de10-nano', 'architecture': 'armv7', 'base_contract': 'base',
                         'interfaces': dict(software.INTERFACES)}
             (root / 'etc/fes/software-base.json').write_text(
-                json.dumps({**contract, 'requires': {'menu.fes.video.menu-display': '1.0'}}))
+                json.dumps({**contract, 'requires': {'menu.fes.video.menu-display': '1.0', 'kit-host': '1.0', 'kit-launcher-host': '1.0'}}))
             payload = root / 'payload'
             (payload / 'bin').mkdir(parents=True)
             for name in software.BINARIES:
@@ -168,12 +168,19 @@ class SoftwareABI(unittest.TestCase):
                  patch.object(software, 'base_contract', return_value=contract):
                 software.pack_update(root, payload, root / 'update.tar', 'new', root, 'a' * 40)
             self.assertEqual(packed[0]['interfaces'], {**software.INTERFACES, 'menu.fes.video.menu-display': '1.1',
-                                                       'menu.fes.video.menu-blitter': '1.0', 'kit-host': '1.0'})
+                                                       'menu.fes.video.menu-blitter': '1.0', 'kit-host': '1.0',
+                                                       'kit-launcher-host': '1.0'})
             self.assertNotIn('requires', packed[0])
             with patch.object(software, 'run', side_effect=lambda *args: run(*args, dump='  [     0]  fes.video.fixed-720p60=1.0\n')), \
                  patch.object(software, 'base_contract', return_value=contract):
                 with self.assertRaisesRegex(ValueError, 'menu.fes.video.menu-display 1.0'):
                     software.pack_update(root, payload, root / 'refused.tar', 'new', root, 'a' * 40)
+            self.assertEqual(len(packed), 1)
+            with patch.object(software, 'ADVERTISES', {'kit-host': '1.0'}), \
+                 patch.object(software, 'run', side_effect=run), \
+                 patch.object(software, 'base_contract', return_value=contract):
+                with self.assertRaisesRegex(ValueError, 'kit-launcher-host 1.0'):
+                    software.pack_update(root, payload, root / 'legacy.tar', 'old', root, 'a' * 40)
             self.assertEqual(len(packed), 1)
 
     def test_dependency_closure_and_contract_identity(self):
@@ -197,8 +204,15 @@ class SoftwareABI(unittest.TestCase):
                 first = software.base_contract(root, [binary])
                 self.assertEqual(first['board'], 'de10-nano')
                 self.assertEqual(first['architecture'], 'armv7')
-                self.assertEqual(first['base_contract'],
-                    'fes-kit-base-v1-e15ee01fe5d01692ae1b40f283d3c90d202589e279abdfeeea23c80e302e58f4')
+                self.assertTrue(first['base_contract'].startswith('fes-kit-base-v2-'))
+                # The former library-only v1 contract must not identify a
+                # bundle whose launcher needs different supervisor arguments.
+                legacy = {'format': 1, 'architecture': 'armv7-linux-gnueabihf',
+                          'libraries': [{'name': 'libc.so.6', 'soname': ['libc.so.6'],
+                                         'symbols': ['memcpy@GLIBC_2.4']}]}
+                import hashlib
+                old_digest = hashlib.sha256(json.dumps(legacy, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+                self.assertNotEqual(first['base_contract'], 'fes-kit-base-v1-' + old_digest)
                 table[binary]['needed'] = ['liblink.so']
                 with self.assertRaisesRegex(ValueError, 'unresolved system library liblink.so'):
                     software.base_contract(root, [binary])
@@ -263,6 +277,7 @@ class SoftwareABI(unittest.TestCase):
             contract = software.base_contract(root, [binary], 'de25-nano')
             self.assertEqual(contract['board'], 'de25-nano')
             self.assertEqual(contract['architecture'], 'aarch64')
+            self.assertTrue(contract['base_contract'].startswith('fes-kit-base-v2-'))
             arm_root = root / 'arm'
             arm_root.mkdir()
             arm = software.base_contract(arm_root, [])

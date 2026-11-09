@@ -44,6 +44,15 @@ class AssemblerTest(unittest.TestCase):
                          "dd7e05" "fd36fe12" "fdcb017e" "ddcb0386" "ed531040" "08" "ed42"
                          "dd6601" "ddcb0416" "dd67" "ed56" "26279d")
 
+    def test_zx80_text(self):
+        image = assemble("""
+        org 0
+        dz "A+"
+        charset zx80
+        dz "A+"
+        """)
+        self.assertEqual(image[:4], bytes([0x26, 0x15 | 0x80, 0x26, 0x13 | 0x80]))
+
     def test_invalid_forms_are_rejected(self):
         for line in ("jr p,x", "jr m,x", "jr pe,x", "jr po,x",
                      "out (0xfe),b", "in b,(0xfe)",
@@ -124,6 +133,106 @@ b:      ret
         """, 0x200)
         self.assertEqual(image[:3], bytes([0xc3, 0x91, 0x00]))      # jp a
         self.assertEqual(image[0x111:0x114], bytes([0x18, 0x00, 0xc9]))   # jr b, b: ret
+
+    def test_floatorder_keeps_jr_short(self):
+        # In source order section 2 is 200 bytes past section 0's jr to it.
+        sizes = {0: 100, 1: 200, 2: 100}
+        edges = [(0, 98, 2, 0, 1)]          # jr at 0+98 to the start of 2
+        order = z80asm.anneal_order([0, 1, 2], sizes, edges, [(0, 1000)], steps=200)
+        _, at, left = z80asm.order_layout(order, sizes, [(0, 1000)])
+        self.assertEqual(left, [])
+        self.assertLessEqual(at[2] - (at[0] + 100), 127)
+        image = assemble("""
+        floatlimit 0x100
+        floatorder
+        org 0
+        jp a
+        autofloat
+a:      jr b
+c:      ds 200
+        ret
+b:      ret
+        endautofloat
+        """, 0x200)
+        self.assertNotIn(0xc3, image[3:0x100])                      # jr b stayed a jr
+
+    def test_floatorder_with_one_section(self):
+        image = assemble("""
+        floatorder
+        org 0
+        jp a
+        autofloat
+a:      ret
+        endautofloat
+        """)
+        self.assertEqual(image[:3], bytes([0xc3, 0x03, 0x00]))
+        self.assertEqual(image[3], 0xc9)
+
+    def test_floatorder_picks_a_layout_where_djnz_reaches(self):
+        # Largest first puts c between a's djnz and b; the order layout does not.
+        image = assemble("""
+        floatlimit 0x100
+        floatorder
+        org 0
+        jp a
+        autofloat
+a:      djnz b
+        ds 98
+c:      ds 90
+        ret
+b:      ds 9
+        ret
+        endautofloat
+        """, 0x200)
+        a = image[1] | image[2] << 8
+        self.assertEqual(image[a], 0x10)                            # djnz b
+
+    def test_far_jr_goes_by_a_jump_to_the_same_place(self):
+        image = assemble("""
+        floatorder
+        org 0
+        jr nz,far
+        jp far
+        org 0x200
+far:    ret
+        """, 0x300)
+        self.assertEqual(image[:5], bytes([0x20, 0x00, 0xc3, 0x00, 0x02]))
+
+    def test_a_chained_jr_follows_its_jump_when_it_moves(self):
+        # The first jr grows, moving the jp the second one goes by.
+        image = assemble("""
+        floatorder
+        org 0
+        jr nz,far1
+        jr z,far2
+        jp far2
+        org 8
+        ret
+        org 0x200
+far1:   ret
+far2:   ret
+        """, 0x300)
+        self.assertEqual(image[:9], bytes([0xc2, 0x00, 0x02, 0x28, 0x00,
+                                           0xc3, 0x01, 0x02, 0xc9]))
+
+    def test_a_chained_jr_follows_its_target_when_it_moves(self):
+        # The jr nz grows after jr z has chained, moving far.
+        image = assemble("""
+        floatorder
+        org 0
+        jr z,far
+        jp far
+        jr nz,remote
+        ds 200
+far:    ret
+        org 209
+        ret
+        org 0x300
+remote: ret
+        """, 0x400)
+        self.assertEqual(image[:8], bytes([0x28, 0x00, 0xc3, 0xd0, 0x00,
+                                           0xc2, 0x00, 0x03]))
+        self.assertEqual(image[208:210], bytes([0xc9, 0xc9]))
 
     def test_labels_after_a_jump_share_a_section(self):
         image = assemble("""

@@ -81,14 +81,14 @@ the game survives a host restart while the agent remains running. A restarted
 host resumes the same grant before discovery, reads the running session, and
 reconstructs its input binding. From the first session read, kit mode uses its
 local target's coordinator so the session ID and input owner stay stable across
-reattachment. Host shutdown detaches its local resources without stopping the
-target or releasing this grant; an explicit Stop still stops the session and
-releases it. A local grant that is not resumed or renewed within the window
-expires and follows the normal agent cleanup path. A transient renewal failure
-retries within the last confirmed local expiry; it never extends that expiry
-without a valid response. A denial or a changed token or generation invalidates
-the grant. Remote hosts retain their ordinary lease behavior and cannot resume
-the local grant.
+reattachment. Host shutdown detaches its local resources
+without stopping the target or releasing this grant; an explicit Stop still
+stops the session and releases it. A local grant that is not resumed or renewed
+within the window expires and follows the normal agent cleanup path. A transient
+renewal failure retries within the last confirmed local expiry; it never extends
+that expiry without a valid response. A denial or a changed token or generation
+invalidates the grant. Remote hosts retain their ordinary lease behavior and
+cannot resume the local grant.
 A locally expired or lost kit lease remains `KIT_LEASE_DENIED` through host
 service normalization, session reads, input reconciliation, Launch and Stop.
 The host API returns HTTP 403 for this ownership refusal. An ordinary claim
@@ -437,6 +437,12 @@ package/generation checks. Unsupported operations remain rejected rather than
 being inferred from a Git revision or silently retried through another path.
 Breaking API semantics require a new supported contract, not an arbitrary
 source revision comparison. Configuration is not rewritten to hide failures.
+
+The agent's local `/status` admission response also carries a read-only
+`execution_lease` snapshot (`state`, `generation`, and optional owner/purpose)
+for the root `fes-kit-software` supervisor. The supervisor uses it only to
+gate its allowlisted named-service restart; the snapshot does not carry a
+lease token and is not part of the bearer-authenticated software proxy.
 
 ## Agent runtime
 
@@ -1051,8 +1057,7 @@ the SDL sofa window. Pass `--headless` so that process does not compose local
 capture or the MJPEG preview pipeline; kit catalog, attract, session, and
 input stay on the launcher listener. A kit without a sofa host boots the same
 FogCast service on the existing config and catalog paths.
-`fogcast.BootLocalCatalog` opens that service, scans the configured library
-roots, and does not dial a remote target. An empty library says `No games in
+The supervised kit host scans its configured library roots. An empty library says `No games in
 this library yet.` A content root that cannot be found, with no saved rows,
 says `The game files for this library can't be found.` Saved rows whose files
 are offline say `Offline, showing your saved list`. An unfiltered
@@ -1683,12 +1688,67 @@ on FAT outside every rootfs. Replacing the system image does not wipe
 
 When leftover card capacity has already been formatted as partition 3 with
 label `FESDATA3`, agent startup bind-mounts that ext4 volume over
-`/media/fat/fogcast/{cache,saves,core-data,launcher-cache,evidence}`. Existing
-files are copied onto p3 first and never overwritten there. Releases,
-`agent.toml`, `launcher.json`, `target-id`, and known-good images stay on the
-1 GiB FAT. The helper does not create, grow, or format partitions and does not
-run from the fixed bootstrap. Bind is refused while `GET /v1/update` shows trial,
-pending, or corrupt; the agent still starts and keeps those trees on FAT.
+`/media/fat/fogcast/{cache,saves,core-data,launcher-cache,evidence}` and
+`/media/fat/games`. Existing FAT files in these trees are copied onto p3 only
+when the p3 destination is absent; each copied file is published only after a
+complete same-directory temporary has been written and closed, and existing
+p3 files are preserved. The game library is imported once, with a completion
+marker on p3 outside the bound game tree, published only after the destination
+game directories are synced, so a crash cannot leave the marker ahead of the
+game entries. Deleting a migrated game from p3 does not restore it from the FAT
+copy at a later startup. A failed initial game copy or directory sync does not
+write the completion marker, so startup can retry the incomplete migration.
+Before copying into or binding the p3 game tree, startup rejects symlinked
+destination paths without following them. If the completion marker exists but
+the p3 game directory is missing, startup records and syncs a fallback marker
+before restoring it; an interrupted restore retries missing-file
+reconciliation across startups. Startup also checks that an existing
+`/media/fat/games` bind still refers to the current p3 game directory. If that
+source was removed or replaced, it records and syncs a fallback marker before
+unbinding a target on the FESDATA3 device, including when a marker from an
+earlier failed directory sync is already visible. It then restores missing
+files from the still-visible FAT tree, syncs p3, and binds the live directory
+again. The marker remains until the bind succeeds, so a failed repair, target
+preparation, or bind retries missing-file reconciliation at the next startup.
+A failed p3 mount also records the marker while FAT remains usable.
+When p3 is absent or its bind is gated, startup records a hidden fallback marker
+beside `/media/fat/games`. If the FAT filesystem cannot create hard links, the
+marker is published with a same-directory rename. On the next successful p3
+bind it copies missing game files added during the FAT-only interval, syncs p3,
+and clears the marker. This one-time reconciliation does not overwrite an
+existing p3 file or repeat on normal startup. Without p3, all these paths
+continue to use FAT. The helper does
+not create, grow, or format partitions and does not run from the fixed
+bootstrap. Bind is refused while `GET /v1/update` shows trial, pending, or
+corrupt; the agent still starts and keeps those trees on FAT.
+
+While that gate is closed, the helper leaves `/run/fogcast/fesdata3` unmounted;
+the path is on `/run` tmpfs, so persistent-store checks correctly reject it and
+kit-host mode may use its tmpfs fallback. After confirmation clears the gate,
+the base software supervisor mounts and verifies p3, then reconciles the
+selected software bundle. That reconciliation can restart the managed service
+group once. Health sampling for an old bundle must begin after the selected
+bundle is active and the p3 mount is verified, not during this trial handoff.
+Whenever the mountpoint is already mounted, the helper verifies writable ext4,
+device identity and the exact mountinfo entry before treating it as FESDATA3.
+
+Confirmed appliance releases retain the current image plus one verified
+fallback on FAT, and always protect the factory image as a final recovery
+anchor. Superseded non-factory releases are pruned. A staged candidate may be
+present there while an update is pending or on trial. The bootstrap keeps
+`boot.json` on its stable `boot_id`, `image_sha256`, and `trial` schema so older
+target agents continue to accept it. A separate `boot-fallback.json` record,
+bound to that boot ID and image hash, stores the fallback so recovery can still
+select it if the release state file is corrupt. An unreadable optional sidecar
+does not invalidate a valid `boot.json` ticket; a fallback hash present in the
+ticket remains available. Authenticated `GET /v1/update`
+reports that digest as `fallback_image_sha256`; if the optional sidecar is
+missing on a later normal boot, it recovers the value from durable Good and
+Previous when the ticket names Good. Confirming a trial clears the trial flag
+without dropping its sidecar fallback. Moving
+previous, pending and trial image files to FESDATA3, with a read-only p3 mount
+in the bootstrap and a FAT known-good fallback when that mount fails, is the
+next appliance update step.
 
 Kit UI state stays on that FAT tree at `/media/fat/fogcast/state`. The software
 supervisor creates the directory when `/media/fat/fogcast` is already present
@@ -1716,9 +1776,13 @@ remembered drives remain untouched.
 The kernel loop-mounts the bootstrap as before. Its PID 1 verifies the selected
 image, consumes a pending trial durably, attaches another read-only loop, and uses
 `pivot_root` followed by exec of the selected `/sbin/init`. The old bootstrap
-remains at `/.fes-bootstrap`. Preparation failures select verified known-good or
-factory; failures after starting root switching require reboot. No trial is
-repeated on a later boot without another explicit activation.
+remains at `/.fes-bootstrap`. An ordinary boot selects verified Good; if Good
+fails verification, it selects verified Previous before factory. If a selected
+image fails preparation, PID 1 tries the next verified fallback, with Previous
+before factory. A successfully prepared fallback becomes the recorded Good image,
+and the failed current image is dropped as a rollback target. Failures after
+starting root switching require reboot. No trial is repeated on a later boot
+without another explicit activation.
 
 For a trial, an independent bootstrap process first verifies the ARM DE10-nano
 device tree and prepares Cyclone V warm reset: it marks the completed preloader
@@ -1749,7 +1813,9 @@ the upload, fails the stage with HTTP 507 `UPDATE_NO_SPACE`
 The FES bootstrap owns fallback ordering, Linux mounts, loops, and the
 watchdog. The bootstrap records its selected image in
 `/media/fat/fogcast/releases/boot.json`; the native agent accepts that ticket only
-for the current kernel boot ID and retained factory manifest.
+for the current kernel boot ID and retained factory manifest. The adjacent
+`boot-fallback.json` sidecar carries recovery metadata without extending the
+three-field ticket schema consumed by older agents.
 
 `internal/applianceupdate` uses the existing kit lease and coordinator transition.
 Activation drains launch/development/input/cast requests, stops the runtime so
@@ -1769,7 +1835,9 @@ reads and clears the `boot.json` trial flag. A failed or cancelled publish
 leaves the watchdog armed. A boot-ticket rewrite failure after the release
 record is durable does not undo confirmation: admission opens, the error is
 logged, and the rewrite is retried once on a later idle status read. A failed
-splash publish can be retried by the same boot. A later
+splash publish can be retried by the same boot. If release pruning fails after
+durable confirmation and boot-ticket handling, the error is logged but
+admission still opens; another confirm retry safely retries pruning. A later
 boot of that image, including one that is no longer a trial, republishes from
 the running image's verified idle core even when the staged copy was removed.
 An unconfirmed trial does not modify FAT, so watchdog fallback still programs
@@ -1988,8 +2056,7 @@ with the captured play. A package play sends its session and target identities,
 package ID and generation, even when the restarted agent reports no game ID.
 Stop rejects a changed generation before input teardown. If an unidentified
 package has a pending ZX81 SAVE, Stop keeps the machine running because the
-captured bytes have no durable game binding. A play without a package sends the
-session id, launch flight, game, and target; a
+captured bytes have no durable game binding. A play without a package sends the session id, launch flight, game, and target; a
 missing flight is not posted as an empty body, because an unbound stop would
 release whatever play is foreground at admission. Idle cleanup releases that
 play's grant. A bound stop releases only its target, and a host-only stop
@@ -2511,17 +2578,40 @@ coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
 ## Native kit launcher
 
 The kit UI is `fogcast-tenfoot -gfx menu-display -home rooms`. The base-image
-supervisor starts it after the runtime and agent. `ui/launcherconfig` reads the
+supervisor starts it after the runtime and agent, and starts the kit host during
+activation so the launcher can check for an existing session before its first
+frame. `ui/launcherconfig` reads the
 provisioned `launcher.json` (`api`, `token`, `target_id`) and ignores keys left
 by the removed grid launcher. The bundle's `bin/fogcast-kit` is
 `cmd/fogcast-api` built under the kit's name: `fogcast-kit host` is the kit's
-FogCast host ([kit mode](#kit-mode)).
+FogCast host ([kit mode](#kit-mode)), and `--print-kit-ui` still prints
+`tenfoot` for bases whose supervisor probes it before starting the launcher.
 
 A paired, authenticated host listener serves a restricted set of existing
-library, artwork, and session operations. The host keeps target and input lease
-ownership for host launches and Stop. When the kit has its own playable shelf,
-tenfoot serves the kit-local catalog on loopback and launches through the
-agent's local-control socket instead. A gamepad or USB keyboard on the kit
+library, artwork, and session operations. On bundles advertising `kit-host`,
+the supervisor passes `-api http://127.0.0.1:8787 -kit-host` to tenfoot. This
+client uses the unpaired loopback API without saved paired credentials and does
+not serve an embedded catalog. Its installed-core shelf reads the host package
+inventory. When target health first becomes ready or recovers, tenfoot refreshes
+its installed-core cache and the visible Home room's kit and library data. A
+successful empty startup inventory does not remain cached after that transition;
+unchanged ready health does not poll inventory. Suspended Home rooms refresh
+both sources when resumed, preserving their instance and selection. Core and
+local SMS cartridge selections are resolved into host
+catalog entries through `POST /api/v1/library/local-core-entry`, then use the
+host session launch and Stop paths. The host checks the selected package and
+resolves a cartridge by catalog identity, imports its content, and reuses its
+own generated entry without changing an independently configured entry. These
+helper entries are omitted from ordinary library and core-entry lists, while
+exact-ID detail and launch remain available. Editing a helper's package, media,
+ROM, expansion or settings turns it into a visible user entry; a later local
+launch creates a separate helper. Cartridge plays are recorded against their
+scanned source title for recents. Bare-core helpers have no source title and
+do not create a recent library row. The launcher waits for
+session status and keeps menu presents
+parked while a running core owns the display, including after a restart.
+
+A gamepad or USB keyboard on the kit
 writes raw input frames to `/run/fogcast/local-input.sock` through
 `ui/localfeed` while a runtime core is bound, and does not post those events to
 the host. A pad on another machine is delivered on the host-to-kit input stream
@@ -2589,17 +2679,29 @@ still in `starting`, and an idle sample whose fence was not confirmed, stay on
 the readiness budget. The supervisor verifies process exit before replacement, pins every service to
 one bundle, checks startup and finishes the exact maintenance generation.
 Accepted bundles remain selected. Failed startup permits one durably recorded
-prior-bundle recovery attempt; failed recovery remains blocked. Appliance trials
-run factory software, then reconcile persistent storage and queued work after
-confirmation. Confirmation records the durable release, then rewrites that
-boot's ticket to `trial:false` without changing its boot id or image, so
+prior-bundle recovery attempt. If that prior is incompatible with this image,
+recovery runs the verified compatible factory group while preserving durable
+`Selected`, `Previous` and `Generation`; the incompatible selection remains
+held back and is reported as `held_back`. A blocked recovery can be cancelled
+only after the exact maintenance reservation and an idle, healthy factory group
+are proved; the supervisor keeps the reservation in its durable release journal
+until it ends it with the original grant. Failed recovery remains blocked.
+Appliance trials run factory software, then reconcile persistent storage and
+queued work after confirmation. Confirmation records the durable release, then
+rewrites that boot's ticket to `trial:false` without changing its boot id or image, so
 bundle operations are not refused until another reboot. When the rewrite
 fails, the durable record still confirms the release and admission opens.
 The storage gate accepts the leftover `trial:true` ticket for that boot and
 image. The agent logs the failure and retries the rewrite once on a later
 idle status read. Further status reads leave the ticket in place. The next
-agent start tries the rewrite again. A base-image update blocks activation
-and software installation.
+agent start tries the rewrite again. A base-image update blocks activation and
+software installation. When software maintenance is `blocked`, `fes-update`
+checks that exact status and does not claim a new execution lease. The agent
+admits rollback through both fences only when the lease is `recovery-required`
+and its maintenance record is `blocked`; the updater then stops the runtime,
+confirms idle and coordinates reboot. Ordinary rollback still requires a kit
+lease. Other fenced mutations return a JSON `BUSY` API error that clients can
+distinguish from a lost response.
 
 `WithKitSoftware` proxies the five bearer-authenticated `/v1/kit/software`
 routes to the fixed root-only supervisor socket. Upload is bounded by the bundle
@@ -3465,13 +3567,16 @@ confirmed clean idle response. A failed Stop keeps the recovery error visible.
 
 An idle menu therefore does not by itself establish launch readiness. A new
 explicit library launch can clear a retained idle legacy-launch error through
-one existing leased Stop request before its single activation. Source/media
-validation, target identity, API and ownership admission still apply. Cleanup
-must confirm clean idle; active sessions, save failures, attributed package
-failures and reboot-required states are not silently cleared. Cleanup failure
-blocks activation and remains visible. This does not replay the earlier failed
-launch or automatically reboot. Other recovery states still require explicit
-Stop or operator attention. Kit launch diagnostics record the submitted game ID and
+one leased Stop request before its single activation. If reboot discarded the
+session's grant, the recovery path reads current kit ownership even for
+address-only and target-scoped launches. It claims only after the kit reports
+free; a held kit remains with its owner and a foreign grant is never taken over.
+Source/media validation and API admission still apply. Cleanup must confirm
+clean idle; active sessions, save failures, attributed package failures and
+reboot-required states are not silently cleared. Cleanup failure blocks
+activation and remains visible. This does not replay the earlier failed launch
+or automatically reboot. Other recovery states still require explicit Stop or
+operator attention. Kit launch diagnostics record the submitted game ID and
 bounded result code, separately from the currently displayed selection, without
 logging credentials or raw response bodies.
 
@@ -3682,6 +3787,12 @@ admits 1.0 and 1.1, and the agent accepts the runtime advertising one ABI at
 several minors (unique by id and version). A pc386 library entry binds a raw
 hard-disk image (`hard-disk` role, 1..128 MiB, its own import route) and an
 optional CHS override; otherwise the host infers geometry from the image's MBR.
+Operators import the image with `fogcast core-hard-disk-install` or the web
+library panel, both posting to `POST /api/v1/core-media/hard-disk`, which
+returns the inferred geometry. They set or clear the override with
+`fogcast core-disk-geometry` or the panel's geometry controls, both through
+`PUT /api/v1/library/core-entries/{game_id}/disk-geometry` with the expected
+package and media IDs.
 Launch stages the image on the kit by digest (probe, then upload only when
 missing), then sends the library load with the game, image digest and geometry.
 The agent resolves the staged file and sends `load_library_core` with `game_id`
@@ -4004,6 +4115,12 @@ forwarding it as HID. On a host display, tenfoot opens the existing hardware
 room on the host window and uses the host live-media route without a kit
 session-display transition. When a kit-local core owns input, F12 requests
 local Stop instead. F12 on the idle menu does nothing.
+
+For an active non-Coleco host session with no available playing room, F12
+stops the session and releases the kit lease. Ctrl+Home takes the same Stop
+route; plain Home is forwarded to the core. A pad's Guide button also requests
+this roomless Stop. Coleco keeps its selector-unavailable behavior when no
+playing room can open.
 
 Media delivery can briefly reject a concurrent launcher frame as busy. A healthy
 probe clears that presentation error and its retry delay; the room removes the

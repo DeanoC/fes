@@ -24,7 +24,11 @@ module spike_frontend (
 
     logic [27:0]            mem_block;
     logic                   mem_load;
-    logic [27:0]            fetch_next;
+    logic [6:0][27:0]       held_block;
+    logic [6:0]             held_valid;
+    logic [6:0][7:0]        held_pp;
+    logic [6:0]             held_pk;
+    fes_i386_pkg::btb_write_t btb_wr;
     logic [15:0][7:0]       mem_data;
     logic                   redirect = 1'b1;
     logic [31:0]            redirect_linear;
@@ -82,18 +86,34 @@ module spike_frontend (
         d_ready <= |noise[76:74];
     end
 
+    // BTB writes from the stimulus, so the prediction path is real.
+    always_ff @(posedge clk) btb_wr <= noise[352:280];
+    // The return stack's restore, from the stimulus too.
+    logic [3:0]  ras_set_ptr;
+    logic        ras_set_wr;
+    logic [31:0] ras_set_lin;
+    always_ff @(posedge clk) {ras_set_ptr, ras_set_wr, ras_set_lin} <= {noise[383:351], noise[3:0]};
+
     // Every access hits; a miss has no refill here, so the data is always valid.
     fes_i386_frontend dut (
-        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .fetch_next,
-        .mem_data, .mem_valid(1'b1), .q_valid, .q, .d_ready
+        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load,
+        .mem_data, .mem_valid(1'b1), .mem_tag('0), .q_valid, .q, .d_ready, .pred_en(1'b1), .btb_wr, .ras_set_ptr,
+        .ras_set_wr, .ras_set_lin, .held_block, .held_valid, .held_pp, .held_pk
     );
 
-    logic [31:0]  signature;
-    logic [159:0] observed;
-    assign observed = {21'b0, q_valid, q};
+    logic [31:0]  signature, fold;
+    // Q's record, its valid bit and the held blocks' paging pages, padded
+    // to whole dwords.
+    localparam int OW = $bits(fes_i386_pkg::fetched_t) + 1 + 63;
+    localparam int ON = (OW + 31) / 32;
+    logic [32 * ON - 1:0] observed;
+    assign observed = (32 * ON)'({held_pk, held_pp, q_valid, q});
+    always_comb begin
+        fold = '0;
+        for (int k = 0; k < ON; k++) fold ^= observed[32 * k +: 32];
+    end
     always_ff @(posedge clk) begin
-        signature <= {signature[30:0], signature[31]}
-                   ^ observed[31:0] ^ observed[63:32] ^ observed[95:64] ^ observed[127:96] ^ observed[159:128];
+        signature <= {signature[30:0], signature[31]} ^ fold;
         LED0 <= ^signature;
     end
 endmodule

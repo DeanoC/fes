@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"sync"
@@ -17,15 +18,16 @@ import (
 // authenticates remote callers before proxying these routes. The same mutex
 // serializes queue/cancel with a worker tick so cancellation cannot race acquire.
 type Server struct {
-	snapshot     atomic.Pointer[Server]
-	Mu           sync.Mutex
-	Repository   Repository
-	Store        *software.Store
-	Factory      *software.Release
-	Admission    *UnixAdmission
-	Controller   *ProcessController
-	BaseIdentity string
-	StorageError string
+	snapshot      atomic.Pointer[Server]
+	Mu            sync.Mutex
+	Repository    Repository
+	Store         *software.Store
+	Factory       *software.Release
+	Admission     *UnixAdmission
+	RestartLedger *ServiceRestartLedger
+	Controller    serverController
+	BaseIdentity  string
+	StorageError  string
 	// ExecutionFenced is set when the agent's execution fence may be closed and
 	// the durable queue is not yet known to match. That includes a lost /fence
 	// reply and a restore that failed after cancellation. Claims stay closed
@@ -35,6 +37,12 @@ type Server struct {
 	// HeldBack and HeldBackReason report the selection this image cannot run.
 	// The supervisor copies them from its Engine before publishing status.
 	HeldBack, HeldBackReason string
+}
+
+type serverController interface {
+	Controller
+	ServiceFault() string
+	HostFault() string
 }
 
 func (s *Server) PublishStatus() {
@@ -103,6 +111,12 @@ func (s *Server) status() (softwarecontrol.Status, error) {
 			return out, err
 		}
 		out.State = state
+		if out.HeldBack != "" && state.Selected != out.HeldBack {
+			// Operator recovery can replace an incompatible selected bundle while
+			// this supervisor remains alive. Do not report that old selection as
+			// held back after the journal has moved to a compatible release.
+			out.HeldBack, out.HeldBackReason = "", ""
+		}
 	}
 	return out, nil
 }
@@ -228,6 +242,24 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			copy := *state.Pending
 			queued = &copy
 		}
+		if queued == nil && state.Pending != nil && state.Pending.ID == req.ID && state.Pending.Generation == req.Generation && state.Pending.Phase == "blocked" {
+			copy := *state.Pending
+			if err := s.blockedCancelSelection(r.Context(), copy); err != nil {
+				fail(409, err)
+				return
+			}
+			if err := cancelBlocked(s.Repository, req.ID, req.Generation, softwarecontrol.ReasonBlockedCancel); err != nil {
+				fail(409, err)
+				return
+			}
+			out, err := s.status()
+			if err != nil {
+				fail(503, err)
+				return
+			}
+			json.NewEncoder(w).Encode(out)
+			return
+		}
 		if queued != nil {
 			s.ExecutionFenced = true
 			if err := s.Admission.FenceExecution(r.Context()); err != nil {
@@ -274,6 +306,51 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail(404, errors.New("unknown software route"))
 	}
 }
+
+// blockedCancelSelection permits cancellation of exhausted recovery only when
+// the exact held maintenance reservation and a healthy compatible factory
+// group are both proved. Activation verification remains unchanged and strict.
+func (s *Server) blockedCancelSelection(ctx context.Context, op Operation) error {
+	if s.Factory == nil || s.Controller == nil || s.Admission == nil {
+		return errors.New("blocked software activation has no compatible recovery controller")
+	}
+	if err := s.Controller.Verify(ctx, op.Previous); !errors.Is(err, software.ErrIncompatible) {
+		if err == nil {
+			return errors.New("blocked software cancellation requires a held-back selected bundle")
+		}
+		return err
+	}
+	factory := s.Factory.ID
+	if err := s.Controller.Verify(ctx, factory); err != nil {
+		return fmt.Errorf("factory software is not compatible with this base: %w", err)
+	}
+	if s.Controller.Active() != factory {
+		return errors.New("compatible factory software is not the active group")
+	}
+	grant, err := s.Admission.loadGrant(op.ID)
+	if err != nil {
+		return fmt.Errorf("failed activation grant is unavailable: %w", err)
+	}
+	if grant.Token == "" || grant.Status.OperationID != op.ID || grant.Status.Owner != op.Requester || grant.Status.Purpose != "kit-software-activation" || !software.ValidID(grant.Status.Generation) || grant.Status.BootID == "" {
+		return errors.New("failed activation grant identity is invalid")
+	}
+	status, err := s.Admission.Status(ctx)
+	if err != nil {
+		return err
+	}
+	maintenance := status.Maintenance
+	if maintenance.OperationID != op.ID || maintenance.Generation != grant.Status.Generation || maintenance.BootID != grant.Status.BootID || maintenance.Owner != op.Requester || maintenance.Purpose != "kit-software-activation" || (maintenance.State != "blocked" && maintenance.State != "ready") {
+		return errors.New("failed activation no longer owns this boot's blocked maintenance reservation")
+	}
+	if status.BundleID != factory || !status.RawIdleReady || status.UpdateBlocked {
+		return errors.New("compatible factory software is not idle and ready for recovery")
+	}
+	if err := s.Controller.Healthy(ctx, factory); err != nil {
+		return fmt.Errorf("compatible factory software is not healthy: %w", err)
+	}
+	return nil
+}
+
 func decodeRequest(r *http.Request, v any) error {
 	d := json.NewDecoder(io.LimitReader(r.Body, 64<<10))
 	d.DisallowUnknownFields()

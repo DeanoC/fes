@@ -1,0 +1,102 @@
+{
+ "common": {
+  "kit": "B",
+  "package": "254b2bf566fe1e134e635dc9e9a685829de6574d399337ca4dcf76e1ac59e9b1",
+  "package_file_sha256": "2bbc94ec1d8f494780dd53de5681f037743aa3170db4b643be63aaf0c578cdf1",
+  "sealed_from": "317310c81e1885c06d1d59e7788d0e734f678fb1 (PR #1515 merge commit), Quartus Prime Lite 17.0.2, seed 1; all 112 sealed inputs hash identically on main 5e201aa3b",
+  "seal_timing_ns": {"setup": 0.41, "hold": 0.102, "recovery": 6.781, "removal": 0.618, "minimum_pulse_width": 1.122},
+  "baseline": "main bb51f4454eb72048cefeea16aa16b28eb2aadaad, software a8cd30c49afd79eb7668af7ab7ae8a8e2ed2a90a31b25f164e28128b446274ee, OS f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4 (core-only, nothing installed, no reboot)",
+  "preset": "max (machine settings 0,0,0,0,544,7,1)",
+  "capture": "Kit B 4KPRO through fes-4kpro-hil, 1920x1080; 60 fps for the video captures (stored as 480x270 gray)",
+  "games_image_sha256": "36f50d527fd7c5ea46699aebcbd5b2bcab3e5c14a3c99c8be8828bbbe390ce0e",
+  "scrub_image_sha256": "8538495aedc52a76db41cfbc56bbf89b50e0f84a99addbf6eeba0a788b98c5bf",
+  "scrub": "SCRUBX before every game launch and relaunch"
+ },
+ "b1": {
+  "game": "Ultima VII: The Black Gate",
+  "claimed": "2026-11-06 18:52 EET",
+  "released": "2026-11-06 19:07 EET",
+  "disk_sha256": "19365b107a0875590ccf24f8e03a86c641f42d0c2a9140725991b9e5fffa75bc",
+  "zip_sha256": "75e6eb68636aec0e06ffb9683f03b9be5dbb8de0a121da43935163d1d7c6659f",
+  "result": "pass",
+  "save_slot": "1, \"fes1368\"",
+  "frames": {
+   "save_point": "f6e14b1815c1f472945c14e38506c726182a59de883754afca2baaa0b1ca3433",
+   "after_relaunch": "e8084d54ceaaa96b7b6fbd18fcd5e41f0d6920492b40fffbcafceb6955cc7616",
+   "slot_list_after_relaunch": "c3cbe88e1ae1e3c32dd1084247cc3dd7dcd6926d8a73bd9b61492629495b0fd0",
+   "walk_after_relaunch": "1cca37e9e17a3dd34cda93f4f84a57ce9950f35a224c01b8115f81121ac4ad26"
+  },
+  "save_point_vs_after_relaunch_pixels_changed": "3130/2073600 (0.15%, the mouse cursor)",
+  "save_file": {"path": "ULTIMA7\\GAME00.U7", "sha256_prefix": "039c2f7e4ebb4055", "name_field": "fes1368", "flex_entries": 175, "entries_differing_from_GAMEDAT": 0}
+ },
+ "i1": {
+  "game": "Ultima VII Part Two: Serpent Isle",
+  "claimed": "2026-11-06 19:08 EET",
+  "released": "2026-11-06 19:21 EET",
+  "disk_sha256": "f10ab1f9e9c23c6af7fbb9ad78e592487f0af4eaab003c8230deee2e7c21c185",
+  "zip_sha256": "5601ca4e2e2d23865046fbfe9c775fa5df896aa0ba4f8a66bb95521ffd1c2c1c",
+  "configs": {"SERPENT.CFG": "13ad7bdb6b057ea635899f7856b3d56cba5d44dd25d1664a98b968f2b5212c81", "TEST.CFG": "13ad7bdb6b057ea635899f7856b3d56cba5d44dd25d1664a98b968f2b5212c81"},
+  "result": "pass",
+  "save_slot": "1, \"fes1368si\" (second attempt; the first SAVE click hit the last slot and saved nothing)",
+  "frames": {
+   "save_point_1": "ada15482eb383d38666809f55b57a8ba0c15010b274a0d25c6052abc1fcbebd8",
+   "save_point_2": "2e5299ff11ec958e640369f64f4559ea89dce21476b7ad5df89ccfebfafa32dd",
+   "after_relaunch": "2a0a76efa4b063d1a8fe5ab9e421bc0780f0e2d2bcbfb1f694bd0381a74a82c4",
+   "slot_list_after_relaunch": "a56f4c7e8ac12973d20becfc971fee1ef694b0db91f0b4cc11bfdc691310a6b8"
+  },
+  "pixels_changed": {
+   "save_point_1_vs_save_point_2": "23.5% (surf and cloud shadows)",
+   "save_point_2_vs_after_relaunch": "22.7%",
+   "avatar_crop_300x300_save_point_1_vs_after_relaunch": "0.8%"
+  },
+  "save_file": {"path": "SERPENT\\GAME00.U7", "sha256_prefix": "4200586af8b45908", "name_field": "fes1368si", "flex_entries": 177, "entries_differing_from_GAMEDAT": 0}
+ },
+ "d1": {
+  "game": "DOOM v1.9",
+  "claimed": "2026-11-06 19:26 EET",
+  "released": "2026-11-06 20:11 EET",
+  "disk_sha256": "a6270d185a7131a294b7deaaa0b6621359019f19865893e6c069202069c94b70",
+  "zip_sha256": "06ee36b4257d2fb0daaf38ffd90485bbe5c0a45ad4129492309861fbc523b6bc",
+  "wad_sha256": "ff2c301b8719465a6e386a512bfa319931b7f64ea517d337c5a47afe03951902",
+  "settings": "New Game, Knee-Deep in the Dead, Hurt Me Plenty; IDDQD; pistol only; no warp, no-clip or monster switches",
+  "result": "pass",
+  "tally": "Hangar Finished: kills 100%, items 16%, secrets 0%, time 40:04",
+  "frames": {
+   "first_position_readout": "979f41dc8c40bb9c4f92b23280b7da052500834c1a2924281e32619ba1f3d3fc",
+   "tally": "b3b57cf8c5bf0c02a8dd57ce80ca564a98aba543583412f5264ae71de4012db9",
+   "e1m2": "f06f29b7668b1e70c651080d697bb578230286c7629e0e710b35b5c15a058589"
+  },
+  "captures_480x270_gray_60fps": {
+   "exit60c": {"frames": 2400, "sha256": "2dfb36e1a4b4b40d2239e369862169d9b2522aed7b9b78e06958a87201c64480"},
+   "e1m2": {"frames": 1800, "sha256": "3f77cb0aa85d03dffbe4718aa774a5635d131788cb1ec0184b8bc3dc2a025053"}
+  }
+ },
+ "w1": {
+  "game": "Wolfenstein 3D (Activision 1.4 release)",
+  "claimed": "2026-11-06 20:12 EET",
+  "released": "2026-11-06 20:58 EET",
+  "disk_sha256": "d5236fa492d88adbb6009caffd0aa9ee9ff4df0777f50f279a989985855b30fd",
+  "zip_sha256": "f451d8538266fb9f12a4fa8909a671b37d354de388a9b76d1c1033a6a541ed37",
+  "settings": "wolf3d -goobers; New Game, episode 1, Can I play, Daddy?; debug keys (Left Shift+Alt+Backspace), Tab+G god mode, Tab+F position readouts",
+  "route": "E1L1 normal exit (elevator); 126 tiles; 11 doors and the elevator door; 7 guards shot",
+  "result": "pass",
+  "tally": "Floor 1 completed: time 30:03, kill ratio 63%, secret 0%, treasure 0%",
+  "frames": {
+   "first_position_readout": "e8edd922242169a901b791a076dbf4652daeda18caf142f24a656c3ddd6a51e0",
+   "god_mode": "7a7956c385665298699498d6d2aeba37507b7f8de51d67d436e55f91535747ae",
+   "tally": "f533d12b2b78c08d664985ad99a1d09948d933eb5a4974bcd757ed3ffa0e4d67",
+   "floor2": "7d3d64cbe56346919b30cf9935e7710e23a737906900e5cbdaec56aff43b97bd"
+  },
+  "captures_480x270_gray_60fps": {
+   "wexit60c": {"frames": 1800, "sha256": "65d914984e4eaa79ccdce1465ed11dd903da6cd0c6a4e036d1764cde4bc688e9"},
+   "wfloor2": {"frames": 1199, "sha256": "7ba8fa76279483bee62eca0e72ee368e43eb09bfe6ea1e77ced98a8f11188a11"}
+  },
+  "black_capture_loads": "4 of 9 loads in this run captured pure black for the whole load (game audio still present); a later load of the same package and disk captured normally"
+ },
+ "cleanup": {
+  "trees_removed": {"b1": 5, "i1": 5, "d1": 5, "w1": 10},
+  "kit_b_free": "2026-11-06 20:58 EET, baseline unchanged"
+ },
+ "blocked": {"freedos_date_time": "#1279 (Kit B image f904961e)"},
+ "still_open_on_1368": ["Ultima VI walking speed at 286-12 against a reference", "Ultima VII NPC pace (no reference; not measured)"]
+}

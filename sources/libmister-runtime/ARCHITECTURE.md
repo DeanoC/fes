@@ -444,7 +444,10 @@ the 17th identity word, compared like word 7 against the registered bits
 the `fes.simple-game` freeze, begin and commit rules, and the record is keyed
 by core and library game under `<data_root>/games/`. `fes.rtc.wall-clock` 1.0
 takes the kit's local time from the hardware clock while held, after the
-record restore and before Start. `fes.media.ata-disk` 1.0 is written into
+record restore and before Start; an unsynced kit clock (before 2026) sends the
+record's last valid clock or noon on 2026-01-01. A `fes.pc386.machine` launch with
+`fes.memory.hps-ddr` zeroes guest RAM and VRAM in the window before the record
+restore. `fes.media.ata-disk` 1.0 is written into
 the DDR window through short fes-window grants (`DiskWindow`) from the staged
 base image and the game's `fes.ata-disk.delta` chunks, committed with the CRC
 the core recomputes, and saved at Stop as content-addressed dirty chunks under

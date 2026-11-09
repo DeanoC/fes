@@ -12,6 +12,7 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
+	"github.com/DeanoC/FogCast/internal/testwait"
 )
 
 // homeServices answers Home's two library reads: the fpga catalog and the
@@ -82,6 +83,56 @@ func (s *homeServices) QueryGames(ctx context.Context, q hostclient.GameListQuer
 		return games, nil
 	}
 	return s.fakeServices.QueryGames(ctx, q, max)
+}
+
+type delayedFirstHomeRecentServices struct {
+	*homeServices
+	started     chan struct{}
+	release     chan struct{}
+	returned    chan struct{}
+	staleGames  []hostclient.Game
+	staleErr    error
+	mu          sync.Mutex
+	recentCalls int
+	releaseOnce sync.Once
+}
+
+func (s *delayedFirstHomeRecentServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, error) {
+	if q.Collection != "recents" {
+		return s.homeServices.QueryGames(ctx, q, max)
+	}
+	s.mu.Lock()
+	s.recentCalls++
+	first := s.recentCalls == 1
+	s.mu.Unlock()
+	if first {
+		close(s.started)
+		select {
+		case <-s.release:
+		case <-ctx.Done():
+			close(s.returned)
+			return nil, ctx.Err()
+		}
+		close(s.returned)
+		return append([]hostclient.Game(nil), s.staleGames...), s.staleErr
+	}
+	return s.homeServices.QueryGames(ctx, q, max)
+}
+
+func (s *delayedFirstHomeRecentServices) releaseFirst() {
+	s.releaseOnce.Do(func() { close(s.release) })
+}
+
+type observedHomeCores struct {
+	*fakeLocalCores
+	firstRead chan struct{}
+	readOnce  sync.Once
+}
+
+func (s *observedHomeCores) List(ctx context.Context) ([]localcores.Core, error) {
+	cores, err := s.fakeLocalCores.List(ctx)
+	s.readOnce.Do(func() { close(s.firstRead) })
+	return cores, err
 }
 
 // homeSettled reports that Home has a family or title that is no longer
@@ -429,6 +480,92 @@ func TestHomeKeepsTheSameRecentTitleAfterAResume(t *testing.T) {
 	}
 	if d := r.Destination(); d.GameID != "b" {
 		t.Fatalf("resume moved focus to %+v", d)
+	}
+}
+
+func TestHomeIgnoresStaleRecentResponsesAfterReadinessRefresh(t *testing.T) {
+	staleError := errors.New("older Recent read failed")
+	for _, tc := range []struct {
+		name       string
+		staleGames []hostclient.Game
+		staleErr   error
+		wantStale  string
+	}{
+		{name: "older list", staleGames: []hostclient.Game{titleEntry("older", "fes.spectrum")}, wantStale: "older"},
+		{name: "older error", staleErr: staleError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			base := &homeServices{}
+			svc := &delayedFirstHomeRecentServices{
+				homeServices: base,
+				started:      make(chan struct{}),
+				release:      make(chan struct{}),
+				returned:     make(chan struct{}),
+				staleGames:   tc.staleGames,
+				staleErr:     tc.staleErr,
+			}
+			defer svc.releaseFirst()
+
+			local := &observedHomeCores{fakeLocalCores: &fakeLocalCores{}, firstRead: make(chan struct{})}
+			r := loadHome(t, Options{Services: svc, Local: local, ReleaseOnly: true})
+			select {
+			case <-svc.started:
+			case <-time.After(testwait.Timeout):
+				t.Fatal("initial Recent read did not start")
+			}
+			select {
+			case <-local.firstRead:
+			case <-time.After(testwait.Timeout):
+				t.Fatal("initial kit readiness read did not finish")
+			}
+
+			// The kit becomes Ready before Home resumes and requests fresh recents.
+			local.mu.Lock()
+			local.cores = []localcores.Core{{
+				PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "none", Launchable: true,
+			}}
+			local.mu.Unlock()
+			newer := titleEntry("newer", "fes.zx81")
+			base.setRecents(newer)
+			r.Resume()
+			stepUntil(t, r, func(Frame) bool {
+				d := r.Destination()
+				return d.Kind == KindGame && d.GameID == newer.ID
+			})
+
+			svc.releaseFirst()
+			select {
+			case <-svc.returned:
+			case <-time.After(testwait.Timeout):
+				t.Fatal("older Recent read did not return")
+			}
+			deadline := time.Now().Add(testwait.Timeout)
+			for {
+				r.pendingMu.Lock()
+				delivered := false
+				for _, result := range r.pending {
+					if tc.staleErr != nil && result.err != nil && result.err.Error() == tc.staleErr.Error() {
+						delivered = true
+					}
+					for _, game := range result.games {
+						delivered = delivered || tc.wantStale != "" && game.ID == tc.wantStale
+					}
+				}
+				r.pendingMu.Unlock()
+				if delivered {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("older Recent response was not delivered")
+				}
+				time.Sleep(time.Millisecond)
+			}
+
+			r.Step(time.Now())
+			if d := r.Destination(); d.Kind != KindGame || d.GameID != newer.ID || d.Kicker != "Recently played" {
+				t.Fatalf("older response replaced the newer Recent focus: %+v", d)
+			}
+		})
 	}
 }
 

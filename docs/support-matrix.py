@@ -233,7 +233,7 @@ def render(data: dict) -> str:
         '',
         '## Legend',
         '',
-        f'Tiers are derived from signals in the JSON (as of {AS_OF}). Catalog standing is recorded and is not a tier. Owned RTL is a commit that changes that core\'s `rtl/` and names the core, or that core holds at least half of the commit\'s RTL files and at least two files. A one-file edit inside another core\'s commit does not count. A recorded override from {OVERRIDE_REASON} replaces the derived tier.',
+        f'Tiers are derived from role and media signals in the JSON and an owned-RTL activity snapshot as of {AS_OF}. Role, media and dated kit notes may be updated after that snapshot. Catalog standing is recorded and is not a tier. Owned RTL is a commit that changes that core\'s `rtl/` and names the core, or that core holds at least half of the commit\'s RTL files and at least two files. A one-file edit inside another core\'s commit does not count. A recorded override from {OVERRIDE_REASON} replaces the derived tier.',
         '',
         'Coleco is Aging: work toward Current is in progress and still needs work. Spectrum and Atari ST stay Current; their kit HIL pass on the latest RTL is pending and expected soon. C64 NTSC and Atari STE are Bring-up (queued).',
         '',

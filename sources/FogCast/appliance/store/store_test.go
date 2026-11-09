@@ -755,6 +755,21 @@ func stageDistinct(t *testing.T, s *Store, raw []byte, mark byte) release.Manife
 	return m
 }
 
+func stageDistinctUnpruned(t *testing.T, s *Store, raw []byte, mark byte) release.Manifest {
+	t.Helper()
+	data := bytes.Clone(raw)
+	data[0] = mark
+	m := manifest(data)
+	path, err := s.ImagePath(m.ImageSHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.publishNewImage(context.Background(), m, path, bytes.NewReader(data), m.ImageSize); err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
 func confirmRelease(t *testing.T, s *Store, hash, bootID string) {
 	t.Helper()
 	if e := s.Activate(hash); e != nil {
@@ -765,6 +780,192 @@ func confirmRelease(t *testing.T, s *Store, hash, bootID string) {
 	}
 	if e := s.Confirm(bootID, hash); e != nil {
 		t.Fatal(e)
+	}
+}
+
+func writeSelectionTicket(t *testing.T, s *Store, selection Selection) {
+	t.Helper()
+	if err := WriteBootTicket(filepath.Join(s.root, "boot.json"), selection.BootID, selection.Manifest.ImageSHA256, selection.Trial, selection.FallbackImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func confirmReleaseWithTicket(t *testing.T, s *Store, hash, bootID string) {
+	t.Helper()
+	if err := s.Activate(hash); err != nil {
+		t.Fatal(err)
+	}
+	selection, err := s.BeginBoot(bootID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeSelectionTicket(t, s, selection)
+	if err := s.Confirm(bootID, hash); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRetentionKeepsFactoryAlongsideCurrentAndPrevious(t *testing.T) {
+	s, factory, raw := fixture(t)
+	first := stageDistinct(t, s, raw, 21)
+	confirmReleaseWithTicket(t, s, first.ImageSHA256, "retention-a")
+
+	second := stageDistinct(t, s, raw, 22)
+	confirmReleaseWithTicket(t, s, second.ImageSHA256, "retention-b")
+
+	factoryImage, _ := releasePaths(t, s, factory.ImageSHA256)
+	firstImage, _ := releasePaths(t, s, first.ImageSHA256)
+	secondImage, _ := releasePaths(t, s, second.ImageSHA256)
+	mustExist(t, factoryImage)
+	mustExist(t, firstImage)
+	mustExist(t, secondImage)
+	status, err := s.Status()
+	if err != nil || status.Good != second.ImageSHA256 || status.Previous != first.ImageSHA256 {
+		t.Fatalf("current/fallback state = %+v %v", status, err)
+	}
+
+	if err := os.WriteFile(filepath.Join(s.root, "state.json"), []byte("damaged"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fallback, err := s.LastFallbackSelection("retention-recovery")
+	if err != nil || fallback.Manifest.ImageSHA256 != second.ImageSHA256 || fallback.FallbackImageSHA256 != first.ImageSHA256 {
+		t.Fatalf("corrupt-state fallback = %+v %v", fallback, err)
+	}
+	if err := os.WriteFile(secondImage, []byte("damaged current"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fallback, err = s.LastFallbackSelection("retention-recovery")
+	if err != nil || fallback.Manifest.ImageSHA256 != first.ImageSHA256 {
+		t.Fatalf("damaged current did not recover to previous: %+v %v", fallback, err)
+	}
+	if err := s.RecordFallbackContext(context.Background(), "retention-recovery", first.ImageSHA256); err != nil {
+		t.Fatalf("record stable ticket fallback: %v", err)
+	}
+}
+
+func TestTrialTicketKeepsKnownGoodFallbackWhenStateIsCorrupt(t *testing.T) {
+	s, factory, raw := fixture(t)
+	first := stageDistinct(t, s, raw, 31)
+	confirmReleaseWithTicket(t, s, first.ImageSHA256, "trial-fallback-a")
+	second := stageDistinct(t, s, raw, 32)
+	if err := s.Activate(second.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	trial, err := s.BeginBoot("trial-fallback-b")
+	if err != nil || !trial.Trial || trial.FallbackImageSHA256 != first.ImageSHA256 {
+		t.Fatalf("trial selection = %+v %v", trial, err)
+	}
+	writeSelectionTicket(t, s, trial)
+	if err := os.WriteFile(filepath.Join(s.root, "state.json"), []byte("damaged"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fallback, err := s.LastFallbackSelection("trial-recovery")
+	if err != nil || fallback.Manifest.ImageSHA256 != first.ImageSHA256 {
+		t.Fatalf("trial fallback = %+v %v", fallback, err)
+	}
+	if err := s.RecordFallbackContext(context.Background(), "trial-recovery", first.ImageSHA256); err != nil {
+		t.Fatalf("record trial fallback: %v", err)
+	}
+	factoryImage, _ := releasePaths(t, s, factory.ImageSHA256)
+	mustExist(t, factoryImage)
+}
+
+func TestLastFallbackSelectionIgnoresMalformedOptionalSidecar(t *testing.T) {
+	s, _, raw := fixture(t)
+	first := stageDistinct(t, s, raw, 41)
+	confirmReleaseWithTicket(t, s, first.ImageSHA256, "sidecar-first")
+	second := stageDistinct(t, s, raw, 42)
+	confirmReleaseWithTicket(t, s, second.ImageSHA256, "sidecar-second")
+
+	ticketBody, err := json.Marshal(bootTicket{
+		BootID:              "sidecar-recovery",
+		ImageSHA256:         second.ImageSHA256,
+		FallbackImageSHA256: first.ImageSHA256,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.root, "boot.json"), append(ticketBody, '\n'), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.root, BootFallbackFilename), []byte("{malformed sidecar"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.root, "state.json"), []byte("damaged"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	fallback, err := s.LastFallbackSelection("sidecar-recovery")
+	if err != nil || fallback.Manifest.ImageSHA256 != second.ImageSHA256 || fallback.FallbackImageSHA256 != first.ImageSHA256 {
+		t.Fatalf("valid ticket was blocked by malformed optional sidecar: %+v %v", fallback, err)
+	}
+}
+
+func TestLastFallbackSelectionRequiresBootIDAndExplicitTrial(t *testing.T) {
+	s, _, raw := fixture(t)
+	first := stageDistinct(t, s, raw, 43)
+	confirmReleaseWithTicket(t, s, first.ImageSHA256, "ticket-first")
+	second := stageDistinct(t, s, raw, 44)
+	confirmReleaseWithTicket(t, s, second.ImageSHA256, "ticket-second")
+	if err := os.WriteFile(filepath.Join(s.root, "state.json"), []byte("damaged"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(s.root, BootFallbackFilename)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+
+	stableTicket := func(bootID, trial string) string {
+		return fmt.Sprintf(`{"boot_id":%s,"image_sha256":%q,"fallback_image_sha256":%q,"trial":%s}`,
+			bootID, second.ImageSHA256, first.ImageSHA256, trial)
+	}
+	malformed := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "missing boot_id",
+			body: fmt.Sprintf(`{"image_sha256":%q,"fallback_image_sha256":%q,"trial":false}`, second.ImageSHA256, first.ImageSHA256),
+		},
+		{name: "null boot_id", body: stableTicket("null", "false")},
+		{name: "wrong boot_id type", body: stableTicket("7", "false")},
+		{name: "invalid boot_id value", body: stableTicket(`"bad id"`, "false")},
+		{
+			name: "missing trial",
+			body: fmt.Sprintf(`{"boot_id":"ticket-recovery","image_sha256":%q,"fallback_image_sha256":%q}`, second.ImageSHA256, first.ImageSHA256),
+		},
+		{name: "null trial", body: stableTicket(`"ticket-recovery"`, "null")},
+		{name: "string trial", body: stableTicket(`"ticket-recovery"`, `"false"`)},
+		{name: "number trial", body: stableTicket(`"ticket-recovery"`, "0")},
+	}
+	for _, tc := range malformed {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := os.WriteFile(filepath.Join(s.root, "boot.json"), []byte(tc.body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.LastFallbackSelection("fallback-recovery"); !errors.Is(err, errUnreadableBootTicket) {
+				t.Fatalf("LastFallbackSelection error = %v, want %v", err, errUnreadableBootTicket)
+			}
+		})
+	}
+
+	valid := []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "stable", body: stableTicket(`"ticket-recovery"`, "false"), want: second.ImageSHA256},
+		{name: "trial", body: stableTicket(`"ticket-recovery"`, "true"), want: first.ImageSHA256},
+	}
+	for _, tc := range valid {
+		t.Run("valid "+tc.name, func(t *testing.T) {
+			if err := os.WriteFile(filepath.Join(s.root, "boot.json"), []byte(tc.body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			fallback, err := s.LastFallbackSelection("fallback-recovery")
+			if err != nil || fallback.Manifest.ImageSHA256 != tc.want {
+				t.Fatalf("LastFallbackSelection = %+v, %v; want image %s", fallback, err, tc.want)
+			}
+		})
 	}
 }
 
@@ -819,14 +1020,14 @@ func releasePaths(t *testing.T, s *Store, hash string) (string, string) {
 
 func TestStagePrunesOldestUnreferencedImageOnly(t *testing.T) {
 	s, factory, raw := fixture(t)
-	previous := stageDistinct(t, s, raw, 1)
-	good := stageDistinct(t, s, raw, 2)
+	previous := stageDistinctUnpruned(t, s, raw, 1)
 	confirmRelease(t, s, previous.ImageSHA256, "boot-a")
+	good := stageDistinctUnpruned(t, s, raw, 2)
 	confirmRelease(t, s, good.ImageSHA256, "boot-b")
-	looped := stageDistinct(t, s, raw, 3)
-	booted := stageDistinct(t, s, raw, 4)
-	staleOld := stageDistinct(t, s, raw, 5)
-	staleNew := stageDistinct(t, s, raw, 6)
+	looped := stageDistinctUnpruned(t, s, raw, 3)
+	booted := stageDistinctUnpruned(t, s, raw, 4)
+	staleOld := stageDistinctUnpruned(t, s, raw, 5)
+	staleNew := stageDistinctUnpruned(t, s, raw, 6)
 	factoryImage, factoryManifest := releasePaths(t, s, factory.ImageSHA256)
 	previousImage, previousManifest := releasePaths(t, s, previous.ImageSHA256)
 	goodImage, goodManifest := releasePaths(t, s, good.ImageSHA256)
@@ -871,9 +1072,11 @@ func TestStagePrunesOldestUnreferencedImageOnly(t *testing.T) {
 	mustAbsent(t, oldManifest)
 	mustAbsent(t, oldSplash)
 	mustAbsent(t, oldDigest)
-	for _, path := range []string{factoryImage, factoryManifest, previousImage, previousManifest, goodImage, goodManifest, goodSplash, goodDigest, loopImage, loopManifest, bootImage, bootManifest, newImage, newManifest, bootloader, note} {
+	for _, path := range []string{factoryImage, factoryManifest, previousImage, previousManifest, goodImage, goodManifest, goodSplash, goodDigest, loopImage, loopManifest, bootImage, bootManifest, bootloader, note} {
 		mustExist(t, path)
 	}
+	mustAbsent(t, newImage)
+	mustAbsent(t, newManifest)
 	if b, e := os.ReadFile(bootloader); e != nil || string(b) != "keep\n" {
 		t.Fatalf("bootloader changed: %q %v", b, e)
 	}
@@ -885,7 +1088,7 @@ func TestStagePrunesOldestUnreferencedImageOnly(t *testing.T) {
 	}
 }
 
-func TestStageKeepsUnreferencedImagesWhenSpaceRemains(t *testing.T) {
+func TestStagePrunesSupersededImagesWhenSpaceRemains(t *testing.T) {
 	s, _, raw := fixture(t)
 	stale := stageDistinct(t, s, raw, 8)
 	image, manifestPath := releasePaths(t, s, stale.ImageSHA256)
@@ -895,14 +1098,14 @@ func TestStageKeepsUnreferencedImagesWhenSpaceRemains(t *testing.T) {
 	if e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming)); e != nil {
 		t.Fatal(e)
 	}
-	mustExist(t, image)
-	mustExist(t, manifestPath)
+	mustAbsent(t, image)
+	mustAbsent(t, manifestPath)
 }
 
 func TestStageReportsInsufficientStorageWithoutDeletingRetainedImages(t *testing.T) {
 	s, factory, raw := fixture(t)
-	looped := stageDistinct(t, s, raw, 3)
-	booted := stageDistinct(t, s, raw, 4)
+	looped := stageDistinctUnpruned(t, s, raw, 3)
+	booted := stageDistinctUnpruned(t, s, raw, 4)
 	loopImage, loopManifest := releasePaths(t, s, looped.ImageSHA256)
 	bootImage, bootManifest := releasePaths(t, s, booted.ImageSHA256)
 	factoryImage, factoryManifest := releasePaths(t, s, factory.ImageSHA256)
