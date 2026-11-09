@@ -133,6 +133,41 @@ source [lindex $argv 1]
             audit(clocks, counts, fmax, corners)
 
 
+class DontReplicateTests(unittest.TestCase):
+    NETLIST = ('module top;\n'
+               '  reg system_machine_reset = 1\'h1;\n'
+               '  reg [1:0] sys_reset = 2\'h3;\n'
+               '  reg fes_computer_runtime_pcxt_floppy_gp_mailbox_core_exec_reset = 1\'h1;\n'
+               '  reg fes_computer_runtime_pcxt_floppy_gp_mailbox_core_exec_reset_q = 1\'h0;\n'
+               '  assign x = system_machine_reset;\n'
+               'endmodule\n')
+
+    def netlist(self, text):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = Path(directory.name) / 'elaborated.v'
+        path.write_text(text)
+        return path
+
+    def test_marks_each_audio_reset_source_once(self):
+        path = self.netlist(self.NETLIST)
+        marked = builder.mark_dont_replicate(path, builder.AUDIO_SINGLE_REGISTERS)
+        self.assertEqual(marked, {name: 1 for name in builder.AUDIO_SINGLE_REGISTERS})
+        text = path.read_text()
+        self.assertEqual(text.count('(* dont_replicate *)'), 3)
+        self.assertIn('  (* dont_replicate *) reg [1:0] sys_reset = 2\'h3;\n', text)
+        self.assertIn('  (* dont_replicate *) reg fes_computer_runtime_pcxt_floppy_gp_mailbox_core_exec_reset = ', text)
+        self.assertIn('  reg fes_computer_runtime_pcxt_floppy_gp_mailbox_core_exec_reset_q = ', text)
+        self.assertIn('  assign x = system_machine_reset;\n', text)
+
+    def test_missing_register_rejects_and_leaves_the_netlist(self):
+        text = self.NETLIST.replace('  reg system_machine_reset = 1\'h1;\n', '')
+        path = self.netlist(text)
+        with self.assertRaisesRegex(ValueError, 'system_machine_reset: 0'):
+            builder.mark_dont_replicate(path, builder.AUDIO_SINGLE_REGISTERS)
+        self.assertEqual(path.read_text(), text)
+
+
 class MailboxBindingTests(unittest.TestCase):
     def setUp(self):
         path = Path(__file__).parent / 'fixtures/pcxt_quartus_mailbox.json.gz'

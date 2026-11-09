@@ -49,6 +49,13 @@ ADAPTERS = CORE / 'quartus/adapters.v'
 AUDIT = CORE / 'quartus/audit.tcl'
 MAILBOX = CORE / 'quartus/mailbox.sdc'
 AUDIO_SDC = CORE / 'quartus/audio.sdc'
+# audio.sdc binds each of these reset sources to exactly one register. The
+# Cyclone V router may still copy a high-fanout register for routability
+# (seed 2 of main 843d9fc2c copied the mailbox exec_reset), so Quartus is told
+# not to replicate them. The netlist is written with -noattr, so the attribute
+# is added to the exported declaration here.
+AUDIO_SINGLE_REGISTERS = ('system_machine_reset', 'sys_reset',
+                          'fes_computer_runtime_pcxt_floppy_gp_mailbox_core_exec_reset')
 PINS = CORE / 'constraints-board50.qsf'
 AUDIO_PINS = CORE / 'constraints-audio.qsf'
 PACKAGE_PINS = Path('cores/fes-ramtest/constraints.qsf')
@@ -266,6 +273,20 @@ def project_qsf(source: Path, seed: int, threads: int, *, package_profile=False,
             for role in ('request', 'ack', 'hold', 'lock')
             for stage in ('meta', 'sync'))
     return '\n'.join(lines) + '\n'
+
+
+def mark_dont_replicate(netlist: Path, names) -> dict:
+    """Add Quartus's dont_replicate attribute to each named register declaration."""
+    text = netlist.read_text()
+    marked = {}
+    for name in names:
+        pattern = re.compile(r'^(  )(reg (?:\[\d+:\d+\] )?' + re.escape(name) + r' = )', re.M)
+        text, count = pattern.subn(r'\1(* dont_replicate *) \2', text)
+        if count != 1:
+            raise ValueError(f'dont_replicate binding failed: {name}: {count}')
+        marked[name] = count
+    netlist.write_text(text)
+    return marked
 
 
 def validate_audio_clock_audit(clock_records, counts, fmax, corners):
@@ -576,6 +597,7 @@ def main(argv=None) -> int:
             record['audio_binding'] = validate_audio(
                 json.loads((work / 'before-names.json').read_text())['modules']['top'],
                 json.loads((work / 'elaborated.json').read_text())['modules']['top'])
+            record['dont_replicate'] = mark_dont_replicate(work / 'elaborated.v', AUDIO_SINGLE_REGISTERS)
         record['generated'] = {p.name: sha(p) for p in work.iterdir() if p.suffix in ('.mem', '.hex', '.vh')}
         record['elaborated_verilog_sha256'] = sha(work / 'elaborated.v')
         for seed in seeds:
