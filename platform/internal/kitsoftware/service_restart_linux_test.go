@@ -99,12 +99,12 @@ func TestHostHealthReadinessRequiresExpectedReadyTarget(t *testing.T) {
 		"wrong-target":       strings.Replace(valid, DiagnosticPongTargetID, "another-target", 1),
 		"trailing-json":      valid + `{}`,
 	}
-	if err := validateFogCastKitHealth(strings.NewReader(valid), DiagnosticPongTargetID); err != nil {
+	if err := validateFogCastKitHealth(strings.NewReader(valid), ServiceRestartSession{TargetID: DiagnosticPongTargetID}); err != nil {
 		t.Fatalf("positive host/target readiness rejected: %v", err)
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {
-			if err := validateFogCastKitHealth(strings.NewReader(body), DiagnosticPongTargetID); err == nil {
+			if err := validateFogCastKitHealth(strings.NewReader(body), ServiceRestartSession{TargetID: DiagnosticPongTargetID}); err == nil {
 				t.Fatal("incomplete or mismatched host readiness was accepted")
 			}
 		})
@@ -745,5 +745,32 @@ func TestRestartTargetIdentityMatchesConfiguredAndGeneratedAgentModes(t *testing
 	_ = os.Remove(identity)
 	if _, err := readNamedRestartTargetID(config, identity); err == nil {
 		t.Fatal("missing generated identity accepted")
+	}
+}
+
+func TestLiveHostReadinessRequiresActiveTargetAndExactAdoptedSession(t *testing.T) {
+	session := ServiceRestartSession{TargetID: DiagnosticPongTargetID, LeaseState: "held", PackageID: DiagnosticPongPackageID, RuntimeGeneration: 7}
+	health := `{"ready":true,"target":{"reachable":true,"ready":false,"connection":{"state":"active","target_id":"` + DiagnosticPongTargetID + `"}}}`
+	if err := validateFogCastKitHealth(strings.NewReader(health), session); err != nil {
+		t.Fatal(err)
+	}
+	idle := session
+	idle.LeaseState = "free"
+	if err := validateFogCastKitHealth(strings.NewReader(health), idle); err == nil {
+		t.Fatal("active target granted idle readiness")
+	}
+	for _, state := range []string{"ready", "connecting", "disconnected"} {
+		if err := validateFogCastKitHealth(strings.NewReader(strings.Replace(health, `"state":"active"`, `"state":"`+state+`"`, 1)), session); err == nil {
+			t.Fatal("nonactive target accepted", state)
+		}
+	}
+	valid := `{"id":"play","state":"active","target":"kit","target_id":"` + DiagnosticPongTargetID + `","core_package":{"package_id":"` + DiagnosticPongPackageID + `","generation":7}}`
+	if err := validateFogCastKitSession(strings.NewReader(valid), session); err != nil {
+		t.Fatal(err)
+	}
+	for _, body := range []string{`{}`, valid + `{}`, strings.Replace(valid, `"play"`, `""`, 1), strings.Replace(valid, `"active"`, `"idle"`, 1), strings.Replace(valid, `"kit"`, `""`, 1), strings.Replace(valid, DiagnosticPongTargetID, "other", 1), strings.Replace(valid, DiagnosticPongPackageID, strings.Repeat("b", 64), 1), strings.Replace(valid, `"generation":7`, `"generation":8`, 1)} {
+		if err := validateFogCastKitSession(strings.NewReader(body), session); err == nil {
+			t.Fatal("unbound host session accepted", body)
+		}
 	}
 }

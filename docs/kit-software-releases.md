@@ -284,7 +284,9 @@ its host observation and render-loop heartbeat must both be fresh, and the marke
 must identify the replacement PID, bundle, target, package and runtime generation.
 This marker never grants frame readiness or software activation readiness. It is
 invalidated on host failure, session change, resume or shutdown. `fogcast-kit` must answer its local
-health API with the expected target reachable and ready. A failed readiness
+health API with the expected target reachable. Idle diagnostics also require
+target readiness; live diagnostics require an active target and a host session
+that has adopted the exact target, package and runtime generation. A failed readiness
 attempt is stopped and left to the existing one-to-thirty-second backoff.
 Results, including refusals and interrupted requests, are kept on FESDATA3 for
 30 days, up to 256 records. Reusing an ID with the same request returns the

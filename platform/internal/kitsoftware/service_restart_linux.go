@@ -632,7 +632,7 @@ func (c *ProcessController) probeNamedServiceReady(ctx context.Context, service 
 		if c.serviceRestartHostProbe != nil {
 			return c.serviceRestartHostProbe(ctx, session.TargetID)
 		}
-		return probeFogCastKitHealth(ctx, session.TargetID)
+		return probeFogCastKitHealth(ctx, session)
 	case serviceTenfoot:
 		if c.serviceRestartLauncherProbe != nil {
 			return c.serviceRestartLauncherProbe(ctx, process, bundle)
@@ -653,11 +653,12 @@ type fogCastKitHealth struct {
 		Ready      bool `json:"ready"`
 		Connection *struct {
 			TargetID string `json:"target_id"`
+			State    string `json:"state"`
 		} `json:"connection"`
 	} `json:"target"`
 }
 
-func probeFogCastKitHealth(ctx context.Context, expectedTarget string) error {
+func probeFogCastKitHealth(ctx context.Context, session ServiceRestartSession) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:8787/api/v1/health", nil)
@@ -672,10 +673,28 @@ func probeFogCastKitHealth(ctx context.Context, expectedTarget string) error {
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("host health API returned HTTP %d", response.StatusCode)
 	}
-	return validateFogCastKitHealth(response.Body, expectedTarget)
+	if err := validateFogCastKitHealth(response.Body, session); err != nil {
+		return err
+	}
+	if session.LeaseState != "held" {
+		return nil
+	}
+	request, err = http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:8787/api/v1/session", nil)
+	if err != nil {
+		return err
+	}
+	adopted, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return err
+	}
+	defer adopted.Body.Close()
+	if adopted.StatusCode != http.StatusOK {
+		return fmt.Errorf("host session API returned HTTP %d", adopted.StatusCode)
+	}
+	return validateFogCastKitSession(adopted.Body, session)
 }
 
-func validateFogCastKitHealth(body io.Reader, expectedTarget string) error {
+func validateFogCastKitHealth(body io.Reader, session ServiceRestartSession) error {
 	var health fogCastKitHealth
 	decoder := json.NewDecoder(io.LimitReader(body, 64<<10))
 	if err := decoder.Decode(&health); err != nil {
@@ -685,8 +704,42 @@ func validateFogCastKitHealth(body io.Reader, expectedTarget string) error {
 	if err := decoder.Decode(&extra); err != io.EOF {
 		return errors.New("host health API response has trailing data")
 	}
-	if !health.Ready || !health.Target.Reachable || !health.Target.Ready || health.Target.Connection == nil || health.Target.Connection.TargetID != expectedTarget {
+	if !health.Ready || !health.Target.Reachable || health.Target.Connection == nil || health.Target.Connection.TargetID != session.TargetID {
 		return errors.New("host health API did not confirm ready host and expected target")
+	}
+	if session.LeaseState == "held" {
+		if health.Target.Connection.State != "active" {
+			return errors.New("host target is not active during live diagnostic")
+		}
+	} else if !health.Target.Ready {
+		return errors.New("host target is not ready for idle diagnostic")
+	}
+	return nil
+}
+
+// A reachable active target is insufficient: the replacement host must have
+// adopted the same foreground, so its Stop controls bind to this generation.
+func validateFogCastKitSession(body io.Reader, session ServiceRestartSession) error {
+	var adopted struct {
+		ID          string `json:"id"`
+		State       string `json:"state"`
+		TargetID    string `json:"target_id"`
+		Target      string `json:"target"`
+		CorePackage *struct {
+			PackageID  string `json:"package_id"`
+			Generation uint64 `json:"generation"`
+		} `json:"core_package"`
+	}
+	decoder := json.NewDecoder(io.LimitReader(body, 64<<10))
+	if err := decoder.Decode(&adopted); err != nil {
+		return err
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		return errors.New("host session API response has trailing data")
+	}
+	if adopted.ID == "" || adopted.State != "active" || adopted.Target == "" || adopted.TargetID != session.TargetID || adopted.CorePackage == nil || adopted.CorePackage.PackageID != session.PackageID || adopted.CorePackage.Generation != session.RuntimeGeneration {
+		return errors.New("host did not adopt the expected live session")
 	}
 	return nil
 }
