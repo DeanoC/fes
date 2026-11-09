@@ -1,0 +1,31 @@
+=== 1 0 U A SHIFT+M B SHIFT+2 SHIFT+1 C SHIFT+B D SHIFT+3 G 1 0 0 NL 2 0 Y A B SHIFT+Y SP SHIFT+H NL
+sys: 00 04 00 00 43 40 14 00 42 40 43 40 45 40 94 40 97 40 02 00 00 00 00 00 00 00 9c 07 00 00 e3 01 00 00 00 37 21 17 ff ff
+VARS=4042 E_LINE=4043 D_FILE=4045 DF_EA=4094 DF_END=4097
+prog: 00 0a fa 26 e4 27 e0 db 28 e1 29 d5 ec 1d 1c 1c 76 00 14 fe 26 27 01 00 e2 76
+vars: 80
+eline: b0 76
+screen:
+   0|  10 IF A>B AND NOT C OR D THEN |
+   1|GO TO 100|
+   2|  20[>]REM AB" **|
+   3||
+   4||
+   5||
+   6||
+   7||
+   8||
+   9||
+  10||
+  11||
+  12||
+  13||
+  14||
+  15||
+  16||
+  17||
+  18||
+  19||
+  20||
+  21||
+  22||
+  23|[K]|

@@ -521,7 +521,7 @@ def source_provenance(args, font):
     bios_path = root/'sources/misteross/cores/fes-pcxt'/bios_config['file']
     bios_sha = hashlib.sha256(bios_path.read_bytes()).hexdigest()
     if bios_sha != bios_config['sha256']:
-        raise pa.AcceptanceError('BIOS changed after font extraction')
+        raise pa.AcceptanceError('BIOS differs from the package lock')
     return ({'package_source_commit': args.source_commit,
              'host': {'source_commit': host_source, 'receipt_file': 'host-receipt.json',
                       'receipt_sha256': host_sha, 'fogcast_api_sha256': binary_sha},

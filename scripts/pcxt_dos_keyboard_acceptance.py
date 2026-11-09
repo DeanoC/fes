@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Preflight host input and check PC/XT DOS directory captures.
 
-The visual check uses the locked GLaBIOS font and before/after captures. It
+The visual check uses the locked CGA font and before/after captures. It
 does not establish the package identity, prove input delivery, or operate a
 kit; those remain the responsibility of the owning HIL run.
 """
@@ -36,7 +36,7 @@ def check_host_input_config(path):
 
 
 def read_text(frame, font):
-    """Decode CGA characters using prompt alignment and locked ROM glyphs."""
+    """Decode CGA characters using prompt alignment and locked font glyphs."""
     width, height, rgb = frame
     anchor = visual.find_prompt(width, height, rgb, font)
     fg, bg = anchor['foreground_rgb'], anchor['background_rgb']

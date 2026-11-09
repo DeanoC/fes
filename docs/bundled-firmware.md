@@ -6,8 +6,8 @@ No kit check has been run on it yet; see [Kit check](#kit-check).
 FES v1 ships the firmware it may redistribute as separate, replaceable files
 beside the cores. The host imports each one into its core-media store and
 selects it by default for titles that have no firmware chosen. A user can
-still choose their own image for any title. No firmware byte is in Git or in a
-sealed core package.
+still choose their own image for any title. None of the bundled images listed
+below is in Git or in a sealed core package.
 
 ## What ships
 

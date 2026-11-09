@@ -3361,12 +3361,16 @@ func (a *App) fetchHealth(ctx context.Context) {
 		}
 		a.mu.Lock()
 		wasForeign := a.foreignKitLeaseLocked()
+		wasReady := a.healthHave && !a.hostUnreachable && a.kitMenuHealthError == "" && a.health.Ready && a.health.TargetReachable && a.health.TargetReady
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = result
 		a.kitLeaseHave = true
 		a.kitLease = lease
 		a.clearLeaseRefusalAfterTransitionLocked(wasForeign)
+		if a.kitHost && !wasReady && result.Ready && result.TargetReachable && result.TargetReady {
+			a.refreshKitInventoryLocked(ctx)
+		}
 		a.mu.Unlock()
 		a.noteKitMenuHealthObservation(nil)
 		return
