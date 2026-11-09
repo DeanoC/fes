@@ -76,3 +76,36 @@ separate gates.
 
 The HIL planner classifies this change as FULL_IMAGE. Passing the CPU models
 and incremental kernel builds does not satisfy that physical image/boot check.
+
+## Shared-service ownership correction
+
+The clean public producer at 1684bf394 built Image `c9894b4c` with the recorded
+source profile, mode and kernel notes verified. Before any board trial, a
+further source audit found that the stock configuration enables SENSORS_SOC64
+built-in. The enabled Terasic temperature/voltage DT node can bind soc64-hwmon,
+which acquires another service channel and asynchronous client at probe. RSU
+and FCS drivers also use the controller. A sole-device IOMMU group is therefore
+not proof of sole service ownership; no native active-client count is claimed.
+The manager's live count guard correctly refuses another client, so the earlier
+producer did not guarantee that this experimental hook could run on its output.
+
+The opt-in producer now excludes all pinned non-FPGA service clients and FCS
+consumers, both built-in and modular. Kconfig and configuration/image verification
+require that exclusion. Temperature/voltage monitoring, RSU and FCS services are
+unavailable in this experimental configuration; ordinary builds keep the stock
+choices. Unexpected live ownership still refuses before hardware access. This
+adds no shared-client parking, DMA release, retry, reset or firmware change.
+
+Twenty focused producer/image cases pass, including every excluded symbol in
+both y/m forms and a resealed image configuration that tries to enable hwmon.
+The new policy rejects the earlier c989 kernel with its exact SENSORS_SOC64
+reason before image assembly. Its partially built managed base was stopped by
+its exact authenticated own container ID; logs/cache and the completed kernel
+remain retained. It was not a compiler failure, successful image or board trial.
+No same-head base replay occurs. The corrected committed producer must rebuild
+and verify a new kernel/base/image before any physical approval or trial.
+
+Powerboat retains the pinned source/hash audit, stopped controller and precise
+policy refusal under `sdm-committed-producer-1684bf394/`. The eight supplier C/header
+outputs are unchanged by this correction; the selected kernel configuration
+changes, so prior whole-kernel and physical evidence is not transferred.

@@ -31,6 +31,11 @@ ENABLED = ("FES_DE25_DMA", "FES_DE25_DMA_PLATFORM", "OF_OVERLAY", "OF_CONFIGFS",
            "BT_HCIBTUSB", "BT_HCIBTUSB_BCM", "BT_HCIBTUSB_RTL", "BT_INTEL", "BT_BCM", "BT_RTL",
            "INPUT_EVDEV", "INPUT_UINPUT", "UHID", "HID_GENERIC", "USB_HID")
 DISABLED = ("LOCALVERSION_AUTO", "FES_DE25_DMA_KUNIT_TEST")
+# All non-FPGA users of the pinned service controller, including FCS consumers
+# which can select its HAL. A client reference is not an idle-transaction proof.
+CONTAINMENT_EXCLUDED = ("SENSORS_SOC64", "INTEL_STRATIX10_RSU",
+                        "ALTERA_SOCFPGA_FCS_HAL", "ALTERA_SOCFPGA_CONFIG",
+                        "CRYPTO_DEV_INTEL_FCS", "CRYPTO_DEV_ALTERA_FCS")
 
 
 def write_json(path, data):
@@ -123,6 +128,10 @@ def verify_config(text, static_expansion=False, sdm_containment=False):
     values = re.findall(r"^CONFIG_FES_DE25_SDM_CONTAINMENT=(.*)$", text, re.M)
     if values != (["y"] if sdm_containment else []):
         raise ValueError("kernel SDM containment configuration differs from requested mode")
+    if sdm_containment:
+        for name in CONTAINMENT_EXCLUDED:
+            if re.search(r"^CONFIG_" + name + r"=", text, re.M):
+                raise ValueError("SDM containment requires exclusive FPGA service: " + name)
 
 
 def inside(jobs, revision, static_expansion=False, sdm_containment=False):
@@ -148,6 +157,9 @@ def inside(jobs, revision, static_expansion=False, sdm_containment=False):
         change.extend(("--enable", name))
     for name in DISABLED:
         change.extend(("--disable", name))
+    if sdm_containment:
+        for name in CONTAINMENT_EXCLUDED:
+            change.extend(("--disable", name))
     change.extend(("--enable" if static_expansion else "--disable", "FES_DE25_STATIC_EXPANSION"))
     change.extend(("--enable" if sdm_containment else "--disable", "FES_DE25_SDM_CONTAINMENT"))
     dep.checked(change)

@@ -169,6 +169,18 @@ class KernelIdentityTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'SDM containment'):
                     owner.selected_kernel(root)
 
+    def test_image_refuses_containment_with_another_service_client(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            record = self.candidate(root, False, True)
+            config = (root/'kernel.config').read_bytes()+b'CONFIG_SENSORS_SOC64=y\n'
+            (root/'kernel.config').write_bytes(config)
+            record['files']['kernel.config'] = {'sha256': hashlib.sha256(config).hexdigest(),
+                                               'size': len(config)}
+            self.save_candidate(root, record)
+            with self.assertRaisesRegex(ValueError, 'exclusive FPGA service: SENSORS_SOC64'):
+                owner.selected_kernel(root)
+
     def test_notes_bind_the_linked_range_and_refuse_ambiguous_or_invalid_inputs(self):
         import hashlib
         with tempfile.TemporaryDirectory() as temp:

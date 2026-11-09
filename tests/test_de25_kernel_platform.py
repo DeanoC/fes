@@ -123,6 +123,22 @@ class KernelPlatformTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 platform.containment_mode({'sdm_containment_enabled': value})
 
+    def test_containment_refuses_every_other_service_client_including_modules(self):
+        ordinary = ''.join('CONFIG_'+n+'=y\n' for n in platform.ENABLED)
+        ordinary += 'CONFIG_LOCALVERSION="-fes-de25-owner"\n'
+        enabled = ordinary + 'CONFIG_FES_DE25_SDM_CONTAINMENT=y\n'
+        for name in platform.CONTAINMENT_EXCLUDED:
+            for value in ('y', 'm'):
+                with self.subTest(name=name, value=value):
+                    # Ordinary builds retain the stock choices.
+                    platform.verify_config(ordinary+'CONFIG_'+name+'='+value+'\n')
+                    with self.assertRaisesRegex(ValueError, 'exclusive FPGA service: '+name):
+                        platform.verify_config(enabled+'CONFIG_'+name+'='+value+'\n',
+                                               sdm_containment=True)
+        platform.verify_config(enabled+''.join('# CONFIG_'+n+' is not set\n'
+                                              for n in platform.CONTAINMENT_EXCLUDED),
+                               sdm_containment=True)
+
     def test_modular_owner_or_test_hooks_cannot_pass_config_verification(self):
         text = ''.join('CONFIG_' + n + '=y\n' for n in platform.ENABLED)
         text += ''.join('# CONFIG_' + n + ' is not set\n' for n in platform.DISABLED)

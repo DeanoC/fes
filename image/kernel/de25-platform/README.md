@@ -116,6 +116,11 @@ check is waived.
 
 `--sdm-containment` explicitly enables `CONFIG_FES_DE25_SDM_CONTAINMENT`;
 ordinary preparation leaves it disabled, independently of static expansions.
+This candidate requires sole FPGA service ownership. Enabling the option
+excludes the stock temperature/voltage monitor, remote-system-update and FCS
+client drivers, including modular forms; these services are unavailable in
+this opt-in configuration. Ordinary preparation preserves the vendor choices.
+The controller's live sole-owner check still refuses an unexpected client.
 The producer records this choice and checks the final and embedded Image
 configuration. The image assembler verifies the same choice and full supplier
 profile before deriving the kernel-note identity. New headers must be absent
