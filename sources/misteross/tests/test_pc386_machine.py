@@ -309,6 +309,21 @@ END prompt steps=42 cycles=100 seconds=0.001
 """
 
 
+class StoreFailuresTest(unittest.TestCase):
+    def test_store_checks_fail_on_stale_code_and_wrong_pages(self):
+        report = sim.parse_boot(RTL_BOOT_OUTPUT)
+        self.assertEqual(sim.store_failures(report), [])
+        text = RTL_BOOT_OUTPUT.replace('smc_executed=0', 'smc_executed=0 store_page_mismatches=2')
+        text = 'SMC page 5 f000:00000fb8 00000ff8 000f0ff8\n' + text
+        failures = sim.store_failures(sim.parse_boot(text))
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('2 RTL store bytes reported a physical page'))
+        self.assertIn("'address': '000f0ff8'", failures[0])
+        failures = sim.store_failures(sim.parse_boot(RTL_BOOT_OUTPUT.replace('smc_executed=0', 'smc_executed=1')))
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('the RTL ran 1 instructions'))
+
+
 class A20TestTest(unittest.TestCase):
     def test_suite_checks_are_the_programs_names(self):
         source = (sim.CORE / 'sim/a20_test.asm').read_text()

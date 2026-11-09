@@ -350,8 +350,8 @@ Nextpnr remains advisory under [#840](https://github.com/DeanoC/fes/issues/840).
 Build success does not establish external SDRAM/HDMI/HPS/reset qualification
 or physical socket containment; hardware acceptance needs its own dated run.
 The DOS package's HIL checker requires at least three complete frames with a meaningful change
-and matches the final `A:\>` prompt using glyphs extracted from the locked
-BIOS ROM; a static signature fails. The recipe prefers Kit B then Kit A.
+and matches the final `A:\>` prompt using glyphs from the package's locked
+CGA font; a static signature fails. The recipe prefers Kit B then Kit A.
 The [31 October Kit B DOS boot](validation/2026-10-31-pcxt-dos-boot/README.md)
 accepted exact package `7f282f3b` from source `0fdae134`: after a runtime
 FreeDOS floppy upload, captured video progressed through BIOS and reached

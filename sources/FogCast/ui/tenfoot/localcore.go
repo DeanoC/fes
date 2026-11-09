@@ -129,12 +129,47 @@ func (a *App) retryLocalInstall(ctx context.Context, cores rooms.LocalCores, gen
 			return
 		case <-ticker.C:
 			listed, err := cores.List(ctx)
+			if ctx.Err() != nil {
+				return
+			}
 			if err != nil {
 				continue
 			}
 			a.rememberInstalled(cores, gen, listed)
 			return
 		}
+	}
+}
+
+// A successful empty inventory during startup is only a snapshot. Refresh
+// when the kit's target becomes ready, including the first health observation,
+// without adding an inventory poll while it stays ready. Suspended Home rooms
+// refresh through their normal on_resume callback when they become visible.
+func (a *App) refreshKitInventoryLocked(parent context.Context) {
+	if cores := a.localCores; cores != nil {
+		if a.localInstallCancel != nil {
+			a.localInstallCancel()
+		}
+		ctx, cancel := context.WithCancel(parent)
+		a.localInstallCancel = cancel
+		a.localInstallGen++
+		gen := a.localInstallGen
+		a.localInstallKnown = false
+		a.localInstalled = nil
+		go func() {
+			listed, err := cores.List(ctx)
+			if ctx.Err() != nil {
+				return
+			}
+			if err != nil {
+				a.retryLocalInstall(ctx, cores, gen)
+				return
+			}
+			a.rememberInstalled(cores, gen, listed)
+		}()
+	}
+	if a.room != nil && a.room.ID() == installedCoresHomeID {
+		a.room.Resume()
 	}
 }
 

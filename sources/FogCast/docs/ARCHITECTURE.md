@@ -2592,7 +2592,12 @@ library, artwork, and session operations. On bundles advertising `kit-host`,
 the supervisor passes `-api http://127.0.0.1:8787 -kit-host` to tenfoot. This
 client uses the unpaired loopback API without saved paired credentials and does
 not serve an embedded catalog. Its installed-core shelf reads the host package
-inventory. Core and local SMS cartridge selections are resolved into host
+inventory. When target health first becomes ready or recovers, tenfoot refreshes
+its installed-core cache and the visible Home room's kit and library data. A
+successful empty startup inventory does not remain cached after that transition;
+unchanged ready health does not poll inventory. Suspended Home rooms refresh
+both sources when resumed, preserving their instance and selection. Core and
+local SMS cartridge selections are resolved into host
 catalog entries through `POST /api/v1/library/local-core-entry`, then use the
 host session launch and Stop paths. The host checks the selected package and
 resolves a cartridge by catalog identity, imports its content, and reuses its

@@ -511,12 +511,26 @@ def run_machine(testbench: Path, suite: str, arguments: list[str], images: dict)
     for counter in ('scanout_underflows', 'capture_drops', 'present_underflows', 'plane_underflows'):
         if report['vga'].get(counter):
             report['failures'].append(f'VGA {counter}: {report["vga"][counter]}')
-    # The coherent profile: no instruction runs bytes from before a store into them.
-    executed = (report.get('rtl') or {}).get('counters', {}).get('smc_executed')
-    if executed:
-        report['failures'].append(f'the RTL ran {executed} instructions over bytes stored after it fetched them: '
-                                  f'{[site for site in report["rtl"]["smc"] if site["event"] == "executed"]}')
+    report['failures'] += store_failures(report)
     return report
+
+
+def store_failures(report: dict) -> list[str]:
+    """The RTL's stores against the stale-code tracker and their pages."""
+    rtl = report.get('rtl') or {}
+    counters = rtl.get('counters') or {}
+    sites = rtl.get('smc') or []
+    failures = []
+    # The coherent profile: no instruction runs bytes from before a store into them.
+    if counters.get('smc_executed'):
+        failures.append(f'the RTL ran {counters["smc_executed"]} instructions over bytes stored after it fetched them: '
+                        f'{[site for site in sites if site["event"] == "executed"]}')
+    # With paging off, every store byte's CPU page is its address's through
+    # A20 (#1595: pages read on the wrong edge put stack stores in code).
+    if counters.get('store_page_mismatches'):
+        failures.append(f'{counters["store_page_mismatches"]} RTL store bytes reported a physical page other than '
+                        f'their address\'s: {[site for site in sites if site["event"] == "page"]}')
+    return failures
 
 
 def rtl_boot_failures(report: dict, cpu: str) -> list[str]:
@@ -1643,7 +1657,8 @@ def run_game(args, linked: list[Path]) -> dict:
                                             '--opl2-log', str(opl2_log), '--frames', str(frames), *keys, *extra,
                                             '--cpu', args.cpu, '--game-launch', '1', *governor_arguments(args)], images)
     report['game'] = {'name': args.game, 'drive': record.get('drive'), 'drive_sha256': record['sha256'],
-                      'title': title['title'], 'bucket': title['bucket'], 'zip_sha256': title['sha256']}
+                      'title': title['title'], 'bucket': title['bucket'],
+                      'source': title.get('source', 'exodos'), 'source_sha256': title['sha256']}
     report['work'] = str(work)
     # A program that ends at the prompt ends the run there; that is not a bench failure.
     if (report.get('end') or {}).get('reason') == 'prompt' and report.get('game_launch'):

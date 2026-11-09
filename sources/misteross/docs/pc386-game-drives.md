@@ -125,10 +125,13 @@ python3 scripts/sim_fes_pc386.py --suite game --game duke3d --cpu rtl --rtl-at-p
 - `--instruction-census` writes the oracle's instruction census to
   `census.txt` ([Instruction census](#instruction-census)).
 
-The report goes to `build/sim/fes-pc386/game-<id>[-rtl]/report.json`. With
-`--cpu rtl`, its `rtl` section lists the stops and the protected-mode
-stretches the oracle ran. Wolfenstein 3D and Ultima VI, the acceptance titles,
-must also play the OPL2. A game passes only after `machine_tb` records screen
+The report goes to `build/sim/fes-pc386/game-<id>[-rtl]/report.json`. Its
+`game.source` is the title's manifest source name (default `exodos`), and
+`game.source_sha256` is the source hash recorded when the drive was built:
+the zip bytes for a zip source, or the sorted file-path and file-hash tree
+for a folder source. With `--cpu rtl`, its `rtl` section lists the stops and
+the protected-mode stretches the oracle ran. Wolfenstein 3D and Ultima VI,
+the acceptance titles, must also play the OPL2. A game passes only after `machine_tb` records screen
 or VGA-frame progress beyond the typed command; neither reaching the time limit
 nor returning to the DOS prompt counts as a pass without that evidence.
 

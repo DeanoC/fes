@@ -1,0 +1,125 @@
+--- a/KF8253_Counter.sv	2026-11-07 23:31:59.670662935 +0200
++++ b/KF8253_Counter.sv	2026-11-07 23:31:59.682663427 +0200
+@@ -67,6 +67,7 @@
+     logic   [16:0]  count_latched;
+
+     logic           count_read_negedge;
++    logic           strobe_armed;
+     logic           status_latched_flag;
+     logic   [7:0]   status_latched;
+     logic           null_count;
+@@ -356,9 +357,12 @@
+             first_count_edge    <= first_count_edge;
+     end
+
+-    // Saturating decrement by one or two, with independent BCD borrow
+-    // prefixes. Mode 3 must not place two complete decrementers in series.
+-    // The extra high bit represents 65536 (binary) or 10000 (BCD).
++    // Decrement by one or two, with independent BCD borrow prefixes. Mode 3
++    // must not place two complete decrementers in series. The extra high bit
++    // represents 65536 (binary) or 10000 (BCD). Below the step the count
++    // wraps to FFFFh (9999 in BCD) and below, as the 8253 and 8254 keep
++    // counting after terminal count in modes 0, 1, 4 and 5; modes 2 and 3
++    // reload before they get there.
+     function automatic logic [16:0] decrement(input [16:0] count, input is_bcd, input twice);
+         reg [16:0] result;
+         integer step, i;
+@@ -376,7 +380,7 @@
+                 end
+                 result[16] = count[16] && count[15:0] >= 16'(step);
+             end
+-            decrement = count < 17'(step) ? 17'b0 : result;
++            decrement = count < 17'(step) ? {1'b0, result[15:0]} : result;
+         end
+     endfunction
+
+@@ -391,13 +395,13 @@
+     logic count_zero_q, count_le_one_q, count_le_two_q, count_le_three_q, count_two_q;
+     always_ff @(posedge clock, posedge reset) begin
+         if (reset) begin
+-            dec_binary_q <= 0; dec2_binary_q <= 0;
+-            dec_bcd_q <= 0; dec2_bcd_q <= 0;
++            dec_binary_q <= 17'h0ffff; dec2_binary_q <= 17'h0fffe;
++            dec_bcd_q <= 17'h09999; dec2_bcd_q <= 17'h09998;
+             count_zero_q <= 1; count_le_one_q <= 1; count_le_two_q <= 1;
+             count_le_three_q <= 1; count_two_q <= 0;
+         end else if (!start_counting) begin
+-            dec_binary_q <= 0; dec2_binary_q <= 0;
+-            dec_bcd_q <= 0; dec2_bcd_q <= 0;
++            dec_binary_q <= 17'h0ffff; dec2_binary_q <= 17'h0fffe;
++            dec_bcd_q <= 17'h09999; dec2_bcd_q <= 17'h09998;
+             count_zero_q <= 1; count_le_one_q <= 1; count_le_two_q <= 1;
+             count_le_three_q <= 1; count_two_q <= 0;
+         end else begin
+@@ -561,6 +565,27 @@
+             prev_count_period <= prev_count_period;
+     end
+
++    // Modes 4 and 5 strobe OUT once per count loaded (mode 4) or trigger
++    // (mode 5). The count wraps and keeps going after terminal count, so
++    // without this it would strobe again every wrap.
++    always_ff @(posedge clock, posedge reset) begin
++        if (reset)
++            strobe_armed <= 1'b0;
++        else if (start_counting == 1'b0)
++            strobe_armed <= 1'b0;
++        else if (count_edge) begin
++            if (((select_mode == `KF8253_CONTROL_MODE_4) && load_edge) ||
++                ((select_mode == `KF8253_CONTROL_MODE_5) && gate_edge))
++                strobe_armed <= 1'b1;
++            else if ((count_period) && (prev_count_period == 1'b0))
++                strobe_armed <= 1'b0;
++            else
++                strobe_armed <= strobe_armed;
++        end
++        else
++            strobe_armed <= strobe_armed;
++    end
++
+     // Output
+     always_ff @(posedge clock, posedge reset) begin
+         if (reset)
+@@ -578,17 +603,23 @@
+         end
+         else if (count_edge) begin
+             casez (select_mode)
++                // OUT goes high at terminal count and stays high while the
++                // count wraps, until a new count (mode 0) or trigger (mode 1).
+                 `KF8253_CONTROL_MODE_0: begin
+-                    if (count_period)
++                    if (load_edge)
++                        counter_out <= count_period;
++                    else if (count_period)
+                         counter_out <= 1'b1;
+                     else
+-                        counter_out <= 1'b0;
++                        counter_out <= counter_out;
+                 end
+                 `KF8253_CONTROL_MODE_1: begin
+-                    if (count_period)
++                    if (gate_edge)
++                        counter_out <= count_period;
++                    else if (count_period)
+                         counter_out <= 1'b1;
+                     else
+-                        counter_out <= 1'b0;
++                        counter_out <= counter_out;
+                 end
+                 `KF8253_CONTROL_MODE_2: begin
+                     if (counter_gate == 1'b0)
+@@ -607,13 +638,13 @@
+                         counter_out <= counter_out;
+                 end
+                 `KF8253_CONTROL_MODE_4: begin
+-                    if ((count_period) && (prev_count_period == 1'b0))
++                    if ((strobe_armed) && (count_period) && (prev_count_period == 1'b0))
+                         counter_out <= 1'b0;
+                     else
+                         counter_out <= 1'b1;
+                 end
+                 `KF8253_CONTROL_MODE_5: begin
+-                    if ((count_period) && (prev_count_period == 1'b0))
++                    if ((strobe_armed) && (count_period) && (prev_count_period == 1'b0))
+                         counter_out <= 1'b0;
+                     else
+                         counter_out <= 1'b1;
