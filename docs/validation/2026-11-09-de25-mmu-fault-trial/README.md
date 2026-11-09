@@ -44,3 +44,9 @@ record with final source bytes. The [final frozen inputs](operator-source-final.
 and `preflight_final.py` are authoritative for the hardware procedure; the older
 frozen inputs remain as negative preparation evidence. No membership/byte or
 physical-state check was weakened, and no programming counter was reset.
+
+The [bounded hardware result](hardware-result.json) now confirms MMU/cache
+activation followed by an asynchronous SError delivered in `tf_log`. The
+[analysis and matching disassembly](analysis.md) preserve the evidence limits.
+The private memory probe and launcher/tape path did not start. Cleanup and
+archive readback passed; this image and both grants are retired.
