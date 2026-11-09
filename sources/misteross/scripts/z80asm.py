@@ -4,7 +4,8 @@
 
 Syntax: one statement per line, `label:` definitions, `.local` labels scoped to
 the previous global label, `name equ expr`, `org expr`, `db`, `dw`, `ds`,
-`dz "TEXT"` (ZX81 character codes, last byte with bit 7 set), `assert expr`
+`dz "TEXT"` (ZX81 character codes, or ZX80 after `charset zx80`; last byte
+with bit 7 set), `assert expr`
 and `include "file"`. Expressions use Python operators on
 integers plus `$` for the current address and 'c' character constants.
 Overlapping `org` blocks are an error, so fixed ROM entry points cannot be
@@ -17,13 +18,20 @@ code uses. Two layouts are tried and the one that fits, and then is smallest,
 is kept: largest first and best fit; or the sections joined by a `jr` in
 source order through the largest gaps (so the `jr` stays short), with the
 rest filling the holes left, smallest hole first, each with the sections
-that fill it best. A section must not fall through into the next one. Between `autofloat` and `endautofloat` a new
-section starts at every global label that follows an unconditional
+that fill it best. A source with `floatorder [seed]` tries a third layout: the
+sections in the order (found by a seeded annealing search) that leaves the
+fewest `jr` out of range, through the gaps in address order; and a `jr` out
+of range goes by way of a direct jump to the same place within its reach
+before it becomes a `jp`. A section must
+not fall through into the next one. Between `autofloat` and `endautofloat` a
+new section starts at every global label that follows an unconditional
 jump or return (a label after data continues the same table).
 """
 from __future__ import annotations
 import argparse
 import bisect
+import math
+import random
 import re
 import sys
 from pathlib import Path
@@ -58,6 +66,12 @@ ZX81_TEXT = {' ': 0, '"': 11, '£': 12, '$': 13, ':': 14, '?': 15, '(': 16,
              '/': 24, ';': 25, ',': 26, '.': 27}
 ZX81_TEXT.update({str(d): 28 + d for d in range(10)})
 ZX81_TEXT.update({chr(65 + i): 38 + i for i in range(26)})
+ZX80_TEXT = {' ': 0, '"': 1, '£': 12, '$': 13, ':': 14, '?': 15, '(': 16,
+             ')': 17, '-': 18, '+': 19, '*': 20, '/': 21, '=': 22, '>': 23,
+             '<': 24, ';': 25, ',': 26, '.': 27}
+ZX80_TEXT.update({str(d): 28 + d for d in range(10)})
+ZX80_TEXT.update({chr(65 + i): 38 + i for i in range(26)})
+CHARSETS = {'zx81': ZX81_TEXT, 'zx80': ZX80_TEXT}
 
 
 class AsmError(Exception):
@@ -114,6 +128,8 @@ class Assembler:
         self.float_limit_override = None
         self.where = ''
         self.grew = False
+        self.chaining = False
+        self.chains, self.jumps = {}, {}
 
     # -- expressions -------------------------------------------------------
     def value(self, expr: str) -> int:
@@ -287,29 +303,54 @@ class Assembler:
         if m == 'ret':
             return [0xc0 | CC[lows[0]] << 3] if ops else [0xc9]
         if m == 'djnz':
+            if not -128 <= self.value(ops[0]) - (self.pc + 2) <= 127:
+                self.far_djnz = True            # this layout cannot be used
+            if self.in_float is not None:
+                index = self.in_float[0]
+                self.jr_sites.append((index, self.pc - self.float_pc[index], self.value(ops[0]), 1000))
             return [0x10, self.relative(ops[0], 2)]
         if m == 'jr':
             if len(ops) == 2 and lows[0] not in ('nz', 'z', 'nc', 'c'):
                 raise AsmError(f'jr cannot test {ops[0]}')
             target = ops[-1]
             if self.in_float is not None:
-                self.jr_edges.add((self.in_float[0], self.value(target)))
-            if self.where not in self.long_jumps:
-                offset = self.value(target) - (self.pc + 2)
-                if -128 <= offset <= 127 or not self.symbols_settled:
-                    if len(ops) == 2:
-                        return [0x20 | CC[lows[0]] << 3, self.relative(target, 2)]
-                    return [0x18, self.relative(target, 2)]
+                index = self.in_float[0]
+                self.jr_edges.add((index, self.value(target)))
+                self.jr_sites.append((index, self.pc - self.float_pc[index], self.value(target), 1))
+            to = self.value(target)
+            op = 0x20 | CC[lows[0]] << 3 if len(ops) == 2 else 0x18
+            if self.where in self.chains:
+                via = self.chains[self.where][0]
+                if -128 <= via - (self.pc + 2) <= 127 and via in self.jumps_before.get(to, ()):
+                    return [op, (via - (self.pc + 2)) & 0xff]
+                del self.chains[self.where]             # lost: a jp from now on
                 self.long_jumps.add(self.where)
                 self.grew = True
+            if self.where not in self.long_jumps:
+                offset = to - (self.pc + 2)
+                if -128 <= offset <= 127 or not self.symbols_settled:
+                    if len(ops) == 1:
+                        self.jumps.setdefault(to, set()).add(self.pc)
+                    return [op, self.relative(target, 2)]
+                for via in sorted(self.jumps_before.get(to, ()) if self.chaining else ()):
+                    if via != self.pc and -128 <= via - (self.pc + 2) <= 127:
+                        self.chains[self.where] = (via, to)     # by way of a jump to the same place
+                        self.grew = True
+                        return [op, (via - (self.pc + 2)) & 0xff]
+                self.long_jumps.add(self.where)
+                self.grew = True
+            if len(ops) == 1:
+                self.jumps.setdefault(to, set()).add(self.pc)
             if len(ops) == 2:
-                return [0xc2 | CC[lows[0]] << 3] + self.word(self.value(target))
-            return [0xc3] + self.word(self.value(target))
+                return [0xc2 | CC[lows[0]] << 3] + self.word(to)
+            return [0xc3] + self.word(to)
         if m == 'jp' and lows[0] in ('(hl)', '(ix)', '(iy)'):
             return {'(hl)': [0xe9], '(ix)': [0xdd, 0xe9], '(iy)': [0xfd, 0xe9]}[lows[0]]
         if len(ops) == 2:
             base = 0xc2 if m == 'jp' else 0xc4
             return [base | CC[lows[0]] << 3] + self.word(self.value(ops[1]))
+        if m == 'jp':
+            self.jumps.setdefault(self.value(ops[0]), set()).add(self.pc)
         return [0xc3 if m == 'jp' else 0xcd] + self.word(self.value(ops[0]))
 
     def alu(self, m, ops, lows):
@@ -409,19 +450,31 @@ class Assembler:
         lines = []
         self.read(source, lines)
         best = None
-        for strategy in ('size', 'linked'):
+        self.order, self.order_runs = None, 0
+        orders = [strip_comment(line).split() for _, _, line in lines]
+        orders = [o for o in orders if o and o[0].lower() == 'floatorder']
+        ordered = bool(orders)
+        self.order_seed = int(orders[0][1], 0) if ordered and len(orders[0]) > 1 else 1
+        self.chaining = ordered
+        for strategy in ('size', 'linked') + (('order',) if ordered else ()):
             self.strategy = strategy
             self.float_at = {}
             self.float_size = {}
             self.symbols = {}
             biggest = {}
-            for _ in range(30):
+            held = {}
+            for tries in range(30):
                 self.relax(lines, size, fill)
                 for i, n in self.float_size.items():
                     biggest[i] = max(n, biggest.get(i, 0))
+                    if tries >= 4:
+                        held[i] = max(n, held.get(i, 0))
                 placed = dict(self.float_at)
                 actual = dict(self.float_size)
-                self.float_size = dict(biggest)          # room for the largest seen
+                if strategy != 'order':
+                    self.float_size = dict(biggest)      # room for the largest seen
+                elif tries >= 4:                        # packed as they are, until
+                    self.float_size = dict(held)         # that has not settled
                 self.place_floats(size)
                 self.float_size = actual
                 if placed == self.float_at and self.consistent(size):
@@ -430,17 +483,22 @@ class Assembler:
                 continue
             over = sum(n for i, n in self.float_size.items() if self.float_at.get(i, size) >= size)
             total = sum(self.float_size.values())
-            if best is None or (over, total) < best[0]:
-                best = ((over, total), strategy, dict(self.float_at), dict(self.float_size))
+            far = self.far_djnz                 # (from the pass with this placement)
+            if best is None or (far, over, total) < best[0]:
+                best = ((far, over, total), strategy, dict(self.float_at), dict(self.float_size))
         if best is None:
             raise AsmError('layout did not settle')
-        (over, total), self.strategy, self.float_at, self.float_size = best
+        (_, over, total), self.strategy, self.float_at, self.float_size = best
         self.relax(lines, size, fill)
         if over:
             raise AsmError(f'floating code does not fit: {total} bytes in '
                            f'{len(self.float_size)} sections, {over} bytes left over')
         self.final_pass = True
-        return self._pass(lines, size, fill)
+        image = self._pass(lines, size, fill)
+        for via, to in self.chains.values():
+            if via not in self.jumps.get(to, ()):
+                raise AsmError('a chained jr lost the jump it goes by')
+        return image
 
     def consistent(self, size):
         """No two placed sections (or fixed code) share a byte."""
@@ -459,6 +517,8 @@ class Assembler:
     def relax(self, lines, size, fill):
         """Fresh jump relaxation for the current placement."""
         self.long_jumps = set()
+        self.chains = {}                        # jr site -> (the jump it goes by, its target)
+        self.jumps = {}
         self.symbols_settled = False
         for passes in range(40):
             before = dict(self.symbols)
@@ -484,7 +544,9 @@ class Assembler:
                 start = None
         sizes = self.float_size
         placement = {}
-        if self.strategy == 'size':
+        if self.strategy == 'order':
+            left = self.place_order(free, placement)
+        elif self.strategy == 'size':
             for index in sorted(sizes, key=lambda i: (-sizes[i], i)):
                 fits = [g for g in free if g[1] - g[0] >= sizes[index]]
                 if fits:
@@ -499,6 +561,29 @@ class Assembler:
             placement[index] = scratch          # does not fit
             scratch += sizes[index]
         self.float_at = placement
+
+    def place_order(self, free, placement):
+        """The 'order' layout; returns the sections that did not fit."""
+        sizes = self.float_size
+        self.order_runs += 1
+        if self.order_runs <= 2:                # again once the sizes are known
+            starts = sorted((at, i) for i, at in self.float_pc.items())
+            addresses = [at for at, _ in starts]
+
+            def locate(address):
+                k = bisect.bisect_right(addresses, address) - 1
+                if k >= 0:
+                    at, j = starts[k]
+                    if address < at + sizes.get(j, 0):
+                        return j, address - at
+                return None, address
+            edges = [(i, offset) + locate(target) + (weight,)
+                     for i, offset, target, weight in self.jr_sites]
+            self.order = anneal_order(self.order or sorted(sizes), sizes, edges, free,
+                                      seed=self.order_seed)
+        _, at, left = order_layout(self.order, sizes, free)
+        placement.update(at)
+        return left
 
     def place_linked(self, free, placement):
         """The 'linked' layout; returns the sections that did not fit."""
@@ -547,8 +632,12 @@ class Assembler:
             self.in_float = None
             self.float_count = 0
             self.float_pc = {}                  # section index -> address this pass
+            self.far_djnz = False
             self.jr_edges = set()               # (section, jr target address)
+            self.jr_sites = []                  # (section, offset, target, cost if out of range)
+            self.jumps_before, self.jumps = self.jumps, {}  # target -> addresses of direct jumps
             self.scratch_next = 0x10000
+            self.charset_name, self.charset = 'zx81', ZX81_TEXT
             self.auto = False
             self.flow_ended = True
             self.pc = 0
@@ -610,6 +699,8 @@ class Assembler:
             if self.in_float is not None:
                 self.statement('endfloat', image, owner, where)
             return
+        if mnemonic == 'floatorder':
+            return
         if mnemonic not in ('float', 'endfloat', 'assert', 'error', 'floatlimit'):
             low = [o.lower().replace(' ', '') for o in ops]
             self.flow_ended = (
@@ -648,6 +739,12 @@ class Assembler:
             self.in_float = None
             self.pc = saved
             return
+        if mnemonic == 'charset':
+            if rest.strip() not in CHARSETS:
+                raise AsmError(f'unknown charset {rest.strip()}')
+            self.charset_name = rest.strip()
+            self.charset = CHARSETS[self.charset_name]
+            return
         if mnemonic == 'assert':
             if self.final_pass and not self.value(rest):
                 raise AsmError(f'assertion failed: {rest}')
@@ -668,9 +765,9 @@ class Assembler:
             if len(text) < 3 or text[0] != '"' or text[-1] != '"':
                 raise AsmError('dz needs a quoted string')
             try:
-                data = [ZX81_TEXT[ch] for ch in text[1:-1]]
+                data = [self.charset[ch] for ch in text[1:-1]]
             except KeyError as exc:
-                raise AsmError(f'no ZX81 character for {exc}') from None
+                raise AsmError(f'no {self.charset_name} character for {exc}') from None
             data[-1] |= 0x80
         elif mnemonic in ('dw', 'defw'):
             data = []
@@ -694,6 +791,71 @@ class Assembler:
             image[address] = b
             owner[address] = where
         self.pc += len(data)
+
+
+def order_layout(order, sizes, free):
+    """Each section in this order at the end of the first gap it fits in:
+    (bytes that do not fit, the addresses, the sections left over)."""
+    ends = [start for start, _ in free]
+    at, left = {}, []
+    for i in order:
+        for k, (_, end) in enumerate(free):
+            if ends[k] + sizes[i] <= end:
+                at[i] = ends[k]
+                ends[k] += sizes[i]
+                break
+        else:
+            left.append(i)
+    return sum(sizes[i] for i in left), at, left
+
+
+def anneal_order(sections, sizes, edges, free, steps=60000, seed=1):
+    """An order of the sections that fits and leaves few jr out of range."""
+    def cost(order):
+        over, at, _ = order_layout(order, sizes, free)
+        far = 0
+        for i, offset, j, target, weight in edges:
+            if i not in at or j is not None and j not in at:
+                far += weight
+                continue
+            to = at[j] + target if j is not None else target
+            if not -128 <= to - (at[i] + offset + 2) <= 127:
+                far += weight
+        return over * 1000 + far
+    if len(sections) < 2:                       # nothing to order
+        return list(sections)
+    best, best_order = None, None
+    for run in range(2):                        # two searches, the better kept
+        rng = random.Random(seed + run)
+        order = list(sections)
+        now = cost(order)
+        if best is None:
+            best, best_order = now, order[:]
+        heat = 2.0
+        cool = (0.05 / heat) ** (1 / steps)
+        for _ in range(steps):
+            trial = order[:]
+            a, b = sorted(rng.sample(range(len(trial)), 2))
+            if rng.random() < 0.5:
+                trial[a], trial[b] = trial[b], trial[a]
+            else:
+                trial.insert(b, trial.pop(a))
+            c = cost(trial)
+            if c <= now or rng.random() < math.exp((now - c) / heat):
+                order, now = trial, c
+                if c < best:
+                    best, best_order = c, order[:]
+            heat *= cool
+    order, now = best_order, best
+    for a in range(len(order)):                 # then each section where it is best
+        for b in range(len(order)):
+            if a != b:
+                trial = order[:]
+                trial.insert(b, trial.pop(a))
+                c = cost(trial)
+                if c < now:
+                    order, now = trial, c
+    return order
 
 
 def main():
