@@ -40,3 +40,21 @@ matched native chain and fresh bounded board trial. Previous physical evidence
 qualifies only its original source/image and does not qualify this repair.
 Ordinary appliance acceptance and physical display/input remain open. Old-file
 cleanup remains paused.
+
+
+The new menu artifact is sealed as package `385c0b50…`, build `87ebcfe5…`.
+Its exact-project two-clock model checks 483 source inputs and three frames.
+Constrained multicorner worst slacks are 1.494/0.001/7.281/0.125/0.220 ns with
+zero TNS. The existing unwaived input/output-delay and reset findings remain.
+A paired fitted-netlist query identifies 9 versus10 HDMI I2C output pairs:
+`SD_COUNTER[2]` now appears as both original and duplicate. Full raw rows remain
+unconstrained and retained; no constraint or waiver was added. Project settings
+were checked unchanged around both queries. These results do not establish
+full-board or physical HDMI timing signoff.
+
+Matched native candidate `a2bcd5ee46759986` builds from source `21731d04e`.
+SDK/entry/BL31/SPL/FIT/SOF metadata, current source hashes and the new menu
+identity agree on builder and Powerboat. The boot FPGA core payload remains
+unchanged; the separately loaded menu payload is new. The FIT is8,309,400bytes,
+leaving79,208bytes under the unchanged8MiB bound. This candidate has not yet
+been programmed. Its full cycle needs a fresh single-use board trial.
