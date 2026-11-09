@@ -1633,7 +1633,12 @@ which a session plane blends with. It commits the rectangles it
 wrote and waits for displayed-sequence completion through protocol 2. The UI
 receives no DDR address or FPGA register access; stale generations and
 unavailable menu firmware reject frames at the runtime, and a fault from a
-grant revoked mid-frame fails that frame. Submission runs off the pad loop.
+grant revoked mid-frame fails that frame. CPU row conversion uses NEON for
+complete 32-byte blocks on ARMv7 with NEON and on AArch64; the remaining
+pixels use the scalar conversion. Both paths preserve alpha and stay within
+the row at arbitrary source and destination byte alignments. Conversion
+runs under the client's revoked-mapping fault guard. Submission runs off
+the pad loop.
 When the idle menu's grant includes a minor 1 or later menu blitter,
 `MenuDisplay` records each frame as blitter commands instead of rastering it
 (`ui/gfx/menu_blit.go`): fills, copies, blends and text-mask expands that draw
