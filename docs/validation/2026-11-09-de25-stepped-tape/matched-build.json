@@ -1,0 +1,45 @@
+{
+  "status": "matched-offboard-chain-built",
+  "source_head": "964657270765b48643d6ebabd115fad9a95fcfe7",
+  "tested_protocol_source": "b8d788c067384b91f919a46bdcc295b25bbeb9a8",
+  "native_boot_id": "1059bb64e5cac38b",
+  "sdk_sha256": "171c2a9c9f8ab6252647ab08f70a1a3a6131d6bd8acca9fa8c45e82a4e152f56",
+  "entry_sha256": "8f3df0dd897afe2135367ee222cda712d198dd7ed9d52512f81a65437fde9481",
+  "bl31_sha256": "a1c031755ced928c39922416c549c434a51c219776c02c5022f0dce2c05ac616",
+  "fit_sha256": "8964415cd46eaff09dd7e76a6922b48337edbd0b46efec2e70a715669076157d",
+  "fit_bytes": 8309400,
+  "fit_bound": 8388608,
+  "fit_spare_bytes": 79208,
+  "sof_sha256": "962bbc1719707613472b0c3e0c3bd64f2b2e9e3ca802c3433e39d44aec3a3f24",
+  "core_payload_unchanged": true,
+  "matched_metadata_and_current_source_hashes_checked": true,
+  "frontend_inspection": [
+    {
+      "bytes": 15749295,
+      "elf": "out/nano-stepped-tape-20261109/native-sdk-r3/fpgaload.elf",
+      "frontend_functions": [
+        "main.servePrograms",
+        "main.serveProgramTenfoot",
+        "main.serveProgramTenfoot.deferwrap1",
+        "main.serveProgramTenfoot.func2",
+        "main.serveProgramTenfoot.func1",
+        "main.serveProgramTenfoot.func3"
+      ]
+    },
+    {
+      "bytes": 15536303,
+      "elf": "out/nano-stepped-tape-20261109/native-sdk-r4/fpgaload.elf",
+      "frontend_functions": [
+        "main.serveProgramTenfoot",
+        "main.serveProgramTenfoot.deferwrap1",
+        "main.serveProgramTenfoot.func2",
+        "main.serveProgramTenfoot.func1",
+        "main.serveProgramTenfoot.func3"
+      ]
+    }
+  ],
+  "frontend_removed_bytes": 212992,
+  "hardware_actions": false,
+  "hardware_acceptance": false,
+  "ordinary_core_load_acceptance": false
+}

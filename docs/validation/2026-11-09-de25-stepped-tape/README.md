@@ -42,8 +42,8 @@ This is software evidence only. All11 required current integration checks
 pass on source b8d788c067384b91f919a46bdcc295b25bbeb9a8. Unchanged FPGA-only
 unit evidence is reused with exact source/membership/catalog and original
 prefix/suffix receipts rechecked. The shared tape definition and generated
-consumers were tested fresh. An actual matched SDK/entry/BL31/SPL/FIT/SOF
-build and a fresh bounded board trial remain. No ordinary
+consumers were tested fresh. The matched SDK/entry/BL31/SPL/FIT/SOF
+build now passes; a fresh bounded board trial remains. No ordinary
 core-loading or physical display/input acceptance is claimed. The separate
 direct-store MMU observer prototype remains unselected. Old host-data cleanup
 stays paused at the user's request.
@@ -53,3 +53,27 @@ Python3.12; the same committed contracts pass in the working local environment.
 The native build preparation also needed the original ROM input and complete
 offline module-cache metadata. Both missing-input failures are retained, and
 the unchanged toolchain and restored inputs are used for a fresh output.
+
+The first full boot package on protocol source b8d788c0 exceeded its8MiB
+upload/seal bound by2728bytes; it was stopped before sealing/programming.
+Source964657270 instead uses the existing frontend build-tag constant at
+dispatch and rejects mismatched frontend link flags. Accepted profile choices
+are unchanged. The actual Go function table confirms that the unused
+`main.servePrograms` diagnostic frontend is removed while
+`main.serveProgramTenfoot` remains. The SDK ELF shrinks212992bytes.
+
+The new matched candidate is `1059bb64e5cac38b`: SDK, entry, BL31, sealed
+SPL/FIT and paired FPGA composition pass. The FIT is8309400bytes, leaving
+79208bytes under the unchanged8388608-byte bound. Current source/file hashes
+and matched metadata are checked; FPGA payload bytes remain unchanged. The
+private mount build preserves canonical source paths without symlink
+admission. The shared Quartus lock was held as deano for composition.
+
+The11 full integration checks apply to protocol source b8d788c0. The only
+subsequent code change is the frontend selection repair, checked by its32 flag
+classes, focused selection/source tests, actual ARM64 compilation/function
+tables and rebuilt matched chain. Previous physical evidence does not qualify
+this candidate. It has no prior programming reservation and has not run on a
+board. The board test must use fresh single-use operations and independently
+verify device cleanup. Ordinary package admission, physical display/input and
+full DE10 appliance equivalence remain open.
