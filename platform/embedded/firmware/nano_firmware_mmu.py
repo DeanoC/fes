@@ -30,16 +30,41 @@ CONTRACT = dict(format=1, scope='experimental-el3-static-private-cache-v1',
                 table_bytes=TABLE_BYTES, ddr_limit=DDR_LIMIT,
                 firmware_limit=BL31_LIMIT, runtime_enabled=False,
                 hardware_authority=False)
-RUNTIME_CONTRACT = dict(format=1, scope='matched-cold-el3-private-cache-v1',
+RUNTIME_CONTRACT = dict(format=2, scope='matched-cold-el3-private-cache-v2',
     mair=MAIR, tcr=TCR, table_bytes=TABLE_BYTES, granule=PAGE, va_bits=32, pa_bits=32,
     memory_probe='private-line-clean-invalidate-reread-v1',
     enable_phase='after-startup-cache-maintenance-before-el3-exit',
-    single_cpu='a55-cpu0-release-locked', hardware_authority=False)
+    single_cpu='a55-cpu0-release-locked',
+    vendor_cache_policy='restore-caller-scr-and-return-v1', hardware_authority=False)
 HERE = Path(__file__).resolve().parent
 LD = 'bl31/bl31.ld.S'
 LD_SHA = 'f6da064e38aa9b19dbab1d82dd427628ee38f83f6d12c0a9a68fd98a2e22177c'
 COMMON_LD = 'include/common/bl_common.ld.h'
 COMMON_LD_SHA = '713da3b695e23dabb3aa3bc4b453873b41dab466f137a4c6df368164784cc127'
+VENDOR_CACHE = 'plat/intel/soc/agilex5/soc/agilex5_cache.S'
+VENDOR_CACHE_SHA = 'f41d7e66d603aa9fb327bcbf653660592e865825f120e9a419abee87b339e360'
+VENDOR_CACHE_BODY = '''func invalidate_cache_low_el
+\tmrs\tx0,SCR_EL3
+\torr\tx1,x0,#SCR_NS_BIT
+\tmsr\tSCR_EL3, x1
+\tisb
+\ttlbi\tALLE2
+\tdsb\tsy
+\ttlbi\tALLE1
+\tdsb\tsy
+endfunc invalidate_cache_low_el'''
+VENDOR_CACHE_CODE = struct.pack('<11I',
+    0xd53e1100, 0xb2400001, 0xd51e1101, 0xd5033fdf,
+    0xd50c871f, 0xd5033f9f, 0xd50c879f, 0xd5033f9f,
+    0xd51e1100, 0xd5033fdf, 0xd65f03c0)
+
+
+def restore_vendor_cache(text):
+    if text.count(VENDOR_CACHE_BODY) != 1:
+        raise ValueError('unreviewed lower-EL TLB invalidation helper')
+    repaired = VENDOR_CACHE_BODY.replace('endfunc invalidate_cache_low_el',
+        '\tmsr\tSCR_EL3, x0\n\tisb\n\tret\nendfunc invalidate_cache_low_el')
+    return text.replace(VENDOR_CACHE_BODY, repaired)
 
 
 def selected(profile, enabled):
@@ -71,7 +96,8 @@ def install(source, profile, ram_binding=None):
     if ram_binding is None:
         raise ValueError('MMU install requires the completed cold RAM binding')
     ram.verify_installed(source, ram_binding)
-    for name, expected in ((LD, LD_SHA), (COMMON_LD, COMMON_LD_SHA)):
+    for name, expected in ((LD, LD_SHA), (COMMON_LD, COMMON_LD_SHA),
+                           (VENDOR_CACHE, VENDOR_CACHE_SHA)):
         if hashlib.sha256((source/name).read_bytes()).hexdigest() != expected:
             raise ValueError('unreviewed MMU linker source: '+name)
     ld = (source/LD).read_text()
@@ -93,9 +119,11 @@ def install(source, profile, ram_binding=None):
     entry = entry.replace(anchor, '\tfes_ram_uart_text fes_nano_ram_runtime_exit_before\n'
         '\tbl\tfes_nano_mmu_platform_boot\n\tcbnz\tx0, .Lfes_ram_park\n\tb\tel3_exit\n')
     include = source/'plat/intel/soc/common/include'
-    files = [LD, COMMON_LD, entry_name]
+    cache = restore_vendor_cache((source/VENDOR_CACHE).read_text())
+    files = [LD, COMMON_LD, VENDOR_CACHE, entry_name]
     (source/LD).write_text(ld);(source/COMMON_LD).write_text(common)
     (source/entry_name).write_text(entry)
+    (source/VENDOR_CACHE).write_text(cache)
     (include/'nano_mmu_tables.ld.inc').write_text(linker_fragment())
     files.append(str((include/'nano_mmu_tables.ld.inc').relative_to(source)))
     for name in ('nano_mmu.h','nano_mmu_platform.h','nano_mmu_memory.h'):
@@ -125,7 +153,14 @@ def verify_live_image(image, chain):
             not symbols['__BSS_START__'][0]<=address<address+size<=symbols['__BSS_END__'][0] or
             'fes_nano_mmu_platform_boot' not in symbols):
         raise ValueError('MMU private witness or late boot hook is missing/outside its reservation')
-    return dict(proof, selected_policy=dict(RUNTIME_CONTRACT), witness=address, witness_bytes=size)
+    helper,helper_size=symbols.get('invalidate_cache_low_el',(0,0))
+    if helper_size!=len(VENDOR_CACHE_CODE) or helper&3 or not DDR_BASE<=helper<helper+helper_size<=proof['layout']['ro_end']:
+        raise ValueError('selected lower-EL cache helper is missing/outside executable firmware')
+    code,_=file_bytes(image,helper,helper_size)
+    if code!=VENDOR_CACHE_CODE:
+        raise ValueError('selected lower-EL cache helper does not restore SCR and return')
+    return dict(proof, selected_policy=dict(RUNTIME_CONTRACT), witness=address, witness_bytes=size,
+                startup_cache_helper=dict(address=helper,bytes=helper_size,sha256=hashlib.sha256(code).hexdigest()))
 
 
 def _leaf(address, attrs, level):

@@ -171,5 +171,18 @@ int main(void)
         assert(fes_nano_mmu_enable(&f.state,&f.policy,ops(&f))<0 && f.writes==4 && !f.state.memory_verified);
         failed_stays_failed(&f);
     }
+    /* Observed Nano startup state: the vendor helper leaked SCR.NS before
+     * the first cold scope check. Restoring it cannot revive that boot. */
+    f=canonical();f.registers.scr=0x239;f.registers.mmfr0=0x101122;
+    f.registers.sctlr=0xc5183a;f.registers.daif=0x2c0;
+    assert(!fes_nano_mmu_scope(&f.state,&f.policy,ops(&f)) && !f.writes);
+    f.registers.scr=0x238;failed_stays_failed(&f);
+    /* A fresh boot after the repaired helper retains the unchanged guard. */
+    f=canonical();f.registers.scr=0x238;f.registers.mmfr0=0x101122;
+    f.registers.sctlr=0xc5183a;f.registers.daif=0x2c0;
+    assert(fes_nano_mmu_scope(&f.state,&f.policy,ops(&f))==1);
+    assert(!fes_nano_mmu_enable(&f.state,&f.policy,ops(&f)) && f.state.memory_verified);
+    f.registers.scr|=1;
+    assert(fes_nano_mmu_scope(&f.state,&f.policy,ops(&f))==1);
     printf("PASS one-attempt MMU enable: %u callback failures, dropped writes, CPU/attribute faults, NS-before-enable and replay\n",events);
 }

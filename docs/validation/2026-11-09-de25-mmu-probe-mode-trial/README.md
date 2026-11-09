@@ -38,6 +38,19 @@ predicate or old attempt is relaxed. UART Select supplies input; keep physical
 keys idle. The spare card remains installed; factory restoration is waived for
 this ongoing top-kit work. The bottom kit remains untouched.
 
-This record prepares a bounded diagnostic, with no hardware result yet. It
-does not grant normal package/core, physical display/input, cache-coherency or
-general appliance acceptance.
+The [consumed physical run](hardware-result.json) passed fresh recovery
+programming/boot, all thirteen uploads and fresh readbacks, and native image
+programming. Native startup then rejected its provider and cold MMU scope.
+The final record is `SCR_EL3=0x239`, error `-8`, zero MMU register writes and
+no completed memory diagnostic. The launcher and tape transfer never started.
+The pinned vendor lower-EL TLB helper sets SCR.NS without restoring it or
+returning; the actual linked code falls through into the next cache helper.
+This matches the unchanged guard's rejection before enablement.
+
+The first failure stopped further commands. Independent host cleanup verifies
+15 MHz, exact USB permissions, stopped private service and free UART. The full
+run has verified archive and executable-mode readback at
+`/home/deano/fes-retained/de25-mmu-probe-mode-trial-hardware-20261109-r1`.
+The image and both reservations remain consumed. A new source repair, matched
+image and bounded proof are required; this result grants no normal core,
+MMU/cache, physical display/input or appliance acceptance.

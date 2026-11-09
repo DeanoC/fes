@@ -19,6 +19,7 @@ from prepare_uboot import atf_descriptor
 def proof():
     root=0x8003c000
     return dict(selected_policy=dict(mmu.RUNTIME_CONTRACT),witness=0x5f000,witness_bytes=64,
+        startup_cache_helper=dict(address=0x80023000,bytes=44,sha256=mmu_trace.CACHE_HELPER_SHA),
         layout=dict(tables_start=root,tables_end=root+24576,
             tables={name:root+i*4096 for i,name in enumerate(mmu.NAMES)}))
 
@@ -45,11 +46,19 @@ def decode(raw,selected=True):
 
 
 class NanoMMUBootTests(unittest.TestCase):
+    def test_vendor_cache_repair_preserves_the_original_invalidation_and_returns(self):
+        source='before\n'+mmu.VENDOR_CACHE_BODY+'\nafter\n'
+        repaired=mmu.restore_vendor_cache(source)
+        self.assertEqual(repaired.replace('\tmsr\tSCR_EL3, x0\n\tisb\n\tret\n',''),source)
+        for bad in (source+mmu.VENDOR_CACHE_BODY,source.replace('ALLE2','ALLE1'),repaired):
+            with self.assertRaises(ValueError):mmu.restore_vendor_cache(bad)
+
     def installation(self, source):
         # Small source exports exercise transformations and their hash binding.
         # The real vendor hashes are separately exercised by the matched build.
         files={mmu.LD:'before\n    __RW_START__ = . ;\n#else\n    __RW_START__ = . ;\n',
             mmu.COMMON_LD:'*(SORT_BY_ALIGNMENT(.bss*))\n',
+            mmu.VENDOR_CACHE:mmu.VENDOR_CACHE_BODY+'\n',
             mmu.ram.ENTRY:'fes_ram_bss_clean\n\tfes_ram_uart_text fes_nano_ram_runtime_exit_before\n\tb\tel3_exit\n',
             'plat/intel/soc/agilex5/platform.mk':'BL31_SOURCES += original.c\n'}
         for name,text in files.items():
@@ -65,13 +74,16 @@ class NanoMMUBootTests(unittest.TestCase):
                          firmware_mmu=dict(mmu.RUNTIME_CONTRACT))
             with patch.object(mmu.ram,'checked',return_value=mmu.ram.CONTRACT),\
                     patch.object(mmu,'LD_SHA',hashlib.sha256(files[mmu.LD].encode()).hexdigest()),\
-                    patch.object(mmu,'COMMON_LD_SHA',hashlib.sha256(files[mmu.COMMON_LD].encode()).hexdigest()):
+                    patch.object(mmu,'COMMON_LD_SHA',hashlib.sha256(files[mmu.COMMON_LD].encode()).hexdigest()),\
+                    patch.object(mmu,'VENDOR_CACHE_SHA',hashlib.sha256(files[mmu.VENDOR_CACHE].encode()).hexdigest()):
                 binding=mmu.install(source,profile,ram_binding)
             mmu.ram.verify_installed(source,ram_binding);mmu.verify_installed(source,binding)
             self.assertEqual(binding['prior_ram_entry_sha256'],hashlib.sha256(files[mmu.ram.ENTRY].encode()).hexdigest())
             entry=(source/mmu.ram.ENTRY).read_text()
             self.assertLess(entry.index('fes_ram_bss_clean'),entry.index('bl\tfes_nano_mmu_platform_boot'))
             self.assertIn('cbnz\tx0, .Lfes_ram_park\n\tb\tel3_exit',entry)
+            self.assertIn('\tmsr\tSCR_EL3, x0\n\tisb\n\tret\nendfunc invalidate_cache_low_el',
+                          (source/mmu.VENDOR_CACHE).read_text())
             for name in binding['sources']:
                 with self.subTest(name=name):
                     path=source/name;original=path.read_bytes();path.write_bytes(original+b' changed')
@@ -80,7 +92,7 @@ class NanoMMUBootTests(unittest.TestCase):
             with self.assertRaises(ValueError):mmu.verify_installed(source,dict(binding,contract={}))
 
     def test_install_rejects_stale_ram_or_unreviewed_vendor_source_before_writing(self):
-        for changed in (mmu.ram.ENTRY,mmu.LD,mmu.COMMON_LD):
+        for changed in (mmu.ram.ENTRY,mmu.LD,mmu.COMMON_LD,mmu.VENDOR_CACHE):
             with self.subTest(changed=changed),tempfile.TemporaryDirectory() as temp:
                 source=Path(temp);files,ram_binding=self.installation(source)
                 (source/changed).write_text(files[changed]+' changed')
@@ -89,12 +101,14 @@ class NanoMMUBootTests(unittest.TestCase):
                              firmware_mmu=dict(mmu.RUNTIME_CONTRACT))
                 with patch.object(mmu.ram,'checked',return_value=mmu.ram.CONTRACT),\
                         patch.object(mmu,'LD_SHA',hashlib.sha256(files[mmu.LD].encode()).hexdigest()),\
-                        patch.object(mmu,'COMMON_LD_SHA',hashlib.sha256(files[mmu.COMMON_LD].encode()).hexdigest()):
+                        patch.object(mmu,'COMMON_LD_SHA',hashlib.sha256(files[mmu.COMMON_LD].encode()).hexdigest()),\
+                        patch.object(mmu,'VENDOR_CACHE_SHA',hashlib.sha256(files[mmu.VENDOR_CACHE].encode()).hexdigest()):
                     with self.assertRaises(ValueError):mmu.install(source,profile,ram_binding)
                 self.assertEqual(before,{str(p.relative_to(source)):p.read_bytes() for p in source.rglob('*') if p.is_file()})
 
     def test_policy_is_fixed_and_requires_complete_ram_and_role_selection(self):
         self.assertEqual(hashlib.sha256(json.dumps(mmu.RUNTIME_CONTRACT,sort_keys=True,separators=(',',':')).encode()).hexdigest(),mmu_trace.POLICY_SHA)
+        self.assertEqual(hashlib.sha256(mmu.VENDOR_CACHE_CODE).hexdigest(),mmu_trace.CACHE_HELPER_SHA)
         p=dict(usb_shared=True,initial_tape=True,computer_reload=True,hps_menu_program={})
         with patch.object(mmu.ram,'checked',return_value=mmu.ram.CONTRACT):
             self.assertEqual(mmu.selected(p,True),mmu.RUNTIME_CONTRACT)
@@ -127,7 +141,8 @@ class NanoMMUBootTests(unittest.TestCase):
             with self.subTest(name=name):self.assertFalse(decode(damaged)['loader_ready'])
 
     def test_bad_proof_and_flooded_failed_records_never_recover(self):
-        for key,value in (('witness',0x50000),('witness_bytes',128),('selected_policy',{})):
+        for key,value in (('witness',0x50000),('witness_bytes',128),('selected_policy',{}),
+                          ('startup_cache_helper',{}),('startup_cache_helper',dict(address=0x80023000,bytes=44,sha256='0'*64))):
             p=proof();p[key]=value
             with self.assertRaises(ValueError):mmu_trace.parameters(p)
         s=mmu_trace.state();args=dict(expected=mmu_trace.parameters(proof()),startup_complete=True,

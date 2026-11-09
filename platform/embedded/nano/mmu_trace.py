@@ -3,7 +3,8 @@ import hashlib
 import json
 import re
 
-POLICY_SHA='764e07f5ba6601027ccb061b60e3e3f88ca6167185fcd317293097cd94ac72fa'
+POLICY_SHA='5963e3da530787e7a1870538c42c81acf16c72070103458c564c7e06035f7948'
+CACHE_HELPER_SHA='c16b4d1b6931e6d4d92ac017ba23457ff59d6d5ac9e4279b6c9fb031114b305c'
 FIELDS=('el','midr','mpidr','mmfr0','daif','scr','sctlr','tcr','root','mair','witness')
 ROW=re.compile(r'FES_NANO_EL3_MMU phase=(before|after) '+
     ' '.join(name+r'=(?P<'+name+r'>[0-9a-f]{1,16})' for name in FIELDS)+
@@ -24,6 +25,10 @@ def parameters(proof):
             type(witness) is not int or witness&63 or not 0x58000<=witness<=0x60000-64 or
             proof.get('witness_bytes')!=64):
         raise ValueError('MMU trace requires exact linked table/witness placement')
+    helper=proof.get('startup_cache_helper') or {};address=helper.get('address')
+    if (type(address) is not int or address&3 or not 0x80000000<=address<address+44<=root or
+            helper.get('bytes')!=44 or helper.get('sha256')!=CACHE_HELPER_SHA):
+        raise ValueError('MMU trace requires the linked SCR-restoring startup helper')
     return dict(root=root,witness=witness,mair=policy['mair'],tcr=policy['tcr'])
 
 
