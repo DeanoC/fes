@@ -6526,6 +6526,9 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     r3g("r3-cg16-n0", cgate(0x08, 0x1900, 4, 3, 0), none, -1, -1);
     r3g("r3-cg16-n2", cgate(0x08, 0x1930, 4, 3, 2), push16x2, -1, -1);
     r3g("r3-cg32-n0", cgate(0x18, 0x1940, 12, 3, 0), none, -1, -1);
+    // A 386 gate from a 16-bit stack whose ESP has a high half: it pushes SP.
+    r3g("r3-cg32-sp16", cgate(0x18, 0x1940, 12, 3, 0), [](Asm &a) { a.op({0x66, 0x81, 0xcc}); a.d(0x12340000); },
+        -1, -1);
     r3g("r3-cg32-n3", cgate(0x18, 0x1948, 12, 3, 3), push32x3, -1, -1);
     r3g("r3-cg32-n31", cgate(0x18, 0x1970, 12, 3, 31), none, -1, -1);                    // 31 dwords; RETF 124
     r3g("r3-cg32-to16", cgate(0x08, 0x1960, 12, 3, 1), [](Asm &a) { a.op({0x66, 0x68}); a.d(0x44443333); }, -1, -1);
@@ -6589,6 +6592,10 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         a.op({0x66, 0xbc}); a.d(0x0f00);                                             // MOV ESP, 0F00h
     };
     cases.push_back(Case{"dr-moves", drs, -1, -1, {}, false});
+    cases.push_back(Case{"dr6-bits", [](Asm &a) {                                    // DR6 keeps bits 15-12 and 3-0 only
+        a.op({0x66, 0xb8}); a.d(0x5a5aa5a5); a.op({0x0f, 0x23, 0xf0, 0x0f, 0x21, 0xf3});  // MOV DR6, EAX; MOV EBX, DR6
+        a.op({0x66, 0xb8}); a.d(0xa5a55a5a); a.op({0x0f, 0x23, 0xf0, 0x0f, 0x21, 0xf1});  // MOV DR6, EAX; MOV ECX, DR6
+    }, -1, -1, {}, false});
     cases.push_back(Case{"real-dr-moves", drs, -1, -1, {}, true});
     auto gd = [](Asm &a) { a.op({0x66, 0xb8}); a.d(0x00002000); a.op({0x0f, 0x23, 0xf8}); };  // MOV DR7, 2000h (GD)
     cases.push_back(Case{"dr-gd-read", [=](Asm &a) { gd(a); a.op({0x0f, 0x21, 0xc3}); }, 1, -1, {}, false});
