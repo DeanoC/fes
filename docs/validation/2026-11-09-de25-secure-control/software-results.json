@@ -1,0 +1,237 @@
+{
+  "status": "passed",
+  "source_base": "2fa0bb4838666d27f706006b9d2fe36de911d1ee",
+  "native_boot_id": "bd103b1a199bc2be",
+  "checks": {
+    "focused": {
+      "receipt_sha256": "7202bb440faf3aa30749978acd3c23ce32e27cfe9c7f88b3379f0ce5567216c4",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_secure_mmio.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.80156180402264,
+      "log_sha256": "cdb2d3002327d1dfd0f7592a2fa5bc9476bc56e8c7cd3de438d7c0e518fe53c1"
+    },
+    "identity-and-tables": {
+      "receipt_sha256": "63d42b6c2014ecb4d59ba58544415a162685f3effbbb5115d8e40e2f31039e47",
+      "argv": [
+        "python3",
+        "-c",
+        "import sys,unittest;sys.path.insert(0,\"platform/embedded/firmware\");unittest.main(module=None,argv=[\"unittest\",\"discover\",\"-s\",\"tests\",\"-p\",\"test_nano_*mmu*.py\",\"-v\"])"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.6013881010003388,
+      "log_sha256": "bd44483ec2783addf859643fd3f60c4e28c52820f67ab483fddc7b8b1753657d"
+    },
+    "identity-coverage": {
+      "receipt_sha256": "b01940ea5bd1d88f8f4f746a6d88ac50b7899e600a51ca32316b926be4ead140",
+      "argv": [
+        "python3",
+        "-c",
+        "import sys,unittest;sys.path.insert(0,\"platform/embedded/firmware\");unittest.main(module=None,argv=[\"unittest\",\"discover\",\"-s\",\"tests\",\"-p\",\"test_nano_hps_context.py\",\"-v\"])"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.0019854148849845,
+      "log_sha256": "653559848584994f62db534944837650b3004169ae7a2bcab40179a6fdef8477"
+    },
+    "tcu-negative-tests": {
+      "receipt_sha256": "640532f51bcf4d84d966bed3081b505d811147b7e203bea335416606422465ca",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_firmware_mmu.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20139652700163424,
+      "log_sha256": "335d009f7053d208a1a2674d698f45f22f29ac9aa6b50192a15a6b859173b6e7"
+    },
+    "bl31": {
+      "receipt_sha256": "ed4bf44909105a5883dd56f9a5cc11999b38cc68dbbd50f2c90ba40203e74206",
+      "argv": [
+        "python3",
+        "-c",
+        "import json,subprocess;subprocess.run(json.load(open(\"out/nano-secure-control-20261109/bl31-command.json\")),check=True)"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 48.625897181918845,
+      "log_sha256": "06f35745e08e3dad273f6e1a484bd7d7b41dd5266712c500849e7a1d773e1288"
+    },
+    "uboot": {
+      "receipt_sha256": "d0deef4ac52ed877ea02245e8b49a7351ac81561f9be076f506ed27608581581",
+      "argv": [
+        "python3",
+        "-c",
+        "import json,subprocess;subprocess.run(json.load(open(\"out/nano-secure-control-20261109/uboot-command.json\")),check=True)"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 113.06507747597061,
+      "log_sha256": "0f622f5a7e94cfe6fe6bc983d12ebbae3cb5dbfcedcb278ff56eda875fa11015"
+    },
+    "composition": {
+      "receipt_sha256": "dc3e5df7ac107c48cba39ed2d7870ac8d8af24269f4cf612f50753d425881835",
+      "argv": [
+        "python3",
+        "-c",
+        "import json,subprocess;subprocess.run(json.load(open(\"out/nano-secure-control-20261109/composition-command.json\")),check=True)"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 68.63542847707868,
+      "log_sha256": "b9fbd39b92bbca8cf137bc04a6597db1eaeaa56be84c7ff1b9dc8c54474fa75a"
+    },
+    "guard-preservation": {
+      "receipt_sha256": "b00e368be84cf9f47b00f3809b238205af92253fcdb67c9a40e4fd2de931577a",
+      "argv": [
+        "python3",
+        "out/nano-secure-control-20261109/guard_proof.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20083730784244835,
+      "log_sha256": "ca54a61e751dc124fe7f1617414c58dde7dac7bb670939fbb6617e943324b2d9"
+    },
+    "compiled-mailbox-base": {
+      "receipt_sha256": "8a2a93e98264637d57397edf0542b9b5ba8d6e120b497b2bbafd995ef6237b31",
+      "argv": [
+        "python3",
+        "out/nano-secure-control-20261109/verify_base.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2028623311780393,
+      "log_sha256": "2bc144b23b048ed74df2a84fc35e56d8ba04277c83f08b9f24c862e1abdf881c"
+    },
+    "matched-transition": {
+      "receipt_sha256": "2afab5b31881fe2af0f067182e50231fc9035382b477414e4c016c7c99a4ceff",
+      "argv": [
+        "python3",
+        "out/nano-secure-control-20261109/check_matched_transition.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20049866707995534,
+      "log_sha256": "9ba1e35ff477f1caa7cd43aab5a9fd72cf5992f90f6aed28fd277106ee972e67"
+    },
+    "qemu-selectors-r3": {
+      "receipt_sha256": "18c51591122afb11be28dfe83b74eb5b7150ee8c4e79377cbf0b9016e10e477c",
+      "argv": [
+        "python3",
+        "out/nano-secure-control-20261109/qemu_selectors.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.4016844159923494,
+      "log_sha256": "43f509fa6d600585a7282022b5539d88550662f7d13d7f220f8e1708af48dbcb"
+    },
+    "matched-tables": {
+      "receipt_sha256": "85649599826d4121cd04591bcc768e14bbec58dc84847f1fe406781c2067168b",
+      "argv": [
+        "python3",
+        "out/nano-secure-control-20261109/qemu_matched_matrix.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.6020073380786926,
+      "log_sha256": "227644d224a81b5433d7f599439b091b5b0a6b1eaf423e57d945fb9d1710dbef"
+    },
+    "fpga-reuse": {
+      "receipt_sha256": "76a0da18c2fd4decec91ada08d09842fe6a2f281e74470e98b978a983e83e0a4",
+      "argv": [
+        "python3",
+        "out/nano-secure-control-20261109/reuse_fpga.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.6010326859541237,
+      "log_sha256": "589195d45f45455c1fd2cd425798eed64808cacfa162acc741f6abc51a06e942"
+    },
+    "checks": {
+      "receipt_sha256": "648600941022f8cbe765376213c8b66fb23740799a0d86d10b6081a5cef04934",
+      "argv": [
+        "python3",
+        "out/nano-secure-control-20261109/software.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 570.5505462549627,
+      "log_sha256": "c8de81bc18bfb8d3580b27550f0cc61a823f58556e72c6d40aa38f60e6afcfb3"
+    }
+  },
+  "software_summary_sha256": "fc6b057b8499d26b7dda07f08a8bea02b4c7142b6873c5800082d899ce25f5d6",
+  "fpga_unchanged_proof_sha256": "8edf7050391799f51ca8464a2b95c0d8ec4befec37faa9ec851065e336c1a74c",
+  "hardware_actions": false,
+  "new_hardware_acceptance": false,
+  "goal_complete": false,
+  "scope": "Selected BL31 secure control address repair; ordinary core admission remains incomplete",
+  "actual_bl31_bytes": 315840,
+  "fit_bytes": 8387240,
+  "bl31_elf_sha256": "ab48bcc9616e0f2f98ee0d4afaa725199e00cb6a1bf74d53de1a9f04b5ebf2a3",
+  "fit_sha256": "d0bc8d0c109ca2d53ae8b30f6ec9aeec8cc44a8fa5e73ce1ca01585529cde2ee",
+  "source_diff": "Uncommitted changes against 2fa0bb4838666d27f706006b9d2fe36de911d1ee",
+  "prior_physical_boot_id": "e3de630956f0c154",
+  "prior_physical_result": "FPGA configuration complete, first menu frame absent; exact stalled instruction unproven",
+  "proofs": {
+    "guard-preservation.json": {
+      "path": "out/nano-secure-control-20261109/guard-preservation.json",
+      "sha256": "2342c5998f4f0f66466b868bacb6583e04bd02e3e2f071bf5142f428581cfb75"
+    },
+    "compiled-base-proof.json": {
+      "path": "out/nano-secure-control-20261109/compiled-base-proof.json",
+      "sha256": "0aa2ef1c84fca63b30c8434397dd72b8055bfd6dd40eaa88518a58878473b71d"
+    },
+    "matched-transition-proof.json": {
+      "path": "out/nano-secure-control-20261109/matched-transition-proof.json",
+      "sha256": "6629a192a561a3012a6ac37e371d6650ad7756c0f636a774e6ef5171b2b17092"
+    },
+    "qemu-selectors-proof.json": {
+      "path": "out/nano-secure-control-20261109/qemu-selectors-proof.json",
+      "sha256": "6a4849a7be38eeddad1457bf5f4d397097349bab1d05aa2826c76cea816e99f6"
+    },
+    "qemu-matched-matrix-proof.json": {
+      "path": "out/nano-secure-control-20261109/qemu-matched-matrix-proof.json",
+      "sha256": "6eb3acb99b17f01687a94b59afadf07a710788e5b593817ca8d070b48b6d400b"
+    },
+    "fpga-unchanged-reuse.json": {
+      "path": "out/nano-secure-control-20261109/fpga-unchanged-reuse.json",
+      "sha256": "8edf7050391799f51ca8464a2b95c0d8ec4befec37faa9ec851065e336c1a74c"
+    },
+    "recovery-reuse.json": {
+      "path": "out/nano-secure-control-20261109/recovery-reuse.json",
+      "sha256": "e4fafd46e259b091d61958f8eccf962e68b05674ee93f265c96bd93cda7f2404"
+    }
+  }
+}

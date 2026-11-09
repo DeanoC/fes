@@ -13,7 +13,7 @@ from pathlib import Path
 import struct
 
 import nano_firmware_ram as ram
-import nano_remapper
+import nano_secure_mmio
 
 PAGE = 0x1000
 DDR_BASE, BL31_LIMIT, DDR_LIMIT = 0x80000000, 0x80200000, 0xc0000000
@@ -37,12 +37,12 @@ NC = AF | AP_RES1 | (2 << 8) | 8   # Attr2: Normal NC, outer shareable
 DEVICE = AF | AP_RES1 | (2 << 8) | 4
 MAIR = 0x4400ff                    # Attr2=NC, Attr1=nGnRnE, Attr0=WB/WA
 TCR = (1 << 31) | (1 << 23) | (3 << 12) | (1 << 10) | (1 << 8) | 32
-CONTRACT = dict(format=5, scope='experimental-el3-static-secure-remapper-v5',
+CONTRACT = dict(format=6, scope='experimental-el3-static-secure-control-v6',
                 granule=PAGE, va_bits=32, pa_bits=32, mair=MAIR, tcr=TCR,
                 table_bytes=TABLE_BYTES, ddr_limit=DDR_LIMIT,
                 firmware_limit=BL31_LIMIT, runtime_enabled=False,
                 hardware_authority=False)
-RUNTIME_CONTRACT = dict(format=10, scope='matched-cold-el3-secure-remapper-v10',
+RUNTIME_CONTRACT = dict(format=11, scope='matched-cold-el3-secure-control-v11',
     mair=MAIR, tcr=TCR, table_bytes=TABLE_BYTES, granule=PAGE, va_bits=32, pa_bits=32,
     memory_probe='private-line-clean-invalidate-reread-v1',
     memory_types='secure-ocram-normal-nc-private-ddr-wb-v1',
@@ -52,7 +52,7 @@ RUNTIME_CONTRACT = dict(format=10, scope='matched-cold-el3-secure-remapper-v10',
     boot_steps='admit-register-barrier-private-clean-v1',
     fault_capture='bounded-register-only-sctlr-transition-v2',
     status_inventory=mmu_status.SHA, mailbox_views=mmu_mailbox_view.SHA,
-    remapper_address_selection=nano_remapper.MODE,
+    control_address_selection=nano_secure_mmio.MODE,
     decode_logging=mmu_logging.SHA,
     vendor_cache_policy='restore-caller-scr-and-return-v1', hardware_authority=False)
 LD = 'bl31/bl31.ld.S'
@@ -337,8 +337,10 @@ def _fixed(name, index):
             return address, DEVICE | XN, 2
     if name == 'ocram' and index == mmu_mailbox_view.ALIAS // PAGE:
         return mmu_mailbox_view.PHYSICAL, DEVICE | XN, 3
-    if name == 'ocram' and index == nano_remapper.ALIAS // PAGE:
-        return nano_remapper.PHYSICAL, DEVICE | XN, 3
+    if name == 'ocram' and index == nano_secure_mmio.SYSMGR_ALIAS // PAGE:
+        return nano_secure_mmio.SYSMGR_PHYSICAL, DEVICE | XN, 3
+    if name == 'ocram' and index == nano_secure_mmio.TCU_ALIAS // PAGE:
+        return nano_secure_mmio.TCU_PHYSICAL, DEVICE | RO | XN, 3
     if name == 'ocram' and index < 0x80000 // PAGE:
         address = index * PAGE
         return address, NC | XN, 3

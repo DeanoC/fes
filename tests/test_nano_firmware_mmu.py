@@ -144,7 +144,10 @@ bl31_entrypoint: .byte 0
         self.assertEqual(walk(self.image,self.bounds,0xa0000),dict(pa=0x10d12000,writable=True,
             executable=False,ns=False,attr=1,share=2,accessed=True,ap_res1=True))
         self.assertEqual(walk(self.image,self.bounds,0xa0fff)['pa'],0x10d12fff)
-        for address in (0x80000,0x8ffff,0x91000,0x9ffff,0xa1000,0xfffff):
+        self.assertEqual(walk(self.image,self.bounds,0xb0000),dict(pa=0x16008000,writable=False,
+            executable=False,ns=False,attr=1,share=2,accessed=True,ap_res1=True))
+        self.assertEqual(walk(self.image,self.bounds,0xb0fff)['pa'],0x16008fff)
+        for address in (0x80000,0x8ffff,0x91000,0x9ffff,0xa1000,0xaffff,0xb1000,0xfffff):
             self.assertIsNone(walk(self.image,self.bounds,address))
         self.assert_access(0x10a30000,writable=True,executable=False,ns=True,attr=1)
         self.assert_access(0x10d12000,writable=True,executable=False,ns=True,attr=1)
@@ -171,6 +174,19 @@ bl31_entrypoint: .byte 0
                         0xc0000000, 0xffffffff, 0x100000000, -1):
             self.assertIsNone(walk(self.image, self.bounds, address), hex(address))
 
+    def test_secure_tcu_alias_is_readonly_and_cannot_expand_to_neighbors(self):
+        page,_=mmu.file_bytes(self.image,self.bounds['tables']['ocram'],mmu.PAGE)
+        offset=self.image.find(page);self.assertEqual(offset,self.image.rfind(page))
+        index=0xb0000//mmu.PAGE;word=struct.unpack_from('<Q',page,index*8)[0]
+        for name,replacement in (('unmapped',0),('wrong-page',word+4096),
+                                  ('nonsecure',word|mmu.NS),('writable',word&~mmu.RO),
+                                  ('executable',word&~mmu.XN),('cacheable',word&~4)):
+            bad=bytearray(self.image);struct.pack_into('<Q',bad,offset+index*8,replacement)
+            with self.subTest(name=name),self.assertRaises(ValueError):mmu.verify_table_bytes(bad,self.bounds)
+        for neighbour in (-1,1):
+            bad=bytearray(self.image);struct.pack_into('<Q',bad,offset+(index+neighbour)*8,word)
+            with self.subTest(neighbour=neighbour),self.assertRaises(ValueError):mmu.verify_table_bytes(bad,self.bounds)
+
     def test_only_the_fixed_device_aliases_are_nonidentity_and_no_leaf_is_writable_executable(self):
         # Enumerate leaf entries instead of sampling: all reachable mappings,
         # table pointers, AF/AP RES1, NS and cacheable range coverage are checked.
@@ -192,7 +208,7 @@ bl31_entrypoint: .byte 0
                     pending.append((descriptor & 0x0000fffffffff000, level + 1, address))
                     continue
                 value = walk(self.image, self.bounds, address)
-                self.assertEqual(value['pa'], {0x90000:0x10a30000,0xa0000:0x10d12000}.get(address,address))
+                self.assertEqual(value['pa'], {0x90000:0x10a30000,0xa0000:0x10d12000,0xb0000:0x16008000}.get(address,address))
                 self.assertFalse(value['writable'] and value['executable'])
                 self.assertTrue(value['accessed'] and value['ap_res1'])
                 if value['attr'] == 0:

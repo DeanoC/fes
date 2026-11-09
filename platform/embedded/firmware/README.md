@@ -1805,4 +1805,44 @@ pinned and reversible; final service bytes are checked after compilation. Both
 the firmware inventory and cold-chain identity inventory include the new
 `nano_remapper.py` input. The first off-board candidate exposed an omitted cold
 identity entry; that unprogrammed image is retired and a fresh matched chain is
-required after correcting the inventory. This repair still needs hardware proof.
+required after correcting the inventory. The subsequent `e3de630956f0c154`
+hardware trial completed every START boundary, acknowledged all menu image
+bytes and reported configuration ready. It then stopped before the first menu
+frame, after the SMMU/firewall inventories. The exact stalled instruction remains
+unproven. Other System Manager users still used the original NS view, and the
+SMMU secure-bank ID read zero through its NS mapping; that sample cannot pass
+the unchanged later secure-bank admission gate.
+
+The selected format11 prototype replaces the remapper-only transformation with
+`nano_secure_mmio.py` and `nano_secure_mmio.h`. It changes only address selection
+in the pinned private BL31 MMIO accessors. Existing System Manager reads and
+writes on PA `0x10d12000` select the existing secure Device/RW/XN alias at VA
+`0xa0000` after MMU activation. This includes raw bridge control and the cold
+boot-kind read as well as remapper setup. Existing reads of the SMMU secure bank
+on PA `0x16008000` select a new secure Device/RO/XN alias at VA `0xb0000`.
+Writes to that bank retain their original physical path. Before MMU activation,
+both pages retain physical addresses. Unrelated addresses return unchanged
+without reading SCTLR_EL3. These selectors add no device operations or retries.
+Access widths, bit operations, values, offset allowlists, ownership checks and
+all deadlines remain. The original observed service is restored unchanged.
+
+The read-only secure view follows the Arm SMMUv3 security contract: secure-bank
+registers other than S_INIT are read-as-zero/write-ignored for NS accesses
+([Arm SMMUv3 architecture, section 3.10](https://documentation-service.arm.com/static/63d7a2d5e4378a55c5e045b9)).
+This architectural rule supports the address repair; it does not establish the
+current physical register values. A host test executes the actual SMMU observer
+with protected fake secure/NS pages and exercises its ownership failures. It
+restores the existing conditional 26-read path when SECURE_IMPL is visible,
+without bypassing any register or window checks.
+
+Both producer inventories bind the helper source and header. Final compilation
+also verifies the installed MMIO headers through the MMU source binding. The
+private image grows one page, relocating linked code/tables/data; its 2 MiB DDR
+exclusion and canonical permissions remain. After normalizing relocated table
+pointers, the only external mapping change is the single RO SMMU alias. QEMU
+executes all ten complete linked selector instances before and after MMU enable,
+rejects nine changed-code controls, and checks 36 descriptor queries plus 19
+changed-descriptor controls against the actual production tables. These checks
+exercise address selection and translation; they perform no Nano MMIO and do
+not qualify physical cache/device behavior. A fresh matched hardware test is
+still required before claiming that startup or ordinary core admission works.
