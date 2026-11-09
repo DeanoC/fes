@@ -1115,6 +1115,21 @@ void ata(Bench &b) {
     b.wait([&] { return (b.in(0x1f7) & 0x80) == 0; }, 10000);
     check("after reset: signature 01 01 00 00, DRDY",
           b.in(0x1f2) == 1 && b.in(0x1f3) == 1 && b.in(0x1f4) == 0 && b.in(0x1f5) == 0 && (b.in(0x1f7) & 0xc1) == 0x40);
+    // #1589: the BIOS's device 1 probe selects device 1 while device 0's
+    // reset still has BSY set. The select must stand once BSY clears, or
+    // device 0's status (50h) reads as device 1's and the BIOS types it as a
+    // drive. The select lands half way through the reset window.
+    b.out(0x3f6, 0x06);
+    b.out(0x3f6, 0x02);
+    b.run(500);
+    b.out(0x1f6, 0xb0);
+    b.run(2000);
+    const uint8_t sc = b.in(0x1f2), sn = b.in(0x1f3), selected = b.in(0x1f7);
+    b.out(0x1f6, 0xa0);
+    const uint8_t device0 = b.in(0x1f7);
+    check("a device 1 select during reset BSY stands: its status reads 00h after the reset",
+          sc == 1 && sn == 1 && selected == 0x00 && (device0 & 0xc1) == 0x40,
+          hex(sc) + " " + hex(sn) + " " + hex(selected) + " " + hex(device0));
 }
 
 // After the other checks: what a machine reset keeps and what the
