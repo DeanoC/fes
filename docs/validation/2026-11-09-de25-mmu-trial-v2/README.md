@@ -30,5 +30,12 @@ record selection change. Both startup consumers still require its exact MMU
 proof, the private memory diagnostic and complete boot trace. Every one-use
 reservation and first-failure stop remains; no previous consumption is reset.
 
-The hardware test has not run. Refreshed provenance and reproduced artifact
-bytes grant no native MMU, tape, cache-coherency or ordinary core-load acceptance.
+The [bounded operation](hardware-result.json) stopped before the first scan or
+FPGA programming: the staged scan executable had been copied with mode `0664`
+instead of its qualified `0775`. Its bytes matched; the copy omitted execution
+permissions. The recovery reservation remains consumed, with zero scan and
+programming calls. The native reservation is absent and no SD write occurred.
+Independent cleanup verifies original 15 MHz, exact USB permissions, stopped
+private service and free UART. The failed procedure and inputs have a verified
+full archive readback. The native MMU/tape test remains unrun; its candidate must
+use a new corrected operator procedure, with the old reservation preserved.

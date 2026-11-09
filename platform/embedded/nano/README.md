@@ -1,5 +1,12 @@
 # Nano recovery uploads and cold serial boot
 
+`jtag_probe.checked` validates the selected scan executable's bytes and frozen
+Unix mode, checks execution access, and rejects file changes during hashing.
+The experimental operator applies it before reserving an operation and again
+at each fresh transport observation. Copies of the qualified tool must preserve
+its executable mode. This is a file check; scan/programming authority still
+requires the complete owned live transport and one-use policy below.
+
 `jtag_scan.cpp` is the source-controlled fresh programming-scan producer.
 Build it against the pinned Intel AJI headers and selected vendor libraries.
 It accepts one explicit private top-kit cable, checks the locked 6 MHz clock,

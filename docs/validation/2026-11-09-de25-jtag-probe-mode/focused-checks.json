@@ -1,0 +1,64 @@
+{
+  "status": "passed",
+  "checks": {
+    "probe-mode": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "test_nano_jtag_probe",
+        "test_nano_jtag_programming",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20109999692067504,
+      "log_sha256": "6140cd351f6a8d9d0c27df988ad36f446e64b50de654b3c912bdceaa8325b0b1"
+    },
+    "programming-wrapper": {
+      "argv": [
+        "python3",
+        "out/nano-mmu-probe-repair-20261109/operator_programming_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20098561886698008,
+      "log_sha256": "dd0c9b4296628976e76d8b2d9537f7400690a975a9660fc345f9d13f0678baab"
+    },
+    "programming-preflight": {
+      "argv": [
+        "python3",
+        "out/nano-mmu-probe-repair-20261109/operator_programming_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2009866798762232,
+      "log_sha256": "c6a4297ed666b3c9e0e3e42982c2e37a4c3c705e6e96f5ab71423204d93e12a1"
+    },
+    "programming-replay": {
+      "argv": [
+        "python3",
+        "out/nano-mmu-probe-repair-20261109/operator_programming_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20061644702218473,
+      "log_sha256": "09b43e5f956046d11bb1d76331c21131288fa860e25ce80a2f83479014c1ea44"
+    }
+  },
+  "original_policy_sha256": "d5ee2fedb99a29c3471b84db828f9a48540fc24ac397cb35bf338bae09cb3a59",
+  "failed_recovery_reservation_sha256": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+  "prior_failed_probe_mode": "0664",
+  "corrected_private_probe_mode": "0775",
+  "probe_bytes_unchanged": true,
+  "source_policy_body_unchanged": true,
+  "hardware_actions": false,
+  "core_load_acceptance": false,
+  "unchanged_policy_compared_with_frozen_record": true,
+  "parent_tests": 1775,
+  "parent_skips": 3
+}
