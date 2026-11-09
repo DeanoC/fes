@@ -14,7 +14,16 @@ type playMouse struct {
 func (a *App) ForwardsPlayMouse() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.session.CoreMouse && a.forwardsPlayHIDLocked() && !a.playHIDFailClosedLocked()
+	return a.session.CoreMouse && a.forwardsPlayHIDLocked() && !a.playHIDInputBlockedLocked() && !a.playHIDFailClosedLocked()
+}
+
+// Releasing mouse holds does not require relative capture or launcher focus.
+func (a *App) playMouseRouteReadyLocked() bool {
+	ready := a.forwardsPlayHIDLocked()
+	if a.playHIDInputBlockedLocked() {
+		ready = a.playHIDRouteReadyLocked()
+	}
+	return a.session.CoreMouse && ready && !a.playHIDFailClosedLocked()
 }
 func (a *App) mouse(id int) *playMouse {
 	if a.playMice == nil {
@@ -40,6 +49,10 @@ func (a *App) HandlePlayMouseMotion(id int, dx, dy float64) bool {
 		return true
 	}
 	a.mu.Lock()
+	if a.playHIDInputBlockedLocked() {
+		a.mu.Unlock()
+		return false
+	}
 	m := a.mouse(id)
 	m.x = math.Max(-32768, math.Min(32767, m.x+dx))
 	m.y = math.Max(-32768, math.Min(32767, m.y+dy))
@@ -60,13 +73,15 @@ func (a *App) HandlePlayMouseMotion(id int, dx, dy float64) bool {
 	return true
 }
 func (a *App) HandlePlayMouseButton(id, button int, down bool) bool {
-	if !a.ForwardsPlayMouse() {
+	a.mu.Lock()
+	if !a.playMouseRouteReadyLocked() || a.playHIDInputBlockedLocked() && down {
+		a.mu.Unlock()
 		return false
 	}
 	if button != 1 && button != 3 {
+		a.mu.Unlock()
 		return true
 	}
-	a.mu.Lock()
 	m := a.mouse(id)
 	mask := uint8(1)
 	if button == 3 {
@@ -92,11 +107,27 @@ func (a *App) ReleasePlayMouse(id int) {
 
 // HandlePlayMouseReport keeps one evdev SYN_REPORT vector and button snapshot atomic.
 func (a *App) HandlePlayMouseReport(id int, dx, dy int16, buttons uint8) bool {
-	if !a.ForwardsPlayMouse() {
+	a.mu.Lock()
+	if !a.playMouseRouteReadyLocked() {
+		a.mu.Unlock()
 		return false
 	}
-	a.mu.Lock()
-	a.mouse(id).buttons = buttons & 3
+	if a.playHIDInputBlockedLocked() {
+		m := a.playMice[id]
+		var released uint8
+		if m != nil {
+			released = m.buttons &^ buttons
+			m.buttons &= buttons & 3
+			m.x, m.y = 0, 0
+		}
+		if released == 0 && (dx != 0 || dy != 0 || buttons != 0) {
+			a.mu.Unlock()
+			return false
+		}
+		dx, dy = 0, 0
+	} else {
+		a.mouse(id).buttons = buttons & 3
+	}
 	event := remoteinput.MouseEvent(dx, dy, a.mouseButtons())
 	a.mu.Unlock()
 	a.SendPlayHID(event)
