@@ -37,4 +37,11 @@ failure logs are retained. No test timeout or coverage gate was relaxed.
 
 Local evidence: `out/nano-preference-handoff-20261109/validation.json` and
 `out/native-fabric-hooks-2ff9dfdf20174084963fa31a019faf28/result.json`.
-Native ARM64 cross-build verification follows from this committed source.
+The full native ARM64 launcher cross-build passes from committed source
+`b41c2d7a388ba9ab6045f803c95c3fd5ba30f7d5` (milestone base `ff619982c633e7a6a18f53a415ce3549f3365231`). All
+2114 recorded compiler input hashes still match. The ELF SHA-256 is
+`afeacf92bb2ca9afe18d37b81c8f17756ad6bb61a223303a5c54ae86f691691e`. Nano startup explicitly selects read-only SD and
+`persistent=false`. No new matched entry/BL31/FIT/SOF was assembled or deployed.
+Physical keyboard return, HDMI behavior and a separately selected writable
+profile still need hardware qualification. The overall DE10-equivalent core
+loading goal remains incomplete.
