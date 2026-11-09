@@ -82,8 +82,16 @@ writable only after the new frame's acknowledgement within that same owner.
 The opt-in `fes_embedded_menu_control.sv` provides the private FMS1 register
 interface in the existing upper aperture. STATUS latches the active generation,
 accepted/displayed sequences, slot and underflows together. Invalid/partial and
-stale commands reject. This is a private experimental interface, with no new
-registered FES ABI or board programming profile.
+stale commands reject. Once the preceding frame completes, CSR submission
+capacity remains available across the video reader's fill/display phases. One
+accepted descriptor is copied into a pending slot and held until video can
+consume it; a second outstanding descriptor rejects. Accepted and displayed
+sequences remain distinct, and CPU slot reuse still requires the exact complete
+frame receipt. Stop, reset or ownership loss discards the pending handoff while
+retaining the arena under the existing containment rules. The driver submits
+once and keeps its original deadline; no timed write window or retry is needed.
+This is a private experimental interface, with no new registered FES ABI or
+board programming profile.
 
 `Stop(ctx, cookie)` sends local Quiesce once, waits for the actual menu reader to
 stop, then obtains the existing endpoint's exact generation/cookie drain. It

@@ -137,13 +137,17 @@ existing endpoint response channel and the same qualified pixel clock.
 The native `scanout.MenuPresenter` now drives those controls through injected
 platform ownership, memory and register hooks. It copies only the spare slot
 through `Surface.Present`, orders publication, then submits once and waits for
-full display completion. Submission readiness may temporarily deassert during
-repeat-frame prefetch after an earlier frame completes; the driver waits for
-that handshake separately. Stop must complete local Quiesce before the existing
+full display completion. Once the preceding frame completes, CSR submission
+capacity stays available through repeat-frame prefetch. One accepted descriptor
+is held until the video side can consume it; a second outstanding descriptor
+rejects. Staging-register changes cannot alter that pending descriptor. Stop or
+ownership loss discards the pending handoff without releasing either slot.
+Stop must complete local Quiesce before the existing
 endpoint Disable/drain. Both slots stay pinned and firmware's independent
 all-master stop/bridge closure is still required. Unknown ownership, partial
 copy/publication, uncertain commands and failed stops retire without replay.
-No current native board command selects this driver.
+The explicit native menu diagnostic selects a matching sealed Nano package;
+ordinary appliance and physical display acceptance remain separate.
 
 `nativefabric.MenuSession` now requires its own compiled source/control/memory/
 access contracts, an ordered boot-pinned 8 MiB arena and the same owner's fresh
