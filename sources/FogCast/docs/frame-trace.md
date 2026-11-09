@@ -33,6 +33,10 @@ plus the staged pixel or command counts. It remains a failed present with no
 displayed-frame identity. Runtime timings remain zero when the runtime supplies
 no successful completion, so a scanout failure can be compared with the work
 that preceded it without treating that frame as displayed.
+When the existing shortcut fallback retries a frame, `retry_from_error` and
+`retry_from_timing` retain the first refusal and its measured phases. The
+ordinary error, timing and presented fields continue to describe the final
+attempt; the retry detail does not acknowledge the failed attempt.
 
 The ring holds 16,384 records, which is several minutes at the 30 Hz loop. Each
 `SIGUSR1` writes a new `fogcast-frame-trace-<pid>-<n>-<utc>.jsonl` to

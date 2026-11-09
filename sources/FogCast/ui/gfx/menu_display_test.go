@@ -753,3 +753,106 @@ func TestMenuDisplayTraceSinkReportsEachPresent(t *testing.T) {
 		t.Fatal("no trace for the present")
 	}
 }
+
+// retryTraceMenuClient refuses the cached/damaged attempt with measured
+// client phases. A fresh status then either keeps or changes the generation.
+type retryTraceMenuClient struct {
+	testMenuClient
+	retryGeneration uint64
+	refused         int
+	firstTiming     menudisplay.Timing
+	finalTiming     menudisplay.Timing
+}
+
+func (c *retryTraceMenuClient) Present(ctx context.Context, generation uint64, pixels []byte) (menudisplay.Result, error) {
+	result, err := c.testMenuClient.Present(ctx, generation, pixels)
+	result.Timing = c.finalTiming
+	return result, err
+}
+
+func (c *retryTraceMenuClient) PresentDamage(context.Context, uint64, []byte, menudisplay.Damage) (menudisplay.Result, error) {
+	c.mu.Lock()
+	c.refused++
+	c.generation = c.retryGeneration
+	c.mu.Unlock()
+	return menudisplay.Result{Timing: c.firstTiming}, errors.New("menu scanout failed")
+}
+
+func TestMenuDisplayTracePreservesRefusedShortcut(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		generation uint64
+		presented  bool
+		finalError string
+	}{
+		{"generation changed", 4, false, "menu generation changed before presentation"},
+		{"retry presented", 3, true, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			firstTiming := menudisplay.Timing{BeginUS: 11, StageUS: 12, CommitUS: 13, StagedPixels: 14}
+			finalTiming := menudisplay.Timing{BeginUS: 101, StageUS: 102, CommitUS: 103, RuntimeCleanUS: 104, StagedPixels: menudisplay.Width * menudisplay.Height}
+			client := &retryTraceMenuClient{
+				testMenuClient: testMenuClient{generation: 3}, retryGeneration: tc.generation,
+				firstTiming: firstTiming, finalTiming: finalTiming,
+			}
+			d, err := newMenuDisplayWithClient(client)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer d.Close()
+			clock := newMenuClock()
+			d.now = clock.Now
+			d.SetChangeDriven(true)
+			traces := make(chan MenuPresentTrace, 4)
+			d.SetTraceSink(func(tr MenuPresentTrace) { traces <- tr })
+			present := func() MenuPresentTrace {
+				t.Helper()
+				d.Present()
+				select {
+				case tr := <-traces:
+					return tr
+				case <-time.After(5 * time.Second):
+					t.Fatal("worker did not trace the frame")
+					return MenuPresentTrace{}
+				}
+			}
+			d.Clear(RGB(1, 2, 3))
+			initial := present()
+			if !initial.Presented || initial.Retried || initial.RetryFromError != "" || initial.RetryFromTiming != (menudisplay.Timing{}) {
+				t.Fatalf("initial present: %+v", initial)
+			}
+			d.FillRect(Rect{X: 40, Y: 40, W: 20, H: 10}, RGB(4, 5, 6))
+			tr := present()
+			if !tr.Retried || !tr.StatusSkipped || tr.RetryFromError != "menu scanout failed" || tr.RetryFromTiming != firstTiming {
+				t.Fatalf("refused first attempt lost: %+v", tr)
+			}
+			if tr.Presented != tc.presented || tr.Err != tc.finalError || tr.Seq != d.QueuedSeq() {
+				t.Fatalf("final outcome changed: %+v", tr)
+			}
+			wantTiming, wantCalls := menudisplay.Timing{}, 1
+			if tc.presented {
+				wantTiming, wantCalls = finalTiming, 2
+			}
+			if tr.Timing != wantTiming {
+				t.Fatalf("final timing = %+v, want %+v", tr.Timing, wantTiming)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			err = d.WaitIdle(ctx)
+			if tc.presented && err != nil || !tc.presented && (err == nil || err.Error() != tc.finalError) {
+				t.Fatalf("WaitIdle = %v", err)
+			}
+			client.mu.Lock()
+			statusCalls, fullCalls, refused, lastLen := client.statusCalls, client.calls, client.refused, client.lastLen
+			client.mu.Unlock()
+			if statusCalls != 2 || fullCalls != wantCalls || refused != 1 || lastLen != menudisplay.FrameBytes {
+				t.Fatalf("status=%d full=%d refused=%d bytes=%d", statusCalls, fullCalls, refused, lastLen)
+			}
+			select {
+			case extra := <-traces:
+				t.Fatalf("extra record for one frame: %+v", extra)
+			default:
+			}
+		})
+	}
+}

@@ -73,6 +73,10 @@ type MenuPresentTrace struct {
 	// Retried means a shortcut was refused and the frame went again with a
 	// fresh status and complete pixels.
 	Retried bool
+	// RetryFromError and RetryFromTiming retain the refused first attempt.
+	// Err, Timing and Presented still describe the final worker outcome.
+	RetryFromError  string
+	RetryFromTiming menudisplay.Timing
 	// Blitted means the blitter drew the frame from a command list.
 	Blitted bool
 }
@@ -614,6 +618,8 @@ func (d *MenuDisplay) run() {
 			var status menudisplay.Status
 			var err error
 			var result menudisplay.Result
+			var retryFromError string
+			var retryFromTiming menudisplay.Timing
 			var statusUS, presentUS int64
 			presented, genChanged, cached, retried, blitted := false, false, false, false, false
 			statusSkipped := false
@@ -655,6 +661,8 @@ func (d *MenuDisplay) run() {
 					// A shortcut's assumption no longer holds, for example a
 					// new generation or another frame on screen. Ask the
 					// runtime and send the complete frame once.
+					retryFromError, retryFromTiming = err.Error(), result.Timing
+					result = menudisplay.Result{}
 					d.mu.Lock()
 					d.dropShortcutsLocked()
 					d.mu.Unlock()
@@ -699,7 +707,8 @@ func (d *MenuDisplay) run() {
 				trace := MenuPresentTrace{Seq: frame.seq, Queued: frame.queuedAt, Presented: presented,
 					FrameCopyUS: frame.copyUS, QueueWaitUS: started.Sub(frame.queuedAt).Microseconds(),
 					StatusUS: statusUS, PresentUS: presentUS, Timing: result.Timing,
-					StatusSkipped: statusSkipped, DamageRects: damageRects, Retried: retried, Blitted: presented && blitted}
+					StatusSkipped: statusSkipped, DamageRects: damageRects, Retried: retried, Blitted: presented && blitted,
+					RetryFromError: retryFromError, RetryFromTiming: retryFromTiming}
 				if err != nil {
 					trace.Err = err.Error()
 				}

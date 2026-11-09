@@ -39,7 +39,9 @@ func TestRefusedCommitRetainsClientTimingWithoutCompletion(t *testing.T) {
 			if result.Generation != 0 || result.DisplayedSequence != 0 || result.Underflows != 0 {
 				t.Fatalf("refused frame acquired a completion: %+v", result)
 			}
-			if tm := result.Timing; tm.BeginUS <= 0 || tm.StageUS <= 0 || tm.CommitUS <= 0 ||
+			// A tiny blitter list may stage within one microsecond. The
+			// controlled refusal still has measurable socket/commit phases.
+			if tm := result.Timing; tm.BeginUS <= 0 || tm.StageUS < 0 || tm.CommitUS <= 0 ||
 				tm.RuntimeCleanUS != 0 || tm.RuntimeBlitUS != 0 || tm.RuntimeSubmitUS != 0 || tm.RuntimeScanoutWaitUS != 0 {
 				t.Fatalf("lost measured client phases or invented runtime phases: %+v", tm)
 			}
