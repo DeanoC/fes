@@ -19,7 +19,13 @@ static void require(bool ok, const char* message) {
 static void tick(Vbench& top) {
     top.FPGA_CLK1_50 = 1;
     top.eval();
+    top.CAP_CLK = 0;
+    top.eval();
     top.FPGA_CLK1_50 = 0;
+    top.eval();
+    // The 130 MHz OSS capture edge follows the memory falling edge; the
+    // retiming register must see the old sample on that falling edge.
+    top.CAP_CLK = 1;
     top.eval();
     require(!top.ddr_violation, "HPS DDR model saw a protocol or address violation");
 }
@@ -44,6 +50,7 @@ static void report(Vbench& top) {
     auto* dut = top.bench->dut;
     std::cerr << "sdram pass=" << int(dut->sdram_pass) << " fail=" << int(dut->sdram_fail)
               << " errors=" << dut->sdram_errors << '\n';
+    std::cerr << "byte expect/got=" << std::hex << top.byte_status[0] << std::dec << '\n';
     const int done[3] = {dut->ddr0_done, dut->ddr1_done, dut->ddr2_done};
     const int nack[3] = {dut->ddr0_nack, dut->ddr1_nack, dut->ddr2_nack};
     const uint32_t errors[3] = {dut->ddr0_errors, dut->ddr1_errors, dut->ddr2_errors};
@@ -189,6 +196,7 @@ static void negative_byte_cases() {
 int main() {
     Vbench top;
     top.FPGA_CLK1_50 = 0;
+    top.CAP_CLK = 0;
     top.peek_slot = 0;
     top.mask_fault = 0;
     top.eval();
@@ -198,7 +206,7 @@ int main() {
     require(command(top, toggle, 2, 0, 1) == 0, "execution release failed");
     bool both = false;
     bool green = false;
-    for (int i = 0; i < 30000000 && !green; ++i) {
+    for (int i = 0; i < 30000000 && !green && !top.bench->dut->sdram_fail; ++i) {
         tick(top);
         both = top.bench->dut->sdram_pass && !top.bench->dut->sdram_fail
             && top.bench->dut->sdram_errors == 0 && ddr_done(top) && ddr_clean(top);
@@ -206,8 +214,14 @@ int main() {
         if (both && top.HDMI_TX_DE && ((pixel >> 8) & 0xff) == 0xc0 && ((pixel >> 16) & 0xff) == 0x20)
             green = true;
     }
-    if (!both)
+    if (!both) {
+        const uint32_t expected = byte_field(top, 16, 16);
+        const uint32_t actual = byte_field(top, 0, 16);
+        if (top.bench->dut->byte_fail && !byte_field(top, 103, 1) &&
+            expected == 0xa55a && actual != expected)
+            std::cerr << "RAMTEST_BYTE_PREFLIGHT_READ_MISMATCH\n";
         report(top);
+    }
     require(both, "memory scan did not pass");
     require(byte_field(top, 95, 8) == 128 && byte_field(top, 79, 16) == 512,
             "byte test did not complete both orders and every readback");
