@@ -14,6 +14,7 @@
 #include "native/media_data.hpp"
 #include "native/diagnostic.hpp"
 #include "native/fes_gp.hpp"
+#include "native/pc386_machine.hpp"
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
@@ -1343,6 +1344,26 @@ Error NativeHardware::PrepareAtaDisk(AdmittedCorePackage* package, const std::st
 	return {};
 }
 
+// Held, after the ports leave reset: a pc386 load starts from zeroed guest
+// RAM and VRAM, as a cold AT does, so no run inherits the previous run's
+// memory (#1408). A guest reset never comes back here, so it keeps memory.
+Error NativeHardware::ClearPc386GuestMemory()
+{
+	constexpr std::uint64_t kGuestRamOffset = 0x04000000u, kGuestRamBytes = 16u << 20;
+	constexpr std::uint64_t kVramOffset = 0x00800000u, kVramBytes = 256u << 10;
+	constexpr std::size_t kGrant = 4u << 20;
+	const struct { std::uint64_t offset, bytes; } regions[] = {
+		{kGuestRamOffset, kGuestRamBytes}, {kVramOffset, kVramBytes}};
+	Error error;
+	for (const auto& region : regions)
+		for (std::uint64_t at = 0; at < region.bytes && error.ok(); at += kGrant) {
+			const std::size_t span = static_cast<std::size_t>(std::min<std::uint64_t>(kGrant, region.bytes - at));
+			error = disk_window_->Access(region.offset + at, span,
+				[span](unsigned char* window) { std::memset(window, 0, span); return Error{}; });
+		}
+	return error;
+}
+
 // Held, after identity: Prepare; the base image with the delta's chunks
 // over it, written through the window in turn while the base's SHA-256 and
 // the image's CRC-32 are computed; DiskCommit with that CRC; ready.
@@ -1882,6 +1903,16 @@ HardwareResult NativeHardware::LoadCoreInternal(
   if(error.ok())error=menu_display_->Configure(Deadline(clock_,timeouts_.core_io_ms));
   if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
  }
+	auto* const computer = fes_gp ? dynamic_cast<FesGpCoreDriver*>(admitted->driver_) : nullptr;
+	if (computer && computer->Pc386MachineCapable() && RequiresHpsDdr(admitted->opened_.descriptor)) {
+		const std::uint64_t started = clock_.NowMs();
+		error = disk_window_ ? ClearPc386GuestMemory() :
+			Error{ErrorCode::unsupported_interface, "guest memory window is unavailable", "input"};
+		if (error.ok()) error.message = "zeroed in " + std::to_string(clock_.NowMs() - started) + " ms";
+		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
+			identified.observed_core, "guest_memory", error});
+		if (!error.ok()) return {WithPhase(error, "input"), true, identified.observed_core};
+	}
 	if (admitted->data_file_) {
 		const std::vector<std::uint16_t> words = admitted->data_.game_id.empty() ?
 			std::vector<std::uint16_t>{admitted->data_.paddle_speed, admitted->data_.best_rally} :
@@ -1891,14 +1922,24 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		if (!error.ok())
 			return {WithPhase(error, "core_data"), true, identified.observed_core};
 	}
-	if (auto* driver = fes_gp ? dynamic_cast<FesGpCoreDriver*>(admitted->driver_) : nullptr) {
+	if (computer && computer->WallClockCapable()) {
 		// The machine's clock starts from the kit's local time at every launch.
-		std::tm local {};
-		if (driver->WallClockCapable()) {
-			error = clock_.LocalTime(&local) ? driver->SetWallClock(local,
-				Deadline(clock_, timeouts_.core_io_ms)) :
-				Error{ErrorCode::io_failed, "kit local time is unavailable", "transport"};
-			if (!error.ok()) return {error, true, identified.observed_core};
+		// An unsynced kit clock gives the record's last time instead, when that
+		// is past the floor, or else the floor (SetWallClock).
+		std::tm local {}, saved {};
+		const bool known = clock_.LocalTime(&local);
+		const bool synced = known && WallClockSynced(local);
+		const bool resumed = known && !synced && admitted->data_file_ &&
+			Pc386RecordClock(admitted->data_.words, &saved) && WallClockSynced(saved);
+		error = known ? computer->SetWallClock(resumed ? saved : local,
+			Deadline(clock_, timeouts_.core_io_ms)) :
+			Error{ErrorCode::io_failed, "kit local time is unavailable", "transport"};
+		if (!error.ok()) return {error, true, identified.observed_core};
+		if (!synced) {
+			error.message = resumed ? "unsynced kit clock: the record's time" : "unsynced kit clock: the floor";
+			log_.Write({"load_core", admitted->opened_.descriptor.core.system,
+				identified.observed_core, "wall_clock", error});
+			error = {};
 		}
 	}
 	if (admitted->ata_disk_) {

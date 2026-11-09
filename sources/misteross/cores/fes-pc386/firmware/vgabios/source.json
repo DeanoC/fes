@@ -3,12 +3,16 @@
   "commit": "12d978bd86fe88ee6b8620b0f1e91c7fb81bc2e6",
   "tag": "v0_9d",
   "license": "LGPL-2.1-or-later",
-  "local_changes": [],
+  "local_changes": [
+    "2026-11-05 vgabios.c: biosfn_scroll's graphics scroll-down loops (planar, CGA and linear) stop once the unsigned row passes row 0, as the text loop does, and before using that row; with top row 0 (INT 10h AH=07h, CH=00h, as Ultima VII: The Black Gate calls it) they looped forever, moving video memory (#1493).",
+    "2026-11-08 vgabios.c: INT 10h AH=00h keeps every register but AL (ES, DS and all general registers saved around biosfn_set_video_mode), as IBM's VGA BIOS does; upstream saved only DS, BX, CX and AX, so the mode set returned with DX changed and MicroProse's MGRAPHIC.EXE, which keeps the requested mode in DL, judged mode 13h unsupported (Darklands, #1553)."
+  ],
   "files": [
     {
       "path": "vgabios.c",
       "upstream_path": "vgabios/vgabios.c",
-      "sha256": "9da3ce70bdf29103224d6110b1eef8bba378824d3bc19aaa572164dd1f2bfe73"
+      "sha256": "a694ffb372af316c83fc07bef63205d36f151c0e445a87779ba8426f267a6b93",
+      "upstream_sha256": "9da3ce70bdf29103224d6110b1eef8bba378824d3bc19aaa572164dd1f2bfe73"
     },
     {
       "path": "vgabios.h",

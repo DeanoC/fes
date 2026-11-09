@@ -899,6 +899,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
   (context.descriptor->target.programming_profile=="de25-linux-computer-v1" ||
    (De25StaticEnabled() && context.descriptor->target.programming_profile=="de25-linux-static-computer-v1"));
 	wall_clock_ = false;
+	pc386_machine_ = false;
 	ata_disk_ = false;
 	keyboard_hid_ = false;
 	mouse_relative_ = false;
@@ -920,6 +921,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			if (interface.id == FesComputerInterfaceMediaZx81TapeWriteID) tape_write_ = true;
 			if (interface.id == FesComputerInterfaceGamepadPortsID) controller_ports_ = true;
 			if (interface.id == FesComputerInterfaceRtcWallClockID) wall_clock_ = true;
+			if (interface.id == FesComputerInterfacePc386MachineID) pc386_machine_ = true;
 			if (interface.id == FesComputerInterfaceMediaAtaDiskID) ata_disk_ = true;
 			if (interface.id == FesComputerInterfaceMediaApple2FloppyID ||
 				interface.id == FesComputerInterfaceMediaSpectrumTapeID ||
@@ -1005,6 +1007,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			pcxt_floppy_write_ = false;
 			tape_write_ = false;
 			wall_clock_ = false;
+			pc386_machine_ = false;
 			ata_disk_ = false;
 			media_units_.clear();
 		}
@@ -2169,18 +2172,31 @@ bool FesGpCoreDriver::ValidData(const std::vector<std::uint16_t>& words) const
 		words[FesGpPongPaddleSpeedIndex] <= FesGpPongPaddleSpeedFast;
 }
 
+bool WallClockSynced(const std::tm& local)
+{
+	const int date[] = {local.tm_year + 1900, local.tm_mon + 1, local.tm_mday};
+	const int floor[] = {kWallClockSyncedFloorYear, kWallClockSyncedFloorMonth, kWallClockSyncedFloorDay};
+	return !std::lexicographical_compare(date, date + 3, floor, floor + 3);
+}
+
+std::tm WallClockSyncedFloor()
+{
+	std::tm floor{};
+	floor.tm_year = kWallClockSyncedFloorYear - 1900;
+	floor.tm_mon = kWallClockSyncedFloorMonth - 1;
+	floor.tm_mday = kWallClockSyncedFloorDay;
+	floor.tm_hour = kWallClockSyncedFloorHour;
+	floor.tm_wday = kWallClockSyncedFloorWeekday;
+	return floor;
+}
+
 Error FesGpCoreDriver::SetWallClock(const std::tm& local, std::uint64_t deadline)
 {
 	if (!wall_clock_ || !reset_held_)
 		return {ErrorCode::unsupported_interface, "wall clock is unavailable", "transport"};
-	// The MC146818's range starts in 1980; a leap second is held at 59.
-	std::tm time = local;
-	if (time.tm_year + 1900 < static_cast<int>(FesComputerWallClockMinYear)) {
-		time = {};
-		time.tm_year = FesComputerWallClockMinYear - 1900;
-		time.tm_mday = 1;
-		time.tm_wday = 2;  // 1980-01-01 was a Tuesday
-	}
+	// An unsynced kit clock starts the machine at the floor; a leap second is
+	// held at 59.
+	const std::tm time = WallClockSynced(local) ? local : WallClockSyncedFloor();
 	if (time.tm_year + 1900 > static_cast<int>(FesComputerWallClockMaxYear))
 		return {ErrorCode::invalid_request, "kit time is past the wall clock's range", "transport"};
 	const std::uint16_t words[] = {

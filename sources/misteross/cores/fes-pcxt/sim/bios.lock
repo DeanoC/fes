@@ -8,6 +8,5 @@
     "license": "GPL-3.0; included font credited upstream to VileR under CC-BY-SA-4.0",
     "source": "https://github.com/640-KB/GLaBIOS/tree/v0.4.2"
   },
-  "ascii_font": {"rom_offset": 6766, "characters": 128, "rows": 8},
   "profile": {"cpu": "8088", "ram_kib": 640, "display": "CGA", "switches": 44, "floppy_present": false}
 }

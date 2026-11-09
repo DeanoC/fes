@@ -1,0 +1,69 @@
+--- monitor_binary.c.orig	2026-11-07 14:47:27.031681387 +0200
++++ monitor_binary.c	2026-11-07 14:51:28.845041448 +0200
+@@ -40,6 +40,8 @@
+ #include "lib.h"
+ #include "log.h"
+ #include "kbdbuf.h"
++#include "keyboard.h"
++#include "joystick.h"
+ #include "monitor.h"
+ #include "monitor_binary.h"
+ #include "montypes.h"
+@@ -114,6 +116,8 @@
+     e_MON_CMD_PALETTE_GET = 0x91,
+ 
+     e_MON_CMD_JOYPORT_SET = 0xa2,
++    e_MON_CMD_KEYMATRIX_SET = 0xa3, /* local fes#1531 reference patch */
++    e_MON_CMD_JOYSTICK_SET = 0xa4, /* local fes#1531 reference patch */
+ 
+     e_MON_CMD_USERPORT_SET = 0xb2,
+ 
+@@ -162,6 +166,8 @@
+     e_MON_RESPONSE_PALETTE_GET = 0x91,
+ 
+     e_MON_RESPONSE_JOYPORT_SET = 0xa2,
++    e_MON_RESPONSE_KEYMATRIX_SET = 0xa3,
++    e_MON_RESPONSE_JOYSTICK_SET = 0xa4,
+ 
+     e_MON_RESPONSE_USERPORT_SET = 0xb2,
+ 
+@@ -1374,6 +1380,28 @@
+     monitor_binary_response(0, e_MON_RESPONSE_JOYPORT_SET, e_MON_ERR_OK, command->request_id, NULL);
+ }
+ 
++/* Local fes#1531 reference patch: press or release one C64 keyboard matrix switch (row, column, value). */
++static void monitor_binary_process_keymatrix_set(binary_command_t *command)
++{
++    if (command->length < 3) {
++        monitor_binary_error(e_MON_ERR_CMD_INVALID_LENGTH, command->request_id);
++        return;
++    }
++    keyboard_set_keyarr_any(command->body[0], command->body[1], command->body[2]);
++    monitor_binary_response(0, e_MON_RESPONSE_KEYMATRIX_SET, e_MON_ERR_OK, command->request_id, NULL);
++}
++
++/* Local fes#1531 reference patch: set the emulated joystick on a port (JOYPORT_1 = 0) to an absolute value. */
++static void monitor_binary_process_joystick_set(binary_command_t *command)
++{
++    if (command->length < 2) {
++        monitor_binary_error(e_MON_ERR_CMD_INVALID_LENGTH, command->request_id);
++        return;
++    }
++    joystick_set_value_absolute(command->body[0], command->body[1]);
++    monitor_binary_response(0, e_MON_RESPONSE_JOYSTICK_SET, e_MON_ERR_OK, command->request_id, NULL);
++}
++
+ static void monitor_binary_process_userport_set(binary_command_t *command)
+ {
+     IO_SIM_RESULT ret;
+@@ -1616,6 +1644,10 @@
+ 
+     } else if (command_type == e_MON_CMD_JOYPORT_SET) {
+         monitor_binary_process_joyport_set(&command);
++    } else if (command_type == e_MON_CMD_JOYSTICK_SET) {
++        monitor_binary_process_joystick_set(&command);
++    } else if (command_type == e_MON_CMD_KEYMATRIX_SET) {
++        monitor_binary_process_keymatrix_set(&command);
+ 
+     } else if (command_type == e_MON_CMD_USERPORT_SET) {
+         monitor_binary_process_userport_set(&command);

@@ -139,6 +139,7 @@ help:
 		"  c64-diagnostic  Generate the open C64 firmware, font and synthetic D64" \
 		"  sim-fes-c64-session  Check actual C64 VIC raster and the shared DDR session plane" \
 		"  sim-fes-c64  Boot the open C64 diagnostic: cartridges, keyboard, joystick and D64" \
+		"  sim-fes-c64-joyports  Check that each C64 joystick port reads only its own gamepad player" \
 		"  sim-fes-c64-sid  Check digital SID state and staged MOS6581 audio" \
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
@@ -157,7 +158,9 @@ help:
 		"  sim-fes-pc386-a20  Run A20TEST.COM on the boot and games images: A20 off at boot, the BIOS's A20 calls, HIMEMX's method" \
 		"  sim-fes-pc386-c2xx  Run C2TEST.COM: INT 15h C2xx mouse resets with key and aux bytes at the 8042, and while keys are typed" \
 		"  sim-fes-pc386-wait  Run WAITTEST.COM: INT 15h AH=86h waits return in their time (PIT counter 1 at 15.09 us)" \
+		"  sim-fes-pc386-scroll  Run SCROLLT.COM at the FreeDOS prompt on the oracle and RTL CPUs" \
 		"  sim-fes-pc386-speaker  Run SPKTEST.COM: PIT counter 2 in mode 3 from POST, and a count-only speaker carrier" \
+		"  sim-fes-pc386-cpu-profile  Run CPUPROF.COM on the oracle, then a machine_tb --cpu-profile window on the RTL" \
 		"  sim-fes-pc386-system  Boot FreeDOS on pc386_system, the M5 machine with fes_i386_cpu, to the prompt (about an hour)" \
 		"  sim-fes-pc386-sound  Boot FreeDOS and run the audio start-up exercise; writes sound.wav" \
 		"  sim-fes-pc386-vga  Check the pc386 presenter and plane, run the VGA test disk, replay its VGA trace against Bochs" \
@@ -1469,6 +1472,16 @@ sim-fes-c64-ready: c64-diagnostic
 		"$(CURDIR)/cores/fes-c64/sim/ready_tb.cpp"
 	@build/sim/fes-c64-ready/Vready_sim_top "$(CURDIR)/build/sim/fes-c64-ready/firmware.hex"
 
+.PHONY: sim-fes-c64-joyports
+sim-fes-c64-joyports: c64-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-joyports
+	$(VERILATOR) --cc --exe --build -O2 --top-module joyports_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-joyports" \
+		cores/fes-c64/sim/joyports_sim_top.sv $(C64_RTL) \
+		"$(CURDIR)/cores/fes-c64/sim/joyports_tb.cpp"
+	@build/sim/fes-c64-joyports/Vjoyports_sim_top "$(CURDIR)/build/sim/fes-c64-joyports/firmware.hex"
+
 .PHONY: sim-fes-c64-push
 sim-fes-c64-push: c64-diagnostic
 	$(require_local_sim)
@@ -1653,7 +1666,7 @@ sim-fes-c64-frame:
 sim-fes-c64-cpu-group: sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-axs sim-fes-c64-axs-oracle sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-nmi sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-cadence
 sim-fes-c64-video-a-group: sim-fes-c64-d021 sim-fes-c64-ba-timing sim-fes-c64-vic-timing sim-fes-c64-sprite-pal sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes
 sim-fes-c64-video-b-group: sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback sim-fes-c64-vic sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-fetch sim-fes-c64-frame
-sim-fes-c64-system-group: sim-fes-c64-session sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sid c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rom sim-fes-c64-machine
+sim-fes-c64-system-group: sim-fes-c64-session sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sid c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-joyports sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rom sim-fes-c64-machine
 sim-fes-c64: sim-fes-c64-cpu-group sim-fes-c64-video-a-group sim-fes-c64-video-b-group sim-fes-c64-system-group
 sim-fes-c64-machine: c64-diagnostic
 	$(require_local_sim)
@@ -2830,7 +2843,7 @@ sim-fes-pcxt-game:
 	@test -n "$(PCXT_DIGGER_EXE)" || { echo "Set PCXT_DIGGER_EXE to the separately acquired pinned executable" >&2; exit 1; }
 	$(PYTHON) scripts/sim_fes_pcxt_dos.py --scenario game --download --digger-exe "$(PCXT_DIGGER_EXE)" --verilator "$(VERILATOR)"
 
-.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-fesenv sim-fes-pc386-a20 sim-fes-pc386-c2xx sim-fes-pc386-wait sim-fes-pc386-speaker sim-fes-pc386-sound sim-fes-pc386-vga sim-fes-pc386-system synth-fes-pc386 build-fes-pc386-quartus
+.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-fesenv sim-fes-pc386-a20 sim-fes-pc386-c2xx sim-fes-pc386-wait sim-fes-pc386-scroll sim-fes-pc386-speaker sim-fes-pc386-cpu-profile sim-fes-pc386-sound sim-fes-pc386-vga sim-fes-pc386-system synth-fes-pc386 build-fes-pc386-quartus
 sim-fes-pc386:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pc386.py --suite devices --verilator "$(VERILATOR)"
@@ -2860,9 +2873,17 @@ sim-fes-pc386-wait:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pc386.py --suite wait --download --verilator "$(VERILATOR)"
 
+sim-fes-pc386-scroll:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pc386.py --suite scroll --cpu oracle --download --verilator "$(VERILATOR)"
+
 sim-fes-pc386-speaker:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pc386.py --suite speaker --download --verilator "$(VERILATOR)"
+
+sim-fes-pc386-cpu-profile:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pc386.py --suite cpu-profile --download --verilator "$(VERILATOR)"
 
 sim-fes-pc386-sound:
 	$(require_local_sim)

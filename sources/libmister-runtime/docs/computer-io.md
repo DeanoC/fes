@@ -108,14 +108,23 @@ requires exactly 368,640 bytes for both limits: 40 cylinders, two heads, nine
 before insertion, rejecting a mismatch before MediaBegin.
 
 After verified identity, ADV7513 audio packets follow the audio declaration
-exactly as for applications. A library launch of a package with
-`fes.persistence.words` restores its game's 72-word `fes.pc386.machine`
+exactly as for applications. A launch of a package with `fes.pc386.machine`
+and `fes.memory.hps-ddr` first zeroes the guest's memory through fes-window
+grants of 4 MiB: guest RAM, window `0x04000000..0x04FFFFFF`, and VRAM,
+`0x00800000..0x0083FFFF`. It is logged as phase `guest_memory` with the time
+taken; a failure fails the launch. Only a launch clears memory, so a guest
+reset keeps it, as an AT's does. A library launch of a package with
+`fes.persistence.words` then restores its game's 72-word `fes.pc386.machine`
 record (DataControl Begin, 72 DataWrite on opcodes 24..27, Commit) while
 held; a missing record restores the layout's defaults. A package with
 `fes.rtc.wall-clock` then gets the kit's local time in four WallClock words.
 The core stores the weekday unchecked, so the runtime sends the local time's
-own. A time before 1980 starts the clock at 1980-01-01, a Tuesday; a leap
-second holds at 59; and an unavailable local time fails the launch.
+own. A kit time before 2026-01-01 means the kit's clock never synced (it
+counts from 1970). The runtime then sends the record's last clock, decoded from
+its CMOS bytes by register B with the century from 32h, when that is a valid
+time no earlier than 2026-01-01, and otherwise 2026-01-01 12:00:00, a
+Thursday; either is logged as phase `wall_clock`. A leap second holds at 59,
+and an unavailable local time fails the launch.
 Wall-clock command rejection or timeout remains a `transport`-phase failure;
 the seed is sent before Start.
 

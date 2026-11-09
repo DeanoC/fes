@@ -120,6 +120,7 @@ struct StepResult {
     uint32_t eip_before = 0;   // EIP at the start of the step
     std::vector<Event> events; // in delivery order
     std::vector<Access> writes;
+    std::vector<Access> reads;  // data reads, a read-modify-write's included, in the order made
 };
 
 // The x87 pointers a 386 keeps for its coprocessor, which FNSTENV and FNSAVE

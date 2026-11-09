@@ -439,6 +439,51 @@ void TestPc386CoreDataProtocol()
 	assert(mister::daemon::EncodeResponse(2, true, Pc386EmptyDiskStatus(), "fixture") == lines[3]);
 }
 
+// The record's CMOS clock: BCD or binary, 12- or 24-hour by register B, the
+// century from 32h, and every field checked.
+void TestPc386RecordClock()
+{
+	using mister::native::Pc386RecordClock;
+	const auto record = [](std::vector<std::pair<unsigned, unsigned>> bytes) {
+		auto words = mister::native::Pc386MachineDefaults();
+		for (const auto& b : bytes) {
+			auto& word = words[8 + b.first / 2];
+			const unsigned shift = 8 * (b.first & 1);
+			word = static_cast<std::uint16_t>((word & ~(0xffu << shift)) | (b.second << shift));
+		}
+		return words;
+	};
+	const std::vector<std::pair<unsigned, unsigned>> bcd = {{0x00, 0x59}, {0x02, 0x07}, {0x04, 0x12},
+		{0x07, 0x29}, {0x08, 0x02}, {0x09, 0x28}, {0x0b, 0x02}, {0x32, 0x20}};
+	std::tm time{};
+	assert(Pc386RecordClock(record(bcd), &time));
+	assert(time.tm_year == 128 && time.tm_mon == 1 && time.tm_mday == 29 && time.tm_hour == 12 &&
+		time.tm_min == 7 && time.tm_sec == 59 && time.tm_wday == 2);  // 2028-02-29, a Tuesday
+	// 12-hour form: 12 AM is hour 0, 12 PM is hour 12.
+	auto twelve = bcd;
+	twelve[6].second = 0x00;
+	assert(Pc386RecordClock(record(twelve), &time) && time.tm_hour == 0);
+	twelve[2].second = 0x92;
+	assert(Pc386RecordClock(record(twelve), &time) && time.tm_hour == 12);
+	const std::vector<std::pair<unsigned, unsigned>> broken[] = {
+		{{0x00, 0x5a}},  // not BCD
+		{{0x08, 0x13}},  // month 13
+		{{0x09, 0x27}},  // 2027-02-29
+		{{0x32, 0x21}},  // 2128, past the range
+		{{0x0b, 0x00}, {0x04, 0x00}},  // 12-hour hour 0
+	};
+	for (const auto& change : broken) {
+		auto bytes = bcd;
+		for (const auto& c : change)
+			for (auto& b : bytes)
+				if (b.first == c.first) b.second = c.second;
+		assert(!Pc386RecordClock(record(bytes), &time));
+	}
+	// The defaults hold zeros, and a short record is not a record.
+	assert(!Pc386RecordClock(mister::native::Pc386MachineDefaults(), &time));
+	assert(!Pc386RecordClock(std::vector<std::uint16_t>(8, 0), &time));
+}
+
 void TestPersistenceRequestsAndResponseFixtures()
 {
 	const auto lines = ReadLines("tests/fixtures/protocol-v2-persistence-responses.jsonl");
@@ -1590,6 +1635,7 @@ int main(int argc, char** argv)
 
 	TestPersistenceRequestsAndResponseFixtures();
 	TestPc386CoreDataProtocol();
+	TestPc386RecordClock();
 	TestProtocol2GoldenRequestsAndResponses();
 	TestProtocolResponseEdgeFixtures();
 	TestProtocol2RequestBoundaries();

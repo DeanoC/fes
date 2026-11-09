@@ -9,6 +9,7 @@ import (
 	"image"
 	"io/fs"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +35,7 @@ const (
 	presentationRetryMin      = 400 * time.Millisecond
 	presentationRetryMax      = 8 * time.Second
 	sessionPollInterval       = time.Second
+	kitMenuReadinessLogPeriod = 10 * time.Second
 	shellLeaseReleaseAttempts = 3
 )
 
@@ -292,6 +294,7 @@ type Snapshot struct {
 	LocalCorePresentsPaused bool
 	LocalCoreLateAdopt      bool
 	LocalCoreRedraw         uint64
+	sessionObservation      uint64
 }
 
 // DebugHUDSnapshot is the optional corner overlay (off by default).
@@ -430,6 +433,11 @@ type App struct {
 	playingSetupCancel     context.CancelFunc
 	playingSetupRoom       *rooms.Instance
 	sessionTitle           string
+	resolvedSessionTitle   string
+	resolvedSessionGameID  string
+	sessionTitlePending    bool
+	sessionTitleRequest    uint64
+	sessionTitleNext       time.Time
 	// retainedIdleLease is set when this shell's Soft-stop kept an idle kit
 	// grant, and when a kit Select+Start release failed while that grant may
 	// still be renewing. A later active or relaunched play does not clear it:
@@ -617,16 +625,31 @@ type App struct {
 	previewNext        time.Time
 
 	localCores                 rooms.LocalCores
+	kitHost                    bool
+	kitHostPreparing           bool
+	hostLaunchPending          func()
+	hostPresentsPaused         bool
+	hostAwaitStatus            bool
+	sessionObservation         uint64
+	sessionObservedAt          time.Time
+	sessionReadyWrittenAt      time.Time
+	kitMenuStartedAt           time.Time
+	kitMenuSessionSeen         bool
+	kitMenuSessionState        string
+	kitMenuSessionHTTPStatus   int
+	kitMenuSessionError        string
+	kitMenuHealthSeen          bool
+	kitMenuHealthError         string
+	kitMenuReadyLogf           func(string, ...any)
+	kitMenuReadyLogKey         string
+	kitMenuReadyLogAt          time.Time
 	localFeed                  localPadSender
 	localInstallKnown          bool
 	localInstalled             map[string]struct{}
 	localInstallGen            uint64
 	localInstallCancel         context.CancelFunc
-	localCatalogClose          func() error
-	localContent               func(context.Context, string) (string, string, error)
 	localPhase                 string
 	localReconcileAfterFailure bool
-	localReconcileDeadline     time.Time
 	localUnownedRun            bool
 	localTitle                 string
 	localStartedAt             time.Time
@@ -650,8 +673,7 @@ type App struct {
 	localStartupStatusChecked bool
 	// localWatchStartup keeps polling a launching or stopping generation
 	// seen at startup until that generation is running or generation-free idle.
-	localWatchStartup  bool
-	localLaunchPending func()
+	localWatchStartup bool
 
 	// settingsSection is the open Settings section; "" is the section list.
 	settingsSection string
@@ -751,6 +773,9 @@ func (a *App) Start(parent context.Context) {
 	a.cancel = cancel
 	a.loading = true
 	a.lastInput = time.Now()
+	if a.kitHost && a.kitMenuStartedAt.IsZero() {
+		a.kitMenuStartedAt = time.Now()
+	}
 	a.loadGen++
 	gen := a.loadGen
 	loadCtx := a.replaceLoadContextLocked()
@@ -764,6 +789,7 @@ func (a *App) Start(parent context.Context) {
 	go a.loadCollections(ctx)
 	go a.loadEditionPreferences(ctx)
 	go a.pollSession(ctx)
+	go a.pollKitMenuReadiness(ctx)
 	go a.loadLibrary(loadCtx, gen)
 	go a.hydrateAttractIdle(ctx)
 }
@@ -795,8 +821,6 @@ func (a *App) Stop() {
 	a.attractClosed = true
 	feed := a.localFeed
 	a.localFeed = nil
-	closeCatalog := a.localCatalogClose
-	a.localCatalogClose = nil
 	installCancel := a.localInstallCancel
 	a.localInstallCancel = nil
 	cancel := a.cancel
@@ -806,9 +830,6 @@ func (a *App) Stop() {
 	}
 	if feed != nil {
 		feed.Close()
-	}
-	if closeCatalog != nil {
-		_ = closeCatalog()
 	}
 	if cancel != nil {
 		cancel()
@@ -977,6 +998,9 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.kitHost && (a.hostAwaitStatus || a.kitHostPreparing) {
+		return
+	}
 	a.traceInputLocked(cmd, now)
 	a.noteActivityLocked(now)
 	if a.localCoreBusyLocked() {
@@ -1870,8 +1894,9 @@ func (a *App) Snapshot() Snapshot {
 		LocalCoreTitle:          a.localTitle,
 		LocalCoreStatus:         a.localStatus,
 		LocalCoreStartedAt:      a.localStartedAt,
-		LocalCorePresentsPaused: a.localPresentsPaused,
-		LocalCoreLateAdopt:      a.localLateAdopt,
+		sessionObservation:      a.sessionObservation,
+		LocalCorePresentsPaused: a.localPresentsPaused || a.hostPresentsPaused || (a.kitHost && (a.session.State == "launching" || a.session.State == "stopping" || hostclient.SessionKitLocal(a.session.State) || (a.session.State == "active" && !a.sessionDisplayLocked().Visible))),
+		LocalCoreLateAdopt:      a.localLateAdopt || (a.kitHost && (a.hostAwaitStatus || a.session.State == "active" || a.session.State == "launching" || a.session.State == "stopping" || hostclient.SessionKitLocal(a.session.State))),
 		LocalCoreRedraw:         a.localRedraw,
 	}
 	destination := snap.DetailPlay
@@ -2391,6 +2416,9 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 }
 
 func (a *App) startLaunchGameWithPackageLocked(game hostclient.Game, packageID, expectedPackageID string) {
+	if a.kitHost && (a.hostAwaitStatus || a.kitHostPreparing) {
+		return
+	}
 	// Release kit may already have read an idle session and still be about
 	// to post an empty-body Stop. That Stop would end this game.
 	if a.leaseReleaseBusy {
@@ -2472,7 +2500,13 @@ func (a *App) startLaunchGameWithPackageLocked(game hostclient.Game, packageID, 
 		"game_id": game.ID,
 		"title":   game.Title,
 	})
-	go a.doLaunch(ctx, game, stamp, packageID, expectedPackageID)
+	dispatch := func() { go a.doLaunch(ctx, game, stamp, packageID, expectedPackageID) }
+	if a.kitHost && a.menuDisplay != nil {
+		a.hostPresentsPaused = true
+		a.hostLaunchPending = dispatch
+	} else {
+		dispatch()
+	}
 }
 
 // launchBlockReason maps hostclient catalog ineligibility to sofa copy.
@@ -2515,6 +2549,7 @@ func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientSt
 				return
 			}
 			a.bumpSessionGenLocked()
+			a.hostPresentsPaused = false
 			a.launch.Phase = "error"
 			a.launchLeaseRefusal = false
 			a.launch.Message = "package selection failed: " + err.Error()
@@ -2536,6 +2571,12 @@ func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientSt
 	}
 	a.bumpSessionGenLocked()
 	if err != nil {
+		if a.kitHost && a.hostPresentsPaused {
+			// A lost response can follow a successful launch. Keep HDMI
+			// paused until a fresh host status resolves that ambiguity.
+			a.hostAwaitStatus = true
+			a.kickSessionPollLocked()
+		}
 		a.launch.Phase = "error"
 		a.launchLeaseRefusal = false
 		a.launch.Message = "launch failed: " + err.Error()
@@ -2547,12 +2588,17 @@ func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientSt
 	a.launch.ErrorMessage = result.ErrorMessage
 	a.launch.State = result.State
 	if result.ErrorCode != "" {
+		if a.kitHost && a.hostPresentsPaused {
+			a.hostAwaitStatus = true
+			a.kickSessionPollLocked()
+		}
 		a.launch.Phase = "host"
 		a.launchLeaseRefusal = false
 		a.launch.Message = fmt.Sprintf("host launch %d %s: %s", result.HTTPStatus, result.ErrorCode, result.ErrorMessage)
 		return
 	}
 	a.launch.Phase = "ok"
+	a.hostPresentsPaused = false
 	a.launchLeaseRefusal = false
 	a.launch.Message = fmt.Sprintf("host accepted launch for %s", game.ID)
 	a.applySessionLocked(result)
@@ -2801,7 +2847,7 @@ func (a *App) doIdleLeaseRetry(stamp ClientStamp) {
 }
 
 func packageStopIdentity(expected hostclient.SessionResult) bool {
-	return expected.CorePackage != nil && expected.GameID != "" &&
+	return expected.ID != "" && expected.CorePackage != nil && expected.Target != "" &&
 		expected.CorePackage.PackageID != "" && expected.CorePackage.Generation != 0
 }
 
@@ -2928,6 +2974,12 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 	if a == nil {
 		return false
 	}
+	a.mu.Lock()
+	waitingForHost := a.kitHost && (a.hostAwaitStatus || a.kitHostPreparing)
+	a.mu.Unlock()
+	if waitingForHost {
+		return true
+	}
 	if a.consumeSuppressedPlayKey(name, usage, down) {
 		return true
 	}
@@ -2936,7 +2988,8 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 		// Every other session consumes the key, including an empty tape and
 		// a folder that has no .p files, so it is never forwarded. With no
 		// media selector to open, F12 opens the running room as Home does,
-		// which the surround hint advertises (#1132).
+		// which the surround hint advertises (#1132). With no room either,
+		// F12 stops the session (#1561).
 		if a.localCoreOwnsInput() {
 			if down {
 				a.RequestLocalStop()
@@ -2944,7 +2997,7 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 			return true
 		}
 		if !a.openRunningMediaSelector(down, now) {
-			a.handlePlayingRoomKey("home", down, now)
+			a.handlePlayingMenuKey(down, now)
 		}
 		return true
 	}
@@ -3127,18 +3180,141 @@ func (a *App) fetchSession(ctx context.Context) {
 	gen := a.sessionGen
 	a.mu.Unlock()
 	result, err := a.client.Session(ctx)
-	if err != nil || ctx.Err() != nil {
+	if ctx.Err() != nil {
+		return
+	}
+	if err != nil {
+		a.mu.Lock()
+		a.sessionObservedAt = time.Time{}
+		a.clearSessionReadyLocked()
+		a.mu.Unlock()
+		a.noteKitMenuSessionObservation(result, err)
 		return
 	}
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	if gen != a.sessionGen {
+		a.mu.Unlock()
+		a.noteKitMenuSessionObservation(result, nil)
 		return
 	}
 	if a.launch.Phase == "launching" || a.stopPhase == "stopping" || a.inputBusy || a.sessionDisplayBusy || a.developmentLoadingLocked() {
+		a.mu.Unlock()
+		a.noteKitMenuSessionObservation(result, nil)
 		return
 	}
+	if a.hostAwaitStatus && result.ErrorCode == "" && (result.State == "idle" || result.State == "active" || result.State == "failed" || hostclient.SessionKitLocal(result.State)) {
+		a.hostAwaitStatus = false
+		a.hostPresentsPaused = false
+	}
 	a.applySessionLocked(result)
+	if result.ErrorCode == "" {
+		a.sessionObservedAt = time.Now()
+	}
+	a.mu.Unlock()
+	a.noteKitMenuSessionObservation(result, nil)
+}
+
+func (a *App) noteKitMenuSessionObservation(session hostclient.SessionResult, sessionErr error) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	if a.kitHost {
+		a.kitMenuSessionSeen = true
+		a.kitMenuSessionState = session.State
+		a.kitMenuSessionHTTPStatus = session.HTTPStatus
+		a.kitMenuSessionError = ""
+		if sessionErr != nil {
+			a.kitMenuSessionError = sessionErr.Error()
+		} else if session.ErrorCode != "" {
+			a.kitMenuSessionError = session.ErrorCode + ": " + session.ErrorMessage
+		}
+	}
+	a.mu.Unlock()
+	a.logKitMenuReadiness()
+}
+
+// pollKitMenuReadiness reports startup readiness independently of Session and
+// Health requests. Those requests can be slow or fail while the menu is held.
+func (a *App) pollKitMenuReadiness(ctx context.Context) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	enabled := a.kitHost && a.menuDisplay != nil
+	a.mu.Unlock()
+	if !enabled {
+		return
+	}
+	a.logKitMenuReadiness()
+	ticker := time.NewTicker(kitMenuReadinessLogPeriod)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			a.logKitMenuReadiness()
+		}
+	}
+}
+
+func (a *App) logKitMenuReadiness() {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	if !a.kitHost {
+		a.mu.Unlock()
+		return
+	}
+	display := a.menuDisplay
+	startedAt := a.kitMenuStartedAt
+	if startedAt.IsZero() {
+		startedAt = time.Now()
+		a.kitMenuStartedAt = startedAt
+	}
+	sessionSeen, sessionState, sessionHTTPStatus, sessionError := a.kitMenuSessionSeen, a.kitMenuSessionState, a.kitMenuSessionHTTPStatus, a.kitMenuSessionError
+	healthSeen, healthError := a.kitMenuHealthSeen, a.kitMenuHealthError
+	health, hostUnreachable := a.health, a.hostUnreachable
+	hostAwaitStatus, hostPresentsPaused, kitHostPreparing := a.hostAwaitStatus, a.hostPresentsPaused, a.kitHostPreparing
+	baseURL := ""
+	if a.client != nil && a.client.Client != nil {
+		baseURL = a.client.BaseURL()
+	}
+	logf := a.kitMenuReadyLogf
+	a.mu.Unlock()
+	if display == nil {
+		return
+	}
+	readiness := display.ReadinessDiagnostic()
+	healthReady := healthSeen && healthError == "" && health.Ready && health.TargetReachable && health.TargetReady
+	pending := !readiness.Ready || !healthReady || !sessionSeen || sessionError != "" || hostAwaitStatus || hostPresentsPaused || kitHostPreparing
+	if !pending {
+		a.mu.Lock()
+		a.kitMenuReadyLogKey = ""
+		a.mu.Unlock()
+		return
+	}
+	now := time.Now()
+	elapsed := now.Sub(startedAt).Round(time.Millisecond)
+	key := fmt.Sprintf("host_api=%q session_endpoint=%q host_session_seen=%t host_session_http_status=%d host_session_state=%q host_session_error=%q host_await_status=%t host_presents_paused=%t kit_host_preparing=%t host_unreachable=%t health_endpoint=%q host_health_seen=%t host_health_error=%q host_health_ready=%t target_reachable=%t target_ready=%t target_id=%q target_state=%q runtime_status_known=%t runtime_ready=%t runtime_available=%t runtime_generation=%d presented_generation=%d has_presented=%t display_paused=%t display_closed=%t underflows=%d last_err=%q",
+		baseURL, strings.TrimRight(baseURL, "/")+"/api/v1/session", sessionSeen, sessionHTTPStatus, sessionState, sessionError, hostAwaitStatus, hostPresentsPaused, kitHostPreparing, hostUnreachable,
+		strings.TrimRight(baseURL, "/")+"/api/v1/health", healthSeen, healthError, health.Ready, health.TargetReachable, health.TargetReady, health.Connection.TargetID, health.Connection.State,
+		readiness.StatusKnown, readiness.Ready, readiness.Available, readiness.Generation, readiness.PresentedGen, readiness.HasPresented,
+		readiness.Paused, readiness.Closed, readiness.Underflows, readiness.LastErr)
+	a.mu.Lock()
+	if key == a.kitMenuReadyLogKey && now.Sub(a.kitMenuReadyLogAt) < kitMenuReadinessLogPeriod {
+		a.mu.Unlock()
+		return
+	}
+	a.kitMenuReadyLogKey = key
+	a.kitMenuReadyLogAt = now
+	a.mu.Unlock()
+	if logf == nil {
+		logf = func(format string, args ...any) { _, _ = fmt.Fprintf(os.Stderr, format, args...) }
+	}
+	logf("%s", fmt.Sprintf("tenfoot: kit menu readiness pending elapsed=%s %s\n", elapsed, key))
 }
 
 func (a *App) bumpSessionGenLocked() {
@@ -3185,13 +3361,18 @@ func (a *App) fetchHealth(ctx context.Context) {
 		}
 		a.mu.Lock()
 		wasForeign := a.foreignKitLeaseLocked()
+		wasReady := a.healthHave && !a.hostUnreachable && a.kitMenuHealthError == "" && a.health.Ready && a.health.TargetReachable && a.health.TargetReady
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = result
 		a.kitLeaseHave = true
 		a.kitLease = lease
 		a.clearLeaseRefusalAfterTransitionLocked(wasForeign)
+		if a.kitHost && !wasReady && result.Ready && result.TargetReachable && result.TargetReady {
+			a.refreshKitInventoryLocked(ctx)
+		}
 		a.mu.Unlock()
+		a.noteKitMenuHealthObservation(nil)
 		return
 	}
 	if pairedHave && pairedErr == nil {
@@ -3201,11 +3382,13 @@ func (a *App) fetchHealth(ctx context.Context) {
 		wasForeign := a.foreignKitLeaseLocked()
 		a.hostUnreachable = false
 		a.healthHave = true
-		a.health = hostclient.HealthResult{Ready: true, TargetReachable: paired.TargetReachable, TargetReady: paired.TargetReady}
+		health := hostclient.HealthResult{Ready: true, TargetReachable: paired.TargetReachable, TargetReady: paired.TargetReady}
+		a.health = health
 		a.kitLeaseHave = true
 		a.kitLease = paired
 		a.clearLeaseRefusalAfterTransitionLocked(wasForeign)
 		a.mu.Unlock()
+		a.noteKitMenuHealthObservation(err)
 		return
 	}
 	if pairedHave && pairedErr != nil {
@@ -3220,6 +3403,7 @@ func (a *App) fetchHealth(ctx context.Context) {
 		a.mu.Lock()
 		a.hostUnreachable = true
 		a.mu.Unlock()
+		a.noteKitMenuHealthObservation(err)
 		return
 	}
 	status, statusErr := a.client.Status(ctx)
@@ -3227,12 +3411,32 @@ func (a *App) fetchHealth(ctx context.Context) {
 		return
 	}
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	if statusErr == nil && status.Unavailable {
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = hostclient.HealthResult{Ready: true, TargetReachable: false, TargetReady: false}
 	}
+	a.mu.Unlock()
+	if statusErr != nil {
+		err = fmt.Errorf("host health: %v; host status: %w", err, statusErr)
+	}
+	a.noteKitMenuHealthObservation(err)
+}
+
+func (a *App) noteKitMenuHealthObservation(healthErr error) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	if a.kitHost {
+		a.kitMenuHealthSeen = true
+		a.kitMenuHealthError = ""
+		if healthErr != nil {
+			a.kitMenuHealthError = healthErr.Error()
+		}
+	}
+	a.mu.Unlock()
+	a.logKitMenuReadiness()
 }
 
 func (a *App) clearLeaseRefusalAfterTransitionLocked(wasForeign bool) {
@@ -3430,10 +3634,20 @@ func inputFailureStatus(action string) string {
 }
 
 func (a *App) applySessionLocked(result hostclient.SessionResult) {
+	a.sessionObservation++
+	a.sessionObservedAt = time.Time{}
+	if result.ErrorCode != "" || !samePlayHIDSession(a.session, result) {
+		a.clearSessionReadyLocked()
+	}
 	if result.ErrorCode != "" {
 		return
 	}
 	if !samePlayHIDSession(a.session, result) {
+		a.sessionTitleRequest++
+		a.sessionTitlePending = false
+		a.sessionTitleNext = time.Time{}
+		a.resolvedSessionTitle = ""
+		a.resolvedSessionGameID = ""
 		a.clearPlayingSetupLocked()
 		a.cancelPlayHIDLocked()
 		a.invalidateSessionDisplayLocked()
@@ -3469,6 +3683,7 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 		a.closeTapePickerLocked()
 	}
 	a.syncGPUParkLocked()
+	a.resolveKitHostSessionTitleLocked()
 }
 
 func (a *App) syncGPUParkLocked() {
@@ -3530,8 +3745,12 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 				break
 			}
 		}
-		if !found && a.launch.GameID != a.session.GameID {
-			title = a.session.GameID
+		if !found && (a.launch.GameID != a.session.GameID || title == "") {
+			if a.resolvedSessionGameID == a.session.GameID && a.resolvedSessionTitle != "" {
+				title = a.resolvedSessionTitle
+			} else {
+				title = a.session.GameID
+			}
 		}
 		if title == "" {
 			title = a.session.GameID

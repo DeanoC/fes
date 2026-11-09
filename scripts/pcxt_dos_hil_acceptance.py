@@ -3,7 +3,7 @@
 
 Supply at least three complete HDMI captures taken from launch through boot.
 The check requires a substantial inter-frame change and matches the prompt's
-GLaBIOS-derived CGA glyphs in the final framebuffer. It uses ffmpeg/ffprobe and
+CGA glyphs from the package's locked font in the final framebuffer. It uses ffmpeg/ffprobe and
 the Python standard library only.
 """
 import argparse
@@ -38,22 +38,16 @@ def _median_color(samples):
 
 
 def load_font(root=ROOT):
-    """Extract the exact 8x8 ASCII glyphs embedded in the locked BIOS ROM."""
+    """Return the package's locked 256-character 8x8 CGA font, 16 bytes per character."""
     core = Path(root) / 'sources/misteross/cores/fes-pcxt'
-    assets = json.loads((core / 'firmware/hardware-dos.json').read_text())
-    spec = json.loads((core / 'sim/bios.lock').read_text())
-    bios = assets['bios']
-    path = core / bios['file']
-    data = path.read_bytes()
-    if len(data) != bios['size'] or hashlib.sha256(data).hexdigest() != bios['sha256']:
-        raise ValueError('GLaBIOS font source differs from the package lock')
-    if spec['bios']['sha256'] != bios['sha256']:
-        raise ValueError('GLaBIOS ROM differs from the BIOS simulation lock')
-    font = bytearray(4096)
-    offset = spec['ascii_font']['rom_offset']
-    for code in range(128):
-        font[code * 16:code * 16 + 8] = data[offset + code * 8:offset + code * 8 + 8]
-    return bytes(font)
+    font = json.loads((core / 'firmware/hardware-dos.json').read_text())['font']
+    data = (core / font['file']).read_bytes()
+    if len(data) != font['size'] or hashlib.sha256(data).hexdigest() != font['sha256']:
+        raise ValueError('CGA font differs from the package lock')
+    glyphs = bytearray(4096)
+    for code in range(256):
+        glyphs[code * 16:code * 16 + 8] = data[code * 8:code * 8 + 8]
+    return bytes(glyphs)
 
 
 def _pixel(rgb, width, x, y, dx=0, dy=0):
@@ -118,7 +112,7 @@ def find_prompt(width, height, rgb, font):
                 # HDMI capture can quantize adjacent pixels of one flat color
                 # differently. Compare each class with its representative RGB,
                 # while still requiring a strong color separation and the
-                # original high spatial agreement with all four ROM glyphs.
+                # original high spatial agreement with all four font glyphs.
                 def near(color, reference):
                     return max(abs(a - b) for a, b in zip(color, reference)) <= 40
                 fg_hits = sum(count for color, count in foreground.items() if near(color, fg))
@@ -127,7 +121,7 @@ def find_prompt(width, height, rgb, font):
                 score = (fg_hits + bg_hits) / (ink_count + blank_count)
                 if contrast >= 64 and fg_hits / ink_count >= 0.92 and bg_hits / blank_count >= 0.94:
                     # Enforce agreement on each character as well as across
-                    # the line. Then require the expected locked-ROM glyph
+                    # the line. Then require the expected locked-font glyph
                     # to be strictly closer than every other printable glyph.
                     # The colon and semicolon (and > and )) differ by only
                     # two pixels, which aggregate scores can easily hide.

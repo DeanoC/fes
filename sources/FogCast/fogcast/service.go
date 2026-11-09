@@ -22,6 +22,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/hostexec"
 	"github.com/DeanoC/FogCast/internal/kitpackages"
+	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/internal/meshplace"
 	"github.com/DeanoC/FogCast/internal/meshpref"
@@ -348,6 +349,9 @@ type Service struct {
 	// agent at its loopback address. It never looks the agent up by mDNS
 	// and refuses settings edits to its target.
 	kitHost bool
+	// Serialize local entry preparation through its optional ROM binding.
+	kitHostEntryMu   sync.Mutex
+	kitHostInventory func(context.Context) ([]localcores.Core, error)
 }
 
 const catalogCloseScanTimeout = 2 * time.Second

@@ -222,7 +222,9 @@ is a live mutation: `scripts/appliance_expand_dry_run.py` can add aligned p3
 ext4 labelled `FESDATA3` without moving A2 or rewriting FAT. It sizes p3 to the
 card in the admitted reader; `--card-bytes`, if given, must match that card.
 FogCast bind-mounts cache, saves, core-data, launcher-cache and evidence from
-that partition. The
+that partition, and bind-mounts `/media/fat/games` from its `games` directory.
+Existing FAT files are copied only when the p3 destination is absent. With no
+FESDATA3 partition, game libraries and other mutable trees stay on FAT. The
 bootloader, kernel and boot environment retain their locked bytes. The
 kernel mounts `/linux/linux.img`, now the small stable bootstrap. Factory system
 bytes live at `/fogcast/releases/images/<sha256>.img`; the corresponding manifest
@@ -284,11 +286,19 @@ checked before any partition-table write, and the new volume passes
 After startup the normal data helper mounts and prepares the existing volume;
 it does not create missing partitions.
 
-The extra space holds factory, known-good, previous and a staged candidate.
+The release store keeps the confirmed current image, one verified fallback
+and the factory image as a final recovery anchor. A newly staged image can
+temporarily add another release while an update is pending or on trial. Once confirmation succeeds, the store removes superseded
+images, while preserving the boot-ticket image and every release image that
+currently backs a loop device. The bootstrap keeps `boot.json` on its stable
+three-field schema for older target agents and writes the fallback hash in an
+adjacent `boot-fallback.json` record bound to the boot ID and image hash. A
+damaged selection-state file can still boot a verified image from FAT.
+
 When the release volume already has room for the new image, a 1 MiB margin,
 and the splash staged at confirmation (an idle core up to 8 MiB, its sidecar,
-and a temporary copy), staging writes and verifies it there and does not
-delete anything.
+and a temporary copy), staging writes and verifies it there before pruning
+superseded releases.
 When it does not, staging first verifies the upload on a different filesystem
 that is not tmpfs or ramfs and has room for the image plus that margin. On
 the kit that filesystem is the mounted FESDATA3 volume or a FogCast directory
@@ -296,9 +306,9 @@ bind-mounted from it. A truncated or corrupt upload removes only that
 temporary file and leaves every release in place. A spill file left behind
 when that write is interrupted is removed on the next stage, before free
 space is measured. After verification, staging
-deletes other release images oldest first, and only until the new image, the
-margin, and the splash reserve fit, then copies the verified file into the
-release store. It
+deletes unreferenced release images oldest first until the new image, margin
+and splash reserve fit, then copies the verified file into the release store.
+After publication it prunes superseded releases under the retention policy. It
 keeps the factory image, known-good, previous, pending and trial selections,
 the image named by `boot.json`, and every release image in the store that
 currently backs a loop device. Staging does not change the boot selection and
@@ -306,6 +316,11 @@ does not remove bootloader files. If no qualifying filesystem can hold the
 upload, or those retained images still leave too little free space, staging
 fails with insufficient storage and deletes nothing. The conventional 256 MiB
 layout is unchanged and is too small for this appliance update workflow.
+
+Release images remain on FAT. Moving previous, pending and trial release
+files to FESDATA3, with a read-only p3 bootstrap mount and a FAT known-good
+fallback when that mount fails, remains follow-up work. FESDATA3 currently
+provides the game library and mutable data storage.
 
 Writing a physical card still requires exact-device authorization and the kit
 sharing procedure. A new installation of the bootstrap is distinct from an
@@ -326,7 +341,7 @@ make -C /absolute/path/to/FogCast build-fes-update
 ```
 
 Software goes before the image. Before uploading, `update` reads the image's
-`/etc/fes/software-base.json` and refuses an image whose menu interfaces the
+`/etc/fes/software-base.json` and refuses an image whose required interfaces the
 kit's selected software bundle does not accept; install and activate a bundle
 that accepts them first. A bundle built for another base contract cannot go
 first, so that update proceeds with a notice and the image runs its factory
@@ -344,9 +359,10 @@ The stable bootstrap consumes one trial before executing it and runs a hardware
 watchdog guard independently of the replaceable rootfs. Missing/broken init,
 failure to start services/networking, a hung candidate, or a disappearing host
 cannot confirm themselves. The trial deadline is 180 seconds plus hardware reset
-latency. An unconfirmed trial returns to verified known-good, then factory if
-needed. A rejected trial and factory fallback are recorded so future updates and
-rollback refer to the image actually booted.
+latency. An unconfirmed trial returns to the verified known-good image. If that
+image fails verification or preparation, the bootstrap tries its verified
+previous release before factory. A rejected trial and fallback are recorded so
+future updates and rollback refer to the image actually booted.
 
 Rollback selects the previous confirmed release as a new protected trial.
 Corrupt/torn selection state chooses factory and preserves the corrupt record

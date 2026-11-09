@@ -1,0 +1,36 @@
+{
+ "workload": "DOOM v1.9 -timedemo demo3, RTL from page flip 40 (disk 7d98bffd..., as the profile record)",
+ "landed": "machine_tb --cpu-profile at this branch",
+ "scratch": "profile-hook.patch build of d646bcd7e (2026-11-04 profile record run)",
+ "rtl_begin_cycle": 2222604910,
+ "full_window": {
+  "from_cycle": 2272604910,
+  "cycles": 50000000,
+  "buckets_equal": true,
+  "classes_equal": true,
+  "sites_equal": true,
+  "retired": 19694266,
+  "cpi": 2.5388
+ },
+ "first_window": {
+  "from_cycle": 2222604910,
+  "cycles": 50000000,
+  "buckets_equal": true,
+  "class_differences": {
+   "mem_op": {
+    "landed": {
+     "n": 4872461,
+     "taken": 0,
+     "own": 15558254,
+     "next": 0
+    },
+    "scratch": {
+     "n": 4872461,
+     "taken": 0,
+     "own": 2238163164,
+     "next": 0
+    }
+   }
+  }
+ }
+}

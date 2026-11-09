@@ -94,6 +94,8 @@ PAIR = '''module pc386_port2_pair (
         .present_waitrequest(present_waitrequest), .present_readdatavalid(present_readdatavalid),
         .capture_address(capture_address), .capture_burstcount(capture_burstcount), .capture_write(capture_write),
         .capture_writedata(capture_writedata), .capture_waitrequest(capture_waitrequest),
+        .ems_address(29'd0), .ems_read(1'b0), .ems_write(1'b0), .ems_writedata(64'd0), .ems_byteenable(8'd0),
+        .ems_waitrequest(), .ems_readdatavalid(),
         .aux_address(aux_address), .aux_burstcount(aux_burstcount), .aux_read(aux_read), .aux_write(aux_write),
         .aux_writedata(aux_writedata),
         .aux_byteenable(aux_byteenable), .aux_waitrequest(aux_waitrequest), .aux_readdatavalid(aux_readdatavalid),

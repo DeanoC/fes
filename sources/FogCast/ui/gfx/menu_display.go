@@ -166,6 +166,8 @@ type MenuDisplay struct {
 	flight                      chan struct{}
 	pending                     int
 	lastErr                     error
+	lastStatus                  menudisplay.Status
+	statusKnown                 bool
 	generation                  uint64
 	known                       bool
 	changeDriven                bool
@@ -224,6 +226,22 @@ type MenuDisplay struct {
 	blitCache blitCaches
 	// scratch is the worker's CPU raster of a list frame.
 	scratch []byte
+}
+
+// MenuReadinessDiagnostic is a snapshot of the facts used by managed software
+// readiness. It is intended for startup diagnostics; it does not relax the
+// readiness predicate.
+type MenuReadinessDiagnostic struct {
+	HasPresented bool
+	Paused       bool
+	Closed       bool
+	StatusKnown  bool
+	Available    bool
+	Generation   uint64
+	PresentedGen uint64
+	Underflows   uint64
+	LastErr      string
+	Ready        bool
 }
 
 func NewMenuDisplay(socketPath string) (*MenuDisplay, error) {
@@ -864,10 +882,35 @@ func (d *MenuDisplay) noteGenerationLocked(seq, generation uint64) {
 // Readiness describes the current acknowledged idle display, not a historical
 // successful frame. Call only after validating the response's binding epoch.
 func (d *MenuDisplay) reportSoftwareReadyLocked(status menudisplay.Status) {
+	d.lastStatus = status
+	d.statusKnown = true
 	if d.paused && d.keepReadyWhileLaunchPending {
 		return
 	}
 	reportSoftwareReady(!d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap)
+}
+
+// ReadinessDiagnostic returns the last runtime status and exact display facts
+// that currently prevent managed software from reporting readiness.
+func (d *MenuDisplay) ReadinessDiagnostic() MenuReadinessDiagnostic {
+	if d == nil {
+		return MenuReadinessDiagnostic{LastErr: "menu display is unavailable"}
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	lastErr := ""
+	if d.lastErr != nil {
+		lastErr = d.lastErr.Error()
+	}
+	status := d.lastStatus
+	return MenuReadinessDiagnostic{
+		HasPresented: d.hasPresented, Paused: d.paused, Closed: d.closed,
+		StatusKnown: d.statusKnown,
+		Available:   status.Available, Generation: status.Generation,
+		PresentedGen: d.presentedGen, Underflows: status.Underflows,
+		LastErr: lastErr,
+		Ready:   !d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap,
+	}
 }
 
 func (d *MenuDisplay) notePresentResultLocked(presented, genChanged bool, err error, status menudisplay.Status, seq uint64) {

@@ -34,6 +34,34 @@ class PlaybackProbeTests(unittest.TestCase):
         self.assertEqual([entry['usage'] for entry in self.probe.sent], [0x50, 0x4f, 0x50])
         with self.assertRaises(ProbeError): self.probe.dispatch(0x50, action)
 
+    def test_short_smoke_allows_only_one_fully_guarded_left(self):
+        self.probe = PlaybackProbe(self.fault, max_host_age_ns=50,
+                                   clock=lambda:self.clock[0], short_smoke=True)
+        self.probe.arm(90)
+        self.publish(1, 100)
+        action = mock.Mock()
+        self.probe.dispatch(0x50, action)
+        self.assertEqual(action.call_count, 1)
+        self.assertEqual([item['usage'] for item in self.probe.sent], [0x50])
+        with self.assertRaises(ProbeError): self.probe.dispatch(0x4f, action)
+        self.assertEqual(action.call_count, 1)
+
+    def test_short_smoke_still_blocks_unsafe_observations(self):
+        for mode in ('stale', 'pending', 'threat', 'player', 'initial_lives'):
+            with self.subTest(mode=mode):
+                self.setUp()
+                self.probe = PlaybackProbe(self.fault, max_host_age_ns=50,
+                                           clock=lambda:self.clock[0], short_smoke=True)
+                self.probe.arm(90)
+                obs = replace(self.obs, **({mode: False} if mode in ('player', 'initial_lives') else
+                                           {'threat': True} if mode == 'threat' else {}))
+                self.publish(1, 100, obs)
+                if mode == 'pending': self.probe.source_frame(self.frame(2, 105))
+                if mode == 'stale': self.clock[0] = 153
+                action = mock.Mock()
+                with self.assertRaises(ProbeError): self.probe.dispatch(0x50, action)
+                action.assert_not_called()
+
     def test_pending_or_stale_frame_cannot_dispatch(self):
         for mode in ('pending', 'stale', 'fault', 'threat', 'wrong'):
             with self.subTest(mode=mode):

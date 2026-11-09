@@ -55,7 +55,6 @@ func TestHardwareRoomRejectsChangedPlayIdentity(t *testing.T) {
 func TestHardwareStopPreservesOrdinaryPackageFreeAndDevelopmentStop(t *testing.T) {
 	for _, session := range []hostclient.SessionResult{
 		{ID: "host", State: "active", GameID: "nes-game", Target: "host"},
-		{ID: "host", State: "active", Target: "kit", CorePackage: &hostclient.SessionCorePackage{PackageID: strings.Repeat("a", 64), Generation: 9}},
 	} {
 		t.Run(session.GameID, func(t *testing.T) {
 			calls := 0
@@ -411,5 +410,50 @@ func TestCapturedWorkbenchIdentityRequiresReturnedLaunchPackage(t *testing.T) {
 				t.Fatalf("launch captured core %q from package %s while active package is %s", coreID, game.PackageID, active.CorePackage.PackageID)
 			}
 		})
+	}
+}
+
+func TestHardwareStopReattachedPackageWithoutGameIDIsGenerationBound(t *testing.T) {
+	session := hardwareBoundSession()
+	session.GameID, session.FlightID = "", ""
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		var wire struct {
+			Retain   bool `json:"retain_lease"`
+			Expected struct {
+				ID         string `json:"id"`
+				GameID     string `json:"game_id"`
+				Target     string `json:"target"`
+				TargetID   string `json:"target_id"`
+				PackageID  string `json:"package_id"`
+				Generation uint64 `json:"generation"`
+			} `json:"expected_session"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&wire); err != nil || wire.Retain || wire.Expected.ID != session.ID || wire.Expected.GameID != "" || wire.Expected.Target != session.Target || wire.Expected.TargetID != session.TargetID || wire.Expected.PackageID != session.CorePackage.PackageID || wire.Expected.Generation != session.CorePackage.Generation {
+			t.Errorf("unexpected Stop binding: %+v err=%v", wire, err)
+		}
+		_, _ = io.WriteString(w, `{"state":"idle"}`)
+	}))
+	defer server.Close()
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
+	app.session, app.stopPhase = session, "stopping"
+	app.doStop(context.Background(), ClientStampNow(), session, true)
+	if calls != 1 || app.session.State != "idle" {
+		t.Fatalf("calls=%d state=%s", calls, app.session.State)
+	}
+}
+
+func TestHardwareStopWithMissingSessionIDNeverPostsUnbound(t *testing.T) {
+	session := hardwareBoundSession()
+	session.ID = ""
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls++ }))
+	defer server.Close()
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
+	app.session, app.stopPhase = session, "stopping"
+	app.doStop(context.Background(), ClientStampNow(), session, true)
+	if calls != 0 || app.stopPhase != "host" {
+		t.Fatalf("unbound Stop calls=%d phase=%s", calls, app.stopPhase)
 	}
 }

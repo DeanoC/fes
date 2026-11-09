@@ -50,6 +50,7 @@ module pc386_rtc #(
     input wire [15:0] disk_cylinders,
     input wire [7:0] disk_heads, disk_spt,
     input wire [7:0] sb_base_high, sb_irq, sb_dma,
+    input wire [7:0] ems_pages,
     // fes.rtc.wall-clock: binary fields, taken when valid pulses.
     input wire wall_valid,
     input wire [15:0] wall_year,
@@ -173,6 +174,10 @@ module pc386_rtc #(
             7'd28: begin config_address = 8'h60; config_value = sb_base_high; end
             7'd29: begin config_address = 8'h61; config_value = sb_irq; end
             7'd30: begin config_address = 8'h62; config_value = sb_dma; end
+            // The EMS board: pages, frame segment high byte, register base / 16
+            7'd31: begin config_address = 8'h63; config_value = ems_pages; end
+            7'd32: begin config_address = 8'h64; config_value = ems_pages != 0 ? 8'he0 : 8'h00; end
+            7'd33: begin config_address = 8'h65; config_value = ems_pages != 0 ? 8'h26 : 8'h00; end
             default: begin end
         endcase
     end
@@ -228,7 +233,7 @@ module pc386_rtc #(
         ram_lanes = setup == LOAD ? 2'b11 : byte_index[0] ? 2'b10 : 2'b01;
         // The checksum's first pair is read on the last configuration clock.
         ram_raddress = index[6:1];
-        if (setup == CONFIGURE && step == 7'd30) ram_raddress = 6'h08;
+        if (setup == CONFIGURE && step == 7'd33) ram_raddress = 6'h08;
         else if (setup == CHECKSUM) ram_raddress = 6'(7'(step + 1'b1) >> 1);
     end
     wire [7:0] wall_second_b = wall_second, unused_wall = wall_second_b;
@@ -274,7 +279,7 @@ module pc386_rtc #(
                 end
                 CONFIGURE: begin
                     step <= step + 1'b1;
-                    if (step == 7'd30) begin setup <= CHECKSUM; step <= 7'h10; sum <= 0; end
+                    if (step == 7'd33) begin setup <= CHECKSUM; step <= 7'h10; sum <= 0; end
                 end
                 CHECKSUM: begin
                     if (step <= 7'h2d) sum <= sum + {8'b0, ram_pair[8 * step[0] +: 8]};

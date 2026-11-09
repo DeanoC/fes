@@ -398,7 +398,7 @@ python3 "$repo/scripts/kit-software.py" --base-root "$target" --payload "$update
   --runtime-revision 1111111111111111111111111111111111111111 >"$fixture/update.json"
 "$fogcast/bin/fes-kit-bundle-linux-amd64" inspect --bundle "$fixture/update.tar" >/dev/null
 # The image records its sealed menu's interfaces; both bundles list what their runtime admits.
-grep -Fq '"requires":{"menu.fes.memory.hps-ddr":"1.0","menu.fes.video.fixed-720p60":"1.0","menu.fes.video.menu-display":"1.0"}' \
+grep -Fq '"requires":{"kit-host":"1.0","kit-launcher-host":"1.0","menu.fes.memory.hps-ddr":"1.0","menu.fes.video.fixed-720p60":"1.0","menu.fes.video.menu-display":"1.0"}' \
   "$target/etc/fes/software-base.json"
 grep -Fq '"menu.fes.video.menu-display":"1.0"' "$target/usr/share/fes/software/manifest.json"
 grep -Fq '"menu.fes.video.menu-display": "1.0"' "$fixture/update.json"

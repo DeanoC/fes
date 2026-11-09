@@ -306,17 +306,21 @@ vgabios_int10_handler:
   push  #int10_end
   or    ah, ah
   jnz   int10_test_01
+;; FES 2026-11-08: keep every register but AL, as the IBM VGA BIOS does.
+;; Upstream saved only DS, BX, CX and AX, and the C mode set returns with
+;; DX changed. MGRAPHIC.EXE (MicroProse, Darklands) keeps the mode it asked
+;; for in DL across the call, so it saw a failed mode 13h (#1553).
+  push  es
   push  ds
-  push  bx
-  push  cx
+  pusha
   mov   bx, #0xc000
   mov   ds, bx
   push  ax
   call  _biosfn_set_video_mode
   pop   ax
-  pop   cx
-  pop   bx
+  popa
   pop   ds
+  pop   es
   cmp   al, #0x06
   jne   no_mode06
   mov   al, #0x3f
@@ -1689,6 +1693,9 @@ Bit8u nblines;Bit8u attr;Bit8u rul;Bit8u cul;Bit8u rlr;Bit8u clr;Bit8u page;Bit8
     }
    else
     {
+     // FES 2026-11-05: each scroll-down loop below stops once its unsigned row
+     // has passed row 0, before using it. With top row 0 (INT 10h AH=07h,
+     // CH=00h, which Ultima VII calls) upstream's loops never ended.
      switch(vga_modes[line].memmodel)
       {
        case PLANAR4:
@@ -1705,6 +1712,7 @@ Bit8u nblines;Bit8u attr;Bit8u rul;Bit8u cul;Bit8u rlr;Bit8u clr;Bit8u page;Bit8
          else
           {for(i=rlr;i>=rul;i--)
             {
+             if (i>rlr) break;
              if((i<rul+nblines)||(nblines==0))
               vgamem_fill_pl4(cul,i,cols,nbcols,cheight,attr);
              else
@@ -1733,6 +1741,7 @@ Bit8u nblines;Bit8u attr;Bit8u rul;Bit8u cul;Bit8u rlr;Bit8u clr;Bit8u page;Bit8
          else
           {for(i=rlr;i>=rul;i--)
             {
+             if (i>rlr) break;
              if((i<rul+nblines)||(nblines==0))
               vgamem_fill_cga(cul,i,cols,nbcols,cheight,attr);
              else
@@ -1755,6 +1764,7 @@ Bit8u nblines;Bit8u attr;Bit8u rul;Bit8u cul;Bit8u rlr;Bit8u clr;Bit8u page;Bit8
          else
           {for(i=rlr;i>=rul;i--)
             {
+             if (i>rlr) break;
              if(i<rul+nblines)
               vgamem_fill_lin(cul,i,cols,1,nbcols,cheight,attr);
              else

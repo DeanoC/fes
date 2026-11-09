@@ -393,6 +393,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-common/vendor/kf8259/KF8259.sv': {'pcxt', 'pc386'},
             'cores/fes-common/vendor/kf8253/read_back.patch': {'pcxt', 'pc386'},
             'cores/fes-common/vendor/kf8253/control_word_reset.patch': {'pcxt', 'pc386'},
+            'cores/fes-common/vendor/kf8253/terminal_count_wrap.patch': {'pcxt', 'pc386'},
             'cores/fes-common/rtl/fes_dma8237.sv': {'pcxt', 'pc386'},
             'cores/fes-pc386/rtl/pc386_at_core.sv': {'pc386'},
             'cores/fes-pc386/firmware/rombios/rombios.c': {'pc386'},
@@ -445,13 +446,14 @@ class AffectedTests(unittest.TestCase):
                      'cores/fes-common/rtl/i386/toolchain.lock',
                      'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
                      'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
-                     'scripts/test_fes_i386_lockstep.py', 'scripts/quartus_fes_i386.py',
+                     'scripts/test_fes_i386_lockstep.py', 'scripts/test_fes_i386_latency.py',
+                     'scripts/quartus_fes_i386.py',
                      'scripts/benchmark_fes_i386.py', 'scripts/fes_i386_ucode.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertEqual(result['cores'], [])
-                self.assertTrue(result['lanes']['fpga'])
-
+                self.assertEqual({lane for lane, selected in result['lanes'].items() if selected},
+                                 {'parent', 'fpga'})
         # The rule is the i386 directory only: a new shared RTL unit still fails broad.
         self.assertEqual(set(plan(['sources/misteross/cores/fes-common/rtl/fes_i386.sv'])['cores']), set(CORES))
 
@@ -463,6 +465,14 @@ class AffectedTests(unittest.TestCase):
                 selected = plan(['sources/misteross/scripts/' + name])
                 self.assertTrue(selected['lanes']['fpga'])
                 self.assertEqual(selected['cores'], [])
+
+    def test_pc386_cpu_profile_only_selects_its_simulation_family(self):
+        result = plan(['sources/misteross/scripts/pc386_cpu_profile.py'])
+        self.assertEqual({lane for lane, selected in result['lanes'].items() if selected}, {'parent', 'fpga'})
+        self.assertEqual(result['cores'], ['pc386'])
+        mixed = plan(['sources/misteross/scripts/pc386_cpu_profile.py',
+                      'sources/misteross/scripts/new_helper.py'])
+        self.assertEqual(set(mixed['cores']), set(CORES))
 
     def test_unclassified_fpga_inputs_fail_broad(self):
         for path in ('', 'Makefile', 'toolchain.lock',

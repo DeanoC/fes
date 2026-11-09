@@ -1,0 +1,47 @@
+{
+ "kit": "B",
+ "package": "79c5009c43982c441acf5a41df2132a7f93adf7aea26c36c57d57231384768e9",
+ "baseline": {
+  "image": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+  "software": "a8cd30c4"
+ },
+ "preset": "max (0)",
+ "runs": {
+  "k1": {
+   "date": "2026-11-08 23:43-23:59 EET",
+   "disks_sha256": {
+    "bench": "fe81c9c4f93cc34d8b4b10aa2be97c660a30c6b47e48bf205ed6d68fd2fee732",
+    "dpmi": "48ab29728f39cf86310c12b1f3a15d50b7420ce763d6062e85047c96ae4af147"
+   },
+   "doom_v19_timedemo_demo3": {
+    "gametics": 3863,
+    "realtics": 3376,
+    "fps": 40.05
+   },
+   "pack_doom_max": {
+    "gametics": 2134,
+    "realtics": 2061,
+    "fps": 36.2
+   },
+   "pack_doom_min": {
+    "gametics": 2134,
+    "realtics": 747,
+    "fps": 100.0
+   },
+   "3dbench": 76.9,
+   "pcpbench": 13.3,
+   "topbench": 307,
+   "time_circle": "main menu (1PLAYER, 2PLAYERS, setup, EXIT)"
+  },
+  "k2": {
+   "date": "2026-11-09 00:00-00:12 EET",
+   "disks_sha256": {
+    "real": "719dfedb147a62a608aa5c596854981ff35f536e87953ae93019b6ec858595a6",
+    "pmode": "75d909ca0c86730df6928a2a2da1a72cc6ffaa731f42700c0cf03187ae35fbb2"
+   },
+   "wolf3d": "new game, E1M1, first guard down",
+   "ultima6": "introduction plays",
+   "doom_v19": "title and demos play"
+  }
+ }
+}

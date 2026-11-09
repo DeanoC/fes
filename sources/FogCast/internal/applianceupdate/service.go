@@ -21,9 +21,10 @@ var ErrBlocked = errors.New("appliance update or unconfirmed trial blocks this o
 var ErrIdentity = errors.New("confirmation does not match the running trial")
 
 type BootIdentity struct {
-	BootID      string `json:"boot_id"`
-	ImageSHA256 string `json:"image_sha256"`
-	Trial       bool   `json:"trial"`
+	BootID              string `json:"boot_id"`
+	ImageSHA256         string `json:"image_sha256"`
+	Trial               bool   `json:"trial"`
+	FallbackImageSHA256 string `json:"fallback_image_sha256,omitempty"`
 }
 
 type Status struct {
@@ -90,6 +91,19 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	// Read durable state after the local trial snapshot so a concurrent confirm
 	// cannot return trial=false alongside a pre-confirmation known-good image.
 	st, err := s.store.StatusContext(ctx)
+	// The boot ticket's sidecar is optional and identity-bound. On the first
+	// confirmed boot, and on later normal boots after BeginBoot clears the
+	// confirmation marker, recover a missing sidecar value from the durable
+	// Good/Previous selection when this ticket names Good.
+	if err == nil && !st.Corrupt && boot.FallbackImageSHA256 == "" &&
+		st.Good == boot.ImageSHA256 && release.ValidHash(st.Previous) {
+		boot.FallbackImageSHA256 = st.Previous
+		s.mu.Lock()
+		if s.boot.FallbackImageSHA256 == "" {
+			s.boot.FallbackImageSHA256 = st.Previous
+		}
+		s.mu.Unlock()
+	}
 	status := Status{Status: st, BootIdentity: boot, Board: s.Board(), RawIdleReady: rawIdle, SplashWarning: warning}
 	if s.splash != nil {
 		status.FatIdleSHA256 = s.splash.FATSHA256()
@@ -172,7 +186,7 @@ func (s *Service) finishConfirmation(ctx context.Context) error {
 	err := s.store.ConfirmContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
 	repair := false
 	if err != nil {
-		if !errors.Is(err, appliance.ErrBootTicketRewrite) {
+		if !errors.Is(err, appliance.ErrBootTicketRewrite) && !errors.Is(err, appliance.ErrRetentionAfterConfirmation) {
 			return err
 		}
 		confirmed, confirmErr := s.store.ConfirmedContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
@@ -182,7 +196,11 @@ func (s *Service) finishConfirmation(ctx context.Context) error {
 		if !confirmed {
 			return err
 		}
-		repair = true
+		if errors.Is(err, appliance.ErrBootTicketRewrite) {
+			repair = true
+		} else {
+			s.logRetentionFailure(err)
+		}
 	}
 	s.mu.Lock()
 	s.trial = false
@@ -205,6 +223,13 @@ func (s *Service) retryBootTicket(ctx context.Context) error {
 		return err
 	}
 	err := s.store.ConfirmContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
+	if errors.Is(err, appliance.ErrRetentionAfterConfirmation) {
+		s.mu.Lock()
+		s.ticketRepair = false
+		s.mu.Unlock()
+		s.logRetentionFailure(err)
+		return nil
+	}
 	if err != nil && !errors.Is(err, appliance.ErrBootTicketRewrite) {
 		return err
 	}
@@ -219,6 +244,10 @@ func (s *Service) retryBootTicket(ctx context.Context) error {
 
 func (s *Service) logBootTicket(err error) {
 	slog.Warn("appliance boot ticket rewrite failed after durable confirmation", "boot_id", s.boot.BootID, "err", err)
+}
+
+func (s *Service) logRetentionFailure(err error) {
+	slog.Warn("appliance release retention failed after durable confirmation", "boot_id", s.boot.BootID, "err", err)
 }
 
 // repairSplash publishes the running image's verified idle core when FAT does

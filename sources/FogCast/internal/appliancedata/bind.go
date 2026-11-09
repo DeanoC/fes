@@ -1,5 +1,5 @@
-// Package appliancedata bind-mounts FogCast mutable directories from the
-// leftover-capacity FESDATA3 partition when that partition already exists.
+// Package appliancedata bind-mounts FogCast mutable directories and the game
+// library from the leftover-capacity FESDATA3 partition when it exists.
 //
 // The assembler still ships the fixed 1 GiB FAT plus A2 layout. Creating p3
 // is a host-side live-card mutation. This package never grows FAT, never
@@ -22,20 +22,33 @@ import (
 )
 
 const (
-	DefaultLabel       = "FESDATA3"
-	DefaultLabelDevice = "/dev/disk/by-label/" + DefaultLabel
-	DefaultMMCDevice   = "/dev/mmcblk0p3"
-	DefaultMountPoint  = "/run/fogcast/fesdata3"
-	DefaultFATRoot     = "/media/fat/fogcast"
-	SkipAbsent         = "absent"
-	SkipTrial          = "trial"
-	SkipPending        = "pending"
-	SkipCorrupt        = "corrupt"
-	SkipUpdate         = "update-status"
+	DefaultLabel           = "FESDATA3"
+	DefaultLabelDevice     = "/dev/disk/by-label/" + DefaultLabel
+	DefaultMMCDevice       = "/dev/mmcblk0p3"
+	DefaultMountPoint      = "/run/fogcast/fesdata3"
+	DefaultFATRoot         = "/media/fat/fogcast"
+	DefaultLibraryFATRoot  = "/media/fat/games"
+	DefaultLibraryDataRoot = DefaultMountPoint + "/games"
+	SkipAbsent             = "absent"
+	SkipTrial              = "trial"
+	SkipPending            = "pending"
+	SkipCorrupt            = "corrupt"
+	SkipUpdate             = "update-status"
 )
 
+// gamesMigrationMarker is stored at the p3 root, outside the bound game tree.
+const gamesMigrationMarker = ".fes-games-migrated-v1"
+
+// gamesFallbackMarker is stored beside the FAT game tree while p3 is
+// unavailable, its bind is gated, a game-tree repair/bind fails, or a completed
+// migration's p3 game tree is being restored. It lets the next successful bind
+// copy missing game files from FAT and retry interrupted repairs without
+// repeating migration on normal startup.
+const gamesFallbackMarker = ".fes-games-fallback-v1"
+
 // DefaultBindNames are the FogCast trees that live on p3 after a successful
-// bind. Releases, agent.toml, launcher.json and target-id stay on FAT.
+// bind. The game library tree is mounted separately from /media/fat/games.
+// Releases, agent.toml, launcher.json and target-id stay on FAT.
 var DefaultBindNames = []string{"cache", "saves", "core-data", "launcher-cache", "evidence"}
 
 var forbiddenBindNames = map[string]struct{}{
@@ -78,45 +91,56 @@ type Result struct {
 type Mounter interface {
 	MountVolume(source, target string) error
 	Bind(source, target string) error
+	Unbind(volumeRoot, target string) error
 }
 
 // Config locates p3, FAT trees, and the update gate. Zero DevicePresent,
 // ReadLabel, Mounted, or EvaluateGate values use the production defaults.
 type Config struct {
-	Devices       []string
-	Label         string
-	MountPoint    string
-	FATRoot       string
-	BindNames     []string
-	MountInfo     string
-	FactoryPath   string
-	BootJSON      string
-	BootIDPath    string
-	ReleaseRoot   string
-	EvaluateGate  func() (Gate, error)
-	DevicePresent func(string) bool
+	Devices         []string
+	Label           string
+	MountPoint      string
+	FATRoot         string
+	LibraryFATRoot  string
+	LibraryDataRoot string
+	BindNames       []string
+	MountInfo       string
+	FactoryPath     string
+	BootJSON        string
+	BootIDPath      string
+	ReleaseRoot     string
+	EvaluateGate    func() (Gate, error)
+	DevicePresent   func(string) bool
 	// Probe refuses a candidate before it is opened. Nil uses the sysfs check
 	// that skips optical devices and disks with no usable media.
 	Probe     func(string) error
 	ReadLabel func(string) (string, error)
 	Mounted   func(string) bool
-	Mounter   Mounter
+	// VerifyMounted proves that an existing or newly created mount is the
+	// selected writable ext4 FESDATA3 volume. Mountpoint presence alone is not
+	// enough: /run is tmpfs, and an unrelated or read-only mount must not be
+	// treated as durable appliance data.
+	VerifyMounted func(source, target string) error
+	BindMatches   func(source, target string) (bool, error)
+	Mounter       Mounter
 }
 
 func ProductionConfig() Config {
 	return Config{
-		Devices:      []string{DefaultLabelDevice, DefaultMMCDevice},
-		Label:        DefaultLabel,
-		MountPoint:   DefaultMountPoint,
-		FATRoot:      DefaultFATRoot,
-		BindNames:    append([]string(nil), DefaultBindNames...),
-		MountInfo:    "/proc/self/mountinfo",
-		FactoryPath:  "/.fes-bootstrap/etc/fes/factory.json",
-		BootJSON:     filepath.Join(appliance.DefaultRoot, "boot.json"),
-		BootIDPath:   "/proc/sys/kernel/random/boot_id",
-		ReleaseRoot:  appliance.DefaultRoot,
-		Mounter:      platformMounter(),
-		EvaluateGate: ReadProductionUpdateGate,
+		Devices:         []string{DefaultLabelDevice, DefaultMMCDevice},
+		Label:           DefaultLabel,
+		MountPoint:      DefaultMountPoint,
+		FATRoot:         DefaultFATRoot,
+		LibraryFATRoot:  DefaultLibraryFATRoot,
+		LibraryDataRoot: DefaultLibraryDataRoot,
+		BindNames:       append([]string(nil), DefaultBindNames...),
+		MountInfo:       "/proc/self/mountinfo",
+		FactoryPath:     "/.fes-bootstrap/etc/fes/factory.json",
+		BootJSON:        filepath.Join(appliance.DefaultRoot, "boot.json"),
+		BootIDPath:      "/proc/sys/kernel/random/boot_id",
+		ReleaseRoot:     appliance.DefaultRoot,
+		Mounter:         platformMounter(),
+		EvaluateGate:    ReadProductionUpdateGate,
 	}
 }
 
@@ -155,20 +179,43 @@ func Mount(cfg Config) (Result, error) {
 	if err := os.MkdirAll(cfg.MountPoint, 0o755); err != nil {
 		return Result{Device: device}, err
 	}
-	if !cfg.Mounted(cfg.MountPoint) {
+	if cfg.Mounted(cfg.MountPoint) {
+		if err := cfg.VerifyMounted(device, cfg.MountPoint); err != nil {
+			return Result{Device: device}, fmt.Errorf("verify existing FESDATA3 mount: %w", err)
+		}
+	} else {
 		if err := cfg.Mounter.MountVolume(device, cfg.MountPoint); err != nil {
 			return Result{Device: device}, err
+		}
+		if err := cfg.VerifyMounted(device, cfg.MountPoint); err != nil {
+			return Result{Device: device}, fmt.Errorf("verify new FESDATA3 mount: %w", err)
 		}
 	}
 	return Result{Device: device}, nil
 }
 
 func Prepare(cfg Config) (Result, error) {
+	return prepareWithSync(cfg, syncDirectory)
+}
+
+func prepareWithSync(cfg Config, syncDir func(string) error) (Result, error) {
 	mounted, err := Mount(cfg)
-	if err != nil || mounted.Skipped != "" {
+	cfg = applyDefaults(cfg)
+	if mounted.Skipped != "" {
+		if markErr := markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir); markErr != nil {
+			err = errors.Join(err, markErr)
+		}
 		return mounted, err
 	}
-	cfg = applyDefaults(cfg)
+	if err != nil {
+		// The device was found, but the ext4 mount could not be prepared. FAT
+		// remains the usable game store, so preserve a retry marker for the
+		// next startup just as we do when the partition is absent or gated.
+		if mounted.Device != "" {
+			err = errors.Join(err, markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir))
+		}
+		return mounted, err
+	}
 	device := mounted.Device
 
 	var result Result
@@ -199,10 +246,157 @@ func Prepare(cfg Config) (Result, error) {
 		}
 		result.Bound = append(result.Bound, name)
 	}
+	bindGames := true
+	repairGames := false
+	if cfg.Mounted(cfg.LibraryFATRoot) {
+		matches, err := cfg.BindMatches(cfg.LibraryDataRoot, cfg.LibraryFATRoot)
+		if err != nil {
+			bindErr = errors.Join(bindErr, fmt.Errorf("verify game library bind: %w", err))
+			bindGames = false
+		} else if matches {
+			result.Bound = append(result.Bound, "games")
+			bindGames = false
+		} else {
+			// Record the repair before removing the stale bind. If startup stops
+			// after unbind, or a prior marker publication was not durable, the
+			// next startup must still know to reconcile the p3 game tree against
+			// FAT. markGamesFallback also syncs an already visible marker.
+			if err := markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir); err != nil {
+				bindErr = errors.Join(bindErr, fmt.Errorf("record game fallback marker before removing stale bind: %w", err))
+				bindGames = false
+			}
+			if bindGames {
+				if err := cfg.Mounter.Unbind(cfg.MountPoint, cfg.LibraryFATRoot); err != nil {
+					bindErr = errors.Join(bindErr, fmt.Errorf("remove stale game library bind: %w", err))
+					bindGames = false
+				} else {
+					repairGames = true
+				}
+			}
+		}
+	}
+	if bindGames {
+		marker := filepath.Join(cfg.MountPoint, gamesMigrationMarker)
+		fallbackPending, err := gamesFallbackPending(cfg.LibraryFATRoot)
+		if err != nil {
+			bindErr = errors.Join(bindErr, err)
+		} else {
+			if repairGames && !fallbackPending {
+				if err := markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir); err != nil {
+					bindErr = errors.Join(bindErr, err)
+					bindGames = false
+				} else {
+					fallbackPending = true
+				}
+			} else if fallbackPending && !repairGames {
+				// The marker may have been published before an earlier directory
+				// sync failed. Make it durable before using it to authorize repair.
+				if err := markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir); err != nil {
+					bindErr = errors.Join(bindErr, err)
+					bindGames = false
+				}
+			}
+			if !bindGames {
+				return result, bindErr
+			}
+			var gameErr error
+			if err := validateGameDestination(cfg.MountPoint, cfg.LibraryDataRoot); err != nil {
+				gameErr = err
+			} else if repairGames || fallbackPending {
+				gameErr = repairGamesOnceWithSync(cfg.LibraryFATRoot, cfg.LibraryDataRoot, marker, syncDir)
+			} else {
+				gameErr = migrateGamesOnceWithSync(cfg.LibraryFATRoot, cfg.LibraryDataRoot, marker, syncDir)
+			}
+			if gameErr != nil {
+				bindErr = errors.Join(bindErr, gameErr)
+			} else {
+				// A completed migration marker can coexist with a recovery marker
+				// while a previously missing p3 tree is being restored.
+				fallbackPending, err = gamesFallbackPending(cfg.LibraryFATRoot)
+				if err != nil {
+					bindErr = errors.Join(bindErr, err)
+				} else if fallbackPending {
+					if err := markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir); err != nil {
+						bindErr = errors.Join(bindErr, err)
+						bindGames = false
+					}
+				}
+				if !bindGames {
+					return result, bindErr
+				}
+				if err := validateGameDestination(cfg.MountPoint, cfg.LibraryDataRoot); err != nil {
+					bindErr = errors.Join(bindErr, err, markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir))
+				} else if err := ensureBindTarget(cfg.LibraryFATRoot); err != nil {
+					bindErr = errors.Join(bindErr, err, markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir))
+				} else if err := cfg.Mounter.Bind(cfg.LibraryDataRoot, cfg.LibraryFATRoot); err != nil {
+					bindErr = errors.Join(bindErr, err, markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir))
+				} else {
+					result.Bound = append(result.Bound, "games")
+					// Keep the marker until the repaired p3 tree is actually
+					// visible at the FAT path. A failed bind must remain retryable.
+					if fallbackPending {
+						if err := clearGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir); err != nil {
+							bindErr = errors.Join(bindErr, err)
+						}
+					}
+				}
+			}
+		}
+	}
 	return result, bindErr
 }
 
+func gamesFallbackMarkerPath(libraryFATRoot string) string {
+	return filepath.Join(filepath.Dir(libraryFATRoot), gamesFallbackMarker)
+}
+
+func gamesFallbackPending(libraryFATRoot string) (bool, error) {
+	marker := gamesFallbackMarkerPath(libraryFATRoot)
+	info, err := os.Lstat(marker)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !info.Mode().IsRegular() {
+		return false, fmt.Errorf("games fallback marker is not a regular file: %s", marker)
+	}
+	return true, nil
+}
+
+func markGamesFallbackWithSync(libraryFATRoot string, syncDir func(string) error) error {
+	marker := gamesFallbackMarkerPath(libraryFATRoot)
+	pending, err := gamesFallbackPending(libraryFATRoot)
+	if err != nil {
+		return err
+	}
+	if pending {
+		return syncDir(filepath.Dir(marker))
+	}
+	if err := os.MkdirAll(filepath.Dir(marker), 0o755); err != nil {
+		return err
+	}
+	if err := copyMarkerAtomically(strings.NewReader("pending\n"), marker); err != nil {
+		return err
+	}
+	return syncDir(filepath.Dir(marker))
+}
+
+func clearGamesFallbackWithSync(libraryFATRoot string, syncDir func(string) error) error {
+	marker := gamesFallbackMarkerPath(libraryFATRoot)
+	if err := os.Remove(marker); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return syncDir(filepath.Dir(marker))
+}
+
 func validateConfig(cfg Config) error {
+	for _, path := range []string{cfg.LibraryFATRoot, cfg.LibraryDataRoot} {
+		if path != "" && !filepath.IsAbs(path) {
+			return fmt.Errorf("library bind path must be absolute: %s", path)
+		}
+	}
 	names := cfg.BindNames
 	if len(names) == 0 {
 		names = DefaultBindNames
@@ -236,6 +430,12 @@ func applyDefaults(cfg Config) Config {
 	if cfg.FATRoot == "" {
 		cfg.FATRoot = DefaultFATRoot
 	}
+	if cfg.LibraryFATRoot == "" {
+		cfg.LibraryFATRoot = DefaultLibraryFATRoot
+	}
+	if cfg.LibraryDataRoot == "" {
+		cfg.LibraryDataRoot = filepath.Join(cfg.MountPoint, "games")
+	}
 	if len(cfg.BindNames) == 0 {
 		cfg.BindNames = append([]string(nil), DefaultBindNames...)
 	}
@@ -253,6 +453,14 @@ func applyDefaults(cfg Config) Config {
 	}
 	if cfg.Mounted == nil {
 		cfg.Mounted = func(target string) bool { return mountpointBusy(cfg.MountInfo, target) }
+	}
+	if cfg.VerifyMounted == nil {
+		cfg.VerifyMounted = func(source, target string) error {
+			return verifyMountedVolume(source, target, cfg.MountInfo)
+		}
+	}
+	if cfg.BindMatches == nil {
+		cfg.BindMatches = sameBindSource
 	}
 	if cfg.EvaluateGate == nil {
 		cfg.EvaluateGate = func() (Gate, error) {
@@ -310,6 +518,27 @@ func ensureBindTarget(path string) error {
 	return nil
 }
 
+func sameBindSource(source, target string) (bool, error) {
+	sourceInfo, err := os.Lstat(source)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if sourceInfo.Mode()&os.ModeSymlink != 0 || !sourceInfo.IsDir() {
+		return false, fmt.Errorf("bind source is not a real directory: %s", source)
+	}
+	targetInfo, err := os.Stat(target)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return os.SameFile(sourceInfo, targetInfo), nil
+}
+
 func copyMissing(src, dst string) error {
 	src = filepath.Clean(src)
 	dst = filepath.Clean(dst)
@@ -357,6 +586,202 @@ func copyMissing(src, dst string) error {
 	})
 }
 
+func migrateGamesOnceWithSync(src, dst, marker string, syncDir func(string) error) error {
+	if err := validateGameDestination(filepath.Dir(dst), dst); err != nil {
+		return err
+	}
+	complete, err := migrationComplete(marker)
+	if err != nil {
+		return err
+	}
+	if complete {
+		info, err := os.Lstat(dst)
+		if errors.Is(err, os.ErrNotExist) {
+			// Preserve evidence that this is a restoration, so an interrupted
+			// copy is retried even though the original migration marker is complete.
+			if err := markGamesFallbackWithSync(src, syncDir); err != nil {
+				return err
+			}
+			if err := copyMissing(src, dst); err != nil {
+				return err
+			}
+			if err := validateGameDestination(filepath.Dir(dst), dst); err != nil {
+				return err
+			}
+			return syncDestinationDirectories(src, dst, syncDir)
+		}
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			return fmt.Errorf("game data root is not a real directory: %s", dst)
+		}
+		return nil
+	}
+	if err := copyMissing(src, dst); err != nil {
+		return err
+	}
+	if err := validateGameDestination(filepath.Dir(dst), dst); err != nil {
+		return err
+	}
+	if err := syncDestinationDirectories(src, dst, syncDir); err != nil {
+		return err
+	}
+	if err := copyFileAtomically(strings.NewReader("complete\n"), marker); err != nil {
+		return err
+	}
+	complete, err = migrationComplete(marker)
+	if err != nil {
+		return err
+	}
+	if !complete {
+		return fmt.Errorf("games migration marker was not published: %s", marker)
+	}
+	return syncDir(filepath.Dir(marker))
+}
+
+func repairGamesOnceWithSync(src, dst, marker string, syncDir func(string) error) error {
+	complete, err := migrationComplete(marker)
+	if err != nil {
+		return err
+	}
+	if !complete {
+		return migrateGamesOnceWithSync(src, dst, marker, syncDir)
+	}
+	if err := validateGameDestination(filepath.Dir(dst), dst); err != nil {
+		return err
+	}
+	info, err := os.Lstat(dst)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err == nil && (info.Mode()&os.ModeSymlink != 0 || !info.IsDir()) {
+		return fmt.Errorf("game data root is not a real directory: %s", dst)
+	}
+	if err := copyMissing(src, dst); err != nil {
+		return err
+	}
+	if err := validateGameDestination(filepath.Dir(dst), dst); err != nil {
+		return err
+	}
+	return syncDestinationDirectories(src, dst, syncDir)
+}
+
+// validateGameDestination checks each existing destination path component
+// under the mounted p3 root and walks the game tree without following links.
+func validateGameDestination(p3Root, dst string) error {
+	p3Root = filepath.Clean(p3Root)
+	dst = filepath.Clean(dst)
+	rel, err := filepath.Rel(p3Root, dst)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return fmt.Errorf("game data destination is outside FESDATA3: %s", dst)
+	}
+	rootInfo, err := os.Lstat(p3Root)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if rootInfo.Mode()&os.ModeSymlink != 0 || !rootInfo.IsDir() {
+		return fmt.Errorf("FESDATA3 game destination root is not a real directory: %s", p3Root)
+	}
+	current := p3Root
+	if rel != "." {
+		for _, component := range strings.Split(rel, string(os.PathSeparator)) {
+			current = filepath.Join(current, component)
+			info, err := os.Lstat(current)
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+				return fmt.Errorf("game data destination is not a real directory: %s", current)
+			}
+		}
+	}
+	return filepath.WalkDir(dst, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("game data destination contains a symlink: %s", path)
+		}
+		return nil
+	})
+}
+
+func syncDestinationDirectories(src, dst string, syncDir func(string) error) error {
+	directories := []string{dst}
+	info, err := os.Lstat(src)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err == nil && (info.Mode()&os.ModeSymlink != 0 || !info.IsDir()) {
+		return fmt.Errorf("bind source is not a real directory: %s", src)
+	}
+	if err == nil {
+		if err := filepath.WalkDir(src, func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.Type()&os.ModeSymlink != 0 {
+				if entry.IsDir() {
+					return fs.SkipDir
+				}
+				return nil
+			}
+			if entry.IsDir() && path != src {
+				rel, err := filepath.Rel(src, path)
+				if err != nil {
+					return err
+				}
+				directories = append(directories, filepath.Join(dst, rel))
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	// Sync deepest directories first so both their file entries and the
+	// directory entries in their parents are durable before the marker appears.
+	for i := len(directories) - 1; i >= 0; i-- {
+		if err := syncDir(directories[i]); err != nil {
+			return fmt.Errorf("sync game destination directory %s: %w", directories[i], err)
+		}
+	}
+	// copyMissing may have created the destination root itself.
+	parent := filepath.Dir(dst)
+	if err := syncDir(parent); err != nil {
+		return fmt.Errorf("sync game destination parent directory %s: %w", parent, err)
+	}
+	return nil
+}
+
+func migrationComplete(marker string) (bool, error) {
+	info, err := os.Lstat(marker)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !info.Mode().IsRegular() {
+		return false, fmt.Errorf("games migration marker is not a regular file: %s", marker)
+	}
+	return true, nil
+}
+
+func syncDirectory(path string) error {
+	dir, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	return errors.Join(dir.Sync(), dir.Close())
+}
+
 func copyRegularMissing(src, dst string) error {
 	info, err := os.Lstat(dst)
 	if err == nil {
@@ -383,19 +808,58 @@ func copyRegularMissing(src, dst string) error {
 	if !st.Mode().IsRegular() {
 		return nil
 	}
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, 0o600)
-	if err != nil {
+	return copyFileAtomically(in, dst)
+}
+
+func copyFileAtomically(in io.Reader, dst string) error {
+	return copyFileAtomicallyWithPublisher(in, dst, func(temp, dst string) error {
+		// Link publishes the complete temporary without replacing an entry that
+		// another startup or process may have created after the initial Lstat.
+		err := os.Link(temp, dst)
 		if errors.Is(err, os.ErrExist) {
 			return nil
 		}
 		return err
-	}
-	defer out.Close()
-	if _, err := io.Copy(out, in); err != nil {
-		_ = os.Remove(dst)
+	})
+}
+
+func copyMarkerAtomically(in io.Reader, dst string) error {
+	return copyMarkerAtomicallyWithOps(in, dst, os.Link, os.Rename)
+}
+
+func copyMarkerAtomicallyWithOps(in io.Reader, dst string, link, rename func(string, string) error) error {
+	return copyFileAtomicallyWithPublisher(in, dst, func(temp, dst string) error {
+		linkErr := link(temp, dst)
+		if linkErr == nil || errors.Is(linkErr, os.ErrExist) {
+			return nil
+		}
+		if renameErr := rename(temp, dst); renameErr != nil {
+			return errors.Join(fmt.Errorf("link fallback marker: %w", linkErr), fmt.Errorf("rename fallback marker: %w", renameErr))
+		}
+		// The fallback marker is an idempotent sentinel. A same-directory rename
+		// publishes it atomically on filesystems such as VFAT that lack hard links.
+		return nil
+	})
+}
+
+func copyFileAtomicallyWithPublisher(in io.Reader, dst string, publish func(temp, dst string) error) error {
+	out, err := os.CreateTemp(filepath.Dir(dst), ".fes-copy-*")
+	if err != nil {
 		return err
 	}
-	return out.Close()
+	temp := out.Name()
+	defer os.Remove(temp)
+
+	if _, err = io.Copy(out, in); err != nil {
+		return errors.Join(err, out.Close())
+	}
+	if err = out.Sync(); err != nil {
+		return errors.Join(err, out.Close())
+	}
+	if err = out.Close(); err != nil {
+		return err
+	}
+	return publish(temp, dst)
 }
 
 func mountpointBusy(mountInfo, target string) bool {

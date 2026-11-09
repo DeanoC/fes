@@ -230,9 +230,20 @@ boundary, target maintenance fences new sessions and the base supervisor replace
 the complete group. Accepted updates remain selected. Startup failure permits one
 recorded attempt to recover the prior bundle; a failed recovery stays blocked.
 
-Do not restart individual runtime, agent or launcher processes, kill them as a
-routine update, or invoke retired per-service init scripts. The supervisor must
-verify that the old processes exited before any replacement can control hardware.
+Do not restart individual runtime, agent or launcher processes, signal them
+directly, or invoke retired per-service init scripts. The only named restart
+path is the root-only local `fes-kit-software restart-service` command for
+`fogcast-kit` or `fogcast-tenfoot`; the base supervisor owns the child process,
+proves the old group exited, and requires service-specific functional readiness.
+It is not part of the network-facing agent API. Requests are refused while
+software, image, maintenance or recovery transitions are pending. The normal
+policy requires native idle and a free execution lease. A live session is
+preserved only when the request pins target
+`73dc9f5f-1a12-4a95-a820-a9b4e600769a`, Pong package
+`9be4b59993cfd0ac6b347da42decb340235c570d310901468778d6dad15d0120`, and its
+runtime generation. Runtime, agent, lease, selection and session ownership
+remain unchanged through the readiness window. The command's request ID is 64
+lowercase hexadecimal characters; exact retries return the retained result.
 Branch diagnostics use a private host and an explicitly installed bundle;
 returning to a prior bundle is another generation-checked activation. There is
 no file-overlay path.

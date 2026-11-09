@@ -223,6 +223,7 @@ private:
     bool media_data_flushed_ = false;
     bool media_image_uncertain_ = false;
 	Error LoadAtaDisk(FesGpCoreDriver&, PreparedAtaDisk&);
+	Error ClearPc386GuestMemory();
 	Error FlushAtaDiskSave();
 	void ForgetAtaDisk();
 	std::unique_ptr<AtaDeltaFile> ata_delta_file_;

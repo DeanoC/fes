@@ -190,6 +190,34 @@ class MainApplicationTest(unittest.TestCase):
             self.assertTrue(main.HEALTH_UNSAFE)
             observer.close.assert_called_once()
 
+    def test_observer_timeout_hands_back_only_after_verified_cleanup(self):
+        args=SimpleNamespace(source_commit='a'*40,evidence='/tmp/unused',target_id='target',
+                             expected_boot='boot',bundle_id='b'*64,image_sha256='c'*64)
+        class Parser:
+            def add_argument(self,*unused,**kwargs):pass
+            def parse_args(self,unused):return args
+        for case in ('clean_timeout', 'unverified_cleanup', 'identity_failure', 'trace_failure'):
+            with self.subTest(case=case):
+                observer=mock.Mock(compromised=False)
+                def validate(*_):
+                    if case == 'identity_failure':
+                        raise main.app.pa.AcceptanceError('target identity changed')
+                    if case == 'unverified_cleanup':
+                        error=main.app.ObservationDeadlineExceeded('timed out')
+                        error.source_cleanup_incomplete=True
+                        raise error
+                    return main.app._hard_deadline_observation(lambda _deadline: time.sleep(2), seconds=.1)
+                if case == 'trace_failure':
+                    observer.end_trace.side_effect=OSError('trace unavailable')
+                with mock.patch.object(main.app,'parser',return_value=Parser()), \
+                     mock.patch.object(main.app,'main',side_effect=lambda _:main.app.validate_active()), \
+                     mock.patch.object(main.app,'validate_active',side_effect=validate), \
+                     mock.patch.object(main.floppy.health_evidence,'HealthEvidence',return_value=observer), \
+                     mock.patch.object(main.floppy,'require_main_head'):
+                    with self.assertRaises(main.app.pa.AcceptanceError):main.main([])
+                    self.assertEqual(main.HEALTH_UNSAFE,case != 'clean_timeout')
+                    observer.close.assert_called_once()
+
     def test_game_worker_failure_retains_unsafe_latch(self):
         args=SimpleNamespace(source_commit='a'*40,evidence='/tmp/unused',target_id='target',
                              expected_boot='boot',bundle_id='b'*64,image_sha256='c'*64)

@@ -14,6 +14,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	contract "github.com/DeanoC/FogCast/kitlease"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const Socket = "/run/fogcast/software-admission.sock"
@@ -92,9 +93,26 @@ func (f *Fence) Guard(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		// Appliance rollback has its own maintenance coordinator. It must remain
+		// reachable when a software activation has left this fence closed so the
+		// operator can return to an image that accepts the recorded selection.
+		if r.Method == http.MethodPost && r.URL.Path == "/v1/update/rollback" {
+			ctx, done, err := f.Begin(r.Context())
+			if err == nil {
+				defer done()
+				next.ServeHTTP(w, r.WithContext(ctx))
+			} else {
+				// When software maintenance already owns the fence, the appliance
+				// updater's own drain/idle transition coordinates this rollback.
+				next.ServeHTTP(w, r)
+			}
+			return
+		}
 		ctx, done, err := f.Begin(r.Context())
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(protocol.ErrorEnvelope{Error: protocol.APIError{Code: protocol.CodeBusy, Message: err.Error()}})
 			return
 		}
 		defer done()
@@ -162,11 +180,12 @@ func (a *Admission) Handler() http.Handler {
 			return
 		}
 		write(w, struct {
-			Maintenance   contract.MaintenanceStatus `json:"maintenance"`
-			RawIdleReady  bool                       `json:"raw_idle_ready"`
-			UpdateBlocked bool                       `json:"update_blocked"`
-			BundleID      string                     `json:"bundle_id"`
-		}{maintenance, a.Ready(r.Context()), a.UpdateBlocked(r.Context()), a.BundleID})
+			Maintenance    contract.MaintenanceStatus `json:"maintenance"`
+			ExecutionLease contract.Status            `json:"execution_lease"`
+			RawIdleReady   bool                       `json:"raw_idle_ready"`
+			UpdateBlocked  bool                       `json:"update_blocked"`
+			BundleID       string                     `json:"bundle_id"`
+		}{maintenance, a.Leases.Status(), a.Ready(r.Context()), a.UpdateBlocked(r.Context()), a.BundleID})
 	})
 	for _, action := range []string{"queue", "acquire", "cancel", "resume", "end", "fence", "clear-fence"} {
 		mux.HandleFunc("POST /"+action, func(w http.ResponseWriter, r *http.Request) {

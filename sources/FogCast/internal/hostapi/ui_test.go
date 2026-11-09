@@ -3,9 +3,12 @@ package hostapi_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 )
 
@@ -81,6 +84,30 @@ func TestUIIsSelfContainedAndHasLauncherStates(t *testing.T) {
 		if !strings.Contains(html, token) {
 			t.Fatalf("assembled UI is missing launcher state/label token %q", token)
 		}
+	}
+}
+
+// The panel's import bounds and the label it shows come from these
+// constants, so they must match the host routes' limits.
+func TestUICoreLibraryImportLimitsMatchHost(t *testing.T) {
+	html := hostapi.UIHTMLForTest()
+	for name, want := range map[string]int64{"MAX_MEDIA_BYTES": catalog.MaxCoreMediaBytes, "MAX_HARD_DISK_BYTES": catalog.MaxHardDiskMediaBytes} {
+		match := regexp.MustCompile(`const ` + name + ` = (\d+) \* 1024 \* 1024;`).FindStringSubmatch(html)
+		if match == nil {
+			t.Fatalf("missing %s", name)
+		}
+		mib, _ := strconv.ParseInt(match[1], 10, 64)
+		if mib<<20 != want {
+			t.Fatalf("%s = %d MiB, host limit %d bytes", name, mib, want)
+		}
+	}
+	for _, token := range []string{"id=\"core-media-file-label\"", "id=\"core-disk-geometry-save\"", "id=\"core-disk-geometry-infer\"", "/disk-geometry", "/api/v1/core-media/hard-disk"} {
+		if !strings.Contains(html, token) {
+			t.Fatalf("missing hard-disk panel integration %q", token)
+		}
+	}
+	if strings.Contains(html, "host storage up to 32 MiB") {
+		t.Fatal("media label hard-codes a storage limit")
 	}
 }
 

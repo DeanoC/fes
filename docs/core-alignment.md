@@ -6,8 +6,8 @@ the standard, which cores still follow an older path, and the order for
 retiring those paths.
 
 The core, CPU and display choices below were recorded at `6d9939c2`; image
-contents were refreshed at `714108a9` (22 October 2026) and lock pins at
-`4546d822` (#1007, 23 October 2026). Issue
+contents were refreshed at `714108a9` (22 October 2026). Lock pins and slot
+counts were checked against `fdf41b93` (9 November 2026). Issue
 #843 updates the lock-file layout while preserving those toolchain pins. A
 change that moves a lock, CPU or display contract updates this page in the
 same commit. A dated note under
@@ -46,20 +46,23 @@ of the current tree.
    Quartus remains a check and does not produce the installed package.
    `FES_OSS_ONLY` is a proposed rollout option, not a control in this tree.
 2. Registered producers use per-core locks named by `lock_path` in
-   `config/core-recipes.toml`. Five locks match the repository-level
-   `sources/misteross/toolchain.lock`: Yosys `3a5accbd`, Mistral `8fcc4cb4`,
-   nextpnr `9128800f`, deliberately before nextpnr #172 (Catch, menu, RAM
-   Tester, SG-1000, SMS). Apple II, C64 and Spectrum keep that Yosys and
+   `config/core-recipes.toml`. Four locks are byte-identical to the
+   repository-level `sources/misteross/toolchain.lock`: Yosys `3a5accbd`,
+   Mistral `8fcc4cb4`, nextpnr `9128800f`, deliberately before nextpnr #172
+   (Catch, RAM Tester, SG-1000, SMS). Apple II and C64 pin that Yosys and
    Mistral with nextpnr `5fe55f3d` (nextpnr #276, #1007) for its F0/F1
-   boundary `$ROUTETHRU` map; those three locks share one cache slot. Five
-   registered locks each have their own slot: Pong pins nextpnr `552ba246`
-   (fes#887), ZX81 pins nextpnr `1eecf877` (#936), RISC-V pins nextpnr
-   `8f453ebc` (#945), Atari ST pins nextpnr `5fe55f3d` (#910), and Coleco pins
-   Yosys `5391eeb1` with nextpnr `bec82e36` and the shared Mistral. The
-   unregistered PC/XT diagnostic also sits on `552ba246` (#840). HIP
-   architectures are `gfx1100;gfx1201`. Pin changes stay scoped to the
-   affected core; a lock is that core's last known good, not a required pin.
-   The repository-level lock remains for unregistered consumers.
+   boundary `$ROUTETHRU` map; their locks are byte-identical and share one
+   cache slot. Seven registered locks select their own slot: Atari ST on
+   nextpnr `5fe55f3d` (#910); Menu and ZX81 on nextpnr `1eecf877` (Menu moved
+   when its blitter took DSP multipliers); Pong on `552ba246` (fes#887);
+   RISC-V on `8f453ebc` (#945); Spectrum on nextpnr main `bd7a1c0d` (#1001;
+   contains #276 as merged); and Coleco on Yosys `5391eeb1` with nextpnr
+   `bec82e36` and the shared Mistral. The unregistered PC/XT diagnostic sits
+   on nextpnr `2fa5ec4c` with Mistral `9ab65220`; registered PC/XT recipes
+   select the Quartus lock. HIP architectures are `gfx1100;gfx1201`. Pin
+   changes stay scoped to the affected core; a lock is that core's last known
+   good, not a required pin. The repository-level lock remains for
+   unregistered consumers.
 3. Registered M10K is synchronous. No core under `sources/misteross/cores`
    sets `CFG_ASYNC_READ(1)`. Do not reintroduce it.
 4. The Z80 product CPU is `fes_z80_nmos` at native cadence. `fes_z80_fast` is
@@ -160,9 +163,10 @@ older kit note does not accept the new bytes.
 Issue #843 adds one lock file for each registered core. Since #882 each lock
 can pin its own nextpnr, provided `scripts/pnr_recipe.py` classifies that
 nextpnr's options and the core's recipe lists them. Coleco's Yosys pin is
-`5391eeb1`; Pong, ZX81, RISC-V and Coleco pin their own nextpnr; Apple II,
-Atari ST, C64 and Spectrum pin nextpnr `5fe55f3d`; the other five registered locks
-are byte-identical to the repository-level lock. Keep the files at the registered
+`5391eeb1`. Menu, Pong, ZX81, RISC-V, Spectrum, Atari ST and Coleco have
+their own slots; Apple II and C64 share nextpnr `5fe55f3d` and one slot; the
+other four registered locks are byte-identical to the repository-level lock.
+Keep the files at the registered
 `cores/fes-<core>/toolchain.lock` paths and route future pin changes through
 that core's lock and recipe. A new Z80 machine instantiates `fes_z80_nmos`. A
 new external ROM uses format 3. A new shell picks one of the two display
@@ -170,13 +174,14 @@ contracts.
 
 ### 2. Current pins
 
-Eight registered locks differ from the repository-level pin (Yosys
-`3a5accbd`, Mistral `8fcc4cb4`, nextpnr `9128800f`): Pong on nextpnr
-`552ba246`, ZX81 on `1eecf877`, RISC-V on `8f453ebc`, Apple II and C64 on
+Nine registered locks differ from the repository-level pin (Yosys
+`3a5accbd`, Mistral `8fcc4cb4`, nextpnr `9128800f`): Menu and ZX81 on
+`1eecf877`, Pong on `552ba246`, RISC-V on `8f453ebc`, Apple II and C64 on
 `5fe55f3d` (#1007), Spectrum on nextpnr main `bd7a1c0d`, Atari ST on
-`5fe55f3d` (#910), and Coleco on Yosys `5391eeb1` with nextpnr `bec82e36`;
-the unregistered PC/XT diagnostic is also on `552ba246`. The other five match
-it. The following historical seal records remain tied to
+`5fe55f3d` (#910), and Coleco on Yosys `5391eeb1` with nextpnr `bec82e36`.
+The other four match it. The unregistered PC/XT diagnostic sits on nextpnr
+`2fa5ec4c`; registered PC/XT recipes select the Quartus lock. The following
+historical seal records remain tied to
 the artifacts they name; current recipe lock paths are shown in
 `config/core-recipes.toml`.
 
@@ -194,7 +199,7 @@ authenticates that file. Pong, ZX81 and RISC-V have moved their nextpnr pins
 forward under the per-pin timer tracker (#876). Apple II and C64 use nextpnr
 `5fe55f3d` for its F0/F1 boundary route-through map (#1007), and Atari ST
 followed (#910). Spectrum uses nextpnr main `bd7a1c0d`, which contains #276 as
-merged; Coleco uses `bec82e36` and keeps its own Yosys. The other five
+merged; Coleco uses `bec82e36` and keeps its own Yosys. The other four
 registered locks still share the repository-level slot.
 
 The 130 MHz timing diagnostic uses `cores/fes-ramtest/toolchain.lock`. OSS has not closed 130 MHz.
