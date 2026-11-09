@@ -46,6 +46,13 @@ Artifacts, source snapshots, commands and results remain under
 All six affected checks pass, including parent Python regressions and generated
 consumer consistency. The focused network/XGMAC race tests and QEMU regression
 pass separately; source and artifact hashes have been verified unchanged.
+The full Nano ARM64 launcher cross-build passes from committed source
+`b595f610a2b1dae85a6b90144d9f3b28dbabd407`, based on
+`b190ab76dab12eecc2aa820220f6055820222c55`.
+All 2119 compiler input hashes match the current source. ELF SHA-256:
+`f22403975f6f09492fec9d1fe64e19bf23c6e2932855653989518e6e11b0c501`.
+The generated network profile stays disabled, SD stays read-only and preferences
+stay volatile. No matched entry/BL31/FIT/SOF was rebuilt or deployed.
 No kit, card, remote builder or programmer was touched. Physical testing remains
 paused until the operator returns. Nano networking is still disabled; the
 current board has no qualified NIC lease/drain supplier. Runtime integration
