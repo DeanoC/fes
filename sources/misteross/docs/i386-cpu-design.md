@@ -2236,6 +2236,7 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
 0. **Census.** Land the record's census extensions in `machine_tb --census`
    (paged stems, system registers by number, task switches, V86, the TLB
    models, and a flush on every CR3 write), so each slice reruns the record.
+   The keys are in [`pc386-game-drives.md`, "Instruction census"](pc386-game-drives.md#instruction-census).
 1. **Paging.** CR0.PG, CR2, CR3 and their flushes; the 16-entry DTLB, the
    8-entry ITLB and the walker; A and D; #PF; physical lines for
    self-modifying code. Built
