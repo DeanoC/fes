@@ -67,6 +67,14 @@ and terminal ownership remain retained; register samples are neither atomic
 nor a USB-completion proof. This supports diagnosing the native Stop failure
 that occurs before normal return and causes emergency FPGA Park.
 
+Fatal channel interrupts also retain a read-only register observation before
+the existing halt attempt. It keeps the original interrupt bits alongside later
+channel, transfer, queue, receive-peek, frame/interval, PIO and link observations.
+No receive entry or payload is popped by this capture. In particular `0x80`
+is transaction error, distinct from frame overrun `0x200`; the timing trace's
+`window_ns` is the measured interval around the software command, not the
+remaining frame budget. A failed halt still permanently retires the host.
+
 `cmd/keyboard` is a serial-only bring-up image: initialize the selected backend,
 print `FES_KEYBOARD_READY`, then print normalized key events. It needs neither
 storage nor a working FPGA display. `run.py keyboard --board qemu` exercises

@@ -498,7 +498,7 @@ func (h *Host) step() (done bool, data []byte, nak bool, err error) {
 		fatal &^= 1 << 6
 	}
 	if ints&fatal != 0 {
-		return false, nil, false, fmt.Errorf("dwc2: channel error %#x", ints)
+		return false, nil, false, h.channelFault(ints)
 	}
 	if ints&dataToggle != 0 {
 		p.toggleIRQs++
