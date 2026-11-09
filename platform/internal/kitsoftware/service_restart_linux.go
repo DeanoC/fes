@@ -9,6 +9,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+
+	"github.com/pelletier/go-toml/v2"
 	"strconv"
 	"strings"
 	"syscall"
@@ -460,17 +463,17 @@ func (c *ProcessController) readNamedRestartSession(ctx context.Context, admissi
 		}
 		activePackageID = active.PackageID
 	}
+	configPath := c.AgentConfig
+	if configPath == "" {
+		configPath = AgentConfigPath
+	}
 	targetIDPath := c.serviceRestartTargetIDPath
 	if targetIDPath == "" {
 		targetIDPath = "/media/fat/fogcast/target-id"
 	}
-	targetIDBytes, err := os.ReadFile(targetIDPath)
+	targetID, err := readNamedRestartTargetID(configPath, targetIDPath)
 	if err != nil {
-		return result, fmt.Errorf("read kit target identity: %w", err)
-	}
-	targetID := strings.TrimSpace(string(targetIDBytes))
-	if targetID == "" || strings.ContainsAny(targetID, "\r\n\x00") {
-		return result, errors.New("kit target identity is invalid")
+		return result, err
 	}
 	admissionStatus, err := admission.Status(ctx)
 	if err != nil {
@@ -765,3 +768,38 @@ func probeTenfootSessionReady(path string, process *child, bundle string, sessio
 	}
 	return nil
 }
+
+// Match the agent's identity precedence: explicit TOML configuration wins;
+// only an unconfigured agent uses the persisted generated identity. Diagnostics
+// never create or rewrite either source.
+func readNamedRestartTargetID(configPath, identityPath string) (string, error) {
+	file, err := os.Open(configPath)
+	if err != nil {
+		return "", fmt.Errorf("read agent configuration: %w", err)
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, 65537))
+	if err != nil || len(data) > 65536 {
+		return "", errors.New("agent configuration is unreadable or oversized")
+	}
+	var config struct {
+		TargetID string `toml:"target_id"`
+	}
+	if err := toml.Unmarshal(data, &config); err != nil {
+		return "", errors.New("agent configuration is invalid TOML")
+	}
+	id := config.TargetID
+	if id == "" {
+		raw, err := os.ReadFile(identityPath)
+		if err != nil {
+			return "", fmt.Errorf("read persisted kit target identity: %w", err)
+		}
+		id = strings.TrimSuffix(string(raw), "\n")
+	}
+	if !namedRestartTargetIDPattern.MatchString(id) {
+		return "", errors.New("kit target identity is invalid")
+	}
+	return id, nil
+}
+
+var namedRestartTargetIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)

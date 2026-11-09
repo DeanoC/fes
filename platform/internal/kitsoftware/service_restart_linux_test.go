@@ -582,6 +582,10 @@ func namedRestartFixtureWithLeaseGeneration(t *testing.T) (*ProcessController, S
 		RunDir: runDir, active: bundle, prepared: &preparedRelease{id: bundle, root: root, entries: entries},
 		serviceRestartStable: 5 * time.Millisecond, serviceRestartBudget: time.Second, serviceRestartPoll: time.Millisecond,
 		serviceRestartTargetIDPath: filepath.Join(t.TempDir(), "target-id"),
+		AgentConfig:                filepath.Join(t.TempDir(), "agent.toml"),
+	}
+	if err := os.WriteFile(controller.AgentConfig, []byte("# generated identity\n"), 0600); err != nil {
+		t.Fatal(err)
 	}
 	if err := os.WriteFile(controller.serviceRestartTargetIDPath, []byte(DiagnosticPongTargetID+"\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -702,5 +706,44 @@ func TestPausedTenfootAdoptionRequiresFreshExactIdentityAndDoesNotGrantIdleReadi
 	}
 	if err := c.probeNamedServiceReady(t.Context(), serviceTenfoot, process, bundle, ServiceRestartSession{LeaseState: "free"}); err == nil {
 		t.Fatal("session adoption granted idle frame readiness")
+	}
+}
+
+func TestRestartTargetIdentityMatchesConfiguredAndGeneratedAgentModes(t *testing.T) {
+	dir := t.TempDir()
+	config, identity := filepath.Join(dir, "agent.toml"), filepath.Join(dir, "target-id")
+	write := func(body string) {
+		t.Helper()
+		if err := os.WriteFile(config, []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("target_id = '" + DiagnosticPongTargetID + "'\ntoken = 'private'\n")
+	if id, err := readNamedRestartTargetID(config, identity); err != nil || id != DiagnosticPongTargetID {
+		t.Fatalf("configured-only identity=%q err=%v", id, err)
+	}
+	if _, err := os.Stat(identity); !os.IsNotExist(err) {
+		t.Fatal("diagnostic created a persisted identity")
+	}
+	if err := os.WriteFile(identity, []byte("0d0f2c4e-5b6a-4c3d-8e9f-a1b2c3d4e5f6\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if id, err := readNamedRestartTargetID(config, identity); err != nil || id != DiagnosticPongTargetID {
+		t.Fatal("persisted value overrode configured identity")
+	}
+	write("token = 'private'\n")
+	if id, err := readNamedRestartTargetID(config, identity); err != nil || id != "0d0f2c4e-5b6a-4c3d-8e9f-a1b2c3d4e5f6" {
+		t.Fatalf("generated identity=%q err=%v", id, err)
+	}
+	for _, bad := range []string{"target_id = 'invalid'", "target_id = 7", "target_id = '" + strings.ToUpper(DiagnosticPongTargetID) + "'", "[bad"} {
+		write(bad)
+		if _, err := readNamedRestartTargetID(config, identity); err == nil {
+			t.Fatalf("accepted invalid configured identity: %s", bad)
+		}
+	}
+	write("# no configured ID\n")
+	_ = os.Remove(identity)
+	if _, err := readNamedRestartTargetID(config, identity); err == nil {
+		t.Fatal("missing generated identity accepted")
 	}
 }
