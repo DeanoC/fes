@@ -1,4 +1,5 @@
 """Regress DOS simulation evidence cleanup, dispatch and snapshot checks."""
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -33,7 +34,7 @@ class DosEvidenceTest(unittest.TestCase):
                 build = root / ('build/sim/fes-pcxt/dos' + suffix + ('-write' if writable else ''))
                 build.mkdir(parents=True)
                 names = ('result.json', 'result-pending.json', 'dos.ppm', 'screen.bin', 'screen.txt',
-                         'inputs.json', 'bus.log', 'saved-floppy.img', 'candidate.json',
+                         'inputs.json', 'bus.log', 'saved-floppy.img',
                          'title-before-start.ppm', 'start-control.ppm', 'start-key.ppm',
                          'right-control.ppm', 'right-key.ppm')
                 for name in names:
@@ -73,9 +74,10 @@ class DosEvidenceTest(unittest.TestCase):
                 self.assertTrue(all(call.kwargs['check'] for call in run.call_args_list))
 
     def test_scenario_dispatch_and_prepare_only(self):
-        for scenario, writable, prepare in (('dos', True, False), ('game', False, False),
-                                             ('dos', True, True), ('com', False, True)):
-            with self.subTest(scenario=scenario, writable=writable, prepare=prepare), \
+        for scenario, writable, prepare, no_git in (('dos', True, False, False), ('game', False, False, False),
+                                                     ('dos', True, True, False), ('com', False, True, False),
+                                                     ('dos', False, True, True)):
+            with self.subTest(scenario=scenario, writable=writable, prepare=prepare, no_git=no_git), \
                  tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 disk = root / 'selected.img'
@@ -91,6 +93,8 @@ class DosEvidenceTest(unittest.TestCase):
                 def fixture(build, *_):
                     (build / 'inputs.json').write_text('{}')
                 def git(*_, **kwargs):
+                    if no_git:
+                        raise dos.subprocess.CalledProcessError(128, 'git')
                     return 'commit\n' if kwargs.get('text') else b''
                 with patch.object(dos, 'ROOT', root), patch.object(dos, 'check_space'), \
                      patch.object(dos.bios, 'fixture_inputs', side_effect=fixture), \
@@ -103,6 +107,10 @@ class DosEvidenceTest(unittest.TestCase):
                      patch.object(dos, 'verify_snapshot') as snapshot, \
                      patch.object(dos, 'verify_game') as game:
                     dos.run(args)
+                name = ('dos' if scenario == 'dos' else 'dos-' + scenario) + ('-write' if writable else '')
+                recorded = json.loads((root / 'build/sim/fes-pcxt' / name / 'inputs.json').read_text())
+                self.assertEqual(recorded['source_commit'], None if no_git else 'commit')
+                self.assertEqual(recorded['source_has_tracked_changes'], None if no_git else False)
                 self.assertEqual(standard.call_count, int(scenario == 'dos'))
                 self.assertEqual(application.call_count, int(scenario != 'dos'))
                 if scenario != 'dos':

@@ -71,10 +71,13 @@ const (
 )
 
 type APIError struct {
-	Cause   error     `json:"-"`
-	Code    ErrorCode `json:"code"`
-	Message string    `json:"message"`
-	Phase   string    `json:"phase,omitempty"`
+	Cause error `json:"-"`
+	// StatusCode is set by clients that decode an HTTP error response. It is
+	// intentionally omitted from the wire envelope.
+	StatusCode int       `json:"-"`
+	Code       ErrorCode `json:"code"`
+	Message    string    `json:"message"`
+	Phase      string    `json:"phase,omitempty"`
 	// NoChange is true only when a failed media mutation guarantees no mount change.
 	NoChange bool   `json:"no_change,omitempty"`
 	Expected string `json:"expected,omitempty"`

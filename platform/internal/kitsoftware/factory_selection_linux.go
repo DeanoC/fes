@@ -42,11 +42,14 @@ func factorySelected(s State, a factorySelectionAudit) bool {
 	return s.Selected == a.Factory && s.Previous == a.Request.Selected && s.Generation == a.Request.Generation+1
 }
 
-// selectFactory abandons an exact blocked operation that no running group can
-// acknowledge and commits this image's factory software as the selection. It
-// never starts, stops or signals a service and never calls admission. idle must
-// prove that nothing supervised runs and that this boot holds no maintenance
-// reservation, which is the state Boot leaves after refusing spent recovery.
+// selectFactory is an explicit operator choice after recovery is exhausted: it
+// abandons an exact blocked operation and commits this image's factory software
+// as the durable selection. Automatic factory fallback is different: it runs
+// the compatible factory while preserving Selected, Previous and Generation,
+// and keeps the incompatible selection held back. This action never starts,
+// stops or signals a service and never calls admission. idle must prove that
+// nothing supervised runs and that this boot holds no maintenance reservation,
+// which is the state Boot leaves after refusing spent recovery.
 func selectFactory(ctx context.Context, repo *FileRepository, req AcknowledgeRequest, factory string, idle func(context.Context) error) (FactorySelectionResult, error) {
 	result := FactorySelectionResult{Action: req.Action, Operation: req.Operation, Selected: factory}
 	if err := req.validate(); err != nil {

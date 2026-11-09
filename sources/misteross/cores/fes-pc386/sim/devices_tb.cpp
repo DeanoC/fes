@@ -58,6 +58,7 @@ struct Bench {
     // them: the RTC's byte writes, and its load a clock after each read.
     uint16_t record[64] = {};
     unsigned written = 0;  // disk_written pulses
+    std::vector<std::pair<unsigned, unsigned>> ems_writes;  // EMS page register writes: index, value
 
     Bench() {
         top.reset = 1;
@@ -69,6 +70,7 @@ struct Bench {
         top.base_kib = 640;
         top.extended_kib = 15360;
         top.sb_base_high = 0x22; top.sb_irq = 7; top.sb_dma = 1;
+        top.ems_pages = 128;
         for (int n = 0; n < 4; ++n) clock();
         top.reset = 0;
         while (top.cmos_busy) clock();
@@ -113,6 +115,7 @@ struct Bench {
                                                      top.record_byte << shift);
         }
         written += top.disk_written;
+        if (top.ems_reg_write) ems_writes.push_back({top.ems_reg_index, top.ems_reg_wdata});
         top.clk = 1; top.eval();
         top.clk = 0; top.eval();
         top.record_word = loaded;
@@ -198,6 +201,15 @@ void timing(Bench &b) {
     check("timing vga word: two posted bytes, no ISA wait", vga == 5, std::to_string(vga));
     check("port 80h reads back the POST code", b.in(0x80) == 0x12);
     check("unclaimed port reads FFh at isa8", b.in(0x2f8) == 0xff && b.last_io == 74);
+    // The EMS board's page registers: 260h-263h, write-only, isa8.
+    b.ems_writes.clear();
+    b.out(0x260, 0x05);
+    b.outw(0x262, 0x7f10);
+    b.out(0x264, 0x33);
+    b.out(0x25f, 0x44);
+    const bool written = b.ems_writes == std::vector<std::pair<unsigned, unsigned>>{{0, 0x05}, {2, 0x10}, {3, 0x7f}};
+    check("EMS page registers 260h-263h take bytes, a word as two (264h and 25Fh are not the board's)", written);
+    check("EMS page registers read FFh at isa8", b.in(0x261) == 0xff && b.last_io == 74);
 }
 
 void pic_init(Bench &b) {
@@ -844,7 +856,8 @@ void rtc(Bench &b) {
                   b.cmos(0x16) == 0x02 && b.cmos(0x17) == 0x00 && b.cmos(0x18) == 0x3c && b.cmos(0x19) == 47 &&
                   b.cmos(0x1b) == CYLINDERS && b.cmos(0x1d) == HEADS && b.cmos(0x23) == SPT &&
                   b.cmos(0x30) == 0x00 && b.cmos(0x31) == 0x3c && b.cmos(0x3d) == 0x02 && b.cmos(0x3f) == 0x01 &&
-                  b.cmos(0x60) == 0x22 && b.cmos(0x61) == 0x07 && b.cmos(0x62) == 0x01;
+                  b.cmos(0x60) == 0x22 && b.cmos(0x61) == 0x07 && b.cmos(0x62) == 0x01 &&
+                  b.cmos(0x63) == 128 && b.cmos(0x64) == 0xe0 && b.cmos(0x65) == 0x26;
     check("CMOS configuration bytes", config);
     unsigned sum = 0;
     for (int n = 0x10; n <= 0x2d; ++n) sum += b.cmos(uint8_t(n));
@@ -1102,6 +1115,21 @@ void ata(Bench &b) {
     b.wait([&] { return (b.in(0x1f7) & 0x80) == 0; }, 10000);
     check("after reset: signature 01 01 00 00, DRDY",
           b.in(0x1f2) == 1 && b.in(0x1f3) == 1 && b.in(0x1f4) == 0 && b.in(0x1f5) == 0 && (b.in(0x1f7) & 0xc1) == 0x40);
+    // #1589: the BIOS's device 1 probe selects device 1 while device 0's
+    // reset still has BSY set. The select must stand once BSY clears, or
+    // device 0's status (50h) reads as device 1's and the BIOS types it as a
+    // drive. The select lands half way through the reset window.
+    b.out(0x3f6, 0x06);
+    b.out(0x3f6, 0x02);
+    b.run(500);
+    b.out(0x1f6, 0xb0);
+    b.run(2000);
+    const uint8_t sc = b.in(0x1f2), sn = b.in(0x1f3), selected = b.in(0x1f7);
+    b.out(0x1f6, 0xa0);
+    const uint8_t device0 = b.in(0x1f7);
+    check("a device 1 select during reset BSY stands: its status reads 00h after the reset",
+          sc == 1 && sn == 1 && selected == 0x00 && (device0 & 0xc1) == 0x40,
+          hex(sc) + " " + hex(sn) + " " + hex(selected) + " " + hex(device0));
 }
 
 // After the other checks: what a machine reset keeps and what the

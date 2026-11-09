@@ -1,0 +1,823 @@
+# The pc386 game drives (scripts/build_pc386_game_drive.py; docs/pc386-game-drives.md).
+#
+# Each drive is the FreeDOS games image (build_pc386_freedos_image.py
+# --profile games) on a disk of `cylinders` cylinders of 16 heads and 63
+# sectors, plus each title's files, copied from a source the user supplies.
+# Nothing a title copies is in the repository: a title names its source
+# (an eXoDOS zip, or a folder of the DOS Benchmark Pack) and pins its SHA-256
+# (a zip's bytes; for a folder, each file's relative path and SHA-256, sorted).
+#
+# A title:
+#   id       the census and runner name
+#   bucket   its census bucket ([buckets])
+#   source   [sources] key, default exodos; path: the zip or folder in it
+#   copy     folders copied to C:, in order: { from = folder in the source,
+#            to = C: directory, skip = subfolders left out, flat = no
+#            subfolders }. A later entry replaces an earlier one's files,
+#            as eXoDOS's launchers copy a sound card's config folder over
+#            the game's.
+#   launch   what the runner types at the C:\> prompt; | is Enter
+#   keys     [seconds after the launch is typed, keys] for the simulation
+#            (machine_tb --keys-after-type); a kit runner sends its own
+#   limit    simulated seconds the census runs the title for
+#   opl2     the game suite requires OPL2 output (its acceptance titles)
+#
+# Sound setups follow eXoDOS's Sound Blaster choice (its sb16 folder). The
+# machine's card is a Sound Blaster 2.0 at the factory 220h, IRQ 7, DMA 1.
+
+[sources.exodos]
+kind = "zip"
+env = "FES_PC386_GAMES"
+default = "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS"
+
+[sources.dosbench]
+kind = "tree"
+env = "FES_PC386_DOSBENCH"
+default = "~/fes-drives/pc386/sources/dosbench"
+
+[buckets]
+real = "real mode in conventional memory"
+xms = "XMS through HIMEM, unreal mode or an own 386 memory manager"
+dos4gw = "DOS/4GW at CPL 0"
+cpl0 = "other CPL-0 DOS extenders (DOS/32A, PMODE/W, Phar Lap)"
+dpmi3 = "ring-3 DPMI hosts (CWSDPMI, Borland RTM and 32RTM)"
+ems = "uses or needs EMS (EMM386 or another expanded-memory manager)"
+386 = "needs a 386 in real mode"
+fpu = "needs an x87"
+sound = "Sound Blaster Pro or other sound setups"
+program = "non-game programs"
+
+[drives.real]
+cylinders = 260
+description = "Real-mode and 386 real-mode games, EMS users and sound setups"
+
+[[drives.real.titles]]
+id = "keen4"
+title = "Commander Keen 4 - Secret of the Oracle (1991)"
+bucket = "real"
+path = "Commander Keen 4 - Secret of the Oracle (1991).zip"
+sha256 = "236b94336409488b574160e0bac9270a9df9a002f84b02a59a12d1b33e50a69b"
+launch = "cd \\keen4|keen4|"
+keys = [[5.0, "|"], [8.0, "|"], [11.0, "|"], [14.0, " "]]
+limit = 20.0
+copy = [
+  { from = "CKeen4", to = "KEEN4" },
+]
+
+[[drives.real.titles]]
+id = "prince"
+title = "Prince of Persia (1990)"
+bucket = "sound"
+path = "Prince of Persia (1990).zip"
+sha256 = "f60f4d008bd7b56e04207eb754a81deb2996134c93edd7d03a67850b9995e881"
+launch = "cd \\prince|prince sblast|"
+keys = [[8.0, "|"], [12.0, " "]]
+limit = 20.0
+copy = [
+  { from = "Ppersia", to = "PRINCE", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC", "PRINCE11"] },
+  { from = "Ppersia/SB16", to = "PRINCE" },
+]
+
+[[drives.real.titles]]
+id = "civ"
+title = "Sid Meier's Civilization (1991)"
+bucket = "real"
+path = "Sid Meier's Civilization (1991).zip"
+sha256 = "f8f2d8413c7e966fe6fb7ed1aa037a11d7ff5415042a7ed63fea0d662c1a4ea7"
+launch = "cd \\civ|civ|"
+keys = [[6.0, "|"], [9.0, "|"], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "SMCivili/CIV", to = "CIV", skip = ["SB16", "SC55"] },
+  { from = "SMCivili/CIV/sb16", to = "CIV" },
+]
+
+[[drives.real.titles]]
+id = "jill"
+title = "Jill of the Jungle (1992)"
+bucket = "real"
+path = "Jill of the Jungle (1992).zip"
+sha256 = "9a1fe6c241b1595487a227e852c6d65e05e8741f2080c58c5d518d051a443d97"
+launch = "cd \\jill|jjfile1|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "JillJung", to = "JILL", skip = ["NEW", "OLD"] },
+  { from = "JillJung/old", to = "JILL" },
+]
+
+[[drives.real.titles]]
+id = "stunts"
+title = "Stunts (1990)"
+bucket = "real"
+path = "Stunts (1990).zip"
+sha256 = "0d7ed15fddcd877c27c7227450e5314a0fa6082c5a118ed1ffbec15050d567c0"
+launch = "cd \\stunts|st|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "Stunts", to = "STUNTS", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "Stunts/sb16", to = "STUNTS" },
+]
+
+[[drives.real.titles]]
+id = "vikings"
+title = "Lost Vikings, The (1993)"
+bucket = "real"
+path = "Lost Vikings, The (1993).zip"
+sha256 = "bd655bb3f68fd92afe52a707a6881644b2fbcf9cc4408ffdb8075199a8d48936"
+launch = "cd \\vikings|vikings|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "TheLostV", to = "VIKINGS", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "TheLostV/sb16", to = "VIKINGS" },
+]
+
+[[drives.real.titles]]
+id = "starcon2"
+title = "Star Control II (1992)"
+bucket = "real"
+path = "Star Control II (1992).zip"
+sha256 = "0e40b6c9830326ce4ac4d7d9946072372cc9607309b57acbfeaafeb44b669c5d"
+launch = "cd \\starcon2|starcon2|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "StarCon2/starcon2", to = "STARCON2" },
+]
+
+[[drives.real.titles]]
+id = "wolf3d"
+title = "Wolfenstein 3D (1992)"
+bucket = "real"
+path = "Wolfenstein 3D (1992).zip"
+sha256 = "f451d8538266fb9f12a4fa8909a671b37d354de388a9b76d1c1033a6a541ed37"
+launch = "cd \\wolf3d|wolf3d|"
+keys = [[2.0, "|"], [3.5, "|"], [5.0, "|"], [6.5, "|"], [8.0, "|"], [9.5, "|"], [11.0, "|"], [12.5, "|"], [14.0, "|"], [15.5, "^ "], [16.3, "^ "], [17.1, "^ "], [17.9, "^ "], [18.7, "^ "], [19.5, "^ "], [20.3, "^ "], [21.1, "^ "]]
+limit = 24.0
+opl2 = true
+notes = "keys: through the intro to E1L1, then forward"
+copy = [
+  { from = "Wolf3D/WOLF3D/WOLF3D", to = "WOLF3D" },
+]
+
+[[drives.real.titles]]
+id = "ultima6"
+title = "Ultima VI - The False Prophet (1990)"
+bucket = "real"
+path = "Ultima VI - The False Prophet (1990).zip"
+sha256 = "5ec54a045d18ccea63fe35e857e9c0294427e06d397370433d4a7c5add881cb9"
+launch = "cd \\ultima6|ultima6|"
+keys = []
+limit = 16.0
+opl2 = true
+notes = "the intro runs without keys"
+copy = [
+  { from = "ultima6", to = "ULTIMA6", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC", "BLANK"] },
+  { from = "ultima6/SB16", to = "ULTIMA6" },
+]
+
+[[drives.real.titles]]
+id = "jazz"
+title = "Jazz Jackrabbit (1994)"
+bucket = "386"
+path = "Jazz Jackrabbit (1994).zip"
+sha256 = "09f20415735a60aa5e7c0e4e453548f0bad2fbd2313a4e118abc5b7476784f40"
+launch = "cd \\jazz|jazz|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "JazzJack", to = "JAZZ", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "JazzJack/SB16", to = "JAZZ" },
+]
+
+[[drives.real.titles]]
+id = "pinfan"
+title = "Pinball Fantasies (1992)"
+bucket = "386"
+path = "Pinball Fantasies (1992).zip"
+sha256 = "08dfcc2c020615a040920d057f05adab932daad404912e59d1ed8a6528ee6284"
+launch = "cd \\fantasy|pinball|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "pinbllf/21STCENT/FANTASY", to = "FANTASY" },
+]
+
+[[drives.real.titles]]
+id = "wacky"
+title = "Wacky Wheels (1994)"
+bucket = "386"
+path = "Wacky Wheels (1994).zip"
+sha256 = "5bcd3c339bc47441426e42346e34388ee474bc336b23aa84556197edf37b0bfa"
+launch = "cd \\wacky|ww|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "WackyWhe/WACKY", to = "WACKY", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "WackyWhe/WACKY/SB16", to = "WACKY" },
+]
+
+[[drives.real.titles]]
+id = "hocus"
+title = "Hocus Pocus (1994)"
+bucket = "real"
+path = "Hocus Pocus (1994).zip"
+sha256 = "7c91c3a11bbb1013921fb70c76fdbd857a6625e46f7e6b0eb025362c2d6b00f0"
+launch = "cd \\hocus|hocus|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "HocusPoc/HOCUS", to = "HOCUS", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "HocusPoc/HOCUS/SB16", to = "HOCUS" },
+]
+
+[[drives.real.titles]]
+id = "monkey2"
+title = "Monkey Island 2 - LeChuck's Revenge (1991)"
+bucket = "sound"
+path = "Monkey Island 2 - LeChuck's Revenge (1991).zip"
+sha256 = "7c70030d6496e269bc7b30a0e180f5bf4c96e6cd80bebaa677b285d37bee3da1"
+launch = "cd \\monkey2|monkey2 s|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "mi2/sb16", to = "MONKEY2" },
+]
+
+[[drives.real.titles]]
+id = "wc1"
+title = "Wing Commander (1990)"
+bucket = "ems"
+path = "Wing Commander (1990).zip"
+sha256 = "76e99f222028773ef8f783288dc263673fde3bd5a6aa260222966d61cd52daba"
+launch = "cd \\wing|wc|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "WC/WING", to = "WING", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "WC/WING/sb16", to = "WING" },
+]
+
+[[drives.real.titles]]
+id = "falcon3"
+title = "Falcon 3.0 (1991)"
+bucket = "ems"
+path = "Falcon 3.0 (1991).zip"
+sha256 = "548d743c6b2629475c609c0de2d29794720dfc869ea8c693147d263fddf908b3"
+launch = "cd \\falcon3|falcon3|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "Falcon3", to = "FALCON3", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "Falcon3/sb16", to = "FALCON3" },
+]
+
+[[drives.real.titles]]
+id = "xwing"
+title = "Star Wars X-Wing (Collector's CD-ROM) (1994)"
+bucket = "ems"
+path = "Star Wars X-Wing (Collector's CD-ROM) (1994).zip"
+sha256 = "553240e91dbf538fcc1cc45750f6599505d190fb7577358d0bdf1b878a4c4637"
+launch = "cd \\xwing|xwing|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "SWXWCD/XWING", to = "XWING", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "SWXWCD/XWING/SB16", to = "XWING" },
+]
+
+[drives.xms]
+cylinders = 260
+description = "XMS and unreal-mode games and other own 386 memory managers"
+
+[[drives.xms.titles]]
+id = "ultima7"
+title = "Ultima VII Part 1 - The Black Gate + Forge of Virtue (1992)"
+bucket = "xms"
+path = "Ultima VII Part 1 - The Black Gate + Forge of Virtue (1992).zip"
+sha256 = "75e6eb68636aec0e06ffb9683f03b9be5dbb8de0a121da43935163d1d7c6659f"
+launch = "cd \\ultima7|ultima7|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "ultima71", to = "ULTIMA7", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC", "FONT"] },
+  { from = "ultima71/SB16", to = "ULTIMA7" },
+  { from = "ultima71/STATIC/Orig", to = "ULTIMA7\\STATIC" },
+]
+
+[[drives.xms.titles]]
+id = "strike"
+title = "Strike Commander (1993)"
+bucket = "xms"
+path = "Strike Commander (1993).zip"
+sha256 = "f552e8de57f79b48159e721683c47e743c483519c807f867a18403f0e4ebcaea"
+launch = "cd \\sc|sc|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "StrikCo/SC", to = "SC", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "StrikCo/SC/SB16", to = "SC" },
+]
+
+[[drives.xms.titles]]
+id = "uw1"
+title = "Ultima Underworld - The Stygian Abyss (1992)"
+bucket = "xms"
+path = "Ultima Underworld - The Stygian Abyss (1992).zip"
+sha256 = "c56ee89d26750dabef5b7fc623fa186fe928dfb248ce5c59c7876325731658e7"
+launch = "cd \\uw|uw|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "ultimau1", to = "UW", skip = ["SAVE0"] },
+  { from = "ultimau1/DATA/SB16", to = "UW\\DATA" },
+]
+
+[[drives.xms.titles]]
+id = "frontier"
+title = "Frontier - Elite 2 (1993)"
+bucket = "xms"
+path = "Frontier - Elite 2 (1993).zip"
+sha256 = "0bf96b975e120f8b785e90cf811754d2d745985cf5a9258ec37d0359b51f8fb2"
+launch = "cd \\frontir2|frontier|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "frontir2", to = "FRONTIR2" },
+]
+
+[[drives.xms.titles]]
+id = "moo"
+title = "Master of Orion (1993)"
+bucket = "xms"
+path = "Master of Orion (1993).zip"
+sha256 = "d3bd593f4db4e2a9cc49b21b33c968f96b2844267c4661a9b3ad183eafd89e57"
+launch = "cd \\mastori|orion|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "mastori", to = "MASTORI", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "mastori/SB16", to = "MASTORI" },
+]
+
+[[drives.xms.titles]]
+id = "darklands"
+title = "Darklands (1992)"
+bucket = "xms"
+path = "Darklands (1992).zip"
+sha256 = "f74246f52943e20d4a42743e3c9a510f40d8d056f861878e58ed599d92cc0329"
+launch = "cd \\darkland|darkland|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "darkland", to = "DARKLAND", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "darkland/SB16", to = "DARKLAND" },
+]
+
+[[drives.xms.titles]]
+id = "tnt"
+title = "Tunnels and Trolls - Crusaders of Khazan (1990)"
+bucket = "cpl0"
+path = "Tunnels and Trolls - Crusaders of Khazan (1990).zip"
+sha256 = "5bb3fe7c3bf9c3f26f6869c12d7d1429b2f350f64defd40610b610d195974197"
+launch = "cd \\tunntrol|tntcrack|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+notes = "Phar Lap 386|DOS-Extender"
+copy = [
+  { from = "tunntrol", to = "TUNNTROL" },
+]
+
+[drives.pmode]
+cylinders = 260
+description = "DOS/4GW and other CPL-0 DOS extenders"
+
+[[drives.pmode.titles]]
+id = "doom"
+title = "DOOM (1993)"
+bucket = "dos4gw"
+path = "DOOM (1993).zip"
+sha256 = "06ee36b4257d2fb0daaf38ffd90485bbe5c0a45ad4129492309861fbc523b6bc"
+launch = "cd \\doom|doom|"
+keys = [[8.0, "|"], [10.0, "|"], [11.0, "|"], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "DOOM", to = "DOOM", flat = true },
+  { from = "DOOM/SB16", to = "DOOM" },
+]
+
+[[drives.pmode.titles]]
+id = "heretic"
+title = "Heretic (1994)"
+bucket = "dos4gw"
+path = "Heretic (1994).zip"
+sha256 = "29a5d64b31b900cf19290c456a6df7190ccd61a15a96449860084eace6b89a61"
+launch = "cd \\heretic|heretic|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "Heretic/HERETIC", to = "HERETIC", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "Heretic/HERETIC/SB16", to = "HERETIC" },
+]
+
+[[drives.pmode.titles]]
+id = "duke3d"
+title = "Duke Nukem 3D (1996)"
+bucket = "dos4gw"
+path = "Duke Nukem 3D (1996).zip"
+sha256 = "bcd714a3cc2c6831cead4614c1672a69db1797edabc472ed0585557716fc5e1f"
+launch = "cd \\duke3d|duke3d|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "Duke3D/DUKE3D", to = "DUKE3D", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC", "TEN", "DMO"] },
+  { from = "Duke3D/DUKE3D/SB16", to = "DUKE3D" },
+]
+
+[[drives.pmode.titles]]
+id = "descent"
+title = "Descent (1995)"
+bucket = "dos4gw"
+path = "Descent (1995).zip"
+sha256 = "c529aa882437058fdd4479f7fba318ac5efafbec2600241f702a7480f7b3f79d"
+launch = "cd \\descent|descentr|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "Descent/DESCENT", to = "DESCENT", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "Descent/DESCENT/SB16", to = "DESCENT" },
+]
+
+[[drives.pmode.titles]]
+id = "raptor"
+title = "Raptor - Call of the Shadows (1994)"
+bucket = "dos4gw"
+path = "Raptor - Call of the Shadows (1994).zip"
+sha256 = "82efdcd7a6112cfca05ad2fa46446efa9d03fd6bf60bfc8f789cbbe094bd3cce"
+launch = "cd \\raptor|rap|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "RaptorCa", to = "RAPTOR", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC", "ULTRASND", "CD", "PROTOTYP"] },
+  { from = "RaptorCa/SB16", to = "RAPTOR" },
+]
+
+[[drives.pmode.titles]]
+id = "omf"
+title = "One Must Fall 2097 (1994)"
+bucket = "dos4gw"
+path = "One Must Fall 2097 (1994).zip"
+sha256 = "3e796b297bc88bfe295d2f905285e3ececfab57ad6389aeccbd3c6622cf712d0"
+launch = "cd \\omf|omf|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "OneMustF/OMF", to = "OMF", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "OneMustF/OMF/sb16", to = "OMF" },
+]
+
+[[drives.pmode.titles]]
+id = "rott"
+title = "Rise of the Triad - The Hunt Begins (Deluxe Edition) (1995)"
+bucket = "dos4gw"
+path = "Rise of the Triad - The Hunt Begins (Deluxe Edition) (1995).zip"
+sha256 = "8be1192de3cd931d4b69bf51402019f92feda078ec032f5ca42d5ed1fdd55be2"
+launch = "cd \\rott|rott|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+notes = "SOUND.ROT is eXoDOS's SB16 setup changed to a Sound Blaster 2.0 (SBType 3, mono, 8-bit): a sidecar"
+config = [
+  { path = "ROTT\\SOUND.ROT", sha256 = "72d797d08f4a882871291e1e1c1d3dcaa00203a583cebe4e45cf22cb120fcc1c" },
+]
+copy = [
+  { from = "RotTDLX/ROTT", to = "ROTT", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "RotTDLX/ROTT/SB16", to = "ROTT" },
+]
+
+[[drives.pmode.titles]]
+id = "machines"
+title = "Machines, The (1995)"
+bucket = "cpl0"
+path = "Machines, The (1995).zip"
+sha256 = "4e0792a894026bd6a967edda6abb1413b770da4ec9ccccc211d6cb48d0cc7bef"
+launch = "cd \\machines|machines|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+notes = "DOS/32A"
+copy = [
+  { from = "Universa/MACHINES", to = "MACHINES", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "Universa/MACHINES/sb16", to = "MACHINES" },
+]
+
+[[drives.pmode.titles]]
+id = "hotspeed"
+title = "Hot Speed (1996)"
+bucket = "cpl0"
+path = "Hot Speed (1996).zip"
+sha256 = "add465510c8397416a4b48d9959684ea74929c35f1ed753d859bce319be6476b"
+launch = "cd \\hotspeed|hotspeed|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+notes = "PMODE/W"
+copy = [
+  { from = "HotSpeed", to = "HOTSPEED" },
+]
+
+[drives.dpmi]
+cylinders = 260
+description = "Ring-3 DPMI hosts (CWSDPMI, Borland RTM and 32RTM) and FPU users"
+
+[[drives.dpmi.titles]]
+id = "jumpbump"
+title = "Jump 'n Bump (1998)"
+bucket = "dpmi3"
+path = "Jump 'n Bump (1998).zip"
+sha256 = "68acce9c6bee130c5a155b984a53ad9ad4858ca330fb73953bd41c78868eed9f"
+launch = "cd \\jumpbump|jumpbump|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+notes = "DJGPP, CWSDPMI"
+copy = [
+  { from = "jumpbump", to = "JUMPBUMP" },
+]
+
+[[drives.dpmi.titles]]
+id = "angband"
+title = "Angband (1992)"
+bucket = "dpmi3"
+path = "Angband (1992).zip"
+sha256 = "b81409cf37a1e206af43d24f5c0bf75f75ba42ba9b72f59040f7b0e1231f58c7"
+launch = "cd \\angband|angband|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+notes = "DJGPP, CWSDPMI"
+copy = [
+  { from = "angband", to = "ANGBAND" },
+]
+
+[[drives.dpmi.titles]]
+id = "nethack"
+title = "NetHack (1987)"
+bucket = "dpmi3"
+path = "NetHack (1987).zip"
+sha256 = "cf76cd89727c0f9f48b833e881a0a8db97a0b73067254b1dc4c19244dd40c052"
+launch = "cd \\nethack|nethack|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+notes = "DJGPP, CWSDPMI"
+copy = [
+  { from = "nethack", to = "NETHACK" },
+]
+
+[[drives.dpmi.titles]]
+id = "tyrian"
+title = "Tyrian (1995)"
+bucket = "dpmi3"
+path = "Tyrian (1995).zip"
+sha256 = "f46e75bf41f06b305fc734c78a6960bd9f2e81bf97f76673624d7d0d029f8718"
+launch = "cd \\tyrian|tyrian|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+notes = "Borland Pascal, RTM and DPMI16BI"
+copy = [
+  { from = "Tyrian", to = "TYRIAN", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
+  { from = "Tyrian/SB16", to = "TYRIAN" },
+]
+
+[[drives.dpmi.titles]]
+id = "cyberdogs"
+title = "Cyberdogs (1994)"
+bucket = "dpmi3"
+path = "Cyberdogs (1994).zip"
+sha256 = "1e547108b0be103b16f13f5c9a6310c2e50e8773af45793041ca4322106d3583"
+launch = "cd \\cyberdog|dogs|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+notes = "Borland Pascal, RTM and DPMI16BI"
+copy = [
+  { from = "Cyberdog", to = "CYBERDOG" },
+]
+
+[[drives.dpmi.titles]]
+id = "tcircle"
+title = "Time Circle (1995)"
+bucket = "dpmi3"
+path = "Time Circle (1995).zip"
+sha256 = "6a72cead5f8b24fdc3ad2b7ce57bb27b5a3eb74ae571e0aeac1045423af20af1"
+launch = "cd \\tcircle|tcircle|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+notes = "Borland 32RTM"
+copy = [
+  { from = "tcircle", to = "TCIRCLE", skip = ["TIME"] },
+]
+
+[[drives.dpmi.titles]]
+id = "screamer"
+title = "Screamer (1995)"
+bucket = "fpu"
+path = "Screamer (1995).zip"
+sha256 = "af8cafe3de7c232c27639e31436c0d22805db2ce4f47477d4cc769ad769cae80"
+launch = "cd \\screamer|startl|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "Screamer/SCREAMER", to = "SCREAMER" },
+]
+
+[[drives.dpmi.titles]]
+id = "tv"
+title = "Terminal Velocity (1995)"
+bucket = "fpu"
+path = "Terminal Velocity (1995).zip"
+sha256 = "a167c635d6a633dc5696ddd58e820eb2e6a638d3f2009fb53d6eca141da453e5"
+launch = "cd \\tv|tv|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "TermVel/TV", to = "TV" },
+]
+
+[drives.fpu]
+cylinders = 260
+description = "FPU-required simulations, and Serpent Isle (an acceptance game) where there is room"
+
+[[drives.fpu.titles]]
+id = "gp2"
+title = "Grand Prix 2 (1995)"
+bucket = "fpu"
+path = "Grand Prix 2 (1995).zip"
+sha256 = "a76f6b5ec3e5382cfab9afe6b5b2286d5ca4817e8f09e86c2f806cf5cfb946ca"
+launch = "cd \\gp2|gp2|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "GPrix2/GP2", to = "GP2" },
+]
+
+[[drives.fpu.titles]]
+id = "usnf"
+title = "U.S. Navy Fighters (Gold) (1995)"
+bucket = "fpu"
+path = "U.S. Navy Fighters (Gold) (1995).zip"
+sha256 = "55b77d09a9463ea914884ad3979aea695d2ddb0452e588beff9ad1847f8b09f0"
+launch = "cd \\usnfgold|usnf|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "USNavFiG/USNFGOLD", to = "USNFGOLD", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC", "UNIVBE"] },
+  { from = "USNavFiG/USNFGOLD/SB16", to = "USNFGOLD" },
+]
+
+[[drives.fpu.titles]]
+id = "u7si"
+title = "Ultima VII Part 2 - Serpent Isle + The Silver Seed (1993)"
+bucket = "xms"
+path = "Ultima VII Part 2 - Serpent Isle + The Silver Seed (1993).zip"
+sha256 = "5601ca4e2e2d23865046fbfe9c775fa5df896aa0ba4f8a66bb95521ffd1c2c1c"
+launch = "cd \\serpent|serpent|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+notes = "SERPENT.CFG and TEST.CFG are the plain Sound Blaster setup the game's own INSTALL wrote (#1426): sidecars"
+config = [
+  { path = "SERPENT\\SERPENT.CFG", sha256 = "13ad7bdb6b057ea635899f7856b3d56cba5d44dd25d1664a98b968f2b5212c81" },
+  { path = "SERPENT\\TEST.CFG", sha256 = "13ad7bdb6b057ea635899f7856b3d56cba5d44dd25d1664a98b968f2b5212c81" },
+]
+copy = [
+  { from = "ultima72", to = "SERPENT" },
+]
+
+[drives.bench]
+cylinders = 80
+description = "Non-game programs: PhilsComputerLab's DOS Benchmark Pack v1.5 tools"
+
+[[drives.bench.titles]]
+id = "3dbench"
+title = "3DBench 1.0"
+bucket = "program"
+source = "dosbench"
+path = "MARKS/3DBENCH"
+sha256 = "ed1e63c15eb537a1dde2ebc0ee5f2e31dc8528a3b701ac493116fa71d352e565"
+launch = "cd \\marks\\3dbench|3dbench|"
+keys = []
+limit = 25.0
+copy = [
+  { from = "", to = "MARKS\\3DBENCH" },
+]
+
+[[drives.bench.titles]]
+id = "pcpbench"
+title = "PC Player Benchmark"
+bucket = "program"
+source = "dosbench"
+path = "MARKS/PCPBENCH"
+sha256 = "e17d9e5f5ef1c12ee680813ada08ba9a0d0c8eb7233183efa9d9896d2226dc95"
+launch = "cd \\marks\\pcpbench|pcpbench /vgamode|"
+keys = []
+limit = 25.0
+notes = "DOS/4GW"
+copy = [
+  { from = "", to = "MARKS\\PCPBENCH" },
+]
+
+[[drives.bench.titles]]
+id = "topbench"
+title = "TOPBENCH"
+bucket = "program"
+source = "dosbench"
+path = "MARKS/TOPBENCH"
+sha256 = "6b45f552b549e879b06ca0b62c71b4d4dc9ae8fcb38fea77a6e7d544ba7a2a3a"
+launch = "cd \\marks\\topbench|topbench -l|"
+keys = []
+limit = 25.0
+copy = [
+  { from = "", to = "MARKS\\TOPBENCH" },
+]
+
+[[drives.bench.titles]]
+id = "speedsys"
+title = "SpeedSys 4.78"
+bucket = "program"
+source = "dosbench"
+path = "MARKS/SPEEDSYS"
+sha256 = "108a55efa7f54efa1010c5908e1e1eef8df3bdb9a6f88f27c84f41c3f5d376a4"
+launch = "cd \\marks\\speedsys|speedsys|"
+keys = [[10.0, "|"]]
+limit = 20.0
+copy = [
+  { from = "", to = "MARKS\\SPEEDSYS" },
+]
+
+[[drives.bench.titles]]
+id = "chkcpu"
+title = "CHKCPU"
+bucket = "program"
+source = "dosbench"
+path = "MARKS/CHKCPU"
+sha256 = "cb2539bf2683037a4121e4a7c2d4924aa5ac263fd554c16d5365ff81a1725d14"
+launch = "cd \\marks\\chkcpu|chkcpu|"
+keys = []
+limit = 12.0
+copy = [
+  { from = "", to = "MARKS\\CHKCPU" },
+]
+
+[[drives.bench.titles]]
+id = "cachechk"
+title = "CACHECHK"
+bucket = "program"
+source = "dosbench"
+path = "MARKS/CACHECHK"
+sha256 = "f4726b815e0d005172c4fc24a35d17b6e991bf29a55761f624c17c064cbb6166"
+launch = "cd \\marks\\cachechk|cachechk|"
+keys = []
+limit = 20.0
+copy = [
+  { from = "", to = "MARKS\\CACHECHK" },
+]
+
+[[drives.bench.titles]]
+id = "si8"
+title = "Norton System Information 8"
+bucket = "program"
+source = "dosbench"
+path = "MARKS/SI8"
+sha256 = "8bc05f9f0f276c13f47b214d1d70c6d99cb194bc41bba315c771daf9934ddcd0"
+launch = "cd \\marks\\si8|sysinfo|"
+keys = []
+limit = 20.0
+copy = [
+  { from = "", to = "MARKS\\SI8" },
+]
+
+[[drives.bench.titles]]
+id = "chrisb"
+title = "Chris's 3D Benchmark"
+bucket = "program"
+source = "dosbench"
+path = "MARKS/CHRISB"
+sha256 = "8e2a630b8ee40d24af5b413c226655ad0f200beacfcffe18e81e0731715eb4a3"
+launch = "cd \\marks\\chrisb|bench|"
+keys = []
+limit = 20.0
+notes = "DJGPP, CWSDPMI"
+copy = [
+  { from = "", to = "MARKS\\CHRISB" },
+]
+
+[[drives.bench.titles]]
+id = "quakes"
+title = "Quake timedemo (DOSBench)"
+bucket = "program"
+source = "dosbench"
+path = "MARKS/QUAKES"
+sha256 = "8506ad26cdea4cac01e21d5725baedfeb6e624b4ecbee691e54a3bad4eb490e3"
+launch = "cd \\marks\\quakes|quake +timedemo demo1 +exec mode0.cfg -nosound -nocdaudio|"
+keys = []
+limit = 25.0
+notes = "DJGPP, CWSDPMI, x87"
+copy = [
+  { from = "", to = "MARKS\\QUAKES" },
+]

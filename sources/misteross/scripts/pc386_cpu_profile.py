@@ -33,6 +33,18 @@ Causes (each system clock the RTL ran is in exactly one):
   other                 D stop, the governor, replay serialisation, a bench
                         reset at a stop, anything else
 
+Front end (F and Q lines): each clock in refill, refill_l1i, fe_l1i and
+fe_empty is charged to why Q did not issue two clocks before
+(cpu_profile.h, "Front-end split"): a prefix cycle (prefix), a taken jump's
+avail clear (jclr), a redirect, or a wait for bytes not in the buffer: the
+half itself (half), bytes 12-15 whose decode needs the next block (tail),
+or an instruction that runs into a next half not yet there (cross). A wait
+is split by how Q entered its half: sequentially (seq), the first
+sequential half after a jump (seq1), a predicted taken jump (tk), one
+within its own block (tkself), a redirect (rd); and _l1i when F2 waited on
+the L1I since Q last issued. "latent" counts every clock Q did not issue,
+whatever D did.
+
   python3 scripts/pc386_cpu_profile.py cpu.prof
   python3 scripts/pc386_cpu_profile.py cpu.prof --from 22.7 --to 32.3 --json window.json
 """
@@ -73,7 +85,7 @@ class ProfileError(ValueError):
 
 def load(lines) -> dict[float, dict]:
     """The snapshots by time: counters, buckets, classes and that interval's sites."""
-    snaps: dict[float, dict] = defaultdict(lambda: {'t': None, 'b': None, 'c': {}, 's': {}})
+    snaps: dict[float, dict] = defaultdict(lambda: {'t': None, 'b': None, 'c': {}, 'a': {}, 'f': {}, 'q': {}, 's': {}, 'i': {}})
     for line in lines:
         if not line.strip():
             continue
@@ -86,9 +98,18 @@ def load(lines) -> dict[float, dict]:
             snap['b'] = {k: int(v) for k, v in (x.split('=') for x in f[1:])}
         elif kind == 'C':
             snap['c'][f[1]] = {k: int(v) for k, v in (x.split('=') for x in f[2:])}
+        elif kind == 'F':
+            snap['f'][f[1]] = {k: int(v) for k, v in (x.split('=') for x in f[2:])}
+        elif kind == 'Q':
+            snap['q'] = {k: int(v) for k, v in (x.split('=') for x in f[1:])}
+        elif kind == 'A':
+            snap['a'][f[1]] = {k: int(v) for k, v in (x.split('=') for x in f[2:])}
         elif kind == 'S':
             kv = dict(x.split('=') for x in f[3:])
             snap['s'][f[1]] = [int(kv['n']), int(kv['cycles']), f[2]]
+        elif kind == 'I':
+            kv = dict(x.split('=') for x in f[3:])
+            snap['i'][f[1]] = [int(kv['n']), int(kv['rep']), int(kv['targets']), f[2]]
         else:
             raise ProfileError(f'unknown line kind {kind!r}')
     for at, snap in snaps.items():
@@ -109,6 +130,9 @@ def window(snaps: dict[float, dict], lo: float | None = None, hi: float | None =
     first, last = snaps[a], snaps[z]
     t, b = sub(first['t'], last['t']), sub(first['b'], last['b'])
     classes = {k: sub(first['c'].get(k, {}), v) for k, v in last['c'].items()}
+    agi = {k: sub(first['a'].get(k, {}), v) for k, v in last['a'].items()}
+    fe = {k: sub(first['f'].get(k, {}), v) for k, v in last['f'].items()}
+    latent = sub(first['q'], last['q'])
     sites: dict[str, list] = defaultdict(lambda: [0, 0, ''])
     for at in times:
         if a < at <= z:
@@ -116,6 +140,16 @@ def window(snaps: dict[float, dict], lo: float | None = None, hi: float | None =
                 sites[addr][0] += n
                 sites[addr][1] += cycles
                 sites[addr][2] = cls
+    # Indirect sites: retirements and repeats summed, distinct targets as of
+    # the window's last interval that retired the site.
+    ind_sites: dict[str, list] = defaultdict(lambda: [0, 0, 0, ''])
+    for at in times:
+        if a < at <= z:
+            for addr, (n, rep, targets, cls) in snaps[at]['i'].items():
+                ind_sites[addr][0] += n
+                ind_sites[addr][1] += rep
+                ind_sites[addr][2] = targets
+                ind_sites[addr][3] = cls
     clocks = sum(b.values())
     if clocks != t['sampled']:
         raise ProfileError(f'buckets hold {clocks} clocks, {t["sampled"]} sampled')
@@ -131,24 +165,89 @@ def window(snaps: dict[float, dict], lo: float | None = None, hi: float | None =
             'redirects': t['redirects'], 'frames': t['frames'], 'polls_3da': t['polls_3da'],
             'l1d_waits': t['l1d_waits'], 'l1i_waits': t['l1i_waits'], 'prefixes': t['prefixes'],
             'cpi': t['cycles'] / max(t['retired'], 1), 'causes': causes, 'buckets': b, 'classes': classes,
-            'prediction': prediction(t),
+            'prediction': prediction(t), 'agi': agi_split(agi, b['agi']),
+            'front_end': front_end(fe, latent, b, t),
             'redirects_by_class': {k: {'taken': v['taken'], 'clocks': v['next'],
                                        'per_taken': round(v['next'] / v['taken'], 2)} for k, v in taken.items()},
-            'sites': sorted(([k, *v] for k, v in sites.items()), key=lambda s: -s[2])[:25]}
+            'sites': sorted(([k, *v] for k, v in sites.items()), key=lambda s: -s[2])[:25],
+            'indirect_sites': sorted(([k, *v] for k, v in ind_sites.items()), key=lambda s: (-s[1], s[0]))[:25]}
 
 
 def prediction(t: dict) -> dict:
     """The BTB's direct branches (Jcc, LOOP and its kin, JCXZ, JMP and CALL
     rel): a branch is predicted right when it was predicted taken and taken,
     or not predicted taken and not taken. Near RETs: a RET is predicted right
-    when it does not redirect, so the return stack gave its target."""
+    when it does not redirect, so the return stack gave its target. Indirect
+    near CALLs and JMPs: those to their site's last target (last_target, what
+    a predictor keeping every site's last target would get right), and those
+    the BTB predicted and that redirected."""
     br, taken, pt, pt_taken = t['br'], t['br_taken'], t['br_pt'], t['br_pt_taken']
     right = pt_taken + (br - taken - (pt - pt_taken))
     return {'direct': br, 'taken': taken, 'predicted_taken': pt, 'predicted_taken_and_taken': pt_taken,
             'mispredicted': br - right, 'accuracy': round(right / br, 4) if br else None,
             'fetch_replays': t['fetch_replays'],
             'ret': t['ret'], 'ret_predicted': t['ret_pt'], 'ret_mispredicted': t['ret_mis'],
-            'ret_accuracy': round(1 - t['ret_mis'] / t['ret'], 4) if t['ret'] else None}
+            'ret_accuracy': round(1 - t['ret_mis'] / t['ret'], 4) if t['ret'] else None,
+            'ind_call': t['ind_call'], 'ind_call_last_target': t['ind_call_rep'],
+            'ind_jmp': t['ind_jmp'], 'ind_jmp_last_target': t['ind_jmp_rep'],
+            'ind_predicted': t['ind_pt'], 'ind_mispredicted': t['ind_mis'],
+            'ind_accuracy': round(1 - t['ind_mis'] / ind, 4) if (ind := t['ind_call'] + t['ind_jmp']) else None}
+
+
+# The producer classes an early ALU at AG would execute: the register and
+# immediate forms of MOV, ADD, SUB, ADC and their kin, the logic ops, a
+# 16-bit LEA, MOVZX/MOVSX and zeroing (cpu_profile.h AgiClass).
+EARLY = ('mov', 'add', 'sub', 'adc', 'logic', 'lea16', 'ext', 'zero')
+STAGES = ('ag', 'm1', 'm2', 'ex', 'none')
+
+
+def agi_split(agi: dict, total: int) -> dict:
+    """AGI clocks by the producer's class and stage. 'early' is the clocks
+    whose producer an early ALU at AG would execute (its class is in EARLY
+    and its register sources would be ready there), so those an early ALU
+    could save at most."""
+    rows = {k: {'clocks': sum(v[s] for s in STAGES), **{s: v[s] for s in STAGES}, 'ready': v['ready'],
+                'imm': v['imm'], 'w32': v.get('w32', 0)} for k, v in agi.items()}
+    rows = {k: v for k, v in rows.items() if v['clocks']}
+    if rows and sum(v['clocks'] for v in rows.values()) != total:
+        raise ProfileError(f'the AGI split holds {sum(v["clocks"] for v in rows.values())} clocks, {total} in AGI')
+    early = sum(v['ready'] for k, v in rows.items() if k in EARLY)
+    return {'clocks': total, 'early': early, 'by_class': rows}
+
+
+FE_BUCKETS = ('refill', 'refill_l1i', 'fe_l1i', 'fe_empty')
+FE_SPECIAL = ('prefix', 'jclr', 'redirect', 'unattr')
+FE_WAITS = ('half', 'tail', 'cross')
+FE_CTX = ('seq', 'seq1', 'tk', 'tkself', 'rd')
+
+
+def fe_rows() -> list[str]:
+    """The front-end split's reasons, without the _l1i variants."""
+    return [*FE_SPECIAL, *(f'{w}_{x}' for w in FE_WAITS for x in FE_CTX)]
+
+
+def front_end(fe: dict, latent: dict, buckets: dict, t: dict) -> dict:
+    """The front-end split: per reason (its _l1i variant folded in, and
+    counted apart as l1i), the clocks of each front-end bucket, and the
+    latent count of every clock Q did not issue. Each bucket's split must hold
+    exactly its clocks."""
+    if not fe:
+        return {}
+    for name in FE_BUCKETS:
+        held = sum(fe.get(name, {}).values())
+        if held != buckets[name]:
+            raise ProfileError(f'the front-end split of {name} holds {held} clocks, {buckets[name]} in the bucket')
+    rows = {}
+    for r in fe_rows():
+        row = {k: fe[k].get(r, 0) + fe[k].get(f'{r}_l1i', 0) for k in FE_BUCKETS}
+        row['l1i'] = sum(fe[k].get(f'{r}_l1i', 0) for k in FE_BUCKETS)
+        row['clocks'] = sum(row[k] for k in FE_BUCKETS)
+        row['latent'] = latent.get(r, 0) + latent.get(f'{r}_l1i', 0)
+        rows[r] = row
+    return {'clocks': sum(buckets[k] for k in FE_BUCKETS), 'fe_empty': buckets['fe_empty'],
+            'q_issue': latent.get('issue', 0), 'q_held': latent.get('held', 0),
+            'q_taken': t.get('q_taken', 0), 'q_tself': t.get('q_tself', 0), 'by_reason': rows,
+            'raw': fe, 'latent_raw': latent}
 
 
 def report(w: dict) -> str:
@@ -170,6 +269,33 @@ def report(w: dict) -> str:
     if p['ret']:
         out.append(f'near RETs {p["ret"]:,}: {p["ret_predicted"]:,} predicted, {p["ret_mispredicted"]:,} redirected '
                    f'(accuracy {100 * p["ret_accuracy"]:.2f}%)')
+    ind = p['ind_call'] + p['ind_jmp']
+    if ind:
+        out.append(f'indirect CALLs {p["ind_call"]:,} ({p["ind_call_last_target"]:,} to their last target), '
+                   f'JMPs {p["ind_jmp"]:,} ({p["ind_jmp_last_target"]:,}): {p["ind_predicted"]:,} predicted, '
+                   f'{p["ind_mispredicted"]:,} redirected (accuracy {100 * p["ind_accuracy"]:.2f}%)')
+        for addr, n, rep, targets, cls in w['indirect_sites'][:8]:
+            out.append(f'  {addr} {cls:9s} n={n:,} last target {100 * rep / max(n, 1):.1f}% targets={targets}')
+    a = w['agi']
+    if a['by_class']:
+        out.append(f'\nAGI {a["clocks"]:,} clocks, {a["early"]:,} from producers an early ALU would run '
+                   f'({100 * a["early"] / max(a["clocks"], 1):.1f}%)')
+        out.append(f'{"producer":10s} {"clocks":>11s} ' + ' '.join(f'{s:>9s}' for s in STAGES)
+                   + f' {"ready":>9s} {"imm":>9s} {"w32":>9s}')
+        for k, v in sorted(a['by_class'].items(), key=lambda kv: -kv[1]['clocks']):
+            out.append(f'{k:10s} {v["clocks"]:11,d} ' + ' '.join(f'{v[s]:9,d}' for s in STAGES)
+                       + f' {v["ready"]:9,d} {v["imm"]:9,d} {v["w32"]:9,d}')
+    fe = w.get('front_end')
+    if fe:
+        out.append(f'\nfront end empty {fe["clocks"]:,} clocks (fe_empty {fe["fe_empty"]:,}), by Q\'s reason two clocks '
+                   f'before; Q issued {fe["q_issue"]:,}, held {fe["q_held"]:,}, took {fe["q_taken"]:,} predicted '
+                   f'jumps ({fe["q_tself"]:,} within a block)')
+        out.append(f'{"reason":14s} {"clocks":>11s} ' + ' '.join(f'{k:>10s}' for k in FE_BUCKETS)
+                   + f' {"l1i":>10s} {"latent":>11s}')
+        for k, v in sorted(fe['by_reason'].items(), key=lambda kv: -kv[1]['clocks']):
+            if v['clocks'] or v['latent']:
+                out.append(f'{k:14s} {v["clocks"]:11,d} ' + ' '.join(f'{v[b]:10,d}' for b in FE_BUCKETS)
+                           + f' {v["l1i"]:10,d} {v["latent"]:11,d}')
     out.append(f'\n{"redirects":10s} {"taken":>11s} {"clocks":>13s} {"per taken":>9s}')
     for k, v in sorted(w['redirects_by_class'].items(), key=lambda kv: -kv[1]['clocks']):
         out.append(f'{k:10s} {v["taken"]:11,d} {v["clocks"]:13,d} {v["per_taken"]:9.2f}')

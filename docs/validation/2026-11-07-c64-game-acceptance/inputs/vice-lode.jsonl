@@ -1,0 +1,25 @@
+{"op": "sleep", "s": 5}
+{"op": "grab", "name": "ref-00-basic"}
+{"op": "type", "text": "LOAD\"*\",8,1\n"}
+{"op": "sleep", "s": 20}
+{"op": "type", "text": "RUN\n"}
+{"op": "sleep", "s": 30}
+{"op": "grab", "name": "ref-01-loading"}
+{"op": "sleep", "s": 75}
+{"op": "grab", "name": "ref-02-attract"}
+{"op": "joy", "port": 2, "dirs": "F", "hold": 0.2}
+{"op": "sleep", "s": 5}
+{"op": "grab", "name": "ref-03-level1"}
+{"op": "joydown", "port": 2, "dirs": "L"}
+{"op": "sleep", "s": 1.5}
+{"op": "joyup", "port": 2}
+{"op": "grab", "name": "ref-04-moved"}
+{"op": "key", "name": "a", "mods": ["ctrl"], "hold": 0.3}
+{"op": "sleep", "s": 6}
+{"op": "grab", "name": "ref-05-ctrl-a"}
+{"op": "key", "name": "u", "mods": ["ctrl"], "hold": 0.3}
+{"op": "sleep", "s": 8}
+{"op": "grab", "name": "ref-06-ctrl-u"}
+{"op": "wander", "port": 2, "seconds": 600, "seed": 21, "grab_every": 30, "prefix": "ref-p"}
+{"op": "grab", "name": "ref-07-end"}
+{"op": "quit"}

@@ -1,0 +1,16 @@
+restore
+FES1528
+score
+inventory
+stand up
+south
+look
+examine stone
+north
+talk to hacker
+look
+examine chair
+wait
+wait
+inventory
+score

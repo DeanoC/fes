@@ -2,12 +2,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -29,6 +31,7 @@ import (
 
 const runDir = "/run/fogcast/software"
 const socket = "/run/fogcast/software.sock"
+const restartSocket = "/run/fogcast/software-restart.sock"
 const factoryPath = "/usr/share/fes/software"
 const helper = "/usr/sbin/fes-kit-data"
 
@@ -57,15 +60,87 @@ func main() {
 		err = preparePowerCycle(os.Args[2:])
 	case "select-factory":
 		err = selectFactory(os.Args[2:])
+	case "restart-service":
+		err = restartService(os.Args[2:])
 	case "run":
 		err = run()
 	default:
-		err = errors.New("usage: fes-kit-software start|stop|run|status|acknowledge|prepare-power-cycle|select-factory")
+		err = errors.New("usage: fes-kit-software start|stop|run|status|acknowledge|prepare-power-cycle|select-factory|restart-service")
 	}
 	if err != nil {
 		log.Print(err)
 		os.Exit(1)
 	}
+}
+
+func restartService(args []string) error {
+	if os.Geteuid() != 0 {
+		return errors.New("named-service restart requires root")
+	}
+	if len(args) == 0 {
+		return errors.New("usage: fes-kit-software restart-service fogcast-kit|fogcast-tenfoot --request-id <64-lowercase-hex> [--target-id ID --package-id ID --runtime-generation N]")
+	}
+	service := args[0]
+	flags := flag.NewFlagSet("restart-service", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	requestID := flags.String("request-id", "", "stable 64-character request identifier")
+	targetID := flags.String("target-id", "", "exact live diagnostic target ID")
+	packageID := flags.String("package-id", "", "exact live diagnostic package ID")
+	runtimeGeneration := flags.Uint64("runtime-generation", 0, "exact live diagnostic runtime generation")
+	if err := flags.Parse(args[1:]); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New("unexpected restart-service argument")
+	}
+	request := kitsoftware.ServiceRestartRequest{RequestID: *requestID, Service: service}
+	if *targetID != "" || *packageID != "" || *runtimeGeneration != 0 {
+		request.Session = &kitsoftware.DiagnosticSessionExpectation{TargetID: *targetID, PackageID: *packageID, Generation: *runtimeGeneration}
+	}
+	body, err := json.Marshal(request)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	defer cancel()
+	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", restartSocket)
+	}}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport, Timeout: 4 * time.Minute}
+	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://unix/v1/kit/software/restart-service", strings.NewReader(string(body)))
+	if err != nil {
+		return err
+	}
+	httpRequest.Header.Set("Content-Type", "application/json")
+	response, err := client.Do(httpRequest)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	resultBytes, err := io.ReadAll(io.LimitReader(response.Body, 64<<10))
+	if err != nil {
+		return err
+	}
+	resultBytes = bytes.TrimSpace(resultBytes)
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf("named-service restart supervisor HTTP %d: %s", response.StatusCode, resultBytes)
+	}
+	var result kitsoftware.ServiceRestartRecord
+	if err := json.Unmarshal(resultBytes, &result); err != nil {
+		return fmt.Errorf("decode named-service restart result: %w", err)
+	}
+	_, err = fmt.Fprintln(os.Stdout, string(resultBytes))
+	if err != nil {
+		return err
+	}
+	if result.Outcome != "succeeded" {
+		if result.Reason == "" {
+			return fmt.Errorf("named-service restart %s: %s", result.Outcome, result.Phase)
+		}
+		return fmt.Errorf("named-service restart %s: %s", result.Outcome, result.Reason)
+	}
+	return nil
 }
 func stop() error {
 	b, err := os.ReadFile(filepath.Join(runDir, "supervisor.pid"))
@@ -254,6 +329,11 @@ func supervise(ctx context.Context, output io.Writer) error {
 		if err != nil {
 			return err
 		}
+		nextRestartLedger, err := kitsoftware.OpenServiceRestartLedger(statePath)
+		if err != nil {
+			_ = nextRepo.Close()
+			return fmt.Errorf("open named-service restart ledger: %w", err)
+		}
 		// An idle kit may not write its state for a long time. A failed write
 		// here leaves the ledger for the next update to prune.
 		_ = nextRepo.CompactReceipts()
@@ -265,6 +345,7 @@ func supervise(ctx context.Context, output io.Writer) error {
 		store, repo, admission = next, nextRepo, nextAdmission
 		server.Store = store
 		server.Repository = repo
+		server.RestartLedger = nextRestartLedger
 		server.Admission = admission
 		controller.Admission = admission
 		server.StorageError = ""
@@ -304,6 +385,28 @@ func supervise(ctx context.Context, output io.Writer) error {
 		}
 	}()
 	defer httpServer.Close()
+	if err := os.Remove(restartSocket); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	restartListener, err := net.Listen("unix", restartSocket)
+	if err != nil {
+		return err
+	}
+	defer restartListener.Close()
+	if err := os.Chmod(restartSocket, 0600); err != nil {
+		return err
+	}
+	restartHTTPServer := &http.Server{
+		Handler:           server.RestartHandler(),
+		ReadHeaderTimeout: 5 * time.Second,
+		ConnContext:       kitsoftware.UnixPeerContext,
+	}
+	go func() {
+		if err := restartHTTPServer.Serve(restartListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("named-service restart API: %v", err)
+		}
+	}()
+	defer restartHTTPServer.Close()
 	engine := &kitsoftware.Engine{Repository: repo, Controller: controller, Admission: admission, Gate: gate, Factory: factory.ID}
 	// The engine holds back a selection this image cannot run and starts the
 	// factory software in its place; status reports which selection and why.

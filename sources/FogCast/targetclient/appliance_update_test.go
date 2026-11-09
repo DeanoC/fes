@@ -5,11 +5,13 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/appliance"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func updateManifest(body string) appliance.Manifest {
@@ -201,6 +204,189 @@ func TestUpdateRejectsWrongTargetBeforeClaimOrUpload(t *testing.T) {
 	}
 }
 
+func TestRollbackJSONBusyRejectionDoesNotWaitForBoot(t *testing.T) {
+	var healthReads, updateReads, maintenanceReads, claims, rollbacks atomic.Int32
+	current, previous := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	transport := rollbackTransport(func(r *http.Request) (*http.Response, error) {
+		if r.Header.Get("Authorization") != "Bearer secret" {
+			t.Error("missing authentication")
+		}
+		status := http.StatusOK
+		body := "{}"
+		switch r.URL.Path {
+		case "/v1/health":
+			healthReads.Add(1)
+			body = `{"target_id":"kit","boot_id":"boot-a"}`
+		case "/v1/update":
+			updateReads.Add(1)
+			body = fmt.Sprintf(`{"boot_id":"boot-a","image_sha256":%q,"trial":false,"raw_idle_ready":true,"good":%q,"previous":%q}`, current, current, previous)
+		case "/v1/kit/maintenance":
+			maintenanceReads.Add(1)
+			body = `{"state":"blocked","operation_id":"failed-software-activation"}`
+		case "/v1/kit/claim":
+			claims.Add(1)
+			t.Errorf("rollback tried to claim a lease held by blocked maintenance")
+			status = http.StatusConflict
+			body = `{"code":"KIT_LEASE_BUSY","message":"maintenance is blocked"}`
+		case "/v1/update/rollback":
+			rollbacks.Add(1)
+			status = http.StatusServiceUnavailable
+			encoded, _ := json.Marshal(protocol.ErrorEnvelope{Error: protocol.APIError{Code: protocol.CodeBusy, Message: "kit software activation blocks mutations"}})
+			body = string(encoded)
+		default:
+			t.Errorf("unexpected request %s", r.URL.Path)
+			status = http.StatusNotFound
+		}
+		header := make(http.Header)
+		header.Set("Content-Type", "application/json")
+		return &http.Response{StatusCode: status, Header: header, Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+	})
+	u, _ := url.Parse("http://kit.invalid")
+	httpClient := &http.Client{Transport: transport}
+	lease := NewKitLease(u, "secret", httpClient, "test", "update")
+	c := NewClient(u, "secret", httpClient).WithKitLease(lease)
+	defer c.InvalidateKitSession()
+	var phases []string
+	c.WithProgress(func(phase, detail string) { phases = append(phases, phase) })
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	status, err := c.RollbackAppliance(ctx, "kit", nil)
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBusy {
+		t.Fatalf("rollback error = %v, want typed BUSY response", err)
+	}
+	if status.BootID != "boot-a" || status.ImageSHA256 != current || healthReads.Load() != 1 || updateReads.Load() != 1 || maintenanceReads.Load() != 1 || claims.Load() != 0 || rollbacks.Load() != 1 {
+		t.Fatalf("status=%+v health=%d update=%d maintenance=%d claims=%d rollback=%d", status, healthReads.Load(), updateReads.Load(), maintenanceReads.Load(), claims.Load(), rollbacks.Load())
+	}
+	for _, phase := range phases {
+		if strings.HasPrefix(phase, "waiting") || phase == "activation response lost" {
+			t.Fatalf("definite rejection entered reboot observation: %v", phases)
+		}
+	}
+}
+
+func TestRollbackAcceptedJSON503IsReconciledAsAmbiguous(t *testing.T) {
+	var healthReads, updateReads, claims, rollbacks atomic.Int32
+	var rebooted atomic.Bool
+	current, previous := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	transport := rollbackTransport(func(r *http.Request) (*http.Response, error) {
+		if r.Header.Get("Authorization") != "Bearer secret" {
+			t.Error("missing authentication")
+		}
+		status := http.StatusOK
+		body := "{}"
+		switch r.URL.Path {
+		case "/v1/health":
+			healthReads.Add(1)
+			boot := "boot-a"
+			if rebooted.Load() {
+				boot = "boot-b"
+			}
+			body = fmt.Sprintf(`{"target_id":"kit","boot_id":%q}`, boot)
+		case "/v1/update":
+			updateReads.Add(1)
+			boot, image, old := "boot-a", current, previous
+			if rebooted.Load() {
+				boot, image = "boot-b", previous
+				old = current
+			}
+			body = fmt.Sprintf(`{"boot_id":%q,"image_sha256":%q,"trial":false,"raw_idle_ready":true,"good":%q,"previous":%q}`, boot, image, image, old)
+		case "/v1/kit/maintenance":
+			body = `{"state":"none"}`
+		case "/v1/kit/claim":
+			claims.Add(1)
+			body = `{"token":"rollback-lease","status":{"state":"held","generation":"rollback-generation","expires_in_ms":90000}}`
+		case "/v1/update/rollback":
+			rollbacks.Add(1)
+			if r.Header.Get(KitLeaseHeader) != "rollback-lease" {
+				t.Error("rollback lacked its current execution lease")
+			}
+			// The server may have selected the previous image before its
+			// structured 503 response was produced. The client must inspect the
+			// boot rather than classify this as a definite rejection.
+			rebooted.Store(true)
+			status = http.StatusServiceUnavailable
+			encoded, _ := json.Marshal(protocol.ErrorEnvelope{Error: protocol.APIError{Code: "ROLLBACK_ACCEPTED", Message: "rollback accepted; rebooting"}})
+			body = string(encoded)
+		default:
+			t.Errorf("unexpected request %s", r.URL.Path)
+			status = http.StatusNotFound
+		}
+		header := make(http.Header)
+		header.Set("Content-Type", "application/json")
+		return &http.Response{StatusCode: status, Header: header, Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+	})
+	u, _ := url.Parse("http://kit.invalid")
+	httpClient := &http.Client{Transport: transport}
+	lease := NewKitLease(u, "secret", httpClient, "test", "update")
+	c := NewClient(u, "secret", httpClient).WithKitLease(lease)
+	defer c.InvalidateKitSession()
+	var phases []string
+	c.WithProgress(func(phase, detail string) { phases = append(phases, phase) })
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	status, err := c.RollbackAppliance(ctx, "kit", nil)
+	if err != nil || status.BootID != "boot-b" || status.ImageSHA256 != previous || status.Good != previous {
+		t.Fatalf("accepted 503 outcome status=%+v err=%v", status, err)
+	}
+	if healthReads.Load() < 2 || updateReads.Load() < 2 || claims.Load() != 1 || rollbacks.Load() != 1 {
+		t.Fatalf("health=%d update=%d claims=%d rollback=%d", healthReads.Load(), updateReads.Load(), claims.Load(), rollbacks.Load())
+	}
+	for _, phase := range phases {
+		if phase == "activation rejected" {
+			t.Fatalf("accepted 503 was treated as rejection: %v", phases)
+		}
+	}
+	if !slices.Contains(phases, "activation outcome uncertain") || !slices.Contains(phases, "confirmed") {
+		t.Fatalf("accepted 503 was not reconciled to the new boot: %v", phases)
+	}
+}
+
+func TestRollbackDoesNotBypassActiveSoftwareMaintenance(t *testing.T) {
+	var claims, rollbacks atomic.Int32
+	current, previous := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	transport := rollbackTransport(func(r *http.Request) (*http.Response, error) {
+		status := http.StatusOK
+		body := `{}`
+		switch r.URL.Path {
+		case "/v1/health":
+			body = `{"target_id":"kit","boot_id":"boot-a"}`
+		case "/v1/update":
+			body = fmt.Sprintf(`{"boot_id":"boot-a","image_sha256":%q,"trial":false,"raw_idle_ready":true,"good":%q,"previous":%q}`, current, current, previous)
+		case "/v1/kit/maintenance":
+			body = `{"state":"ready"}`
+		case "/v1/kit/claim":
+			claims.Add(1)
+			t.Errorf("active maintenance attempted an execution lease claim")
+		case "/v1/update/rollback":
+			rollbacks.Add(1)
+			t.Errorf("rollback ran while software maintenance remained active")
+		default:
+			t.Errorf("unexpected request %s", r.URL.Path)
+			status = http.StatusNotFound
+		}
+		header := make(http.Header)
+		header.Set("Content-Type", "application/json")
+		return &http.Response{StatusCode: status, Header: header, Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+	})
+	u, _ := url.Parse("http://kit.invalid")
+	httpClient := &http.Client{Transport: transport}
+	lease := NewKitLease(u, "secret", httpClient, "test", "update")
+	c := NewClient(u, "secret", httpClient).WithKitLease(lease)
+	defer c.InvalidateKitSession()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err := c.RollbackAppliance(ctx, "kit", nil)
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBusy || claims.Load() != 0 || rollbacks.Load() != 0 {
+		t.Fatalf("active maintenance result = %v, claims=%d rollbacks=%d", err, claims.Load(), rollbacks.Load())
+	}
+}
+
+type rollbackTransport func(*http.Request) (*http.Response, error)
+
+func (f rollbackTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
 func TestInspectApplianceRediscoversRecordedIdentityWithoutMutation(t *testing.T) {
 	old := httptest.NewServer(http.NotFoundHandler())
 	defer old.Close()
@@ -226,6 +412,143 @@ func TestInspectApplianceRediscoversRecordedIdentityWithoutMutation(t *testing.T
 	status, err := c.InspectAppliance(context.Background(), "kit", func(context.Context, string) ([]string, error) { return []string{srv.URL}, nil })
 	if err != nil || !status.Trial || c.EndpointURL().String() != srv.URL || mutations != 0 {
 		t.Fatalf("status=%+v err=%v mutations=%d", status, err, mutations)
+	}
+}
+
+func TestRollbackRetriesMalformed503AfterStatusProvesNoActivation(t *testing.T) {
+	oldImage := strings.Repeat("a", 64)
+	previous := strings.Repeat("b", 64)
+	var rollbacks, statusReads atomic.Int32
+	var rebooted atomic.Bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		boot, image, good, prior, pending := "old", oldImage, oldImage, previous, ""
+		if rebooted.Load() {
+			boot, image, good, prior = "new", previous, previous, oldImage
+		}
+		switch r.URL.Path {
+		case "/v1/health":
+			fmt.Fprintf(w, `{"target_id":"kit","boot_id":%q}`, boot)
+		case "/v1/update":
+			statusReads.Add(1)
+			fmt.Fprintf(w, `{"boot_id":%q,"image_sha256":%q,"trial":false,"raw_idle_ready":true,"good":%q,"previous":%q,"pending":%q}`, boot, image, good, prior, pending)
+		case "/v1/update/rollback":
+			n := rollbacks.Add(1)
+			if n == 1 {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = fmt.Fprint(w, "kit restarting")
+				return
+			}
+			rebooted.Store(true)
+			fmt.Fprint(w, `{}`)
+		default:
+			t.Errorf("unexpected request %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	c := NewClient(u, "secret", srv.Client())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	got, err := c.RollbackAppliance(ctx, "kit", nil)
+	if err != nil || got.BootID != "new" || got.ImageSHA256 != previous {
+		t.Fatalf("rollback result %+v, err=%v", got, err)
+	}
+	if rollbacks.Load() != 2 {
+		t.Fatalf("rollback requests=%d, want 2", rollbacks.Load())
+	}
+	if statusReads.Load() < 3 {
+		t.Fatalf("status reads=%d, want initial read plus recovery observations", statusReads.Load())
+	}
+}
+
+func TestRollbackDoesNotRetryWhen503MayHaveCommitted(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		responseBody string
+	}{
+		{name: "valid JSON envelope", responseBody: `{"error":{"code":"TEMPORARY","message":"rollback response unavailable"}}`},
+		{name: "malformed body", responseBody: "kit restarting"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			oldImage := strings.Repeat("c", 64)
+			previous := strings.Repeat("d", 64)
+			var rollbacks atomic.Int32
+			var rebooted atomic.Bool
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				boot, image, good, prior, pending := "old", oldImage, oldImage, previous, ""
+				if rebooted.Load() {
+					boot, image, good, prior = "new", previous, previous, oldImage
+				}
+				switch r.URL.Path {
+				case "/v1/health":
+					fmt.Fprintf(w, `{"target_id":"kit","boot_id":%q}`, boot)
+				case "/v1/update":
+					fmt.Fprintf(w, `{"boot_id":%q,"image_sha256":%q,"trial":false,"raw_idle_ready":true,"good":%q,"previous":%q,"pending":%q}`, boot, image, good, prior, pending)
+				case "/v1/update/rollback":
+					rollbacks.Add(1)
+					rebooted.Store(true)
+					w.WriteHeader(http.StatusServiceUnavailable)
+					_, _ = fmt.Fprint(w, tc.responseBody)
+				default:
+					t.Errorf("unexpected request %s", r.URL.Path)
+					http.NotFound(w, r)
+				}
+			}))
+			defer srv.Close()
+			u, _ := url.Parse(srv.URL)
+			c := NewClient(u, "secret", srv.Client())
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			got, err := c.RollbackAppliance(ctx, "kit", nil)
+			if err != nil || got.BootID != "new" || got.ImageSHA256 != previous {
+				t.Fatalf("rollback result %+v, err=%v", got, err)
+			}
+			if rollbacks.Load() != 1 {
+				t.Fatalf("rollback requests=%d, want no duplicate after changed boot", rollbacks.Load())
+			}
+		})
+	}
+}
+
+func TestRollbackPreservesExplicitRejection(t *testing.T) {
+	oldImage := strings.Repeat("e", 64)
+	previous := strings.Repeat("f", 64)
+	var rollbacks, statusReads atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			fmt.Fprint(w, `{"target_id":"kit","boot_id":"old"}`)
+		case "/v1/update":
+			statusReads.Add(1)
+			fmt.Fprintf(w, `{"boot_id":"old","image_sha256":%q,"trial":false,"raw_idle_ready":true,"good":%q,"previous":%q}`, oldImage, oldImage, previous)
+		case "/v1/update/rollback":
+			rollbacks.Add(1)
+			w.WriteHeader(http.StatusConflict)
+			_, _ = fmt.Fprint(w, `{"error":{"code":"UPDATE_CONFLICT","message":"rollback rejected"}}`)
+		default:
+			t.Errorf("unexpected request %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	c := NewClient(u, "secret", srv.Client())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	got, err := c.RollbackAppliance(ctx, "kit", nil)
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != "UPDATE_CONFLICT" {
+		t.Fatalf("rollback result %+v, err=%v, want typed UPDATE_CONFLICT rejection", got, err)
+	}
+	if rollbacks.Load() != 1 {
+		t.Fatalf("rollback requests=%d, want 1 for explicit rejection", rollbacks.Load())
+	}
+	if statusReads.Load() != 1 {
+		t.Fatalf("status reads=%d, want only the initial read after explicit rejection", statusReads.Load())
 	}
 }
 

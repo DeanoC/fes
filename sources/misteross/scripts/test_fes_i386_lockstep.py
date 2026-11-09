@@ -81,7 +81,7 @@ CPU_RTL = ('fes_i386_pkg.sv', 'fes_i386_gov_pkg.sv', 'fes_i386_oplen.sv', 'fes_i
            'fes_i386_btb.sv', 'fes_i386_ras.sv', 'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv', 'fes_i386_amode.sv',
            'fes_i386_dfwd.sv', 'fes_i386_agu.sv', 'fes_i386_ucode_pkg.sv', 'fes_i386_ucode_rom.sv', 'fes_i386_decode.sv', 'fes_i386_seq.sv', 'fes_i386_dops.sv',
            'fes_i386_shift.sv', 'fes_i386_shflags.sv', 'fes_i386_exctl.sv', 'fes_i386_muldiv.sv', 'fes_i386_ex.sv',
-           'fes_i386_l1i.sv', 'fes_i386_l1d.sv', 'fes_i386_biu.sv', 'fes_i386_gov_rom.sv', 'fes_i386_governor.sv',
+           'fes_i386_tlb.sv', 'fes_i386_l1i.sv', 'fes_i386_l1d.sv', 'fes_i386_biu.sv', 'fes_i386_gov_rom.sv', 'fes_i386_governor.sv',
            'fes_i386_cpu.sv')
 TOP = 'fes_i386_cpu'
 
@@ -223,8 +223,8 @@ def run_directed(testbench: str, env: dict) -> dict:
     if result.returncode not in (0, 1):
         raise LockstepError(f'directed cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary["runs"] != 57:
-        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 57 cases')
+    if summary["runs"] != 77:
+        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 77 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -263,7 +263,31 @@ def run_pmode(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PMODE_CASES = 92
+PMODE_CASES = 147
+
+
+def run_paging(testbench: str, env: dict) -> dict:
+    """The directed paging cases (lockstep_tb.cpp's run_paging_cases): walks
+    that set A and D, a write through a read's entry, #PF for a PTE or PDE
+    not present and for each U/S and R/W combination at CPL 0 and 3 with its
+    error code and CR2, descriptor reads as supervisor accesses at CPL 3,
+    page-crossing accesses and instructions in non-adjacent frames and their
+    #PF on the second page, CPL 3 running from a supervisor page, a CR3
+    write's flush, self-modifying code through an alias, a wrong path that
+    sets no A, #PF inside REP strings, frames past RAM and in the reset
+    shadow, a #PF's double fault and shutdown, a MOV CR0 that sets PE and PG
+    together, and paging toggled around a far jump."""
+    env = dict(env, FES_I386_MODE='paging', FES_I386_LATENCY='1')
+    result = subprocess.run([testbench], env=env, capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise LockstepError(f'paging cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
+    summary, failures = parse_output(result.stdout)
+    if summary['runs'] != PAGING_CASES:
+        raise LockstepError(f'paging cases: testbench ran {summary["runs"]} of {PAGING_CASES} cases')
+    return {'summary': summary, 'failures': failures}
+
+
+PAGING_CASES = 54
 
 
 def run_no387(testbench: str, env: dict) -> dict:
@@ -392,7 +416,8 @@ def same_as(report: dict, other: dict) -> list[str]:
         compare(f'pmode {key}', report['pmode']['totals'].get(key), other['pmode']['totals'].get(key))
     for key in ('seeds', 'programs_per_seed', 'trace_hashes', 'pm_deliveries', 'unbuilt_stops', 'pm_kinds', 'cs_limit'):
         compare(f'pmode {key}', report['pmode'].get(key), other['pmode'].get(key))
-    for mode in ('directed_cases', 'unreal_cases', 'pmode_cases', 'no387_cases', 'memory_cases', 'reset_store'):
+    for mode in ('directed_cases', 'unreal_cases', 'pmode_cases', 'paging_cases', 'no387_cases', 'memory_cases',
+                 'reset_store'):
         for key in SAME_MODE:
             compare(f'{mode} {key}', report[mode]['summary'].get(key), other[mode]['summary'].get(key))
     compare('unbuilt encodings', report['unbuilt']['encodings'], other['unbuilt']['encodings'])
@@ -520,6 +545,7 @@ def main() -> int:
         directed = run_directed(testbench, env)
         unreal = run_unreal(testbench, env)
         pmode_cases = run_pmode(testbench, env)
+        paging_cases = run_paging(testbench, env)
         no387 = run_no387(testbench, env)
         memory = run_memory(testbench, env)
 
@@ -615,7 +641,8 @@ def main() -> int:
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
     random_failures += held
     reset_store_failures = reset_store['failures']
-    directed_failures = directed['failures'] + unreal['failures'] + pmode_cases['failures'] + no387['failures']
+    directed_failures = (directed['failures'] + unreal['failures'] + pmode_cases['failures'] + paging_cases['failures']
+                         + no387['failures'])
     memory_failures = memory['failures']
     if (biu_dma_failures or corpus_failures or random_failures or hash_mismatches or unbuilt_failures or reset_store_failures
             or directed_failures or memory_failures):
@@ -626,6 +653,7 @@ def main() -> int:
         'directed_cases': directed,
         'unreal_cases': unreal,
         'pmode_cases': pmode_cases,
+        'paging_cases': paging_cases,
         'no387_cases': no387,
         'memory_cases': memory,
         'governor': {'preset': args.preset},
@@ -714,6 +742,8 @@ def main() -> int:
           f"({unreal['summary']['cs_rule']} real-mode CS loads under the 386 rule)")
     print(f"protected-mode cases: {pmode_cases['summary']['passed']} pass, {pmode_cases['summary']['failed']} fail "
           f"({pmode_cases['summary']['nested']} faults in a delivery delivered)")
+    print(f"paging cases: {paging_cases['summary']['passed']} pass, {paging_cases['summary']['failed']} fail "
+          f"({paging_cases['summary']['nested']} faults in a delivery delivered)")
     print(f"no-387 cases: {no387['summary']['passed']} pass, {no387['summary']['failed']} fail "
           f"({no387['summary']['no387_rule']} ESC instructions under the no-387 rule, "
           f"{no387['summary']['no387_skips']} of them not stepped on the oracle)")

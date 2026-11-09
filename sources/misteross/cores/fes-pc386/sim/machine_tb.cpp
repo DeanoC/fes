@@ -22,6 +22,7 @@
 //                                           less the clocks a VGA port write waited for FIFO space
 //   IOWAIT <class> <size> <clocks> <count>  those waits, for the accesses that had one
 //   INTA <cycles> <count>
+//   GAME-LAUNCH seconds=<simulated> evidence=<screen|frame>  typed game command made visible progress
 //   SNAP <name> <width> <height> <file>     a captured frame written at a marker
 //   PRESENT <name> <file> <mismatches>      the 720p frame at a marker against the presenter model
 //   VGA <counter> <value>                   scanout and capture counters at the end
@@ -35,6 +36,8 @@
 //        [--mouse S:DX,DY,BUTTONS]...
 //        [--census F] [--profile F] [--profile-from S] [--profile-to S]
 //        [--cpu-profile F] [--cpu-profile-every S] [--rtl-from S] [--rtl-at-flip N] [--rtl-for S]
+//        [--ems-pages N] [--boot-key S:TEXT]
+//        [--rtl-at-prompt 1] [--keys-after-type 1] [--frame-every S] [--game-launch 1]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
@@ -51,6 +54,11 @@
 // keys. --mouse sends one fes.mouse.relative packet at that time (dy
 // screen-down), as the mailbox delivers it.
 // PC386_TRACE_IO=1 prints every I/O but port 80h to stderr.
+// --ems-pages is the EMS board's size in 16 KiB pages, 128 (2 MiB, the
+// machine's) by default and 0 for no board. With a board, E0000h-EFFFFh is
+// MMIO into the RTL board for either CPU, whose memory is port 2's model; the
+// machine itself sends 8237 cycles there to the board. It prints at the end:
+//   EMS pages=<n> reads=<n> writes=<n>   the CPU's frame accesses
 // --preset, --frequency and --turbo are --cpu rtl's governor settings
 // (fes_i386_governor; fes.pc386.machine words 0, 1 and 3), max by default.
 //
@@ -68,14 +76,15 @@
 //   PMODE <from> <to> <steps> <entry cs:eip> <exit cs:eip>   a stretch on the oracle with PE set
 //   GAP <kind> <stem> <stops> <sites> <executed> <first cs:eip> <first cycle>
 //   RTL <counter>=<n> ...                       retirements, oracle steps, waits
-// --census F writes each stem the oracle retired, its count and its first
-// CS:EIP to F, ":pm<CPL>" after a stem run in protected mode and ":v86" in
-// V86: the whole boot's instruction mix with the oracle as the CPU, the RTL's
-// stops with it. With PE set it also counts each event the oracle delivered
-// (event:<kind>:<vector>:gate=<type>:dpl=<n>:sel=<selector>[:err=<code>]:
-// cpl=<before>><after>, the gate read from the IDT unless paging is on),
-// each CPL change an instruction made (cpl:<before>><after>:<stem>), and
-// the stems that changed PG, set VM, loaded LDTR or TR, or changed IOPL.
+// --census F writes the oracle's instruction census (census.h): each stem the
+// oracle retired, its count and its first CS:EIP, ":pm<CPL>" after a stem run
+// in protected mode and ":v86" in V86, read through the page tables under
+// paging: the whole boot's instruction mix with the oracle as the CPU, the
+// RTL's stops with it. With PE set it also counts events with their gates,
+// CPL changes, task switches by source, V86 entries and IOPL-sensitive
+// outcomes, I/O through the TSS bitmap and DR7 changes, and under paging the
+// 16-entry DTLB and 8-entry ITLB models' accesses and walks. The keys are in
+// docs/pc386-game-drives.md, "Instruction census".
 // --profile F (with --cpu oracle) writes where the oracle's steps from
 // --profile-from seconds to --profile-to seconds (default 0 and the end of the
 // run) went, when the window closes:
@@ -98,6 +107,15 @@
 // N page flips (byte writes to CRTC register 0Ch, cpu_profile.h's
 // CrtcFrameTracker) where the RTL can run, with cold caches. It prints
 //   RTL-BEGIN <cycle> flips=<n>
+// --rtl-at-prompt 1 adds a third condition: the FreeDOS prompt has been seen,
+// so a game drive's proven boot runs on the oracle and the RTL takes the
+// typed command and the program it starts.
+// --boot-key S:TEXT types TEXT as --keys does at S seconds from reset
+// whatever --keys-after-type says: a FreeDOS boot menu entry.
+// --keys-after-type 1 counts --keys times from when the last --type key is
+// released at the prompt instead of from reset, so a program's keys keep their
+// place whichever CPU booted DOS. --frame-every S (with --frames) writes the
+// captured frame every S simulated seconds as t<seconds>.ppm.
 // --rtl-for S ends the run S simulated seconds after the RTL begins (at
 // RTL-BEGIN, or at its first clock without a handover), as END rtl-window,
 // a pass.
@@ -112,6 +130,7 @@
 #include "Vfes_i386_cpu___024root.h"
 #include "Vpc386_audio___024root.h"
 #include "audio_link.h"
+#include "dos_prompt.h"
 #include "i386_oracle.h"
 #include "opl2_reference.h"
 #include "pc386_ddr_model.h"
@@ -120,8 +139,10 @@
 #include "verilated.h"
 #include "cpu_profile_layout.h"
 #include "cpu_profile.h"
+#include "census.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -213,8 +234,10 @@ pc386::PortSignals port2(Vpc386_machine &top) {
 
 class Machine final : public fes_i386::Bus {
 public:
-    Machine(const std::vector<uint8_t> &bios, const std::vector<uint8_t> &vgabios, const std::string &disk)
-        : image(read_file(disk)) {
+    Machine(const std::vector<uint8_t> &bios, const std::vector<uint8_t> &vgabios, const std::string &disk,
+            unsigned ems_pages)
+        : image(read_file(disk)), ems_pages(ems_pages) {
+        if (ems_pages > 255) throw std::runtime_error("--ems-pages is 0 to 255");
         if (bios.size() != 0x10000) throw std::runtime_error("the BIOS must be 64 KiB");
         if (vgabios.size() > 0x8000) throw std::runtime_error("the VGA BIOS must fit 32 KiB");
         if (image.size() % 512 || image.size() > (128u << 20)) throw std::runtime_error("bad disk image size");
@@ -234,6 +257,7 @@ public:
         top.extended_kib = (RAM_BYTES >> 10) - 1024;
         top.above16m_64k = 0;
         top.sb_base_high = 0x22; top.sb_irq = 7; top.sb_dma = 1;
+        top.ems_pages = uint8_t(ems_pages);
         for (int n = 0; n < 4; ++n) clock();
         top.reset = 0;
         top.port2_reset = 0;
@@ -261,6 +285,8 @@ public:
     fes_i386::PageMemory rom_bios{0x10000};
     fes_i386::PageMemory rom_vga{0x8000};
     std::vector<uint8_t> image;
+    unsigned ems_pages;
+    uint64_t ems_reads = 0, ems_writes = 0;  // the CPU's frame accesses
     uint16_t cylinders = 0;
     uint8_t heads = 0, spt = 0;
     uint64_t cycles = 0;
@@ -427,13 +453,17 @@ public:
         if (paddr >= 0xf0000 && paddr < 0x100000) return write ? nullptr : &rom_bios[paddr & 0xf000];
         if (paddr >= 0xc0000 && paddr < 0xc8000) return write ? nullptr : &rom_vga[(paddr - 0xc0000) & ~0xfffu];
         if (paddr >= 0xa0000 && paddr < 0xc0000) return nullptr;
+        if (in_frame(paddr)) return nullptr;
         if (paddr < RAM_BYTES) return &ram[paddr & ~0xfffu];
         return nullptr;
     }
+    // The EMS board's frame, when the board is fitted.
+    bool in_frame(uint32_t paddr) const { return ems_pages && paddr >= 0xe0000 && paddr < 0xf0000; }
+    bool mmio_range(uint32_t paddr) const { return (paddr >= 0xa0000 && paddr < 0xc0000) || in_frame(paddr); }
     // MMIO: each access becomes dword requests in address order.
     void read(uint32_t paddr, unsigned length, uint8_t *data) override {
         std::memset(data, 0xff, length);
-        if (paddr < 0xa0000 || paddr >= 0xc0000) return;
+        if (!mmio_range(paddr)) return;
         for (unsigned done = 0; done < length;) {
             uint32_t address = paddr + done, dword = address & ~3u;
             unsigned lane = address & 3, count = std::min(4 - lane, length - done);
@@ -444,7 +474,7 @@ public:
         }
     }
     void write(uint32_t paddr, unsigned length, const uint8_t *data) override {
-        if (paddr < 0xa0000 || paddr >= 0xc0000) return;
+        if (!mmio_range(paddr)) return;
         for (unsigned done = 0; done < length;) {
             uint32_t address = paddr + done, dword = address & ~3u;
             unsigned lane = address & 3, count = std::min(4 - lane, length - done);
@@ -458,7 +488,7 @@ public:
     uint32_t mmio(bool write, uint32_t dword, uint8_t enables, uint32_t value) {
         top.mem_valid = 1;
         top.mem_write = write;
-        top.mem_address = (dword - 0xa0000) >> 2;
+        top.mem_address = dword >> 2;
         top.mem_byteenable = enables;
         top.mem_wdata = value;
         uint64_t start = cycles;
@@ -481,7 +511,12 @@ public:
         record_mmio(write, start, dword, enables, write ? value : result);
         return result;
     }
+    // The VGA trace takes VGA memory only; the frame's accesses are counted.
     void record_mmio(bool write, uint64_t start, uint32_t dword, uint8_t enables, uint32_t value) {
+        if (in_frame(dword)) {
+            ++(write ? ems_writes : ems_reads);
+            return;
+        }
         if (trace)
             std::fprintf(trace, "%c %llu %05x %x %08x\n", write ? 'W' : 'R', (unsigned long long)start,
                          dword - 0xa0000, enables, value);
@@ -612,14 +647,15 @@ struct GuestMemory {
 // loads only by the oldest uop, the CPU's own rule), its DMA and FLUSH
 // ports, I/O and INTA through the AT core with its device time, INTR from
 // the PICs, no NMI, and A20M. The attribute map is the machine's: VGA
-// memory MMIO, the VGA and system BIOS read-only, upper RAM on.
+// memory MMIO, the VGA and system BIOS read-only, upper RAM on, and the EMS
+// board's frame MMIO when it is fitted.
 class RtlCpu {
 public:
     explicit RtlCpu(Machine &machine)
         : m(machine), dirty(RAM_BYTES >> 12), guest{machine}, port0(guest, 0x5eed0000, "port 0") {
         uint64_t map = 0;
         for (int slot = 0; slot < 24; ++slot) {
-            const uint64_t attr = slot < 8 ? 2 : slot < 10 ? 1 : slot < 20 ? 0 : 1;
+            const uint64_t attr = slot < 8 ? 2 : slot < 10 ? 1 : slot < 16 ? 0 : slot < 20 ? (m.ems_pages ? 2 : 0) : 1;
             map |= attr << (2 * slot);
         }
         cpu.attr_upper = map;
@@ -725,14 +761,17 @@ public:
         s.ldtr = {uint16_t(cpu.arch_ldtr_sel), cpu.arch_ldtr_base, cpu.arch_ldtr_limit, uint16_t(cpu.arch_ldtr_ar),
                   bool(cpu.arch_ldtr_valid)};
         s.tr = {uint16_t(cpu.arch_tr_sel), cpu.arch_tr_base, cpu.arch_tr_limit, uint16_t(cpu.arch_tr_ar), s.tr.valid};
-        s.cpl = 0;  // no privilege transition is built
+        s.cpl = cpu.arch_cpl;
         s.eip = cpu.arch_eip;
         for (int n = 0; n < 6; ++n) {
             s.seg[n].selector = get16(cpu.arch_sel, n);
             s.seg[n].base = cpu.arch_base[n];
             s.seg[n].limit = cpu.arch_limit[n];
             s.seg[n].ar = get16(cpu.arch_ar, n);
-            s.seg[n].valid = (s.seg[n].ar & 0x80) != 0;  // only a null selector's load clears P
+            // A null selector's load clears P; an outer return's nulling
+            // leaves a protected-mode data segment's selector null, P set.
+            s.seg[n].valid = (s.seg[n].ar & 0x80) != 0
+                          && !((s.cr0 & 1) && n != fes_i386::SEG_CS && n != fes_i386::SEG_SS && (s.seg[n].selector & 0xfffc) == 0);
         }
         return s;
     }
@@ -834,7 +873,7 @@ public:
         const uint32_t mmio_dword = uint32_t(cpu.mmio_address) << 2;
         m.top.mem_valid = cpu.mmio_valid;
         m.top.mem_write = cpu.mmio_write;
-        m.top.mem_address = (mmio_dword - 0xa0000) >> 2;
+        m.top.mem_address = mmio_dword >> 2;
         m.top.mem_byteenable = cpu.mmio_byteenable;
         m.top.mem_wdata = cpu.mmio_wdata;
         m.top.dma_done = cpu.dma_done;
@@ -898,13 +937,22 @@ public:
         }
 
         // The CPU's ports before its edge: the retiring store, then the fetch.
+        // A store byte's physical address is its page's (trace_store_pg0, or
+        // pg1 past that page's end), which paging gives; the stale-code
+        // count follows linear fetch blocks, so with paging on it counts
+        // nothing.
         if (store && !resetting) {
             const uint32_t next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
+            const bool paging = cpu.arch_cr0 >> 31;
             for (unsigned lane = 0; lane < 8; ++lane) {
                 if (!(wmask >> lane & 1)) continue;
-                const uint32_t at = physical(waddr + lane, a20m);
-                if (at >= RAM_BYTES || (at >= 0xa0000 && at < 0xc0000)) continue;
+                const uint32_t lin = waddr + lane;
+                const uint32_t page = ((lin ^ waddr) >> 12) ? cpu.trace_store_pg1 : cpu.trace_store_pg0;
+                if (page & 0x4000u) continue;  // past the CPU's 64 MiB: a hole
+                const uint32_t at = (page & 0x3fffu) << 12 | (lin & 0xfff);
+                if (at >= RAM_BYTES || m.mmio_range(at)) continue;
                 dirty[at >> 12] = true;
+                if (paging) continue;
                 // Code the front end holds ahead of the next instruction.
                 if (smc_cycle.store(at, current, next)) {
                     if (smc_addresses.insert(at).second && smc_sites.size() < 24)
@@ -913,6 +961,8 @@ public:
                 }
             }
         }
+        // The page walker's A/D store.
+        if (cpu.trace_pw && !resetting && cpu.trace_pw_addr < RAM_BYTES) dirty[cpu.trace_pw_addr >> 12] = true;
         still = fetch || cpu.trace_dread || store || issued || cpu.io_ack || cpu.inta_ack || cpu.trace_retire
                 || !cpu.trace_mem_idle ? 0 : still + 1;
         if (cpu.trace_retire) {
@@ -1017,40 +1067,6 @@ private:
     }
     template <typename W> static uint16_t get16(const W &wide, int n) { return uint16_t(wide[n / 2] >> (16 * (n % 2))); }
 };
-
-// The stem of the instruction at bytes, in the lockstep's naming
-// (test_fes_i386_lockstep.py's SCOPE): the opcode, 0F and the second byte for
-// a two-byte one, and the ModRM reg field after a dot for a group, after "67"
-// and "66" for those prefixes.
-std::string stem(const uint8_t *bytes, unsigned length) {
-    bool operand = false, address = false;
-    unsigned at = 0;
-    for (; at < length; ++at) {
-        uint8_t b = bytes[at];
-        if (b == 0x66) operand = true;
-        else if (b == 0x67) address = true;
-        else if (!(b == 0xf0 || b == 0xf2 || b == 0xf3 || b == 0x26 || b == 0x2e || b == 0x36 || b == 0x3e ||
-                   b == 0x64 || b == 0x65)) break;
-    }
-    char text[32];
-    std::string out = std::string(address ? "67" : "") + (operand ? "66" : "");
-    if (at >= length) return out + "??";
-    unsigned opcode = bytes[at];
-    bool group;
-    if (opcode == 0x0f && at + 1 < length) {
-        opcode = 0x0f00 | bytes[++at];
-        group = opcode == 0x0f00 || opcode == 0x0f01 || opcode == 0x0fba || opcode == 0x0fc7;
-        std::snprintf(text, sizeof text, "%04X", opcode);
-    } else {
-        group = (opcode >= 0x80 && opcode <= 0x83) || opcode == 0xc0 || opcode == 0xc1 ||
-                (opcode >= 0xd0 && opcode <= 0xd3) || (opcode >= 0xd8 && opcode <= 0xdf) || opcode == 0xf6 ||
-                opcode == 0xf7 || opcode == 0xfe || opcode == 0xff;
-        std::snprintf(text, sizeof text, "%02X", opcode);
-    }
-    out += text;
-    if (group && at + 1 < length) out += "." + std::to_string((bytes[at + 1] >> 3) & 7);
-    return out;
-}
 
 // The RTL's stops, by kind and stem, and the oracle's stretches.
 struct Gap {
@@ -1201,8 +1217,12 @@ struct Options {
     std::string wav, opl2_log, cpu = "oracle", census, profile, cpu_profile;
     double cpu_profile_every = 1.0, rtl_from = 0, rtl_for = -1;
     unsigned rtl_at_flip = 0;
+    bool rtl_at_prompt = false, keys_after_type = false, game_launch = false;
+    double frame_every = 0;
     double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03, profile_from = 0, profile_to = -1;
     unsigned preset = 0, frequency = 0, turbo = 0;  // --cpu rtl's governor settings
+    unsigned ems_pages = 128;
+    std::vector<std::pair<double, std::string>> boot_keys;
     std::vector<std::pair<double, std::string>> keys;
     struct Mouse { double at; int dx, dy, buttons; };
     std::vector<Mouse> mouse;
@@ -1306,11 +1326,21 @@ Options parse(int argc, char **argv) {
         else if (flag == "--rtl-from") options.rtl_from = std::stod(value);
         else if (flag == "--rtl-for") options.rtl_for = std::stod(value);
         else if (flag == "--rtl-at-flip") options.rtl_at_flip = unsigned(std::stoul(value));
+        else if (flag == "--rtl-at-prompt") options.rtl_at_prompt = std::stoul(value) != 0;
+        else if (flag == "--keys-after-type") options.keys_after_type = std::stoul(value) != 0;
+        else if (flag == "--frame-every") options.frame_every = std::stod(value);
+        else if (flag == "--game-launch") options.game_launch = std::stoul(value) != 0;
         else if (flag == "--profile-from") options.profile_from = std::stod(value);
         else if (flag == "--profile-to") options.profile_to = std::stod(value);
         else if (flag == "--preset") options.preset = unsigned(std::stoul(value));
         else if (flag == "--frequency") options.frequency = unsigned(std::stoul(value));
         else if (flag == "--turbo") options.turbo = unsigned(std::stoul(value));
+        else if (flag == "--ems-pages") options.ems_pages = unsigned(std::stoul(value));
+        else if (flag == "--boot-key") {
+            size_t colon = value.find(':');
+            if (colon == std::string::npos) throw std::runtime_error("--boot-key takes SECONDS:TEXT");
+            options.boot_keys.push_back({std::stod(value.substr(0, colon)), value.substr(colon + 1)});
+        }
         else if (flag == "--keys") {
             size_t colon = value.find(':');
             if (colon == std::string::npos) throw std::runtime_error("--keys takes SECONDS:TEXT");
@@ -1332,8 +1362,10 @@ Options parse(int argc, char **argv) {
     // With the RTL running, the oracle's steps are only its stops and stretches.
     if (!options.profile.empty() && options.cpu != "oracle") throw std::runtime_error("--profile needs --cpu oracle");
     if (options.cpu != "rtl" && (!options.cpu_profile.empty() || options.rtl_from > 0 || options.rtl_at_flip
-                                 || options.rtl_for >= 0))
-        throw std::runtime_error("--cpu-profile, --rtl-from, --rtl-at-flip and --rtl-for need --cpu rtl");
+                                 || options.rtl_at_prompt || options.rtl_for >= 0))
+        throw std::runtime_error("--cpu-profile, --rtl-from, --rtl-at-flip, --rtl-at-prompt and --rtl-for need --cpu rtl");
+    if (options.frame_every < 0) throw std::runtime_error("--frame-every takes a time of 0 (off) or above");
+    if (options.frame_every > 0 && options.frames.empty()) throw std::runtime_error("--frame-every needs --frames");
     if (options.cpu_profile_every <= 0) throw std::runtime_error("--cpu-profile-every takes a time above 0");
     for (char &c : options.type) if (c == '|') c = '\n';
     for (auto &key : options.keys) for (char &c : key.second) if (c == '|') c = '\n';
@@ -1352,7 +1384,7 @@ int main(int argc, char **argv) {
             || RtlCpu::physical(0x00100000u, true) != 0u)
             throw std::runtime_error("pc386 RTL physical address translation self-check failed");
         Options options = parse(argc, argv);
-        Machine machine(read_file(options.bios), read_file(options.vgabios), options.disk);
+        Machine machine(read_file(options.bios), read_file(options.vgabios), options.disk, options.ems_pages);
         if (!options.opl2_log.empty() && !(machine.opl2_log = std::fopen(options.opl2_log.c_str(), "w")))
             throw std::runtime_error("cannot write " + options.opl2_log);
         if (!options.trace.empty()) {
@@ -1387,7 +1419,7 @@ int main(int argc, char **argv) {
         FILE *cpu_prof_out = nullptr;
         uint64_t cpu_prof_next = 0;
         const uint64_t rtl_from = uint64_t(options.rtl_from * CLOCK_HZ);
-        const bool handover = rtl_from || options.rtl_at_flip;
+        const bool handover = rtl_from || options.rtl_at_flip || options.rtl_at_prompt;
         if (!options.cpu_profile.empty()) {
             cpu_prof_out = std::fopen(options.cpu_profile.c_str(), "w");
             if (!cpu_prof_out) throw std::runtime_error("cannot write " + options.cpu_profile);
@@ -1404,8 +1436,6 @@ int main(int argc, char **argv) {
         uint64_t oracle_steps = 0, protected_steps = 0, stretch_steps = 0, stretch_from = 0;
         std::string stretch_entry;
         std::set<std::string> notes;
-        std::map<std::string, uint64_t> census;
-        std::map<std::string, std::string> census_first;
         Profile profile;
         profile.from = uint64_t(options.profile_from * CLOCK_HZ);
         if (options.profile_to >= 0) profile.to = uint64_t(options.profile_to * CLOCK_HZ);
@@ -1420,6 +1450,11 @@ int main(int argc, char **argv) {
             uint8_t *page = machine.page(at, false);
             return page ? page[at & 0xfff] : uint8_t(0xff);
         };
+        pc386_census::Census census([&](uint32_t physical) {
+            const uint32_t at = RtlCpu::physical(physical, a20m);
+            uint8_t *page = machine.page(at, false);
+            return page ? page[at & 0xfff] : uint8_t(0xff);
+        });
         // An RTL stop: count it under its stem and hand the instruction at
         // CS:EIP, with the RTL's state, to the oracle.
         auto stop = [&](const char *kind) {
@@ -1430,7 +1465,7 @@ int main(int argc, char **argv) {
             for (unsigned n = 0; n < 15; ++n) bytes[n] = rtl->read8(RtlCpu::physical(linear + n, machine.top.a20m));
             fes_i386::Decoded decoded = oracle->decode(bytes, 15, s.seg[fes_i386::SEG_CS].ar & 0x4000);
             const unsigned length = decoded.complete ? decoded.length : 15;
-            const std::string key = stem(bytes, length);
+            const std::string key = pc386_census::stem(bytes, length);
             Gap &gap = gaps[{kind, key}];
             if (!gap.stops) { gap.first_cycle = machine.cycles; gap.first_site = site(s); }
             if (gap.stops++ < 3) {
@@ -1471,6 +1506,11 @@ int main(int argc, char **argv) {
         const char *reason = "limit";
         // After the prompt appears, wait for the screen to settle, then type.
         uint64_t prompt_at = 0, settled_at = 0;
+        // --keys times count from 0, or with --keys-after-type from when the last --type key is released.
+        uint64_t keys_base = options.keys_after_type ? UINT64_MAX : 0;
+        bool typing = false;
+        const uint64_t frame_step = uint64_t(options.frame_every * CLOCK_HZ);
+        uint64_t next_frame = frame_step;
         size_t typed = 0;
         std::deque<KeyChange> keys;
         uint64_t next_key = 0;
@@ -1480,9 +1520,25 @@ int main(int argc, char **argv) {
             return mouse_sent < options.mouse.size() &&
                    machine.cycles >= uint64_t(options.mouse[mouse_sent].at * CLOCK_HZ);
         };
-        size_t scheduled = 0;
+        size_t scheduled = 0, boot_scheduled = 0;
         std::string last_screen;
         uint64_t screen_checked = 0;
+        std::string game_prompt_screen, game_echo_screen, game_final_command;
+        pc386::Frame game_prompt_frame, game_input_frame;
+        bool game_prompt_captured = false, game_input_finished = false, game_echo_captured = false;
+        bool game_launch_reported = false;
+        uint64_t game_input_finished_at = 0, game_frame_checked_at = 0;
+        if (options.game_launch) {
+            size_t end = options.type.find_last_not_of('\n');
+            if (end != std::string::npos) {
+                size_t start = options.type.find_last_of('\n', end);
+                game_final_command = options.type.substr(start == std::string::npos ? 0 : start + 1,
+                    end - (start == std::string::npos ? 0 : start + 1) + 1);
+            }
+        }
+        auto is_prompt_row = [&options](const std::string &row) {
+            return pc386::prompt_matches(row, options.prompt, options.game_launch);
+        };
         // Snapshots: a marker, then the second capture and the second raster.
         std::string snap_name;
         unsigned snap_frames = 0, snap_rasters = 0;
@@ -1497,66 +1553,11 @@ int main(int argc, char **argv) {
                 const bool profiling = !options.profile.empty() && step_from >= profile.from && step_from < profile.to;
                 fes_i386::State before;
                 if (profiling || !options.census.empty()) before = oracle->get_state();
-                // The census: the stem at CS:EIP, counted if it retires.
-                std::string census_stem;
-                if (!options.census.empty()) {
-                    uint8_t bytes[15];
-                    const uint32_t linear = before.seg[fes_i386::SEG_CS].base + before.eip;
-                    for (unsigned n = 0; n < 15; ++n) bytes[n] = guest_byte(linear + n);
-                    census_stem = stem(bytes, 15);
-                    if (before.eflags & 0x20000) census_stem += ":v86";
-                    else if (before.cr0 & 1) census_stem += ":pm" + std::to_string(before.cpl);
-                    if (!census.count(census_stem)) census_first[census_stem] = site(before);
-                }
+                // The census (census.h): the stem at CS:EIP before the step,
+                // what the step did after it.
+                if (!options.census.empty()) census.begin(before, site(before));
                 fes_i386::StepResult result = oracle->step();
-                if (!census_stem.empty() && result.retired) ++census[census_stem];
-                if (!census_stem.empty() && (before.cr0 & 1)) {
-                    // Protected mode's use: each event with its gate and
-                    // the CPLs, each CPL change by its stem, and the
-                    // system state an instruction left changed.
-                    const fes_i386::State after = oracle->get_state();
-                    auto count = [&](const std::string &key) {
-                        if (!census.count(key)) census_first[key] = site(before);
-                        ++census[key];
-                    };
-                    auto hex = [](unsigned value, int digits) {
-                        char text[16];
-                        std::snprintf(text, sizeof text, "%0*x", digits, value);
-                        return std::string(text);
-                    };
-                    for (const fes_i386::Event &event : result.events) {
-                        static const char *kinds[] = {"exception", "intr", "nmi", "int"};
-                        std::string key = std::string("event:") + kinds[unsigned(event.kind)] + ':' +
-                                          std::to_string(event.vector);
-                        if (before.cr0 & 0x80000000u) {
-                            key += ":paged";
-                        } else {
-                            uint8_t gate[8] = {};
-                            const fes_i386::Table &idt = before.idtr;
-                            const uint32_t at = idt.base + event.vector * 8u;
-                            for (unsigned n = 0; n < 8; ++n) {
-                                uint8_t *page = machine.page(RtlCpu::physical(at + n, a20m), false);
-                                gate[n] = page ? page[(at + n) & 0xfff] : 0xff;
-                            }
-                            key += ":gate=" + hex(gate[5] & 0x1f, 2) + ":dpl=" + std::to_string((gate[5] >> 5) & 3) +
-                                   ":sel=" + hex(gate[2] | gate[3] << 8, 4);
-                        }
-                        if (event.kind == fes_i386::EventKind::Exception) key += ":err=" + hex(event.error_code, 4);
-                        key += ":cpl=" + std::to_string(before.cpl) + '>' + std::to_string(after.cpl);
-                        count(key);
-                    }
-                    if (after.cpl != before.cpl && result.events.empty())
-                        count("cpl:" + std::to_string(before.cpl) + '>' + std::to_string(after.cpl) + ':' +
-                              census_stem);
-                    if ((after.cr0 ^ before.cr0) & 0x80000000u) count("cr0.pg:" + census_stem);
-                    if (after.eflags & 0x20000) count("vm:" + census_stem);
-                    if (after.ldtr.selector != before.ldtr.selector)
-                        count("ldtr:" + hex(after.ldtr.selector, 4) + ':' + census_stem);
-                    if (after.tr.selector != before.tr.selector)
-                        count("tr:" + hex(after.tr.selector, 4) + ':' + census_stem);
-                    if ((after.eflags ^ before.eflags) & 0x3000)
-                        count("iopl:" + std::to_string((after.eflags >> 12) & 3) + ':' + census_stem);
-                }
+                if (!options.census.empty()) census.end(before, oracle->get_state(), result);
                 ++steps;
                 for (unsigned n = 0; n < options.cycles_per_instruction; ++n) machine.clock();
                 if (machine.cycles >= pixel_from) machine.start_pixel_clock();
@@ -1590,7 +1591,8 @@ int main(int argc, char **argv) {
                         stretch_from = machine.cycles;
                         stretch_entry = site(state);
                     }
-                    if (machine.cycles >= rtl_from && machine.flips >= options.rtl_at_flip && !(state.eflags & 0x20000)
+                    if (machine.cycles >= rtl_from && machine.flips >= options.rtl_at_flip &&
+                        (!options.rtl_at_prompt || prompt_at) && !(state.eflags & 0x20000)
                         && !(state.cr0 & 0x80000000u) && (!(state.cr0 & 1) || state.cpl == 0)) {
                         // The oracle's run before the handover is not the RTL's.
                         if (!rtl_begun) oracle_steps = protected_steps = stretch_steps = 0;
@@ -1685,9 +1687,26 @@ int main(int argc, char **argv) {
                 if (machine.cycles < pixel_from) machine.stop_pixel_clock();
             }
             if (finished && snap_name.empty()) { reason = "debug-marker"; break; }
+            if (frame_step && machine.cycles >= next_frame) {
+                if (machine.frames_done) {
+                    char name[32];
+                    std::snprintf(name, sizeof name, "/t%07.2f.ppm", double(next_frame) / CLOCK_HZ);
+                    pc386::write_ppm(options.frames + name, machine.captured());
+                }
+                next_frame += frame_step;
+            }
 
+            if (boot_scheduled < options.boot_keys.size() && keys.empty() &&
+                machine.cycles >= uint64_t(options.boot_keys[boot_scheduled].first * CLOCK_HZ)) {
+                for (auto [usage, shift] : taps(options.boot_keys[boot_scheduled].second)) {
+                    keys.push_back({usage, shift, true, uint64_t(0.2 * CLOCK_HZ)});
+                    keys.push_back({usage, shift, false, uint64_t(0.1 * CLOCK_HZ)});
+                }
+                next_key = machine.cycles;
+                ++boot_scheduled;
+            }
             if (scheduled < options.keys.size() && keys.empty() &&
-                machine.cycles >= uint64_t(options.keys[scheduled].first * CLOCK_HZ)) {
+                keys_base != UINT64_MAX && machine.cycles >= keys_base + uint64_t(options.keys[scheduled].first * CLOCK_HZ)) {
                 for (auto [usage, shift] : taps(options.keys[scheduled].second)) {
                     keys.push_back({usage, shift, true, uint64_t(0.2 * CLOCK_HZ)});
                     keys.push_back({usage, shift, false, uint64_t(0.1 * CLOCK_HZ)});
@@ -1703,6 +1722,12 @@ int main(int argc, char **argv) {
                 if (change.shift) set_key(machine.top.keyboard_rows, 0xe1, change.down);
                 next_key = machine.cycles + change.hold;
                 keys.pop_front();
+                if (typing && keys.empty()) { keys_base = machine.cycles; typing = false; }
+            }
+            if (options.game_launch && !game_input_finished && typed == options.type.size() && keys.empty()) {
+                game_input_finished = true;
+                game_input_finished_at = machine.cycles;
+                game_input_frame = machine.captured();
             }
             // Keep each scheduled packet pending until one ready handshake edge.
             if (mouse_pending || mouse_due()) {
@@ -1716,10 +1741,68 @@ int main(int argc, char **argv) {
                 std::string now = machine.screen();
                 if (!prompt_at && now.find(options.prompt) != std::string::npos) {
                     prompt_at = machine.cycles;
+                    if (options.game_launch && !game_prompt_captured) {
+                        game_prompt_screen = now;
+                        game_prompt_frame = machine.captured();
+                        game_prompt_captured = true;
+                    }
                     std::printf("PROMPT %llu\n", (unsigned long long)machine.cycles);
                 }
                 if (now != last_screen) { last_screen = now; settled_at = machine.cycles; }
                 bool settled = machine.cycles - settled_at >= uint64_t(0.5 * CLOCK_HZ);
+                if (options.game_launch && game_prompt_captured && game_input_finished && !game_launch_reported &&
+                    machine.cycles - game_input_finished_at >= uint64_t(0.2 * CLOCK_HZ)) {
+                    const std::string last = machine.last_row();
+                    const bool at_prompt = is_prompt_row(last);
+                    std::string upper_last = last, upper_command = game_final_command;
+                    std::transform(upper_last.begin(), upper_last.end(), upper_last.begin(),
+                                   [](unsigned char c) { return char(std::toupper(c)); });
+                    std::transform(upper_command.begin(), upper_command.end(), upper_command.begin(),
+                                   [](unsigned char c) { return char(std::toupper(c)); });
+                    const std::string echo_suffix = ">" + upper_command;
+                    const bool command_echo = upper_last.size() >= echo_suffix.size() &&
+                        upper_last.compare(upper_last.size() - echo_suffix.size(), echo_suffix.size(), echo_suffix) == 0;
+                    std::string upper = now;
+                    std::transform(upper.begin(), upper.end(), upper.begin(),
+                                   [](unsigned char c) { return char(std::toupper(c)); });
+                    const bool command_error = upper.find("BAD COMMAND OR FILENAME") != std::string::npos ||
+                                               upper.find("ILLEGAL COMMAND") != std::string::npos;
+                    if (!game_echo_captured) {
+                        game_echo_screen = now;
+                        game_echo_captured = true;
+                    }
+                    size_t prompt_text_changes = 0, echo_text_changes = 0;
+                    for (size_t n = 0; n < std::min(now.size(), game_prompt_screen.size()); ++n)
+                        prompt_text_changes += now[n] != game_prompt_screen[n];
+                    for (size_t n = 0; n < std::min(now.size(), game_echo_screen.size()); ++n)
+                        echo_text_changes += now[n] != game_echo_screen[n];
+                    const char *evidence = nullptr;
+                    if (!at_prompt && !command_error &&
+                        (echo_text_changes >= 8 || (!command_echo && prompt_text_changes >= 8)))
+                        evidence = "screen";
+                    if (!evidence && !at_prompt && !command_error &&
+                        machine.cycles - game_frame_checked_at >= uint64_t(0.5 * CLOCK_HZ)) {
+                        game_frame_checked_at = machine.cycles;
+                        const pc386::Frame frame = machine.captured();
+                        if (frame.width == game_prompt_frame.width && frame.height == game_prompt_frame.height &&
+                            frame.pixels.size() == game_prompt_frame.pixels.size() &&
+                            frame.pixels.size() == game_input_frame.pixels.size()) {
+                            size_t prompt_changes = 0, input_changes = 0;
+                            for (size_t n = 0; n < frame.pixels.size(); ++n) {
+                                prompt_changes += frame.pixels[n] != game_prompt_frame.pixels[n];
+                                input_changes += frame.pixels[n] != game_input_frame.pixels[n];
+                            }
+                            if (prompt_changes > std::max<size_t>(1024, frame.pixels.size() / 10) ||
+                                input_changes > std::max<size_t>(1024, frame.pixels.size() / 100))
+                                evidence = "frame";
+                        }
+                    }
+                    if (evidence) {
+                        game_launch_reported = true;
+                        std::printf("GAME-LAUNCH seconds=%.3f evidence=%s\n",
+                                    double(machine.cycles) / CLOCK_HZ, evidence);
+                    }
+                }
                 bool type_now = options.type_at >= 0 ? machine.cycles >= uint64_t(options.type_at * CLOCK_HZ)
                                                      : prompt_at && settled;
                 if (type_now && typed < options.type.size() && keys.empty()) {
@@ -1731,12 +1814,13 @@ int main(int argc, char **argv) {
                     }
                     typed = options.type.size();
                     next_key = machine.cycles;
+                    typing = options.keys_after_type;
                     settled_at = machine.cycles;
                 }
                 // Done when everything is typed and the prompt is back on the
                 // last line, waiting for input.
                 if (prompt_at && settled && typed == options.type.size() && keys.empty() &&
-                    machine.last_row() == options.prompt) {
+                    is_prompt_row(machine.last_row())) {
                     reason = "prompt";
                     break;
                 }
@@ -1748,7 +1832,7 @@ int main(int argc, char **argv) {
         double seconds = double(machine.cycles) / CLOCK_HZ;
         if (!options.census.empty()) {
             std::ofstream out(options.census);
-            for (const auto &[key, count] : census) out << key << ' ' << count << ' ' << census_first[key] << '\n';
+            census.write(out);
             if (!out) throw std::runtime_error("cannot write " + options.census);
         }
         if (!options.profile.empty() && !profile.written) profile.write(options.profile, machine.cycles);
@@ -1814,6 +1898,8 @@ int main(int argc, char **argv) {
         if (snap_failures) reason = "presenter-mismatch";
         if (!options.wav.empty()) write_wav(options.wav, machine.link.samples);
         std::printf("MOUSE sent=%zu scheduled=%zu\n", mouse_sent, options.mouse.size());
+        std::printf("EMS pages=%u reads=%llu writes=%llu\n", machine.ems_pages,
+                    (unsigned long long)machine.ems_reads, (unsigned long long)machine.ems_writes);
         std::printf("END %s steps=%llu cycles=%llu seconds=%.3f\n", reason, steps,
                     (unsigned long long)machine.cycles, seconds);
         if (!options.disk_out.empty())

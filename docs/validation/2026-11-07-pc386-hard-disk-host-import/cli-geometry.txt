@@ -1,0 +1,12 @@
+== 40/16/63
+{"game_id":"fpga-hd1541-cli-bench-03ef900dce90","title":"HD1541 CLI bench","core_id":"fes.pc386","package_id":"c89d6b0ce9e8174aee3060e083393b58a59194a9714fb9b4caecfb420cb1b433","media_id":"90f9b17550cace11fc2e2a875c45f9baf1e6f49cdbca3f73abca1df0077b06d8","media_role":"hard-disk","disk_geometry":{"cylinders":40,"heads":16,"sectors_per_track":63}}
+rc=0
+== 81/16/63
+{"error":{"code":"BAD_REQUEST","message":"FogCast request is invalid"}}
+rc=1
+== infer
+{"game_id":"fpga-hd1541-cli-bench-03ef900dce90","title":"HD1541 CLI bench","core_id":"fes.pc386","package_id":"c89d6b0ce9e8174aee3060e083393b58a59194a9714fb9b4caecfb420cb1b433","media_id":"90f9b17550cace11fc2e2a875c45f9baf1e6f49cdbca3f73abca1df0077b06d8","media_role":"hard-disk"}
+rc=0
+== 80/16/63
+{"game_id":"fpga-hd1541-cli-bench-03ef900dce90","title":"HD1541 CLI bench","core_id":"fes.pc386","package_id":"c89d6b0ce9e8174aee3060e083393b58a59194a9714fb9b4caecfb420cb1b433","media_id":"90f9b17550cace11fc2e2a875c45f9baf1e6f49cdbca3f73abca1df0077b06d8","media_role":"hard-disk","disk_geometry":{"cylinders":80,"heads":16,"sectors_per_track":63}}
+rc=0

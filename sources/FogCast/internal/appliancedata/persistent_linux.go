@@ -27,16 +27,6 @@ func CheckPersistent(path string) error {
 	if path != mount && !strings.HasPrefix(path, mount+string(filepath.Separator)) {
 		return errors.New("appliance data: persistent path is outside FESDATA3")
 	}
-	if err := realDirectory(mount); err != nil {
-		return err
-	}
-	var filesystem unix.Statfs_t
-	if err := unix.Statfs(mount, &filesystem); err != nil {
-		return err
-	}
-	if filesystem.Type != unix.EXT4_SUPER_MAGIC || filesystem.Flags&unix.ST_RDONLY != 0 {
-		return errors.New("appliance data: FESDATA3 must be a writable ext4 filesystem")
-	}
 	devicePath, ok := SelectedDevice(Config{})
 	if !ok {
 		return errors.New("appliance data: FESDATA3 block device is absent")
@@ -44,25 +34,12 @@ func CheckPersistent(path string) error {
 	if err := blockprobe.RejectsDevice("/sys", devicePath); err != nil {
 		return fmt.Errorf("appliance data: %w", err)
 	}
-	var mounted, device unix.Stat_t
+	if err := verifyMountedVolume(devicePath, mount, "/proc/self/mountinfo"); err != nil {
+		return err
+	}
+	var mounted unix.Stat_t
 	if err := unix.Stat(mount, &mounted); err != nil {
 		return err
-	}
-	// Stat follows /dev/disk/by-label/FESDATA3. The mounted device number is
-	// compared with that labelled partition's block device.
-	if err := unix.Stat(devicePath, &device); err != nil {
-		return fmt.Errorf("appliance data: verify persistent device: %w", err)
-	}
-	if device.Mode&unix.S_IFMT != unix.S_IFBLK || uint64(mounted.Dev) != uint64(device.Rdev) {
-		return errors.New("appliance data: FESDATA3 is not mounted from the expected device")
-	}
-	data, err := os.ReadFile("/proc/self/mountinfo")
-	if err != nil {
-		return err
-	}
-	deviceID := fmt.Sprintf("%d:%d", unix.Major(uint64(device.Rdev)), unix.Minor(uint64(device.Rdev)))
-	if !persistentMount(string(data), mount, deviceID) {
-		return errors.New("appliance data: FESDATA3 writable ext4 volume mount is missing")
 	}
 	// Reject a symlink or a nested mount redirecting path to another
 	// filesystem. Components that do not exist yet are created later by the
@@ -88,6 +65,43 @@ func CheckPersistent(path string) error {
 		if inside.Dev != mounted.Dev {
 			return errors.New("appliance data: persistent path is outside FESDATA3")
 		}
+	}
+	return nil
+}
+
+// verifyMountedVolume checks an already-mounted mountpoint against both the
+// selected block device and mountinfo. A mountpoint beneath /run can exist on
+// tmpfs even when FESDATA3 itself was deliberately not mounted yet.
+func verifyMountedVolume(devicePath, mount, mountInfo string) error {
+	if err := realDirectory(mount); err != nil {
+		return err
+	}
+	var filesystem unix.Statfs_t
+	if err := unix.Statfs(mount, &filesystem); err != nil {
+		return err
+	}
+	if filesystem.Type != unix.EXT4_SUPER_MAGIC || filesystem.Flags&unix.ST_RDONLY != 0 {
+		return errors.New("appliance data: FESDATA3 must be a writable ext4 filesystem")
+	}
+	// Stat follows /dev/disk/by-label/FESDATA3. Its device number must match
+	// the filesystem mounted at the requested target.
+	var mounted, device unix.Stat_t
+	if err := unix.Stat(mount, &mounted); err != nil {
+		return err
+	}
+	if err := unix.Stat(devicePath, &device); err != nil {
+		return fmt.Errorf("appliance data: verify persistent device: %w", err)
+	}
+	if device.Mode&unix.S_IFMT != unix.S_IFBLK || uint64(mounted.Dev) != uint64(device.Rdev) {
+		return errors.New("appliance data: FESDATA3 is not mounted from the expected device")
+	}
+	data, err := os.ReadFile(mountInfo)
+	if err != nil {
+		return err
+	}
+	deviceID := fmt.Sprintf("%d:%d", unix.Major(uint64(device.Rdev)), unix.Minor(uint64(device.Rdev)))
+	if !persistentMount(string(data), mount, deviceID) {
+		return errors.New("appliance data: FESDATA3 writable ext4 volume mount is missing")
 	}
 	return nil
 }
