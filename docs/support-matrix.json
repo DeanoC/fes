@@ -85,7 +85,7 @@
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-device` only; the authenticated toolchain sets the backend (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
       "features": "Media: none. Input: none in the package interfaces. HDMI: fixed 720p60 menu display and blitter over HPS DDR (`fes.video.menu-display`, `fes.video.menu-blitter`). Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Bootstrap image display firmware, not a playable core. The only `fpga_packages` row in `profiles/native-integration-dev.toml`. Lock nextpnr `1eecf877`. `docs/core-alignment.md` still groups menu with repository-level nextpnr `9128800f`; this matrix follows the lock file.",
+      "notes": "Bootstrap image display firmware, not a playable core. The only `fpga_packages` row in `profiles/native-integration-dev.toml`. Lock nextpnr `1eecf877`.",
       "evidence": [
         "config/core-recipes.toml",
         "config/core-library.toml",

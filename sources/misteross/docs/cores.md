@@ -280,12 +280,14 @@ path.
 Each registered package authenticates the lock named by its `lock_path` in
 `config/core-recipes.toml`. A lock can move to another nextpnr that
 `scripts/pnr_recipe.py` classifies; that core then gets its own slot. Pong's
-lock has moved to nextpnr `552ba246`, ZX81's to `1eecf877` and RISC-V's to
-`8f453ebc`, and Coleco's pins Yosys `5391eeb1`, so each has its own slot.
-Apple II, Atari ST, C64, Coleco and Spectrum have moved to nextpnr `5fe55f3d`
-for its F0/F1 boundary `$ROUTETHRU` map; the Apple II, C64 and Spectrum locks
-are identical and share one slot, and the Atari ST lock has its own. The other
-five per-core lock files still contain the same bytes as `toolchain.lock` and
+lock pins nextpnr `552ba246`, Menu's and ZX81's pin `1eecf877` (Menu moved
+when its blitter took DSP multipliers), RISC-V's pins `8f453ebc`, and
+Coleco's pins Yosys `5391eeb1` with nextpnr `bec82e36`; each has its own slot.
+Apple II and C64 pin nextpnr `5fe55f3d` for its F0/F1 boundary `$ROUTETHRU`
+map (#1007); their locks are identical and share one slot. Atari ST pins
+`5fe55f3d` (#910) in its own slot, and Spectrum pins nextpnr main `bd7a1c0d`
+(#1001, which contains #276 as merged) in its own slot. The other four
+per-core lock files still contain the same bytes as `toolchain.lock` and
 therefore share one cached compiler slot. Use the
 matching `make toolchain-fes-<core>` target to provision a local toolchain.
 The unregistered demos and splash continue to select the repository-level
