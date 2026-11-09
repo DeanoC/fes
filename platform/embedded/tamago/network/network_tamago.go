@@ -68,6 +68,9 @@ func OpenDevice(ctx context.Context, address, gateway string, factory func() (De
 		if err := iface.Err(); err != nil {
 			return nil, err
 		}
+		if err := iface.bridge.Available(); err != nil {
+			return nil, err
+		}
 		return stack.Socket(ctx, network, family, sotype, laddr, raddr)
 	}
 	go func() {
@@ -83,6 +86,18 @@ func OpenDevice(ctx context.Context, address, gateway string, factory func() (De
 func (i *Interface) Address() string   { return i.config.Address }
 func (i *Interface) MAC() string       { return i.device.MAC() }
 func (i *Interface) Statistics() Stats { return i.device.Statistics() }
+
+// BindControl requires a trusted platform supplier and binds once. Ordinary
+// OpenDevice and cancellation provide no DMA-drain capability themselves.
+func (i *Interface) BindControl(dma DMAControl) (*Controller, error) {
+	if i == nil || i.bridge == nil {
+		return nil, ErrControl
+	}
+	if err := i.Err(); err != nil {
+		return nil, err
+	}
+	return NewController(i.bridge, dma)
+}
 
 // Err reports cancellation or the first fatal driver error. Existing socket
 // operations still need deadlines; new sockets fail immediately after Err.

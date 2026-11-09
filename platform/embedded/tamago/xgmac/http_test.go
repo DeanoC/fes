@@ -4,6 +4,7 @@ package xgmac
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -128,5 +129,57 @@ func TestHTTPThroughDMAAndIPStack(t *testing.T) {
 	stats := device.Statistics()
 	if stats.Received <= ringSize || stats.Transmitted < 2 || device.Err() != nil {
 		t.Fatalf("packet path: %+v err=%v", stats, device.Err())
+	}
+	// Model-only platform stop/restart. The software gate must finish every
+	// driver call before these hooks touch the synchronous register model.
+	// This supplier cannot qualify physical DMA or establish firmware authority.
+	stops, starts := 0, 0
+	control, err := network.NewController(clientIface, network.DMAControl{
+		Stop: func(context.Context) error {
+			stops++
+			for _, reg := range []uint32{txConfig, rxConfig, txControl, rxControl} {
+				h.Write32(reg, h.Read32(reg)&^1)
+			}
+			return nil
+		},
+		Start: func(context.Context) error {
+			starts++
+			for _, reg := range []uint32{txControl, rxControl, txConfig, rxConfig} {
+				h.Write32(reg, h.Read32(reg)|1)
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for cycle := 0; cycle < 3; cycle++ {
+		if err = control.PauseNetwork(ctx); err != nil {
+			t.Fatal(err)
+		}
+		accesses, writes := h.accesses, h.mem.writes
+		if err = control.PauseNetwork(ctx); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(time.Millisecond)
+		if h.accesses != accesses || h.mem.writes != writes || !errors.Is(clientIface.Available(), network.ErrPaused) {
+			t.Fatal("traffic touched stopped DMA")
+		}
+		if err = control.ResumeNetwork(ctx); err != nil {
+			t.Fatal(err)
+		}
+		request, _ = http.NewRequestWithContext(ctx, http.MethodGet, "http://192.0.2.1:8081/catalog", nil)
+		response, err = client.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err = io.ReadAll(response.Body)
+		closeErr := response.Body.Close()
+		if err != nil || closeErr != nil || response.StatusCode != 200 || !bytes.Equal(body, payload) {
+			t.Fatal("HTTP did not survive pause/resume", err, closeErr)
+		}
+	}
+	if stops != 3 || starts != 3 {
+		t.Fatal(stops, starts)
 	}
 }

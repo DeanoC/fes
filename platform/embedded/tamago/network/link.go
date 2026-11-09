@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"runtime"
+	"sync"
 	"sync/atomic"
 
 	gnet "github.com/usbarmory/go-net"
@@ -17,9 +18,17 @@ type linkFailure struct{ err error }
 // Link connects the pinned Lneto IP stack to Ethernet. It installs the TX callback
 // before Configure starts stack workers. One receive owner calls Start.
 type Link struct {
-	stack   gnet.Stack
-	device  gnet.NetworkDevice
+	stack  gnet.Stack
+	device gnet.NetworkDevice
+	state  *linkState
+}
+
+// Handles may be copied; all mutable ownership remains in this private object.
+type linkState struct {
 	failure atomic.Pointer[linkFailure]
+	io      sync.RWMutex
+	paused  atomic.Bool
+	claimed atomic.Bool
 }
 
 func NewLink(stack *gnet.LnetoStack, device gnet.NetworkDevice, address, mac, gateway string) (*Link, error) {
@@ -41,7 +50,7 @@ func NewLink(stack *gnet.LnetoStack, device gnet.NetworkDevice, address, mac, ga
 		}
 		gw = netip.MustParseAddr(gateway)
 	}
-	link := &Link{stack: stack, device: device}
+	link := &Link{stack: stack, device: device, state: &linkState{}}
 	stack.SetWriteNotify(link.transmit)
 	if err = stack.Configure(hardware, prefix, gw); err != nil {
 		return nil, err
@@ -49,16 +58,23 @@ func NewLink(stack *gnet.LnetoStack, device gnet.NetworkDevice, address, mac, ga
 	return link, nil
 }
 func (l *Link) Err() error {
-	if failure := l.failure.Load(); failure != nil {
+	if l == nil || l.state == nil {
+		return ErrControl
+	}
+	if failure := l.state.failure.Load(); failure != nil {
 		return failure.err
+	}
+	if device, ok := l.device.(interface{ Err() error }); ok {
+		return device.Err()
 	}
 	return nil
 }
-func (l *Link) fail(err error) { l.failure.CompareAndSwap(nil, &linkFailure{err: err}) }
+func (l *Link) fail(err error) { l.state.failure.CompareAndSwap(nil, &linkFailure{err: err}) }
 func (l *Link) transmit(buf []byte) {
-	if l.Err() != nil {
+	if !l.enter() {
 		return
 	}
+	defer l.state.io.RUnlock()
 	if len(buf) == 0 {
 		buf = make([]byte, 1518)
 	}
@@ -89,7 +105,12 @@ func (l *Link) Start(ctx context.Context) error {
 		if err := l.Err(); err != nil {
 			return err
 		}
+		if !l.enter() {
+			runtime.Gosched()
+			continue
+		}
 		n, err := l.device.Receive(buf)
+		l.state.io.RUnlock()
 		if err != nil {
 			l.fail(err)
 			return err

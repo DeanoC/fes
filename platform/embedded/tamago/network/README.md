@@ -50,6 +50,27 @@ Recovery currently means rebooting the image. The shared `Link` installs its
 TX callback before starting Lneto workers and stops callback work on cancellation
 or a device failure. Cancellation is not a DMA fence.
 
+`Interface.BindControl(DMAControl{Stop: ..., Start: ...})` can bind one explicit
+trusted platform supplier to the same link. `Controller.PauseNetwork` closes
+the traffic gate, waits for all in-flight driver Receive/Transmit calls, then
+asks that supplier to stop the device and independently prove DMA/transactions
+drained. `ResumeNetwork` reopens traffic only after the paired platform restart.
+Both phases are bounded to five seconds and callbacks must honor cancellation.
+Repeated pause while already closed makes no hardware call. Failed or cancelled
+control stays gated and cannot be replaced or replayed, including through copied
+handles. Existing TCP sockets and the global provider remain attached; pending
+operations keep their application deadlines, and new socket calls reject while
+paused. This does not promise sockets survive a long FPGA configuration.
+
+The gate alone supplies no DMA fence. There is no default supplier, no buffer
+free or descriptor reallocation, and no automatic recovery. The current Nano
+profile has no qualified NIC lease/drain supplier and still disables Ethernet.
+Before enabling it for core loads, the runtime must apply the qualified control
+to every FPGA lifecycle path, including presentation failures and final shutdown.
+The model test exchanges actual HTTP through XGMAC descriptors and the IP stack
+across three short pause/resume cycles; its model-only callbacks are not firmware
+or physical DMA proof.
+
 This prototype supports IPv4 TCP with static addressing and a 1500-byte MTU.
 It enables neither checksum/segmentation offloads nor merged receive buffers.
 The Lneto configuration limits active TCP ports to 16 and listener connections

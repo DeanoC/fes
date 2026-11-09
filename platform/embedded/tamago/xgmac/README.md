@@ -28,6 +28,11 @@ Failure stops new MAC/DMA activity as a best effort, but clearing start bits is
 those bits clear. Neither service cancellation nor a failed startup permits
 reinitialization, buffer reclamation or a new network/socket provider. Runtime
 FPGA ownership transitions must account for this lifetime before physical launch.
+The shared [network controller](../network/README.md) now gates software traffic
+and waits for active driver calls before invoking explicit platform stop/drain
+and restart callbacks. Descriptor/IP-stack tests cover repeated HTTP across
+short modeled pauses. No qualified Nano callback supplier is bound, and clearing
+XGMAC start bits remains insufficient evidence of DMA containment.
 
 ## Explicit firmware profile
 
