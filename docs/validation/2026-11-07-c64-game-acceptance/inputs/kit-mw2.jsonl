@@ -1,0 +1,89 @@
+{"op": "launch", "game": "mw4", "disk": "mw4a"}
+{"op": "session"}
+{"op": "audio_start", "name": "r1-audio"}
+{"op": "sleep", "s": 5}
+{"op": "grab", "name": "r1-00-basic"}
+{"op": "type", "text": "load\"*\",8,1\n"}
+{"op": "sleep", "s": 15}
+{"op": "type", "text": "run\n"}
+{"op": "sleep", "s": 25}
+{"op": "grab", "name": "r1-01-config"}
+{"op": "joy", "port": 2, "dirs": "U", "n": 3, "hold": 0.2, "gap": 0.3}
+{"op": "joy", "port": 2, "dirs": "F", "hold": 0.2}
+{"op": "sleep", "s": 1}
+{"op": "grab", "name": "r1-02-fastloader-on"}
+{"op": "joy", "port": 2, "dirs": "D", "n": 3, "hold": 0.2, "gap": 0.3}
+{"op": "joy", "port": 2, "dirs": "F", "hold": 0.2}
+{"op": "sleep", "s": 30}
+{"op": "grab", "name": "r1-03-picture"}
+{"op": "sleep", "s": 70}
+{"op": "grab", "name": "r1-04-side2-prompt"}
+{"op": "live", "disk": "mw4b"}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "r1-05-swapped"}
+{"op": "joy", "port": 2, "dirs": "F", "hold": 0.3}
+{"op": "sleep", "s": 40}
+{"op": "grab", "name": "r1-06-title"}
+{"op": "joy", "port": 2, "dirs": "F", "hold": 0.3}
+{"op": "sleep", "s": 8}
+{"op": "joy", "port": 2, "dirs": "F", "hold": 0.3}
+{"op": "sleep", "s": 8}
+{"op": "grab", "name": "r1-07-difficulty"}
+{"op": "joy", "port": 2, "dirs": "F", "hold": 0.3}
+{"op": "sleep", "s": 90}
+{"op": "grab", "name": "r1-08-ingame"}
+{"op": "wander", "port": 2, "seconds": 600, "seed": 31, "grab_every": 30, "prefix": "r1-p"}
+{"op": "grab", "name": "r1-09-end"}
+{"op": "audio_stop"}
+{"op": "video_start", "name": "r1-video", "seconds": 20}
+{"op": "video_stop"}
+{"op": "live_clear"}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "r1-10-ejected"}
+{"op": "session"}
+{"op": "session"}
+{"op": "stop"}
+{"op": "sleep", "s": 8}
+{"op": "launch", "game": "mw4", "disk": "mw4a"}
+{"op": "session"}
+{"op": "audio_start", "name": "r2-audio"}
+{"op": "sleep", "s": 5}
+{"op": "grab", "name": "r2-00-basic"}
+{"op": "type", "text": "load\"*\",8,1\n"}
+{"op": "sleep", "s": 15}
+{"op": "type", "text": "run\n"}
+{"op": "sleep", "s": 25}
+{"op": "grab", "name": "r2-01-config"}
+{"op": "joy", "port": 2, "dirs": "U", "n": 3, "hold": 0.2, "gap": 0.3}
+{"op": "joy", "port": 2, "dirs": "F", "hold": 0.2}
+{"op": "sleep", "s": 1}
+{"op": "grab", "name": "r2-02-fastloader-on"}
+{"op": "joy", "port": 2, "dirs": "D", "n": 3, "hold": 0.2, "gap": 0.3}
+{"op": "joy", "port": 2, "dirs": "F", "hold": 0.2}
+{"op": "sleep", "s": 30}
+{"op": "grab", "name": "r2-03-picture"}
+{"op": "sleep", "s": 70}
+{"op": "grab", "name": "r2-04-side2-prompt"}
+{"op": "live", "disk": "mw4b"}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "r2-05-swapped"}
+{"op": "joy", "port": 2, "dirs": "F", "hold": 0.3}
+{"op": "sleep", "s": 40}
+{"op": "grab", "name": "r2-06-title"}
+{"op": "joy", "port": 2, "dirs": "F", "hold": 0.3}
+{"op": "sleep", "s": 8}
+{"op": "joy", "port": 2, "dirs": "F", "hold": 0.3}
+{"op": "sleep", "s": 8}
+{"op": "grab", "name": "r2-07-difficulty"}
+{"op": "joy", "port": 2, "dirs": "F", "hold": 0.3}
+{"op": "sleep", "s": 90}
+{"op": "grab", "name": "r2-08-ingame"}
+{"op": "wander", "port": 2, "seconds": 600, "seed": 31, "grab_every": 30, "prefix": "r2-p"}
+{"op": "grab", "name": "r2-09-end"}
+{"op": "audio_stop"}
+{"op": "video_start", "name": "r2-video", "seconds": 20}
+{"op": "video_stop"}
+{"op": "session"}
+{"op": "stop"}
+{"op": "sleep", "s": 8}
+{"op": "quit"}

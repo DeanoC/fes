@@ -139,6 +139,7 @@ help:
 		"  c64-diagnostic  Generate the open C64 firmware, font and synthetic D64" \
 		"  sim-fes-c64-session  Check actual C64 VIC raster and the shared DDR session plane" \
 		"  sim-fes-c64  Boot the open C64 diagnostic: cartridges, keyboard, joystick and D64" \
+		"  sim-fes-c64-joyports  Check that each C64 joystick port reads only its own gamepad player" \
 		"  sim-fes-c64-sid  Check digital SID state and staged MOS6581 audio" \
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
@@ -1469,6 +1470,16 @@ sim-fes-c64-ready: c64-diagnostic
 		"$(CURDIR)/cores/fes-c64/sim/ready_tb.cpp"
 	@build/sim/fes-c64-ready/Vready_sim_top "$(CURDIR)/build/sim/fes-c64-ready/firmware.hex"
 
+.PHONY: sim-fes-c64-joyports
+sim-fes-c64-joyports: c64-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-joyports
+	$(VERILATOR) --cc --exe --build -O2 --top-module joyports_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-joyports" \
+		cores/fes-c64/sim/joyports_sim_top.sv $(C64_RTL) \
+		"$(CURDIR)/cores/fes-c64/sim/joyports_tb.cpp"
+	@build/sim/fes-c64-joyports/Vjoyports_sim_top "$(CURDIR)/build/sim/fes-c64-joyports/firmware.hex"
+
 .PHONY: sim-fes-c64-push
 sim-fes-c64-push: c64-diagnostic
 	$(require_local_sim)
@@ -1653,7 +1664,7 @@ sim-fes-c64-frame:
 sim-fes-c64-cpu-group: sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-axs sim-fes-c64-axs-oracle sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-nmi sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-cadence
 sim-fes-c64-video-a-group: sim-fes-c64-d021 sim-fes-c64-ba-timing sim-fes-c64-vic-timing sim-fes-c64-sprite-pal sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes
 sim-fes-c64-video-b-group: sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback sim-fes-c64-vic sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-fetch sim-fes-c64-frame
-sim-fes-c64-system-group: sim-fes-c64-session sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sid c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rom sim-fes-c64-machine
+sim-fes-c64-system-group: sim-fes-c64-session sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sid c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-joyports sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rom sim-fes-c64-machine
 sim-fes-c64: sim-fes-c64-cpu-group sim-fes-c64-video-a-group sim-fes-c64-video-b-group sim-fes-c64-system-group
 sim-fes-c64-machine: c64-diagnostic
 	$(require_local_sim)
