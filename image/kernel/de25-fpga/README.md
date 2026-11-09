@@ -47,6 +47,8 @@ python3 image/kernel/de25-fpga/verify_write.py \
 python3 image/kernel/de25-fpga/verify_retention.py \
   --source /absolute/pinned-linux/drivers/fpga/stratix10-soc.c \
   --output /absolute/new-retention-proof
+python3 image/kernel/de25-fpga/verify_containment.py \
+  --source-root /absolute/pinned-linux --output /absolute/new-containment-proof
 ```
 
 Each runner authenticates the complete original file, the platform patch and the
@@ -81,6 +83,23 @@ blocking, physical failure fencing and reboot after uncertainty remain open.
 Do not unload, recycle buffers, retry configuration or use reboot as a drain
 merely because a patched polling function returns. Failed physical transfer
 injection needs an independently verified hardware recovery/fence first.
+
+The default-off `FES_DE25_SDM_CONTAINMENT` candidate adds a checked SID10 abort
+request to the manager's error path. Write/lifecycle proofs exercise successful
+and failed block replies, preserve programming errno and locked buffers, and
+check both containment-disabled and platform-disabled behavior. The controller
+model executes actual request/free/block bodies with pthread locks, including
+25 concurrent request pairs, in-flight/final result caching and admission/free
+refusal. The SMMU model executes the actual validation, checked command-status
+handling and permanent STE-reopen guard in 23 boundary cases. Kernel types,
+group/ASID locking, entry-update steps and command completions are injected;
+these are not kernel or physical fence executions.
+
+The containment verifier authenticates the complete supplier profile before
+extracting bodies. Optional `--cc`, `--qemu` and `--sysroot` arguments support
+AArch64 CPU-model execution. It never patches the input tree or accesses a kit.
+Its checked result gives no reset, memory-reuse, retry or physical-failure-test
+authority. A stalled secure call may prevent Linux from running the hook.
 
 The older standalone bounded-claim patch and source manifest have been removed;
 the platform patch is the sole active source of this algorithm and its guard.

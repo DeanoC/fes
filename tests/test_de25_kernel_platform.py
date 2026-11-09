@@ -83,6 +83,46 @@ class KernelPlatformTests(unittest.TestCase):
             # This is a private failed output, not a transaction on shared source.
             self.assertEqual((kernel / 'supplier.c').read_text(), after)
 
+    def test_new_supplier_file_requires_absence_before_any_patch(self):
+        for collision in (None, 'file', 'symlink'):
+            with self.subTest(collision=collision), tempfile.TemporaryDirectory() as temp:
+                kernel, profile, record, before, _ = self.fixture(Path(temp))
+                patch = profile / 'permanent-suppliers.patch'
+                patch.write_text(patch.read_text() + ''.join(difflib.unified_diff(
+                    [], ['new header\n'], fromfile='/dev/null', tofile='b/new.h')))
+                record['patch_sha256'] = sha(patch.read_text())
+                record['files']['new.h'] = {'before_sha256': None,
+                                             'after_sha256': sha('new header\n')}
+                (profile / 'source.json').write_text(json.dumps(record))
+                if collision == 'file':
+                    (kernel / 'new.h').write_text('foreign file\n')
+                elif collision == 'symlink':
+                    (kernel / 'new.h').symlink_to(kernel / 'missing')
+                if collision:
+                    with self.assertRaisesRegex(ValueError, 'supplier input differs: new.h'):
+                        platform.apply_profile(kernel, profile)
+                    self.assertEqual((kernel / 'supplier.c').read_text(), before)
+                else:
+                    platform.apply_profile(kernel, profile)
+                    self.assertEqual((kernel / 'new.h').read_text(), 'new header\n')
+
+    def test_containment_is_explicit_and_bound_to_actual_configuration(self):
+        text = ''.join('CONFIG_'+n+'=y\n' for n in platform.ENABLED)
+        text += 'CONFIG_LOCALVERSION="-fes-de25-owner"\n'
+        enabled = text + 'CONFIG_FES_DE25_SDM_CONTAINMENT=y\n'
+        platform.verify_config(text)
+        platform.verify_config(enabled, sdm_containment=True)
+        for data, mode in ((enabled, False), (text, True),
+                           (enabled.replace('CONTAINMENT=y', 'CONTAINMENT=m'), True),
+                           (enabled+'CONFIG_FES_DE25_SDM_CONTAINMENT=y\n', True)):
+            with self.subTest(mode=mode), self.assertRaisesRegex(ValueError, 'SDM containment'):
+                platform.verify_config(data, sdm_containment=mode)
+        self.assertFalse(platform.containment_mode({}))
+        self.assertTrue(platform.containment_mode({'sdm_containment_enabled': True}))
+        for value in (1, 'true', None):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                platform.containment_mode({'sdm_containment_enabled': value})
+
     def test_modular_owner_or_test_hooks_cannot_pass_config_verification(self):
         text = ''.join('CONFIG_' + n + '=y\n' for n in platform.ENABLED)
         text += ''.join('# CONFIG_' + n + ' is not set\n' for n in platform.DISABLED)

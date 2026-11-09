@@ -103,11 +103,13 @@ class CandidateArchiveTests(unittest.TestCase):
 
 
 class KernelIdentityTests(unittest.TestCase):
-    def candidate(self, root, enabled):
+    def candidate(self, root, enabled, containment=False):
         configuration = ''.join('CONFIG_'+n+'=y\n' for n in owner.kernel.ENABLED)
         configuration += 'CONFIG_LOCALVERSION="-fes-de25-owner"\n'
         if enabled:
             configuration += 'CONFIG_FES_DE25_STATIC_EXPANSION=y\n'
+        if containment:
+            configuration += 'CONFIG_FES_DE25_SDM_CONTAINMENT=y\n'
         image = bytearray(256)
         image[56:60] = b'ARMd'
         image[128:144] = bytes(range(16))
@@ -122,7 +124,8 @@ class KernelIdentityTests(unittest.TestCase):
                   'fes_revision': 'a'*40,
                   'suppliers': json.loads((owner.ROOT/owner.PROFILE/'source.json').read_text()),
                   'files': {name: {'sha256': hashlib.sha256(data).hexdigest(), 'size': len(data)}
-                            for name, data in values.items()}, 'static_expansion_enabled': enabled}
+                            for name, data in values.items()}, 'static_expansion_enabled': enabled,
+                  'sdm_containment_enabled': containment}
         if enabled:
             record['static_expansion_contract'] = owner.kernel.STATIC_CONTRACT
         self.save_candidate(root, record)
@@ -154,6 +157,17 @@ class KernelIdentityTests(unittest.TestCase):
             self.save_candidate(root, record)
             with self.assertRaisesRegex(ValueError, 'actual kernel Image'):
                 owner.selected_kernel(root)
+
+    def test_containment_mode_must_match_the_embedded_configuration(self):
+        for containment in (False, True):
+            with self.subTest(containment=containment), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                record = self.candidate(root, False, containment)
+                self.assertEqual(owner.kernel.containment_mode(owner.selected_kernel(root)), containment)
+                record['sdm_containment_enabled'] = not containment
+                self.save_candidate(root, record)
+                with self.assertRaisesRegex(ValueError, 'SDM containment'):
+                    owner.selected_kernel(root)
 
     def test_notes_bind_the_linked_range_and_refuse_ambiguous_or_invalid_inputs(self):
         import hashlib

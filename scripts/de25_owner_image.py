@@ -102,7 +102,7 @@ def selected_kernel(directory):
         boot.check_payload(directory / name, row)
     enabled = kernel.static_expansion_mode(record)
     configuration = (directory / 'kernel.config').read_bytes()
-    kernel.verify_config(configuration.decode(), enabled)
+    kernel.verify_config(configuration.decode(), enabled, kernel.containment_mode(record))
     if dep.config_from_image((directory / 'Image').read_bytes()) != configuration:
         raise ValueError('candidate configuration differs from actual kernel Image')
     profile = json.loads((ROOT / PROFILE / 'source.json').read_text())

@@ -4,12 +4,12 @@ import argparse
 import json
 from pathlib import Path
 import subprocess
-from verify_write import patched_source, digest, LANE
+from verify_write import patched_source, digest, LANE, containment_helper
 
 
 def functions(source):
     text=source.decode()
-    result=[]
+    result=[containment_helper(text)]
     for name,end in [('s10_ops_write_init','\n/*'),('s10_ops_write','\nstatic int s10_ops_write_complete('),
                      ('s10_ops_write_complete','\nstatic const struct fpga_manager_ops')]:
         start=text.index('static int '+name+'(')
@@ -31,7 +31,9 @@ def main():
     # Match the kernel's unused callback-parameter policy; preserve C signatures.
     command=[args.cc,'-std=c11','-O2','-Wall','-Wextra','-Werror','-Wno-unused-parameter',str(harness),'-o']
     results={}
-    for label,flags in [('enabled',[]),('disabled',['-DCONFIG_FES_DE25_DMA_PLATFORM=0'])]:
+    for label,flags in [('enabled',[]), ('block-timeout',['-DBLOCK_RESULT=-110']),
+                        ('containment-disabled',['-DCONFIG_FES_DE25_SDM_CONTAINMENT=0']),
+                        ('disabled',['-DCONFIG_FES_DE25_DMA_PLATFORM=0'])]:
         binary=args.output/('retention-'+label)
         subprocess.run([*command,str(binary),*flags],check=True)
         r=subprocess.run([str(binary.resolve())],check=True,capture_output=True,timeout=10)

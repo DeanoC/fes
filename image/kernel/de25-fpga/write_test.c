@@ -13,6 +13,9 @@
 #define CONFIG_FES_DE25_DMA_PLATFORM 1
 #endif
 #define IS_ENABLED(x) (x)
+#ifndef CONFIG_FES_DE25_SDM_CONTAINMENT
+#define CONFIG_FES_DE25_SDM_CONTAINMENT 1
+#endif
 #define NUM_SVC_BUFS 4
 #define S10_BUFFER_TIMEOUT 5UL
 #define msecs_to_jiffies(x) ((unsigned long)(x) / 1000UL)
@@ -22,8 +25,9 @@
 #define SVC_STATUS_BUFFER_SUBMITTED 1
 #define SVC_STATUS_ERROR 2
 #define COMMAND_RECONFIG_DATA_CLAIM 3
-#define dev_err(dev, ...) ((void)(dev))
+#define dev_err(dev, ...) mock_dev_error(dev,__VA_ARGS__)
 struct device { int unused; };
+void mock_dev_error(struct device *d,const char *fmt,...){(void)d;(void)fmt;}
 struct completion { int unused; };
 struct s10_priv { struct { struct device *dev; } client; struct completion status_return_completion; unsigned long status; void *chan; bool config_active; bool config_uncertain; unsigned long write_deadline; };
 struct fpga_manager { struct s10_priv *priv; };
@@ -31,6 +35,10 @@ static unsigned long fake_jiffies;
 static int clock_reads;
 static int sends, waits, claims, dones, scenario;
 static bool free_buffers;
+static int block_calls;
+#ifndef BLOCK_RESULT
+#define BLOCK_RESULT 0
+#endif
 static struct s10_priv priv;
 static struct fpga_manager manager = { &priv };
 static char data[8];
@@ -73,13 +81,17 @@ static long wait_for_completion_timeout(struct completion *c, unsigned long time
  return timeout;
 }
 static void stratix10_svc_done(void *c) { (void)c; dones++; }
+int stratix10_svc_block_dma(void *chan) {
+ (void)chan;assert(priv.config_uncertain && !priv.config_active);block_calls++;return BLOCK_RESULT;
+}
 #include "write-function.c"
 static void run(int which, int expected, int max_sends)
 {
- scenario=which; clock_reads=0; sends=waits=claims=dones=0; free_buffers=false; priv.status=0; fake_jiffies=which==11 ? ULONG_MAX-2 : 0;
+ scenario=which; clock_reads=0; sends=waits=claims=dones=block_calls=0; free_buffers=false; priv.status=0; fake_jiffies=which==11 ? ULONG_MAX-2 : 0;
  priv.config_active = true; priv.config_uncertain = true; priv.write_deadline = clock_now() + 30;
  assert(s10_ops_write(&manager, data, sizeof(data)) == expected);
  if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM) && expected) assert(!priv.config_active && priv.config_uncertain);
+ assert(block_calls == !!(IS_ENABLED(CONFIG_FES_DE25_SDM_CONTAINMENT) && IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM) && expected));
  assert(sends <= max_sends); assert(dones == (expected != 0));
  if (which==1) assert(sends==1 && waits==0);
  if (which==2) assert(sends==1 && waits==1);
@@ -91,7 +103,7 @@ static void run(int which, int expected, int max_sends)
 }
 static void fragmented_write(void)
 {
- scenario=0; clock_reads=0; sends=waits=claims=dones=0; free_buffers=false;
+ scenario=0; clock_reads=0; sends=waits=claims=dones=block_calls=0; free_buffers=false;
  fake_jiffies=0; priv.status=0; priv.config_active=true; priv.config_uncertain=true;
  priv.write_deadline=30;
  assert(s10_ops_write(&manager, data, sizeof(data))==0);
@@ -99,6 +111,7 @@ static void fragmented_write(void)
  fake_jiffies=29; sends=waits=claims=0; free_buffers=false; priv.status=0;
  assert(s10_ops_write(&manager, data, sizeof(data))==-ETIMEDOUT);
  assert(!priv.config_active && priv.config_uncertain && priv.write_deadline==30);
+ assert(block_calls == IS_ENABLED(CONFIG_FES_DE25_SDM_CONTAINMENT));
  int old_sends=sends, old_dones=dones;
  assert(s10_ops_write(&manager, data, sizeof(data))==-EIO);
  assert(sends==old_sends && dones==old_dones);

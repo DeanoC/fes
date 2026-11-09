@@ -1,186 +1,21 @@
---- a/drivers/fpga/of-fpga-region.c
-+++ b/drivers/fpga/of-fpga-region.c
-@@ -451,0 +452 @@
-+		.suppress_bind_attrs = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM),
---- a/drivers/fpga/stratix10-soc.c
-+++ b/drivers/fpga/stratix10-soc.c
-@@ -7,0 +8 @@
-+#include <linux/jiffies.h>
-@@ -51,0 +53,3 @@
-+	bool config_uncertain;
-+	bool config_active;
-+	unsigned long write_deadline;
-@@ -139 +143,2 @@
--			if (priv->is_smmu_enabled == true)
-+			if (priv->is_smmu_enabled &&
-+			    !IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM))
-@@ -221,0 +227,6 @@
-+	/* A stopped worker is not a fence for an uncertain SDM transfer.
-+	 * Keep its buffers and reject even a fresh userspace loader instance.
-+	 */
-+	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM) && priv->config_uncertain)
-+		return -EIO;
-+
-@@ -237,0 +249,5 @@
-+	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM)) {
-+		priv->config_uncertain = true;
-+		priv->config_active = true;
-+		priv->status = 0;
-+	}
-@@ -253,0 +270,5 @@
-+	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM) &&
-+	    test_and_clear_bit(SVC_STATUS_ERROR, &priv->status)) {
-+		ret = -EFAULT;
-+		goto init_error;
-+	}
-@@ -258,0 +280,3 @@
-+	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM))
-+		priv->write_deadline = jiffies + msecs_to_jiffies(30000);
-+
-@@ -266,0 +291,2 @@
-+	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM))
-+		priv->config_active = false;
-@@ -302,2 +328,7 @@
--	if (priv->is_smmu_enabled == true)
--		priv->svc_bufs[i].dma_addr = dma_map_single(dev, svc_buf, SVC_BUF_SIZE, DMA_TO_DEVICE);
-+	if (priv->is_smmu_enabled) {
-+		if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM))
-+			dma_wmb();
-+		else
-+			priv->svc_bufs[i].dma_addr = dma_map_single(dev, svc_buf,
-+							 SVC_BUF_SIZE, DMA_TO_DEVICE);
-+	}
-@@ -328,0 +360,6 @@
-+	unsigned long deadline = priv->write_deadline;
-+	unsigned long remaining, now;
-+	bool bounded = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM);
-+
-+	if (bounded && !priv->config_active)
-+		return -EIO;
-@@ -334,0 +372,7 @@
-+		/* Bound total transfer time, including full queues and callbacks.
-+		 * This is not an SDM abort or proof that its DMA has drained.
-+		 */
-+		if (bounded && time_after_eq(jiffies, deadline)) {
-+			ret = -ETIMEDOUT;
-+			break;
-+		}
-@@ -339,5 +383,12 @@
--			if (sent < 0)
--				continue;
--
--			count -= sent;
--			buf += sent;
-+			if (sent < 0) {
-+				if (!bounded)
-+					continue;
-+				if (sent != -ENOBUFS) {
-+					ret = sent;
-+					break;
-+				}
-+				/* Backpressure waits for a callback instead of spinning. */
-+			} else {
-+				count -= sent;
-+				buf += sent;
-+			}
-@@ -354,0 +406,9 @@
-+		remaining = S10_BUFFER_TIMEOUT;
-+		if (bounded) {
-+			now = jiffies;
-+			if (time_after_eq(now, deadline)) {
-+				ret = -ETIMEDOUT;
-+				break;
-+			}
-+			remaining = min(remaining, deadline - now);
-+		}
-@@ -356,2 +416,7 @@
--				&priv->status_return_completion,
--				S10_BUFFER_TIMEOUT);
-+				&priv->status_return_completion, remaining);
-+
-+		/* An error must win over a simultaneous progress notification. */
-+		if (bounded && test_and_clear_bit(SVC_STATUS_ERROR, &priv->status)) {
-+			ret = -EFAULT;
-+			break;
-+		}
-@@ -379 +444,3 @@
--	if (ret < 0)
-+	if (ret < 0) {
-+		if (bounded)
-+			priv->config_active = false;
-@@ -380,0 +448 @@
-+	}
-@@ -390 +458,3 @@
--	unsigned long timeout;
-+	unsigned long timeout, deadline, now;
-+	bool bounded = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM);
-+	bool completed = false;
-@@ -391,0 +462,3 @@
-+
-+	if (bounded && !priv->config_active)
-+		return -EIO;
-@@ -396,0 +470 @@
-+	deadline = jiffies + timeout;
-@@ -398,0 +473,8 @@
-+		if (bounded) {
-+			now = jiffies;
-+			if (time_after_eq(now, deadline)) {
-+				ret = -ETIMEDOUT;
-+				break;
-+			}
-+			timeout = deadline - now;
-+		}
-@@ -405,0 +488,8 @@
-+		if (bounded) {
-+			now = jiffies;
-+			if (time_after_eq(now, deadline)) {
-+				ret = -ETIMEDOUT;
-+				break;
-+			}
-+			timeout = deadline - now;
-+		}
-@@ -415 +505,2 @@
--		timeout = ret;
-+		if (!bounded)
-+			timeout = ret;
-@@ -418,2 +509,11 @@
--		if (test_and_clear_bit(SVC_STATUS_COMPLETED, &priv->status))
--			break;
-+		if (bounded && test_and_clear_bit(SVC_STATUS_ERROR, &priv->status)) {
-+			ret = -EFAULT;
-+			break;
-+		}
-+		if (test_and_clear_bit(SVC_STATUS_COMPLETED, &priv->status)) {
-+			if (bounded && s10_get_unlocked_buffer_count(mgr) != NUM_SVC_BUFS)
-+				ret = -EIO;
-+			else
-+				completed = true;
-+			break;
-+		}
-@@ -428,0 +529,12 @@
-+	if (bounded) {
-+		priv->config_active = false;
-+		/* The joined worker may have delivered a final error callback. */
-+		if (!ret) {
-+			if (test_and_clear_bit(SVC_STATUS_ERROR, &priv->status))
-+				ret = -EFAULT;
-+			else if (!completed || s10_get_unlocked_buffer_count(mgr) != NUM_SVC_BUFS)
-+				ret = -EIO;
-+			else
-+				priv->config_uncertain = false;
-+		}
-+	}
-@@ -552,0 +665 @@
+--- a/drivers/bus/simple-pm-bus.c
++++ b/drivers/bus/simple-pm-bus.c
+@@ -133,0 +134 @@
 +		.suppress_bind_attrs = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM),
 --- a/drivers/firmware/stratix10-svc.c
 +++ b/drivers/firmware/stratix10-svc.c
 @@ -8,0 +9 @@
 +#include <linux/dma-mapping.h>
-@@ -148,0 +150 @@
+@@ -16,0 +18 @@
++#include <linux/fes-de25-sdm.h>
+@@ -148,0 +151 @@
 +	dma_addr_t dma_addr;
-@@ -275,0 +278 @@
+@@ -275,0 +279,4 @@
 +	bool use_dma_mem;
-@@ -544,0 +548,63 @@
++	spinlock_t de25_admission_lock;
++	bool de25_block_started;
++	int de25_block_status;
+@@ -544,0 +552,63 @@
 +static void svc_thread_cmd_data_claim_bounded(struct stratix10_svc_controller *ctrl,
 +				      struct stratix10_svc_data *p_data,
 +				      struct stratix10_svc_cb_data *cb_data)
@@ -244,13 +79,88 @@
 +}
 +
 +
-@@ -552,0 +619,5 @@
+@@ -552,0 +623,5 @@
 +
 +	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM)) {
 +		svc_thread_cmd_data_claim_bounded(ctrl, p_data, cb_data);
 +		return;
 +	}
-@@ -3320,0 +3392,28 @@
+@@ -1855 +1930,2 @@
+-	unsigned long flag;
++	unsigned long flag, admission_flags;
++	bool guarded = IS_ENABLED(CONFIG_FES_DE25_SDM_CONTAINMENT);
+@@ -1876,0 +1953,7 @@
++	if (guarded) {
++		spin_lock_irqsave(&controller->de25_admission_lock, admission_flags);
++		if (controller->de25_block_started) {
++			spin_unlock_irqrestore(&controller->de25_admission_lock, admission_flags);
++			return ERR_PTR(-EIO);
++		}
++	}
+@@ -1878,0 +1962,2 @@
++		if (guarded)
++			spin_unlock_irqrestore(&controller->de25_admission_lock, admission_flags);
+@@ -1886,0 +1972,2 @@
++	if (guarded)
++		spin_unlock_irqrestore(&controller->de25_admission_lock, admission_flags);
+@@ -3138 +3225,11 @@
+-	unsigned long flag;
++	unsigned long flag, admission_flags;
++	bool guarded = IS_ENABLED(CONFIG_FES_DE25_SDM_CONTAINMENT);
++
++	if (guarded) {
++		spin_lock_irqsave(&chan->ctrl->de25_admission_lock, admission_flags);
++		/* The permanent failed owner cannot be relinquished for reuse. */
++		if (chan->ctrl->de25_block_started) {
++			spin_unlock_irqrestore(&chan->ctrl->de25_admission_lock, admission_flags);
++			return;
++		}
++	}
+@@ -3144,0 +3242,2 @@
++	if (guarded)
++		spin_unlock_irqrestore(&chan->ctrl->de25_admission_lock, admission_flags);
+@@ -3291,0 +3391,39 @@
++/* Containment never takes sdm_lock, joins a worker or releases DMA storage. */
++int stratix10_svc_block_dma(struct stratix10_svc_chan *chan)
++{
++	struct stratix10_svc_controller *ctrl;
++	unsigned long flags;
++	int ret;
++
++	if (!IS_ENABLED(CONFIG_FES_DE25_SDM_CONTAINMENT))
++		return -EOPNOTSUPP;
++	if (!chan || !chan->ctrl || !chan->name ||
++	    strcmp(chan->name, SVC_CLIENT_FPGA))
++		return -EINVAL;
++	ctrl = chan->ctrl;
++	if (!ctrl->is_smmu_enabled || !ctrl->use_dma_mem)
++		return -EOPNOTSUPP;
++
++	spin_lock_irqsave(&ctrl->de25_admission_lock, flags);
++	if (ctrl->de25_block_started) {
++		ret = ctrl->de25_block_status;
++		spin_unlock_irqrestore(&ctrl->de25_admission_lock, flags);
++		return ret;
++	}
++	if (ctrl->num_active_client != 1 || !chan->scl) {
++		spin_unlock_irqrestore(&ctrl->de25_admission_lock, flags);
++		return -EBUSY;
++	}
++	/* Admission and ownership stay closed for the rest of this kernel epoch. */
++	ctrl->de25_block_started = true;
++	ctrl->de25_block_status = -EINPROGRESS;
++	spin_unlock_irqrestore(&ctrl->de25_admission_lock, flags);
++
++	ret = fes_de25_sdm_block_dma(ctrl->dev);
++	spin_lock_irqsave(&ctrl->de25_admission_lock, flags);
++	ctrl->de25_block_status = ret;
++	spin_unlock_irqrestore(&ctrl->de25_admission_lock, flags);
++	return ret;
++}
++EXPORT_SYMBOL_GPL(stratix10_svc_block_dma);
++
+@@ -3319,0 +3458,28 @@
++
 +/* The DE25 profile uses the DMA API's IOVA allocator and coherent CPU mapping.
 + * Keep paddr as the vendor driver's raw IOVA lookup key: submit adds the
 + * existing ATF offset and completion returns the raw IOVA.
@@ -278,8 +188,7 @@
 +	pmem->size = size;
 +	return 0;
 +}
-+
-@@ -3350 +3449,10 @@
+@@ -3350 +3516,10 @@
 -	if (chan->ctrl->is_smmu_enabled == true) {
 +	if (chan->ctrl->use_dma_mem) {
 +		ret = svc_alloc_coherent_memory(chan->ctrl, pmem, size);
@@ -291,27 +200,29 @@
 +		va = pmem->vaddr;
 +		s = pmem->size;
 +	} else if (chan->ctrl->is_smmu_enabled == true) {
-@@ -3420 +3528,4 @@
+@@ -3420 +3595,4 @@
 -			if (chan->ctrl->is_smmu_enabled) {
 +			if (chan->ctrl->use_dma_mem) {
 +				dma_free_coherent(chan->ctrl->dev, pmem->size,
 +						  pmem->vaddr, pmem->dma_addr);
 +			} else if (chan->ctrl->is_smmu_enabled) {
-@@ -3431,0 +3543,2 @@
+@@ -3431,0 +3610,2 @@
 +			if (chan->ctrl->use_dma_mem)
 +				devm_kfree(chan->ctrl->dev, pmem);
-@@ -3436 +3549 @@
+@@ -3436 +3616 @@
 -	list_del(&svc_data_mem);
 +	dev_warn(chan->ctrl->dev, "free of unknown service buffer %p\n", kaddr);
-@@ -3503,0 +3617 @@
+@@ -3499,0 +3680 @@
++	spin_lock_init(&controller->de25_admission_lock);
+@@ -3503,0 +3685 @@
 +	controller->use_dma_mem = false;
-@@ -3518,0 +3633,5 @@
+@@ -3518,0 +3701,5 @@
 +			} else if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM)) {
 +				ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(29));
 +				if (ret)
 +					goto err_destroy_pool;
 +				controller->use_dma_mem = true;
-@@ -3537,6 +3656,8 @@
+@@ -3537,6 +3724,8 @@
 -			order = __ffs(controller->domain->pgsize_bitmap);
 -			init_iova_domain(&controller->carveout.domain, 1UL << order,
 -				 IOMMU_STARTING_ADDR);
@@ -326,12 +237,393 @@
 +				controller->carveout.shift = iova_shift(&controller->carveout.domain);
 +				controller->carveout.limit = IOMMU_LIMIT_ADDR - PAGE_SIZE;
 +			}
-@@ -3666 +3787 @@
+@@ -3666 +3855 @@
 -	if (ctrl->domain) {
 +	if (ctrl->domain && !ctrl->use_dma_mem) {
-@@ -3695,0 +3817 @@
+@@ -3695,0 +3885 @@
 +		.suppress_bind_attrs = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM),
---- a/drivers/bus/simple-pm-bus.c
-+++ b/drivers/bus/simple-pm-bus.c
-@@ -133,0 +134 @@
+--- a/drivers/fpga/of-fpga-region.c
++++ b/drivers/fpga/of-fpga-region.c
+@@ -451,0 +452 @@
 +		.suppress_bind_attrs = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM),
+--- a/drivers/fpga/stratix10-soc.c
++++ b/drivers/fpga/stratix10-soc.c
+@@ -7,0 +8 @@
++#include <linux/jiffies.h>
+@@ -51,0 +53,3 @@
++	bool config_uncertain;
++	bool config_active;
++	unsigned long write_deadline;
+@@ -139 +143,2 @@
+-			if (priv->is_smmu_enabled == true)
++			if (priv->is_smmu_enabled &&
++			    !IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM))
+@@ -207,0 +213,16 @@
++/* A block result is diagnostic; it never replaces the programming error. */
++static void s10_contain_failed_request(struct s10_priv *priv)
++{
++#if IS_ENABLED(CONFIG_FES_DE25_SDM_CONTAINMENT)
++	int ret;
++#endif
++
++	priv->config_uncertain = true;
++	priv->config_active = false;
++#if IS_ENABLED(CONFIG_FES_DE25_SDM_CONTAINMENT)
++	ret = stratix10_svc_block_dma(priv->chan);
++	dev_err(priv->client.dev,
++		"SDM DMA block result=%d; failed-request buffers retained\n", ret);
++#endif
++}
++
+@@ -220,0 +242,6 @@
++
++	/* A stopped worker is not a fence for an uncertain SDM transfer.
++	 * Keep its buffers and reject even a fresh userspace loader instance.
++	 */
++	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM) && priv->config_uncertain)
++		return -EIO;
+@@ -237,0 +265,5 @@
++	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM)) {
++		priv->config_uncertain = true;
++		priv->config_active = true;
++		priv->status = 0;
++	}
+@@ -253,0 +286,5 @@
++	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM) &&
++	    test_and_clear_bit(SVC_STATUS_ERROR, &priv->status)) {
++		ret = -EFAULT;
++		goto init_error;
++	}
+@@ -258,0 +296,3 @@
++	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM))
++		priv->write_deadline = jiffies + msecs_to_jiffies(30000);
++
+@@ -266,0 +307,2 @@
++	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM))
++		s10_contain_failed_request(priv);
+@@ -302,2 +344,7 @@
+-	if (priv->is_smmu_enabled == true)
+-		priv->svc_bufs[i].dma_addr = dma_map_single(dev, svc_buf, SVC_BUF_SIZE, DMA_TO_DEVICE);
++	if (priv->is_smmu_enabled) {
++		if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM))
++			dma_wmb();
++		else
++			priv->svc_bufs[i].dma_addr = dma_map_single(dev, svc_buf,
++							 SVC_BUF_SIZE, DMA_TO_DEVICE);
++	}
+@@ -328,0 +376,6 @@
++	unsigned long deadline = priv->write_deadline;
++	unsigned long remaining, now;
++	bool bounded = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM);
++
++	if (bounded && !priv->config_active)
++		return -EIO;
+@@ -334,0 +388,7 @@
++		/* Bound total transfer time, including full queues and callbacks.
++		 * This is not an SDM abort or proof that its DMA has drained.
++		 */
++		if (bounded && time_after_eq(jiffies, deadline)) {
++			ret = -ETIMEDOUT;
++			break;
++		}
+@@ -339,5 +399,12 @@
+-			if (sent < 0)
+-				continue;
+-
+-			count -= sent;
+-			buf += sent;
++			if (sent < 0) {
++				if (!bounded)
++					continue;
++				if (sent != -ENOBUFS) {
++					ret = sent;
++					break;
++				}
++				/* Backpressure waits for a callback instead of spinning. */
++			} else {
++				count -= sent;
++				buf += sent;
++			}
+@@ -354,0 +422,9 @@
++		remaining = S10_BUFFER_TIMEOUT;
++		if (bounded) {
++			now = jiffies;
++			if (time_after_eq(now, deadline)) {
++				ret = -ETIMEDOUT;
++				break;
++			}
++			remaining = min(remaining, deadline - now);
++		}
+@@ -356,2 +432,7 @@
+-				&priv->status_return_completion,
+-				S10_BUFFER_TIMEOUT);
++				&priv->status_return_completion, remaining);
++
++		/* An error must win over a simultaneous progress notification. */
++		if (bounded && test_and_clear_bit(SVC_STATUS_ERROR, &priv->status)) {
++			ret = -EFAULT;
++			break;
++		}
+@@ -379 +460,3 @@
+-	if (ret < 0)
++	if (ret < 0) {
++		if (bounded)
++			s10_contain_failed_request(priv);
+@@ -380,0 +464 @@
++	}
+@@ -390 +474,4 @@
+-	unsigned long timeout;
++	unsigned long timeout, deadline, now;
++	bool bounded = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM);
++	bool completed = false;
++	bool containment_requested = false;
+@@ -391,0 +479,3 @@
++
++	if (bounded && !priv->config_active)
++		return -EIO;
+@@ -396,0 +487 @@
++	deadline = jiffies + timeout;
+@@ -398,0 +490,8 @@
++		if (bounded) {
++			now = jiffies;
++			if (time_after_eq(now, deadline)) {
++				ret = -ETIMEDOUT;
++				break;
++			}
++			timeout = deadline - now;
++		}
+@@ -405,0 +505,8 @@
++		if (bounded) {
++			now = jiffies;
++			if (time_after_eq(now, deadline)) {
++				ret = -ETIMEDOUT;
++				break;
++			}
++			timeout = deadline - now;
++		}
+@@ -415 +522,2 @@
+-		timeout = ret;
++		if (!bounded)
++			timeout = ret;
+@@ -418,2 +526,11 @@
+-		if (test_and_clear_bit(SVC_STATUS_COMPLETED, &priv->status))
+-			break;
++		if (bounded && test_and_clear_bit(SVC_STATUS_ERROR, &priv->status)) {
++			ret = -EFAULT;
++			break;
++		}
++		if (test_and_clear_bit(SVC_STATUS_COMPLETED, &priv->status)) {
++			if (bounded && s10_get_unlocked_buffer_count(mgr) != NUM_SVC_BUFS)
++				ret = -EIO;
++			else
++				completed = true;
++			break;
++		}
+@@ -427,0 +545,4 @@
++	if (bounded && ret < 0) {
++		s10_contain_failed_request(priv);
++		containment_requested = true;
++	}
+@@ -429 +550,15 @@
+-
++	if (bounded) {
++		priv->config_active = false;
++		/* The joined worker may have delivered a final error callback. */
++		if (!ret) {
++			if (test_and_clear_bit(SVC_STATUS_ERROR, &priv->status))
++				ret = -EFAULT;
++			else if (!completed || s10_get_unlocked_buffer_count(mgr) != NUM_SVC_BUFS)
++				ret = -EIO;
++			else
++				priv->config_uncertain = false;
++		}
++	}
++
++	if (bounded && ret < 0 && !containment_requested)
++		s10_contain_failed_request(priv);
+@@ -552,0 +688 @@
++		.suppress_bind_attrs = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM),
+--- a/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c
++++ b/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c
+@@ -23,0 +24 @@
++#include <linux/fes-de25-sdm.h>
+@@ -1537,0 +1539,14 @@
++#if IS_ENABLED(CONFIG_FES_DE25_SDM_CONTAINMENT)
++	/* Retain this kernel epoch's block even if another path requests attach. */
++	if (master->de25_block_attempted) {
++		unsigned int i;
++
++		if (le64_to_cpu(target->data[0]) != (STRTAB_STE_0_V |
++		    FIELD_PREP(STRTAB_STE_0_CFG, STRTAB_STE_0_CFG_ABORT)))
++			return;
++		for (i = 1; i < NUM_ENTRY_QWORDS; i++)
++			if (target->data[i])
++				return;
++	}
++#endif
++
+@@ -3079,0 +3095,130 @@
++
++#if IS_ENABLED(CONFIG_FES_DE25_SDM_CONTAINMENT)
++/*
++ * Checked primitive only. Caller must hold the existing group and ASID locks,
++ * own the permanent SDM service/domain, and retain all programming buffers.
++ * The manager failure caller retains all buffers; this grants no reset or reuse.
++ */
++struct arm_smmu_de25_checked_writer {
++	struct arm_smmu_entry_writer writer;
++	u32 sid;
++	int first_error;
++};
++
++static void arm_smmu_de25_checked_sync(struct arm_smmu_entry_writer *writer)
++{
++	struct arm_smmu_de25_checked_writer *checked =
++		container_of(writer, struct arm_smmu_de25_checked_writer, writer);
++	struct arm_smmu_cmdq_ent cmd = {
++		.opcode = CMDQ_OP_CFGI_STE,
++		.cfgi = { .sid = checked->sid, .leaf = true },
++	};
++	int ret;
++
++	ret = arm_smmu_cmdq_issue_cmd_with_sync(writer->master->smmu, &cmd);
++	if (ret && !checked->first_error)
++		checked->first_error = ret;
++}
++
++static const struct arm_smmu_entry_writer_ops arm_smmu_de25_checked_ops = {
++	.sync = arm_smmu_de25_checked_sync,
++	.get_used = arm_smmu_get_ste_used,
++};
++
++static int
++arm_smmu_de25_block_ste_checked(struct arm_smmu_master *master, u32 sid,
++			       struct arm_smmu_ste *entry)
++{
++	struct arm_smmu_ste target;
++	struct arm_smmu_de25_checked_writer checked = {
++		.writer = { .ops = &arm_smmu_de25_checked_ops, .master = master },
++		.sid = sid,
++	};
++
++	if (!master || !master->smmu || !master->dev || !entry ||
++	    !of_device_is_compatible(master->dev->of_node, "intel,agilex5-svc"))
++		return -ENODEV;
++	if (sid != 10 || master->num_streams != 1 || !master->streams ||
++	    master->streams[0].id != sid)
++		return -EINVAL;
++	if (master->ats_enabled || master->ste_ats_enabled || master->stall_enabled ||
++	    master->sva_enabled || master->iopf_enabled ||
++	    arm_smmu_ssids_in_use(&master->cd_table))
++		return -EOPNOTSUPP;
++	if (entry != arm_smmu_get_step_for_sid(master->smmu, sid))
++		return -EXDEV;
++
++	lockdep_assert_held(&arm_smmu_asid_lock);
++	if (master->de25_block_attempted)
++		return master->de25_block_status;
++	master->de25_block_attempted = true;
++	master->de25_block_status = -EINPROGRESS;
++	arm_smmu_make_abort_ste(&target);
++	arm_smmu_write_entry(&checked.writer, entry->data, target.data);
++	/* Even an identical CPU table entry needs acknowledged invalidation. */
++	arm_smmu_de25_checked_sync(&checked.writer);
++	master->de25_block_status = checked.first_error;
++	return master->de25_block_status;
++}
++
++/* Called under the IOMMU core's group mutex. Do not detach the DMA domain. */
++struct arm_smmu_de25_block_context {
++	struct device *dev;
++	bool found;
++};
++
++static int arm_smmu_de25_block_group_device(struct device *dev, void *data)
++{
++	struct arm_smmu_de25_block_context *context = data;
++	struct arm_smmu_master *master;
++	struct iommu_domain *domain;
++	struct iommu_fwspec *fwspec;
++	struct arm_smmu_ste *entry;
++	int ret;
++
++	if (dev != context->dev)
++		return 0;
++	context->found = true;
++	if (!dev->iommu || !dev->iommu->iommu_dev ||
++	    dev->iommu->iommu_dev->ops != &arm_smmu_ops)
++		return -ENODEV;
++	fwspec = dev_iommu_fwspec_get(dev);
++	master = dev_iommu_priv_get(dev);
++	domain = iommu_get_domain_for_dev(dev);
++	if (!fwspec || fwspec->num_ids != 1 || fwspec->ids[0] != 10 ||
++	    !master || master->dev != dev || !master->smmu ||
++	    master->num_streams != 1 || !master->streams ||
++	    master->streams[0].id != 10 ||
++	    !domain || domain->type != IOMMU_DOMAIN_DMA)
++		return -EINVAL;
++
++	/* Same lock order as ordinary attachment: group, then ASID. */
++	if (!mutex_trylock(&arm_smmu_asid_lock))
++		return -EBUSY;
++	entry = arm_smmu_get_step_for_sid(master->smmu, 10);
++	ret = arm_smmu_de25_block_ste_checked(master, 10, entry);
++	mutex_unlock(&arm_smmu_asid_lock);
++	return ret;
++}
++
++int fes_de25_sdm_block_dma(struct device *dev)
++{
++	struct arm_smmu_de25_block_context context = { .dev = dev };
++	struct iommu_group *group;
++	int ret;
++
++	if (!dev || dev_is_pci(dev) ||
++	    !of_device_is_compatible(dev->of_node, "intel,agilex5-svc"))
++		return -ENODEV;
++	group = iommu_group_get(dev);
++	if (!group)
++		return -ENODEV;
++	ret = iommu_group_for_each_dev(group, &context,
++				      arm_smmu_de25_block_group_device);
++	iommu_group_put(group);
++	if (!ret && !context.found)
++		return -ENODEV;
++	return ret;
++}
++EXPORT_SYMBOL_GPL(fes_de25_sdm_block_dma);
++#endif
+--- a/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.h
++++ b/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.h
+@@ -786,0 +787,4 @@
++#if IS_ENABLED(CONFIG_FES_DE25_SDM_CONTAINMENT)
++	bool				de25_block_attempted;
++	int				de25_block_status;
++#endif
+--- /dev/null
++++ b/include/linux/fes-de25-sdm.h
+@@ -0,0 +1,18 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef _LINUX_FES_DE25_SDM_H
++#define _LINUX_FES_DE25_SDM_H
++
++#include <linux/errno.h>
++#include <linux/kconfig.h>
++struct device;
++
++/* Kernel-epoch stream block only: not SDM reset or buffer-reuse authority. */
++#if IS_ENABLED(CONFIG_FES_DE25_SDM_CONTAINMENT)
++int fes_de25_sdm_block_dma(struct device *dev);
++#else
++static inline int fes_de25_sdm_block_dma(struct device *dev)
++{
++	return -EOPNOTSUPP;
++}
++#endif
++#endif
+--- a/include/linux/firmware/intel/stratix10-svc-client.h
++++ b/include/linux/firmware/intel/stratix10-svc-client.h
+@@ -510,0 +511,3 @@
++/* Requires exclusive service-channel ownership; does not release buffers. */
++int stratix10_svc_block_dma(struct stratix10_svc_chan *chan);
++

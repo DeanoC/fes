@@ -24,6 +24,17 @@ config FES_DE25_DMA_PLATFORM
 	  SMMU/region/manager/bridge suppliers. The current shipping kernel does not
 	  meet this binding contract. This does not enable normal FES admission.
 
+config FES_DE25_SDM_CONTAINMENT
+	bool "DE25 checked SDM stream containment candidate"
+	depends on FES_DE25_DMA_PLATFORM && ARM_SMMU_V3=y && INTEL_STRATIX10_SERVICE=y
+	default n
+	help
+	  Unqualified kernel-epoch containment for failed FPGA programming. Close
+	  service admission and request a checked abort STE for the SDM stream.
+	  Retain all failed buffers and the first result; never retry or reopen.
+	  This does not interrupt a stalled secure call, establish DMA retirement
+	  across reset, or authorize buffer reuse or physical failure injection.
+
 config FES_DE25_STATIC_EXPANSION
 	bool "DE25 initial static expansion configuration"
 	depends on FES_DE25_DMA_PLATFORM

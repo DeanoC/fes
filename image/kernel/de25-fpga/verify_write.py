@@ -18,7 +18,15 @@ def digest(data):
 def function(source):
     text = source.decode()
     start = text.index('static int s10_ops_write(struct')
-    return text[start:text.index('\nstatic int s10_ops_write_complete', start)]
+    return containment_helper(text) + text[start:text.index('\nstatic int s10_ops_write_complete', start)]
+
+
+def containment_helper(text):
+    marker = 'static void s10_contain_failed_request('
+    if marker not in text:
+        return ''
+    start = text.index(marker)
+    return text[start:text.index('\n/*', start)] + '\n'
 
 
 def patched_source(source, name):
@@ -64,6 +72,14 @@ def main():
     subprocess.run(command, check=True)
     result = subprocess.run([str(binary.resolve())], check=True, capture_output=True, timeout=10)
     (args.output / 'results.log').write_bytes(result.stdout + result.stderr)
+    modes = {}
+    for label, flags in [('block-timeout', ['-DBLOCK_RESULT=-110']),
+                          ('containment-disabled', ['-DCONFIG_FES_DE25_SDM_CONTAINMENT=0'])]:
+        selected = args.output / ('write-' + label)
+        subprocess.run([*command[:-1], str(selected), *flags], check=True)
+        proof = subprocess.run([str(selected.resolve())], check=True, capture_output=True, timeout=10)
+        (args.output / (label + '.log')).write_bytes(proof.stdout + proof.stderr)
+        modes[label] = proof.stdout.decode().splitlines()
     unit.write_text(function(original))
     control = args.output / 'write-control'
     subprocess.run([*command[:-1], str(control)], check=True)
@@ -84,6 +100,7 @@ def main():
               'kernel_revision': identity['kernel_revision'], 'manager': identity['files'][name],
               'patch_sha256': identity['patch_sha256'], 'command': command,
               'control': control_result, 'disabled_profile_positive': 'passed', 'cases': result.stdout.decode().splitlines(),
+              'containment_modes': modes,
               'hardware_access': False, 'whole_programming_bound': False,
               'sdm_dma_quiescence': False,
               'sha256': {p.name: digest(p.read_bytes()) for p in args.output.iterdir() if p.is_file()}}

@@ -47,7 +47,9 @@ def apply_profile(kernel, profile):
         raise ValueError("supplier patch differs from its source record")
     for name, row in record["files"].items():
         path = kernel / name
-        if path.is_symlink() or dep.digest(path) != row["before_sha256"]:
+        expected = row["before_sha256"]
+        if path.is_symlink() or (path.exists() if expected is None else
+                                 not path.is_file() or dep.digest(path) != expected):
             raise ValueError("supplier input differs: " + name)
     for name, sha in record["unchanged_supplier_sources"].items():
         if dep.digest(kernel / name) != sha:
@@ -97,7 +99,14 @@ def static_expansion_mode(record):
     return enabled
 
 
-def verify_config(text, static_expansion=False):
+def containment_mode(record):
+    enabled = record.get("sdm_containment_enabled", False)
+    if type(enabled) is not bool:
+        raise ValueError("invalid SDM containment kernel mode")
+    return enabled
+
+
+def verify_config(text, static_expansion=False, sdm_containment=False):
     for name in ENABLED:
         if "CONFIG_" + name + "=y\n" not in text:
             raise ValueError("required built-in setting missing: " + name)
@@ -111,9 +120,12 @@ def verify_config(text, static_expansion=False):
     values = re.findall(r"^CONFIG_FES_DE25_STATIC_EXPANSION=(.*)$", text, re.M)
     if values != (["y"] if static_expansion else []):
         raise ValueError("kernel static-expansion configuration differs from requested mode")
+    values = re.findall(r"^CONFIG_FES_DE25_SDM_CONTAINMENT=(.*)$", text, re.M)
+    if values != (["y"] if sdm_containment else []):
+        raise ValueError("kernel SDM containment configuration differs from requested mode")
 
 
-def inside(jobs, revision, static_expansion=False):
+def inside(jobs, revision, static_expansion=False, sdm_containment=False):
     work, export = Path("/build"), Path("/export")
     kernel, build, sdk = work / "linux", work / "kernel-build", work / "sdk"
     dep.checked(["cp", "-a", "/kernel-input", kernel])
@@ -137,6 +149,7 @@ def inside(jobs, revision, static_expansion=False):
     for name in DISABLED:
         change.extend(("--disable", name))
     change.extend(("--enable" if static_expansion else "--disable", "FES_DE25_STATIC_EXPANSION"))
+    change.extend(("--enable" if sdm_containment else "--disable", "FES_DE25_SDM_CONTAINMENT"))
     dep.checked(change)
     env = dict(os.environ, LC_ALL="C", TZ="UTC", KBUILD_BUILD_USER="FES",
                KBUILD_BUILD_HOST="de25-owner", KBUILD_BUILD_VERSION="1",
@@ -146,7 +159,7 @@ def inside(jobs, revision, static_expansion=False):
                "CROSS_COMPILE=" + str(prefix), "LOCALVERSION=", "DTC_FLAGS=-@"]
     dep.checked([*command, "olddefconfig"], env=env)
     shutil.copyfile(config, export / "configured.config")
-    verify_config(config.read_text(), static_expansion)
+    verify_config(config.read_text(), static_expansion, sdm_containment)
     dep.checked([*command, "-j" + str(jobs), "Image", DTB], env=env)
     if dep.config_from_image((build / "arch/arm64/boot/Image").read_bytes()) != config.read_bytes():
         raise ValueError("built Image configuration differs from selected configuration")
@@ -169,6 +182,7 @@ def inside(jobs, revision, static_expansion=False):
               "fes_revision": revision, "kernel": dep.selected_lock(), "release": release,
               "suppliers": profile, "candidate_enabled": True, "normal_runtime_admission": "closed",
               "static_expansion_enabled": static_expansion,
+              "sdm_containment_enabled": sdm_containment,
               "hardware_acceptance": "not-run", "modules": "FPGA/owner and USB Bluetooth/HID built-in; no vendor modules reused",
               "compiler": subprocess.check_output([str(prefix) + "gcc", "--version"], text=True).splitlines()[0], "files": {}}
     if static_expansion:
@@ -222,6 +236,8 @@ def main(argv=None):
     parser.add_argument("--container-runtime", default="docker")
     parser.add_argument("--static-expansion", action="store_true",
                         help="prepare the opt-in cold base/persona kernel; does not deploy or admit packages")
+    parser.add_argument("--sdm-containment", action="store_true",
+                        help="prepare the unqualified kernel-epoch SDM stream block; no reset or buffer-reuse authority")
     parser.add_argument("--inside", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if not 1 <= args.jobs <= 16 or not 60 <= args.time_cap <= 7200:
@@ -230,7 +246,7 @@ def main(argv=None):
         if args.inside:
             if ROOT != Path("/src") or not re.fullmatch(r"[a-f0-9]{40}", args.inside):
                 raise ValueError("internal build requires isolated committed source")
-            inside(args.jobs, args.inside, args.static_expansion)
+            inside(args.jobs, args.inside, args.static_expansion, args.sdm_containment)
             return 0
         if not all((args.cache, args.image_output, args.output)):
             parser.error("--cache, --image-output and a new --output are required")
@@ -260,6 +276,7 @@ def main(argv=None):
         write_json(output / "inputs.json", {"fes_revision": revision, "kernel": lock,
             "builder_execution_reference": builder,
             "static_expansion_enabled": args.static_expansion,
+            "sdm_containment_enabled": args.sdm_containment,
             "source_sha256": {str(p.relative_to(source)): dep.digest(p) for directory in (PROFILE, dep.DRIVER)
                               for p in (source / directory).rglob("*") if p.is_file()},
             "runner_sha256": dep.digest(source / "scripts/de25_kernel_platform.py")})
@@ -271,7 +288,8 @@ def main(argv=None):
                    f"type=volume,src={volume},dst=/build,volume-nocopy",
                    "--volume", f"{output}:/export", builder, "python3", "/src/scripts/de25_kernel_platform.py",
                    "--inside", revision, "--jobs", args.jobs,
-                   *(["--static-expansion"] if args.static_expansion else [])]
+                   *(["--static-expansion"] if args.static_expansion else []),
+                   *(["--sdm-containment"] if args.sdm_containment else [])]
         run_container(command, args.container_runtime, name, output, args.time_cap)
         return 0
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:

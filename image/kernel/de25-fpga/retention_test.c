@@ -11,6 +11,9 @@
 #define CONFIG_FES_DE25_DMA_PLATFORM 1
 #endif
 #define IS_ENABLED(x) (x)
+#ifndef CONFIG_FES_DE25_SDM_CONTAINMENT
+#define CONFIG_FES_DE25_SDM_CONTAINMENT 1
+#endif
 #define NUM_SVC_BUFS 4
 #define S10_RECONFIG_TIMEOUT 5UL
 #define S10_BUFFER_TIMEOUT 5UL
@@ -18,7 +21,7 @@
 #define time_after_eq(a,b) ((long)((a)-(b)) >= 0)
 #define min(a,b) ((a)<(b)?(a):(b))
 #define BIT(x) (1UL << (x))
-#define dev_err(dev,...) ((void)(dev))
+#define dev_err(dev,...) mock_dev_error(dev,__VA_ARGS__)
 #define dev_dbg(dev,...) ((void)(dev))
 #define FPGA_MGR_PARTIAL_RECONFIG 1
 #define FPGA_MGR_BITSTREAM_AUTHENTICATE 2
@@ -36,6 +39,7 @@
 #define SVC_STATUS_ERROR 4
 typedef unsigned int uint;
 struct device { int unused; };
+void mock_dev_error(struct device *d,const char *fmt,...){(void)d;(void)fmt;}
 struct completion { int unused; };
 struct stratix10_svc_command_config_type { unsigned long flags; };
 struct s10_priv {
@@ -52,6 +56,11 @@ struct fpga_image_info { unsigned long flags; };
 static unsigned long jiffies;
 static int mode, commands, writes, waits, joins, last_command;
 static bool control_mode;
+static int block_calls,event_count;
+static char events[8];
+#ifndef BLOCK_RESULT
+#define BLOCK_RESULT 0
+#endif
 static struct s10_priv priv;
 static struct fpga_manager manager={&priv};
 static struct fpga_image_info info;
@@ -95,17 +104,21 @@ static long wait_for_completion_timeout(struct completion *c,unsigned long timeo
 }
 static void stratix10_svc_done(void *c)
 {
- (void)c;joins++;
+ (void)c;joins++;assert(event_count<8);events[event_count++]='J';
  if(last_command==COMMAND_RECONFIG_STATUS && mode==11)priv.status|=BIT(SVC_STATUS_ERROR);
  if(last_command==COMMAND_RECONFIG_STATUS && mode==12)priv.svc_bufs[0].lock=1;
  // A host thread join is never itself permission to drop uncertainty.
  if(IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM) && !control_mode)assert(priv.config_uncertain);
 }
+int stratix10_svc_block_dma(void *chan) {
+ (void)chan;assert(priv.config_uncertain && !priv.config_active);
+ block_calls++;assert(event_count<8);events[event_count++]='B';return BLOCK_RESULT;
+}
 #include "retention-functions.c"
 static void reset(void)
 {
  memset(&priv,0,sizeof(priv));priv.fw_version=1;info.flags=0;
- jiffies=0;commands=writes=waits=joins=last_command=mode=0;
+ jiffies=0;commands=writes=waits=joins=last_command=mode=0;block_calls=event_count=0;
 }
 static void refused_again(void)
 {
@@ -113,11 +126,18 @@ static void refused_again(void)
  unsigned long locks[4];for(int i=0;i<4;i++)locks[i]=priv.svc_bufs[i].lock;
  struct fpga_manager fresh_caller={&priv};
  assert(priv.config_uncertain && !priv.config_active);
+ if(IS_ENABLED(CONFIG_FES_DE25_SDM_CONTAINMENT)) {
+ assert(block_calls==1 && event_count==2);
+ if(last_command==COMMAND_RECONFIG_STATUS && (mode==11||mode==12))assert(events[0]=='J'&&events[1]=='B');
+ else assert(events[0]=='B'&&events[1]=='J');
+ } else assert(block_calls==0 && event_count==1 && events[0]=='J');
  assert(s10_ops_write_init(&fresh_caller,&info,NULL,0)==-EIO);
  assert(s10_ops_write_complete(&fresh_caller,&info)==-EIO);
  assert(s10_ops_write(&fresh_caller,"x",1)==-EIO);
  assert(commands==old_commands && waits==old_waits && joins==old_joins && writes==old_writes);
  for(int i=0;i<4;i++)assert(locks[i]==priv.svc_bufs[i].lock);
+ assert(block_calls==IS_ENABLED(CONFIG_FES_DE25_SDM_CONTAINMENT));
+ assert(event_count==1+IS_ENABLED(CONFIG_FES_DE25_SDM_CONTAINMENT));
 }
 static void successful_cycles(void)
 {
@@ -129,7 +149,7 @@ static void successful_cycles(void)
   assert(s10_ops_write_complete(&manager,&info)==0);
   assert(!priv.config_uncertain && !priv.config_active);
  }
- assert(joins==2);
+ assert(joins==2 && block_calls==0);
  puts("two successful programming cycles release only after completion and join");
 }
 int main(int argc, char **argv)
@@ -166,7 +186,7 @@ int main(int argc, char **argv)
  }
  reset();priv.fw_version=INVALID_FIRMWARE_VERSION;info.flags=FPGA_MGR_BITSTREAM_AUTHENTICATE;
  assert(s10_ops_write_init(&manager,&info,NULL,0)==-EINVAL);
- assert(!priv.config_uncertain && !priv.config_active && !commands && !waits && !joins);
+ assert(!priv.config_uncertain && !priv.config_active && !commands && !waits && !joins && !block_calls);
  info.flags=0;assert(s10_ops_write_init(&manager,&info,NULL,0)==0);
  puts("validation before a request leaves an untouched manager reusable");
  return 0;

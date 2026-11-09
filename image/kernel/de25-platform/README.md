@@ -107,9 +107,37 @@ The [actual-function proofs](../de25-fpga/README.md) exercise the selected sourc
 and retain hanging original controls and a retry regression. Normal runtime
 admission remains closed.
 
-The pinned SMMUv3 and Agilex5 clock drivers already disable bind attributes;
-their complete source hashes are verified unchanged. No timing, DMA translation
-or hardware qualification check is waived.
+The pinned SMMUv3 and Agilex5 clock drivers already disable bind attributes.
+The clock source remains unchanged. The SMMUv3 changes described below are
+source-bound and default off. No timing, DMA translation or hardware qualification
+check is waived.
+
+## Checked SDM containment candidate
+
+`--sdm-containment` explicitly enables `CONFIG_FES_DE25_SDM_CONTAINMENT`;
+ordinary preparation leaves it disabled, independently of static expansions.
+The producer records this choice and checks the final and embedded Image
+configuration. The image assembler verifies the same choice and full supplier
+profile before deriving the kernel-note identity. New headers must be absent
+before patching; complete input/result and patch hashes bind all eight files.
+
+On a programming error, the candidate serializes controller admission, retains
+the permanent service owner, and requests a checked abort entry for SDM SID10.
+The first result is cached, including failure; no later request retries the
+hardware operation or reopens the stream in that kernel epoch. Another already
+admitted service client causes refusal before a hardware operation. Known
+manager errors invoke containment before worker join; errors discovered only
+at join invoke it afterward. Original programming errors and buffers remain
+retained. The implementation does not take the SDM mailbox mutex.
+
+This is an unqualified containment candidate. It cannot interrupt a stalled
+secure call, prove retirement of upstream/queued transactions, preserve a
+fence across reset, or authorize freeing buffers, retry or reboot. The existing
+built-in owner and unbind protections remain prerequisites. Source-function
+models substitute kernel locks, IOMMU iteration, entry-update and command
+completion helpers; whole-kernel compilation and physical qualification are
+separate. See [the source proofs](../de25-fpga/README.md). A build does not
+authorize a kit change or intentional failed-transfer injection.
 
 The base-tree owner sits at /dma-owner@20010200, outside any overlay. Its
 control resource and SID come from the generated scanout constants; its IOMMU
