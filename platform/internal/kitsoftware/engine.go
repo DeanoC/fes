@@ -40,6 +40,11 @@ type Engine struct {
 	// Factory is this image's own software. It runs in place of a selection
 	// the image cannot run; empty keeps such a selection's verification error.
 	Factory string
+	// TrialStorageRefreshRequest is the persisted successor installed when an
+	// appliance trial opens durable storage. That exact queued request must
+	// reopen the bootstrap processes even if its held-back selection resolves
+	// to the factory already running. It is not persisted or an activation.
+	TrialStorageRefreshRequest string
 	// HeldBack is the committed selection this image cannot run, and
 	// HeldBackReason says why. The selection stays recorded for an image that
 	// can run it.
@@ -171,6 +176,9 @@ func (e *Engine) switchPrepared(ctx context.Context, id string, request Request)
 			err = e.health(ctx, id, deadline)
 		}
 		if err == nil || !errors.Is(err, ErrProcessExited) {
+			if err == nil && e.TrialStorageRefreshRequest == request.ID {
+				e.TrialStorageRefreshRequest = ""
+			}
 			return err
 		}
 		last = err
@@ -196,6 +204,11 @@ func (e *Engine) Run(ctx context.Context) error {
 	s, err := e.Repository.Read()
 	if err != nil {
 		return err
+	}
+	if s.Pending == nil || s.Pending.ID != e.TrialStorageRefreshRequest || s.Pending.Phase != "queued" {
+		// A cancelled, replaced or already completed successor cannot authorize
+		// a bootstrap refresh. Spent recovery keeps its existing failure policy.
+		e.TrialStorageRefreshRequest = ""
 	}
 	if s.Unreleased != nil {
 		return e.release(ctx, *s.Unreleased)
@@ -294,7 +307,7 @@ func (e *Engine) Run(ctx context.Context) error {
 // supervisor from an older image can still read this state after a rollback.
 func (e *Engine) holdBack(ctx context.Context, op Operation, reason string) error {
 	id, err := e.prepareSelection(ctx, op.Previous)
-	if err == nil && id != e.Controller.Active() {
+	if err == nil && (id != e.Controller.Active() || e.TrialStorageRefreshRequest == op.ID) {
 		err = e.switchPrepared(ctx, id, op.Request)
 	}
 	if err != nil {
