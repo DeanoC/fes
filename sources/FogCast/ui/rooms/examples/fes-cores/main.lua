@@ -311,6 +311,7 @@ function on_resize()
     if row == "recent" or row == "banner" then row = "family" end
     if body == "recent" or body == "banner" then body = "family" end
   end
+  publish()
 end
 
 -- Drawing ------------------------------------------------------------
@@ -448,7 +449,7 @@ end
 -- Tall tiles: the mark above the name, the state chip and its detail line.
 -- Compact tiles (below Recently played): a small mark, the short name and
 -- the chip. Below the 720p safe-room height (648), the detail line is left out.
-local function draw_families(s, top, ch, compact)
+local function draw_families(s, top, ch, compact, only_slot)
   local n = #families
   local shown = math.min(n, 4)
   local gap = 20
@@ -457,44 +458,46 @@ local function draw_families(s, top, ch, compact)
   if family_i > first + shown - 1 then first = family_i - shown + 1 end
   local detail = not compact and room.height >= 648
   for slot = 0, shown - 1 do
-    local i = first + slot
-    local f = families[i]
-    if not f then break end
-    local x = s.x + slot * (cw + gap)
-    local focused = row == "family" and family_i == i
-    local state, line = F.tile(f)
-    gfx.rect(x, top, cw, ch, C.surface)
-    if compact then
-      local pad = 8
-      local aw = math.min(math.floor(cw * 0.38), math.floor((ch - pad * 2) * 1.2))
-      F.mark(f, x + pad, top + pad, aw, ch - pad * 2)
-      local tx = x + pad + aw + 12
-      local tw = cw - (tx - x) - 8
-      gfx.text(f.art.short, tx, top + ch * 0.20, { size = 20, bold = focused, color = C.text, max_w = tw })
-      F.chip(state, tx, top + ch * 0.52, 16)
-    else
-      local art_h = math.floor(ch * (detail and 0.50 or 0.56))
-      gfx.clip(x, top, cw, art_h)
-      F.mark(f, x, top, cw, art_h)
-      gfx.unclip()
-      gfx.text(f.label, x + 14, top + art_h + 8, { size = 22, bold = focused, color = C.text, max_w = cw - 28 })
-      local cy = top + art_h + 40
-      F.chip(state, x + 14, cy, 16)
-      if detail and line ~= "" then
-        gfx.text(line, x + 14, cy + 32, { size = 18, color = C.secondary, max_w = cw - 28 })
+    if only_slot == nil or only_slot == slot then
+      local i = first + slot
+      local f = families[i]
+      if not f then break end
+      local x = s.x + slot * (cw + gap)
+      local focused = row == "family" and family_i == i
+      local state, line = F.tile(f)
+      gfx.rect(x, top, cw, ch, C.surface)
+      if compact then
+        local pad = 8
+        local aw = math.min(math.floor(cw * 0.38), math.floor((ch - pad * 2) * 1.2))
+        F.mark(f, x + pad, top + pad, aw, ch - pad * 2)
+        local tx = x + pad + aw + 12
+        local tw = cw - (tx - x) - 8
+        gfx.text(f.art.short, tx, top + ch * 0.20, { size = 20, bold = focused, color = C.text, max_w = tw })
+        F.chip(state, tx, top + ch * 0.52, 16)
+      else
+        local art_h = math.floor(ch * (detail and 0.50 or 0.56))
+        gfx.clip(x, top, cw, art_h)
+        F.mark(f, x, top, cw, art_h)
+        gfx.unclip()
+        gfx.text(f.label, x + 14, top + art_h + 8, { size = 22, bold = focused, color = C.text, max_w = cw - 28 })
+        local cy = top + art_h + 40
+        F.chip(state, x + 14, cy, 16)
+        if detail and line ~= "" then
+          gfx.text(line, x + 14, cy + 32, { size = 18, color = C.secondary, max_w = cw - 28 })
+        end
       end
+      if focused then
+        outline(x - 4, top - 4, cw + 8, ch + 8, 4, C.accent)
+      else
+        outline(x, top, cw, ch, 1, C.divider)
+      end
+      gfx.hit("family:" .. i, x, top, cw, ch)
     end
-    if focused then
-      outline(x - 4, top - 4, cw + 8, ch + 8, 4, C.accent)
-    else
-      outline(x, top, cw, ch, 1, C.divider)
-    end
-    gfx.hit("family:" .. i, x, top, cw, ch)
   end
-  if first > 1 then
+  if (only_slot == nil or only_slot == 0) and first > 1 then
     gfx.rect(s.x - 10, top + ch / 2 - 20, 4, 40, C.accent)
   end
-  if first + shown - 1 < n then
+  if (only_slot == nil or only_slot == 0) and first + shown - 1 < n then
     gfx.rect(s.x + s.w + 6, top + ch / 2 - 20, 4, 40, C.accent)
   end
 end
@@ -523,32 +526,38 @@ local function draw_banner(s, top, ch)
   gfx.hit("banner:1", s.x, top, s.w, ch)
 end
 
-local function draw_shelf(h)
+local function draw_shelf(h, only_slot)
   local s = h.shelf
   local label_size = s.h >= 240 and 24 or 20
   local _, lh = gfx.measure("Computers", label_size, true)
   local y = s.y
   local above = top_row()
   if above then
-    gfx.text(above == "banner" and "Get started" or "Recently played", s.x, y, { size = label_size, bold = true, color = C.text })
     local rh = math.floor((s.h - (lh + 8) * 2 - 12) * 0.40)
-    if above == "banner" then
-      draw_banner(s, y + lh + 8, rh)
-    else
-      draw_recents(s, y + lh + 8, rh)
+    if only_slot == nil or only_slot == -1 then
+      gfx.text(above == "banner" and "Get started" or "Recently played", s.x, y, { size = label_size, bold = true, color = C.text })
+      if above == "banner" then
+        draw_banner(s, y + lh + 8, rh)
+      else
+        draw_recents(s, y + lh + 8, rh)
+      end
     end
     y = y + lh + 8 + rh + 12
-    gfx.text("Computers", s.x, y, { size = label_size, bold = true, color = C.text })
+    if only_slot == nil or only_slot == -1 then
+      gfx.text("Computers", s.x, y, { size = label_size, bold = true, color = C.text })
+    end
     local top = y + lh + 8
-    draw_families(s, top, s.y + s.h - top, true)
+    if only_slot ~= -1 then draw_families(s, top, s.y + s.h - top, true, only_slot) end
     return
   end
-  gfx.text("Computers", s.x, y, { size = label_size, bold = true, color = C.text })
-  if settled() then
-    gfx.text(F.on_kit() .. " on this kit", s.x, y + 4, { size = 18, color = C.secondary, max_w = s.w, align = "right" })
+  if only_slot == nil or only_slot == -1 then
+    gfx.text("Computers", s.x, y, { size = label_size, bold = true, color = C.text })
+    if settled() then
+      gfx.text(F.on_kit() .. " on this kit", s.x, y + 4, { size = 18, color = C.secondary, max_w = s.w, align = "right" })
+    end
   end
   local top = y + lh + 14
-  draw_families(s, top, s.y + s.h - top, false)
+  if only_slot ~= -1 then draw_families(s, top, s.y + s.h - top, false, only_slot) end
 end
 
 -- roomDestGeom in ui/tenfoot/overlay_layout.go draws the compact strip
@@ -610,17 +619,50 @@ end
 
 -- Repaint only when the data, focus or geometry changes.
 local painted = nil
+local opening, opening_scene = 0, nil
+
+local function scene()
+  return { generation = generation, row = row, body = body, recent_i = recent_i,
+    family_i = family_i, menu_i = menu_i, width = room.width,
+    height = room.height, title = room.title }
+end
+
+local function same_scene(a, b)
+  return a and b and a.generation == b.generation and a.row == b.row
+    and a.body == b.body and a.recent_i == b.recent_i
+    and a.family_i == b.family_i and a.menu_i == b.menu_i
+    and a.width == b.width and a.height == b.height and a.title == b.title
+end
 
 function draw()
-  if room.presented and painted
-    and painted.generation == generation and painted.row == row
-    and painted.body == body and painted.recent_i == recent_i
-    and painted.family_i == family_i and painted.menu_i == menu_i
-    and painted.width == room.width and painted.height == room.height
-    and painted.title == room.title and gfx.reuse() then
+  local now = scene()
+  if room.presented and same_scene(painted, now) and gfx.reuse() then
     return
   end
   local h = room.hero
+  -- Build an initial or data-changed picture across callbacks. Each extension copies the
+  -- presented prefix, so no callback needs to draw all four family marks.
+  -- Restart when an async answer, input or resize changes that prefix.
+  if h and (not painted or painted.generation ~= generation) then
+    if not room.presented or not same_scene(opening_scene, now) then opening = 0 end
+    if opening == 0 then
+      painted = nil
+      draw_header(h)
+      draw_hero(h)
+      gfx.paint({ { "c", C.background } })
+      opening_scene = now
+    else
+      if opening == 1 then draw_shelf(h, -1)
+      else
+        draw_shelf(h, (opening - 2) * 2)
+        draw_shelf(h, (opening - 2) * 2 + 1)
+      end
+      gfx.extend({})
+    end
+    opening = opening + 1
+    if opening == 4 then painted = now end
+    return
+  end
   if h then
     draw_header(h)
     draw_hero(h)
@@ -629,11 +671,7 @@ function draw()
     draw_compact()
   end
   publish()
-  painted = {
-    generation = generation, row = row, body = body, recent_i = recent_i,
-    family_i = family_i, menu_i = menu_i, width = room.width,
-    height = room.height, title = room.title,
-  }
+  painted = now
   -- Paint the background after assembling the full display list. The existing
   -- engine presents a completed paint on a soft overrun, allowing the next
   -- unchanged draw to reuse it. Hard deadlines and overrun limits still apply.

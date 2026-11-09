@@ -163,7 +163,8 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 		t.Run("ready-"+size.name, func(t *testing.T) {
 			app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, size.w, size.h)
 			snap := waitFor(t, app, "first family", func(s Snapshot) bool {
-				return homeFamilySettled(s) && s.Room.Destination.Label == "Sinclair ZX81"
+				return homeFamilySettled(s) && s.Room.Destination.Label == "Sinclair ZX81" &&
+					roomHit(s, "family:4").ID != ""
 			})
 			wantDetails := size.name != "1024x600"
 			for _, reason := range []string{"No games yet", "Add your ROM files", "Not on this kit"} {
@@ -195,7 +196,8 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 			}
 			app := startHomeLoungeOn(t, host, t.TempDir(), &fakeLocalCores{cores: homeFixtureCores()}, size.w, size.h, false)
 			snap := waitFor(t, app, "recent", func(s Snapshot) bool {
-				return homeFamilySettled(s) && s.Room.Destination.GameID == "lunar"
+				return homeFamilySettled(s) && s.Room.Destination.GameID == "lunar" &&
+					roomHit(s, "recent:3").ID != "" && roomHit(s, "family:4").ID != ""
 			})
 			if c := heroDestinationCopy(snap); c.Kicker != "Recently played" && size.h >= 720 {
 				t.Fatalf("recent hero %+v", c)

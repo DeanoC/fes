@@ -1232,9 +1232,13 @@ focus and selection, not hardware configuration or running RAM.
 Kit Home reuses its presented display list while data generation, selected row
 and body, recent/family/menu selection, title and content size are unchanged.
 An asynchronous result, pointer or direction focus change, resize, or
-unpresented frame forces a redraw. Its completed redraw uses `gfx.paint` for the background;
-a soft overrun can therefore present the finished picture for reuse on the
-next frame. State-save debounce continues in `update` during reused frames.
+unpresented frame forces a redraw. Initial and data-changed hero pictures are
+assembled over several draws: the header and hero, shelf heading and recents,
+then pairs of family tiles. Each completed part is presented; a data, focus or
+geometry change restarts the partial picture. Warm focus and geometry changes
+redraw the whole picture. Completed parts use `gfx.paint` or `gfx.extend`, so
+a soft overrun can still present them. State-save debounce continues in `update`
+during reused frames.
 
 Lua room callbacks run on the launcher thread under per-callback soft budgets.
 A slow update, or a slow draw that did not finish a `gfx.paint`, keeps the
