@@ -261,8 +261,9 @@ A core may be built differently for DE25 than for DE10-Nano: a larger cache, mor
 - The loader's key becomes (`core_id`, `target`). Each row still has its own `selection_filename` and package environment names, and those stay unique across all rows.
 - Each row carries its own `front_end`, `[recipes.quartus]` (`edition`, `device_family`) and an optional `[recipes.parameters]` table of scalar values. The producer passes exactly that table to the core's top and copies it into the record's `parameters`.
 - The validator ties `target = "de25"` to `device_family = "agilex5"` and `target = "de10nano"` to `cyclonev`.
-- `Format2Recipe` gains `target` and `parameters`. Lookups by `core_id` take a target and default to `"de10nano"`.
-- New tests: two rows for one core with different targets load; two rows with the same pair are rejected; the two rows' records differ in `parameters` and BUILD_ID; a `de25` row with `cyclonev` is rejected.
+- `Format2Recipe` gains `target` and `parameters`. `recipe_for` takes (`core_id`, `target`) with no default, so every call site names its target.
+- The package selection carries the target. `scripts/bundle.py:353-362` writes only `core_id` today, and its consumers resolve it with `recipe_for(core_id)` (`scripts/build.py:491-515`), which would turn a DE25 selection back into the DE10-Nano recipe. The selection gains `target`, written by every producer in the same PR; a reader rejects a selection without it and passes it to `recipe_for`. The package profile contract gains the same field.
+- New tests: two rows for one core with different targets load; two rows with the same pair are rejected; the two rows' records differ in `parameters` and BUILD_ID; a `de25` row with `cyclonev` is rejected; a DE25 selection reloads to the DE25 recipe and its parameters; a selection without `target` is rejected.
 
 S7 does not need this schema, because every row there has one target.
 
@@ -450,6 +451,7 @@ The exact ports are copied from the six existing sites.
 
 ```
 module fes_tdp_ram #(parameter int AW = 10, parameter int DW = 8,
+                     parameter int WORDS = 1 << AW,
                      parameter INIT_FILE = "") (
   input logic clk_a, input logic we_a, input logic [AW-1:0] addr_a,
   input logic [DW-1:0] wdata_a, output logic [DW-1:0] rdata_a,
@@ -457,7 +459,7 @@ module fes_tdp_ram #(parameter int AW = 10, parameter int DW = 8,
   input logic [DW-1:0] wdata_b, output logic [DW-1:0] rdata_b);
 ```
 
-Reads are registered. A read during a write returns the new data. `INIT_FILE` must cover the ZX81 ROM, which is initialised through `MEM_INIT_FILE` today (`M/cores/fes-zx81/rtl/zx81_machine.sv:263`).
+Reads are registered. A read during a write returns the new data. `WORDS` is the depth, and both forms use it: the inferred array is `[0:WORDS-1]` and the altsyncram form sets `numwords_a/b = WORDS`. It keeps today's `NUMWORDS` (`coleco_video_dpram.v:7`), which the 720p framebuffers set to 49152 on a 16-bit address (`coleco_video_720p.v:56`, `sms_video_720p.v:52`). Sizing by `AW` alone would make those 65,536 words and fail the equal-M10K acceptance. `INIT_FILE` must cover the ZX81 ROM, which is initialised through `MEM_INIT_FILE` today (`M/cores/fes-zx81/rtl/zx81_machine.sv:263`).
 
 - **Lane forms:**
   - `FES_VENDOR_RAM`: altsyncram BIDIR_DUAL_PORT with `NEW_DATA_NO_NBE_READ`, because 17.0.2 rejects `OLD_DATA` for this shape (`docs/validation/2026-09-12-coleco-sprites.md:106`). If S1a shows that 17.0.2 infers the same RAM from the `FES_RAM_TDP` form with an equal or smaller fit, the PR uses inference and records the fit.
