@@ -1,0 +1,21 @@
+One-line mutants of slice 2's RTL (9887e0543's tree, ~/fes-scratch/p5dr/mut on Powerboat), each built
+as the lockstep testbench and run on the protected-mode cases (FES_I386_MODE=pmode) and two seeds of 200
+protected-mode random programs. Each must fail a directed case.
+
+param-order    fes_i386_seq.sv  a parameter's load at slot pk, not pcnt - 1 - pk
+               -> 6 pmode cases fail (r3-cg16-n2, r3-cg32-n3, r3-cg16-to32, ...); random 0
+no-zx          fes_i386_cpu.sv  the old ESP and return EIP stored whole from a 16-bit stack or code
+               -> r3-cg32-sp16 fails; random 1
+dr6-mask       fes_i386_cpu.sv  DR6's bits 3-0 written from the value's bits 7-4
+               -> dr6-bits fails; random 0
+gd-after-cpl   fes_i386_decode.sv  DR7.GD's #DB below the CPL check's #GP(0)
+               -> r3-dr-gd fails; random 0
+db-rf          fes_i386_cpu.sv  #DB's EFLAGS image with RF set, as other faults'
+               -> 4 pmode cases fail (dr-gd-read, dr-gd-write, dr-gd-rf, ...); random 0
+no-pimm        fes_i386_cpu.sv  RETF's SS and ESP slots without imm16
+               -> 11 pmode cases fail (r0-retf-r3-imm, r0-retfd-r3-imm, ...); random 5
+gate-np        fes_i386_cpu.sv  a call gate not present taken as present
+               -> r3-cg-np fails; random 0
+
+no-zx and dr6-mask passed every case of the first set; r3-cg32-sp16 and dr6-bits were added for them and
+each fails on its mutant.
