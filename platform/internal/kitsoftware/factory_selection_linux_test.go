@@ -66,6 +66,30 @@ func TestFactorySelectionLeavesExhaustedRecovery(t *testing.T) {
 	}
 }
 
+func TestFactorySelectionReplacesIncompatibleRecordedSelection(t *testing.T) {
+	r, _, _, _ := setup(t)
+	incompatibleID := strings.Repeat("9", 64)
+	selectRelease(t, r, incompatibleID)
+	state, _ := r.Read()
+	request := req()
+	request.Generation = state.Generation
+	if err := Queue(r, request); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Update(func(s *State) error { s.Pending.Phase = "blocked"; s.Pending.Reason = "recovery exhausted"; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	operator := AcknowledgeRequest{Operation: request.ID, Generation: request.Generation, Selected: incompatibleID, Base: strings.Repeat("b", 64), Boot: "11111111-2222-3333-4444-555555555555", Action: strings.Repeat("d", 64)}
+	result, err := selectFactory(context.Background(), r, operator, testImageFactoryID, nothingRunning)
+	if err != nil || result.Selected != testImageFactoryID || result.Generation != request.Generation+1 || result.Outcome != "factory-selected" {
+		t.Fatalf("factory selection with incompatible prior failed: %+v %v", result, err)
+	}
+	state, _ = r.Read()
+	if state.Selected != testImageFactoryID || state.Previous != incompatibleID || state.Generation != request.Generation+1 || state.Pending != nil || state.Receipts[request.ID].Result != "cancelled" {
+		t.Fatalf("incompatible prior was not replaced by this image's factory: %+v", state)
+	}
+}
+
 func TestFactorySelectionReplayReportsOnlyCurrentOutcome(t *testing.T) {
 	r, request := acknowledgmentFixture(t)
 	proofs := 0

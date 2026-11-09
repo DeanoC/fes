@@ -103,6 +103,46 @@ func TestInvalidCandidateFallsBackBeforeArming(t *testing.T) {
 	}
 }
 
+type recordingTrialStore struct {
+	fixtureStore
+	rejected  []string
+	rejectErr error
+	events    *[]string
+}
+
+func (s *recordingTrialStore) RejectTrialContext(_ context.Context, bootID, image string) error {
+	s.rejected = append(s.rejected, bootID+":"+image)
+	*s.events = append(*s.events, "reject:"+bootID+":"+image)
+	return s.rejectErr
+}
+
+// The bootstrap must record a rejected trial before booting the old image.
+// An uncertain state write must not let it silently proceed with fallback.
+func TestRejectedTrialIsRecordedBeforeFallback(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		writeErr   error
+		wantEvents []string
+	}{
+		{"recorded", nil, []string{"prepare:candidate", "reject:boot-1:candidate", "prepare:good", "ticket:good", "exec:good", "close:good"}},
+		{"record failure", errors.New("record failed"), []string{"prepare:candidate", "reject:boot-1:candidate"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &fixturePlatform{bad: map[string]bool{"candidate": true}}
+			s := &recordingTrialStore{fixtureStore: fixtureStore{selection: store.Selection{Manifest: release.Manifest{ImageSHA256: "candidate"}, Path: "candidate", Trial: true}}, rejectErr: tc.writeErr, events: &p.events}
+			err := Run(context.Background(), s, "factory", "boot-1", p)
+			if err == nil {
+				t.Fatal("a returned init or failed rejection must be fatal")
+			}
+			if !reflect.DeepEqual(s.rejected, []string{"boot-1:candidate"}) || !reflect.DeepEqual(p.events, tc.wantEvents) {
+				t.Fatalf("rejected=%v events=%v, want %v", s.rejected, p.events, tc.wantEvents)
+			}
+			if tc.writeErr != nil && !errors.Is(err, tc.writeErr) {
+				t.Fatalf("rejection failure lost: %v", err)
+			}
+		})
+	}
+}
 func TestStableSelectionFallsBackToPreviousBeforeFactory(t *testing.T) {
 	p := &fixturePlatform{bad: map[string]bool{"good": true}}
 	s := fixtureStore{selection: store.Selection{

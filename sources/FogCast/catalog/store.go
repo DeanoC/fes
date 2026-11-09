@@ -748,7 +748,7 @@ const selectGameColumns = `g.game_id, g.title, g.library_id, g.relative_path, g.
 	       g.first_seen_ns, g.genre, g.year, g.search_aliases`
 
 func (s *Store) Games(ctx context.Context) ([]Game, error) {
-	return s.queryGames(ctx, selectGames+" ORDER BY lower(g.title), g.game_id")
+	return s.queryGames(ctx, selectGames+" WHERE NOT EXISTS (SELECT 1 FROM kit_host_entries k WHERE k.game_id = g.game_id) ORDER BY lower(g.title), g.game_id")
 }
 
 func (s *Store) Search(ctx context.Context, query string) ([]Game, error) {
@@ -756,7 +756,7 @@ func (s *Store) Search(ctx context.Context, query string) ([]Game, error) {
 	if foldedQuery == "" {
 		return s.Games(ctx)
 	}
-	return s.queryGames(ctx, selectGames+` WHERE g.search_text LIKE '%' || ? || '%' ESCAPE '\' ORDER BY lower(g.title), g.game_id`, escapeLIKE(foldedQuery))
+	return s.queryGames(ctx, selectGames+` WHERE NOT EXISTS (SELECT 1 FROM kit_host_entries k WHERE k.game_id = g.game_id) AND g.search_text LIKE '%' || ? || '%' ESCAPE '\' ORDER BY lower(g.title), g.game_id`, escapeLIKE(foldedQuery))
 }
 
 func foldSearchText(value string) string {
@@ -777,7 +777,7 @@ func (s *Store) Platforms(ctx context.Context) ([]PlatformInfo, error) {
 		       COUNT(g.game_id),
 		       MAX(l.online)
 		FROM libraries AS l
-		LEFT JOIN games AS g ON g.library_id = l.id
+		LEFT JOIN games AS g ON g.library_id = l.id AND NOT EXISTS (SELECT 1 FROM kit_host_entries k WHERE k.game_id = g.game_id)
 		GROUP BY l.system
 		ORDER BY lower(l.system)`)
 	if err != nil {
@@ -874,7 +874,7 @@ func (s *Store) QueryGames(ctx context.Context, query Query) (Page, error) {
 
 func gameFilterSQL(query Query, gameAlias, libraryAlias string) (string, []any) {
 	var builder strings.Builder
-	builder.WriteString(" WHERE 1 = 1")
+	builder.WriteString(" WHERE NOT EXISTS (SELECT 1 FROM kit_host_entries k WHERE k.game_id = " + gameAlias + ".game_id)")
 	args := make([]any, 0, 16)
 	if query.Platform != "" {
 		builder.WriteString(" AND " + gameAlias + ".system = ?")
@@ -1078,7 +1078,7 @@ func (s *Store) GamesInGroup(ctx context.Context, groupKey string, limit int) ([
 	}
 	query := `SELECT ` + selectGameColumns + `, 1` + `
 		FROM games AS g JOIN libraries AS l ON l.id = g.library_id
-		WHERE g.group_key = ?
+		WHERE g.group_key = ? AND NOT EXISTS (SELECT 1 FROM kit_host_entries k WHERE k.game_id = g.game_id)
 		ORDER BY g.region, g.revision DESC, g.game_id`
 	if limit == UnboundedVariantLimit {
 		return s.queryGames(ctx, query, groupKey)
@@ -1121,11 +1121,11 @@ func (s *Store) SetFacets(ctx context.Context, id, genre, year, aliases string) 
 }
 
 func (s *Store) Facets(ctx context.Context) (FacetValues, error) {
-	genres, err := s.distinctColumn(ctx, `SELECT DISTINCT genre FROM games WHERE genre <> '' ORDER BY lower(genre) LIMIT 200`)
+	genres, err := s.distinctColumn(ctx, `SELECT DISTINCT genre FROM games WHERE genre <> '' AND NOT EXISTS (SELECT 1 FROM kit_host_entries k WHERE k.game_id = games.game_id) ORDER BY lower(genre) LIMIT 200`)
 	if err != nil {
 		return FacetValues{}, err
 	}
-	years, err := s.distinctColumn(ctx, `SELECT DISTINCT year FROM games WHERE year <> '' ORDER BY year DESC LIMIT 64`)
+	years, err := s.distinctColumn(ctx, `SELECT DISTINCT year FROM games WHERE year <> '' AND NOT EXISTS (SELECT 1 FROM kit_host_entries k WHERE k.game_id = games.game_id) ORDER BY year DESC LIMIT 64`)
 	if err != nil {
 		return FacetValues{}, err
 	}

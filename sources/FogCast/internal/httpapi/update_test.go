@@ -15,6 +15,8 @@ import (
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/kitpackages"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
+	"github.com/DeanoC/FogCast/internal/softwareagent"
+	contractlease "github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 	"io"
 	"log/slog"
@@ -24,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -235,6 +238,56 @@ func TestUpdateHTTPAuthenticationLeaseAndTrialGate(t *testing.T) {
 	st, e := s.Status()
 	if e != nil || st.Good != m.ImageSHA256 {
 		t.Fatalf("not durably confirmed: %+v %v", st, e)
+	}
+}
+
+func TestRollbackUsesUpdaterWhenSoftwareMaintenanceIsBlocked(t *testing.T) {
+	root := t.TempDir()
+	var cleanups atomic.Int32
+	manager := kitlease.New(time.Minute, func(context.Context) error {
+		if cleanups.Add(1) == 1 {
+			return nil
+		}
+		return fmt.Errorf("cleanup remains blocked")
+	},
+		kitlease.WithMaintenanceFile(filepath.Join(root, "maintenance.json"), filepath.Join(root, "maintenance.lock"), "12345678-1234-1234-1234-123456789abc"))
+	t.Cleanup(manager.Close)
+	execution := claimKit(t, manager)
+	_, err := manager.StartMaintenance(execution.Token, contractlease.MaintenanceStartRequest{RequestID: strings.Repeat("b", 32), Purpose: "kit-software-activation"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for manager.MaintenanceStatus().State != "blocked" && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if manager.Status().State != "recovery-required" || manager.MaintenanceStatus().State != "blocked" {
+		t.Fatalf("test setup did not reach blocked software maintenance: lease=%+v maintenance=%+v", manager.Status(), manager.MaintenanceStatus())
+	}
+
+	rebooted := false
+	h, releases, next, _, image := updateFixture(t, false, func(context.Context) error { rebooted = true; return nil }, httpapi.WithKitLease(manager))
+	if err := releases.Stage(context.Background(), next, next.ImageSize, bytes.NewReader(image)); err != nil {
+		t.Fatal(err)
+	}
+	if err := releases.Activate(next.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := releases.BeginBoot("87654321-1234-1234-1234-123456789abc"); err != nil {
+		t.Fatal(err)
+	}
+	if err := releases.Confirm("87654321-1234-1234-1234-123456789abc", next.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+
+	h = softwareagent.NewFence(true).Guard(h)
+	w := updateRequest(h, "/v1/update/rollback", "", "")
+	if w.Code != http.StatusAccepted || !rebooted {
+		t.Fatalf("blocked-maintenance rollback did not reach updater: status=%d body=%s rebooted=%v", w.Code, w.Body.String(), rebooted)
+	}
+	state, err := releases.Status()
+	if err != nil || state.Pending != state.Previous {
+		t.Fatalf("rollback did not select the previous image: state=%+v err=%v", state, err)
 	}
 }
 

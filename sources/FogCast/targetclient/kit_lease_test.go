@@ -759,6 +759,46 @@ func TestLocalLeaseRejectsLossOrChangedGrant(t *testing.T) {
 	}
 }
 
+func TestLocalResumeBlockedBySoftwareFenceStillAllowsStatusObservation(t *testing.T) {
+	var resumes atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/local/resume":
+			resumes.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			fmt.Fprint(w, `{"error":{"code":"BUSY","message":"software activation blocks mutations"}}`)
+		case "/v1/kit/lease":
+			fmt.Fprint(w, `{"state":"maintenance","generation":"maintenance-generation","owner":"kit-software-supervisor","purpose":"kit-software-activation"}`)
+		case "/v1/status":
+			fmt.Fprint(w, `{"state":"idle"}`)
+		default:
+			t.Errorf("unexpected request %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	base, _ := url.Parse(server.URL)
+	lease := NewLocalKitLease(base, "bearer", server.Client())
+	defer lease.Close(context.Background())
+	client := NewClient(base, "bearer", server.Client()).WithKitLease(lease)
+
+	ownership, err := client.AdoptEndpoint(context.Background(), base, false)
+	if err != nil {
+		t.Fatalf("adopt endpoint during activation: %v", err)
+	}
+	if ownership.State != "maintenance" {
+		t.Fatalf("ownership state = %q, want maintenance", ownership.State)
+	}
+	status, err := client.Status(context.Background())
+	if err != nil || status.State != "idle" {
+		t.Fatalf("status = %+v, %v; want readable idle target", status, err)
+	}
+	if resumes.Load() != 2 || lease.Held() {
+		t.Fatalf("resume requests = %d, lease held = %v; want both rejected probes and no grant", resumes.Load(), lease.Held())
+	}
+}
+
 func TestLocalLeaseDoesNotRetryAfterGraceExpires(t *testing.T) {
 	var renews atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -149,7 +149,7 @@ make -C /absolute/path/to/FogCast build-fes-update
 ```
 
 Software goes before the image. Before uploading, `update` reads the image's
-`/etc/fes/software-base.json` and refuses an image whose menu interfaces the
+`/etc/fes/software-base.json` and refuses an image whose required interfaces the
 kit's selected software bundle does not accept; install and activate a bundle
 that accepts them first. A bundle built for another base contract cannot go
 first, so that update proceeds with a notice and the image runs its factory

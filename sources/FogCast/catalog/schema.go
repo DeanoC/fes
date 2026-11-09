@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 20
+const schemaVersion = 21
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -315,6 +315,47 @@ ALTER TABLE core_entries ADD COLUMN media_name TEXT NOT NULL DEFAULT '';
 PRAGMA user_version = 20;
 `
 
+// Schema 21 records only entries generated for kit-host launches.
+const schemaV21 = `
+CREATE TABLE kit_host_entries (
+  identity TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL UNIQUE REFERENCES core_entries(game_id) ON DELETE CASCADE,
+  source_game_id TEXT NOT NULL DEFAULT ''
+);
+-- An edited helper becomes an ordinary user entry immediately.
+CREATE TRIGGER kit_host_entry_edit AFTER UPDATE ON core_entries BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = NEW.game_id;
+END;
+CREATE TRIGGER kit_host_rom_insert AFTER INSERT ON core_entry_roms BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = NEW.game_id;
+END;
+CREATE TRIGGER kit_host_rom_update AFTER UPDATE ON core_entry_roms BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = NEW.game_id;
+END;
+CREATE TRIGGER kit_host_rom_delete AFTER DELETE ON core_entry_roms BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = OLD.game_id;
+END;
+CREATE TRIGGER kit_host_expansion_insert AFTER INSERT ON core_entry_expansions BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = NEW.game_id;
+END;
+CREATE TRIGGER kit_host_expansion_update AFTER UPDATE ON core_entry_expansions BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = NEW.game_id;
+END;
+CREATE TRIGGER kit_host_expansion_delete AFTER DELETE ON core_entry_expansions BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = OLD.game_id;
+END;
+CREATE TRIGGER kit_host_slot_insert AFTER INSERT ON core_entry_slot_expansions BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = NEW.game_id;
+END;
+CREATE TRIGGER kit_host_slot_update AFTER UPDATE ON core_entry_slot_expansions BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = NEW.game_id;
+END;
+CREATE TRIGGER kit_host_slot_delete AFTER DELETE ON core_entry_slot_expansions BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = OLD.game_id;
+END;
+PRAGMA user_version = 21;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -504,6 +545,12 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if version == 19 {
 		if _, err := connection.ExecContext(ctx, schemaV20); err != nil {
 			return fmt.Errorf("apply catalog schema version 20: %w", err)
+		}
+		version = 20
+	}
+	if version == 20 {
+		if _, err := connection.ExecContext(ctx, schemaV21); err != nil {
+			return fmt.Errorf("apply catalog schema version 21: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

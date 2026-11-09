@@ -391,12 +391,12 @@ missing layers labelled missing.
 
 The kit UI is `fogcast-tenfoot -gfx menu-display`, started by the base-image
 supervisor. It uses an explicitly paired host listener and the existing
-session/input ownership path, or the kit-local catalog and local-control
-socket when the kit has its own playable shelf. Select + Start held for one
+session/input ownership path through the supervised local host. Select + Start held for one
 second requests Stop. Each kit pad applies the profile `tenfoot.json` saves
 under its GUID (`ui/inputmap`: the `swap-ab` preset and single-control
 bindings). The bundle's `bin/fogcast-kit` is `cmd/fogcast-api` built under
-the kit's name: `fogcast-kit host` is the kit's FogCast host.
+the kit's name: `fogcast-kit host` is the kit's FogCast host, and
+`--print-kit-ui` still answers `tenfoot` for bases whose supervisor probes it.
 See [kit launcher](docs/kit-launcher.md). Exact image and hardware evidence
 belong to FES.
 

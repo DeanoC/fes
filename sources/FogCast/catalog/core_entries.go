@@ -76,15 +76,37 @@ func (s *Store) CreateCoreEntry(ctx context.Context, title, coreID, packageID st
 
 // CreateCoreMediaEntry atomically creates a title with an explicit media selection.
 func (s *Store) CreateCoreMediaEntry(ctx context.Context, title, coreID, packageID, mediaRole, mediaID string) (CoreEntry, error) {
-	return s.createCoreEntry(ctx, title, coreID, packageID, mediaRole, mediaID, false)
+	return s.createCoreEntry(ctx, title, coreID, packageID, mediaRole, mediaID, false, nil)
 }
 
 // CreateFirmwareRequiredEntry creates a title that cannot become Ready without household firmware.
 func (s *Store) CreateFirmwareRequiredEntry(ctx context.Context, title, coreID, packageID, mediaRole, mediaID string) (CoreEntry, error) {
-	return s.createCoreEntry(ctx, title, coreID, packageID, mediaRole, mediaID, true)
+	return s.createCoreEntry(ctx, title, coreID, packageID, mediaRole, mediaID, true, nil)
 }
 
-func (s *Store) createCoreEntry(ctx context.Context, title, coreID, packageID, mediaRole, mediaID string, firmwareRequired bool) (CoreEntry, error) {
+type KitHostEntryIdentity struct {
+	Identity      string
+	SourceGameID  string
+	ROMID         string
+	ROMMediaID    string
+	ROMSourceSize int64
+}
+
+// CreateKitHostEntry atomically creates its provenance and optional ROM binding.
+func (s *Store) CreateKitHostEntry(ctx context.Context, title, coreID, packageID, role, mediaID string, identity KitHostEntryIdentity) (CoreEntry, error) {
+	if protocol.ValidateDigest(identity.Identity) != nil || (identity.SourceGameID != "" && protocol.ValidateGameID(identity.SourceGameID) != nil) {
+		return CoreEntry{}, ErrInvalidCoreEntry
+	}
+	if identity.ROMID != "" && (strings.TrimSpace(identity.ROMID) == "" || protocol.ValidateDigest(identity.ROMMediaID) != nil || identity.ROMSourceSize < 1 || identity.ROMSourceSize > MaxCoreMediaBytes) {
+		return CoreEntry{}, ErrInvalidCoreROM
+	}
+	if identity.ROMID == "" && (identity.ROMMediaID != "" || identity.ROMSourceSize != 0) {
+		return CoreEntry{}, ErrInvalidCoreROM
+	}
+	return s.createCoreEntry(ctx, title, coreID, packageID, role, mediaID, false, &identity)
+}
+
+func (s *Store) createCoreEntry(ctx context.Context, title, coreID, packageID, mediaRole, mediaID string, firmwareRequired bool, kit *KitHostEntryIdentity) (CoreEntry, error) {
 	title = strings.TrimSpace(title)
 	if err := validateCoreEntry(title, coreID, packageID); err != nil {
 		return CoreEntry{}, err
@@ -133,6 +155,23 @@ func (s *Store) createCoreEntry(ctx context.Context, title, coreID, packageID, m
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO core_entries(game_id, core_id, package_id, media_role, media_id, firmware_required) VALUES (?, ?, ?, ?, ?, ?)`, gameID, coreID, packageID, mediaRole, mediaID, firmwareRequiredInt(firmwareRequired)); err != nil {
 		return CoreEntry{}, fmt.Errorf("insert core entry: %w", err)
+	}
+	if kit != nil {
+		if kit.ROMID != "" {
+			media, err := verifyCoreMedia(ctx, tx, kit.ROMMediaID, io.Discard)
+			if err != nil {
+				return CoreEntry{}, err
+			}
+			if media.Size != kit.ROMSourceSize {
+				return CoreEntry{}, ErrInvalidCoreROM
+			}
+			if _, err := tx.ExecContext(ctx, `INSERT INTO core_entry_roms(game_id,package_id,rom_id,media_id,source_size) VALUES(?,?,?,?,?)`, gameID, packageID, kit.ROMID, kit.ROMMediaID, kit.ROMSourceSize); err != nil {
+				return CoreEntry{}, err
+			}
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO kit_host_entries(identity,game_id,source_game_id) VALUES (?,?,?)`, kit.Identity, gameID, kit.SourceGameID); err != nil {
+			return CoreEntry{}, err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return CoreEntry{}, fmt.Errorf("commit core entry creation: %w", err)
@@ -194,7 +233,20 @@ func (s *Store) CoreEntry(ctx context.Context, gameID string) (CoreEntry, error)
 }
 
 func (s *Store) CoreEntries(ctx context.Context) ([]CoreEntry, error) {
-	rows, err := s.db.QueryContext(ctx, coreEntrySelect+` ORDER BY e.game_id`)
+	return s.coreEntries(ctx, false)
+}
+
+// AllCoreEntries includes generated kit-host entries for internal name allocation.
+func (s *Store) AllCoreEntries(ctx context.Context) ([]CoreEntry, error) {
+	return s.coreEntries(ctx, true)
+}
+
+func (s *Store) coreEntries(ctx context.Context, includeKitHost bool) ([]CoreEntry, error) {
+	query := coreEntrySelect
+	if !includeKitHost {
+		query += ` WHERE NOT EXISTS (SELECT 1 FROM kit_host_entries k WHERE k.game_id = e.game_id)`
+	}
+	rows, err := s.db.QueryContext(ctx, query+` ORDER BY e.game_id`)
 	if err != nil {
 		return nil, fmt.Errorf("list core entries: %w", err)
 	}

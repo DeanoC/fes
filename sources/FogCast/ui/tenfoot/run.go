@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,9 +10,7 @@ import (
 
 	"fmt"
 
-	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/hostclient"
-	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/FogCast/ui/theme"
@@ -20,11 +19,13 @@ import (
 // Options configure the native launcher window.
 type Options struct {
 	// CPUProfile and HeapProfile write optional diagnostic pprof files.
-	CPUProfile   string
-	HeapProfile  string
-	APIBase      string
-	APIToken     string
-	TargetID     string
+	CPUProfile  string
+	HeapProfile string
+	APIBase     string
+	APIToken    string
+	TargetID    string
+	// KitHost connects the kit UI to its own unpaired host API.
+	KitHost      bool
 	Width        int
 	Height       int
 	Fullscreen   bool
@@ -79,13 +80,6 @@ type Options struct {
 	// uses Installed cores, including after Settings switches Home to rooms.
 	// A missing or invalid id falls back to the picker.
 	HomeRoom string
-	// CatalogConfig is a FogCast config.toml. menu-display boots
-	// BootLocalCatalog from it so the shelf works with the remote host
-	// absent. Empty keeps the configured host API. The fogcast-tenfoot
-	// flag parser fills this from -catalog-config, FOGCAST_CONFIG,
-	// FES_HOST_CONFIG, config.toml beside launcher.json, or the default
-	// user config when that file exists.
-	CatalogConfig string
 	// ReducedMotion skips decorative room animation. Empty falls back to
 	// FOGCAST_TENFOOT_REDUCED_MOTION / FOGCAST_REDUCED_MOTION, then
 	// tenfoot.json reduced_motion.
@@ -300,7 +294,19 @@ func sizedOptions(opts Options, dev interface{ Config() gfx.FBConfig }) Options 
 
 // configuredApp keeps application setup identical across native display backends.
 func configuredApp(opts Options) (*App, error) {
-	app := NewApp(NewClient(opts.APIBase, launcherHTTPClient(opts.APIToken, opts.TargetID)).withAPIHost(opts.APIHost), opts.Width, opts.Height, opts.MaxGames)
+	var auth *http.Client
+	if !opts.KitHost {
+		auth = launcherHTTPClient(opts.APIToken, opts.TargetID)
+	}
+	app := NewApp(NewClient(opts.APIBase, auth).withAPIHost(opts.APIHost), opts.Width, opts.Height, opts.MaxGames)
+	app.kitHost = opts.KitHost
+	if opts.KitHost {
+		app.kitMenuStartedAt = time.Now()
+		// A prior UI process may have exited while a host session kept the
+		// display. Wait for the host's first session read before presenting.
+		app.hostPresentsPaused = true
+		app.hostAwaitStatus = true
+	}
 	look, err := theme.Resolve(opts.Theme)
 	if err != nil {
 		return nil, fmt.Errorf("theme: %w", err)
@@ -325,71 +331,23 @@ func configuredApp(opts Options) (*App, error) {
 	app.SetSurround(opts.Surround)
 	app.SetAllCores(opts.AllCores)
 	app.ConfigureAttract(opts.NoAttract, opts.attractForced())
-	// menu-display is the kit entry. Host SDL, software, and
-	// linuxfb leave the local-control client unset. A resolved catalog
-	// config replaces the remote API with the loopback catalog only when
-	// the kit has its own playable shelf (see useLocalCatalog). Otherwise,
-	// and on a failed boot, the launcher.json host library stays in place.
+	// menu-display is the kit entry.
 	if backend, err := gfx.ParseBackend(opts.GFX); err == nil && backend == gfx.BackendMenuDisplay {
 		// A rooms Home on the kit opens first-run setup until it is
 		// finished or skipped.
 		app.SetFirstRun(homeRooms)
-		app.SetKitDisplay(opts.TargetID)
-		app.EnableKitLocal()
-		if served := serveCatalog(opts.CatalogConfig); served != nil {
-			if useLocalCatalog(opts.CatalogConfig, served.Notice) {
-				app.client = NewClient(served.Base, launcherHTTPClient("", "")).withAPIHost("")
-				app.localCatalogClose = served.Close
-				app.localContent = served.ContentPath
-			} else {
-				_ = served.Close()
-			}
+		targetID := opts.TargetID
+		if opts.KitHost {
+			targetID = ""
 		}
+		app.SetKitDisplay(targetID)
+		if opts.KitHost {
+			app.EnableKitHost()
+		} else {
+			app.EnableKitLocal()
+		}
+
 	}
 
 	return app, nil
-}
-
-// useLocalCatalog reports whether the booted kit-local catalog should
-// replace the launcher.json host library (#616). The local shelf wins only
-// when it has playable local files (an empty notice) and the catalog config
-// does not declare targets that are all disabled. An empty, missing or
-// offline shelf, or a config whose targets are all disabled (the image
-// default), keeps the host. A config without targets keeps the #385
-// hostless browse behaviour when it has local games.
-func useLocalCatalog(configPath, notice string) bool {
-	if strings.TrimSpace(notice) != "" {
-		return false
-	}
-	cfg, err := fogcast.LoadConfig(configPath)
-	if err != nil {
-		return true
-	}
-	if len(cfg.Targets) == 0 {
-		return true
-	}
-	for _, target := range cfg.Targets {
-		if target.Enabled {
-			return true
-		}
-	}
-	return false
-}
-
-// serveCatalog boots the local catalog when configPath names a real file.
-// A missing path or a failed boot returns nil and leaves the host API in place.
-func serveCatalog(configPath string) *hostapi.LocalServe {
-	configPath = strings.TrimSpace(configPath)
-	if configPath == "" {
-		return nil
-	}
-	paths, err := fogcast.PathsForConfig(configPath)
-	if err != nil {
-		return nil
-	}
-	served, err := hostapi.ServeLocal(context.Background(), paths)
-	if err != nil {
-		return nil
-	}
-	return served
 }

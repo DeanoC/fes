@@ -72,7 +72,8 @@ type child struct {
 	role    string
 	started time.Time
 	// exited is when Wait returned. It is written before done closes.
-	exited time.Time
+	exited          time.Time
+	failedReadiness bool
 }
 
 // ProcessController directly parents the kit processes. It never relies on
@@ -117,7 +118,7 @@ type ProcessController struct {
 	// now overrides the recovery clock in tests.
 	now func() time.Time
 	// hostPlan is how to start the kit's FogCast host for the active bundle,
-	// or nil when the bundle does not advertise kit-host. host is the running
+	// host is the running
 	// host process. It is not a member of children: its exit restarts it
 	// alone, and the service group's health and recovery do not include it.
 	hostPlan    *hostPlan
@@ -128,6 +129,16 @@ type ProcessController struct {
 	// The replacement agent closes execution claims before it serves, and Start
 	// confirms that fence before the launcher probe.
 	holdRecoveryClaims bool
+	// Named-service restart probes and budgets are injectable for offline
+	// lifecycle tests. Production leaves them nil and uses the local runtime,
+	// host health API and launcher readiness marker.
+	serviceRestartStable        time.Duration
+	serviceRestartBudget        time.Duration
+	serviceRestartPoll          time.Duration
+	serviceRestartTargetIDPath  string
+	serviceRestartRuntimeProbe  func(context.Context, *child) (nativeStatus, error)
+	serviceRestartHostProbe     func(context.Context, string) error
+	serviceRestartLauncherProbe func(context.Context, *child, string) error
 }
 
 type groupReap struct {
@@ -489,14 +500,23 @@ func (c *ProcessController) Start(ctx context.Context, id string, r Request) err
 			return err
 		}
 	}
-	catalog := filepath.Join(root, "share/fogcast/config.toml")
-	if err := c.start(filepath.Join(root, "bin/fogcast-tenfoot"), []string{"-config", "/media/fat/fogcast/launcher.json", "-catalog-config", catalog, "-gfx", "menu-display", "-menu-socket", "/run/mister-runtime.sock", "-input", "auto", "-home", "rooms"}, env, roleLauncher); err != nil {
+	if err := c.start(filepath.Join(root, "bin/fogcast-tenfoot"), launcherArgs(), env, roleLauncher); err != nil {
 		_ = c.stopLocked(ctx)
 		return err
 	}
 	c.active = id
 	c.planHostLocked(root, env)
+	// The launcher waits for session status before its first frame, so the
+	// local host must start during activation, before readiness can be met.
+	// A failed spawn remains retryable through the independent supervisor.
+	if err := c.superviseHostLocked(); err != nil {
+		log.Printf("software host start: %v", err)
+	}
 	return nil
+}
+
+func launcherArgs() []string {
+	return []string{"-config", "/media/fat/fogcast/launcher.json", "-gfx", "menu-display", "-menu-socket", "/run/mister-runtime.sock", "-input", "auto", "-home", "rooms", "-api", "http://127.0.0.1:8787", "-kit-host"}
 }
 
 // nativeStatusProbe is injected only by in-package tests. Production always
@@ -589,6 +609,11 @@ func waitForAgentConfig(ctx context.Context, path string, wait time.Duration) er
 }
 func (c *ProcessController) Healthy(ctx context.Context, id string) error {
 	c.mu.Lock()
+	// Activation waits here for launcher readiness before the supervisor's
+	// regular tick runs. Keep the independent host retrying during that wait.
+	if err := c.superviseHostLocked(); err != nil {
+		log.Printf("software host supervision: %v", err)
+	}
 	children := append([]*child(nil), c.children...)
 	active := c.active
 	c.mu.Unlock()
@@ -833,7 +858,7 @@ func (c *ProcessController) restartExitedLauncherLocked() error {
 	}
 	c.clearLauncherReap()
 	c.launcherRestart = time.Now()
-	if lived < launcherStableLife {
+	if launcher.failedReadiness || lived < launcherStableLife {
 		if c.launcherDelay < launcherRestartMin {
 			c.launcherDelay = launcherRestartMin
 		} else if c.launcherDelay < launcherRestartMax {

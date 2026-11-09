@@ -194,12 +194,15 @@ func (c *Client) RollbackAppliance(ctx context.Context, targetID string, resolve
 			c.reportProgress("activation accepted", before.Previous)
 			return c.finishAppliance(ctx, targetID, before, before.Previous, nil, resolve)
 		}
-		var apiErr *protocol.APIError
-		var statusErr *httpStatusError
-		if errors.As(lastErr, &apiErr) && (!errors.As(lastErr, &statusErr) || statusErr.status != http.StatusServiceUnavailable) {
+		if definiteActivationRejection(lastErr) {
+			c.reportProgress("activation rejected", lastErr.Error())
 			return before, lastErr
 		}
-		c.reportProgress("activation response lost", lastErr.Error())
+		if isUnavailableAPIError(lastErr) {
+			c.reportProgress("activation outcome uncertain", lastErr.Error())
+		} else {
+			c.reportProgress("activation response lost", lastErr.Error())
+		}
 		retry, current, observeErr := c.rollbackStatusAllowsRetry(ctx, targetID, before, before.Previous, resolve)
 		if observeErr != nil {
 			return c.finishAppliance(ctx, targetID, before, before.Previous, errors.Join(lastErr, observeErr), resolve)
@@ -263,15 +266,29 @@ func (c *Client) applianceBefore(ctx context.Context, targetID string, resolve R
 }
 
 func (c *Client) finishAppliance(ctx context.Context, targetID string, before ApplianceStatus, expected string, activationErr error, resolve ResolveAppliance) (ApplianceStatus, error) {
-	var apiErr *protocol.APIError
-	// An explicit rejection must not turn into a reboot wait or a second request.
-	if errors.As(activationErr, &apiErr) {
+	// BUSY is a typed admission rejection; other structured 503 responses may
+	// follow an accepted rollback, so reconcile their outcome with read-only
+	// boot observations instead of treating the status code as proof of refusal.
+	if definiteActivationRejection(activationErr) {
 		return before, activationErr
 	}
 	// The activation may have committed even if its response was lost. Stop the
 	// pre-reboot renewal loop immediately; observation below makes no mutations.
 	c.InvalidateKitSession()
 	return c.waitApplianceConfirmation(ctx, targetID, expected, before.BootID, false, activationErr, resolve)
+}
+
+func isUnavailableAPIError(err error) bool {
+	var apiErr *protocol.APIError
+	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusServiceUnavailable
+}
+
+func definiteActivationRejection(err error) bool {
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	return apiErr.StatusCode != http.StatusServiceUnavailable || apiErr.Code == protocol.CodeBusy
 }
 
 // ConfirmApplianceTrial resumes confirmation of an expected release without staging or activation.

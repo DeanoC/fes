@@ -51,6 +51,11 @@ nothing by itself.
 | `fes.pc386` | `cores/fes-pc386` | `fes.computer` with session display and HPS DDR; `fes_i386_cpu`; the HPS stages the disk and settings in the DDR window until M0 | `cores/fes-pc386/toolchain.lock` (Yosys only; Quartus 17.0.2 fits) | `make build-fes-pc386-quartus` | no; not registered; pc386 M5 bring-up |
 | splash / idle | `cores/fes-splash` | none | generic `toolchain.lock`, GPU router off | `make build-fes-splash` | not a play package; pinned as `sealed/fes-splash.rbf` |
 
+The Pong producer returns a package only after reading both the content-addressed
+directory and its canonical sibling `.fcore` back through the core-package
+validator. Their manifest, payload and content-derived package ID must match
+the fresh build bytes; a prior candidate is not reused as build evidence.
+
 `cores/pong` is the standalone Pong game module (`make sim-pong`). It is not
 a package. The package is `cores/fes-pong`. ZX81 has no
 `cores/fes-zx81/README.md`. Its machine contract is the ZX81 sections of

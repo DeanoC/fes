@@ -34,10 +34,18 @@ type maintenanceGrant struct {
 	Token  string            `json:"token"`
 }
 type AdmissionStatus struct {
-	Maintenance   MaintenanceStatus `json:"maintenance"`
-	RawIdleReady  bool              `json:"raw_idle_ready"`
-	UpdateBlocked bool              `json:"update_blocked"`
-	BundleID      string            `json:"bundle_id"`
+	Maintenance    MaintenanceStatus    `json:"maintenance"`
+	ExecutionLease ExecutionLeaseStatus `json:"execution_lease"`
+	RawIdleReady   bool                 `json:"raw_idle_ready"`
+	UpdateBlocked  bool                 `json:"update_blocked"`
+	BundleID       string               `json:"bundle_id"`
+}
+
+type ExecutionLeaseStatus struct {
+	State      string `json:"state"`
+	Generation string `json:"generation"`
+	Owner      string `json:"owner,omitempty"`
+	Purpose    string `json:"purpose,omitempty"`
 }
 type AdmissionRequest struct {
 	RequestID  string `json:"request_id"`

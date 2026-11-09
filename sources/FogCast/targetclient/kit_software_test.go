@@ -114,6 +114,42 @@ func TestKitSoftwareClientDoesNotReplayLostMutation(t *testing.T) {
 	}
 }
 
+type kitSoftwareTransport func(*http.Request) (*http.Response, error)
+
+func (f kitSoftwareTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestKitSoftwareCancelAcceptsOnlyVerifiedFactoryRecoveryReceipt(t *testing.T) {
+	request := softwarecontrol.CancelRequest{ID: strings.Repeat("a", 64), Generation: 4}
+	for _, tc := range []struct {
+		name   string
+		reason string
+		wantOK bool
+	}{{"blocked recovery", softwarecontrol.ReasonBlockedCancel, true}, {"ordinary recovery", "candidate failed", false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			transport := kitSoftwareTransport(func(r *http.Request) (*http.Response, error) {
+				if r.Method != http.MethodPost || r.URL.Path != "/v1/kit/software/cancel" {
+					t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+				}
+				var got softwarecontrol.CancelRequest
+				if err := json.NewDecoder(r.Body).Decode(&got); err != nil || got != request {
+					t.Errorf("cancel request identity changed: %+v %v", got, err)
+				}
+				status := softwarecontrol.Status{State: softwarecontrol.State{Version: 1, Generation: 5, Selected: "factory", Receipts: map[string]softwarecontrol.Receipt{
+					request.ID: {Request: softwarecontrol.Request{ID: request.ID, Candidate: "candidate", Requester: "agent", Generation: request.Generation}, Result: "recovered", Reason: tc.reason},
+				}}}
+				body, _ := json.Marshal(status)
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: r}, nil
+			})
+			endpoint, _ := url.Parse("http://kit.invalid")
+			client := NewClient(endpoint, "token", &http.Client{Transport: transport})
+			status, err := client.CancelKitSoftware(context.Background(), request)
+			if (err == nil) != tc.wantOK {
+				t.Fatalf("status=%+v err=%v wantOK=%t", status, err, tc.wantOK)
+			}
+		})
+	}
+}
+
 func TestKitSoftwareClientRejectsSubstitutedBundleIdentity(t *testing.T) {
 	archive, release := softwareClientBundle(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _ = json.NewEncoder(w).Encode(release) }))

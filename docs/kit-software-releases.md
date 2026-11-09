@@ -58,12 +58,16 @@ version and at least the required minor. Supervisors that predate these keys
 ignore them, so a newer bundle still installs and runs on an older image. The
 image build fails when its own factory runtime does not accept its menu.
 
-A bundle manifest can also advertise what it offers a supervisor. These keys
-go only into the bundle, never into the image's `software-base.json`, so they
-neither hold a bundle back nor make `fes-update` refuse an image:
-`kit-host` (`1.x`) says `bin/fogcast-kit` has a `host` mode. A supervisor
-that knows the key starts the host for such a bundle and runs older bundles
-with the three services; an older supervisor ignores the key and runs three.
+The base contract includes both the system-library ABI and the supervisor's
+launcher invocation ABI. The local-host launcher uses the v2 contract; an older
+v1 image holds back a v2 selection and starts its own factory software, and a
+v2 image likewise holds back a v1 selection. This prevents an old supervisor
+from starting a launcher with arguments it no longer accepts.
+
+A bundle advertises `kit-host` for the supervised host and
+`kit-launcher-host` for Tenfoot's local-host mode. The current image requires
+both at version 1.0 in `software-base.json`, so a bundle without either is
+rejected before selection. The image's factory bundle provides both.
 
 The base image's supervisor checks this at install, activation, boot and
 recovery:
@@ -130,8 +134,15 @@ go run ./cmd/fes-software --config /absolute/path/config.toml --action cancel \
   --request-id PENDING_OPERATION_ID --expected-generation N
 ```
 
-Only a pending queued operation can be cancelled. A service replacement already
-underway retains its maintenance ownership through completion or recovery.
+Queued operations can be cancelled as above. A blocked activation can also be
+cancelled when the recorded selection is incompatible with this image and the
+image's factory group is active, healthy and idle under the exact failed
+maintenance reservation. The supervisor then records the factory as selected
+and releases that same reservation; it does not bypass bundle compatibility or
+clear the lease directly. Status records this outcome as `recovered` because the
+factory group was proved healthy; its reason identifies the operator
+cancellation. If the compatible group cannot be proved, use the local recovery
+actions below.
 Mutations are sent once. If a response is lost, inspect status and the release
 inventory before repeating it. A matching completed receipt identifies the
 outcome; a newer generation rejects stale changes. The supervisor keeps the
@@ -204,17 +215,16 @@ becomes available.
 **The kit's FogCast host** (#863 slice 5) is a fourth supervised process, kept
 apart from the service group above:
 
-- **When it runs.** The supervisor starts `bin/fogcast-kit host` only for a
-  bundle whose manifest advertises `kit-host` (next section), and only once the
-  launcher has published readiness for that bundle, so its start-up does not
-  compete with the agent and launcher.
-- **Not part of activation.** Its exit restarts it alone, with the launcher's
+- **When it runs.** The supervisor starts `bin/fogcast-kit host` during
+  activation, before launcher readiness. Tenfoot reads the host session before
+  presenting or reporting readiness.
+- **Independent restart.** Its exit restarts it alone, with the launcher's
   one-to-thirty-second backoff, and never stops the agent, runtime or a running
   core. `GET /v1/kit/software`'s `service_fault` reports it while it
   restarts, when the service group has no fault of its own; unlike a group
   fault, it does not refuse uploads or activations.
-  Activation, recovery and their readiness window do not include it, so a host
-  that cannot start does not fail an activation. It receives the group
+  A host that cannot start prevents the launcher from becoming ready, so
+  activation cannot complete. It receives the group
   environment without `FES_SOFTWARE_REQUEST`, `FES_SOFTWARE_READY_FILE` and
   `FES_SOFTWARE_RECOVERY_FENCE`.
 - **Backoff.** A host that keeps exiting within two seconds of starting backs
@@ -224,6 +234,69 @@ apart from the service group above:
   sequential stop slots. A process left in an exited host's group is killed.
 - **Proofs.** The operator acknowledgement and power-cycle proofs check the
   same three services whether a host is running, restarting or absent.
+
+### Root-only named-service restart
+
+The base supervisor also exposes a local operator command for one-service
+diagnostics:
+
+```sh
+fes-kit-software restart-service fogcast-kit --request-id <64-lowercase-hex>
+fes-kit-software restart-service fogcast-tenfoot --request-id <64-lowercase-hex>
+fes-kit-software restart-service fogcast-tenfoot --request-id <64-lowercase-hex> \
+  --target-id 73dc9f5f-1a12-4a95-a820-a9b4e600769a \
+  --package-id 185e40df05c9efb15901bbf521c529a0121403c5b0bbee0ca5c613d6728ff433 \
+  --runtime-generation <current-generation>
+```
+
+The command requires root and talks to `/run/fogcast/software-restart.sock`, a
+mode-0600 Unix socket whose peer UID is checked by the supervisor. It is not
+forwarded through the replaceable agent or network API. The only accepted
+service names are `fogcast-kit` and `fogcast-tenfoot`; the caller cannot pass a
+PID, executable, arguments or environment. The supervisor restarts its own
+child from the verified active bundle and serializes the request with software
+operations and recovery ticks. It refuses a queued activation, unreleased
+operation, blocked appliance gate, maintenance reservation, uncertain execution
+fence, missing service, stale child identity or active group recovery. It does
+not acquire/release a lease, change selection/generation, or touch runtime and
+agent processes.
+
+The default session policy requires native idle and a free execution lease. For
+the #1490 continuity diagnostic, a live session is allowed only when the
+request supplies the exact Pong target
+`73dc9f5f-1a12-4a95-a820-a9b4e600769a`, package
+`185e40df05c9efb15901bbf521c529a0121403c5b0bbee0ca5c613d6728ff433`, and current
+runtime generation. This is the canonical package content ID for the physically
+accepted exact-head Pong artifact. It retains the same `fes.pong` core, DE10-Nano
+target, `fes.simple-game` ABI 1.0, and four required interfaces as the retained
+package, while its payload and build provenance produce a different content ID.
+The prior package ID and all other package IDs remain outside this diagnostic
+exception. The supervisor rechecks runtime and lease state through the operation
+and readiness window; a change aborts the request and lets the existing recovery
+path take ownership.
+
+Success requires the old process group to be empty, a different PID/start-time
+identity, unchanged sibling identities, and ten uninterrupted seconds of
+functional readiness. An idle Tenfoot restart must publish its frame-ack readiness
+marker for the replacement PID and active bundle. During the permitted live Pong
+diagnostic, Tenfoot instead publishes a separate paused-session adoption marker:
+its host observation and render-loop heartbeat must both be fresh, and the marker
+must identify the replacement PID, bundle, target, package and runtime generation.
+This marker never grants frame readiness or software activation readiness. It is
+invalidated on host failure, session change, resume or shutdown. `fogcast-kit` must answer its local
+health API with the expected target reachable. Idle diagnostics also require
+target readiness; live diagnostics require an active target and a host session
+that has adopted the exact target, package and runtime generation. A failed readiness
+attempt is stopped and left to the existing one-to-thirty-second backoff.
+Results, including refusals and interrupted requests, are kept on FESDATA3 for
+30 days, up to 256 records. Reusing an ID with the same request returns the
+stored result; changing the body under that ID is a conflict. If the supervisor
+restarts mid-operation, the result becomes `interrupted` and that request is
+never replayed.
+
+After the software-state gate passes, a named restart has a 202-second request
+deadline: the existing 22-second process-group stop bound plus the normal
+180-second functional-readiness budget.
 
 Bundle verification completes before the service startup clock begins, while
 the current group is still running. Each start checks that the verified tree
@@ -241,13 +314,16 @@ cannot pass readiness or reopen execution admission. A dependent service failure
 therefore cannot terminate normal native initialization midway.
 
 A failed startup permits one automatic attempt to restore the recorded prior
-bundle. That attempt is recorded durably before the prior bundle starts. If the
-image cannot run that bundle, the attempt starts the image's factory software
-instead and holds the prior bundle back. A
+bundle. That attempt is recorded durably before recovery starts. If the image
+cannot run that bundle, the attempt starts the image's factory software instead;
+once that recovery succeeds, the failed request is completed and the incompatible
+selection remains recorded and held back while the factory runs. Normal boot
+uses the same held-back behavior without changing the selection. A
 reboot cannot reset the attempt budget. Failed recovery or an unkillable old
 runtime leaves explicit recovery-required status and keeps execution blocked.
-Recovery changes only the matching software selection; it preserves the host,
-base image, core library and unrelated deployments. Bundle updates must preserve
+Successful activation changes only the matching software selection; failed
+candidate recovery preserves that selection, the host, base image, core library
+and unrelated deployments. Bundle updates must preserve
 compatible configuration and persistent data formats for prior recovery.
 
 During an appliance trial boot, the supervisor uses the factory software group
@@ -262,10 +338,11 @@ execution is deferred.
 ### Acknowledge a failed recovery
 
 A failed automatic recovery stays fenced. Rebooting or restarting the supervisor
-does not replenish its attempt budget. If the previous bundle's complete service
-group is already running, an operator can explicitly acknowledge that group
-without restarting it. Inspect the failed operation, selection generation, active
-bundle, base identity and boot ID first. On the kit, as root, use a fresh action
+does not replenish its attempt budget. If the compatible prior group or the
+image's factory group is already running, an operator can explicitly acknowledge
+that group without restarting it. Inspect the failed operation, selection
+generation, recorded selection, active bundle, base identity and boot ID first.
+On the kit, as root, use a fresh action
 identifier and those exact observed values. An action identifier names one
 operator act: each repair below refuses one that another repair already
 recorded.
@@ -273,21 +350,27 @@ recorded.
 ```sh
 fes-kit-software acknowledge \
   --operation FAILED_OPERATION_ID --generation OBSERVED_GENERATION \
-  --selected ALREADY_RUNNING_PREVIOUS_BUNDLE_ID \
+  --selected RECORDED_SELECTED_BUNDLE_ID \
   --base RUNNING_BASE_IMAGE_SHA256 --boot CURRENT_BOOT_ID \
   --action FRESH_64_CHARACTER_LOWERCASE_HEX_ID
 ```
 
-This command verifies the bundle, running supervisor and its complete service
-group. It checks that the failed operation still holds this boot's maintenance
-reservation and that the stored grant authenticates against the agent's
-persisted copy. It then requires ten seconds of native idle and launcher
-readiness before it changes anything. Only then does it record the
+This command verifies the compatible running bundle, supervisor and its complete
+service group. When the recorded selection is incompatible with this image, the
+factory bundle must be active and healthy; successful acknowledgment completes
+the failed operation while preserving the held-back selection and generation.
+Its result distinguishes the durable selection from the running bundle. It
+checks that the failed operation still holds this boot's maintenance reservation
+and that the stored grant authenticates against the agent's persisted copy. It
+then requires ten seconds of native idle and launcher readiness before it
+changes anything. Only then does it record the
 acknowledgment and end that reservation with the operation's stored grant; it
 never resumes the reservation. A separate durable acknowledgment retains the
-original failure and operator action identity; selection and generation remain
-unchanged. It neither starts a service nor retries the candidate. Missing
-services, changed identities, another operation or failed readiness leave the
+original failure and operator action identity. Selection and generation stay
+unchanged; if the factory was running in place of an incompatible selection, it
+remains the runtime fallback and the held-back bundle stays recorded. The
+command neither starts a service nor retries the candidate. Missing services,
+changed identities, another operation or failed readiness leave the
 journal and the reservation as they were, so execution stays blocked and
 `prepare-power-cycle` still applies. Inspect status after an uncertain reply;
 repeat only the same action and exact identities to reconcile it.
@@ -306,13 +389,15 @@ operation **before** the documented hard power-supply cycle:
 ```sh
 fes-kit-software prepare-power-cycle \
   --operation FAILED_OPERATION_ID --generation OBSERVED_GENERATION \
-  --selected COMMITTED_PREVIOUS_BUNDLE_ID \
+  --selected RECORDED_SELECTED_BUNDLE_ID \
   --base RUNNING_BASE_IMAGE_SHA256 --boot CURRENT_BOOT_ID \
   --action FRESH_64_CHARACTER_LOWERCASE_HEX_ID
 ```
 
 This root-only action verifies the native runtime and existing reservation
-without retrying cleanup. The reservation must still be blocked; one in any
+without retrying cleanup. It also accepts a healthy supervised group running
+the image's compatible factory when the recorded selection is incompatible. The
+reservation must still be blocked; one in any
 other state is reported as that state, not as a grant that does not match. It
 preserves the original failure in a durable audit, cancels that failed software
 request, and leaves the current boot fenced in its existing maintenance
@@ -357,6 +442,12 @@ generation, and the earlier selection becomes the previous bundle; when the
 factory software is already selected, only the failed request ends. It never
 starts, stops or signals a service, calls the agent, mints a credential or
 changes the image. Its result is `factory-selected`.
+
+This explicit selection after recovery is exhausted is separate from automatic
+factory fallback. During boot or the single prior-bundle recovery attempt, a
+compatible factory runs in place of an incompatible selection while durable
+`Selected`, `Previous` and `Generation` stay unchanged; the selection remains
+held back and is reported as `held_back`.
 
 The waiting supervisor retries startup at most 30 seconds apart. Its next
 attempt starts the factory software with a fresh boot admission and the usual

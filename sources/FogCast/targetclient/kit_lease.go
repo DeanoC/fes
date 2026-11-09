@@ -69,6 +69,13 @@ func (l *KitLease) resumeLocal(ctx context.Context) error {
 		if code == http.StatusForbidden {
 			return nil
 		}
+		var apiErr *protocol.APIError
+		if code == http.StatusServiceUnavailable && errors.As(err, &apiErr) && apiErr.Code == protocol.CodeBusy {
+			// The software activation fence rejects lease resumes while the
+			// supervisor owns maintenance. This request did not reach the lease
+			// manager; continue with read-only ownership and status observation.
+			return nil
+		}
 		return err
 	}
 	if !validKitGrant(grant, start) {
@@ -459,6 +466,23 @@ func (c *Client) authorizeMutation(r *http.Request) error {
 	gated, acquire := kitMutation(r.URL.Path)
 	if !gated {
 		return nil
+	}
+	if r.Method == http.MethodPost && r.URL.Path == "/v1/update/rollback" && c.kitLease != nil && !c.kitLease.Held() {
+		// A completed-but-blocked software maintenance reservation prevents a
+		// new execution lease. Probe its durable state before claiming: only that
+		// exact state may use the updater's independent stop/idle/reboot path.
+		var maintenance kitlease.MaintenanceStatus
+		if err := c.doJSON(r.Context(), http.MethodGet, "/v1/kit/maintenance", nil, &maintenance); err != nil {
+			return &protocol.APIError{Code: protocol.CodeBusy, Message: "could not verify kit maintenance before appliance rollback; no rollback request was sent", Cause: err}
+		}
+		switch maintenance.State {
+		case "blocked":
+			return nil
+		case "", "none", "completed":
+			// Ordinary rollback still acquires the execution lease below.
+		default:
+			return &protocol.APIError{Code: protocol.CodeBusy, Message: "appliance rollback is blocked by active kit maintenance", Phase: "admission"}
+		}
 	}
 	return c.kitLease.Authorize(r, acquire)
 }

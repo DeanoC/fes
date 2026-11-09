@@ -1,6 +1,10 @@
 // Package softwarecontrol defines the persistent kit software control API.
 package softwarecontrol
 
+// ReasonBlockedCancel identifies a cancellation that completed by verifying
+// the compatible running factory and releasing the failed maintenance grant.
+const ReasonBlockedCancel = "operator cancelled blocked activation after verifying compatible running software"
+
 type Request struct {
 	ID         string `json:"id"`
 	Candidate  string `json:"candidate"`
