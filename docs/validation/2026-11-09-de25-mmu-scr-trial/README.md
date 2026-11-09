@@ -32,6 +32,12 @@ UART Select provides actions; no physical keys are requested. The spare card
 stays installed, factory restoration remains waived, and the bottom kit stays
 outside scope.
 
-This frozen procedure has no hardware result yet. Neither its software evidence
-nor a bounded private-line diagnostic establishes general cache coherency,
-normal package/core, physical display/input or appliance acceptance.
+The [bounded hardware result](hardware-result.json) stopped during the MMU
+transition. Recovery, all thirteen uploads/fresh SD reads and native programming
+passed. Provider setup succeeded and SCR was restored to `0x238`. The MMU
+`before` record is the last observation; no `after` or failure record follows.
+The number of subsequent register writes and private memory probe outcome are
+unknown. The loader, launcher and tape path did not start. Host cleanup passed
+and the complete run is retained with archive readback. Both programming
+reservations remain consumed; candidate `7efa0304ddd339aa` is retired. This
+does not establish cache, normal core-load or appliance acceptance.

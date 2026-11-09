@@ -15,6 +15,12 @@ static struct fes_nano_mmu mmu;
 static const struct fes_nano_mmu_policy policy={(uintptr_t)fes_nano_mmu_root};
 volatile uint64_t fes_nano_mmu_witness[8] __attribute__((section(".fes_mmu_witness"),aligned(64)));
 
+/* Cold boot only: these operations are never part of the tape/SMC hot path. */
+static void step(const char *phase, unsigned operation)
+{
+    NOTICE("FES_NANO_EL3_MMU_STEP phase=%s operation=%u\n",phase,operation);
+}
+
 static int observe(void *context, struct fes_nano_mmu_registers *r)
 {
     (void)context;
@@ -26,10 +32,17 @@ static int observe(void *context, struct fes_nano_mmu_registers *r)
     return 0;
 }
 static int admit(void *context)
-{ (void)context;return fes_nano_cold_mmu_admit(); }
+{
+    (void)context;
+    step("admit-before",0);
+    int result=fes_nano_cold_mmu_admit();
+    step("admit-after",0);
+    return result;
+}
 static int write_register(void *context, unsigned reg, uint64_t value)
 {
     (void)context;
+    step("write-before",reg);
     switch(reg) {
     case FES_MMU_MAIR:write_mair_el3(value);break;
     case FES_MMU_TCR:write_tcr_el3(value);break;
@@ -40,26 +53,35 @@ static int write_register(void *context, unsigned reg, uint64_t value)
         break;
     default:return -1;
     }
+    step("write-after",reg);
     return 0;
 }
 static int synchronize(void *context, unsigned phase)
 {
     (void)context;
-    if(phase==FES_MMU_INVALIDATE) {dsbsy();tlbialle3();dsbsy();isb();return 0;}
-    if(phase==FES_MMU_COMMIT) {dsbsy();isb();return 0;}
-    return -1;
+    step("barrier-before",phase);
+    if(phase==FES_MMU_INVALIDATE) {dsbsy();tlbialle3();dsbsy();isb();}
+    else if(phase==FES_MMU_COMMIT) {dsbsy();isb();}
+    else return -1;
+    step("barrier-after",phase);
+    return 0;
 }
 static int clean_invalidate(void *context)
 {
     (void)context;
+    step("clean-before",0);
     dsbsy();dcsw_op_all(DCCISW);dsbsy();isb();
+    step("clean-after",0);
     return 0;
 }
 static int memory_probe(void *context)
 {
     uintptr_t address=(uintptr_t)fes_nano_mmu_witness;
     if(address<0x58000U || address>0x60000U-sizeof(fes_nano_mmu_witness))return -1;
-    return fes_nano_mmu_memory_probe(fes_nano_mmu_witness,context,clean_invalidate);
+    step("memory-before",0);
+    int result=fes_nano_mmu_memory_probe(fes_nano_mmu_witness,context,clean_invalidate);
+    step("memory-after",0);
+    return result;
 }
 static struct fes_nano_mmu_ops operations(void)
 { return (struct fes_nano_mmu_ops){0,observe,admit,write_register,synchronize,memory_probe}; }

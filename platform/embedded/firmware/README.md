@@ -40,8 +40,14 @@ The first actual selected-MMU boot rejected the vendor helper's leaked SCR.NS
 state before any MMU write. The [selected startup repair](../../../docs/validation/2026-11-09-de25-scr-restore/README.md)
 pins that helper's source, preserves its invalidations, restores caller SCR and
 returns normally. Policy format 2 binds this repair and its exact 44-byte linked
-instruction sequence. The cold/runtime guard is unchanged; the repaired build
-still requires hardware qualification.
+instruction sequence. Its bounded board test passed provider setup with restored
+SCR, then stopped after the MMU `before` record. Subsequent register/cache progress
+is unknown. The selected format 3 profile adds 26 ordered cold-only checkpoints
+around admission, barriers, register writes and the private clean/readback probe.
+The observer requires every checkpoint between the original register records;
+partial, missing, duplicate or out-of-order steps cannot admit the loader.
+These checkpoints add no timed tape or ordinary SMC work. The cold/runtime guard
+is unchanged; cache enablement and transfer performance still need hardware proof.
 See the [runtime scope checks](../../../docs/validation/2026-11-09-de25-mmu-runtime/README.md).
 
 `nano_tape` is a secure-side initial-tape engine for the existing

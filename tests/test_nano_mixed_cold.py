@@ -164,6 +164,10 @@ class NanoMixedColdTests(unittest.TestCase):
                         (target / ('case-' + str(mode) + '.log')).write_text(result.stdout + result.stderr)
                     self.assertEqual(result.returncode, 0, result.stderr + result.stdout[-5000:])
                     self.assertIn('PASS', result.stdout)
+                    if firmware_mmu and mode==0:
+                        import mmu_trace
+                        steps=re.findall(r'FES_NANO_EL3_MMU_STEP phase=([a-z-]+) operation=([0-3])',result.stdout)
+                        self.assertEqual([(phase,int(operation)) for phase,operation in steps],list(mmu_trace.STEPS))
                     tape_engine_failure = (mode in (31,33,34,35,38,40,41,42,43,44,45,46,47,48,49,50,51)
                                            and not (firmware_mmu and mode==31))
                     if initial_tape and tape_engine_failure:

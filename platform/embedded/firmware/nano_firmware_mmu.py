@@ -30,11 +30,12 @@ CONTRACT = dict(format=1, scope='experimental-el3-static-private-cache-v1',
                 table_bytes=TABLE_BYTES, ddr_limit=DDR_LIMIT,
                 firmware_limit=BL31_LIMIT, runtime_enabled=False,
                 hardware_authority=False)
-RUNTIME_CONTRACT = dict(format=2, scope='matched-cold-el3-private-cache-v2',
+RUNTIME_CONTRACT = dict(format=3, scope='matched-cold-el3-private-cache-v3',
     mair=MAIR, tcr=TCR, table_bytes=TABLE_BYTES, granule=PAGE, va_bits=32, pa_bits=32,
     memory_probe='private-line-clean-invalidate-reread-v1',
     enable_phase='after-startup-cache-maintenance-before-el3-exit',
     single_cpu='a55-cpu0-release-locked',
+    boot_steps='admit-register-barrier-private-clean-v1',
     vendor_cache_policy='restore-caller-scr-and-return-v1', hardware_authority=False)
 HERE = Path(__file__).resolve().parent
 LD = 'bl31/bl31.ld.S'

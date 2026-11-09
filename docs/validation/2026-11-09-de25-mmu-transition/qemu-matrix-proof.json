@@ -1,0 +1,506 @@
+{
+  "status": "passed",
+  "classification": "exact retained production descriptor execution on emulated A53 EL3, not Nano cache/device/hardware qualification",
+  "positive_queries": 12,
+  "negative_descriptor_controls": 3,
+  "secure_ddr_stack_and_write_read_executed": true,
+  "hardware_actions": false,
+  "cases": [
+    {
+      "returncode": 0,
+      "command": [
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/qemu-system-aarch64",
+        "-machine",
+        "virt,secure=on,virtualization=on",
+        "-cpu",
+        "cortex-a53",
+        "-m",
+        "1536M",
+        "-smp",
+        "1",
+        "-nographic",
+        "-monitor",
+        "none",
+        "-serial",
+        "none",
+        "-net",
+        "none",
+        "-semihosting-config",
+        "enable=on,target=native",
+        "-bios",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-transition-20261109/control-production/boot.bin",
+        "-device",
+        "loader,file=/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-transition-20261109/control-production/probe.elf",
+        "-d",
+        "int,guest_errors",
+        "-D",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-transition-20261109/control-production/qemu-debug.log"
+      ],
+      "queries": [
+        [
+          "code-read",
+          2147483648,
+          false,
+          true,
+          false
+        ],
+        [
+          "code-write-denied",
+          2147483648,
+          true,
+          false,
+          null
+        ],
+        [
+          "table-read",
+          2147733504,
+          false,
+          true,
+          false
+        ],
+        [
+          "table-write-denied",
+          2147733504,
+          true,
+          false,
+          null
+        ],
+        [
+          "data-write",
+          2147758080,
+          true,
+          true,
+          false
+        ],
+        [
+          "private-witness",
+          385984,
+          true,
+          true,
+          false
+        ],
+        [
+          "shared-ddr",
+          2149580800,
+          true,
+          true,
+          true
+        ],
+        [
+          "pss-device",
+          282066944,
+          true,
+          true,
+          true
+        ],
+        [
+          "fpga-device",
+          536870912,
+          true,
+          true,
+          true
+        ],
+        [
+          "secure-gic",
+          486539264,
+          true,
+          true,
+          false
+        ],
+        [
+          "unmapped-hole",
+          1073741824,
+          false,
+          false,
+          null
+        ],
+        [
+          "unmapped-ocram",
+          524288,
+          false,
+          false,
+          null
+        ]
+      ],
+      "production_elf_sha256": "8243b9ed621690cab6af2c4c17862ac43c205bdd49f1d421fadb9bb2fdc73092",
+      "production_bin_sha256": "cff2638d133bd58590e64d74652e98f988724b553155a565db00458e7bc69978",
+      "baseline_bin_elf_tables_equal": true,
+      "case": "production",
+      "exact_production_tables": true,
+      "loaded_tables_sha256": "11f2b2f226b930f3bb9ddd7027fe48436b22309de06ff04784791a02a90858f3",
+      "hardware_actions": false
+    },
+    {
+      "returncode": 1,
+      "command": [
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/qemu-system-aarch64",
+        "-machine",
+        "virt,secure=on,virtualization=on",
+        "-cpu",
+        "cortex-a53",
+        "-m",
+        "1536M",
+        "-smp",
+        "1",
+        "-nographic",
+        "-monitor",
+        "none",
+        "-serial",
+        "none",
+        "-net",
+        "none",
+        "-semihosting-config",
+        "enable=on,target=native",
+        "-bios",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-transition-20261109/control-table-writable/boot.bin",
+        "-device",
+        "loader,file=/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-transition-20261109/control-table-writable/probe.elf",
+        "-d",
+        "int,guest_errors",
+        "-D",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-transition-20261109/control-table-writable/qemu-debug.log"
+      ],
+      "queries": [
+        [
+          "code-read",
+          2147483648,
+          false,
+          true,
+          false
+        ],
+        [
+          "code-write-denied",
+          2147483648,
+          true,
+          false,
+          null
+        ],
+        [
+          "table-read",
+          2147733504,
+          false,
+          true,
+          false
+        ],
+        [
+          "table-write-denied",
+          2147733504,
+          true,
+          false,
+          null
+        ],
+        [
+          "data-write",
+          2147758080,
+          true,
+          true,
+          false
+        ],
+        [
+          "private-witness",
+          385984,
+          true,
+          true,
+          false
+        ],
+        [
+          "shared-ddr",
+          2149580800,
+          true,
+          true,
+          true
+        ],
+        [
+          "pss-device",
+          282066944,
+          true,
+          true,
+          true
+        ],
+        [
+          "fpga-device",
+          536870912,
+          true,
+          true,
+          true
+        ],
+        [
+          "secure-gic",
+          486539264,
+          true,
+          true,
+          false
+        ],
+        [
+          "unmapped-hole",
+          1073741824,
+          false,
+          false,
+          null
+        ],
+        [
+          "unmapped-ocram",
+          524288,
+          false,
+          false,
+          null
+        ]
+      ],
+      "production_elf_sha256": "8243b9ed621690cab6af2c4c17862ac43c205bdd49f1d421fadb9bb2fdc73092",
+      "production_bin_sha256": "cff2638d133bd58590e64d74652e98f988724b553155a565db00458e7bc69978",
+      "baseline_bin_elf_tables_equal": true,
+      "case": "table-writable",
+      "exact_production_tables": false,
+      "loaded_tables_sha256": "8300d7ef93de739797fe1c0cc964a8f0a52ef1aacab68f87aa0d559fd50732c1",
+      "hardware_actions": false
+    },
+    {
+      "returncode": 1,
+      "command": [
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/qemu-system-aarch64",
+        "-machine",
+        "virt,secure=on,virtualization=on",
+        "-cpu",
+        "cortex-a53",
+        "-m",
+        "1536M",
+        "-smp",
+        "1",
+        "-nographic",
+        "-monitor",
+        "none",
+        "-serial",
+        "none",
+        "-net",
+        "none",
+        "-semihosting-config",
+        "enable=on,target=native",
+        "-bios",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-transition-20261109/control-private-unmapped/boot.bin",
+        "-device",
+        "loader,file=/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-transition-20261109/control-private-unmapped/probe.elf",
+        "-d",
+        "int,guest_errors",
+        "-D",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-transition-20261109/control-private-unmapped/qemu-debug.log"
+      ],
+      "queries": [
+        [
+          "code-read",
+          2147483648,
+          false,
+          true,
+          false
+        ],
+        [
+          "code-write-denied",
+          2147483648,
+          true,
+          false,
+          null
+        ],
+        [
+          "table-read",
+          2147733504,
+          false,
+          true,
+          false
+        ],
+        [
+          "table-write-denied",
+          2147733504,
+          true,
+          false,
+          null
+        ],
+        [
+          "data-write",
+          2147758080,
+          true,
+          true,
+          false
+        ],
+        [
+          "private-witness",
+          385984,
+          true,
+          true,
+          false
+        ],
+        [
+          "shared-ddr",
+          2149580800,
+          true,
+          true,
+          true
+        ],
+        [
+          "pss-device",
+          282066944,
+          true,
+          true,
+          true
+        ],
+        [
+          "fpga-device",
+          536870912,
+          true,
+          true,
+          true
+        ],
+        [
+          "secure-gic",
+          486539264,
+          true,
+          true,
+          false
+        ],
+        [
+          "unmapped-hole",
+          1073741824,
+          false,
+          false,
+          null
+        ],
+        [
+          "unmapped-ocram",
+          524288,
+          false,
+          false,
+          null
+        ]
+      ],
+      "production_elf_sha256": "8243b9ed621690cab6af2c4c17862ac43c205bdd49f1d421fadb9bb2fdc73092",
+      "production_bin_sha256": "cff2638d133bd58590e64d74652e98f988724b553155a565db00458e7bc69978",
+      "baseline_bin_elf_tables_equal": true,
+      "case": "private-unmapped",
+      "exact_production_tables": false,
+      "loaded_tables_sha256": "2a15d0a5f13f2f82e369a39427838ed3fc2495519fbbfe46fa713b01e9db0b29",
+      "hardware_actions": false
+    },
+    {
+      "returncode": 1,
+      "command": [
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/qemu-system-aarch64",
+        "-machine",
+        "virt,secure=on,virtualization=on",
+        "-cpu",
+        "cortex-a53",
+        "-m",
+        "1536M",
+        "-smp",
+        "1",
+        "-nographic",
+        "-monitor",
+        "none",
+        "-serial",
+        "none",
+        "-net",
+        "none",
+        "-semihosting-config",
+        "enable=on,target=native",
+        "-bios",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-transition-20261109/control-shared-secure/boot.bin",
+        "-device",
+        "loader,file=/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-transition-20261109/control-shared-secure/probe.elf",
+        "-d",
+        "int,guest_errors",
+        "-D",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-transition-20261109/control-shared-secure/qemu-debug.log"
+      ],
+      "queries": [
+        [
+          "code-read",
+          2147483648,
+          false,
+          true,
+          false
+        ],
+        [
+          "code-write-denied",
+          2147483648,
+          true,
+          false,
+          null
+        ],
+        [
+          "table-read",
+          2147733504,
+          false,
+          true,
+          false
+        ],
+        [
+          "table-write-denied",
+          2147733504,
+          true,
+          false,
+          null
+        ],
+        [
+          "data-write",
+          2147758080,
+          true,
+          true,
+          false
+        ],
+        [
+          "private-witness",
+          385984,
+          true,
+          true,
+          false
+        ],
+        [
+          "shared-ddr",
+          2149580800,
+          true,
+          true,
+          true
+        ],
+        [
+          "pss-device",
+          282066944,
+          true,
+          true,
+          true
+        ],
+        [
+          "fpga-device",
+          536870912,
+          true,
+          true,
+          true
+        ],
+        [
+          "secure-gic",
+          486539264,
+          true,
+          true,
+          false
+        ],
+        [
+          "unmapped-hole",
+          1073741824,
+          false,
+          false,
+          null
+        ],
+        [
+          "unmapped-ocram",
+          524288,
+          false,
+          false,
+          null
+        ]
+      ],
+      "production_elf_sha256": "8243b9ed621690cab6af2c4c17862ac43c205bdd49f1d421fadb9bb2fdc73092",
+      "production_bin_sha256": "cff2638d133bd58590e64d74652e98f988724b553155a565db00458e7bc69978",
+      "baseline_bin_elf_tables_equal": true,
+      "case": "shared-secure",
+      "exact_production_tables": false,
+      "loaded_tables_sha256": "2c233732e8dac7a4c8a8c0f333ef35a435a645d8c090a83ad6ce6fc96f331301",
+      "hardware_actions": false
+    }
+  ]
+}

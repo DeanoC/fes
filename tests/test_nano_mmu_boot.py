@@ -33,6 +33,14 @@ def row(phase):
         (' writes=4 memory=1\r\n' if phase=='after' else ' writes=0 memory=0\r\n')
 
 
+def step_rows():
+    return ['NOTICE:  FES_NANO_EL3_MMU_STEP phase='+phase+' operation='+str(operation)+'\r\n'
+            for phase,operation in mmu_trace.STEPS]
+
+
+def transition():return row('before')+''.join(step_rows())+row('after')
+
+
 def base_trace():
     anchor='NOTICE:  FES_NANO_EL3_CAPTURE phase=before'
     descriptor=('FES_NANO_SPL ATF target=80000000 bl32=0 bl33=80200000 fdt=0 params=bff00008 cold=21768 '
@@ -121,24 +129,43 @@ class NanoMMUBootTests(unittest.TestCase):
         self.assertIsNone(mmu.selected({},False))
 
     def test_complete_post_cleanup_transition_is_required_before_loader(self):
-        raw=base_trace().replace('U-Boot 2025.01-fes-nano-',row('before')+row('after')+'U-Boot 2025.01-fes-nano-',1)
+        raw=base_trace().replace('U-Boot 2025.01-fes-nano-',transition()+'U-Boot 2025.01-fes-nano-',1)
         good=decode(raw);self.assertTrue(good['complete'],good['errors'])
         self.assertTrue(good['firmware_mmu_trace']['complete'])
         self.assertFalse(decode(raw,False)['loader_ready'])
         self.assertFalse(decode(base_trace())['loader_ready'])
         for rows in (row('before'),row('after'),row('after')+row('before'),row('before')*2+row('after'),row('before')+row('after')*2):
-            damaged=raw.replace(row('before')+row('after'),rows)
+            damaged=raw.replace(transition(),rows)
             self.assertFalse(decode(damaged)['loader_ready'])
-        early=raw.replace(row('before')+row('after'),'').replace('FES_NANO_RAM RUNTIME phase=main-before',row('before')+row('after')+'FES_NANO_RAM RUNTIME phase=main-before')
+        early=raw.replace(transition(),'').replace('FES_NANO_RAM RUNTIME phase=main-before',transition()+'FES_NANO_RAM RUNTIME phase=main-before')
         self.assertFalse(decode(early)['loader_ready'])
 
     def test_every_register_memory_or_write_count_mismatch_rejects(self):
-        rows=row('before')+row('after');raw=base_trace().replace('U-Boot 2025.01-fes-nano-',rows+'U-Boot 2025.01-fes-nano-',1)
+        raw=base_trace().replace('U-Boot 2025.01-fes-nano-',transition()+'U-Boot 2025.01-fes-nano-',1)
         for name in (*mmu_trace.FIELDS,'writes','memory'):
             token=next(t for t in row('after').split() if t.startswith(name+'='))
             value=int(token.split('=')[1],16);replacement=name+'='+format(value^1,'x')
             damaged=raw.replace(row('after'),row('after').replace(token,replacement))
             with self.subTest(name=name):self.assertFalse(decode(damaged)['loader_ready'])
+
+    def test_each_missing_duplicate_changed_or_early_step_rejects(self):
+        rows=step_rows();steps=''.join(rows)
+        raw=base_trace().replace('U-Boot 2025.01-fes-nano-',transition()+'U-Boot 2025.01-fes-nano-',1)
+        for i,step in enumerate(rows):
+            for damaged in (''.join(rows[:i]+rows[i+1:]),
+                            ''.join(rows[:i]+[step,step]+rows[i+1:]),
+                            ''.join(rows[:i]+[step.replace('operation=','operation=9')]+rows[i+1:])):
+                with self.subTest(index=i,damaged=damaged):
+                    self.assertFalse(decode(raw.replace(steps,damaged))['loader_ready'])
+        self.assertFalse(decode(raw.replace(transition(),steps+row('before')+row('after')))['loader_ready'])
+        self.assertFalse(decode(raw.replace(transition(),row('before')+row('after')+steps))['loader_ready'])
+
+    def test_interrupted_transition_retains_only_observed_bounded_steps(self):
+        for i in range(len(mmu_trace.STEPS)+1):
+            raw=base_trace().split('U-Boot 2025.01-fes-nano-',1)[0]+row('before')+''.join(step_rows()[:i])
+            result=decode(raw);self.assertFalse(result['loader_ready'])
+            self.assertEqual(len(result['firmware_mmu_trace']['steps']),i)
+            self.assertFalse(result['firmware_mmu_trace']['complete'])
 
     def test_bad_proof_and_flooded_failed_records_never_recover(self):
         for key,value in (('witness',0x50000),('witness_bytes',128),('selected_policy',{}),
