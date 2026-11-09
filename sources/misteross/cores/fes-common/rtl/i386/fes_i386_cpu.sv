@@ -956,7 +956,7 @@ module fes_i386_cpu #(
     // Bochs checks before it pushes; at any other uop (CALL r/m's push,
     // RETF's jump, IRET's FLAGS read) after the uop's own checks, at M1
     // (cs_late), as Bochs pushes or pops first. A protected-mode transfer
-    // checks its offset against the new descriptor's limit (CHK_OFF).
+    // checks its offset against the held descriptor's limit (CHK_HOFF).
     logic [15:0] far_sel;
     logic [31:0] far_off;
     logic        far_bad, t_busy, t_wait;
@@ -3150,22 +3150,25 @@ module fes_i386_cpu #(
     //         anything else #GP(selector); data, #GP(selector);
     //         non-conforming with DPL or RPL not 0, or conforming with DPL
     //         not 0, #GP(selector); not present, #NP(selector); an offset
-    //         past the limit, #GP(0). A far CALL's are the same, its offset
-    //         checked apart after the stack's (call_protected, branch_far).
+    //         past the limit, #GP(0).
+    //   CALL: a far CALL's (call_protected): a code segment as a far
+    //         jump's, its offset checked apart (CHK_HOFF); a system
+    //         descriptor with DPL below CPL or RPL, #GP(selector); a call
+    //         gate not present, #NP(selector); a TSS or task gate not
+    //         built; any other, #GP(selector).
     //   RET:  RETF's and IRET's CS (return_protected, iret_protected,
     //         check_cs against the RPL): null, #GP(0); system or data,
     //         #GP(selector); non-conforming with DPL not RPL, or conforming
     //         with DPL above RPL, #GP(selector); not present, #NP(selector);
-    //         RPL not 0, a return to an outer privilege, not built; an offset
-    //         past the limit, #GP(0).
+    //         RPL above CPL is a return to an outer privilege (hold's xp);
+    //         the offset is checked apart (CHK_HOFF).
     //   GATE: a delivery's gate in T3 (protected_mode_int): an interrupt or
     //         trap gate; a task gate not built; anything else #GP, not
     //         present #NP, each with the IDT entry. The gate's DPL is never
     //         below CPL 0.
-    //   INTCS: the gate's CS: null, #GP(0); system, data or DPL not 0,
-    //         #GP(selector); not present, #NP(selector); the gate's offset
-    //         (T1, from SYSOP_GATE) past the limit, #GP(0). At CPL 0 no
-    //         delivery changes privilege.
+    //   INTCS: a delivery's or call gate's CS: null, #GP(0); system, data
+    //         or DPL above CPL, #GP(selector); not present, #NP(selector);
+    //         its offset (T1, from SYSOP_GATE) is checked apart (CHK_HOFF).
     //   LDT:  LLDT's: none for null; TI=1 or not an LDT, #GP(selector); not
     //         present, #NP(selector). TSS: LTR's: null, #GP(0); TI=1 or not
     //         an available TSS, #GP(selector); not present, #NP(selector).

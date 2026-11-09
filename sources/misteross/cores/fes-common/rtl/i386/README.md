@@ -792,9 +792,11 @@ show each retirement.
 
 ## Protected mode
 
-Phase 2's three slices: protected mode with privilege levels, without call
-or task gates, task switches, debug registers, V86 or paging (the design's
-[segment-cache contract](../../../../docs/i386-cpu-design.md#architecture)).
+Phase 2's three slices, and Phase 5's call gates and debug registers:
+protected mode with privilege levels, without task gates, task switches,
+breakpoints or V86 (the design's
+[segment-cache contract](../../../../docs/i386-cpu-design.md#architecture);
+[Paging](#paging) is below).
 CR0.PE is a register that only a CR0 write changes, which jumps to the next
 instruction, so DC decodes with it (`pe`) and every stage sees one mode.
 
@@ -829,11 +831,18 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   limit #GP(0). The accessed bit's store comes after them all, then the
   jump writes CS (RPL the CPL) and jumps to the descriptor's base plus the
   offset, which AG adds from T2 and T3.
-- **Far CALL** (`pcall`, `pcallm`) makes the jump's checks but the offset's
-  (`segchk` call), then probes each of its two slots (`STK_PROBE` with a
-  slot), then checks the offset with the accessed bit's store (`off`), then
-  stores CS and the next EIP in operand-sized slots below ESP and jumps,
-  stepping ESP past them (`STK_RETF` by its slot). Bochs pushes before its
+- **Far CALL** (`pcall`, `pcallm`) reads the descriptor and raises
+  `call_protected`'s checks (`segchk` call), which WB holds (`hold`): a
+  code segment as the far JMP's checks it but the offset, or a call gate
+  (Call gates, under Privilege transitions below); a system descriptor with
+  DPL below CPL or RPL is #GP(selector), a call gate not present
+  #NP(selector), a TSS or task gate not built, any other #GP(selector). To
+  a code segment (`xc` direct): a probe of each of its two slots
+  (`STK_PROBE` with a slot), then the offset against the held limit with
+  the accessed bit's store (`hoff`, `hacc`), then CS and the next EIP in
+  operand-sized slots below ESP and the jump, which writes CS from the hold
+  and steps ESP past them (`STK_RETF` by its slot); that jump ends the
+  routine (`xend`). Bochs pushes before its
   offset check, so where the offset faults the RTL writes less, as the
   386EX's far CALL does. On a 16-bit stack Bochs addresses the slots at SP
   less their place without the 64 KiB wrap (`write_new_stack_*`): `nwrap`
@@ -848,10 +857,11 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   `return_protected`'s and `iret_protected`'s checks with the offset's: null
   is #GP(0); RPL below CPL, system or data, non-conforming code with DPL not
   RPL or conforming with DPL above it, #GP(selector); not present
-  #NP(selector); for RETF, RPL above CPL, a return to an outer privilege, is
-  not built (IRET's is, [Privilege transitions](#protected-mode) below); an
-  offset past the limit #GP(0). The jump steps ESP past the slots and RETF's imm16
-  (`iimm`, the instruction's immediate). IRET loads the flags from T4 first:
+  #NP(selector), each held with xp for RPL above CPL, a return to an outer
+  privilege (Privilege transitions below); an offset past the held limit
+  #GP(0). RETF to the same privilege ends at its own jump (`xend`), which
+  steps ESP past the slots and imm16 (`iimm`, the instruction's
+  immediate). IRET loads the flags from T4 first:
   IRETD's RF too (FLAG_LOAD_RF, as real-mode IRETD does); an IRETD image with
   VM set returns to V86 mode, not built (`vmchk`, raised in EX from DC's
   load, under NT's check).
@@ -998,20 +1008,60 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
     CS, EIP and the error code two slots further down (`xs`), at the gate's
     size. A fault on the way leaves SS and ESP as they were, as Bochs's
     `write_new_stack_*` does.
+  - **RETF to an outer privilege** (`pretf`, `return_protected`): SS's
+    word slot into T0 and ESP's slot into T5, past the two slots and imm16
+    (`pimm`; on a 16-bit stack without the wrap, `nwrap`, D's `sdisp`
+    carrying the whole displacement), then SS's descriptor and the outer
+    IRET's checks against the RPL (`CHK_SSRET`), the offset against the
+    held limit, and the jump, which loads SS and ESP from T5 plus imm16 and
+    nulls the data segments as an outer IRET does.
+  - **Call gates** (`pcall`, `pcallm` through `xc` gate, `call_gate`): a
+    GATE uop (imm[0]) puts the gate's selector (T2's high half) in T0 and
+    its offset in T1 (a 286 gate's 16 bits), with its size (`gate32`) and
+    parameter count (`pcnt`, bits 4-0 of its high dword); then CS's
+    descriptor and the delivery's CS checks (`CHK_INTCS`: null #GP(0);
+    system, data or DPL above CPL #GP(selector); not present #NP(selector)),
+    held with xp for a nonconforming CS below CPL. With xp, the TSS's stack
+    for CS's DPL and SS's checks as a delivery's (`CHK_SSINT`: #TS, or #SS
+    for not present), then the stores on the new stack in Bochs's order at
+    the gate's size: the old SS, the old ESP (SP from a 16-bit stack, `zx`),
+    each parameter from the old stack's highest down, then CS and the return
+    EIP (IP from 16-bit code). The parameter copy is two ROM words, a load
+    into T4 at old-stack slot pcnt - 1 - pk (`nwrap`) and its store at
+    new-stack slot -3 - pk, which `fes_i386_seq` repeats pcnt times by
+    stepping the ROM address back (`pm`; past the count, or at a count of
+    0, both are NOPs, `pdrop`); the words below them and the jump's step of
+    ESP are pcnt slots further down (`PM_BELOW`). Without xp (`xc` gsame),
+    CS and the next EIP are pushed at the gate's size, wrapping as PUSH
+    does. The gate's offset is checked against the held limit after the
+    stores, as Bochs checks it, so a fault there leaves them written; then
+    the accessed bits and the jump (CPL the CS's DPL with xp).
+  - **Dropped uops.** A uop its `xc` drops is a NOP that writes nothing at
+    WB: no hold, transfer, segment or ESP.
   - **#TS** takes the last two fault codes: `FAULT_TS_SEL` with T0's
     selector (a delivery's new SS) and `FAULT_TS_TR` with TR's; it is
     contributory and pushes its error code.
+- **Debug registers** (Phase 5's second slice): DR0-DR3, DR6's bits 15-12
+  and 3-0 (the rest read as ones, as Bochs's 386 holds them) and DR7, whose
+  bit 10 is always set. MOV r32, DRn reads them in D (`SYS_RD_DR*`; DR4 is
+  DR6, DR5 DR7), and MOV DRn, r32 writes T1 at WB (`wdr`, `SYSOP_DR`, a jump
+  to the next instruction). Both are CPL 0 only (#GP(0)), but with DR7.GD
+  set either raises #DB first, after LOCK's #UD, as Bochs's MOV_DdRd does
+  (`FAULT_DB`, vector 1, a fault with no error code). Taking it sets DR6.BD,
+  clears B0-B3, bit 12 and BT, and clears GD; its EFLAGS image has RF clear,
+  as Bochs clears RF before an instruction runs. No breakpoint is armed:
+  DR7's enables do nothing yet (slice 5). Unlike Bochs, a DR7 write does
+  not flush the TLBs, as a 386's does not.
 - **Not built:** each stops the CPU with `trace_unimplemented`, its reason in
   `trace_unbuilt` (`why_e`, carried by the uop as `ctl.why`) and, for a
   delivery's, its vector in `trace_vector`: a delivery through a task gate;
-  RETF to an outer privilege (RPL above CPL, `CHK_RETS`); a far JMP or
-  CALL through a call gate, a TSS or a task gate; an IRET to V86 mode; an
+  a far JMP through a call gate; a far JMP or CALL to a TSS or a task gate;
+  an IRET to V86 mode; an
   IRET with NT set, a return from a nested task (`ntchk`: EX checks NT as
   it runs IRET's first uop, over that uop's stack fault, since Bochs
   returns from the task before it reads the stack); INS and OUTS at a CPL
   above IOPL; a protected-mode 16-bit stack slot past 64 KiB under a limit
-  that reaches there. Debug registers are not
-  built either: MOV to or from a DR stops at CPL 0.
+  that reaches there.
 
 ## Memory
 

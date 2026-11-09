@@ -743,7 +743,7 @@ package fes_i386_pkg;
     // STK_PEEK reads or writes a stack slot without moving ESP (RETF's
     // loads, PUSHA's and POPA's slots); one that writes ESP (sp_write) steps
     // it past eight slots, down from a slot below ESP, up from one above.
-    // STK_RETF steps ESP at a far transfer's jump by its slot, -8 to 7, of
+    // STK_RETF steps ESP at a far transfer's jump by its slot of
     // operand-sized slots (RETF's 2, IRET's 3, a protected-mode CALL's -2,
     // a delivery's -3 or -4) plus imm; STK_PROBE reads the lower slot of a
     // far call's two pushes, or INT's three, only for its limit check.
