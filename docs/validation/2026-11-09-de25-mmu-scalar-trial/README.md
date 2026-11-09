@@ -59,3 +59,21 @@ pinned source bundle passed archive/file/mode readback:5906 files. See
 `hardware-retention-proof.json`. The original source/result archive remains
 unchanged; this publication only corrects the rounded comparison and records
 retention.
+
+The one-second tape timeout originated in the exploratory fixed-window secure
+loader on8 November (`2c5daf36a`); it is a software policy rather than a
+demonstrated DE25/FPGA requirement. It includes the entire descriptor/hash
+prologue and media upload before CPU release. The current917-byte failure
+shows it can reject legitimate loading; the declared ZX81 payload limit is
+16375bytes. This is not a gameplay-duration limit. The next timeout design
+should separate bounded stalls/individual firmware steps from a size-aware
+overall transfer budget, preserving owner/identity/integrity checks and
+containment. Merely forcing every valid file through within1s is not the
+appliance requirement. No timeout implementation has changed yet.
+
+An unselected direct-store observer prototype passes all four actual cold
+platform integration groups. With the existing production compiler/options,
+its observer frame shrinks112 to32bytes; the same ten system-register reads
+and CPU-lock call remain in the same order. It has no matched boot chain,
+measured performance gain or board acceptance. Timeout policy is being
+reconsidered alongside this optimization.
