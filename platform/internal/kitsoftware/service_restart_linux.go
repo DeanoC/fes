@@ -17,7 +17,7 @@ import (
 
 const (
 	DiagnosticPongTargetID  = "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
-	DiagnosticPongPackageID = "9be4b59993cfd0ac6b347da42decb340235c570d310901468778d6dad15d0120"
+	DiagnosticPongPackageID = "185e40df05c9efb15901bbf521c529a0121403c5b0bbee0ca5c613d6728ff433"
 	serviceFogCastKit       = "fogcast-kit"
 	serviceTenfoot          = "fogcast-tenfoot"
 )

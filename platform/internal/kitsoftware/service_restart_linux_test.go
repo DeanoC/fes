@@ -1,9 +1,11 @@
 package kitsoftware
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -164,14 +166,27 @@ func TestAuthorizeNamedRestartSessionIsIdleOrExactPongOnly(t *testing.T) {
 		t.Fatalf("exact Pong diagnostic session rejected: %v", err)
 	}
 	for name, mutate := range map[string]func(*ServiceRestartRequest, *ServiceRestartSession){
-		"target": func(r *ServiceRestartRequest, s *ServiceRestartSession) { r.Session.TargetID = "other" },
-		"package": func(r *ServiceRestartRequest, s *ServiceRestartSession) {
+		"nondiagnostic-request-target": func(r *ServiceRestartRequest, s *ServiceRestartSession) { r.Session.TargetID = "other" },
+		"other-request-package": func(r *ServiceRestartRequest, s *ServiceRestartSession) {
 			r.Session.PackageID = strings.Repeat("b", 64)
 		},
-		"generation":  func(r *ServiceRestartRequest, s *ServiceRestartSession) { r.Session.Generation++ },
-		"lease":       func(r *ServiceRestartRequest, s *ServiceRestartSession) { s.LeaseState = "free" },
-		"maintenance": func(r *ServiceRestartRequest, s *ServiceRestartSession) { s.MaintenanceState = "blocked" },
-		"runtime":     func(r *ServiceRestartRequest, s *ServiceRestartSession) { s.State = "idle" },
+		"retired-request-package": func(r *ServiceRestartRequest, s *ServiceRestartSession) {
+			r.Session.PackageID = "9be4b59993cfd0ac6b347da42decb340235c570d310901468778d6dad15d0120"
+		},
+		"retired-package-matched-request-and-runtime": func(r *ServiceRestartRequest, s *ServiceRestartSession) {
+			r.Session.PackageID = "9be4b59993cfd0ac6b347da42decb340235c570d310901468778d6dad15d0120"
+			s.PackageID = r.Session.PackageID
+		},
+		"wrong-target-matched-request-and-runtime": func(r *ServiceRestartRequest, s *ServiceRestartSession) {
+			r.Session.TargetID = "other"
+			s.TargetID = r.Session.TargetID
+		},
+		"runtime-target":  func(r *ServiceRestartRequest, s *ServiceRestartSession) { s.TargetID = "other" },
+		"runtime-package": func(r *ServiceRestartRequest, s *ServiceRestartSession) { s.PackageID = strings.Repeat("b", 64) },
+		"generation":      func(r *ServiceRestartRequest, s *ServiceRestartSession) { r.Session.Generation++ },
+		"lease-state":     func(r *ServiceRestartRequest, s *ServiceRestartSession) { s.LeaseState = "free" },
+		"maintenance":     func(r *ServiceRestartRequest, s *ServiceRestartSession) { s.MaintenanceState = "blocked" },
+		"runtime-state":   func(r *ServiceRestartRequest, s *ServiceRestartSession) { s.State = "idle" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			gotRequest, gotSession := request, active
@@ -443,6 +458,31 @@ func TestNamedRestartSessionChangeSkipsReplacement(t *testing.T) {
 	}
 }
 
+func TestNamedRestartLeaseGenerationChangeSkipsReplacement(t *testing.T) {
+	controller, state, admission, _, _, setLeaseGeneration := namedRestartFixtureWithLeaseGeneration(t)
+	request := ServiceRestartRequest{RequestID: strings.Repeat("f", 64), Service: serviceFogCastKit,
+		Session: &DiagnosticSessionExpectation{TargetID: DiagnosticPongTargetID, PackageID: DiagnosticPongPackageID, Generation: 77}}
+	oldHost := controller.host
+	previous := controller.serviceRestartRuntimeProbe
+	var reads int
+	controller.serviceRestartRuntimeProbe = func(ctx context.Context, process *child) (nativeStatus, error) {
+		reads++
+		if reads == 2 {
+			setLeaseGeneration("lease-generation-changed")
+		}
+		return previous(ctx, process)
+	}
+	result := controller.RestartNamedService(context.Background(), request, state, admission, func(ServiceRestartRecord) error { return nil }, ServiceRestartRecord{
+		Request: request, Phase: "accepted", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	})
+	if result.Outcome != "superseded" || result.Phase != "superseded" || result.Replacement != nil {
+		t.Fatalf("changed lease generation result = %+v", result)
+	}
+	if result.StopResult != "old-process-exited-and-process-group-empty" || controller.host != oldHost || !processDone(oldHost) {
+		t.Fatalf("lease change did not leave the old service safely stopped without replacement: result=%+v hostSame=%v oldDone=%v", result, controller.host == oldHost, processDone(oldHost))
+	}
+}
+
 func TestNamedRestartRefusesStaleExecutablePath(t *testing.T) {
 	controller, state, admission, _, _ := namedRestartFixture(t)
 	oldHost := controller.host
@@ -502,6 +542,11 @@ func targetProcess(controller *ProcessController, service string) *child {
 }
 
 func namedRestartFixture(t *testing.T) (*ProcessController, State, *UnixAdmission, string, map[*child]ServiceProcessIdentity) {
+	controller, state, admission, bundle, original, _ := namedRestartFixtureWithLeaseGeneration(t)
+	return controller, state, admission, bundle, original
+}
+
+func namedRestartFixtureWithLeaseGeneration(t *testing.T) (*ProcessController, State, *UnixAdmission, string, map[*child]ServiceProcessIdentity, func(string)) {
 	t.Helper()
 	bundle := strings.Repeat("a", 64)
 	root := t.TempDir()
@@ -572,26 +617,16 @@ func namedRestartFixture(t *testing.T) (*ProcessController, State, *UnixAdmissio
 		}
 		return probeTenfootReady(marker, process, bundleID)
 	}
-	leaseStatus := []byte(fmt.Sprintf(`{"maintenance":{"state":"none"},"execution_lease":{"state":"held","generation":"lease-generation-77","owner":"hil-diagnostic","purpose":"pong-continuity"},"raw_idle_ready":false,"update_blocked":false,"bundle_id":"%s"}`, bundle))
-	statusSocket := filepath.Join(t.TempDir(), "admission.sock")
-	listener, err := net.Listen("unix", statusSocket)
-	if err != nil {
-		t.Fatal(err)
+	leaseGeneration := "lease-generation-77"
+	leaseStatus := func() []byte {
+		return []byte(fmt.Sprintf(`{"maintenance":{"state":"none"},"execution_lease":{"state":"held","generation":%q,"owner":"hil-diagnostic","purpose":"pong-continuity"},"raw_idle_ready":false,"update_blocked":false,"bundle_id":"%s"}`, leaseGeneration, bundle))
 	}
-	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet && r.URL.Path == "/status" {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write(leaseStatus)
-			return
+	admission := &UnixAdmission{client: &http.Client{Transport: admissionRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.Method != http.MethodGet || r.URL.Path != "/status" {
+			return nil, fmt.Errorf("unexpected admission request %s %s", r.Method, r.URL.Path)
 		}
-		http.NotFound(w, r)
-	})}
-	go func() { _ = server.Serve(listener) }()
-	t.Cleanup(func() { _ = server.Close() })
-	admission, err := NewUnixAdmission(statusSocket, filepath.Join(t.TempDir(), "admission.key"))
-	if err != nil {
-		t.Fatal(err)
-	}
+		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(leaseStatus()))}, nil
+	})}}
 	original := make(map[*child]ServiceProcessIdentity)
 	for _, process := range append(append([]*child(nil), controller.children...), controller.host) {
 		identity, err := processIdentity(process)
@@ -605,7 +640,9 @@ func namedRestartFixture(t *testing.T) (*ProcessController, State, *UnixAdmissio
 		defer cancel()
 		_ = controller.Stop(cleanupCtx)
 	})
-	return controller, State{Version: 1, Selected: bundle}, admission, bundle, original
+	return controller, State{Version: 1, Selected: bundle}, admission, bundle, original, func(generation string) {
+		leaseGeneration = generation
+	}
 }
 
 func privateRestartDir(t *testing.T) string {

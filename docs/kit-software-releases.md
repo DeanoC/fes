@@ -245,7 +245,7 @@ fes-kit-software restart-service fogcast-kit --request-id <64-lowercase-hex>
 fes-kit-software restart-service fogcast-tenfoot --request-id <64-lowercase-hex>
 fes-kit-software restart-service fogcast-tenfoot --request-id <64-lowercase-hex> \
   --target-id 73dc9f5f-1a12-4a95-a820-a9b4e600769a \
-  --package-id 9be4b59993cfd0ac6b347da42decb340235c570d310901468778d6dad15d0120 \
+  --package-id 185e40df05c9efb15901bbf521c529a0121403c5b0bbee0ca5c613d6728ff433 \
   --runtime-generation <current-generation>
 ```
 
@@ -265,10 +265,15 @@ The default session policy requires native idle and a free execution lease. For
 the #1490 continuity diagnostic, a live session is allowed only when the
 request supplies the exact Pong target
 `73dc9f5f-1a12-4a95-a820-a9b4e600769a`, package
-`9be4b59993cfd0ac6b347da42decb340235c570d310901468778d6dad15d0120`, and current
-runtime generation. The supervisor rechecks runtime and lease state through
-the operation and readiness window; a change aborts the request and lets the
-existing recovery path take ownership.
+`185e40df05c9efb15901bbf521c529a0121403c5b0bbee0ca5c613d6728ff433`, and current
+runtime generation. This is the canonical package content ID for the physically
+accepted exact-head Pong artifact. It retains the same `fes.pong` core, DE10-Nano
+target, `fes.simple-game` ABI 1.0, and four required interfaces as the retained
+package, while its payload and build provenance produce a different content ID.
+The prior package ID and all other package IDs remain outside this diagnostic
+exception. The supervisor rechecks runtime and lease state through the operation
+and readiness window; a change aborts the request and lets the existing recovery
+path take ownership.
 
 Success requires the old process group to be empty, a different PID/start-time
 identity, unchanged sibling identities, and ten uninterrupted seconds of
