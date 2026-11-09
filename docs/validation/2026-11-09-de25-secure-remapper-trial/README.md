@@ -33,3 +33,39 @@ with only the original two-second passive tail. Independently verify original
 free. Retain raw console, receipts, consumed records, terminal archive and source
 bundle, then append the actual result to the owned kit log. A successful
 bounded cycle alone does not establish ordinary appliance readiness.
+
+The attempt is terminal and retired. Recovery/native programming and all 13
+uploads/fresh SD reads passed. MMU/private-DDR proof, vector/decode restoration,
+matched secure loader and EL1/SD/FAT startup passed. Every START checkpoint
+completed: remapper returned, response clearing and CANCEL completed, and
+RECONFIG returned two response words successfully. All 1712128 menu FPGA bytes
+were acknowledged with zero pending bytes, activation was recorded and
+CONFIG_STATUS reported ready 1. This establishes complete FPGA configuration
+with the selected mailbox/remapper repairs. Conditional remapper writes were
+not separately observed.
+
+The first menu frame did not appear. The unchanged initial Ready 100-second
+bound expired after SMMU and DDR-firewall reports, followed by the original
+two-second passive tail. No core launch, tape or normal return was observed.
+The exact later failed instruction remains unproven. Source/table inspection
+shows other bridge-control System Manager accesses still use the original NS
+mapping. The SMMU secure-bank ID was read as zero through its NS view; this
+cannot satisfy the unchanged later secure-bank/window gate. That later gate
+itself is not observed. See `control-view-diagnosis.json` for this distinction.
+
+Independent cleanup passed: original 15 MHz/auto-adjust 1, exact USB permissions,
+our private server gone and UART free. Both operations remain consumed, with no
+replay; historical programmer failures remain two and no new programmer failure
+occurred. The host is detached; firmware return or CPU park was not observed.
+Shared-host disk pressure stopped the cleanup wrapper before execution. Its
+read-only audit was also completed during housekeeping, and the unchanged
+wrapper passed after more archived source/intermediate copies were verified and
+reclaimed. Active inputs, build/recovery images and archives remain preserved.
+
+Next review a selected System Manager address contract for all existing EL3
+bridge/control users, including the raw cold boot-kind read, and a read-only
+secure view for the existing SMMU secure-bank reads. Reuse the existing System
+Manager page; retire the superseded remapper-only selector when replacing it.
+Keep original operations, values, offset allowlists, ownership checks and every
+deadline. Add precise control-opening boundaries if needed; do not infer the
+exact stalled instruction or waive the secure-bank/DDR gate.
