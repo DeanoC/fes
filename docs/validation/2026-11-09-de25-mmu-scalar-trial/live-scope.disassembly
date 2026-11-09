@@ -1,0 +1,89 @@
+
+/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-scalar-scope-20261109/native-bl31-r3/source/build/agilex5/release/bl31/bl31.elf:     file format elf64-littleaarch64
+
+
+Disassembly of section .ro:
+
+00000000800233a4 <fes_nano_mmu_scope>:
+    800233a4:	b4000a00 	cbz	x0, 800234e4 <fes_nano_mmu_scope+0x140>
+    800233a8:	a9b77bfd 	stp	x29, x30, [sp, #-144]!
+    800233ac:	910003fd 	mov	x29, sp
+    800233b0:	a90153f3 	stp	x19, x20, [sp, #16]
+    800233b4:	aa0003f3 	mov	x19, x0
+    800233b8:	f90013f5 	str	x21, [sp, #32]
+    800233bc:	b9400015 	ldr	w21, [x0]
+    800233c0:	71000ebf 	cmp	w21, #0x3
+    800233c4:	54000100 	b.eq	800233e4 <fes_nano_mmu_scope+0x40>  // b.none
+    800233c8:	aa0103f4 	mov	x20, x1
+    800233cc:	aa0103e0 	mov	x0, x1
+    800233d0:	97fffe65 	bl	80022d64 <policy_ok>
+    800233d4:	35000120 	cbnz	w0, 800233f8 <fes_nano_mmu_scope+0x54>
+    800233d8:	aa1303e0 	mov	x0, x19
+    800233dc:	128000e1 	mov	w1, #0xfffffff8            	// #-8
+    800233e0:	97fffe9b 	bl	80022e4c <fail.isra.0>
+    800233e4:	52800000 	mov	w0, #0x0                   	// #0
+    800233e8:	f94013f5 	ldr	x21, [sp, #32]
+    800233ec:	a94153f3 	ldp	x19, x20, [sp, #16]
+    800233f0:	a8c97bfd 	ldp	x29, x30, [sp], #144
+    800233f4:	d65f03c0 	ret
+    800233f8:	b4ffff03 	cbz	x3, 800233d8 <fes_nano_mmu_scope+0x34>
+    800233fc:	b9401260 	ldr	w0, [x19, #16]
+    80023400:	121e7aa4 	and	w4, w21, #0xfffffffd
+    80023404:	2a000084 	orr	w4, w4, w0
+    80023408:	35fffe84 	cbnz	w4, 800233d8 <fes_nano_mmu_scope+0x34>
+    8002340c:	9100e3e1 	add	x1, sp, #0x38
+    80023410:	aa0203e0 	mov	x0, x2
+    80023414:	d63f0060 	blr	x3
+    80023418:	35fffe00 	cbnz	w0, 800233d8 <fes_nano_mmu_scope+0x34>
+    8002341c:	b9400260 	ldr	w0, [x19]
+    80023420:	6b0002bf 	cmp	w21, w0
+    80023424:	54fffda1 	b.ne	800233d8 <fes_nano_mmu_scope+0x34>  // b.any
+    80023428:	b9400660 	ldr	w0, [x19, #4]
+    8002342c:	35000115 	cbnz	w21, 8002344c <fes_nano_mmu_scope+0xa8>
+    80023430:	35fffd40 	cbnz	w0, 800233d8 <fes_nano_mmu_scope+0x34>
+    80023434:	f9400660 	ldr	x0, [x19, #8]
+    80023438:	b5fffd00 	cbnz	x0, 800233d8 <fes_nano_mmu_scope+0x34>
+    8002343c:	9100e3e0 	add	x0, sp, #0x38
+    80023440:	97fffe72 	bl	80022e08 <boot_ok>
+    80023444:	34fffca0 	cbz	w0, 800233d8 <fes_nano_mmu_scope+0x34>
+    80023448:	17ffffe8 	b	800233e8 <fes_nano_mmu_scope+0x44>
+    8002344c:	34fffc60 	cbz	w0, 800233d8 <fes_nano_mmu_scope+0x34>
+    80023450:	f9400661 	ldr	x1, [x19, #8]
+    80023454:	d2800080 	mov	x0, #0x4                   	// #4
+    80023458:	f2c00020 	movk	x0, #0x1, lsl #32
+    8002345c:	eb00003f 	cmp	x1, x0
+    80023460:	54fffbc1 	b.ne	800233d8 <fes_nano_mmu_scope+0x34>  // b.any
+    80023464:	f9400280 	ldr	x0, [x20]
+    80023468:	f9403a63 	ldr	x3, [x19, #112]
+    8002346c:	eb00007f 	cmp	x3, x0
+    80023470:	54fffb41 	b.ne	800233d8 <fes_nano_mmu_scope+0x34>  // b.any
+    80023474:	9100e3e0 	add	x0, sp, #0x38
+    80023478:	97fffe48 	bl	80022d98 <cpu_ok>
+    8002347c:	34fffae0 	cbz	w0, 800233d8 <fes_nano_mmu_scope+0x34>
+    80023480:	f9401a61 	ldr	x1, [x19, #48]
+    80023484:	f9402be2 	ldr	x2, [sp, #80]
+    80023488:	eb01005f 	cmp	x2, x1
+    8002348c:	54fffa61 	b.ne	800233d8 <fes_nano_mmu_scope+0x34>  // b.any
+    80023490:	f9402661 	ldr	x1, [x19, #72]
+    80023494:	d28000a2 	mov	x2, #0x5                   	// #5
+    80023498:	f2a00102 	movk	x2, #0x8, lsl #16
+    8002349c:	aa020021 	orr	x1, x1, x2
+    800234a0:	f94037e2 	ldr	x2, [sp, #104]
+    800234a4:	eb01005f 	cmp	x2, x1
+    800234a8:	54fff981 	b.ne	800233d8 <fes_nano_mmu_scope+0x34>  // b.any
+    800234ac:	f9403be2 	ldr	x2, [sp, #112]
+    800234b0:	d2801fe1 	mov	x1, #0xff                  	// #255
+    800234b4:	f2a00881 	movk	x1, #0x44, lsl #16
+    800234b8:	eb01005f 	cmp	x2, x1
+    800234bc:	54fff8e1 	b.ne	800233d8 <fes_nano_mmu_scope+0x34>  // b.any
+    800234c0:	f9403fe2 	ldr	x2, [sp, #120]
+    800234c4:	d286a401 	mov	x1, #0x3520                	// #13600
+    800234c8:	f2b01001 	movk	x1, #0x8080, lsl #16
+    800234cc:	eb01005f 	cmp	x2, x1
+    800234d0:	54fff841 	b.ne	800233d8 <fes_nano_mmu_scope+0x34>  // b.any
+    800234d4:	f94043e1 	ldr	x1, [sp, #128]
+    800234d8:	eb01007f 	cmp	x3, x1
+    800234dc:	54fff7e1 	b.ne	800233d8 <fes_nano_mmu_scope+0x34>  // b.any
+    800234e0:	17ffffc2 	b	800233e8 <fes_nano_mmu_scope+0x44>
+    800234e4:	52800000 	mov	w0, #0x0                   	// #0
+    800234e8:	d65f03c0 	ret

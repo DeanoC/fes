@@ -24,7 +24,32 @@ visits. Native450s, outer800s, host890s and initial Ready100s remain; the
 first failure is terminal with a two-second passive tail. No physical key
 press is requested. Independent device cleanup is required afterwards.
 
-This prepared record is not hardware acceptance. Ordinary verified-package
+This trial does not establish ordinary hardware acceptance. Ordinary verified-package
 admission, visible display/input behavior and full DE10 appliance equivalence
 remain unproven. Cleanup of old host build data stays paused at the user's
 request.
+
+The physical trial is now terminal and retired. Recovery/native programming,
+all13 network uploads/fresh SD readbacks, MMU/loader/EL1/SD/FAT startup,
+Tenfoot Ready in58.37s, four submitted menu frames with zero reported
+underflows, drained menu closure and complete ZX81 configuration/activation
+passed. Initial tape still stopped with LIMIT(-6),512/917 completed chunk
+progress and6915 reads/431 writes. The last accepted clock was near1s; the
+exact rejecting clock or poll branch was not captured. Failure containment
+reportedstatus0, with reboot_required/resourcesheld and no runningcore or
+normalcore return. The first failure stopped outgoing commands; the original
+two-second passive tail is saved. Host detachment does not prove CPU park
+or firmware return.
+
+Ownership samples averaged63.71us versus the prior67.07us, about5% lower;
+sampling includes instrumentation and does not establish a speedup for every
+operation. Inspecting the actual ELF shows remaining144-byte live scope and
+112-byte observer stack frames. The observer retains ten register values
+across a nested CPU-lock check; reducing these saves is a possible next
+repair, subject to preserving the read order and every guard/failure check.
+No benefit or new hardware acceptance is claimed for that proposal.
+
+Independent device cleanup passed: original15MHz/auto1, exact USB permissions,
+only the owned private server gone and UART free. Historical programming
+failures stay2 with no new programmer failure. Both new grants and this
+image remain consumed; no retry is authorized for them.
