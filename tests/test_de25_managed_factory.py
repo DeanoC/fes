@@ -47,6 +47,45 @@ class ManagedFactoryTests(unittest.TestCase):
             changed = dict(fields, **{name: 'changed'})
             self.assertNotEqual(FACTORY.build_key(changed), original)
 
+    def test_factory_verifies_supervised_host_and_menu_requirements(self):
+        contract = FACTORY.base.load(ROOT / 'image/scripts/kit-software.py', 'factory_test_contract')
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary)
+            (target / 'etc/fes').mkdir(parents=True)
+            selection = target / contract.MENU_SELECTION
+            selection.parent.mkdir(parents=True)
+            selection.write_text('package_id = "' + 'a' * 64 + '"\n')
+            package = target / 'usr/share/mister-runtime/core-packages' / ('a' * 64)
+            package.mkdir(parents=True)
+            (package / 'manifest.toml').write_text(
+                '[target]\nplatform = "de25_nano"\n'
+                '[[interfaces]]\nid = "fes.video.menu-display"\nmajor = 1\nminor = 0\n')
+            actual = {'board': 'de25-nano', 'architecture': 'aarch64',
+                      'base_contract': 'fes-kit-base-v2-' + 'b' * 64,
+                      'interfaces': dict(contract.INTERFACES)}
+            requires = {'menu.fes.video.menu-display': '1.0',
+                        'kit-host': '1.0', 'kit-launcher-host': '1.0'}
+            recorded = {**actual, 'requires': requires}
+            path = target / 'etc/fes/software-base.json'
+            executables = [target / 'usr/share/fes/software/bin' / name for name in contract.BINARIES]
+            with mock.patch.object(contract, 'base_contract', return_value=actual) as inspect:
+                path.write_text(json.dumps(recorded))
+                self.assertEqual(FACTORY.verify_software_contract(target, executables, contract), actual)
+                inspect.assert_called_once_with(target, executables, board='de25-nano')
+                changed = [dict(recorded, requires={key: value for key, value in requires.items()
+                                                   if key != missing}) for missing in requires]
+                changed += [dict(recorded, requires={**requires, key: value}) for key, value in (
+                    ('kit-host', '2.0'), ('kit-launcher-host', '0.0'),
+                    ('menu.fes.video.menu-display', '1.1'), ('unknown-host', '1.0'))]
+                changed += [{key: value for key, value in recorded.items() if key != 'requires'},
+                            dict(recorded, base_contract='fes-kit-base-v2-' + 'c' * 64),
+                            dict(recorded, architecture='armv7'), dict(recorded, board='de10-nano')]
+                for invalid in changed:
+                    with self.subTest(record=invalid):
+                        path.write_text(json.dumps(invalid))
+                        with self.assertRaisesRegex(ValueError, 'factory base or MENU contract differs'):
+                            FACTORY.verify_software_contract(target, executables, contract)
+
     def base_inputs(self):
         return {'profile': FACTORY.PROFILE, 'fes_revision': 'a' * 40,
                 'recipe_sha256': 'b' * 64, 'sdk_sha256': 'c' * 64,

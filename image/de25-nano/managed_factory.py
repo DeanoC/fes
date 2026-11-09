@@ -126,6 +126,18 @@ def post_build(target, inputs):
         'inputs': inputs, 'normal_runtime_admission': 'closed', 'hardware_acceptance': 'not-run'})
 
 
+def verify_software_contract(target, executables, contract):
+    actual = contract.base_contract(target, executables, board='de25-nano')
+    recorded = json.loads((target / 'etc/fes/software-base.json').read_text())
+    requires = recorded.pop('requires', None)
+    # The shared assembler records the supervised host alongside MENU. Both
+    # requirements remain mandatory; unknown or changed requirements still fail.
+    expected_requires = {**contract.menu_requirements(target, 'de25-nano'), **contract.ADVERTISES}
+    if recorded != actual or requires != expected_requires:
+        raise ValueError('factory base or MENU contract differs')
+    return actual
+
+
 def verify_rootfs(directory, env):
     inputs = json.loads((directory / INPUTS).read_text())
     manifest, _ = selected(directory / 'artifacts')
@@ -159,11 +171,7 @@ def verify_rootfs(directory, env):
         image.run([Path(env['FOGCAST_DIR']) / 'bin/fes-kit-bundle-linux-amd64', 'verify-directory',
                    '--root', software, '--base', target / 'etc/fes/software-base.json'])
         executables = [software / 'bin' / name for name in contract.BINARIES]
-        actual = contract.base_contract(target, executables, board='de25-nano')
-        recorded = json.loads((target / 'etc/fes/software-base.json').read_text())
-        requires = recorded.pop('requires', None)
-        if recorded != actual or requires != contract.menu_requirements(target, 'de25-nano'):
-            raise ValueError('factory base or MENU contract differs')
+        actual = verify_software_contract(target, executables, contract)
         checked = set(executables)
         checked.update(contract.resolve(target, '/lib/' + name) for name in base.LIBRARIES)
         for name in contract.BINARIES:

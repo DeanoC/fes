@@ -597,7 +597,10 @@ available locally; the build refuses a missing or substituted identity rather
 than choosing the current userspace Dockerfile. Its private volume is removed
 after the build. The DE10 software path keeps its normal container wrapper.
 The existing managed-factory producer assembles and verifies each generation, including its
-actual kernel/rootfs virtual boot. It retains compiler/base packages and refreshes
+actual kernel/rootfs virtual boot. Its base-contract check requires both the sealed
+MENU interfaces and the supervised kit host/launcher interfaces emitted by the
+shared assembler; missing, changed or additional requirements are refused.
+It retains compiler/base packages and refreshes
 the changed runtime. `dev` publishes `linux.img`, `Image`, `de25-owner.dtb`, the
 closed MENU package/selection set, bound inputs/software-build data and `development.json` under
 `out/de25-nano/development/`. Complete factory generations remain in that output's
