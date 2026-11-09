@@ -422,7 +422,12 @@
           await refreshAfterMutation();
         }, 'Package imported. No entry or running session was changed.');
       },
-      importMedia(file) {
+      importMedia(file, pickerSelection = null) {
+        if (pickerSelection && (!state.open || state.loading || state.busy ||
+            pickerSelection.epoch !== epoch || pickerSelection.packageId !== state.packageId ||
+            pickerSelection.hardDisk !== hardDisk())) {
+          return fail(new Error('Package or media route changed. Choose the host-drive file again.'));
+        }
         return mutate(async () => {
           requirePackage();
           const disk = hardDisk();
@@ -491,6 +496,7 @@
       },
       diskGeometry() { return entryDiskGeometry(); },
       importLimit() { return importLimit(); },
+      mediaPickerSelection() { return {epoch, packageId:state.packageId, hardDisk:hardDisk()}; },
       clearEntryMedia() {
         return entryMutation(entry => ({expected_package_id:entry.package_id,
           expected_media_id:entry.media_id || '', media_role:'', media_id:''}), '/media', 'Media selection cleared for the next launch.');
@@ -685,7 +691,14 @@
     click('core-package-import', () => controller.importPackage(byId('core-package-file').files[0]));
     click('core-package-check', () => controller.checkCompatibility());
     click('core-media-import', () => controller.importMedia(byId('core-media-file').files[0]));
-    if(byId('core-media-drive')) click('core-media-drive',() => root.FogCastStorage?.pick({purpose:'media',onSelect:file => controller.importMedia(file)}));
+    if(byId('core-media-drive')) click('core-media-drive',() => {
+      const selection = controller.mediaPickerSelection();
+      root.FogCastStorage?.pick({
+        purpose:'media',
+        filePurpose:selection.hardDisk ? 'hard-disk' : undefined,
+        onSelect:file => controller.importMedia(file, selection),
+      });
+    });
     if (byId('core-blank-disk')) click('core-blank-disk', () => {
       const parts = String(byId('core-blank-disk-geometry').value || '').split(',').map(Number);
       controller.createBlankDisk(byId('core-blank-disk-name').value, {tracks: parts[0], heads: parts[1], sectors: parts[2]});

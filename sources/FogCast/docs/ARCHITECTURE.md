@@ -3473,7 +3473,8 @@ named target and for a paired kit copies that returned status, so the
 response omits the game the kit was recovering from.
 
 Media objects are immutable SHA-256-addressed bytes in the existing catalog
-database. Host storage accepts 1 byte through 32 MiB independently of target media capacity.
+database. Ordinary host media imports accept 1 byte through 32 MiB
+independently of target media capacity; hard disks use their own 1–128 MiB route.
 Imports stream to a private temporary snapshot before taking a database writer
 transaction; SHA identity, declared length and cancellation are checked before
 atomic metadata/chunk publication. Schema 8 stores new objects in 64 KiB chunks,
@@ -4342,7 +4343,11 @@ only through the explicit BIOS selection flow, not a per-target setting. API
 reads cannot address arbitrary host paths: USB reads use `os.Root`, reject
 escaping paths and nonregular files, and ordinary reads are limited to 32 MiB.
 Expansion archive reads use their declared archive bound. SMB reads stay
-relative to the selected share. Directory and connection work runs outside the
+relative to the selected share. The browser's hard-disk picker requests the
+explicit `purpose=hard-disk` file route: it admits only 1–128 MiB raw images
+in whole 512-byte sectors, with the bounded hard-disk transfer budget. That
+purpose cannot be combined with the caller-selected expansion-archive limit;
+ordinary reads keep their 32 MiB bound. Directory and connection work runs outside the
 tenfoot app lock. Existing game/session/package admission and captured
 live-media identity checks remain in force after import.
 To transfer a pack as one file, export it on the source machine and install the
