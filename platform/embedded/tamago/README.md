@@ -228,6 +228,26 @@ without replacing its saved preferences.
 `probe` uses the same compiler/QEMU arguments without storage or networking.
 All output directories must be fresh and beneath the current worktree's `out/`.
 
+`programfetch` tests content delivery from an existing Nano export tree, using
+a private host HTTP server and the guest's real VirtIO/Lneto TCP stack:
+
+```sh
+python3 platform/embedded/tamago/run.py programfetch \
+  --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
+  --qemu /path/to/qemu-system-aarch64 \
+  --export-root /path/to/nano-export --program-id zx81-rom \
+  --output out/native-program-fetch
+```
+
+The server exposes only the selected export's control files and payloads.
+The runner checks the requested file set, package/build/ROM/tape identities,
+unchanged source hashes and an unchanged fresh FAT image. It uses the shared
+`nativefabric.ProgramSource.Fetch` content validator. The backend's `Download`
+adds compiled admission; its separate owned installer has HTTP/FAT launch,
+return and fresh-boot tests. QEMU content verification does not establish Nano
+Ethernet, DMA containment, writable physical SD or FPGA activation. The Nano
+profile still disables networking and selects read-only SD.
+
 ## Platform contract
 
 The image enters at EL1 and links at `0x40020000`, leaving the first 64 KiB

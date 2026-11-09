@@ -91,8 +91,15 @@ func ReadProgramSelections(ctx context.Context, files fs.FS, path string) (reque
 	if int64(offset) != info.Size() {
 		return nil, errors.New("native fabric: program selection length changed")
 	}
+	return decodeProgramSelections(ctx, data[:offset])
+}
+
+func decodeProgramSelections(ctx context.Context, data []byte) (requests []packagestore.Request, err error) {
+	if ctx == nil {
+		return nil, ErrProgramSession
+	}
 	var choices programChoices
-	if err := decodeCompleteRecord(data[:offset], 8192, &choices); err != nil {
+	if err := decodeCompleteRecord(data, 8192, &choices); err != nil {
 		return nil, err
 	}
 	if choices.Format != 1 || choices.Scope != "nano-program-selection-v1" || len(choices.Programs) == 0 || len(choices.Programs) > 16 {

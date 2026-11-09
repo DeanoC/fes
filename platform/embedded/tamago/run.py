@@ -8,6 +8,7 @@ ramfb display and an xHCI USB keyboard (or explicit UART diagnostic input). No p
 import argparse
 import fcntl
 import hashlib
+import http.server
 import json
 import os
 from pathlib import Path
@@ -17,7 +18,8 @@ import struct
 import subprocess
 import sys
 import time
-from urllib.parse import urlparse
+import threading
+from urllib.parse import urlparse, unquote
 from urllib.request import urlopen
 
 from host_support import Guest, frames, network_catalog
@@ -56,7 +58,9 @@ def stop(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("program", choices=("probe", "mapcheck", "fabric", "packages", "admission", "play", "tenfoot", "storage", "keyboard", "network", "display", "fpga", "sdpackages", "bootcontext", "hpsio", "usbcheck", "fpgacontext", "fpgastatus", "fpgaload"))
+    parser.add_argument("program", choices=("probe", "mapcheck", "fabric", "packages", "admission", "play", "tenfoot", "storage", "keyboard", "network", "programfetch", "display", "fpga", "sdpackages", "bootcontext", "hpsio", "usbcheck", "fpgacontext", "fpgastatus", "fpgaload"))
+    parser.add_argument("--export-root",type=Path,help="private Nano export root containing FES/CORESEL.JSN and FES/UI.JSON (programfetch only)")
+    parser.add_argument("--program-id",help="catalogue ID from the selected export (programfetch only)")
     parser.add_argument("--compiler", required=True, type=Path)
     parser.add_argument("--qemu", type=Path)
     parser.add_argument("--board", choices=("qemu", "de25-nano"), default="qemu")
@@ -100,6 +104,11 @@ def main():
     parser.add_argument("--timeout", type=float, default=90,
                         help="startup or per-action deadline, seconds (not interactive runtime)")
     args = parser.parse_args()
+    if args.program=="programfetch":
+        if args.board!="qemu" or args.export_root is None or not args.program_id:
+            parser.error('programfetch requires QEMU, --export-root and --program-id')
+    elif args.export_root is not None or args.program_id is not None:
+        parser.error('--export-root and --program-id require programfetch')
     if args.board == "de25-nano":
         from build import build
         try:
@@ -125,7 +134,7 @@ def main():
     if args.interactive and args.program != "tenfoot":
         parser.error("--interactive requires tenfoot")
     disk = (args.disk or output / "fat32.img").resolve()
-    if args.program in ("packages", "admission", "play") and disk.exists():
+    if args.program in ("packages", "admission", "play", "programfetch") and disk.exists():
         parser.error("package diagnostics require a fresh disk image")
     if not disk.is_relative_to(ROOT / "out") or (disk.exists() and not disk.is_file()):
         parser.error("disk must be a regular file beneath this worktree's out/")
@@ -151,6 +160,7 @@ def main():
                               "synthetic catalog files are not playable ROMs",
                               "clean-reboot persistence is not power-loss atomicity"]}
     host_process, host_log, disk_lock = None, None, None
+    export_server,export_thread=None,None
     if args.program in ("packages", "admission", "play"):
         record["limitations"] = ["package inspection is not hardware admission",
                                 "synthetic shared corpus, not deployable RBFs",
@@ -403,6 +413,56 @@ def main():
             record["screenshots"] = captures
             record["display_checks"] = "two actual QEMU scanout frames match every expected RGB pixel"
             record["termination"] = "runner stopped QEMU after copies; no display drain or guest shutdown proof"
+        elif args.program == "programfetch":
+            record['limitations']=['QEMU VirtIO and Lneto HTTP, not physical Ethernet',
+                                   'content verification only; no compiled-platform admission or FPGA activation',
+                                   'read-only FAT input; no package installation or physical SD writes',
+                                   'network cancellation supplies no DMA containment']
+            export=args.export_root.resolve(strict=True)
+            selections=json.loads((export/'FES/CORESEL.JSN').read_bytes())
+            catalog=json.loads((export/'FES/UI.JSON').read_bytes())
+            chosen=[entry for entry in catalog['entries'] if entry['id']==args.program_id]
+            if len(chosen)!=1: raise ValueError('program ID must select exactly one export entry')
+            choice=selections['programs'][chosen[0]['program']]
+            names={'FES/CORESEL.JSN','FES/UI.JSON',choice['path'],choice['metadata_path']}
+            names.update(source['path'] for source in choice.get('sources',[]))
+            if choice.get('tape'): names.add(choice['tape']['path'])
+            files={}
+            for name in sorted(names):
+                candidate=export/name
+                if not isinstance(name,str) or Path(name).is_absolute() or any(part in ('','.','..') for part in name.split('/')) or candidate.is_symlink() or not candidate.resolve(strict=True).is_relative_to(export) or not candidate.is_file() or candidate.stat().st_size>64<<20:
+                    raise ValueError('invalid bounded export file')
+                files[name]=candidate.read_bytes()
+            requests=[]
+            class ExportHandler(http.server.BaseHTTPRequestHandler):
+                def do_GET(self):
+                    name=unquote(urlparse(self.path).path).removeprefix('/')
+                    if name not in files:
+                        self.send_error(404);return
+                    requests.append(name);data=files[name]
+                    self.send_response(200);self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data)
+                def log_message(self,*unused):pass
+            export_server=http.server.ThreadingHTTPServer(('127.0.0.1',0),ExportHandler)
+            export_thread=threading.Thread(target=export_server.serve_forever,daemon=True);export_thread.start()
+            guest_source='http://10.0.2.2:'+str(export_server.server_port)
+            lock_disk();format_disk()
+            boot=output/'boot.json';boot.write_text(json.dumps({'program_source':guest_source,'program_id':args.program_id})+'\n')
+            checked('write-boot',['mcopy','-i',disk,boot,'::FES/BOOT.JSON'])
+            before=sha(disk)
+            record['export']={'root':str(export),'files_sha256':{name:hashlib.sha256(data).hexdigest() for name,data in files.items()},'guest_source':guest_source,'id':args.program_id}
+            with Guest(qemu,elf,output/'boot-1',command_record,disk=disk,display=display) as guest:
+                guest.wait(lambda text:len(re.findall(r'^FES_PROGRAM_DOWNLOAD PASS ([^\r\n]+)\r?\n',text,re.MULTILINE))==1,args.timeout,'native program download')
+                observed=json.loads(re.findall(r'^FES_PROGRAM_DOWNLOAD PASS ([^\r\n]+)\r?\n',guest.text,re.MULTILINE)[0])
+                expected={'id':args.program_id,'package_id':choice['package_id'],'build_id':json.loads(files[choice['metadata_path']])['build_id'],'metadata_sha256':choice['metadata_sha256'],'rom_receipt_sha256':choice.get('rom_receipt_sha256',''),'tape_sha256':choice.get('tape',{}).get('sha256','')}
+                if any(observed[key]!=value for key,value in expected.items()):raise RuntimeError('download identity differs from selected export')
+                guest.wait(lambda text:'FES_PROGRAM_DOWNLOAD_SCOPE content_only=1 platform_admission=0 storage_writes=0 hardware=0 ' in text,args.timeout,'download scope')
+                record['download']=observed
+            record['export']['requests']=requests
+            if set(requests)!=names or len(requests)!=len(names):raise RuntimeError('export file request set differs')
+            if any(hashlib.sha256((export/name).read_bytes()).hexdigest()!=record['export']['files_sha256'][name] for name in files):raise RuntimeError('source export changed')
+            record['disk']={'path':str(disk),'before_sha256':before,'after_sha256':sha(disk)}
+            if sha(disk)!=before:raise RuntimeError('network delivery changed its read-only disk')
+            record['termination']='runner stopped QEMU after content-only HTTP download; no installation or FPGA activation'
         elif args.program == "network":
             lock_disk()
             prepare_disk(prepare_host())
@@ -543,6 +603,9 @@ def main():
         print(record["error"], file=sys.stderr)
         return 1
     finally:
+        if export_server is not None:
+            export_server.shutdown();export_server.server_close()
+        if export_thread is not None: export_thread.join(timeout=3)
         stop(host_process)
         if host_log is not None:
             host_log.close()

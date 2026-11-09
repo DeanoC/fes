@@ -35,6 +35,13 @@ func ReadProgramCatalog(ctx context.Context, files fs.FS, path string, choices [
 	if err := errors.Join(readErr, closeErr, ctx.Err()); err != nil {
 		return nil, err
 	}
+	return decodeProgramCatalog(raw, choices)
+}
+
+func decodeProgramCatalog(raw []byte, choices []packagestore.Request) ([]ProgramEntry, error) {
+	if len(choices) == 0 || len(choices) > 32 {
+		return nil, ErrProgramSession
+	}
 	var catalog struct {
 		Format  int    `json:"format"`
 		Scope   string `json:"scope"`

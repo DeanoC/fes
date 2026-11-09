@@ -1,5 +1,25 @@
 # Native contained-fabric endpoint
 
+`ProgramSource` downloads an existing Nano export over HTTP: the normal
+`FES/CORESEL.JSN` and `FES/UI.JSON` select the archive, metadata, ROM sources and
+optional tape. It uses the same control-file decoders and package/ROM validator
+as SD loading. `Fetch` returns privately retained, unbound content; `Download`
+also applies a backend's compiled platform admission and returns its opaque
+install plan. Neither call touches SD, firmware or input. `Install` remains a
+separate owned operation, described below.
+
+The caller supplies an HTTP client and fixed numeric IPv4 origin, with an
+optional export prefix and virtual Host. Redirects and transformed responses
+are refused. A download has a 100-second total bound, bounded control/metadata/
+ROM/tape files and at most 64 MiB of content. Length changes, cancellation,
+corrupt content or an unknown catalogue ID return no plan. Network cancellation
+does not stop DMA; a platform must establish its own network ownership before
+changing the fabric. This API starts no listener and enables no Nano NIC.
+Tests cover real HTTP through the owned FAT installer, native launch/return and
+modeled fresh-boot discovery, plus transport and verification failures. The
+QEMU `programfetch` diagnostic separately exercises content delivery through
+VirtIO/Lneto without platform admission or storage writes.
+
 The in-process `ProgramBackend.PrepareInstall` privately copies a bounded upload,
 uses the existing archive/ROM validator and the loader's compiled compatibility
 maps, and produces an opaque install plan without filesystem or firmware IO.
@@ -20,7 +40,7 @@ checks the original ABI/platform/ROM contract and proves live configuration and
 return. No installer record supplies firmware, DMA or activation permission.
 Tests join real FAT allocation and independent readback to the actual native
 launch/return implementation, including a modeled fresh-boot discovery/launch.
-This API is not a network listener. Native uploads over Ethernet, writable Nano
+This API is not a network listener. Physical native Ethernet delivery, writable Nano
 qualification, uninstall/update policy and power-cut recovery remain open; Nano
 startup still selects read-only SD.
 

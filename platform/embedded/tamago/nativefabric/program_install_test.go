@@ -374,6 +374,13 @@ func (d *ownedInstallDisk) Flush() error {
 }
 
 func TestOwnedInstallRealFATLaunchReturnAndFreshBoot(t *testing.T) {
+	ownedInstallRealFATCycle(t, func(b *ProgramBackend, request packagestore.Request, files map[string][]byte) (*ProgramInstall, error) {
+		return b.PrepareInstall(context.Background(), "persisted", "Persisted core", request, files)
+	})
+}
+
+func ownedInstallRealFATCycle(t *testing.T, prepare func(*ProgramBackend, packagestore.Request, map[string][]byte) (*ProgramInstall, error)) {
+	t.Helper()
 	image := filepath.Join(t.TempDir(), "native-install.img")
 	file, err := os.Create(image)
 	if err != nil {
@@ -445,7 +452,7 @@ func TestOwnedInstallRealFATLaunchReturnAndFreshBoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := b.PrepareInstall(context.Background(), "persisted", "Persisted core", request, programUpload(f.r.f.files, request))
+	plan, err := prepare(b, request, programUpload(f.r.f.files, request))
 	if err != nil {
 		t.Fatal(err)
 	}

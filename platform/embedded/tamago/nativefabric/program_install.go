@@ -51,6 +51,21 @@ func (b *ProgramBackend) PrepareInstall(ctx context.Context, id, title string, r
 	if err != nil {
 		return nil, err
 	}
+	return b.prepareInstallContent(ctx, id, title, content)
+}
+
+func (b *ProgramBackend) prepareInstallContent(ctx context.Context, id, title string, content *packagestore.InstallPlan) (*ProgramInstall, error) {
+	if b == nil || b.service == nil || b.service.state == nil || ctx == nil || content == nil {
+		return nil, ErrProgramSession
+	}
+	state := b.service.Status().State
+	if state == ProgramParked || state == ProgramRebootRequired {
+		return nil, ErrProgramRetired
+	}
+	entry := ProgramEntry{ID: id, Title: title, Request: content.Request()}
+	if !validProgramEntry(entry) {
+		return nil, ErrProgramSession
+	}
 	l := b.service.state.loader
 	checked, err := l.Preflight(content.Selection())
 	if err != nil {
@@ -59,7 +74,7 @@ func (b *ProgramBackend) PrepareInstall(ctx context.Context, id, title string, r
 	if checked.state.program == nil || checked.state.program.role == programRoleMenu {
 		return nil, ErrProgramSession
 	}
-	request = content.Request()
+	request := content.Request()
 	if len(request.Parts) != 0 {
 		return nil, ErrProgramSession
 	}

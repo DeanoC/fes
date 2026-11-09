@@ -16,8 +16,12 @@ without preallocation, with independent mtools readback and real package-store
 retention tests. The [owned in-process installer](tamago/nativefabric/README.md)
 now validates uploads in RAM, writes verified content through the active SD
 lease, publishes the catalogue last and discovers it on a modeled fresh boot.
-Real FAT-image tests cover subsequent native launch and return. A native network
-upload service and hardware write qualification remain separate work.
+Real HTTP/FAT-image tests now cover download of an existing Nano export,
+compiled admission, installation, launch/return and modeled fresh-boot discovery.
+The Linux-free QEMU `programfetch` diagnostic separately verifies package/ROM/
+tape identities over VirtIO HTTP and leaves its FAT disk unchanged. A native
+network upload service, NIC containment and hardware write qualification remain
+separate work; Nano networking and SD writes stay disabled in the board profile.
 
 The current [queued-menu hardware trial](../../docs/validation/2026-11-09-de25-menu-queue-trial/README.md)
 passes ZX81 (+917-byte tape) → menu → ZX80 → menu → ZX81 (+same tape) → menu
