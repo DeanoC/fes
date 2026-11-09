@@ -127,7 +127,7 @@ The template is the GPU backend. It enters identity as a parameter and through t
 | `parameters.front_end` | `"yosys"`, `"quartus-lite"` or `"quartus-pro"` | Required on format-2 records with `toolchain == "quartus"`, absent on every other record. Parameters are already open (`:150-161`). `_validate_build_record` (`:75-93`) adds the cross-check against `toolchain`. Format 1 has no validated Quartus discriminator: the validator allows the top-level `toolchain` field only on format 2 (`:88-93`). So a format-1 Quartus record (pc386, the four Z80 sealers) carries no `front_end` until it moves to format 2 (S9b–S9e, S10). Its label stays ambiguous until then, as it is today. |
 | `parameters.device_family` | `"cyclonev"` or `"agilex5"` | On Quartus records. |
 | `parameters.front_end_program` | For the yosys front end, the exact Yosys netlist program | Replaces pc386's `machine_netlist` (`build_fes_pc386_quartus.py:303`). The key is renamed, not duplicated. |
-| `parameters.quartus_qsf_sha256` | Digest of the generated QSF | On every Quartus record. For pc386 it covers the Quartus-read shell file set. |
+| `parameters.quartus_qsf_sha256` | Digest of the canonical QSF: the generated QSF without its BUILD_ID assignment | On every Quartus record. The BUILD_ID derives from the record, so the digest cannot cover a QSF that already carries it. Producers that inject the ID through the QSF (the `FES_<CORE>_BUILD_ID` `VERILOG_MACRO` line, as in `build_fes_coleco.py:207`) render the QSF without that line, hash it, build the record, derive the BUILD_ID, then append the one line. Where the ID enters through the Yosys netlist instead (PC/XT, `quartus_fes_pcxt.py:111`), the canonical QSF is the final QSF. For pc386 the digest covers the Quartus-read shell file set. |
 | `tools.yosys` | `commit=…; sha256=…` | Present if and only if Yosys elaborates any part of the build. |
 | `tools.quartus_sh` | `version=<full lock string>; edition=lite\|pro; sha256=…` | Version and edition come from the lock, not from a regex. Pro records also carry `quartus_syn`, which replaces `quartus_map` (`build_fes_pcxt_quartus.py:158`). |
 
@@ -739,7 +739,7 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
   - `docs/support-matrix.py:383-384`.
 - **Tests:**
   - updated: `test_build_fes_pcxt_quartus.py:215-230`, `test_export_core_package.py:238`, `test_pnr_recipes.py:239-242`, `tests/test_recipes.py:152-155`;
-  - new: records that differ only in `front_end` get different BUILD_IDs and functional keys; an OSS record's field set and functional projection are byte-identical for identical inputs; illegal pairs are rejected; a format-1 record that carries `front_end` is rejected.
+  - new: the final QSF minus its BUILD_ID macro line hashes to the recorded `quartus_qsf_sha256`, and two builds that differ only in BUILD_ID record the same digest; records that differ only in `front_end` get different BUILD_IDs and functional keys; an OSS record's field set and functional projection are byte-identical for identical inputs; illegal pairs are rejected; a format-1 record that carries `front_end` is rejected.
 - **Acceptance:** the tests pass. The PR states D12's answer. If D12 needs a reseal, the PR includes the generated list of every core whose closure contains an S7-changed file, and S7r is opened with it.
 - **Dependencies:** S6a merged. **Kit:** none in S7 itself.
 
