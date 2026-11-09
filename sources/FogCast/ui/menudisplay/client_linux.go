@@ -495,7 +495,7 @@ func (c *Client) present(ctx context.Context, generation uint64, pix []byte, dam
 	}
 	result, err := finishFrame(conn, commit, generation, slot, committed, &timing)
 	if err != nil {
-		return Result{}, err
+		return result, err
 	}
 	w.held[slot] = result.DisplayedSequence
 	w.damage = nil
@@ -595,7 +595,7 @@ func (c *Client) PresentBlit(ctx context.Context, generation uint64, frame BlitF
 	w.damage = nil
 	result, err := finishFrame(conn, commit, generation, slot, committed, &timing)
 	if err != nil {
-		return Result{}, err
+		return result, err
 	}
 	ok = true
 	return result, nil
@@ -636,7 +636,13 @@ func (c *Client) begin(ctx context.Context, w *window, generation uint64) (*net.
 }
 
 // finishFrame sends a commit on the frame's connection and checks its completion.
-func finishFrame(conn *net.UnixConn, commit map[string]any, generation uint64, slot int, committed time.Time, timing *Timing) (Result, error) {
+func finishFrame(conn *net.UnixConn, commit map[string]any, generation uint64, slot int, committed time.Time, timing *Timing) (result Result, err error) {
+	// Keep measured staging/commit work in failed-present traces too. A
+	// refusal has no displayed identity or runtime timings to acknowledge.
+	defer func() {
+		timing.CommitUS = time.Since(committed).Microseconds()
+		result.Timing = *timing
+	}()
 	if err := send(conn, commit, -1); err != nil {
 		return Result{}, err
 	}
@@ -651,7 +657,6 @@ func finishFrame(conn *net.UnixConn, commit map[string]any, generation uint64, s
 	if len(extra) != 0 || f == nil || f.Generation != generation || f.Slot == nil || *f.Slot != slot || f.DisplayedSequence == nil || f.Underflows > TransientUnderflowCap {
 		return Result{}, errors.New("invalid menu frame completion")
 	}
-	timing.CommitUS = time.Since(committed).Microseconds()
 	if t := f.Timing; t != nil {
 		timing.RuntimeCleanUS, timing.RuntimeBlitUS, timing.RuntimeSubmitUS, timing.RuntimeScanoutWaitUS = t.CleanUS, t.BlitUS, t.SubmitUS, t.ScanoutWaitUS
 	}
