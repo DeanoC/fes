@@ -5,7 +5,7 @@ import re
 import mmu_status
 import mmu_logging
 
-POLICY_SHA='3f33131afa5c7198cd2e6bfcb0c82d5ee12c96c380fc4f5831c4e95340e8fd72'
+POLICY_SHA='5ce26ee1fdb4b9d26c4edd02a1d0dee17694a90783fd740d2f5d821a0a158d16'
 CACHE_HELPER_SHA='c16b4d1b6931e6d4d92ac017ba23457ff59d6d5ac9e4279b6c9fb031114b305c'
 FIELDS=('el','midr','mpidr','mmfr0','daif','scr','sctlr','tcr','root','mair','witness')
 ROW=re.compile(r'FES_NANO_EL3_MMU phase=(before|after) '+
@@ -36,7 +36,9 @@ def parameters(proof):
     if (type(root) is not int or root&4095 or not 0x80000000<root<=0x80200000-24576 or
             tables!={name:root+i*4096 for i,name in enumerate(('root','low','ocram','gic','ddr','firmware'))} or
             layout.get('tables_start')!=root or layout.get('tables_end')!=root+24576 or
-            type(witness) is not int or witness&63 or not 0x58000<=witness<=0x60000-64 or
+            layout.get('data_start')!=root+24576 or type(layout.get('data_end')) is not int or
+            not root+24576<layout['data_end']<=0x80200000 or
+            type(witness) is not int or witness&63 or not root+24576<=witness<=layout['data_end']-64 or
             proof.get('witness_bytes')!=64):
         raise ValueError('MMU trace requires exact linked table/witness placement')
     helper=proof.get('startup_cache_helper') or {};address=helper.get('address')
@@ -52,6 +54,8 @@ def parameters(proof):
             diagnostic.get('logging_state_bytes')!=8 or type(saved_address) is not int or
             abs(state_address-saved_address)<8):
         raise ValueError('MMU trace requires private contained decode logging')
+    if any(witness<a+8 and a<witness+64 for a in (state_address,saved_address)):
+        raise ValueError('MMU trace witness overlaps transition lifetime state')
     for name in ('write','restore','capture','vectors','park_vectors','park'):
         code=diagnostic.get(name) or {};address=code.get('address');size=code.get('bytes')
         if (type(address) is not int or address&3 or type(size) is not int or size&3 or

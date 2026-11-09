@@ -33,14 +33,16 @@ NC = AF | AP_RES1 | (2 << 8) | 8   # Attr2: Normal NC, outer shareable
 DEVICE = AF | AP_RES1 | (2 << 8) | 4
 MAIR = 0x4400ff                    # Attr2=NC, Attr1=nGnRnE, Attr0=WB/WA
 TCR = (1 << 31) | (1 << 23) | (3 << 12) | (1 << 10) | (1 << 8) | 32
-CONTRACT = dict(format=1, scope='experimental-el3-static-private-cache-v1',
+CONTRACT = dict(format=2, scope='experimental-el3-static-private-ddr-cache-v2',
                 granule=PAGE, va_bits=32, pa_bits=32, mair=MAIR, tcr=TCR,
                 table_bytes=TABLE_BYTES, ddr_limit=DDR_LIMIT,
                 firmware_limit=BL31_LIMIT, runtime_enabled=False,
                 hardware_authority=False)
-RUNTIME_CONTRACT = dict(format=6, scope='matched-cold-el3-private-cache-v6',
+RUNTIME_CONTRACT = dict(format=7, scope='matched-cold-el3-private-ddr-cache-v7',
     mair=MAIR, tcr=TCR, table_bytes=TABLE_BYTES, granule=PAGE, va_bits=32, pa_bits=32,
     memory_probe='private-line-clean-invalidate-reread-v1',
+    memory_types='secure-ocram-normal-nc-private-ddr-wb-v1',
+    witness_storage='initialized-private-ddr-data-v1',
     enable_phase='after-startup-cache-maintenance-before-el3-exit',
     single_cpu='a55-cpu0-release-locked',
     boot_steps='admit-register-barrier-private-clean-v1',
@@ -117,9 +119,9 @@ def install(source, profile, ram_binding=None):
         raise ValueError('MMU linker branch context changed')
     ld = ld.replace(anchor, '#include "nano_mmu_tables.ld.inc"\n'+anchor)
     common = (source/COMMON_LD).read_text()
-    anchor = '*(SORT_BY_ALIGNMENT(.bss*))'
+    anchor = '*(SORT_BY_ALIGNMENT(.data*))'
     if common.count(anchor) != 1:
-        raise ValueError('MMU witness BSS context changed')
+        raise ValueError('MMU witness initialized data context changed')
     common = common.replace(anchor, anchor+' *(.fes_mmu_witness)')
     entry_name = 'bl31/aarch64/bl31_entrypoint.S'
     entry = (source/entry_name).read_text()
@@ -162,10 +164,9 @@ def verify_live_image(image, chain):
     proof=verify_image(image, chain)
     symbols=ram.symbols(image)
     address,size=symbols.get('fes_nano_mmu_witness',(0,0))
-    if (size!=64 or address&63 or not ram.STACK_END<=address<=ram.LIMIT-size or
-            not symbols['__BSS_START__'][0]<=address<address+size<=symbols['__BSS_END__'][0] or
-            'fes_nano_mmu_platform_boot' not in symbols):
-        raise ValueError('MMU private witness or late boot hook is missing/outside its reservation')
+    if (size!=64 or address&63 or not proof['layout']['data_start']<=address<=proof['layout']['data_end']-size or
+            file_bytes(image,address,size)[0]!=bytes(64) or 'fes_nano_mmu_platform_boot' not in symbols):
+        raise ValueError('MMU witness must be initialized private cached DDR data')
     helper,helper_size=symbols.get('invalidate_cache_low_el',(0,0))
     if helper_size!=len(VENDOR_CACHE_CODE) or helper&3 or not DDR_BASE<=helper<helper+helper_size<=proof['layout']['ro_end']:
         raise ValueError('selected lower-EL cache helper is missing/outside executable firmware')
@@ -173,6 +174,8 @@ def verify_live_image(image, chain):
     if code!=VENDOR_CACHE_CODE:
         raise ValueError('selected lower-EL cache helper does not restore SCR and return')
     transition=verify_transition(image,symbols,proof['layout'])
+    if any(address<transition[name]+8 and transition[name]<address+size for name in ('saved_vbar','logging_state')):
+        raise ValueError('MMU witness overlaps private transition lifetime state')
     return dict(proof, selected_policy=dict(RUNTIME_CONTRACT), witness=address, witness_bytes=size,
                 transition_diagnostic=transition,
                 startup_cache_helper=dict(address=helper,bytes=helper_size,sha256=hashlib.sha256(code).hexdigest()))
@@ -317,7 +320,7 @@ def _fixed(name, index):
             return address, DEVICE | XN, 2
     if name == 'ocram' and index < 0x80000 // PAGE:
         address = index * PAGE
-        return address, (WB if ram.BASE <= address < ram.LIMIT else NC) | XN, 3
+        return address, NC | XN, 3
     if name == 'gic' and index < 0x100000 // PAGE:
         return 0x1d000000 + index * PAGE, DEVICE | XN, 3
     if name == 'ddr':

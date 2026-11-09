@@ -143,9 +143,13 @@ class NanoMixedColdTests(unittest.TestCase):
             if initial_tape:
                 command.insert(1, '-DFES_TEST_INITIAL_TAPE')
             if firmware_mmu:
-                command[1:1]=['-DFES_TEST_FIRMWARE_MMU','-fno-pie','-no-pie',
+                # Host pointers model the real DDR addresses above signed2GiB.
+                command[1:1]=['-DFES_TEST_FIRMWARE_MMU','-fno-pie','-no-pie','-mcmodel=large',
                               '-Wl,--defsym,fes_nano_mmu_root=0x8003c000',
-                              '-Wl,--section-start=.fes_mmu_witness=0x5f000']
+                              '-Wl,--defsym,__DATA_START__=0x80042000',
+                              '-Wl,--defsym,__DATA_END__=0x80043000',
+                              '-Wl,--section-start=.fixture_heap_anchor=0x100000000',
+                              '-Wl,--section-start=.fes_mmu_witness=0x80042fc0']
             result = subprocess.run(command, capture_output=True, text=True, timeout=30)
             if target is not None:
                 (target / 'compile.log').write_text(result.stdout + result.stderr)
@@ -251,6 +255,31 @@ class NanoMixedColdTests(unittest.TestCase):
                             self.assertLess(result.stdout.index('FES_NANO_TAPE_CONTAINMENT '), result.stdout.index('FES_NANO_TAPE_FAILURE '))
                         else:
                             self.assertFalse(contained)
+            if firmware_mmu:
+                # Relink the real adapter at invalid physical boundaries.
+                # Each image must retire MMU admission before touching the
+                # witness and deny all owned channels without endpoint I/O.
+                for name,field,value in (
+                        ('old-ocram','--section-start=.fes_mmu_witness=',0x5f000),
+                        ('before-data','--section-start=.fes_mmu_witness=',0x80041fc0),
+                        ('after-data','--section-start=.fes_mmu_witness=',0x80043000),
+                        ('short-limit','--defsym,__DATA_END__=',0x80042fe0),
+                        ('wrong-start','--defsym,__DATA_START__=',0x80042040),
+                        ('private-overflow','--defsym,__DATA_END__=',0x80200001),
+                        ('empty-data','--defsym,__DATA_END__=',0x80042000),
+                        ('tiny-data','--defsym,__DATA_END__=',0x80042020)):
+                    with self.subTest(memory_bounds=name):
+                        changed=list(command);index=next(i for i,a in enumerate(changed) if a.startswith('-Wl,'+field))
+                        changed[index]='-Wl,'+field+hex(value)
+                        changed[changed.index('-o')+1]=str(base/('bounds-'+name))
+                        compiled=subprocess.run(changed,capture_output=True,text=True,timeout=30)
+                        self.assertEqual(compiled.returncode,0,compiled.stderr)
+                        result=subprocess.run([base/('bounds-'+name),'77'],capture_output=True,text=True,timeout=30)
+                        self.assertEqual(result.returncode,0,result.stderr+result.stdout[-5000:])
+                        self.assertIn('deny every owned channel without device I/O or fallback',result.stdout)
+                        self.assertIn('FES_NANO_EL3_MMU FAIL status=-7 writes=4 memory=0',result.stdout)
+                        self.assertNotIn('phase=memory-before',result.stdout)
+                        if target is not None:(target/('bounds-'+name+'.log')).write_text(result.stdout+result.stderr)
             # The combined provider requires the full CPU reservation even
             # though the original computer reader remains only8KiB.
             (base / 'fes_nano_cold_profile.h').write_text(profile.replace(

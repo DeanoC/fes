@@ -25,16 +25,16 @@ def proof():
          ('vectors',0x80032000,2048),('park_vectors',0x80032800,2048),('park',0x80027000,8))}
     diagnostic.update(decode_logging=mmu_logging.SHA,logging_state=root+24584,logging_state_bytes=8,status_inventory=mmu_status.SHA,runtime_vectors=0x80030000,saved_vbar=root+24576,saved_bytes=8,
                       uart_data=0x10c02100,uart_status=0x10c02114,uart_polls=100000,uart_bytes=384)
-    return dict(selected_policy=dict(mmu.RUNTIME_CONTRACT),witness=0x5f000,witness_bytes=64,
+    return dict(selected_policy=dict(mmu.RUNTIME_CONTRACT),witness=root+24576+64,witness_bytes=64,
         transition_diagnostic=diagnostic,
         startup_cache_helper=dict(address=0x80023000,bytes=44,sha256=mmu_trace.CACHE_HELPER_SHA),
-        layout=dict(tables_start=root,tables_end=root+24576,
+        layout=dict(tables_start=root,tables_end=root+24576,data_start=root+24576,data_end=root+24576+128,
             tables={name:root+i*4096 for i,name in enumerate(mmu.NAMES)}))
 
 
 def row(phase):
     r=dict(el=12,midr=0x412fd050,mpidr=0x81000000,mmfr0=2,daif=0x2c0,scr=0x530,
-        sctlr=0x30c5183a,tcr=0,root=0,mair=0,witness=0x5f000)
+        sctlr=0x30c5183a,tcr=0,root=0,mair=0,witness=0x80042040)
     if phase=='after':r.update(sctlr=r['sctlr']|0x80005,tcr=mmu.TCR,root=0x8003c000,mair=mmu.MAIR)
     return 'NOTICE:  FES_NANO_EL3_MMU phase='+phase+' '+\
         ' '.join(name+'='+format(r[name],'x') for name in mmu_trace.FIELDS)+\
@@ -90,7 +90,7 @@ class NanoMMUBootTests(unittest.TestCase):
         # Small source exports exercise transformations and their hash binding.
         # The real vendor hashes are separately exercised by the matched build.
         files={mmu.LD:'before\n    __RW_START__ = . ;\n#else\n    __RW_START__ = . ;\n',
-            mmu.COMMON_LD:'*(SORT_BY_ALIGNMENT(.bss*))\n',
+            mmu.COMMON_LD:'*(SORT_BY_ALIGNMENT(.data*))\n*(SORT_BY_ALIGNMENT(.bss*))\n',
             mmu.VENDOR_CACHE:mmu.VENDOR_CACHE_BODY+'\n',
             mmu.ram.ENTRY:'fes_ram_bss_clean\n\tfes_ram_uart_text fes_nano_ram_runtime_exit_before\n\tb\tel3_exit\n',
             'plat/intel/soc/agilex5/platform.mk':'BL31_SOURCES += original.c\n'}
@@ -117,6 +117,9 @@ class NanoMMUBootTests(unittest.TestCase):
             self.assertIn('cbnz\tx0, .Lfes_ram_park\n\tb\tel3_exit',entry)
             self.assertIn('\tmsr\tSCR_EL3, x0\n\tisb\n\tret\nendfunc invalidate_cache_low_el',
                           (source/mmu.VENDOR_CACHE).read_text())
+            common=(source/mmu.COMMON_LD).read_text()
+            self.assertIn('*(SORT_BY_ALIGNMENT(.data*)) *(.fes_mmu_witness)',common)
+            self.assertNotIn('*(SORT_BY_ALIGNMENT(.bss*)) *(.fes_mmu_witness)',common)
             for name in binding['sources']:
                 with self.subTest(name=name):
                     path=source/name;original=path.read_bytes();path.write_bytes(original+b' changed')
@@ -152,6 +155,14 @@ class NanoMMUBootTests(unittest.TestCase):
             with self.assertRaises(ValueError):mmu.checked(bad)
         with self.assertRaises(ValueError):mmu.selected(p,1)
         self.assertIsNone(mmu.selected({},False))
+
+    def test_trace_witness_must_stay_in_private_initialized_data_and_off_lifetime_state(self):
+        for address in (0x5f000,0x80200000,0x80042041,0x80042000,0x80042080):
+            p=proof();p['witness']=address
+            with self.subTest(address=hex(address)),self.assertRaises(ValueError):mmu_trace.parameters(p)
+        for name,value in (('data_start',0x80042008),('data_end',0x80200001),('data_end',0x80042040)):
+            p=proof();p['layout'][name]=value
+            with self.subTest(name=name,value=value),self.assertRaises(ValueError):mmu_trace.parameters(p)
 
     def test_complete_post_cleanup_transition_is_required_before_loader(self):
         raw=base_trace().replace('U-Boot 2025.01-fes-nano-',transition()+'U-Boot 2025.01-fes-nano-',1)

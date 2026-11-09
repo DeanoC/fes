@@ -110,9 +110,10 @@ bl31_entrypoint: .byte 0
             self.assert_access(address, writable=False, executable=True, ns=False, attr=0)
         for address in (self.bounds['tables_start'], self.bounds['tables_end'] - 1):
             self.assert_access(address, writable=False, executable=False, ns=False, attr=0)
-        for address in (self.bounds['data_start'], self.bounds['data_end'] - 1,
-                        ram.BASE, ram.STACK_END, ram.LIMIT - 1):
+        for address in (self.bounds['data_start'], self.bounds['data_end'] - 1):
             self.assert_access(address, writable=True, executable=False, ns=False, attr=0)
+        for address in (ram.BASE, ram.STACK_END, ram.LIMIT - 1):
+            self.assert_access(address, writable=True, executable=False, ns=False, attr=2)
         self.assertIsNone(walk(self.image, self.bounds, self.bounds['image_end']))
         self.assertIsNone(walk(self.image, self.bounds, 0x801fffff))
 
@@ -123,6 +124,17 @@ bl31_entrypoint: .byte 0
         for address in (0, ram.BASE - 1, ram.LIMIT, 0x7ffff):
             self.assert_access(address, writable=True, executable=False, ns=False, attr=2)
         self.assertIsNone(walk(self.image, self.bounds, 0x80000))
+
+    def test_entire_ocram_is_noncacheable_and_old_private_cache_alias_is_rejected(self):
+        for address in range(0,0x80000,mmu.PAGE):
+            self.assert_access(address,writable=True,executable=False,ns=False,attr=2)
+        raw,_=mmu.file_bytes(self.image,self.bounds['tables']['ocram'],mmu.PAGE)
+        offset=self.image.find(raw);self.assertEqual(offset,self.image.rfind(raw))
+        for address in range(ram.BASE,ram.LIMIT,mmu.PAGE):
+            bad=bytearray(self.image)
+            struct.pack_into('<Q',bad,offset+(address//mmu.PAGE)*8,mmu._leaf(address,mmu.WB|mmu.XN,3))
+            with self.subTest(address=hex(address)),self.assertRaises(ValueError):
+                mmu.verify_table_bytes(bad,self.bounds)
 
     def test_mmio_remains_device_and_security_regions_do_not_merge(self):
         for address in (0x10c02100, 0x10d11000, 0x16000000, 0x20010400, 0x3fffffff):
@@ -159,8 +171,7 @@ bl31_entrypoint: .byte 0
                 self.assertTrue(value['accessed'] and value['ap_res1'])
                 if value['attr'] == 0:
                     self.assertFalse(value['ns'])
-                    self.assertTrue(ram.BASE <= address < ram.LIMIT or
-                                    mmu.DDR_BASE <= address < self.bounds['image_end'])
+                    self.assertTrue(mmu.DDR_BASE <= address < self.bounds['image_end'])
         self.assertEqual(visited, set(self.bounds['tables'].values()))
 
     def test_corrupted_descriptors_pointers_permissions_or_storage_are_rejected(self):

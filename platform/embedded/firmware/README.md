@@ -93,6 +93,16 @@ restore reinitialize them after intervening C code. Poll counters and byte
 budgets remain per character/line. This removes repeated inline constants so
 the diagnostic can fit the original sealed upload limit; code checks bind each
 initializer and the permitted data-store register.
+The selected format7 mapping follows the pinned vendor's secure Normal-NC
+OCRAM policy after physical decode logging identified an illegal DII transaction
+at the cached stack address. Stack/BSS bounds, security and execute permissions
+are unchanged. Only private DDR remains write-back cached. The aligned64-byte
+cache witness now belongs to initialized private DDR data; actual linked bounds,
+zero file backing, separation from transition state and the live adapter's
+data/table boundaries are required. A witness outside those bounds retires boot
+before the probe and leaves every owned channel unready. Clean/invalidate and
+readback remain required, with no ECC change, status acknowledgement, broader
+memory permissions or tape-deadline change. Nano qualification remains open.
 See the [runtime scope checks](../../../docs/validation/2026-11-09-de25-mmu-runtime/README.md).
 
 `nano_tape` is a secure-side initial-tape engine for the existing

@@ -166,7 +166,7 @@ static int mixed_runtime(uint64_t owner,unsigned mode)
     assert(fes_nano_platform_identity_setup()==1 && fes_nano_platform_configuration_setup()==1 && fes_nano_platform_sd_setup()==1);
 #ifdef FES_TEST_FIRMWARE_MMU
     assert(!fes_nano_cold_mmu_admit()); /* Shared USB must be completely bound. */
-    if((mode>=68 && mode<=73) || mode==75 || mode==76) {
+    if((mode>=68 && mode<=73) || mode==75 || mode==76 || mode==77) {
         shared_usb_setup();
         if(mode==72)mmu_scr|=1; /* Missing startup enable cannot use cache-off. */
         else if(mode==73) {mmu_drop_mair=1;assert(fes_nano_mmu_platform_enable()<0);mmu_scr|=1;}
@@ -174,12 +174,17 @@ static int mixed_runtime(uint64_t owner,unsigned mode)
             mmu_restore_failure=mode==75;mmu_install_failure=mode==76;
             assert(fes_nano_mmu_platform_boot()<0);
         }
+        else if(mode==77) {
+            assert(fes_nano_mmu_platform_boot()<0);
+            assert(!mmu_clean && !mmu_vector_restored);
+            for(unsigned i=0;i<8;i++)assert(!fes_nano_mmu_witness[i]);
+        }
         else fes_test_mmu_start();
         if(mode==68)mmu_tcr^=0x100;
         else if(mode==69)mmu_mair^=0x400;
         else if(mode==70)mmu_root^=4096;
         else if(mode==71)sctlr&=~1ULL;
-        else assert(mode==72 || mode==73 || mode==75 || mode==76);
+        else assert(mode==72 || mode==73 || mode==75 || mode==76 || mode==77);
         unsigned reads=mmu_device_reads,writes=mmu_device_writes;
         const uint32_t fids[]={FES_EMBEDDED_USB_CALL,FES_EMBEDDED_SD_CALL,FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_TAPE_CALL};
         const uint64_t cookies[]={FES_EMBEDDED_USB_COOKIE,FES_EMBEDDED_SD_COOKIE,FES_EMBEDDED_BRIDGE_COOKIE,FES_EMBEDDED_TAPE_COOKIE};

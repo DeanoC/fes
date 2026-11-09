@@ -9,6 +9,10 @@ static unsigned mmu_drop_mair;
 static unsigned mmu_clean;
 static unsigned mmu_vector_installed,mmu_vector_restored,mmu_restore_failure,mmu_install_failure;
 extern volatile uint64_t fes_nano_mmu_witness[8];
+/* Keep the Linux test heap above the fixed32-bit DMA models. The unused
+ * section is linked above4GiB; it is never present in Nano firmware. */
+static unsigned char mmu_test_heap_anchor[1]
+    __attribute__((section(".fixture_heap_anchor"),used))={0};
 uint64_t read_midr(void) {return 0x412fd050;}
 uint64_t read_id_aa64mmfr0_el1(void) {return 2;}
 uint64_t read_daif(void) {return 0x3c0;}

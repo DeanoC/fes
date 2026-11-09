@@ -12,9 +12,10 @@
 #endif
 
 extern const uint64_t fes_nano_mmu_root[];
+extern unsigned char __DATA_START__[],__DATA_END__[];
 static struct fes_nano_mmu mmu;
 static const struct fes_nano_mmu_policy policy={(uintptr_t)fes_nano_mmu_root};
-volatile uint64_t fes_nano_mmu_witness[8] __attribute__((section(".fes_mmu_witness"),aligned(64)));
+volatile uint64_t fes_nano_mmu_witness[8] __attribute__((section(".fes_mmu_witness"),aligned(64)))={0};
 
 /* Cold boot only: these operations are never part of the tape/SMC hot path. */
 static void step(const char *phase, unsigned operation)
@@ -79,7 +80,11 @@ static int clean_invalidate(void *context)
 static int memory_probe(void *context)
 {
     uintptr_t address=(uintptr_t)fes_nano_mmu_witness;
-    if(address<0x58000U || address>0x60000U-sizeof(fes_nano_mmu_witness))return -1;
+    uintptr_t first=(uintptr_t)__DATA_START__,limit=(uintptr_t)__DATA_END__;
+    if(first!=(uintptr_t)fes_nano_mmu_root+FES_NANO_MMU_TABLE_BYTES ||
+       first<0x80000000ULL || limit>0x80200000ULL || limit<=first ||
+       limit-first<sizeof(fes_nano_mmu_witness) ||
+       address<first || address>limit-sizeof(fes_nano_mmu_witness))return -1;
     step("memory-before",0);
     int result=fes_nano_mmu_memory_probe(fes_nano_mmu_witness,context,clean_invalidate);
     step("memory-after",0);
