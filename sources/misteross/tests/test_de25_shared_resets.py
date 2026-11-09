@@ -1,12 +1,13 @@
 """Pinned generated-source and post-compile guards for shared FIFO resets.
 
-The positive fixture's output digests come from the independently fitted
-prototype. These are source/receipt tests, not physical reset qualification.
+The fixture contains actual generated inputs and deterministic derivation
+digests. These source/receipt tests do not qualify fitting or physical reset.
 """
 import gzip
 import hashlib
 import importlib.util
 import json
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -35,9 +36,37 @@ class SharedResetTests(unittest.TestCase):
                                    "hps_initialization": "HPS FIRST", "build_id": "1" * 32}}
         (self.directory / "inputs.json").write_text(json.dumps(self.inputs))
 
-    def test_derivation_matches_the_actual_compiled_prototype(self):
+    def test_derivation_matches_the_captured_generated_source_vector(self):
         derived = S.derive(self.originals)
         self.assertEqual({name: hashlib.sha256(data).hexdigest() for name, data in derived.items()}, self.expected)
+
+    def test_raw_fixture_binds_the_selected_geometry_without_claiming_a_fit(self):
+        fixture = json.loads(gzip.decompress((ROOT / "tests/fixtures/de25_shared_fifo_resets.json.gz").read_bytes()))
+        self.assertEqual({name: hashlib.sha256(data).hexdigest() for name, data in self.originals.items()},
+                         fixture["raw_input_sha256"])
+        self.assertEqual(fixture["raw_input_sha256"], S.ORIGINAL_SHA256)
+        self.assertEqual(fixture["parent_sha256"], {"menu": S.ORIGINAL_SHA256[S.PARENT],
+                         "standard": S.STANDARD_PARENT_SHA256, "standard_pr": S.STANDARD_PR_PARENT_SHA256})
+        self.assertNotIn("private_compiled_sof_sha256", fixture)
+        outer = next(text.decode() for name, text in self.originals.items()
+                     if name.endswith("/synth/peripheral_subsys_fes_mem_cdc.v"))
+        self.assertRegex(outer, r"parameter BURSTCOUNT_WIDTH\s*= 7,")
+        self.assertRegex(outer, r"parameter RESPONSE_FIFO_DEPTH\s*= 512,")
+
+    def test_obsolete_memory_width_or_response_capacity_is_refused_before_writes(self):
+        name = next(name for name in self.originals
+                    if name.endswith("/synth/peripheral_subsys_fes_mem_cdc.v"))
+        original = self.originals[name].decode()
+        for field, before, after in (("BURSTCOUNT_WIDTH", "7", "5"), ("RESPONSE_FIFO_DEPTH", "512", "256")):
+            changed, count = re.subn(r"(parameter " + field + r"\s*= )" + before + ",",
+                                    lambda match: match[1] + after + ",", original)
+            self.assertEqual(count, 1)
+            (self.project / name).write_text(changed)
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "unreviewed generated input"):
+                S.apply(self.directory)
+            self.assertFalse((self.directory / "shared-reset-originals").exists())
+            self.assertFalse((self.directory / "shared-resets.json").exists())
+        (self.project / name).write_text(original)
 
     def test_apply_retains_exact_inputs_and_leaves_constraints_unchanged(self):
         constraints = self.project / "untouched.sdc"
@@ -88,7 +117,7 @@ class SharedResetTests(unittest.TestCase):
         self.assertFalse((self.directory / "shared-reset-originals").exists())
         self.assertFalse((self.directory / "shared-resets.json").exists())
 
-    def test_standard_board_keeps_the_exact_compiled_fifo_derivation(self):
+    def test_standard_board_keeps_the_exact_reset_and_memory_derivation(self):
         parent = gzip.decompress((ROOT / "tests/fixtures/de25_standard_parent.v.gz").read_bytes())
         self.assertEqual(hashlib.sha256(parent).hexdigest(), S.STANDARD_PARENT_SHA256)
         (self.project / S.PARENT).write_bytes(parent)
