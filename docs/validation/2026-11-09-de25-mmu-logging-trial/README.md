@@ -24,3 +24,9 @@ scope; only decode detection is enabled. Normal or terminal cleanup checks
 restoration to0 and preserves sticky status. Missing, interrupted or failed
 restoration cannot grant admission. Reliable core loading and full appliance
 acceptance remain open until physically verified.
+
+The [physical result](hardware-result.json) now records the terminal SError and
+a new CCU decode syndrome at the interrupted OCRAM stack address. The
+[field extraction](status-diagnosis.json) and [analysis](analysis.md) distinguish
+the logged transaction from the unproven exact instruction. Control restoration
+and independent host cleanup pass. This image is consumed and retired.
