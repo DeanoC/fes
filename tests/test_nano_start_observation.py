@@ -21,11 +21,29 @@ class Observed(Model):
                       lambda m:m[0]+self.notes,raw)
 
 
+class Isolated(Observed):
+    notes=NOTE.replace(b'NOTICE:  FES_NANO_START phase=4 ',
+                       b'NOTICE:  FES_NANO_ISOLATION status=0\nNOTICE:  FES_NANO_START phase=4 ')
+
+
 class Tests(unittest.TestCase):
     def test_complete_model_launch_return_cycle_preserves_required_evidence(self):
-        model=Observed(True,'boot-keyboard');client=model.client();result=paired.exercise(client)
-        self.assertTrue(result['passed']);self.assertEqual(model.configurations,7)
-        self.assertEqual(client.menu.finish()['menu_sessions'],4)
+        for kind in (Observed,Isolated):
+            model=kind(True,'boot-keyboard');client=model.client();result=paired.exercise(client)
+            self.assertTrue(result['passed']);self.assertEqual(model.configurations,7)
+            self.assertEqual(client.menu.finish()['menu_sessions'],4)
+
+    def test_raw_result_is_bounded_unique_and_inside_the_isolation_call(self):
+        line=b'NOTICE:  FES_NANO_ISOLATION status=0\n'
+        bad=[Isolated.notes.replace(line,line+line),Isolated.notes.replace(line,line.replace(b'status=0',b'status=-2')),
+             Isolated.notes.replace(line,line.replace(b'status=0',b'status=2147483648')),
+             Isolated.notes.replace(line,line.replace(b'status=0',b'value=0')),
+             line+NOTE,NOTE+line]
+        for notes in bad:
+            with self.subTest(notes=notes[:80]):
+                class Broken(Observed):pass
+                Broken.notes=notes
+                with self.assertRaises(ValueError):Broken(True,'boot-keyboard').client()
 
     def test_missing_duplicate_malformed_or_failed_notes_cannot_complete_startup(self):
         lines=NOTE.splitlines(keepends=True)
@@ -61,6 +79,13 @@ class Tests(unittest.TestCase):
         self.assertFalse(r['complete']);self.assertTrue(r['errors']);self.assertFalse(r['start_observation']['complete'])
         self.assertEqual(r['start_observation']['records'][4]['status'],-12)
         self.assertFalse(r['start_observation']['hardware_authority'])
+
+        raw_note=b'NOTICE:  FES_NANO_ISOLATION status=-12\n'
+        notes=notes.replace(b'NOTICE:  FES_NANO_START phase=4 status=-12\n',
+                            raw_note+b'NOTICE:  FES_NANO_START phase=4 status=-1\n')
+        r=extract(core('arm')+core('start')+notes+core('FAIL')+b'NOTICE:  FES_NANO_START phase=11 status=4\n',cfg,generation=generation)
+        self.assertEqual(r['start_observation']['isolation']['status'],-12)
+        self.assertFalse(r['complete']);self.assertTrue(r['errors']);self.assertFalse(r['start_observation']['hardware_authority'])
 
 
 if __name__=='__main__':unittest.main()

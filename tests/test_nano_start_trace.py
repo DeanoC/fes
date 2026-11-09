@@ -25,6 +25,10 @@ class StartTraceTests(unittest.TestCase):
         if not p.is_file():raise unittest.SkipTest('exact Terasic service required')
         cls.original=prepare_nano_owned.service_source(p.read_bytes(),cold_serial=True)
         cls.observed=trace.observed(cls.original)
+        # The reference root is also configurable independently of the SiP file.
+        ref=Path(os.environ.get('FES_NANO_TFA_ROOT',str(ROOT/'out/terasic-git-restore-tfa')))
+        cls.mailbox=(ref/trace.MAILBOX).read_bytes()+b'\n'+(FW/'nano_mailbox_observe.inc').read_bytes()+b'\n'+(FW/'nano_mailbox_status.inc').read_bytes()
+        cls.binding=dict(mode='pinned-mailbox-v3-retired-status-v1',generated_sha256=trace.MAILBOX_INPUT_SHA256)
 
     def test_disabled_does_not_access_files_and_install_records_exact_generated_bytes(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -33,12 +37,15 @@ class StartTraceTests(unittest.TestCase):
                 self.assertIsNone(trace.install(root,disabled))
             self.assertEqual(list(root.iterdir()),[])
             p=root/trace.SOURCE;p.parent.mkdir(parents=True);p.write_bytes(self.original)
-            record=trace.install(root,True)
+            mailbox=root/trace.MAILBOX;mailbox.parent.mkdir(parents=True);mailbox.write_bytes(self.mailbox)
+            record=trace.install(root,True,self.binding)
             self.assertEqual(p.read_bytes(),self.observed)
-            self.assertEqual(record['maximum_records_per_start'],12)
+            self.assertEqual(record['maximum_records_per_start'],13)
+            self.assertEqual(record['maximum_isolation_records'],1)
+            self.assertEqual(mailbox.read_bytes(),trace.observed_mailbox(self.mailbox))
             self.assertEqual((record['control_reads_added'],record['control_writes_added'],record['retries_added']),(0,0,0))
             self.assertTrue(record['uart_output_added'])
-            with self.assertRaises(ValueError):trace.install(root,True)
+            with self.assertRaises(ValueError):trace.install(root,True,self.binding)
             self.assertEqual(p.read_bytes(),self.observed)
 
     def test_noncanonical_context_never_writes_partial_source(self):
@@ -51,8 +58,63 @@ class StartTraceTests(unittest.TestCase):
             for source in (self.original.replace(old,new),self.original+b'\n'+old):
                 with self.subTest(old=old),tempfile.TemporaryDirectory() as temp:
                     root=Path(temp);p=root/trace.SOURCE;p.parent.mkdir(parents=True);p.write_bytes(source)
-                    with self.assertRaises(ValueError):trace.install(root,True)
+                    with self.assertRaises(ValueError):trace.install(root,True,self.binding)
                     self.assertEqual(p.read_bytes(),source)
+
+    def test_bad_mailbox_or_missing_binding_cannot_publish_the_service(self):
+        for binding,source in [(None,self.mailbox),(dict(self.binding,generated_sha256='0'*64),self.mailbox),
+                               (self.binding,self.mailbox+b'\n')]:
+            with self.subTest(binding=binding),tempfile.TemporaryDirectory() as temp:
+                root=Path(temp);p=root/trace.SOURCE;p.parent.mkdir(parents=True);p.write_bytes(self.original)
+                mailbox=root/trace.MAILBOX;mailbox.parent.mkdir(parents=True);mailbox.write_bytes(source)
+                with self.assertRaises(ValueError):trace.install(root,True,binding)
+                self.assertEqual(p.read_bytes(),self.original);self.assertEqual(mailbox.read_bytes(),source)
+
+    def test_actual_isolation_wrapper_logs_raw_result_without_changing_its_mapping(self):
+        prefix=r'''#include <assert.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#define PLATFORM_MODEL 5
+#define PLAT_SOCFPGA_AGILEX5 5
+#include "socfpga_mailbox.h"
+#define INFO(...) ((void)0)
+#define NOTICE(...) printf(__VA_ARGS__)
+static int raw_result;
+static unsigned calls;
+int mailbox_send_cmd(uint32_t job,uint32_t cmd,uint32_t *args,unsigned len,uint32_t urgent,uint32_t *response,unsigned *resp_len) {
+ assert(job==MBOX_JOB_ID && cmd==MBOX_CMD_FPGA_CONFIG_COMP && !args && !len && !urgent && !response && !resp_len);
+ calls++;return raw_result;
+}
+'''
+        suffix=r'''
+int main(int argc,char **argv) {
+ assert(argc==2);raw_result=(int)strtol(argv[1],NULL,10);
+ int result=mailbox_send_fpga_config_comp();
+ assert(calls==1 && result==(raw_result ? MBOX_RET_ERROR:MBOX_RET_OK));
+ printf("RESULT calls=%u result=%d\n",calls,result);return 0;
+}
+'''
+        ref=Path(os.environ.get('FES_NANO_TFA_ROOT',str(ROOT/'out/terasic-git-restore-tfa')))
+        with tempfile.TemporaryDirectory() as temp:
+            base=Path(temp);binaries=[];inc=base/'include';(inc/'lib').mkdir(parents=True)
+            (inc/'lib/utils_def.h').write_text('#define BIT(n) (1U << (n))\n#define U(n) n##U\n#define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))\n')
+            (inc/'socfpga_mailbox.h').write_bytes((ref/'plat/intel/soc/common/include/socfpga_mailbox.h').read_bytes())
+            for name,source in [('original',self.mailbox),('observed',trace.observed_mailbox(self.mailbox))]:
+                p=base/(name+'.c');p.write_text(prefix+verify.function(source.decode(),'mailbox_send_fpga_config_comp')+suffix)
+                binary=base/name;r=subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror',
+                    '-fsanitize=undefined','-fno-sanitize-recover=all','-I'+str(inc),
+                    str(p),'-o',str(binary)],capture_output=True,text=True,timeout=30)
+                self.assertEqual(r.returncode,0,r.stderr);binaries.append(binary)
+            for value in (0,-1,-2,-3,-11,-256,-2147483648,1,2,256,2147483647):
+                with self.subTest(value=value):
+                    old,new=[subprocess.run([str(b),str(value)],capture_output=True,text=True,timeout=5) for b in binaries]
+                    self.assertEqual(old.returncode,0,old.stderr);self.assertEqual(new.returncode,0,new.stderr)
+                    lines=new.stdout.splitlines(keepends=True)
+                    self.assertEqual(lines[0],f'FES_NANO_ISOLATION status={value}\n')
+                    self.assertEqual(''.join(lines[1:]),old.stdout)
 
     def test_actual_engine_call_order_status_and_retained_state_match(self):
         prefix=r'''#include "tfa_stubs.h"

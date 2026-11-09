@@ -3,8 +3,11 @@ import hashlib
 from pathlib import Path
 
 SOURCE = Path('plat/intel/soc/common/socfpga_sip_svc.c')
-MODE = 'contained-configuration-start-results-v1'
+MODE = 'contained-configuration-start-results-v2'
 INPUT_SHA256 = '08dffaecc57b285b65bf97febcb4d394768ed5e890d5fd62fa892c2744ab5b87'
+MAILBOX = Path('plat/intel/soc/common/soc/socfpga_mailbox.c')
+MAILBOX_INPUT_SHA256 = 'f6286fd8db7d2a2673824998d5811d784df2dcd9b64455921a35b0a75adbf4ec'
+ISOLATION_LINE = '\tNOTICE("FES_NANO_ISOLATION status=%d\\n", ret);\n'
 PHASES = ('configuration-before', 'bridge-precheck', 'vendor-entry',
           'bridge-disable', 'configuration-complete', 'cancel',
           'reconfigure-return', 'reconfigure-length', 'vendor-accepted',
@@ -85,15 +88,41 @@ def observed(source):
     return text.encode()
 
 
-def install(root, enabled):
+def observed_mailbox(source):
+    if hashlib.sha256(source).hexdigest() != MAILBOX_INPUT_SHA256:
+        raise ValueError('raw isolation capture requires the exact reviewed mailbox stage')
+    text = source.decode()
+    old = ('\tret = mailbox_send_cmd(MBOX_JOB_ID, MBOX_CMD_FPGA_CONFIG_COMP, NULL, 0U,\n'
+           '\t\t\t\t CMD_CASUAL, NULL, NULL);\n')
+    if text.count(old) != 1 or 'FES_NANO_ISOLATION' in text:
+        raise ValueError('isolation result context changed')
+    generated = text.replace(old, old+ISOLATION_LINE)
+    if generated.replace(ISOLATION_LINE, '').encode() != source:
+        raise ValueError('isolation capture changed more than its result record')
+    return generated.encode()
+
+
+def install(root, enabled, mailbox_binding=None):
     if enabled is not True:
         return None
+    if (not isinstance(mailbox_binding, dict) or
+            mailbox_binding.get('mode') != 'pinned-mailbox-v3-retired-status-v1' or
+            mailbox_binding.get('generated_sha256') != MAILBOX_INPUT_SHA256):
+        raise ValueError('START capture requires its reviewed mailbox binding')
     path = Path(root)/SOURCE
     original = path.read_bytes()
     generated = observed(original)
+    mailbox = Path(root)/MAILBOX
+    original_mailbox = mailbox.read_bytes()
+    generated_mailbox = observed_mailbox(original_mailbox)
+    # Validate both complete inputs before publishing either transformed file.
     path.write_bytes(generated)
-    return dict(mode=MODE, phases=list(PHASES), maximum_records_per_start=len(PHASES),
+    mailbox.write_bytes(generated_mailbox)
+    return dict(mode=MODE, phases=list(PHASES), maximum_records_per_start=len(PHASES)+1,
+                maximum_phase_records=len(PHASES), maximum_isolation_records=1,
                 input_sha256=hashlib.sha256(original).hexdigest(),
                 generated_sha256=hashlib.sha256(generated).hexdigest(),
+                mailbox_input_sha256=hashlib.sha256(original_mailbox).hexdigest(),
+                mailbox_generated_sha256=hashlib.sha256(generated_mailbox).hexdigest(),
                 control_reads_added=0, control_writes_added=0, uart_output_added=True, retries_added=0,
                 original_timeouts_preserved=True, hardware_authority=False)

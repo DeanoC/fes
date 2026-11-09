@@ -211,7 +211,12 @@ def install(source, cold_profile=None, cold_header=None):
     mmu_binding=nano_firmware_mmu.install(source,cold_profile,ram_binding) if cold_profile is not None else None
     import nano_start_trace
     start_trace = nano_start_trace.install(source, mmu_binding is not None and
-                                          cold_profile.get('hps_configuration') is not None)
+                                          cold_profile.get('hps_configuration') is not None,
+                                          mailbox)
+    if start_trace is not None:
+        mailbox = dict(mailbox, base_generated_sha256=mailbox['generated_sha256'],
+                       generated_sha256=start_trace['mailbox_generated_sha256'],
+                       raw_start_result_trace=start_trace['mode'])
     return {"service_sha256": hashlib.sha256(service.read_bytes()).hexdigest(), "reset_sha256": hashlib.sha256(reset.read_bytes()).hexdigest(),
             "setup_sha256": hashlib.sha256(setup.read_bytes()).hexdigest(), "makefile_sha256": hashlib.sha256(mk.read_bytes()).hexdigest(),
             "psci_sha256": hashlib.sha256(psci.read_bytes()).hexdigest(),

@@ -28,8 +28,9 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
     total=configuration['core_size'];chunk=configuration['chunk_bytes'];owner=None
     timed=None;first_counter=first_hash=previous_counter=previous_hash=None;engine_row=None
     core_line=None;mailbox_sources=set();activation_row=None
-    start_rows=[]
+    start_rows=[];isolation_result=None
     start_note=re.compile(r'(?:NOTICE:[ \t]+)?FES_NANO_START phase=(?P<phase>[0-9]{1,2}) status=(?P<status>-?[0-9]{1,11})')
+    isolation_note=re.compile(r'(?:NOTICE:[ \t]+)?FES_NANO_ISOLATION status=(?P<status>-?[0-9]{1,11})')
     def require(condition, reason):
         if not condition:errors.append(reason)
     def completion_extents():
@@ -41,15 +42,30 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
     def start_observed():
         if [r['phase'] for r in start_rows]!=list(range(12)):return False
         values=[r['status'] for r in start_rows]
-        return (all(values[i]==0 for i in (0,1,2,3,8,9,10,11)) and
+        return ((isolation_result is None or isolation_result['status']==0) and
+                all(values[i]==0 for i in (0,1,2,3,8,9,10,11)) and
                 all(values[i]>=0 for i in (4,5,6)) and values[7] in (2,3))
     for index,fragment in enumerate(parts[:-1]):
         line=fragment.decode(errors='replace').rstrip('\r')
+        if line.startswith('FES_NANO_ISOLATION') or line.startswith('NOTICE:') and 'FES_NANO_ISOLATION' in line:
+            match=isolation_note.fullmatch(line)
+            require(match is not None,'malformed raw isolation result')
+            if match is not None:
+                status=int(match['status'])
+                require(isolation_result is None and -(1<<31)<=status<1<<31 and last=='start' and
+                        [r['phase'] for r in start_rows]==[0,1,2,3] and
+                        all(r['status']==0 for r in start_rows),
+                        'raw isolation result repeated or outside its START call')
+                if isolation_result is None:isolation_result=dict(status=status,line=index+1)
+            parts[index]=b'';continue
         if line.startswith('FES_NANO_START') or line.startswith('NOTICE:') and 'FES_NANO_START' in line:
             match=start_note.fullmatch(line)
             require(match is not None,'malformed configuration START observation')
             if match is not None:
                 phase,status=int(match['phase']),int(match['status'])
+                if phase==4 and isolation_result is not None:
+                    require(status==(0 if isolation_result['status']==0 else -1),
+                            'isolation wrapper result differs from its raw return')
                 require(0<=phase<12 and -(1<<31)<=status<1<<31 and len(start_rows)<12 and
                         (phase==0 if not start_rows else phase>start_rows[-1]['phase']) and
                         (last=='start' or last=='FAIL' and phase==11 and start_rows and start_rows[-1]['phase']==10),
@@ -168,7 +184,7 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
     if complete and start_rows:require(start_observed(),'completed transfer has incomplete or failed START observations')
     return {'parts':parts,'records':extra,'errors':errors,'complete':complete,
             'programmed':programmed_row,'activation':activation_row,'owner':owner,'offset':offset,
-            'start_observation':{'records':start_rows,'complete':start_observed(),
+            'start_observation':{'records':start_rows,'complete':start_observed(),'isolation':isolation_result,
                                  'hardware_authority':False},
             'timing':None if previous_counter is None else {
                 'counter_frequency':400000000,'first_counter':first_counter,'last_counter':previous_counter,
