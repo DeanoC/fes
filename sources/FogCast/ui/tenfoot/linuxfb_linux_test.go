@@ -1001,6 +1001,70 @@ func TestKitLocalCoreStopsOnOnePressOfF12OrGuide(t *testing.T) {
 	}
 }
 
+// Guide reaches the roomless host-session Stop through the same native evdev
+// path as a kit pad, including a pad whose Guide comes from the controller DB.
+func TestNativeGuideStopsRoomlessHostSession(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		code   uint16
+		mapped bool
+	}{
+		{name: "BTN_MODE", code: 316},
+		{name: "mapped Guide", code: 300, mapped: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var rec stopRecorder
+			a, _ := kitDisplayApp(t, rec.server(t))
+			prior := fixedVideoKitSession()
+			a.mu.Lock()
+			a.session = prior
+			a.syncGPUParkLocked()
+			a.mu.Unlock()
+			if snap := a.Snapshot(); snap.Session.HardwareRoom {
+				t.Fatalf("roomless session has a playing room: %+v", snap.Session)
+			}
+			inputs, poll := pollNative(t, nativeTestEvent(1, tc.code, 1), nativeTestEvent(1, tc.code, 2), nativeTestEvent(1, tc.code, 0))
+			inputs.devices[0].kind = InputGamepad
+			if tc.mapped {
+				keys := make([]byte, 96)
+				for code := 288; code <= 301; code++ {
+					keys[code/8] |= 1 << uint(code%8)
+				}
+				inputs.devices[0].mapper = controller.NewMapper(controller.Device{Name: "Wireless Controller", Bus: 3, Vendor: 0x054c, Product: 0x0ce6, Version: 0x0111,
+					Keys: keys, Abs: []byte{0x3f, 0, 0x03, 0, 0, 0, 0, 0}})
+				if !inputs.devices[0].mapper.Guide(tc.code) {
+					t.Fatal("controller mapping did not identify Guide")
+				}
+			}
+			poll(a)
+			waitFor(t, a, "native Guide stop", func(s Snapshot) bool { return len(rec.stops()) == 1 && s.Session.State != "active" })
+			stops := rec.stops()
+			if len(stops) != 1 {
+				t.Fatalf("Guide posted %d stops", len(stops))
+			}
+			body, err := json.Marshal(stops[0])
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertStopReleasesCapturedPlay(t, string(body), prior)
+			if snap := a.Snapshot(); snap.Settings.Open || snap.Room.DuringPlay || snap.Session.ControlsOpen {
+				t.Fatalf("Guide opened UI while stopping: %+v", snap)
+			}
+		})
+	}
+}
+
+func TestNativeGuideOpensPlayingRoomWithoutStopping(t *testing.T) {
+	var rec stopRecorder
+	a, _ := kitDisplayApp(t, rec.server(t))
+	_, poll := pollNative(t, nativeTestEvent(1, 316, 1), nativeTestEvent(1, 316, 0))
+	poll(a)
+	snap := waitFor(t, a, "native Guide playing controls", func(s Snapshot) bool { return s.Session.ControlsOpen })
+	if snap.Session.State != "active" || snap.Session.Stopping || snap.Settings.Open || len(rec.stops()) != 0 {
+		t.Fatalf("Guide did not preserve the playing session: session=%+v settings=%v stops=%v", snap.Session, snap.Settings.Open, rec.stops())
+	}
+}
+
 func TestKitLocalStopRepeatWhileStoppingIsNotASecondStop(t *testing.T) {
 	a, fake := runningLocalApp(t)
 	a.mu.Lock()
