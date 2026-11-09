@@ -39,6 +39,9 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		panic(err)
 	}
 	entries, err := nativefabric.ReadProgramCatalog(ctx, files, "FES/UI.JSON", choices)
+	if err == nil {
+		entries, err = nativefabric.ReadInstalledPrograms(ctx, store, entries)
+	}
 	var menuChoices []packagestore.Request
 	if err == nil && paired {
 		menuChoices, err = nativefabric.ReadProgramSelections(ctx, files, "FES/MENUSEL.JSN")

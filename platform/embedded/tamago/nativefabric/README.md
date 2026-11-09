@@ -1,5 +1,29 @@
 # Native contained-fabric endpoint
 
+The in-process `ProgramBackend.PrepareInstall` privately copies a bounded upload,
+uses the existing archive/ROM validator and the loader's compiled compatibility
+maps, and produces an opaque install plan without filesystem or firmware IO.
+It can prepare while a core is running. `Install` requires the current Ready
+generation and a new catalogue ID; stale, foreign, duplicate and running-state
+requests reject before input or storage changes. The existing input-pause and
+owned menu-return path opens SD, writes and reads back the immutable content and
+catalogue record, restores the menu, then resumes input before advertising the
+entry. The service generation advances once for the accepted install operation.
+Work has a 100-second bound; menu restoration keeps its existing independent
+100-second cleanup bound. Failed ownership or uncertain IO retires without retry.
+
+Startup calls `ReadInstalledPrograms` before menu construction and merges the
+hash-named records with its bootstrap catalogue. Records use the existing
+`programChoice` decoder and fixed cache paths; malformed records, conflicting
+IDs or an oversized catalogue reject. Every launch still retains files afresh,
+checks the original ABI/platform/ROM contract and proves live configuration and
+return. No installer record supplies firmware, DMA or activation permission.
+Tests join real FAT allocation and independent readback to the actual native
+launch/return implementation, including a modeled fresh-boot discovery/launch.
+This API is not a network listener. Native uploads over Ethernet, writable Nano
+qualification, uninstall/update policy and power-cut recovery remain open; Nano
+startup still selects read-only SD.
+
 `ProgramPreferences` loads the bounded `FES/PREFS.JSON` settings object before
 menu construction and serves a private RAM snapshot to Tenfoot. Native startup
 currently selects volatile changes (`persistent=false`), with defaults when the

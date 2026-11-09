@@ -99,27 +99,9 @@ func ReadProgramSelections(ctx context.Context, files fs.FS, path string) (reque
 		return nil, errors.New("native fabric: unsupported bounded program selection")
 	}
 	for _, p := range choices.Programs {
-		if p.Path == "." || p.MetadataPath == "." || !fs.ValidPath(p.Path) || !fs.ValidPath(p.MetadataPath) ||
-			!nonzeroDigest(p.PackageID) || !nonzeroDigest(p.MetadataSHA256) {
-			return nil, errors.New("native fabric: incomplete program choice")
-		}
-		r := packagestore.Request{Path: p.Path, PackageID: p.PackageID, MetadataPath: p.MetadataPath, MetadataSHA256: p.MetadataSHA256}
-		if p.Tape != nil {
-			if *p.Tape == (packagestore.TapeRequest{}) || p.Tape.Validate() != nil {
-				return nil, errors.New("native fabric: complete bounded tape choice required")
-			}
-			r.Tape = *p.Tape
-		}
-		if len(p.Sources) != 0 || p.ROMReceiptSHA256 != "" {
-			if len(p.Sources) != 1 || !nonzeroDigest(p.ROMReceiptSHA256) {
-				return nil, errors.New("native fabric: one retained firmware source and receipt required")
-			}
-			s := p.Sources[0]
-			if s.ID == "" || len(s.ID) > 96 || s.Role != "firmware" || s.Path == "." || !fs.ValidPath(s.Path) || !nonzeroDigest(s.SHA256) {
-				return nil, errors.New("native fabric: incomplete retained ROM source choice")
-			}
-			r.ReceiptSHA256 = p.ROMReceiptSHA256
-			r.Sources = []packagestore.Source{{ID: s.ID, Role: s.Role, Path: s.Path, SHA256: s.SHA256}}
+		r, e := requestForProgramChoice(p)
+		if e != nil {
+			return nil, e
 		}
 		requests = append(requests, r)
 	}
@@ -127,4 +109,32 @@ func ReadProgramSelections(ctx context.Context, files fs.FS, path string) (reque
 		return nil, err
 	}
 	return requests, nil
+}
+
+// Boot choices and installed entries use the same request decoder.
+func requestForProgramChoice(p programChoice) (packagestore.Request, error) {
+	if p.Path == "." || p.MetadataPath == "." || !fs.ValidPath(p.Path) || !fs.ValidPath(p.MetadataPath) ||
+		!nonzeroDigest(p.PackageID) || !nonzeroDigest(p.MetadataSHA256) {
+		return packagestore.Request{}, errors.New("native fabric: incomplete program choice")
+	}
+	r := packagestore.Request{Path: p.Path, PackageID: p.PackageID, MetadataPath: p.MetadataPath, MetadataSHA256: p.MetadataSHA256}
+	if p.Tape != nil {
+		if *p.Tape == (packagestore.TapeRequest{}) || p.Tape.Validate() != nil {
+			return packagestore.Request{}, errors.New("native fabric: complete bounded tape choice required")
+		}
+		r.Tape = *p.Tape
+	}
+	if len(p.Sources) != 0 || p.ROMReceiptSHA256 != "" {
+		if len(p.Sources) != 1 || !nonzeroDigest(p.ROMReceiptSHA256) {
+			return packagestore.Request{}, errors.New("native fabric: one retained firmware source and receipt required")
+		}
+		s := p.Sources[0]
+		if s.ID == "" || len(s.ID) > 96 || s.Role != "firmware" || s.Path == "." || !fs.ValidPath(s.Path) || !nonzeroDigest(s.SHA256) {
+			return packagestore.Request{}, errors.New("native fabric: incomplete retained ROM source choice")
+		}
+		r.ReceiptSHA256 = p.ROMReceiptSHA256
+		r.Sources = []packagestore.Source{{ID: s.ID, Role: s.Role, Path: s.Path, SHA256: s.SHA256}}
+	}
+
+	return r, nil
 }

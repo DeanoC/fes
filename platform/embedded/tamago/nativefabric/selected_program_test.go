@@ -74,11 +74,13 @@ func programJSON(t *testing.T, value any) []byte {
 }
 
 type programTestFiles struct {
-	files            fstest.MapFS
-	lease            packagestore.Lease
-	opens            int
-	preferenceWrites int
-	preferenceWrite  func() error
+	files             fstest.MapFS
+	lease             packagestore.Lease
+	opens             int
+	preferenceWrites  int
+	preferenceWrite   func() error
+	installOperations []string
+	installFault      func(string) error
 }
 
 func (f *programTestFiles) Open(name string) (fs.File, error) {

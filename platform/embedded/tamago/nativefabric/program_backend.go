@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"github.com/DeanoC/FogCast/hostclient"
-	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 )
 
@@ -60,7 +59,7 @@ func NewProgramBackend(service *ProgramService, entries []ProgramEntry) (*Progra
 	b := &ProgramBackend{service: service}
 	seen := map[string]bool{}
 	for _, entry := range entries {
-		if protocol.ValidateGameID(entry.ID) != nil || seen[entry.ID] || entry.Title == "" || len(entry.Title) > 256 || !nonzeroDigest(entry.Request.PackageID) {
+		if !validProgramEntry(entry) || seen[entry.ID] {
 			return nil, errors.New("native program backend: invalid catalog entry")
 		}
 		seen[entry.ID] = true
@@ -149,10 +148,12 @@ func (b *ProgramBackend) RoundTrip(r *http.Request) (*http.Response, error) {
 		case "/api/v1/session":
 			return programResponse(r, 200, b.cached())
 		case "/api/v1/games":
+			b.viewMu.RLock()
 			games := make([]hostclient.Game, 0, len(b.entries))
 			for _, e := range b.entries {
 				games = append(games, hostclient.Game{ID: e.ID, Title: e.Title, System: "native", Execution: "fpga_native", State: "available", RootOnline: true, Launchable: true})
 			}
+			b.viewMu.RUnlock()
 			return programResponse(r, 200, map[string]any{"games": games})
 		case "/api/v1/platforms":
 			return programResponse(r, 200, map[string]any{"platforms": []any{}})

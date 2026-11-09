@@ -320,6 +320,26 @@ func (s *Store) Retain(ctx context.Context, request Request) (selection *Selecti
 	if !s.last.Active || !s.last.Prepared {
 		return nil, ErrState
 	}
+	defer func() {
+		if e := s.observe(); e != nil {
+			selection = nil
+			err = errors.Join(err, e)
+		}
+	}()
+	selection, err = retainSelection(ctx, s.files, request)
+	if err == nil {
+		selection.store = s
+		selection.generation = s.last.Generation
+	}
+	return selection, err
+}
+
+// The normal storage path and in-memory install preparation share one validator.
+// An unbound selection has no storage handoff or programming authority.
+func retainSelection(ctx context.Context, files fs.FS, request Request) (selection *Selection, err error) {
+	if ctx == nil || files == nil {
+		return nil, ErrState
+	}
 	if !pathOK(request.Path) || !digest(request.PackageID) || len(request.Sources) > 2 || len(request.Parts) > 2 {
 		return nil, ErrState
 	}
@@ -340,13 +360,7 @@ func (s *Store) Retain(ctx context.Context, request Request) (selection *Selecti
 			return nil, ErrState
 		}
 	}
-	defer func() {
-		if e := s.observe(); e != nil {
-			selection = nil
-			err = errors.Join(err, e)
-		}
-	}()
-	archive, err := retainArchive(ctx, s.files, request.Path)
+	archive, err := retainArchive(ctx, files, request.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -354,15 +368,15 @@ func (s *Store) Retain(ctx context.Context, request Request) (selection *Selecti
 	if inspection.PackageID != request.PackageID {
 		return nil, errors.New("package store: retained package differs from selection")
 	}
-	selection = &Selection{store: s, generation: s.last.Generation, archive: archive}
+	selection = &Selection{archive: archive}
 	if request.MetadataPath != "" {
-		selection.metadata, err = readInput(ctx, s.files, request.MetadataPath, 16<<10, -1, request.MetadataSHA256)
+		selection.metadata, err = readInput(ctx, files, request.MetadataPath, 16<<10, -1, request.MetadataSHA256)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if request.Tape != (TapeRequest{}) {
-		selection.tape, err = readInput(ctx, s.files, request.Tape.Path, MaxRetainedTapeBytes, request.Tape.Size, request.Tape.SHA256)
+		selection.tape, err = readInput(ctx, files, request.Tape.Path, MaxRetainedTapeBytes, request.Tape.Size, request.Tape.SHA256)
 		if err != nil {
 			return nil, err
 		}
@@ -390,7 +404,7 @@ func (s *Store) Retain(ctx context.Context, request Request) (selection *Selecti
 		if v.ID != r.ID || v.Role != r.Role {
 			return nil, errors.New("package store: ROM selection identity or order differs")
 		}
-		data, e := readInput(ctx, s.files, v.Path, r.SourceSize, r.SourceSize, v.SHA256)
+		data, e := readInput(ctx, files, v.Path, r.SourceSize, r.SourceSize, v.SHA256)
 		if e != nil {
 			return nil, e
 		}
@@ -398,7 +412,7 @@ func (s *Store) Retain(ctx context.Context, request Request) (selection *Selecti
 	}
 	parts := make([]corepackage.PartInput, len(request.Parts))
 	for i, p := range request.Parts {
-		data, e := readInput(ctx, s.files, p.Path, expansion.MaxArchiveBytes, -1, p.SHA256)
+		data, e := readInput(ctx, files, p.Path, expansion.MaxArchiveBytes, -1, p.SHA256)
 		if e != nil {
 			return nil, e
 		}

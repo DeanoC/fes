@@ -1,5 +1,30 @@
 # Retained packages from owned storage
 
+`PrepareInstall` snapshots up to seven selected input files (64 MiB total) and
+uses the same canonical archive/ROM-linking implementation as normal retention.
+Upload paths are labels only: destinations derive from private bytes as
+`FES/CONTENT/<sha256>.BIN`. The returned selection is unbound and cannot authorize
+storage containment. The runtime must check its compiled platform/ABI before
+calling the owned installer.
+
+`Store.Install` serializes with reads and containment under the exact active,
+prepared SD lease. It never overwrites an existing file: matching content is
+freshly verified and reused; changed content refuses. Missing content uses the
+filesystem's explicit create/flush operation and gets fresh readback. A bounded
+JSON catalogue record is published last at `FES/INSTALLED/<sha256>.JSN` and read
+back. There are at most 32 records of 8 KiB each. `ReadInstallRecords` verifies
+their filenames/digests at active-storage startup; schema and duplicate-ID checks
+belong to the frontend. These are inventory files, not hardware receipts.
+
+Known pre-mutation space/protection refusals leave healthy storage usable.
+Uncertain IO, bad readback or changed ownership retires the store and retains
+its lease, with no retry, rollback, deletion or automatic activation. An error
+after record publication can leave a complete record on disk; callers must not
+assume the failed operation was rolled back. Partial earlier copies remain
+unadvertised content and can be reused only after exact verification under a
+healthy owner. Native board writes remain explicitly disabled, and filesystem
+power loss still requires separate recovery/qualification.
+
 `ReadPreferences` and `WritePreferences` access only `FES/PREFS.JSON`, a bounded
 JSON object of at most 64 KiB, while this exact SD lease is active and prepared.
 Writes require the trusted filesystem's synchronous write/flush operation;
