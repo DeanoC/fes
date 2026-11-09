@@ -34,5 +34,37 @@ tail. The stepped tape protocol keeps one second per 512-byte call, size-derived
 total time, and an independent one-second control/fetch allowance. No consumed
 image is replayed. Old-file cleanup remains paused.
 
-The hardware result is pending. This diagnostic does not itself repair USB or
+The terminal result is recorded below. This diagnostic does not itself repair USB or
 establish ordinary core-loading, physical display/input or appliance acceptance.
+
+
+Both fixed-clock programming operations and all 13 uploads/fresh readbacks
+passed. Five FPGA configurations completed. The complete 917-byte tape
+transferred in 1.205599140 s; independent control/fetch took 0.092368590 s. The
+retained tape identity and CPU Hold-to-Run counter proof passed. ZX81 launched
+and completed its App/menu return; ZX80 then launched with its distinct package,
+ROM receipt and advancing CPU counter. The first four App commands replay
+independently through the actual strict paired client with saved byte/timing
+boundaries. This validates this tape fixture on this image, not all media cases.
+
+The second return reached native Ready generation 4 and submitted menu3's first
+frame, then failed a `menu-frame` snapshot consistency check. Its last sampled
+frame was generation1/sequence1/submitted1/slot0/underflows0; flags `0x6` mean
+running and submit-ready, with no FPGA fault bit set. The precise rejecting
+comparison/intended next sequence was not logged. It is not yet proven whether
+a valid preceding receipt was observed before the next update took effect.
+The full ZX80 App return, third launch and final Park did not complete.
+
+Emergency menu master-stop, reader drain and bridge-reset closure passed;
+resources remain retained and the terminal service requires reboot. The last
+emitted Ready state predates that terminal error. The original first-failure
+stop and two-second passive tail were preserved. Independent programming-device
+cleanup passed. Firmware return/CPU parking and physical display/input remain
+unobserved. The earlier USB startup error did not recur, which does not establish
+its cause or general reliability. Candidate `833277b3abc25cab` and both grants
+are consumed and retired. Old-file cleanup stays paused.
+
+Next inspect the actual menu/control handshake and reproduce the old-receipt
+case off-board before choosing a repair. Preserve exact generation/frame/slot
+checks, original deadlines, one submission and containment on ambiguous results.
+Full ordinary core-loading and appliance acceptance remain incomplete.

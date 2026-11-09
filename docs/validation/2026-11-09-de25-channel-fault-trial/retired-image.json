@@ -1,0 +1,33 @@
+{
+  "status": "consumed-retired-no-replay",
+  "native_boot_id": "833277b3abc25cab",
+  "source_commit": "245c84ebfa8da498448a0ce15a57a763e7a3f128",
+  "compiled_source": "d1c0cf21a5012c91c0a6a4abe2dacaea5e85d876",
+  "programming_reservations": {
+    "recovery": {
+      "reservation_sha256": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+      "scan_sha256": "b017b9a990fe970b36093c70dfdced4f0f1eda9324515837cb6c43e9eba03d43"
+    },
+    "native": {
+      "reservation_sha256": "5fd9ba2912735a756e6a3a6c31713f381114d5f6a4392565b4aa1e175af94803",
+      "scan_sha256": "65b2ebffb6c223ba9a2c41a394273dd3ef22437913943f1b23452fab08c2059d"
+    }
+  },
+  "new_programmer_failures": 0,
+  "reason": "Second core launched; menu-frame consistency failure during second return ends attempt before third launch",
+  "automatic_retry_allowed": false,
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "auto_adjust_readback": 1,
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "terminal_service_requires_reboot": true,
+  "firmware_return_observed": false,
+  "cpu_park_observed": false
+}
