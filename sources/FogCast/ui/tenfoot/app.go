@@ -2974,6 +2974,14 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 	if a == nil {
 		return false
 	}
+	if down {
+		a.mu.Lock()
+		blocked := a.playHIDInputBlockedLocked()
+		a.mu.Unlock()
+		if blocked {
+			return true
+		}
+	}
 	a.mu.Lock()
 	waitingForHost := a.kitHost && (a.hostAwaitStatus || a.kitHostPreparing)
 	a.mu.Unlock()
@@ -3042,6 +3050,13 @@ func (a *App) forwardsPlayHIDLocked() bool {
 		a.session.Input.State == "reconnecting"
 }
 
+// playHIDInputBlockedLocked fences new physical input while Stop is in flight
+// or awaiting an explicit retry. Display recovery still uses the normal play
+// forwarding state so a failed Stop can return control to the machine.
+func (a *App) playHIDInputBlockedLocked() bool {
+	return a.stopPhase == "stopping" || a.retryStopLock
+}
+
 // ConsumePlayHID keeps USB keys on the play-session path: no sofa browse and
 // no affinity steal. False means browse/nav may handle the key.
 func (a *App) ConsumePlayHID() bool {
@@ -3050,7 +3065,7 @@ func (a *App) ConsumePlayHID() bool {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if !a.forwardsPlayHIDLocked() || a.tapePickerOpen || a.firmwarePickerOpen {
+	if !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.tapePickerOpen || a.firmwarePickerOpen {
 		return false
 	}
 	a.repeat.Clear()
@@ -3069,6 +3084,14 @@ func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
 }
 
 func (a *App) handlePlayHIDKey(name string, down bool, now time.Time) bool {
+	if down {
+		a.mu.Lock()
+		blocked := a.playHIDInputBlockedLocked()
+		a.mu.Unlock()
+		if blocked {
+			return true
+		}
+	}
 	if a.handlePlayingRoomKey(name, down, now) {
 		return true
 	}
@@ -3147,8 +3170,9 @@ func (a *App) SendPlayHID(event remoteinput.Event) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	ready := a.forwardsPlayHIDLocked()
+	blockedPress := event.Action == remoteinput.ActionPress && a.playHIDInputBlockedLocked()
 	foreign := a.playHIDFailClosedLocked()
-	if !ready || foreign || a.client == nil {
+	if !ready || blockedPress || foreign || a.client == nil {
 		return false
 	}
 	if (event.Action == remoteinput.ActionPress || event.Kind == remoteinput.KindAxis && event.Value != 0 || event.Device == remoteinput.DeviceMouse && (event.Value != 0 || event.Code != 0)) && a.playHIDPending >= maxPendingPlayHID {

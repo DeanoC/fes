@@ -3,8 +3,11 @@
 package tenfoot
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +16,104 @@ import (
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
+
+type kitKeyboardStopTransport func(*http.Request) (*http.Response, error)
+
+func (f kitKeyboardStopTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+func TestKitHostLocalKeyboardBlockedDuringStopAndRetry(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		begin func(*App)
+	}{
+		{
+			name: "stop in progress",
+			begin: func(app *App) {
+				app.mu.Lock()
+				app.startStopLocked()
+				app.mu.Unlock()
+			},
+		},
+		{
+			name: "retry stop",
+			begin: func(app *App) {
+				app.mu.Lock()
+				app.stopPhase = "error"
+				app.lockRetryStopLocked("SAVE_FAILED", "save failed")
+				app.mu.Unlock()
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			stopStarted := make(chan struct{})
+			stopFinished := make(chan struct{})
+			finishStop := make(chan struct{})
+			var finishOnce sync.Once
+			var stopOnce sync.Once
+			transport := kitKeyboardStopTransport(func(r *http.Request) (*http.Response, error) {
+				stopOnce.Do(func() {
+					close(stopStarted)
+					<-finishStop
+					close(stopFinished)
+				})
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(`{"state":"idle"}`)),
+					Request:    r,
+				}, nil
+			})
+			client := NewClient("http://kit-host.test", &http.Client{Transport: transport})
+			app := NewApp(client, 1280, 720, 20)
+			feed := &transitionPadFeed{}
+			app.localCores = &fakeLocalCores{}
+			app.localFeed = feed
+			app.session = kitDisplaySession()
+			t.Cleanup(func() {
+				finishOnce.Do(func() { close(finishStop) })
+				app.Stop()
+			})
+			app.mu.Lock()
+			app.kitHost = true
+			app.session.Input = nil
+			app.session.CoreKeyboardHID = true
+			app.session.CorePackage.ActiveInterfaces = []hostclient.SessionCoreInterface{{ID: "fes.keyboard.hid", Major: 1}}
+			app.mu.Unlock()
+
+			if tc.name == "stop in progress" {
+				tc.begin(app)
+				select {
+				case <-stopStarted:
+				case <-time.After(2 * time.Second):
+					t.Fatal("Stop request did not reach the blocked handler")
+				}
+			} else {
+				tc.begin(app)
+			}
+
+			device := &nativeInput{kind: InputKeyboard}
+			device.key(app, 36, 1, time.Now()) // Linux KEY_J.
+			drainLocalKeyQueue(t, app)
+			if app.ConsumePlayHID() {
+				t.Fatal("key was consumed as play HID during teardown")
+			}
+			if got := feed.snapshot(); len(got) != 0 {
+				t.Fatalf("key reached local feed during teardown: %+v", got)
+			}
+
+			finishOnce.Do(func() { close(finishStop) })
+			if tc.name == "stop in progress" {
+				select {
+				case <-stopFinished:
+				case <-time.After(2 * time.Second):
+					t.Fatal("Stop request did not finish")
+				}
+			}
+		})
+	}
+}
 
 func TestKitHostPhysicalKeyboardWithoutRemoteInput(t *testing.T) {
 	for _, tc := range []struct {
