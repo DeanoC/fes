@@ -1345,6 +1345,12 @@ the family tiles, artwork motifs and Home routes. Family Open enters the
 workbench; Play on a recent title starts that title. In the v1 release scope,
 Settings is the only header route and Back at Home's root keeps Home open.
 Show all cores restores Library and Systems routes and the remaining families.
+Home retries each failed family read at most three times, after 1, 2 and 4
+active-room seconds, for transient network errors and temporary host responses.
+Permanent errors stay terminal. Other families retain their successful data;
+an unavailable family's game count stays unknown and its kit data supplies the
+fallback. Closing the room cancels its reads; reloading cancels older reads and
+discards their retry schedule and callbacks.
 The footer shows full-size prompts and only actionable status. Details keeps
 the selected family's model/state information or a core's verbatim block when
 the column has to drop lines to fit. On a content box under 480×360,

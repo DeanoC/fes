@@ -334,6 +334,14 @@ func validSessionState(state string) bool {
 	}
 }
 
+// HTTPStatusError retains the status of an unsuccessful host API response.
+type HTTPStatusError struct {
+	StatusCode int
+	text       string
+}
+
+func (e *HTTPStatusError) Error() string { return e.text }
+
 // APIStatusError formats a structured or plain host API error response.
 func APIStatusError(status int, body []byte) error {
 	var wire struct {
@@ -343,7 +351,7 @@ func APIStatusError(status int, body []byte) error {
 		} `json:"error"`
 	}
 	if err := json.Unmarshal(body, &wire); err == nil && wire.Error.Code != "" {
-		return fmt.Errorf("host API %d %s: %s", status, wire.Error.Code, wire.Error.Message)
+		return &HTTPStatusError{StatusCode: status, text: fmt.Sprintf("host API %d %s: %s", status, wire.Error.Code, wire.Error.Message)}
 	}
-	return fmt.Errorf("host API status %d", status)
+	return &HTTPStatusError{StatusCode: status, text: fmt.Sprintf("host API status %d", status)}
 }
