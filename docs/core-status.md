@@ -318,8 +318,12 @@ second counted run checks each typed command on screen before Enter.
 
 Still owed:
 
-- A disk swap from tenfoot. The ST package has no session display, so today
-  an ST disk is swapped only through the host API.
+- A swap from tenfoot. The ST package has no session display, and
+  tenfoot has no ST swap control, so case 4 swaps through the host API.
+- A gameplay reference for Xenon and Gomoku. Hatari's command interface has
+  no joystick or mouse-move events.
+- Protected originals. [#1541](https://github.com/DeanoC/fes/issues/1541)
+  tracks running IPF images directly.
 
 ## PC/XT development packages
 
