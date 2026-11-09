@@ -36,6 +36,6 @@ func OpenStorage() (block.Device, error) {
 	}
 	attempted = true
 	var err error
-	storageSession, err = sdcontrol.Open(FabricCPUTransport{}, registers{}, profileSDInputClockHz)
+	storageSession, err = sdcontrol.Open(FabricCPUTransport{}, registers{}, profileSDInputClockHz, sdcontrol.ReadOnly)
 	return storageSession, err
 }

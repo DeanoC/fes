@@ -1,0 +1,26 @@
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/sdhci	1.322s
+--- FAIL: TestOwnedPIOWriteFailureRetainsLeaseWithoutStopOrReplay (0.00s)
+panic: card clock before firmware PHY preparation [recovered, repanicked]
+
+goroutine 130 [running]:
+testing.tRunner.func1.2({0x661d80, 0x6b1230})
+	/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/src/testing/testing.go:1974 +0x419
+testing.tRunner.func1()
+	/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/src/testing/testing.go:1977 +0x67f
+panic({0x661d80?, 0x6b1230?})
+	/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/src/runtime/panic.go:860 +0x13a
+github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol.(*card).Write32(0xc00024e000, 0x22c, 0x60efa07)
+	/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago/sdcontrol/card_test.go:102 +0x142b
+github.com/DeanoC/fes/platform/embedded/tamago/sdhci.(*Device).WriteSectors(0xc000712070, 0x3, {0xc000028800, 0x400, 0x400})
+	/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago/sdhci/sdhci.go:537 +0xbf2
+github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol.(*Session).WriteSectors(0xc000124000, 0x3, {0xc000028800, 0x400, 0x400})
+	/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago/sdcontrol/session.go:93 +0xf4
+github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol.TestOwnedPIOWriteFailureRetainsLeaseWithoutStopOrReplay(0xc000262008)
+	/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago/sdcontrol/write_test.go:63 +0x169
+testing.tRunner(0xc000262008, 0x6af478)
+	/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/src/testing/testing.go:2036 +0x21d
+created by testing.(*T).Run in goroutine 1
+	/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/src/testing/testing.go:2101 +0xb13
+FAIL	github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol	0.373s
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/fat	1.052s
+FAIL

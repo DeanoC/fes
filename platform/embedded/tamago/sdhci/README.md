@@ -1,7 +1,8 @@
-# Read-only SD PIO lifecycle
+# SD PIO lifecycle
 
 This driver discovers SDHC/SDXC cards, reads sectors through PIO and supplies
-the shared FAT32 implementation. All writes reject. The Nano adapter requires
+the shared FAT32 implementation. Writes reject unless the trusted caller selects
+`Config.AllowWrites`. The current Nano board adapter remains read-only and requires
 exclusive controller ownership and prepared SoC clocks, reset, pinmux and
 ComboPHY before `Open` accesses registers. The
 [serial Go hardware diagnostic](../../../../docs/validation/2026-11-01-de25-native-go-boot/README.md)
@@ -10,6 +11,32 @@ evidence for its original scope. Later [native launch/return tests](../../../../
 exercise the real conservative PIO/SD/FAT path through repeated package loads,
 containment and resume. Those results do not qualify the optional faster mode
 below or general concurrent FPGA/SD access.
+
+The write mode performs single-sector CMD24 transfers, with DMA and interrupts
+disabled and the existing one-bit/3.3V transport. Each sector needs buffer-write
+readiness, a writable FIFO, all128 little-endian words, transfer completion and
+a card-ready/TRAN response. The separate CMD13 programming-state wait has a
+one-second limit, following the pinned [Terasic MMC implementation](https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/drivers/mmc/mmc.c).
+The PIO word transfer and controller flags follow its [SDHCI driver](https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/drivers/mmc/sdhci.c)
+and the Altera register source linked below. Socket write protection must be
+qualified: WPSL bit19 must be high to allow writing, matching the standard
+[SDHCI read-only check](https://github.com/torvalds/linux/blob/v6.12/drivers/mmc/host/sdhci.c).
+No bypass for an absent or inverted write-protect input is inferred.
+
+An error may follow a committed sector or a partial batch. The driver retires
+without replay, using a host command/data reset as containment only; that reset
+cannot roll back card programming. `Flush` requires card-ready, not merely an
+empty FIFO. These observations supply no power-loss atomicity guarantee.
+Quiescence fences both new reads and writes, finishes the current sector and
+refuses the remaining batch before the existing independent firmware stop.
+Resume requires the same card and preserves the explicitly selected access mode.
+
+Write mode has host/model coverage only. Tests join the real driver to card/FIFO
+models and the actual secure SD dispatcher, including byte-exact sector writes,
+busy programming, transfer failures, protection, concurrent quiescence, retirement
+and same-card resume. A real FAT32 image passes settings update/remount through
+the owned session and independent `mtype` readback. No Nano build enables writes,
+and previous physical read/upload tests do not qualify this native write path.
 
 `Config.TransferClockHz=25000000` is a separate, default-off driver prototype.
 Discovery and PHY preparation remain at the original <=400 kHz, one-bit,
@@ -32,7 +59,7 @@ R2 response omits the CID CRC/end byte and reserves its high register byte;
 that reserved byte is excluded. Identity and geometry remain immutable for the
 Device. This identity tracks continuity across reset.
 
-`Quiesce` fences new reads before waiting for current I/O. A batch finishes its
+`Quiesce` fences new reads/writes before waiting for current I/O. A batch finishes its
 current sector and returns `ErrQuiesced` before issuing another; already
 completed sectors may have been copied, so the caller must honor the error.
 The operation checks DMA/clock/error state, masks IRQ signals, queries card

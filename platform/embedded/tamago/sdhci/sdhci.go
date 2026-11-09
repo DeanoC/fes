@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Package sdhci initializes SDHC/SDXC cards and provides read-only, single-block
+// Package sdhci initializes SDHC/SDXC cards and provides single-block
 // PIO on the Agilex 5 Cadence controller. Firmware must establish the input
 // clock, ComboPHY and pinmux, then relinquish exclusive controller ownership.
 package sdhci
@@ -81,6 +81,9 @@ func (d *Device) Identity() Identity { return Identity{CID: d.cid, Sectors: d.se
 // requested SD bus rate. The initial transport stays at <=400 kHz, one bit.
 type Config struct {
 	InputClockHz uint32
+	// AllowWrites explicitly selects single-sector PIO writes. The platform must
+	// own writable media and a qualified write-protect input. Default is read-only.
+	AllowWrites bool
 	// TransferClockHz explicitly selects 25 MHz maximum after identification.
 	// Zero retains the existing <=400 kHz transport. Width, voltage and PIO
 	// remain unchanged; the identification divider is restored at quiescence.
@@ -178,10 +181,10 @@ func (d *Device) initialize(config Config) error {
 	if err := d.pause(time.Millisecond); err != nil {
 		return err
 	} // >=74 startup clocks
-	if err := d.issue(0, 0, responseNone, false); err != nil {
+	if err := d.issue(0, 0, responseNone, noData); err != nil {
 		return err
 	}
-	if err := d.issue(8, 0x1aa, responseR7, false); err != nil {
+	if err := d.issue(8, 0x1aa, responseR7, noData); err != nil {
 		return err
 	}
 	if d.io.Read32(response)&0xfff != 0x1aa {
@@ -190,14 +193,14 @@ func (d *Device) initialize(config Config) error {
 	deadline := d.io.Now().Add(time.Second)
 	ready := false
 	for n := 0; n < 100; n++ {
-		if err := d.issue(55, 0, responseR1, false); err != nil {
+		if err := d.issue(55, 0, responseR1, noData); err != nil {
 			return err
 		}
 		if d.io.Read32(response)&(1<<5) == 0 {
 			return fmt.Errorf("sdhci: card refused APP_CMD")
 		}
 		// HCS, 3.2-3.4V; no 1.8V switch or extended-power request.
-		if err := d.issue(41, 1<<30|0x00300000, responseR3, false); err != nil {
+		if err := d.issue(41, 1<<30|0x00300000, responseR3, noData); err != nil {
 			return err
 		}
 		ocr := d.io.Read32(response)
@@ -218,7 +221,7 @@ func (d *Device) initialize(config Config) error {
 	if !ready {
 		return fmt.Errorf("sdhci: card power-up timeout")
 	}
-	if err := d.issue(2, 0, responseR2, false); err != nil {
+	if err := d.issue(2, 0, responseR2, noData); err != nil {
 		return err
 	}
 	// R2 strips the final CRC/end byte and shifts the remaining bits down.
@@ -235,7 +238,7 @@ func (d *Device) initialize(config Config) error {
 	if nonzero == 0 || notFF == 0 {
 		return fmt.Errorf("sdhci: invalid card CID")
 	}
-	if err := d.issue(3, 0, responseR6, false); err != nil {
+	if err := d.issue(3, 0, responseR6, noData); err != nil {
 		return err
 	}
 	r6 := d.io.Read32(response)
@@ -243,7 +246,7 @@ func (d *Device) initialize(config Config) error {
 	if d.rca == 0 || r6&0xe000 != 0 {
 		return fmt.Errorf("sdhci: invalid card RCA/R6 %#x", r6)
 	}
-	if err := d.issue(9, uint32(d.rca)<<16, responseR2, false); err != nil {
+	if err := d.issue(9, uint32(d.rca)<<16, responseR2, noData); err != nil {
 		return err
 	}
 	// SDHCI R2 registers hold CSD[127:8] shifted down by 8 bits.
@@ -255,7 +258,7 @@ func (d *Device) initialize(config Config) error {
 	// shift. SDHC/SDXC Default Speed advertises TRAN_SPEED 0x32 (25 MHz).
 	d.defaultSpeed = byte(d.io.Read32(response+8)>>24) == 0x32
 	d.sectors = (uint64(csize) + 1) * 1024
-	if err := d.issue(7, uint32(d.rca)<<16, responseR1Busy, false); err != nil {
+	if err := d.issue(7, uint32(d.rca)<<16, responseR1Busy, noData); err != nil {
 		return err
 	}
 	return d.ready()
@@ -360,7 +363,15 @@ const (
 	responseR7
 )
 
-func (d *Device) issue(index uint32, arg uint32, kind responseType, read bool) error {
+type dataDirection uint8
+
+const (
+	noData dataDirection = iota
+	readData
+	writeData
+)
+
+func (d *Device) issue(index uint32, arg uint32, kind responseType, data dataDirection) error {
 	if err := d.wait(present, 3, 0, false); err != nil {
 		return err
 	}
@@ -378,9 +389,11 @@ func (d *Device) issue(index uint32, arg uint32, kind responseType, read bool) e
 		flags = 0x020000 // OCR has no CRC or command index
 	}
 	transfer := uint32(0)
-	if read {
+	if data != noData {
 		flags |= 1 << 21
-		transfer = 1 << 4
+		if data == readData {
+			transfer = 1 << 4
+		}
 		d.io.Write32(blockSize, 1<<16|512)
 	}
 	d.io.Write32(command, index<<24|flags|transfer)
@@ -400,7 +413,7 @@ func (d *Device) issue(index uint32, arg uint32, kind responseType, read bool) e
 	return nil
 }
 func (d *Device) ready() error {
-	if err := d.issue(13, uint32(d.rca)<<16, responseR1, false); err != nil {
+	if err := d.issue(13, uint32(d.rca)<<16, responseR1, noData); err != nil {
 		return err
 	}
 	r := d.io.Read32(response)
@@ -433,7 +446,7 @@ func (d *Device) ReadSectors(lba uint64, dst []byte) error {
 		// Stage each sector until transfer completion; uncertain data never appears
 		// as a successful sector. Earlier sectors may have completed on batch error.
 		var sector [512]byte
-		err := d.issue(17, uint32(lba), responseR1, true)
+		err := d.issue(17, uint32(lba), responseR1, readData)
 		if err == nil {
 			err = d.wait(status, 1<<5, 1<<5, true)
 		}
@@ -458,9 +471,108 @@ func (d *Device) ReadSectors(lba uint64, dst []byte) error {
 	}
 	return nil
 }
-func (d *Device) WriteSectors(uint64, []byte) error { return block.ErrReadOnly }
 
-// Flush queries readiness; it is not a durability promise for writes (refused).
+// WriteSectors serializes CMD24 transfers. A sector succeeds only after all
+// words, transfer completion, and the card's ready/TRAN response. A batch error
+// may follow committed sectors; an uncertain write is never replayed. The caller
+// owns src until return. This is not an atomic multi-sector transaction.
+func (d *Device) WriteSectors(lba uint64, src []byte) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if !d.config.AllowWrites {
+		return block.ErrReadOnly
+	}
+	if err := block.CheckRange(d.sectors, lba, len(src)); err != nil {
+		return err
+	}
+	if d.failed {
+		return ErrRetired
+	}
+	if d.quiesced || d.stopRequested.Load() {
+		return ErrQuiesced
+	}
+	for n := 0; n < len(src); n += 512 {
+		if d.stopRequested.Load() {
+			return ErrQuiesced
+		}
+		// Check both the transport selection and live write-protect signal before
+		// each sector. No DMA, bus-width or clock-mode change is permitted.
+		if d.io.Read32(clock)&clockModeMask != d.dataClock|7 ||
+			d.io.Read32(host) != 7<<9|1<<8 || d.io.Read32(signalEnable) != 0 ||
+			d.io.Read32(command)&1 != 0 || d.io.Read32(status)&statusErrors != 0 {
+			d.failed = true
+			return errors.New("sdhci: transfer mode changed before write")
+		}
+		// SDHCI WPSL is high when the socket's write-protect switch is off.
+		if d.io.Read32(present)&(1<<19) == 0 {
+			return block.ErrReadOnly
+		}
+		var sector [512]byte
+		copy(sector[:], src[n:n+512])
+		err := d.issue(24, uint32(lba), responseR1, writeData)
+		if err == nil {
+			err = d.wait(status, 1<<4, 1<<4, true)
+		}
+		if err == nil {
+			err = d.wait(present, 1<<10, 1<<10, true)
+		}
+		if err == nil && d.io.Read32(status)&2 != 0 {
+			err = errors.New("sdhci: write completed before its data was supplied")
+		}
+		if err == nil {
+			for i := 0; i < 512; i += 4 {
+				d.io.Write32(dataPort, binary.LittleEndian.Uint32(sector[i:]))
+			}
+			d.io.Write32(status, 1<<4)
+			err = d.wait(status, 2, 2, true)
+		}
+		if err == nil {
+			d.io.Write32(status, 2)
+			err = d.writeReady()
+		}
+		if err != nil {
+			d.failed = true
+			// Reset host command/data state as containment only. The card may
+			// already have committed this sector; reset cannot roll it back.
+			d.io.Write32(clock, d.io.Read32(clock)|6<<24)
+			return errors.Join(err, d.wait(clock, 6<<24, 0, false))
+		}
+		lba++
+	}
+	return nil
+}
+
+// Match the vendor MMC driver's bounded CMD13 programming-state wait. Neither
+// a successful FIFO write nor a transfer-complete bit substitutes for card-ready.
+func (d *Device) writeReady() error {
+	start := d.io.Now()
+	last, deadline := start, start.Add(time.Second)
+	for n := 0; n < 1000; n++ {
+		if err := d.issue(13, uint32(d.rca)<<16, responseR1, noData); err != nil {
+			return err
+		}
+		now := d.io.Now()
+		if now.Before(last) || !now.Before(deadline) {
+			return errors.New("sdhci: card programming deadline or clock regression")
+		}
+		last = now
+		r := d.io.Read32(response)
+		state := (r >> 9) & 15
+		if state == 4 && r&(1<<8) != 0 {
+			return nil
+		}
+		if state != 7 {
+			return fmt.Errorf("sdhci: unexpected card state after write: %#x", r)
+		}
+		if err := d.pause(time.Millisecond); err != nil {
+			return err
+		}
+	}
+	return errors.New("sdhci: card programming poll limit")
+}
+
+// Flush requires card-ready. Write completion is card-reported programming
+// completion, not a power-loss atomicity guarantee for multi-sector updates.
 func (d *Device) Flush() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -470,7 +582,11 @@ func (d *Device) Flush() error {
 	if d.quiesced || d.stopRequested.Load() {
 		return ErrQuiesced
 	}
-	if err := d.ready(); err != nil {
+	ready := d.ready
+	if d.config.AllowWrites {
+		ready = d.writeReady
+	}
+	if err := ready(); err != nil {
 		d.failed = true
 		return err
 	}

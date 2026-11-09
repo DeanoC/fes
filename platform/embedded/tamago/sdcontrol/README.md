@@ -8,13 +8,26 @@ profiles supply no SD callbacks by default. The cold read/contain/resume path
 has separate hardware evidence; model tests and a linked firmware build do not
 establish physical acceptance for a changed path.
 
-`Open` first queries containment and obtains a firmware lease. The driver then
+`Open` requires an explicit trusted `ReadOnly` or `ReadWrite` selection, queries
+containment and obtains a firmware lease. Invalid access values reject before
+firmware or register access. The current Nano board selects `ReadOnly`; package
+metadata cannot choose access. The driver then
 resets its host and establishes the internal clock. Its `PrepareClock` callback
 asks firmware to prepare the platform PHY before enabling card clocks or
 issuing commands. Input clock and all platform qualifications come from the
 matched trusted board profile; the wire tag supplies no authentication.
 
-`Quiesce` fences new/queued reads, finishes the current sector and stops the
+`ReadWrite` connects the actual single-sector PIO writer to the same private
+lease and stop/resume lifecycle. No new firmware call, DMA grant or concurrent
+core/SD access is introduced. Known protection/range/read-only refusals preserve
+a healthy session. An uncertain write retires both driver and session, retains
+the last receipt as invalid, and performs no automatic firmware stop or retry.
+Host tests join actual C firmware, PIO write/readback and a real FAT32 settings
+update/remount, including independent file readback. This mode is unselected in
+board builds and still needs physical write-protect, write/readback and lifecycle
+qualification. A completed sector or batch is not power-loss atomicity.
+
+`Quiesce` fences new/queued reads and writes, finishes the current sector and stops the
 PIO driver. Firmware then independently checks drain and reset containment.
 The returned `LastReceipt` uses the same owner/generation as bridge control.
 `Resume` takes a new lease, reruns controller/card initialization, and requires

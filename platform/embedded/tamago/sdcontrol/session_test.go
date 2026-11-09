@@ -125,7 +125,7 @@ func (r *rpc) Invoke(a [7]uint64) ([4]uint64, error) {
 }
 func TestFirmwareAndPIOReadQuiesceResume(t *testing.T) {
 	firmware, c := newRPC(t, "")
-	s, err := Open(firmware, c, 200000000)
+	s, err := Open(firmware, c, 200000000, ReadOnly)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestFirmwareAndPIOReadQuiesceResume(t *testing.T) {
 
 func TestActualFirmwareClosureAllowsPIOReopenWithSameCardAndNoGrantReplay(t *testing.T) {
 	firmware, card := newRPC(t, "returned")
-	s, err := Open(firmware, card, 200000000)
+	s, err := Open(firmware, card, 200000000, ReadOnly)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +277,7 @@ func TestSessionRetainsFailedGrantsAndStop(t *testing.T) {
 			case "lost-grant-response":
 				firmware.drop = 1
 			}
-			s, err := Open(firmware, c, 200000000)
+			s, err := Open(firmware, c, 200000000, ReadOnly)
 			switch name {
 			case "stop":
 				if err != nil {
@@ -330,7 +330,7 @@ func TestSessionRetainsFailedGrantsAndStop(t *testing.T) {
 }
 func TestUnreadyServiceDoesNotAccessController(t *testing.T) {
 	firmware, c := newRPC(t, "unready")
-	s, err := Open(firmware, c, 200000000)
+	s, err := Open(firmware, c, 200000000, ReadOnly)
 	if s != nil || !errors.Is(err, ErrNotReady) || c.accesses != 0 {
 		t.Fatal(s, err, c.accesses)
 	}
@@ -341,11 +341,11 @@ func TestUnreadyServiceDoesNotAccessController(t *testing.T) {
 func TestInvalidConfigDoesNotContactFirmware(t *testing.T) {
 	cpu := callFunc(func([7]uint64) ([4]uint64, error) { t.Fatal("unexpected firmware call"); return [4]uint64{}, nil })
 	for _, hz := range []uint32{0, 399999, 200000001} {
-		if s, err := Open(cpu, newCard(), hz); err == nil || s != nil {
+		if s, err := Open(cpu, newCard(), hz, ReadOnly); err == nil || s != nil {
 			t.Fatal(hz)
 		}
 	}
-	if _, err := Open(cpu, nil, 200000000); err == nil || !strings.Contains(err.Error(), "invalid") {
+	if _, err := Open(cpu, nil, 200000000, ReadOnly); err == nil || !strings.Contains(err.Error(), "invalid") {
 		t.Fatal(err)
 	}
 }

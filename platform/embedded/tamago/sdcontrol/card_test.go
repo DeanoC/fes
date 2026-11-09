@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package sdcontrol
 
-import "time"
+import (
+	"encoding/binary"
+	"time"
+)
 
 // Independent host-only SDHC register/card model. Any driver access without
 // the C firmware's active grant fails. PHY preparation is checked separately.
@@ -20,11 +23,15 @@ const (
 )
 
 type card struct {
-	regs                             map[uint32]uint32
-	tick                             time.Time
-	active, prepared, badClock       bool
-	state, words, accesses, commands int
-	cid                              uint32
+	regs                               map[uint32]uint32
+	tick                               time.Time
+	active, prepared, badClock         bool
+	state, words, accesses, commands   int
+	cid                                uint32
+	image                              []byte
+	writing, writeProtected, failWrite bool
+	written                            []uint32
+	writeLBA                           uint32
 }
 
 func newCard() *card {
@@ -39,10 +46,20 @@ func (c *card) access() {
 }
 func (c *card) Read32(r uint32) uint32 {
 	c.access()
+	if r == present {
+		if c.writeProtected {
+			return c.regs[r] &^ (1 << 19)
+		}
+		return c.regs[r] | 1<<19
+	}
 	if r == dataPort {
 		c.words++
 		if c.words == 128 {
 			c.regs[status] |= 2
+		}
+		if c.image != nil {
+			offset := int(c.regs[argument])*512 + (c.words-1)*4
+			return binary.LittleEndian.Uint32(c.image[offset : offset+4])
 		}
 		return 0x03020100
 	}
@@ -50,13 +67,38 @@ func (c *card) Read32(r uint32) uint32 {
 }
 func (c *card) Write32(r, v uint32) {
 	c.access()
+	if r == dataPort {
+		if !c.writing || c.words >= 128 {
+			panic("write outside an active FIFO")
+		}
+		if c.image == nil {
+			c.image = make([]byte, 8192*512)
+		}
+		offset := int(c.writeLBA)*512 + c.words*4
+		binary.LittleEndian.PutUint32(c.image[offset:offset+4], v)
+		c.words++
+		if c.words == 128 {
+			c.writing = false
+			c.written = append(c.written, c.writeLBA)
+			c.regs[present] &^= 1<<10 | 1<<8 | 2
+			c.regs[status] |= 2
+			if c.failWrite {
+				c.regs[status] |= 1<<21 | 1<<15
+			}
+		}
+		return
+	}
 	if r == status {
 		c.regs[r] &^= v
 		return
 	}
 	if r == clock {
 		if v&(7<<24) != 0 {
-			c.prepared = false
+			// Only reset-all invalidates host/PHY preparation. CMD/DAT line
+			// resets contain a failed transaction without restarting the host.
+			if v&(1<<24) != 0 {
+				c.prepared = false
+			}
 			c.regs[command] = 0
 			c.regs[present] = 0
 		}
@@ -103,6 +145,9 @@ func (c *card) Write32(r, v uint32) {
 	case 9:
 		c.regs[response+12] = 1 << 22
 		c.regs[response+4] = 7 << 8
+		if c.image != nil {
+			c.regs[response+4] = uint32(len(c.image)/512/1024-1) << 8
+		}
 	case 7:
 		c.state = 4
 		c.regs[status] |= 2
@@ -113,6 +158,14 @@ func (c *card) Write32(r, v uint32) {
 			panic("read before card selection")
 		}
 		c.regs[status] |= 1 << 5
+	case 24:
+		if c.state != 4 || v != 24<<24|0x3a0000 || c.regs[blockSize] != 1<<16|512 {
+			panic("invalid PIO write or card state")
+		}
+		c.writing = true
+		c.writeLBA = c.regs[argument]
+		c.regs[present] |= 1<<10 | 1<<8 | 2
+		c.regs[status] |= 1 << 4
 	default:
 		panic("unexpected SD command")
 	}

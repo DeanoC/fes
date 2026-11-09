@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "env",
+    "GOWORK=off",
+    "go",
+    "-C",
+    "platform/embedded/tamago",
+    "test",
+    "-race",
+    "-count=1",
+    "-timeout=120s",
+    "./sdhci",
+    "./sdcontrol",
+    "./fat"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 2.00212191301398,
+  "log_sha256": "4251a20890a785b957eb3ff8ec5ecb3df3d528fbef95535cc71a1d05e4294307"
+}

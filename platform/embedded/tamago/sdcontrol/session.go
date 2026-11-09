@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/sdhci"
 )
 
-// Session binds the actual read-only PIO driver to one private firmware client.
+// Session binds the actual PIO driver to one private firmware client.
 // The caller must exclusively own both controller and secure-call transport.
 // Concurrent emulation-core/SD access is outside this closed-bridge contract.
 type Session struct {
@@ -24,12 +24,22 @@ type Session struct {
 
 var _ block.Device = (*Session)(nil)
 
+// Access is selected by the trusted platform, never by package metadata. The
+// current Nano board profile selects ReadOnly; ReadWrite needs its own physical
+// card/write-protect qualification and exclusive writable-media ownership.
+type Access uint8
+
+const (
+	ReadOnly Access = iota
+	ReadWrite
+)
+
 // Open grants the lease before the first register access. It returns a retired
 // non-nil Session on failures after the grant attempt so the caller can retain
 // the last receipt. It never attempts an automatic firmware stop after failure.
 // inputClockHz must match the qualified platform's actual controller input.
-func Open(cpu Caller, io sdhci.Registers, inputClockHz uint32) (*Session, error) {
-	if io == nil || inputClockHz < 400000 || inputClockHz > 200000000 {
+func Open(cpu Caller, io sdhci.Registers, inputClockHz uint32, access Access) (*Session, error) {
+	if io == nil || inputClockHz < 400000 || inputClockHz > 200000000 || (access != ReadOnly && access != ReadWrite) {
 		return nil, fmt.Errorf("sdcontrol: invalid controller or input clock")
 	}
 	firmware, err := NewClient(cpu)
@@ -41,7 +51,7 @@ func Open(cpu Caller, io sdhci.Registers, inputClockHz uint32) (*Session, error)
 		return s, s.fail(err)
 	}
 	s.active = true
-	s.device, err = sdhci.Open(io, sdhci.Config{InputClockHz: inputClockHz, PrepareClock: firmware.Prepare})
+	s.device, err = sdhci.Open(io, sdhci.Config{InputClockHz: inputClockHz, PrepareClock: firmware.Prepare, AllowWrites: access == ReadWrite})
 	if err != nil {
 		return s, s.fail(err)
 	}
@@ -76,7 +86,17 @@ func (s *Session) ReadSectors(lba uint64, dst []byte) error {
 	}
 	return err
 }
-func (s *Session) WriteSectors(uint64, []byte) error { return block.ErrReadOnly }
+func (s *Session) WriteSectors(lba uint64, src []byte) error {
+	if s == nil || s.firmware == nil || s.device == nil || s.retired.Load() {
+		return ErrRetired
+	}
+	err := s.device.WriteSectors(lba, src)
+	if err != nil && !errors.Is(err, sdhci.ErrQuiesced) && !errors.Is(err, block.ErrReadOnly) &&
+		!errors.Is(err, block.ErrBounds) && !errors.Is(err, block.ErrAlignment) {
+		return s.fail(err)
+	}
+	return err
+}
 func (s *Session) Flush() error {
 	if s == nil || s.firmware == nil || s.device == nil || s.retired.Load() {
 		return ErrRetired

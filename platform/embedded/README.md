@@ -6,6 +6,12 @@ the top kit. Playable-core readiness remains open. FES owns
 the base image; FogCast owns tenfoot and its application services; the runtime
 owns FPGA programming, reset, input delivery and DMA lifetime.
 
+The native [SD PIO driver and owned session](tamago/sdhci/README.md) also have an
+explicit write-mode prototype. Host tests cover sector writes, uncertain-write
+retirement, stop/resume and FAT settings persistence with independent readback.
+Current Nano board builds still select read-only access; enabling and physically
+qualifying writes remains separate from the accepted recovery-loader uploads.
+
 The current [queued-menu hardware trial](../../docs/validation/2026-11-09-de25-menu-queue-trial/README.md)
 passes ZX81 (+917-byte tape) → menu → ZX80 → menu → ZX81 (+same tape) → menu
 and final Park on TRWU8CBL. All eight App exchanges replay from the saved serial
