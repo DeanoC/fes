@@ -1,9 +1,10 @@
 """Observe the contained START path without extra device operations or retries."""
 import hashlib
+import re
 from pathlib import Path
 
 SOURCE = Path('plat/intel/soc/common/socfpga_sip_svc.c')
-MODE = 'contained-configuration-start-results-v2'
+MODE = 'contained-configuration-start-results-v3'
 INPUT_SHA256 = '08dffaecc57b285b65bf97febcb4d394768ed5e890d5fd62fa892c2744ab5b87'
 MAILBOX = Path('plat/intel/soc/common/soc/socfpga_mailbox.c')
 MAILBOX_INPUT_SHA256 = 'f6286fd8db7d2a2673824998d5811d784df2dcd9b64455921a35b0a75adbf4ec'
@@ -88,18 +89,95 @@ def observed(source):
     return text.encode()
 
 
+# Private observational state: active only around the original synchronous call.
+# No value from this state controls the mailbox or supplies runtime authority.
+ISOLATION_STATE = """struct fes_nano_isolation_observation {
+    unsigned active, polling, branch, polls;
+    int fill;
+    uint32_t cin, cout, bell, header;
+};
+static struct fes_nano_isolation_observation fes_nano_isolation_io;
+
+"""
+ISOLATION_IO_LINE = ('\tNOTICE("FES_NANO_ISOLATION_IO fill=%d branch=%u cin=%x cout=%x bell=%x polls=%u header=%x\\n",\n'
+                     '\t       fes_nano_isolation_io.fill, fes_nano_isolation_io.branch,\n'
+                     '\t       fes_nano_isolation_io.cin, fes_nano_isolation_io.cout,\n'
+                     '\t       fes_nano_isolation_io.bell, fes_nano_isolation_io.polls,\n'
+                     '\t       fes_nano_isolation_io.header);\n')
+
+
 def observed_mailbox(source):
     if hashlib.sha256(source).hexdigest() != MAILBOX_INPUT_SHA256:
         raise ValueError('raw isolation capture requires the exact reviewed mailbox stage')
     text = source.decode()
+    if 'FES_NANO_ISOLATION' in text:
+        raise ValueError('isolation observer is already installed')
+    edits = []
+
+    def replace(old, new, poll=False):
+        nonlocal text
+        start, end = 0, len(text)
+        if poll:
+            matches = list(re.finditer(r'(?m)^static int mailbox_poll_response_v3\([^;{}]*\)\n\{', text))
+            if len(matches) != 1:
+                raise ValueError('missing unique V3 poll definition')
+            start = matches[0].start()
+            end = text.index('\n/* SDM response parser handler state machine. */', start)
+        selected = text[start:end]
+        if selected.count(old) != 1:
+            raise ValueError('isolation transport source context changed')
+        text = text[:start]+selected.replace(old, new)+text[end:]
+        edits.append((old, new))
+
+    replace('static bool is_mailbox_cmdbuf_full(uint32_t cin)\n{',
+            ISOLATION_STATE+'static bool is_mailbox_cmdbuf_full(uint32_t cin)\n{')
+    old = ('\tsdm_read_offset = mmio_read_32(MBOX_OFFSET + MBOX_COUT);\n')
+    replace(old, old+'\tif (fes_nano_isolation_io.active && MBOX_CMD_MASK(header_cmd) == MBOX_CMD_FPGA_CONFIG_COMP) {\n'
+            '\t\tfes_nano_isolation_io.cin = cmd_free_offset;\n'
+            '\t\tfes_nano_isolation_io.cout = sdm_read_offset;\n\t}\n')
+    old = '\tif (status != 0) {\n\t\treturn status;\n\t}\n\n\tstatus = mailbox_poll_response(job_id, urgent, response, resp_len);'
+    replace(old, '\tif (fes_nano_isolation_io.active && cmd == MBOX_CMD_FPGA_CONFIG_COMP)\n'
+            '\t\tfes_nano_isolation_io.fill = status;\n'+old.replace(
+                '\tstatus = mailbox_poll_response(job_id, urgent, response, resp_len);',
+                '\tif (fes_nano_isolation_io.active && cmd == MBOX_CMD_FPGA_CONFIG_COMP)\n'
+                '\t\tfes_nano_isolation_io.polling = 1U;\n'
+                '\tstatus = mailbox_poll_response(job_id, urgent, response, resp_len);\n'
+                '\tif (fes_nano_isolation_io.active && cmd == MBOX_CMD_FPGA_CONFIG_COMP)\n'
+                '\t\tfes_nano_isolation_io.polling = 0U;'))
+    # This multi-line context is unique to the V3 synchronous poll definition.
+    old = ('\t\t\tif (mmio_read_32(MBOX_OFFSET + MBOX_DOORBELL_FROM_SDM)\n'
+           '\t\t\t\t== 1U) {\n\t\t\t\tbreak;\n\t\t\t}\n\t\t\tmdelay(10U);')
+    replace(old, '\t\t\tuint32_t bell = mmio_read_32(MBOX_OFFSET + MBOX_DOORBELL_FROM_SDM);\n'
+            '\t\t\tif (fes_nano_isolation_io.polling) {\n'
+            '\t\t\t\tfes_nano_isolation_io.bell = bell;\n'
+            '\t\t\t\tfes_nano_isolation_io.polls++;\n\t\t\t}\n'
+            '\t\t\tif (bell == 1U) {\n\t\t\t\tbreak;\n\t\t\t}\n\t\t\tmdelay(10U);', poll=True)
+    old = '\t\t\tINFO("%s: Timed out waiting for SDM intr\\n", __func__);'
+    replace(old, '\t\t\tif (fes_nano_isolation_io.polling) fes_nano_isolation_io.branch = 1U;\n'+old, poll=True)
+    old = ('\t\t\tif (mailbox_fill_cmd_desc(client_id, job_id, resp) != MBOX_RET_OK)\n'
+           '\t\t\t\treturn MBOX_BUFFER_FULL;')
+    replace(old, '\t\t\tif (mailbox_fill_cmd_desc(client_id, job_id, resp) != MBOX_RET_OK) {\n'
+            '\t\t\t\tif (fes_nano_isolation_io.polling) fes_nano_isolation_io.branch = 2U;\n'
+            '\t\t\t\treturn MBOX_BUFFER_FULL;\n\t\t\t}', poll=True)
+    old = '\t\t\tuint16_t header = resp_desc->header;\n'
+    replace(old, old+'\t\t\tif (fes_nano_isolation_io.polling) {\n'
+            '\t\t\t\tfes_nano_isolation_io.branch = 3U;\n'
+            '\t\t\t\tfes_nano_isolation_io.header = header;\n\t\t\t}\n')
+    old = '\tINFO("%s: Timed out waiting for SDM\\n", __func__);'
+    replace(old, '\tif (fes_nano_isolation_io.polling && !fes_nano_isolation_io.branch)\n'
+            '\t\tfes_nano_isolation_io.branch = 4U;\n'+old, poll=True)
     old = ('\tret = mailbox_send_cmd(MBOX_JOB_ID, MBOX_CMD_FPGA_CONFIG_COMP, NULL, 0U,\n'
            '\t\t\t\t CMD_CASUAL, NULL, NULL);\n')
-    if text.count(old) != 1 or 'FES_NANO_ISOLATION' in text:
-        raise ValueError('isolation result context changed')
-    generated = text.replace(old, old+ISOLATION_LINE)
-    if generated.replace(ISOLATION_LINE, '').encode() != source:
-        raise ValueError('isolation capture changed more than its result record')
-    return generated.encode()
+    replace(old, '\tfes_nano_isolation_io = (struct fes_nano_isolation_observation){.active = 1U};\n'+old+
+            '\tfes_nano_isolation_io.active = 0U;\n'+ISOLATION_IO_LINE+ISOLATION_LINE)
+    restored = text
+    for old, new in reversed(edits):
+        if restored.count(new) != 1:
+            raise ValueError('ambiguous isolation observer reversal')
+        restored = restored.replace(new, old)
+    if restored.encode() != source:
+        raise ValueError('isolation observer changed its original source')
+    return text.encode()
 
 
 def install(root, enabled, mailbox_binding=None):
@@ -118,8 +196,9 @@ def install(root, enabled, mailbox_binding=None):
     # Validate both complete inputs before publishing either transformed file.
     path.write_bytes(generated)
     mailbox.write_bytes(generated_mailbox)
-    return dict(mode=MODE, phases=list(PHASES), maximum_records_per_start=len(PHASES)+1,
-                maximum_phase_records=len(PHASES), maximum_isolation_records=1,
+    return dict(mode=MODE, phases=list(PHASES), maximum_records_per_start=len(PHASES)+2,
+                maximum_phase_records=len(PHASES), maximum_isolation_records=1, maximum_isolation_io_records=1,
+                isolation_io_branches=['fill-failure', 'doorbell-timeout', 'descriptor-full', 'response', 'loop-limit'],
                 input_sha256=hashlib.sha256(original).hexdigest(),
                 generated_sha256=hashlib.sha256(generated).hexdigest(),
                 mailbox_input_sha256=hashlib.sha256(original_mailbox).hexdigest(),

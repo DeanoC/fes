@@ -28,9 +28,10 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
     total=configuration['core_size'];chunk=configuration['chunk_bytes'];owner=None
     timed=None;first_counter=first_hash=previous_counter=previous_hash=None;engine_row=None
     core_line=None;mailbox_sources=set();activation_row=None
-    start_rows=[];isolation_result=None
+    start_rows=[];isolation_result=None;isolation_io=None
     start_note=re.compile(r'(?:NOTICE:[ \t]+)?FES_NANO_START phase=(?P<phase>[0-9]{1,2}) status=(?P<status>-?[0-9]{1,11})')
     isolation_note=re.compile(r'(?:NOTICE:[ \t]+)?FES_NANO_ISOLATION status=(?P<status>-?[0-9]{1,11})')
+    isolation_io_note=re.compile(r'(?:NOTICE:[ \t]+)?FES_NANO_ISOLATION_IO fill=(?P<fill>-?[0-9]{1,11}) branch=(?P<branch>[0-4]) cin=(?P<cin>[0-9a-f]{1,8}) cout=(?P<cout>[0-9a-f]{1,8}) bell=(?P<bell>[0-9a-f]{1,8}) polls=(?P<polls>[0-9]{1,5}) header=(?P<header>[0-9a-f]{1,4})')
     def require(condition, reason):
         if not condition:errors.append(reason)
     def completion_extents():
@@ -42,11 +43,33 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
     def start_observed():
         if [r['phase'] for r in start_rows]!=list(range(12)):return False
         values=[r['status'] for r in start_rows]
-        return ((isolation_result is None or isolation_result['status']==0) and
+        return ((isolation_io is None or isolation_result is not None) and
+                (isolation_result is None or isolation_result['status']==0) and
                 all(values[i]==0 for i in (0,1,2,3,8,9,10,11)) and
                 all(values[i]>=0 for i in (4,5,6)) and values[7] in (2,3))
     for index,fragment in enumerate(parts[:-1]):
         line=fragment.decode(errors='replace').rstrip('\r')
+        if line.startswith('FES_NANO_ISOLATION_IO') or line.startswith('NOTICE:') and 'FES_NANO_ISOLATION_IO' in line:
+            match=isolation_io_note.fullmatch(line)
+            require(match is not None,'malformed isolation transport observation')
+            if match is not None:
+                values={key:int(value,16 if key in ('cin','cout','bell','header') else 10)
+                        for key,value in match.groupdict().items()}
+                require(isolation_io is None and isolation_result is None and last=='start' and
+                        [r['phase'] for r in start_rows]==[0,1,2,3] and
+                        all(r['status']==0 for r in start_rows) and
+                        -(1<<31)<=values['fill']<1<<31 and values['polls']<=10200,
+                        'isolation transport repeated, unbounded or outside its START call')
+                branch=values['branch']
+                require((branch==0 and values['fill']!=0 and values['polls']==0 and
+                         values['bell']==values['header']==0) or
+                        (branch!=0 and values['fill']==0 and values['polls']>0 and
+                         (branch==3 or values['header']==0) and
+                         (branch!=1 or values['bell']!=1) and
+                         (branch not in (2,3,4) or values['bell']==1)),
+                        'isolation transport branch contradicts its observed values')
+                if isolation_io is None:isolation_io=dict(values,line=index+1)
+            parts[index]=b'';continue
         if line.startswith('FES_NANO_ISOLATION') or line.startswith('NOTICE:') and 'FES_NANO_ISOLATION' in line:
             match=isolation_note.fullmatch(line)
             require(match is not None,'malformed raw isolation result')
@@ -57,6 +80,11 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
                         all(r['status']==0 for r in start_rows),
                         'raw isolation result repeated or outside its START call')
                 if isolation_result is None:isolation_result=dict(status=status,line=index+1)
+                if isolation_io is not None:
+                    branch=isolation_io['branch']
+                    expected=(isolation_io['fill'] if branch==0 else -2047 if branch in (1,4) else
+                              -4 if branch==2 else -(isolation_io['header']&0x7ff))
+                    require(status==expected,'raw isolation result contradicts its transport branch')
             parts[index]=b'';continue
         if line.startswith('FES_NANO_START') or line.startswith('NOTICE:') and 'FES_NANO_START' in line:
             match=start_note.fullmatch(line)
@@ -66,6 +94,8 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
                 if phase==4 and isolation_result is not None:
                     require(status==(0 if isolation_result['status']==0 else -1),
                             'isolation wrapper result differs from its raw return')
+                if phase==4 and isolation_io is not None:
+                    require(isolation_result is not None,'isolation transport lacks its raw return')
                 require(0<=phase<12 and -(1<<31)<=status<1<<31 and len(start_rows)<12 and
                         (phase==0 if not start_rows else phase>start_rows[-1]['phase']) and
                         (last=='start' or last=='FAIL' and phase==11 and start_rows and start_rows[-1]['phase']==10),
@@ -185,6 +215,7 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
     return {'parts':parts,'records':extra,'errors':errors,'complete':complete,
             'programmed':programmed_row,'activation':activation_row,'owner':owner,'offset':offset,
             'start_observation':{'records':start_rows,'complete':start_observed(),'isolation':isolation_result,
+                                 'isolation_io':isolation_io,
                                  'hardware_authority':False},
             'timing':None if previous_counter is None else {
                 'counter_frequency':400000000,'first_counter':first_counter,'last_counter':previous_counter,

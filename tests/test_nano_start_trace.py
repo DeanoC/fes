@@ -40,7 +40,7 @@ class StartTraceTests(unittest.TestCase):
             mailbox=root/trace.MAILBOX;mailbox.parent.mkdir(parents=True);mailbox.write_bytes(self.mailbox)
             record=trace.install(root,True,self.binding)
             self.assertEqual(p.read_bytes(),self.observed)
-            self.assertEqual(record['maximum_records_per_start'],13)
+            self.assertEqual(record['maximum_records_per_start'],14)
             self.assertEqual(record['maximum_isolation_records'],1)
             self.assertEqual(mailbox.read_bytes(),trace.observed_mailbox(self.mailbox))
             self.assertEqual((record['control_reads_added'],record['control_writes_added'],record['retries_added']),(0,0,0))
@@ -103,7 +103,7 @@ int main(int argc,char **argv) {
             (inc/'lib/utils_def.h').write_text('#define BIT(n) (1U << (n))\n#define U(n) n##U\n#define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))\n')
             (inc/'socfpga_mailbox.h').write_bytes((ref/'plat/intel/soc/common/include/socfpga_mailbox.h').read_bytes())
             for name,source in [('original',self.mailbox),('observed',trace.observed_mailbox(self.mailbox))]:
-                p=base/(name+'.c');p.write_text(prefix+verify.function(source.decode(),'mailbox_send_fpga_config_comp')+suffix)
+                p=base/(name+'.c');p.write_text(prefix+(trace.ISOLATION_STATE if name=='observed' else '')+verify.function(source.decode(),'mailbox_send_fpga_config_comp')+suffix)
                 binary=base/name;r=subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror',
                     '-fsanitize=undefined','-fno-sanitize-recover=all','-I'+str(inc),
                     str(p),'-o',str(binary)],capture_output=True,text=True,timeout=30)
@@ -113,8 +113,9 @@ int main(int argc,char **argv) {
                     old,new=[subprocess.run([str(b),str(value)],capture_output=True,text=True,timeout=5) for b in binaries]
                     self.assertEqual(old.returncode,0,old.stderr);self.assertEqual(new.returncode,0,new.stderr)
                     lines=new.stdout.splitlines(keepends=True)
-                    self.assertEqual(lines[0],f'FES_NANO_ISOLATION status={value}\n')
-                    self.assertEqual(''.join(lines[1:]),old.stdout)
+                    self.assertEqual(lines[0],'FES_NANO_ISOLATION_IO fill=0 branch=0 cin=0 cout=0 bell=0 polls=0 header=0\n')
+                    self.assertEqual(lines[1],f'FES_NANO_ISOLATION status={value}\n')
+                    self.assertEqual(''.join(lines[2:]),old.stdout)
 
     def test_actual_engine_call_order_status_and_retained_state_match(self):
         prefix=r'''#include "tfa_stubs.h"

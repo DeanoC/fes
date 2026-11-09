@@ -26,12 +26,57 @@ class Isolated(Observed):
                        b'NOTICE:  FES_NANO_ISOLATION status=0\nNOTICE:  FES_NANO_START phase=4 ')
 
 
+IO=b'NOTICE:  FES_NANO_ISOLATION_IO fill=0 branch=3 cin=3 cout=3 bell=1 polls=1 header=0\n'
+
+
+class Transported(Isolated):
+    notes=Isolated.notes.replace(b'NOTICE:  FES_NANO_ISOLATION status=',
+                                IO+b'NOTICE:  FES_NANO_ISOLATION status=')
+
+
 class Tests(unittest.TestCase):
     def test_complete_model_launch_return_cycle_preserves_required_evidence(self):
-        for kind in (Observed,Isolated):
+        for kind in (Observed,Isolated,Transported):
             model=kind(True,'boot-keyboard');client=model.client();result=paired.exercise(client)
             self.assertTrue(result['passed']);self.assertEqual(model.configurations,7)
             self.assertEqual(client.menu.finish()['menu_sessions'],4)
+
+    def test_transport_record_cannot_replace_or_contradict_the_original_evidence(self):
+        raw=b'NOTICE:  FES_NANO_ISOLATION status=0\n'
+        bad=[Transported.notes.replace(IO,IO+IO),Transported.notes.replace(raw,b''),
+             Transported.notes.replace(IO,b'').replace(raw,raw+IO),IO+Isolated.notes,
+             Transported.notes.replace(IO,IO.replace(b'branch=3',b'branch=5')),
+             Transported.notes.replace(IO,IO.replace(b'polls=1',b'polls=0')),
+             Transported.notes.replace(IO,IO.replace(b'polls=1',b'polls=10201')),
+             Transported.notes.replace(IO,IO.replace(b'fill=0',b'fill=2147483648')),
+             Transported.notes.replace(IO,IO.replace(b'cin=3',b'cin=100000000')),
+             Transported.notes.replace(IO,IO.replace(b'header=0',b'header=7ff')),
+             Transported.notes.replace(IO,IO.replace(b'branch=3',b'branch=1')),
+             Transported.notes.replace(IO,IO.replace(b'fill=0',b'fill=-2047'))]
+        for notes in bad:
+            with self.subTest(notes=notes[:160]):
+                class Broken(Observed):pass
+                Broken.notes=notes
+                with self.assertRaises(ValueError):Broken(True,'boot-keyboard').client()
+
+    def test_distinct_timeout_origins_stay_failed_and_remain_distinguishable(self):
+        cfg=SPEC['configuration'];owner=0x17;generation=4
+        def core(phase):
+            return (f'NOTICE:  FES_NANO_CORE_TRANSFER phase={phase} owner={owner:x} generation={generation} completed=0 pending=0 '
+                    f'total={cfg["core_size"]} base={cfg["base"]:x}\n').encode()
+        prefix=b''.join(f'NOTICE:  FES_NANO_START phase={i} status=0\n'.encode() for i in range(4))
+        suffix=b''.join(f'NOTICE:  FES_NANO_START phase={i} status={-1 if i==4 else 4}\n'.encode() for i in (4,9,10))
+        cases=[(-2047,0,0,0,0,-2047),(0,1,0,40,0,-2047),(0,2,1,1,0,-4),
+               (0,3,1,1,0x7ff,-2047),(0,4,1,255,0,-2047)]
+        for fill,branch,bell,polls,header,status in cases:
+            with self.subTest(branch=branch):
+                io=(f'NOTICE:  FES_NANO_ISOLATION_IO fill={fill} branch={branch} cin=3 cout=3 bell={bell:x} polls={polls} header={header:x}\n').encode()
+                notes=prefix+io+f'NOTICE:  FES_NANO_ISOLATION status={status}\n'.encode()+suffix
+                r=extract(core('arm')+core('start')+notes+core('FAIL')+b'NOTICE:  FES_NANO_START phase=11 status=4\n',cfg,generation=generation)
+                self.assertEqual(r['start_observation']['isolation_io']['branch'],branch)
+                self.assertEqual(r['start_observation']['isolation']['status'],status)
+                self.assertFalse(r['complete']);self.assertFalse(r['start_observation']['hardware_authority'])
+                self.assertFalse(any('isolation' in e for e in r['errors']),r['errors'])
 
     def test_raw_result_is_bounded_unique_and_inside_the_isolation_call(self):
         line=b'NOTICE:  FES_NANO_ISOLATION status=0\n'
