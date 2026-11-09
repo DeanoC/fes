@@ -38,8 +38,18 @@ ordinary and MMU builds, including cancellation/source mutation after the
 first accepted step and the real containment callback. The final Go check ran
 without test caching because it compiles external C inputs.
 
-This is software evidence only. Parent checks, an actual matched SDK/entry/
-BL31/SPL/FIT/SOF build and a fresh bounded board trial remain. No ordinary
+This is software evidence only. All11 required current integration checks
+pass on source b8d788c067384b91f919a46bdcc295b25bbeb9a8. Unchanged FPGA-only
+unit evidence is reused with exact source/membership/catalog and original
+prefix/suffix receipts rechecked. The shared tape definition and generated
+consumers were tested fresh. An actual matched SDK/entry/BL31/SPL/FIT/SOF
+build and a fresh bounded board trial remain. No ordinary
 core-loading or physical display/input acceptance is claimed. The separate
 direct-store MMU observer prototype remains unselected. Old host-data cleanup
 stays paused at the user's request.
+
+The remote contract check first hit a copied Python3.13 binary extension on
+Python3.12; the same committed contracts pass in the working local environment.
+The native build preparation also needed the original ROM input and complete
+offline module-cache metadata. Both missing-input failures are retained, and
+the unchanged toolchain and restored inputs are used for a fresh output.
