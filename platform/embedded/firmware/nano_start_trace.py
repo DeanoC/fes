@@ -4,15 +4,17 @@ import re
 from pathlib import Path
 
 SOURCE = Path('plat/intel/soc/common/socfpga_sip_svc.c')
-MODE = 'contained-configuration-start-results-v3'
+MODE = 'contained-configuration-start-results-v4'
 INPUT_SHA256 = '08dffaecc57b285b65bf97febcb4d394768ed5e890d5fd62fa892c2744ab5b87'
 MAILBOX = Path('plat/intel/soc/common/soc/socfpga_mailbox.c')
 MAILBOX_INPUT_SHA256 = 'f6286fd8db7d2a2673824998d5811d784df2dcd9b64455921a35b0a75adbf4ec'
 ISOLATION_LINE = '\tNOTICE("FES_NANO_ISOLATION status=%d\\n", ret);\n'
 PHASES = ('configuration-before', 'bridge-precheck', 'vendor-entry',
-          'bridge-disable', 'configuration-complete', 'cancel',
+          'bridge-disable', 'configuration-complete', 'remapper-enter',
+          'remapper-return', 'response-cleared', 'cancel',
           'reconfigure-return', 'reconfigure-length', 'vendor-accepted',
           'vendor-return', 'configuration-before-after', 'configuration-after')
+PHASE_IDS = (0, 1, 2, 3, 4, 12, 13, 14, 5, 6, 7, 8, 9, 10, 11)
 HELPER = '''static void fes_nano_start_note(unsigned phase, int status)
 {
     NOTICE("FES_NANO_START phase=%u status=%d\\n", phase, status);
@@ -48,6 +50,14 @@ def observed(source):
     replace('\tstatus = mailbox_send_fpga_config_comp();\n\tif (status < 0) {',
             '\tstatus = mailbox_send_fpga_config_comp();\n'
             '\tfes_nano_start_note(4U, status);\n\tif (status < 0) {')
+    replace('\tintel_smmu_hps_remapper_init(0U);',
+            '\tfes_nano_start_note(12U, 0);\n'
+            '\tintel_smmu_hps_remapper_init(0U);\n'
+            '\tfes_nano_start_note(13U, 0);')
+    replace('\tmailbox_clear_response();\n\n\tstatus = mailbox_send_cmd(MBOX_JOB_ID, MBOX_CMD_CANCEL,',
+            '\tmailbox_clear_response();\n'
+            '\tfes_nano_start_note(14U, 0);\n\n'
+            '\tstatus = mailbox_send_cmd(MBOX_JOB_ID, MBOX_CMD_CANCEL,')
     replace('\tstatus = mailbox_send_cmd(MBOX_JOB_ID, MBOX_CMD_CANCEL, NULL, 0U,\n'
             '\t\t\tCMD_CASUAL, NULL, NULL);\n\tif (status < 0) {',
             '\tstatus = mailbox_send_cmd(MBOX_JOB_ID, MBOX_CMD_CANCEL, NULL, 0U,\n'
@@ -196,7 +206,8 @@ def install(root, enabled, mailbox_binding=None):
     # Validate both complete inputs before publishing either transformed file.
     path.write_bytes(generated)
     mailbox.write_bytes(generated_mailbox)
-    return dict(mode=MODE, phases=list(PHASES), maximum_records_per_start=len(PHASES)+2,
+    return dict(mode=MODE, phases=list(PHASES), phase_ids=list(PHASE_IDS),
+                maximum_records_per_start=len(PHASES)+2,
                 maximum_phase_records=len(PHASES), maximum_isolation_records=1, maximum_isolation_io_records=1,
                 isolation_io_branches=['fill-failure', 'doorbell-timeout', 'descriptor-full', 'response', 'loop-limit'],
                 input_sha256=hashlib.sha256(original).hexdigest(),

@@ -2,6 +2,7 @@
 import re
 
 H=r'[0-9a-f]{1,16}'
+START_PHASES=(0,1,2,3,4,12,13,14,5,6,7,8,9,10,11)
 
 def extract(raw, configuration, *, generation, previous=0, rearm=False, require_activation=False,
             require_programmed=True, expected_owner=None):
@@ -41,11 +42,11 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
             extents.add((cursor,accepted-cursor))
         return extents
     def start_observed():
-        if [r['phase'] for r in start_rows]!=list(range(12)):return False
-        values=[r['status'] for r in start_rows]
+        if [r['phase'] for r in start_rows]!=list(START_PHASES):return False
+        values={r['phase']:r['status'] for r in start_rows}
         return ((isolation_io is None or isolation_result is not None) and
                 (isolation_result is None or isolation_result['status']==0) and
-                all(values[i]==0 for i in (0,1,2,3,8,9,10,11)) and
+                all(values[i]==0 for i in (0,1,2,3,12,13,14,8,9,10,11)) and
                 all(values[i]>=0 for i in (4,5,6)) and values[7] in (2,3))
     for index,fragment in enumerate(parts[:-1]):
         line=fragment.decode(errors='replace').rstrip('\r')
@@ -96,11 +97,12 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
                             'isolation wrapper result differs from its raw return')
                 if phase==4 and isolation_io is not None:
                     require(isolation_result is not None,'isolation transport lacks its raw return')
-                require(0<=phase<12 and -(1<<31)<=status<1<<31 and len(start_rows)<12 and
-                        (phase==0 if not start_rows else phase>start_rows[-1]['phase']) and
+                require(phase in START_PHASES and -(1<<31)<=status<1<<31 and len(start_rows)<len(START_PHASES) and
+                        (phase==0 if not start_rows else phase in START_PHASES and start_rows[-1]['phase'] in START_PHASES and
+                         START_PHASES.index(phase)>START_PHASES.index(start_rows[-1]['phase'])) and
                         (last=='start' or last=='FAIL' and phase==11 and start_rows and start_rows[-1]['phase']==10),
                         'configuration START observation repeated or misplaced')
-                if len(start_rows)<12:start_rows.append(dict(phase=phase,status=status,line=index+1))
+                if len(start_rows)<len(START_PHASES):start_rows.append(dict(phase=phase,status=status,line=index+1))
             parts[index]=b'';continue
         match=activation.fullmatch(line)
         if match:

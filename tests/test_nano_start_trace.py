@@ -40,7 +40,8 @@ class StartTraceTests(unittest.TestCase):
             mailbox=root/trace.MAILBOX;mailbox.parent.mkdir(parents=True);mailbox.write_bytes(self.mailbox)
             record=trace.install(root,True,self.binding)
             self.assertEqual(p.read_bytes(),self.observed)
-            self.assertEqual(record['maximum_records_per_start'],14)
+            self.assertEqual(record['maximum_records_per_start'],17)
+            self.assertEqual(record['phase_ids'],list(trace.PHASE_IDS))
             self.assertEqual(record['maximum_isolation_records'],1)
             self.assertEqual(mailbox.read_bytes(),trace.observed_mailbox(self.mailbox))
             self.assertEqual((record['control_reads_added'],record['control_writes_added'],record['retries_added']),(0,0,0))
@@ -176,9 +177,9 @@ int main(int argc,char **argv) {
                     '-fsanitize=undefined','-fno-sanitize-recover=all','-DFES_TEST_TERASIC_TFA',
                     '-I'+str(FW/'tests'),str(path),'-o',str(binary)],capture_output=True,text=True,timeout=30)
                 self.assertEqual(r.returncode,0,r.stderr);binaries.append(binary)
-            expected={0:[2,3,4,5,6,7,8],1:[2,3],2:[2,3,4],3:[2,3,4,5],4:[2,3,4,5,6,7],
-                      5:[2,3,4,5,6,7],6:[2,3,4,5,6,7],7:[2,3,4,5,6,7],8:[2,3,4,5,6,7],
-                      9:[2],10:[2],11:[2,3,4,5,6,7],12:[2,3,4,5,6,7,8]}
+            expected={0:[2,3,4,12,13,14,5,6,7,8],1:[2,3],2:[2,3,4],3:[2,3,4,12,13,14,5],4:[2,3,4,12,13,14,5,6,7],
+                      5:[2,3,4,12,13,14,5,6,7],6:[2,3,4,12,13,14,5,6,7],7:[2,3,4,12,13,14,5,6,7],8:[2,3,4,12,13,14,5,6,7],
+                      9:[2],10:[2],11:[2,3,4,12,13,14,5,6,7],12:[2,3,4,12,13,14,5,6,7,8]}
             for mode in range(13):
                 with self.subTest(mode=mode):
                     old,new=[subprocess.run([str(b),str(mode)],capture_output=True,text=True,timeout=5) for b in binaries]
@@ -186,6 +187,14 @@ int main(int argc,char **argv) {
                     rows=[r for r in new.stdout.splitlines() if r.startswith('FES_NANO_START ')]
                     self.assertEqual([int(r.split('phase=')[1].split()[0]) for r in rows],expected[mode])
                     self.assertEqual('\n'.join(r for r in new.stdout.splitlines() if not r.startswith('FES_NANO_START '))+'\n',old.stdout)
+                    if 12 in expected[mode]:
+                        events=new.stdout.splitlines()
+                        at=lambda fragment:next(i for i,row in enumerate(events) if fragment in row)
+                        self.assertLess(at('phase=12 '),at('CALL remap'))
+                        self.assertLess(at('CALL remap'),at('phase=13 '))
+                        self.assertLess(at('phase=13 '),at('CALL clear'))
+                        self.assertLess(at('CALL clear'),at('phase=14 '))
+                        self.assertLess(at('phase=14 '),at('CALL cancel'))
                     if mode in (1,2,3,4,9):self.assertTrue(any('status=-10' in r for r in rows))
 
 

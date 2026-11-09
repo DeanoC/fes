@@ -6,11 +6,11 @@ import unittest
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
-from configuration_trace import extract
+from configuration_trace import START_PHASES,extract
 from test_nano_paired_tenfoot_trace import Model,paired
 from test_nano_program_client import SPEC
 
-NOTE=b''.join(f'NOTICE:  FES_NANO_START phase={i} status={2 if i==7 else 0}\n'.encode() for i in range(12))
+NOTE=b''.join(f'NOTICE:  FES_NANO_START phase={i} status={2 if i==7 else 0}\n'.encode() for i in (0,1,2,3,4,12,13,14,5,6,7,8,9,10,11))
 
 
 class Observed(Model):
@@ -35,6 +35,20 @@ class Transported(Isolated):
 
 
 class Tests(unittest.TestCase):
+    def test_boundary_order_matches_producer_and_cannot_be_forged(self):
+        sys.path.insert(0,str(ROOT/'platform/embedded/firmware'))
+        import nano_start_trace
+        self.assertEqual(START_PHASES,nano_start_trace.PHASE_IDS)
+        for phase in (12,13,14):
+            line=f'NOTICE:  FES_NANO_START phase={phase} status=0\n'.encode()
+            bad=[NOTE.replace(line,line+line),NOTE.replace(line,line.replace(b'status=0',b'status=-1')),
+                 line+NOTE.replace(line,b''),NOTE.replace(line,b'')+line]
+            for notes in bad:
+                with self.subTest(phase=phase,notes=notes[:100]):
+                    class Broken(Observed):pass
+                    Broken.notes=notes
+                    with self.assertRaises(ValueError):Broken(True,'boot-keyboard').client()
+
     def test_complete_model_launch_return_cycle_preserves_required_evidence(self):
         for kind in (Observed,Isolated,Transported):
             model=kind(True,'boot-keyboard');client=model.client();result=paired.exercise(client)

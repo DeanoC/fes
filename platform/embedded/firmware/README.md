@@ -1777,3 +1777,16 @@ the cold-chain source identity. Existing ownership, response, first-failure and
 one-second tape checks remain. The read-view observer still performs only reads;
 its contract now describes the same writable page used by the driver. Physical
 command acceptance and full launch/return qualification remain open.
+
+The bounded `6c9e1aaecb129336` board test subsequently received a successful
+FPGA_CONFIG_COMP response through this secure mapping. It then stopped at the
+unchanged initial-menu deadline before the CANCEL return checkpoint. No FPGA
+data WRITE or menu Ready was observed. The selected START observer v4 adds three
+UART boundaries: phase 12 before the original remapper call, phase 13 after it,
+and phase 14 after the original response-clear call. Existing phase 5 remains
+the CANCEL return. Every original call, argument, device access, ownership check
+and timeout stays intact. The bounded phase order is
+`0,1,2,3,4,12,13,14,5,6,7,8,9,10,11`; missing, duplicate, reordered or nonzero
+boundary records cannot complete the configuration proof. These records locate
+progress and provide no hardware admission authority. The next precise stalled
+call and full launch/return cycle still require physical evidence.
