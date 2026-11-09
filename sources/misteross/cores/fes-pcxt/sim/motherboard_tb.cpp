@@ -109,6 +109,24 @@ int main(int argc,char** argv) {
         b.out(0x61,0x41);b.idle(90000);check(b.d.pit_out&4,"PIT mode0 terminal output");
         b.pit(2,0,0);b.idle(500);check(b.latch(2)>65000,"PIT zero means 65536");
         b.pit(2,0,0x0100,true);b.idle(1000);count=b.latch(2);check(count<0x100 && (count&15)<=9,"BCD borrow");
+        // The count wraps after terminal count (#1532): FFFFh, 9999 in BCD.
+        // OUT stays high in modes 0 and 1, and modes 4 and 5 strobe once,
+        // across a whole wrap of 65536 PIT clocks (5,505,024 ticks).
+        auto falls=[&](unsigned ticks){unsigned n=0,last=b.d.pit_out&4;
+            while(ticks--){b.tick();unsigned now=b.d.pit_out&4;if(last&&!now)++n;last=now;}return n;};
+        const unsigned WRAP=5600000;
+        b.out(0x61,0x41);b.pit(2,0,16);b.idle(3000);count=b.latch(2);
+        check(count>=0xff00,"PIT mode0 wraps past zero");
+        check(falls(WRAP)==0 && (b.d.pit_out&4),"PIT mode0 output stays high through the wrap");
+        b.pit(2,0,0x0010,true);b.idle(3000);count=b.latch(2);
+        check(count>=0x9900 && count<=0x9999 && (count&15)<=9 && ((count>>4)&15)<=9,"PIT BCD wraps to 9999");
+        b.pit(2,4,16);check(falls(WRAP)==1 && (b.d.pit_out&4),"PIT mode4 strobes once per count");
+        b.out(0x61,0x40);b.pit(2,5,16);check(falls(WRAP)==0,"PIT mode5 no strobe before trigger");
+        b.out(0x61,0x41);check(falls(WRAP)==1 && (b.d.pit_out&4),"PIT mode5 strobes once per trigger");
+        // The trigger can take OUT low within the port 61h write itself.
+        b.out(0x61,0x40);b.pit(2,1,16);b.idle(3000);b.out(0x61,0x41);
+        unsigned high=b.d.pit_out&4;
+        check(falls(WRAP)+!high==1 && (b.d.pit_out&4),"PIT mode1 output stays high through the wrap");
         // A control word resets the byte pointers even when it repeats the
         // RW field (#1471); a counter-latch command between the bytes does
         // not. Gated mode 3 takes about 10 off 0533h in 500 clocks.
@@ -180,7 +198,14 @@ int main(int argc,char** argv) {
         b.pit(1,2,100);b.idle(500);unsigned refresh=b.latch(1);
         check(refresh>0 && refresh<=100,"refresh channel count");
         b.init_pic();b.out(0x21,0xfe);b.pit(0,2,20);b.wait=5000;
-        b.bus(0,0x1234);check(b.d.intr,"PIT did not run during memory wait");
+        // INT follows IRQ0 as on an 8259, so the wait can end inside the
+        // mode-2 low PIT clock; INT must return once OUT0 rises again.
+        b.bus(0,0x1234);
+        if(!b.d.intr) {
+            for(unsigned n=0;!(b.d.pit_out&1)&&n<2000;n++)b.tick();
+            b.idle(4);
+        }
+        check(b.d.intr,"PIT did not run during memory wait");
         // Mode 2 deliberately lowers IRQ for a clock. Acknowledge just after
         // the next rising edge, avoiding a legitimate spurious IRQ7 window.
         for(unsigned n=0;(b.d.pit_out&1)&&n<2000;n++)b.tick();

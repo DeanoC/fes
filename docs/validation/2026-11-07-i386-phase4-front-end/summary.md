@@ -39,7 +39,7 @@ Top three slices, by kit-equivalent clocks saved in DOOM's window
 | --- | --- | ---: | ---: | --- |
 | 1 | Indirect CALL and JMP prediction (tracker slice 5) | 0.62–0.80M (1.30–1.68%) | 0.64–0.82M (0.19–0.25%) | Low |
 | 2 | A direction predictor with global history | 0.51–0.85M (1.08–1.79%), not yet sized | 13.6–22.6M (4.1–6.8%), not yet sized | Medium |
-| 3 | Decode a target's bytes 12–15 in one pass | 0.20–0.39M (0.41–0.83%) | 1.62–3.25M (0.49–0.98%) | Medium |
+| 3 | Decode a target's bytes 12–15 in one pass | 0.20–0.39M (0.41–0.83%) | 1.58–3.16M (0.48–0.95%) | Medium |
 
 At Kit A's 39.8 fps, each 1% of DOOM's clocks is about 0.4 fps.
 
@@ -260,14 +260,28 @@ How the savings are worked out:
 ### 3. Decode a target's bytes 12–15 in one pass
 
 - **Measured.** Waits at bytes 12–15 of a block that Q entered by a
-  predicted jump or a redirect, with no L1I miss:
+  predicted jump, excluding clocks marked `l1i`:
   - DOOM: 391k clocks (0.83%), and 528k (1.10%) in the first half-second;
-  - 3DBench: 3.25M (0.98%).
+  - 3DBench: 3.16M (0.95%).
 
-  These are most of the `fe_empty` slices 6 and 6b uncovered.
+  The basis is `(tail_tk clocks − l1i) + (tail_tkself clocks − l1i)`:
+  `(454,316 − 132,661) + (72,045 − 2,577) = 391,123` for DOOM,
+  and `(2,273,981 − 247,531) + (1,175,943 − 45,938) = 3,156,455`
+  for 3DBench. The first DOOM window gives
+  `(590,350 − 97,577) + (36,928 − 1,253) = 528,448`.
+  The mark is defined above; it is not the same as the `fe_l1i` bucket.
+  For example, 3DBench's two `fe_empty` columns sum to 3,207,017; of those,
+  54,127 are marked, while 3,565 unmarked clocks are in `fe_l1i`, giving
+  `3,207,017 − 54,127 + 3,565 = 3,156,455`. These predicted-target waits
+  account for much of the `fe_empty` slices 6 and 6b uncovered.
+
+  Redirect targets (`tail_rd`) are excluded from this estimate. For
+  3DBench that row has 1,808,206 clocks, including 372,351 marked `l1i`;
+  its unmarked remainder is 1,435,855. Redirect improvements are considered
+  separately above and below, so this estimate does not claim those clocks.
 - **Saving.** Half to all of those clocks:
   - DOOM: 0.20–0.39M (0.41–0.83%);
-  - 3DBench: 1.62–3.25M (0.49–0.98%).
+  - 3DBench: 1.58–3.16M (0.48–0.95%).
 
   Half is the low end because the simplest form, the first option below,
   fixes only a block in the first half of its 32-byte L1I line.

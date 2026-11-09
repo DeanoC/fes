@@ -76,6 +76,7 @@ module KF8259_Control_Logic (
     logic           cascade_slave;
     logic           cascade_slave_enable;
     logic           cascade_output_ack_2_3;
+    logic           interrupt_mask_update_pending;
 
     //
     // Write command state
@@ -532,6 +533,25 @@ module KF8259_Control_Logic (
     // INT
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
+            interrupt_mask_update_pending <= 1'b0;
+        else
+            interrupt_mask_update_pending <=
+                (write_operation_control_word_1_registers == 1'b1) &&
+                (control_state == CTL_READY) && (next_control_state == CTL_READY);
+    end
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
+            interrupt_to_cpu <= 1'b0;
+        else if (write_initial_command_word_1 == 1'b1)
+            // ICW1 clears IRR, so it explicitly withdraws any pending INT.
+            interrupt_to_cpu <= 1'b0;
+        else if ((interrupt_mask_update_pending == 1'b1) &&
+                 (control_state == CTL_READY) && (next_control_state == CTL_READY) &&
+                 (interrupt == 8'b00000000))
+            // Let the IMR update take effect before deciding whether it removed
+            // every eligible request. A missing IR pin alone does not cancel
+            // INT; the acknowledge then reports the default IRQ7 vector.
             interrupt_to_cpu <= 1'b0;
         else if (interrupt != 8'b00000000)
             interrupt_to_cpu <= 1'b1;
@@ -683,4 +703,3 @@ module KF8259_Control_Logic (
         end
     end
 endmodule
-

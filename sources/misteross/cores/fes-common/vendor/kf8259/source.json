@@ -4,7 +4,8 @@
   "license": "MIT",
   "local_changes": [
     "Replace package imports with explicitly qualified function calls for the locked Yosys Verilog frontend; function bodies and behavior unchanged.",
-    "Resolve circular priority with parallel per-level masks instead of rotate/priority/rotate chains; combinational equivalence covers arbitrary masks, rotation and fully nested inputs, with unchanged register boundaries."
+    "Resolve circular priority with parallel per-level masks instead of rotate/priority/rotate chains; combinational equivalence covers arbitrary masks, rotation and fully nested inputs, with unchanged register boundaries.",
+    "INT is withdrawn when ICW1 clears IRR or an IMR update leaves no eligible request, but a request pin falling alone does not cancel INT before INTA; the acknowledge then returns default IRQ7 (fes#1534)."
   ],
   "files": [
     {
@@ -31,7 +32,7 @@
     {
       "path": "KF8259_Control_Logic.sv",
       "upstream_path": "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Control_Logic.sv",
-      "sha256": "257e2110516d89a3d2b0b6faf0b82ed7e08fc92e077f09439ef4e5a5e3a092b0",
+      "sha256": "a2beae98070e0c1183b2c58e5ef8663309a44f881954e76f68e45a2656a26904",
       "upstream_sha256": "9802ee1f01ec74c0cc5b6b33ad2ed15ef51a5ea37c47eebbec497e5729074442"
     },
     {

@@ -1,15 +1,16 @@
 """Prove the KF8253 8254 read-back change leaves the 8253 paths unchanged.
 
-Two recorded local changes sit on the counter-timing import, newest last:
-read_back.patch, then control_word_reset.patch (#1471). Reversing them in turn
-must give back the bytes before each, and with READ_BACK=0 the chip with the
-read-back change alone must be sequentially equivalent at every port to the
-chip before it.
+Three recorded local changes sit on the counter-timing import, newest last:
+read_back.patch, control_word_reset.patch (#1471), then
+terminal_count_wrap.patch (#1532). Reversing them in turn must give back the
+bytes before each, and with READ_BACK=0 the chip with the read-back change
+alone must be sequentially equivalent at every port to the chip before it.
 
-control_word_reset.patch deliberately changes the 8253 paths (a control word
-that repeats the RW field now resets the byte pointers), so the equivalence
-proof stops before it. The pc386 devices and PC/XT motherboard benches check
-that change's behaviour.
+control_word_reset.patch and terminal_count_wrap.patch deliberately change the
+8253 paths (a control word that repeats the RW field now resets the byte
+pointers; the count wraps after terminal count), so the equivalence proof
+stops before them. The pc386 devices and PC/XT motherboard benches check
+their behaviour.
 """
 import hashlib
 import os
@@ -23,6 +24,8 @@ ROOT = Path(__file__).resolve().parents[1]
 VENDOR = ROOT / 'cores/fes-common/vendor/kf8253'
 YOSYS = os.environ.get('YOSYS') or shutil.which('yosys')
 SOURCES = ('KF8253.sv', 'KF8253_Control_Logic.sv', 'KF8253_Counter.sv')
+# KF8253_Counter.sv after the control-word reset, before the terminal-count wrap.
+CONTROL_WORD_COUNTER = '0e38f4a79474ff1e3c002432465abd414e158465326147c29e43bf2cfeb9c4fc'
 # KF8253_Counter.sv after the read-back change, before the control-word reset.
 READ_BACK_COUNTER = '87b3df9e59b75c0102aed1d592e6be23ba732e9d80c9c6f154355729b450dba8'
 # The files before the read-back change: upstream bytes, plus the earlier
@@ -39,10 +42,19 @@ def reverse(tree: Path, patch: str):
     subprocess.run(['patch', '-s', '-R', '-p1', '-i', str(VENDOR / patch)], cwd=tree, check=True)
 
 
-def read_back_tree(directory: Path) -> Path:
-    """Copy the import and reverse control_word_reset.patch in it."""
-    tree = directory / 'read_back'
+def control_word_tree(directory: Path) -> Path:
+    """Copy the import and reverse terminal_count_wrap.patch in it."""
+    tree = directory / 'control_word'
     shutil.copytree(VENDOR, tree)
+    reverse(tree, 'terminal_count_wrap.patch')
+    return tree
+
+
+def read_back_tree(directory: Path) -> Path:
+    """Copy a control_word_tree and reverse control_word_reset.patch in it."""
+    control_word = control_word_tree(directory)
+    tree = directory / 'read_back'
+    shutil.copytree(control_word, tree)
     reverse(tree, 'control_word_reset.patch')
     return tree
 
@@ -59,6 +71,8 @@ class ReadBackPatchTest(unittest.TestCase):
     @unittest.skipUnless(shutil.which('patch'), 'requires patch')
     def test_reversed_patch_restores_the_previous_bytes(self):
         with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(hashlib.sha256((control_word_tree(Path(directory) / 'c') / 'KF8253_Counter.sv')
+                                            .read_bytes()).hexdigest(), CONTROL_WORD_COUNTER)
             tree = read_back_tree(Path(directory))
             self.assertEqual(hashlib.sha256((tree / 'KF8253_Counter.sv').read_bytes()).hexdigest(),
                              READ_BACK_COUNTER)

@@ -55,6 +55,14 @@ REFERENCE = r"""
     endfunction
 """
 
+# The 8253 and 8254 keep counting after terminal count: below zero the count
+# wraps to FFFFh (9999 in BCD), where the import held it at zero (#1532).
+WRAPPING = REFERENCE + r"""
+    function logic [16:0] wrapping_decrement (input [16:0] count, input is_bcd);
+        wrapping_decrement = count == 0 ? (is_bcd ? 17'h0_9999 : 17'h0_ffff) : reference_decrement(count, is_bcd);
+    endfunction
+"""
+
 
 @unittest.skipUnless(YOSYS, 'requires Yosys; set YOSYS to the locked executable')
 class CounterEquivalenceTest(unittest.TestCase):
@@ -97,13 +105,13 @@ class CounterEquivalenceTest(unittest.TestCase):
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_saturating_binary_and_bcd_one_and_two_steps(self):
+    def test_wrapping_binary_and_bcd_one_and_two_steps(self):
         source = (KF8253 / 'KF8253_Counter.sv').read_text()
         start = source.index('    function automatic logic [16:0] decrement(')
         function = source[start:source.index('    endfunction', start) + len('    endfunction')]
-        fixture = 'module proof(input [16:0] count, input bcd, output ok);\n' + REFERENCE + function + r"""
-          wire [16:0] first = reference_decrement(count, bcd);
-          wire [16:0] second = reference_decrement(first, bcd);
+        fixture = 'module proof(input [16:0] count, input bcd, output ok);\n' + WRAPPING + function + r"""
+          wire [16:0] first = wrapping_decrement(count, bcd);
+          wire [16:0] second = wrapping_decrement(first, bcd);
           assign ok = decrement(count, bcd, 1'b0) == first &&
                       decrement(count, bcd, 1'b1) == second;
         endmodule
@@ -170,14 +178,21 @@ class CounterEquivalenceTest(unittest.TestCase):
         # Freshness at consumption is proved separately above. Here supply
         # exact candidates and prove the real mux/flag equations for arbitrary
         # counts, presets and controls, including all non-decimal BCD patterns.
+        # The expected model keeps the import's equations, where a next count
+        # of zero marks terminal count and reload; they run on the import's
+        # held-at-zero decrement. The wrap (#1532) then changes the next count
+        # only where a plain decrement from zero applies: modes 0 and 4 gated
+        # without a load, and modes 1 and 5 without a trigger.
         fixture = (vendor / 'KF8253_Definitions.svh').read_text() + r"""
           module proof(input [16:0] count, count_preset_load,
             input [2:0] select_mode,
             input select_bcd, counter_gate, load_edge, gate_edge,
                   first_count_edge, counter_out, output ok);
-        """ + REFERENCE + r"""
-          wire [16:0] dec_count = reference_decrement(count, select_bcd);
-          wire [16:0] dec2_count = reference_decrement(dec_count, select_bcd);
+        """ + WRAPPING + r"""
+          wire [16:0] dec_count = wrapping_decrement(count, select_bcd);
+          wire [16:0] dec2_count = wrapping_decrement(dec_count, select_bcd);
+          wire [16:0] held_count = reference_decrement(count, select_bcd);
+          wire [16:0] held2_count = reference_decrement(held_count, select_bcd);
           wire count_zero_q = count == 0;
           wire count_le_one_q = count <= 1;
           wire count_le_two_q = count <= 2;
@@ -187,7 +202,7 @@ class CounterEquivalenceTest(unittest.TestCase):
           reg count_period, expected_period;
         """ + logic + r"""
           always_comb begin
-            expected_next = dec_count;
+            expected_next = held_count;
             expected_period = 0;
             casez (select_mode)
               `KF8253_CONTROL_MODE_0, `KF8253_CONTROL_MODE_4: begin
@@ -203,8 +218,8 @@ class CounterEquivalenceTest(unittest.TestCase):
               end
               `KF8253_CONTROL_MODE_3: begin
                 if (count[0]) begin
-                  if (!counter_out) expected_next = {dec2_count[16:1], 1'b0};
-                end else expected_next = dec2_count;
+                  if (!counter_out) expected_next = {held2_count[16:1], 1'b0};
+                end else expected_next = held2_count;
                 if (!counter_gate) expected_next = count;
                 if (expected_next == 0) begin
                   expected_period = !first_count_edge;
@@ -215,6 +230,12 @@ class CounterEquivalenceTest(unittest.TestCase):
               default: begin end
             endcase
             if (expected_next == 0) expected_period = 1;
+            if (count == 0 && expected_next == 0 &&
+                ((((select_mode == `KF8253_CONTROL_MODE_0) || (select_mode == `KF8253_CONTROL_MODE_4)) &&
+                  counter_gate && !load_edge) ||
+                 (((select_mode == `KF8253_CONTROL_MODE_1) || (select_mode == `KF8253_CONTROL_MODE_5)) &&
+                  !gate_edge)))
+              expected_next = select_bcd ? 17'h0_9999 : 17'h0_ffff;
           end
           // Mode-2 output consults the one flag only while the gate is high.
           assign ok = count_next == expected_next &&
