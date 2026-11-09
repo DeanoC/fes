@@ -27,9 +27,21 @@ new-test assertion incorrectly assumed the command history was empty after
 keyboard enumeration; the test now checks the one-command delta and retained
 history. That failure and final passing logs remain in the isolated output.
 
-This is diagnostic software evidence, not a USB repair or hardware pass. A new
-matched SDK/entry/BL31/SPL/FIT/SOF chain and fresh single-use trial are required.
+This is diagnostic software evidence, not a USB repair or hardware pass. The new
+matched SDK/entry/BL31/SPL/FIT/SOF chain is built and checked on the builder and
+Powerboat. A fresh single-use trial remains required.
 The two timing fields in the preceding trace describe software durations, not
 remaining USB frame time; no scheduling change is justified by comparing them.
 Old-file cleanup remains paused. Full ordinary package/appliance acceptance is
 still open.
+
+
+Candidate `833277b3abc25cab` is compiled from `d1c0cf21a`. Its SDK receipt
+explicitly includes the new fatal-channel capture source. The matched chain's
+source hashes, cold profiles, firmware MMU proof, ELF/entry/BL31/FIT/SOF identities
+and unchanged FPGA payload assertions agree. The FIT is 8,309,400 bytes, leaving
+79,208 bytes under the unchanged 8 MiB bound. Composition used the shared
+Quartus lock as Deano. All six remote build/verification jobs and the independent
+Powerboat metadata/source-hash check passed; their logs/receipts are retained in
+the output directory. No file admission, reservation or hardware trial has been
+performed for this new image. The preceding image stays retired.
