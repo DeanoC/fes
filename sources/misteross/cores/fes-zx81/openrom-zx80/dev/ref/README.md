@@ -26,8 +26,9 @@ byte per line. `EXTERNAL_RAM` 0 (the default) is 16 KiB, and 1 is the stock
     OUTDIR/Vzx81_machine probe "KEYS|KEYS|..." > pN.txt
 
 types each script from a fresh reset and writes its block.
-`OUTDIR/Vzx81_machine geometry` reports the video timing, and
-`load FILE.o "KEYS"` LOADs an image first.
+`OUTDIR/Vzx81_machine geometry` reports the video timing.
+`load FILE.o "KEYS"` puts an image on tape for a script that LOADs it
+(`W NL ...`), and fails if the script never does.
 
 Sinclair's ROM keeps its cursor (`b0`) in the edit line. A ROM that marks the
 cursor some other way should drop that byte before comparing.

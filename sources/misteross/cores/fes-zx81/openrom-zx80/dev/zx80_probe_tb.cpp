@@ -2,7 +2,8 @@
 // Black-box probe of a ZX80 ROM on the FES ZX80 machine RTL.
 //   V geometry [N]
 //   V probe "SCRIPT|SCRIPT|..."   each script from a fresh reset: type, dump
-//   V load FILE.o "SCRIPT"        LOAD the image, then type, dump
+//   V load FILE.o "SCRIPT"        the image on tape; type SCRIPT, which must
+//                                 LOAD it (W NL ...), then dump
 //   V shot OUT.pgm "SCRIPT" [FRAMES]
 #include "Vzx81_machine.h"
 #include "verilated.h"
@@ -28,10 +29,12 @@ struct Machine {
     uint64_t ticks = 0;
     unsigned frames = 0;
     bool old_vsync = false;
+    bool loaded = false;            // the tape loader has run
     void tick() {
         if (!tape.empty()) dut.tape_data = tape[dut.tape_addr_out < tape.size() ? dut.tape_addr_out : 0];
         dut.clk_sys = 1; dut.eval(); dut.clk_sys = 0; dut.eval();
         ticks++;
+        if (dut.tape_busy) loaded = true;
         if (dut.vsync_out && !old_vsync) frames++;
         old_vsync = dut.vsync_out;
     }
@@ -212,10 +215,12 @@ int main(int argc, char **argv) {
     if (mode == "load") {
         std::ifstream in(argv[2], std::ios::binary);
         m->tape.assign(std::istreambuf_iterator<char>(in), {});
+        require(!m->tape.empty(), std::string("cannot read ") + argv[2]);
         m->dut.tape_ready = 1;
         m->dut.tape_size = m->tape.size();
         type(*m, argc > 3 ? argv[3] : "");
         m->run_frames(5, false);
+        require(m->loaded, "the script did not LOAD the image (start it W NL)");
         dump(*m);
         return 0;
     }
