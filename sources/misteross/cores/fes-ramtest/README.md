@@ -308,6 +308,14 @@ port, holds that land inside a write burst and during reads, and a button
 stop. The OSS 100 MHz package is registered in FES and included in the
 factory image and standard catalog. The 130 MHz build remains explicit.
 
+The simulation also exercises the OSS 100 MHz fabric-capture and registered
+output path, including a control with the output-register capture shift
+removed. Its idealized clocks and zero-delay SDRAM check functional edge
+ordering, not board timing. `FES_RAMTEST_130_DIAGNOSTIC=1 make sim-fes-ramtest`
+runs the 130 MHz path as well, then exits nonzero with an ambiguity report:
+the current model does not establish the DQ valid window at its capture edge.
+It is not a passing 130 MHz simulation, timing closure or hardware acceptance.
+
 The RTL is GPL-2.0-or-later. The license text and corresponding-source notice
 are in [the FES release notices](../../../../image/licenses/fes.ramtest/SOURCE.md).
 Image assembly installs COPYING and a notice generated from the sealed RBF’s
