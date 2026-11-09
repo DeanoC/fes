@@ -1,0 +1,48 @@
+{"op": "sleep", "s": 5}
+{"op": "type", "text": "10 PRINT PEEK(56320);PEEK(56321):GOTO 10\nRUN\n"}
+{"op": "sleep", "s": 3}
+{"op": "grab", "name": "pp-00-idle"}
+{"op": "joydown", "port": 2, "dirs": "R"}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "pp-p2-right"}
+{"op": "joyup", "port": 2}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "pp-p2-right-released"}
+{"op": "joydown", "port": 1, "dirs": "R"}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "pp-p1-right"}
+{"op": "joyup", "port": 1}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "pp-p1-right-released"}
+{"op": "joydown", "port": 2, "dirs": "F"}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "pp-p2-fire"}
+{"op": "joyup", "port": 2}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "pp-p2-fire-released"}
+{"op": "joydown", "port": 1, "dirs": "F"}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "pp-p1-fire"}
+{"op": "joyup", "port": 1}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "pp-p1-fire-released"}
+{"op": "joydown", "port": 2, "dirs": "U"}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "pp-p2-up"}
+{"op": "joyup", "port": 2}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "pp-p2-up-released"}
+{"op": "joydown", "port": 1, "dirs": "L"}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "pp-p1-left"}
+{"op": "joyup", "port": 1}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "pp-p1-left-released"}
+{"op": "joydown", "port": 2, "dirs": "R"}
+{"op": "joydown", "port": 1, "dirs": "L"}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "pp-p2R-p1L"}
+{"op": "joyup", "port": 2}
+{"op": "joyup", "port": 1}
+{"op": "sleep", "s": 8}
+{"op": "quit"}

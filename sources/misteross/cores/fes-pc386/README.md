@@ -27,8 +27,9 @@ Quartus 17.0.2.
 | [`rtl/pc386_vga_scanout.sv`](rtl/pc386_vga_scanout.sv) | CRTC raster at the guest dot clock, line prefetch, attribute controller, DAC, capture writer |
 | [`rtl/pc386_presenter.sv`](rtl/pc386_presenter.sv) | Area-weighted scaling of the newest capture to 960 x 720 in the 720p raster |
 | [`rtl/pc386_plane_bridge.sv`](rtl/pc386_plane_bridge.sv) | The display plane's reads on port 2: clock crossing, 128-to-64-bit beats, the plane's port guard |
-| [`rtl/pc386_port2.sv`](rtl/pc386_port2.sv) | DDR port 2 arbiter: plane, presenter, capture, then the shell's reads and single-beat writes |
-| [`rtl/pc386_machine.sv`](rtl/pc386_machine.sv) | The machine without the CPU: AT core, VGA, presenter, port 2, display plane |
+| [`rtl/pc386_ems.sv`](rtl/pc386_ems.sv) | The [EMS board](../../docs/pc386-machine-design.md#ems-board): four write-only page registers (260h-263h), and the E0000h frame's CPU accesses and 8237 cycles as single beats into board memory at window offset 20 MiB on port 2 |
+| [`rtl/pc386_port2.sv`](rtl/pc386_port2.sv) | DDR port 2 arbiter: plane, presenter, capture, the EMS board, then the shell's reads and single-beat writes |
+| [`rtl/pc386_machine.sv`](rtl/pc386_machine.sv) | The machine without the CPU: AT core, VGA, EMS board, presenter, port 2, display plane |
 | [`rtl/pc386_ram.sv`](rtl/pc386_ram.sv) | Inferred RAMs and FIFOs: one clock, two clocks, show-ahead |
 | [`rtl/pc386_audio.sv`](rtl/pc386_audio.sv) | Audio beside the AT core: the OPL2 and DSP on its sound port, IRQ routing, the mixer |
 | [`rtl/pc386_opl2.sv`](rtl/pc386_opl2.sv) | OPL2: the [opl2_fpga import](vendor/opl2_fpga/README.md) behind the AdLib port, with status, timers and the 49,715.9 Hz enable |
@@ -50,6 +51,9 @@ Quartus 17.0.2.
 | [`sim/system_tb.cpp`](sim/system_tb.cpp) | `pc386_system` with all three DDR ports on one window model, and a host that launches and stops it as libmister-runtime does, through the mailbox and the window |
 | [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk: SMSW and MOV CR0 stops, LMSW, and the protected-mode oracle stretch for `--cpu rtl` |
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
+| [`sim/ems_tb.cpp`](sim/ems_tb.cpp) | The EMS board alone on the port 2 model: directed cases, DMA cycles and a random run against a reference board (`benches` suite) |
+| [`sim/fesems.asm`](sim/fesems.asm) | FESEMS.SYS, the EMS board's LIM 4.0 driver ([EMS driver](#ems-driver)) |
+| [`sim/ems_test.asm`](sim/ems_test.asm) | EMSTEST.COM, the `ems` suite's check of the board and driver through INT 67h on boot menu entry 3 |
 | [`sim/keyboard_tb.cpp`](sim/keyboard_tb.cpp) | The host keyboard model alone: every usage, the order of a change, the 1 ms rule, typematic timing |
 | [`sim/hid_set2_reference.py`](sim/hid_set2_reference.py), [`sim/hid_set2_reference.h`](sim/hid_set2_reference.h) | The keyboard bench's expected bytes, derived from a Linux tree's HID and AT keyboard tables |
 | [`sim/input_test.asm`](sim/input_test.asm) | INPUT.COM, the system suite's keyboard and mouse exercise through INT 15h C2xx and INT 16h |
@@ -68,6 +72,8 @@ Quartus 17.0.2.
 | [`sim/pc386_ddr_model.h`](sim/pc386_ddr_model.h) | The DDR window and 64-bit port model with the measured latency |
 | [`sim/freedos.lock`](sim/freedos.lock) | The FreeDOS 1.4 package commits and file hashes of the simulation and games disks |
 | [`sim/fesenv.asm`](sim/fesenv.asm) | FESENV.COM: the games disk's `BLASTER` line from CMOS 60h-62h |
+| [`sim/mousedef.asm`](sim/mousedef.asm) | MOUSEDEF.COM: the games disk's default CuteMouse event handler, run after `LH CTMOUSE` |
+| [`sim/game-drives.toml`](sim/game-drives.toml) | The game drives' titles: source zips and their SHA-256, folders, launch commands and keys |
 
 The 8254 is the shared KF8253 with `READ_BACK = 1`; the DMA controllers are the
 shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
@@ -77,12 +83,13 @@ shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
 ```sh
 python3 scripts/build_pc386_firmware.py --download     # dev86, then both ROMs, checked against the lock
 python3 scripts/build_pc386_freedos_image.py --download  # the FreeDOS fixture in build/
-python3 scripts/build_pc386_freedos_image.py --profile games --download  # the games image (HIMEMX, UMBM, CuteMouse, MEM, BLASTER)
+python3 scripts/build_pc386_freedos_image.py --profile games --download  # the games image (HIMEMX, UMBM, CuteMouse, MOUSEDEF, MEM, BLASTER)
+python3 scripts/build_pc386_game_drive.py --download real  # a game drive: the games image plus user-supplied titles, in ~/fes-drives/pc386
 python3 scripts/sim_fes_pc386.py --suite devices        # directed device checks, about 10 s
 python3 scripts/sim_fes_pc386.py --suite storage        # the fes.computer 1.1 golden exchanges, about 2 min
 python3 scripts/sim_fes_pc386.py --suite audio          # DSP, OPL2 timers, mixer, about 1 min
 python3 scripts/sim_fes_pc386.py --suite opl2           # OPL2 against Nuked-OPL3, about 30 s
-python3 scripts/sim_fes_pc386.py --suite benches        # presenter, capture overflow recovery and display plane on port 2
+python3 scripts/sim_fes_pc386.py --suite benches        # presenter, capture overflow recovery, display plane and EMS board on port 2
 python3 scripts/sim_fes_pc386.py --suite boot --download  # BIOS POST to the FreeDOS prompt and its VGA replay
 python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl   # the RTL must reach the prompt without stops, stalls or oracle steps
 python3 scripts/sim_fes_pc386.py --suite boot --image games --cpu rtl --type 'mem|' --expect 'high memory area'  # the games image
@@ -90,8 +97,11 @@ python3 scripts/sim_fes_pc386.py --suite boot --image games --type 'set|' --expe
 python3 scripts/sim_fes_pc386.py --suite rtl-stops        # the RTL's stop path on the stop test disk, against the oracle
 python3 scripts/sim_fes_pc386.py --suite a20 --download   # A20TEST.COM: A20 off at boot, INT 15h 24xx/87h, a shutdown resume, HIMEMX's method and XMS 03h-06h
 python3 scripts/sim_fes_pc386.py --suite c2xx --download  # C2TEST.COM: INT 15h C205h with key and aux bytes at the 8042, and while keys are typed
+python3 scripts/sim_fes_pc386.py --suite ems --download   # EMSTEST.COM on boot menu entry 3: the EMS board through FESEMS.SYS's INT 67h
+python3 scripts/sim_fes_pc386.py --suite ems --cpu rtl    # the same with fes_i386_cpu from the prompt (the oracle boots)
 python3 scripts/sim_fes_pc386.py --suite wait --download  # WAITTEST.COM: INT 15h AH=86h waits from 0 us to 300 ms return in their time
 python3 scripts/sim_fes_pc386.py --suite speaker --download  # SPKTEST.COM: PIT counter 2 in mode 3 from POST; a count-only write gives the speaker carrier
+python3 scripts/sim_fes_pc386.py --suite cpu-profile --download  # CPUPROF.COM on the oracle, then a 20 ms machine_tb --cpu-profile window on the RTL
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
@@ -113,14 +123,67 @@ The boot takes about 7 minutes of wall time and its replay one more; the vga
 suite about 6 minutes in all. `PC386_TRACE_IO=1` makes `machine_tb` print every I/O but port
 80h.
 
+### CPU profile
+
+`machine_tb --cpu rtl --cpu-profile F` sorts every system clock that
+`fes_i386_cpu` runs into one cause, and each retirement's clocks into its
+instruction class ([`sim/cpu_profile.h`](sim/cpu_profile.h)), for CPU Phase 4
+([design](../../docs/i386-cpu-design.md#phase-4-speed)). It reads the CPU's
+D-stage issue and wait terms through
+[`sim/cpu_profile.vlt`](sim/cpu_profile.vlt) (`public_flat_rd`), so the RTL is
+unchanged. `--rtl-from S` and `--rtl-at-flip N` run the oracle from reset and
+hand its state to the RTL at that simulated time and page flip (a write to CRTC
+register 0Ch), with cold caches; `--rtl-for S` ends the run S seconds later.
+The bench appends a snapshot of the counters at the handover, every
+`--cpu-profile-every` seconds and at the end, and
+`scripts/pc386_cpu_profile.py F --from A --to B` reports the window between two
+snapshots:
+- **Causes.** Clocks by cause:
+  - issued uops;
+  - redirect refill;
+  - fetch and L1I;
+  - L1D and port 0;
+  - microcode;
+  - the AGI, store-to-load, flags, ESP and segment interlocks;
+  - multiply and divide;
+  - I/O, MMIO, and a store buffer full behind VGA writes;
+  - halt.
+- **Window counters.** The summary reports commits, in-flight uops at both
+  window boundaries and sampled flush cycles separately. A selected window
+  can split a uop's lifetime, so its issue and commit deltas cannot identify
+  which issued uops were flushed. Flush cycles include non-branch flushes and
+  are not an attribution of wrong-path uops.
+- **Redirects.** The clocks from each taken branch to its target's
+  retirement, by branch class.
+- **Classes and sites.** The instruction classes, and the hottest sites
+  summed over the window.
+
+A data load never holds D, since it is at M1-M2 ahead of the
+ALU, so a load's result into an address (AGI) is the only load-use interlock.
+The bench runs about 12 wall minutes per simulated second on the RTL.
+
+```sh
+build/sim/fes-pc386/machine/obj/Vpc386_machine --bios build/firmware/pc386/pc386-bios.bin \
+  --vgabios build/firmware/pc386/pc386-vgabios.bin --disk doom.img --cpu rtl --type 'doom -timedemo demo3|' \
+  --rtl-at-flip 40 --rtl-for 10 --cpu-profile cpu.prof
+python3 scripts/pc386_cpu_profile.py cpu.prof --from 22.7 --to 32.3 --json window.json
+```
+
+The cpu-profile suite is the short window: CPUPROF.COM
+([`sim/cpu_profile_test.asm`](sim/cpu_profile_test.asm)), typed at the FreeDOS
+prompt, runs a little of every cause each frame; the RTL takes over at its
+fourth page flip for 20 ms, and the suite requires every clock sorted, no
+stops, and taken branches and clocks in each cause the program exercises.
+
 `make sim-fes-pc386` runs the directed device, audio and OPL2 checks plus the
 presenter, capture and display-plane benches. The sound suite boots the same
 FreeDOS fixture, runs SOUND.COM, checks the OPL2 samples against Nuked-OPL3,
 and checks the speaker and DSP tones in the 48 kHz output. It writes
 `build/sim/fes-pc386/sound/sound.wav`, section measurements and the captured
-OPL2 port log. The game suite starts Wolfenstein 3D or Ultima VI from
-`$FES_PC386_GAMES` and reports its audio activity; the supplied game files and
-captures stay outside the repository.
+OPL2 port log. The game suite boots a prebuilt game drive
+([game drives](../../docs/pc386-game-drives.md)), starts a title and reports
+its audio activity and the RTL's stops; the user-supplied game files stay
+outside the repository.
 
 ## Simulation model
 
@@ -405,29 +468,53 @@ disk builder's image will be
 with HIMEMX 3.38, UMBM from Jemm 5.85, CuteMouse 2.1b4 and MEM 1.12 from their
 FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
 [`sim/freedos.lock`](sim/freedos.lock).
-- `FDCONFIG.SYS` loads UMBM with `/I=C800-EFFF`, `DOS=UMB`, then HIMEMX high
+- `FDCONFIG.SYS` loads UMBM with `/I=C800-DFFF`, `DOS=UMB`, then HIMEMX high
   with all extended memory as XMS (15,360K on a 16 MiB machine). UMBM hands
   the machine's upper RAM to DOS as upper memory blocks without V86 and then
   unloads; it finds only UMBPCI's tables by itself, so the range is named.
-  All 160K of C8000-EFFFF becomes upper memory.
+  All 96K of C8000-DFFFF becomes upper memory; E0000-EFFFF is the EMS board's
+  frame. Only boot menu entry 3 (below) then loads the
+  [EMS driver](#ems-driver) high; entries 1 and 2 have no EMS.
 - `AUTOEXEC.BAT` runs [`FESENV.COM`](sim/fesenv.asm) into
   `C:\FDOS\FESENV.BAT` and calls it, so `BLASTER` follows the Sound Blaster
-  setting in CMOS 60h-62h at every boot, then loads CuteMouse high.
-- The games profile sets `BUFFERS=16`. MEM shows 575K (588,544 bytes) of
-  conventional memory free and 154K of upper memory free, largest block 81K.
-  This is 1,792 bytes above Serpent Isle's published 573K (586,752-byte)
-  requirement. The games-image MEM simulation requires at least 1,024 bytes
-  above that requirement.
+  setting in CMOS 60h-62h at every boot, then loads CuteMouse high and runs
+  [`MOUSEDEF.COM`](sim/mousedef.asm). That gives CuteMouse a default event
+  handler that is not 0:0, a RETF in the BIOS ROM with mask 0, as Microsoft's
+  driver and DOSBox's have. Ultima VII's menu keeps a swapped-out handler only
+  if it is not 0:0. After CuteMouse's 0:0 it left its own handler installed,
+  and the next program was called at a stale address on every mouse event
+  (#1485).
+- `FDCONFIG.SYS` has a boot menu of three entries. It takes entry 1 after 3 seconds, so kit
+  and simulation runs that press nothing get it (#1526):
+  - **Entry 1, the default.** The kernel stays in conventional memory (below).
+    `DOSDATA=UMB` moves its data, stacks and LASTDRIVE to upper memory, and
+    `FILESHIGH=30`, `BUFFERSHIGH=16` and `SHELLHIGH` move the file handles,
+    buffers and FreeCOM there too. MEM shows 580K (594,256 bytes) free. That
+    is enough for Frontier: Elite 2 (about 594,000) and Serpent Isle's
+    published 573K (586,752 bytes). `FILES=30` covers Strike Commander's 25
+    (#1525). The games-image MEM simulation requires Serpent Isle's figure
+    plus 1,024 bytes, and Frontier's.
+  - **Entry 2, more memory.** `DOS=HIGH,UMB`, `FILES=30`, `BUFFERS=16`, for
+    programs that need more conventional memory, such as Falcon 3.0
+    (614,400 bytes). MEM shows 622K (637,104 bytes). It is not for Ultima
+    VII; the next item says why.
+  - **Entry 3, EMS.** Entry 1 with the [EMS driver](#ems-driver) high, for
+    the titles that need expanded memory (Ultima Underworld, Master of Orion,
+    Darklands, Frontier: Elite 2). MEM shows 580K (594,256 bytes), 2,048K
+    of EMS and 16K of upper memory used. It is not for Ultima VII, whose menu
+    refuses to run while an expanded memory manager is resident.
 - HIMEMX picks its A20 method by itself. POST hands DOS a machine with A20
   off ([A20 and CPU reset](../../docs/pc386-machine-design.md#a20-and-cpu-reset)),
   so HIMEMX takes port 92h ("Fast A20 method used"), and XMS function 04h
   (global disable A20) turns A20 off again. A HIMEMX that finds A20 already
   on takes its "Always on" method, under which 04h always fails.
-- No `DOS=HIGH`: with the kernel in the HMA, its entry code enables A20 with
+- No `DOS=HIGH` by default: with the kernel in the HMA, its entry code enables A20 with
   XMS function 05h whenever a program has left it off and never releases it,
   so HIMEMX's lock count stays above zero and function 04h fails. Ultima
   VII's Voodoo memory manager calls 04h as it exits and stops
-  (`freexmm.c` / `Program terminated by code.`) when it fails.
+  (`freexmm.c` / `Program terminated by code.`) when it fails (#1409). Both
+  calls are fixed in the pinned binaries: the kernel's `_ENABLEA20` uses 05h,
+  and HIMEMX's 04h refuses while `a20_locks` is not zero.
 - The upper memory blocks also keep Ultima VII's memory check working from
   the prompt. Its MAINMENU.EXE measures DOS memory as the last two blocks of
   the memory chain. FreeCOM 0.86 keeps its master environment (and, while a
@@ -438,9 +525,33 @@ FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
   leaves it for programs, conventional memory ends in free memory.
 
 The images are test fixtures and are never distributed. The games
-themselves are user-supplied and go onto a copy of the image only for a kit
-run. The [games record](../../../../docs/validation/2026-11-01-pc386-m5-games/summary.md)
+themselves are user-supplied and go onto the reusable game drives, which stay
+outside the repository ([game drives](../../docs/pc386-game-drives.md)). The [games record](../../../../docs/validation/2026-11-01-pc386-m5-games/summary.md)
 has the kit runs.
+
+## EMS driver
+
+[`FESEMS.SYS`](sim/fesems.asm) is FES's LIM EMS 4.0 driver for the
+[EMS board](../../docs/pc386-machine-design.md#ems-board), MIT-licensed and
+assembled from source by the games-image builder. No open-licensed driver
+for the board's interface exists: Lo-tech's LTEMM is under the Standard
+Lo-tech Licence. The games image's boot menu entry 3 loads it with
+`DEVICEHIGH=C:\FDOS\BIN\FESEMS.SYS` after HIMEMX; its resident part is about
+4.1 KiB. Entry 1 does not, because Ultima VII refuses to start while an
+expanded memory manager is resident.
+
+- It reads the board from CMOS 63h-65h and does not install when 63h is 0.
+- At load it writes zeros through every board page and checks a marker at
+  each page's ends, then prints `FESEMS:  2048K of EMS at E000h, registers at
+  0260h`.
+- 64 handles, handle 0 the operating system's. Raw and standard pages are both
+  16 KiB.
+- Functions: 40h-48h, 4Bh-4Fh, 50h (map multiple, by page number or
+  segment), 51h, 52h (volatile only; non-volatile answers 91h), 53h, 54h,
+  57h (move and exchange, overlapping moves in the safe direction), 58h,
+  59h, 5Ah, 5Bh (register set 0 only, with the OS/E's save area), 5Ch and
+  5Dh (its key disables and enables 59h and 5Bh). 49h, 4Ah, 55h and
+  56h answer 84h and write `FESEMS: function <AX>` to port E9h.
 
 ## Not built yet
 

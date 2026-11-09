@@ -55,6 +55,7 @@ func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, labe
 	}
 	if display, ok := dev.(*gfx.MenuDisplay); ok {
 		app.SetMenuDisplay(display)
+		app.logKitMenuReadiness()
 	}
 	inputSpec := opts.Input
 	if opts.Smoke {
@@ -92,6 +93,7 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 	defer ticker.Stop()
 	parked := false
 	frames := 0
+	defer app.reportSessionReady(false, 0)
 	var hold presentHold
 	trace, stopTrace := startFrameTrace(ctx, app, dev, label)
 	defer stopTrace()
@@ -133,6 +135,8 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 			} else if hold.paused {
 				app.completeLocalLaunchHandoff(nil)
 			}
+			_, menuDevice := dev.(*gfx.MenuDisplay)
+			app.reportSessionReady(menuDevice && skip && pauseErr == nil && hold.paused, snap.sessionObservation)
 			if !skip {
 				before := menuQueuedSeq(dev)
 				parked = presentFrame(painter, snap, textures, labels, parked)
@@ -471,7 +475,11 @@ devices:
 								app.NoteInput(InputGamepad, in.fd)
 								// Guide is a launcher button, never sent to a core:
 								// on a kit-local core it is the one-press Stop.
-								app.RequestLocalStop()
+								// A host session with no playing room takes the
+								// same Stop (#1561).
+								if !app.RequestLocalStop() {
+									app.RequestRoomlessStop(now)
+								}
 							} else {
 								app.NoteInput(InputGamepad, in.fd)
 								in.setButton(code, CmdSettings, true)
@@ -772,7 +780,9 @@ func (ins *nativeInputs) key(app *App, in *nativeInput, code uint16, value int32
 
 // nativeKeyF12 is MiSTer's menu key. A kit-local core treats a press as Stop.
 // A host session that can change removable media opens that selector instead,
-// including when the library has no .p files yet. The key is never forwarded.
+// including when the library has no .p files yet; otherwise it opens the
+// playing room, and with no room it stops the session. The key is never
+// forwarded.
 const nativeKeyF12 = 88
 
 func (in *nativeInput) key(app *App, code uint16, value int32, now time.Time) bool {

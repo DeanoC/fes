@@ -92,11 +92,11 @@ SHELL_SOURCES = (
 # Yosys elaborates these into one netlist below the shell.
 MACHINE_SOURCES = (
     *(f"{I386}/{name}.sv" for name in (
-        "fes_i386_pkg", "fes_i386_gov_pkg", "fes_i386_oplen", "fes_i386_lendec", "fes_i386_lstage", "fes_i386_fetchbuf",
-        "fes_i386_qalign", "fes_i386_frontend", "fes_i386_amode", "fes_i386_dfwd", "fes_i386_agu",
+        "fes_i386_pkg", "fes_i386_gov_pkg", "fes_i386_oplen", "fes_i386_lendec", "fes_i386_lstage", "fes_i386_btb",
+        "fes_i386_ras", "fes_i386_fetchbuf", "fes_i386_qalign", "fes_i386_frontend", "fes_i386_amode", "fes_i386_dfwd", "fes_i386_agu",
         "fes_i386_ucode_pkg", "fes_i386_ucode_rom", "fes_i386_decode", "fes_i386_seq", "fes_i386_dops",
         "fes_i386_shift", "fes_i386_shflags", "fes_i386_exctl", "fes_i386_muldiv", "fes_i386_ex",
-        "fes_i386_l1i", "fes_i386_l1d", "fes_i386_biu", "fes_i386_gov_rom", "fes_i386_governor", "fes_i386_cpu")),
+        "fes_i386_tlb", "fes_i386_l1i", "fes_i386_l1d", "fes_i386_biu", "fes_i386_gov_rom", "fes_i386_governor", "fes_i386_cpu")),
     *(f"cores/fes-common/vendor/kf8259/{name}.sv" for name in (
         "KF8259", "KF8259_Bus_Control_Logic", "KF8259_Control_Logic", "KF8259_In_Service",
         "KF8259_Interrupt_Request", "KF8259_Priority_Resolver")),
@@ -105,7 +105,7 @@ MACHINE_SOURCES = (
     *(f"cores/fes-pc386/rtl/{name}.sv" for name in (
         "pc386_rate", "pc386_io", "pc386_pic", "pc386_sysctl", "pc386_hid_keyboard", "pc386_kbc", "pc386_rtc",
         "pc386_ata", "pc386_at_core", "pc386_ram", "pc386_vga", "pc386_vga_scanout", "pc386_presenter",
-        "pc386_plane_bridge", "pc386_port2", "pc386_machine")),
+        "pc386_plane_bridge", "pc386_ems", "pc386_port2", "pc386_machine")),
     "cores/fes-common/rtl/fes_display_plane.v",
     "cores/fes-common/rtl/fes_display_cdc.v",
     "cores/fes-menu/rtl/fes_menu_control.v",

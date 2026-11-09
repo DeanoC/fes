@@ -22,8 +22,8 @@ import (
 )
 
 func TestLibraryRecoveryLeasedTransport(t *testing.T) {
-	for _, name := range []string{"retained-lease", "lease-lost-after-stop", "lease-lost-after-load", "lease-lost-idle-after-load"} {
-		loseLease := name != "retained-lease"
+	for _, name := range []string{"retained-lease", "free-after-reboot-address-only", "lease-lost-after-stop", "lease-lost-after-load", "lease-lost-idle-after-load"} {
+		loseLease := name != "retained-lease" && name != "free-after-reboot-address-only"
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -48,9 +48,12 @@ func TestLibraryRecoveryLeasedTransport(t *testing.T) {
 			}
 
 			const targetID = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
-			const token = "retained-test-lease"
+			token := "retained-test-lease"
+			generation := "original-generation"
+			claims := 0
 			var mu sync.Mutex
 			var mutations []string
+			bootID := "before-reboot"
 			state := protocol.Status{State: protocol.StateIdle, LastError: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "retained idle failure"}}
 			held := false
 			var client *targetclient.Client
@@ -69,18 +72,23 @@ func TestLibraryRecoveryLeasedTransport(t *testing.T) {
 				}
 				switch r.Method + " " + r.URL.Path {
 				case "GET /v1/health":
-					json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: targetID, Ready: true})
+					json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: targetID, BootID: bootID, Ready: true})
 				case "GET /v1/kit/lease":
 					ownership := targetclient.KitOwnership{State: "free"}
 					if held {
-						ownership.State, ownership.Generation = "held", "original-generation"
+						ownership.State, ownership.Generation = "held", generation
 					}
 					json.NewEncoder(w).Encode(ownership)
 				case "GET /v1/status":
 					json.NewEncoder(w).Encode(state)
 				case "POST /v1/kit/claim":
+					claims++
+					if name == "free-after-reboot-address-only" && claims > 1 {
+						token = "fresh-test-lease"
+						generation = "fresh-generation"
+					}
 					held = true
-					json.NewEncoder(w).Encode(map[string]any{"status": map[string]any{"state": "held", "generation": "original-generation", "expires_in_ms": 60000}, "token": token})
+					json.NewEncoder(w).Encode(map[string]any{"status": map[string]any{"state": "held", "generation": generation, "expires_in_ms": 60000}, "token": token})
 				case "POST /v1/development/core/inspect":
 					body, err := io.ReadAll(r.Body)
 					if err != nil || !bytes.Equal(body, raw) {
@@ -88,6 +96,11 @@ func TestLibraryRecoveryLeasedTransport(t *testing.T) {
 					}
 					json.NewEncoder(w).Encode(protocol.CoreInspection{PackageID: pkg.PackageID, Descriptor: pkg.Descriptor, Compatible: true})
 				case "POST /v1/stop":
+					if !held {
+						w.WriteHeader(http.StatusForbidden)
+						json.NewEncoder(w).Encode(protocol.ErrorEnvelope{Error: protocol.APIError{Code: protocol.CodeKitLeaseDenied, Message: "session does not own the kit"}})
+						return
+					}
 					state = protocol.Status{State: protocol.StateIdle}
 					// Deterministically invalidate authority after cleanup but before the
 					// service receives idle and attempts activation; no timer races.
@@ -123,12 +136,24 @@ func TestLibraryRecoveryLeasedTransport(t *testing.T) {
 			lease := targetclient.NewKitLease(base, "secret", peer.Client(), "host", "launch")
 			client = targetclient.NewClient(base, "secret", peer.Client()).WithKitLease(lease)
 			defer client.InvalidateKitSession() // cancel renewal without another remote mutation
-			s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, Address: peer.URL, Agent: "secret", TargetID: targetID}}, SelectedTarget: "kit", RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+			configuredTargetID := targetID
+			if name == "free-after-reboot-address-only" {
+				configuredTargetID = ""
+			}
+			s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, Address: peer.URL, Agent: "secret", TargetID: configuredTargetID}}, SelectedTarget: "kit", RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
 			s.resolveTarget = func(context.Context, string) ([]string, error) { return nil, nil }
 			s.corePackages = packages
 			claim, _ := http.NewRequestWithContext(ctx, http.MethodPost, peer.URL+"/v1/stop", nil)
 			if err := lease.Authorize(claim, true); err != nil {
 				t.Fatal(err)
+			}
+			if name == "free-after-reboot-address-only" {
+				mu.Lock()
+				held = false
+				generation = ""
+				bootID = "after-reboot"
+				mutations = nil
+				mu.Unlock()
 			}
 			result, err := s.Launch(ctx, entry.GameID, nil)
 			if loseLease {

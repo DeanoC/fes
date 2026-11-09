@@ -42,7 +42,7 @@ const (
 	launcherStableLife = 2 * time.Second
 	// groupRestartTimeout bounds one accepted-group start. Native initialization
 	// shares this deadline; the supervisor tick retries with backoff after it.
-	groupRestartTimeout = 60 * time.Second
+	groupRestartTimeout = 180 * time.Second
 	// groupReadyStable is the uninterrupted agent, runtime and launcher
 	// readiness window. It is the same interval Engine.health requires before
 	// an activation is accepted.
@@ -51,7 +51,7 @@ const (
 	// ready before the supervisor stops it and retries with backoff. A runtime
 	// that is already executing a session is ready, so this budget does not
 	// stop that group.
-	groupReadyBudget = 60 * time.Second
+	groupReadyBudget = 180 * time.Second
 	// launcherGroupReapPoll is how long one restart attempt waits for init to
 	// reap a just-signaled descendant. The supervisor tick retries after that.
 	launcherGroupReapPoll = 200 * time.Millisecond
@@ -72,7 +72,8 @@ type child struct {
 	role    string
 	started time.Time
 	// exited is when Wait returned. It is written before done closes.
-	exited time.Time
+	exited          time.Time
+	failedReadiness bool
 }
 
 // ProcessController directly parents the kit processes. It never relies on
@@ -114,8 +115,10 @@ type ProcessController struct {
 	// readyStable and readyBudget override the readiness window in tests.
 	readyStable time.Duration
 	readyBudget time.Duration
+	// now overrides the recovery clock in tests.
+	now func() time.Time
 	// hostPlan is how to start the kit's FogCast host for the active bundle,
-	// or nil when the bundle does not advertise kit-host. host is the running
+	// host is the running
 	// host process. It is not a member of children: its exit restarts it
 	// alone, and the service group's health and recovery do not include it.
 	hostPlan    *hostPlan
@@ -126,6 +129,16 @@ type ProcessController struct {
 	// The replacement agent closes execution claims before it serves, and Start
 	// confirms that fence before the launcher probe.
 	holdRecoveryClaims bool
+	// Named-service restart probes and budgets are injectable for offline
+	// lifecycle tests. Production leaves them nil and uses the local runtime,
+	// host health API and launcher readiness marker.
+	serviceRestartStable        time.Duration
+	serviceRestartBudget        time.Duration
+	serviceRestartPoll          time.Duration
+	serviceRestartTargetIDPath  string
+	serviceRestartRuntimeProbe  func(context.Context, *child) (nativeStatus, error)
+	serviceRestartHostProbe     func(context.Context, string) error
+	serviceRestartLauncherProbe func(context.Context, *child, string) error
 }
 
 type groupReap struct {
@@ -136,11 +149,9 @@ type groupReap struct {
 // groupRestartStart launches a replacement group after an accepted agent or
 // runtime exit. request is a durable queued activation, or the zero request
 // when none is queued. The zero request does not replay the boot credential.
-// Tests replace it.
+// Its caller supplies the bounded start context. Tests replace it.
 var groupRestartStart = func(c *ProcessController, ctx context.Context, id string, request Request) error {
-	startCtx, cancel := context.WithTimeout(ctx, groupRestartTimeout)
-	defer cancel()
-	return c.Start(startCtx, id, request)
+	return c.Start(ctx, id, request)
 }
 
 // errRecoveryExecuting means the replacement processes are up and the runtime
@@ -489,14 +500,23 @@ func (c *ProcessController) Start(ctx context.Context, id string, r Request) err
 			return err
 		}
 	}
-	catalog := filepath.Join(root, "share/fogcast/config.toml")
-	if err := c.start(filepath.Join(root, "bin/fogcast-tenfoot"), []string{"-config", "/media/fat/fogcast/launcher.json", "-catalog-config", catalog, "-gfx", "menu-display", "-menu-socket", "/run/mister-runtime.sock", "-input", "auto", "-home", "rooms"}, env, roleLauncher); err != nil {
+	if err := c.start(filepath.Join(root, "bin/fogcast-tenfoot"), launcherArgs(), env, roleLauncher); err != nil {
 		_ = c.stopLocked(ctx)
 		return err
 	}
 	c.active = id
 	c.planHostLocked(root, env)
+	// The launcher waits for session status before its first frame, so the
+	// local host must start during activation, before readiness can be met.
+	// A failed spawn remains retryable through the independent supervisor.
+	if err := c.superviseHostLocked(); err != nil {
+		log.Printf("software host start: %v", err)
+	}
 	return nil
+}
+
+func launcherArgs() []string {
+	return []string{"-config", "/media/fat/fogcast/launcher.json", "-gfx", "menu-display", "-menu-socket", "/run/mister-runtime.sock", "-input", "auto", "-home", "rooms", "-api", "http://127.0.0.1:8787", "-kit-host"}
 }
 
 // nativeStatusProbe is injected only by in-package tests. Production always
@@ -589,6 +609,11 @@ func waitForAgentConfig(ctx context.Context, path string, wait time.Duration) er
 }
 func (c *ProcessController) Healthy(ctx context.Context, id string) error {
 	c.mu.Lock()
+	// Activation waits here for launcher readiness before the supervisor's
+	// regular tick runs. Keep the independent host retrying during that wait.
+	if err := c.superviseHostLocked(); err != nil {
+		log.Printf("software host supervision: %v", err)
+	}
 	children := append([]*child(nil), c.children...)
 	active := c.active
 	c.mu.Unlock()
@@ -833,7 +858,7 @@ func (c *ProcessController) restartExitedLauncherLocked() error {
 	}
 	c.clearLauncherReap()
 	c.launcherRestart = time.Now()
-	if lived < launcherStableLife {
+	if launcher.failedReadiness || lived < launcherStableLife {
 		if c.launcherDelay < launcherRestartMin {
 			c.launcherDelay = launcherRestartMin
 		} else if c.launcherDelay < launcherRestartMax {
@@ -1125,7 +1150,9 @@ func (c *ProcessController) finishGroupStart(ctx context.Context, id string, liv
 		c.holdRecoveryClaims = false
 		c.mu.Unlock()
 	}()
-	err := groupRestartStart(c, ctx, id, pending)
+	startCtx, startCancel := context.WithTimeout(ctx, groupRestartTimeout)
+	err := groupRestartStart(c, startCtx, id, pending)
+	startCancel()
 	if err != nil {
 		stopCtx, cancel := context.WithTimeout(context.Background(), StopGroupTimeout)
 		stopErr := c.Stop(stopCtx)
@@ -1155,9 +1182,16 @@ func (c *ProcessController) readyBudgetDuration() time.Duration {
 	return groupReadyBudget
 }
 
+func (c *ProcessController) currentTime() time.Time {
+	if c.now != nil {
+		return c.now()
+	}
+	return time.Now()
+}
+
 func (c *ProcessController) armRecoveryLocked(id string) {
 	c.recoveryID = id
-	c.groupReadyBy = time.Now().Add(c.readyBudgetDuration())
+	c.groupReadyBy = c.currentTime().Add(c.readyBudgetDuration())
 	c.groupReadySince = time.Time{}
 	c.recoveryPIDs = c.recoveryPIDs[:0]
 	for _, p := range c.children {
@@ -1323,7 +1357,7 @@ func (c *ProcessController) observeGroupReady(ctx context.Context, id string) er
 
 	c.mu.Lock()
 	owned = c.recoveryOwned(id)
-	expired := owned && !time.Now().Before(c.groupReadyBy)
+	expired := owned && !c.currentTime().Before(c.groupReadyBy)
 	c.mu.Unlock()
 	if !owned {
 		return nil
@@ -1394,9 +1428,9 @@ func (c *ProcessController) acceptReadyRecovery(ctx context.Context, id string, 
 	}
 	if !executing {
 		if c.groupReadySince.IsZero() {
-			c.groupReadySince = time.Now()
+			c.groupReadySince = c.currentTime()
 		}
-		if time.Since(c.groupReadySince) < c.readyStableDuration() {
+		if c.currentTime().Sub(c.groupReadySince) < c.readyStableDuration() {
 			c.mu.Unlock()
 			return nil
 		}

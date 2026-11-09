@@ -19,40 +19,6 @@ import (
 // not keep that mode. The index is rebuilt from the FAT library on each boot.
 const kitCatalogRoot = "/run/fogcast/catalog"
 
-// ResolveCatalogConfig chooses the catalog file an installed launcher boots.
-// An explicit path is used only when that file exists; a missing explicit
-// path does not fall through to the home library. Otherwise the order is
-// FOGCAST_CONFIG, FES_HOST_CONFIG, config.toml beside launcherConfig, then
-// DefaultPaths when that file exists. An empty result means keep the
-// configured host API.
-func ResolveCatalogConfig(explicit, launcherConfig string, getenv func(string) string) string {
-	if getenv == nil {
-		getenv = func(string) string { return "" }
-	}
-	explicit = strings.TrimSpace(explicit)
-	if explicit != "" {
-		if regularFile(explicit) {
-			return explicit
-		}
-		return ""
-	}
-	for _, key := range []string{"FOGCAST_CONFIG", "FES_HOST_CONFIG"} {
-		if path := strings.TrimSpace(getenv(key)); path != "" && regularFile(path) {
-			return path
-		}
-	}
-	if strings.TrimSpace(launcherConfig) != "" {
-		sibling := filepath.Join(filepath.Dir(launcherConfig), "config.toml")
-		if regularFile(sibling) {
-			return sibling
-		}
-	}
-	if defaults, err := DefaultPaths(); err == nil && regularFile(defaults.Config) {
-		return defaults.Config
-	}
-	return ""
-}
-
 // catalogSystemReadOnlyRoot is the kit rootfs tree that stays read-only.
 // Catalog storage there is rejected by policy. A writability probe is the
 // wrong test: root on a development machine, or the host CI user, can
@@ -228,9 +194,4 @@ func directoryWritable(dir string) bool {
 	_ = file.Close()
 	_ = os.Remove(name)
 	return true
-}
-
-func regularFile(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir()
 }

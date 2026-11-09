@@ -518,8 +518,8 @@ python3 scripts/sim_atari_st_io_diagnostic.py \
 `make build-fes-atari-st` authenticates `cores/fes-atari-st/toolchain.lock`. The
 factory recipe stays HIP. `--gpu-router CUDA` builds a separate package.
 The [2026-10-04 private-pin record](../../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
-qualifies the earlier read-only shell and does not qualify this shared-pin
-seal. The October kit notes do not accept these bytes. Video parts and slot
+qualifies the earlier read-only shell; it does not qualify the current
+`5fe55f3d` pin. The October kit notes do not accept these bytes. Video parts and slot
 cards take the same `--gpu-router` and `--toolchain-root` as the shell.
 
 ```sh

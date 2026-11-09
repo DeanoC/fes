@@ -18,25 +18,6 @@ const (
 	ShelfOffline = "Offline, showing your saved list"
 )
 
-// BootLocalCatalog opens the existing FogCast service on paths, scans the
-// configured library roots, and returns the shelf notice. It does not dial
-// a remote target. Callers that only browse the catalog must not call
-// Status or Health.
-func BootLocalCatalog(ctx context.Context, paths Paths) (*Service, string, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, "", err
-	}
-	service, err := Open(ctx, paths, nil)
-	if err != nil {
-		return nil, "", err
-	}
-	if _, err := service.Scan(ctx); err != nil {
-		_ = service.Close()
-		return nil, "", err
-	}
-	return service, service.LocalShelfNotice(ctx), nil
-}
-
 // LocalShelfNotice explains an empty or offline local shelf from the last
 // successful scan and the saved catalog rows. It returns an empty string
 // when the shelf has playable local files, or when no scan has completed.

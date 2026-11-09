@@ -51,6 +51,11 @@ nothing by itself.
 | `fes.pc386` | `cores/fes-pc386` | `fes.computer` with session display and HPS DDR; `fes_i386_cpu`; the HPS stages the disk and settings in the DDR window until M0 | `cores/fes-pc386/toolchain.lock` (Yosys only; Quartus 17.0.2 fits) | `make build-fes-pc386-quartus` | no; not registered; pc386 M5 bring-up |
 | splash / idle | `cores/fes-splash` | none | generic `toolchain.lock`, GPU router off | `make build-fes-splash` | not a play package; pinned as `sealed/fes-splash.rbf` |
 
+The Pong producer returns a package only after reading both the content-addressed
+directory and its canonical sibling `.fcore` back through the core-package
+validator. Their manifest, payload and content-derived package ID must match
+the fresh build bytes; a prior candidate is not reused as build evidence.
+
 `cores/pong` is the standalone Pong game module (`make sim-pong`). It is not
 a package. The package is `cores/fes-pong`. ZX81 has no
 `cores/fes-zx81/README.md`. Its machine contract is the ZX81 sections of
@@ -280,12 +285,14 @@ path.
 Each registered package authenticates the lock named by its `lock_path` in
 `config/core-recipes.toml`. A lock can move to another nextpnr that
 `scripts/pnr_recipe.py` classifies; that core then gets its own slot. Pong's
-lock has moved to nextpnr `552ba246`, ZX81's to `1eecf877` and RISC-V's to
-`8f453ebc`, and Coleco's pins Yosys `5391eeb1`, so each has its own slot.
-Apple II, Atari ST, C64, Coleco and Spectrum have moved to nextpnr `5fe55f3d`
-for its F0/F1 boundary `$ROUTETHRU` map; the Apple II, C64 and Spectrum locks
-are identical and share one slot, and the Atari ST lock has its own. The other
-five per-core lock files still contain the same bytes as `toolchain.lock` and
+lock pins nextpnr `552ba246`, Menu's and ZX81's pin `1eecf877` (Menu moved
+when its blitter took DSP multipliers), RISC-V's pins `8f453ebc`, and
+Coleco's pins Yosys `5391eeb1` with nextpnr `bec82e36`; each has its own slot.
+Apple II and C64 pin nextpnr `5fe55f3d` for its F0/F1 boundary `$ROUTETHRU`
+map (#1007); their locks are identical and share one slot. Atari ST pins
+`5fe55f3d` (#910) in its own slot, and Spectrum pins nextpnr main `bd7a1c0d`
+(#1001, which contains #276 as merged) in its own slot. The other four
+per-core lock files still contain the same bytes as `toolchain.lock` and
 therefore share one cached compiler slot. Use the
 matching `make toolchain-fes-<core>` target to provision a local toolchain.
 The unregistered demos and splash continue to select the repository-level
@@ -326,13 +333,14 @@ second CPU, VDP or PLL when `cores/fes-common` already has the one this
 mailbox uses.
 
 The Atari ST producer selects `cores/fes-atari-st/toolchain.lock`
-(Yosys `3a5accbd`, nextpnr `9128800f`). The factory recipe stays HIP.
-A CUDA route is a separate package. RAM Tester and menu use their own
-per-core lock files, which currently select the same HIP compiler slot. The
+(Yosys `3a5accbd`, nextpnr `5fe55f3d`). The factory recipe stays HIP.
+A CUDA route is a separate package. RAM Tester uses the repository-level
+slot, while menu selects its own slot on nextpnr `1eecf877`. The
 130 MHz timing comparison uses the RAM Tester lock.
 The [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
-qualifies the earlier private pin and its read-only shell. It does not
-qualify this shared-pin seal. The October kit notes do not accept these bytes.
+qualifies the earlier private pin and its read-only shell; it does not
+qualify the current `5fe55f3d` pin. The October kit notes do not accept
+these bytes.
 
 The [Atari 520ST](../cores/fes-atari-st/README.md) is the first 16-bit core.
 `make sim-fes-atari-st` covers the full CPU, MMU aliases, peripherals,

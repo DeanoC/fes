@@ -27,6 +27,7 @@ type coreLibraryService interface {
 var corePackageIDRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 func registerCoreLibrary(mux *http.ServeMux, service Service) {
+	registerKitHostEntry(mux, service)
 	registerCoreCatalog(mux, service)
 	registerCoreMediaLibrary(mux, service)
 	registerHardDiskMedia(mux, service)

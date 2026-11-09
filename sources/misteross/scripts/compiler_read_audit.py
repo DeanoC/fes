@@ -319,10 +319,32 @@ def guard_functional_source(function):
             inputs = function.__globals__['video_profile'](
                 video_socket=bound.arguments.get('video_socket', False),
                 native_video=bound.arguments.get('native_video', False))[2]
-        with python_source_guard(bound.arguments['root'],
-                                 source_roots_for_producer(function.__module__, inputs, bound.arguments['root'])):
+        roots = source_roots_for_producer(function.__module__, inputs, bound.arguments['root'])
+        _settle_import_root(bound.arguments['root'])
+        with python_source_guard(bound.arguments['root'], roots):
             return function(*args, **kwargs)
     return guarded
+
+
+def _settle_import_root(root):
+    """Keep importlib from listing the source root inside the guard.
+
+    Producers put the source root on sys.path. importlib's FileFinder lists a
+    sys.path directory again on the first lookup after that directory's mtime
+    changes. The only change a producer makes in the root is creating build/,
+    which a fresh checkout does not have yet. Create it here, before the guard,
+    and let each FileFinder for the root refill its cache now. Otherwise the
+    next import that misses sys.modules lists the root inside the guard:
+    "source list outside audited closure: .".
+    """
+    import importlib.machinery
+    root = Path(root).resolve()
+    build = root / 'build'
+    if not build.exists() and not build.is_symlink():
+        build.mkdir()  # Producers still validate build/ before writing to it.
+    for entry in list(sys.path):
+        if isinstance(entry, str) and Path(entry or '.').resolve() == root:
+            importlib.machinery.PathFinder.find_spec('_fes_settle_import_root', [entry])
 
 
 def read_execution_data(path):

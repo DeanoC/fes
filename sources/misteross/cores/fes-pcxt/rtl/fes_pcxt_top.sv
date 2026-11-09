@@ -189,7 +189,7 @@ module top #(
     end endgenerate
     generate if (HARDWARE_DOS) begin: dos_font
         reg [7:0] glyphs [0:4095];
-        initial $readmemh("pcxt_glabios_font.hex", glyphs);
+        initial $readmemh("pcxt_cga_font.hex", glyphs);
         assign cga_font_data = glyphs[cga_font_address];
         assign mda_font_data = glyphs[mda_font_address];
     end else begin: diagnostic_font

@@ -44,8 +44,10 @@ type Engine struct {
 	// HeldBackReason says why. The selection stays recorded for an image that
 	// can run it.
 	HeldBack, HeldBackReason string
-	// Defaults are 60 seconds deadline, 10 seconds uninterrupted readiness and
-	// 250 milliseconds polling. Tests can use a virtual clock.
+	// Candidate startup and health share a 180-second deadline. Readiness must
+	// hold for 10 seconds uninterrupted and is polled every 250ms. Keep the
+	// deadline bounded so a launcher that never presents cannot be accepted.
+	// Tests can use a virtual clock.
 	Deadline, Stable, Poll time.Duration
 	Now                    func() time.Time
 	Wait                   func(context.Context, time.Duration) error
@@ -53,7 +55,7 @@ type Engine struct {
 
 func (e *Engine) defaults() {
 	if e.Deadline == 0 {
-		e.Deadline = 60 * time.Second
+		e.Deadline = 180 * time.Second
 	}
 	if e.Stable == 0 {
 		e.Stable = 10 * time.Second

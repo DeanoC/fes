@@ -20,6 +20,20 @@
 // avail) is a register per byte and variant, so the loop's check is part of
 // the same select. An instruction may use bytes of the next half in the cycle
 // L2 writes them; the aligner takes those bytes from L2's register.
+//
+// A predicted taken branch (fes_i386_fetchbuf's jt, jx, half_info): the
+// instruction Q issues ends where the BTB entry of half x says the branch
+// ends, so its next start is the target's offset in the other half, where
+// F2 put the target's block. One more select bit and a 2:1 in the loop. Q
+// releases the half it leaves, and the branch's half when the branch
+// started in the half before it; then Q stays in the half it released, for
+// the target, and clears avail (jump_clear), which ignores that release.
+// The record carries the match for WB's BTB update, the target's linear
+// address (ptgt, for D's EIP after a RET), and xbad when the
+// instruction runs into a half whose block is not the sequential
+// continuation, or a prefix of it consumed at a half's last byte took Q
+// into one (acc_xbad), so the instruction's linear address stays the first
+// prefix's (fes_i386_cpu replays it).
 module fes_i386_qalign import fes_i386_pkg::*; (
     input  logic                   clk,
     input  logic                   reset,
@@ -35,12 +49,25 @@ module fes_i386_qalign import fes_i386_pkg::*; (
     output logic                   start_half,
     output logic                   q_valid,
     output fetched_t               q,
-    input  logic                   d_ready
+    input  logic                   d_ready,
+    input  logic [31:0][3:0]       jm,
+    input  logic [31:0][3:0]       jt,
+    input  logic [31:0][3:0]       jx,
+    input  btb_info_t [1:0]        half_info,
+    input  logic [1:0]             half_seq,
+    input  logic                   l2_seq,
+    output logic                   jump_clear,
+    // Each half's paging tag and L2's (fes_i386_fetchbuf).
+    input  ftag_t [1:0]            half_tag,
+    input  ftag_t                  l2_tag
 );
     logic [4:0]  start;
     prefixes_t   acc;
     logic [3:0]  acc_count;    // prefixes consumed; at most 13
     logic [31:0] acc_linear;   // linear address of the first consumed prefix
+    logic        acc_xbad;     // a consumed prefix took Q into a half that does not follow
+    ftag_t       acc_tag;      // the first consumed prefix's half's paging tag
+    logic        acc_h;        // ... and that half
 
     // ---- Per-position view of the buffer ----------------------------------
     logic [1:0]       variant;  // {66h seen, 67h seen} among consumed prefixes
@@ -82,10 +109,41 @@ module fes_i386_qalign import fes_i386_pkg::*; (
     assign issue = !redirect && ok[start] && (!run_here || too_long_run) && out_free;
     assign consume = !redirect && ok[start] && run_here && !too_long_run;
     assign advance = issue || consume;
-    assign start_next = next[start];
-    assign release_half[0] = advance && !start[4] && start_next[4];
-    assign release_half[1] = advance && start[4] && !start_next[4];
+    // A taken jump: jt at the start, which a prefix being consumed never takes.
+    logic jt_here, jx_here, jm_here, taken, back;
+    assign jt_here = jt[start][variant];
+    assign jx_here = jx[start][variant];
+    assign jm_here = jm[start][variant];
+    assign taken = jt_here && !run_here;
+    assign start_next = taken ? {!jx_here, half_info[jx_here].toff} : next[start];
+    // back: the branch started in the half before its last byte's.
+    assign back = taken && start[4] != jx_here;
+    assign release_half[0] = advance && (!start[4] && start_next[4] || back);
+    assign release_half[1] = advance && (start[4] && !start_next[4] || back);
+    assign jump_clear = advance && back;
     assign start_half = start[4];
+    // For machine_tb --cpu-profile only (cpu_profile.vlt reads it; nothing
+    // in the CPU does, so synthesis drops it): a taken jump's target block is
+    // the block that holds the branch's last byte, a loop within one block.
+    logic prof_tself;
+    assign prof_tself = half_info[jx_here].tblk == half_block[jx_here];
+
+    // The instruction runs into the other half, which does not hold its
+    // sequential continuation (the other half's block, or L2's while it is
+    // being written there).
+    logic other_seq;
+    assign other_seq = half_valid[!start[4]] ? half_seq[!start[4]] : l2_seq;
+
+    // The paging tags of the instruction's first byte's half and of the half
+    // it runs into (fetched_t pp0 to ts1): a consumed prefix's half and Q's,
+    // or Q's and the other half, when the instruction ends past its own.
+    ftag_t cur_tag, other_tag, first_tag, second_tag;
+    logic  two_halves;
+    assign cur_tag = half_valid[start[4]] ? half_tag[start[4]] : l2_tag;
+    assign other_tag = half_valid[!start[4]] ? half_tag[!start[4]] : l2_tag;
+    assign first_tag = acc_count == 4'd0 ? cur_tag : acc_tag;
+    assign two_halves = acc_count != 4'd0 && acc_h != start[4] || at_start.past_half[variant];
+    assign second_tag = acc_count != 4'd0 && acc_h != start[4] ? cur_tag : other_tag;
 
     // ---- Aligner ------------------------------------------------------------
     logic [31:0][7:0] source;
@@ -118,10 +176,16 @@ module fes_i386_qalign import fes_i386_pkg::*; (
         if (reset || redirect || issue) begin
             acc <= '0;
             acc_count <= 4'd0;
+            acc_xbad <= 1'b0;
         end else if (consume) begin
             acc <= add_prefix(acc, rotated[0]);
             acc_count <= acc_count_next[3:0];
-            if (acc_count == 4'd0) acc_linear <= linear_here;
+            if (acc_count == 4'd0) begin
+                acc_linear <= linear_here;
+                acc_tag <= cur_tag;
+                acc_h <= start[4];
+            end
+            if (start[4] != start_next[4] && !other_seq) acc_xbad <= 1'b1;
         end
 
         if (reset || redirect) begin
@@ -139,6 +203,18 @@ module fes_i386_qalign import fes_i386_pkg::*; (
             q.prefixes <= prefixes;
             q.too_long <= too_long_run || total[4];
             q.bytes <= prefix_here ? rotated[11:1] : rotated[10:0];
+            q.bm <= jm_here && !run_here;
+            q.bway <= half_info[jx_here].way;
+            q.bctr <= half_info[jx_here].ctr;
+            q.tk <= taken;
+            q.ptgt <= {half_info[jx_here].tblk, half_info[jx_here].toff};
+            q.xbad <= at_start.past_half[variant] && !other_seq || acc_xbad;
+            q.pp0 <= first_tag.pp;
+            q.pp1 <= two_halves ? second_tag.pp : first_tag.pp;
+            q.tm0 <= first_tag.tm;
+            q.ts0 <= first_tag.ts;
+            q.tm1 <= two_halves && second_tag.tm;
+            q.ts1 <= two_halves && second_tag.ts;
         end
     end
 endmodule

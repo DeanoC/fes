@@ -24,7 +24,45 @@ from scripts import synth_fes_pc386 as synthesis
 VERILATOR = shutil.which(os.environ.get('VERILATOR', 'verilator'))
 
 
+def speedsys_bios_vendor(rom: bytes):
+    """SpeedSys 4.78's BIOS-vendor scan (#1557), from its code at 1348h-13A0h.
+
+    With DS = F000h it reads a dword at SI and steps SI on by one, up to FFFAh
+    times, looking for '198' or '199'. The byte four on from the match must be
+    ',', '-' or a space; then an A-Z within the next 12 bytes starts the vendor
+    name, up to 30 bytes and ending at a full stop. Returns the name, '' when a
+    year matched but no name followed (DS is restored), or None when no year
+    matched: that path leaves DS at F000h and SpeedSys's speed test never
+    finishes."""
+    si = 0
+    for _ in range(0xfffa):
+        found = rom[si:si + 3]
+        si += 4
+        if found in (b'198', b'199') and rom[si:si + 1] in (b',', b'-', b' '):
+            for _ in range(12):
+                if 0x41 <= rom[si] <= 0x5a:
+                    name = rom[si:si + 30]
+                    end = name.find(b'.')
+                    return name[:end if end >= 0 else 30].decode('ascii')
+                si += 1
+            return ''
+        si -= 3
+    return None
+
+
 class FirmwareTest(unittest.TestCase):
+    def test_bios_identification_line_names_the_vendor_for_speedsys(self):
+        source = (firmware.FIRMWARE / 'rombios/rombios.c').read_text()
+        line = re.search(r'#define BIOS_AT_IDENTITY_STRING "([^"]*)"', source).group(1)
+        self.assertIn('.ascii BIOS_AT_IDENTITY_STRING', source)
+        self.assertEqual(speedsys_bios_vendor(bytes(16) + line.encode('ascii') + bytes(64)), 'FES pc386 BIOS')
+        # The upstream copyright line alone has no 198x/199x year.
+        self.assertIsNone(speedsys_bios_vendor(b'(c) 2001-2026  The Bochs Project' + bytes(64)))
+        image = firmware.BUILD / 'pc386-bios.bin'
+        if image.exists() and hashlib.sha256(image.read_bytes()).hexdigest() == \
+                firmware.read_lock()['images']['bios']['sha256']:
+            self.assertEqual(speedsys_bios_vendor(image.read_bytes() + bytes(64)), 'FES pc386 BIOS')
+
     def test_vendored_sources_match_their_manifests(self):
         for name in ('rombios', 'vgabios'):
             firmware.verify_sources(name)
@@ -60,12 +98,56 @@ class FirmwareTest(unittest.TestCase):
 
 
 class FreedosImageTest(unittest.TestCase):
-    def test_games_profile_reduces_buffers_for_serpent_isle_memory(self):
-        config = freedos.PROFILES['games']['fdconfig']
-        match = re.search(r'(?m)^BUFFERS=(\d+)\r?$', config)
-        self.assertIsNotNone(match)
-        self.assertLess(int(match.group(1)), 20)
-        self.assertIn('DOS=UMB\r\n', config)
+    @staticmethod
+    def games_entry(entry: int) -> list[str]:
+        """The FDCONFIG.SYS lines the kernel runs for one boot-menu entry."""
+        lines = []
+        for line in freedos.PROFILES['games']['fdconfig'].split('\r\n'):
+            match = re.match(r'(\d+)\?(.*)', line)
+            if match and str(entry) not in match.group(1):
+                continue
+            lines.append(match.group(2) if match else line)
+        return [line for line in lines if line and not line.startswith(('MENU ', 'MENUDEFAULT'))]
+
+    def test_games_menu_takes_the_ultima_vii_setup_without_a_key(self):
+        # Kit and simulation runs press nothing at boot: entry 1 after 3 seconds.
+        self.assertIn('MENUDEFAULT=1,3\r\n', freedos.PROFILES['games']['fdconfig'])
+
+    def test_games_default_keeps_the_kernel_out_of_the_hma(self):
+        # The kernel in the HMA holds an XMS A20 lock (05h), so Ultima VII's
+        # Voodoo global disable (04h) fails (#1409, #1526): entry 1 keeps it low
+        # and moves its data, files, buffers and the shell to upper memory.
+        default = self.games_entry(1)
+        self.assertIn('DOS=UMB', default)
+        self.assertNotIn('DOS=HIGH,UMB', default)
+        self.assertIn('DOSDATA=UMB', default)
+        self.assertTrue(any(line.startswith('SHELLHIGH=') for line in default))
+        self.assertIn('BUFFERSHIGH=16', default)
+        self.assertEqual(self.games_entry(2).count('DOS=HIGH,UMB'), 1)
+
+    def test_games_ems_driver_is_on_entry_3_only(self):
+        # Ultima VII refuses to run while an expanded memory manager is
+        # resident, so the EMS board's driver is on entry 3, entry 1's setup
+        # plus FESEMS.SYS (docs/pc386-machine-design.md, "EMS board").
+        driver = 'DEVICEHIGH=C:\\FDOS\\BIN\\FESEMS.SYS'
+        self.assertNotIn(driver, self.games_entry(1))
+        self.assertNotIn(driver, self.games_entry(2))
+        self.assertEqual([line for line in self.games_entry(3) if line != driver], self.games_entry(1))
+        self.assertIn(driver, self.games_entry(3))
+        self.assertEqual(freedos.PROFILES['games']['bin']['FESEMS.SYS'], freedos.FESEMS)
+
+    def test_games_upper_memory_stops_below_the_ems_frame(self):
+        # The board's frame is E0000h-EFFFFh: UMBM must not hand it to DOS.
+        umbm = [line for line in self.games_entry(1) if 'UMBM.EXE' in line]
+        self.assertEqual(umbm, ['DEVICE=C:\\FDOS\\BIN\\UMBM.EXE /I=C800-DFFF'])
+
+    def test_games_files_meet_strike_commander(self):
+        # Strike Commander asks for FILES=25 (#1525).
+        for entry in (1, 2, 3):
+            files = [int(line.split('=')[1]) for line in self.games_entry(entry)
+                     if line.startswith(('FILES=', 'FILESHIGH='))]
+            self.assertEqual(len(files), 1, entry)
+            self.assertGreaterEqual(files[0], 25, entry)
 
     def test_lock_pins_each_package_at_the_release_tag(self):
         lock = freedos.lock()
@@ -87,13 +169,19 @@ class FreedosImageTest(unittest.TestCase):
         for profile, spec in freedos.PROFILES.items():
             for filename, source in spec['bin'].items():
                 with self.subTest(profile=profile, filename=filename):
-                    if source is None:
-                        self.assertEqual(filename, 'FESENV.COM')
-                        self.assertTrue(freedos.FESENV.is_file())
+                    if isinstance(source, Path):
+                        self.assertIn(filename, (source.stem.upper() + '.COM', source.stem.upper() + '.SYS'))
+                        self.assertTrue(source.is_file())
                         continue
                     package_name, package_path = source
                     self.assertIn(package_name, spec['packages'])
                     self.assertIn(package_path, lock[package_name]['files'])
+
+    def test_games_autoexec_sets_the_mouse_default_handler_after_cutemouse(self):
+        # Ultima VII keeps a swapped-out event handler only if it is not 0:0 (fes#1485).
+        lines = freedos.PROFILES['games']['autoexec'].split('\r\n')
+        self.assertEqual(lines.index('MOUSEDEF'), lines.index('LH CTMOUSE') + 1)
+        self.assertEqual(freedos.PROFILES['games']['bin']['MOUSEDEF.COM'], freedos.MOUSEDEF)
 
     def test_volume_has_dos_format_fat16_clusters(self):
         # 2 KiB, as DOS FORMAT picks from 16 to 128 MiB; still FAT16 at this size.
@@ -133,8 +221,8 @@ class FreedosImageTest(unittest.TestCase):
             source.write_bytes(b'first version')
             image = root / 'freedos-games.img'
             image.write_bytes(b'disk')
-            with mock.patch.object(freedos, 'FESENV', source), \
-                    mock.patch.dict(freedos.PROFILES['games'], {'image': image}):
+            bin_files = {**freedos.PROFILES['games']['bin'], 'FESENV.COM': source}
+            with mock.patch.dict(freedos.PROFILES['games'], {'image': image, 'bin': bin_files}):
                 boot_inputs = freedos.inputs_key('boot')
                 record = {'sha256': hashlib.sha256(b'disk').hexdigest(),
                           'inputs': freedos.inputs_key('games')}
@@ -221,6 +309,21 @@ END prompt steps=42 cycles=100 seconds=0.001
 """
 
 
+class StoreFailuresTest(unittest.TestCase):
+    def test_store_checks_fail_on_stale_code_and_wrong_pages(self):
+        report = sim.parse_boot(RTL_BOOT_OUTPUT)
+        self.assertEqual(sim.store_failures(report), [])
+        text = RTL_BOOT_OUTPUT.replace('smc_executed=0', 'smc_executed=0 store_page_mismatches=2')
+        text = 'SMC page 5 f000:00000fb8 00000ff8 000f0ff8\n' + text
+        failures = sim.store_failures(sim.parse_boot(text))
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('2 RTL store bytes reported a physical page'))
+        self.assertIn("'address': '000f0ff8'", failures[0])
+        failures = sim.store_failures(sim.parse_boot(RTL_BOOT_OUTPUT.replace('smc_executed=0', 'smc_executed=1')))
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('the RTL ran 1 instructions'))
+
+
 class A20TestTest(unittest.TestCase):
     def test_suite_checks_are_the_programs_names(self):
         source = (sim.CORE / 'sim/a20_test.asm').read_text()
@@ -255,6 +358,44 @@ class A20TestTest(unittest.TestCase):
         self.assertEqual(sim.HIMEMX_METHOD.search('Fast A20 method used').group(1), 'Fast')
         self.assertEqual(sim.HIMEMX_METHOD.search('Always on A20 method used').group(1), 'Always on')
         self.assertIsNone(sim.HIMEMX_METHOD.search('Interface : XMS 3.00 80386 4G'))
+
+
+class EmsTestTest(unittest.TestCase):
+    def test_suite_checks_are_the_programs_names(self):
+        source = (sim.CORE / 'sim/ems_test.asm').read_text()
+        names = [line.split("'")[1] for line in source.splitlines() if line.startswith('n_')]
+        self.assertEqual(names, list(sim.EMS_CHECKS))
+
+    def run_suite(self, lines, ems=None, cpu='oracle'):
+        captured = {}
+
+        def run_machine(testbench, name, arguments, images):
+            captured['arguments'] = arguments
+            return {'debug': [{'port': '0e9', 'text': line} for line in lines], 'failures': [],
+                    'ems': ems if ems is not None else {'pages': 128, 'reads': 10, 'writes': 10},
+                    'rtl': {'counters': {'retired': 1000, 'oracle_steps': 0, 'protected_steps': 0},
+                            'stops': [], 'gaps': []}}
+        args = mock.Mock(cpu=cpu, download=False, jobs=1, limit_seconds=12)
+        with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                mock.patch.object(sim.freedos, 'image'), mock.patch.object(sim, 'run_machine', run_machine), \
+                mock.patch('builtins.print'):
+            return sim.run_ems(args, [])['failures'], captured['arguments']
+
+    def test_a_clean_run_passes_on_entry_3(self):
+        lines = [f'EMS {name} ok' for name in sim.EMS_CHECKS[:-3]] + ['FESEMS: function 5500'] + \
+                [f'EMS {name} ok' for name in sim.EMS_CHECKS[-3:]]
+        failures, arguments = self.run_suite(lines)
+        self.assertEqual(failures, [])
+        self.assertIn(f'{sim.BOOT_MENU_KEY_SECONDS}:3', arguments)
+
+    def test_failures_idle_boards_and_other_unsupported_functions_fail(self):
+        lines = [f'EMS {name} ok' for name in sim.EMS_CHECKS] + ['FESEMS: function 5500']
+        lines[3] = 'EMS allocate FAIL step 01'
+        self.assertIn('EMS allocate FAIL step 01', self.run_suite(lines)[0])
+        good = [f'EMS {name} ok' for name in sim.EMS_CHECKS] + ['FESEMS: function 5500']
+        self.assertTrue(self.run_suite(good + ['FESEMS: function 5600'])[0])
+        self.assertTrue(self.run_suite(good, ems={'pages': 128, 'reads': 0, 'writes': 10})[0])
 
 
 class C2xxTestTest(unittest.TestCase):
@@ -353,6 +494,44 @@ class WaitTestTest(unittest.TestCase):
         self.assertTrue(failures[0].startswith('RTL oracle_steps=3'))
 
 
+class ScrollTestTest(unittest.TestCase):
+    def test_suite_checks_are_the_programs_names(self):
+        source = (sim.CORE / 'sim/scroll_test.asm').read_text()
+        names = [line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')]
+        self.assertEqual(names, list(sim.SCROLL_CHECKS))
+
+    @staticmethod
+    def suite(lines, cpu='oracle', oracle_steps=0):
+        def run_machine(testbench, name, arguments, images):
+            return {'debug': [{'port': '0e9', 'text': line} for line in lines], 'failures': [],
+                    'rtl': {'counters': {'retired': 1000, 'oracle_steps': oracle_steps, 'protected_steps': 0},
+                            'stops': [], 'gaps': []}}
+        args = mock.Mock(cpu=cpu, download=False, jobs=1, limit_seconds=8)
+        with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
+            return sim.run_scroll(args, [])['failures']
+
+    PASSING = ['SCR modeset 27/27 ok', 'SCR mode13 2/2 ok', 'SCR mode12 2/2 ok', 'SCR mode04 2/2 ok', 'SCR DONE ok']
+
+    def test_every_check_must_print_ok(self):
+        self.assertEqual(self.suite(self.PASSING), [])
+        self.assertEqual(self.suite(['SCR modeset 24/27 FAIL'] + self.PASSING[1:4] + ['SCR DONE FAIL']),
+                         ['SCR modeset 24/27 FAIL', 'SCR DONE FAIL'])
+        self.assertEqual(self.suite(self.PASSING[:1] + ['SCR mode13 1/2 FAIL'] + self.PASSING[2:4] + ['SCR DONE FAIL']),
+                         ['SCR mode13 1/2 FAIL', 'SCR DONE FAIL'])
+
+    def test_a_scroll_that_never_returns_fails(self):
+        failures = self.suite([])
+        self.assertEqual(failures, ["SCROLLT.COM ran [], expected ['modeset', 'mode13', 'mode12', 'mode04', 'DONE']"])
+
+    def test_rtl_runs_fail_on_oracle_steps(self):
+        self.assertEqual(self.suite(self.PASSING, 'rtl'), [])
+        failures = self.suite(self.PASSING, 'rtl', oracle_steps=3)
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('RTL oracle_steps=3'))
+
+
 class SpeakerTestTest(unittest.TestCase):
     def test_suite_checks_are_the_programs_names(self):
         source = (sim.CORE / 'sim/speaker_test.asm').read_text()
@@ -392,11 +571,13 @@ class SpeakerTestTest(unittest.TestCase):
 
 
 class BootReportTest(unittest.TestCase):
-    def test_games_mem_requires_exact_serpent_isle_memory_with_headroom(self):
+    def test_games_mem_requires_serpent_isle_and_frontier_memory(self):
         old_mem = ['Largest executable program size       573K (586,416 bytes)']
-        enough_mem = ['Largest executable program size       574K (587,776 bytes)']
+        low_kernel_before = ['Largest executable program size       575K (588,544 bytes)']
+        enough_mem = ['Largest executable program size       580K (594,256 bytes)']
         self.assertEqual(len(sim.games_memory_failures([])), 1)
-        self.assertEqual(len(sim.games_memory_failures(old_mem)), 1)
+        self.assertEqual(len(sim.games_memory_failures(old_mem)), 2)
+        self.assertEqual(len(sim.games_memory_failures(low_kernel_before)), 1)
         self.assertEqual(sim.games_memory_failures(enough_mem), [])
 
     def test_boot_suite_output_names_cover_image_cpu_and_preset(self):
@@ -500,6 +681,20 @@ class BootReportTest(unittest.TestCase):
 
 
 @unittest.skipUnless(shutil.which(os.environ.get('CXX', 'c++')), 'requires a C++ compiler')
+class DosPromptTest(unittest.TestCase):
+    def test_game_prompt_recognition(self):
+        with tempfile.TemporaryDirectory(prefix='pc386-dos-prompt-') as directory:
+            binary = Path(directory) / 'dos-prompt-test'
+            source = sim.CORE / 'sim/dos_prompt_tb.cpp'
+            compiler = shutil.which(os.environ.get('CXX', 'c++'))
+            result = subprocess.run([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run([str(binary)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
+@unittest.skipUnless(shutil.which(os.environ.get('CXX', 'c++')), 'requires a C++ compiler')
 class SmcStaleTrackerTest(unittest.TestCase):
     def test_fetch_timing_and_multiple_writer_attribution(self):
         with tempfile.TemporaryDirectory(prefix='pc386-smc-stale-') as directory:
@@ -577,11 +772,18 @@ class PresenterBenchTest(unittest.TestCase):
         report = self.bench('plane', 'plane_top', sim.PLANE_RTL, sim.CORE / 'sim/plane_tb.cpp')
         self.assertEqual(len(report['checks']), 14)
 
+    def test_ems_board_matches_its_reference(self):
+        report = self.bench('ems', 'pc386_ems', sim.EMS_RTL, sim.CORE / 'sim/ems_tb.cpp')
+        self.assertEqual(len(report['checks']), 14)
+
 
 class Port2SynthesisHarnessTest(unittest.TestCase):
     def test_pair_forwards_the_auxiliary_burst_count(self):
         self.assertIn('input wire [7:0] aux_burstcount', synthesis.PAIR)
         self.assertIn('.aux_burstcount(aux_burstcount)', synthesis.PAIR)
+
+    def test_pair_ties_off_the_ems_board(self):
+        self.assertIn(".ems_read(1'b0), .ems_write(1'b0)", synthesis.PAIR)
 
 
 SYSTEM_OUTPUT = """WRITE-TEST 444436

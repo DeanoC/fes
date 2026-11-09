@@ -462,6 +462,58 @@ func TestLibraryROMLaunchSendsSourceInputs(t *testing.T) {
 
 const zx81MachineROMBytes = 8192
 
+// The shared fixture does not count these optional target calls.
+type zx81ROMAdmissionClient struct {
+	*defaultMediaPackageClient
+	dataCalls int
+}
+
+func (c *zx81ROMAdmissionClient) InspectCoreData(context.Context, int64, io.Reader, string) (protocol.CoreDataInspection, error) {
+	c.dataCalls++
+	return protocol.CoreDataInspection{}, errors.New("unexpected kit data inspection")
+}
+
+func (c *zx81ROMAdmissionClient) UpdateCoreSettings(context.Context, int64, io.Reader, protocol.CoreSettingsUpdate) (protocol.CoreDataInspection, error) {
+	c.dataCalls++
+	return protocol.CoreDataInspection{}, errors.New("unexpected kit settings update")
+}
+
+// A ZX81 title must refuse to launch before contacting the kit if its
+// machine ROM has not been selected. ZX81 has no bundled default.
+func TestZX81LaunchWithoutMachineROMDoesNotContactKit(t *testing.T) {
+	ctx := context.Background()
+	archive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, false, "fes.computer", "fes.media.zx81-tape", strings.Repeat("6", 40), nil, bytes.Repeat([]byte{0x42}, zx81MachineROMBytes))
+	s, client, entry, inspection := newCoreEntryLaunchFixture(t, archive, "ZX81", time.Minute)
+	req := inspection.Descriptor.ROM
+	if entry.CoreID != "fes.zx81" || inspection.Descriptor.ABI.ID != "fes.computer" || req == nil ||
+		req.ID != "machine-rom" || req.Role != protocol.FirmwareRole || req.SourceSize != zx81MachineROMBytes {
+		t.Fatalf("ZX81 fixture does not have the required ROM contract: entry=%+v descriptor=%+v", entry, inspection.Descriptor)
+	}
+	selected, err := s.catalog.(coreROMCatalog).CoreEntryROM(ctx, entry.GameID)
+	if err != nil || selected.MediaID != "" {
+		t.Fatalf("fixture must have no selected ROM: %+v, %v", selected, err)
+	}
+	guard := &zx81ROMAdmissionClient{defaultMediaPackageClient: client}
+	s.targetClients[s.selectedTarget] = guard
+	s.pairedTargetClients[s.selectedTarget] = guard
+	kitCalls := func() [13]int {
+		return [13]int{client.inspections, client.healthCalls, client.statusCalls, client.stopCalls,
+			client.coreCalls, client.mediaCalls, client.probeCalls, client.uploadCalls,
+			client.developmentCalls, client.developmentReboots, client.cacheIndexCalls,
+			client.launchCalls, client.nativeLaunchCalls}
+	}
+	before := kitCalls()
+	_, err = s.Launch(ctx, entry.GameID, nil)
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBadRequest || apiErr.Phase != "request" ||
+		apiErr.Message != "required ROM must select an exact-size binary for this package and named ROM requirement" {
+		t.Fatalf("missing ROM launch error = %v, want ROM admission failure", err)
+	}
+	if after := kitCalls(); after != before || guard.dataCalls != 0 {
+		t.Fatalf("missing ROM contacted kit: calls before %v, after %v, data calls %d", before, after, guard.dataCalls)
+	}
+}
+
 // Package switching inspects both installed archives in one request; allow
 // race-instrumented package reads more than the fixture's one-second default.
 const zx81PackageSwitchTestTimeout = 15 * time.Second
