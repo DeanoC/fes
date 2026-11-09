@@ -87,14 +87,17 @@ Counts are per run. "Ring 3" is what the titles need at CPL 3: IRET to CPL
 IOPL-sensitive instructions and I/O bitmap outside V86. Phase 2's third
 slice (#1535, PR #1552) builds all of it except call gates to an inner
 privilege and the bitmap for INS and OUTS, which Phase 5 builds.
+The far JMP totals count `ts:EA` events in the retained census, excluding
+the initial LTR (`0F00.3`); the CPL subtotals include both LDT-changing and
+unchanged switches.
 
 | Title (host) | Paging | Task switches | V86 | Debug registers | Ring 3 (#1535) |
 | --- | --- | --- | --- | --- | --- |
-| Jump 'n Bump (CWSDPMI) | yes; PG off and on around every DOS call (3,867 toggles), 1,934 CR3 writes; 245 #PF, error 6 (a CPL-3 write to a not-present page) | 5,796 far JMPs to 32-bit TSSs: CPL 0→3 (1,932), 3→0 (1,451), 0→0 (2,411) | no | 11,604 MOV DRn writes (DR0–DR3, DR6, DR7), 1,933 reads; DR7 stays 400h | IRETD to CPL 3, DPL-3 interrupt gates, far CALL through a call gate |
-| Angband (CWSDPMI) | yes; 3,224 toggles; 656 #PF, errors 4 and 6 | 4,830 far JMPs to TSSs | no | 9,672 writes | as above |
-| NetHack (CWSDPMI) | yes; 546 #PF, error 6 | 3,426 far JMPs to TSSs | no | 6,864 writes | as above |
-| Chris's 3D Benchmark (CWSDPMI) | yes; 238 #PF, error 6 | 1,495 far JMPs to TSSs | no | 2,495 writes | as above; 164 #NM (x87 emulation) |
-| Quake timedemo (CWSDPMI) | yes; 2,547 toggles; 226 #PF, error 6 | 3,817 far JMPs to TSSs | no | 6,370 writes, 1,273 reads | as above; then needs an x87 (45.7M x87 instructions on the oracle's FPU) |
+| Jump 'n Bump (CWSDPMI) | yes; PG off and on around every DOS call (3,867 toggles), 1,934 CR3 writes; 245 #PF, error 6 (a CPL-3 write to a not-present page) | 5,795 far JMPs to 32-bit TSSs: CPL 0→3 (1,933), 3→0 (1,451), 0→0 (2,411) | no | 11,604 MOV DRn writes (DR0–DR3, DR6, DR7), 1,933 reads; DR7 stays 400h | IRETD to CPL 3, DPL-3 interrupt gates, far CALL through a call gate |
+| Angband (CWSDPMI) | yes; 3,224 toggles; 656 #PF, errors 4 and 6 | 4,829 far JMPs to TSSs | no | 9,672 writes | as above |
+| NetHack (CWSDPMI) | yes; 546 #PF, error 6 | 3,425 far JMPs to TSSs | no | 6,864 writes | as above |
+| Chris's 3D Benchmark (CWSDPMI) | yes; 238 #PF, error 6 | 1,494 far JMPs to TSSs | no | 2,495 writes | as above; 164 #NM (x87 emulation) |
+| Quake timedemo (CWSDPMI) | yes; 2,547 toggles; 226 #PF, error 6 | 3,816 far JMPs to TSSs | no | 6,370 writes, 1,273 reads | as above; then needs an x87 (45.7M x87 instructions on the oracle's FPU) |
 | Time Circle (Borland 32RTM) | yes; 2,655 CR3 writes; 126 #PF, error 2 (a CPL-0 write) | none (LTR once) | no | none | IRETD to CPL 3 (7,296) |
 | Descent (DOS/4GW Professional) | yes, at CPL 0 only; 829 #PF, errors 0 and 2 | every #PF through a task gate to a 32-bit TSS (829, 441 of them switching LDT), and back by IRET with NT (829) | no | none | none |
 | U.S. Navy Fighters (its own extender) | yes; no #PF | none (LTR once) | no | 726 writes, 363 reads | IRET to CPL 3 (1,356), call gate back (891); then needs its CD |
