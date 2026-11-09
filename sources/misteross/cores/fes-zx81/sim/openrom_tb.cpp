@@ -794,7 +794,9 @@ void test_slow_display_gap(Machine &m, const std::string &which) {
     m.dut.keyboard = 0xffffffffffull;
     m.run_frames(6);
     const std::string report = row_text(m, 23);
-    require(stopped && (report == "D/30" || report == "D/40"),
+    // BREAK can land in any statement of the 20 CLS / 30 operation /
+    // 40 GOTO 20 loop, including while the display is being cleared.
+    require(stopped && (report == "D/20" || report == "D/30" || report == "D/40"),
             "BREAK did not stop the SLOW display loop: " + report);
     require(m.peek(m.word(0x4010)) == 0x66, "LET A did not run before the loop");
     m.watch_display_fetches = false;
