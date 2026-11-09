@@ -30,12 +30,13 @@ CONTRACT = dict(format=1, scope='experimental-el3-static-private-cache-v1',
                 table_bytes=TABLE_BYTES, ddr_limit=DDR_LIMIT,
                 firmware_limit=BL31_LIMIT, runtime_enabled=False,
                 hardware_authority=False)
-RUNTIME_CONTRACT = dict(format=3, scope='matched-cold-el3-private-cache-v3',
+RUNTIME_CONTRACT = dict(format=4, scope='matched-cold-el3-private-cache-v4',
     mair=MAIR, tcr=TCR, table_bytes=TABLE_BYTES, granule=PAGE, va_bits=32, pa_bits=32,
     memory_probe='private-line-clean-invalidate-reread-v1',
     enable_phase='after-startup-cache-maintenance-before-el3-exit',
     single_cpu='a55-cpu0-release-locked',
     boot_steps='admit-register-barrier-private-clean-v1',
+    fault_capture='bounded-register-only-sctlr-transition-v1',
     vendor_cache_policy='restore-caller-scr-and-return-v1', hardware_authority=False)
 HERE = Path(__file__).resolve().parent
 LD = 'bl31/bl31.ld.S'
@@ -127,13 +128,13 @@ def install(source, profile, ram_binding=None):
     (source/VENDOR_CACHE).write_text(cache)
     (include/'nano_mmu_tables.ld.inc').write_text(linker_fragment())
     files.append(str((include/'nano_mmu_tables.ld.inc').relative_to(source)))
-    for name in ('nano_mmu.h','nano_mmu_platform.h','nano_mmu_memory.h'):
+    for name in ('nano_mmu.h','nano_mmu_platform.h','nano_mmu_memory.h','nano_mmu_transition.h'):
         (include/name).write_bytes((HERE/name).read_bytes());files.append(str((include/name).relative_to(source)))
-    for name in ('nano_mmu.c','nano_mmu_platform.c','nano_mmu_memory.c'):
+    for name in ('nano_mmu.c','nano_mmu_platform.c','nano_mmu_memory.c','nano_mmu_transition.S'):
         path=source/'plat/intel/soc/common'/name;path.write_bytes((HERE/name).read_bytes())
         files.append(str(path.relative_to(source)))
     make=source/'plat/intel/soc/agilex5/platform.mk'
-    make.write_text(make.read_text()+'\nBL31_SOURCES += plat/intel/soc/common/nano_mmu.c plat/intel/soc/common/nano_mmu_platform.c plat/intel/soc/common/nano_mmu_memory.c\n')
+    make.write_text(make.read_text()+'\nBL31_SOURCES += plat/intel/soc/common/nano_mmu.c plat/intel/soc/common/nano_mmu_platform.c plat/intel/soc/common/nano_mmu_memory.c plat/intel/soc/common/nano_mmu_transition.S\n')
     files.append(str(make.relative_to(source)))
     ram_binding['sources'][entry_name]=hashlib.sha256(entry.encode()).hexdigest()
     return dict(contract=contract, prior_ram_entry_sha256=hashlib.sha256(original_entry.encode()).hexdigest(),
@@ -160,8 +161,70 @@ def verify_live_image(image, chain):
     code,_=file_bytes(image,helper,helper_size)
     if code!=VENDOR_CACHE_CODE:
         raise ValueError('selected lower-EL cache helper does not restore SCR and return')
+    transition=verify_transition(image,symbols,proof['layout'])
     return dict(proof, selected_policy=dict(RUNTIME_CONTRACT), witness=address, witness_bytes=size,
+                transition_diagnostic=transition,
                 startup_cache_helper=dict(address=helper,bytes=helper_size,sha256=hashlib.sha256(code).hexdigest()))
+
+
+def verify_transition(image, symbols, bounds):
+    """Check final leaf code, vector routes, exact writes and finite UART bounds."""
+    if len(image)<20 or struct.unpack_from('<H',image,18)[0]!=183:
+        raise ValueError('MMU transition diagnostic requires an AArch64 ELF')
+    prefix='fes_nano_mmu_transition_'
+    result={}
+    for name in ('write','restore','capture','vectors','park_vectors','park'):
+        address,size=symbols.get(prefix+name,(0,0))
+        if address&3 or size&3 or not 0<size<=16384 or not DDR_BASE<=address<address+size<=bounds['ro_end']:
+            raise ValueError('MMU transition diagnostic code outside executable firmware')
+        code,_=file_bytes(image,address,size)
+        result[name]=dict(address=address,bytes=size,sha256=hashlib.sha256(code).hexdigest())
+        if name in ('vectors','park_vectors'):
+            target=symbols.get(prefix+('capture' if name=='vectors' else 'park'),(0,0))[0]
+            if address&2047 or size!=2048:
+                raise ValueError('MMU transition vector alignment or size differs')
+            for i in range(16):
+                branch=0x14000000|(((target-address-i*128)//4)&0x3ffffff)
+                if code[i*128:(i+1)*128]!=struct.pack('<I',branch)+bytes(124):
+                    raise ValueError('MMU transition vector route or padding differs')
+        elif name=='park':
+            if code!=struct.pack('<II',0xd503205f,0x17ffffff):
+                raise ValueError('MMU transition failure must park permanently')
+        else:
+            words=struct.unpack('<'+str(size//4)+'I',code)
+            for word in words:
+                memory=((word>>25)&15) in (4,6,12,14)
+                stack_change=(word&0x1f000000)==0x11000000 and not(word&(1<<29)) and word&31==31
+                if (memory and (word>>5)&31==31 or stack_change or
+                        word&0xfc000000==0x94000000 or word&0xfffffc1f==0xd63f0000 or
+                        word==0xd69f03e0 or name=='capture' and word&0xfffffc1f in (0xd65f0000,0xd61f0000)):
+                    raise ValueError('MMU transition diagnostic must remain stack-free and leaf')
+            if name=='capture':
+                park=symbols.get(prefix+'park',(0,0))[0]
+                if words[-1]!=0x14000000|(((park-address-size+4)//4)&0x3ffffff):
+                    raise ValueError('MMU transition fault capture must end in permanent park')
+            # Exact production sink, finite per-character polling and per-line budget.
+            for register,value,wide in ((3,0x412fd050,True),(3,0x81000000,True),
+                                        (10,0x10c02114,True),(10,0x10c02100,True),(11,100000,False)):
+                op=(0xd2800000 if wide else 0x52800000)|((value&65535)<<5)|register
+                high=(0xf2a00000 if wide else 0x72a00000)|((value>>16)<<5)|register
+                if struct.pack('<II',op,high) not in code:
+                    raise ValueError('MMU transition UART sink or polling bound differs')
+            if struct.pack('<I',0x52800000|(384<<5)|17) not in code:
+                raise ValueError('MMU transition UART line budget is missing')
+    for name,expected in (('sctlr',struct.pack('<II',0xd51e1000,0xd5033fdf)),
+                          ('restore_vbar',struct.pack('<III',0xd51ec001,0xd5033fdf,0xd53ec003))):
+        address,size=symbols.get(prefix+name,(0,0));parent=result['write' if name=='sctlr' else 'restore']
+        if size!=len(expected) or not parent['address']<=address<address+size<=parent['address']+parent['bytes'] or file_bytes(image,address,size)[0]!=expected:
+            raise ValueError('MMU transition register write/barrier/readback differs')
+    runtime=symbols.get('runtime_exceptions',(0,0))[0]
+    saved,size=symbols.get(prefix+'saved_vbar',(0,0))
+    if (runtime&2047 or not DDR_BASE<=runtime<runtime+2048<=bounds['ro_end'] or
+            saved&7 or size!=8 or not bounds['data_start']<=saved<saved+size<=bounds['data_end'] or
+            file_bytes(image,saved,size)[0]!=bytes(8)):
+        raise ValueError('MMU transition original vector or one-use saved state differs')
+    return dict(result,runtime_vectors=runtime,saved_vbar=saved,saved_bytes=size,
+                uart_data=0x10c02100,uart_status=0x10c02114,uart_polls=100000,uart_bytes=384)
 
 
 def _leaf(address, attrs, level):

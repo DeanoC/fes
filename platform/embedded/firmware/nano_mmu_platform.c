@@ -5,6 +5,7 @@
 #include "nano_mmu.h"
 #include "nano_mmu_platform.h"
 #include "nano_mmu_memory.h"
+#include "nano_mmu_transition.h"
 #include "fes_nano_cold_profile.h"
 #if !defined(FES_NANO_FIRMWARE_MMU) || !FES_NANO_FIRMWARE_MMU
 #error Explicit_static_EL3_MMU_selection_required
@@ -48,8 +49,9 @@ static int write_register(void *context, unsigned reg, uint64_t value)
     case FES_MMU_TCR:write_tcr_el3(value);break;
     case FES_MMU_ROOT:write_ttbr0_el3(value);break;
     case FES_MMU_SCTLR:
-        write_sctlr_el3(value);
-        isb(); /* Before returning to C or touching the stack in the new regime. */
+        /* Keeps the stack-free fault vector installed through the first C
+         * stack accesses and private memory test. Its leaf write includes ISB. */
+        if(fes_nano_mmu_transition_write(value))return -1;
         break;
     default:return -1;
     }
@@ -103,6 +105,12 @@ int fes_nano_mmu_platform_boot(void)
     report("before");
     int error=fes_nano_mmu_platform_enable();
     if(error || !fes_nano_mmu_platform_scope()) {
+        NOTICE("FES_NANO_EL3_MMU FAIL status=%d writes=%u memory=%u\n",mmu.first_error,mmu.writes,mmu.memory_verified);
+        return -1;
+    }
+    if(fes_nano_mmu_transition_restore()) {
+        mmu.first_error=-9;
+        mmu.stage=FES_MMU_FAILED;
         NOTICE("FES_NANO_EL3_MMU FAIL status=%d writes=%u memory=%u\n",mmu.first_error,mmu.writes,mmu.memory_verified);
         return -1;
     }

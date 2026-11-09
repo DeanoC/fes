@@ -18,7 +18,13 @@ from prepare_uboot import atf_descriptor
 
 def proof():
     root=0x8003c000
+    diagnostic={name:dict(address=address,bytes=size,sha256='1'*64) for name,address,size in
+        (('write',0x80024000,100),('restore',0x80026000,120),('capture',0x80025000,300),
+         ('vectors',0x80032000,2048),('park_vectors',0x80032800,2048),('park',0x80027000,8))}
+    diagnostic.update(runtime_vectors=0x80030000,saved_vbar=root+24576,saved_bytes=8,
+                      uart_data=0x10c02100,uart_status=0x10c02114,uart_polls=100000,uart_bytes=384)
     return dict(selected_policy=dict(mmu.RUNTIME_CONTRACT),witness=0x5f000,witness_bytes=64,
+        transition_diagnostic=diagnostic,
         startup_cache_helper=dict(address=0x80023000,bytes=44,sha256=mmu_trace.CACHE_HELPER_SHA),
         layout=dict(tables_start=root,tables_end=root+24576,
             tables={name:root+i*4096 for i,name in enumerate(mmu.NAMES)}))
@@ -38,7 +44,14 @@ def step_rows():
             for phase,operation in mmu_trace.STEPS]
 
 
-def transition():return row('before')+''.join(step_rows())+row('after')
+def vector_row(phase):
+    return ('FES_NANO_EL3_MMU_TRANSITION phase='+phase+' sctlr='+format(0x30c5183a|0x80005,'016x')+
+            ' vbar='+format(0x80032000 if phase=='enabled' else 0x80030000,'016x')+'\r\n')
+
+
+def transition(rows=None):
+    rows=step_rows() if rows is None else rows
+    return row('before')+''.join(rows[:15])+vector_row('enabled')+''.join(rows[15:])+vector_row('restored')+row('after')
 
 
 def base_trace():
@@ -152,20 +165,46 @@ class NanoMMUBootTests(unittest.TestCase):
         rows=step_rows();steps=''.join(rows)
         raw=base_trace().replace('U-Boot 2025.01-fes-nano-',transition()+'U-Boot 2025.01-fes-nano-',1)
         for i,step in enumerate(rows):
-            for damaged in (''.join(rows[:i]+rows[i+1:]),
-                            ''.join(rows[:i]+[step,step]+rows[i+1:]),
-                            ''.join(rows[:i]+[step.replace('operation=','operation=9')]+rows[i+1:])):
+            for damaged in (rows[:i]+rows[i+1:],
+                            rows[:i]+[step,step]+rows[i+1:],
+                            rows[:i]+[step.replace('operation=','operation=9')]+rows[i+1:]):
                 with self.subTest(index=i,damaged=damaged):
-                    self.assertFalse(decode(raw.replace(steps,damaged))['loader_ready'])
+                    self.assertFalse(decode(raw.replace(transition(),transition(damaged)))['loader_ready'])
         self.assertFalse(decode(raw.replace(transition(),steps+row('before')+row('after')))['loader_ready'])
         self.assertFalse(decode(raw.replace(transition(),row('before')+row('after')+steps))['loader_ready'])
 
     def test_interrupted_transition_retains_only_observed_bounded_steps(self):
         for i in range(len(mmu_trace.STEPS)+1):
-            raw=base_trace().split('U-Boot 2025.01-fes-nano-',1)[0]+row('before')+''.join(step_rows()[:i])
+            rows=step_rows()
+            prefix=''.join(rows[:min(i,15)])+(vector_row('enabled') if i>=15 else '')+''.join(rows[15:i])
+            raw=base_trace().split('U-Boot 2025.01-fes-nano-',1)[0]+row('before')+prefix
             result=decode(raw);self.assertFalse(result['loader_ready'])
             self.assertEqual(len(result['firmware_mmu_trace']['steps']),i)
             self.assertFalse(result['firmware_mmu_trace']['complete'])
+
+    def test_both_exact_vector_transitions_are_required_in_order(self):
+        raw=base_trace().replace('U-Boot 2025.01-fes-nano-',transition()+'U-Boot 2025.01-fes-nano-',1)
+        for phase in ('enabled','restored'):
+            event=vector_row(phase)
+            for replacement in ('',event*2,event.replace('sctlr=','sctlr=1'),event.replace('vbar=000000008003','vbar=000000008004')):
+                with self.subTest(phase=phase,replacement=replacement):self.assertFalse(decode(raw.replace(event,replacement))['loader_ready'])
+        self.assertFalse(decode(raw.replace(vector_row('enabled'),'').replace(row('before'),vector_row('enabled')+row('before')))['loader_ready'])
+
+    def test_fault_is_retained_once_and_can_never_admit_the_loader(self):
+        values=dict(esr=0x9600004f,elr=0x80026000,far=0x8003dff0,spsr=0x3cd,sp=0x8003dff0,
+                    sctlr=0xcd183f,tcr=mmu.TCR,root=0x8003c000,mair=mmu.MAIR,scr=0x238,vbar=0x80032000)
+        fault='FES_NANO_EL3_MMU_FAULT '+' '.join(k+'='+format(values[k],'016x') for k in mmu_trace.FAULT_FIELDS)+'\r\n'
+        prefix=base_trace().split('U-Boot 2025.01-fes-nano-',1)[0]+row('before')+''.join(step_rows()[:15])
+        for enabled in ('',vector_row('enabled')):
+            result=decode(prefix+enabled+fault+fault*100+transition())
+            state=result['firmware_mmu_trace'];self.assertFalse(result['loader_ready'] or state['complete'] or state['valid'])
+            self.assertEqual(len(state['faults']),1);self.assertEqual(state['faults'][0]['esr'],values['esr'])
+            self.assertEqual(state['faults'][0]['ec'],0x25)
+        for field in ('vectors','runtime_vectors','uart_polls','saved_vbar'):
+            p=proof()
+            if isinstance(p['transition_diagnostic'][field],dict):p['transition_diagnostic'][field]['address']+=4
+            else:p['transition_diagnostic'][field]+=1
+            with self.subTest(field=field),self.assertRaises(ValueError):mmu_trace.parameters(p)
 
     def test_bad_proof_and_flooded_failed_records_never_recover(self):
         for key,value in (('witness',0x50000),('witness_bytes',128),('selected_policy',{}),

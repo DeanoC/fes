@@ -166,16 +166,20 @@ static int mixed_runtime(uint64_t owner,unsigned mode)
     assert(fes_nano_platform_identity_setup()==1 && fes_nano_platform_configuration_setup()==1 && fes_nano_platform_sd_setup()==1);
 #ifdef FES_TEST_FIRMWARE_MMU
     assert(!fes_nano_cold_mmu_admit()); /* Shared USB must be completely bound. */
-    if(mode>=68 && mode<=73) {
+    if((mode>=68 && mode<=73) || mode==75 || mode==76) {
         shared_usb_setup();
         if(mode==72)mmu_scr|=1; /* Missing startup enable cannot use cache-off. */
         else if(mode==73) {mmu_drop_mair=1;assert(fes_nano_mmu_platform_enable()<0);mmu_scr|=1;}
+        else if(mode==75 || mode==76) {
+            mmu_restore_failure=mode==75;mmu_install_failure=mode==76;
+            assert(fes_nano_mmu_platform_boot()<0);
+        }
         else fes_test_mmu_start();
         if(mode==68)mmu_tcr^=0x100;
         else if(mode==69)mmu_mair^=0x400;
         else if(mode==70)mmu_root^=4096;
         else if(mode==71)sctlr&=~1ULL;
-        else assert(mode==72 || mode==73);
+        else assert(mode==72 || mode==73 || mode==75 || mode==76);
         unsigned reads=mmu_device_reads,writes=mmu_device_writes;
         const uint32_t fids[]={FES_EMBEDDED_USB_CALL,FES_EMBEDDED_SD_CALL,FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_TAPE_CALL};
         const uint64_t cookies[]={FES_EMBEDDED_USB_COOKIE,FES_EMBEDDED_SD_COOKIE,FES_EMBEDDED_BRIDGE_COOKIE,FES_EMBEDDED_TAPE_COOKIE};
@@ -187,7 +191,7 @@ static int mixed_runtime(uint64_t owner,unsigned mode)
             if(i==2)assert(reply[0]==FES_EMBEDDED_BRIDGE_NOT_READY && reply[1]==(uint64_t)FES_EMBEDDED_BRIDGE_TAG<<32);
             assert(reads==mmu_device_reads && writes==mmu_device_writes);
         }
-        assert(mmu_writes==(mode==72 ? 0U:mode==73 ? 1U:4U) && !fes_nano_mmu_platform_scope());
+        assert(mmu_writes==(mode==72 ? 0U:mode==73 ? 1U:mode==76 ? 3U:4U) && !fes_nano_mmu_platform_scope());
         puts("PASS changed MMU registers deny every owned channel without device I/O or fallback");return 0;
     }
     if(mode>=60 && mode<=67) {shared_usb_setup();return fes_test_mmu_failure(mode);}

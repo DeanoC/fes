@@ -48,6 +48,20 @@ The observer requires every checkpoint between the original register records;
 partial, missing, duplicate or out-of-order steps cannot admit the loader.
 These checkpoints add no timed tape or ordinary SMC work. The cold/runtime guard
 is unchanged; cache enablement and transfer performance still need hardware proof.
+The selected [format 4 transition capture](../../../docs/validation/2026-11-09-de25-mmu-fault-capture/README.md)
+now uses a bounded leaf assembly path around SCTLR. It saves the original
+runtime vector once in file-backed private DDR and keeps a stack-free fault
+vector installed through the first C stack accesses and private memory probe.
+A successful boot restores and reads back the original vector before its final
+register receipt. Faults snapshot ESR/ELR/FAR/SPSR/SP and MMU registers, print at
+most 384 bytes with at most 100000 ready polls per character, then park. A nested
+exception uses a separate permanent-park vector. Poll bounds cannot preempt a
+bus access that never returns. Neither path calls C or disables the MMU/cache.
+The producer binds both new source files and checks actual linked leaf code,
+vector routes, CPU/UART constants, bounds, writes/barriers and one-use data.
+The observer requires both matching transition records as well as all 26 steps;
+a fault remains terminal diagnostic evidence. Injected-platform and actual
+assembly/QEMU checks pass; Nano qualification remains open.
 See the [runtime scope checks](../../../docs/validation/2026-11-09-de25-mmu-runtime/README.md).
 
 `nano_tape` is a secure-side initial-tape engine for the existing

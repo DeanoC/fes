@@ -7,6 +7,7 @@ static unsigned mmu_writes,mmu_invalidations,mmu_isbs;
 static unsigned mmu_device_reads,mmu_device_writes;
 static unsigned mmu_drop_mair;
 static unsigned mmu_clean;
+static unsigned mmu_vector_installed,mmu_vector_restored,mmu_restore_failure,mmu_install_failure;
 extern volatile uint64_t fes_nano_mmu_witness[8];
 uint64_t read_midr(void) {return 0x412fd050;}
 uint64_t read_id_aa64mmfr0_el1(void) {return 2;}
@@ -22,10 +23,27 @@ void write_sctlr_el3(uint64_t value) {assert(mmu_writes++==3);sctlr=value;}
 void tlbialle3(void) {assert(!mmu_writes && !mmu_invalidations++ && !(sctlr&5U));}
 void isb(void) {mmu_isbs++;}
 void dcsw_op_all(uint64_t op) {assert(op==1 && (sctlr&5U)==5U);mmu_clean++;}
+int fes_nano_mmu_transition_write(uint64_t value)
+{
+    if(mmu_install_failure)return -1;
+    assert(!mmu_vector_installed++ && !mmu_vector_restored);
+    write_sctlr_el3(value);isb();
+    printf("FES_NANO_EL3_MMU_TRANSITION phase=enabled sctlr=%016llx vbar=0000000080032000\n",(unsigned long long)sctlr);
+    return 0;
+}
+int fes_nano_mmu_transition_restore(void)
+{
+    assert(mmu_vector_installed==1 && !mmu_vector_restored++);
+    if(mmu_restore_failure)return -1;
+    isb();
+    printf("FES_NANO_EL3_MMU_TRANSITION phase=restored sctlr=%016llx vbar=0000000080030000\n",(unsigned long long)sctlr);
+    return 0;
+}
 static void fes_test_mmu_start(void)
 {
-    assert(!fes_nano_mmu_platform_enable());
-    assert(mmu_writes==4 && mmu_invalidations==1 && mmu_isbs==5 && mmu_clean==2);
+    assert(!fes_nano_mmu_platform_boot());
+    assert(mmu_writes==4 && mmu_invalidations==1 && mmu_isbs==6 && mmu_clean==2);
+    assert(mmu_vector_installed==1 && mmu_vector_restored==1);
     for(unsigned i=0;i<8;i++)assert(!fes_nano_mmu_witness[i]);
     assert(sctlr==(0x30c5183aULL|FES_NANO_MMU_SET));
     assert(mmu_mair==FES_NANO_MMU_MAIR && mmu_tcr==FES_NANO_MMU_TCR && mmu_root==0x8003c000);

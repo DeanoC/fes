@@ -3,13 +3,16 @@ import hashlib
 import json
 import re
 
-POLICY_SHA='1f10a95572af6d576c578c288ae15d3c07320f0699d3427aa6dc90becc5c6286'
+POLICY_SHA='dc537fed6db40246ac14dc114cd6e930a3a5cc39963b1c9f611db82a6758e621'
 CACHE_HELPER_SHA='c16b4d1b6931e6d4d92ac017ba23457ff59d6d5ac9e4279b6c9fb031114b305c'
 FIELDS=('el','midr','mpidr','mmfr0','daif','scr','sctlr','tcr','root','mair','witness')
 ROW=re.compile(r'FES_NANO_EL3_MMU phase=(before|after) '+
     ' '.join(name+r'=(?P<'+name+r'>[0-9a-f]{1,16})' for name in FIELDS)+
     r' writes=(?P<writes>[0-4]) memory=(?P<memory>[01])')
 STEP=re.compile(r'FES_NANO_EL3_MMU_STEP phase=([a-z-]{1,20}) operation=([0-3])')
+TRANSITION=re.compile(r'FES_NANO_EL3_MMU_TRANSITION phase=(enabled|restored) sctlr=([0-9a-f]{16}) vbar=([0-9a-f]{16})')
+FAULT_FIELDS=('esr','elr','far','spsr','sp','sctlr','tcr','root','mair','scr','vbar')
+FAULT=re.compile(r'FES_NANO_EL3_MMU_FAULT '+' '.join(name+r'=(?P<'+name+r'>[0-9a-f]{16})' for name in FAULT_FIELDS))
 STEPS=(('admit-before',0),('admit-after',0),
     ('barrier-before',0),('barrier-after',0),
     ('write-before',0),('write-after',0),('write-before',1),('write-after',1),
@@ -38,20 +41,50 @@ def parameters(proof):
     if (type(address) is not int or address&3 or not 0x80000000<=address<address+44<=root or
             helper.get('bytes')!=44 or helper.get('sha256')!=CACHE_HELPER_SHA):
         raise ValueError('MMU trace requires the linked SCR-restoring startup helper')
-    return dict(root=root,witness=witness,mair=policy['mair'],tcr=policy['tcr'])
+    diagnostic=proof.get('transition_diagnostic') or {}
+    for name in ('write','restore','capture','vectors','park_vectors','park'):
+        code=diagnostic.get(name) or {};address=code.get('address');size=code.get('bytes')
+        if (type(address) is not int or address&3 or type(size) is not int or size&3 or
+                not 0<size<=16384 or not 0x80000000<=address<address+size<=root or
+                not re.fullmatch('[0-9a-f]{64}',str(code.get('sha256',''))) or
+                name in ('vectors','park_vectors') and (address&2047 or size!=2048) or
+                name=='park' and size!=8):
+            raise ValueError('MMU trace requires the linked bounded transition diagnostic')
+    runtime=diagnostic.get('runtime_vectors');saved=diagnostic.get('saved_vbar')
+    if (type(runtime) is not int or runtime&2047 or not 0x80000000<=runtime<runtime+2048<=root or
+            type(saved) is not int or saved&7 or not root+24576<=saved<saved+8<=0x80200000 or
+            diagnostic.get('saved_bytes')!=8 or
+            any(diagnostic.get(k)!=v for k,v in dict(uart_data=0x10c02100,uart_status=0x10c02114,uart_polls=100000,uart_bytes=384).items())):
+        raise ValueError('MMU trace requires exact vector restoration and UART bounds')
+    return dict(root=root,witness=witness,mair=policy['mair'],tcr=policy['tcr'],
+                vectors=diagnostic['vectors']['address'],runtime_vectors=runtime)
 
 
-def state():return dict(records=[],steps=[],valid=True,complete=False,hardware_authority=False)
+def state():return dict(records=[],steps=[],transitions=[],faults=[],valid=True,complete=False,hardware_authority=False)
 
 
 def observe(s,line,number,expected,*,startup_complete,exit_cache_complete,uboot_seen,prior_valid):
-    match=ROW.fullmatch(line);step=STEP.fullmatch(line)
+    match=ROW.fullmatch(line);step=STEP.fullmatch(line);transition=TRANSITION.fullmatch(line);fault=FAULT.fullmatch(line)
     if (not s['valid'] or expected is None or not prior_valid or
             not startup_complete or not exit_cache_complete or uboot_seen or len(s['records'])>=2):
         s['valid']=s['complete']=False;return 'invalid/unselected/out-of-order EL3 MMU record'
+    if fault:
+        if len(s['records'])==1 and 15<=len(s['steps'])<=26 and len(s['transitions'])<=1:
+            r={name:int(fault[name],16) for name in FAULT_FIELDS};r.update(line=number,ec=r['esr']>>26&63)
+            s['faults'].append(r)
+        s['valid']=s['complete']=False;return 'terminal EL3 MMU transition fault'
+    if transition:
+        phase=transition[1];sctlr=int(transition[2],16);vbar=int(transition[3],16)
+        before=s['records'][0] if s['records'] else {}
+        ok=(len(s['records'])==1 and sctlr==before.get('sctlr',0)|0x80005 and
+            ((phase=='enabled' and len(s['steps'])==15 and not s['transitions'] and vbar==expected['vectors']) or
+             (phase=='restored' and len(s['steps'])==26 and len(s['transitions'])==1 and vbar==expected['runtime_vectors'])))
+        if not ok:s['valid']=s['complete']=False;return 'invalid/out-of-order EL3 MMU transition'
+        s['transitions'].append(dict(phase=phase,sctlr=sctlr,vbar=vbar,line=number));return None
     if step:
         index=len(s['steps']);value=(step[1],int(step[2]))
-        if len(s['records'])!=1 or index>=len(STEPS) or value!=STEPS[index]:
+        if (len(s['records'])!=1 or index>=len(STEPS) or value!=STEPS[index] or
+                len(s['transitions'])!=(0 if index<15 else 1)):
             s['valid']=s['complete']=False;return 'invalid/out-of-order EL3 MMU step'
         s['steps'].append(dict(phase=value[0],operation=value[1],line=number))
         return None
@@ -68,6 +101,7 @@ def observe(s,line,number,expected,*,startup_complete,exit_cache_complete,uboot_
     else:
         before=s['records'][0] if s['records'] else {}
         ok=(ok and len(s['records'])==1 and before.get('phase')=='before' and len(s['steps'])==len(STEPS) and
+            [v['phase'] for v in s['transitions']]==['enabled','restored'] and
             all(r[name]==before.get(name) for name in ('el','midr','mpidr','mmfr0','daif','scr')) and
             r['sctlr']==before.get('sctlr',0)|0x80005 and r['mair']==expected['mair'] and
             r['tcr']==expected['tcr'] and r['root']==expected['root'] and r['writes']==4 and r['memory']==1)

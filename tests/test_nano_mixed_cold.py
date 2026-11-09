@@ -156,7 +156,7 @@ class NanoMixedColdTests(unittest.TestCase):
             if initial_tape:
                 modes += (30,31,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51)
             if firmware_mmu:
-                modes += tuple(range(60,75))
+                modes += tuple(range(60,77))
             for mode in modes:
                 with self.subTest(mode=mode):
                     result = subprocess.run([base / 'mixed', str(mode)], capture_output=True, text=True, timeout=30)
@@ -288,7 +288,7 @@ class NanoMixedColdTests(unittest.TestCase):
                         'platform/embedded/nano/hps_io.py', 'tests/fixtures/nano-usb-board/hps_bootloader_handoff.bin')]
                 source_files.append(Path(__file__))
                 if firmware_mmu:
-                    source_files += [FW/name for name in ('nano_mmu.h','nano_mmu_platform.h',
+                    source_files += [FW/name for name in ('nano_mmu.h','nano_mmu_platform.h','nano_mmu_transition.h','nano_mmu_transition.S',
                         'tests/nano_mmu_test_platform.inc')]
                 (target / 'contract.json').write_text(json.dumps(dict(command=command,
                     profile=profile, source_sha256={str(p.relative_to(ROOT)):
