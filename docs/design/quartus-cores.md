@@ -2,11 +2,11 @@
 
 Status: accepted policy (issue #1163, Deano, 27 October 2026), including the
 15% threshold under [What "significantly" means](#what-significantly-means).
-The documentation updates are rollout step 1. Product support is not
-implemented yet: current registered recipes and package selection support
-HIP/nextpnr only, and `FES_OSS_ONLY` is not a live control. Until the remaining
-[Rollout](#rollout) steps land, Quartus is used only as an explicit
-recipe-documented oracle/check.
+The documentation updates are rollout step 1. Product support exists only for
+PC/XT: `fes.pcxt` and `fes.pcxt-dos` are registered Quartus recipes. Every other
+registered recipe is HIP/nextpnr, and `FES_OSS_ONLY` is not a live control.
+`AGENTS.md` (Toolchains) makes Quartus primary for DE25, pc386 and PC/XT; the
+"oracle" wording below predates that ([RTL front-end lanes](rtl-frontend-lanes.md), S6a).
 
 ## Decision
 
@@ -25,10 +25,10 @@ Two reasons:
   (#1112) put most of that gap in place and route. #264 records the same split
   for `fes.ramtest` at 130 MHz.
 - **DE25-Nano.** Two Terasic DE25-Nano boards are on order for FES bring-up.
-  The board has an Agilex 5 FPGA, which the OSS flow does not target. The
-  board-associated Quartus Pro entitlement and its host/concurrency terms must
-  be confirmed during setup. Quartus Pro 24.1 or later is the first release
-  that supports Agilex 5.
+  The board has an Agilex 5 FPGA, which the OSS flow does not target. Quartus
+  Pro 24.1 or later supports Agilex 5. This text listed the Pro entitlement as
+  open; `AGENTS.md` (Toolchains, Machines) now records Pro 26.3 on both build
+  hosts. [RTL front-end lanes](rtl-frontend-lanes.md) S1b and S6b settle it.
 
 PC/XT now selects a single Quartus diagnostic producer through the normal
 package-preparation path. Its lane-specific recipe omits GPU/nextpnr settings;
@@ -45,8 +45,8 @@ updated together with the acceptance of the design:
 
 | Where | Was | Now |
 | --- | --- | --- |
-| `docs/core-alignment.md`, standard 1 | The active producers use HIP/nextpnr; Quartus is an oracle where named. | The accepted policy permits labelled Quartus product variants. The current registry still selects only OSS; this status is explicit. |
-| `docs/core-status.md` | The product path uses HIP/nextpnr; Quartus is an oracle, not a product path. | Quartus variants are allowed by policy; the current registered recipes and package selection still use HIP/nextpnr only. |
+| `docs/core-alignment.md`, standard 1 | The active producers use HIP/nextpnr; Quartus is an oracle where named. | The accepted policy permits labelled Quartus product variants. The current registry selects OSS for every core except the two PC/XT Quartus rows; this status is explicit. |
+| `docs/core-status.md` | The product path uses HIP/nextpnr; Quartus is an oracle, not a product path. | Quartus variants are allowed by policy; the registered recipes and package selection use HIP/nextpnr for every core except the two PC/XT Quartus rows. |
 | `docs/core-alignment.md`, Rule | Quartus is described as an oracle or a separate mechanism. | A Quartus build can be a labelled toolchain variant of the same logical core; it is never an automatic fallback. |
 | `README.md`, the HIP/nextpnr sentences | Quartus is a build-time oracle. | OSS is the current implementation; Quartus variants are accepted policy pending recipe and package-selection rollout. |
 | `docs/core-packages.md`, `docs/core-development.md`, `docs/bootable-media.md`, `docs/component-boundaries.md`, `docs/development.md`, `docs/getting-started.md` | Some wording could imply that variant selection or `FES_OSS_ONLY` already exists. | State the accepted policy, the current HIP-only resolver, and the pending implementation steps. Never silently fall back. |
@@ -238,11 +238,11 @@ optional-core flags in `scripts/optional_cores.py`:
 ## Build hosts
 
 Quartus Lite 17.0.2 (Cyclone V, DE10-Nano) is free and needs no license. The
-Quartus Pro builds for Agilex 5 require an authorized license. The DE25-Nano
-boards are expected to provide associated Pro entitlements, but the license
-binding and concurrent-use terms remain open. Check Altera's applicable
-no-cost and board-associated license terms before treating those as the only
-authorized hosts or imposing a global job cap.
+Quartus Pro builds for Agilex 5 require an authorized license. `AGENTS.md`
+(Machines) records Quartus Pro 26.3 on Powerboat and fes-build-3090, which
+conflicts with the older text here that left the entitlement open. Spike S1b
+in [RTL front-end lanes](rtl-frontend-lanes.md) records the install and licence
+state on both hosts, and S6b corrects this section from that record.
 
 - Quartus runs only on named, pinned build hosts authorized for the selected
   edition and device. Lite needs no license; Pro hosts are determined by
@@ -437,5 +437,7 @@ Each step is one scope, one PR.
    authorized Quartus run, or accept cached sealed packages only.
 3. **DE25-Nano:** Quartus Pro front end and whether the Yosys-elaborated
    netlist route is still needed, and where the HPS and image work is tracked.
+   The front-end half is decided by spike S1b and decision D3 in
+   [RTL front-end lanes](rtl-frontend-lanes.md).
 4. **License binding:** how the board license ties to a host and what happens
    if a build host is replaced.
