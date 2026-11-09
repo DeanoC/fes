@@ -188,6 +188,7 @@ def fpga_cores(path):
         if producer or parts[1] in FPGA_PRODUCER_HELPERS:
             return (), 'FPGA producer/package software tests; RTL unchanged'
         if parts[1] in ('sim_fes_demo.py', 'sim_fes_menu.py', 'sim_fes_z80.py', 'sim_fes_riscv.py', 'sim_fes_pcxt.py',
+                        'sim_fes_ramtest.py',
                         'sim_fes_pc386.py'):
             core = parts[1][len('sim_fes_'):-len('.py')]
             return (core,), core + ' simulation recipe'
