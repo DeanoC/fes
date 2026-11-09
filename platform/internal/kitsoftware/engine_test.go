@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/appliance/software"
+	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 )
 
 const testFactoryID = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -676,11 +677,80 @@ func TestRecoveryRunsFactoryWhenSelectionIsHeldBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	s, _ := r.Read()
-	if c.active != testFactoryID || s.Selected != testSelectedID || s.Receipts[queued.ID].Result != "recovered" || a.releases != 2 {
+	if c.active != testFactoryID || s.Selected != testSelectedID || s.Previous != testFactoryID || s.Generation != queued.Generation || s.Receipts[queued.ID].Result != "recovered" || a.releases != 2 {
 		t.Fatal("failed candidate did not recover to the factory software", c, s, a)
 	}
-	if e.HeldBack != testSelectedID {
-		t.Fatal("held-back selection not reported after recovery", e.HeldBack)
+	if e.HeldBack != testSelectedID || !strings.Contains(e.HeldBackReason, "menu.fes.video.menu-blitter") {
+		t.Fatal("held-back selection not reported after recovery", e.HeldBack, e.HeldBackReason)
+	}
+}
+
+func TestInterruptedActivationBootPreservesHeldBackSelection(t *testing.T) {
+	r, e, c, a := setup(t)
+	e.Factory = testFactoryID
+	selectRelease(t, r, testSelectedID)
+	c.incompatible = map[string]bool{testSelectedID: true}
+	if err := e.Boot(context.Background(), req()); err != nil {
+		t.Fatal(err)
+	}
+	state, _ := r.Read()
+	queued := req()
+	queued.Generation = state.Generation
+	if err := Queue(r, queued); err != nil {
+		t.Fatal(err)
+	}
+	if err := transition(r, *mustStatePending(t, r), "queued", "applying", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Boot(context.Background(), req()); err != nil {
+		t.Fatal(err)
+	}
+	state, _ = r.Read()
+	if state.Selected != testSelectedID || state.Previous != testFactoryID || state.Generation != queued.Generation || state.Pending != nil || state.Receipts[queued.ID].Result != "recovered" || a.releases != 2 || c.active != testFactoryID {
+		t.Fatal("interrupted activation did not preserve the held-back selection", state, c, a)
+	}
+	if e.HeldBack != testSelectedID || !strings.Contains(e.HeldBackReason, "menu.fes.video.menu-blitter") {
+		t.Fatal("interrupted activation lost held-back status", e.HeldBack, e.HeldBackReason)
+	}
+}
+
+func mustStatePending(t *testing.T, r Repository) *Operation {
+	t.Helper()
+	s, err := r.Read()
+	if err != nil || s.Pending == nil {
+		t.Fatalf("pending operation unavailable: %+v, %v", s, err)
+	}
+	return s.Pending
+}
+
+func TestBlockedCancelKeepsExactMaintenanceForSupervisorRelease(t *testing.T) {
+	r, e, _, a := setup(t)
+	selectRelease(t, r, testSelectedID)
+	state, _ := r.Read()
+	queued := req()
+	queued.Generation = state.Generation
+	if err := Queue(r, queued); err != nil {
+		t.Fatal(err)
+	}
+	if err := transition(r, *mustStatePending(t, r), "queued", "blocked", "candidate and recovery failed"); err != nil {
+		t.Fatal(err)
+	}
+	if err := cancelBlocked(r, queued.ID, queued.Generation, softwarecontrol.ReasonBlockedCancel); err != nil {
+		t.Fatal(err)
+	}
+	state, _ = r.Read()
+	if state.Selected != testSelectedID || state.Previous != testFactoryID || state.Generation != queued.Generation || state.Pending != nil || state.Unreleased == nil || *state.Unreleased != queued || state.Receipts[queued.ID].Result != "recovered" || state.Receipts[queued.ID].Reason != softwarecontrol.ReasonBlockedCancel {
+		t.Fatal("blocked cancellation did not preserve the selection and exact maintenance release", state)
+	}
+	if err := validateState(state); err != nil {
+		t.Fatal("cancelled unreleased completion is invalid", err)
+	}
+	if err := e.Run(context.Background()); err != nil {
+		t.Fatal("supervisor could not release blocked cancellation", err)
+	}
+	state, _ = r.Read()
+	if state.Unreleased != nil || state.Selected != testSelectedID || state.Generation != queued.Generation || a.releases != 1 {
+		t.Fatal("supervisor did not finish the exact reservation", state, a)
 	}
 }
 
@@ -768,5 +838,47 @@ func TestHeldBackCandidateBlocksOnlyWhenSelectionFailsToStart(t *testing.T) {
 	s, _ := r.Read()
 	if s.Pending == nil || s.Pending.Phase != "blocked" || !strings.HasPrefix(s.Pending.Reason, "held back: ") || !strings.Contains(s.Pending.Reason, "starting the selection failed") {
 		t.Fatal("failed selection start not recorded", s.Pending)
+	}
+}
+
+// contractCheckingControl exercises the real release compatibility check while
+// Engine.Boot decides whether to start the selection or the image's factory.
+type contractCheckingControl struct {
+	*fakeControl
+	base     software.Compatibility
+	releases map[string]software.Manifest
+}
+
+func (c *contractCheckingControl) Verify(_ context.Context, id string) error {
+	return c.releases[id].Compatible(c.base)
+}
+
+func TestBootHoldsBackLauncherABIMismatchInBothDirections(t *testing.T) {
+	old, _, _ := softwareFixture(t, "fes-kit-base-v1-old")
+	newRelease, _, _ := softwareFixture(t, "fes-kit-base-v2-new")
+	for _, tc := range []struct {
+		name              string
+		factory, selected software.Release
+	}{
+		{"old image with new launcher", old, newRelease},
+		{"new image with old launcher", newRelease, old},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r, engine, fake, _ := setup(t)
+			selectRelease(t, r, tc.selected.ID)
+			control := &contractCheckingControl{
+				fakeControl: fake,
+				base:        software.Compatibility{Board: "de10-nano", Architecture: "armv7", BaseContract: tc.factory.Manifest.BaseContract, Interfaces: map[string]string{"runtime": "1"}},
+				releases:    map[string]software.Manifest{tc.factory.ID: tc.factory.Manifest, tc.selected.ID: tc.selected.Manifest},
+			}
+			engine.Controller, engine.Factory = control, tc.factory.ID
+			if err := engine.Boot(context.Background(), req()); err != nil {
+				t.Fatal(err)
+			}
+			state, err := r.Read()
+			if err != nil || fake.active != tc.factory.ID || fake.starts != 1 || state.Selected != tc.selected.ID || engine.HeldBack != tc.selected.ID || !strings.Contains(engine.HeldBackReason, "base contract") {
+				t.Fatalf("active=%s starts=%d state=%+v held=%s reason=%s err=%v", fake.active, fake.starts, state, engine.HeldBack, engine.HeldBackReason, err)
+			}
+		})
 	}
 }

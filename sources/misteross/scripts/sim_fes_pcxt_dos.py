@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Boot a real 8088 XT BIOS and FreeDOS floppy in host simulation."""
 import argparse
+import ctypes
 import fcntl
 import json
 import hashlib
@@ -17,6 +18,15 @@ import pcxt_bios as bios
 import pcxt_acceptance_media as acceptance
 
 ROOT = sim.ROOT
+PR_SET_PDEATHSIG = 1
+
+
+def die_with_parent(expected_parent_pid):
+    """Child pre-exec hook: the simulator gets SIGKILL if this runner dies."""
+    if ctypes.CDLL(None, use_errno=True).prctl(PR_SET_PDEATHSIG, signal.SIGKILL, 0, 0, 0):
+        raise OSError(ctypes.get_errno(), 'prctl(PR_SET_PDEATHSIG) failed')
+    if os.getppid() != expected_parent_pid:
+        raise RuntimeError('runner exited before simulator installed parent-death signal')
 
 
 def check_space(path, scenario, writable=False):
@@ -28,9 +38,11 @@ def check_space(path, scenario, writable=False):
 def run_simulation(cmd, cwd, scenario, *, timeout=3 * 60 * 60, heartbeat=30, grace=5):
     """Run and reap the simulator and its forked comparison processes.
 
-    A process group is owned by this invocation. SIGTERM and SIGINT take the
-    same bounded cleanup path as a timeout or other exception, including when
-    the simulator does not exit after TERM.
+    A process group is owned by this invocation. SIGTERM, SIGINT and SIGHUP
+    take the same bounded cleanup path as a timeout or other exception,
+    including when the simulator does not exit after TERM. If the runner itself
+    is killed outright, the kernel sends the simulator SIGKILL, and the
+    simulator's forked control worker sets the same signal for itself.
     """
     proc = None
     interrupted = 0
@@ -41,9 +53,11 @@ def run_simulation(cmd, cwd, scenario, *, timeout=3 * 60 * 60, heartbeat=30, gra
         nonlocal interrupted
         interrupted = signum
 
-    previous = {sig: signal.signal(sig, interrupt) for sig in (signal.SIGTERM, signal.SIGINT)}
+    previous = {sig: signal.signal(sig, interrupt) for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
     try:
-        proc = subprocess.Popen(cmd, cwd=cwd, start_new_session=True)
+        expected_parent_pid = os.getpid()
+        proc = subprocess.Popen(cmd, cwd=cwd, start_new_session=True,
+                                preexec_fn=lambda: die_with_parent(expected_parent_pid))
         deadline = time.monotonic() + timeout
         next_heartbeat = time.monotonic() + heartbeat
         while True:
@@ -91,7 +105,8 @@ def run_simulation(cmd, cwd, scenario, *, timeout=3 * 60 * 60, heartbeat=30, gra
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--scenario', choices=('dos', 'com', 'game'), default='dos')
+    parser.add_argument('--scenario', choices=('dos', 'com', 'game', 'reboot', 'relaunch'), default='dos',
+                        help='reboot: Ctrl+Alt+Del at the DOS prompt; relaunch: a warm-boot flag left in SDRAM')
     parser.add_argument('--disk', type=Path, help='previously built floppy image for the selected scenario')
     parser.add_argument('--digger-exe', type=Path, help='independently acquired pinned Digger executable (game only)')
     parser.add_argument('--prepare-only', action='store_true', help='verify inputs and compile without running')
@@ -117,10 +132,11 @@ def run(args):
     build = ROOT / 'build/sim/fes-pcxt' / (name + ('-write' if args.writable_test else ''))
     build.mkdir(parents=True, exist_ok=True)
     for name in ('result.json', 'result-pending.json', 'dos.ppm', 'screen.bin', 'screen.txt',
-                 'inputs.json', 'bus.log', 'candidate.json', 'title-before-start.ppm',
+                 'inputs.json', 'bus.log', 'title-before-start.ppm',
                  'start-control.ppm', 'start-key.ppm', 'right-control.ppm', 'right-key.ppm',
                  'saved-floppy.img'):
         (build / name).unlink(missing_ok=True)
+    reboot = args.scenario in ('reboot', 'relaunch')
     if args.writable_test and args.scenario != 'dos':
         raise ValueError('writable test requires the dos scenario')
     check_space(build, args.scenario, args.writable_test)
@@ -128,7 +144,7 @@ def run(args):
     # Validate the exact bytes supplied to the device against the pinned boot
     # code, geometry and all 8086 FreeDOS files, while allowing harmless
     # unallocated-sector differences between image-building tool versions.
-    if args.scenario == 'dos':
+    if args.scenario == 'dos' or reboot:
         disk_path = args.disk.resolve() if args.disk else freedos.image(download=args.download)
         disk = disk_path.read_bytes()
         disk_identity = freedos.validate_selected_image(disk)
@@ -145,13 +161,22 @@ def run(args):
     inputs['floppy_contents'] = disk_identity['files']
     inputs['floppy_bytes'] = len(disk)
     inputs['scenario'] = args.scenario
-    inputs['source_commit'] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
-    changed = subprocess.check_output(['git', 'diff', '--binary', 'HEAD'], cwd=ROOT)
-    inputs['source_tracked_diff_sha256'] = hashlib.sha256(changed).hexdigest()
-    inputs['source_has_tracked_changes'] = bool(changed)
+    try:
+        commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True,
+                                         stderr=subprocess.DEVNULL).strip()
+        changed = subprocess.check_output(['git', 'diff', '--binary', 'HEAD'], cwd=ROOT,
+                                          stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.CalledProcessError):
+        # Outside a git checkout the run still records the runner, testbench
+        # and media hashes below; the source revision is simply unknown.
+        commit = changed = None
+    inputs['source_commit'] = commit
+    inputs['source_tracked_diff_sha256'] = None if changed is None else hashlib.sha256(changed).hexdigest()
+    inputs['source_has_tracked_changes'] = None if changed is None else bool(changed)
     inputs['runner_sha256'] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
-    inputs['testbench_sha256'] = hashlib.sha256((ROOT / 'cores/fes-pcxt/sim/dos_tb.cpp').read_bytes()).hexdigest()
-    if args.scenario != 'dos':
+    bench = 'cores/fes-pcxt/sim/' + ('reboot_tb.cpp' if reboot else 'dos_tb.cpp')
+    inputs['testbench_sha256'] = hashlib.sha256((ROOT / bench).read_bytes()).hexdigest()
+    if args.scenario != 'dos' and not reboot:
         inputs['media_builder_sha256'] = hashlib.sha256(Path(acceptance.__file__).read_bytes()).hexdigest()
         inputs['program_source_sha256'] = hashlib.sha256(acceptance.COM_SOURCE.read_bytes()).hexdigest() if args.scenario == 'com' else None
         inputs['program_sha256'] = disk_identity['program_sha256']
@@ -164,7 +189,7 @@ def run(args):
         'cores/fes-common/rtl/fes_computer_mailbox.v',
         'cores/fes-pcxt/rtl/pcxt_hid_keyboard.sv',
         'cores/fes-pcxt/rtl/pcxt_xt_keyboard_bat.sv',
-        sim.MEMORY_SOURCES[-1], 'cores/fes-pcxt/sim/bios_top.sv', 'cores/fes-pcxt/sim/dos_tb.cpp')
+        sim.MEMORY_SOURCES[-1], 'cores/fes-pcxt/sim/bios_top.sv', bench)
     subprocess.run([args.verilator, '--cc', '--exe', '--build', '-j', '4', '-Wall',
         '--timescale-override', '1ns/1ps',
         str(ROOT / 'cores/fes-pcxt/sim/cpu.vlt'), str(ROOT / 'cores/fes-pcxt/sim/chipset.vlt'),
@@ -179,6 +204,8 @@ def run(args):
         return
     cmd = [str(build / 'Vbios_top'), str(build / 'firmware.bin'), str(build / 'floppy.img'), args.scenario]
     run_simulation(cmd, build, args.scenario)
+    if reboot:
+        return
     if args.writable_test:
         verify_snapshot(build)
         return
@@ -216,7 +243,8 @@ def verify_snapshot(build):
 
 
 # SHA-256 of exact 1280x720 PPM output from the independently reviewed,
-# deterministic 02870402 simulation. The fixture itself is not redistributed.
+# deterministic simulation. The game runner and these hashes came in with
+# 3d2e17f84 (#1387). The fixture itself is not redistributed.
 GAME_FRAME_SHA256 = {
     'title-before-start': '6f7509b3c08e4dc08be1dec004e1259de90651494a2f7eadf545e5d9c847c7c8',
     'start-control': '04726527ce90309a946bf5a05a8332c138911b1be54c7106ee8cac1d71129c18',
@@ -240,7 +268,7 @@ def verify_game(build):
     result = json.loads(pending.read_text())
     result['classification'] = 'host simulation only; reviewed game-frame reference matched'
     result['frame_sha256'] = hashes
-    result['frame_reference_source'] = '028704027ca8e1854d516997c9fbe747da369289'
+    result['frame_reference_source'] = '3d2e17f84b26b45197e579aff7e43898360650e1'
     pending.write_text(json.dumps(result, indent=2) + '\n')
     pending.replace(build / 'result.json')
     print('PASS Digger title, Enter start and right movement vs reviewed frames', flush=True)

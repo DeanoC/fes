@@ -1,0 +1,3670 @@
+
+102. Printing statistics.
+
+=== $paramod$14358b4b3c7f3f783ee8ba5a6430d5f032c86b31\pc386_rate ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        9 wires
+       69 wire bits
+        5 public wires
+       35 public wire bits
+        3 ports
+        3 port bits
+        7 cells
+        1   $add
+        1   $ge
+        2   $mux
+        2   $sdff
+        1   $sub
+
+=== $paramod$c474964c5e418f2c81d4c0103388cb41574beaf6\pc386_ram ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       15 wires
+      384 wire bits
+        8 public wires
+      116 public wire bits
+        8 ports
+      116 port bits
+        8 cells
+        1   $dffe
+        1   $mem_v2
+        6   $mux
+
+=== $paramod$6a0bd9ad1fa38cde1e0cfe693b320ac45ec41ab9\fes_computer_mailbox_core ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      206 wires
+     2945 wire bits
+       57 public wires
+      673 public wire bits
+       48 ports
+      649 port bits
+      180 cells
+        1   $and
+        3   $dff
+       13   $dffe
+       32   $eq
+        3   $gt
+        7   $logic_and
+        6   $logic_not
+        2   $logic_or
+       62   $mux
+       11   $ne
+        1   $neg
+        8   $not
+        3   $or
+        4   $pmux
+        7   $reduce_and
+        9   $reduce_bool
+        5   $reduce_or
+        1   $sdff
+        2   $shift
+
+=== $paramod$34df3ec0c87b25bb2f31a1509a6ea4deccd2ce9a\fes_computer_storage ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      785 wires
+     5152 wire bits
+       80 public wires
+      924 public wire bits
+       43 ports
+      429 port bits
+      766 cells
+        3   $add
+        2   $and
+       16   $dff
+       32   $dffe
+       44   $eq
+        6   $ge
+       14   $gt
+        3   $le
+       20   $logic_and
+       15   $logic_not
+       20   $logic_or
+       10   $lt
+        2   $mem_v2
+        2   $mul
+      370   $mux
+       59   $ne
+        2   $neg
+       30   $not
+        2   $or
+       51   $pmux
+       23   $reduce_and
+       16   $reduce_bool
+       15   $reduce_or
+        1   $sdff
+        3   $shift
+        2   $shiftx
+        3   $sub
+
+=== $paramod$007275ee4124ef848088169d9e26b9b20182ac46\pc386_machine ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      191 wires
+     2131 wire bits
+      189 public wires
+     2127 public wire bits
+      155 ports
+     1717 port bits
+        4 cells
+        2   $dff
+        1   $logic_not
+        1   $logic_or
+        6 submodules
+        1   $paramod$379df4dd593c8007cf82b610dc5d359e8734013c\fes_display_plane
+        1   $paramod$eb315ce49270be58117f20b0586d79368e3cca0e\pc386_at_core
+        1   $paramod$f98bc12abde64f94d35382aa536acce47ad012b8\pc386_vga
+        1   pc386_plane_bridge
+        1   pc386_port2
+        1   pc386_presenter
+
+=== $paramod$7d58855d5a1f3547ea3fd77357206eca3bf62cdf\pc386_rate ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        9 wires
+       49 wire bits
+        5 public wires
+       25 public wire bits
+        3 ports
+        3 port bits
+        7 cells
+        1   $add
+        1   $ge
+        2   $mux
+        2   $sdff
+        1   $sub
+
+=== $paramod$0047decdc9f595ad29cda105a3db78bd3d9799f7\pc386_audio ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       38 wires
+      157 wire bits
+       29 public wires
+      148 public wire bits
+       23 ports
+      113 port bits
+       16 cells
+        5   $eq
+        6   $logic_and
+        1   $logic_not
+        1   $logic_or
+        1   $mux
+        1   $not
+        1   $sdffe
+        4 submodules
+        1   $paramod$0d030b6b21b09ff3697efc944f0b65d637926e29\pc386_rate
+        1   $paramod$2b54ae782a6f3ed77344668c96ee8abdcbb67f75\pc386_opl2
+        1   $paramod\pc386_sb\RESET_US=s32'00000000000000000000000000010100
+        1   pc386_mixer
+
+=== $paramod$836ec8857d844b4b1dae1eff1c8f2934597592b8\fes_i386_cpu ===
+
+        +----------Local Count, excluding submodules.
+        | 
+     4714 wires
+    76049 wire bits
+      746 public wires
+    28064 public wire bits
+      127 ports
+     3512 port bits
+     4956 cells
+      103   $add
+       67   $and
+       26   $dff
+      169   $dffe
+      589   $eq
+       18   $ge
+       27   $gt
+        5   $le
+     1069   $logic_and
+      316   $logic_not
+      497   $logic_or
+       42   $lt
+        6   $mul
+     1350   $mux
+       55   $ne
+       13   $neg
+       21   $not
+       58   $or
+       13   $pmux
+       60   $reduce_and
+       92   $reduce_bool
+       73   $reduce_or
+        1   $reduce_xnor
+       45   $sdff
+       38   $sdffce
+       64   $sdffe
+       23   $shift
+       37   $shiftx
+        2   $shl
+        1   $shr
+       73   $sub
+        3   $xor
+       17 submodules
+        1   $paramod$802479629c1744580fd11079470fb94d7a14f426\fes_i386_tlb
+        1   $paramod$836ec8857d844b4b1dae1eff1c8f2934597592b8\fes_i386_governor
+        1   $paramod\fes_i386_biu\RAM_BASE=32'00110100000000000000000000000000
+        1   fes_i386_agu
+        1   fes_i386_amode
+        1   fes_i386_decode
+        1   fes_i386_dfwd
+        1   fes_i386_dops
+        1   fes_i386_ex
+        1   fes_i386_exctl
+        1   fes_i386_frontend
+        1   fes_i386_l1d
+        1   fes_i386_l1i
+        1   fes_i386_muldiv
+        1   fes_i386_seq
+        1   fes_i386_shflags
+        1   fes_i386_ucode_rom
+
+=== $paramod$b0a61a3c91cac4fecb3a4d59037e0a63ad684a44\pc386_rom ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       58 wires
+     1050 wire bits
+       33 public wires
+      805 public wire bits
+       21 ports
+      627 port bits
+       43 cells
+        3   $add
+        1   $dff
+        3   $eq
+       10   $logic_and
+        5   $logic_not
+        4   $logic_or
+        1   $mem_v2
+        8   $mux
+        2   $reduce_bool
+        2   $sdff
+        2   $sdffe
+        2   $sub
+
+=== $paramod\pc386_snapshot\W=s32'00000000000000000000000001100000 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       12 wires
+      299 wire bits
+        9 public wires
+      296 public wire bits
+        4 ports
+      194 port bits
+        9 cells
+        2   $dff
+        4   $dffe
+        1   $eq
+        1   $logic_not
+        1   $ne
+
+=== $paramod$cf4fb4af5e95c21969683800b688157efa5cf0de\pc386_ram ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       15 wires
+       48 wire bits
+        8 public wires
+       20 public wire bits
+        8 ports
+       20 port bits
+        8 cells
+        1   $dffe
+        1   $mem_v2
+        6   $mux
+
+=== $paramod$e6c13c9b8034fa67f38a6fccfdeaff18f1c0decc\pc386_rate ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        9 wires
+       49 wire bits
+        5 public wires
+       25 public wire bits
+        3 ports
+        3 port bits
+        7 cells
+        1   $add
+        1   $ge
+        2   $mux
+        2   $sdff
+        1   $sub
+
+=== $paramod$f945d0dffceaf76652a8d5c6071dbc646fe48c60\pc386_rate ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        9 wires
+       65 wire bits
+        5 public wires
+       33 public wire bits
+        3 ports
+        3 port bits
+        7 cells
+        1   $add
+        1   $ge
+        2   $mux
+        2   $sdff
+        1   $sub
+
+=== $paramod$0b96783918d1fa3d0e77087dc457d184d46ab5d6\pc386_rate ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        9 wires
+       61 wire bits
+        5 public wires
+       31 public wire bits
+        3 ports
+        3 port bits
+        7 cells
+        1   $add
+        1   $ge
+        2   $mux
+        2   $sdff
+        1   $sub
+
+=== $paramod$379df4dd593c8007cf82b610dc5d359e8734013c\fes_display_plane ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      132 wires
+      859 wire bits
+       73 public wires
+      732 public wire bits
+       28 ports
+      348 port bits
+       96 cells
+        5   $add
+        6   $dff
+        6   $dffe
+        2   $eq
+        2   $ge
+       22   $logic_and
+       11   $logic_not
+        9   $logic_or
+        4   $lt
+        3   $mul
+        6   $mux
+        4   $ne
+        1   $not
+        2   $reduce_and
+        2   $reduce_bool
+        7   $sdff
+        1   $sdffce
+        1   $sdffe
+        2   $sub
+        3 submodules
+        1   $paramod$7d72687d87a9979b47e40efb351269dee87a1373\fes_menu_control
+        1   $paramod$a1c14e713607f1a34fe45270432aadb21a90a94e\fes_menu_video
+        1   fes_display_cdc
+
+=== $paramod$032d9267e4434fbdd53aa2cb8b89141938e7fc7b\pc386_kbc ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      615 wires
+     2222 wire bits
+       89 public wires
+      569 public wire bits
+       17 ports
+      189 port bits
+      588 cells
+       88   $and
+        2   $dff
+       35   $dffe
+      154   $eq
+       16   $logic_and
+       11   $logic_not
+      184   $mux
+        4   $ne
+       10   $not
+        1   $or
+        5   $pmux
+        8   $reduce_and
+       40   $reduce_bool
+       11   $reduce_or
+        6   $sdff
+       12   $sdffe
+        1   $sub
+        4 submodules
+        1   $paramod$0d030b6b21b09ff3697efc944f0b65d637926e29\pc386_rate
+        1   $paramod\pc386_ps2_keyboard\BAT_US=s32'00000000000000000001001110001000
+        1   $paramod\pc386_ps2_mouse\DY_DOWN=s32'00000000000000000000000000000001
+        1   pc386_hid_keyboard
+
+=== $paramod$a1c14e713607f1a34fe45270432aadb21a90a94e\fes_menu_video ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      127 wires
+      679 wire bits
+       44 public wires
+      479 public wire bits
+       24 ports
+      327 port bits
+      108 cells
+        2   $add
+        4   $dffe
+       10   $eq
+        2   $ge
+        1   $le
+       28   $logic_and
+        7   $logic_not
+        2   $logic_or
+        5   $lt
+       19   $mux
+        6   $ne
+        1   $not
+        2   $pmux
+        6   $reduce_and
+        3   $reduce_bool
+        2   $reduce_or
+        1   $sdff
+        7   $sdffe
+        1 submodules
+        1   $paramod\fes_menu_reader\WINDOW_BASE=32'00110000000000000000000000000000
+
+=== $paramod$b3cbe4e4df53a2823df474f1ff6e96347825f020\pc386_rtc ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      653 wires
+     2643 wire bits
+       83 public wires
+      542 public wire bits
+       36 ports
+      252 port bits
+      629 cells
+       16   $add
+        1   $and
+       14   $dffe
+       71   $eq
+      123   $ge
+        4   $gt
+        2   $le
+       27   $logic_and
+       14   $logic_not
+        6   $logic_or
+        2   $lt
+       13   $mod
+        2   $mul
+      259   $mux
+       10   $ne
+        2   $not
+        9   $pmux
+       14   $reduce_and
+        5   $reduce_bool
+        9   $reduce_or
+        2   $sdff
+        1   $sdffce
+       12   $sdffe
+        4   $shiftx
+        1   $shl
+        6   $sub
+        2 submodules
+        1   $paramod$57270cfa7ae28790a3e200a46ea4fef8deb16fa0\pc386_ram
+        1   $paramod$e6c13c9b8034fa67f38a6fccfdeaff18f1c0decc\pc386_rate
+
+=== $paramod$301b858114c8f99e6e040587d5e50a6e053639aa\pc386_async_fifo ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       31 wires
+      135 wire bits
+       23 public wires
+      113 public wire bits
+       10 ports
+       80 port bits
+       23 cells
+        2   $add
+        1   $eq
+        1   $logic_and
+        1   $logic_not
+        1   $logic_or
+        1   $ne
+        4   $sdff
+        5   $sdffe
+        1   $sub
+        6   $xor
+        1 submodules
+        1   $paramod$301b858114c8f99e6e040587d5e50a6e053639aa\pc386_dcram
+
+=== $paramod$80eacdc445ad198c64b5935551d4b85a6920d14c\pc386_async_fifo ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       31 wires
+      353 wire bits
+       23 public wires
+      317 public wire bits
+       10 ports
+      264 port bits
+       27 cells
+        2   $add
+        1   $eq
+        1   $logic_and
+        1   $logic_not
+        1   $logic_or
+        1   $ne
+        4   $sdff
+        5   $sdffe
+        1   $sub
+       10   $xor
+        1 submodules
+        1   $paramod$80eacdc445ad198c64b5935551d4b85a6920d14c\pc386_dcram
+
+=== $paramod\pc386_ata\RESET_CLOCKS=s32'00000000000000000000001001100111 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      846 wires
+     6114 wire bits
+       96 public wires
+      882 public wire bits
+       30 ports
+      287 port bits
+      847 cells
+       21   $add
+        5   $and
+        2   $dff
+       90   $eq
+        4   $ge
+        5   $gt
+        4   $le
+       45   $logic_and
+       28   $logic_not
+       19   $logic_or
+        2   $lt
+        5   $mul
+      426   $mux
+        7   $ne
+        3   $neg
+       12   $not
+        5   $or
+       34   $pmux
+       12   $reduce_and
+       12   $reduce_bool
+       13   $reduce_or
+       38   $sdff
+       18   $sdffe
+        5   $shift
+       10   $shiftx
+        1   $shl
+       21   $sub
+        2 submodules
+        1   $paramod$7be460e384e31004b51e66d8c2ea4ed4e7fd9b31\pc386_ram
+        1   $paramod$923bb8693de62277d4d3bae8b642c5df61cfcae8\pc386_ram
+
+=== $paramod$f98bc12abde64f94d35382aa536acce47ad012b8\pc386_vga ===
+
+        +----------Local Count, excluding submodules.
+        | 
+     1320 wires
+     8159 wire bits
+      240 public wires
+     2044 public wire bits
+       41 ports
+      527 port bits
+     1272 cells
+       15   $add
+      176   $and
+       46   $dffe
+       98   $eq
+        2   $ge
+        3   $le
+       85   $logic_and
+       46   $logic_not
+       24   $logic_or
+        2   $lt
+        1   $mem_v2
+      402   $mux
+       22   $ne
+       32   $not
+       28   $or
+       37   $pmux
+       48   $reduce_and
+       68   $reduce_bool
+       10   $reduce_or
+        6   $sdff
+       75   $sdffe
+       10   $shiftx
+        5   $shl
+        4   $shr
+        7   $sub
+       20   $xor
+        4 submodules
+        1   $paramod$c474964c5e418f2c81d4c0103388cb41574beaf6\pc386_fifo
+        1   $paramod$cf4fb4af5e95c21969683800b688157efa5cf0de\pc386_fifo
+        1   $paramod$d851f4007c1bf01c16f3ad07890cf6fcb6e39697\pc386_vga_scanout
+        1   $paramod$fccd686aae7e7725713731c347a508163178e82a\pc386_ram
+
+=== $paramod$e43f2d00c873b9e1420eb440666777a3b31f9a96\pc386_fifo ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       20 wires
+       94 wire bits
+       15 public wires
+       75 public wire bits
+        9 ports
+       59 port bits
+       14 cells
+        4   $add
+        1   $eq
+        1   $logic_and
+        1   $logic_not
+        1   $logic_or
+        1   $reduce_bool
+        1   $sdff
+        3   $sdffe
+        1   $sub
+        1 submodules
+        1   $paramod$e43f2d00c873b9e1420eb440666777a3b31f9a96\pc386_ram
+
+=== $paramod$497208cc565be8b9d23b93e2ce06b126e4a1e709\pc386_fifo ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       20 wires
+       66 wire bits
+       15 public wires
+       47 public wire bits
+        9 ports
+       31 port bits
+       14 cells
+        4   $add
+        1   $eq
+        1   $logic_and
+        1   $logic_not
+        1   $logic_or
+        1   $reduce_bool
+        1   $sdff
+        3   $sdffe
+        1   $sub
+        1 submodules
+        1   $paramod$497208cc565be8b9d23b93e2ce06b126e4a1e709\pc386_ram
+
+=== $paramod$66396300e3f730693959c6ccd02220702fc170cd\pc386_ram ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       15 wires
+      260 wire bits
+        8 public wires
+       84 public wire bits
+        8 ports
+       84 port bits
+        8 cells
+        1   $dffe
+        1   $mem_v2
+        6   $mux
+
+=== $paramod$0f70c9467f54d45789dcb38a80bb051907570405\pc386_ram ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       15 wires
+       92 wire bits
+        8 public wires
+       36 public wire bits
+        8 ports
+       36 port bits
+        8 cells
+        1   $dffe
+        1   $mem_v2
+        6   $mux
+
+=== $paramod$2f802d5ac93483295d45c75db1b6173037a4ad56\pc386_ram ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       15 wires
+      162 wire bits
+        8 public wires
+       56 public wire bits
+        8 ports
+       56 port bits
+        8 cells
+        1   $dffe
+        1   $mem_v2
+        6   $mux
+
+=== $paramod$923bb8693de62277d4d3bae8b642c5df61cfcae8\pc386_fifo ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       20 wires
+      198 wire bits
+       15 public wires
+      167 public wire bits
+        9 ports
+      142 port bits
+       14 cells
+        4   $add
+        1   $eq
+        1   $logic_and
+        1   $logic_not
+        1   $logic_or
+        1   $reduce_bool
+        1   $sdff
+        3   $sdffe
+        1   $sub
+        1 submodules
+        1   $paramod$923bb8693de62277d4d3bae8b642c5df61cfcae8\pc386_ram
+
+=== $paramod$4151c9241e2c3ab5978fedd4cd9dddd71496a37f\pc386_fifo ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       20 wires
+       56 wire bits
+       15 public wires
+       41 public wire bits
+        9 ports
+       28 port bits
+       14 cells
+        4   $add
+        1   $eq
+        1   $logic_and
+        1   $logic_not
+        1   $logic_or
+        1   $reduce_bool
+        1   $sdff
+        3   $sdffe
+        1   $sub
+        1 submodules
+        1   $paramod$4151c9241e2c3ab5978fedd4cd9dddd71496a37f\pc386_ram
+
+=== $paramod$7d23e06083446cc113f0a0d31d8341f241805dae\pc386_dcram ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       12 wires
+      214 wire bits
+        8 public wires
+       96 public wire bits
+        8 ports
+       96 port bits
+        5 cells
+        1   $dffe
+        1   $mem_v2
+        3   $mux
+
+=== $paramod$8ef0b0529c280f54121daee3ceaa8679c42c5181\pc386_io ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      189 wires
+     1458 wire bits
+       48 public wires
+      350 public wire bits
+       25 ports
+      162 port bits
+      178 cells
+        5   $add
+        2   $and
+       10   $eq
+        5   $ge
+        3   $le
+       12   $logic_and
+        5   $logic_not
+        1   $logic_or
+       67   $mux
+       11   $ne
+        1   $neg
+        3   $not
+        3   $or
+       11   $pmux
+        7   $reduce_and
+        3   $reduce_bool
+        1   $reduce_or
+        2   $sdff
+       18   $sdffe
+        5   $shift
+        1   $shr
+        2   $sub
+
+=== $paramod$63206c72ddd3933ec1a3c8c1d9192e062ea23e5d\pc386_rate ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        9 wires
+       89 wire bits
+        5 public wires
+       45 public wire bits
+        3 ports
+        3 port bits
+        7 cells
+        1   $add
+        1   $ge
+        2   $mux
+        2   $sdff
+        1   $sub
+
+=== channels ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      164 wires
+     1006 wire bits
+       22 public wires
+      301 public wire bits
+        7 ports
+       38 port bits
+      160 cells
+        6   $add
+       44   $and
+        1   $dff
+        4   $dffe
+       10   $eq
+        2   $ge
+        1   $gt
+        1   $le
+        4   $logic_and
+        1   $logic_not
+        1   $lt
+       23   $mux
+        2   $ne
+       33   $not
+       10   $pmux
+        1   $reduce_and
+        3   $reduce_bool
+        7   $reduce_or
+        1   $sdffce
+        4   $sdffe
+        1   $sub
+        4 submodules
+        1   $paramod$5c589f2aac433e6c33350455c02ac6f32ea57fb8\mem_single_bank
+        1   $paramod$aeb70bcf6248a1262f33dc664f149e3db04bb52b\mem_single_bank
+        1   control_operators
+        1   dac_prep
+
+=== $paramod$fccd686aae7e7725713731c347a508163178e82a\pc386_ram ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       57 wires
+     2323 wire bits
+        8 public wires
+      147 public wire bits
+        8 ports
+      147 port bits
+       50 cells
+        1   $dffe
+        1   $mem_v2
+       48   $mux
+
+=== $paramod$cf4fb4af5e95c21969683800b688157efa5cf0de\pc386_fifo ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       20 wires
+       54 wire bits
+       15 public wires
+       35 public wire bits
+        9 ports
+       19 port bits
+       14 cells
+        4   $add
+        1   $eq
+        1   $logic_and
+        1   $logic_not
+        1   $logic_or
+        1   $reduce_bool
+        1   $sdff
+        3   $sdffe
+        1   $sub
+        1 submodules
+        1   $paramod$cf4fb4af5e95c21969683800b688157efa5cf0de\pc386_ram
+
+=== $paramod$9e37261caafc4736145812664869c0c285c7a45e\mem_simple_dual_port_async_read ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        9 wires
+       18 wire bits
+        6 public wires
+       12 public wire bits
+        6 ports
+       12 port bits
+        4 cells
+        1   $mem_v2
+        3   $mux
+
+=== $paramod$aeb70bcf6248a1262f33dc664f149e3db04bb52b\mem_simple_dual_port ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       12 wires
+       84 wire bits
+        9 public wires
+       53 public wire bits
+        8 ports
+       40 port bits
+        5 cells
+        1   $dffe
+        1   $mem_v2
+        3   $mux
+
+=== $paramod$57270cfa7ae28790a3e200a46ea4fef8deb16fa0\pc386_ram ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       21 wires
+      217 wire bits
+        8 public wires
+       49 public wire bits
+        8 ports
+       49 port bits
+       14 cells
+        1   $dffe
+        1   $mem_v2
+       12   $mux
+
+=== $paramod$923bb8693de62277d4d3bae8b642c5df61cfcae8\pc386_ram ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       15 wires
+      480 wire bits
+        8 public wires
+      146 public wire bits
+        8 ports
+      146 port bits
+        8 cells
+        1   $dffe
+        1   $mem_v2
+        6   $mux
+
+=== $paramod$7be460e384e31004b51e66d8c2ea4ed4e7fd9b31\pc386_ram ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       15 wires
+      144 wire bits
+        8 public wires
+       50 public wire bits
+        8 ports
+       50 port bits
+        8 cells
+        1   $dffe
+        1   $mem_v2
+        6   $mux
+
+=== $paramod$beec738f2eeb15b382cd425cf085332c0ab8047d\mem_simple_dual_port_async_read ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        9 wires
+       49 wire bits
+        6 public wires
+       28 public wire bits
+        6 ports
+       28 port bits
+        4 cells
+        1   $mem_v2
+        3   $mux
+
+=== $paramod$7598a3a96e521ef078fc3ca049d49f782fa24537\mem_simple_dual_port_async_read ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        9 wires
+       25 wire bits
+        6 public wires
+       16 public wire bits
+        6 ports
+       16 port bits
+        4 cells
+        1   $mem_v2
+        3   $mux
+
+=== $paramod\KF8253\READ_BACK=s32'00000000000000000000000000000001 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       34 wires
+       95 wire bits
+       32 public wires
+       79 public wire bits
+       17 ports
+       32 port bits
+        3 cells
+        3   $mux
+        4 submodules
+        3   $paramod\KF8253_Counter\READ_BACK=s32'00000000000000000000000000000001
+        1   KF8253_Control_Logic
+
+=== $paramod$f82cdb9d43aef844a5040bf5e961ed2b2a377b73\mem_simple_dual_port_async_read ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        9 wires
+       46 wire bits
+        6 public wires
+       26 public wire bits
+        6 ports
+       26 port bits
+        4 cells
+        1   $mem_v2
+        3   $mux
+
+=== $paramod$ee2e4cb5ab01332dba864e75974e317dff6a0af1\fes_dma8237 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      650 wires
+     3703 wire bits
+       84 public wires
+      528 public wire bits
+       28 ports
+       88 port bits
+      652 cells
+        1   $add
+       77   $and
+       40   $dffe
+       27   $eq
+       27   $logic_and
+       21   $logic_not
+        9   $logic_or
+      289   $mux
+       21   $ne
+        2   $neg
+       22   $not
+       12   $or
+        7   $pmux
+        8   $reduce_and
+       49   $reduce_bool
+        6   $reduce_or
+        5   $sdff
+       14   $sdffe
+        7   $shift
+        5   $shiftx
+        2   $sub
+        1   $xor
+
+=== $paramod$09bb370ab784db4d3a420599afdc3c2e5e2db90d\fes_dma8237 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      650 wires
+     3703 wire bits
+       84 public wires
+      528 public wire bits
+       28 ports
+       88 port bits
+      652 cells
+        1   $add
+       77   $and
+       40   $dffe
+       27   $eq
+       27   $logic_and
+       21   $logic_not
+        9   $logic_or
+      289   $mux
+       21   $ne
+        2   $neg
+       22   $not
+       12   $or
+        7   $pmux
+        8   $reduce_and
+       49   $reduce_bool
+        6   $reduce_or
+        5   $sdff
+       14   $sdffe
+        7   $shift
+        5   $shiftx
+        2   $sub
+        1   $xor
+
+=== $paramod$3cd453e7be4479fa05eac87da28528c89b6eb817\mem_simple_dual_port_async_read ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        9 wires
+       34 wire bits
+        6 public wires
+       20 public wire bits
+        6 ports
+       20 port bits
+        4 cells
+        1   $mem_v2
+        3   $mux
+
+=== $paramod$546c3fb69b189e982371a65d4617e2492c070f0c\mem_simple_dual_port ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       12 wires
+       36 wire bits
+        9 public wires
+       24 public wire bits
+        8 ports
+       20 port bits
+        5 cells
+        1   $dffe
+        1   $mem_v2
+        3   $mux
+
+=== $paramod$7d72687d87a9979b47e40efb351269dee87a1373\fes_menu_control ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      261 wires
+      832 wire bits
+       30 public wires
+      259 public wire bits
+       19 ports
+      155 port bits
+      251 cells
+        2   $dff
+       17   $dffe
+       22   $eq
+        3   $gt
+        1   $le
+        2   $logic_and
+        6   $logic_not
+        9   $logic_or
+      114   $mux
+       23   $ne
+       15   $not
+        7   $pmux
+       15   $reduce_and
+       11   $reduce_bool
+        3   $reduce_or
+        1   $sdffce
+
+=== $paramod$e0f5265ba6f53d6dab129fa1400efb2ec791d9bd\mem_simple_dual_port ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       12 wires
+      149 wire bits
+        9 public wires
+       92 public wire bits
+        8 ports
+       66 port bits
+        5 cells
+        1   $dffe
+        1   $mem_v2
+        3   $mux
+
+=== $paramod\pc386_ps2_keyboard\BAT_US=s32'00000000000000000001001110001000 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      137 wires
+      510 wire bits
+       36 public wires
+      133 public wire bits
+       23 ports
+       64 port bits
+      118 cells
+        3   $dffe
+       15   $eq
+        1   $ge
+       16   $logic_and
+        7   $logic_not
+        4   $logic_or
+       36   $mux
+        1   $ne
+        4   $not
+        4   $pmux
+        3   $reduce_and
+        8   $reduce_bool
+        5   $reduce_or
+        4   $sdff
+        4   $sdffe
+        3   $sub
+        1 submodules
+        1   pc386_ps2_fifo
+
+=== $paramod\pc386_ps2_mouse\DY_DOWN=s32'00000000000000000000000000000001 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      283 wires
+     1684 wire bits
+       52 public wires
+      340 public wire bits
+       13 ports
+       42 port bits
+      268 cells
+        5   $add
+        3   $dffe
+       31   $eq
+        8   $ge
+        4   $gt
+       22   $logic_and
+       11   $logic_not
+        7   $logic_or
+        7   $lt
+       84   $mux
+        4   $ne
+        5   $neg
+        5   $not
+       12   $pmux
+        8   $reduce_and
+       14   $reduce_bool
+       12   $reduce_or
+        6   $sdff
+       11   $sdffe
+        2   $sshl
+        7   $sub
+        1 submodules
+        1   pc386_ps2_fifo
+
+=== $paramod$308ef52d72bd1e2daa820fc6b74daccc292312c5\mem_simple_dual_port ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       13 wires
+      139 wire bits
+       10 public wires
+       94 public wire bits
+        8 ports
+       54 port bits
+        6 cells
+        1   $dff
+        1   $dffe
+        1   $mem_v2
+        3   $mux
+
+=== $paramod$802479629c1744580fd11079470fb94d7a14f426\fes_i386_tlb ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      172 wires
+     7033 wire bits
+       14 public wires
+     1117 public wire bits
+        9 ports
+      437 port bits
+      214 cells
+        1   $add
+        2   $and
+        1   $dffe
+       48   $eq
+       49   $logic_and
+        1   $logic_not
+        1   $mul
+       64   $mux
+        2   $neg
+        3   $not
+       32   $or
+        3   $reduce_and
+        2   $reduce_bool
+        2   $sdffe
+        3   $shift
+
+=== $paramod$1ff82e53af940464a526775fb2782e3e68a8e8f8\mem_simple_dual_port_async_read ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        9 wires
+       33 wire bits
+        6 public wires
+       20 public wire bits
+        6 ports
+       20 port bits
+        4 cells
+        1   $mem_v2
+        3   $mux
+
+=== $paramod\fes_i386_biu\RAM_BASE=32'00110100000000000000000000000000 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+     1090 wires
+     9417 wire bits
+      109 public wires
+     3197 public wire bits
+       54 ports
+      842 port bits
+     1214 cells
+       24   $add
+        2   $and
+       10   $dff
+       39   $dffe
+       49   $eq
+        2   $ge
+        1   $le
+       86   $logic_and
+       33   $logic_not
+       20   $logic_or
+        5   $lt
+        1   $mul
+      447   $mux
+       21   $ne
+        1   $neg
+        6   $not
+        5   $or
+        7   $pmux
+      137   $reduce_and
+      144   $reduce_bool
+       14   $reduce_or
+        7   $sdff
+      117   $sdffce
+        3   $sdffe
+        2   $shift
+       19   $shiftx
+        4   $shl
+        8   $sub
+
+=== $paramod$adcd63c2987ec00297c2c2485d2cb57c27780b12\fes_i386_tlb ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       78 wires
+     2905 wire bits
+       14 public wires
+      574 public wire bits
+        9 ports
+      232 port bits
+       86 cells
+        1   $add
+        2   $and
+        1   $dffe
+       16   $eq
+       17   $logic_and
+        1   $logic_not
+        1   $mul
+       24   $mux
+        2   $neg
+        3   $not
+        9   $or
+        3   $reduce_and
+        1   $reduce_bool
+        2   $sdffe
+        3   $shift
+
+=== pc386_system ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      322 wires
+     3902 wire bits
+      244 public wires
+     3621 public wire bits
+       43 ports
+     1303 port bits
+      117 cells
+        6   $add
+        7   $dff
+        5   $eq
+       28   $logic_and
+       19   $logic_not
+        8   $logic_or
+        8   $mux
+        1   $ne
+        3   $not
+        2   $reduce_bool
+        6   $reduce_or
+        5   $sdff
+       18   $sdffe
+        1   $sub
+       10 submodules
+        1   $paramod$0047decdc9f595ad29cda105a3db78bd3d9799f7\pc386_audio
+        1   $paramod$007275ee4124ef848088169d9e26b9b20182ac46\pc386_machine
+        1   $paramod$34df3ec0c87b25bb2f31a1509a6ea4deccd2ce9a\fes_computer_storage
+        1   $paramod$6a0bd9ad1fa38cde1e0cfe693b320ac45ec41ab9\fes_computer_mailbox_core
+        1   $paramod$7d58855d5a1f3547ea3fd77357206eca3bf62cdf\pc386_rate
+        1   $paramod$836ec8857d844b4b1dae1eff1c8f2934597592b8\fes_i386_cpu
+        1   $paramod$b0a61a3c91cac4fecb3a4d59037e0a63ad684a44\pc386_rom
+        1   $paramod\pc386_snapshot\W=s32'00000000000000000000000001100000
+        1   pc386_disk
+        1   pc386_status
+
+=== $paramod$eb315ce49270be58117f20b0586d79368e3cca0e\pc386_at_core ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      299 wires
+     1420 wire bits
+      173 public wires
+     1092 public wire bits
+      102 ports
+      887 port bits
+      176 cells
+        1   $dff
+       25   $eq
+        1   $ge
+        1   $le
+       46   $logic_and
+       12   $logic_not
+       11   $logic_or
+        1   $mem_v2
+       34   $mux
+        3   $ne
+        2   $not
+        1   $or
+        1   $pmux
+        5   $reduce_and
+        4   $reduce_bool
+        8   $reduce_or
+        6   $sdff
+       14   $sdffe
+       11 submodules
+        1   $paramod$032d9267e4434fbdd53aa2cb8b89141938e7fc7b\pc386_kbc
+        1   $paramod$09bb370ab784db4d3a420599afdc3c2e5e2db90d\fes_dma8237
+        1   $paramod$0b96783918d1fa3d0e77087dc457d184d46ab5d6\pc386_rate
+        1   $paramod$8ef0b0529c280f54121daee3ceaa8679c42c5181\pc386_io
+        1   $paramod$b3cbe4e4df53a2823df474f1ff6e96347825f020\pc386_rtc
+        1   $paramod$ee2e4cb5ab01332dba864e75974e317dff6a0af1\fes_dma8237
+        1   $paramod$f945d0dffceaf76652a8d5c6071dbc646fe48c60\pc386_rate
+        1   $paramod\KF8253\READ_BACK=s32'00000000000000000000000000000001
+        1   $paramod\pc386_ata\RESET_CLOCKS=s32'00000000000000000000001001100111
+        1   pc386_pic
+        1   pc386_sysctl
+
+=== pc386_status ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       62 wires
+     1420 wire bits
+       28 public wires
+     1227 public wire bits
+       19 ports
+      612 port bits
+       50 cells
+        4   $add
+        1   $dff
+        2   $dffe
+        8   $eq
+        6   $logic_and
+        7   $logic_not
+        2   $logic_or
+       10   $mux
+        1   $not
+        1   $pmux
+        2   $reduce_and
+        1   $reduce_bool
+        1   $reduce_or
+        1   $sdff
+        3   $sdffe
+
+=== $paramod$d851f4007c1bf01c16f3ad07890cf6fcb6e39697\pc386_vga_scanout ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      669 wires
+     3567 wire bits
+      244 public wires
+     1693 public wire bits
+       80 ports
+      707 port bits
+      587 cells
+       35   $add
+        8   $and
+        6   $dffe
+       29   $eq
+       11   $ge
+        3   $gt
+        1   $le
+       76   $logic_and
+       42   $logic_not
+       15   $logic_or
+       10   $lt
+      184   $mux
+       10   $ne
+       10   $not
+        1   $pmux
+       20   $reduce_and
+       21   $reduce_bool
+        7   $reduce_or
+       19   $sdff
+       62   $sdffe
+        8   $shiftx
+        1   $shr
+        8   $sub
+       10 submodules
+        1   $paramod$0a6844ec1b16307a526969495e469f0cd7dd1a75\pc386_rate
+        1   $paramod$0f70c9467f54d45789dcb38a80bb051907570405\pc386_ram
+        1   $paramod$14358b4b3c7f3f783ee8ba5a6430d5f032c86b31\pc386_rate
+        2   $paramod$2f802d5ac93483295d45c75db1b6173037a4ad56\pc386_ram
+        1   $paramod$4151c9241e2c3ab5978fedd4cd9dddd71496a37f\pc386_fifo
+        1   $paramod$497208cc565be8b9d23b93e2ce06b126e4a1e709\pc386_fifo
+        1   $paramod$66396300e3f730693959c6ccd02220702fc170cd\pc386_ram
+        1   $paramod$923bb8693de62277d4d3bae8b642c5df61cfcae8\pc386_fifo
+        1   $paramod$e43f2d00c873b9e1420eb440666777a3b31f9a96\pc386_fifo
+
+=== pc386_disk ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      332 wires
+     5800 wire bits
+       32 public wires
+      484 public wire bits
+       23 ports
+      402 port bits
+      254 cells
+        3   $add
+        2   $eq
+       18   $logic_and
+        9   $logic_not
+        1   $logic_or
+       77   $mux
+        2   $ne
+       66   $not
+        1   $reduce_and
+        2   $reduce_bool
+        2   $reduce_or
+        2   $sdff
+        5   $sdffe
+       64   $xor
+
+=== $paramod$07fdb0cbf2941703741f12f088979465d8be6a5a\mem_simple_dual_port_async_read ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        9 wires
+       53 wire bits
+        6 public wires
+       30 public wire bits
+        6 ports
+       30 port bits
+        4 cells
+        1   $mem_v2
+        3   $mux
+
+=== $paramod$836ec8857d844b4b1dae1eff1c8f2934597592b8\fes_i386_governor ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      378 wires
+     1613 wire bits
+       64 public wires
+      426 public wire bits
+       22 ports
+       93 port bits
+      759 cells
+       13   $add
+       25   $dff
+        3   $dffe
+      576   $eq
+        1   $ge
+        5   $gt
+        1   $le
+       14   $logic_and
+        5   $logic_not
+        2   $logic_or
+        1   $lt
+        8   $mul
+       16   $mux
+        2   $pmux
+        3   $reduce_bool
+       73   $reduce_or
+        5   $sdff
+        1   $shl
+        5   $sub
+        1 submodules
+        1   fes_i386_gov_rom
+
+=== pc386_mixer ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       68 wires
+      856 wire bits
+       22 public wires
+      296 public wire bits
+        8 ports
+       53 port bits
+       63 cells
+        6   $add
+        2   $eq
+        1   $ge
+        1   $gt
+        2   $logic_and
+        3   $logic_not
+        2   $lt
+       22   $mux
+        1   $ne
+        2   $neg
+        2   $reduce_bool
+        3   $reduce_or
+        3   $sdff
+       11   $sdffe
+        2   $sub
+
+=== $paramod$0d030b6b21b09ff3697efc944f0b65d637926e29\pc386_rate ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        9 wires
+       49 wire bits
+        5 public wires
+       25 public wire bits
+        3 ports
+        3 port bits
+        7 cells
+        1   $add
+        1   $ge
+        2   $mux
+        2   $sdff
+        1   $sub
+
+=== $paramod$2b54ae782a6f3ed77344668c96ee8abdcbb67f75\pc386_opl2 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       98 wires
+      354 wire bits
+       31 public wires
+      118 public wire bits
+        9 ports
+       38 port bits
+       89 cells
+        6   $add
+        7   $eq
+       13   $logic_and
+        7   $logic_not
+        1   $logic_or
+        1   $mem_v2
+       31   $mux
+        1   $not
+        3   $reduce_and
+        2   $reduce_bool
+        5   $sdff
+       11   $sdffe
+        1   $sub
+        2 submodules
+        1   $paramod$63206c72ddd3933ec1a3c8c1d9192e062ea23e5d\pc386_rate
+        1   channels
+
+=== $paramod$5c589f2aac433e6c33350455c02ac6f32ea57fb8\mem_single_bank ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        7 wires
+       13 wire bits
+        7 public wires
+       13 public wire bits
+        7 ports
+       13 port bits
+        1 submodules
+        1   $paramod$9e37261caafc4736145812664869c0c285c7a45e\mem_simple_dual_port_async_read
+
+=== dac_prep ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        6 wires
+       36 wire bits
+        6 public wires
+       36 public wire bits
+        6 ports
+       36 port bits
+        2 cells
+        2   $dff
+
+=== $paramod$aeeaf32c81c47bf38b87898de004d1522c4277dd\mem_single_bank ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        7 wires
+       29 wire bits
+        7 public wires
+       29 public wire bits
+        7 ports
+       29 port bits
+        1 submodules
+        1   $paramod$beec738f2eeb15b382cd425cf085332c0ab8047d\mem_simple_dual_port_async_read
+
+=== operator ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       61 wires
+      484 wire bits
+       43 public wires
+      358 public wire bits
+       32 ports
+       95 port bits
+       21 cells
+        1   $add
+        6   $eq
+        1   $logic_not
+        5   $logic_or
+        4   $mux
+        2   $pmux
+        1   $reduce_or
+        1   $sshl
+        7 submodules
+        1   $paramod$01e17d7f22fbd449beecee3c34d2b83722e1cc00\pipeline_sr
+        1   $paramod$2fb953c5fcf35a7134f13bb91db442b0dd53f68e\pipeline_sr
+        1   $paramod$e0f5265ba6f53d6dab129fa1400efb2ec791d9bd\mem_single_bank
+        1   $paramod\pipeline_sr\ENDING_CYCLE=s32'00000000000000000000000000000110
+        1   calc_phase_inc
+        1   envelope_generator
+        1   phase_generator
+
+=== phase_generator ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       48 wires
+      638 wire bits
+       28 public wires
+      384 public wire bits
+       10 ports
+       70 port bits
+       30 cells
+        3   $add
+        3   $dff
+        6   $eq
+        1   $gt
+        2   $logic_not
+        5   $mux
+        2   $not
+        2   $pmux
+        2   $reduce_or
+        2   $sdff
+        1   $shr
+        1   $xor
+        9 submodules
+        1   $paramod$05982d4b0c14a0c8475f7f3c5e67c68af1822c36\pipeline_sr
+        1   $paramod$2fb953c5fcf35a7134f13bb91db442b0dd53f68e\pipeline_sr
+        1   $paramod$308ef52d72bd1e2daa820fc6b74daccc292312c5\mem_single_bank
+        1   $paramod$3d9439e77be7e61f888dbf1f3a7431b3501cba23\pipeline_sr
+        1   $paramod$f2115df581b0ea563f189a79350cc830b29a7033\pipeline_sr
+        1   $paramod\pipeline_sr\ENDING_CYCLE=s32'00000000000000000000000000000110
+        1   calc_rhythm_phase
+        1   opl2_exp_lut
+        1   opl2_log_sine_lut
+
+=== envelope_generator ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       96 wires
+      660 wire bits
+       45 public wires
+      234 public wire bits
+       21 ports
+       67 port bits
+       62 cells
+        4   $add
+        4   $dff
+       12   $eq
+        1   $gt
+        8   $logic_and
+        3   $logic_not
+       15   $mux
+        2   $ne
+        2   $not
+        3   $pmux
+        2   $reduce_or
+        2   $sdff
+        1   $shl
+        1   $shr
+        2   $sub
+       13 submodules
+        3   $paramod$209f78e60dc8b497b4e9d4098929520e47f2eee2\pipeline_sr
+        1   $paramod$362da2bc9cfeed4494ac0bdb785cb332468f3ce9\mem_single_bank
+        1   $paramod$9da7783678857aa4e6b8b83fd7211805644861d4\pipeline_sr
+        1   $paramod$d1b0ec92995b070cd324ae56a4be2075814408eb\pipeline_sr
+        1   $paramod$d70be89d19b356886718b14f301927a8b1c8b9b2\pipeline_sr
+        1   $paramod$f72bd146721079a25fde08f8820fb847aedd8e52\mem_single_bank
+        1   $paramod$fd4ec88b8ee6e673b55ae260d702a1e9a7d2d9a4\pipeline_sr
+        1   $paramod\pipeline_sr\ENDING_CYCLE=s32'00000000000000000000000000000011
+        1   calc_envelope_shift
+        1   ksl_add_rom
+        1   tremolo
+
+=== calc_rhythm_phase ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       53 wires
+      302 wire bits
+       17 public wires
+      146 public wire bits
+        6 ports
+       30 port bits
+       45 cells
+        3   $dff
+        3   $dffe
+        5   $eq
+        1   $logic_and
+        2   $logic_or
+        4   $mux
+        2   $or
+        1   $pmux
+       24   $xor
+        3 submodules
+        1   $paramod$6d41ade11409129eb6d2c7934d916b4b33cec748\pipeline_sr
+        1   $paramod$d70be89d19b356886718b14f301927a8b1c8b9b2\pipeline_sr
+        1   $paramod\pipeline_sr\ENDING_CYCLE=s32'00000000000000000000000000000011
+
+=== calc_envelope_shift ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       57 wires
+      209 wire bits
+       23 public wires
+       99 public wire bits
+       10 ports
+       32 port bits
+       46 cells
+        4   $add
+        3   $dff
+        4   $dffe
+       16   $eq
+        1   $logic_and
+        3   $logic_not
+        1   $lt
+        7   $mux
+        1   $or
+        2   $pmux
+        1   $reduce_and
+        1   $reduce_bool
+        1   $sdff
+        1   $shiftx
+        2 submodules
+        1   $paramod$d70be89d19b356886718b14f301927a8b1c8b9b2\pipeline_sr
+        1   $paramod\pipeline_sr\ENDING_CYCLE=s32'00000000000000000000000000000011
+
+=== calc_phase_inc ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       38 wires
+      195 wire bits
+       14 public wires
+      102 public wire bits
+        9 ports
+       46 port bits
+       27 cells
+        1   $add
+        3   $dff
+       15   $eq
+        1   $logic_not
+        1   $mul
+        1   $mux
+        1   $pmux
+        3   $reduce_or
+        1   $shl
+        1 submodules
+        1   vibrato
+
+=== vibrato ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       19 wires
+      117 wire bits
+        9 public wires
+       38 public wire bits
+        6 ports
+       22 port bits
+       14 cells
+        2   $add
+        2   $dffe
+        2   $eq
+        1   $logic_and
+        1   $logic_not
+        4   $mux
+        1   $neg
+        1   $reduce_and
+
+=== tremolo ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       21 wires
+      168 wire bits
+       11 public wires
+       51 public wire bits
+        5 ports
+       14 port bits
+       18 cells
+        2   $add
+        2   $dff
+        3   $dffe
+        3   $eq
+        1   $logic_and
+        1   $lt
+        4   $mux
+        1   $sdffce
+        1   $sub
+
+=== ksl_add_rom ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       37 wires
+      217 wire bits
+        9 public wires
+       47 public wire bits
+        5 ports
+       24 port bits
+       32 cells
+        1   $add
+        4   $dff
+       18   $eq
+        1   $le
+        2   $logic_not
+        3   $mux
+        2   $pmux
+        1   $sub
+
+=== opl2_exp_lut ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      260 wires
+      285 wire bits
+        3 public wires
+       19 public wire bits
+        3 ports
+       19 port bits
+      258 cells
+        1   $dff
+      255   $eq
+        1   $logic_not
+        1   $pmux
+
+=== opl2_log_sine_lut ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      277 wires
+      306 wire bits
+        3 public wires
+       21 public wire bits
+        3 ports
+       21 port bits
+      275 cells
+        1   $dff
+      255   $eq
+        1   $logic_not
+        1   $pmux
+       17   $reduce_or
+
+=== $paramod\fes_menu_reader\WINDOW_BASE=32'00110000000000000000000000000000 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      111 wires
+     2086 wire bits
+       38 public wires
+      736 public wire bits
+       17 ports
+      228 port bits
+      102 cells
+        8   $add
+        4   $dff
+        6   $dffe
+        6   $eq
+        1   $ge
+        1   $gt
+        1   $le
+       20   $logic_and
+        7   $logic_not
+        2   $logic_or
+        1   $lt
+        1   $mem_v2
+       21   $mux
+        1   $not
+        1   $pmux
+        2   $reduce_and
+        6   $reduce_bool
+        1   $reduce_or
+        1   $sdff
+        1   $sdffce
+        6   $sdffe
+        1   $shiftx
+        3   $sub
+
+=== $paramod$301b858114c8f99e6e040587d5e50a6e053639aa\pc386_dcram ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       12 wires
+      190 wire bits
+        8 public wires
+       80 public wire bits
+        8 ports
+       80 port bits
+        5 cells
+        1   $dffe
+        1   $mem_v2
+        3   $mux
+
+=== $paramod$80eacdc445ad198c64b5935551d4b85a6920d14c\pc386_dcram ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       12 wires
+      656 wire bits
+        8 public wires
+      268 public wire bits
+        8 ports
+      268 port bits
+        5 cells
+        1   $dffe
+        1   $mem_v2
+        3   $mux
+
+=== $paramod$e43f2d00c873b9e1420eb440666777a3b31f9a96\pc386_ram ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       15 wires
+      188 wire bits
+        8 public wires
+       60 public wire bits
+        8 ports
+       60 port bits
+        8 cells
+        1   $dffe
+        1   $mem_v2
+        6   $mux
+
+=== $paramod$497208cc565be8b9d23b93e2ce06b126e4a1e709\pc386_ram ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       15 wires
+       90 wire bits
+        8 public wires
+       32 public wire bits
+        8 ports
+       32 port bits
+        8 cells
+        1   $dffe
+        1   $mem_v2
+        6   $mux
+
+=== $paramod$4151c9241e2c3ab5978fedd4cd9dddd71496a37f\pc386_ram ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       15 wires
+       79 wire bits
+        8 public wires
+       28 public wire bits
+        8 ports
+       28 port bits
+        8 cells
+        1   $dffe
+        1   $mem_v2
+        6   $mux
+
+=== $paramod\KF8253_Counter\READ_BACK=s32'00000000000000000000000000000001 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      252 wires
+     1247 wire bits
+       57 public wires
+      263 public wire bits
+       12 ports
+       26 port bits
+      248 cells
+        2   $add
+       12   $adff
+       19   $adffe
+        6   $and
+       13   $eq
+        2   $ge
+        3   $le
+       15   $logic_and
+       10   $logic_not
+        7   $logic_or
+       10   $lt
+       94   $mux
+       11   $ne
+        8   $not
+        6   $pmux
+        6   $reduce_and
+        9   $reduce_bool
+        8   $reduce_or
+        7   $sub
+
+=== $paramod$0a6844ec1b16307a526969495e469f0cd7dd1a75\pc386_rate ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        9 wires
+       65 wire bits
+        5 public wires
+       33 public wire bits
+        3 ports
+        3 port bits
+        7 cells
+        1   $add
+        1   $ge
+        2   $mux
+        2   $sdff
+        1   $sub
+
+=== $paramod$aeb70bcf6248a1262f33dc664f149e3db04bb52b\mem_single_bank ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        7 wires
+       39 wire bits
+        7 public wires
+       39 public wire bits
+        7 ports
+       39 port bits
+        1 submodules
+        1   $paramod$aeb70bcf6248a1262f33dc664f149e3db04bb52b\mem_simple_dual_port
+
+=== control_operators ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      145 wires
+      685 wire bits
+       49 public wires
+      220 public wire bits
+        7 ports
+       41 port bits
+      149 cells
+        4   $add
+        1   $and
+        5   $dff
+       10   $dffe
+       39   $eq
+        9   $ge
+        1   $gt
+        9   $le
+       19   $logic_and
+        5   $logic_not
+        1   $logic_or
+        2   $lt
+        9   $mux
+        1   $ne
+        1   $neg
+        1   $not
+        1   $or
+        3   $pmux
+        3   $reduce_and
+        2   $reduce_bool
+       16   $reduce_or
+        1   $sdff
+        2   $shift
+        1   $shiftx
+        3   $sub
+       12 submodules
+        1   $paramod$19996e2f20d717ea0857ed17bde2febf1f23de44\mem_single_bank
+        1   $paramod$2fb953c5fcf35a7134f13bb91db442b0dd53f68e\pipeline_sr
+        1   $paramod$546c3fb69b189e982371a65d4617e2492c070f0c\mem_single_bank
+        1   $paramod$5c589f2aac433e6c33350455c02ac6f32ea57fb8\mem_single_bank_reset
+        1   $paramod$833a1bacab0173b92060d4645ab7fb99c3d4a82f\mem_single_bank
+        1   $paramod$8bc2bd7b5d2c5817b86772903c3838c4beb4f28c\mem_single_bank
+        4   $paramod$aeeaf32c81c47bf38b87898de004d1522c4277dd\mem_single_bank
+        1   $paramod\pipeline_sr\ENDING_CYCLE=s32'00000000000000000000000000000110
+        1   operator
+
+=== $paramod\pc386_sb\RESET_US=s32'00000000000000000000000000010100 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      612 wires
+     2209 wire bits
+       66 public wires
+      318 public wire bits
+       16 ports
+       54 port bits
+      625 cells
+       13   $add
+       72   $and
+        3   $dff
+        6   $dffe
+       74   $eq
+        1   $ge
+        3   $gt
+       30   $logic_and
+       12   $logic_not
+        3   $logic_or
+        1   $mul
+      255   $mux
+        5   $ne
+       24   $not
+       16   $pmux
+       13   $reduce_and
+       23   $reduce_bool
+       25   $reduce_or
+       14   $sdff
+       20   $sdffe
+        1   $shl
+       10   $sub
+        1   $xor
+
+=== $paramod$8bc2bd7b5d2c5817b86772903c3838c4beb4f28c\mem_single_bank ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        7 wires
+       17 wire bits
+        7 public wires
+       17 public wire bits
+        7 ports
+       17 port bits
+        1 submodules
+        1   $paramod$7598a3a96e521ef078fc3ca049d49f782fa24537\mem_simple_dual_port_async_read
+
+=== fes_display_cdc ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       43 wires
+      177 wire bits
+       23 public wires
+      157 public wire bits
+       16 ports
+      102 port bits
+       34 cells
+        3   $dff
+        9   $dffe
+        1   $eq
+        6   $logic_and
+        4   $logic_not
+        3   $mux
+        1   $ne
+        3   $not
+        2   $reduce_and
+        2   $sdffe
+
+=== $paramod$19996e2f20d717ea0857ed17bde2febf1f23de44\mem_single_bank ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        7 wires
+       27 wire bits
+        7 public wires
+       27 public wire bits
+        7 ports
+       27 port bits
+        1 submodules
+        1   $paramod$f82cdb9d43aef844a5040bf5e961ed2b2a377b73\mem_simple_dual_port_async_read
+
+=== $paramod$5c589f2aac433e6c33350455c02ac6f32ea57fb8\mem_single_bank_reset ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       28 wires
+      235 wire bits
+       14 public wires
+       90 public wire bits
+       10 ports
+       16 port bits
+       20 cells
+        1   $add
+        2   $eq
+        1   $logic_not
+        1   $logic_or
+        6   $mux
+        3   $ne
+        2   $pmux
+        1   $reduce_and
+        3   $sdffe
+        1 submodules
+        1   $paramod$5c589f2aac433e6c33350455c02ac6f32ea57fb8\mem_single_bank
+
+=== pc386_port2 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      106 wires
+      634 wire bits
+       46 public wires
+      453 public wire bits
+       33 ports
+      411 port bits
+       82 cells
+        1   $add
+        8   $eq
+       17   $logic_and
+       11   $logic_not
+        8   $logic_or
+       26   $mux
+        1   $ne
+        2   $not
+        2   $reduce_and
+        1   $sdff
+        3   $sdffe
+        2   $sub
+        1 submodules
+        1   $paramod$497208cc565be8b9d23b93e2ce06b126e4a1e709\pc386_fifo
+
+=== pc386_plane_bridge ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       89 wires
+      798 wire bits
+       36 public wires
+      574 public wire bits
+       19 ports
+      278 port bits
+       73 cells
+        2   $add
+        1   $gt
+        7   $logic_and
+       12   $logic_not
+        2   $logic_or
+       17   $mux
+        1   $ne
+        4   $not
+        6   $reduce_and
+        2   $reduce_bool
+        2   $reduce_or
+        5   $sdff
+       10   $sdffe
+        2   $sub
+        2 submodules
+        1   $paramod$301b858114c8f99e6e040587d5e50a6e053639aa\pc386_async_fifo
+        1   $paramod$80eacdc445ad198c64b5935551d4b85a6920d14c\pc386_async_fifo
+
+=== pc386_presenter ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      405 wires
+     4267 wire bits
+      119 public wires
+     1488 public wire bits
+       19 ports
+      241 port bits
+      391 cells
+       44   $add
+        8   $dff
+       15   $eq
+        9   $ge
+        3   $gt
+        4   $le
+       29   $logic_and
+        7   $logic_not
+        2   $logic_or
+       11   $lt
+       11   $mul
+      101   $mux
+       12   $ne
+        7   $not
+       16   $reduce_and
+       16   $reduce_bool
+        7   $reduce_or
+       13   $sdff
+       56   $sdffe
+        1   $shiftx
+       19   $sub
+        2 submodules
+        2   $paramod$7d23e06083446cc113f0a0d31d8341f241805dae\pc386_dcram
+
+=== $paramod$833a1bacab0173b92060d4645ab7fb99c3d4a82f\mem_single_bank ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        7 wires
+       21 wire bits
+        7 public wires
+       21 public wire bits
+        7 ports
+       21 port bits
+        1 submodules
+        1   $paramod$3cd453e7be4479fa05eac87da28528c89b6eb817\mem_simple_dual_port_async_read
+
+=== $paramod$c474964c5e418f2c81d4c0103388cb41574beaf6\pc386_fifo ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       20 wires
+      150 wire bits
+       15 public wires
+      131 public wire bits
+        9 ports
+      115 port bits
+       14 cells
+        4   $add
+        1   $eq
+        1   $logic_and
+        1   $logic_not
+        1   $logic_or
+        1   $reduce_bool
+        1   $sdff
+        3   $sdffe
+        1   $sub
+        1 submodules
+        1   $paramod$c474964c5e418f2c81d4c0103388cb41574beaf6\pc386_ram
+
+=== $paramod$546c3fb69b189e982371a65d4617e2492c070f0c\mem_single_bank ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        7 wires
+       19 wire bits
+        7 public wires
+       19 public wire bits
+        7 ports
+       19 port bits
+        1 submodules
+        1   $paramod$546c3fb69b189e982371a65d4617e2492c070f0c\mem_simple_dual_port
+
+=== $paramod$e0f5265ba6f53d6dab129fa1400efb2ec791d9bd\mem_single_bank ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        7 wires
+       65 wire bits
+        7 public wires
+       65 public wire bits
+        7 ports
+       65 port bits
+        1 submodules
+        1   $paramod$e0f5265ba6f53d6dab129fa1400efb2ec791d9bd\mem_simple_dual_port
+
+=== $paramod$01e17d7f22fbd449beecee3c34d2b83722e1cc00\pipeline_sr ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        3 wires
+      157 wire bits
+        3 public wires
+      157 public wire bits
+        3 ports
+      157 port bits
+        1 cells
+        1   $dff
+
+=== $paramod\pipeline_sr\ENDING_CYCLE=s32'00000000000000000000000000000110 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        3 wires
+        8 wire bits
+        3 public wires
+        8 public wire bits
+        3 ports
+        8 port bits
+        1 cells
+        1   $dff
+
+=== $paramod$2fb953c5fcf35a7134f13bb91db442b0dd53f68e\pipeline_sr ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        3 wires
+       36 wire bits
+        3 public wires
+       36 public wire bits
+        3 ports
+       36 port bits
+        1 cells
+        1   $dff
+
+=== $paramod$559734880e3d9b092d8e033a3a99c5c84eba9239\pipeline_sr ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        3 wires
+       22 wire bits
+        3 public wires
+       22 public wire bits
+        3 ports
+       22 port bits
+        1 cells
+        1   $dff
+
+=== $paramod$f2115df581b0ea563f189a79350cc830b29a7033\pipeline_sr ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        3 wires
+       79 wire bits
+        3 public wires
+       79 public wire bits
+        3 ports
+       79 port bits
+        1 cells
+        1   $dff
+
+=== $paramod$05982d4b0c14a0c8475f7f3c5e67c68af1822c36\pipeline_sr ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        3 wires
+       41 wire bits
+        3 public wires
+       41 public wire bits
+        3 ports
+       41 port bits
+        1 cells
+        1   $dff
+
+=== $paramod$3d9439e77be7e61f888dbf1f3a7431b3501cba23\pipeline_sr ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        3 wires
+       15 wire bits
+        3 public wires
+       15 public wire bits
+        3 ports
+       15 port bits
+        1 cells
+        1   $dff
+
+=== pc386_ps2_fifo ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      261 wires
+      865 wire bits
+       99 public wires
+      365 public wire bits
+       16 ports
+       48 port bits
+      254 cells
+        3   $add
+       40   $and
+        1   $dff
+       81   $dffe
+        2   $logic_and
+      114   $mux
+        1   $ne
+        4   $not
+        3   $reduce_bool
+        1   $sdff
+        2   $sdffe
+        2   $sub
+
+=== $paramod$308ef52d72bd1e2daa820fc6b74daccc292312c5\mem_single_bank ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        7 wires
+       53 wire bits
+        7 public wires
+       53 public wire bits
+        7 ports
+       53 port bits
+        1 submodules
+        1   $paramod$308ef52d72bd1e2daa820fc6b74daccc292312c5\mem_simple_dual_port
+
+=== pc386_hid_keyboard ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      500 wires
+     5672 wire bits
+       55 public wires
+      925 public wire bits
+       19 ports
+      189 port bits
+      487 cells
+        7   $add
+        4   $and
+        3   $dffe
+      267   $eq
+        1   $ge
+       32   $logic_and
+       10   $logic_not
+        7   $logic_or
+        1   $mul
+       67   $mux
+        7   $ne
+        3   $neg
+        4   $not
+        4   $or
+        9   $pmux
+       10   $reduce_and
+       11   $reduce_bool
+       10   $reduce_or
+        3   $sdff
+       14   $sdffe
+        6   $shift
+        5   $shiftx
+        1   $shl
+        1   $sub
+
+=== pc386_sysctl ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       38 wires
+       77 wire bits
+       21 public wires
+       46 public wire bits
+       17 ports
+       38 port bits
+       25 cells
+        3   $logic_and
+        3   $logic_not
+        5   $mux
+        2   $not
+        3   $reduce_and
+        2   $reduce_or
+        3   $sdff
+        4   $sdffe
+
+=== pc386_pic ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       24 wires
+       76 wire bits
+       21 public wires
+       66 public wire bits
+       12 ports
+       41 port bits
+        7 cells
+        5   $logic_not
+        2   $mux
+        2 submodules
+        2   KF8259
+
+=== $paramod$d1b0ec92995b070cd324ae56a4be2075814408eb\pipeline_sr ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        3 wires
+       25 wire bits
+        3 public wires
+       25 public wire bits
+        3 ports
+       25 port bits
+        1 cells
+        1   $dff
+
+=== $paramod$fd4ec88b8ee6e673b55ae260d702a1e9a7d2d9a4\pipeline_sr ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        3 wires
+       17 wire bits
+        3 public wires
+       17 public wire bits
+        3 ports
+       17 port bits
+        1 cells
+        1   $dff
+
+=== $paramod$9da7783678857aa4e6b8b83fd7211805644861d4\pipeline_sr ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        3 wires
+       37 wire bits
+        3 public wires
+       37 public wire bits
+        3 ports
+       37 port bits
+        1 cells
+        1   $dff
+
+=== $paramod$209f78e60dc8b497b4e9d4098929520e47f2eee2\pipeline_sr ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        3 wires
+        5 wire bits
+        3 public wires
+        5 public wire bits
+        3 ports
+        5 port bits
+        1 cells
+        1   $dff
+
+=== KF8253_Control_Logic ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       46 wires
+       67 wire bits
+       25 public wires
+       46 public wire bits
+       19 ports
+       38 port bits
+       39 cells
+        2   $adff
+        1   $adffe
+       18   $and
+        8   $eq
+        3   $logic_not
+        1   $mux
+        6   $not
+
+=== $paramod$f72bd146721079a25fde08f8820fb847aedd8e52\mem_single_bank ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        7 wires
+       21 wire bits
+        7 public wires
+       21 public wire bits
+        7 ports
+       21 port bits
+        1 submodules
+        1   $paramod$1ff82e53af940464a526775fb2782e3e68a8e8f8\mem_simple_dual_port_async_read
+
+=== KF8259_Priority_Resolver ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      180 wires
+      812 wire bits
+       19 public wires
+      140 public wire bits
+        8 ports
+       52 port bits
+      187 cells
+       26   $and
+        7   $eq
+       24   $logic_and
+       17   $logic_not
+       71   $mux
+        7   $ne
+       10   $not
+        8   $or
+        1   $reduce_bool
+       16   $reduce_or
+
+=== KF8259_Interrupt_Request ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       65 wires
+      100 wire bits
+        9 public wires
+       44 public wire bits
+        7 ports
+       28 port bits
+       80 cells
+       16   $adffe
+        8   $and
+       40   $mux
+       16   $ne
+
+=== KF8259_In_Service ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      111 wires
+      694 wire bits
+       11 public wires
+       62 public wire bits
+        9 ports
+       46 port bits
+      111 cells
+        2   $adff
+       10   $and
+        7   $eq
+        8   $logic_and
+        9   $logic_not
+       64   $mux
+        2   $not
+        1   $or
+        8   $reduce_or
+
+=== KF8259_Control_Logic ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      208 wires
+      984 wire bits
+       65 public wires
+      282 public wire bits
+       31 ports
+       93 port bits
+      196 cells
+        4   $adff
+       24   $adffe
+       17   $and
+       20   $eq
+       11   $logic_and
+        6   $logic_not
+       76   $mux
+        5   $ne
+       10   $not
+        8   $pmux
+        2   $reduce_and
+       11   $reduce_bool
+        2   $reduce_or
+
+=== KF8259_Bus_Control_Logic ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       28 wires
+       42 wire bits
+       17 public wires
+       31 public wire bits
+       14 ports
+       28 port bits
+       20 cells
+        2   $adff
+        1   $adffe
+        9   $and
+        1   $mux
+        7   $not
+
+=== KF8259 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       54 wires
+      179 wire bits
+       42 public wires
+      139 public wire bits
+       18 ports
+       43 port bits
+       15 cells
+        2   $logic_and
+       11   $mux
+        2   $not
+        5 submodules
+        1   KF8259_Bus_Control_Logic
+        1   KF8259_Control_Logic
+        1   KF8259_In_Service
+        1   KF8259_Interrupt_Request
+        1   KF8259_Priority_Resolver
+
+=== $paramod$362da2bc9cfeed4494ac0bdb785cb332468f3ce9\mem_single_bank ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        7 wires
+       31 wire bits
+        7 public wires
+       31 public wire bits
+        7 ports
+       31 port bits
+        1 submodules
+        1   $paramod$07fdb0cbf2941703741f12f088979465d8be6a5a\mem_simple_dual_port_async_read
+
+=== $paramod\pipeline_sr\ENDING_CYCLE=s32'00000000000000000000000000000011 ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        3 wires
+        5 wire bits
+        3 public wires
+        5 public wire bits
+        3 ports
+        5 port bits
+        1 cells
+        1   $dff
+
+=== fes_i386_gov_rom ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        4 wires
+       43 wire bits
+        3 public wires
+       27 public wire bits
+        3 ports
+       27 port bits
+        2 cells
+        1   $dff
+        1   $mem_v2
+
+=== $paramod$6d41ade11409129eb6d2c7934d916b4b33cec748\pipeline_sr ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        3 wires
+       13 wire bits
+        3 public wires
+       13 public wire bits
+        3 ports
+       13 port bits
+        1 cells
+        1   $dff
+
+=== fes_i386_l1d ===
+
+        +----------Local Count, excluding submodules.
+        | 
+     5402 wires
+    14387 wire bits
+      668 public wires
+     3699 public wire bits
+       63 ports
+     1157 port bits
+     5953 cells
+        9   $add
+        6   $and
+        1   $dff
+       63   $dffe
+      632   $eq
+        6   $ge
+     1779   $logic_and
+       38   $logic_not
+      937   $logic_or
+        6   $lt
+       16   $mem_v2
+     1288   $mux
+       14   $ne
+        2   $neg
+        6   $not
+        8   $or
+       14   $pmux
+       26   $reduce_and
+      544   $reduce_bool
+        5   $reduce_or
+        2   $sdff
+        2   $sdffce
+      517   $sdffe
+        5   $shift
+       16   $shiftx
+        4   $shl
+        7   $sub
+
+=== fes_i386_l1i ===
+
+        +----------Local Count, excluding submodules.
+        | 
+     7541 wires
+    12572 wire bits
+      583 public wires
+     2656 public wire bits
+       32 ports
+      545 port bits
+     8193 cells
+        1   $add
+      512   $and
+        8   $dff
+       13   $dffe
+      813   $eq
+        1   $ge
+     2360   $logic_and
+       22   $logic_not
+     1801   $logic_or
+        1   $lt
+       12   $mem_v2
+     1086   $mux
+        4   $ne
+        1   $not
+      512   $or
+        2   $pmux
+        5   $reduce_and
+      518   $reduce_bool
+        2   $reduce_or
+        1   $sdffce
+      515   $sdffe
+        2   $shiftx
+        1   $sub
+        1 submodules
+        1   $paramod$adcd63c2987ec00297c2c2485d2cb57c27780b12\fes_i386_tlb
+
+=== $paramod$d70be89d19b356886718b14f301927a8b1c8b9b2\pipeline_sr ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        3 wires
+       21 wire bits
+        3 public wires
+       21 public wire bits
+        3 ports
+       21 port bits
+        1 cells
+        1   $dff
+
+=== fes_i386_ex ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      415 wires
+     4266 wire bits
+       89 public wires
+     1602 public wire bits
+       24 ports
+      693 port bits
+      498 cells
+        4   $add
+       47   $and
+       13   $eq
+        1   $gt
+       49   $logic_and
+       21   $logic_not
+       27   $logic_or
+      117   $mux
+        6   $not
+       93   $or
+        2   $pmux
+       12   $reduce_and
+        1   $reduce_bool
+       66   $reduce_or
+        4   $reduce_xnor
+        4   $shiftx
+        1   $shl
+        1   $sub
+       29   $xor
+        1 submodules
+        1   fes_i386_shift
+
+=== fes_i386_muldiv ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      489 wires
+     7004 wire bits
+      102 public wires
+     1995 public wire bits
+       15 ports
+      410 port bits
+      503 cells
+       15   $add
+       48   $and
+       43   $dffe
+       19   $eq
+        4   $ge
+        3   $gt
+       28   $logic_and
+       21   $logic_not
+       10   $logic_or
+        5   $lt
+        4   $mul
+      201   $mux
+        5   $ne
+        1   $neg
+       14   $not
+        6   $or
+        6   $reduce_and
+       10   $reduce_bool
+       15   $reduce_or
+        4   $reduce_xnor
+        1   $sdff
+       11   $sdffce
+        1   $sdffe
+        2   $shl
+        1   $shr
+        8   $sub
+       17   $xor
+
+=== fes_i386_exctl ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      183 wires
+     2014 wire bits
+       46 public wires
+     1483 public wire bits
+        4 ports
+     1309 port bits
+      289 cells
+        2   $and
+       54   $eq
+        2   $ge
+        3   $le
+      118   $logic_and
+       22   $logic_not
+       54   $logic_or
+       26   $mux
+        2   $ne
+        3   $not
+        1   $or
+        1   $reduce_bool
+        1   $xor
+
+=== fes_i386_shflags ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       22 wires
+      101 wire bits
+       13 public wires
+       92 public wire bits
+        9 ports
+       88 port bits
+       15 cells
+        1   $logic_and
+       12   $mux
+        2   $xor
+
+=== fes_i386_shift ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       60 wires
+     3609 wire bits
+        7 public wires
+      217 public wire bits
+        6 ports
+      153 port bits
+       54 cells
+       27   $and
+       26   $or
+        1   $shr
+
+=== fes_i386_dops ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      441 wires
+     4102 wire bits
+       37 public wires
+      980 public wire bits
+       27 ports
+      827 port bits
+      486 cells
+       48   $and
+       35   $eq
+       91   $logic_and
+       56   $logic_not
+       36   $logic_or
+        2   $mul
+      136   $mux
+       40   $or
+        8   $reduce_or
+       16   $sdffce
+       12   $sdffe
+        6   $shiftx
+
+=== fes_i386_seq ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      289 wires
+     8870 wire bits
+       11 public wires
+     1569 public wire bits
+        6 ports
+     1564 port bits
+      457 cells
+        3   $add
+       64   $eq
+        1   $ge
+       32   $logic_and
+       12   $logic_not
+       34   $logic_or
+      160   $mux
+        5   $ne
+      108   $pmux
+       10   $reduce_bool
+       24   $reduce_or
+        4   $shl
+
+=== fes_i386_decode ===
+
+        +----------Local Count, excluding submodules.
+        | 
+     1083 wires
+     4397 wire bits
+      112 public wires
+      951 public wire bits
+       38 ports
+      517 port bits
+     1130 cells
+        7   $add
+      190   $eq
+        2   $ge
+        2   $gt
+        2   $le
+       58   $logic_and
+       30   $logic_not
+       39   $logic_or
+      581   $mux
+       11   $ne
+        1   $or
+       84   $pmux
+       11   $reduce_bool
+       90   $reduce_or
+       11   $shiftx
+        2   $shl
+        7   $sub
+        2   $xor
+
+=== fes_i386_ucode_rom ===
+
+        +----------Local Count, excluding submodules.
+        | 
+        4 wires
+      231 wire bits
+        3 public wires
+      120 public wire bits
+        3 ports
+      120 port bits
+        2 cells
+        1   $dff
+        1   $mem_v2
+
+=== fes_i386_agu ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       50 wires
+     1212 wire bits
+       26 public wires
+      646 public wire bits
+       15 ports
+      357 port bits
+       34 cells
+        2   $add
+        8   $and
+        6   $eq
+        3   $mux
+        1   $ne
+        6   $or
+        2   $pmux
+        6   $xor
+
+=== fes_i386_dfwd ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      392 wires
+     4347 wire bits
+       53 public wires
+     1133 public wire bits
+       31 ports
+      601 port bits
+      447 cells
+        3   $add
+       49   $and
+       38   $eq
+       75   $logic_and
+       29   $logic_not
+        8   $logic_or
+      144   $mux
+        1   $ne
+       41   $or
+        3   $reduce_bool
+        8   $reduce_or
+       16   $sdffce
+       19   $sdffe
+       12   $shiftx
+        1   $shl
+
+=== fes_i386_amode ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       52 wires
+       82 wire bits
+       12 public wires
+       31 public wire bits
+        9 ports
+       28 port bits
+       49 cells
+       10   $eq
+       10   $logic_and
+        5   $logic_not
+        5   $logic_or
+       16   $mux
+        2   $ne
+        1   $reduce_bool
+
+=== fes_i386_frontend ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       47 wires
+     3330 wire bits
+       47 public wires
+     3330 public wire bits
+       22 ports
+      779 port bits
+        4 submodules
+        1   fes_i386_btb
+        1   fes_i386_fetchbuf
+        1   fes_i386_qalign
+        1   fes_i386_ras
+
+=== fes_i386_qalign ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      172 wires
+     4868 wire bits
+       92 public wires
+     3716 public wire bits
+       24 ports
+     2650 port bits
+      282 cells
+        7   $add
+       21   $dffe
+       11   $eq
+        1   $ge
+       19   $logic_and
+       26   $logic_not
+       10   $logic_or
+        7   $mul
+       48   $mux
+        3   $ne
+        1   $not
+        2   $pmux
+        3   $reduce_and
+        2   $reduce_bool
+        1   $reduce_or
+        5   $sdffe
+      114   $shiftx
+        1   $shr
+
+=== fes_i386_fetchbuf ===
+
+        +----------Local Count, excluding submodules.
+        | 
+     1333 wires
+     9253 wire bits
+      471 public wires
+     7127 public wire bits
+       40 ports
+     3022 port bits
+     1699 cells
+        7   $add
+       11   $and
+        3   $dff
+       28   $dffe
+      256   $eq
+      662   $logic_and
+      199   $logic_not
+      394   $logic_or
+        3   $mul
+       86   $mux
+        4   $neg
+       10   $not
+        8   $or
+        5   $reduce_and
+        4   $reduce_bool
+        1   $reduce_or
+        4   $sdff
+        1   $sdffce
+        3   $sdffe
+        8   $shift
+        1   $shiftx
+        1   $xor
+        2 submodules
+        1   fes_i386_lendec
+        1   fes_i386_lstage
+
+=== fes_i386_ras ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      201 wires
+     2627 wire bits
+       27 public wires
+      622 public wire bits
+       10 ports
+      106 port bits
+      192 cells
+        1   $add
+       80   $and
+       16   $dffe
+       68   $mux
+        8   $not
+       17   $reduce_bool
+        1   $sdffe
+        1   $sub
+
+=== fes_i386_btb ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       38 wires
+      757 wire bits
+       16 public wires
+      355 public wire bits
+        8 ports
+      171 port bits
+       34 cells
+        3   $dff
+        1   $dffe
+        2   $eq
+        2   $ge
+        8   $logic_and
+        2   $logic_not
+        5   $logic_or
+        1   $lt
+        2   $mem_v2
+        8   $mux
+
+=== fes_i386_lstage ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      548 wires
+     3028 wire bits
+      323 public wires
+     2305 public wire bits
+        3 ports
+      897 port bits
+      609 cells
+      208   $add
+       64   $logic_and
+       16   $logic_or
+      225   $mux
+       64   $reduce_bool
+       32   $xor
+
+=== fes_i386_lendec ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       73 wires
+      840 wire bits
+       23 public wires
+      588 public wire bits
+        2 ports
+      384 port bits
+      333 cells
+       16   $add
+      187   $eq
+       16   $logic_and
+       97   $mux
+       17   $reduce_or
+       17 submodules
+       17   fes_i386_oplen
+
+=== fes_i386_oplen ===
+
+        +----------Local Count, excluding submodules.
+        | 
+       91 wires
+      327 wire bits
+       14 public wires
+       84 public wire bits
+        5 ports
+       43 port bits
+      232 cells
+        1   $add
+      185   $eq
+        5   $logic_not
+        1   $logic_or
+       22   $mux
+        6   $pmux
+       12   $reduce_or
+
+=== design hierarchy ===
+
+        +----------Count including submodules.
+        | 
+    46431 pc386_system
+       16 $paramod$0047decdc9f595ad29cda105a3db78bd3d9799f7\pc386_audio
+        7   $paramod$0d030b6b21b09ff3697efc944f0b65d637926e29\pc386_rate
+       89   $paramod$2b54ae782a6f3ed77344668c96ee8abdcbb67f75\pc386_opl2
+        7     $paramod$63206c72ddd3933ec1a3c8c1d9192e062ea23e5d\pc386_rate
+      160     channels
+        4         $paramod$9e37261caafc4736145812664869c0c285c7a45e\mem_simple_dual_port_async_read
+        5         $paramod$aeb70bcf6248a1262f33dc664f149e3db04bb52b\mem_simple_dual_port
+      149       control_operators
+        4           $paramod$f82cdb9d43aef844a5040bf5e961ed2b2a377b73\mem_simple_dual_port_async_read
+        1         $paramod$2fb953c5fcf35a7134f13bb91db442b0dd53f68e\pipeline_sr
+        5           $paramod$546c3fb69b189e982371a65d4617e2492c070f0c\mem_simple_dual_port
+       20         $paramod$5c589f2aac433e6c33350455c02ac6f32ea57fb8\mem_single_bank_reset
+        4             $paramod$9e37261caafc4736145812664869c0c285c7a45e\mem_simple_dual_port_async_read
+        4           $paramod$3cd453e7be4479fa05eac87da28528c89b6eb817\mem_simple_dual_port_async_read
+        4           $paramod$7598a3a96e521ef078fc3ca049d49f782fa24537\mem_simple_dual_port_async_read
+        4           $paramod$beec738f2eeb15b382cd425cf085332c0ab8047d\mem_simple_dual_port_async_read
+        1         $paramod\pipeline_sr\ENDING_CYCLE=s32'00000000000000000000000000000110
+       21         operator
+        1           $paramod$01e17d7f22fbd449beecee3c34d2b83722e1cc00\pipeline_sr
+        1           $paramod$2fb953c5fcf35a7134f13bb91db442b0dd53f68e\pipeline_sr
+        5             $paramod$e0f5265ba6f53d6dab129fa1400efb2ec791d9bd\mem_simple_dual_port
+        1           $paramod\pipeline_sr\ENDING_CYCLE=s32'00000000000000000000000000000110
+       27           calc_phase_inc
+       14             vibrato
+       62           envelope_generator
+        1             $paramod$209f78e60dc8b497b4e9d4098929520e47f2eee2\pipeline_sr
+        4               $paramod$07fdb0cbf2941703741f12f088979465d8be6a5a\mem_simple_dual_port_async_read
+        1             $paramod$9da7783678857aa4e6b8b83fd7211805644861d4\pipeline_sr
+        1             $paramod$d1b0ec92995b070cd324ae56a4be2075814408eb\pipeline_sr
+        1             $paramod$d70be89d19b356886718b14f301927a8b1c8b9b2\pipeline_sr
+        4               $paramod$1ff82e53af940464a526775fb2782e3e68a8e8f8\mem_simple_dual_port_async_read
+        1             $paramod$fd4ec88b8ee6e673b55ae260d702a1e9a7d2d9a4\pipeline_sr
+        1             $paramod\pipeline_sr\ENDING_CYCLE=s32'00000000000000000000000000000011
+       46             calc_envelope_shift
+        1               $paramod$d70be89d19b356886718b14f301927a8b1c8b9b2\pipeline_sr
+        1               $paramod\pipeline_sr\ENDING_CYCLE=s32'00000000000000000000000000000011
+       32             ksl_add_rom
+       18             tremolo
+       30           phase_generator
+        1             $paramod$05982d4b0c14a0c8475f7f3c5e67c68af1822c36\pipeline_sr
+        1             $paramod$2fb953c5fcf35a7134f13bb91db442b0dd53f68e\pipeline_sr
+        6               $paramod$308ef52d72bd1e2daa820fc6b74daccc292312c5\mem_simple_dual_port
+        1             $paramod$3d9439e77be7e61f888dbf1f3a7431b3501cba23\pipeline_sr
+        1             $paramod$f2115df581b0ea563f189a79350cc830b29a7033\pipeline_sr
+        1             $paramod\pipeline_sr\ENDING_CYCLE=s32'00000000000000000000000000000110
+       45             calc_rhythm_phase
+        1               $paramod$6d41ade11409129eb6d2c7934d916b4b33cec748\pipeline_sr
+        1               $paramod$d70be89d19b356886718b14f301927a8b1c8b9b2\pipeline_sr
+        1               $paramod\pipeline_sr\ENDING_CYCLE=s32'00000000000000000000000000000011
+      258             opl2_exp_lut
+      275             opl2_log_sine_lut
+        2       dac_prep
+      625   $paramod\pc386_sb\RESET_US=s32'00000000000000000000000000010100
+       63   pc386_mixer
+        4 $paramod$007275ee4124ef848088169d9e26b9b20182ac46\pc386_machine
+       96   $paramod$379df4dd593c8007cf82b610dc5d359e8734013c\fes_display_plane
+      251     $paramod$7d72687d87a9979b47e40efb351269dee87a1373\fes_menu_control
+      108     $paramod$a1c14e713607f1a34fe45270432aadb21a90a94e\fes_menu_video
+      102       $paramod\fes_menu_reader\WINDOW_BASE=32'00110000000000000000000000000000
+       34     fes_display_cdc
+      176   $paramod$eb315ce49270be58117f20b0586d79368e3cca0e\pc386_at_core
+      588     $paramod$032d9267e4434fbdd53aa2cb8b89141938e7fc7b\pc386_kbc
+        7       $paramod$0d030b6b21b09ff3697efc944f0b65d637926e29\pc386_rate
+      118       $paramod\pc386_ps2_keyboard\BAT_US=s32'00000000000000000001001110001000
+      254         pc386_ps2_fifo
+      268       $paramod\pc386_ps2_mouse\DY_DOWN=s32'00000000000000000000000000000001
+      254         pc386_ps2_fifo
+      487       pc386_hid_keyboard
+      652     $paramod$09bb370ab784db4d3a420599afdc3c2e5e2db90d\fes_dma8237
+        7     $paramod$0b96783918d1fa3d0e77087dc457d184d46ab5d6\pc386_rate
+      178     $paramod$8ef0b0529c280f54121daee3ceaa8679c42c5181\pc386_io
+      629     $paramod$b3cbe4e4df53a2823df474f1ff6e96347825f020\pc386_rtc
+       14       $paramod$57270cfa7ae28790a3e200a46ea4fef8deb16fa0\pc386_ram
+        7       $paramod$e6c13c9b8034fa67f38a6fccfdeaff18f1c0decc\pc386_rate
+      652     $paramod$ee2e4cb5ab01332dba864e75974e317dff6a0af1\fes_dma8237
+        7     $paramod$f945d0dffceaf76652a8d5c6071dbc646fe48c60\pc386_rate
+        3     $paramod\KF8253\READ_BACK=s32'00000000000000000000000000000001
+      248       $paramod\KF8253_Counter\READ_BACK=s32'00000000000000000000000000000001
+       39       KF8253_Control_Logic
+      847     $paramod\pc386_ata\RESET_CLOCKS=s32'00000000000000000000001001100111
+        8       $paramod$7be460e384e31004b51e66d8c2ea4ed4e7fd9b31\pc386_ram
+        8       $paramod$923bb8693de62277d4d3bae8b642c5df61cfcae8\pc386_ram
+        7     pc386_pic
+       15       KF8259
+       20         KF8259_Bus_Control_Logic
+      196         KF8259_Control_Logic
+      111         KF8259_In_Service
+       80         KF8259_Interrupt_Request
+      187         KF8259_Priority_Resolver
+       25     pc386_sysctl
+     1272   $paramod$f98bc12abde64f94d35382aa536acce47ad012b8\pc386_vga
+       14     $paramod$c474964c5e418f2c81d4c0103388cb41574beaf6\pc386_fifo
+        8       $paramod$c474964c5e418f2c81d4c0103388cb41574beaf6\pc386_ram
+       14     $paramod$cf4fb4af5e95c21969683800b688157efa5cf0de\pc386_fifo
+        8       $paramod$cf4fb4af5e95c21969683800b688157efa5cf0de\pc386_ram
+      587     $paramod$d851f4007c1bf01c16f3ad07890cf6fcb6e39697\pc386_vga_scanout
+        7       $paramod$0a6844ec1b16307a526969495e469f0cd7dd1a75\pc386_rate
+        8       $paramod$0f70c9467f54d45789dcb38a80bb051907570405\pc386_ram
+        7       $paramod$14358b4b3c7f3f783ee8ba5a6430d5f032c86b31\pc386_rate
+        8       $paramod$2f802d5ac93483295d45c75db1b6173037a4ad56\pc386_ram
+       14       $paramod$4151c9241e2c3ab5978fedd4cd9dddd71496a37f\pc386_fifo
+        8         $paramod$4151c9241e2c3ab5978fedd4cd9dddd71496a37f\pc386_ram
+       14       $paramod$497208cc565be8b9d23b93e2ce06b126e4a1e709\pc386_fifo
+        8         $paramod$497208cc565be8b9d23b93e2ce06b126e4a1e709\pc386_ram
+        8       $paramod$66396300e3f730693959c6ccd02220702fc170cd\pc386_ram
+       14       $paramod$923bb8693de62277d4d3bae8b642c5df61cfcae8\pc386_fifo
+        8         $paramod$923bb8693de62277d4d3bae8b642c5df61cfcae8\pc386_ram
+       14       $paramod$e43f2d00c873b9e1420eb440666777a3b31f9a96\pc386_fifo
+        8         $paramod$e43f2d00c873b9e1420eb440666777a3b31f9a96\pc386_ram
+       50     $paramod$fccd686aae7e7725713731c347a508163178e82a\pc386_ram
+       73   pc386_plane_bridge
+       23     $paramod$301b858114c8f99e6e040587d5e50a6e053639aa\pc386_async_fifo
+        5       $paramod$301b858114c8f99e6e040587d5e50a6e053639aa\pc386_dcram
+       27     $paramod$80eacdc445ad198c64b5935551d4b85a6920d14c\pc386_async_fifo
+        5       $paramod$80eacdc445ad198c64b5935551d4b85a6920d14c\pc386_dcram
+       82   pc386_port2
+       14     $paramod$497208cc565be8b9d23b93e2ce06b126e4a1e709\pc386_fifo
+        8       $paramod$497208cc565be8b9d23b93e2ce06b126e4a1e709\pc386_ram
+      391   pc386_presenter
+        5     $paramod$7d23e06083446cc113f0a0d31d8341f241805dae\pc386_dcram
+      766 $paramod$34df3ec0c87b25bb2f31a1509a6ea4deccd2ce9a\fes_computer_storage
+      180 $paramod$6a0bd9ad1fa38cde1e0cfe693b320ac45ec41ab9\fes_computer_mailbox_core
+        7 $paramod$7d58855d5a1f3547ea3fd77357206eca3bf62cdf\pc386_rate
+     4956 $paramod$836ec8857d844b4b1dae1eff1c8f2934597592b8\fes_i386_cpu
+      214   $paramod$802479629c1744580fd11079470fb94d7a14f426\fes_i386_tlb
+      759   $paramod$836ec8857d844b4b1dae1eff1c8f2934597592b8\fes_i386_governor
+        2     fes_i386_gov_rom
+     1214   $paramod\fes_i386_biu\RAM_BASE=32'00110100000000000000000000000000
+       34   fes_i386_agu
+       49   fes_i386_amode
+     1130   fes_i386_decode
+      447   fes_i386_dfwd
+      486   fes_i386_dops
+      498   fes_i386_ex
+       54     fes_i386_shift
+      289   fes_i386_exctl
+       34     fes_i386_btb
+     1699     fes_i386_fetchbuf
+      333       fes_i386_lendec
+      232         fes_i386_oplen
+      609       fes_i386_lstage
+      282     fes_i386_qalign
+      192     fes_i386_ras
+     5953   fes_i386_l1d
+     8193   fes_i386_l1i
+       86     $paramod$adcd63c2987ec00297c2c2485d2cb57c27780b12\fes_i386_tlb
+      503   fes_i386_muldiv
+      457   fes_i386_seq
+       15   fes_i386_shflags
+        2   fes_i386_ucode_rom
+       43 $paramod$b0a61a3c91cac4fecb3a4d59037e0a63ad684a44\pc386_rom
+        9 $paramod\pc386_snapshot\W=s32'00000000000000000000000001100000
+      254 pc386_disk
+       50 pc386_status
+
+        +----------Count including submodules.
+        | 
+    42635 wires
+   298994 wire bits
+     8177 public wires
+   105292 public wire bits
+     2710 ports
+    39355 port bits
+        - memories
+        - memory bits
+        - processes
+    46431 cells
+      736   $add
+       54   $adff
+      140   $adffe
+     1725   $and
+      199   $dff
+      898   $dffe
+     8612   $eq
+      244   $ge
+       87   $gt
+       56   $le
+     7493   $logic_and
+     1439   $logic_not
+     4140   $logic_or
+      152   $lt
+       73   $mem_v2
+       13   $mod
+       59   $mul
+    11394   $mux
+      474   $ne
+       48   $neg
+      518   $not
+      939   $or
+      621   $pmux
+      543   $reduce_and
+     1881   $reduce_bool
+      897   $reduce_or
+        9   $reduce_xnor
+      272   $sdff
+      208   $sdffce
+     1614   $sdffe
+       81   $shift
+      275   $shiftx
+       32   $shl
+       12   $shr
+        3   $sshl
+      269   $sub
+      221   $xor
+       10 submodules
+        1   $paramod$0047decdc9f595ad29cda105a3db78bd3d9799f7\pc386_audio
+        1   $paramod$007275ee4124ef848088169d9e26b9b20182ac46\pc386_machine
+        1   $paramod$34df3ec0c87b25bb2f31a1509a6ea4deccd2ce9a\fes_computer_storage
+        1   $paramod$6a0bd9ad1fa38cde1e0cfe693b320ac45ec41ab9\fes_computer_mailbox_core
+        1   $paramod$7d58855d5a1f3547ea3fd77357206eca3bf62cdf\pc386_rate
+        1   $paramod$836ec8857d844b4b1dae1eff1c8f2934597592b8\fes_i386_cpu
+        1   $paramod$b0a61a3c91cac4fecb3a4d59037e0a63ad684a44\pc386_rom
+        1   $paramod\pc386_snapshot\W=s32'00000000000000000000000001100000
+        1   pc386_disk
+        1   pc386_status
+

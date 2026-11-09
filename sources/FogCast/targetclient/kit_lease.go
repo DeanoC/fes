@@ -69,6 +69,13 @@ func (l *KitLease) resumeLocal(ctx context.Context) error {
 		if code == http.StatusForbidden {
 			return nil
 		}
+		var apiErr *protocol.APIError
+		if code == http.StatusServiceUnavailable && errors.As(err, &apiErr) && apiErr.Code == protocol.CodeBusy {
+			// The software activation fence rejects lease resumes while the
+			// supervisor owns maintenance. This request did not reach the lease
+			// manager; continue with read-only ownership and status observation.
+			return nil
+		}
 		return err
 	}
 	if !validKitGrant(grant, start) {
@@ -99,29 +106,9 @@ func (l *KitLease) Authorize(r *http.Request, acquire bool) error {
 		if !acquire {
 			return ErrKitLeaseLost
 		}
-		if l.requestID == "" {
-			var b [32]byte
-			if _, err := rand.Read(b[:]); err != nil {
-				return err
-			}
-			l.requestID = hex.EncodeToString(b[:])
-		}
-		var grant kitLeaseGrant
-		requestStart := time.Now()
-		var err error
-		if l.localHost {
-			err = l.request(r.Context(), "/v1/kit/local/claim", "", &grant)
-		} else {
-			err = l.client.doJSON(r.Context(), "POST", "/v1/kit/claim", map[string]string{"request_id": l.requestID, "owner": l.owner, "purpose": l.purpose}, &grant)
-		}
-		if err != nil {
+		if err := l.claimLocked(r.Context()); err != nil {
 			return err
 		}
-		if !validKitGrant(grant, requestStart) {
-			l.lost = true
-			return ErrKitLeaseLost
-		}
-		l.installGrantLocked(grant, requestStart)
 	}
 	if !time.Now().Before(l.localExpiry) {
 		l.invalidateLocked()
@@ -130,6 +117,111 @@ func (l *KitLease) Authorize(r *http.Request, acquire bool) error {
 	r.Header.Set(KitLeaseHeader, l.grant.Token)
 	return nil
 }
+
+// Acquire reconciles current ownership before a caller performs a leased
+// recovery operation. It claims only a free remote kit and never takes over a
+// grant held by another session.
+func (l *KitLease) Acquire(ctx context.Context) error {
+	if l == nil || l.client == nil {
+		return ErrKitLeaseLost
+	}
+	if l.localHost {
+		if err := l.resumeLocal(ctx); err != nil {
+			return err
+		}
+		request, err := http.NewRequestWithContext(ctx, http.MethodPost, l.client.endpoint("/v1/stop", nil).String(), nil)
+		if err != nil {
+			return err
+		}
+		return l.Authorize(request, true)
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed {
+		return ErrKitLeaseLost
+	}
+	var ownership KitOwnership
+	if err := l.client.doJSON(ctx, http.MethodGet, "/v1/kit/lease", nil, &ownership); err != nil {
+		return err
+	}
+	switch ownership.State {
+	case "free":
+		// A reboot can clear the target's lease while this client still has an
+		// unexpired token. Drop that local authority only after the target
+		// confirms it is free, then make a new explicit claim.
+		l.invalidateLocked()
+		l.lost = false
+		l.requestID = ""
+		l.localExpiry = time.Time{}
+		return l.claimLocked(ctx)
+	case "held":
+		if ownership.Generation == "" {
+			return ErrKitLeaseLost
+		}
+		if l.grant.Token != "" && l.grant.Status.Generation == ownership.Generation {
+			if !l.lost && time.Now().Before(l.localExpiry) {
+				return nil
+			}
+			return l.renewForAcquireLocked(ctx, ownership.Generation)
+		}
+		return &protocol.APIError{Code: protocol.CodeKitLeaseBusy, Message: "another session owns the kit", Phase: "recovery"}
+	case "blocked", "revoking", "maintenance", "recovery-required":
+		return &protocol.APIError{Code: protocol.CodeKitLeaseDenied, Message: "kit is not available for recovery", Phase: "recovery"}
+	default:
+		return errors.New("invalid kit ownership state")
+	}
+}
+
+func (l *KitLease) claimLocked(ctx context.Context) error {
+	if l.requestID == "" {
+		var b [32]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			return err
+		}
+		l.requestID = hex.EncodeToString(b[:])
+	}
+	var grant kitLeaseGrant
+	requestStart := time.Now()
+	var err error
+	if l.localHost {
+		err = l.request(ctx, "/v1/kit/local/claim", "", &grant)
+	} else {
+		err = l.client.doJSON(ctx, http.MethodPost, "/v1/kit/claim", map[string]string{"request_id": l.requestID, "owner": l.owner, "purpose": l.purpose}, &grant)
+	}
+	if err != nil {
+		return err
+	}
+	if !validKitGrant(grant, requestStart) {
+		l.lost = true
+		return ErrKitLeaseLost
+	}
+	l.installGrantLocked(grant, requestStart)
+	return nil
+}
+
+func (l *KitLease) renewForAcquireLocked(ctx context.Context, generation string) error {
+	var next kitLeaseGrant
+	requestStart := time.Now()
+	_, err := l.requestStatus(ctx, "/v1/kit/renew", l.grant.Token, &next)
+	if err != nil {
+		return err
+	}
+	if !validKitGrant(next, requestStart) || next.Token != l.grant.Token || next.Status.Generation != generation {
+		l.invalidateLocked()
+		return ErrKitLeaseLost
+	}
+	if l.cancel != nil {
+		l.cancel()
+	}
+	l.grant = next
+	l.localExpiry = requestStart.Add(time.Duration(next.Status.ExpiresInMS) * time.Millisecond)
+	l.lost = false
+	leaseCtx, cancel := context.WithCancel(context.Background())
+	l.cancel = cancel
+	go l.renewLoop(leaseCtx)
+	return nil
+}
+
 func validKitGrant(g kitLeaseGrant, requestStart time.Time) bool {
 	// The kit may boot without an RTC. Only local monotonic time governs client
 	// expiry; target wall time is display-only. Charge all round-trip time.
@@ -374,6 +466,23 @@ func (c *Client) authorizeMutation(r *http.Request) error {
 	gated, acquire := kitMutation(r.URL.Path)
 	if !gated {
 		return nil
+	}
+	if r.Method == http.MethodPost && r.URL.Path == "/v1/update/rollback" && c.kitLease != nil && !c.kitLease.Held() {
+		// A completed-but-blocked software maintenance reservation prevents a
+		// new execution lease. Probe its durable state before claiming: only that
+		// exact state may use the updater's independent stop/idle/reboot path.
+		var maintenance kitlease.MaintenanceStatus
+		if err := c.doJSON(r.Context(), http.MethodGet, "/v1/kit/maintenance", nil, &maintenance); err != nil {
+			return &protocol.APIError{Code: protocol.CodeBusy, Message: "could not verify kit maintenance before appliance rollback; no rollback request was sent", Cause: err}
+		}
+		switch maintenance.State {
+		case "blocked":
+			return nil
+		case "", "none", "completed":
+			// Ordinary rollback still acquires the execution lease below.
+		default:
+			return &protocol.APIError{Code: protocol.CodeBusy, Message: "appliance rollback is blocked by active kit maintenance", Phase: "admission"}
+		}
 	}
 	return c.kitLease.Authorize(r, acquire)
 }

@@ -9,7 +9,6 @@ session and kit cleanup even on failure.
 """
 import argparse
 import ctypes
-import fcntl
 import hashlib
 import io
 import json
@@ -76,8 +75,6 @@ def inspect_archive(data, args):
             raise pa.AcceptanceError('archive must contain exactly one bounded manifest')
         rbf = tf.extractfile(payload[0]).read()
         manifest_bytes = tf.extractfile(manifest[0]).read()
-        if getattr(args, 'manifest_sha256', None) and hashlib.sha256(manifest_bytes).hexdigest() != args.manifest_sha256:
-            raise pa.AcceptanceError('archive manifest differs from prepared identity')
         doc = tomllib.loads(manifest_bytes.decode())
     digest = hashlib.sha256(rbf).hexdigest()
     if (digest != args.rbf_sha256 or doc.get('core', {}).get('id') != 'fes.pcxt-dos'
@@ -524,7 +521,7 @@ def source_provenance(args, font):
     bios_path = root/'sources/misteross/cores/fes-pcxt'/bios_config['file']
     bios_sha = hashlib.sha256(bios_path.read_bytes()).hexdigest()
     if bios_sha != bios_config['sha256']:
-        raise pa.AcceptanceError('BIOS changed after font extraction')
+        raise pa.AcceptanceError('BIOS differs from the package lock')
     return ({'package_source_commit': args.source_commit,
              'host': {'source_commit': host_source, 'receipt_file': 'host-receipt.json',
                       'receipt_sha256': host_sha, 'fogcast_api_sha256': binary_sha},

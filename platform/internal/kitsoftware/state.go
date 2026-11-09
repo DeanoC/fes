@@ -160,6 +160,9 @@ func transition(r Repository, op Operation, from, to, reason string) error {
 	})
 }
 
+// complete records completion only after the candidate or recovery release is
+// running. Recovery may run this image's factory in place of an incompatible
+// selection; that runtime fallback does not change the durable selection.
 func complete(r Repository, op Operation, phase, result, reason string) error {
 	return r.Update(func(s *State) error {
 		p := s.Pending
@@ -176,6 +179,22 @@ func complete(r Repository, op Operation, phase, result, reason string) error {
 		s.Unreleased = &op.Request
 		s.Receipts[op.ID] = Receipt{Request: op.Request, Result: result, Reason: reason}
 		s.Pending = nil
+		return nil
+	})
+}
+
+// cancelBlocked records operator recovery after the caller proves a compatible
+// release is running. It leaves the durable selection unchanged and keeps the
+// exact maintenance request unreleased for the supervisor's next tick.
+func cancelBlocked(r Repository, id string, generation uint64, reason string) error {
+	return r.Update(func(s *State) error {
+		p := s.Pending
+		if p == nil || p.ID != id || p.Generation != generation || p.Phase != "blocked" || s.Generation != generation || s.Unreleased != nil {
+			return ErrConflict
+		}
+		s.Receipts[p.ID] = Receipt{Request: p.Request, Result: "recovered", Reason: reason}
+		s.Pending = nil
+		s.Unreleased = &p.Request
 		return nil
 	})
 }

@@ -71,6 +71,20 @@ func (s *Service) RecordPlay(ctx context.Context, gameID string) error {
 	if err := protocol.ValidateGameID(gameID); err != nil {
 		return canonicalError(protocol.CodeBadRequest, nil)
 	}
+	if source, ok := s.catalog.(interface {
+		KitHostPlaySource(context.Context, string) (string, bool, error)
+	}); ok {
+		mapped, generated, err := source.KitHostPlaySource(ctx, gameID)
+		if err != nil {
+			return canonicalError(protocol.CodeInternal, safeContextError(err))
+		}
+		if generated {
+			if mapped == "" {
+				return nil
+			}
+			gameID = mapped
+		}
+	}
 	if err := s.users.RecordPlay(ctx, gameID); err != nil {
 		return canonicalError(protocol.CodeInternal, safeContextError(err))
 	}

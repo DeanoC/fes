@@ -93,6 +93,16 @@ a modified library:
   VGA ROM for ever ([#1557](https://github.com/DeanoC/fes/issues/1557)).
   `tests/test_pc386_machine.py` replays that scan on the line and on a built
   image.
+- `vgabios.c`: INT 10h AH=00h, the mode set, keeps every register but AL, as
+  IBM's VGA BIOS does: the dispatcher saves ES, DS and the general registers
+  around `biosfn_set_video_mode`. Upstream saved only DS, BX, CX and AX, so the
+  mode set returned with DX changed. MicroProse's `MGRAPHIC.EXE`, which
+  Darklands and its Art Gallery load, keeps the mode it asked for in DL and
+  compares it with INT 10h AH=0Fh's AL, so it judged mode 13h unsupported and
+  printed its message from the wrong offset
+  ([#1553](https://github.com/DeanoC/fes/issues/1553)). SCROLLT.COM's
+  `modeset` check (`--suite scroll`) sets modes 13h, 93h and 03h and counts
+  the registers kept.
 
 The boot order and disk-only boot need no patch: the machine writes CMOS 2Dh,
 38h, 3Dh and 3Fh. The floppy POST and INT 13h floppy paths stay; CMOS 10h says

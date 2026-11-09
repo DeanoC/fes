@@ -80,6 +80,11 @@ module pc386_at_core #(
     // Configuration, written into CMOS after reset
     input wire [15:0] base_kib, extended_kib, above16m_64k,
     input wire [7:0] sb_base_high, sb_irq, sb_dma,
+    // EMS board: its size for CMOS, and its page register writes (260h-263h)
+    input wire [7:0] ems_pages,
+    output wire ems_reg_write,
+    output wire [1:0] ems_reg_index,
+    output wire [7:0] ems_reg_wdata,
     output wire cmos_busy,
     input wire wall_valid,
     input wire [15:0] wall_year,
@@ -153,6 +158,12 @@ module pc386_at_core #(
     wire read_strobe = cycle_strobe && !cycle_write && io_cycle;
     wire write_strobe = cycle_strobe && cycle_write;
     wire inta_strobe = cycle_strobe && cycle_inta;
+
+    // The EMS board's registers are write-only: reads float FFh, as for an
+    // unclaimed port. Not fitted, the board takes nothing.
+    assign ems_reg_write = access && cycle_write && port[15:2] == 14'h0098 && ems_pages != 8'd0;
+    assign ems_reg_index = port[1:0];
+    assign ems_reg_wdata = cycle_wdata[7:0];
 
     assign sound_access = access && select_sound;
     assign sound_write = cycle_write;
@@ -318,7 +329,7 @@ module pc386_at_core #(
         .base_kib(base_kib), .extended_kib(extended_kib), .above16m_64k(above16m_64k),
         .disk_present(disk_present), .disk_cylinders(disk_cylinders),
         .disk_heads({3'b000, disk_heads}), .disk_spt({2'b00, disk_spt}),
-        .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma),
+        .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma), .ems_pages(ems_pages),
         .wall_valid(wall_valid), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
         .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second), .wall_weekday(wall_weekday),
         .record_write(record_write), .record_index(record_index), .record_byte(record_byte),

@@ -55,6 +55,7 @@ func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, labe
 	}
 	if display, ok := dev.(*gfx.MenuDisplay); ok {
 		app.SetMenuDisplay(display)
+		app.logKitMenuReadiness()
 	}
 	inputSpec := opts.Input
 	if opts.Smoke {
@@ -92,6 +93,7 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 	defer ticker.Stop()
 	parked := false
 	frames := 0
+	defer app.reportSessionReady(false, 0)
 	var hold presentHold
 	trace, stopTrace := startFrameTrace(ctx, app, dev, label)
 	defer stopTrace()
@@ -133,6 +135,8 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 			} else if hold.paused {
 				app.completeLocalLaunchHandoff(nil)
 			}
+			_, menuDevice := dev.(*gfx.MenuDisplay)
+			app.reportSessionReady(menuDevice && skip && pauseErr == nil && hold.paused, snap.sessionObservation)
 			if !skip {
 				before := menuQueuedSeq(dev)
 				parked = presentFrame(painter, snap, textures, labels, parked)

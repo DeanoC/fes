@@ -42,6 +42,7 @@ end
 local RECENT_MAX = 3
 local recents = {}
 local recents_loaded = false
+local recents_generation = 0
 local generation = 0   -- bumped on every data change, for the paint cache
 F.waiting = function() return not recents_loaded end
 
@@ -150,8 +151,11 @@ local function changed()
 end
 
 local function load_recents()
+  recents_generation = recents_generation + 1
+  local gen = recents_generation
   -- Filter before paging so hidden cores do not consume the three recent slots.
   library.query({ collection = "recents", core_ids = systems.ids, limit = RECENT_MAX }, function(games, err)
+    if gen ~= recents_generation then return end
     local focused = recents[recent_i] and recents[recent_i].id
     recents = {}
     if not err then

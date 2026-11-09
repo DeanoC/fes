@@ -421,7 +421,7 @@ func TestConfiguredInstalledHomeRecoversStartupList(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Pong is held back from v1, so the fixture lists all cores.
-	opts := Options{GFX: "menu-display", APIBase: h.server.URL, Home: "rooms", HomeSet: true, AllCores: true, PrefsPath: prefs, CatalogConfig: filepath.Join(t.TempDir(), "absent.toml")}.normalized()
+	opts := Options{GFX: "menu-display", APIBase: h.server.URL, Home: "rooms", HomeSet: true, AllCores: true, PrefsPath: prefs}.normalized()
 	app, err := configuredApp(opts)
 	if err != nil {
 		t.Fatal(err)

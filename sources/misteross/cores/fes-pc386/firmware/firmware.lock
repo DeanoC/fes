@@ -27,7 +27,7 @@
     "vgabios": {
       "file": "pc386-vgabios.bin",
       "bytes": 32768,
-      "sha256": "e0fae3ec927a7ff6bc399d440d435021cbf0a7f3fae04b82660ec64954ed3435"
+      "sha256": "8522568e32a33b2f5649109260fec70b0b2cd0d80a6216ac7af6a1041c102e02"
     }
   }
 }

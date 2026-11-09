@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -96,7 +97,8 @@ func TestServerRejectsIncompatibleHistoryAndQueuesFactory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := &Server{Repository: repo, Store: store, Factory: &factory, Controller: controller, Admission: admission}
+	server := &Server{Repository: repo, Store: store, Factory: &factory, Controller: controller, Admission: admission, HeldBack: incompatible.ID, HeldBackReason: "incompatible software base contract"}
+	server.PublishStatus()
 	post := func(request Request) *httptest.ResponseRecorder {
 		body, _ := json.Marshal(request)
 		w := httptest.NewRecorder()
@@ -152,6 +154,104 @@ func TestServerRejectsIncompatibleHistoryAndQueuesFactory(t *testing.T) {
 	}
 	if !errors.Is(Queue(repo, Request{ID: strings.Repeat("b", 64), Candidate: factory.ID, Requester: "host"}), ErrConflict) {
 		t.Fatal("factory displaced pending request")
+	}
+}
+
+type cancelTestController struct {
+	active       string
+	incompatible string
+	failVerify   string
+}
+
+func (c *cancelTestController) Verify(_ context.Context, id string) error {
+	if id == c.failVerify {
+		return errors.New("release integrity failure")
+	}
+	if id == c.incompatible {
+		return software.ErrIncompatible
+	}
+	return nil
+}
+func (c *cancelTestController) Stop(context.Context) error                   { return nil }
+func (c *cancelTestController) Start(context.Context, string, Request) error { return nil }
+func (c *cancelTestController) Healthy(_ context.Context, id string) error {
+	if id != c.active {
+		return errors.New("wrong active bundle")
+	}
+	return nil
+}
+func (c *cancelTestController) Active() string       { return c.active }
+func (c *cancelTestController) ServiceFault() string { return "" }
+func (c *cancelTestController) HostFault() string    { return "" }
+
+type admissionRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f admissionRoundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestOperatorRecoveryUsesFactoryOnlyForIncompatibleSelection(t *testing.T) {
+	ctx := context.Background()
+	controller := &cancelTestController{incompatible: testSelectedID}
+	if got, err := compatibleRunningBundle(ctx, controller, testSelectedID, testFactoryID); err != nil || got != testFactoryID {
+		t.Fatalf("incompatible prior recovery bundle = %q, %v", got, err)
+	}
+	if got, err := compatibleRunningBundle(ctx, controller, testCandidateID, testFactoryID); err != nil || got != testCandidateID {
+		t.Fatalf("compatible prior was replaced: %q, %v", got, err)
+	}
+	controller = &cancelTestController{failVerify: testCandidateID}
+	if got, err := compatibleRunningBundle(ctx, controller, testCandidateID, testFactoryID); err == nil || got != "" {
+		t.Fatalf("integrity failure fell back to another bundle: %q, %v", got, err)
+	}
+}
+
+func TestCancelBlockedRecoveryPreservesHeldBackSelection(t *testing.T) {
+	incompatible, _, _ := softwareFixture(t, "old-base")
+	factory, _, _ := softwareFixture(t, "new-base")
+	base := software.Compatibility{Board: "de10-nano", Architecture: "armv7", BaseContract: "new-base", Interfaces: map[string]string{"runtime": "1"}}
+	store, err := software.New(filepath.Join(t.TempDir(), "store"), base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo, err := OpenRepository(filepath.Join(t.TempDir(), "state"), incompatible.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repo.Close()
+	request := Request{ID: strings.Repeat("a", 64), Candidate: factory.ID, Requester: "host", Generation: 0}
+	if err := Queue(repo, request); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Update(func(s *State) error { s.Pending.Phase = "blocked"; s.Pending.Reason = "recovery deadline"; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	grant := maintenanceGrant{Token: strings.Repeat("c", 64), Status: MaintenanceStatus{State: "blocked", OperationID: request.ID, Generation: strings.Repeat("d", 64), Owner: request.Requester, Purpose: "kit-software-activation", BootID: "boot-test"}}
+	keyPath := filepath.Join(t.TempDir(), "admission.key")
+	grantBytes, _ := json.Marshal(grant)
+	if err := os.WriteFile(keyPath+".grant-"+request.ID, grantBytes, 0600); err != nil {
+		t.Fatal(err)
+	}
+	statusBytes, _ := json.Marshal(AdmissionStatus{Maintenance: grant.Status, RawIdleReady: true, BundleID: factory.ID})
+	admission := &UnixAdmission{keyPath: keyPath, bootID: grant.Status.BootID, client: &http.Client{Transport: admissionRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/status" || r.Method != http.MethodGet {
+			t.Errorf("unexpected admission request %s %s", r.Method, r.URL.Path)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(statusBytes))}, nil
+	})}}
+	controller := &cancelTestController{active: factory.ID, incompatible: incompatible.ID}
+	heldBackReason := "incompatible software base contract"
+	server := &Server{Repository: repo, Store: store, Factory: &factory, Controller: controller, Admission: admission, HeldBack: incompatible.ID, HeldBackReason: heldBackReason}
+	server.PublishStatus()
+	body, _ := json.Marshal(softwarecontrol.CancelRequest{ID: request.ID, Generation: request.Generation})
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/kit/software/cancel", bytes.NewReader(body)))
+	if w.Code != http.StatusOK {
+		t.Fatalf("blocked recovery cancel failed: %d %s", w.Code, w.Body.String())
+	}
+	var status softwarecontrol.Status
+	if err := json.Unmarshal(w.Body.Bytes(), &status); err != nil {
+		t.Fatal(err)
+	}
+	if status.Selected != incompatible.ID || status.Previous != "" || status.Generation != request.Generation || status.Pending != nil || status.Unreleased == nil || *status.Unreleased != request || status.Receipts[request.ID].Result != "recovered" || status.Receipts[request.ID].Reason != softwarecontrol.ReasonBlockedCancel || status.HeldBack != incompatible.ID || status.HeldBackReason != heldBackReason {
+		t.Fatalf("blocked recovery did not preserve the held-back selection: %+v", status)
 	}
 }
 

@@ -125,9 +125,25 @@ class FreedosImageTest(unittest.TestCase):
         self.assertIn('BUFFERSHIGH=16', default)
         self.assertEqual(self.games_entry(2).count('DOS=HIGH,UMB'), 1)
 
+    def test_games_ems_driver_is_on_entry_3_only(self):
+        # Ultima VII refuses to run while an expanded memory manager is
+        # resident, so the EMS board's driver is on entry 3, entry 1's setup
+        # plus FESEMS.SYS (docs/pc386-machine-design.md, "EMS board").
+        driver = 'DEVICEHIGH=C:\\FDOS\\BIN\\FESEMS.SYS'
+        self.assertNotIn(driver, self.games_entry(1))
+        self.assertNotIn(driver, self.games_entry(2))
+        self.assertEqual([line for line in self.games_entry(3) if line != driver], self.games_entry(1))
+        self.assertIn(driver, self.games_entry(3))
+        self.assertEqual(freedos.PROFILES['games']['bin']['FESEMS.SYS'], freedos.FESEMS)
+
+    def test_games_upper_memory_stops_below_the_ems_frame(self):
+        # The board's frame is E0000h-EFFFFh: UMBM must not hand it to DOS.
+        umbm = [line for line in self.games_entry(1) if 'UMBM.EXE' in line]
+        self.assertEqual(umbm, ['DEVICE=C:\\FDOS\\BIN\\UMBM.EXE /I=C800-DFFF'])
+
     def test_games_files_meet_strike_commander(self):
         # Strike Commander asks for FILES=25 (#1525).
-        for entry in (1, 2):
+        for entry in (1, 2, 3):
             files = [int(line.split('=')[1]) for line in self.games_entry(entry)
                      if line.startswith(('FILES=', 'FILESHIGH='))]
             self.assertEqual(len(files), 1, entry)
@@ -154,7 +170,7 @@ class FreedosImageTest(unittest.TestCase):
             for filename, source in spec['bin'].items():
                 with self.subTest(profile=profile, filename=filename):
                     if isinstance(source, Path):
-                        self.assertEqual(filename, source.stem.upper() + '.COM')
+                        self.assertIn(filename, (source.stem.upper() + '.COM', source.stem.upper() + '.SYS'))
                         self.assertTrue(source.is_file())
                         continue
                     package_name, package_path = source
@@ -293,6 +309,21 @@ END prompt steps=42 cycles=100 seconds=0.001
 """
 
 
+class StoreFailuresTest(unittest.TestCase):
+    def test_store_checks_fail_on_stale_code_and_wrong_pages(self):
+        report = sim.parse_boot(RTL_BOOT_OUTPUT)
+        self.assertEqual(sim.store_failures(report), [])
+        text = RTL_BOOT_OUTPUT.replace('smc_executed=0', 'smc_executed=0 store_page_mismatches=2')
+        text = 'SMC page 5 f000:00000fb8 00000ff8 000f0ff8\n' + text
+        failures = sim.store_failures(sim.parse_boot(text))
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('2 RTL store bytes reported a physical page'))
+        self.assertIn("'address': '000f0ff8'", failures[0])
+        failures = sim.store_failures(sim.parse_boot(RTL_BOOT_OUTPUT.replace('smc_executed=0', 'smc_executed=1')))
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('the RTL ran 1 instructions'))
+
+
 class A20TestTest(unittest.TestCase):
     def test_suite_checks_are_the_programs_names(self):
         source = (sim.CORE / 'sim/a20_test.asm').read_text()
@@ -327,6 +358,44 @@ class A20TestTest(unittest.TestCase):
         self.assertEqual(sim.HIMEMX_METHOD.search('Fast A20 method used').group(1), 'Fast')
         self.assertEqual(sim.HIMEMX_METHOD.search('Always on A20 method used').group(1), 'Always on')
         self.assertIsNone(sim.HIMEMX_METHOD.search('Interface : XMS 3.00 80386 4G'))
+
+
+class EmsTestTest(unittest.TestCase):
+    def test_suite_checks_are_the_programs_names(self):
+        source = (sim.CORE / 'sim/ems_test.asm').read_text()
+        names = [line.split("'")[1] for line in source.splitlines() if line.startswith('n_')]
+        self.assertEqual(names, list(sim.EMS_CHECKS))
+
+    def run_suite(self, lines, ems=None, cpu='oracle'):
+        captured = {}
+
+        def run_machine(testbench, name, arguments, images):
+            captured['arguments'] = arguments
+            return {'debug': [{'port': '0e9', 'text': line} for line in lines], 'failures': [],
+                    'ems': ems if ems is not None else {'pages': 128, 'reads': 10, 'writes': 10},
+                    'rtl': {'counters': {'retired': 1000, 'oracle_steps': 0, 'protected_steps': 0},
+                            'stops': [], 'gaps': []}}
+        args = mock.Mock(cpu=cpu, download=False, jobs=1, limit_seconds=12)
+        with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                mock.patch.object(sim.freedos, 'image'), mock.patch.object(sim, 'run_machine', run_machine), \
+                mock.patch('builtins.print'):
+            return sim.run_ems(args, [])['failures'], captured['arguments']
+
+    def test_a_clean_run_passes_on_entry_3(self):
+        lines = [f'EMS {name} ok' for name in sim.EMS_CHECKS[:-3]] + ['FESEMS: function 5500'] + \
+                [f'EMS {name} ok' for name in sim.EMS_CHECKS[-3:]]
+        failures, arguments = self.run_suite(lines)
+        self.assertEqual(failures, [])
+        self.assertIn(f'{sim.BOOT_MENU_KEY_SECONDS}:3', arguments)
+
+    def test_failures_idle_boards_and_other_unsupported_functions_fail(self):
+        lines = [f'EMS {name} ok' for name in sim.EMS_CHECKS] + ['FESEMS: function 5500']
+        lines[3] = 'EMS allocate FAIL step 01'
+        self.assertIn('EMS allocate FAIL step 01', self.run_suite(lines)[0])
+        good = [f'EMS {name} ok' for name in sim.EMS_CHECKS] + ['FESEMS: function 5500']
+        self.assertTrue(self.run_suite(good + ['FESEMS: function 5600'])[0])
+        self.assertTrue(self.run_suite(good, ems={'pages': 128, 'reads': 0, 'writes': 10})[0])
 
 
 class C2xxTestTest(unittest.TestCase):
@@ -443,16 +512,18 @@ class ScrollTestTest(unittest.TestCase):
                 mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
             return sim.run_scroll(args, [])['failures']
 
-    PASSING = ['SCR mode13 2/2 ok', 'SCR mode12 2/2 ok', 'SCR mode04 2/2 ok', 'SCR DONE ok']
+    PASSING = ['SCR modeset 27/27 ok', 'SCR mode13 2/2 ok', 'SCR mode12 2/2 ok', 'SCR mode04 2/2 ok', 'SCR DONE ok']
 
     def test_every_check_must_print_ok(self):
         self.assertEqual(self.suite(self.PASSING), [])
-        self.assertEqual(self.suite(['SCR mode13 1/2 FAIL'] + self.PASSING[1:3] + ['SCR DONE FAIL']),
+        self.assertEqual(self.suite(['SCR modeset 24/27 FAIL'] + self.PASSING[1:4] + ['SCR DONE FAIL']),
+                         ['SCR modeset 24/27 FAIL', 'SCR DONE FAIL'])
+        self.assertEqual(self.suite(self.PASSING[:1] + ['SCR mode13 1/2 FAIL'] + self.PASSING[2:4] + ['SCR DONE FAIL']),
                          ['SCR mode13 1/2 FAIL', 'SCR DONE FAIL'])
 
     def test_a_scroll_that_never_returns_fails(self):
         failures = self.suite([])
-        self.assertEqual(failures, ["SCROLLT.COM ran [], expected ['mode13', 'mode12', 'mode04', 'DONE']"])
+        self.assertEqual(failures, ["SCROLLT.COM ran [], expected ['modeset', 'mode13', 'mode12', 'mode04', 'DONE']"])
 
     def test_rtl_runs_fail_on_oracle_steps(self):
         self.assertEqual(self.suite(self.PASSING, 'rtl'), [])
@@ -701,11 +772,18 @@ class PresenterBenchTest(unittest.TestCase):
         report = self.bench('plane', 'plane_top', sim.PLANE_RTL, sim.CORE / 'sim/plane_tb.cpp')
         self.assertEqual(len(report['checks']), 14)
 
+    def test_ems_board_matches_its_reference(self):
+        report = self.bench('ems', 'pc386_ems', sim.EMS_RTL, sim.CORE / 'sim/ems_tb.cpp')
+        self.assertEqual(len(report['checks']), 14)
+
 
 class Port2SynthesisHarnessTest(unittest.TestCase):
     def test_pair_forwards_the_auxiliary_burst_count(self):
         self.assertIn('input wire [7:0] aux_burstcount', synthesis.PAIR)
         self.assertIn('.aux_burstcount(aux_burstcount)', synthesis.PAIR)
+
+    def test_pair_ties_off_the_ems_board(self):
+        self.assertIn(".ems_read(1'b0), .ems_write(1'b0)", synthesis.PAIR)
 
 
 SYSTEM_OUTPUT = """WRITE-TEST 444436

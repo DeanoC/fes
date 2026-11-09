@@ -58,6 +58,7 @@ struct Bench {
     // them: the RTC's byte writes, and its load a clock after each read.
     uint16_t record[64] = {};
     unsigned written = 0;  // disk_written pulses
+    std::vector<std::pair<unsigned, unsigned>> ems_writes;  // EMS page register writes: index, value
 
     Bench() {
         top.reset = 1;
@@ -69,6 +70,7 @@ struct Bench {
         top.base_kib = 640;
         top.extended_kib = 15360;
         top.sb_base_high = 0x22; top.sb_irq = 7; top.sb_dma = 1;
+        top.ems_pages = 128;
         for (int n = 0; n < 4; ++n) clock();
         top.reset = 0;
         while (top.cmos_busy) clock();
@@ -113,6 +115,7 @@ struct Bench {
                                                      top.record_byte << shift);
         }
         written += top.disk_written;
+        if (top.ems_reg_write) ems_writes.push_back({top.ems_reg_index, top.ems_reg_wdata});
         top.clk = 1; top.eval();
         top.clk = 0; top.eval();
         top.record_word = loaded;
@@ -198,6 +201,15 @@ void timing(Bench &b) {
     check("timing vga word: two posted bytes, no ISA wait", vga == 5, std::to_string(vga));
     check("port 80h reads back the POST code", b.in(0x80) == 0x12);
     check("unclaimed port reads FFh at isa8", b.in(0x2f8) == 0xff && b.last_io == 74);
+    // The EMS board's page registers: 260h-263h, write-only, isa8.
+    b.ems_writes.clear();
+    b.out(0x260, 0x05);
+    b.outw(0x262, 0x7f10);
+    b.out(0x264, 0x33);
+    b.out(0x25f, 0x44);
+    const bool written = b.ems_writes == std::vector<std::pair<unsigned, unsigned>>{{0, 0x05}, {2, 0x10}, {3, 0x7f}};
+    check("EMS page registers 260h-263h take bytes, a word as two (264h and 25Fh are not the board's)", written);
+    check("EMS page registers read FFh at isa8", b.in(0x261) == 0xff && b.last_io == 74);
 }
 
 void pic_init(Bench &b) {
@@ -308,6 +320,61 @@ void pit(Bench &b) {
     b.out(0x43, 0x80);
     count = read2();
     check("PIT counter latch between count bytes keeps the write byte pointer", near533(count), hex(count));
+    // After terminal count the count wraps to FFFFh (9999 in BCD) and keeps
+    // going in modes 0, 1, 4 and 5 (#1532). Channel 2's OUT is watched on the
+    // speaker with port 61h's gate and data bits set. A wrap is 65536 PIT
+    // clocks, 5,492,541 system clocks; WRAP covers one and a bit.
+    const uint64_t WRAP = 5600000;
+    struct Pulses { unsigned falls = 0, rises = 0; bool first = false, last = false; };
+    auto watch = [&](uint64_t clocks) {
+        Pulses seen;
+        seen.first = seen.last = b.top.speaker;
+        for (uint64_t n = 0; n < clocks; ++n) {
+            b.clock();
+            bool now = b.top.speaker;
+            if (seen.last && !now) ++seen.falls;
+            if (!seen.last && now) ++seen.rises;
+            seen.last = now;
+        }
+        return seen;
+    };
+    b.out(0x61, 0x03);
+    b.out(0x43, 0xb0); b.out(0x42, 0x10); b.out(0x42, 0x00);
+    b.run(3000);
+    b.out(0x43, 0x80);
+    count = read2();
+    check("PIT mode 0 count wraps past zero to FFFFh", count >= 0xff00, hex(count));
+    Pulses seen = watch(WRAP);
+    check("PIT mode 0 OUT stays high through the next wrap", seen.last && seen.falls == 0,
+          std::to_string(seen.falls) + " falls");
+    b.out(0x43, 0xb1); b.out(0x42, 0x10); b.out(0x42, 0x00);
+    b.run(3000);
+    b.out(0x43, 0x80);
+    count = read2();
+    bool decimal = (count & 0xf) <= 9 && (count >> 4 & 0xf) <= 9;
+    check("PIT mode 0 BCD count wraps past zero to 9999", count >= 0x9900 && count <= 0x9999 && decimal, hex(count));
+    b.out(0x43, 0xb8); b.out(0x42, 0x10); b.out(0x42, 0x00);
+    seen = watch(WRAP);
+    check("PIT mode 4 strobes once per count, not every wrap", seen.falls == 1 && seen.rises == 1 && seen.last,
+          std::to_string(seen.falls) + " falls");
+    b.out(0x61, 0x02);
+    b.out(0x43, 0xba); b.out(0x42, 0x10); b.out(0x42, 0x00);
+    seen = watch(WRAP);
+    check("PIT mode 5 does not strobe before a trigger", seen.falls == 0 && seen.last, std::to_string(seen.falls) + " falls");
+    b.out(0x61, 0x03);
+    seen = watch(WRAP);
+    check("PIT mode 5 strobes once per trigger, not every wrap", seen.falls == 1 && seen.rises == 1 && seen.last,
+          std::to_string(seen.falls) + " falls");
+    b.out(0x61, 0x02);
+    b.out(0x43, 0xb2); b.out(0x42, 0x10); b.out(0x42, 0x00);
+    b.run(3000);
+    // The trigger can take OUT low within the port 61h write itself.
+    b.out(0x61, 0x03);
+    seen = watch(WRAP);
+    check("PIT mode 1 OUT goes low once per trigger and stays high through the wrap",
+          seen.falls + !seen.first == 1 && seen.rises == 1 && seen.last,
+          std::to_string(seen.falls) + " falls, " + std::to_string(seen.rises) + " rises");
+    b.out(0x61, 0x00);
     // Port 61h bit 4 toggles with channel 1 (BIOS programs 15 us).
     b.out(0x43, 0x54); b.out(0x41, 18);
     int toggles = 0;
@@ -844,7 +911,8 @@ void rtc(Bench &b) {
                   b.cmos(0x16) == 0x02 && b.cmos(0x17) == 0x00 && b.cmos(0x18) == 0x3c && b.cmos(0x19) == 47 &&
                   b.cmos(0x1b) == CYLINDERS && b.cmos(0x1d) == HEADS && b.cmos(0x23) == SPT &&
                   b.cmos(0x30) == 0x00 && b.cmos(0x31) == 0x3c && b.cmos(0x3d) == 0x02 && b.cmos(0x3f) == 0x01 &&
-                  b.cmos(0x60) == 0x22 && b.cmos(0x61) == 0x07 && b.cmos(0x62) == 0x01;
+                  b.cmos(0x60) == 0x22 && b.cmos(0x61) == 0x07 && b.cmos(0x62) == 0x01 &&
+                  b.cmos(0x63) == 128 && b.cmos(0x64) == 0xe0 && b.cmos(0x65) == 0x26;
     check("CMOS configuration bytes", config);
     unsigned sum = 0;
     for (int n = 0x10; n <= 0x2d; ++n) sum += b.cmos(uint8_t(n));
@@ -1102,6 +1170,21 @@ void ata(Bench &b) {
     b.wait([&] { return (b.in(0x1f7) & 0x80) == 0; }, 10000);
     check("after reset: signature 01 01 00 00, DRDY",
           b.in(0x1f2) == 1 && b.in(0x1f3) == 1 && b.in(0x1f4) == 0 && b.in(0x1f5) == 0 && (b.in(0x1f7) & 0xc1) == 0x40);
+    // #1589: the BIOS's device 1 probe selects device 1 while device 0's
+    // reset still has BSY set. The select must stand once BSY clears, or
+    // device 0's status (50h) reads as device 1's and the BIOS types it as a
+    // drive. The select lands half way through the reset window.
+    b.out(0x3f6, 0x06);
+    b.out(0x3f6, 0x02);
+    b.run(500);
+    b.out(0x1f6, 0xb0);
+    b.run(2000);
+    const uint8_t sc = b.in(0x1f2), sn = b.in(0x1f3), selected = b.in(0x1f7);
+    b.out(0x1f6, 0xa0);
+    const uint8_t device0 = b.in(0x1f7);
+    check("a device 1 select during reset BSY stands: its status reads 00h after the reset",
+          sc == 1 && sn == 1 && selected == 0x00 && (device0 & 0xc1) == 0x40,
+          hex(sc) + " " + hex(sn) + " " + hex(selected) + " " + hex(device0));
 }
 
 // After the other checks: what a machine reset keeps and what the

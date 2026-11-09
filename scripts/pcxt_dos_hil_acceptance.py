@@ -112,7 +112,7 @@ def find_prompt(width, height, rgb, font):
                 # HDMI capture can quantize adjacent pixels of one flat color
                 # differently. Compare each class with its representative RGB,
                 # while still requiring a strong color separation and the
-                # original high spatial agreement with all four ROM glyphs.
+                # original high spatial agreement with all four font glyphs.
                 def near(color, reference):
                     return max(abs(a - b) for a, b in zip(color, reference)) <= 40
                 fg_hits = sum(count for color, count in foreground.items() if near(color, fg))
@@ -121,7 +121,7 @@ def find_prompt(width, height, rgb, font):
                 score = (fg_hits + bg_hits) / (ink_count + blank_count)
                 if contrast >= 64 and fg_hits / ink_count >= 0.92 and bg_hits / blank_count >= 0.94:
                     # Enforce agreement on each character as well as across
-                    # the line. Then require the expected locked-ROM glyph
+                    # the line. Then require the expected locked-font glyph
                     # to be strictly closer than every other printable glyph.
                     # The colon and semicolon (and > and )) differ by only
                     # two pixels, which aggregate scores can easily hide.

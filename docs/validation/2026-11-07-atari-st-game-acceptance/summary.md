@@ -33,19 +33,24 @@ refers to #1528 and leaves closing it to review.
 | 3. The Lurking Horror (keyboard, save) | **PASS** (`x2`): the saved disk matches Hatari except one directory time byte | **PASS** (`h3`, Kit A): same match. `x4` (Kit B): its 4 differing save bytes are an expected random outcome that Hatari reproduces byte for byte; INCONCLUSIVE only for its 8 minutes of play | **PASS** |
 | 4. Terramex (disk swap, joystick) | **PASS** (`n1`, launch 1): disk 2 inserted into the running session at the game's prompt; about 14 minutes of play | **PASS** (`n1`, launch 2, after Stop and relaunch): disk 1 back in the drive, swapped again; about 11 minutes of play | **PASS** |
 
-Still owed on #1528:
+Items this record left open on #1528, and where each went:
 
-- A swap from tenfoot. Case 4 swaps through the host API, because the ST
-  package has no session display and tenfoot has no ST swap control.
-- Runs on a package sealed from main. Its prerequisite,
+- **A swap from tenfoot.** Case 4 swaps through the host API, because the ST
+  package has no session display and tenfoot has no ST swap control. *Moved
+  to [#946](https://github.com/DeanoC/fes/issues/946)'s ST slice.*
+- **Runs on a package sealed from main.** Its prerequisite,
   [#1544](https://github.com/DeanoC/fes/pull/1544), merged on 8 November as
   `2a22b5b6`: it fixes the producer's read audit and sealed main's ST tree as
-  `1f3b21b7…`. Only the rerun remains, and it goes in a later PR.
-- A gameplay reference for Xenon and Gomoku. Hatari's command interface has
-  no joystick or mouse-move events, so only the no-input boot was compared.
-- Protected originals. Most of the IPF library can't be flattened to `.st`;
-  [#1541](https://github.com/DeanoC/fes/issues/1541) tracks running IPF
-  images directly.
+  `1f3b21b7…`. *Done in the
+  [main-package record](../2026-11-08-atari-st-main-package/summary.md).*
+- **A gameplay reference for Xenon and Gomoku.** Hatari's command interface
+  has no joystick or mouse-move events, so only the no-input boot was
+  compared. *Done in the
+  [reference record](../2026-11-08-atari-st-hatari-references/summary.md).*
+- **Protected originals.** Most of the IPF library can't be flattened to
+  `.st`. *Tracked separately in
+  [#1541](https://github.com/DeanoC/fes/issues/1541), which tracks running IPF
+  images directly.*
 
 ## Package, firmware and software
 
@@ -194,11 +199,11 @@ The panel then reads "Next to play White (that's you.)", as in Hatari.
   it waited for Black's reply stone. One mouse count moves the pointer one
   low-resolution pixel.
 - **`g1` (Kit A, 21:16–21:33 EET).**
-  1. Game 1 ended in "Game won by White" after 14 White moves.
+  1. Game 1 ended in "Game won by White" with 16 White stones on the board.
   2. Stop, library relaunch and the desktop launch again led to game 2, won
-     after 12 White moves.
+     with 12 White stones.
   3. Game 3 was started from the program's own Restart (see below) and won
-     after 7 moves.
+     with 7 White stones.
   4. About 14 minutes in the program, from the first board frame
      (21:17:44) to game 3's last move (21:32:38), less the Stop and relaunch.
      About 8.5 minutes of that was stone play. The rest was mouse work in the
@@ -207,8 +212,8 @@ The panel then reads "Next to play White (that's you.)", as in Hatari.
      of the 10-minute minimum, so it is INCONCLUSIVE. `g4` replaces it as
      run 1.
 - **`g2` (Kit A, 21:35–21:45 EET).** Three games, each from a Stop and library
-  relaunch. All three ended in "Game won by White", after 7, 18 and 20 White
-  moves. The record first called this about 10 minutes of play, but that was
+  relaunch. All three ended in "Game won by White", with 7, 18 and 20 White
+  stones on the board. The record first called this about 10 minutes of play, but that was
   the claim's wall clock. From each first board frame to that game's last move
   it is 0:46, 1:47 and 2:02, about 4.5 minutes. Even counting from each launch
   to its game end, it is 8:06, boot and desktop launch included. So `g2` is
@@ -216,8 +221,9 @@ The panel then reads "Next to play White (that's you.)", as in Hatari.
 - **`g3` (Kit A, 8 November, 15:03–15:46 EET).** It replaces `g2` as run 2.
   1. Nine games, each from a Stop and library relaunch and the desktop
      launch.
-  2. Eight ended in "Game won by White", after 5, 16, 11, 11, 8, 9, 9 and 8
-     White moves. Game 7 ended in "Game won by Black" after 30 White moves.
+  2. Eight ended in "Game won by White", with 6, 17, 12, 12, 9, 10, 10 and 9
+     White stones on the final board. Game 7 ended in "Game won by Black",
+     with 30 White stones.
      The declared objective counts a loss as a result.
   3. Board play is 11 min 50 s: the sum, over the nine games, of the time
      from the first board frame to the last move. First board frame to result
@@ -229,10 +235,15 @@ The panel then reads "Next to play White (that's you.)", as in Hatari.
 - **`g4` (Kit A, 8 November, 15:54–16:33 EET).** It replaces `g1` as run 1,
   played the same way as `g3`.
   1. Ten games, each from a Stop and library relaunch and the desktop launch.
-  2. Six ended in "Game won by White", after 6, 5, 7, 8, 8 and 28 White
-     moves. Four ended in "Game won by Black", after 15, 34, 11 and 33 White
-     moves.
+  2. Six ended in "Game won by White", with 7, 6, 8, 9, 9 and 29 White
+     stones on the final board. Four ended in "Game won by Black", with 15,
+     34, 11 and 33 White stones.
   3. Board play is 17 min 25 s, measured as for `g3`.
+- **Counts.** Stone counts are read from each game's final board, where the
+  winner's five in a row is also checked. The first version of this record
+  used the player log's last move index, which is one short for won games;
+  the [reference record](../2026-11-08-atari-st-hatari-references/summary.md)
+  lists the corrections.
 - **What matches across runs.** The first board frame after each library
   launch is byte-identical in the 23 launches captured the same way: `g1`
   game 2, all three `g2` games, all nine `g3` games and all ten `g4` games

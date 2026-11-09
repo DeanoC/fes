@@ -1,7 +1,6 @@
 package kitsoftware
 
 import (
-	"encoding/json"
 	"errors"
 	"log"
 	"os"
@@ -12,12 +11,8 @@ import (
 )
 
 const (
-	roleHost = "host"
-	// hostAdvertisement is the bundle manifest interface that says
-	// bin/fogcast-kit has a `host` mode (#863 slice 5). Older bundles carry
-	// the fogcast-kit stub, which exits; the supervisor does not start it.
-	hostAdvertisement = "kit-host"
-	hostExecutable    = "bin/fogcast-kit"
+	roleHost       = "host"
+	hostExecutable = "bin/fogcast-kit"
 )
 
 // hostPlan is how the supervisor starts the kit's FogCast host.
@@ -28,32 +23,12 @@ type hostPlan struct {
 }
 
 // planHostLocked records the host for the bundle that Start just started.
-// The host starts on a later tick, once the launcher is ready, so its
-// start-up does not compete with the agent and launcher for the board.
+// The host must start before launcher readiness: the launcher consults it
+// before presenting while it determines whether a game is already running.
 func (c *ProcessController) planHostLocked(root string, env []string) {
 	c.hostPlan = nil
 	c.hostRestart, c.hostDelay = time.Time{}, 0
-	if !advertisesHost(root) {
-		return
-	}
 	c.hostPlan = &hostPlan{path: filepath.Join(root, hostExecutable), args: []string{"host"}, env: hostEnv(env)}
-}
-
-// advertisesHost reports whether the release manifest advertises kit-host.
-// Start runs only on a verified release, so its manifest is authenticated.
-func advertisesHost(root string) bool {
-	data, err := os.ReadFile(filepath.Join(root, "manifest.json"))
-	if err != nil {
-		return false
-	}
-	var manifest struct {
-		Interfaces map[string]string `json:"interfaces"`
-	}
-	if json.Unmarshal(data, &manifest) != nil {
-		return false
-	}
-	version, ok := manifest.Interfaces[hostAdvertisement]
-	return ok && strings.HasPrefix(version, "1.")
 }
 
 // hostEnv is the group environment without the activation claim, the
@@ -72,7 +47,7 @@ func hostEnv(env []string) []string {
 	return out
 }
 
-// superviseHostLocked starts the host once the launcher is ready, and
+// superviseHostLocked starts the host and
 // restarts it alone when it exits, with the launcher's backoff. Its exit
 // never touches the agent, the runtime or a running core. The exited
 // host's process group is confirmed gone before a replacement starts.
@@ -94,8 +69,6 @@ func (c *ProcessController) superviseHostLocked() error {
 		if err := c.confirmLauncherGroup(previous); err != nil {
 			return err
 		}
-	} else if !c.launcherReadyLocked() {
-		return nil
 	}
 	if !c.hostRestart.IsZero() && time.Since(c.hostRestart) < max(c.hostDelay, launcherRestartMin) {
 		return nil
@@ -103,7 +76,7 @@ func (c *ProcessController) superviseHostLocked() error {
 	if previous != nil {
 		// Grow the backoff on the life the host had; the wait before this
 		// restart is not stable life.
-		if previous.exited.Sub(previous.started) < launcherStableLife {
+		if previous.failedReadiness || previous.exited.Sub(previous.started) < launcherStableLife {
 			c.growHostDelay()
 		} else {
 			c.hostDelay = launcherRestartMin
@@ -130,19 +103,6 @@ func (c *ProcessController) growHostDelay() {
 	case c.hostDelay < launcherRestartMax:
 		c.hostDelay = min(2*c.hostDelay, launcherRestartMax)
 	}
-}
-
-// launcherReadyLocked reports whether the launcher published readiness for
-// the active bundle.
-func (c *ProcessController) launcherReadyLocked() bool {
-	data, err := os.ReadFile(filepath.Join(c.RunDir, "launcher-ready.json"))
-	if err != nil {
-		return false
-	}
-	var ready struct {
-		BundleID string `json:"bundle_id"`
-	}
-	return json.Unmarshal(data, &ready) == nil && ready.BundleID == c.active
 }
 
 // withoutHost drops the host from a list of the supervisor's direct

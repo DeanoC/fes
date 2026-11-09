@@ -81,8 +81,10 @@ func (c *Client) CancelKitSoftware(ctx context.Context, request softwarecontrol.
 	if err != nil {
 		return result, err
 	}
-	if receipt, ok := result.Receipts[request.ID]; ok && receipt.ID == request.ID && receipt.Generation == request.Generation && receipt.Result == "cancelled" {
-		return result, nil
+	if receipt, ok := result.Receipts[request.ID]; ok && receipt.ID == request.ID && receipt.Generation == request.Generation {
+		if receipt.Result == "cancelled" || (receipt.Result == "recovered" && receipt.Reason == softwarecontrol.ReasonBlockedCancel) {
+			return result, nil
+		}
 	}
 	return softwarecontrol.Status{}, errors.New("software response does not identify the requested cancellation; inspect status")
 }
