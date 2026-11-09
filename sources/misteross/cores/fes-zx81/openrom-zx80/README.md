@@ -18,7 +18,8 @@ at the moment it reads them.
 ## What it does
 
 The 4 KiB image matches the Sinclair ZX80 ROM on every recorded probe
-(memory and screen dumps in `dev/ref`), both in the fast harness and on the
+(memory and screen dumps in `dev/ref`), apart from the deliberate differences
+below, both in the fast harness and on the
 FES ZX80 RTL (`dev/build_probe.sh`). The RTL comparator also loads
 `dev/ref/prog3.o` through the machine's `$0207` trap and checks its program,
 variables and screen against `dev/regress.expected`. The fast-harness
@@ -44,8 +45,10 @@ lines 243-250, pixels 36-43 (`TOP_LINES`, `BOT_LINES` and `VSYNC_PAD` in
 `hw.asm` set them).
 
 Deliberate differences: SAVE does nothing (the core keeps no ZX80 tape
-output); an overflow stops its statement at once (the original carries on with
-effects suppressed); the listing pages rather than scrolling by one line; the edit line is not emptied while a report shows; a line that was never
+output); an error, overflow included, stops its statement at once (the
+original carries on with effects suppressed, so a comma in PRINT still moves
+on and a later error in the statement replaces the report: `DELIBERATE` in
+`dev/compare.py` holds the one recording that shows it); the listing pages rather than scrolling by one line; the edit line is not emptied while a report shows; a line that was never
 checked (only a hand-made image can hold one) stops at a wrong symbol with
 report 0.
 

@@ -14,9 +14,8 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 sys.path.insert(0, sys.path[0])
-from compare import REF, blocks
+from compare import FILES, REF, blocks
 
-FILES = ['p1', 'p2', 'p3', 'p4', 'p5', 'pb', 'pc', 'pd', 'pe', 'pf', 'ph', 'pr']
 HERE = os.path.dirname(os.path.abspath(__file__))
 LOAD_SCRIPT = 'W NL SHIFT+9 R NL'
 SHIFT_FIRST = [

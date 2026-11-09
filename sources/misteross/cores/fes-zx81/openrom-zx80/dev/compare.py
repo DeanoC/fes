@@ -9,6 +9,17 @@ import sys
 sys.path.insert(0, sys.path[0])
 
 REF = sys.path[0] + '/ref/'
+FILES = ['p1', 'p2', 'p3', 'p4', 'p5', 'pb', 'pc', 'pd', 'pe', 'pf', 'pg', 'ph', 'pr']
+
+# Recordings where this ROM deliberately differs (README): what it gives
+# instead. After an error Sinclair's ROM carries on through the statement with
+# its effects suppressed, so PRINT's comma still moves on and a later error
+# replaces the report; this ROM stops at the first error.
+DELIBERATE = {
+    'D C SHIFT+I 3 0 0 SHIFT+O NL SHIFT+9 K C SHIFT+I 2 9 9 SHIFT+O SHIFT+L 5 NL '
+    'SHIFT+9 O C SHIFT+I 2 9 9 SHIFT+O SHIFT+. C SHIFT+I 4 3 SHIFT+O NL':
+        {'screen': {23: '2/-2'}},       # Sinclair: 8 spaces on row 0, 3/-2
+}
 
 
 def blocks(path):
@@ -26,6 +37,8 @@ def blocks(path):
         elif line.startswith('  ') and '|' in line:
             n, rest = line.split('|', 1)
             cur['screen'][int(n)] = rest[:-1]
+    for cur in out:
+        cur.update(DELIBERATE.get(cur['script'], {}))
     return out
 
 
@@ -52,7 +65,7 @@ def main():
     from harness80 import load_symbols
     rom = open(sys.argv[1], 'rb').read()
     sym = load_symbols(sys.argv[2])
-    files = sys.argv[3:] or ['p1', 'p2', 'p3', 'p4', 'p5', 'pb', 'pc', 'pd', 'pe', 'pf', 'ph', 'pr']
+    files = sys.argv[3:] or FILES
     bad = 0
     for f in files:
         for ref in blocks(REF + f + '.txt'):
@@ -79,6 +92,7 @@ def main():
                 for d in diffs:
                     print('   ' + d)
     print('differences:', bad)
+    sys.exit(1 if bad else 0)
 
 
 if __name__ == '__main__':
