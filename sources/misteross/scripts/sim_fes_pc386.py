@@ -1657,7 +1657,8 @@ def run_game(args, linked: list[Path]) -> dict:
                                             '--opl2-log', str(opl2_log), '--frames', str(frames), *keys, *extra,
                                             '--cpu', args.cpu, '--game-launch', '1', *governor_arguments(args)], images)
     report['game'] = {'name': args.game, 'drive': record.get('drive'), 'drive_sha256': record['sha256'],
-                      'title': title['title'], 'bucket': title['bucket'], 'zip_sha256': title['sha256']}
+                      'title': title['title'], 'bucket': title['bucket'],
+                      'source': title.get('source', 'exodos'), 'source_sha256': title['sha256']}
     report['work'] = str(work)
     # A program that ends at the prompt ends the run there; that is not a bench failure.
     if (report.get('end') or {}).get('reason') == 'prompt' and report.get('game_launch'):
