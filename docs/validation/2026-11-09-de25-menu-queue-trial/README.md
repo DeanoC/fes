@@ -38,6 +38,22 @@ initialReady100s. Tape retains bounded512-byte1s calls, size-derived total and
 independent1s control/fetch. The first failure terminates the trial with only a
 two-second passive tail. A consumed image is never replayed.
 
-The hardware result is pending. Ordinary core-loading/appliance acceptance,
-physical display/input and broader native network behavior remain open.
+The hardware trial passes: all eight App commands independently replay from the
+saved serial bytes. Seven FPGA configurations complete the sequence
+ZX81 (+917-byte tape) → menu → ZX80 → menu → ZX81 (+same tape) → menu → Park.
+Both tape transfers take about 1.206 seconds; each independent control/fetch
+phase stays within one second. All four menu sessions report zero underflows.
+The final service state is Parked at generation7, with firmware bridge generation40,
+reset mask15 and masters contained. CPU parking and firmware return are unobserved.
+Independent cleanup confirms15MHz/auto-adjust-on, exact USB permissions, no owned
+programming server and a free UART. This consumed image is retired; no replay.
+
+The first two offline replay attempts incorrectly checked the cached App view
+and a nonexistent result field for final Park. The existing strict client records
+that state in `exit_generation`; correcting those analysis assertions yields the
+passing third replay. The raw trace and failed analysis logs are retained.
+
+Ordinary core-loading/appliance acceptance, physical display/input, general USB
+reliability and broader native network behavior remain open. One passing run
+does not prove the previous menu failure's physical cause.
 Old-file cleanup stays paused.

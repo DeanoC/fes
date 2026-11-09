@@ -1,0 +1,62 @@
+"""Independently replay all eight saved App exchanges and paired receipts."""
+import hashlib,json,re,sys
+from pathlib import Path
+s=Path(__file__).resolve().parent;root=s.parents[1];t=s/'trial';doc=root/'docs/validation/2026-11-09-de25-menu-queue-trial'
+sys.path[:0]=[str(t),str(root/'platform/embedded/nano')]
+from common import SDK,UBOOT,ENTRY,CANDIDATE,KIT,sha
+from trial_inputs import shared_policy,expected_programs,expected_uploads_for
+from upload_checks import accept_uploads
+from paired_tenfoot_trace import PairedTenfootClient
+from paired_checks import accept_paired_result
+from configuration_trace import extract,START_PHASES
+from tenfoot_trace import fetch_observation
+raw=(t/'native-console.log').read_bytes();n=json.loads((t/'native-result.json').read_text());r=json.loads((t/'experiment-result.json').read_text());cleanup=json.loads((s/'cleanup-evidence.json').read_text());manifest=json.loads((KIT/'result.json').read_text())
+assert cleanup['status']=='passed' and n['pass'] and r['pass'] and n['console_sha256']==sha(t/'native-console.log')
+sdk=json.loads((SDK/'result.json').read_text());u=json.loads((UBOOT/'result.json').read_text());e=json.loads((ENTRY/'result.json').read_text());cold=u['native_handoff']['cold_boot_profile'];context=cold['hps_context'];programs=expected_programs();policy=shared_policy(entry=e,cold=cold)
+observed=accept_paired_result(n,manifest,programs);assert observed==r['paired_observation']
+commands=n['app_commands'];assert [(v['action'],v['selection'],v['status']) for v in commands]==[('launch',0,'verified'),('stop',None,'verified'),('focus',1,'verified'),('launch',1,'verified'),('stop',None,'verified'),('focus',0,'verified'),('launch',0,'verified'),('quit',None,'verified')]
+clock=0.0;index=0;windows=n['command_windows'];assert len(windows)==8
+
+def exchange(payload,bound,done):
+ global clock,index
+ w=windows[index];index+=1;assert w['request_hex']==payload.hex() and w['bound_seconds']==bound and w['status']=='received'
+ before=clock;complete=False
+ for offer in w['offers']:
+  clock=before+offer['elapsed_seconds'];complete=done(raw[w['start']:offer['end']])
+ assert complete and w['end']==w['offers'][-1]['end'];clock=before+w['elapsed_seconds'];return raw[w['start']:w['end']]
+package=dict(package_id=context['package_id'],payload_sha256=context['core_sha256'],payload_bytes=context['core_size'],build_id=context['build_id'])
+client=PairedTenfootClient(raw[:n['initial_capture_end']],build_record=sdk,build_id=u['native_handoff']['build_id'],owner_seed=cold['owner_seed'],atf=u['native_handoff']['atf_handoff'],package=package,programs=programs,exchange=exchange,owns=lambda:True,now=lambda:clock,shared_usb=policy,firmware_ram_trace=True,firmware_mmu=u['firmware_mmu_proof'])
+assert client.view==n['startup_reply'] and client.boot==n['startup_service_boot']
+for saved in commands:assert client.key(saved['action'],saved['selection'])==saved
+assert client.records==commands and client.retired and client.menu.finish()['menu_sessions']==4
+# Quit consumes the exit receipt; the cached App view remains its last Ready snapshot.
+assert client.records[-1]['exit_generation']==7
+assert raw.endswith(b'FES_NATIVE_TENFOOT_EXIT state=parked generation=7\n')
+fetch=[fetch_observation(v.split(b' ',1)[1]) for v in raw.splitlines() if v.startswith(b'FES_NATIVE_CORE_FETCH ')]
+assert fetch==sum((v['fetch_observations'] for v in commands),[]) and [v['generation'] for v in fetch]==[1,3,5]
+assert [v['package_id'] for v in fetch]==[programs[i]['identity']['PackageID'] for i in (0,1,0)]
+for i in (0,2):assert fetch[i]['tape_bytes']==917 and 1000000000<fetch[i]['tape_elapsed_ns']<fetch[i]['tape_limit_ns']==6000000000 and fetch[i]['control_elapsed_ns']<1000000000
+assert fetch[1]['scope']=='nano-computer-fetch-v1' and 'tape_bytes' not in fetch[1]
+arms=list(re.finditer(rb'(?m)^NOTICE:  FES_NANO_CORE_TRANSFER phase=arm owner=[0-9a-f]+ generation=(\d+)[^\r\n]*\r?\n',raw));assert [int(m[1]) for m in arms]==[4,10,15,21,26,32,37]
+menu=cold['hps_menu_program']['configuration'];specs=[menu,programs[0]['configuration'],menu,programs[1]['configuration'],menu,programs[0]['configuration'],menu];configs=[]
+for i,(m,spec,previous) in enumerate(zip(arms,specs,(0,4,10,15,21,26,32))):
+ segment=raw[m.start():arms[i+1].start() if i+1<len(arms) else len(raw)]
+ cfg=extract(segment,spec,generation=int(m[1]),previous=previous,rearm=bool(previous),require_programmed=False,require_activation=True)
+ assert not cfg['errors'] and cfg['complete'] and cfg['activation'] and cfg['offset']==spec['core_size']
+ assert cfg['start_observation']['complete'] and [(v['phase'],v['status']) for v in cfg['start_observation']['records']]==[(p,2 if p==7 else 0) for p in START_PHASES]
+ parts=cfg.pop('parts');cfg['unparsed_fragments_sha256']=hashlib.sha256(b''.join(parts)).hexdigest();configs.append(dict(generation=int(m[1]),bytes=cfg['offset'],proof=cfg))
+rows=[json.loads(v.split(b' ',1)[1]) for v in raw.splitlines() if v.startswith(b'FES_NATIVE_MENU_STATE ')]
+assert sorted({v['menu'] for v in rows})==[1,2,3,4] and [v['menu'] for v in rows if v['event']=='return']==[1,2,3,4]
+assert all(v['frame']['Underflows']==0 for v in rows)
+assert all(v['identity']['PackageID']==sdk['hps_menu_program']['context']['package_id'] for v in rows)
+assert n['service']['menu']['final_return']['Generation']==40 and n['service']['menu']['final_return']['ResetMask']==15 and n['service']['menu']['final_return']['MastersContained']
+assert raw.endswith(b'FES_NATIVE_TENFOOT_EXIT state=parked generation=7\n') and b'panic:' not in raw and b'FES_NANO_TAPE_FAILURE' not in raw and b'channel_snapshot=' not in raw
+uploads,_,_=accept_uploads(t,expected_uploads_for(KIT,CANDIDATE,sha),sha(t/'recovery-boot-result.json'),sha);assert len(uploads['return_traces'])==13
+assert r['total_transport_programming_failures']==2 and not r['incomplete_programming_phases']
+reservations={}
+for name in ('recovery','native'):
+ p=t/(name+'-program-consumed.json');x=json.loads(p.read_text());y=json.loads(p.with_name(p.name+'.scan.json').read_text());assert x['state']=='reserved-before-scan' and y['state']=='consumed-before-programming';reservations[name]=dict(reservation_sha256=sha(p),scan_sha256=sha(p.with_name(p.name+'.scan.json')))
+result=dict(status='physical-queued-menu-paired-launch-return-cycle-passed',source_commit=r['source_commit'],compiled_source=json.loads((CANDIDATE/'publication.json').read_text())['source_head'],native_boot_id=u['native_handoff']['build_id'],raw_console_replay_matches=True,successful_commands_independently_replayed=8,pass_=True,scope='single bounded native paired menu/core diagnostic on topTRWU8CBL; no Linux',mmu_memory_proof_complete=n['startup_service_boot']['firmware_mmu_trace']['complete'],secure_loader_verified=n['secure_cold_boot_verified'],el1_handoff=True,sd_fat_started=True,configuration_cycles_observed=7,configurations=configs,initial_menu_ready=True,startup_observation_seconds=n['startup_observation_seconds'],core_launches_verified=['fes.zx81','fes.zx80','fes.zx81'],menu_returns_verified=3,menu_sessions_observed=4,menu_return_events_observed=4,final_logical_generation=7,final_bridge_generation=40,final_bridge_reset_mask=15,final_masters_contained=True,final_service_state='parked',fetch_observations=fetch,tape_fixture_passed_twice=True,tape_fixture_bytes=917,tape_fixture_sha256=programs[0]['tape']['sha256'],tape_elapsed_seconds=[fetch[i]['tape_elapsed_ns']/1e9 for i in (0,2)],tape_control_elapsed_seconds=[fetch[i]['control_elapsed_ns']/1e9 for i in (0,2)],tape_all_cases_hardware_qualified=False,menu_underflows_reported=0,menu_source_identity=sdk['hps_menu_program']['context']['build_id'],menu_receipt_failure_recurred=False,new_usb_failure_observed=False,shared_usb_reports=n['service']['shared_usb_reports'],shared_usb_polls=n['service']['shared_usb_polls'],ordinary_core_load_acceptance=False,physical_display_verified=False,physical_input_controls_verified=False,general_usb_reliability_qualified=False,full_board_timing_signoff=False,cleanup=cleanup,programming_reservations=reservations,historical_programming_failures=2,new_programming_failures=0,consumed_image_retired=True,firmware_return_observed=False,cpu_park_observed=False,hardware_actions=False,goal_complete=False,
+ interpretation='The new queued-menu image completes all7 FPGA configurations and the full ZX81/menu/ZX80/menu/ZX81/menu/finalPark diagnostic. Two actual917-byte tape loads each exceed1s and pass under the stepped budget, with independent control/fetch within1s. All8 App commands independently replay through the actual strict client. Final logicalPark7 and physicalbridge resetclosure40/resetf/mastercontainment observed. SharedUSB polling continued; no physical key action or HDMI capture was requested. This one passing run does not establish the earlier physical failure cause, generalUSB reliability, arbitrary package admission or whole-appliance acceptance. Final servicePark is distinct from unobserved firmware return/CPU parking.',logs={name:sha(t/name) for name in ('native-console.log','native-result.json','experiment-result.json','uploads/result.json')})
+result['pass']=result.pop('pass_');(doc/'hardware-result.json').write_text(json.dumps(result,indent=2)+'\n');(s/'hardware-analysis.json').write_text(json.dumps(result,indent=2)+'\n')
+print('PASS independent8-command saved-wire replay,7 configurations/3 launches/4menus,2 tape loads, final40/resetf/Park7 and device cleanup')
