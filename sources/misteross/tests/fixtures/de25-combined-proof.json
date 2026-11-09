@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "56d1202e925e11d66e2b5d2fc828e1f104bb1337",
+  "source_revision": "979bf2f15fcb39702028ed0d92a0c187c3550447",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -37,7 +37,7 @@
     "sources/misteross/boards/de25nano/link-proof/zx81-ram/profile.py": "a088d82ff97271e7a52d782a672c24c3bba22df23c538a5089c68e9cb5b5f409",
     "sources/misteross/boards/de25nano/link-proof/zx81-ram/static.v": "10755a86b98ca1f3465c74c17fa44a667ba828e21952bb04505e1bb641c0944a",
     "sources/misteross/boards/de25nano/link-proof/zx81-ram/timing.tcl": "733ce2b528d51776b12d8956b557038e0ad07a122199b3ffbf982c25d6134755",
-    "sources/misteross/boards/de25nano/scanout/build.py": "005dcaed125813bd4a7fa5eabf2cd184898c1883f012c775f6fdbb67efcf787b",
+    "sources/misteross/boards/de25nano/scanout/build.py": "85c996c33f89ff2d697ec146610d4e06d93c260c8f07f3d329e68c990465c13c",
     "sources/misteross/boards/de25nano/scanout/clocks.sdc": "45ad2bec85636340f8ea84e4a4c44541a53dd0109c875199dd1b3e7401a55ffc",
     "sources/misteross/boards/de25nano/scanout/fes_de25_scanout_board.v": "ba3b2894d21f5742eae1c49a5678e9507c8619929b305657b39e0e0a07346e9b",
     "sources/misteross/boards/de25nano/scanout/hdmi_inputs.py": "8dda1b3bf48654dec48fd4492c0171f04bba78a0b1291c553fc9108e72ba2156",
@@ -45,7 +45,7 @@
     "sources/misteross/boards/de25nano/zx81/build.py": "55a4db17ec68e17ed288bba72b99cbf6ee78d84f31b1e59c926b6b94a334c79d",
     "sources/misteross/boards/de25nano/zx81/firmware.py": "d4f1859dfed1372f3926eb9d14e9e5ba477cc50a900293fdd68ab618c72507c0",
     "sources/misteross/boards/de25nano/zx81-hps/board.v": "e076d774e74222722620f0f605f6bd1f8456e69c8a944dfd5e180004e62dfb2d",
-    "sources/misteross/boards/de25nano/zx81-hps/build.py": "32046be42877ee08d87e46d97aba13d30eda50296c6a6054d2a63914a5f1fcd6",
+    "sources/misteross/boards/de25nano/zx81-hps/build.py": "08743202143b032ed9b4e0c2e9e5f753b4f62e5f9562310bdab7cf017fabb7ea",
     "sources/misteross/boards/de25nano/zx81-hps/clocks.sdc": "49e7f03e704c3a66e61f7c510f9f2150978e65fbf531685699600d0e5901b7c9",
     "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v": "747cf7d20585c73f8f61306bfdba6cfd0938768915862e5fe0cc5d291202d71a",
     "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl": "8947f4661549117011c05cc705f368369db0fd7fbea7cfe836863b5d2ae035bc",
@@ -120,7 +120,7 @@
     "sources/libmister-runtime/src/native/diagnostic.hpp": "778c93c96c5ae4c0eda141cc5c9fa498445ba5748e7b3ee651a370a075e78c7a",
     "sources/libmister-runtime/src/native/generated/fes_application.hpp": "d19d4388998dd6f37e8a6bd1802a3ce3bee96b066c13ca7a965b95767c44ed77",
     "sources/libmister-runtime/src/native/generated/fes_display_plane.hpp": "85ac49ea4a77278771c07b815ed30c60d2866f0ba035db4c31f20e2dd0924eb3",
-    "sources/libmister-runtime/src/native/generated/fes_de25_scanout.hpp": "e78e6b983243722f9a7f5275e9938e07dd8ba1e675b31edbfbfbe14b3345f25e",
+    "sources/libmister-runtime/src/native/generated/fes_de25_scanout.hpp": "648a3137cfcaf90ba1070876e264c47dcd1c219df5d40fc25848d198cfac6bc9",
     "sources/libmister-runtime/src/native/generated/fes_de25_pr_control.hpp": "4170d9b03db6e17af2956e8e26349f152429be148c7fc5305c55a5751979c702",
     "sources/libmister-runtime/src/native/generated/fes_de25_computer.hpp": "587ffaf292f4f27359bf34fc00e4eb3ad309f74bd4f9313b674d8873077a7966",
     "sources/libmister-runtime/src/native/generated/fes_simple_computer.hpp": "e72dd8c7ec98b1295eaa3937918433bb70814a4722b3f445f8b1ece9adf5db28",
@@ -339,7 +339,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "a3c8d49d179e6a13dedc740fd2e181c2ba884ef9111d35d8e955820960bd35ea",
-    "Vfes_de25_combined_sim": "f527bb24ce6da925cdc6df27844baae83649a64872fe26765c100719438c686e",
+    "Vfes_de25_combined_sim": "607d288d68c7b1321da6467363a67bbf413ce453d6349a5984cb9b705b2e6faf",
     "client-aarch64": "7bce4ba2c6ed39a45f61e60a0b5d3d4c68dbef928e0a092b36f7133459b3c000"
   },
   "physical_PR": "selection-mux-model-only",
