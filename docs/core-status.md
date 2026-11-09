@@ -403,6 +403,32 @@ compared the kit against MAME `ibm5150`, and its results are partial:
   session display ([#1561](https://github.com/DeanoC/fes/issues/1561)).
 - **Not run.** Losing unsaved writes to a power loss, and external
   interface timing, remain unassessed.
+
+The [8–10 November reruns](validation/2026-11-08-pcxt-qualification-reruns/summary.md)
+(#1529, Kit B) supersede the fails above. They used `fes.pcxt-dos`
+`e73a0e87…`, sealed from main `8d9b71fab` with three passing seeds after
+#1569, #1565 and #1619. Every case in the precommitted plan passes:
+- **Fixes confirmed.**
+  - Ctrl+Alt+Del warm-boots back to `A:\>`, and the next library launch
+    cold-boots.
+  - Rogue's map draws, and two runs reached level 2 by the stairs.
+- **Cases rerun.** All of the 7 November cases pass on the new package:
+  - COM;
+  - library Save with the same five-sector image diff;
+  - unsaved write;
+  - raw insert;
+  - Paratrooper and Alley Cat ×2, where Alley Cat now enters a window;
+  - Rogue save/restore;
+  - speed and pitch against MAME.
+- **Power loss.** An unsaved write is lost to a power loss while the saved
+  record stays byte-identical.
+- **Relaunch from the TV menu.** Kit B's own FogCast host ran five tenfoot
+  relaunches, each with Paratrooper keyboard play and a Stop (F12 ×4,
+  Ctrl+Home). These ran on main's kit-software bundle `7ddb0bfb`, which has
+  #1614. On the baseline bundle `66316149` the kit keyboard doesn't reach the
+  core in kit-host sessions (#1613), so Paratrooper can't be played from a
+  tenfoot launch there.
+- **Still open.** External interface timing (#835) and physical ISA.
 The [reviewed 29 October Quartus diagnostic](validation/2026-10-29-pcxt-quartus-package/review-followup.json)
 passes three seeds and a byte-identical independent rebuild at producer `38ef151bfa`.
 Independent review found four package/acceptance defects, now fixed and re-reviewed.
