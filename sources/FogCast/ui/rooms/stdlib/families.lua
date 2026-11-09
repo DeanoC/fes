@@ -9,8 +9,8 @@
 -- firmware.
 --
 -- families.load(on_change) starts the kit and library reads; on_change runs
--- after each answer. families.reload() reads the library again. A room that
--- waits for more than this module sets families.waiting to a function that
+-- after each answer. families.reload() reads the kit and library again. A room
+-- that waits for more than this module sets families.waiting to a function that
 -- returns true until its own data has answered; every family is Checking
 -- until then.
 
@@ -260,12 +260,16 @@ function M.ground(core_id, fallback)
   return GROUNDS[(M.hash(key) % #GROUNDS) + 1]
 end
 
+local kit_generation = 0
 local function load_kit()
+  kit_generation = kit_generation + 1
+  local gen = kit_generation
   if kit == nil or kit.cores == nil then
     kit_rows = {}
     return
   end
   kit.cores(function(rows, err)
+    if gen ~= kit_generation then return end
     kit_rows = {}
     if not err then
       for _, r in ipairs(rows or {}) do
@@ -302,6 +306,7 @@ end
 -- looked for among them.
 local library_generation = 0
 function M.reload()
+  load_kit()
   library_generation = library_generation + 1
   local gen = library_generation
   local m, counts, more, waiting, failed = {}, {}, {}, #list, nil
@@ -347,7 +352,6 @@ end
 
 function M.load(callback)
   on_change = callback or function() end
-  load_kit()
   M.reload()
 end
 
