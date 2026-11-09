@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "source_head": "6a53587c9ff08a4bfeca742ad2957ca9d012433a",
+  "operator_source": "245c84ebfa8da498448a0ce15a57a763e7a3f128",
+  "path": "/home/deano/fes-retained/de25-channel-fault-trial-hardware-20261109-r1",
+  "files": 5861,
+  "full_archive_readback": true,
+  "archive_modes_verified": true,
+  "bundle_import_and_pack_verified": true,
+  "standalone_source_restore_and_strict_fsck": true,
+  "hardware_actions": false
+}
