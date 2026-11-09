@@ -27,14 +27,15 @@ def _cable(value):
 
 def _identity(value):
     fields = {'serial', 'source_commit', 'claim_token', 'pid', 'start_ticks',
-              'cable', 'config_sha256', 'clock', 'client_sha256', 'probe_sha256'}
+              'cable', 'config_sha256', 'clock', 'auto_adjust', 'client_sha256', 'probe_sha256'}
     if not isinstance(value, dict) or set(value) != fields:
         raise ValueError('complete private transport identity required')
     if (value['serial'] != 'TRWU8CBL' or not _hex(value['source_commit'], 40) or
             not _hex(value['claim_token'], 16) or type(value['pid']) is not int or value['pid'] <= 0 or
             not isinstance(value['start_ticks'], str) or not re.fullmatch('[0-9]+', value['start_ticks']) or
             not _cable(value['cable']) or
-            not _hex(value['config_sha256'], 64) or value['clock'] != '6M' or
+            not _hex(value['config_sha256'], 64) or value['clock'] != '3M' or
+            type(value['auto_adjust']) is not int or value['auto_adjust'] != 0 or
             not _hex(value['probe_sha256'], 64) or not isinstance(value['client_sha256'], dict) or
             set(value['client_sha256']) != set(LIBRARIES) or
             any(not _hex(digest, 64) for digest in value['client_sha256'].values())):
@@ -62,11 +63,17 @@ def live_scan(raw, cable):
         'FES_JTAG_SCAN CALL phase=name rc=0',
         'FES_JTAG_SCAN CABLE '+cable,
         'FES_JTAG_SCAN CALL phase=lock rc=0',
+        'FES_JTAG_SCAN CALL phase=auto-before rc=0',
+        'FES_JTAG_SCAN AUTO before=0',
         'FES_JTAG_SCAN CALL phase=clock rc=0',
-        'FES_JTAG_SCAN CLOCK 6000000',
+        'FES_JTAG_SCAN CLOCK 3000000',
         'FES_JTAG_SCAN CALL phase=forced-scan rc=0',
         'FES_JTAG_SCAN CALL phase=cached-after rc=0',
         'FES_JTAG_SCAN DEVICE phase=cached-after count=1 id=4362C0DD mask=00000000 ir=10',
+        'FES_JTAG_SCAN CALL phase=clock-after rc=0',
+        'FES_JTAG_SCAN CLOCK after=3000000',
+        'FES_JTAG_SCAN CALL phase=auto-after rc=0',
+        'FES_JTAG_SCAN AUTO after=0',
         'FES_JTAG_SCAN CALL phase=unlock rc=0',
         'FES_JTAG_SCAN RESULT pass=1 programming=0 cpu_reset=0',
     ]

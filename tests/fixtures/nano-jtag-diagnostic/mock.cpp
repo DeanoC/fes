@@ -29,11 +29,12 @@ AJI_ERROR aji_get_parameter(AJI_CHAIN_ID,const char *name,DWORD *value) {
     static unsigned clocks=0,automatic=0;
     if(!std::strcmp(name,"JtagClockAutoAdjust")) {
         const char *phase=automatic++ ? "auto-after":"auto-before";
-        *value=mode("auto-enabled") ? 1:0;return call(phase);
+        *value=(mode("auto-enabled") || (mode("auto-drift") && automatic>1)) ? 1:0;return call(phase);
     }
     if(std::strcmp(name,"JtagClock"))std::abort();
     const char *phase=clocks++ ? "clock-after":"clock";
-    *value=mode("wrong-clock") ? 15000000:6000000;return call(phase);
+    *value=(mode("wrong-clock") || (mode("clock-drift") && clocks>1)) ? 15000000:
+        std::getenv("FES_MOCK_FIXED_CLOCK") ? 3000000:6000000;return call(phase);
 }
 AJI_ERROR aji_get_parameter(AJI_CHAIN_ID,const char *name,BYTE *data,DWORD *size,DWORD tx) {
     if(*size!=256 || tx)std::abort();

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('nano_jtag_programming', ROOT/'platform/embedded/nano/jtag_programming.py')
 jtag = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(jtag)
-RAW = (ROOT/'tests/fixtures/nano-jtag/vendor-live-scan.txt').read_bytes()
+RAW = (ROOT/'tests/fixtures/nano-jtag/controlled-fixed-clock-scan.txt').read_bytes()
 CABLE = re.search(rb'^FES_JTAG_SCAN CABLE (.+)$', RAW, re.M)[1].decode()
 IMAGE = 'a'*64
 
@@ -22,7 +22,7 @@ IMAGE = 'a'*64
 def identity():
     return dict(serial='TRWU8CBL', source_commit='1'*40, claim_token='2'*16,
                 pid=1234, start_ticks='5678', cable=CABLE, config_sha256='3'*64,
-                clock='6M', client_sha256={p:'4'*64 for p in jtag.LIBRARIES}, probe_sha256='5'*64)
+                clock='3M', auto_adjust=0, client_sha256={p:'4'*64 for p in jtag.LIBRARIES}, probe_sha256='5'*64)
 
 
 class ProgrammingTests(unittest.TestCase):
@@ -44,8 +44,8 @@ class ProgrammingTests(unittest.TestCase):
             return 'program-result'
         return jtag.ProgramAttempt(path, observe or identity, scan or scanning, program or programming), calls
 
-    def test_real_capture_then_durable_consumption_and_single_program(self):
-        self.assertEqual(hashlib.sha256(RAW).hexdigest(), 'b6aeb62a894c67923bf2588a4d6f07f08a1fd0be9e490cb01364932fcc75ace9')
+    def test_controlled_fixed_scan_then_durable_consumption_and_single_program(self):
+        self.assertEqual(hashlib.sha256(RAW).hexdigest(), '9c12980e0e559c97abedf814b2d234ee2753a43a6778be0d1c0e68d01ad06f58')
         with tempfile.TemporaryDirectory() as temp:
             gate, calls = self.gate(temp)
             record, result = gate.run('native', IMAGE)
@@ -66,14 +66,16 @@ class ProgrammingTests(unittest.TestCase):
                 self.assertEqual(calls, ['scan', 'program'])
 
     def test_failed_incomplete_or_listing_only_scan_never_programs_or_replays(self):
-        failures = [b'', None, RAW.decode(), RAW[:-1], RAW+b'Error (213019): scan failed\n',
+        failures = [(ROOT/'tests/fixtures/nano-jtag/vendor-live-scan.txt').read_bytes(),
+                    RAW.replace(b'AUTO before=0',b'AUTO before=1'), RAW.replace(b'AUTO after=0',b'AUTO after=1'),
+                    RAW.replace(b'CLOCK after=3000000',b'CLOCK after=6000000'), b'', None, RAW.decode(), RAW[:-1], RAW+b'Error (213019): scan failed\n',
                     b'1) '+CABLE.encode()+b'\n  4362C0DD device\n',
                     RAW.replace(b'phase=forced-scan rc=0', b'phase=forced-scan rc=87'),
                     RAW.replace(b'FES_JTAG_SCAN CALL phase=forced-scan rc=0\n', b''),
                     RAW.replace(b'phase=cached-after', b'phase=cached-before'),
                     RAW.replace(b'id=4362C0DD', b'id=12345679'),
                     RAW.replace(b'count=1', b'count=2'), RAW.replace(b'ir=10', b'ir=0'),
-                    RAW.replace(b'CLOCK 6000000', b'CLOCK 15000000'),
+                    RAW.replace(b'CLOCK 3000000', b'CLOCK 15000000'),
                     RAW.replace(b'BINDING forced-scan '+jtag.BINDING.encode(), b'BINDING forced-scan /tmp/other.so'),
                     RAW.replace(b'FES_JTAG_SCAN LIBRARY '+jtag.LIBRARIES[0].encode(), b'FES_JTAG_SCAN LIBRARY /tmp/foreign.so'),
                     RAW.replace(b'pass=1', b'pass=0'), RAW.replace(b'cpu_reset=0', b'cpu_reset=1'),
@@ -92,7 +94,7 @@ class ProgrammingTests(unittest.TestCase):
     def test_any_identity_change_during_scan_or_before_programming_rejects(self):
         changes = dict(serial='TRWU8J8G', source_commit='9'*40, claim_token='9'*16,
                        pid=1235, start_ticks='5679', cable=CABLE.replace('45043','45044'),
-                       config_sha256='9'*64, clock='15M',
+                       config_sha256='9'*64, clock='15M', auto_adjust=1,
                        client_sha256={p:'9'*64 for p in jtag.LIBRARIES}, probe_sha256='9'*64)
         for field, value in changes.items():
             for changed_call in (2, 3):
@@ -110,7 +112,8 @@ class ProgrammingTests(unittest.TestCase):
     def test_incomplete_or_foreign_identity_rejects_before_scan(self):
         bads = [None, {}, dict(identity(), serial='TRWU8J8G'), dict(identity(), pid=True),
                 dict(identity(), cable='DE25-Nano'), dict(identity(), cable=CABLE.replace('45043','65536')),
-                dict(identity(), clock='15M'), dict(identity(), client_sha256={}),
+                dict(identity(), clock='15M'), dict(identity(), clock='6M'), dict(identity(), auto_adjust=1),
+                dict(identity(), auto_adjust=False), dict(identity(), auto_adjust='0'), dict(identity(), client_sha256={}),
                 dict(identity(), probe_sha256=None), dict(identity(), source_commit='1'*64)]
         for bad in bads:
             with self.subTest(bad=bad), tempfile.TemporaryDirectory() as temp:

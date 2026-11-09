@@ -50,15 +50,22 @@ int main(int argc,char **argv)
     std::printf("FES_JTAG_SCAN CABLE %s\n",found);
     if(!checked("lock",aji_lock_chain(hw.chain_id,2000)))return 1;
     const bool complete=[&]() {
-        DWORD clock=0;
-        if(!checked("clock",aji_get_parameter(hw.chain_id,"JtagClock",&clock)) || clock!=6000000)return false;
+        DWORD automatic=1,clock=0;
+        if(!checked("auto-before",aji_get_parameter(hw.chain_id,"JtagClockAutoAdjust",&automatic)) || automatic!=0)return false;
+        std::printf("FES_JTAG_SCAN AUTO before=%u\n",unsigned(automatic));
+        if(!checked("clock",aji_get_parameter(hw.chain_id,"JtagClock",&clock)) || clock!=3000000)return false;
         std::printf("FES_JTAG_SCAN CLOCK %u\n",unsigned(clock));
         if(!checked("forced-scan",aji_scan_device_chain(hw.chain_id)))return false;
         DWORD count=1;AJI_DEVICE dev{};
         if(!checked("cached-after",aji_read_device_chain(hw.chain_id,&count,&dev,false)))return false;
         std::printf("FES_JTAG_SCAN DEVICE phase=cached-after count=%u id=%08X mask=%08X ir=%u\n",
             unsigned(count),unsigned(dev.device_id),unsigned(dev.mask),unsigned(dev.instruction_length));
-        return count==1 && dev.device_id==0x4362C0DD && dev.mask==0 && dev.instruction_length==10;
+        if(count!=1 || dev.device_id!=0x4362C0DD || dev.mask!=0 || dev.instruction_length!=10)return false;
+        if(!checked("clock-after",aji_get_parameter(hw.chain_id,"JtagClock",&clock)) || clock!=3000000)return false;
+        std::printf("FES_JTAG_SCAN CLOCK after=%u\n",unsigned(clock));
+        if(!checked("auto-after",aji_get_parameter(hw.chain_id,"JtagClockAutoAdjust",&automatic)) || automatic!=0)return false;
+        std::printf("FES_JTAG_SCAN AUTO after=%u\n",unsigned(automatic));
+        return true;
     }();
     const bool unlocked=checked("unlock",aji_unlock_chain(hw.chain_id));
     std::printf("FES_JTAG_SCAN RESULT pass=%u programming=0 cpu_reset=0\n",unsigned(complete && unlocked));

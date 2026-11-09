@@ -9,10 +9,13 @@ requires the complete owned live transport and one-use policy below.
 
 `jtag_scan.cpp` is the source-controlled fresh programming-scan producer.
 Build it against the pinned Intel AJI headers and selected vendor libraries.
-It accepts one explicit private top-kit cable, checks the locked 6 MHz clock,
-performs one forced scan and only then one non-scanning identity read. Its exact
-count1/4362C0DD/mask0/IR10 result is consumed by the unchanged
-`jtag_programming.ProgramAttempt` policy. A failed API call or identity stops
+It accepts one explicit private top-kit cable, requires a locked 3 MHz clock
+with automatic clock adjustment disabled, performs one forced scan and only
+then one non-scanning identity read. It rechecks both clock properties while
+still locked. Its exact count1/4362C0DD/mask0/IR10 result is consumed by
+`jtag_programming.ProgramAttempt`, whose complete transport identity now also
+requires automatic adjustment0. Earlier6MHz transcripts do not satisfy it.
+A failed API call, clock property or identity stops
 before further reads, unlocks an acquired chain and cannot authorize programming.
 The caller must still hash-bind the probe/client bytes, recheck the live
 claim/server/config/clock and durably reserve each operation before scanning.
@@ -20,6 +23,18 @@ Adapter discovery uses `--listhardware`; it performs no preliminary `--enum`.
 Raw pre-scan chain type is not a device identity check; the locked scan API and
 fresh exact device result provide that proof. This producer performs no FPGA
 programming or CPU reset itself. Scan diagnostics remain a separate format.
+
+`jtag_clock.FixedClock` owns one host-side clock lifetime through injected
+claim/read/write callbacks. It snapshots both original properties, disables
+automatic adjustment with readback, selects3MHz and verifies both properties.
+Live verification failure closes the active lifetime. Cleanup attempts both
+original-property restorations independently, checks their readbacks and never
+retries an uncertain restoration. Every operation still checks ownership.
+This conservative transport candidate follows a recovery-programming failure
+despite a passing6MHz scan; a separate observation found automatic adjustment
+still enabled. Neither observation establishes its cause. These host controls
+change no CPU/FPGA operating clock, cache policy, SD file or native admission.
+Image programming and boot still need a separately bounded physical qualification.
 
 `jtag_diagnostic.cpp` is a separate scan-only host diagnostic, built against
 the pinned Intel AJI headers and selected vendor client. It accepts only an

@@ -30,7 +30,7 @@ class ScanTests(unittest.TestCase):
 
     def probe(self,mode='',args=None,environment=None):
         env=os.environ|dict(QUARTUS_JTAG_CLIENT_CONFIG='/tmp/fes-controlled-client.conf',
-            QUARTUS_JTAG_CLIENT_NO_LOCAL_SERVER='1',FES_MOCK_FAIL=mode)
+            QUARTUS_JTAG_CLIENT_NO_LOCAL_SERVER='1',FES_MOCK_FAIL=mode,FES_MOCK_FIXED_CLOCK='1')
         return subprocess.run([str(self.binary),*([CABLE] if args is None else args)],
             env=env|(environment or {}),capture_output=True,text=True,timeout=5)
 
@@ -45,15 +45,15 @@ class ScanTests(unittest.TestCase):
 
     def identity(self):
         return dict(serial='TRWU8CBL',source_commit='1'*40,claim_token='2'*16,pid=1234,
-            start_ticks='5678',cable=CABLE,config_sha256='3'*64,clock='6M',
+            start_ticks='5678',cable=CABLE,config_sha256='3'*64,clock='3M',auto_adjust=0,
             client_sha256={p:'4'*64 for p in policy.LIBRARIES},probe_sha256=hashlib.sha256(self.binary.read_bytes()).hexdigest())
 
-    def test_success_unknown_and_observed_type_two_match_unchanged_policy(self):
+    def test_success_unknown_and_observed_type_two_require_fixed_clock(self):
         for mode in ('','unknown-chain','unrecognized-chain'):
             with self.subTest(mode=mode):
                 result=self.probe(mode);self.assertEqual(result.returncode,0,result.stdout+result.stderr)
                 calls=re.findall(r'^MOCK_CALL (.+)$',result.stdout,re.M)
-                self.assertEqual(calls,['find','name','lock','clock','forced-scan','cached-after','unlock'])
+                self.assertEqual(calls,['find','name','lock','auto-before','clock','forced-scan','cached-after','clock-after','auto-after','unlock'])
                 raw=self.transcript(result)
                 self.assertEqual(policy.live_scan(raw,CABLE),hashlib.sha256(raw).hexdigest())
 
@@ -61,15 +61,22 @@ class ScanTests(unittest.TestCase):
         expected={
             'find':['find'], 'name':['find','name'], 'wrong-name':['find','name'],
             'unterminated-name':['find','name'], 'lock':['find','name','lock'],
-            'clock':['find','name','lock','clock','unlock'],
-            'wrong-clock':['find','name','lock','clock','unlock'],
-            'forced-scan':['find','name','lock','clock','forced-scan','unlock'],
+            'auto-before':['find','name','lock','auto-before','unlock'],
+            'auto-enabled':['find','name','lock','auto-before','unlock'],
+            'clock':['find','name','lock','auto-before','clock','unlock'],
+            'wrong-clock':['find','name','lock','auto-before','clock','unlock'],
+            'forced-scan':['find','name','lock','auto-before','clock','forced-scan','unlock'],
+            'cached-after':['find','name','lock','auto-before','clock','forced-scan','cached-after','unlock'],
         }
-        full=['find','name','lock','clock','forced-scan','cached-after','unlock']
-        for mode in (*expected,'cached-after','wrong-count','wrong-id','wrong-mask','wrong-ir','unlock'):
+        full=['find','name','lock','auto-before','clock','forced-scan','cached-after','clock-after','auto-after','unlock']
+        for mode in (*expected,'wrong-count','wrong-id','wrong-mask','wrong-ir','clock-after','clock-drift','auto-after','auto-drift','unlock'):
             with self.subTest(mode=mode):
                 result=self.probe(mode);self.assertEqual(result.returncode,1,result.stdout+result.stderr)
-                self.assertEqual(re.findall(r'^MOCK_CALL (.+)$',result.stdout,re.M),expected.get(mode,full))
+                calls=re.findall(r'^MOCK_CALL (.+)$',result.stdout,re.M)
+                if mode in ('wrong-count','wrong-id','wrong-mask','wrong-ir'):wanted=full[:7]+['unlock']
+                elif mode in ('clock-after','clock-drift'):wanted=full[:8]+['unlock']
+                else:wanted=expected.get(mode,full)
+                self.assertEqual(calls,wanted)
                 with self.assertRaises(ValueError):policy.live_scan(self.transcript(result),CABLE)
 
     def test_invalid_target_environment_or_port_calls_no_api(self):
