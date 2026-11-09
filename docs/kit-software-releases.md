@@ -277,8 +277,13 @@ path take ownership.
 
 Success requires the old process group to be empty, a different PID/start-time
 identity, unchanged sibling identities, and ten uninterrupted seconds of
-functional readiness. Tenfoot must publish its frame-ack readiness marker for
-the replacement PID and active bundle. `fogcast-kit` must answer its local
+functional readiness. An idle Tenfoot restart must publish its frame-ack readiness
+marker for the replacement PID and active bundle. During the permitted live Pong
+diagnostic, Tenfoot instead publishes a separate paused-session adoption marker:
+its host observation and render-loop heartbeat must both be fresh, and the marker
+must identify the replacement PID, bundle, target, package and runtime generation.
+This marker never grants frame readiness or software activation readiness. It is
+invalidated on host failure, session change, resume or shutdown. `fogcast-kit` must answer its local
 health API with the expected target reachable and ready. A failed readiness
 attempt is stopped and left to the existing one-to-thirty-second backoff.
 Results, including refusals and interrupted requests, are kept on FESDATA3 for

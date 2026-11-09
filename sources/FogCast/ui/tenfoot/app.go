@@ -294,6 +294,7 @@ type Snapshot struct {
 	LocalCorePresentsPaused bool
 	LocalCoreLateAdopt      bool
 	LocalCoreRedraw         uint64
+	sessionObservation      uint64
 }
 
 // DebugHUDSnapshot is the optional corner overlay (off by default).
@@ -629,6 +630,9 @@ type App struct {
 	hostLaunchPending          func()
 	hostPresentsPaused         bool
 	hostAwaitStatus            bool
+	sessionObservation         uint64
+	sessionObservedAt          time.Time
+	sessionReadyWrittenAt      time.Time
 	kitMenuStartedAt           time.Time
 	kitMenuSessionSeen         bool
 	kitMenuSessionState        string
@@ -1890,6 +1894,7 @@ func (a *App) Snapshot() Snapshot {
 		LocalCoreTitle:          a.localTitle,
 		LocalCoreStatus:         a.localStatus,
 		LocalCoreStartedAt:      a.localStartedAt,
+		sessionObservation:      a.sessionObservation,
 		LocalCorePresentsPaused: a.localPresentsPaused || a.hostPresentsPaused || (a.kitHost && (a.session.State == "launching" || a.session.State == "stopping" || hostclient.SessionKitLocal(a.session.State) || (a.session.State == "active" && !a.sessionDisplayLocked().Visible))),
 		LocalCoreLateAdopt:      a.localLateAdopt || (a.kitHost && (a.hostAwaitStatus || a.session.State == "active" || a.session.State == "launching" || a.session.State == "stopping" || hostclient.SessionKitLocal(a.session.State))),
 		LocalCoreRedraw:         a.localRedraw,
@@ -3179,6 +3184,10 @@ func (a *App) fetchSession(ctx context.Context) {
 		return
 	}
 	if err != nil {
+		a.mu.Lock()
+		a.sessionObservedAt = time.Time{}
+		a.clearSessionReadyLocked()
+		a.mu.Unlock()
 		a.noteKitMenuSessionObservation(result, err)
 		return
 	}
@@ -3198,6 +3207,9 @@ func (a *App) fetchSession(ctx context.Context) {
 		a.hostPresentsPaused = false
 	}
 	a.applySessionLocked(result)
+	if result.ErrorCode == "" {
+		a.sessionObservedAt = time.Now()
+	}
 	a.mu.Unlock()
 	a.noteKitMenuSessionObservation(result, nil)
 }
@@ -3618,6 +3630,11 @@ func inputFailureStatus(action string) string {
 }
 
 func (a *App) applySessionLocked(result hostclient.SessionResult) {
+	a.sessionObservation++
+	a.sessionObservedAt = time.Time{}
+	if result.ErrorCode != "" || !samePlayHIDSession(a.session, result) {
+		a.clearSessionReadyLocked()
+	}
 	if result.ErrorCode != "" {
 		return
 	}

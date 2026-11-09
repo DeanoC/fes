@@ -653,3 +653,54 @@ func privateRestartDir(t *testing.T) string {
 	}
 	return path
 }
+
+func TestPausedTenfootAdoptionRequiresFreshExactIdentityAndDoesNotGrantIdleReadiness(t *testing.T) {
+	c, _, _, bundle, _ := namedRestartFixture(t)
+	process := targetProcess(c, serviceTenfoot)
+	c.serviceRestartLauncherProbe = nil
+	session := ServiceRestartSession{TargetID: DiagnosticPongTargetID, PackageID: DiagnosticPongPackageID, RuntimeGeneration: 77, LeaseState: "held"}
+	path := filepath.Join(c.RunDir, "launcher-ready.json.session")
+	now := time.Now()
+	valid := func() map[string]any {
+		return map[string]any{"bundle_id": bundle, "pid": process.cmd.Process.Pid, "session_id": "play", "target_id": session.TargetID, "package_id": session.PackageID, "generation": uint64(77), "observed_at": now, "updated_at": now}
+	}
+	write := func(m map[string]any) {
+		t.Helper()
+		b, _ := json.Marshal(m)
+		if err := os.WriteFile(path, b, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, field := range []string{"bundle_id", "pid", "session_id", "target_id", "package_id", "generation", "observed_at", "updated_at"} {
+		t.Run(field, func(t *testing.T) {
+			m := valid()
+			switch field {
+			case "pid":
+				m[field] = process.cmd.Process.Pid + 1
+			case "generation":
+				m[field] = 78
+			case "observed_at", "updated_at":
+				m[field] = now.Add(-6 * time.Second)
+			default:
+				m[field] = ""
+			}
+			write(m)
+			if err := probeTenfootSessionReady(path, process, bundle, session, now); err == nil {
+				t.Fatal("mismatch or stalled producer accepted")
+			}
+		})
+	}
+	write(valid())
+	if err := c.probeNamedServiceReady(t.Context(), serviceTenfoot, process, bundle, session); err != nil {
+		t.Fatal(err)
+	}
+	if err := probeTenfootSessionReady(path, process, bundle, session, now.Add(6*time.Second)); err == nil {
+		t.Fatal("stalled render loop accepted")
+	}
+	if err := probeTenfootSessionReady(path, process, bundle, session, now.Add(-time.Second)); err == nil {
+		t.Fatal("future heartbeat accepted")
+	}
+	if err := c.probeNamedServiceReady(t.Context(), serviceTenfoot, process, bundle, ServiceRestartSession{LeaseState: "free"}); err == nil {
+		t.Fatal("session adoption granted idle frame readiness")
+	}
+}

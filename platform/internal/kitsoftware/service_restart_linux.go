@@ -171,6 +171,9 @@ func (c *ProcessController) RestartNamedService(
 		return fail("persist replacement-start phase: " + err.Error())
 	}
 	if request.Service == serviceTenfoot {
+		if err := os.Remove(filepath.Join(c.RunDir, "launcher-ready.json.session")); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fail("remove stale Tenfoot session marker: " + err.Error())
+		}
 		if err := os.Remove(filepath.Join(c.RunDir, "launcher-ready.json")); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fail("remove stale Tenfoot readiness marker: " + err.Error())
 		}
@@ -220,6 +223,9 @@ func (c *ProcessController) RestartNamedService(
 		return fail("persist replacement process identity: " + err.Error())
 	}
 	probeName := "tenfoot-frame-ack-marker"
+	if request.Service == serviceTenfoot && session.LeaseState == "held" {
+		probeName = "tenfoot-paused-session-adoption"
+	}
 	if request.Service == serviceFogCastKit {
 		probeName = "fogcast-kit-local-health-api"
 	}
@@ -577,7 +583,7 @@ func (c *ProcessController) waitNamedServiceReady(
 		} else if err := authorizeNamedRestartSession(ServiceRestartRequest{Session: sessionExpectation(session)}, currentSession); err != nil {
 			return fmt.Errorf("%w: %v", errNamedRestartSuperseded, err)
 		} else {
-			probeErr := c.probeNamedServiceReady(ctx, service, process, bundle, session.TargetID)
+			probeErr := c.probeNamedServiceReady(ctx, service, process, bundle, session)
 			if probeErr != nil {
 				lastErr = probeErr
 				readySince = time.Time{}
@@ -617,16 +623,19 @@ func sessionExpectation(session ServiceRestartSession) *DiagnosticSessionExpecta
 	return &DiagnosticSessionExpectation{TargetID: session.TargetID, PackageID: session.PackageID, Generation: session.RuntimeGeneration}
 }
 
-func (c *ProcessController) probeNamedServiceReady(ctx context.Context, service string, process *child, bundle, targetID string) error {
+func (c *ProcessController) probeNamedServiceReady(ctx context.Context, service string, process *child, bundle string, session ServiceRestartSession) error {
 	switch service {
 	case serviceFogCastKit:
 		if c.serviceRestartHostProbe != nil {
-			return c.serviceRestartHostProbe(ctx, targetID)
+			return c.serviceRestartHostProbe(ctx, session.TargetID)
 		}
-		return probeFogCastKitHealth(ctx, targetID)
+		return probeFogCastKitHealth(ctx, session.TargetID)
 	case serviceTenfoot:
 		if c.serviceRestartLauncherProbe != nil {
 			return c.serviceRestartLauncherProbe(ctx, process, bundle)
+		}
+		if session.LeaseState == "held" {
+			return probeTenfootSessionReady(filepath.Join(c.RunDir, "launcher-ready.json.session"), process, bundle, session, time.Now())
 		}
 		return probeTenfootReady(filepath.Join(c.RunDir, "launcher-ready.json"), process, bundle)
 	default:
@@ -707,6 +716,52 @@ func probeTenfootReady(path string, process *child, bundle string) error {
 	}
 	if ready.BundleID != bundle || ready.PID != process.cmd.Process.Pid {
 		return errors.New("Tenfoot frame acknowledgement does not identify replacement bundle and PID")
+	}
+	return nil
+}
+
+// A live diagnostic launcher must remain paused while the core owns HDMI.
+// Require fresh host observation AND render-loop progress, without treating
+// adoption as a frame acknowledgement or accepting it for software activation.
+func probeTenfootSessionReady(path string, process *child, bundle string, session ServiceRestartSession, now time.Time) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() || info.Mode().Perm() != 0600 || info.Size() > 4096 {
+		return errors.New("Tenfoot session marker is not a private bounded file")
+	}
+	var ready struct {
+		BundleID   string    `json:"bundle_id"`
+		PID        int       `json:"pid"`
+		SessionID  string    `json:"session_id"`
+		TargetID   string    `json:"target_id"`
+		PackageID  string    `json:"package_id"`
+		Generation uint64    `json:"generation"`
+		ObservedAt time.Time `json:"observed_at"`
+		UpdatedAt  time.Time `json:"updated_at"`
+	}
+	decoder := json.NewDecoder(io.LimitReader(file, 4097))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&ready); err != nil {
+		return err
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		return errors.New("Tenfoot session marker has trailing data")
+	}
+	if ready.BundleID != bundle || ready.PID != process.cmd.Process.Pid || ready.SessionID == "" || ready.TargetID != session.TargetID || ready.PackageID != session.PackageID || ready.Generation != session.RuntimeGeneration {
+		return errors.New("Tenfoot session adoption does not identify replacement and live session")
+	}
+	for _, stamp := range []time.Time{ready.ObservedAt, ready.UpdatedAt} {
+		if stamp.IsZero() || stamp.After(now) || now.Sub(stamp) > 5*time.Second {
+			return errors.New("Tenfoot session adoption is stale")
+		}
 	}
 	return nil
 }
