@@ -21,10 +21,12 @@ ROOT = sim.ROOT
 PR_SET_PDEATHSIG = 1
 
 
-def die_with_parent():
+def die_with_parent(expected_parent_pid):
     """Child pre-exec hook: the simulator gets SIGKILL if this runner dies."""
     if ctypes.CDLL(None, use_errno=True).prctl(PR_SET_PDEATHSIG, signal.SIGKILL, 0, 0, 0):
         raise OSError(ctypes.get_errno(), 'prctl(PR_SET_PDEATHSIG) failed')
+    if os.getppid() != expected_parent_pid:
+        raise RuntimeError('runner exited before simulator installed parent-death signal')
 
 
 def check_space(path, scenario, writable=False):
@@ -53,7 +55,9 @@ def run_simulation(cmd, cwd, scenario, *, timeout=3 * 60 * 60, heartbeat=30, gra
 
     previous = {sig: signal.signal(sig, interrupt) for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
     try:
-        proc = subprocess.Popen(cmd, cwd=cwd, start_new_session=True, preexec_fn=die_with_parent)
+        expected_parent_pid = os.getpid()
+        proc = subprocess.Popen(cmd, cwd=cwd, start_new_session=True,
+                                preexec_fn=lambda: die_with_parent(expected_parent_pid))
         deadline = time.monotonic() + timeout
         next_heartbeat = time.monotonic() + heartbeat
         while True:
