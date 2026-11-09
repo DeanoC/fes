@@ -39,7 +39,14 @@ remains at `out/nano-owned-install-20261109/`. All eight selected checks pass, i
 race tests and actual C/RTL native launch/return integration. The test-only
 cancellation addition also passes independently; production source bytes remain
 unchanged. Source digests and all results are in the adjacent `validation.json`.
-A full native ARM64 launcher cross-build follows from committed source.
+The full native ARM64 launcher cross-build passes from committed source
+`da66e9b0ea40b33b408da79641abc4d2aa248b10`, based on `38b805e81d62ac87d1ea79f59d47c7b3ea9c01c2`.
+All 2117 recorded compiler input hashes, including the installer/store,
+match the current source. ELF SHA-256:
+`0ef39393029a78f1f57864f2576de35c64809bf4faa6a000a8c0a61b8a19cb0e`. Startup includes installed-catalogue
+discovery and still explicitly selects read-only SD and volatile preferences.
+No new entry/BL31/FIT/SOF was assembled or deployed. Cross-compilation supplies
+no physical write, network, core or boot acceptance.
 
 Nano startup still selects read-only SD. The install API is in-process, with no
 native network upload listener. Updates/uninstall, card write qualification,
