@@ -41,7 +41,7 @@ normalcore return. The first failure stopped outgoing commands; the original
 two-second passive tail is saved. Host detachment does not prove CPU park
 or firmware return.
 
-Ownership samples averaged63.71us versus the prior67.07us, about5% lower;
+Ownership samples averaged63.71us versus the prior67.16us, about5% lower;
 sampling includes instrumentation and does not establish a speedup for every
 operation. Inspecting the actual ELF shows remaining144-byte live scope and
 112-byte observer stack frames. The observer retains ten register values
@@ -53,3 +53,9 @@ Independent device cleanup passed: original15MHz/auto1, exact USB permissions,
 only the owned private server gone and UART free. Historical programming
 failures stay2 with no new programmer failure. Both new grants and this
 image remain consumed; no retry is authorized for them.
+
+The complete admitted file set, raw terminal evidence and independently restored
+pinned source bundle passed archive/file/mode readback:5906 files. See
+`hardware-retention-proof.json`. The original source/result archive remains
+unchanged; this publication only corrects the rounded comparison and records
+retention.
