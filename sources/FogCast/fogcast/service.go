@@ -263,6 +263,7 @@ type Service struct {
 	rootsByID           map[string]catalog.Root
 	configPath          string
 	configWriteMu       sync.Mutex
+	librarySources      []LibrarySourceConfig // guarded by libraryMu
 	targets             []TargetConfig
 	selectedTarget      string
 	targetClients       map[string]serviceClient
@@ -578,6 +579,7 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		attractIdle:              config.Library.AttractIdleSeconds,
 		preferredRegions:         append([]string(nil), config.Library.PreferredRegions...),
 		videoProfile:             defaultVideoProfile(config.Library.VideoProfile),
+		librarySources:           append([]LibrarySourceConfig(nil), config.LibrarySources...),
 		hostEmulator:             config.HostEmulator,
 		metadataRoot:             paths.MetadataRoot,
 		metadataScope:            config.Metadata.ClientID,
@@ -1146,6 +1148,9 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 	}
 	snap, err := s.captureLaunchSnapshot(gameID, target)
 	if err != nil {
+		return protocol.CachedLaunchResponse{}, err
+	}
+	if err := s.prepareRemoteLibraryLaunch(ctx, gameID, &snap); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
 	// A placement request runs Place before Ensure and before bind. A

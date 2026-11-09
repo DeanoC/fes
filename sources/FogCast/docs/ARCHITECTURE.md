@@ -2631,6 +2631,53 @@ See [kit launcher](kit-launcher.md) and [host connection contract](launcher-host
 for setup, controls, exact routes, timeouts and ownership. The existing browser
 listener remains loopback-only.
 
+## Remote library sources
+
+A kit can index ZX81 cassettes from a statically configured FogCast source.
+The source starts `fogcast-api --config /absolute/source.toml --headless
+--source-listen 0.0.0.0:8790`. Its general API remains on loopback. The separate
+source listener serves only `GET /api/v1/library/core-entries` and the existing
+`GET /api/v1/mesh/content/source` and `/object` content reads. Its core-entry
+document contains locally owned ZX81 cassette entries with stored media of
+1–16,384 bytes and no expansion selection. It omits firmware bindings and
+imported source entries. Content reads expose only those exported cassettes;
+the source cannot launch, configure, or own the receiving kit.
+
+The kit's canonical configuration preserves static sources across restarts:
+
+```toml
+[[library_sources]]
+id = "powerboat"
+url = "http://powerboat:8790"
+```
+
+The loopback API exposes `GET` and `PUT /api/v1/library/sources`; PUT takes
+`{"sources":[{"id":"powerboat","url":"http://powerboat:8790"}]}`. An empty
+array removes the configuration without deleting saved titles or cached media.
+`POST /api/v1/library/sources/powerboat/refresh` reads the remote core-entry
+document and reports its indexed entries and skipped count. Refresh is explicit;
+it does not run on every library read or block host startup. These management
+operations are unavailable on the paired launcher and source listeners.
+
+Refresh creates ordinary visible library entries without downloading their
+cassettes. The receiving host must already have the source entry's exact sealed
+ZX81 package installed; other packages and media roles are skipped. Firmware
+is selected on the kit through the existing machine setup. A durable mapping
+of source ID and source game ID gives each imported title a stable local game
+ID, including when titles have identical names. Refresh keeps that first
+content snapshot and all subsequent local user choices. Imported rows and
+their provenance survive a host restart.
+
+The first normal Play fetches at most 16 KiB, verifies the content digest before
+import, and atomically binds the cassette only while its original pending
+selection still holds. A user selection made during a download wins. Fetch and
+admission finish before a running core can be stopped or replaced, and before
+mesh Ensure projects the new composition. Later plays use the existing local
+media path without contacting the source. A failed refresh preserves the saved
+rows; an unavailable source cannot supply an uncached cassette. No firmware,
+package or expansion transfer, discovery, or mounted SMB/NFS root is part of
+this first source path.
+
 ## Persistent kit software releases
 
 The FES base-image `fes-kit-software` supervisor owns the agent, native runtime

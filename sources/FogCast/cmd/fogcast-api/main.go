@@ -1186,6 +1186,7 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 	listen := flags.String("listen", "127.0.0.1:8787", "loopback HTTP listen address")
 	configPath := flags.String("config", "", "FogCast configuration path")
 	launcherPath := flags.String("launcher-config", "", "private JSON configuration for the optional paired-kit listener")
+	sourceListen := flags.String("source-listen", "", "optional read-only library source listen address")
 	metadataConfigPath := flags.String("metadata-config", "", "FogCast configuration path supplying the metadata section")
 	previewCaptureDevice := flags.String("preview-capture-device", "", "local capture device shown in the FPGA Play surface")
 	headless := flags.Bool("headless", false, "API-only: do not start local capture or session preview")
@@ -1333,7 +1334,8 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		MaxHeaderBytes: 16 << 10,
 	}
 	defer server.Close()
-	serveErrors := make(chan error, 2)
+	serveErrors := make(chan error, 3)
+	serveCount := 1
 	var launcherServer *http.Server
 	if launcherConfig != nil {
 		launcherHandler, err := hostapi.NewLauncherHandler(handler, launcherConfig.LauncherConfig)
@@ -1350,7 +1352,27 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		launcherServer = &http.Server{Handler: launcherHandler, BaseContext: func(net.Listener) context.Context { return ctx }, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 		defer launcherServer.Close()
 		go func() { serveErrors <- launcherServer.Serve(launcherListener) }()
+		serveCount++
 		fmt.Fprintf(stdout, "FogCast launcher listening on http://%s\n", launcherListener.Addr())
+	}
+	var sourceServer *http.Server
+	if *sourceListen != "" {
+		source, ok := fogcastService.(hostapi.LibrarySourceService)
+		if !ok {
+			fmt.Fprintln(stderr, "fogcast-api: library source unavailable")
+			return 1
+		}
+		sourceListener, err := net.Listen("tcp", *sourceListen)
+		if err != nil {
+			fmt.Fprintln(stderr, "fogcast-api: library source listen failed")
+			return 1
+		}
+		defer sourceListener.Close()
+		sourceServer = &http.Server{Handler: hostapi.NewLibrarySourceHandler(source), BaseContext: func(net.Listener) context.Context { return ctx }, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
+		defer sourceServer.Close()
+		go func() { serveErrors <- sourceServer.Serve(sourceListener) }()
+		serveCount++
+		fmt.Fprintf(stdout, "FogCast library source listening on http://%s\n", sourceListener.Addr())
 	}
 	go func() { serveErrors <- server.Serve(listener) }()
 	fmt.Fprintf(stdout, "FogCast API listening on http://%s\n", listener.Addr())
@@ -1359,6 +1381,12 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 	case <-ctx.Done():
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+		if sourceServer != nil {
+			if err := sourceServer.Shutdown(shutdownCtx); err != nil {
+				fmt.Fprintln(stderr, "fogcast-api: library source shutdown failed")
+				return 1
+			}
+		}
 		if launcherServer != nil {
 			if err := launcherServer.Shutdown(shutdownCtx); err != nil {
 				fmt.Fprintln(stderr, "fogcast-api: launcher shutdown failed")
@@ -1369,9 +1397,11 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 			fmt.Fprintln(stderr, "fogcast-api: shutdown failed")
 			return 1
 		}
-		if err := <-serveErrors; err != nil && !errors.Is(err, http.ErrServerClosed) {
-			fmt.Fprintln(stderr, "fogcast-api: server failed")
-			return 1
+		for range serveCount {
+			if err := <-serveErrors; err != nil && !errors.Is(err, http.ErrServerClosed) {
+				fmt.Fprintln(stderr, "fogcast-api: server failed")
+				return 1
+			}
 		}
 		return 0
 	case err := <-serveErrors:

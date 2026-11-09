@@ -76,6 +76,10 @@ func writeCanonicalConfig(path string, libraries []catalog.Root, targets []Targe
 	raw.BaseURL = ""
 	raw.Token = ""
 
+	return writeConfigFile(path, raw)
+}
+
+func writeConfigFile(path string, raw fileConfig) error {
 	directory := filepath.Dir(path)
 	temporary, err := os.CreateTemp(directory, ".fogcast-config-*")
 	if err != nil {

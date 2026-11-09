@@ -1,8 +1,9 @@
 # Mesh under kit-as-host
 
-**Status:** approved target architecture, 22 October 2026; not deployed.
-[#863](https://github.com/DeanoC/fes/issues/863) remains open with no
-implementation or acceptance evidence. This page supersedes the kit-side
+**Status:** approved target architecture, 22 October 2026. Kit-host routing is
+merged in #1490; the first remote cassette source path is implemented below.
+[#863](https://github.com/DeanoC/fes/issues/863) tracks acceptance and the
+remaining migration and cleanup. This page supersedes the kit-side
 placement, pairing and
 paired-listener designs in [`mesh-lan.md`](mesh-lan.md),
 [`mesh-node-protocol.md`](mesh-node-protocol.md),
@@ -69,8 +70,11 @@ marked *proposed* are not yet decided.
 - Phase 1 as delivered: Soft-stop, `_fogcast._tcp` advertisement with
   `node_id`, `target_id` and `cap`, and the host inventory. Desktops and
   sources use it to find kits.
-- The #379 decision 1 titles projection, `GET /api/v1/library/titles`. It is
-  the remote-source read.
+- The #379 decision 1 titles projection, `GET /api/v1/library/titles`, remains
+  the combined backend view. The first native source path uses the existing
+  core-entry document at `GET /api/v1/library/core-entries`, which includes
+  display names and each cassette's role and digest without adding another
+  title wire format.
 - Leases, Soft-stop retention and explicit Stop release
   ([kit sharing](kit-sharing.md)).
 - The read-only LAN library listener on Powerboat, and `ui/localfeed`, which
@@ -91,8 +95,13 @@ marked *proposed* are not yet decided.
 
 ## Open
 
-- *Proposed:* static source configuration on the kit first; a source
-  advertising Catalog/Content capabilities on its LAN listener can follow.
+- Static `[[library_sources]]` configuration and explicit refresh index ZX81
+  cassettes into durable kit-owned title rows. First Play verifies and caches
+  the cassette before normal local launch; offline replay uses that cache.
+  This first path requires the exact sealed package already installed and
+  firmware selected on the kit. Source capability discovery, other media,
+  package transfer and mounted roots remain later work. See
+  [remote library sources](../sources/FogCast/docs/ARCHITECTURE.md#remote-library-sources).
 - Remote desktop control uses the authenticated launcher listener, not the
   unrestricted host API. Define the kit-host pairing and credential delivery
   before enabling that client path; pointing a browser at the host URL alone
@@ -105,7 +114,7 @@ marked *proposed* are not yet decided.
 
 #863's checks: focused FogCast tests for the kit profile and local-library
 roots; a kit HIL under the kit-sharing rules with Powerboat unplugged (boot to
-Home, import firmware, launch a ZX81 and an SMS title, Stop and return) and
+Home, import firmware, launch a ZX81 and an Atari ST disk title, Stop and return) and
 with Powerboat up (a remote-source title is listed and plays); frame timings
 within the existing tenfoot budgets under #811 tracing. Security checks must
 also show that the general API is not reachable on a LAN interface, the

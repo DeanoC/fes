@@ -104,7 +104,11 @@ func (s *Service) shelfComputerLaunchReady(ctx context.Context, entry catalog.Co
 	if err := libraryVideoAdmission(inspection); err != nil {
 		return false
 	}
-	if protocol.RequiresCoreMedia(descriptor) && !(descriptor.ROM != nil && descriptor.ROM.Role == "cartridge") && entry.MediaID == "" {
+	pending, fetchable := s.remoteMediaPending(ctx, entry)
+	if pending && !fetchable {
+		return false
+	}
+	if protocol.RequiresCoreMedia(descriptor) && !(descriptor.ROM != nil && descriptor.ROM.Role == "cartridge") && entry.MediaID == "" && !pending {
 		return false
 	}
 	if entry.MediaID != "" || entry.MediaRole != "" {
