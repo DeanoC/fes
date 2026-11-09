@@ -1736,7 +1736,7 @@ tests compare its actual hardware-access counts with one complete observation
 and exercise live failures, malformed requests, configuration, explicit USB
 readiness and retained reservations.
 
-The selected format8 mailbox-view diagnostic adds one private EL3 alias:
+The format8 mailbox-view diagnostic adds one private EL3 alias:
 virtual `0x90000` maps only the physical mailbox page at `0x10a30000` as
 secure Device, read-only and execute-never. The original peripheral and shared
 DDR mappings remain. Its stack-free transition reads CIN, COUT, RIN, ROUT,
@@ -1762,3 +1762,18 @@ loader. Values remain read-only observations and never establish command
 consumption, FPGA configuration or runtime authority. The observer belongs to
 the cold-chain source identity and compiled producer closure. Hardware
 qualification of this changed image remains open.
+
+
+The selected format9 repair makes that exact secure mailbox page writable for
+its existing privileged driver. No other descriptor, memory layout, device
+window or shared-DDR permission changes. The pinned vendor header selects the
+original physical mailbox base with SCTLR_EL3.M clear and the secure virtual
+base with it set. This is a read of CPU state, with no mutable mode latch,
+mailbox command, retry, acknowledgement or reset added. The original vendor
+transport and owned service source files remain byte-identical. Selection
+requires the complete installed MMU binding and exact transport/header inputs;
+the final generated header hash is checked after compilation and belongs to
+the cold-chain source identity. Existing ownership, response, first-failure and
+one-second tape checks remain. The read-view observer still performs only reads;
+its contract now describes the same writable page used by the driver. Physical
+command acceptance and full launch/return qualification remain open.

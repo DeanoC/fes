@@ -6,7 +6,7 @@ import mmu_status
 import mmu_logging
 import mmu_mailbox_view
 
-POLICY_SHA='72e0e95cee8f1e03bd37551966077c24d64ae32133c13a8c96b125eaba691dba'
+POLICY_SHA='f735c54bf8fd6b9a810a12bead54d34bc124ea14263d38c1c65d326af702ea88'
 CACHE_HELPER_SHA='c16b4d1b6931e6d4d92ac017ba23457ff59d6d5ac9e4279b6c9fb031114b305c'
 FIELDS=('el','midr','mpidr','mmfr0','daif','scr','sctlr','tcr','root','mair','witness')
 ROW=re.compile(r'FES_NANO_EL3_MMU phase=(before|after) '+

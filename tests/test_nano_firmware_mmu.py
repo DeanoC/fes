@@ -136,9 +136,9 @@ bl31_entrypoint: .byte 0
             with self.subTest(address=hex(address)),self.assertRaises(ValueError):
                 mmu.verify_table_bytes(bad,self.bounds)
 
-    def test_only_the_one_private_mailbox_alias_page_is_secure_readonly_device(self):
+    def test_only_the_one_private_mailbox_alias_page_is_secure_writable_device(self):
         value=walk(self.image,self.bounds,0x90000)
-        self.assertEqual(value,dict(pa=0x10a30000,writable=False,executable=False,ns=False,
+        self.assertEqual(value,dict(pa=0x10a30000,writable=True,executable=False,ns=False,
                                   attr=1,share=2,accessed=True,ap_res1=True))
         self.assertEqual(walk(self.image,self.bounds,0x90fff)['pa'],0x10a30fff)
         for address in (0x80000,0x8ffff,0x91000,0xfffff):
@@ -154,7 +154,7 @@ bl31_entrypoint: .byte 0
                         0xc0000000, 0xffffffff, 0x100000000, -1):
             self.assertIsNone(walk(self.image, self.bounds, address), hex(address))
 
-    def test_only_the_fixed_readonly_alias_is_nonidentity_and_no_leaf_is_writable_executable(self):
+    def test_only_the_fixed_mailbox_alias_is_nonidentity_and_no_leaf_is_writable_executable(self):
         # Enumerate leaf entries instead of sampling: all reachable mappings,
         # table pointers, AF/AP RES1, NS and cacheable range coverage are checked.
         pending = [(self.bounds['tables']['root'], 1, 0)]

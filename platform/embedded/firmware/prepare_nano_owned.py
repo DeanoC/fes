@@ -209,6 +209,7 @@ def install(source, cold_profile=None, cold_header=None):
     ram_binding = nano_firmware_ram.install(source, cold_profile) if cold_profile is not None else None
     import nano_firmware_mmu
     mmu_binding=nano_firmware_mmu.install(source,cold_profile,ram_binding) if cold_profile is not None else None
+    mailbox=nano_mailbox.select_secure_base(source,mailbox,mmu_binding)
     import nano_start_trace
     start_trace = nano_start_trace.install(source, mmu_binding is not None and
                                           cold_profile.get('hps_configuration') is not None,

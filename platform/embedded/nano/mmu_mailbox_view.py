@@ -9,8 +9,8 @@ PHYSICAL=0x10a30000
 REGISTERS=(('cin',0),('cout',0x20),('rin',0x24),('rout',4),('bell',0x480),('status',0x2c))
 SCOPE=dict(sha256='2df96d2e53a7589c3ac5a9b800769a2e33e9332adab0e86e137f3c7df9b2820f',bytes=356,
            external_branch_indices=[2,7,12,18,24,29,34,38,48,57,61,65,68,74,78,81,83,85,87],root_indices=[36])
-CONTRACT=dict(format=1,scope='cold-el3-mailbox-readonly-views-v1',alias=ALIAS,physical=PHYSICAL,bytes=4096,
-              secure=True,readonly=True,execute_never=True,registers=[list(v) for v in REGISTERS],
+CONTRACT=dict(format=2,scope='cold-el3-secure-mailbox-views-v2',alias=ALIAS,physical=PHYSICAL,bytes=4096,
+              secure=True,readonly=False,execute_never=True,registers=[list(v) for v in REGISTERS],
               phases=['mmu-off','mmu-on-ns','mmu-on-secure-alias'],guard=SCOPE,
               maximum_reads=18,record='six-u32-hex16-comma-v1',hex_formatter='fixed-local-uart-hex-v1',offset_encoding='six-nine-bit-word-offsets-v1',uart_polls=100000,uart_bytes=384,hardware_authority=False)
 SHA=hashlib.sha256(json.dumps(CONTRACT,sort_keys=True,separators=(',',':')).encode()).hexdigest()

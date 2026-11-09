@@ -36,12 +36,12 @@ NC = AF | AP_RES1 | (2 << 8) | 8   # Attr2: Normal NC, outer shareable
 DEVICE = AF | AP_RES1 | (2 << 8) | 4
 MAIR = 0x4400ff                    # Attr2=NC, Attr1=nGnRnE, Attr0=WB/WA
 TCR = (1 << 31) | (1 << 23) | (3 << 12) | (1 << 10) | (1 << 8) | 32
-CONTRACT = dict(format=3, scope='experimental-el3-static-mailbox-readonly-v3',
+CONTRACT = dict(format=4, scope='experimental-el3-static-secure-mailbox-v4',
                 granule=PAGE, va_bits=32, pa_bits=32, mair=MAIR, tcr=TCR,
                 table_bytes=TABLE_BYTES, ddr_limit=DDR_LIMIT,
                 firmware_limit=BL31_LIMIT, runtime_enabled=False,
                 hardware_authority=False)
-RUNTIME_CONTRACT = dict(format=8, scope='matched-cold-el3-mailbox-readonly-v8',
+RUNTIME_CONTRACT = dict(format=9, scope='matched-cold-el3-secure-mailbox-v9',
     mair=MAIR, tcr=TCR, table_bytes=TABLE_BYTES, granule=PAGE, va_bits=32, pa_bits=32,
     memory_probe='private-line-clean-invalidate-reread-v1',
     memory_types='secure-ocram-normal-nc-private-ddr-wb-v1',
@@ -334,7 +334,7 @@ def _fixed(name, index):
         if 0x18000000 <= address < 0x1d000000:
             return address, DEVICE | XN, 2
     if name == 'ocram' and index == mmu_mailbox_view.ALIAS // PAGE:
-        return mmu_mailbox_view.PHYSICAL, DEVICE | RO | XN, 3
+        return mmu_mailbox_view.PHYSICAL, DEVICE | XN, 3
     if name == 'ocram' and index < 0x80000 // PAGE:
         address = index * PAGE
         return address, NC | XN, 3
