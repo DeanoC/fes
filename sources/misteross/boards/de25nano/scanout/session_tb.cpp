@@ -21,6 +21,7 @@ class Session {
 public:
     SessionModel dut;
     std::deque<std::uint32_t> pending;
+    std::deque<unsigned> pending_commands;
     std::array<std::uint32_t, 2> palette{{0, 0x80004000u}};
     std::uint32_t base = 0x26000000u;
     bool responses = true, check_color = false;
@@ -68,19 +69,24 @@ public:
             (h < 1280 && v < 720 ? 0x01000000u : 0) | 0x204060u;
         dut.avm_readdatavalid = 0;
         dut.eval();
+        const unsigned held = dut.avm_read ? dut.avm_burstcount : 0;
+        require(pending.size() + held <= 511, "accepted plus held response credit bound");
+        require(pending_commands.size() + (dut.avm_read ? 1u : 0u) <= 16, "accepted plus held command bound");
         const bool reply = responses && !pending.empty();
         std::uint32_t value = 0;
         if (reply) {
             value = palette.at((pending.front() - base) / FES_DE25_SCANOUT_SLOT_BYTES);
             pending.pop_front();
+            if (!--pending_commands.front()) pending_commands.pop_front();
         }
         if (dut.avm_read && !dut.avm_waitrequest) {
             require(dut.avm_address >= base &&
                 std::uint64_t(dut.avm_address) + 16u * dut.avm_burstcount <=
                 std::uint64_t(base) + FES_DE25_SCANOUT_ALLOCATION_BYTES, "outside allocated memory");
-            require(dut.avm_burstcount && dut.avm_burstcount <= 16, "burst bound");
+            require(dut.avm_burstcount && dut.avm_burstcount <= FES_DE25_SCANOUT_MAX_BURST_BEATS, "burst bound");
             require((dut.avm_address & 4095u) + 16u * dut.avm_burstcount <= 4096, "4KiB bound");
-            require(pending.size() + dut.avm_burstcount <= 256, "response credit bound");
+            require(pending.size() + dut.avm_burstcount <= 511, "response credit bound");
+            pending_commands.push_back(dut.avm_burstcount);
             for (unsigned beat = 0; beat < dut.avm_burstcount; ++beat)
                 pending.push_back(dut.avm_address + 16u * beat);
             ++bursts;
@@ -227,7 +233,7 @@ public:
 #endif
         require(!dut.quiesced_sys, "premature GP close before memory drain");
         responses = true; gp_finish(); idle(10);
-        require(dut.quiesced_sys && !dut.ui_active && pending.empty(), "close did not drain/hide");
+        require(dut.quiesced_sys && !dut.ui_active && pending.empty() && pending_commands.empty(), "close did not drain/hide");
         const auto old_bursts = bursts; idle(1000);
         require(bursts == old_bursts && !dut.avm_read, "reads after retirement");
         write(FES_DE25_SCANOUT_COMMAND_OFFSET, FES_DE25_SCANOUT_COMMAND_CLEAR);

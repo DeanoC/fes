@@ -10,6 +10,7 @@ module fes_menu_video #(
     parameter [0:0] COMPLETE_FRAME_ACK = 1'b0,
     parameter [0:0] DYNAMIC_BASE = 1'b0,
     parameter [7:0] MAX_BURST_BEATS = 8'd128,
+    parameter [8:0] MAX_OUTSTANDING_BEATS = 9'd256,
     parameter [0:0] CHECK_RESPONSE = 1'b0,
     parameter [0:0] READ_AHEAD = 1'b0,
     parameter integer FIFO_ADDR_BITS = 8,
@@ -136,6 +137,7 @@ module fes_menu_video #(
 
     fes_menu_reader #(.WINDOW_BASE(TEST_PATTERN ? 32'h00001000 : WINDOW_BASE),
         .DYNAMIC_BASE(DYNAMIC_BASE), .MAX_BURST_BEATS(MAX_BURST_BEATS),
+        .MAX_OUTSTANDING_BEATS(MAX_OUTSTANDING_BEATS),
         .CHECK_RESPONSE(CHECK_RESPONSE), .READ_AHEAD(READ_AHEAD),
         .FIFO_ADDR_BITS(FIFO_ADDR_BITS),
         .RESET_ABORTS_TRAFFIC(RESET_ABORTS_TRAFFIC)) reader (

@@ -11,7 +11,7 @@ DISPLAY = load(HERE.parent / "display/build.py", "scanout_sim_display")
 ROOT = MISTEROSS / "build/sim/de25-scanout"
 
 
-def run(case, top, rtl, bench, extra=(), shared=True):
+def run(case, top, rtl, bench, extra=(), shared=True, arguments=()):
     output = ROOT / case; output.mkdir(parents=True, exist_ok=True)
     reader, _ = DISPLAY.retarget_menu_ram((MISTEROSS / "cores/fes-menu/rtl/fes_menu_reader.v").read_bytes())
     adapted = output / "fes_menu_reader_de25.v"; adapted.write_bytes(reader)
@@ -21,18 +21,28 @@ def run(case, top, rtl, bench, extra=(), shared=True):
         "-Wno-SYNCASYNCNET",
         "--Mdir", str(output), "-I" + str(HERE), "-CFLAGS", "-O2 -I" + str(HERE),
         *extra, *([str(adapted), str(MISTEROSS / "cores/fes-menu/rtl/fes_menu_video.v")] if shared else []),
-        *map(str, rtl), str(HERE / bench)], check=True)
-    subprocess.run([str(output / ("V" + top))], check=True)
+        *map(str, rtl), str(HERE / bench)], check=True, timeout=180)
+    subprocess.run([str(output / ("V" + top)), *arguments], check=True, timeout=30)
 
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--case", choices=("frame-ack", "endpoint", "board", "guard", "session", "all"), default="all")
+parser.add_argument("--case", choices=("frame-ack", "endpoint", "latency", "board", "guard", "session", "all"), default="all")
+parser.add_argument("--output-root", type=Path, default=ROOT,
+                    help="private simulation build directory (default: normal ignored build/sim path)")
 args = parser.parse_args()
+ROOT = args.output_root.resolve()
 if args.case in ("frame-ack", "all"):
     run("frame-ack", "fes_menu_video", [MISTEROSS / "cores/fes-menu/rtl/fes_menu_pattern_memory.v"],
         "frame_ack_tb.cpp", ("-GTEST_PATTERN=1'b1", "-GCOMPLETE_FRAME_ACK=1'b1"))
 if args.case in ("endpoint", "all"):
     run("endpoint", "fes_de25_scanout", [HERE / "fes_de25_scanout.v"], "endpoint_tb.cpp", ("-GBUILD_ID=128'h0123456789abcdeffedcba9876543210",))
+if args.case in ("latency", "all"):
+    identity = ("-GBUILD_ID=128'h0123456789abcdeffedcba9876543210",)
+    run("latency-old-window", "fes_de25_scanout", [HERE / "fes_de25_scanout.v"], "endpoint_tb.cpp",
+        (*identity, "-GMAX_BURST_BEATS=8'd16", "-GMAX_OUTSTANDING_BEATS=9'd256"), arguments=("--latency-old",))
+    if args.case == "latency":
+        run("latency-new-window", "fes_de25_scanout", [HERE / "fes_de25_scanout.v"], "endpoint_tb.cpp",
+            identity, arguments=("--latency-new",))
 if args.case in ("board", "all"):
     run("board", "fes_de25_scanout_board", [HERE / "fes_de25_scanout_board.v",
         HERE / "board_sim_models.v",

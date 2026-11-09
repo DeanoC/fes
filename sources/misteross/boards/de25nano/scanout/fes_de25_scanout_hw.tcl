@@ -63,7 +63,7 @@ set_interface_property avm burstOnBurstBoundariesOnly false
 set_interface_property avm doStreamReads false
 set_interface_property avm doStreamWrites false
 add_interface_port avm avm_address address Output 32
-add_interface_port avm avm_burstcount burstcount Output 5
+add_interface_port avm avm_burstcount burstcount Output 7
 add_interface_port avm avm_read read Output 1
 add_interface_port avm avm_byteenable byteenable Output 16
 add_interface_port avm avm_waitrequest waitrequest Input 1

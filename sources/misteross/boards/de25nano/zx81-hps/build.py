@@ -424,7 +424,7 @@ def verify_standard_board(output, scanout, hps, display, *, expected_expansion_s
             "writeresponsevalid": ("Output", 1), "response": ("Output", 2)}
         if hps.component_ports(endpoint, interface) != expected:
             raise ValueError("generated standard core slave differs: " + interface)
-    expected_master = {"address": ("Output", 32), "burstcount": ("Output", 5), "read": ("Output", 1),
+    expected_master = {"address": ("Output", 32), "burstcount": ("Output", 7), "read": ("Output", 1),
         "byteenable": ("Output", 16), "waitrequest": ("Input", 1), "readdata": ("Input", 128),
         "readdatavalid": ("Input", 1), "response": ("Input", 2)}
     if hps.component_ports(endpoint, "avm") != expected_master:
@@ -449,7 +449,7 @@ def verify_standard_board(output, scanout, hps, display, *, expected_expansion_s
     scanout.require_parameters(endpoint_parameters, {"EXPANSION_SOCKET": int(expected_expansion_socket),
                                                    "FIRMWARE_INIT": "zx8x.mif"}, "standard core")
     bridge_parameters = {}
-    for name, width, address_bits, burst, depth in (("fes_ctrl_cdc", 32, 7, 1, 4), ("fes_mem_cdc", 128, 32, 16, 256)):
+    for name, width, address_bits, burst, depth in (("fes_ctrl_cdc", 32, 7, 1, 4), ("fes_mem_cdc", 128, 32, 64, 512)):
         module = modules.get("subsys_periph." + name)
         if module is None or module.get("kind") != "mm_ccb" or module.get("version") != "19.4.1":
             raise ValueError("generated standard core crossing differs: " + name)

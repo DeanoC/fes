@@ -64,8 +64,8 @@ module altera_syncram #(
             read_during_write_mode_mixed_ports!="DONT_CARE" ||
             widthad_a!=widthad_b || (1<<widthad_a)!=numwords_a || width_byteena_a!=1)
             $fatal(1,"unsupported modeled RAM parameter contract");
-        if (!((numwords_a==4 && (width_a==47 || width_a==35 || width_a==184 || width_a==8)) ||
-              (numwords_a==256 && width_a==131)))
+        if (!((numwords_a==4 && (width_a==47 || width_a==35 || width_a==186 || width_a==8)) ||
+              (numwords_a==512 && width_a==131)))
             $fatal(1,"unsupported modeled RAM shape");
     end
     // BYPASS means the clock-enable pins do not gate either used clock.
@@ -142,7 +142,7 @@ def guard_elaborated_ram(xml_path):
     modules = {m.get("name"): m for m in root.findall(".//module")}
     expected = {}
     for bridge, shapes in (("fes_ctrl_cdc", ((47, 4), (35, 4))),
-                           ("fes_mem_cdc", ((184, 4), (131, 256)))):
+                           ("fes_mem_cdc", ((186, 4), (131, 512)))):
         for role, shape in zip(("cmd", "rsp"), shapes):
             expected[f"{TOP}.periph.{bridge}.{bridge}.{role}_fifo.my_altera_avalon_dc_fifo_{role}_fifo.altera_syncram_component"] = shape
     expected[TOP + ".ram_contract_test"] = (8, 4)
@@ -200,6 +200,15 @@ def ports(source, module):
     if not result or re.sub(pattern, "", header[1]).strip(" \t\r\n,"):
         raise ValueError(f"unsupported generated port declaration: {module}")
     return result
+
+
+def guard_endpoint_wrapper(source):
+    # Qsys fixes the unused external raster option to zero in standalone MENU.
+    # Require that selected mode as well as the source-bound build identity.
+    pattern = (r"\bfes_de25_scanout\s*#\s*\(\s*\.BUILD_ID\s*\(\s*BUILD_ID\s*\)\s*,"
+               r"\s*\.EXTERNAL_RASTER\s*\(\s*0\s*\)\s*\)\s+fes_scanout\s*\(")
+    if len(re.findall(pattern, uncomment(source))) != 1:
+        raise ValueError("unsupported generated endpoint wrapper")
 
 
 def source_closure(project):
@@ -262,8 +271,9 @@ def source_closure(project):
         cdc_instances[instance] = {"kind": metadata.get("kind"), "version": metadata.get("version"),
                                    "module": module, "source": str(bodies[0][0].relative_to(project))}
     endpoint = definitions.get("peripheral_subsys_fes_scanout", [])
-    if len(endpoint) != 1 or not re.search(r"\bfes_de25_scanout\s*#\s*\(\s*\.BUILD_ID\s*\(\s*BUILD_ID\s*\)\s*\)\s+fes_scanout\s*\(", files[endpoint[0][0]][1]):
+    if len(endpoint) != 1:
         raise ValueError("unsupported generated endpoint wrapper")
+    guard_endpoint_wrapper(files[endpoint[0][0]][1])
     sources = {p: files[p][0] for p in selected}
     sources[sopc] = sopc_data
     # Generated custom components can include the board's frozen definitions.
@@ -281,7 +291,7 @@ def source_closure(project):
 
 def wrapper(periph_source, memory_source, memory_module):
     pp, mp = ports(periph_source, "peripheral_subsys"), ports(memory_source, memory_module)
-    av = {"address": ("output", "[31:0]"), "burstcount": ("output", "[4:0]"),
+    av = {"address": ("output", "[31:0]"), "burstcount": ("output", "[6:0]"),
           "read": ("output", ""), "write": ("output", ""),
           "writedata": ("output", "[127:0]"), "byteenable": ("output", "[15:0]"),
           "waitrequest": ("input", ""), "readdata": ("input", "[127:0]"),
@@ -317,7 +327,7 @@ def wrapper(periph_source, memory_source, memory_module):
                 "output wire [23:0] video_rgb", "output wire video_de, video_hs, video_vs",
                 "output wire endpoint_drained", "output wire [8:0] endpoint_outstanding",
                 "output wire endpoint_readdatavalid", "output wire [1:0] endpoint_response",
-                "output wire [31:0] endpoint_address", "output wire [4:0] endpoint_burstcount",
+                "output wire [31:0] endpoint_address", "output wire [6:0] endpoint_burstcount",
                 "output wire endpoint_read, endpoint_waitrequest", "output wire [127:0] endpoint_readdata",
                 "output wire [31:0] endpoint_accepted_sequence, endpoint_displayed_sequence",
                 "output wire endpoint_pending_slot, endpoint_displayed_slot",

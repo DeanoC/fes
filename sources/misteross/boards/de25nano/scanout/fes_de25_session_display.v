@@ -32,7 +32,7 @@ module fes_de25_session_display #(
     output wire [1:0] response,
     output wire waitrequest,
     output wire [31:0] avm_address,
-    output wire [4:0] avm_burstcount,
+    output wire [6:0] avm_burstcount,
     output wire avm_read,
     output wire [15:0] avm_byteenable,
     input wire avm_waitrequest,

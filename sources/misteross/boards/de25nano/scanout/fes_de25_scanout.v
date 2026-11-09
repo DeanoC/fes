@@ -4,7 +4,9 @@
 `include "generated/fes_de25_scanout.vh"
 module fes_de25_scanout #(
     parameter [127:0] BUILD_ID = 128'd0,
-    parameter [0:0] EXTERNAL_RASTER = 1'b0
+    parameter [0:0] EXTERNAL_RASTER = 1'b0,
+    parameter [7:0] MAX_BURST_BEATS = 8'd64,
+    parameter [8:0] MAX_OUTSTANDING_BEATS = 9'd511
 ) (
     input wire clk, reset_n,
     input wire clock_fault, display_ready,
@@ -19,7 +21,7 @@ module fes_de25_scanout #(
     output wire [1:0] response,
     output wire waitrequest,
     output wire [31:0] avm_address,
-    output wire [4:0] avm_burstcount,
+    output wire [6:0] avm_burstcount,
     output wire avm_read,
     output wire [15:0] avm_byteenable,
     input wire avm_waitrequest,
@@ -131,7 +133,7 @@ module fes_de25_scanout #(
     assign response = 2'b00;
     assign waitrequest = !reset_n;
     assign avm_address = {reader_address, 4'd0};
-    assign avm_burstcount = reader_burstcount[4:0];
+    assign avm_burstcount = reader_burstcount[6:0];
     assign avm_byteenable = 16'hffff;
     // Keep command validation independent of quiesce/clear combinationally.
     // Registered command faults stop on their acceptance edge; data/clock
@@ -152,7 +154,8 @@ module fes_de25_scanout #(
     assign video_hs = hs;
     assign video_vs = vs;
 
-    fes_menu_video #(.DYNAMIC_BASE(1'b1), .MAX_BURST_BEATS(8'd16),
+    fes_menu_video #(.DYNAMIC_BASE(1'b1), .MAX_BURST_BEATS(MAX_BURST_BEATS),
+        .MAX_OUTSTANDING_BEATS(MAX_OUTSTANDING_BEATS),
         .EXTERNAL_RASTER(EXTERNAL_RASTER),
         .CHECK_RESPONSE(1'b1), .READ_AHEAD(1'b1), .RESET_ABORTS_TRAFFIC(1'b1), .COMPLETE_FRAME_ACK(1'b1),
         .FIFO_ADDR_BITS(11),

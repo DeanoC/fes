@@ -630,6 +630,112 @@ class ScanoutBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "invalid generated"):
             B.referenced_parameters(self.root, module, self.fixture.hps.BUILD)
 
+    def test_generated_crossing_capacities_match_integration_and_refuse_old_window(self):
+        # Execute the actual integration Tcl, then feed its selected values
+        # through real IP-XACT parsing and the generated-project verifier.
+        script = '''
+foreach command {add_instance add_connection add_interface set_interface_property set_connection_parameter_value} {
+    proc $command {args} {}
+}
+proc set_instance_parameter_value {instance name value} {
+    if {$instance in {fes_ctrl_cdc fes_mem_cdc}} {
+        puts "$instance $name $value"
+    }
+}
+'''
+        result = subprocess.run(["tclsh"], input=script + (B.HERE / "integrate.tcl").read_text(),
+                                text=True, capture_output=True, check=True, timeout=10)
+        parameters = {"fes_ctrl_cdc": {}, "fes_mem_cdc": {}}
+        for line in result.stdout.splitlines():
+            instance, key, value = line.split()
+            parameters[instance][key] = value
+        self.assertEqual(parameters["fes_ctrl_cdc"]["MAX_BURST_SIZE"], "1")
+        self.assertEqual(parameters["fes_ctrl_cdc"]["RESPONSE_FIFO_DEPTH"], "4")
+        self.assertEqual(parameters["fes_mem_cdc"]["MAX_BURST_SIZE"], "64")
+        self.assertEqual(parameters["fes_mem_cdc"]["RESPONSE_FIFO_DEPTH"], "512")
+        self.assertTrue(all(p["COMMAND_FIFO_DEPTH"] == "4" for p in parameters.values()))
+        modules = {}
+        for name, values in parameters.items():
+            path = self.root / (name + ".ip")
+            path.write_bytes(self.fixture.hps.component_xml(tuple(values.items())))
+            module = ET.Element("module", {"kind": "mm_ccb", "version": "19.4.1"})
+            ET.SubElement(ET.SubElement(module, "parameter", {"name": "logicalView"}), "value").text = path.name
+            modules["subsys_periph." + name] = module
+        checked = B.verify_clock_crossings(self.root, modules, self.fixture.hps.BUILD)
+        self.assertEqual(checked["fes_mem_cdc"]["parameters"],
+                         {key: value for key, value in parameters["fes_mem_cdc"].items() if key != "ADDRESS_UNITS"})
+        memory = self.root / "fes_mem_cdc.ip"
+        for key, value in (("MAX_BURST_SIZE", "16"), ("RESPONSE_FIFO_DEPTH", "256"),
+                           ("COMMAND_FIFO_DEPTH", "16"), ("ENABLE_RESPONSE", "0")):
+            changed = parameters["fes_mem_cdc"] | {key: value}
+            memory.write_bytes(self.fixture.hps.component_xml(tuple(changed.items())))
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "parameters differ: fes_mem_cdc"):
+                B.verify_clock_crossings(self.root, modules, self.fixture.hps.BUILD)
+
+    def test_interconnect_memory_port_requires_full_seven_bit_burstcount(self):
+        helper = B.load(B.HERE / "interconnect_sim.py", "scanout_interconnect_port_tests")
+        master = {"address": "[31:0]", "burstcount": "[6:0]", "read": "", "byteenable": "[15:0]",
+                  "waitrequest": "", "readdata": "[127:0]", "readdatavalid": "", "response": "[1:0]"}
+        # The memory port is checked before unrelated control/AXI ports.
+        def peripheral(width):
+            ports = [f'{"input" if name in {"waitrequest", "readdata", "readdatavalid", "response"} else "output"} wire '
+                     f'{width if name == "burstcount" else size} fes_scanout_mem_{name}'
+                     for name, size in master.items()]
+            return "module peripheral_subsys (\n" + ",\n".join(ports) + "\n);\nendmodule\n"
+        for width in ("[4:0]", "[5:0]"):
+            with self.subTest(width=width), self.assertRaisesRegex(ValueError, "scanout memory port mismatch: burstcount"):
+                helper.wrapper(peripheral(width), "module memory (\ninput wire unused\n);\nendmodule\n", "memory")
+        with self.assertRaisesRegex(ValueError, "control port mismatch"):
+            helper.wrapper(peripheral("[6:0]"), "module memory (\ninput wire unused\n);\nendmodule\n", "memory")
+
+    def test_interconnect_requires_generated_standalone_raster_selection(self):
+        helper = B.load(B.HERE / "interconnect_sim.py", "scanout_interconnect_endpoint_tests")
+        selected = "fes_de25_scanout #(\n .BUILD_ID(BUILD_ID),\n .EXTERNAL_RASTER(0)\n) fes_scanout (\n);"
+        helper.guard_endpoint_wrapper(selected)
+        for changed in (selected.replace("EXTERNAL_RASTER(0)", "EXTERNAL_RASTER(1)"),
+                        selected.replace(",\n .EXTERNAL_RASTER(0)", ""),
+                        selected.replace(".EXTERNAL_RASTER(0)", ".EXTERNAL_RASTER(0), .MAX_BURST_BEATS(16)"),
+                        selected + "\n" + selected):
+            with self.subTest(changed=changed), self.assertRaisesRegex(ValueError, "endpoint wrapper"):
+                helper.guard_endpoint_wrapper(changed)
+
+    def test_elaborated_storage_refuses_old_command_width_or_response_capacity(self):
+        helper = B.load(B.HERE / "interconnect_sim.py", "scanout_interconnect_storage_tests")
+        fixed = {"address_aclr_b": "NONE", "address_reg_b": "CLOCK1",
+                 "clock_enable_input_a": "BYPASS", "clock_enable_input_b": "BYPASS",
+                 "clock_enable_output_b": "BYPASS", "enable_ecc": "FALSE", "lpm_type": "altera_syncram",
+                 "operation_mode": "DUAL_PORT", "outdata_aclr_b": "NONE", "outdata_sclr_b": "NONE",
+                 "outdata_reg_b": "UNREGISTERED", "power_up_uninitialized": "TRUE", "ram_block_type": "M20K",
+                 "read_during_write_mode_mixed_ports": "DONT_CARE", "width_byteena_a": 1}
+        # Small elaboration-format fixture: this tests refusal of stale or
+        # different generated storage, not actual vendor generation evidence.
+        def fixture(command_width=186, response_depth=512):
+            root = ET.Element("verilator_xml")
+            shapes = (("fes_ctrl_cdc", "cmd", 47, 4), ("fes_ctrl_cdc", "rsp", 35, 4),
+                      ("fes_mem_cdc", "cmd", command_width, 4), ("fes_mem_cdc", "rsp", 131, response_depth),
+                      (None, None, 8, 4))
+            for index, (bridge, role, width, depth) in enumerate(shapes):
+                name = "ram_" + str(index)
+                module = ET.SubElement(root, "module", {"name": name, "origName": "altera_syncram"})
+                hierarchy = (f"{helper.TOP}.periph.{bridge}.{bridge}.{role}_fifo."
+                             f"my_altera_avalon_dc_fifo_{role}_fifo.altera_syncram_component" if bridge
+                             else helper.TOP + ".ram_contract_test")
+                ET.SubElement(root, "cell", {"submodname": name, "hier": hierarchy})
+                values = fixed | {"width_a": width, "width_b": width, "widthad_a": depth.bit_length() - 1,
+                                  "widthad_b": depth.bit_length() - 1, "numwords_a": depth, "numwords_b": depth}
+                for key, value in values.items():
+                    encoded = value.encode() if isinstance(value, str) else value.to_bytes(4, "big")
+                    variable = ET.SubElement(module, "var", {"name": key, "param": "true"})
+                    ET.SubElement(variable, "const", {"name": f"{len(encoded) * 8}'h{encoded.hex()}"})
+            path = self.root / "elaboration.xml"
+            ET.ElementTree(root).write(path)
+            return path
+        checked = helper.guard_elaborated_ram(fixture())
+        self.assertEqual(len(checked), 5)
+        for width, depth in ((184, 512), (186, 256), (184, 256), (186, 1024)):
+            with self.subTest(width=width, depth=depth), self.assertRaisesRegex(ValueError, "RAM parameters differ"):
+                helper.guard_elaborated_ram(fixture(width, depth))
+
 
 if __name__ == "__main__": unittest.main()
 

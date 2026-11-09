@@ -550,11 +550,22 @@ and completion only after a whole good frame. Explicit Platform Designer
 `mm_ccb` bridges carry control from 100 MHz to 74.25 MHz and memory traffic
 back to the preserved F2SDRAM path. The shared reader/video extensions are
 opt-in; existing consumers retain their default configuration.
-DE25 selects a 2,048-beat (32 KiB) local pixel FIFO, while accepted and held
-memory responses remain capped at 256 beats to match the crossing. Other
-consumers retain the 256-beat reader default. Temporary DDR service gaps are
+DE25 selects a 2,048-beat (32 KiB) local pixel FIFO, with bursts of at most 64
+128-bit beats and accepted plus held responses capped at 511 beats inside a
+512-beat crossing response FIFO. The nine-bit counter represents that entire
+reservation without wrapping. Each AXI burst has at most 64 transfers on the
+256-bit interface, below its 128-transfer limit; the generated path
+retains its sixteen-transaction limit. Other consumers retain the 256-beat
+reader reservation default. Temporary DDR service gaps are
 modeled with complete-frame pixel checks; physical CPU/scanout contention
 still requires native validation with zero underflows.
+The generated path uses 16-byte narrow transfers on the 256-bit HPS interface.
+The selected HPS component advertises narrow-transfer support; the pinned
+E-series LPDDR4 single-channel configuration has lockstep disabled. Every AXI
+read address remains 32-byte aligned, including clipped 4 KiB-boundary bursts.
+The [EMIF narrow-transfer conditions](https://docs.altera.com/r/docs/817467/26.1.1/external-memory-interfaces-emif-ip-user-guide-agilex-5-fpgas-and-socs/lockstep-configuration?contentId=uO7W9Tgv69Ha2jfNn0z~fA)
+and the [F2SDRAM bridge properties](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/fpga-to-sdram-bridge?contentId=9TkPOzEiGuh5ObqPVceaTg)
+are separate from exact generated-path and physical qualification.
 
 The internal `fes_de25_session_display` adapter reuses that same scanout CSR
 with the machine raster and the shared `fes_display_compositor` blend pipeline.

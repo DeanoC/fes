@@ -395,6 +395,23 @@ def require_parameters(actual, expected, name):
     return {key: actual[key] for key in expected}
 
 
+def verify_clock_crossings(project, modules, hps):
+    """Require the selected command and response capacities in generated IP."""
+    bridge_parameters = {}
+    for name, width, address_bits, burst, depth in (("fes_ctrl_cdc", 32, 7, 1, 4), ("fes_mem_cdc", 128, 32, 64, 512)):
+        module = modules.get("subsys_periph." + name)
+        if module is None or module.get("kind") != "mm_ccb" or module.get("version") != "19.4.1":
+            raise ValueError("generated clock crossing component differs: " + name)
+        expected = {"DATA_WIDTH": width, "SYMBOL_WIDTH": 8, "ADDRESS_WIDTH": address_bits,
+                    "MAX_BURST_SIZE": burst, "COMMAND_FIFO_DEPTH": 4, "RESPONSE_FIFO_DEPTH": depth,
+                    "MASTER_SYNC_DEPTH": 2, "SLAVE_SYNC_DEPTH": 2, "ENABLE_RESPONSE": 1,
+                    "USE_AUTO_ADDRESS_WIDTH": 0, "SYNC_RESET": 0, "PIPELINE_ENABLE": 0}
+        actual, source = referenced_parameters(project, module, hps)
+        checked = require_parameters(actual, expected, name)
+        bridge_parameters[name] = {"parameters": checked, "logical_view": source}
+    return bridge_parameters
+
+
 def verify_reset_bridge(project, module, hps, synchronous_edges="NONE"):
     if module is None or module.get("kind") != "altera_reset_bridge" or module.get("version") != "19.2.0":
         raise ValueError("generated scanout reset bridge version/kind differs")
@@ -559,7 +576,7 @@ def verify_handoff(project, hps):
         raise ValueError("generated scanout display readiness conduit differs")
     build_id = json.loads((project.parent / "inputs.json").read_text())["scanout"]["build_id"]
     build_identity = endpoint_build_identity(project, endpoint, hps, build_id)
-    expected_master = {"address": ("Output", 32), "burstcount": ("Output", 5), "read": ("Output", 1),
+    expected_master = {"address": ("Output", 32), "burstcount": ("Output", 7), "read": ("Output", 1),
         "byteenable": ("Output", 16), "waitrequest": ("Input", 1), "readdata": ("Input", 128),
         "readdatavalid": ("Input", 1), "response": ("Input", 2)}
     if hps.component_ports(endpoint, "avm") != expected_master:
@@ -619,18 +636,7 @@ def verify_handoff(project, hps):
             project, modules.get("subsys_periph.fes_scanout_pixel_reset"), hps, "DEASSERT"),
         "subsys_periph.fes_scanout_system_reset": verify_reset_bridge(
             project, modules.get("subsys_periph.fes_scanout_system_reset"), hps, "DEASSERT")}
-    bridge_parameters = {}
-    for name, width, address_bits, burst, depth in (("fes_ctrl_cdc", 32, 7, 1, 4), ("fes_mem_cdc", 128, 32, 16, 256)):
-        module = modules.get("subsys_periph." + name)
-        if module is None or module.get("kind") != "mm_ccb" or module.get("version") != "19.4.1":
-            raise ValueError("generated clock crossing component differs: " + name)
-        expected = {"DATA_WIDTH": width, "SYMBOL_WIDTH": 8, "ADDRESS_WIDTH": address_bits,
-                    "MAX_BURST_SIZE": burst, "COMMAND_FIFO_DEPTH": 4, "RESPONSE_FIFO_DEPTH": depth,
-                    "MASTER_SYNC_DEPTH": 2, "SLAVE_SYNC_DEPTH": 2, "ENABLE_RESPONSE": 1,
-                    "USE_AUTO_ADDRESS_WIDTH": 0, "SYNC_RESET": 0, "PIPELINE_ENABLE": 0}
-        actual, source = referenced_parameters(project, module, hps)
-        checked = require_parameters(actual, expected, name)
-        bridge_parameters[name] = {"parameters": checked, "logical_view": source}
+    bridge_parameters = verify_clock_crossings(project, modules, hps)
     guard = modules.get("subsys_periph.fes_scanout_guard")
     if guard is None or guard.get("kind") != "fes_de25_scanout_guard" or guard.get("version") != "1.0":
         raise ValueError("generated scanout system-clock guard differs")

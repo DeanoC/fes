@@ -5,6 +5,7 @@ module fes_menu_reader #(
     parameter [31:0] WINDOW_BASE = 32'd0,
     parameter [0:0] DYNAMIC_BASE = 1'b0,
     parameter [7:0] MAX_BURST_BEATS = 8'd128,
+    parameter [8:0] MAX_OUTSTANDING_BEATS = 9'd256,
     parameter [0:0] CHECK_RESPONSE = 1'b0,
     // DE25's short F2SDRAM bursts need independent requests to hide latency.
     // Defaults retain the existing single-burst behavior on other platforms.
@@ -102,7 +103,7 @@ module fes_menu_reader #(
     wire [7:0] next_burst = remaining >= {9'd0, burst_limit} ? burst_limit[7:0] : remaining[7:0];
     wire [FIFO_ADDR_BITS+1:0] next_fifo_reservation = {{(FIFO_ADDR_BITS-6){1'b0}}, next_burst};
     // Keep crossing/response credit bounded independently of buffered pixels.
-    // The external nine-bit outstanding contract still permits at most 256 beats.
+    // Reserve the whole next command within the configured nine-bit bound.
     wire [9:0] next_response_reservation = {1'b0, outstanding} + {2'b00, next_burst};
     wire [32:0] dynamic_window_end = {1'b0, window_base} + 33'h000800000;
     wire window_valid = DYNAMIC_BASE ? window_base_valid && window_base[4:0] == 5'd0 &&
@@ -223,7 +224,7 @@ module fes_menu_reader #(
             if (active && enable && !rst && !memory_fault && !read && (READ_AHEAD || outstanding == 9'd0) &&
                 issued < FRAME_BEATS && next_burst != 8'd0 && MAX_BURST_BEATS <= 8'd128 &&
                 reserved_beats <= {1'b0, FIFO_BEATS} - next_fifo_reservation &&
-                next_response_reservation <= 10'd256) begin
+                next_response_reservation <= {1'b0, MAX_OUTSTANDING_BEATS}) begin
                 read <= 1'b1;
                 address <= next_address;
                 burstcount <= next_burst;

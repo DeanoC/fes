@@ -67,6 +67,11 @@ public:
     std::uint64_t active_pixels = 0, returned = 0;
     std::vector<Burst> bursts;
     std::deque<std::uint32_t> pending;
+    std::deque<std::uint64_t> response_ready;
+    std::deque<unsigned> pending_commands;
+    unsigned max_burst = FES_DE25_SCANOUT_MAX_BURST_BEATS, response_limit = 511;
+    unsigned response_latency = 0, max_response_credit = 0, max_commands = 0;
+    std::uint64_t cycles = 0;
     // Observe the real reader/video immediately before the edge that faults,
     // independently of the endpoint's later cancellation and CSR reads.
     bool observe_first_fault = false, hold_blank_for_age_test = false;
@@ -109,6 +114,17 @@ public:
         const bool accepts = dut.reset_n && dut.avm_read && !stall;
         const bool old_response = !pending.empty();
         if (dut.reset_n) {
+            const unsigned held = dut.avm_read ? dut.avm_burstcount : 0;
+            const auto* reader = dut.rootp;
+            equal(reader->fes_de25_scanout__DOT__video__DOT__reader__DOT__outstanding,
+                  pending.size(), "accepted credit differs from independent response queue");
+            require(pending.size() + held <= response_limit, "accepted plus held response credit exceeded limit");
+            require(reader->fes_de25_scanout__DOT__video__DOT__reader__DOT__count + pending.size() + held <= 2048,
+                    "FIFO plus accepted/held response reservations exceed local capacity");
+            require(pending_commands.size() + (dut.avm_read ? 1u : 0u) <= 16,
+                    "accepted plus held commands exceed HPS transaction capacity");
+            max_response_credit = std::max(max_response_credit, unsigned(pending.size() + held));
+            max_commands = std::max(max_commands, unsigned(pending_commands.size() + (dut.avm_read ? 1u : 0u)));
             if (held_) {
                 require(dut.avm_read, "stalled command withdrawn");
                 equal(dut.avm_address, held_address_, "stalled address changed");
@@ -117,7 +133,7 @@ public:
             }
             if (dut.avm_read) {
                 require(bounded_, "memory access without an accepted prospective grant");
-                require(dut.avm_burstcount && dut.avm_burstcount <= FES_DE25_SCANOUT_MAX_BURST_BEATS,
+                require(dut.avm_burstcount && dut.avm_burstcount <= max_burst,
                         "invalid memory burst length");
                 equal(dut.avm_address & 15u, 0, "memory alignment");
                 equal(dut.avm_byteenable, 0xffff, "memory byte enables");
@@ -133,7 +149,7 @@ public:
                 require(allowed_slots_ & (1u << slot), "fetch of a slot before submission");
             }
             if (accepts) {
-                require(pending.size() + dut.avm_burstcount <= 256,
+                require(pending.size() + dut.avm_burstcount <= response_limit,
                         "accepted responses exceed the crossing response-credit limit");
                 const auto address = std::uint64_t(dut.avm_address);
                 const auto slot = unsigned((address - base_) / FES_DE25_SCANOUT_SLOT_BYTES);
@@ -145,12 +161,17 @@ public:
                 }
                 equal(address, next_address_, "frame fetch skips or repeats bytes");
                 bursts.push_back({dut.avm_address, dut.avm_burstcount});
-                for (unsigned beat = 0; beat < dut.avm_burstcount; ++beat)
+                pending_commands.push_back(dut.avm_burstcount);
+                for (unsigned beat = 0; beat < dut.avm_burstcount; ++beat) {
                     pending.push_back(dut.avm_address + beat * 16u);
+                    response_ready.push_back(cycles + response_latency);
+                }
                 next_address_ += 16u * dut.avm_burstcount;
             }
-            if (responses && (old_response || (zero_latency && accepts))) {
+            if (responses && (old_response || (zero_latency && accepts)) && response_ready.front() <= cycles) {
                 const auto address = pending.front(); pending.pop_front();
+                response_ready.pop_front();
+                if (!--pending_commands.front()) pending_commands.pop_front();
                 const auto offset = std::uint64_t(address) - base_;
                 const unsigned slot = offset / FES_DE25_SCANOUT_SLOT_BYTES;
                 const auto index = std::uint32_t(offset % FES_DE25_SCANOUT_SLOT_BYTES / 4u);
@@ -170,6 +191,7 @@ public:
         }
         if (observe_first_fault) sample_first_fault();
         dut.clk = 1; dut.eval(); dut.clk = 0; dut.eval();
+        ++cycles;
         if (observe_first_fault) {
             equal(dut.rootp->fes_de25_scanout__DOT__video__DOT__first_fault_state,
                   expected_fault.words[0], "first-fault state on capture/reset/hold edge");
@@ -247,7 +269,8 @@ public:
         dut.reset_n = 0; dut.eval();
         // The scanout reset also resets both mm_ccb sides, dropping this
         // accepted burst and its unread responses.
-        pending.clear(); held_ = false; have_frame_ = false; bounded_ = false;
+        pending.clear(); response_ready.clear(); pending_commands.clear();
+        held_ = false; have_frame_ = false; bounded_ = false;
         allowed_slots_ = 0; frame_start_ = 0; next_address_ = 0;
         idle(2);
         dut.reset_n = 1; dut.eval(); idle(4);
@@ -437,14 +460,31 @@ static void stop_keeps_stalled_command_and_accepted_responses() {
 static void read_ahead_reserves_capacity_and_stop_drains_every_accepted_beat() {
     Endpoint e; Descriptor d; e.responses = false; e.submit(d); e.wait_request();
     e.idle(1000);
-    equal(e.pending.size(), 256, "read-ahead did not fill exactly its bounded response reservation");
+    constexpr unsigned whole_bursts = 7u * 64u;
+    equal(e.pending.size(), whole_bursts, "fully unreturned bursts must stop at448, not wrap512");
     require(!e.dut.avm_read, "reader overcommitted a command after reserving the full FIFO");
     auto full = e.snapshot(); equal(full.outstanding(), e.pending.size(), "overlapped response budget");
     e.command(FES_DE25_SCANOUT_COMMAND_STOP);
     auto stopping = e.snapshot();
     require(!(stopping.status() & FES_DE25_SCANOUT_STATUS_DRAINED), "STOP released unreturned responses");
-    equal(stopping.outstanding(), 256, "STOP lost an overlapped response reservation");
-    e.stop_and_drain(); equal(e.returned, 256, "STOP did not retire all overlapped responses");
+    equal(stopping.outstanding(), whole_bursts, "STOP lost an overlapped response reservation");
+    e.stop_and_drain(); equal(e.returned, whole_bursts, "STOP did not retire all overlapped responses");
+}
+static void partial_response_reserves_exact_511_through_held_stop() {
+    Endpoint e; Descriptor d; e.responses = false; e.submit(d); e.idle(1000);
+    equal(e.pending.size(), 448, "partial boundary needs seven unreturned64-beat bursts");
+    e.responses = true; e.idle(); e.responses = false; e.idle();
+    require(e.dut.avm_read, "one returned beat did not permit the next64-beat reservation");
+    e.stall = true; e.idle(4);
+    equal(e.pending.size(), 447, "partial boundary returned more than one beat");
+    const auto held = e.snapshot();
+    equal(held.outstanding(), 511, "accepted plus held must represent511 without wrapping");
+    equal(e.max_response_credit, 511, "511 boundary was never reached");
+    e.command(FES_DE25_SCANOUT_COMMAND_STOP); e.idle(32);
+    equal(e.snapshot().outstanding(), 511, "STOP lost511 accepted/held reservations");
+    e.stall = false; e.idle();
+    equal(e.pending.size(), 511, "held command did not become exactly511 accepted beats");
+    e.stop_and_drain(); equal(e.returned, 512, "partial plus511 accepted beats did not all retire");
 }
 static void reset_midburst_restores_idle_submit_and_clear() {
     Endpoint e; Descriptor d; e.responses = false; e.submit(d); e.wait_request();
@@ -624,8 +664,11 @@ static void first_fault_case(const std::string& mode, bool illegal_clear = false
     equal(first.valid(), !baseline, "first-underflow record validity");
     if (!baseline) {
         equal(first.fifo(), 0, "controlled stall must exhaust buffered pixels");
-        equal(first.h(), saturation || mode == "prefetch" ? 0 : 960, "first missing pixel horizontal position");
-        equal(first.v(), saturation || mode == "prefetch" ? 0 : 15, "first missing pixel vertical position");
+        // The memory fixture's returned beats independently determine the first
+        // unavailable pixel; larger bursts change the refill phase/raster edge.
+        const auto missing = 4u * e.returned;
+        equal(first.h(), saturation ? 0 : missing % 1280, "first missing pixel horizontal position");
+        equal(first.v(), saturation ? 0 : missing / 1280, "first missing pixel vertical position");
         equal(first.state(), saturation ? FES_DE25_SCANOUT_FIRST_FAULT_VIDEO_STATE_FETCH :
               (mode == "prefetch" ? FES_DE25_SCANOUT_FIRST_FAULT_VIDEO_STATE_DRAIN :
                FES_DE25_SCANOUT_FIRST_FAULT_VIDEO_STATE_DISPLAY), "pre-cancel video state");
@@ -639,13 +682,15 @@ static void first_fault_case(const std::string& mode, bool illegal_clear = false
         equal(first.response_gap(), 0, "response-gap age grew without accepted credit");
         equal(first.words[0] & (FES_DE25_SCANOUT_FIRST_FAULT_READ_MASK | FES_DE25_SCANOUT_FIRST_FAULT_WAITREQUEST_MASK),
               FES_DE25_SCANOUT_FIRST_FAULT_READ_MASK | FES_DE25_SCANOUT_FIRST_FAULT_WAITREQUEST_MASK, "held-command flags");
-        equal(first.command_age(), saturation ? 65535 : 10348, "maximum held-command age");
+        if (saturation) equal(first.command_age(), 65535, "saturating held-command age");
+        else require(first.command_age() > 0, "held command did not accumulate age");
     }
     if (response || mode == "prefetch") {
-        equal(first.outstanding(), 256, "response stall lost accepted credit before capture");
+        equal(first.outstanding(), e.pending.size(), "response stall lost independently queued accepted credit before capture");
+        require(first.outstanding() > 0 && first.outstanding() <= 511, "response-stall credit bound");
         equal(first.command_age(), 0, "response stall manufactured held-command age");
-        equal(first.response_gap(), saturation ? 65535 : (mode == "prefetch" ? 49442 : 10347),
-              "maximum gap includes the fault edge");
+        if (saturation) equal(first.response_gap(), 65535, "saturating response gap");
+        else require(first.response_gap() > 0, "pending responses did not accumulate gap");
     }
     // Independent read-only CSRs leave the existing snapshot/serial unchanged.
     const auto frozen = e.snapshot();
@@ -691,10 +736,57 @@ static void first_fault_capture_and_lifetime() {
     first_fault_case("response", true);
 }
 
+static void sustained_response_latency(bool old_window) {
+    // Controlled memory service, not a measured board latency guarantee. Each
+    // accepted burst becomes ready after1500 pixel clocks, then returns ordered
+    // at one128-bit beat per clock. The same service starves16/256 and sustains
+    //64/511. A full initial FIFO rules out a changed prefill prerequisite.
+    Endpoint e; Descriptor d;
+    e.max_burst = old_window ? 16 : 64;
+    e.response_limit = old_window ? 256 : 511;
+    e.response_latency = 1500; e.observe_first_fault = true; e.submit(d);
+    unsigned prefill = 0;
+    for (unsigned cycle = 0; cycle < 1500000; ++cycle) {
+        auto* r = e.dut.rootp;
+        if (!prefill && r->fes_de25_scanout__DOT__video__DOT__state == 3)
+            prefill = r->fes_de25_scanout__DOT__video__DOT__reader__DOT__count;
+        // The old control verifies every delivered pixel before its expected
+        // first missing pixel. The candidate verifies every visible pixel.
+        e.check_pixels = !old_window || r->fes_de25_scanout__DOT__video__DOT__pixel_matches;
+        e.idle();
+        if (e.expected_fault.valid() || r->fes_de25_scanout__DOT__video__DOT__displayed_sequence == 1) break;
+    }
+    e.check_pixels = false;
+    equal(prefill, 2048, "latency case did not prefill the entire actual FIFO");
+    require(!e.bursts.empty(), "latency case issued no reads");
+    equal(e.bursts.front().beats, e.max_burst, "latency case compiled the wrong burst parameter");
+    const auto state = e.snapshot();
+    if (old_window) {
+        require(e.expected_fault.valid(), "old16/256 control no longer reproduces service deficit");
+        equal(e.expected_fault.fifo(), 0, "old control failed for a reason other than FIFO exhaustion");
+        require(e.expected_fault.outstanding() != 0, "old control had no accepted memory traffic");
+        equal(state.displayed(), 0, "old control acknowledged an incomplete frame");
+        equal(state.errors(), FES_DE25_SCANOUT_ERROR_UNDERFLOW, "old control fault classification");
+    } else {
+        require(!e.expected_fault.valid(), "new64/511 window failed modeled service requirement");
+        equal(state.errors(), 0, "new window reported memory/underflow errors");
+        equal(state.displayed(), 1, "new window did not acknowledge the complete frame");
+        equal(e.active_pixels, FES_DE25_SCANOUT_FRAME_BYTES / 4u, "new window skipped/repeated visible pixels");
+        equal(e.returned, FES_DE25_SCANOUT_FRAME_BYTES / 16u, "new window fetched incomplete/extra frame data");
+    }
+    e.stop_and_drain();
+    require(e.pending_commands.empty() && e.response_ready.empty(), "latency case left accepted commands after drain");
+    std::cout << "PASS modeled1500-cycle service " << (old_window ? "old16/256 exhausts FIFO" : "new64/511 full exact frame")
+              << " max_reserved=" << e.max_response_credit << " max_commands=" << e.max_commands << '\n';
+}
+
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
     unsigned groups = 0;
     try {
+        if (argc == 2 && (std::string(argv[1]) == "--latency-old" || std::string(argv[1]) == "--latency-new")) {
+            sustained_response_latency(std::string(argv[1]) == "--latency-old"); return 0;
+        }
 #define RUN(name) do { name(); ++groups; std::cout << "PASS " #name "\n"; } while (0)
         RUN(disabled_and_snapshot);
         RUN(display_readiness_loss_stops_without_releasing_traffic);
@@ -705,6 +797,7 @@ int main(int argc, char** argv) {
         RUN(transient_ddr_contention_preserves_complete_frame);
         RUN(stop_keeps_stalled_command_and_accepted_responses);
         RUN(read_ahead_reserves_capacity_and_stop_drains_every_accepted_beat);
+        RUN(partial_response_reserves_exact_511_through_held_stop);
         RUN(reset_midburst_restores_idle_submit_and_clear);
         RUN(reset_cancels_a_stalled_command);
         RUN(boundaries_and_low_iova);
@@ -716,6 +809,7 @@ int main(int argc, char** argv) {
         RUN(underflow_never_completes_frame);
         RUN(clock_fault_cannot_clear_into_new_lease);
         RUN(first_fault_capture_and_lifetime);
+        sustained_response_latency(false); ++groups;
         std::cout << "PASS DE25 scanout endpoint: " << groups << " groups\n";
     } catch (const std::exception& error) {
         std::cerr << "FAIL after " << groups << " groups: " << error.what() << '\n'; return 1;

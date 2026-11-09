@@ -43,7 +43,7 @@ constants:
   - {name: FesDe25ScanoutSmmuUserBits, value: 25}
   - {name: FesDe25ScanoutBeatBytes, value: 16}
   - {name: FesDe25ScanoutGrantAlignment, value: 32}
-  - {name: FesDe25ScanoutMaxBurstBeats, value: 16}
+  - {name: FesDe25ScanoutMaxBurstBeats, value: 64}
   - {name: FesDe25ScanoutBoundaryBytes, value: 4096}
   - {name: FesDe25ScanoutFrameWidth, value: 1280}
   - {name: FesDe25ScanoutFrameHeight, value: 720}

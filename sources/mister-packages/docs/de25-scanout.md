@@ -202,7 +202,11 @@ gates. The guard is not yet physically qualified or admitted by a kernel backend
 Registers, video and reader share the 74.25 MHz pixel clock. Two explicit
 Platform Designer bridges cross ordered 32-bit controls from 100 MHz and
 128-bit reads/responses to the 100 MHz memory adapter. Memory bursts have at
-most sixteen 16-byte beats and split at 4 KiB boundaries. Two-bit response
+most sixty-four 16-byte beats and split at 4 KiB boundaries. The board reader
+reserves at most 511 accepted or held beats against its 512-beat crossing
+response FIFO, with a separate 2,048-beat local pixel FIFO. The existing
+nine-bit outstanding snapshot and diagnostic fields cover the entire bound;
+512 is never admitted or truncated to zero. Two-bit response
 errors cross with their data. The generated IP owns FIFO crossing constraints;
 broad clock-group or false-path exceptions must not bypass them.
 

@@ -76,7 +76,7 @@ foreach {key value} {addressUnits SYMBOLS bitsPerSymbol 8 burstcountUnits WORDS 
     waitrequestAllowance 0 linewrapBursts false burstOnBurstBoundariesOnly false doStreamReads false doStreamWrites false} {
     set_interface_property avm $key $value
 }
-foreach {signal direction width} {address Output 32 burstcount Output 5 read Output 1 byteenable Output 16
+foreach {signal direction width} {address Output 32 burstcount Output 7 read Output 1 byteenable Output 16
     waitrequest Input 1 readdata Input 128 readdatavalid Input 1 response Input 2} {
     add_interface_port avm avm_$signal $signal $direction $width
 }

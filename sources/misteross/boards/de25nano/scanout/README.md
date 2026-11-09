@@ -62,18 +62,21 @@ Explicit `mm_ccb` 19.4.1 bridges carry ordered 32-bit control traffic from
 100 MHz and 128-bit memory traffic back to 100 MHz, then into the existing
 256-bit F2SDRAM adapter. Both bridges preserve two-bit responses; the CSR
 endpoint also returns explicit write completions. Reader commands have at
-most sixteen 16-byte beats, split at 4 KiB boundaries, and retain their full
+most sixty-four 16-byte beats, split at 4 KiB boundaries, and retain their full
 32-bit byte addresses. The FPGA has a real memory connection and no local
 pattern responder in this lane. DE25 enables the reader's optional read-ahead:
-up to sixteen short bursts can overlap, while FIFO occupancy plus all accepted
+independent bursts overlap, while FIFO occupancy plus all accepted
 and held response reservations never exceeds the 2,048-beat (32 KiB) local
-pixel buffer. Accepted and held responses are independently capped at 256
-beats to match the memory crossing's response FIFO. STOP still drains every accepted command before
+pixel buffer. Accepted and held responses are independently capped at 511
+beats within the memory crossing's 512-beat response FIFO. The existing nine-bit
+outstanding count includes each entire held command and cannot wrap at 512.
+AXI bursts have at most 64 transfers on the 256-bit interface and the generated
+path retains its sixteen-transaction HPS limit. STOP still drains every accepted command before
 ownership can be released; read-ahead does not relax underflow detection.
 
 The generic reader/video extensions default to the existing static-base,
 128-beat and unchecked-response behavior. This lane opts into the dynamic
-window, sixteen-beat bursts, read-ahead, response checking and complete-frame ACK. A
+window, sixty-four-beat bursts, read-ahead, response checking and complete-frame ACK. A
 shared zero-latency response-accounting fix preserves an accepted burst's
 budget, and the complete-frame controller retains a new submission accepted
 on the previous frame's last visible pixel. Existing consumers explicitly

@@ -29,6 +29,7 @@ struct Simulation {
     Vfes_de25_scanout_interconnect_test dut;
     std::deque<Burst> pending;
     std::deque<uint32_t> endpoint_expected;
+    std::deque<unsigned> endpoint_pending_bursts;
     // Exact frequency ratio 74.25/100 = 297/400, with an independent phase.
     // Simulation ticks are arbitrary rational time units, not timing signoff.
     uint64_t time = 0, next_mem = 297, next_pixel = 417;
@@ -140,7 +141,9 @@ struct Simulation {
             if (dut.rvalid && !dut.rready) ++r_stalls;
             if (ar_accepted) {
                 require(new_burst.size == 4 && dut.arburst == 1, "scanout must retain narrow 16-byte AXI reads");
-                require((new_burst.address & 15U) == 0, "unaligned AXI read changes the actual byte footprint");
+                // The HPS 256-bit F2SDRAM path requires 32-byte command
+                // alignment even when the transfer itself is narrow.
+                require((new_burst.address & 31U) == 0, "AXI request violates HPS 256-bit address alignment");
                 uint64_t end = uint64_t(new_burst.address) + (uint64_t(new_burst.beats) << new_burst.size);
                 require(end <= (uint64_t(new_burst.address) & ~4095ULL) + 4096, "AXI burst crosses 4 KiB");
                 require(new_burst.address >= base && end <= uint64_t(base) + FES_DE25_SCANOUT_ALLOCATION_BYTES,
@@ -153,18 +156,21 @@ struct Simulation {
             if (dut.endpoint_read && !dut.endpoint_waitrequest) {
                 unsigned beats = dut.endpoint_burstcount;
                 uint64_t end = uint64_t(dut.endpoint_address) + beats * 16;
-                require(beats && beats <= 16 && dut.endpoint_address >= base &&
+                require(beats && beats <= FES_DE25_SCANOUT_MAX_BURST_BEATS && dut.endpoint_address >= base &&
                         end <= uint64_t(base) + FES_DE25_SCANOUT_ALLOCATION_BYTES,
                         "endpoint read exceeds allocated grant");
                 require(end <= (uint64_t(dut.endpoint_address) & ~4095ULL) + 4096,
                         "endpoint burst crosses 4 KiB");
                 for (unsigned beat = 0; beat < beats; ++beat)
                     endpoint_expected.push_back(dut.endpoint_address + beat * 16);
+                endpoint_pending_bursts.push_back(beats);
             }
             if (dut.endpoint_readdatavalid) {
                 require(!endpoint_expected.empty(), "generated transport returned an unsolicited beat");
                 uint32_t expected = endpoint_expected.front();
                 endpoint_expected.pop_front();
+                require(!endpoint_pending_bursts.empty(), "endpoint response has no accepted transaction");
+                if (--endpoint_pending_bursts.front() == 0) endpoint_pending_bursts.pop_front();
                 for (unsigned lane = 0; lane < 4; ++lane)
                     require(dut.endpoint_readdata[lane] == memory_word(expected + lane * 4),
                             "128-bit data/lane changed across width/clock adapters");
@@ -220,12 +226,16 @@ struct Simulation {
         }
         if (ar_accepted) { new_burst.ready_cycle = mem_cycles + response_latency; pending.push_back(new_burst);
             if (pending.size() > max_pending_axi) max_pending_axi = pending.size(); }
+        require(pending.size() <= 16, "accepted AXI transactions exceeded HPS pending limit");
+        require(endpoint_pending_bursts.size() <= 16, "accepted endpoint transactions exceeded pending limit");
+        unsigned held_endpoint_beats = dut.endpoint_read && dut.endpoint_waitrequest ? dut.endpoint_burstcount : 0;
+        require(endpoint_expected.size() + held_endpoint_beats <= 511,
+                "accepted plus held endpoint beats exceeded selected response reservations");
         #ifdef FES_DE25_BOARD_COMPOSITION
         require(dut.board_pixel_clk == dut.clk_pixel, "board/transport pixel clocks diverged in boundary model");
         if (watch_releases) {
             require(dut.scanout_source_n && dut.pixel_released && dut.system_released && dut.memory_source_released,
                     "PLL fault reset live bridge/reader state");
-            require(endpoint_expected.size() <= 256, "accepted endpoint beats exceeded 256 reservations");
         }
 #endif
         if (mem_rise) ++mem_cycles;
@@ -348,7 +358,7 @@ struct Simulation {
         require(s.generation == generation && s.dma == base && s.span == FES_DE25_SCANOUT_ALLOCATION_BYTES,
                 "STOP destroyed allocation identity before drain proof");
         require(bool(s.status & FES_DE25_SCANOUT_STATUS_FAULT) == expect_fault, "unexpected drain fault state");
-        require(pending.empty() && !holding_response && endpoint_expected.empty(),
+        require(pending.empty() && !holding_response && endpoint_expected.empty() && endpoint_pending_bursts.empty(),
                 "drained with AXI/Avalon response still in flight");
     }
 
