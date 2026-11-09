@@ -73,7 +73,7 @@ func main() {
 	if expectedWindowService != "" && (expectedWindowService != "1" || expectedWindowStorageReturn != "1" || expectedWindowReload != "") {
 		panic("window service requires the complete SD-return path and a separate selection from bounded reload")
 	}
-	if expectedTenfootSerial != "" && (expectedTenfootSerial != "1" || expectedSelectedPrograms != "1" || !tenfootSerialLinked) {
+	if (expectedTenfootSerial != "") != tenfootSerialLinked || expectedTenfootSerial != "" && (expectedTenfootSerial != "1" || expectedSelectedPrograms != "1") {
 		panic("serial Tenfoot requires selected native programs")
 	}
 	if runtime.GOOS != "tamago" || board.ExceptionLevel() != 1 || board.CounterFrequency() != 400000000 {
@@ -169,12 +169,17 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	if loader != nil {
-		if expectedTenfootSerial == "1" {
-			serveProgramTenfoot(loader, store, volume)
-		} else {
-			servePrograms(loader, store, volume)
+	// The selected frontend is a build-tag constant. Keep the other diagnostic
+	// paths out of this image; the startup gate above requires matching flags.
+	if tenfootSerialLinked {
+		if loader == nil {
+			panic("serial Tenfoot requires the owned program loader")
 		}
+		serveProgramTenfoot(loader, store, volume)
+		return
+	}
+	if loader != nil {
+		servePrograms(loader, store, volume)
 		return
 	}
 	request := packagestore.Request{Path: "FES/PKGTEST.BIN", PackageID: id.PackageID}
