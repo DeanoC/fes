@@ -16,7 +16,10 @@ The first joined failure case exposed an overbroad controller-model reset:
 CMD/DAT reset incorrectly invalidated host/PHY preparation. The corrected model
 invalidates preparation only on reset-all; the original failed log is retained.
 
-Native ARM64 cross-build is pending. The write-protect input and actual
+The full native ARM64 launcher cross-build passes from committed source
+`b22b2fe0c`, with all recorded source hashes current and the Nano board explicitly
+selecting read-only access. No new matched boot chain was assembled or deployed.
+The write-protect input and actual
 write/readback/stop/resume need hardware qualification before a board image
 selects writes. Previous U-Boot upload/readback evidence does not qualify this
 Go write path. FAT still updates only existing preallocated files; file allocation

@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-sd-writes-20261109/build_sdk.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 77.2419786839746,
+  "log_sha256": "85cb7e516f80493cb97f71d5cf54372944f6d05256c028a495a103cba0ebdb7f"
+}
