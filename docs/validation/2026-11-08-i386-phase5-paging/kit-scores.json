@@ -1,0 +1,65 @@
+{
+ "kit": "B",
+ "package": "416e332f7f90d65d9e8d360bcafc769fa99a32a3463da46a6f7f2681c8fdb215",
+ "baseline": {
+  "image": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+  "software": "a8cd30c4"
+ },
+ "preset": "max (0)",
+ "runs": {
+  "k1": {
+   "date": "2026-11-08 19:34-19:57 EET",
+   "disks_sha256": {
+    "bench": "fe81c9c4f93cc34d8b4b10aa2be97c660a30c6b47e48bf205ed6d68fd2fee732",
+    "dpmi": "48ab29728f39cf86310c12b1f3a15d50b7420ce763d6062e85047c96ae4af147"
+   },
+   "doom_v19_timedemo_demo3": {
+    "gametics": 3863,
+    "realtics": 3374,
+    "fps": 40.08
+   },
+   "pack_doom_max": {
+    "gametics": 2134,
+    "realtics": 2061,
+    "fps": 36.25
+   },
+   "pack_doom_min": {
+    "gametics": 2134,
+    "realtics": 748,
+    "fps": 99.88
+   },
+   "3dbench": 76.9,
+   "pcpbench": 13.3,
+   "topbench": 310,
+   "time_circle": "32RTM loader, then the title's main menu (1 PLAYER, 2 PLAYERS, setup, EXIT) within 150 s"
+  },
+  "k2": {
+   "date": "2026-11-08 19:57-20:09 EET",
+   "disks_sha256": {
+    "real": "719dfedb147a62a608aa5c596854981ff35f536e87953ae93019b6ec858595a6",
+    "pmode": "75d909ca0c86730df6928a2a2da1a72cc6ffaa731f42700c0cf03187ae35fbb2"
+   },
+   "wolf3d": "new game, in E1M1 with the pistol",
+   "ultima6": "its introduction plays",
+   "doom": "title and demos play"
+  },
+  "k3": {
+   "date": "2026-11-08 20:09-20:17 EET",
+   "disks_sha256": {
+    "xms": "e83b8185ba9e146d335178c5cc14d7ddedc69bc93ae88f51cad92f19f7ec9002",
+    "fpu": "152c83df9eec440c49941659b7151b7b1a0347f47efc4bd2906b3a728f8c6577"
+   },
+   "ultima7_black_gate": "its introduction plays (the Guardian, the circle of stones)",
+   "ultima7_serpent_isle": "its introduction plays to the main menu"
+  }
+ },
+ "main_r1_for_comparison": {
+  "source": "docs/validation/2026-11-08-i386-phase4-indirect (Kit A)",
+  "demo3_realtics": 3376,
+  "pack_max_realtics": 2062,
+  "pack_min_realtics": 748,
+  "3dbench": 76.9,
+  "pcpbench": 13.3,
+  "topbench": 309
+ }
+}

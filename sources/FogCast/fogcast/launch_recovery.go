@@ -47,6 +47,15 @@ func (s *Service) recoverIdleLaunchError(ctx context.Context, client serviceClie
 		prior.LastError.Code != protocol.CodeMiSTerUnavailable || prior.LastError.Phase != "" {
 		return prior, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target requires explicit recovery before launch", Phase: "admission"}
 	}
+	// Reboot discards the old grant. Admission has just observed that the target
+	// is reachable and not owned by a foreign session, so claim a free kit before
+	// the recovery Stop. This claim is tied to the validated new launch; it does
+	// not take over a held kit or dispatch activation.
+	if lease := kitLeaseOf(client); lease != nil {
+		if err := lease.Acquire(ctx); err != nil {
+			return prior, WithStopStage(canonicalRemoteError(err, protocol.CodeMiSTerUnavailable), "admission_ownership")
+		}
+	}
 	// The caller deadline bounds cleanup and the following single activation.
 	recovered, err := client.Stop(ctx)
 	if err != nil {

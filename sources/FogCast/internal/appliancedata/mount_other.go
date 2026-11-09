@@ -15,3 +15,7 @@ func (unavailableMounter) MountVolume(string, string) error {
 func (unavailableMounter) Bind(string, string) error {
 	return errors.New("appliance data partition bind requires linux")
 }
+
+func (unavailableMounter) Unbind(string, string) error {
+	return errors.New("appliance data partition bind requires linux")
+}

@@ -148,7 +148,8 @@ contract when a card needs it.
 | 0–9FFFF | Conventional RAM | Cacheable RAM |
 | A0000–BFFFF | VGA memory, decoded by the VGA's memory map select | Uncached MMIO |
 | C0000–C7FFF | VGA BIOS ROM (32 KiB) | Read-only RAM, filled from the ROM |
-| C8000–EFFFF | Upper RAM (setting, default on) or hole | Cacheable RAM or hole |
+| C8000–DFFFF | Upper RAM (setting, default on) or hole | Cacheable RAM or hole |
+| E0000–EFFFF | The [EMS board](#ems-board)'s page frame when it is fitted (the default), else upper RAM | Uncached MMIO, or as C8000–DFFFF |
 | F0000–FFFFF | System BIOS ROM (64 KiB) | Read-only RAM, filled from the ROM |
 | 100000–top of RAM | Extended RAM; 16 MiB total by default | Cacheable RAM |
 | FFFF0000–FFFFFFFF | Alias of the F0000 ROM for the reset fetch | Read-only RAM |
@@ -172,8 +173,9 @@ without V86, which the Ultima VII games forbid. UMBM from the Jemm package
 DOS and then unloads. Its documentation pairs it with UMBPCI, which turns on
 chipset shadow RAM; here the RAM is already on. By itself UMBM finds only the
 regions UMBPCI's tables list, so the games image names the range
-(`UMBM.EXE /I=C800-EFFF`); it then tests every 4 KiB of it and DOS gets all
-160K as upper memory. Its boot menu takes the Ultima VII setup after 3
+(`UMBM.EXE /I=C800-DFFF`, stopping below the [EMS board](#ems-board)'s frame
+at E0000h); it then tests every 4 KiB of it and DOS gets all 96K as upper
+memory. Its boot menu takes the Ultima VII setup after 3
 seconds. That setup keeps the kernel out of the HMA (no `DOS=HIGH`) and puts
 the kernel's data, `FILES=30`, `BUFFERS=16` and FreeCOM in upper memory, with
 HIMEMX and CuteMouse loaded high. This leaves 580K (594,256 bytes) of
@@ -207,6 +209,7 @@ Unclaimed ports read FFh and drop writes, like a floating ISA bus.
 | 0F0–0FF | x87 | Reads FFh until the x87 milestone |
 | 1F0–1F7, 3F6 | ATA primary channel | IRQ14 |
 | 220–22F by default, or 240–24F | Sound Blaster, base set by the [setting](#sound-blaster-setting) | Base+6 reset, base+8–9 OPL2, base+A read, base+C write and status, base+E read status and IRQ acknowledge |
+| 260–263 | [EMS board](#ems-board) page registers | Write-only; read FFh |
 | 388–389 | OPL2 (AdLib) | Same chip as base+8–9 |
 | 3B0–3DF | VGA | Mono or colour CRTC and status addresses follow misc output bit 0 |
 | 400–403, 500, E9 | Debug sink | Bochs BIOS and VGABIOS message ports; written to the trace, never guest-visible beyond FFh reads |
@@ -291,7 +294,9 @@ it; for SB 2.0 it accepts only 1.
 | `0x00800000` | 256 KiB | VRAM | 1 |
 | `0x00A00000` | 3 × 2 MiB | Capture frame buffers | 2 |
 | `0x01000000` | 20 KiB | Status ring: the head, then 256 records of 64 bytes | 2 |
-| `0x01005000` | 48 MiB − 20 KiB | Unused | — |
+| `0x01005000` | 4 MiB − 20 KiB | Unused | — |
+| `0x01400000` | 4 MiB | [EMS board](#ems-board) memory (2 MiB used by default) | 2 |
+| `0x01800000` | 40 MiB | Unused | — |
 | `0x04000000` | 64 MiB | Guest RAM (16 MiB used by default) | 0 |
 | `0x08000000` | 128 MiB | ATA disk image | 2 |
 
@@ -331,7 +336,7 @@ its word addresses, so `fes_display_plane` itself does not change.
 | --- | --- | --- |
 | 0 | CPU L2 fills and write-backs | CPU-bound; the plane no longer competes |
 | 1 | CPU VRAM writes and reads; guest scanout prefetch | About 400 MB/s from REP STOSD in mode 13h, under 20 MB/s scanout |
-| 2 | Plane 221 MB/s; capture up to 81 MB/s (720×400 at 70 Hz); presenter up to 74 MB/s; ATA sectors | About 380 MB/s plus disk |
+| 2 | Plane 221 MB/s; capture up to 81 MB/s (720×400 at 70 Hz); presenter up to 74 MB/s; EMS frame accesses; ATA sectors | About 380 MB/s plus EMS and disk |
 
 Port 2 then carries every real-time display reader and writer, and port 1
 carries only VRAM, so CPU blits into VRAM never starve the display. The
@@ -613,8 +618,10 @@ BIOS's ATA driver reads disk geometry from ATA IDENTIFY, and its POST copies
 1Bh–23h into the INT 41h fixed-disk table.
 
 It also writes 60h–62h with the latched Sound Blaster setting: base port
-high byte (22h or 24h), IRQ (2, 3, 5 or 7) and DMA channel (1). The Bochs BIOS
-uses no CMOS byte above 3Fh except 5Bh–5Dh, so these are free.
+high byte (22h or 24h), IRQ (2, 3, 5 or 7) and DMA channel (1), and 63h–65h
+with the [EMS board](#ems-board): its page count, frame segment high byte
+(E0h) and register base / 16 (26h), all 0 with no board. The Bochs BIOS uses
+no CMOS byte above 3Fh except 5Bh–5Dh, so these are free.
 
 A user-linked BIOS with its own setup program would want those bytes left
 alone. That is a firmware-dependent policy for when user-linked firmware
@@ -668,7 +675,7 @@ path, in one per-game record with the machine's settings.
   | 4 | Sound Blaster base port: 220h or 240h | FogCast settings |
   | 5 | Sound Blaster IRQ: 2, 3, 5 or 7 | FogCast settings |
   | 6 | Sound Blaster DMA channel: 1 | FogCast settings |
-  | 7 | Reserved, zero | — |
+  | 7 | [EMS board](#size-and-setting): 0 fitted with 2 MiB; 1 and 2 (not fitted, 4,080 KiB) are follow-up and rejected at commit today | FogCast settings |
   | 8–71 | CMOS bytes 00h–7Fh, two per word, low byte first | The machine |
 
   Settings are read before release, so the governor, the CPU profile and the
@@ -1225,6 +1232,176 @@ between the core's last write and the read.
 FogCast offers "reset disk" (discard the delta, after confirmation) and, as
 follow-up, "save as new image" (base plus delta as a new immutable asset).
 
+## EMS board
+
+Four census titles need expanded memory (EMS): Ultima Underworld, Master of
+Orion (1024K), Darklands and Frontier: Elite 2 (768K)
+([census](../../../docs/validation/2026-11-07-pc386-compat-census/summary.md)).
+A 386 gets EMS from EMM386, which needs V86 mode and paging (i386 Phase 5).
+Before 386 memory managers, PCs got it from an expansion board: RAM behind a
+64 KiB window in upper memory, the page frame, whose four 16 KiB pages a
+driver points at any 16 KiB page of the board through I/O registers. That
+needs no CPU feature at all, so the machine fits one.
+
+### Board model
+
+**Decision: the Lo-tech 2MB EMS Board's register interface.** It is the
+simplest documented LIM board, still built (Lo-tech's R02, and hkzlab's
+through-hole 2 MB and 4 MB versions), and emulated by 86Box, so its
+documentation and existing drivers apply. From the
+[board page](https://www.lo-tech.co.uk/wiki/Lo-tech_2MB_EMS_Board) and the
+[LTEMM page](https://www.lo-tech.co.uk/wiki/LTEMM.EXE):
+
+- Four page registers at consecutive I/O ports. The jumpers choose
+  260h–263h, 264h–267h, 268h–26Bh or 26Ch–26Fh; the recommended setting is
+  260h. Register n selects the board page that frame page n shows.
+- EMS pages are numbered from 0, 16 KiB each: 0–127 on the 2 MB board. The
+  hkzlab 4 MB board takes 0–254 (4,080 KiB).
+- "Page Registers cannot be read."
+- The jumpers put the frame at C000h, D000h or E000h; the recommended setting
+  is E000h. LTEMM's defaults are E000h and 260h.
+
+Rejected: the Intel Above Board, whose interface is larger and whose drivers
+are proprietary; and a FES-defined board, which no existing document or driver
+would describe.
+
+**The pc386 board** is that interface with the jumpers fixed at the
+recommended E000h and 260h, and the hkzlab board's 8-bit page numbers:
+
+| Item | Behaviour |
+| --- | --- |
+| Ports 260h–263h | Write: page register 0–3 takes the byte. Read: FFh, as an empty ISA bus; the registers are write-only. Timing class `isa8` |
+| Frame E0000h–EFFFFh | Frame page n = address bits 15:14 shows board page `register[n]`; offset bits 13:0 within it |
+| A register at or above the board's page count | That frame page is unmapped: reads FFh, writes are dropped. FFh is always unmapped, since the largest board has 255 pages |
+| Reset | Machine reset (every Execution release) sets the four registers to FFh: the frame starts unmapped. A CPU reset alone (8042 pulse, port 92h, shutdown) leaves them, as the AT's CPU resets do not assert the ISA bus's RESET DRV |
+| Contents | Not cleared by the board. The driver writes every page at load ([driver](#ems-driver)), so a run's EMS never starts with an earlier run's bytes ([guest memory at launch](#guest-memory-at-launch)) |
+
+No real board fixes a reset value; they latch whatever power-up leaves. FFh
+gives the frame a defined, harmless state for the bench and the kit to agree
+on.
+
+### Page frame and upper memory
+
+**Decision: the frame is at E000h.** Upper RAM is C8000–EFFFF, 160 KiB. A frame
+at E000h leaves one contiguous 96 KiB block, C8000–DFFFF, for UMBM; at D000h
+it would split it into 32 KiB below and 64 KiB above, and DOS loads each driver, the
+kernel's data and the shell into one block. A C000h frame would cover the VGA
+BIOS.
+
+The machine's [attribute map](i386-cpu-design.md#memory-types) makes the four
+16 KiB slots of E0000–EFFFF uncached MMIO when the board is fitted, and RAM
+when it is not. No upper RAM is under a fitted frame. The map is a strap
+latched at release, as the CPU design requires, so it never changes while
+running.
+
+**Why uncached, not cacheable RAM with the address remapped.** The CPU's
+caches are tagged by physical address. If the frame were cacheable and the
+remap sat behind them, every page-register write would have to flush the
+frame's lines from both L1s (and, later, the L2) before the next frame
+access, and a register write is an OUT that the CPU does not order against
+its cache lookups. An ISA board's memory was not cacheable on a 386 either.
+Uncached frame accesses go to the machine's MMIO port beside the VGA's, one
+dword each, in order. The governor charges a frame access the same ISA memory
+cycles it charges VGA memory under a preset
+([I/O timing](#io-timing)); at `max` it charges nothing extra.
+
+**Budget.** With the frame there, the games image's UMBM takes
+`/I=C800-DFFF`. The kernel's data, `FILES=30`, `BUFFERS=16`, FreeCOM,
+HIMEMX, CuteMouse and the EMS driver must all fit in the 96 KiB, or a menu
+entry loses conventional memory. They do: on the oracle bench, entry 1 keeps
+594,256 bytes free with 12K of upper memory used, and entry 3, the same with
+the driver, keeps 594,256 with 16K used. The games-image MEM simulation keeps
+enforcing Frontier's 594,000 bytes
+([games image](../cores/fes-pc386/README.md)).
+
+### Backing store
+
+**Decision: board memory is guest-invisible DDR at window offset
+`0x01400000`, 4 MiB reserved, on port 2.** That is in the unused gap below
+guest RAM ([DDR window](#hps-ddr-window-and-ports)), so a later RAM-size
+setting that grows guest RAM to 64 MiB does not meet it. The CPU cannot reach
+it: it lies below guest RAM's window base and the CPU's own accesses are
+offset above it.
+
+The board is a client of the port 2 arbiter, below the plane, presenter and
+capture and above the shell's aux master. A frame write is one masked 64-bit
+beat; a frame read is one beat. Neither port 0 nor port 1 fits: port 0 is the
+CPU's alone and the board would put its single beats between L2 fills; port
+1's arbiter lives inside the VGA. EMS traffic is light next to the plane's
+221 MB/s: a REP MOVSD out of the frame at one dword per DDR round trip is
+under 20 MB/s.
+
+The runtime's launch clear covers guest RAM and VRAM only. The board region
+is not cleared by the runtime; the driver clears it (above).
+
+### Size and setting
+
+**Decision: the board is fitted with 2 MiB (128 pages) by default.** The four
+titles need at most 1,024K. The games image's static `FDCONFIG.SYS` reserves
+E000h–EFFFh whatever the setting, so a default without the board would only
+waste 64 KiB of upper memory.
+
+- **Setting.** Word 7 of `fes.pc386.machine` (reserved and zero today) holds
+  it: 0 fitted with 2 MiB, 1 not fitted, 2 fitted with 4,080 KiB (255 pages).
+  Zero is the default, so existing records keep the board. This PR builds the
+  machine's `ems_pages` input and ties it to 128; accepting 1 and 2 at commit
+  (`fes_computer_storage`), the ABI's range and FogCast's setting are the
+  follow-up. Latched at release like the Sound Blaster's jumpers.
+- **Not fitted** (0 pages): ports 260h–263h read FFh and drop writes, the
+  frame's slots are upper RAM again, and CMOS 63h reads 0.
+- **Told to the guest in CMOS** ([configuration bytes](#configuration-bytes)):
+  63h the page count (0 with no board), 64h the frame segment's high byte
+  (E0h, 0 with no board), 65h the register base divided by 16 (26h for 260h,
+  0 with no board), as 60h does for the Sound Blaster.
+
+### EMS driver
+
+**Decision: FES writes its own LIM 4.0 driver, `FESEMS.SYS`, under the MIT
+licence, in NASM; the games-image builder assembles it from
+[`sim/fesems.asm`](../cores/fes-pc386/sim/fesems.asm).** No open-licensed
+driver for this interface was found. LTEMM, Lo-tech's driver, is Alex
+Tsourikov's 1988 driver (BSD 3-Clause) patched for this board, and the patched
+version is under the Standard Lo-tech Licence, which is not an open-source
+licence; karcherm's TOPEMM inherits the same terms. FES therefore
+distributes neither. A player who owns LTEMM can use it: the board answers to
+its defaults (E000h, 260h, pages from 0).
+
+- Loaded with `DEVICEHIGH` on the games image's boot menu entry 3, so its
+  resident part (the INT 67h handler and its tables, about 4.1 KiB) sits in
+  upper memory. Entry 1, the default, does not load it: Ultima VII refuses to
+  start while any expanded memory manager is resident (below).
+- Reads the board from CMOS 63h–65h and does not stay resident when 63h is 0.
+- Sets the four registers to FFh, writes zeros through every board page and
+  reads them back, so EMS never starts with an earlier run's bytes, then
+  reports the page count.
+- Functions: the ones the four titles call, found with the oracle bench's INT
+  trace, plus the LIM 3.2 set that every EMS program may assume
+  ([function list](../cores/fes-pc386/README.md#ems-driver)). An unsupported
+  function returns 84h and writes `FESEMS: function <AX>` to port E9h, so a
+  bench run names it.
+
+**DMA.** An ISA DMA cycle to E0000h–EFFFFh on an AT reaches the board, so a
+Sound Blaster can play straight from a mapped EMS page. The machine sends the
+8237's memory cycles in the frame to the board, one byte each, instead of to
+the CPU's DMA port (which would treat the MMIO frame as a hole); the rest go
+to the CPU as before. The frame is uncached, so no cache holds a stale copy.
+
+### Deviations
+
+- **Timing.** The board's DDR round trip, not an 8-bit ISA memory cycle, sets
+  a frame access's device time. The governor's ISA charge under a preset is
+  the period behaviour software can time.
+
+**Ultima VII and EMS.** Ultima VII's MAINMENU.EXE looks for the `EMMXXXX0`
+device and stops with "Please remove your expanded memory manager before
+running Ultima VII" when it finds one, whether a 386 manager or a board's
+driver; its manual asks the player to boot without one. So the games image
+keeps the driver off its default entry and offers it as entry 3. Once the
+`fes.pc386.machine` word 7 setting is accepted ([size and
+setting](#size-and-setting)), a library game can say whether its machine has
+the board, and the driver, which installs only when CMOS 63h is not 0, can go
+on the default entry.
+
 ## Firmware
 
 ### Choice and build
@@ -1292,6 +1469,7 @@ Alternatives not taken, kept as later options:
 | POST PIT channel 1 | Mode 2, count 18 (15.09 µs), the refresh rate the INT 15h AH=86h wait counts on port 61h bit 4 | Local patch ([#1150](https://github.com/DeanoC/fes/issues/1150)) |
 | POST PIT channel 2 | Mode 3, LSB then MSB, as an AT's POST beep leaves it, with the IBM BEEP count 0533h and the gate and speaker off; games write only a count | Local patch ([#1457](https://github.com/DeanoC/fes/issues/1457)) |
 | INT 10h | Modes 03h and 13h, font load, DAC and palette calls, cursor, scrolling. Games then reprogram registers for mode Y themselves | VGABIOS |
+| INT 10h AH=00h registers | Changes only AL, as IBM's VGA BIOS does; upstream VGABIOS returned with DX changed, and Darklands's MGRAPHIC.EXE keeps the mode it asked for in DL | Local patch ([#1553](https://github.com/DeanoC/fes/issues/1553)) |
 | INT 10h AH=07h from row 0 in a graphics mode | Scrolls down and returns; upstream VGABIOS's graphics loops never ended with top row 0, which Ultima VII calls | Local patch ([#1493](https://github.com/DeanoC/fes/issues/1493)) |
 | INT 13h | AH=00h–08h, 0Ah–0Dh, 10h, 11h, 15h; EDD 41h–48h, which FreeDOS uses for LBA | Present (`int13_harddisk`, EDD cases) |
 | INT 15h | 24h A20 (through the 8042 and port 92h; local patch), 87h block move and 88h extended size for HIMEM, E801h and E820h, C0h configuration, C2h PS/2 pointing device for CuteMouse, 86h wait (counts port 61h bit 4), 83h event wait (RTC periodic interrupt), 4Fh keyboard intercept | Present |
@@ -1609,10 +1787,15 @@ FreeDOS with its GPL obligations:
    setting was normal for DOS games
    ([Sound Blaster setting](#sound-blaster-setting)).
 8. **Upper RAM.** C8000–EFFFF is RAM by default
-   ([guest physical memory](#guest-physical-memory)).
-9. **FreeDOS.** FogCast's disk builder ships FreeDOS and meets its GPL source
-   obligations ([FreeDOS in the builder](#freedos-in-the-fogcast-disk-builder)).
-   The builder is follow-up FogCast work.
+   ([guest physical memory](#guest-physical-memory)); with the EMS board
+   fitted, E0000–EFFFF is its frame.
+9. **EMS board.** A Lo-tech-interface EMS board, frame E000h, registers
+   260h–263h, 2 MiB of guest-invisible DDR on port 2, with FES's own LIM 4.0
+   driver ([EMS board](#ems-board)), so that real-mode DOS games get EMS
+   before V86 mode exists. Taken on 2026-11-07 for the census's EMS titles.
+10. **FreeDOS.** FogCast's disk builder ships FreeDOS and meets its GPL source
+    obligations ([FreeDOS in the builder](#freedos-in-the-fogcast-disk-builder)).
+    The builder is follow-up FogCast work.
 
 Design decisions this document takes, settled with it:
 

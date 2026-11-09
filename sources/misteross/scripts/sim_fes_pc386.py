@@ -65,9 +65,12 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            the RTL must run it without an oracle step or a stop; writes
            speaker-rtl/.
   scroll   runs cores/fes-pc386/sim/scroll_test.asm (SCROLLT.COM) at the
-           FreeDOS prompt (#1493): INT 10h AH=07h of a window from row 0, in
-           modes 13h, 12h and 04h, must return with the picture one character
-           row lower and the top row blank, as Ultima VII's scroll needs.
+           FreeDOS prompt. INT 10h AH=00h for modes 13h, 93h and 03h must keep
+           BX, CX, DX, SI, DI, BP, DS and ES, and AH=0Fh must return the mode
+           asked for, as Darklands's MGRAPHIC.EXE needs (#1553). INT 10h
+           AH=07h of a window from row 0, in modes 13h, 12h and 04h, must
+           return with the picture one character row lower and the top row
+           blank, as Ultima VII's scroll needs (#1493).
            Every check must print ok. With --cpu rtl, the RTL must run it
            without an oracle step or a stop; writes scroll-rtl/.
   cpu-profile  boots FreeDOS on the oracle and runs CPUPROF.COM
@@ -219,6 +222,7 @@ MACHINE_RTL = AT_RTL + (
     CORE / 'rtl/pc386_vga_scanout.sv',
     CORE / 'rtl/pc386_presenter.sv',
     CORE / 'rtl/pc386_plane_bridge.sv',
+    CORE / 'rtl/pc386_ems.sv',
     CORE / 'rtl/pc386_port2.sv',
     CORE / 'rtl/pc386_machine.sv',
     COMMON / 'rtl/fes_display_plane.v',
@@ -266,6 +270,7 @@ GAMES_CONVENTIONAL_HEADROOM_BYTES = 1024
 # title needs from the games image's default boot entry (#1526).
 FRONTIER_MIN_CONVENTIONAL_BYTES = 594_000
 PRESENTER_RTL = (CORE / 'rtl/pc386_ram.sv', CORE / 'rtl/pc386_presenter.sv')
+EMS_RTL = (CORE / 'rtl/pc386_ems.sv',)
 CAPTURE_RTL = (
     CORE / 'rtl/pc386_rate.sv', CORE / 'rtl/pc386_ram.sv', CORE / 'rtl/pc386_vga_scanout.sv',
     CORE / 'sim/vga_capture_top.sv',
@@ -314,7 +319,7 @@ def parse_boot(text: str) -> dict:
     report = {'post': [], 'debug': [], 'panic': [], 'io': {}, 'io_wait': {}, 'inta': {}, 'screen': [], 'end': None,
               'prompt_cycle': None, 'cpu_resets': 0, 'snaps': {}, 'present': {}, 'vga': {}, 'marks': {},
               'game_launch': None, 'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None, 'mouse': None,
-              'rtl_begin': None}
+              'ems': None, 'rtl_begin': None}
     rtl = {'stops': [], 'pmode': [], 'gaps': [], 'smc': [], 'notes': [], 'counters': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
@@ -389,6 +394,8 @@ def parse_boot(text: str) -> dict:
             report['sb'] = {key: int(value) for key, value in (field.split('=') for field in rest.split())}
         elif kind == 'MOUSE':
             report['mouse'] = {key: int(value) for key, value in (field.split('=') for field in rest.split())}
+        elif kind == 'EMS':
+            report['ems'] = {key: int(value) for key, value in (field.split('=') for field in rest.split())}
         elif kind == 'END':
             fields = rest.split()
             report['end'] = {'reason': fields[0], **{k: float(v) if '.' in v else int(v)
@@ -799,6 +806,48 @@ C2XX_CHECKS = ('typing', 'stale-key', 'stale-aux', 'masked-key', 'DONE')
 C2XX_KEYS = 'abcdefghijklmnopq'
 
 
+# When a key at the games image's boot menu picks an entry: the menu shows by
+# then on either CPU (docs/pc386-game-drives.md).
+BOOT_MENU_KEY_SECONDS = 1.2
+# EMSTEST.COM's checks in the order it runs them (sim/ems_test.asm).
+EMS_CHECKS = ('detect', 'frame', 'counts', 'allocate', 'pattern', 'alias', 'unmap', 'save', 'multiple', 'realloc',
+              'names', 'move', 'errors', 'os', 'free', 'DONE')
+
+
+def run_ems(args, linked: list[Path]) -> dict:
+    """EMSTEST.COM at the prompt of the games image's entry 3: the EMS board through FESEMS.SYS. With
+    --cpu rtl the oracle boots and fes_i386_cpu runs from the prompt."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    rtl = '-rtl' if args.cpu == 'rtl' else ''
+    disk = fixture_with(args, f'ems{rtl}', 'ems_test.asm', 'EMSTEST.COM',
+                        freedos.image(args.download, args.jobs, 'games'))
+    print(f'Running EMSTEST.COM on the games image on the {args.cpu} CPU', flush=True)
+    run = run_machine(testbench, f'ems{rtl}', ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                               '--type', 'emstest|', '--expect', 'EMS DONE ok', '--cpu', args.cpu,
+                                               '--boot-key', f'{BOOT_MENU_KEY_SECONDS}:3',
+                                               # The RTL takes over at the prompt, so EMSTEST.COM and the
+                                               # driver's INT 67h run on it; the boot is the oracle's.
+                                               *(['--rtl-at-prompt', '1'] if rtl else [])], images)
+    lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
+    failures = list(run['failures'])
+    checks = [line for line in lines if line.startswith('EMS ')]
+    failures += [line for line in checks if not line.endswith(' ok')]
+    names = [line.split()[1] for line in checks]
+    if names != list(EMS_CHECKS):
+        failures.append(f'EMSTEST.COM ran {names}, expected {list(EMS_CHECKS)}')
+    # The driver names the one unsupported function the errors check calls, and nothing else.
+    unsupported = [line for line in lines if line.startswith('FESEMS: function')]
+    if unsupported != ['FESEMS: function 5500']:
+        failures.append(f'unexpected FESEMS lines: {unsupported}')
+    ems = run.get('ems') or {}
+    if not ems.get('reads') or not ems.get('writes'):
+        failures.append(f'the board saw no frame traffic: {ems}')
+    if rtl:
+        failures += rtl_failures(run, 'EMS run')
+    return {'run': run, 'checks': checks + [f'EMS board: {ems}'], 'failures': failures}
+
+
 def run_c2xx(args, linked: list[Path]) -> dict:
     """C2TEST.COM at the FreeDOS prompt: INT 15h C2xx with keyboard bytes at the 8042."""
     images = firmware.images(args.download, args.jobs)
@@ -884,11 +933,12 @@ def run_speaker(args, linked: list[Path]) -> dict:
 
 
 # SCROLLT.COM's checks, in the order it runs them.
-SCROLL_CHECKS = ('mode13', 'mode12', 'mode04', 'DONE')
+SCROLL_CHECKS = ('modeset', 'mode13', 'mode12', 'mode04', 'DONE')
 
 
 def run_scroll(args, linked: list[Path]) -> dict:
-    """SCROLLT.COM at the FreeDOS prompt: INT 10h AH=07h from row 0 in each graphics memory model."""
+    """SCROLLT.COM at the FreeDOS prompt: INT 10h AH=00h keeps the caller's registers, and AH=07h
+    from row 0 returns in each graphics memory model."""
     images = firmware.images(args.download, args.jobs)
     testbench = machine_testbench(args, linked)
     suite = 'scroll' + ('-rtl' if args.cpu == 'rtl' else '')
@@ -995,7 +1045,8 @@ def run_bench(args, name: str, top: str, rtl: tuple[Path, ...], testbench: Path)
 def run_benches(args) -> dict:
     benches = {'presenter': run_bench(args, 'presenter', 'pc386_presenter', PRESENTER_RTL, CORE / 'sim/presenter_tb.cpp'),
                'capture': run_bench(args, 'capture', 'vga_capture_top', CAPTURE_RTL, CORE / 'sim/capture_tb.cpp'),
-               'plane': run_bench(args, 'plane', 'plane_top', PLANE_RTL, CORE / 'sim/plane_tb.cpp')}
+               'plane': run_bench(args, 'plane', 'plane_top', PLANE_RTL, CORE / 'sim/plane_tb.cpp'),
+               'ems': run_bench(args, 'ems', 'pc386_ems', EMS_RTL, CORE / 'sim/ems_tb.cpp')}
     return {'checks': [line for bench in benches.values() for line in bench['checks']],
             'failures': [line for bench in benches.values() for line in bench['failures']], 'benches': benches}
 
@@ -1573,7 +1624,8 @@ def run_game(args, linked: list[Path]) -> dict:
     images = firmware.images(args.download, args.jobs)
     testbench = machine_testbench(args, linked)
     wav, opl2_log = work / f'{args.game}.wav', work / f'{args.game}-opl2.log'
-    keys = [arg for seconds, text in title.get('keys', []) for arg in ('--keys', f'{seconds}:{text}')]
+    keys = [arg for seconds, text in ([key.split(':', 1) for key in args.game_keys] or title.get('keys', []))
+            for arg in ('--keys', f'{seconds}:{text}')]
     frames = work / 'frames'
     shutil.rmtree(frames, ignore_errors=True)
     frames.mkdir(parents=True)
@@ -1582,6 +1634,10 @@ def run_game(args, linked: list[Path]) -> dict:
         extra += ['--rtl-at-prompt', '1']
     if args.instruction_census:
         extra += ['--census', str(work / 'census.txt')]
+    if args.oracle_profile:
+        extra += ['--profile', str(work / 'profile.txt')]
+    if args.boot_entry != 1:
+        extra += ['--boot-key', f'{BOOT_MENU_KEY_SECONDS}:{args.boot_entry}']
     report = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
                                             '--type', args.type, '--keys-after-type', '1', '--wav', str(wav),
                                             '--opl2-log', str(opl2_log), '--frames', str(frames), *keys, *extra,
@@ -1605,7 +1661,7 @@ def game_suite(args) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
-                                            'a20', 'c2xx', 'wait', 'speaker', 'scroll', 'cpu-profile',
+                                            'a20', 'c2xx', 'ems', 'wait', 'speaker', 'scroll', 'cpu-profile',
                                             'sound', 'game', 'vga', 'system', 'governor', 'all'),
                         default='all',
                         help='simulation suite to run')
@@ -1624,6 +1680,13 @@ def main() -> int:
                         help='game --cpu rtl: boot on the oracle and hand over to the RTL at the prompt')
     parser.add_argument('--instruction-census', action='store_true',
                         help="game: write the oracle's instruction census (machine_tb --census) to census.txt")
+    parser.add_argument('--game-keys', action='append', default=[], metavar='SECONDS:TEXT',
+                        help="game: keys after the launch in place of the drive record's ('|' is Enter); repeat")
+    parser.add_argument('--boot-entry', type=int, default=1, choices=(1, 2, 3),
+                        help="game: the games image's boot menu entry (3: with the EMS board's driver)")
+    parser.add_argument('--oracle-profile', action='store_true',
+                        help="game --cpu oracle: write machine_tb's profile (each real-mode INT by AH, such as "
+                             'int67.4f for EMS) to profile.txt')
     parser.add_argument('--update-fixture', action='store_true',
                         help='sound: copy the captured OPL2 port log to sim/fixtures/sound-opl2.log')
     parser.add_argument('--type', default=None, help="keys typed at the prompt; '|' is Enter")
@@ -1639,8 +1702,10 @@ def main() -> int:
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
-    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'c2xx', 'wait', 'speaker', 'scroll'):
-        parser.error('--cpu rtl runs the boot, game, a20, c2xx, wait, speaker and scroll suites only')
+    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'c2xx', 'ems', 'wait', 'speaker', 'scroll'):
+        parser.error('--cpu rtl runs the boot, game, a20, c2xx, ems, wait, speaker and scroll suites only')
+    if args.oracle_profile and not (args.suite == 'game' and args.cpu == 'oracle'):
+        parser.error('--oracle-profile is for the game suite with --cpu oracle')
     if args.rtl_at_prompt and not (args.suite == 'game' and args.cpu == 'rtl'):
         parser.error('--rtl-at-prompt is for the game suite with --cpu rtl')
     if args.image != 'boot' and args.suite != 'boot':
@@ -1689,6 +1754,8 @@ def main() -> int:
                 report = run_a20(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'c2xx':
                 report = run_c2xx(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'ems':
+                report = run_ems(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'wait':
                 report = run_wait(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'speaker':

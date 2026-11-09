@@ -306,17 +306,21 @@ vgabios_int10_handler:
   push  #int10_end
   or    ah, ah
   jnz   int10_test_01
+;; FES 2026-11-08: keep every register but AL, as the IBM VGA BIOS does.
+;; Upstream saved only DS, BX, CX and AX, and the C mode set returns with
+;; DX changed. MGRAPHIC.EXE (MicroProse, Darklands) keeps the mode it asked
+;; for in DL across the call, so it saw a failed mode 13h (#1553).
+  push  es
   push  ds
-  push  bx
-  push  cx
+  pusha
   mov   bx, #0xc000
   mov   ds, bx
   push  ax
   call  _biosfn_set_video_mode
   pop   ax
-  pop   cx
-  pop   bx
+  popa
   pop   ds
+  pop   es
   cmp   al, #0x06
   jne   no_mode06
   mov   al, #0x3f
