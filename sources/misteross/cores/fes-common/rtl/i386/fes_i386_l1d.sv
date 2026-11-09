@@ -2,8 +2,9 @@
 // L1D (docs/i386-cpu-design.md, "L1D", "Memory types" and "Stores and
 // forwarding"): 16 KiB, 4-way, 32-byte lines, indexed by linear bits 11:5
 // and tagged with the physical page, write-through with no write allocate,
-// behind fes_i386_cpu's data port. Paging is not built: the physical address
-// is the linear one with A20M and the reset alias (fes_i386_pkg::phys).
+// behind fes_i386_cpu's data port. M1 gives the access's physical pages
+// (m1_pg): with paging off phys of the linear address, with paging on the
+// DTLB's (fes_i386_cpu, "Paging").
 //
 // The data is two banks of dwords, even and odd, so the port's eight bytes
 // (the address's dword and the next) are one read of each. The lookup tags
@@ -32,6 +33,23 @@
 //   - a hole reads FFh.
 // A load that faulted in M1, one that uses nothing it reads (a probe; both
 // fault), or a load M1 did not send (rd low), touches nothing.
+//
+// Paging. With paging on, M1 compares each of the set's four tags with the
+// physical page of every DTLB entry at once (tlb_pages), and a way hits when
+// the entry the linear page matches (tlb_ma) holds its tag: the compares are
+// as deep as the one per way M1 makes with paging off, and an AND-OR follows.
+// A uop the DTLB cannot serve (tx: a page it does not hold, a right it does
+// not give, a store to a page with D clear, a page a third or fourth one, a
+// load that may meet an older store through an alias, or an instruction's
+// fetch walk) waits as an uncached load does (L_UNC) and then, as the oldest
+// uop, walks each page it uses (the walker below), else replays. The walk
+// reads the PDE and the PTE through the bus interface, from memory once no
+// write-buffer entry holds their line, faults (#PF) or sets A, and D for a
+// write, with a dword store through the write buffer (pw, which clears that
+// line's set here and in the L1I), and fills the DTLB or ITLB (tf). Then the
+// access reads memory for its bytes, as the slow path does, without a fill
+// or forwarding (walked), since nothing older can store; a store, or a
+// fetch walk (which replays), is done.
 //
 // A store's line is looked up as it enters WB in a probe copy of the tags.
 // WB's commit writes the bytes into a way that holds the line (st_commit,
@@ -84,25 +102,78 @@ module fes_i386_l1d import fes_i386_pkg::*; (
     output logic [PA-3:0]    d_addr,
     output logic [3:0]       d_be,
     input  logic             d_beat,
-    input  logic [127:0]     bdata
+    input  logic [127:0]     bdata,
+    // Paging (see Paging): CR0.PG and CR3's page directory.
+    input  logic             pg,
+    input  logic [19:0]      cr3_pd,
+    // M1's translation: the pages of the memory operand (A and the next,
+    // A1) and of a st2 store (T, T1), and A's attribute and its next line's;
+    // with paging on, every DTLB entry's page and A's match, for the hit.
+    input  logic [3:0][PA-12:0]  m1_pg,
+    input  attr_e                m1_at0,
+    input  attr_e                m1_at1,
+    input  logic [15:0][PA-12:0] tlb_pages,
+    input  logic [15:0]          tlb_ma,
+    // M1's uop needs the walker (tx): A's linear address (or a fetch walk's
+    // page), T's, the pages it uses (A, A1, T, T1) and writes, whether the
+    // access is a user one, and whether it is a fetch walk.
+    input  logic             tx,
+    input  logic [31:0]      tx_a,
+    input  logic [31:0]      tx_t,
+    input  logic [3:0]       tx_need,
+    input  logic [3:0]       tx_wr,
+    input  logic             tx_user,
+    input  logic             tx_ifw,
+    input  logic             wb_empty,   // the write buffer is empty (fes_i386_biu)
+    // M2: its pages, a #PF (with CR2 and the error code), and whether it
+    // walked (its bytes are memory's, with nothing forwarded).
+    output logic [3:0][PA-12:0] pg_out,
+    output logic             pf,
+    output logic [31:0]      pf_lin,
+    output logic [2:0]       pf_err,
+    output logic             walked,
+    // The walker's TLB fill (the ITLB's for a fetch walk) and A/D store.
+    output logic             tf_valid,
+    output logic             tf_itlb,
+    output tlb_entry_t       tf_e,
+    output logic             pw_valid,
+    output logic [PA-1:0]    pw_addr,
+    output logic [31:0]      pw_data,
+    output attr_e            pw_at
 );
     localparam int TW = PA - 12;
 
     // ---- M1 to M2 ----------------------------------------------------------------
+    // p0's page is A's; the next line is in A1 past the page's last line.
     logic          q_rd, q_fault, q_two, q_cross;
     logic [11:0]   q_addr;
     logic [7:0]    q_be;         // the access's lanes of the port's eight bytes
     logic [TW-1:0] q_page;
     logic [PA-6:0] q_line0, q_line1;
     attr_e         q_at0, q_at1;
-    logic [PA:0]   p0, p1;
+    logic [TW-1:0] page0;
+    logic [PA-6:0] line1;
     logic [7:0]    be8;
-    assign p0 = phys(addr, a20m);
-    assign p1 = phys({addr[31:5] + 27'd1, 5'd0}, a20m);
+    assign page0 = m1_pg[0][TW-1:0];
+    assign line1 = addr[11:5] == 7'h7f ? {m1_pg[1][TW-1:0], 7'd0} : {page0, addr[11:5] + 7'd1};
     assign be8 = 8'(((8'd1 << bytes) - 8'd1) << addr[1:0]);
+    // The walker's registers, which M2's uop takes on the same edge.
+    logic          q_tx, q_user, q_ifw;
+    logic [31:0]   q_ta, q_tt;
+    logic [3:0]    q_need, q_wr;
+    logic [3:0][PA-12:0] q_pg;
+    assign pg_out = q_pg;
+    assign walked = q_tx;
+    // The walker updates the pages and, before the access's read, its lines.
+    logic          w_lines;
+    logic [3:0]    w_pgw;
+    logic [PA-12:0] w_pp;
+    logic [PA-6:0] w_line1;
+    assign w_line1 = q_addr[11:5] == 7'h7f ? {q_pg[1][TW-1:0], 7'd0} : {q_pg[0][TW-1:0], q_addr[11:5] + 7'd1};
     always_ff @(posedge clk) begin
         if (reset) begin
             q_rd <= 1'b0;
+            q_tx <= 1'b0;
         end else if (advance) begin
             q_rd <= rd && !flush;
             q_fault <= fault;
@@ -110,11 +181,28 @@ module fes_i386_l1d import fes_i386_pkg::*; (
             q_be <= be8;
             q_two <= be8[7:4] != 4'd0;
             q_cross <= be8[7:4] != 4'd0 && addr[4:2] == 3'd7;
-            q_page <= p0[PA-1:12];
-            q_line0 <= p0[PA-1:5];
-            q_line1 <= p1[PA-1:5];
-            q_at0 <= attr(p0, attr_upper, ram_top);
-            q_at1 <= attr(p1, attr_upper, ram_top);
+            q_page <= page0;
+            q_line0 <= {page0, addr[11:5]};
+            q_line1 <= line1;
+            q_at0 <= m1_at0;
+            q_at1 <= m1_at1;
+            q_tx <= tx && !flush;
+            q_ta <= tx_a;
+            q_tt <= tx_t;
+            q_need <= tx_need;
+            q_wr <= tx_wr;
+            q_user <= tx_user;
+            q_ifw <= tx_ifw;
+            q_pg <= m1_pg;
+        end else begin
+            for (int k = 0; k < 4; k++) if (w_pgw[k]) q_pg[k] <= w_pp;
+            if (w_lines) begin
+                q_page <= q_pg[0][TW-1:0];
+                q_line0 <= {q_pg[0][TW-1:0], q_addr[11:5]};
+                q_line1 <= w_line1;
+                q_at0 <= attr({q_pg[0], 12'd0}, attr_upper, ram_top);
+                q_at1 <= attr({q_addr[11:5] == 7'h7f ? q_pg[1] : q_pg[0], 12'd0}, attr_upper, ram_top);
+            end
         end
     end
 
@@ -207,14 +295,22 @@ module fes_i386_l1d import fes_i386_pkg::*; (
     // for the victim). Valid bits are set only by a fill, with D to WB frozen;
     // a clear of a set on any edge drops what is registered for it, as the
     // valid bits themselves drop.
+    // With paging on, way w hits when the entry A matches holds its tag:
+    // every entry's page against every tag, then an AND-OR with the match.
     logic [3:0] vm1, hit_m1, hit, vm2;
+    logic [3:0][15:0] eqv;
     assign vm1 = valid_bits[addr[11:5]];
     for (genvar w = 0; w < 4; w++) begin : g_hit
-        assign hit_m1[w] = vm1[w] && tag[w] == p0[PA-1:12];
+        for (genvar i = 0; i < 16; i++) begin : g_ent
+            assign eqv[w][i] = tag[w] == tlb_pages[i][TW-1:0];
+        end
+        assign hit_m1[w] = vm1[w] && (pg ? (tlb_ma & eqv[w]) != 16'd0 : tag[w] == page0);
     end
     logic clr_m1, clr_m2;  // M1's set, or M2's, is cleared on this edge
-    assign clr_m1 = inv_all || inv_valid && inv_line[6:0] == addr[11:5] || st_commit && st_cross && st_line1[6:0] == addr[11:5];
-    assign clr_m2 = inv_all || inv_valid && inv_line[6:0] == q_addr[11:5] || st_commit && st_cross && st_line1[6:0] == q_addr[11:5];
+    assign clr_m1 = inv_all || inv_valid && inv_line[6:0] == addr[11:5] || st_commit && st_cross && st_line1[6:0] == addr[11:5]
+                 || pw_valid && pw_addr[11:5] == addr[11:5];
+    assign clr_m2 = inv_all || inv_valid && inv_line[6:0] == q_addr[11:5] || st_commit && st_cross && st_line1[6:0] == q_addr[11:5]
+                 || pw_valid && pw_addr[11:5] == q_addr[11:5];
     always_ff @(posedge clk) begin
         if (reset) begin
             hit <= 4'd0;
@@ -235,14 +331,15 @@ module fes_i386_l1d import fes_i386_pkg::*; (
         for (int w = 0; w < 4; w++)
             if (hit[w]) waysel = waysel | (q_addr[2] ? {ev_q[w], od_q[w]} : {od_q[w], ev_q[w]});
     end
-    typedef enum logic [3:0] {
-        L_IDLE, L_UNC, L_PART, L_WAIT, L_FILL, L_TAGS, L_VALID, L_REFRESH, L_DONE, L_REPLAY
+    typedef enum logic [4:0] {
+        L_IDLE, L_UNC, L_PART, L_WAIT, L_FILL, L_TAGS, L_VALID, L_REFRESH, L_DONE, L_REPLAY, L_PF,
+        W_NEXT, W_RD, W_WAIT, W_CHK, W_APDE, W_APTE, W_FILL
     } slow_e;
     // Only before the slow path starts: its fill sets a valid bit that the
     // arrays' outputs, read before the fill, do not match.
     logic cached0, fast, unc, idle;
     assign cached0 = q_at0 == ATTR_RAM || q_at0 == ATTR_ROM;
-    assign fast = cached0 && !q_cross && hit != 4'd0 && idle;
+    assign fast = cached0 && !q_cross && hit != 4'd0 && idle && !q_tx;
     assign unc = q_at0 == ATTR_MMIO || q_cross && q_at1 == ATTR_MMIO;
 
     // ---- The slow path ----------------------------------------------------------
@@ -257,6 +354,7 @@ module fes_i386_l1d import fes_i386_pkg::*; (
     logic           go;
     assign go = q_rd && !q_fault && !fast;
     assign replay = state == L_REPLAY;
+    assign pf = state == L_PF;
     assign rdata = state == L_DONE ? {sbuf[1], sbuf[0]} : waysel;
 
     // The current part: its attribute, line and dword in the line.
@@ -279,16 +377,68 @@ module fes_i386_l1d import fes_i386_pkg::*; (
     // The slow path starts: at once (start_c), or for an uncached load once
     // it has waited its cycle and is the oldest (start_u). Only start_c can
     // fill.
-    logic spoil, start, start_c, start_u, set_valid;
+    // A uop for the walker (q_tx) waits its cycle in L_UNC too, then walks
+    // as the oldest (walk_go), or replays.
+    logic spoil, start, start_c, start_u, set_valid, walk_go;
     assign spoil = inv_valid && inv_line == q_line0 || inv_all;
-    assign start_c = state == L_IDLE && go && !unc;
-    assign start_u = state == L_UNC && oldest;
+    assign start_c = state == L_IDLE && go && !unc && !q_tx;
+    assign start_u = state == L_UNC && oldest && !q_tx;
+    assign walk_go = state == L_UNC && oldest && q_tx;
     assign start = start_c || start_u;
-    assign unc_start = start_u;
+    assign unc_start = start_u || walk_go;
     assign set_valid = state == L_VALID && !spoilt && !spoil;
     assign wr_tag = state == L_TAGS;
     assign refresh = state == L_REFRESH;
-    assign d_req = state == L_WAIT;
+    assign d_req = state == L_WAIT || state == W_WAIT;
+
+    // ---- The walker -----------------------------------------------------------
+    // Each page the uop uses (q_need: A, A1, T, T1, lowest first, the order
+    // Bochs translates them in), one at a time: the PDE at CR3's page plus
+    // bits 31:22 times 4, then the PTE at the PDE's page plus bits 21:12
+    // times 4, each a dword read through the bus interface (a hole's reads
+    // all ones). A PDE or PTE not present, or a user access to a page the two
+    // together do not give to user mode, or a user write to one they do not
+    // make writable, is #PF (Bochs's translate_linear_legacy): CR2 the page's
+    // address (A's and T's the access's own, A1's and T1's their first
+    // byte), the error code P (a protection fault), W/R and U/S. Otherwise A
+    // is set in the PDE, then A, and D for a write, in the PTE, where clear
+    // (update_access_dirty), each a dword store once the write buffer is
+    // empty; and the entry fills the DTLB, or the ITLB for a fetch walk.
+    logic [1:0]  wk;           // the page being walked
+    logic [3:0]  w_left;       // the pages still to walk
+    logic [31:0] w_lin;
+    logic        w_wr, w_lvl;  // a write; the PTE (1) or the PDE (0)
+    logic [PA:0] w_pa, w_pde_pa, w_pte_pa;
+    logic [31:0] w_ent, w_pde, w_pte;
+    logic        w_beat;
+    attr_e       w_at;
+    logic [1:0]  w_k;
+    logic [31:0] w_klin;
+    always_comb begin
+        w_k = w_left[0] ? 2'd0 : w_left[1] ? 2'd1 : w_left[2] ? 2'd2 : 2'd3;
+        case (w_k)
+            2'd0: w_klin = q_ta;
+            2'd1: w_klin = {q_ta[31:12] + 20'd1, 12'd0};
+            2'd2: w_klin = q_tt;
+            default: w_klin = {q_tt[31:12] + 20'd1, 12'd0};
+        endcase
+    end
+    assign w_at = attr(w_pa, attr_upper, ram_top);
+    logic [PA:0] w_ppa;
+    assign w_ppa = phys({w_pte[31:12], 12'd0}, a20m);
+    assign w_pp = w_ppa[PA:12];
+    assign w_pgw = state == W_FILL ? 4'd1 << wk : 4'd0;
+    assign w_lines = state == W_NEXT && w_left == 4'd0;
+    assign tf_valid = state == W_FILL;
+    assign tf_itlb = q_ifw;
+    always_comb begin
+        tf_e.lp = w_lin[31:12];
+        tf_e.pp = w_pp;
+        tf_e.at = attr({w_pp, 12'd0}, attr_upper, ram_top);
+        tf_e.u = w_pde[2] && w_pte[2];
+        tf_e.w = w_pde[1] && w_pte[1];
+        tf_e.d = w_pte[6] || w_wr;
+    end
 
     // The part done: on to the next dword, the fill, or the end.
     function automatic slow_e after(input logic p, input logic two, input logic fill);
@@ -300,9 +450,20 @@ module fes_i386_l1d import fes_i386_pkg::*; (
         state_n = state;
         case (state)
             L_IDLE, L_UNC:
-                if (start) state_n = L_PART;
+                if (walk_go) state_n = W_NEXT;
+                else if (start) state_n = L_PART;
                 else if (state == L_UNC) state_n = L_REPLAY;
-                else if (go && unc) state_n = L_UNC;
+                else if (q_tx || go && unc) state_n = L_UNC;
+            // The walker; at its end the access reads its bytes (a load), or
+            // is done (a store), or replays (a fetch walk).
+            W_NEXT: state_n = w_left != 4'd0 ? W_RD : q_ifw ? L_REPLAY : q_rd && !q_fault ? L_PART : L_DONE;
+            W_RD: state_n = w_at == ATTR_HOLE ? W_CHK : W_WAIT;
+            W_WAIT: if (d_beat && (d_mmio || w_beat)) state_n = W_CHK;
+            W_CHK: state_n = !w_ent[0] || w_lvl && q_user && (!(w_pde[2] && w_ent[2]) || w_wr && !(w_pde[1] && w_ent[1]))
+                           ? L_PF : w_lvl ? W_APDE : W_RD;
+            W_APDE: if (w_pde[5] || wb_empty && !pw_valid) state_n = W_APTE;
+            W_APTE: if (w_pte[5] && (w_pte[6] || !w_wr) || wb_empty && !pw_valid) state_n = W_FILL;
+            W_FILL: state_n = W_NEXT;
             // A hole, or the next dword of a line already read, is done at
             // once; anything else is read.
             L_PART: state_n = p_at == ATTR_HOLE || part && !q_cross && p_at != ATTR_MMIO
@@ -312,7 +473,7 @@ module fes_i386_l1d import fes_i386_pkg::*; (
             L_TAGS: state_n = L_VALID;
             L_VALID: state_n = L_REFRESH;
             L_REFRESH: state_n = L_DONE;
-            default: if (advance) state_n = L_IDLE;  // L_DONE or L_REPLAY: the load leaves M2
+            default: if (advance) state_n = L_IDLE;  // L_DONE, L_REPLAY or L_PF: the uop leaves M2
         endcase
         if (reset) state_n = L_IDLE;
     end
@@ -321,18 +482,18 @@ module fes_i386_l1d import fes_i386_pkg::*; (
     // WB's freeze waits on one register: on an edge D to WB advance, the load
     // M1 sends when it will not hit; otherwise M2's load until its slow path
     // ends or it replays, or once a clear drops its hit.
-    attr_e at0_m1;
     logic  stall;
-    assign at0_m1 = attr(p0, attr_upper, ram_top);
     always_ff @(posedge clk) begin
         if (reset)
             stall <= 1'b0;
         else if (advance)
-            stall <= rd && !flush && !fault && !((at0_m1 == ATTR_RAM || at0_m1 == ATTR_ROM)
-                                                 && !(be8[7:4] != 4'd0 && addr[4:2] == 3'd7) && !clr_m1 && hit_m1 != 4'd0);
+            stall <= !flush && (tx || rd && !fault && !((m1_at0 == ATTR_RAM || m1_at0 == ATTR_ROM)
+                                                        && !(be8[7:4] != 4'd0 && addr[4:2] == 3'd7) && !clr_m1
+                                                        && hit_m1 != 4'd0));
         else
-            stall <= q_rd && !q_fault && !(state_n == L_DONE || state_n == L_REPLAY
-                                           || state_n == L_IDLE && cached0 && !q_cross && !clr_m2 && hit != 4'd0);
+            stall <= (q_rd && !q_fault || q_tx) && !(state_n == L_DONE || state_n == L_REPLAY || state_n == L_PF
+                                                     || state_n == L_IDLE && cached0 && !q_cross && !clr_m2 && hit != 4'd0
+                                                        && !q_tx);
     end
     assign valid = !stall;
 
@@ -377,13 +538,71 @@ module fes_i386_l1d import fes_i386_pkg::*; (
                     end
                 end
                 L_FILL: row <= row + 2'd1;
+                W_NEXT: begin
+                    if (w_left != 4'd0) begin
+                        wk <= w_k;
+                        w_lin <= w_klin;
+                        w_wr <= q_wr[w_k];
+                        w_lvl <= 1'b0;
+                        w_pa <= phys({cr3_pd, w_klin[31:22], 2'b00}, a20m);
+                        w_pde_pa <= phys({cr3_pd, w_klin[31:22], 2'b00}, a20m);
+                        w_left[w_k] <= 1'b0;
+                    end else begin
+                        // The access's read, as the slow path's, unfilled.
+                        part <= 1'b0;
+                        fill_it <= 1'b0;
+                        spoilt <= 1'b0;
+                    end
+                end
+                W_RD: begin
+                    w_beat <= 1'b0;
+                    w_ent <= 32'hffff_ffff;
+                    d_mmio <= w_at == ATTR_MMIO;
+                    d_addr <= {w_pa[PA-1:5], w_at == ATTR_MMIO ? w_pa[4:2] : 3'd0};
+                    d_be <= 4'hf;
+                end
+                W_WAIT: if (d_beat) begin
+                    w_beat <= 1'b1;
+                    if (d_mmio) w_ent <= bdata[31:0];
+                    else if (w_beat == w_pa[4]) w_ent <= bdata[32 * w_pa[3:2] +: 32];
+                end
+                W_CHK: begin
+                    if (!w_lvl) begin
+                        w_pde <= w_ent;
+                        w_pa <= phys({w_ent[31:12], w_lin[21:12], 2'b00}, a20m);
+                        w_pte_pa <= phys({w_ent[31:12], w_lin[21:12], 2'b00}, a20m);
+                    end else begin
+                        w_pte <= w_ent;
+                    end
+                    w_lvl <= 1'b1;
+                    pf_lin <= w_lin;
+                    pf_err <= {q_user, w_wr, w_ent[0]};
+                end
                 default: ;
             endcase
+            if (walk_go) w_left <= q_need;
             if (state == L_IDLE) row <= 2'd0;
             if (state != L_IDLE && spoil) spoilt <= 1'b1;
         end
     end
     always_ff @(posedge clk) state <= state_n;
+
+    // The A/D stores: one cycle each, once the write buffer is empty.
+    always_ff @(posedge clk) begin
+        pw_valid <= 1'b0;
+        if (!reset && state == W_APDE && !w_pde[5] && wb_empty && !pw_valid) begin
+            pw_valid <= 1'b1;
+            pw_addr <= w_pde_pa[PA-1:0];
+            pw_data <= w_pde | 32'h20;
+            pw_at <= attr(w_pde_pa, attr_upper, ram_top);
+        end
+        if (!reset && state == W_APTE && !(w_pte[5] && (w_pte[6] || !w_wr)) && wb_empty && !pw_valid) begin
+            pw_valid <= 1'b1;
+            pw_addr <= w_pte_pa[PA-1:0];
+            pw_data <= w_pte | (w_wr ? 32'h60 : 32'h20);
+            pw_at <= attr(w_pte_pa, attr_upper, ram_top);
+        end
+    end
 
     // ---- Writes: a fill's rows, or the committing store ---------------------------------
     logic [6:0]  st_set;
@@ -426,6 +645,7 @@ module fes_i386_l1d import fes_i386_pkg::*; (
             logic clear;
             assign clear = inv_all || inv_valid && inv_line[6:0] == 7'(k)
                         || st_commit && st_cross && st_line1[6:0] == 7'(k)
+                        || pw_valid && pw_addr[11:5] == 7'(k)
                         || start_c && cached0 && !q_cross && q_line0[6:0] == 7'(k) && free == 2'(w);
             always_ff @(posedge clk) begin
                 if (reset) valid_bits[k][w] <= 1'b0;

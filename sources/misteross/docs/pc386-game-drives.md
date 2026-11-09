@@ -122,8 +122,8 @@ python3 scripts/sim_fes_pc386.py --suite game --game duke3d --cpu rtl --rtl-at-p
   `fes_i386_cpu` at the prompt (`machine_tb --rtl-at-prompt`). The proven boot
   then costs oracle time only.
 - `--frame-every S` writes the captured frame every S simulated seconds.
-- `--instruction-census` writes the oracle's instruction census, which counts
-  CPL changes and gates.
+- `--instruction-census` writes the oracle's instruction census to
+  `census.txt` ([Instruction census](#instruction-census)).
 
 The report goes to `build/sim/fes-pc386/game-<id>[-rtl]/report.json`. With
 `--cpu rtl`, its `rtl` section lists the stops and the protected-mode
@@ -131,6 +131,59 @@ stretches the oracle ran. Wolfenstein 3D and Ultima VI, the acceptance titles,
 must also play the OPL2. A game passes only after `machine_tb` records screen
 or VGA-frame progress beyond the typed command; neither reaching the time limit
 nor returning to the DOS prompt counts as a pass without that evidence.
+
+## Instruction census
+
+`--instruction-census` runs `machine_tb --census`
+([`census.h`](../cores/fes-pc386/sim/census.h)) on the oracle. Each line of
+`census.txt` is `<key> <count> <first CS:EIP>`, sorted by key; totals have
+`-` for the site. Two runs of the same drive and keys write the same file, so
+records diff line by line. Phase 5's slices
+([#1548](https://github.com/DeanoC/fes/issues/1548)) rerun it to show which
+titles each one unlocks.
+
+| Key | Counts |
+| --- | --- |
+| `<stem>[:pm<CPL>\|:v86]` | Retired instructions by stem (the lockstep's naming), read at CS:EIP through the page tables when paging is on. Bytes in MMIO (VGA memory, the EMS board's frame) read as FFh. MOV to and from CRn, DRn and TRn carry the register number: `0F22.3` is MOV CR3, r32; `0F21.6` is MOV r32, DR6. |
+| `event:<kind>:<vector>[:paged][:v86]:gate=<type>:dpl=<n>:sel=<selector>[:err=<code>]:cpl=<before>><after>` | Each event delivered with PE set, its IDT gate read through the page tables. `kind` is `exception`, `intr`, `nmi` or `int`. |
+| `cpl:<before>><after>:<stem>` | CPL changes an instruction made without an event. |
+| `cr0.pg:<stem>`, `ldtr:<sel>:<stem>`, `tr:<sel>:<stem>`, `iopl:<n>:<stem>`, `dr7:<value>:<stem>` | Stems that changed PG, loaded LDTR or TR (LTR or a task switch), changed IOPL, or changed DR7. |
+| `ts:<source>:tss=<type>:nt=<n>:cr3chg=<0\|1>:ldtchg=<0\|1>:vm=<n>:cpl=<before>><after>` | Task switches. `source` is `jmp:<stem>` (far JMP to a TSS or task gate), `call:<stem>`, `iret:<stem>` (IRET with NT), or `<kind>:<vector>` for an event through a task gate. `tss` is the new TSS's type; `cr3chg` is whether CR3's value changed. LTR is not a task switch. |
+| `tss-iomap:base=<offset>:limit=<limit>` | The new TSS's I/O map base and limit at each TR change. |
+| `v86:steps:iopl=<n>` | Steps run in V86, by IOPL. |
+| `v86:enter:<iret\|task>:<stem>:iopl=<n>` | Entries to V86, by IRETD or by a task switch into a V86 task. |
+| `v86:sens:<stem>:iopl=<n>:<outcome>` | CLI, STI, PUSHF, POPF, INT n and IRET in V86. |
+| `io-bitmap:<v86\|pm<CPL>>:<outcome>` | IN, OUT, INS and OUTS that read the TSS I/O bitmap: in V86, or at CPL above IOPL. |
+| `paging:steps`, `paging:page-cross` | Steps with paging on; data accesses that cross a page. |
+| `tlb:dtlb16:accesses`, `tlb:dtlb16:walks`, `tlb:itlb8:accesses`, `tlb:itlb8:walks` | The Phase 5 TLBs as fully associative LRU models: a 16-entry DTLB and an 8-entry ITLB. A miss is a walk. |
+
+- **Outcomes.** `ok` (no event), `int` (INT n delivered through its gate),
+  `gp=<error code>` (#GP: `gp=0000` for an IOPL fault, `gp=<vector × 8 + 2>`
+  for INT n through a gate below DPL 3) or `exc<vector>=<error code>`.
+- **Steps that only deliver.** A step whose first event is an INTR or NMI ran
+  no instruction. It counts its events, but no `v86:sens`, no `io-bitmap` and
+  no ITLB access.
+- **TLB accesses.** Only steps with paging on. The ITLB takes each
+  instruction's first byte's page. The DTLB takes each data access the oracle
+  reports: each element of a REP string, a read-modify-write as a read and a
+  write, an event's stack and table accesses, and both pages of an access
+  that crosses one.
+- **TLB flushes.** Every MOV CR3 (whatever its value), every PG change, and
+  every task switch into a 32-bit TSS with paging on, which loads CR3 whatever
+  its value, as the plan's RTL does
+  ([`i386-cpu-design.md`](i386-cpu-design.md#paging)). Bochs skips that load
+  when the value is unchanged; the model does not. A CR3 the census did not
+  see change between steps (a CPU reset, an RTL handover) also flushes.
+
+`scripts/pc386_census_summary.py` turns runs into one JSON row each:
+system-register reads and writes by register, task switches by source, V86
+entries and outcomes, #PF by error code, and each TLB's accesses, walks and
+walks per 100 accesses:
+
+```sh
+python3 scripts/pc386_census_summary.py --out census.jsonl \
+    jumpbump=build/sim/fes-pc386/game-jumpbump descent=build/sim/fes-pc386/game-descent
+```
 
 ## Kit runs
 

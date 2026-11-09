@@ -56,13 +56,18 @@ module fes_i386_qalign import fes_i386_pkg::*; (
     input  btb_info_t [1:0]        half_info,
     input  logic [1:0]             half_seq,
     input  logic                   l2_seq,
-    output logic                   jump_clear
+    output logic                   jump_clear,
+    // Each half's paging tag and L2's (fes_i386_fetchbuf).
+    input  ftag_t [1:0]            half_tag,
+    input  ftag_t                  l2_tag
 );
     logic [4:0]  start;
     prefixes_t   acc;
     logic [3:0]  acc_count;    // prefixes consumed; at most 13
     logic [31:0] acc_linear;   // linear address of the first consumed prefix
     logic        acc_xbad;     // a consumed prefix took Q into a half that does not follow
+    ftag_t       acc_tag;      // the first consumed prefix's half's paging tag
+    logic        acc_h;        // ... and that half
 
     // ---- Per-position view of the buffer ----------------------------------
     logic [1:0]       variant;  // {66h seen, 67h seen} among consumed prefixes
@@ -129,6 +134,17 @@ module fes_i386_qalign import fes_i386_pkg::*; (
     logic other_seq;
     assign other_seq = half_valid[!start[4]] ? half_seq[!start[4]] : l2_seq;
 
+    // The paging tags of the instruction's first byte's half and of the half
+    // it runs into (fetched_t pp0 to ts1): a consumed prefix's half and Q's,
+    // or Q's and the other half, when the instruction ends past its own.
+    ftag_t cur_tag, other_tag, first_tag, second_tag;
+    logic  two_halves;
+    assign cur_tag = half_valid[start[4]] ? half_tag[start[4]] : l2_tag;
+    assign other_tag = half_valid[!start[4]] ? half_tag[!start[4]] : l2_tag;
+    assign first_tag = acc_count == 4'd0 ? cur_tag : acc_tag;
+    assign two_halves = acc_count != 4'd0 && acc_h != start[4] || at_start.past_half[variant];
+    assign second_tag = acc_count != 4'd0 && acc_h != start[4] ? cur_tag : other_tag;
+
     // ---- Aligner ------------------------------------------------------------
     logic [31:0][7:0] source;
     logic [12:0][7:0] rotated;
@@ -164,7 +180,11 @@ module fes_i386_qalign import fes_i386_pkg::*; (
         end else if (consume) begin
             acc <= add_prefix(acc, rotated[0]);
             acc_count <= acc_count_next[3:0];
-            if (acc_count == 4'd0) acc_linear <= linear_here;
+            if (acc_count == 4'd0) begin
+                acc_linear <= linear_here;
+                acc_tag <= cur_tag;
+                acc_h <= start[4];
+            end
             if (start[4] != start_next[4] && !other_seq) acc_xbad <= 1'b1;
         end
 
@@ -189,6 +209,12 @@ module fes_i386_qalign import fes_i386_pkg::*; (
             q.tk <= taken;
             q.ptgt <= {half_info[jx_here].tblk, half_info[jx_here].toff};
             q.xbad <= at_start.past_half[variant] && !other_seq || acc_xbad;
+            q.pp0 <= first_tag.pp;
+            q.pp1 <= two_halves ? second_tag.pp : first_tag.pp;
+            q.tm0 <= first_tag.tm;
+            q.ts0 <= first_tag.ts;
+            q.tm1 <= two_halves && second_tag.tm;
+            q.ts1 <= two_halves && second_tag.ts;
         end
     end
 endmodule

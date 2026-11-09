@@ -1,0 +1,60 @@
+Mapping memory \cpu.frontend.ras.stack in module \pc386_system:
+  created 16 $dff cells and 0 static cells of width 32.
+Mapping memory \audio.opl2.opl2.carrier_delay in module \pc386_system:
+  created 3 $dff cells and 0 static cells of width 13.
+Mapping memory \audio.dsp.out_fifo in module \pc386_system:
+  created 4 $dff cells and 0 static cells of width 8.
+Mapping memory \machine.at.kbc.ram in module \pc386_system:
+  created 32 $dff cells and 0 static cells of width 8.
+Mapping memory \machine.at.kbc.keyboard.fifo.bytes in module \pc386_system:
+  created 16 $dff cells and 0 static cells of width 8.
+Mapping memory \machine.at.kbc.keyboard.fifo.last_bytes in module \pc386_system:
+  created 16 $dff cells and 0 static cells of width 1.
+Mapping memory \machine.at.kbc.keyboard.fifo.key_bits in module \pc386_system:
+  created 16 $dff cells and 0 static cells of width 8.
+Mapping memory \machine.at.kbc.keyboard.fifo.key_makes in module \pc386_system:
+  created 16 $dff cells and 0 static cells of width 1.
+Mapping memory \machine.at.kbc.keyboard.fifo.key_repeats in module \pc386_system:
+  created 16 $dff cells and 0 static cells of width 1.
+Mapping memory \machine.at.kbc.mouse.fifo.bytes in module \pc386_system:
+  created 16 $dff cells and 0 static cells of width 8.
+Mapping memory \machine.at.dma2.current_address in module \pc386_system:
+  created 4 $dff cells and 0 static cells of width 16.
+Mapping memory \machine.at.dma2.current_count in module \pc386_system:
+  created 4 $dff cells and 0 static cells of width 16.
+Mapping memory \machine.at.dma2.base_address in module \pc386_system:
+  created 4 $dff cells and 0 static cells of width 16.
+Mapping memory \machine.at.dma2.base_count in module \pc386_system:
+  created 4 $dff cells and 0 static cells of width 16.
+Mapping memory \machine.at.dma2.mode in module \pc386_system:
+  created 4 $dff cells and 0 static cells of width 8.
+Mapping memory \machine.at.dma1.page in module \pc386_system:
+  created 4 $dff cells and 0 static cells of width 8.
+Mapping memory \machine.at.dma1.current_address in module \pc386_system:
+  created 4 $dff cells and 0 static cells of width 16.
+Mapping memory \machine.at.dma1.current_count in module \pc386_system:
+  created 4 $dff cells and 0 static cells of width 16.
+Mapping memory \machine.at.dma1.base_address in module \pc386_system:
+  created 4 $dff cells and 0 static cells of width 16.
+Mapping memory \machine.at.dma1.base_count in module \pc386_system:
+  created 4 $dff cells and 0 static cells of width 16.
+Mapping memory \machine.at.dma1.mode in module \pc386_system:
+  created 4 $dff cells and 0 static cells of width 8.
+Mapping memory \machine.vga.scanout.slot_done in module \pc386_system:
+  created 2 $dff cells and 0 static cells of width 1.
+Mapping memory \machine.vga.scanout.slot_row in module \pc386_system:
+  created 2 $dff cells and 0 static cells of width 5.
+Mapping memory \machine.vga.scanout.slot_cursor in module \pc386_system:
+  created 2 $dff cells and 0 static cells of width 8.
+Mapping memory \machine.vga.scanout.slot_split in module \pc386_system:
+  created 2 $dff cells and 0 static cells of width 1.
+Mapping memory \machine.vga.crtc in module \pc386_system:
+  created 25 $dff cells and 0 static cells of width 8.
+Mapping memory \machine.vga.palette in module \pc386_system:
+  created 16 $dff cells and 0 static cells of width 8.
+Mapping memory \machine.vga.line_mask in module \pc386_system:
+  created 4 $dff cells and 0 static cells of width 32.
+Mapping memory \machine.vga.line_tag in module \pc386_system:
+  created 4 $dff cells and 0 static cells of width 13.
+Mapping memory \machine.vga.line_valid in module \pc386_system:
+  created 4 $dff cells and 0 static cells of width 1.
