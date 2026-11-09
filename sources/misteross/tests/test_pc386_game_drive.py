@@ -67,6 +67,34 @@ class ManifestTest(unittest.TestCase):
 
 
 class GamePassTest(unittest.TestCase):
+    def test_game_report_identifies_zip_and_folder_sources(self):
+        # The record retains the title's source name, omitting the default
+        # eXoDOS source. Its sha256 is a zip hash or a tree hash accordingly.
+        titles = [
+            {'id': 'game', 'title': 'Game', 'bucket': 'real', 'sha256': 'a' * 64, 'launch': 'game|'},
+            {'id': 'tool', 'title': 'Tool', 'bucket': 'program', 'source': 'dosbench',
+             'sha256': 'b' * 64, 'launch': 'tool|'},
+        ]
+        record = {'drive': 'example', 'sha256': 'c' * 64, 'titles': titles}
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(sim, 'OUTPUT', Path(directory)), \
+                mock.patch.object(drives, 'resolve', return_value=(Path(directory) / 'disk.img', record)), \
+                mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim, 'machine_testbench', return_value=Path('machine_tb')), \
+                mock.patch.object(sim, 'run_machine', side_effect=lambda *args: {
+                    'failures': [], 'end': {'reason': 'limit'},
+                    'game_launch': {'seconds': 1.25, 'evidence': 'frame'}, 'opl2': None}):
+            for title, source in zip(titles, ('exodos', 'dosbench')):
+                with self.subTest(source=source):
+                    args = mock.Mock(drive='example', game=title['id'], limit_seconds_given=None,
+                                     game_keys=[], frame_every=0, rtl_at_prompt=False,
+                                     instruction_census=False, oracle_profile=False, boot_entry=1,
+                                     preset=0, frequency=0, turbo=False, cpu='oracle')
+                    game = sim.run_game(args, [])['game']
+                    self.assertEqual(game['source'], source)
+                    self.assertEqual(game['source_sha256'], title['sha256'])
+                    self.assertNotIn('zip_sha256', game)
+
     def test_the_game_report_parses_positive_launch_evidence(self):
         report = sim.parse_boot('GAME-LAUNCH seconds=1.250 evidence=screen\n')
         self.assertEqual(report['game_launch'], {'seconds': 1.25, 'evidence': 'screen'})
