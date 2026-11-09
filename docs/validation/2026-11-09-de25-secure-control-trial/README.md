@@ -92,3 +92,16 @@ state in existing private initialized DDR data. Preserve every fresh register
 observation, guard and failure latch, other BSS/stack mappings, the same firmware
 exclusion and the one-second tape budget. No such patch, build or hardware trial
 has been applied yet.
+
+
+Terminal retention is now complete on `chip-30x0-ai-dev`, at
+`/data/projects/de25-embedded-retained-20261109/terminal`. An isolated checkout
+matches result source `8c82746a7adc3d4ac07b6584faef5057acbdde91`. All 88796
+files in the original retainer closure, plus analysis and housekeeping audits,
+were transferred and checked for exact bytes/modes. The new archive was fully
+read back. Its standalone Git bundle was independently restored with no
+alternates, full strict fsck and pack verification. The previously verified
+candidate, prepared and transport archives were copied with unchanged hashes.
+This changes the storage location, adds no hardware action and leaves the
+retired image, all guards and the goal's remaining acceptance requirements as
+recorded. See `remote-terminal-retention.json` for the hashes and source IDs.
