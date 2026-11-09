@@ -425,6 +425,9 @@ public:
         top.init_cr0 = s.cr0;
         top.init_cr2 = s.cr2;
         top.init_cr3 = s.cr3;
+        for (int n = 0; n < 4; ++n) top.init_dr[n] = s.dr[n];
+        top.init_dr6 = s.dr6;
+        top.init_dr7 = s.dr7;
         top.init_gdtr_base = s.gdtr.base;
         top.init_gdtr_limit = s.gdtr.limit;
         top.init_idtr_base = s.idtr.base;
@@ -695,6 +698,9 @@ public:
         s.cr0 = top.arch_cr0;
         s.cr2 = top.arch_cr2;
         s.cr3 = top.arch_cr3;
+        for (int n = 0; n < 4; ++n) s.dr[n] = top.arch_dr[n];
+        s.dr6 = top.arch_dr6;
+        s.dr7 = top.arch_dr7;
         s.gdtr = {top.arch_gdtr_base, uint16_t(top.arch_gdtr_limit)};
         s.idtr = {top.arch_idtr_base, uint16_t(top.arch_idtr_limit)};
         s.ldtr = {uint16_t(top.arch_ldtr_sel), top.arch_ldtr_base, top.arch_ldtr_limit, uint16_t(top.arch_ldtr_ar),
@@ -1117,6 +1123,11 @@ void compare(const State &want, const State &got, const Fields &skip, const std:
     }
     if (want.cr2 != got.cr2) out.add(at + "cr2", want.cr2, got.cr2);
     if (want.cr3 != got.cr3) out.add(at + "cr3", want.cr3, got.cr3);
+    // The debug registers (DR6's fixed bits as the 386 reads them).
+    for (int n = 0; n < 4; ++n)
+        if (want.dr[n] != got.dr[n]) out.add(at + "dr" + std::to_string(n), want.dr[n], got.dr[n]);
+    if (want.dr6 != got.dr6) out.add(at + "dr6", want.dr6, got.dr6);
+    if (want.dr7 != got.dr7) out.add(at + "dr7", want.dr7, got.dr7);
     if (want.gdtr.base != got.gdtr.base || want.gdtr.limit != got.gdtr.limit)
         out.add(at + "gdtr", uint64_t(want.gdtr.base) << 16 | want.gdtr.limit, uint64_t(got.gdtr.base) << 16 | got.gdtr.limit);
     if (want.idtr.base != got.idtr.base || want.idtr.limit != got.idtr.limit)
@@ -1977,8 +1988,8 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         const bool nested = result.events.size() >= 2 && last->kind == fes_i386::EventKind::Exception;
         // Something this build does not build in protected mode stops the
         // RTL as not built, with its reason, and ends the run: a delivery
-        // through a task gate, a RETF to an outer privilege, a far transfer
-        // through a call gate, a TSS or a task gate, an IRET to V86 mode, a
+        // through a task gate, a far JMP through a call gate, a far JMP or
+        // CALL to a TSS or a task gate, an IRET to V86 mode, a
         // 16-bit stack slot past 64 KiB, an IRET with NT set (a return from
         // a nested task). The oracle's step must show the like: a fault
         // first, or the transfer. INS and OUTS at a CPL above IOPL (the I/O
@@ -1988,10 +1999,14 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             const unsigned why = rtl.top.trace_unbuilt;
             const State now = oracle.get_state();
             const bool faulted = vector >= 0;
-            const bool like = faulted || (why == 1 || why == 7) && now.tr.selector != before.tr.selector
-                           || why == 3 && now.cpl > before.cpl || why == 4 && (now.tr.selector != before.tr.selector
-                                                                        || now.seg[fes_i386::SEG_CS].selector != before.seg[fes_i386::SEG_CS].selector)
-                           || why == 5 && (now.eflags & 0x20000) || why == 6 || why == 8;
+            // why_e: 1 a task gate's delivery, 2 a far JMP through a call
+            // gate or to a TSS or task gate (or a CALL to either), 3 V86, 4
+            // a 16-bit stack slot past 64 KiB, 5 a return from a nested
+            // task, 6 INS or OUTS under the I/O permission bitmap.
+            const bool like = faulted || (why == 1 || why == 5) && now.tr.selector != before.tr.selector
+                           || why == 2 && (now.tr.selector != before.tr.selector
+                                           || now.seg[fes_i386::SEG_CS].selector != before.seg[fes_i386::SEG_CS].selector)
+                           || why == 3 && (now.eflags & 0x20000) || why == 4 || why == 6;
             if (!like) out.add(at + "unbuilt." + std::to_string(why), 0, 1);
             ++summary.unbuilt[int(why)];
             outcome.unbuilt = int(why);
@@ -6018,7 +6033,6 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         {"callf-np", [](Asm &a) { a.op({0x9a}); a.w(0x1800); a.w(0x58); }, 11, 0x58, {}, false},
         {"retf-gp-data", [](Asm &a) { a.op({0x6a, 0x10, 0x6a, 0x00, 0xcb}); }, 13, 0x10, {}, false},  // PUSH 10h; PUSH 0; RETF
         {"iret-np", [](Asm &a) { a.op({0x9c, 0x6a, 0x58, 0x6a, 0x00, 0xcf}); }, 11, 0x58, {}, false}, // PUSHF; PUSH 58h; PUSH 0; IRET
-        {"retf-outer", [](Asm &a) { a.op({0x6a, 0x73, 0x6a, 0x00, 0xcb}); }, -3, -1, {}, false},      // RETF to 70h, RPL 3: not built
         // A frame past a 16-bit stack's limit, the stack in the MMIO window:
         // Bochs reads IRET's EFLAGS slot, then CS's and the offset's, and
         // RETF's CS slot, then the offset's, so the slot at 10000h raises
@@ -6319,8 +6333,172 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     cases.push_back(Case{"r0-iret-cs-dpl-r3", [=](Asm &a) { iret_frame(a, 0x6b, 0x5b, false); }, 13, 0x58, {}, false});
     cases.push_back(Case{"r0-iret-cs-np-r3", [=](Asm &a) { iret_frame(a, 0x6b, 0x5b, false); }, 11, 0x58, {}, false, -1, 0,
                          {}, {{11, desc(0, 0xffff, 0x7b, false, false)}}});
-    cases.push_back(Case{"r0-retf-r3", [](Asm &a) { a.op({0x6a, 0x6b, 0x68, 0x00, 0x0d, 0x6a, 0x73, 0x6a, 0x00, 0xcb}); },
-                         -3, -1, {}, false});
+    // RETF to CPL 3 (return_protected): SS 6Bh and SP 0D00h past the
+    // return address (and imm16), the 16- and 32-bit forms; a null SS, #GP(0);
+    // SS's RPL not the new CPL, #GP(68h); SS not present, #SS(28h); DS (10h,
+    // DPL 0) nulled, so a read through it at CPL 3 is #GP(0); a 16-bit
+    // frame past the stack's 64 KiB top, #SS(0).
+    auto retf_frame = [](Asm &a, uint16_t ss, uint16_t cs, bool d32, uint16_t imm, uint16_t sp = 0x0d00) {
+        if (d32) {
+            a.op({0x66, 0x68}); a.d(ss); a.op({0x66, 0x68}); a.d(sp);
+            for (unsigned k = 0; k < imm / 4u; ++k) { a.op({0x66, 0x68}); a.d(0x5a5a0000u + k); }
+            a.op({0x66, 0x68}); a.d(cs);
+            const size_t at = a.here();
+            a.op({0x66, 0x68}); a.d(0);
+            if (imm) { a.op({0x66, 0xca}); a.w(imm); } else { a.op({0x66, 0xcb}); }
+            const uint32_t to = CODE + uint32_t(a.here());
+            for (int i = 0; i < 4; ++i) a.b[at + 2 + i] = uint8_t(to >> (8 * i));
+        } else {
+            a.op({0x68}); a.w(ss); a.op({0x68}); a.w(sp);
+            for (unsigned k = 0; k < imm / 2u; ++k) { a.op({0x68}); a.w(uint16_t(0x5a00 + k)); }
+            a.op({0x68}); a.w(cs);
+            const size_t at = a.here();
+            a.op({0x68}); a.w(0);
+            if (imm) { a.op({0xca}); a.w(imm); } else { a.op({0xcb}); }
+            const uint16_t to = uint16_t(CODE + a.here());
+            a.b[at + 1] = uint8_t(to); a.b[at + 2] = uint8_t(to >> 8);
+        }
+    };
+    const auto ltr38 = [](Asm &a) { a.ax(0x38); a.op({0x0f, 0x00, 0xd8}); };
+    cases.push_back(Case{"r0-retf-r3", [=](Asm &a) { ltr38(a); retf_frame(a, 0x6b, 0x73, false, 0); int2b(a); },
+                         -1, -1, {}, false, 0x2b});
+    cases.push_back(Case{"r0-retf-r3-imm", [=](Asm &a) { ltr38(a); retf_frame(a, 0x6b, 0x73, false, 6); a.op({0x9c});
+                                                         int2b(a); }, -1, -1, {}, false, 0x2b});
+    cases.push_back(Case{"r0-retfd-r3", [=](Asm &a) { ltr38(a); retf_frame(a, 0x6b, 0x73, true, 0); int2b(a); },
+                         -1, -1, {}, false, 0x2b});
+    cases.push_back(Case{"r0-retfd-r3-imm", [=](Asm &a) { ltr38(a); retf_frame(a, 0x6b, 0x73, true, 8); int2b(a); },
+                         -1, -1, {}, false, 0x2b});
+    cases.push_back(Case{"r0-retf-r3-ss-null", [=](Asm &a) { retf_frame(a, 0x03, 0x73, false, 0); }, 13, 0, {}, false});
+    cases.push_back(Case{"r0-retf-r3-ss-rpl", [=](Asm &a) { retf_frame(a, 0x68, 0x73, false, 2); }, 13, 0x68, {}, false});
+    cases.push_back(Case{"r0-retf-r3-ss-np", [=](Asm &a) { retf_frame(a, 0x2b, 0x73, false, 0); }, 12, 0x28, {}, false, -1,
+                         0, {}, {{5, desc(0, 0xffff, 0x73, false, false)}}});
+    cases.push_back(Case{"r0-retf-r3-ds-null", [=](Asm &a) {
+        ltr38(a); a.ax(0x6b); a.op({0x8e, 0xc0});                               // ES 6Bh (DPL 3, kept)
+        retf_frame(a, 0x6b, 0x73, false, 0); a.op({0x26, 0xa1, 0x00, 0x01, 0xa1, 0x00, 0x00});  // MOV AX, ES:[100h]; MOV AX, [0]
+    }, 13, 0, {}, false});
+    cases.push_back(Case{"r0-retf-r3-wrap", [=](Asm &a) {
+        a.op({0xbc}); a.w(0x0008); retf_frame(a, 0x6b, 0x73, false, 4);           // RETF 4 at SP FFFCh: SS's slot at 10006h
+    }, 12, 0, {}, false});
+    r3("r3-retf-outer-rpl", [](Asm &a) { a.op({0x6a, 0x6b, 0x68, 0x00, 0x0d, 0x6a, 0x08, 0x6a, 0x00, 0xcb}); }, 13, 0x08);
+    // Far CALL through a call gate (call_gate), the gate at 88h (index 17):
+    // from CPL 3 to CPL 0 on the TSS's stack (SS0 10h, ESP0 0E00h), 286 and
+    // 386 gates with 0 and more parameters, to 16- and 32-bit code, and the
+    // RETF back to CPL 3; to DPL 1; on a 32-bit SS0 and a 286 TSS; to the
+    // same privilege, from CPL 3 through a gate to conforming code and from
+    // CPL 0. The subroutines at 1900h (INC AX; RETF), 1930h (16-bit: the
+    // two word parameters into CX and DX; RETF 4), 1940h (32-bit: INC EAX;
+    // EBX from ESP; RETF), 1948h (32-bit: the first and third dword
+    // parameters into ECX and EDX; RETF 12), 1960h (16-bit: RETFD 4), 1968h
+    // (32-bit: a 16-bit RETF 4) and 1970h (32-bit: RETF 124). Then every fault on the way: the gate's DPL
+    // below CPL or RPL, #GP(88h); not present, #NP(88h); its CS null,
+    // #GP(0), data, #GP(10h), not present, #NP(58h), DPL above CPL,
+    // #GP(70h); through a gate to DPL 1 (79h) whose SS1 is null, #TS(0),
+    // not present, #SS(28h), RPL 3, #TS(68h), DPL 0, #TS(48h), or whose
+    // stack is past its limit, #SS(80h);
+    // a parameter past the old stack's top, #SS(0); the gate's offset past
+    // its CS's limit, #GP(0), after the pushes, as Bochs checks it.
+    auto cgate = [](uint16_t sel, uint32_t off, uint8_t type, uint8_t dpl, uint8_t count, bool present = true) {
+        return (off & 0xffff) | uint64_t(sel) << 16 | uint64_t(count & 0x1f) << 32
+             | uint64_t((present ? 0x80 : 0) | dpl << 5 | type) << 40 | uint64_t(off >> 16) << 48;
+    };
+    const auto callg = [](Asm &a) { a.op({0x9a, 0x00, 0x00, 0x8b, 0x00}); };              // CALL 8Bh:0
+    const auto call0 = [](Asm &a) { a.op({0x9a, 0x00, 0x00, 0x88, 0x00}); };              // CALL 88h:0
+    auto r3g = [&](const char *label, uint64_t g, std::function<void(Asm &)> before, int ending, int error,
+                   std::vector<std::pair<uint32_t, std::vector<uint8_t>>> tss = {},
+                   std::vector<std::pair<unsigned, uint64_t>> descs = {}, uint16_t tr = 0x38) {
+        descs.push_back({17, g});
+        r3(label, [=](Asm &a) { a.op({0x31, 0xc0}); before(a); callg(a); a.op({0x9c}); int2b(a); }, ending, error,
+           ending == -1 ? 0x2b : -1, tss, descs, tr);
+    };
+    const auto none = [](Asm &) {};
+    const auto push16x2 = [](Asm &a) { a.op({0x68, 0x11, 0x11, 0x68, 0x22, 0x22}); };
+    const auto push32x3 = [](Asm &a) {
+        for (uint32_t v : {0x11111111u, 0x22222222u, 0x33333333u}) { a.op({0x66, 0x68}); a.d(v); }
+    };
+    r3g("r3-cg16-n0", cgate(0x08, 0x1900, 4, 3, 0), none, -1, -1);
+    r3g("r3-cg16-n2", cgate(0x08, 0x1930, 4, 3, 2), push16x2, -1, -1);
+    r3g("r3-cg32-n0", cgate(0x18, 0x1940, 12, 3, 0), none, -1, -1);
+    r3g("r3-cg32-n3", cgate(0x18, 0x1948, 12, 3, 3), push32x3, -1, -1);
+    r3g("r3-cg32-n31", cgate(0x18, 0x1970, 12, 3, 31), none, -1, -1);                    // 31 dwords; RETF 124
+    r3g("r3-cg32-to16", cgate(0x08, 0x1960, 12, 3, 1), [](Asm &a) { a.op({0x66, 0x68}); a.d(0x44443333); }, -1, -1);
+    r3g("r3-cg16-to32", cgate(0x18, 0x1968, 4, 3, 2), push16x2, -1, -1);
+    r3g("r3-cg32-ss32", cgate(0x18, 0x1948, 12, 3, 3), push32x3, -1, -1, {{0x2508, {0x20, 0x00}}});
+    r3g("r3-cg16-286tss", cgate(0x08, 0x1930, 4, 3, 2), push16x2, -1, -1, {}, {}, 0x50);
+    r3g("r3-cg32-286tss", cgate(0x18, 0x1948, 12, 3, 3), push32x3, -1, -1, {}, {}, 0x50);
+    r3g("r3-cg16-dpl1", cgate(0x79, 0x1900, 4, 3, 0), none, -1, -1, {{0x250c, {0x00, 0x0c, 0x00, 0x00, 0x81, 0x00}}},
+        {{15, desc(0, 0xffff, 0xbb, false, false)}, {16, desc(0, 0xffff, 0xb3, false, false)}});
+    r3g("r3-cg16-conforming", cgate(0x60, 0x1900, 4, 3, 2), none, -1, -1);              // same privilege: no stack switch
+    r3g("r3-cg-dpl0", cgate(0x08, 0x1900, 4, 0, 0), none, 13, 0x88);
+    r3g("r3-cg-np", cgate(0x08, 0x1900, 4, 3, 0, false), none, 11, 0x88);
+    r3g("r3-cg-cs-null", cgate(0x00, 0x1900, 4, 3, 0), none, 13, 0);
+    r3g("r3-cg-cs-data", cgate(0x10, 0x1900, 4, 3, 0), none, 13, 0x10);
+    r3g("r3-cg-cs-np", cgate(0x58, 0x1900, 4, 3, 0), none, 11, 0x58);
+    // SS1 and ESP1 in the 386 TSS (ESP1 0C00h, or 4), code at DPL 1 (78h).
+    auto ss1 = [](uint8_t sel, uint8_t esp) {
+        return std::vector<std::pair<uint32_t, std::vector<uint8_t>>>{{0x250c, {esp, uint8_t(esp ? 0 : 0x0c), 0, 0, sel, 0}}};
+    };
+    const uint64_t dpl1_code = desc(0, 0xffff, 0xbb, false, false);
+    r3g("r3-cg-ss1-null", cgate(0x79, 0x1900, 4, 3, 0), none, 10, 0, ss1(0x00, 0), {{15, dpl1_code}});
+    r3g("r3-cg-ss1-np", cgate(0x79, 0x1900, 4, 3, 0), none, 12, 0x28, ss1(0x29, 0),
+        {{15, dpl1_code}, {5, desc(0, 0xffff, 0x33, false, false)}});
+    r3g("r3-cg-ss1-rpl3", cgate(0x79, 0x1900, 4, 3, 0), none, 10, 0x68, ss1(0x6b, 0), {{15, dpl1_code}});
+    r3g("r3-cg-ss1-dpl0", cgate(0x79, 0x1900, 4, 3, 0), none, 10, 0x48, ss1(0x49, 0), {{15, dpl1_code}});
+    r3g("r3-cg-ss1-limit", cgate(0x79, 0x1900, 4, 3, 0), none, 12, 0x80, ss1(0x81, 4),
+        {{15, dpl1_code}, {16, desc(0, 0x0fff, 0xb3, false, false)}});
+    r3g("r3-cg-ss0-null", cgate(0x08, 0x1900, 4, 3, 0), none, -2, -1, {{0x2508, {0x00, 0x00}}});  // #TS, then its own
+    r3g("r3-cg-param-ss", cgate(0x08, 0x1900, 4, 3, 8), [](Asm &a) { a.op({0xbc, 0xfa, 0xff}); }, 12, 0);  // SP FFFAh
+    r3g("r3-cg-off-past", cgate(0x40, 0x2000, 4, 3, 1), none, 13, 0);
+    cases.push_back(Case{"r0-cg-rpl", [=](Asm &a) { callg(a); }, 13, 0x88, {}, false, -1, 0, {},
+                         {{17, cgate(0x08, 0x1900, 4, 0, 0)}}});
+    cases.push_back(Case{"r0-cg-cs-dpl3", [=](Asm &a) { call0(a); }, 13, 0x70, {}, false, -1, 0, {},
+                         {{17, cgate(0x70, 0x1900, 4, 0, 0)}}});
+    cases.push_back(Case{"r0-cg32-same", [=](Asm &a) { a.op({0x66, 0x68}); a.d(0x77777777); call0(a); a.op({0x9c}); },
+                         -1, -1, {}, false, -1, 0, {}, {{17, cgate(0x08, 0x1960, 12, 0, 1)}}});
+    // SP 2: the gate's pushes wrap, as PUSH does, but the RETF's read of CS
+    // at 10000h does not, #SS(0).
+    cases.push_back(Case{"r0-cg16-same-wrap", [=](Asm &a) { a.op({0xbc, 0x02, 0x00}); call0(a); a.op({0x9c}); },
+                         12, 0, {}, false, -1, 0, {}, {{17, cgate(0x08, 0x1900, 4, 0, 3)}}});
+    cases.push_back(Case{"r0-cg-same-off-past", [=](Asm &a) { call0(a); }, 13, 0, {}, false, -1, 0, {},
+                         {{17, cgate(0x40, 0x2000, 4, 0, 0)}}});
+    cases.push_back(Case{"r0-cgm32-same", [=](Asm &a) {                                  // CALL FAR [1928h] (88h:0)
+        a.op({0xff, 0x1e}); a.w(0x1928); a.op({0x9c});
+    }, -1, -1, {}, false, -1, 0, {}, {{17, cgate(0x18, 0x1940, 12, 0, 0)}}});
+    // The debug registers: MOV to and from each, DR4 and DR5 as DR6 and DR7,
+    // DR6's and DR7's fixed bits; DR7.GD, whose next MOV DRn (read or
+    // write, at CPL 0 or 3) raises #DB, a fault without RF, with DR6.BD set
+    // and GD cleared; at CPL 3 without GD, #GP(0); in real mode, as at CPL 0.
+    auto drs = [](Asm &a) {
+        a.op({0x66, 0xb8}); a.d(0x12345678); a.op({0x0f, 0x23, 0xc0});               // MOV EAX, 12345678h; MOV DR0, EAX
+        a.op({0x66, 0xbb}); a.d(0x9abcdef0); a.op({0x0f, 0x23, 0xcb});               // MOV EBX, ...; MOV DR1, EBX
+        a.op({0x66, 0xb9}); a.d(0x00000001); a.op({0x0f, 0x23, 0xd1});               // DR2, ECX
+        a.op({0x66, 0xba}); a.d(0xfffffffc); a.op({0x0f, 0x23, 0xda});               // DR3, EDX
+        a.op({0x66, 0x83, 0xc8, 0xff, 0x0f, 0x23, 0xf0, 0x0f, 0x21, 0xf6});         // OR EAX, -1; MOV DR6, EAX; MOV ESI, DR6
+        a.op({0x66, 0x31, 0xc0, 0x0f, 0x23, 0xe0, 0x0f, 0x21, 0xe7});               // XOR EAX, EAX; MOV DR4, EAX; MOV EDI, DR4
+        a.op({0x0f, 0x23, 0xf8, 0x0f, 0x21, 0xed});                                 // MOV DR7, EAX; MOV EBP, DR5
+        // DR5 (DR7): every bit but GD and the enables, so nothing is armed.
+        a.op({0x66, 0xb8}); a.d(0xffffdf00); a.op({0x0f, 0x23, 0xe8, 0x0f, 0x21, 0xfb});  // MOV DR5, EAX; MOV EBX, DR7
+        a.op({0x0f, 0x21, 0xc0, 0x0f, 0x21, 0xc9, 0x0f, 0x21, 0xd2, 0x0f, 0x21, 0xdc});  // EAX, ECX, EDX, ESP from DR0-DR3
+        a.op({0x66, 0xbc}); a.d(0x0f00);                                             // MOV ESP, 0F00h
+    };
+    cases.push_back(Case{"dr-moves", drs, -1, -1, {}, false});
+    cases.push_back(Case{"real-dr-moves", drs, -1, -1, {}, true});
+    auto gd = [](Asm &a) { a.op({0x66, 0xb8}); a.d(0x00002000); a.op({0x0f, 0x23, 0xf8}); };  // MOV DR7, 2000h (GD)
+    cases.push_back(Case{"dr-gd-read", [=](Asm &a) { gd(a); a.op({0x0f, 0x21, 0xc3}); }, 1, -1, {}, false});
+    cases.push_back(Case{"dr-gd-write", [=](Asm &a) { gd(a); a.op({0x0f, 0x23, 0xf8}); }, 1, -1, {}, false});
+    cases.push_back(Case{"real-dr-gd", [=](Asm &a) { gd(a); a.op({0x0f, 0x21, 0xf0}); }, 1, -1, {}, true});
+    cases.push_back(Case{"dr-gd-lock", [=](Asm &a) { gd(a); a.op({0xf0, 0x0f, 0x21, 0xc3}); }, 6, -1, {}, false});
+    cases.push_back(Case{"dr-gd-rf", [=](Asm &a) {                                    // IRETD with RF set, then the #DB
+        gd(a); a.op({0x66, 0x9c, 0x89, 0xe5, 0x66, 0x81, 0x4e, 0x00}); a.d(0x10000);   // PUSHFD; OR dword [BP], RF
+        a.op({0x66, 0x6a, 0x08});                                                      // PUSH dword 08h
+        const size_t at = a.here();
+        a.op({0x66, 0x68}); a.d(0); a.op({0x66, 0xcf});                                // PUSH next; IRETD
+        const uint32_t to = CODE + uint32_t(a.here());
+        for (int i = 0; i < 4; ++i) a.b[at + 2 + i] = uint8_t(to >> (8 * i));
+        a.op({0x0f, 0x21, 0xc3});
+    }, 1, -1, {}, false});
+    r3("r3-mov-dr7", [](Asm &a) { a.op({0x0f, 0x21, 0xf8}); }, 13, 0);
+    r3("r3-mov-dr0-write", [](Asm &a) { a.op({0x0f, 0x23, 0xc0}); }, 13, 0);
+    cases.push_back(Case{"r3-dr-gd", [=](Asm &a) { gd(a); to_r3(a, 0x38); a.op({0x0f, 0x21, 0xf0}); }, 1, -1, {}, false});
     r3("r3-iret-rpl-below", [](Asm &a) { a.op({0x9c, 0x6a, 0x08, 0x6a, 0x00, 0xcf}); }, 13, 0x08);  // IRET to CS 08h
     // FES_I386_CASE runs only the case of that label (a debugging aid).
     const char *only = std::getenv("FES_I386_CASE");
@@ -6385,11 +6563,21 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         image.emplace_back(0x1820, 0xcf);                                    // IRETD (32-bit code)
         const uint8_t subs[] = {0x40, 0xca, 0x00, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   // 1900h: INC AX; RETF 0
                                 0x40, 0x66, 0xca, 0x04, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 1910h: INC AX; RETF 4
-                                0x00, 0x19, 0x08, 0x00};                                        // 1920h: 08h:1900h
+                                0x00, 0x19, 0x08, 0x00, 0, 0, 0, 0, 0x00, 0x00, 0x88, 0x00,     // 1920h: 08h:1900h; 1928h: 88h:0
+                                0, 0, 0, 0,
+                                0x89, 0xe5, 0x8b, 0x4e, 0x04, 0x8b, 0x56, 0x06, 0xca, 0x04, 0x00,  // 1930h (16-bit)
+                                0, 0, 0, 0, 0,
+                                0x40, 0x89, 0xe3, 0xcb, 0, 0, 0, 0,                              // 1940h (32-bit)
+                                0x89, 0xe5, 0x8b, 0x4d, 0x08, 0x8b, 0x55, 0x10, 0xca, 0x0c, 0x00,  // 1948h (32-bit)
+                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                0x66, 0xca, 0x04, 0x00, 0, 0, 0, 0,                              // 1960h (16-bit): RETFD 4
+                                0x66, 0xca, 0x04, 0x00, 0, 0, 0, 0,                              // 1968h (32-bit): RETF 4
+                                0xca, 0x7c, 0x00};                                               // 1970h (32-bit): RETF 124
         for (unsigned i = 0; i < sizeof subs; ++i) image.emplace_back(0x1900 + i, subs[i]);
         // The real-mode cases' #UD: the vector table's entry at the HLT; #GP,
         // INT 60h and INT 61h for the CS-limit ones.
-        for (auto [vector, entry] : {std::pair{6u, 0x00001800u}, {13u, 0x01800000u}, {0x60u, 0x00003000u}, {0x61u, 0x01800004u}})
+        for (auto [vector, entry] : {std::pair{1u, 0x00001800u}, {6u, 0x00001800u}, {13u, 0x01800000u}, {0x60u, 0x00003000u},
+                                     {0x61u, 0x01800004u}})
             for (unsigned i = 0; i < 4; ++i) image.emplace_back(vector * 4 + i, uint8_t(entry >> (8 * i)));
         image.emplace_back(0x1804, 0xf4);                                    // HLT (INT 61h's)
         for (auto [address, value] : image) {

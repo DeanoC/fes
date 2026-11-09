@@ -217,10 +217,13 @@ package fes_i386_pkg;
     // a 16-bit size (LGDT, LIDT); LDTR and TR take T0's descriptor (LLDT,
     // LTR). GATE splits a protected-mode delivery's gate, T1 and T3: T0 the
     // gate's selector, T1 its offset, and the gate's size and kind for the
-    // pushes (fes_i386_cpu, "Protected-mode delivery").
+    // pushes (fes_i386_cpu, "Protected-mode delivery"); with imm[0] a far
+    // CALL's call gate, T2 and T3, and its parameter count. DR takes T1
+    // into the debug register imm[2:0] names (MOV DRn, r32; DR4 is DR6,
+    // DR5 DR7).
     typedef enum logic [4:0] {
         SYSOP_CLTS, SYSOP_CR0, SYSOP_LMSW, SYSOP_CR2, SYSOP_CR3, SYSOP_GDTR, SYSOP_IDTR, SYSOP_LDTR, SYSOP_TR,
-        SYSOP_GATE
+        SYSOP_GATE, SYSOP_DR
     } system_op_e;
 
     // UOP_MUL and UOP_DIV, in EX's multiply and divide unit (fes_i386_muldiv).
@@ -259,10 +262,12 @@ package fes_i386_pkg;
     // adjusted selector (from T1 and T2). LAR, LSL, VERR and VERW name
     // their result here; M1 puts it in from the staged descriptor. Those
     // from FIP on are read in D behind the uops that write them (t_rd).
+    // MOV r32, DRn reads DR0-DR3, DR6 (DR4 too) and DR7 (DR5 too).
     typedef enum logic [4:0] {
         SYS_RD_CR0, SYS_RD_CR2, SYS_RD_CR3, SYS_RD_GDTL, SYS_RD_GDTB, SYS_RD_IDTL, SYS_RD_IDTB, SYS_RD_LDTR,
         SYS_RD_TR, SYS_RD_ERR, SYS_RD_ONES, SYS_RD_FIP, SYS_RD_FCS, SYS_RD_FDP, SYS_RD_FDS, SYS_RD_ARPL,
-        SYS_RD_LAR, SYS_RD_LSL, SYS_RD_VERR, SYS_RD_VERW
+        SYS_RD_LAR, SYS_RD_LSL, SYS_RD_VERR, SYS_RD_VERW, SYS_RD_DR0, SYS_RD_DR1, SYS_RD_DR2, SYS_RD_DR3,
+        SYS_RD_DR6, SYS_RD_DR7
     } sys_rd_e;
 
     // The x87 pointers an ESC instruction's last uop writes as it retires
@@ -327,7 +332,9 @@ package fes_i386_pkg;
     // new SS) or TR's (its stack's slots past the TSS's limit).
     // PF is a page fault (vector 14) with the error code and CR2's linear
     // address the uop carries (pipe_t pf_err, pf_lin), from the walker
-    // (fes_i386_l1d).
+    // (fes_i386_l1d). DB is a debug exception (vector 1), a fault: a MOV
+    // to or from DRn while DR7.GD is set, which sets DR6.BD and clears GD as
+    // it is taken.
     typedef enum logic [4:0] {
         FAULT_NONE          = 5'd0,
         FAULT_UD            = 5'd1,
@@ -345,21 +352,20 @@ package fes_i386_pkg;
         FAULT_NP_IDT        = 5'd13,
         FAULT_TS_SEL        = 5'd14,
         FAULT_TS_TR         = 5'd15,
-        FAULT_PF            = 5'd16
+        FAULT_PF            = 5'd16,
+        FAULT_DB            = 5'd17
     } fault_e;
 
     // Why an instruction stops as not built (FAULT_UNIMPLEMENTED), kept
     // with its uop (uop_t why) for trace_unbuilt: an encoding or form this
-    // build does not decode; a delivery through a task gate; an interrupt
-    // to an inner privilege, or a return or IRET to an outer one; a far
-    // transfer through a call gate, a TSS or a task gate; an IRET to V86
-    // mode; a protected-mode 16-bit stack access past 64 KiB under
+    // build does not decode; a delivery through a task gate; a far JMP
+    // through a call gate, or a far JMP or CALL to a TSS or a task gate; an
+    // IRET to V86 mode; a protected-mode 16-bit stack access past 64 KiB under
     // a limit that reaches there; a protected-mode IRET with NT set, a
     // return from a nested task; an I/O instruction at a CPL above IOPL,
     // which the TSS's I/O permission bitmap decides.
     typedef enum logic [3:0] {
-        WHY_ENCODING, WHY_TASK_GATE, WHY_INNER, WHY_OUTER, WHY_GATE, WHY_V86, WHY_STACK64K, WHY_TASK_RETURN,
-        WHY_IOPERM
+        WHY_ENCODING, WHY_TASK_GATE, WHY_GATE, WHY_V86, WHY_STACK64K, WHY_TASK_RETURN, WHY_IOPERM
     } why_e;
 
     typedef struct packed {
@@ -604,9 +610,10 @@ package fes_i386_pkg;
         // The segment registers the uop writes, one-hot: its destination's
         // or its second destination's (D's segment-busy update).
         logic [5:0]  wseg;
-        // A stack slot at ESP plus slot operand-sized slots, -8 to 7, ESP
-        // unmoved (STK_PEEK).
-        logic [3:0]  slot;
+        // A stack slot at ESP plus slot operand-sized slots, ESP unmoved
+        // (STK_PEEK): -8 to 7 from the ROM or the decode, further for a call
+        // gate's parameters (fes_i386_seq).
+        logic [6:0]  slot;
         logic        a_t1;       // src1's value is T1's (POPAD's ESP), which waits as far_t does
         logic        b_t1;       // src2's value is T1's, which waits the same way
         logic        disp_t1;    // the address's displacement is T1, far_off's with far_t (SEQ_BTM)
@@ -673,15 +680,26 @@ package fes_i386_pkg;
         // A privilege transition's uops: xc, when it issues (xc_e); xs, a
         // delivery's push or probe, which with xp moves two slots down onto
         // the new stack (nstk); tss, a read of the new stack from the TSS.
-        logic [1:0]  xc;
+        // A call gate's parameter copy (fes_i386_seq): pm, the word's part
+        // (pm_e); pk, the parameter the copy is at; pdrop, the copy is past
+        // the gate's count, a NOP. zx: an old SS's ESP or the return EIP,
+        // stored as SP or IP from a 16-bit stack or code segment. pimm: the
+        // stack slot is past the instruction's immediate too (RETF imm16's
+        // SS and ESP slots).
+        logic [2:0]  xc;
         logic        xs;
         logic [2:0]  tss;
+        logic [1:0]  pm;
+        logic [4:0]  pk;
+        logic        pdrop;
+        logic        zx;
+        logic        pimm;
         // Which of ESI, EDI and ECX (bits 0-2) the uop reads, as a source,
         // a CL count or an address register (str_reads): D holds it while
         // a string element that steps one is in flight.
         logic [2:0]  rd_str;
         // A microcode routine (SEQ_UCODE): the ROM address of its next uop.
-        logic [7:0]  upc;
+        logic [8:0]  upc;
         // A fixed uop sequence (SEQ_*), the step dc holds, and whether
         // another uop follows (fes_i386_seq).
         logic [4:0]  seq;
@@ -753,8 +771,17 @@ package fes_i386_pkg;
     // with TR's (the TSS's stack slots).
     typedef enum logic [1:0] { SFLT_GP, SFLT_TS, SFLT_TR, SFLT_GP0 } sflt_e;
     // A privilege transition's conditional uops (decoded_t xc): always;
-    // only when the transfer changes privilege (xp); only when it does not.
-    typedef enum logic [1:0] { XC_ALL, XC_XP, XC_SAME } xc_e;
+    // only when the transfer changes privilege (xp); only when it does not;
+    // and for a protected-mode far CALL, only to a code segment (direct),
+    // only through a call gate (gate), only through one to the same
+    // privilege (gsame).
+    typedef enum logic [2:0] { XC_ALL, XC_XP, XC_SAME, XC_DIRECT, XC_GATE, XC_GSAME } xc_e;
+    // A call gate's parameter copy (decoded_t pm): a parameter's load from
+    // the old stack, at slot count - 1 - pk; its store to the new stack, at
+    // slot -3 - pk, after which the copy goes back to its load until it has
+    // copied count parameters; a slot below them, the word's slot less the
+    // count (with xp; also the far jump's step of ESP).
+    typedef enum logic [1:0] { PM_NONE, PM_LOAD, PM_STORE, PM_BELOW } pm_e;
     // A read from the TSS (decoded_t tss): a delivery's new stack, ESP
     // (checked against TR's limit) and SS; an I/O access's permission
     // bitmap base, at 66h, and its bitmap's word for the port (T5) at that
@@ -763,14 +790,13 @@ package fes_i386_pkg;
     // The staged descriptor's checks M1 raises (uop_t segchk;
     // fes_i386_cpu "Protected mode: a segment load's descriptor"): a data
     // segment's load, SS's, a far JMP's CS, a delivery's gate, a delivery's
-    // CS, a far CALL's CS, its offset, IRET's CS, LLDT's descriptor, LTR's;
-    // IRET's new SS at an outer privilege, a delivery's new SS at an inner
-    // one, the gate's or IRET's offset against the held CS's limit, RETF's
-    // CS with its offset (RETF to an outer privilege is not built); an I/O
+    // or call gate's CS, a far CALL's CS or call gate, IRET's or RETF's CS,
+    // LLDT's descriptor, LTR's; an outer return's new SS, an inner
+    // transfer's new SS, the offset against the held CS's limit; an I/O
     // access's bits in the permission bitmap's word (T2) for the port (T5).
     typedef enum logic [3:0] {
-        CHK_NONE, CHK_DATA, CHK_SS, CHK_JMP, CHK_GATE, CHK_INTCS, CHK_CALL, CHK_OFF, CHK_RET, CHK_LDT, CHK_TSS,
-        CHK_SSRET, CHK_SSINT, CHK_HOFF, CHK_RETS, CHK_IOBM
+        CHK_NONE, CHK_DATA, CHK_SS, CHK_JMP, CHK_GATE, CHK_INTCS, CHK_CALL, CHK_RET, CHK_LDT, CHK_TSS,
+        CHK_SSRET, CHK_SSINT, CHK_HOFF, CHK_IOBM
     } segchk_e;
     // How a descriptor read treats its selector (decoded_t dmode): load and
     // check it; LAR, LSL, VERR and VERW, which read nothing for a selector
@@ -841,9 +867,12 @@ package fes_i386_pkg;
         logic        hold;       // uop_t hold
         logic        xfer;       // uop_t xfer
         logic        nstk;       // uop_t nstk
-        logic [1:0]  xc;         // decoded_t xc
+        logic [2:0]  xc;         // decoded_t xc
         logic        xs;         // decoded_t xs
         logic [2:0]  tss;        // decoded_t tss
+        logic [1:0]  pm;         // decoded_t pm
+        logic        zx;         // decoded_t zx
+        logic        pimm;       // decoded_t pimm
         logic        iof;        // the instruction's I/O access, which its first uop keeps (fes_i386_seq)
     } ucode_t;
 
@@ -949,7 +978,7 @@ package fes_i386_pkg;
         logic [31:0] mlow;        // D: an expand-down segment's limit, at or below which every offset faults
         logic        mexpd;       // D: ... the segment is expand-down
         logic        pbad;        // M1: a probe's slots straddle the 64 KiB wrap (#SS at M2)
-        logic [7:0]  sdisp;       // D: a stack slot's displacement from ESP, signed (uop nwrap)
+        logic [17:0] sdisp;       // D: a stack slot's displacement from ESP, signed (uop nwrap)
         logic        nodata;      // D: a load whose data nothing uses, made for its limit check (fes_i386_cpu):
                                   // the L1D reads nothing for it
         fault_e      dfault;      // D: the fault of a second address's limit check (uop st2), which M1

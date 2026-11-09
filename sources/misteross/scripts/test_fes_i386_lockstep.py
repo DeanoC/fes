@@ -136,6 +136,9 @@ SCOPE: frozenset[str] = frozenset([
     # LAR, LSL and ARPL, #UD in real mode. The corpus has none of them
     # either.
     '0F00', '0F02', '0F03', '63',
+    # Phase 5's second slice: MOV to and from DR0-DR7. The corpus has none;
+    # the random programs and the debug-register cases run them.
+    '0F21', '0F23',
     # The ESC instructions with no 387. The corpus has none; the directed
     # no-387 cases run every form.
     *(f'{opcode:02X}' for opcode in range(0xD8, 0xE0)),

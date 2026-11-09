@@ -50,6 +50,19 @@
 // jump's is CS. A word marked gsz takes the operand size of the gate a
 // protected-mode delivery goes through (gate32, set as its GATE uop
 // retires, before any uop after it issues), the rest the instruction's.
+// A protected-mode far CALL sets it at its descriptor's check to its
+// operand size, which a call gate's GATE uop replaces with the gate's.
+//
+// A call gate to an inner privilege copies the gate's parameter count
+// (pcnt, set as its GATE uop retires) of parameters from the old stack to
+// the new, highest first, as Bochs's call_gate does: a load into T4 (pm
+// load) at slot pcnt - 1 - pk of the old stack, then its store (pm store)
+// at slot -3 - pk of the new, after which the ROM address goes back to the
+// load for the next parameter (pk counts them) until pcnt are copied. A
+// copy past pcnt (none at a count of 0) is a NOP (pdrop). The stores below
+// the parameters (pm below), and the jump's step of ESP, are pcnt slots
+// further down with xp, the hold's privilege change, set as the hold's uop
+// retired, which these words issue after.
 //
 // The moves through T1, each waiting for T1's load to retire (b_t1):
 //   SEQ_XCHGM  (XCHG r/m, r with a memory operand): the operand into T1;
@@ -119,6 +132,8 @@ module fes_i386_seq (
     input  fes_i386_pkg::ucode_t   w,
     input  logic [2:0]             cnt, // the string engine's count is 2, 1, 0 (bits 2:0)
     input  logic                   gate32, // a protected-mode delivery's gate is a 386 gate
+    input  logic                   xp,     // the held transfer changes privilege
+    input  logic [4:0]             pcnt,   // a call gate's parameter count
     output fes_i386_pkg::decoded_t n
 );
     // A ROM word's size: the operand size, 16, 32 or 8 bits (size_e).
@@ -217,7 +232,7 @@ module fes_i386_seq (
         n = d;
         n.ealu = 1'b0;  // only a one-uop instruction runs early
         n.step = d.step + 3'd1;
-        n.upc = d.upc + 8'd1;  // read only by SEQ_UCODE
+        n.upc = d.upc + 9'd1;  // read only by SEQ_UCODE
         // The per-step controls.
         n.more = 1'b0;
         n.uop.sp_add = 1'b0;
@@ -231,7 +246,13 @@ module fes_i386_seq (
         n.push_eip = 1'b0;
         n.reads_seg = 1'b0;
         n.wseg = 6'd0;
-        n.slot = 4'd0;
+        n.slot = 7'd0;
+        n.pm = 2'd0;
+        n.pdrop = 1'b0;
+        n.zx = 1'b0;
+        n.pimm = 1'b0;
+        // The parameter after a copy's store.
+        n.pk = d.pk + 5'(d.pm == 2'(fes_i386_pkg::PM_STORE));
         n.a_t1 = 1'b0;
         n.b_t1 = 1'b0;
         n.disp_t1 = 1'b0;
@@ -335,14 +356,14 @@ module fes_i386_seq (
                 // as the 386EX's is.
                 n.uop.dst.index = 4'd0;
                 if (d.step == 3'd0) begin
-                    n.slot = 4'd1;
+                    n.slot = 7'd1;
                     n.more = 1'b1;
                 end else begin
                     to_far_jump(n);
                     n.uop.dst.valid = 1'b0;
                     n.uop.sp_add = 1'b1;
                     n.stk = fes_i386_pkg::STK_RETF;
-                    n.slot = 4'd2;
+                    n.slot = 7'd2;
                     n.far_chk = 1'b1;
                     n.far_t = 1'b1;
                 end
@@ -422,6 +443,12 @@ module fes_i386_seq (
                 n.dmode = w.dmode;
                 n.xc = w.xc;
                 n.xs = w.xs;
+                n.pm = w.pm;
+                n.zx = w.zx;
+                n.pimm = w.pimm;
+                n.pdrop = (w.pm == 2'(fes_i386_pkg::PM_LOAD) || w.pm == 2'(fes_i386_pkg::PM_STORE)) && n.pk >= pcnt;
+                // The copy goes back to its load for the next parameter.
+                if (w.pm == 2'(fes_i386_pkg::PM_STORE) && n.pk + 5'd1 < pcnt) n.upc = d.upc - 9'd1;
                 n.tss = w.tss;
                 n.uop.hold = w.hold;
                 n.uop.xfer = w.xfer;
@@ -447,7 +474,12 @@ module fes_i386_seq (
                 n.uop.iret = w.iret;
                 n.uop.bound = w.bound;
                 n.stk = w.stk;
-                n.slot = w.slot;
+                case (w.pm)
+                    2'(fes_i386_pkg::PM_LOAD): n.slot = 7'(pcnt) - 7'd1 - 7'(n.pk);
+                    2'(fes_i386_pkg::PM_STORE): n.slot = -7'd3 - 7'(n.pk);
+                    2'(fes_i386_pkg::PM_BELOW): n.slot = {{3{w.slot[3]}}, w.slot} - (xp ? 7'(pcnt) : 7'd0);
+                    default: n.slot = {{3{w.slot[3]}}, w.slot};
+                endcase
                 n.sel_part = w.sel_part;
                 n.consumes = w.rd_cf || w.rd_oszap;
                 n.lea = 1'b0;
@@ -767,7 +799,7 @@ module fes_i386_seq (
         // the TSS's reads its CPL; a new-stack access reads T5 and the
         // staged SS; the far jump the hold.
         n.t_rd = n.far_t || n.a_t1 || n.b_t1 || n.b_t4 || n.uop.desc != 3'd0 || n.uop.segchk != 4'd0
-              || n.xc != 2'd0 || n.xs || n.tss != 3'd0 || n.uop.nstk || n.uop.xfer
+              || n.xc != 3'd0 || n.xs || n.tss != 3'd0 || n.uop.nstk || n.uop.xfer
               || n.b_sys && n.sys_idx >= 5'(fes_i386_pkg::SYS_RD_FIP);
     end
 endmodule
