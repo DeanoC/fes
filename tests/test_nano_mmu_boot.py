@@ -14,6 +14,7 @@ import nano_firmware_mmu as mmu
 import mmu_trace
 import mmu_status
 import mmu_logging
+import mmu_mailbox_view
 from test_nano_native_trace import trace,fixture,firmware_progress,atf_progress,BUILD,SEED
 from prepare_uboot import atf_descriptor
 
@@ -21,10 +22,16 @@ from prepare_uboot import atf_descriptor
 def proof():
     root=0x8003c000
     diagnostic={name:dict(address=address,bytes=size,sha256='1'*64) for name,address,size in
-        (('write',0x80024000,100),('restore',0x80026000,120),('capture',0x80025000,300),
+        (('write',0x80024000,4096),('restore',0x80026000,120),('capture',0x80025000,300),
          ('vectors',0x80032000,2048),('park_vectors',0x80032800,2048),('park',0x80027000,8))}
     diagnostic.update(decode_logging=mmu_logging.SHA,logging_state=root+24584,logging_state_bytes=8,status_inventory=mmu_status.SHA,runtime_vectors=0x80030000,saved_vbar=root+24576,saved_bytes=8,
                       uart_data=0x10c02100,uart_status=0x10c02114,uart_polls=100000,uart_bytes=384)
+    diagnostic['hex_formatter']=dict(address=0x80023800,bytes=96,sha256='3'*64,contract=mmu_mailbox_view.HEX,
+        calls={name:[diagnostic[name]['address']+12] for name in ('write','restore','capture')})
+    diagnostic['mailbox_views']=dict(contract_sha256=mmu_mailbox_view.SHA,maximum_reads=18,hardware_authority=False,
+        sites=[{name:dict(address=0x80024000+phase*1000+offset,bytes=size,sha256='2'*64)
+                for name,offset,size in [('scope_before',64,356),('setup',420,28),('reads',448,24),('loop',472,12),('scope_after',484,356)]}
+               for phase in range(3)])
     return dict(selected_policy=dict(mmu.RUNTIME_CONTRACT),witness=root+24576+64,witness_bytes=64,
         transition_diagnostic=diagnostic,
         startup_cache_helper=dict(address=0x80023000,bytes=44,sha256=mmu_trace.CACHE_HELPER_SHA),
@@ -56,9 +63,16 @@ def log_rows(phase):
     return ''.join('FES_NANO_EL3_MMU_LOG phase='+p+'\r\n' for p in (('arm-before','armed') if phase=='armed' else ('restore-before','restored')))
 
 
+def mailbox_rows(phase):
+    return ('FES_NANO_EL3_MMU_MAILBOX phase='+str(phase)+' BEGIN\r\n'+
+            'FES_NANO_EL3_MMU_MAILBOX phase='+str(phase)+' '+
+            'values='+('0000000000000000,'*6)+'\r\n')
+
+
 def vector_row(phase):
-    return log_rows('armed' if phase=='enabled' else 'restored')+('FES_NANO_EL3_MMU_TRANSITION phase='+phase+' sctlr='+format(0x30c5183a|0x80005,'016x')+
-            ' vbar='+format(0x80032000 if phase=='enabled' else 0x80030000,'016x')+'\r\n')
+    event=('FES_NANO_EL3_MMU_TRANSITION phase='+phase+' sctlr='+format(0x30c5183a|0x80005,'016x')+
+           ' vbar='+format(0x80032000 if phase=='enabled' else 0x80030000,'016x')+'\r\n')
+    return (log_rows('armed')+mailbox_rows(0)+event+mailbox_rows(1)+mailbox_rows(2) if phase=='enabled' else log_rows('restored')+event)
 
 
 def transition(rows=None):

@@ -4,8 +4,9 @@ import json
 import re
 import mmu_status
 import mmu_logging
+import mmu_mailbox_view
 
-POLICY_SHA='5ce26ee1fdb4b9d26c4edd02a1d0dee17694a90783fd740d2f5d821a0a158d16'
+POLICY_SHA='72e0e95cee8f1e03bd37551966077c24d64ae32133c13a8c96b125eaba691dba'
 CACHE_HELPER_SHA='c16b4d1b6931e6d4d92ac017ba23457ff59d6d5ac9e4279b6c9fb031114b305c'
 FIELDS=('el','midr','mpidr','mmfr0','daif','scr','sctlr','tcr','root','mair','witness')
 ROW=re.compile(r'FES_NANO_EL3_MMU phase=(before|after) '+
@@ -64,6 +65,31 @@ def parameters(proof):
                 name in ('vectors','park_vectors') and (address&2047 or size!=2048) or
                 name=='park' and size!=8):
             raise ValueError('MMU trace requires the linked bounded transition diagnostic')
+    formatter=diagnostic.get('hex_formatter') or {};address=formatter.get('address')
+    if (formatter.get('contract')!=mmu_mailbox_view.HEX or formatter.get('bytes')!=96 or
+            type(address) is not int or address&3 or not 0x80000000<=address<address+96<=root or
+            not re.fullmatch('[0-9a-f]{64}',str(formatter.get('sha256',''))) or
+            set(formatter.get('calls',{}))!={'write','restore','capture'}):
+        raise ValueError('MMU trace requires its exact stack-free UART formatter')
+    for name,addresses in formatter['calls'].items():
+        parent=diagnostic[name]
+        if not addresses or len(addresses)>128 or any(type(a) is not int or a&3 or not parent['address']+8<=a<a+8<=parent['address']+parent['bytes'] for a in addresses):
+            raise ValueError('MMU UART formatter call bounds differ')
+    views=diagnostic.get('mailbox_views') or {}
+    if views.get('contract_sha256')!=mmu_mailbox_view.SHA or views.get('maximum_reads')!=18 or len(views.get('sites',[]))!=3:
+        raise ValueError('MMU trace requires the selected bounded mailbox views')
+    writer=diagnostic['write'];previous=writer['address']
+    for phase,group in enumerate(views['sites']):
+        names=('scope_before','setup','reads','loop','scope_after')
+        if not isinstance(group,dict) or set(group)!=set(names):
+            raise ValueError('MMU trace mailbox view sites differ')
+        for name in names:
+            site=group[name];address=site.get('address');size=site.get('bytes')
+            if (type(address) is not int or address&3 or size!=dict(scope_before=356,setup=28,reads=24,loop=12,scope_after=356)[name] or
+                    not previous<=address<address+size<=writer['address']+writer['bytes'] or
+                    not re.fullmatch('[0-9a-f]{64}',str(site.get('sha256','')))):
+                raise ValueError('MMU trace mailbox view site bounds differ')
+            previous=address+size
     runtime=diagnostic.get('runtime_vectors');saved=diagnostic.get('saved_vbar')
     if (type(runtime) is not int or runtime&2047 or not 0x80000000<=runtime<runtime+2048<=root or
             type(saved) is not int or saved&7 or not root+24576<=saved<saved+8<=0x80200000 or
@@ -75,11 +101,20 @@ def parameters(proof):
 
 
 def state():return dict(records=[],steps=[],transitions=[],faults=[],status_before=mmu_status.state(),logging=mmu_logging.state(),
-                        status_fault=mmu_status.state(),valid=True,complete=False,hardware_authority=False)
+                        status_fault=mmu_status.state(),mailbox_views=mmu_mailbox_view.state(),valid=True,complete=False,hardware_authority=False)
 
 
 def observe(s,line,number,expected,*,startup_complete,exit_cache_complete,uboot_seen,prior_valid):
     match=ROW.fullmatch(line);step=STEP.fullmatch(line);transition=TRANSITION.fullmatch(line);fault=FAULT.fullmatch(line)
+    if line.startswith('FES_NANO_EL3_MMU_MAILBOX'):
+        phase=re.search(r' phase=([0-2])(?: |$)',line)
+        permitted=(expected is not None and s['valid'] and prior_valid and startup_complete and exit_cache_complete and
+                   not uboot_seen and len(s['records'])==1 and len(s['steps'])==15 and
+                   s['status_before']['complete'] and s['logging']['armed'] and not s['logging']['restore_attempted'] and
+                   phase is not None and len(s['transitions'])==(0 if int(phase[1])==0 else 1))
+        error=mmu_mailbox_view.observe(s['mailbox_views'],line,number) if permitted else 'out-of-phase MMU mailbox view'
+        if error:s['valid']=s['complete']=False
+        return error
     if line.startswith('FES_NANO_EL3_MMU_LOG'):
         fatal=bool(s['faults'])
         permitted=(expected is not None and startup_complete and exit_cache_complete and not uboot_seen and
@@ -125,15 +160,16 @@ def observe(s,line,number,expected,*,startup_complete,exit_cache_complete,uboot_
         ok=(len(s['records'])==1 and sctlr==before.get('sctlr',0)|0x80005 and
             ((phase=='enabled' and len(s['steps'])==15 and not s['transitions'] and vbar==expected['vectors'] and
               s['status_before']['valid'] and s['status_before']['complete'] and s['logging']['valid'] and
-              s['logging']['armed'] and not s['logging']['restore_attempted']) or
+              s['logging']['armed'] and not s['logging']['restore_attempted'] and
+              len(s['mailbox_views']['records'])==1 and s['mailbox_views']['pending'] is None) or
              (phase=='restored' and len(s['steps'])==26 and len(s['transitions'])==1 and vbar==expected['runtime_vectors'] and
-              s['logging']['valid'] and s['logging']['complete'] and s['logging']['restored'])))
+              s['logging']['valid'] and s['logging']['complete'] and s['logging']['restored'] and s['mailbox_views']['complete'])))
         if not ok:s['valid']=s['complete']=False;return 'invalid/out-of-order EL3 MMU transition'
         s['transitions'].append(dict(phase=phase,sctlr=sctlr,vbar=vbar,line=number));return None
     if step:
         index=len(s['steps']);value=(step[1],int(step[2]))
         if (len(s['records'])!=1 or index>=len(STEPS) or value!=STEPS[index] or
-                len(s['transitions'])!=(0 if index<15 else 1)):
+                len(s['transitions'])!=(0 if index<15 else 1) or index==15 and not s['mailbox_views']['complete']):
             s['valid']=s['complete']=False;return 'invalid/out-of-order EL3 MMU step'
         s['steps'].append(dict(phase=value[0],operation=value[1],line=number))
         return None
@@ -153,7 +189,7 @@ def observe(s,line,number,expected,*,startup_complete,exit_cache_complete,uboot_
             [v['phase'] for v in s['transitions']]==['enabled','restored'] and
             all(r[name]==before.get(name) for name in ('el','midr','mpidr','mmfr0','daif','scr')) and
             r['sctlr']==before.get('sctlr',0)|0x80005 and r['mair']==expected['mair'] and
-            r['tcr']==expected['tcr'] and r['root']==expected['root'] and r['writes']==4 and r['memory']==1)
+            r['tcr']==expected['tcr'] and r['root']==expected['root'] and r['writes']==4 and r['memory']==1 and s['mailbox_views']['complete'])
     s['records'].append(r)
     if not ok:s['valid']=False
     s['complete']=s['valid'] and [v['phase'] for v in s['records']]==['before','after']

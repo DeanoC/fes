@@ -1735,3 +1735,30 @@ reply uses the same bridge codec and carries no extra capability. Dispatcher
 tests compare its actual hardware-access counts with one complete observation
 and exercise live failures, malformed requests, configuration, explicit USB
 readiness and retained reservations.
+
+The selected format8 mailbox-view diagnostic adds one private EL3 alias:
+virtual `0x90000` maps only the physical mailbox page at `0x10a30000` as
+secure Device, read-only and execute-never. The original peripheral and shared
+DDR mappings remain. Its stack-free transition reads CIN, COUT, RIN, ROUT,
+response doorbell and status before activation, through the original mapping
+afterward, and through the secure alias. Six fresh copies of the existing
+CPU/MMU/all-master guard frame the three views. Actual linked code checks bind
+each fixed base, packed offset set, six-read loop, guard and phase position.
+No FIFO word, mailbox command, acknowledgement, reset or retry is added.
+A register access that never returns cannot be preempted by the polling bound.
+
+The hexadecimal UART formatter is shared through an exact local assembly call.
+Each call copies its argument and preserves/restores LR through scratch x8;
+the 96-byte callee is stack-free and makes no calls. The linked-code verifier
+requires the complete callee, every call target and the surrounding scratch/LR
+instructions. Its original 16-digit output, 100000 polls per character and
+384-byte line budget remain. Unselected calls, changed bounds, stack use or
+unreviewed writes still reject. This keeps the matched diagnostic below the
+original 8 MiB FIT limit without removing guards or extending deadlines.
+
+Both new view records and their exact linked proof are required for the selected
+MMU profile. Partial/faulted, duplicated or misplaced views cannot admit the
+loader. Values remain read-only observations and never establish command
+consumption, FPGA configuration or runtime authority. The observer belongs to
+the cold-chain source identity and compiled producer closure. Hardware
+qualification of this changed image remains open.

@@ -99,18 +99,9 @@ fes_nano_mmu_uart_init_\name:
 .endm
 .macro mmu_hex value
     mov x14,\value
-    mov w16,#16
-.Lhex\@:
-    lsr x9,x14,#60
-    cmp w9,#9
-    add w9,w9,#48
-    b.ls .Ldigit\@
-    add w9,w9,#39
-.Ldigit\@:
-    mmu_char
-    lsl x14,x14,#4
-    subs w16,w16,#1
-    b.ne .Lhex\@
+    mov x8,x30
+    bl fes_nano_mmu_hex_formatter
+    mov x30,x8
 .endm
 .macro mmu_field label,value
     mmu_text \label
@@ -119,6 +110,7 @@ fes_nano_mmu_uart_init_\name:
 
 #include "nano_mmu_status.inc"
 #include "nano_mmu_logging.inc"
+#include "nano_mmu_mailbox.inc"
 
 .section .text.fes_nano_mmu_transition,"ax"
 .balign 4
@@ -153,6 +145,7 @@ fes_nano_mmu_transition_write:
     mov x7,x0
     mmu_inventory before
     mmu_log_arm
+    mmu_mailbox_snapshot 0,0x10a30000
     mov x0,x7
     mmu_cpu .Lreject
     mmu_registers .Lreject
@@ -169,6 +162,8 @@ fes_nano_mmu_transition_sctlr:
     mmu_hex x0
     mmu_field .Lvbar,x1
     mmu_text .Lnewline
+    mmu_mailbox_snapshot 1,0x10a30000
+    mmu_mailbox_snapshot 2,0x90000
     mov w0,#0
     ret
 .Lreject:
@@ -288,6 +283,25 @@ fes_nano_mmu_transition_park:
     wfe
     b fes_nano_mmu_transition_park
 .size fes_nano_mmu_transition_park,.-fes_nano_mmu_transition_park
+
+/* Fixed local formatter: x8 preserves the caller LR; no stack or C calls. */
+.global fes_nano_mmu_hex_formatter
+.type fes_nano_mmu_hex_formatter,%function
+fes_nano_mmu_hex_formatter:
+    mov w16,#16
+.Lhex:
+    lsr x9,x14,#60
+    cmp w9,#9
+    add w9,w9,#48
+    b.ls .Ldigit
+    add w9,w9,#39
+.Ldigit:
+    mmu_char
+    lsl x14,x14,#4
+    subs w16,w16,#1
+    b.ne .Lhex
+    ret
+.size fes_nano_mmu_hex_formatter,.-fes_nano_mmu_hex_formatter
 
 .section .rodata.fes_nano_mmu_transition,"a"
 .Lenabled: .asciz "FES_NANO_EL3_MMU_TRANSITION phase=enabled sctlr="

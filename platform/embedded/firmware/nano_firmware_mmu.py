@@ -26,6 +26,9 @@ _status_spec.loader.exec_module(mmu_status)
 _logging_spec=importlib.util.spec_from_file_location('fes_mmu_logging',HERE.parent/'nano/mmu_logging.py')
 mmu_logging=importlib.util.module_from_spec(_logging_spec)
 _logging_spec.loader.exec_module(mmu_logging)
+_views_spec=importlib.util.spec_from_file_location('fes_mmu_mailbox_views',HERE.parent/'nano/mmu_mailbox_view.py')
+mmu_mailbox_view=importlib.util.module_from_spec(_views_spec)
+_views_spec.loader.exec_module(mmu_mailbox_view)
 # Match the pinned TF-A v2 EL3 descriptor conventions, including AP[1] RES1.
 AF, AP_RES1, RO, NS, XN = 1 << 10, 1 << 6, 1 << 7, 1 << 5, 1 << 54
 WB = AF | AP_RES1 | (3 << 8)       # Attr0: WB/WA, inner shareable
@@ -33,12 +36,12 @@ NC = AF | AP_RES1 | (2 << 8) | 8   # Attr2: Normal NC, outer shareable
 DEVICE = AF | AP_RES1 | (2 << 8) | 4
 MAIR = 0x4400ff                    # Attr2=NC, Attr1=nGnRnE, Attr0=WB/WA
 TCR = (1 << 31) | (1 << 23) | (3 << 12) | (1 << 10) | (1 << 8) | 32
-CONTRACT = dict(format=2, scope='experimental-el3-static-private-ddr-cache-v2',
+CONTRACT = dict(format=3, scope='experimental-el3-static-mailbox-readonly-v3',
                 granule=PAGE, va_bits=32, pa_bits=32, mair=MAIR, tcr=TCR,
                 table_bytes=TABLE_BYTES, ddr_limit=DDR_LIMIT,
                 firmware_limit=BL31_LIMIT, runtime_enabled=False,
                 hardware_authority=False)
-RUNTIME_CONTRACT = dict(format=7, scope='matched-cold-el3-private-ddr-cache-v7',
+RUNTIME_CONTRACT = dict(format=8, scope='matched-cold-el3-mailbox-readonly-v8',
     mair=MAIR, tcr=TCR, table_bytes=TABLE_BYTES, granule=PAGE, va_bits=32, pa_bits=32,
     memory_probe='private-line-clean-invalidate-reread-v1',
     memory_types='secure-ocram-normal-nc-private-ddr-wb-v1',
@@ -47,7 +50,7 @@ RUNTIME_CONTRACT = dict(format=7, scope='matched-cold-el3-private-ddr-cache-v7',
     single_cpu='a55-cpu0-release-locked',
     boot_steps='admit-register-barrier-private-clean-v1',
     fault_capture='bounded-register-only-sctlr-transition-v2',
-    status_inventory=mmu_status.SHA,
+    status_inventory=mmu_status.SHA, mailbox_views=mmu_mailbox_view.SHA,
     decode_logging=mmu_logging.SHA,
     vendor_cache_policy='restore-caller-scr-and-return-v1', hardware_authority=False)
 LD = 'bl31/bl31.ld.S'
@@ -141,6 +144,8 @@ def install(source, profile, ram_binding=None):
     files.append(str((include/'nano_mmu_tables.ld.inc').relative_to(source)))
     (include/'nano_mmu_status.inc').write_text(mmu_status.assembly())
     files.append(str((include/'nano_mmu_status.inc').relative_to(source)))
+    (include/'nano_mmu_mailbox.inc').write_text(mmu_mailbox_view.assembly())
+    files.append(str((include/'nano_mmu_mailbox.inc').relative_to(source)))
     for name in ('nano_mmu.h','nano_mmu_platform.h','nano_mmu_memory.h','nano_mmu_transition.h','nano_mmu_logging.inc'):
         (include/name).write_bytes((HERE/name).read_bytes());files.append(str((include/name).relative_to(source)))
     for name in ('nano_mmu.c','nano_mmu_platform.c','nano_mmu_memory.c','nano_mmu_transition.S'):
@@ -174,6 +179,8 @@ def verify_live_image(image, chain):
     if code!=VENDOR_CACHE_CODE:
         raise ValueError('selected lower-EL cache helper does not restore SCR and return')
     transition=verify_transition(image,symbols,proof['layout'])
+    if transition.get('hex_formatter') is None:raise ValueError('selected MMU profile lacks its fixed UART formatter')
+    transition['mailbox_views']=mmu_mailbox_view.verify(image,symbols,proof['layout'],file_bytes)
     if any(address<transition[name]+8 and transition[name]<address+size for name in ('saved_vbar','logging_state')):
         raise ValueError('MMU witness overlaps private transition lifetime state')
     return dict(proof, selected_policy=dict(RUNTIME_CONTRACT), witness=address, witness_bytes=size,
@@ -218,12 +225,15 @@ def verify_transition(image, symbols, bounds):
             allowed[address+8]=0xb90000a1
             log_sites[label]=dict(address=address,bytes=size,value=value)
         log_writes[parent]=allowed
+    formatter=mmu_mailbox_view.verify_hex(image,symbols,bounds,file_bytes)
     result={}
     for name in ('write','restore','capture','vectors','park_vectors','park'):
         address,size=symbols.get(prefix+name,(0,0))
         if address&3 or size&3 or not 0<size<=16384 or not DDR_BASE<=address<address+size<=bounds['ro_end']:
             raise ValueError('MMU transition diagnostic code outside executable firmware')
         code,_=file_bytes(image,address,size)
+        if formatter is not None and address<formatter['address']+96 and formatter['address']<address+size:
+            raise ValueError('MMU UART formatter overlaps a transition function')
         result[name]=dict(address=address,bytes=size,sha256=hashlib.sha256(code).hexdigest())
         if name in ('vectors','park_vectors'):
             target=symbols.get(prefix+('capture' if name=='vectors' else 'park'),(0,0))[0]
@@ -238,13 +248,18 @@ def verify_transition(image, symbols, bounds):
                 raise ValueError('MMU transition failure must park permanently')
         else:
             words=struct.unpack('<'+str(size//4)+'I',code)
-            for word in words:
+            calls=[]
+            for word_index,word in enumerate(words):
+                if word&0xfc000000==0x94000000:
+                    mmu_mailbox_view.verify_hex_call(words,word_index,address+word_index*4,formatter)
+                    calls.append(address+word_index*4)
                 memory=((word>>25)&15) in (4,6,12,14)
                 stack_change=(word&0x1f000000)==0x11000000 and not(word&(1<<29)) and word&31==31
                 if (memory and (word>>5)&31==31 or stack_change or
-                        word&0xfc000000==0x94000000 or word&0xfffffc1f==0xd63f0000 or
+                        word&0xfffffc1f==0xd63f0000 or
                         word==0xd69f03e0 or name=='capture' and word&0xfffffc1f in (0xd65f0000,0xd61f0000)):
                     raise ValueError('MMU transition diagnostic must remain stack-free and leaf')
+            if formatter is not None:formatter['calls'][name]=calls
             if name=='capture':
                 park=symbols.get(prefix+'park',(0,0))[0]
                 if words[-1]!=0x14000000|(((park-address-size+4)//4)&0x3ffffff):
@@ -295,7 +310,7 @@ def verify_transition(image, symbols, bounds):
             saved&7 or size!=8 or not bounds['data_start']<=saved<saved+size<=bounds['data_end'] or
             file_bytes(image,saved,size)[0]!=bytes(8)):
         raise ValueError('MMU transition original vector or one-use saved state differs')
-    return dict(result,runtime_vectors=runtime,saved_vbar=saved,saved_bytes=size,status_inventory=mmu_status.SHA,
+    return dict(result,hex_formatter=formatter,runtime_vectors=runtime,saved_vbar=saved,saved_bytes=size,status_inventory=mmu_status.SHA,
                 decode_logging=mmu_logging.SHA,logging_state=logging_state,logging_state_bytes=state_size,logging_sites=log_sites,
                 uart_data=0x10c02100,uart_status=0x10c02114,uart_polls=100000,uart_bytes=384)
 
@@ -318,6 +333,8 @@ def _fixed(name, index):
             return address, DEVICE | NS | XN, 2
         if 0x18000000 <= address < 0x1d000000:
             return address, DEVICE | XN, 2
+    if name == 'ocram' and index == mmu_mailbox_view.ALIAS // PAGE:
+        return mmu_mailbox_view.PHYSICAL, DEVICE | RO | XN, 3
     if name == 'ocram' and index < 0x80000 // PAGE:
         address = index * PAGE
         return address, NC | XN, 3

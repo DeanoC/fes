@@ -136,6 +136,15 @@ bl31_entrypoint: .byte 0
             with self.subTest(address=hex(address)),self.assertRaises(ValueError):
                 mmu.verify_table_bytes(bad,self.bounds)
 
+    def test_only_the_one_private_mailbox_alias_page_is_secure_readonly_device(self):
+        value=walk(self.image,self.bounds,0x90000)
+        self.assertEqual(value,dict(pa=0x10a30000,writable=False,executable=False,ns=False,
+                                  attr=1,share=2,accessed=True,ap_res1=True))
+        self.assertEqual(walk(self.image,self.bounds,0x90fff)['pa'],0x10a30fff)
+        for address in (0x80000,0x8ffff,0x91000,0xfffff):
+            self.assertIsNone(walk(self.image,self.bounds,address))
+        self.assert_access(0x10a30000,writable=True,executable=False,ns=True,attr=1)
+
     def test_mmio_remains_device_and_security_regions_do_not_merge(self):
         for address in (0x10c02100, 0x10d11000, 0x16000000, 0x20010400, 0x3fffffff):
             self.assert_access(address, writable=True, executable=False, ns=True, attr=1)
@@ -145,7 +154,7 @@ bl31_entrypoint: .byte 0
                         0xc0000000, 0xffffffff, 0x100000000, -1):
             self.assertIsNone(walk(self.image, self.bounds, address), hex(address))
 
-    def test_every_linked_leaf_is_identity_and_never_writable_executable(self):
+    def test_only_the_fixed_readonly_alias_is_nonidentity_and_no_leaf_is_writable_executable(self):
         # Enumerate leaf entries instead of sampling: all reachable mappings,
         # table pointers, AF/AP RES1, NS and cacheable range coverage are checked.
         pending = [(self.bounds['tables']['root'], 1, 0)]
@@ -166,7 +175,7 @@ bl31_entrypoint: .byte 0
                     pending.append((descriptor & 0x0000fffffffff000, level + 1, address))
                     continue
                 value = walk(self.image, self.bounds, address)
-                self.assertEqual(value['pa'], address)
+                self.assertEqual(value['pa'], 0x10a30000 if address==0x90000 else address)
                 self.assertFalse(value['writable'] and value['executable'])
                 self.assertTrue(value['accessed'] and value['ap_res1'])
                 if value['attr'] == 0:
