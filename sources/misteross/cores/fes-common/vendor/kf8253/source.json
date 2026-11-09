@@ -7,7 +7,8 @@
     "Precompute binary and BCD one/two-step decrements between falling count-clock edges. Preserve visible counter/output cycles; inactive/reset candidates clear with count, and selection uses current BCD configuration.",
     "Precompute scalar terminal-count flags and select period/output conditions in parallel with next-count data; retain current control/preset selection and original count/output cycles.",
     "8254 read-back (2026-10-26, for pc386): the READ_BACK parameter (default 0, the 8253) adds the read-back control word (bits 7:6 = 11), per-counter count latch and status byte (OUT, null count, RW, mode, BCD); a latched status is read before the count. read_back.patch is the whole change; tests/test_fes_kf8253_read_back.py reverses it to the previous bytes and proves READ_BACK=0 sequentially equivalent to them.",
-    "Control-word pointer reset (2026-11-04, #1471): any control word other than the counter-latch command resets the counter's write and read byte pointers, even when it repeats the current RW field, as on the 8253 and 8254. This changes both READ_BACK settings. control_word_reset.patch is the whole change; tests/test_fes_kf8253_read_back.py reverses it before read_back.patch, and the pc386 devices and PC/XT motherboard benches check the repeated-RW sequences."
+    "Control-word pointer reset (2026-11-04, #1471): any control word other than the counter-latch command resets the counter's write and read byte pointers, even when it repeats the current RW field, as on the 8253 and 8254. This changes both READ_BACK settings. control_word_reset.patch is the whole change; tests/test_fes_kf8253_read_back.py reverses it before read_back.patch, and the pc386 devices and PC/XT motherboard benches check the repeated-RW sequences.",
+    "Terminal-count wrap (2026-11-07, #1532): below the step the count wraps to FFFFh (9999 in BCD) instead of holding at zero, as the 8253 and 8254 keep counting after terminal count in modes 0, 1, 4 and 5; inactive decrement candidates clear to the wrapped values. OUT stays high after terminal count in modes 0 and 1 until a new count or trigger, and modes 4 and 5 strobe once per count or trigger. This changes both READ_BACK settings. terminal_count_wrap.patch is the whole change; tests/test_fes_kf8253_read_back.py reverses it first, and the pc386 devices and PC/XT motherboard benches check the wrap and the outputs."
   ],
   "files": [
     {
@@ -30,7 +31,7 @@
     {
       "path": "KF8253_Counter.sv",
       "upstream_path": "rtl/KFPC-XT/HDL/KF8253/HDL/KF8253_Counter.sv",
-      "sha256": "0e38f4a79474ff1e3c002432465abd414e158465326147c29e43bf2cfeb9c4fc",
+      "sha256": "6ed4511bc210c386ea7d0a3d578e7b1308d1f2e78841fae7511d9e2c3b734b65",
       "upstream_sha256": "4c7ff9a11fe5d1207548bb3b67de46adb8defa6dd3541a0ab519d61a5b3ab660"
     },
     {
