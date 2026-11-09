@@ -18,6 +18,7 @@ module fes_i386_frontend import fes_i386_pkg::*; (
     output logic                   mem_load,
     input  logic [15:0][7:0]       mem_data,
     input  logic                   mem_valid,
+    input  ftag_t                  mem_tag,
     output logic                   q_valid,
     output fetched_t               q,
     input  logic                   d_ready,
@@ -28,7 +29,9 @@ module fes_i386_frontend import fes_i386_pkg::*; (
     input  logic                   ras_set_wr,
     input  logic [31:0]            ras_set_lin,
     output logic [6:0][27:0]       held_block,  // the blocks the front end holds (fes_i386_fetchbuf)
-    output logic [6:0]             held_valid
+    output logic [6:0]             held_valid,
+    output logic [6:0][7:0]        held_pp,     // ... their physical page bits 19:12, where looked up (held_pk)
+    output logic [6:0]             held_pk
 );
     logic [1:0]        release_half, half_valid;
     logic              start_half;
@@ -46,6 +49,8 @@ module fes_i386_frontend import fes_i386_pkg::*; (
     logic [31:0][3:0]  jm, jt, jx;
     logic              ras_push, ras_pop;
     logic [31:0]       ras_push_lin, ras_top;
+    ftag_t [1:0]       half_tag;
+    ftag_t             l2_tag;
 
     fes_i386_btb btb (.clk, .mem_load, .mem_block, .enter(btb_enter), .wr(btb_wr), .hit(btb_hit), .way(btb_way), .entry(btb_entry));
 
@@ -56,14 +61,14 @@ module fes_i386_frontend import fes_i386_pkg::*; (
 
     fes_i386_fetchbuf fetch (
         .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .mem_data,
-        .mem_valid, .release_half, .q_half(start_half), .half_valid, .fill_bytes, .half_block,
+        .mem_valid, .mem_tag, .release_half, .q_half(start_half), .half_valid, .fill_bytes, .half_block,
         .bytes, .dec, .avail, .btb_enter, .btb_hit, .btb_way, .btb_entry, .pred_en, .jump_clear, .ras_top, .ras_push, .ras_push_lin, .ras_pop, .half_info, .half_seq,
-        .l2_seq, .jm, .jt, .jx, .held_block, .held_valid
+        .l2_seq, .jm, .jt, .jx, .held_block, .held_valid, .half_tag, .l2_tag, .held_pp, .held_pk
     );
 
     fes_i386_qalign align (
         .clk, .reset, .redirect, .redirect_linear, .half_valid, .half_block, .bytes, .dec, .avail,
         .fill_data(fill_bytes), .release_half, .start_half,
-        .q_valid, .q, .d_ready, .jm, .jt, .jx, .half_info, .half_seq, .l2_seq, .jump_clear
+        .q_valid, .q, .d_ready, .jm, .jt, .jx, .half_info, .half_seq, .l2_seq, .jump_clear, .half_tag, .l2_tag
     );
 endmodule
