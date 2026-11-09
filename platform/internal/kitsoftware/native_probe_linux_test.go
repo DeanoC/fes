@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-func TestNativeProbeAuthenticatesPeerAndOnlyReadsStatus(t *testing.T) {
+func TestNativeProbe(t *testing.T) {
 	for _, scenario := range []string{"idle", "reboot_required", "wrong-pid", "wrong-uid", "wrong-inode", "wrong-start", "protocol1", "missing-ok", "active-idle", "oversized", "cancel"} {
 		t.Run(scenario, func(t *testing.T) {
 			socket := filepath.Join(t.TempDir(), "runtime.sock")

@@ -16,12 +16,13 @@ import (
 	"github.com/DeanoC/FogCast/atarist"
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
 func coreLibraryCommand(name string) bool {
 	switch name {
-	case "video-parts", "video-part-install", "video-profile", "core-video", "core-media-capabilities", "core-media-install", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select", "core-firmware-select", "create-blank-st-disk":
+	case "video-parts", "video-part-install", "video-profile", "core-video", "core-media-capabilities", "core-media-install", "core-hard-disk-install", "core-disk-geometry", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select", "core-firmware-select", "create-blank-st-disk":
 		return true
 	}
 	return false
@@ -35,6 +36,8 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 	var expectedInspection *corepackage.Inspection
 	expectedMediaID := ""
 	var mediaSnapshot *coreMediaSnapshot
+	timeout := 2 * time.Minute
+	var expectedGeometry *diskGeometryCommand
 	var expectedVideoPart *catalog.CoreVideoPart
 	expectedVideoProfile := ""
 	var blankDisk *blankAtariStCommand
@@ -70,8 +73,12 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 			return commandResult{err: &protocol.APIError{Code: protocol.CodeBadRequest, Message: "package ID is invalid"}, exit: 1}
 		}
 		path += "/" + url.PathEscape(args[1]) + "/media-capabilities"
-	case "core-media-install":
-		snapshot, err := snapshotCoreMedia(ctx, args[1])
+	case "core-media-install", "core-hard-disk-install":
+		snapshotFile := snapshotCoreMedia
+		if args[0] == "core-hard-disk-install" {
+			snapshotFile = snapshotHardDisk
+		}
+		snapshot, err := snapshotFile(ctx, args[1])
 		if err != nil {
 			return commandResult{err: err, exit: 1}
 		}
@@ -84,6 +91,18 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 		mediaSnapshot = snapshot
 		method, path, contentType = http.MethodPost, "/api/v1/core-media", "application/octet-stream"
 		expectedMediaID = snapshot.mediaID
+		if args[0] == "core-hard-disk-install" {
+			// The host gives a hard-disk import its own budget for slow links.
+			path, timeout = "/api/v1/core-media/hard-disk", fogcast.HardDiskImportBudget(snapshot.size)+30*time.Second
+		}
+	case "core-disk-geometry":
+		parsed, err := parseDiskGeometryCommand(args[1:])
+		if err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+		expectedGeometry = &parsed
+		method, path = http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(parsed.GameID)+"/disk-geometry"
+		data, _ = json.Marshal(map[string]any{"expected_package_id": parsed.PackageID, "expected_media_id": parsed.MediaID, "geometry": parsed.Geometry})
 	case "core-media-select":
 		expected, next := args[3], args[4]
 		if expected == "none" {
@@ -180,7 +199,7 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 	if len(data) > 0 || mediaSnapshot != nil {
 		request.Header.Set("Content-Type", contentType)
 	}
-	client := &http.Client{Timeout: 2 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("redirects are not accepted") }}
+	client := &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("redirects are not accepted") }}
 	response, err := client.Do(request)
 	if err != nil {
 		if expectedVideoPart != nil || expectedVideoProfile != "" {
@@ -223,6 +242,11 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 			return commandResult{err: &protocol.APIError{Code: protocol.CodeInternal, Phase: "video-change-outcome"}, exit: 1}
 		}
 	}
+	if expectedGeometry != nil {
+		if err := expectedGeometry.matches(body); err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+	}
 	if blankDisk != nil {
 		if err := blankDisk.matches(body); err != nil {
 			return commandResult{err: err, exit: 1}
@@ -247,6 +271,46 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 		_, err := output.Write(pretty.Bytes())
 		return err
 	}}
+}
+
+// diskGeometryCommand overrides a pc386 entry's hard-disk geometry, or with
+// a nil Geometry restores the one its partition table implies.
+type diskGeometryCommand struct {
+	GameID, PackageID, MediaID string
+	Geometry                   *protocol.DiskGeometry
+}
+
+func parseDiskGeometryCommand(args []string) (diskGeometryCommand, error) {
+	bad := &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "request",
+		Message: "disk geometry is game ID, expected package ID, expected hard-disk media ID, and cylinders/heads/sectors or infer"}
+	if len(args) != 4 || protocol.ValidateGameID(args[0]) != nil || protocol.ValidateDigest(args[1]) != nil || protocol.ValidateDigest(args[2]) != nil {
+		return diskGeometryCommand{}, bad
+	}
+	cmd := diskGeometryCommand{GameID: args[0], PackageID: args[1], MediaID: args[2]}
+	if args[3] != "infer" {
+		geometry, ok := protocol.ParseDiskGeometry(args[3])
+		if !ok || !geometry.Valid(protocol.AtaDiskMaxBytes) {
+			return diskGeometryCommand{}, bad
+		}
+		cmd.Geometry = &geometry
+	}
+	return cmd, nil
+}
+
+// matches checks the host stored exactly the requested geometry.
+func (cmd diskGeometryCommand) matches(body []byte) error {
+	var entry struct {
+		GameID       string                 `json:"game_id"`
+		PackageID    string                 `json:"package_id"`
+		MediaID      string                 `json:"media_id"`
+		MediaRole    string                 `json:"media_role"`
+		DiskGeometry *protocol.DiskGeometry `json:"disk_geometry"`
+	}
+	if json.Unmarshal(body, &entry) != nil || entry.GameID != cmd.GameID || entry.PackageID != cmd.PackageID || entry.MediaID != cmd.MediaID ||
+		entry.MediaRole != protocol.HardDiskRole || !reflect.DeepEqual(entry.DiskGeometry, cmd.Geometry) {
+		return &protocol.APIError{Code: protocol.CodeInternal, Message: "disk geometry response differs from the request"}
+	}
+	return nil
 }
 
 type blankAtariStCommand struct {

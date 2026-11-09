@@ -1,0 +1,51 @@
+{
+ "source": "MAME 0.276 ibm5150, same rogue.img and keystrokes as kit run f1, B800:0000 text memory at the m3-redraw grab",
+ "vram_sha256": "2f0320ca7459f328669531b6b91615311559266a3e9646a0e21d2be9b4973cd1",
+ "codes_80h_ffh": [
+  {
+   "code": "B1h",
+   "attribute": "07h",
+   "cells": 2
+  },
+  {
+   "code": "BAh",
+   "attribute": "06h",
+   "cells": 4
+  },
+  {
+   "code": "BBh",
+   "attribute": "06h",
+   "cells": 1
+  },
+  {
+   "code": "BCh",
+   "attribute": "06h",
+   "cells": 1
+  },
+  {
+   "code": "C8h",
+   "attribute": "06h",
+   "cells": 1
+  },
+  {
+   "code": "C9h",
+   "attribute": "06h",
+   "cells": 1
+  },
+  {
+   "code": "CDh",
+   "attribute": "06h",
+   "cells": 34
+  },
+  {
+   "code": "CEh",
+   "attribute": "06h",
+   "cells": 3
+  },
+  {
+   "code": "FAh",
+   "attribute": "0Ah",
+   "cells": 52
+  }
+ ]
+}

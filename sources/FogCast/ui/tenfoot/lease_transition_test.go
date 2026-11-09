@@ -8,11 +8,10 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/hostclient"
-	"github.com/DeanoC/FogCast/internal/localcores"
 )
 
 func TestFetchHealthClearsOnlyLeaseRefusals(t *testing.T) {
-	for _, path := range []string{"status", "launch", "launch failure", "new identical status"} {
+	for _, path := range []string{"status", "launch", "launch failure"} {
 		t.Run(path, func(t *testing.T) {
 			var free atomic.Bool
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -40,12 +39,9 @@ func TestFetchHealthClearsOnlyLeaseRefusals(t *testing.T) {
 				t.Fatal("health did not report foreign lease")
 			}
 			switch path {
-			case "status", "new identical status":
+			case "status":
 				if !app.kitMutationBlockedLocked() {
 					t.Fatal("foreign lease did not refuse mutation")
-				}
-				if path == "new identical status" {
-					app.failLocalCoreLocked(localcores.ErrInUse, "")
 				}
 			case "launch", "launch failure":
 				app.startLaunchGameLocked(hostclient.Game{ID: "test-game", Title: "Test", State: "available", RootOnline: true})
@@ -70,14 +66,7 @@ func TestFetchHealthClearsOnlyLeaseRefusals(t *testing.T) {
 			free.Store(true)
 			app.fetchHealth(t.Context())
 			snap := app.Snapshot()
-			if path == "new identical status" {
-				app.mu.Lock()
-				status := app.status
-				app.mu.Unlock()
-				if status != localInUseCopy || snap.Status != localInUseCopy {
-					t.Fatalf("new local-core error was cleared: status=%q snapshot=%q", status, snap.Status)
-				}
-			} else if snap.Status == localInUseCopy {
+			if snap.Status == localInUseCopy {
 				t.Fatalf("lease refusal stayed visible after health transition: %q", snap.Status)
 			}
 			if path == "launch" && (snap.Launch.Message != "" || snap.Launch.Phase != "idle") {

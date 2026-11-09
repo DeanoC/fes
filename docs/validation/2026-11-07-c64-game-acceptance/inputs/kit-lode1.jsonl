@@ -1,0 +1,116 @@
+{"op": "launch", "game": "kik", "disk": "kik"}
+{"op": "session"}
+{"op": "sleep", "s": 5}
+{"op": "grab", "name": "iso-00-basic"}
+{"op": "type", "text": "load\"*\",8,1\n"}
+{"op": "sleep", "s": 60}
+{"op": "grab", "name": "iso-01-loaded"}
+{"op": "type", "text": "run\n"}
+{"op": "sleep", "s": 20}
+{"op": "grab", "name": "iso-02-trainer"}
+{"op": "key", "name": "space", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 6}
+{"op": "key", "name": "l", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 10}
+{"op": "grab", "name": "iso-03-hiload"}
+{"op": "key", "name": "n", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 5}
+{"op": "key", "name": "n", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 12}
+{"op": "grab", "name": "iso-04-title"}
+{"op": "key", "name": "f1", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 1}
+{"op": "key", "name": "f1", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 2}
+{"op": "grab", "name": "iso-05-twojoy"}
+{"op": "key", "name": "f7", "mods": [], "hold": 0.1}
+{"op": "sleep", "s": 6}
+{"op": "grab", "name": "iso-06-start"}
+{"op": "joydown", "port": 2, "dirs": "R"}
+{"op": "sleep", "s": 8}
+{"op": "grab", "name": "iso-iso0-port2-held"}
+{"op": "joyup", "port": 2}
+{"op": "sleep", "s": 3}
+{"op": "grab", "name": "iso-iso0-port2-released"}
+{"op": "joydown", "port": 1, "dirs": "R"}
+{"op": "sleep", "s": 8}
+{"op": "grab", "name": "iso-iso1-port1-held"}
+{"op": "joyup", "port": 1}
+{"op": "sleep", "s": 3}
+{"op": "grab", "name": "iso-iso1-port1-released"}
+{"op": "joydown", "port": 2, "dirs": "R"}
+{"op": "sleep", "s": 8}
+{"op": "grab", "name": "iso-iso2-port2-held"}
+{"op": "joyup", "port": 2}
+{"op": "sleep", "s": 3}
+{"op": "grab", "name": "iso-iso2-port2-released"}
+{"op": "session"}
+{"op": "stop"}
+{"op": "sleep", "s": 8}
+{"op": "launch", "game": "lode", "disk": "lode"}
+{"op": "session"}
+{"op": "audio_start", "name": "r1-audio"}
+{"op": "sleep", "s": 5}
+{"op": "grab", "name": "r1-00-basic"}
+{"op": "type", "text": "load\"*\",8,1\n"}
+{"op": "sleep", "s": 20}
+{"op": "type", "text": "run\n"}
+{"op": "sleep", "s": 30}
+{"op": "grab", "name": "r1-01-loading"}
+{"op": "sleep", "s": 75}
+{"op": "grab", "name": "r1-02-attract"}
+{"op": "joy", "port": 2, "dirs": "F", "hold": 0.2}
+{"op": "sleep", "s": 5}
+{"op": "grab", "name": "r1-03-level1"}
+{"op": "joydown", "port": 2, "dirs": "L"}
+{"op": "sleep", "s": 1.5}
+{"op": "joyup", "port": 2}
+{"op": "grab", "name": "r1-04-moved"}
+{"op": "key", "name": "a", "mods": ["lctrl"], "hold": 0.3}
+{"op": "sleep", "s": 6}
+{"op": "grab", "name": "r1-05-ctrl-a"}
+{"op": "key", "name": "u", "mods": ["lctrl"], "hold": 0.3}
+{"op": "sleep", "s": 8}
+{"op": "grab", "name": "r1-06-ctrl-u"}
+{"op": "wander", "port": 2, "seconds": 600, "seed": 21, "grab_every": 30, "prefix": "r1-p"}
+{"op": "grab", "name": "r1-07-end"}
+{"op": "audio_stop"}
+{"op": "video_start", "name": "r1-video", "seconds": 20}
+{"op": "video_stop"}
+{"op": "session"}
+{"op": "stop"}
+{"op": "sleep", "s": 8}
+{"op": "launch", "game": "lode", "disk": "lode"}
+{"op": "session"}
+{"op": "audio_start", "name": "r2-audio"}
+{"op": "sleep", "s": 5}
+{"op": "grab", "name": "r2-00-basic"}
+{"op": "type", "text": "load\"*\",8,1\n"}
+{"op": "sleep", "s": 20}
+{"op": "type", "text": "run\n"}
+{"op": "sleep", "s": 30}
+{"op": "grab", "name": "r2-01-loading"}
+{"op": "sleep", "s": 75}
+{"op": "grab", "name": "r2-02-attract"}
+{"op": "joy", "port": 2, "dirs": "F", "hold": 0.2}
+{"op": "sleep", "s": 5}
+{"op": "grab", "name": "r2-03-level1"}
+{"op": "joydown", "port": 2, "dirs": "L"}
+{"op": "sleep", "s": 1.5}
+{"op": "joyup", "port": 2}
+{"op": "grab", "name": "r2-04-moved"}
+{"op": "key", "name": "a", "mods": ["lctrl"], "hold": 0.3}
+{"op": "sleep", "s": 6}
+{"op": "grab", "name": "r2-05-ctrl-a"}
+{"op": "key", "name": "u", "mods": ["lctrl"], "hold": 0.3}
+{"op": "sleep", "s": 8}
+{"op": "grab", "name": "r2-06-ctrl-u"}
+{"op": "wander", "port": 2, "seconds": 600, "seed": 21, "grab_every": 30, "prefix": "r2-p"}
+{"op": "grab", "name": "r2-07-end"}
+{"op": "audio_stop"}
+{"op": "video_start", "name": "r2-video", "seconds": 20}
+{"op": "video_stop"}
+{"op": "session"}
+{"op": "stop"}
+{"op": "sleep", "s": 8}
+{"op": "quit"}

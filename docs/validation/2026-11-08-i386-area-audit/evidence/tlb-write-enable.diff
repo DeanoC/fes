@@ -1,0 +1,24 @@
+commit 2f1c07bca0d6c1f35e7c132deb67c907364b1981
+Author: x <x@x>
+Date:   Sun Nov 8 22:25:23 2026 +0200
+
+    scratch: per-entry TLB write enable (area audit, not for merge)
+
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_tlb.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_tlb.sv
+index 009b6ffc0..843423f71 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_tlb.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_tlb.sv
+@@ -65,8 +65,12 @@ module fes_i386_tlb import fes_i386_pkg::*; #(
+             rr <= '0;
+         end else if (fill) begin
+             v[slot] <= 1'b1;
+-            e[slot] <= fill_ent;
+             if (same == '0 && &v) rr <= rr + IW'(1);
+         end
+     end
++    // Each entry loads under its own enable, so no entry's flip-flops see
++    // another's write select.
++    for (genvar k = 0; k < N; k++) begin : g_ent
++        always_ff @(posedge clk) if (fill && slot == IW'(k)) e[k] <= fill_ent;
++    end
+ endmodule

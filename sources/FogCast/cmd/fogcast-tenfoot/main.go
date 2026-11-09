@@ -17,7 +17,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/kitmemory"
 	"github.com/DeanoC/FogCast/ui/launcherconfig"
@@ -130,6 +129,7 @@ func parseArgsWithEnv(args []string, getenv func(string) string) (tenfoot.Option
 	heapProfile := fs.String("heap-profile", "", "write heap/allocation pprof on SIGUSR1 and at exit")
 	configPath := fs.String("config", "/media/fat/fogcast/launcher.json", "provisioned launcher configuration")
 	fs.String("api", "", "FogCast host API base URL")
+	kitHost := fs.Bool("kit-host", false, "connect unpaired to this kit's local host")
 	fs.String("token", "", "launcher API bearer token")
 	fs.String("target-id", "", "launcher API target identity")
 	apiHost := fs.String("api-host", envOr("FOGCAST_API_HOST", ""), "optional HTTP Host header (loopback allowlist; -smoke defaults this when the API URL is not loopback)")
@@ -152,7 +152,6 @@ func parseArgsWithEnv(args []string, getenv func(string) string) (tenfoot.Option
 	roomsDir := fs.String("rooms", envOr("FOGCAST_ROOMS", ""), "room pack directory (default <config>/FogCast/rooms; embedded examples are always available)")
 	home := fs.String("home", "", "screen shown at start: library or rooms (default tenfoot.json home, else library)")
 	homeRoom := fs.String("home-room", "", "room id opened at start and for Home when -home is rooms (default tenfoot.json home_room, else FOGCAST_HOME_ROOM)")
-	catalogConfig := fs.String("catalog-config", "", "FogCast config.toml for the kit-local catalog (default: FOGCAST_CONFIG, FES_HOST_CONFIG, config.toml beside -config, else the user config when that file exists)")
 	if err := fs.Parse(args); err != nil {
 		return tenfoot.Options{}, err
 	}
@@ -186,36 +185,36 @@ func parseArgsWithEnv(args []string, getenv func(string) string) (tenfoot.Option
 		}
 	})
 	return tenfoot.Options{
-		CPUProfile:    *cpuProfile,
-		HeapProfile:   *heapProfile,
-		APIBase:       apiValue,
-		APIToken:      tokenValue,
-		TargetID:      targetValue,
-		APIHost:       *apiHost,
-		Width:         *width,
-		Height:        *height,
-		Fullscreen:    *fullscreen,
-		Smoke:         *smoke,
-		MaxGames:      *maxGames,
-		SmokeTimeout:  *timeout,
-		SafeAreaPct:   *safeArea,
-		SafeAreaSet:   safeAreaSet,
-		Layout:        *layout,
-		LayoutSet:     layoutSet,
-		NoAttract:     *noAttract,
-		NoAttractSet:  noAttractSet,
-		Theme:         *themeSpec,
-		GFX:           *gfxName,
-		Framebuffer:   *fb,
-		MenuSocket:    *menuSocket,
-		Input:         *input,
-		DebugHUD:      *debugHUD,
-		DebugHUDSet:   debugHUDSet,
-		RoomsDir:      *roomsDir,
-		Home:          *home,
-		HomeSet:       homeSet,
-		HomeRoom:      strings.TrimSpace(*homeRoom),
-		CatalogConfig: fogcast.ResolveCatalogConfig(*catalogConfig, *configPath, getenv),
+		CPUProfile:   *cpuProfile,
+		HeapProfile:  *heapProfile,
+		APIBase:      apiValue,
+		APIToken:     tokenValue,
+		TargetID:     targetValue,
+		KitHost:      *kitHost,
+		APIHost:      *apiHost,
+		Width:        *width,
+		Height:       *height,
+		Fullscreen:   *fullscreen,
+		Smoke:        *smoke,
+		MaxGames:     *maxGames,
+		SmokeTimeout: *timeout,
+		SafeAreaPct:  *safeArea,
+		SafeAreaSet:  safeAreaSet,
+		Layout:       *layout,
+		LayoutSet:    layoutSet,
+		NoAttract:    *noAttract,
+		NoAttractSet: noAttractSet,
+		Theme:        *themeSpec,
+		GFX:          *gfxName,
+		Framebuffer:  *fb,
+		MenuSocket:   *menuSocket,
+		Input:        *input,
+		DebugHUD:     *debugHUD,
+		DebugHUDSet:  debugHUDSet,
+		RoomsDir:     *roomsDir,
+		Home:         *home,
+		HomeSet:      homeSet,
+		HomeRoom:     strings.TrimSpace(*homeRoom),
 	}, nil
 }
 

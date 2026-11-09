@@ -36,10 +36,11 @@ func PreparePowerCycle(ctx context.Context, req AcknowledgeRequest) (PowerCycleP
 	}
 	defer repair.repo.Close()
 	c := &ProcessController{RunDir: acknowledgmentRunDir, Resolve: repair.resolve}
-	if err := c.Verify(ctx, req.Selected); err != nil {
+	runningBundle, err := compatibleRunningBundle(ctx, c, req.Selected, repair.factory.ID)
+	if err != nil {
 		return result, err
 	}
-	running, err := captureRunningPrior(ctx, req, c)
+	running, err := captureRunningPriorForBundle(ctx, req, c, runningBundle)
 	if err != nil {
 		return result, err
 	}
@@ -67,7 +68,7 @@ func PreparePowerCycle(ctx context.Context, req AcknowledgeRequest) (PowerCycleP
 		if err := sameExecutable(running.supervisor, running.supervisorExecutable); err != nil {
 			return fail(err)
 		}
-		root, err := c.preparedPath(ctx, req.Selected)
+		root, err := c.preparedPath(ctx, running.bundleID)
 		if err != nil {
 			return fail(err)
 		}

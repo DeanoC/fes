@@ -200,6 +200,10 @@ module pc386_system #(
     wire [7:0] sb_base_high = settings[75:68];
     wire [7:0] sb_irq = settings[87:80];
     wire [7:0] sb_dma = settings[103:96];
+    // The EMS board: fitted with 2 MiB. Word 7 is to choose its size
+    // (docs/pc386-machine-design.md, "Size and setting"); until the record
+    // accepts that, it is reserved and zero.
+    localparam [7:0] EMS_PAGES = 8'd128;
 
     // ---- Hold and the machine reset
     wire cpu_mem_idle, rom_idle;
@@ -288,7 +292,7 @@ module pc386_system #(
         .io_rdata(io_rdata), .inta_vector(inta_vector), .intr(intr), .a20m(a20m),
         .cpu_shutdown(cpu_shutdown), .flush_request(flush_request), .flush_done(flush_done),
         .cpu_reset(machine_cpu_reset),
-        .mem_valid(mem_valid), .mem_write(mem_write), .mem_address(cpu_mmio_address[14:0]),
+        .mem_valid(mem_valid), .mem_write(mem_write), .mem_address(cpu_mmio_address[17:0]),
         .mem_byteenable(mem_byteenable), .mem_wdata(mem_wdata), .mem_ready(mem_ready),
         .mem_rvalid(mem_rvalid), .mem_rdata(mem_rdata),
         .dma_valid(dma_valid), .dma_write(dma_write), .dma_address(dma_address), .dma_wdata(dma_wdata),
@@ -305,7 +309,7 @@ module pc386_system #(
         .mouse_dy(mouse_dy[7:0]), .mouse_buttons(mouse_buttons), .mouse_ready(mouse_ready),
         // 640 KiB and 15 MiB of extended memory: 16 MiB of RAM, ram_top below.
         .base_kib(16'd640), .extended_kib(16'd15360), .above16m_64k(16'd0),
-        .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma), .cmos_busy(cmos_busy),
+        .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma), .ems_pages(EMS_PAGES), .cmos_busy(cmos_busy),
         .wall_valid(wall_valid), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
         .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second), .wall_weekday(wall_weekday),
         .disk_present(disk_present), .disk_sectors(disk_sectors), .disk_cylinders(disk_cylinders),
@@ -423,8 +427,10 @@ module pc386_system #(
     end
 
     // The attribute map, 640 KiB to 1 MiB in 16 KiB slots: VGA memory MMIO,
-    // the VGA and system BIOS read-only, upper RAM on; 16 MiB of RAM.
-    localparam [47:0] ATTR_UPPER = {{4{2'd1}}, {10{2'd0}}, {2{2'd1}}, {8{2'd2}}};
+    // the VGA and system BIOS read-only, upper RAM on, and the EMS board's
+    // frame (E0000h-EFFFFh) MMIO when it is fitted; 16 MiB of RAM.
+    localparam [47:0] ATTR_UPPER = {{4{2'd1}}, {4{EMS_PAGES != 8'd0 ? 2'd2 : 2'd0}}, {6{2'd0}}, {2{2'd1}},
+                                    {8{2'd2}}};
     wire [27:0] cpu_ddr_address;
     wire [7:0] cpu_ddr_burstcount;
     wire cpu_ddr_read, cpu_ddr_write, cpu_ddr_waitrequest, cpu_ddr_readdatavalid;
@@ -473,11 +479,12 @@ module pc386_system #(
         .trace_fetch_block(), .trace_dread(), .trace_dread_addr(), .trace_mem_wait(), .trace_fe_wait(),
         .trace_mem_idle(cpu_mem_idle), .trace_replay(), .trace_smc(), .trace_smc_open(), .trace_ex_store(),
         .trace_gov_hold(gov_hold), .trace_gov_debt(), .trace_gov_charge(),
-        .trace_store(), .trace_store_addr(), .trace_store_data(), .trace_store_mask(), .arch_gpr(),
+        .trace_store(), .trace_store_addr(), .trace_store_data(), .trace_store_mask(), .trace_store_pg0(),
+        .trace_store_pg1(), .trace_pw(), .trace_pw_addr(), .trace_pw_data(), .arch_gpr(),
         .arch_eflags(), .arch_cr0(), .arch_cr2(), .arch_cr3(), .arch_gdtr_base(), .arch_gdtr_limit(),
         .arch_idtr_base(), .arch_idtr_limit(), .arch_eip(cpu_eip), .arch_sel(cpu_sel),
         .arch_base(), .arch_limit(), .arch_ar(), .arch_ldtr_sel(), .arch_ldtr_base(), .arch_ldtr_limit(),
-        .arch_ldtr_ar(), .arch_ldtr_valid(), .arch_tr_sel(), .arch_tr_base(), .arch_tr_limit(), .arch_tr_ar()
+        .arch_ldtr_ar(), .arch_ldtr_valid(), .arch_tr_sel(), .arch_tr_base(), .arch_tr_limit(), .arch_tr_ar(), .arch_cpl()
     );
     /* verilator lint_on PINCONNECTEMPTY */
 

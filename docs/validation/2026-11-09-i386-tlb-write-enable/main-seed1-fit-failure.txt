@@ -1,0 +1,8 @@
+Info (170137): Fitter placement was successful
+    Info (170196): Router estimated peak interconnect usage is 67% of the available device resources in the region that extends from location X45_Y35 to location X55_Y45
+Info (188005): Design requires adding a large amount of routing delay for some signals to meet hold time requirements, and there is an excessive demand for the available routing resources. The Fitter is reducing the routing delays of some signals to help the routing algorithm converge, but doing so may cause hold time failures. For more information, refer to the "Estimated Delay Added for Hold Tim
+Warning (16684): The router is trying to resolve an exceedingly large amount of congestion. At the moment, it predicts long routing run time and/or significant setup or hold timing failures. Congestion details can be found in the Chip Planner.
+Warning (16618): Fitter routing phase terminated due to routing congestion. Congestion details can be found in Chip Planner.
+Critical Warning (188026): The Fitter failed to successfully route the design.  You may be able get this design to route by making design modifications, changing the fitter seed or by enabling the Fitter Aggressive Routability Optimizations logic option.
+Error (170143): Final fitting attempt was unsuccessful
+Error (11802): Can't fit design in device. Modify your design to reduce resources, or choose a larger device. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/knowledge-base/search.html and search for this specific error message number.

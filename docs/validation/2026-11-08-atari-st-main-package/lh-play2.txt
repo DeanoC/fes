@@ -1,0 +1,34 @@
+restore
+FES1528
+inventory
+stand up
+south
+look
+west
+east
+north
+examine hacker
+talk to hacker
+examine stone
+examine pc
+read assignment
+look
+wait
+wait
+score
+hacker, hello
+examine chair
+look under chair
+sit on chair
+stand up
+south
+look
+north
+examine pc
+examine terminal
+turn off pc
+turn on pc
+inventory
+drop stone
+take stone
+score

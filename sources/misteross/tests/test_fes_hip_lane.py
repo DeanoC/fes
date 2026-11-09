@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from scripts import build_fes_coleco_oss, build_fes_pong, build_fes_zx81_oss, toolchain_cache
+from tests import test_build_fes_pong as pong_test_support
 from scripts.build_fes_coleco_oss import COLECO_TOOLCHAIN_LOCK
 from scripts.build_fes_pong import AuthenticatedTool, BuildError, build_commands, create_build_record
 from scripts.build_fes_zx81_oss import OUTPUT_RELATIVE as ZX81_OUTPUT
@@ -360,24 +361,40 @@ class FesHipLaneTests(unittest.TestCase):
                 if log.name == "yosys.log":
                     (log.parent / "synth.json").write_text("{}\n", encoding="utf-8")
 
+            def route(**kwargs):
+                output = kwargs["dest"]
+                pong_test_support.BuildFesPongTests()._write_passing_outputs(output)
+                (output / "core.rbf").write_bytes(
+                    (ROOT / "tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf").read_bytes()
+                )
+                return SimpleNamespace(seed=1, weight=1)
+
             init_source(root)
+            repository = "https://github.com/DeanoC/misteross.git"
+            subprocess.run(
+                ["git", "-C", str(root), "remote", "set-url", "origin", repository],
+                check=True,
+                capture_output=True,
+            )
+            revision = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
             with (
                 patch.object(build_fes_pong, "FunctionalInvocation", FakeInvocation),
                 patch.object(build_fes_pong, "_require_clean_source",
-                             return_value=("https://github.com/DeanoC/misteross.git", "a" * 40)),
+                             return_value=(repository, revision)),
                 patch.object(build_fes_pong, "_authenticate_tools", side_effect=authenticate),
                 patch.object(build_fes_pong, "_run_tool", side_effect=run_tool),
-                patch.object(build_fes_pong, "route_after_synth",
-                             return_value=SimpleNamespace(seed=1, weight=1)),
-                patch.object(
-                    build_fes_pong,
-                    "validate_build_evidence",
-                    return_value={"rbf": {"sha256": "a" * 64, "size": 1}, "route": {}},
-                ),
-                patch.object(build_fes_pong, "export_package", return_value=root / "pkg"),
+                patch.object(build_fes_pong, "route_after_synth", side_effect=route),
             ):
-                build_fes_pong.build(root, root / "build/packages", cache_root=cache)
+                package = build_fes_pong.build(root, root / "build/packages", cache_root=cache)
             self.assertEqual(seen, [cache, cache])
+            fixture_payload = (ROOT / "tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf").read_bytes()
+            self.assertEqual((package / "core.rbf").read_bytes(), fixture_payload)
+            self.assertTrue(package.with_suffix(".fcore").is_file())
 
     def test_local_off_or_unstamped_nextpnr_is_rejected_for_pong_and_zx81(self) -> None:
         for module in (build_fes_pong, build_fes_zx81_oss):

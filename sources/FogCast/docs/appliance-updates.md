@@ -47,9 +47,15 @@ or unconfirmed trials fall back to known-good, then factory if necessary. The
 factory image, bootstrap, kernel and bootloader are retained. There are no rootfs
 migrations of save/configuration formats in this release ABI.
 
+If a rollback response is HTTP 503 or cannot be decoded, `fes-update` polls the
+authenticated boot and release status. It resends the rollback only after two
+consecutive reads show the same boot and image with no pending activation. If
+status shows the previous image pending or a changed boot, it only waits for
+that transition; it never blindly repeats an accepted activation.
+
 | Target route | Request | Result |
 | --- | --- | --- |
-| `GET /v1/update` | Bearer authentication | Actual boot/image, trial, raw idle, good/previous/pending, state integrity, `fat_idle_sha256`, `idle_sha256`, and `splash_warning` when a non-trial splash repair fails |
+| `GET /v1/update` | Bearer authentication | Actual boot/image, trial, `fallback_image_sha256`, raw idle, good/previous/pending, state integrity, `fat_idle_sha256`, `idle_sha256`, and `splash_warning` when a non-trial splash repair fails |
 | `POST /v1/update/stage` | Raw image, exact Content-Length, `X-FogCast-Release-Manifest` base64 JSON | Verified immutable staged manifest (201) |
 | `POST /v1/update/activate` | JSON `image_sha256` | Persist selection, flush `rebooting:true`, reboot (202) |
 | `POST /v1/update/rollback` | Empty body | Select previous, flush, reboot (202) |
@@ -122,9 +128,9 @@ A trial boot does not use that field: the watchdog stays armed until the FAT
 publish succeeds. U-Boot, the kernel, `u-boot.txt` and `/menu.rbf`
 are not rewritten.
 
-If a response is lost, inspect status; do not blindly replay activation. A pending
-selection after a failed reboot request remains visible and is attempted on the
-next reboot. An unconfirmed trial blocks normal launch/input/cast and has a
+If an activation response is lost, inspect status; do not blindly replay it. A
+pending selection after a failed reboot request remains visible and is attempted
+on the next reboot. An unconfirmed trial blocks normal launch/input/cast and has a
 180-second bootstrap deadline plus the hardware watchdog reset interval. A client
 that disappears cannot silently promote it. Corrupt selection state boots factory
 and rejects further update mutations until the card state is repaired.
