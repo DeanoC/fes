@@ -1,0 +1,83 @@
+test_mapped_shell_has_no_async_m10k (test_build_fes_zx81_oss.Zx81YosysM10kTests.test_mapped_shell_has_no_async_m10k) ... FAIL
+test_spikes_and_their_rtl_lint (test_fes_i386_frontend.RtlTest.test_spikes_and_their_rtl_lint) ... 
+  test_spikes_and_their_rtl_lint (test_fes_i386_frontend.RtlTest.test_spikes_and_their_rtl_lint) (spike='dag') ... FAIL
+test_directed_device_checks (test_pc386_machine.DeviceBenchTest.test_directed_device_checks) ... ERROR
+test_opl2_against_nuked_opl3 (test_pc386_machine.DeviceBenchTest.test_opl2_against_nuked_opl3) ... ERROR
+
+======================================================================
+ERROR: test_directed_device_checks (test_pc386_machine.DeviceBenchTest.test_directed_device_checks)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/data/projects/de25-embedded-os-20261109/sources/misteross/tests/test_pc386_machine.py", line 294, in test_directed_device_checks
+    report = sim.run_devices(Args())
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/projects/de25-embedded-os-20261109/sources/misteross/scripts/sim_fes_pc386.py", line 681, in run_devices
+    testbench = verilate(args.verilator, 'devices', 'pc386_at_core', AT_RTL, CORE / 'sim/devices_tb.cpp', [],
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/projects/de25-embedded-os-20261109/sources/misteross/scripts/sim_fes_pc386.py", line 220, in verilate
+    raise SimError(f'verilator failed; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
+scripts.sim_fes_pc386.SimError: verilator failed; see /tmp/tmp6dtfh89g/devices/obj/build.log
+%Warning-WIDTHEXPAND: /data/projects/de25-embedded-os-20261109/sources/misteross/cores/fes-pc386/rtl/pc386_ata.sv:499:70: Operator ADD expects 21 bits on the LHS, but LHS's REPLICATE generates 5 bits.
+                                                                                                                        : ... note: In instance 'pc386_at_core.ata'
+  499 |                                 track <= 21'({1'b0, drive_head[3:0]} + 5'd1) * 21'(count[5:0]);
+      |                                                                      ^
+                      ... For warning description see https://verilator.org/warn/WIDTHEXPAND?v=5.020
+                      ... Use "/* verilator lint_off WIDTHEXPAND */" and lint_on around source to disable this message.
+%Warning-WIDTHEXPAND: /data/projects/de25-embedded-os-20261109/sources/misteross/cores/fes-pc386/rtl/pc386_ata.sv:499:70: Operator ADD expects 21 bits on the RHS, but RHS's CONST '5'h1' generates 5 bits.
+                                                                                                                        : ... note: In instance 'pc386_at_core.ata'
+  499 |                                 track <= 21'({1'b0, drive_head[3:0]} + 5'd1) * 21'(count[5:0]);
+      |                                                                      ^
+%Error: Exiting due to 2 warning(s)
+
+======================================================================
+ERROR: test_opl2_against_nuked_opl3 (test_pc386_machine.DeviceBenchTest.test_opl2_against_nuked_opl3)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/data/projects/de25-embedded-os-20261109/sources/misteross/tests/test_pc386_machine.py", line 304, in test_opl2_against_nuked_opl3
+    report = sim.run_opl2(Args())
+             ^^^^^^^^^^^^^^^^^^^^
+  File "/data/projects/de25-embedded-os-20261109/sources/misteross/scripts/sim_fes_pc386.py", line 714, in run_opl2
+    testbench = verilate(args.verilator, 'opl2', 'pc386_opl2', OPL2_RTL, CORE / 'sim/opl2_tb.cpp',
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/projects/de25-embedded-os-20261109/sources/misteross/scripts/sim_fes_pc386.py", line 220, in verilate
+    raise SimError(f'verilator failed; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
+scripts.sim_fes_pc386.SimError: verilator failed; see /tmp/tmpxqan5fn9/opl2/obj/build.log
+%Warning-CASEINCOMPLETE: /data/projects/de25-embedded-os-20261109/sources/misteross/cores/fes-pc386/vendor/opl2_fpga/envelope_generator.sv:213:20: Case values incompletely covered (example pattern 0x0)
+  213 |             unique case (state_p0)
+      |                    ^~~~
+                         ... For warning description see https://verilator.org/warn/CASEINCOMPLETE?v=5.020
+                         ... Use "/* verilator lint_off CASEINCOMPLETE */" and lint_on around source to disable this message.
+%Error: Exiting due to 1 warning(s)
+
+======================================================================
+FAIL: test_mapped_shell_has_no_async_m10k (test_build_fes_zx81_oss.Zx81YosysM10kTests.test_mapped_shell_has_no_async_m10k)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/data/projects/de25-embedded-os-20261109/sources/misteross/tests/test_build_fes_zx81_oss.py", line 708, in test_mapped_shell_has_no_async_m10k
+    self.assertEqual(result.returncode, 0, (result.stderr or log)[-4000:])
+AssertionError: 1 != 0 : ERROR: Module `\cyclonev_hps_interface_peripheral_i2c' referenced in module `\top' in cell `\hdmi_i2c' is not part of the design.
+
+
+======================================================================
+FAIL: test_spikes_and_their_rtl_lint (test_fes_i386_frontend.RtlTest.test_spikes_and_their_rtl_lint) (spike='dag')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/data/projects/de25-embedded-os-20261109/sources/misteross/tests/test_fes_i386_frontend.py", line 218, in test_spikes_and_their_rtl_lint
+    self.assertEqual(result.returncode, 0, result.stderr)
+AssertionError: 1 != 0 : %Warning-WIDTHEXPAND: /data/projects/de25-embedded-os-20261109/sources/misteross/cores/fes-common/sim/i386/spike/spike_dag.sv:46:31: Operator MODDIV expects 32 or 6 bits on the LHS, but LHS's SEL generates 3 bits.
+                                                                                                                                   : ... note: In instance 'spike_dag'
+   46 |         seg_base[noise[90:88] % 6] <= noise[122:91];
+      |                               ^
+                      ... For warning description see https://verilator.org/warn/WIDTHEXPAND?v=5.020
+                      ... Use "/* verilator lint_off WIDTHEXPAND */" and lint_on around source to disable this message.
+%Warning-WIDTHEXPAND: /data/projects/de25-embedded-os-20261109/sources/misteross/cores/fes-common/sim/i386/spike/spike_dag.sv:47:35: Operator MODDIV expects 32 or 5 bits on the LHS, but LHS's SEL generates 3 bits.
+                                                                                                                                   : ... note: In instance 'spike_dag'
+   47 |         seg_hi_plus1[noise[90:88] % 6] <= noise[122:107] + 16'd1;
+      |                                   ^
+%Error: Exiting due to 2 warning(s)
+
+
+----------------------------------------------------------------------
+Ran 4 tests in 6.049s
+
+FAILED (failures=2, errors=2)

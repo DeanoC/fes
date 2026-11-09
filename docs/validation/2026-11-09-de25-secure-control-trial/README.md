@@ -105,3 +105,5 @@ candidate, prepared and transport archives were copied with unchanged hashes.
 This changes the storage location, adds no hardware action and leaves the
 retired image, all guards and the goal's remaining acceptance requirements as
 recorded. See `remote-terminal-retention.json` for the hashes and source IDs.
+
+The pinned board/overlay Git objects needed by source admission are also retained in a separately verified standalone source supplement; see `pinned-source-retention-proof.json`. A restored clone must use the canonical FES GitHub origin before producer verification. The original terminal archive is unchanged.

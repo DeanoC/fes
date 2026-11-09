@@ -24,8 +24,8 @@ Fifty focused MMU tests and four actual cold-platform tests pass, including
 fresh observation, callback/CPU/owner failures and permanent failure states.
 The AArch64 BL31 and matched bootloader build pass; the FIT remains8387240
 bytes within the original8MiB upload limit. Prospective native image ID is
-`38c6b2fe551dcd88`. Full selected integration checks, final composition and a
-fresh bounded hardware trial remain. This is off-board evidence only; the
+`38c6b2fe551dcd88`. The selected native integration checks and final composition pass; a
+fresh bounded hardware trial remains. This is off-board evidence only; the
 previous physical result does not qualify the new image or ordinary core loads.
 
 Builds use an isolated checkout on chip-30x0-ai-dev. A private mount view
@@ -41,3 +41,14 @@ Powerboat cleanup is paused at the user's request. Its archive passed complete
 file/mode readback before any deletion; a later permission error stopped the
 partial deletion. The verified archive, pause record and logs are retained,
 and no cleanup restarts are authorized without a user resume.
+
+The additional full FPGA campaign on the remote host stopped at its300-second
+cap with unrelated optional tool failures. Focused replay accounts for all ten
+observed failures: stock Yosys0.33 rejects existing HPS atoms or C64 function
+syntax; Verilator5.020 treats existing width/case warnings as fatal. The three
+Verilator cases pass unchanged on Powerboat5.032. No FPGA/shared-definition
+source changed: exact2553-file membership/hashes, the214-module catalog and
+original complete prefix/suffix receipts are rechecked for scoped reuse.
+Current native/FW/identity/RTL integrations0..8 passed separately. The remote
+full campaign remains failed and is not presented as a green FPGA regression
+run or a new all-core synthesis qualification.
