@@ -65,9 +65,12 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            the RTL must run it without an oracle step or a stop; writes
            speaker-rtl/.
   scroll   runs cores/fes-pc386/sim/scroll_test.asm (SCROLLT.COM) at the
-           FreeDOS prompt (#1493): INT 10h AH=07h of a window from row 0, in
-           modes 13h, 12h and 04h, must return with the picture one character
-           row lower and the top row blank, as Ultima VII's scroll needs.
+           FreeDOS prompt. INT 10h AH=00h for modes 13h, 93h and 03h must keep
+           BX, CX, DX, SI, DI, BP, DS and ES, and AH=0Fh must return the mode
+           asked for, as Darklands's MGRAPHIC.EXE needs (#1553). INT 10h
+           AH=07h of a window from row 0, in modes 13h, 12h and 04h, must
+           return with the picture one character row lower and the top row
+           blank, as Ultima VII's scroll needs (#1493).
            Every check must print ok. With --cpu rtl, the RTL must run it
            without an oracle step or a stop; writes scroll-rtl/.
   cpu-profile  boots FreeDOS on the oracle and runs CPUPROF.COM
@@ -930,11 +933,12 @@ def run_speaker(args, linked: list[Path]) -> dict:
 
 
 # SCROLLT.COM's checks, in the order it runs them.
-SCROLL_CHECKS = ('mode13', 'mode12', 'mode04', 'DONE')
+SCROLL_CHECKS = ('modeset', 'mode13', 'mode12', 'mode04', 'DONE')
 
 
 def run_scroll(args, linked: list[Path]) -> dict:
-    """SCROLLT.COM at the FreeDOS prompt: INT 10h AH=07h from row 0 in each graphics memory model."""
+    """SCROLLT.COM at the FreeDOS prompt: INT 10h AH=00h keeps the caller's registers, and AH=07h
+    from row 0 returns in each graphics memory model."""
     images = firmware.images(args.download, args.jobs)
     testbench = machine_testbench(args, linked)
     suite = 'scroll' + ('-rtl' if args.cpu == 'rtl' else '')
