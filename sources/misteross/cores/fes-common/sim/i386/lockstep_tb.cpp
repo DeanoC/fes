@@ -2382,6 +2382,17 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             if (before.cr0 & 0x80000000u) ++summary.pm_kinds["paged"];
             if (oracle_state.cpl > before.cpl) ++summary.pm_kinds["outer-return"];
             if (before.cpl > ((before.eflags >> 12) & 3) && is_io(op) && !is_string(op)) ++summary.pm_kinds["io-bitmap"];
+            // Phase 5's second slice: MOV to and from DRn, far CALLs that
+            // reach an inner privilege (through a call gate), RETF to an
+            // outer one, and far CALLs through a call gate at the same.
+            if (op == 0x0f && (op2 == 0x21 || op2 == 0x23)) ++summary.pm_kinds["mov-dr"];
+            if (kind && std::string(kind) == "call-far") {
+                if (oracle_state.cpl < before.cpl) ++summary.pm_kinds["inner-call"];
+                else if ((oracle_state.seg[fes_i386::SEG_CS].selector | 3) != (before.seg[fes_i386::SEG_CS].selector | 3)
+                         && (oracle_state.seg[fes_i386::SEG_CS].selector & ~3) != 0x30)
+                    ++summary.pm_kinds["gate-call"];
+            }
+            if (kind && std::string(kind) == "retf" && oracle_state.cpl > before.cpl) ++summary.pm_kinds["outer-retf"];
         }
         // A delivery from an outer privilege to an inner one.
         if ((before.cr0 & 1) && delivered && oracle_state.cpl < before.cpl) ++summary.pm_kinds["inner-delivery"];
@@ -4468,7 +4479,8 @@ private:
     // (+118h); an IDT of 48 gates (+120h); the handlers that interrupts and
     // INT n return from, NOP and IRET in 32-bit code (+2A0h) and in 16-bit
     // code (+2A4h); the handler of INT 2Fh, which a CPL-3 run ends with
-    // (+2A8h, pm_ring3); an LDT of 8 descriptors (+2C0h); a TSS (+300h),
+    // (+2A8h, pm_ring3); the call gate's stub (+2B8h, pm_cgate); an LDT of 8
+    // descriptors (+2C0h); a TSS (+300h),
     // with its I/O permission bitmap at +68h; the ring-0 stack's top (+600h)
     // and the ring-3 stack's (+700h).
     // Descriptors (selector index * 8):
@@ -4483,7 +4495,7 @@ private:
     //   16 code RX 32-bit, flat (the 32-bit handler's)
     //   17 the LDT, mostly present         18 a TSS, mostly an available 386 one
     //   19 code RX 16-bit at the handlers' 64K (the 16-bit handler's)
-    //   20 a call gate (not built)         21 eight random bytes
+    //   20 a call gate to the stub (pm_cgate)  21 eight random bytes
     //   22 code RX 16-bit at the program's CS base, a small limit (pm_limit)
     //   23 code RX 32-bit, the same
     //   24 code RX 16-bit at DPL 3 at the program's CS base (pm_ring3)
@@ -4528,7 +4540,8 @@ private:
         }
     }
     static constexpr uint32_t PM_LGDT = 0xe0, PM_SCRATCH = 0xe8, PM_LIDT = 0x110, PM_LIDT_REAL = 0x118, PM_IDT = 0x120,
-                              PM_H32 = 0x2a0, PM_H16 = 0x2a4, PM_HRET = 0x2a8, PM_LDT = 0x2c0, PM_TSS = 0x300,
+                              PM_H32 = 0x2a0, PM_H16 = 0x2a4, PM_HRET = 0x2a8, PM_CGATE = 0x2b8, PM_LDT = 0x2c0,
+                              PM_TSS = 0x300,
                               PM_ESP0 = 0x600, PM_ESP3 = 0x700;
     static constexpr unsigned GDT_SIZE = 28, IDT_GATES = 48;
     uint32_t gdt_lin = 0;
@@ -4537,6 +4550,36 @@ private:
     std::array<Desc, GDT_SIZE> gdt{};
     std::array<uint64_t, GDT_SIZE> raw{};  // the descriptors as stored
     std::array<uint64_t, IDT_GATES> idt{};  // the gates as stored
+    // The call gate (descriptor 20, A0h): a 286 or 386 gate, DPL 3 mostly,
+    // to the stub at +2B8h in 16-bit code at the handlers' 64K (98h) or in
+    // flat 32-bit code (80h), with 0-4 parameters (now and then up to 31):
+    // INC AX, then RETF past them at the gate's size. Now and then one that
+    // fails a check: not present, its CS null or data, or the stub's offset
+    // past the 16-bit CS's limit. A far CALL through it from CPL 3 reaches
+    // CPL 0 on the TSS's stack with the parameters copied; from CPL 0 it
+    // stays there, and its RETF takes the parameters off the caller's stack.
+    uint64_t pm_cgate(std::vector<uint8_t> &stub) {
+        const bool g386 = pick(3) != 0, c32 = pick(2) != 0;
+        const unsigned count = pick(8) ? pick(5) : pick(32);
+        const uint16_t sel = c32 ? 0x80 : 0x98;
+        const uint32_t off = gdt_lin + PM_CGATE - (c32 ? 0 : gdt_lin & 0xffff0000u);
+        const uint8_t dpl = pick(4) ? 3 : 0;
+        stub = {0x40};
+        if (g386 != c32) stub.push_back(0x66);
+        const uint16_t n = uint16_t(count * (g386 ? 4 : 2));
+        stub.insert(stub.end(), {0xca, uint8_t(n), uint8_t(n >> 8)});
+        uint64_t g = gate_bytes(sel, off, uint8_t(0x80 | dpl << 5 | (g386 ? 0x0c : 0x04))) | uint64_t(count) << 32;
+        if (pick(10) == 0) {
+            switch (pick(4)) {
+            case 0: g &= ~(uint64_t(0x80) << 40); break;                                   // not present
+            case 1: g &= ~(uint64_t(0xffff) << 16); break;                                 // a null CS
+            case 2: g = (g & ~(uint64_t(0xffff) << 16)) | uint64_t(0x10) << 16; break;     // a data segment
+            default: if (g386) g = (g & ~(uint64_t(0xffff) << 16) & ~(uint64_t(0xffff) << 48)) | uint64_t(0x98) << 16
+                                 | uint64_t(1 + pick(0xffff)) << 48;                     // past 98h's limit
+            }
+        }
+        return g;
+    }
     // A far jump's selector to a TSS, task gate or call gate: not built.
     bool gate(uint16_t sel) const {
         const unsigned index = sel >> 3;
@@ -4625,9 +4668,10 @@ private:
         gdt[27] = Desc{gdt_lin & 0xffff0000u, 0xffff, false, false, uint8_t(0xf2 | acc())};
         limit_set = {false, false};
         gdt_limit = pick(6) == 0 ? uint16_t(8 * (1 + pick(GDT_SIZE)) - 1) : uint16_t(8 * GDT_SIZE - 1);
+        std::vector<uint8_t> stub;
         for (unsigned n = 0; n < GDT_SIZE; ++n) {
             uint64_t d = n == 15 || n == 21 ? rng() : desc_bytes(gdt[n]);
-            if (n == 20) d = gate_bytes(0x30, pick(0x10000), uint8_t(0x8c));  // a call gate
+            if (n == 20) d = pm_cgate(stub);
             raw[n] = d;
             for (unsigned i = 0; i < 8; ++i) image.emplace_back(gdt_lin + 8 * n + i, uint8_t(d >> (8 * i)));
         }
@@ -4656,6 +4700,7 @@ private:
             std::vector<uint8_t> hret{0xb8, 0x10, 0x00, 0x8e, 0xe0, 0x64, 0x67, 0xff, 0x2d};
             put32(hret, gdt_lin + PM_SCRATCH + 0x28);
             for (size_t i = 0; i < hret.size(); ++i) image.emplace_back(gdt_lin + PM_HRET + uint32_t(i), hret[i]);
+            for (size_t i = 0; i < stub.size(); ++i) image.emplace_back(gdt_lin + PM_CGATE + uint32_t(i), stub[i]);
         }
         // The LDT.
         const Desc ldt[8] = {
@@ -4911,6 +4956,27 @@ private:
             pm_cs = true;
         }
         const bool os32 = pick(3) == 0;
+        if (pick(4) == 0) {  // through the call gate (A0h), whose offset counts for nothing
+            if (pick(2)) {
+                std::vector<uint8_t> call;
+                if (os32) call.push_back(0x66);
+                call.insert(call.end(), {0x9a, uint8_t(rng()), uint8_t(rng())});
+                if (os32) call.insert(call.end(), {uint8_t(rng()), uint8_t(rng())});
+                call.insert(call.end(), {0xa0, 0x00});
+                emit(call);
+            } else {  // CALL FAR FS:[scratch + 8], the selector in the pointer's last word
+                flat_fs();
+                std::vector<uint8_t> sel;
+                scratch_modrm(sel, 0xc7, 0, os32 ? 3 : 2);
+                sel.insert(sel.end(), {0xa0, 0});
+                emit(sel);
+                std::vector<uint8_t> call;
+                if (os32) call.push_back(0x66);
+                scratch_modrm(call, 0xff, 3, 2);
+                emit(call);
+            }
+            return;
+        }
         if (pick(3) == 0) {
             flat_fs();
             Item store;  // MOV dword FS:[scratch], offset | 30h << 16, or the offset dword and the selector word
@@ -5259,12 +5325,17 @@ private:
         store.far = Item::PM_OFF;
         const int cont = int(items.size());
         items.push_back(store);
-        const bool d32 = pick(2), ss16 = pick(3) == 0;
+        // IRET to CPL 3 mostly; RETF (RETF imm16 now and then) a quarter of
+        // the time, which has no FLAGS slot and steps past imm16's slots
+        // before SS's and ESP's.
+        const bool d32 = pick(2), ss16 = pick(3) == 0, retf = pick(4) == 0;
+        const uint16_t pop = retf && pick(3) == 0 ? uint16_t((1 + pick(3)) * (d32 ? 4 : 2)) : 0;
         uint16_t ss3 = ss16 ? 0xdb : 0xcb;
         if (pick(12) == 0) ss3 = std::array<uint16_t, 5>{0xc8, 0x6b, 0x4b, 0xd8, 0x13}[pick(5)];
         push_imm(ss3, d32);
         push_imm(ss16 ? (gdt_lin + PM_ESP3) & 0xffff : gdt_lin + PM_ESP3, d32);
-        emit(d32 ? std::vector<uint8_t>{0x66, 0x9c} : std::vector<uint8_t>{0x9c});
+        if (!retf) emit(d32 ? std::vector<uint8_t>{0x66, 0x9c} : std::vector<uint8_t>{0x9c});
+        for (unsigned k = 0; k < pop / (d32 ? 4u : 2u); ++k) push_imm(uint32_t(rng()), d32);
         push_imm(pick(16) ? 0xc3 : 0xc0, d32);
         Item off;
         if (d32) off.bytes.push_back(0x66);
@@ -5275,7 +5346,12 @@ private:
         off.far = Item::PM_OFF;
         const int at = int(items.size());
         items.push_back(off);
-        emit(d32 ? std::vector<uint8_t>{0x66, 0xcf} : std::vector<uint8_t>{0xcf});
+        std::vector<uint8_t> ret;
+        if (d32) ret.push_back(0x66);
+        if (!retf) ret.push_back(0xcf);
+        else if (pop) ret.insert(ret.end(), {0xca, uint8_t(pop), 0});
+        else ret.push_back(0xcb);
+        emit(ret);
         items[size_t(at)].target = int(items.size());
         // DS and ES at DPL 3 mostly, so the body's accesses run.
         if (pick(3)) load_seg(3, 0xd3);
@@ -5312,11 +5388,12 @@ private:
             case 4: pm_access(); break;
             case 5: {  // what only CPL 0 runs, now and then
                 if (pick(3)) { emit(pm_instruction()); break; }
-                switch (pick(5)) {
+                switch (pick(6)) {
                 case 0: emit({0xf4}); break;                      // HLT
                 case 1: emit({0x0f, 0x06}); break;                // CLTS
                 case 2: emit({0x0f, 0x20, 0xc0}); break;          // MOV EAX, CR0
                 case 3: emit({0x0f, 0x01, 0xf0}); break;          // LMSW AX
+                case 4: emit({0x0f, uint8_t(pick(2) ? 0x21 : 0x23), uint8_t(0xc0 | pick(8) << 3)}); break;  // MOV DRn
                 default: emit({0x0f, 0x00, 0xd3}); break;         // LLDT BX
                 }
                 break;
@@ -5344,6 +5421,16 @@ private:
                 break;
             }
             case 8: pm_system(); break;
+            case 9: {  // CALL A3h:any through the call gate, to CPL 0 and back by its RETF
+                std::vector<uint8_t> call;
+                const bool os32 = pick(3) == 0;
+                if (os32) call.push_back(0x66);
+                call.insert(call.end(), {0x9a, uint8_t(rng()), uint8_t(rng())});
+                if (os32) call.insert(call.end(), {uint8_t(rng()), uint8_t(rng())});
+                call.insert(call.end(), {0xa3, 0x00});
+                emit(call);
+                break;
+            }
             default: emit(pm_instruction()); break;
             }
         }
@@ -5354,6 +5441,24 @@ private:
         // DS and ES: the ring-3 trip may have nulled or changed them.
         load_seg(3, sane(false));
         load_seg(0, sane(false));
+    }
+    // MOV r32, DRn (not into ESP), or MOV DRn, EAX of a random value; DR7's
+    // (or DR5's) with no breakpoint enabled, and GD now and then, which the
+    // next MOV DRn takes as #DB.
+    void pm_dr() {
+        const unsigned n = pick(8);
+        if (pick(2)) {
+            unsigned reg = pick(7);
+            if (reg >= 4) ++reg;
+            emit({0x0f, 0x21, uint8_t(0xc0 | n << 3 | reg)});
+            return;
+        }
+        uint32_t v = uint32_t(rng());
+        if ((n | 2) == 7) v = (v & ~0x20ffu) | (pick(8) == 0 ? 0x2000u : 0);
+        std::vector<uint8_t> mov{0x66, 0xb8};
+        put32(mov, v);
+        emit(mov);
+        emit({0x0f, 0x23, uint8_t(0xc0 | n << 3)});
     }
     void pm_block() {
         pm_cs = false;
@@ -5420,7 +5525,8 @@ private:
                 if (pg_on && pick(3)) pg_burst();
                 else pm_access();
                 break;
-            case 6: {  // CR and table reads and writes
+            case 6: {  // CR, DR and table reads and writes
+                if (pick(2) == 0) { pm_dr(); break; }
                 switch (pick(6)) {
                 case 0: emit({0x0f, 0x01, uint8_t(0xe0 | pick(8))}); break;            // SMSW r16
                 case 1: emit({0x0f, 0x20, uint8_t(0xc0 | (pick(3) ? 0 : 2 + pick(2)) << 3 | pick(8))}); break;  // MOV r32, CRn
