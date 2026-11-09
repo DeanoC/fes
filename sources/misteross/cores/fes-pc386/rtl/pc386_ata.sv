@@ -45,6 +45,9 @@
 //
 // Device 1 is absent: with DEV set its status reads 00h and it runs no
 // command but EXECUTE DEVICE DIAGNOSTIC; the other registers are shared.
+// A software reset loads the task file's signature (DEV clear) as SRST
+// clears; BSY then stays set for RESET_CLOCKS. A host write in that window,
+// such as a select of device 1, is kept.
 module pc386_ata #(
     parameter integer RESET_CLOCKS = 1000
 ) (
@@ -472,11 +475,7 @@ module pc386_ata #(
                 end
                 RESETTING: if (!srst) begin
                     if (reset_timer != 0) reset_timer <= reset_timer - 1'b1;
-                    else begin
-                        // Diagnostic signature of an ATA device; device 1 absent.
-                        count <= 1; number <= 1; cylinder_low <= 0; cylinder_high <= 0; drive_head <= 0;
-                        error <= 8'h01; busy <= 0; err <= 0; phase <= IDLE;
-                    end
+                    else begin busy <= 0; err <= 0; phase <= IDLE; end
                 end
                 default: begin end
             endcase
@@ -485,6 +484,14 @@ module pc386_ata #(
                 if (!command_block) begin
                     nien <= wdata[1];
                     srst <= wdata[2];
+                    if (srst && !wdata[2]) begin
+                        // SRST clears: the diagnostic signature of an ATA device,
+                        // device 1 absent, now rather than as BSY clears, so a
+                        // device select the host writes while BSY is still set
+                        // stands (the BIOS selects device 1 straight away).
+                        count <= 1; number <= 1; cylinder_low <= 0; cylinder_high <= 0; drive_head <= 0;
+                        error <= 8'h01;
+                    end
                     if (wdata[2]) begin
                         phase <= RESETTING; busy <= 1; drq <= 0; err <= 0; pending_interrupt <= 0;
                         fetch_left <= 0; loaded <= 0;
