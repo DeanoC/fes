@@ -4,6 +4,7 @@ package nativefabric
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -19,6 +20,98 @@ func (*programInputBase) Next(context.Context) (tenfoot.PlatformInput, error) {
 	return tenfoot.PlatformInput{At: time.Now()}, nil
 }
 func (b *programInputBase) Present(context.Context, tenfoot.Snapshot) error { b.presents++; return nil }
+
+func TestProgramInputKeyboardReturnChord(t *testing.T) {
+	for _, modifiers := range []byte{0x05, 0x14, 0x41, 0x50} {
+		t.Run(fmt.Sprintf("modifiers-%02x", modifiers), func(t *testing.T) {
+			f, b, c := backendFixture(t)
+			source := &programKeyboardReports{}
+			p, err := NewProgramInputPlatform(&programInputBase{}, b, source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx := context.Background()
+			play, err := c.Launch(ctx, "native-0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			chord := []byte{modifiers, 0, 0x29, 0, 0, 0, 0, 0}
+			// Held across launch, rollover and a missing report cannot arm it.
+			source.reports = [][]byte{chord, chord, {0, 0, 1, 0, 0, 0, 0, 0}}
+			frame, err := p.Next(ctx)
+			if err != nil || len(frame.Commands) != 0 || f.cpu.keyboardRows != ([9]uint16{}) {
+				t.Fatal("held launch chord escaped fence", frame, err)
+			}
+			// Ordinary Escape goes to the core. Adding modifiers to an already
+			// held Escape is not a fresh return command.
+			source.reports = [][]byte{make([]byte, 8), {0, 0, 0x29, 0, 0, 0, 0, 0}, chord}
+			frame, err = p.Next(ctx)
+			if err != nil || len(frame.Commands) != 0 || f.cpu.keyboardRows[2] != 1<<9 {
+				t.Fatal("ordinary core Escape became return", frame, err)
+			}
+			source.reports = [][]byte{make([]byte, 8), {0, 0, 4, 0, 0, 0, 0, 0}}
+			if _, err := p.Next(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if f.cpu.keyboardRows[0] != 1<<4 {
+				t.Fatal("core press missing")
+			}
+			source.reports = [][]byte{chord, chord, {0, 0, 5, 0, 0, 0, 0, 0}}
+			frame, err = p.Next(ctx)
+			if err != nil || len(frame.Commands) != 1 || frame.Commands[0] != tenfoot.CmdStop || f.cpu.keyboardRows != ([9]uint16{}) || f.s.Status().State != ProgramRunning {
+				t.Fatal("return must neutralize then request App Stop", frame, err, f.s.Status())
+			}
+			polls, calls := source.polls, f.cpu.calls
+			frame, err = p.Next(ctx)
+			if err != nil || len(frame.Commands) != 0 || source.polls != polls || f.cpu.calls != calls {
+				t.Fatal("return repeated before App handled Stop", frame, err)
+			}
+			if _, err := c.StopExpectedStamped(ctx, play, hostclient.ClientStamp{}); err != nil {
+				t.Fatal(err)
+			}
+			source.reports = [][]byte{chord}
+			frame, err = p.Next(ctx)
+			if err != nil || len(frame.Commands) != 0 {
+				t.Fatal("held return leaked into menu", frame, err)
+			}
+			if _, err := c.Launch(ctx, "native-1"); err != nil {
+				t.Fatal(err)
+			}
+			source.reports = [][]byte{chord, make([]byte, 8), {0, 0, 5, 0, 0, 0, 0, 0}}
+			frame, err = p.Next(ctx)
+			if err != nil || len(frame.Commands) != 0 || f.cpu.keyboardRows[0] != 1<<5 {
+				t.Fatal("return latch or key state leaked into replacement", frame, err)
+			}
+		})
+	}
+}
+
+func TestProgramInputKeyboardReturnNeutralizationFailure(t *testing.T) {
+	f, b, c := backendFixture(t)
+	source := &programKeyboardReports{}
+	p, err := NewProgramInputPlatform(&programInputBase{}, b, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if _, err := c.Launch(ctx, "native-0"); err != nil {
+		t.Fatal(err)
+	}
+	source.reports = [][]byte{make([]byte, 8), {0, 0, 4, 0, 0, 0, 0, 0}}
+	if _, err := p.Next(ctx); err != nil {
+		t.Fatal(err)
+	}
+	f.cpu.failKeyboardAt = f.cpu.keyboardWrites + 2
+	source.reports = [][]byte{{5, 0, 0x29, 0, 0, 0, 0, 0}}
+	frame, err := p.Next(ctx)
+	if err == nil || len(frame.Commands) != 0 || f.s.Status().State != ProgramRebootRequired || f.lease.r.Active {
+		t.Fatal("failed neutralization requested normal return", frame, err, f.s.Status())
+	}
+	calls, polls := f.cpu.calls, source.polls
+	if _, err := p.Next(ctx); err == nil || f.cpu.calls != calls || source.polls != polls {
+		t.Fatal("failed return input retried", err)
+	}
+}
 func TestProgramInputRoutesMenuAndCoreAcrossReturn(t *testing.T) {
 	f, b, c := backendFixture(t)
 	source := &programKeyboardReports{}
@@ -201,7 +294,8 @@ func (p *programInputApp) Next(ctx context.Context) (tenfoot.PlatformInput, erro
 			p.source.err = errors.New("USB input failed during play")
 			p.fixture.cpu.loseClose = p.fault == "close"
 		} else {
-			frame.Commands = []tenfoot.Command{tenfoot.CmdStop}
+			// Return through a real USB report; the fixture supplies no Stop.
+			p.source.reports = [][]byte{{5, 0, 0x29, 0, 0, 0, 0, 0}}
 		}
 		p.stage = 3
 	case 3:

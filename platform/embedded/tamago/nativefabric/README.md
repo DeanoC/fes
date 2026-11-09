@@ -913,6 +913,20 @@ keyboard can arm without an extra user press; other change-only sources may
 still need a release report. Physical startup/handoff behavior on a rebuilt
 matched image still needs qualification.
 
+During play, Ctrl+Alt+Escape requests a return to the launcher through Tenfoot's
+existing Stop command. Either left or right Ctrl/Alt works. Escape must be a
+fresh press after that play's all-up fence; adding modifiers to an already held
+Escape does not stop the core. The adapter validates the complete report and
+neutralizes the core keyboard before emitting Stop, without forwarding the
+reserved chord. Further core input waits for the App's owned transition; held
+reports cannot queue repeated returns. A generation or input-boundary change
+discards a buffered return. Ordinary S/Q/Escape remain emulated keys during play.
+This shortcut ends the current session; it is separate from in-play menus.
+The direct `ProgramKeyboard` API retains complete HID delivery and no shortcut.
+Host tests cover the real App loop, repeated launches/returns, neutralization
+failure and held-key fences. Physical shortcut acceptance requires a rebuilt
+matched image and a real keyboard test.
+
 A source implementing `input.PollingControl` is drained and paused before each
 accepted launch/return and resumed afterward. The Nano owned USB sources expose
 that interface through the actual DWC2 driver. Draining discards the current
@@ -935,7 +949,7 @@ existing checked Park operation for that exact private session. It holds the
 core, stops masters and closes bridges without resuming SD. Closure failure
 leaves the service retired and resources retained. A stale cleanup cannot park
 a replacement play. The normal underlying platform retains output, pacing and
-explicit diagnostic controls; this adapter adds no running-core quit shortcut.
+explicit diagnostic controls. The keyboard return chord requests Stop, never Quit.
 
 The Nano Tenfoot command attaches this wrapper only when the firmware profile
 explicitly selects USB. `OpenKeyboardReports` preserves the existing one-attempt

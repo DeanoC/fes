@@ -6,14 +6,16 @@ the top kit. Playable-core readiness remains open. FES owns
 the base image; FogCast owns tenfoot and its application services; the runtime
 owns FPGA programming, reset, input delivery and DMA lifetime.
 
-The current [MMU/tape trial](../../docs/validation/2026-11-09-de25-mmu-scalar-trial/README.md)
-reaches Tenfoot Ready, submits four menu frames, drains/closes the menu and
-configures ZX81 on TRWU8CBL. Initial tape transfer still hits LIMIT within
-the unchanged one-second budget at512/917 completed chunk progress. Failure
-containment and independent device cleanup pass; this consumed image does
-not establish a running core or normal return. Removing hot callback-table
-copies reduced sampled ownership cost about5%, which is insufficient.
-The earlier diagnostic cycles below do not qualify this changed image.
+The current [queued-menu hardware trial](../../docs/validation/2026-11-09-de25-menu-queue-trial/README.md)
+passes ZX81 (+917-byte tape) → menu → ZX80 → menu → ZX81 (+same tape) → menu
+and final Park on TRWU8CBL. All eight App exchanges replay from the saved serial
+trace; seven FPGA configurations and four menu sessions complete. Both tape
+loads take about 1.206 seconds using size-dependent transfer budgets. Independent
+programming-connection cleanup and full evidence/source restore checks pass.
+This is a bounded diagnostic: physical display/input, ordinary appliance loading,
+general USB reliability, native Ethernet and whole-board timing remain open.
+The new native keyboard return chord has software coverage and still requires
+its own rebuilt matched image and physical test.
 
 The [paired menu/core/menu hardware trial](../../docs/validation/2026-11-08-de25-verified-files-board-trial/hardware.md)
 now passes ZX81 → menu → ZX80 → menu → ZX81 → menu and final Park on TRWU8CBL:

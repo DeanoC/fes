@@ -34,6 +34,7 @@ type ProgramInputPlatform struct {
 	generation        uint64
 	boundary          uint64
 	menuArmed         bool
+	returnRequested   bool
 	fault             error
 	pending           []input.Event
 }
@@ -129,8 +130,8 @@ func (p *ProgramInputPlatform) Next(ctx context.Context) (tenfoot.PlatformInput,
 	var commands []tenfoot.Command
 	for _, event := range events {
 		if command := tenfoot.CommandFromKey(event.Key); command != tenfoot.CmdNone {
-			// Menu shortcuts are delivered only in Ready. Running-core key
-			// snapshots never become launcher stop/quit shortcuts.
+			// Ordinary menu shortcuts are delivered only in Ready. The running
+			// keyboard's explicit return chord also uses the App's Stop command.
 			commands = append(commands, command)
 		}
 		frame.Text += event.Text
@@ -184,6 +185,7 @@ func (p *ProgramInputPlatform) poll(ctx context.Context, buffer bool) ([]input.E
 	}
 	if p.boundary != b.inputBoundary || p.mode != v.State || p.generation != v.Generation {
 		p.pending = nil
+		p.returnRequested = false
 	}
 	if v.State == ProgramRunning {
 		p.session = b.session
@@ -214,6 +216,11 @@ func (p *ProgramInputPlatform) poll(ctx context.Context, buffer bool) ([]input.E
 	events := p.pending
 	p.pending = nil
 	for n := 0; n < 8; n++ {
+		// Once return is requested, keep the core neutral until the App starts
+		// its owned transition. Repeated reports cannot queue another Stop.
+		if v.State == ProgramRunning && p.returnRequested {
+			break
+		}
 		if err := ctx.Err(); err != nil {
 			b.inputFault = err
 			return nil, err
@@ -245,7 +252,12 @@ func (p *ProgramInputPlatform) poll(ctx context.Context, buffer bool) ([]input.E
 					}
 				}
 			} else {
-				err = p.keyboard.state.report(ctx, report)
+				var stop bool
+				stop, err = p.coreKeyboard(ctx, report)
+				if err == nil && stop {
+					p.returnRequested = true
+					changes = []input.Event{{Key: "s"}}
+				}
 			}
 		} else {
 			if p.gamepadSource != nil {
@@ -275,11 +287,11 @@ func (p *ProgramInputPlatform) poll(ctx context.Context, buffer bool) ([]input.E
 				p.menuArmed = up
 				continue
 			}
-			events = append(events, changes...)
-			if len(events) > maxProgramMenuEvents {
-				b.inputFault = errors.New("native input: menu event queue exhausted")
-				return nil, b.inputFault
-			}
+		}
+		events = append(events, changes...)
+		if len(events) > maxProgramMenuEvents {
+			b.inputFault = errors.New("native input: menu event queue exhausted")
+			return nil, b.inputFault
 		}
 	}
 	if buffer {
@@ -287,6 +299,32 @@ func (p *ProgramInputPlatform) poll(ctx context.Context, buffer bool) ([]input.E
 		return nil, nil
 	}
 	return events, nil
+}
+
+// Ctrl+Alt+Escape is a deliberate return to the launcher, separate from core
+// typing and future in-play menus. Only a fresh Escape press after this play's
+// all-up fence may request it. Validate with the same decoder before any write;
+// the reserved chord itself is never forwarded to the emulated keyboard.
+// Caller holds both input-platform and backend operation locks.
+func (p *ProgramInputPlatform) coreKeyboard(ctx context.Context, report []byte) (bool, error) {
+	k := p.keyboard.state
+	next := k.decoder
+	edges, err := next.Feed(report)
+	if err != nil {
+		return false, err
+	}
+	if k.armed {
+		for _, edge := range edges {
+			if edge.Pressed && edge.Usage == 0x29 && edge.Modifiers&0x11 != 0 && edge.Modifiers&0x44 != 0 {
+				if err := k.writeRows(ctx, [9]uint16{}); err != nil {
+					return false, err
+				}
+				k.decoder = next
+				return true, nil
+			}
+		}
+	}
+	return false, k.report(ctx, report)
 }
 
 // park cannot affect a replacement session even if a stop races with a source
