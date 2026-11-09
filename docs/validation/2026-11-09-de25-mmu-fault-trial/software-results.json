@@ -73,17 +73,17 @@
       "elapsed": 0.2011618260294199,
       "log_sha256": "65378dcad145da2497120819bebfc3c46534dce9714ce064b3d809a56654aca2"
     },
-    "file-admission-scr": {
-      "receipt_sha256": "4c1a492462442c276f58e65ba31349cc6526d5d03226559b8ae619972564271d",
+    "file-admission-final": {
+      "receipt_sha256": "b579d919a0eccf784d1f48440cde6c34c95f79e4994c1c3ee529f07e56ace2ed",
       "argv": [
         "python3",
-        "out/nano-mmu-fault-trial-20261109/prepare_admission.py"
+        "out/nano-mmu-fault-trial-20261109/prepare_final_admission.py"
       ],
       "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
       "returncode": 0,
       "timed_out": false,
-      "elapsed": 105.46832848689519,
-      "log_sha256": "1ab3d428f78d5da775a6a8a929aa3aad92c2128b2d167ad225f8035b52e1d0c0"
+      "elapsed": 126.08653755602427,
+      "log_sha256": "ae44380a900b8265cdee36a8cc095c8a7c16afbba05a30f62b22209d48032183"
     },
     "usb-stability": {
       "receipt_sha256": "34fbc8d79c4e910e02e09ea60f9193cb2dc2fb16b39a085dfbe1a748b0cbeb2d",

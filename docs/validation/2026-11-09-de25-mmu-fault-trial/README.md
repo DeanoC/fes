@@ -36,3 +36,11 @@ private server. UART Select supplies actions; no physical key is requested.
 The spare stays installed, factory restore remains waived, and bottom TRWU8J8G
 is outside scope. No physical result exists at preparation time. These software
 checks do not establish Nano cache, ordinary core loads or appliance acceptance.
+
+The first preflight stopped before opening a device or reserving an attempt:
+the firmware README changed after early file preparation. The old record and
+both README versions are retained. Full validation was rerun into a new immutable
+record with final source bytes. The [final frozen inputs](operator-source-final.json)
+and `preflight_final.py` are authoritative for the hardware procedure; the older
+frozen inputs remain as negative preparation evidence. No membership/byte or
+physical-state check was weakened, and no programming counter was reset.
