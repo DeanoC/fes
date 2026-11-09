@@ -873,6 +873,7 @@ package fes_i386_pkg;
         logic [1:0]  pm;         // decoded_t pm
         logic        zx;         // decoded_t zx
         logic        pimm;       // decoded_t pimm
+        logic        xend;       // the uop ends the routine when its xc keeps it (fes_i386_seq)
         logic        iof;        // the instruction's I/O access, which its first uop keeps (fes_i386_seq)
     } ucode_t;
 

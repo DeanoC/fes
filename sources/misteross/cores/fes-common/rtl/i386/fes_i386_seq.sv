@@ -64,6 +64,11 @@
 // further down with xp, the hold's privilege change, set as the hold's uop
 // retired, which these words issue after.
 //
+// A word marked xend ends the routine when its xc keeps it, so a direct far
+// CALL and a RETF to the same privilege end at their own jumps, before the
+// other cases' words. Its xc reads cg and xp, set as the routine's hold
+// retired, before any word after the one behind it is expanded.
+//
 // The moves through T1, each waiting for T1's load to retire (b_t1):
 //   SEQ_XCHGM  (XCHG r/m, r with a memory operand): the operand into T1;
 //              the register stored to it; the register from T1.
@@ -133,6 +138,7 @@ module fes_i386_seq (
     input  logic [2:0]             cnt, // the string engine's count is 2, 1, 0 (bits 2:0)
     input  logic                   gate32, // a protected-mode delivery's gate is a 386 gate
     input  logic                   xp,     // the held transfer changes privilege
+    input  logic                   cg,     // a far CALL goes through a call gate
     input  logic [4:0]             pcnt,   // a call gate's parameter count
     output fes_i386_pkg::decoded_t n
 );
@@ -227,6 +233,18 @@ module fes_i386_seq (
     assign s_zrep = s_rep && (s_cmps || d0.str_op == 3'(fes_i386_pkg::STR_SCAS));
     assign s_end = !s_cmps || d.step == 3'd1;
     assign s_last = !s_rep || d.step != 3'd0 && (s_cmps ? cnt[1] : cnt[2]);
+
+    // Whether a word's xc keeps it (fes_i386_cpu's x_drop, for xend).
+    logic w_keep;
+    always_comb
+        case (w.xc)
+            3'(fes_i386_pkg::XC_XP): w_keep = xp;
+            3'(fes_i386_pkg::XC_SAME): w_keep = !xp;
+            3'(fes_i386_pkg::XC_DIRECT): w_keep = !cg;
+            3'(fes_i386_pkg::XC_GATE): w_keep = cg;
+            3'(fes_i386_pkg::XC_GSAME): w_keep = cg && !xp;
+            default: w_keep = 1'b1;
+        endcase
 
     always_comb begin
         n = d;
@@ -408,7 +426,7 @@ module fes_i386_seq (
                 end
             end
             fes_i386_pkg::SEQ_UCODE: begin
-                n.more = !w.last;
+                n.more = !w.last && !(w.xend && w_keep);
                 n.uop.cls = fes_i386_pkg::uop_class_e'(w.cls);
                 n.uop.op = w.op;
                 n.uop.imm = w.iimm ? d0.uop.imm : {28'd0, w.imm};
@@ -469,7 +487,7 @@ module fes_i386_seq (
                 n.uop.seg2_t = 1'b0;
                 n.uop.seg2_pm = w.segw;
                 n.uop.flags = '{read: '{oszap: w.rd_oszap, cf: w.rd_cf}, write: '{oszap: w.wr_oszap, cf: w.wr_cf}};
-                n.uop.ctl.end_of_instruction = w.last;
+                n.uop.ctl.end_of_instruction = w.last || w.xend && w_keep;
                 n.uop.ctl.fault = fes_i386_pkg::FAULT_NONE;
                 n.uop.iret = w.iret;
                 n.uop.bound = w.bound;

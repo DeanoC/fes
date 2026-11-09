@@ -723,7 +723,7 @@ module fes_i386_cpu #(
     logic       gate32, gate_trap;  // a protected-mode delivery's gate: a 386 gate, a trap gate (WB, SYSOP_GATE)
     logic       xp, cg;             // the held transfer changes privilege; a far CALL is through a call gate (WB)
     logic [4:0] pcnt;               // a call gate's parameter count (WB, SYSOP_GATE)
-    fes_i386_seq seq (.d(dc), .d0(dc0), .w(rom_q), .cnt(str_cnt3), .gate32, .xp, .pcnt, .n(dc_next));
+    fes_i386_seq seq (.d(dc), .d0(dc0), .w(rom_q), .cnt(str_cnt3), .gate32, .xp, .cg, .pcnt, .n(dc_next));
     // An exception's entry: a NOP that starts the ROM's vector routine with
     // the fault's vector, at length 0, so the routine pushes D's EIP, the
     // faulting instruction's. It goes in through dc_skid the cycle after the
@@ -1043,7 +1043,8 @@ module fes_i386_cpu #(
             u.op = 5'(fes_i386_pkg::ALU_MOVZX);
             u.src_size = fes_i386_pkg::SIZE_16;
         end
-        // The case the transfer is not: a NOP.
+        // The case the transfer is not: a NOP, which writes nothing at WB,
+        // a jump's segments, ESP and hold included.
         if (x_drop) begin
             u.cls = fes_i386_pkg::UOP_SPECIAL;  // SPECIAL_NOP
             u.op = 5'd0;
@@ -1054,6 +1055,12 @@ module fes_i386_cpu #(
             u.segchk = 4'd0;
             u.desc = 3'd0;
             u.nstk = 1'b0;
+            u.hold = 1'b0;
+            u.xfer = 1'b0;
+            u.seg2 = 1'b0;
+            u.seg2_pm = 1'b0;
+            u.sp_add = 1'b0;
+            u.sp_write = 1'b0;
         end
         if (!s_kill1 && d_unimpl && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
             u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
