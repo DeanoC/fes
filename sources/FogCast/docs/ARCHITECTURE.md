@@ -3620,6 +3620,14 @@ such as a failed native core load. Coordinator Stop fast-paths only clean idle;
 it retries runtime Stop for idle-with-error and clears the error only after a
 confirmed clean idle response. A failed Stop keeps the recovery error visible.
 
+Protocol-2 inspection and core-data replies include runtime status alongside
+the operation result. Their `ok` field reports whether that request succeeded;
+an idle MENU fault can remain in the status `error` after MENU has recovered.
+The adapter accepts successful, identity-checked inspection/data results without
+mistaking that retained diagnostic for a new operation failure. Status reads
+still expose it. Failed operations, invalid descriptors/data and physical load
+or recovery failures retain their existing refusal paths.
+
 An idle menu therefore does not by itself establish launch readiness. A new
 explicit library launch can clear a retained idle legacy-launch error through
 one existing leased Stop request before its single activation. Source/media

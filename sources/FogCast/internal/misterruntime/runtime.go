@@ -225,7 +225,9 @@ func (r *Runtime) inspectStagedCore(ctx context.Context, staged corepackage.Stag
 		}
 		return nil, unavailableError()
 	}
-	if !response.OK || response.Error != nil {
+	// OK is the result of this inspection. Error can still describe a
+	// previous runtime fault retained in status after MENU recovery.
+	if !response.OK {
 		return nil, mapProtocol2Error(response.Error)
 	}
 	if response.InspectedPackage == nil ||
@@ -480,7 +482,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		if machine != nil && (data.CoreData == nil || data.CoreData.GameID != machine.GameID) && data.OK {
 			return CoreActivation{}, false, unavailableError()
 		}
-		if !data.OK || data.Error != nil {
+		if !data.OK {
 			failure := mapCoreDataError(data.Error)
 			failure.Phase = "admission"
 			return CoreActivation{}, false, failure

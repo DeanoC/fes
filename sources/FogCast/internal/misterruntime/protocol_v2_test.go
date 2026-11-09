@@ -61,6 +61,27 @@ func TestProtocol2DE25ProducerIdleStatus(t *testing.T) {
 	}
 }
 
+func TestProtocol2DE25InspectionRetainsPreviousMenuFault(t *testing.T) {
+	// Native TRWU8J8G, producer edfae407e: generation 3's MENU underflow
+	// was recovered by generation 4 before this successful inspect_core.
+	lines := fixtureLines(t, "protocol-v2-de25-recovered-menu-inspection.jsonl")
+	if len(lines) != 1 {
+		t.Fatal("expected one native inspection reply")
+	}
+	fixture := newSequenceSocketFixture(t, []string{lines[0] + "\n"})
+	response, err := NewClient(fixture.path).InspectCore(context.Background(), "/tmp/package",
+		"3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776")
+	if err != nil || !response.OK || response.InspectedPackage == nil || !response.InspectedPackage.Compatible {
+		t.Fatalf("native inspection result=%+v err=%v", response, err)
+	}
+	if response.Error == nil || response.Error.Code != "io_failed" || response.Error.Phase != "menu" ||
+		response.State != "idle" || response.MenuDisplay == nil || !response.MenuDisplay.Available ||
+		response.MenuDisplay.Generation != 4 || response.MenuDisplay.Underflows != 0 || response.MenuDisplay.Error != nil {
+		t.Fatalf("lost retained fault or recovered MENU state: %+v", response)
+	}
+	fixture.wait(t)
+}
+
 func TestProtocol2DE25ProducerComputerStatus(t *testing.T) {
 	// Actual production daemon response after native catalog loading. The CPU
 	// had started; rejecting its declared profile stranded agent cleanup.
