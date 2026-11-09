@@ -22,8 +22,15 @@ and RETF to an outer privilege.
   setup +0.645 ns (main +0.396), hold +0.104 ns. ALMs grow from 36,225 to
   36,683 (+458; 87.5%), so seed 1 still fits. The microcode ROM grows to 512
   words: 3 more M10K blocks (268).
-- **Kit.** KIT_RESULT
-- **Machine sim.** MACHINE_RESULT
+- **Kit A, max.** U.S. Navy Fighters, newly unlocked, runs its extender
+  (IRET to CPL 3, call gate back) and stops at its CD-ROM check: "Could not
+  find US Navy Fighters CD." DOOM v1.9 `-timedemo demo3` 40.03 fps, and the
+  benchmarks match main's seal run on the same kit and baseline the same
+  hour. Time Circle reaches its menu; Wolfenstein 3D, Ultima VI and DOOM
+  start and play.
+- **Machine sim.** U.S. Navy Fighters runs on the RTL from the DOS prompt
+  to the same CD-ROM message, with no oracle step: 78.5M instructions on
+  the RTL, 318 protected-mode entries.
 
 ## Design as built
 
@@ -210,11 +217,70 @@ family as main's worst (into `r_dst`, +0.396), which this seal moves to
 
 ## Kit
 
-KIT_SECTION
+Runs `k1`, `m1`, `k2` and `k3` used Kit A, core-only, on 9 November from
+17:37 to 18:28 ([kit-scores.json](kit-scores.json)).
+- **Package.** `0d17486e…`, the seal above, at max (preset 0), each launch
+  after a SCRUBX scrub. Run `m1` is the A/B reference: main's #1587 seal
+  `79c5009c…`, the same runner, kit and baseline.
+- **Kit.** Baseline image `cd284ca3…` and software `66316149…` (the kits'
+  9 November baseline), with no install, no image change and no reboot.
+  After each run Kit A was checked against its snapshot and logged FREE,
+  and the run's FogCast data trees were removed and logged.
+- **Disks.** The Phase 4 bench disk (`fe81c9c4…`) and the #1533 game drives
+  `dpmi` (`48ab2972…`), `real` (`719dfedb…`), `pmode` (`75d909ca…`) and
+  `fpu` (`152c83df…`), from Powerboat by SHA-256. None is committed.
+
+| Benchmark | Main (#1587's seal, m1) | This slice (k1) |
+| --- | ---: | ---: |
+| DOOM v1.9 `-timedemo demo3` | 3,863 gametics in 3,378 realtics, 40.03 fps | 3,863 in 3,378, 40.03 fps |
+| Pack DOOM, maximum detail | 2,134 in 2,062, 36.2 fps | 2,134 in 2,062, 36.2 fps |
+| Pack DOOM, minimum detail | — | 2,134 in 748, 99.9 fps |
+| 3DBench | 76.9 | 76.9 |
+| PCPBench | — | 13.3 |
+| TopBench | 306 | 304 |
+
+#1587's own record had demo3 at 40.05 fps (3,376 realtics) on the kits'
+earlier baseline; today both packages give 3,378. TopBench varies by a few
+points between runs of one package (main read 309 and 310 in earlier
+records); its parts differ by 1-3 µs either way here.
+
+| Title | Drive | Result |
+| --- | --- | --- |
+| U.S. Navy Fighters, newly unlocked | `fpu` | Past its extender (IRET to CPL 3, a call gate back to CPL 0, MOV DRn; the machine sim below runs it on the RTL), the title stops at its CD-ROM check: "Could not find US Navy Fighters CD. Please ensure that the US Navy Fighters CD is in the drive, and that you have loaded the MSCDEX driver." |
+| Time Circle (32RTM) | `dpmi` | Its main menu (1 PLAYER, 2 PLAYERS, setup, EXIT) |
+| Wolfenstein 3D | `real` | A new game, in E1M1 |
+| Ultima VI | `real` | Its introduction plays |
+| DOOM v1.9 | `pmode` | Its title and demos play |
+
+Each title was launched and watched for 100-180 s; this is a recheck that
+the slice leaves them running, not #1368's full acceptance.
 
 ## Machine sim
 
-MACHINE_SECTION
+`sim_fes_pc386.py --suite game --game ID --cpu rtl --rtl-at-prompt
+--limit-seconds 20` with this branch's RTL: the RTL takes over at the DOS
+prompt.
+
+| Title | Instructions on the RTL | With PE set | Protected-mode entries | Handed to Bochs | Ends |
+| --- | ---: | ---: | ---: | ---: | --- |
+| U.S. Navy Fighters ([report](machine-usnf-rtl-report.json)) | 78,491,184 | 568,281 | 318 | 0 | At the prompt after its CD-ROM message, 7.45 simulated seconds |
+
+Outstanding: Jump 'n Bump and Angband (CWSDPMI), whose first stop on main's
+RTL was a MOV DRn, are running on this RTL; their rows follow in a later
+commit. Time Circle is not affected by this slice (slice 1's record and
+the kit run above cover it); its 20-second RTL run was stopped at 4
+simulated seconds to free Powerboat for them.
+
+## Changes after the seal
+
+The seal, lockstep and test386 runs are from `9887e0543`. After it:
+- **Main merged in** (`770dbb1e8`): no CPU file changed; the KF8253 fix
+  (#1549) changes the machine's PIT, under the pc386 reseal exemption.
+- **The governor's costs for MOV DRn** (`d718e66ff`): CI's check that
+  every built encoding has a governor class found 0F 21 and 0F 23 without
+  one. They take the 386's 22 clocks (DR0-DR3) and 14 (DR6, DR7) and the
+  i486's 9 and 10; the governor's ROM changes only at the presets with a
+  table, not at max, which every run above used.
 
 ## What this record does not cover
 
