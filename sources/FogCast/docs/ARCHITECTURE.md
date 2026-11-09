@@ -2634,8 +2634,9 @@ listener remains loopback-only.
 ## Remote library sources
 
 A kit can index ZX81 cassettes from a statically configured FogCast source.
-The source configuration contains a private shared bearer token of 32–256
-characters, and the kit stores the same token in its source entry. The source
+Each source entry may contain a private shared bearer token of 32–256
+characters when the source listener requires one; `fogcast-api` always requires
+a valid `library_source_token` to enable that listener. The source
 starts `fogcast-api --config /absolute/source.toml --headless
 --source-listen 0.0.0.0:8790`; startup refuses this listener when
 `library_source_token` is missing or invalid. Bind a non-loopback listener only
@@ -2660,10 +2661,12 @@ token = "replace-with-a-private-random-token-of-at-least-32-characters"
 
 Set `library_source_token` to the same value in the source host's private
 configuration. Keep both configuration files private. Source settings APIs
-accept tokens on writes and omit them from reads and write responses.
+accept tokens on writes and omit them from reads and write responses. On PUT,
+omitting a token for an existing source ID keeps its stored token, even if its
+URL changes; a new source may omit the token.
 
 The loopback API exposes `GET` and `PUT /api/v1/library/sources`; PUT takes
-`{"sources":[{"id":"powerboat","url":"http://powerboat:8790","token":"<shared-token>"}]}`. An empty
+`{"sources":[{"id":"powerboat","url":"http://powerboat:8790","token":"<shared-token>"}]}`. The per-source token is optional. An empty
 array removes the configuration without deleting saved titles or cached media.
 `POST /api/v1/library/sources/powerboat/refresh` reads the remote core-entry
 document and reports its indexed entries and skipped count. Refresh is explicit;

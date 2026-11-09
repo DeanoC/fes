@@ -63,6 +63,26 @@ type remoteSourceFixture struct {
 
 const testLibrarySourceToken = "source-test-token-0123456789abcdef"
 
+func TestLibrarySourceGETAuthorizationIsOptional(t *testing.T) {
+	seen := make(chan string, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen <- r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	for _, tc := range []struct {
+		token string
+		want  string
+	}{{"", ""}, {testLibrarySourceToken, "Bearer " + testLibrarySourceToken}} {
+		if _, err := librarySourceGET(context.Background(), LibrarySourceConfig{URL: server.URL, Token: tc.token}, "/", 32); err != nil {
+			t.Fatal(err)
+		}
+		if got := <-seen; got != tc.want {
+			t.Fatalf("Authorization=%q want %q", got, tc.want)
+		}
+	}
+}
+
 func newRemoteSourceFixture(t *testing.T, payload []byte, handler func(http.ResponseWriter, *http.Request)) *remoteSourceFixture {
 	t.Helper()
 	ctx := context.Background()

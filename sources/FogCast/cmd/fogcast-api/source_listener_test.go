@@ -103,3 +103,28 @@ func TestSourceListenerRefusesMissingToken(t *testing.T) {
 		t.Fatalf("missing listener token: exit=%d service_opened=%v", code, opened)
 	}
 }
+
+func TestAPIStartsWithTokenlessLibrarySourceWhenSourceListenerDisabled(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "host.toml")
+	config := "base_url = \"http://127.0.0.1:8182\"\ntoken = \"test\"\nrequest_timeout_seconds = 12\nupload_timeout_seconds = 60\n\n[[library_sources]]\nid = \"powerboat\"\nurl = \"http://powerboat:8790\"\n"
+	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	opened := false
+	composed := false
+	code := runWithComposer(ctx, []string{"--config", configPath, "--listen", "127.0.0.1:0"}, io.Discard, io.Discard,
+		func(context.Context, fogcast.Paths) (service, error) { opened = true; return &apiSourceService{}, nil },
+		func(_ service, cfg fogcast.Config, _ bridgeStarterFactory) (http.Handler, func() error, error) {
+			composed = true
+			if len(cfg.LibrarySources) != 1 || cfg.LibrarySources[0].Token != "" {
+				t.Fatalf("loaded library sources=%+v", cfg.LibrarySources)
+			}
+			cancel()
+			return http.NewServeMux(), func() error { return nil }, nil
+		})
+	if code != 0 || !opened || !composed {
+		t.Fatalf("tokenless source config without source listener: exit=%d service_opened=%v composed=%v", code, opened, composed)
+	}
+}

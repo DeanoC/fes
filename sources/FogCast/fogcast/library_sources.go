@@ -25,7 +25,7 @@ import (
 type LibrarySourceConfig struct {
 	ID    string `json:"id" toml:"id"`
 	URL   string `json:"url" toml:"url"`
-	Token string `json:"token,omitempty" toml:"token"`
+	Token string `json:"token,omitempty" toml:"token,omitempty"`
 }
 
 // ValidLibrarySourceToken accepts a private shared bearer token suitable for
@@ -64,7 +64,7 @@ func normalizeLibrarySources(raw []LibrarySourceConfig) ([]LibrarySourceConfig, 
 	for _, source := range raw {
 		source.ID, source.URL = strings.TrimSpace(source.ID), strings.TrimSpace(source.URL)
 		u, err := url.Parse(source.URL)
-		if !validLibrarySourceID(source.ID) || seen[source.ID] || !ValidLibrarySourceToken(source.Token) || err != nil ||
+		if !validLibrarySourceID(source.ID) || seen[source.ID] || (source.Token != "" && !ValidLibrarySourceToken(source.Token)) || err != nil ||
 			(u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil ||
 			(u.Path != "" && u.Path != "/") || u.RawPath != "" || u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" {
 			return nil, errors.New("library sources require unique ids and HTTP origins")
@@ -99,6 +99,19 @@ func (s *Service) SetLibrarySources(ctx context.Context, sources []LibrarySource
 	defer s.libraryMu.Unlock()
 	s.configWriteMu.Lock()
 	defer s.configWriteMu.Unlock()
+	// An omitted token in a PUT keeps the stored credential for the same id,
+	// including when that source's URL changes.
+	for i := range next {
+		if next[i].Token != "" {
+			continue
+		}
+		for _, existing := range s.librarySources {
+			if existing.ID == next[i].ID {
+				next[i].Token = existing.Token
+				break
+			}
+		}
+	}
 	file, err := openConfigSource(s.configPath)
 	if err != nil {
 		return canonicalError(protocol.CodeInternal, nil)
@@ -146,7 +159,9 @@ func librarySourceGET(ctx context.Context, source LibrarySourceConfig, path stri
 	if err != nil {
 		return nil, sourceUnavailable()
 	}
-	request.Header.Set("Authorization", "Bearer "+source.Token)
+	if source.Token != "" {
+		request.Header.Set("Authorization", "Bearer "+source.Token)
+	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
 	defer transport.CloseIdleConnections()
