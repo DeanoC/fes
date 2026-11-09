@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -9,11 +10,23 @@ import (
 // PreferenceStore supplies the tenfoot JSON settings record without requiring
 // an operating-system path. WritePreferences must report storage and flush
 // errors; returning nil means the record has reached the store's durability
-// boundary. An App serializes its calls to this store.
+// boundary. A queued store returns ErrPreferencesPending, serves the latest
+// cached value and exposes PreferenceStatus until its platform checkpoint
+// succeeds or fails. An App serializes its calls to this store.
 type PreferenceStore interface {
 	ReadPreferences() ([]byte, error)
 	WritePreferences([]byte) error
 }
+
+// ErrPreferencesPending means the new settings are cached but have not reached
+// persistent storage. It must not be reported as a completed durable write.
+var ErrPreferencesPending = errors.New("settings are waiting to be saved")
+
+type PreferenceSaveState struct{ Pending, Failed bool }
+
+// PreferenceStatus is optional, nonblocking cached state. It must perform no IO
+// or call back into the App; settings rendering can query it under the App lock.
+type PreferenceStatus interface{ PreferenceSaveState() PreferenceSaveState }
 
 // SetPreferenceStore loads and applies the store's settings before Start.
 // Read or decode failure leaves the current settings and store unchanged.
@@ -78,7 +91,7 @@ func (a *App) preferenceSourceLocked() string {
 }
 
 func (a *App) warnPreferenceWriteLocked(err error) {
-	if err == nil || a.prefsWriteWarned {
+	if err == nil || errors.Is(err, ErrPreferencesPending) || a.prefsWriteWarned {
 		return
 	}
 	a.prefsWriteWarned = true

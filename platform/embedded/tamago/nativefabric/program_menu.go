@@ -81,6 +81,9 @@ func (p *programService) loadMenu(ctx context.Context) error {
 	if m == nil || m.index == math.MaxUint64 || (m.session != nil && !m.closed) {
 		return ErrProgramSession
 	}
+	if err := p.checkpointPreferences(ctx); err != nil {
+		return err
+	}
 	selection, err := p.store.Retain(ctx, m.request)
 	if err != nil {
 		return err
@@ -237,8 +240,26 @@ func (s *ProgramService) ParkMenu(ctx context.Context) error {
 	if p.menu == nil || view.State != ProgramReady || view.Generation == math.MaxUint64 {
 		return ErrProgramSession
 	}
-	if err := p.closeMenu(false); err != nil {
+	p.preferences.seal(nil)
+	checkpoint := false
+	if p.preferences != nil {
+		state := p.preferences.PreferenceSaveState()
+		checkpoint = state.Pending && !state.Failed
+	}
+	if err := p.closeMenu(checkpoint); err != nil {
 		return p.fail(err)
+	}
+	if checkpoint {
+		write, cancel := context.WithTimeout(ctx, 100*time.Second)
+		err := p.checkpointPreferences(write)
+		cancel()
+		if _, activeErr := p.store.ActiveReceipt(); activeErr != nil {
+			return p.fail(errors.Join(err, activeErr))
+		}
+		err = errors.Join(err, p.store.Quiesce())
+		if err != nil {
+			return p.fail(err)
+		}
 	}
 	view.State = ProgramParked
 	view.Generation++

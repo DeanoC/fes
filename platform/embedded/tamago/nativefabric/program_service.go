@@ -80,6 +80,7 @@ type programService struct {
 	backendClaimed bool
 	execution      ProgramFetchObservation
 	menu           *programServiceMenu
+	preferences    *ProgramPreferences
 }
 
 // NewProgramService takes exclusive lifecycle ownership of this verifier once.
@@ -150,6 +151,7 @@ func (s *ProgramService) begin(ctx context.Context) (*programService, ProgramSer
 // fail is terminal. Close is attempted at most once if control was opened;
 // failed transfers/regions and plans stay retained and SD is never resumed.
 func (p *programService) fail(err error) error {
+	p.preferences.seal(err)
 	if p.computer != nil && !p.closed {
 		p.closed = true
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -190,7 +192,11 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	}
 	request.Sources = append([]packagestore.Source(nil), request.Sources...)
 	request.Parts = append([]packagestore.Part(nil), request.Parts...)
-	selection, err := p.store.Retain(ctx, request)
+	err = p.checkpointPreferences(ctx)
+	var selection *packagestore.Selection
+	if err == nil {
+		selection, err = p.store.Retain(ctx, request)
+	}
 	var plan *StoredConfigurationPlan
 	if err == nil {
 		plan, err = p.loader.Preflight(selection)
@@ -357,6 +363,7 @@ func (s *ProgramService) finish(ctx context.Context, session ProgramSession, res
 		}
 	} else {
 		view.State = ProgramParked
+		p.preferences.seal(errors.New("native program UI: storage remains contained at shutdown"))
 	}
 	view.Generation++
 	view.Identity, view.Held = fabricmodel.PackageIdentity{}, true

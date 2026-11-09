@@ -46,6 +46,10 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 			err = errors.New("native menu requires exactly one startup selection")
 		}
 	}
+	var preferences *nativefabric.ProgramPreferences
+	if err == nil {
+		preferences, err = nativefabric.LoadProgramPreferences(ctx, store, false)
+	}
 	cancel()
 	if err != nil {
 		panic(err)
@@ -63,6 +67,9 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		programService, err = nativefabric.NewProgramService(loader, store, de25nano.ReserveConfiguration, limits)
 	}
 	if err != nil {
+		panic(err)
+	}
+	if err := programService.AttachPreferences(preferences); err != nil {
 		panic(err)
 	}
 	defer func() {
@@ -84,7 +91,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	}
 	defer device.Close()
 	app := tenfoot.NewApp(client, width, height, 400)
-	if err := app.SetPreferenceStore(&nativefabric.ProgramPreferences{}); err != nil {
+	if err := app.SetPreferenceStore(preferences); err != nil {
 		panic(err)
 	}
 	serialPlatform, err := nativefabric.NewProgramSerialPlatform(programService, serial.Read, func(ctx context.Context, data []byte) error {

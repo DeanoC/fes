@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"sync"
 	"time"
 
 	"github.com/DeanoC/FogCast/ui/tenfoot"
@@ -243,29 +242,4 @@ func (p *ProgramSerialPlatform) ObserveProgramGamepad(ctx context.Context, obser
 		return err
 	}
 	return p.emit(ctx, append(append([]byte("FES_NATIVE_CORE_GAMEPAD "), raw...), '\n'))
-}
-
-// ProgramPreferences stays in RAM. It cannot write a FAT volume after a launch
-// has contained SD, and it makes no persistence promise across reboots.
-type ProgramPreferences struct {
-	mu   sync.Mutex
-	data []byte
-}
-
-func (p *ProgramPreferences) ReadPreferences() ([]byte, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.data == nil {
-		return []byte(`{"home":"library","attract_enabled":false}`), nil
-	}
-	return bytes.Clone(p.data), nil
-}
-func (p *ProgramPreferences) WritePreferences(data []byte) error {
-	if len(data) > 65536 || !json.Valid(data) {
-		return errors.New("native program UI: invalid bounded preferences")
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.data = bytes.Clone(data)
-	return nil
 }

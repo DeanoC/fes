@@ -49,7 +49,7 @@ func newProgramMenuFixture(t *testing.T, startupFault string) *programMenuFixtur
 	return newProgramMenuFixtureContext(t, context.Background(), startupFault)
 }
 
-func newProgramMenuFixtureContext(t *testing.T, ctx context.Context, startupFault string) *programMenuFixture {
+func newProgramMenuFixtureContext(t *testing.T, ctx context.Context, startupFault string, beforeMenu ...func(*programMenuFixture)) *programMenuFixture {
 	t.Helper()
 	r := romProgramFixtureFor(t, NativeComputerProfile, false)
 	l, err := addCompiledMenu(t, r.f.loader, compiledMenuFor(t, r.f.loader))
@@ -121,6 +121,9 @@ func newProgramMenuFixtureContext(t *testing.T, ctx context.Context, startupFaul
 			fixture.reserves++
 			return &Region{Address: 0x95000000, Bytes: bytes.Clone(data), Release: func() error { f.cpu.releases++; return nil }, OrderFrameStores: func() error { return nil }}, nil
 		}}
+	for _, setup := range beforeMenu {
+		setup(fixture)
+	}
 	fixture.s, err = NewProgramServiceWithMenu(ctx, l, r.f.store, reserve, computerLimits(), opts)
 	if startupFault == "" && err != nil {
 		t.Fatal(err)

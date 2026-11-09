@@ -32,6 +32,40 @@ func (s *testPreferenceStore) WritePreferences(data []byte) error {
 	return nil
 }
 
+type queuedPreferenceStore struct {
+	data  []byte
+	state PreferenceSaveState
+}
+
+func (s *queuedPreferenceStore) ReadPreferences() ([]byte, error) { return bytes.Clone(s.data), nil }
+func (s *queuedPreferenceStore) WritePreferences(data []byte) error {
+	s.data = bytes.Clone(data)
+	s.state.Pending = true
+	return ErrPreferencesPending
+}
+func (s *queuedPreferenceStore) PreferenceSaveState() PreferenceSaveState { return s.state }
+
+func TestPreferenceStoreQueuedSettingsShowPendingAndFailure(t *testing.T) {
+	store := &queuedPreferenceStore{data: []byte(`{"layout":"grid"}`)}
+	app := catalogApp(8)
+	if err := app.SetPreferenceStore(store); err != nil {
+		t.Fatal(err)
+	}
+	app.settingsOpen = true
+	app.HandleCommand(CmdLayoutCycle, app.lastInput)
+	if app.prefsWriteWarned || !strings.Contains(app.Snapshot().Settings.Hint, "Settings waiting to save") {
+		t.Fatal("queued save reported as failed or durable")
+	}
+	store.state = PreferenceSaveState{}
+	if strings.Contains(app.Snapshot().Settings.Hint, "Settings waiting") {
+		t.Fatal("completed save still pending")
+	}
+	store.state = PreferenceSaveState{Pending: true, Failed: true}
+	if !strings.Contains(app.Snapshot().Settings.Hint, "Settings not saved") {
+		t.Fatal("asynchronous save failure hidden")
+	}
+}
+
 func TestPreferenceStoreRestoresAndPersists(t *testing.T) {
 	const guid = "0300e9f51f08000001e4000010010000"
 	initial := tenfootPrefs{

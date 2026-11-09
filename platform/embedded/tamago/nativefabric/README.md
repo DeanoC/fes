@@ -1,5 +1,23 @@
 # Native contained-fabric endpoint
 
+`ProgramPreferences` loads the bounded `FES/PREFS.JSON` settings object before
+menu construction and serves a private RAM snapshot to Tenfoot. Native startup
+currently selects volatile changes (`persistent=false`), with defaults when the
+file is absent; the Nano board still opens SD read-only. Neither a filesystem
+writer nor a preference file enables physical writes implicitly.
+
+An explicitly persistent store can attach once to the same service/store before
+frontend ownership, and requires the paired menu lifecycle. Changes while the
+menu or computer owns the fabric stay pending in RAM. Launch and return write
+and flush in their existing active-SD windows, before retaining the next package.
+Final menu shutdown seals further edits, saves a pending record, and quiesces SD
+without issuing another FPGA configuration or publishing a programming handoff.
+Known capacity/protection refusals remain visible without stopping a healthy
+core launch; uncertain IO or changed ownership retires the service. A failed
+write is not replayed automatically. This path has model/FAT clean-restart
+coverage; writable Nano media and power-loss behavior need separate hardware
+qualification.
+
 The serial Tenfoot platform emits `FES_NATIVE_INPUT_ACTION` for decoded Select,
 Stop and Quit commands. Each record identifies UART, USB boot-keyboard or USB
 gamepad origin and the current service state, owner and generation before the

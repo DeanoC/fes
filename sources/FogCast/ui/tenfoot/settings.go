@@ -143,6 +143,15 @@ func (a *App) settingsSnapshotLocked() SettingsSnapshot {
 	if n := len(rows); n > 0 && a.settingsIndex >= n {
 		a.settingsIndex = n - 1
 	}
+	hint := a.settingsHintLocked()
+	if store, ok := a.preferenceStore.(PreferenceStatus); ok {
+		state := store.PreferenceSaveState()
+		if state.Failed {
+			hint = "Settings not saved · " + hint
+		} else if state.Pending {
+			hint = "Settings waiting to save · " + hint
+		}
+	}
 	return SettingsSnapshot{
 		Open:         true,
 		Index:        a.settingsIndex,
@@ -150,7 +159,7 @@ func (a *App) settingsSnapshotLocked() SettingsSnapshot {
 		Loading:      a.settingsLoading,
 		Busy:         a.settingsBusy,
 		Status:       a.settingsStatus,
-		Hint:         a.settingsHintLocked(),
+		Hint:         hint,
 		LibraryCount: len(a.settingsDraftLibraries),
 		TargetCount:  len(a.settingsDraftTargets),
 		SystemCount:  len(a.hostSettings.Systems),

@@ -46,6 +46,17 @@ continue to use file paths. Settings are normalized through the same encoder
 and decoder in both paths. The QEMU adapter updates a preallocated FAT32 file;
 its guarantee is clean-restart persistence, not power-loss atomicity.
 
+A queued platform returns `ErrPreferencesPending`, serves the latest cached
+settings and exposes optional cached `PreferenceStatus`. Settings shows
+"Settings waiting to save" until a checkpoint completes, or "Settings not
+saved" after an asynchronous failure. Rendering never asks that status interface
+to perform IO. The Nano adapter loads its settings before menu startup and
+currently keeps changes volatile because its board profile is read-only. Its
+explicit persistent mode writes only during owned SD handoff windows on launch,
+return or final menu shutdown; both a displayed menu and a running core keep SD
+contained. Model and FAT restart tests cover that lifecycle; physical writes
+remain unqualified.
+
 `corepackage.RetainArchive` validates an exact-length reader using the existing
 canonical archive, manifest, payload and ROM-map rules. It retains private
 bytes and exposes copied inspection metadata and a copying payload reader.

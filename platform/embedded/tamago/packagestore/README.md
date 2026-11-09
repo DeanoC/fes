@@ -1,5 +1,14 @@
 # Retained packages from owned storage
 
+`ReadPreferences` and `WritePreferences` access only `FES/PREFS.JSON`, a bounded
+JSON object of at most 64 KiB, while this exact SD lease is active and prepared.
+Writes require the trusted filesystem's synchronous write/flush operation;
+FAT32 replaces an existing preallocated file. They serialize against retention
+and containment, do not supply package metadata or FPGA permission, and retire
+the store on uncertain writes or a changed lease. `Quiesce` closes owned storage
+after a final preference flush without producing a programming handoff. These
+APIs do not enable the read-only Nano board profile's writes.
+
 `Request.Tape` optionally selects one game tape by path, exact size and SHA-256,
 separately from the FPGA package and firmware ROM. The store bounds it at 16 KiB,
 closes its file and retains private bytes under the same prepared SD lease as

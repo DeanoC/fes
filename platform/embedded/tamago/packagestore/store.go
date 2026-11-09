@@ -431,19 +431,44 @@ func (s *Store) Contain(selection *Selection) (*Handoff, error) {
 	if err := s.observe(); err != nil {
 		return nil, err
 	}
+	if err := s.quiesce(); err != nil {
+		return nil, err
+	}
+	return &Handoff{store: s, selection: selection, receipt: s.last, returned: s.returned}, nil
+}
+
+// Quiesce closes owned storage without publishing a programming handoff. It is
+// used after final settings writes, when no package will be programmed.
+func (s *Store) Quiesce() error {
+	if s == nil {
+		return ErrState
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.observe(); err != nil {
+		return err
+	}
+	if !s.last.Active || !s.last.Prepared {
+		return ErrState
+	}
+	return s.quiesce()
+}
+
+// Caller holds s.mu and has verified the active lease.
+func (s *Store) quiesce() error {
 	before := s.last
 	if before.Generation == ^uint64(0) {
-		return nil, s.retire(ErrState)
+		return s.retire(ErrState)
 	}
 	if err := s.lease.Quiesce(); err != nil {
-		return nil, s.retire(err)
+		return s.retire(err)
 	}
 	after, ok := s.lease.LastReceipt()
 	if !ok || after.Owner != before.Owner || after.Generation != before.Generation+1 || after.Active || after.Prepared {
-		return nil, s.retire(ErrState)
+		return s.retire(ErrState)
 	}
 	s.last = after
-	return &Handoff{store: s, selection: selection, receipt: after, returned: s.returned}, nil
+	return nil
 }
 
 // Resume explicitly reopens the same controller/card. Previous storage
