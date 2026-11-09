@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -104,13 +105,60 @@ func TestConfirmClearsBootTicketTrial(t *testing.T) {
 	if e = svc.Confirm(context.Background(), "boot-a", n.ImageSHA256); e != nil {
 		t.Fatal(e)
 	}
+	body, e := os.ReadFile(filepath.Join(root, "boot.json"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	var legacyTicket struct {
+		BootID      *string `json:"boot_id"`
+		ImageSHA256 *string `json:"image_sha256"`
+		Trial       *bool   `json:"trial"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	if e = decoder.Decode(&legacyTicket); e != nil {
+		t.Fatalf("old strict parser rejected confirmed ticket %s: %v", body, e)
+	}
+	if e = decoder.Decode(&struct{}{}); e != io.EOF {
+		t.Fatalf("old strict parser found trailing confirmed ticket data: %v", e)
+	}
+	if legacyTicket.BootID == nil || *legacyTicket.BootID != "boot-a" || legacyTicket.ImageSHA256 == nil || *legacyTicket.ImageSHA256 != n.ImageSHA256 || legacyTicket.Trial == nil || *legacyTicket.Trial {
+		t.Fatalf("confirmed legacy ticket = %+v", legacyTicket)
+	}
 	got, e = applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath)
-	if e != nil || got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != n.ImageSHA256 {
+	if e != nil || got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != n.ImageSHA256 || got.FallbackImageSHA256 != m.ImageSHA256 {
 		t.Fatalf("confirmed ticket = %+v %v", got, e)
 	}
 	status, e := svc.Status(context.Background())
-	if e != nil || status.Trial || status.Good != n.ImageSHA256 {
+	if e != nil || status.Trial || status.Good != n.ImageSHA256 || status.FallbackImageSHA256 != m.ImageSHA256 {
 		t.Fatalf("status after confirm: %+v %v", status, e)
+	}
+}
+
+func TestStatusRecoversFallbackFromGoodAfterNextBootWithoutSidecar(t *testing.T) {
+	s, factory, n, c := fixture(t)
+	if err := s.Activate(n.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("trial-boot"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Confirm("trial-boot", n.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("after-reboot"); err != nil {
+		t.Fatal(err)
+	}
+
+	svc := applianceupdate.New(s, c, applianceupdate.BootIdentity{
+		BootID: "after-reboot", ImageSHA256: n.ImageSHA256,
+	}, nil, nil)
+	status, err := svc.Status(context.Background())
+	if err != nil || status.BootID != "after-reboot" || status.ImageSHA256 != n.ImageSHA256 || status.Trial || status.FallbackImageSHA256 == "" {
+		t.Fatalf("post-reboot status = %+v, %v", status, err)
+	}
+	if status.FallbackImageSHA256 != factory.ImageSHA256 {
+		t.Fatalf("post-reboot fallback = %q, want %q", status.FallbackImageSHA256, factory.ImageSHA256)
 	}
 }
 
@@ -417,6 +465,88 @@ func TestBootTicketRewriteFailureOpensAdmissionAndRetriesOnce(t *testing.T) {
 		t.Fatalf("explicit confirm left the ticket: %+v %v", got, err)
 	}
 	requireAdmissionOpen(t, svc, c)
+}
+
+func TestRetentionFailureAfterDurableConfirmationDoesNotBlockAdmission(t *testing.T) {
+	s, factory, candidate, c := fixture(t)
+	if err := s.Activate(candidate.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-retention"); err != nil {
+		t.Fatal(err)
+	}
+	root := releaseRoot(t, s, candidate.ImageSHA256)
+	writeTrialTicket(t, root, "boot-retention", candidate.ImageSHA256, true)
+	if err := os.WriteFile(filepath.Join(root, "boot_id"), []byte("boot-retention\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Keep one extra staged release so confirmation has something to prune.
+	imagePath, err := s.ImagePath(candidate.ImageSHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleBytes, err := os.ReadFile(imagePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleBytes[1] = 0x7f
+	stale := factory
+	stale.ImageSHA256 = fmt.Sprintf("%x", sha256.Sum256(staleBytes))
+	stale.ImageSize = int64(len(staleBytes))
+	if err := s.Stage(context.Background(), stale, stale.ImageSize, bytes.NewReader(staleBytes)); err != nil {
+		t.Fatal(err)
+	}
+	staleSplash, _, err := appliance.SplashPaths(root, stale.ImageSHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(staleSplash), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(staleSplash, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	svc := applianceupdate.New(s, c, applianceupdate.BootIdentity{BootID: "boot-retention", ImageSHA256: candidate.ImageSHA256, Trial: true}, nil, nil)
+	if c.Health("").Ready {
+		t.Fatal("unconfirmed trial admitted launch")
+	}
+	if err := svc.Confirm(context.Background(), "boot-retention", candidate.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if !c.Health("").Ready {
+		t.Fatal("durably confirmed release stayed blocked by pruning")
+	}
+	status, err := svc.Status(context.Background())
+	if err != nil || status.Trial || status.Good != candidate.ImageSHA256 || status.ConfirmedImage != candidate.ImageSHA256 {
+		t.Fatalf("status after retention failure = %+v %v", status, err)
+	}
+	ticket, err := applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), filepath.Join(root, "boot_id"))
+	if err != nil || ticket.Trial || ticket.BootID != "boot-retention" || ticket.ImageSHA256 != candidate.ImageSHA256 {
+		t.Fatalf("ticket after retention failure = %+v %v", ticket, err)
+	}
+
+	// A confirmation retry is idempotent while pruning remains unavailable.
+	if err := svc.Confirm(context.Background(), "boot-retention", candidate.ImageSHA256); err != nil {
+		t.Fatalf("idempotent confirmation retry: %v", err)
+	}
+	if !c.Health("").Ready {
+		t.Fatal("confirmation retry re-blocked admission")
+	}
+	if err := os.Remove(staleSplash); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Confirm(context.Background(), "boot-retention", candidate.ImageSHA256); err != nil {
+		t.Fatalf("confirmation did not retry pruning: %v", err)
+	}
+	staleImage, err := s.ImagePath(stale.ImageSHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(staleImage); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("stale image was not pruned on retry: %v", err)
+	}
 }
 
 func TestBootTicketRewriteRetriesWhenTheTicketBecomesWritable(t *testing.T) {
