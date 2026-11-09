@@ -29,3 +29,32 @@ original two-second passive tail. Independently verify original
 free. Retain raw logs, consumed records, terminal archive and source bundle,
 and append the actual result to the owned kit log. Boundaries locate progress;
 they grant no hardware authority or ordinary appliance acceptance.
+
+The attempt is terminal and retired. Fixed 3 MHz/auto-adjust 0 recovery/native
+programming and all 13 uploads/fresh SD reads passed. MMU/private-DDR proof,
+normal vector/decode restoration, matched loader and EL1/SD/FAT startup passed.
+The existing FPGA_CONFIG_COMP command again returned 0 after doorbell 1 in two
+polls. START phases 0 through 4 returned 0, followed by phase 12. Phase 13 and
+all subsequent checkpoints were absent. The unchanged initial Ready 100-second
+bound expired, followed by the original two-second passive tail. This narrows
+the stall to the remapper-call interval; the exact instruction, actual callee
+entry, runtime exception or unreturned bus transaction remain unproven.
+No FPGA data WRITE, menu Ready, launch, tape or normal return was observed.
+
+The original remapper contains one System Manager read and two conditional
+writes, with no loop. Inspection of the actual linked tables confirms their
+existing Device/NS/XN translation. A transaction-security mismatch is therefore
+a candidate cause. The manual describes target firewall rejection for
+incompatible security attributes and includes the System Manager among
+controlled targets; its live firewall setting was not sampled. See
+[firewall behavior](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/firewall-and-security?contentId=mGRpDpvDnBWJrlTo1TUEyw)
+and [target controls](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/target-firewall-and-security?contentId=q7gA4rvcjP8ItYsnRqfrxg).
+This supports an inference, not a confirmed remapper root cause.
+
+Independent cleanup passed: original 15 MHz/auto-adjust 1, exact USB permissions,
+our private server gone and UART free. Both operations are consumed, with no
+replay. Historical programmer failures remain two; no new programmer failure.
+The host is detached; a terminal firmware return or CPU park was not observed.
+Next prepare and test a source-bound secure mapping for the original remapper
+accesses, retaining physical addresses before MMU activation, original values,
+ownership checks and all deadlines. Preserve every other peripheral mapping.

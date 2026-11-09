@@ -1,0 +1,49 @@
+{
+  "status": "actual-remapper-accesses-use-nonsecure-device-mapping",
+  "native_boot_id": "8bc1ed9a9478e26d",
+  "service_sha256": "f38684a6d8facdd212091a594f40c8b01551afaca37c3a09874e5c95b3ebc722",
+  "actual_elf_sha256": "7faa25dd8050ef8acc6d290efaf8141df27fb908dc20e10e11a43ee3bb03f720",
+  "descriptor_address": 2147775536,
+  "descriptor": 18014398790501989,
+  "device": true,
+  "nonsecure": true,
+  "execute_never": true,
+  "registers": [
+    {
+      "operation": "read32",
+      "name": "BOOT_SCRATCH_POR_1",
+      "physical": 282141276
+    },
+    {
+      "operation": "write32",
+      "name": "SDM_BE_ARADDR_REMAP",
+      "physical": 282141316,
+      "value": "DRAM_BASE"
+    },
+    {
+      "operation": "write32",
+      "name": "SDM_BE_AWADDR_REMAP",
+      "physical": 282141312,
+      "value": "DRAM_BASE"
+    }
+  ],
+  "remapper_contains_no_loop": true,
+  "pre_call_marker_without_post_call_marker": true,
+  "precise_register_or_exception_unproven": true,
+  "hypothesis": "The original remapper accesses retain the NS peripheral translation after MMU activation. A security-class mismatch is a candidate cause, supported by the earlier physical mailbox visibility repair and documented target firewall behavior. Neither the active System Manager firewall setting nor the precise failed instruction has been measured, so this is not a confirmed remapper root cause.",
+  "primary_sources": [
+    {
+      "title": "Agilex5 HPS TRM13.4.2 Firewall and Security",
+      "url": "https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/firewall-and-security?contentId=mGRpDpvDnBWJrlTo1TUEyw",
+      "scope": "Target firewalls check transaction security; denied transactions return an error and zero data, without reaching the target."
+    },
+    {
+      "title": "Agilex5 HPS TRM13.4.2.2 Target Firewall and Security",
+      "url": "https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/target-firewall-and-security?contentId=q7gA4rvcjP8ItYsnRqfrxg",
+      "scope": "System Manager appears among target firewall controls; this is not a live setting readback."
+    }
+  ],
+  "next_step": "Prepare a profile-gated secure Device/XN alias for this exact4KiB System Manager page and select it only for the original three remapper accesses when the EL3 MMU is enabled, preserving physical access before it. Bind actual source/selector/table identities and test both CPU states, skipped/active write branches, null/non-null translation and failure injection before a fresh bounded hardware attempt. Preserve all original values, calls, ownership and deadlines; do not widen a whole peripheral window.",
+  "hardware_actions": false,
+  "ordinary_core_load_acceptance": false
+}
