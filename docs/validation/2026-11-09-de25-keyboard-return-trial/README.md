@@ -22,3 +22,19 @@ cleanup must restore15MHz/auto-adjust, exact USB permissions and release the
 owned programming server/UART. Factory restoration remains waived; the original
 card stays safe. Old-file cleanup stays paused. Broader input, native networking,
 whole-board timing and ordinary appliance acceptance remain open.
+
+The trial stops at the60-second human-action wait: recovery,13 uploads/fresh
+readbacks, native boot/Ready (58.161s), four initial menu frames, owned menu
+closure, ZX81 configuration and the917-byte tape launch pass. Exact startup and
+the one completed launch independently replay through the strict client. No USB
+Stop action, normal return, second launch or final Park is observed. The last
+observed native state is Running1; host detachment does not imply containment.
+No panic or fatal USB marker is present. Independent programming/USB/UART cleanup
+passes; no new programmer failure occurred. The image and both grants are
+consumed and not replayed.
+
+The user reports being away from the kit and defers the physical check until
+tomorrow. No key press or display observation is confirmed, so this result does
+not establish an input-driver failure. The original timeout/failure record is
+preserved. Further physical checks wait for operator availability; the overall
+Linux-free core-loading goal remains incomplete.
