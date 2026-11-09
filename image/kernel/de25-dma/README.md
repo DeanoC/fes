@@ -44,7 +44,7 @@ are refused. Generation allocation saturates rather than wrapping;
 sequence exhaustion requires revocation and a new allocation.
 
 ABI 3 also reports the observed immutable 128-bit hardware build identity as
-four words, least-significant first. Creation checks interface version 1.1 and
+four words, least-significant first. Creation checks interface version 1.2 and
 a nonzero build ID before allocating storage. Snapshot validation compares the
 image identity with the original grant, including before and after CLEAR;
 identity loss retains the uncertain exposure and provider lease. INFO remains
@@ -53,6 +53,41 @@ unchanged unconfigured/drained tuple while observing DisplayReady, before any
 submission; transmitter configuration need not be guessed or followed by a
 fixed sleep. No CPU or DMA address is added to the ABI. The previous
 INFO/POLL request sizes and legacy PUBLISH versions cannot select this ABI.
+
+The independent version-1 `DIAGNOSTICS` ioctl (`0x05`, 48 bytes) is available
+only on the grant descriptor. It accepts the current generation, version 1 and
+zero reserved input; every other input field is ignored and overwritten. Its
+cached output contains the original build ID, flags and three raw first-fault
+words. `FES_DE25_DMA_DIAGNOSTICS_VALID` means that the observation was
+authenticated, including a zero/no-fault observation. The separate hardware
+state valid bit means a first underflow was captured. Zero flags and zero raw
+words mean unavailable; they do not mean that no fault occurred. The existing
+ABI version 3, 104-byte INFO and 24-byte PUBLISH layouts and ioctl numbers remain
+unchanged. No owner-control query or new address-bearing field is added.
+
+During an ordinary authenticated snapshot, the kernel reads the sticky state
+first. If its valid bit is clear, it caches a canonical zero observation; if
+set, the payload is immutable until CLEAR/reset and can be read consistently.
+The first record can latch after the original 13 frozen words: it is bound to
+the same grant by the subsequent build-ID, snapshot-serial, generation, DMA
+and external epoch checks, rather than by equality with the older frozen
+underflow count. The grant lock and exclusive backend lease exclude CLEAR.
+Packing checks reject occupancy reserved bits, out-of-frame coordinates and
+undefined index relations from the diagnostic cache without replacing the
+original display/drain error. A trusted first record remains retained until
+CLEAR, while detected identity loss invalidates it immediately. A failed CLEAR
+may already have erased hardware, so the cache is invalidated before issuing
+it. Successful checked CLEAR and a new allocation contain no old record.
+
+DIAGNOSTICS takes only the grant lock and performs no backend access, even when
+POLL/PUBLISH has marked the grant uncertain or revocation has started. This
+preserves the original fault and ownership/lifetime rules; querying diagnostics
+cannot acknowledge a frame, prove drain, repair or release an exposure. A
+transport-only failure leaves the last authenticated observation cached.
+KUnit exercises the actual ioctl copy path, no-access queries after faults,
+request validation, latch/read interleaving, identity/reset invalidation,
+CLEAR/new-grant isolation and malformed packing. These are off-board kernel
+software checks, not physical root-cause or native MENU acceptance evidence.
 
 Initially the logical front slot is zero and the first submission must use slot
 one. The kernel constructs all grant, generation, sequence and slot register

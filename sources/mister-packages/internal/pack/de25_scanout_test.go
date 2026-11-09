@@ -14,7 +14,7 @@ func TestDE25ScanoutAgreesWithProbeAllocationGeometry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if scanout.ID != "fes.fabric.de25-scanout" || scanout.Major != 1 || scanout.Minor != 1 {
+	if scanout.ID != "fes.fabric.de25-scanout" || scanout.Major != 1 || scanout.Minor != 2 {
 		t.Fatalf("unexpected scanout contract: %#v", scanout)
 	}
 	for _, suffix := range []string{"DmaAddressBits", "BeatBytes", "GrantAlignment", "MaxBurstBeats", "BoundaryBytes",
@@ -33,8 +33,8 @@ func TestDE25ScanoutAgreesWithProbeAllocationGeometry(t *testing.T) {
 		}
 		return value
 	}
-	if get("Version") != 0x10001 || get("StatusDisplayReady") != 64 || get("ErrorDisplay") != 128 {
-		t.Fatal("scanout1.1 requires positive display readiness and its fault bit")
+	if get("Version") != 0x10002 || get("StatusDisplayReady") != 64 || get("ErrorDisplay") != 128 {
+		t.Fatal("scanout1.2 preserves positive display readiness and its fault bit")
 	}
 	for index, suffix := range []string{"BuildId0Offset", "BuildId1Offset", "BuildId2Offset", "BuildId3Offset"} {
 		if get(suffix) != 0x64+4*uint32(index) || get(suffix)+4 > get("Span") {

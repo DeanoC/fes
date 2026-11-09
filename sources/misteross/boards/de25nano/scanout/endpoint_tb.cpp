@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "Vfes_de25_scanout.h"
+#include "Vfes_de25_scanout___024root.h"
 #include "generated/fes_de25_scanout.h"
 #include "verilated.h"
 
 #include <array>
+#include <algorithm>
 #include <cstdint>
 #include <deque>
 #include <iostream>
@@ -38,6 +40,18 @@ struct Snapshot {
 };
 struct Burst { std::uint32_t address, beats; };
 
+struct FirstFault {
+    std::array<std::uint32_t, 3> words{};
+    bool valid() const { return words[0] & FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK; }
+    unsigned h() const { return (words[0] >> FES_DE25_SCANOUT_FIRST_FAULT_HORIZONTAL_SHIFT) & FES_DE25_SCANOUT_FIRST_FAULT_HORIZONTAL_MASK; }
+    unsigned v() const { return (words[0] >> FES_DE25_SCANOUT_FIRST_FAULT_VERTICAL_SHIFT) & FES_DE25_SCANOUT_FIRST_FAULT_VERTICAL_MASK; }
+    unsigned state() const { return (words[0] >> FES_DE25_SCANOUT_FIRST_FAULT_VIDEO_STATE_SHIFT) & FES_DE25_SCANOUT_FIRST_FAULT_VIDEO_STATE_MASK; }
+    unsigned fifo() const { return words[1] & FES_DE25_SCANOUT_FIRST_FAULT_FIFO_COUNT_MASK; }
+    unsigned outstanding() const { return (words[1] >> FES_DE25_SCANOUT_FIRST_FAULT_OUTSTANDING_SHIFT) & FES_DE25_SCANOUT_FIRST_FAULT_OUTSTANDING_MASK; }
+    unsigned response_gap() const { return words[2] & FES_DE25_SCANOUT_FIRST_FAULT_RESPONSE_GAP_MASK; }
+    unsigned command_age() const { return (words[2] >> FES_DE25_SCANOUT_FIRST_FAULT_HELD_COMMAND_AGE_SHIFT) & FES_DE25_SCANOUT_FIRST_FAULT_HELD_COMMAND_AGE_MASK; }
+};
+
 // The response pattern distinguishes every pixel lane and both slots. BGRX's
 // low24 bits pass unchanged to the endpoint's RGB output.
 static std::uint32_t pixel(unsigned slot, std::uint32_t index) {
@@ -53,6 +67,10 @@ public:
     std::uint64_t active_pixels = 0, returned = 0;
     std::vector<Burst> bursts;
     std::deque<std::uint32_t> pending;
+    // Observe the real reader/video immediately before the edge that faults,
+    // independently of the endpoint's later cancellation and CSR reads.
+    bool observe_first_fault = false, hold_blank_for_age_test = false;
+    FirstFault expected_fault;
 
     Endpoint() {
         dut.clk = 0; dut.reset_n = 0; dut.clock_fault = 0; dut.display_ready = 0;
@@ -80,6 +98,12 @@ public:
     ~Endpoint() { dut.final(); }
 
     void tick() {
+        if (hold_blank_for_age_test) {
+            // Saturation alone needs a longer blank than the normal raster.
+            // This test-only stimulus never changes memory/credit accounting.
+            dut.rootp->fes_de25_scanout__DOT__video__DOT__internal_h = 0;
+            dut.rootp->fes_de25_scanout__DOT__video__DOT__internal_v = 720;
+        }
         dut.clk = 0; dut.avm_waitrequest = stall;
         dut.avm_readdatavalid = 0; dut.avm_response = 0; dut.eval();
         const bool accepts = dut.reset_n && dut.avm_read && !stall;
@@ -144,7 +168,16 @@ public:
             }
             held_ = dut.avm_read && stall; held_address_ = dut.avm_address; held_beats_ = dut.avm_burstcount;
         }
+        if (observe_first_fault) sample_first_fault();
         dut.clk = 1; dut.eval(); dut.clk = 0; dut.eval();
+        if (observe_first_fault) {
+            equal(dut.rootp->fes_de25_scanout__DOT__video__DOT__first_fault_state,
+                  expected_fault.words[0], "first-fault state on capture/reset/hold edge");
+            equal(dut.rootp->fes_de25_scanout__DOT__video__DOT__first_fault_occupancy,
+                  expected_fault.words[1], "first-fault occupancy on capture/reset/hold edge");
+            equal(dut.rootp->fes_de25_scanout__DOT__video__DOT__first_fault_gaps,
+                  expected_fault.words[2], "first-fault gaps on capture/reset/hold edge");
+        }
     }
     void idle(unsigned clocks = 1) {
         dut.read = 0; dut.write = 0;
@@ -183,6 +216,11 @@ public:
         equal(read(FES_DE25_SCANOUT_SNAPSHOT_SERIAL_OFFSET), std::uint32_t(serial + 1u), "snapshot changed while read");
         return result;
     }
+    FirstFault first_fault() {
+        return {{read(FES_DE25_SCANOUT_FIRST_FAULT_STATE_OFFSET),
+                 read(FES_DE25_SCANOUT_FIRST_FAULT_OCCUPANCY_OFFSET),
+                 read(FES_DE25_SCANOUT_FIRST_FAULT_GAPS_OFFSET)}};
+    }
     Snapshot wait_status(std::uint32_t bits, unsigned limit = 10000) {
         for (unsigned i = 0; i < limit; i += 64) {
             auto state = snapshot(); if ((state.status() & bits) == bits) return state; idle(64);
@@ -214,7 +252,48 @@ public:
         idle(2);
         dut.reset_n = 1; dut.eval(); idle(4);
     }
+    void new_grant_epoch() {
+        // Reset only test memory-order bookkeeping after legal local CLEAR.
+        // The DUT must rearm without asserting its configuration reset.
+        require(pending.empty() && !dut.avm_read, "new test epoch before traffic drained");
+        held_ = false; have_frame_ = false; bounded_ = false; allowed_slots_ = 0;
+        frame_start_ = 0; next_address_ = 0;
+    }
 private:
+    unsigned response_gap_ = 0, command_age_ = 0, response_max_ = 0, command_max_ = 0;
+    void sample_first_fault() {
+        const auto* r = dut.rootp;
+        const bool reset = !dut.reset_n || r->fes_de25_scanout__DOT__local_clear;
+        const bool fetch_start = r->fes_de25_scanout__DOT__video__DOT__state == 1 &&
+            r->fes_de25_scanout__DOT__video__DOT__running && r->fes_de25_scanout__DOT__video__DOT__reader_idle;
+        response_gap_ = r->fes_de25_scanout__DOT__video__DOT__reader__DOT__outstanding && !dut.avm_readdatavalid ?
+            std::min(65535u, response_gap_ + 1) : 0;
+        command_age_ = dut.avm_read && dut.avm_waitrequest ? std::min(65535u, command_age_ + 1) : 0;
+        response_max_ = std::max(response_max_, response_gap_);
+        command_max_ = std::max(command_max_, command_age_);
+        if (reset) expected_fault = {};
+        else if (!expected_fault.valid() && r->fes_de25_scanout__DOT__video__DOT__armed &&
+                 r->fes_de25_scanout__DOT__video__DOT__running && r->fes_de25_scanout__DOT__video__DOT__de &&
+                 !r->fes_de25_scanout__DOT__video__DOT__pixel_matches) {
+            const auto index = r->fes_de25_scanout__DOT__video__DOT__pixel_index;
+            const auto raster = r->fes_de25_scanout__DOT__video__DOT__raster_index;
+            const unsigned relation = index < raster ? 0 : (index == raster ? 1 : 2);
+            expected_fault.words[0] = FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK |
+                (r->fes_de25_scanout__DOT__video__DOT__internal_h << FES_DE25_SCANOUT_FIRST_FAULT_HORIZONTAL_SHIFT) |
+                (r->fes_de25_scanout__DOT__video__DOT__internal_v << FES_DE25_SCANOUT_FIRST_FAULT_VERTICAL_SHIFT) |
+                (r->fes_de25_scanout__DOT__video__DOT__state << FES_DE25_SCANOUT_FIRST_FAULT_VIDEO_STATE_SHIFT) |
+                (r->fes_de25_scanout__DOT__video__DOT__pixel_valid ? FES_DE25_SCANOUT_FIRST_FAULT_PIXEL_VALID_MASK : 0) |
+                (relation << FES_DE25_SCANOUT_FIRST_FAULT_INDEX_RELATION_SHIFT) |
+                (dut.avm_read ? FES_DE25_SCANOUT_FIRST_FAULT_READ_MASK : 0) |
+                (dut.avm_waitrequest ? FES_DE25_SCANOUT_FIRST_FAULT_WAITREQUEST_MASK : 0) |
+                (dut.avm_readdatavalid ? FES_DE25_SCANOUT_FIRST_FAULT_READDATAVALID_MASK : 0) | dut.avm_response;
+            expected_fault.words[1] = r->fes_de25_scanout__DOT__video__DOT__reader__DOT__count |
+                (r->fes_de25_scanout__DOT__video__DOT__reader__DOT__outstanding << FES_DE25_SCANOUT_FIRST_FAULT_OUTSTANDING_SHIFT) |
+                (r->fes_de25_scanout__DOT__video__DOT__reader__DOT__lane << FES_DE25_SCANOUT_FIRST_FAULT_LANE_SHIFT);
+            expected_fault.words[2] = response_max_ | (command_max_ << FES_DE25_SCANOUT_FIRST_FAULT_HELD_COMMAND_AGE_SHIFT);
+        }
+        if (reset || fetch_start) response_gap_ = command_age_ = response_max_ = command_max_ = 0;
+    }
     bool held_ = false, bounded_ = false, have_frame_ = false;
     std::uint32_t held_address_ = 0, held_beats_ = 0;
     std::uint64_t base_ = 0, frame_start_ = 0, next_address_ = 0;
@@ -504,6 +583,114 @@ static void display_readiness_loss_stops_without_releasing_traffic() {
     equal(e.snapshot().errors(), 0, "checked drain could not retire visibility fault");
 }
 
+static void expect_first_fault(Endpoint& e, const FirstFault& expected) {
+    const auto got = e.first_fault();
+    for (unsigned i = 0; i < got.words.size(); ++i)
+        equal(got.words[i], expected.words[i], "exact first-fault CSR readback");
+    equal(got.words[1] & ~FES_DE25_SCANOUT_FIRST_FAULT_OCCUPANCY_MASK, 0, "reserved occupancy bits");
+}
+
+static void first_fault_case(const std::string& mode, bool illegal_clear = false) {
+    Endpoint e; Descriptor d; e.observe_first_fault = true;
+    expect_first_fault(e, {});
+    const bool baseline = mode == "baseline";
+    const bool saturation = mode.find("saturate") != std::string::npos;
+    const bool command = mode == "command" || mode == "saturate-command";
+    const bool response = mode == "response" || mode == "saturate-response";
+    if (mode == "prefetch" || (saturation && response)) e.responses = false;
+    if (saturation) {
+        e.hold_blank_for_age_test = true;
+        if (command) e.stall = true;
+    }
+    e.submit(d);
+    if (!saturation && mode != "prefetch") {
+        e.check_pixels = true;
+        for (unsigned i = 0; e.active_pixels < 12000 && i < 200000; ++i) e.idle();
+        require(e.active_pixels >= 12000, "first-fault test never reached active display");
+        e.check_pixels = false;
+        if (command) e.stall = true;
+        if (response) e.responses = false;
+    }
+    if (baseline) e.wait_displayed(1);
+    else if (saturation) {
+        e.idle(70000);
+        e.hold_blank_for_age_test = false;
+        e.dut.rootp->fes_de25_scanout__DOT__video__DOT__internal_h = 0;
+        e.dut.rootp->fes_de25_scanout__DOT__video__DOT__internal_v = 0;
+        e.idle();
+    } else e.idle(mode == "prefetch" ? 60000 : 12000);
+    const auto first = e.expected_fault;
+    expect_first_fault(e, first);
+    equal(first.valid(), !baseline, "first-underflow record validity");
+    if (!baseline) {
+        equal(first.fifo(), 0, "controlled stall must exhaust buffered pixels");
+        equal(first.h(), saturation || mode == "prefetch" ? 0 : 960, "first missing pixel horizontal position");
+        equal(first.v(), saturation || mode == "prefetch" ? 0 : 15, "first missing pixel vertical position");
+        equal(first.state(), saturation ? FES_DE25_SCANOUT_FIRST_FAULT_VIDEO_STATE_FETCH :
+              (mode == "prefetch" ? FES_DE25_SCANOUT_FIRST_FAULT_VIDEO_STATE_DRAIN :
+               FES_DE25_SCANOUT_FIRST_FAULT_VIDEO_STATE_DISPLAY), "pre-cancel video state");
+        equal(first.words[0] & FES_DE25_SCANOUT_FIRST_FAULT_PIXEL_VALID_MASK, 0, "exhausted reader pixel validity");
+        equal((first.words[0] >> FES_DE25_SCANOUT_FIRST_FAULT_INDEX_RELATION_SHIFT) &
+              FES_DE25_SCANOUT_FIRST_FAULT_INDEX_RELATION_MASK,
+              FES_DE25_SCANOUT_FIRST_FAULT_INDEX_RELATION_EQUAL, "retained pixel/raster relation");
+    }
+    if (command) {
+        equal(first.outstanding(), 0, "held command is not accepted response credit");
+        equal(first.response_gap(), 0, "response-gap age grew without accepted credit");
+        equal(first.words[0] & (FES_DE25_SCANOUT_FIRST_FAULT_READ_MASK | FES_DE25_SCANOUT_FIRST_FAULT_WAITREQUEST_MASK),
+              FES_DE25_SCANOUT_FIRST_FAULT_READ_MASK | FES_DE25_SCANOUT_FIRST_FAULT_WAITREQUEST_MASK, "held-command flags");
+        equal(first.command_age(), saturation ? 65535 : 10348, "maximum held-command age");
+    }
+    if (response || mode == "prefetch") {
+        equal(first.outstanding(), 256, "response stall lost accepted credit before capture");
+        equal(first.command_age(), 0, "response stall manufactured held-command age");
+        equal(first.response_gap(), saturation ? 65535 : (mode == "prefetch" ? 49442 : 10347),
+              "maximum gap includes the fault edge");
+    }
+    // Independent read-only CSRs leave the existing snapshot/serial unchanged.
+    const auto frozen = e.snapshot();
+    const auto serial = e.read(FES_DE25_SCANOUT_SNAPSHOT_SERIAL_OFFSET);
+    e.write(FES_DE25_SCANOUT_FIRST_FAULT_STATE_OFFSET, 0);
+    e.write(FES_DE25_SCANOUT_FIRST_FAULT_OCCUPANCY_OFFSET, 0xffffffffu);
+    e.write(FES_DE25_SCANOUT_FIRST_FAULT_GAPS_OFFSET, 0);
+    expect_first_fault(e, first);
+    equal(e.read(FES_DE25_SCANOUT_SNAPSHOT_SERIAL_OFFSET), serial, "first-fault CSR access changed snapshot serial");
+    for (unsigned i = 0; i < frozen.words.size(); ++i)
+        equal(e.read(FES_DE25_SCANOUT_SNAPSHOT_STATUS_OFFSET + 4u * i), frozen.words[i], "first-fault access changed frozen snapshot");
+    if (illegal_clear) {
+        require(e.snapshot().outstanding() > 0, "illegal CLEAR test needs held or accepted traffic");
+        e.command(FES_DE25_SCANOUT_COMMAND_CLEAR);
+        expect_first_fault(e, first);
+        require(e.snapshot().errors() & FES_DE25_SCANOUT_ERROR_COMMAND, "illegal CLEAR was not rejected");
+    }
+    e.stall = false; e.responses = true; e.stop_and_drain();
+    expect_first_fault(e, first);
+    const auto terminal = e.snapshot();
+    equal(terminal.words[8], baseline ? 0 : 1, "first-fault capture changed underflow stopping");
+    equal(terminal.displayed(), baseline ? 1 : 0, "first-fault capture changed full-frame ACK");
+    equal(terminal.outstanding(), 0, "first-fault capture changed ownership/drain");
+    equal(terminal.errors(), baseline ? 0 : (illegal_clear ? 10 : 8), "first-fault capture changed fault classification");
+    equal(terminal.status(), baseline ? 0x49 : 0x59, "first-fault capture changed terminal status");
+    e.idle(1300000); expect_first_fault(e, first);
+    e.command(FES_DE25_SCANOUT_COMMAND_CLEAR); expect_first_fault(e, {});
+    equal(e.snapshot().errors(), 0, "legal CLEAR retained old fault");
+    if (!baseline) {
+        e.new_grant_epoch(); e.responses = false; e.submit(d); e.idle(1300000);
+        require(e.expected_fault.valid(), "legal CLEAR did not rearm capture without configuration reset");
+        expect_first_fault(e, e.expected_fault);
+        require(e.expected_fault.response_gap() < 65535 && !e.expected_fault.command_age(), "new fetch retained old age maxima");
+    }
+    e.reset_epoch(); expect_first_fault(e, {});
+    std::cout << "PASS first_fault_" << mode << (illegal_clear ? "_illegal_clear" : "") << '\n';
+}
+
+static void first_fault_capture_and_lifetime() {
+    for (const std::string mode : {"baseline", "command", "response", "prefetch", "saturate-command", "saturate-response"})
+        first_fault_case(mode);
+    first_fault_case("command", true);
+    first_fault_case("response", true);
+}
+
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
     unsigned groups = 0;
@@ -528,6 +715,7 @@ int main(int argc, char** argv) {
         RUN(unexpected_response_is_terminal);
         RUN(underflow_never_completes_frame);
         RUN(clock_fault_cannot_clear_into_new_lease);
+        RUN(first_fault_capture_and_lifetime);
         std::cout << "PASS DE25 scanout endpoint: " << groups << " groups\n";
     } catch (const std::exception& error) {
         std::cerr << "FAIL after " << groups << " groups: " << error.what() << '\n'; return 1;

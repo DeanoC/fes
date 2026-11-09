@@ -33,6 +33,11 @@ module fes_menu_video #(
     output wire [8:0] outstanding_beats,
     output wire quiesced,
     output reg [31:0] underflows = 32'd0,
+    // First-underflow record, sticky until rst. The allocated-buffer endpoint
+    // asserts rst only for a legal drained CLEAR or the configuration reset.
+    output reg [31:0] first_fault_state = 32'd0,
+    output reg [31:0] first_fault_occupancy = 32'd0,
+    output reg [31:0] first_fault_gaps = 32'd0,
     output wire [23:0] rgb,
     // The DDR word's top byte. Session planes treat it as premultiplied alpha.
     output wire [7:0] alpha,
@@ -104,6 +109,31 @@ module fes_menu_video #(
         assign reader_response = response;
     end endgenerate
 
+    wire [FIFO_ADDR_BITS:0] diagnostic_fifo_count;
+    wire [8:0] diagnostic_accepted_outstanding;
+    wire [1:0] diagnostic_lane;
+    wire [15:0] diagnostic_max_response_gap, diagnostic_max_held_command_age;
+    wire [1:0] diagnostic_index_relation = pixel_index < raster_index ? 2'd0 :
+        (pixel_index == raster_index ? 2'd1 : 2'd2);
+    // The compact record carries twelve occupancy bits; all current readers
+    // have at most 2048 beats. Explicit extension also supports smaller FIFOs.
+    wire [FIFO_ADDR_BITS+12:0] diagnostic_extended_count = {12'd0, diagnostic_fifo_count};
+    // Exactly the existing underflow predicate, evaluated before cancellation.
+    always @(posedge clk) begin
+        if (rst) begin
+            first_fault_state <= 32'd0;
+            first_fault_occupancy <= 32'd0;
+            first_fault_gaps <= 32'd0;
+        end else if (!first_fault_state[31] && de && armed && running && !pixel_matches) begin
+            first_fault_state <= {1'b1, h, v, state, pixel_valid,
+                diagnostic_index_relation, reader_read, reader_waitrequest,
+                reader_readdatavalid, reader_response};
+            first_fault_occupancy <= {9'd0, diagnostic_lane, diagnostic_accepted_outstanding,
+                diagnostic_extended_count[11:0]};
+            first_fault_gaps <= {diagnostic_max_held_command_age, diagnostic_max_response_gap};
+        end
+    end
+
     fes_menu_reader #(.WINDOW_BASE(TEST_PATTERN ? 32'h00001000 : WINDOW_BASE),
         .DYNAMIC_BASE(DYNAMIC_BASE), .MAX_BURST_BEATS(MAX_BURST_BEATS),
         .CHECK_RESPONSE(CHECK_RESPONSE), .READ_AHEAD(READ_AHEAD),
@@ -118,7 +148,12 @@ module fes_menu_video #(
         .address(reader_address), .burstcount(reader_burstcount), .read(reader_read),
         .waitrequest(reader_waitrequest), .readdata(reader_readdata),
         .readdatavalid(reader_readdatavalid), .response(reader_response),
-        .memory_errors(memory_errors), .outstanding_beats(outstanding_beats)
+        .memory_errors(memory_errors), .outstanding_beats(outstanding_beats),
+        .diagnostic_fifo_count(diagnostic_fifo_count),
+        .diagnostic_accepted_outstanding(diagnostic_accepted_outstanding),
+        .diagnostic_lane(diagnostic_lane),
+        .diagnostic_max_response_gap(diagnostic_max_response_gap),
+        .diagnostic_max_held_command_age(diagnostic_max_held_command_age)
     );
     always @(posedge clk) begin
         if (!EXTERNAL_RASTER) begin

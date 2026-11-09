@@ -19,6 +19,14 @@ struct De25MenuGrant {
  std::uint32_t hardware_status=0,hardware_errors=0,underflows=0,outstanding=0;
  std::array<std::uint32_t,4> build_id{};
 };
+// Optional cached first-underflow observation. Separate from allocation ABI3;
+// it contains no addresses and cannot authorize publication or recovery.
+struct De25MenuDiagnostics {
+ std::uint64_t generation=0;
+ std::uint32_t version=0,reserved=0;
+ std::array<std::uint32_t,4> build_id{};
+ std::uint32_t flags=0,first_fault_state=0,first_fault_occupancy=0,first_fault_gaps=0;
+};
 class De25MenuOperations {
 public:
  virtual ~De25MenuOperations() {}
@@ -29,6 +37,10 @@ public:
  virtual Error Allocate(int*)=0;
  virtual Error Info(int,De25MenuGrant*)=0;
  virtual Error Poll(int,De25MenuGrant*)=0;
+ // A generation-bound cached read only: never sample MMIO after failed POLL.
+ virtual Error Diagnostics(int,std::uint64_t,De25MenuDiagnostics*) {
+  return {ErrorCode::unsupported_interface,"cached DE25 diagnostics unavailable","menu"};
+ }
  virtual Error Publish(int,std::uint64_t,std::uint32_t,std::uint32_t)=0;
  // Only the kernel's EAGAIN drain observation returns false without error.
  // Every call retains the same kernel allocation/epoch and performs no reset.

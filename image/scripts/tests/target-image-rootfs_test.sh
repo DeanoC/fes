@@ -118,7 +118,7 @@ if [ "$1" = --string-dump=.fes_menu_interfaces ]; then
     '  [     0]  fes.video.fixed-720p60=1.0' \
     '  [    32]  fes.video.menu-display=1.0'
   if [ "${FES_TARGET_BOARD:-de10-nano}" = de25-nano ]; then
-    printf '%s\n' '  [    55]  fes.fabric.de25-scanout=1.1'
+    printf '%s\n' '  [    55]  fes.fabric.de25-scanout=1.2'
   else
     printf '%s\n' '  [    1b]  fes.memory.hps-ddr=1.0'
   fi
@@ -270,7 +270,7 @@ package_fixture() {
     printf "\n[target]\nplatform = '%s'\n" "$platform" >>"$package_dir/manifest.toml"
     for interface in $menu_interfaces; do
       minor=0
-      [ "$interface" != fes.fabric.de25-scanout ] || minor=1
+      [ "$interface" != fes.fabric.de25-scanout ] || minor=2
       printf "\n[[interfaces]]\nid = '%s'\nmajor = 1\nminor = %s\nrequired = true\n" \
         "$interface" "$minor" >>"$package_dir/manifest.toml"
     done
@@ -553,7 +553,7 @@ NATIVE_RUNTIME_MODE=package-only \
     "$native_post_build" "$de25_target"
   grep -Fq '"board":"de25-nano"' "$de25_target/etc/fes/software-base.json"
   grep -Fq '"architecture":"aarch64"' "$de25_target/etc/fes/software-base.json"
-  grep -Fq '"menu.fes.fabric.de25-scanout":"1.1"' "$de25_target/etc/fes/software-base.json"
+  grep -Fq '"menu.fes.fabric.de25-scanout":"1.2"' "$de25_target/etc/fes/software-base.json"
   test ! -e "$de25_target/usr/share/fes/software/share/fes-window"
   test ! -e "$de25_target/lib/modules/5.15.1-MiSTer"
   cmp "$de25_idle" "$de25_target/usr/share/mister-runtime/idle.rbf"

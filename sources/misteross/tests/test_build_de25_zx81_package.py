@@ -73,7 +73,7 @@ class ZX81ProducerTests(unittest.TestCase):
                           'fes.audio.pcm-s16-stereo-48k','fes.media.zx81-tape','fes.media.zx81-tape-write',
                           'fes.video.session-display','fes.fabric.video.display-plane','fes.fabric.de25-scanout'})
         self.assertNotIn('fes.memory.hps-ddr',{i['id'] for i in manifest['interfaces']})
-        self.assertEqual(next(i['minor'] for i in manifest['interfaces'] if i['id']=='fes.fabric.de25-scanout'),1)
+        self.assertEqual(next(i['minor'] for i in manifest['interfaces'] if i['id']=='fes.fabric.de25-scanout'),2)
         self.assertNotIn('roms',manifest)
 
     def test_cli_and_wrong_pinned_inputs_refuse_before_any_build(self):

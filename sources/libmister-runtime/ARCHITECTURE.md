@@ -1172,13 +1172,25 @@ construction order. The production serializer on the native MENU test fixture
 supplies the Go client's idle-status fixture; both ends preserve this contract.
 
 The exact format2 `fes.menu` application1.0 package declares fixed video1.0,
-menu-display1.0 and `fes.fabric.de25-scanout`1.1, with a selected nonzero build ID.
+menu-display1.0 and `fes.fabric.de25-scanout`1.2, with a selected nonzero build ID.
 It does not declare the Cyclone V boot-latched DDR contract. The selected MENU
 driver checks this before binding ABI3 storage. Configure performs both observed
 black frames on that same allocation. Selected video readiness and Start observe
 the completed allocation; they issue no computer-mailbox or execution command.
 Normal LoadCore/Stop then use the existing serialized lifecycle to retire MENU,
 program/identify/start the computer, and reload MENU with a fresh generation.
+
+Scanout1.2 retains three first-underflow words through STOP and drain. The kernel
+samples and authenticates them against the allocation generation and selected
+build identity before a failed poll can mark the grant uncertain. The separate
+48-byte version1 DIAGNOSTICS ioctl copies that cache without touching MMIO;
+the ABI3 INFO/POLL/PUBLISH layouts remain unchanged. After a poll error and
+verified cached INFO, the runtime may append the validated raw and decoded
+record within the same deadline. Unavailable, malformed, late or foreign
+diagnostics preserve the original error and retirement gates. They never
+complete a failed presentation. Producer, kernel and runtime changes require
+fresh artifact qualification; this path is not a repair or a physical root-cause
+claim for the intermittent MENU underflow.
 
 MenuMemory retirement precedes any replacement. OWNER_REAP must prove drain;
 OWNER_IDLE must subsequently show the last peer FD/VMA gone. A failed retirement

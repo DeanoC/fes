@@ -21,12 +21,43 @@ namespace mister { namespace native {
 namespace {
 using namespace generated;
 constexpr std::uint32_t kAbi=3,kRevoked=1,kExposed=2,kUncertain=4,kPending=8,kNoSlot=~std::uint32_t(0),kBlackFrames=2;
+constexpr std::uint32_t kDiagnosticsVersion=1,kDiagnosticsValid=1;
 Error Invalid(const char* s){return {ErrorCode::invalid_request,s,"menu"};}
 Error Failed(const char* s){return {ErrorCode::io_failed,s,"menu"};}
 Error Unsupported(){return {ErrorCode::unsupported_interface,"DE25 allocated display has no blitter; reopening requires selected session control","menu"};}
+void AppendFirstFault(Error& error,const De25MenuDiagnostics& v,std::uint64_t generation,
+                      const std::array<std::uint32_t,4>& expected) {
+ const auto state=v.first_fault_state,occupancy=v.first_fault_occupancy,gaps=v.first_fault_gaps;
+ const auto h=(state>>FesDe25ScanoutFirstFaultHorizontalShift)&FesDe25ScanoutFirstFaultHorizontalMask;
+ const auto y=(state>>FesDe25ScanoutFirstFaultVerticalShift)&FesDe25ScanoutFirstFaultVerticalMask;
+ const auto relation=(state>>FesDe25ScanoutFirstFaultIndexRelationShift)&FesDe25ScanoutFirstFaultIndexRelationMask;
+ if(v.version!=kDiagnosticsVersion||v.reserved||!v.generation||v.generation!=generation||v.build_id!=expected||
+    v.flags!=kDiagnosticsValid||!(state&FesDe25ScanoutFirstFaultValidMask)||
+    (occupancy&~FesDe25ScanoutFirstFaultOccupancyMask)||h>=FesDe25ScanoutFrameWidth||
+    y>=FesDe25ScanoutFrameHeight||relation>FesDe25ScanoutFirstFaultIndexRelationGreater)return;
+ const auto video=(state>>FesDe25ScanoutFirstFaultVideoStateShift)&FesDe25ScanoutFirstFaultVideoStateMask;
+ const char* const states[]={"drain","start","fetch","display"};
+ const char* const relations[]={"less","equal","greater"};
+ std::ostringstream detail;
+ detail<<"; cached first_underflow raw=0x"<<std::hex<<state<<"/0x"<<occupancy<<"/0x"<<gaps<<std::dec
+  <<" h="<<h<<" v="<<y<<" video_state="<<states[video]
+  <<" fifo="<<(occupancy&FesDe25ScanoutFirstFaultFifoCountMask)
+  <<" accepted_outstanding="<<((occupancy>>FesDe25ScanoutFirstFaultOutstandingShift)&FesDe25ScanoutFirstFaultOutstandingMask)
+  <<" lane="<<((occupancy>>FesDe25ScanoutFirstFaultLaneShift)&FesDe25ScanoutFirstFaultLaneMask)
+  <<" relation="<<relations[relation]
+  <<" pixel_valid="<<bool(state&FesDe25ScanoutFirstFaultPixelValidMask)
+  <<" read="<<bool(state&FesDe25ScanoutFirstFaultReadMask)
+  <<" waitrequest="<<bool(state&FesDe25ScanoutFirstFaultWaitrequestMask)
+  <<" readdatavalid="<<bool(state&FesDe25ScanoutFirstFaultReaddatavalidMask)
+  <<" response="<<(state&FesDe25ScanoutFirstFaultResponseMask)
+  <<" max_response_gap_cycles="<<(gaps&FesDe25ScanoutFirstFaultResponseGapMask)
+  <<" max_held_command_age_cycles="<<((gaps>>FesDe25ScanoutFirstFaultHeldCommandAgeShift)&FesDe25ScanoutFirstFaultHeldCommandAgeMask);
+ error.message+=detail.str();
+}
 #if defined(__linux__)
 static_assert(FES_DE25_DMA_ABI_VERSION==kAbi&&FES_DE25_DMA_REVOKED==kRevoked&&FES_DE25_DMA_EXPOSED==kExposed&&FES_DE25_DMA_UNCERTAIN==kUncertain&&FES_DE25_DMA_PENDING==kPending,"kernel UAPI differs");
 static_assert(sizeof(fes_de25_dma_info)==104&&sizeof(fes_de25_dma_publish)==24,"kernel ioctl layout differs");
+static_assert(FES_DE25_DMA_DIAGNOSTICS_VERSION==kDiagnosticsVersion&&FES_DE25_DMA_DIAGNOSTICS_VALID==kDiagnosticsValid&&sizeof(fes_de25_dma_diagnostics)==48,"kernel diagnostics layout differs");
 Error Io(const char* s){return {ErrorCode::io_failed,std::string(s)+": "+std::strerror(errno),"menu"};}
 class KernelOperations final : public De25MenuOperations {
  int owner_=-1;
@@ -77,6 +108,15 @@ public:
   fes_de25_dma_info raw{};raw.version=kAbi;raw.generation=out->generation;
   if(ioctl(fd,FES_DE25_DMA_POLL,&raw)<0)return Io("DE25 grant poll");
   Decode(raw,out);return {};
+ }
+ Error Diagnostics(int fd,std::uint64_t generation,De25MenuDiagnostics* out) override {
+  fes_de25_dma_diagnostics raw{};raw.version=kDiagnosticsVersion;raw.generation=generation;
+  if(ioctl(fd,FES_DE25_DMA_DIAGNOSTICS,&raw)<0)return Io("DE25 cached diagnostics");
+  out->generation=raw.generation;out->version=raw.version;out->reserved=raw.reserved;
+  for(unsigned i=0;i<4;++i)out->build_id[i]=raw.build_id[i];
+  out->flags=raw.flags;out->first_fault_state=raw.first_fault_state;
+  out->first_fault_occupancy=raw.first_fault_occupancy;out->first_fault_gaps=raw.first_fault_gaps;
+  return {};
  }
  Error Publish(int fd,std::uint64_t generation,std::uint32_t sequence,std::uint32_t slot) override {
   fes_de25_dma_publish p{};p.version=kAbi;p.generation=generation;p.sequence=sequence;p.slot=slot;
@@ -181,6 +221,13 @@ Error LinuxDe25Menu::Refresh(std::uint64_t d) {
     <<" hardware_errors=0x"<<cached.hardware_errors<<std::dec
     <<" underflows="<<cached.underflows<<" outstanding="<<cached.outstanding;
    e.message+=detail.str();
+   // The optional ioctl copies the already authenticated kernel cache. An
+   // old kernel, stale/malformed result or late reply changes no fault policy.
+   if(clock_.NowMs()<d) {
+    De25MenuDiagnostics first{};
+    const auto observed=operations_->Diagnostics(grant_,info_.generation,&first);
+    if(observed.ok()&&clock_.NowMs()<d)AppendFirstFault(e,first,info_.generation,expected_);
+   }
   }
  }
  if(e.ok())e=Deadline(d);

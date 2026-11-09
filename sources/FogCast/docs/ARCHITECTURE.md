@@ -858,7 +858,7 @@ binding for either generation. On a menu-display kit, both that tape unit
 and a legacy blob session open the media selector only
 when the running package reports `fes.video.session-display` 1.0 with
 `fes.memory.hps-ddr` 1.0, or a `fes.computer` session reports that display
-interface with both `fes.fabric.de25-scanout` 1.1 and
+interface with both `fes.fabric.de25-scanout` 1.2 and
 `fes.fabric.video.display-plane` 1.0. Home posts `visible: true`, the runtime makes menu
 presentation available, and `BindSession` authorizes the launcher frames.
 On a kit, Home or Select/View opens **Change media** directly over the running

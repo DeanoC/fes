@@ -44,6 +44,24 @@ struct fes_de25_dma_info {
 	__u32 build_id[4];
 };
 
+/* Independent additive diagnostics ABI; INFO/PUBLISH and ABI 3 stay fixed. */
+#define FES_DE25_DMA_DIAGNOSTICS_VERSION 1U
+#define FES_DE25_DMA_DIAGNOSTICS_VALID 1U
+
+struct fes_de25_dma_diagnostics {
+	__u64 generation;
+	__u32 version;
+	__u32 reserved;
+	__u32 build_id[4];
+	/* VALID authenticates the cached observation, including no first fault.
+	 * The hardware first_fault_state valid bit separately reports a fault.
+	 */
+	__u32 flags;
+	__u32 first_fault_state;
+	__u32 first_fault_occupancy;
+	__u32 first_fault_gaps;
+};
+
 #define FES_DE25_DMA_REVOKED 1U
 #define FES_DE25_DMA_EXPOSED 2U
 #define FES_DE25_DMA_UNCERTAIN 4U
@@ -56,6 +74,13 @@ struct fes_de25_dma_info {
 #define FES_DE25_DMA_REVOKE _IO(0xD5, 0x03)
 /* POLL input requires current generation, version and zero reserved. */
 #define FES_DE25_DMA_POLL _IOWR(0xD5, 0x04, struct fes_de25_dma_info)
+
+/* Grant-only cached query: input current generation, version 1, reserved zero.
+ * Other input fields are ignored. Always overwrites all output fields. No MMIO
+ * or refresh occurs, even for an uncertain/revoked grant. Zero flags and raw
+ * words mean no authenticated observation is available, not "no fault".
+ */
+#define FES_DE25_DMA_DIAGNOSTICS _IOWR(0xD5, 0x05, struct fes_de25_dma_diagnostics)
 
 /* Permanent owner control: no argument. ALLOC returns a CLOEXEC grant fd.
  * REAP revokes the active grant using kernel hardware proof, then releases the

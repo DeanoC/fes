@@ -9,10 +9,10 @@ description: >-
   The explicit Linux DMA build selects the generated SMMU stream/layout.
   This contract assigns no Linux device, firewall, boot or runtime admission. See docs/de25-scanout.md.
 major: 1
-minor: 1
+minor: 2
 constants:
   - {name: FesDe25ScanoutIdentity, value: 0x44325343}
-  - {name: FesDe25ScanoutVersion, value: 0x00010001}
+  - {name: FesDe25ScanoutVersion, value: 0x00010002}
   - {name: FesDe25ScanoutArchitecturalLwBase, value: 0x20000000}
   - {name: FesDe25ScanoutArchitecturalLwSpan, value: 0x20000000}
   - {name: FesDe25ScanoutPeripheralOffset, value: 0x00010200}
@@ -81,6 +81,39 @@ constants:
   - {name: FesDe25ScanoutBuildId1Offset, value: 0x68}
   - {name: FesDe25ScanoutBuildId2Offset, value: 0x6c}
   - {name: FesDe25ScanoutBuildId3Offset, value: 0x70}
+  - {name: FesDe25ScanoutFirstFaultStateOffset, value: 0x74}
+  - {name: FesDe25ScanoutFirstFaultOccupancyOffset, value: 0x78}
+  - {name: FesDe25ScanoutFirstFaultGapsOffset, value: 0x7c}
+  - {name: FesDe25ScanoutFirstFaultValidMask, value: 0x80000000}
+  - {name: FesDe25ScanoutFirstFaultHorizontalShift, value: 20}
+  - {name: FesDe25ScanoutFirstFaultHorizontalMask, value: 0x7ff}
+  - {name: FesDe25ScanoutFirstFaultVerticalShift, value: 10}
+  - {name: FesDe25ScanoutFirstFaultVerticalMask, value: 0x3ff}
+  - {name: FesDe25ScanoutFirstFaultVideoStateShift, value: 8}
+  - {name: FesDe25ScanoutFirstFaultVideoStateMask, value: 3}
+  - {name: FesDe25ScanoutFirstFaultVideoStateDrain, value: 0}
+  - {name: FesDe25ScanoutFirstFaultVideoStateStart, value: 1}
+  - {name: FesDe25ScanoutFirstFaultVideoStateFetch, value: 2}
+  - {name: FesDe25ScanoutFirstFaultVideoStateDisplay, value: 3}
+  - {name: FesDe25ScanoutFirstFaultPixelValidMask, value: 0x80}
+  - {name: FesDe25ScanoutFirstFaultIndexRelationShift, value: 5}
+  - {name: FesDe25ScanoutFirstFaultIndexRelationMask, value: 3}
+  - {name: FesDe25ScanoutFirstFaultIndexRelationLess, value: 0}
+  - {name: FesDe25ScanoutFirstFaultIndexRelationEqual, value: 1}
+  - {name: FesDe25ScanoutFirstFaultIndexRelationGreater, value: 2}
+  - {name: FesDe25ScanoutFirstFaultReadMask, value: 0x10}
+  - {name: FesDe25ScanoutFirstFaultWaitrequestMask, value: 8}
+  - {name: FesDe25ScanoutFirstFaultReaddatavalidMask, value: 4}
+  - {name: FesDe25ScanoutFirstFaultResponseMask, value: 3}
+  - {name: FesDe25ScanoutFirstFaultFifoCountMask, value: 0xfff}
+  - {name: FesDe25ScanoutFirstFaultOutstandingShift, value: 12}
+  - {name: FesDe25ScanoutFirstFaultOutstandingMask, value: 0x1ff}
+  - {name: FesDe25ScanoutFirstFaultLaneShift, value: 21}
+  - {name: FesDe25ScanoutFirstFaultLaneMask, value: 3}
+  - {name: FesDe25ScanoutFirstFaultOccupancyMask, value: 0x007fffff}
+  - {name: FesDe25ScanoutFirstFaultResponseGapMask, value: 0xffff}
+  - {name: FesDe25ScanoutFirstFaultHeldCommandAgeShift, value: 16}
+  - {name: FesDe25ScanoutFirstFaultHeldCommandAgeMask, value: 0xffff}
   - {name: FesDe25ScanoutCurrentSlotShift, value: 0}
   - {name: FesDe25ScanoutDisplayedSlotShift, value: 8}
   - {name: FesDe25ScanoutPendingSlotShift, value: 16}

@@ -104,7 +104,7 @@ func SessionDisplayCapable(p *CorePackageStatus) bool {
 	}
 	ddr, display, allocated, plane := false, false, false, false
 	for _, i := range p.ActiveInterfaces {
-		if computer && i.ID == "fes.fabric.de25-scanout" && i.Major == 1 && i.Minor == 1 {
+		if computer && i.ID == "fes.fabric.de25-scanout" && i.Major == 1 && i.Minor == 2 {
 			allocated = true
 		}
 		if i.Major != 1 || i.Minor != 0 {

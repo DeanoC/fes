@@ -149,6 +149,101 @@ void FailedPollReportsCachedFaultWithoutRecovery() {
   assert(m.Revoke().ok());
  }
 }
+// Keep existing fakes on the default-unavailable diagnostic operation. This
+// wrapper injects only the optional cache and its observation boundaries.
+struct DiagnosticOperations final : De25MenuOperations {
+ Operations base;
+ De25MenuDiagnostics diagnostic;
+ unsigned diagnostics=0;
+ std::uint32_t info_delay=0,diagnostic_delay=0;
+ bool unavailable=false,wrong_info_generation=false;
+ Error OwnerAbi(std::uint32_t* out) override{return base.OwnerAbi(out);}
+ Error OwnerInfo(bool* present,De25MenuGrant* out) override{return base.OwnerInfo(present,out);}
+ Error Allocate(int* out) override{return base.Allocate(out);}
+ Error Info(int fd,De25MenuGrant* out) override {
+  const auto e=base.Info(fd,out);base.clock.now+=info_delay;
+  if(wrong_info_generation)++out->generation;
+  return e;
+ }
+ Error Poll(int fd,De25MenuGrant* out) override{return base.Poll(fd,out);}
+ Error Diagnostics(int fd,std::uint64_t generation,De25MenuDiagnostics* out) override {
+  assert(fd==100&&base.grant_open&&generation==base.state.generation);++diagnostics;
+  base.clock.now+=diagnostic_delay;*out=diagnostic;
+  return unavailable?Error{ErrorCode::io_failed,"DE25 cached diagnostics: Inappropriate ioctl for device","menu"}:Error{};
+ }
+ Error Publish(int fd,std::uint64_t generation,std::uint32_t sequence,std::uint32_t slot) override{return base.Publish(fd,generation,sequence,slot);}
+ Error Reap(bool* out) override{return base.Reap(out);}
+ Error Idle(bool* out) override{return base.Idle(out);}
+ Error Duplicate(int fd,int* out) override{return base.Duplicate(fd,out);}
+ void Close(int fd) override{base.Close(fd);}
+ void WaitMs(std::uint32_t ms) override{base.WaitMs(ms);}
+};
+void FailedPollReportsOnlyVerifiedFirstFault() {
+ for(unsigned kind=0;kind<23;++kind) {
+  DiagnosticOperations o;LinuxDe25Menu m(o.base.clock,o);Start(m,o.base);
+  MenuDisplayInfo info;assert(m.ReadInfo(o.base.clock.now+100,&info).ok()&&o.diagnostics==0);
+  auto& v=o.diagnostic;v.generation=o.base.state.generation;v.version=1;v.build_id=build;v.flags=1;
+  // An absent pixel at a real raster position, before the failed frame's
+  // cancellation. Credit excludes commands still held under waitrequest.
+  v.first_fault_state=0x80000000U|(191U<<20)|(37U<<10)|(3U<<8)|(2U<<5)|0x1aU;
+  v.first_fault_occupancy=(2U<<21)|(17U<<12)|123U;
+  v.first_fault_gaps=(29U<<16)|43U;
+  o.base.poll_error=true;o.base.state.state|=4;
+  o.base.state.hardware_status|=FesDe25ScanoutStatusFault;
+  o.base.state.hardware_errors=0x20;o.base.state.underflows=7;o.base.state.outstanding=2;
+  if(kind==1)o.unavailable=true; // Includes old kernels returning ENOTTY.
+  if(kind==2)v.version=2;
+  if(kind==3)v.reserved=1;
+  if(kind==4)++v.generation;
+  if(kind==5)++v.build_id[2];
+  if(kind==6){v.flags=0;v.first_fault_state=v.first_fault_occupancy=v.first_fault_gaps=0;}
+  if(kind==7)v.flags|=2;
+  if(kind==8)v.first_fault_state&=~0x80000000U;
+  if(kind==9)v.first_fault_occupancy|=0x80000000U;
+  if(kind==10)v.first_fault_state=(v.first_fault_state&~(0x7ffU<<20))|(1280U<<20);
+  if(kind==11)v.first_fault_state=(v.first_fault_state&~(0x3ffU<<10))|(720U<<10);
+  if(kind==12)v.first_fault_state|=3U<<5;
+  if(kind==13)v.first_fault_state=v.first_fault_occupancy=v.first_fault_gaps=0;
+  if(kind==14)o.base.poll_error_delay=1000;
+  if(kind==15)o.info_delay=1000;
+  if(kind==16)o.diagnostic_delay=1000;
+  if(kind==17)o.wrong_info_generation=true;
+  if(kind==18)o.base.state.version=2;
+  if(kind==19)o.base.wrong_build=true;
+  if(kind==20)o.base.info_error=true;
+  if(kind==21) {
+   // All packed count/lane fields are representationally valid. Do not
+   // impose a particular reader's FIFO depth on a cached diagnostic.
+   v.first_fault_state=0x80000000U|(1279U<<20)|(719U<<10)|(2U<<8)|0x9fU;
+   v.first_fault_occupancy=0x007fffffU;v.first_fault_gaps=0xffffffffU;
+  }
+  if(kind==22)v.generation=0;
+  const auto infos=o.base.infos,polls=o.base.polls,closes=o.base.closes;
+  const auto error=m.ReadInfo(o.base.clock.now+100,&info);
+  assert(error.code==ErrorCode::io_failed&&error.phase=="menu");
+  assert(error.message.find("DE25 grant poll: Input/output error")==0);
+  const bool verified_info=kind!=14&&kind!=17&&kind!=18&&kind!=19&&kind!=20;
+  assert((error.message.find("hardware_errors=0x20 underflows=7 outstanding=2")!=std::string::npos)==verified_info);
+  assert(o.diagnostics==unsigned(verified_info&&kind!=15));
+  assert(o.base.infos==infos+(kind==14?0:1)&&o.base.polls==polls+1);
+  if(kind==0) {
+   assert(error.message.find("cached first_underflow raw=0x8bf0975a/0x41107b/0x1d002b")!=std::string::npos);
+   assert(error.message.find("h=191 v=37 video_state=display fifo=123 accepted_outstanding=17 lane=2 relation=greater")!=std::string::npos);
+   assert(error.message.find("pixel_valid=0 read=1 waitrequest=1 readdatavalid=0 response=2")!=std::string::npos);
+   assert(error.message.find("max_response_gap_cycles=43 max_held_command_age_cycles=29")!=std::string::npos);
+  } else if(kind==21) {
+   assert(error.message.find("h=1279 v=719 video_state=fetch fifo=4095 accepted_outstanding=511 lane=3 relation=less")!=std::string::npos);
+   assert(error.message.find("max_response_gap_cycles=65535 max_held_command_age_cycles=65535")!=std::string::npos);
+  } else assert(error.message.find("cached first_underflow")==std::string::npos);
+  const auto diagnostic_calls=o.diagnostics;
+  const auto final_infos=o.base.infos,final_polls=o.base.polls;int peer=-1;
+  assert(!m.ReadInfo(o.base.clock.now+100,&info).ok()&&!m.Share(&peer).ok()&&peer==-1);
+  assert(!m.Submit(1,1,o.base.clock.now+100).ok());
+  assert(o.diagnostics==diagnostic_calls&&o.base.infos==final_infos&&o.base.polls==final_polls);
+  assert(o.base.published.size()==2&&o.base.reaps==0&&o.base.closes==closes);
+  assert(m.Revoke().ok());
+ }
+}
 void LatePublicationDoesNotAcknowledgeOrReplay() {
  Operations o;LinuxDe25Menu m(o.clock,o);Start(m,o);o.late_publish=true;
  assert(!m.Submit(1,1,o.clock.now+10).ok());const auto count=o.published.size();
@@ -280,7 +375,7 @@ CoreDescriptor MenuDescriptor() {
  d.target.programming_profile="de25-linux-menu-v1";
  d.abi={"fes.application",1,0};d.build.id="0123456789abcdeffedcba9876543210";
  d.interfaces={{"fes.video.fixed-720p60",1,0,true},{"fes.video.menu-display",1,0,true},
-  {"fes.fabric.de25-scanout",1,1,true}};return d;
+  {"fes.fabric.de25-scanout",1,2,true}};return d;
 }
 void SelectedMenuDriverUsesItsOwnReadiness() {
  Operations o;LinuxDe25Menu menu(o.clock,o);De25MenuCoreDriver driver(menu);De25VideoBringup video;
@@ -303,7 +398,7 @@ void SelectedMenuDriverUsesItsOwnReadiness() {
 void AllocatedMenuContractRejectsFixedDdrAndOldIdentity() {
  auto d=MenuDescriptor();assert(CheckDe25MenuContract(d).ok());
  std::array<std::uint32_t,4> parsed{};assert(De25BuildWords(d.build.id,&parsed).ok()&&parsed==build);
- for(unsigned kind=0;kind<7;++kind) {
+ for(unsigned kind=0;kind<8;++kind) {
   auto bad=d;
   if(kind==0)bad.interfaces[2]={"fes.memory.hps-ddr",1,0,true};
   if(kind==1)bad.interfaces[2].minor=0;
@@ -312,6 +407,7 @@ void AllocatedMenuContractRejectsFixedDdrAndOldIdentity() {
   if(kind==4)bad.build.id=std::string(32,'0');
   if(kind==5)bad.build.id[1]='z';
   if(kind==6)bad.interfaces.push_back({"fes.video.menu-blitter",1,1,true});
+  if(kind==7)bad.interfaces[2].minor=1;
   assert(!CheckDe25MenuContract(bad).ok());
   Operations o;LinuxDe25Menu menu(o.clock,o);De25MenuCoreDriver driver(menu);
   CoreDriverContext context;context.descriptor=&bad;context.expected_core="fes.menu";
@@ -320,4 +416,4 @@ void AllocatedMenuContractRejectsFixedDdrAndOldIdentity() {
 }
 
 }
-int main(){RetainedAllocationRequiresIndependentDrainAndLastPeer();SessionRetirementConfirmsPendingFrameBeforeClear();SessionRetirementRefusesUnconfirmedOrUnclearedCounters();SelectedSessionContractBindsBeforeAnyExposure();SessionReopenUsesNewStorageAndMonotonicLogicalFrames();SessionPinnedPeerAndUncertainCloseBlockReopen();SessionUncertainPublicationIsNotRetried();SelectedMenuDriverUsesItsOwnReadiness();AllocatedMenuContractRejectsFixedDdrAndOldIdentity();AbiAndIdentityBeforeExposure();ConfirmBlackAndReuseOneAllocation();WaitForReadyBeforeAnyDma();RetainOnIdentityFaultAndUseKernelRetirement();FailedPollReportsCachedFaultWithoutRecovery();LatePublicationDoesNotAcknowledgeOrReplay();FailedRetirementRemainsSticky();PeerReferencesCannotBecomeIdleByClosingRuntimeFd();UnsupportedPathsAndBounds();}
+int main(){RetainedAllocationRequiresIndependentDrainAndLastPeer();SessionRetirementConfirmsPendingFrameBeforeClear();SessionRetirementRefusesUnconfirmedOrUnclearedCounters();SelectedSessionContractBindsBeforeAnyExposure();SessionReopenUsesNewStorageAndMonotonicLogicalFrames();SessionPinnedPeerAndUncertainCloseBlockReopen();SessionUncertainPublicationIsNotRetried();SelectedMenuDriverUsesItsOwnReadiness();AllocatedMenuContractRejectsFixedDdrAndOldIdentity();AbiAndIdentityBeforeExposure();ConfirmBlackAndReuseOneAllocation();WaitForReadyBeforeAnyDma();RetainOnIdentityFaultAndUseKernelRetirement();FailedPollReportsCachedFaultWithoutRecovery();FailedPollReportsOnlyVerifiedFirstFault();LatePublicationDoesNotAcknowledgeOrReplay();FailedRetirementRemainsSticky();PeerReferencesCannotBecomeIdleByClosingRuntimeFd();UnsupportedPathsAndBounds();}

@@ -41,7 +41,9 @@ allocation. It adds no production runtime or GP interface.
 [`fes.fabric.de25-scanout`](packages/fabric/fes_fabric_de25_scanout.yaml) adds
 the separate allocated-buffer display diagnostic. [DE25 scanout](docs/de25-scanout.md)
 specifies coherent snapshots, accepted/current/displayed identities, slot
-ownership and cross-clock drain/reset limits. It grants no hardware admission.
+ownership and cross-clock drain/reset limits. Version1.2 also retains the first
+underflow's raster, reader occupancy and maximum request/response gaps through
+STOP and drain. It grants no hardware admission.
 
 [`fes.fabric.de25-computer`](packages/fabric/fes_fabric_de25_computer.yaml)
 defines the standalone HPS-to-ZX81 command transport. [DE25 computer](docs/de25-computer.md)

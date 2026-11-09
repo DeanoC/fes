@@ -296,17 +296,17 @@ class SoftwareABI(unittest.TestCase):
                             str(fogcast / 'bin/fes-kit-bundle-linux-amd64'), './cmd/fes-kit-bundle'],
                            cwd=module, env=build_env, check=True, timeout=120)
             menu(root, [('fes.video.fixed-720p60', 1, 0, True),
-                        ('fes.video.menu-display', 1, 0, True), ('fes.fabric.de25-scanout', 1, 1, True)])
+                        ('fes.video.menu-display', 1, 0, True), ('fes.fabric.de25-scanout', 1, 2, True)])
             with patch.object(software, 'base_contract') as inspect:
                 with self.assertRaisesRegex(ValueError, 'target differs'):
                     software.assemble(root, fogcast, 'b' * 40, board='de25-nano')
                 inspect.assert_not_called()
             self.assertFalse((root / 'usr/share/fes/software').exists())
             menu(root, [('fes.video.fixed-720p60', 1, 0, True),
-                        ('fes.video.menu-display', 1, 0, True), ('fes.fabric.de25-scanout', 1, 1, True)],
+                        ('fes.video.menu-display', 1, 0, True), ('fes.fabric.de25-scanout', 1, 2, True)],
                  board='de25-nano')
             provides = {'menu.fes.video.fixed-720p60': '1.0', 'menu.fes.video.menu-display': '1.0',
-                        'menu.fes.fabric.de25-scanout': '1.1'}
+                        'menu.fes.fabric.de25-scanout': '1.2'}
             with patch.object(software, 'runtime_menu_interfaces', return_value=provides):
                 software.assemble(root, fogcast, 'b' * 40, board='de25-nano')
             bundle = root / 'usr/share/fes/software'

@@ -1,6 +1,6 @@
 # DE25 allocated-buffer scanout
 
-`fes.fabric.de25-scanout` 1.1 is a disabled-by-default two-slot diagnostic
+`fes.fabric.de25-scanout` 1.2 is a disabled-by-default two-slot diagnostic
 endpoint. It supplies no runtime profile, Linux resource, DMA stream binding,
 firewall permission or firmware/hardware acceptance. Its relative lightweight
 offset is `0x10200`, span 128 bytes; the architectural CPU candidate
@@ -19,9 +19,11 @@ documentation-only commit. The builder sets the actual Platform Designer HDL
 parameter and verifies its generated value against the retained inputs. The
 value is also recorded beside the RBF digest; those are distinct identities.
 Unbound HDL defaults to zero, which the Linux owner refuses before allocating
-storage. Interface version 1.1 is exact, so the new kernel refuses the previous
-1.0 endpoint before accessing these additional registers. This adds live image
-identification, not production MENU or hardware/timing admission.
+storage. Interface version 1.2 is exact: the matching kernel refuses older
+endpoints before accessing the first-underflow registers. This adds diagnostic
+observations, not production MENU or hardware/timing admission. The producer,
+kernel and runtime must be rebuilt together; an older bitstream does not gain
+these fields by using a newer software bundle.
 
 The runtime has a generated C++ consumer of these constants. Its Linux UAPI
 consumer is copied from the canonical kernel header by `make generate` and
@@ -82,7 +84,7 @@ read-only writes have no effect.
 
 | Offset | Register |
 | --- | --- |
-| `00`, `04` | Identity `0x44325343`, version `0x00010001` |
+| `00`, `04` | Identity `0x44325343`, version `0x00010002` |
 | `08`, `0c` | Live status, command |
 | `10`, `14`, `18` | Staged DMA base low/high, allocation span |
 | `1c`, `20`, `24`, `28` | Staged generation low/high, sequence, slot |
@@ -93,6 +95,7 @@ read-only writes have no effect.
 | `4c`, `50`, `54` | Frozen errors, underflows, conservative outstanding beats |
 | `58`, `5c`, `60` | Frozen active DMA base low/high and allocation span |
 | `64`, `68`, `6c`, `70` | Immutable 128-bit build identity, least-significant word first |
+| `74`, `78`, `7c` | Sticky first-underflow state, occupancy and maximum gaps |
 
 Status bits are Configured `1`, Running `2`, Pending `4`, Drained `8`, Fault
 `16`, ClockFault `32`, DisplayReady `64`. Error bits are Descriptor `1`, Command `2`, Response
@@ -102,10 +105,58 @@ completion. An unexpected response breaks ownership accounting: it is terminal,
 never reports Drained and cannot be cleared locally. The outstanding count
 includes a presented but unaccepted burst, so it cannot hide stalled traffic.
 
+## First-underflow observation
+
+The three read-only diagnostic words latch together on the existing first
+missed active pixel: `de && armed && running && !pixel_matches`. They preserve
+the pre-edge reader/video state before cancellation empties the FIFO and drains
+the accepted traffic. They neither authorize a displayed-frame acknowledgement
+nor change the underflow, stop, drain or ownership rules.
+
+| Word | Bits | Meaning |
+| --- | --- | --- |
+| State | 31 | Record valid |
+| State | 30:20, 19:10 | Horizontal and vertical active-pixel coordinates |
+| State | 9:8 | Video state: DRAIN=0, START=1, FETCH=2, DISPLAY=3 |
+| State | 7 | Reader pixel valid |
+| State | 6:5 | Reader index relative to raster: less=0, equal=1, greater=2; 3 is invalid |
+| State | 4, 3, 2 | Read, waitrequest and response-valid at capture |
+| State | 1:0 | Raw memory response, meaningful when response-valid is set |
+| Occupancy | 11:0 | FIFO beat count, including the front beat |
+| Occupancy | 20:12 | Accepted outstanding beats, excluding a held unaccepted command |
+| Occupancy | 22:21 | Reader pixel lane |
+| Occupancy | 31:23 | Reserved zero |
+| Gaps | 15:0 | Maximum consecutive pending-response gap in pixel-clock edges |
+| Gaps | 31:16 | Maximum consecutive held-command age in pixel-clock edges |
+
+Gap observers restart on reset or an actual new fetch start. A pending-response
+gap grows only while accepted outstanding credit is nonzero and no response is
+valid. Command age grows only while read and waitrequest are both asserted.
+Each maximum includes the capture edge and saturates at 65535. These measure
+the pixel-domain interface; they do not identify a DDR, AXI, SMMU or crossing
+failure by themselves. An acceptance on the capture edge is represented by the
+read/waitrequest flags; occupancy is the pre-edge value.
+
+Only the first record is retained. STOP, late responses, drain, SNAPSHOT,
+read-only writes and later raster activity do not overwrite it. Legal drained
+CLEAR and cold/configuration reset erase it. Illegal CLEAR preserves it and
+retains the existing command fault. The original snapshot serial and thirteen
+frozen words are unchanged. A single owner excludes CLEAR/reset while reading
+State first: if Valid is clear there is no record; if set, the other two words
+are stable. A reset or identity change invalidates that observation.
+
+The Linux owner caches an authenticated observation against the allocation's
+generation and build ID before reporting a failed poll. A separate versioned
+DIAGNOSTICS ioctl returns that cache without MMIO, including after uncertainty.
+It leaves the existing ABI3 INFO, POLL and PUBLISH layouts unchanged. Runtime
+error reporting may append the decoded record to the original failure; it
+cannot adopt the failed frame or relax retirement. New RTL still requires fresh
+source-bound generation, timing and physical acceptance.
+
 ## System-clock control guard
 
 The CPU-facing control window is 256 bytes. Its lower 128 bytes forward to the
-pixel endpoint ABI 1.1; the upper half implements a distinct guard
+pixel endpoint ABI 1.2; the upper half implements a distinct guard
 identity/version on the 100 MHz peripheral clock. The guard uses the inherited
 peripheral reset, so its release does not wait for pixel PLL lock.
 

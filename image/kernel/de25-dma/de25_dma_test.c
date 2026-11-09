@@ -36,6 +36,10 @@ struct test_transport {
 	unsigned int acquired, released, unleased_access, reads, epochs, freed_at_release;
 	struct fes_de25_dma_test_observer *observer;
 	bool bad_version, zero_build_id, changed_build_id;
+	u32 first_fault_state, first_fault_occupancy, first_fault_gaps;
+	bool latch_first_fault_during_state, change_build_during_diagnostics;
+	bool change_epoch_during_diagnostics, fail_diagnostics;
+	int snapshot_read_error;
 	u64 epoch;
 	bool epoch_unknown, lose_epoch_after_start, freeze_serial, corrupt_serial;
 	int start_error, stop_error, drain_error;
@@ -104,6 +108,8 @@ static int transport_read(void *context, u32 offset, u32 *value)
 	if (!transport_held(t))
 		return -EACCES;
 	t->reads++;
+	if (offset == FES_DE25_SCANOUT_SNAPSHOT_STATUS_OFFSET && t->snapshot_read_error)
+		return t->snapshot_read_error;
 	if (offset == FES_DE25_SCANOUT_ID_OFFSET)
 		*value = FES_DE25_SCANOUT_IDENTITY;
 	else if (offset == FES_DE25_SCANOUT_VERSION_OFFSET)
@@ -114,7 +120,25 @@ static int transport_read(void *context, u32 offset, u32 *value)
 		if (t->changed_build_id && offset == FES_DE25_SCANOUT_BUILD_ID0_OFFSET)
 			*value ^= 1;
 	}
-	else if (offset == FES_DE25_SCANOUT_SNAPSHOT_SERIAL_OFFSET)
+	else if (offset == FES_DE25_SCANOUT_FIRST_FAULT_STATE_OFFSET) {
+		if (t->fail_diagnostics)
+			return -ETIMEDOUT;
+		*value = t->first_fault_state;
+		if (t->latch_first_fault_during_state) {
+			t->latch_first_fault_during_state = false;
+			t->first_fault_state = FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK;
+			t->first_fault_occupancy = 0x100000;
+			t->first_fault_gaps = 0x286b;
+		}
+	} else if (offset == FES_DE25_SCANOUT_FIRST_FAULT_OCCUPANCY_OFFSET) {
+		*value = t->first_fault_occupancy;
+		if (t->change_build_during_diagnostics)
+			t->changed_build_id = true;
+	} else if (offset == FES_DE25_SCANOUT_FIRST_FAULT_GAPS_OFFSET) {
+		*value = t->first_fault_gaps;
+		if (t->change_epoch_during_diagnostics)
+			t->epoch++;
+	} else if (offset == FES_DE25_SCANOUT_SNAPSHOT_SERIAL_OFFSET)
 		*value = t->serial;
 	else if (offset >= FES_DE25_SCANOUT_SNAPSHOT_STATUS_OFFSET &&
 		 offset <= FES_DE25_SCANOUT_SNAPSHOT_GRANT_SPAN_OFFSET) {
@@ -190,6 +214,9 @@ static int transport_write(void *context, u32 offset, u32 value)
 	}
 	if (value == FES_DE25_SCANOUT_COMMAND_CLEAR) {
 		t->clears++;
+		t->first_fault_state = 0;
+		t->first_fault_occupancy = 0;
+		t->first_fault_gaps = 0;
 		memset(&t->descriptor, 0, sizeof(t->descriptor));
 		memset(t->live, 0, sizeof(t->live));
 		t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_DRAINED;
@@ -250,6 +277,11 @@ static void fixture_cleanup(void *context)
 		fixture->transport.corrupt_serial = false;
 		fixture->transport.epoch_unknown = false;
 		fixture->transport.epoch = 1;
+		fixture->transport.changed_build_id = false;
+		fixture->transport.change_build_during_diagnostics = false;
+		fixture->transport.change_epoch_during_diagnostics = false;
+		fixture->transport.fail_diagnostics = false;
+		fixture->transport.snapshot_read_error = 0;
 		fixture->observer.mmap_entered = NULL;
 		fixture->observer.revoked = NULL;
 		__fput_sync(fixture->file);
@@ -330,6 +362,300 @@ static void build_identity_reports_hardware_words(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, info.build_id[2], 0x89abcdefU);
 	KUNIT_EXPECT_EQ(test, info.build_id[3], 0x01234567U);
 	KUNIT_EXPECT_EQ(test, f->transport.reads, reads);
+}
+
+static int diagnostics_file(struct file *file, struct fes_de25_dma_diagnostics *diagnostics)
+{
+	struct fes_de25_dma_info info;
+
+	fes_de25_dma_info(file, &info);
+	memset(diagnostics, 0, sizeof(*diagnostics));
+	diagnostics->generation = info.generation;
+	diagnostics->version = FES_DE25_DMA_DIAGNOSTICS_VERSION;
+	return fes_de25_dma_diagnostics(file, diagnostics);
+}
+
+static void diagnostics_cached_query_checks_request_without_mmio(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_diagnostics d;
+	unsigned int reads = f->transport.reads, writes = f->transport.writes;
+	unsigned int epochs = f->transport.epochs;
+
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, sizeof(d), (size_t)48);
+	KUNIT_EXPECT_EQ(test, d.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state, 0U);
+	KUNIT_EXPECT_EQ(test, d.build_id[0], 0x76543210U);
+	d.generation++;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_diagnostics(f->file, &d), -EINVAL);
+	d.generation--;
+	d.version++;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_diagnostics(f->file, &d), -EINVAL);
+	d.version--;
+	d.reserved = 1;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_diagnostics(f->file, &d), -EINVAL);
+	d.reserved = 0;
+	memset(d.build_id, 0xff, sizeof(d.build_id));
+	d.flags = ~0U;
+	d.first_fault_state = ~0U;
+	d.first_fault_occupancy = ~0U;
+	d.first_fault_gaps = ~0U;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_diagnostics(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, d.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state | d.first_fault_occupancy | d.first_fault_gaps, 0U);
+	KUNIT_EXPECT_EQ(test, d.build_id[0], 0x76543210U);
+	KUNIT_EXPECT_EQ(test, f->transport.reads, reads);
+	KUNIT_EXPECT_EQ(test, f->transport.writes, writes);
+	KUNIT_EXPECT_EQ(test, f->transport.epochs, epochs);
+	KUNIT_EXPECT_EQ(test, f->file->f_op->unlocked_ioctl(f->file,
+		FES_DE25_DMA_DIAGNOSTICS, 0), -EFAULT);
+}
+
+static void diagnostics_retains_fault_after_failed_poll_without_mmio(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct test_transport *t = &f->transport;
+	struct fes_de25_dma_publish p = publish_for(f->file);
+	struct fes_de25_dma_info info;
+	struct fes_de25_dma_diagnostics d;
+	unsigned int reads, writes, epochs;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+	t->first_fault_state = 0xbc003f38;
+	t->first_fault_occupancy = 0;
+	t->first_fault_gaps = 0x286c0000;
+	t->live[7] = FES_DE25_SCANOUT_ERROR_UNDERFLOW;
+	t->live[8] = 1;
+	t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] |= FES_DE25_SCANOUT_STATUS_FAULT;
+	KUNIT_ASSERT_EQ(test, poll_file(f->file, &info), -EIO);
+	reads = t->reads;
+	writes = t->writes;
+	epochs = t->epochs;
+	/* Hardware may no longer be readable. Diagnostics use the earlier proof. */
+	t->fail_diagnostics = true;
+	t->first_fault_state = 0;
+	t->first_fault_gaps = 0;
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, d.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state, 0xbc003f38U);
+	KUNIT_EXPECT_EQ(test, d.first_fault_gaps, 0x286c0000U);
+	KUNIT_EXPECT_EQ(test, poll_file(f->file, &info), -EBUSY);
+	KUNIT_EXPECT_EQ(test, t->reads, reads);
+	KUNIT_EXPECT_EQ(test, t->writes, writes);
+	KUNIT_EXPECT_EQ(test, t->epochs, epochs);
+}
+
+static void diagnostics_latch_after_frozen_snapshot_is_coherent(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_publish p = publish_for(f->file);
+	struct fes_de25_dma_info info;
+	struct fes_de25_dma_diagnostics d;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+	/* First state read sees zero; the record appears immediately afterwards. */
+	f->transport.latch_first_fault_during_state = true;
+	KUNIT_ASSERT_EQ(test, poll_file(f->file, &info), 0);
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, d.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state | d.first_fault_occupancy | d.first_fault_gaps, 0U);
+	KUNIT_ASSERT_EQ(test, poll_file(f->file, &info), 0);
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state, FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK);
+	KUNIT_EXPECT_EQ(test, d.first_fault_occupancy, 0x100000U);
+	KUNIT_EXPECT_EQ(test, d.first_fault_gaps, 0x286bU);
+	/* A later transport failure preserves this last authenticated record. */
+	f->transport.fail_diagnostics = true;
+	KUNIT_EXPECT_EQ(test, poll_file(f->file, &info), -ETIMEDOUT);
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, d.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+	KUNIT_EXPECT_EQ(test, d.first_fault_gaps, 0x286bU);
+}
+
+static void diagnostics_snapshot_transport_identity_loss_invalidates_cache(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct test_transport *t = &f->transport;
+	struct fes_de25_dma_backend backend = transport_backend(t);
+	const int errors[] = { -EIO, -ETIMEDOUT, -ESTALE };
+	struct fes_de25_dma_diagnostics d;
+	struct fes_de25_dma_info info;
+	unsigned int i, query, reads, writes, epochs;
+
+	for (i = 0; i < 3 * ARRAY_SIZE(errors); i++) {
+		int error = errors[i % ARRAY_SIZE(errors)];
+		unsigned int operation = i / ARRAY_SIZE(errors);
+		struct fes_de25_dma_publish p = publish_for(f->file);
+
+		KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+		transport_display(t);
+		t->first_fault_state = FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK;
+		t->first_fault_occupancy = 0x100000;
+		t->first_fault_gaps = 0x286b;
+		KUNIT_ASSERT_EQ(test, poll_file(f->file, &info), 0);
+		KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+		KUNIT_ASSERT_EQ(test, d.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+		KUNIT_ASSERT_EQ(test, d.first_fault_state, FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK);
+
+		/* The bounded transport fails before a complete frozen tuple exists.
+		 * Only ESTALE positively reports lost identity. Generic I/O/timeout
+		 * errors retain the prior observation, without trying more MMIO.
+		 */
+		t->snapshot_read_error = error;
+		if (operation == 0)
+			KUNIT_EXPECT_EQ(test, poll_file(f->file, &info), error);
+		else if (operation == 1) {
+			p.sequence = 2;
+			p.slot = 0;
+			KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(f->file, &p), error);
+		} else
+			KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(f->file), error);
+		reads = t->reads;
+		writes = t->writes;
+		epochs = t->epochs;
+		for (query = 0; query < 2; query++) {
+			KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+			KUNIT_EXPECT_EQ(test, d.flags, error == -ESTALE ?
+				0U : FES_DE25_DMA_DIAGNOSTICS_VALID);
+			KUNIT_EXPECT_EQ(test, d.first_fault_state, error == -ESTALE ?
+				0U : FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK);
+			KUNIT_EXPECT_EQ(test, d.first_fault_occupancy, error == -ESTALE ? 0U : 0x100000U);
+			KUNIT_EXPECT_EQ(test, d.first_fault_gaps, error == -ESTALE ? 0U : 0x286bU);
+			KUNIT_EXPECT_EQ(test, poll_file(f->file, &info), -EBUSY);
+		}
+		KUNIT_EXPECT_EQ(test, t->reads, reads);
+		KUNIT_EXPECT_EQ(test, t->writes, writes);
+		KUNIT_EXPECT_EQ(test, t->epochs, epochs);
+		fes_de25_dma_info(f->file, &info);
+		KUNIT_EXPECT_NE(test, info.state & FES_DE25_DMA_UNCERTAIN, 0U);
+		KUNIT_EXPECT_NE(test, info.state & FES_DE25_DMA_EXPOSED, 0U);
+		KUNIT_EXPECT_EQ(test, atomic_read(&t->lease), 1);
+
+		/* Fresh grants separate the failure cases; only checked drain/CLEAR
+		 * can release each exposed allocation in this scripted fixture.
+		 */
+		t->snapshot_read_error = 0;
+		KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(f->file), 0);
+		if (i + 1 < 3 * ARRAY_SIZE(errors)) {
+			struct file *next;
+
+			__fput_sync(f->file);
+			f->file = NULL;
+			next = fes_de25_dma_create(f->dev, &backend);
+			KUNIT_ASSERT_FALSE(test, IS_ERR(next));
+			f->file = next;
+		}
+	}
+}
+
+static void diagnostics_identity_loss_invalidates_cached_record(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_publish p = publish_for(f->file);
+	struct fes_de25_dma_info info;
+	struct fes_de25_dma_diagnostics d;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+	f->transport.first_fault_state = FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK;
+	f->transport.first_fault_gaps = 0xffff;
+	KUNIT_ASSERT_EQ(test, poll_file(f->file, &info), 0);
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_NE(test, d.first_fault_state, 0U);
+	/* Image identity changes during payload reads, before final build proof. */
+	f->transport.change_build_during_diagnostics = true;
+	KUNIT_EXPECT_EQ(test, poll_file(f->file, &info), -ESTALE);
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, d.flags, 0U);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state | d.first_fault_occupancy | d.first_fault_gaps, 0U);
+}
+
+static void diagnostics_reset_during_payload_is_not_current(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_publish p = publish_for(f->file);
+	struct fes_de25_dma_info info;
+	struct fes_de25_dma_diagnostics d;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+	f->transport.first_fault_state = FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK;
+	f->transport.change_epoch_during_diagnostics = true;
+	KUNIT_EXPECT_EQ(test, poll_file(f->file, &info), -ESTALE);
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, d.flags, 0U);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state, 0U);
+}
+
+static void diagnostics_clear_and_new_grant_have_no_stale_record(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_publish p = publish_for(f->file);
+	struct fes_de25_dma_info info;
+	struct fes_de25_dma_diagnostics d;
+	struct fes_de25_dma_backend backend = transport_backend(&f->transport);
+	u64 generation;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+	f->transport.first_fault_state = FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK;
+	f->transport.first_fault_gaps = 0xffffffff;
+	KUNIT_ASSERT_EQ(test, poll_file(f->file, &info), 0);
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	generation = d.generation;
+	KUNIT_EXPECT_NE(test, d.first_fault_state, 0U);
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(f->file), 0);
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, d.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state | d.first_fault_occupancy | d.first_fault_gaps, 0U);
+	__fput_sync(f->file);
+	f->file = fes_de25_dma_create(f->dev, &backend);
+	KUNIT_ASSERT_FALSE(test, IS_ERR(f->file));
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_NE(test, d.generation, generation);
+	KUNIT_EXPECT_EQ(test, d.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state | d.first_fault_occupancy | d.first_fault_gaps, 0U);
+	d.generation = generation;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_diagnostics(f->file, &d), -EINVAL);
+}
+
+static void diagnostics_invalid_packing_preserves_original_fault(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_publish p = publish_for(f->file);
+	struct fes_de25_dma_info info;
+	struct fes_de25_dma_diagnostics d;
+	const u32 states[] = {
+		FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK |
+			3U << FES_DE25_SCANOUT_FIRST_FAULT_INDEX_RELATION_SHIFT,
+		FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK |
+			FES_DE25_DMA_WIDTH << FES_DE25_SCANOUT_FIRST_FAULT_HORIZONTAL_SHIFT,
+		FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK |
+			FES_DE25_DMA_HEIGHT << FES_DE25_SCANOUT_FIRST_FAULT_VERTICAL_SHIFT,
+		FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK,
+		1, /* Nonzero state without hardware valid. */
+	};
+	unsigned int i;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+	f->transport.live[7] = FES_DE25_SCANOUT_ERROR_UNDERFLOW;
+	f->transport.live[8] = 1;
+	f->transport.regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] |= FES_DE25_SCANOUT_STATUS_FAULT;
+	for (i = 0; i < ARRAY_SIZE(states); i++) {
+		/* Revoke uses the same authenticated cache path before drain proof.
+		 * Refuse drain so each case retains its grant and original fault.
+		 */
+		f->transport.first_fault_state = states[i];
+		f->transport.first_fault_occupancy = i == 3 ?
+			~FES_DE25_SCANOUT_FIRST_FAULT_OCCUPANCY_MASK : 0;
+		if (!i)
+			KUNIT_EXPECT_EQ(test, poll_file(f->file, &info), -EIO);
+		else {
+			f->transport.drain_error = -EAGAIN;
+			KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(f->file), -EAGAIN);
+		}
+		KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+		KUNIT_EXPECT_EQ(test, d.flags, 0U);
+		KUNIT_EXPECT_EQ(test, d.first_fault_state | d.first_fault_occupancy | d.first_fault_gaps, 0U);
+	}
 }
 
 static void cold_poll_observes_display_ready_without_submission(struct kunit *test)
@@ -914,6 +1240,7 @@ static void coherent_mapping_uapi_and_revoke(struct kunit *test)
 	struct mm_struct *mm = test_mm(test);
 	struct fes_de25_dma_publish publish = publish_for(fixture->file);
 	struct fes_de25_dma_info info;
+	struct fes_de25_dma_diagnostics diagnostics;
 	struct vm_area_struct *vma;
 	struct page *pinned = NULL;
 	long pin_count;
@@ -954,6 +1281,14 @@ static void coherent_mapping_uapi_and_revoke(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, copy_from_user(&info, (void __user *)address, sizeof(info)), 0UL);
 	KUNIT_EXPECT_EQ(test, info.accepted_sequence, publish.sequence);
 	KUNIT_EXPECT_EQ(test, info.displayed_sequence, 0U);
+	KUNIT_EXPECT_EQ(test, diagnostics_file(fixture->file, &diagnostics), 0);
+	KUNIT_EXPECT_EQ(test, copy_to_user((void __user *)address, &diagnostics, sizeof(diagnostics)), 0UL);
+	KUNIT_EXPECT_EQ(test, fixture->file->f_op->unlocked_ioctl(fixture->file,
+		FES_DE25_DMA_DIAGNOSTICS, address), 0L);
+	KUNIT_EXPECT_EQ(test, copy_from_user(&diagnostics, (void __user *)address, sizeof(diagnostics)), 0UL);
+	KUNIT_EXPECT_EQ(test, diagnostics.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+	KUNIT_EXPECT_EQ(test, diagnostics.generation, publish.generation);
+	KUNIT_EXPECT_EQ(test, diagnostics.first_fault_state, 0U);
 	fixture->transport.revoked_address = address;
 	KUNIT_EXPECT_EQ(test, fixture->file->f_op->unlocked_ioctl(fixture->file, FES_DE25_DMA_REVOKE, 0), 0L);
 	KUNIT_EXPECT_TRUE(test, fixture->transport.writes_revoked_before_stop);
@@ -1697,6 +2032,9 @@ static int owner_fixture_program(struct notifier_block *nb, unsigned long action
 	memset(endpoint->regs, 0, sizeof(endpoint->regs));
 	memset(endpoint->live, 0, sizeof(endpoint->live));
 	memset(endpoint->frozen, 0, sizeof(endpoint->frozen));
+	endpoint->first_fault_state = 0;
+	endpoint->first_fault_occupancy = 0;
+	endpoint->first_fault_gaps = 0;
 	endpoint->serial = 0;
 	endpoint->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_DRAINED;
 	return NOTIFY_OK;
@@ -2182,6 +2520,14 @@ static struct kunit_case fes_de25_dma_cases[] = {
 #else
 	KUNIT_CASE(owner_static_disabled_refuses_base_before_programming),
 #endif
+	KUNIT_CASE(diagnostics_cached_query_checks_request_without_mmio),
+	KUNIT_CASE(diagnostics_retains_fault_after_failed_poll_without_mmio),
+	KUNIT_CASE(diagnostics_latch_after_frozen_snapshot_is_coherent),
+	KUNIT_CASE(diagnostics_snapshot_transport_identity_loss_invalidates_cache),
+	KUNIT_CASE(diagnostics_identity_loss_invalidates_cached_record),
+	KUNIT_CASE(diagnostics_reset_during_payload_is_not_current),
+	KUNIT_CASE(diagnostics_clear_and_new_grant_have_no_stale_record),
+	KUNIT_CASE(diagnostics_invalid_packing_preserves_original_fault),
 	KUNIT_CASE(cold_poll_observes_display_ready_without_submission),
 	KUNIT_CASE(owner_cached_info_has_no_hardware_or_lifetime_effect),
 	KUNIT_CASE(build_identity_reports_hardware_words),

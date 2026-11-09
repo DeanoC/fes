@@ -5281,7 +5281,7 @@ void TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(StaticTrial tri
  auto menu_manifest=manifest;
  ReplaceAll(&menu_manifest,"fes.pong","fes.menu");ReplaceAll(&menu_manifest,"fes-gp-v1","de25-linux-menu-v1");
  ReplaceAll(&menu_manifest,"fes.simple-game","fes.application");ReplaceAll(&menu_manifest,"fes.gamepad","fes.video.menu-display");
- menu_manifest+="\n[[interfaces]]\nid=\"fes.fabric.de25-scanout\"\nmajor=1\nminor=1\nrequired=true\n";
+ menu_manifest+="\n[[interfaces]]\nid=\"fes.fabric.de25-scanout\"\nmajor=1\nminor=2\nrequired=true\n";
  ReplaceAll(&manifest,"fes.pong","fes.zx81");ReplaceAll(&manifest,"fes-gp-v1","de25-linux-computer-v1");
  ReplaceAll(&manifest,"fes.simple-game","fes.computer");
  manifest.erase(manifest.find("[[interfaces]]"),manifest.find("[build]")-manifest.find("[[interfaces]]"));
@@ -5405,7 +5405,7 @@ void TestDe25AllocatedMenuLaunchStopAndPinnedPeer(bool clean_shutdown = false)
  ReplaceAll(&menu_manifest,"fes.pong","fes.menu");ReplaceAll(&menu_manifest,"fes-gp-v1","de25-linux-menu-v1");
  ReplaceAll(&menu_manifest,"fes.simple-game","fes.application");ReplaceAll(&menu_manifest,"fes.gamepad","fes.video.menu-display");
  ReplaceAll(&menu_manifest,"0123456789abcdef0123456789abcdef","0123456789abcdeffedcba9876543210");
- menu_manifest+="\n[[interfaces]]\nid=\"fes.fabric.de25-scanout\"\nmajor=1\nminor=1\nrequired=true\n";
+ menu_manifest+="\n[[interfaces]]\nid=\"fes.fabric.de25-scanout\"\nmajor=1\nminor=2\nrequired=true\n";
  auto game_manifest=manifest;
  ReplaceAll(&game_manifest,"fes.pong","zx81");ReplaceAll(&game_manifest,"fes-gp-v1","de25-hps-first-v1");
  ReplaceAll(&game_manifest,"fes.simple-game","fes.computer");ReplaceAll(&game_manifest,"fes.gamepad","fes.keyboard.hid");

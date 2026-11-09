@@ -49,6 +49,7 @@ module fes_de25_scanout #(
     wire [7:0] reader_burstcount;
     wire video_submit_ready, video_quiesced;
     wire [31:0] video_displayed_sequence, current_sequence, underflows;
+    wire [31:0] first_fault_state, first_fault_occupancy, first_fault_gaps;
     wire current_slot;
     wire [1:0] memory_errors;
     wire [8:0] outstanding_beats;
@@ -163,6 +164,8 @@ module fes_de25_scanout #(
         .submit_ready(video_submit_ready), .displayed_sequence(video_displayed_sequence),
         .current_sequence(current_sequence), .current_slot(current_slot),
         .memory_errors(memory_errors), .outstanding_beats(outstanding_beats),
+        .first_fault_state(first_fault_state), .first_fault_occupancy(first_fault_occupancy),
+        .first_fault_gaps(first_fault_gaps),
         .underflows(underflows), .quiesced(video_quiesced), .rgb(rgb), .alpha(alpha), .de(de), .hs(hs), .vs(vs),
         .address(reader_address), .burstcount(reader_burstcount), .read(avm_read),
         .waitrequest(avm_waitrequest), .readdata(avm_readdata),
@@ -221,6 +224,9 @@ module fes_de25_scanout #(
                     `FES_DE25_SCANOUT_BUILD_ID1_OFFSET: readdata <= BUILD_ID[63:32];
                     `FES_DE25_SCANOUT_BUILD_ID2_OFFSET: readdata <= BUILD_ID[95:64];
                     `FES_DE25_SCANOUT_BUILD_ID3_OFFSET: readdata <= BUILD_ID[127:96];
+                    `FES_DE25_SCANOUT_FIRST_FAULT_STATE_OFFSET: readdata <= first_fault_state;
+                    `FES_DE25_SCANOUT_FIRST_FAULT_OCCUPANCY_OFFSET: readdata <= first_fault_occupancy;
+                    `FES_DE25_SCANOUT_FIRST_FAULT_GAPS_OFFSET: readdata <= first_fault_gaps;
                     default: readdata <= 32'd0;
                 endcase
             end

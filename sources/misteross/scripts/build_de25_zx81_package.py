@@ -104,7 +104,7 @@ def manifest(record, payload):
             'fes.video.fixed-720p60', 'fes.keyboard.hid', 'fes.gamepad.ports',
             'fes.audio.pcm-s16-stereo-48k', 'fes.media.zx81-tape', 'fes.media.zx81-tape-write',
             'fes.video.session-display', 'fes.fabric.video.display-plane')] +
-            [{'id': 'fes.fabric.de25-scanout', 'major': 1, 'minor': 1, 'required': True}],
+            [{'id': 'fes.fabric.de25-scanout', 'major': 1, 'minor': 2, 'required': True}],
         'build': {'id': build_identity(record), 'repository': fields['repository'], 'revision': fields['revision'],
             'recipe_sha256': fields['recipe_sha256'],
             'toolchain': '; '.join(f'{name} {value}' for name, value in sorted(fields['tools'].items()))}})

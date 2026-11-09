@@ -11,6 +11,6 @@ inline mister::CoreDescriptor De25StandardDescriptor() {
      "fes.audio.pcm-s16-stereo-48k","fes.media.zx81-tape","fes.media.zx81-tape-write",
      "fes.video.session-display","fes.fabric.video.display-plane"})
   d.interfaces.push_back({id,1,0,true});
- d.interfaces.push_back({"fes.fabric.de25-scanout",1,1,true});return d;
+ d.interfaces.push_back({"fes.fabric.de25-scanout",1,2,true});return d;
 }
 }

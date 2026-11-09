@@ -833,7 +833,7 @@ Capabilities NativeHardware::capabilities() const
     computer.interfaces.push_back({generated::FesComputerInterfaceMediaZx81TapeWriteID,1,0});
     computer.interfaces.push_back({generated::FesComputerInterfaceVideoSessionDisplayID,1,0});
     computer.interfaces.push_back({"fes.fabric.video.display-plane",1,0});
-    computer.interfaces.push_back({"fes.fabric.de25-scanout",1,1});
+    computer.interfaces.push_back({"fes.fabric.de25-scanout",1,2});
     if(De25StaticEnabled() && fpga_.SupportsStaticComposition())
      computer.interfaces.push_back({"fes.expansion.zx81-bus",2,0});
     std::sort(computer.interfaces.begin(),computer.interfaces.end(),
@@ -845,7 +845,7 @@ Capabilities NativeHardware::capabilities() const
    result.programming_profiles.push_back("de25-linux-menu-v1");
    SupportedABI application;
    application.id = generated::FesApplicationABIID; application.major = 1; application.minor = 0;
-   application.interfaces = {{"fes.fabric.de25-scanout",1,1},
+   application.interfaces = {{"fes.fabric.de25-scanout",1,2},
     {generated::FesApplicationInterfaceVideoFixed720p60ID,1,0},
     {generated::FesApplicationInterfaceVideoMenuDisplayID,1,0}};
    // Protocol 2 requires ascending ABI identities. Driver construction puts

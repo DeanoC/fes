@@ -179,8 +179,12 @@ never reads the computer endpoint. Subsequent publication uses coherent slots
 and actual full-frame completion, without physical addresses, PL310 operations,
 frame copies, a GP mailbox or invented execution commands.
 On a failed grant poll, remaining deadline permitting, the error also reports
-same-generation cached kernel health counters. This read performs no register
-access and neither accepts the failed frame nor clears the fault/retirement gate.
+same-generation cached kernel health counters. When available, a separate
+versioned cached observation adds the first underflow's raw words, raster,
+reader occupancy and maximum request/response gaps. Neither read performs
+register access or accepts the failed frame or clears the fault/retirement gate.
+The original poll failure remains the error; unavailable or invalid diagnostics
+do not replace it. This instrumentation does not establish the physical cause.
 
 The same allocation adapter also accepts an injected standard-core GP display
 control. In that mode Configure/Enable/Quiesce use the existing display commands;
@@ -202,7 +206,7 @@ that adapter. This path has software coverage only; canonical sealed standard
 package production and native acceptance remain unfinished.
 
 The MENU package declares application1.0 with fixed video1.0, menu-display1.0
-and `fes.fabric.de25-scanout`1.1. It declares no boot-latched HPS DDR window,
+and `fes.fabric.de25-scanout`1.2. It declares no boot-latched HPS DDR window,
 blitter or retained session plane. The runtime's ELF menu-interface records are
 the union of its explicit DE10 and DE25 contracts. A selected startup MENU is
 loaded directly; the default Start without a package uses the board's splash

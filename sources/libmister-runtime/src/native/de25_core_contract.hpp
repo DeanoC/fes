@@ -49,8 +49,8 @@ inline Error CheckDe25MenuContract(const CoreDescriptor& descriptor)
 			interface.id == FesApplicationInterfaceVideoMenuDisplayID ? 2 :
 			interface.id == "fes.fabric.de25-scanout" ? 4 : 0;
 		if (!bit || (seen & bit) || !interface.required || interface.major != 1 ||
-			interface.minor != (bit == 4 ? 1u : 0u))
-			return {ErrorCode::unsupported_interface, "DE25 MENU requires fixed video, menu display and scanout1.1", "compatibility"};
+			interface.minor != (bit == 4 ? 2u : 0u))
+			return {ErrorCode::unsupported_interface, "DE25 MENU requires fixed video, menu display and scanout1.2", "compatibility"};
 		seen |= bit;
 	}
 	return {};
@@ -85,7 +85,7 @@ inline Error CheckDe25StandardComputerContract(const CoreDescriptor& descriptor)
    interface.id=="fes.fabric.de25-scanout"?256:
    static_profile&&interface.id=="fes.expansion.zx81-bus"?512:0;
   if(!bit||(seen&bit)||interface.required!=(bit!=512)||
-     interface.major!=(bit==512?2u:1u)||interface.minor!=(bit==256?1u:0u))
+     interface.major!=(bit==512?2u:1u)||interface.minor!=(bit==256?2u:0u))
    return {ErrorCode::unsupported_interface,"DE25 standard computer interfaces differ","compatibility"};
   seen|=bit;
  }

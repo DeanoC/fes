@@ -33,7 +33,14 @@ module fes_menu_reader #(
     input wire readdatavalid,
     input wire [1:0] response,
     output wire [1:0] memory_errors,
-    output wire [8:0] outstanding_beats
+    output wire [8:0] outstanding_beats,
+    // Observations for the video's first-underflow record. Accepted credit
+    // deliberately excludes a command still held under waitrequest.
+    output wire [FIFO_ADDR_BITS:0] diagnostic_fifo_count,
+    output wire [8:0] diagnostic_accepted_outstanding,
+    output wire [1:0] diagnostic_lane,
+    output wire [15:0] diagnostic_max_response_gap,
+    output wire [15:0] diagnostic_max_held_command_age
 );
     localparam [17:0] FRAME_BEATS = 18'd230400;
     localparam [19:0] LAST_PIXEL = 20'd921599;
@@ -107,6 +114,37 @@ module fes_menu_reader #(
     // Include a command held under waitrequest; zero never means that a
     // stalled request may be withdrawn or its backing allocation released.
     assign outstanding_beats = outstanding + (read ? {1'b0, burstcount} : 9'd0);
+
+    // These observers do not control the reader. Include this edge
+    // in the exported maxima, allowing video to capture the fault edge itself.
+    reg [15:0] diagnostic_response_gap = 16'd0;
+    reg [15:0] diagnostic_held_command_age = 16'd0;
+    reg [15:0] diagnostic_response_max = 16'd0;
+    reg [15:0] diagnostic_command_max = 16'd0;
+    wire [15:0] diagnostic_response_next = outstanding != 9'd0 && !readdatavalid ?
+        (diagnostic_response_gap == 16'hffff ? 16'hffff : diagnostic_response_gap + 16'd1) : 16'd0;
+    wire [15:0] diagnostic_command_next = read && waitrequest ?
+        (diagnostic_held_command_age == 16'hffff ? 16'hffff : diagnostic_held_command_age + 16'd1) : 16'd0;
+    assign diagnostic_fifo_count = count;
+    assign diagnostic_accepted_outstanding = outstanding;
+    assign diagnostic_lane = lane;
+    assign diagnostic_max_response_gap = diagnostic_response_next > diagnostic_response_max ?
+        diagnostic_response_next : diagnostic_response_max;
+    assign diagnostic_max_held_command_age = diagnostic_command_next > diagnostic_command_max ?
+        diagnostic_command_next : diagnostic_command_max;
+    always @(posedge clk) begin
+        if (rst || (start && idle && window_valid)) begin
+            diagnostic_response_gap <= 16'd0;
+            diagnostic_held_command_age <= 16'd0;
+            diagnostic_response_max <= 16'd0;
+            diagnostic_command_max <= 16'd0;
+        end else begin
+            diagnostic_response_gap <= diagnostic_response_next;
+            diagnostic_held_command_age <= diagnostic_command_next;
+            diagnostic_response_max <= diagnostic_max_response_gap;
+            diagnostic_command_max <= diagnostic_max_held_command_age;
+        end
+    end
 
     always @(posedge clk) begin
         if (reset_abort) begin

@@ -29,6 +29,14 @@ STATIC_CASES = frozenset((
 DISABLED_CASE = "owner_static_disabled_refuses_base_before_programming"
 REQUIRED_CASES = frozenset((
     DISABLED_CASE,
+    "diagnostics_cached_query_checks_request_without_mmio",
+    "diagnostics_retains_fault_after_failed_poll_without_mmio",
+    "diagnostics_latch_after_frozen_snapshot_is_coherent",
+    "diagnostics_identity_loss_invalidates_cached_record",
+    "diagnostics_reset_during_payload_is_not_current",
+    "diagnostics_snapshot_transport_identity_loss_invalidates_cache",
+    "diagnostics_clear_and_new_grant_have_no_stale_record",
+    "diagnostics_invalid_packing_preserves_original_fault",
     "cold_poll_observes_display_ready_without_submission",
     "owner_cached_info_has_no_hardware_or_lifetime_effect",
     "build_identity_reports_hardware_words",

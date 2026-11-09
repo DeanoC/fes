@@ -354,7 +354,7 @@ def manifest(record, payload):
         'payload': {'file': 'core.rbf', 'size': payload.stat().st_size, 'sha256': sha(payload)},
         'abi': {'id': 'fes.application', 'major': 1, 'minor': 0},
         'interfaces': [{'id': n, 'major': 1, 'minor': m, 'required': True} for n, m in (
-            ('fes.video.fixed-720p60', 0), ('fes.video.menu-display', 0), ('fes.fabric.de25-scanout', 1))],
+            ('fes.video.fixed-720p60', 0), ('fes.video.menu-display', 0), ('fes.fabric.de25-scanout', 2))],
         'build': {'id': build_identity(record), 'repository': fields['repository'], 'revision': fields['revision'],
             'recipe_sha256': fields['recipe_sha256'],
             'toolchain': '; '.join(f'{n} {v}' for n, v in sorted(fields['tools'].items()))}})

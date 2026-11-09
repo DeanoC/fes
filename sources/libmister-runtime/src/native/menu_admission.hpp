@@ -16,7 +16,7 @@
 	X("fes.video.fixed-720p60", 1, 0) \
 	X("fes.memory.hps-ddr", 1, 0) \
 	X("fes.video.menu-display", 1, 0) \
-	X("fes.fabric.de25-scanout", 1, 1) \
+	X("fes.fabric.de25-scanout", 1, 2) \
 	X("fes.video.menu-blitter", 1, 1)
 
 namespace mister {
