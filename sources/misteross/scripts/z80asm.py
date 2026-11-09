@@ -129,7 +129,7 @@ class Assembler:
         self.where = ''
         self.grew = False
         self.chaining = False
-        self.chains, self.jumps = {}, {}
+        self.chains, self.jumps, self.jr_to = {}, {}, {}
 
     # -- expressions -------------------------------------------------------
     def value(self, expr: str) -> int:
@@ -319,25 +319,24 @@ class Assembler:
                 self.jr_sites.append((index, self.pc - self.float_pc[index], self.value(target), 1))
             to = self.value(target)
             op = 0x20 | CC[lows[0]] << 3 if len(ops) == 2 else 0x18
-            if self.where in self.chains:               # the jump it went by may have
-                for via in sorted(self.jumps_before.get(to, ())):     # moved: any in reach
-                    if via != self.pc and -128 <= via - (self.pc + 2) <= 127:
-                        self.chains[self.where] = (via, to)
-                        return [op, (via - (self.pc + 2)) & 0xff]
-                del self.chains[self.where]             # none: a jp from now on
-                self.long_jumps.add(self.where)
-                self.grew = True
+            moved = self.jr_to.get(self.where) != to    # since the last pass
+            self.jr_to[self.where] = to
+            chained = self.chains.pop(self.where, None)
             if self.where not in self.long_jumps:
                 offset = to - (self.pc + 2)
-                if -128 <= offset <= 127 or not self.symbols_settled:
+                if chained is None and (-128 <= offset <= 127 or not self.symbols_settled):
                     if len(ops) == 1:
                         self.jumps.setdefault(to, set()).add(self.pc)
                     return [op, self.relative(target, 2)]
                 for via in sorted(self.jumps_before.get(to, ()) if self.chaining else ()):
                     if via != self.pc and -128 <= via - (self.pc + 2) <= 127:
                         self.chains[self.where] = (via, to)     # by way of a jump to the same place
-                        self.grew = True
+                        if chained != (via, to):
+                            self.grew = True
                         return [op, (via - (self.pc + 2)) & 0xff]
+                if self.chaining and moved and not self.final_pass:
+                    self.grew = True                    # the jumps known are for where the
+                    return [op, 0]                      # target was: decide next pass
                 self.long_jumps.add(self.where)
                 self.grew = True
             if len(ops) == 1:
@@ -519,6 +518,7 @@ class Assembler:
         """Fresh jump relaxation for the current placement."""
         self.long_jumps = set()
         self.chains = {}                        # jr site -> (the jump it goes by, its target)
+        self.jr_to = {}                         # jr site -> its target last pass
         self.jumps = {}
         self.symbols_settled = False
         for passes in range(40):
