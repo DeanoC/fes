@@ -149,7 +149,7 @@ This follows `sim_fes_coleco_quartus.py:33`, which already records the `altera_m
 
 **Per-lane primitive forms** need no separate marker. Every form is in the source closure, and `front_end` plus the lane macros select one.
 
-**Record format.** Quartus producers move to format 2 on the PC/XT template (`build_fes_pcxt_quartus.py:137-172` for `execution_inputs`, `:205-244` for `create_build_record`). That `execution_inputs` needs no GPU. The shared `functional_execution.execution_inputs` cannot serve Quartus, because it requires a GPU device and KFD/NVIDIA records (`functional_execution.py:49-50`, `:123-126`). PC/XT's version becomes a shared `quartus_execution_inputs(edition)`, and the PC/XT copy is deleted. pc386 is format 1 today (`build_fes_pc386_quartus.py:288`), so its BUILD_ID changes with every commit and it has no cache key. It moves in its own slice (S10), and the Z80 sealers move in their S9 PRs, not in the identity slice.
+**Record format.** Quartus producers move to format 2 on the PC/XT template (`build_fes_pcxt_quartus.py:137-172` for `execution_inputs`, `:205-244` for `create_build_record`). That `execution_inputs` needs no GPU. The shared `functional_execution.execution_inputs` cannot serve Quartus, because it requires a GPU device and KFD/NVIDIA records (`functional_execution.py:49-50`, `:123-126`). PC/XT's version becomes a shared `quartus_execution_inputs(edition, front_end)`, and the PC/XT copy is deleted. PC/XT's version always binds the Yosys install tree, `yosys` and `yosys-abc` (`:140-141`, `:159`). The shared one binds them only when Yosys elaborates part of the build (`front_end = "yosys"`, including the pc386 hybrid), the same rule as `tools.yosys`. A native `quartus-lite` producer binds Quartus alone, so no unused Yosys enters its BUILD_ID. pc386 is format 1 today (`build_fes_pc386_quartus.py:288`), so its BUILD_ID changes with every commit and it has no cache key. It moves in its own slice (S10), and the Z80 sealers move in their S9 PRs, not in the identity slice.
 
 **Toolchain cache.** The slot key (`M/scripts/toolchain_cache.py:223-241`, `:268-285`) has no Quartus axis. Quartus is not provisioned through the cache, and this design adds no axis. Quartus identity is the lock plus the authenticated binary digest.
 
@@ -252,8 +252,19 @@ Today one Makefile target can set some of the three `FES_*_OSS` macros and not o
 A core may be built differently for DE25 than for DE10-Nano: a larger cache, more TLB entries, a DSP-based datapath, a feature that only fits the larger device. Three rules keep that from turning `FES_DEV_AGILEX5` into the next `QUARTUS`:
 
 1. **Device macros stay in primitives and board shells.** `FES_DEV_*` may be tested only in `fes_toolchain.svh`, in `M/cores/fes-common/rtl/prim/` and under `M/boards/`. Core RTL never branches on the device. A core that needs a device-specific structure gets it through a primitive, which has one form per lane and device. S8a adds a test that fails on any other file that names a `FES_DEV_*` macro.
-2. **A core-level difference is a module parameter.** Sizes and optional features are parameters on the core's top, with one value set per target in the core's recipe. The producer passes them (Yosys `chparam`, or a Quartus parameter assignment) and writes each one into the build record's `parameters`, as PC/XT does for its profile switches (`build_fes_pcxt_quartus.py:220-230`). Two targets with different values therefore get different BUILD_IDs, and each value set is sealed on its own. Lockstep runs on every sealed value set, not only on the DE10-Nano one.
+2. **A core-level difference is a module parameter.** Sizes and optional features are parameters on the core's top, with one value set per target in the core's recipe (schema below). The producer passes them (Yosys `chparam`, or a Quartus parameter assignment) and writes each one into the build record's `parameters`, as PC/XT does for its profile switches (`build_fes_pcxt_quartus.py:220-230`). Two targets with different values therefore get different BUILD_IDs, and each value set is sealed on its own. Lockstep runs on every sealed value set, not only on the DE10-Nano one.
 3. **Native Pro is the lane for a core that specialises.** On yosys → Quartus Pro, Pro fits a netlist Yosys has already mapped, so Pro's own DSP inference and register retiming have little to work on. That route is the DE25 bring-up path (D3). A core moves to `front_end = "quartus-pro"` when a measured Pro fit shows the native read is better for it, on each flow's best settings. `FES_TC_QPRO` therefore stays in the header.
+
+**Recipe schema for a second target.** Today a recipe row has one scalar lane and device, and the loader rejects a second row with the same `core_id` (`scripts/recipes.py:296-298`). S16 changes that, with the first DE25 core:
+
+- A row gains `target`, `"de10nano"` or `"de25"`. An absent `target` means `"de10nano"`, so no existing row changes.
+- The loader's key becomes (`core_id`, `target`). Each row still has its own `selection_filename` and package environment names, and those stay unique across all rows.
+- Each row carries its own `front_end`, `[recipes.quartus]` (`edition`, `device_family`) and an optional `[recipes.parameters]` table of scalar values. The producer passes exactly that table to the core's top and copies it into the record's `parameters`.
+- The validator ties `target = "de25"` to `device_family = "agilex5"` and `target = "de10nano"` to `cyclonev`.
+- `Format2Recipe` gains `target` and `parameters`. Lookups by `core_id` take a target and default to `"de10nano"`.
+- New tests: two rows for one core with different targets load; two rows with the same pair are rejected; the two rows' records differ in `parameters` and BUILD_ID; a `de25` row with `cyclonev` is rejected.
+
+S7 does not need this schema, because every row there has one target.
 
 The header has no capability macros such as "has M20K" or "has a 27×27 multiplier". Rule 1 puts that knowledge in the primitive that uses it, and rule 2 covers what a core chooses to do with a larger device.
 
@@ -793,7 +804,7 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
 
 ### S9. Shared Quartus signoff
 
-- **S9a, the helper:** new `M/scripts/quartus_signoff.py`, plus a shared `quartus_execution_inputs(edition)` taken from `build_fes_pcxt_quartus.py:137-172`, with the PC/XT copy deleted. pc386 and PC/XT move to the signoff helper, since they already meet most of the bar, and their per-sealer timing parsers are deleted. Acceptance: both seal under the helper at the full bar, and PC/XT's execution inputs are unchanged by the move. Dependencies: S6a, S7. It may run beside S8.
+- **S9a, the helper:** new `M/scripts/quartus_signoff.py`, plus a shared `quartus_execution_inputs(edition, front_end)` taken from `build_fes_pcxt_quartus.py:137-172`, with the PC/XT copy deleted. pc386 and PC/XT move to the signoff helper, since they already meet most of the bar, and their per-sealer timing parsers are deleted. Acceptance: both seal under the helper at the full bar, and PC/XT's execution inputs are unchanged by the move. Dependencies: S6a, S7. It may run beside S8.
 - **S9b–S9e, one PR per Z80 sealer** (Coleco, SMS, SG-1000, ZX81), and **S9f, RAM Tester**, which promotes the diagnostic to a sealer with a build record. Each one moves to the helper, deletes its own parser, and moves to a format-2 record with `toolchain = "quartus"` and `front_end = "quartus-lite"`, so its route is labelled and validated. A failure stops only that core's PR, with a report.
 - **Measurement:** a per-core slack table at the new bar.
 - **Kit:** smoke runs of each resealed RAM Tester and Z80 package, under the kit rules.
@@ -802,7 +813,7 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
 
 - **Files:**
   - `build_fes_pc386_quartus.py`;
-  - S9a's shared `quartus_execution_inputs(edition)`;
+  - S9a's shared `quartus_execution_inputs(edition, front_end)`;
   - tests.
 - **Acceptance:** the format-2 record validates with `front_end = "yosys"`, the BUILD_ID is functional (it no longer changes with every commit), and the seal is reproduced under the helper.
 - **Dependencies:** S7, S9a. **Kit:** N/A for pc386.
@@ -865,7 +876,7 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
   - delete the M10K→M20K byte patches (`display/build.py:105-113`, `combined/build.py:66-80`);
   - fold in S6b if it has not landed;
   - seal under the S9 helper.
-- **Device specialisation:** the first core with a DE25-only parameter value adds the per-target recipe values and records them (rule 2).
+- **Device specialisation:** the first DE25 core lands the target-keyed recipe schema and its tests (Device specialisation, recipe schema), with its per-target parameter values recorded (rule 2).
 - **Lockstep:** waits on the Agilex simulation libraries. Until then a DE25-only value set has RTL lockstep on its parameters but no post-synthesis lockstep, and its seal says so.
 - **Dependencies:** S6b, S8, S9a, and the DE25 board shell. **Kit:** none (DE25 HIL waived).
 
