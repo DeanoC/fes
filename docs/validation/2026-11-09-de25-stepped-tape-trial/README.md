@@ -42,8 +42,12 @@ submitted one frame with zero reported underflows. Before Ready or any core
 request, USB keyboard polling reported DWC2 channel error `0x80`; channel-halt
 containment then reached its 500 ms limit. Menu master-stop, reader drain and
 bridge reset closure completed. The recorded selection-to-prewrite delay was
-4,022 ns against a selected 3,740 ns frame window. A stale periodic scheduling
-decision is an investigation lead, not a proven physical root cause.
+4,022 ns and the around-command observation took 3,740 ns. Those are software
+durations, not available USB frame time. All three HFNUM samples remained in
+the same frame with a decreasing remaining count. An initial interpretation
+that the frame window had expired was incorrect and is superseded here.
+`0x80` is XACTERR; frame overrun is the separate `0x200` bit, as defined in the
+[primary DWC2 register definitions](https://github.com/torvalds/linux/blob/v6.12/drivers/usb/dwc2/hw.h#L729-L745).
 
 No tape transfer or core launch was attempted, so this does not qualify the
 new tape policy on hardware. The first-failure stop and two-second passive tail
@@ -52,6 +56,7 @@ settings, exact USB permissions, owned server gone and UART free. Firmware
 return and CPU parking were not observed. Candidate `1059bb64e5cac38b` and both
 single-use programming operations are consumed and retired; no retry is allowed.
 
-The next repair is to check periodic USB scheduling against the frame budget
-at actual channel arming, then validate the timing/failure paths off-board and
-build a fresh matched candidate. Full appliance acceptance remains open.
+The next investigation follows the transaction error and failed PIO channel
+halt, using the retained command/register history. No scheduling repair follows
+from comparing the two software durations. Any established repair needs focused
+off-board tests and a fresh matched candidate. Full acceptance remains open.

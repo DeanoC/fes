@@ -1,0 +1,12 @@
+{
+  "status": "corrected-interpretation",
+  "supersedes": "ac689dce3 hardware-result.json and initial r1 archive interpretation only",
+  "raw_console_changed": false,
+  "hardware_outcome_changed": false,
+  "incorrect_inference": "window_ns3740 was misread as available USB frame time; it is the measured around-command software interval",
+  "corrected_interpretation": "HFNUM frame number is unchanged in all three observations; HCINT0x80 is transaction error, not frame overrun0x200. No stale-frame admission failure is established.",
+  "primary_reference": "https://github.com/torvalds/linux/blob/v6.12/drivers/usb/dwc2/hw.h#L729-L745",
+  "local_trace_emitter": "platform/embedded/tamago/dwc2/channel_trace.go",
+  "old_archive_preserved": "/home/deano/fes-retained/de25-stepped-tape-trial-hardware-20261109-r1",
+  "new_hardware_actions": false
+}
