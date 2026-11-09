@@ -181,9 +181,13 @@ local function load_recents()
 end
 
 function load()
-  F.load(changed)
+  F.load(changed, true)
   load_recents()
   publish()
+end
+
+function update()
+  F.update()
 end
 
 -- Back from a workbench or a game: the library may have new titles, and
