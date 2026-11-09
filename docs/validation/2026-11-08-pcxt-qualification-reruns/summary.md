@@ -20,7 +20,7 @@ games is committed.
 | Rogue game save and restore across a relaunch | **PASS** | `rs1` |
 | Speed and speaker pitch against MAME `ibm5150` | **PASS**: Paratrooper helicopters 72.86–72.95 vs MAME 72.8 CGA px/s, same main tones; Alley Cat note timing and tone bins match the 7 November kit run, which matched MAME | `q1`–`q3` |
 | Ctrl+Alt+Del | **PASS**: warm POST back to `A:\>`; the next library launch cold-boots | `q2` |
-| Repeated relaunch from the TV menu (Kit B's own host) | **PASS** for launch, cold POST, Stop and return, 5 of 5 cycles (F12 ×4, Ctrl+Home ×1). **Not run**: the 30 s of Paratrooper per cycle, because the kit keyboard doesn't reach the core in kit-host sessions on this bundle ([#1613](https://github.com/DeanoC/fes/issues/1613)) | `tf2` |
+| Repeated relaunch from the TV menu (Kit B's own host) | **PASS**, 5 of 5 cycles with 30 s of Paratrooper keyboard play each (F12 ×4, Ctrl+Home ×1), on main's bundle `7ddb0bfb` (main `5a16b14d8`, with #1614). On the baseline bundle (`tf2`) launch, cold POST and Stop passed 5/5 but the keyboard didn't reach the core ([#1613](https://github.com/DeanoC/fes/issues/1613)) | `tf3`, `tf2` |
 
 ## Power loss with an unsaved write (`pl1`)
 
@@ -96,9 +96,12 @@ that binding, so no package was produced from it.
 These are internal timing results. External SDRAM, HDMI, HPS, reset and PLL
 limits stay with #835.
 
-**Runtime.** Kit B, image `cd284ca3…` and baseline bundle `66316149…` (main
-`5302f683`, which contains #1564). Nothing was installed. There was no image
-change and no reboot: the boot ID stayed `66a149ef` from `q1` through `tf2`.
+**Runtime.** Kit B, image `cd284ca3…` and baseline bundle `66316149…`.
+Kit B's status file names it with main `5302f683`. Its host reports
+revision `7f0724ca`, which contains #1564. From `q1` to `tf2` nothing was
+installed. `tf3` installed main's bundle, then restored the baseline. There
+was no image change and no reboot: the boot ID stayed `66a149ef` from `q1`
+through `tf3`.
 
 **Launch path.** The runner calls the kit agent the way a host does, as on 7
 November (`/v1/library/core/load`, `/v1/library/media/insert`,
@@ -121,6 +124,7 @@ needed, the runner pulled the record first (`run-qr.sh`).
 | `qd` | 00:22–00:25 | `q1`'s Save steps again, to pull the saved image |
 | `rs1` | 00:26–00:29 | Rogue game save and restore |
 | `tf2` | 00:30–00:47 | Relaunch from the TV menu |
+| `tf3` | 01:07–01:31 | Relaunch from the TV menu with play, on main's bundle (install, then restore) |
 
 `q1`–`q3` replay the 7 November command lists, with new game IDs.
 
@@ -281,8 +285,8 @@ mister-runtime and being refused ("FES computer keyboard is inactive"). This
 record doesn't say whether that is the same cause.
 
 Play from the kit keyboard in a tenfoot session passed on 8 November (`tf1`,
-through the shared host). It is owed again on Kit B's own host once #1614 is
-in a bundle the kit runs.
+through the shared host). After #1614 merged, `tf3` (below) reran the case
+on main's bundle, with play.
 
 **Cleanup.** Removed:
 
@@ -311,13 +315,78 @@ Its table counts match its pre-existing database (28 entries, 11 media), and
 it still serves its 28 entries. The second tunnel used a port checked free
 first, and its library listing was compared with Kit B's before any import.
 
+## Relaunch with play on main's bundle (`tf3`)
+
+#1614 (#1613) merged after `tf2`. The plan already allows installing main's
+bundle for a run and restoring the baseline afterwards ("Package under test").
+`tf3` did that, under the kit rules' pre-approved install-then-restore. Kit B, 01:07–01:31 EET on 10 November.
+
+**Bundle.**
+- `7ddb0bfb8dc8d22a…`, version `kit-1576-5a16b14d`, built by
+  `scripts/kit_software.py` from a clean worktree of main `5a16b14d8`.
+- The base is image `cd284ca3` (`bundle.tar` `9cc6228a…`).
+- Its catalog schema is 21, the same as the baseline host's, so the baseline
+  can reopen the library afterwards.
+- It was installed and activated on the running image with `fes-software`. No
+  reboot.
+- After activation, the kit host reported revision `5a16b14d`, the running
+  tenfoot matched the bundle's (`af15086f`), and About & help showed
+  "Software 7ddb0bfb8dc8 · image cd284ca38fce".
+
+**Getting to the entry.** Main's Home shows Library only with Settings >
+About & help > Diagnostics > "Show all cores" on. It was turned on for the run
+and off afterwards. `tenfoot.json` and both room state files ended
+byte-identical to before.
+
+**Each cycle**, keys from the temporary `hilkb` keyboard:
+1. Library → search `parat` → Enter (Play).
+2. `Boot [ COLD ]` and `A:\>`.
+3. `TROOPER`, Enter, then Space for keyboard play.
+4. About 30 s of play: turning the gun with Left/Right and firing with Up.
+5. Stop.
+6. The Library came back, with the agent idle, the lease free and no session
+   left.
+
+| Cycle | Stop key | Cold POST to `A:\>` | Paratrooper played | Menu back, idle, lease free |
+| --- | --- | --- | --- | --- |
+| 1 | F12 | yes | yes: gun turned and fired, score 30 | yes (10.0 s) |
+| 2 | F12 | yes | yes | yes (10.7 s) |
+| 3 | F12 | yes | yes | yes (9.9 s) |
+| 4 | Ctrl+Home | yes | yes | yes (11.4 s) |
+| 5 | F12 (Kit B has no pad) | yes | yes | yes (10.1 s) |
+
+In every cycle the title screen came up from typed `TROOPER`. The game
+started from Space, and the play frames show the gun at new angles, shots,
+and troopers landing, with game overs. **PASS**, 5 of 5.
+
+**Restore.**
+- Removed the entry's saved floppy record (`c7f17d85…`, the same bytes as
+  `tf2`'s) and `hilkb`.
+- Bundle `66316149` was activated again: active and selected, generation 445,
+  nothing pending. Host revision `7f0724ca`; the tenfoot exe is `ddc7da4c`, as
+  before.
+- Home first showed a stale "Unavailable" inventory, as Codex's #1614 restore
+  did. One supported `fes-kit-software restart-service fogcast-tenfoot`
+  brought Home back to Ready.
+- Verified unchanged: image `cd284ca3` good with nothing pending, boot ID
+  `66a149ef`, `u-boot.txt` `142ffa1a` with the quirk line, and `fat_idle`
+  `64f1f16d`. The agent was idle with the lease free.
+- The software state's `previous` is now `7ddb0bfb`, as any install and
+  restore leaves it.
+- Two supervisor admission grant files from the two activations were added,
+  and bundle `7ddb0bfb` stays in the release store.
+- The PC/XT entry stays.
+- The install and the restore are logged in `kitB-STATUS.md`. Kit B was
+  released at 01:31.
+
 ## What remains for #1529
 
-- Paratrooper play from the kit keyboard in a tenfoot session on Kit B's own
-  host. This waits for #1614 (#1613).
+Nothing from the plan. External timing (#835) and physical ISA stay out of
+scope, as the plan says.
 
 The private evidence is on Powerboat in `~/fes-scratch/xt1529/runs/` (`q1`,
-`q2`, `q3`, `r1`, `qd`, `rs1`, `tf2`). The seal is in
+`q2`, `q3`, `r1`, `qd`, `rs1`, `tf2`, `tf3`). The bundle and its build script
+are in `~/fes-scratch/xt1529/kitsw`. The seal is in
 `~/fes-scratch/xt1529/seal-8d9b71fa`, and the MAME Rogue reference in
 `~/fes-scratch/xt1529/mame/rogue`. Tool hashes are in
 [kit-runs.json](kit-runs.json).
