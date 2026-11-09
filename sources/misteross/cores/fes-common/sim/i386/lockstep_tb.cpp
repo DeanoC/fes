@@ -3470,8 +3470,10 @@ State to_state(const Registers &r) {
     for (int n = 0; n < 6; ++n) state.seg[seg_order[n]] = fes_i386::real_mode_segment(uint16_t(r[10 + n]));
     state.eip = r[16];
     state.eflags = r[17] & EFLAGS_MASK;
-    state.dr6 = r[18];
-    state.dr7 = r[19];
+    // DR6's and DR7's fixed bits as a 386 holds them (the corpus lists 0;
+    // none of its instructions touch the debug registers).
+    state.dr6 = r[18] | 0xffff0ff0u;
+    state.dr7 = r[19] | 0x400u;
     return state;
 }
 
