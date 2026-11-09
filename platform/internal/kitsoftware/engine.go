@@ -44,9 +44,9 @@ type Engine struct {
 	// HeldBackReason says why. The selection stays recorded for an image that
 	// can run it.
 	HeldBack, HeldBackReason string
-	// Candidate startup and health share a 180-second deadline. Readiness must
-	// hold for 10 seconds uninterrupted and is polled every 250ms. Keep the
-	// deadline bounded so a launcher that never presents cannot be accepted.
+	// Candidate startup and the first healthy observation share a 180-second
+	// deadline. Readiness must then hold for 10 seconds uninterrupted, polled
+	// every 250ms. A launcher that never presents cannot be accepted.
 	// Tests can use a virtual clock.
 	Deadline, Stable, Poll time.Duration
 	Now                    func() time.Time
