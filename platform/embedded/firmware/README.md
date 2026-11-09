@@ -75,6 +75,24 @@ Source and ELF checks bind the reviewed addresses, read widths, stack-free code,
 fixed UART bounds and permitted system-register writes. Existing memory/CPU/
 owner/tape logic and its one-second deadline remain. Hardware qualification of
 the new inventory remains open.
+The selected format6 diagnostic adds a separate late-MMU decode-recording
+lifetime. It requires zero DSU detection/interrupt/status, enables only
+CAIUUEDR.DecErrDetEn (bit3), and records intent in distinct private file-backed
+DDR before the potentially faulting write. CPU/MMU and all-master reset/power
+checks frame control changes. Normal and terminal cleanup restore control0,
+verify readback, unchanged interrupts and preserved sticky status. A new error
+remains terminal even if SError delivery is delayed. Interrupted or nested
+cleanup never retries. This lifetime spans C execution; the early cache-off
+logger remains scoped to its original startup phase. No status, interrupt,
+selector, ECC or memory-permission bypass is introduced. Actual linked code
+checks admit only the declared fixed control and private-state write sites.
+Hardware qualification of this changed image remains open.
+The fixed UART addresses are initialized once in scratch registers at each
+write/restore/capture entry and remain unchanged within that leaf. Capture and
+restore reinitialize them after intervening C code. Poll counters and byte
+budgets remain per character/line. This removes repeated inline constants so
+the diagnostic can fit the original sealed upload limit; code checks bind each
+initializer and the permitted data-store register.
 See the [runtime scope checks](../../../docs/validation/2026-11-09-de25-mmu-runtime/README.md).
 
 `nano_tape` is a secure-side initial-tape engine for the existing

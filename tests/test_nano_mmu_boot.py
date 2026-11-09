@@ -13,6 +13,7 @@ sys.path[:0]=[str(ROOT/'platform/embedded/firmware'),str(ROOT/'platform/embedded
 import nano_firmware_mmu as mmu
 import mmu_trace
 import mmu_status
+import mmu_logging
 from test_nano_native_trace import trace,fixture,firmware_progress,atf_progress,BUILD,SEED
 from prepare_uboot import atf_descriptor
 
@@ -22,7 +23,7 @@ def proof():
     diagnostic={name:dict(address=address,bytes=size,sha256='1'*64) for name,address,size in
         (('write',0x80024000,100),('restore',0x80026000,120),('capture',0x80025000,300),
          ('vectors',0x80032000,2048),('park_vectors',0x80032800,2048),('park',0x80027000,8))}
-    diagnostic.update(status_inventory=mmu_status.SHA,runtime_vectors=0x80030000,saved_vbar=root+24576,saved_bytes=8,
+    diagnostic.update(decode_logging=mmu_logging.SHA,logging_state=root+24584,logging_state_bytes=8,status_inventory=mmu_status.SHA,runtime_vectors=0x80030000,saved_vbar=root+24576,saved_bytes=8,
                       uart_data=0x10c02100,uart_status=0x10c02114,uart_polls=100000,uart_bytes=384)
     return dict(selected_policy=dict(mmu.RUNTIME_CONTRACT),witness=0x5f000,witness_bytes=64,
         transition_diagnostic=diagnostic,
@@ -51,8 +52,12 @@ def status_rows(phase='before'):
             'FES_NANO_EL3_MMU_STATUS phase='+phase+' END ras=skip reason=feature\r\n')
 
 
+def log_rows(phase):
+    return ''.join('FES_NANO_EL3_MMU_LOG phase='+p+'\r\n' for p in (('arm-before','armed') if phase=='armed' else ('restore-before','restored')))
+
+
 def vector_row(phase):
-    return ('FES_NANO_EL3_MMU_TRANSITION phase='+phase+' sctlr='+format(0x30c5183a|0x80005,'016x')+
+    return log_rows('armed' if phase=='enabled' else 'restored')+('FES_NANO_EL3_MMU_TRANSITION phase='+phase+' sctlr='+format(0x30c5183a|0x80005,'016x')+
             ' vbar='+format(0x80032000 if phase=='enabled' else 0x80030000,'016x')+'\r\n')
 
 
@@ -245,6 +250,20 @@ class NanoMMUBootTests(unittest.TestCase):
         raw=base_trace().replace('U-Boot 2025.01-fes-nano-',transition()+'U-Boot 2025.01-fes-nano-',1)
         for replacement in ('',status_rows()*2,status_rows().replace('ras=skip reason=feature','ras=complete')):
             with self.subTest(replacement=replacement):self.assertFalse(decode(raw.replace(status_rows(),replacement))['loader_ready'])
+
+    def test_logging_cannot_be_missing_replayed_or_restored_before_activation(self):
+        raw=base_trace().replace('U-Boot 2025.01-fes-nano-',transition()+'U-Boot 2025.01-fes-nano-',1)
+        self.assertTrue(decode(raw)['loader_ready'])
+        for phase in ('arm-before','armed','restore-before','restored'):
+            event='FES_NANO_EL3_MMU_LOG phase='+phase+'\r\n'
+            for replacement in ('',event*2,'FES_NANO_EL3_MMU_LOG FAIL phase=restore\r\n'):
+                with self.subTest(phase=phase,replacement=replacement):self.assertFalse(decode(raw.replace(event,replacement))['loader_ready'])
+        moved=raw.replace(log_rows('restored'),'').replace(log_rows('armed'),log_rows('armed')+log_rows('restored'))
+        self.assertFalse(decode(moved)['loader_ready'])
+        prefix=base_trace().split('U-Boot 2025.01-fes-nano-',1)[0]+row('before')+''.join(step_rows()[:15])+status_rows()
+        report=decode(prefix+'FES_NANO_EL3_MMU_LOG phase=arm-before\r\nFES_NANO_EL3_MMU_LOG FAIL phase=enable\r\n'+log_rows('restored')+transition())
+        state=report['firmware_mmu_trace'];self.assertFalse(report['loader_ready'] or state['valid'] or state['complete'])
+        self.assertTrue(state['logging']['failed'] and state['logging']['restored'])
 
     def test_bad_proof_and_flooded_failed_records_never_recover(self):
         for key,value in (('witness',0x50000),('witness_bytes',128),('selected_policy',{}),

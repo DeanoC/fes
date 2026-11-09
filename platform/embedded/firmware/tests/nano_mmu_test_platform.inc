@@ -29,6 +29,7 @@ int fes_nano_mmu_transition_write(uint64_t value)
     assert(!mmu_vector_installed++ && !mmu_vector_restored);
     for(unsigned i=0;i<17;i++)printf("FES_NANO_EL3_MMU_STATUS phase=before index=%02u value=0000000000000000\n",i);
     puts("FES_NANO_EL3_MMU_STATUS phase=before END ras=skip reason=feature");
+    puts("FES_NANO_EL3_MMU_LOG phase=arm-before\nFES_NANO_EL3_MMU_LOG phase=armed");
     write_sctlr_el3(value);isb();
     printf("FES_NANO_EL3_MMU_TRANSITION phase=enabled sctlr=%016llx vbar=0000000080032000\n",(unsigned long long)sctlr);
     return 0;
@@ -37,6 +38,7 @@ int fes_nano_mmu_transition_restore(void)
 {
     assert(mmu_vector_installed==1 && !mmu_vector_restored++);
     if(mmu_restore_failure)return -1;
+    puts("FES_NANO_EL3_MMU_LOG phase=restore-before\nFES_NANO_EL3_MMU_LOG phase=restored");
     isb();
     printf("FES_NANO_EL3_MMU_TRANSITION phase=restored sctlr=%016llx vbar=0000000080030000\n",(unsigned long long)sctlr);
     return 0;

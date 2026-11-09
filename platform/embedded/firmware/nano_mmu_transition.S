@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
-/* Selected cold-only diagnostic. No stack, C calls, cache-off fallback or
- * owned device access. Fixed read-only SoC error status and current RAS bank
- * are diagnostic only. Fixtures substitute CPU/UART/read targets only. */
+/* Selected cold-only diagnostic. No stack, C calls or cache-off fallback.
+ * Status/current RAS reads and the contained DSU decode-detection lifetime
+ * grant no device authority. Fixtures substitute CPU/UART/MMIO targets. */
 .arch_extension ras
 #ifndef FES_MMU_MIDR
 #define FES_MMU_MIDR 0x412fd050
@@ -38,9 +38,13 @@
     cmp x2,#0x2c0
     b.ne \reject
     mrs x2,scr_el3
-    tbnz x2,#0,\reject
+    tbnz x2,#0,.Lcpu_reject_\@
     mrs x2,sctlr_el3
-    tbnz x2,#25,\reject
+    tbnz x2,#25,.Lcpu_reject_\@
+    b .Lcpu_done_\@
+.Lcpu_reject_\@:
+    b \reject
+.Lcpu_done_\@:
 .endm
 .macro mmu_registers reject
     mrs x2,mair_el3
@@ -58,10 +62,17 @@
 .endm
 /* Preserve x0..x7,x18..x30. Every line has one shared 384-byte budget;
  * every character has at most 100000 ready-status polls. */
+.macro mmu_uart_init name
+.global fes_nano_mmu_uart_init_\name
+.type fes_nano_mmu_uart_init_\name,%function
+fes_nano_mmu_uart_init_\name:
+    mmu_constant x10,FES_MMU_UART_STATUS
+    mmu_constant x13,FES_MMU_UART_DATA
+.size fes_nano_mmu_uart_init_\name,.-fes_nano_mmu_uart_init_\name
+.endm
 .macro mmu_char
     cbz w17,fes_nano_mmu_transition_park
     sub w17,w17,#1
-    mmu_constant x10,FES_MMU_UART_STATUS
     mmu_constant w11,100000
 .Lpoll\@:
     ldr w12,[x10]
@@ -73,8 +84,7 @@
     b.ne .Lpoll\@
     b fes_nano_mmu_transition_park
 .Lready\@:
-    mmu_constant x10,FES_MMU_UART_DATA
-    str w9,[x10]
+    str w9,[x13]
     dsb sy
 .endm
 .macro mmu_text label
@@ -108,6 +118,7 @@
 .endm
 
 #include "nano_mmu_status.inc"
+#include "nano_mmu_logging.inc"
 
 .section .text.fes_nano_mmu_transition,"ax"
 .balign 4
@@ -115,6 +126,7 @@
 .type fes_nano_mmu_transition_write,%function
 fes_nano_mmu_transition_write:
     mmu_cpu .Lreject
+    mmu_uart_init write
     mmu_registers .Lreject
     mrs x2,sctlr_el3
     mmu_constant x3,0x3081005
@@ -140,6 +152,7 @@ fes_nano_mmu_transition_write:
     isb
     mov x7,x0
     mmu_inventory before
+    mmu_log_arm
     mov x0,x7
     mmu_cpu .Lreject
     mmu_registers .Lreject
@@ -167,6 +180,7 @@ fes_nano_mmu_transition_sctlr:
 .type fes_nano_mmu_transition_restore,%function
 fes_nano_mmu_transition_restore:
     mmu_cpu .Lrestore_reject
+    mmu_uart_init restore
     mmu_registers .Lrestore_reject
     mrs x2,sctlr_el3
     mmu_constant x3,0x3081005
@@ -183,6 +197,8 @@ fes_nano_mmu_transition_restore:
     adr x2,runtime_exceptions
     cmp x1,x2
     b.ne .Lrestore_reject
+    mmu_log_close restore
+    adr x1,runtime_exceptions
 .global fes_nano_mmu_transition_restore_vbar
 .type fes_nano_mmu_transition_restore_vbar,%function
 fes_nano_mmu_transition_restore_vbar:
@@ -244,6 +260,7 @@ fes_nano_mmu_transition_capture:
     msr vbar_el3,x8
     isb
     mmu_cpu fes_nano_mmu_transition_park
+    mmu_uart_init capture
     mov w17,#384
     mmu_field .Lfault,x19
     mmu_field .Lelr,x20
@@ -259,6 +276,9 @@ fes_nano_mmu_transition_capture:
     mmu_field .Lsp0,x30
     mmu_text .Lnewline
     mmu_inventory fault
+.global fes_nano_mmu_logging_capture_close
+fes_nano_mmu_logging_capture_close:
+    mmu_log_close capture,1
     b fes_nano_mmu_transition_park
 .size fes_nano_mmu_transition_capture,.-fes_nano_mmu_transition_capture
 
@@ -292,4 +312,9 @@ fes_nano_mmu_transition_park:
 fes_nano_mmu_transition_saved_vbar:
     .quad 0 /* Remains consumed after successful restoration. */
 .size fes_nano_mmu_transition_saved_vbar,.-fes_nano_mmu_transition_saved_vbar
+.global fes_nano_mmu_logging_state
+.type fes_nano_mmu_logging_state,%object
+fes_nano_mmu_logging_state:
+    .quad 0
+.size fes_nano_mmu_logging_state,.-fes_nano_mmu_logging_state
 .section .note.GNU-stack,"",%progbits

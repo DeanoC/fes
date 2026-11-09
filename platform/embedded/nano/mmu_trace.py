@@ -3,8 +3,9 @@ import hashlib
 import json
 import re
 import mmu_status
+import mmu_logging
 
-POLICY_SHA='63a88df72bbef57b9d11b6b99927e61012df4474c23051a9024fa4adff048e2d'
+POLICY_SHA='3f33131afa5c7198cd2e6bfcb0c82d5ee12c96c380fc4f5831c4e95340e8fd72'
 CACHE_HELPER_SHA='c16b4d1b6931e6d4d92ac017ba23457ff59d6d5ac9e4279b6c9fb031114b305c'
 FIELDS=('el','midr','mpidr','mmfr0','daif','scr','sctlr','tcr','root','mair','witness')
 ROW=re.compile(r'FES_NANO_EL3_MMU phase=(before|after) '+
@@ -45,6 +46,12 @@ def parameters(proof):
     diagnostic=proof.get('transition_diagnostic') or {}
     if diagnostic.get('status_inventory')!=mmu_status.SHA:
         raise ValueError('MMU trace requires the exact read-only status inventory')
+    state_address=diagnostic.get('logging_state');saved_address=diagnostic.get('saved_vbar')
+    if (diagnostic.get('decode_logging')!=mmu_logging.SHA or type(state_address) is not int or
+            state_address&7 or not root+24576<=state_address<state_address+8<=0x80200000 or
+            diagnostic.get('logging_state_bytes')!=8 or type(saved_address) is not int or
+            abs(state_address-saved_address)<8):
+        raise ValueError('MMU trace requires private contained decode logging')
     for name in ('write','restore','capture','vectors','park_vectors','park'):
         code=diagnostic.get(name) or {};address=code.get('address');size=code.get('bytes')
         if (type(address) is not int or address&3 or type(size) is not int or size&3 or
@@ -63,12 +70,27 @@ def parameters(proof):
                 vectors=diagnostic['vectors']['address'],runtime_vectors=runtime)
 
 
-def state():return dict(records=[],steps=[],transitions=[],faults=[],status_before=mmu_status.state(),
+def state():return dict(records=[],steps=[],transitions=[],faults=[],status_before=mmu_status.state(),logging=mmu_logging.state(),
                         status_fault=mmu_status.state(),valid=True,complete=False,hardware_authority=False)
 
 
 def observe(s,line,number,expected,*,startup_complete,exit_cache_complete,uboot_seen,prior_valid):
     match=ROW.fullmatch(line);step=STEP.fullmatch(line);transition=TRANSITION.fullmatch(line);fault=FAULT.fullmatch(line)
+    if line.startswith('FES_NANO_EL3_MMU_LOG'):
+        fatal=bool(s['faults'])
+        permitted=(expected is not None and startup_complete and exit_cache_complete and not uboot_seen and
+            len(s['records'])==1 and
+            ((fatal and s['status_fault']['complete']) or
+             (not fatal and s['valid'] and prior_valid and s['status_before']['complete'] and
+              (len(s['steps'])==15 and not s['transitions'] or len(s['steps'])==26 and len(s['transitions'])==1)) or
+             (not fatal and s['logging']['failure']=='enable' and s['logging']['write_attempted'] and
+              len(s['steps'])==15 and not s['transitions'])))
+        log_row=mmu_logging.ROW.fullmatch(line)
+        if not fatal and log_row and len(s['steps'])==26 and log_row[1] not in ('restore-before','restored'):
+            permitted=False
+        error=mmu_logging.observe(s['logging'],line,number,fault=fatal) if permitted else 'out-of-phase MMU decode logging'
+        if error:s['valid']=s['complete']=False
+        return error
     if line.startswith('FES_NANO_EL3_MMU_STATUS'):
         before=line.startswith('FES_NANO_EL3_MMU_STATUS phase=before ')
         phase='before' if before else 'fault'
@@ -98,8 +120,10 @@ def observe(s,line,number,expected,*,startup_complete,exit_cache_complete,uboot_
         before=s['records'][0] if s['records'] else {}
         ok=(len(s['records'])==1 and sctlr==before.get('sctlr',0)|0x80005 and
             ((phase=='enabled' and len(s['steps'])==15 and not s['transitions'] and vbar==expected['vectors'] and
-              s['status_before']['valid'] and s['status_before']['complete']) or
-             (phase=='restored' and len(s['steps'])==26 and len(s['transitions'])==1 and vbar==expected['runtime_vectors'])))
+              s['status_before']['valid'] and s['status_before']['complete'] and s['logging']['valid'] and
+              s['logging']['armed'] and not s['logging']['restore_attempted']) or
+             (phase=='restored' and len(s['steps'])==26 and len(s['transitions'])==1 and vbar==expected['runtime_vectors'] and
+              s['logging']['valid'] and s['logging']['complete'] and s['logging']['restored'])))
         if not ok:s['valid']=s['complete']=False;return 'invalid/out-of-order EL3 MMU transition'
         s['transitions'].append(dict(phase=phase,sctlr=sctlr,vbar=vbar,line=number));return None
     if step:
