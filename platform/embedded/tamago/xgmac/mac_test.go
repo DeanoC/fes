@@ -81,6 +81,8 @@ func (h *hardware) Write32(reg, value uint32) {
 		h.regs[reg] = value
 		if h.mode != "reset" {
 			h.regs[reg] = 0
+			h.rxIndex, h.txIndex = 0, 0
+			h.rxQueue = nil
 		}
 		return
 	case mdioData:

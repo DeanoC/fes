@@ -34,6 +34,28 @@ and restart callbacks. Descriptor/IP-stack tests cover repeated HTTP across
 short modeled pauses. No qualified Nano callback supplier is bound, and clearing
 XGMAC start bits remains insufficient evidence of DMA containment.
 
+`Device.BindControl` now supplies the actual driver stages for that controller.
+Bind during device creation, before packet workers start. Stop disables TX DMA,
+checks the MTL transmit FIFO, disables MAC traffic, checks receive FIFO and stops
+RX DMA, with checked readback and 100 ms/finite-poll bounds. The explicit platform
+Stop callback must then independently establish DMA drain. A successful callback
+may revoke register access; the driver makes no later MMIO or descriptor access
+while contained. The original memory remains pinned and Receive/Transmit refuse.
+
+Restart first obtains a new platform grant for the same window and MAC/PHY, then
+reruns the existing initialization and descriptor publication in the original
+arena. FIFO idle alone permits no restart. Lost replies, cancellation after stop
+starts, changed window/PHY and incomplete restart retire without retry or extra
+register cleanup. The platform supplier must separately own PHY/clocks/resets,
+SMMU policy and the private firmware MAC generation; this API does not provide
+that supplier or enable a board profile.
+
+The ordered stages follow the matched Terasic BSP's `xgmac_stop`; its unchecked
+loop expiry is treated as failure here. The three-cycle HTTP test now uses these
+real Go driver stages with explicitly modeled platform drain/grant callbacks,
+rather than clearing/restarting MAC bits in the test. Its evidence remains
+software-only.
+
 ## Explicit firmware profile
 
 Schema 6 includes `network` and the boolean `handoff.ethernet_platform_ready`.

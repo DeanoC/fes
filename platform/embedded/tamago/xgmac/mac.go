@@ -89,6 +89,8 @@ type Device struct {
 	mac                            string
 	fault                          atomic.Pointer[failure]
 	started                        bool
+	paused, controlBound           bool
+	dmaBase, dmaBytes              uint64
 	rx, tx                         uint32
 	nextLink                       time.Time
 	received, transmitted, dropped atomic.Uint64
@@ -102,7 +104,7 @@ func Open(io Registers, memory Memory, config Config) (*Device, error) {
 	if io == nil || memory == nil || memory.Base()%64 != 0 || memory.Size() < RequiredBytes || memory.Base() >= 1<<32 || memory.Size() > 1<<32-memory.Base() {
 		return nil, fmt.Errorf("xgmac: invalid pinned DMA region")
 	}
-	d := &Device{io: io, memory: memory, config: config, mac: mac.String()}
+	d := &Device{io: io, memory: memory, config: config, mac: mac.String(), dmaBase: memory.Base(), dmaBytes: memory.Size()}
 	if err := d.initialize(mac); err != nil {
 		return nil, err
 	}
@@ -287,6 +289,9 @@ func (d *Device) fail(err error) error {
 func (d *Device) health() error {
 	if err := d.Err(); err != nil {
 		return err
+	}
+	if d.paused {
+		return network.ErrPaused
 	}
 	if d.io.Read32(channelStatus)&(1<<12|1<<1) != 0 {
 		return d.fail(errors.New("xgmac: fatal DMA/stopped TX status"))

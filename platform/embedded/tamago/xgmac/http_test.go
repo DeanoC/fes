@@ -51,9 +51,35 @@ func TestHTTPThroughDMAAndIPStack(t *testing.T) {
 	h.wireOut = outbound
 	h.wireIn = inbound
 	device := open(t, h)
+	// Model-only platform stop/restart. The software gate must finish every
+	// driver call before these hooks touch the synchronous register model.
+	// This supplier cannot qualify physical DMA or establish firmware authority.
+	stops, starts := 0, 0
+	driverControl, err := device.BindControl(network.DMAControl{
+		Stop: func(context.Context) error {
+			stops++
+			for _, reg := range []uint32{txConfig, rxConfig, txControl, rxControl} {
+				if h.Read32(reg)&1 != 0 {
+					t.Fatal("platform drain before driver stop")
+				}
+			}
+			return nil
+		},
+		Start: func(context.Context) error {
+			starts++
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	clientStack := gnet.NewLnetoStack(gnet.DefaultLnetoStackConfig())
 	serverStack := gnet.NewGVisorStack(1)
 	clientIface, err := network.NewLink(clientStack, device, "192.0.2.2/24", device.MAC(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	control, err := network.NewController(clientIface, driverControl)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,29 +155,6 @@ func TestHTTPThroughDMAAndIPStack(t *testing.T) {
 	stats := device.Statistics()
 	if stats.Received <= ringSize || stats.Transmitted < 2 || device.Err() != nil {
 		t.Fatalf("packet path: %+v err=%v", stats, device.Err())
-	}
-	// Model-only platform stop/restart. The software gate must finish every
-	// driver call before these hooks touch the synchronous register model.
-	// This supplier cannot qualify physical DMA or establish firmware authority.
-	stops, starts := 0, 0
-	control, err := network.NewController(clientIface, network.DMAControl{
-		Stop: func(context.Context) error {
-			stops++
-			for _, reg := range []uint32{txConfig, rxConfig, txControl, rxControl} {
-				h.Write32(reg, h.Read32(reg)&^1)
-			}
-			return nil
-		},
-		Start: func(context.Context) error {
-			starts++
-			for _, reg := range []uint32{txControl, rxControl, txConfig, rxConfig} {
-				h.Write32(reg, h.Read32(reg)|1)
-			}
-			return nil
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
 	}
 	for cycle := 0; cycle < 3; cycle++ {
 		if err = control.PauseNetwork(ctx); err != nil {
