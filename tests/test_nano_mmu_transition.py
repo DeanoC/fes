@@ -24,14 +24,18 @@ class NanoMMUTransitionTests(unittest.TestCase):
             text.extend('.long '+hex(word) for word in code)
             text.append('.size fes_nano_mmu_transition_'+name+',.-fes_nano_mmu_transition_'+name)
         # Critical labels are independently declared as overlapping subfunctions.
-        label('write',0,words+[0xd51e1000,0xd5033fdf,0xd65f03c0])
-        label('restore',0x100,words+[0xd51ec001,0xd5033fdf,0xd53ec003,0xd65f03c0])
-        label('capture',0x200,words+[0x14000000|((0x300-0x200-len(words)*4)//4)])
-        label('park',0x300,[0xd503205f,0x17ffffff])
-        label('vectors',0x2000,[word for i in range(16) for word in [0x14000000|(((0x200-0x2000-i*128)//4)&0x3ffffff)]+[0]*31],kind='object')
-        label('park_vectors',0x2800,[word for i in range(16) for word in [0x14000000|(((0x300-0x2800-i*128)//4)&0x3ffffff)]+[0]*31],kind='object')
+        inventory=[]
+        for name,address in mmu.mmu_status.MMIO:inventory+=constant(0,address,True)+[0xb9400000]
+        writer=words+inventory
+        label('write',0,writer+[0xd51e1000,0xd5033fdf,0xd65f03c0])
+        label('restore',0x400,words+[0xd51ec001,0xd5033fdf,0xd53ec003,0xd65f03c0])
+        capture=words+inventory+[0xd538411e]
+        label('capture',0x800,capture+[0x14000000|((0xc00-0x800-len(capture)*4)//4)])
+        label('park',0xc00,[0xd503205f,0x17ffffff])
+        label('vectors',0x2000,[word for i in range(16) for word in [0x14000000|(((0x800-0x2000-i*128)//4)&0x3ffffff)]+[0]*31],kind='object')
+        label('park_vectors',0x2800,[word for i in range(16) for word in [0x14000000|(((0xc00-0x2800-i*128)//4)&0x3ffffff)]+[0]*31],kind='object')
         text+=['.org 0x4000','.global runtime_exceptions','runtime_exceptions:','.space 2048',
-               '.global fes_nano_mmu_transition_sctlr','.set fes_nano_mmu_transition_sctlr,fes_nano_mmu_transition_write+'+str(len(words)*4),'.type fes_nano_mmu_transition_sctlr,@function','.size fes_nano_mmu_transition_sctlr,8',
+               '.global fes_nano_mmu_transition_sctlr','.set fes_nano_mmu_transition_sctlr,fes_nano_mmu_transition_write+'+str(len(writer)*4),'.type fes_nano_mmu_transition_sctlr,@function','.size fes_nano_mmu_transition_sctlr,8',
                '.global fes_nano_mmu_transition_restore_vbar','.set fes_nano_mmu_transition_restore_vbar,fes_nano_mmu_transition_restore+'+str(len(words)*4),'.type fes_nano_mmu_transition_restore_vbar,@function','.size fes_nano_mmu_transition_restore_vbar,12',
                '.data','.global fes_nano_mmu_transition_saved_vbar','.type fes_nano_mmu_transition_saved_vbar,@object','fes_nano_mmu_transition_saved_vbar:','.quad 0','.size fes_nano_mmu_transition_saved_vbar,8','.section .note.GNU-stack,"",@progbits']
         (base/'fixture.S').write_text('\n'.join(text)+'\n');(base/'fixture.ld').write_text('ENTRY(fixture)\nSECTIONS { . = 0x80000000; .text : { *(.text*) } . = 0x80007000; .data : { *(.data*) } /DISCARD/ : { *(.note*) *(.eh_frame*) } }\n')

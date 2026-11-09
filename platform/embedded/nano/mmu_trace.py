@@ -2,8 +2,9 @@
 import hashlib
 import json
 import re
+import mmu_status
 
-POLICY_SHA='dc537fed6db40246ac14dc114cd6e930a3a5cc39963b1c9f611db82a6758e621'
+POLICY_SHA='63a88df72bbef57b9d11b6b99927e61012df4474c23051a9024fa4adff048e2d'
 CACHE_HELPER_SHA='c16b4d1b6931e6d4d92ac017ba23457ff59d6d5ac9e4279b6c9fb031114b305c'
 FIELDS=('el','midr','mpidr','mmfr0','daif','scr','sctlr','tcr','root','mair','witness')
 ROW=re.compile(r'FES_NANO_EL3_MMU phase=(before|after) '+
@@ -11,7 +12,7 @@ ROW=re.compile(r'FES_NANO_EL3_MMU phase=(before|after) '+
     r' writes=(?P<writes>[0-4]) memory=(?P<memory>[01])')
 STEP=re.compile(r'FES_NANO_EL3_MMU_STEP phase=([a-z-]{1,20}) operation=([0-3])')
 TRANSITION=re.compile(r'FES_NANO_EL3_MMU_TRANSITION phase=(enabled|restored) sctlr=([0-9a-f]{16}) vbar=([0-9a-f]{16})')
-FAULT_FIELDS=('esr','elr','far','spsr','sp','sctlr','tcr','root','mair','scr','vbar')
+FAULT_FIELDS=('esr','elr','far','spsr','sp','sctlr','tcr','root','mair','scr','vbar','sp0')
 FAULT=re.compile(r'FES_NANO_EL3_MMU_FAULT '+' '.join(name+r'=(?P<'+name+r'>[0-9a-f]{16})' for name in FAULT_FIELDS))
 STEPS=(('admit-before',0),('admit-after',0),
     ('barrier-before',0),('barrier-after',0),
@@ -42,6 +43,8 @@ def parameters(proof):
             helper.get('bytes')!=44 or helper.get('sha256')!=CACHE_HELPER_SHA):
         raise ValueError('MMU trace requires the linked SCR-restoring startup helper')
     diagnostic=proof.get('transition_diagnostic') or {}
+    if diagnostic.get('status_inventory')!=mmu_status.SHA:
+        raise ValueError('MMU trace requires the exact read-only status inventory')
     for name in ('write','restore','capture','vectors','park_vectors','park'):
         code=diagnostic.get(name) or {};address=code.get('address');size=code.get('bytes')
         if (type(address) is not int or address&3 or type(size) is not int or size&3 or
@@ -60,24 +63,42 @@ def parameters(proof):
                 vectors=diagnostic['vectors']['address'],runtime_vectors=runtime)
 
 
-def state():return dict(records=[],steps=[],transitions=[],faults=[],valid=True,complete=False,hardware_authority=False)
+def state():return dict(records=[],steps=[],transitions=[],faults=[],status_before=mmu_status.state(),
+                        status_fault=mmu_status.state(),valid=True,complete=False,hardware_authority=False)
 
 
 def observe(s,line,number,expected,*,startup_complete,exit_cache_complete,uboot_seen,prior_valid):
     match=ROW.fullmatch(line);step=STEP.fullmatch(line);transition=TRANSITION.fullmatch(line);fault=FAULT.fullmatch(line)
+    if line.startswith('FES_NANO_EL3_MMU_STATUS'):
+        before=line.startswith('FES_NANO_EL3_MMU_STATUS phase=before ')
+        phase='before' if before else 'fault'
+        permitted=(expected is not None and startup_complete and exit_cache_complete and not uboot_seen and
+                   len(s['records'])==1 and
+                   ((before and len(s['steps'])==15 and s['valid'] and prior_valid and not s['transitions'] and not s['faults']) or
+                    (not before and 15<=len(s['steps'])<=26 and len(s['faults'])==1)))
+        error=mmu_status.observe(s['status_'+phase],line,number,phase) if permitted else 'out-of-phase MMU status inventory'
+        if error:s['valid']=s['complete']=False
+        return error
+    if fault:
+        # An asynchronous fault can interrupt a diagnostic value mid-line.
+        # Preserve one complete fault frame even after that malformed line;
+        # neither the frame nor later status reads can restore admission.
+        if (expected is not None and startup_complete and exit_cache_complete and not uboot_seen and
+                len(s['records'])==1 and 15<=len(s['steps'])<=26 and
+                len(s['transitions'])<=1 and not s['faults']):
+            r={name:int(fault[name],16) for name in FAULT_FIELDS};r.update(line=number,ec=r['esr']>>26&63)
+            r['interrupted_sp']=r['sp0'] if r['spsr']&15==12 else r['sp'] if r['spsr']&15==13 else None
+            s['faults'].append(r)
+        s['valid']=s['complete']=False;return 'terminal EL3 MMU transition fault'
     if (not s['valid'] or expected is None or not prior_valid or
             not startup_complete or not exit_cache_complete or uboot_seen or len(s['records'])>=2):
         s['valid']=s['complete']=False;return 'invalid/unselected/out-of-order EL3 MMU record'
-    if fault:
-        if len(s['records'])==1 and 15<=len(s['steps'])<=26 and len(s['transitions'])<=1:
-            r={name:int(fault[name],16) for name in FAULT_FIELDS};r.update(line=number,ec=r['esr']>>26&63)
-            s['faults'].append(r)
-        s['valid']=s['complete']=False;return 'terminal EL3 MMU transition fault'
     if transition:
         phase=transition[1];sctlr=int(transition[2],16);vbar=int(transition[3],16)
         before=s['records'][0] if s['records'] else {}
         ok=(len(s['records'])==1 and sctlr==before.get('sctlr',0)|0x80005 and
-            ((phase=='enabled' and len(s['steps'])==15 and not s['transitions'] and vbar==expected['vectors']) or
+            ((phase=='enabled' and len(s['steps'])==15 and not s['transitions'] and vbar==expected['vectors'] and
+              s['status_before']['valid'] and s['status_before']['complete']) or
              (phase=='restored' and len(s['steps'])==26 and len(s['transitions'])==1 and vbar==expected['runtime_vectors'])))
         if not ok:s['valid']=s['complete']=False;return 'invalid/out-of-order EL3 MMU transition'
         s['transitions'].append(dict(phase=phase,sctlr=sctlr,vbar=vbar,line=number));return None

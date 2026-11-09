@@ -7,6 +7,7 @@ registers or changes the currently selected cold profile.
 """
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import struct
@@ -18,6 +19,10 @@ DDR_BASE, BL31_LIMIT, DDR_LIMIT = 0x80000000, 0x80200000, 0xc0000000
 NAMES = ('root', 'low', 'ocram', 'gic', 'ddr', 'firmware')
 PREFIX = 'fes_nano_mmu_'
 TABLE_BYTES = len(NAMES) * PAGE
+HERE = Path(__file__).resolve().parent
+_status_spec=importlib.util.spec_from_file_location('fes_mmu_status',HERE.parent/'nano/mmu_status.py')
+mmu_status=importlib.util.module_from_spec(_status_spec)
+_status_spec.loader.exec_module(mmu_status)
 # Match the pinned TF-A v2 EL3 descriptor conventions, including AP[1] RES1.
 AF, AP_RES1, RO, NS, XN = 1 << 10, 1 << 6, 1 << 7, 1 << 5, 1 << 54
 WB = AF | AP_RES1 | (3 << 8)       # Attr0: WB/WA, inner shareable
@@ -30,15 +35,15 @@ CONTRACT = dict(format=1, scope='experimental-el3-static-private-cache-v1',
                 table_bytes=TABLE_BYTES, ddr_limit=DDR_LIMIT,
                 firmware_limit=BL31_LIMIT, runtime_enabled=False,
                 hardware_authority=False)
-RUNTIME_CONTRACT = dict(format=4, scope='matched-cold-el3-private-cache-v4',
+RUNTIME_CONTRACT = dict(format=5, scope='matched-cold-el3-private-cache-v5',
     mair=MAIR, tcr=TCR, table_bytes=TABLE_BYTES, granule=PAGE, va_bits=32, pa_bits=32,
     memory_probe='private-line-clean-invalidate-reread-v1',
     enable_phase='after-startup-cache-maintenance-before-el3-exit',
     single_cpu='a55-cpu0-release-locked',
     boot_steps='admit-register-barrier-private-clean-v1',
-    fault_capture='bounded-register-only-sctlr-transition-v1',
+    fault_capture='bounded-register-only-sctlr-transition-v2',
+    status_inventory=mmu_status.SHA,
     vendor_cache_policy='restore-caller-scr-and-return-v1', hardware_authority=False)
-HERE = Path(__file__).resolve().parent
 LD = 'bl31/bl31.ld.S'
 LD_SHA = 'f6da064e38aa9b19dbab1d82dd427628ee38f83f6d12c0a9a68fd98a2e22177c'
 COMMON_LD = 'include/common/bl_common.ld.h'
@@ -128,6 +133,8 @@ def install(source, profile, ram_binding=None):
     (source/VENDOR_CACHE).write_text(cache)
     (include/'nano_mmu_tables.ld.inc').write_text(linker_fragment())
     files.append(str((include/'nano_mmu_tables.ld.inc').relative_to(source)))
+    (include/'nano_mmu_status.inc').write_text(mmu_status.assembly())
+    files.append(str((include/'nano_mmu_status.inc').relative_to(source)))
     for name in ('nano_mmu.h','nano_mmu_platform.h','nano_mmu_memory.h','nano_mmu_transition.h'):
         (include/name).write_bytes((HERE/name).read_bytes());files.append(str((include/name).relative_to(source)))
     for name in ('nano_mmu.c','nano_mmu_platform.c','nano_mmu_memory.c','nano_mmu_transition.S'):
@@ -212,6 +219,26 @@ def verify_transition(image, symbols, bounds):
                     raise ValueError('MMU transition UART sink or polling bound differs')
             if struct.pack('<I',0x52800000|(384<<5)|17) not in code:
                 raise ValueError('MMU transition UART line budget is missing')
+            if name in ('write','capture'):
+                # Every status MMIO read is an exact reviewed address followed
+                # by a 32-bit read; no acknowledgement or memory-port alias.
+                actual=[]
+                for i,word in enumerate(words):
+                    if word==0xb9400000:
+                        if i<2 or words[i-2]&0xffe0001f!=0xd2800000 or words[i-1]&0xffe0001f!=0xf2a00000:
+                            raise ValueError('MMU status read lacks its fixed address')
+                        actual.append(((words[i-2]>>5)&65535)|(((words[i-1]>>5)&65535)<<16))
+                if actual!=[address for _,address in mmu_status.MMIO]:
+                    raise ValueError('MMU status MMIO read inventory differs')
+            if name=='capture' and struct.pack('<I',0xd538411e) not in code:
+                raise ValueError('MMU fault capture must snapshot interrupted SP_EL0')
+            for word in words:
+                if ((word>>25)&15) in (4,6,12,14) and not(word&(1<<22)):
+                    if word!=0xb9000149 and not(name=='write' and word==0xf9000041):
+                        raise ValueError('MMU diagnostic writes outside its fixed UART/one-use slot')
+                if word&0xfff00000==0xd5100000:
+                    allowed={'write':{0xd51ec001,0xd51e1000},'restore':{0xd51ec001},'capture':{0xd51ec008}}
+                    if word not in allowed[name]:raise ValueError('MMU diagnostic has an unreviewed system-register write')
     for name,expected in (('sctlr',struct.pack('<II',0xd51e1000,0xd5033fdf)),
                           ('restore_vbar',struct.pack('<III',0xd51ec001,0xd5033fdf,0xd53ec003))):
         address,size=symbols.get(prefix+name,(0,0));parent=result['write' if name=='sctlr' else 'restore']
@@ -223,7 +250,7 @@ def verify_transition(image, symbols, bounds):
             saved&7 or size!=8 or not bounds['data_start']<=saved<saved+size<=bounds['data_end'] or
             file_bytes(image,saved,size)[0]!=bytes(8)):
         raise ValueError('MMU transition original vector or one-use saved state differs')
-    return dict(result,runtime_vectors=runtime,saved_vbar=saved,saved_bytes=size,
+    return dict(result,runtime_vectors=runtime,saved_vbar=saved,saved_bytes=size,status_inventory=mmu_status.SHA,
                 uart_data=0x10c02100,uart_status=0x10c02114,uart_polls=100000,uart_bytes=384)
 
 

@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 /* Selected cold-only diagnostic. No stack, C calls, cache-off fallback or
- * owned device access. Fixture builds substitute CPU/UART constants only. */
+ * owned device access. Fixed read-only SoC error status and current RAS bank
+ * are diagnostic only. Fixtures substitute CPU/UART/read targets only. */
+.arch_extension ras
 #ifndef FES_MMU_MIDR
 #define FES_MMU_MIDR 0x412fd050
 #endif
@@ -105,6 +107,8 @@
     mmu_hex \value
 .endm
 
+#include "nano_mmu_status.inc"
+
 .section .text.fes_nano_mmu_transition,"ax"
 .balign 4
 .global fes_nano_mmu_transition_write
@@ -134,6 +138,11 @@ fes_nano_mmu_transition_write:
     adr x1,fes_nano_mmu_transition_vectors
     msr vbar_el3,x1
     isb
+    mov x7,x0
+    mmu_inventory before
+    mov x0,x7
+    mmu_cpu .Lreject
+    mmu_registers .Lreject
 .global fes_nano_mmu_transition_sctlr
 .type fes_nano_mmu_transition_sctlr,%function
 fes_nano_mmu_transition_sctlr:
@@ -229,6 +238,7 @@ fes_nano_mmu_transition_capture:
     mrs x27,mair_el3
     mrs x28,scr_el3
     mrs x29,vbar_el3
+    mrs x30,sp_el0
     /* Consume before any diagnostic read/output. A nested exception parks. */
     adr x8,fes_nano_mmu_transition_park_vectors
     msr vbar_el3,x8
@@ -246,7 +256,9 @@ fes_nano_mmu_transition_capture:
     mmu_field .Lmair,x27
     mmu_field .Lscr,x28
     mmu_field .Lvbar,x29
+    mmu_field .Lsp0,x30
     mmu_text .Lnewline
+    mmu_inventory fault
     b fes_nano_mmu_transition_park
 .size fes_nano_mmu_transition_capture,.-fes_nano_mmu_transition_capture
 
@@ -260,11 +272,12 @@ fes_nano_mmu_transition_park:
 .section .rodata.fes_nano_mmu_transition,"a"
 .Lenabled: .asciz "FES_NANO_EL3_MMU_TRANSITION phase=enabled sctlr="
 .Lrestored: .asciz "FES_NANO_EL3_MMU_TRANSITION phase=restored sctlr="
-.Lfault: .asciz "FES_NANO_EL3_MMU_FAULT esr="
+.Lfault: .asciz "\r\nFES_NANO_EL3_MMU_FAULT esr="
 .Lelr: .asciz " elr="
 .Lfar: .asciz " far="
 .Lspsr: .asciz " spsr="
 .Lsp: .asciz " sp="
+.Lsp0: .asciz " sp0="
 .Lsctlr: .asciz " sctlr="
 .Ltcr: .asciz " tcr="
 .Lroot: .asciz " root="

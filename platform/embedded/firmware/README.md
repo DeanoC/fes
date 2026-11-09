@@ -62,6 +62,19 @@ vector routes, CPU/UART constants, bounds, writes/barriers and one-use data.
 The observer requires both matching transition records as well as all 26 steps;
 a fault remains terminal diagnostic evidence. Injected-platform and actual
 assembly/QEMU checks pass; Nano qualification remains open.
+The format4 board capture now confirms activation followed by an asynchronous
+SError delivered inside `tf_log`. Its FAR is not qualified as a failing address,
+and its raw SP is the handler's SP_EL3. The selected format5 diagnostic now also
+captures SP_EL0 and takes sixteen fixed read-only CCU/OCRAM/ECC observations
+before activation and after a fault. Optional RAS reads cover the current bank
+only, after feature/CPU/count/selector checks; no selector or error status is
+written. Prefixes identify reads that do not return. Nested faults still park.
+The host requires the complete baseline inventory before accepting activation;
+post-fault inventories remain diagnostic and never reopen boot authority.
+Source and ELF checks bind the reviewed addresses, read widths, stack-free code,
+fixed UART bounds and permitted system-register writes. Existing memory/CPU/
+owner/tape logic and its one-second deadline remain. Hardware qualification of
+the new inventory remains open.
 See the [runtime scope checks](../../../docs/validation/2026-11-09-de25-mmu-runtime/README.md).
 
 `nano_tape` is a secure-side initial-tape engine for the existing
