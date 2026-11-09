@@ -1790,3 +1790,19 @@ and timeout stays intact. The bounded phase order is
 boundary records cannot complete the configuration proof. These records locate
 progress and provide no hardware admission authority. The next precise stalled
 call and full launch/return cycle still require physical evidence.
+
+The subsequent `8bc1ed9a9478e26d` hardware trace reached the pre-remapper marker
+without its post-call marker, while FPGA_CONFIG_COMP again succeeded. Actual
+linked descriptors show that the original remapper uses NS Device accesses to
+System Manager. Its exact failed instruction and live firewall setting remain
+unproven. The selected format10 candidate adds one private secure Device/RW/XN
+page at VA `0xa0000` for PA `0x10d12000`, preserving every other descriptor.
+Only the original remapper's one read and two conditional writes select this
+alias when SCTLR_EL3.M is set; before activation they keep their physical
+addresses. All conditions, register values, null-pointer handling, address
+translation, ownership checks and deadlines remain. Source transformation is
+pinned and reversible; final service bytes are checked after compilation. Both
+the firmware inventory and cold-chain identity inventory include the new
+`nano_remapper.py` input. The first off-board candidate exposed an omitted cold
+identity entry; that unprogrammed image is retired and a fresh matched chain is
+required after correcting the inventory. This repair still needs hardware proof.

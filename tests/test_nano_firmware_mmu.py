@@ -136,14 +136,31 @@ bl31_entrypoint: .byte 0
             with self.subTest(address=hex(address)),self.assertRaises(ValueError):
                 mmu.verify_table_bytes(bad,self.bounds)
 
-    def test_only_the_one_private_mailbox_alias_page_is_secure_writable_device(self):
+    def test_only_the_selected_private_device_alias_pages_are_secure_writable(self):
         value=walk(self.image,self.bounds,0x90000)
         self.assertEqual(value,dict(pa=0x10a30000,writable=True,executable=False,ns=False,
                                   attr=1,share=2,accessed=True,ap_res1=True))
         self.assertEqual(walk(self.image,self.bounds,0x90fff)['pa'],0x10a30fff)
-        for address in (0x80000,0x8ffff,0x91000,0xfffff):
+        self.assertEqual(walk(self.image,self.bounds,0xa0000),dict(pa=0x10d12000,writable=True,
+            executable=False,ns=False,attr=1,share=2,accessed=True,ap_res1=True))
+        self.assertEqual(walk(self.image,self.bounds,0xa0fff)['pa'],0x10d12fff)
+        for address in (0x80000,0x8ffff,0x91000,0x9ffff,0xa1000,0xfffff):
             self.assertIsNone(walk(self.image,self.bounds,address))
         self.assert_access(0x10a30000,writable=True,executable=False,ns=True,attr=1)
+        self.assert_access(0x10d12000,writable=True,executable=False,ns=True,attr=1)
+
+    def test_remapper_alias_corruption_and_adjacent_page_widening_are_rejected(self):
+        page,_=mmu.file_bytes(self.image,self.bounds['tables']['ocram'],mmu.PAGE)
+        offset=self.image.find(page);self.assertEqual(offset,self.image.rfind(page))
+        index=0xa0000//mmu.PAGE;word=struct.unpack_from('<Q',page,index*8)[0]
+        for name,replacement in (('unmapped',0),('wrong-page',word+4096),
+                                  ('nonsecure',word|mmu.NS),('readonly',word|mmu.RO),
+                                  ('executable',word&~mmu.XN),('cacheable',word&~4)):
+            bad=bytearray(self.image);struct.pack_into('<Q',bad,offset+index*8,replacement)
+            with self.subTest(name=name),self.assertRaises(ValueError):mmu.verify_table_bytes(bad,self.bounds)
+        for neighbour in (-1,1):
+            bad=bytearray(self.image);struct.pack_into('<Q',bad,offset+(index+neighbour)*8,word)
+            with self.subTest(neighbour=neighbour),self.assertRaises(ValueError):mmu.verify_table_bytes(bad,self.bounds)
 
     def test_mmio_remains_device_and_security_regions_do_not_merge(self):
         for address in (0x10c02100, 0x10d11000, 0x16000000, 0x20010400, 0x3fffffff):
@@ -154,7 +171,7 @@ bl31_entrypoint: .byte 0
                         0xc0000000, 0xffffffff, 0x100000000, -1):
             self.assertIsNone(walk(self.image, self.bounds, address), hex(address))
 
-    def test_only_the_fixed_mailbox_alias_is_nonidentity_and_no_leaf_is_writable_executable(self):
+    def test_only_the_fixed_device_aliases_are_nonidentity_and_no_leaf_is_writable_executable(self):
         # Enumerate leaf entries instead of sampling: all reachable mappings,
         # table pointers, AF/AP RES1, NS and cacheable range coverage are checked.
         pending = [(self.bounds['tables']['root'], 1, 0)]
@@ -175,7 +192,7 @@ bl31_entrypoint: .byte 0
                     pending.append((descriptor & 0x0000fffffffff000, level + 1, address))
                     continue
                 value = walk(self.image, self.bounds, address)
-                self.assertEqual(value['pa'], 0x10a30000 if address==0x90000 else address)
+                self.assertEqual(value['pa'], {0x90000:0x10a30000,0xa0000:0x10d12000}.get(address,address))
                 self.assertFalse(value['writable'] and value['executable'])
                 self.assertTrue(value['accessed'] and value['ap_res1'])
                 if value['attr'] == 0:
