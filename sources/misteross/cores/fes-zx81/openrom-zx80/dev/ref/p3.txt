@@ -1,0 +1,31 @@
+=== K A B C SHIFT+L 1 2 3 NL K A SHIFT+L 5 NL K A SHIFT+U SHIFT+L SHIFT+Y X Y SHIFT+Y NL D B SHIFT+I 3 SHIFT+O NL F I SHIFT+L 1 SHIFT+4 5 NL
+sys: ff 00 fe ff 44 40 00 00 28 40 2e 40 46 40 5d 40 7e 40 02 00 00 2f 40 00 00 00 a2 07 00 00 fb 02 2a 40 00 37 21 17 ff ff
+VARS=4028 E_LINE=402e D_FILE=4046 DF_EA=405d DF_END=407e
+prog:
+vars: 46 27 a8 7b 00 80
+eline: e6 e3 21 30 26 0d e3 01 3d 3e 01 29 27 da 1f d9 2b 2e e3 1d d6 21 b0 76
+screen:
+   0||
+   1||
+   2||
+   3||
+   4||
+   5||
+   6||
+   7||
+   8||
+   9||
+  10||
+  11||
+  12||
+  13||
+  14||
+  15||
+  16||
+  17||
+  18||
+  19||
+  20||
+  21||
+  22||
+  23|LIST [S]=5KA$="XY"DB(3)FI=1 TO 5[L]|
