@@ -33,4 +33,25 @@ The bottom board is excluded. Factory restoration remains waived; the original
 card stays safe. Old host-file cleanup remains paused.
 
 Ordinary package admission, visible display/input and full DE10 appliance
-behavior remain open. This record will be updated with the actual trial result.
+behavior remain open. The actual trial result is recorded below.
+
+
+The trial is terminal: both programming operations and all 13 uploads/readbacks
+passed, as did the MMU/loader/EL1/SD/FAT proof and menu configuration. The menu
+submitted one frame with zero reported underflows. Before Ready or any core
+request, USB keyboard polling reported DWC2 channel error `0x80`; channel-halt
+containment then reached its 500 ms limit. Menu master-stop, reader drain and
+bridge reset closure completed. The recorded selection-to-prewrite delay was
+4,022 ns against a selected 3,740 ns frame window. A stale periodic scheduling
+decision is an investigation lead, not a proven physical root cause.
+
+No tape transfer or core launch was attempted, so this does not qualify the
+new tape policy on hardware. The first-failure stop and two-second passive tail
+were preserved. Independent device cleanup passed: original 15 MHz/auto-adjust
+settings, exact USB permissions, owned server gone and UART free. Firmware
+return and CPU parking were not observed. Candidate `1059bb64e5cac38b` and both
+single-use programming operations are consumed and retired; no retry is allowed.
+
+The next repair is to check periodic USB scheduling against the frame budget
+at actual channel arming, then validate the timing/failure paths off-board and
+build a fresh matched candidate. Full appliance acceptance remains open.

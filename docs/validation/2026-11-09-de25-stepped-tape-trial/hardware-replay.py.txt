@@ -1,0 +1,47 @@
+"""Replay the stopped USB failure without attributing tape or core acceptance."""
+import hashlib,json,re,sys
+from pathlib import Path
+s=Path(__file__).resolve().parent;root=s.parents[1];t=s/'trial';doc=root/'docs/validation/2026-11-09-de25-stepped-tape-trial'
+sys.path[:0]=[str(t),str(root/'platform/embedded/nano')]
+from common import UBOOT,ENTRY,CANDIDATE,sha
+from trial_inputs import shared_policy,expected_uploads_for
+from upload_checks import accept_uploads
+from native_trace import decode_native_boot
+from configuration_trace import extract,START_PHASES
+raw=(t/'native-console.log').read_bytes();n=json.loads((t/'native-result.json').read_text());r=json.loads((t/'experiment-result.json').read_text());cleanup=json.loads((s/'cleanup-evidence.json').read_text());assert cleanup['status']=='passed'
+u=json.loads((UBOOT/'result.json').read_text());e=json.loads((ENTRY/'result.json').read_text());cold=u['native_handoff']['cold_boot_profile'];context=cold['hps_context'];policy=shared_policy(entry=e,cold=cold)
+end=re.search(rb'(?m)^FES_ENTRY EL1 HANDOFF\r?\n',raw);assert end
+boot=decode_native_boot(raw[:end.end()],u['native_handoff']['build_id'],cold['owner_seed'],package=dict(package_id=context['package_id'],payload_sha256=context['core_sha256'],payload_bytes=context['core_size'],build_id=context['build_id']),atf=u['native_handoff']['atf_handoff'],usb_control=True,usb_shared=True,firmware_ram_trace=True,firmware_mmu=u['firmware_mmu_proof'],hps_context=policy['hps_context'],hps_io=policy['hps_io'])
+assert boot==n['boot_trace'] and boot['loader_ready'] and not boot['errors'];mmu=boot['firmware_mmu_trace'];assert mmu['valid'] and mmu['complete'] and not mmu['faults']
+arms=list(re.finditer(rb'(?m)^NOTICE:  FES_NANO_CORE_TRANSFER phase=arm owner=[0-9a-f]+ generation=(\d+)[^\r\n]*\r?\n',raw));assert [int(m[1]) for m in arms]==[4]
+spec=cold['hps_menu_program']['configuration'];cfg=extract(raw[arms[0].start():],spec,generation=4,previous=0,rearm=False,require_programmed=False,require_activation=True)
+assert not cfg['errors'] and cfg['complete'] and cfg['activation'] and cfg['offset']==spec['core_size']
+obs=cfg['start_observation'];assert obs['complete'] and [(x['phase'],x['status']) for x in obs['records']]==[(p,2 if p==7 else 0) for p in START_PHASES]
+fragments=cfg.pop('parts');cfg['unparsed_fragments_sha256']=hashlib.sha256(b''.join(fragments)).hexdigest()
+frames=[json.loads(x.split(b' ',1)[1]) for x in raw.splitlines() if x.startswith(b'FES_NATIVE_MENU_STATE ')]
+assert len(frames)==1 and frames[0]['event']=='frame' and frames[0]['frames']==1 and frames[0]['frame']['Underflows']==0
+states=[json.loads(x.split(b' ',1)[1]) for x in raw.splitlines() if x.startswith(b'FES_NATIVE_TENFOOT_STATE ')]
+assert len(states)==1 and states[0]['loading'] and states[0]['native']['State']=='ready'
+assert not n.get('app_commands') and not n.get('startup_reply') and not n['pass'] and not r['pass']
+assert b'FES_NATIVE_FETCH_STATE ' not in raw and b'FES_NANO_TAPE_FAILURE ' not in raw
+assert b'panic: native program service: reboot required; resources retained' in raw and b'dwc2: channel error 0x80' in raw
+assert b'containment: dwc2: register wait exhausted address=0x500' in raw and b'mask=0x80000000 want=0x0' in raw
+periodic=re.search(rb'periodic_timing=\{sampled=true selected=0x([0-9a-f]+) before=0x([0-9a-f]+) after=0x([0-9a-f]+) select_to_pre_ns=(\d+) window_ns=(\d+)\}',raw);assert periodic
+periodic=dict(selected=int(periodic[1],16),before=int(periodic[2],16),after=int(periodic[3],16),select_to_pre_ns=int(periodic[4]),window_ns=int(periodic[5]))
+assert periodic['select_to_pre_ns']>periodic['window_ns']
+closure=next(x.decode() for x in raw.splitlines() if b'FES_NANO_WINDOW_CLOSURE ' in x);assert 'generation=7 reset=f ' in closure and 'producers_quiescent=1 ' in closure
+master_stop=next(x.decode() for x in raw.splitlines() if b'FES_NANO_MASTER_STOP ' in x);assert 'status=0 ' in master_stop and 'complete=1 ' in master_stop
+reader=next(x.decode() for x in raw.splitlines() if b'FES_NANO_WINDOW_READER_DRAIN ' in x);assert 'status=4 pending=0' in reader
+assert n['passive_failure_tail']['complete'] and n['passive_failure_tail']['bound_seconds']==2
+assert r['total_transport_programming_failures']==2 and not r['incomplete_programming_phases']
+uploads,_,_=accept_uploads(t,expected_uploads_for(CANDIDATE/'native-composition',CANDIDATE,sha),sha(t/'recovery-boot-result.json'),sha);assert len(uploads['return_traces'])==13
+reservations={}
+for name in ('recovery','native'):
+ p=t/(name+'-program-consumed.json');x=json.loads(p.read_text());y=json.loads(p.with_name(p.name+'.scan.json').read_text());assert x['state']=='reserved-before-scan' and y['state']=='consumed-before-programming';reservations[name]=dict(reservation_sha256=sha(p),scan_sha256=sha(p.with_name(p.name+'.scan.json')))
+result=dict(status='physical-menu-first-frame-usb-periodic-channel-failure',source_commit=r['source_commit'],compiled_firmware_source=json.loads((CANDIDATE/'publication.json').read_text())['source_head'],native_boot_id=u['native_handoff']['build_id'],raw_console_replay_matches=True,pass_=False,mmu_memory_proof_complete=True,native_boot_decoder_complete=boot['complete'],secure_loader_verified=n['secure_cold_boot_verified'],el1_handoff=True,sd_fat_started=b'phase=fat_mount_end' in raw,
+ configuration_complete=True,configuration_cycles_observed=1,configuration_proof=cfg,initial_menu_ready=False,menu_frames_observed=1,menu_observations=frames,menu_window_drain_and_closure_observed=True,master_stop=master_stop,reader_drain=reader,window_closure=closure,first_launch_requested=False,core_configured=None,core_running=False,normal_core_return=False,tape_attempted=False,tape_policy_hardware_qualified=False,usb_error_status=128,usb_channel_halt_failed=True,periodic_timing=periodic,final_app_state=states[-1],ordinary_core_load_acceptance=False,physical_display_verified=False,physical_input_verified=False,cleanup=cleanup,programming_reservations=reservations,historical_programming_failures=2,new_programming_failures=0,consumed_image_retired=True,hardware_actions=False,goal_complete=False,
+ interpretation='Both fixed-clock programming operations,13 Ethernet uploads and fresh SD readbacks, private-MMU/loader/EL1/SD/FAT and initial menu configuration passed. One frame was submitted with zero reported underflows. Before Ready or any command, DWC2 keyboard interrupt polling reported channel error0x80, then its500ms channel-halt containment expired. Menu master-stop/reader drain/bridge reset closure completed. The recorded frame-selection-to-prewrite latency4022ns exceeded the selected window3740ns; this supports investigating a stale periodic scheduling decision, but does not prove the exact hardware root cause. No tape request, core launch or ordinary acceptance occurred. First failure terminal+2s passive tail; host detached, firmware return/CPU park unobserved. Device cleanup passed independently.',
+ next_step='Fix periodic endpoint admission to revalidate the actual frame budget at channel arming, preserving endpoint scheduling, bounds and containment. Add hardware-independent timing/failure tests, rebuild a new matched chain and use a fresh single-use trial; do not replay1059bb64e5cac38b.',
+ logs={name:sha(t/name) for name in ('native-console.log','native-result.json','experiment-result.json','uploads/result.json')},error=n['error'])
+result['pass']=result.pop('pass_');(doc/'hardware-result.json').write_text(json.dumps(result,indent=2)+'\n');(s/'hardware-analysis.json').write_text(json.dumps(result,indent=2)+'\n')
+print('PASS terminal raw replay: one menu frame, USB0x80 then failed channel halt; no tape/core attempt; menu closed and device cleanup verified')
