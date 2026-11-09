@@ -24,3 +24,9 @@ The new observations are read-only CCU/OCRAM/ECC and guarded current-bank RAS
 status, before MMU activation and after a fault, plus interrupted SP_EL0.
 Neither clear status nor a complete fault inventory establishes boot permission.
 Full appliance/core-loading acceptance remains open until physically verified.
+
+The [physical result](hardware-result.json) now retains both complete 27-row
+inventories and the interrupted SP_EL0. The [analysis](analysis.md) records the
+same SError after activation, unchanged sampled status with detection controls
+disabled, and successful independent cleanup. The image is consumed and retired;
+it is not a passing core-loading image.
