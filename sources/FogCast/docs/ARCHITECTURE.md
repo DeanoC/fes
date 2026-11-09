@@ -2614,7 +2614,10 @@ parked while a running core owns the display, including after a restart.
 A gamepad or USB keyboard on the kit
 writes raw input frames to `/run/fogcast/local-input.sock` through
 `ui/localfeed` while a runtime core is bound, and does not post those events to
-the host. A pad on another machine is delivered on the host-to-kit input stream
+the host. A kit-host session with a local feed does not require a host
+remote-input attachment to forward its keyboard; display
+transitions, launcher controls and foreign leases still suppress input. A pad on
+another machine is delivered on the host-to-kit input stream
 for the session that owns the play. A missing stream is an error to that
 caller. The kit pad does not fall back onto the host route.
 

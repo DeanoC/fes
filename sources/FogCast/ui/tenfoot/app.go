@@ -3029,6 +3029,12 @@ func (a *App) forwardsPlayHIDLocked() bool {
 	if a.session.State != "active" || a.roomDuringPlay || a.sessionDisplayBusy || a.sessionDisplayUncertain || a.tapePickerOpen || a.firmwarePickerOpen {
 		return false
 	}
+	// Kit-host library sessions use the local socket, not the optional host
+	// remote-input attachment. The same display gate selects that socket in
+	// queuePlayHIDLocked; require a real feed.
+	if a.kitHost && a.client != nil && a.needsSessionDisplayLocked() && a.localFeed != nil {
+		return true
+	}
 	if a.session.Input == nil {
 		return false
 	}
