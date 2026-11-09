@@ -162,7 +162,7 @@ def read_fat12_file(data, first, size):
     return bytes(output[:size]), found
 
 
-def validate_image(data, boot, files):
+def validate_image(data, boot, files, names=FILES):
     """Check the entire fixture, including BPB, original boot code and file chains."""
     if len(data) != SIZE or len(boot) != 512 or boot[-2:] != b'\x55\xaa' or data[510:512] != b'\x55\xaa':
         raise ImageError('invalid floppy image or boot signature')
@@ -176,17 +176,17 @@ def validate_image(data, boot, files):
     if data[512:3*512] != data[3*512:5*512] or data[512:515] != b'\xfd\xff\xff':
         raise ImageError('FAT copies or media marker differ')
     entries = read_root(data)
-    names = [entry[0] for entry in entries]
-    expected_names = [f'{name.split(".")[0]:<8}{name.split(".")[1]:<3}'.encode('ascii') for name in FILES]
-    if names != expected_names:
+    root_names = [entry[0] for entry in entries]
+    expected_names = [f'{name.split(".")[0]:<8}{name.split(".")[1]:<3}'.encode('ascii') for name in names]
+    if root_names != expected_names:
         raise ImageError('root files or kernel-first order differ')
     seen = set()
-    for (raw_name, first, size), name in zip(entries, FILES):
+    for (raw_name, first, size), name in zip(entries, names):
         contents, clusters = read_fat12_file(data, first, size)
         if clusters & seen or contents != files[name]:
             raise ImageError(f'{name} bytes differ or share clusters')
         seen.update(clusters)
-    return {'files': {name: {'size': len(files[name]), 'sha256': digest(files[name])} for name in FILES},
+    return {'files': {name: {'size': len(files[name]), 'sha256': digest(files[name])} for name in names},
             'allocated_clusters': len(seen)}
 
 

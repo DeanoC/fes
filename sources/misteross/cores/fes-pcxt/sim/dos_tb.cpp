@@ -10,6 +10,8 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <csignal>
+#include <sys/prctl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -47,7 +49,7 @@ int main(int argc, char **argv) {
     bool prompt=false, directory=false, frame_complete=false, collecting=false;
     bool restored_prompt_needs_clear=false;
     bool game_launch=false, graphics_mode=false;
-    uint64_t graphics_writes=0, frame_after_cycle=0, com_cycle=0;
+    uint64_t graphics_writes=0, mode_graphics_writes=0, frame_after_cycle=0, com_cycle=0;
     std::vector<unsigned char> frame(1280*720*3);
     unsigned frame_pixels=0;
     auto byte=[&](unsigned a) { return unsigned((ram.words.at(a/2) >> (8*(a&1)))&255); };
@@ -133,7 +135,15 @@ int main(int argc, char **argv) {
                 sector=true;sector_cycle=cycles;
             }
         }
-        if(done && game_launch && wr && kind==0 && addr>=0xb8000 && addr<0xbc000) ++graphics_writes;
+        // graphics_writes starts when the command is typed, so DOS echo,
+        // scrolling and the mode-set clear count too. It only anchors the
+        // capture timing the reference frames were taken with. The evidence
+        // count is mode_graphics_writes: display writes after the game set a
+        // graphics mode.
+        if(done && game_launch && wr && kind==0 && addr>=0xb8000 && addr<0xbc000) {
+            ++graphics_writes;
+            if(graphics_mode)++mode_graphics_writes;
+        }
         if(done && game_launch && wr && kind==1 && (addr&0xffff)==0x3d8 && (data&2)) graphics_mode=true;
         if(done && kind==1) {
             trace<<cycles<<" "<<(wr?'W':'R')<<" "<<std::hex<<addr<<" "<<data<<std::dec<<"\n";
@@ -333,9 +343,14 @@ int main(int argc, char **argv) {
                             uint64_t hold,uint64_t settle) {
             std::cout.flush();std::cerr.flush();
             const uint64_t start=cycles;
+            const pid_t parent=getpid();
             const pid_t child=fork();
             require(child>=0,"fork paired control",cycles);
             if(child==0) {
+                // fork() clears the parent-death signal the runner gave the
+                // simulator; set it again so a killed simulator takes this
+                // control worker with it.
+                if(prctl(PR_SET_PDEATHSIG,SIGKILL)!=0 || getppid()!=parent)_exit(1);
                 while(cycles<start+hold+settle)step();
                 capture_to(name+"-control");
                 _exit(0);
@@ -354,10 +369,11 @@ int main(int argc, char **argv) {
         // after Enter. Compare Right only after that conservative settling period.
         checkpoint("start",40,0x1c,20000000,780000000);
         checkpoint("right",79,0x4d,20000000,100000000);
-        require(graphics_writes>=1000,"game did not draw graphics",cycles);
+        require(mode_graphics_writes>=1000,"game did not draw graphics after its mode set",cycles);
         std::ofstream result("result-pending.json");
         result<<"{\"classification\":\"host simulation, pending screenshot review\","
               <<"\"graphics_mode_cycle\":"<<mode_cycle<<",\"graphics_memory_writes\":"<<graphics_writes
+              <<",\"graphics_writes_after_mode_set\":"<<mode_graphics_writes
               <<",\"post_cycle\":"<<post_cycle<<",\"boot_cycle\":"<<boot_cycle
               <<",\"boot_sector_cycle\":"<<sector_cycle<<",\"prompt_cycle\":"<<prompt_cycle
               <<",\"dir_cycle\":"<<directory_observed_cycle<<",\"cycles\":"<<cycles
