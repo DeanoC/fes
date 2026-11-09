@@ -319,11 +319,12 @@ class Assembler:
                 self.jr_sites.append((index, self.pc - self.float_pc[index], self.value(target), 1))
             to = self.value(target)
             op = 0x20 | CC[lows[0]] << 3 if len(ops) == 2 else 0x18
-            if self.where in self.chains:
-                via = self.chains[self.where][0]
-                if -128 <= via - (self.pc + 2) <= 127 and via in self.jumps_before.get(to, ()):
-                    return [op, (via - (self.pc + 2)) & 0xff]
-                del self.chains[self.where]             # lost: a jp from now on
+            if self.where in self.chains:               # the jump it went by may have
+                for via in sorted(self.jumps_before.get(to, ())):     # moved: any in reach
+                    if via != self.pc and -128 <= via - (self.pc + 2) <= 127:
+                        self.chains[self.where] = (via, to)
+                        return [op, (via - (self.pc + 2)) & 0xff]
+                del self.chains[self.where]             # none: a jp from now on
                 self.long_jumps.add(self.where)
                 self.grew = True
             if self.where not in self.long_jumps:
