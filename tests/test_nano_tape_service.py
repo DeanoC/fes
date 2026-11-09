@@ -38,8 +38,14 @@ class NanoTapeServiceTests(unittest.TestCase):
             with self.subTest(size=size):
                 self.check(0, size)
 
-    def test_service_failures_and_original_deadline(self):
-        for mode in range(101, 116):
+    def test_size_aware_total_progress_cancel_and_mutation(self):
+        for mode in (29, 30, 31, 32, 33):
+            for size in (917, 16375):
+                with self.subTest(mode=mode, size=size):
+                    self.check(mode, size)
+
+    def test_service_failures_and_step_deadline(self):
+        for mode in range(101, 117):
             with self.subTest(mode=mode):
                 self.check(mode)
 
@@ -59,7 +65,7 @@ class NanoTapeServiceTests(unittest.TestCase):
         image = bytes((i * 37 + 11) & 255 for i in range(917))
         digest = hashlib.sha384(image).digest()
         header = bytearray(128)
-        struct.pack_into('<IIIIQQII', header, 0, 0x31505446, 1, 128, len(image),
+        struct.pack_into('<IIIIQQII', header, 0, 0x32505446, 2, 128, len(image),
                          17, 9, 0x82000000, zlib.crc32(image))
         header[40:56] = bytes.fromhex('0123456789abcdef1032547698badcfe')
         header[56:104] = digest

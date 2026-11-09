@@ -89,13 +89,16 @@ type operation struct {
 	ctx                          context.Context
 	start, last                  time.Time
 	name, phase                  string
+	timeout                      time.Duration
+	exchangeStart                time.Time
+	inExchange                   bool
 	offset, opcode, index, polls uint32
 	reads, writes                uint32
 }
 
 func (o *operation) limit(reason string, now time.Time) error {
 	err := fmt.Errorf("%w: reason=%s operation=%s phase=%s elapsed=%s step=%s limit=%s offset=%#x opcode=%d index=%d polls=%d/%d reads=%d writes=%d",
-		ErrLimit, reason, o.name, o.phase, now.Sub(o.start), now.Sub(o.last), o.c.limits.Timeout,
+		ErrLimit, reason, o.name, o.phase, now.Sub(o.start), now.Sub(o.last), o.timeout,
 		o.offset, o.opcode, o.index, o.polls, o.c.limits.MaxPolls, o.reads, o.writes)
 	if timer, ok := o.c.io.(AccessTimer); ok {
 		t := timer.LastAccessTiming()
@@ -113,8 +116,11 @@ func (o *operation) check() error {
 	if now.Before(o.last) {
 		return o.limit("backwards-clock", now)
 	}
-	if now.Sub(o.start) >= o.c.limits.Timeout {
+	if now.Sub(o.start) >= o.timeout {
 		return o.limit("deadline", now)
+	}
+	if o.inExchange && now.Sub(o.exchangeStart) >= o.c.limits.Timeout {
+		return o.limit("ack-deadline", now)
 	}
 	o.last = now
 	return nil
@@ -136,7 +142,7 @@ func (c *Computer) begin(ctx context.Context, name string) (*operation, error) {
 		return nil, err
 	}
 	now := c.limits.Now()
-	return &operation{c: c, ctx: ctx, start: now, last: now, name: name, phase: "begin"}, nil
+	return &operation{c: c, ctx: ctx, start: now, last: now, name: name, phase: "begin", timeout: c.limits.Timeout}, nil
 }
 
 func (o *operation) finish(err error) {
@@ -213,6 +219,11 @@ func (o *operation) stable() (snapshot, error) {
 
 func (o *operation) exchange(opcode, index uint32, argument uint16) (uint16, error) {
 	c := o.c
+	if err := o.check(); err != nil {
+		return 0, err
+	}
+	o.exchangeStart, o.inExchange = o.last, true
+	defer func() { o.inExchange = false }()
 	o.opcode, o.index, o.polls = opcode, index, 0
 	s, err := o.stable()
 	if err != nil {

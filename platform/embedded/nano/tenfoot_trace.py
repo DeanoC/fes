@@ -24,8 +24,21 @@ MAX_BYTES=1<<20
 def fetch_observation(raw):
     def invalid(_):raise ValueError('nonfinite fetch JSON')
     r=json.loads(raw,object_pairs_hook=_unique,parse_constant=invalid)
-    require(type(r) is dict and set(r)=={'scope','owner','generation','package_id','build_id','before','held','running','delta','polls','elapsed_ns','limit_ns'},'fetch observation fields differ')
-    require(r['scope']=='nano-computer-fetch-v1','fetch observation scope differs')
+    base={'scope','owner','generation','package_id','build_id','before','held','running','delta','polls','elapsed_ns','limit_ns'}
+    require(type(r) is dict,'fetch observation must be an object')
+    require(number(r.get('elapsed_ns'),37000000000) and number(r.get('limit_ns'),37000000000),'fetch timer values differ')
+    tape=r.get('scope')=='nano-computer-fetch-tape-v1'
+    if tape:
+        require(base|{'tape_bytes','tape_limit_ns'}<=set(r)<=base|{'tape_bytes','tape_limit_ns','tape_elapsed_ns','control_elapsed_ns'},'tape fetch observation fields differ')
+        require(number(r['tape_bytes'],16375) and r['tape_bytes']>0,'fetch tape size differs')
+        budget=((r['tape_bytes']+511)//512+4)*1000000000
+        require(number(r['tape_limit_ns'],36000000000) and r['tape_limit_ns']==budget and number(r.get('tape_elapsed_ns',0),budget-1),'fetch tape deadline differs')
+        control=r['elapsed_ns']-r.get('tape_elapsed_ns',0)
+        require(number(control,999999999) and number(r.get('control_elapsed_ns',0),999999999) and r.get('control_elapsed_ns',0)==control,'fetch control deadline differs')
+        require(r['limit_ns']==1000000000+budget,'fetch aggregate deadline differs')
+    else:
+        require(set(r)==base and r.get('scope')=='nano-computer-fetch-v1','fetch observation fields/scope differ')
+        require(number(r['limit_ns'],1000000000),'fetch control limit differs')
     require(number(r['owner'],(1<<64)-1) and r['owner']>0 and number(r['generation'],(1<<64)-1) and r['generation']%2==1,'fetch owner/generation differs')
     require(type(r['package_id']) is str and re.fullmatch('[0-9a-f]{64}',r['package_id']) and type(r['build_id']) is str and re.fullmatch('[0-9a-f]{32}',r['build_id']),'fetch identity differs')
     for key in ('before','held','running'):
@@ -33,7 +46,7 @@ def fetch_observation(raw):
     require(r['before']==r['held'],'fetch counter/address changed under Hold')
     delta=(r['running']['Cycles']-r['held']['Cycles'])&0xffffffff
     require(number(r['delta'],0x7fffffff) and 0<delta==r['delta']<=0x7fffffff,'fetch counter did not advance or reset backwards')
-    require(number(r['polls'],64) and r['polls']>0 and number(r['limit_ns'],1000000000) and number(r['elapsed_ns'],1000000000) and r['elapsed_ns']<r['limit_ns'],'fetch deadline/poll bound differs')
+    require(number(r['polls'],64) and r['polls']>0 and number(r['limit_ns'],37000000000) and number(r['elapsed_ns'],37000000000) and r['elapsed_ns']<r['limit_ns'],'fetch deadline/poll bound differs')
     return r
 
 
@@ -253,6 +266,7 @@ class TenfootClient:
                 require(fetch['owner']==self.owner and fetch['generation']==generation+1 and fetch['package_id']==selected['identity']['PackageID'] and fetch['build_id']==selected['identity']['BuildID'],'fetch observation belongs to another launch')
                 complete=raw.find(b'FES_NANO_CORE_TRANSFER phase=complete ')
                 require(complete>=0 and raw.find(FETCH)>complete,'fetch observation precedes FPGA configuration completion')
+                require(fetch.get('tape_bytes',0)==selected.get('tape',{}).get('bytes',0),'fetch tape timing belongs to another media selection')
                 row['fetch']=fetch
                 if 'fetch_address' in selected:
                     require(fetch['running']['Address']==selected['fetch_address'],'selected fetch address differs')

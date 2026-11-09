@@ -280,9 +280,9 @@ static int computer_tape_prepare(uint64_t owner,uint64_t generation,unsigned com
  * Foreign requests and replay do no supplier I/O and cannot reset the object. */
 int fes_nano_platform_computer_tape(uint64_t operation,uint64_t owner,uint64_t generation,uint64_t result[4])
 {
-    unsigned used=computer_tape.used;
+    unsigned failed=computer_tape.failed;
     fes_nano_tape_service_call(&computer_tape,operation,owner,generation,result);
-    return !used && computer_tape.used && computer_tape.failed ? -1 : 0;
+    return !failed && computer_tape.used && computer_tape.failed ? -1 : 0;
 }
 void fes_nano_platform_computer_tape_report(unsigned containment_attempted,int containment_status)
 {

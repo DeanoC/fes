@@ -21,8 +21,9 @@ struct fes_nano_tape_service {
     struct fes_nano_tape_service_ops io;
     struct fes_nano_tape engine;
     uint8_t header[FES_EMBEDDED_TAPE_HEADER_BYTES];
-    uint64_t began,last;
-    unsigned initialized,used,failed,complete;
+    uint64_t began,last,step_began,budget;
+    unsigned sequence;
+    unsigned initialized,used,failed,complete,calling;
     int first_error;
 };
 #ifdef __cplusplus
@@ -32,7 +33,8 @@ int fes_nano_tape_service_init(struct fes_nano_tape_service *,struct fes_nano_ta
     struct fes_nano_tape_ops,uint64_t owner,uint64_t generation,const uint16_t identity[16],uint32_t hz);
 /* Called only after exact FID/cookie decoding under the existing SiP lock.
  * Wrong operation/owner/generation and replay perform no supplier access.
- * Only complete success publishes bytes/generation/GPO/CRC. Any attempted
+ * Pending replies carry verified byte progress/generation/next sequence only.
+ * Only complete success publishes final bytes/generation/GPO/CRC. Any attempted
  * uncertain capture retires; the physical caller owns containment. */
 void fes_nano_tape_service_call(struct fes_nano_tape_service *,uint64_t operation,
     uint64_t owner,uint64_t generation,uint64_t result[4]);

@@ -1,7 +1,7 @@
 schema: mister-packages.v1
 kind: fabric
 id: fes.fabric.embedded.tape
-major: 1
+major: 2
 minor: 0
 description: >-
   Experimental secure initial-tape handoff. A trusted platform selects a fixed
@@ -11,16 +11,21 @@ description: >-
 constants:
   - {name: FesEmbeddedTapeCall, value: 0xc2000304}
   - {name: FesEmbeddedTapeCookie, value: 0x46455354}
-  - {name: FesEmbeddedTapeTag, value: 0x46545031}
+  - {name: FesEmbeddedTapeTag, value: 0x46545032}
   - {name: FesEmbeddedTapeLoad, value: 0}
+  - {name: FesEmbeddedTapeStep, value: 1}
+  - {name: FesEmbeddedTapeAbort, value: 2}
+  - {name: FesEmbeddedTapeSequenceShift, value: 8}
   - {name: FesEmbeddedTapeOK, value: 0}
   - {name: FesEmbeddedTapeRejected, value: 1}
   - {name: FesEmbeddedTapeBusy, value: 2}
   - {name: FesEmbeddedTapeError, value: 3}
   - {name: FesEmbeddedTapeLimit, value: 4}
   - {name: FesEmbeddedTapeNotReady, value: 5}
-  - {name: FesEmbeddedTapeMagic, value: 0x31505446}
-  - {name: FesEmbeddedTapeVersion, value: 1}
+  - {name: FesEmbeddedTapePending, value: 6}
+  - {name: FesEmbeddedTapeCancelled, value: 7}
+  - {name: FesEmbeddedTapeMagic, value: 0x32505446}
+  - {name: FesEmbeddedTapeVersion, value: 2}
   - {name: FesEmbeddedTapeHeaderBytes, value: 128}
   - {name: FesEmbeddedTapeOwnerOffset, value: 16}
   - {name: FesEmbeddedTapeGenerationOffset, value: 24}

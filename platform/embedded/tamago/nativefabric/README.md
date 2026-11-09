@@ -332,7 +332,12 @@ running-session handle. Copies share state, and stale, foreign or concurrent
 requests perform no I/O. Content rejection leaves healthy storage usable. Once
 containment begins, uncertain transfer/control/return/grant failures retain the
 plan, arena and scope and permanently require reboot. Configuration retains its
-20-second bound; computer operations keep their one-second/64-poll limits.
+20-second bound; individual computer exchanges keep their one-second/64-poll
+limits. Initial tape uses bounded preparation/chunk/final firmware calls with
+a file-size budget, yielding and supporting cancellation between calls. Each
+step revalidates the retained descriptor and source; completion alone publishes
+the final GPO/CRC receipt. Control-progress timing excludes only the separately
+bounded tape upload, with both durations reported for taped launches.
 Each transfer owns a private 32 KiB hash scratch buffer. Every existing whole
 and pending-chunk check freshly copies all covered DMA bytes into that buffer
 before hashing; source bytes are checked independently. No prior arena hash

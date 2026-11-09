@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
+	"runtime"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
 	cg "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
@@ -89,17 +90,55 @@ func (a *ConfigurationArena) PublishInitialTape(ctx context.Context, caller Firm
 	if err = ctx.Err(); err != nil {
 		return out, err
 	}
-	r, err := caller.Invoke([7]uint64{uint64(g.FesEmbeddedTapeCall), uint64(g.FesEmbeddedTapeLoad), scope.Owner, uint64(g.FesEmbeddedTapeCookie), scope.Generation})
-	if err != nil {
-		return out, err
+	chunks := (len(request.Image) + 511) / 512
+	sequence := uint64(0)
+	pending := false
+	// A valid pending reply identifies exactly one next step. Local cancel or
+	// mutation can retire it once; an uncertain SMC response is never replayed.
+	defer func() {
+		if pending && err != nil {
+			r, stopErr := caller.Invoke([7]uint64{uint64(g.FesEmbeddedTapeCall), uint64(g.FesEmbeddedTapeAbort) | sequence<<g.FesEmbeddedTapeSequenceShift, scope.Owner, uint64(g.FesEmbeddedTapeCookie), scope.Generation})
+			if stopErr == nil && r != ([4]uint64{uint64(g.FesEmbeddedTapeCancelled), uint64(g.FesEmbeddedTapeTag) << 32}) {
+				stopErr = errors.New("native fabric: initial tape cancellation not acknowledged")
+			}
+			err = errors.Join(err, stopErr)
+		}
+	}()
+	var r [4]uint64
+	for {
+		if err = ctx.Err(); err != nil {
+			return out, err
+		}
+		if !unchanged() {
+			return out, errors.New("native fabric: initial tape source changed between steps")
+		}
+		operation := uint64(g.FesEmbeddedTapeLoad)
+		if sequence != 0 {
+			operation = uint64(g.FesEmbeddedTapeStep) | sequence<<g.FesEmbeddedTapeSequenceShift
+		}
+		pending = false // once issued, this ordinal is uncertain until validated
+		r, err = caller.Invoke([7]uint64{uint64(g.FesEmbeddedTapeCall), operation, scope.Owner, uint64(g.FesEmbeddedTapeCookie), scope.Generation})
+		if err != nil {
+			return out, err
+		}
+		if r[1]>>32 != uint64(g.FesEmbeddedTapeTag) {
+			return out, errors.New("native fabric: unknown initial tape firmware tag")
+		}
+		if r[0] == uint64(g.FesEmbeddedTapeLimit) {
+			return out, fmt.Errorf("%w: secure initial tape limit", computer.ErrLimit)
+		}
+		if r[0] != uint64(g.FesEmbeddedTapePending) {
+			break
+		}
+		progress := min(int(sequence)*512, len(request.Image))
+		if sequence > uint64(chunks) || r[1] != uint64(g.FesEmbeddedTapeTag)<<32|uint64(progress) || r[2] != scope.Generation || r[3] != sequence+1 {
+			return out, errors.New("native fabric: initial tape progress/sequence rejected")
+		}
+		sequence++
+		pending = true
+		runtime.Gosched()
 	}
-	if r[1]>>32 != uint64(g.FesEmbeddedTapeTag) {
-		return out, errors.New("native fabric: unknown initial tape firmware tag")
-	}
-	if r[0] == uint64(g.FesEmbeddedTapeLimit) {
-		return out, fmt.Errorf("%w: secure initial tape limit", computer.ErrLimit)
-	}
-	if r[0] != uint64(g.FesEmbeddedTapeOK) || r[1] != uint64(g.FesEmbeddedTapeTag)<<32|uint64(len(request.Image)) || r[2] != scope.Generation {
+	if r[0] != uint64(g.FesEmbeddedTapeOK) || sequence != uint64(chunks+1) || r[1] != uint64(g.FesEmbeddedTapeTag)<<32|uint64(len(request.Image)) || r[2] != scope.Generation {
 		return out, fmt.Errorf("native fabric: initial tape firmware response rejected (status=%d)", r[0])
 	}
 	receipt := computer.InitialTapeReceipt{GPO: uint32(r[3]), Bytes: uint32(r[1]), CRC32: uint32(r[3] >> 32)}

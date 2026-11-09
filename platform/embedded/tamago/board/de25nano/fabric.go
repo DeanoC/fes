@@ -39,7 +39,9 @@ func deviceMapping(address uint64) (arm64map.Observation, error) {
 func (FabricCPUTransport) Invoke(request [7]uint64) ([4]uint64, error) {
 	switch request[0] {
 	case uint64(g.FesEmbeddedTapeCall):
-		if !profileInitialTapeEnabled || request[1] != uint64(g.FesEmbeddedTapeLoad) || request[2] == 0 || request[4] == 0 ||
+		operation, sequence := request[1]&255, request[1]>>g.FesEmbeddedTapeSequenceShift
+		valid := request[1] == uint64(g.FesEmbeddedTapeLoad) || sequence > 0 && sequence <= 34 && (operation == uint64(g.FesEmbeddedTapeStep) || operation == uint64(g.FesEmbeddedTapeAbort))
+		if !profileInitialTapeEnabled || !valid || request[2] == 0 || request[4] == 0 ||
 			request[3] != uint64(g.FesEmbeddedTapeCookie) || request[5] != 0 || request[6] != 0 {
 			return [4]uint64{}, errors.New("DE25: initial tape call differs from selected fixed service")
 		}

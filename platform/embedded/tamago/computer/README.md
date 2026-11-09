@@ -47,7 +47,13 @@ after all checks pass. Context, clock, altered-source and malformed-receipt
 failures retire without Run, replay or per-CSR fallback. The original `Open`
 keeps the ordinary protocol; ordinary `LoadTape` remains execution-preserving
 even when an initial loader is selected. The native service uses this initial
-operation between its independent held-fetch observations and Run.
+operation between its independent held-fetch observations and Run. Media has a
+size-derived budget of ceil(bytes/512)+4 platform steps; each ordinary GP
+acknowledgement independently retains the original timeout and64-poll bounds.
+The selected secure supplier returns between preparation/chunk/final steps,
+yields to native scheduling and accepts one ordinal-bound cancellation. The
+runtime accounts media time separately from its one-second control/fetch
+allowance. The emulated CPU is not released until the final receipt passes.
 
 The captured RTL check now executes the actual secure-side C engine through
 this API and the native session's injected platform hook. It verifies all bytes,

@@ -317,6 +317,7 @@ class PairedTenfootClient(app.TenfootClient):
                 require(value['owner'] == self.owner and value['generation'] == generation+1 and
                         value['package_id'] == selected['identity']['PackageID'] and
                         value['build_id'] == selected['identity']['BuildID'], 'fetch belongs to another activation')
+                require(value.get('tape_bytes',0)==selected.get('tape',{}).get('bytes',0),'fetch tape timing belongs to another media selection')
                 if 'fetch_address' in selected:
                     require(value['running']['Address'] == selected['fetch_address'], 'selected fetch address differs')
                 source = self.bridge_generation+3

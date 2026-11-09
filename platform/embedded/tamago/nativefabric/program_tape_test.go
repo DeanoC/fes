@@ -18,6 +18,7 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
+	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
 	cg "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 )
@@ -114,7 +115,8 @@ func (c *tapeCPU) WritePhysical32(address uint64, word uint32) error {
 		case "owner":
 			c.base.state.Generation++
 		case "late":
-			*c.now = c.now.Add(time.Second)
+			budget, _ := computer.TapeTransferBudget(len(c.image), time.Second)
+			*c.now = c.now.Add(budget)
 		case "cancel":
 			c.cancel()
 		}
@@ -155,7 +157,10 @@ func testProgramTapeLaunch(t *testing.T, initial bool) {
 	f.loader.boot.cpu = port
 	var platform *serviceInitialTapeCPU
 	if initial {
-		platform = &serviceInitialTapeCPU{tapeCPU: port}
+		now := time.Unix(100, 0)
+		port.now = &now
+		f.s.state.limits.Now = func() time.Time { return now }
+		platform = &serviceInitialTapeCPU{tapeCPU: port, hookFault: "slow-valid"}
 		f.loader.boot.cpu = platform
 	}
 	for cycle, size := range []int{1025, 1, int(cg.FesDe25ComputerZx81TapeMaxBytes)} {
@@ -176,6 +181,12 @@ func testProgramTapeLaunch(t *testing.T, initial bool) {
 		f.s.state.reserve = reserve
 		if err != nil || !bytes.Equal(port.image, want) || !port.ready || port.runs != cycle+1 || port.starts != cycle+1 || port.commits != cycle+1 {
 			t.Fatal("tape/Run ownership", err, port.starts, port.commits, port.runs)
+		}
+		if initial {
+			observation, ok := f.s.FetchObservation()
+			if !ok || observation.TapeElapsedNS != int64(2*time.Second) || observation.ElapsedNS < int64(2*time.Second) || observation.ControlElapsedNS >= int64(time.Second) || observation.TapeBytes != uint32(size) {
+				t.Fatal("separate control/media budgets lost", observation, ok)
+			}
 		}
 		view := f.s.Status()
 		if view.TapeSHA256 != request.Tape.SHA256 || view.TapeBytes != size || f.lease.r.Active {

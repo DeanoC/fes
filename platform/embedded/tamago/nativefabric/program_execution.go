@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
 )
@@ -16,18 +17,22 @@ var ErrProgramExecution = errors.New("native program service: instruction-fetch 
 // emulation fidelity, video or permission to activate another package.
 // All fields are values; callers cannot mutate the service's saved evidence.
 type ProgramFetchObservation struct {
-	Scope      string                 `json:"scope"`
-	Owner      uint64                 `json:"owner"`
-	Generation uint64                 `json:"generation"`
-	PackageID  string                 `json:"package_id"`
-	BuildID    string                 `json:"build_id"`
-	Before     computer.FetchActivity `json:"before"`
-	Held       computer.FetchActivity `json:"held"`
-	Running    computer.FetchActivity `json:"running"`
-	Delta      uint32                 `json:"delta"`
-	Polls      uint32                 `json:"polls"`
-	ElapsedNS  int64                  `json:"elapsed_ns"`
-	LimitNS    int64                  `json:"limit_ns"`
+	Scope            string                 `json:"scope"`
+	Owner            uint64                 `json:"owner"`
+	Generation       uint64                 `json:"generation"`
+	PackageID        string                 `json:"package_id"`
+	BuildID          string                 `json:"build_id"`
+	Before           computer.FetchActivity `json:"before"`
+	Held             computer.FetchActivity `json:"held"`
+	Running          computer.FetchActivity `json:"running"`
+	Delta            uint32                 `json:"delta"`
+	Polls            uint32                 `json:"polls"`
+	ElapsedNS        int64                  `json:"elapsed_ns"`
+	LimitNS          int64                  `json:"limit_ns"`
+	TapeBytes        uint32                 `json:"tape_bytes,omitempty"`
+	TapeElapsedNS    int64                  `json:"tape_elapsed_ns,omitempty"`
+	TapeLimitNS      int64                  `json:"tape_limit_ns,omitempty"`
+	ControlElapsedNS int64                  `json:"control_elapsed_ns,omitempty"`
 }
 
 // FetchObservation returns saved evidence only for this running generation.
@@ -48,10 +53,21 @@ func (s *ProgramService) FetchObservation() (ProgramFetchObservation, bool) {
 }
 
 // Caller holds operation. The entire Hold/two samples/Run/progress sequence
-// shares the existing computer limit; each individual IO retains its own live
+// shares the existing control-time limit, excluding separately bounded media
+// loading. ElapsedNS remains total wall time. Each individual IO retains live
 // CSR/bridge/mapping guards. No uncertain command is replayed.
 func (p *programService) startExecution(ctx context.Context, view ProgramServiceStatus) (ProgramFetchObservation, error) {
 	o := ProgramFetchObservation{Scope: "nano-computer-fetch-v1", Owner: view.Owner, Generation: view.Generation, PackageID: view.Identity.PackageID, BuildID: view.Identity.BuildID, LimitNS: int64(p.limits.Timeout)}
+	if p.plan != nil && p.plan.state != nil && p.plan.state.program != nil && len(p.plan.state.program.tape) != 0 {
+		o.Scope = "nano-computer-fetch-tape-v1"
+		o.TapeBytes = uint32(len(p.plan.state.program.tape))
+		budget, err := computer.TapeTransferBudget(int(o.TapeBytes), p.limits.Timeout)
+		if err != nil {
+			return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
+		}
+		o.TapeLimitNS = int64(budget)
+		o.LimitNS += o.TapeLimitNS
+	}
 	start := p.limits.Now()
 	last := start
 	check := func() error {
@@ -59,7 +75,7 @@ func (p *programService) startExecution(ctx context.Context, view ProgramService
 			return err
 		}
 		now := p.limits.Now()
-		if now.Before(last) || now.Sub(start) >= p.limits.Timeout {
+		if now.Before(last) || now.Sub(start)-time.Duration(o.TapeElapsedNS) >= p.limits.Timeout {
 			return fmt.Errorf("%w: elapsed=%s limit=%s", computer.ErrLimit, now.Sub(start), p.limits.Timeout)
 		}
 		last = now
@@ -95,7 +111,20 @@ func (p *programService) startExecution(ctx context.Context, view ProgramService
 		// SD is contained. Only bytes privately retained and admitted before
 		// configuration reach the existing CRC/ACK media transport. A failure
 		// leaves execution held and retires the owner; no Run or replay follows.
-		if err := run(func() error { return c.LoadInitialTape(ctx, p.plan.state.program.tape) }); err != nil {
+		if err := check(); err != nil {
+			return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
+		}
+		tapeStart := last
+		if err := c.LoadInitialTape(ctx, p.plan.state.program.tape); err != nil {
+			return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
+		}
+		now := p.limits.Now()
+		if now.Before(last) || now.Sub(tapeStart) >= time.Duration(o.TapeLimitNS) {
+			return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, computer.ErrLimit)
+		}
+		o.TapeElapsedNS = int64(now.Sub(tapeStart))
+		last = now
+		if err := check(); err != nil {
 			return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
 		}
 		var held computer.FetchActivity
@@ -120,6 +149,9 @@ func (p *programService) startExecution(ctx context.Context, view ProgramService
 		}
 		if o.Delta != 0 {
 			o.ElapsedNS = int64(last.Sub(start))
+			if o.TapeBytes != 0 {
+				o.ControlElapsedNS = o.ElapsedNS - o.TapeElapsedNS
+			}
 			return o, nil
 		}
 		p.limits.Yield()

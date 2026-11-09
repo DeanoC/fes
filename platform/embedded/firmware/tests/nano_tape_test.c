@@ -36,7 +36,7 @@ static int begin(void *context,uint64_t owner,uint64_t generation,unsigned phase
            (phase==FES_TAPE_CHUNK && offset==m->data_bytes) ||
            (phase==FES_TAPE_FINISH && offset==m->size));
     m->begins++;m->active=1;m->phase=phase;m->offset=offset;
-    if (m->mode==25) m->tick=1000001;
+    if (m->mode==25) m->tick=m->engine.step_began+m->engine.hz;
     return 0;
 }
 static int end(void *context,uint64_t owner,uint64_t generation,unsigned phase,uint32_t offset,unsigned success)
@@ -46,7 +46,7 @@ static int end(void *context,uint64_t owner,uint64_t generation,unsigned phase,u
     m->active=0;
     if (!success) {m->aborts++;return 0;}
     m->ends++;
-    if (m->mode==24 && phase==FES_TAPE_FINISH) m->tick=1000001;
+    if (m->mode==24 && phase==FES_TAPE_FINISH) m->tick=m->engine.step_began+m->engine.hz;
     return m->mode==12 && phase==FES_TAPE_CHUNK ? -1 : 0;
 }
 static int read_reg(void *context,uint32_t offset,uint32_t *v)
@@ -133,9 +133,9 @@ static int image(void *context,uint32_t offset,uint8_t *out,uint32_t count)
 static uint64_t now(void *context)
 {
     struct model *m=context;
-    if (m->mode==14 && m->writes>=48) return 1000001;
+    if (m->mode==14 && m->writes>=48) return m->engine.step_began+m->engine.hz;
     if (m->mode==15 && m->writes>=48) return 0;
-    return ++m->tick;
+    m->tick+=m->mode==29 ? 40 : 1;return m->tick;
 }
 static void barrier(void *context) {(void)context;}
 static void rejected_arguments(struct model *m,struct fes_nano_tape_ops ops,const uint16_t words[16])
@@ -176,7 +176,7 @@ int main(int argc,char **argv)
 {
     assert(argc==3);
     struct model m={0};m.mode=(unsigned)strtoul(argv[1],0,0);m.size=(unsigned)strtoul(argv[2],0,0);
-    assert(m.mode<=28 && m.size && m.size<=sizeof(m.image));
+    assert(m.mode<=32 && m.size && m.size<=sizeof(m.image));
     for (unsigned i=0;i<m.size;i++) m.image[i]=(uint8_t)(i*37+11);
     uint16_t words[]={0x4546,0x3153,1,0,4,1,0,0x803,0x2301,0x6745,0xab89,0xefcd,0x3210,0x7654,0xba98,0xfedc};
     memcpy(m.identity,words,sizeof(words));m.gpo=0x82000000;m.gpi=FES_COMPUTER_SIGNATURE|FES_COMPUTER_ACK_MASK;
@@ -191,9 +191,25 @@ int main(int argc,char **argv)
     if (m.mode==9) expected^=1;
     uint32_t initial=m.gpo;
     if (m.mode==22) initial|=1; /* Run can never enter a tape transaction. */
-    int error=fes_nano_tape_load(&m.engine,17,9,initial,m.size,expected,&receipt);
+    int error;
+    if (m.mode>=29) {
+        uint64_t origin=now(&m);
+        error=fes_nano_tape_start(&m.engine,17,9,initial,m.size,expected,origin,origin);
+        assert(error==FES_TAPE_PENDING && !m.active && m.engine.busy && !memcmp(&receipt,&untouched,sizeof(receipt)));
+        if (m.mode==30) m.tick+=m.engine.hz; /* a legitimate pause, not one step */
+        if (m.mode==31) m.tick=m.engine.began+m.engine.budget;
+        if (m.mode==32) error=fes_nano_tape_abort(&m.engine);
+        while (error==FES_TAPE_PENDING) {
+            error=fes_nano_tape_step(&m.engine,&receipt);
+            assert(!m.active);
+            if (error==FES_TAPE_PENDING) assert(m.engine.busy && !memcmp(&receipt,&untouched,sizeof(receipt)));
+        }
+        if (m.mode==29 || m.mode==30) assert(m.tick-m.engine.began>m.engine.hz);
+        if (m.mode==31) assert(m.engine.first_error==FES_TAPE_LIMIT && !m.data_bytes && !m.commits);
+        if (m.mode==32) assert(m.engine.first_error==FES_TAPE_CANCELLED && !m.data_bytes && !m.commits);
+    } else error=fes_nano_tape_load(&m.engine,17,9,initial,m.size,expected,&receipt);
     assert(!m.active && !m.engine.busy);
-    if (!m.mode) {
+    if (!m.mode ||m.mode==29 ||m.mode==30) {
         assert(!error && m.engine.complete && !m.engine.failed && !m.aborts && m.commits==1);
         assert(receipt.owner==17 && receipt.generation==9 && receipt.bytes==m.size && receipt.crc==expected &&
             receipt.gpo==m.gpo && receipt.fetches==0x1234 && receipt.address==0x4000);

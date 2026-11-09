@@ -39,6 +39,16 @@ class NanoTapeTests(unittest.TestCase):
                 crc = int(re.search(r'crc=([0-9a-f]+)', output).group(1), 16)
                 self.assertEqual(crc, zlib.crc32(bytes((i*37+11) & 255 for i in range(size))))
 
+    def test_stepped_valid_media_can_exceed_one_second_and_releases_each_frame(self):
+        for mode in (29, 30):
+            for size in (917, 16375):
+                with self.subTest(mode=mode, size=size):
+                    self.check(mode, size)
+
+    def test_stepped_total_deadline_and_cancel_do_not_publish_or_run(self):
+        for mode in (31, 32):
+            self.check(mode, 917)
+
     def test_late_faults_never_publish_receipt_run_or_replay(self):
         for mode in range(1, 29):
             with self.subTest(mode=mode):

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"hash/crc32"
+	"time"
 
 	g "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
 )
@@ -18,6 +19,19 @@ type InitialTapeRequest struct {
 	Image      []byte
 	Identity   Identity
 	GPO, CRC32 uint32
+}
+
+// TapeTransferBudget reserves one bounded step per512-byte chunk and four
+// setup/final-control allowances. File size cannot choose an unbounded timer.
+func TapeTransferBudget(size int, step time.Duration) (time.Duration, error) {
+	if size < int(g.FesComputerZx81TapeMinBytes) || size > int(g.FesDe25ComputerZx81TapeMaxBytes) || step <= 0 {
+		return 0, ErrArgument
+	}
+	count := time.Duration((size+511)/512 + 4)
+	if step > time.Duration(1<<63-1)/count {
+		return 0, ErrArgument
+	}
+	return count * step, nil
 }
 
 type InitialTapeReceipt struct{ GPO, Bytes, CRC32 uint32 }
@@ -89,6 +103,10 @@ func (c *Computer) loadTape(ctx context.Context, data []byte, initial bool) (err
 		return err
 	}
 	defer func() { o.finish(err) }()
+	o.timeout, err = TapeTransferBudget(len(data), c.limits.Timeout)
+	if err != nil {
+		return err
+	}
 	if initial && c.gpo & ^g.FesComputerRequestMask != g.FesComputerOpcodeExecution<<24|g.FesComputerControlIndex<<16|g.FesComputerExecutionHoldReset {
 		return ErrProtocol
 	}

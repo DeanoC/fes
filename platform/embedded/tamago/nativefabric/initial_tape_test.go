@@ -63,8 +63,11 @@ func (c *serviceInitialTapeCPU) LoadInitialTape(ctx context.Context, scope Bridg
 		r.Image[0] ^= 1
 	case "cancel":
 		c.cancel()
+	case "slow-valid":
+		*c.now = c.now.Add(2 * time.Second)
 	case "deadline":
-		*c.now = c.now.Add(time.Second)
+		budget, _ := computer.TapeTransferBudget(len(r.Image), time.Second)
+		*c.now = c.now.Add(budget)
 	}
 	return receipt, nil
 }

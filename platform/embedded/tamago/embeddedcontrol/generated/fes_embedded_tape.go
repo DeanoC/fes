@@ -6,16 +6,21 @@ package generated
 const (
 	FesEmbeddedTapeCall             uint32 = 0xc2000304
 	FesEmbeddedTapeCookie           uint32 = 0x46455354
-	FesEmbeddedTapeTag              uint32 = 0x46545031
+	FesEmbeddedTapeTag              uint32 = 0x46545032
 	FesEmbeddedTapeLoad             uint32 = 0x0
+	FesEmbeddedTapeStep             uint32 = 0x1
+	FesEmbeddedTapeAbort            uint32 = 0x2
+	FesEmbeddedTapeSequenceShift    uint32 = 0x8
 	FesEmbeddedTapeOK               uint32 = 0x0
 	FesEmbeddedTapeRejected         uint32 = 0x1
 	FesEmbeddedTapeBusy             uint32 = 0x2
 	FesEmbeddedTapeError            uint32 = 0x3
 	FesEmbeddedTapeLimit            uint32 = 0x4
 	FesEmbeddedTapeNotReady         uint32 = 0x5
-	FesEmbeddedTapeMagic            uint32 = 0x31505446
-	FesEmbeddedTapeVersion          uint32 = 0x1
+	FesEmbeddedTapePending          uint32 = 0x6
+	FesEmbeddedTapeCancelled        uint32 = 0x7
+	FesEmbeddedTapeMagic            uint32 = 0x32505446
+	FesEmbeddedTapeVersion          uint32 = 0x2
 	FesEmbeddedTapeHeaderBytes      uint32 = 0x80
 	FesEmbeddedTapeOwnerOffset      uint32 = 0x10
 	FesEmbeddedTapeGenerationOffset uint32 = 0x18

@@ -123,7 +123,8 @@ after, the acknowledged initial Hold, stable transport snapshots, one toggled
 write per command, bounded ACKs, chunk ordinals/odd padding, CRC before begin and
 commit, final media readiness and unchanged instruction-fetch observations.
 It keeps one 512-byte scratch buffer, uses a qualified timer with a fixed
-one-second operation limit, and never issues Hold/Run, reset or recovery. Failure
+one-second limit per preparation/chunk/final step and a size-derived total
+budget, and never issues Hold/Run, reset or recovery. Failure
 consumes its frame, retires the object and leaves the receipt untouched; the
 caller still owns physical containment. Success returns the new GPO so the
 caller's next command can continue the same protocol epoch.
@@ -138,11 +139,13 @@ is gone. These checks establish protocol/native behavior, not physical timing,
 source-memory ownership or a firmware service grant.
 
 `nano_tape_service` now captures the fixed-window descriptor twice, verifies its
-source digest and private accepted build, and calls that engine under one
-original one-second budget. The start and last timer samples carry across the
-service/engine boundary. A second source digest and complete final ownership
-proof precede publication
-of the receipt; failures and replays expose no success fields. The corresponding
+source digest and private accepted build, and drives that engine with ordinal-bound
+preparation,512-byte chunk and final calls. Every call keeps a one-second bound;
+total elapsed time, including gaps, is limited to ceil(bytes/512)+2 seconds.
+Start/last timer samples remain monotonic across the service/engine and each
+call boundary. Each step revalidates the descriptor/source and closes its frame.
+Pending replies expose verified progress only. A final digest and complete
+ownership proof precede the receipt; failures and replays expose no success fields. The corresponding
 native arena publisher reuses only a completed configuration lease, keeps the
 entire mapping pinned and retires uncertain outcomes. Portable tests join its
 actual Go descriptor and receipt decoder to this C service and endpoint model.

@@ -27,7 +27,7 @@ static int mixed_tape(uint64_t owner,uint64_t generation)
     for(unsigned i=0;i<bytes;i++)configuration_memory[i]=(uint8_t)(i*37+11);
     fes_test_tape_endpoint_init(bytes,build,mixed_mode==38 ? 5:mixed_mode==45 ? 7:0);
     memset(header,0,FES_NANO_PROGRAM_METADATA_BYTES);
-    program_u32(header,FES_EMBEDDED_TAPE_MAGIC);program_u32(header+4,1);program_u32(header+8,128);
+    program_u32(header,FES_EMBEDDED_TAPE_MAGIC);program_u32(header+4,FES_EMBEDDED_TAPE_VERSION);program_u32(header+8,128);
     program_u32(header+12,bytes);program_u64(header+16,owner);program_u64(header+24,generation);
     program_u32(header+32,0x82000000U);program_u32(header+36,mixed_tape_crc(configuration_memory,bytes));
     memcpy(header+40,build,16);
@@ -46,9 +46,19 @@ static int mixed_tape(uint64_t owner,uint64_t generation)
         assert(r[0] && !fes_test_tape_endpoint_accesses());
     }
     fes_nano_owned_call(FES_EMBEDDED_TAPE_CALL,0,owner,FES_EMBEDDED_TAPE_COOKIE,generation,r);
+    if (r[0]==FES_EMBEDDED_TAPE_PENDING && mixed_mode==52) {
+        uint64_t abort=FES_EMBEDDED_TAPE_ABORT|(r[3]<<FES_EMBEDDED_TAPE_SEQUENCE_SHIFT);
+        fes_nano_owned_call(FES_EMBEDDED_TAPE_CALL,abort,owner,FES_EMBEDDED_TAPE_COOKIE,generation,r);
+        assert(r[0]==FES_EMBEDDED_TAPE_CANCELLED);
+    }
+    if (mixed_mode==53) configuration_memory[0]^=1;
+    while (r[0]==FES_EMBEDDED_TAPE_PENDING) {
+        uint64_t step=FES_EMBEDDED_TAPE_STEP|(r[3]<<FES_EMBEDDED_TAPE_SEQUENCE_SHIFT);
+        fes_nano_owned_call(FES_EMBEDDED_TAPE_CALL,step,owner,FES_EMBEDDED_TAPE_COOKIE,generation,r);
+    }
     unsigned failure=mixed_mode==31 ||mixed_mode==33 ||mixed_mode==34 ||mixed_mode==35 ||
         mixed_mode==38 ||mixed_mode==40 ||mixed_mode==41 ||mixed_mode==42 ||mixed_mode==43 ||mixed_mode==44 ||
-        mixed_mode==45 ||mixed_mode==46 ||mixed_mode==47 ||mixed_mode==48 ||mixed_mode==49 ||mixed_mode==50 ||mixed_mode==51;
+        mixed_mode==45 ||mixed_mode==46 ||mixed_mode==47 ||mixed_mode==48 ||mixed_mode==49 ||mixed_mode==50 ||mixed_mode==51 ||mixed_mode==52 ||mixed_mode==53;
     if(failure) {
         assert(r[0] &&r[1]==(uint64_t)FES_EMBEDDED_TAPE_TAG<<32 && !r[2] && !r[3]);
         if(mixed_mode==31 ||mixed_mode==33 ||mixed_mode==34 ||mixed_mode==43 ||(mixed_mode>=47 && mixed_mode<=49))assert(!fes_test_tape_endpoint_accesses());

@@ -1,4 +1,4 @@
-# Experimental initial tape handoff
+# Experimental stepped initial tape handoff
 
 [`fes.fabric.embedded.tape`](../packages/fabric/fes_fabric_embedded_tape.yaml)
 defines the private channel between native publication and a secure initial-tape
@@ -24,8 +24,8 @@ The 128-byte little-endian descriptor is:
 
 | Offset | Bytes | Meaning |
 | --- | --- | --- |
-| 0 | 4 | Magic `0x31505446` |
-| 4 | 4 | Version 1 |
+| 0 | 4 | Magic `0x32505446` |
+| 4 | 4 | Version 2 |
 | 8 | 4 | Header size 128 |
 | 12 | 4 | Payload byte count |
 | 16 | 8 | Boot owner |
@@ -36,25 +36,50 @@ The 128-byte little-endian descriptor is:
 | 56 | 48 | Payload SHA-384 |
 | 104 | 24 | Zero, reserved |
 
-The request registers are `[fid, Load, owner, cookie, generation, 0, 0]`, with
-cookie `0x46455354`. They carry no address, timeout or selected identity.
-Decoding FID/cookie under the secure lifecycle lock remains the dispatcher's
-obligation. The service reads the fixed header twice under fresh ownership
-checks, compares it to private accepted program identity and verifies the
-fixed source digest before calling the real held-transfer engine and again
-before successful completion. Both digest passes remain inside the original
-deadline, rejecting a late source change even after its final chunk was copied.
+The version-2 request registers are `[fid, operation, owner, cookie,
+generation, 0, 0]`, with cookie `0x46455354`. They carry no address, timeout
+or selected identity. `Load=0` begins exactly one transfer. Each pending reply
+supplies the next ordinal; resume uses `Step | (ordinal << 8)`, with `Step=1`.
+`Abort=2` uses the same next ordinal and retires without supplier I/O. Wrong,
+repeated or foreign ordinals do not touch the supplier or consume another step.
+An issued call with an uncertain result is never retried.
 
-Reply registers contain status, `(tag << 32) | bytes`, generation and
-`(crc << 32) | finalGPO`, with tag `0x46545031`. Bytes, generation and GPO/CRC
-are published only on complete success; failure keeps only the tag. No failed
-or successful attempt can be replayed. Wrong operation/owner/generation does
-not access the supplier or consume a fresh eligible service object.
+Each call runs under the existing SiP lifecycle lock. Preparation verifies the
+fixed descriptor, private accepted identity and source digest. Each subsequent
+call rereads that same descriptor and verifies the whole source before any GP
+operation. Another digest and fresh ownership check frame each successful
+return. No source pointer or supplier frame survives a call; the trusted service
+retains its cursor and CRC. Every CSR keeps its fresh before/after CPU, USB,
+reset and ownership checks. The emulated CPU stays held throughout preparation,
+all chunks and final verification.
 
-The original one-second budget covers header capture, digest verification,
-transfer and final ownership proof. The engine receives both the service's
-start time and its last observed timer sample, preserving monotonic checks
-across that boundary. A request cannot supply either timer value.
+A pending reply is `[Pending=6, (tag<<32)|verified_bytes, generation,
+next_ordinal]`. It is progress, not a completion receipt or permission to Run.
+One call prepares, one call transfers each <=512-byte chunk, and one commits
+and checks final identity/readiness/unchanged fetch state. Final success is
+`[OK=0, (tag<<32)|bytes, generation, (crc<<32)|finalGPO]`, with tag `0x46545032`.
+Failures publish only the tag, and acknowledged cancellation is status7.
+The new magic/version/tag reject a mixed old caller/firmware chain.
+
+Each firmware call has a one-second timer bound, including its source and
+ownership checks. Total elapsed time, including time between calls, is bounded
+by `ceil(bytes/512)+2` seconds: at most34s for16375bytes. Qualified timer samples
+remain monotonic across service/engine and call boundaries; a request cannot
+supply or extend them. Every GP acknowledgement also retains its64-poll bound.
+These are cooperative checks around callbacks with bounded return, not a way
+to interrupt a hardware access or SMC that never returns.
+
+The native caller yields between pending replies and can cancel with one
+ordinal-bound abort. Its media budget is `ceil(bytes/512)+4` platform seconds,
+allowing publication and final observation overhead (at most36s on Nano).
+The runtime independently preserves its one-second control-progress allowance
+around Hold/held samples/Run/fetch progress, excluding only the separately
+bounded upload. Tape-enabled fetch diagnostics carry explicit byte count,
+media/control durations and their derived total limit; serial validators bind
+that count to the selected retained media. Non-tape control diagnostics keep
+their existing one-second contract. Normal per-word Go media operations also
+retain an independent one-second acknowledgement deadline inside their size
+budget. No receipt is published until every step and final check succeeds.
 
 Portable tests join the actual Go arena/descriptor codec to the actual C
 service and engine with an injected endpoint, ownership and digest supplier.

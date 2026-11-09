@@ -10,7 +10,7 @@ static int fail(struct fes_nano_tape *s,int error)
 static int clock_ok(struct fes_nano_tape *s)
 {
     uint64_t now=s->io.now(s->io.context);
-    if (now<s->last || now-s->began>=s->hz) return fail(s,FES_TAPE_LIMIT);
+    if (now<s->last || now-s->began>=s->budget || now-s->step_began>=s->hz) return fail(s,FES_TAPE_LIMIT);
     s->last=now;return 0;
 }
 static int check(struct fes_nano_tape *s)
@@ -168,71 +168,124 @@ int fes_nano_tape_init(struct fes_nano_tape *s,struct fes_nano_tape_ops io,
     s->io=io;s->owner=owner;s->generation=generation;s->hz=hz;
     memcpy(s->identity,words,sizeof(s->identity));return 0;
 }
-static int load(struct fes_nano_tape *s,uint64_t owner,uint64_t generation,
-    uint32_t gpo,uint32_t bytes,uint32_t crc,struct fes_nano_tape_receipt *receipt,unsigned started,uint64_t origin,uint64_t previous)
+/* Every return closes the supplier frame. Progress remains private and the
+ * receiver remains held; the next call must re-establish its own live frame. */
+static int leave(struct fes_nano_tape *s,int status)
 {
-    if (!s || !s->initialized || s->failed || !receipt || !owner ||
+    if (s->framed) {
+        s->framed=0;
+        (void)s->io.end(s->io.context,s->owner,s->generation,s->phase,s->frame_offset,0);
+    }
+    s->executing=0;
+    if (s->failed || s->complete) s->busy=0;
+    return s->failed ? s->first_error : status;
+}
+int fes_nano_tape_start(struct fes_nano_tape *s,uint64_t owner,uint64_t generation,
+    uint32_t gpo,uint32_t bytes,uint32_t crc,uint64_t origin,uint64_t previous)
+{
+    if (!s || !s->initialized || s->failed || !owner ||
         owner!=s->owner || generation!=s->generation || bytes<FES_COMPUTER_ZX81_TAPE_MIN_BYTES ||
         bytes>FES_DE25_COMPUTER_ZX81_TAPE_MAX_BYTES ||
         (gpo & ~FES_COMPUTER_REQUEST_MASK)!=(FES_COMPUTER_OPCODE_EXECUTION<<24|
             FES_COMPUTER_CONTROL_INDEX<<16|FES_COMPUTER_EXECUTION_HOLD_RESET)) return FES_TAPE_ARGUMENT;
     if (s->busy) return FES_TAPE_BUSY;
     if (s->used) return FES_TAPE_ARGUMENT;
-    s->busy=s->used=1;s->gpo=gpo;s->bytes=bytes;s->crc=crc;
-    s->last=s->io.now(s->io.context);s->began=started ? origin : s->last;
-    if (s->last<s->began || (started && (previous<origin || s->last<previous)) || s->last-s->began>=s->hz) {fail(s,FES_TAPE_LIMIT);goto out;}
-    if (begin(s,FES_TAPE_PREPARE,0)) goto out;
+    s->busy=s->used=s->executing=1;s->gpo=gpo;s->bytes=bytes;s->crc=crc;
+    s->began=s->step_began=origin;
+    s->budget=(uint64_t)fes_nano_tape_steps(bytes)*s->hz;
+    s->last=s->io.now(s->io.context);
+    if (previous<origin || s->last<previous || clock_ok(s)) {
+        fail(s,FES_TAPE_LIMIT);return leave(s,0);
+    }
+    if (begin(s,FES_TAPE_PREPARE,0)) return leave(s,0);
     struct snapshot initial;
     if (stable(s,&initial) || initial.gpo!=gpo || !acknowledged(&initial) ||
-        (initial.gpi & (FES_COMPUTER_ERROR_MASK|FES_COMPUTER_RESPONSE_MASK))) {fail(s,FES_TAPE_STATE);goto out;}
-    if (fetch(s,&s->fetches,&s->fetch_address) || identity(s) || tape_info(s,0)) goto out;
+        (initial.gpi & (FES_COMPUTER_ERROR_MASK|FES_COMPUTER_RESPONSE_MASK))) {
+        fail(s,FES_TAPE_STATE);return leave(s,0);
+    }
+    if (fetch(s,&s->fetches,&s->fetch_address) || identity(s) || tape_info(s,0)) return leave(s,0);
     uint32_t calculated=UINT32_MAX;
     for (uint32_t offset=0;offset<bytes;) {
         uint32_t count=bytes-offset;if (count>sizeof(s->chunk)) count=sizeof(s->chunk);
-        if (image(s,offset,count)) goto out;
+        if (image(s,offset,count)) return leave(s,0);
         calculated=crc_bytes(calculated,s->chunk,count);offset+=count;
     }
-    if (~calculated!=crc) {fail(s,FES_TAPE_INTEGRITY);goto out;}
-    if (mutate(s,FES_COMPUTER_OPCODE_MEDIA_BEGIN,0,(uint16_t)bytes) ||
-        mutate(s,FES_COMPUTER_OPCODE_MEDIA_BEGIN,1,0) ||
-        mutate(s,FES_COMPUTER_OPCODE_MEDIA_BEGIN,2,(uint16_t)crc) ||
-        mutate(s,FES_COMPUTER_OPCODE_MEDIA_BEGIN,3,(uint16_t)(crc>>16)) || end(s)) goto out;
-    calculated=UINT32_MAX;
-    for (uint32_t offset=0;offset<bytes;) {
-        uint32_t count=bytes-offset;if (count>sizeof(s->chunk)) count=sizeof(s->chunk);
-        if (begin(s,FES_TAPE_CHUNK,offset) || image(s,offset,count)) goto out;
-        calculated=crc_bytes(calculated,s->chunk,count);
+    if (~calculated!=crc) {fail(s,FES_TAPE_INTEGRITY);return leave(s,0);}
+    for (unsigned i=0;i<4;i++) {
+        uint16_t word=i==0 ? (uint16_t)bytes : i==1 ? (uint16_t)(bytes>>16) :
+            i==2 ? (uint16_t)crc : (uint16_t)(crc>>16);
+        if (mutate(s,FES_COMPUTER_OPCODE_MEDIA_BEGIN,i,word)) return leave(s,0);
+    }
+    if (end(s)) return leave(s,0);
+    s->calculated=UINT32_MAX;
+    return leave(s,FES_TAPE_PENDING);
+}
+int fes_nano_tape_step_started(struct fes_nano_tape *s,struct fes_nano_tape_receipt *receipt,
+    uint64_t origin,uint64_t previous)
+{
+    if (!s || !s->initialized || !s->used || !s->busy || s->failed || s->complete || !receipt)
+        return FES_TAPE_ARGUMENT;
+    if (s->executing) return FES_TAPE_BUSY;
+    s->executing=1;
+    uint64_t now=s->io.now(s->io.context);
+    if (previous<s->last || origin>previous || now<previous || now-s->began>=s->budget || now-origin>=s->hz) {
+        fail(s,FES_TAPE_LIMIT);return leave(s,0);
+    }
+    s->last=now;s->step_began=origin;
+    if (s->next<s->bytes) {
+        uint32_t offset=s->next,count=s->bytes-offset;
+        if (count>sizeof(s->chunk)) count=sizeof(s->chunk);
+        if (begin(s,FES_TAPE_CHUNK,offset) || image(s,offset,count)) return leave(s,0);
+        s->calculated=crc_bytes(s->calculated,s->chunk,count);
         if (mutate(s,FES_COMPUTER_OPCODE_MEDIA_CHUNK,0,(uint16_t)offset) ||
             mutate(s,FES_COMPUTER_OPCODE_MEDIA_CHUNK,1,(uint16_t)(offset>>16)) ||
-            mutate(s,FES_COMPUTER_OPCODE_MEDIA_CHUNK,2,(uint16_t)count)) goto out;
+            mutate(s,FES_COMPUTER_OPCODE_MEDIA_CHUNK,2,(uint16_t)count)) return leave(s,0);
         for (uint32_t i=0;i<count;i+=2) {
             uint16_t word=s->chunk[i];if (i+1<count) word|=(uint16_t)s->chunk[i+1]<<8;
-            if (mutate(s,FES_COMPUTER_OPCODE_MEDIA_DATA,i/2,word)) goto out;
+            if (mutate(s,FES_COMPUTER_OPCODE_MEDIA_DATA,i/2,word)) return leave(s,0);
         }
-        if (end(s)) goto out;
-        offset+=count;
+        if (end(s)) return leave(s,0);
+        s->next+=count;
+        return leave(s,FES_TAPE_PENDING);
     }
-    if (begin(s,FES_TAPE_FINISH,bytes)) goto out;
-    if (~calculated!=crc) {fail(s,FES_TAPE_INTEGRITY);goto out;}
+    if (begin(s,FES_TAPE_FINISH,s->bytes)) return leave(s,0);
+    if (~s->calculated!=s->crc) {fail(s,FES_TAPE_INTEGRITY);return leave(s,0);}
     if (mutate(s,FES_COMPUTER_OPCODE_MEDIA_COMMIT,FES_COMPUTER_ZX81_TAPE_UNIT,0) ||
-        tape_info(s,1) || identity(s)) goto out;
+        tape_info(s,1) || identity(s)) return leave(s,0);
     uint32_t fetches,address;
-    if (fetch(s,&fetches,&address)) goto out;
-    if (fetches!=s->fetches || address!=s->fetch_address) {fail(s,FES_TAPE_STATE);goto out;}
-    if (end(s)) goto out;
-    *receipt=(struct fes_nano_tape_receipt){s->owner,s->generation,bytes,crc,s->gpo,fetches,(uint16_t)address};
+    if (fetch(s,&fetches,&address)) return leave(s,0);
+    if (fetches!=s->fetches || address!=s->fetch_address) {fail(s,FES_TAPE_STATE);return leave(s,0);}
+    if (end(s)) return leave(s,0);
+    *receipt=(struct fes_nano_tape_receipt){s->owner,s->generation,s->bytes,s->crc,s->gpo,fetches,(uint16_t)address};
     s->complete=1;
-out:
-    if (s->framed) {
-        s->framed=0;
-        (void)s->io.end(s->io.context,s->owner,s->generation,s->phase,s->frame_offset,0);
-    }
-    s->busy=0;
-    return s->failed ? s->first_error : 0;
+    return leave(s,0);
+}
+int fes_nano_tape_step(struct fes_nano_tape *s,struct fes_nano_tape_receipt *receipt)
+{
+    if (!s || !s->initialized || !s->busy || s->failed || s->complete) return FES_TAPE_ARGUMENT;
+    if (s->executing) return FES_TAPE_BUSY;
+    uint64_t origin=s->io.now(s->io.context);
+    return fes_nano_tape_step_started(s,receipt,origin,origin);
+}
+int fes_nano_tape_abort(struct fes_nano_tape *s)
+{
+    if (!s || !s->used || !s->busy || s->complete || s->failed) return FES_TAPE_ARGUMENT;
+    if (s->executing) return FES_TAPE_BUSY;
+    fail(s,FES_TAPE_CANCELLED);
+    return leave(s,0);
 }
 int fes_nano_tape_load(struct fes_nano_tape *s,uint64_t owner,uint64_t generation,
     uint32_t gpo,uint32_t bytes,uint32_t crc,struct fes_nano_tape_receipt *receipt)
-{return load(s,owner,generation,gpo,bytes,crc,receipt,0,0,0);}
-int fes_nano_tape_load_started(struct fes_nano_tape *s,uint64_t owner,uint64_t generation,
-    uint32_t gpo,uint32_t bytes,uint32_t crc,struct fes_nano_tape_receipt *receipt,uint64_t origin,uint64_t previous)
-{return load(s,owner,generation,gpo,bytes,crc,receipt,1,origin,previous);}
+{
+    if (!s || !s->initialized || !receipt || s->failed || !owner ||
+        owner!=s->owner || generation!=s->generation || bytes<FES_COMPUTER_ZX81_TAPE_MIN_BYTES ||
+        bytes>FES_DE25_COMPUTER_ZX81_TAPE_MAX_BYTES ||
+        (gpo & ~FES_COMPUTER_REQUEST_MASK)!=(FES_COMPUTER_OPCODE_EXECUTION<<24|
+            FES_COMPUTER_CONTROL_INDEX<<16|FES_COMPUTER_EXECUTION_HOLD_RESET)) return FES_TAPE_ARGUMENT;
+    if (s->busy) return FES_TAPE_BUSY;
+    if (s->used) return FES_TAPE_ARGUMENT;
+    uint64_t origin=s->io.now(s->io.context);
+    int error=fes_nano_tape_start(s,owner,generation,gpo,bytes,crc,origin,origin);
+    while (error==FES_TAPE_PENDING) error=fes_nano_tape_step(s,receipt);
+    return error;
+}

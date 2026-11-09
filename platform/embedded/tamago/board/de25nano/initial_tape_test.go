@@ -3,20 +3,17 @@ package de25nano
 
 import (
 	"context"
-	"crypto/sha512"
-	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"hash/crc32"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
 	cg "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
-	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
+	"github.com/DeanoC/fes/platform/embedded/tamago/internal/tapetest"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 )
 
@@ -100,32 +97,9 @@ func TestBoardTapeHookJoinsFixedArenaToActualCService(t *testing.T) {
 			request := computer.InitialTapeRequest{Image: image, GPO: 0x82000000, CRC32: crc32.ChecksumIEEE(image), Identity: computer.Identity{Build: build, Capabilities: cg.FesComputerCapabilityMediaZx81Tape}}
 			scope := nativefabric.BridgeSnapshot{Capabilities: nativefabric.BridgeCapabilities{Mask: 15, ControlMask: 2, HardwareDrainMask: 12, FabricHandshake: nativefabric.FabricHandshakeAbsent}, Owner: 17, Generation: 9, ResetMask: 13, MastersContained: true}
 			base := &tapeCPUFixture{}
-			base.invoke = func(call [7]uint64) ([4]uint64, error) {
-				if call != ([7]uint64{uint64(g.FesEmbeddedTapeCall), 0, 17, uint64(g.FesEmbeddedTapeCookie), 9}) || barriers != 2 {
-					t.Fatal("wrong publication/call", call, barriers)
-				}
-				header := memory[len(memory)-nativefabric.ProgramMetadataBytes:][:128]
-				if binary.LittleEndian.Uint32(header[12:]) != uint32(tc.size) {
-					t.Fatal("descriptor size")
-				}
-				dir := t.TempDir()
-				digest := sha512.Sum384(memory[:tc.size])
-				for name, data := range map[string][]byte{"header": header, "image": memory[:tc.size], "digest": digest[:]} {
-					if err := os.WriteFile(filepath.Join(dir, name), data, 0600); err != nil {
-						t.Fatal(err)
-					}
-				}
-				output, err := exec.Command(binaryPath, fmt.Sprint(tc.mode), fmt.Sprint(tc.size), filepath.Join(dir, "header"), filepath.Join(dir, "image"), filepath.Join(dir, "digest")).CombinedOutput()
-				if err != nil {
-					t.Fatalf("service: %v\n%s", err, output)
-				}
-				var mode, status, tagbytes, generation, gpocrc, writes, reads uint64
-				n, err := fmt.Sscanf(string(output), "PASS tape service mode=%d status=%d tagbytes=%d generation=%d gpocrc=%d writes=%d reads=%d", &mode, &status, &tagbytes, &generation, &gpocrc, &writes, &reads)
-				if n != 7 || err != nil {
-					t.Fatal(string(output), err)
-				}
-				return [4]uint64{status, tagbytes, generation, gpocrc}, nil
-			}
+			base.invoke = tapetest.Caller(t, binaryPath, tc.mode, func() ([]byte, []byte) {
+				return memory[len(memory)-nativefabric.ProgramMetadataBytes:][:128], memory[:tc.size]
+			})
 			cpu, err := selectProgramCPU(base, func() (*nativefabric.ConfigurationArena, error) { return arena, nil }, true, true)
 			if err != nil {
 				t.Fatal(err)
@@ -143,10 +117,11 @@ func TestBoardTapeHookJoinsFixedArenaToActualCService(t *testing.T) {
 					t.Fatal("uncertain lease overwritten")
 				}
 			}
-			if base.calls != 1 || base.reads != 0 || base.writes != 0 {
+			beforeCalls := base.calls
+			if (tc.mode == 0 && base.calls != (tc.size+511)/512+2) || base.calls < 1 || base.reads != 0 || base.writes != 0 {
 				t.Fatal("hook replayed or fell back to per-word CPU I/O", base)
 			}
-			if _, err := cpu.(nativefabric.InitialTapePlatform).LoadInitialTape(context.Background(), scope, request); err == nil || base.calls != 1 {
+			if _, err := cpu.(nativefabric.InitialTapePlatform).LoadInitialTape(context.Background(), scope, request); err == nil || base.calls != beforeCalls {
 				t.Fatal("tape publication replayed")
 			}
 		})

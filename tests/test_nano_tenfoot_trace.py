@@ -162,6 +162,14 @@ class TenfootTraceTests(unittest.TestCase):
         self.assertFalse(result['hardware_acceptance']);count=len(model.keys)
         with self.assertRaises(ValueError):client.key('stop')
         self.assertEqual(count,len(model.keys))
+    def test_tape_timing_has_a_size_budget_and_a_separate_control_limit(self):
+        model=Model();model.service.generation=1
+        old=json.loads(model.fetch()[len(trace.FETCH):])
+        row=dict(old,scope='nano-computer-fetch-tape-v1',tape_bytes=917,tape_elapsed_ns=2000000000,tape_limit_ns=6000000000,control_elapsed_ns=1000000,elapsed_ns=2001000000,limit_ns=7000000000)
+        self.assertEqual(trace.fetch_observation(json.dumps(row)),row)
+        for change in (dict(tape_bytes=16376),dict(tape_limit_ns=7000000000),dict(tape_elapsed_ns=6000000000),dict(control_elapsed_ns=1000000000),dict(elapsed_ns=True),dict(tape_bytes=True),dict(tape_limit_ns=6000000000.0),dict(control_elapsed_ns=1000000.0),dict(scope='nano-computer-fetch-v1'),dict(limit_ns=8000000000)):
+            with self.subTest(change=change),self.assertRaises(ValueError):trace.fetch_observation(json.dumps(dict(row,**change)))
+
     def test_fetch_counter_wrap_and_unsolicited_observations(self):
         model=Model();model.service.generation=1
         record=json.loads(model.fetch()[len(trace.FETCH):])

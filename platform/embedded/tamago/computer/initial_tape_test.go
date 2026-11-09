@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
+	"strings"
 	"testing"
 	"time"
 
@@ -88,7 +89,8 @@ func TestInitialTapeHookFailuresRetireWithoutRunOrFallback(t *testing.T) {
 				case "mutation":
 					request.Image[0] ^= 1
 				case "deadline":
-					now = now.Add(time.Second)
+					budget, _ := TapeTransferBudget(len(request.Image), limit.Timeout)
+					now = now.Add(budget)
 				case "backwards":
 					now = now.Add(-time.Second)
 				case "cancel":
@@ -138,5 +140,23 @@ func TestInitialTapeHookSelectionAndSerialization(t *testing.T) {
 	}
 	if err = c.LoadInitialTape(context.Background(), []byte{1}); err != nil || calls != 1 {
 		t.Fatal(err, calls)
+	}
+}
+
+func TestMediaSizeBudgetKeepsAnIndependentAcknowledgementDeadline(t *testing.T) {
+	f := fixture(wanted())
+	now := time.Unix(100, 0)
+	limit := limits()
+	limit.Now = func() time.Time { return now }
+	c, err := Open(context.Background(), f, limit, wanted())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// MediaInfo's first acknowledgement is deliberately slow. The file's size
+	// budget is several seconds, but one command must still fail at one second.
+	f.readHook = func(uint32) (uint32, error, bool) { now = now.Add(250 * time.Millisecond); return 0, nil, false }
+	err = c.LoadTape(context.Background(), make([]byte, 917))
+	if !errors.Is(err, ErrLimit) || !strings.Contains(err.Error(), "reason=ack-deadline") || !errors.Is(c.Run(context.Background()), ErrRetired) {
+		t.Fatal(err)
 	}
 }
