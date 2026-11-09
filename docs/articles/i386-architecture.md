@@ -128,10 +128,11 @@ puts a step in one stage, this design often uses two.
 
 ## The pipeline
 
-Twelve stages, single issue, in order. An instruction with a memory operand,
-read-modify-write included, goes through once: decode at DC, address at AG,
-load at M1–M2, ALU at EX, store at WB. Complex instructions issue a sequence
-of micro-operations (uops) into the same pipeline
+Twelve stages, single issue, in order. A simple ALU memory read-modify-write
+instruction goes through once: decode at DC, address at AG, load at M1–M2,
+ALU at EX, store at WB. Other memory instructions can issue a sequence of
+micro-operations (uops) into the same pipeline: memory XCHG uses a fixed
+sequence, and memory bit-test/modify instructions use microcode
 ([design, "Microarchitecture"](../../sources/misteross/docs/i386-cpu-design.md#microarchitecture)).
 
 A naming warning: **L1 and L2 below are the two length-decode stages**, not
