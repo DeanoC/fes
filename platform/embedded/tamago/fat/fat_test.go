@@ -2,6 +2,7 @@ package fat
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -231,5 +232,17 @@ func TestMBRPartition(t *testing.T) {
 	got, err := v.ReadFile("FES/CATALOG.JSON")
 	if err != nil || len(got) == 0 {
 		t.Fatalf("partition read %q: %v", got, err)
+	}
+	if err = v.Mkdir(context.Background(), "FES/Partition directory"); err != nil {
+		t.Fatal(err)
+	}
+	name := "FES/Partition directory/New package.fcp"
+	want := bytes.Repeat([]byte("partition data"), 100)
+	if err = v.CreateFile(context.Background(), name, want); err != nil {
+		t.Fatal(err)
+	}
+	got, err = exec.Command("mtype", "-i", partitioned+"@@1048576", "::"+name).CombinedOutput()
+	if err != nil || !bytes.Equal(got, want) {
+		t.Fatal("partition creation readback", string(got), err)
 	}
 }

@@ -259,8 +259,10 @@ address or firmware assumption is a DE25 board constant.
 | Network | Shared IPv4/TCP/HTTP; QEMU VirtIO; Nano XGMAC 2.10 with explicit DMA/PHY profile | Nano RGMII/PHY/cache/SMMU qualification, throughput and qualified entropy |
 | FPGA | Retained-package lifecycle connected to tenfoot Play/Back; source-bound Nano first-load prototype and read-only probes | Physical runtime admission, active drain, repeated launch/return and DMA revocation |
 
-FAT32 writes update existing preallocated files only; they cannot create,
-allocate, rename or atomically replace them. The preference record reserves
+The [FAT32 layer](fat/README.md) updates preallocated files and explicitly creates
+new files/directories with allocation; rename, removal and atomic replacement
+remain unavailable. Creation has host/model and independent readback coverage;
+Nano board writes remain disabled. The preference record reserves
 4096 bytes. TamaGo's default `os` filesystem remains volatile; only the explicit
 `tenfoot.PreferenceStore` backed by this volume persists settings. Native
 Linux tenfoot keeps its existing file-based implementation.

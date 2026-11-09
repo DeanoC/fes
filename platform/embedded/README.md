@@ -11,6 +11,10 @@ explicit write-mode prototype. Host tests cover sector writes, uncertain-write
 retirement, stop/resume and FAT settings persistence with independent readback.
 Current Nano board builds still select read-only access; enabling and physically
 qualifying writes remains separate from the accepted recovery-loader uploads.
+The [FAT32 allocation path](tamago/fat/README.md) now creates files and directories
+without preallocation, with independent mtools readback and real package-store
+retention tests. A native upload/install service and hardware write qualification
+remain separate work.
 
 The current [queued-menu hardware trial](../../docs/validation/2026-11-09-de25-menu-queue-trial/README.md)
 passes ZX81 (+917-byte tape) → menu → ZX80 → menu → ZX81 (+same tape) → menu

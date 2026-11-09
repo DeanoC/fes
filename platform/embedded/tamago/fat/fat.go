@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Package fat mounts an existing FAT32 volume over fixed-sector storage.
-// Reading is general within the bounded boot-volume limits. Writes update an
-// existing, preallocated regular file; allocation, rename and formatting are
-// deliberately not implemented. A successful WriteFile includes device Flush.
+// Reading is general within the bounded boot-volume limits. WriteFile updates
+// preallocated files; CreateFile and Mkdir allocate new entries. Rename, removal
+// and formatting are not implemented. Successful writes include device Flush.
 // It establishes clean-reboot persistence, not power-loss atomicity.
 package fat
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -35,6 +37,10 @@ type Volume struct {
 	clusterCount        uint64
 	sectorsPerCluster   uint32
 	root                uint32
+	fatCopies           []uint64
+	fsInfo              uint64
+	allocationValid     bool
+	mutationErr         error
 }
 
 // Mount accepts a FAT32 superfloppy or one FAT32 MBR partition. Sector size is
@@ -107,11 +113,30 @@ func parseBoot(device block.Device, base, limit uint64, b []byte) (*Volume, erro
 			return nil, fmt.Errorf("%w: active FAT", ErrCorrupt)
 		}
 	}
-	return &Volume{device: device, fatStart: base + reserved + active*fatSectors, dataStart: base + overhead,
-		clusterCount: clusters, sectorsPerCluster: spc, root: root}, nil
+	v := &Volume{device: device, fatStart: base + reserved + active*fatSectors, dataStart: base + overhead,
+		clusterCount: clusters, sectorsPerCluster: spc, root: root, allocationValid: flags & ^uint16(0x8f) == 0}
+	if flags&0x80 != 0 {
+		v.fatCopies = []uint64{v.fatStart}
+	} else {
+		for i := uint64(0); i < fats; i++ {
+			v.fatCopies = append(v.fatCopies, base+reserved+i*fatSectors)
+		}
+	}
+	info := uint64(binary.LittleEndian.Uint16(b[48:]))
+	if info != 0 && info != 0xffff {
+		if info >= reserved {
+			v.allocationValid = false
+		} else {
+			v.fsInfo = base + info
+		}
+	}
+	return v, nil
 }
 
 func (v *Volume) chain(first uint32, limit int) ([]uint32, error) {
+	return v.chainContext(context.Background(), first, limit)
+}
+func (v *Volume) chainContext(ctx context.Context, first uint32, limit int) ([]uint32, error) {
 	if first == 0 {
 		return nil, nil
 	}
@@ -133,6 +158,10 @@ func (v *Volume) chain(first uint32, limit int) ([]uint32, error) {
 		// A FAT sector holds 128 entries. Reuse it only within this locked
 		// chain walk; later opens and storage generations must read it anew.
 		if !sectorLoaded || lba != sectorLBA {
+			runtime.Gosched()
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 			if err := v.device.ReadSectors(lba, sector); err != nil {
 				return nil, err
 			}
@@ -190,7 +219,10 @@ func shortChecksum(b []byte) byte {
 }
 
 func (v *Volume) entries(cluster uint32) ([]entry, error) {
-	chain, err := v.chain(cluster, maxDirectoryBytes)
+	return v.entriesContext(context.Background(), cluster)
+}
+func (v *Volume) entriesContext(ctx context.Context, cluster uint32) ([]entry, error) {
+	chain, err := v.chainContext(ctx, cluster, maxDirectoryBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -205,6 +237,10 @@ func (v *Volume) entries(cluster uint32) ([]entry, error) {
 	for _, c := range chain {
 		for s := uint32(0); s < v.sectorsPerCluster; s++ {
 			sector := v.clusterSector(c) + uint64(s)
+			runtime.Gosched()
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 			if err := v.device.ReadSectors(sector, b); err != nil {
 				return nil, err
 			}
@@ -267,6 +303,9 @@ func (v *Volume) entries(cluster uint32) ([]entry, error) {
 }
 
 func (v *Volume) lookup(name string) (entry, error) {
+	return v.lookupContext(context.Background(), name)
+}
+func (v *Volume) lookupContext(ctx context.Context, name string) (entry, error) {
 	if !fs.ValidPath(name) {
 		return entry{}, fs.ErrInvalid
 	}
@@ -279,7 +318,7 @@ func (v *Volume) lookup(name string) (entry, error) {
 		if current.attributes&16 == 0 {
 			return entry{}, fs.ErrNotExist
 		}
-		items, err := v.entries(current.cluster)
+		items, err := v.entriesContext(ctx, current.cluster)
 		if err != nil {
 			return entry{}, err
 		}
@@ -303,6 +342,9 @@ func (v *Volume) lookup(name string) (entry, error) {
 func (v *Volume) Open(name string) (fs.File, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	if v.mutationErr != nil {
+		return nil, v.mutationErr
+	}
 	e, err := v.lookup(name)
 	if err != nil {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: err}
@@ -351,6 +393,9 @@ func (v *Volume) ReadDir(name string) ([]fs.DirEntry, error) {
 func (v *Volume) WriteFile(name string, data []byte) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	if v.mutationErr != nil {
+		return v.mutationErr
+	}
 	e, err := v.lookup(name)
 	if err != nil {
 		return &fs.PathError{Op: "write", Path: name, Err: err}
@@ -423,6 +468,9 @@ func (f *file) Read(dst []byte) (int, error) {
 	}
 	f.volume.mu.Lock()
 	defer f.volume.mu.Unlock()
+	if f.volume.mutationErr != nil {
+		return 0, f.volume.mutationErr
+	}
 	count := min(len(dst), int(int64(f.entry.size)-f.position))
 	done := 0
 	b := make([]byte, 512)
@@ -447,6 +495,11 @@ func (f *file) ReadDir(n int) ([]fs.DirEntry, error) {
 	}
 	if f.entry.attributes&16 == 0 {
 		return nil, fs.ErrInvalid
+	}
+	f.volume.mu.Lock()
+	defer f.volume.mu.Unlock()
+	if f.volume.mutationErr != nil {
+		return nil, f.volume.mutationErr
 	}
 	if f.position >= int64(len(f.directory)) {
 		if n > 0 {
