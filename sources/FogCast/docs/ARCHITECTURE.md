@@ -3001,9 +3001,13 @@ errors.
 ### FES Home families
 
 The embedded `example.fes-cores` Home room presents computer families and a
-Recently played row. It queries the host library for each family's machine
-entries and titles, and uses `kit.cores` as the readiness source when the host
-has no entry for a model. The v1 release scope shows its fixed families;
+Recently played row. It reads admitted host machines from the existing
+`hardware.computers` projection and uses `kit.cores` for the independent local
+shelf. Selecting a cassette does not remove a host machine from Home. Host
+package, ABI, firmware, media and composition checks remain in that projection;
+library titles do not establish machine readiness. Separate per-family library
+queries count titles without changing the machine or its selected media. The
+v1 release scope shows its fixed families;
 **Show all cores**, available through Settings, `tenfoot.json` `all_cores`, or
 `FOGCAST_TENFOOT_ALL_CORES=1`, adds the remaining families in `systems.lua`
 order and restores the Library and Systems routes. The host Library remains
@@ -3018,9 +3022,9 @@ the recent row is hidden and the family tiles use a list layout.
 
 Home persists focus as `family:<family-id>` or `recent:<game-id>` in its room
 state, so a workbench visit or play return can restore the same destination.
-The opening selection waits for the recent titles, kit inventory and family
-library reads to settle, preventing focus from moving as asynchronous results
-arrive. A Home instance is reused only when its release scope matches the
+The opening selection waits for the recent titles, admitted host machines,
+kit inventory and family library reads to settle, preventing focus from moving
+as asynchronous results arrive. A Home instance is reused only when its release scope matches the
 current setting. Changing Show all cores stays in Settings until it closes,
 then returns Home with an instance built for the new scope.
 

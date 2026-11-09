@@ -2,17 +2,16 @@
 --
 -- The families are systems.families: the four v1 families in a fixed order
 -- (ZX81, Spectrum, Atari ST, C64), then, when the launcher shows all cores,
--- every other registered family. A family's state comes from the library's
--- machine entries (platform "fpga" rows without media) for its models, and
--- its game count from that library's titles with media. When the library
--- has no row for a model, kit.cores says whether it is installed and needs
--- firmware.
+-- every other registered family. A family's state comes from the host's
+-- admitted hardware.computers projection for its models, and its game
+-- count from the library's titles with media. A selected cassette does not
+-- remove a machine from Home. kit.cores supplies the independent local shelf.
 --
--- families.load(on_change) starts the kit and library reads; on_change runs
--- after each answer. families.reload() reads the library again. A room that
--- waits for more than this module sets families.waiting to a function that
--- returns true until its own data has answered; every family is Checking
--- until then.
+-- families.load(on_change) starts the kit, hardware and library reads;
+-- on_change runs after each answer. families.reload() refreshes hardware and
+-- library data. A room that waits for more than this module sets
+-- families.waiting to return true until its own data has answered; every
+-- family is Checking until then.
 
 local systems = require "systems"
 
@@ -89,7 +88,8 @@ M.list = list
 
 -- Data. A table per source; nil while it is still loading.
 local kit_rows = nil   -- core_id -> kit.cores row
-local machines = nil   -- core_id -> library machine entry
+local machines = nil   -- core_id -> admitted host computer
+local hardware_loaded = false
 local titles = nil     -- family id -> number of titles
 local capped = {}      -- family id -> true when its query hit the row limit
 local library_err = nil
@@ -102,9 +102,8 @@ M.waiting = function() return false end
 local function model_state(core_id)
   local lib = machines and machines[core_id]
   if lib then
-    if lib.launchable then return "ready" end
-    if lib.firmware then return "firmware" end
-    return "blocked", lib.block
+    if lib.ready then return "ready" end
+    return "blocked", lib.unavailable_reason ~= "" and lib.unavailable_reason or nil
   end
   local kit_row = kit_rows and kit_rows[core_id]
   if kit_row then
@@ -116,10 +115,10 @@ local function model_state(core_id)
   return "missing"
 end
 
--- Families wait for the library and the kit's list (it says which models
--- are installed when the library has no row for them).
+-- Host machine readiness, title counts and the independent kit shelf all
+-- settle before the opening focus is chosen.
 function M.settled()
-  return not M.waiting() and kit_rows ~= nil and (machines ~= nil or library_err ~= nil)
+  return not M.waiting() and kit_rows ~= nil and hardware_loaded and (titles ~= nil or library_err ~= nil)
 end
 
 -- A family's state ("checking", "ready", "firmware", "missing", "blocked"),
@@ -276,42 +275,41 @@ local function load_kit()
   end)
 end
 
--- What a machine entry's launch block means on a family tile. A missing ROM
--- or system firmware is the firmware state; the rest get a short reason.
-local BLOCKS = {
-  source_offline = "Its library is offline",
-  lease_held = "In use on another screen",
-  version_skew = "Needs a software update",
-}
-
--- A machine entry is a model's catalog row without media.
-local function add_machine(out, g)
-  if out[g.core_id] and out[g.core_id].launchable then return end
-  local block = g.launch_block or ""
-  out[g.core_id] = {
-    game_id = g.id,
-    launchable = block == "",
-    firmware = block == "missing_firmware" or block == "missing_rom",
-    block = BLOCKS[block],
-  }
+-- The host already verifies each computer's package, ABI, firmware, media
+-- and composition. Library titles never stand in for this admission result.
+local hardware_generation = 0
+local function load_hardware()
+  hardware_generation = hardware_generation + 1
+  local gen = hardware_generation
+  hardware.read(function(value, err)
+    if gen ~= hardware_generation then return end
+    machines, hardware_loaded = {}, true
+    if not err then
+      for _, computer in ipairs(value.computers or {}) do
+        if computer.core_id and computer.core_id ~= "" then
+          machines[computer.core_id] = computer
+        end
+      end
+    end
+    on_change()
+  end)
 end
 
--- One query per family, so a large family's titles never push another
--- family's machine entries past the row limit. A title counts once; its
--- editions are siblings of the same title, so only machine entries are
--- looked for among them.
+-- One query per family keeps a large family's titles from consuming another
+-- family's row limit. A title counts once; its editions never add a count.
 local library_generation = 0
 function M.reload()
+  load_hardware()
   library_generation = library_generation + 1
   local gen = library_generation
-  local m, counts, more, waiting, failed = {}, {}, {}, #list, nil
+  local counts, more, waiting, failed = {}, {}, #list, nil
   local function finish()
     waiting = waiting - 1
     if waiting > 0 or gen ~= library_generation then return end
     if failed then
-      machines, titles, capped, library_err = nil, nil, {}, failed
+      titles, capped, library_err = nil, {}, failed
     else
-      machines, titles, capped, library_err = m, counts, more, nil
+      titles, capped, library_err = counts, more, nil
     end
     on_change()
   end
@@ -325,14 +323,9 @@ function M.reload()
         return
       end
       local n = 0
-      local function machine(g)
-        if g.core_id and systems.family_by_core[g.core_id] and (g.media_id or "") == "" then add_machine(m, g) end
-      end
       for _, g in ipairs(games or {}) do
         local family = systems.family_by_core[g.core_id or ""]
         if (g.media_id or "") ~= "" and family and family.id == f.id then n = n + 1 end
-        machine(g)
-        for _, v in ipairs(g.variants or {}) do machine(v) end
       end
       counts[f.id] = n
       more[f.id] = #(games or {}) >= LIBRARY_LIMIT or nil
