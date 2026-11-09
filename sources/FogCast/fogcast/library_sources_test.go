@@ -61,6 +61,8 @@ type remoteSourceFixture struct {
 	objectHandler func(http.ResponseWriter, *http.Request)
 }
 
+const testLibrarySourceToken = "source-test-token-0123456789abcdef"
+
 func newRemoteSourceFixture(t *testing.T, payload []byte, handler func(http.ResponseWriter, *http.Request)) *remoteSourceFixture {
 	t.Helper()
 	ctx := context.Background()
@@ -77,6 +79,10 @@ func newRemoteSourceFixture(t *testing.T, payload []byte, handler func(http.Resp
 	}
 	fixture.firmwareID = fw.MediaID
 	fixture.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer "+testLibrarySourceToken {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
 		switch r.URL.Path {
 		case "/api/v1/library/core-entries":
 			fixture.listing.Add(1)
@@ -97,7 +103,7 @@ func newRemoteSourceFixture(t *testing.T, payload []byte, handler func(http.Resp
 		}
 	}))
 	t.Cleanup(fixture.server.Close)
-	s.librarySources = []LibrarySourceConfig{{ID: "home", URL: fixture.server.URL}}
+	s.librarySources = []LibrarySourceConfig{{ID: "home", URL: fixture.server.URL, Token: testLibrarySourceToken}}
 	result, err := s.RefreshLibrarySource(ctx, "home")
 	if err != nil || len(result.Entries) != 1 {
 		t.Fatalf("refresh = %+v, %v", result, err)
@@ -131,6 +137,14 @@ func newRemoteSourceFixture(t *testing.T, payload []byte, handler func(http.Resp
 	s.pairedTargetClients[s.selectedTarget] = target
 	fixture.target = target
 	return fixture
+}
+
+func TestRemoteSourceWrongTokenFailsCleanly(t *testing.T) {
+	f := newRemoteSourceFixture(t, []byte("a ZX81 tape"), nil)
+	f.service.librarySources[0].Token = "wrong-source-token-0123456789abc"
+	if _, err := f.service.RefreshLibrarySource(context.Background(), "home"); err == nil || strings.Contains(err.Error(), "token") || strings.Contains(err.Error(), "unauthorized") {
+		t.Fatalf("wrong source token error = %v", err)
+	}
 }
 
 func TestRemoteSourceIndexesThenLaunchesAndReplaysOffline(t *testing.T) {

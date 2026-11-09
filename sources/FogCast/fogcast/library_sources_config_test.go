@@ -12,6 +12,7 @@ import (
 )
 
 func TestLibrarySourcesConfigRoundTripAndKitRegeneration(t *testing.T) {
+	token := "source-test-token-0123456789abcdef"
 	root := t.TempDir()
 	template := shippedKitTemplate(t)
 	first, err := KitHostConfig(template, nil, kitHostFixture(root, "old-token", kitHostTestTargetID))
@@ -19,7 +20,8 @@ func TestLibrarySourcesConfigRoundTripAndKitRegeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(root, "config.toml")
-	first = append(first, []byte("\n[[library_sources]]\nid = \"powerboat\"\nurl = \"http://192.0.2.12:8788/\"\n")...)
+	first = append([]byte("library_source_token = \""+token+"\"\n"), first...)
+	first = append(first, []byte("\n[[library_sources]]\nid = \"powerboat\"\nurl = \"http://192.0.2.12:8788/\"\ntoken = \""+token+"\"\n")...)
 	if err := os.WriteFile(path, first, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -27,9 +29,12 @@ func TestLibrarySourcesConfigRoundTripAndKitRegeneration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []LibrarySourceConfig{{ID: "powerboat", URL: "http://192.0.2.12:8788"}}
+	want := []LibrarySourceConfig{{ID: "powerboat", URL: "http://192.0.2.12:8788", Token: token}}
 	if !reflect.DeepEqual(cfg.LibrarySources, want) {
 		t.Fatalf("loaded sources=%+v", cfg.LibrarySources)
+	}
+	if cfg.LibrarySourceToken != token {
+		t.Fatalf("serving token did not load")
 	}
 	// The existing settings writer must preserve source declarations.
 	if err := writeCanonicalConfig(path, cfg.Libraries, cfg.Targets, cfg.SelectedTarget); err != nil {
@@ -44,18 +49,21 @@ func TestLibrarySourcesConfigRoundTripAndKitRegeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := loadRendered(t, restarted)
-	if !reflect.DeepEqual(got.LibrarySources, want) || got.Targets[0].Agent != "new-token" || !got.FolderWatch.Off {
+	if !reflect.DeepEqual(got.LibrarySources, want) || got.LibrarySourceToken != token || got.Targets[0].Agent != "new-token" || !got.FolderWatch.Off {
 		t.Fatalf("after restart sources=%+v target=%+v watch=%+v", got.LibrarySources, got.Targets, got.FolderWatch)
 	}
 }
 
 func TestNormalizeLibrarySourcesRejectsInvalidOriginsAndIDs(t *testing.T) {
-	valid := LibrarySourceConfig{ID: "home-server", URL: "http://192.0.2.1:8788"}
+	token := "source-test-token-0123456789abcdef"
+	valid := LibrarySourceConfig{ID: "home-server", URL: "http://192.0.2.1:8788", Token: token}
 	for _, tc := range []struct {
 		name string
 		in   []LibrarySourceConfig
 	}{
 		{"empty id", []LibrarySourceConfig{{URL: valid.URL}}},
+		{"missing token", []LibrarySourceConfig{{ID: "home", URL: valid.URL}}},
+		{"short token", []LibrarySourceConfig{{ID: "home", URL: valid.URL, Token: "short"}}},
 		{"bad id", []LibrarySourceConfig{{ID: "bad id", URL: valid.URL}}},
 		{"duplicate", []LibrarySourceConfig{valid, valid}},
 		{"relative", []LibrarySourceConfig{{ID: "home", URL: "/source"}}},
@@ -73,7 +81,7 @@ func TestNormalizeLibrarySourcesRejectsInvalidOriginsAndIDs(t *testing.T) {
 			}
 		})
 	}
-	got, err := normalizeLibrarySources([]LibrarySourceConfig{{ID: " home-server ", URL: " http://192.0.2.1:8788/ "}})
+	got, err := normalizeLibrarySources([]LibrarySourceConfig{{ID: " home-server ", URL: " http://192.0.2.1:8788/ ", Token: token}})
 	if err != nil || !reflect.DeepEqual(got, []LibrarySourceConfig{valid}) {
 		t.Fatalf("normalized=%+v err=%v", got, err)
 	}
@@ -86,6 +94,7 @@ func TestSetLibrarySourcesPreservesSettingsAndFailedWrites(t *testing.T) {
 token = "agent-token"
 request_timeout_seconds = 19
 upload_timeout_seconds = 65
+library_source_token = "source-test-token-0123456789abcdef"
 [library]
 attract_idle_seconds = 42
 `
@@ -97,12 +106,12 @@ attract_idle_seconds = 42
 		t.Fatal(err)
 	}
 	s := newService(cfg, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{}, WithConfigPath(path))
-	want := []LibrarySourceConfig{{ID: "home", URL: "http://192.0.2.1:8788"}}
+	want := []LibrarySourceConfig{{ID: "home", URL: "http://192.0.2.1:8788", Token: "source-test-token-0123456789abcdef"}}
 	if err := s.SetLibrarySources(context.Background(), want); err != nil {
 		t.Fatal(err)
 	}
 	loaded, err := LoadConfig(path)
-	if err != nil || !reflect.DeepEqual(loaded.LibrarySources, want) || loaded.Library.AttractIdleSeconds != 42 || loaded.RequestTimeout.Seconds() != 19 || loaded.Token != "agent-token" {
+	if err != nil || !reflect.DeepEqual(loaded.LibrarySources, want) || loaded.LibrarySourceToken != "source-test-token-0123456789abcdef" || loaded.Library.AttractIdleSeconds != 42 || loaded.RequestTimeout.Seconds() != 19 || loaded.Token != "agent-token" {
 		t.Fatalf("loaded=%+v err=%v", loaded, err)
 	}
 	before, err := os.ReadFile(path)

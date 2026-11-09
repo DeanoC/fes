@@ -68,12 +68,19 @@ func TestLibrarySourcesAPI(t *testing.T) {
 	if got := decodeSources(call(http.MethodGet, path, "")); len(got) != 0 {
 		t.Fatalf("initial sources: %+v", got)
 	}
-	want := []fogcast.LibrarySourceConfig{{ID: "powerboat", URL: "http://192.0.2.1:8788"}}
-	body := `{"sources":[{"id":"powerboat","url":"http://192.0.2.1:8788"}]}`
-	if got := decodeSources(call(http.MethodPut, path, body)); !reflect.DeepEqual(got, want) {
+	token := "source-test-token-0123456789abcdef"
+	want := []fogcast.LibrarySourceConfig{{ID: "powerboat", URL: "http://192.0.2.1:8788", Token: token}}
+	redacted := []fogcast.LibrarySourceConfig{{ID: "powerboat", URL: "http://192.0.2.1:8788"}}
+	body := `{"sources":[{"id":"powerboat","url":"http://192.0.2.1:8788","token":"` + token + `"}]}`
+	put := call(http.MethodPut, path, body)
+	if got := decodeSources(put); !reflect.DeepEqual(got, redacted) || strings.Contains(put.Body.String(), token) {
 		t.Fatalf("PUT sources = %+v", got)
 	}
-	if got := decodeSources(call(http.MethodGet, path, "")); !reflect.DeepEqual(got, want) {
+	if !reflect.DeepEqual(s.sources, want) {
+		t.Fatalf("service did not retain source token: %+v", s.sources)
+	}
+	get := call(http.MethodGet, path, "")
+	if got := decodeSources(get); !reflect.DeepEqual(got, redacted) || strings.Contains(get.Body.String(), token) {
 		t.Fatalf("GET sources = %+v", got)
 	}
 	w := call(http.MethodPost, path+"/powerboat/refresh", "")
@@ -81,7 +88,7 @@ func TestLibrarySourcesAPI(t *testing.T) {
 	if w.Code != http.StatusOK || json.Unmarshal(w.Body.Bytes(), &refreshed) != nil || refreshed.SourceID != "powerboat" || refreshed.Skipped != 1 || len(refreshed.Entries) != 1 || refreshed.Entries[0].GameID != "zx81-game" || s.refreshID != "powerboat" {
 		t.Fatalf("refresh: status=%d body=%s called=%q", w.Code, w.Body.String(), s.refreshID)
 	}
-	for _, bad := range []string{`{}`, `{"sources":null}`, `{"sources":`, `{"sources":[{"id":"invalid","url":"http://x"}]}`} {
+	for _, bad := range []string{`{}`, `{"sources":null}`, `{"sources":`, `{"sources":[{"id":"invalid","url":"http://x","token":"` + token + `"}]}`} {
 		w = call(http.MethodPut, path, bad)
 		if w.Code != http.StatusBadRequest || !reflect.DeepEqual(s.sources, want) {
 			t.Fatalf("bad PUT %s: status=%d sources=%+v", bad, w.Code, s.sources)
@@ -104,7 +111,7 @@ func TestLibrarySourcesAPINotExposedOnPairedOrSourceListener(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := hostapi.NewLibrarySourceHandler(&cassetteSource{})
+	source := hostapi.NewLibrarySourceHandler(&cassetteSource{}, launcherToken)
 	for _, tc := range []struct{ method, path, body string }{
 		{http.MethodGet, "/api/v1/library/sources", ""},
 		{http.MethodPut, "/api/v1/library/sources", `{"sources":[]}`},

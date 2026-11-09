@@ -23,8 +23,23 @@ import (
 
 // LibrarySourceConfig names a read-only content source, never an executor.
 type LibrarySourceConfig struct {
-	ID  string `json:"id" toml:"id"`
-	URL string `json:"url" toml:"url"`
+	ID    string `json:"id" toml:"id"`
+	URL   string `json:"url" toml:"url"`
+	Token string `json:"token,omitempty" toml:"token"`
+}
+
+// ValidLibrarySourceToken accepts a private shared bearer token suitable for
+// both listener configuration and client source entries.
+func ValidLibrarySourceToken(token string) bool {
+	if len(token) < 32 || len(token) > 256 {
+		return false
+	}
+	for _, r := range token {
+		if r <= 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 type LibrarySourceRefresh struct {
@@ -49,7 +64,7 @@ func normalizeLibrarySources(raw []LibrarySourceConfig) ([]LibrarySourceConfig, 
 	for _, source := range raw {
 		source.ID, source.URL = strings.TrimSpace(source.ID), strings.TrimSpace(source.URL)
 		u, err := url.Parse(source.URL)
-		if !validLibrarySourceID(source.ID) || seen[source.ID] || err != nil ||
+		if !validLibrarySourceID(source.ID) || seen[source.ID] || !ValidLibrarySourceToken(source.Token) || err != nil ||
 			(u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil ||
 			(u.Path != "" && u.Path != "/") || u.RawPath != "" || u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" {
 			return nil, errors.New("library sources require unique ids and HTTP origins")
@@ -131,6 +146,7 @@ func librarySourceGET(ctx context.Context, source LibrarySourceConfig, path stri
 	if err != nil {
 		return nil, sourceUnavailable()
 	}
+	request.Header.Set("Authorization", "Bearer "+source.Token)
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
 	defer transport.CloseIdleConnections()

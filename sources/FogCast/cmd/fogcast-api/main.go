@@ -1266,6 +1266,10 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		fmt.Fprintln(stderr, "fogcast-api: configuration load failed")
 		return 1
 	}
+	if *sourceListen != "" && !fogcast.ValidLibrarySourceToken(config.LibrarySourceToken) {
+		fmt.Fprintln(stderr, "fogcast-api: library source listener requires a valid library_source_token in the configuration")
+		return 2
+	}
 	if launcherConfig != nil {
 		if launcherConfig.reusesAgentToken(config) {
 			fmt.Fprintln(stderr, "fogcast-api: launcher requires a separate credential: a launcher bearer equals a configured target's agent token")
@@ -1368,7 +1372,7 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 			return 1
 		}
 		defer sourceListener.Close()
-		sourceServer = &http.Server{Handler: hostapi.NewLibrarySourceHandler(source), BaseContext: func(net.Listener) context.Context { return ctx }, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
+		sourceServer = &http.Server{Handler: hostapi.NewLibrarySourceHandler(source, config.LibrarySourceToken), BaseContext: func(net.Listener) context.Context { return ctx }, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 		defer sourceServer.Close()
 		go func() { serveErrors <- sourceServer.Serve(sourceListener) }()
 		serveCount++

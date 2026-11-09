@@ -41,15 +41,23 @@ func (s *cassetteSource) OpenLibrarySourceContent(ctx context.Context, id meshco
 }
 
 func TestLibrarySourceHandlerIsReadOnlyAndUsesExistingWireShapes(t *testing.T) {
+	token := "source-test-token-0123456789abcdef"
 	payload := []byte("zx81 cassette")
 	id := meshcontent.SumSHA256(payload)
 	entry := catalog.CoreEntry{GameID: "zx81-game", Title: "Game", CoreID: "fes.zx81", PackageID: strings.Repeat("a", 64), MediaRole: "cassette", MediaID: id.Digest}
 	source := &cassetteSource{entry: entry, data: payload}
-	server := httptest.NewServer(hostapi.NewLibrarySourceHandler(source))
+	server := httptest.NewServer(hostapi.NewLibrarySourceHandler(source, token))
 	defer server.Close()
-	get := func(path string, expected int) []byte {
+	get := func(path, bearer string, expected int) []byte {
 		t.Helper()
-		response, err := http.Get(server.URL + path)
+		req, err := http.NewRequest(http.MethodGet, server.URL+path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bearer != "" {
+			req.Header.Set("Authorization", "Bearer "+bearer)
+		}
+		response, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -60,28 +68,38 @@ func TestLibrarySourceHandlerIsReadOnlyAndUsesExistingWireShapes(t *testing.T) {
 		}
 		return data
 	}
+	paths := []string{"/api/v1/library/core-entries", "/api/v1/mesh/content/source?id=" + id.String(), "/api/v1/mesh/content/object?id=" + id.String()}
+	for _, path := range paths {
+		for _, bearer := range []string{"", "wrong-source-token-0123456789abcdef"} {
+			body := get(path, bearer, http.StatusUnauthorized)
+			if !bytes.Contains(body, []byte(`"error"`)) || (bearer != "" && bytes.Contains(body, []byte(bearer))) {
+				t.Fatalf("unauthorized response did not use safe JSON error shape: %s", body)
+			}
+		}
+	}
 	var list struct {
 		Entries []catalog.CoreEntry `json:"entries"`
 	}
-	if err := json.Unmarshal(get("/api/v1/library/core-entries", 200), &list); err != nil || len(list.Entries) != 1 || list.Entries[0] != entry {
+	if err := json.Unmarshal(get("/api/v1/library/core-entries", token, 200), &list); err != nil || len(list.Entries) != 1 || list.Entries[0] != entry {
 		t.Fatalf("list=%+v err=%v", list, err)
 	}
-	if got := string(get("/api/v1/mesh/content/source?id="+id.String(), 200)); !strings.Contains(got, `"advertises":true`) {
+	if got := string(get("/api/v1/mesh/content/source?id="+id.String(), token, 200)); !strings.Contains(got, `"advertises":true`) {
 		t.Fatal(got)
 	}
-	if got := get("/api/v1/mesh/content/object?id="+id.String(), 200); !bytes.Equal(got, payload) {
+	if got := get("/api/v1/mesh/content/object?id="+id.String(), token, 200); !bytes.Equal(got, payload) {
 		t.Fatalf("object=%q", got)
 	}
-	get("/api/v1/mesh/content/object?id="+meshcontent.SumSHA256([]byte("firmware")).String(), 404)
-	get("/api/v1/mesh/content/source?id=sha256:bad", 400)
-	get("/api/v1/library/core-entries?extra=1", 400)
-	get("/api/v1/session", 404)
-	get("/api/v1/games", 404)
+	get("/api/v1/mesh/content/object?id="+meshcontent.SumSHA256([]byte("firmware")).String(), token, 404)
+	get("/api/v1/mesh/content/source?id=sha256:bad", token, 400)
+	get("/api/v1/library/core-entries?extra=1", token, 400)
+	get("/api/v1/session", token, 404)
+	get("/api/v1/games", token, 404)
 	for _, method := range []string{http.MethodPost, http.MethodHead, http.MethodDelete} {
 		req, err := http.NewRequest(method, server.URL+"/api/v1/library/core-entries", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
+		req.Header.Set("Authorization", "Bearer "+token)
 		response, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -92,7 +110,7 @@ func TestLibrarySourceHandlerIsReadOnlyAndUsesExistingWireShapes(t *testing.T) {
 		}
 	}
 	source.err = errors.New("private catalog error")
-	if body := get("/api/v1/library/core-entries", 500); bytes.Contains(body, []byte("private")) {
+	if body := get("/api/v1/library/core-entries", token, 500); bytes.Contains(body, []byte("private")) {
 		t.Fatalf("leaked internal error: %s", body)
 	}
 }

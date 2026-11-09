@@ -29,6 +29,7 @@ func (*apiSourceService) OpenLibrarySourceContent(context.Context, meshcontent.C
 }
 
 func TestSourceListenerServesAndShutsDown(t *testing.T) {
+	token := "source-test-token-0123456789abcdef"
 	port, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -36,7 +37,7 @@ func TestSourceListenerServesAndShutsDown(t *testing.T) {
 	address := port.Addr().String()
 	port.Close()
 	configPath := filepath.Join(t.TempDir(), "host.toml")
-	if err := os.WriteFile(configPath, []byte("base_url = \"http://127.0.0.1:8182\"\ntoken = \"test\"\nrequest_timeout_seconds = 12\nupload_timeout_seconds = 60\n"), 0600); err != nil {
+	if err := os.WriteFile(configPath, []byte("base_url = \"http://127.0.0.1:8182\"\ntoken = \"test\"\nlibrary_source_token = \""+token+"\"\nrequest_timeout_seconds = 12\nupload_timeout_seconds = 60\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -53,7 +54,12 @@ func TestSourceListenerServesAndShutsDown(t *testing.T) {
 	url := "http://" + address + "/api/v1/library/core-entries"
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		response, err := client.Get(url)
+		req, requestErr := http.NewRequest(http.MethodGet, url, nil)
+		if requestErr != nil {
+			t.Fatal(requestErr)
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		response, err := client.Do(req)
 		if err == nil {
 			body, _ := io.ReadAll(response.Body)
 			response.Body.Close()
@@ -79,5 +85,21 @@ func TestSourceListenerServesAndShutsDown(t *testing.T) {
 	if response, err := client.Get(url); err == nil {
 		response.Body.Close()
 		t.Fatal("source listener remained open")
+	}
+}
+
+func TestSourceListenerRefusesMissingToken(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "host.toml")
+	if err := os.WriteFile(configPath, []byte("base_url = \"http://127.0.0.1:8182\"\ntoken = \"test\"\nrequest_timeout_seconds = 12\nupload_timeout_seconds = 60\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	opened := false
+	code := runWithComposer(context.Background(), []string{"--config", configPath, "--listen", "127.0.0.1:0", "--source-listen", "0.0.0.0:8790"}, io.Discard, io.Discard,
+		func(context.Context, fogcast.Paths) (service, error) { opened = true; return &apiSourceService{}, nil },
+		func(service, fogcast.Config, bridgeStarterFactory) (http.Handler, func() error, error) {
+			return http.NewServeMux(), func() error { return nil }, nil
+		})
+	if code != 2 || opened {
+		t.Fatalf("missing listener token: exit=%d service_opened=%v", code, opened)
 	}
 }

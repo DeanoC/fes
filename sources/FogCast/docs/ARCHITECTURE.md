@@ -2634,9 +2634,15 @@ listener remains loopback-only.
 ## Remote library sources
 
 A kit can index ZX81 cassettes from a statically configured FogCast source.
-The source starts `fogcast-api --config /absolute/source.toml --headless
---source-listen 0.0.0.0:8790`. Its general API remains on loopback. The separate
-source listener serves only `GET /api/v1/library/core-entries` and the existing
+The source configuration contains a private shared bearer token of 32–256
+characters, and the kit stores the same token in its source entry. The source
+starts `fogcast-api --config /absolute/source.toml --headless
+--source-listen 0.0.0.0:8790`; startup refuses this listener when
+`library_source_token` is missing or invalid. Bind a non-loopback listener only
+on a trusted LAN: this HTTP listener sends the bearer token without transport
+encryption. Its general API remains on loopback. Every source request requires
+`Authorization: Bearer <token>`. The separate source listener serves only
+`GET /api/v1/library/core-entries` and the existing
 `GET /api/v1/mesh/content/source` and `/object` content reads. Its core-entry
 document contains locally owned ZX81 cassette entries with stored media of
 1–16,384 bytes and no expansion selection. It omits firmware bindings and
@@ -2649,10 +2655,15 @@ The kit's canonical configuration preserves static sources across restarts:
 [[library_sources]]
 id = "powerboat"
 url = "http://powerboat:8790"
+token = "replace-with-a-private-random-token-of-at-least-32-characters"
 ```
 
+Set `library_source_token` to the same value in the source host's private
+configuration. Keep both configuration files private. Source settings APIs
+accept tokens on writes and omit them from reads and write responses.
+
 The loopback API exposes `GET` and `PUT /api/v1/library/sources`; PUT takes
-`{"sources":[{"id":"powerboat","url":"http://powerboat:8790"}]}`. An empty
+`{"sources":[{"id":"powerboat","url":"http://powerboat:8790","token":"<shared-token>"}]}`. An empty
 array removes the configuration without deleting saved titles or cached media.
 `POST /api/v1/library/sources/powerboat/refresh` reads the remote core-entry
 document and reports its indexed entries and skipped count. Refresh is explicit;

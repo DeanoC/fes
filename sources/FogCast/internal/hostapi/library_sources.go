@@ -14,6 +14,13 @@ type librarySourceService interface {
 }
 
 func registerLibrarySources(mux *http.ServeMux, service Service) {
+	redactedSources := func(s librarySourceService) []fogcast.LibrarySourceConfig {
+		sources := s.LibrarySources()
+		for i := range sources {
+			sources[i].Token = ""
+		}
+		return sources
+	}
 	withSources := func(fn func(http.ResponseWriter, *http.Request, librarySourceService)) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			s, ok := service.(librarySourceService)
@@ -25,7 +32,7 @@ func registerLibrarySources(mux *http.ServeMux, service Service) {
 		}
 	}
 	mux.HandleFunc("GET /api/v1/library/sources", withSources(func(w http.ResponseWriter, r *http.Request, s librarySourceService) {
-		writeJSON(w, http.StatusOK, map[string]any{"sources": s.LibrarySources()})
+		writeJSON(w, http.StatusOK, map[string]any{"sources": redactedSources(s)})
 	}))
 	mux.HandleFunc("PUT /api/v1/library/sources", withSources(func(w http.ResponseWriter, r *http.Request, s librarySourceService) {
 		var request struct {
@@ -42,7 +49,7 @@ func registerLibrarySources(mux *http.ServeMux, service Service) {
 			writeCoreLibraryError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"sources": s.LibrarySources()})
+		writeJSON(w, http.StatusOK, map[string]any{"sources": redactedSources(s)})
 	}))
 	mux.HandleFunc("POST /api/v1/library/sources/{source_id}/refresh", withSources(func(w http.ResponseWriter, r *http.Request, s librarySourceService) {
 		result, err := s.RefreshLibrarySource(r.Context(), r.PathValue("source_id"))

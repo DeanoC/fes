@@ -2,6 +2,7 @@ package hostapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"io"
 	"net/http"
@@ -19,8 +20,13 @@ type LibrarySourceService interface {
 }
 
 // NewLibrarySourceHandler serves exactly three read-only source operations.
-func NewLibrarySourceHandler(service LibrarySourceService) http.Handler {
+func NewLibrarySourceHandler(service LibrarySourceService, token string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		provided := r.Header.Get("Authorization")
+		if len(token) < 32 || subtle.ConstantTimeCompare([]byte(provided), []byte("Bearer "+token)) != 1 {
+			writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "valid bearer token required")
+			return
+		}
 		if r.Method != http.MethodGet {
 			w.Header().Set("Allow", http.MethodGet)
 			writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "source is read-only")
