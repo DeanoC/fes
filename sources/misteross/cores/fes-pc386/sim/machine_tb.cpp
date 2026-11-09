@@ -688,6 +688,7 @@ public:
     // over a byte so stored before the front end next redirects (and so
     // refetches): the CPU ran the bytes from before the store.
     uint64_t smc_stores = 0, smc_executed = 0;
+    uint64_t store_page_mismatches = 0;  // store bytes whose CPU page is not phys's
     std::set<uint32_t> smc_addresses;
     std::vector<std::string> smc_sites;  // the first stores and executions
     std::function<unsigned(uint32_t linear)> length;  // an instruction's length, from memory
@@ -820,6 +821,12 @@ public:
         const uint32_t block = cpu.trace_fetch_block, waddr = cpu.trace_store_addr & ~3u;
         const uint64_t wdata = cpu.trace_store_data;
         const uint8_t wmask = cpu.trace_store_mask;
+        // The store's physical pages and the walker's A/D store, before the
+        // edge as the store's address is: after it they are the next uop's.
+        const uint32_t wpg0 = cpu.trace_store_pg0, wpg1 = cpu.trace_store_pg1;
+        const bool pw = cpu.trace_pw;
+        const uint32_t pw_addr = cpu.trace_pw_addr;
+        const bool paging = cpu.arch_cr0 >> 31;
         const bool a20m = m.top.a20m;
         const uint32_t current = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
         const uint32_t dma_owner = cpu.trace_smc_open ? 0xffffffffu : current;
@@ -943,13 +950,19 @@ public:
         // nothing.
         if (store && !resetting) {
             const uint32_t next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
-            const bool paging = cpu.arch_cr0 >> 31;
             for (unsigned lane = 0; lane < 8; ++lane) {
                 if (!(wmask >> lane & 1)) continue;
                 const uint32_t lin = waddr + lane;
-                const uint32_t page = ((lin ^ waddr) >> 12) ? cpu.trace_store_pg1 : cpu.trace_store_pg0;
+                const uint32_t page = ((lin ^ waddr) >> 12) ? wpg1 : wpg0;
                 if (page & 0x4000u) continue;  // past the CPU's 64 MiB: a hole
                 const uint32_t at = (page & 0x3fffu) << 12 | (lin & 0xfff);
+                // With paging off the CPU's page is the address through A20:
+                // a page from the wrong uop or edge shows here first.
+                if (!paging && at != physical(lin, a20m)) {
+                    if (store_page_mismatches++ == 0 && smc_sites.size() < 24)
+                        smc_sites.push_back(site("page", lin, at));
+                    continue;
+                }
                 if (at >= RAM_BYTES || m.mmio_range(at)) continue;
                 dirty[at >> 12] = true;
                 if (paging) continue;
@@ -962,7 +975,7 @@ public:
             }
         }
         // The page walker's A/D store.
-        if (cpu.trace_pw && !resetting && cpu.trace_pw_addr < RAM_BYTES) dirty[cpu.trace_pw_addr >> 12] = true;
+        if (pw && !resetting && pw_addr < RAM_BYTES) dirty[pw_addr >> 12] = true;
         still = fetch || cpu.trace_dread || store || issued || cpu.io_ack || cpu.inta_ack || cpu.trace_retire
                 || !cpu.trace_mem_idle ? 0 : still + 1;
         if (cpu.trace_retire) {
@@ -1854,7 +1867,7 @@ int main(int argc, char **argv) {
             std::printf("RTL retired=%llu oracle_steps=%llu protected_steps=%llu parked_clocks=%llu tf_retired=%llu "
                         "pe_retired=%llu pe_entries=%llu "
                         "vga_loads=%llu replays=%llu port0_reads=%llu port0_writes=%llu smc_stores=%llu "
-                        "smc_addresses=%zu smc_executed=%llu smc_restarts=%llu\n",
+                        "smc_addresses=%zu smc_executed=%llu smc_restarts=%llu store_page_mismatches=%llu\n",
                         (unsigned long long)rtl->retired, (unsigned long long)oracle_steps,
                         (unsigned long long)protected_steps, (unsigned long long)rtl->parked_clocks,
                         (unsigned long long)rtl->tf_retired, (unsigned long long)rtl->pe_retired,
@@ -1862,7 +1875,8 @@ int main(int argc, char **argv) {
                         (unsigned long long)rtl->replays, (unsigned long long)rtl->port0.beats_read,
                         (unsigned long long)rtl->port0.beats_written,
                         (unsigned long long)rtl->smc_stores, rtl->smc_addresses.size(),
-                        (unsigned long long)rtl->smc_executed, (unsigned long long)rtl->smc_restarts);
+                        (unsigned long long)rtl->smc_executed, (unsigned long long)rtl->smc_restarts,
+                        (unsigned long long)rtl->store_page_mismatches);
             steps += rtl->retired;
         }
         for (const auto &[key, count] : machine.io_times)
