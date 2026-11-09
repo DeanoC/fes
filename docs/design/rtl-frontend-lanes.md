@@ -124,7 +124,7 @@ The template is the GPU backend. It enters identity as a parameter and through t
 | Field | Value | Rule |
 | --- | --- | --- |
 | `toolchain` (top level, existing) | `"quartus"` | Unchanged. Still omitted on OSS records, under the asymmetric rule in `quartus-cores.md:200-215`. |
-| `parameters.front_end` | `"yosys"`, `"quartus-lite"` or `"quartus-pro"` | Required when `toolchain == "quartus"`, absent otherwise. Parameters are already open (`:150-161`). `_validate_build_record` (`:75-93`) adds the cross-check against `toolchain`. |
+| `parameters.front_end` | `"yosys"`, `"quartus-lite"` or `"quartus-pro"` | Required on format-2 records with `toolchain == "quartus"`, absent on every other record. Parameters are already open (`:150-161`). `_validate_build_record` (`:75-93`) adds the cross-check against `toolchain`. Format 1 has no validated Quartus discriminator: the validator allows the top-level `toolchain` field only on format 2 (`:88-93`). So a format-1 Quartus record (pc386, the four Z80 sealers) carries no `front_end` until it moves to format 2 (S9b–S9e, S10). Its label stays ambiguous until then, as it is today. |
 | `parameters.device_family` | `"cyclonev"` or `"agilex5"` | On Quartus records. |
 | `parameters.front_end_program` | For the yosys front end, the exact Yosys netlist program | Replaces pc386's `machine_netlist` (`build_fes_pc386_quartus.py:303`). The key is renamed, not duplicated. |
 | `parameters.quartus_qsf_sha256` | Digest of the generated QSF | On every Quartus record. For pc386 it covers the Quartus-read shell file set. |
@@ -149,7 +149,7 @@ This follows `sim_fes_coleco_quartus.py:33`, which already records the `altera_m
 
 **Per-lane primitive forms** need no separate marker. Every form is in the source closure, and `front_end` plus the lane macros select one.
 
-**Record format.** Quartus producers move to format 2 on the PC/XT template (`build_fes_pcxt_quartus.py:137-172` for `execution_inputs`, `:205-244` for `create_build_record`). That `execution_inputs` needs no GPU. The shared `functional_execution.execution_inputs` cannot serve Quartus, because it requires a GPU device and KFD/NVIDIA records (`functional_execution.py:49-50`, `:123-126`). PC/XT's version becomes a shared `quartus_execution_inputs(edition)`, and the PC/XT copy is deleted. pc386 is format 1 today (`build_fes_pc386_quartus.py:288`), so its BUILD_ID changes with every commit and it has no cache key. It moves in its own slice (S10), not in the identity slice.
+**Record format.** Quartus producers move to format 2 on the PC/XT template (`build_fes_pcxt_quartus.py:137-172` for `execution_inputs`, `:205-244` for `create_build_record`). That `execution_inputs` needs no GPU. The shared `functional_execution.execution_inputs` cannot serve Quartus, because it requires a GPU device and KFD/NVIDIA records (`functional_execution.py:49-50`, `:123-126`). PC/XT's version becomes a shared `quartus_execution_inputs(edition)`, and the PC/XT copy is deleted. pc386 is format 1 today (`build_fes_pc386_quartus.py:288`), so its BUILD_ID changes with every commit and it has no cache key. It moves in its own slice (S10), and the Z80 sealers move in their S9 PRs, not in the identity slice.
 
 **Toolchain cache.** The slot key (`M/scripts/toolchain_cache.py:223-241`, `:268-285`) has no Quartus axis. Quartus is not provisioned through the cache, and this design adds no axis. Quartus identity is the lock plus the authenticated binary digest.
 
@@ -678,7 +678,7 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
   - lockstep on RTL and on the netlist, with identical trace hashes;
   - test386 to POST;
   - a pc386 Quartus seal with every analysis met;
-  - a kit run on that seal.
+  - a kit run on that seal (DOOM `-timedemo demo3` and the acceptance games), as the slice's own evidence. The merge gate's HIL stays N/A for pc386 (`AGENTS.md:32`), as the i386 doc says.
 
   The map report has no 276007/276004 warning for `ras.stack`, and a reset test shows no stack write while reset is asserted. Until S4 lands, the netlist lockstep evidence carries the existing lockstep/seal mismatch, and the PR says so.
 - **Measurement:** pc386 fit ALMs and slack, before and after. If it saves under 150 ALMs or loses Fmax, the PR closes with the record.
@@ -734,12 +734,12 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
 - **Files:**
   - `scripts/recipes.py` and `config/core-recipes.toml` (`front_end`, `edition`, `device_family`, pair checks);
   - `M/scripts/export_core_package.py` (cross-check);
-  - every Quartus producer writes `front_end`, `device_family`, `front_end_program` and `quartus_qsf_sha256`;
+  - every format-2 Quartus producer (PC/XT today) writes `front_end`, `device_family`, `front_end_program` and `quartus_qsf_sha256`. The format-1 producers gain them when they move to format 2 (S9b–S9f, S10);
   - the seal-summary fields;
   - `docs/support-matrix.py:383-384`.
 - **Tests:**
   - updated: `test_build_fes_pcxt_quartus.py:215-230`, `test_export_core_package.py:238`, `test_pnr_recipes.py:239-242`, `tests/test_recipes.py:152-155`;
-  - new: records that differ only in `front_end` get different BUILD_IDs and functional keys; an OSS record's field set and functional projection are byte-identical for identical inputs; illegal pairs are rejected.
+  - new: records that differ only in `front_end` get different BUILD_IDs and functional keys; an OSS record's field set and functional projection are byte-identical for identical inputs; illegal pairs are rejected; a format-1 record that carries `front_end` is rejected.
 - **Acceptance:** the tests pass. The PR states D12's answer. If D12 needs a reseal, the PR includes the generated list of every core whose closure contains an S7-changed file, and S7r is opened with it.
 - **Dependencies:** S6a merged. **Kit:** none in S7 itself.
 
@@ -773,12 +773,17 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
 - **Dependencies:** S1a (attribute forms and check mechanism accepted by every reader), S7 merged.
 - **Kit:** bundle HIL for each core whose package ID changed, on a claimed free kit with install-then-restore. Include an HDMI EDID/I2C check on one Z80 core and on RAM Tester. pc386 is N/A.
 
-S8 is large because the guarded files are shared. If the census shows the PR is too big to review, it splits into S8a (header, `fes_lanes.py`, pad primitive, sites 1–6 and 15–18) and S8b (sites 7–14 and the `FES_*_OSS` deletion, with the sim and testbench work). The header's `FES_*_OSS` check lands in S8b.
+S8 is large because the guarded files are shared. If the census shows the PR is too big to review, it splits along the two legacy macros, so neither PR has to keep a macro that its own header rejects:
+
+- **S8a: all `QUARTUS` sites.** The header, `fes_lanes.py`, the pad primitive and all 18 sites. At sites 7–14 only the `QUARTUS` arm changes: it becomes `FES_VENDOR_RAM` at sites 7–9, `` `FES_RAM_TDP `` at site 10, and `FES_PNR_QUARTUS` in the registered-media and registered-VDP conditions at sites 11–14. The `FES_*_OSS` arms stay as they are. S8a deletes `QUARTUS` and `QUARTUS=1` everywhere. The header rejects `QUARTUS`, but not yet `FES_*_OSS`.
+- **S8b: the `FES_*_OSS` deletion.** Sites 7–14 move to the shared rule above, `FES_Z80_UNREGISTERED_SIM` arrives with its `-CFLAGS` and C++ branches, and the sim, Makefile and testbench work lands. The header's `FES_*_OSS` rejection lands here.
+
+Each half carries its own byte-identity and sim-diff acceptance from the list above.
 
 ### S9. Shared Quartus signoff
 
-- **S9a, the helper:** new `M/scripts/quartus_signoff.py`. pc386 and PC/XT move to it, since they already meet most of the bar, and their per-sealer timing parsers are deleted. Acceptance: both seal under the helper at the full bar. Dependencies: S6a. It may run beside S8.
-- **S9b–S9e, one PR per Z80 sealer** (Coleco, SMS, SG-1000, ZX81), and **S9f, RAM Tester**, which promotes the diagnostic to a sealer with a build record. Each one moves to the helper and deletes its own parser. A failure stops only that core's PR, with a report.
+- **S9a, the helper:** new `M/scripts/quartus_signoff.py`, plus a shared `quartus_execution_inputs(edition)` taken from `build_fes_pcxt_quartus.py:137-172`, with the PC/XT copy deleted. pc386 and PC/XT move to the signoff helper, since they already meet most of the bar, and their per-sealer timing parsers are deleted. Acceptance: both seal under the helper at the full bar, and PC/XT's execution inputs are unchanged by the move. Dependencies: S6a, S7. It may run beside S8.
+- **S9b–S9e, one PR per Z80 sealer** (Coleco, SMS, SG-1000, ZX81), and **S9f, RAM Tester**, which promotes the diagnostic to a sealer with a build record. Each one moves to the helper, deletes its own parser, and moves to a format-2 record with `toolchain = "quartus"` and `front_end = "quartus-lite"`, so its route is labelled and validated. A failure stops only that core's PR, with a report.
 - **Measurement:** a per-core slack table at the new bar.
 - **Kit:** smoke runs of each resealed RAM Tester and Z80 package, under the kit rules.
 
@@ -786,12 +791,11 @@ S8 is large because the guarded files are shared. If the census shows the PR is 
 
 - **Files:**
   - `build_fes_pc386_quartus.py`;
-  - a shared `quartus_execution_inputs(edition)` taken from `build_fes_pcxt_quartus.py:137-172`, with the PC/XT copy deleted;
+  - S9a's shared `quartus_execution_inputs(edition)`;
   - tests.
-- **Acceptance:** the format-2 record validates, the BUILD_ID is functional (it no longer changes with every commit), and the seal is reproduced under the helper.
+- **Acceptance:** the format-2 record validates with `front_end = "yosys"`, the BUILD_ID is functional (it no longer changes with every commit), and the seal is reproduced under the helper.
 - **Dependencies:** S7, S9a. **Kit:** N/A for pc386.
 
-The Z80 and RAM Tester sealers follow in their own PRs if they gain a lane role (S14).
 
 ### S11. fes_tdp_ram (P3), one PR per wrapper
 
@@ -828,9 +832,9 @@ The Z80 and RAM Tester sealers follow in their own PRs if they gain a lane role 
 - **Condition:** the S1c Z80 leg gives outcome (a) or (b).
 - **Work:**
   - `M/scripts/quartus_sim_netlist.py` (new);
-  - the Coleco, SMS, SG-1000, ZX81 and RAM Tester sealers record `front_end = "quartus-lite"`, move to format 2 one PR per family, and gain `--lockstep-report`, which runs their suites on the post-map netlist.
+  - the Coleco, SMS, SG-1000, ZX81 and RAM Tester sealers (already format 2 with `front_end = "quartus-lite"` from S9b–S9f) gain `--lockstep-report`, one PR per family, which runs their suites on the post-map netlist.
 - **Acceptance:** each sealer refuses to seal without a matching report.
-- **Dependencies:** that core's S9 PR, and S10's shared execution inputs. **Kit:** smoke per resealed core.
+- **Dependencies:** that core's S9 PR. **Kit:** smoke per resealed core.
 
 ### S15 (conditional). Newer Lite lock forward
 
