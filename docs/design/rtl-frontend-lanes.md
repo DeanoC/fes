@@ -247,6 +247,16 @@ Today one Makefile target can set some of the three `FES_*_OSS` macros and not o
 - `FES_HAS_SIGNED_CAST` and `FES_NO_CARRY`. Each is added only if S1a shows that a Quartus front end which will read the file rejects the form. `(* no_carry *)` has 11 i386 sites, and in this plan no Quartus front end reads the i386.
 - The header never defines `QUARTUS`, `SYNTHESIS` or `VERILATOR`.
 
+### Device specialisation
+
+A core may be built differently for DE25 than for DE10-Nano: a larger cache, more TLB entries, a DSP-based datapath, a feature that only fits the larger device. Three rules keep that from turning `FES_DEV_AGILEX5` into the next `QUARTUS`:
+
+1. **Device macros stay in primitives and board shells.** `FES_DEV_*` may be tested only in `fes_toolchain.svh`, in `M/cores/fes-common/rtl/prim/` and under `M/boards/`. Core RTL never branches on the device. A core that needs a device-specific structure gets it through a primitive, which has one form per lane and device. S8a adds a test that fails on any other file that names a `FES_DEV_*` macro.
+2. **A core-level difference is a module parameter.** Sizes and optional features are parameters on the core's top, with one value set per target in the core's recipe. The producer passes them (Yosys `chparam`, or a Quartus parameter assignment) and writes each one into the build record's `parameters`, as PC/XT does for its profile switches (`build_fes_pcxt_quartus.py:220-230`). Two targets with different values therefore get different BUILD_IDs, and each value set is sealed on its own. Lockstep runs on every sealed value set, not only on the DE10-Nano one.
+3. **Native Pro is the lane for a core that specialises.** On yosys → Quartus Pro, Pro fits a netlist Yosys has already mapped, so Pro's own DSP inference and register retiming have little to work on. That route is the DE25 bring-up path (D3). A core moves to `front_end = "quartus-pro"` when a measured Pro fit shows the native read is better for it, on each flow's best settings. `FES_TC_QPRO` therefore stays in the header.
+
+The header has no capability macros such as "has M20K" or "has a 27×27 multiplier". Rule 1 puts that knowledge in the primitive that uses it, and rule 2 covers what a core chooses to do with a larger device.
+
 ### How each reader gets it
 
 One function, `lane_inputs(front_end, toolchain, device, sim_flags=()) -> (include_dirs, defines, cflags)`, plus one renderer per tool. Producers, sim scripts and Makefile targets stop hand-writing `-D` strings. `fes_lanes.py` is a closure input of every producer that calls it.
@@ -763,6 +773,7 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
   - the tests and docs listed above.
 - **Deleted:** `QUARTUS`, `QUARTUS=1`, `FES_COLECO_OSS`, `FES_SMS_OSS`, `FES_SG1000_OSS` (Verilog and `-CFLAGS`), and the six inline pad blocks.
 - **Acceptance:**
+  - no file outside the header, `rtl/prim/` and `M/boards/` names a `FES_DEV_*` macro (new test);
   - every OSS Yosys netlist, the PC/XT `elaborated.v`, the video-part netlists and the ZX81 cart netlists are byte-identical to main, except for the BUILD_ID constant and the pad hierarchy names;
   - every native-Lite `quartus_map` resource summary is identical;
   - per Makefile sim target and sim script, the output is identical to main, or a target that set part of the `FES_*_OSS` set is listed with its chosen state and diff;
@@ -845,8 +856,8 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
 
 ### S16 (conditional, last). Quartus Pro / DE25
 
-- **If S1b passes:** use `front_end = yosys` with the Pro backend. `FES_TC_QPRO` is removed from the header before any file uses it.
-- **If S1b fails:** build the native Pro lane for the files DE25 needs.
+- **If S1b passes:** bring DE25 up with `front_end = yosys` and the Pro backend. `FES_TC_QPRO` stays in the header for the native Pro lane, which is built when the first core needs it (Device specialisation, rule 3).
+- **If S1b fails:** build the native Pro lane now, for the files DE25 needs.
 - **Either way:**
   - widen the target check (`M/scripts/core_package.py:160-165`) and make `fes_build_common.TARGET` (`:21`) a parameter;
   - add the Pro executables to `quartus_execution_inputs`;
@@ -854,7 +865,8 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
   - delete the M10K→M20K byte patches (`display/build.py:105-113`, `combined/build.py:66-80`);
   - fold in S6b if it has not landed;
   - seal under the S9 helper.
-- **Lockstep:** waits on the Agilex simulation libraries.
+- **Device specialisation:** the first core with a DE25-only parameter value adds the per-target recipe values and records them (rule 2).
+- **Lockstep:** waits on the Agilex simulation libraries. Until then a DE25-only value set has RTL lockstep on its parameters but no post-synthesis lockstep, and its seal says so.
 - **Dependencies:** S6b, S8, S9a, and the DE25 board shell. **Kit:** none (DE25 HIL waived).
 
 ## Risks
@@ -874,9 +886,9 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
 
 ## Open decisions for Deano
 
-1. **D1. Is a native Quartus front end wanted, or only if forced?** Recommendation: only if forced. Yosys stays the front end for i386, pc386 and PC/XT. The existing native-Lite Z80 sealers keep their route, now labelled. Native Pro is built only if S1b shows that Pro rejects the Yosys netlist. The audit shows no area reason for native Lite.
+1. **D1. Is a native Quartus front end wanted, or only if forced?** Recommendation: only if forced. Yosys stays the front end for i386, pc386 and PC/XT. The existing native-Lite Z80 sealers keep their route, now labelled. Native Pro is built if S1b shows that Pro rejects the Yosys netlist, or when a core specialises for DE25 and a measured Pro fit favours the native read. The audit shows no area reason for native Lite.
 2. **D2. Which Yosys lock does the CPU use?** Recommendation: one lock. Move the i386 lock to the sealing producer's lock (pc386 0a7927bf), or move both forward together, with RTL and netlist trace hashes as evidence. Do this before S4.
-3. **D3. Allow yosys → Quartus Pro for DE25?** Recommendation: yes, if S1b shows the Yosys netlist goes through Pro. It is the cheapest DE25 path and needs no native Pro lane.
+3. **D3. Allow yosys → Quartus Pro for DE25?** Recommendation: yes, if S1b shows the Yosys netlist goes through Pro. It is the cheapest DE25 bring-up path and needs no native Pro lane on day one. It is not the end state for a core tuned to DE25: such a core moves to native Pro on a measured fit (Device specialisation, rule 3).
 4. **D4. Quartus locks per core or shared?** Recommendation: per core, in PC/XT's shape plus `edition` and `device_family`, so each core's last known good moves on its own.
 5. **D5. May FES edit vendored OPL2 beyond today's local changes** (the `signed'()` sites, `carrier_delay`, MLAB memories)? Recommendation: yes, one PR per change with a measurement, recorded in `source.json` `local_changes`. Without that, those memories stay FFs and the pc386 `WR_PORTS>1` rule cannot be deleted.
 6. **D6. Quartus-lane lockstep when the CPU netlist contains DSPs.** Recommendation: S1c measures first. If there are no DSPs, there is no conflict. If there are, do not seal a native-Quartus i386 lane on a lockstep netlist with DSPs in logic. Either obtain a simulator entitlement that can run `cyclonev_mac`, or keep the i386 on the yosys lane. Never forbid DSPs in the seal.
