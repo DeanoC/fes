@@ -141,7 +141,10 @@ def verify_de25_development(root, output, *, expected_fingerprint=None):
             software['runtime'].get('de25_image_sdk') != sdk or
             software['runtime'].get('key') != sdk.get('key') or
             software['runtime'].get('archive_sha256') != sdk.get('archive_sha256') or
-            software['runtime'].get('container_id') != sdk.get('builder_image')):
+            software['runtime'].get('container_id') != sdk.get('builder_image') or
+            not isinstance(software['runtime'].get('container_execution_reference'), str) or
+            not re.fullmatch('sha256:[0-9a-f]{64}',
+                             software['runtime'].get('container_execution_reference', ''))):
         raise ValueError('DE25 source software differs from its recorded Go compiler or authenticated SDK')
     names.extend(('software-build.json', 'inputs.json', str(relative / 'factory.json')))
     if set(receipt['files']) != set(names):
@@ -284,7 +287,8 @@ def build_de25_development(root, args):
                     # selected runtime. Image assembly must retain these bytes.
                     run([container, 'run', '--rm', '--platform', 'linux/amd64', '--network', 'none',
                          '--user', f'{os.getuid()}:{os.getgid()}',
-                         '--volume', str(native) + ':/work/build/software', runtime_record['container_id'],
+                         '--volume', str(native) + ':/work/build/software',
+                         runtime_record['container_execution_reference'],
                          '/work/build/software/sdk/host/bin/aarch64-buildroot-linux-gnu-strip',
                          '--remove-section=.comment', '--remove-section=.note',
                          '/work/build/software/runtime/build/mister-runtime'], env=env)

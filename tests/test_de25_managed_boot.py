@@ -192,14 +192,17 @@ class ManagedBootTests(unittest.TestCase):
                         mock.patch.object(BOOT, 'authenticated_image', return_value={}), \
                         mock.patch.object(BOOT.shutil, 'disk_usage', return_value=SimpleNamespace(free=40*1024**3)), \
                         mock.patch.object(BOOT.base.owner.dep.subprocess, 'run',
-                            return_value=SimpleNamespace(returncode=code, stdout=identity)) as inspect, \
+                            return_value=SimpleNamespace(returncode=code, stdout=json.dumps([{'Id': identity}]))) as inspect, \
                         mock.patch.object(BOOT.image, 'ensure_builder') as generic, \
                         mock.patch.object(BOOT.image, 'run') as run:
-                    with self.assertRaisesRegex(ValueError, 'locked kernel/SDK builder is unavailable or differs'):
+                    with self.assertRaisesRegex(ValueError, 'builder'):
                         BOOT.publish(args)
-                    inspect.assert_called_once_with(['docker', 'image', 'inspect',
-                        BOOT.base.sdk_lock()['builder_image'], '--format', '{{.Id}}'],
-                        capture_output=True, text=True)
+                    self.assertEqual(inspect.call_count, 2 if code else 1)
+                    self.assertEqual(inspect.call_args_list[0], mock.call(
+                        ['docker', 'image', 'inspect', BOOT.base.sdk_lock()['builder_image']],
+                        capture_output=True, text=True, env=None, timeout=30))
+                    self.assertTrue(all(c.args[0][:3] == ['docker', 'image', 'inspect']
+                                        for c in inspect.call_args_list))
                     generic.assert_not_called()
                     run.assert_not_called()
                 self.assertFalse((args.boot_output / 'boot.json').exists())

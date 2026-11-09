@@ -52,6 +52,7 @@ class DE25SourceWorkflowTests(unittest.TestCase):
         self.sdk = {'profile': 'managed-base', 'kernel_image_sha256': build.digest(kernel / 'Image'),
                     'base_rootfs_sha256': build.digest(self.base_image / 'rootfs.ext4'),
                     'builder_image': 'sha256:' + 'b' * 64, 'archive_sha256': 'd' * 64, 'key': 'fixture-sdk'}
+        self.execution_reference = self.sdk['builder_image']
         package = inputs / 'package'; package.mkdir()
         (package / 'manifest.toml').write_text('# unqualified DE25 publication fixture\n')
         (package / 'core.rbf').write_bytes(b'unqualified RBF fixture')
@@ -141,7 +142,7 @@ class DE25SourceWorkflowTests(unittest.TestCase):
         native = self.go.call_args.args[0] / 'image/build/software'
         self.assertEqual(command, ['docker', 'run', '--rm', '--platform', 'linux/amd64',
             '--network', 'none', '--user', f'{os.getuid()}:{os.getgid()}',
-            '--volume', str(native) + ':/work/build/software', self.sdk['builder_image'],
+            '--volume', str(native) + ':/work/build/software', self.execution_reference,
             '/work/build/software/sdk/host/bin/aarch64-buildroot-linux-gnu-strip',
             '--remove-section=.comment', '--remove-section=.note',
             '/work/build/software/runtime/build/mister-runtime'])
@@ -166,7 +167,8 @@ class DE25SourceWorkflowTests(unittest.TestCase):
         destination.mkdir(parents=True)
         (destination / 'mister-runtime').write_bytes(('fixture runtime ' + revision).encode() + b' ELF comments')
         return {'key': self.sdk['key'], 'archive_sha256': self.sdk['archive_sha256'],
-                'container_id': self.sdk['builder_image'], 'de25_image_sdk': dict(self.sdk)}
+                'container_id': self.sdk['builder_image'], 'de25_image_sdk': dict(self.sdk),
+                'container_execution_reference': self.execution_reference}
 
     def pack(self, binary, package, selection, fogcast, runtime, output, *, board):
         self.assertEqual(board, 'de25-nano')
@@ -242,6 +244,14 @@ class DE25SourceWorkflowTests(unittest.TestCase):
         self.assertEqual(self.resolve.call_count, 2)
         self.assertTrue(build.reusable(output, 'development', json.loads((output / 'development.json').read_text())['inputs']))
         self.assertFalse((output / 'image.json').exists())
+
+    def test_strip_uses_execution_reference_and_preserves_config_provenance(self):
+        self.execution_reference = 'sha256:' + '9' * 64
+        output = self.run_source()
+        record = json.loads((output / 'software-build.json').read_text())['runtime']
+        self.assertEqual(record['container_id'], self.sdk['builder_image'])
+        self.assertEqual(record['container_execution_reference'], self.execution_reference)
+        self.normalization.assert_called_once()
 
     def test_helper_failure_preserves_the_previous_generation(self):
         output = self.run_source()
