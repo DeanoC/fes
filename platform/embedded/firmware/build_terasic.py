@@ -203,6 +203,10 @@ def main():
         if binding is None:raise ValueError('selected MMU install binding missing')
         nano_firmware_mmu.verify_installed(source,binding)
         mmu_proof=nano_firmware_mmu.verify_live_image(image_elf,cold_profile['chain_sha256'])
+    if owned and owned.get("configuration_start_observer") is not None:
+        import nano_start_trace
+        if digest((source / nano_start_trace.SOURCE).read_bytes()) != owned["configuration_start_observer"]["generated_sha256"]:
+            raise ValueError("bound configuration START source changed during compilation")
     if owned and owned.get("configuration_mailbox_observer") is not None:
         import nano_mailbox
         binding = owned["configuration_mailbox_observer"]

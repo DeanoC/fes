@@ -28,6 +28,8 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
     total=configuration['core_size'];chunk=configuration['chunk_bytes'];owner=None
     timed=None;first_counter=first_hash=previous_counter=previous_hash=None;engine_row=None
     core_line=None;mailbox_sources=set();activation_row=None
+    start_rows=[]
+    start_note=re.compile(r'(?:NOTICE:[ \t]+)?FES_NANO_START phase=(?P<phase>[0-9]{1,2}) status=(?P<status>-?[0-9]{1,11})')
     def require(condition, reason):
         if not condition:errors.append(reason)
     def completion_extents():
@@ -36,8 +38,24 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
             cursor+=min(chunk,total-cursor)
             extents.add((cursor,accepted-cursor))
         return extents
+    def start_observed():
+        if [r['phase'] for r in start_rows]!=list(range(12)):return False
+        values=[r['status'] for r in start_rows]
+        return (all(values[i]==0 for i in (0,1,2,3,8,9,10,11)) and
+                all(values[i]>=0 for i in (4,5,6)) and values[7] in (2,3))
     for index,fragment in enumerate(parts[:-1]):
         line=fragment.decode(errors='replace').rstrip('\r')
+        if line.startswith('FES_NANO_START') or line.startswith('NOTICE:') and 'FES_NANO_START' in line:
+            match=start_note.fullmatch(line)
+            require(match is not None,'malformed configuration START observation')
+            if match is not None:
+                phase,status=int(match['phase']),int(match['status'])
+                require(0<=phase<12 and -(1<<31)<=status<1<<31 and len(start_rows)<12 and
+                        (phase==0 if not start_rows else phase>start_rows[-1]['phase']) and
+                        (last=='start' or last=='FAIL' and phase==11 and start_rows and start_rows[-1]['phase']==10),
+                        'configuration START observation repeated or misplaced')
+                if len(start_rows)<12:start_rows.append(dict(phase=phase,status=status,line=index+1))
+            parts[index]=b'';continue
         match=activation.fullmatch(line)
         if match:
             values={key:int(value,16 if key=='owner' else 10) for key,value in match.groupdict().items()}
@@ -76,6 +94,7 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
             elif phase=='start':
                 require(last=='arm' and values['completed']==values['pending']==0,'configuration START repeated or reordered')
             elif phase=='write':
+                if start_rows:require(start_observed(),'configuration WRITE preceded complete START observations')
                 require(values['completed'] in ({x for x,_ in completion_extents()} if last=='poll' else {offset}),
                         'configuration WRITE invented or skipped acknowledgements')
                 offset=values['completed']
@@ -127,6 +146,7 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
             match=engine.fullmatch(line)
             if match:
                 values={key:int(value,16 if key=='owner' else 10) for key,value in match.groupdict().items()}
+                if start_rows:require(start_observed(),'configuration engine preceded complete START observations')
                 require(engine_row is None and last=='start','configuration engine observation repeated or misplaced')
                 require(values['owner']==owner and values['generation']==generation and 0<values['credits']<=0x7fffffff and
                         0<values['block_bytes']<=0xffffffff and values['next_job']<14,
@@ -145,8 +165,11 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
     if require_activation and complete:require(activation_row is not None,'completed reload is missing fresh fabric activation')
     if expected_owner is not None and owner is not None:require(owner==expected_owner,'configuration owner differs from matched boot')
     if not require_programmed:require(programmed_row is None,'unexpected fixed-probe programmed marker')
+    if complete and start_rows:require(start_observed(),'completed transfer has incomplete or failed START observations')
     return {'parts':parts,'records':extra,'errors':errors,'complete':complete,
             'programmed':programmed_row,'activation':activation_row,'owner':owner,'offset':offset,
+            'start_observation':{'records':start_rows,'complete':start_observed(),
+                                 'hardware_authority':False},
             'timing':None if previous_counter is None else {
                 'counter_frequency':400000000,'first_counter':first_counter,'last_counter':previous_counter,
                 'hash_ticks':previous_hash,'interval_ticks':previous_counter-first_counter,

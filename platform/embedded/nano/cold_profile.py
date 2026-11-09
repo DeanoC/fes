@@ -97,7 +97,7 @@ def sources():
                             'generated/fes_embedded_tape.h','generated/fes_computer.h','generated/fes_de25_computer.h',
                             'nano_boot.c','nano_bridges.h','nano_bridges.c','nano_bridge_platform.inc','nano_bridge_platform.h',
                             'nano_owned_sip.inc','nano_computer_control.inc','nano_window_control.inc','nano_program_control.inc','prepare_nano_owned.py','prepare_tfa.py','nano_digest.py',
-                            'nano_mailbox.py','nano_mailbox_observe.inc','nano_mailbox_observe.h','nano_mailbox_status.inc',
+                            'nano_mailbox.py','nano_start_trace.py','nano_mailbox_observe.inc','nano_mailbox_observe.h','nano_mailbox_status.inc',
                             'nano_bridge_sip.c','nano_bridge_sip.h','generated/fes_embedded_bridges.h',
                             'nano_identity.c','nano_identity.h','nano_configuration.c','nano_configuration.h','nano_smmu.c','nano_smmu.h',
                             'nano_fabric_stop.c','nano_fabric_stop.h','nano_probe_stop.c','nano_probe_stop.h','generated/fes_de25_ddr_probe.h','generated/fes_embedded_control.h',
