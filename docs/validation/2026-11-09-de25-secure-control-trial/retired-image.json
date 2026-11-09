@@ -1,0 +1,104 @@
+{
+  "native_boot_id": "bd103b1a199bc2be",
+  "status": "terminal-consumed-retired",
+  "retry_allowed": false,
+  "programming_reservations": {
+    "recovery-program-consumed.json": {
+      "sha256": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+      "record": {
+        "format": 1,
+        "image_sha256": "ce143f50e05c9895381047f921be4a0c38d9a7eacfa75b3c0709be4ff7eafe75",
+        "phase": "recovery",
+        "state": "reserved-before-scan"
+      }
+    },
+    "recovery-program-consumed.json.scan.json": {
+      "sha256": "f187687678ffc3667f6a261f8fe0c9cb46fb4a752a7612b355a4aeb7b144656f",
+      "record": {
+        "format": 1,
+        "image_sha256": "ce143f50e05c9895381047f921be4a0c38d9a7eacfa75b3c0709be4ff7eafe75",
+        "live_scan_sha256": "6b1c509a4408babe8015792b15f6fb892b08129ace635d86e40ef27776947d67",
+        "phase": "recovery",
+        "state": "consumed-before-programming",
+        "transport": {
+          "auto_adjust": 0,
+          "cable": "DE25-Nano on localhost:37789 [3-11.1-iface0]",
+          "claim_token": "7a124fae52bf7062",
+          "client_sha256": {
+            "/data/altera_pro/26.3/quartus/linux64/libjtag_client.so": "83894ac5bb2e3e18809372e32940ccaf834a4de790e0c240b4068cab0de42fd9",
+            "/data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so": "03c1733b7fa5e87c64e0d83ff7796d67deed0b303b1eb9649a9de98a182505d5"
+          },
+          "clock": "3M",
+          "config_sha256": "7221277adbdeb11450c6abb6ca11f6ab9ced4190435cf090e7195597535612f2",
+          "pid": 2736282,
+          "probe_sha256": "025c30f4900a9e07c9ff0c202285cacba9f62936ffcea2cd211f4309caa1d01c",
+          "serial": "TRWU8CBL",
+          "source_commit": "ec6b704500f8a84b4d824a62203d5a1de8f78d81",
+          "start_ticks": "125931978"
+        }
+      }
+    },
+    "native-program-consumed.json": {
+      "sha256": "7e0e8bc0cbb927c5948f02e70ebecb984fa0f213d599a61a37bee3cd17c637e7",
+      "record": {
+        "format": 1,
+        "image_sha256": "a1b986b8f3ad6d4c359919f151e859957a81d8c8d61c2ba8c0f82009f1f07bd8",
+        "phase": "native",
+        "state": "reserved-before-scan"
+      }
+    },
+    "native-program-consumed.json.scan.json": {
+      "sha256": "ea1fb34374929a1df5ee0ae353f334899b2ce7ed8531342b86b9df804e953805",
+      "record": {
+        "format": 1,
+        "image_sha256": "a1b986b8f3ad6d4c359919f151e859957a81d8c8d61c2ba8c0f82009f1f07bd8",
+        "live_scan_sha256": "6b1c509a4408babe8015792b15f6fb892b08129ace635d86e40ef27776947d67",
+        "phase": "native",
+        "state": "consumed-before-programming",
+        "transport": {
+          "auto_adjust": 0,
+          "cable": "DE25-Nano on localhost:37789 [3-11.1-iface0]",
+          "claim_token": "7a124fae52bf7062",
+          "client_sha256": {
+            "/data/altera_pro/26.3/quartus/linux64/libjtag_client.so": "83894ac5bb2e3e18809372e32940ccaf834a4de790e0c240b4068cab0de42fd9",
+            "/data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so": "03c1733b7fa5e87c64e0d83ff7796d67deed0b303b1eb9649a9de98a182505d5"
+          },
+          "clock": "3M",
+          "config_sha256": "7221277adbdeb11450c6abb6ca11f6ab9ced4190435cf090e7195597535612f2",
+          "pid": 2736282,
+          "probe_sha256": "025c30f4900a9e07c9ff0c202285cacba9f62936ffcea2cd211f4309caa1d01c",
+          "serial": "TRWU8CBL",
+          "source_commit": "ec6b704500f8a84b4d824a62203d5a1de8f78d81",
+          "start_ticks": "125931978"
+        }
+      }
+    }
+  },
+  "full_terminal_archive_status": "pending-host-disk-floor",
+  "full_terminal_archive_required": true,
+  "raw_trace_and_terminal_receipts_preserved_here": true,
+  "prepared_retention": {
+    "status": "passed",
+    "source_head": "ec6b704500f8a84b4d824a62203d5a1de8f78d81",
+    "operator_source": "ec6b704500f8a84b4d824a62203d5a1de8f78d81",
+    "path": "/home/deano/fes-retained/de25-secure-control-trial-prepared-20261109-r1",
+    "files": 88633,
+    "full_archive_readback": true,
+    "bundle_import_and_pack_verified": true,
+    "hardware_actions": false
+  },
+  "candidate_retention": {
+    "status": "passed",
+    "source_head": "599ffbdb07291fa6ab2b0e5f2f64d58a4c9e2888",
+    "path": "/home/deano/fes-retained/de25-secure-control-20261109-r1",
+    "files": 128362,
+    "full_archive_readback": true,
+    "archive_modes_verified": true,
+    "bundle_import_and_pack_verified": true,
+    "hardware_actions": false
+  },
+  "native_450_outer_800_host_890_ready_100_tape_1_bounds_unchanged": true,
+  "historical_programming_failures": 2,
+  "new_programming_failures": 0,
+  "goal_complete": false
+}

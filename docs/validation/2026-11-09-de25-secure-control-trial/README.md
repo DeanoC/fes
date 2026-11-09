@@ -43,3 +43,52 @@ hardware attempt; it does not report that attempt started or passed. A contained
 cycle still cannot establish ordinary appliance readiness. Ordinary verified
 package admission, visible menu/game behavior, physical input and normal return
 remain part of the goal.
+
+
+The trial is terminal and retired. Recovery/native programming and all 13
+Ethernet uploads/fresh SD readbacks passed. The selected control views now
+permit Tenfoot Ready (58.29 seconds), four submitted menu frames with zero
+reported underflows, owned window access, reader drain and menu closure.
+The SMMU inventories report 26 reads and secure-bank ID `0x80000018`. Both
+menu and ZX81 FPGA images completed configuration and activation. No HDMI
+capture or physical input acceptance is claimed.
+
+The first Enter/launch request then failed in the initial tape transfer.
+The tape engine reports LIMIT (-6), 917 requested bytes and the last completed
+chunk at 512 bytes, with no successful tape completion. Its last accepted clock
+sample is 0.9999786225 seconds after origin; the failing clock sample is not
+printed. LIMIT is shared by clock and polling limits, so the exact rejection
+sample is not directly observed. The App reports reboot_required with resources
+held and a ROM activation receipt. Firmware reports successful failure
+containment. No running-core or normal core-return cycle was established.
+The original two-second passive tail was retained, with no further command.
+
+Independent cleanup passed: actual USB permissions match, the owned private
+server is gone, UART is free, and the frozen transport's original 15 MHz /
+auto-adjust 1 readback is recorded. The cleanup wrapper stopped at the host disk
+floor; its unchanged read-only audit was executed separately without device
+operations. Both programming operations are consumed, with two historical
+transport failures and no new programmer failure. The host is detached;
+firmware terminal return or CPU park was not observed. Top spare remains
+installed, original card safe, exclusive claim/restore waiver continue and
+bottom TRWU8J8G was untouched.
+
+The raw console, terminal receipts, cleanup proof, operation reservations and
+replay sources are preserved here. Full candidate and prepared archives were
+verified before hardware use. The final full terminal archive is still pending:
+host free space fell below 30 GiB despite reclaiming archived inactive fixtures
+and source copies. Keep that gate and finish retention before any producer
+change or further hardware operation. The image must not be replayed.
+
+Sampled ownership checks average about 67 microseconds. Their state checks
+before and after average 21.17 microseconds each; USB validation averages 17.31
+microseconds, versus 0.67 microseconds for the sampled reset-register checks.
+These systematic samples are estimates, not an exhaustive profile. Exact ELF
+inspection places the MMU state at `0x5c780`, mapped secure Normal NC, and shows
+a 112-byte stack frame with a 48-byte callback-table memcpy followed by another
+48-byte copy on every platform-scope call. This is a concrete next optimization
+target: pass one static const operations table by pointer and place only the MMU
+state in existing private initialized DDR data. Preserve every fresh register
+observation, guard and failure latch, other BSS/stack mappings, the same firmware
+exclusion and the one-second tape budget. No such patch, build or hardware trial
+has been applied yet.
