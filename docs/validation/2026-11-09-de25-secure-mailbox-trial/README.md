@@ -39,3 +39,31 @@ and a free UART. Retain the complete terminal archive and source bundle, append
 the actual result to the owned kit log, and distinguish upload/readback, boot,
 FPGA configuration, full cycle and ordinary appliance acceptance. A successful
 bounded diagnostic alone does not establish full DE10-equivalent readiness.
+
+The physical attempt is now terminal and retired. Recovery/native programming
+and all 13 uploads/fresh SD reads passed. Full MMU/private-DDR proof, original
+vector/decode restoration, matched secure loader and EL1/SD/FAT startup passed.
+The existing FPGA_CONFIG_COMP command received doorbell 1 after two polls and
+returned 0; START phases 0 through 4 all returned 0. This establishes that the
+secure mailbox repair restores successful communication for this command.
+
+No phase 5 return appeared. The intervening code includes request-state updates,
+remapper initialization, response clearing and the CANCEL call. The exact
+stalled operation is unproven. The initial menu's unchanged 100-second bound
+expired; outgoing commands stopped and the original two-second passive tail was
+saved. No configuration data WRITE, initial menu Ready, core launch, tape or
+normal return occurred. Both one-use operations remain consumed, with no replay.
+Historical programmer failures remain two, with no new programmer failure.
+
+Independent cleanup passed: original 15 MHz/auto-adjust 1, exact USB permissions,
+our private server gone and UART free. Disk pressure interrupted the first
+cleanup-wrapper invocation before execution; verified, fully archived failed
+build copies were reclaimed and the unchanged wrapper then passed. The deletion
+inventory and archival references remain in the trial evidence. No active input,
+factory image or known-good rollback image was removed. The host is detached
+from the board; a terminal firmware return or CPU park was not observed.
+
+Next add reversible UART boundaries within the phase 4-to-5 interval, keeping
+every original device operation, ownership check and deadline. Build and test
+that fresh source before another bounded attempt. See `hardware-result.json`
+for the replayed physical observations and exact evidence limits.
