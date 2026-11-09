@@ -27,15 +27,20 @@ REPORTS = {'clocks.tsv', 'paths.tsv'} | {
 # The OpenROM-only builder refresh preserves all seven audio RTL/SDC sources,
 # six integration function ASTs and the actual compiled top byte-for-byte.
 # Its fresh fitted review is in docs/validation/2026-11-05-de25-openrom-audio-review.
+# The scanout service-window review changes only the wrapper/Tcl master burst
+# width and the builder's matching transport checks. Audio RTL, clocks, reset,
+# PCM and expansion wiring are unchanged; each new fit still needs its own
+# fitted clock/path review and independent rebuild.
+# See docs/validation/2026-11-09-de25-service-window-audio-review.
 SOURCES = {
     'boards/de25nano/zx81-hps/fes_de25_audio.v': '9f2d1436b75ef1fe489a55ea4139b2f5dcd922072528b6f68d344d851cca6f33',
     'cores/fes-common/rtl/fes_audio_output.v': 'e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd',
     'cores/fes-common/rtl/fes_audio_i2s.v': '14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4',
     'cores/fes-zx81/rtl/fes_zx81_core.v': '79c070b837a6b455a4a4a64fcbef4d76ac3ca7c467ab692a16af7610bed42970',
-    'boards/de25nano/zx81-hps/fes_de25_zx81_standard.v': 'c6ac81675d1dd07a50bbc2660049ba62e0e79e34fb75a5aac0532340adfe1c97',
-    'boards/de25nano/zx81-hps/fes_de25_zx81_standard_hw.tcl': 'c08fc345f9196b85e9bb1c310759cebc79d85395631c8428717d95dbad0415a9',
+    'boards/de25nano/zx81-hps/fes_de25_zx81_standard.v': '8d2fb7121c633fbe50f8ced7a359faaf26f74f4bf7a3bc0cd685c2a721ecc870',
+    'boards/de25nano/zx81-hps/fes_de25_zx81_standard_hw.tcl': 'fd91780afe9892738c21bb76e83ab518275fecf0fb6502df7a2a0ef2ec724f8a',
     'boards/de25nano/zx81-hps/standard-clocks.sdc': 'b7a528ac1a1bf0b147c269e83078a405b523698cfd16c1fe62cf028858b431d0',
-    'boards/de25nano/zx81-hps/build.py': '32046be42877ee08d87e46d97aba13d30eda50296c6a6054d2a63914a5f1fcd6',
+    'boards/de25nano/zx81-hps/build.py': '08743202143b032ed9b4e0c2e9e5f753b4f62e5f9562310bdab7cf017fabb7ea',
 }
 
 

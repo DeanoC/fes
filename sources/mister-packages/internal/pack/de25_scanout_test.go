@@ -17,7 +17,7 @@ func TestDE25ScanoutAgreesWithProbeAllocationGeometry(t *testing.T) {
 	if scanout.ID != "fes.fabric.de25-scanout" || scanout.Major != 1 || scanout.Minor != 2 {
 		t.Fatalf("unexpected scanout contract: %#v", scanout)
 	}
-	for _, suffix := range []string{"DmaAddressBits", "BeatBytes", "GrantAlignment", "MaxBurstBeats", "BoundaryBytes",
+	for _, suffix := range []string{"DmaAddressBits", "BeatBytes", "GrantAlignment", "BoundaryBytes",
 		"FrameWidth", "FrameHeight", "FrameStride", "FrameBytes", "SlotBytes", "SlotCount", "AllocationBytes"} {
 		p, pok := probe.Constant("FesDe25DdrProbe" + suffix)
 		s, sok := scanout.Constant("FesDe25Scanout" + suffix)
@@ -32,6 +32,15 @@ func TestDE25ScanoutAgreesWithProbeAllocationGeometry(t *testing.T) {
 			t.Fatalf("missing scanout constant %s", suffix)
 		}
 		return value
+	}
+	// The probe and scanout share allocations, while the sustained display
+	// reader uses a larger service window than the diagnostic probe.
+	probeBurst, ok := probe.Constant("FesDe25DdrProbeMaxBurstBeats")
+	if !ok || probeBurst != 16 || get("MaxBurstBeats") != 64 {
+		t.Fatal("probe and scanout must preserve their independent burst limits")
+	}
+	if get("MaxBurstBeats")*get("BeatBytes") > get("BoundaryBytes") {
+		t.Fatal("scanout burst exceeds its clipped boundary")
 	}
 	if get("Version") != 0x10002 || get("StatusDisplayReady") != 64 || get("ErrorDisplay") != 128 {
 		t.Fatal("scanout1.2 preserves positive display readiness and its fault bit")
