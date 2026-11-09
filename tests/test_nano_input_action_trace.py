@@ -79,6 +79,61 @@ class InputActionTraceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'uncommanded USB'):
             actions.validate([row], 'launch', int(OWNER, 16), 0)
 
+    def test_explicit_physical_stop_preserves_all_other_receipts(self):
+        for protocol in ('boot-keyboard', 'gamepad'):
+            model = PairedModel(True, protocol)
+            client = model.client()
+            client.key('launch', 0)
+            original, exchange = model.corrupt, client.exchange
+            sent = []
+            def physical(raw, key):
+                raw = original(raw, key)
+                return raw.replace(b'source=uart action=stop',
+                    ('source=usb-'+protocol+' action=stop').encode())
+            def observe(payload, bound, done):
+                sent.append(payload)
+                # The synthetic wire model emits the ordinary return sequence,
+                # with its action explicitly attributed to the selected USB.
+                return exchange(b's', bound, done)
+            model.corrupt, client.exchange = physical, observe
+            result = client.key('stop', input_source='usb-'+protocol)
+            self.assertEqual(sent, [b''])
+            self.assertEqual(result['input_source'], 'usb-'+protocol)
+            self.assertEqual(result['status'], 'verified')
+            self.assertEqual(client.view['native']['State'], 'ready')
+            self.assertEqual(client.view['native']['Generation'], 2)
+            self.assertEqual(len(result['menu_observations']), 2)
+
+    def test_physical_stop_requires_the_selected_source_before_exchange(self):
+        for shared, protocol, source, op in (
+                (False, 'boot-keyboard', 'usb-boot-keyboard', 'stop'),
+                (True, 'boot-keyboard', 'usb-gamepad', 'stop'),
+                (True, 'gamepad', 'usb-boot-keyboard', 'stop'),
+                (True, 'boot-keyboard', 'usb-boot-keyboard', 'launch'),
+                (True, 'boot-keyboard', 'unknown', 'stop')):
+            model = PairedModel(shared, protocol)
+            client = model.client()
+            with self.subTest(shared=shared, source=source, op=op), self.assertRaisesRegex(ValueError, 'physical stop source'):
+                client.key(op, input_source=source)
+            self.assertEqual(model.keys, [])
+
+    def test_physical_stop_cannot_be_satisfied_by_uart_or_missing_closure(self):
+        for fault in ('uart-source', 'missing-core-stop', 'bad-core-stop', 'missing-usb-resume'):
+            model = PairedModel(True, 'boot-keyboard')
+            client = model.client()
+            client.key('launch', 0)
+            original, exchange = model.corrupt, client.exchange
+            def physical(raw, key):
+                raw = original(raw, key)
+                return raw if fault == 'uart-source' else raw.replace(
+                    b'source=uart action=stop', b'source=usb-boot-keyboard action=stop')
+            model.corrupt = physical
+            model.fault = '' if fault == 'uart-source' else fault
+            client.exchange = lambda payload, bound, done: exchange(b's', bound, done)
+            with self.subTest(fault=fault), self.assertRaises(ValueError):
+                client.key('stop', input_source='usb-boot-keyboard')
+            self.assertTrue(client.retired)
+
     def test_absent_duplicate_and_foreign_observations_cannot_complete_an_action(self):
         good = actions.record(self.produced.splitlines()[0], 1, 'uart')
         for rows in ([], [good, good], [dict(good, owner=1)],

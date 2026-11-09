@@ -219,7 +219,7 @@ class PairedTenfootClient(app.TenfootClient):
         self.last_counter = timing['last_counter']
         self.previous_configuration = result['configuration_generation']
 
-    def _consume(self, rows, op, generation, selected):
+    def _consume(self, rows, op, generation, selected, input_source='uart'):
         firmware = b''
         states, menus, usb_rows, fetches = [], [], [], []
         input_actions = []
@@ -367,7 +367,7 @@ class PairedTenfootClient(app.TenfootClient):
                         app.quiet(firmware), 'final Parked exit omitted core return/menu drain')
                 exited = value
         require(app.quiet(firmware), 'unconsumed paired firmware evidence')
-        validate_actions(input_actions, op, self.owner, generation)
+        validate_actions(input_actions, op, self.owner, generation, expected_source=input_source)
         require(begins == int(op == 'startup'), 'paired startup count differs')
         if op == 'startup':
             require(opened_menu == 1 and states and self._ready(states[-1]) and ready_presented,
@@ -396,7 +396,14 @@ class PairedTenfootClient(app.TenfootClient):
             self.view = copy.deepcopy(states[-1])
         return result
 
-    def key(self, op, selection=None):
+    def key(self, op, selection=None, *, input_source='uart'):
+        # A physical Stop is observed, never synthesized over UART. The caller
+        # starts this exchange when the selected USB action first appears; its
+        # original close/menu deadlines still apply from that observation.
+        require(input_source == 'uart' or op == 'stop' and
+                input_source in ('usb-boot-keyboard', 'usb-gamepad') and
+                self.input_mode == 'uart+shared-'+input_source,
+                'physical stop source differs from the selected USB input')
         require(not self.retired, 'paired App client retired')
         generation = self.view['native']['Generation']
         selected = None
@@ -419,8 +426,12 @@ class PairedTenfootClient(app.TenfootClient):
             payload, bound = (b's' if op == 'stop' else b'q'), 105 if op == 'stop' else 110
         else:
             raise ValueError('unsupported paired App action')
+        if input_source != 'uart':
+            payload = b''
         require(self.active.acquire(blocking=False), 'paired App exchange already active')
         entry = dict(action=op, selection=selection, payload_hex=payload.hex(), bound_seconds=bound, status='issued')
+        if input_source != 'uart':
+            entry['input_source'] = input_source
         try:
             require(self.owns(), 'paired console claim lost')
             self.records.append(entry)
@@ -468,7 +479,7 @@ class PairedTenfootClient(app.TenfootClient):
             after = self.now()
             require(before <= after < before+bound and self.owns(), 'paired deadline/clock/claim failed')
             require(done(self._raw), 'paired action lacks a terminal observation')
-            result = self._consume(observations(self._raw, self.input_mode), op, generation, selected)
+            result = self._consume(observations(self._raw, self.input_mode), op, generation, selected, input_source)
             entry.update(result, status='verified', raw_bytes=len(self._raw))
             self.record(copy.deepcopy(entry))
             if op == 'quit':

@@ -1676,6 +1676,16 @@ configuration, fetch, USB pause/resume, reader/master drain and return receipt
 remains mandatory. The diagnostic records supply none of those permissions or
 receipts. Historical captures are preserved without adding missing records.
 
+The paired client can explicitly observe one physical Stop with
+`key('stop', input_source='usb-boot-keyboard')` (or the selected `usb-gamepad`).
+This exchanges an empty payload, so it never substitutes a UART Stop. The
+caller first waits within its separate human-action bound for that selected
+USB action, then immediately begins the ordinary close/menu deadlines. Exact
+source, owner, generation, ordering, configuration, drain and USB-return checks
+remain required. A UART record cannot satisfy this physical observation, and
+the default UART controller still rejects unsolicited USB actions. Source
+selection is diagnostic context and supplies no permission to touch hardware.
+
 The producer/collector regression exports the actual Go observer through a
 test-only overlay with injected service status and zero firmware calls. Its
 checked-in bytes are explicitly host data. Current synthetic App models use

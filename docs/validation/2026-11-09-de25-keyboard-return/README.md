@@ -19,4 +19,14 @@ input across relaunch and failed neutralization without normal return/retry.
 All four new chord cases fail against the original input source as expected.
 All seven affected checks pass, including parent regressions, generated-consumer
 consistency and joined native firmware/FPGA/Tenfoot integration. The rebuilt
-matched chain and physical shortcut test remain pending.
+matched SDK/entry/BL31/SPL/FIT/SOF chain passes for native image
+`ff0e7da217a21406`, compiled from `545f34022`. Both FPGA packages are unchanged
+from the passing queued-menu trial. The FIT remains below the original8MiB limit.
+
+The observer additionally accepts an explicitly selected physical Stop, with no
+UART payload. Twelve action-observer tests, sixteen paired-controller tests and
+all six affected checks pass; source, generation, ordering and complete firmware
+closure remain mandatory. The first new negative test incorrectly removed a
+reader-drain line absent from the modeled core return; its corrected mutations
+remove the actual master-stop/USB-resume records instead. Physical acceptance
+remains pending.
