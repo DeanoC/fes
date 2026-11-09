@@ -1349,6 +1349,12 @@ the family tiles, artwork motifs and Home routes. Family Open enters the
 workbench; Play on a recent title starts that title. In the v1 release scope,
 Settings is the only header route and Back at Home's root keeps Home open.
 Show all cores restores Library and Systems routes and the remaining families.
+Home retries each failed family read at most three times, after 1, 2 and 4
+active-room seconds, for transient network errors and temporary host responses.
+Permanent errors stay terminal. Other families retain their successful data;
+an unavailable family's game count stays unknown and its kit data supplies the
+fallback. Closing the room cancels its reads; reloading cancels older reads and
+discards their retry schedule and callbacks.
 The footer shows full-size prompts and only actionable status. Details keeps
 the selected family's model/state information or a core's verbatim block when
 the column has to drop lines to fit. On a content box under 480×360,
@@ -2618,7 +2624,10 @@ parked while a running core owns the display, including after a restart.
 A gamepad or USB keyboard on the kit
 writes raw input frames to `/run/fogcast/local-input.sock` through
 `ui/localfeed` while a runtime core is bound, and does not post those events to
-the host. A pad on another machine is delivered on the host-to-kit input stream
+the host. A kit-host session with a local feed does not require a host
+remote-input attachment to forward its keyboard; display
+transitions, launcher controls and foreign leases still suppress input. A pad on
+another machine is delivered on the host-to-kit input stream
 for the session that owns the play. A missing stream is an error to that
 caller. The kit pad does not fall back onto the host route.
 
@@ -3470,7 +3479,8 @@ named target and for a paired kit copies that returned status, so the
 response omits the game the kit was recovering from.
 
 Media objects are immutable SHA-256-addressed bytes in the existing catalog
-database. Host storage accepts 1 byte through 32 MiB independently of target media capacity.
+database. Ordinary host media imports accept 1 byte through 32 MiB
+independently of target media capacity; hard disks use their own 1–128 MiB route.
 Imports stream to a private temporary snapshot before taking a database writer
 transaction; SHA identity, declared length and cancellation are checked before
 atomic metadata/chunk publication. Schema 8 stores new objects in 64 KiB chunks,
@@ -4103,7 +4113,17 @@ focus moves. A refused surround closes the plane, and the setting stays off
 for that session. UI navigation is suppressed at both launcher and target;
 held keys and controller buttons require release and a fresh press, including B
 when Stop fails. Button releases still clear suppression while Stop is pending
-or retryable. Failed close retains
+or retryable. Stop queues neutralization of tracked holds after admitted input
+and waits up to five seconds for that queue before posting Stop. A refused Stop
+keeps the ordered queue available for physical releases. During Stop and
+retry-Stop, gameplay delivery admits only key and button releases, zero axes,
+and mouse reports with no motion or newly held buttons. Physical release
+cleanup retains the active route and foreign-lease checks while bypassing
+launcher-focus and capture gates. SDL releases relative mouse capture, so new
+pointer input can reach launcher controls. Keyboard recovery keys still reach
+normal navigation, so Escape and Backspace can return the captured display or
+retry Stop. Rejected mouse input does not accumulate motion or buttons for a
+later replay. Failed close retains
 focus for an explicit retry. Stop retains the display binding and pending display
 reply until idle or a replacement session is confirmed. If Stop fails, Back,
 controller B and shell exit can return the captured plane; a late open does not
@@ -4329,7 +4349,11 @@ only through the explicit BIOS selection flow, not a per-target setting. API
 reads cannot address arbitrary host paths: USB reads use `os.Root`, reject
 escaping paths and nonregular files, and ordinary reads are limited to 32 MiB.
 Expansion archive reads use their declared archive bound. SMB reads stay
-relative to the selected share. Directory and connection work runs outside the
+relative to the selected share. The browser's hard-disk picker requests the
+explicit `purpose=hard-disk` file route: it admits only 1–128 MiB raw images
+in whole 512-byte sectors, with the bounded hard-disk transfer budget. That
+purpose cannot be combined with the caller-selected expansion-archive limit;
+ordinary reads keep their 32 MiB bound. Directory and connection work runs outside the
 tenfoot app lock. Existing game/session/package admission and captured
 live-media identity checks remain in force after import.
 To transfer a pack as one file, export it on the source machine and install the

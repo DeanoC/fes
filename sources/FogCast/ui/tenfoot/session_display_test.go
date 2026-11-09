@@ -705,6 +705,8 @@ func TestKitFailedStopKeepsDisplayReturnReachable(t *testing.T) {
 	}{
 		{"open-rejected-stop-back", false, false, "back"},
 		{"pending-open-rejected-stop-back", true, false, "back"},
+		{"open-rejected-stop-keyboard-scancode", false, false, "keyboard-scancode"},
+		{"open-rejected-stop-keyboard-named", false, false, "keyboard-named"},
 		{"open-rejected-stop-controller", false, false, "controller"},
 		{"pending-open-rejected-stop-controller", true, false, "controller"},
 		{"open-lost-stop-shell-exit", false, true, "exit"},
@@ -804,6 +806,18 @@ func TestKitFailedStopKeepsDisplayReturnReachable(t *testing.T) {
 			switch tc.returnVia {
 			case "back":
 				app.HandleCommand(CmdBack, time.Now())
+			case "keyboard-scancode", "keyboard-named":
+				now := time.Now()
+				var consumed bool
+				if tc.returnVia == "keyboard-scancode" {
+					consumed = app.HandlePlayHIDScancode("escape", 0x29, true, now)
+				} else {
+					consumed = app.HandlePlayHIDKey("escape", true, now)
+				}
+				// Native and SDL dispatch unconsumed keys through navigation.
+				if !consumed {
+					app.Press(CommandFromKey("escape"), now)
+				}
 			case "controller":
 				app.HandleLocalPad(b, time.Now())
 				if closes.Load() != 0 {

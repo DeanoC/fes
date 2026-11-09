@@ -92,6 +92,7 @@ local kit_rows = nil   -- core_id -> kit.cores row
 local machines = nil   -- core_id -> library machine entry
 local titles = nil     -- family id -> number of titles
 local capped = {}      -- family id -> true when its query hit the row limit
+local known = {}       -- family id -> true when its library read succeeded
 local library_err = nil
 local on_change = function() end
 
@@ -149,7 +150,7 @@ end
 
 -- The family's game count line, or nil while the library is unknown.
 function M.games(f)
-  if not titles then return nil end
+  if not titles or not known[f.id] then return nil end
   local n = titles[f.id] or 0
   if n == 0 then return "No games yet" end
   return count_line(n, capped[f.id])
@@ -187,7 +188,7 @@ function M.details(f)
   for _, word in ipairs(order) do
     lines[#lines + 1] = word .. ": " .. table.concat(models[word], ", ")
   end
-  if titles then
+  if titles and known[f.id] then
     lines[#lines + 1] = "In your library: " .. count_line(titles[f.id] or 0, capped[f.id])
   end
   return lines
@@ -305,53 +306,107 @@ end
 -- editions are siblings of the same title, so only machine entries are
 -- looked for among them.
 local library_generation = 0
-function M.reload()
-  load_kit()
-  library_generation = library_generation + 1
-  local gen = library_generation
-  local m, counts, more, waiting, failed = {}, {}, {}, #list, nil
-  local function finish()
-    waiting = waiting - 1
-    if waiting > 0 or gen ~= library_generation then return end
-    if failed then
-      machines, titles, capped, library_err = nil, nil, {}, failed
-    else
-      machines, titles, capped, library_err = m, counts, more, nil
-    end
-    on_change()
-  end
-  for _, f in ipairs(list) do
-    local ids = {}
-    for _, v in ipairs(f.variants) do ids[#ids + 1] = v.id end
-    library.query({ platform = "fpga", core_ids = ids, limit = LIBRARY_LIMIT }, function(games, err)
-      if err then
-        failed = failed or err
-        finish()
-        return
-      end
-      local n = 0
-      local function machine(g)
-        if g.core_id and systems.family_by_core[g.core_id] and (g.media_id or "") == "" then add_machine(m, g) end
-      end
-      for _, g in ipairs(games or {}) do
-        local family = systems.family_by_core[g.core_id or ""]
-        if (g.media_id or "") ~= "" and family and family.id == f.id then n = n + 1 end
-        machine(g)
-        for _, v in ipairs(g.variants or {}) do machine(v) end
-      end
-      counts[f.id] = n
-      more[f.id] = #(games or {}) >= LIBRARY_LIMIT or nil
-      finish()
-    end)
-  end
-  if #list == 0 then
-    waiting = 1
-    finish()
+local retry_enabled = false
+local requests = {}
+local RETRY_DELAYS = { 1, 2, 4 }
+local next_retry = nil
+
+local function schedule_next_retry()
+  next_retry = nil
+  for _, req in ipairs(requests) do
+    if req.due and (not next_retry or req.due < next_retry) then next_retry = req.due end
   end
 end
 
-function M.load(callback)
+-- Retain successful family reads while an unrelated family is unavailable.
+-- A failed family uses the kit fallback, without claiming zero games.
+local function publish_library(gen)
+  if gen ~= library_generation then return end
+  local m, counts, more, answered, failed = {}, {}, {}, {}, nil
+  for _, req in ipairs(requests) do
+    if not req.answered then return end
+    if req.err then
+      failed = failed or req.err
+    else
+      answered[req.family.id] = true
+      for id, machine in pairs(req.machines or {}) do
+        if not m[id] or not m[id].launchable then m[id] = machine end
+      end
+      counts[req.family.id] = req.count
+      more[req.family.id] = req.more
+    end
+  end
+  if failed and not retry_enabled then
+    machines, titles, capped, known, library_err = nil, nil, {}, {}, failed
+  else
+    machines, titles, capped, known, library_err = m, counts, more, answered, failed
+  end
+  on_change()
+end
+
+local function query_family(req, gen)
+  req.due = nil
+  req.cancel = library.query({ platform = "fpga", core_ids = req.ids, limit = LIBRARY_LIMIT }, function(games, err, transient)
+    if gen ~= library_generation then return end
+    req.cancel = nil
+    req.answered, req.err = true, err
+    if err and transient and retry_enabled and req.retries < #RETRY_DELAYS then
+      req.retries = req.retries + 1
+      req.due = room.time + RETRY_DELAYS[req.retries]
+    elseif not err then
+      local machines_for_family, n = {}, 0
+      local function machine(g)
+        if g.core_id and systems.family_by_core[g.core_id] and (g.media_id or "") == "" then add_machine(machines_for_family, g) end
+      end
+      for _, g in ipairs(games or {}) do
+        local family = systems.family_by_core[g.core_id or ""]
+        if (g.media_id or "") ~= "" and family and family.id == req.family.id then n = n + 1 end
+        machine(g)
+        for _, v in ipairs(g.variants or {}) do machine(v) end
+      end
+      req.machines, req.count = machines_for_family, n
+      req.more = #(games or {}) >= LIBRARY_LIMIT or nil
+    end
+    schedule_next_retry()
+    publish_library(gen)
+  end)
+end
+
+function M.reload()
+  for _, req in ipairs(requests) do
+    if req.cancel then req.cancel() end
+  end
+  load_kit()
+  library_generation = library_generation + 1
+  local gen = library_generation
+  requests = {}
+  next_retry = nil
+  for _, f in ipairs(list) do
+    local ids = {}
+    for _, v in ipairs(f.variants) do ids[#ids + 1] = v.id end
+    local req = { family = f, ids = ids, retries = 0 }
+    requests[#requests + 1] = req
+    query_family(req, gen)
+  end
+  if #list == 0 then publish_library(gen) end
+end
+
+-- Called only by Home while it is active; no timer or retry worker survives
+-- a closed or suspended room. A reload discards the previous schedule.
+function M.update()
+  if not next_retry or room.time < next_retry then return end
+  for _, req in ipairs(requests) do
+    if req.due and room.time >= req.due then
+      query_family(req, library_generation)
+      break
+    end
+  end
+  schedule_next_retry()
+end
+
+function M.load(callback, retry)
   on_change = callback or function() end
+  retry_enabled = retry == true
   M.reload()
 end
 

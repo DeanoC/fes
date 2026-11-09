@@ -2674,7 +2674,10 @@ func (a *App) startStopModeLocked(releaseLease bool) {
 	a.sessionDisplayUncertain = a.sessionDisplayUncertain || a.launcherDisplayFocusedLocked() || a.sessionDisplayBusy
 	a.suppressHeldPlayKeysLocked()
 	a.suppressHeldSessionPadLocked()
-	a.cancelPlayHIDLocked()
+	// Neutralize on the existing queue so an admitted press cannot overtake
+	// its release. A refused Stop can leave this same core running.
+	a.releasePlayHIDLocked()
+	hidDone := a.playHIDTail
 	a.stopPhase = "stopping"
 	a.stopMessage = "stopping session"
 	a.bumpSessionGenLocked()
@@ -2694,6 +2697,13 @@ func (a *App) startStopModeLocked(releaseLease bool) {
 	done := make(chan struct{})
 	a.stopWait = done
 	go func() {
+		if hidDone != nil {
+			select {
+			case <-hidDone:
+			case <-ctx.Done():
+			case <-time.After(5 * time.Second):
+			}
+		}
 		if idleRetry {
 			a.doIdleLeaseRetry(stamp)
 		} else {
@@ -2980,7 +2990,11 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 	if waitingForHost {
 		return true
 	}
-	if a.consumeSuppressedPlayKey(name, usage, down) {
+	suppressed := a.consumeSuppressedPlayKey(name, usage, down)
+	if !down {
+		a.releaseStoppedPlayKey(name, usage)
+	}
+	if suppressed {
 		return true
 	}
 	if mediaSelectorKey(name, usage) {
@@ -3026,14 +3040,35 @@ func (a *App) ForwardsPlayHID() bool {
 }
 
 func (a *App) forwardsPlayHIDLocked() bool {
-	if a.session.State != "active" || a.roomDuringPlay || a.sessionDisplayBusy || a.sessionDisplayUncertain || a.tapePickerOpen || a.firmwarePickerOpen {
+	if a.roomDuringPlay || a.sessionDisplayBusy || a.sessionDisplayUncertain || a.tapePickerOpen || a.firmwarePickerOpen {
 		return false
+	}
+	return a.playHIDRouteReadyLocked()
+}
+
+// Cleanup can still use the active route while Stop owns launcher focus.
+func (a *App) playHIDRouteReadyLocked() bool {
+	if a.session.State != "active" {
+		return false
+	}
+	// Kit-host library sessions use the local socket, not the optional host
+	// remote-input attachment. The same display gate selects that socket in
+	// queuePlayHIDLocked; require a real feed.
+	if a.kitHost && a.client != nil && a.needsSessionDisplayLocked() && a.localFeed != nil {
+		return true
 	}
 	if a.session.Input == nil {
 		return false
 	}
 	return a.session.Input.Ready || a.session.Input.State == "attached" ||
 		a.session.Input.State == "reconnecting"
+}
+
+// playHIDInputBlockedLocked fences new physical input while Stop is in flight
+// or awaiting an explicit retry. Display recovery still uses the normal play
+// forwarding state so a failed Stop can return control to the machine.
+func (a *App) playHIDInputBlockedLocked() bool {
+	return a.stopPhase == "stopping" || a.retryStopLock
 }
 
 // ConsumePlayHID keeps USB keys on the play-session path: no sofa browse and
@@ -3044,7 +3079,7 @@ func (a *App) ConsumePlayHID() bool {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if !a.forwardsPlayHIDLocked() || a.tapePickerOpen || a.firmwarePickerOpen {
+	if !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.tapePickerOpen || a.firmwarePickerOpen {
 		return false
 	}
 	a.repeat.Clear()
@@ -3056,10 +3091,38 @@ func (a *App) ConsumePlayHID() bool {
 // active package can arm a mailbox. Other keys encode for the attached core.
 // Letter s is a ZX81/core key, not chrome stop.
 func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
-	if a.consumeSuppressedPlayKey(name, 0, down) {
+	suppressed := a.consumeSuppressedPlayKey(name, 0, down)
+	if !down {
+		a.releaseStoppedPlayKey(name, 0)
+	}
+	if suppressed {
 		return true
 	}
 	return a.handlePlayHIDKey(name, down, now)
+}
+
+// Physical key-up must reach the same active route even when Stop suppresses
+// held keys or gives launcher navigation control. Key-down keeps that normal
+// navigation path, including Escape and Backspace for retry/recovery.
+func (a *App) releaseStoppedPlayKey(name string, usage uint8) {
+	a.mu.Lock()
+	blocked := a.playHIDInputBlockedLocked()
+	hid := a.session.CoreKeyboardHID
+	keyboard := a.session.CoreKeyboard || hid
+	a.mu.Unlock()
+	if !blocked {
+		return
+	}
+	var event remoteinput.Event
+	var ok bool
+	if hid {
+		event, ok = hidkeys.Event(usage, false)
+	} else {
+		event, ok = playhid.Event(name, false, keyboard)
+	}
+	if ok {
+		a.SendPlayHID(event)
+	}
 }
 
 func (a *App) handlePlayHIDKey(name string, down bool, now time.Time) bool {
@@ -3133,6 +3196,23 @@ func (a *App) SendCoreKey(event remoteinput.Event) {
 	a.SendPlayHID(event)
 }
 
+// neutralPlayHIDEventLocked only clears input state; mouse reports may remove
+// held buttons, but may not introduce a new button or any motion.
+func (a *App) neutralPlayHIDEventLocked(event remoteinput.Event) bool {
+	if event.Device == remoteinput.DeviceMouse {
+		held := a.playHIDHeld[playHIDKey{device: remoteinput.DeviceMouse}].Code
+		return event.Kind == remoteinput.KindRelative && event.Action == remoteinput.ActionRelative && event.Value == 0 && event.Code & ^held == 0
+	}
+	switch event.Kind {
+	case remoteinput.KindAxis:
+		return event.Action == remoteinput.ActionAbsolute && event.Value == 0
+	case remoteinput.KindKey, remoteinput.KindButton:
+		return event.Action == remoteinput.ActionRelease
+	default:
+		return false
+	}
+}
+
 // SendPlayHID posts one play-session HID event. Foreign kit leases fail closed.
 func (a *App) SendPlayHID(event remoteinput.Event) bool {
 	if a == nil {
@@ -3141,11 +3221,18 @@ func (a *App) SendPlayHID(event remoteinput.Event) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	ready := a.forwardsPlayHIDLocked()
+	blocked := a.playHIDInputBlockedLocked()
+	if blocked {
+		if !a.neutralPlayHIDEventLocked(event) {
+			return false
+		}
+		ready = a.playHIDRouteReadyLocked()
+	}
 	foreign := a.playHIDFailClosedLocked()
 	if !ready || foreign || a.client == nil {
 		return false
 	}
-	if (event.Action == remoteinput.ActionPress || event.Kind == remoteinput.KindAxis && event.Value != 0 || event.Device == remoteinput.DeviceMouse && (event.Value != 0 || event.Code != 0)) && a.playHIDPending >= maxPendingPlayHID {
+	if a.playHIDPending >= maxPendingPlayHID && !a.neutralPlayHIDEventLocked(event) {
 		return false
 	}
 	a.rememberPlayHIDLocked(event)

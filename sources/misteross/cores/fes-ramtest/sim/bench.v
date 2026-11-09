@@ -6,6 +6,7 @@
 // compares its counts with the ones the core reports.
 module bench (
     input wire FPGA_CLK1_50,
+    input wire CAP_CLK,
     input wire [2:0] mask_fault,
     output wire [106:0] byte_status,
     output wire [11:0] byte_coverage,
