@@ -38,7 +38,13 @@ sources remain unchanged across these checks. The changed-source digest record,
 all original failures, independent mtools control and passing results remain in
 `out/nano-fat-create-20261109/validation.json` and adjacent files.
 
-A full native ARM64 launcher cross-build follows from this committed source.
+The full native ARM64 launcher cross-build passes from committed source
+`24d5c40f07356f13f23d20834a237e6295ef5dcf`, based on `afc842810dbd1848c706464a524165635c9aecde`. All
+2115 recorded compiler input hashes, including `fat/create.go`, still
+match. ELF SHA-256: `a1d80a661abb484697a6b92826c76ae63da2047359181e4cca5985453958ccbb`.
+The board still explicitly selects read-only SD and volatile preference changes.
+No new entry/BL31/FIT/SOF was assembled or deployed. Cross-compilation does not
+establish native execution or hardware acceptance of the new allocation path.
 The owned native installer/upload integration, hardware write/readback and
 power-loss behavior remain open. The overall DE10-equivalent core-loading goal
 is incomplete. Physical keyboard/HDMI testing remains deferred until the
