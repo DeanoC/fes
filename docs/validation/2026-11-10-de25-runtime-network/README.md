@@ -45,6 +45,13 @@ consistency and the native lifecycle/firmware/FPGA integration. That integration
 uses real patched firmware C and Verilated endpoint RTL with injected physical
 boundaries; it is not hardware acceptance. The selected source snapshots remain
 unchanged throughout verification.
+The full Nano ARM64 launcher cross-build passes from committed source
+`218f928ac9e52945e360b6d897acf913cb63263d`, based on
+`3e4d635f8f6a89146b4d0b3df4412644e8ed604b`. All 2120 compiler input hashes
+match the current source. ELF SHA-256:
+`f966435fd1324f16af811361e800aa7ad6e329811937a750f0682980474ee81a`.
+The generated network profile remains disabled. No matched entry/BL31/FIT/SOF
+was rebuilt or deployed; cross-compilation supplies no boot or DMA qualification.
 
 This completes software guarding after an explicit attachment. It does not
 implement the secure MAC lease or independently qualify stop/drain/restart.
