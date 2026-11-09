@@ -163,14 +163,11 @@ def prepare_elaboration_inputs(source: Path, work: Path, *, dos_profile=False) -
         raise ValueError('DOS BIOS differs from its locked provenance')
     firmware = bytes([0xff]) * (65536 - len(bios)) + bios
     generator.boot_roms(work, firmware, prefix='pcxt_glabios')
-    font = bytearray(4096)
-    offset = bios_spec['ascii_font']['rom_offset']
-    for char in range(128):
-        font[char * 16:char * 16 + 8] = bios[offset + char * 8:offset + char * 8 + 8]
-    (work / 'pcxt_glabios_font.hex').write_text(''.join(f'{byte:02x}\n' for byte in font))
+    font = generator.cga_font(source)
+    (work / 'pcxt_cga_font.hex').write_text(''.join(f'{byte:02x}\n' for byte in font))
     return {
         'glabios_rom_sha256': metadata['bios']['sha256'],
-        'glabios_font_sha256': hashlib.sha256(font).hexdigest(),
+        'cga_font_sha256': hashlib.sha256(font).hexdigest(),
         'loaded_into_sdram_before_cpu_release': True,
         'guest_disk_reads_use_sdram_media_path': True,
     }

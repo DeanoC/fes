@@ -690,7 +690,8 @@ the ITLB's page is the linear one with A20M applied.
   holds a branch's last byte: it is indexed by linear bits 11:4 and tagged
   with bits 31:12. It holds that byte's offset, the branch's linear target,
   a 2-bit counter and whether the branch is unconditional. It covers Jcc,
-  LOOP, LOOPE, LOOPNE, JCXZ, JMP rel and CALL rel.
+  LOOP, LOOPE, LOOPNE, JCXZ, JMP rel and CALL rel, and near RET and JMP and
+  CALL r/m (below).
   - **Fetch.** F1 reads the BTB with the L1I. F2 compares the tags and
     registers its choice. An entry counts only if its branch's last byte is
     at or past the offset fetch entered the block at: a redirect's or a
@@ -759,10 +760,10 @@ the ITLB's page is the linear one with A20M applied.
     interrupt's redirect commits nothing. The selects key on the registers
     `redirect_linear`'s do.
   - **Unpredicted CALLs.** A near CALL the front end did not push always
-    redirects at WB: a CALL rel the BTB missed, or any CALL r/m. On that
-    redirect WB writes its return address, CS.base plus the next EIP, at
-    the new top. So a RET after CALL r/m predicts, though slice 5 has yet to
-    predict the CALL.
+    redirects at WB: a CALL rel or CALL r/m the BTB missed. So does a CALL
+    r/m predicted to another target, whose push was right. On that redirect
+    WB writes its return address, CS.base plus the next EIP, at the new
+    top.
   - **Entries are not repaired.** A wrong path's push over a live entry
     costs a later misprediction, never a result.
   - **Overflow and underflow.** The pointer wraps. A seventeenth CALL
@@ -785,7 +786,25 @@ the ITLB's page is the linear one with A20M applied.
     EX's compare redirects it.
   - **queue16.** Nothing is predicted. WB writes no BTB entry, so no
     entry pushes or pops.
-- **Indirect** JMP and CALL use the BTB's last target.
+- **Indirect JMP and CALL (built, [Phase 4 slice 5](#slices)):** near JMP
+  and CALL r/m (FFh /4, /2) are predicted to the target they last went to.
+  - **Entries.** WB writes an always-taken entry at every indirect JMP's or
+    CALL's retirement, with the target it went to, as it does a RET's. A
+    CALL's entry has the call bit, so F2 pushes its return address as for a
+    CALL rel. The BTB, the return stack and the fetch buffer are unchanged.
+  - **D and EX.** As after a RET, D gives the next instruction the predicted
+    target's linear address less CS.base as its EIP. EX compares the EIP the
+    JMP or CALL computes with it (RET's compare, `peip`). A JMP or CALL that
+    was not predicted, or whose target differs, redirects to the computed
+    target, and WB writes that target into the entry. Only a CALL r/m's
+    last uop, the jump, carries the prediction.
+  - **Checks.** The fetch check passes the target by construction, as after
+    a RET, so EX's compare is the target's check. The fetch check still
+    covers an entry where no branch now ends. A JMP or CALL whose target is
+    past CS's limit faults at EX and never redirects through the compare.
+  - **Policy.** Last target only, no history. In DOOM's bench window 98.9%
+    of indirect CALLs and every indirect JMP go to their site's last target
+    ([the slice's record](../../../docs/validation/2026-11-08-i386-phase4-indirect/summary.md)).
 - **Real-mode and V86 far transfers are branches.** Fetch is linear, and in
   these modes a far CALL, JMP or RETF sets the CS base to selector × 16 with no
   descriptor read. In the current Phase 1 slice, far transfers are plain taken
@@ -1813,8 +1832,17 @@ it runs uncapped.
      4 ns: D's EIP has +1.13 ns, from +5.57. The check's 12-bit sum is on
      `issue`'s path, so slice 6 has much less room in D and AG than this
      plan assumed.
-5. **Indirect JMP and CALL.** The BTB keeps the last target. Gain: DOOM about
-   1%. Risk: none beyond slice 2.
+5. **Indirect JMP and CALL.** Built
+   ([record](../../../docs/validation/2026-11-08-i386-phase4-indirect/summary.md)):
+   the BTB keeps the last target ([Prediction](#prediction)).
+   - **Policy.** Measured first: in DOOM's bench window 98.9% of indirect
+     CALLs go to their site's last target. 3DBench's one site repeats 4.3%
+     of the time, so it gains nothing.
+   - **Result.** Kit A's DOOM `demo3` goes from 39.7 to 40.05 fps (+0.8%), and
+     the Pack's DOOM by 0.8–1.1%. A CALL r/m's target retires 13.29 clocks
+     after it, from 23.04; the rest, against a CALL rel's 2.44, is its jump
+     waiting at D for T1.
+   - **Risk.** None beyond slice 2: the seal's setup slack is +1.180 ns.
 6. **Early ALU.**
    - **First step.** Split the AGI counter by producer: a load, or a late ALU
      result. Done ([record](../../../docs/validation/2026-11-06-i386-phase4-early-alu/summary.md)):
@@ -2208,9 +2236,33 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
 0. **Census.** Land the record's census extensions in `machine_tb --census`
    (paged stems, system registers by number, task switches, V86, the TLB
    models, and a flush on every CR3 write), so each slice reruns the record.
+   The keys are in [`pc386-game-drives.md`, "Instruction census"](pc386-game-drives.md#instruction-census).
 1. **Paging.** CR0.PG, CR2, CR3 and their flushes; the 16-entry DTLB, the
    8-entry ITLB and the walker; A and D; #PF; physical lines for
-   self-modifying code.
+   self-modifying code. Built
+   ([record](../../../docs/validation/2026-11-08-i386-phase5-paging/summary.md);
+   the RTL README's [Paging](../cores/fes-common/rtl/i386/README.md#paging)).
+   As built, where it differs from the plan above:
+   - **The walker runs only for the oldest uop.** A uop the DTLB cannot
+     serve waits as an uncached load does and walks only as the oldest, else
+     it replays and its instruction issues alone to the end of its REP
+     element. So no walk is on a wrong path, A and D need no separate rule,
+     and no older store is in flight. After the walk the access reads memory
+     through the slow path, with no fill and nothing forwarded, and does not
+     replay.
+   - **Fetch walks go through D.** A block whose page the ITLB does not hold
+     reads as a hole with a mark; D turns the instruction that uses it, or
+     one from a supervisor page at CPL 3, into a walk uop, which fills the
+     ITLB and restarts the instruction, or raises its #PF. There is no
+     front-end walker.
+   - **Deliveries under paging issue serially,** so none replays.
+   - **Probes do not translate:** the pushes fault, as Bochs's do.
+   - **Store-to-load forwarding** compares linear addresses under paging,
+     and a load that meets a store's offset through another linear page
+     walks as the oldest (an alias). F1's next blocks, not looked up yet,
+     compare for self-modifying code by bits 11:5 alone.
+   - **The flushes** also cover a change of A20M or the attribute map, which
+     each entry's page and attribute were made with.
    - **Lockstep.** #PF inside REP MOVS and STOS; a page-crossing access
      faulting on its second page; D set by the first write through a read's
      entry; a CR3 write mid-REP; a wrong path that must not set A or D; a

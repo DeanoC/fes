@@ -42,13 +42,8 @@ def fixture_inputs(build, bios=None, font=None, download=False):
         if len(glyphs) != 4096:
             raise ValueError('Font must be normalized 256 characters x 16 bytes')
     else:
-        # The stock BIOS includes the PC's lower 128 8x8 graphics characters.
-        # Reuse those exact licensed glyphs for readable POST ASCII; upper
-        # characters and rows 8..15 are blank. This is not a full CP437 font.
-        glyphs = bytearray(4096)
-        start = spec['ascii_font']['rom_offset']
-        for char in range(128):
-            glyphs[char * 16:char * 16 + 8] = rom[start + char * 8:start + char * 8 + 8]
+        # The package's own locked CP437 CGA font, all 256 characters.
+        glyphs = sim.cga_font()
     (build / 'firmware.bin').write_bytes(image)
     (build / 'font.hex').write_text(''.join(f'{byte:02x}\n' for byte in glyphs))
     receipt = {'bios': spec['bios'], 'mapping': 'top aligned in F0000-FFFFF; FF fill',

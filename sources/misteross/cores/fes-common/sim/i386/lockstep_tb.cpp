@@ -72,7 +72,9 @@
 //           a vector entry it rewrote, or at a store into its code other
 //           than those rewrites, after which it may run anything.
 //           FES_I386_PM protected-mode blocks per hundred items (pm_block,
-//           default 2): LGDT and LIDT, PE set, far jumps, far CALLs and
+//           default 2): LGDT and LIDT, PE set, paging on (half of them, over
+//           identity tables with pages now and then not present, read-only
+//           or supervisor, and an arena of aliased pages), far jumps, far CALLs and
 //           RETFs between code descriptors, INT n and IRET through an IDT of
 //           interrupt and trap gates, LLDT, LTR, LAR's kin and ARPL, segment
 //           loads from the GDT and the LDT, accesses, CR and table moves,
@@ -100,6 +102,13 @@
 //             frames past a 16-bit stack's limit in the MMIO window, which
 //             fault before any read), LLDT, LTR, LAR, LSL, VERR, VERW, ARPL,
 //             and what stops as not built.
+//   paging    the directed paging cases (run_paging_cases): walks, A and D,
+//             each #PF cause with its error code and CR2 at CPL 0 and 3,
+//             page-crossing data and instructions, a CR3 write's flush,
+//             self-modifying code and forwarding through aliases, REP
+//             strings that fault or cross pages, frames past RAM, in the
+//             reset shadow and under A20M, double faults, PE and PG set
+//             together, and paging toggled around a far jump.
 //   no387     the directed cases of the ESC instructions with no 387
 //             (run_no387_cases): every form in real and protected mode,
 //             their faults, #NM, FNSTENV's and FNSAVE's layouts and FPU
@@ -148,6 +157,8 @@ constexpr uint32_t MMIO_LO = 0xa0000, MMIO_HI = 0xc0000;  // the MMIO window, wh
 // the ROM's or the hole's shows. One slot each: a program whose stack or far
 // pointers land there runs astray (Outcome::stray).
 constexpr uint32_t MIX_LO = 0xb8000, MIX_HI = 0xbc000, ROM_LO = 0xc0000, HOLE_LO = 0xc4000, HOLE_HI = 0xc8000;
+// The random programs' page directory and its four tables (Generator::pg_tables).
+constexpr uint32_t PG_PD = 0xf00000, PG_END = PG_PD + 0x5000, PG_ARENA = 0x200000;
 bool mixed = false;
 uint8_t device_read(uint32_t paddr, uint8_t written) {
     return mixed && paddr >= MIX_LO && paddr < MIX_HI ? uint8_t(written ^ ((paddr * 0x9e3779b1u) >> 24 | 1)) : written;
@@ -250,9 +261,22 @@ uint32_t physical(uint32_t linear, bool a20m) {
     if (linear >= 0xffff0000u) return 0xf0000u | (linear & 0xffffu);
     return a20m ? linear & ~(1u << 20) : linear;
 }
+// A store byte's physical address from the RTL's page for it
+// (trace_store_pg0/pg1: PA bits 25:12 under phys's above bit). A page past
+// PA is a hole, whose address the CPU drops (FC000000h up here: write_key).
+uint32_t store_physical(uint32_t linear, uint32_t page) {
+    return page & 0x4000u ? 0xfc000000u | (linear & 0xfff) : (page & 0x3fffu) << 12 | (linear & 0xfff);
+}
 // The oracle's physical address as the CPU's map sees it: FFFF0000h-FFFFFFFFh
 // is the F0000h shadow (fes_i386_pkg::phys), which a flat segment reaches.
 uint32_t alias(uint32_t paddr) { return paddr >= 0xffff0000u ? 0xf0000u | (paddr & 0xffffu) : paddr; }
+// A written byte's physical address as both sides' write sets hold it: the
+// oracle's (alias), with a hole past the CPU's 64 MiB (PA) as store_physical
+// gives it, whose page the RTL does not keep.
+uint32_t write_key(uint32_t paddr) {
+    paddr = alias(paddr);
+    return paddr >= (1u << 26) ? 0xfc000000u | (paddr & 0xfff) : paddr;
+}
 
 // The oracle's memory: 16 MiB of RAM, its I/O space and its PIC. With the
 // MMIO window on, its bytes are reached through read and write, logged.
@@ -474,6 +498,11 @@ public:
         const uint32_t waddr = top.trace_store_addr & ~3u;
         const uint64_t wdata = top.trace_store_data;
         const uint8_t wmask = top.trace_store_mask;
+        // The store's physical pages: its address's, and the next page's for
+        // its bytes past that page's end (paging, or phys with it off).
+        const uint32_t wpg0 = top.trace_store_pg0, wpg1 = top.trace_store_pg1;
+        const bool pw = top.trace_pw;
+        const uint32_t pw_addr = top.trace_pw_addr, pw_data = top.trace_pw_data;
         // The instruction retiring or storing now: the one after the last
         // retirement.
         const uint32_t current = top.arch_base[fes_i386::SEG_CS] + top.arch_eip;
@@ -498,6 +527,10 @@ public:
         if (top.trace_fe_wait) last_fe_wait = cycles;
         replays += top.trace_replay;
         smc_restarts += top.trace_smc;
+        if ((top.trace_replay || top.trace_smc || top.trace_pw) && std::getenv("FES_I386_VERBOSE"))
+            std::fprintf(stderr, "  cycle %llu %s eip %x cs.base %x%s\n", (unsigned long long)cycles,
+                         top.trace_pw ? "a/d store" : top.trace_smc ? "smc restart" : "replay", unsigned(top.arch_eip),
+                         unsigned(top.arch_base[fes_i386::SEG_CS]), top.trace_pw ? (" at " + hex(top.trace_pw_addr)).c_str() : "");
         // Port 0, then MMIO: this edge's responses, and the command taken.
         port0.drive(top, ticks++);
         top.mmio_rvalid = 0;
@@ -604,13 +637,23 @@ public:
         if (store) {
             for (int i = 0; i < 8; ++i) {
                 if (!(wmask >> i & 1)) continue;
-                const uint32_t at = physical(waddr + i, top.a20m);
+                const uint32_t lin = waddr + i;
+                const uint32_t at = store_physical(lin, ((lin ^ waddr) >> 12) ? wpg1 : wpg0);
                 if (window && in_window(at)) mmio_stores.push_back({true, at, uint8_t(wdata >> (8 * i)), step});
                 if (at < RAM_BYTES && !(window && (in_rom(at) || in_hole(at)))) ram[at] = uint8_t(wdata >> (8 * i));
                 step_writes.insert(at);
                 written.insert(at);
             }
         }
+        // The walker's A/D store: memory, not a retirement's write.
+        if (pw)
+            for (unsigned k = 0; k < 4; ++k) {
+                const uint32_t at = pw_addr + k;
+                if (at < RAM_BYTES && !(window && (in_rom(at) || in_hole(at) || in_window(at)))) {
+                    ram[at] = uint8_t(pw_data >> (8 * k));
+                    written.insert(at);
+                }
+            }
         if (top.trace_retire && !top.trace_exception && !stale) {
             const uint32_t end = current + (length ? length(current) : 15u);
             uint32_t first_stale = 0;
@@ -1915,7 +1958,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
 
         // Every byte the oracle writes is cleared after the run.
         for (const auto &w : result.writes)
-            for (unsigned i = 0; i < w.length; ++i) rtl.written.insert(alias(w.physical + i));
+            for (unsigned i = 0; i < w.length; ++i) rtl.written.insert(write_key(w.physical + i));
         // An injected interrupt through a vector entry the program rewrote,
         // or to a handler it wrote over, runs data from here: stop. (Bochs's
         // step also takes a fault of what it fetches there.)
@@ -1939,16 +1982,16 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // 16-bit stack slot past 64 KiB, an IRET with NT set (a return from
         // a nested task). The oracle's step must show the like: a fault
         // first, or the transfer. INS and OUTS at a CPL above IOPL (the I/O
-        // permission bitmap's, not built for them), like paging and the
-        // 16-bit stack slot, are not compared with the oracle's step.
+        // permission bitmap's, not built for them), like the 16-bit stack
+        // slot, are not compared with the oracle's step.
         if (event == Rtl::Event::Unimplemented && rtl.top.trace_unbuilt != 0) {
             const unsigned why = rtl.top.trace_unbuilt;
             const State now = oracle.get_state();
             const bool faulted = vector >= 0;
-            const bool like = faulted || (why == 1 || why == 8) && now.tr.selector != before.tr.selector
+            const bool like = faulted || (why == 1 || why == 7) && now.tr.selector != before.tr.selector
                            || why == 3 && now.cpl > before.cpl || why == 4 && (now.tr.selector != before.tr.selector
                                                                         || now.seg[fes_i386::SEG_CS].selector != before.seg[fes_i386::SEG_CS].selector)
-                           || why == 5 && (now.eflags & 0x20000) || why == 6 || why == 7 || why == 9;
+                           || why == 5 && (now.eflags & 0x20000) || why == 6 || why == 8;
             if (!like) out.add(at + "unbuilt." + std::to_string(why), 0, 1);
             ++summary.unbuilt[int(why)];
             outcome.unbuilt = int(why);
@@ -1977,7 +2020,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 std::set<uint32_t> own_writes, later_writes;
                 for (size_t k = 0; k < result.writes.size(); ++k)
                     for (unsigned i = 0; i < result.writes[k].length; ++i)
-                        (k < own ? own_writes : later_writes).insert(alias(result.writes[k].physical + i));
+                        (k < own ? own_writes : later_writes).insert(write_key(result.writes[k].physical + i));
                 for (uint32_t address : rtl.step_writes) {
                     if (!own_writes.count(address))
                         out.add(at + "fault-write", address, address < RAM_BYTES ? rtl.ram[address] : 0);
@@ -1989,8 +2032,10 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 for (int r : {fes_i386::REG_EAX, fes_i386::REG_ECX, fes_i386::REG_ESI, fes_i386::REG_EDI})
                     want.gpr[r] = oracle_now.gpr[r];
                 // The arithmetic flags: the oracle's delivery sets RF and
-                // clears IF before its second fault.
+                // clears IF before its second fault. A #PF on the way wrote
+                // CR2 on both sides.
                 want.eflags = (before.eflags & ~0x8d5u) | (oracle_now.eflags & 0x8d5u);
+                want.cr2 = oracle_now.cr2;
                 compare(want, rtl.state(), skip, at, out);
             }
             outcome.shutdown = true;
@@ -2115,7 +2160,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             // leaves memory to the corpus: then the oracle takes the RTL's.
             std::set<uint32_t> oracle_writes;
             for (const auto &w : result.writes)
-                for (unsigned i = 0; i < w.length; ++i) oracle_writes.insert(alias(w.physical + i));
+                for (unsigned i = 0; i < w.length; ++i) oracle_writes.insert(write_key(w.physical + i));
             // ARPL that raises no RPL writes nothing (divergence
             // arpl-no-write-no-fault), but Bochs reads its memory operand as a
             // read-modify-write, which the adapter logs as a write of the
@@ -2134,17 +2179,16 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                     oracle.invalidate(address, 1);
                 }
             } else {
-                // A delivery's pushed FLAGS image, at SS:SP - 2 before the
-                // instruction (- 4 through a protected-mode 386 gate), may
-                // differ in the flags an entry leaves to the corpus
-                // (stack.flags): the oracle takes the RTL's.
-                if (delivered && skip.stack_flags) {
-                    const auto &ss = before.seg[fes_i386::SEG_SS];
-                    const uint32_t esp = before.gpr[fes_i386::REG_ESP];
-                    const uint32_t gate = before.idtr.base + rtl.top.trace_vector * 8u + 5;
-                    const uint32_t image = (before.cr0 & 1) && gate < RAM_BYTES && (bus.ram[gate] & 8) ? 4 : 2;
-                    for (uint32_t k = 0; k < 2; ++k) {
-                        const uint32_t at = ss.base + ((ss.ar & 0x4000) ? esp - image + k : (esp - image + k) & 0xffff);
+                // A delivery's pushed FLAGS image may differ in the flags an
+                // entry leaves to the corpus (stack.flags): the oracle takes
+                // the RTL's. It is the delivery's first push, or its third
+                // to an inner privilege (after SS and ESP), at the physical
+                // address the oracle wrote it (paging included).
+                if (delivered && skip.stack_flags && last) {
+                    const bool inner = (before.cr0 & 1) && oracle.get_state().cpl < before.cpl;
+                    const size_t slot = last->writes_before + (inner ? 2 : 0);
+                    for (uint32_t k = 0; k < 2 && slot < result.writes.size(); ++k) {
+                        const uint32_t at = write_key(result.writes[slot].physical + k);
                         const uint8_t mask = uint8_t(skip.stack_flags >> (8 * k));
                         if (at < RAM_BYTES && oracle_writes.count(at) && !((bus.ram[at] ^ rtl.ram[at]) & ~mask)) {
                             bus.ram[at] = rtl.ram[at];
@@ -2163,7 +2207,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                     // frame).
                     std::set<uint32_t> frame;
                     for (size_t k = last ? last->writes_before : result.writes.size(); k < result.writes.size(); ++k)
-                        for (unsigned i = 0; i < result.writes[k].length; ++i) frame.insert(alias(result.writes[k].physical + i));
+                        for (unsigned i = 0; i < result.writes[k].length; ++i) frame.insert(write_key(result.writes[k].physical + i));
                     for (uint32_t address : frame)
                         if (!rtl.step_writes.count(address)) out.add(at + "frame-write", address, 0);
                     for (uint32_t address : rtl.step_writes)
@@ -2191,7 +2235,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                         for (const auto &w : result.writes)
                             if (w.linear == top)
                                 for (unsigned i = 0; i < w.length; ++i) {
-                                    const uint32_t address = alias(w.physical + i);
+                                    const uint32_t address = write_key(w.physical + i);
                                     if (address >= RAM_BYTES) continue;
                                     bus.ram[address] = rtl.ram[address];
                                     oracle.invalidate(address, 1);
@@ -2220,9 +2264,13 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                     if (address < RAM_BYTES && bus.ram[address] != rtl.ram[address])
                         out.add(at + "write." + hex(address), bus.ram[address], rtl.ram[address]);
             }
+            // A store into the program's code, or into the page tables of
+            // its paging blocks (Generator::pg_tables), which both TLBs may
+            // hold the old entries of, ends the run.
             if (own)
                 for (uint32_t address : oracle_writes)
-                    if (address >= own->lo && address < own->hi && !own->rewritten.count(address))
+                    if (address >= own->lo && address < own->hi && !own->rewritten.count(address)
+                        || address >= PG_PD && address < PG_END)
                         outcome.code_store = true;
         }
         // The I/O accesses, in order; a request must hold until its ack.
@@ -2316,6 +2364,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             // The third slice's: retirements at CPL 3, returns to an outer
             // privilege, IN and OUT at a CPL above IOPL (the bitmap).
             if (before.cpl == 3) ++summary.pm_kinds["cpl3"];
+            if (before.cr0 & 0x80000000u) ++summary.pm_kinds["paged"];
             if (oracle_state.cpl > before.cpl) ++summary.pm_kinds["outer-return"];
             if (before.cpl > ((before.eflags >> 12) & 3) && is_io(op) && !is_string(op)) ++summary.pm_kinds["io-bitmap"];
         }
@@ -2381,7 +2430,8 @@ void check_halt_quiet(Rtl &rtl, const std::string &label, Mismatches &out) {
 
 // A directed case runs its code with the vector table's #DE, #SS and #GP
 // entries at a HLT. A fault case must deliver its vector (#GP(0) unless
-// given), pushing the faulting instruction's IP and CS, then halt in the
+// given), pushing the faulting instruction's IP (the code's start unless
+// fault_ip gives it, with SP as it started) and CS, then halt in the
 // handler and stay stopped. A nested case must stop at a fault in its
 // delivery, with nothing written. The divergence list applies, so a #DE's
 // pushed FLAGS follow the 386EX.
@@ -2391,7 +2441,7 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
                     Summary &summary, const std::string &label, const std::vector<uint8_t> &code, State state,
                     bool nested, uint32_t stack_address = 0, const std::array<uint8_t, 4> *stack_value = nullptr,
                     int expected = 13, bool allow_divergences = false, uint32_t forbidden_dmem_read = UINT32_MAX,
-                    uint32_t forbidden_mmio_read = UINT32_MAX) {
+                    uint32_t forbidden_mmio_read = UINT32_MAX, int64_t fault_ip = -1, uint64_t retire_limit = 64) {
     const uint32_t code_base = state.seg[fes_i386::SEG_CS].base + state.eip;
     std::vector<std::pair<uint32_t, uint8_t>> image;
     for (size_t i = 0; i < code.size(); ++i) image.emplace_back(code_base + uint32_t(i), code[i]);
@@ -2414,7 +2464,7 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     try {
         const std::vector<Entry> no_divergences;
         const std::vector<Entry> &directed_entries = allow_divergences ? entries : no_divergences;
-        outcome = lockstep(oracle, bus, rtl, directed_entries, Fields{}, 64, false, summary, out,
+        outcome = lockstep(oracle, bus, rtl, directed_entries, Fields{}, retire_limit, false, summary, out,
                            code_base + uint32_t(code.size()));
     } catch (const std::exception &error) {
         out.add(label + ".oracle-error:" + error.what(), 0, 1);
@@ -2431,7 +2481,8 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         const uint32_t frame = state.seg[fes_i386::SEG_SS].base + sp;
         const uint32_t ip = rtl.ram[frame] | uint32_t(rtl.ram[frame + 1]) << 8;
         const uint32_t cs = rtl.ram[frame + 2] | uint32_t(rtl.ram[frame + 3]) << 8;
-        if (ip != (state.eip & 0xffff)) out.add(label + ".pushed-ip", state.eip & 0xffff, ip);
+        const uint32_t want_ip = fault_ip >= 0 ? uint32_t(fault_ip) : state.eip & 0xffff;
+        if (ip != want_ip) out.add(label + ".pushed-ip", want_ip, ip);
         if (cs != state.seg[fes_i386::SEG_CS].selector) out.add(label + ".pushed-cs", state.seg[fes_i386::SEG_CS].selector, cs);
         if ((rtl.state().gpr[fes_i386::REG_ESP] & 0xffff) != sp)
             out.add(label + ".esp", sp, rtl.state().gpr[fes_i386::REG_ESP] & 0xffff);
@@ -3244,6 +3295,84 @@ void run_ras_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std
     limit.resize(0x800, 0x90);
     limit.insert(limit.end(), {0x68, 0x04, 0x00, 0xc3, 0x4a, 0x75, 0xf9});
     run_nop_case(oracle, bus, rtl, entries, summary, "ras-limit", limit, state, 600);
+}
+
+// The indirect near JMP and CALL cases (JMP r/m, CALL r/m), from CS:0 at
+// linear 1000h in real mode, in lockstep with the oracle. Each loops so the
+// BTB learns its indirect sites' last targets, then breaks the prediction;
+// every JMP and CALL must go where its operand says.
+//   ind-change    a CALL BX whose target changes once it is learned
+//   ind-alt       a CALL BX and a JMP CX whose targets alternate every time
+//   ind-call-ret  CALL [mem] to a function that CALLs BX; both RET, so each
+//                 RET's prediction comes from an indirect CALL's push
+//   ind-table     JMP [mem] through a slot a store rewrites
+//   ind-sizes     CALL EBX and a 32-bit RET (66h), CALL [BX+SI], and JMP BX
+//                 with EBX's upper half set, which JMP r/m16 drops
+//   ind-int       an interrupt handler's frame, PUSHF and a far CALL, then
+//                 IRET, around a CALL BX in the handler
+//   ind-store     a store turns a learned CALL BX into INC SI; INC SI: its
+//                 entry now ends where no CALL ends (the fetch check)
+//   ind-limit     a learned JMP EBX whose target moves past CS's limit:
+//                 #GP(0) at the JMP, though the BTB predicts it
+//   ind-fault     a learned CALL [SI] whose operand load faults (a word at
+//                 offset FFFFh): #GP(0) at the CALL, before its push
+void run_ind_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                   Summary &summary) {
+    State state;
+    for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0x100);
+    state.eip = 0;
+    state.gpr[fes_i386::REG_ESP] = 0x8000;
+    // mov dx, 10; o:  mov bx, f; cmp dx, 4; ja c; mov bx, g; c:  call bx; dec dx; jnz o; jmp done; f:
+    // inc si; ret; g:  inc di; ret; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ind-change",
+                 {0xba, 0x0a, 0x00, 0xbb, 0x15, 0x00, 0x83, 0xfa, 0x04, 0x77, 0x03, 0xbb, 0x17, 0x00, 0xff, 0xd3,
+                  0x4a, 0x75, 0xf0, 0xeb, 0x04, 0x46, 0xc3, 0x47, 0xc3}, state, 600);
+    // mov dx, 8; mov bx, f; mov cx, a; o:  call bx; xor bx, f ^ g; jmp cx; a:  inc bp;
+    // xor cx, a ^ b; jmp n; b:  inc sp; dec sp; xor cx, a ^ b; n:  dec dx;
+    // jnz o; jmp done; f:  inc si; ret; g:  inc di; ret; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ind-alt",
+                 {0xba, 0x08, 0x00, 0xbb, 0x20, 0x00, 0xb9, 0x10, 0x00, 0xff, 0xd3, 0x83, 0xf3, 0x02, 0xff, 0xe1,
+                  0x45, 0x83, 0xf1, 0x06, 0xeb, 0x05, 0x44, 0x4c, 0x83, 0xf1, 0x06, 0x4a, 0x75, 0xeb, 0xeb, 0x04,
+                  0x46, 0xc3, 0x47, 0xc3}, state, 600);
+    // mov word [0x4000], f; mov bx, g; mov dx, 6; o:  call [0x4000]; dec dx; jnz o; jmp done; f:  call
+    // bx; inc si; ret; g:  inc di; ret; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ind-call-ret",
+                 {0xc7, 0x06, 0x00, 0x40, 0x15, 0x00, 0xbb, 0x19, 0x00, 0xba, 0x06, 0x00, 0xff, 0x16, 0x00, 0x40,
+                  0x4a, 0x75, 0xf9, 0xeb, 0x06, 0xff, 0xd3, 0x46, 0xc3, 0x47, 0xc3}, state, 600);
+    // mov word [0x4000], a; mov dx, 8; o:  jmp [0x4000]; a:  inc si; cmp dx, 4; jne n; mov word
+    // [0x4000], b; jmp n; b:  inc di; n:  dec dx; jnz o; jmp done; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ind-table",
+                 {0xc7, 0x06, 0x00, 0x40, 0x0d, 0x00, 0xba, 0x08, 0x00, 0xff, 0x26, 0x00, 0x40, 0x46, 0x83, 0xfa,
+                  0x04, 0x75, 0x09, 0xc7, 0x06, 0x00, 0x40, 0x1b, 0x00, 0xeb, 0x01, 0x47, 0x4a, 0x75, 0xea, 0xeb,
+                  0x00}, state, 600);
+    // mov word [0x4000], g; mov dx, 4; o:  mov ebx, f; call ebx; mov bx, 0x4000; xor si, si; call
+    // [bx+si]; mov ebx, 0x12340000 + n; jmp bx; n:  dec dx; jnz o; jmp done; f:  inc bp; o32 ret; g:
+    // inc di; ret; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ind-sizes",
+                 {0xc7, 0x06, 0x00, 0x40, 0x29, 0x00, 0xba, 0x04, 0x00, 0x66, 0xbb, 0x26, 0x00, 0x00, 0x00, 0x66,
+                  0xff, 0xd3, 0xbb, 0x00, 0x40, 0x31, 0xf6, 0xff, 0x10, 0x66, 0xbb, 0x21, 0x00, 0x34, 0x12, 0xff,
+                  0xe3, 0x4a, 0x75, 0xe5, 0xeb, 0x05, 0x45, 0x66, 0xc3, 0x47, 0xc3}, state, 600);
+    // mov dx, 4; mov bx, g; o:  pushf; call 0x0100:h; dec dx; jnz o; jmp done; h:  call bx; iret; g:
+    // inc si; ret; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ind-int",
+                 {0xba, 0x04, 0x00, 0xbb, 0x14, 0x00, 0x9c, 0x9a, 0x11, 0x00, 0x00, 0x01, 0x4a, 0x75, 0xf7, 0xeb,
+                  0x05, 0xff, 0xd3, 0xcf, 0x46, 0xc3}, state, 600);
+    // mov dx, 6; o:  mov bx, f; cmp dx, 3; jne c; mov word [cs:c], 0x4646; c:  call bx; dec dx; jnz o;
+    // jmp done; f:  inc di; ret; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ind-store",
+                 {0xba, 0x06, 0x00, 0xbb, 0x19, 0x00, 0x83, 0xfa, 0x03, 0x75, 0x07, 0x2e, 0xc7, 0x06, 0x12, 0x00,
+                  0x46, 0x46, 0xff, 0xd3, 0x4a, 0x75, 0xec, 0xeb, 0x02, 0x47, 0xc3}, state, 600);
+    // mov dx, 4; o:  mov ebx, n; cmp dx, 1; jne j; mov ebx, 0x10000; j:  jmp ebx; n:  dec dx; jnz o
+    run_fault_case(oracle, bus, rtl, entries, summary, "ind-limit",
+                   {0xba, 0x04, 0x00, 0x66, 0xbb, 0x17, 0x00, 0x00, 0x00, 0x83, 0xfa, 0x01, 0x75, 0x06, 0x66, 0xbb,
+                  0x00, 0x00, 0x01, 0x00, 0x66, 0xff, 0xe3, 0x4a, 0x75, 0xe9}, state,
+                   false, 0, nullptr, 13, false, UINT32_MAX, UINT32_MAX, 0x14, 200);
+    // mov word [0x4000], f; mov dx, 4; o:  mov si, 0x4000; cmp dx, 1; jne c; mov si, 0xffff; c:  call
+    // [si]; dec dx; jnz o; f:  ret
+    run_fault_case(oracle, bus, rtl, entries, summary, "ind-fault",
+                   {0xc7, 0x06, 0x00, 0x40, 0x19, 0x00, 0xba, 0x04, 0x00, 0xbe, 0x00, 0x40, 0x83, 0xfa, 0x01, 0x75,
+                  0x03, 0xbe, 0xff, 0xff, 0xff, 0x14, 0x4a, 0x75, 0xf0, 0xc3}, state,
+                   false, 0, nullptr, 13, false, UINT32_MAX, UINT32_MAX, 0x14, 200);
 }
 
 // ---- SingleStepTests mode ---------------------------------------------------------------
@@ -4350,6 +4479,39 @@ private:
     // (selector index * 8 + 4): 0 random, 1 data RW 64K at a random base,
     // 2 flat data RW, 3 code RX 16-bit at the program's CS base, 4 data
     // read-only, 5 not present, 6 data RW DPL 3, 7 random.
+    // Paging (pg_tables): a page directory at PG_PD whose first four PDEs
+    // map 0-16 MiB through four tables after it, identity pages that a run
+    // may find not present, supervisor or read-only now and then (all but
+    // the program's code, these tables and the protected-mode tables), the
+    // rest of the 4 GiB not present. A store into them ends the run
+    // (Code's code_store), since both TLBs keep what they hold.
+    bool paged = false, pg_on = false;
+    void pg_tables() {
+        if (paged) return;
+        paged = true;
+        auto keep = [&](uint32_t page) {
+            const uint32_t a = page << 12;
+            return a + 0x1000 > (program_base & ~0xfffu) && a < program_base + 0x4000
+                || a + 0x1000 > gdt_lin && a < gdt_lin + 0x800 || a >= PG_PD && a < PG_END || page == 0
+                || page == 0x10f;
+        };
+        auto put = [&](uint32_t at, uint32_t v) {
+            for (unsigned i = 0; i < 4; ++i) image.emplace_back(at + i, uint8_t(v >> (8 * i)));
+        };
+        for (uint32_t k = 0; k < 4; ++k)
+            put(PG_PD + 4 * k, (PG_PD + 0x1000 * (k + 1)) | 0x07 | (pick(2) ? 0x20 : 0));
+        for (uint32_t page = 0; page < 0x1000; ++page) {
+            uint32_t pte = page << 12 | 0x07 | (pick(2) ? 0x20 : 0) | (pick(4) == 0 ? 0x40 : 0);
+            if (!keep(page) && pick(8) == 0) pte &= ~uint32_t(1u << pick(3));  // not present, read-only or supervisor
+            // The arena (PG_ARENA, which descriptor 1 reaches a third of the
+            // time): 16 pages over 8 frames, so two linear pages often
+            // alias, each present three times in four, its R/W and U/S at
+            // random.
+            if (page >= (PG_ARENA >> 12) && page < (PG_ARENA >> 12) + 16)
+                pte = ((PG_ARENA >> 12) + pick(8)) << 12 | (pick(4) ? 1 : 0) | pick(4) << 1 | pick(4) << 5;
+            put(PG_PD + 0x1000 + 4 * page, pte);
+        }
+    }
     static constexpr uint32_t PM_LGDT = 0xe0, PM_SCRATCH = 0xe8, PM_LIDT = 0x110, PM_LIDT_REAL = 0x118, PM_IDT = 0x120,
                               PM_H32 = 0x2a0, PM_H16 = 0x2a4, PM_HRET = 0x2a8, PM_LDT = 0x2c0, PM_TSS = 0x300,
                               PM_ESP0 = 0x600, PM_ESP3 = 0x700;
@@ -4413,12 +4575,14 @@ private:
     }
     void gdt_table() {
         image.clear();
+        paged = false;
+        pg_on = false;
         gdt_lin = program_base < 0x80000 ? 0x9f000 : 0x3000;
         const uint32_t cs_base = program_base - program_eip;
         auto acc = [&]() { return uint8_t(pick(2)); };
         auto rnd_base = [&]() { return uint32_t(pick(0x10000)) << 4; };
         gdt[0] = Desc{0, 0, false, false, 0};
-        gdt[1] = Desc{rnd_base(), 0xffff, false, false, uint8_t(0x92 | acc())};
+        gdt[1] = Desc{pick(3) ? rnd_base() : PG_ARENA + uint32_t(pick(0x8000)), 0xffff, false, false, uint8_t(0x92 | acc())};
         gdt[2] = Desc{0, 0xfffff, true, false, uint8_t(0x92 | acc())};
         gdt[3] = Desc{0, 0xfffff, true, true, uint8_t(0x92 | acc())};
         gdt[4] = Desc{rnd_base(), pick(2) ? 0xffffu : pick(0x10000), pick(4) == 0, false, uint8_t(0x90 | acc())};
@@ -4538,6 +4702,66 @@ private:
     }
     // FS as the flat data segment, for the scratch area.
     void flat_fs() { load_seg(4, 0x10); }
+    // Paging on: accesses into the arena (PG_ARENA) through the flat FS (and
+    // ES), often across a page's end: loads, stores and read-modify-writes
+    // of each size, REP STOS and MOVS, and CR3 written again (a flush).
+    void pg_burst() {
+        flat_fs();
+        for (unsigned n = 2 + pick(6); n > 0; --n) {
+            const uint32_t a = pick(3) ? PG_ARENA + pick(0x10000) : PG_ARENA + 0x1000 * pick(16) + 0xffc + pick(4);
+            const uint8_t reg = uint8_t(std::array<unsigned, 4>{0, 1, 2, 3}[pick(4)]);
+            std::vector<uint8_t> op;
+            bool str = false;
+            switch (pick(7)) {
+            case 0: case 1:  // MOV r, FS:[a] or MOV FS:[a], r, 16 or 32 bits, or a byte
+                if (pick(2)) op.push_back(0x66);
+                op.insert(op.end(), {0x64, 0x67, uint8_t((pick(2) ? 0x8a : 0x88) | (pick(3) ? 1 : 0)), uint8_t(reg << 3 | 5)});
+                put32(op, a);
+                break;
+            case 2: {  // INC (FF /0) or NOT (F7 /2) FS:[a]
+                if (pick(2)) op.push_back(0x66);
+                const bool inc = pick(2);
+                op.insert(op.end(), {0x64, 0x67, uint8_t(inc ? 0xff : 0xf7), uint8_t(inc ? 0x05 : 0x15)});
+                put32(op, a);
+                break;
+            }
+            case 3: case 4: {  // REP STOS or MOVS of a few elements, ES and the source FS's
+                load_seg(0, 0x10);
+                std::vector<uint8_t> setup{0x66, 0xbf};
+                put32(setup, a);
+                setup.insert(setup.end(), {0x66, 0xbe});
+                put32(setup, PG_ARENA + pick(0x10000));
+                setup.insert(setup.end(), {0x66, 0xb9});
+                put32(setup, 1 + pick(12));
+                setup.push_back(pick(2) ? 0xfc : 0xfd);  // CLD or STD
+                emit(setup);
+                if (pick(2)) op = {0xf3, 0x67, uint8_t(pick(2) ? 0xaa : 0xab)};
+                else op = {0x64, 0xf3, 0x67, uint8_t(pick(2) ? 0xa4 : 0xa5)};
+                if (pick(3) == 0) op.insert(op.begin(), 0x66);
+                str = true;
+                break;
+            }
+            case 5: {  // CR3 again
+                std::vector<uint8_t> cr3{0x66, 0xb8};
+                put32(cr3, PG_PD);
+                emit(cr3);
+                op = {0x0f, 0x22, 0xd8};
+                break;
+            }
+            default:  // PUSH FS:[a], POP FS:[a]
+                if (pick(2)) {
+                    op = {0x64, 0x67, 0xff, 0x35};
+                } else {
+                    emit({0x6a, 0x00});  // PUSH 0: a slot to pop
+                    op = {0x64, 0x67, 0x8f, 0x05};
+                }
+                put32(op, a);
+                break;
+            }
+            emit(op);
+            if (str) emit({0xfc});  // CLD
+        }
+    }
     // The scratch area's dword at k, through FS: 64h 67h, ModRM mod 00
     // r/m 101 and a 32-bit displacement.
     void scratch_modrm(std::vector<uint8_t> &out, uint8_t op, unsigned reg, unsigned k) {
@@ -5153,6 +5377,17 @@ private:
             emit({0xbb, 0x88, 0x00});        // MOV BX, 88h
             emit({0x0f, 0x00, 0xd3});        // LLDT BX
         }
+        if (pick(2) == 0) {  // paging on: CR3 at the tables, then PG
+            pg_tables();
+            std::vector<uint8_t> cr3{0x66, 0xb8};
+            put32(cr3, PG_PD);
+            emit(cr3);
+            emit({0x0f, 0x22, 0xd8});                                     // MOV CR3, EAX
+            emit({0x0f, 0x20, 0xc0});
+            emit({0x66, 0x0d, 0x00, 0x00, 0x00, 0x80});                   // OR EAX, 80000000h
+            emit({0x0f, 0x22, 0xc0});
+            pg_on = true;
+        }
         const unsigned ops = 1 + pick(8);
         for (unsigned n = 0; n < ops; ++n) {
             switch (pick(21)) {
@@ -5166,12 +5401,24 @@ private:
                 else load_seg(pick(2) ? 3 : 0, uint16_t((1 + pick(6)) << 3 | 4));
                 break;
             case 0: case 1: case 2: case 3: pm_seg_load(); break;
-            case 4: case 5: pm_access(); break;
+            case 4: case 5:
+                if (pg_on && pick(3)) pg_burst();
+                else pm_access();
+                break;
             case 6: {  // CR and table reads and writes
                 switch (pick(6)) {
                 case 0: emit({0x0f, 0x01, uint8_t(0xe0 | pick(8))}); break;            // SMSW r16
                 case 1: emit({0x0f, 0x20, uint8_t(0xc0 | (pick(3) ? 0 : 2 + pick(2)) << 3 | pick(8))}); break;  // MOV r32, CRn
-                case 2: emit({0x0f, 0x22, uint8_t(0xc0 | (2 + pick(2)) << 3 | pick(8))}); break;  // MOV CR2/CR3, r32
+                case 2:  // MOV CR2/CR3, r32; with paging on, CR3 the tables again (a flush)
+                    if (pg_on && pick(2)) {
+                        std::vector<uint8_t> cr3{0x66, 0xb8};
+                        put32(cr3, PG_PD);
+                        emit(cr3);
+                        emit({0x0f, 0x22, 0xd8});
+                    } else {
+                        emit({0x0f, 0x22, uint8_t(0xc0 | (pg_on ? 2 : 2 + pick(2)) << 3 | pick(8))});
+                    }
+                    break;
                 case 3: {  // SGDT or SIDT to the scratch area, then LGDT or LIDT back from it
                     flat_fs();
                     const unsigned t = pick(2);
@@ -5192,7 +5439,9 @@ private:
             }
             case 7: {
                 uint16_t sel = pick(3) ? 0x30 : pick(2) ? 0x70 : pick(2) ? 0x40 : selector();
-                if (gate(sel)) sel = 0x30;
+                // Not a gate, nor 32-bit code (descriptors 16 and 23), which
+                // the 16-bit code after the jump would run as.
+                if (gate(sel) || !(sel & 4) && ((sel >> 3) == 16 || (sel >> 3) == 23)) sel = 0x30;
                 if (pick(2)) {
                     pm_far_jump(sel);
                     pm_cs = pm_cs || sel == 0x30 || sel == 0x70;
@@ -5209,8 +5458,14 @@ private:
             default: emit(pm_instruction()); break;
             }
         }
-        // The exit: the real-mode vector table in IDTR (through the flat
-        // FS), sane segments, then PE clear and a real-mode far jump.
+        // The exit: paging off, the real-mode vector table in IDTR (through
+        // the flat FS), sane segments, then PE clear and a real-mode far jump.
+        if (pg_on) {
+            emit({0x0f, 0x20, 0xc0});
+            emit({0x66, 0x25, 0xff, 0xff, 0xff, 0x7f});                   // AND EAX, 7FFFFFFFh
+            emit({0x0f, 0x22, 0xc0});
+            pg_on = false;
+        }
         flat_fs();
         {
             std::vector<uint8_t> lidt{0x64, 0x67, 0x0f, 0x01, 0x1d};
@@ -6197,6 +6452,392 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         } else {
             ++summary.failed;
             std::cout << "FAIL pmode:" << label;
+            for (const auto &item : out.items) std::cout << ' ' << item;
+            std::cout << '\n';
+        }
+    }
+    return 0;
+}
+
+// ---- Paging (directed) -------------------------------------------------------------
+// docs/i386-cpu-design.md's Paging, which no corpus covers before test386's
+// POST 11. Each case enters protected mode from 0000:1000 as run_pmode_cases
+// does, with CR3 at a page directory at 8000h, then runs 32-bit flat code
+// (CS 18h, DS, ES, FS, GS and SS 20h, ESP 0F00h) with paging on. PDE 0 maps
+// 0-4 MiB through the table at 9000h, PDE 1 4-8 MiB through A000h (empty);
+// pages 0-0Fh are identity-mapped user pages (the code, the tables, the
+// stacks); a case maps its own pages (ptes, pdes) and memory (mem). The
+// ring-3 cases IRETD to CS 7Bh and SS 83h (flat, DPL 3) with ESP 0D00h after
+// LTR 38h (SS0 10h, ESP0 0E00h), load DS and ES with 83h and end in INT 2Bh.
+// Every retirement is compared with Bochs, CR2 among it; a fault's vector,
+// error code and CR2 are checked apart, and A and D through the PTEs the
+// case reads back into registers.
+int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                     Summary &summary) {
+    struct Asm {
+        std::vector<uint8_t> b;
+        void op(std::initializer_list<uint8_t> bytes) { b.insert(b.end(), bytes); }
+        void w(uint16_t v) { b.push_back(uint8_t(v)); b.push_back(uint8_t(v >> 8)); }
+        void d(uint32_t v) { w(uint16_t(v)); w(uint16_t(v >> 16)); }
+        size_t here() const { return b.size(); }
+        // 32-bit code.
+        void ld8(uint32_t a) { op({0xa0}); d(a); }                     // MOV AL, [a]
+        void ld32(uint32_t a) { op({0xa1}); d(a); }                    // MOV EAX, [a]
+        void st8(uint32_t a) { op({0xa2}); d(a); }                     // MOV [a], AL
+        void st32(uint32_t a) { op({0xa3}); d(a); }                    // MOV [a], EAX
+        void ldr(uint8_t reg, uint32_t a) { op({0x8b, uint8_t(0x05 | reg << 3)}); d(a); }  // MOV r32, [a]
+        void sti32(uint32_t a, uint32_t v) { op({0xc7, 0x05}); d(a); d(v); }               // MOV dword [a], v
+        void sti8(uint32_t a, uint8_t v) { op({0xc6, 0x05}); d(a); b.push_back(v); }       // MOV byte [a], v
+        void mov(uint8_t reg, uint32_t v) { b.push_back(uint8_t(0xb8 + reg)); d(v); }       // MOV r32, v
+        void jmp(uint32_t from_base, uint32_t to) {                                         // JMP rel32 to linear to
+            op({0xe9}); d(to - (from_base + uint32_t(here()) + 4));
+        }
+    };
+    constexpr uint32_t CODE = 0x1000, GDT = 0x2000, IDT = 0x3000, LDT = 0x7000, PD = 0x8000, PT0 = 0x9000, PT1 = 0xa000;
+    constexpr uint8_t EAX = 0, ECX = 1, EDX = 2, EBX = 3, EBP = 5, ESI = 6, EDI = 7;
+    auto desc = [](uint32_t base, uint32_t limit, uint8_t ar, bool g, bool db) {
+        return uint64_t(limit & 0xffff) | uint64_t(base & 0xffff) << 16 | uint64_t((base >> 16) & 0xff) << 32
+             | uint64_t(ar) << 40 | uint64_t((limit >> 16) & 0xf) << 48 | uint64_t(db) << 54 | uint64_t(g) << 55
+             | uint64_t(base >> 24) << 56;
+    };
+    auto gate = [](uint16_t sel, uint32_t off, uint8_t ar) {
+        return (off & 0xffff) | uint64_t(sel) << 16 | uint64_t(ar) << 40 | uint64_t(off >> 16) << 48;
+    };
+    constexpr unsigned GDT_ENTRIES = 17;
+    const uint64_t gdt[GDT_ENTRIES] = {0, desc(0, 0xffff, 0x9b, false, false), desc(0, 0xffff, 0x93, false, false),
+                              desc(0, 0xfffff, 0x9b, true, true), desc(0, 0xfffff, 0x93, true, true),
+                              desc(0, 0xffff, 0x13, false, false), desc(LDT, 0x1f, 0x82, false, false),
+                              desc(0x2500, 0x67, 0x89, false, false), desc(0, 0xff, 0x93, false, true),
+                              desc(0x10000, 0xffff, 0x93, false, false), 0, 0, 0, 0, 0,
+                              desc(0, 0xfffff, 0xfb, true, true), desc(0, 0xfffff, 0xf3, true, true)};
+    const uint64_t ldt[4] = {0, desc(0x5000, 0xffff, 0x93, false, false), desc(0, 0xffff, 0x9b, false, false),
+                             desc(0, 0xfffff, 0xf3, true, true)};
+    // ending: -1 HLT (after software interrupt soft, if not -1), -2
+    // shutdown, else the vector, with its error code if not -1 and CR2 if
+    // not -1. together: one MOV CR0 sets PE and PG (32RTM's); r3: the body
+    // runs at CPL 3; gpr: registers the body starts with.
+    struct Case { const char *label; std::function<void(Asm &, uint32_t)> body; int ending; int error; int64_t cr2;
+                  std::vector<std::pair<uint32_t, uint32_t>> ptes; std::vector<std::pair<uint32_t, uint32_t>> pdes = {};
+                  std::vector<std::pair<uint32_t, std::vector<uint8_t>>> mem = {}; bool r3 = false; int soft = -1;
+                  bool together = false; std::vector<std::pair<unsigned, uint64_t>> gates = {}; bool a20m = false; };
+    const uint32_t P = 0x01, W = 0x02, U = 0x04, A = 0x20, D = 0x40;
+    auto pte = [](uint32_t page) { return PT0 + 4 * page; };
+    std::vector<Case> cases = {
+        // A walk: A in the PDE and PTE for a read, D too for a write; a
+        // write through a read's entry walks again for D.
+        {"pg-read-a", [=](Asm &a, uint32_t) { a.ld8(0x10000); a.ldr(EBX, pte(0x10)); a.ldr(ECX, PD); }, -1, -1, -1,
+         {{0x10, 0x20000 | P | W | U}}, {}, {{0x20000, {0x5a}}}},
+        {"pg-write-d", [=](Asm &a, uint32_t) { a.mov(EAX, 0x77); a.st8(0x10001); a.ldr(EBX, pte(0x10)); a.ld8(0x10001); },
+         -1, -1, -1, {{0x10, 0x20000 | P | W | U}}},
+        {"pg-read-then-write", [=](Asm &a, uint32_t) {
+             a.ld8(0x10000); a.ldr(EBX, pte(0x10)); a.op({0xfe, 0xc0}); a.st8(0x10000); a.ldr(ECX, pte(0x10)); a.ld8(0x10000);
+         }, -1, -1, -1, {{0x10, 0x20000 | P | W | U}}, {}, {{0x20000, {0x41}}}},
+        {"pg-rmw-d", [=](Asm &a, uint32_t) { a.op({0xfe, 0x05}); a.d(0x10000); a.ldr(EBX, pte(0x10)); a.ld8(0x10000); },
+         -1, -1, -1, {{0x10, 0x20000 | P | W | U | A}}, {}, {{0x20000, {0x41}}}},             // INC byte [10000h]
+        {"pg-a-set-kept", [=](Asm &a, uint32_t) { a.ld8(0x10000); a.ldr(EBX, pte(0x10)); },
+         -1, -1, -1, {{0x10, 0x20000 | P | W | U | A | D}}},
+        // Faults at CPL 0: not present (PTE, PDE), read and write.
+        {"pg-np-read", [=](Asm &a, uint32_t) { a.ld8(0x10004); }, 14, 0, 0x10004, {{0x10, 0x20000 | W | U}}},
+        {"pg-np-write", [=](Asm &a, uint32_t) { a.st8(0x10004); }, 14, 2, 0x10004, {{0x10, 0x20000 | W | U}}},
+        {"pg-pde-np-read", [=](Asm &a, uint32_t) { a.ld32(0x400100); }, 14, 0, 0x400100, {}, {{1, 0}}},
+        {"pg-pde-np-write", [=](Asm &a, uint32_t) { a.st32(0x400100); }, 14, 2, 0x400100, {}, {{1, 0}}},
+        {"pg-pde-np-rmw", [=](Asm &a, uint32_t) { a.op({0xff, 0x05}); a.d(0x400100); }, 14, 2, 0x400100, {}, {{1, 0}}},
+        // CPL 0 ignores U/S and R/W (no CR0.WP on a 386): a write to a
+        // read-only supervisor page sets D.
+        {"pg-r0-ro-write", [=](Asm &a, uint32_t) { a.mov(EAX, 0x99); a.st8(0x10000); a.ldr(EBX, pte(0x10)); },
+         -1, -1, -1, {{0x10, 0x20000 | P}}},
+        // CPL 3: every PDE and PTE combination of U/S and R/W, read and write.
+        {"pg-r3-pte-sup-read", [=](Asm &a, uint32_t) { a.ld8(0x10000); }, 14, 5, 0x10000, {{0x10, 0x20000 | P | W}}, {}, {},
+         true},
+        {"pg-r3-pte-sup-write", [=](Asm &a, uint32_t) { a.st8(0x10000); }, 14, 7, 0x10000, {{0x10, 0x20000 | P | W}}, {}, {},
+         true},
+        {"pg-r3-pte-ro-write", [=](Asm &a, uint32_t) { a.st8(0x10002); }, 14, 7, 0x10002, {{0x10, 0x20000 | P | U}}, {}, {},
+         true},
+        {"pg-r3-pte-ro-read", [=](Asm &a, uint32_t) { a.ld8(0x10002); a.op({0xcd, 0x2b}); }, -1, -1, -1,
+         {{0x10, 0x20000 | P | U}}, {}, {}, true, 0x2b},
+        {"pg-r3-np-read", [=](Asm &a, uint32_t) { a.ld8(0x10002); }, 14, 4, 0x10002, {{0x10, 0x20000 | U | W}}, {}, {}, true},
+        {"pg-r3-np-write", [=](Asm &a, uint32_t) { a.st8(0x10002); }, 14, 6, 0x10002, {{0x10, 0x20000 | U | W}}, {}, {}, true},
+        {"pg-r3-pde-ro-write", [=](Asm &a, uint32_t) { a.st32(0x400010); }, 14, 7, 0x400010, {{0x400, 0x20000 | P | W | U}},
+         {{1, PT1 | P | U}}, {}, true},
+        {"pg-r3-pde-sup-read", [=](Asm &a, uint32_t) { a.ld32(0x400010); }, 14, 5, 0x400010, {{0x400, 0x20000 | P | W | U}},
+         {{1, PT1 | P | W}}, {}, true},
+        {"pg-r3-user-rw", [=](Asm &a, uint32_t) {
+             a.mov(EAX, 0x12345678); a.st32(0x400010); a.ld32(0x400010); a.ldr(EBX, PT1); a.ldr(ECX, PD + 4); a.op({0xcd, 0x2b});
+         }, -1, -1, -1, {{0x400, 0x20000 | P | W | U}}, {{1, PT1 | P | W | U}}, {}, true, 0x2b},
+        {"pg-r3-rmw-ro", [=](Asm &a, uint32_t) { a.op({0xfe, 0x05}); a.d(0x10000); }, 14, 7, 0x10000,
+         {{0x10, 0x20000 | P | U}}, {}, {}, true},
+        // CPL 3 runs from a page whose PDE is supervisor (the ITLB holds it
+        // from CPL 0): #PF at the IRET's target.
+        {"pg-r3-exec-sup", [=](Asm &, uint32_t) {}, 14, 5, -1, {}, {{0, PT0 | P | W}}, {}, true},
+        // Descriptor reads are supervisor accesses at any CPL: the GDT's page
+        // supervisor, a segment load at CPL 3 passes; the LDT's page not
+        // present, a TI=1 load at CPL 3 is #PF without U/S.
+        {"pg-r3-gdt-sup", [=](Asm &a, uint32_t) { a.op({0x66, 0xb8, 0x83, 0x00, 0x8e, 0xe0, 0xcd, 0x2b}); }, -1, -1, -1,
+         {{0x2, 0x2000 | P | W}}, {}, {}, true, 0x2b},                                       // MOV AX, 83h; MOV FS, AX
+        {"pg-r3-ldt-np", [=](Asm &a, uint32_t) { a.op({0x66, 0xb8, 0x1f, 0x00, 0x8e, 0xe0}); }, 14, 0, LDT + 0x18,
+         {{0x7, LDT | W | U}}, {}, {}, true},                                                // MOV AX, 1Fh; MOV FS, AX
+        // A page-crossing access, whose second page is not adjacent, and
+        // its #PF on the second page (CR2 that page's first byte), with
+        // nothing of a crossing write made.
+        {"pg-cross-read", [=](Asm &a, uint32_t) { a.ld32(0x10ffe); a.ldr(EBX, 0x10ffc); a.ldr(ECX, 0x11000); },
+         -1, -1, -1, {{0x10, 0x20000 | P | W | U}, {0x11, 0x40000 | P | W | U}}, {},
+         {{0x20ffc, {0x01, 0x02, 0x11, 0x22}}, {0x40000, {0x33, 0x44, 0x05, 0x06}}}},
+        {"pg-cross-write", [=](Asm &a, uint32_t) {
+             a.mov(EAX, 0xa1b2c3d4); a.st32(0x10fff); a.ldr(EBX, 0x10ffc); a.ldr(ECX, 0x11000); a.ldr(EDX, pte(0x11));
+         }, -1, -1, -1, {{0x10, 0x20000 | P | W | U}, {0x11, 0x40000 | P | W | U}}},
+        {"pg-cross-read-pf", [=](Asm &a, uint32_t) { a.ld32(0x10ffe); }, 14, 0, 0x11000, {{0x10, 0x20000 | P | W | U}}},
+        {"pg-cross-write-pf", [=](Asm &a, uint32_t) { a.mov(EAX, 0x55667788); a.st32(0x10ffd); }, 14, 2, 0x11000,
+         {{0x10, 0x20000 | P | W | U}}},
+        {"pg-r3-cross-sup", [=](Asm &a, uint32_t) { a.ld32(0x10ffe); }, 14, 5, 0x11000,
+         {{0x10, 0x20000 | P | W | U}, {0x11, 0x40000 | P | W}}, {}, {}, true},
+        // An instruction across two pages in non-adjacent frames; its second
+        // page not present (CR2 the page's first byte), and at CPL 3 a
+        // supervisor page.
+        {"pg-cross-insn", [=](Asm &a, uint32_t base) { a.mov(EAX, 0); a.jmp(base, 0x13ffc); }, -1, -1, -1,
+         {{0x13, 0x30000 | P | W | U}, {0x14, 0x50000 | P | W | U}}, {},
+         {{0x30ffc, {0x90, 0x90, 0xb8, 0x44}}, {0x50000, {0x33, 0x22, 0x11, 0xf4}}}},
+        {"pg-cross-insn-pf", [=](Asm &a, uint32_t base) { a.mov(EAX, 0); a.jmp(base, 0x13ffc); }, 14, 0, 0x14000,
+         {{0x13, 0x30000 | P | W | U}}, {}, {{0x30ffc, {0x90, 0x90, 0xb8, 0x44}}}},
+        {"pg-r3-cross-insn-sup", [=](Asm &a, uint32_t base) { a.jmp(base, 0x13ffc); }, 14, 5, 0x14000,
+         {{0x13, 0x30000 | P | W | U}, {0x14, 0x50000 | P | W}}, {}, {{0x30ffc, {0x90, 0x90, 0xb8, 0x44}}}, true},
+        {"pg-fetch-np", [=](Asm &a, uint32_t base) { a.jmp(base, 0x18010); }, 14, 0, 0x18010, {}},
+        {"pg-r3-cross-insn-np", [=](Asm &a, uint32_t base) { a.jmp(base, 0x13ffc); }, 14, 4, 0x14000,
+         {{0x13, 0x30000 | P | W | U}}, {}, {{0x30ffc, {0x90, 0x90, 0xb8, 0x44}}}, true},
+        // A store into the second page of an instruction that crosses into a
+        // non-adjacent frame, the instruction fetched already (its second
+        // pass, both pages in the ITLB): it runs the new byte.
+        {"pg-smc-cross-insn", [=](Asm &a, uint32_t base) { a.mov(EAX, 0); a.mov(ECX, 2); a.jmp(base, 0x13ff0); }, -1, -1,
+         -1, {{0x13, 0x30000 | P | W | U}, {0x14, 0x50000 | P | W | U}}, {},
+         {{0x30ff0, {0x88, 0x05, 0x01, 0x40, 0x01, 0x00,             // MOV [14001h], AL
+                     0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xb8, 0x44}},  // ... MOV EAX at 13FFEh
+          {0x50000, {0x33, 0x22, 0x11, 0x49, 0x75, 0xea, 0xf4}}}},  // DEC ECX; JNZ 13FF0h; HLT
+        // Under A20M a PTE frame at 1 MiB is frame 0's, and the walk's reads
+        // are masked too.
+        {"pg-a20m-frame", [=](Asm &a, uint32_t) { a.ld32(0x10010); a.ldr(EBX, pte(0x10)); }, -1, -1, -1,
+         {{0x10, 0x100000 | P | W | U}}, {}, {{0x10, {0xa1, 0xb2, 0xc3, 0xd4}}, {0x100010, {0x11, 0x22, 0x33, 0x44}}}, false,
+         -1, false, {}, true},
+        // A CR3 write flushes the TLBs: a PTE stored meanwhile is not seen
+        // until it (Bochs's TLB, and these 16 entries, keep the old frame).
+        {"pg-cr3-flush", [=](Asm &a, uint32_t) {
+             a.ld8(0x10000); a.sti32(pte(0x10), 0x21000 | P | W | U); a.op({0x8a, 0x0d}); a.d(0x10000);  // MOV CL, [10000h]
+             a.mov(EAX, PD); a.op({0x0f, 0x22, 0xd8}); a.op({0x8a, 0x15}); a.d(0x10000);              // CR3; MOV DL, [10000h]
+         }, -1, -1, -1, {{0x10, 0x20000 | P | W | U}}, {}, {{0x20000, {0x11}}, {0x21000, {0x22}}}},
+        // Self-modifying code through an alias: pages 15h and 16h map one
+        // frame; a store through 16h's rewrites the next instruction (NOP to
+        // INC EAX) of the code running from 15h's.
+        {"pg-smc-alias", [=](Asm &a, uint32_t base) { a.mov(EAX, 0); a.jmp(base, 0x15000); }, -1, -1, -1,
+         {{0x15, 0x30000 | P | W | U}, {0x16, 0x30000 | P | W | U}}, {},
+         {{0x30000, {0xc6, 0x05, 0x0a, 0x60, 0x01, 0x00, 0x40, 0x90, 0x90, 0x90, 0x90, 0xf4}}}},  // MOV byte [1600Ah], 40h
+        // A load right behind a store to the same frame through another
+        // linear page (pages 15h and 16h alias, A and D set, so the store
+        // does not walk): it must take the store's bytes, whole and in part.
+        {"pg-fwd-alias", [=](Asm &a, uint32_t) {
+             a.ld32(0x16100); a.ld32(0x15100);                                       // both pages in the DTLB
+             a.mov(EAX, 0x11223344); a.st32(0x15100); a.ldr(EBX, 0x16100);
+             a.mov(EAX, 0x99); a.st8(0x16102); a.ldr(ECX, 0x15100); a.op({0x8a, 0x15}); a.d(0x16102);  // MOV DL, [16102h]
+         }, -1, -1, -1, {{0x15, 0x30000 | P | W | U | A | D}, {0x16, 0x30000 | P | W | U | A | D}}, {}, {{0x30100, {1, 2, 3, 4}}}},
+        // The same through a store into the instruction right after the
+        // storing one, whose block the fetch buffer has dropped behind six
+        // 10-byte instructions: only the instruction's own physical page
+        // (ipp0) sees the store.
+        {"pg-smc-alias-deep", [=](Asm &a, uint32_t base) { a.mov(EAX, 0); a.jmp(base, 0x15000); }, -1, -1, -1,
+         {{0x15, 0x30000 | P | W | U}, {0x16, 0x30000 | P | W | U}}, {},
+         {{0x30000, [] {
+              std::vector<uint8_t> c = {0xc6, 0x05, 0x08, 0x60, 0x01, 0x00, 0x55,   // MOV byte [16008h], 55h
+                                        0xb8, 0x11, 0x22, 0x33, 0x44};              // MOV EAX, 44332211h
+              for (uint32_t i = 0; i < 6; ++i)                                      // MOV dword [5000h + 4i], i
+                  c.insert(c.end(), {0xc7, 0x05, uint8_t(4 * i), 0x50, 0x00, 0x00, uint8_t(i), 0, 0, 0});
+              c.push_back(0xf4);
+              return c;
+          }()}}},
+        // A wrong path's load sets no A: the JMP is not predicted.
+        {"pg-wrong-path-a", [=](Asm &a, uint32_t) { a.op({0xeb, 0x05}); a.ld8(0x17000); a.ldr(EBX, pte(0x17)); },
+         -1, -1, -1, {{0x17, 0x31000 | P | W | U}}},
+        // #PF inside REP MOVS and STOS, the elements before it done.
+        {"pg-rep-movs-pf", [=](Asm &a, uint32_t) {
+             a.mov(ESI, 0x10ff0); a.mov(EDI, 0x5000); a.mov(ECX, 0x20); a.op({0xfc, 0xf3, 0xa4});  // CLD; REP MOVSB
+         }, 14, 0, 0x11000, {{0x10, 0x20000 | P | W | U}}, {}, {{0x20ff0, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}}}},
+        {"pg-rep-stos-pf", [=](Asm &a, uint32_t) {
+             a.mov(EDI, 0x10ff8); a.mov(ECX, 4); a.mov(EAX, 0xdeadbeef); a.op({0xfc, 0xf3, 0xab});  // CLD; REP STOSD
+         }, 14, 2, 0x11000, {{0x10, 0x20000 | P | W | U}}},
+        {"pg-movs-dst-pf", [=](Asm &a, uint32_t) {
+             a.mov(ESI, 0x5000); a.mov(EDI, 0x10ffe); a.mov(ECX, 3); a.op({0xfc, 0xf3, 0x66, 0xa5});  // REP MOVSW
+         }, 14, 2, 0x11000, {{0x10, 0x20000 | P | W | U}}},
+        {"pg-movs-pages", [=](Asm &a, uint32_t) {
+             a.mov(ESI, 0x10ffc); a.mov(EDI, 0x11ffe); a.mov(ECX, 3); a.op({0xfc, 0xf3, 0xa5});      // REP MOVSD across both
+             a.ldr(EBX, 0x11ffc); a.ldr(EDX, 0x12000); a.ldr(EBP, pte(0x12));
+         }, -1, -1, -1, {{0x10, 0x20000 | P | W | U}, {0x11, 0x40000 | P | W | U}, {0x12, 0x23000 | P | W | U}}, {},
+         {{0x20ffc, {1, 2, 3, 4}}, {0x40000, {5, 6, 7, 8, 9, 10, 11, 12}}}},
+        // A long REP MOVSD across three source and three destination pages,
+        // each walked once, the string running on between the walks.
+        {"pg-rep-movs-long", [=](Asm &a, uint32_t) {
+             a.mov(ESI, 0x10800); a.mov(EDI, 0x13c00); a.mov(ECX, 0x500); a.op({0xfc, 0xf3, 0xa5});  // REP MOVSD
+             a.ldr(EBX, 0x14ffc); a.ldr(EDX, 0x15000); a.ldr(EBP, pte(0x15));
+         }, -1, -1, -1, {{0x10, 0x20000 | P | W | U}, {0x11, 0x40000 | P | W | U}, {0x12, 0x23000 | P | W | U},
+                         {0x13, 0x24000 | P | W | U}, {0x14, 0x41000 | P | W | U}, {0x15, 0x25000 | P | W | U}}, {},
+         {{0x20ff0, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}}, {0x40ff8, {21, 22, 23, 24, 25, 26, 27, 28}}}},
+        // MOVSB from a page not present to past ES's limit (40h, 256 bytes):
+        // the source's #PF, as Bochs reads first.
+        {"pg-movs-src-pf-es-limit", [=](Asm &a, uint32_t) {
+             a.op({0x66, 0xb8, 0x40, 0x00, 0x8e, 0xc0}); a.mov(ESI, 0x10000); a.mov(EDI, 0x1000); a.op({0xa4});
+         }, 14, 0, 0x10000, {}},
+        // A #GP delivered onto a 16-bit stack (48h, at 10000h, not present)
+        // at SP 0Fh, whose fourth slot wraps: the first push's #PF comes
+        // first, then #PF again, a double fault and shutdown.
+        {"pg-delivery-push-pf", [=](Asm &a, uint32_t) {
+             a.op({0x66, 0xb8, 0x48, 0x00, 0x8e, 0xd0}); a.mov(4, 0x0f);              // SS 48h; ESP 0Fh
+             a.op({0x66, 0xb8, 0x9b, 0x00, 0x8e, 0xd8});                             // MOV DS, 9Bh: #GP(98h)
+         }, -2, -1, 0x1000b, {}},
+        // A PTE frame past guest RAM (a hole: FFh, stores dropped) and in
+        // the reset shadow at FFFF0000h (F0000h).
+        {"pg-frame-hole", [=](Asm &a, uint32_t) { a.ld32(0x10000); a.mov(EBX, 0x1234); a.op({0x89, 0x1d}); a.d(0x10004);
+                                                  a.ldr(ECX, 0x10004); },
+         -1, -1, -1, {{0x10, 0x04000000 | P | W | U}}},
+        {"pg-frame-shadow", [=](Asm &a, uint32_t) { a.ld32(0x10010); }, -1, -1, -1, {{0x10, 0xffff0000 | P | W | U}}, {},
+         {{0xf0010, {0xa5, 0x5a, 0xc3, 0x3c}}}},
+        // A #PF in a #PF's delivery (gate 14 through a null CS: #GP) is a
+        // double fault.
+        {"pg-pf-gp-df", [=](Asm &a, uint32_t) { a.ld8(0x10004); }, 8, 0, 0x10004, {}, {}, {}, false, -1, false,
+         {{14, gate(0x00, 0x1800, 0x8e)}}},
+        // A stack in a page not present: INT's pushes #PF, and so do its
+        // deliveries: double fault, then shutdown.
+        {"pg-stack-np-shutdown", [=](Asm &a, uint32_t) { a.mov(4, 0x10100); a.op({0xcd, 0x2b}); }, -2, -1, 0x100fc, {}},
+        // MOV CR0 setting PE and PG together, from real mode (32RTM's).
+        {"pg-pe-pg-together", [=](Asm &a, uint32_t) { a.ld8(0x10000); a.ldr(EBX, CODE); }, -1, -1, -1,
+         {{0x10, 0x20000 | P | W | U}}, {}, {{0x20000, {0x66}}}, false, -1, true},
+        // Paging off around a far jump and on again (CWSDPMI's).
+        {"pg-toggle-farjmp", [=](Asm &a, uint32_t base) {
+             a.op({0x0f, 0x20, 0xc0, 0x25}); a.d(0x7fffffff); a.op({0x0f, 0x22, 0xc0});  // MOV EAX, CR0; AND; MOV CR0, EAX
+             a.ld8(0x20000);                                                             // the frame, unpaged
+             const size_t at = a.here();
+             a.op({0xea}); a.d(0); a.w(0x18);                                            // JMP 18h:next
+             const uint32_t next = base + uint32_t(a.here());
+             for (int i = 0; i < 4; ++i) a.b[at + 1 + i] = uint8_t(next >> (8 * i));
+             a.op({0x0f, 0x20, 0xc0, 0x0d}); a.d(0x80000000); a.op({0x0f, 0x22, 0xc0});  // MOV EAX, CR0; OR; MOV CR0, EAX
+             a.op({0x8a, 0x1d}); a.d(0x10000);                                          // MOV BL, [10000h]
+         }, -1, -1, -1, {{0x10, 0x21000 | P | W | U}}, {}, {{0x20000, {0x31}}, {0x21000, {0x32}}}},
+    };
+    const char *only = std::getenv("FES_I386_CASE");
+    for (const Case &c : cases) {
+        if (only && std::string(only) != c.label) continue;
+        Asm a;
+        a.op({0xfa, 0x31, 0xc0, 0x8e, 0xd8});                        // CLI; XOR AX, AX; MOV DS, AX
+        a.op({0x0f, 0x01, 0x16}); a.w(0x2100);                      // LGDT [2100h]
+        a.op({0x0f, 0x01, 0x1e}); a.w(0x2108);                      // LIDT [2108h]
+        a.op({0x66, 0xb8}); a.d(PD); a.op({0x0f, 0x22, 0xd8});      // MOV EAX, PD; MOV CR3, EAX
+        a.op({0x0f, 0x20, 0xc0, 0x66, 0x0d}); a.d(c.together ? 0x80000001 : 1);  // MOV EAX, CR0; OR EAX, ...
+        a.op({0x0f, 0x22, 0xc0});                                   // MOV CR0, EAX
+        const size_t jmp_pm = a.here();
+        a.op({0xea}); a.w(0); a.w(0x18);                            // JMP 18h:pm32
+        const uint16_t pm = uint16_t(CODE + a.here());
+        a.b[jmp_pm + 1] = uint8_t(pm); a.b[jmp_pm + 2] = uint8_t(pm >> 8);
+        a.op({0x66, 0xb8, 0x20, 0x00, 0x8e, 0xd8, 0x8e, 0xc0, 0x8e, 0xe0, 0x8e, 0xe8, 0x8e, 0xd0});  // DS ES FS GS SS 20h
+        a.op({0xbc}); a.d(0x0f00);                                  // MOV ESP, 0F00h
+        if (!c.together) { a.op({0x0f, 0x20, 0xc0, 0x0d}); a.d(0x80000000); a.op({0x0f, 0x22, 0xc0}); }  // PG on
+        if (c.r3) {
+            a.op({0x66, 0xb8, 0x38, 0x00, 0x0f, 0x00, 0xd8});       // MOV AX, 38h; LTR AX
+            a.op({0x66, 0xb8, 0x30, 0x00, 0x0f, 0x00, 0xd0});       // MOV AX, 30h; LLDT AX
+            a.op({0x68}); a.d(0x83); a.op({0x68}); a.d(0x0d00); a.op({0x9c, 0x68}); a.d(0x7b);  // SS, ESP, EFLAGS, CS
+            const size_t at = a.here();
+            a.op({0x68}); a.d(0); a.op({0xcf});                     // PUSH r3; IRETD
+            const uint32_t r3 = CODE + uint32_t(a.here());
+            for (int i = 0; i < 4; ++i) a.b[at + 1 + i] = uint8_t(r3 >> (8 * i));
+            if (std::string(c.label) != "pg-r3-exec-sup")
+                a.op({0x66, 0xb8, 0x83, 0x00, 0x8e, 0xd8, 0x8e, 0xc0});  // MOV AX, 83h; MOV DS, AX; MOV ES, AX
+        }
+        c.body(a, CODE);
+        a.op({0xf4});
+        std::map<uint32_t, uint8_t> image;
+        for (size_t i = 0; i < a.b.size(); ++i) image[CODE + uint32_t(i)] = a.b[i];
+        // The TSS's ring-0 stack: SS0 10h, ESP0 0E00h.
+        for (auto [address, value] : {std::pair{0x2504u, 0x00}, {0x2505u, 0x0e}, {0x2508u, 0x10}}) image[address] = uint8_t(value);
+        for (unsigned n = 0; n < GDT_ENTRIES; ++n)
+            for (unsigned i = 0; i < 8; ++i) image[GDT + 8 * n + i] = uint8_t(gdt[n] >> (8 * i));
+        for (unsigned n = 0; n < 4; ++n)
+            for (unsigned i = 0; i < 8; ++i) image[LDT + 8 * n + i] = uint8_t(ldt[n] >> (8 * i));
+        std::array<uint64_t, 48> idt;
+        for (unsigned v = 0; v < 48; ++v) idt[v] = gate(0x08, 0x1800, 0x8e);
+        idt[0x2b] = gate(0x08, 0x1800, 0xee);
+        for (auto [v, g] : c.gates) idt[v] = g;
+        for (unsigned v = 0; v < 48; ++v)
+            for (unsigned i = 0; i < 8; ++i) image[IDT + 8 * v + i] = uint8_t(idt[v] >> (8 * i));
+        for (unsigned i = 0; i < 6; ++i) {
+            image[0x2100 + i] = uint8_t((uint64_t(GDT) << 16 | (8 * GDT_ENTRIES - 1)) >> (8 * i));
+            image[0x2108 + i] = uint8_t((uint64_t(IDT) << 16 | (48 * 8 - 1)) >> (8 * i));
+        }
+        image[0x1800] = 0xf4;                                        // HLT
+        // The tables: PDE 0 and 1, identity pages 0-0Fh (user), the case's.
+        std::map<uint32_t, uint32_t> entry;
+        entry[PD] = PT0 | 0x07;
+        entry[PD + 4] = PT1 | 0x07;
+        for (uint32_t p = 0; p < 0x10; ++p) entry[pte(p)] = p << 12 | 0x07;
+        for (auto [n, v] : c.pdes) entry[PD + 4 * n] = v;
+        for (auto [p, v] : c.ptes) entry[p < 0x400 ? pte(p) : PT1 + 4 * (p - 0x400)] = v;
+        for (auto [address, v] : entry)
+            for (unsigned i = 0; i < 4; ++i) image[address + i] = uint8_t(v >> (8 * i));
+        for (const auto &[address, bytes] : c.mem)
+            for (size_t i = 0; i < bytes.size(); ++i) image[address + uint32_t(i)] = bytes[i];
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, value);
+            oracle.invalidate(address, 1);
+        }
+        State state;
+        for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
+        state.eip = CODE;
+        state.gpr[fes_i386::REG_ESP] = 0x0f00;
+        state.cr0 = 0x7ffffff0;
+        oracle.reset();
+        oracle.set_state(state);
+        oracle.set_a20(!c.a20m);
+        rtl.top.a20m = c.a20m;
+        rtl.start(state);
+        Mismatches out;
+        Outcome outcome;
+        try {
+            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 96, true, summary, out, 0);
+        } catch (const std::exception &error) {
+            out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
+            oracle.reset();
+        }
+        const State s = rtl.state();
+        const std::string label = c.label;
+        if (c.ending == -1) {
+            if (!outcome.halted) out.add(label + ".halt", 1, 0);
+            if (outcome.exception >= 0) out.add(label + ".exception", 0xff, uint32_t(outcome.exception));
+            if (outcome.interrupt != c.soft) out.add(label + ".interrupt", uint32_t(c.soft), uint32_t(outcome.interrupt));
+        } else if (c.ending == -2) {
+            if (!outcome.shutdown) out.add(label + ".shutdown", 1, 0);
+        } else {
+            if (outcome.exception != c.ending)
+                out.add(label + ".exception", uint32_t(c.ending), outcome.exception < 0 ? 0xffu : uint32_t(outcome.exception));
+            // The error code: the frame's last push, at SS:ESP (identity-mapped).
+            if (c.error >= 0 && outcome.exception == c.ending) {
+                const uint32_t at = s.seg[fes_i386::SEG_SS].base + (s.gpr[fes_i386::REG_ESP] & 0xffff);
+                const uint32_t got = rtl.ram[at] | uint32_t(rtl.ram[at + 1]) << 8;
+                if (got != uint32_t(c.error)) out.add(label + ".error-code", uint32_t(c.error), got);
+            }
+        }
+        if (c.cr2 >= 0 && s.cr2 != uint32_t(c.cr2)) out.add(label + ".cr2", uint32_t(c.cr2), s.cr2);
+        end_run(bus, rtl, outcome.halted, out);
+        oracle.set_a20(true);
+        rtl.top.a20m = 0;
+        summary.cycles += rtl.cycles;
+        rtl.cycles = 0;
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        for (uint32_t address : rtl.written) {
+            if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        rtl.written.clear();
+        ++summary.runs;
+        if (out.items.empty()) {
+            ++summary.passed;
+        } else {
+            ++summary.failed;
+            std::cout << "FAIL paging:" << label;
             for (const auto &item : out.items) std::cout << ' ' << item;
             std::cout << '\n';
         }
@@ -7501,6 +8142,7 @@ int main(int argc, char **argv) {
         run_smc_cases(*oracle, bus, rtl, entries, summary);
         run_btb_cases(*oracle, bus, rtl, entries, summary);
         run_ras_cases(*oracle, bus, rtl, entries, summary);
+        run_ind_cases(*oracle, bus, rtl, entries, summary);
         run_stld_cases(*oracle, bus, rtl, entries, summary);
         run_ealu_cases(*oracle, bus, rtl, entries, summary);
         run_ldfwd_cases(*oracle, bus, rtl, entries, summary);
@@ -7508,6 +8150,8 @@ int main(int argc, char **argv) {
         run_unreal_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "pmode") {
         run_pmode_cases(*oracle, bus, rtl, entries, summary);
+    } else if (mode == "paging") {
+        run_paging_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "no387") {
         run_no387_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "test386") {

@@ -29,6 +29,17 @@ type Client struct {
 	progress   func(phase, detail string)
 }
 
+// httpStatusError retains the response code when an intermediary or restarting
+// target returns a malformed error body. Callers can reconcile the operation
+// through status before deciding whether a mutation is safe to retry.
+type httpStatusError struct {
+	status int
+	cause  error
+}
+
+func (e *httpStatusError) Error() string { return e.cause.Error() }
+func (e *httpStatusError) Unwrap() error { return e.cause }
+
 // WithProgress reports appliance update phases. A nil hook leaves the client silent.
 func (c *Client) WithProgress(hook func(phase, detail string)) *Client {
 	c.progress = hook
@@ -187,13 +198,16 @@ func decodeResponse(response *http.Response, responseBody any) error {
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		var envelope protocol.ErrorEnvelope
 		if err := json.Unmarshal(data, &envelope); err != nil {
-			return fmt.Errorf("decode HTTP %d error: %w", response.StatusCode, err)
+			return &httpStatusError{status: response.StatusCode, cause: fmt.Errorf("decode HTTP %d error: %w", response.StatusCode, err)}
 		}
 		if envelope.Error.Code == "" {
-			return fmt.Errorf("HTTP %d response has no symbolic error code", response.StatusCode)
+			return &httpStatusError{status: response.StatusCode, cause: fmt.Errorf("HTTP %d response has no symbolic error code", response.StatusCode)}
 		}
 		apiErr := envelope.Error
 		apiErr.StatusCode = response.StatusCode
+		if response.StatusCode == http.StatusServiceUnavailable {
+			return &httpStatusError{status: response.StatusCode, cause: &apiErr}
+		}
 		return &apiErr
 	}
 	if err := json.Unmarshal(data, responseBody); err != nil {

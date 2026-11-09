@@ -73,16 +73,40 @@ package fes_i386_pkg;
         // target's linear address. D gives a RET predicted by the return
         // stack its EIP from it.
         logic [31:0]      ptgt;
+        // Paging (fes_i386_l1i's ITLB, carried with each block): pp0, the
+        // physical page bits 19:12 of the instruction's first byte, pp1 of the
+        // block it runs into (its own when it does not), for the self-modifying
+        // code check; tm0 and tm1, the ITLB had no entry for that block's
+        // page; ts0 and ts1, the entry is a supervisor page. D turns an
+        // instruction with a mark, or a supervisor page at CPL 3, into a walk
+        // (pipe_t ifw).
+        logic [7:0]       pp0;
+        logic [7:0]       pp1;
+        logic             tm0;
+        logic             tm1;
+        logic             ts0;
+        logic             ts1;
         logic [10:0][7:0] bytes;
     } fetched_t;
+
+    // A fetch block's paging tag from the L1I (fes_i386_l1i): no ITLB entry
+    // for its page (tm), a supervisor page (ts), and its physical page bits
+    // 19:12 (pp). With paging off, tm and ts are clear and pp is the
+    // linear address's bits 19:12.
+    typedef struct packed {
+        logic       tm;
+        logic       ts;
+        logic [7:0] pp;
+    } ftag_t;
 
     // One BTB lookup, for the block F2 holds (fes_i386_btb), and one write,
     // from WB. An entry describes the first predicted branch of the 16-byte
     // block that holds the branch's last byte: last is that byte's offset,
     // target its target's linear address, ctr a 2-bit counter (taken at 2
-    // or more), uncond a JMP or CALL rel or a RET, always taken. A CALL rel's
-    // entry (call) pushes the return stack (fes_i386_ras) as F2 predicts it;
-    // a RET's (ret) pops it and goes to its top, not to target.
+    // or more), uncond a JMP or CALL rel or r/m or a RET, always taken. A
+    // JMP or CALL r/m's target is the one it last went to. A CALL's entry
+    // (call) pushes the return stack (fes_i386_ras) as F2 predicts it; a
+    // RET's (ret) pops it and goes to its top, not to target.
     typedef struct packed {
         logic        valid;
         logic        uncond;
@@ -301,23 +325,27 @@ package fes_i386_pkg;
     // vector's IDT entry as their error code, vector * 8 + 2 (a delivery's
     // gate checks). TS_SEL and TS_TR are #TS with T0's selector (a delivery's
     // new SS) or TR's (its stack's slots past the TSS's limit).
-    typedef enum logic [3:0] {
-        FAULT_NONE          = 4'd0,
-        FAULT_UD            = 4'd1,
-        FAULT_GP0           = 4'd2,
-        FAULT_NM            = 4'd3,
-        FAULT_UNIMPLEMENTED = 4'd4,
-        FAULT_SS0           = 4'd5,
-        FAULT_DE            = 4'd6,
-        FAULT_BR            = 4'd7,
-        FAULT_REPLAY        = 4'd8,
-        FAULT_GP_SEL        = 4'd9,
-        FAULT_NP_SEL        = 4'd10,
-        FAULT_SS_SEL        = 4'd11,
-        FAULT_GP_IDT        = 4'd12,
-        FAULT_NP_IDT        = 4'd13,
-        FAULT_TS_SEL        = 4'd14,
-        FAULT_TS_TR         = 4'd15
+    // PF is a page fault (vector 14) with the error code and CR2's linear
+    // address the uop carries (pipe_t pf_err, pf_lin), from the walker
+    // (fes_i386_l1d).
+    typedef enum logic [4:0] {
+        FAULT_NONE          = 5'd0,
+        FAULT_UD            = 5'd1,
+        FAULT_GP0           = 5'd2,
+        FAULT_NM            = 5'd3,
+        FAULT_UNIMPLEMENTED = 5'd4,
+        FAULT_SS0           = 5'd5,
+        FAULT_DE            = 5'd6,
+        FAULT_BR            = 5'd7,
+        FAULT_REPLAY        = 5'd8,
+        FAULT_GP_SEL        = 5'd9,
+        FAULT_NP_SEL        = 5'd10,
+        FAULT_SS_SEL        = 5'd11,
+        FAULT_GP_IDT        = 5'd12,
+        FAULT_NP_IDT        = 5'd13,
+        FAULT_TS_SEL        = 5'd14,
+        FAULT_TS_TR         = 5'd15,
+        FAULT_PF            = 5'd16
     } fault_e;
 
     // Why an instruction stops as not built (FAULT_UNIMPLEMENTED), kept
@@ -325,13 +353,13 @@ package fes_i386_pkg;
     // build does not decode; a delivery through a task gate; an interrupt
     // to an inner privilege, or a return or IRET to an outer one; a far
     // transfer through a call gate, a TSS or a task gate; an IRET to V86
-    // mode; paging; a protected-mode 16-bit stack access past 64 KiB under
+    // mode; a protected-mode 16-bit stack access past 64 KiB under
     // a limit that reaches there; a protected-mode IRET with NT set, a
     // return from a nested task; an I/O instruction at a CPL above IOPL,
     // which the TSS's I/O permission bitmap decides.
     typedef enum logic [3:0] {
-        WHY_ENCODING, WHY_TASK_GATE, WHY_INNER, WHY_OUTER, WHY_GATE, WHY_V86, WHY_PAGING, WHY_STACK64K,
-        WHY_TASK_RETURN, WHY_IOPERM
+        WHY_ENCODING, WHY_TASK_GATE, WHY_INNER, WHY_OUTER, WHY_GATE, WHY_V86, WHY_STACK64K, WHY_TASK_RETURN,
+        WHY_IOPERM
     } why_e;
 
     typedef struct packed {
@@ -444,6 +472,20 @@ package fes_i386_pkg;
     // or a hole (reads FFh, writes dropped).
     localparam int PA = 26;
     typedef enum logic [1:0] { ATTR_RAM, ATTR_ROM, ATTR_MMIO, ATTR_HOLE } attr_e;
+
+    // A TLB entry (fes_i386_tlb): a linear page, its physical page as phys
+    // gives it (above bit and PA bits 25:12, A20M applied), that page's
+    // attribute, and the rights the PDE and PTE give together (U/S, R/W)
+    // with the PTE's D bit. The walker fills it (fes_i386_l1d); A is set in
+    // both entries of every page an entry holds.
+    typedef struct packed {
+        logic [19:0]    lp;
+        logic [PA-12:0] pp;
+        attr_e          at;
+        logic           u;
+        logic           w;
+        logic           d;
+    } tlb_entry_t;
 
     // The physical address of a linear one with paging off: A20M masks bit 20,
     // and FFFF0000h-FFFFFFFFh reads the F0000h shadow (the reset fetch).
@@ -655,6 +697,12 @@ package fes_i386_pkg;
         logic        tk;
         logic        xbad;
         logic [31:0] ptgt;
+        logic [7:0]  pp0;
+        logic [7:0]  pp1;
+        logic        tm0;
+        logic        tm1;
+        logic        ts0;
+        logic        ts1;
     } decoded_t;
 
     // Which of ESI, EDI and ECX (bits 0-2) a uop reads: src1, src2, a CL
@@ -940,7 +988,38 @@ package fes_i386_pkg;
         // The return stack (fes_i386_cpu, "Branch prediction").
         logic        ncall;       // D: a near CALL's jump (CALL rel, CALL r/m)
         logic        nret;        // D: a near RET (C3h, C2h)
-        logic [31:0] peip;        // D: ... the EIP the return stack predicted, when pt
+        logic        nind;        // D: an indirect near JMP's or CALL's jump (JMP r/m, CALL r/m)
+        logic [31:0] peip;        // D: ... or nind's, the EIP the return stack or BTB predicted, when pt
+        // Paging (fes_i386_cpu, "Paging"). ipp0, ipp1: D, the physical page
+        // bits 19:12 of the instruction's first line and of the block it runs
+        // into (fetched_t pp0, pp1), for the self-modifying-code check. ifw:
+        // D, the uop is the walk of an instruction's fetch (fetched_t tm0 to
+        // ts1), of the page at pf_lin, which ends in FAULT_REPLAY or #PF.
+        // pg_a0, pg_a1, pg_t0, pg_t1: M2, the physical pages (PA bits 25:12
+        // with phys's above bit) of the memory operand's page (maddr) and the
+        // next, and of a st2 store's (target) and the next. pf_lin, pf_err:
+        // a #PF's linear address (CR2) and error code (P, W/R, U/S).
+        logic [7:0]     ipp0;
+        logic [7:0]     ipp1;
+        logic           ifw;
+        // nx: D, a load whose data nothing uses that does not translate (a
+        // probe, POP m's step, MUL and DIV's LOAD and HI); wx: ENTER's last
+        // check, which translates as a write.
+        logic           nx;
+        logic           wx;
+        logic [PA-12:0] pg_a0;
+        logic [PA-12:0] pg_a1;
+        logic [PA-12:0] pg_t0;
+        logic [PA-12:0] pg_t1;
+        logic [31:0]    pf_lin;
+        logic [2:0]     pf_err;
+        // txr: M2, the uop replays because the walker would have walked for
+        // it as not the oldest, so the serial issue after it ends with its
+        // REP element, not its instruction.
+        logic           txr;
+        // dfl: M1, the uop's fault is its st2 store's segment check
+        // (dfault), which a #PF on its load's pages comes before.
+        logic           dfl;
     } pipe_t;
 
 endpackage

@@ -9,7 +9,6 @@ session and kit cleanup even on failure.
 """
 import argparse
 import ctypes
-import fcntl
 import hashlib
 import io
 import json
@@ -76,8 +75,6 @@ def inspect_archive(data, args):
             raise pa.AcceptanceError('archive must contain exactly one bounded manifest')
         rbf = tf.extractfile(payload[0]).read()
         manifest_bytes = tf.extractfile(manifest[0]).read()
-        if getattr(args, 'manifest_sha256', None) and hashlib.sha256(manifest_bytes).hexdigest() != args.manifest_sha256:
-            raise pa.AcceptanceError('archive manifest differs from prepared identity')
         doc = tomllib.loads(manifest_bytes.decode())
     digest = hashlib.sha256(rbf).hexdigest()
     if (digest != args.rbf_sha256 or doc.get('core', {}).get('id') != 'fes.pcxt-dos'

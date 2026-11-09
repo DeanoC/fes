@@ -118,17 +118,18 @@ class OutputTest(unittest.TestCase):
             mode = {'summary': {'pm_retirements': pm, 'cs_rule': cs, 'cs_limit': {'pm-gp': cs}}}
             runs = {'totals': {'pm_retirements': pm, 'cs_rule': cs}, 'cs_limit': {'pm-gp': cs}}
             return {'corpus': {'totals': {}, 'by_opcode': {}}, 'random': runs, 'pmode': runs,
-                    'directed_cases': mode, 'unreal_cases': mode, 'pmode_cases': mode, 'no387_cases': mode,
-                    'memory_cases': mode, 'reset_store': mode,
+                    'directed_cases': mode, 'unreal_cases': mode, 'pmode_cases': mode, 'paging_cases': mode,
+                    'no387_cases': mode, 'memory_cases': mode, 'reset_store': mode,
                     'unbuilt': {'encodings': 0}}
         self.assertEqual(lockstep.same_as(report(75, 2), report(75, 2)), [])
         differences = lockstep.same_as(report(74, 3), report(75, 2))
-        for where in ('random', 'pmode', 'directed_cases', 'unreal_cases', 'pmode_cases', 'no387_cases',
+        for where in ('random', 'pmode', 'directed_cases', 'unreal_cases', 'pmode_cases', 'paging_cases', 'no387_cases',
                       'memory_cases', 'reset_store'):
             with self.subTest(where=where):
                 self.assertIn(f'{where} pm_retirements: 74 here, 75 at max', differences)
                 self.assertIn(f'{where} cs_rule: 3 here, 2 at max', differences)
-        for where in ('pmode', 'directed_cases', 'unreal_cases', 'pmode_cases', 'memory_cases', 'reset_store'):
+        for where in ('pmode', 'directed_cases', 'unreal_cases', 'pmode_cases', 'paging_cases', 'memory_cases',
+                      'reset_store'):
             with self.subTest(where=where):
                 self.assertIn(f"{where} cs_limit: {{'pm-gp': 3}} here, {{'pm-gp': 2}} at max", differences)
 
@@ -151,10 +152,10 @@ class LockstepRunTest(unittest.TestCase):
                                 cwd=lockstep.ROOT, env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(', 0 fail;', result.stdout)
-        self.assertIn('directed cases: 40 pass, 0 fail', result.stdout)
+        self.assertIn('directed cases: 77 pass, 0 fail', result.stdout)
         self.assertIn('unreal-mode cases: 7 pass, 0 fail', result.stdout)
         self.assertRegex(result.stdout, r'protected mode: 2 seeds x 100 programs .*: 200 pass, 0 fail;')
-        self.assertIn('memory cases (DMA, FLUSH): 26 pass, 0 fail', result.stdout)
+        self.assertIn('memory cases (DMA, FLUSH): 27 pass, 0 fail', result.stdout)
         self.assertIn('trace unchanged', result.stdout)
         return result.stdout
 

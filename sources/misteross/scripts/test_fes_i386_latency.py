@@ -61,7 +61,14 @@ LOOPS: list[tuple[str, int, int]] = [
     ('store_load_line', 1000, UNROLL),
     ('store_load_part', 1000, UNROLL),
     ('store_load_alias', 1000, UNROLL),
+    ('call_ind1', 8000, 1),
+    ('jmp_ind1', 8000, 1),
+    ('call_alt', 8000, 1),
 ]
+# CPU Phase 4 slice 5, indirect JMP and CALL predicted to their last target.
+# Before it: call_reg 164029, call_mem 164059, loop 42250, call_ind1 176046,
+# jmp_ind1 104053 and call_alt 184081 (unchanged: its target changes every
+# time).
 # CPU Phase 4 slice 6, the early ALU: agi_alu 43029 before it.
 # CPU Phase 4 slice 4, the store-to-load wait only on a possible overlap.
 # Before it, with slices 2 and 3: store_load_other 26059, store_load_line
@@ -76,10 +83,10 @@ EXPECTED: dict[str, int] = {
     'jcc_loop': 8039,
     'jcc_taken': 77045,
     'call_ret': 106148,
-    'call_reg': 164029,
-    'call_mem': 164059,
+    'call_reg': 173999,
+    'call_mem': 153070,
     'far_call': 259060,
-    'loop': 42250,
+    'loop': 42270,
     'agi_load': 35039,
     'agi_alu': 22029,
     'store_load_same': 26059,
@@ -87,6 +94,9 @@ EXPECTED: dict[str, int] = {
     'store_load_line': 18057,
     'store_load_part': 26030,
     'store_load_alias': 26059,
+    'call_ind1': 88068,
+    'jmp_ind1': 32062,
+    'call_alt': 184081,
 }
 
 

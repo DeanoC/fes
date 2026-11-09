@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -106,6 +107,106 @@ func TestKitLeaseSharedMutationAndNoForeignStop(t *testing.T) {
 	}
 	if owned, generation := c.MeshKitLease(); !owned || generation != "one" {
 		t.Fatalf("owned=%v generation=%q", owned, generation)
+	}
+}
+
+func TestKitLeaseAcquireReconcilesFreeTargetBeforeFreshClaim(t *testing.T) {
+	var mu sync.Mutex
+	claimCount := 0
+	ownership := "held"
+	var requests []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		requests = append(requests, r.Method+" "+r.URL.Path)
+		switch r.Method + " " + r.URL.Path {
+		case "POST /v1/kit/claim":
+			claimCount++
+			token, generation := "old-token", "old-generation"
+			if claimCount == 2 {
+				token, generation = "fresh-token", "fresh-generation"
+				ownership = "held"
+			}
+			fmt.Fprintf(w, `{"status":{"state":"held","generation":%q,"expires_in_ms":60000},"token":%q}`, generation, token)
+		case "GET /v1/kit/lease":
+			if ownership == "held" && claimCount == 1 {
+				fmt.Fprint(w, `{"state":"held","generation":"old-generation"}`)
+			} else {
+				fmt.Fprint(w, `{"state":"free"}`)
+			}
+		case "POST /v1/stop":
+			if r.Header.Get(KitLeaseHeader) != "fresh-token" {
+				t.Error("recovery Stop did not use the fresh grant")
+			}
+			fmt.Fprint(w, `{"state":"idle"}`)
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	u, _ := url.Parse(server.URL)
+	lease := NewKitLease(u, "bearer", server.Client(), "test", "recovery")
+	client := NewClient(u, "bearer", server.Client()).WithKitLease(lease)
+	defer client.InvalidateKitSession()
+	request, _ := http.NewRequest(http.MethodPost, server.URL+"/v1/stop", nil)
+	if err := lease.Authorize(request, true); err != nil {
+		t.Fatal("initial claim:", err)
+	}
+	mu.Lock()
+	ownership = "free" // target reboot discarded the cached grant
+	mu.Unlock()
+	if err := lease.Acquire(context.Background()); err != nil {
+		t.Fatal("reconciled claim:", err)
+	}
+	if _, err := client.Stop(context.Background()); err != nil {
+		t.Fatal("Stop with fresh claim:", err)
+	}
+	want := []string{"POST /v1/kit/claim", "GET /v1/kit/lease", "POST /v1/kit/claim", "POST /v1/stop"}
+	mu.Lock()
+	gotClaims, gotRequests := claimCount, append([]string(nil), requests...)
+	mu.Unlock()
+	if gotClaims != 2 || fmt.Sprint(gotRequests) != fmt.Sprint(want) {
+		t.Fatalf("claim count=%d requests=%v want=%v", gotClaims, gotRequests, want)
+	}
+}
+
+func TestKitLeaseAcquireRefusesAnotherHeldGeneration(t *testing.T) {
+	claims, stops := 0, 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method + " " + r.URL.Path {
+		case "POST /v1/kit/claim":
+			claims++
+			fmt.Fprint(w, `{"status":{"state":"held","generation":"old-generation","expires_in_ms":60000},"token":"old-token"}`)
+		case "GET /v1/kit/lease":
+			fmt.Fprint(w, `{"state":"held","generation":"foreign-generation"}`)
+		case "POST /v1/stop":
+			stops++
+			t.Error("Stop ran despite a foreign grant")
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	u, _ := url.Parse(server.URL)
+	lease := NewKitLease(u, "bearer", server.Client(), "test", "recovery")
+	defer func() {
+		lease.mu.Lock()
+		lease.invalidateLocked()
+		lease.mu.Unlock()
+	}()
+	request, _ := http.NewRequest(http.MethodPost, server.URL+"/v1/stop", nil)
+	if err := lease.Authorize(request, true); err != nil {
+		t.Fatal("initial claim:", err)
+	}
+	err := lease.Acquire(context.Background())
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeKitLeaseBusy {
+		t.Fatalf("foreign ownership error = %v, want KIT_LEASE_BUSY", err)
+	}
+	if claims != 1 || stops != 0 {
+		t.Fatalf("claims=%d stops=%d, want 1 claim and no Stop", claims, stops)
 	}
 }
 

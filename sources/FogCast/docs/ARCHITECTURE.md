@@ -1688,12 +1688,67 @@ on FAT outside every rootfs. Replacing the system image does not wipe
 
 When leftover card capacity has already been formatted as partition 3 with
 label `FESDATA3`, agent startup bind-mounts that ext4 volume over
-`/media/fat/fogcast/{cache,saves,core-data,launcher-cache,evidence}`. Existing
-files are copied onto p3 first and never overwritten there. Releases,
-`agent.toml`, `launcher.json`, `target-id`, and known-good images stay on the
-1 GiB FAT. The helper does not create, grow, or format partitions and does not
-run from the fixed bootstrap. Bind is refused while `GET /v1/update` shows trial,
-pending, or corrupt; the agent still starts and keeps those trees on FAT.
+`/media/fat/fogcast/{cache,saves,core-data,launcher-cache,evidence}` and
+`/media/fat/games`. Existing FAT files in these trees are copied onto p3 only
+when the p3 destination is absent; each copied file is published only after a
+complete same-directory temporary has been written and closed, and existing
+p3 files are preserved. The game library is imported once, with a completion
+marker on p3 outside the bound game tree, published only after the destination
+game directories are synced, so a crash cannot leave the marker ahead of the
+game entries. Deleting a migrated game from p3 does not restore it from the FAT
+copy at a later startup. A failed initial game copy or directory sync does not
+write the completion marker, so startup can retry the incomplete migration.
+Before copying into or binding the p3 game tree, startup rejects symlinked
+destination paths without following them. If the completion marker exists but
+the p3 game directory is missing, startup records and syncs a fallback marker
+before restoring it; an interrupted restore retries missing-file
+reconciliation across startups. Startup also checks that an existing
+`/media/fat/games` bind still refers to the current p3 game directory. If that
+source was removed or replaced, it records and syncs a fallback marker before
+unbinding a target on the FESDATA3 device, including when a marker from an
+earlier failed directory sync is already visible. It then restores missing
+files from the still-visible FAT tree, syncs p3, and binds the live directory
+again. The marker remains until the bind succeeds, so a failed repair, target
+preparation, or bind retries missing-file reconciliation at the next startup.
+A failed p3 mount also records the marker while FAT remains usable.
+When p3 is absent or its bind is gated, startup records a hidden fallback marker
+beside `/media/fat/games`. If the FAT filesystem cannot create hard links, the
+marker is published with a same-directory rename. On the next successful p3
+bind it copies missing game files added during the FAT-only interval, syncs p3,
+and clears the marker. This one-time reconciliation does not overwrite an
+existing p3 file or repeat on normal startup. Without p3, all these paths
+continue to use FAT. The helper does
+not create, grow, or format partitions and does not run from the fixed
+bootstrap. Bind is refused while `GET /v1/update` shows trial, pending, or
+corrupt; the agent still starts and keeps those trees on FAT.
+
+While that gate is closed, the helper leaves `/run/fogcast/fesdata3` unmounted;
+the path is on `/run` tmpfs, so persistent-store checks correctly reject it and
+kit-host mode may use its tmpfs fallback. After confirmation clears the gate,
+the base software supervisor mounts and verifies p3, then reconciles the
+selected software bundle. That reconciliation can restart the managed service
+group once. Health sampling for an old bundle must begin after the selected
+bundle is active and the p3 mount is verified, not during this trial handoff.
+Whenever the mountpoint is already mounted, the helper verifies writable ext4,
+device identity and the exact mountinfo entry before treating it as FESDATA3.
+
+Confirmed appliance releases retain the current image plus one verified
+fallback on FAT, and always protect the factory image as a final recovery
+anchor. Superseded non-factory releases are pruned. A staged candidate may be
+present there while an update is pending or on trial. The bootstrap keeps
+`boot.json` on its stable `boot_id`, `image_sha256`, and `trial` schema so older
+target agents continue to accept it. A separate `boot-fallback.json` record,
+bound to that boot ID and image hash, stores the fallback so recovery can still
+select it if the release state file is corrupt. An unreadable optional sidecar
+does not invalidate a valid `boot.json` ticket; a fallback hash present in the
+ticket remains available. Authenticated `GET /v1/update`
+reports that digest as `fallback_image_sha256`; if the optional sidecar is
+missing on a later normal boot, it recovers the value from durable Good and
+Previous when the ticket names Good. Confirming a trial clears the trial flag
+without dropping its sidecar fallback. Moving
+previous, pending and trial image files to FESDATA3, with a read-only p3 mount
+in the bootstrap and a FAT known-good fallback when that mount fails, is the
+next appliance update step.
 
 Kit UI state stays on that FAT tree at `/media/fat/fogcast/state`. The software
 supervisor creates the directory when `/media/fat/fogcast` is already present
@@ -1721,9 +1776,13 @@ remembered drives remain untouched.
 The kernel loop-mounts the bootstrap as before. Its PID 1 verifies the selected
 image, consumes a pending trial durably, attaches another read-only loop, and uses
 `pivot_root` followed by exec of the selected `/sbin/init`. The old bootstrap
-remains at `/.fes-bootstrap`. Preparation failures select verified known-good or
-factory; failures after starting root switching require reboot. No trial is
-repeated on a later boot without another explicit activation.
+remains at `/.fes-bootstrap`. An ordinary boot selects verified Good; if Good
+fails verification, it selects verified Previous before factory. If a selected
+image fails preparation, PID 1 tries the next verified fallback, with Previous
+before factory. A successfully prepared fallback becomes the recorded Good image,
+and the failed current image is dropped as a rollback target. Failures after
+starting root switching require reboot. No trial is repeated on a later boot
+without another explicit activation.
 
 For a trial, an independent bootstrap process first verifies the ARM DE10-nano
 device tree and prepares Cyclone V warm reset: it marks the completed preloader
@@ -1754,7 +1813,9 @@ the upload, fails the stage with HTTP 507 `UPDATE_NO_SPACE`
 The FES bootstrap owns fallback ordering, Linux mounts, loops, and the
 watchdog. The bootstrap records its selected image in
 `/media/fat/fogcast/releases/boot.json`; the native agent accepts that ticket only
-for the current kernel boot ID and retained factory manifest.
+for the current kernel boot ID and retained factory manifest. The adjacent
+`boot-fallback.json` sidecar carries recovery metadata without extending the
+three-field ticket schema consumed by older agents.
 
 `internal/applianceupdate` uses the existing kit lease and coordinator transition.
 Activation drains launch/development/input/cast requests, stops the runtime so
@@ -1774,7 +1835,9 @@ reads and clears the `boot.json` trial flag. A failed or cancelled publish
 leaves the watchdog armed. A boot-ticket rewrite failure after the release
 record is durable does not undo confirmation: admission opens, the error is
 logged, and the rewrite is retried once on a later idle status read. A failed
-splash publish can be retried by the same boot. A later
+splash publish can be retried by the same boot. If release pruning fails after
+durable confirmation and boot-ticket handling, the error is logged but
+admission still opens; another confirm retry safely retries pruning. A later
 boot of that image, including one that is no longer a trial, republishes from
 the running image's verified idle core even when the staged copy was removed.
 An unconfirmed trial does not modify FAT, so watchdog fallback still programs
@@ -3499,13 +3562,16 @@ confirmed clean idle response. A failed Stop keeps the recovery error visible.
 
 An idle menu therefore does not by itself establish launch readiness. A new
 explicit library launch can clear a retained idle legacy-launch error through
-one existing leased Stop request before its single activation. Source/media
-validation, target identity, API and ownership admission still apply. Cleanup
-must confirm clean idle; active sessions, save failures, attributed package
-failures and reboot-required states are not silently cleared. Cleanup failure
-blocks activation and remains visible. This does not replay the earlier failed
-launch or automatically reboot. Other recovery states still require explicit
-Stop or operator attention. Kit launch diagnostics record the submitted game ID and
+one leased Stop request before its single activation. If reboot discarded the
+session's grant, the recovery path reads current kit ownership even for
+address-only and target-scoped launches. It claims only after the kit reports
+free; a held kit remains with its owner and a foreign grant is never taken over.
+Source/media validation and API admission still apply. Cleanup must confirm
+clean idle; active sessions, save failures, attributed package failures and
+reboot-required states are not silently cleared. Cleanup failure blocks
+activation and remains visible. This does not replay the earlier failed launch
+or automatically reboot. Other recovery states still require explicit Stop or
+operator attention. Kit launch diagnostics record the submitted game ID and
 bounded result code, separately from the currently displayed selection, without
 logging credentials or raw response bodies.
 
