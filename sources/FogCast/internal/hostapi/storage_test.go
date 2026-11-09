@@ -27,7 +27,7 @@ func (f driveFixture) Discover(context.Context) ([]storage.Drive, error) {
 }
 
 // diskReadFixture creates sparse files, keeping the 128 MiB boundary tests
-// cheap while still testing the complete streamed contents and size.
+// cheap while still testing the full stream length and boundary bytes.
 func diskReadFixture(t *testing.T, root string) {
 	t.Helper()
 	for name, size := range map[string]int64{
