@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
 """Open ZX81 diagnostic firmware: an 8 KiB image for the zx81_machine ROM port.
 
 Nothing here is derived from a Sinclair ROM; the code and glyphs are written
@@ -67,7 +68,6 @@ VSYNC_T = 207 * 6
 # ZX81 character codes: space $00, digits $1C-$25, letters $26-$3F; bit 7
 # inverts. Hex digit n is $1C + n.
 GLYPHS = {
-    ' ': '.......',
     '0': '.###./#...#/#..##/#.#.#/##..#/#...#/.###.',
     '1': '..#../.##../..#../..#../..#../..#../.###.',
     '2': '.###./#...#/....#/..##./.#.../#..../#####',
@@ -150,6 +150,7 @@ def display_file() -> bytes:
     put(19, 0, list(range(0x20, 0x40)))
     put(20, 0, list(range(0x80, 0xA0)))
     put(21, 0, list(range(0xA0, 0xC0)))
+    put(23, 31, [0x80])  # inverse space proves the final display row is drawn
     return bytes([0x76] + [code for row in rows for code in row + [0x76]])
 
 

@@ -19,6 +19,7 @@ constexpr unsigned kPeekTicks = 1;
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -31,7 +32,7 @@ constexpr uint16_t kReady = 0x4040, kFrames = 0x4041, kLoads = 0x4042,
 constexpr uint16_t kDFile = 0x4080, kFont = 0x1e00;
 constexpr unsigned kRows = 24, kColumns = 32;
 constexpr uint64_t kAllUp = 0xffffffffffull;
-constexpr uint64_t kFrameTicks = 1100000;  // 64584 T at 16 host clocks a T
+constexpr uint64_t kFrameTicks = 1100000;  // 64170 T at 16 host clocks a T
 
 [[noreturn]] void fail(const std::string &message) {
     std::cerr << "FES ZX81 diagnostic: " << message << '\n';
@@ -58,7 +59,7 @@ std::vector<uint8_t> load_hex(const std::string &path) {
 struct Raster {
     static constexpr unsigned kLines = 330, kWidth = 420;
     bool on = false, hsync = false, vsync = false;
-    unsigned frames = 0, y = 0, x = 0, halts = 0;
+    unsigned frames = 0, y = 0, x = 0, halts = 0, completed_lines = 0;
     std::vector<uint8_t> pixel = std::vector<uint8_t>(kLines * kWidth);
 };
 Raster raster;
@@ -75,6 +76,7 @@ void tick(Machine &dut) {
         return;
     raster.halts += !dut.halt_n;
     if (dut.vsync_out && !raster.vsync) {
+        if (raster.frames) raster.completed_lines = raster.y;
         raster.frames++;
         raster.y = 0;
     }
@@ -134,13 +136,18 @@ void wait_byte(Machine &dut, uint16_t addr, uint8_t value, uint64_t ticks,
             return;
         run(dut, 0x10000);
     }
-    fail(what + ": $" + std::to_string(addr) + " is " + std::to_string(peek(dut, addr)));
+    std::ostringstream address;
+    address << std::hex << addr;
+    fail(what + ": $" + address.str() + " is " + std::to_string(peek(dut, addr)));
 }
 
 // Capture one whole frame and match it to the display file drawn from the
 // firmware's glyphs. The inverse space at row 0, column 0 marks the origin.
 void check_frame(Machine &dut, const std::vector<uint8_t> &rom, const char *tag) {
     raster = Raster();
+    // A capture can start inside either pulse; only actual edges count.
+    raster.hsync = dut.hsync_out;
+    raster.vsync = dut.vsync_out;
     raster.on = true;
     while (raster.frames == 0) tick(dut);
     // The display file is stable from VSYNC until the next bottom border.
@@ -151,6 +158,8 @@ void check_frame(Machine &dut, const std::vector<uint8_t> &rom, const char *tag)
     while (raster.frames == 1) tick(dut);
     raster.on = false;
     require(raster.halts > 0, std::string(tag) + ": CPU never halted at a row end");
+    require(raster.completed_lines == 310,
+            std::string(tag) + ": expected 310 lines, got " + std::to_string(raster.completed_lines));
 
     unsigned oy = 0, ox = 0, lit = 0;
     bool found = false;
@@ -161,6 +170,9 @@ void check_frame(Machine &dut, const std::vector<uint8_t> &rom, const char *tag)
                 break;
             }
     require(found, std::string(tag) + ": ULA produced no visible pixels");
+    require(oy == 59 && ox == 108,
+            std::string(tag) + ": display origin is line " + std::to_string(oy) +
+                ", tick " + std::to_string(ox));
     require(oy + 8 * kRows <= Raster::kLines && ox + 8 * kColumns <= Raster::kWidth,
             std::string(tag) + ": display does not fit the active area");
     unsigned wrong = 0;
@@ -238,6 +250,11 @@ int main(int argc, char **argv) {
     require(peek(dut, kErrors) == 0, "error bits after boot");
     check_cells(dut, 2, 7, hex_cells({uint8_t(ramtop >> 8), uint8_t(ramtop)}), "RAMTOP");
     check_frame(dut, rom, "boot");
+
+    // The preceding capture returns at the start of VSYNC. Starting again
+    // while that pulse is high must wait for the next complete frame.
+    require(dut.vsync_out, "boot capture did not end during VSYNC");
+    check_frame(dut, rom, "vsync start");
 
     // One key per row (not L or S); the row byte is A0-A4 plus the 50 Hz bit.
     for (unsigned row = 0; row != 8; ++row) {
