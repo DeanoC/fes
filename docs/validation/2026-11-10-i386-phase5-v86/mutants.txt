@@ -12,8 +12,9 @@ v86-ar-93       fes_i386_cpu.sv   V86 segment loads give access rights 93h (DPL 
                 -> 72 directed; random 68
 pushf-iopl      fes_i386_decode.sv  PUSHF in V86 mode below IOPL 3 runs
                 -> 3 directed (v86-pushf-iopl0, v86-pushfd-iopl0, v86-pushf-sp1-iopl0); random 1
-popf-runs       fes_i386_decode.sv  POPF in V86 mode below IOPL 3 runs (no late #GP)
-                -> 2 directed (v86-popf-iopl0, v86-popfd-iopl0); random 0
+popf-runs       fes_i386_decode.sv  POPF in V86 mode below IOPL 3 runs (no #GP)
+                -> 3 directed (v86-popf-ss-iopl0, v86-popfd-ss-iopl2, pg-v86-popf-np-iopl0); random 0
+                   (run on 111687d80, where POPF's #GP moved to DC before its pop)
 io-iopl3        fes_i386_decode.sv  IN and OUT in V86 mode skip the bitmap at IOPL 3
                 -> 8 directed (v86-out-denied-iopl3, v86-in-word-denied, ...); random 7
 no-v86-dpl      fes_i386_cpu.sv   a delivery from V86 mode to a CS of DPL 1 passes

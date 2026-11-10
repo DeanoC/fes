@@ -22,8 +22,8 @@ IOPL, which were not built before).
   enter V86 mode 7,559 times. Fifteen one-line mutants of the new RTL each
   fail directed cases ([mutants.txt](mutants.txt)).
 - **Seal.** Quartus 17.0.2 at seed 1, from a clean checkout of the PR's
-  RTL (`2564ed8e3`), meets every analysis: setup +0.536 ns, hold +0.104
-  ns. ALMs 36,510 (main 36,717, -207: fit noise) and 268 M10K (main 268):
+  RTL (`111687d80`), meets every analysis: setup +0.841 ns, hold +0.082
+  ns. ALMs 36,398 (main 36,717, -319: fit noise) and 268 M10K (main 268):
   the ROM's wider word still fits its 6 blocks. A seed-1 seal of an earlier
   head did not route; the cause was Codex's first fix, which put CS's limit
   compare in front of a 147-fanout select in D, and its rework restored the
@@ -54,10 +54,17 @@ departs from the plan. In short:
   INT n, INT3, INTO and exceptions take the V86 delivery (`vvec`, `vint`).
   The group 6 forms, LAR, LSL and ARPL are #UD; HLT, CLTS, LMSW, LGDT, LIDT
   and MOV CRn and DRn are #GP(0) by their CPL check.
-- **IOPL.** Below IOPL 3, PUSHF, INT n, IRET and LOCK raise #GP(0) in DC
-  (CLI and STI by their CPL check); POPF after its pop's own checks, at M1,
-  as Bochs pops first. LOCK's #GP(0) follows the 386 manual where Bochs runs
-  the instruction: the lockstep lets the RTL's #GP stand (`v86-lock-gp`).
+- **IOPL.** Below IOPL 3, PUSHF, POPF, INT n, IRET and LOCK raise #GP(0) in
+  DC, before any operand (CLI and STI by their CPL check). The 386, not
+  Bochs, decides the order: its die-extracted microcode
+  ([reenigne/x86_microcode](https://github.com/reenigne/x86_microcode),
+  `80386/microcode_notes.txt`) enters each in V86 mode at a test of IOPL
+  before any bus cycle, `7FB  if (CPL <= IOPL) goto "p POPFd"` with the
+  stack read at `803` on the permitted path only, and the same at `7F9`
+  (PUSHF), `7FD` (INT ib), `7FF` (IRET) and `7F7` (CLI, STI). Bochs pops
+  POPF first, so a stack fault (#SS, #PF) comes before its #GP there, and
+  runs a LOCK, where the 386 manual has #GP(0): the lockstep lets the RTL's
+  #GP stand for both (`v86-iopl-gp`).
 - **Segments.** A real-mode load in V86 mode gives the segment V86's cache,
   limit FFFFh and access rights F3h, CS too (`seg_v86`).
 - **IRETD into V86 mode.** `piret` reads EFLAGS', CS's and EIP's slots as
@@ -88,7 +95,7 @@ departs from the plan. In short:
 
 `scripts/test_fes_i386_lockstep.py` ran with every default (16 seeds of 2,000
 random programs, 16 seeds of 500 protected-mode programs, the full corpus) at
-`2564ed8e3`, the sealed RTL, on the RTL and on the netlist from the i386
+`111687d80`, the sealed RTL, on the RTL and on the netlist from the i386
 lock's Yosys (`238eac9a4`):
 
 | Part | RTL | Netlist |
@@ -98,7 +105,7 @@ lock's Yosys (`238eac9a4`):
 | Protected-mode programs | 7,998 of 8,000 (415,284 retirements) | same |
 | Unbuilt encodings | 49,760, each stopped | same |
 | Directed cases | 77 of 77 | same |
-| Unreal, protected-mode, paging, no-387 and memory cases | 7, 273, 62, 1,933 and 27, all pass | same |
+| Unreal, protected-mode, paging, no-387 and memory cases | 7, 273, 64, 1,933 and 27, all pass | same |
 
 Every corpus file's and random seed's retirement trace hash is the same on
 both ([lockstep-report.json](lockstep-report.json),
@@ -134,7 +141,7 @@ bitmap in V86 mode or at a CPL above IOPL.
   #SS is delivered from V86 mode through a 286 gate).
 - IOPL: CLI, STI, PUSHF, PUSHFD, POPF, POPFD, IRET, IRETD and HLT at IOPL 0
   (#GP(0)); PUSHF at SP 1 (#GP before the push); POPF at SP FFFFh and POPFD
-  at FFFEh (#SS(0) before the #GP); LOCK at IOPL 0 (#GP(0)) and 3 (runs), an
+  at FFFEh (#GP(0) before the pop, where Bochs gives #SS(0)); LOCK at IOPL 0 (#GP(0)) and 3 (runs), an
   invalid LOCK (#UD first); the flags at IOPL 3 (POPF and POPFD leave IOPL
   and VM); IRET and IRETD within V86 mode, and IRETD to an EIP past FFFFh.
 - Segments and transfers: `v86-segs` (MOV, LES, LFS, LGS, PUSH and POP of
@@ -148,12 +155,15 @@ bitmap in V86 mode or at a CPL above IOPL.
   INSB and OUTSD allowed, OUTSB refused, REP INSW with a count of 0 refused,
   a 286 TSS refused (these replace `r3-insb`, which stopped as not built).
 
-**Paging cases** (`FES_I386_MODE=paging`, now 62, 8 new): #PF from V86 mode
+**Paging cases** (`FES_I386_MODE=paging`, now 64, 10 new): #PF from V86 mode
 (U/S set in the error code) on a page not present, supervisor or read-only
 and at a fetch; user pages read and written; an INT round trip; a GDT on a
 supervisor page, which the delivery reads; an IRETD in V86 mode to EIP
 1xxxxh on a page not present, whose fetch is #GP(0) before any walk
-(Codex's review).
+(Codex's review); POPF at IOPL 0 with its stack on a page present
+(`pg-v86-popf-iopl0`) and not present (`pg-v86-popf-np-iopl0`), each
+#GP(0) before the pop as the 386's microcode orders it (Codex's review
+raised the second, where Bochs gives #PF).
 
 **Random programs.** An eighth of the protected-mode blocks' operations now
 enter V86 mode (`pm_v86`): an IRETD to the program's own real-mode CS at IOPL
@@ -166,8 +176,9 @@ V86 mode and return to it.
 
 **Harness changes.** `why_e` drops the reasons nothing raises any more (an
 IRET to V86 mode, INS and OUTS under the bitmap), so the later reasons'
-numbers shift. The lockstep's `v86-lock-gp` rule (LOCK in V86 mode below
-IOPL 3, where Bochs does not fault) gives the oracle the RTL's state. The
+numbers shift. The lockstep's `v86-iopl-gp` rule (LOCK, and POPF and
+POPFD, in V86 mode below IOPL 3, where Bochs runs the LOCK or pops first)
+gives the oracle the RTL's state. The
 summary counts V86 retirements, entries, exits, injected interrupts taken
 there, its IOPL-sensitive forms at IOPL 3, its I/O and string I/O under the
 bitmap.
@@ -175,33 +186,33 @@ bitmap.
 
 ## test386.asm
 
-`scripts/test_fes_i386_test386.py --cpu rtl --no-cross-check` at
-`2564ed8e3` ([test386-rtl-report.json](test386-rtl-report.json)): POST codes 00, 01,
+`scripts/test_fes_i386_test386.py --cpu rtl` at
+`111687d80` ([test386-rtl-report.json](test386-rtl-report.json)): POST codes 00, 01,
 02, 03, 04, 05, 06, 08, 09, 20, 21 and 22, no error, then a stop as not
 built after 799,276 retirements at 0053h:000E0A18h, `int 0x28` through a
 task gate (POST 22, slice 4).
 
 ## Seal
 
-The seal is Quartus 17.0.2, seed 1, from clean checkout `2564ed8e3`
+The seal is Quartus 17.0.2, seed 1, from clean checkout `111687d80`
 ([seal-summary.json](seal-summary.json)), the PR's RTL.
-- **Package.** `25052de3…`, build `d9820880…`, with `core.rbf` `55c2def0…`.
-- **Analyses.** Every one is met: setup +0.536 ns, hold +0.104 ns, recovery
-  +7.126 ns, removal +0.270 ns, minimum pulse width +1.122 ns.
+- **Package.** `eca4f692…`, build `be7ae3ef…`, with `core.rbf` `7f7c8097…`.
+- **Analyses.** Every one is met: setup +0.841 ns, hold +0.082 ns, recovery
+  +7.100 ns, removal +0.816 ns, minimum pulse width +1.122 ns.
 - **Clocks.** The system clock is 61.44 MHz.
 - **Resources.**
 
   | Resource | This seal | Main (slice 2's seal `3429af98`) |
   | --- | ---: | ---: |
-  | ALMs | 36,510 | 36,717 |
-  | Registers | 33,028 | 32,883 |
+  | ALMs | 36,398 | 36,717 |
+  | Registers | 32,797 | 32,883 |
   | M10K blocks | 268 | 268 |
   | DSP blocks | 38 | 38 |
 
   The plan estimated 550 ALMs and 3 M10K for this slice. It takes no more
   than the fit noise of about ±200 the area audit measured, and no M10K:
   slice 2 had already grown the ROM to 512 words, and the word's two new
-  bits fit the 6 blocks' 120. 5,400 ALMs (12.9%) are left, 1,990 under the
+  bits fit the 6 blocks' 120. 5,512 ALMs (13.2%) are left, 2,102 under the
   area audit's working ceiling of 38,500, for slices 4 and 5.
 
 **Diagnostics on the way** (not seals):
@@ -211,6 +222,7 @@ The seal is Quartus 17.0.2, seed 1, from clean checkout `2564ed8e3`
 | a1 ([summary](seal-summary-7837d3955.json)) | `7837d3955` | 1 | met (package `7b29b38a…`, the kit's) | +0.568 ns | +0.075 ns | 36,492 | 268 |
 | s2 | `bd1a9f4b4` | 1 | **no fit**: routing stopped on congestion while adding hold delay (peak interconnect 65.4% total, 92.2% vertical; the router's estimate 62% in X33-44, Y11-22) | | | | |
 | d2 ([summary](seal-summary-bd1a9f4b4-seed2.json)) | `bd1a9f4b4` | 2 | met | +0.629 ns | +0.080 ns | 36,442 | 268 |
+| s3 ([summary](seal-summary-2564ed8e3.json)) | `2564ed8e3` | 1 | met (package `25052de3…`) | +0.536 ns | +0.104 ns | 36,510 | 268 |
 
 `bd1a9f4b4` carried Codex's first fix for a fetch past CS's limit under
 paging: `d_ifw && !cs_gp`. Its hold padding was no larger than a1's (1,608
@@ -222,8 +234,15 @@ D's EIP to AG had 2.615 ns of slack on d2, against 3.924 ns on a1. The
 sealed RTL keeps `d_ifw` a function of registers and gives the walk uop
 `cs_gp`'s #GP(0) as its fault instead; M1 starts no walk for a uop with a
 fault, so the behaviour is the same (the case `pg-v86-eip-past-limit-np`
-and the mutant `ifw-over-gp` stand). On the seal the worst path from D's EIP
-to AG is a plain move into `ag_row`, +10.112 ns.
+and the mutant `ifw-over-gp` stand). On s3 the worst path from D's EIP to
+AG is a plain move into `ag_row`, +10.112 ns; on the seal, +8.002 ns, the
+same move (`cpu_d_eip[29]` to `cpu_ag_row[29]`).
+
+s3 was the seal until Codex's review of POPF's order. Its successor,
+`111687d80`, moves POPF's and POPFD's #GP(0) in V86 mode below IOPL 3 from
+M1 to DC, before the pop, as the 386's microcode orders it
+([Design as built](#design-as-built)), and the lockstep's rule lets the
+RTL's #GP stand where Bochs pops first.
 
 ## Kit
 
@@ -233,9 +252,11 @@ Runs `m1` and `k1`-`k8` used Kit B, core-only, on 10 November from 13:59 to
   `2179950d…`), at max (preset 0), each launch after a SCRUBX scrub. Run
   `m1` is the A/B reference: main's package `3429af98…` (slice 2's final
   seal), the same runner, kit and baseline. The sealed RTL
-  differs from `7837d3955` only in D's fetch walk for a fetch past CS's
-  limit (a V86 IRETD to EIP past FFFFh under paging, which no kit title
-  does) and in comments, so the runs were not repeated on the seal.
+  differs from `7837d3955` in D's fetch walk for a fetch past CS's limit
+  (a V86 IRETD to EIP past FFFFh under paging) and in which fault a POPF in
+  V86 mode below IOPL 3 takes when its pop would also fault (#GP(0) now,
+  as before when the pop does not); a fault ends both, and no kit title
+  reaches either. So the runs were not repeated on the seal.
 - **Kit.** Baseline image `cd284ca3…` and software `7ddb0bfb`, with no
   install, no image change and no reboot. After each run Kit B was checked
   against its snapshot and logged FREE, and the run's FogCast data trees
@@ -283,22 +304,24 @@ Commander take over from the oracle at the DOS prompt. The machine hands a
 stop to Bochs and does not hand back while VM or paging is on, so each
 run's final report says how much ran on the RTL.
 
-**In progress** (Powerboat at a load of about 50; frames at 10 November
+| Title | Drive | RTL retirements (with PE) | End |
+| --- | --- | ---: | --- |
+| Pinball Fantasies (eXceed) | `real` | 1,380,903,279 (1,322,005,645) | The 20 s limit, no stop: eXceed 1.10's sound setup at "Sound configuration complete", as on the kit |
+| Master of Orion with JEMM386 | `xms-jemm` | 242,033,888 (65,314,616) | At 7.25 s, back at the prompt after "reconfigure hardware options", no stop, as on the kit |
+| Strike Commander (its own V86 manager) | `xms` | 36,680,274 (91,348) | A stop at `66 CF` (IRETD) at 0018h:00003673h, with NT set: a return to a V86 task (slice 4); Bochs ran the other 309,225,981 instructions to the 20 s limit, through its introduction |
+
+**Still running** (Powerboat at a load of about 50; frames at 10 November
 18:00):
 
 | Title | Drive | Furthest frame so far |
 | --- | --- | --- |
 | Wolfenstein 3D with JEMM386 | `real-jemm` | 12 s: its Options menu, as far as the census's oracle run got |
 | DOOM v1.9 with JEMM386 (VCPI) | `pmode-jemm` | 12 s: past its DPMI/VCPI zone allocation, at `R_Init` |
-| Pinball Fantasies (eXceed) | `real` | 14 s: eXceed 1.10's sound driver menu |
-| Strike Commander (its own V86 manager) | `xms` | 16 s: its introduction |
-| Master of Orion with JEMM386 | `xms-jemm` | 2 s: the boot menu |
 
-The RTL counters, the stops and the end of each run follow when they
-finish.
+The RTL counters, the stops and the end of each follow when they finish.
 
-**The RTL machine suites** (`a20`, `c2xx`, `wait`, `speaker`, `scroll`,
-`ems`, `boot` with `--cpu rtl`) are running.
+**The RTL machine suites** with `--cpu rtl`: `a20` passes; `c2xx`,
+`wait`, `speaker`, `scroll`, `ems` and `boot` are running.
 
 ## What this record does not cover
 
