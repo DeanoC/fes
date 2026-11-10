@@ -730,8 +730,8 @@ the ITLB's page is the linear one with A20M applied.
     or DMA write's line with the lines of the instructions in Q, DC and D to
     EX, and of the blocks the front end holds or loads next.
 - **Return stack (built, [Phase 4 slice 3](#slices)):** 16 linear return
-  addresses in flip-flops and a top pointer, in the front end
-  (`fes_i386_ras`). It predicts near RET (C3h, C2h).
+  addresses in one MLAB (one write port, asynchronous read; #1581 S2) and a
+  top pointer, in the front end (`fes_i386_ras`). It predicts near RET (C3h, C2h).
   - **Entries.** The BTB keeps an entry for every near RET and CALL rel, with
     a bit for each. WB allocates a RET's entry as it does a taken branch's,
     always taken.

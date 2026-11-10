@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // The return stack (docs/i386-cpu-design.md, "Prediction"): sixteen linear
-// return addresses in flip-flops, and a pointer to the top one.
+// return addresses in one MLAB, and a pointer to the top one.
 //
 // F2 moves it as it predicts (fes_i386_fetchbuf): a BTB entry for a near CALL
 // pushes the address after the call's last byte, a cycle after F2 passes on
@@ -14,6 +14,14 @@
 // RET's target (fes_i386_cpu, "Branch prediction"). The pointer wraps, so
 // a seventeenth CALL overwrites the oldest entry, and a RET past the
 // bottom predicts the entry the wrap gives.
+//
+// The stack has one write port, so Quartus can map it to an MLAB with an
+// asynchronous read (#1581 S1d, docs/validation/2026-11-10-1581-mlab-inference).
+// A redirect's write and a push's never fire together, since a redirect takes
+// priority over a push, and neither fires during reset. The read is not checked
+// against a write to the same entry (no_rw_check): that happens only on a
+// redirect, and the front end does not use top in a redirect's cycle
+// (fes_i386_fetchbuf).
 module fes_i386_ras (
     input  logic        clk,
     input  logic        reset,
@@ -26,20 +34,29 @@ module fes_i386_ras (
     input  logic        pop,
     output logic [31:0] top
 );
-    logic [31:0] stack [0:15];
+    (* ramstyle = "MLAB, no_rw_check" *) logic [31:0] stack [0:15];
     logic [3:0]  ptr;
 
+    logic        we;
+    logic [3:0]  wa;
+    logic [31:0] wd;
+
+    assign we  = !reset && (redirect ? set_wr : push);
+    assign wa  = redirect ? set_ptr : ptr + 4'd1;
+    assign wd  = redirect ? set_lin : push_lin;
     assign top = stack[ptr];
+
+    always_ff @(posedge clk) begin
+        if (we) stack[wa] <= wd;
+    end
 
     always_ff @(posedge clk) begin
         if (reset) begin
             ptr <= 4'd0;
         end else if (redirect) begin
             ptr <= set_ptr;
-            if (set_wr) stack[set_ptr] <= set_lin;
         end else if (push) begin
             ptr <= ptr + 4'd1;
-            stack[ptr + 4'd1] <= push_lin;
         end else if (pop) begin
             ptr <= ptr - 4'd1;
         end
