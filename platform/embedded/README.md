@@ -35,10 +35,12 @@ The [keyboard return trial](../../docs/validation/2026-11-10-de25-staged-observe
 now passes the physical USB Ctrl+Alt+Escape action and serial launcher return,
 then ZX80 launch/return and final Park. All five exchanges replay from saved data.
 An earlier attempt has operator-observed ZX81 video and typed keys appearing
-correctly. On the current trial the operator reports the screen stayed on ZX81
-after the chord: visible launcher return fails despite the serial checks and
-requires HDMI-path investigation. Ordinary core installation and full appliance
-acceptance remain open.
+correctly. A [later manual return](../../docs/validation/2026-11-10-de25-menu-visible-hold/README.md)
+now has operator-confirmed visible launcher return and one-minute stability,
+alongside matching consecutive serial menu frames. Its automated collector
+timed out before observing the keyboard action and remains failed; the manual
+follow-up does not establish the complete planned cycle. Ordinary core installation
+and full appliance acceptance remain open.
 
 The [paired menu/core/menu hardware trial](../../docs/validation/2026-11-08-de25-verified-files-board-trial/hardware.md)
 now passes ZX81 → menu → ZX80 → menu → ZX81 → menu and final Park on TRWU8CBL:

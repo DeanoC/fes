@@ -1,5 +1,42 @@
 # Returned-menu display observation
 
+The [result](hardware-result.json) separates a stopped automated test from a
+successful manual return. The collector verified recovery, all 13 uploads and
+fresh SD readbacks, native cold boot, initial launcher and ZX81 plus tape.
+It then stopped because no keyboard Stop appeared during its 60-second wait.
+The planned returned-menu hold, ZX80 launch and final Park were not reached.
+The original failed capture and its two-second passive tail remain unchanged.
+
+The operator reported possibly mispressing, confirmed another key still worked
+in ZX81, then reported Ctrl+Alt+Escape returned to the launcher. This occurred
+outside the stopped capture; it does not turn that attempt into a pass or prove
+why the first action was missing. The operator subsequently confirmed the
+launcher remained visible throughout an independent one-minute observation.
+
+Two separate top-only serial observations used **O_RDONLY** descriptors and
+sent no serial commands, firmware calls, FPGA programming or SD writes. The
+15-second capture contains menu frames 158–169. The 60.002-second capture
+contains 50 consecutive frames 349–398. Their menu/build identity and source
+hashes match the selected SDK, owner `bccd55323262a6e3`, menu 2/source generation
+15, slot alternation and zero underflows. Initial/trailing capture fragments
+remain preserved. These snapshots establish ongoing matching menu-frame
+activity, without reconstructing the unobserved opening/return transition.
+
+Independent cleanup verifies UART release, original termios restoration,
+unchanged exact USB permissions and the earlier owned-server/clock cleanup.
+The failed attempt's full 5,939-file closure and original source have archive
+readback/mode and independent source import/fsck/pack verification at
+`/home/deano/fes-retained/de25-menu-visible-hold-hardware-20261110-r1`.
+The follow-up is separate from that immutable archive.
+
+The kit is currently in its active returned menu, with a running DDR reader:
+observed bridge generation 17/reset mask 5/masters-contained false. It is
+**not parked or contained** by host detachment. The original failed attempt's
+programming grants remain consumed; the follow-up replayed none. Visible
+launcher return is now positively observed on this native image. Reliable first
+shortcut delivery, the complete new five-exchange test and ordinary installation
+remain unproven. The following records the original prepared procedure.
+
 This is a prepared, single-attempt diagnostic for the negative HDMI observation
 from the [preceding keyboard cycle](../2026-11-10-de25-staged-observer-trial/README.md).
 The operator saw the initial launcher, but reports ZX81 remained on screen after
