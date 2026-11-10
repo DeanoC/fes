@@ -155,11 +155,11 @@ def main():
         bad = [f"{r} {f}: {text}" for r in readers for f in forms for ok, text in [cell(out, r, f)] if not ok]
         # Control: every reader accepts f08_no_carry. A reader whose control cell is anything else
         # (a licence or set-up error carries a real error id) has no trustworthy column.
-        if "f08_no_carry" in forms:
-            for r in readers:
-                ok, text = cell(out, r, "f08_no_carry")
-                if ok and not text.startswith("accepted"):
-                    bad.append(f"{r} control f08_no_carry: {text}")
+        # It is checked for every selected reader whatever FORMS holds (run_all.sh always runs it).
+        for r in readers:
+            ok, text = cell(out, r, "f08_no_carry")
+            if not ok or not text.startswith("accepted"):
+                bad.append(f"{r} control f08_no_carry: {text}")
         for line in bad:
             print(f"not a result: {line}", file=sys.stderr)
         sys.exit(1 if bad else 0)

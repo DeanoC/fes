@@ -149,7 +149,7 @@ The design doc asks S1a whether 17.0.2 infers the same RAM from the `FES_RAM_TDP
 
 - **Shape:** the 720p framebuffer, 49,152 words of 4 bits on a 16-bit address, with two independent clocks.
 - **Inferred form:** `(* ramstyle = "M10K, no_rw_check" *)`, with registered reads and new data on a same-port read during write.
-- **Vendor form:** `coleco_video_dpram.v`'s altsyncram settings (BIDIR_DUAL_PORT, `NEW_DATA_NO_NBE_READ`, mixed ports `DONT_CARE`), but with both outputs unregistered so each port has one registered read stage, as P3's form does.
+- **Vendor form:** `coleco_video_dpram.v`'s altsyncram settings (BIDIR_DUAL_PORT, `NEW_DATA_NO_NBE_READ`, mixed ports `DONT_CARE`), but with both outputs unregistered so each port has one registered read stage, as P3's form does. Quartus built the inferred RAM with the same settings: `BIDIR_DUAL_PORT`, `OUTDATA_REG_A` and `OUTDATA_REG_B` `UNREGISTERED`, and B's address and data registered on its own clock (`logs/tdp-fit.log`). `coleco_video_dpram.v` registers port A's output a second time (`CLOCK0`); that is that wrapper's latency, not P3's interface.
 - **Build:** both forms sit in the same harness, with every port registered and virtual pins. The constraint is 200 MHz on each clock, as asynchronous groups. Lite map, fit and STA, seed 1.
 
 | Form | RAM | ALMs | Registers | Read during write | Slow 100 °C Fmax (clk_a / clk_b) | Slow −40 °C Fmax (clk_a / clk_b) | Worst slack |

@@ -17,6 +17,9 @@ TAG=${TAG:-all}
 FORMS=${FORMS:-$(cd "$HERE/forms" && ls f*.sv | sed 's/\.sv$//')}
 READERS=${READERS:-yosys-pc386 yosys-i386 yosys-shared verilator lite2005 pro2005 pro2009}
 for f in $FORMS; do [ -f "$HERE/forms/$f.sv" ] || { echo "no such form: $f" >&2; exit 1; }; done
+# The control form f08_no_carry, which every reader accepts, runs in every census, subset or not:
+# summarize.py --check uses it to tell a reader that works from one with a set-up or licence fault.
+case " $FORMS " in *" f08_no_carry "*) ;; *) FORMS="$FORMS f08_no_carry" ;; esac
 
 LITE=${LITE:-$HOME/intelFPGA_lite/17.0/quartus/bin}; PRO=${PRO:-/data/altera_pro/26.3/quartus/bin}
 VERILATOR=$(command -v "${VERILATOR:-verilator}") || VERILATOR=

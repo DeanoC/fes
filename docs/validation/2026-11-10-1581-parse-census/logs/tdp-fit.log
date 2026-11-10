@@ -38,3 +38,22 @@ worst slack over all analyses: -0.052
 Type  : Slow 1100mV -40C Model Setup 'clk_b'
 Slack : -0.052
 
+# tdp inferred: altsyncram parameters Quartus used (map report)
+Info (12134): Parameter "ADDRESS_REG_B" = "CLOCK1"
+Info (12134): Parameter "INDATA_REG_B" = "CLOCK1"
+Info (12134): Parameter "OPERATION_MODE" = "BIDIR_DUAL_PORT"
+Info (12134): Parameter "OUTDATA_REG_A" = "UNREGISTERED"
+Info (12134): Parameter "OUTDATA_REG_B" = "UNREGISTERED"
+; ADDRESS_REG_B ; CLOCK1 ; Untyped ;
+; INDATA_REG_B ; CLOCK1 ; Untyped ;
+; OPERATION_MODE ; BIDIR_DUAL_PORT ; Untyped ;
+; OUTDATA_REG_A ; UNREGISTERED ; Untyped ;
+; OUTDATA_REG_B ; UNREGISTERED ; Untyped ;
+
+# tdp vendor: altsyncram parameters Quartus used (map report)
+; ADDRESS_REG_B ; CLOCK1 ; Untyped ;
+; INDATA_REG_B ; CLOCK1 ; Untyped ;
+; OPERATION_MODE ; BIDIR_DUAL_PORT ; Untyped ;
+; OUTDATA_REG_A ; UNREGISTERED ; Untyped ;
+; OUTDATA_REG_B ; UNREGISTERED ; Untyped ;
+
