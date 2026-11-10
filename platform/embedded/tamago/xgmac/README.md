@@ -60,6 +60,25 @@ platform confirmation. The HTTP model joins the real C MAC lease engine, native
 client and XGMAC driver across three cycles, with modeled authority/drain. It
 uses the actual owned dispatcher, whose default MAC setup remains unbound.
 
+`OpenControlled` now performs initial Query/Acquire, driver initialization,
+firmware Confirm and exclusive driver-control binding before returning packet
+or lifecycle access. It keeps the private lease with a failed driver and
+retires without extra register access after an uncertain firmware boundary.
+An initialization failure may return a non-nil retired device so its pinned
+resources and last lease remain retained. There is no startup retry or automatic
+firmware cleanup. The HTTP test uses this same startup function.
+
+The Nano's `OpenNetworkWithControl` hook accepts an independently admitted boot
+owner, consumes this startup function and returns both the IP interface and its
+lifecycle controller for `ProgramService.AttachNetwork`. It is single-attempt,
+retains partial resources, and has no direct-driver fallback. The generic Nano
+network diagnostic has no accepted boot owner and refuses startup; QEMU retains
+its separate VirtIO path. The CPU transport admits the fixed MAC call only when
+the compiled network profile is selected, with exact cookie, operation and
+reserved arguments. Firmware still validates ownership and the fixed window.
+The present boot profile disables networking, and the qualified secure supplier
+and selection from the native boot admission remain open.
+
 The ordered stages follow the vendor's [stopping and starting transmission
 procedure](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/stopping-and-starting-transmission?contentId=aoHUqRdCxX615dKqdJAazA).
 Both stopped flags must be clear during active health checks under the same

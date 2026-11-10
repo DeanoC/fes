@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/fes/platform/embedded/tamago/maccontrol"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 	gnet "github.com/usbarmory/go-net"
 )
@@ -52,24 +51,9 @@ func TestHTTPThroughDMAAndIPStack(t *testing.T) {
 	h.wireOut = outbound
 	h.wireIn = inbound
 	firmware := newFirmwareMAC(t, h)
-	lease, err := maccontrol.New(ctx, firmware, 17)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = lease.Acquire(ctx); err != nil {
-		t.Fatal(err)
-	}
-	device := open(t, h)
-	if err = lease.Confirm(ctx); err != nil {
-		t.Fatal(err)
-	}
-	platform, err := lease.BindPlatform()
-	if err != nil {
-		t.Fatal(err)
-	}
 	// Actual C lease engine and native client, with explicit modeled physical
 	// grant/drain. The driver must consume confirmation before reopening traffic.
-	driverControl, err := device.BindControl(platform)
+	device, driverControl, err := OpenControlled(ctx, firmware, 17, h, h.mem, configuration())
 	if err != nil {
 		t.Fatal(err)
 	}

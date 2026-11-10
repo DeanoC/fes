@@ -75,6 +75,13 @@ The model test exchanges actual HTTP through XGMAC descriptors and the IP stack
 across three short pause/resume cycles; its model-only callbacks are not firmware
 or physical DMA proof.
 
+Nano controlled startup now binds the real driver through the private firmware
+MAC client before this adapter installs sockets or starts packet workers. Its
+explicit `OpenNetworkWithControl` board hook requires the owner from accepted
+boot admission and returns the paired lifecycle controller. The generic Nano
+opener lacks that owner and refuses startup. No current profile selects or
+qualifies this path; QEMU startup is unchanged.
+
 This prototype supports IPv4 TCP with static addressing and a 1500-byte MTU.
 It enables neither checksum/segmentation offloads nor merged receive buffers.
 The Lneto configuration limits active TCP ports to 16 and listener connections

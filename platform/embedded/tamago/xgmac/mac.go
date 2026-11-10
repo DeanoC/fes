@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/maccontrol"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 )
 
@@ -89,6 +90,7 @@ type Device struct {
 	io                             Registers
 	memory                         Memory
 	config                         Config
+	lease                          *maccontrol.Client // retained by controlled startup, even after failure
 	mac                            string
 	fault                          atomic.Pointer[failure]
 	started                        bool
@@ -109,7 +111,7 @@ func Open(io Registers, memory Memory, config Config) (*Device, error) {
 	}
 	d := &Device{io: io, memory: memory, config: config, mac: mac.String(), dmaBase: memory.Base(), dmaBytes: memory.Size()}
 	if err := d.initialize(mac); err != nil {
-		return nil, err
+		return d, d.retireControl(err)
 	}
 	return d, nil
 }

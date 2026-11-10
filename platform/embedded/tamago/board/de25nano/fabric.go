@@ -61,6 +61,10 @@ func (FabricCPUTransport) Invoke(request [7]uint64) ([4]uint64, error) {
 			return smc(request), nil
 		}
 		return [4]uint64{}, errors.New("DE25: owned USB call lacks its explicit cookie")
+	case uint64(g.FesEmbeddedMacCall):
+		return invokeMAC(request, profileNetworkEnabled, func(r [7]uint64) ([4]uint64, error) {
+			return smc(r), nil
+		})
 	case uint64(g.FesEmbeddedBridgeCall):
 		if request[3] == uint64(g.FesEmbeddedBridgeCookie) && request[5] == 0 && request[6] == 0 {
 			return smc(request), nil
