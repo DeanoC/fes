@@ -43,3 +43,24 @@ paused. Preparation grants no live authority or hardware success.
 Raw helpers and results are under `out/nano-sd-reinspect-trial-20261110/`.
 This inspection cannot establish native write success, FAT persistence,
 normal core installation or full appliance acceptance.
+
+## Hardware result
+
+[The fresh inspection passed](hardware-result.json): recovery boot, fixed FIT
+upload/fresh readback, native programming, full cold/ATF/EL2/EL1 proof, native
+manifest/MBR/tail reads, same-card contain/resume/re-read and final SD
+containment all completed. The last observed state is now SD-contained
+generation 7; CPU park was not observed. Host cleanup independently verifies
+15 MHz/auto-on readbacks, exact USB permissions, private-server termination and
+free UART. Both programmer operations completed; there are zero new failures.
+
+[The new card/layout review](real-plan-review.json) observes the same full CID,
+capacity and MBR and confirms that the current tail hash equals the pre-failure
+hash. This establishes current contents, not whether the earlier failed test
+issued any write. That original failed attempt remains failed with an unknown
+write outcome. Its capture and grants are unchanged and not reused.
+
+The reviewed scratch extent remains the last eight sectors, outside the sole
+FAT partition and 144 MiB boot image. Both boot environments are volatile.
+The native inspection wrote no sectors; recovery wrote only the fixed upload
+file. A new matched writer can now be built from this fresh reviewed plan.
