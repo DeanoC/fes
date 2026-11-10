@@ -12,12 +12,17 @@
 # reference uses the OSS RTL configuration for the same reason. TV80_REFRESH is left
 # undefined in both, as in build_fes_sms.py.
 set -uo pipefail
-mode=$1; out=$2; shift 2
-mkdir -p "$out"
-cd "$REPO"
-python3 cores/fes-sms/diagnostic/generate.py --output "$out/mode4.rom" --preview "$out/mode4.ppm"
-TB="$REPO/cores/fes-sms/sim/machine_tb.cpp"
+# Resolve this script's directory and the output directory before changing to $REPO, so a
+# relative invocation or a relative <out dir> still works.
 HERE=$(cd "$(dirname "$0")" && pwd)
+mode=$1; out=$2; shift 2
+mkdir -p "$out"; out=$(cd "$out" && pwd)
+if [ "$mode" = vo ]; then
+  vo=$(cd "$(dirname "$1")" && pwd)/$(basename "$1"); shift
+fi
+cd "$REPO" || exit 1
+python3 cores/fes-sms/diagnostic/generate.py --output "$out/mode4.rom" --preview "$out/mode4.ppm" || exit 1
+TB="$REPO/cores/fes-sms/sim/machine_tb.cpp"
 TIMED_FLAGS=""
 if [ "${TIMED:-0}" = 1 ]; then
   sed -E 's/\bdut\.eval\(\)/s1c_eval(dut)/g' "$TB" > "$out/machine_tb_timed.cpp"
@@ -36,15 +41,19 @@ if [ "$mode" = rtl ]; then
     cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
     cores/fes-common/rtl/tv80/tv80_reg.v "$TB"
 else
-  vo=$1; shift
   set -- --cc --exe --build -j 8 --top-module sms_machine -Wno-fatal $TIMED_FLAGS \
     -CFLAGS "-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1" --Mdir "$out/obj" "$vo" "$@" \
     -v "$SIM_LIB/cyclonev_atoms.v" -v "$SIM_LIB/altera_lnsim.sv" -v "$SIM_LIB/altera_primitives.v" "$TB"
 fi
 echo "$VERILATOR $*" > "$out/command.txt"
+# A failed build must not fall back on an executable left by an earlier run.
+rm -f "$out/obj/Vsms_machine"
 ( time "$VERILATOR" "$@" ) > "$out/build.log" 2>&1
-echo "build exit $?" | tee -a "$out/build.log"
-[ -x "$out/obj/Vsms_machine" ] || exit 1
+build=$?
+echo "build exit $build" | tee -a "$out/build.log"
+[ "$build" -eq 0 ] && [ -x "$out/obj/Vsms_machine" ] || exit 1
 ( time "$out/obj/Vsms_machine" "$out/mode4.rom" ) > "$out/run.log" 2>&1
-echo "run exit $?" | tee -a "$out/run.log"
+suite=$?
+echo "run exit $suite" | tee -a "$out/run.log"
 tail -5 "$out/run.log"
+exit "$suite"
