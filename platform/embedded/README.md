@@ -14,6 +14,10 @@ wrong-card admission retires the lease without writing or retrying. This is
 host-tested media ownership, with physical write qualification still open.
 Current Nano board builds still select read-only access; enabling and physically
 qualifying writes remains separate from the accepted recovery-loader uploads.
+The new `storage --sd-scratch-inspect` and separately bound `sdwrite` diagnostics
+provide read-only card-plan discovery and an eight-sector PIO write/readback
+cycle with real firmware containment. Their software checks and matched build
+preparation do not establish physical writes or filesystem persistence.
 The [FAT32 allocation path](tamago/fat/README.md) now creates files and directories
 without preallocation, with independent mtools readback and real package-store
 retention tests. The [owned in-process installer](tamago/nativefabric/README.md)

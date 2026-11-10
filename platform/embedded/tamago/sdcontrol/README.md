@@ -61,6 +61,31 @@ The caller retains unresolved ownership until a separately qualified recovery.
 Both modes keep all bridges reset while SD is leased. Concurrent SD/core access
 and adoption by the normal native fabric actor are pending.
 
+The separate `sdwrite` executable now connects the actual writer to a bounded
+spare-card diagnostic. `ScratchPlan` binds the expected CID, capacity, MBR hash
+and original contents of the final eight sectors. Before writing, it requires
+one supported FAT MBR partition, no overlapping/out-of-range partitions, and
+all partitions ending before that scratch region. It rejects protective GPT,
+extended/unknown partition types and an already-written test pattern. This
+partition check alone does not establish that other unpartitioned firmware
+data is disposable; the operator's spare-card layout remains a prerequisite.
+
+`RunScratch` writes eight sectors once, flushes and reads them back, contains
+and resumes through the actual firmware lease, checks the data and MBR again,
+and ends contained. Receipt ownership and exact generation changes are checked
+at each logged stage. Failures perform no rollback, retry or automatic stop.
+The pattern stays on the card for independent recovery readback. A successful
+plan is consumed and cannot be replayed against those changed original bytes.
+This is not FAT write, power-loss or ordinary installer qualification.
+
+The existing `storage --sd-scratch-inspect` diagnostic obtains candidate plan
+data through its read-only session and then completes its usual contain/resume
+test. Its output grants no write authority. Build `sdwrite --sd-write-plan FILE`
+separately after reviewing the real spare-card identity, layout and original
+hashes. The plan is compiled into the native executable and checked against the
+build receipt. Ordinary `OpenStorage` and core-loading images remain read-only.
+Both modes require the closed SD-only Nano profile and are rejected by QEMU.
+
 Run host checks with `go test -race -count=1 -timeout 90s ./sdcontrol ./sdhci
 ./fat` from the TamaGo module. The SD Session tests compile the actual C
 firmware/dispatcher with the host C compiler; `-count=1` prevents Go's result

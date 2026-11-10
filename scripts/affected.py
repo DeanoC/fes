@@ -69,6 +69,7 @@ def native_sd_input(path):
             path.startswith(('platform/embedded/tamago/sdcontrol/',
                              'platform/embedded/tamago/packagestore/',
                              'platform/embedded/tamago/cmd/sdpackages/',
+                             'platform/embedded/tamago/cmd/sdwrite/',
                              'platform/embedded/tamago/fat/',
                              'platform/embedded/tamago/sdhci/')) or
             path in ('platform/embedded/firmware/nano_sd.h',

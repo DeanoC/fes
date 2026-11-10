@@ -6,11 +6,14 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
 )
+
+var expectedScratchInspect string
 
 func main() {
 	fmt.Printf("FES_STORAGE_PROBE board=%s EL=%d counter=%dHz writes=disabled\n", board.Name, board.ExceptionLevel(), board.CounterFrequency())
@@ -41,6 +44,17 @@ func main() {
 		identity := nano.Identity()
 		fmt.Printf("FES_NANO_SD READ bytes=%d sha256=%x cid=%x sectors=%d owner=%016x generation=%d\n",
 			len(first), sha256.Sum256(first), identity.CID, identity.Sectors, before.Owner, before.Generation)
+		if expectedScratchInspect == "1" {
+			plan, err := sdcontrol.InspectScratch(nano)
+			if err != nil {
+				panic(err)
+			}
+			data, err := json.Marshal(plan)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Printf("FES_NANO_SD SCRATCH_PLAN %s\n", data)
+		}
 		if err = nano.Quiesce(); err != nil {
 			panic(err)
 		}

@@ -196,10 +196,40 @@ def package_option(program, package_id, profile):
     return None
 
 
+def sd_write_option(program, path, profile):
+    if program != 'sdwrite':
+        if path is not None: raise ValueError('--sd-write-plan requires sdwrite')
+        return None
+    if (path is None or profile['sd_control'] is None or
+            any(profile[k] is not None for k in ('network', 'display', 'fpga_probe')) or
+            profile['usb_phy_clock_hz'] != 0):
+        raise ValueError('sdwrite requires an explicit card plan and closed SD-only profile')
+    raw = path.read_bytes()
+    if not 0 < len(raw) <= 4096: raise ValueError('invalid SD write plan length')
+    p = json.loads(raw)
+    if (not isinstance(p, dict) or set(p) != {'format', 'scope', 'cid', 'sectors', 'mbr_sha256', 'original_sha256'} or
+            type(p['format']) is not int or p['format'] != 1 or p['scope'] != 'nano-sd-scratch-write-v1' or
+            not isinstance(p['cid'], str) or not re.fullmatch('[0-9a-f]{30}', p['cid']) or p['cid'] in ('0'*30, 'f'*30) or
+            type(p['sectors']) is not int or not 4096 <= p['sectors'] <= 1<<32 or p['sectors'] % 1024 or
+            any(not isinstance(p[k], str) or not re.fullmatch('[0-9a-f]{64}', p[k]) for k in ('mbr_sha256', 'original_sha256'))):
+        raise ValueError('invalid SD scratch plan fields')
+    pattern = bytes((i*37 + (i//512)*17 + 0x5a) & 255 for i in range(4096))
+    if p['original_sha256'] == hashlib.sha256(pattern).hexdigest():
+        raise ValueError('scratch plan would replay an already written pattern')
+    return p
+
+
 def usb_input_option(program, requested):
     if requested is not None and (program != 'usbcheck' or requested not in ('boot-keyboard', 'gamepad')):
         raise ValueError('--usb-input requires Nano usbcheck and a supported input protocol')
     return (requested or 'boot-keyboard') if program == 'usbcheck' else None
+
+
+def scratch_inspect_option(program, requested, profile):
+    if type(requested) is not bool or requested and (program != 'storage' or profile['sd_control'] is None or
+            any(profile[k] is not None for k in ('network', 'display', 'fpga_probe')) or profile['usb_phy_clock_hz'] != 0):
+        raise ValueError('--sd-scratch-inspect requires the closed SD-only Nano storage diagnostic')
+    return requested
 
 
 def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, output):
@@ -249,6 +279,9 @@ def build(args):
         raise ValueError('the source-bound SMMU profile permits only the serial probe')
     start, size, entry, frequency, usb_frequency, net, display, fpga, uart_index = profile_constants(profile)
     expected_package_id=package_option(args.program,args.package_id,profile)
+    sd_write_plan=sd_write_option(args.program,getattr(args,'sd_write_plan',None),profile)
+    sd_write_encoded=base64.b64encode(json.dumps(sd_write_plan,sort_keys=True,separators=(',',':')).encode()).decode() if sd_write_plan else None
+    sd_scratch_inspect=scratch_inspect_option(args.program,getattr(args,'sd_scratch_inspect',False),profile)
     spec=importlib.util.spec_from_file_location('fes_native_hps_context',APP.parent/'nano/hps_context.py')
     hps=importlib.util.module_from_spec(spec);spec.loader.exec_module(hps)
     menu_present=hps.menu_selection(vars(args))
@@ -479,6 +512,8 @@ def build(args):
     if usb_control:
         link_flags+=' -X main.expectedUSBControl='+('owned-shared-usb-pio-v1' if usb_shared else 'owned-usb-pio-v1')+' -X main.expectedUSBInput='+usb_input
     if expected_package_id:link_flags+=' -X main.expectedPackageID='+expected_package_id
+    if sd_write_encoded:link_flags+=' -X main.expectedSDWritePlan='+sd_write_encoded
+    if sd_scratch_inspect:link_flags+=' -X main.expectedScratchInspect=1'
     if context is not None:link_flags+=' -X main.expectedBootContext='+base64.b64encode(hps.encode(context)).decode()
     if io_map is not None:link_flags+=' -X main.expectedHPSIO='+base64.b64encode(hps.encode(io_map)).decode()
     if control_map is not None:link_flags+=' -X main.expectedControlMap='+base64.b64encode(hps.encode(control_map)).decode()
@@ -547,7 +582,11 @@ def build(args):
         raise ValueError('compiled menu companion changed or was not linked into the native image')
     if feature_sources != {p: sha(p) for p in feature_sources}:
         raise ValueError('ARM64 feature discovery inputs changed while building')
+    if sd_write_plan is not None and (sd_write_option(args.program,args.sd_write_plan,profile)!=sd_write_plan or sd_write_encoded.encode() not in data):
+        raise ValueError('SD write plan changed during compilation or was not linked')
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
+              "sd_write_plan":sd_write_plan,"sd_write_plan_sha256":hashlib.sha256(base64.b64decode(sd_write_encoded)).hexdigest() if sd_write_encoded else None,
+              "sd_scratch_inspect":sd_scratch_inspect,
               "arm64_features":arm64_features,"cpu_feature_overlay":cpu_feature_overlay,
               "expected_package_id":expected_package_id,"usb_control":usb_control,"usb_shared":usb_shared,"usb_input":usb_input,
               "hps_context":context,"hps_context_sha256":hps.digest(context) if context else None,
@@ -584,6 +623,6 @@ def build(args):
               "compiler_sha256": sha(compiler), "elf_sha256": sha(elf), "command": command,
               "imports": [p["ImportPath"] for p in packages],
               "limitations": ["firmware must supply SD/USB PHY and input clocks plus verified resource reservations",
-                              "SD cold card initialization, read-only PIO; SoC PHY setup remains firmware-owned", "USB direct low/full-speed boot keyboard only; Ethernet XGMAC 2.10 static IPv4/1000-full prototype; display is boot-firmware scanout only, no drain or FPGA replacement; physical activation unavailable", "SDM probe is read-only TF-A mailbox v1; no programming, live package identity or containment; SMC bounded return is a firmware obligation"]}
+                              "SD scratch writes only with the explicit card plan; no FAT or appliance write qualification" if sd_write_plan else "SD cold card initialization, read-only PIO; SoC PHY setup remains firmware-owned", "USB direct low/full-speed boot keyboard only; Ethernet XGMAC 2.10 static IPv4/1000-full prototype; display is boot-firmware scanout only, no drain or FPGA replacement; physical activation unavailable", "SDM probe is read-only TF-A mailbox v1; no programming, live package identity or containment; SMC bounded return is a firmware obligation"]}
     (output / "result.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"Cross-built {elf}; hardware not executed")

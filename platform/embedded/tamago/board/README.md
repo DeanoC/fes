@@ -42,6 +42,12 @@ hardware: display is disabled unless an explicit compatible firmware handoff is 
 first bring-up programs; `keyboard` reports keys over serial, while `storage` mounts the same FAT32 implementation, reads
 `FES/BOOT.JSON` on QEMU. Nano instead reads the protected `FES/RECOVERY.JSON`,
 contains and resumes the same card, reads it again, and ends contained. Both are read-only.
+Its optional `--sd-scratch-inspect` selection also prints candidate card/MBR/tail
+hashes without enabling writes. The separately built `sdwrite --sd-write-plan
+FILE` diagnostic writes only eight checked sectors outside every MBR partition,
+reads back across contain/resume and ends contained. It needs the independently
+identified disposable spare and a new matched boot chain; see the
+[owned SD diagnostic](../sdcontrol/README.md). It does not enable normal SD writes.
 
 ## Firmware handoff
 

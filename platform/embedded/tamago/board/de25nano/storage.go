@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
+	"github.com/DeanoC/fes/platform/embedded/tamago/sdhci"
 	"sync"
 	"time"
 )
@@ -26,6 +27,19 @@ var attempted bool
 var storageSession *sdcontrol.Session
 
 func OpenStorage() (block.Device, error) {
+	return openStorage(sdhci.Identity{})
+}
+
+// OpenWritableStorage is used only by the separately bound SD scratch test.
+// It shares the one-attempt ownership boundary with ordinary read-only access.
+func OpenWritableStorage(expected sdhci.Identity) (*sdcontrol.Session, error) {
+	if expected == (sdhci.Identity{}) {
+		return nil, fmt.Errorf("de25-nano: expected writable card required")
+	}
+	return openStorage(expected)
+}
+
+func openStorage(writeCard sdhci.Identity) (*sdcontrol.Session, error) {
 	if !profileSDControlEnabled || profileSDInputClockHz == 0 {
 		return nil, fmt.Errorf("de25-nano: SD is disabled by the firmware handoff")
 	}
@@ -36,6 +50,6 @@ func OpenStorage() (block.Device, error) {
 	}
 	attempted = true
 	var err error
-	storageSession, err = sdcontrol.Open(FabricCPUTransport{}, registers{}, sdcontrol.Config{InputClockHz: profileSDInputClockHz})
+	storageSession, err = sdcontrol.Open(FabricCPUTransport{}, registers{}, sdcontrol.Config{InputClockHz: profileSDInputClockHz, WriteCard: writeCard})
 	return storageSession, err
 }

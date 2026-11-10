@@ -1,8 +1,11 @@
 """Firmware handoff admission must fail before an unsafe image is emitted."""
 import copy
+import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import struct
+import tempfile
 import unittest
 
 PATH = Path(__file__).resolve().parents[1] / "platform/embedded/tamago/build.py"
@@ -21,6 +24,30 @@ def profile():
 
 
 class BoardProfileTests(unittest.TestCase):
+    def test_sd_write_requires_bound_card_and_closed_profile(self):
+        p=profile();p.update(sd_control={'service':'fes-owned-sd-pio-v1'},usb_phy_clock_hz=0)
+        plan={'format':1,'scope':'nano-sd-scratch-write-v1','cid':'12345699aabbcc5566778811223344',
+              'sectors':8192,'mbr_sha256':'a'*64,'original_sha256':'b'*64}
+        with tempfile.TemporaryDirectory() as d:
+            path=Path(d)/'plan.json';path.write_text(json.dumps(plan))
+            self.assertEqual(build.sd_write_option('sdwrite',path,p),plan)
+            self.assertIsNone(build.sd_write_option('storage',None,p))
+            self.assertTrue(build.scratch_inspect_option('storage',True,p))
+            self.assertFalse(build.scratch_inspect_option('sdwrite',False,p))
+            for program,requested,prof in [('sdwrite',True,p),('storage',1,p),('storage',True,profile()),('storage',True,dict(p,network={}))]:
+                with self.subTest(program=program,inspect=requested,profile=prof),self.assertRaises(ValueError):build.scratch_inspect_option(program,requested,prof)
+            for program,path_arg,prof in [('storage',path,p),('sdwrite',None,p),('sdwrite',path,profile()),
+                ('sdwrite',path,dict(p,network={})),('sdwrite',path,dict(p,usb_phy_clock_hz=60000000))]:
+                with self.subTest(program=program,path=path_arg,profile=prof),self.assertRaises(ValueError):
+                    build.sd_write_option(program,path_arg,prof)
+            pattern=bytes((i*37+(i//512)*17+0x5a)&255 for i in range(4096))
+            for change in ({'format':True},{'cid':'0'*30},{'cid':'f'*30},{'cid':'A'*30},
+                           {'sectors':True},{'sectors':8193},{'sectors':1<<33},{'sectors':2048},
+                           {'mbr_sha256':'A'*64},{'original_sha256':hashlib.sha256(pattern).hexdigest()},
+                           {'scope':'other'},{'extra':True}):
+                path.write_text(json.dumps(dict(plan,**change)))
+                with self.subTest(change=change),self.assertRaises(ValueError):build.sd_write_option('sdwrite',path,p)
+
     def test_package_probe_requires_explicit_identity_and_owned_sd(self):
         p=profile();p['sd_control']={'service':'fes-owned-sd-pio-v1'}
         self.assertEqual(build.package_option('sdpackages','a'*64,p),'a'*64)

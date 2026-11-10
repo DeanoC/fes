@@ -132,6 +132,12 @@ class TestChangedTest(unittest.TestCase):
                 self.assertIn('./packagestore',command['argv'])
                 self.assertIn('mformat',command['tools'])
 
+    def test_sd_scratch_command_alone_schedules_owned_pio_checks(self):
+        self.change('platform/embedded/tamago/cmd/sdwrite/main.go')
+        command=next(c for c in self.plan()['commands'] if c['label']=='native SD firmware lease and PIO lifecycle')
+        self.assertIn('./sdcontrol',command['argv'])
+        self.assertIn('cc',command['tools'])
+
     def test_native_fabric_changes_schedule_injected_firmware_rtl_integration(self):
         for path in ('nativefabric/endpoint.go','board/arm64map/inspect.go','board/de25nano/fabric.go'):
             with self.subTest(path=path):
