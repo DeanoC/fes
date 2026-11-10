@@ -86,6 +86,7 @@ foreach {port role width} {video_rgb rgb 24 video_de de 1 video_hs hs 1 video_vs
 }
 add_interface ready conduit end
 add_interface_port ready video_ready export Input 1
+add_interface_port ready stream_ready stream_ready Input 1
 add_interface clock_fault conduit end
 add_interface_port clock_fault clock_fault export Input 1
 add_interface audio conduit end

@@ -283,14 +283,15 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
     top = replace_once(top, "fes_de25_combined_video #(.MENU_PATTERN(1'b1)) fes_video_inst (",
         "fes_de25_scanout_board fes_video_inst (\n"
         "  .system_clk(system_clk_100_internal), .top_reset_n(top_reset_n),\n"
-        "  .pixel_clk(scanout_pixel_clk), .scanout_reset_n(scanout_reset_n), .clock_fault(scanout_clock_fault), .display_ready(scanout_display_ready),\n"
+        "  .pixel_clk(scanout_pixel_clk), .scanout_reset_n(scanout_reset_n), .clock_fault(scanout_clock_fault), .display_ready(scanout_display_ready), .stream_ready(scanout_stream_ready),\n"
         "  .video_rgb(scanout_rgb), .video_de(scanout_de), .video_hs(scanout_hs), .video_vs(scanout_vs),")
-    top = replace_once(top, "qsys_top soc_inst (", "wire scanout_pixel_clk, scanout_reset_n, scanout_clock_fault, scanout_display_ready;\n"
+    top = replace_once(top, "qsys_top soc_inst (", "wire scanout_pixel_clk, scanout_reset_n, scanout_clock_fault, scanout_display_ready, scanout_stream_ready;\n"
         "wire [23:0] scanout_rgb;\nwire scanout_de, scanout_hs, scanout_vs;\nqsys_top soc_inst (\n"
         ".fes_scanout_pixel_clk_clk (scanout_pixel_clk),\n"
         ".fes_scanout_reset_reset_n (scanout_reset_n),\n"
         ".fes_scanout_clock_fault_export (scanout_clock_fault),\n"
         ".fes_scanout_ready_export (scanout_display_ready),\n"
+        ".fes_scanout_ready_stream_ready (scanout_stream_ready),\n"
         ".fes_scanout_video_rgb (scanout_rgb), .fes_scanout_video_de (scanout_de),\n"
         ".fes_scanout_video_hs (scanout_hs), .fes_scanout_video_vs (scanout_vs),")
     (project / "golden_top.v").write_text(top)
@@ -460,6 +461,7 @@ def verify_reset_synchronizers(project):
         "always@(posedgesystem_clkornegedgetop_reset_n)if(!top_reset_n)visible_request<=1'b0;"
         "elsevisible_request<=first_lock_seen&&monitor_ready_sync[1]&&!fault&&hdmi_ready_sync[1];",
         "assigndisplay_ready=video_active&&visible_line;",
+        "assignstream_ready=qualified_sync[1]&&allow_sync[1]&&pixel_epoch_sync[1]==pixel_ack;",
         "assignscanout_reset_n=first_lock_seen;", "assignclock_fault=fault;",
     )
     if any(token not in board for token in protocol) or re.search(r"system_ack<=\d|system_ack<=1'b", board):
@@ -572,7 +574,7 @@ def verify_handoff(project, hps):
     endpoint = modules.get("subsys_periph.fes_scanout")
     if endpoint is None or endpoint.get("kind") != "fes_de25_scanout" or endpoint.get("version") != "1.0":
         raise ValueError("generated scanout endpoint differs")
-    if hps.component_ports(endpoint, "ready") != {"export": ("Input", 1)}:
+    if hps.component_ports(endpoint, "ready") != {"export": ("Input", 1), "stream_ready": ("Input", 1)}:
         raise ValueError("generated scanout display readiness conduit differs")
     build_id = json.loads((project.parent / "inputs.json").read_text())["scanout"]["build_id"]
     build_identity = endpoint_build_identity(project, endpoint, hps, build_id)

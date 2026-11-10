@@ -55,7 +55,7 @@ module de25nano_display #(
             .window_base(32'd0), .window_base_valid(1'b0), .response(2'b00),
             .current_sequence(), .current_slot(), .memory_errors(), .outstanding_beats(),
             .first_fault_state(), .first_fault_occupancy(), .first_fault_gaps(),
-            .clk(pixel_clk), .rst(!pixel_reset_n), .enable(pixel_reset_n), .quiesce(1'b0),
+            .presentation_ready(1'b1), .frame_presented(), .clk(pixel_clk), .rst(!pixel_reset_n), .enable(pixel_reset_n), .quiesce(1'b0),
             .raster_h(11'd0), .raster_v(10'd0),
             .submit_valid(desired_sequence != displayed_sequence),
             .submit_slot(desired_sequence[0]), .submit_sequence(desired_sequence),

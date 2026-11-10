@@ -9,7 +9,7 @@ module fes_de25_scanout #(
     parameter [8:0] MAX_OUTSTANDING_BEATS = 9'd511
 ) (
     input wire clk, reset_n,
-    input wire clock_fault, display_ready,
+    input wire clock_fault, display_ready, stream_ready,
     input wire [10:0] raster_h,
     input wire [9:0] raster_v,
     input wire [6:0] address,
@@ -51,6 +51,7 @@ module fes_de25_scanout #(
     wire [7:0] reader_burstcount;
     wire video_submit_ready, video_quiesced;
     wire [31:0] video_displayed_sequence, current_sequence, underflows;
+    wire video_frame_presented;
     wire [31:0] first_fault_state, first_fault_occupancy, first_fault_gaps;
     wire current_slot;
     wire [1:0] memory_errors;
@@ -84,7 +85,7 @@ module fes_de25_scanout #(
     always @* begin
         new_errors = 32'd0;
         if (clock_failed) new_errors = new_errors | `FES_DE25_SCANOUT_ERROR_CLOCK;
-        if (running && !display_ready) new_errors = new_errors | `FES_DE25_SCANOUT_ERROR_DISPLAY;
+        if (running && !stream_ready) new_errors = new_errors | `FES_DE25_SCANOUT_ERROR_DISPLAY;
         // A legal CLEAR resets the local reader/video on the following edge.
         // Suppress only their old sticky errors through that reset cycle.
         if (!legal_clear && !local_clear) begin
@@ -139,7 +140,7 @@ module fes_de25_scanout #(
     // Registered command faults stop on their acceptance edge; data/clock
     // faults also blank immediately without withdrawing any existing read.
     wire video_enable = configured && running && errors == 32'd0 &&
-        !clock_failed && display_ready && memory_errors == 2'b00 && underflows == 32'd0 && !local_clear;
+        !clock_failed && stream_ready && memory_errors == 2'b00 && underflows == 32'd0 && !local_clear;
     assign video_rgb = video_enable ? rgb : 24'd0;
     assign video_alpha = video_enable ? alpha : 8'd0;
     assign scanout_running = video_enable;
@@ -157,14 +158,15 @@ module fes_de25_scanout #(
     fes_menu_video #(.DYNAMIC_BASE(1'b1), .MAX_BURST_BEATS(MAX_BURST_BEATS),
         .MAX_OUTSTANDING_BEATS(MAX_OUTSTANDING_BEATS),
         .EXTERNAL_RASTER(EXTERNAL_RASTER),
-        .CHECK_RESPONSE(1'b1), .READ_AHEAD(1'b1), .RESET_ABORTS_TRAFFIC(1'b1), .COMPLETE_FRAME_ACK(1'b1),
+        .CHECK_RESPONSE(1'b1), .READ_AHEAD(1'b1), .RESET_ABORTS_TRAFFIC(1'b1), .COMPLETE_FRAME_ACK(1'b1), .CHECK_PRESENTATION(1'b1),
         .FIFO_ADDR_BITS(11),
         .PRESERVE_RASTER_ON_RESET(1'b1)) video (
-        .clk(clk), .rst(!reset_n || local_clear), .enable(video_enable), .quiesce(!running),
+        .presentation_ready(display_ready), .clk(clk), .rst(!reset_n || local_clear), .enable(video_enable), .quiesce(!running),
         .window_base(grant_base), .window_base_valid(configured),
         .raster_h(raster_h), .raster_v(raster_v),
         .submit_valid(queued_submit), .submit_slot(pending_slot), .submit_sequence(accepted_sequence),
         .submit_ready(video_submit_ready), .displayed_sequence(video_displayed_sequence),
+        .frame_presented(video_frame_presented),
         .current_sequence(current_sequence), .current_slot(current_slot),
         .memory_errors(memory_errors), .outstanding_beats(outstanding_beats),
         .first_fault_state(first_fault_state), .first_fault_occupancy(first_fault_occupancy),
@@ -237,7 +239,8 @@ module fes_de25_scanout #(
                 for (lane = 0; lane < 4; lane = lane + 1)
                     if (byteenable[lane]) staged[stage_index][8*lane +: 8] <= writedata[8*lane +: 8];
             if (queued_submit && video_submit_ready) queued_submit <= 1'b0;
-            if (pending && running && live_errors == 32'd0 && video_displayed_sequence == accepted_sequence) begin
+            if (pending && running && live_errors == 32'd0 && display_ready && video_frame_presented &&
+                video_displayed_sequence == accepted_sequence) begin
                 displayed_sequence <= video_displayed_sequence;
                 displayed_slot <= pending_slot;
                 pending <= 1'b0;

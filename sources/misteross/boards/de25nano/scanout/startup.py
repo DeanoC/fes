@@ -95,7 +95,7 @@ class Model:
             nonlocal source
             require(source.count(before) == 1, "simulation wrapper connection changed: " + before)
             source = source.replace(before, after)
-        before = "input wire clk_mem, clk_pixel, reset_n, clock_fault, display_ready"
+        before = "input wire clk_mem, clk_pixel, reset_n, clock_fault, display_ready, stream_ready"
         replace(before, before + ", scanout_source_n,\n    output wire control_released, pixel_released, system_released, memory_source_released, memory_target_released")
         for name, value in self.periph.items():
             replace(f" .{name}(reset_n)", f" .{name}({value})")

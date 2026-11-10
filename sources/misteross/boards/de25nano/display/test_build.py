@@ -46,6 +46,12 @@ end
 I2C_Controller u0 (.CLOCK(mI2C_CTRL_CLK), .I2C_SDAT(I2C_SDAT));
 endmodule
 '''
+        fixture_lut = ('9803 0100 0218 0300 0b2e 0cbc 1472 1520 1630 1846 4080 '
+                       '4110 49a8 5510 5608 96f6 7307 761f 9803 9902 9ae0 9c30 '
+                       '9d61 a2a4 a3a4 a504 ab40 af16 ba60 d1ff de10 e460 fa7d').split()
+        fixture_lut_rtl = ('\nreg [15:0] LUT_DATA;\nreg [5:0] LUT_INDEX;\nalways @* case(LUT_INDEX)\n' +
+            ''.join(f"{n}: LUT_DATA <= 16'h{value};\n" for n,value in enumerate(fixture_lut)) + 'endcase\n').encode()
+        self.files['HDMI_I2C/I2C_HDMI_Config.v'] = self.files['HDMI_I2C/I2C_HDMI_Config.v'].replace(b'endmodule', fixture_lut_rtl+b'endmodule')
         self.files['HDMI_I2C/I2C_Controller.v'] = b'''module I2C_Controller(CLOCK, I2C_SDAT);
 input CLOCK;
 inout I2C_SDAT;

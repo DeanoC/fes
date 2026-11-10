@@ -59,7 +59,7 @@ struct Simulation {
 #ifdef FES_DE25_BOARD_COMPOSITION
         dut.clk_ref = 0; dut.model_pll_locked = 0; dut.model_ninit_done = 1;
 #else
-        dut.clock_fault = 0; dut.display_ready = 1;
+        dut.clock_fault = 0; dut.stream_ready = 1; dut.display_ready = 1;
 #endif
         dut.address = 0; dut.read = 0; dut.write = 0;
         dut.byteenable = 15; dut.writedata = 0;

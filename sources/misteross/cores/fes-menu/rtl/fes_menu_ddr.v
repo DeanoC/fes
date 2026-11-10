@@ -51,7 +51,7 @@ module fes_menu_ddr #(
         .current_sequence(), .current_slot(), .memory_errors(), .outstanding_beats(),
         .first_fault_state(), .first_fault_occupancy(), .first_fault_gaps(),
         .raster_h(11'd0), .raster_v(10'd0),
-        .clk(clk), .rst(port_reset), .enable(enable && !faulted), .quiesce(quiesce),
+        .presentation_ready(1'b1), .frame_presented(), .clk(clk), .rst(port_reset), .enable(enable && !faulted), .quiesce(quiesce),
         .submit_valid(submit_valid), .submit_slot(submit_slot), .submit_sequence(submit_sequence),
         .submit_ready(submit_ready), .displayed_sequence(displayed_sequence),
         .underflows(underflows), .quiesced(drained), .rgb(rgb), .alpha(), .de(de), .hs(hs), .vs(vs),

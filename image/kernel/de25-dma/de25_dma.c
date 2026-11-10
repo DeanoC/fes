@@ -30,6 +30,7 @@ static_assert(FES_DE25_SCANOUT_DMA_ADDRESS_BITS == 32);
 static_assert(sizeof(struct fes_de25_dma_info) == 104);
 static_assert(sizeof(struct fes_de25_dma_publish) == 24);
 static_assert(sizeof(struct fes_de25_dma_diagnostics) == 48);
+static_assert(sizeof(struct fes_de25_dma_retirement) == 96);
 static_assert(FES_DE25_DMA_SLOTS == 2);
 static_assert(FES_DE25_DMA_FRAME_BYTES <= FES_DE25_DMA_SLOT_BYTES);
 static_assert(FES_DE25_DMA_ALLOCATION_BYTES == FES_DE25_DMA_SLOTS * FES_DE25_DMA_SLOT_BYTES);
@@ -55,6 +56,7 @@ struct fes_de25_dma {
 	u32 build_id[4];
 	u32 first_fault_state, first_fault_occupancy, first_fault_gaps;
 	bool diagnostics_valid;
+	struct fes_de25_dma_retirement retirement;
 	bool revoked, exposed, uncertain, pending;
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
 	struct fes_de25_dma_test_observer *observer;
@@ -280,6 +282,23 @@ int fes_de25_dma_diagnostics(struct file *file, struct fes_de25_dma_diagnostics 
 out:
 	mutex_unlock(&grant->lock);
 	return ret;
+}
+
+int fes_de25_dma_retirement(struct file *file, struct fes_de25_dma_retirement *receipt)
+{
+ struct fes_de25_dma *grant = file->private_data;
+ int ret = 0;
+
+ mutex_lock(&grant->lock);
+ if (receipt->version != FES_DE25_DMA_RETIREMENT_VERSION || receipt->reserved ||
+     receipt->generation != grant->generation)
+  ret = -EINVAL;
+ else if (!(grant->retirement.flags & FES_DE25_DMA_RETIREMENT_VALID))
+  ret = -ENODATA;
+ else
+  *receipt = grant->retirement;
+ mutex_unlock(&grant->lock);
+ return ret;
 }
 
 static void fes_de25_dma_forget_diagnostics(struct fes_de25_dma *grant)
@@ -529,6 +548,7 @@ out:
 int fes_de25_dma_revoke_owned(struct fes_de25_dma *grant)
 {
 	struct fes_de25_dma_mm *entry;
+	struct fes_de25_snapshot retired;
 	bool drop_exposure = false;
 	int ret = 0;
 
@@ -554,6 +574,7 @@ int fes_de25_dma_revoke_owned(struct fes_de25_dma *grant)
 	mutex_lock(&grant->lock);
 	if (!grant->exposed)
 		goto out;
+	memset(&grant->retirement, 0, sizeof(grant->retirement));
 	if (grant->backend.epoch(grant->backend.context) != grant->epoch) {
 		fes_de25_dma_forget_diagnostics(grant);
 		ret = -ESTALE;
@@ -575,6 +596,8 @@ int fes_de25_dma_revoke_owned(struct fes_de25_dma *grant)
 		    (snapshot.status & (FES_DE25_SCANOUT_STATUS_RUNNING | FES_DE25_SCANOUT_STATUS_PENDING)) ||
 		    snapshot.outstanding))
 			ret = -EAGAIN;
+		if (!ret)
+			retired = snapshot;
 	}
 	if (ret)
 		goto uncertain;
@@ -602,6 +625,27 @@ int fes_de25_dma_revoke_owned(struct fes_de25_dma *grant)
 	}
 	if (ret)
 		goto uncertain;
+ /* Commit the old tuple only after every existing retirement check passed.
+  * Never substitute the live cold snapshot or the earlier POLL cache. */
+ grant->retirement.generation = grant->generation;
+ grant->retirement.version = FES_DE25_DMA_RETIREMENT_VERSION;
+ memcpy(grant->retirement.build_id, grant->build_id, sizeof(grant->build_id));
+ grant->retirement.allocation_bytes = FES_DE25_DMA_ALLOCATION_BYTES;
+ grant->retirement.slot_bytes = FES_DE25_DMA_SLOT_BYTES;
+ grant->retirement.frame_bytes = FES_DE25_DMA_FRAME_BYTES;
+ grant->retirement.width = FES_DE25_DMA_WIDTH;
+ grant->retirement.height = FES_DE25_DMA_HEIGHT;
+ grant->retirement.stride = FES_DE25_DMA_STRIDE;
+ grant->retirement.slots = FES_DE25_DMA_SLOTS;
+ grant->retirement.hardware_status = retired.status;
+ grant->retirement.hardware_errors = retired.errors;
+ grant->retirement.underflows = retired.underflows;
+ grant->retirement.outstanding = retired.outstanding;
+ grant->retirement.accepted_sequence = retired.accepted;
+ grant->retirement.displayed_sequence = retired.displayed;
+ grant->retirement.current_sequence = retired.current_sequence;
+ grant->retirement.slot_state = retired.slots;
+ grant->retirement.flags = FES_DE25_DMA_RETIREMENT_VALID;
 	grant->exposed = false;
 	grant->uncertain = false;
 	grant->pending = false;
@@ -741,6 +785,7 @@ static long fes_de25_dma_ioctl(struct file *file, unsigned int cmd, unsigned lon
 	struct fes_de25_dma_publish publish;
 	struct fes_de25_dma_info info;
 	struct fes_de25_dma_diagnostics diagnostics;
+	struct fes_de25_dma_retirement retirement;
 
 	switch (cmd) {
 	case FES_DE25_DMA_INFO:
@@ -768,6 +813,15 @@ static long fes_de25_dma_ioctl(struct file *file, unsigned int cmd, unsigned lon
 				return ret;
 		}
 		return copy_to_user((void __user *)arg, &diagnostics, sizeof(diagnostics)) ? -EFAULT : 0;
+ case FES_DE25_DMA_RETIREMENT:
+  if (copy_from_user(&retirement, (void __user *)arg, sizeof(retirement)))
+   return -EFAULT;
+  {
+   int ret = fes_de25_dma_retirement(file, &retirement);
+   if (ret)
+    return ret;
+  }
+  return copy_to_user((void __user *)arg, &retirement, sizeof(retirement)) ? -EFAULT : 0;
 	case FES_DE25_DMA_REVOKE:
 		return fes_de25_dma_revoke(file);
 	default:

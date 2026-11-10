@@ -26,9 +26,26 @@ def controller_inputs(controller):
     return controller
 
 
+# Preserve every stock register value; acknowledge pending events before any
+# power-up write. A later HPD edge then remains pending for another complete LUT.
+# ADV7513 Guide Rev.B4.2.1/4.10; this is a functional ordering correction, not
+# an electrical/timing exception or an HPD-level readback.
+def clear_first(config):
+    pattern = r"(?m)^(\s*)(\d+)(\s*:\s*LUT_DATA\s*<=\s*16'h)([0-9a-fA-F]{4})(;[^\n]*)$"
+    rows = list(re.finditer(pattern, config))
+    if len(rows) != 33 or sorted(int(m[2]) for m in rows) != list(range(33)):
+        raise ValueError('HDMI ordering requires the exact33selected LUT rows')
+    values = {int(m[2]): m[4] for m in rows}
+    comments = {int(m[2]): m[5] for m in rows}
+    if values[11].lower() != '4110' or values[15].lower() != '96f6':
+        raise ValueError('HDMI power/interrupt row changed')
+    order = [15, *range(15), *range(16,33)]
+    return re.sub(pattern, lambda m: m[1]+m[2]+m[3]+values[order[int(m[2])]]+comments[order[int(m[2])]], config)
+
+
 def derive(config, controller):
     original = {'I2C_HDMI_Config.v': config, 'I2C_Controller.v': controller}
-    config = config.decode()
+    config = clear_first(config.decode())
     controller = controller_inputs(controller)
     config = _once(config, r'\bmodule\s+I2C_HDMI_Config\s*\(',
                    'module fes_de25_scanout_hdmi_config (I2C_SDAT_IN,')
@@ -78,4 +95,5 @@ assign I2C_SDAT = sda_hold[7] ? 1'bz : 1'b0;
                      'digital_delay_ns': 160, 'receiver_minimum_ns': 100,
                      'physical_timing_qualified': False},
         'raw_sda_use': 'open-drain output only; input sampled through board synchronizer',
-        'bus_clock_divider_and_register_values': 'unchanged; every LUT row is issued'}
+        'bus_clock_divider_and_register_values': 'unchanged; every LUT row is issued',
+        'transmitter_order': 'clear-first: stock row15, rows0..14, rows16..32'}

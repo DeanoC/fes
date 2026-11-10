@@ -9,7 +9,7 @@ module fes_de25_zx81_standard #(
 ) (
     // Board-owned releases are qualified independently in their clock domains.
     input wire clk_sys, pixel_clk, reset_n, pixel_reset_n,
-    input wire video_ready, clock_fault, expansion_running,
+    input wire video_ready, stream_ready, clock_fault, expansion_running,
     input wire [4:0] computer_address,
     input wire computer_read, computer_write,
     input wire [3:0] computer_byteenable,
@@ -61,10 +61,16 @@ module fes_de25_zx81_standard #(
     (* preserve, dont_merge *) reg display_clock_fault = 1'b0;
     always @(posedge clk_sys)
         if (clock_fault || transport_fault) display_clock_fault <= 1'b1;
-    // Board visibility is a pixel-domain decode. Launch a registered level
-    // into the transport's system-domain readiness synchronizer.
+    // Preserve initial transmitter admission, then qualify running execution
+    // only by the existing transport epoch. Config-only reconnect cannot HOLD
+    // or reset the machine. The registered launch uses the existing CDC.
+    reg video_initialized = 1'b0;
     (* preserve, dont_merge *) reg video_ready_source = 1'b0;
-    always @(posedge pixel_clk) video_ready_source <= video_ready;
+    always @(posedge pixel_clk) begin
+        if (!pixel_reset_n) video_initialized <= 1'b0;
+        else if (video_ready) video_initialized <= 1'b1;
+        video_ready_source <= pixel_reset_n && stream_ready && (video_initialized || video_ready);
+    end
     wire [27:0] machine_video;
     wire display_request, response_valid, response_error;
     wire [6:0] display_opcode;
@@ -99,7 +105,7 @@ module fes_de25_zx81_standard #(
     );
     fes_de25_session_display #(.BUILD_ID(BUILD_ID)) display (
         .clk_sys(clk_sys), .pixel_clk(pixel_clk), .reset_n(pixel_reset_n), .exec_reset(exec_reset),
-        .clock_fault(display_clock_fault), .display_ready(video_ready),
+        .clock_fault(display_clock_fault), .display_ready(video_ready), .stream_ready(stream_ready),
         .machine(machine_video), .request(display_request), .opcode(display_opcode),
         .index(display_index), .argument(display_argument), .response_valid(response_valid),
         .response_error(response_error), .response_data(response_data), .quiesced_sys(display_quiesced),

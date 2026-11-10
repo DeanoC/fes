@@ -48,6 +48,14 @@ class SharedResetTests(unittest.TestCase):
         self.assertEqual(fixture["parent_sha256"], {"menu": S.ORIGINAL_SHA256[S.PARENT],
                          "standard": S.STANDARD_PARENT_SHA256, "standard_pr": S.STANDARD_PR_PARENT_SHA256})
         self.assertNotIn("private_compiled_sof_sha256", fixture)
+        provenance = fixture["generation_profile_provenance"]
+        for mode in ("menu", "standard"):
+            self.assertEqual(provenance[mode]["revision"], fixture["generation_producer_revision"])
+            self.assertEqual(provenance[mode]["parent_sha256"], fixture["parent_sha256"][mode])
+            self.assertEqual(provenance[mode]["normal_generation_exit_code"], 1)
+            self.assertFalse(provenance[mode]["fit"])
+        self.assertEqual(provenance["standard_pr"]["parent_sha256"], S.STANDARD_PR_PARENT_SHA256)
+        self.assertFalse(provenance["standard_pr"]["fresh_scanout_1_3_generation"])
         outer = next(text.decode() for name, text in self.originals.items()
                      if name.endswith("/synth/peripheral_subsys_fes_mem_cdc.v"))
         self.assertRegex(outer, r"parameter BURSTCOUNT_WIDTH\s*= 7,")
@@ -116,6 +124,39 @@ class SharedResetTests(unittest.TestCase):
         self.assertEqual(before, {name: (self.project / name).read_bytes() for name in self.originals})
         self.assertFalse((self.directory / "shared-reset-originals").exists())
         self.assertFalse((self.directory / "shared-resets.json").exists())
+
+    def test_readiness_parent_refresh_keeps_exact_reset_guards_before_writes(self):
+        standard = gzip.decompress((ROOT / "tests/fixtures/de25_standard_parent.v.gz").read_bytes())
+        for mode, parent in (("menu", self.originals[S.PARENT]), ("standard", standard)):
+            self.inputs["scanout"]["build_identity_scheme"] = (
+                "canonical-standard-computer-v2" if mode == "standard" else "canonical-functional-record-v2")
+            if mode == "standard":
+                self.inputs["standard_zx81"] = {"scope": "standard-core-board-integration",
+                    "runtime_admission": "not-qualified", "expansion_socket": False}
+            (self.directory / "inputs.json").write_text(json.dumps(self.inputs))
+            text = parent.decode()
+            mutations = {
+                "missing readiness input": (r"(?m)^.*input\s+wire\s+fes_scanout_ready_stream_ready,.*\n", ""),
+                "duplicate readiness input": (r"(?m)^.*input\s+wire\s+fes_scanout_ready_stream_ready,.*\n", r"\g<0>\g<0>"),
+                "missing readiness connection": (r"(?m)^.*\.stream_ready\s*\(fes_scanout_ready_stream_ready\).*\n", ""),
+                "wrong readiness source": (r"(\.stream_ready\s*\()fes_scanout_ready_stream_ready(\))",
+                                           r"\1periph_clk_out_clk_clk\2"),
+                "wrong original receiving clock": (r"(\.s0_clk\s*\()periph_clk_out_clk_clk(\))",
+                                                   r"\1fes_pixel_clk_out_clk_clk\2"),
+                "wrong original reset": (r"(\.s0_reset\s*\()~fes_scanout_system_reset_out_reset_reset(\))",
+                                         r"\1~fes_scanout_pixel_reset_out_reset_reset\2"),
+            }
+            for label, (pattern, replacement) in mutations.items():
+                changed, count = re.subn(pattern, replacement, text, count=1)
+                self.assertEqual(count, 1, (mode, label))
+                (self.project / S.PARENT).write_text(changed)
+                before = {name: (self.project / name).read_bytes() for name in self.originals}
+                with self.subTest(mode=mode, mutation=label), self.assertRaisesRegex(
+                        ValueError, "unreviewed generated input"):
+                    S.apply(self.directory)
+                self.assertEqual(before, {name: (self.project / name).read_bytes() for name in self.originals})
+                self.assertFalse((self.directory / "shared-reset-originals").exists())
+                self.assertFalse((self.directory / "shared-resets.json").exists())
 
     def test_standard_board_keeps_the_exact_reset_and_memory_derivation(self):
         parent = gzip.decompress((ROOT / "tests/fixtures/de25_standard_parent.v.gz").read_bytes())

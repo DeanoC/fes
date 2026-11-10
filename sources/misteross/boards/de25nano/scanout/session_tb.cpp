@@ -43,7 +43,10 @@ public:
 #else
         dut.exec_reset = 0;
 #endif
-        dut.clock_fault = 0; dut.display_ready = 1;
+        dut.clock_fault = 0; dut.stream_ready = 1; dut.display_ready = 1;
+#ifdef FES_DE25_STANDARD_CORE
+        dut.display_ready = 0;
+#endif
         dut.request = 0; dut.opcode = 0; dut.index = 0; dut.argument = 0;
         dut.address = 0; dut.read = 0; dut.write = 0; dut.byteenable = 15; dut.writedata = 0;
         dut.avm_waitrequest = 0; dut.avm_readdatavalid = 0; dut.avm_response = 0;
@@ -51,6 +54,11 @@ public:
         idle(4); dut.reset_n = 1;
 #ifdef FES_DE25_STANDARD_CORE
         idle(4); dut.pixel_reset_n = 1;
+#endif
+#ifdef FES_DE25_STANDARD_CORE
+        idle(64);
+        require(dut.exec_reset && dut.cpu_writes==0,"initial transmitter admission released ZX81 before ready");
+        dut.display_ready=1;
 #endif
         idle(2 * 1650 * 750);
         require(dut.locked && bursts == 0, "cold raster lock without DMA");
@@ -214,6 +222,24 @@ public:
         }
         throw std::runtime_error("complete frame/visibility deadline");
     }
+    void configuration_interval() {
+#ifdef FES_DE25_STANDARD_CORE
+        const auto before=dut.cpu_writes;
+#endif
+        const auto generation=snapshot(FES_DE25_SCANOUT_SNAPSHOT_GENERATION_LO_OFFSET);
+        const auto displayed=snapshot(FES_DE25_SCANOUT_SNAPSHOT_DISPLAYED_SEQUENCE_OFFSET);
+        dut.display_ready=0;idle(100000);
+        require(!dut.faulted&&dut.ui_active,"configuration interval faulted/hid the active plane");
+        require(snapshot(FES_DE25_SCANOUT_SNAPSHOT_ERRORS_OFFSET)==0&&
+            snapshot(FES_DE25_SCANOUT_SNAPSHOT_GENERATION_LO_OFFSET)==generation&&
+            snapshot(FES_DE25_SCANOUT_SNAPSHOT_DISPLAYED_SEQUENCE_OFFSET)==displayed,
+            "configuration interval changed frame/grant ownership");
+#ifdef FES_DE25_STANDARD_CORE
+        require(!dut.exec_reset&&dut.cpu_writes>before&&dut.peek_data==0x5a,
+            "transmitter configuration reset/held ZX81 or changed RAM");
+#endif
+        dut.display_ready=1;idle(1000);
+    }
     void close() {
 #ifdef FES_DE25_STANDARD_CORE
         const auto writes_before = dut.cpu_writes;
@@ -252,7 +278,7 @@ int main() {
         s.gp(0x13, 0, 1); s.gp(0x14, 0, 1);
         for (unsigned index = 0; index < 3; ++index) s.gp(0x15, index, 0, 1);
         require(s.bursts == 0, "GP submission bypassed kernel ownership");
-        s.publish(1); s.idle(1650 * 750); s.check_color = true; s.idle(1650 * 750);
+        s.publish(1); s.configuration_interval(); s.idle(1650 * 750); s.check_color = true; s.idle(1650 * 750);
         require(s.checked_pixels >= 1280 * 720, "no complete blended frame");
         s.close();
         s.base = 0x36000000u; s.palette[1] = 0xff802010u;

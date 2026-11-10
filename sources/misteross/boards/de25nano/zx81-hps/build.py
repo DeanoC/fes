@@ -416,6 +416,8 @@ def verify_standard_board(output, scanout, hps, display, *, expected_expansion_s
     endpoint = modules.get("subsys_periph.fes_scanout")
     if endpoint is None or endpoint.get("kind") != "fes_de25_zx81_standard" or endpoint.get("version") != "1.0":
         raise ValueError("generated standard core component differs")
+    if hps.component_ports(endpoint,"ready") != {"export": ("Input",1), "stream_ready": ("Input",1)}:
+        raise ValueError("generated standard transport/presentation readiness differs")
     build_identity = scanout.endpoint_build_identity(project, endpoint, hps, inputs["standard_zx81"]["build_id"])
     for interface, bits in (("computer", 5), ("avs", 7)):
         expected = {"address": ("Input", bits), "read": ("Input", 1), "write": ("Input", 1),

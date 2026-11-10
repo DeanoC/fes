@@ -275,6 +275,17 @@ class ScanoutBuildTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             helper.derive(config.replace(b"mSetup_ST <= 1;", b"mSetup_ST <= 2;"), controller)
 
+    def test_hdmi_clear_first_is_one_exact_permutation_with_strict_mutations(self):
+        output,_,_,_=self.prepare()
+        helper=B.load(B.HERE / "hdmi_inputs.py", "clear_first_test")
+        raw=(output / "hdmi-vendor-inputs/I2C_HDMI_Config.v").read_text()
+        rows=lambda text:[v.lower() for _,v in sorted(re.findall(r"(?m)^\s*(\d+)\s*:\s*LUT_DATA\s*<=\s*16'h([0-9a-fA-F]{4})",text),key=lambda x:int(x[0]))]
+        original=rows(raw);ordered=rows(helper.clear_first(raw))
+        self.assertEqual(ordered,[original[15],*original[:15],*original[16:]])
+        self.assertEqual(sorted(original),sorted(ordered))
+        for changed in [raw.replace("16'h4110","16'h4150"),raw.replace("16'h96f6","16'h96f7"),raw+"\n33: LUT_DATA <= 16'h0000;\n"]:
+            with self.subTest(change=changed[-40:]),self.assertRaises(ValueError):helper.clear_first(changed)
+
     def test_package_identity_rejects_wrong_profile_dirty_source_zero_and_invalid_ids(self):
         for revision, linux_dma, value in ((None, True, "a" * 32), ("b" * 40, False, "a" * 32),
                 ("b" * 40, True, "0" * 32), ("b" * 40, True, "A" * 32),

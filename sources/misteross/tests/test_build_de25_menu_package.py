@@ -433,7 +433,7 @@ class DE25MenuPackageTests(unittest.TestCase):
         self.assertEqual(fields['target']['programming_profile'], 'de25-linux-menu-v1')
         self.assertEqual(fields['build']['id'], build_identity(record))
         self.assertEqual({(r['id'], r['major'], r['minor']) for r in fields['interfaces']},
-            {('fes.video.fixed-720p60', 1, 0), ('fes.video.menu-display', 1, 0), ('fes.fabric.de25-scanout', 1, 2)})
+            {('fes.video.fixed-720p60', 1, 0), ('fes.video.menu-display', 1, 0), ('fes.fabric.de25-scanout', 1, 3)})
         for platform, device in (('de10_nano', producer.DEVICE), ('de25_nano', '5CSEBA6U23I7'),
                                  ('de25_nano', 'A5EB013BB23BE4SR1'), ('other_board', producer.DEVICE)):
             changed = copy.deepcopy(fields)

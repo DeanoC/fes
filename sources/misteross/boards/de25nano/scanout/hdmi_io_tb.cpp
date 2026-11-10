@@ -1,17 +1,85 @@
 #include "Vfes_de25_hdmi_io_tb.h"
+#include "Vfes_de25_hdmi_io_tb___024root.h"
 #include "verilated.h"
 #include "expected_lut.h"
 #include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
+#include <cstring>
 
 static void check(bool value, const char* message) {
     if (!value) { std::fprintf(stderr, "FAIL: %s\n", message); std::exit(1); }
 }
 
+// Digital safety subset of ADI ADV7513 Guide Rev.B, sections4.2.1/4.7/4.10,
+// Table74 and main-map94/95/96/97. No analog/video/CEC simulation.
+// PD/AD is assumed inactive and no CDC/CEC events occur; D6 is never written.
+// ADI says SOME registers cannot be written whileHPDlow but gives no per-register
+// rejection list here. We therefore do NOT invent one: low-HPD config writes are
+// unqualified observations, never evidence of restoration. Only a matching write
+// after the LAST rise certifies each HPD-resettable LUT address.
+struct Adv7513 {
+    bool hpd = true, monitor_sense = true, power_down = true;
+    unsigned power_writes = 0, irq_clears = 0, high_epoch = 1;
+    unsigned low_config_writes_unqualified = 0;
+    unsigned mask94 = 0xc0, mask95 = 0, status96 = 0, status97 = 0;
+    std::array<unsigned,256> last_high_epoch{}, value{};
+    static bool hpd_resettable(unsigned reg) { return reg <= 0x93 || (reg >= 0xaf && reg <= 0xcc); }
+    bool interrupt_pending() const { return (status96 & mask94) || (status97 & mask95); }
+    bool hpd_irq() const { return status96 & 0x80; }
+    void reset_interrupt_bank() {
+        mask94 = 0xc0; mask95 = 0;
+        status96 &= 0xc0; status97 = 0; // Table74 preserves both HPD/monitor latches.
+    }
+    void hotplug(bool high) {
+        if (hpd == high) return;
+        hpd = high;
+        if (!high) {
+            power_down = true;
+            for (unsigned r = 0; r < 256; ++r) if (hpd_resettable(r)) last_high_epoch[r] = 0;
+            reset_interrupt_bank();
+        } else ++high_epoch;
+        status96 |= 0x80;
+    }
+    void monitor(bool high) {
+        if (monitor_sense != high) { monitor_sense = high; status96 |= 0x40; }
+    }
+    void write(const std::array<unsigned,3>& frame) {
+        check(frame[0] == 0x72, "unexpected transmitter address");
+        const unsigned reg = frame[1], data = frame[2];
+        if (reg == 0x41) {
+            ++power_writes;
+            // The documented lowHPD power-up prohibition is exact; no inferred
+            // per-register lowHPD acceptance beyond this control.
+            if (hpd) {
+                power_down = data & 0x40;
+                if (power_down) reset_interrupt_bank();
+            }
+        }
+        if (reg == 0x94) mask94 = data;
+        if (reg == 0x95) mask95 = data;
+        if (reg == 0x96) { status96 &= ~data; if (data & 0x80) ++irq_clears; }
+        if (reg == 0x97) status97 &= ~data;
+        if (hpd_resettable(reg)) {
+            if (hpd) { value[reg] = data; last_high_epoch[reg] = high_epoch; }
+            else ++low_config_writes_unqualified;
+        }
+    }
+    unsigned missing_resettable() const {
+        unsigned missing = 0;
+        for (const unsigned entry : expected_lut) {
+            const unsigned reg = entry >> 8;
+            if (hpd_resettable(reg) &&
+                (last_high_epoch[reg] != high_epoch || value[reg] != (entry & 0xff))) ++missing;
+        }
+        return missing;
+    }
+};
+
 struct Slave {
     Vfes_de25_hdmi_io_tb& t;
+    Adv7513* chip = nullptr;
     bool scl = true, sda = true, active = false;
     unsigned bits = 0, byte = 0, nack_byte;
     unsigned ack_delay = 0;
@@ -47,7 +115,9 @@ struct Slave {
             if (!(bits >= 27 && bits <= 28))
                 std::fprintf(stderr,"STOP after bits=%u writes=%zu frame=%02x %02x %02x\n",bits,frames.size(),frame[0],frame[1],frame[2]);
             check(bits >= 27 && bits <= 28, "incomplete write before stop");
-            frames.push_back(frame); active = false;
+            frames.push_back(frame);
+            if (chip) chip->write(frame);
+            active = false;
         }
         if (active && !scl && now_scl) {
             if (bits && bits < 27) check(cycles - last_rise == 5002, "vendor bus period changed");
@@ -76,6 +146,7 @@ struct Slave {
         scl = t.scl; sda = t.sda;
     }
     void tick() {
+        if (chip) t.irq_n = !chip->interrupt_pending();
         t.clk = 0; t.eval(); observe();
         t.clk = 1; t.eval(); observe();
         ++cycles;
@@ -90,6 +161,8 @@ struct Slave {
 static void scenario(unsigned nack) {
     Vfes_de25_hdmi_io_tb t;
     t.clk = 0; t.reset = 1; t.irq_n = 1; t.slave_low = 0; t.eval();
+    t.rootp->fes_de25_hdmi_io_tb__DOT__board__DOT__video_clock__DOT__locked = 1;
+    t.eval();
     // Give the two-state simulator a real asynchronous assertion edge;
     // power-up X-to-0 reset behavior is not modeled by Verilator.
     auto reset_tick = [&]() { t.clk = 0; t.eval(); t.clk = 1; t.eval(); };
@@ -137,8 +210,71 @@ static void scenario(unsigned nack) {
     std::printf("{\"case\":\"hdmi-inputs-nack-%u\",\"status\":\"pass\",\"writes\":%zu,\"clock_cycles\":%llu,\"minimum_master_data_hold_ns\":%llu,\"data_hold_samples\":%u}\n",nack,bus.frames.size(),bus.cycles, bus.minimum_master_hold_ns, bus.master_hold_samples);
 }
 
+static void reconnect(unsigned phase, bool with_monitor = false) {
+    Vfes_de25_hdmi_io_tb t;
+    t.clk=0; t.reset=0; t.irq_n=1; t.slave_low=0; t.eval();
+    t.rootp->fes_de25_hdmi_io_tb__DOT__board__DOT__video_clock__DOT__locked = 1;
+    t.eval();
+    Adv7513 chip; Slave bus(t,3); bus.chip=&chip;
+    for(unsigned n=0;n<4;++n)bus.tick();
+    t.reset=1; for(unsigned n=0;n<8;++n)bus.tick();
+    t.reset=0; bus.until_ready(33);
+    check(!chip.power_down,"initial connected configuration did not power up");
+    chip.hotplug(false);
+    if (with_monitor) chip.monitor(false);
+    const unsigned old_power=chip.power_writes;
+    const unsigned old_clear=chip.irq_clears;
+    const auto before=bus.frames.size();
+    if(phase==0) {
+        for(unsigned n=0;bus.frames.size()==before;++n){check(n<8000000,"first reconfiguration write bound");bus.tick();}
+    } else if(phase==2) {
+        for(unsigned n=0;chip.irq_clears==old_clear;++n){check(n<8000000,"interrupt clear bound");bus.tick();}
+    } else if(phase==3) {
+        for(unsigned n=0;t.ready;++n){check(n<8000000,"configuration start bound");bus.tick();}
+        for(unsigned n=0;!t.ready;++n){check(n<8000000,"configuration end bound");bus.tick();}
+    } else {
+        for(unsigned n=0;chip.power_writes==old_power;++n){check(n<8000000,"disconnect reconfiguration did not reach power write");bus.tick();}
+    }
+    check(chip.power_down,"HPD-low power write incorrectly powered up transmitter");
+    // Reconnect after0x41 but before the stock0x96 W1C. Both edges share one
+    // interrupt latch; clearing it later must not lose the need to power up.
+    chip.hotplug(true);
+    if (with_monitor) chip.monitor(true);
+    if(phase==4){chip.hotplug(false);chip.hotplug(true);}
+    for(unsigned n=0;n<12000000;++n)bus.tick();
+    std::printf("{\"case\":\"hpd-reconnect-phase-%u\",\"hpd\":%s,\"power_down\":%s,\"ready\":%s,\"irq_pending\":%s,\"power_writes\":%u,\"irq_clears\":%u}\n",
+        phase,chip.hpd?"true":"false",chip.power_down?"true":"false",t.ready?"true":"false",chip.hpd_irq()?"true":"false",chip.power_writes,chip.irq_clears);
+    std::fflush(stdout);
+    std::printf("{\"case\":\"register-replay-%u-monitor-%u\",\"missing_resettable_rows\":%u,\"low_HPD_writes_unqualified\":%u,\"mask94\":%u,\"mask95\":%u,\"status96\":%u}\n",phase,with_monitor,chip.missing_resettable(),chip.low_config_writes_unqualified,chip.mask94,chip.mask95,chip.status96);
+    std::fflush(stdout);
+    check(t.ready&&!chip.interrupt_pending()&&!chip.power_down,"reconnect lost: READY asserted but no post-HPD-high power-up write");
+    check(chip.missing_resettable()==0,"HPD-resettable configuration was not fully replayed after last rise");
+    check(chip.mask94==0xc0 && chip.mask95==0,"unexpected default IRQ masks");
+}
+
+static void controls() {
+    Adv7513 chip;
+    check(chip.mask94==0xc0 && chip.mask95==0,"documented IRQ default masks");
+    chip.monitor(false); check(chip.interrupt_pending() && chip.status96==0x40,"monitor edge shared IRQ");
+    chip.write({0x72,0x94,0}); check(!chip.interrupt_pending() && chip.status96==0x40,"mask must not clear sticky status");
+    chip.write({0x72,0x94,0xc0}); check(chip.interrupt_pending(),"unmask must expose retained status");
+    chip.hotplug(false); check(chip.status96==0xc0 && chip.interrupt_pending(),"HPD reset must preserve both sticky latches");
+    chip.write({0x72,0x96,0x80}); check(chip.status96==0x40 && chip.interrupt_pending(),"HPD W1C cannot clear monitor latch");
+    chip.write({0x72,0x96,0x40}); check(!chip.interrupt_pending(),"shared IRQ stays active until all enabled status clears");
+    chip.write({0x72,0x41,0x10}); check(chip.power_down,"lowHPD must prohibit power-up");
+    chip.hotplug(true); chip.write({0x72,0x41,0x10}); check(!chip.power_down,"highHPD explicit power-up");
+    chip.write({0x72,0x01,0x55}); check(chip.value[1]==0x55 && chip.last_high_epoch[1]==chip.high_epoch,"highHPD config observation");
+    chip.write({0x72,0x94,0}); chip.hotplug(false);
+    check(chip.last_high_epoch[1]==0 && chip.mask94==0xc0 && chip.hpd_irq(),"HPD resets configuration and masks but retains HPD IRQ");
+    chip.write({0x72,0x01,0x55}); check(chip.last_high_epoch[1]==0 && chip.low_config_writes_unqualified>0,"lowHPD config write cannot qualify restoration");
+    chip.hotplug(true); check(chip.last_high_epoch[1]!=chip.high_epoch,"last rise requires new configuration replay");
+    chip.write({0x72,0x01,0x55}); check(chip.last_high_epoch[1]==chip.high_epoch,"post-rise write certifies that register only");
+    std::puts("{\"case\":\"model-controls\",\"status\":\"pass\",\"PD_AD\":\"assumed inactive\",\"CEC_CDC_events\":\"assumed absent\",\"low_HPD_config_acceptance\":\"unspecified, not claimed\"}");
+}
 int main(int argc,char** argv) {
     Verilated::commandArgs(argc,argv);
+    if(argc==2&&!std::strcmp(argv[1],"--controls")){controls();return 0;}
+    if(argc>=3&&!std::strcmp(argv[1],"--phase")) {reconnect(std::strtoul(argv[2],nullptr,10),argc==4&&!std::strcmp(argv[3],"--monitor"));return 0;}
     for (unsigned nack : {3u,0u,1u,2u}) scenario(nack);
     return 0;
 }

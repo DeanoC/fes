@@ -4,7 +4,7 @@ module fes_de25_scanout_board (
     input wire CLOCK0_50, system_clk, top_reset_n, ninit_done, HDMI_TX_INT,
     input wire [23:0] video_rgb,
     input wire video_de, video_hs, video_vs,
-    output wire pixel_clk, scanout_reset_n, clock_fault, display_ready,
+    output wire pixel_clk, scanout_reset_n, clock_fault, display_ready, stream_ready,
     output wire HDMI_TX_CLK, HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS,
     output wire [23:0] HDMI_TX_D,
     output wire HDMI_I2C_SCL,
@@ -132,6 +132,11 @@ module fes_de25_scanout_board (
     // Readiness closes within three pixel edges; clock_fault latches within
     // three system edges. Accepted reads keep their reservations and drain
     // after clocks resume. Pin data/DE blank immediately on qualification loss.
+    // Transport epoch remains healthy while the
+    // transmitter reconfigures. These are existing pixel-domain qualifications;
+    // configuration visibility still uses the unchanged complete-line pin gate.
+    assign stream_ready = qualified_sync[1] && allow_sync[1] &&
+        pixel_epoch_sync[1] == pixel_ack;
     assign display_ready = video_active && visible_line;
     wire pin_allow = config_reset_n && visible_allow;
     assign HDMI_TX_CLK = pixel_clk;

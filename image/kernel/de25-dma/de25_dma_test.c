@@ -41,7 +41,7 @@ struct test_transport {
 	bool change_epoch_during_diagnostics, fail_diagnostics;
 	int snapshot_read_error;
 	u64 epoch;
-	bool epoch_unknown, lose_epoch_after_start, freeze_serial, corrupt_serial;
+	bool epoch_unknown, lose_epoch_after_start, freeze_serial, corrupt_serial, change_epoch_on_clear;
 	int start_error, stop_error, drain_error;
 	unsigned int starts, stops, drains, clears, snapshots, writes, barriers;
 	u32 regs[32], live[13], frozen[13], serial;
@@ -113,7 +113,7 @@ static int transport_read(void *context, u32 offset, u32 *value)
 	if (offset == FES_DE25_SCANOUT_ID_OFFSET)
 		*value = FES_DE25_SCANOUT_IDENTITY;
 	else if (offset == FES_DE25_SCANOUT_VERSION_OFFSET)
-		*value = t->bad_version ? 0 : FES_DE25_SCANOUT_VERSION;
+		*value = t->bad_version ? FES_DE25_SCANOUT_VERSION - 1 : FES_DE25_SCANOUT_VERSION;
 	else if (offset >= FES_DE25_SCANOUT_BUILD_ID0_OFFSET &&
 		 offset <= FES_DE25_SCANOUT_BUILD_ID3_OFFSET && IS_ALIGNED(offset, sizeof(u32))) {
 		*value = t->zero_build_id ? 0 : build_id[(offset - FES_DE25_SCANOUT_BUILD_ID0_OFFSET) / sizeof(u32)];
@@ -220,6 +220,7 @@ static int transport_write(void *context, u32 offset, u32 value)
 		memset(&t->descriptor, 0, sizeof(t->descriptor));
 		memset(t->live, 0, sizeof(t->live));
 		t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_DRAINED;
+		if (t->change_epoch_on_clear) t->epoch++;
 		return 0;
 	}
 	return -EINVAL;
@@ -373,6 +374,126 @@ static int diagnostics_file(struct file *file, struct fes_de25_dma_diagnostics *
 	diagnostics->generation = info.generation;
 	diagnostics->version = FES_DE25_DMA_DIAGNOSTICS_VERSION;
 	return fes_de25_dma_diagnostics(file, diagnostics);
+}
+
+static int retirement_file(struct file *file, struct fes_de25_dma_retirement *r)
+{
+ struct fes_de25_dma_info info;
+ fes_de25_dma_info(file, &info);
+ memset(r, 0, sizeof(*r));r->generation = info.generation;
+ r->version = FES_DE25_DMA_RETIREMENT_VERSION;
+ return fes_de25_dma_retirement(file, r);
+}
+
+static void retirement_receipt_requires_success_and_is_cached(struct kunit *test)
+{
+ struct dma_fixture *f = test->priv;
+ struct fes_de25_dma_publish p = publish_for(f->file);
+ struct fes_de25_dma_retirement r;
+ unsigned int reads, writes, epochs;
+ KUNIT_EXPECT_EQ(test, retirement_file(f->file, &r), -ENODATA);
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+ KUNIT_EXPECT_EQ(test, retirement_file(f->file, &r), -ENODATA);
+ f->transport.drain_error = 1;
+ KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(f->file), -EAGAIN);
+ KUNIT_EXPECT_EQ(test, retirement_file(f->file, &r), -ENODATA);
+ f->transport.drain_error = 0;
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(f->file), 0);
+ reads = f->transport.reads;writes = f->transport.writes;epochs = f->transport.epochs;
+ KUNIT_ASSERT_EQ(test, retirement_file(f->file, &r), 0);
+ KUNIT_EXPECT_EQ(test, sizeof(r), (size_t)96);
+ KUNIT_EXPECT_EQ(test, r.flags, FES_DE25_DMA_RETIREMENT_VALID);
+ KUNIT_EXPECT_EQ(test, r.accepted_sequence, p.sequence);
+ KUNIT_EXPECT_EQ(test, r.displayed_sequence, 0U);
+ KUNIT_EXPECT_EQ(test, r.hardware_status, FES_DE25_SCANOUT_STATUS_CONFIGURED | FES_DE25_SCANOUT_STATUS_DRAINED);
+ KUNIT_EXPECT_EQ(test, r.hardware_errors | r.underflows | r.outstanding, 0U);
+ KUNIT_EXPECT_EQ(test, r.build_id[0], 0x76543210U);
+ r.generation++;KUNIT_EXPECT_EQ(test, fes_de25_dma_retirement(f->file, &r), -EINVAL);r.generation--;
+ r.version++;KUNIT_EXPECT_EQ(test, fes_de25_dma_retirement(f->file, &r), -EINVAL);r.version--;
+ r.reserved=1;KUNIT_EXPECT_EQ(test, fes_de25_dma_retirement(f->file, &r), -EINVAL);r.reserved=0;
+ r.flags=~0U;r.hardware_errors=~0U;
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_retirement(f->file, &r), 0);
+ KUNIT_EXPECT_EQ(test, r.flags, FES_DE25_DMA_RETIREMENT_VALID);
+ KUNIT_EXPECT_EQ(test, r.hardware_errors, 0U);
+ KUNIT_EXPECT_EQ(test, f->transport.reads, reads);
+ KUNIT_EXPECT_EQ(test, f->transport.writes, writes);
+ KUNIT_EXPECT_EQ(test, f->transport.epochs, epochs);
+ KUNIT_EXPECT_EQ(test, f->file->f_op->unlocked_ioctl(f->file, FES_DE25_DMA_RETIREMENT, 0), -EFAULT);
+ p.sequence++; /* A valid new request must still be refused after retirement. */
+ KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(f->file, &p), -EBUSY);
+}
+
+static void retirement_receipt_preserves_draining_error_before_clear(struct kunit *test)
+{
+ struct dma_fixture *f = test->priv;
+ struct fes_de25_dma_publish p = publish_for(f->file);
+ struct fes_de25_dma_retirement r;
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+ f->transport.live[7] = FES_DE25_SCANOUT_ERROR_UNDERFLOW;
+ f->transport.live[8] = 1;
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(f->file), 0);
+ KUNIT_ASSERT_EQ(test, retirement_file(f->file, &r), 0);
+ KUNIT_EXPECT_EQ(test, r.hardware_errors, FES_DE25_SCANOUT_ERROR_UNDERFLOW);
+ KUNIT_EXPECT_EQ(test, r.underflows, 1U);
+ KUNIT_EXPECT_EQ(test, f->transport.live[7] | f->transport.live[8], 0U);
+ KUNIT_EXPECT_EQ(test, r.flags, FES_DE25_DMA_RETIREMENT_VALID);
+}
+
+static void retirement_receipt_epoch_or_build_failure_is_unavailable(struct kunit *test)
+{
+ struct dma_fixture *f = test->priv;
+ struct fes_de25_dma_publish p = publish_for(f->file);
+ struct fes_de25_dma_retirement r;
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+ f->transport.epoch=2;
+ KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(f->file), -ESTALE);
+ KUNIT_EXPECT_EQ(test, retirement_file(f->file, &r), -ENODATA);
+ f->transport.epoch=1;f->transport.changed_build_id=true;
+ KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(f->file), -ESTALE);
+ KUNIT_EXPECT_EQ(test, retirement_file(f->file, &r), -ENODATA);
+ KUNIT_EXPECT_EQ(test, f->transport.clears, 0U);
+ f->transport.changed_build_id=false; /* Scripted cleanup, never native override. */
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(f->file), 0);
+}
+
+static void retirement_receipt_failed_post_clear_epoch_never_valid(struct kunit *test)
+{
+ struct dma_fixture *f = test->priv;
+ struct fes_de25_dma_publish p = publish_for(f->file);
+ struct fes_de25_dma_retirement r;
+ struct test_descriptor descriptor;
+ u32 live[13], regs[32];
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+ descriptor=f->transport.descriptor;
+ memcpy(live,f->transport.live,sizeof(live));memcpy(regs,f->transport.regs,sizeof(regs));
+ f->transport.change_epoch_on_clear=true;
+ KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(f->file), -ESTALE);
+ KUNIT_EXPECT_EQ(test, retirement_file(f->file, &r), -ENODATA);
+ KUNIT_EXPECT_EQ(test, f->transport.clears, 1U);
+ /* Restore only the scripted device to release the test fixture's storage.
+  * A native changed epoch has no such override and remains quarantined. */
+ f->transport.change_epoch_on_clear=false;f->transport.epoch=1;
+ f->transport.descriptor=descriptor;
+ memcpy(f->transport.live,live,sizeof(live));memcpy(f->transport.regs,regs,sizeof(regs));
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(f->file), 0);
+}
+
+static void retirement_receipt_new_grant_has_no_old_record(struct kunit *test)
+{
+ struct dma_fixture *f = test->priv;
+ struct fes_de25_dma_publish p = publish_for(f->file);
+ struct fes_de25_dma_retirement r;
+ struct fes_de25_dma_backend backend = transport_backend(&f->transport);
+ u64 old;
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(f->file), 0);
+ KUNIT_ASSERT_EQ(test, retirement_file(f->file, &r), 0);old=r.generation;
+ __fput_sync(f->file);f->file=NULL;
+ f->file=fes_de25_dma_create(f->dev, &backend);
+ KUNIT_ASSERT_FALSE(test, IS_ERR(f->file));
+ KUNIT_EXPECT_EQ(test, retirement_file(f->file, &r), -ENODATA);
+ KUNIT_EXPECT_NE(test, r.generation, old);
+ r.generation=old;KUNIT_EXPECT_EQ(test, fes_de25_dma_retirement(f->file, &r), -EINVAL);
 }
 
 static void diagnostics_cached_query_checks_request_without_mmio(struct kunit *test)
@@ -2520,6 +2641,11 @@ static struct kunit_case fes_de25_dma_cases[] = {
 #else
 	KUNIT_CASE(owner_static_disabled_refuses_base_before_programming),
 #endif
+ KUNIT_CASE(retirement_receipt_requires_success_and_is_cached),
+ KUNIT_CASE(retirement_receipt_preserves_draining_error_before_clear),
+ KUNIT_CASE(retirement_receipt_epoch_or_build_failure_is_unavailable),
+ KUNIT_CASE(retirement_receipt_new_grant_has_no_old_record),
+ KUNIT_CASE(retirement_receipt_failed_post_clear_epoch_never_valid),
 	KUNIT_CASE(diagnostics_cached_query_checks_request_without_mmio),
 	KUNIT_CASE(diagnostics_retains_fault_after_failed_poll_without_mmio),
 	KUNIT_CASE(diagnostics_latch_after_frozen_snapshot_is_coherent),

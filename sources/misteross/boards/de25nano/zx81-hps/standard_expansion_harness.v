@@ -62,7 +62,7 @@ module fes_de25_standard_expansion_harness (
     fes_de25_zx81_standard #(.BUILD_ID(BUILD_ID), .EXPANSION_SOCKET(1),
         .FIRMWARE_INIT("standard-expansion-rom.hex")) computer (
         .clk_sys(clk_sys), .pixel_clk(pixel_clk),
-        .reset_n(reset_n), .pixel_reset_n(reset_n), .video_ready(1'b1),
+        .reset_n(reset_n), .pixel_reset_n(reset_n), .video_ready(1'b1), .stream_ready(1'b1),
         .clock_fault(1'b0), .expansion_running(running),
         .computer_address(address), .computer_read(read), .computer_write(write),
         .computer_byteenable(byteenable), .computer_writedata(writedata),

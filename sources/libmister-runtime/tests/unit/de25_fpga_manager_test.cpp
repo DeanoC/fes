@@ -146,7 +146,7 @@ std::string RecoveryPackage(Fixture& f,bool menu,const std::string& suffix="") {
             "fes.media.zx81-tape","fes.media.zx81-tape-write","fes.video.session-display","fes.fabric.video.display-plane"};
     ids.push_back("fes.fabric.de25-scanout");std::string interfaces;
     for(const auto& id:ids)interfaces+="[[interfaces]]\nid = \""+id+"\"\nmajor = 1\nminor = "+
-        (id=="fes.fabric.de25-scanout"?"2":"0")+"\nrequired = true\n\n";
+        (id=="fes.fabric.de25-scanout"?"3":"0")+"\nrequired = true\n\n";
     manifest.replace(first,last-first,interfaces);Put(tmp+"/manifest.toml",manifest);Put(tmp+"/core.rbf",payload);
     OpenedCorePackage opened;const auto e=OpenCorePackage(tmp,"",&opened);if(!e.ok())std::cerr<<e.message<<std::endl;assert(e.ok());
     const auto path=packages+"/"+opened.package_id+suffix;assert(!rename(tmp.c_str(),path.c_str()));f.paths.package_roots={packages};return path;

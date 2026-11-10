@@ -11,7 +11,7 @@ module fes_de25_session_display #(
     parameter [15:0] PICTURE_HEIGHT = 16'd540
 ) (
     input wire clk_sys, pixel_clk, reset_n, exec_reset,
-    input wire clock_fault, display_ready,
+    input wire clock_fault, display_ready, stream_ready,
     input wire [27:0] machine,
     input wire request,
     input wire [6:0] opcode,
@@ -95,7 +95,7 @@ module fes_de25_session_display #(
         .submit_valid(), .submit_slot(), .submit_sequence()
     );
     fes_de25_scanout #(.BUILD_ID(BUILD_ID), .EXTERNAL_RASTER(1'b1)) memory (
-        .clk(pixel_clk), .reset_n(reset_n), .clock_fault(clock_fault), .display_ready(display_ready),
+        .clk(pixel_clk), .reset_n(reset_n), .clock_fault(clock_fault), .display_ready(display_ready), .stream_ready(stream_ready),
         .raster_h(raster_h), .raster_v(raster_v), .address(address), .read(read), .write(write),
         .byteenable(byteenable), .writedata(writedata), .readdata(readdata),
         .readdatavalid(readdatavalid), .writeresponsevalid(writeresponsevalid),
