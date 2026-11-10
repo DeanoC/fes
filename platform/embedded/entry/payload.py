@@ -12,7 +12,9 @@ ENCODING = 'gzip-deflate-v1'
 def encode(payload):
     if not 64 <= len(payload) <= MAX_BYTES:
         raise ValueError('entry ELF exceeds the existing32MiB payload bound')
-    compressor = zlib.compressobj(6, zlib.DEFLATED, -15)
+    # Spend host build time to keep the complete native runtime inside the
+    # existing FIT bound; the target still decodes the same DEFLATE format.
+    compressor = zlib.compressobj(9, zlib.DEFLATED, -15)
     body = compressor.compress(payload) + compressor.flush()
     packed = HEADER + body + struct.pack('<II', zlib.crc32(payload), len(payload))
     if len(packed) > MAX_BYTES:

@@ -67,6 +67,7 @@ class EntryPayloadTests(unittest.TestCase):
             for kind in ('random', 'repeated'):
                 raw = randomizer.randbytes(size) if kind == 'random' else (b'FES-Tenfoot-'*((size+11)//12))[:size]
                 for level, strategy in ((0, zlib.Z_DEFAULT_STRATEGY), (6, zlib.Z_DEFAULT_STRATEGY),
+                                        (9, zlib.Z_DEFAULT_STRATEGY),
                                         (9, zlib.Z_FIXED), (1, zlib.Z_HUFFMAN_ONLY)):
                     with self.subTest(size=size, kind=kind, level=level, strategy=strategy):
                         compressor = zlib.compressobj(level, zlib.DEFLATED, -15, 8, strategy)

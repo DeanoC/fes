@@ -27,7 +27,9 @@ FP/SIMD access, and enters the native image at EL1. An exception before TamaGo
 installs its own vectors parks in the loader. A malformed image parks instead of
 launching. Hashes identify build inputs; they do not authenticate a payload.
 
-The embedded ELF is stored as one deterministic gzip member. Before loading,
+The embedded ELF is stored as one deterministic gzip member, using level 9
+compression on the build host to preserve space within the existing FIT bound.
+Before loading,
 the freestanding decoder checks its fixed header, input/output bounds, exact
 stream consumption, CRC and decoded size. The existing 32 MiB ELF limit remains.
 It decodes into the final 32 MiB of owned Go RAM below the protected 128 KiB
