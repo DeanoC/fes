@@ -88,6 +88,11 @@ The shared mode requires trusted cold/master composition; the default provider
 is unbound and no composed boot profile is selected. See the lease contract
 for dynamic data-containment flags and retained-failure behavior.
 
+The [fixed firmware MAC lease](docs/embedded-mac.md) uses a private generation,
+separate grant/confirmation and an independent drain callback for a permanently
+pinned DMA window. Its portable engine/native client do not supply a physical
+Nano dispatcher binding, trusted boot provider or enabled Ethernet profile.
+
 The experimental [initial tape handoff](docs/embedded-tape.md) generates C/Go
 constants for a fixed-window descriptor and private secure call. Its service
 and publication lease have portable joined tests. An explicit firmware build

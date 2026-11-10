@@ -25,6 +25,8 @@ EMBEDDED_CONTROL_INPUTS = frozenset({
     'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
 })
 EMBEDDED_BRIDGE_INPUTS = frozenset({
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_mac.yaml',
+    'sources/mister-packages/testdata/oracles/fes-embedded-mac.json',
     'sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml',
     'sources/mister-packages/testdata/oracles/fes-embedded-bridges.json',
     'sources/mister-packages/packages/fabric/fes_fabric_embedded_sd.yaml',

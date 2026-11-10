@@ -88,3 +88,8 @@ The pinned dependency is `github.com/usbarmory/go-net`
 TamaGo 1.26.5 compiler. Both TCP peers in the smoke test exchange packets
 through QEMU VirtIO and user networking; a successful test is emulator
 integration evidence, not physical Ethernet acceptance.
+
+A staged platform may provide an additional Confirm hook for the driver to run
+after descriptor initialization. The driver must consume it before exposing
+complete Stop/Start controls. `NewController` rejects an unconsumed Confirm hook;
+it cannot reopen software traffic between a controller grant and confirmation.

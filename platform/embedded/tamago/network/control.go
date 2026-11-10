@@ -24,6 +24,10 @@ var (
 type DMAControl struct {
 	Stop  func(context.Context) error
 	Start func(context.Context) error
+	// Confirm is an optional platform-stage check after driver initialization.
+	// The driver must consume it before exposing its final Stop/Start controls;
+	// NewController rejects an unconsumed hook instead of reopening traffic.
+	Confirm func(context.Context) error
 }
 
 // Controller joins a software traffic gate to explicit platform DMA controls.
@@ -65,7 +69,7 @@ func (c *Controller) Claim() error {
 // cannot turn software cancellation into a DMA fence. Failed control retains
 // this claim and the gate permanently; no replacement or retry is permitted.
 func NewController(link *Link, dma DMAControl) (*Controller, error) {
-	if link == nil || link.state == nil || link.device == nil || link.stack == nil || dma.Stop == nil || dma.Start == nil {
+	if link == nil || link.state == nil || link.device == nil || link.stack == nil || dma.Stop == nil || dma.Start == nil || dma.Confirm != nil {
 		return nil, ErrControl
 	}
 	if err := link.Err(); err != nil {

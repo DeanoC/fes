@@ -104,7 +104,7 @@ class AffectedTests(unittest.TestCase):
         self.assertEqual(set(plan(['sources/misteross/cores/fes-common/rtl/unknown.sv'])['cores']), set(CORES))
 
     def test_owned_firmware_definitions_have_only_embedded_c_and_go_consumers(self):
-        for stem in ('bridges', 'sd'):
+        for stem in ('bridges', 'sd', 'mac'):
             definition = 'packages/fabric/fes_fabric_embedded_' + stem + '.yaml'
             source = Path(__file__).resolve().parents[1] / 'scripts/consistency.py'
             registry = next(node.value for node in ast.parse(source.read_text()).body

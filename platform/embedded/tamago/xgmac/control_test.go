@@ -451,3 +451,62 @@ func TestControlledConcurrentAttemptPoisonsPendingCompletion(t *testing.T) {
 		t.Fatal("pending operation did not return")
 	}
 }
+
+func TestControlledRestartConfirmsAfterInitializationBeforeTraffic(t *testing.T) {
+	for _, mode := range []string{"success", "failed", "cancelled", "PHY"} {
+		t.Run(mode, func(t *testing.T) {
+			d, r, m := controlDevice(t)
+			confirms := 0
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			hooks, err := d.BindControl(network.DMAControl{
+				Stop: func(context.Context) error { r.allowed = false; return nil },
+				Start: func(context.Context) error {
+					r.allowed = true
+					if mode == "PHY" {
+						r.phy[3] ^= 1
+					}
+					return nil
+				},
+				Confirm: func(context.Context) error {
+					confirms++
+					if !d.paused || !d.started || m.Read32(rxRing+12)&own == 0 || r.regs[txControl]&1 == 0 || r.regs[rxControl]&1 == 0 {
+						t.Fatal("confirmation before initialized hardware or after traffic enabled")
+					}
+					if mode == "cancelled" {
+						cancel()
+					}
+					if mode == "failed" {
+						r.allowed = false
+						return errors.New("firmware confirmation lost")
+					}
+					return nil
+				},
+			})
+			if err != nil || hooks.Confirm != nil {
+				t.Fatal("driver must consume the platform confirmation", err)
+			}
+			if err = hooks.Stop(ctx); err != nil {
+				t.Fatal(err)
+			}
+			err = hooks.Start(ctx)
+			if mode == "success" {
+				if err != nil || d.paused || confirms != 1 {
+					t.Fatal(err, d.paused, confirms)
+				}
+				return
+			}
+			if err == nil || d.Err() == nil || !d.paused || (mode == "PHY" && confirms != 0) || (mode != "PHY" && confirms != 1) {
+				t.Fatal("failed confirmation reopened traffic", err, confirms)
+			}
+			accesses, writes := r.accesses, m.writes
+			hooks.Stop(context.Background())
+			hooks.Start(context.Background())
+			d.Receive(make([]byte, maxFrame))
+			d.Transmit(make([]byte, 14))
+			if accesses != r.accesses || writes != m.writes {
+				t.Fatal("retired confirmation accessed device/memory")
+			}
+		})
+	}
+}

@@ -52,6 +52,14 @@ register cleanup. The platform supplier must separately own PHY/clocks/resets,
 SMMU policy and the private firmware MAC generation; this API does not provide
 that supplier or enable a board profile.
 
+When the platform supplies a Confirm hook, restart calls it after descriptor
+initialization and PHY checks, while packet traffic is still paused. A failed or
+cancelled confirmation retires without extra register access. The returned
+driver controls consume that hook; the common controller rejects an unconsumed
+platform confirmation. The HTTP model joins the real C MAC lease engine, native
+client and XGMAC driver across three cycles, with modeled authority/drain. It
+does not bind the channel into the physical Nano dispatcher.
+
 The ordered stages follow the vendor's [stopping and starting transmission
 procedure](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/stopping-and-starting-transmission?contentId=aoHUqRdCxX615dKqdJAazA).
 Both stopped flags must be clear during active health checks under the same

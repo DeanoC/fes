@@ -136,6 +136,17 @@ func (d *Device) BindControl(platform network.DMAControl) (network.DMAControl, e
 			if err = d.initialize(mac); err != nil {
 				return d.retireControl(err)
 			}
+			if platform.Confirm != nil {
+				if err = ctx.Err(); err != nil {
+					return d.retireControl(err)
+				}
+				if err = d.Err(); err != nil {
+					return err
+				}
+				if err = platform.Confirm(ctx); err != nil {
+					return d.retireControl(err)
+				}
+			}
 			if err = ctx.Err(); err != nil {
 				return d.retireControl(err)
 			}

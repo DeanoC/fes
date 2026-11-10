@@ -209,7 +209,7 @@ func TestControllerCancellationWhileIOPendingRetiresWithoutHardwareCall(t *testi
 func TestControllerRequiresCompleteExclusiveSupplier(t *testing.T) {
 	l := controlLink(&controlDevice{})
 	valid := DMAControl{Stop: func(context.Context) error { return nil }, Start: func(context.Context) error { return nil }}
-	for _, dma := range []DMAControl{{}, {Stop: valid.Stop}, {Start: valid.Start}} {
+	for _, dma := range []DMAControl{{}, {Stop: valid.Stop}, {Start: valid.Start}, {Stop: valid.Stop, Start: valid.Start, Confirm: valid.Start}} {
 		if _, err := NewController(l, dma); err == nil || l.state.claimed.Load() {
 			t.Fatal("incomplete supplier claimed link")
 		}

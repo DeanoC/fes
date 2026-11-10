@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/maccontrol"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 	gnet "github.com/usbarmory/go-net"
 )
@@ -50,26 +51,25 @@ func TestHTTPThroughDMAAndIPStack(t *testing.T) {
 	h := newHardware()
 	h.wireOut = outbound
 	h.wireIn = inbound
+	firmware := newFirmwareMAC(t, h)
+	lease, err := maccontrol.New(ctx, firmware, 17)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = lease.Acquire(ctx); err != nil {
+		t.Fatal(err)
+	}
 	device := open(t, h)
-	// Model-only platform stop/restart. The software gate must finish every
-	// driver call before these hooks touch the synchronous register model.
-	// This supplier cannot qualify physical DMA or establish firmware authority.
-	stops, starts := 0, 0
-	driverControl, err := device.BindControl(network.DMAControl{
-		Stop: func(context.Context) error {
-			stops++
-			for _, reg := range []uint32{txConfig, rxConfig, txControl, rxControl} {
-				if h.Read32(reg)&1 != 0 {
-					t.Fatal("platform drain before driver stop")
-				}
-			}
-			return nil
-		},
-		Start: func(context.Context) error {
-			starts++
-			return nil
-		},
-	})
+	if err = lease.Confirm(ctx); err != nil {
+		t.Fatal(err)
+	}
+	platform, err := lease.BindPlatform()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Actual C lease engine and native client, with explicit modeled physical
+	// grant/drain. The driver must consume confirmation before reopening traffic.
+	driverControl, err := device.BindControl(platform)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestHTTPThroughDMAAndIPStack(t *testing.T) {
 			t.Fatal("HTTP did not survive pause/resume", err, closeErr)
 		}
 	}
-	if stops != 3 || starts != 3 {
-		t.Fatal(stops, starts)
+	if firmware.stats[1] != 4 || firmware.stats[2] != 4 || firmware.stats[3] != 3 || firmware.stats[4] != 0 {
+		t.Fatal("firmware lease cycles", firmware.stats)
 	}
 }

@@ -55,7 +55,9 @@ class SelectTestModesTests(unittest.TestCase):
         self.assertTrue(test_policy.select_test_modes(['sources/misteross/cores/fes-common/rtl/unknown.sv'])['video'])
 
     def test_embedded_sd_consumers_stay_routine_and_mixed_inputs_keep_extended_checks(self):
-        paths = ['sources/mister-packages/packages/fabric/fes_fabric_embedded_sd.yaml',
+        paths = ['sources/mister-packages/packages/fabric/fes_fabric_embedded_mac.yaml',
+                 'sources/mister-packages/testdata/oracles/fes-embedded-mac.json',
+                 'sources/mister-packages/packages/fabric/fes_fabric_embedded_sd.yaml',
                  'sources/mister-packages/testdata/oracles/fes-embedded-sd.json',
                  'platform/embedded/firmware/nano_sd.c',
                  'platform/embedded/tamago/sdcontrol/session.go',
