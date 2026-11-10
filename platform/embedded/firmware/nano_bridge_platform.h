@@ -5,11 +5,13 @@
 #include "nano_boot.h"
 #include "nano_sd.h"
 #include "nano_usb_service.h"
+#include "nano_mac.h"
 #include "nano_identity.h"
 #include "nano_configuration.h"
 extern struct fes_nano_bridges fes_nano_owned_bridges;
 extern struct fes_nano_sd fes_nano_owned_sd;
 extern struct fes_nano_usb_service fes_nano_owned_usb;
+extern struct fes_nano_mac fes_nano_owned_mac;
 void fes_nano_bridge_platform_setup(void);
 void fes_nano_bridge_platform_lock(void);
 void fes_nano_bridge_platform_unlock(void);
@@ -23,6 +25,10 @@ int fes_nano_platform_boot_record(struct fes_nano_boot_record *, struct fes_nano
 int fes_nano_platform_sd_setup(void);
 /* Separate secure binding. Zero leaves USB unavailable. */
 int fes_nano_platform_usb_setup(void);
+/* Zero leaves MAC unavailable. One must install a contained generation-zero
+ * engine for the accepted boot owner/epoch. Negative or inconsistent setup
+ * retires the complete boot authority without releasing its reservations. */
+int fes_nano_platform_mac_setup(void);
 /* Opt-in ROM computer profile only, under the existing platform lock. Called
  * after control-only opening and before its successful reply reaches NS. */
 int fes_nano_platform_computer_rom(struct fes_nano_configuration *,uint64_t owner,uint64_t generation);

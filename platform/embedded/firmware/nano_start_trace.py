@@ -5,7 +5,7 @@ from pathlib import Path
 
 SOURCE = Path('plat/intel/soc/common/socfpga_sip_svc.c')
 MODE = 'contained-configuration-start-results-v4'
-INPUT_SHA256 = '08dffaecc57b285b65bf97febcb4d394768ed5e890d5fd62fa892c2744ab5b87'
+INPUT_SHA256 = 'b3fc2b18759975c833416102e6c04768f8f53a1fedf3f7688f035279560038ca'
 MAILBOX = Path('plat/intel/soc/common/soc/socfpga_mailbox.c')
 MAILBOX_INPUT_SHA256 = 'f6286fd8db7d2a2673824998d5811d784df2dcd9b64455921a35b0a75adbf4ec'
 ISOLATION_LINE = '\tNOTICE("FES_NANO_ISOLATION status=%d\\n", ret);\n'

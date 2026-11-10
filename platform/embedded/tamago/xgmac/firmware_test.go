@@ -33,7 +33,7 @@ func newFirmwareMAC(t *testing.T, h *hardware) *firmwareMAC {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	binary := filepath.Join(t.TempDir(), "mac")
 	compile := exec.CommandContext(ctx, "cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I"+fw,
-		filepath.Join(fw, "nano_mac.c"), filepath.Join(fw, "tests/nano_mac_rpc.c"), "-o", binary)
+		filepath.Join(fw, "nano_cold.c"), filepath.Join(fw, "nano_boot.c"), filepath.Join(fw, "nano_bridges.c"), filepath.Join(fw, "nano_bridge_sip.c"), filepath.Join(fw, "nano_sd.c"), filepath.Join(fw, "nano_sd_platform.c"), filepath.Join(fw, "nano_usb_platform.c"), filepath.Join(fw, "nano_usb_service.c"), filepath.Join(fw, "nano_usb_composition.c"), filepath.Join(fw, "nano_identity.c"), filepath.Join(fw, "nano_configuration.c"), filepath.Join(fw, "nano_mac.c"), filepath.Join(fw, "tests/nano_mac_rpc.c"), "-o", binary)
 	if output, err := compile.CombinedOutput(); err != nil {
 		cancel()
 		t.Fatalf("MAC C engine: %v\n%s", err, output)

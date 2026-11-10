@@ -144,6 +144,7 @@ int fes_nano_cold_cpu_release_locked(void) { return release_locked; }
 struct fes_nano_bridges fes_nano_owned_bridges;
 struct fes_nano_sd fes_nano_owned_sd;
 struct fes_nano_usb_service fes_nano_owned_usb;
+struct fes_nano_mac fes_nano_owned_mac;
 static unsigned owned_lock;
 void fes_nano_bridge_platform_lock(void) {assert(!owned_lock);owned_lock=1;}
 void fes_nano_bridge_platform_unlock(void) {assert(owned_lock);owned_lock=0;}

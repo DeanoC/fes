@@ -2,8 +2,9 @@
 
 `fes.fabric.embedded.mac` 1.0 defines exploratory C/Go constants for one
 boot-selected MAC and permanently pinned DMA window. The portable engine and
-native client implement the protocol; the physical Nano dispatcher and trusted
-boot supplier remain unbound. No production profile or board capability is added.
+native client implement the protocol. The owned Nano firmware export routes
+the channel; its default MAC setup has no trusted physical supplier and returns
+NotReady. No production profile or board capability is added.
 
 Requests use X0 `0xc2000305`, X1 operation, X2 boot owner, X3 cookie
 `0x4645534d`, X4 MAC generation, X5/X6 zero. Operations are Query (0), Acquire
@@ -52,3 +53,17 @@ restart consumes grant and confirmation separately, then exposes complete
 controls to the common packet gate. Unknown/malformed/lost replies retain the
 last ownership receipt and retire without retry. No current boot profile selects
 this channel.
+
+The owned entry guard rejects a bad cookie or nonzero X5/X6 with an empty tagged
+reply before entering the service. Under the shared platform lock, the selected
+CPU/MMU guard precedes MAC calls. Setup may publish a provider only for the
+already accepted boot owner/epoch, contained generation zero and no reservation.
+Missing/foreign/partial setup retires boot without clearing uncertain resources.
+
+Confirmed MAC ownership permits fresh read-only bridge snapshot/context/pinmux
+and USB/SD queries through their existing validators. An unconfirmed lease
+blocks them. SD/USB mutations and FPGA configuration/bridge transitions require
+MAC containment; the dispatcher does not enter those providers while active.
+A failed MAC boundary retires shared bridge authority and blocks later hardware
+callbacks. This routing is not a physical MAC coexistence or interconnect-fence
+qualification; a trusted composed boot/master supplier is still required.

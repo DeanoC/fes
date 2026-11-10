@@ -9,6 +9,7 @@ static struct test model;
 #define fes_nano_owned_bridges model.bridges
 #define fes_nano_owned_sd model.service
 struct fes_nano_usb_service fes_nano_owned_usb;
+struct fes_nano_mac fes_nano_owned_mac;
 void fes_nano_bridge_platform_lock(void) {}
 void fes_nano_bridge_platform_unlock(void) {}
 void fes_nano_platform_sd_report(void) {}

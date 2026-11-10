@@ -125,7 +125,7 @@ class NanoMixedColdTests(unittest.TestCase):
                 profile += '#define FES_NANO_FIRMWARE_MMU 1\n'
             (base / 'fes_nano_cold_profile.h').write_text(profile)
             sources = ('nano_cold_platform.c', 'nano_cold.c', 'nano_boot.c', 'nano_bridges.c',
-                'nano_bridge_sip.c', 'nano_sd.c', 'nano_usb_service.c', 'nano_sd_platform.c',
+                'nano_bridge_sip.c', 'nano_sd.c', 'nano_mac.c', 'nano_usb_service.c', 'nano_sd_platform.c',
                 'nano_identity.c', 'nano_configuration.c', 'nano_program.c', 'nano_rom.c', 'nano_smmu.c',
                 'nano_ddr_firewall.c', 'nano_fabric_stop.c', 'nano_probe_stop.c', 'tests/nano_cold_platform_test.c')
             if shared_usb:

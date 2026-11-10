@@ -9,6 +9,7 @@
 struct fes_nano_bridges fes_nano_owned_bridges;
 struct fes_nano_sd fes_nano_owned_sd;
 struct fes_nano_usb_service fes_nano_owned_usb;
+struct fes_nano_mac fes_nano_owned_mac;
 void fes_nano_bridge_platform_lock(void) {}
 void fes_nano_bridge_platform_unlock(void) {}
 #define INTEL_SIP_SMC_STATUS_OK 0

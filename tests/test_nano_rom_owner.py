@@ -36,7 +36,7 @@ class NanoROMOwnerTests(unittest.TestCase):
                     '-fno-sanitize-recover=all', '-I' + str(board.FW), '-I' + str(board.FW / 'tests'), '-I' + tmp]
             argv += [str(board.FW / name) for name in (
                 'nano_cold.c', 'nano_hps_io.c', 'nano_bridges.c', 'nano_boot.c', 'nano_sd.c', 'nano_sd_platform.c',
-                'nano_usb_platform.c', 'nano_usb_board.c', 'nano_usb_service.c', 'nano_usb_composition.c',
+                'nano_usb_platform.c', 'nano_usb_board.c', 'nano_mac.c', 'nano_usb_service.c', 'nano_usb_composition.c',
                 'tests/nano_rom_owner_test.c')]
             subprocess.run([*argv, '-o', str(binary)], check=True, timeout=30)
             for fault in range(47):
@@ -73,7 +73,7 @@ class NanoROMOwnerTests(unittest.TestCase):
                     '-fno-sanitize-recover=all', '-I' + str(board.FW), '-I' + str(board.FW / 'tests'), '-I' + tmp]
             argv += [str(board.FW / name) for name in (
                 'nano_rom.c', 'nano_cold.c', 'nano_hps_io.c', 'nano_bridges.c', 'nano_boot.c', 'nano_sd.c', 'nano_sd_platform.c',
-                'nano_usb_platform.c', 'nano_usb_board.c', 'nano_usb_service.c', 'nano_usb_composition.c',
+                'nano_usb_platform.c', 'nano_usb_board.c', 'nano_mac.c', 'nano_usb_service.c', 'nano_usb_composition.c',
                 'tests/nano_rom_steps_test.c')]
             subprocess.run([*argv, '-o', str(binary)], check=True, timeout=30)
             for size in (4096, 8192):

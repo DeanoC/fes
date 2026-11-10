@@ -27,7 +27,7 @@ class NanoProgramControlTests(unittest.TestCase):
                        '-fno-sanitize-recover=all', '-I' + str(base), '-I' + str(FW),
                        *(str(FW / name) for name in ('nano_bridges.c', 'nano_bridge_sip.c',
                          'nano_configuration.c', 'nano_program.c', 'nano_identity.c', 'nano_sd.c',
-                         'nano_usb_service.c', 'tests/nano_program_control_test.c')),
+                         'nano_mac.c', 'nano_usb_service.c', 'tests/nano_program_control_test.c')),
                        '-o', str(base / 'dispatcher')]
             result = subprocess.run(command, capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stderr)

@@ -9,6 +9,7 @@ struct fes_nano_bridges fes_nano_owned_bridges;
  * under this same lock after accepting the matched boot record. */
 struct fes_nano_sd fes_nano_owned_sd;
 struct fes_nano_usb_service fes_nano_owned_usb;
+struct fes_nano_mac fes_nano_owned_mac;
 static struct fes_nano_boot fes_nano_owned_boot;
 static spinlock_t fes_nano_owned_lock;
 void fes_nano_bridge_platform_lock(void) { spin_lock(&fes_nano_owned_lock); }
@@ -107,6 +108,7 @@ int fes_nano_bridge_platform_bind_usb_pio(uint64_t owner,uint64_t epoch,
 }
 __attribute__((weak)) int fes_nano_platform_sd_setup(void) { return 0; }
 __attribute__((weak)) int fes_nano_platform_usb_setup(void) { return 0; }
+__attribute__((weak)) int fes_nano_platform_mac_setup(void) { return 0; }
 __attribute__((weak)) void fes_nano_platform_sd_report(void) {}
 __attribute__((weak)) void fes_nano_platform_hps_io_sip(uint64_t operation,uint64_t owner,
                                       uint64_t generation,unsigned busy,uint64_t result[4])
@@ -133,7 +135,21 @@ void fes_nano_bridge_platform_setup(void)
         int configuration=fes_nano_platform_configuration_setup();
         sd = fes_nano_platform_sd_setup();
         int usb = fes_nano_platform_usb_setup();
-        if (sd < 0 || usb < 0 || identity < 0 || configuration < 0) {
+        int mac = fes_nano_platform_mac_setup();
+        unsigned mac_valid=mac==0 ? !fes_nano_owned_mac.attempted &&
+            !fes_nano_owned_mac.initialized && !fes_nano_owned_mac.failed &&
+            !fes_nano_owned_mac.generation && !fes_nano_owned_mac.active &&
+            !fes_nano_owned_mac.confirmed && !fes_nano_owned_mac.reservation :
+            mac==1 && fes_nano_owned_mac.attempted && fes_nano_owned_mac.initialized && !fes_nano_owned_mac.failed &&
+            fes_nano_owned_mac.binding.owner==fes_nano_owned_boot.owner &&
+            fes_nano_owned_mac.binding.epoch==fes_nano_owned_boot.epoch &&
+            fes_nano_owned_mac.binding.owner==fes_nano_owned_bridges.state.owner &&
+            fes_nano_owned_mac.binding.epoch==fes_nano_owned_bridges.epoch &&
+            !fes_nano_owned_mac.generation && !fes_nano_owned_mac.active &&
+            !fes_nano_owned_mac.confirmed && !fes_nano_owned_mac.reservation &&
+            !fes_nano_mac_gate(&fes_nano_owned_mac);
+        if (sd < 0 || usb < 0 || identity < 0 || configuration < 0 || !mac_valid) {
+            fes_nano_owned_mac.failed=1;
             fes_nano_owned_sd.attempted = fes_nano_owned_sd.failed = 1;
             fes_nano_owned_bridges.failed = 1;
             fes_nano_boot_invalidate(&fes_nano_owned_boot);

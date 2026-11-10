@@ -31,7 +31,7 @@ class NanoCoherentSnapshotTests(unittest.TestCase):
             command += [str(board.FW / name) for name in (
                 'nano_cold.c', 'nano_hps_io.c', 'nano_bridges.c', 'nano_boot.c',
                 'nano_sd.c', 'nano_sd_platform.c', 'nano_usb_platform.c',
-                'nano_usb_board.c', 'nano_usb_service.c', 'nano_usb_composition.c',
+                'nano_usb_board.c', 'nano_mac.c', 'nano_usb_service.c', 'nano_usb_composition.c',
                 'tests/nano_coherent_snapshot_test.c')]
             subprocess.run([*command, '-o', str(binary)], check=True, timeout=30)
             for fault in range(69):
@@ -67,7 +67,7 @@ class NanoCoherentSnapshotTests(unittest.TestCase):
             command += [str(board.FW / name) for name in (
                 'nano_cold.c', 'nano_hps_io.c', 'nano_bridges.c', 'nano_boot.c',
                 'nano_sd.c', 'nano_sd_platform.c', 'nano_usb_platform.c',
-                'nano_usb_board.c', 'nano_usb_service.c', 'nano_usb_composition.c',
+                'nano_usb_board.c', 'nano_mac.c', 'nano_usb_service.c', 'nano_usb_composition.c',
                 'tests/nano_owner_snapshot_test.c')]
             subprocess.run([*command, '-o', str(binary)], check=True, timeout=30)
             for fault in range(21):
@@ -87,7 +87,7 @@ class NanoCoherentSnapshotTests(unittest.TestCase):
             command += [str(board.FW / name) for name in (
                 'nano_cold.c', 'nano_boot.c', 'nano_bridges.c', 'nano_bridge_sip.c',
                 'nano_sd.c', 'nano_sd_platform.c', 'nano_usb_platform.c',
-                'nano_usb_service.c', 'nano_usb_composition.c', 'nano_identity.c',
+                'nano_mac.c', 'nano_usb_service.c', 'nano_usb_composition.c', 'nano_identity.c',
                 'nano_configuration.c', 'tests/nano_owner_dispatch_test.c')]
             subprocess.run([*command, '-o', str(binary)], check=True, timeout=30)
             for mode in range(21):

@@ -12,7 +12,8 @@ static int retire(struct fes_nano_mac *s,int error)
 static int healthy(struct fes_nano_mac *s)
 {
     if (!s || !s->initialized || s->failed) return -1;
-    if (s->active>1 || s->confirmed>1 || s->reservation!=s->active ||
+    if (!s->attempted || !s->ops.scope || !s->ops.acquire || !s->ops.confirm || !s->ops.stop ||
+        s->active>1 || s->confirmed>1 || s->reservation!=s->active ||
         (s->confirmed && !s->active)) return retire(s,-1);
     return 0;
 }
@@ -43,6 +44,13 @@ int fes_nano_mac_gate(struct fes_nano_mac *s)
     if (healthy(s)) return -1;
     if (s->active || s->reservation) return 1;
     return scope(s,0,0);
+}
+int fes_nano_mac_observe(struct fes_nano_mac *s)
+{
+    if (!s || !s->attempted) return 0;
+    if (healthy(s)) return -1;
+    if (s->active && !s->confirmed) return 1;
+    return scope(s,s->active,s->confirmed);
 }
 static void reply(struct fes_nano_mac *s,uint64_t r[4])
 {

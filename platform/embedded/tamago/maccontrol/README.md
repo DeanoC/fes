@@ -28,8 +28,8 @@ A complete reply received during cancellation records known ownership before
 returning cancellation. Reconstructing a client cannot adopt an active or used
 lease. The driver/controller still closes traffic after a cancelled boundary.
 
-The portable tests execute the real C firmware engine through a host pipe,
+The portable tests execute the real owned C firmware dispatcher and engine through a host pipe,
 with explicitly modeled authority/grant/drain callbacks and corrupt/lost reply
-cases. This prototype is not routed into the physical Nano SiP dispatcher and
-has no strong boot supplier. Native Ethernet stays disabled. See the
+cases. The owned firmware export routes the channel, but its default setup has
+no qualified MAC boot supplier and returns NotReady. Native Ethernet stays disabled. See the
 [shared contract](../../../../sources/mister-packages/docs/embedded-mac.md).

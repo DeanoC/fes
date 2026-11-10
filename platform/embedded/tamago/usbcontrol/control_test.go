@@ -48,7 +48,7 @@ handoff.parent.mkdir(parents=True);data=(root/'tests/fixtures/nano-usb-board/hps
 	cancel()
 	if err == nil {
 		args := []string{"-std=c11", "-Wall", "-Wextra", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I" + fw, "-I" + temp}
-		for _, file := range []string{"nano_cold.c", "nano_bridges.c", "nano_bridge_sip.c", "nano_sd.c", "nano_hps_io.c", "nano_usb_platform.c", "nano_usb_board.c", "nano_usb_service.c", "nano_identity.c", "nano_configuration.c", "tests/nano_usb_rpc.c"} {
+		for _, file := range []string{"nano_cold.c", "nano_bridges.c", "nano_bridge_sip.c", "nano_sd.c", "nano_hps_io.c", "nano_usb_platform.c", "nano_usb_board.c", "nano_mac.c", "nano_usb_service.c", "nano_identity.c", "nano_configuration.c", "tests/nano_usb_rpc.c"} {
 			args = append(args, filepath.Join(fw, file))
 		}
 		rpcBinary = filepath.Join(temp, "rpc")
@@ -64,7 +64,7 @@ handoff.parent.mkdir(parents=True);data=(root/'tests/fixtures/nano-usb-board/hps
 	}
 	sharedRPCBinary = filepath.Join(temp, "shared-rpc")
 	args := []string{"-std=c11", "-Wall", "-Wextra", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I" + fw}
-	for _, file := range []string{"nano_cold.c", "nano_boot.c", "nano_bridges.c", "nano_bridge_sip.c", "nano_sd.c", "nano_sd_platform.c", "nano_usb_platform.c", "nano_usb_service.c", "nano_usb_composition.c", "nano_identity.c", "nano_configuration.c", "tests/nano_usb_shared_rpc.c"} {
+	for _, file := range []string{"nano_cold.c", "nano_boot.c", "nano_bridges.c", "nano_bridge_sip.c", "nano_sd.c", "nano_sd_platform.c", "nano_usb_platform.c", "nano_mac.c", "nano_usb_service.c", "nano_usb_composition.c", "nano_identity.c", "nano_configuration.c", "tests/nano_usb_shared_rpc.c"} {
 		args = append(args, filepath.Join(fw, file))
 	}
 	args = append(args, "-o", sharedRPCBinary)

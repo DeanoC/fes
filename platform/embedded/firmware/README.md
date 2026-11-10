@@ -10,8 +10,10 @@ Software tests and cross-builds remain distinct from hardware acceptance.
 peripheral generation. Trusted scope, grant, confirmation and independent drain
 callbacks are mandatory. Failed mutations retain the reservation and retire;
 bridge/SD/USB generations are untouched. The native `maccontrol` client has
-joined C-engine wire tests. No physical Nano dispatcher or boot supplier is bound,
-and the board Ethernet profile remains disabled. See the [MAC lease contract](../../../sources/mister-packages/docs/embedded-mac.md).
+joined tests through the actual owned SiP dispatcher. The producer installs the
+MAC engine and entry guard, and secure startup admits only the accepted boot
+owner/epoch at contained generation zero. The default setup remains unbound; no
+physical MAC boot supplier is installed and board Ethernet stays disabled. See the [MAC lease contract](../../../sources/mister-packages/docs/embedded-mac.md).
 
 `nano_firmware_mmu.py` is a hardware-independent static EL3 table prototype.
 Its `emit` command prepares a private copy of the preprocessed, separate-NOBITS

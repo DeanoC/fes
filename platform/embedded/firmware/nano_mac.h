@@ -50,4 +50,7 @@ void fes_nano_mac_sip(struct fes_nano_mac *,uint64_t operation,uint64_t owner,
 /* Other owned transitions must require containment. Zero permits, one is busy,
  * negative retires. Unbound returns zero and grants no MAC authority. */
 int fes_nano_mac_gate(struct fes_nano_mac *);
+/* Read-only coexistence observation: a confirmed active lease may remain
+ * running only with fresh trusted scope. Prepared/unconfirmed remains busy. */
+int fes_nano_mac_observe(struct fes_nano_mac *);
 #endif

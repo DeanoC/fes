@@ -31,7 +31,7 @@ func TestMain(m *testing.M) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	rpcBinary = filepath.Join(temp, "rpc")
-	cmd := exec.CommandContext(ctx, "cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I"+fw, filepath.Join(fw, "nano_mac.c"), filepath.Join(fw, "tests/nano_mac_rpc.c"), "-o", rpcBinary)
+	cmd := exec.CommandContext(ctx, "cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I"+fw, filepath.Join(fw, "nano_cold.c"), filepath.Join(fw, "nano_boot.c"), filepath.Join(fw, "nano_bridges.c"), filepath.Join(fw, "nano_bridge_sip.c"), filepath.Join(fw, "nano_sd.c"), filepath.Join(fw, "nano_sd_platform.c"), filepath.Join(fw, "nano_usb_platform.c"), filepath.Join(fw, "nano_usb_service.c"), filepath.Join(fw, "nano_usb_composition.c"), filepath.Join(fw, "nano_identity.c"), filepath.Join(fw, "nano_configuration.c"), filepath.Join(fw, "nano_mac.c"), filepath.Join(fw, "tests/nano_mac_rpc.c"), "-o", rpcBinary)
 	output, err := cmd.CombinedOutput()
 	cancel()
 	if err != nil {

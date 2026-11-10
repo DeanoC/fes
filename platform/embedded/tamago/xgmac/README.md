@@ -58,7 +58,7 @@ cancelled confirmation retires without extra register access. The returned
 driver controls consume that hook; the common controller rejects an unconsumed
 platform confirmation. The HTTP model joins the real C MAC lease engine, native
 client and XGMAC driver across three cycles, with modeled authority/drain. It
-does not bind the channel into the physical Nano dispatcher.
+uses the actual owned dispatcher, whose default MAC setup remains unbound.
 
 The ordered stages follow the vendor's [stopping and starting transmission
 procedure](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/stopping-and-starting-transmission?contentId=aoHUqRdCxX615dKqdJAazA).

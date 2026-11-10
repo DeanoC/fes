@@ -52,7 +52,7 @@ class NanoUSBBoardTests(unittest.TestCase):
             command=['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined',
                      '-fno-sanitize-recover=all','-I'+str(FW),'-I'+temp]
             command += [str(FW/n) for n in ('nano_cold.c','nano_hps_io.c','nano_bridges.c',
-                         'nano_usb_platform.c','nano_usb_board.c','nano_usb_service.c','tests/nano_usb_boot_test.c')]
+                         'nano_usb_platform.c','nano_usb_board.c','nano_mac.c', 'nano_usb_service.c','tests/nano_usb_boot_test.c')]
             subprocess.run([*command,'-o',str(binary)],check=True,timeout=30)
             for mode in range(6):
                 with self.subTest(mode=mode):
@@ -67,7 +67,7 @@ class NanoUSBBoardTests(unittest.TestCase):
             command=['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined',
                      '-fno-sanitize-recover=all','-I'+str(FW),'-I'+temp]
             command += [str(FW/n) for n in ('nano_cold.c','nano_hps_io.c','nano_bridges.c','nano_boot.c',
-                'nano_sd.c','nano_sd_platform.c','nano_usb_platform.c','nano_usb_board.c','nano_usb_service.c',
+                'nano_sd.c','nano_sd_platform.c','nano_usb_platform.c','nano_usb_board.c','nano_mac.c', 'nano_usb_service.c',
                 'nano_usb_composition.c','tests/nano_usb_shared_boot_test.c')]
             subprocess.run([*command,'-o',str(binary)],check=True,timeout=30)
             for mode in range(6):
