@@ -6,7 +6,8 @@
                                     forms in READERS and FORMS (default: all) is a result
 
 A cell counts as a result only when the reader's own verdict is in its output: Quartus's
-"... was successful" line and its summary file, or an "Error (NNNNN)" message; Yosys's
+"... was successful" line and its summary file, or "Error (NNNNN)" messages that all cite the form's
+own source line (any other Quartus error, such as a licence fault, is "not run"); Yosys's
 "End of script." line, or an "ERROR:" message; Verilator's report banner, or a "%Error" message.
 Anything else (no output, a timeout, a crash, a tool that never ran) is "not run", never a
 rejection. The rows are the forms in forms/, not whatever directories the output holds.
@@ -59,6 +60,11 @@ def quartus(d, form, rc, log):
         errors = [e for e in ids(log, "Error")]
         if not errors or "was unsuccessful" not in log:
             return not_run(f"rc {rc}, no Quartus error message")
+        # A language rejection names the form's own source line in every error. Any other error
+        # (a licence, set-up or tool fault, possibly in this cell alone) makes the cell not run.
+        other = [l for l in re.findall(r"^Error \(\d+\).*$", log, re.M) if f" at {form}.sv(" not in l]
+        if other:
+            return not_run(f"rc {rc}, error not at {form}.sv: {other[0][:100]}")
         return True, f"**rejected** (rc {rc}; errors {', '.join(errors)})"
     summary = "".join(read(p) for p in sorted(d.glob("census.*.summary")))
     if "was successful" not in log or not summary:

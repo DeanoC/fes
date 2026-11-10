@@ -230,7 +230,7 @@ For the Yosys locks:
   - `run_all.sh` refuses tools other than the ones this record used: the three Yosys binaries by sha256, Verilator 5.032, Lite 17.0.2 and Pro 26.3.0. It writes their identities to `<out>/tools.txt`.
   - A subset (`READERS`, `FORMS`) needs its own `TAG`; only the full matrix writes `ALL_DONE.all`, and every old marker is removed first.
 - `summarize.py`: writes `results.md` from `census.sh` output, one row per form in `forms/`.
-  - A cell is a result only when the reader's own verdict is in its output: Quartus's "was successful" line and summary file, or an `Error (NNNNN)` message; Yosys's "End of script." or an `ERROR:` message; Verilator's report banner or a `%Error` message.
+  - A cell is a result only when the reader's own verdict is in its output: Quartus's "was successful" line and summary file, or `Error (NNNNN)` messages that all cite the form's own source line (any other Quartus error, such as a licence fault in one worker, makes the cell not run); Yosys's "End of script." or an `ERROR:` message; Verilator's report banner or a `%Error` message.
   - Anything else (a timeout, a crash, a tool that did not run, a missing report, `f04`'s bench or `f10`'s preprocess not finishing) shows as **not run**, never as a rejection.
   - `summarize.py --check <out>` exits 1 unless every selected cell is a result and every reader accepts the control form `f08_no_carry`; `run_all.sh` writes its marker only after that check passes.
 - `sweep.sh` (Lite only; Pro has no `--analyze_file`) and `elab.sh`: the per-file sweep and the whole-block elaboration. Both resolve their inputs to absolute paths, and exit 1 (writing `notrun`) for any run without a Quartus verdict.
