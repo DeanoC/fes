@@ -91,6 +91,13 @@ so do run `wreduce`. Compared with the RTL run, the netlist runs differ in two w
 builds, because the hierarchy it reads is flattened away. The difference is the
 same under both pins.
 
+**After merging main.** Main gained V86 mode (#1645, `9f272537d`) after these runs.
+On the merged tree `d6efacc37`, the same netlist script with the `238eac9a` slot
+and the new `0a7927bf` slot writes netlists of 3,013,019 bytes that are identical
+after line 1 (`3d7c4ddbfbafb54cbdf59b9b6c7e92a901a4dea94b458ad86de05504592bc86b`).
+The new RTL still has no `nomerge` attribute. Identical netlists give identical
+netlist lockstep results, so the full suite was not rerun.
+
 ## What else this change touches
 
 - **BUILD_ID.** No package producer reads the i386 lock, so no core's BUILD_ID
