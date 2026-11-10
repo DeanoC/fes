@@ -517,9 +517,11 @@ module fes_i386_cpu #(
     end
     // A delivery refetches from the faulting instruction, or the one before
     // (start_linear is a cycle old), which the delivery's far jump discards.
-    // D's EIP is the faulting instruction's, limit+1 on a fetch fault, so it
-    // passes at the entry's length 0. Real-mode delivery redirects also cut
-    // out-of-range EIPs to the low 16-bit IP. An interrupt's EIP is the next
+    // D's EIP is the faulting instruction's, a fetch fault's too (its first
+    // byte, which may be under the limit when the instruction runs past it),
+    // and the delivery's entry fetches nothing, so it is not checked against
+    // CS's limit. Every real-mode delivery's redirect restarts at the low 16
+    // bits of EIP, the IP its frame pushes. An interrupt's EIP is the next
     // instruction's. The address selects key on WB's fault field and int_take,
     // registers (a taken branch has neither), so
     // the fetch address stays off exc_take's path.
