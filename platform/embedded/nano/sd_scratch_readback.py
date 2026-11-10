@@ -86,7 +86,10 @@ class ScratchReadback:
 
         def raw_read(address,lba,count):
             raw=command(f'mmc read {address:x} {lba:x} {count:x}',45)
-            if not re.search(r'(?m)^\s*'+str(count)+r' blocks read: OK\r?$',raw):raise ValueError('raw SD read incomplete')
+            rows=re.findall(r'(?m)^MMC read: dev # (\d+), block # (\d+), count (\d+) \.\.\. (\d+) blocks read: OK\r?$',raw)
+            if (len(re.findall(r'(?m)^MMC read:',raw))!=1 or len(rows)!=1 or
+                    tuple(map(int,rows[0]))!=(0,lba,count,count)):
+                raise ValueError('raw SD read incomplete or wrong device/extent')
 
         def files():
             for name,address,data,expected in (

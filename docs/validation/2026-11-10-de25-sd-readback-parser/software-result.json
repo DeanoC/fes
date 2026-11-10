@@ -1,0 +1,23 @@
+{
+  "status": "passed-host-parser-repair",
+  "base_commit": "4e9c602b3209a6915905052627688664f6c8d2c1",
+  "all_six_selected_checks_passed": true,
+  "parent_summaries": [
+    "Ran 1 test in 0.000s",
+    "OK",
+    "Ran 1870 tests in 641.813s",
+    "OK (skipped=3)"
+  ],
+  "parent_selected": 1871,
+  "focused_readback_tests": 8,
+  "software_checks_sha256": "37ced4505731e866505c48b493114f164b2979a6069609ebe6e9265a4bef89b5",
+  "source_sha256": {
+    "platform/embedded/nano/sd_scratch_readback.py": "7fe9a010d4ac990ab3bef41ff96bdd5b364529559d7fcc2f75d7764d9e43c1db",
+    "tests/test_nano_sd_scratch_readback.py": "fdb68e2ab24ece5de5e505d63300939ec5bb19ba4a89b0fa4d2d4f8a05d9a672",
+    "tests/fixtures/nano/recovery-mmc-read-prefix.txt": "b12da72daa8a121dc1f9440de8d25ded51aa21cd51dab87c040f758d34e9d774"
+  },
+  "native_bytes_changed": false,
+  "hardware_attempted_after_parser_fix": false,
+  "original_failed_attempt_retained": true,
+  "ordinary_admission": false
+}

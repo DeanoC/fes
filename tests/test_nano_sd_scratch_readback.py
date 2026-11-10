@@ -78,7 +78,7 @@ class ReadModel(Model):
                 if fault=='read-timeout':raise TimeoutError('raw read interrupted')
                 self.memory[address]=b'corrupt' if fault=='tail' else PATTERN
                 if fault=='short-tail':return '7 blocks read: OK'
-            return f'{count} blocks read: OK\r\n'
+            return f'MMC read: dev # 0, block # {lba}, count {count} ... {count} blocks read: OK\r\n'
         if c.startswith('hash sha256'):
             self.commands.append(c)
             address,size=(int(n,16) for n in c.split()[2:])
@@ -199,6 +199,32 @@ class ScratchRecoveryReadbackTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'fresh read-only'):session.run(prior)
             self.assertEqual(model.commands,[])
             self.assertTrue(session.retired)
+
+    def test_captured_vendor_summary_line_binds_device_lba_request_and_completed_count(self):
+        captured=(ROOT/'tests/fixtures/nano/recovery-mmc-read-prefix.txt').read_text()
+        for change in (None,'wrong-device','wrong-lba','wrong-request','short-completion','duplicate-summary','bare-count'):
+            with self.subTest(change=change):
+                model,session,receipt=self.session();original=model.command
+                def command(value,timeout):
+                    result=original(value,timeout)
+                    if value=='mmc read 83000000 0 8000':
+                        actual=captured
+                        if change=='wrong-device':actual=actual.replace('dev # 0','dev # 1')
+                        if change=='wrong-lba':actual=actual.replace('block # 0','block # 1')
+                        if change=='wrong-request':actual=actual.replace('count 32768','count 32767')
+                        if change=='short-completion':actual=actual.replace('32768 blocks read','32767 blocks read')
+                        if change=='duplicate-summary':actual=actual+actual
+                        if change=='bare-count':actual='32768 blocks read: OK\r\n'
+                        return actual
+                    return result
+                model.command=command
+                if change is None:
+                    session.run(receipt)
+                    self.assertEqual(receipt['status'],'verified')
+                else:
+                    with self.assertRaisesRegex(ValueError,'raw SD read'):session.run(receipt)
+                    self.assertFalse(model.tail_read)
+                    self.assertFalse(receipt['independent_tail_readback'])
 
 
 if __name__=='__main__':unittest.main()
