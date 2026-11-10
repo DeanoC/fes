@@ -4,7 +4,7 @@ import re, sys
 from pathlib import Path
 
 out = Path(sys.argv[1])
-READERS = ["lite2005", "pro2005", "pro2009", "yosys-pc386", "yosys-i386", "verilator"]
+READERS = ["lite2005", "pro2005", "pro2009", "yosys-pc386", "yosys-i386", "yosys-shared", "verilator"]
 forms = sorted({p.name for r in READERS for p in (out / r).glob("f*")})
 
 def ids(log, kind):

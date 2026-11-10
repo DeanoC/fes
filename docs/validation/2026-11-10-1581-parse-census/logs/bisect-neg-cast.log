@@ -5,4 +5,4 @@ Error (10170): Verilog HDL syntax error at neg_a_neg.sv(2) near text: "signed"; 
 # lite2005 neg_a_neg_paren rc=0
 # lite2005 neg_a_assign_neg rc=3
 Error (10170): Verilog HDL syntax error at neg_a_assign_neg.sv(2) near text: "signed";  expecting "(". Check for and fix any syntax errors that 
-# pro2009 neg_a_neg_paren rc=0
+# pro (default VERILOG_INPUT_VERSION) neg_a_neg_paren rc=0

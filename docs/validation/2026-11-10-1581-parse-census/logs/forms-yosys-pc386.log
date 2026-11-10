@@ -19,10 +19,25 @@ SAT proof finished - no model found: SUCCESS!
 # yosys-pc386 f01g_signed_pkg_shift rc=0
 SAT proof finished - no model found: SUCCESS!
 
+# yosys-pc386 f02b_generate_inline_genvar rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-pc386 f02c_generate_hoisted_genvar rc=0
+SAT proof finished - no model found: SUCCESS!
+
 # yosys-pc386 f02_inline_genvar rc=0
 SAT proof finished - no model found: SUCCESS!
 
+# yosys-pc386 f03b_generate_if_no_keywords rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-pc386 f03c_generate_if_keywords rc=0
+SAT proof finished - no model found: SUCCESS!
+
 # yosys-pc386 f03_generate_no_keywords rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-pc386 f04b_pattern_key_shadow rc=0
 SAT proof finished - no model found: SUCCESS!
 
 # yosys-pc386 f04_struct_shadow rc=0
@@ -66,5 +81,5 @@ ERROR: Can't open include file `FES_TOOLCHAIN_ERROR_no_front_end.svh'!
 docs/validation/2026-11-10-1581-parse-census/forms/f12b_check_token.sv:3: ERROR: syntax error, unexpected TOK_ID
 
 # yosys-pc386 f12c_check_elab_error rc=1
-docs/validation/2026-11-10-1581-parse-census/forms/f12c_check_elab_error.sv:5: ERROR:FES_TOOLCHAIN_ERROR_no_front_end.
+docs/validation/2026-11-10-1581-parse-census/forms/f12c_check_elab_error.sv:7: ERROR:FES_TOOLCHAIN_ERROR_no_front_end.
 

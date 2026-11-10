@@ -1,0 +1,40 @@
+# tdp inferred (Lite 17.0.2, seed 1, 5.000 ns on clk_a and clk_b, asynchronous groups)
+quartus_map 0
+quartus_fit 0
+quartus_sta 0
+Logic utilization (in ALMs) : 55 / 41,910 ( < 1 % )
+Total registers : 58
+Total block memory bits : 196,608 / 5,662,720 ( 3 % )
+Total RAM Blocks : 24 / 553 ( 4 % )
+; tdp_ram:ram|altsyncram:mem_rtl_0|altsyncram_vjv1:auto_generated|ALTSYNCRAM ; M10K block ; True Dual Port ; 49152 ; 4 ; 49152 ; 4 ; 196608 ; None ;
+; READ_DURING_WRITE_MODE_PORT_A ; NEW_DATA_NO_NBE_READ ; Untyped ;
+; READ_DURING_WRITE_MODE_PORT_B ; NEW_DATA_NO_NBE_READ ; Untyped ;
+Slow 1100mV 100C Fmax:
+; 212.9 MHz ; 212.9 MHz ; clk_a ; ;
+; 222.87 MHz ; 222.87 MHz ; clk_b ; ;
+Slow 1100mV -40C Fmax:
+; 205.89 MHz ; 205.89 MHz ; clk_a ; ;
+; 213.95 MHz ; 213.95 MHz ; clk_b ; ;
+worst slack over all analyses: 0.142
+
+# tdp vendor (Lite 17.0.2, seed 1, 5.000 ns on clk_a and clk_b, asynchronous groups)
+quartus_map 0
+quartus_fit 0
+quartus_sta 0
+Logic utilization (in ALMs) : 55 / 41,910 ( < 1 % )
+Total registers : 56
+Total block memory bits : 196,608 / 5,662,720 ( 3 % )
+Total RAM Blocks : 24 / 553 ( 4 % )
+; tdp_ram:ram|altsyncram:ram|altsyncram_1cq2:auto_generated|ALTSYNCRAM ; M10K block ; True Dual Port ; 49152 ; 4 ; 49152 ; 4 ; 196608 ; None ;
+; READ_DURING_WRITE_MODE_PORT_A ; NEW_DATA_NO_NBE_READ ; Untyped ;
+; READ_DURING_WRITE_MODE_PORT_B ; NEW_DATA_NO_NBE_READ ; Untyped ;
+Slow 1100mV 100C Fmax:
+; 204.62 MHz ; 204.62 MHz ; clk_b ; ;
+; 218.91 MHz ; 218.91 MHz ; clk_a ; ;
+Slow 1100mV -40C Fmax:
+; 197.94 MHz ; 197.94 MHz ; clk_b ; ;
+; 213.95 MHz ; 213.95 MHz ; clk_a ; ;
+worst slack over all analyses: -0.052
+Type  : Slow 1100mV -40C Model Setup 'clk_b'
+Slack : -0.052
+

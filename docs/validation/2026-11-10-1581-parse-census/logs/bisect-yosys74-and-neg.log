@@ -1,0 +1,29 @@
+## sha1 0a7927bf1
+yosys74_body_import.sv: ERROR:Static cast with non constant expression!
+yosys74_named_import.sv: ERROR:Static cast with non constant expression!
+yosys74_repro_noloop.sv: ok
+yosys74_repro.sv: ERROR:Static cast with non constant expression!
+yosys74_scoped_no_import.sv: ok
+yosys74_scoped_with_import.sv: ok
+neg_a_neg.sv: ok
+neg_a_neg_paren.sv: ok
+## sha1 238eac9a4
+yosys74_body_import.sv: ERROR:Static cast with non constant expression!
+yosys74_named_import.sv: ERROR:Static cast with non constant expression!
+yosys74_repro_noloop.sv: ok
+yosys74_repro.sv: ERROR:Static cast with non constant expression!
+yosys74_scoped_no_import.sv: ok
+yosys74_scoped_with_import.sv: ok
+neg_a_neg.sv: ok
+neg_a_neg_paren.sv: ok
+## sha1 3a5accbd7
+yosys74_body_import.sv: ERROR: syntax error, unexpected TOK_IMPORT
+yosys74_named_import.sv: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+yosys74_repro_noloop.sv: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+yosys74_repro.sv: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+yosys74_scoped_no_import.sv: ok
+yosys74_scoped_with_import.sv: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+neg_a_neg.sv: ok
+neg_a_neg_paren.sv: ok
+verilator neg_a_neg.sv rc=0
+verilator neg_a_neg_paren.sv rc=0

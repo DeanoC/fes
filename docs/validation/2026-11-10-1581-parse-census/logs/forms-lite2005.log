@@ -55,19 +55,42 @@ Warning (13024): Output pins are stuck at VCC or GND
     Warning (13410): Pin "y[15]" is stuck at GND
     Warning (13410): Pin "ok" is stuck at VCC
 
+# lite2005 f02b_generate_inline_genvar rc=3
+Error (10170): Verilog HDL syntax error at f02b_generate_inline_genvar.sv(4) near text: "genvar";  expecting an identifier ("genvar" is a reserved keyword ). Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https
+Error (10112): Ignored design unit "f02b_generate_inline_genvar" at f02b_generate_inline_genvar.sv(2) due to previous errors
+Error: Quartus Prime Analysis & Synthesis was unsuccessful. 2 errors, 1 warning
+
+# lite2005 f02c_generate_hoisted_genvar rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
 # lite2005 f02_inline_genvar rc=3
 Error (10170): Verilog HDL syntax error at f02_inline_genvar.sv(3) near text: "for";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/knowl
 Error (10112): Ignored design unit "f02_inline_genvar" at f02_inline_genvar.sv(2) due to previous errors
 Error: Quartus Prime Analysis & Synthesis was unsuccessful. 2 errors, 1 warning
+
+# lite2005 f03b_generate_if_no_keywords rc=3
+Error (10170): Verilog HDL syntax error at f03b_generate_if_no_keywords.sv(3) near text: "if";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resou
+Error (10112): Ignored design unit "f03b_generate_if_no_keywords" at f03b_generate_if_no_keywords.sv(2) due to previous errors
+Error: Quartus Prime Analysis & Synthesis was unsuccessful. 2 errors, 1 warning
+
+# lite2005 f03c_generate_if_keywords rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
 
 # lite2005 f03_generate_no_keywords rc=3
 Error (10170): Verilog HDL syntax error at f03_generate_no_keywords.sv(4) near text: "for";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resource
 Error (10112): Ignored design unit "f03_generate_no_keywords" at f03_generate_no_keywords.sv(2) due to previous errors
 Error: Quartus Prime Analysis & Synthesis was unsuccessful. 2 errors, 1 warning
 
-# lite2005 f04_struct_shadow rc=3
-Error (10734): Verilog HDL error at f04_struct_shadow.sv(7): data is not a constant
+# lite2005 f04b_pattern_key_shadow rc=3
+Error (10734): Verilog HDL error at f04b_pattern_key_shadow.sv(6): data is not a constant
 Error: Quartus Prime Analysis & Synthesis was unsuccessful. 1 error, 1 warning
+
+# lite2005 f04_struct_shadow rc=0
+Warning (10036): Verilog HDL or VHDL warning at f04_struct_shadow.sv(7): object "data" assigned a value but never read
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
 
 # lite2005 f05_import_header rc=0
 Warning (13024): Output pins are stuck at VCC or GND
@@ -133,7 +156,7 @@ Error (10112): Ignored design unit "f12b_check_token" at f12b_check_token.sv(5) 
 Error: Quartus Prime Analysis & Synthesis was unsuccessful. 2 errors, 1 warning
 
 # lite2005 f12c_check_elab_error rc=3
-Error (10170): Verilog HDL syntax error at f12c_check_elab_error.sv(4) near text: "if";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/kn
-Error (10112): Ignored design unit "f12c_check_elab_error" at f12c_check_elab_error.sv(2) due to previous errors
+Error (10170): Verilog HDL syntax error at f12c_check_elab_error.sv(7) near text: "$error";  expecting "end". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/know
+Error (10112): Ignored design unit "f12c_check_elab_error" at f12c_check_elab_error.sv(3) due to previous errors
 Error: Quartus Prime Analysis & Synthesis was unsuccessful. 2 errors, 1 warning
 

@@ -1,4 +1,4 @@
-# lite2005 h_mod_int_12
+# lite2005 h_mod_int_12 rc=0
 Warning (13410): Pin "v[0]" is stuck at VCC
 Warning (13410): Pin "v[1]" is stuck at GND
 Warning (13410): Pin "v[2]" is stuck at GND
@@ -8,7 +8,7 @@ Warning (13410): Pin "v[5]" is stuck at VCC
 Warning (13410): Pin "v[6]" is stuck at VCC
 Warning (13410): Pin "v[7]" is stuck at VCC
 Warning (13410): Pin "ok" is stuck at GND
-# lite2005 h_mod_untyped_12
+# lite2005 h_mod_int_12_dollar rc=0
 Warning (13410): Pin "v[0]" is stuck at GND
 Warning (13410): Pin "v[1]" is stuck at GND
 Warning (13410): Pin "v[2]" is stuck at GND
@@ -18,7 +18,27 @@ Warning (13410): Pin "v[5]" is stuck at GND
 Warning (13410): Pin "v[6]" is stuck at GND
 Warning (13410): Pin "v[7]" is stuck at GND
 Warning (13410): Pin "ok" is stuck at VCC
-# lite2005 h_pkg_int_16
+# lite2005 h_mod_untyped_12 rc=0
+Warning (13410): Pin "v[0]" is stuck at GND
+Warning (13410): Pin "v[1]" is stuck at GND
+Warning (13410): Pin "v[2]" is stuck at GND
+Warning (13410): Pin "v[3]" is stuck at GND
+Warning (13410): Pin "v[4]" is stuck at GND
+Warning (13410): Pin "v[5]" is stuck at GND
+Warning (13410): Pin "v[6]" is stuck at GND
+Warning (13410): Pin "v[7]" is stuck at GND
+Warning (13410): Pin "ok" is stuck at VCC
+# lite2005 h_pkg_int_12_nocast rc=0
+Warning (13410): Pin "v[0]" is stuck at GND
+Warning (13410): Pin "v[1]" is stuck at GND
+Warning (13410): Pin "v[2]" is stuck at GND
+Warning (13410): Pin "v[3]" is stuck at GND
+Warning (13410): Pin "v[4]" is stuck at GND
+Warning (13410): Pin "v[5]" is stuck at GND
+Warning (13410): Pin "v[6]" is stuck at GND
+Warning (13410): Pin "v[7]" is stuck at GND
+Warning (13410): Pin "ok" is stuck at VCC
+# lite2005 h_pkg_int_16 rc=0
 Warning (13410): Pin "v[0]" is stuck at VCC
 Warning (13410): Pin "v[1]" is stuck at GND
 Warning (13410): Pin "v[2]" is stuck at VCC
@@ -28,7 +48,7 @@ Warning (13410): Pin "v[5]" is stuck at VCC
 Warning (13410): Pin "v[6]" is stuck at VCC
 Warning (13410): Pin "v[7]" is stuck at VCC
 Warning (13410): Pin "ok" is stuck at GND
-# lite2005 h_pkg_untyped_12
+# lite2005 h_pkg_int_16_dollar rc=0
 Warning (13410): Pin "v[0]" is stuck at GND
 Warning (13410): Pin "v[1]" is stuck at GND
 Warning (13410): Pin "v[2]" is stuck at GND
@@ -38,7 +58,17 @@ Warning (13410): Pin "v[5]" is stuck at GND
 Warning (13410): Pin "v[6]" is stuck at GND
 Warning (13410): Pin "v[7]" is stuck at GND
 Warning (13410): Pin "ok" is stuck at VCC
-# lite2005 h_pkg_untyped_16
+# lite2005 h_pkg_untyped_12 rc=0
+Warning (13410): Pin "v[0]" is stuck at GND
+Warning (13410): Pin "v[1]" is stuck at GND
+Warning (13410): Pin "v[2]" is stuck at GND
+Warning (13410): Pin "v[3]" is stuck at GND
+Warning (13410): Pin "v[4]" is stuck at GND
+Warning (13410): Pin "v[5]" is stuck at GND
+Warning (13410): Pin "v[6]" is stuck at GND
+Warning (13410): Pin "v[7]" is stuck at GND
+Warning (13410): Pin "ok" is stuck at VCC
+# lite2005 h_pkg_untyped_16 rc=0
 Warning (13410): Pin "v[0]" is stuck at GND
 Warning (13410): Pin "v[1]" is stuck at GND
 Warning (13410): Pin "v[2]" is stuck at GND
