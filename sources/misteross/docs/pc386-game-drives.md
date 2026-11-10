@@ -44,9 +44,7 @@ cylinders: 128 MiB, the most the ATA disk window holds
 (`fes.media.ata-disk`, and the kit agent's limit).
 
 Built 2026-11-10 from the manifest with SHA-256 `c6a61087a324026c…` on the
-games image `e69194ec9a8fd5b2…` (UMBM `/I=C800-DFFF`, below the EMS page frame
-at E000h from #1556). Drives built before #1556 ask UMBM for C800-EFFF, so
-FreeDOS aborts with "no RAM found at E000" and DOS gets no upper memory:
+games image `e69194ec9a8fd5b2…` (UMBM `/I=C800-DFFF`):
 
 | Drive | SHA-256 | Size | Titles | Free | What |
 | --- | --- | --- | --- | --- | --- |
@@ -56,6 +54,11 @@ FreeDOS aborts with "no RAM found at E000" and DOS gets no upper memory:
 | `dpmi` | `9e6ae3a36cdad878ea91c3af04377527ce8c94264df9eeef61e9f784d3326dbd` | 260 cylinders, 128.0 MiB | jumpbump, angband, nethack, tyrian, cyberdogs, tcircle, screamer, tv | 31.1 MiB | Ring-3 DPMI hosts (CWSDPMI, Borland RTM and 32RTM) and FPU users |
 | `fpu` | `ff322ddc211a9ead665e6cf95417e7a0086f310dce1345da7cabe46b37781c5b` | 260 cylinders, 128.0 MiB | gp2, usnf, u7si | 26.8 MiB | FPU-required simulations, and Serpent Isle (an acceptance game) where there is room |
 | `bench` | `e69a4cb6462a79c47f55adef11d41c652481017dd541ae980cf27beed5e4823c` | 80 cylinders, 39.4 MiB | 3dbench, pcpbench, topbench, speedsys, chkcpu, cachechk, si8, chrisb, quakes | 18.9 MiB | Non-game programs: PhilsComputerLab's DOS Benchmark Pack v1.5 tools |
+
+Drives built before #1556 ask UMBM for C800-EFFF, which overlaps the EMS page
+frame at E000h. FreeDOS then aborts with "no RAM found at E000" and DOS gets no
+upper memory, so Ultima VII refuses to start. Rebuild such a drive on the current
+games image. The census record below ran on the 7 Nov builds.
 
 The census record,
 [2026-11-07 pc386 compatibility census](../../../docs/validation/2026-11-07-pc386-compat-census/summary.md),
