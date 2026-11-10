@@ -6,8 +6,9 @@ while audio played. [#1506](../2026-11-05-pc386-si-reload/summary.md) didn't
 reproduce it in three runs. This record repeats it on a fresh seal of main
 with #1483's status ring and VRAM probes, at four governor presets.
 
-**Result: reproduced, once in 21 Serpent Isle launches. It is a pc386
-fault, not a speed artefact or a long load.**
+**Result: reproduced, 3 times in 38 Serpent Isle launches. It is a pc386
+fault, not a speed artefact or a long load. The VGA's registers and DAC are
+right during a black launch, so the fault is downstream of them.**
 
 - In Kit B run `k1`, one launch at 486DX2-66 showed a flat black picture
   for the whole launch: introduction, menu, Journey Onward and 60 s after
@@ -20,15 +21,19 @@ fault, not a speed artefact or a long load.**
     introduction's frame and the main menu, byte for byte at the sampled
     words.
 - So the game drew its pictures, and what went wrong is between VRAM and the
-  picture: the VGA's output state (attribute controller, pel mask, DAC) or the
-  scanout.
-- The other 20 Serpent Isle launches showed their pictures: `k1`'s first
-  launch, which made the save, its other 7 relaunches, and `k2`'s 12. The load itself
-  works: 7 of `k1`'s 8 Journey Onward loads put the party back on the ship
-  within 3–6 s.
-- The cause isn't pinned yet. A scratch seal that adds the VGA output state
-  to the status ring is built and passes timing. Its kit run is pending (see
-  [Next](#next)).
+  picture.
+- Run `k3`, on a scratch seal that puts the VGA's output state in the status
+  ring, had 2 black launches in 17. In the one with ring data, palette
+  address source, video enable, the screen-off bit, the pel mask and the DAC
+  were all as in a lit launch: the state word was identical. So the fault is
+  downstream of those registers: scanout geometry (the CRTC isn't in the
+  word), capture, the 720p presenter or the display plane.
+- Input still works in a black launch. `k3`'s first launch made its save
+  blind, and the later launches list it.
+- The other 35 Serpent Isle launches showed their pictures. The load itself
+  works: all 22 Journey Onward loads in lit launches (`k1` 7, `k3` 15) put
+  the party back on the ship within 3–6 s, as the Bochs-oracle machine does in about 5.5 s.
+- The stage isn't pinned yet (see [Next](#next)).
 
 The issue's title describes it too narrowly. The fault isn't tied to Journey
 Onward or the save: it blacks out a whole launch from the introduction on.
@@ -152,8 +157,8 @@ path fault.
 40 s leaves 2 black frames (41 and 42 s), then the menu shows from 43 s. On
 the kit the menu showed by Esc + 6 s in every lit launch. So a menu that
 stays black for 10–20 s, as in `v1`, isn't the oracle machine's behaviour
-either. The bench's Journey Onward load (click at 64.5 s) was still running
-when this record was written; it runs at about 2 minutes a simulated second.
+either. Journey Onward (click at 64.5 s) shows the blue loading screen at
+67 s and the ship from about 70 s, a 5.5 s load, as on the kit.
 
 ## Period hardware and emulators
 
@@ -177,30 +182,84 @@ every preset.
 
 ## Next
 
-- **The diagnostic seal.** A scratch Quartus 17.0.2 seal of main `65ec1f22a`
-  carries the VGA's output state in the status ring's `capture_drops` word,
-  which is always 0 on the kit. The word holds:
+- **Which stage.** The VGA's registers and DAC are ruled out. The next run
+  needs no new seal: on a black grab, also hash the capture buffers in DDR,
+  which the 720p presenter reads from `CAPTURE_BASE`.
+  - If the capture buffer holds the picture, the fault is in the presenter
+    or the display plane.
+  - If it is black or stale, it is in scanout or capture.
+- **A grab at the DOS prompt** before `SERPENT` in each launch, to see
+  whether a black launch is black from boot or only in the game's mode.
+- **Later diagnostic word.** `fes_display_plane`'s `ui_active`, `locked`,
+  `displayed_sequence` and `faulted` outputs aren't connected in
+  `pc386_machine.sv`, and the CRTC geometry isn't in the ring.
+- No stage is named as the cause yet. A fix will be proposed on #1494
+  before any RTL is written.
+
+## Run `k3`: the VGA state in the ring (11 November, 23:58–00:57 EET)
+
+- **Package.** `49ec69368d038d19c8abe9e7dc9cbcc78944322aa1fbd10faa2c841b05aa1941`,
+  a scratch Quartus 17.0.2 seal of main `65ec1f22a` plus a diagnostic that
+  isn't for merge (setup +0.724 ns, hold +0.044 ns, 36,563 ALMs). It puts
+  the VGA's output state in the status ring's `capture_drops` word:
   - palette address source and the 3C0h flip-flop;
   - 3C3h video enable and SR01's screen-off bit;
-  - the pel mask and the overscan colour;
-  - the attribute index;
+  - the pel mask, the overscan colour and the attribute index;
+  - the sequencer reset bits;
   - a count of DAC entries that aren't black, kept as the DAC is written.
+- **Kit.** Kit B, core-only, on its new baseline (image `179affbb…`,
+  software `7ddb0bfb…`).
+- **Flow.** `k1`'s: at `max`, a new game and a save to slot 1 ("fesk3"),
+  then 16 relaunches alternating 486DX2-66 and `max` (8 each), each with the
+  introduction, Esc, Journey Onward and a grab every 3 s for 60 s.
 
-  Package `49ec6936…`, setup +0.724 ns, hold +0.044 ns, 36,563 ALMs. It's
-  not for merge. Run `k3` (`k1`'s flow, 16 relaunches alternating
-  486DX2-66 and `max`) is ready. It couldn't start: at 20:29 and 20:36 EET
-  Codex claimed both kits for #863's image work.
-- **What it decides.** On a black launch, the snapshot says which of
-  these holds:
-  - palette address source off (a mode-set race, or a VGA fault in the
-    attribute flip-flop);
-  - the pel mask 0;
-  - the screen switched off;
-  - a black DAC.
+**2 black launches in 17:**
 
-  If none of them holds, the fault is in scanout. A fix will be proposed on
-  #1494 before any RTL is written.
+- **The first launch, at `max`.** It made the save. All 18 of its grabs are
+  the flat black frame `4c6d2c8d`. It has no ring snapshots (the save steps
+  don't take them), so it is HDMI evidence only. The save landed anyway: the
+  later launches' slot lists show "fesk3" (frame `p0n10-slots`). So mouse
+  and keyboard input reached the game through a black launch.
+- **Relaunch 12 (`p0n11`, `max`).** All 26 grabs are `4c6d2c8d`. Its 52
+  ring snapshots, from 60 to 334 s of core time, all read:
+
+  | Field | Value | In a lit launch |
+  | --- | --- | --- |
+  | Palette address source | 1 | 1 |
+  | 3C0h flip-flop | 0 (index next) | 0 |
+  | Video enable (3C3h) | 1 | 1 |
+  | SR01 screen off | 0 | 0 |
+  | Pel mask | FFh | FFh |
+  | Sequencer reset | 3 (running) | 3 |
+  | Overscan, attribute index | 0, 00h | 0, 00h |
+  | Non-black DAC entries | 118–255 | 118–256 |
+
+  The word at its menu (`p0n11-m6`) equals the word at the lit `p0n10`
+  menu, 2952265216. VRAM at the menu is `1f9b027f` in both. The CPU, audio
+  and `frames_shown` advanced as in `k1`'s black launch.
+- **The click didn't load in either black launch with probes.** In
+  `p0n11`, as in `k1`'s, VRAM went back to the introduction after the
+  Journey Onward click (`c6370a05` at +6 s, CS `1A60`) and then to the menu.
+  Input reached the game in the first launch, so this isn't lost input. Why
+  the click missed isn't known.
+
+**Five lit launches had a black grab at the introduction.** In `p7n01`,
+`p0n03`, `p7n04`, `p7n05` and `p0n15`, the grab at about 59.5 s of core time
+is `4c6d2c8d`, with VRAM `0de8e137` (the introduction's first scene) and a
+non-black DAC count of 255. VRAM had changed 1 s later, and the menu showed
+in each. Lit grabs at 59.35 s (`p7n00`) and 61.4 s (`p0n10`) show that
+scene. The DAC count can't tell a dim palette from a black one, so this is
+probably a fade in the introduction. It's left open, not counted as a
+fault.
+
+**`k3` against `k1` and `k2`.** `k3`'s first launch followed the stop of
+the scrub image at the DOS prompt, not a stop in the game. So "`k2` quit to
+DOS before each stop" doesn't explain why `k2` had none. Across the three
+runs it is 3 black launches in 38: `k1` 1 of 9, `k2` 0 of 12, `k3` 2 of 17,
+at 486DX2-66 once and at `max` twice.
 
 ## Kit housekeeping
 
-Runs `k1` and `k2` shared Kit B's claims and housekeeping with #1368's rerun; [its record](../2026-11-10-pc386-game-acceptance-rerun/summary.md#kit-housekeeping) has the table.
+Run `k3` claimed Kit B at 23:58 EET, restored and released it at 00:57, and
+removed its 5 FogCast data trees (2 game records, 2 media trees, the staged
+Serpent Isle image) at 00:59, as logged in Kit B's status file. Runs `k1` and `k2` shared Kit B's claims and housekeeping with #1368's rerun; [its record](../2026-11-10-pc386-game-acceptance-rerun/summary.md#kit-housekeeping) has the table.
