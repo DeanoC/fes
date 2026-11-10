@@ -49,3 +49,26 @@ is excluded and old-output cleanup remains paused. This preparation grants no
 live authority or native write success. FAT persistence, ordinary installation,
 native networking and full appliance acceptance remain unqualified. Helpers
 and raw results are under `out/nano-sd-fixed-write-trial-20261110/`.
+
+## Hardware result
+
+[The native writer passed](hardware-result.json) all five stages after full
+matched cold/ATF/EL2/EL1 proof. Exactly eight reviewed sectors were written and
+read back, SD was contained and resumed, the same card was read again, and
+final native containment reached generation 7. The separate qualified recovery
+reboot then passed. All three programming operations completed successfully.
+
+The independent recovery verification stopped before reaching the tail. Its
+first raw prefix read completed, but U-Boot printed the command summary and
+`32768 blocks read: OK` on one line. The host parser expected the latter at
+the beginning of a line and rejected it. This is a failed whole attempt with
+a successful native write phase, not independent persistence acceptance.
+The failed capture and two-second passive tail remain unchanged.
+
+Independent cleanup passes for clock/auto readbacks, exact USB permissions,
+private-server termination and free UART; there are no new programmer failures.
+The last observed board state is the qualified recovery prompt following that
+read-only prefix read. CPU park was not observed. No native SD lease is claimed
+to survive that recovery reboot. The next step is to repair the parser using
+the captured format, then prepare a new recovery-only readback with fresh
+admission. The writer will not be rerun; its old original-tail plan is consumed.
