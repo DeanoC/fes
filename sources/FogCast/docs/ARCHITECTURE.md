@@ -152,6 +152,13 @@ before issuing a new operation. Remote authenticated endpoint reconciliation
 uses read-only ownership/status observations to discard stale local authority;
 it never stops or releases the replacement owner's session. A subsequent
 explicit launch uses an ordinary claim, which still refuses a foreign holder.
+While an active connection is refreshed, public connection reads retain its
+last completed observation. Starting an authenticated health, ownership, or
+status probe does not publish `connecting`. A newly observed boot or loss of
+the host's grant invalidates that active observation before session/input
+reconciliation; first connections and changed configured identities still
+start as `connecting`. Completed observations and failures publish their actual
+connection state.
 Input reconnect stops immediately on an explicit lease-denied or busy response.
 A CONNECT `/v1/input/stream` refusal of 403 `KIT_LEASE_REQUIRED` — the kit has
 already revoked, expired, or superseded the grant — is read from a bounded

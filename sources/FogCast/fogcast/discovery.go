@@ -182,7 +182,11 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	lookupCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	s.lookupCancel = cancel
 	state.connection = previous
-	state.connection.State = "connecting"
+	// Readers use the last completed observation while a same-identity active
+	// connection is refreshed. Probe progress is not a session transition.
+	if previous.State != "active" {
+		state.connection.State = "connecting"
+	}
 	if s.targetConnections == nil {
 		s.targetConnections = make(map[string]targetConnectionState)
 	}
@@ -216,6 +220,12 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 		s.targets = targets
 		selected.TargetID = health.TargetID
 	}
+	reboot := previous.BootID != "" && previous.BootID != health.BootID
+	if reboot {
+		connection := previous
+		connection.State = "connecting"
+		s.publishTargetConnection(name, connection, current)
+	}
 	// Address-only older agents need not expose the discovery/lease extensions.
 	if selected.TargetID == "" {
 		status, err := concrete.Status(lookupCtx)
@@ -231,7 +241,6 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 		return health, nil
 	}
 	base, _ := url.Parse(address)
-	reboot := previous.BootID != "" && previous.BootID != health.BootID
 	hadGrant := concrete.HasKitGrant()
 	if reboot {
 		s.invalidateTargetSession(concrete)
@@ -248,6 +257,9 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	// still our session. Only loss of our grant is a session boundary.
 	leaseChanged := (previous.leaseOwned || hadGrant) && !ownership.Owned
 	if !reboot && leaseChanged {
+		connection := previous
+		connection.State = "connecting"
+		s.publishTargetConnection(name, connection, current)
 		s.invalidateTargetSession(concrete)
 		s.resetTargetInputsOutsideTargetMu(name)
 		// Invalidation discards the stale grant, but also marks the lease lost.

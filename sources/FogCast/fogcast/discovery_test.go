@@ -22,6 +22,154 @@ import (
 	"github.com/DeanoC/FogCast/targetclient"
 )
 
+func TestActiveConnectionRefreshPublishesCompletedObservations(t *testing.T) {
+	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
+	const replacementID = "3aa1b84f-17b5-41f7-9fc7-f91bc4e8814a"
+	for _, tc := range []struct {
+		name, blockPath, during                                  string
+		first, newIdentity, reboot, leaseLoss, addressOnly, fail bool
+	}{
+		{name: "health", blockPath: "/v1/health", during: "active"},
+		{name: "ownership", blockPath: "/v1/kit/lease", during: "active"},
+		{name: "status", blockPath: "/v1/status", during: "active"},
+		{name: "address-only status", blockPath: "/v1/status", during: "active", addressOnly: true},
+		{name: "first connection", blockPath: "/v1/health", during: "connecting", first: true},
+		{name: "configured identity changed", blockPath: "/v1/health", during: "connecting", newIdentity: true},
+		{name: "new boot observed", blockPath: "/v1/kit/lease", during: "connecting", reboot: true},
+		{name: "address-only new boot observed", blockPath: "/v1/status", during: "connecting", reboot: true, addressOnly: true},
+		{name: "owned lease lost", blockPath: "/v1/status", during: "connecting", leaseLoss: true},
+		{name: "failed refresh", blockPath: "/v1/health", during: "active", fail: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var refresh atomic.Bool
+			entered, release := make(chan struct{}), make(chan struct{})
+			var enteredOnce, releaseOnce sync.Once
+			unblock := func() { releaseOnce.Do(func() { close(release) }) }
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet && !(tc.leaseLoss && !refresh.Load() && r.URL.Path == "/v1/kit/claim") {
+					t.Errorf("observation performed mutation: %s %s", r.Method, r.URL.Path)
+				}
+				second := refresh.Load()
+				if second && r.URL.Path == tc.blockPath {
+					enteredOnce.Do(func() { close(entered) })
+					select {
+					case <-release:
+					case <-r.Context().Done():
+						return
+					}
+				}
+				switch r.URL.Path {
+				case "/v1/health":
+					if second && tc.fail {
+						http.Error(w, "offline", http.StatusServiceUnavailable)
+						return
+					}
+					targetID, boot := id, "original-boot"
+					if second && tc.newIdentity {
+						targetID = replacementID
+					}
+					if second && tc.reboot {
+						boot = "new-boot"
+					}
+					_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: targetID, BootID: boot, Ready: tc.leaseLoss})
+				case "/v1/kit/lease":
+					ownership := targetclient.KitOwnership{State: "free"}
+					if tc.leaseLoss && !second {
+						ownership = targetclient.KitOwnership{State: "held", Generation: "original-grant"}
+					}
+					_ = json.NewEncoder(w).Encode(ownership)
+				case "/v1/kit/claim":
+					_ = json.NewEncoder(w).Encode(kitlease.Grant{Token: "own-token", Status: kitlease.Status{State: "held", Generation: "original-grant", ExpiresInMS: 60000}})
+				case "/v1/status":
+					status := protocol.Status{State: protocol.StateActive}
+					if tc.leaseLoss && second {
+						status.State = protocol.StateIdle
+					}
+					_ = json.NewEncoder(w).Encode(status)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer srv.Close()
+			defer unblock()
+			base, _ := url.Parse(srv.URL)
+			client := targetclient.NewClient(base, "secret", srv.Client())
+			if tc.leaseLoss {
+				lease := targetclient.NewKitLease(base, "secret", srv.Client(), "host", "test")
+				client.WithKitLease(lease)
+				req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL, nil)
+				if err := lease.Authorize(req, true); err != nil {
+					t.Fatal(err)
+				}
+			}
+			targetID := id
+			if tc.addressOnly {
+				targetID = ""
+			}
+			s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: targetID, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+			// Never discover another endpoint when exercising a failed probe.
+			s.resolveTarget = func(context.Context, string) ([]string, error) { return nil, errors.New("offline") }
+			if !tc.first {
+				if _, err := s.Health(context.Background()); err != nil || s.TargetConnection().State != "active" {
+					t.Fatalf("initial verified connection = %+v, %v", s.TargetConnection(), err)
+				}
+			}
+			previous := s.TargetConnection()
+			if tc.newIdentity {
+				s.targetMu.Lock()
+				s.targets[0].TargetID = replacementID
+				s.targetMu.Unlock()
+			}
+			refresh.Store(true)
+			done := make(chan error, 1)
+			go func() { _, err := s.Health(context.Background()); done <- err }()
+			select {
+			case <-entered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("refresh did not reach controlled probe")
+			}
+			// GET /api/v1/session reads this independently cached connection
+			// after its status observation; it must not expose probe progress.
+			during := s.TargetConnection()
+			if during.State != tc.during {
+				t.Errorf("blocked refresh published %+v; want %s", during, tc.during)
+			}
+			if tc.during == "active" && during != previous {
+				t.Errorf("blocked refresh replaced the completed observation: %+v != %+v", during, previous)
+			}
+			unblock()
+			select {
+			case err := <-done:
+				if (err != nil) != tc.fail {
+					t.Fatalf("refresh error = %v; want failure %v", err, tc.fail)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("refresh did not finish")
+			}
+			got := s.TargetConnection()
+			if tc.fail {
+				if got.State != "disconnected" || got.Message == "" {
+					t.Fatalf("failed refresh retained active observation: %+v", got)
+				}
+			} else {
+				want := "active"
+				if tc.leaseLoss {
+					want = "ready"
+					if got.leaseOwned || client.HasKitGrant() {
+						t.Fatalf("lost grant retained: %+v", got)
+					}
+				}
+				if got.State != want || tc.reboot && got.BootID != "new-boot" || tc.newIdentity && got.TargetID != replacementID {
+					t.Fatalf("completed refresh = %+v", got)
+				}
+			}
+			if named := s.TargetConnectionForName("kit"); named != got {
+				t.Fatalf("named completed observation = %+v; want %+v", named, got)
+			}
+		})
+	}
+}
+
 func TestMonitorLeaseLossConcurrentRemoteInputAttachNoDeadlock(t *testing.T) {
 	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
