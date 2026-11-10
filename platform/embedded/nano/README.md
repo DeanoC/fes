@@ -1,5 +1,17 @@
 # Nano recovery uploads and cold serial boot
 
+`jtag_enumeration.cpp` is a separate scan-only diagnostic for the installed
+programmer's two-pass automatic enumeration: count zero/null list/automatic
+scan enabled, followed by one bounded device-list read. It requires the exact
+private top-kit cable, locked 3 MHz clock and disabled automatic adjustment.
+The size query must return `AJI_TOO_MANY_DEVICES` with exactly one entry;
+other responses stop without a retry or cached-identity fallback. It verifies
+the resulting FPGA identity and both clock properties before unlocking.
+Vendor messages are bounded and hex encoded. It loads no image, invokes no
+FPGA/CPU-reset API and emits a distinct diagnostic format rejected by the
+programming-grant decoder. A diagnostic pass does not fix or qualify the
+programming path. Existing forced-scan admission remains unchanged.
+
 `jtag_probe.checked` validates the selected scan executable's bytes and frozen
 Unix mode, checks execution access, and rejects file changes during hashing.
 The experimental operator applies it before reserving an operation and again
