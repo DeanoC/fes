@@ -44,6 +44,30 @@ module pixel_pll (
     assign outclk_0 = refclk;
 endmodule
 
+// The integrated bench advances one reference-clock period per tick. Keep the
+// memory clock synchronous with the bench. At 100 the capture edge shares
+// the memory falling edge; at 130 the bench steps it afterwards. This tests
+// edge ordering, not PLL frequency or physical timing.
+`ifdef RAM_RATE_SWEEP
+module ram_pll (
+    input wire refclk,
+    input wire rst,
+    output wire outclk_0,
+    output wire outclk_1,
+    output wire outclk_2,
+    output wire locked
+);
+    assign outclk_0 = refclk;
+    assign outclk_1 = refclk;
+`ifdef RAM_100_ONLY
+    assign outclk_2 = ~refclk;
+`else
+    assign outclk_2 = bench.CAP_CLK;
+`endif
+    assign locked = ~rst;
+endmodule
+`endif
+
 // Fabric stand-in for the IO-cell DDR clock. High half is datain_h.
 module altddio_out #(
     parameter width = 1,

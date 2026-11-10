@@ -111,6 +111,17 @@ class AffectedTests(unittest.TestCase):
                 self.assertTrue(all(result['lanes'].values()))
                 self.assertEqual(set(result['cores']), set(CORES))
 
+    def test_ramtest_simulator_selects_only_ramtest_and_unknown_scripts_stay_broad(self):
+        runner = 'sources/misteross/scripts/sim_fes_ramtest.py'
+        result = plan([runner])
+        self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
+                         {'parent', 'fpga'})
+        self.assertEqual(result['cores'], ['ramtest'])
+        for paths in (['sources/misteross/scripts/sim_fes_ramtest_extra.py'],
+                      [runner, 'sources/misteross/scripts/unknown_sim.py']):
+            with self.subTest(paths=paths):
+                self.assertEqual(set(plan(paths)['cores']), set(CORES))
+
     def test_de25_board_metadata_and_diagnostic_have_no_existing_core_consumer(self):
         definition = 'sources/mister-packages/packages/board/de25_nano.yaml'
         board = 'sources/misteross/boards/de25nano/'

@@ -49,9 +49,9 @@ type Engine struct {
 	// HeldBackReason says why. The selection stays recorded for an image that
 	// can run it.
 	HeldBack, HeldBackReason string
-	// Candidate startup and health share a 180-second deadline. Readiness must
-	// hold for 10 seconds uninterrupted and is polled every 250ms. Keep the
-	// deadline bounded so a launcher that never presents cannot be accepted.
+	// Candidate startup and the first healthy observation share a 180-second
+	// deadline. Readiness must then hold for 10 seconds uninterrupted, polled
+	// every 250ms. A launcher that never presents cannot be accepted.
 	// Tests can use a virtual clock.
 	Deadline, Stable, Poll time.Duration
 	Now                    func() time.Time
@@ -88,21 +88,42 @@ func (e *Engine) defaults() {
 func (e *Engine) health(ctx context.Context, id string, deadline time.Time) error {
 	var since time.Time
 	var last error
-	for e.Now().Before(deadline) {
+	// Once readiness is observed before the startup deadline, allow that
+	// observation its full stability interval. Polling and one bounded probe
+	// need a little additional time to observe the end of the interval.
+	end := deadline.Add(e.Stable + 5*e.Poll)
+	for e.Now().Before(end) {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		if since.IsZero() && !e.Now().Before(deadline) {
+			break
+		}
 		probeCtx, cancel := context.WithTimeout(ctx, e.Poll*4)
 		err := e.Controller.Healthy(probeCtx, id)
+		probeErr := probeCtx.Err()
+		if probeDeadline, ok := probeCtx.Deadline(); probeErr == nil && ok && !time.Now().Before(probeDeadline) {
+			// The deadline has passed even if timer delivery is delayed.
+			probeErr = context.DeadlineExceeded
+		}
 		cancel()
 		if contextErr := ctx.Err(); contextErr != nil {
 			return contextErr
 		}
-		if !e.Now().Before(deadline) {
+		// A probe that returned after its own deadline cannot establish or
+		// extend readiness, even if its final context-unaware step succeeded.
+		// Retain process-exit identity if the probe also reported an exit.
+		if probeErr != nil {
+			err = errors.Join(err, probeErr)
+		}
+		if !e.Now().Before(end) {
 			break
 		}
 		if err == nil {
 			if since.IsZero() {
+				if !e.Now().Before(deadline) {
+					break
+				}
 				since = e.Now()
 			}
 			if e.Now().Sub(since) >= e.Stable {
@@ -150,10 +171,12 @@ func (e *Engine) prepareSelection(ctx context.Context, id string) (string, error
 }
 
 func (e *Engine) switchPrepared(ctx context.Context, id string, request Request) error {
-	ctx, cancel := context.WithTimeout(ctx, e.Deadline)
-	defer cancel()
+	startupCtx, cancelStartup := context.WithTimeout(ctx, e.Deadline)
+	defer cancelStartup()
+	healthCtx, cancelHealth := context.WithTimeout(ctx, e.Deadline+e.Stable+5*e.Poll)
+	defer cancelHealth()
 	deadline := e.Now().Add(e.Deadline)
-	if err := e.Controller.Stop(ctx); err != nil {
+	if err := e.Controller.Stop(startupCtx); err != nil {
 		return fmt.Errorf("old processes did not exit: %w", err)
 	}
 	// Restart only until the first accepted readiness window. An exit during
@@ -168,12 +191,12 @@ func (e *Engine) switchPrepared(ctx context.Context, id string, request Request)
 	// accepted. Every other Start error ends the attempt unchanged.
 	var last error
 	for e.Now().Before(deadline) {
-		if err := ctx.Err(); err != nil {
+		if err := startupCtx.Err(); err != nil {
 			return err
 		}
-		err := e.Controller.Start(ctx, id, request)
+		err := e.Controller.Start(startupCtx, id, request)
 		if err == nil {
-			err = e.health(ctx, id, deadline)
+			err = e.health(healthCtx, id, deadline)
 		}
 		if err == nil || !errors.Is(err, ErrProcessExited) {
 			if err == nil && e.TrialStorageRefreshRequest == request.ID {
@@ -182,10 +205,10 @@ func (e *Engine) switchPrepared(ctx context.Context, id string, request Request)
 			return err
 		}
 		last = err
-		if err := e.Controller.Stop(ctx); err != nil {
+		if err := e.Controller.Stop(startupCtx); err != nil {
 			return fmt.Errorf("old processes did not exit: %w", err)
 		}
-		if err := e.Wait(ctx, e.Poll); err != nil {
+		if err := e.Wait(startupCtx, e.Poll); err != nil {
 			return err
 		}
 	}

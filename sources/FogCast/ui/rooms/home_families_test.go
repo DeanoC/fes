@@ -150,11 +150,23 @@ func (s *observedHomeCores) List(ctx context.Context) ([]localcores.Core, error)
 	return cores, err
 }
 
-// homeSettled reports that Home has a family or title that is no longer
-// Checking.
+// homeSettled waits for both the data and the completed Home picture.
 func homeSettled(r *Instance) bool {
 	d := r.Destination()
-	return (d.Kind == KindFamily || d.Kind == KindGame) && d.Availability != AvailChecking && d.Availability != ""
+	if (d.Kind != KindFamily && d.Kind != KindGame) || d.Availability == AvailChecking || d.Availability == "" {
+		return false
+	}
+	want := 4
+	if r.opts.Width < 480 || r.opts.Height < 360 {
+		want = 1
+	}
+	families := 0
+	for _, h := range r.frame.Hits {
+		if strings.HasPrefix(h.ID, "family:") {
+			families++
+		}
+	}
+	return families >= want
 }
 
 // machineEntry and titleEntry provide library rows for title counts, not machine admission.
@@ -298,6 +310,32 @@ func TestHomeRecentlyPlayedLeadsAndPlaysTheTitle(t *testing.T) {
 	}
 	if d := r.Destination(); d.Kind != KindGame || d.GameID != "bits" {
 		t.Fatalf("up from families %+v", d)
+	}
+}
+
+func TestHomeRecentsAndCompactResize(t *testing.T) {
+	svc := &homeServices{
+		fakeServices: fakeServices{games: []hostclient.Game{machineEntry("zx81", "fes.zx81", "")}},
+		recents: []hostclient.Game{
+			titleEntry("one", "fes.zx81"), titleEntry("two", "fes.spectrum"), titleEntry("three", "fes.c64"),
+		},
+	}
+	r := loadHome(t, Options{Services: svc, ReleaseOnly: true})
+	f := stepUntil(t, r, func(Frame) bool { return homeSettled(r) && r.Destination().Kind == KindGame })
+	for _, title := range []string{"one\n", "two\n", "three\n"} {
+		if !strings.Contains(frameText(f), title) {
+			t.Fatalf("missing %q in %s", title, frameText(f))
+		}
+	}
+	r.Resize(300, 350)
+	if d := r.Destination(); d.Kind != KindFamily {
+		t.Fatalf("compact resize retained recent destination: %+v", d)
+	}
+	r.Step(time.Now())
+	r.Resize(1280, 720)
+	f = r.Step(time.Now())
+	if !strings.Contains(frameText(f), "Recently played\n") {
+		t.Fatalf("hero resize lost recents: %s", frameText(f))
 	}
 }
 

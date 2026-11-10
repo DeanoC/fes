@@ -339,12 +339,15 @@ deadline: the existing 22-second process-group stop bound plus the normal
 
 Bundle verification completes before the service startup clock begins, while
 the current group is still running. Each start checks that the verified tree
-has not changed. Stopping services, starting replacements and observing ten
-seconds of stable readiness share one three-minute deadline, including startup
-retries. This budget includes the agent's persistent core-library recovery,
-which completes before its HTTP listener opens. Factory trial startup follows
-the same rule. Verification and elapsed readiness do not require a working
-real-time clock on the kit.
+has not changed. Stopping services, starting replacements and first observing
+readiness share one three-minute deadline, including startup retries and the
+agent's persistent core-library recovery before its HTTP listener opens. Once a
+successful readiness observation occurs within that deadline, the same group
+must remain ready for ten seconds; a failure after the deadline fails the
+attempt. Polling and a bounded final probe have a small additional allowance.
+Factory trial startup follows the same rule, subject to the independent image
+trial watchdog's 180-second outer deadline. Verification and elapsed readiness
+do not require a working real-time clock on the kit.
 The runtime must finish native initialization through its own authenticated
 protocol socket before the agent or launcher starts. Clean idle permits normal
 startup. The exact terminal `reboot_required` state with `idle_failed` in the

@@ -1,0 +1,31 @@
+=== 1 0 O SHIFT+Y H I SHIFT+Y NL 2 0 O SHIFT+Y H SHIFT+Y SHIFT+. 1 SHIFT+K 2 SHIFT+X NL
+sys: 00 04 00 00 3d 40 14 00 3c 40 3d 40 3f 40 78 40 7b 40 02 00 00 00 00 00 00 00 8e 07 00 00 95 01 00 00 00 37 21 17 ff ff
+VARS=403c E_LINE=403d D_FILE=403f DF_EA=4078 DF_END=407b
+prog: 00 0a f4 01 2d 2e 01 76 00 14 f4 01 2d 01 d8 1d dd 1e d7 76
+vars: 80
+eline: b0 76
+screen:
+   0|  10 PRINT "HI"|
+   1|  20[>]PRINT "H",1+2;|
+   2||
+   3||
+   4||
+   5||
+   6||
+   7||
+   8||
+   9||
+  10||
+  11||
+  12||
+  13||
+  14||
+  15||
+  16||
+  17||
+  18||
+  19||
+  20||
+  21||
+  22||
+  23|[K]|

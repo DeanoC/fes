@@ -94,10 +94,33 @@ def main() -> None:
         CORE / "sim" / "hps_ddr_model.v",
         CORE / "sim" / "tb.cpp",
     ]
-    # The second build adds the native flow's SDRAM IO output registers: one
-    # more cycle to the chip and a later read capture (DeanoC/nextpnr#135).
-    for build, defines in ((output, ()), (output.with_name(output.name + "-io-registers"), ("+define+RAM_SDRAM_IO_REGISTERS",))):
+    # The shipped 100 MHz OSS path uses output registers and fabric DQ
+    # capture. This idealized PLL checks edge order, not physical timing.
+    variants = (
+        (output, (), False),
+        (output.with_name(output.name + "-io-registers"), ("+define+RAM_SDRAM_IO_REGISTERS",), False),
+        (output.with_name(output.name + "-oss-100"),
+         ("+define+RAM_RATE_SWEEP", "+define+RAM_100_ONLY", "+define+RAM_OSS_HIGH_SPEED"), False),
+        (output.with_name(output.name + "-oss-100-no-capture-shift"),
+         ("+define+RAM_RATE_SWEEP", "+define+RAM_100_ONLY", "+define+RAM_OSS_HIGH_SPEED"), True),
+    )
+    if os.environ.get("FES_RAMTEST_130_DIAGNOSTIC") == "1":
+        variants += ((output.with_name(output.name + "-oss-130"),
+                      ("+define+RAM_RATE_SWEEP", "+define+RAM_130_ONLY", "+define+RAM_OSS_HIGH_SPEED"), False),)
+    for build, defines, negative in variants:
         build.mkdir(parents=True, exist_ok=True)
+        build_sources = sources
+        if negative:
+            controller = CORE / "rtl" / "sdram_addon_port.v"
+            text = controller.read_text()
+            original = "if (wait_count == OUT_LATENCY + (rate == 2'd1 ?"
+            due = "wait_count == 14'd4 + OUT_LATENCY"
+            if text.count(original) != 1 or text.count(due) != 1:
+                raise RuntimeError("cannot construct capture-shift negative control")
+            mutated = build / "sdram_addon_port.v"
+            mutated.write_text(text.replace(original, "if (wait_count == 14'd0 + (rate == 2'd1 ?")
+                               .replace(due, "wait_count == 14'd4"))
+            build_sources = [mutated if source == controller else source for source in sources]
         subprocess.run(
             [
                 "verilator", "--cc", "--exe", "--build", "--top-module", "bench",             "+define+SIM",
@@ -107,11 +130,26 @@ def main() -> None:
                 f"-I{COMMON / 'generated'}",
                 "-Mdir", str(build),
                 "-o", "sim",
-                *map(str, sources),
+                *map(str, build_sources),
             ],
             check=True,
         )
-        subprocess.run([str(build / "sim")], check=True)
+        if negative:
+            result = subprocess.run([str(build / "sim")], capture_output=True, text=True)
+            if result.returncode == 0 or "RAMTEST_BYTE_PREFLIGHT_READ_MISMATCH" not in result.stderr:
+                raise RuntimeError(f"capture-shift negative control did not fail as expected: {result.stderr}")
+            print("PASS: 100 MHz OSS functional model rejects missing read-capture shift", flush=True)
+        elif "+define+RAM_130_ONLY" in defines:
+            result = subprocess.run([str(build / "sim")], capture_output=True, text=True)
+            print(result.stdout, end="", flush=True)
+            print(result.stderr, end="", flush=True)
+            raise SystemExit(
+                "AMBIGUOUS: the 130 MHz zero-delay SDRAM model does not establish "
+                f"the DQ valid window (simulation exit {result.returncode}); "
+                "this diagnostic cannot pass without a bounded timing model"
+            )
+        else:
+            subprocess.run([str(build / "sim")], check=True)
 
 
 if __name__ == "__main__":
