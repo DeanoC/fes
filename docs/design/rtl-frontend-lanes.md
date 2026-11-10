@@ -67,7 +67,7 @@ What the design does:
 | KBC RAM in MLAB | `ram[0]` is read every clock as `command` (`M/cores/fes-pc386/rtl/pc386_kbc.sv:46-47`). Reset writes all 32 entries in one clock: `ram[0]` to 63h and the rest to 0 (`:155-157`). There are bit writes to `ram[0][5]` and `ram[0][2]` (`:204-207`). Restructuring it is worth "a few tens" of ALMs (`summary.md:189`), so it is deferred unless a Phase 5 slice runs over budget. |
 | Migrating the `VERILATOR`/`SYNTHESIS`/`SIM`/`FES_SIMULATION` guards and about 2,800 `MISTRAL_*` instances in about 48 files | Those cores have no planned Quartus front end. They are touched only if one of them gains a Quartus lane (D7). |
 | A single BUILD_ID injection path (today chparam for Yosys, a `FES_<CORE>_BUILD_ID` VERILOG_MACRO for Quartus) | It touches every top and every producer and does nothing for lanes. Out of scope (D8). |
-| A pc386 OSS/nextpnr producer | The pc386 lock rationale cites `build_fes_pc386_oss.py`, but that file does not exist. S6a fixes the text. |
+| A pc386 OSS/nextpnr producer | The pc386 lock rationale cites `build_fes_pc386_oss.py`, but that file does not exist. Not S6a: the next PR that changes the pc386 lock fixes the text (#1660; D2 did not touch that lock). |
 | DE25 board shell, FPGA runtime, HIL | Not built yet (`docs/de25-linux.md:10-12`, `:78-88`). DE25 HIL is waived (`AGENTS.md:32`). |
 | A Quartus lane in CI | CI installs no Quartus: no workflow under `.github/workflows/` mentions Quartus. Lite 17.0.2 needs no licence (`quartus-cores.md:240`). What CI should do about Quartus is still open question 2 (`quartus-cores.md:436-437`), and this design does not answer it. |
 
@@ -519,7 +519,7 @@ Each lane PR names its check. An i386-style lockstep is not assumed for any othe
 
 ### Close the yosys-lane gap first
 
-- **Lockstep today:** `read_verilog -sv; hierarchy -top fes_i386_cpu; proc -norom; flatten; opt -purge; write_verilog -noattr`, with the i386 lock's Yosys 238eac9a and no `-I` or `-D` (`M/scripts/test_fes_i386_frontend.py:78-88`; `M/cores/fes-common/rtl/i386/toolchain.lock:1-5`).
+- **Lockstep today:** `read_verilog -sv; hierarchy -top fes_i386_cpu; proc -norom; flatten; opt -purge; write_verilog -noattr`, with the i386 lock's Yosys (238eac9a; 0a7927bf after D2) and no `-I` or `-D` (`M/scripts/test_fes_i386_frontend.py:78-88`; `M/cores/fes-common/rtl/i386/toolchain.lock:1-5`).
 - **The seal:** the pc386 lock's Yosys 0a7927bf on `pc386_system`, with `-chparam` rates, `flatten`, `opt -purge`, `memory_collect`, `memory_map`, `attrmap` and a Python identifier rewrite (`build_fes_pc386_quartus.py:60`, `:236-275`, `:369-382`).
 - **Port trimming:** the sealed machine leaves the CPU's trace and arch ports unconnected (`M/cores/fes-pc386/rtl/pc386_system.sv:476-483`). So a whole-machine netlist cannot drive lockstep, and no CPU sub-netlist can be digested out of it.
 
@@ -604,7 +604,7 @@ sha256 = "…"
 
 - Extend the existing `quartus_tools.locate_quartus(quartus_root, repo_root)` (`quartus_tools.py:27`) with an edition argument, and take the expected version line from the lock.
 - **Deleted, with no fallback:** the regex, every `LAST_QUARTUS_VERSION`, and the pc386 hard-coded label. In S6b (with S16), also DE25's `QUARTUS_VERSION` and its separate `locate_quartus(root)` (`M/boards/de25nano/build.py:19`, `:68-82`).
-- **A core's Yosys pin stays where its Yosys is built.** `[yosys]` appears only in a lock whose core has no `toolchain.lock` of its own (PC/XT, whose Yosys slot comes from the shared lock). pc386 keeps its Yosys pin in `M/cores/fes-pc386/toolchain.lock`: `make toolchain-fes-pc386` builds that slot from the whole file, and the slot key includes the file's sha256, so moving the pin would leave either a second pin or no builder (S6a, #1647). The rationale text that names the non-existent `build_fes_pc386_oss.py` is corrected with the D2 lock move, which edits that file anyway.
+- **A core's Yosys pin stays where its Yosys is built.** `[yosys]` appears only in a lock whose core has no `toolchain.lock` of its own (PC/XT, whose Yosys slot comes from the shared lock). pc386 keeps its Yosys pin in `M/cores/fes-pc386/toolchain.lock`: `make toolchain-fes-pc386` builds that slot from the whole file, and the slot key includes the file's sha256, so moving the pin would leave either a second pin or no builder (S6a, #1647). The rationale text that names the non-existent `build_fes_pc386_oss.py` is corrected by the next PR that changes that lock (its Verilator move to v5.054, #1660): any byte of it moves the fes.pc386 BUILD_ID, and D2 does not edit it.
 - **Locks are per core and last known good**, like nextpnr locks (`quartus-cores.md:288-297`).
 
 ### A newer Lite
@@ -890,13 +890,13 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
 - **MLAB timing.** An MLAB in the front end's return path may cost Fmax. S2 makes timing part of acceptance.
 - **The raised signoff bar may fail cores that seal today**: Z80 cores on extra seeds, RAM Tester on hold or MPW. Each core's PR stops and reports on its own, which can block that package until it is fixed.
 - **Phase 5 area pressure.** The working ceiling is about 92% (38,500 ALMs), and Quartus has never been run above 88% (`summary.md:39-47`). S2 and S12 touch the pc386 fit and must not block Phase 5 slices.
-- **Two Yosys locks for one CPU** (0a7927bf and 238eac9a). S4 cannot be honest until D2 is decided.
+- **Two Yosys locks for one CPU** (0a7927bf and 238eac9a). Closed by D2: the i386 lock now pins 0a7927bf.
 - **The docs disagree** on whether Pro is installed and licensed, and on whether Quartus is primary or oracle-only for pc386 (`quartus-cores.md` and `getting-started.md:12-18` against `AGENTS.md:73-76`). S1b, S6a and S6b settle it.
 
 ## Open decisions for Deano
 
 1. **D1. Is a native Quartus front end wanted, or only if forced?** Recommendation: only if forced. Yosys stays the front end for i386, pc386 and PC/XT. The existing native-Lite Z80 sealers keep their route, now labelled. Native Pro is built if S1b shows that Pro rejects the Yosys netlist, or when a core specialises for DE25 and a measured Pro fit favours the native read. The audit shows no area reason for native Lite.
-2. **D2. Which Yosys lock does the CPU use?** Recommendation: one lock. Move the i386 lock to the sealing producer's lock (pc386 0a7927bf), or move both forward together, with RTL and netlist trace hashes as evidence. Do this before S4.
+2. **D2. Which Yosys lock does the CPU use?** Recommendation: one lock. Move the i386 lock to the sealing producer's lock (pc386 0a7927bf), or move both forward together, with RTL and netlist trace hashes as evidence. Do this before S4. Agreed and done: the i386 lock pins 0a7927bf (`docs/validation/2026-11-10-1581-d2-yosys-lock/`).
 3. **D3. Allow yosys → Quartus Pro for DE25?** Recommendation: yes, if S1b shows the Yosys netlist goes through Pro. It is the cheapest DE25 bring-up path and needs no native Pro lane on day one. It is not the end state for a core tuned to DE25: such a core moves to native Pro on a measured fit (Device specialisation, rule 3).
 4. **D4. Quartus locks per core or shared?** Recommendation: per core, in PC/XT's shape plus `edition` and `device_family`, so each core's last known good moves on its own.
 5. **D5. May FES edit vendored OPL2 beyond today's local changes** (the `signed'()` sites, `carrier_delay`, MLAB memories)? Recommendation: yes, one PR per change with a measurement, recorded in `source.json` `local_changes`. Without that, those memories stay FFs and the pc386 `WR_PORTS>1` rule cannot be deleted.
