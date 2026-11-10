@@ -260,6 +260,7 @@ func TestBuiltDistinctROMProgramsTapeFailureDoesNotRunOrRetry(t *testing.T) {
 			}
 			_, err := r.f.s.Launch(context.Background(), 0, requests[0])
 			if err == nil || r.f.s.Status().State != ProgramRebootRequired || media.runs != 0 ||
+				media.starts != 1 || media.commits != 1 || !media.held ||
 				r.f.lease.r.Active || r.f.s.Status().TapeSHA256 != "" || r.cpu.preparedHeaders != 1 {
 				t.Fatal("failed real tape exposed execution or storage", err, media.runs, r.f.s.Status())
 			}
