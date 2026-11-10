@@ -215,11 +215,15 @@ module fes_de25_computer_transport (
                         (write && (fault_active || write_fault != 32'd0));
 
     // These two registers deliberately have different reset behavior. The
-    // first qualified release arms the epoch. A later reset clears healthy
+    // first healthy clock qualifies release; the next clock arms the epoch.
+    // No request can be accepted during that qualification window. A reset
+    // there may restart qualification because no GP state has been exposed.
+    // Use the same-clock healthy data register, not the reset net, as enable.
+    // Once armed, a later reset clears healthy
     // asynchronously, even with clk stopped, and it can never become healthy
     // again. The GP word, mailbox state and sticky causes are never reset alone.
     always @(posedge clk)
-        if (reset_n) first_seen <= 1'b1;
+        if (healthy) first_seen <= 1'b1;
     always @(posedge clk or negedge reset_n) begin
         if (!reset_n) healthy <= 1'b0;
         else if (!first_seen) healthy <= 1'b1;

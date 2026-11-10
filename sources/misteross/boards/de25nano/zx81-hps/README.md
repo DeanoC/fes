@@ -98,7 +98,14 @@ separate observed-picture check.
 [DE25 computer](../../../../mister-packages/docs/de25-computer.md) owns its
 register contract. It accepts exactly one full-word GPO submission with a new
 request toggle; the host waits for the matching GPI ACK before another command.
-There is no old-toggle preload write. A partial/busy/malformed access or a
+There is no old-toggle preload write. Cold MMIO admission needs two system
+clock edges after reset release: the first qualifies health and the second
+arms the retained epoch. Waitrequest stays asserted through qualification,
+and a held request is first accepted on the following edge. A reset before
+arming can restart qualification because no GP state has been exposed;
+after arming, reset is terminal even before the first request. This initial
+qualification does not depend on HDMI readiness.
+A partial/busy/malformed access or a
 post-start peripheral reset permanently faults this local transport. It keeps
 GPO/ACK state, holds the CPU and masks cassette writes/ready; only FPGA
 reconfiguration starts a new epoch. Faulted reads still complete after reset
