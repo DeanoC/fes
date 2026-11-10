@@ -153,6 +153,9 @@ func (d *Device) BindControl(platform network.DMAControl) (network.DMAControl, e
 			if err := d.Err(); err != nil {
 				return err
 			}
+			if !d.sameMemory() {
+				return d.retireControl(errors.New("xgmac: confirmed DMA window changed"))
+			}
 			contained, d.paused = false, false
 			return nil
 		},

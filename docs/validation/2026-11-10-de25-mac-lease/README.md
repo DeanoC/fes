@@ -47,7 +47,13 @@ boot/dispatcher composition remain required before native Ethernet can be enable
 
 Base is `7d622df69955b472ed6ae75fe36f5fce75394a1b`. Focused software tests pass;
 affected checks, committed generated-consumer check and Nano launcher cross-build
-are pending. The first make check stopped because the package source was still
+are pending. The initial broader parent run found one coverage fixture still expecting 52
+generated files. Both its exact count and validated-source inventory now include
+the new C/Go contract. A separate fault injection proved confirmation could
+change the reported DMA window while restart published ready; the final driver
+checks the original window again before reopening traffic. The negative test
+fails on the first source and passes with the repair; its logs are retained.
+The first make check stopped because the package source was still
 uncommitted, as required by the existing source gate; its log is retained.
 Evidence lives in `out/nano-mac-lease-20261110/`.
 No kit, card, JTAG/UART, remote builder or cleanup operation was used. Hardware

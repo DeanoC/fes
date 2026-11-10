@@ -453,7 +453,7 @@ func TestControlledConcurrentAttemptPoisonsPendingCompletion(t *testing.T) {
 }
 
 func TestControlledRestartConfirmsAfterInitializationBeforeTraffic(t *testing.T) {
-	for _, mode := range []string{"success", "failed", "cancelled", "PHY"} {
+	for _, mode := range []string{"success", "failed", "cancelled", "PHY", "window"} {
 		t.Run(mode, func(t *testing.T) {
 			d, r, m := controlDevice(t)
 			confirms := 0
@@ -475,6 +475,9 @@ func TestControlledRestartConfirmsAfterInitializationBeforeTraffic(t *testing.T)
 					}
 					if mode == "cancelled" {
 						cancel()
+					}
+					if mode == "window" {
+						m.base += 64
 					}
 					if mode == "failed" {
 						r.allowed = false
