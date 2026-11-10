@@ -30,3 +30,15 @@ remain untouched. A passing diagnostic will establish neither a transport fix
 nor permission to retry native programming. Full selected parent software
 checks are running separately; this bounded scan-only experiment does not
 claim native boot, installation or core-load acceptance.
+
+
+The [physical diagnostic](hardware-result.json) at source `b9827a806` passed:
+count query status47/count1, successful list read with the expected FPGA,
+3MHz/auto0 before and after, unlock, original15MHz/auto1 readback and private
+server shutdown. Host inspection confirms server exit and USB permissions
+matching the preceding independently verified baseline. No image, UART,
+CPU-reset or SD operation occurred. This fresh-private-service observation
+neither reproduces the earlier failure nor establishes a transport fix.
+All six selected software gates now pass at implementation source `0e67e4f93`.
+The next comparison uses the vendor programmer's documented `-a` device-list
+command, without an image operation, in a separately admitted procedure.
