@@ -1,0 +1,39 @@
+{
+ "posts": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  8,
+  9,
+  32,
+  33,
+  34
+ ],
+ "errors": [],
+ "forgiven": [],
+ "stop": {
+  "why": 1,
+  "vector": 40,
+  "linear": "000e0a18",
+  "bytes": "cd2881fc111122110f85d95c0000bc"
+ },
+ "end": {
+  "reason": "unbuilt",
+  "retirements": 799276,
+  "cs": "0053",
+  "eip": "000e0a18"
+ },
+ "text": "",
+ "verilator": {
+  "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+  "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+  "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+  "version": "Verilator 5.054 2026-11-01 rev v5.054",
+  "slot": "44e245aaa92a062bb98bb3a918e9f3caa3f0554284549319e2f8bb1867655654"
+ },
+ "stop_listing": "int 0x28"
+}
