@@ -4,6 +4,7 @@ The expected build ID and owner seed come from the checked matched build.
 No device, programmer, firmware or filesystem operations are performed here.
 """
 import hashlib
+import json
 import re
 import fault_status
 import runtime_startup
@@ -98,6 +99,7 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('storage', r'FES_STORAGE_PROBE board=de25-nano EL=1 counter=400000000Hz writes=disabled'),
     # SDHCI R2 supplies CID[127:8], exactly 15 bytes without CRC/end bits.
     ('read', rf'FES_NANO_SD READ bytes=(?P<bytes>[0-9]{{1,10}}) sha256=(?P<sha256>[0-9a-f]{{64}}) cid=(?P<cid>[0-9a-f]{{30}}) sectors=(?P<sectors>[0-9]{{1,20}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
+    ('scratch_plan', r'FES_NANO_SD SCRATCH_PLAN (?P<plan>\{[^\r\n]{1,2048}\})'),
     ('contained', rf'FES_NANO_SD CONTAINED owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
     ('resumed', rf'FES_NANO_SD RESUMED bytes=(?P<bytes>[0-9]{{1,10}}) sha256=(?P<sha256>[0-9a-f]{{64}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
     ('sd_pass', rf'FES_NANO_SD PASS read-only owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
@@ -112,7 +114,7 @@ DECIMAL = {'kind', 'valid', 'core', 'provider', 'result', 'status', 'counter',
            'reads','identified','settled','bypass_controls_clear','arena_bytes','reader_reads','reader_polls','disable','probe_polls','cancel','complete',
            'index','layout_known','window_covered','mpfe_reset','fetches','execution_observed','part','pass','count','busy','error',
            'ram_bytes','control_bytes','dma_bytes','reader_bytes','firmware_bytes','translations','frame_bytes','row_bytes','stride','rows','board_error','platform_error','slots','slot_bytes'}
-TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_id','map_sha256','pattern_sha256','descriptor_sha256','frame_sha256','initial_sha256'}
+TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_id','map_sha256','pattern_sha256','descriptor_sha256','frame_sha256','initial_sha256','plan'}
 
 
 class _ComputerContinuation:
@@ -123,7 +125,7 @@ class _ComputerContinuation:
         self.storage_return=storage_return
 
 
-def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None, hps_io=None, fpga_identity=None,
+def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_inspect=False, package=None, hps_context=None, hps_io=None, fpga_identity=None,
                        fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False,
                        smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, usb_control=False, usb_shared=False, firmware_ram_trace=False, firmware_mmu=None, _continuation=None, _window_prefix=False, _menu_prefix=False):
     """Retain partial progress, but qualify only one ordered, coherent boot.
@@ -145,6 +147,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         raise ValueError('firmware RAM trace requires an explicit cold ATF descriptor')
     if type(capture_trace) is not bool:
         raise ValueError('secure capture trace selection must come from the checked build')
+    if type(scratch_inspect) is not bool or scratch_inspect and storage is None:
+        raise ValueError('scratch inspection requires the explicitly selected storage diagnostic')
     if type(computer_activity) is not bool or computer_activity and computer is None:
         raise ValueError('computer activity requires its explicitly selected source-bound computer probe')
     if type(usb_shared) is not bool or usb_shared and (not usb_control or package is None):
@@ -285,7 +289,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         index=base_stages.index('provider')+1
         stages=base_stages[:index]+('sd_platform',)+base_stages[index:-1]+('configuration_package',)+stages[len(base_stages)-1:]
     elif controlled:
-        suffix=(('storage','read','contained','resumed','sd_pass') if storage is not None else
+        suffix=(('storage','read',*(('scratch_plan',) if scratch_inspect else ()),'contained','resumed','sd_pass') if storage is not None else
                 ('package_probe','package_retained','package_contained','package_resumed','package_pass'))
         index=base_stages.index('provider')+1
         source_stages=stages[len(base_stages)-1:] if usb_shared else ()
@@ -777,6 +781,29 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         if 'read' in observed:
             require(observed['read']['sectors']>0 and int(observed['read']['cid'],16)>0,
                     'SD card identity/capacity absent')
+        if 'scratch_plan' in observed:
+            def unique(pairs):
+                result={}
+                for key,value in pairs:
+                    if key in result:raise ValueError('duplicate scratch plan field')
+                    result[key]=value
+                return result
+            try:
+                p=json.loads(observed['scratch_plan']['plan'],object_pairs_hook=unique)
+                read=observed.get('read',{})
+                pattern=bytes((i*37+(i//512)*17+0x5a)&255 for i in range(4096))
+                valid=(scratch_inspect and isinstance(p,dict) and
+                    set(p)=={'format','scope','cid','sectors','mbr_sha256','original_sha256'} and
+                    type(p['format']) is int and p['format']==1 and p['scope']=='nano-sd-scratch-write-v1' and
+                    p['cid']==read.get('cid') and p['cid'] not in ('0'*30,'f'*30) and
+                    type(p['sectors']) is int and p['sectors']==read.get('sectors') and
+                    4096<=p['sectors']<=1<<32 and p['sectors']%1024==0 and
+                    all(isinstance(p[k],str) and re.fullmatch('[0-9a-f]{64}',p[k]) for k in ('mbr_sha256','original_sha256')) and
+                    p['original_sha256']!=hashlib.sha256(pattern).hexdigest())
+                require(valid,'scratch inspection plan differs from the observed card or bounded format')
+                if valid:report['scratch_plan']=p
+            except (ValueError,TypeError,RecursionError):
+                require(False,'malformed scratch inspection plan')
     if computer is not None and 'computer_control' in observed:
         value=observed['computer_control']
         require(all(value[key]==computer[key] for key in ('package_id','build_id')) and

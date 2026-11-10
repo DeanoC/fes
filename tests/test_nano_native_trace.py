@@ -1429,6 +1429,56 @@ class NativeSDTraceTests(unittest.TestCase):
         self.assertEqual(report['last_checkpoint'],'sd_pass')
 
 
+class NativeSDScratchTraceTests(unittest.TestCase):
+    plan={'format':1,'scope':'nano-sd-scratch-write-v1','cid':'b'*30,'sectors':7774208,
+          'mbr_sha256':'c'*64,'original_sha256':'d'*64}
+
+    def capture(self, plan=None):
+        line='FES_NANO_SD SCRATCH_PLAN '+json.dumps(self.plan if plan is None else plan)+'\r\n'
+        return NativeSDTraceTests().capture().replace('FES_NANO_SD CONTAINED',line+'FES_NANO_SD CONTAINED')
+
+    def decode(self, raw):
+        return trace.decode_native_boot(raw,BUILD,SEED,storage=NativeSDTraceTests.expected,scratch_inspect=True)
+
+    def test_plan_is_ordered_bound_to_card_and_requires_final_containment(self):
+        report=self.decode(self.capture())
+        self.assertTrue(report['complete'],report)
+        self.assertEqual(report['scratch_plan'],self.plan)
+        self.assertEqual(report['last_checkpoint'],'sd_pass')
+        self.assertFalse(report['core_load_acceptance'])
+        self.assertFalse(self.decode(self.capture().split('FES_NANO_SD PASS')[0])['complete'])
+        plain=NativeSDTraceTests().capture()
+        self.assertTrue(trace.decode_native_boot(plain,BUILD,SEED,storage=NativeSDTraceTests.expected)['complete'])
+        self.assertFalse(self.decode(plain)['complete'])
+        self.assertFalse(trace.decode_native_boot(self.capture(),BUILD,SEED,storage=NativeSDTraceTests.expected)['complete'])
+
+    def test_unknown_stale_duplicate_and_replayed_plans_reject(self):
+        pattern=bytes((i*37+(i//512)*17+0x5a)&255 for i in range(4096))
+        changes=({'format':True},{'scope':'other'},{'cid':'a'*30},{'sectors':4096},
+                 {'mbr_sha256':'C'*64},{'original_sha256':'x'*64},{'extra':True},
+                 {'original_sha256':__import__('hashlib').sha256(pattern).hexdigest()})
+        for change in changes:
+            with self.subTest(change=change):
+                r=self.decode(self.capture(dict(self.plan,**change)))
+                self.assertFalse(r['complete']);self.assertTrue(r['errors'])
+        raw=self.capture();line=next(line for line in raw.splitlines(keepends=True) if line.startswith('FES_NANO_SD SCRATCH_PLAN '))
+        for bad in (raw.replace(line,line+line),raw.replace(line,'')+line,
+                    raw.replace('"format": 1','"format": 1, "format": 1'),raw.replace(line,'FES_NANO_SD SCRATCH_PLAN {}\r\n')):
+            with self.subTest(bad=bad[-120:]):
+                r=self.decode(bad);self.assertFalse(r['complete']);self.assertTrue(r['errors'])
+        for count in (8193,True):
+            raw=self.capture(dict(self.plan,sectors=count)).replace('sectors=7774208','sectors='+str(count))
+            self.assertFalse(self.decode(raw)['complete'])
+
+    def test_partial_plan_does_not_grant_or_invent_an_error(self):
+        raw=self.capture();begin=raw.index('FES_NANO_SD SCRATCH_PLAN ');end=raw.index('\n',begin)
+        for i in range(begin,end+1):
+            with self.subTest(length=i):
+                r=self.decode(raw[:i]);self.assertFalse(r['complete']);self.assertEqual(r['errors'],[])
+        with self.assertRaises(ValueError):trace.decode_native_boot('',BUILD,SEED,scratch_inspect=True)
+        with self.assertRaises(ValueError):trace.decode_native_boot('',BUILD,SEED,storage=NativeSDTraceTests.expected,scratch_inspect=1)
+
+
 class NativePackageTraceTests(unittest.TestCase):
     expected={'package_id':'c'*64,'payload_sha256':'d'*64,'payload_bytes':12,'build_id':'e'*32}
 
