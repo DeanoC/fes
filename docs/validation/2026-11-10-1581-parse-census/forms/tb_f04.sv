@@ -5,6 +5,8 @@ module tb_f04;
         for (int p = 0; p < 256; p += 37) for (int i = 0; i < 8; i++) begin
             pins = 8'(p); v = 3'(i); #1; if (!ok) bad++;
         end
-        $display("CENSUS f04 bad=%0d", bad); $finish;
+        $display("CENSUS f04 bad=%0d", bad);
+        if (bad != 0) $fatal(1, "f04: rec.data[v] read wrongly");
+        $finish;
     end
 endmodule
