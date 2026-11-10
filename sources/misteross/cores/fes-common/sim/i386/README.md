@@ -245,6 +245,29 @@ differs. Directed tests in later phases decide these, not the oracle:
   real-mode CS selector's low bits are, which `set_state` would otherwise
   take for it.
 
+## Verilator
+
+Every i386 simulation runner (`test_fes_i386_frontend.py`,
+`test_fes_i386_lockstep.py`, `test_fes_i386_latency.py`,
+`test_fes_i386_governor.py` and `test_fes_i386_test386.py --cpu rtl`) builds
+its testbenches with the Verilator that
+[`toolchain.lock`](../../rtl/i386/toolchain.lock) pins, taken from that lock's
+slot in the shared toolchain cache and authenticated there
+(`scripts/i386_verilator.py`). None of them reads `verilator` from `PATH`.
+Provision the slot once per host with
+`make toolchain-fes-i386 CACHE_ROOT=/abs/out/cache/misteross-toolchains`. Then
+pass the runners `--cache-root`, or set `FES_TOOLCHAIN_CACHE_ROOT`, and the
+unit tests below read the same variable. Each report records the Verilator
+commit, digest and version under `verilator`.
+
+The RTL builds run with `-Wall -Wno-UNUSEDSIGNAL` and fail on any other
+warning. Builds of a Yosys netlist (`--yosys`) also waive the lint classes
+that Yosys's flat output raises by construction: `CASEOVERLAP`, `UNDRIVEN`,
+`UNOPTFLAT`, `WIDTHEXPAND` and `WIDTHTRUNC`. They also pass `--no-assert-case`.
+Yosys marks every `$pmux` `parallel_case`, and while Verilator settles the
+netlist's combinational loops, a select can glitch multi-hot even when its
+settled value cannot be.
+
 ## Front-end and address checks
 
 `scripts/test_fes_i386_frontend.py` builds three Verilator testbenches and
@@ -575,10 +598,11 @@ divergence-list schema, listing parsing and test386 case extraction without
 network access; its oracle smoke test runs when the pinned Bochs checkout is
 already in `build/`. `tests/test_fes_i386_frontend.py` covers the runner and
 the spike harness's report reading; it lints the spikes and runs the D and AG
-check when Verilator is installed, runs the oracle-backed front-end checks when
+check when `FES_TOOLCHAIN_CACHE_ROOT` names a cache holding the
+[locked Verilator](#verilator), runs the oracle-backed front-end checks when
 the pinned Bochs checkout is present too, and runs the D and AG check on
 Yosys's netlist when `FES_I386_YOSYS` names a Yosys.
 `tests/test_fes_i386_lockstep.py` covers the lockstep runner's scope,
-divergence and output handling, and runs a short lockstep when Verilator, the
+divergence and output handling, and runs a short lockstep when the locked Verilator, the
 pinned Bochs checkout and the pinned corpus are present (and on Yosys's
 netlist when `FES_I386_YOSYS` names a Yosys).

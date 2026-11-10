@@ -44,6 +44,10 @@ architectural results (counts, faults, interrupts, divergences, every trace
 hash), leaving out only timing (cycles, memory waits, replays, the
 latency-free gaps, which a governed run does not check either).
 
+Verilator is the i386 lock's (cores/fes-common/rtl/i386/toolchain.lock), from
+its authenticated slot in the shared toolchain cache (scripts/i386_verilator.py):
+pass --cache-root or set FES_TOOLCHAIN_CACHE_ROOT. The report records it.
+
 Example:
   python3 scripts/test_fes_i386_lockstep.py --download
   python3 scripts/test_fes_i386_lockstep.py --opcode 00 --opcode D3.4 --random-programs 0
@@ -69,6 +73,7 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import fes_i386_oracle as oracle
+from scripts import i386_verilator
 from scripts import test_fes_i386_frontend as frontend
 from scripts import test_fes_i386_vectors as vectors
 
@@ -338,7 +343,7 @@ def label_fields(entries: list[dict], stem: str, test: vectors.MooTest) -> tuple
     return corpus, oracle_side
 
 
-def verilate(verilator: str, linked: list[Path], jobs: int, yosys: str | None,
+def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs: int, yosys: str | None,
              parameters: dict[str, int] | None = None) -> Path:
     """The testbench, with the CPU's parameters (-G) if any."""
     output = OUTPUT / (('netlist' if yosys else 'rtl')
@@ -346,33 +351,35 @@ def verilate(verilator: str, linked: list[Path], jobs: int, yosys: str | None,
     output.mkdir(parents=True, exist_ok=True)
     if yosys:
         design = [frontend.synthesize_netlist(yosys, [RTL / path for path in CPU_RTL], TOP, output)]
-        warnings = ['-Wno-fatal']
+        warnings = frontend.NETLIST_WARNINGS
     else:
         design = [RTL / path for path in CPU_RTL]
         warnings = []
-    command = [verilator, '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', TOP,
+    command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', TOP,
                '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, '--Mdir', str(output),
                *(f'-G{name}={value}' for name, value in sorted((parameters or {}).items())),
                '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{DDR_MODEL}', '-LDFLAGS', '-pthread',
                *map(str, design), str(SIM / 'lockstep_tb.cpp'), *map(str, linked)]
     log = output / 'build.log'
     with log.open('w') as stream:
-        result = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
+        result = subprocess.run(command, cwd=ROOT, env=verilator.environment(), stdout=stream,
+                                stderr=subprocess.STDOUT)
     if result.returncode:
         raise LockstepError(f'verilator failed; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
     return output / ('V' + TOP)
 
 
-def run_biu_dma_test(verilator: str, jobs: int) -> dict:
+def run_biu_dma_test(verilator: i386_verilator.LockedVerilator, jobs: int) -> dict:
     """Drive a DMA request and a committing store into the BIU on adjacent edges."""
     output = OUTPUT / 'biu'
     output.mkdir(parents=True, exist_ok=True)
-    command = [verilator, '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', 'fes_i386_biu',
-               '-Wall', '-Wno-fatal', '--Mdir', str(output), '-CFLAGS', '-std=c++17 -O2',
+    command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', 'fes_i386_biu',
+               '-Wall', '-Wno-UNUSEDSIGNAL', '--Mdir', str(output), '-CFLAGS', '-std=c++17 -O2',
                str(RTL / 'fes_i386_pkg.sv'), str(RTL / 'fes_i386_biu.sv'), str(SIM / 'biu_dma_tb.cpp')]
     log = output / 'build.log'
     with log.open('w') as stream:
-        result = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
+        result = subprocess.run(command, cwd=ROOT, env=verilator.environment(), stdout=stream,
+                                stderr=subprocess.STDOUT)
     if result.returncode:
         raise LockstepError(f'BIU DMA testbench build failed; see {log}\n'
                             + '\n'.join(log.read_text().splitlines()[-30:]))
@@ -506,7 +513,7 @@ def main() -> int:
     parser.add_argument('--pm-programs', type=int, default=500,
                         help='random programs per seed dense with protected-mode blocks (default 500)')
     parser.add_argument('--no-latency', action='store_true', help='no fetch latency in the corpus run')
-    parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
+    i386_verilator.add_argument(parser)
     parser.add_argument('--yosys', help="simulate this Yosys's netlist of the CPU instead of the RTL")
     parser.add_argument('--preset', type=int, default=0, choices=range(8),
                         help="the governor's preset, fes.pc386.machine word 0 (default 0, max)")
@@ -521,14 +528,13 @@ def main() -> int:
         parser.error('--same-as must be absolute')
     if args.random_programs < 0 or args.pm_programs < 0 or args.random_seeds < 1 or args.seed < 0:
         parser.error('--random-programs must be nonnegative, --random-seeds positive, --seed nonnegative')
-    if os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT'):
-        parser.error('simulation does not use the shared compiler cache')
-    verilator = shutil.which(args.verilator)
-    if verilator is None:
-        print(f'selected Verilator not found: {args.verilator}', file=sys.stderr)
+    try:
+        verilator = i386_verilator.locate(args.cache_root)
+    except i386_verilator.VerilatorError as error:
+        print('i386 lockstep error:', error, file=sys.stderr)
         return 2
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    report: dict[str, object] = {}
+    report: dict[str, object] = {'verilator': verilator.record()}
     try:
         entries = vectors.load_divergences()
         table = OUTPUT / 'divergences.txt'

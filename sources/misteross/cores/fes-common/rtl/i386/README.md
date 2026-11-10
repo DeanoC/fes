@@ -1423,6 +1423,7 @@ and the front-end spike does not show #59's multiplier.
 `scripts/test_fes_i386_lockstep.py` the
 [whole-CPU lockstep](../../sim/i386/README.md#whole-cpu-lockstep);
 `tests/test_fes_i386_frontend.py` and `tests/test_fes_i386_lockstep.py` run
-them from the unit-test suite when Verilator, the pinned oracle and (for the
+them from the unit-test suite when the
+[locked Verilator](../../sim/i386/README.md#verilator), the pinned oracle and (for the
 lockstep) the pinned corpus are present. `scripts/benchmark_fes_i386.py`
 routes the timing spikes.
