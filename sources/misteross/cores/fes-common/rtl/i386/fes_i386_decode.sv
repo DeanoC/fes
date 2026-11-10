@@ -32,7 +32,7 @@
 // and the group 6 forms, LAR, LSL and ARPL raise #UD; INT n, INT3, INTO and
 // exceptions go through the IDT (the V86 delivery's routine). Below IOPL
 // 3, PUSHF, INT n, IRET and a LOCK prefix raise #GP(0) (CLI and STI by
-// their CPL check, CPL 3), POPF once its pop has passed its checks (lgp).
+// their CPL check, CPL 3), POPF once its pop has been read, at EX (uop v86).
 // IN, OUT, INS and OUTS always take the TSS's I/O permission bitmap there,
 // as INS and OUTS do at a CPL above IOPL. The memory operand is a
 // load (src2, or src1 for CMP and TEST), a store, or both in one uop
@@ -114,8 +114,7 @@ module fes_i386_decode (
     output logic [4:0]             ecnt,        // SEQ_ENTER: the nesting level, mod 32
     output logic                   b_sys,       // src2's value is the system register sys_idx names
     output logic [4:0]             sys_idx,     // ... a fes_i386_pkg sys_rd_e
-    output logic [6:0]             moff,        // the memory operand is this many bytes past the ModRM operand's
-    output logic                   lgp          // #GP(0) at M1, after the uop's own checks (POPF in V86 below IOPL 3)
+    output logic [6:0]             moff         // the memory operand is this many bytes past the ModRM operand's
 );
     typedef fes_i386_pkg::uop_t uop_t;
 
@@ -1830,14 +1829,15 @@ module fes_i386_decode (
     // permission bitmap (io_chk, io_str). In V86 mode (CPL 3) below IOPL
     // 3, PUSHF, INT n, IRET and a LOCK prefix raise #GP(0) there too
     // (v86_gp; LOCK as the 386 manual has it, where Bochs runs the
-    // instruction: the lockstep's v86-lock rule), POPF after its pop (lgp).
+    // instruction: the lockstep's v86-lock rule), POPF after its pop has
+    // been read, its checks and any page walk done (EX, uop v86).
     // IOPL changes only
     // at CPL 0, where it gates nothing here, and reaching another CPL
     // flushes, so the IOPL D sees is the instruction's.
     // A MOV to or from DRn with DR7.GD set raises #DB before its CPL check,
     // as Bochs's MOV_DdRd and MOV_RdDd do. Only a DR7 write or #DB's
     // delivery changes GD, each flushing what follows it.
-    logic       priv_op, cpl_gp, v86_gp, gd_db;
+    logic       priv_op, cpl_gp, v86_gp, gd_db, lgp;
     logic [4:0] fault;
     logic       lock_ok;
     assign priv_op = two ? op2 == 8'h06 || op2[7:2] == 6'b001000
@@ -1886,7 +1886,7 @@ module fes_i386_decode (
     assign u.sflt = 2'(fes_i386_pkg::SFLT_GP);
     assign u.segchk = 4'd0;
     assign u.nwrap = nwrap;
-    assign u.v86 = 1'b0;
+    assign u.v86 = lgp;
     assign u.ntchk = b0 == 8'hcf && pm;
     assign u.seg2_pm = 1'b0;
     assign u.shadow = 1'b0;

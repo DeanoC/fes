@@ -420,7 +420,8 @@ package fes_i386_pkg;
     // the segment V86's cache (limit FFFFh, access rights F3h) whatever the
     // mode; the far jump into V86 mode (no xfer) sets VM and CPL 3 and
     // loads ESP from T5; the far jump out of it (xfer) clears VM and nulls
-    // ES, DS, FS and GS. x87p: the uop is an ESC instruction's last, which
+    // ES, DS, FS and GS; POPF in V86 mode below IOPL 3 raises #GP(0) at EX,
+    // after its pop's checks and page walk, changing no flag. x87p: the uop is an ESC instruction's last, which
     // writes the x87 pointers as it retires (x87p_e).
     // A privilege transition (fes_i386_cpu, "Privilege transitions"): hold,
     // WB keeps the staged CS descriptor and whether the transfer changes
@@ -699,11 +700,8 @@ package fes_i386_pkg;
         // V86 mode (fes_i386_cpu, "V86 mode"): vgo, a protected-mode IRET's
         // word that, for an IRETD at CPL 0 whose EFLAGS image (T4) has VM
         // set, is a NOP, as is the word after it, after which the ROM goes
-        // on at the return to V86 mode (UC_V86RET, fes_i386_seq); lgp, the
-        // uop raises #GP(0) at M1 after its own checks (POPF in V86 mode
-        // below IOPL 3, which Bochs pops first).
+        // on at the return to V86 mode (UC_V86RET, fes_i386_seq).
         logic        vgo;
-        logic        lgp;
         // Which of ESI, EDI and ECX (bits 0-2) the uop reads, as a source,
         // a CL count or an address register (str_reads): D holds it while
         // a string element that steps one is in flight.

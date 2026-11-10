@@ -588,7 +588,7 @@ module fes_i386_cpu #(
         .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part), .far_jmp(dc_q.far_jmp), .far_chk(dc_q.far_chk),
         .far_sel(dc_q.far_sel), .wseg(dc_q.wseg), .upc(dc_q.upc), .direct(q_direct), .xlat(q_xlat),
         .m_seg(dc_q.m_seg), .slot(q_slot), .str_op(dc_q.str_op), .str_rep(dc_q.str_rep), .ecnt(dc_q.ecnt),
-        .b_sys(q_b_sys), .sys_idx(dc_q.sys_idx), .moff(dc_q.moff), .lgp(dc_q.lgp)
+        .b_sys(q_b_sys), .sys_idx(dc_q.sys_idx), .moff(dc_q.moff)
     );
     // A stack operation's address is ESP, or EBP for LEAVE, with no index:
     // chosen here, so D's operand lookups start from dc's register.
@@ -1641,11 +1641,11 @@ module fes_i386_cpu #(
         // branch by a displacement (Jcc, JMP, LOOP and its kin, JCXZ; not a
         // far jump, nor INTO's JNO to the next instruction), and CALL rel's
         // push, whose target AG works out (ag_call). A far transfer's offset
-        // past the limit at a uop other than a probe, or POPF in V86 mode
-        // below IOPL 3 (lgp), #GP(0) after the uop's own checks (cs_late).
+        // past the limit at a uop other than a probe, #GP(0) after the uop's
+        // own checks (cs_late).
         d_out.tchk = u.cls == fes_i386_pkg::UOP_BRANCH && u.op < 5'd10 && !dc.far_jmp && !u.eoi_taken
                   || dc.seq == fes_i386_pkg::SEQ_CALL && dc.step == 3'd0;
-        d_out.cs_late = far_bad && stk != fes_i386_pkg::STK_PROBE || dc.lgp;
+        d_out.cs_late = far_bad && stk != fes_i386_pkg::STK_PROBE;
         // A string's first element with a count of 1 is the last, with no
         // REPE or REPNE exit; with a count of 0, a NOP that ends the
         // instruction.
@@ -2366,6 +2366,9 @@ module fes_i386_cpu #(
     always_comb begin
         ex_flags_out = ex_flags_ex;
         if (ex_s.uop.v86 && ex_s.uop.cls == fes_i386_pkg::UOP_BRANCH) ex_flags_out[17] = !ex_s.uop.xfer;
+        // POPF in V86 mode below IOPL 3 (an ALU uop marked v86) faults here
+        // and changes no flag.
+        if (ex_s.uop.v86 && ex_s.uop.cls == fes_i386_pkg::UOP_ALU) ex_flags_out = flags_keep;
     end
     always_comb begin
         ex_out = ex_s;
@@ -2396,6 +2399,11 @@ module fes_i386_cpu #(
         // A faulting branch terminates the pipeline without redirecting to its
         // rejected target. This also covers faults already found in M1.
         ex_out.taken = ex_taken && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
+        // POPF in V86 mode below IOPL 3: #GP(0) once its pop has been read,
+        // after M1's checks and any page walk, as Bochs pops first (decode's
+        // v86 on the POPF uop).
+        if (ex_s.uop.v86 && ex_s.uop.cls == fes_i386_pkg::UOP_ALU && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
+            ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_GP0;
         // BOUND's #BR, after the taken select, which a compare never sets.
         if (ex_br && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_BR;
         // A protected-mode IRET with NT set returns from a nested task, not

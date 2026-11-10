@@ -7217,9 +7217,9 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
     // DS 0200h, ES 0300h, FS 0400h, GS 0500h, IOPL 3 and IF set. Its
     // accesses are user ones; a delivery's reads and the ring-0 stack's
     // pushes are supervisor ones.
-    auto to_v86 = [](Asm &a) {
+    auto to_v86 = [](Asm &a, uint32_t eflags = 0x00023202u) {
         a.op({0x66, 0xb8, 0x38, 0x00, 0x0f, 0x00, 0xd8});                          // MOV AX, 38h; LTR AX
-        for (uint32_t v : {0x0500u, 0x0400u, 0x0200u, 0x0300u, 0x00c0u, 0x0100u, 0x00023202u, 0x0100u}) {
+        for (uint32_t v : {0x0500u, 0x0400u, 0x0200u, 0x0300u, 0x00c0u, 0x0100u, eflags, 0x0100u}) {
             a.op({0x68}); a.d(v);
         }
         const size_t at = a.here();
@@ -7301,6 +7301,14 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         {"pg-v86-eip-past-limit-np", [=](Asm &a, uint32_t) {
              to_v86(a); a.op({0x66, 0x9c, 0x66, 0x0e, 0x66, 0x68}); a.d(0x10000u + uint32_t(a.here() + 6)); a.op({0x66, 0xcf});
          }, 13, 0, -1, {{0x11, 0x40000 | W | U}}},
+        // POPF below IOPL 3 with its stack on a page not present: Bochs pops
+        // first, so #PF (user read), not #GP(0); on a present page, #GP(0).
+        {"pg-v86-popf-np-iopl0", [=](Asm &a, uint32_t) {
+             to_v86(a, 0x00020202u); a.op({0xb8, 0x00, 0x10, 0x8e, 0xd0, 0xbc, 0x10, 0x00, 0x9d});  // SS 1000h; SP 10h; POPF
+         }, 14, 4, 0x10010, {{0x10, 0x20000 | W | U}}},
+        {"pg-v86-popf-iopl0", [=](Asm &a, uint32_t) {
+             to_v86(a, 0x00020202u); a.op({0xb8, 0x00, 0x10, 0x8e, 0xd0, 0xbc, 0x10, 0x00, 0x9d});
+         }, 13, 0, -1, {{0x10, 0x20000 | P | W | U}}},
         {"pg-v86-int-iretd", [=](Asm &a, uint32_t) { to_v86(a); a.op({0xcd, 0x2a, 0x43, 0xcd, 0x2b}); }, -1, -1, -1, {}, {},
          {{0x1820, {0xcf}}}, false, 0x2b, false, {{0x2a, gate(0x18, 0x1820, 0xee)}}},
         {"pg-v86-gdt-sup", [=](Asm &a, uint32_t) { to_v86(a); a.op({0xcd, 0x2b}); }, -1, -1, -1, {{0x2, 0x2000 | P | W}}, {},

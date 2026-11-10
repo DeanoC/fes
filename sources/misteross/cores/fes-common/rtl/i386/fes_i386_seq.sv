@@ -282,7 +282,6 @@ module fes_i386_seq (
         n.zx = 1'b0;
         n.pimm = 1'b0;
         n.vgo = 1'b0;
-        n.lgp = 1'b0;
         // The parameter after a copy's store.
         n.pk = d.pk + 5'(d.pm == 2'(fes_i386_pkg::PM_STORE));
         n.a_t1 = 1'b0;

@@ -1090,7 +1090,8 @@ a far jump that flushes everything after it, so DC decodes with EFLAGS' VM
   and the form's #UD (`v86_gp`). LOCK's is the 386 manual's, where Bochs
   runs the instruction: the lockstep lets the RTL's #GP stand
   (`v86-lock-gp`). POPF and POPFD pop first, as Bochs does, so their
-  #GP(0) comes at M1 after the read's own checks (`lgp`, as `cs_late`).
+  #GP(0) comes at EX (the uop's `v86`), after the read's limit check and
+  any page walk, and changes no flag.
   INT3 and INTO are not IOPL-sensitive. At IOPL 3, POPF and IRET load IF
   but not IOPL (CPL 3), and never VM or (POPF) RF.
 - **I/O.** IN, OUT, INS and OUTS always read the TSS's I/O permission
