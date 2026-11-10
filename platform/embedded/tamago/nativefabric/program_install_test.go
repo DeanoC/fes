@@ -383,6 +383,10 @@ func TestOwnedInstallRealFATLaunchReturnAndFreshBoot(t *testing.T) {
 }
 
 func ownedInstallRealFATCycle(t *testing.T, prepare func(*ProgramBackend, packagestore.Request, map[string][]byte) (*ProgramInstall, error)) {
+	ownedInstallRealFATCycleWithStaging(t, prepare, nil, nil)
+}
+
+func ownedInstallRealFATCycleWithStaging(t *testing.T, prepare func(*ProgramBackend, packagestore.Request, map[string][]byte) (*ProgramInstall, error), beforeMenu func(*packagestore.Store, *fat.Volume, packagestore.Request, map[string][]byte), install func(*ProgramBackend, *ProgramInstall) error) {
 	t.Helper()
 	image := filepath.Join(t.TempDir(), "native-install.img")
 	file, err := os.Create(image)
@@ -450,6 +454,9 @@ func ownedInstallRealFATCycle(t *testing.T, prepare func(*ProgramBackend, packag
 		if err != nil {
 			t.Fatal(err)
 		}
+		if beforeMenu != nil {
+			beforeMenu(f.r.f.store, volume, request, programUpload(f.r.f.files, request))
+		}
 	})
 	b, err := NewProgramBackend(f.s, []ProgramEntry{{ID: "existing", Title: "Existing", Request: request}})
 	if err != nil {
@@ -459,7 +466,10 @@ func ownedInstallRealFATCycle(t *testing.T, prepare func(*ProgramBackend, packag
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = b.Install(context.Background(), 0, plan); err != nil {
+	if install == nil {
+		install = func(b *ProgramBackend, p *ProgramInstall) error { return b.Install(context.Background(), 0, p) }
+	}
+	if err = install(b, plan); err != nil {
 		t.Fatal(err)
 	}
 	client := hostclient.NewClient("http://native.invalid", &http.Client{Transport: b})

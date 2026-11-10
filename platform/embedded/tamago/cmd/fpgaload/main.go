@@ -9,9 +9,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io/fs"
 	"runtime"
 	"time"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano"
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
@@ -20,6 +22,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
 	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
+	"github.com/DeanoC/fes/platform/embedded/tamago/storagepolicy"
 )
 
 var expectedBootContext, expectedControlMap, expectedConfigurationMap, expectedReaderMemoryMap string
@@ -37,6 +40,8 @@ var expectedComputerStorageReturn string
 var expectedProgramPlatform, expectedSelectedPrograms string
 var expectedCompiledMenuProgram string
 var expectedTenfootSerial string
+var expectedWritableStoragePlan, expectedSDTransferClock string
+var programWritableStorageSelected bool
 var retained *nativefabric.ConfigurationTransfer
 
 func decoded(s string, limit int) []byte {
@@ -52,6 +57,19 @@ func decoded(s string, limit int) []byte {
 
 func main() {
 	de25nano.StartupCheckpoint("go_main")
+	var writablePlan *storagepolicy.Plan
+	if expectedWritableStoragePlan != "" {
+		if expectedSDTransferClock != "25000000" || expectedSelectedPrograms != "1" || expectedTenfootSerial != "1" {
+			panic("writable storage requires selected native Tenfoot and 25 MHz transport")
+		}
+		p, err := storagepolicy.ParsePlan(decoded(expectedWritableStoragePlan, 8192))
+		if err != nil {
+			panic(err)
+		}
+		writablePlan = &p
+	} else if expectedSDTransferClock != "" {
+		panic("native transfer clock requires trusted writable storage plan")
+	}
 	if expectedMenuPresent != "" || expectedMenuReadMap != "" {
 		if expectedMenuPresent != "1" || expectedMenuReadMap == "" || expectedWindowMemory != "" || expectedWindowReadMap != "" ||
 			expectedWindowPresent != "" || expectedWindowStorageReturn != "" || expectedWindowReload != "" || expectedWindowService != "" ||
@@ -151,7 +169,12 @@ func main() {
 	}
 	de25nano.StartupCheckpoint("verifier_ready")
 	de25nano.StartupCheckpoint("sd_open_begin")
-	disk, err := board.OpenStorage()
+	var disk block.Device
+	if writablePlan != nil {
+		disk, err = de25nano.OpenWritableStorageAtClock(writablePlan.Identity(), 25000000)
+	} else {
+		disk, err = board.OpenStorage()
+	}
 	if err != nil {
 		panic(err)
 	}
@@ -160,10 +183,18 @@ func main() {
 	if !ok {
 		panic(errors.New("FPGA load requires owned SD storage"))
 	}
-	volume, err := fat.Mount(disk)
+	var volume fs.FS
+	if writablePlan != nil {
+		check, done := context.WithTimeout(context.Background(), 100*time.Second)
+		volume, err = storagepolicy.Mount(check, lease, *writablePlan)
+		done()
+	} else {
+		volume, err = fat.Mount(disk)
+	}
 	if err != nil {
 		panic(err)
 	}
+	programWritableStorageSelected = writablePlan != nil
 	de25nano.StartupCheckpoint("fat_mount_end")
 	store, err := packagestore.New(volume, lease)
 	if err != nil {

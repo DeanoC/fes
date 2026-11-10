@@ -177,6 +177,104 @@ type installWriter interface {
 	CreateFile(context.Context, string, []byte) error
 }
 
+// ReadStagingRecord reads bounded, untrusted content under the active lease.
+// Its caller must validate its schema; this supplies no write authority.
+func (s *Store) ReadStagingRecord(ctx context.Context, name string) (data []byte, err error) {
+	if s == nil || ctx == nil || !pathOK(name) {
+		return nil, ErrState
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err = s.observe(); err != nil {
+		return nil, err
+	}
+	if !s.last.Active || !s.last.Prepared {
+		return nil, ErrState
+	}
+	defer func() {
+		if e := s.observe(); e != nil {
+			data = nil
+			err = errors.Join(err, e)
+		}
+	}()
+	data, err = readBoundedInput(ctx, s.files, name, MaxInstallRecordBytes, -1, "")
+	if errors.Is(err, fat.ErrMutation) {
+		return nil, s.retire(err)
+	}
+	return data, err
+}
+
+// StageInstall snapshots exactly the manifest-bound input files into RAM before
+// the menu owns SD. Package/ROM validators still decide content validity.
+func (s *Store) StageInstall(ctx context.Context, request Request, checksums map[string]string) (plan *InstallPlan, err error) {
+	if s == nil || ctx == nil || len(checksums) < 1 || len(checksums) > 7 || len(request.Sources) > 2 || len(request.Parts) > 2 {
+		return nil, ErrState
+	}
+	request = copyRequest(request)
+	required := map[string]bool{request.Path: true}
+	if request.MetadataPath != "" {
+		required[request.MetadataPath] = true
+	}
+	if request.Tape.Path != "" {
+		required[request.Tape.Path] = true
+	}
+	for _, f := range request.Sources {
+		required[f.Path] = true
+	}
+	for _, f := range request.Parts {
+		required[f.Path] = true
+	}
+	if len(required) != len(checksums) {
+		return nil, ErrState
+	}
+	expected := map[string]string{}
+	names := make([]string, 0, len(required))
+	for name := range required {
+		h, ok := checksums[name]
+		raw, e := hex.DecodeString(h)
+		if !ok || !pathOK(name) || e != nil || len(raw) != 32 || strings.ToLower(h) != h {
+			return nil, ErrState
+		}
+		expected[name] = h
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err = s.observe(); err != nil {
+		return nil, err
+	}
+	if !s.last.Active || !s.last.Prepared {
+		return nil, ErrState
+	}
+	defer func() {
+		if e := s.observe(); e != nil {
+			plan = nil
+			err = errors.Join(err, e)
+		}
+	}()
+	files := map[string][]byte{}
+	total := 0
+	for _, name := range names {
+		data, e := readInput(ctx, s.files, name, int64(MaxInstallBytes-total), -1, expected[name])
+		if e != nil {
+			if errors.Is(e, fat.ErrMutation) {
+				return nil, s.retire(e)
+			}
+			return nil, e
+		}
+		files[name] = data
+		total += len(data)
+	}
+	return PrepareInstall(ctx, request, files)
+}
+
 func safeInstallRefusal(err error) bool {
 	return !errors.Is(err, fat.ErrMutation) && (errors.Is(err, block.ErrReadOnly) || errors.Is(err, fat.ErrNoSpace) || errors.Is(err, fat.ErrCapacity) || errors.Is(err, fs.ErrPermission))
 }
@@ -308,6 +406,11 @@ func (s *Store) Install(ctx context.Context, plan *InstallPlan, record []byte) (
 		}
 	}
 	// Record publication comes only after all copied content has fresh readback.
+	if checked, ok := s.files.(interface{ Check(context.Context) error }); ok {
+		if err = mutate(func() error { return checked.Check(ctx) }); err != nil {
+			return s.retire(err)
+		}
+	}
 	if missing[recordName] {
 		if err = mutate(func() error { return writer.CreateFile(ctx, recordName, record) }); err != nil {
 			return err
@@ -315,6 +418,11 @@ func (s *Store) Install(ctx context.Context, plan *InstallPlan, record []byte) (
 	}
 	if _, err = readInput(ctx, s.files, recordName, MaxInstallRecordBytes, int64(len(record)), blobHash(record)); err != nil {
 		return s.retire(err)
+	}
+	if checked, ok := s.files.(interface{ Check(context.Context) error }); ok {
+		if err = mutate(func() error { return checked.Check(ctx) }); err != nil {
+			return s.retire(err)
+		}
 	}
 	return nil
 }

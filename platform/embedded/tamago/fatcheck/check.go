@@ -8,19 +8,16 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"regexp"
-	"strings"
 
-	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 	"github.com/DeanoC/fes/platform/embedded/tamago/sdhci"
+	"github.com/DeanoC/fes/platform/embedded/tamago/storagepolicy"
 )
 
 type Plan struct {
@@ -38,20 +35,16 @@ type Plan struct {
 
 var targetPath = regexp.MustCompile(`^FES/SDP-[0-9a-f]{16}\.JSN$`)
 
+func (p Plan) storagePlan() storagepolicy.Plan {
+	return storagepolicy.Plan{Format: 1, Scope: "nano-owned-fat-storage-v1", CID: p.CID, Sectors: p.Sectors, MBRSHA256: p.MBRSHA256,
+		RecoveryBytes: p.RecoveryBytes, RecoverySHA256: p.RecoverySHA256, FitBytes: p.FitBytes, FitSHA256: p.FitSHA256}
+}
+
 func (p Plan) Validate() error {
-	hexadecimal := func(s string, n int) bool {
-		v, err := hex.DecodeString(s)
-		return err == nil && len(v) == n && strings.ToLower(s) == s
+	if p.Format != 1 || p.Scope != "nano-sd-fat-file-v1" || !targetPath.MatchString(p.Path) {
+		return fmt.Errorf("fat file check: invalid diagnostic plan")
 	}
-	if p.Format != 1 || p.Scope != "nano-sd-fat-file-v1" || !hexadecimal(p.CID, 15) ||
-		p.CID == strings.Repeat("0", 30) || p.CID == strings.Repeat("f", 30) ||
-		p.Sectors < 131072 || p.Sectors > 1<<32 || p.Sectors%1024 != 0 ||
-		!hexadecimal(p.MBRSHA256, 32) || !targetPath.MatchString(p.Path) ||
-		p.RecoveryBytes <= 0 || p.RecoveryBytes > 16384 || !hexadecimal(p.RecoverySHA256, 32) ||
-		p.FitBytes <= 0 || p.FitBytes > 8<<20 || !hexadecimal(p.FitSHA256, 32) {
-		return fmt.Errorf("fat file check: invalid trusted card/file plan")
-	}
-	return nil
+	return p.storagePlan().Validate()
 }
 
 func ParsePlan(data []byte) (Plan, error) {
@@ -92,13 +85,7 @@ func ParsePlan(data []byte) (Plan, error) {
 	return p, p.Validate()
 }
 
-func (p Plan) Identity() sdhci.Identity {
-	var id sdhci.Identity
-	v, _ := hex.DecodeString(p.CID)
-	copy(id.CID[:], v)
-	id.Sectors = p.Sectors
-	return id
-}
+func (p Plan) Identity() sdhci.Identity { return p.storagePlan().Identity() }
 
 // State is a snapshot of a real platform receipt. The caller must retain the
 // underlying device/session on every failure; Run never repairs or retries it.
@@ -109,7 +96,7 @@ type State struct {
 }
 
 type Media interface {
-	block.Device
+	storagepolicy.Device
 	State() (State, bool)
 	Quiesce() error
 	Resume() error
@@ -160,64 +147,6 @@ func readFile(ctx context.Context, v *fat.Volume, name string, size int) ([]byte
 	return io.ReadAll(io.LimitReader(contextReader{ctx: ctx, source: f}, int64(size)+1))
 }
 
-type confined struct {
-	Media
-	first, end, backup uint64
-}
-
-func (d *confined) WriteSectors(lba uint64, data []byte) error {
-	count := uint64(len(data) / 512)
-	if len(data)%512 != 0 || lba < d.first || lba > d.end || count > d.end-lba ||
-		(count > 0 && (lba == d.first || lba <= d.backup && d.backup-lba < count)) {
-		return fmt.Errorf("fat file check: write outside allowed partition metadata/data")
-	}
-	return d.Media.WriteSectors(lba, data)
-}
-
-func partition(media Media, p Plan) (*confined, []byte, []byte, error) {
-	mbr := make([]byte, 512)
-	if err := media.ReadSectors(0, mbr); err != nil {
-		return nil, nil, nil, err
-	}
-	if mbr[510] != 0x55 || mbr[511] != 0xaa || fmt.Sprintf("%x", sha256.Sum256(mbr)) != p.MBRSHA256 {
-		return nil, nil, nil, fmt.Errorf("fat file check: MBR differs")
-	}
-	var first, count uint64
-	found := false
-	for i := 0; i < 4; i++ {
-		row := mbr[446+i*16 : 462+i*16]
-		if bytes.Equal(row, make([]byte, 16)) {
-			continue
-		}
-		if found || row[4] != 0x0c || row[0] != 0 && row[0] != 0x80 {
-			return nil, nil, nil, fmt.Errorf("fat file check: exactly one FAT32 MBR partition required")
-		}
-		found = true
-		first = uint64(binary.LittleEndian.Uint32(row[8:]))
-		count = uint64(binary.LittleEndian.Uint32(row[12:]))
-	}
-	if first == 0 || count < 65536 || first >= p.Sectors || count > p.Sectors-first {
-		return nil, nil, nil, fmt.Errorf("fat file check: partition outside card")
-	}
-	boot := make([]byte, 512)
-	if err := media.ReadSectors(first, boot); err != nil {
-		return nil, nil, nil, err
-	}
-	reserved := uint64(binary.LittleEndian.Uint16(boot[14:]))
-	backup := uint64(binary.LittleEndian.Uint16(boot[50:]))
-	if backup == 0 || backup >= reserved {
-		return nil, nil, nil, fmt.Errorf("fat file check: missing bounded boot backup")
-	}
-	copyBoot := make([]byte, 512)
-	if err := media.ReadSectors(first+backup, copyBoot); err != nil {
-		return nil, nil, nil, err
-	}
-	if !bytes.Equal(boot, copyBoot) {
-		return nil, nil, nil, fmt.Errorf("fat file check: boot backup differs")
-	}
-	return &confined{Media: media, first: first, end: first + count, backup: first + backup}, mbr, boot, nil
-}
-
 // Run creates and updates one new file, contains/resumes the same device,
 // remounts and reads it, rechecks protected files and ends contained. It is a
 // clean-restart diagnostic, not power-loss recovery or package installation.
@@ -248,37 +177,11 @@ func Run(ctx context.Context, media Media, p Plan, log io.Writer) error {
 		_, err := fmt.Fprintf(log, "FES_NANO_FATFILE %s cid=%s sectors=%d path=%s bytes=%d sha256=%x owner=%016x generation=%d\n", stage, p.CID, p.Sectors, p.Path, len(data), sha256.Sum256(data), s.Owner, s.Generation)
 		return err
 	}
-	disk, mbr, boot, err := partition(media, p)
+	mounted, err := storagepolicy.Mount(ctx, media, p.storagePlan())
 	if err != nil {
 		return err
 	}
-	volume, err := fat.Mount(disk)
-	if err != nil {
-		return err
-	}
-	protected := func(v *fat.Volume) error {
-		for _, file := range []struct {
-			name string
-			size int
-			hash string
-		}{
-			{"FES/RECOVERY.JSON", p.RecoveryBytes, p.RecoverySHA256}, {"u-boot.itb", p.FitBytes, p.FitSHA256}} {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			data, err := readFile(ctx, v, file.name, file.size)
-			if err != nil {
-				return err
-			}
-			if len(data) != file.size || fmt.Sprintf("%x", sha256.Sum256(data)) != file.hash {
-				return fmt.Errorf("fat file check: protected %s differs", file.name)
-			}
-		}
-		return nil
-	}
-	if err = protected(volume); err != nil {
-		return err
-	}
+	volume := mounted.Volume
 	if existing, openErr := volume.Open(p.Path); !errors.Is(openErr, fs.ErrNotExist) {
 		if existing != nil {
 			existing.Close()
@@ -328,21 +231,12 @@ func Run(ctx context.Context, media Media, p Plan, log io.Writer) error {
 	if err = media.Resume(); err != nil {
 		return err
 	}
-	next, afterMBR, afterBoot, err := partition(media, p)
+	mounted, err = mounted.Remount(ctx)
 	if err != nil {
 		return err
 	}
-	if !bytes.Equal(mbr, afterMBR) || !bytes.Equal(boot, afterBoot) {
-		return fmt.Errorf("fat file check: boot metadata changed")
-	}
-	volume, err = fat.Mount(next)
-	if err != nil {
-		return err
-	}
+	volume = mounted.Volume
 	if err = verify(volume, updated); err != nil {
-		return err
-	}
-	if err = protected(volume); err != nil {
 		return err
 	}
 	if err = emit("RESUMED", 3, true, updated); err != nil {

@@ -50,10 +50,12 @@ type ProgramBackend struct {
 	inputFault    error
 	inputPolling  programInputPolling
 	inputBoundary uint64
+	staged        *ProgramInstall
+	stagedError   error
 }
 
 func NewProgramBackend(service *ProgramService, entries []ProgramEntry) (*ProgramBackend, error) {
-	if service == nil || service.state == nil || len(entries) == 0 || len(entries) > 32 {
+	if service == nil || service.state == nil || len(entries) > 32 {
 		return nil, errors.New("native program backend: ready service and bounded catalog required")
 	}
 	b := &ProgramBackend{service: service}
@@ -143,6 +145,9 @@ func (b *ProgramBackend) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 	path := r.URL.Path
+	if response, handled, err := b.stagedCatalogRequest(r); handled {
+		return response, err
+	}
 	if r.Method == "GET" {
 		switch path {
 		case "/api/v1/session":

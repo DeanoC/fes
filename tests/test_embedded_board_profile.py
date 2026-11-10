@@ -24,6 +24,24 @@ def profile():
 
 
 class BoardProfileTests(unittest.TestCase):
+    def test_writable_native_storage_is_bound_to_selected_frontend_and_fast_clock(self):
+        p=profile();p.update(sd_control={'service':'fes-owned-sd-pio-v1'},usb_phy_clock_hz=0)
+        plan={'format':1,'scope':'nano-owned-fat-storage-v1','cid':'a'*30,'sectors':7774208,'mbr_sha256':'b'*64,
+              'recovery_bytes':1470,'recovery_sha256':'c'*64,'fit_bytes':954248,'fit_sha256':'d'*64}
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'storage.json';path.write_text(json.dumps(plan))
+            self.assertEqual(build.writable_storage_option('fpgaload',path,p,True,True),plan)
+            self.assertEqual(build.sd_transfer_clock_option('fpgaload',25000000,None,plan),25000000)
+            with self.assertRaises(ValueError):build.sd_transfer_clock_option('fpgaload',0,None,plan)
+            for program,selected,tenfoot,prof in [('sdfile',True,True,p),('fpgaload',False,True,p),('fpgaload',True,False,p),('fpgaload',True,True,profile())]:
+                with self.subTest(program=program,selected=selected,tenfoot=tenfoot),self.assertRaises(ValueError):
+                    build.writable_storage_option(program,path,prof,selected,tenfoot)
+            for change in ({'format':True},{'cid':'0'*30},{'sectors':True},{'scope':'nano-sd-fat-file-v1'},{'path':'FES/OTHER.JSN'},{'fit_bytes':0}):
+                path.write_text(json.dumps(dict(plan,**change)))
+                with self.subTest(change=change),self.assertRaises(ValueError):build.writable_storage_option('fpgaload',path,p,True,True)
+            path.write_text(json.dumps(plan)[:-1]+',"format":1}')
+            with self.assertRaisesRegex(ValueError,'duplicate'):build.writable_storage_option('fpgaload',path,p,True,True)
+
     def test_transfer_clock_requires_explicit_owned_fat_file_mode(self):
         self.assertEqual(build.sd_transfer_clock_option('sdfile',25000000,{'bound':'plan'}),25000000)
         self.assertEqual(build.sd_transfer_clock_option('storage',0,None),0)

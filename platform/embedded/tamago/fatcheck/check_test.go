@@ -46,15 +46,3 @@ func TestPlanAndPayloadRejectUnboundCardPathAndProtectedFiles(t *testing.T) {
 		}
 	}
 }
-
-func TestPartitionWriteConfinementRejectsOutsideBootAndBackupBeforeDevice(t *testing.T) {
-	d := &confined{first: 32768, end: 294912, backup: 32774}
-	for _, request := range []struct {
-		lba  uint64
-		size int
-	}{{0, 512}, {32767, 512}, {32768, 512}, {32774, 512}, {32773, 1024}, {294912, 512}, {294911, 1024}, {32775, 511}} {
-		if err := d.WriteSectors(request.lba, make([]byte, request.size)); err == nil {
-			t.Fatal("unsafe write accepted", request)
-		}
-	}
-}

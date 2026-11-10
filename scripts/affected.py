@@ -72,6 +72,7 @@ def native_sd_input(path):
                              'platform/embedded/tamago/cmd/sdwrite/',
                              'platform/embedded/tamago/cmd/sdfile/',
                              'platform/embedded/tamago/fatcheck/',
+                             'platform/embedded/tamago/storagepolicy/',
                              'platform/embedded/tamago/fat/',
                              'platform/embedded/tamago/sdhci/')) or
             path in ('platform/embedded/firmware/nano_sd.h',
@@ -144,6 +145,8 @@ def native_fabric_input(path):
                              'platform/embedded/tamago/board/arm64map/',
                              'platform/embedded/tamago/board/de25nano/',
                              'platform/embedded/tamago/nativefabric/',
+                             'platform/embedded/tamago/storagepolicy/',
+                             'platform/embedded/tamago/packagestore/',
                              'platform/embedded/tamago/usbcontrol/',
                              'platform/embedded/tamago/nativefabriccheck/',
                              'platform/embedded/tamago/fabricmodel/',

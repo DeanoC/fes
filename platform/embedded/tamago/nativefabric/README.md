@@ -1,5 +1,35 @@
 # Native contained-fabric endpoint
 
+The selected native Tenfoot image now accepts an explicit
+`--writable-storage-plan FILE --sd-transfer-clock 25000000`. That compiled
+card/recovery plan selects the owned writable session and partition-confined
+mount; package metadata cannot enable it. Startup reads the optional canonical
+`FES/INSTALL.JSN` source while SD is active and snapshots its exactly
+digest-bound package/metadata/ROM/tape inputs into RAM. An invalid optional
+source is quarantined while a healthy installed library remains usable.
+Uncertain storage ownership still prevents startup.
+
+`ReadInstallerBootstrap` accepts explicitly empty `programs:[]` and `entries:[]`
+bootstrap manifests, then merges verified installed records. The base needs no
+dummy playable entry. `AttachStagedProgram` performs the existing immutable
+platform preflight and exposes one staged source through Tenfoot's standard
+core-catalog Install/Setup API. It performs no source filesystem access while
+the menu owns the fabric and never installs automatically on boot. Installation
+uses the existing input/menu/network ownership transitions; the newly configured
+entry appears only after content/catalogue readback and menu restoration.
+The setup response describes that preconfigured entry and its sealed ROMs.
+Duplicate/conflicting IDs and foreign references refuse without mutation.
+
+Source records have `format:1`, `scope:"nano-staged-program-install-v1"`, `id`,
+`title`, the existing `program` choice and a `files` map of exact input paths to
+SHA-256 values. Their JSON is canonical, sorted and newline terminated like the
+other Nano control records. Upload paths are labels, not destinations. This is
+an in-process source adapter, not a native network upload service. Model tests
+cover empty-library installation, the normal client API, real FAT persistence,
+fresh-boot discovery/launch/return and source/ownership/integrity failures.
+The changed native installer image still needs matched build and physical
+acceptance; the earlier 25 MHz file test does not qualify package installation.
+
 `ProgramService.AttachNetwork` transfers one active controller before frontend
 ownership. Attachment claims the shared handle without hardware IO. Once bound,
 launch, return, installation, running Park and menu shutdown drain networking
@@ -56,9 +86,9 @@ checks the original ABI/platform/ROM contract and proves live configuration and
 return. No installer record supplies firmware, DMA or activation permission.
 Tests join real FAT allocation and independent readback to the actual native
 launch/return implementation, including a modeled fresh-boot discovery/launch.
-This API is not a network listener. Physical native Ethernet delivery, writable Nano
-qualification, uninstall/update policy and power-cut recovery remain open; Nano
-startup still selects read-only SD.
+This API is not a network listener. Physical native Ethernet delivery, full native
+installation, uninstall/update policy and power-cut recovery remain open; ordinary
+Nano startup still selects read-only SD.
 
 `ProgramPreferences` loads the bounded `FES/PREFS.JSON` settings object before
 menu construction and serves a private RAM snapshot to Tenfoot. Native startup

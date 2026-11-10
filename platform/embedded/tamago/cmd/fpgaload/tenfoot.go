@@ -33,14 +33,19 @@ const tenfootSerialLinked = true
 func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore.Store, files fs.FS) {
 	paired := expectedCompiledMenuProgram != ""
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
-	choices, err := nativefabric.ReadProgramSelections(ctx, files, "FES/CORESEL.JSN")
-	if err != nil {
-		cancel()
-		panic(err)
-	}
-	entries, err := nativefabric.ReadProgramCatalog(ctx, files, "FES/UI.JSON", choices)
-	if err == nil {
-		entries, err = nativefabric.ReadInstalledPrograms(ctx, store, entries)
+	var entries []nativefabric.ProgramEntry
+	var err error
+	if programWritableStorageSelected {
+		entries, err = nativefabric.ReadInstallerBootstrap(ctx, store)
+	} else {
+		var choices []packagestore.Request
+		choices, err = nativefabric.ReadProgramSelections(ctx, files, "FES/CORESEL.JSN")
+		if err == nil {
+			entries, err = nativefabric.ReadProgramCatalog(ctx, files, "FES/UI.JSON", choices)
+		}
+		if err == nil {
+			entries, err = nativefabric.ReadInstalledPrograms(ctx, store, entries)
+		}
 	}
 	var menuChoices []packagestore.Request
 	if err == nil && paired {
@@ -50,8 +55,25 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		}
 	}
 	var preferences *nativefabric.ProgramPreferences
+	var staged *nativefabric.StagedProgram
+	var stagedError error
 	if err == nil {
 		preferences, err = nativefabric.LoadProgramPreferences(ctx, store, false)
+	}
+	if err == nil && programWritableStorageSelected {
+		staged, err = nativefabric.ReadStagedProgram(ctx, store, "FES/INSTALL.JSN")
+		if errors.Is(err, fs.ErrNotExist) {
+			_, activeErr := store.ActiveReceipt()
+			err = activeErr
+		} else if err != nil {
+			_, activeErr := store.ActiveReceipt()
+			if activeErr == nil {
+				stagedError = err
+				err = nil
+			} else {
+				err = activeErr
+			}
+		}
 	}
 	cancel()
 	if err != nil {
@@ -84,6 +106,15 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	if err != nil {
 		panic(err)
 	}
+	if staged != nil {
+		if err = nativeProgramBackend.AttachStagedProgram(context.Background(), staged); err != nil {
+			if programService.Status().State != nativefabric.ProgramReady {
+				panic(err)
+			}
+			stagedError = err
+		}
+	}
+	nativeProgramBackend.SetStagedSourceError(stagedError)
 	// Launch requests include bounded SD reads and configuration. The existing
 	// request-service budget is 100 seconds, independent of the 20s SDM bound.
 	client := tenfoot.NewClient("http://native.invalid", &http.Client{Transport: nativeProgramBackend, Timeout: 100 * time.Second})

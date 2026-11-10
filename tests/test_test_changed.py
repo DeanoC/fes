@@ -117,7 +117,7 @@ class TestChangedTest(unittest.TestCase):
         result = self.plan()
         command = next(c for c in result["commands"] if c["label"] == "native SD firmware lease and PIO lifecycle")
         self.assertEqual(command["cwd"], "platform/embedded/tamago")
-        self.assertEqual(command["argv"], ["go", "test", "-race", "-count=1", "-timeout", "90s", "./sdcontrol", "./sdhci", "./fat", "./packagestore", "./fatcheck"])
+        self.assertEqual(command["argv"], ["go", "test", "-race", "-count=1", "-timeout", "90s", "./sdcontrol", "./sdhci", "./fat", "./packagestore", "./fatcheck", "./storagepolicy"])
         self.assertIn("cc", command["tools"])
         self.assertEqual(result["impact"]["cores"], [])
         self.assertFalse(any(result["impact"]["test_modes"].values()))
@@ -125,7 +125,7 @@ class TestChangedTest(unittest.TestCase):
         self.assertEqual(parent["argv"][2:6], ["--video", "false", "--media", "false"])
 
     def test_package_store_and_fat_changes_keep_native_storage_checks(self):
-        for path in ('platform/embedded/tamago/packagestore/store.go','platform/embedded/tamago/cmd/sdpackages/main.go','platform/embedded/tamago/fat/fat.go','platform/embedded/tamago/fatcheck/check.go','platform/embedded/tamago/cmd/sdfile/main.go'):
+        for path in ('platform/embedded/tamago/packagestore/store.go','platform/embedded/tamago/cmd/sdpackages/main.go','platform/embedded/tamago/fat/fat.go','platform/embedded/tamago/fatcheck/check.go','platform/embedded/tamago/cmd/sdfile/main.go','platform/embedded/tamago/storagepolicy/policy.go'):
             with self.subTest(path=path):
                 self.change(path)
                 command=next(c for c in self.plan()['commands'] if c['label']=='native SD firmware lease and PIO lifecycle')

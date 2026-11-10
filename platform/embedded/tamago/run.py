@@ -69,8 +69,9 @@ def main():
     parser.add_argument("--profile", type=Path, help="required firmware handoff JSON for Nano cross-build")
     parser.add_argument("--package-id", help="independently expected package ID for the Nano sdpackages diagnostic")
     parser.add_argument("--sd-write-plan", type=Path, help="independently bound spare-card plan; Nano sdwrite or sdfile only")
+    parser.add_argument("--writable-storage-plan",type=Path,help="trusted card/recovery plan for the selected native Tenfoot installer")
     parser.add_argument("--sd-transfer-clock", type=int, choices=(25000000,), default=0,
-                        help="opt in to default-speed 25 MHz data transfers; separately bound Nano sdfile only")
+                        help="opt in to 25 MHz data transfers for bound Nano sdfile or writable native Tenfoot")
     parser.add_argument("--sd-scratch-inspect", action="store_true", help="read-only candidate plan discovery; Nano storage diagnostic only")
     parser.add_argument("--hps-first-project", type=Path, help="sealed HPS-first project for the Nano context diagnostics")
     parser.add_argument("--menu-project", type=Path, help="separately sealed menu companion for selected Nano computer programs")
@@ -122,7 +123,7 @@ def main():
         return
     if args.arm64_features:
         parser.error('--arm64-features requires --board de25-nano')
-    if args.sd_write_plan is not None or args.program in ('sdwrite','sdfile') or args.sd_scratch_inspect or args.sd_transfer_clock:
+    if args.sd_write_plan is not None or args.writable_storage_plan is not None or args.program in ('sdwrite','sdfile') or args.sd_scratch_inspect or args.sd_transfer_clock:
         parser.error('SD write diagnostics require --board de25-nano')
     if args.menu_project is not None or args.firmware_rom is not None or args.rom_host_go is not None or args.shared_usb_input is not None or args.usb_input is not None or args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.window_memory or args.window_read or args.window_present or args.menu_present or args.window_storage_return or args.window_reload or args.window_service or args.computer_control or args.computer_reload or args.computer_storage_return or args.selected_programs or args.tenfoot_serial or args.initial_tape:
         parser.error("--profile, --package-id and --hps-first-project require --board de25-nano")

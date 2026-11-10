@@ -7,6 +7,13 @@ Upload paths are labels only: destinations derive from private bytes as
 storage containment. The runtime must check its compiled platform/ABI before
 calling the owned installer.
 
+`ReadStagingRecord` and `StageInstall` read a bounded source manifest and exactly
+its digest-bound files while the existing SD lease is active/prepared. They
+snapshot validated input into private RAM before menu construction; no open
+file or source path supplies write permission. `StageInstall` uses the same
+package/ROM validator and content-derived destinations as `PrepareInstall`.
+Contained, changed or uncertain ownership refuses further source reads.
+
 `Store.Install` serializes with reads and containment under the exact active,
 prepared SD lease. It never overwrites an existing file: matching content is
 freshly verified and reused; changed content refuses. Missing content uses the
@@ -15,6 +22,9 @@ JSON catalogue record is published last at `FES/INSTALLED/<sha256>.JSN` and read
 back. There are at most 32 records of 8 KiB each. `ReadInstallRecords` verifies
 their filenames/digests at active-storage startup; schema and duplicate-ID checks
 belong to the frontend. These are inventory files, not hardware receipts.
+When the filesystem supplies `Check(ctx)`, protected boot media is rechecked
+before catalogue creation and after record readback. Any failed integrity check
+retires storage and prevents the runtime from advertising a successful install.
 
 Known pre-mutation space/protection refusals leave healthy storage usable.
 Uncertain IO, bad readback or changed ownership retires the store and retains
@@ -22,8 +32,10 @@ its lease, with no retry, rollback, deletion or automatic activation. An error
 after record publication can leave a complete record on disk; callers must not
 assume the failed operation was rolled back. Partial earlier copies remain
 unadvertised content and can be reused only after exact verification under a
-healthy owner. Native board writes remain explicitly disabled, and filesystem
-power loss still requires separate recovery/qualification.
+healthy owner. Ordinary native startup remains read-only; the explicit trusted
+writable-storage selection now connects this installer to the owned native SD
+path. Its complete physical install cycle and filesystem power loss still need
+separate qualification.
 
 `ReadPreferences` and `WritePreferences` access only `FES/PREFS.JSON`, a bounded
 JSON object of at most 64 KiB, while this exact SD lease is active and prepared.

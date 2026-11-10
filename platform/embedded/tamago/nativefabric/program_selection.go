@@ -95,6 +95,10 @@ func ReadProgramSelections(ctx context.Context, files fs.FS, path string) (reque
 }
 
 func decodeProgramSelections(ctx context.Context, data []byte) (requests []packagestore.Request, err error) {
+	return decodeProgramSelectionMode(ctx, data, false)
+}
+
+func decodeProgramSelectionMode(ctx context.Context, data []byte, allowEmpty bool) (requests []packagestore.Request, err error) {
 	if ctx == nil {
 		return nil, ErrProgramSession
 	}
@@ -102,7 +106,7 @@ func decodeProgramSelections(ctx context.Context, data []byte) (requests []packa
 	if err := decodeCompleteRecord(data, 8192, &choices); err != nil {
 		return nil, err
 	}
-	if choices.Format != 1 || choices.Scope != "nano-program-selection-v1" || len(choices.Programs) == 0 || len(choices.Programs) > 16 {
+	if choices.Format != 1 || choices.Scope != "nano-program-selection-v1" || choices.Programs == nil || !allowEmpty && len(choices.Programs) == 0 || len(choices.Programs) > 16 {
 		return nil, errors.New("native fabric: unsupported bounded program selection")
 	}
 	for _, p := range choices.Programs {

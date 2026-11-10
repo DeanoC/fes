@@ -39,7 +39,11 @@ func ReadProgramCatalog(ctx context.Context, files fs.FS, path string, choices [
 }
 
 func decodeProgramCatalog(raw []byte, choices []packagestore.Request) ([]ProgramEntry, error) {
-	if len(choices) == 0 || len(choices) > 32 {
+	return decodeProgramCatalogMode(raw, choices, false)
+}
+
+func decodeProgramCatalogMode(raw []byte, choices []packagestore.Request, allowEmpty bool) ([]ProgramEntry, error) {
+	if !allowEmpty && len(choices) == 0 || len(choices) > 32 {
 		return nil, ErrProgramSession
 	}
 	var catalog struct {
@@ -54,7 +58,7 @@ func decodeProgramCatalog(raw []byte, choices []packagestore.Request) ([]Program
 	if err := decodeCompleteRecord(raw, 8192, &catalog); err != nil {
 		return nil, err
 	}
-	if catalog.Format != 1 || catalog.Scope != "nano-tenfoot-catalog-v1" || len(catalog.Entries) == 0 || len(catalog.Entries) > 32 {
+	if catalog.Format != 1 || catalog.Scope != "nano-tenfoot-catalog-v1" || catalog.Entries == nil || len(catalog.Entries) == 0 && (!allowEmpty || len(choices) != 0) || len(catalog.Entries) > 32 {
 		return nil, errors.New("native program UI: unsupported catalog")
 	}
 	var entries []ProgramEntry

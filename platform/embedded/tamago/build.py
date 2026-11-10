@@ -221,11 +221,37 @@ def sd_write_option(program, path, profile):
     return p
 
 
-def sd_transfer_clock_option(program, requested, plan):
+def writable_storage_option(program,path,profile,selected,tenfoot):
+    if path is None:return None
+    if program!='fpgaload' or selected is not True or tenfoot is not True or profile['sd_control'] is None:
+        raise ValueError('writable storage requires selected native Tenfoot and owned SD')
+    raw=path.read_bytes()
+    if not 0<len(raw)<=4096:raise ValueError('invalid writable storage plan length')
+    def unique(pairs):
+        out={}
+        for key,value in pairs:
+            if key in out:raise ValueError('duplicate writable storage field')
+            out[key]=value
+        return out
+    p=json.loads(raw,object_pairs_hook=unique)
+    keys={'format','scope','cid','sectors','mbr_sha256','recovery_bytes','recovery_sha256','fit_bytes','fit_sha256'}
+    if (not isinstance(p,dict) or set(p)!=keys or type(p['format']) is not int or p['format']!=1 or p['scope']!='nano-owned-fat-storage-v1' or
+            not isinstance(p['cid'],str) or not re.fullmatch('[0-9a-f]{30}',p['cid']) or p['cid'] in ('0'*30,'f'*30) or
+            type(p['sectors']) is not int or not 131072<=p['sectors']<=1<<32 or p['sectors']%1024 or
+            type(p['recovery_bytes']) is not int or not 0<p['recovery_bytes']<=16384 or
+            type(p['fit_bytes']) is not int or not 0<p['fit_bytes']<=8<<20 or
+            any(not isinstance(p[k],str) or not re.fullmatch('[0-9a-f]{64}',p[k]) for k in ('mbr_sha256','recovery_sha256','fit_sha256'))):
+        raise ValueError('invalid writable storage/card plan')
+    return p
+
+
+def sd_transfer_clock_option(program, requested, plan, writable_plan=None):
     if type(requested) is not int or requested not in (0,25000000):
         raise ValueError('SD transfer clock must be 0 or the explicit 25 MHz experiment')
-    if requested and (program!='sdfile' or plan is None):
-        raise ValueError('25 MHz SD requires the separately bound sdfile diagnostic')
+    if writable_plan is not None and requested!=25000000:
+        raise ValueError('native installer requires the selected 25 MHz transport')
+    if requested and not (program=='sdfile' and plan is not None or program=='fpgaload' and writable_plan is not None):
+        raise ValueError('25 MHz SD requires a separately bound writable Nano selection')
     return requested
 
 
@@ -317,7 +343,9 @@ def build(args):
     start, size, entry, frequency, usb_frequency, net, display, fpga, uart_index = profile_constants(profile)
     expected_package_id=package_option(args.program,args.package_id,profile)
     sd_write_plan=sd_write_option(args.program,getattr(args,'sd_write_plan',None),profile)
-    sd_transfer_clock=sd_transfer_clock_option(args.program,getattr(args,'sd_transfer_clock',0),sd_write_plan)
+    writable_storage_plan=writable_storage_option(args.program,getattr(args,'writable_storage_plan',None),profile,getattr(args,'selected_programs',False),getattr(args,'tenfoot_serial',False))
+    sd_transfer_clock=sd_transfer_clock_option(args.program,getattr(args,'sd_transfer_clock',0),sd_write_plan,writable_storage_plan)
+    writable_storage_encoded=base64.b64encode(json.dumps(writable_storage_plan,sort_keys=True,separators=(',',':')).encode()).decode() if writable_storage_plan else None
     sd_write_encoded=base64.b64encode(json.dumps(sd_write_plan,sort_keys=True,separators=(',',':')).encode()).decode() if sd_write_plan else None
     sd_scratch_inspect=scratch_inspect_option(args.program,getattr(args,'sd_scratch_inspect',False),profile)
     spec=importlib.util.spec_from_file_location('fes_native_hps_context',APP.parent/'nano/hps_context.py')
@@ -552,6 +580,7 @@ def build(args):
     if expected_package_id:link_flags+=' -X main.expectedPackageID='+expected_package_id
     if sd_write_encoded:link_flags+=' -X main.expectedSDWritePlan='+sd_write_encoded
     if sd_transfer_clock:link_flags+=' -X main.expectedSDTransferClock='+str(sd_transfer_clock)
+    if writable_storage_encoded:link_flags+=' -X main.expectedWritableStoragePlan='+writable_storage_encoded
     if sd_scratch_inspect:link_flags+=' -X main.expectedScratchInspect=1'
     if context is not None:link_flags+=' -X main.expectedBootContext='+base64.b64encode(hps.encode(context)).decode()
     if io_map is not None:link_flags+=' -X main.expectedHPSIO='+base64.b64encode(hps.encode(io_map)).decode()
@@ -625,9 +654,12 @@ def build(args):
         raise ValueError('SD write plan changed during compilation or was not linked')
     if sd_transfer_clock and str(sd_transfer_clock).encode() not in data:
         raise ValueError('selected SD transfer clock was not linked')
+    if writable_storage_plan is not None and (writable_storage_option(args.program,args.writable_storage_plan,profile,args.selected_programs,args.tenfoot_serial)!=writable_storage_plan or writable_storage_encoded.encode() not in data):
+        raise ValueError('writable storage plan changed or was not linked')
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
               "sd_write_plan":sd_write_plan,"sd_write_plan_sha256":hashlib.sha256(base64.b64decode(sd_write_encoded)).hexdigest() if sd_write_encoded else None,
               "sd_transfer_clock_hz":sd_transfer_clock,
+              "writable_storage_plan":writable_storage_plan,
               "sd_scratch_inspect":sd_scratch_inspect,
               "arm64_features":arm64_features,"cpu_feature_overlay":cpu_feature_overlay,
               "expected_package_id":expected_package_id,"usb_control":usb_control,"usb_shared":usb_shared,"usb_input":usb_input,
@@ -665,6 +697,6 @@ def build(args):
               "compiler_sha256": sha(compiler), "elf_sha256": sha(elf), "command": command,
               "imports": [p["ImportPath"] for p in packages],
               "limitations": ["firmware must supply SD/USB PHY and input clocks plus verified resource reservations",
-                              ("FAT create/update only with explicit card/file plan; no appliance install or power-loss qualification" if args.program=='sdfile' else "SD scratch writes only with the explicit card plan; no FAT or appliance write qualification") if sd_write_plan else "SD cold card initialization, read-only PIO; SoC PHY setup remains firmware-owned", "USB direct low/full-speed boot keyboard only; Ethernet XGMAC 2.10 static IPv4/1000-full prototype; display is boot-firmware scanout only, no drain or FPGA replacement; physical activation unavailable", "SDM probe is read-only TF-A mailbox v1; no programming, live package identity or containment; SMC bounded return is a firmware obligation"]}
+                              "native installer writes only on the trusted card/partition; hardware installation and power-loss acceptance pending" if writable_storage_plan else ("FAT create/update only with explicit card/file plan; no appliance install or power-loss qualification" if args.program=='sdfile' else "SD scratch writes only with the explicit card plan; no FAT or appliance write qualification") if sd_write_plan else "SD cold card initialization, read-only PIO; SoC PHY setup remains firmware-owned", "USB direct low/full-speed boot keyboard only; Ethernet XGMAC 2.10 static IPv4/1000-full prototype; display is boot-firmware scanout only, no drain or FPGA replacement; physical activation unavailable", "SDM probe is read-only TF-A mailbox v1; no programming, live package identity or containment; SMC bounded return is a firmware obligation"]}
     (output / "result.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"Cross-built {elf}; hardware not executed")

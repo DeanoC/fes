@@ -242,6 +242,13 @@ func retainArchive(ctx context.Context, files fs.FS, path string) (archive *core
 	return corepackage.RetainArchive(ctx, info.Size(), f)
 }
 func readInput(ctx context.Context, files fs.FS, path string, limit int64, wantSize int64, wantDigest string) (data []byte, err error) {
+	if wantDigest == "" {
+		return nil, errors.New("package store: expected input digest required")
+	}
+	return readBoundedInput(ctx, files, path, limit, wantSize, wantDigest)
+}
+
+func readBoundedInput(ctx context.Context, files fs.FS, path string, limit int64, wantSize int64, wantDigest string) (data []byte, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -296,7 +303,7 @@ func readInput(ctx context.Context, files fs.FS, path string, limit int64, wantS
 		return nil, errors.New("package store: selected input length changed")
 	}
 	data = data[:offset]
-	if hex.EncodeToString(sum.Sum(nil)) != wantDigest {
+	if wantDigest != "" && hex.EncodeToString(sum.Sum(nil)) != wantDigest {
 		return nil, errors.New("package store: selected input digest differs")
 	}
 	if err = ctx.Err(); err != nil {
