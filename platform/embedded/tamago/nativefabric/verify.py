@@ -17,6 +17,15 @@ FPGA = ROOT / "sources/misteross"
 sys.path.insert(0, str(TAMAGO))
 from admission_fixtures import prepare as prepare_admission
 
+# Keep frame and program/install workloads outside the control package budget.
+# The filters partition top-level tests; each invocation still gets 90 seconds.
+NATIVE_PHASES = (
+    ("native-tests", ("-skip", "^Test(Window|Menu|SelectedMenu|Program|OwnedInstall|InstalledProgram|FullTenfoot)")),
+    ("window-native-tests", ("-run", "^TestWindow")),
+    ("menu-native-tests", ("-run", "^Test(Menu|SelectedMenu)")),
+    ("program-native-tests", ("-run", "^Test(Program|OwnedInstall|InstalledProgram|FullTenfoot)")),
+)
+
 
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -109,14 +118,8 @@ def main():
     if nano:
         run("native-tests", [go, "test", "-race", "-count=1", "-timeout", "90s", "-v", *native_cases], cwd=TAMAGO, extra_env=test_env)
     else:
-        # Large frame-copy/hash cases share no test budget with the control
-        # lifecycle. The filters partition every top-level test exactly once;
-        # each phase retains the existing 90-second package deadline.
-        phases = [("native-tests", ["-skip", "^Test(Window|Menu)"]),
-                  ("window-native-tests", ["-run", "^TestWindow"]),
-                  ("menu-native-tests", ["-run", "^TestMenu"])]
-        native_logs = [name for name, _ in phases]
-        for name, selected in phases:
+        native_logs = [name for name, _ in NATIVE_PHASES]
+        for name, selected in NATIVE_PHASES:
             run(name, [go, "test", "-race", "-count=1", "-timeout", "90s", "-v", *selected, *native_cases], cwd=TAMAGO, extra_env=test_env)
     run("nano-tape-cpu-tests", [go, "test", "-race", "-count=1", "-timeout", "90s", "-v", "./board/de25nano"], cwd=TAMAGO)
     tenfoot_logs = ["tenfoot-tests"]
