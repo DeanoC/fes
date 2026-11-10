@@ -47,6 +47,7 @@ class ZX81DiagnosticTests(unittest.TestCase):
         self.assertEqual(dfile.count(0x76), firmware.ROWS + 1)
         self.assertEqual(dfile[0], 0x76)
         self.assertTrue(all(code == 0x76 or not code & 0x40 for code in dfile))
+        self.assertEqual(dfile[firmware.cell(23, 31) - firmware.D_FILE], 0x80)
         self.assertIn(dfile, IMAGE)
 
     def test_glyphs_are_distinct(self) -> None:

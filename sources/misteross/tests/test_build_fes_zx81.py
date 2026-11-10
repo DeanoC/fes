@@ -90,6 +90,23 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertIn("variant_probe.hex", result.stdout)
         self.assertIn("zx80_load_probe.hex", result.stdout)
         self.assertIn('zx80:-DZX81_MODEL_ZX80', result.stdout)
+        self.assertIn("cores/fes-zx81/sim/diagnostic_tb.cpp", result.stdout)
+
+    def test_zx81_smoke_rejects_shared_cache_before_generating_firmware(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            marker = base / "python-invoked"
+            python = base / "python"
+            python.write_text(f"#!/bin/sh\ntouch '{marker}'\n", encoding="utf-8")
+            python.chmod(0o755)
+            env = dict(os.environ, FES_TOOLCHAIN_CACHE_ROOT=str(base / "cache"), CACHE_ROOT="")
+            result = subprocess.run(
+                ["make", "sim-fes-zx81-smoke", f"PYTHON={python}"],
+                cwd=ROOT, env=env, text=True, capture_output=True, check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("shared toolchain cache is unsupported", result.stderr)
+            self.assertFalse(marker.exists(), "firmware generator ran before the cache guard")
 
     def test_rom_benches_generate_and_use_hex_or_skip_without_rom(self) -> None:
         targets = (
