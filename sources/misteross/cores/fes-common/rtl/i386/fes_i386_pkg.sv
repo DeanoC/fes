@@ -420,8 +420,7 @@ package fes_i386_pkg;
     // the segment V86's cache (limit FFFFh, access rights F3h) whatever the
     // mode; the far jump into V86 mode (no xfer) sets VM and CPL 3 and
     // loads ESP from T5; the far jump out of it (xfer) clears VM and nulls
-    // ES, DS, FS and GS; POPF in V86 mode below IOPL 3 raises #GP(0) at EX,
-    // after its pop's checks and page walk, changing no flag. x87p: the uop is an ESC instruction's last, which
+    // ES, DS, FS and GS. x87p: the uop is an ESC instruction's last, which
     // writes the x87 pointers as it retires (x87p_e).
     // A privilege transition (fes_i386_cpu, "Privilege transitions"): hold,
     // WB keeps the staged CS descriptor and whether the transfer changes

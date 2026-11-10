@@ -1966,17 +1966,20 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             for (const auto &field : e.fields) skip.add(field);
             ++summary.divergences[e.id];
         }
-        // LOCK in V86 mode below IOPL 3 raises #GP(0), as the 386 manual
-        // has it (docs/i386-cpu-design.md, V86 mode); Bochs runs the
-        // instruction. Where the oracle does not raise #UD for the LOCK
-        // itself, the RTL's outcome stands and the oracle takes its state.
+        // In V86 mode below IOPL 3 the 386 raises #GP(0) for a LOCK, as its
+        // manual has it, where Bochs runs the instruction; and for POPF and
+        // POPFD before their pop, as its microcode tests IOPL first
+        // (80386 microcode_notes.txt, 7FB), where Bochs pops first, so a
+        // stack fault comes first (docs/i386-cpu-design.md, V86 mode). Where
+        // the oracle does not raise #UD for the LOCK itself, the RTL's
+        // outcome stands and the oracle takes its state.
         if ((before.cr0 & 1) && (before.eflags & 0x20000) && ((before.eflags >> 12) & 3) != 3 && vector != 6) {
             unsigned k = 0;
             bool lock = false;
             for (; k < 15 && is_prefix(code[k]); ++k) lock = lock || code[k] == 0xf0;
-            if (lock) {
+            if (lock || code[k] == 0x9d) {
                 skip.add("*");
-                ++summary.divergences["v86-lock-gp"];
+                ++summary.divergences["v86-iopl-gp"];
             }
         }
 
@@ -6869,8 +6872,9 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     v86("v86-int-286-tss", int2b, -1, -1, 3, 0x2b, {}, {}, {}, 0x50);
     v86("v86-int-ss0-big", [](Asm &a) { a.op({0xcd, 0x2a, 0x43, 0xcd, 0x2d}); }, -1, -1, 3, 0x2d, {}, {{0x2508, {0x20, 0x00}}});
     v86("v86-esp-high", [=](Asm &a) { a.op({0x50, 0x5b}); int2b(a); }, -1, -1, 3, 0x2b, {}, {}, {}, 0x38, 0x12340100);
-    // The IOPL-sensitive forms below IOPL 3: #GP(0), POPF's after its pop
-    // (at SP FFFFh, #SS(0) first), PUSHF's before its push.
+    // The IOPL-sensitive forms below IOPL 3: #GP(0) before any operand, as
+    // the 386's microcode tests IOPL first; POPF at SP FFFFh too, where
+    // Bochs pops first (#SS(0)) and the v86-iopl rule lets the #GP stand.
     for (auto [label, bytes] : std::initializer_list<std::pair<const char *, std::vector<uint8_t>>>{
              {"v86-cli-iopl0", {0xfa}}, {"v86-sti-iopl0", {0xfb}}, {"v86-pushf-iopl0", {0x9c}},
              {"v86-pushfd-iopl0", {0x66, 0x9c}}, {"v86-popf-iopl0", {0x9d}}, {"v86-popfd-iopl0", {0x66, 0x9d}},
@@ -6878,10 +6882,10 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
              {"v86-hlt-iopl1", {0xf4}}})
         v86(label, [bytes = bytes](Asm &a) { a.b.insert(a.b.end(), bytes.begin(), bytes.end()); }, 13, 0,
             std::string(label) == "v86-hlt-iopl1" ? 1 : 0);
-    v86("v86-popf-ss-iopl0", [](Asm &a) { a.op({0xbc, 0xff, 0xff, 0x9d}); }, 12, 0, 0);
-    v86("v86-popfd-ss-iopl2", [](Asm &a) { a.op({0xbc, 0xfe, 0xff, 0x66, 0x9d}); }, 12, 0, 2);
+    v86("v86-popf-ss-iopl0", [](Asm &a) { a.op({0xbc, 0xff, 0xff, 0x9d}); }, 13, 0, 0);
+    v86("v86-popfd-ss-iopl2", [](Asm &a) { a.op({0xbc, 0xfe, 0xff, 0x66, 0x9d}); }, 13, 0, 2);
     // LOCK below IOPL 3: #GP(0), as the 386 manual has it (Bochs runs the
-    // instruction; the lockstep's v86-lock rule lets the RTL's #GP stand).
+    // instruction; the lockstep's v86-iopl rule lets the RTL's #GP stand).
     // At IOPL 3 the locked ADD runs.
     v86("v86-lock-iopl0", [](Asm &a) { a.op({0xb8, 0x00, 0x07, 0x8e, 0xc0, 0xf0, 0x26, 0x01, 0x07, 0x63, 0xc0}); }, 13, 0, 0);
     v86("v86-lock-iopl3", [=](Asm &a) { a.op({0xb8, 0x00, 0x07, 0x8e, 0xc0, 0xf0, 0x26, 0x01, 0x07}); int2b(a); }, -1, -1,
@@ -7301,11 +7305,13 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         {"pg-v86-eip-past-limit-np", [=](Asm &a, uint32_t) {
              to_v86(a); a.op({0x66, 0x9c, 0x66, 0x0e, 0x66, 0x68}); a.d(0x10000u + uint32_t(a.here() + 6)); a.op({0x66, 0xcf});
          }, 13, 0, -1, {{0x11, 0x40000 | W | U}}},
-        // POPF below IOPL 3 with its stack on a page not present: Bochs pops
-        // first, so #PF (user read), not #GP(0); on a present page, #GP(0).
+        // POPF below IOPL 3 with its stack on a page not present: the 386
+        // tests IOPL before the pop, so #GP(0), where Bochs pops first
+        // (#PF; the v86-iopl rule lets the #GP stand); on a present page,
+        // #GP(0) on both.
         {"pg-v86-popf-np-iopl0", [=](Asm &a, uint32_t) {
              to_v86(a, 0x00020202u); a.op({0xb8, 0x00, 0x10, 0x8e, 0xd0, 0xbc, 0x10, 0x00, 0x9d});  // SS 1000h; SP 10h; POPF
-         }, 14, 4, 0x10010, {{0x10, 0x20000 | W | U}}},
+         }, 13, 0, -1, {{0x10, 0x20000 | W | U}}},
         {"pg-v86-popf-iopl0", [=](Asm &a, uint32_t) {
              to_v86(a, 0x00020202u); a.op({0xb8, 0x00, 0x10, 0x8e, 0xd0, 0xbc, 0x10, 0x00, 0x9d});
          }, 13, 0, -1, {{0x10, 0x20000 | P | W | U}}},

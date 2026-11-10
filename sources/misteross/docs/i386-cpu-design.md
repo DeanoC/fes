@@ -2332,11 +2332,15 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      for its four extra pushes. VM changes only at the far jump, so a fault
      part way through the delivery is delivered from V86 mode again, as
      Bochs's.
-   - **LOCK below IOPL 3 raises #GP(0),** after LOCK's own #UD; the
-     lockstep lets the RTL's #GP stand there (its `v86-lock-gp` rule), as
-     the plan above set out.
-   - **POPF's #GP below IOPL 3 comes after its pop,** as Bochs pops first;
-     PUSHF, INT n and IRET check first.
+   - **LOCK below IOPL 3 raises #GP(0),** after LOCK's own #UD, as the
+     plan above set out.
+   - **POPF below IOPL 3 raises #GP(0) before its pop,** as PUSHF, INT n
+     and IRET do. The 386's microcode tests IOPL at each one's V86 entry
+     before its stack access (reenigne/x86_microcode,
+     `80386/microcode_notes.txt`, 7F7-7FF: `7FB if (CPL <= IOPL) goto
+     "p POPFd"`, the read at 803). Bochs pops POPF first, so a stack fault
+     comes first there, and it runs a LOCK: the lockstep lets the RTL's #GP
+     stand for both (its `v86-iopl-gp` rule).
    - **A delivery's entry is not checked against CS's limit.** IRETD in V86
      mode loads EIP whole, as Bochs does, so EIP may pass FFFFh until the
      next fetch faults; the entry of that #GP fetches nothing.

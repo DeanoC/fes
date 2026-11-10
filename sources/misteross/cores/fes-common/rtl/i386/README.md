@@ -1086,12 +1086,12 @@ a far jump that flushes everything after it, so DC decodes with EFLAGS' VM
   raise #GP(0) by their CPL check (CPL 3; GD's #DB first). SMSW, SGDT and
   SIDT run.
 - **IOPL.** Below IOPL 3, CLI and STI (their CPL check), PUSHF and PUSHFD,
-  INT n, IRET and IRETD, and a LOCK prefix raise #GP(0) in DC, after LOCK's
-  and the form's #UD (`v86_gp`). LOCK's is the 386 manual's, where Bochs
-  runs the instruction: the lockstep lets the RTL's #GP stand
-  (`v86-lock-gp`). POPF and POPFD pop first, as Bochs does, so their
-  #GP(0) comes at EX (the uop's `v86`), after the read's limit check and
-  any page walk, and changes no flag.
+  POPF and POPFD, INT n, IRET and IRETD, and a LOCK prefix raise #GP(0) in
+  DC, after LOCK's and the form's #UD, before any operand (`v86_gp`). The
+  386's microcode tests IOPL at each one's V86 entry before its stack
+  access (reenigne/x86_microcode, `80386/microcode_notes.txt`, 7F7-7FF).
+  Bochs pops POPF first, so a stack fault comes first there, and runs a
+  LOCK: the lockstep lets the RTL's #GP stand for both (`v86-iopl-gp`).
   INT3 and INTO are not IOPL-sensitive. At IOPL 3, POPF and IRET load IF
   but not IOPL (CPL 3), and never VM or (POPF) RF.
 - **I/O.** IN, OUT, INS and OUTS always read the TSS's I/O permission

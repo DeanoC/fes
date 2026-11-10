@@ -2366,9 +2366,6 @@ module fes_i386_cpu #(
     always_comb begin
         ex_flags_out = ex_flags_ex;
         if (ex_s.uop.v86 && ex_s.uop.cls == fes_i386_pkg::UOP_BRANCH) ex_flags_out[17] = !ex_s.uop.xfer;
-        // POPF in V86 mode below IOPL 3 (an ALU uop marked v86) faults here
-        // and changes no flag.
-        if (ex_s.uop.v86 && ex_s.uop.cls == fes_i386_pkg::UOP_ALU) ex_flags_out = flags_keep;
     end
     always_comb begin
         ex_out = ex_s;
@@ -2399,11 +2396,6 @@ module fes_i386_cpu #(
         // A faulting branch terminates the pipeline without redirecting to its
         // rejected target. This also covers faults already found in M1.
         ex_out.taken = ex_taken && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
-        // POPF in V86 mode below IOPL 3: #GP(0) once its pop has been read,
-        // after M1's checks and any page walk, as Bochs pops first (decode's
-        // v86 on the POPF uop).
-        if (ex_s.uop.v86 && ex_s.uop.cls == fes_i386_pkg::UOP_ALU && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
-            ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_GP0;
         // BOUND's #BR, after the taken select, which a compare never sets.
         if (ex_br && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_BR;
         // A protected-mode IRET with NT set returns from a nested task, not

@@ -31,8 +31,9 @@
 // and CALL, RETF and IRET take the real-mode forms (IRET the V86 routine),
 // and the group 6 forms, LAR, LSL and ARPL raise #UD; INT n, INT3, INTO and
 // exceptions go through the IDT (the V86 delivery's routine). Below IOPL
-// 3, PUSHF, INT n, IRET and a LOCK prefix raise #GP(0) (CLI and STI by
-// their CPL check, CPL 3), POPF once its pop has been read, at EX (uop v86).
+// 3, PUSHF, POPF, INT n, IRET and a LOCK prefix raise #GP(0) before any
+// operand (CLI and STI by their CPL check, CPL 3), as the 386's microcode
+// tests IOPL before its stack access.
 // IN, OUT, INS and OUTS always take the TSS's I/O permission bitmap there,
 // as INS and OUTS do at a CPL above IOPL. The memory operand is a
 // load (src2, or src1 for CMP and TEST), a store, or both in one uop
@@ -1827,25 +1828,25 @@ module fes_i386_decode (
     // before its operands, as Bochs checks them, after LOCK's and the
     // form's #UD. An I/O instruction at a CPL above IOPL asks the TSS's I/O
     // permission bitmap (io_chk, io_str). In V86 mode (CPL 3) below IOPL
-    // 3, PUSHF, INT n, IRET and a LOCK prefix raise #GP(0) there too
-    // (v86_gp; LOCK as the 386 manual has it, where Bochs runs the
-    // instruction: the lockstep's v86-lock rule), POPF after its pop has
-    // been read, its checks and any page walk done (EX, uop v86).
+    // 3, PUSHF, POPF, INT n, IRET and a LOCK prefix raise #GP(0) there too
+    // (v86_gp), before any operand: the 386's microcode tests IOPL at each
+    // one's V86 entry before its stack access (80386 microcode_notes.txt,
+    // 7F9-7FF). Bochs pops POPF first, and runs a LOCK: the lockstep's
+    // v86-iopl rule lets the RTL's #GP stand.
     // IOPL changes only
     // at CPL 0, where it gates nothing here, and reaching another CPL
     // flushes, so the IOPL D sees is the instruction's.
     // A MOV to or from DRn with DR7.GD set raises #DB before its CPL check,
     // as Bochs's MOV_DdRd and MOV_RdDd do. Only a DR7 write or #DB's
     // delivery changes GD, each flushing what follows it.
-    logic       priv_op, cpl_gp, v86_gp, gd_db, lgp;
+    logic       priv_op, cpl_gp, v86_gp, gd_db;
     logic [4:0] fault;
     logic       lock_ok;
     assign priv_op = two ? op2 == 8'h06 || op2[7:2] == 6'b001000
                          || op2 == 8'h00 && reg_f[2:1] == 2'b01 || op2 == 8'h01 && (reg_f[2:1] == 2'b01 || reg_f == 3'd6)
                          : b0 == 8'hf4;
-    assign v86_gp = vm && iopl != 2'd3 && (!two && (b0 == 8'h9c || b0 == 8'hcd || b0 == 8'hcf) || q.prefixes.lock);
+    assign v86_gp = vm && iopl != 2'd3 && (!two && (b0 == 8'h9c || b0 == 8'h9d || b0 == 8'hcd || b0 == 8'hcf) || q.prefixes.lock);
     assign cpl_gp = pe && (cpl != 2'd0 && priv_op || cpl > iopl && !two && b0[7:1] == 7'b1111101) || v86_gp;
-    assign lgp = vm && iopl != 2'd3 && !two && b0 == 8'h9d;
     assign gd_db = dr_gd && two && op2[7:2] == 6'b001000 && op2[0];
     assign lock_ok = lockable && mkind == 2'd3 || lock_any;
     assign fault = !known && !cpl_gp ? 5'(fes_i386_pkg::FAULT_UNIMPLEMENTED)
@@ -1854,7 +1855,7 @@ module fes_i386_decode (
                  : gd_db ? 5'(fes_i386_pkg::FAULT_DB)
                  : cpl_gp ? 5'(fes_i386_pkg::FAULT_GP0)
                  : nm ? 5'(fes_i386_pkg::FAULT_NM) : 5'(fes_i386_pkg::FAULT_NONE);
-    assign stop = fault != 5'd0 || lgp || (cls == C_SPECIAL && op == 5'd1);
+    assign stop = fault != 5'd0 || (cls == C_SPECIAL && op == 5'd1);
 
     uop_t u;
     assign u.seg2 = seg2 && fault == 5'd0;
@@ -1886,7 +1887,7 @@ module fes_i386_decode (
     assign u.sflt = 2'(fes_i386_pkg::SFLT_GP);
     assign u.segchk = 4'd0;
     assign u.nwrap = nwrap;
-    assign u.v86 = lgp;
+    assign u.v86 = 1'b0;
     assign u.ntchk = b0 == 8'hcf && pm;
     assign u.seg2_pm = 1'b0;
     assign u.shadow = 1'b0;
