@@ -78,6 +78,7 @@ Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and m
 ### Hard rules
 - No rebase, force-push or amend.
 - Never relax timing or seal checks.
+- A change that moves a core's `BUILD_ID` only through its build record or source closure (a producer script, lock or helper edit, with no RTL change) needs no reseal or HIL when the PR shows that core's Yosys netlists and Quartus resource summaries are byte-identical to main apart from the `BUILD_ID` constant. Any other difference needs the core's normal reseal and HIL. (#1581, D12)
 - Do not close PRs without Deano's OK.
 
 ### Ops
