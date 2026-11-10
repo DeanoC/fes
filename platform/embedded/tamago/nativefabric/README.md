@@ -27,8 +27,10 @@ other Nano control records. Upload paths are labels, not destinations. This is
 an in-process source adapter, not a native network upload service. Model tests
 cover empty-library installation, the normal client API, real FAT persistence,
 fresh-boot discovery/launch/return and source/ownership/integrity failures.
-The changed native installer image still needs matched build and physical
-acceptance; the earlier 25 MHz file test does not qualify package installation.
+The changed native installer image has a
+[matched boot-chain build](../../../../docs/validation/2026-11-10-de25-native-package-install/README.md)
+and still needs physical acceptance; the earlier 25 MHz file test does not
+qualify package installation.
 
 `ProgramService.AttachNetwork` transfers one active controller before frontend
 ownership. Attachment claims the shared handle without hardware IO. Once bound,

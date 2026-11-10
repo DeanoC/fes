@@ -31,8 +31,11 @@ and power-loss behavior remain open.
 The explicit [25 MHz owned-session trial](../../docs/validation/2026-11-10-de25-fast-sd-trial/README.md)
 also passes file creation/update, restored-clock containment/resume and fresh
 recovery file/protected-media readback. Ordinary startup retains its previous
-read-only transport; the faster selection is available for the next package
-installer integration.
+read-only transport. The explicit faster selection now supports the
+[staged native installer candidate](../../docs/validation/2026-11-10-de25-native-package-install/README.md):
+an empty playable library, checked writable mount and the normal Tenfoot
+Install/Setup APIs. Its software/FAT model cycles and matched boot chain pass;
+physical installation and fresh-boot discovery still need their own trial.
 The [FAT32 allocation path](tamago/fat/README.md) now creates files and directories
 without preallocation, with independent mtools readback and real package-store
 retention tests. The [owned in-process installer](tamago/nativefabric/README.md)
@@ -42,7 +45,7 @@ Real HTTP/FAT-image tests now cover download of an existing Nano export,
 compiled admission, installation, launch/return and modeled fresh-boot discovery.
 The Linux-free QEMU `programfetch` diagnostic separately verifies package/ROM/
 tape identities over VirtIO HTTP and leaves its FAT disk unchanged. A native
-network upload service, NIC containment and physical FAT/install qualification
+network upload service, NIC containment and physical package-install qualification
 remain separate work; ordinary Nano networking and SD writes stay disabled in
 the board profile.
 
