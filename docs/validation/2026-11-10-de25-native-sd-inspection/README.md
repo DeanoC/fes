@@ -44,3 +44,25 @@ Raw helpers, models and preparation results are under
 `out/nano-sd-inspect-trial-20261110/`. The hardware attempt has not started in
 this source record, and no live preflight or programming grant is archived as
 permission to execute it later.
+
+## Hardware result
+
+[The single hardware attempt](hardware-result.json) passes on TRWU8CBL for the
+matched inspector build `4d1d7cc52d07940d`, compiled from `8e07258b8` with host
+observer `91e248fda`. Recovery boot, the single boot-FIT upload, its independent
+fresh SD readback, complete cold/ATF/EL2/EL1 proof, native reads, contain/resume
+and final SD containment all pass. The host restores 15MHz/auto1, exact USB
+permissions, stops its private JTAG service and leaves the UART free. There
+are no new programming failures. CPU park was not observed.
+
+The [independent plan review](real-plan-review.json) matches CID/capacity to the
+previous retained physical spare-card capture. Its MBR hash matches the qualified
+recovery image, whose sole FAT partition spans sectors32768–294911. The proposed
+eight-sector scratch starts at7774200, outside that partition and the declared
+144MiB boot image. Both recovery and native U-Boot use volatile environments.
+The original tail contents were hashed, never dumped or modified by native code.
+
+The recovery loader wrote `FES/UPLOAD.BIN`; the native inspector wrote no SD
+sectors. The captured plan is build input for a separate writer and grants no
+live operation. Native writes, FAT persistence and ordinary installation remain
+unqualified. Full raw evidence is under the private trial directory named above.

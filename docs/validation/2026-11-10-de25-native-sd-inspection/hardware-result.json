@@ -1,0 +1,66 @@
+{
+  "status": "passed-exact-artifact-readonly-native-inspection",
+  "source_commit": "91e248fda962a9995c0066735d5aec497ab5f99f",
+  "compiled_source": "8e07258b8f129d668a5f371ce94907b7c5dbfb41",
+  "native_boot_id": "4d1d7cc52d07940d",
+  "inspector_sof_sha256": "4c65ef26b16b152a8ca6cac40392e00ab67db16b2c96a2667f29d8c137ae5440",
+  "native_fit_sha256": "7a1eacab4c01d9a53d00d3e84a00e400b632d10f0c0095f03f7151b8d16c1562",
+  "one_recovery_boot_file_upload_verified": true,
+  "one_independent_fresh_file_readback_verified": true,
+  "recovery_sd_write_scope": "FES/UPLOAD.BIN only",
+  "native_boot_trace_complete": true,
+  "native_sd_reads_and_contain_resume_passed": true,
+  "native_sd_sector_writes": false,
+  "final_sd_contained": true,
+  "cpu_park_observed": false,
+  "plan": {
+    "format": 1,
+    "scope": "nano-sd-scratch-write-v1",
+    "cid": "275048534430344730da25e394012b",
+    "sectors": 7774208,
+    "mbr_sha256": "13f4a84a267e67f06b1d09fdfa130a7625a0aab9b363163e711aa9854d7c944c",
+    "original_sha256": "e81b5f7145bdf34e823674a03897f858a1f71be2b18b0a139a4261e1dad908d4"
+  },
+  "plan_independently_reviewed": true,
+  "plan_review_sha256": "741eca1d852072e57713135dc555056b57ec1dc730d3b2ed997e9d6aea5a2f08",
+  "prior_transport_programming_failures": 2,
+  "new_programming_failures": 0,
+  "programming_attempts_this_native_image": 1,
+  "hardware_elapsed_seconds": 70.93198969890364,
+  "cleanup": {
+    "status": "passed",
+    "clock_readback_logs": [
+      {
+        "parameter": "JtagClock",
+        "value": "15M",
+        "log_sha256": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+      },
+      {
+        "parameter": "JtagClockAutoAdjust",
+        "value": 1,
+        "log_sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      }
+    ],
+    "owned_private_server_gone": true,
+    "usb_permissions_exact": true,
+    "usb_node_unchanged": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "experiment_result_sha256": "2e3ac087f3c6717e0d7b2a0f867e639ad808da95d9caf5222abb2b423aaa81d1"
+  },
+  "ordinary_core_admission": false,
+  "filesystem_write_qualification": false,
+  "native_write_qualification": false,
+  "full_appliance_acceptance": false,
+  "raw_evidence_sha256": {
+    "out/nano-sd-inspect-trial-20261110/trial/experiment-result.json": "2e3ac087f3c6717e0d7b2a0f867e639ad808da95d9caf5222abb2b423aaa81d1",
+    "out/nano-sd-inspect-trial-20261110/trial/native-result.json": "937fa365c746b4379b1894273c8fd33f6eaaf09ee33d04381a000516a2b91a9a",
+    "out/nano-sd-inspect-trial-20261110/trial/native-console.log": "571c942d43ca8a86cb9eb5dc492cb17b87158c99d1a0874a16324b87c71291a9",
+    "out/nano-sd-inspect-trial-20261110/trial/recovery-boot-result.json": "ebc0a44c73102dd6182f37ca8dbf357f317afa63de948817fc0d40fcfd14cc1b",
+    "out/nano-sd-inspect-trial-20261110/trial/upload-boot/result.json": "476502e44f3bcd8ef503f67aaff5710516fb121d0201acb94300698d08801659",
+    "out/nano-sd-inspect-trial-20261110/trial/live-fit.json": "6068e10a41ef0e0e3503d353635f1f0f109c753f3c99e0f150cc621ddca91726",
+    "out/nano-sd-inspect-trial-20261110/cleanup-evidence.json": "c79b1936f6a19488bd873f6ba2b960a019dbf43d0b8f1a4a72e94db42c171e38",
+    "out/nano-sd-inspect-trial-20261110/real-spare-write-plan.json": "6c866cf22eb9a0f9ae729228db13c05cf1d0b8248149b82af58b681bd4a66cc5",
+    "out/nano-sd-inspect-trial-20261110/real-plan-review.json": "741eca1d852072e57713135dc555056b57ec1dc730d3b2ed997e9d6aea5a2f08"
+  }
+}
