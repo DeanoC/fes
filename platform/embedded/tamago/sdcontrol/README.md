@@ -91,8 +91,13 @@ hashes. The plan is compiled into the native executable and checked against the
 build receipt. Ordinary `OpenStorage` and core-loading images remain read-only.
 Both modes require the closed SD-only Nano profile and are rejected by QEMU.
 
+The separate [`sdfile` diagnostic](../fatcheck/README.md) now joins new FAT file
+allocation, shrinking updates and a fresh post-resume mount to this same owned
+writer. It requires its own compiled card/file plan and an absent unique target;
+raw scratch-write evidence does not qualify that file path physically.
+
 Run host checks with `go test -race -count=1 -timeout 90s ./sdcontrol ./sdhci
-./fat` from the TamaGo module. The SD Session tests compile the actual C
+./fat ./fatcheck` from the TamaGo module. The SD Session tests compile the actual C
 firmware/dispatcher with the host C compiler; `-count=1` prevents Go's result
 cache from hiding changes to those external C inputs. The affected runner uses
 this command automatically.

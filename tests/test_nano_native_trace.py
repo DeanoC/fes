@@ -1558,6 +1558,82 @@ class NativeSDWriteTraceTests(unittest.TestCase):
         self.assertEqual(r['scratch_write_observation']['expected_plan'],plan)
 
 
+class NativeFATFileTraceTests(unittest.TestCase):
+    plan={'format':1,'scope':'nano-sd-fat-file-v1','cid':'b'*30,'sectors':7774208,'mbr_sha256':'c'*64,
+          'path':'FES/SDP-0123456789abcdef.JSN','recovery_bytes':1024,'recovery_sha256':'d'*64,
+          'fit_bytes':1024,'fit_sha256':'e'*64}
+
+    def capture(self):
+        prefix=NativeSDTraceTests().capture().split('FES_STORAGE_PROBE')[0]
+        lines=[]
+        for phase,generation in zip(trace.fat_file_trace.PHASES,trace.fat_file_trace.GENERATIONS):
+            size,digest=trace.fat_file_trace.content(self.plan['path'],phase)
+            lines.append(f'FES_NANO_FATFILE {phase.upper()} cid={self.plan["cid"]} sectors={self.plan["sectors"]} '
+                         f'path={self.plan["path"]} bytes={size} sha256={digest} owner={OWNER:016x} generation={generation}\n')
+        return prefix+''.join(lines)
+
+    def decode(self,raw):
+        return trace.decode_native_boot(raw,BUILD,SEED,fat_file=self.plan)
+
+    def test_explicit_file_diagnostic_complete_and_no_install_claim(self):
+        r=self.decode(self.capture());self.assertTrue(r['complete'],r)
+        self.assertEqual(r['last_checkpoint'],'fat_file_pass')
+        self.assertTrue(r['fat_file_observation']['final_sd_contained'])
+        self.assertFalse(r['fat_file_observation']['independent_recovery_readback'])
+        self.assertFalse(r['fat_file_observation']['ordinary_admission'])
+        self.assertFalse(r['core_load_acceptance'])
+        self.assertFalse(trace.decode_native_boot(self.capture(),BUILD,SEED)['complete'])
+        self.assertFalse(trace.decode_native_boot(self.capture(),BUILD,SEED,storage=NativeSDTraceTests.expected)['complete'])
+
+    def test_each_phase_binds_card_path_contents_owner_and_generation(self):
+        raw=self.capture()
+        for line in [x for x in raw.splitlines(keepends=True) if x.startswith('FES_NANO_FATFILE ')]:
+            for pattern,replacement in ((r'owner=[0-9a-f]+',f'owner={OWNER+2:016x}'),
+                    (r'generation=\d+','generation=8'),(r'cid=[0-9a-f]+','cid='+'a'*30),
+                    (r'sectors=\d+','sectors=7773184'),(r'path=\S+','path=FES/SDP-0123456789abcdee.JSN'),
+                    (r'bytes=\d+','bytes=512'),(r'sha256=[0-9a-f]+','sha256='+'0'*64)):
+                with self.subTest(line=line,pattern=pattern):
+                    r=self.decode(raw.replace(line,re.sub(pattern,replacement,line)))
+                    self.assertFalse(r['complete']);self.assertTrue(r['errors'])
+            self.assertFalse(self.decode(raw.replace(line,''))['complete'])
+            self.assertFalse(self.decode(raw.replace(line,line+line))['complete'])
+        start=raw.index('FES_NANO_FATFILE READY')
+        for i in range(start,len(raw)):
+            self.assertFalse(self.decode(raw[:i])['complete'])
+        failed=self.decode(raw.split('FES_NANO_FATFILE CREATED')[0]+'panic: write failed\n')
+        self.assertTrue(failed['fat_file_observation']['writes_possible_after_ready'])
+        self.assertFalse(failed['fat_file_observation']['final_sd_contained'])
+
+    def test_expected_plan_and_mode_never_come_from_wire(self):
+        for changes in ({'format':True},{'cid':'0'*30},{'sectors':True},{'sectors':131073},
+                {'path':'FES/RECOVERY.JSON'},{'fit_bytes':True},{'recovery_bytes':16385},{'extra':1}):
+            with self.subTest(changes=changes),self.assertRaises(ValueError):
+                trace.decode_native_boot('',BUILD,SEED,fat_file=dict(self.plan,**changes))
+        for mode in ({'storage':NativeSDTraceTests.expected},{'scratch_write':NativeSDWriteTraceTests.plan},
+                {'scratch_inspect':True},{'usb_control':True},{'package':{}},{'_window_prefix':True}):
+            with self.subTest(mode=mode),self.assertRaises(ValueError):
+                trace.decode_native_boot('',BUILD,SEED,fat_file=self.plan,**mode)
+
+    def test_actual_firmware_pio_fat_records_and_payload_match_decoder(self):
+        import os,subprocess
+        # Actual C/Go/FAT model output, joined to an explicitly synthetic cold
+        # prefix. This establishes interoperability, never physical boot.
+        result=subprocess.run(['go','test','-race','-count=1','-timeout','90s','-run',
+            '^TestFATFileActualFirmwarePIOCreateUpdateResumeAndIndependentReadback$','-v','./sdcontrol'],
+            cwd=ROOT/'platform/embedded/tamago',env=dict(os.environ,GOWORK='off'),
+            stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=120)
+        self.assertEqual(result.returncode,0,result.stdout)
+        lines=[x[x.index('FES_NANO_FATFILE '):] for x in result.stdout.splitlines() if 'FES_NANO_FATFILE ' in x]
+        self.assertEqual(len(lines),6,result.stdout)
+        plans=[x.split('FES_MODEL_FAT_PLAN ',1)[1] for x in result.stdout.splitlines() if 'FES_MODEL_FAT_PLAN ' in x]
+        self.assertEqual(len(plans),1,result.stdout)
+        plan=json.loads(plans[0]);owner=int(re.search(r' owner=([0-9a-f]+)',lines[0])[1],16)
+        prefix=NativeSDTraceTests().capture().split('FES_STORAGE_PROBE')[0].replace(f'owner={OWNER:x}',f'owner={owner:x}')
+        r=trace.decode_native_boot(prefix+'\n'.join(lines)+'\n',BUILD,(owner^EPOCH)|1,fat_file=plan)
+        self.assertTrue(r['complete'],r)
+        self.assertEqual(r['fat_file_observation']['expected_plan'],plan)
+
+
 class NativePackageTraceTests(unittest.TestCase):
     expected={'package_id':'c'*64,'payload_sha256':'d'*64,'payload_bytes':12,'build_id':'e'*32}
 

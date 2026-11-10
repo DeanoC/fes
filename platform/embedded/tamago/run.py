@@ -58,7 +58,7 @@ def stop(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("program", choices=("probe", "mapcheck", "fabric", "packages", "admission", "play", "tenfoot", "storage", "sdwrite", "keyboard", "network", "programfetch", "display", "fpga", "sdpackages", "bootcontext", "hpsio", "usbcheck", "fpgacontext", "fpgastatus", "fpgaload"))
+    parser.add_argument("program", choices=("probe", "mapcheck", "fabric", "packages", "admission", "play", "tenfoot", "storage", "sdwrite", "sdfile", "keyboard", "network", "programfetch", "display", "fpga", "sdpackages", "bootcontext", "hpsio", "usbcheck", "fpgacontext", "fpgastatus", "fpgaload"))
     parser.add_argument("--export-root",type=Path,help="private Nano export root containing FES/CORESEL.JSN and FES/UI.JSON (programfetch only)")
     parser.add_argument("--program-id",help="catalogue ID from the selected export (programfetch only)")
     parser.add_argument("--compiler", required=True, type=Path)
@@ -68,7 +68,7 @@ def main():
                         help="opt-in EL1 system-register CPU feature discovery for the pinned Nano compiler; no ISA flags are forced")
     parser.add_argument("--profile", type=Path, help="required firmware handoff JSON for Nano cross-build")
     parser.add_argument("--package-id", help="independently expected package ID for the Nano sdpackages diagnostic")
-    parser.add_argument("--sd-write-plan", type=Path, help="independently bound spare-card scratch plan; Nano sdwrite only")
+    parser.add_argument("--sd-write-plan", type=Path, help="independently bound spare-card plan; Nano sdwrite or sdfile only")
     parser.add_argument("--sd-scratch-inspect", action="store_true", help="read-only candidate plan discovery; Nano storage diagnostic only")
     parser.add_argument("--hps-first-project", type=Path, help="sealed HPS-first project for the Nano context diagnostics")
     parser.add_argument("--menu-project", type=Path, help="separately sealed menu companion for selected Nano computer programs")
@@ -120,8 +120,8 @@ def main():
         return
     if args.arm64_features:
         parser.error('--arm64-features requires --board de25-nano')
-    if args.sd_write_plan is not None or args.program == 'sdwrite' or args.sd_scratch_inspect:
-        parser.error('SD scratch diagnostics require --board de25-nano')
+    if args.sd_write_plan is not None or args.program in ('sdwrite','sdfile') or args.sd_scratch_inspect:
+        parser.error('SD write diagnostics require --board de25-nano')
     if args.menu_project is not None or args.firmware_rom is not None or args.rom_host_go is not None or args.shared_usb_input is not None or args.usb_input is not None or args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.window_memory or args.window_read or args.window_present or args.menu_present or args.window_storage_return or args.window_reload or args.window_service or args.computer_control or args.computer_reload or args.computer_storage_return or args.selected_programs or args.tenfoot_serial or args.initial_tape:
         parser.error("--profile, --package-id and --hps-first-project require --board de25-nano")
     if args.program in ("fpga", "sdpackages", "bootcontext", "hpsio", "usbcheck", "fpgacontext", "fpgastatus", "fpgaload"):

@@ -24,6 +24,22 @@ def profile():
 
 
 class BoardProfileTests(unittest.TestCase):
+    def test_fat_file_plan_requires_owned_profile_exact_card_and_bounded_target(self):
+        p=profile();p.update(sd_control={'service':'fes-owned-sd-pio-v1'},usb_phy_clock_hz=0)
+        plan={'format':1,'scope':'nano-sd-fat-file-v1','cid':'a'*30,'sectors':7774208,'mbr_sha256':'b'*64,
+              'path':'FES/SDP-0123456789abcdef.JSN','recovery_bytes':1024,'recovery_sha256':'c'*64,'fit_bytes':1024,'fit_sha256':'d'*64}
+        with tempfile.TemporaryDirectory() as d:
+            path=Path(d)/'plan.json';path.write_text(json.dumps(plan))
+            self.assertEqual(build.sd_write_option('sdfile',path,p),plan)
+            for program,argument,prof in [('storage',path,p),('sdfile',None,p),('sdfile',path,profile()),('sdfile',path,dict(p,network={}))]:
+                with self.subTest(program=program),self.assertRaises(ValueError):build.sd_write_option(program,argument,prof)
+            for change in ({'format':True},{'cid':'0'*30},{'sectors':True},{'sectors':131073},{'scope':'nano-sd-scratch-write-v1'},
+                           {'path':'FES/RECOVERY.JSON'},{'path':'../SDP-0123456789abcdef.JSN'},{'recovery_bytes':True},{'fit_bytes':(8<<20)+1},{'extra':1}):
+                path.write_text(json.dumps(dict(plan,**change)))
+                with self.subTest(change=change),self.assertRaises(ValueError):build.sd_write_option('sdfile',path,p)
+            path.write_text(json.dumps(plan)[:-1]+',"format":1}')
+            with self.assertRaisesRegex(ValueError,'duplicate'):build.sd_write_option('sdfile',path,p)
+
     def test_sd_write_requires_bound_card_and_closed_profile(self):
         p=profile();p.update(sd_control={'service':'fes-owned-sd-pio-v1'},usb_phy_clock_hz=0)
         plan={'format':1,'scope':'nano-sd-scratch-write-v1','cid':'12345699aabbcc5566778811223344',

@@ -197,6 +197,8 @@ def package_option(program, package_id, profile):
 
 
 def sd_write_option(program, path, profile):
+    if program == 'sdfile':
+        return sd_file_option(path, profile)
     if program != 'sdwrite':
         if path is not None: raise ValueError('--sd-write-plan requires sdwrite')
         return None
@@ -216,6 +218,33 @@ def sd_write_option(program, path, profile):
     pattern = bytes((i*37 + (i//512)*17 + 0x5a) & 255 for i in range(4096))
     if p['original_sha256'] == hashlib.sha256(pattern).hexdigest():
         raise ValueError('scratch plan would replay an already written pattern')
+    return p
+
+
+def sd_file_option(path, profile):
+    if (path is None or profile['sd_control'] is None or
+            any(profile[k] is not None for k in ('network','display','fpga_probe')) or profile['usb_phy_clock_hz'] != 0):
+        raise ValueError('sdfile requires an explicit FAT/card plan and closed SD-only profile')
+    raw = path.read_bytes()
+    if not 0 < len(raw) <= 4096:
+        raise ValueError('invalid FAT file plan length')
+    def unique(pairs):
+        result = {}
+        for key,value in pairs:
+            if key in result: raise ValueError('duplicate FAT file plan field')
+            result[key] = value
+        return result
+    p = json.loads(raw,object_pairs_hook=unique)
+    keys={'format','scope','cid','sectors','mbr_sha256','path','recovery_bytes','recovery_sha256','fit_bytes','fit_sha256'}
+    if (not isinstance(p,dict) or set(p)!=keys or type(p['format']) is not int or p['format']!=1 or
+            p['scope']!='nano-sd-fat-file-v1' or not isinstance(p['cid'],str) or
+            not re.fullmatch('[0-9a-f]{30}',p['cid']) or p['cid'] in ('0'*30,'f'*30) or
+            type(p['sectors']) is not int or not 131072<=p['sectors']<=1<<32 or p['sectors']%1024 or
+            not isinstance(p['path'],str) or not re.fullmatch(r'FES/SDP-[0-9a-f]{16}\.JSN',p['path']) or
+            type(p['recovery_bytes']) is not int or not 0<p['recovery_bytes']<=16384 or
+            type(p['fit_bytes']) is not int or not 0<p['fit_bytes']<=8<<20 or
+            any(not isinstance(p[k],str) or not re.fullmatch('[0-9a-f]{64}',p[k]) for k in ('mbr_sha256','recovery_sha256','fit_sha256'))):
+        raise ValueError('invalid FAT file/card plan fields')
     return p
 
 
@@ -623,6 +652,6 @@ def build(args):
               "compiler_sha256": sha(compiler), "elf_sha256": sha(elf), "command": command,
               "imports": [p["ImportPath"] for p in packages],
               "limitations": ["firmware must supply SD/USB PHY and input clocks plus verified resource reservations",
-                              "SD scratch writes only with the explicit card plan; no FAT or appliance write qualification" if sd_write_plan else "SD cold card initialization, read-only PIO; SoC PHY setup remains firmware-owned", "USB direct low/full-speed boot keyboard only; Ethernet XGMAC 2.10 static IPv4/1000-full prototype; display is boot-firmware scanout only, no drain or FPGA replacement; physical activation unavailable", "SDM probe is read-only TF-A mailbox v1; no programming, live package identity or containment; SMC bounded return is a firmware obligation"]}
+                              ("FAT create/update only with explicit card/file plan; no appliance install or power-loss qualification" if args.program=='sdfile' else "SD scratch writes only with the explicit card plan; no FAT or appliance write qualification") if sd_write_plan else "SD cold card initialization, read-only PIO; SoC PHY setup remains firmware-owned", "USB direct low/full-speed boot keyboard only; Ethernet XGMAC 2.10 static IPv4/1000-full prototype; display is boot-firmware scanout only, no drain or FPGA replacement; physical activation unavailable", "SDM probe is read-only TF-A mailbox v1; no programming, live package identity or containment; SMC bounded return is a firmware obligation"]}
     (output / "result.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"Cross-built {elf}; hardware not executed")
