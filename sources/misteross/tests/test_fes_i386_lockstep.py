@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: MIT
 """i386 whole-CPU lockstep: the runner's scope, divergence and output handling,
 and (when the tools are present) a short lockstep run of the RTL. No network
-access. The run needs Verilator, the pinned Bochs checkout and the pinned
+access. The run needs the i386 lock's Verilator slot (FES_TOOLCHAIN_CACHE_ROOT
+names its cache), the pinned Bochs checkout and the pinned
 SingleStepTests corpus already in build/; the netlist run also needs a Yosys
 named by FES_I386_YOSYS."""
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import sys
@@ -13,10 +15,24 @@ import unittest
 from pathlib import Path
 
 from scripts import fes_i386_oracle as oracle
+from scripts import i386_verilator
 from scripts import test_fes_i386_lockstep as lockstep
 from scripts import test_fes_i386_vectors as vectors
 
-VERILATOR = shutil.which(os.environ.get('VERILATOR', 'verilator'))
+
+def _locked_verilator():
+    """The i386 lock's Verilator when FES_TOOLCHAIN_CACHE_ROOT names a cache
+    holding its slot, else None and why."""
+    cache = os.environ.get(i386_verilator.CACHE_ENVIRONMENT)
+    if not cache:
+        return None, f'{i386_verilator.CACHE_ENVIRONMENT} is not set (the i386 lock\'s Verilator slot)'
+    try:
+        return i386_verilator.locate(Path(cache)), ''
+    except i386_verilator.VerilatorError as error:
+        return None, str(error)
+
+
+VERILATOR, VERILATOR_ABSENT = _locked_verilator()
 YOSYS = shutil.which(os.environ.get('FES_I386_YOSYS', '')) if os.environ.get('FES_I386_YOSYS') else None
 BOCHS = (oracle.BUILD / ('bochs-' + oracle.BOCHS_REVISION) / '.git').is_dir()
 CORPUS = (vectors.OUTPUT / 'corpus' / vectors.REVISION / '00.MOO.gz').is_file()
@@ -140,14 +156,15 @@ class OutputTest(unittest.TestCase):
         self.assertTrue((lockstep.SIM / 'lockstep_tb.cpp').is_file())
 
 
-@unittest.skipUnless(VERILATOR and BOCHS and CORPUS, 'Verilator, the pinned Bochs checkout or the corpus is absent')
+@unittest.skipUnless(VERILATOR and BOCHS and CORPUS,
+                     VERILATOR_ABSENT or 'the pinned Bochs checkout or the corpus is absent')
 class LockstepRunTest(unittest.TestCase):
     ARGS = ['--opcode', '00', '--opcode', 'D3.4', '--opcode', '670FAD', '--opcode', '678D', '--opcode', 'E2',
             '--random-programs', '100', '--random-seeds', '2', '--pm-programs', '100',
             '--jobs', str(min(os.cpu_count() or 2, 8))]
 
     def run_lockstep(self, *extra):
-        env = dict(os.environ, VERILATOR=VERILATOR)
+        env = dict(os.environ)
         result = subprocess.run([sys.executable, 'scripts/test_fes_i386_lockstep.py', *self.ARGS, *extra],
                                 cwd=lockstep.ROOT, env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
