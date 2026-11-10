@@ -86,6 +86,9 @@ func testCartridgeSwapOverPlay(t *testing.T, session func() hostclient.SessionRe
 	var visible []bool
 	var swap protocol.CartridgeRequest
 	swaps := 0
+	swapReply := make(chan struct{})
+	releaseSwap := sync.OnceFunc(func() { close(swapReply) })
+	defer releaseSwap()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, bound := protocol.DevelopmentMediaHeaders(r.Header)
 		switch r.URL.Path {
@@ -106,6 +109,13 @@ func testCartridgeSwapOverPlay(t *testing.T, session func() hostclient.SessionRe
 			if err != nil || !bound || b.PackageID != prior.CorePackage.PackageID || b.Generation != prior.CorePackage.Generation ||
 				r.Header.Get(protocol.HostSessionIDHeader) != prior.ID {
 				t.Error("cartridge swap lost the captured machine")
+			}
+			// This case checks a complete menu-owned press/release. Keep the
+			// asynchronous swap from returning focus to the keypad in between.
+			select {
+			case <-swapReply:
+			case <-r.Context().Done():
+				return
 			}
 			writeKitDisplaySession(w, next)
 		default:
@@ -151,6 +161,7 @@ func testCartridgeSwapOverPlay(t *testing.T, session func() hostclient.SessionRe
 	}
 	selectTapeNamedRow(t, app, "game.col")
 	selectCartridgeFromPad(t, app)
+	releaseSwap()
 	waitFor(t, app, "cartridge changed", func(s Snapshot) bool {
 		return !s.TapePicker.Open && !s.Session.ControlsOpen && s.GPUParked && s.Status == "Cartridge changed."
 	})
