@@ -1,0 +1,18 @@
+{
+  "status": "matched-fixed-writer-prepared-not-deployed",
+  "compiled_source": "aa0d94a11f10d914c9fabd8df1a98f8342ee52a5",
+  "native_boot_id": "e4487fd3d4c10b80",
+  "fit_bytes": 2664248,
+  "fit_sha256": "b99af93d9aed62875ebd6c8aaacd60a9d8e3061a32f738342e9ec1ac6db0bfb2",
+  "sof_sha256": "c988431451cf2d12d4cec864a36080c5a7fbb7c9d85f90597165bcc3df5701da",
+  "write_plan": {
+    "format": 1,
+    "scope": "nano-sd-scratch-write-v1",
+    "cid": "275048534430344730da25e394012b",
+    "sectors": 7774208,
+    "mbr_sha256": "13f4a84a267e67f06b1d09fdfa130a7625a0aab9b363163e711aa9854d7c944c",
+    "original_sha256": "e81b5f7145bdf34e823674a03897f858a1f71be2b18b0a139a4261e1dad908d4"
+  },
+  "hardware_attempted": false,
+  "ordinary_admission": false
+}
