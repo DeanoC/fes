@@ -1,6 +1,6 @@
 {
   "derived_hdmi_sha256": {
-    "fes_de25_scanout_hdmi_config.v": "858b243ff0edbc5245a8149defedfae70efa5a21a65302f5686b9064dd3754be",
+    "fes_de25_scanout_hdmi_config.v": "f07be6160e2602c52b359382d1496cc63dc7d50e944eaff22df92c330e95e37c",
     "fes_de25_scanout_i2c_controller.v": "57dd988f8a8989008a33be7bbac04ea8ee77f579b66294502414f315bd35fd2a"
   },
   "pins": {
@@ -415,6 +415,7 @@
     "system_part_trait_speed_grade": "4"
   },
   "transmitter_lut": [
+    "96f6",
     "9803",
     "0100",
     "0218",
@@ -430,7 +431,6 @@
     "49a8",
     "5510",
     "5608",
-    "96f6",
     "7307",
     "761f",
     "9803",
@@ -448,5 +448,6 @@
     "de10",
     "e460",
     "fa7d"
-  ]
+  ],
+  "transmitter_order": "reviewed clear-first permutation; all stock values retained"
 }
