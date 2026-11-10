@@ -52,3 +52,15 @@ tail contents and protected media after the failed write. Only then can a new
 reviewed plan and matched writer be prepared for another bounded test. No
 native write success, FAT persistence, normal core installation or full
 appliance acceptance is claimed.
+
+[All eight selected checks pass](software-result.json): 1,869 parent tests
+with three existing skips and one ancillary run, generated consumer checks,
+SD firmware/PIO/FAT/store races and the native integration's 42 commands.
+The latter includes Tenfoot launch/return and injected-endpoint failures.
+Its existing producer-fixture conditional skips are not hardware evidence.
+
+A [fresh matched read-only inspector](prepared-inspector.json), compiled from
+`a5d6027e9`, is now cross-built and packaged. Full selected-source/receipt
+validation, embedded-SPL decoding and offline FAT readbacks pass. It has no
+write plan and enables no native sector writes. This prepares the next card
+inspection; no physical operation occurred after the failed writer test.
