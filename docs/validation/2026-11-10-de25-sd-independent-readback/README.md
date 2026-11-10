@@ -45,3 +45,27 @@ old-output cleanup remains paused. Fresh stable-USB and clean-source/file/tool/
 claim/UART admission are still required. No readback success or FAT/ordinary
 installation acceptance is predeclared. Helpers and raw results are under
 `out/nano-sd-independent-readback-20261110/`.
+
+## Hardware result
+
+[The separate read-only verification passed](hardware-result.json). One fresh
+qualified recovery boot read and hashed sectors 7,774,200–7,774,207 against the
+native writer's pattern. Protected prefix, MBR, root recovery FIT and recovery
+manifest checks pass before and after the tail read. All four fresh-marker/live
+LMB observations pass; no raw read is treated as an invented LMB reservation.
+Recovery observes the card summary; it does not claim a fresh full CID.
+
+The native writer was not rerun, and this attempt issued no SD write, upload or
+native launch. The earlier native phase's full write/read/contain/resume/read/
+finalcontain proof and this separate fresh-boot verification establish the
+bounded native SD PIO write/readback path. They do not establish general FAT
+persistence, power-loss recovery, ordinary package installation or full appliance
+acceptance. The previous failed whole attempt and parser-failed capture remain
+unchanged; they are not retrospectively promoted to pass.
+
+Independent cleanup passes: 15 MHz/auto-on readbacks, exact original USB
+permissions, owned private service gone and complete free-UART inventory.
+The single recovery programming completed with no new programmer failure.
+The last observed board state is the qualified recovery prompt after the
+successful read-only verification; CPU park was not observed. The continuing
+top-kit claim and factory-restore waiver remain in effect.

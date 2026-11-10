@@ -10,14 +10,17 @@ The native [SD PIO driver and owned session](tamago/sdhci/README.md) also have a
 explicit write-mode prototype. Host tests cover sector writes, uncertain-write
 retirement, stop/resume and FAT settings persistence with independent readback.
 Writable sessions now require an independently expected CID and capacity;
-wrong-card admission retires the lease without writing or retrying. This is
-host-tested media ownership, with physical write qualification still open.
-Current Nano board builds still select read-only access; enabling and physically
-qualifying writes remains separate from the accepted recovery-loader uploads.
-The new `storage --sd-scratch-inspect` and separately bound `sdwrite` diagnostics
-provide read-only card-plan discovery and an eight-sector PIO write/readback
-cycle with real firmware containment. Their software checks and matched build
-preparation do not establish physical writes or filesystem persistence.
+wrong-card admission retires the lease without writing or retrying. Ordinary
+Nano startup still selects read-only access. The separate `storage
+--sd-scratch-inspect` diagnostic supplies a reviewed spare-card plan; `sdwrite`
+then binds it to an eight-sector PIO write/readback and firmware containment
+cycle. The [repaired native writer](../../docs/validation/2026-11-10-de25-sd-fixed-write-trial/README.md)
+passes all five native stages on TRWU8CBL. Its subsequent host readback parser
+failed and that whole attempt remains failed. A [separate fresh recovery-only
+verification](../../docs/validation/2026-11-10-de25-sd-independent-readback/README.md)
+now confirms the written pattern across a fresh boot and protected boot-media
+hashes before/after. This qualifies the bounded native PIO write path; FAT
+persistence, ordinary writable startup and power-loss behavior remain open.
 The [FAT32 allocation path](tamago/fat/README.md) now creates files and directories
 without preallocation, with independent mtools readback and real package-store
 retention tests. The [owned in-process installer](tamago/nativefabric/README.md)
@@ -27,8 +30,9 @@ Real HTTP/FAT-image tests now cover download of an existing Nano export,
 compiled admission, installation, launch/return and modeled fresh-boot discovery.
 The Linux-free QEMU `programfetch` diagnostic separately verifies package/ROM/
 tape identities over VirtIO HTTP and leaves its FAT disk unchanged. A native
-network upload service, NIC containment and hardware write qualification remain
-separate work; Nano networking and SD writes stay disabled in the board profile.
+network upload service, NIC containment and physical FAT/install qualification
+remain separate work; ordinary Nano networking and SD writes stay disabled in
+the board profile.
 
 The current [queued-menu hardware trial](../../docs/validation/2026-11-09-de25-menu-queue-trial/README.md)
 passes ZX81 (+917-byte tape) → menu → ZX80 → menu → ZX81 (+same tape) → menu

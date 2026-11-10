@@ -33,8 +33,13 @@ initial CID/capacity, a replacement card on resume and physical write protection
 Expected identity is a media-ownership check, not cryptographic card authentication
 or a restriction on which LBAs an admitted writer may modify. The platform must
 still establish where the expected identity came from and which writes it owns.
-This mode is unselected in board builds and still needs physical write-protect, write/readback and lifecycle
-qualification. A completed sector or batch is not power-loss atomicity.
+Ordinary startup does not select this mode. The dedicated plan-bound Nano
+writer now passes the bounded eight-sector firmware/PIO lifecycle, with a
+[separate fresh recovery readback](../../../../docs/validation/2026-11-10-de25-sd-independent-readback/README.md).
+The trusted board propagates its explicit no-mechanical-WP wiring property;
+default socket checks and card CSD protection remain separate. This is limited
+raw-sector evidence, not FAT/install or power-loss qualification. A completed
+sector or batch is not power-loss atomicity.
 
 `Quiesce` fences new/queued reads and writes, finishes the current sector and stops the
 PIO driver. Firmware then independently checks drain and reset containment.

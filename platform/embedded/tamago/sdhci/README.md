@@ -2,7 +2,7 @@
 
 This driver discovers SDHC/SDXC cards, reads sectors through PIO and supplies
 the shared FAT32 implementation. Writes reject unless the trusted caller selects
-`Config.AllowWrites`. The current Nano board adapter remains read-only and requires
+`Config.AllowWrites`. Ordinary Nano storage remains read-only and requires
 exclusive controller ownership and prepared SoC clocks, reset, pinmux and
 ComboPHY before `Open` accesses registers. The
 [serial Go hardware diagnostic](../../../../docs/validation/2026-11-01-de25-native-go-boot/README.md)
@@ -18,10 +18,13 @@ readiness, a writable FIFO, all128 little-endian words, transfer completion and
 a card-ready/TRAN response. The separate CMD13 programming-state wait has a
 one-second limit, following the pinned [Terasic MMC implementation](https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/drivers/mmc/mmc.c).
 The PIO word transfer and controller flags follow its [SDHCI driver](https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/drivers/mmc/sdhci.c)
-and the Altera register source linked below. Socket write protection must be
-qualified: WPSL bit19 must be high to allow writing, matching the standard
+and the Altera register source linked below. The default socket policy requires
+WPSL bit19 high, matching the standard
 [SDHCI read-only check](https://github.com/torvalds/linux/blob/v6.12/drivers/mmc/host/sdhci.c).
-No bypass for an absent or inverted write-protect input is inferred.
+The trusted Nano backend explicitly selects `NoSocketWriteProtect` for its
+documented microSD wiring, which has no mechanical socket WP connection.
+This property grants no write permission. Card CSD permanent/temporary
+protection and R1 errors remain enforced; protection is refreshed on resume.
 
 An error may follow a committed sector or a partial batch. The driver retires
 without replay, using a host command/data reset as containment only; that reset
@@ -31,12 +34,17 @@ Quiescence fences both new reads and writes, finishes the current sector and
 refuses the remaining batch before the existing independent firmware stop.
 Resume requires the same card and preserves the explicitly selected access mode.
 
-Write mode has host/model coverage only. Tests join the real driver to card/FIFO
+Tests join the real driver to card/FIFO
 models and the actual secure SD dispatcher, including byte-exact sector writes,
 busy programming, transfer failures, protection, concurrent quiescence, retirement
 and same-card resume. A real FAT32 image passes settings update/remount through
-the owned session and independent `mtype` readback. No Nano build enables writes,
-and previous physical read/upload tests do not qualify this native write path.
+the owned session and independent `mtype` readback. The separately plan-bound
+Nano `sdwrite` image now passes a real eight-sector write/read/contain/resume/
+read/finalcontain cycle. A [separate recovery-only verification](../../../../docs/validation/2026-11-10-de25-sd-independent-readback/README.md)
+confirms the pattern across a fresh boot and checks protected media. The
+preceding whole native test remains failed at its later host parser; these
+are separate evidence. Normal board startup still enables no writes. General
+FAT persistence, concurrent core/SD access and power-loss behavior remain open.
 
 `Config.TransferClockHz=25000000` is a separate, default-off driver prototype.
 Discovery and PHY preparation remain at the original <=400 kHz, one-bit,
