@@ -253,9 +253,13 @@ def run_pmode(testbench: str, env: dict) -> dict:
     INT n, INT3, INTO and IRET through interrupt and trap gates, far CALL and
     RETF, LLDT, LTR, SLDT, STR, LAR, LSL, VERR, VERW, ARPL, their #UD in real
     mode, MOV DRn, far CALL through call gates and RETF to an outer
-    privilege, what stops as not built (a task gate), and CS's limit: code that runs to it and past it, and near
+    privilege, what stops as not built (a task gate), CS's limit: code that runs to it and past it, and near
     branches, calls and returns to its last byte and past it, in 16- and
-    32-bit code and in real mode under a limit CS kept."""
+    32-bit code and in real mode under a limit CS kept; and V86 mode: entry by
+    IRETD and its frame's checks, deliveries from it through each kind of gate
+    and CS, its IOPL-sensitive forms at IOPL 0 and 3, its #UD and #GP forms,
+    segment loads and far transfers, and IN, OUT, INS and OUTS through the I/O
+    permission bitmap (INS and OUTS at CPL 3 too)."""
     env = dict(env, FES_I386_MODE='pmode', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -266,7 +270,7 @@ def run_pmode(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PMODE_CASES = 200
+PMODE_CASES = 273
 
 
 def run_paging(testbench: str, env: dict) -> dict:
@@ -279,7 +283,7 @@ def run_paging(testbench: str, env: dict) -> dict:
     write's flush, self-modifying code through an alias, a wrong path that
     sets no A, #PF inside REP strings, frames past RAM and in the reset
     shadow, a #PF's double fault and shutdown, a MOV CR0 that sets PE and PG
-    together, and paging toggled around a far jump."""
+    together, paging toggled around a far jump, and #PF from V86 mode."""
     env = dict(env, FES_I386_MODE='paging', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -290,7 +294,7 @@ def run_paging(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PAGING_CASES = 54
+PAGING_CASES = 61
 
 
 def run_no387(testbench: str, env: dict) -> dict:
