@@ -241,7 +241,13 @@ class UploadSession:
         return re.search(r'(?m)^\s*'+str(size)+r' bytes '+action+r'(?:\s|$)',output)
 
     def _protected_files(self,command,manifest_address):
-        if not re.search(r'(?m)^\s*32768 blocks read: OK(?:\s|$)',command('mmc read 83000000 0 8000',45)):
+        # U-Boot prints its completion after the progress prefix on the same
+        # line. Match that entire record (or its separate completion line),
+        # keeping the exact device, start block and count bound to this read.
+        output=command('mmc read 83000000 0 8000',45)
+        complete=re.findall(r'(?m)^[ \t]*(?:MMC read: dev # 0, block # 0, count 32768 \.\.\. )?'
+                            r'32768 blocks read: OK[ \t]*\r?$',output)
+        if len(complete)!=1:
             raise ValueError('protected prefix read failed')
         self._digest(command,0x83000000,PREFIX_SIZE,self.kit['prefix_sha256'])
         if not self._byte_count(command('fatload mmc 0:1 83000000 u-boot.itb',30),len(self.kit['fit']),'read'):

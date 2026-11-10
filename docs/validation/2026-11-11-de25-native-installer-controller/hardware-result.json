@@ -1,0 +1,60 @@
+{
+  "status": "stopped-upload-admission-before-any-sd-write",
+  "source_head": "b79ef1c298a799b177bddcd8b79cf07b41c1528d",
+  "native_boot_id": "c491ac67743d3526",
+  "recovery_programming_and_boot_passed": true,
+  "successful_programming_operations": 1,
+  "new_programming_failures": 0,
+  "error": "protected prefix read failed",
+  "cause": "host completion parser required completion at line start; real U-Boot prefixes it on the same line",
+  "command": "mmc read 83000000 0 8000",
+  "observed_completion": "MMC read: dev # 0, block # 0, count 32768 ... 32768 blocks read: OK",
+  "prefix_hash_verified": false,
+  "sd_write_attempted": false,
+  "native_programming_attempted": false,
+  "native_boot_attempted": false,
+  "installer_attempted": false,
+  "hardware_acceptance": false,
+  "current_observation": "qualified recovery prompt; no native boot performed",
+  "cleanup": {
+    "status": "passed-independent-host-cleanup",
+    "checked_utc": "2026-11-10T22:32:49.869240+00:00",
+    "uart_owners": [],
+    "processes_inventoried": 550,
+    "owned_private_server_gone": true,
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_restore_receipt": {
+      "clock": "15M",
+      "auto_adjust": 1
+    },
+    "clock_scope": "experiment readback before private-server shutdown; no additional adapter commands",
+    "native_programming_attempted": false,
+    "sd_writes_attempted": false,
+    "current_observation": "qualified recovery prompt; no native installer boot attempted",
+    "hardware_actions": false
+  },
+  "evidence_sha256": {
+    "out/nano-installer-hardware-20261111/trial/recovery-boot-result.json": "5678df127561d8fbc4aa5562ce783c77bae6dd444e2d3380beee4961e2ad2e32",
+    "out/nano-installer-hardware-20261111/trial/experiment-result.json": "b22adb69842986a7e3d87aeb97837dac484f4a4054972384cddd199090613f4d",
+    "out/nano-installer-hardware-20261111/trial/upload-boot/result.json": "decea267154e08f4636a200c635f5cb149e82955bbcc530f08b56d4b9f88b3ce",
+    "out/nano-installer-hardware-20261111/trial/uploads/console.log": "348885ad07d12be007f9f8e1b0a36278bc62429da1360fe64ad7ac5d25cad0d1",
+    "out/nano-installer-hardware-20261111/cleanup-proof.json": "096c2aef3b8739495a9d9d17ceeeaa98b6a7f3b910ba40d0394ec7e9ed6071df",
+    "tests/fixtures/nano-upload/mmc-prefix-read.txt": "c26d42fdb03ed2e6a81691b92c95602bb4bcf4337db0dfcdfa8f30ec27de28ca"
+  },
+  "retention": {
+    "status": "retained-first-failed-admission-before-any-sd-write",
+    "source_head": "b79ef1c298a799b177bddcd8b79cf07b41c1528d",
+    "archive_sha256": "1b0ac89a3b51cfc957d17ee965b28ab01ca02ea01874a8ab199cd31a65c77ecf",
+    "source_bundle_sha256": "19ac0e0cf69441dc841a87ae150bfa48453ec1f2c79286bbce022d18489ae8da",
+    "base_bundle": "/home/deano/fes-retained/de25-menu-return-observation-20261110-r1/source.bundle",
+    "base_bundle_sha256": "d7166cde75bd88ea7f9d14ac4a5706b55c74cd215cc4f375abd1a5d6661a17d0",
+    "base_commit": "b75db33eb4e794fc647b6a3ba58ad460f7309573",
+    "files": 130,
+    "archive_readback_verified": true,
+    "hardware_attempt_passed": false,
+    "sd_writes_attempted": false,
+    "native_boot_attempted": false
+  },
+  "retention_directory": "/home/deano/fes-retained/de25-native-installer-admission-stop-20261111-r1"
+}

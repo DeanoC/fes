@@ -56,3 +56,20 @@ TRWU8CBL and its installed spare card are selected. Native Ethernet remains
 disabled; physical HDMI confirmation remains separate. Factory restoration is
 waived by the operator; original factory media remains protected. Output cleanup
 remains paused.
+
+
+The first attempt at source `b79ef1c29` passed recovery programming and boot,
+then stopped at upload admission before any SD write or native programming.
+The card returned `32768 blocks read: OK` on the same line as its MMC progress
+prefix. The new stricter host expression incorrectly required completion at
+line start. No prefix hash or installer success is inferred from that read.
+The [hardware result](hardware-result.json) retains the stopped attempt,
+independent UART/server/USB cleanup and exact restored clock readbacks.
+
+The targeted parser repair accepts the complete captured combined record and
+continues to bind device 0, block 0 and count 32768. Duplicate completions,
+wrong counts/device/start block, errors and extra trailing output reject before
+transfer/write. Both normal upload and fresh read-only recovery consume this
+captured-format regression. The 43 focused upload tests pass. A new corrected
+hardware test requires its own full file admission, source commit, fresh
+transport checks and one-use grants; the original attempt remains stopped.

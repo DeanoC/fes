@@ -137,6 +137,42 @@ class NanoUploadTests(unittest.TestCase):
         self.assertEqual(writes,[f'fatwrite mmc 0:1 82000000 FES/UPLOAD.BIN {len(self.payload):x}'])
         self.assertTrue(r['recovery_manifest_unchanged'])
 
+    def test_captured_mmc_prefix_read_supports_upload_and_fresh_recovery_read(self):
+        captured=(ROOT/'tests/fixtures/nano-upload/mmc-prefix-read.txt').read_bytes().decode()
+        for read_only in (False,True):
+            with self.subTest(read_only=read_only),patch('builtins.print'):
+                model,session=self.session();original=model.command
+                def command(value,timeout):
+                    output=original(value,timeout)
+                    return captured if value=='mmc read 83000000 0 8000' else output
+                model.command=command;receipt={'commands':[]}
+                if read_only:session.read_existing(model.payload,receipt)
+                else:session.upload(model.payload,receipt)
+                self.assertEqual(receipt['status'],'verified')
+                self.assertEqual(model.writes,0 if read_only else 1)
+
+    def test_wrong_or_ambiguous_prefix_read_stops_before_transfer_or_write(self):
+        captured=(ROOT/'tests/fixtures/nano-upload/mmc-prefix-read.txt').read_bytes().decode()
+        responses=(captured.replace('32768 blocks','132768 blocks'),
+                   captured.replace('count 32768','count 132768'),
+                   captured.replace('dev # 0','dev # 1'),
+                   captured.replace('block # 0','block # 1'),
+                   captured.replace('read: OK','read: ERROR'),captured+captured,
+                   captured.replace('read: OK','read: OK extra'),captured.replace('32768 blocks','32767 blocks'))
+        for response in responses:
+            for read_only in (False,True):
+                with self.subTest(response=response,read_only=read_only),patch('builtins.print'):
+                    model,session=self.session();original=model.command
+                    def command(value,timeout):
+                        output=original(value,timeout)
+                        return response if value=='mmc read 83000000 0 8000' else output
+                    model.command=command
+                    with self.assertRaisesRegex(ValueError,'protected prefix read failed'):
+                        if read_only:session.read_existing(model.payload,{'commands':[]})
+                        else:session.upload(model.payload,{'commands':[]})
+                    self.assertTrue(session.retired);self.assertEqual(model.writes,0)
+                    self.assertFalse(any(c.startswith(('dhcp','tftpboot','fatwrite','mmc write')) for c in model.commands))
+
     def test_captured_vendor_version_suffix_is_required_before_any_card_access(self):
         captured=(ROOT/'tests/fixtures/nano-recovery-version.txt').read_text()
         current=captured.replace('-fes-nano-recovery-ksz9031-gd0f8813fd6bf', upload.recovery.LOCALVERSION)
