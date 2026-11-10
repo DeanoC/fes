@@ -405,9 +405,10 @@ compared the kit against MAME `ibm5150`, and its results are partial:
   interface timing, remain unassessed.
 
 The [8–10 November reruns](validation/2026-11-08-pcxt-qualification-reruns/summary.md)
-(#1529, Kit B) supersede the fails above. They used `fes.pcxt-dos`
+(#1529, Kit B) supersede the fails above. Every case in the precommitted
+plan passes. Every case except the power loss used `fes.pcxt-dos`
 `e73a0e87…`, sealed from main `8d9b71fab` with three passing seeds after
-#1569, #1565 and #1619. Every case in the precommitted plan passes:
+#1569, #1565 and #1619:
 - **Fixes confirmed.**
   - Ctrl+Alt+Del warm-boots back to `A:\>`, and the next library launch
     cold-boots.
@@ -420,8 +421,12 @@ The [8–10 November reruns](validation/2026-11-08-pcxt-qualification-reruns/sum
   - Paratrooper and Alley Cat ×2, where Alley Cat now enters a window;
   - Rogue save/restore;
   - speed and pitch against MAME.
-- **Power loss.** An unsaved write is lost to a power loss while the saved
-  record stays byte-identical.
+- **Power loss.** An unsaved write is lost to a power loss, and the saved
+  record stays byte-identical. This case ran on the earlier package
+  `4dd6d431…` (sealed for #1565), with software `a8cd30c4` on image
+  `f904961e`. The plan chose that package because the case tests the
+  library record, not the core, so it is not exact-artifact acceptance of
+  `e73a0e87…`.
 - **Relaunch from the TV menu.** Kit B's own FogCast host ran five tenfoot
   relaunches, each with Paratrooper keyboard play and a Stop (F12 ×4,
   Ctrl+Home). These ran on main's kit-software bundle `7ddb0bfb`, which has
