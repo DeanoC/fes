@@ -309,19 +309,15 @@ run's final report says how much ran on the RTL.
 | Pinball Fantasies (eXceed) | `real` | 1,380,903,279 (1,322,005,645) | The 20 s limit, no stop: eXceed 1.10's sound setup at "Sound configuration complete", as on the kit |
 | Master of Orion with JEMM386 | `xms-jemm` | 242,033,888 (65,314,616) | At 7.25 s, back at the prompt after "reconfigure hardware options", no stop, as on the kit |
 | Strike Commander (its own V86 manager) | `xms` | 36,680,274 (91,348) | A stop at `66 CF` (IRETD) at 0018h:00003673h, with NT set: a return to a V86 task (slice 4); Bochs ran the other 309,225,981 instructions to the 20 s limit, through its introduction |
+| Wolfenstein 3D with JEMM386 | `real-jemm` | 568,184,374 (391,465,102) | The 24 s limit, no stop: a new game in E1L1 (floor 1, 100% health), past the Options menu the census's oracle run reached |
+| DOOM v1.9 with JEMM386 (VCPI) | `pmode-jemm` | 790,457,808 (613,738,536) | The 20 s limit, no stop: past `I_StartupTimer`, at its New Game skill menu |
 
-**Still running** (Powerboat at a load of about 50; frames at 10 November
-18:00):
+No run handed an instruction to Bochs but Strike Commander's, at its
+slice 4 stop.
 
-| Title | Drive | Furthest frame so far |
-| --- | --- | --- |
-| Wolfenstein 3D with JEMM386 | `real-jemm` | 12 s: its Options menu, as far as the census's oracle run got |
-| DOOM v1.9 with JEMM386 (VCPI) | `pmode-jemm` | 12 s: past its DPMI/VCPI zone allocation, at `R_Init` |
-
-The RTL counters, the stops and the end of each follow when they finish.
-
-**The RTL machine suites** with `--cpu rtl`: `a20` passes; `c2xx`,
-`wait`, `speaker`, `scroll`, `ems` and `boot` are running.
+**The RTL machine suites** with `--cpu rtl`: `a20`, `c2xx` and `wait`
+pass. `speaker`, `scroll`, `ems` and `boot` were still running when this
+record was written; they are a follow-up after merge (below).
 
 ## What this record does not cover
 
@@ -330,3 +326,7 @@ The RTL counters, the stops and the end of each follow when they finish.
   task gate (slice 4).
 - **Breakpoints and single step** in V86 mode (slice 5).
 - **nextpnr.** No route was made (fes#1235).
+- **The remaining RTL machine suites,** `speaker`, `scroll`, `ems` and
+  `boot` with `--cpu rtl`, a follow-up after merge (agreed with Deano).
+  They take 1-3 hours each on the RTL, and none was finished when this
+  record was written.
