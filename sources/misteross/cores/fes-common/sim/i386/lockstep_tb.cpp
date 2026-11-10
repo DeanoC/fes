@@ -78,7 +78,8 @@
 //           RETFs between code descriptors, INT n and IRET through an IDT of
 //           interrupt and trap gates, LLDT, LTR, LAR's kin and ARPL, segment
 //           loads from the GDT and the LDT, accesses, CR and table moves,
-//           back to real mode (unreal). An exception or interrupt with PE
+//           back to real mode (unreal), now and then under a small CS limit
+//           kept past PE clear (real-gp). An exception or interrupt with PE
 //           set is delivered through the IDT and compared as any delivery
 //           is. What is not built stops the RTL and ends the run, with its
 //           reason (trace_unbuilt); the oracle's step must show the like
@@ -5583,6 +5584,19 @@ private:
         }
         // The exit: paging off, the real-mode vector table in IDTR (through
         // the flat FS), sane segments, then PE clear and a real-mode far jump.
+        // Now and then (real_limit), while the program has not set the 16-bit
+        // small-limit descriptor's limit (B0h, pm_limit), the exit far-jumps
+        // to it first and sets that limit to FFE1h-FFFEh; then no far jump,
+        // but 0-2 instructions in real mode under the limit CS keeps and a
+        // near JMP (rel16, rel32, or through BX or EBX) or Jcc rel32 to a
+        // target past it: #GP(0) through the real-mode vector table, whose
+        // entry the limit keeps (real-gp). No CALL: its push order is #1510.
+        const bool real_limit = !limit_set[0] && pick(6) == 0;
+        if (real_limit) {
+            limit_set[0] = true;
+            pm_far_jump(0xb0);
+            pm_cs = true;
+        }
         if (pg_on) {
             emit({0x0f, 0x20, 0xc0});
             emit({0x66, 0x25, 0xff, 0xff, 0xff, 0x7f});                   // AND EAX, 7FFFFFFFh
@@ -5601,6 +5615,47 @@ private:
         emit({0x0f, 0x20, 0xc0});
         emit({0x24, 0xfe});                // AND AL, FEh
         emit({0x0f, 0x22, 0xc0});
+        if (real_limit) {
+            // The limit, FFE1h-FFFEh, keeps the real-mode vector table's
+            // entries for #GP and the injected interrupts (FFFF:FFE0) under
+            // it, and the program's code too; the target is past it.
+            const uint32_t limit = 0xffe1 + pick(0x1e);
+            gdt[22].limit = limit;
+            raw[22] = desc_bytes(gdt[22]);
+            for (unsigned i = 0; i < 8; ++i) image[8 * 22 + i].second = uint8_t(raw[22] >> (8 * i));
+            for (unsigned k = pick(3); k > 0; --k) emit(pm_instruction());
+            const uint32_t past16 = limit + 1 + pick(0xffff - limit), past32 = limit + 1 + pick(0x20000);
+            std::vector<uint8_t> out;
+            switch (pick(5)) {
+            case 0: {  // JMP rel16
+                out = {0xe9};
+                const uint16_t rel = uint16_t(past16 - (next_eip() + 3));
+                out.insert(out.end(), {uint8_t(rel), uint8_t(rel >> 8)});
+                break;
+            }
+            case 1:  // JMP rel32 (66h)
+                out = {0x66, 0xe9};
+                put32(out, past32 - (next_eip() + 6));
+                break;
+            case 2:  // Jcc rel32 (66h), taken or not
+                out = {0x66, 0x0f, uint8_t(0x80 + pick(16))};
+                put32(out, past32 - (next_eip() + 7));
+                break;
+            case 3:  // MOV BX, imm16; JMP BX
+                emit({0xbb, uint8_t(past16), uint8_t(past16 >> 8)});
+                out = {0xff, 0xe3};
+                break;
+            default: {  // MOV EBX, imm32; JMP EBX (66h)
+                std::vector<uint8_t> mov{0x66, 0xbb};
+                put32(mov, past32);
+                emit(mov);
+                out = {0x66, 0xff, 0xe3};
+            }
+            }
+            emit(out);
+            fence = int(items.size());
+            return;
+        }
         if (pick(8)) {
             cs_moved = true;
             Item jump;
@@ -6072,11 +6127,13 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     // ending: -1 HLT (after software interrupt soft, if not -1), -2
     // shutdown, -3 not built, else the vector, with its error code if not
     // -1. at, tail: bytes the case places at at; descs: GDT entries the case
-    // replaces; window: the run has the MMIO window.
+    // replaces; window: the run has the MMIO window; rtl_alone: the RTL runs
+    // without the oracle (a recorded divergence), and an exception ending
+    // also checks the 386 gate's frame: CS:EIP rtl_alone_cs:rtl_alone_eip.
     struct Case { const char *label; std::function<void(Asm &)> body; int ending; int error;
                   std::vector<std::pair<unsigned, uint64_t>> gates; bool real; int soft = -1;
                   uint32_t at = 0; std::vector<uint8_t> tail = {}; std::vector<std::pair<unsigned, uint64_t>> descs = {};
-                  bool window = false; };
+                  bool window = false; bool rtl_alone = false; uint16_t rtl_alone_cs = 0; uint32_t rtl_alone_eip = 0; };
     const uint64_t absent = gate(0x08, 0x1800, 0x0e);  // a 386 interrupt gate, not present
     const uint64_t window_ss = desc(MMIO_LO, 0xffff, 0x93, false, false);  // 28h: a 16-bit stack in the window
     std::vector<Case> cases = {
@@ -6245,6 +6302,19 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     const uint64_t cs16_big = desc(0xffff1c08, 0xfffff, 0x9b, true, false);
     cases.push_back(Case{"cs16-big-past-64k", jmpf(0x78, 0xfff8), -1, -1, {}, false, -1, TAIL, fill({}, 0x10, {HLT}),
                          {{15, cs16_big}}});
+    // 32-bit code under a 4 GiB limit (80h, base 1C02h, so offset FFFFFFFEh
+    // is at 1C00h), reached by JMP 80h:off (66h). The last byte, FFFFFFFFh,
+    // runs. An instruction straddling 2^32 (ADD EAX, 1 at FFFFFFFEh-2h)
+    // raises #GP(0) on the RTL, where Bochs wraps EIP: the divergence
+    // fetch-past-4g (README), so the RTL runs alone.
+    const uint64_t cs32_4g = desc(0x1c02, 0xfffff, 0x9b, true, true);
+    auto jmpf32 = [](uint16_t sel, uint32_t off) {
+        return std::function<void(Asm &)>([sel, off](Asm &a) { a.op({0x66, 0xea}); a.d(off); a.w(sel); });
+    };
+    cases.push_back(Case{"cs32-4g-last-byte", jmpf32(0x80, 0xffffffff), -1, -1, {}, false, -1, TAIL + 1, {HLT},
+                         {{16, cs32_4g}}});
+    cases.push_back(Case{"cs32-4g-fetch-wrap", jmpf32(0x80, 0xfffffffe), 13, 0, {}, false, -1, TAIL,
+                         {0x05, 0x01, 0x00, 0x00, 0x00, HLT}, {{16, cs32_4g}}, false, true, 0x80, 0xfffffffe});
     // At a 64 KiB limit, these uops end exactly at 10000h. The next fetch,
     // rather than a wrapped jump to offset 0, must deliver #GP(0).
     cases.push_back(Case{"cs16-sysop-next-limit", jmpf(0x08, 0xfffd), 13, 0, {}, false, -1,
@@ -6714,14 +6784,39 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         rtl.start(state);
         Mismatches out;
         Outcome outcome;
-        try {
-            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 64, true, summary, out, CODE + uint32_t(a.b.size()));
-        } catch (const std::exception &error) {
-            out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
-            oracle.reset();
+        const std::string label = c.label;
+        if (c.rtl_alone) {
+            // The RTL alone, to its HLT: the last vector it delivered.
+            for (int n = 0; n < 64 && !rtl.stopped(); ++n) {
+                const Rtl::Event event = rtl.next();
+                if (event != Rtl::Event::Retired) {
+                    out.add(label + ".event", 0, uint32_t(event));
+                    break;
+                }
+                if (rtl.top.trace_exception) outcome.exception = int(rtl.top.trace_vector);
+            }
+            outcome.halted = rtl.stopped();
+            if (c.ending >= 0 && outcome.exception == c.ending) {
+                // A 386 gate's frame from 10h:0F00h: the error code, EIP and CS.
+                const State s = rtl.state();
+                const uint32_t at = s.seg[fes_i386::SEG_SS].base + (s.gpr[fes_i386::REG_ESP] & 0xffff);
+                auto dword = [&](uint32_t p) {
+                    return rtl.ram[p] | uint32_t(rtl.ram[p + 1]) << 8 | uint32_t(rtl.ram[p + 2]) << 16
+                         | uint32_t(rtl.ram[p + 3]) << 24;
+                };
+                if (dword(at + 4) != c.rtl_alone_eip) out.add(label + ".frame-eip", c.rtl_alone_eip, dword(at + 4));
+                if (uint16_t(dword(at + 8)) != c.rtl_alone_cs) out.add(label + ".frame-cs", c.rtl_alone_cs, dword(at + 8) & 0xffff);
+                if (!outcome.halted) out.add(label + ".handler-halt", 1, 0);
+            }
+        } else {
+            try {
+                outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 64, true, summary, out, CODE + uint32_t(a.b.size()));
+            } catch (const std::exception &error) {
+                out.add(label + ".oracle-error:" + error.what(), 0, 1);
+                oracle.reset();
+            }
         }
         const State s = rtl.state();
-        const std::string label = c.label;
         if (c.ending == -1) {
             if (!outcome.halted) out.add(label + ".halt", 1, 0);
             if (outcome.exception >= 0) out.add(label + ".exception", 0xff, uint32_t(outcome.exception));
