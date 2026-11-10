@@ -15,6 +15,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const (
@@ -410,6 +412,24 @@ func (m *Manager) OpenWithLimit(ctx context.Context, id, path string, limit int6
 	if limit < 1 || limit > MaxExtendedFileBytes {
 		return nil, 0, fmt.Errorf("file limit must be between 1 and %d bytes", MaxExtendedFileBytes)
 	}
+	return m.openWithLimit(ctx, id, path, limit)
+}
+
+// OpenHardDisk opens a raw ATA disk image without widening the ordinary or
+// expansion-archive read limits. The returned file remains read-only.
+func (m *Manager) OpenHardDisk(ctx context.Context, id, path string) (io.ReadCloser, int64, error) {
+	file, size, err := m.openWithLimit(ctx, id, path, protocol.AtaDiskMaxBytes)
+	if err != nil {
+		return nil, 0, err
+	}
+	if !protocol.AdmitAtaDiskSize(size) {
+		file.Close()
+		return nil, 0, errors.New("hard-disk image must be 1 to 128 MiB in whole 512-byte sectors")
+	}
+	return file, size, nil
+}
+
+func (m *Manager) openWithLimit(ctx context.Context, id, path string, limit int64) (io.ReadCloser, int64, error) {
 	rel, err := relative(path)
 	if err != nil {
 		return nil, 0, err

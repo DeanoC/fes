@@ -18,6 +18,12 @@ and content selection; the MiSTer is a small, directly controlled target.
   backend, package production and hardware qualification. These host paths have
   software tests, not physical partial-reconfiguration acceptance.
 
+- A kit can index ZX81 cassettes from a configured read-only FogCast source.
+  Titles are saved in its own library; first Play verifies and caches the
+  cassette, and later plays work with the source offline. The exact sealed
+  package must already be installed and firmware is selected on the kit.
+  See [remote library sources](docs/ARCHITECTURE.md#remote-library-sources).
+
 - **Settings → BIOS & media drives** remembers USB volumes and SMB shares on
   either the kit/launcher device or the FogCast host, with separate BIOS and
   media folders. Saved drives appear in BIOS, core setup and live-media

@@ -84,6 +84,8 @@ type Config struct {
 	Metadata            MetadataConfig
 	LibraryMedia        []librarymedia.Root
 	Library             LibraryConfig
+	LibrarySources      []LibrarySourceConfig
+	LibrarySourceToken  string
 	// MeshEnsure is the production ensure seam. It defaults off. Open
 	// records it and does not dial; EnableMeshContent turns the seam on
 	// only when this is true. The default stays off until a source that
@@ -279,19 +281,21 @@ type fileConfig struct {
 	// decoded Config; PathsForConfig is the reader. Both must be set
 	// together, and both must be absolute, so a read-only config does not
 	// grow state beside itself.
-	State          string               `toml:"state,omitempty"`
-	Staging        string               `toml:"staging,omitempty"`
-	Libraries      []fileLibrary        `toml:"libraries"`
-	RemoteInput    fileRemoteInput      `toml:"remote_input"`
-	HostEmulator   fileHostEmulator     `toml:"host_emulator"`
-	ZX81MachineROM fileZX81MachineROM   `toml:"zx81_machine_rom"`
-	Media          fileMedia            `toml:"media"`
-	Firmware       *fileFirmware        `toml:"firmware"`
-	CorePackages   *fileCorePackages    `toml:"core_packages"`
-	Metadata       *fileMetadata        `toml:"metadata"`
-	LibraryMedia   []fileLibraryMedia   `toml:"library_media"`
-	Library        *fileLibrarySettings `toml:"library"`
-	Mesh           *fileMesh            `toml:"mesh"`
+	State              string                `toml:"state,omitempty"`
+	Staging            string                `toml:"staging,omitempty"`
+	Libraries          []fileLibrary         `toml:"libraries"`
+	LibrarySources     []LibrarySourceConfig `toml:"library_sources,omitempty"`
+	LibrarySourceToken string                `toml:"library_source_token,omitempty"`
+	RemoteInput        fileRemoteInput       `toml:"remote_input"`
+	HostEmulator       fileHostEmulator      `toml:"host_emulator"`
+	ZX81MachineROM     fileZX81MachineROM    `toml:"zx81_machine_rom"`
+	Media              fileMedia             `toml:"media"`
+	Firmware           *fileFirmware         `toml:"firmware"`
+	CorePackages       *fileCorePackages     `toml:"core_packages"`
+	Metadata           *fileMetadata         `toml:"metadata"`
+	LibraryMedia       []fileLibraryMedia    `toml:"library_media"`
+	Library            *fileLibrarySettings  `toml:"library"`
+	Mesh               *fileMesh             `toml:"mesh"`
 }
 
 type fileFirmware struct {
@@ -447,6 +451,13 @@ func LoadConfig(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	sources, err := normalizeLibrarySources(raw.LibrarySources)
+	if err != nil {
+		return Config{}, err
+	}
+	if raw.LibrarySourceToken != "" && !ValidLibrarySourceToken(raw.LibrarySourceToken) {
+		return Config{}, fmt.Errorf("library_source_token must contain 32 to 256 non-whitespace characters")
+	}
 	hostEmulator, err := normalizeHostEmulator(raw.HostEmulator)
 	if err != nil {
 		return Config{}, err
@@ -506,13 +517,15 @@ func LoadConfig(path string) (Config, error) {
 		return Config{}, fmt.Errorf("core_catalog requires a stable library_source_id unique to this serving library")
 	}
 	return Config{
-		BaseURL:        selected.Address,
-		Token:          selected.Agent,
-		Targets:        targets,
-		SelectedTarget: selectedTarget,
-		RequestTimeout: requestTimeout,
-		UploadTimeout:  uploadTimeout,
-		Libraries:      libraries,
+		BaseURL:            selected.Address,
+		Token:              selected.Agent,
+		Targets:            targets,
+		SelectedTarget:     selectedTarget,
+		RequestTimeout:     requestTimeout,
+		UploadTimeout:      uploadTimeout,
+		Libraries:          libraries,
+		LibrarySources:     sources,
+		LibrarySourceToken: raw.LibrarySourceToken,
 		RemoteInput: RemoteInputConfig{
 			Enabled: raw.RemoteInput.Enabled,
 		},

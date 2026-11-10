@@ -200,6 +200,8 @@ type Instance struct {
 type asyncResult struct {
 	cb           *lua.LFunction
 	err          error
+	libraryQuery bool
+	transient    bool
 	games        []hostclient.Game
 	platforms    []hostclient.Platform
 	collections  []hostclient.Collection
@@ -972,7 +974,11 @@ func (r *Instance) applyResult(res asyncResult) {
 		errVal = lua.LString(res.err.Error())
 	}
 	r.noteInputBaseline()
-	if err := r.callSoft(res.cb, r.budget.Frame, 0, payload, errVal); err != nil {
+	args := []lua.LValue{payload, errVal}
+	if res.libraryQuery {
+		args = append(args, lua.LBool(res.transient))
+	}
+	if err := r.callSoft(res.cb, r.budget.Frame, 0, args...); err != nil {
 		err = fmt.Errorf("async callback: %w", err)
 		if errors.Is(err, errSoftOverrun) {
 			r.overrunInput(err)

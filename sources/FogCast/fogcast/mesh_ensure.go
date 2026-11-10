@@ -198,6 +198,10 @@ type launchSnapshot struct {
 	// when no mesh executor is installed. Address, TargetID, enabled
 	// state, and the captured client are still validated.
 	pinned bool
+	// remoteTargetFrozen preserves the original local target across a
+	// remote-source download even when mesh Ensure is disabled.
+	remoteTargetFrozen bool
+	remoteSelection    *remoteSelectionSnapshot
 	// romSources is the Coleco format-4 BIOS and cartridge pair
 	// captured at launch start. Nil when this launch is not that load.
 	romSources *twoROMSourceSnapshot
@@ -265,7 +269,12 @@ func (s *Service) captureLaunchSnapshot(gameID, target string) (launchSnapshot, 
 		return launchSnapshot{}, err
 	}
 	if session.Executor == nil {
-		return launchSnapshot{requested: requested, gameID: gameID, romSources: romSources}, nil
+		// Keep the original local target available for remote preparation.
+		// Ordinary launches still bind the live target when the seam is off.
+		snap := s.captureTargetLocked(session, requested)
+		snap.gameID, snap.romSources = gameID, romSources
+		snap.boundNode, snap.executor = session.BoundNode, session.Executor
+		return snap, nil
 	}
 	snap := s.captureTargetLocked(session, requested)
 	snap.romSources = romSources
@@ -497,27 +506,62 @@ func (s *Service) revalidateLaunchSnapshot(snap launchSnapshot) error {
 	if s == nil {
 		return nil
 	}
-	if snap.romSources != nil {
-		current, err := s.captureTwoROMSources(snap.gameID)
-		if err != nil {
+	if !snap.frozen && !snap.pinned && !snap.remoteTargetFrozen {
+		if err := s.snapshotROMSourcesDrift(snap); err != nil {
 			return err
 		}
-		if current == nil || *current != *snap.romSources {
-			return snapshotMismatch(launchSnapshotROMSourcesChanged)
-		}
-	}
-	if !snap.frozen && !snap.pinned {
 		return s.bindLiveLaunchTarget(snap.requested)
 	}
-	if err := s.snapshotSessionDrift(snap); err != nil {
+	if err := s.validateLaunchSnapshot(snap); err != nil {
 		return err
 	}
 	s.targetMu.Lock()
 	defer s.targetMu.Unlock()
+	// Recheck under the same lock used to bind the captured client.
 	if err := s.snapshotTargetDriftLocked(snap); err != nil {
 		return err
 	}
 	return s.bindCapturedLocked(snap)
+}
+
+func (s *Service) snapshotROMSourcesDrift(snap launchSnapshot) error {
+	if snap.romSources == nil {
+		return nil
+	}
+	current, err := s.captureTwoROMSources(snap.gameID)
+	if err != nil {
+		return err
+	}
+	if current == nil || *current != *snap.romSources {
+		return snapshotMismatch(launchSnapshotROMSourcesChanged)
+	}
+	return nil
+}
+
+// validateLaunchSnapshot checks the original identities without binding or
+// changing the foreground kit. Remote preparation uses it around network I/O.
+func (s *Service) validateLaunchSnapshot(snap launchSnapshot) error {
+	if err := s.snapshotROMSourcesDrift(snap); err != nil {
+		return err
+	}
+	if err := s.snapshotRemoteSelectionDrift(snap); err != nil {
+		return err
+	}
+	if snap.frozen || snap.pinned || snap.remoteTargetFrozen {
+		if err := s.snapshotSessionDrift(snap); err != nil {
+			return err
+		}
+	}
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	if err := s.snapshotTargetDriftLocked(snap); err != nil {
+		return err
+	}
+	live, exists := s.targetClients[snap.name]
+	if (snap.client != nil && exists && live != snap.client) || (snap.client == nil && exists) {
+		return snapshotMismatch(launchSnapshotClientChanged)
+	}
+	return nil
 }
 
 func (s *Service) snapshotSessionDrift(snap launchSnapshot) error {
@@ -528,6 +572,11 @@ func (s *Service) snapshotSessionDrift(snap launchSnapshot) error {
 		return snapshotMismatch(launchSnapshotBoundNodeChanged)
 	}
 	if !snap.entryOK {
+		if snap.remoteTargetFrozen && session.Entry != nil {
+			if _, ok := session.Entry(snap.gameID); ok {
+				return snapshotMismatch(launchSnapshotCompositionChanged)
+			}
+		}
 		return nil
 	}
 	if session.Entry == nil {
@@ -592,7 +641,11 @@ func (s *Service) bindCapturedLocked(snap launchSnapshot) error {
 	if _, ok := s.targetClients[name]; !ok {
 		if !snap.explicit {
 			s.executionMu.Lock()
-			s.activeTarget = name
+			if snap.remoteTargetFrozen && !snap.frozen && !snap.pinned {
+				s.bindPlayTargetLocked(name)
+			} else {
+				s.activeTarget = name
+			}
 			s.executionMu.Unlock()
 			if launchPinnedTargetBoundHook != nil {
 				launchPinnedTargetBoundHook(name)
@@ -610,7 +663,11 @@ func (s *Service) bindCapturedLocked(snap launchSnapshot) error {
 		s.targetClients[name] = client
 	}
 	s.executionMu.Lock()
-	s.activeTarget = name
+	if snap.remoteTargetFrozen && !snap.frozen && !snap.pinned {
+		s.bindPlayTargetLocked(name)
+	} else {
+		s.activeTarget = name
+	}
 	s.executionMu.Unlock()
 	cfg := targetByName(s.targets, name)
 	if s.targetOrigin != nil && snap.explicit && name != snap.selectedName {

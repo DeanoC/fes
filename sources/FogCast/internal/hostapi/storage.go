@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/storage"
 )
 
@@ -41,10 +43,10 @@ func registerStorage(mux *http.ServeMux, m *storage.Manager) {
 	if m == nil {
 		return
 	}
-	run := func(fn func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {
+	runFor := func(timeout time.Duration, fn func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "no-store")
-			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), timeout)
 			defer cancel()
 			if err := fn(w, r.WithContext(ctx)); err != nil {
 				status := http.StatusBadRequest
@@ -55,6 +57,9 @@ func registerStorage(mux *http.ServeMux, m *storage.Manager) {
 				writeError(w, status, "STORAGE_UNAVAILABLE", "Drive unavailable. Check the drive, share, credentials and selected folder.")
 			}
 		}
+	}
+	run := func(fn func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {
+		return runFor(30*time.Second, fn)
 	}
 	mux.HandleFunc("GET /api/v1/storage/drives", run(func(w http.ResponseWriter, r *http.Request) error {
 		if r.URL.RawQuery != "" && r.URL.RawQuery != "discover=true" {
@@ -99,29 +104,58 @@ func registerStorage(mux *http.ServeMux, m *storage.Manager) {
 		writeJSON(w, http.StatusOK, map[string]any{"entries": entries})
 		return nil
 	}))
-	mux.HandleFunc("GET /api/v1/storage/drives/{id}/file", run(func(w http.ResponseWriter, r *http.Request) error {
+	readFile := func(w http.ResponseWriter, r *http.Request) error {
 		query := r.URL.Query()
-		if len(query["path"]) > 1 || len(query["max_bytes"]) > 1 {
+		if len(query["path"]) > 1 || len(query["max_bytes"]) > 1 || len(query["purpose"]) > 1 {
 			return errors.New("invalid file query")
 		}
-		limit := storage.MaxFileBytes
-		if value, present := query["max_bytes"]; present {
-			requested, err := strconv.ParseInt(value[0], 10, 64)
-			if err != nil || requested < 1 || requested > storage.MaxExtendedFileBytes {
-				return errors.New("invalid file limit")
+		var file io.ReadCloser
+		var size int64
+		var err error
+		if value, present := query["purpose"]; present {
+			if value[0] != "hard-disk" || len(query["max_bytes"]) != 0 {
+				return errors.New("invalid file purpose")
 			}
-			limit = requested
+			file, size, err = m.OpenHardDisk(r.Context(), r.PathValue("id"), query.Get("path"))
+		} else {
+			limit := storage.MaxFileBytes
+			if value, present := query["max_bytes"]; present {
+				requested, parseErr := strconv.ParseInt(value[0], 10, 64)
+				if parseErr != nil || requested < 1 || requested > storage.MaxExtendedFileBytes {
+					return errors.New("invalid file limit")
+				}
+				limit = requested
+			}
+			file, size, err = m.OpenWithLimit(r.Context(), r.PathValue("id"), query.Get("path"), limit)
 		}
-		file, size, err := m.OpenWithLimit(r.Context(), r.PathValue("id"), query.Get("path"), limit)
 		if err != nil {
 			return err
 		}
 		defer file.Close()
+		if query.Get("purpose") == "hard-disk" {
+			// A request context does not interrupt a blocked ResponseWriter.Write.
+			// Bound the network write as well, including a shorter parent deadline.
+			if deadline, ok := r.Context().Deadline(); ok {
+				controller := http.NewResponseController(w)
+				if controller.SetWriteDeadline(deadline) == nil {
+					defer controller.SetWriteDeadline(time.Time{})
+				}
+			}
+		}
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
 		// The descriptor and its size are bound before sending any bytes.
 		_, _ = io.CopyN(w, file, size)
 		return nil
-	}))
+	}
+	regularRead := run(readFile)
+	hardDiskRead := runFor(fogcast.HardDiskImportBudget(protocol.AtaDiskMaxBytes), readFile)
+	mux.HandleFunc("GET /api/v1/storage/drives/{id}/file", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("purpose") == "hard-disk" {
+			hardDiskRead(w, r)
+			return
+		}
+		regularRead(w, r)
+	})
 }

@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 21
+const schemaVersion = 22
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -356,6 +356,26 @@ END;
 PRAGMA user_version = 21;
 `
 
+// Schema 22 retains the remote origin without hiding the ordinary title.
+// A package or media selection consumes the pending automatic binding even
+// when the selected values happen to be unchanged.
+const schemaV22 = `
+CREATE TABLE remote_core_entries (
+  game_id TEXT PRIMARY KEY REFERENCES core_entries(game_id) ON DELETE CASCADE,
+  source_id TEXT NOT NULL,
+  source_game_id TEXT NOT NULL,
+  package_id TEXT NOT NULL,
+  media_id TEXT NOT NULL,
+  media_name TEXT NOT NULL DEFAULT '',
+  pending INTEGER NOT NULL DEFAULT 1 CHECK (pending IN (0, 1)),
+  UNIQUE (source_id, source_game_id)
+);
+CREATE TRIGGER remote_core_entry_selected AFTER UPDATE OF package_id, media_role, media_id ON core_entries BEGIN
+  UPDATE remote_core_entries SET pending = 0 WHERE game_id = NEW.game_id;
+END;
+PRAGMA user_version = 22;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -551,6 +571,12 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if version == 20 {
 		if _, err := connection.ExecContext(ctx, schemaV21); err != nil {
 			return fmt.Errorf("apply catalog schema version 21: %w", err)
+		}
+		version = 21
+	}
+	if version == 21 {
+		if _, err := connection.ExecContext(ctx, schemaV22); err != nil {
+			return fmt.Errorf("apply catalog schema version 22: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

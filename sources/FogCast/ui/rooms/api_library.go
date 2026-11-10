@@ -1,13 +1,18 @@
 package rooms
 
 import (
+	"context"
 	"errors"
+	"io"
+	"net"
 	"strings"
+	"syscall"
 
 	lua "github.com/yuin/gopher-lua"
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/corenames"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 var errNoServices = errors.New("library is not available in this launcher")
@@ -63,7 +68,8 @@ func optInt64(t *lua.LTable, key string) int64 {
 }
 
 // library.query({platform, core_ids, collection, q, sort, genre, year, region,
-// hide_prerelease, hide_hacks, limit}, function(games, err) end)
+// hide_prerelease, hide_hacks, limit}, function(games, err, transient) end)
+// returns a cancellation function for an outstanding query.
 func (r *Instance) libraryQuery(L *lua.LState) int {
 	opts := L.OptTable(1, nil)
 	cb := L.CheckFunction(2)
@@ -84,17 +90,54 @@ func (r *Instance) libraryQuery(L *lua.LState) int {
 		max = r.budget.MaxQueryGames
 	}
 	if r.opts.Services == nil {
-		r.deliver(asyncResult{cb: cb, err: errNoServices})
-		return 0
+		r.deliver(asyncResult{cb: cb, err: errNoServices, libraryQuery: true})
+		L.Push(L.NewFunction(func(*lua.LState) int { return 0 }))
+		return 1
 	}
+	ctx, cancel := context.WithCancel(r.ctx)
+	L.Push(L.NewFunction(func(*lua.LState) int { cancel(); return 0 }))
 	go func() {
-		games, err := r.opts.Services.QueryGames(r.ctx, q, max)
+		defer cancel()
+		games, err := r.opts.Services.QueryGames(ctx, q, max)
 		if games == nil && err == nil {
 			games = []hostclient.Game{}
 		}
-		r.deliver(asyncResult{cb: cb, games: games, err: err})
+		r.deliver(asyncResult{cb: cb, games: games, err: err, libraryQuery: true, transient: transientLibraryError(err)})
 	}()
-	return 0
+	return 1
+}
+
+// Retry transport failures and temporary server responses, not invalid
+// requests, authentication failures, decode errors or canceled requests.
+func transientLibraryError(err error) bool {
+	if err == nil || errors.Is(err, context.Canceled) {
+		return false
+	}
+	var status *hostclient.HTTPStatusError
+	if errors.As(err, &status) {
+		return retryableLibraryStatus(status.StatusCode)
+	}
+	var api *protocol.APIError
+	if errors.As(err, &api) && api.StatusCode != 0 {
+		return retryableLibraryStatus(api.StatusCode)
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNABORTED) ||
+		errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ENETUNREACH) ||
+		errors.Is(err, syscall.EHOSTUNREACH) || errors.Is(err, syscall.ETIMEDOUT) {
+		return true
+	}
+	var dns *net.DNSError
+	if errors.As(err, &dns) {
+		return !dns.IsNotFound && (dns.IsTimeout || dns.IsTemporary)
+	}
+	var timeout interface{ Timeout() bool }
+	return errors.As(err, &timeout) && timeout.Timeout()
+}
+
+func retryableLibraryStatus(status int) bool {
+	return status == 408 || status == 429 || status == 502 || status == 503 || status == 504
 }
 
 func optStrings(t *lua.LTable, key string) []string {

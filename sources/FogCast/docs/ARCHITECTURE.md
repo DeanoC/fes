@@ -1446,6 +1446,13 @@ the family tiles, artwork motifs and Home routes. Family Open enters the
 workbench; Play on a recent title starts that title. In the v1 release scope,
 Settings is the only header route and Back at Home's root keeps Home open.
 Show all cores restores Library and Systems routes and the remaining families.
+Home retries each failed family read at most three times, after 1, 2 and 4
+active-room seconds, for transient network errors and temporary host responses.
+Permanent errors stay terminal. Other families retain their successful data;
+an unavailable family's game count stays unknown. Hardware admission and the
+independent kit shelf still determine readiness; library retries cannot replace
+that admission. Closing the room cancels its reads; reloading cancels older reads and
+discards their retry schedule and callbacks.
 The footer shows full-size prompts and only actionable status. Details keeps
 the selected family's model/state information or a core's verbatim block when
 the column has to drop lines to fit. On a content box under 480×360,
@@ -2800,6 +2807,67 @@ See [kit launcher](kit-launcher.md) and [host connection contract](launcher-host
 for setup, controls, exact routes, timeouts and ownership. The existing browser
 listener remains loopback-only.
 
+## Remote library sources
+
+A kit can index ZX81 cassettes from a statically configured FogCast source.
+Each source entry may contain a private shared bearer token of 32–256
+characters when the source listener requires one; `fogcast-api` always requires
+a valid `library_source_token` to enable that listener. The source
+starts `fogcast-api --config /absolute/source.toml --headless
+--source-listen 0.0.0.0:8790`; startup refuses this listener when
+`library_source_token` is missing or invalid. Bind a non-loopback listener only
+on a trusted LAN: this HTTP listener sends the bearer token without transport
+encryption. Its general API remains on loopback. Every source request requires
+`Authorization: Bearer <token>`. The separate source listener serves only
+`GET /api/v1/library/core-entries` and the existing
+`GET /api/v1/mesh/content/source` and `/object` content reads. Its core-entry
+document contains locally owned ZX81 cassette entries with stored media of
+1–16,384 bytes and no expansion selection. It omits firmware bindings and
+imported source entries. Content reads expose only those exported cassettes;
+the source cannot launch, configure, or own the receiving kit.
+
+The kit's canonical configuration preserves static sources across restarts:
+
+```toml
+[[library_sources]]
+id = "powerboat"
+url = "http://powerboat:8790"
+token = "replace-with-a-private-random-token-of-at-least-32-characters"
+```
+
+Set `library_source_token` to the same value in the source host's private
+configuration. Keep both configuration files private. Source settings APIs
+accept tokens on writes and omit them from reads and write responses. On PUT,
+omitting a token for an existing source ID keeps its stored token, even if its
+URL changes; a new source may omit the token.
+
+The loopback API exposes `GET` and `PUT /api/v1/library/sources`; PUT takes
+`{"sources":[{"id":"powerboat","url":"http://powerboat:8790","token":"<shared-token>"}]}`. The per-source token is optional. An empty
+array removes the configuration without deleting saved titles or cached media.
+`POST /api/v1/library/sources/powerboat/refresh` reads the remote core-entry
+document and reports its indexed entries and skipped count. Refresh is explicit;
+it does not run on every library read or block host startup. These management
+operations are unavailable on the paired launcher and source listeners.
+
+Refresh creates ordinary visible library entries without downloading their
+cassettes. The receiving host must already have the source entry's exact sealed
+ZX81 package installed; other packages and media roles are skipped. Firmware
+is selected on the kit through the existing machine setup. A durable mapping
+of source ID and source game ID gives each imported title a stable local game
+ID, including when titles have identical names. Refresh keeps that first
+content snapshot and all subsequent local user choices. Imported rows and
+their provenance survive a host restart.
+
+The first normal Play fetches at most 16 KiB, verifies the content digest before
+import, and atomically binds the cassette only while its original pending
+selection still holds. A user selection made during a download wins. Fetch and
+admission finish before a running core can be stopped or replaced, and before
+mesh Ensure projects the new composition. Later plays use the existing local
+media path without contacting the source. A failed refresh preserves the saved
+rows; an unavailable source cannot supply an uncached cassette. No firmware,
+package or expansion transfer, discovery, or mounted SMB/NFS root is part of
+this first source path.
+
 ## Persistent kit software releases
 
 The FES base-image `fes-kit-software` supervisor owns the agent, native runtime
@@ -3639,7 +3707,8 @@ named target and for a paired kit copies that returned status, so the
 response omits the game the kit was recovering from.
 
 Media objects are immutable SHA-256-addressed bytes in the existing catalog
-database. Host storage accepts 1 byte through 32 MiB independently of target media capacity.
+database. Ordinary host media imports accept 1 byte through 32 MiB
+independently of target media capacity; hard disks use their own 1–128 MiB route.
 Imports stream to a private temporary snapshot before taking a database writer
 transaction; SHA identity, declared length and cancellation are checked before
 atomic metadata/chunk publication. Schema 8 stores new objects in 64 KiB chunks,
@@ -4531,7 +4600,11 @@ only through the explicit BIOS selection flow, not a per-target setting. API
 reads cannot address arbitrary host paths: USB reads use `os.Root`, reject
 escaping paths and nonregular files, and ordinary reads are limited to 32 MiB.
 Expansion archive reads use their declared archive bound. SMB reads stay
-relative to the selected share. Directory and connection work runs outside the
+relative to the selected share. The browser's hard-disk picker requests the
+explicit `purpose=hard-disk` file route: it admits only 1–128 MiB raw images
+in whole 512-byte sectors, with the bounded hard-disk transfer budget. That
+purpose cannot be combined with the caller-selected expansion-archive limit;
+ordinary reads keep their 32 MiB bound. Directory and connection work runs outside the
 tenfoot app lock. Existing game/session/package admission and captured
 live-media identity checks remain in force after import.
 To transfer a pack as one file, export it on the source machine and install the
