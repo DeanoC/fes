@@ -106,10 +106,14 @@ def packet(data,*,startup=False,input_mode='uart',usb_records=None,fetch_records
             if 'tape_sha256' in v or 'tape_bytes' in v:
                 require(v['State'] in ('running','returning') and ident['ProgrammingProfile']=='de25-native-computer-v1' and ident['ABI']=='fes.computer','tape receipt outside native computer play')
                 require(type(v.get('tape_sha256')) is str and re.fullmatch('[0-9a-f]{64}',v['tape_sha256']) and int(v['tape_sha256'],16)>0 and number(v.get('tape_bytes'),16375) and v['tape_bytes']>0,'incomplete or invalid tape receipt')
-            if v['State'] in ('ready','loading'):
+            # Launch first publishes the old even/empty view, then pins the
+            # selected plan at the next odd generation while still held. That
+            # staged identity is not Running or proof of configuration.
+            staged=v['State']=='loading' and v['Generation']%2==1
+            if v['State']=='ready' or v['State']=='loading' and not staged:
                 require(v['Generation']%2==0 and v['Held'] and ident==ZERO,'inactive App has live identity or lost Hold')
             else:
-                require(v['Generation']%2==1 and not v['Held'],'active App generation/Hold differs')
+                require(v['Generation']%2==1 and v['Held']==staged,'selected App generation/Hold differs')
                 for key,length in (('PackageID',64),('BuildID',32),('ProgrammedSHA256',64)):
                     require(re.fullmatch('[0-9a-f]{'+str(length)+'}',ident[key]) and int(ident[key],16),'invalid live '+key)
             states.append(r);continue
@@ -190,7 +194,8 @@ class TenfootClient:
     def _state(self,r,generation,allowed,identity=None):
         v=r['native'];require(v['Owner']==self.owner and v['Generation']==generation and v['State'] in allowed,'App ownership/generation/state changed')
         require(not r['titles'] or len(r['titles'])==2 and set(r['titles'])=={p['title'] for p in self.programs},'App catalog changed')
-        if identity is not None and v['State'] in ('running','returning'):require(v['Identity']==identity,'App published wrong retained identity')
+        has_identity=v['State'] in ('running','returning') or v['State']=='loading' and v['Generation']%2==1
+        if identity is not None and has_identity:require(v['Identity']==identity,'App published wrong retained identity')
         if v['State'] in ('running','returning'):
             selected=next((p for p in self.programs if p['identity']==v['Identity']),None)
             require(selected is not None,'App tape has no selected program')
@@ -239,15 +244,16 @@ class TenfootClient:
             states,evidence,exited=self._packet(raw,usb_records=usb_rows,fetch_records=fetch_rows,input_records=input_rows)
             validate_actions(input_rows,op,self.owner,generation)
             require(terminal(states[-1] if states else None,exited),'App action did not reach its terminal observation')
-            rank=-1
+            rank=-1;previous_generation=generation
             for state in states:
                 n=state['native'];g=n['Generation']
+                require(g>=previous_generation,'App generation regressed');previous_generation=g
                 current_rank=({'ready':0,'loading':1,'running':2} if op=='launch' else {'running':0,'returning':1,'ready':2} if op in ('stop','quit') else {'ready':0})[n['State']]
                 require(current_rank>=rank,'App native state regressed');rank=current_rank
                 if op=='focus':self._state(state,generation,('ready',))
                 elif op=='launch':
                     require(g in (generation,generation+1),'launch skipped App generation')
-                    self._state(state,g,('ready','loading') if g==generation else ('running',),selected['identity'])
+                    self._state(state,g,('ready','loading') if g==generation else ('loading','running'),selected['identity'])
                 else:
                     require(g in (generation,generation+1),'return skipped App generation')
                     self._state(state,g,('running','returning') if g==generation else ('ready',),identity)

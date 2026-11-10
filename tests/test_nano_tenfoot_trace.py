@@ -13,6 +13,33 @@ IDENTITY=dict(PackageID=SPEC['identity']['package_id'],CoreID=SPEC['identity']['
 SECOND=dict(IDENTITY,PackageID='a'*64,BuildID='b'*32,ProgrammedSHA256='c'*64)
 PROGRAMS=[dict(title='ZX81',identity=IDENTITY,configuration=SPEC['configuration']),dict(title='ZX80',identity=SECOND,configuration=dict(SPEC['configuration'],package_id='a'*64,build_id='b'*32,core_sha256='c'*64))]
 
+STAGING_FAULTS=('empty', 'released', 'even-live', 'ready-live', 'old', 'skipped',
+                'foreign', 'owner', 'early-tape', 'regressed')
+
+def corrupt_staging(raw, fault):
+    """Mutate only the held selected-plan snapshot, leaving Running intact."""
+    lines=raw.splitlines(keepends=True)
+    at=next(i for i,line in enumerate(lines) if line.startswith(trace.PREFIX)
+            and (n:=json.loads(line[len(trace.PREFIX):])['native'])['State']=='loading'
+            and n['Generation']%2==1)
+    row=json.loads(lines[at][len(trace.PREFIX):]);n=row['native']
+    if fault=='empty':n['Identity']=copy.deepcopy(trace.ZERO);n.pop('rom_receipt_sha256',None)
+    if fault=='released':n['Held']=False
+    if fault=='even-live':n['Generation']-=1
+    if fault=='ready-live':n['State']='ready'
+    if fault=='old':n['Generation']-=2
+    if fault=='skipped':n['Generation']+=2
+    if fault=='foreign':n['Identity']['BuildID']='e'*32
+    if fault=='owner':n['Owner']+=1
+    if fault=='early-tape':
+        n['Identity'].update(ABI='fes.computer',ProgrammingProfile='de25-native-computer-v1')
+        n.update(tape_sha256='d'*64,tape_bytes=917)
+    if fault=='regressed':
+        lines.insert(at+1,lines[at-1] if lines[at-1].startswith(trace.PREFIX) else
+                     next(line for line in lines[:at] if line.startswith(trace.PREFIX)))
+    else:lines[at]=trace.PREFIX+json.dumps(row,separators=(',',':')).encode()+b'\n'
+    return b''.join(lines)
+
 class TapeObservationTests(unittest.TestCase):
     def test_selected_tape_receipt_is_bound_to_live_program_and_absent_after_return(self):
         m=Model();client=m.client()
@@ -54,7 +81,8 @@ class Model:
     def state(self,phase=None,gen=None):
         native=self.service.phase if phase is None else phase
         generation=self.service.generation if gen is None else gen
-        row=dict(scope='nano-tenfoot-serial-v1',display='serial-state-only',titles=['ZX81','ZX80'],focus=self.focus,loading=False,load_error='',session='active' if native=='running' else 'idle',launch='ok' if native=='running' else 'idle',launch_error='',retry_stop=False,native=dict(State=native,Owner=int(OWNER,16),Generation=generation,Identity=copy.deepcopy(PROGRAMS[self.selected]['identity'] if native in ('running','returning') else trace.ZERO),Held=native not in ('running','returning'),Error=''))
+        selected=native in ('running','returning') or native=='loading' and generation%2==1
+        row=dict(scope='nano-tenfoot-serial-v1',display='serial-state-only',titles=['ZX81','ZX80'],focus=self.focus,loading=False,load_error='',session='active' if native=='running' else 'idle',launch='ok' if native=='running' else 'idle',launch_error='',retry_stop=False,native=dict(State=native,Owner=int(OWNER,16),Generation=generation,Identity=copy.deepcopy(PROGRAMS[self.selected]['identity'] if selected else trace.ZERO),Held=native not in ('running','returning'),Error=''))
         if row['native']['Identity']['ActivationReceiptSHA256']:
             row['native']['rom_receipt_sha256']=row['native']['Identity']['ActivationReceiptSHA256']
         return row
@@ -92,7 +120,8 @@ class Model:
             self.service.fault=self.fault if self.fault in ('transfer','smmu','stop','late','clock','claim','raise','activation') else ''
             _,evidence=response(self.service.exchange(json.dumps(command).encode(),bound))
             state=self.state()
-            raw=self.raw(intermediate)+evidence+(self.fetch() if op=='launch' else b'')+(b'FES_NATIVE_TENFOOT_EXIT state=ready generation=6\n' if key==b'q' else self.raw(state))
+            staged=self.raw(self.state('loading',before+1)) if op=='launch' else b''
+            raw=self.raw(intermediate)+staged+evidence+(self.fetch() if op=='launch' else b'')+(b'FES_NATIVE_TENFOOT_EXIT state=ready generation=6\n' if key==b'q' else self.raw(state))
             if self.fault=='early-state':raw=self.raw(state)+evidence+self.raw(state)
             if self.fault=='fetch-early' and op=='launch':raw=self.fetch()+self.raw(intermediate)+evidence+self.raw(state)
             if self.fault=='regress':raw+=self.raw(intermediate)+self.raw(state)
@@ -111,6 +140,53 @@ class Model:
         return raw
 
 class TenfootTraceTests(unittest.TestCase):
+    def test_saved_native_selected_plan_remains_held_and_nonterminal(self):
+        raw=(ROOT/'tests/fixtures/nano-tenfoot-staging/producer.txt').read_bytes()
+        states,evidence,exited=trace.packet(raw)
+        self.assertEqual(evidence,b'');self.assertIsNone(exited)
+        self.assertEqual([(r['native']['State'],r['native']['Generation'],r['native']['Held'])
+                          for r in states],[('loading',0,True),('loading',1,True)])
+        self.assertEqual(states[0]['native']['Identity'],trace.ZERO)
+        staged=states[1]['native']
+        self.assertEqual(staged['Identity']['CoreID'],'fes.zx81')
+        self.assertEqual(staged['rom_receipt_sha256'],staged['Identity']['ActivationReceiptSHA256'])
+        self.assertTrue(all(not Model().client()._ready(r) for r in states))
+
+    def test_held_staged_plan_is_not_ready_running_or_a_tape_receipt(self):
+        model=Model();client=model.client()
+        state=model.state('loading',1)
+        self.assertEqual(trace.packet(model.raw(state))[0],[state])
+        self.assertFalse(client._ready(state))
+        client.programs[0]['tape']=dict(sha256='d'*64,bytes=917)
+        # Media is delivered later; selection alone cannot assert delivery.
+        client._state(state,1,('loading',),client.programs[0]['identity'])
+        with self.assertRaises(ValueError):client._state(state,1,('running',))
+        client.exchange=lambda *args:model.input_action('select',0)+model.raw(state)
+        with self.assertRaisesRegex(ValueError,'terminal observation'):client.key('launch',0)
+        self.assertTrue(client.retired)
+
+    def test_staged_faults_retire_even_when_followed_by_valid_running(self):
+        for fault in STAGING_FAULTS:
+            with self.subTest(fault=fault):
+                model=Model();client=model.client()
+                client.key('launch',0);client.key('stop')
+                exchange=model.exchange
+                client.exchange=lambda key,bound,done:corrupt_staging(exchange(key,bound,lambda _:True),fault)
+                with self.assertRaises(ValueError):client.key('launch',0)
+                self.assertTrue(client.retired)
+                keys=list(model.keys)
+                with self.assertRaises(ValueError):client.key('launch',0)
+                self.assertEqual(model.keys,keys)
+
+    def test_real_key_sequence_preserves_both_loading_generations(self):
+        model=Model();client=model.client();result=trace.exercise(client)
+        self.assertTrue(result['passed'])
+        for launch in (r for r in client.records if r['action']=='launch'):
+            states=[r['native'] for r in launch['states']]
+            self.assertEqual([r['State'] for r in states],['loading','loading','running'])
+            self.assertEqual([r['Held'] for r in states],[True,True,False])
+            self.assertEqual([r['Generation'] for r in states],[states[0]['Generation'],states[0]['Generation']+1,states[0]['Generation']+1])
+
     def test_selected_ram_trace_is_required_before_any_app_input(self):
         model=Model();initial=BOOT+trace.BEGIN+b'\n'+model.raw(model.state())
         options=dict(build_id=SPEC['build_id'],owner_seed=SPEC['owner_seed'],atf=SPEC['atf'],

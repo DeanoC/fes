@@ -1,4 +1,48 @@
-# Bounded physical keyboard return candidate
+# Bounded physical keyboard return trial
+
+The [terminal result](hardware-result.json) is stopped: the host observer
+rejected a valid held selected-plan snapshot during the first launch. Recovery
+boot, all 13 Ethernet uploads with fresh SD readbacks, native programming,
+secure cold boot and initial menu Ready passed. Capture ends at Loading,
+generation 1, Held true, owner `bccd55323219aea5`. The single UART Select was
+issued; no physical Stop was requested, and no normal return or final Park
+was observed. A two-second passive tail completed without retry.
+
+After the capture stopped, the operator confirmed ZX81 picture/text and that
+accidentally typed keys appeared correctly on its screen. This is physical
+display and keyboard-to-core evidence for that session. The exact keys were
+not recorded; Ctrl+Alt+Escape and visible return to the launcher remain open.
+The board may still be executing; host detachment establishes no containment.
+
+The host decoder previously grouped every Loading snapshot with Ready and
+required zero identity/even generation. `program_service.go` publishes Loading
+at the old even generation, then pins the selected plan and ROM receipt at
+the next odd generation while still held, before configuring/releasing the
+core. The observer now accepts that second phase, binds it to the requested
+identity, and rejects backwards generations. Ready, Running, tape-delivery,
+firmware-opening, USB pause/resume and menu-return checks retain their bounds.
+The two captured Loading lines are a regression fixture under
+`tests/fixtures/nano-tenfoot-staging`. A valid held selection alone cannot
+complete launch or prove that a tape was delivered.
+
+The [observer validation](observer-validation.json) passes 48 focused tests,
+including malformed/foreign/stale/skipped/regressing staged views through UART
+and shared keyboard clients. All six selected parent checks pass, including
+1,851 regressions and generated-consumer consistency. Offline replay accepts
+the actual saved startup and held selection, without inferring the unobserved
+completed launch. Independent native-file validation still accepts the unchanged
+matched SDK/entry/BL31/SPL/FIT/SOF and compiled source closure. These file checks
+provide no fresh live preflight or programming grant.
+
+Independent cleanup verifies exact restored USB permissions, recorded
+15 MHz/automatic-adjustment-1 readback, the owned private server gone and the
+UART free. The failed capture, operator observations and original source have
+full archive readback/mode checks and standalone source restore/strict fsck at
+`/home/deano/fes-retained/de25-controlled-keyboard-board-hardware-20261110-r1`.
+That archive predates the decoder repair. The original failed receipts and
+consumed grants remain terminal; this repair performs no further device action.
+
+The following describes the frozen pre-test procedure, rather than a new grant.
 
 The operator has returned and confirms that the spare test card, keyboard and
 monitor are connected to top TRWU8CBL. Only that kit is selected. The continuing

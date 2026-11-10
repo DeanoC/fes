@@ -13,7 +13,7 @@ import paired_tenfoot_trace as paired
 from paired_firmware_trace import menu_closed
 import test_nano_combined_program as combined
 from test_nano_program_client import LAUNCH, BOOT, SPEC, OWNER
-from test_nano_tenfoot_trace import Model as AppModel, PROGRAMS
+from test_nano_tenfoot_trace import Model as AppModel, PROGRAMS, STAGING_FAULTS, corrupt_staging
 from test_nano_shared_tenfoot_trace import POLICY, SHARED_BOOT, SOURCE
 
 MENU_CYCLE = (ROOT/'tests/fixtures/nano-paired-tenfoot/menu-cycle.txt').read_bytes()
@@ -156,6 +156,7 @@ class Model(AppModel):
             self.selected = self.focus
             raw = self.raw(self.state('loading', before))
             raw += self.source_lines(MENU_CLOSE, self.source)+self.menu_wire('return')
+            raw += self.raw(self.state('loading', before+1))
             self.source += 6
             raw += self.configure(self.source)+self.source_lines(CORE_OPEN, self.source)
             self.service.phase = 'running'; self.service.generation += 1
@@ -240,6 +241,20 @@ class Model(AppModel):
 
 
 class PairedTenfootTraceTests(unittest.TestCase):
+    def test_staged_faults_retire_uart_and_shared_keyboard_before_acceptance(self):
+        for shared in (False,True):
+            for fault in STAGING_FAULTS:
+                with self.subTest(shared=shared,fault=fault):
+                    model=Model(shared,protocol='boot-keyboard');client=model.client()
+                    client.key('launch',0);client.key('stop')
+                    exchange=model.exchange
+                    client.exchange=lambda key,bound,done:corrupt_staging(exchange(key,bound,lambda _:True),fault)
+                    with self.assertRaises(ValueError):client.key('launch',0)
+                    self.assertTrue(client.retired)
+                    keys=list(model.keys)
+                    with self.assertRaises(ValueError):client.key('launch',0)
+                    self.assertEqual(model.keys,keys)
+
     def test_three_sessions_join_boot_menu_core_return_and_final_park(self):
         for shared in (False, True):
             with self.subTest(shared=shared):

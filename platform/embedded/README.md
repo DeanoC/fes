@@ -31,8 +31,11 @@ loads take about 1.206 seconds using size-dependent transfer budgets. Independen
 programming-connection cleanup and full evidence/source restore checks pass.
 This is a bounded diagnostic: physical display/input, ordinary appliance loading,
 general USB reliability, native Ethernet and whole-board timing remain open.
-The new native keyboard return chord has software coverage and still requires
-its own rebuilt matched image and physical test.
+The [new keyboard trial](../../docs/validation/2026-11-10-de25-controlled-keyboard-board/README.md)
+has operator-observed ZX81 video and typed keys appearing correctly. Its serial
+capture stopped because the host decoder rejected a valid held selected-plan
+snapshot; that decoder now has a captured regression fixture. The native
+keyboard return chord and visible launcher return still need a completed test.
 
 The [paired menu/core/menu hardware trial](../../docs/validation/2026-11-08-de25-verified-files-board-trial/hardware.md)
 now passes ZX81 → menu → ZX80 → menu → ZX81 → menu and final Park on TRWU8CBL:

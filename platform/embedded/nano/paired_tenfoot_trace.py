@@ -226,6 +226,7 @@ class PairedTenfootClient(app.TenfootClient):
         begins = 0
         exited = None
         rank = -1
+        previous_generation = generation
         terminal = False
         returned_core = False
         opened_menu = 0
@@ -341,8 +342,12 @@ class PairedTenfootClient(app.TenfootClient):
                           {'running': 0, 'returning': 1, 'ready': 2})
                 require(n['State'] in phases and phases[n['State']] >= rank, 'paired App state regressed')
                 rank = phases[n['State']]
+                require(n['Generation'] >= previous_generation, 'paired App generation regressed')
+                previous_generation = n['Generation']
                 expected = generation if op in ('startup', 'focus') or n['State'] in (
                     ('ready', 'loading') if op == 'launch' else ('running', 'returning')) else generation+1
+                if op == 'launch' and n['State'] == 'loading' and n['Generation'] % 2 == 1:
+                    expected = generation+1
                 self._state(value, expected, tuple(phases),
                             selected['identity'] if op == 'launch' else self.view['native']['Identity']
                             if op in ('stop', 'quit') else None)
