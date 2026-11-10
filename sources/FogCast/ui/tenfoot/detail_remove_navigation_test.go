@@ -79,17 +79,23 @@ func TestReleaseHomeLibraryRemovesOnlyDisplayedCoreEntry(t *testing.T) {
 	t.Cleanup(server.Close)
 	h.server = server
 	cores := &fakeLocalCores{cores: homeFixtureCores()}
-	app := startHomeLoungeOn(t, h, filepath.Join(t.TempDir(), "launcher"), cores, 1280, 720, false)
+	// The device owner has already acknowledged Sinclair firmware. Without
+	// this, the first-use card arrives asynchronously and can intercept the
+	// navigation keys; its behavior has dedicated firmware-card tests.
+	dir := filepath.Join(t.TempDir(), "launcher")
+	if err := saveTenfootPrefs(filepath.Join(dir, "tenfoot.json"), tenfootPrefs{
+		SafeAreaPct: DefaultSafeAreaPct, SetupDone: true, FirmwareInfoSeen: []string{"zx81"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	app := startHomeLoungeOn(t, h, dir, cores, 1280, 720, false)
 	waitFor(t, app, "Sinclair Home", func(s Snapshot) bool {
 		return homeFamilySettled(s) && s.Room.Destination.Label == "Sinclair ZX81"
 	})
 	app.HandleCommand(CmdSelect, time.Now())
 	s := waitFor(t, app, "Sinclair setup", func(s Snapshot) bool {
-		return s.Room.Open && s.Room.ID == hardwareRoomID && (s.FirmwareCard.Open || roomHit(s, "library").ID != "")
+		return s.Room.Open && s.Room.ID == hardwareRoomID && roomHit(s, "library").ID != ""
 	})
-	if s.FirmwareCard.Open {
-		app.HandleCommand(CmdSelect, time.Now())
-	}
 	s = waitFor(t, app, "setup Library control", func(s Snapshot) bool { return !s.FirmwareCard.Open && roomHit(s, "library").ID != "" })
 	// Navigate the real hardware room with its directional inputs. Confirm
 	// only once the Library label is visibly focused; never send Select to
