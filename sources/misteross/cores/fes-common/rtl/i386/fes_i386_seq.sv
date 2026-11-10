@@ -69,6 +69,17 @@
 // other cases' words. Its xc reads cg and xp, set as the routine's hold
 // retired, before any word after the one behind it is expanded.
 //
+// V86 mode (fes_i386_cpu, "V86 mode"). A protected-mode IRET's vgo word,
+// for an IRETD at CPL 0 whose EFLAGS image (T4) has VM set (vret), is a NOP
+// (fes_i386_cpu's x_drop), and so is the word after it (pdrop): the ROM
+// address after that is the return to V86 mode's (UC_V86RET). The vgo word
+// reads T4 (its descriptor read waits for T0, loaded after T4), so vret
+// holds when the word after it is expanded, as that word issues. A ROM
+// segment load (d a segment register) writes that segment (wseg).
+// INS and OUTS under the I/O permission bitmap run iostr, from a first uop
+// DC decodes as the string's own, its NOP; that routine's iof word is the
+// string's first uop, as DC decodes it unchecked (SEQ_STRING, str_load).
+//
 // The moves through T1, each waiting for T1's load to retire (b_t1):
 //   SEQ_XCHGM  (XCHG r/m, r with a memory operand): the operand into T1;
 //              the register stored to it; the register from T1.
@@ -140,6 +151,7 @@ module fes_i386_seq (
     input  logic                   xp,     // the held transfer changes privilege
     input  logic                   cg,     // a far CALL goes through a call gate
     input  logic [4:0]             pcnt,   // a call gate's parameter count
+    input  logic                   vret,   // an IRETD at CPL 0 whose EFLAGS image has VM set
     output fes_i386_pkg::decoded_t n
 );
     // A ROM word's size: the operand size, 16, 32 or 8 bits (size_e).
@@ -269,6 +281,7 @@ module fes_i386_seq (
         n.pdrop = 1'b0;
         n.zx = 1'b0;
         n.pimm = 1'b0;
+        n.vgo = 1'b0;
         // The parameter after a copy's store.
         n.pk = d.pk + 5'(d.pm == 2'(fes_i386_pkg::PM_STORE));
         n.a_t1 = 1'b0;
@@ -310,7 +323,7 @@ module fes_i386_seq (
         n.errp = 1'b0;
         n.dmode = 2'd0;
         n.uop.nwrap = 1'b0;
-        n.uop.vmchk = 1'b0;
+        n.uop.v86 = 1'b0;
         n.uop.ntchk = 1'b0;
         n.uop.ctl.why = fes_i386_pkg::WHY_ENCODING;
         n.opsize32 = d0.opsize32;
@@ -425,7 +438,21 @@ module fes_i386_seq (
                     end
                 end
             end
-            fes_i386_pkg::SEQ_UCODE: begin
+            fes_i386_pkg::SEQ_UCODE: if (w.iof && d0.uop.cls == fes_i386_pkg::UOP_SPECIAL) begin
+                // INS or OUTS after its check: the string's first uop, its
+                // fields the first uop's, as without the check.
+                n.seq = fes_i386_pkg::SEQ_STRING;
+                n.step = 3'd0;
+                n.str_load = 1'b1;
+                n.more = 1'b1;
+                n.xc = 3'd0;
+                n.xs = 1'b0;
+                n.tss = 3'd0;
+                n.uop.hold = 1'b0;
+                n.uop.xfer = 1'b0;
+                n.uop.nstk = 1'b0;
+                n.uop.sflt = d0.uop.sflt;
+            end else begin
                 n.more = !w.last && !(w.xend && w_keep);
                 n.uop.cls = fes_i386_pkg::uop_class_e'(w.cls);
                 n.uop.op = w.op;
@@ -451,7 +478,8 @@ module fes_i386_seq (
                              ? 4'(fes_i386_pkg::CHK_SS) : w.segchk;
                 n.uop.shadow = w.shadow && d0.uop.seg2_idx == 3'(fes_i386_pkg::SEG_SS);
                 n.uop.nwrap = w.nwrap;
-                n.uop.vmchk = w.vmchk;
+                n.uop.v86 = w.v86;
+                n.vgo = w.vgo;
                 // LGDT's and SGDT's base, 2 bytes on; an x87 environment's
                 // field fpn (operand-sized) or its save image's dword fpj.
                 n.moff = w.plus2 ? 7'd2 : (n.opsize32 ? {2'b0, w.fpn, 2'b0} : {3'b0, w.fpn, 1'b0}) + {w.fpj, 2'b0};
@@ -467,6 +495,12 @@ module fes_i386_seq (
                 n.pdrop = (w.pm == 2'(fes_i386_pkg::PM_LOAD) || w.pm == 2'(fes_i386_pkg::PM_STORE)) && n.pk >= pcnt;
                 // The copy goes back to its load for the next parameter.
                 if (w.pm == 2'(fes_i386_pkg::PM_STORE) && n.pk + 5'd1 < pcnt) n.upc = d.upc - 9'd1;
+                // After a vgo word for an IRETD into V86 mode: a NOP, then
+                // the return to V86 mode.
+                if (d.vgo && vret) begin
+                    n.pdrop = 1'b1;
+                    n.upc = fes_i386_ucode_pkg::UC_V86RET;
+                end
                 n.tss = w.tss;
                 n.uop.hold = w.hold;
                 n.uop.xfer = w.xfer;
@@ -495,8 +529,8 @@ module fes_i386_seq (
                 case (w.pm)
                     2'(fes_i386_pkg::PM_LOAD): n.slot = 7'(pcnt) - 7'd1 - 7'(n.pk);
                     2'(fes_i386_pkg::PM_STORE): n.slot = -7'd3 - 7'(n.pk);
-                    2'(fes_i386_pkg::PM_BELOW): n.slot = {{3{w.slot[3]}}, w.slot} - (xp ? 7'(pcnt) : 7'd0);
-                    default: n.slot = {{3{w.slot[3]}}, w.slot};
+                    2'(fes_i386_pkg::PM_BELOW): n.slot = {{2{w.slot[4]}}, w.slot} - (xp ? 7'(pcnt) : 7'd0);
+                    default: n.slot = {{2{w.slot[4]}}, w.slot};
                 endcase
                 n.sel_part = w.sel_part;
                 n.consumes = w.rd_cf || w.rd_oszap;
@@ -521,12 +555,15 @@ module fes_i386_seq (
                 n.far_jmp = w.far_jmp;
                 n.far_chk = w.far_chk;
                 n.far_t = w.far_t;
-                n.wseg = w.far_jmp ? 6'b000010 : w.segw ? 6'(1) << d0.uop.seg2_idx : 6'd0;
+                n.wseg = w.far_jmp ? 6'b000010 : w.segw ? 6'(1) << d0.uop.seg2_idx
+                       : w.d && w.d_space == 2'(fes_i386_pkg::RS_SEG) ? 6'(1) << w.d_idx[2:0] : 6'd0;
                 // IN or OUT after its I/O permission check (iof): the access
                 // the instruction's first uop keeps, its direction in
                 // ctl.cond, its size in src_size, DX in src2 or the port in
                 // imm (fes_i386_decode); IN merges into eAX, OUT sends it.
-                if (w.segchk == 4'(fes_i386_pkg::CHK_IOBM)) n.uop.size = d0.uop.src_size;
+                // A string's (INS, OUTS) is its element's.
+                if (w.segchk == 4'(fes_i386_pkg::CHK_IOBM))
+                    n.uop.size = d0.uop.cls == fes_i386_pkg::UOP_SPECIAL ? d0.uop.size : d0.uop.src_size;
                 if (w.iof) begin
                     n.uop.io = d0.uop.ctl.cond[1:0];
                     n.uop.size = d0.uop.src_size;

@@ -4,8 +4,9 @@
 ; "Phase 4: speed"). lockstep_tb's governor mode runs it on the RTL alone at
 ; 0000:1000h under max, in the governor bench's form: each loop runs between
 ; two marks on port 80h, 2n before and 2n + 1 after, and counts BP down. Apart
-; from the first, which is the bare DEC BP and JNZ loop, and the last three,
-; which run their case once, each iteration runs its case eight times. Port 8Fh ends the program.
+; from the first, which is the bare DEC BP and JNZ loop, the three after
+; call_alt's and V86 mode's INT, which run their case once, each iteration runs its
+; case eight times. The last two run in V86 mode. Port 8Fh ends the program.
 
 bits 16
 cpu 386
@@ -256,8 +257,7 @@ more:
     jnz .call_alt
     mark 33
 
-    out DONE, al
-    hlt
+    jmp v86_section             ; 3 bytes, as OUT DONE, AL and HLT were: the loops above keep their layout
 
     align 16, nop
 jmp_target:
@@ -268,3 +268,87 @@ jmp_target:
     align 16, nop
 near_return2:
     ret
+
+v86_section:
+    ; 17-18: V86 mode (Phase 5's slice 3). Into protected mode, TR the TSS
+    ; below (its I/O permission bitmap all clear, ring-0 stack 10h:7000h),
+    ; then IRETD to V86 mode at IOPL 3: CS 0100h (this code's base, 1000h),
+    ; SS 0 and SP 6000h. The marks and the end go through the bitmap.
+    lgdt [gdt_ptr]
+    lidt [idt_ptr]
+    mov eax, cr0
+    or al, 1
+    mov cr0, eax
+    jmp 0x08:.pm16
+.pm16:
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov ax, 0x20
+    ltr ax
+    push dword 0                ; GS
+    push dword 0                ; FS
+    push dword 0                ; DS
+    push dword 0                ; ES
+    push dword 0                ; SS
+    push dword 0x6000           ; ESP
+    push dword 0x00023002       ; EFLAGS: VM, IOPL 3
+    push dword 0x0100           ; CS
+    push dword v86_code - 0x1000  ; IP
+    iretd
+
+v86_code:
+    ; 17: INT 30h from V86 mode through a DPL-3 386 interrupt gate to an
+    ; IRETD in 32-bit code at CPL 0, back to V86 mode: a delivery from V86
+    ; mode and the IRETD to it, one an iteration.
+    mark 34
+    mov bp, 1000
+.v86_int:
+    int 0x30
+    dec bp
+    jnz .v86_int
+    mark 35
+
+    ; 18: IN in V86 mode, which reads the TSS's I/O permission bitmap.
+    mark 36
+    mov bp, 1000
+.v86_in:
+%rep UNROLL
+    in al, 0x61
+%endrep
+    dec bp
+    jnz .v86_in
+    mark 37
+
+    out DONE, al
+    hlt
+
+    align 16, nop
+v86_handler32:                  ; 18h:v86_handler32, 32-bit code
+    db 0xcf                     ; IRETD (no 66h in 32-bit code)
+
+    align 8, db 0
+gdt:
+    dq 0
+    dq 0x00009b000000ffff       ; 08h: 16-bit code, base 0, 64 KiB
+    dq 0x000093000000ffff       ; 10h: data, base 0, 64 KiB
+    dq 0x00cf9b000000ffff       ; 18h: 32-bit code, flat
+    dw 0x007f, tss, 0x8900, 0   ; 20h: a 386 TSS of 128 bytes at tss (below 64 KiB)
+gdt_end:
+gdt_ptr:
+    dw gdt_end - gdt - 1
+    dd gdt
+idt_ptr:
+    dw 0x31 * 8 - 1
+    dd idt
+    align 8, db 0
+idt:
+    times 0x30 dq 0
+    dw v86_handler32, 0x18, 0xee00, 0  ; 30h: a 386 interrupt gate at DPL 3
+    align 8, db 0
+tss:
+    dd 0, 0x7000, 0x10          ; back link, ESP0, SS0
+    times 22 dd 0
+    dw 0, 0x68                  ; 64h: the T bit; 66h: the bitmap's base
+    times 0x80 - 0x68 db 0      ; the bitmap: ports 0-BFh allowed
