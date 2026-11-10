@@ -43,3 +43,13 @@ After Codex's review (the fetch walk taken over a fetch's #GP for CS's limit), o
 ifw-over-gp     fes_i386_cpu.sv   the walk uop without cs_gp's #GP(0): a fetch past CS's limit on a page the
                                   ITLB lacks walks (#PF) before its #GP(0)
                 -> pg-v86-eip-past-limit-np; random 0 (and on bd1a9f4b4's form, d_ifw without !cs_gp, the same)
+
+After Codex's review of the v86-iopl-gp rule (it skipped every field, so a retirement or a wrong fault
+would have passed the comparison), on 790be4c47, where the oracle steps CLI in the opcode's place and the
+#GP(0) is compared as any fault is:
+popf-runs       fes_i386_decode.sv  POPF in V86 mode below IOPL 3 runs (no #GP)
+                -> 6 directed, each a comparison failure (@...exception d ff: the oracle's #GP(0), the RTL
+                   retires; @...vector d c where the pop's #SS comes instead); random 1 (random#1002#56,
+                   exception d ff), which the old rule let pass
+lock-runs       fes_i386_decode.sv  LOCK in V86 mode below IOPL 3 runs
+                -> v86-lock-iopl0 (exception d ff); random 0

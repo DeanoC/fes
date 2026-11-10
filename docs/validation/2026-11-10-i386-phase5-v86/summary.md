@@ -14,12 +14,13 @@ IOPL, which were not built before).
   POST 22 (task switching), at `int 0x28`, a delivery through a task gate
   (slice 4). Main stopped in POST 21 at an IRETD to V86 mode.
 - **Lockstep.** Everything passes against Bochs on the RTL and on the
-  locked Yosys's netlist, with identical retirement traces, but three random
-  programs that fail on main's RTL too ([#1644](https://github.com/DeanoC/fes/issues/1644),
-  [#1646](https://github.com/DeanoC/fes/issues/1646)): the full corpus, 73
-  more protected-mode cases (V86 mode and the I/O bitmap), 8 more paging
-  cases (#PF from V86 mode), and random protected-mode programs that now
-  enter V86 mode 7,559 times. Fifteen one-line mutants of the new RTL each
+  locked Yosys's netlist, with identical retirement traces, but one random
+  protected-mode program where Bochs nests a #PF from an interrupt
+  handler's first fetch inside the delivery's step, which is not V86 mode
+  ([#1663](https://github.com/DeanoC/fes/issues/1663)). That covers the full
+  corpus, 73 more protected-mode cases (V86 mode and the I/O bitmap), 10
+  more paging cases (#PF from V86 mode), and random protected-mode programs
+  that now enter V86 mode 7,320 times. Fifteen one-line mutants of the new RTL each
   fail directed cases ([mutants.txt](mutants.txt)).
 - **Seal.** Quartus 17.0.2 at seed 1, from a clean checkout of the PR's
   RTL (`111687d80`), meets every analysis: setup +0.841 ns, hold +0.082
@@ -97,36 +98,50 @@ departs from the plan. In short:
 
 `scripts/test_fes_i386_lockstep.py` ran with every default (16 seeds of 2,000
 random programs, 16 seeds of 500 protected-mode programs, the full corpus) at
-`111687d80`, the sealed RTL, on the RTL and on the netlist from the i386
-lock's Yosys (`238eac9a4`):
+`790be4c47`, on the RTL and on the netlist from the i386 lock's Yosys
+(`238eac9a4`), with the lock's Verilator 5.054. That is the sealed RTL
+(`111687d80`) with main `90bf76332` merged in (#1638's return stack in an
+MLAB, which main's own seal covers) and the testbench's `v86-iopl-gp` rule
+compared in full:
 
 | Part | RTL | Netlist |
 | --- | --- | --- |
 | SingleStepTests corpus | 1,758,699 of 1,758,699 | same |
-| Random programs | 31,999 of 32,000 (7,911,952 retirements) | same |
-| Protected-mode programs | 7,998 of 8,000 (415,284 retirements) | same |
+| Random programs | 32,000 of 32,000 (7,977,455 retirements) | same |
+| Protected-mode programs | 7,999 of 8,000 (432,655 retirements) | same |
 | Unbuilt encodings | 49,760, each stopped | same |
 | Directed cases | 77 of 77 | same |
-| Unreal, protected-mode, paging, no-387 and memory cases | 7, 273, 64, 1,933 and 27, all pass | same |
+| Unreal, protected-mode, paging, no-387 and memory cases | 7, 275, 64, 1,933 and 27, all pass | same |
 
 Every corpus file's and random seed's retirement trace hash is the same on
 both ([lockstep-report.json](lockstep-report.json),
-[lockstep-netlist-report.json](lockstep-netlist-report.json)). The three
-failing programs fail the same way on main's RTL `e835d545d` with this
-testbench (its generator now makes other programs, so main's own run never
-met them): two XCHG m under paging, #PF on the RTL where Bochs's
+[lockstep-netlist-report.json](lockstep-netlist-report.json)). The failing
+program, `random#1010#118`, fails the same way on the merge commit
+`0a7d44cb4`, before the rule's change. An INTR at CPL 3 goes through a gate
+to a conforming CS whose handler's first byte is on a page not present: both
+sides push the same frame, and Bochs then takes that fetch's #PF within the
+delivery's step, where the RTL takes it at its next fetch
+([#1663](https://github.com/DeanoC/fes/issues/1663)). Main's generator
+cannot draw this program, so its age is not shown.
+
+The run at `111687d80`, before the merge, had 31,999 of 32,000 random
+programs and 7,998 of 8,000 protected-mode programs, the same on the RTL
+and the netlist. Its three failures also fail on main's RTL `e835d545d` with
+this testbench: two XCHG m under paging, #PF on the RTL where Bochs's
 read-modify-write check gives #GP(0) for a code-segment DS
 ([#1644](https://github.com/DeanoC/fes/issues/1644)); and a CALL rel's push
 whose #PF ends in shutdown with CR2 0 where Bochs writes the push's address
-([#1646](https://github.com/DeanoC/fes/issues/1646)).
+([#1646](https://github.com/DeanoC/fes/issues/1646)). Main's generator
+changes (#1651) draw other programs after the merge.
 
-**The protected-mode programs** retired 14,200 instructions in V86 mode:
-7,559 IRETDs into it, 6,517 deliveries out of it (faults, INT n and 4,013
-injected interrupts taken there), 2,728 IOPL-sensitive forms run at IOPL 3,
-801 IN and OUT through the bitmap there, and 465 INS and OUTS under the
+**The protected-mode programs** retired 13,707 instructions in V86 mode:
+7,320 IRETDs into it, 6,307 deliveries out of it (faults, INT n and 3,856
+injected interrupts taken there), 2,656 IOPL-sensitive forms run at IOPL 3,
+792 IN and OUT through the bitmap there, and 422 INS and OUTS under the
 bitmap in V86 mode or at a CPL above IOPL.
 
-**New directed cases** (`FES_I386_MODE=pmode`, now 273 cases, 73 more):
+**New directed cases** (`FES_I386_MODE=pmode`, now 275 cases with main's
+two, 73 more):
 - Entry and round trips: `v86-int-iretd` (INT 2Ah to an IRETD in 32-bit
   code and back, twice), `v86-int-286-gate`, `v86-int-trap-gate`,
   `v86-int-286-tss`, `v86-int-ss0-big` (a 32-bit SS0), `v86-esp-high` (ESP's
