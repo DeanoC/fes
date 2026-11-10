@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
 import os
 import re
 import shutil
@@ -19,7 +18,7 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import source_provenance
+from scripts import quartus_timing_summary, source_provenance
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package
 from scripts.quartus_tools import (
@@ -66,6 +65,7 @@ PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
     "scripts/source_provenance.py",
     "scripts/quartus_tools.py",
+    "scripts/quartus_timing_summary.py",
     ABI_DEFINITION,
     QSF_PINS,
     SDC,
@@ -78,18 +78,6 @@ HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
 I2C_SITE = "HPSINTERFACEPERIPHERALI2C_X52_Y60_N111"
-TIMING_CATEGORIES = ("Setup", "Hold", "Recovery", "Removal", "Minimum Pulse Width")
-# The patterns take no sign, so any miss, even one TimeQuest prints as -0.000,
-# matches nothing and fails closed.
-WORST_SLACK_RE = re.compile(
-    r"Worst-case Slack\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)"
-)
-DESIGN_TNS_RE = re.compile(
-    r"Design-wide TNS\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)"
-)
-# Registers on a clock TimeQuest cannot analyse are in no slack row.
-UNANALYSED_CLOCKS = ("Illegal Clocks", "Unconstrained Clocks")
-UNANALYSED_ROW_RE = re.compile(r"^; (Illegal Clocks|Unconstrained Clocks)\s*; (\d+)\s*; (\d+)\s*;", re.M)
 
 
 class BuildError(ValueError):
@@ -272,26 +260,7 @@ def require_clocks(sta_text: str) -> None:
 
 
 def validate_timing_report(sta_text: str) -> list[dict[str, object]]:
-    slack_match = WORST_SLACK_RE.search(sta_text)
-    tns_match = DESIGN_TNS_RE.search(sta_text)
-    if slack_match is None or tns_match is None:
-        raise BuildError("timing summary lacks required analysis categories")
-    result = []
-    for name, slack_text, tns_text in zip(TIMING_CATEGORIES, slack_match.groups(), tns_match.groups()):
-        try:
-            slack, tns = float(slack_text), float(tns_text)
-        except ValueError as exc:
-            raise BuildError("invalid timing number") from exc
-        if not all(math.isfinite(value) and value >= 0 for value in (slack, tns)):
-            raise BuildError("timing summary contains an unsupported or failing result")
-        result.append({"type": name, "slack_ns": slack, "tns_ns": tns})
-    unanalysed = UNANALYSED_ROW_RE.findall(sta_text)
-    if sorted(row[0] for row in unanalysed) != sorted(UNANALYSED_CLOCKS):
-        raise BuildError("timing report lacks the unconstrained paths summary")
-    for row, setup, hold in unanalysed:
-        if int(setup) or int(hold):
-            raise BuildError(f"timing report has {row.lower()}: {setup} setup, {hold} hold")
-    return result
+    return quartus_timing_summary.validate_timing_report(sta_text, BuildError)
 
 
 def validate_quartus_evidence(output: Path, project: Path) -> dict:

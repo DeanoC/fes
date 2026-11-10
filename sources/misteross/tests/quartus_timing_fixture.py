@@ -1,5 +1,7 @@
 """The TimeQuest 17.0.2 summary rows the Quartus sealers' timing gates read."""
 
+import re
+
 SLACK_ROW = "; Worst-case Slack                                            ; 1.559 ; 0.094 ; 6.508    ; 0.454   ; 1.122               ;"
 TNS_ROW = "; Design-wide TNS                                             ; 0.0   ; 0.0   ; 0.0      ; 0.0     ; 0.0                 ;"
 ILLEGAL_ROW = "; Illegal Clocks                  ; 0     ; 0    ;"
@@ -31,14 +33,51 @@ PASSING_REPORT = f"""\
 +---------------------------------+-------+------+
 """
 
+# The summary of Coleco's Quartus build on main at 65ec1f22a, which missed setup.
+MISS_CLOCK = "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk"
+MISS_SLACK_ROW = "; Worst-case Slack                                            ; -2.243   ; 0.162 ; 12.528   ; 0.271   ; 1.122               ;"
+MISS_REPORT = f"""\
++---------------------------------------------------------------------------------------------------------------------------+
+; Multicorner Timing Analysis Summary                                                                                       ;
++-------------------------------------------------------------+----------+-------+----------+---------+---------------------+
+; Clock                                                       ; Setup    ; Hold  ; Recovery ; Removal ; Minimum Pulse Width ;
++-------------------------------------------------------------+----------+-------+----------+---------+---------------------+
+{MISS_SLACK_ROW}
+;  FPGA_CLK1_50                                               ; N/A      ; N/A   ; N/A      ; N/A     ; 9.274               ;
+;  {MISS_CLOCK} ; -2.243   ; 0.162 ; 12.528   ; 0.904   ; 8.112               ;
+;  system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk ; 0.745    ; 0.191 ; 79.538   ; 0.271   ; 39.863              ;
+;  video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk  ; 6.155    ; 0.188 ; N/A      ; N/A     ; 5.281               ;
+; Design-wide TNS                                             ; -616.825 ; 0.0   ; 0.0      ; 0.0     ; 0.0                 ;
+;  FPGA_CLK1_50                                               ; N/A      ; N/A   ; N/A      ; N/A     ; 0.000               ;
+;  {MISS_CLOCK} ; -616.825 ; 0.000 ; 0.000    ; 0.000   ; 0.000               ;
++-------------------------------------------------------------+----------+-------+----------+---------+---------------------+
+
++------------------------------------------------+
+; Unconstrained Paths Summary                    ;
++---------------------------------+-------+------+
+; Property                        ; Setup ; Hold ;
++---------------------------------+-------+------+
+{ILLEGAL_ROW}
+{UNCONSTRAINED_ROW}
++---------------------------------+-------+------+
+"""
+MISS_ERROR = f"timing miss: Setup worst slack -2.243 ns on {MISS_CLOCK} (TNS -616.825 ns)"
+
 # Each report and the error its gate must raise for it.
 FAILING_REPORTS = (
     ("no multicorner summary", PASSING_REPORT.replace(f"{SLACK_ROW}\n", ""), "required analysis categories"),
-    ("setup miss", PASSING_REPORT.replace(SLACK_ROW, SLACK_ROW.replace("; 1.559 ", "; -10.015 ")),
-     "required analysis categories"),
+    ("setup miss", MISS_REPORT, re.escape(MISS_ERROR)),
+    ("setup miss on an unreported clock", PASSING_REPORT.replace(SLACK_ROW, SLACK_ROW.replace("; 1.559 ", "; -10.015 ")),
+     re.escape("timing miss: Setup worst slack -10.015 ns on an unreported clock (TNS 0.0 ns)")),
     ("sub-picosecond hold miss", PASSING_REPORT.replace(SLACK_ROW, SLACK_ROW.replace("; 0.094 ", "; -0.000 ")),
-     "required analysis categories"),
+     re.escape("timing miss: Hold worst slack -0.000 ns on an unreported clock (TNS 0.0 ns)")),
     ("sub-picosecond TNS", PASSING_REPORT.replace(TNS_ROW, TNS_ROW.replace("; 0.0   ;", "; -0.000 ;", 1)),
+     re.escape("timing miss: Setup worst slack 1.559 ns on an unreported clock (TNS -0.000 ns)")),
+    ("two analyses miss", MISS_REPORT.replace(MISS_SLACK_ROW, MISS_SLACK_ROW.replace("; 0.162 ", "; -0.051 ")),
+     re.escape(f"{MISS_ERROR}; Hold worst slack -0.051 ns on an unreported clock (TNS 0.0 ns)")),
+    ("worst-case slack row twice", PASSING_REPORT.replace(SLACK_ROW, f"{SLACK_ROW}\n{SLACK_ROW}"),
+     "required analysis categories"),
+    ("N/A in the worst-case slack row", PASSING_REPORT.replace(SLACK_ROW, SLACK_ROW.replace("; 6.508    ", "; N/A      ")),
      "required analysis categories"),
     ("no unconstrained paths summary",
      PASSING_REPORT.replace(f"{ILLEGAL_ROW}\n", "").replace(f"{UNCONSTRAINED_ROW}\n", ""),
