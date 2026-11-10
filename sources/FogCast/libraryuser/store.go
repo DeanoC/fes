@@ -69,6 +69,39 @@ type Store struct {
 	db *sql.DB
 }
 
+// GameMutation holds the user database's writer reservation. Callers may
+// check the catalog while holding it, so another host process cannot write a
+// reference between a title's removal and user-state cleanup.
+type GameMutation struct{ conn *sql.Conn }
+
+// MutateGame reserves the SQLite writer until fn finishes and commits its
+// changes together. The callback must not call Store methods on this store or
+// retain the GameMutation after it returns.
+func (s *Store) MutateGame(ctx context.Context, fn func(*GameMutation) error) (err error) {
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("connect user game mutation: %w", err)
+	}
+	defer conn.Close()
+	if _, err = conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+		return fmt.Errorf("begin user game mutation: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_, _ = conn.ExecContext(context.Background(), `ROLLBACK`)
+		}
+	}()
+	if err = fn(&GameMutation{conn: conn}); err != nil {
+		return err
+	}
+	if _, err = conn.ExecContext(ctx, `COMMIT`); err != nil {
+		return fmt.Errorf("commit user game mutation: %w", err)
+	}
+	committed = true
+	return nil
+}
+
 func Open(path string) (*Store, error) {
 	return OpenContext(context.Background(), path)
 }
@@ -149,6 +182,28 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+// RemoveGameReferences clears only household browsing state for one title.
+// Saved media and core data live in their own stores and are not touched.
+func (s *Store) RemoveGameReferences(ctx context.Context, gameID string) error {
+	return s.MutateGame(ctx, func(m *GameMutation) error { return m.RemoveGameReferences(ctx, gameID) })
+}
+
+func (m *GameMutation) RemoveGameReferences(ctx context.Context, gameID string) error {
+	if err := protocol.ValidateGameID(gameID); err != nil {
+		return err
+	}
+	for _, query := range []string{
+		`DELETE FROM game_state WHERE game_id = ?`,
+		`DELETE FROM collection_membership WHERE game_id = ?`,
+		`DELETE FROM edition_preference WHERE game_id = ?`,
+	} {
+		if _, err := m.conn.ExecContext(ctx, query, gameID); err != nil {
+			return fmt.Errorf("clear user game references: %w", err)
+		}
+	}
+	return nil
+}
+
 func (s *Store) State(ctx context.Context, gameID string) (State, error) {
 	if err := protocol.ValidateGameID(gameID); err != nil {
 		return State{}, err
@@ -173,12 +228,24 @@ func (s *Store) State(ctx context.Context, gameID string) (State, error) {
 }
 
 func (s *Store) SetFavorite(ctx context.Context, gameID string, favorite bool) error {
+	return setFavorite(ctx, s.db, gameID, favorite)
+}
+
+func (m *GameMutation) SetFavorite(ctx context.Context, gameID string, favorite bool) error {
+	return setFavorite(ctx, m.conn, gameID, favorite)
+}
+
+type gameExecer interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func setFavorite(ctx context.Context, db gameExecer, gameID string, favorite bool) error {
 	if err := protocol.ValidateGameID(gameID); err != nil {
 		return err
 	}
 	now := time.Now().UnixNano()
 	if favorite {
-		_, err := s.db.ExecContext(ctx, `
+		_, err := db.ExecContext(ctx, `
 			INSERT INTO game_state(game_id, favorite, favorited_at)
 			VALUES(?, 1, ?)
 			ON CONFLICT(game_id) DO UPDATE SET favorite = 1, favorited_at = excluded.favorited_at`,
@@ -186,7 +253,7 @@ func (s *Store) SetFavorite(ctx context.Context, gameID string, favorite bool) e
 		)
 		return err
 	}
-	_, err := s.db.ExecContext(ctx, `
+	_, err := db.ExecContext(ctx, `
 		INSERT INTO game_state(game_id, favorite, favorited_at)
 		VALUES(?, 0, NULL)
 		ON CONFLICT(game_id) DO UPDATE SET favorite = 0, favorited_at = NULL`,
@@ -196,11 +263,19 @@ func (s *Store) SetFavorite(ctx context.Context, gameID string, favorite bool) e
 }
 
 func (s *Store) RecordPlay(ctx context.Context, gameID string) error {
+	return recordPlay(ctx, s.db, gameID)
+}
+
+func (m *GameMutation) RecordPlay(ctx context.Context, gameID string) error {
+	return recordPlay(ctx, m.conn, gameID)
+}
+
+func recordPlay(ctx context.Context, db gameExecer, gameID string) error {
 	if err := protocol.ValidateGameID(gameID); err != nil {
 		return err
 	}
 	now := time.Now().UnixNano()
-	_, err := s.db.ExecContext(ctx, `
+	_, err := db.ExecContext(ctx, `
 		INSERT INTO game_state(game_id, last_played_at, play_count)
 		VALUES(?, ?, 1)
 		ON CONFLICT(game_id) DO UPDATE SET

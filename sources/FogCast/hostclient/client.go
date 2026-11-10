@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const (
@@ -447,6 +449,23 @@ func (c *Client) UpsertCollection(ctx context.Context, id, name string) (Collect
 		result.Name = name
 	}
 	return result, nil
+}
+
+// DeleteCoreEntry removes a library entry while retaining its saved data.
+func (c *Client) DeleteCoreEntry(ctx context.Context, gameID string) error {
+	if protocol.ValidateGameID(gameID) != nil {
+		return fmt.Errorf("game id is invalid")
+	}
+	var result struct {
+		GameID string `json:"game_id"`
+	}
+	if err := c.mutateJSON(ctx, http.MethodDelete, "/api/v1/library/core-entries/"+url.PathEscape(gameID), &result); err != nil {
+		return err
+	}
+	if result.GameID != gameID {
+		return fmt.Errorf("host API returned a different game id")
+	}
+	return nil
 }
 
 // DeleteCollection calls DELETE /api/v1/library/collections/{id}.

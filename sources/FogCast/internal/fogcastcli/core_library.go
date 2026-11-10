@@ -20,9 +20,15 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
+// coreRemoveAdmissionError identifies only the two expected removal guards.
+// Its public copy is chosen locally; it never exposes a remote message.
+type coreRemoveAdmissionError struct{ code protocol.ErrorCode }
+
+func (e *coreRemoveAdmissionError) Error() string { return "core entry removal blocked" }
+
 func coreLibraryCommand(name string) bool {
 	switch name {
-	case "video-parts", "video-part-install", "video-profile", "core-video", "core-media-capabilities", "core-media-install", "core-hard-disk-install", "core-disk-geometry", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select", "core-firmware-select", "create-blank-st-disk":
+	case "video-parts", "video-part-install", "video-profile", "core-video", "core-media-capabilities", "core-media-install", "core-hard-disk-install", "core-disk-geometry", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select", "core-remove", "core-firmware-select", "create-blank-st-disk":
 		return true
 	}
 	return false
@@ -41,6 +47,7 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 	var expectedVideoPart *catalog.CoreVideoPart
 	expectedVideoProfile := ""
 	var blankDisk *blankAtariStCommand
+	var removedGameID string
 	switch args[0] {
 	case "video-parts":
 		path = "/api/v1/library/video-parts"
@@ -171,6 +178,12 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 	case "core-select":
 		method, path = http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(args[1])
 		data, _ = json.Marshal(map[string]string{"expected_package_id": args[2], "package_id": args[3]})
+	case "core-remove":
+		if protocol.ValidateGameID(args[1]) != nil {
+			return commandResult{err: &protocol.APIError{Code: protocol.CodeBadRequest, Message: "game ID is invalid"}, exit: 1}
+		}
+		removedGameID = args[1]
+		method, path = http.MethodDelete, "/api/v1/library/core-entries/"+url.PathEscape(removedGameID)
 	case "create-blank-st-disk":
 		parsed, err := parseBlankAtariSt(args[1:])
 		if err != nil {
@@ -218,6 +231,15 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		var envelope protocol.ErrorEnvelope
 		if json.Unmarshal(body, &envelope) == nil && envelope.Error.Code != "" {
+			if removedGameID != "" && ((response.StatusCode == http.StatusConflict && envelope.Error.Code == protocol.CodeBusy) ||
+				(response.StatusCode == http.StatusServiceUnavailable && envelope.Error.Code == protocol.CodeMiSTerUnavailable)) {
+				return commandResult{err: &coreRemoveAdmissionError{code: envelope.Error.Code}, exit: 1}
+			}
+			if removedGameID != "" {
+				// Do not let an unrelated remote phase select a different
+				// command's user-facing advice.
+				envelope.Error.Phase = ""
+			}
 			return commandResult{err: &envelope.Error, exit: 1}
 		}
 		return commandResult{err: &protocol.APIError{Code: protocol.CodeInternal, Message: "package library request failed"}, exit: 1}
@@ -259,6 +281,14 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 		}
 		if json.Unmarshal(body, &result) != nil || result.MediaID != expectedMediaID || result.Size != mediaSnapshot.size {
 			return commandResult{err: &protocol.APIError{Code: protocol.CodeInternal, Message: "installed media response differs from imported bytes"}, exit: 1}
+		}
+	}
+	if removedGameID != "" {
+		var result struct {
+			GameID string `json:"game_id"`
+		}
+		if json.Unmarshal(body, &result) != nil || result.GameID != removedGameID {
+			return commandResult{err: &protocol.APIError{Code: protocol.CodeInternal, Message: "removed entry response has a different game ID"}, exit: 1}
 		}
 	}
 	value := json.RawMessage(body)

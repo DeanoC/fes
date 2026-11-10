@@ -3,6 +3,7 @@ package fogcast
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"strings"
 	"unicode"
@@ -148,10 +149,34 @@ func (s *Service) KitHostEntry(ctx context.Context, packageID, gameID string) (c
 			return catalog.CoreEntry{}, err
 		}
 	}
+	retainedTitle := func(title string) (bool, error) {
+		retained, ok := s.catalog.(interface {
+			ResolveCoreEntryID(context.Context, string, string, string) (string, error)
+			RetainedCoreEntry(context.Context, string) (bool, error)
+		})
+		if !ok {
+			return false, nil
+		}
+		id, err := retained.ResolveCoreEntryID(ctx, title, pkg.Descriptor.Core.ID, packageID)
+		if errors.Is(err, catalog.ErrCoreEntryConflict) {
+			return true, nil
+		}
+		if err != nil {
+			return false, mapCoreEntryError(err)
+		}
+		return retained.RetainedCoreEntry(ctx, id)
+	}
 	for number := 1; number <= 10000; number++ {
 		candidateTitle := title
 		if number > 1 {
 			candidateTitle = fmt.Sprintf("%s (%d)", title, number)
+		}
+		reserved, err := retainedTitle(candidateTitle)
+		if err != nil {
+			return catalog.CoreEntry{}, err
+		}
+		if reserved {
+			continue
 		}
 		entries, err := store.AllCoreEntries(ctx)
 		if err != nil {
@@ -175,6 +200,13 @@ func (s *Service) KitHostEntry(ctx context.Context, packageID, gameID string) (c
 		}
 		entry, err = s.writeCoreEntry(ctx, "", candidateTitle, "", packageID, role, entryMediaID, false, kit)
 		if err != nil {
+			reserved, retainedErr := retainedTitle(candidateTitle)
+			if retainedErr != nil {
+				return catalog.CoreEntry{}, retainedErr
+			}
+			if reserved {
+				continue
+			}
 			// A concurrent user create may have taken the name.
 			current, listErr := store.AllCoreEntries(ctx)
 			if listErr != nil {
