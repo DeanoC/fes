@@ -11,6 +11,7 @@
 #include "verilated.h"
 
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -873,6 +874,8 @@ void boot(Machine &m) {
 }  // namespace
 
 int main(int argc, char **argv) {
+    // Keep progress visible when the long-running suite writes to CI logs.
+    std::setvbuf(stdout, nullptr, _IOLBF, 0);
     Verilated::commandArgs(argc, argv);
     require(argc >= 2, "usage: geometry | check TAPE.p");
     const std::string mode = argv[1];
@@ -972,6 +975,11 @@ int main(int argc, char **argv) {
     // 36-43. NTSC (the TS1000 build, 2 KiB): 262 lines, the cell at 219-226.
     const uint16_t ramtop = m.word(0x4004);
     const bool ntsc = m.peek(0x4028) == 31;    // MARGIN, from the 50/60 Hz link
+    const std::string profile = ntsc ? "TS1000 2 KiB" : (ramtop == 0x8000 ? "ZX81 16 KiB" : "ZX81 1 KiB");
+    auto progress = [&](const char *section) {
+        std::cerr << ("[" + profile + "] " + section + "\n");
+    };
+    progress("boot and display geometry");
     std::cout << "RAMTOP=" << std::hex << ramtop << std::dec << (ntsc ? " NTSC" : " PAL") << '\n';
     require(ramtop == (ntsc ? 0x4800 : 0x4400) || ramtop == 0x8000,
             "RAMTOP is not the top of 1 KiB (2 KiB on the TS1000) or 16 KiB");
@@ -989,13 +997,18 @@ int main(int argc, char **argv) {
     // Check the reported right edge, the row-dependent boundary, PLOT, and
     // a short-row control on both collapsed displays. The expanded 16 KiB
     // machine is an independent PRINT AT control.
+    progress("SLOW PRINT regression");
     test_slow_display_gap(m, "print");
     if (ramtop != 0x8000) {
+        progress("SLOW edge regression");
         test_slow_display_gap(m, "edge");
+        progress("SLOW PLOT regression");
         test_slow_display_gap(m, "plot");
+        progress("SLOW short-row control");
         test_slow_display_gap(m, "short");
     }
 
+    progress("keyboard and BASIC functional checks");
     // Enter is consumed by the end-of-frame keyboard scan, so NEW runs at the
     // NMI boundary. It must stop the display before clearing the system
     // variables, then publish a valid display file and restart SLOW mode.
@@ -1235,16 +1248,23 @@ int main(int argc, char **argv) {
               << row_text(m, 23) << "'\n";
     require(row_text(m, 21) == "30" && row_text(m, 20) == "29", "SCROLL lost the screen");
     require(row_text(m, 23) == "0/40", "the SCROLL loop did not end with 0/40");
+    progress("PAUSE, SCROLL and DIM");
     test_pause_scroll_dim(m);
+    progress("report, PLOT and FUNCTION");
     test_report_room_plot_function(m);
+    progress("slice copy and GOSUB");
     test_slice_copy_gosub_room(m);
+    progress("CONT and FAST PAUSE");
     test_cont_fast_pause(m);
+    progress("deep, long and wide expressions");
     test_deep_long_wide(m);
+    progress("quote and graphics");
     test_quote_graphics(m);
 
     // Exercise the display start/stop boundary repeatedly. The original
     // frame-sampling order could wait forever after the NMI stopped frames.
     if (ramtop == 0x8000) {
+        progress("FAST/SLOW NMI boundary loop");
         type(m, "A NL");
         type(m, "1 0 SHIFT+D NL");
         type(m, "2 0 M 1 NL");
@@ -1268,11 +1288,17 @@ int main(int argc, char **argv) {
     // grows the collapsed display. Fill a 1 KiB image so DIM fails with only
     // the dimension value occupying the workspace.
     if (ramtop == 0x4400) {
+        progress("low-memory report");
         test_low_memory_report(m);
     }
 
     // Exercise the held-key, overlong-line and SLOW STOP/CONT regressions.
-    if (ramtop == 0x8000) test_16k_regressions(m);
+    if (ramtop == 0x8000) {
+        progress("16 KiB regressions");
+        test_16k_regressions(m);
+    }
+
+    progress("complete");
 
     std::cout << "FES ZX81 open ROM: display, keyboard and rollover, edit, PRINT AT, INPUT, RETURN, INKEY$, "
                  "FAST/SLOW SAVE/LOAD, SCROLL, PAUSE, DIM, report 4 while printing, PLOT, FUNCTION, "

@@ -555,8 +555,9 @@ sim-fes-zx81-openrom: zx81-openrom
 	$(require_local_sim)
 	@for spec in 1:1: 0:0: ts1000:1:-DZX81_MODEL_TS1000; do \
 		name=$${spec%%:*}; rest=$${spec#*:}; ram=$${rest%%:*}; define=$${rest#*:}; \
-		dir=build/sim/fes-zx81-openrom-$$name; mkdir -p $$dir; \
+		dir=build/sim/fes-zx81-openrom-cxx-o3-$$name; mkdir -p $$dir; \
 		$(VERILATOR) --cc --exe --build -O3 --top-module zx81_machine -Wall \
+			-MAKEFLAGS 'OPT_FAST=-O3 OPT_GLOBAL=-O3' \
 			-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 			-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 			-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
@@ -569,14 +570,14 @@ sim-fes-zx81-openrom: zx81-openrom
 			cores/fes-zx81/rtl/zx81_dpram.v \
 			"$(CURDIR)/cores/fes-zx81/sim/openrom_tb.cpp" || exit 1; \
 	done
-	@build/sim/fes-zx81-openrom-1/Vzx81_machine check & one=$$!; \
-		build/sim/fes-zx81-openrom-ts1000/Vzx81_machine check & ntsc=$$!; \
-		build/sim/fes-zx81-openrom-0/Vzx81_machine check; sixteen=$$?; \
+	@build/sim/fes-zx81-openrom-cxx-o3-1/Vzx81_machine check & one=$$!; \
+		build/sim/fes-zx81-openrom-cxx-o3-ts1000/Vzx81_machine check & ntsc=$$!; \
+		build/sim/fes-zx81-openrom-cxx-o3-0/Vzx81_machine check; sixteen=$$?; \
 		wait $$one; one=$$?; wait $$ntsc; ntsc=$$?; \
 		test $$one = 0 && test $$ntsc = 0 && test $$sixteen = 0
 	@if [ -f "$(ZX81_TAPES)/guess-number.p" ]; then \
-		build/sim/fes-zx81-openrom-1/Vzx81_machine load "$(ZX81_TAPES)/guess-number.p" && \
-		build/sim/fes-zx81-openrom-0/Vzx81_machine load "$(ZX81_TAPES)/aritm.p"; \
+		build/sim/fes-zx81-openrom-cxx-o3-1/Vzx81_machine load "$(ZX81_TAPES)/guess-number.p" && \
+		build/sim/fes-zx81-openrom-cxx-o3-0/Vzx81_machine load "$(ZX81_TAPES)/aritm.p"; \
 	else echo "SKIP tape loads: no FogCast starter tapes at $(ZX81_TAPES)"; fi
 
 sim-fes-zx81: sim-fes-zx81-diagnostic sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-expansion sim-fes-display-plane sim-fes-zx81-session sim-fes-zx81-variants sim-fes-zx81-save sim-fes-zx81-openrom
