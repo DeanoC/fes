@@ -4046,7 +4046,9 @@ retains existing package, ROM and media choices on retry; it does not overwrite
 a conflicting saved entry.
 
 The Sinclair ZX81 room retains its local package/ROM setup, specialist expansion
-import and prelaunch cassette selection. The picker saves a `.p`
+import and prelaunch cassette selection. Its Library action browses the `fpga`
+platform with the selected model's core ID, including local and imported source
+titles across package versions. The picker saves a `.p`
 selection as the role that package declares: `cassette` for `fes.media.zx81-tape`,
 and `blob` for a legacy `fes.media.blob` package. Installed setup uses existing
 package/library/ROM endpoints independently of publication. Media selection

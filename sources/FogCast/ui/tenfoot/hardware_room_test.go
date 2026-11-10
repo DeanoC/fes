@@ -609,6 +609,136 @@ func TestColecoTabOpensInstalledColecoShelfWhileIdle(t *testing.T) {
 	}
 }
 
+func TestSinclairWorkbenchLibraryUsesSelectedCoreFilter(t *testing.T) {
+	local := availableGame("zx81-local", "Local Guess", "fpga")
+	local.CoreID, local.PackageID = "fes.zx81", strings.Repeat("a", 64)
+	remote := availableGame("zx81-remote", "Remote Guess", "fpga")
+	remote.CoreID, remote.PackageID = "fes.zx81", strings.Repeat("b", 64)
+	otherCore := availableGame("st-xenon", "Xenon", "fpga")
+	otherCore.CoreID, otherCore.PackageID = "fes.atari-st", strings.Repeat("c", 64)
+	otherPlatform := availableGame("snes-mario", "Mario", "snes")
+	legacy := availableGame("zx81-archive", "Archive ZX81", "zx81")
+	all := []hostclient.Game{local, remote, otherCore, otherPlatform, legacy}
+	type gameQuery struct {
+		platform string
+		coreIDs  []string
+	}
+	var mu sync.Mutex
+	var queries []gameQuery
+	hasQuery := func(platform string, coreID string) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, query := range queries {
+			if query.platform == platform && ((coreID == "" && len(query.coreIDs) == 0) ||
+				(len(query.coreIDs) == 1 && query.coreIDs[0] == coreID)) {
+				return true
+			}
+		}
+		return false
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/games":
+			query := r.URL.Query()
+			coreIDs := append([]string(nil), query["core_id"]...)
+			mu.Lock()
+			queries = append(queries, gameQuery{query.Get("platform"), coreIDs})
+			mu.Unlock()
+			games := []hostclient.Game{}
+			for _, game := range all {
+				if platform := query.Get("platform"); platform != "" && game.System != platform {
+					continue
+				}
+				if len(coreIDs) > 0 {
+					matched := false
+					for _, id := range coreIDs {
+						matched = matched || game.CoreID == id
+					}
+					if !matched {
+						continue
+					}
+				}
+				games = append(games, game)
+			}
+			_ = json.NewEncoder(w).Encode(hostclient.GamePage{Games: games})
+		case "/api/v1/library/hardware":
+			_ = json.NewEncoder(w).Encode(hostclient.HardwareSnapshot{
+				Machines: []hostclient.HardwareMachine{{GameID: local.ID, Title: local.Title, CoreID: local.CoreID,
+					PackageID: local.PackageID, PackageReady: true, FirmwareReady: true, Ready: true,
+					Choices: []hostclient.HardwareExpansion{}}},
+				Session: &hostclient.SessionResult{State: "idle"},
+			})
+		case "/api/v1/session":
+			_ = json.NewEncoder(w).Encode(hostclient.SessionResult{State: "idle"})
+		case "/api/v1/platforms":
+			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []hostclient.Platform{
+				{ID: "fpga", Label: "FES"}, {ID: "snes", Label: "Super NES"},
+			}})
+		case "/api/v1/library/collections":
+			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []hostclient.Collection{}})
+		case "/api/v1/library/edition-preferences":
+			_ = json.NewEncoder(w).Encode(map[string]any{"preferences": []hostclient.EditionPreference{}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.SetRooms(rooms.NewIndex(rooms.Examples()), "")
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	app.mu.Lock()
+	app.openRoomLocked(hardwareRoomID)
+	app.mu.Unlock()
+	snap := waitFor(t, app, "ready Sinclair workbench", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.ID == hardwareRoomID && workshopStartHasText(s, "Start machine")
+	})
+	if snap.FirmwareCard.Open {
+		app.HandleCommand(CmdSelect, time.Now())
+	}
+	openLibrary := func() {
+		app.mu.Lock()
+		app.room.Hover("library")
+		app.mu.Unlock()
+		app.HandleCommand(CmdSelect, time.Now())
+	}
+	openLibrary()
+	snap = waitFor(t, app, "Sinclair library response", func(s Snapshot) bool { return !s.Room.Open && !s.Loading })
+	if snap.PlatformID != "fpga" || strings.Join(gameIDs(snap.Games), ",") != local.ID+","+remote.ID ||
+		!hasQuery("fpga", "fes.zx81") {
+		t.Fatalf("workbench library platform=%q games=%v, want both described ZX81 titles across package versions", snap.PlatformID, gameIDs(snap.Games))
+	}
+	app.mu.Lock()
+	allCores := app.allCores
+	app.mu.Unlock()
+	if allCores {
+		t.Fatal("normal workbench Library required the diagnostics preference")
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	waitFor(t, app, "return to Sinclair workbench", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.ID == hardwareRoomID && workshopStartHasText(s, local.Title)
+	})
+	openLibrary()
+	waitFor(t, app, "Sinclair library again", func(s Snapshot) bool {
+		return !s.Room.Open && !s.Loading && len(s.Games) == 2
+	})
+	app.HandleCommand(CmdFilterNext, time.Now())
+	waitFor(t, app, "ordinary platform after core shelf", func(s Snapshot) bool {
+		return !s.Loading && s.PlatformID == "snes" && len(s.Games) == 1 && s.Games[0].ID == otherPlatform.ID
+	})
+	if !hasQuery("snes", "") {
+		t.Fatal("platform navigation retained the workbench core filter")
+	}
+	app.HandleCommand(CmdFilterPrev, time.Now())
+	waitFor(t, app, "full FPGA library after platform navigation", func(s Snapshot) bool {
+		return !s.Loading && s.PlatformID == "fpga" && len(s.Games) == 3
+	})
+	if !hasQuery("fpga", "") {
+		t.Fatal("returning to FPGA platform retained the workbench core filter")
+	}
+}
+
 func TestColecoBackendChoiceShowsStopGuidanceWhileRunning(t *testing.T) {
 	pack := testRoomPack(t, colecoArcadeRoomID, `
 local matches = {
