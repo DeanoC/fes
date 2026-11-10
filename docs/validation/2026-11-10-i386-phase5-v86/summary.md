@@ -273,8 +273,32 @@ Each title was launched and watched for 100-180 s; this is a recheck, not
 
 ## Machine sim
 
-(pending: JEMM386 with Wolfenstein 3D and DOOM from boot on the RTL,
-Pinball Fantasies from the DOS prompt.)
+`sim_fes_pc386.py --suite game --cpu rtl --limit-seconds 20 --frame-every 2`
+(24 seconds for Wolfenstein 3D), with the RTL of `7e09b21a1`. That is
+this slice's RTL before the fetch-walk change, which only a V86 IRETD to an
+EIP past FFFFh under paging reaches. The JEMM386 drives (the Phase 5
+census's) boot on the RTL from reset, so JEMM386's own start-up, its
+switch into V86 mode and its paging run on it. Pinball Fantasies and Strike
+Commander take over from the oracle at the DOS prompt. The machine hands a
+stop to Bochs and does not hand back while VM or paging is on, so each
+run's final report says how much ran on the RTL.
+
+**In progress** (Powerboat at a load of about 50; frames at 10 November
+18:00):
+
+| Title | Drive | Furthest frame so far |
+| --- | --- | --- |
+| Wolfenstein 3D with JEMM386 | `real-jemm` | 12 s: its Options menu, as far as the census's oracle run got |
+| DOOM v1.9 with JEMM386 (VCPI) | `pmode-jemm` | 12 s: past its DPMI/VCPI zone allocation, at `R_Init` |
+| Pinball Fantasies (eXceed) | `real` | 14 s: eXceed 1.10's sound driver menu |
+| Strike Commander (its own V86 manager) | `xms` | 16 s: its introduction |
+| Master of Orion with JEMM386 | `xms-jemm` | 2 s: the boot menu |
+
+The RTL counters, the stops and the end of each run follow when they
+finish.
+
+**The RTL machine suites** (`a20`, `c2xx`, `wait`, `speaker`, `scroll`,
+`ems`, `boot` with `--cpu rtl`) are running.
 
 ## What this record does not cover
 
