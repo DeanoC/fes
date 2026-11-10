@@ -256,7 +256,7 @@ them, so a uop reads one at WB, or waits in D until its writers retire.
   (`far_chk`): at a far call's probe, ahead of the probe's own check, as
   Bochs checks before it pushes; at RETF's jump and IRET's FLAGS read after
   their own reads, at M1 (`cs_late`), as Bochs pops first. CALL r/m near's
-  push checks T1 the same way, after its own check.
+  push checks T1 the same way, but faults on none of it (`cpast`, below).
 - Far transfers are taken branches, with no prediction yet: each redirects
   from WB.
 
@@ -375,8 +375,9 @@ registers).
   index (`direct`). XLAT's index is AL zero-extended, which D's address
   forwarding masks (`index8`), holding the uop when AL would come late.
   SALC is SBB AL, AL writing no flags.
-- CALL r/m near loads its target into T1, pushes the next EIP after checking
-  T1 against CS's limit, then jumps to T1. PUSH m loads into T1 and pushes
+- CALL r/m near loads its target into T1, pushes the next EIP, then jumps to
+  T1. A target past CS's limit leaves the push's slot written and ESP as it
+  was, and the jump raises #GP(0) (`cpast`, below). PUSH m loads into T1 and pushes
   it. POP m reads the stack's slot into T1 without moving ESP, stores T1 to
   the operand, whose address registers DC kept beside the stack uop's
   (`m_*`), then pops into nothing to step ESP, so a store that faults leaves
@@ -667,8 +668,20 @@ the displacement, wrapped by operand size (`ag_call`).
 **M1** checks the segment limit with one compare, the offset against D's
 limit, raising #SS(0) for SS and #GP(0) otherwise, and sends a load's address
 to the data port. It checks a near branch's target, or CALL rel's push's,
-against CS's limit (`tchk`): the push raises #GP(0) here, after its own
-checks, as Bochs pushes before it checks; a branch carries the result to EX.
+against CS's limit (`tchk`); a branch carries the result to EX. A near CALL's
+push whose target is past the limit (`cpast`: CALL rel's from here, CALL
+r/m's from D's `far_chk`) faults on none of it: it stores its slot, its own
+faults and its page's #PF first, and WB leaves ESP as it was. The CALL's
+jump, which checks the same target, raises #GP(0). That is the 386's order:
+its die-extracted microcode (reenigne/x86_microcode, `microcode_notes.txt`)
+writes the slot (`OPR_W = EIP; WR`: CALL rel at `075`, CALL r/m by register
+at `079`, by memory at `07E`) before it forms the target through CS's
+descriptor (`DESCOD` at `076`, `07A`, `080`). CALL rel and CALL r/m by
+register write ESP after that (`077`, `07B`); the memory form writes it at
+`07F`, the delay slot before `080`, and the notes do not say whether a #GP(0)
+there keeps it. The RTL leaves ESP as it was for every form, as Bochs does
+(`RSP_SPECULATIVE`, the push, the check: its rollback restores ESP but not
+the bytes). This rests on the microcode, not a silicon test (#1510).
 A far transfer's offset that D found past the limit (`cs_late`) raises
 #GP(0) here when the uop's own checks pass. It also takes the load's distance from the stores in EX and
 WB, which have not written when the port reads: the one in EX will be in WB

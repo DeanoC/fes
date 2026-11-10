@@ -2647,7 +2647,9 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, c
     call.seg[fes_i386::SEG_CS] = fes_i386::real_mode_segment(0x100);
     call.eip = 0;
     // 66 E8 disp32=10000h: CALL's instruction fits, but its full-width target
-    // is outside the 16-bit CS limit. Bochs rolls back the speculative push.
+    // is outside the 16-bit CS limit. The push writes its slot first and ESP
+    // is as it was at the #GP(0), as on the 386 and in Bochs, whose rollback
+    // restores ESP (#1510); the #GP's frame covers the slot.
     run_fault_case(oracle, bus, rtl, entries, summary, "call-rel32-cs-limit",
                    {0x66, 0xe8, 0x00, 0x00, 0x01, 0x00}, call, false);
 
@@ -2667,7 +2669,7 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, c
     run_fault_case(oracle, bus, rtl, entries, summary, "jmp-rm-cs-limit",
                    {0x66, 0xff, 0xe3, 0x8b, 0x04, 0xf4}, jump, false);
 
-    // CALL EBX to the same target: #GP(0) before its push.
+    // CALL EBX to the same target: #GP(0) after its push, as CALL rel's.
     run_fault_case(oracle, bus, rtl, entries, summary, "call-rm32-cs-limit", {0x66, 0xff, 0xd3, 0xf4}, jump, false);
 
     // Register-form BOUND is #UD. Its faulting uop must not read the address
@@ -5778,9 +5780,10 @@ private:
         // small-limit descriptor's limit (B0h, pm_limit), the exit far-jumps
         // to it first and sets that limit to FFE1h-FFFEh; then no far jump,
         // but 0-2 instructions in real mode under the limit CS keeps and a
-        // near JMP (rel16, rel32, or through BX or EBX) or Jcc rel32 to a
-        // target past it: #GP(0) through the real-mode vector table, whose
-        // entry the limit keeps (real-gp). No CALL: its push order is #1510.
+        // near JMP or CALL (rel16, rel32, or through BX or EBX) or Jcc rel32
+        // to a target past it: #GP(0) through the real-mode vector table,
+        // whose entry the limit keeps (real-gp), a CALL's slot written first
+        // with SP as it was (#1510).
         const bool real_limit = !limit_set[0] && pick(6) == 0;
         if (real_limit) {
             limit_set[0] = true;
@@ -5816,30 +5819,31 @@ private:
             for (unsigned k = pick(3); k > 0; --k) emit(pm_instruction());
             const uint32_t past16 = limit + 1 + pick(0xffff - limit), past32 = limit + 1 + pick(0x20000);
             std::vector<uint8_t> out;
+            const bool call = pick(2);  // CALL for JMP (E8 for E9, /2 for /4)
             switch (pick(5)) {
-            case 0: {  // JMP rel16
-                out = {0xe9};
+            case 0: {  // JMP or CALL rel16
+                out = {uint8_t(call ? 0xe8 : 0xe9)};
                 const uint16_t rel = uint16_t(past16 - (next_eip() + 3));
                 out.insert(out.end(), {uint8_t(rel), uint8_t(rel >> 8)});
                 break;
             }
-            case 1:  // JMP rel32 (66h)
-                out = {0x66, 0xe9};
+            case 1:  // JMP or CALL rel32 (66h)
+                out = {0x66, uint8_t(call ? 0xe8 : 0xe9)};
                 put32(out, past32 - (next_eip() + 6));
                 break;
             case 2:  // Jcc rel32 (66h), taken or not
                 out = {0x66, 0x0f, uint8_t(0x80 + pick(16))};
                 put32(out, past32 - (next_eip() + 7));
                 break;
-            case 3:  // MOV BX, imm16; JMP BX
+            case 3:  // MOV BX, imm16; JMP or CALL BX
                 emit({0xbb, uint8_t(past16), uint8_t(past16 >> 8)});
-                out = {0xff, 0xe3};
+                out = {0xff, uint8_t(call ? 0xd3 : 0xe3)};
                 break;
-            default: {  // MOV EBX, imm32; JMP EBX (66h)
+            default: {  // MOV EBX, imm32; JMP or CALL EBX (66h)
                 std::vector<uint8_t> mov{0x66, 0xbb};
                 put32(mov, past32);
                 emit(mov);
-                out = {0x66, 0xff, 0xe3};
+                out = {0x66, 0xff, uint8_t(call ? 0xd3 : 0xe3)};
             }
             }
             emit(out);
@@ -6564,6 +6568,15 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     const auto int2b = [](Asm &a) { a.op({0xcd, 0x2b}); };
     const auto int2e = [](Asm &a) { a.op({0xcd, 0x2e}); };
     r3("r3-hlt-gp", [](Asm &) {}, 13, 0);                                                     // HLT at CPL 3
+    // A near CALL at CPL 3 to a target past CS's limit (73h, FFFFh): its push
+    // writes the slot at 6Bh:0CFCh on the ring-3 stack, then #GP(0) on the
+    // TSS's stack with the ESP of before the CALL in its frame (#1510). The
+    // slot lies outside the frame, so the bytes each side wrote compare it.
+    r3("r3-call-rel32-past", [](Asm &a) { a.op({0x66, 0xe8}); a.d(0x20000); }, 13, 0);      // CALL rel32 past FFFFh
+    r3("r3-call-rm32-past", [](Asm &a) {                                                    // MOV EBX, 10000h; CALL EBX
+        a.op({0x66, 0xbb}); a.d(0x10000); a.op({0x66, 0xff, 0xd3}); }, 13, 0);
+    r3("r3-call-m32-past", [](Asm &a) {                                                     // PUSH 10000h; MOV BP, SP;
+        a.op({0x66, 0x68}); a.d(0x10000); a.op({0x89, 0xe5, 0x66, 0xff, 0x56, 0x00}); }, 13, 0);  // CALL DWORD [BP]
     r3("r3-int-iretd", [](Asm &a) { a.op({0xcd, 0x2a, 0x43, 0xcd, 0x2b}); }, -1, -1, 0x2b);  // INT 2Ah; INC BX; INT 2Bh
     r3("r3-int-iret16", [](Asm &a) { a.op({0xcd, 0x2c, 0x43, 0xcd, 0x2d}); }, -1, -1, 0x2d); // INT 2Ch; INC BX; INT 2Dh
     r3("r3-int-dpl0", [](Asm &a) { a.op({0xcd, 0x20}); }, 13, 0x20 * 8 + 2);                  // the gate's DPL below CPL
