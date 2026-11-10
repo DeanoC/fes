@@ -6857,10 +6857,14 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     v86("v86-int-cs-dpl1", [](Asm &a) { a.op({0xcd, 0x2e}); }, 13, 0x78, 3, -1, {{0x2e, gate(0x78, 0x1800, 0xee)}}, {},
         {{15, desc(0, 0xffff, 0xbb, false, false)}});
     v86("v86-int-cs-np", [](Asm &a) { a.op({0xcd, 0x2e}); }, 11, 0x58, 3, -1, {{0x2e, gate(0x58, 0x1800, 0xee)}});
-    // A conforming CS is #GP(selector) before the TSS's stack is read: here
-    // CPL 3's slot is past TR's limit (13h), which would be #TS(38h).
-    v86("v86-int-conforming-small-tss", [](Asm &a) { a.op({0xcd, 0x2e}); }, 13, 0x60, 3, -1,
-        {{0x2e, gate(0x60, 0x1800, 0xee)}}, {}, {{7, desc(0x2500, 0x13, 0x89, false, false)}});
+    // A conforming or DPL-3 CS is #GP(selector) before the TSS's stack is
+    // read: for DPL 3 the slot it would read is past TR's limit (13h),
+    // #TS(38h); for conforming code at DPL 0 (TR's limit 7) the #GP's own
+    // delivery reads that slot, so both sides shut down.
+    v86("v86-int-conforming-small-tss", [](Asm &a) { a.op({0xcd, 0x2e}); }, -2, -1, 3, -1,
+        {{0x2e, gate(0x60, 0x1800, 0xee)}}, {}, {{7, desc(0x2500, 0x07, 0x89, false, false)}});
+    v86("v86-int-cs-dpl3-small-tss", [](Asm &a) { a.op({0xcd, 0x2e}); }, 13, 0x70, 3, -1,
+        {{0x2e, gate(0x70, 0x1800, 0xee)}}, {}, {{7, desc(0x2500, 0x13, 0x89, false, false)}});
     v86("v86-int-ss0-np", int2b, -2, -1, 3, -1, {}, {{0x2508, {0x28, 0x00}}});
     v86("v86-int-286-tss", int2b, -1, -1, 3, 0x2b, {}, {}, {}, 0x50);
     v86("v86-int-ss0-big", [](Asm &a) { a.op({0xcd, 0x2a, 0x43, 0xcd, 0x2d}); }, -1, -1, 3, 0x2d, {}, {{0x2508, {0x20, 0x00}}});

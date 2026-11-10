@@ -613,8 +613,8 @@ package fes_i386_pkg;
         // or its second destination's (D's segment-busy update).
         logic [5:0]  wseg;
         // A stack slot at ESP plus slot operand-sized slots, ESP unmoved
-        // (STK_PEEK): -16 to 15 from the ROM, -8 to 7 from the decode, further for a call
-        // gate's parameters (fes_i386_seq).
+        // (STK_PEEK): -16 to 15 from the ROM, -8 to 7 from the decode,
+        // further for a call gate's parameters (fes_i386_seq).
         logic [6:0]  slot;
         logic        a_t1;       // src1's value is T1's (POPAD's ESP), which waits as far_t does
         logic        b_t1;       // src2's value is T1's, which waits the same way

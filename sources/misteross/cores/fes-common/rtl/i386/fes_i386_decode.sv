@@ -1830,7 +1830,7 @@ module fes_i386_decode (
     // permission bitmap (io_chk, io_str). In V86 mode (CPL 3) below IOPL
     // 3, PUSHF, INT n, IRET and a LOCK prefix raise #GP(0) there too
     // (v86_gp; LOCK as the 386 manual has it, where Bochs runs the
-    // instruction: divergence v86-lock-gp), POPF after its pop (lgp).
+    // instruction: the lockstep's v86-lock rule), POPF after its pop (lgp).
     // IOPL changes only
     // at CPL 0, where it gates nothing here, and reaching another CPL
     // flushes, so the IOPL D sees is the instruction's.

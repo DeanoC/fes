@@ -94,16 +94,20 @@
 // same routine's entry with the interrupt's vector, from INTA for INTR, so
 // the routine pushes the next instruction's IP.
 //
-// Protected mode (CR0.PE) at CPL 0, without privilege transitions, call or
-// task gates, task switches or paging: MOV CRn, LMSW, SMSW, LGDT, SGDT,
+// Protected mode (CR0.PE) with privilege levels and paging (README.md,
+// "Protected mode" and "Paging"): MOV CRn and DRn, LMSW, SMSW, LGDT, SGDT,
 // LIDT, SIDT, LLDT, SLDT, LTR and STR; segment loads from the GDT's and the
 // LDT's descriptors, with their checks, error codes and accessed bit, in
-// microcode; far JMP, CALL and RETF to a code segment; exceptions, INTR,
-// NMI, INT n, INT3 and INTO through interrupt and trap gates, and IRET; LAR,
-// LSL, VERR, VERW and ARPL. A real-mode segment load keeps a data segment's
-// cached limit and attributes (unreal mode), and sets CS's to the 386's
-// real-mode values. What is not built stops the CPU as not built
-// (trace_unimplemented), with its reason (trace_unbuilt).
+// microcode; far JMP, CALL (through call gates too) and RETF; exceptions,
+// INTR, NMI, INT n, INT3 and INTO through interrupt and trap gates, and
+// IRET, across privileges on the TSS's stacks; LAR, LSL, VERR, VERW and
+// ARPL; I/O through the TSS's permission bitmap. V86 mode (EFLAGS.VM, "V86
+// mode"): real-mode segment loads with V86 caches at CPL 3, the IOPL-
+// sensitive forms, deliveries to CPL 0 and IRETD back. A real-mode segment
+// load keeps a data segment's cached limit and attributes (unreal mode),
+// and sets CS's to the 386's real-mode values. What is not built (task
+// gates and switches) stops the CPU as not built (trace_unimplemented),
+// with its reason (trace_unbuilt).
 //
 // The speed governor (fes_i386_governor) charges each instruction and REP
 // element WB retires its reference cost, with the period ISA bus time of its
@@ -314,11 +318,12 @@ module fes_i386_cpu #(
     logic [7:0][31:0] gpr;
     logic [17:0]      eflags;
     logic [31:0]      eip;
-    // The CPL: CS's RPL once a protected-mode load has written CS, and 0 in
-    // real mode and on protected-mode entry, whatever CS's selector, as
-    // Bochs keeps it. Only a protected-mode CS load changes it, a far
-    // transfer that flushes everything younger, so D's decode and the
-    // staged descriptor's checks read it as it stands.
+    // The CPL: CS's RPL once a protected-mode load has written CS, 3 in V86
+    // mode, and 0 in real mode and on protected-mode entry, whatever CS's
+    // selector, as Bochs keeps it. Only a protected-mode CS load or a jump
+    // into or out of V86 mode changes it, a far transfer that flushes
+    // everything younger, so D's decode and the staged descriptor's checks
+    // read it as it stands.
     logic [1:0]       cpl;
     logic [5:0][15:0] seg_sel, seg_ar, seg_hi1;  // seg_hi1: base[31:16] + 1
     logic [5:0][31:0] seg_base, seg_limit;
