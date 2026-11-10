@@ -16,6 +16,19 @@ The subsequent [operator observation](operator-display-observation.json)
 contradicts visible HDMI return: **the screen stayed on ZX81 after the chord**.
 Visible launcher return fails and must be repaired. Serial frame presentation
 and control closure do not establish the physical HDMI picture.
+The operator further confirms seeing the initial launcher, with a blank or
+no-signal screen after the final Park. This narrows the unresolved observation
+to return/display recovery rather than a menu image that never displays.
+
+The subsequent [HDMI investigation](hdmi-investigation.json) extends the actual
+menu model through the selected board wrapper to its FPGA HDMI pins. Three
+Tenfoot frames pass; disconnected RGB and a missing pixel clock fail. The
+pixel-route model uses explicit PLL/I2C stubs. The separate actual captured
+I2C model also passes startup, NACK retry, interrupt reinitialization and reset,
+with its original negative controls. All eight affected software checks pass.
+These off-board results do not establish a hardware fault cause. The next
+diagnostic holds the verified returned menu before the next configuration,
+separating monitor recovery time from the short automated transition window.
 
 Final logical Park is generation 5; the firmware menu-return observation has
 bridge generation 29/reset mask 15 and masters contained. Firmware return and

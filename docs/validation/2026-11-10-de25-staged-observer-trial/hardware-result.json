@@ -178,7 +178,7 @@
     "out/nano-staged-observer-trial-20261110/cleanup-evidence.json": "d9a8541e38a23d3b20568d5956e421f30604b82c868c70aa0c0b4695a2dce9a6",
     "out/nano-staged-observer-trial-20261110/hardware-retention-proof.json": "2cb5d713b1ba0eeb94cefce24dabf48897d8de97ffdebe0be52d55ddf296c03d",
     "out/nano-staged-observer-trial-20261110/operator-observations.json": "9ad567a0110c9e221d502bbc03d3b08a5194adf166cee13475998d025e7d9020",
-    "docs/validation/2026-11-10-de25-staged-observer-trial/operator-display-observation.json": "9e11f8d0c66ad7a69f4d9fdf1e0aa43009c515181ace16d324a0d548358218da"
+    "docs/validation/2026-11-10-de25-staged-observer-trial/operator-display-observation.json": "5808d05079d7e29b066136eca7bcf9bd9751be15020dcad89b95f4fe226863e7"
   },
   "ordinary_admission": false,
   "full_appliance_acceptance": false,
