@@ -1,0 +1,36 @@
+Analysis & Synthesis Status : Successful - Tue Nov 10 08:45:41 2026
+Quartus Prime Version : 17.0.2 Build 602 07/19/2017 SJ Lite Edition
+Revision Name : fes_i386_cpu
+Top-level Entity Name : fes_i386_cpu
+Family : Cyclone V
+Logic utilization (in ALMs) : N/A
+Total registers : 16874
+Total pins : 3,512
+Total virtual pins : 0
+Total block memory bits : 368,321
+Total DSP Blocks : 0
+Total HSSI RX PCSs : 0
+Total HSSI PMA RX Deserializers : 0
+Total HSSI TX PCSs : 0
+Total HSSI PMA TX Serializers : 0
+Total PLLs : 0
+Total DLLs : 0
+
+i386/cpu-nodsp/map.log:Info: Quartus Prime Analysis & Synthesis was successful. 0 errors, 1955 warnings
+i386/cpu-nodsp/map.log:    Info: Peak virtual memory: 2086 megabytes
+i386/cpu-nodsp/map.log:    Info: Elapsed time: 00:02:56
+i386/cpu-nodsp/eda.log:Info: Quartus Prime EDA Netlist Writer was successful. 0 errors, 0 warnings
+i386/cpu-nodsp/eda.log:    Info: Peak virtual memory: 1212 megabytes
+i386/cpu-nodsp/eda.log:    Info: Elapsed time: 00:00:07
+
+ 
+4443971 fes_i386_cpu_modelsim.xrf
+35 fes_i386_cpu.sft
+49269805 fes_i386_cpu.vo
+
+cell census:
+  39146 cyclonev_lcell_comb 
+  16874 dffeas 
+   1914 cyclonev_io_obuf 
+   1598 cyclonev_io_ibuf 
+   1523 cyclonev_ram_block 
