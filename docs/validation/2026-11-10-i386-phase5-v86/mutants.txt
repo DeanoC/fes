@@ -37,3 +37,7 @@ limit past DPL 0's stack slot but short of DPL 3's) were added for them, and eac
 v86cs-same's conforming form (DPL 0) cannot be told apart: the #GP's own delivery reads the same TSS slot
 that the mutant reads first, so both sides fault on it alike (v86-int-conforming-small-tss shuts down on
 both).
+
+After Codex's review (the fetch walk taken over a fetch's #GP for CS's limit):
+ifw-over-gp     fes_i386_cpu.sv   a fetch past CS's limit on a page the ITLB lacks walks (#PF) before its #GP(0)
+                -> pg-v86-eip-past-limit-np; random 0
