@@ -15,6 +15,56 @@ import (
 
 const FactoryVideoSelectionName = "fes-core-video-parts.json"
 
+// factoryVideoShellProfile applies the same closed admission rule as the FES
+// catalog and core-dev tools. No marker is an ordinary package; an unsupported
+// marker is an error and must not silently bypass the video-parts inventory.
+func factoryVideoShellProfile(d corepackage.Descriptor) (string, error) {
+	var marker corepackage.Interface
+	count := 0
+	for _, iface := range d.Interfaces {
+		if iface.ID == expansion.VideoSlot || iface.ID == expansion.NativeVideoSlot {
+			marker = iface
+			count++
+		}
+	}
+	if count == 0 {
+		return "", nil
+	}
+	invalid := func() (string, error) { return "", errors.New("unsupported factory video shell profile") }
+	if count != 1 || marker.Major != 1 || marker.Minor != 0 || marker.Required {
+		return invalid()
+	}
+	switch d.Core.ID {
+	case "fes.coleco":
+		if d.ABI != (corepackage.Contract{ID: "fes.application", Major: 1, Minor: 0}) {
+			return invalid()
+		}
+		if d.Format != 2 {
+			if d.Format != 4 || len(d.ROMs) != 2 ||
+				d.ROMs[0] != (corepackage.ROMRequirement{ID: "coleco-bios", Role: "firmware", SourceSize: 8192, SourceOffset: 0}) ||
+				d.ROMs[1] != (corepackage.ROMRequirement{ID: "coleco-cart", Role: "cartridge", SourceSize: 16384, SourceOffset: 8192}) {
+				return invalid()
+			}
+		}
+		if marker.ID == expansion.NativeVideoSlot {
+			return expansion.ColecoNativeVideoMap, nil
+		}
+		return expansion.ColecoVideoMap, nil
+	case "fes.atari-st":
+		if d.Format != 3 || d.ABI != (corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 0}) ||
+			d.ROM == nil || d.ROM.Role != "firmware" || marker.ID != expansion.VideoSlot {
+			return invalid()
+		}
+		bus := corepackage.Interface{ID: expansion.AtariStSlot, Major: 1, Minor: 0, Required: false}
+		for _, iface := range d.Interfaces {
+			if iface == bus {
+				return expansion.AtariStVideoMap, nil
+			}
+		}
+	}
+	return invalid()
+}
+
 // InspectFactoryVideoParts also checks coverage: every selected marked shell
 // has an indexed pair, and no indexed shell lies outside the selected packages.
 // An absent tree is permitted only when no selected package has a video socket.
@@ -50,10 +100,12 @@ func InspectFactoryVideoParts(ctx context.Context, directory, packages string) (
 		if err != nil || inspection.PackageID != entry.Name() {
 			return nil, errors.New("factory package identity differs from directory")
 		}
-		for _, i := range inspection.Descriptor.Interfaces {
-			if i.ID == expansion.VideoSlot || i.ID == expansion.NativeVideoSlot {
-				expected[entry.Name()] = true
-			}
+		profile, err := factoryVideoShellProfile(inspection.Descriptor)
+		if err != nil {
+			return nil, fmt.Errorf("factory package %s: %w", entry.Name(), err)
+		}
+		if profile != "" {
+			expected[entry.Name()] = true
 		}
 	}
 	if directory == "" {

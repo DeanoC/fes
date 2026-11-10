@@ -362,7 +362,7 @@ class AffectedTests(unittest.TestCase):
                      'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
                      'scripts/test_fes_i386_lockstep.py', 'scripts/test_fes_i386_latency.py',
                      'scripts/quartus_fes_i386.py',
-                     'scripts/benchmark_fes_i386.py', 'scripts/fes_i386_ucode.py'):
+                     'scripts/benchmark_fes_i386.py', 'scripts/fes_i386_ucode.py', 'scripts/i386_verilator.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertEqual(result['cores'], [])

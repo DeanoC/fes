@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.build_fes_sg1000 import SYSTEMVERILOG_SOURCES, VERILOG_SOURCES
+from scripts.build_fes_sg1000 import SYSTEMVERILOG_SOURCES, VERILOG_SOURCES, QUARTUS_LOCK
 
 
 def main() -> None:
@@ -21,7 +21,7 @@ def main() -> None:
     parser.add_argument("--vvp", default=os.environ.get("VVP", "vvp"))
     args = parser.parse_args()
     if args.quartus_root is None:
-        parser.error("set QUARTUS_ROOTDIR to the Quartus 17.0.2 quartus directory")
+        parser.error(f"set QUARTUS_ROOTDIR to the quartus directory of the Quartus {QUARTUS_LOCK} locks")
     model = args.quartus_root.resolve() / "eda/sim_lib/altera_mf.v"
     if not model.is_file():
         parser.error(f"missing Intel simulation model: {model}")

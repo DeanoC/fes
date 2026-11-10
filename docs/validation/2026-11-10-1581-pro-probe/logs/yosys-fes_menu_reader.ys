@@ -1,0 +1,1 @@
+read_verilog -sv cores/fes-menu/rtl/fes_menu_reader.v; hierarchy -top fes_menu_reader -chparam WINDOW_BASE 32'h30000000; proc -norom; flatten; opt -purge; memory_collect; memory_map t:$mem_v2 r:WR_PORTS>1 %i a:ramstyle %d; opt -purge; attrmap -remove src; attrmap -remove hdlname; attrmap -map ramstyle="M10K" ramstyle="M20K"; write_verilog <scratch>/netlists/fes_menu_reader.raw.v

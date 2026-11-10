@@ -43,6 +43,7 @@ if __package__ in (None, ''):
 
 from scripts import fes_i386_oracle as oracle
 from scripts import test_fes_i386_vectors as vectors
+from scripts import i386_verilator
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / 'build/sim/fes-i386-test386'
@@ -307,11 +308,12 @@ def run_rom(testbench: Path, rom: Path, error: int, forgive: dict[int, int]) -> 
     return run
 
 
-def run_rtl(rom: Path, error: int, forgive: dict[int, int], jobs: int) -> dict:
+def run_rtl(rom: Path, error: int, forgive: dict[int, int], jobs: int,
+            verilator: i386_verilator.LockedVerilator) -> dict:
     """test386 on fes_i386_cpu alone (lockstep_tb.cpp's test386 mode): how far
     the RTL gets, and what stops it."""
     from scripts import test_fes_i386_lockstep as lockstep
-    testbench = lockstep.verilate(os.environ.get('VERILATOR', 'verilator'), oracle.link_inputs(jobs, False), jobs, None)
+    testbench = lockstep.verilate(verilator, oracle.link_inputs(jobs, False), jobs, None)
     env = dict(os.environ, FES_I386_MODE='test386', FES_I386_ROM=str(rom / 'test386.bin'), FES_I386_POST=hex(POST_PORT),
                FES_I386_OUTPUT=hex(OUTPUT_PORT), FES_I386_TEXT=str(BUILD / 'test386-rtl-output.txt'),
                FES_I386_ERROR=hex(error), FES_I386_LATENCY='1',
@@ -674,13 +676,19 @@ def main() -> int:
     parser.add_argument('--cpu', choices=('oracle', 'rtl'), default='oracle',
                         help='rtl: run the ROM on fes_i386_cpu alone and report how far it gets (rtl-report.json)')
     parser.add_argument('--jobs', type=int, default=os.cpu_count() or 2)
+    i386_verilator.add_argument(parser)
     args = parser.parse_args()
     if not 1 <= args.jobs <= 64:
         parser.error('invalid job count')
     if args.vectors_corpus is not None and not args.vectors_corpus.is_absolute():
         parser.error('--vectors-corpus must be absolute')
-    if os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT'):
-        parser.error('simulation does not use the shared compiler cache')
+    verilator = None
+    if args.cpu == 'rtl':
+        try:
+            verilator = i386_verilator.locate(args.cache_root)
+        except i386_verilator.VerilatorError as error:
+            print('test386 qualification error:', error, file=sys.stderr)
+            return 2
     BUILD.mkdir(parents=True, exist_ok=True)
     try:
         source = test386_source(args.download)
@@ -692,7 +700,8 @@ def main() -> int:
         if args.cpu == 'rtl':
             forgive = {address: length for entry in entries if entry['kind'] != 'ee'
                        for address, (_, length) in entry['checks'].items()}
-            run = run_rtl(rom, labels['error'], forgive, args.jobs)
+            run = run_rtl(rom, labels['error'], forgive, args.jobs, verilator)
+            run['verilator'] = verilator.record()
             stop = run['stop'] or {}
             run['stop_listing'] = instructions.get(int(stop['linear'], 16), {}).get('source') if stop else None
             (BUILD / 'rtl-report.json').write_text(json.dumps(run, indent=1) + '\n')

@@ -1,0 +1,19 @@
+[08:39:17] yosys-opl2: quartus_syn pc386_opl2
+[08:39:20] yosys-opl2: exit 3 in 3s; 26 errors
+[08:39:20] yosys-opl2-escaped: quartus_syn pc386_opl2
+[08:39:22] yosys-opl2-escaped: exit 3 in 2s; 26 errors
+[08:39:22] yosys-opl2-fixed: quartus_syn pc386_opl2
+[08:39:31] yosys-opl2-fixed: exit 0 in 8s; 0 errors
+[08:39:31] yosys-opl2-fixed-escaped: quartus_syn pc386_opl2
+[08:39:39] yosys-opl2-fixed-escaped: exit 0 in 8s; 0 errors
+[08:39:39] yosys-menu-m20k: quartus_syn fes_menu_reader
+[08:39:44] yosys-menu-m20k: exit 0 in 5s; 0 errors
+[08:39:44] yosys-menu-m10k: quartus_syn fes_menu_reader
+[08:39:49] yosys-menu-m10k: exit 3 in 5s; 9 errors
+[08:39:49] native-opl2: quartus_syn pc386_opl2
+[08:39:55] native-opl2: exit 0 in 6s; 0 errors
+[08:39:55] native-operator: quartus_syn operator
+[08:40:01] native-operator: exit 0 in 6s; 0 errors
+[08:40:01] native-menu-m10k: quartus_syn fes_menu_reader
+[08:40:05] native-menu-m10k: exit 3 in 5s; 9 errors
+done

@@ -34,6 +34,7 @@ if __package__ in (None, ''):
 
 from scripts import build_fes_pc386_quartus as producer
 from scripts import fes_i386_oracle as oracle
+from scripts import i386_verilator
 from scripts import test_fes_i386_governor as governor_bench
 from scripts import test_fes_i386_lockstep as lockstep
 from scripts import test_fes_i386_test386 as test386
@@ -152,13 +153,14 @@ def failures(rows: list[dict], expected: dict[str, int]) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--download', action='store_true', help='fetch the pinned oracle and NASM if missing')
-    parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
+    i386_verilator.add_argument(parser)
     parser.add_argument('--yosys', help="simulate this Yosys's netlist of the CPU instead of the RTL")
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 8))
     args = parser.parse_args()
-    verilator = shutil.which(args.verilator)
-    if verilator is None:
-        print(f'selected Verilator not found: {args.verilator}', file=sys.stderr)
+    try:
+        verilator = i386_verilator.locate(args.cache_root)
+    except i386_verilator.VerilatorError as error:
+        print('i386 Verilator:', error, file=sys.stderr)
         return 2
     yosys = shutil.which(args.yosys) if args.yosys else None
     if args.yosys and yosys is None:
@@ -183,7 +185,7 @@ def main() -> int:
         return 2
     rows = measure(cycles)
     found = failures(rows, EXPECTED)
-    report = {'yosys': yosys, 'loops': rows, 'run': result['run'], 'failures': found}
+    report = {'verilator': verilator.record(), 'yosys': yosys, 'loops': rows, 'run': result['run'], 'failures': found}
     path = OUTPUT / ('report-netlist.json' if yosys else 'report.json')
     path.write_text(json.dumps(report, indent=2) + '\n')
     print(f'{"loop":18} {"cycles":>8} {"per iteration":>14} {"per case":>9}')

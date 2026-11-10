@@ -1905,7 +1905,9 @@ symlinks, mutable objects and missing coverage of a selected video-marked shell,
 then independently composes every indexed part against the exact shell before
 copying its original producer archive bytes. Canonical core package members
 and identities stay unchanged. Older unmarked package-only selections need no
-video tree. The external `fes-core-video-parts.json` is byte-identical to the
+video tree. A video-marked package must match the same exact shell profile as
+the FES catalog and core-dev admission rules; unsupported markers fail closed.
+The external `fes-core-video-parts.json` is byte-identical to the
 installed index; both reproducible image passes retain and compare that record.
 The installed selection copy and canonical build-input record bind the index
 digest, each selected shell/profile/part/archive identity and its install path.
@@ -2718,6 +2720,29 @@ supervisor holds such a selection back and runs the image's factory software in
 its place; status reports `held_back`. Installation and selection live on verified FESDATA3 independently of
 core packages and the base appliance image. The existing service scripts are
 replaced by one supervisor entrypoint; physical transitions remain runtime-owned.
+
+That supervisor checkpoints the stopped kit host's main catalog at a changed-bundle
+activation. Its existing operation ID, generation, prior/candidate bundle IDs
+and actual running source bundle, together with persistent-storage identity,
+bind the snapshot. An authenticated helper from the repaired image's retained
+factory release handles SQLite integrity, committed WAL contents and durable
+publication without invoking catalog migrations. A return to a known bundle with
+an older catalog schema retains the newer live catalog before restoring the prior
+one. Candidate failure restores the checkpoint of that exact operation, including
+failure while returning to an older bundle. Missing required or conflicting
+records leave maintenance held. Same-format changes preserve current data; ordinary host,
+launcher and group restarts do not restore snapshots.
+
+The checkpoint covers `state/library.sqlite3`, including core entries and embedded
+firmware/media. It does not roll back separate settings, favorites/history,
+configuration, package files or media-cache. Retained catalogs are preserved
+under the software control directory's `catalog-transitions/`; they are not
+automatically merged. The image-owned supervisor is required: updating the
+userspace bundle alone cannot retrofit the hook. Software activation additionally
+checks that the exact supervised host serves its recorded revision, without
+requiring target readiness before software maintenance has been released.
+The trial factory host's saved launch arguments keep it on tmpfs through
+independent restarts until the queued durable selection takes over.
 
 The lease manager's idle queue gives a caller-persisted software intent priority
 after the current execution owner naturally releases. Queueing preserves that

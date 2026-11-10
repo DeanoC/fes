@@ -429,14 +429,20 @@ class QuartusCaptureTests(unittest.TestCase):
         yosys.write_text('placeholder')
         with mock.patch.object(sys, 'argv', ['quartus_fes_pcxt.py', '--yosys', str(yosys),
                                            '--output', str(self.work)]), \
-                mock.patch.object(builder, 'locate_quartus', return_value=(Path('/tools'), Path('/tools/bin/quartus_sh'))), \
-                mock.patch.object(builder, 'quartus_version_line', return_value='17.0.2 Build 602 Lite Edition'), \
+                mock.patch.object(builder, 'locate_quartus', return_value=(
+                    Path('/tools'), Path('/tools/bin/quartus_sh'),
+                    'Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition')), \
                 mock.patch.object(builder, 'sha', return_value='hash'), \
                 mock.patch.object(builder.subprocess, 'check_output', return_value='Yosys (git sha1 3a5accbd7)'), \
                 mock.patch.object(sys, 'stderr', new_callable=io.StringIO) as err:
             self.assertEqual(builder.main(), 1)
             self.assertIn('File exists', err.getvalue())
         self.assertEqual(summary.read_bytes(), original)
+
+    def test_project_files_name_the_locked_quartus(self):
+        lock = builder.load_quartus_lock(builder.ROOT, str(builder.QUARTUS_LOCK))
+        self.assertEqual(builder.project_qpf(lock), 'QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n')
+        self.assertIn(builder.QUARTUS_LOCK, builder.input_paths(builder.ROOT))
 
     def test_selected_contract_requires_direct_interstage_capture(self):
         with (self.audit / 'mailbox-interstage.tsv').open('w') as stream:

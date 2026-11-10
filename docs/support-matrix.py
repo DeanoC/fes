@@ -395,7 +395,7 @@ def validate(root: Path, data: dict) -> list[str]:
             errors.append(f'{core_id} lock path does not match config/core-recipes.toml')
         elif lock.is_file() and recipe.get('toolchain') == 'quartus':
             descriptor = tomllib.loads(lock.read_text())
-            if descriptor.get('version') != recipe['quartus']['version']:
+            if descriptor.get('quartus', {}).get('version') != recipe['quartus']['version']:
                 errors.append(f'{core_id} Quartus version differs from its lock')
         elif lock.is_file():
             pins = _pins(lock)
