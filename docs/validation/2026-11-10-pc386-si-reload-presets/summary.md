@@ -6,7 +6,7 @@ while audio played. [#1506](../2026-11-05-pc386-si-reload/summary.md) didn't
 reproduce it in three runs. This record repeats it on a fresh seal of main
 with #1483's status ring and VRAM probes, at four governor presets.
 
-**Result: reproduced, once in 20 Serpent Isle launches. It is a pc386
+**Result: reproduced, once in 21 Serpent Isle launches. It is a pc386
 fault, not a speed artefact or a long load.**
 
 - In Kit B run `k1`, one launch at 486DX2-66 showed a flat black picture
@@ -22,7 +22,8 @@ fault, not a speed artefact or a long load.**
 - So the game drew its pictures, and what went wrong is between VRAM and the
   picture: the VGA's output state (attribute controller, pel mask, DAC) or the
   scanout.
-- The other 19 Serpent Isle launches showed their pictures. The load itself
+- The other 20 Serpent Isle launches showed their pictures: `k1`'s first
+  launch, which made the save, its other 7 relaunches, and `k2`'s 12. The load itself
   works: 7 of `k1`'s 8 Journey Onward loads put the party back on the ship
   within 3–6 s.
 - The cause isn't pinned yet. A scratch seal that adds the VGA output state
@@ -120,8 +121,9 @@ DOS, `VER`, the game again in the same boot).
 
 **No launch was black.** Every Serpent Isle launch showed its introduction
 by +30 s and its menu after Esc. Every Black Gate launch showed its
-introduction. So the branch didn't run. With `k1`, that is 1 black launch in
-20 Serpent Isle launches. `k2` quit each launch to DOS before the stop,
+introduction. So the branch didn't run. With `k1` (its first launch, which
+made the save, and 8 relaunches), that is 1 black launch in 21 Serpent Isle
+launches. `k2` quit each launch to DOS before the stop,
 while `k1` (and `v1`) stopped the machine in the game.
 
 ## The VGA traffic Serpent Isle makes (Bochs-oracle bench)
