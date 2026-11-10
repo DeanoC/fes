@@ -1,0 +1,44 @@
+# opl2/lite calc_envelope_shift rc=0
+
+# opl2/lite calc_phase_inc rc=0
+
+# opl2/lite calc_rhythm_phase rc=0
+
+# opl2/lite channels rc=0
+
+# opl2/lite control_operators rc=0
+
+# opl2/lite dac_prep rc=0
+
+# opl2/lite envelope_generator rc=0
+
+# opl2/lite ksl_add_rom rc=0
+
+# opl2/lite mem_simple_dual_port rc=0
+
+# opl2/lite mem_simple_dual_port_async_read rc=0
+
+# opl2/lite mem_single_bank rc=0
+
+# opl2/lite mem_single_bank_reset rc=0
+
+# opl2/lite operator rc=0
+
+# opl2/lite opl2_exp_lut rc=0
+
+# opl2/lite opl2_log_sine_lut rc=0
+
+# opl2/lite opl2_pkg rc=0
+
+# opl2/lite phase_generator rc=0
+
+# opl2/lite pipeline_sr rc=0
+
+# opl2/lite tremolo rc=0
+
+# opl2/lite vibrato rc=3
+Error (10170): Verilog HDL syntax error at vibrato.sv(73) near text: "signed";  expecting "(". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/knowledge-base/sear
+Error (10170): Verilog HDL syntax error at vibrato.sv(73) near text: ")";  expecting "<=", or "=", or "+=", or "-=", or "*=", or "/=", or "%=", or "&=", or "|=", or "^=", or "<<=", or ">>=", or "<<<=", or ">>>=", or "++", or "--". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific de
+Error (10112): Ignored design unit "vibrato" at vibrato.sv(46) due to previous errors
+Error: Quartus Prime Analyze Current File was unsuccessful. 3 errors, 0 warnings
+

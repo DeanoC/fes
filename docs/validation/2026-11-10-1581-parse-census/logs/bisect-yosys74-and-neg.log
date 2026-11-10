@@ -1,0 +1,55 @@
+## sha1 0a7927bf1
+yosys74_body_import.sv: ERROR:Static cast with non constant expression!
+yosys74_constant_operand.sv: ERROR:Static cast with non constant expression!
+yosys74_loop_after_cast.sv: ok
+yosys74_named_import.sv: ERROR:Static cast with non constant expression!
+yosys74_repro_noloop.sv: ok
+yosys74_repro.sv: ERROR:Static cast with non constant expression!
+yosys74_scoped_no_import.sv: ok
+yosys74_scoped_with_import.sv: ok
+neg_a_neg.sv: ok
+neg_a_neg_paren.sv: ok
+## sha1 238eac9a4
+yosys74_body_import.sv: ERROR:Static cast with non constant expression!
+yosys74_constant_operand.sv: ERROR:Static cast with non constant expression!
+yosys74_loop_after_cast.sv: ok
+yosys74_named_import.sv: ERROR:Static cast with non constant expression!
+yosys74_repro_noloop.sv: ok
+yosys74_repro.sv: ERROR:Static cast with non constant expression!
+yosys74_scoped_no_import.sv: ok
+yosys74_scoped_with_import.sv: ok
+neg_a_neg.sv: ok
+neg_a_neg_paren.sv: ok
+## sha1 3a5accbd7
+yosys74_body_import.sv: ERROR: syntax error, unexpected TOK_IMPORT
+yosys74_constant_operand.sv: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+yosys74_loop_after_cast.sv: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+yosys74_named_import.sv: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+yosys74_repro_noloop.sv: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+yosys74_repro.sv: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+yosys74_scoped_no_import.sv: ok
+yosys74_scoped_with_import.sv: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+neg_a_neg.sv: ok
+neg_a_neg_paren.sv: ok
+verilator neg_a_neg.sv rc=0
+verilator neg_a_neg_paren.sv rc=0
+## verilator f12c_check_elab_error, --lint-only -Wno-lint -Wno-style (warnings fatal)
+%Warning-USERERROR: forms/f12c_check_elab_error.sv:7:13: FES_TOOLCHAIN_ERROR_no_front_end
+                                                                                                                                                                 : ... note: In instance 'f12c_check_elab_error'
+    7 |             $error("FES_TOOLCHAIN_ERROR_no_front_end");
+      |             ^~~~~~
+                    ... For warning description see https://verilator.org/warn/USERERROR?v=5.032
+                    ... Use "/* verilator lint_off USERERROR */" and lint_on around source to disable this message.
+%Error: Exiting due to 1 warning(s)
+rc=1
+## verilator f12c_check_elab_error, --lint-only -Wno-fatal -Wno-lint -Wno-style
+%Warning-USERERROR: forms/f12c_check_elab_error.sv:7:13: FES_TOOLCHAIN_ERROR_no_front_end
+                                                                                                                                                                 : ... note: In instance 'f12c_check_elab_error'
+    7 |             $error("FES_TOOLCHAIN_ERROR_no_front_end");
+      |             ^~~~~~
+                    ... For warning description see https://verilator.org/warn/USERERROR?v=5.032
+                    ... Use "/* verilator lint_off USERERROR */" and lint_on around source to disable this message.
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.021 MB sources in 2 modules, into 0.010 MB in 4 C++ files needing 0.000 MB
+- Verilator: Walltime 0.004 s (elab=0.000, cvt=0.001, bld=0.000); cpu 0.004 s on 1 threads; alloced 8.945 MB
+rc=0
