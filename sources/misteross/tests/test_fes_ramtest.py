@@ -3,8 +3,13 @@
 
 import contextlib
 import io
+import shutil
+import subprocess
+import tempfile
 import unittest
 from unittest.mock import patch
+from scripts.core_package import read_package
+from scripts.quartus_tools import load_quartus_lock
 from scripts import build_fes_ramtest as producer
 from scripts import build_fes_ramtest_quartus as quartus
 from pathlib import Path
@@ -13,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "cores" / "fes-ramtest"
 COMMON = ROOT / "cores" / "fes-common"
 
-# The TimeQuest 17.0.2 tables the Quartus diagnostic's timing gate reads, at 130 MHz.
+# The locked Quartus's TimeQuest tables the Quartus diagnostic's timing gate reads, at 130 MHz.
 MEMORY_ROW = "; ram_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk   ; 0.412 ; 0.000         ;"
 PIXEL_ROW = "; video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk ; 5.205 ; 0.000         ;"
 ILLEGAL_ROW = "; Illegal Clocks                  ; 0     ; 0    ;"
@@ -194,6 +199,51 @@ class RamTestAbiTest(unittest.TestCase):
                 with self.subTest(name), contextlib.redirect_stdout(io.StringIO()), \
                         self.assertRaisesRegex(quartus.BuildError, message):
                     quartus.validate_timing(report)
+
+
+    def test_quartus_version_strings_come_from_the_lock(self):
+        lock = load_quartus_lock(ROOT, quartus.QUARTUS_LOCK)
+        version = lock.version
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for relative in (quartus.QSF_PINS, quartus.QUARTUS_LOCK):
+                (root / relative).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / relative, root / relative)
+            sh = root / "quartus" / "bin" / "quartus_sh"
+            located = []
+
+            def locate(quartus_root, repo_root, given):
+                located.append((repo_root, given))
+                return root / "quartus", sh, version
+
+            def run(argv, cwd, env, check):
+                files = Path(cwd) / "output_files"
+                files.mkdir()
+                (files / "top.sta.rpt").write_text(PASSING_REPORT, encoding="utf-8")
+                (files / "top.rbf").write_bytes(b"rbf")
+                return subprocess.CompletedProcess(argv, 0)
+
+            with patch.object(quartus, "MHZ", "130"), \
+                    patch.object(quartus, "locate_quartus", side_effect=locate), \
+                    patch.object(quartus.subprocess, "run", side_effect=run), \
+                    patch.object(quartus.subprocess, "check_output", return_value="0" * 40 + "\n"), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                output = quartus.compile(root)
+            self.assertEqual(located, [(root, lock)])
+            project = output / "project"
+            qsf = (project / "top.qsf").read_text(encoding="utf-8").splitlines()
+            self.assertIn('set_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"', qsf)
+            self.assertEqual(
+                (project / "top.qpf").read_text(encoding="utf-8"),
+                'QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n',
+            )
+            self.assertEqual(
+                (output / "quartus-version.log").read_text(encoding="utf-8"),
+                "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition\n",
+            )
+            build = read_package(output / "comparison.fcore").fields["build"]
+            self.assertEqual(build["toolchain"], "quartus 17.0.2")
+            self.assertEqual(build["id"], quartus.BUILD_ID)
 
 
 if __name__ == "__main__":

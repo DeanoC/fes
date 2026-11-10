@@ -1,0 +1,5 @@
+[quartus]
+edition = "lite"
+version = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
+device_family = "cyclonev"
+quartus_sh_sha256 = "71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93"
