@@ -28,7 +28,7 @@ an in-process source adapter, not a native network upload service. Model tests
 cover empty-library installation, the normal client API, real FAT persistence,
 fresh-boot discovery/launch/return and source/ownership/integrity failures.
 The changed native installer image has a
-[matched boot-chain build](../../../../docs/validation/2026-11-10-de25-native-package-install/README.md)
+[matched boot-chain build](../../../../docs/validation/2026-11-10-de25-native-installer-navigation/README.md)
 and still needs physical acceptance; the earlier 25 MHz file test does not
 qualify package installation.
 
@@ -40,7 +40,8 @@ playable entry. The explicit writable native selection enables separate bounded
 installer-navigation records, including changes that leave ordinary App status
 unchanged. Model-generated records are checked by the host decoder with their
 actual native counters; installation advances one request before launch/return.
-These changed UI/runtime bytes need a new matched image and physical trial.
+These changed UI/runtime bytes have a refreshed matched image and still need
+their own physical trial.
 
 `ProgramService.AttachNetwork` transfers one active controller before frontend
 ownership. Attachment claims the shared handle without hardware IO. Once bound,

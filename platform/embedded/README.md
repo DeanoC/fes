@@ -32,9 +32,10 @@ The explicit [25 MHz owned-session trial](../../docs/validation/2026-11-10-de25-
 also passes file creation/update, restored-clock containment/resume and fresh
 recovery file/protected-media readback. Ordinary startup retains its previous
 read-only transport. The explicit faster selection now supports the
-[staged native installer candidate](../../docs/validation/2026-11-10-de25-native-package-install/README.md):
+[staged native installer candidate](../../docs/validation/2026-11-10-de25-native-installer-navigation/README.md):
 an empty playable library, checked writable mount and the normal Tenfoot
-Install/Setup APIs. Its software/FAT model cycles and matched boot chain pass;
+Install/Setup APIs. Its full App Install → library → launch/return test,
+software/FAT model cycles and matched boot chain pass;
 physical installation and fresh-boot discovery still need their own trial.
 The [FAT32 allocation path](tamago/fat/README.md) now creates files and directories
 without preallocation, with independent mtools readback and real package-store
