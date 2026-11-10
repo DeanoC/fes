@@ -167,6 +167,43 @@ func registerCoreLibrary(mux *http.ServeMux, service Service) {
 		}
 		writeJSON(w, 200, value)
 	}))
+	mux.HandleFunc("DELETE /api/v1/library/core-entries/{game_id}", func(w http.ResponseWriter, r *http.Request) {
+		if r.Body == nil && (r.ContentLength > 0 || len(r.TransferEncoding) != 0) {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "package library request body must be empty")
+			return
+		}
+		if r.Body != nil && rejectCoreLibraryBody(w, r) {
+			return
+		}
+		gameID := r.PathValue("game_id")
+		if protocol.ValidateGameID(gameID) != nil {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "game ID is invalid")
+			return
+		}
+		s, ok := service.(interface {
+			RemoveCoreEntry(context.Context, string) error
+		})
+		if !ok {
+			writeError(w, http.StatusNotImplemented, "UNSUPPORTED_OPERATION", "core entry removal is unavailable")
+			return
+		}
+		if err := s.RemoveCoreEntry(r.Context(), gameID); err != nil {
+			var apiErr *protocol.APIError
+			if errors.As(err, &apiErr) {
+				switch apiErr.Code {
+				case protocol.CodeBusy:
+					writeJSON(w, http.StatusConflict, map[string]any{"error": apiError{Code: string(apiErr.Code), Phase: "core-entry-remove", Message: "A kit may be using this title. Stop the active session or finish recovery, then retry."}})
+					return
+				case protocol.CodeMiSTerUnavailable:
+					writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{Code: string(apiErr.Code), Phase: "core-entry-remove", Message: "Cannot check every configured kit. Connect the kits and retry."}})
+					return
+				}
+			}
+			writeCoreLibraryError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"game_id": gameID})
+	})
 	mux.HandleFunc("PUT /api/v1/library/core-entries/{game_id}", withService(func(w http.ResponseWriter, r *http.Request, s coreLibraryService) {
 		var request struct {
 			PackageID string `json:"package_id"`

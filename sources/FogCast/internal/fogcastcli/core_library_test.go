@@ -178,3 +178,72 @@ func TestCoreDataCommandsUseHostAPIAndNumericSpeed(t *testing.T) {
 		})
 	}
 }
+
+func TestCoreRemoveUsesHostAndVerifiesResponse(t *testing.T) {
+	response := `{"game_id":"core-pong"}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete || r.URL.Path != "/api/v1/library/core-entries/core-pong" {
+			t.Errorf("request %s %s", r.Method, r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, response)
+	}))
+	defer server.Close()
+	if !validCommand([]string{"core-remove", "core-pong"}) || validCommand([]string{"core-remove"}) || validCommand([]string{"core-remove", "x", "extra"}) {
+		t.Fatal("invalid core-remove command arity")
+	}
+	if r := runCoreLibraryCommand(context.Background(), server.URL, []string{"core-remove", "core-pong"}); r.err != nil {
+		t.Fatalf("remove: %+v", r)
+	}
+	response = `{"game_id":"different"}`
+	if r := runCoreLibraryCommand(context.Background(), server.URL, []string{"core-remove", "core-pong"}); r.err == nil {
+		t.Fatal("accepted mismatched response")
+	}
+	if r := runCoreLibraryCommand(context.Background(), server.URL, []string{"core-remove", "../other"}); r.err == nil {
+		t.Fatal("accepted invalid ID")
+	}
+}
+
+func TestCoreRemoveAdmissionErrorsUseTrustedActionableCopy(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		code   protocol.ErrorCode
+		want   string
+	}{
+		{"busy", http.StatusConflict, protocol.CodeBusy, "Stop the session or finish recovery"},
+		{"unavailable", http.StatusServiceUnavailable, protocol.CodeMiSTerUnavailable, "Connect the kits and retry"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+				fmt.Fprintf(w, `{"error":{"code":%q,"phase":"core-entry-remove","message":"REMOTE_SECRET_PATH"}}`, tc.code)
+			}))
+			defer server.Close()
+			result := runCoreLibraryCommand(context.Background(), server.URL, []string{"core-remove", "core-pong"})
+			if result.err == nil {
+				t.Fatal("admission error was lost")
+			}
+			got := safeCommandError(result.err)
+			if got.Code != tc.code || got.Phase != "core-entry-remove" || !strings.Contains(got.Message, tc.want) || strings.Contains(got.Message, "REMOTE_SECRET_PATH") {
+				t.Fatalf("unsafe or unactionable error %+v", got)
+			}
+		})
+	}
+}
+
+func TestCoreRemoveDoesNotTrustUnrelatedRemotePhase(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = io.WriteString(w, `{"error":{"code":"INTERNAL","phase":"video-change-outcome","message":"REMOTE_SECRET_PATH"}}`)
+	}))
+	defer server.Close()
+	result := runCoreLibraryCommand(context.Background(), server.URL, []string{"core-remove", "core-pong"})
+	if result.err == nil {
+		t.Fatal("missing error")
+	}
+	got := safeCommandError(result.err)
+	if got.Phase != "" || strings.Contains(got.Message, "Video") || strings.Contains(got.Message, "REMOTE_SECRET_PATH") {
+		t.Fatalf("untrusted remote phase changed removal advice: %+v", got)
+	}
+}

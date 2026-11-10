@@ -33,13 +33,29 @@ func (s *Service) SetFavorite(ctx context.Context, gameID string, favorite bool)
 	if s.users == nil {
 		return canonicalError(protocol.CodeInternal, nil)
 	}
-	if _, err := s.Game(ctx, gameID); err != nil {
+	return userMutationError(s.users.MutateGame(ctx, func(m *libraryuser.GameMutation) error {
+		if _, err := s.Game(ctx, gameID); err != nil {
+			return err
+		}
+		return m.SetFavorite(ctx, gameID, favorite)
+	}))
+}
+
+func userMutationError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var apiErr *protocol.APIError
+	if errors.As(err, &apiErr) {
 		return err
 	}
-	if err := s.users.SetFavorite(ctx, gameID, favorite); err != nil {
-		return canonicalError(protocol.CodeInternal, safeContextError(err))
+	if errors.Is(err, libraryuser.ErrNotFound) {
+		return libraryuser.ErrNotFound
 	}
-	return nil
+	if errors.Is(err, libraryuser.ErrReservedID) || errors.Is(err, libraryuser.ErrInvalid) {
+		return canonicalError(protocol.CodeBadRequest, nil)
+	}
+	return canonicalError(protocol.CodeInternal, safeContextError(err))
 }
 
 func (s *Service) LibraryState(ctx context.Context, gameID string) (libraryuser.State, error) {
@@ -71,38 +87,61 @@ func (s *Service) RecordPlay(ctx context.Context, gameID string) error {
 	if err := protocol.ValidateGameID(gameID); err != nil {
 		return canonicalError(protocol.CodeBadRequest, nil)
 	}
-	if source, ok := s.catalog.(interface {
-		KitHostPlaySource(context.Context, string) (string, bool, error)
-	}); ok {
-		mapped, generated, err := source.KitHostPlaySource(ctx, gameID)
-		if err != nil {
-			return canonicalError(protocol.CodeInternal, safeContextError(err))
+	return userMutationError(s.users.MutateGame(ctx, func(m *libraryuser.GameMutation) error {
+		if source, ok := s.catalog.(interface {
+			KitHostPlaySource(context.Context, string) (string, bool, error)
+		}); ok {
+			mapped, generated, err := source.KitHostPlaySource(ctx, gameID)
+			if err != nil {
+				return canonicalError(protocol.CodeInternal, safeContextError(err))
+			}
+			if generated {
+				if mapped == "" {
+					return nil
+				}
+				gameID = mapped
+			}
 		}
-		if generated {
-			if mapped == "" {
+		if store, ok := s.catalog.(interface {
+			RetainedCoreEntry(context.Context, string) (bool, error)
+		}); ok {
+			retained, err := store.RetainedCoreEntry(ctx, gameID)
+			if err != nil {
+				return canonicalError(protocol.CodeInternal, safeContextError(err))
+			}
+			if retained {
 				return nil
 			}
-			gameID = mapped
 		}
-	}
-	if err := s.users.RecordPlay(ctx, gameID); err != nil {
-		return canonicalError(protocol.CodeInternal, safeContextError(err))
-	}
-	return nil
+		return m.RecordPlay(ctx, gameID)
+	}))
 }
 
 func (s *Service) SetEditionPreference(ctx context.Context, query, platform, gameID string) (libraryuser.EditionPreference, error) {
 	if s.users == nil {
 		return libraryuser.EditionPreference{}, canonicalError(protocol.CodeInternal, nil)
 	}
-	pref, err := s.users.SetEditionPreference(ctx, query, platform, gameID)
-	if err != nil {
-		if errors.Is(err, libraryuser.ErrInvalid) {
-			return libraryuser.EditionPreference{}, canonicalError(protocol.CodeBadRequest, nil)
-		}
-		return libraryuser.EditionPreference{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+	if protocol.ValidateGameID(gameID) != nil {
+		return libraryuser.EditionPreference{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
-	return pref, nil
+	var pref libraryuser.EditionPreference
+	err := s.users.MutateGame(ctx, func(m *libraryuser.GameMutation) error {
+		if store, ok := s.catalog.(interface {
+			RetainedCoreEntry(context.Context, string) (bool, error)
+		}); ok {
+			retained, err := store.RetainedCoreEntry(ctx, gameID)
+			if err != nil {
+				return canonicalError(protocol.CodeInternal, safeContextError(err))
+			}
+			if retained {
+				return canonicalError(protocol.CodeROMNotFound, nil)
+			}
+		}
+		var err error
+		pref, err = m.SetEditionPreference(ctx, query, platform, gameID)
+		return err
+	})
+	return pref, userMutationError(err)
 }
 
 func (s *Service) EditionPreference(ctx context.Context, query, platform string) (libraryuser.EditionPreference, error) {
@@ -178,28 +217,15 @@ func (s *Service) SetCollectionMember(ctx context.Context, collectionID, gameID 
 	if s.users == nil {
 		return canonicalError(protocol.CodeInternal, nil)
 	}
-	if _, err := s.users.Collection(ctx, collectionID); err != nil {
-		if errors.Is(err, libraryuser.ErrNotFound) {
-			return libraryuser.ErrNotFound
+	return userMutationError(s.users.MutateGame(ctx, func(m *libraryuser.GameMutation) error {
+		if _, err := m.Collection(ctx, collectionID); err != nil {
+			return err
 		}
-		if errors.Is(err, libraryuser.ErrReservedID) || errors.Is(err, libraryuser.ErrInvalid) {
-			return canonicalError(protocol.CodeBadRequest, nil)
+		if _, err := s.Game(ctx, gameID); err != nil {
+			return err
 		}
-		return canonicalError(protocol.CodeInternal, safeContextError(err))
-	}
-	if _, err := s.Game(ctx, gameID); err != nil {
-		return err
-	}
-	if err := s.users.SetCollectionMember(ctx, collectionID, gameID, member); err != nil {
-		if errors.Is(err, libraryuser.ErrNotFound) {
-			return libraryuser.ErrNotFound
-		}
-		if errors.Is(err, libraryuser.ErrReservedID) || errors.Is(err, libraryuser.ErrInvalid) {
-			return canonicalError(protocol.CodeBadRequest, nil)
-		}
-		return canonicalError(protocol.CodeInternal, safeContextError(err))
-	}
-	return nil
+		return m.SetCollectionMember(ctx, collectionID, gameID, member)
+	}))
 }
 
 func (s *Service) GameCollectionIDs(ctx context.Context, gameID string) ([]string, error) {

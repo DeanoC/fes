@@ -64,13 +64,21 @@ func EditionKey(query, platform string) string {
 }
 
 func (s *Store) SetEditionPreference(ctx context.Context, query, platform, gameID string) (EditionPreference, error) {
+	return setEditionPreference(ctx, s.db, query, platform, gameID)
+}
+
+func (m *GameMutation) SetEditionPreference(ctx context.Context, query, platform, gameID string) (EditionPreference, error) {
+	return setEditionPreference(ctx, m.conn, query, platform, gameID)
+}
+
+func setEditionPreference(ctx context.Context, db gameExecer, query, platform, gameID string) (EditionPreference, error) {
 	pref, err := validateEditionPreference(query, platform, gameID)
 	if err != nil {
 		return EditionPreference{}, err
 	}
 	key := EditionKey(pref.Query, pref.Platform)
 	now := time.Now().UnixNano()
-	_, err = s.db.ExecContext(ctx, `
+	_, err = db.ExecContext(ctx, `
 		INSERT INTO edition_preference(match_key, query, platform, game_id, chosen_at)
 		VALUES(?, ?, ?, ?, ?)
 		ON CONFLICT(match_key) DO UPDATE SET

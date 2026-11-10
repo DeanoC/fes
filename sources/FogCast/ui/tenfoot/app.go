@@ -356,6 +356,10 @@ type App struct {
 	shotIDs                map[string][]string
 	detailOpen             bool
 	libraryDetail          hostclient.Game
+	detailRemoveID         string
+	detailRemoveError      string
+	detailRemoveBusy       bool
+	detailRemoveGeneration uint64
 	carouselIndex          int
 	shotGen                int
 	shotCtx                context.Context
@@ -1678,6 +1682,18 @@ func (a *App) platformChoicesLocked() []string {
 
 func (a *App) reloadLocked() {
 	a.closeDetailLocked()
+	a.reloadCatalogLocked()
+}
+
+// reloadCatalogLocked preserves an unrelated open Details pane during an
+// asynchronous catalog mutation.
+func (a *App) reloadCatalogLocked() {
+	a.reloadCatalogWithNoticeLocked("")
+}
+
+// reloadCatalogWithNoticeLocked retains the outcome of a user action after a
+// successful refresh, unless the user has navigated since the action finished.
+func (a *App) reloadCatalogWithNoticeLocked(notice string) {
 	a.captureCatalogFocusLocked()
 	a.searchPending = false
 	a.loadGen++
@@ -1686,7 +1702,26 @@ func (a *App) reloadLocked() {
 	a.loadErr = ""
 	a.status = "loading library"
 	ctx := a.replaceLoadContextLocked()
-	go a.loadLibrary(ctx, gen)
+	lastInput := a.lastInput
+	if notice != "" {
+		a.status = notice
+	}
+	go func() {
+		a.loadLibrary(ctx, gen)
+		if notice == "" {
+			return
+		}
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		if ctx.Err() != nil || a.loadGen != gen || a.loading || !a.lastInput.Equal(lastInput) {
+			return
+		}
+		if a.loadErr != "" || a.status == savedListOfflineCopy || a.status == "Can't reach the library right now." {
+			a.status = notice + " Couldn't refresh the library."
+			return
+		}
+		a.status = notice
+	}()
 }
 
 func (a *App) replaceLoadContextLocked() context.Context {
