@@ -181,8 +181,20 @@ task gate (POST 22, slice 4).
 
 ## Seal
 
-(Pending the coordinator's decision: the seed-1 seal at the PR's head did
-not fit; see the Result above.)
+Quartus 17.0.2 from clean checkouts, with `CACHE_ROOT` and
+`QUARTUS_ROOTDIR` as slice 2's record gives them.
+
+| Fit | Commit | Seed | Result | Setup | Hold | ALMs | M10K |
+| --- | --- | ---: | --- | ---: | ---: | ---: | ---: |
+| a1 | `7837d3955` | 1 | every analysis met (package `7b29b38a…`, the kit's) | +0.568 ns | +0.075 ns | 36,492 | 268 |
+| s2 | `bd1a9f4b4` (the PR's RTL) | 1 | **no fit**: routing stopped on congestion while adding hold delay (peak interconnect 62% in X33-44, Y11-22) | | | | |
+| d2 | `bd1a9f4b4` | 2 | every analysis met, a diagnostic only (package `48f8cc11…`) | +0.629 ns | +0.080 ns | 36,442 | 268 |
+
+Main's seal (slice 2's) used 36,717 ALMs and 268 M10K. Between a1 and s2
+the RTL gained one term in D (`d_ifw` needs `!cs_gp`, from Codex's review)
+and comments. The seed-1 seal at the PR's head is the gate, and it fails;
+the slice stops there for the coordinator's decision rather than take
+another seed as the seal.
 
 ## Kit
 
