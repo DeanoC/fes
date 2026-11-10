@@ -56,7 +56,11 @@ The full reports are in [`reports/`](reports/). The locked reports carry the
 new `verilator` record (lock, commit, sha256, version, slot key).
 
 The front-end checks (`test_fes_i386_frontend.py`, RTL and `--yosys`) also
-pass with the locked Verilator, with zero warnings in all six builds.
+pass with the locked Verilator, with zero warnings in all six builds. So do the
+latency bench and the governor bench. `test_fes_i386_test386.py --cpu rtl`
+gives the same `rtl-report.json` under the locked v5.054 and system 5.032,
+apart from the `verilator` field. On both, the run passes POST 21h and stops
+at the unbuilt `IRETD` at `F2D53h`.
 
 ## Warnings
 
