@@ -32,11 +32,13 @@ programming-connection cleanup and full evidence/source restore checks pass.
 This is a bounded diagnostic: physical display/input, ordinary appliance loading,
 general USB reliability, native Ethernet and whole-board timing remain open.
 The [keyboard return trial](../../docs/validation/2026-11-10-de25-staged-observer-trial/README.md)
-now passes physical USB Ctrl+Alt+Escape from ZX81 to the launcher, then ZX80
-launch/return and final Park. All five exchanges replay from saved serial data.
+now passes the physical USB Ctrl+Alt+Escape action and serial launcher return,
+then ZX80 launch/return and final Park. All five exchanges replay from saved data.
 An earlier attempt has operator-observed ZX81 video and typed keys appearing
-correctly; visible launcher return on the current trial still awaits operator
-confirmation. Ordinary core installation and full appliance acceptance remain open.
+correctly. On the current trial the operator reports the screen stayed on ZX81
+after the chord: visible launcher return fails despite the serial checks and
+requires HDMI-path investigation. Ordinary core installation and full appliance
+acceptance remain open.
 
 The [paired menu/core/menu hardware trial](../../docs/validation/2026-11-08-de25-verified-files-board-trial/hardware.md)
 now passes ZX81 → menu → ZX80 → menu → ZX81 → menu and final Park on TRWU8CBL:

@@ -1,6 +1,6 @@
 # Bounded keyboard test after the host observer repair
 
-The [physical result](hardware-result.json) passes on top TRWU8CBL: initial
+The [serial/keyboard result](hardware-result.json) passes on top TRWU8CBL: initial
 launcher → ZX81 plus 917-byte tape → physical USB Ctrl+Alt+Escape → launcher →
 ZX80 → owned Quit → launcher/final Park. All five exchanges independently
 replay from the saved wire with their original polling times. Five FPGA
@@ -12,8 +12,10 @@ report progress. It arrived after 52.80 seconds, inside the 60-second human
 wait. Core/menu return and the second launch/return pass their existing bounds.
 The native phase takes 354.65 seconds and the complete experiment 481.60.
 Tape transfer takes 1.213 seconds, with independent control/fetch under 0.1.
-The requested operator confirmation of visible HDMI launcher return remains
-pending; serial frame presentation alone does not establish that observation.
+The subsequent [operator observation](operator-display-observation.json)
+contradicts visible HDMI return: **the screen stayed on ZX81 after the chord**.
+Visible launcher return fails and must be repaired. Serial frame presentation
+and control closure do not establish the physical HDMI picture.
 
 Final logical Park is generation 5; the firmware menu-return observation has
 bridge generation 29/reset mask 15 and masters contained. Firmware return and
@@ -24,7 +26,9 @@ UART free. Programming failures remain historical two/new zero.
 The full 5,923-file hardware closure has archive readback/mode checks and an
 independently imported source bundle with strict fsck/pack verification at
 `/home/deano/fes-retained/de25-staged-observer-trial-hardware-20261110-r1`.
-Its source is `29b61b9ea`; the archive records HDMI confirmation as pending.
+Its source is `29b61b9ea`; the immutable archive records HDMI confirmation as
+pending because the answer arrived afterward. The later negative observation
+is recorded separately here and does not rewrite the preserved capture.
 The spare card stays installed, factory restoration remains waived, and the
 top kit remains claimed. This bounded diagnostic does not establish ordinary
 core installation, native Ethernet, writable native SD, broad USB/core support

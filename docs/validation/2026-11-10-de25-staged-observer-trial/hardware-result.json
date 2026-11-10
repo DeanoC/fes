@@ -1,5 +1,5 @@
 {
-  "status": "passed-bounded-physical-keyboard-return-and-two-core-cycle",
+  "status": "passed-serial-keyboard-cycle-visible-launcher-return-failed",
   "source_head": "29b61b9eaa91f28d7eb49e69ac7fac94a9ca416e",
   "compiled_source": "db5fc2d66b1426e79e63a77577499d1139eda33e",
   "observer_repair": "a63d46d90",
@@ -27,7 +27,7 @@
   },
   "physical_usb_report_progress": 532,
   "physical_input_controls_verified": false,
-  "operator_visible_return": "pending",
+  "operator_visible_return": "failed-screen-stayed-on-zx81",
   "physical_display_verified": false,
   "cycles": [
     {
@@ -177,9 +177,12 @@
     "out/nano-staged-observer-trial-20261110/replay-proof.json": "f727b0669eca5194dde801ba9412dc16b47cc66d9893f1c7873fdeda19037fc0",
     "out/nano-staged-observer-trial-20261110/cleanup-evidence.json": "d9a8541e38a23d3b20568d5956e421f30604b82c868c70aa0c0b4695a2dce9a6",
     "out/nano-staged-observer-trial-20261110/hardware-retention-proof.json": "2cb5d713b1ba0eeb94cefce24dabf48897d8de97ffdebe0be52d55ddf296c03d",
-    "out/nano-staged-observer-trial-20261110/operator-observations.json": "9ad567a0110c9e221d502bbc03d3b08a5194adf166cee13475998d025e7d9020"
+    "out/nano-staged-observer-trial-20261110/operator-observations.json": "9ad567a0110c9e221d502bbc03d3b08a5194adf166cee13475998d025e7d9020",
+    "docs/validation/2026-11-10-de25-staged-observer-trial/operator-display-observation.json": "9e11f8d0c66ad7a69f4d9fdf1e0aa43009c515181ace16d324a0d548358218da"
   },
   "ordinary_admission": false,
   "full_appliance_acceptance": false,
-  "whole_board_timing_signoff": false
+  "whole_board_timing_signoff": false,
+  "visible_return_passed": false,
+  "operator_display_observation": "operator-display-observation.json"
 }

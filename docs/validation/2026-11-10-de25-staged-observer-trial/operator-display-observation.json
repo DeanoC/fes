@@ -1,0 +1,11 @@
+{
+  "source": "operator answer after the bounded test",
+  "question": "After Ctrl+Alt+Escape, did the launcher visibly reappear on TRWU8CBL monitor before the next core began loading?",
+  "answer": "No, the screen stayed on ZX81",
+  "visible_launcher_return_verified": false,
+  "visible_return_failed": true,
+  "serial_and_keyboard_diagnostic_remains_passed": true,
+  "serial_frame_receipt_is_not_hdmi_acceptance": true,
+  "original_archive_observation": "pending; preserved unchanged",
+  "ordinary_admission": false
+}
