@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -76,12 +77,12 @@ func (s *Store) CreateCoreEntry(ctx context.Context, title, coreID, packageID st
 
 // CreateCoreMediaEntry atomically creates a title with an explicit media selection.
 func (s *Store) CreateCoreMediaEntry(ctx context.Context, title, coreID, packageID, mediaRole, mediaID string) (CoreEntry, error) {
-	return s.createCoreEntry(ctx, title, coreID, packageID, mediaRole, mediaID, false, nil)
+	return s.createCoreEntry(ctx, title, coreID, packageID, mediaRole, mediaID, false, nil, nil)
 }
 
 // CreateFirmwareRequiredEntry creates a title that cannot become Ready without household firmware.
 func (s *Store) CreateFirmwareRequiredEntry(ctx context.Context, title, coreID, packageID, mediaRole, mediaID string) (CoreEntry, error) {
-	return s.createCoreEntry(ctx, title, coreID, packageID, mediaRole, mediaID, true, nil)
+	return s.createCoreEntry(ctx, title, coreID, packageID, mediaRole, mediaID, true, nil, nil)
 }
 
 type KitHostEntryIdentity struct {
@@ -103,10 +104,10 @@ func (s *Store) CreateKitHostEntry(ctx context.Context, title, coreID, packageID
 	if identity.ROMID == "" && (identity.ROMMediaID != "" || identity.ROMSourceSize != 0) {
 		return CoreEntry{}, ErrInvalidCoreROM
 	}
-	return s.createCoreEntry(ctx, title, coreID, packageID, role, mediaID, false, &identity)
+	return s.createCoreEntry(ctx, title, coreID, packageID, role, mediaID, false, &identity, nil)
 }
 
-func (s *Store) createCoreEntry(ctx context.Context, title, coreID, packageID, mediaRole, mediaID string, firmwareRequired bool, kit *KitHostEntryIdentity) (CoreEntry, error) {
+func (s *Store) createCoreEntry(ctx context.Context, title, coreID, packageID, mediaRole, mediaID string, firmwareRequired bool, kit *KitHostEntryIdentity, remote *RemoteCoreEntryOrigin) (CoreEntry, error) {
 	title = strings.TrimSpace(title)
 	if err := validateCoreEntry(title, coreID, packageID); err != nil {
 		return CoreEntry{}, err
@@ -119,12 +120,25 @@ func (s *Store) createCoreEntry(ctx context.Context, title, coreID, packageID, m
 	// rows retain their stored IDs; the core/title query below finds duplicates
 	// created by either identity scheme.
 	gameID := GameID(CorePlatform, corePackageLibraryID, coreID+"\x00"+title, title)
+	if remote != nil {
+		digest := sha256.Sum256([]byte("remote-core-entry\x00" + remote.SourceID + "\x00" + remote.SourceGameID))
+		gameID = fmt.Sprintf("fpga-remote-%x", digest)
+	}
 	entry := CoreEntry{GameID: gameID, Title: title, CoreID: coreID, PackageID: packageID, MediaRole: mediaRole, MediaID: mediaID, FirmwareRequired: firmwareRequired}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return CoreEntry{}, fmt.Errorf("begin core entry creation: %w", err)
 	}
 	defer tx.Rollback()
+	if remote != nil {
+		existing, err := scanCoreEntry(tx.QueryRowContext(ctx, coreEntrySelect+` WHERE e.game_id = (SELECT game_id FROM remote_core_entries WHERE source_id = ? AND source_game_id = ?)`, remote.SourceID, remote.SourceGameID).Scan)
+		if err == nil {
+			return existing, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return CoreEntry{}, fmt.Errorf("read remote core entry: %w", err)
+		}
+	}
 	if mediaID != "" {
 		if _, err := verifyCoreMedia(ctx, tx, mediaID, io.Discard); err != nil {
 			return CoreEntry{}, err
@@ -134,7 +148,14 @@ func (s *Store) createCoreEntry(ctx context.Context, title, coreID, packageID, m
 		return CoreEntry{}, err
 	}
 	var exists int
-	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM core_entries AS e JOIN games AS g ON g.game_id = e.game_id WHERE e.game_id = ? OR (e.core_id = ? AND g.title = ?)) OR EXISTS(SELECT 1 FROM games WHERE game_id = ?)`, gameID, coreID, title, gameID).Scan(&exists); err != nil {
+	query := `SELECT EXISTS(SELECT 1 FROM games WHERE game_id = ?)`
+	args := []any{gameID}
+	if remote == nil {
+		// A remote title may share its visible name with a local title.
+		query = `SELECT EXISTS(SELECT 1 FROM core_entries AS e JOIN games AS g ON g.game_id = e.game_id WHERE (e.game_id = ? OR (e.core_id = ? AND g.title = ?)) AND NOT EXISTS (SELECT 1 FROM remote_core_entries AS r WHERE r.game_id = e.game_id)) OR EXISTS(SELECT 1 FROM games WHERE game_id = ?)`
+		args = []any{gameID, coreID, title, gameID}
+	}
+	if err := tx.QueryRowContext(ctx, query, args...).Scan(&exists); err != nil {
 		return CoreEntry{}, fmt.Errorf("check core entry conflict: %w", err)
 	}
 	if exists != 0 {
@@ -155,6 +176,11 @@ func (s *Store) createCoreEntry(ctx context.Context, title, coreID, packageID, m
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO core_entries(game_id, core_id, package_id, media_role, media_id, firmware_required) VALUES (?, ?, ?, ?, ?, ?)`, gameID, coreID, packageID, mediaRole, mediaID, firmwareRequiredInt(firmwareRequired)); err != nil {
 		return CoreEntry{}, fmt.Errorf("insert core entry: %w", err)
+	}
+	if remote != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO remote_core_entries(game_id, source_id, source_game_id, package_id, media_id, media_name) VALUES (?, ?, ?, ?, ?, ?)`, gameID, remote.SourceID, remote.SourceGameID, packageID, remote.MediaID, remote.MediaName); err != nil {
+			return CoreEntry{}, fmt.Errorf("insert remote core origin: %w", err)
+		}
 	}
 	if kit != nil {
 		if kit.ROMID != "" {

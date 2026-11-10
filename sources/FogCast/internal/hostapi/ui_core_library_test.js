@@ -515,6 +515,40 @@ test('hard-disk import outlasts the request deadline and shows its geometry',asy
   await f.controller.importMedia({size:1<<20});
   assert.match(nodes['core-media-status'].textContent,/Disk geometry 2\/16\/63 \(cylinders\/heads\/sectors\) from its partition table\./);
 });
+test('host-drive picker opts into hard disks only for the selected package',async t=>{
+  const previous=globalThis.FogCastStorage, picks=[];
+  globalThis.FogCastStorage={pick:options=>picks.push(options)};
+  t.after(()=>{globalThis.FogCastStorage=previous;});
+  const f=fixture(), nodes=mountPanel(f.controller);
+  f.intercept((path,options)=>{
+    if(path.endsWith('/media-capabilities') && path.includes('/'+B+'/'))
+      return response({...caps(B),media:[{role:'hard-disk',min_bytes:1<<20,max_bytes:128<<20,
+        transport:'fes-computer-ata-disk-window-v1',unit:0}]});
+    if(path==='/api/v1/core-media/hard-disk')return response({media_id:M,size:options.body.size},201);
+    return undefined;
+  });
+  await f.controller.open(); await f.controller.selectPackage(A);
+  nodes['core-media-drive'].listeners.click();
+  assert.equal(picks.at(-1).purpose,'media');
+  assert.equal(picks.at(-1).filePurpose,undefined);
+  await f.controller.selectPackage(B);
+  nodes['core-media-drive'].listeners.click();
+  assert.equal(picks.at(-1).purpose,'media');
+  assert.equal(picks.at(-1).filePurpose,'hard-disk');
+  const stale=picks.at(-1);
+  await f.controller.selectPackage(A);
+  await stale.onSelect({name:'disk.img',size:1<<20});
+  assert.equal(f.calls.filter(c=>c.options.method==='POST').length,0);
+  assert.match(f.controller.snapshot().message,/Package or media route changed/);
+  await f.controller.selectPackage(B);
+  nodes['core-media-drive'].listeners.click();
+  const disk={name:'disk.img',size:33*1024*1024};
+  await picks.at(-1).onSelect(disk);
+  assert.equal(f.calls.filter(c=>c.path==='/api/v1/core-media/hard-disk').at(-1).options.body,disk);
+  await f.controller.selectPackage(A);
+  nodes['core-media-drive'].listeners.click();
+  assert.equal(picks.at(-1).filePurpose,undefined);
+});
 test('hard-disk entry shows the inferred geometry and overrides it through disk-geometry',async()=>{
   const f=fixture();
   const puts=[];
