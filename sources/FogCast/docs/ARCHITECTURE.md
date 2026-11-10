@@ -2644,6 +2644,67 @@ See [kit launcher](kit-launcher.md) and [host connection contract](launcher-host
 for setup, controls, exact routes, timeouts and ownership. The existing browser
 listener remains loopback-only.
 
+## Remote library sources
+
+A kit can index ZX81 cassettes from a statically configured FogCast source.
+Each source entry may contain a private shared bearer token of 32–256
+characters when the source listener requires one; `fogcast-api` always requires
+a valid `library_source_token` to enable that listener. The source
+starts `fogcast-api --config /absolute/source.toml --headless
+--source-listen 0.0.0.0:8790`; startup refuses this listener when
+`library_source_token` is missing or invalid. Bind a non-loopback listener only
+on a trusted LAN: this HTTP listener sends the bearer token without transport
+encryption. Its general API remains on loopback. Every source request requires
+`Authorization: Bearer <token>`. The separate source listener serves only
+`GET /api/v1/library/core-entries` and the existing
+`GET /api/v1/mesh/content/source` and `/object` content reads. Its core-entry
+document contains locally owned ZX81 cassette entries with stored media of
+1–16,384 bytes and no expansion selection. It omits firmware bindings and
+imported source entries. Content reads expose only those exported cassettes;
+the source cannot launch, configure, or own the receiving kit.
+
+The kit's canonical configuration preserves static sources across restarts:
+
+```toml
+[[library_sources]]
+id = "powerboat"
+url = "http://powerboat:8790"
+token = "replace-with-a-private-random-token-of-at-least-32-characters"
+```
+
+Set `library_source_token` to the same value in the source host's private
+configuration. Keep both configuration files private. Source settings APIs
+accept tokens on writes and omit them from reads and write responses. On PUT,
+omitting a token for an existing source ID keeps its stored token, even if its
+URL changes; a new source may omit the token.
+
+The loopback API exposes `GET` and `PUT /api/v1/library/sources`; PUT takes
+`{"sources":[{"id":"powerboat","url":"http://powerboat:8790","token":"<shared-token>"}]}`. The per-source token is optional. An empty
+array removes the configuration without deleting saved titles or cached media.
+`POST /api/v1/library/sources/powerboat/refresh` reads the remote core-entry
+document and reports its indexed entries and skipped count. Refresh is explicit;
+it does not run on every library read or block host startup. These management
+operations are unavailable on the paired launcher and source listeners.
+
+Refresh creates ordinary visible library entries without downloading their
+cassettes. The receiving host must already have the source entry's exact sealed
+ZX81 package installed; other packages and media roles are skipped. Firmware
+is selected on the kit through the existing machine setup. A durable mapping
+of source ID and source game ID gives each imported title a stable local game
+ID, including when titles have identical names. Refresh keeps that first
+content snapshot and all subsequent local user choices. Imported rows and
+their provenance survive a host restart.
+
+The first normal Play fetches at most 16 KiB, verifies the content digest before
+import, and atomically binds the cassette only while its original pending
+selection still holds. A user selection made during a download wins. Fetch and
+admission finish before a running core can be stopped or replaced, and before
+mesh Ensure projects the new composition. Later plays use the existing local
+media path without contacting the source. A failed refresh preserves the saved
+rows; an unavailable source cannot supply an uncached cassette. No firmware,
+package or expansion transfer, discovery, or mounted SMB/NFS root is part of
+this first source path.
+
 ## Persistent kit software releases
 
 The FES base-image `fes-kit-software` supervisor owns the agent, native runtime

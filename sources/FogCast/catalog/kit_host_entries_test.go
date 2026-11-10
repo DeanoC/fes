@@ -14,7 +14,7 @@ func TestKitHostEntryMigrationAndAtomicCreation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.db.ExecContext(ctx, `DROP TRIGGER kit_host_entry_edit; DROP TRIGGER kit_host_rom_insert; DROP TRIGGER kit_host_rom_update; DROP TRIGGER kit_host_rom_delete; DROP TRIGGER kit_host_expansion_insert; DROP TRIGGER kit_host_expansion_update; DROP TRIGGER kit_host_expansion_delete; DROP TRIGGER kit_host_slot_insert; DROP TRIGGER kit_host_slot_update; DROP TRIGGER kit_host_slot_delete; DROP TABLE kit_host_entries; PRAGMA user_version = 20`); err != nil {
+	if _, err := store.db.ExecContext(ctx, `DROP TRIGGER remote_core_entry_selected; DROP TABLE remote_core_entries; DROP TRIGGER kit_host_entry_edit; DROP TRIGGER kit_host_rom_insert; DROP TRIGGER kit_host_rom_update; DROP TRIGGER kit_host_rom_delete; DROP TRIGGER kit_host_expansion_insert; DROP TRIGGER kit_host_expansion_update; DROP TRIGGER kit_host_expansion_delete; DROP TRIGGER kit_host_slot_insert; DROP TRIGGER kit_host_slot_update; DROP TRIGGER kit_host_slot_delete; DROP TABLE kit_host_entries; PRAGMA user_version = 20`); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
