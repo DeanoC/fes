@@ -33,13 +33,17 @@ the i386 lock's v5.054 `bbb60a40` in every run.
 | `lockstep-slot`, `frontend-slot` | `0a7927bf1`, from the new i386 lock's own slot | `804e424c012d9486…` | `ddc23ba2…` |
 
 The new slot is `ddc23ba25a44cf71e5cd8cf87da51a7c9cbd73b26826e25caa1453c082b632f5`,
-built with `make toolchain-fes-i386` (GPU router OFF) from the edited lock (sha256
-`07f8111b…`). For the "new slot" row the edited lock was in the tree, so
+built by `scripts/bootstrap.sh` with the environment `make toolchain-fes-i386` sets
+(GPU router OFF). `FES_TOOLCHAIN_LOCKFILE` pointed at a scratch copy of the edited
+lock, sha256 `07f8111b…`, which is byte-identical to the committed lock. The slot
+key depends only on the lock's bytes, not its path. For the "new slot" row the edited lock was in the tree, so
 `i386_verilator.py` authenticated that slot's Verilator itself (`verilator.slot` in
 `reports/lockstep-slot.json`).
 
-Slot builds aren't bit-reproducible: the three `0a7927bf` binaries above, and the
-two in the pc386 slots, all have different sha256s. So this record names the Yosys
+Slot builds aren't bit-reproducible. The three `0a7927bf` binaries on this host
+all have different sha256s: the new slot `ddc23ba2…` and the pc386 slots
+`9092d69c…` and `544f7f8c…`. So do the two `238eac9a` slots, `44e245aa…` and
+`053d3998…`. So this record names the Yosys
 commit and the slot, and it compares outputs, not binaries.
 
 ## Results
@@ -71,15 +75,18 @@ The trace hashes compared are:
 `random/trace_hash_mismatches` is empty in all four reports.
 
 All four reports show the same single failure: `random#2#449` (31,999 of 32,000
-random programs pass). That failure is #1425, an RTL issue already recorded in
-#1651. It's a REP STOSD with DF set that stores over its own encoding while an
-INTR is injected. The RTL run hits it too, so it doesn't depend on Yosys.
+random programs pass). That failure is #1425, a known lockstep harness issue already recorded in #1651.
+A REP STOSD with DF set stores over its own encoding while an INTR is injected.
+The RTL runs the whole REP, as a 386 would, but Bochs stops after the first
+element because of how it handles self-modifying code. The RTL run hits it too,
+so it doesn't depend on Yosys.
 
 **Front end.** `test_fes_i386_frontend.py --yosys` gives identical reports for
 `238eac9a`, `0a7927bf` and the new slot. That covers the lendec, front-end and DAG
 records, plus the `qalign_synthesis` cell counts, which run `synth_intel_alm` and
-so do run `wreduce`. Compared with the RTL run, the netlist runs differ only in
-`l2_empty_releases`, which is 0. That's by design:
+so do run `wreduce`. Compared with the RTL run, the netlist runs differ in two ways. They add the
+`qalign_synthesis` section, which only `--yosys` runs produce, and they report
+`l2_empty_releases` as 0. That's by design:
 `cores/fes-common/sim/i386/frontend_tb_top.sv:48` ties the probe to 0 in netlist
 builds, because the hierarchy it reads is flattened away. The difference is the
 same under both pins.
@@ -93,7 +100,7 @@ same under both pins.
   to it moves the fes.pc386 BUILD_ID. Its stale rationale text and its Verilator
   move to v5.054 are #1660.
 - **Each host.** The i386 OFF slot must be rebuilt
-  (`make toolchain-fes-i386 CACHE_ROOT=…`, about 25 minutes on Powerboat), because
+  (`make toolchain-fes-i386 CACHE_ROOT=…`, about 15 minutes on Powerboat), because
   the slot key hashes the lock. The i386 lock still has no HIP slot.
   `benchmark_fes_i386.py` and `synth_fes_pc386.py` need one, as before; nextpnr
   i386 routes are parked (#1235).

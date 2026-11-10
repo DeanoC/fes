@@ -519,7 +519,7 @@ Each lane PR names its check. An i386-style lockstep is not assumed for any othe
 
 ### Close the yosys-lane gap first
 
-- **Lockstep today:** `read_verilog -sv; hierarchy -top fes_i386_cpu; proc -norom; flatten; opt -purge; write_verilog -noattr`, with the i386 lock's Yosys (238eac9a; 0a7927bf after D2) and no `-I` or `-D` (`M/scripts/test_fes_i386_frontend.py:78-88`; `M/cores/fes-common/rtl/i386/toolchain.lock:1-5`).
+- **Lockstep today:** `read_verilog -sv; hierarchy -top fes_i386_cpu; proc -norom; flatten; opt -purge; write_verilog -noattr`, with the i386 lock's Yosys 0a7927bf (238eac9a before D2) and no `-I` or `-D` (`M/scripts/test_fes_i386_frontend.py:93-97`; `M/cores/fes-common/rtl/i386/toolchain.lock:1-5`).
 - **The seal:** the pc386 lock's Yosys 0a7927bf on `pc386_system`, with `-chparam` rates, `flatten`, `opt -purge`, `memory_collect`, `memory_map`, `attrmap` and a Python identifier rewrite (`build_fes_pc386_quartus.py:60`, `:236-275`, `:369-382`).
 - **Port trimming:** the sealed machine leaves the CPU's trace and arch ports unconnected (`M/cores/fes-pc386/rtl/pc386_system.sv:476-483`). So a whole-machine netlist cannot drive lockstep, and no CPU sub-netlist can be digested out of it.
 
