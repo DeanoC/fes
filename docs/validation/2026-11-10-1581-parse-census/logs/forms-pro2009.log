@@ -1,0 +1,142 @@
+# pro2009 f01a_signed_vibrato rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# pro2009 f01b_signed_phase_inc rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# pro2009 f01c_signed_operator rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (13469): Verilog HDL assignment warning at f01c_signed_operator.sv(4): truncated value with size 32 to match size of target (22)
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+    Warning (13410): Pin "y[0]" is stuck at GND
+
+# pro2009 f01d_signed_ksl rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# pro2009 f01e_signed_pkg rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# pro2009 f01f_signed_pkg_value rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "c" is stuck at VCC
+    Warning (13410): Pin "ok" is stuck at VCC
+    Warning (13410): Pin "v[0..7]" is stuck at GND
+
+# pro2009 f01g_signed_pkg_shift rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (23762): Hierarchies were optimized away during sweep. For details, refer to " Hierarchies Optimized Away During Sweep " report.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+    Warning (13410): Pin "y[0..1,3,6..8,10..11,13..15]" is stuck at GND
+    Warning (13410): Pin "y[2,4..5,9,12]" is stuck at VCC
+
+# pro2009 f02_inline_genvar rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (23762): Hierarchies were optimized away during sweep. For details, refer to " Hierarchies Optimized Away During Sweep " report.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# pro2009 f03_generate_no_keywords rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# pro2009 f04_struct_shadow rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# pro2009 f05_import_header rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (23762): Hierarchies were optimized away during sweep. For details, refer to " Hierarchies Optimized Away During Sweep " report.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+    Warning (13410): Pin "r.data[4..7]" is stuck at GND
+
+# pro2009 f06a_size_cast rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (23762): Hierarchies were optimized away during sweep. For details, refer to " Hierarchies Optimized Away During Sweep " report.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+    Warning (13410): Pin "slot[0]" is stuck at VCC
+    Warning (13410): Pin "slot[1..2]" is stuck at GND
+
+# pro2009 f06b_enum_cast rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (23762): Hierarchies were optimized away during sweep. For details, refer to " Hierarchies Optimized Away During Sweep " report.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# pro2009 f06c_casts_together rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# pro2009 f06d_enum_cast_operand rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# pro2009 f07_struct_ports rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# pro2009 f08_no_carry rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# pro2009 f09_attr_in_define rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# pro2009 f09b_ram_control rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# pro2009 f10_synthesis_defined rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "syn" is stuck at GND
+
+# pro2009 f11_undefined_macro rc=0
+Critical Warning (13432): Verilog HDL Compiler Directive warning at f11_undefined_macro.sv(4): text macro "FES_TOOLCHAIN_ERROR_no_front_end" is undefined
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# pro2009 f12a_check_include rc=3
+Error (16827): Verilog HDL error at f12a_check_include.sv(3): cannot open include file FES_TOOLCHAIN_ERROR_no_front_end.svh
+Error (13363): Verilog HDL error at f12a_check_include.sv(7): module "f12a_check_include" ignored due to previous errors
+Error: Failed to elaborate design: 
+Error: Flow failed: Errors generated during elaboration
+Error: Quartus Prime Synthesis was unsuccessful. 4 errors, 0 warnings
+
+# pro2009 f12b_check_token rc=3
+Info (19551): Verilog HDL info at f12b_check_token.sv(3): FES_TOOLCHAIN_ERROR_no_front_end !;
+Error (13411): Verilog HDL syntax error at f12b_check_token.sv(3) near text !
+Error (13363): Verilog HDL error at f12b_check_token.sv(7): module "f12b_check_token" ignored due to previous errors
+Error: Failed to elaborate design: 
+Error: Flow failed: Errors generated during elaboration
+Error: Quartus Prime Synthesis was unsuccessful. 4 errors, 0 warnings
+
+# pro2009 f12c_check_elab_error rc=3
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Error (21899): Verilog HDL error at f12c_check_elab_error.sv(5): $error : FES_TOOLCHAIN_ERROR_no_front_end
+Error: Failed to elaborate design: 
+Error: Flow failed: Errors generated during elaboration
+Error: Quartus Prime Synthesis was unsuccessful. 3 errors, 1 warning
+

@@ -1,0 +1,29 @@
+# i386/lite fes_i386_l1i rc=3
+Error (10170): Verilog HDL syntax error at fes_i386_l1i.sv(195) near text: "for";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/knowledg
+Error (10170): Verilog HDL syntax error at fes_i386_l1i.sv(225) near text: "for";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/knowledg
+Error (10170): Verilog HDL syntax error at fes_i386_l1i.sv(259) near text: "for";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/knowledg
+Error (10170): Verilog HDL syntax error at fes_i386_l1i.sv(271) near text: "end";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/knowledg
+Error (10112): Ignored design unit "fes_i386_l1i" at fes_i386_l1i.sv(42) due to previous errors
+Error: Quartus Prime Analyze Current File was unsuccessful. 5 errors, 0 warnings
+
+# i386/lite fes_i386_pkg rc=0
+
+# i386/lite fes_i386_qalign rc=3
+Error (10170): Verilog HDL syntax error at fes_i386_qalign.sv(79) near text: "for";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/knowle
+Error (10170): Verilog HDL syntax error at fes_i386_qalign.sv(94) near text: "end";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/knowle
+Error (10170): Verilog HDL syntax error at fes_i386_qalign.sv(156) near text: "for";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/knowl
+Error (10149): Verilog HDL Declaration error at fes_i386_qalign.sv(156): identifier "j" is already declared in the present scope
+Warning (10335): Unrecognized synthesis attribute "no_carry" at sources/misteross/cores/fes-common/rtl/i386/fes_i386_qalign.sv(162)
+Warning (10335): Unrecognized synthesis attribute "no_carry" at sources/misteross/cores/fes-common/rtl/i386/fes_i386_qalign.sv(163)
+Warning (10335): Unrecognized synthesis attribute "no_carry" at sources/misteross/cores/fes-common/rtl/i386/fes_i386_qalign.sv(164)
+Error (10112): Ignored design unit "fes_i386_qalign" at fes_i386_qalign.sv(37) due to previous errors
+Error: Quartus Prime Analyze Current File was unsuccessful. 5 errors, 3 warnings
+
+# i386/lite fes_i386_tlb rc=3
+Error (10170): Verilog HDL syntax error at fes_i386_tlb.sv(36) near text: "for";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/knowledge
+Error (10170): Verilog HDL syntax error at fes_i386_tlb.sv(50) near text: "end";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/knowledge
+Error (10170): Verilog HDL syntax error at fes_i386_tlb.sv(76) near text: "for";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/knowledge
+Error (10149): Verilog HDL Declaration error at fes_i386_tlb.sv(76): identifier "k" is already declared in the present scope
+Error (10112): Ignored design unit "fes_i386_tlb" at fes_i386_tlb.sv(15) due to previous errors
+Error: Quartus Prime Analyze Current File was unsuccessful. 5 errors, 0 warnings
+

@@ -1,0 +1,71 @@
+# verilator f01a_signed_vibrato rc=0
+
+# verilator f01b_signed_phase_inc rc=0
+
+# verilator f01c_signed_operator rc=0
+
+# verilator f01d_signed_ksl rc=0
+
+# verilator f01e_signed_pkg rc=0
+
+# verilator f01f_signed_pkg_value rc=0
+
+# verilator f01g_signed_pkg_shift rc=0
+
+# verilator f02_inline_genvar rc=0
+
+# verilator f03_generate_no_keywords rc=0
+
+# verilator f04_struct_shadow rc=0
+CENSUS f04 bad=0
+
+# verilator f05_import_header rc=0
+
+# verilator f06a_size_cast rc=0
+
+# verilator f06b_enum_cast rc=0
+
+# verilator f06c_casts_together rc=0
+
+# verilator f06d_enum_cast_operand rc=0
+
+# verilator f07_struct_ports rc=0
+
+# verilator f08_no_carry rc=0
+
+# verilator f09_attr_in_define rc=0
+
+# verilator f09b_ram_control rc=0
+
+# verilator f10_synthesis_defined rc=0
+    assign syn = 1'b0;
+
+# verilator f11_undefined_macro rc=1
+%Error: docs/validation/2026-11-10-1581-parse-census/forms/f11_undefined_macro.sv:4:1: Define or directive not defined: '`FES_TOOLCHAIN_ERROR_no_front_end'
+    4 | `FES_TOOLCHAIN_ERROR_no_front_end
+%Error: Exiting due to 1 error(s)
+
+# verilator f12a_check_include rc=1
+%Error: docs/validation/2026-11-10-1581-parse-census/forms/f12a_check_include.sv:3:10: Cannot find include file: 'FES_TOOLCHAIN_ERROR_no_front_end.svh'
+    3 | `include "FES_TOOLCHAIN_ERROR_no_front_end.svh"
+%Error: docs/validation/2026-11-10-1581-parse-census/forms/f12a_check_include.sv:3:10: This may be because there's no search path specified with -I<dir>.
+    3 | `include "FES_TOOLCHAIN_ERROR_no_front_end.svh"
+             FES_TOOLCHAIN_ERROR_no_front_end.svh
+             FES_TOOLCHAIN_ERROR_no_front_end.svh.v
+             FES_TOOLCHAIN_ERROR_no_front_end.svh.sv
+             obj_dir/FES_TOOLCHAIN_ERROR_no_front_end.svh
+             obj_dir/FES_TOOLCHAIN_ERROR_no_front_end.svh.v
+             obj_dir/FES_TOOLCHAIN_ERROR_no_front_end.svh.sv
+%Error: Exiting due to 2 error(s)
+
+# verilator f12b_check_token rc=1
+%Error: docs/validation/2026-11-10-1581-parse-census/forms/f12b_check_token.sv:3:1: syntax error, unexpected IDENTIFIER
+    3 | FES_TOOLCHAIN_ERROR_no_front_end !;
+%Error: Exiting due to 1 error(s)
+
+# verilator f12c_check_elab_error rc=0
+%Warning-USERERROR: docs/validation/2026-11-10-1581-parse-census/forms/f12c_check_elab_error.sv:5:9: FES_TOOLCHAIN_ERROR_no_front_end
+    5 |         $error("FES_TOOLCHAIN_ERROR_no_front_end");
+                    ... For warning description see https://verilator.org/warn/USERERROR?v=5.032
+                    ... Use "/* verilator lint_off USERERROR */" and lint_on around source to disable this message.
+

@@ -1,0 +1,70 @@
+# yosys-i386 f01a_signed_vibrato rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f01b_signed_phase_inc rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f01c_signed_operator rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f01d_signed_ksl rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f01e_signed_pkg rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f01f_signed_pkg_value rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f01g_signed_pkg_shift rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f02_inline_genvar rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f03_generate_no_keywords rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f04_struct_shadow rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f05_import_header rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f06a_size_cast rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f06b_enum_cast rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f06c_casts_together rc=1
+docs/validation/2026-11-10-1581-parse-census/forms/f06c_casts_together.sv:10: ERROR:Static cast with non constant expression!
+
+# yosys-i386 f06d_enum_cast_operand rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f07_struct_ports rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f08_no_carry rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f09_attr_in_define rc=0
+
+# yosys-i386 f09b_ram_control rc=0
+
+# yosys-i386 f10_synthesis_defined rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-i386 f11_undefined_macro rc=1
+docs/validation/2026-11-10-1581-parse-census/forms/f11_undefined_macro.sv:4: ERROR: Unimplemented compiler directive or undefined macro `FES_TOOLCHAIN_ERROR_no_front_end.
+
+# yosys-i386 f12a_check_include rc=1
+ERROR: Can't open include file `FES_TOOLCHAIN_ERROR_no_front_end.svh'!
+
+# yosys-i386 f12b_check_token rc=1
+docs/validation/2026-11-10-1581-parse-census/forms/f12b_check_token.sv:3: ERROR: syntax error, unexpected TOK_ID
+
+# yosys-i386 f12c_check_elab_error rc=1
+docs/validation/2026-11-10-1581-parse-census/forms/f12c_check_elab_error.sv:5: ERROR:FES_TOOLCHAIN_ERROR_no_front_end.
+
