@@ -74,7 +74,7 @@ help:
 		"  diagnose-fes-ramtest-timing  Measure the 130 MHz RAM tester on the shared toolchain" \
 		"  toolchain-fes-ramtest  Provision the FES RAM Tester HIP toolchain (per-core lock)" \
 		"  toolchain-fes-atari-st  Provision the Atari ST OSS toolchain (per-core lock)" \
-		"  build-fes-ramtest-quartus  Quartus 17.0.2 SDRAM and HPS DDR tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
+		"  build-fes-ramtest-quartus  Quartus (cores/fes-ramtest/quartus.lock) SDRAM and HPS DDR tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
 		"  sim-fes-splash  Test HDMI splash logo, motion and ADV7513 I2C board path" \
 		"  build-fes-splash  Produce splash RBF + native-inputs provenance (OSS, not a play package)" \
 		"  build-fes-demo  Seal autonomous video application with HIP nextpnr" \
@@ -109,26 +109,26 @@ help:
 		"  sim-fes-coleco-quartus  Test RAM/media with supplied Quartus 17 models and Icarus" \
 		"  coleco-diagnostic  Generate the open Coleco Graphics I cartridge and reference image" \
 		"  coleco-sprite-diagnostic  Generate the open Coleco Graphics II sprite cartridge and reference image" \
-		"  build-fes-zx81-quartus  Quartus 17.0.2 oracle package for FES ZX81 (FES_ZX81_ROM=)" \
+		"  build-fes-zx81-quartus  Quartus oracle (quartus.lock) package for FES ZX81 (FES_ZX81_ROM=)" \
 		"  build-fes-zx81  Seal FES ZX81 HIP (CACHE_ROOT=; BEST_FMAX=1 GPU_DEVICES=1 uses one selected GPU)" \
 		"  build-fes-zx80  Seal experimental Sinclair ZX80 (package-only; same lock as fes.zx81)" \
 		"  build-fes-ts1000  Seal experimental Timex Sinclair 1000 (package-only; same lock as fes.zx81)" \
 		"  build-fes-ts1500  Seal experimental Timex Sinclair 1500 (package-only; same lock as fes.zx81)" \
-		"  build-fes-coleco-quartus  Quartus 17.0.2 oracle package for FES ColecoVision" \
+		"  build-fes-coleco-quartus  Quartus oracle (quartus.lock) package for FES ColecoVision" \
 		"  build-fes-coleco  Seal FES ColecoVision v2 socket with HIP (CACHE_ROOT=)" \
 		"  sim-fes-sg1000  Test the FES simple-computer SG-1000 machine (Coleco sibling)" \
 		"  sim-fes-sg1000-oss  Test OSS-conditional SG-1000 registered media, RAM and VDP" \
 		"  sim-fes-sg1000-rom-link  Test the sealed 16 KiB SG-1000 ROM path" \
 		"  sim-fes-sg1000-quartus  Test SG-1000 RAM/media with supplied Quartus 17 models and Icarus" \
 		"  sg1000-diagnostic  Generate the open SG-1000 Graphics I cartridge and reference image" \
-		"  build-fes-sg1000-quartus  Quartus 17.0.2 oracle package for FES SG-1000" \
+		"  build-fes-sg1000-quartus  Quartus oracle (quartus.lock) package for FES SG-1000" \
 		"  build-fes-sg1000  Seal FES SG-1000 with HIP nextpnr/Mistral (Coleco lock; CACHE_ROOT= for shared cache)" \
 		"  sim-fes-sms  Test the FES SMS blob-stream mailbox, 32KiB map, SN76489 and HDMI I2S (fes.sms)" \
 		"  sim-fes-sms-oss  Test SMS ROM-link mailbox capabilities/rejections and OSS-conditional media, RAM and VDP" \
 		"  sim-fes-sms-rom-link-mailbox  Test SMS ROM-link mailbox capabilities and rejected media commands" \
 		"  sim-fes-sms-quartus  Test SMS RAM/media with supplied Quartus 17 models and Icarus" \
 		"  sms-diagnostic  Generate the open Master System Mode 4 cartridge and reference image" \
-		"  build-fes-sms-quartus  Quartus 17.0.2 oracle package for FES Master System (fes.sms)" \
+		"  build-fes-sms-quartus  Quartus oracle (quartus.lock) package for FES Master System (fes.sms)" \
 		"  build-fes-sms  Seal FES Master System with HIP nextpnr/Mistral (Coleco lock; CACHE_ROOT= for shared cache)" \
 		"  build-fes-pong  Seal FES Pong with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
 		"  apple2-diagnostic  Generate the open Apple II firmware, synthetic disk and reference frames" \
@@ -168,7 +168,7 @@ help:
 		"  sim-fes-pc386-sound  Boot FreeDOS and run the audio start-up exercise; writes sound.wav" \
 		"  sim-fes-pc386-vga  Check the pc386 presenter and plane, run the VGA test disk, replay its VGA trace against Bochs" \
 		"  synth-fes-pc386  Synthesize and pack the pc386 machine without the CPU (needs CACHE_ROOT)" \
-		"  build-fes-pc386-quartus  Seal fes.pc386, the machine with fes_i386_cpu, with Quartus 17.0.2 (CACHE_ROOT=, SEED=)" \
+		"  build-fes-pc386-quartus  Seal fes.pc386, the machine with fes_i386_cpu, with its locked Quartus (CACHE_ROOT=, SEED=)" \
 		"  build-fes-pcxt  Quartus PC/XT diagnostic package (QUARTUS_ROOTDIR and pinned Yosys)" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \

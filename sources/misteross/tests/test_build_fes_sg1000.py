@@ -53,6 +53,43 @@ GENERATOR = ROOT / "cores/fes-sg1000/diagnostic/generate.py"
 
 
 class BuildFesSg1000Tests(unittest.TestCase):
+    def test_quartus_version_text_is_main_text_derived_from_the_core_lock(self) -> None:
+        import hashlib
+        import json
+        import os
+        import tempfile
+        from unittest.mock import patch
+
+        from scripts import build_fes_sg1000 as producer
+
+        lock = producer.quartus_lock(ROOT)
+        self.assertEqual(lock.path, "cores/fes-sg1000/quartus.lock")
+        self.assertIn(producer.QUARTUS_LOCK, producer.PINNED_INPUTS)
+        qsf = producer.project_qsf(ROOT, ROOT / producer.OUTPUT_RELATIVE / "project", "0" * 32)
+        self.assertIn('\nset_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"\n', qsf)
+        self.assertEqual(
+            producer.project_qpf(lock), 'QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n'
+        )
+        record = producer.create_build_record(
+            ROOT, "https://github.com/DeanoC/misteross.git", "0" * 40, {"quartus_sh": "fixture"}
+        )
+        self.assertEqual(json.loads(record)["parameters"]["compiler"], "quartus-17.0.2")
+        self.assertNotIn(b"quartus.lock", record)
+        with tempfile.TemporaryDirectory() as temporary:
+            fake = Path(temporary) / "quartus_sh"
+            fake.write_bytes(b"fake quartus_sh")
+            with patch.object(producer, "locate_quartus",
+                              return_value=(Path(temporary), fake, lock.version)) as located, \
+                    patch.dict(os.environ, {"QUARTUS_ROOTDIR": temporary}):
+                _, quartus_sh, version, identity = producer.authenticate_quartus(ROOT)
+            located.assert_called_once_with(temporary, ROOT, lock)
+        self.assertEqual(quartus_sh, fake)
+        self.assertEqual(version, "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition")
+        self.assertEqual(
+            identity, "version=17.0.2; sha256=" + hashlib.sha256(b"fake quartus_sh").hexdigest()
+        )
+        self.assertEqual(producer.toolchain_label(lock, identity), f"Quartus Prime Lite 17.0.2 ({identity})")
+
     def test_quartus_timing_gate_requires_every_clock_analysed(self) -> None:
         assert_timing_gate(self, validate_timing_report, QuartusBuildError)
 

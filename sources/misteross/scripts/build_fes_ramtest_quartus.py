@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Quartus 17.0.2 SDRAM and HPS DDR diagnostic at 100 or 130 MHz.
+"""Quartus SDRAM and HPS DDR diagnostic at 100 or 130 MHz.
 
 Set RAMTEST_MHZ=100 for the 100 MHz build; the default is 130 MHz. Each
 build writes a comparison package, RBF and TimeQuest report in its own
 directory. It compiles the same RTL as the OSS seal, including the three
-fes.memory.hps-ddr ports on the memory clock.
+fes.memory.hps-ddr ports on the memory clock. Quartus is authenticated
+against cores/fes-ramtest/quartus.lock, and every version string comes
+from that lock.
 """
 from __future__ import annotations
 
@@ -22,7 +24,7 @@ if __package__ in (None, ""):
 
 from scripts.core_package import encode_manifest, read_package
 from scripts.export_core_package import _archive_bytes
-from scripts.quartus_tools import locate_quartus, quartus_version_line
+from scripts.quartus_tools import QuartusLock, load_quartus_lock, locate_quartus
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +35,7 @@ if MHZ not in ("100", "130"):
     raise ValueError("RAMTEST_MHZ must be 100 or 130")
 OUTPUT_RELATIVE = Path("build/fes-ramtest-quartus" + ("-100" if MHZ == "100" else ""))
 QSF_PINS = "cores/fes-ramtest/constraints.qsf"
+QUARTUS_LOCK = "cores/fes-ramtest/quartus.lock"
 I2C_SITE = "HPSINTERFACEPERIPHERALI2C_X52_Y60_N111"
 # Stamped into the bitstream and the comparison package. The kit probe
 # rejects a load when these differ.
@@ -77,7 +80,7 @@ class BuildError(ValueError):
     """Raised when the Quartus RAM-tester comparison cannot be compiled."""
 
 
-def project_qsf(root: Path, project: Path) -> str:
+def project_qsf(root: Path, project: Path, lock: QuartusLock) -> str:
     rel = Path(os.path.relpath(root, project)).as_posix()
 
     def assignment(kind: str, relative: str) -> str:
@@ -93,7 +96,7 @@ def project_qsf(root: Path, project: Path) -> str:
         "set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL",
         "set_global_assignment -name SEED 1",
         "set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005",
-        'set_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"',
+        f'set_global_assignment -name LAST_QUARTUS_VERSION "{lock.qsf_version}"',
         f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-common/generated"',
         'set_global_assignment -name VERILOG_MACRO "QUARTUS"',
         'set_global_assignment -name VERILOG_MACRO "RAM_RATE_SWEEP"',
@@ -115,17 +118,17 @@ def project_qsf(root: Path, project: Path) -> str:
     return "\n".join(lines) + "\n\n" + pins + "\n"
 
 
-def write_project(root: Path, output: Path) -> Path:
+def write_project(root: Path, output: Path, lock: QuartusLock) -> Path:
     project = output / "project"
     if project.exists():
         shutil.rmtree(project)
     project.mkdir(parents=True)
     (project / "top.qpf").write_text(
-        'QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n',
+        f'QUARTUS_VERSION = "{lock.series}";\nPROJECT_REVISION = "top";\n',
         encoding="utf-8",
     )
     (project / "clocks.sdc").write_text(PROJECT_SDC, encoding="utf-8")
-    (project / "top.qsf").write_text(project_qsf(root, project), encoding="utf-8")
+    (project / "top.qsf").write_text(project_qsf(root, project, lock), encoding="utf-8")
     return project
 
 
@@ -185,11 +188,11 @@ def validate_timing(sta_text: str) -> None:
 
 def compile(root: Path | None = None) -> Path:
     root = (root or ROOT).resolve()
-    quartus_root, quartus_sh = locate_quartus(os.environ.get("QUARTUS_ROOTDIR", ""), root)
-    version = quartus_version_line(quartus_sh)
+    lock = load_quartus_lock(root, QUARTUS_LOCK)
+    quartus_root, quartus_sh, version = locate_quartus(os.environ.get("QUARTUS_ROOTDIR", ""), root, lock)
     output = root / OUTPUT_RELATIVE
     output.mkdir(parents=True, exist_ok=True)
-    project = write_project(root, output)
+    project = write_project(root, output, lock)
     env = os.environ.copy()
     env["QUARTUS_ROOTDIR"] = str(quartus_root)
     log = output / "quartus.log"
@@ -211,7 +214,7 @@ def compile(root: Path | None = None) -> Path:
     shutil.copyfile(sta_built, output / "top.sta.rpt")
     shutil.copyfile(rbf_built, output / "core.rbf")
     (output / "quartus-version.log").write_text(version + "\n", encoding="utf-8")
-    package = write_package(root, output / "core.rbf", output / "comparison.fcore")
+    package = write_package(root, output / "core.rbf", output / "comparison.fcore", lock)
     print(version)
     print(f"rbf: {output / 'core.rbf'}")
     print(f"timing: {output / 'top.sta.rpt'}")
@@ -219,7 +222,7 @@ def compile(root: Path | None = None) -> Path:
     return output
 
 
-def write_package(root: Path, rbf_path: Path, archive_path: Path) -> Path:
+def write_package(root: Path, rbf_path: Path, archive_path: Path, lock: QuartusLock) -> Path:
     """Publish a comparison package whose build id matches the bitstream."""
 
     rbf = rbf_path.read_bytes()
@@ -248,7 +251,7 @@ def write_package(root: Path, rbf_path: Path, archive_path: Path) -> Path:
             "repository": "https://github.com/DeanoC/fes",
             "revision": revision,
             "recipe_sha256": recipe,
-            "toolchain": "quartus 17.0.2",
+            "toolchain": f"quartus {lock.release}",
         },
     })
     archive_path.write_bytes(_archive_bytes(manifest, rbf))

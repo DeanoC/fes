@@ -5,10 +5,18 @@ from decimal import Decimal
 import hashlib
 import json
 from pathlib import Path
+from functools import cache
 import re
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+if __package__ in (None, ''):
+    sys.path.insert(0, str(ROOT))
+
+from scripts.quartus_tools import load_quartus_lock, locate_quartus
+
+QUARTUS_LOCK = 'cores/fes-pcxt/quartus.lock'
 FIXTURE = ROOT / 'tests/fixtures/pcxt_hps_i2c_timing'
 FILES = ('top.sv', 'top.qsf', 'top.qpf', 'clocks.sdc', 'audit.tcl')
 CORNERS = ('7_slow_1100mv_100c', '7_slow_1100mv_-40c',
@@ -22,14 +30,19 @@ def require(condition, message):
         raise ValueError(message)
 
 
+@cache
+def quartus_lock():
+    return load_quartus_lock(ROOT, QUARTUS_LOCK)
+
+
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def normalized_source(name, text):
     if name == 'top.qsf':
-        text = '\n'.join(line for line in text.splitlines() if line.strip() and not re.fullmatch(
-            r'set_global_assignment -name LAST_QUARTUS_VERSION "17\.0\.2 Lite Edition"', line)) + '\n'
+        bookkeeping = f'set_global_assignment -name LAST_QUARTUS_VERSION "{quartus_lock().qsf_version}"'
+        text = '\n'.join(line for line in text.splitlines() if line.strip() and line != bookkeeping) + '\n'
     return text
 
 
@@ -111,7 +124,7 @@ def summarize_project(project, load_pf):
         require(normalized_source(name, (project / name).read_text()) == content,
                 'reference source differs: ' + name)
     fit = (project / 'output_files/top.fit.rpt').read_text(encoding='latin1')
-    require('17.0.2 Build 602' in fit and 'Fitter was successful' in fit
+    require(quartus_lock().version.removeprefix('Version ') in fit and 'Fitter was successful' in fit
             and re.search(r';\s*Timing Models\s*;\s*Final\s*;', fit),
             'requires a successful final-model fit')
     decoded = (project / 'decoded.bt').read_text()
@@ -152,8 +165,11 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--reuse-fits', action='store_true', help='validate every input and parse retained load0/load30 fits')
     args = parser.parse_args()
-    version = subprocess.check_output([str(args.quartus_bin / 'quartus_sh'), '--version'], text=True)
-    require('Version 17.0.2 Build 602' in version, 'requires Quartus 17.0.2 Build 602')
+    lock = quartus_lock()
+    quartus_bin = args.quartus_bin.absolute()
+    _, quartus_sh, _ = locate_quartus(str(quartus_bin.parent), ROOT, lock)
+    require(quartus_sh == quartus_bin / 'quartus_sh', f'--quartus-bin must hold the {lock.path} quartus_sh')
+    version = subprocess.check_output([str(quartus_sh), '--version'], text=True)
     args.output.mkdir(parents=True, exist_ok=args.reuse_fits)
     require(not (args.output / 'reference.json').exists(), 'reference output already exists')
     result = dict(scope=__doc__, quartus_version=version, projects={}, hardware=False, physical_qualified=False)

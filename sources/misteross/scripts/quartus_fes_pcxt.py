@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fit the complete CPU100/board50 PC/XT diagnostic with Quartus 17.0.2.
+"""Fit the complete CPU100/board50 PC/XT diagnostic with the Quartus cores/fes-pcxt/quartus.lock pins.
 
 Yosys elaborates the unchanged board RTL and preserves its large memories.
 Quartus synthesizes, places and routes that elaboration. Each invocation keeps
@@ -29,13 +29,14 @@ import uuid
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.quartus_tools import locate_quartus, quartus_version_line
+from scripts.quartus_tools import load_quartus_lock, locate_quartus
 from scripts.sim_fes_pcxt import CHIP_VENDORS, SHARED_VENDORS, SYSTEM_SOURCES
 from scripts.pcxt_quartus_mailbox import validate_mailbox
 from scripts.pcxt_quartus_audio import validate_audio
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = Path('cores/fes-pcxt')
+QUARTUS_LOCK = CORE / 'quartus.lock'
 DOS_RTL = ('cores/fes-pcxt/rtl/pcxt_xt_keyboard_bat.sv',
            'cores/fes-pcxt/rtl/pcxt_hid_keyboard.sv')
 RTL = SYSTEM_SOURCES + DOS_RTL + (
@@ -75,7 +76,7 @@ def input_paths(root: Path) -> list[Path]:
     tracked = subprocess.check_output(
         ['git', 'ls-files', '--', str(CORE), *map(str, vendor_roots)], cwd=root, text=True).splitlines()
     paths = set(map(Path, tracked)) | set(map(Path, RTL))
-    paths.update((ADAPTERS, AUDIT, MAILBOX, AUDIO_SDC, PINS, AUDIO_PINS, PACKAGE_PINS, Path('scripts/sim_fes_pcxt.py'),
+    paths.update((QUARTUS_LOCK, ADAPTERS, AUDIT, MAILBOX, AUDIO_SDC, PINS, AUDIO_PINS, PACKAGE_PINS, Path('scripts/sim_fes_pcxt.py'),
                   Path('scripts/quartus_fes_pcxt.py'), Path('scripts/quartus_tools.py'),
                   Path('scripts/pcxt_quartus_mailbox.py'), Path('scripts/pcxt_quartus_audio.py'),
                   Path('tests/test_pcxt_video_mailbox.py'), Path('tests/test_pcxt_audio_cdc.py')))
@@ -140,7 +141,7 @@ def elaboration(source: Path, work: Path, library: Path, *, package_profile=Fals
         # Small control arrays with multiple write processes become FFs.
         + memory_pass + 'memory_map t:$mem_v2 r:SIZE<=32 %i; opt -purge; '
         'check -assert; write_json before-names.json; '
-        # Quartus 17 crashes on flattened array names. This changes names only.
+        # The locked Quartus crashes on flattened array names. This changes names only.
         # Keep this in the SAME Yosys execution: a JSON round trip loses signed
         # parameter metadata, which Quartus needs on PLL integer parameters.
         'rename -unescape; write_json elaborated.json; '
@@ -258,7 +259,7 @@ def project_qsf(source: Path, seed: int, threads: int, *, package_profile=False,
         (source / AUDIO_PINS).read_text(),
     ]
     if video_mailbox_contract:
-        # Quartus 17 does not infer its fitter-protection policy from Yosys's
+        # The locked Quartus does not infer its fitter-protection policy from Yosys's
         # portable async_reg marker. Identify only the six proven mailbox
         # stages so router logic duplication cannot replicate a synchronizer.
         lines.extend(
@@ -477,6 +478,10 @@ def timing_summary(work: Path, mailbox_contract: bool = False, audio_profile: bo
                                      'no repeated-build or hardware acceptance']}
 
 
+def project_qpf(lock) -> str:
+    return f'QUARTUS_VERSION = "{lock.series}";\nPROJECT_REVISION = "top";\n'
+
+
 def run(command: list[str], work: Path, log: str, record: dict, env: dict | None = None) -> None:
     operation = {'command': command, 'cwd': str(work), 'log': log,
                  'started_utc': datetime.now(timezone.utc).isoformat()}
@@ -526,8 +531,8 @@ def main(argv=None) -> int:
     output = None
     created = False
     try:
-        _, quartus_sh = locate_quartus(args.quartus_root, ROOT)
-        record['quartus_version'] = quartus_version_line(quartus_sh)
+        quartus_lock = load_quartus_lock(ROOT, str(QUARTUS_LOCK))
+        _, quartus_sh, record['quartus_version'] = locate_quartus(args.quartus_root, ROOT, quartus_lock)
         yosys = args.yosys.resolve(strict=True)
         record['yosys'] = {'path': str(yosys), 'sha256': sha(yosys),
                            'version': subprocess.check_output([str(yosys), '-V'], text=True).strip()}
@@ -605,7 +610,7 @@ def main(argv=None) -> int:
             fit.mkdir()
             shutil.copy2(work / 'elaborated.v', fit / 'elaborated.v')
             shutil.copy2(source / AUDIT, fit / 'audit.tcl')
-            (fit / 'top.qpf').write_text('QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n')
+            (fit / 'top.qpf').write_text(project_qpf(quartus_lock))
             (fit / 'top.qsf').write_text(project_qsf(
                 source, seed, args.threads, package_profile=args.package_profile,
                 video_mailbox_contract=args.video_mailbox_contract, audio_contract=args.dos_profile))

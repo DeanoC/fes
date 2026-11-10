@@ -10,6 +10,7 @@ import tomllib
 import unittest
 from unittest import mock
 from scripts import build_fes_pcxt_quartus as producer
+from scripts.quartus_tools import QuartusLock, load_quartus_lock
 from scripts.export_core_package import build_identity, encode_build_record, _validate_build_record
 
 
@@ -125,6 +126,61 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(producer.BuildError, 'core ID'):
             producer.create_build_record(*arguments, execution=execution,
                                          core_id='fes.pcxt', dos_profile=True)
+
+    def authenticate_with_fakes(self, directory, *, recipe_version=None, lock=None):
+        yosys = Path(directory) / 'yosys'
+        yosys.write_text('locked yosys')
+        quartus_sh = Path(directory) / 'quartus_sh'
+        quartus_sh.write_text('locked quartus')
+        lock = lock or load_quartus_lock(producer.ROOT, producer.LOCK)
+        line = 'Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition'
+        recipe = {'quartus': {'version': recipe_version or line}}
+        hashes = {yosys.resolve(): lock.yosys_sha256 or 'y' * 64, quartus_sh.resolve(): 'q' * 64}
+        with mock.patch.dict(os.environ, {'QUARTUS_ROOTDIR': '/quartus', 'FES_PCXT_YOSYS': str(yosys)}), \
+                mock.patch.object(producer, 'load_quartus_lock', return_value=lock), \
+                mock.patch.object(producer, 'locate_quartus', return_value=(Path('/quartus'), quartus_sh, line)) as locate, \
+                mock.patch.object(producer, 'selected_recipe', return_value=recipe), \
+                mock.patch.object(producer, 'sha', side_effect=lambda p: hashes[Path(p).resolve()]), \
+                mock.patch.object(producer.subprocess, 'check_output',
+                                  return_value=f'Yosys 0.47 (git sha1 {(lock.yosys_commit or "0" * 40)[:9]}, clang)\n'):
+            tools = producer.authenticate_tools(producer.ROOT)
+        locate.assert_called_once_with('/quartus', producer.ROOT, lock)
+        return tools, quartus_sh, yosys
+
+    def test_locked_tool_identities_and_labels_match_the_lite_baseline(self):
+        lock = load_quartus_lock(producer.ROOT, producer.LOCK)
+        self.assertEqual((lock.release, lock.series, lock.qsf_version, lock.compiler, lock.product),
+                         ('17.0.2', '17.0', '17.0.2 Lite Edition', 'quartus-17.0.2', 'Quartus Prime Lite 17.0.2'))
+        self.assertEqual(lock.version, 'Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition')
+        self.assertEqual(lock.yosys_commit, '3a5accbd78c526ab7bae32640044a2e062a3cfc9')
+        with tempfile.TemporaryDirectory() as directory:
+            tools, quartus_sh, yosys = self.authenticate_with_fakes(directory)
+        self.assertEqual(tools['quartus'], producer.Tool(
+            quartus_sh.resolve(), 'Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition sha256:' + 'q' * 64))
+        self.assertEqual(tools['yosys'], producer.Tool(
+            yosys.resolve(), 'Yosys 0.47 (git sha1 3a5accbd7, clang) sha256:' + lock.yosys_sha256))
+        record = producer.create_build_record(
+            producer.ROOT, 'https://github.com/DeanoC/fes.git', 'a' * 40,
+            {name: tool.identity for name, tool in tools.items()},
+            execution={'toolchain': 'quartus', 'files': {}})
+        self.assertNotIn('quartus_lock', json.loads(record))
+        self.assertEqual(json.loads(record)['tools']['quartus'],
+                         'Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition sha256:' + 'q' * 64)
+
+    def test_recipe_version_and_yosys_pin_must_match_the_lock(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                self.assertRaisesRegex(producer.BuildError, 'lock/recipe'):
+            self.authenticate_with_fakes(directory, recipe_version='Version 17.1.0 Build 590 SJ Lite Edition')
+        lock = load_quartus_lock(producer.ROOT, producer.LOCK)
+        unpinned = QuartusLock(lock.path, lock.edition, lock.version, lock.device_family, lock.quartus_sh_sha256)
+        with tempfile.TemporaryDirectory() as directory, \
+                self.assertRaisesRegex(producer.BuildError, r'\[yosys\]'):
+            self.authenticate_with_fakes(directory, lock=unpinned)
+
+    def test_quartus_lock_is_a_pinned_clean_source_input(self):
+        with mock.patch.object(producer, 'require_clean_source', return_value=('repo', 'a' * 40)) as clean:
+            producer._require_clean_source(producer.ROOT)
+        self.assertIn('cores/fes-pcxt/quartus.lock', clean.call_args.kwargs['pinned_inputs'])
 
     def test_invalid_internal_clocks_and_unknown_unclocked_registers_reject(self):
         for key in ('reference_pin', 'pll_cross_check', 'uncertainty', 'partial_input_delay',
@@ -328,8 +384,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
 
     def test_yosys_elaborates_diagnostic_and_dos_package_profiles(self):
         toolchain = tomllib.loads((producer.ROOT / 'cores/fes-pcxt/toolchain.lock').read_text())
-        quartus_lock = tomllib.loads((producer.ROOT / 'cores/fes-pcxt/quartus.lock').read_text())
-        expected_sha = quartus_lock['yosys_sha256']
+        expected_sha = load_quartus_lock(producer.ROOT, producer.LOCK).yosys_sha256
         expected_commit = toolchain['tool']['yosys']['commit']
         configured = os.environ.get('FES_PCXT_YOSYS')
         candidates = [Path(configured)] if configured else []
