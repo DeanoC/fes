@@ -38,6 +38,12 @@ cases, 79 tool/fixture-dependent skips), plus planner and whitespace checks.
 The final parser test passes separately; production bytes match the compiled
 implementation commit above. Skipped tools/fixtures supply no acceptance.
 
+The [retention proof](retention-proof.json) verifies 2,405 archived files,
+2,234 selected source hashes, archive readback/modes and independent source
+restoration from the declared base bundle plus this source delta, including
+strict fsck and pack verification. The capsule preserves preparation evidence;
+external tools, live transport and board state still need fresh admission.
+
 No UART, JTAG programming, firmware call, upload or physical SD write occurred
 in this preparation. The last physical state remains the qualified recovery
 prompt from the separate independent raw-sector readback. Native FAT
