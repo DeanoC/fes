@@ -16,6 +16,11 @@ failures were already present on main before slice 3:
   `lockstep_tb.cpp` before that merge (`111687d80`):
   - `random#1004#129` (PM 30): `@f98.vector d e`, then pass.
   - `random#14#622` (PM 2): `@c26.cr2 6cc4 0`, then pass.
+
+  On that testbench the full protected-mode seeds slice 3 ran (1001-1016,
+  500 programs each, PM 30) and random seed 14 (2,000, PM 2) all pass with
+  this RTL, 10,000 of 10,000. That covers all three failures slice 3
+  recorded there (two XCHG m, one CALL rel).
 - **Directed cases.** Five new paging cases (64 → 69); one-line mutants of
   the three changes fail them ([mutants.txt](mutants.txt)).
 - **Lockstep.** Everything passes on the RTL and on the netlist from the
@@ -48,8 +53,9 @@ comes before any walk. `wx` reuses `xchg_ld`.
 ([reenigne/x86_microcode](https://github.com/reenigne/x86_microcode),
 `80386/microcode_notes.txt`) is suggestive, not conclusive:
 - XCHG rm,r's memory form reads at `0B1` with a bus operation of its own,
-  `rd` (0x06) rather than `RD`. `fields.txt` takes `rd` to assert LOCK#,
-  and it is also the read of the TSS busy bit's locked update at `78E`.
+  `rd` (0x06) rather than `RD`. `fields.txt` asks, as an open TODO,
+  whether `rd` asserts LOCK#; it is also the read of the TSS busy bit's
+  update at `78E`, which the 386 locks.
 - The notes do not decode whether that cycle checks the segment as a
   write.
 - The `9` on its entry point (90B1h) marks the LOCK-legal forms (ALU m but
@@ -83,9 +89,9 @@ The issue saw CR2 stay 0 at the shutdown. The cause was not the CR2 write
 - Bochs pushes first: #PF (error 2, CR2 6CC4h), then #GP(73h), #DF,
   #GP(43h) and shutdown.
 
-The 386 pushes before it checks too. Near CALL's microcode writes the
-return address (`07E OPR_W = EIP; WR`) before `DESCOD` takes the target,
-and CALL rel's 075–078 do the same.
+The 386 pushes before it checks too. CALL rel's microcode (`CALL cw`)
+writes the return address at `075 OPR_W = EIP; WR` before `076 DESCOD`
+takes the target, as CALL r/m's does (`079`/`07A`, `07E` before `080`).
 
 The push now translates as a `dfl` uop does. That mechanism already let
 a st2 store's later segment fault yield to its load's #PF. M1 sets `dfl`
@@ -146,9 +152,9 @@ trace hash is the same on the RTL and the netlist: the 941 corpus files,
 16 random seeds, 16 protected-mode seeds and each directed set
 ([lockstep-report.json](lockstep-report.json),
 [lockstep-netlist-report.json](lockstep-netlist-report.json)). The
-retirement counts equal slice 3's merged run, so the current generator
-draws none of the changed paths. The directed cases and the pre-merge
-testbench's repros are what exercise them.
+retirement counts equal slice 3's merged run: the current programs do not
+tell the old behaviour from the new. The directed cases and the pre-merge
+testbench's runs are what distinguish them.
 
 ## test386
 
