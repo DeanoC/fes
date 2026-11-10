@@ -78,9 +78,10 @@ BENCHES = {
 
 # Verilator on a Yosys netlist: the lint warnings that Yosys's flat output
 # raises by construction (the $pmux cases overlap and the bit-blasted
-# assignments change width), and no case assertions, since Yosys marks every
-# $pmux parallel_case and Verilator's settling of the netlist's combinational
-# loops shows select glitches that never settle multi-hot.
+# assignments change width), and no case assertions. Yosys marks every $pmux
+# parallel_case, which Verilator 5.054 checks by default and 5.032 never did.
+# The one site that fired selects on equalities of the same field
+# (docs/validation/2026-11-10-1581-verilator-lock).
 NETLIST_WARNINGS = ['-Wno-CASEOVERLAP', '-Wno-UNDRIVEN', '-Wno-UNOPTFLAT', '-Wno-WIDTHEXPAND', '-Wno-WIDTHTRUNC',
                     '--no-assert-case']
 

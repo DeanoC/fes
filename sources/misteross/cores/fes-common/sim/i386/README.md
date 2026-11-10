@@ -264,9 +264,10 @@ The RTL builds run with `-Wall -Wno-UNUSEDSIGNAL` and fail on any other
 warning. Builds of a Yosys netlist (`--yosys`) also waive the lint classes
 that Yosys's flat output raises by construction: `CASEOVERLAP`, `UNDRIVEN`,
 `UNOPTFLAT`, `WIDTHEXPAND` and `WIDTHTRUNC`. They also pass `--no-assert-case`.
-Yosys marks every `$pmux` `parallel_case`, and while Verilator settles the
-netlist's combinational loops, a select can glitch multi-hot even when its
-settled value cannot be.
+Yosys marks every `$pmux` `parallel_case`. Verilator 5.054 checks that by
+default, and the 5.032 runs before it never did. The one site that fired has
+selects that are equalities on the same field
+([S3 record](../../../../../../docs/validation/2026-11-10-1581-verilator-lock/README.md#warnings)).
 
 ## Front-end and address checks
 

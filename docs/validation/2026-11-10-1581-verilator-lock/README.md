@@ -87,13 +87,17 @@ at the unbuilt `IRETD` at `F2D53h`.
   matches found for '8'h18'". That pmux feeds `dc_next[191]`, from
   `fes_i386_seq`'s `case (d.seq)`. The two hot selects are
   `dc[99:95] == 5'h07` and `dc[99:95] inside {5'h09, 5'h0a}`, so their
-  settled values cannot both be 1. They overlap only transiently, while
-  Verilator settles the netlist's combinational loops (the `UNOPTFLAT`
-  warnings). The RTL builds keep case assertions on.
+  settled values cannot both be 1. The firing is most likely a transient
+  overlap while Verilator settles the netlist's combinational loops (the
+  `UNOPTFLAT` warnings). The run stopped at that first assertion, so only
+  this one of the netlist's 345 `parallel_case` sites was examined. The flag
+  leaves the netlist builds checking what the 5.032 runs checked, not more.
+  Whether the other sites can go multi-hot is a follow-up. The RTL builds
+  keep case assertions on.
 - **Spike lint** (`tests/test_fes_i386_frontend.py`,
   `test_spikes_and_their_rtl_lint`). Under 5.032 all five spikes lint clean
   with `-Wall -Wno-UNUSEDSIGNAL`. Under 5.054 they raise two classes that
-  5.032 does not have. `MULTIDRIVEN` comes from `spike_stimulus.sv:17`'s
+  5.032 does not raise on these files. `MULTIDRIVEN` comes from `spike_stimulus.sv:17`'s
   `initial reset = 1'b1` beside its `always_ff`. `PROCASSINIT` comes from
   `spike_rom.sv:12`'s `logic [7:0] a = 8'd1` and the stimulus's declaration
   initializers. Both are the envelopes' FPGA power-up values. The test waives
