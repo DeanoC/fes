@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Run every form through every reader, three jobs at a time. Writes ALL_DONE.<TAG> only when every
-# census.sh worker succeeded and wrote its rc file, and no reader timed out (124) or could not be
-# run (126, 127); otherwise it names what went wrong and exits 1, since those are not results.
+# census.sh worker succeeded and wrote its rc file, and no reader timed out (124), hit a failure of
+# timeout itself (125) or could not be run (126, 127); otherwise it names what went wrong and exits 1,
+# since those are not results.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd); OUT=$1
 # A marker from an earlier run must not survive a run that fails.
@@ -25,7 +26,7 @@ missing=0
 for r in $READERS; do for f in $FORMS; do
   if [ ! -f "$OUT/$r/$f/rc" ]; then echo "no result: $r $f" >&2; missing=1; continue; fi
   case $(cat "$OUT/$r/$f/rc") in
-    124|126|127) echo "not a result: $r $f exited $(cat "$OUT/$r/$f/rc") (timeout or tool not run)" >&2; missing=1 ;;
+    124|125|126|127) echo "not a result: $r $f exited $(cat "$OUT/$r/$f/rc") (timeout or tool not run)" >&2; missing=1 ;;
   esac
   # f04 also needs its simulation: accepted by lint, the bench must have run and printed its count.
   if [ "$r" = verilator ] && [ "$f" = f04_struct_shadow ] && [ "$(cat "$OUT/$r/$f/rc")" = 0 ]; then

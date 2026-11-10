@@ -27,6 +27,8 @@ def cell(reader, form):
     if not (d / "rc").exists():
         return "not run"
     rc = int((d / "rc").read_text())
+    if rc in (124, 125, 126, 127):
+        return f"**not run** (rc {rc}: timeout or tool not run)"
     log = (d / "log").read_text(errors="replace") if (d / "log").exists() else ""
     obs = "syn" if form == "f10_synthesis_defined" else "ok"
     if reader.startswith(("lite", "pro")):
