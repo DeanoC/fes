@@ -26,3 +26,32 @@ Only TRWU8CBL and its installed spare card are selected. No physical keyboard
 action is needed. Native Ethernet stays disabled and physical display
 verification remains separate. Factory restoration is waived; its original
 media stays protected. Cleanup of old output remains paused.
+
+
+The [physical result](hardware-result.json) at source `4c09f3ba6` passed recovery
+programming/boot and all ten fixed uploads plus ten independent fresh SD
+readbacks. The corrected MMC parser accepted the real combined completion,
+and protected recovery files stayed verified. These are upload/readback results,
+not native boot or installer acceptance.
+
+Native programming then stopped with Quartus errors 213019/code87 and 213002.
+The pinned vendor AJI header calls 87 `AJI_BAD_JTAG_CHAIN`; it does not establish
+the physical cause. The preceding locked forced scan passed with one
+4362C0DD device, IR10/mask0, 3MHz and auto-adjustment0. The programmer trace
+contains no SOF file open before the error. No `fesboot` was sent; installation,
+launch and persistence were not attempted. The original first-failure capture
+and two-second receive-only tail remain terminal. No retry or grant reuse was
+performed. Further programming requires a transport fix.
+
+Clock readbacks returned to15MHz/auto1. Independent host inspection confirms
+exact USB permissions, private-server exit and complete root UART release.
+The last qualified recovery prompt preceded the failed native programming;
+subsequent FPGA/CPU state is unproven. No native Park/containment is inferred.
+The [retention proof](retention-proof.json) covers167 archived files, full
+archive readback, an independently restored source, strict fsck and pack checks,
+with the earlier native candidate capsule declared as a dependency. Top-kit
+ownership remains with this task; the bottom kit and factory card are untouched.
+
+The next bounded investigation must explain the difference between the passing
+locked probe and the programmer's own failing scan, using the retained traces
+and unchanged vendor-client identities before any new programming attempt.
