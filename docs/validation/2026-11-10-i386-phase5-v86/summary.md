@@ -9,16 +9,28 @@ the four extra pushes, its IOPL-sensitive forms, and IN, OUT, INS and OUTS
 through the TSS's I/O permission bitmap (INS and OUTS also at a CPL above
 IOPL, which were not built before).
 
-**Result** (draft; the seal, the kit runs and the netlist lockstep are
-still running):
+**Result:**
 - **test386.asm** on the RTL now passes POST 21 (V86 mode) and stops at
   POST 22 (task switching), at `int 0x28`, a delivery through a task gate
   (slice 4). Main stopped in POST 21 at an IRETD to V86 mode.
-- **Lockstep.** The new directed cases (73 V86 and bitmap cases in
-  `FES_I386_MODE=pmode`, 7 V86 cases in `paging`) and the random
-  protected-mode programs, which now enter V86 mode, pass against Bochs on
-  the RTL. Fourteen one-line mutants of the new RTL each fail directed
-  cases ([mutants.txt](mutants.txt)).
+- **Lockstep.** Everything passes against Bochs on the RTL and on the
+  locked Yosys's netlist, with identical retirement traces, but three random
+  programs that fail on main's RTL too ([#1644](https://github.com/DeanoC/fes/issues/1644),
+  [#1646](https://github.com/DeanoC/fes/issues/1646)): the full corpus, 73
+  more protected-mode cases (V86 mode and the I/O bitmap), 8 more paging
+  cases (#PF from V86 mode), and random protected-mode programs that now
+  enter V86 mode 7,559 times. Fifteen one-line mutants of the new RTL each
+  fail directed cases ([mutants.txt](mutants.txt)).
+- **Seal.** (See [Seal](#seal).) A Quartus 17.0.2 fit at seed 1 of
+  `7837d3955` met every analysis: setup +0.568 ns, hold +0.075 ns, 36,492
+  ALMs (main 36,717) and 268 M10K (main 268). The seal at the PR's head
+  (`bd1a9f4b4`, one more term in D after Codex's review) did not fit at seed
+  1: routing stopped on congestion.
+- **Kit B, max.** DOOM v1.9 `-timedemo demo3` 40.03 fps (main 40.04 the
+  same hour), 3DBench, PCPBench and TopBench as main's within a few points.
+  Under JEMM386 v5.85, Wolfenstein 3D reaches E1L1 and DOOM plays its demos
+  through VCPI; Time Circle, Wolfenstein 3D, Ultima VI, DOOM and U.S. Navy
+  Fighters (to its CD-ROM check) run as on main.
 - **Speed** (latency bench, [latency-report.json](latency-report.json)): an
   INT from V86 mode through a DPL-3 386 gate and the IRETD back take 166
   clocks; IN through the bitmap takes 26 a time. Every older loop is
@@ -72,7 +84,36 @@ departs from the plan. In short:
 
 ## Lockstep
 
-(pending: the full run at the PR's head on the RTL and on the netlist.)
+`scripts/test_fes_i386_lockstep.py` ran with every default (16 seeds of 2,000
+random programs, 16 seeds of 500 protected-mode programs, the full corpus) at
+`7884ea746`, the PR's RTL, on the RTL and on the netlist from the i386
+lock's Yosys (`238eac9a4`):
+
+| Part | RTL | Netlist |
+| --- | --- | --- |
+| SingleStepTests corpus | 1,758,699 of 1,758,699 | same |
+| Random programs | 31,999 of 32,000 (7,911,952 retirements) | same |
+| Protected-mode programs | 7,998 of 8,000 (415,284 retirements) | same |
+| Unbuilt encodings | 49,760, each stopped | same |
+| Directed cases | 77 of 77 | same |
+| Unreal, protected-mode, paging, no-387 and memory cases | 7, 273, 62, 1,933 and 27, all pass | same |
+
+Every corpus file's and random seed's retirement trace hash is the same on
+both ([lockstep-report.json](lockstep-report.json),
+[lockstep-netlist-report.json](lockstep-netlist-report.json)). The three
+failing programs fail the same way on main's RTL `e835d545d` with this
+testbench (its generator now makes other programs, so main's own run never
+met them): two XCHG m under paging, #PF on the RTL where Bochs's
+read-modify-write check gives #GP(0) for a code-segment DS
+([#1644](https://github.com/DeanoC/fes/issues/1644)); and a CALL rel's push
+whose #PF ends in shutdown with CR2 0 where Bochs writes the push's address
+([#1646](https://github.com/DeanoC/fes/issues/1646)).
+
+**The protected-mode programs** retired 14,200 instructions in V86 mode:
+7,559 IRETDs into it, 6,517 deliveries out of it (faults, INT n and 4,013
+injected interrupts taken there), 2,728 IOPL-sensitive forms run at IOPL 3,
+801 IN and OUT through the bitmap there, and 465 INS and OUTS under the
+bitmap in V86 mode or at a CPL above IOPL.
 
 **New directed cases** (`FES_I386_MODE=pmode`, now 273 cases, 73 more):
 - Entry and round trips: `v86-int-iretd` (INT 2Ah to an IRETD in 32-bit
@@ -105,10 +146,12 @@ departs from the plan. In short:
   INSB and OUTSD allowed, OUTSB refused, REP INSW with a count of 0 refused,
   a 286 TSS refused (these replace `r3-insb`, which stopped as not built).
 
-**Paging cases** (`FES_I386_MODE=paging`, now 61, 7 new): #PF from V86 mode
+**Paging cases** (`FES_I386_MODE=paging`, now 62, 8 new): #PF from V86 mode
 (U/S set in the error code) on a page not present, supervisor or read-only
 and at a fetch; user pages read and written; an INT round trip; a GDT on a
-supervisor page, which the delivery reads.
+supervisor page, which the delivery reads; an IRETD in V86 mode to EIP
+1xxxxh on a page not present, whose fetch is #GP(0) before any walk
+(Codex's review).
 
 **Random programs.** An eighth of the protected-mode blocks' operations now
 enter V86 mode (`pm_v86`): an IRETD to the program's own real-mode CS at IOPL
@@ -127,10 +170,6 @@ summary counts V86 retirements, entries, exits, injected interrupts taken
 there, its IOPL-sensitive forms at IOPL 3, its I/O and string I/O under the
 bitmap.
 
-**A failure that is not this slice's:** a random program at CPL 0 with
-paging (`XCHG [BX], ESP` through a code-segment DS on a page not present)
-takes #PF on the RTL and #GP(0) on Bochs, on main's RTL too:
-[#1644](https://github.com/DeanoC/fes/issues/1644).
 
 ## test386.asm
 
@@ -142,11 +181,54 @@ task gate (POST 22, slice 4).
 
 ## Seal
 
-(pending.)
+(Pending the coordinator's decision: the seed-1 seal at the PR's head did
+not fit; see the Result above.)
 
 ## Kit
 
-(pending.)
+Runs `m1` and `k1`-`k8` used Kit B, core-only, on 10 November from 13:59 to
+15:48 ([kit-scores.json](kit-scores.json)).
+- **Packages.** `7b29b38a…`, the fit of `7837d3955` above (build
+  `2179950d…`), at max (preset 0), each launch after a SCRUBX scrub. Run
+  `m1` is the A/B reference: main's package `3429af98…` (slice 2's final
+  seal), the same runner, kit and baseline. The RTL changed after
+  `7837d3955` only in D's fetch walk under a fetch past CS's limit (a V86
+  IRETD to EIP past FFFFh under paging, which no kit title does) and in
+  comments, so the runs were not repeated.
+- **Kit.** Baseline image `cd284ca3…` and software `7ddb0bfb`, with no
+  install, no image change and no reboot. After each run Kit B was checked
+  against its snapshot and logged FREE, and the run's FogCast data trees
+  were removed and logged.
+- **Disks.** The Phase 4 bench disk, the #1533 game drives `real`
+  (`a6977555…`), `pmode` (`b4be6e29…`), `fpu` (`ff322ddc…`) and `dpmi`
+  (`9e6ae3a3…`), and the Phase 5 census's JEMM386 drives `real-jemm`
+  (`5c0b4b06…`), `pmode-jemm` (`e6d7b613…`) and `xms-jemm` (`1bc8d4af…`),
+  from Powerboat. None is committed.
+
+| Benchmark | Main (m1) | This slice (k1) |
+| --- | ---: | ---: |
+| DOOM v1.9 `-timedemo demo3` | 3,863 gametics in 3,377 realtics, 40.04 fps | 3,863 in 3,378, 40.03 fps |
+| 3DBench | 76.9 | 76.9 |
+| PCPBench | 13.3 | 13.3 |
+| TopBench | 307 | 301 |
+
+TopBench varies by a few points between runs of one package (slice 2's
+record saw 304-310); its VidMem part read 99 µs and 101 µs.
+
+| Title | Drive | Result |
+| --- | --- | --- |
+| Wolfenstein 3D under JEMM386 | `real-jemm` | JEMM386 v5.85 loads at boot; a new game, in E1L1 |
+| DOOM v1.9 under JEMM386 (VCPI) | `pmode-jemm` | Its title and demos play |
+| Master of Orion under JEMM386 | `xms-jemm` | Back at the prompt after "reconfigure hardware options", the setup the census record left to recheck |
+| Pinball Fantasies (eXceed) | `real` | eXceed 1.10 runs; its sound setup reaches "Sound configuration complete", where the run's keys stopped |
+| U.S. Navy Fighters | `fpu` | Its CD-ROM check, as on main |
+| Time Circle (32RTM) | `dpmi` | Its main menu |
+| Wolfenstein 3D | `real` | A new game, in E1L1 |
+| Ultima VI | `real` | Its introduction plays |
+| DOOM v1.9 | `pmode` | Its title and demos play (run `k8`: `k2`'s load of this drive lost the agent's pipe and FogCast's Home room failed its draw budget, so DOOM ran again alone) |
+
+Each title was launched and watched for 100-180 s; this is a recheck, not
+#1368's full acceptance.
 
 ## Machine sim
 
