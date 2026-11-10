@@ -6530,6 +6530,10 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     r3g("r3-cg32-sp16", cgate(0x18, 0x1940, 12, 3, 0), [](Asm &a) { a.op({0x66, 0x81, 0xcc}); a.d(0x12340000); },
         -1, -1);
     r3g("r3-cg32-n3", cgate(0x18, 0x1948, 12, 3, 3), push32x3, -1, -1);
+    // A count of 0 at SP 0: no parameter is read (the slot below would
+    // wrap the 16-bit stack, #SS(0)) or written.
+    r3g("r3-cg16-n0-sp0", cgate(0x08, 0x1900, 4, 3, 0), [](Asm &a) { a.op({0xbc, 0x00, 0x00}); }, -1, -1);
+    r3g("r3-cg32-n0-sp0", cgate(0x18, 0x1940, 12, 3, 0), [](Asm &a) { a.op({0xbc, 0x00, 0x00}); }, -1, -1);
     r3g("r3-cg32-n31", cgate(0x18, 0x1970, 12, 3, 31), none, -1, -1);                    // 31 dwords; RETF 124
     r3g("r3-cg32-to16", cgate(0x08, 0x1960, 12, 3, 1), [](Asm &a) { a.op({0x66, 0x68}); a.d(0x44443333); }, -1, -1);
     r3g("r3-cg16-to32", cgate(0x18, 0x1968, 4, 3, 2), push16x2, -1, -1);

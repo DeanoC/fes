@@ -875,15 +875,18 @@ module fes_i386_cpu #(
     logic        x_drop, d_nstk;
     logic [6:0]  slot_x;
     logic [31:0] slot_xoff;
+    // pdrop overrides every xc: the copy's uops are XC_XP ones.
+    logic x_drop_xc;
     always_comb
         case (dc.xc)
-            3'(fes_i386_pkg::XC_XP): x_drop = !xp;
-            3'(fes_i386_pkg::XC_SAME): x_drop = xp;
-            3'(fes_i386_pkg::XC_DIRECT): x_drop = cg;
-            3'(fes_i386_pkg::XC_GATE): x_drop = !cg;
-            3'(fes_i386_pkg::XC_GSAME): x_drop = !cg || xp;
-            default: x_drop = dc.pdrop;
+            3'(fes_i386_pkg::XC_XP): x_drop_xc = !xp;
+            3'(fes_i386_pkg::XC_SAME): x_drop_xc = xp;
+            3'(fes_i386_pkg::XC_DIRECT): x_drop_xc = cg;
+            3'(fes_i386_pkg::XC_GATE): x_drop_xc = !cg;
+            3'(fes_i386_pkg::XC_GSAME): x_drop_xc = !cg || xp;
+            default: x_drop_xc = 1'b0;
         endcase
+    assign x_drop = x_drop_xc || dc.pdrop;
     assign d_nstk = dc.uop.nstk;
     assign no_err = !(exc_active && exc_haserr);
     assign slot_eff = dc.slot + 7'(dc.errp && no_err && stk == fes_i386_pkg::STK_RETF);

@@ -252,8 +252,8 @@ def run_pmode(testbench: str, env: dict) -> dict:
     each fault's vector and error code, EXT, a double fault and shutdown,
     INT n, INT3, INTO and IRET through interrupt and trap gates, far CALL and
     RETF, LLDT, LTR, SLDT, STR, LAR, LSL, VERR, VERW, ARPL, their #UD in real
-    mode, what stops as not built (a task gate, a return to an outer
-    privilege), and CS's limit: code that runs to it and past it, and near
+    mode, MOV DRn, far CALL through call gates and RETF to an outer
+    privilege, what stops as not built (a task gate), and CS's limit: code that runs to it and past it, and near
     branches, calls and returns to its last byte and past it, in 16- and
     32-bit code and in real mode under a limit CS kept."""
     env = dict(env, FES_I386_MODE='pmode', FES_I386_LATENCY='1')
@@ -266,7 +266,7 @@ def run_pmode(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PMODE_CASES = 198
+PMODE_CASES = 200
 
 
 def run_paging(testbench: str, env: dict) -> dict:
