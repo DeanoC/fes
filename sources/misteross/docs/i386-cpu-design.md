@@ -2339,8 +2339,9 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      before its stack access (reenigne/x86_microcode,
      `80386/microcode_notes.txt`, 7F7-7FF: `7FB if (CPL <= IOPL) goto
      "p POPFd"`, the read at 803). Bochs pops POPF first, so a stack fault
-     comes first there, and it runs a LOCK: the lockstep lets the RTL's #GP
-     stand for both (its `v86-iopl-gp` rule).
+     comes first there, and it runs a LOCK: for both the lockstep's oracle
+     steps CLI in the opcode's place, which Bochs faults the same way, and
+     compares the deliveries (its `v86-iopl-gp` rule).
    - **A delivery's entry is not checked against CS's limit.** IRETD in V86
      mode loads EIP whole, as Bochs does, so EIP may pass FFFFh until the
      next fetch faults; the entry of that #GP fetches nothing.

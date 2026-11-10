@@ -63,8 +63,10 @@ departs from the plan. In short:
   stack read at `803` on the permitted path only, and the same at `7F9`
   (PUSHF), `7FD` (INT ib), `7FF` (IRET) and `7F7` (CLI, STI). Bochs pops
   POPF first, so a stack fault (#SS, #PF) comes before its #GP there, and
-  runs a LOCK, where the 386 manual has #GP(0): the lockstep lets the RTL's
-  #GP stand for both (`v86-iopl-gp`).
+  runs a LOCK, where the 386 manual has #GP(0): for both the lockstep's
+  oracle steps CLI in the opcode's place (each LOCK an ES override), which
+  Bochs faults #GP(0) before any operand, and compares the two deliveries,
+  their frames and the states after them as for any fault (`v86-iopl-gp`).
 - **Segments.** A real-mode load in V86 mode gives the segment V86's cache,
   limit FFFFh and access rights F3h, CS too (`seg_v86`).
 - **IRETD into V86 mode.** `piret` reads EFLAGS', CS's and EIP's slots as
@@ -178,7 +180,8 @@ V86 mode and return to it.
 IRET to V86 mode, INS and OUTS under the bitmap), so the later reasons'
 numbers shift. The lockstep's `v86-iopl-gp` rule (LOCK, and POPF and
 POPFD, in V86 mode below IOPL 3, where Bochs runs the LOCK or pops first)
-gives the oracle the RTL's state. The
+steps CLI on the oracle in the opcode's place, so the #GP(0) is checked as
+any fault is (vector, error code, frame, state). The
 summary counts V86 retirements, entries, exits, injected interrupts taken
 there, its IOPL-sensitive forms at IOPL 3, its I/O and string I/O under the
 bitmap.

@@ -1871,8 +1871,35 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // The no-387 rule (EscStep). A step it moves past retires nothing
         // but the instruction: no event may be due at its boundary.
         const EscStep esc = esc_step(code, code32, before, oracle);
+        // The V86 IOPL rule: in V86 mode below IOPL 3 the 386 raises #GP(0)
+        // for a LOCK, as its manual has it, where Bochs runs the instruction;
+        // and for POPF and POPFD before their pop, as its microcode tests
+        // IOPL first (80386 microcode_notes.txt, 7FB), where Bochs pops
+        // first, so a stack fault comes first (docs/i386-cpu-design.md, V86
+        // mode). There the oracle steps CLI in the opcode's place, with each
+        // LOCK an ES override: in V86 mode below IOPL 3 Bochs raises #GP(0)
+        // for CLI before any operand, so the two deliveries, their frames
+        // and the states after them are compared as for any fault. An
+        // encoding Bochs rejects as #UD (an invalid LOCK) steps as written.
+        unsigned v86_gp = 0;  // the opcode's byte + 1, when the rule applies
+        if ((before.cr0 & 1) && (before.eflags & 0x20000) && ((before.eflags >> 12) & 3) != 3) {
+            unsigned k = 0;
+            bool lock = false;
+            for (; k < 15 && is_prefix(code[k]); ++k) lock = lock || code[k] == 0xf0;
+            if (k < 15 && (lock || code[k] == 0x9d) && !oracle.decode(code, 16, code32).undefined) v86_gp = k + 1;
+        }
         fes_i386::StepResult result;
-        if (esc.esc && esc.skip) {
+        if (v86_gp) {
+            uint8_t was[15];
+            for (unsigned i = 0; i < v86_gp; ++i) {
+                was[i] = bus.ram[linear + i];
+                bus.ram[linear + i] = i + 1 == v86_gp ? 0xfa : was[i] == 0xf0 ? 0x26 : was[i];
+            }
+            oracle.invalidate(linear, v86_gp);
+            result = oracle.step();
+            for (unsigned i = 0; i < v86_gp; ++i) bus.ram[linear + i] = was[i];
+            oracle.invalidate(linear, v86_gp);
+        } else if (esc.esc && esc.skip) {
             if (irq || (before.eflags & 0x100) || !esc.length)
                 out.add(hex(before.eip) + ".no387-skip-unsupported", 0, 1);
             State next = before;
@@ -1967,22 +1994,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             for (const auto &field : e.fields) skip.add(field);
             ++summary.divergences[e.id];
         }
-        // In V86 mode below IOPL 3 the 386 raises #GP(0) for a LOCK, as its
-        // manual has it, where Bochs runs the instruction; and for POPF and
-        // POPFD before their pop, as its microcode tests IOPL first
-        // (80386 microcode_notes.txt, 7FB), where Bochs pops first, so a
-        // stack fault comes first (docs/i386-cpu-design.md, V86 mode). Where
-        // the oracle does not raise #UD for the LOCK itself, the RTL's
-        // outcome stands and the oracle takes its state.
-        if ((before.cr0 & 1) && (before.eflags & 0x20000) && ((before.eflags >> 12) & 3) != 3 && vector != 6) {
-            unsigned k = 0;
-            bool lock = false;
-            for (; k < 15 && is_prefix(code[k]); ++k) lock = lock || code[k] == 0xf0;
-            if (lock || code[k] == 0x9d) {
-                skip.add("*");
-                ++summary.divergences["v86-iopl-gp"];
-            }
-        }
+        if (v86_gp && !interrupted) ++summary.divergences["v86-iopl-gp"];
 
         // Every byte the oracle writes is cleared after the run.
         for (const auto &w : result.writes)

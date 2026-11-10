@@ -1091,7 +1091,8 @@ a far jump that flushes everything after it, so DC decodes with EFLAGS' VM
   386's microcode tests IOPL at each one's V86 entry before its stack
   access (reenigne/x86_microcode, `80386/microcode_notes.txt`, 7F7-7FF).
   Bochs pops POPF first, so a stack fault comes first there, and runs a
-  LOCK: the lockstep lets the RTL's #GP stand for both (`v86-iopl-gp`).
+  LOCK: there the lockstep's oracle steps CLI in the opcode's place, which
+  Bochs faults the same way, and compares the deliveries (`v86-iopl-gp`).
   INT3 and INTO are not IOPL-sensitive. At IOPL 3, POPF and IRET load IF
   but not IOPL (CPL 3), and never VM or (POPF) RF.
 - **I/O.** IN, OUT, INS and OUTS always read the TSS's I/O permission
