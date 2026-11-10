@@ -1,0 +1,7 @@
+yosys-pc386 <toolchain-cache>/slots/9092d69c…/install/bin/yosys sha256 b6cd1fd2f56e22e21a82b3ed31b0c2068df3b0951c8a9b613861d589c74fbf5f
+yosys-i386 <toolchain-cache>/slots/053d3998…/install/bin/yosys sha256 bbce80f217ce338b5613a4ea961fd7155e456813c1d2b559ed4a171416abe053
+yosys-shared <toolchain-cache>/slots/14242474…/install/bin/yosys sha256 6747da54a9f759f56d078ee30b434094c2aa79ec8aef4fd2c7f613ad47131efa
+verilator /usr/bin/verilator Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+lite2005 ~/intelFPGA_lite/17.0/quartus/bin/quartus_sh Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition
+pro2005 /data/altera_pro/26.3/quartus/bin/quartus_sh Version 26.3.0 Build 114 10/14/2026 SC Pro Edition
+pro2009 /data/altera_pro/26.3/quartus/bin/quartus_sh Version 26.3.0 Build 114 10/14/2026 SC Pro Edition

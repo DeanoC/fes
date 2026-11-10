@@ -6,6 +6,7 @@
 set -u
 OUT=$1; READER=$2; FORM=$3
 HERE=$(cd "$(dirname "$0")" && pwd); FORMS=$HERE/forms
+[ -f "$FORMS/$FORM.sv" ] || { echo "no such form: $FORM" >&2; exit 1; }
 LITE=${LITE:-$HOME/intelFPGA_lite/17.0/quartus/bin}
 PRO=${PRO:-/data/altera_pro/26.3/quartus/bin}
 VERILATOR=${VERILATOR:-verilator}
@@ -41,9 +42,12 @@ case $READER in
     # Warnings stay fatal (no -Wno-fatal), as a default Verilator run treats them; lint and style
     # classes are off so that only parse, elaboration and user errors decide the result.
     timeout 600 "$VERILATOR" --lint-only -Wno-lint -Wno-style --top-module "$FORM" $SRC > log 2>&1; echo $? > rc
-    if [ "$FORM" = f10_synthesis_defined ]; then "$VERILATOR" -E $SRC 2>/dev/null | grep -E "assign syn" > preproc; fi
+    if [ "$FORM" = f10_synthesis_defined ]; then
+      timeout 600 "$VERILATOR" -E $SRC > preproc.full 2> preproc.err; echo $? > preproc.rc
+      grep -E "assign syn" preproc.full > preproc
+    fi
     if [ "$FORM" = f04_struct_shadow ] && [ "$(cat rc)" = 0 ]; then
-      timeout 600 "$VERILATOR" --binary -Wno-lint -Wno-style --top-module tb_f04 $SRC "$FORMS/tb_f04.sv" -Mdir obj > build.log 2>&1 && ./obj/Vtb_f04 > sim.log 2>&1; echo $? > sim.rc; rm -rf obj
+      timeout 600 "$VERILATOR" --binary -Wno-lint -Wno-style --top-module tb_f04 $SRC "$FORMS/tb_f04.sv" -Mdir obj > build.log 2>&1 && timeout 600 ./obj/Vtb_f04 > sim.log 2>&1; echo $? > sim.rc; rm -rf obj
     fi ;;
 esac
 rm -rf db incremental_db qdb tmp-clearbox dni 2>/dev/null

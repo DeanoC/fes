@@ -225,12 +225,19 @@ For the Yosys locks:
   - `neg_*.sv`: the unary-minus rejection;
   - `yosys74_*.sv`: the yosys#74 repros and passing variants, including the constant-operand and loop-after-cast cases.
 - `tdp/`: the P3 harness, both RAM forms, the SDC and `tdp.sh` (map, fit, STA).
-- `census.sh` and `run_all.sh`: one form through one reader, and the whole matrix (three jobs at a time). Set `YOSYS_PC386`, `YOSYS_I386` and `YOSYS_SHARED` to the locked binaries first. `run_all.sh` takes `READERS` and `FORMS` to run a subset.
-- `sweep.sh`: the per-file sweep. `elab.sh`: the whole-block elaboration.
-- `summarize.py`: writes `results.md` from `census.sh` output.
+- `census.sh` and `run_all.sh`: one form through one reader, and the matrix (three jobs at a time).
+  - Set `YOSYS_PC386`, `YOSYS_I386` and `YOSYS_SHARED` to the locked binaries first.
+  - `run_all.sh` refuses tools other than the ones this record used: the three Yosys binaries by sha256, Verilator 5.032, Lite 17.0.2 and Pro 26.3.0. It writes their identities to `<out>/tools.txt`.
+  - A subset (`READERS`, `FORMS`) needs its own `TAG`; only the full matrix writes `ALL_DONE.all`, and every old marker is removed first.
+- `summarize.py`: writes `results.md` from `census.sh` output, one row per form in `forms/`.
+  - A cell is a result only when the reader's own verdict is in its output: Quartus's "was successful" line and summary file, or an `Error (NNNNN)` message; Yosys's "End of script." or an `ERROR:` message; Verilator's report banner or a `%Error` message.
+  - Anything else (a timeout, a crash, a tool that did not run, a missing report, `f04`'s bench or `f10`'s preprocess not finishing) shows as **not run**, never as a rejection.
+  - `summarize.py --check <out>` exits 1 unless every selected cell is a result and every reader accepts the control form `f08_no_carry`; `run_all.sh` writes its marker only after that check passes.
+- `sweep.sh` (Lite only; Pro has no `--analyze_file`) and `elab.sh`: the per-file sweep and the whole-block elaboration. Both resolve their inputs to absolute paths, and exit 1 (writing `notrun`) for any run without a Quartus verdict.
 - `logs/`: the message lines of every run, with paths shortened:
   - `forms-<reader>.log`, `sweep-*.log`, `elab.log`;
   - `bisect-*.log`;
   - `lite-sv2009-setting.log`, `tdp-fit.log`.
+  - `tools.txt`: the tool identities `run_all.sh` checked for the run behind `results.md`.
 
-To rerun: `run_all.sh <out>`, then `summarize.py <out>`. Rerun `bisect/` and `tdp/` by hand: each bisect file is one top for `quartus_map`, and `tdp/tdp.sh <work> inferred|vendor` fits one form.
+To rerun: `run_all.sh <out>`, then `summarize.py <out>`. `results.md` is the output of one full `run_all.sh` run of this harness, which wrote `ALL_DONE.all`. Rerun `bisect/` and `tdp/` by hand: each bisect file is one top for `quartus_map`, and `tdp/tdp.sh <work> inferred|vendor` fits one form.

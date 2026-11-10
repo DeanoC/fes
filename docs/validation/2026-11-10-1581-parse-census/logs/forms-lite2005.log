@@ -124,7 +124,7 @@ Warning (13024): Output pins are stuck at VCC or GND
     Warning (13410): Pin "ok" is stuck at VCC
 
 # lite2005 f08_no_carry rc=0
-Warning (10335): Unrecognized synthesis attribute "no_carry" at docs/validation/2026-11-10-1581-parse-census/forms/f08_no_carry.sv(3)
+Warning (10335): Unrecognized synthesis attribute "no_carry" at ../../../../s1fix/s1a/docs/validation/2026-11-10-1581-parse-census/forms/f08_no_carry.sv(3)
 Warning (13024): Output pins are stuck at VCC or GND
     Warning (13410): Pin "ok" is stuck at VCC
 

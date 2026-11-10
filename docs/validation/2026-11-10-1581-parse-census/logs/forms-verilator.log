@@ -28,6 +28,7 @@
 
 # verilator f04_struct_shadow rc=0
 CENSUS f04 bad=0
+sim rc=0
 
 # verilator f05_import_header rc=0
 
@@ -49,6 +50,7 @@ CENSUS f04 bad=0
 
 # verilator f10_synthesis_defined rc=0
     assign syn = 1'b0;
+preprocess rc=0
 
 # verilator f11_undefined_macro rc=1
 %Error: docs/validation/2026-11-10-1581-parse-census/forms/f11_undefined_macro.sv:4:1: Define or directive not defined: '`FES_TOOLCHAIN_ERROR_no_front_end'

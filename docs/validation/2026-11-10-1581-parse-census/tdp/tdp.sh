@@ -3,6 +3,7 @@
 set -u
 W=$1; FORM=$2; SEED=${3:-1}; HERE=$(cd "$(dirname "$0")" && pwd)
 LITE=${LITE:-$HOME/intelFPGA_lite/17.0/quartus/bin}
+for step in quartus_map quartus_fit quartus_sta; do [ -x "$LITE/$step" ] || { echo "not executable: $LITE/$step" >&2; exit 1; }; done
 rm -rf "$W"; mkdir -p "$W"; cd "$W" || exit 1
 { echo 'set_global_assignment -name FAMILY "Cyclone V"'; echo 'set_global_assignment -name DEVICE 5CSEBA6U23I7'
   echo 'set_global_assignment -name TOP_LEVEL_ENTITY tdp_top'; echo 'set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005'
@@ -16,3 +17,5 @@ for step in quartus_map quartus_fit quartus_sta; do
   [ $rc = 0 ] || break
 done
 rm -rf db incremental_db
+# A failed step leaves no fit or timing to read: say so.
+[ "$rc" = 0 ] || { echo "$step failed (rc $rc); no result" >&2; exit 1; }
