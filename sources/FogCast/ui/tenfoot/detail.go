@@ -23,10 +23,14 @@ type shotSlot struct {
 
 // DetailSnapshot is renderer-facing focused-pane state.
 type DetailSnapshot struct {
-	Open  bool
-	Index int
-	Count int
-	Hint  string
+	Open            bool
+	Index           int
+	Count           int
+	Hint            string
+	RemoveAvailable bool
+	RemoveConfirm   bool
+	RemoveBusy      bool
+	RemoveError     string
 }
 
 func screenshotWorkKey(handle string) string {
@@ -151,6 +155,9 @@ func (a *App) openLibraryDetailLocked(game hostclient.Game) {
 }
 
 func (a *App) closeDetailLocked() {
+	a.detailRemoveID = ""
+	a.detailRemoveError = ""
+	a.detailRemoveGeneration++
 	a.libraryDetail = hostclient.Game{}
 	if !a.detailOpen {
 		return
@@ -207,6 +214,9 @@ func (a *App) handleDetailLocked(cmd Command) bool {
 	if !a.detailOpen {
 		return false
 	}
+	if a.handleDetailRemoveConfirmLocked(cmd) {
+		return true
+	}
 	switch cmd {
 	case CmdUp, CmdBack:
 		a.closeDetailLocked()
@@ -248,6 +258,9 @@ func (a *App) handleDetailLocked(cmd Command) bool {
 		a.cyclePlatformLocked(1)
 		return true
 	case CmdSortCycle:
+		if a.startDetailRemovalLocked() {
+			return true
+		}
 		a.closeDetailLocked()
 		a.cycleSortLocked()
 		return true
@@ -419,11 +432,28 @@ func (a *App) detailSnapshotLocked() DetailSnapshot {
 	if a.room == nil {
 		hint = libraryDetailHint(a.affinity.current.Kind, len(ids), a.detailPlayLocked())
 	}
+	if a.detailRemoveID != "" {
+		if a.detailRemoveBusy {
+			hint = "Removing title..."
+		} else {
+			hint = selectWord(a.affinity.current.Kind) + " remove  " + backWord(a.affinity.current.Kind) + " cancel"
+		}
+	} else if a.detailRemoveTargetLocked() != "" {
+		if a.affinity.current.Kind == InputMouse {
+			hint += "  click Remove"
+		} else {
+			hint += "  " + westWord(a.affinity.current.Kind) + " remove"
+		}
+	}
 	return DetailSnapshot{
-		Open:  a.detailOpen,
-		Index: index,
-		Count: len(ids),
-		Hint:  hint,
+		Open:            a.detailOpen,
+		Index:           index,
+		Count:           len(ids),
+		Hint:            hint,
+		RemoveAvailable: a.detailRemoveTargetLocked() != "",
+		RemoveConfirm:   a.detailRemoveID != "",
+		RemoveBusy:      a.detailRemoveBusy,
+		RemoveError:     a.detailRemoveError,
 	}
 }
 

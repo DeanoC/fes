@@ -229,6 +229,10 @@ func (s *Service) RefreshLibrarySource(ctx context.Context, id string) (LibraryS
 				result.Skipped++
 				continue
 			}
+			remoteID := catalog.RemoteCoreEntryID(id, entry.GameID)
+			if err = s.cleanupRetainedEntry(ctx, remoteID); err != nil {
+				return result, err
+			}
 			local, err = store.CreateRemoteCoreEntry(ctx, entry.Title, entry.CoreID, entry.PackageID,
 				catalog.RemoteCoreEntryOrigin{SourceID: id, SourceGameID: entry.GameID, PackageID: entry.PackageID, MediaID: entry.MediaID, MediaName: entry.MediaName})
 			if err != nil {

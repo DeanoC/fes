@@ -351,6 +351,11 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			a.routes.ServeHTTP(w, r)
 			return
 		}
+		if r.Method == http.MethodDelete && launcherCoreEntryPath(r.URL.Path) {
+			// The service checks whether the entry is active on any target.
+			a.routes.ServeHTTP(w, r)
+			return
+		}
 		if r.Method == http.MethodPost && (r.URL.Path == "/api/v1/library/core-entries" || r.URL.Path == "/api/v1/core-catalog/install" || r.URL.Path == "/api/v1/core-catalog/entries") {
 			// System setup installs a package or creates one entry. The body
 			// retains the selected catalog and package. Compatibility uses this
@@ -586,7 +591,7 @@ func launcherOperation(method, path string) bool {
 	if method == http.MethodPut && launcherCoreEntryMediaNamePath(path) {
 		return true
 	}
-	if method == http.MethodPut && launcherCoreEntryPath(path) {
+	if (method == http.MethodPut || method == http.MethodDelete) && launcherCoreEntryPath(path) {
 		return true
 	}
 	switch method + " " + path {

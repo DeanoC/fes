@@ -738,7 +738,14 @@ const selectGames = `
 	       g.content_sha256, g.content_size, g.content_extension,
 	       g.canonical_title, g.region, g.revision, g.dump_flags, g.group_key,
 	       g.first_seen_ns, g.genre, g.year, g.search_aliases, 1
-	FROM games AS g JOIN libraries AS l ON l.id = g.library_id`
+	FROM games AS g JOIN libraries AS l ON l.id = g.library_id
+	  AND (g.source_kind <> 'core_package' OR EXISTS (SELECT 1 FROM core_entries e WHERE e.game_id = g.game_id))`
+
+// A core-package parent without a core entry is retained solely for saved
+// media. It is not a library title until the entry is explicitly recreated.
+func visibleGameSQL(alias string) string {
+	return "(" + alias + ".source_kind <> 'core_package' OR EXISTS (SELECT 1 FROM core_entries e WHERE e.game_id = " + alias + ".game_id))"
+}
 
 const selectGameColumns = `g.game_id, g.title, g.library_id, g.relative_path, g.reason, g.system,
 	       g.source_kind, g.source_state, l.online,
@@ -778,6 +785,7 @@ func (s *Store) Platforms(ctx context.Context) ([]PlatformInfo, error) {
 		       MAX(l.online)
 		FROM libraries AS l
 		LEFT JOIN games AS g ON g.library_id = l.id AND NOT EXISTS (SELECT 1 FROM kit_host_entries k WHERE k.game_id = g.game_id)
+		  AND (g.source_kind <> 'core_package' OR EXISTS (SELECT 1 FROM core_entries e WHERE e.game_id = g.game_id))
 		GROUP BY l.system
 		ORDER BY lower(l.system)`)
 	if err != nil {
@@ -875,6 +883,7 @@ func (s *Store) QueryGames(ctx context.Context, query Query) (Page, error) {
 func gameFilterSQL(query Query, gameAlias, libraryAlias string) (string, []any) {
 	var builder strings.Builder
 	builder.WriteString(" WHERE NOT EXISTS (SELECT 1 FROM kit_host_entries k WHERE k.game_id = " + gameAlias + ".game_id)")
+	builder.WriteString(" AND " + visibleGameSQL(gameAlias))
 	args := make([]any, 0, 16)
 	if query.Platform != "" {
 		builder.WriteString(" AND " + gameAlias + ".system = ?")
@@ -1079,6 +1088,7 @@ func (s *Store) GamesInGroup(ctx context.Context, groupKey string, limit int) ([
 	query := `SELECT ` + selectGameColumns + `, 1` + `
 		FROM games AS g JOIN libraries AS l ON l.id = g.library_id
 		WHERE g.group_key = ? AND NOT EXISTS (SELECT 1 FROM kit_host_entries k WHERE k.game_id = g.game_id)
+		AND (g.source_kind <> 'core_package' OR EXISTS (SELECT 1 FROM core_entries e WHERE e.game_id = g.game_id))
 		ORDER BY g.region, g.revision DESC, g.game_id`
 	if limit == UnboundedVariantLimit {
 		return s.queryGames(ctx, query, groupKey)
@@ -1121,11 +1131,11 @@ func (s *Store) SetFacets(ctx context.Context, id, genre, year, aliases string) 
 }
 
 func (s *Store) Facets(ctx context.Context) (FacetValues, error) {
-	genres, err := s.distinctColumn(ctx, `SELECT DISTINCT genre FROM games WHERE genre <> '' AND NOT EXISTS (SELECT 1 FROM kit_host_entries k WHERE k.game_id = games.game_id) ORDER BY lower(genre) LIMIT 200`)
+	genres, err := s.distinctColumn(ctx, `SELECT DISTINCT genre FROM games WHERE genre <> '' AND NOT EXISTS (SELECT 1 FROM kit_host_entries k WHERE k.game_id = games.game_id) AND (games.source_kind <> 'core_package' OR EXISTS (SELECT 1 FROM core_entries e WHERE e.game_id = games.game_id)) ORDER BY lower(genre) LIMIT 200`)
 	if err != nil {
 		return FacetValues{}, err
 	}
-	years, err := s.distinctColumn(ctx, `SELECT DISTINCT year FROM games WHERE year <> '' AND NOT EXISTS (SELECT 1 FROM kit_host_entries k WHERE k.game_id = games.game_id) ORDER BY year DESC LIMIT 64`)
+	years, err := s.distinctColumn(ctx, `SELECT DISTINCT year FROM games WHERE year <> '' AND NOT EXISTS (SELECT 1 FROM kit_host_entries k WHERE k.game_id = games.game_id) AND (games.source_kind <> 'core_package' OR EXISTS (SELECT 1 FROM core_entries e WHERE e.game_id = games.game_id)) ORDER BY year DESC LIMIT 64`)
 	if err != nil {
 		return FacetValues{}, err
 	}
@@ -1201,6 +1211,7 @@ func (s *Store) GameMatchesRoot(ctx context.Context, game Game, root Root) (bool
 		SELECT EXISTS (
 		  SELECT 1 FROM games AS g JOIN libraries AS l ON l.id = g.library_id
 		  WHERE g.game_id = ? AND g.library_id = ? AND g.system = ?
+		    AND (g.source_kind <> 'core_package' OR EXISTS (SELECT 1 FROM core_entries e WHERE e.game_id = g.game_id))
 		    AND l.id = ? AND l.system = ? AND l.root = ?
 		)`,
 		game.ID, game.LibraryID, game.System,
@@ -1229,6 +1240,7 @@ func contentMatches(ctx context.Context, querier contentMatchQuerier, game Game,
 		SELECT EXISTS (
 		  SELECT 1 FROM games
 		  WHERE game_id = ? AND library_id = ? AND system = ? AND relative_path = ? AND source_kind = ?
+		    AND (source_kind <> 'core_package' OR EXISTS (SELECT 1 FROM core_entries e WHERE e.game_id = games.game_id))
 		    AND source_size = ? AND modified_ns = ? AND zip_member = ?
 		    AND zip_size = ? AND zip_crc32 = ? AND zip_entry_count = ?
 		    AND content_sha256 = ? AND content_size = ? AND content_extension = ?
@@ -1272,6 +1284,7 @@ func (s *Store) UpdateContent(ctx context.Context, id string, fingerprint Finger
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE games SET content_sha256 = ?, content_size = ?, content_extension = ?
 		WHERE game_id = ? AND source_size = ? AND modified_ns = ? AND zip_member = ?
+		  AND (source_kind <> 'core_package' OR EXISTS (SELECT 1 FROM core_entries e WHERE e.game_id = games.game_id))
 		  AND zip_size = ? AND zip_crc32 = ? AND zip_entry_count = ?`,
 		content.SHA256, content.Size, content.Extension, id,
 		fingerprint.SourceSize, fingerprint.ModifiedNS, fingerprint.ZIPMember,
@@ -1299,6 +1312,7 @@ func (s *Store) CompareAndSetContent(ctx context.Context, game Game, root Root, 
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE games SET content_sha256 = ?, content_size = ?, content_extension = ?
 		WHERE game_id = ? AND library_id = ? AND system = ? AND relative_path = ? AND source_kind = ?
+		  AND (source_kind <> 'core_package' OR EXISTS (SELECT 1 FROM core_entries e WHERE e.game_id = games.game_id))
 		  AND source_size = ? AND modified_ns = ? AND zip_member = ?
 		  AND zip_size = ? AND zip_crc32 = ? AND zip_entry_count = ?
 		  AND ((? IS NULL AND content_sha256 IS NULL AND content_size IS NULL AND content_extension IS NULL)
