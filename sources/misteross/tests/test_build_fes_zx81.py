@@ -75,6 +75,8 @@ class BuildFesZx81Tests(unittest.TestCase):
     def test_zx81_smoke_runs_machine_variants_without_a_user_rom(self) -> None:
         env = os.environ.copy()
         env.pop("FES_ZX81_ROM", None)
+        env.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
+        env.pop("CACHE_ROOT", None)
         result = subprocess.run(
             ["make", "-n", "sim-fes-zx81-smoke"],
             cwd=ROOT,
