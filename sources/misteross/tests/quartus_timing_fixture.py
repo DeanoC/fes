@@ -75,6 +75,11 @@ FAILING_REPORTS = (
      re.escape("timing miss: Setup worst slack 1.559 ns on an unreported clock (TNS -0.000 ns)")),
     ("two analyses miss", MISS_REPORT.replace(MISS_SLACK_ROW, MISS_SLACK_ROW.replace("; 0.162 ", "; -0.051 ")),
      re.escape(f"{MISS_ERROR}; Hold worst slack -0.051 ns on an unreported clock (TNS 0.0 ns)")),
+    ("sub-picosecond setup miss beside a zero-slack clock",
+     MISS_REPORT.replace(MISS_SLACK_ROW, MISS_SLACK_ROW.replace("; -2.243   ", "; -0.000   "))
+     .replace(f";  {MISS_CLOCK} ; -2.243   ", f";  {MISS_CLOCK} ; -0.000   ")
+     .replace("; 0.745    ; 0.191 ", "; 0.000    ; 0.191 "),
+     re.escape(f"timing miss: Setup worst slack -0.000 ns on {MISS_CLOCK} (TNS -616.825 ns)") + r"\Z"),
     ("worst-case slack row twice", PASSING_REPORT.replace(SLACK_ROW, f"{SLACK_ROW}\n{SLACK_ROW}"),
      "required analysis categories"),
     ("N/A in the worst-case slack row", PASSING_REPORT.replace(SLACK_ROW, SLACK_ROW.replace("; 6.508    ", "; N/A      ")),

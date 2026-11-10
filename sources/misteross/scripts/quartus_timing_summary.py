@@ -44,10 +44,16 @@ def _number(text: str, error: type[Exception]) -> float:
     return value
 
 
-def _worst_clock(clock_rows: list[tuple], column: int, slack: float, error: type[Exception]) -> str:
+def _signed(text: str, error: type[Exception]) -> tuple[bool, float]:
+    """A value with its printed sign, so -0.000 (a miss) differs from 0.000."""
+    return text.startswith("-"), _number(text, error)
+
+
+def _worst_clock(clock_rows: list[tuple], column: int, slack_text: str, error: type[Exception]) -> str:
     """The clocks whose slack in this analysis is the worst-case slack."""
+    worst = _signed(slack_text, error)
     clocks = [row[0] for row in clock_rows
-              if row[column + 1] != "N/A" and _number(row[column + 1], error) == slack]
+              if row[column + 1] != "N/A" and _signed(row[column + 1], error) == worst]
     return " and ".join(clocks) if clocks else "an unreported clock"
 
 
@@ -60,7 +66,7 @@ def validate_timing_report(sta_text: str, error: type[Exception]) -> list[dict[s
         slack, tns = _number(slack_text, error), _number(tns_text, error)
         # A miss under half a picosecond prints as -0.000, so read the sign.
         if slack_text.startswith("-") or tns_text.startswith("-"):
-            clock = _worst_clock(clock_rows, column, slack, error)
+            clock = _worst_clock(clock_rows, column, slack_text, error)
             misses.append(f"{name} worst slack {slack_text} ns on {clock} (TNS {tns_text} ns)")
         result.append({"type": name, "slack_ns": slack, "tns_ns": tns})
     if misses:
