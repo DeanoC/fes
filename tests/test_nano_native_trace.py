@@ -1479,6 +1479,85 @@ class NativeSDScratchTraceTests(unittest.TestCase):
         with self.assertRaises(ValueError):trace.decode_native_boot('',BUILD,SEED,storage=NativeSDTraceTests.expected,scratch_inspect=1)
 
 
+class NativeSDWriteTraceTests(unittest.TestCase):
+    plan=NativeSDScratchTraceTests.plan
+
+    def capture(self):
+        prefix=NativeSDTraceTests().capture().split('FES_STORAGE_PROBE')[0]
+        return prefix+''.join(
+            f'FES_NANO_SDWRITE {stage.upper()} cid={self.plan["cid"]} sectors={self.plan["sectors"]} '
+            f'lba={self.plan["sectors"]-8} count=8 owner={OWNER:016x} generation={generation} sha256={trace.SCRATCH_PATTERN_SHA256}\r\n'
+            for stage,generation in zip(trace.SCRATCH_WRITE_PHASES,(3,3,4,6,7)))
+
+    def decode(self,raw):
+        return trace.decode_native_boot(raw,BUILD,SEED,scratch_write=self.plan)
+
+    def test_full_write_readback_and_containment_with_explicit_mode(self):
+        r=self.decode(self.capture());self.assertTrue(r['complete'],r)
+        self.assertEqual(r['last_checkpoint'],'scratch_pass')
+        self.assertTrue(r['scratch_write_observation']['final_sd_contained'])
+        self.assertFalse(r['scratch_write_observation']['independent_recovery_readback'])
+        self.assertFalse(r['core_load_acceptance'])
+        self.assertFalse(trace.decode_native_boot(self.capture(),BUILD,SEED)['complete'])
+        self.assertFalse(trace.decode_native_boot(self.capture(),BUILD,SEED,storage=NativeSDTraceTests.expected)['complete'])
+
+    def test_every_phase_binds_owner_generation_card_bounds_and_pattern(self):
+        raw=self.capture()
+        for line in [x for x in raw.splitlines(keepends=True) if x.startswith('FES_NANO_SDWRITE ')]:
+            for old,new in ((f'owner={OWNER:016x}',f'owner={OWNER+2:016x}'),
+                            ('generation=','generation=1'),('cid='+'b'*30,'cid='+'a'*30),
+                            ('sectors=7774208','sectors=7774207'),('lba=7774200','lba=7774199'),
+                            ('count=8','count=9'),('sha256='+trace.SCRATCH_PATTERN_SHA256,'sha256='+'0'*64)):
+                with self.subTest(stage=line.split()[1],change=new):
+                    r=self.decode(raw.replace(line,line.replace(old,new)))
+                    self.assertFalse(r['complete']);self.assertTrue(r['errors'])
+            self.assertFalse(self.decode(raw.replace(line,''))['complete'])
+            self.assertFalse(self.decode(raw.replace(line,line+line))['complete'])
+
+    def test_partial_and_failed_writes_do_not_imply_final_containment(self):
+        raw=self.capture()
+        for marker in ('WRITTEN','CONTAINED','RESUMED','PASS'):
+            r=self.decode(raw.split('FES_NANO_SDWRITE '+marker)[0])
+            self.assertFalse(r['complete']);self.assertFalse(r['scratch_write_observation']['final_sd_contained'])
+            self.assertTrue(r['scratch_write_observation']['writes_possible_after_verified'])
+        r=self.decode(raw.split('FES_NANO_SDWRITE WRITTEN')[0]+'panic: write failed\r\n')
+        self.assertFalse(r['complete'])
+        for i in range(raw.index('FES_NANO_SDWRITE VERIFIED'),len(raw)):
+            self.assertFalse(self.decode(raw[:i])['complete'])
+
+    def test_expected_plan_and_modes_are_not_chosen_by_wire(self):
+        for changes in ({'format':True},{'cid':'f'*30},{'cid':'0'*30},{'sectors':True},
+                        {'sectors':8193},{'sectors':1<<33},{'original_sha256':trace.SCRATCH_PATTERN_SHA256},{'extra':1}):
+            with self.subTest(changes=changes),self.assertRaises(ValueError):
+                trace.decode_native_boot('',BUILD,SEED,scratch_write=dict(self.plan,**changes))
+        for mode in ({'storage':NativeSDTraceTests.expected},{'scratch_inspect':True},{'package':{}},{'usb_control':True},{'firmware_ram_trace':True},{'_window_prefix':True}):
+            with self.subTest(mode=mode),self.assertRaises(ValueError):
+                trace.decode_native_boot('',BUILD,SEED,scratch_write=self.plan,**mode)
+
+    def test_actual_c_firmware_go_pio_records_match_decoder(self):
+        import os,subprocess
+        # Host fixture only: a real C dispatcher and Go PIO/card model emit the
+        # five records. The cold prefix remains an explicit synthetic vector.
+        result=subprocess.run(['go','test','-race','-count=1','-timeout','90s','-run',
+            '^TestScratchActualFirmwarePIOWriteReadbackAndContainResume$','-v','./sdcontrol'],
+            cwd=ROOT/'platform/embedded/tamago',env=dict(os.environ,GOWORK='off'),
+            stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=120)
+        self.assertEqual(result.returncode,0,result.stdout)
+        lines=[x[x.index('FES_NANO_SDWRITE '):] for x in result.stdout.splitlines() if 'FES_NANO_SDWRITE ' in x]
+        self.assertEqual(len(lines),5,result.stdout)
+        owner=int(re.search(r' owner=([0-9a-f]+)',lines[0])[1],16)
+        plans=[x.split('FES_MODEL_SCRATCH_PLAN ',1)[1] for x in result.stdout.splitlines() if 'FES_MODEL_SCRATCH_PLAN ' in x]
+        self.assertEqual(len(plans),1,result.stdout)
+        plan=json.loads(plans[0])
+        self.assertEqual(plan['cid'],'12345699aabbcc5566778811223344')
+        self.assertEqual(plan['sectors'],8192)
+        prefix=NativeSDTraceTests().capture().split('FES_STORAGE_PROBE')[0].replace(f'owner={OWNER:x}',f'owner={owner:x}')
+        seed=(owner^EPOCH)|1
+        r=trace.decode_native_boot(prefix+'\n'.join(lines)+'\n',BUILD,seed,scratch_write=plan)
+        self.assertTrue(r['complete'],r)
+        self.assertEqual(r['scratch_write_observation']['expected_plan'],plan)
+
+
 class NativePackageTraceTests(unittest.TestCase):
     expected={'package_id':'c'*64,'payload_sha256':'d'*64,'payload_bytes':12,'build_id':'e'*32}
 

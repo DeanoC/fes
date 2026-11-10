@@ -60,6 +60,14 @@ func TestScratchActualFirmwarePIOWriteReadbackAndContainResume(t *testing.T) {
 	if err := RunScratch(s, p, &log); err != nil {
 		t.Fatal(err, log.String())
 	}
+	// The host trace decoder consumes these actual C/PIO/model-backed records
+	// in its cross-language check; ordinary non-verbose Go runs stay quiet.
+	encoded, err := json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("FES_MODEL_SCRATCH_PLAN %s", encoded)
+	t.Log(log.String())
 	if !bytes.Equal(before[:len(before)-4096], c.image[:len(c.image)-4096]) {
 		t.Fatal("bytes outside scratch changed")
 	}

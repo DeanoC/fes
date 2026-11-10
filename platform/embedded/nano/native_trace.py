@@ -36,6 +36,11 @@ LOADER_STAGES = STAGES[:STAGES.index('prompt')+1]
 ACTIVITY_PHASES = ('initial','initial-held','run','return','return-held','relaunch','final','final-held')
 H = r'[0-9a-f]{1,16}'
 W = r'[0-9a-f]{8}'
+SCRATCH_PATTERN_SHA256 = hashlib.sha256(bytes((i*37+(i//512)*17+0x5a)&255 for i in range(4096))).hexdigest()
+SCRATCH_WRITE_PHASES = ('verified','written','contained','resumed','pass')
+SCRATCH_WRITE_RULES = tuple(('scratch_'+stage,
+    rf'FES_NANO_SDWRITE {stage.upper()} cid=(?P<cid>[0-9a-f]{{30}}) sectors=(?P<sectors>[0-9]{{1,20}}) lba=(?P<lba>[0-9]{{1,20}}) count=(?P<count>[0-9]{{1,3}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}}) sha256=(?P<sha256>[0-9a-f]{{64}})')
+    for stage in SCRATCH_WRITE_PHASES)
 RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('spl', r'U-Boot SPL[^\r\n]*?-fes-nano-(?P<id>[0-9a-f]{16})(?:[ \t].*)?'),
     ('initial', rf'FES_NANO_SPL BEGIN cause=(?P<cause>{W}) per0=(?P<per0>{W}) bridge=(?P<bridge>{W}) cpus=(?P<cpus>{W}) release=(?P<release>{W}) kind=(?P<kind>[0-7]) valid=(?P<valid>[01])'),
@@ -100,6 +105,7 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     # SDHCI R2 supplies CID[127:8], exactly 15 bytes without CRC/end bits.
     ('read', rf'FES_NANO_SD READ bytes=(?P<bytes>[0-9]{{1,10}}) sha256=(?P<sha256>[0-9a-f]{{64}}) cid=(?P<cid>[0-9a-f]{{30}}) sectors=(?P<sectors>[0-9]{{1,20}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
     ('scratch_plan', r'FES_NANO_SD SCRATCH_PLAN (?P<plan>\{[^\r\n]{1,2048}\})'),
+    *SCRATCH_WRITE_RULES,
     ('contained', rf'FES_NANO_SD CONTAINED owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
     ('resumed', rf'FES_NANO_SD RESUMED bytes=(?P<bytes>[0-9]{{1,10}}) sha256=(?P<sha256>[0-9a-f]{{64}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
     ('sd_pass', rf'FES_NANO_SD PASS read-only owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
@@ -113,7 +119,7 @@ DECIMAL = {'kind', 'valid', 'core', 'provider', 'result', 'status', 'counter',
            'cpu0', 'cpu1', 'cpu2', 'cpu3', 'setup', 'ready', 'bytes', 'sectors', 'sd_generation', 'payload_bytes','words','ordinal',
            'reads','identified','settled','bypass_controls_clear','arena_bytes','reader_reads','reader_polls','disable','probe_polls','cancel','complete',
            'index','layout_known','window_covered','mpfe_reset','fetches','execution_observed','part','pass','count','busy','error',
-           'ram_bytes','control_bytes','dma_bytes','reader_bytes','firmware_bytes','translations','frame_bytes','row_bytes','stride','rows','board_error','platform_error','slots','slot_bytes'}
+           'ram_bytes','control_bytes','dma_bytes','reader_bytes','firmware_bytes','translations','frame_bytes','row_bytes','stride','rows','board_error','platform_error','slots','slot_bytes','lba'}
 TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_id','map_sha256','pattern_sha256','descriptor_sha256','frame_sha256','initial_sha256','plan'}
 
 
@@ -125,7 +131,19 @@ class _ComputerContinuation:
         self.storage_return=storage_return
 
 
-def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_inspect=False, package=None, hps_context=None, hps_io=None, fpga_identity=None,
+def checked_scratch_plan(p):
+    """Validate trusted expected plan data; this supplies no device permission."""
+    if (not isinstance(p,dict) or set(p)!={'format','scope','cid','sectors','mbr_sha256','original_sha256'} or
+            type(p['format']) is not int or p['format']!=1 or p['scope']!='nano-sd-scratch-write-v1' or
+            not isinstance(p['cid'],str) or not re.fullmatch('[0-9a-f]{30}',p['cid']) or p['cid'] in ('0'*30,'f'*30) or
+            type(p['sectors']) is not int or not 4096<=p['sectors']<=1<<32 or p['sectors']%1024 or
+            any(not isinstance(p[k],str) or not re.fullmatch('[0-9a-f]{64}',p[k]) for k in ('mbr_sha256','original_sha256')) or
+            p['original_sha256']==SCRATCH_PATTERN_SHA256):
+        raise ValueError('independently checked bounded scratch plan required')
+    return dict(p)
+
+
+def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_inspect=False, scratch_write=None, package=None, hps_context=None, hps_io=None, fpga_identity=None,
                        fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False,
                        smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, usb_control=False, usb_shared=False, firmware_ram_trace=False, firmware_mmu=None, _continuation=None, _window_prefix=False, _menu_prefix=False):
     """Retain partial progress, but qualify only one ordered, coherent boot.
@@ -149,6 +167,11 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
         raise ValueError('secure capture trace selection must come from the checked build')
     if type(scratch_inspect) is not bool or scratch_inspect and storage is None:
         raise ValueError('scratch inspection requires the explicitly selected storage diagnostic')
+    if scratch_write is not None:
+        scratch_write=checked_scratch_plan(scratch_write)
+        if (any(v is not None for v in (storage,package,hps_context,hps_io,fpga_identity,reader_memory,computer,cpu_mapping,_continuation,firmware_mmu)) or
+                any((scratch_inspect,usb_control,usb_shared,smmu_observe,fpga_configuration,fpga_unready,fpga_status_only,configuration_storage,computer_activity,firmware_ram_trace,_window_prefix,_menu_prefix))):
+            raise ValueError('scratch write requires its separate cold SD-only diagnostic')
     if type(computer_activity) is not bool or computer_activity and computer is None:
         raise ValueError('computer activity requires its explicitly selected source-bound computer probe')
     if type(usb_shared) is not bool or usb_shared and (not usb_control or package is None):
@@ -263,7 +286,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
                     int(computer[key],16)==0 for key in ('handoff_sha256','endpoint_sha256','wrapper_sha256'))):
             raise ValueError('independently checked internal-RAM computer contract and contained SD configuration required')
     source_generation=_continuation.generation if continued else 4 if configuration_storage else 1
-    controlled = not continued and (storage is not None or package is not None or configuration_storage)
+    controlled = not continued and (storage is not None or package is not None or configuration_storage or scratch_write is not None)
     if type(smmu_observe) is not bool or smmu_observe and (controlled or hps_context is not None or fpga_identity is not None):
         raise ValueError('SMMU observation requires its separate serial-only diagnostic')
     if continued:base_stages=()
@@ -289,7 +312,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
         index=base_stages.index('provider')+1
         stages=base_stages[:index]+('sd_platform',)+base_stages[index:-1]+('configuration_package',)+stages[len(base_stages)-1:]
     elif controlled:
-        suffix=(('storage','read',*(('scratch_plan',) if scratch_inspect else ()),'contained','resumed','sd_pass') if storage is not None else
+        suffix=(tuple('scratch_'+phase for phase in SCRATCH_WRITE_PHASES) if scratch_write is not None else
+                ('storage','read',*(('scratch_plan',) if scratch_inspect else ()),'contained','resumed','sd_pass') if storage is not None else
                 ('package_probe','package_retained','package_contained','package_resumed','package_pass'))
         index=base_stages.index('provider')+1
         source_stages=stages[len(base_stages)-1:] if usb_shared else ()
@@ -789,21 +813,22 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
                     result[key]=value
                 return result
             try:
-                p=json.loads(observed['scratch_plan']['plan'],object_pairs_hook=unique)
+                p=checked_scratch_plan(json.loads(observed['scratch_plan']['plan'],object_pairs_hook=unique))
                 read=observed.get('read',{})
-                pattern=bytes((i*37+(i//512)*17+0x5a)&255 for i in range(4096))
-                valid=(scratch_inspect and isinstance(p,dict) and
-                    set(p)=={'format','scope','cid','sectors','mbr_sha256','original_sha256'} and
-                    type(p['format']) is int and p['format']==1 and p['scope']=='nano-sd-scratch-write-v1' and
-                    p['cid']==read.get('cid') and p['cid'] not in ('0'*30,'f'*30) and
-                    type(p['sectors']) is int and p['sectors']==read.get('sectors') and
-                    4096<=p['sectors']<=1<<32 and p['sectors']%1024==0 and
-                    all(isinstance(p[k],str) and re.fullmatch('[0-9a-f]{64}',p[k]) for k in ('mbr_sha256','original_sha256')) and
-                    p['original_sha256']!=hashlib.sha256(pattern).hexdigest())
+                valid=(scratch_inspect and p['cid']==read.get('cid') and p['sectors']==read.get('sectors'))
                 require(valid,'scratch inspection plan differs from the observed card or bounded format')
                 if valid:report['scratch_plan']=p
             except (ValueError,TypeError,RecursionError):
                 require(False,'malformed scratch inspection plan')
+        if scratch_write is not None:
+            for phase,generation in zip(SCRATCH_WRITE_PHASES,(3,3,4,6,7)):
+                value=observed.get('scratch_'+phase)
+                if value is not None:
+                    require(value['owner']==matched_owner and value['sd_generation']==generation,
+                            f'scratch {phase} owner/generation differs')
+                    require(value['cid']==scratch_write['cid'] and value['sectors']==scratch_write['sectors'] and
+                            value['lba']==scratch_write['sectors']-8 and value['count']==8 and value['sha256']==SCRATCH_PATTERN_SHA256,
+                            f'scratch {phase} card, bounds or pattern differs')
     if computer is not None and 'computer_control' in observed:
         value=observed['computer_control']
         require(all(value[key]==computer[key] for key in ('package_id','build_id')) and
@@ -834,6 +859,11 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
     names = tuple(row['stage'] for row in report['records'])
     report['loader_ready'] = not continued and not report['errors'] and names[:len(loader_stages)] == loader_stages
     report['complete'] = not report['errors'] and names == stages and not tail
+    if scratch_write is not None:
+        report['scratch_write_observation']={'expected_plan':scratch_write,'pattern_sha256':SCRATCH_PATTERN_SHA256,
+            'writes_possible_after_verified':'scratch_verified' in observed,'written_record_present':'scratch_written' in observed,
+            'final_sd_contained':report['complete'],'complete':report['complete'],
+            'independent_recovery_readback':False,'filesystem_write_qualification':False,'ordinary_admission':False}
     if hps_io is not None:
         report['hps_io_observation']={'complete':report['complete'],'map_sha256':context_digest(hps_io),
             'registers':164,'reads':sum(row['stage'].startswith('hps_io_row_') for row in report['records']),
