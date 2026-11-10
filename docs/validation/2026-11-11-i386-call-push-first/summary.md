@@ -66,11 +66,28 @@ are 16-bit operand cases).
   checked against CS's limit. Every real-mode delivery redirect restarts at
   the low 16 bits of EIP.
 
-**#1666** (#1646) makes CALL rel's past-limit push translate under paging
-(`dfl`) so its #PF comes first. After this change the push has no fault, so
-it translates as any store does and #PF comes first without that term. The
-paging case with a present page, which #1666 leaves to #1510, needs #1666's
-DPL-3 paging descriptors; it is added when the two meet on main.
+**#1666** (#1646, open) makes CALL rel's past-limit push translate under
+paging (`dfl`) so its #PF comes first. After this change the push has no
+fault, so it translates as any store does, and #PF comes first without that
+term. The paging cases need #1666's DPL-3 paging descriptors, so they land
+with whichever of the two PRs merges second. A trial merge of #1666's head
+`1a8b973a9` into this branch's `a5467f777` (not pushed):
+- **Resolution.** One conflict in the RTL, M1's fault and `dfl`: this
+  branch's side, `dfl = !cs_late && dfault != NONE` (no `m1_tpast` term).
+  #1666's XCHG m changes and its M2 replay for `dfl` uops merge cleanly.
+- **Three paging cases added** (69 → 72), at CPL 3 with ESP 10008h and the
+  target 20000h past CS 53h's limit:
+  - `pg-r3-call-past-limit-ok`: `CALL rel32`, the push's page present and
+    writable (frame 20000h): the slot written at 20004h, then #GP(0).
+  - `pg-r3-call-rm-past-limit-np`: `CALL EBX`, the page not present: #PF,
+    error 6, CR2 10004h.
+  - `pg-r3-call-rm-past-limit-ok`: `CALL EBX`, the page present: the slot
+    written, then #GP(0).
+- **Merged RTL:** directed 77, protected-mode 278 and paging 72 cases, all
+  pass, #1666's `pg-r3-call-past-limit-np`, `-ro` and XCHG cases included.
+- **#1666's RTL alone** with that testbench fails the three new paging
+  cases and the three CPL-3 protected-mode cases: no slot written, and
+  CALL EBX's push not present raises #GP(0) instead of #PF.
 
 ## Directed cases
 
@@ -107,11 +124,12 @@ Every trace hash is the same on the RTL and the netlist.
 [lockstep-netlist-report.json](lockstep-netlist-report.json) is the
 netlist's full run. The RTL's full run,
 [lockstep-report.json](lockstep-report.json), ran its corpus part on a
-partial local corpus (5 files). The full corpus then ran alone on the same
+partial local corpus (1 file, 100 tests). The full corpus then ran alone on the same
 RTL: [lockstep-corpus-report.json](lockstep-corpus-report.json).
 
-`random#1010#118` (#1663) does not fail here: the generator's change in #1651
-and this branch draws other programs from that seed. Programs under a CS
+`random#1010#118` (#1663), the known failure on main, does not fail here.
+Not checked further; presumably the real-gp exit's new CALL draw changes
+the programs drawn after it from that seed. Programs under a CS
 limit other than 64 KiB and 4 GiB (`cs_limit`): pm-gp 615, pm-retired
 19,730, real-gp 405, real-retired 1,195.
 
