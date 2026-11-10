@@ -56,13 +56,19 @@ the existing secure stop callback. Resume rediscovers and checks the original
 card before selecting the faster rate again. Every transition is bounded and
 failure retires the device; it never retries at the slower rate.
 
-This option currently has model/race evidence only. The owned session and Nano
+This option has model/race evidence and a [bounded physical file trial](../../../../docs/validation/2026-11-10-de25-fast-sd-trial/README.md).
+The owned session and Nano
 board adapter now forward it for the explicit plan-bound
 `sdfile --sd-transfer-clock 25000000` diagnostic; ordinary startup keeps zero.
 It grants no new firmware/PHY, DMA, voltage
 or bus-width capability. The [Altera clock description](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/clocks?contentId=vITZ5tUjusRdH5RE7r9jwg)
 documents the qualified-input divider relationship; the card's CSD field follows
 the pinned Terasic U-Boot `drivers/mmc/mmc.c` default-speed interpretation.
+
+The matched trial passes native FAT creation/update, containment/resume with
+clock restoration, fresh remount/readback and separate recovery-boot file and
+protected-media verification. This qualifies that one-bit/PIO path on the
+selected spare card; ordinary startup and full package installation are separate.
 
 `Identity` returns a copy of CID[127:8] and discovered sector count. SDHCI's
 R2 response omits the CID CRC/end byte and reserves its high register byte;

@@ -48,6 +48,10 @@ join actual firmware, PIO/FAT and independent mtools readback. The preceding
 physical file result used the default transport and does not qualify this
 new selection.
 
+The [separate 25 MHz physical trial](../../../../docs/validation/2026-11-10-de25-fast-sd-trial/README.md)
+now passes the same file lifecycle and independent fresh recovery readback.
+Ordinary startup keeps its previous transport and write policy.
+
 From the TamaGo module, run:
 
 ```sh

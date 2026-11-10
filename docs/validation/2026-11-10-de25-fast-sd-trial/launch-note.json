@@ -1,0 +1,9 @@
+{
+  "at": "2026-11-10T19:50:14.462030+00:00",
+  "scope": "Host command creation only",
+  "initial_command_started": false,
+  "error": "CreateProcess rejected nonexistent workdir /home/deano/fes/out/dev25-embedded-os",
+  "corrected_workdir": "/home/deano/fes/out/dev/de25-embedded-os",
+  "corrected_tool_session": 55793,
+  "programming_attempt_consumed_by_typo": false
+}

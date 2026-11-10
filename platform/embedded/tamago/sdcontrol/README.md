@@ -51,7 +51,11 @@ cover read-only and writable lifecycles, FAT persistence, divider/stability and
 restoration failures, replacement cards and no fallback or automatic stop.
 The Nano `sdfile --sd-transfer-clock 25000000` diagnostic is the only build
 selection; ordinary startup remains unchanged. Physical qualification of this
-changed clock path is separate from the previous 400 kHz write evidence.
+changed clock path is separate from the previous 400 kHz write evidence. Its
+[matched physical trial](../../../../docs/validation/2026-11-10-de25-fast-sd-trial/README.md)
+now passes native file creation/update/remount, both restored-clock secure stops
+and a separate fresh recovery file/protected-media readback. Ordinary startup
+and full package installation remain unchanged.
 
 `Quiesce` fences new/queued reads and writes, finishes the current sector and stops the
 PIO driver. Firmware then independently checks drain and reset containment.

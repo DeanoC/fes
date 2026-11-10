@@ -19,14 +19,20 @@ passes all five native stages on TRWU8CBL. Its subsequent host readback parser
 failed and that whole attempt remains failed. A [separate fresh recovery-only
 verification](../../docs/validation/2026-11-10-de25-sd-independent-readback/README.md)
 now confirms the written pattern across a fresh boot and protected boot-media
-hashes before/after. This qualifies the bounded native PIO write path; FAT
-persistence, ordinary writable startup and power-loss behavior remain open.
+hashes before/after. This qualifies the bounded native PIO write path. The
+separate file qualification below does not enable ordinary writable startup
+or establish power-loss behavior.
 The separate [`sdfile` prototype](tamago/fatcheck/README.md) now connects FAT
 creation and updates to the same owned native SD writer, with fresh mount/readback
 after containment/resume. Its [bounded hardware trial](../../docs/validation/2026-11-10-de25-native-fat-file-trial/README.md)
 now passes all six native stages and separate fresh recovery-boot file/protected
 media readback. This qualifies that file path; ordinary package installation
 and power-loss behavior remain open.
+The explicit [25 MHz owned-session trial](../../docs/validation/2026-11-10-de25-fast-sd-trial/README.md)
+also passes file creation/update, restored-clock containment/resume and fresh
+recovery file/protected-media readback. Ordinary startup retains its previous
+read-only transport; the faster selection is available for the next package
+installer integration.
 The [FAT32 allocation path](tamago/fat/README.md) now creates files and directories
 without preallocation, with independent mtools readback and real package-store
 retention tests. The [owned in-process installer](tamago/nativefabric/README.md)

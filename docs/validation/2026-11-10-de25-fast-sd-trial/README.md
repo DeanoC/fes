@@ -1,5 +1,38 @@
 # Owned default-speed SD trial
 
+The [bounded hardware trial](hardware-result.json) passes on TRWU8CBL, native
+build `5d1268f0ec6cad7d`, operator source `295da9306`, compiled `ad4cc61e7`.
+The required clock-selection record reports 25 MHz under the same cold owner
+at generation 3, followed by all six FAT records at generations 3/3/3/4/6/7.
+Native creation/update, containment/resume, fresh remount/readback and final
+containment all pass. Both secure stops accept the restored identification
+clock boundary. A separate fresh recovery boot verifies the exact 1024-byte
+updated file, protected prefix/MBR/root FIT/manifest and all four live LMB/marker
+observations. Recovery checks the card summary; the full CID is enforced in the
+native phase and is not reobserved by recovery.
+
+All three programming operations completed with zero new failures. Independent
+[cleanup](cleanup-evidence.json) confirms the original 15 MHz/automatic-on JTAG
+setting, exact USB permissions, owned server gone and UART free. Last observed
+board state is the qualified recovery prompt, without a claimed surviving native
+lease or CPU park. A host working-directory typo prevented process creation
+before the actual launch; it consumed no programming attempt. The corrected
+single attempt and the [launch note](launch-note.json) remain distinct.
+
+The same native file-check phase, including programming and boot, took 24.97
+seconds versus 70.54 seconds for the preceding 400 kHz image. This is one
+end-to-end observation with different compiled images, not a raw throughput
+benchmark. Larger package installation still needs its own acceptance.
+
+The complete [2,533-file/three-code-tree capture](retention-proof.json) has
+archive hash/mode/membership readback plus independent base-and-delta source
+restoration, strict fsck and pack verification. The new absent-target plan is
+consumed; the file remains on the spare. Earlier captures and the previous
+diagnostic file are not replaced. Ordinary startup retains its previous
+read-only transport. This result qualifies the selected one-bit/PIO 25 MHz
+file path, not ordinary installation, power loss or the complete appliance.
+The following retains the original preparation.
+
 Implementation `ad4cc61e7` forwards the existing default-off 25 MHz driver
 option through the owned SD session and the separately plan-bound Nano
 `sdfile --sd-transfer-clock 25000000` build. Ordinary startup stays read-only

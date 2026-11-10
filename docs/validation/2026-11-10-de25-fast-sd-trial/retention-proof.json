@@ -1,0 +1,18 @@
+{
+  "status": "passed-terminal-hardware-retention",
+  "path": "/home/deano/fes-retained/de25-fast-sd-fat-file-hardware-20261110-r1",
+  "source_head": "295da930683850a2bd3386ab8ede3ad2b0ef17f0",
+  "hardware_source": "295da930683850a2bd3386ab8ede3ad2b0ef17f0",
+  "compiled_source": "ad4cc61e7ebf94690f00e06555cd576eb3a14a86",
+  "files": 2533,
+  "code_trees": 3,
+  "manifest_sha256": "ba4d54e1605ee0bc0f8d6ccb5a4f9eff3050f37d4485a01f0fc11e8c0156cbd8",
+  "archive_sha256": "d30dccec3444ac3e7bfb3bef9470b791384d4750bfb7da00a5a6d23efc46473a",
+  "source_base_bundle": "/home/deano/fes-retained/de25-menu-return-observation-20261110-r1/source.bundle",
+  "source_base_bundle_sha256": "d7166cde75bd88ea7f9d14ac4a5706b55c74cd215cc4f375abd1a5d6661a17d0",
+  "source_delta_bundle_sha256": "9a338c5f8bc5ee88aaf76bfb2b7eb628253eec26ab6d195a17a37c363c2cb348",
+  "source_restore_from_declared_bundles_fsck_pack_verified": true,
+  "archive_readback_modes_and_exact_code_trees_verified": true,
+  "hardware_actions": false,
+  "live_authority": false
+}
