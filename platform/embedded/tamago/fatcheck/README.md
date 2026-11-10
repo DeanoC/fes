@@ -34,6 +34,11 @@ stop failures. Decoder interoperability consumes actual model records and uses
 an explicitly synthetic cold prefix. These are software checks, not physical
 FAT persistence, power-loss qualification or ordinary package installation.
 
+The [bounded physical trial](../../../../docs/validation/2026-11-10-de25-native-fat-file-trial/README.md)
+now passes all six stages and a separate fresh recovery-boot file readback on
+TRWU8CBL. This qualifies clean-restart persistence for the selected diagnostic
+file; it does not enable ordinary installation or qualify power loss.
+
 From the TamaGo module, run:
 
 ```sh

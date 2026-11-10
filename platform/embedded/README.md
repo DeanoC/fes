@@ -23,8 +23,10 @@ hashes before/after. This qualifies the bounded native PIO write path; FAT
 persistence, ordinary writable startup and power-loss behavior remain open.
 The separate [`sdfile` prototype](tamago/fatcheck/README.md) now connects FAT
 creation and updates to the same owned native SD writer, with fresh mount/readback
-after containment/resume. Its card/file plan, six-stage trace and matched boot
-chain have software coverage; physical file persistence remains the next gate.
+after containment/resume. Its [bounded hardware trial](../../docs/validation/2026-11-10-de25-native-fat-file-trial/README.md)
+now passes all six native stages and separate fresh recovery-boot file/protected
+media readback. This qualifies that file path; ordinary package installation
+and power-loss behavior remain open.
 The [FAT32 allocation path](tamago/fat/README.md) now creates files and directories
 without preallocation, with independent mtools readback and real package-store
 retention tests. The [owned in-process installer](tamago/nativefabric/README.md)
