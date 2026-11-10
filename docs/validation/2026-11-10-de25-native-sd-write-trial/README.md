@@ -55,3 +55,32 @@ admission are still required before starting. No hardware result, native write
 success, native FAT persistence, normal core install, native Ethernet or full
 appliance acceptance is predeclared. Raw helpers and evidence live under
 `out/nano-sd-write-trial-20261110/`.
+
+## Hardware result
+
+[The single physical attempt](hardware-result.json) stopped on native
+`panic: block device is read-only`. Recovery boot, the fixed FIT upload and
+fresh SD readback, native programming and the complete matched cold/ATF/EL2/EL1
+proof passed. Native VERIFIED matches the real spare CID, capacity, original
+tail and extent, owner `f19256f2ace9935f`, SD generation 3. WRITTEN and the final
+containment stages were not reached. The write outcome remains **unknown**:
+the message alone cannot exclude an earlier sector having committed.
+
+The post-write recovery and independent readback gates were not reached, and
+neither was bypassed. The original failed trace and its two-second passive
+tail remain unchanged. The last observed SD lease was active at generation 3;
+CPU park and final SD containment were not observed. The factory restore
+waiver and continuing exclusive top-kit claim remain in effect.
+
+An earlier host launch failed before starting the experiment because root
+could not create/open the user-owned shared lock. No test stage, grant or board
+command occurred in that launch. The admitted launch acquired that same lock
+as its normal owner, then ran the root supervisor inside it. It did not alter
+the lock file or permissions or replay any programming grant.
+
+Independent cleanup passes: 15 MHz/auto-on readbacks, original USB permissions,
+owned private server stopped and complete UART-owner inventory empty. Both
+recovery and native programming completed; there are zero new programmer
+failures. This is a failed native write diagnostic, not a transport failure,
+successful native write or ordinary appliance acceptance. The next step is
+to investigate write-protect input handling before a new test is prepared.
