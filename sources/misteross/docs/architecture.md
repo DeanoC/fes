@@ -219,7 +219,10 @@ The current reviewed two-input HDMI derivation and fitted review apply. The
 board output policy uses the user-selected Terasic stock Linux/resources
 reference rather than inventing PCB delay values. It checks the locked rev-B
 HDMI_ASx4 example and SCS Golden_top against the actual 37 fitted pins, complete
-pixel PLL parameters, forwarded-clock source and all 33 transmitter writes.
+pixel PLL parameters, forwarded-clock source and all33 transmitter values.
+The scanout1.3 hotplug derivation checks one explicit clear-first ordering
+correction and every derived byte, without changing pins, PLL or raw finding
+scope. Exact1.3 admission requires matching generated consumers and kernel.
 The complete derived controller/configuration bytes remain checked. Only the
 29 vendor HDMI outputs and asynchronous status LED may retain the reference's
 missing-output-delay findings. Raw findings remain visible; independently

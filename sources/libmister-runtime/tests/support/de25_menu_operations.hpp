@@ -20,20 +20,23 @@ struct TestClock final : Clock {
 struct Operations final : De25MenuOperations {
  TestClock clock;
  De25MenuGrant state;
+ De25MenuRetirement retirement;
+ bool retirement_valid=false,retirement_missing=false;
+ unsigned retirement_mutation=0,retirement_queries=0;
  std::uint32_t abi=3;
  int abi_calls=0,allocations=0,infos=0,polls=0,reaps=0,closes=0,shares=0;
  int drain_waits=0,peer_waits=0,peers=0,ready_waits=0,pending_polls=0;
- bool allocated=false,grant_open=false,ready=true,wrong_build=false;
+ bool allocated=false,grant_open=false,ready=true,wrong_build=false,wrong_generation=false;
  bool never_complete=false,reap_error=false,late_publish=false;
  bool poll_error=false,info_error=false;
  bool retained=false;
  int owner_infos=0;
- std::function<void()> on_reap;
+ std::function<void()> on_reap,on_poll;
  std::uint32_t poll_error_delay=0;
  std::vector<std::pair<std::uint32_t,std::uint32_t>> published;
  Operations(){Reset();}
  void Reset() {
-  const auto generation=state.generation+1;state={};state.generation=generation;
+  const auto generation=state.generation+1;state={};retirement={};retirement_valid=false;state.generation=generation;
   state.version=3;state.allocation_bytes=FesDe25ScanoutAllocationBytes;
   state.slot_bytes=FesDe25ScanoutSlotBytes;state.frame_bytes=FesDe25ScanoutFrameBytes;
   state.width=FesDe25ScanoutFrameWidth;state.height=FesDe25ScanoutFrameHeight;
@@ -44,23 +47,24 @@ struct Operations final : De25MenuOperations {
  Error OwnerAbi(std::uint32_t* out) override {++abi_calls;*out=abi;return {};}
  Error OwnerInfo(bool* present,De25MenuGrant* out) override {
   ++owner_infos;if(info_error)return {ErrorCode::io_failed,"retained metadata unavailable","menu"};
-  *present=retained;*out=state;if(wrong_build)++out->build_id[2];return {};
+  *present=retained;*out=state;if(wrong_build)++out->build_id[2];if(wrong_generation)++out->generation;return {};
  }
  Error Allocate(int* out) override {assert(!allocated&&!grant_open);++allocations;allocated=grant_open=true;Reset();*out=100;return {};}
  Error Info(int fd,De25MenuGrant* out) override {
   assert(fd==100&&grant_open);++infos;
   if(info_error)return {ErrorCode::io_failed,"cached metadata unavailable","menu"};
-  *out=state;if(wrong_build)++out->build_id[2];return {};
+  *out=state;if(wrong_build)++out->build_id[2];if(wrong_generation)++out->generation;return {};
  }
  Error Poll(int fd,De25MenuGrant* out) override {
   assert(fd==100&&grant_open&&out->version==3&&out->generation==state.generation);++polls;
+  if(on_poll)on_poll();
   if(poll_error){clock.now+=poll_error_delay;return {ErrorCode::io_failed,"DE25 grant poll: Input/output error","menu"};}
   if(!never_complete&&(state.state&8)&&++pending_polls>=3) {
    state.displayed_sequence=state.accepted_sequence;state.displayed_slot=state.pending_slot;
    state.pending_slot=~std::uint32_t(0);state.pending_sequence=0;state.back_slot=state.displayed_slot^1;
    state.state=2;state.hardware_status&=~FesDe25ScanoutStatusPending;
   }
-  *out=state;if(wrong_build)++out->build_id[2];return {};
+  *out=state;if(wrong_build)++out->build_id[2];if(wrong_generation)++out->generation;return {};
  }
  Error Publish(int fd,std::uint64_t generation,std::uint32_t sequence,std::uint32_t slot) override {
   assert(fd==100&&grant_open&&ready&&generation==state.generation&&state.back_slot==slot);
@@ -71,15 +75,41 @@ struct Operations final : De25MenuOperations {
   if(late_publish)clock.now+=1000;
   return {};
  }
+ Error Retirement(int fd,std::uint64_t generation,De25MenuRetirement* out) override {
+  assert(fd==100&&grant_open&&generation==state.generation);++retirement_queries;
+  if(retirement_missing||!retirement_valid)return {ErrorCode::unsupported_interface,"retirement receipt missing","menu"};
+  *out=retirement;
+  switch(retirement_mutation){
+   case 1:++out->generation;break;case 2:++out->build_id[0];break;
+   case 3:++out->allocation_bytes;break;case 4:++out->version;break;
+   case 5:out->reserved=1;break;case 6:out->flags=0;break;
+   case 7:out->outstanding=1;break;case 8:out->hardware_status|=FesDe25ScanoutStatusRunning;break;
+   case 9:++out->accepted_sequence;break;case 10:out->slot_state^=1u<<8;break;
+   case 11:out->underflows=1;break;case 12:out->hardware_errors=0x10;break;
+  }
+  return {};
+ }
  Error Reap(bool* done) override {
   ++reaps;if(reap_error)return {ErrorCode::io_failed,"uncertain kernel drain","menu"};
   if(drain_waits){--drain_waits;*done=false;return {};}
   if(on_reap)on_reap();
+  retirement={};retirement.generation=state.generation;retirement.version=1;retirement.flags=1;
+  retirement.build_id=state.build_id;retirement.allocation_bytes=state.allocation_bytes;
+  retirement.slot_bytes=state.slot_bytes;retirement.frame_bytes=state.frame_bytes;
+  retirement.width=state.width;retirement.height=state.height;retirement.stride=state.stride;retirement.slots=state.slots;
+  retirement.hardware_status=FesDe25ScanoutStatusConfigured|FesDe25ScanoutStatusDrained|
+   (ready?FesDe25ScanoutStatusDisplayReady:0)|(state.hardware_status&(FesDe25ScanoutStatusFault|FesDe25ScanoutStatusClockFault));
+  retirement.hardware_errors=state.hardware_errors;retirement.underflows=state.underflows;
+  retirement.accepted_sequence=state.accepted_sequence;retirement.displayed_sequence=state.displayed_sequence;
+  retirement.current_sequence=state.displayed_sequence;
+  retirement.slot_state=(state.displayed_slot<<8)|state.displayed_slot|
+   (state.pending_slot==~std::uint32_t(0)?0:state.pending_slot<<16);
+  retirement_valid=true;
   // Real OWNER_REAP proves STOP/drain, then CLEAR resets the physical
   // counters before returning. The separate GP view sees those cleared values.
   state.displayed_sequence=state.accepted_sequence=state.pending_sequence=0;
   state.state=0;state.pending_slot=~std::uint32_t(0);
-  state.hardware_status=FesDe25ScanoutStatusDrained|FesDe25ScanoutStatusDisplayReady;
+  state.hardware_status=FesDe25ScanoutStatusDrained|(ready?FesDe25ScanoutStatusDisplayReady:0);
   *done=true;allocated=false;return {};
  }
  Error Idle(bool* idle) override {
@@ -99,6 +129,7 @@ struct SessionControl final : MenuDisplay {
  Operations& operations;
  bool configured=false,enabled=false,quiesced=true,fail_quiesce=false,stale_retired_counter=false;
  unsigned enables=0,quiesces=0,submits=0;
+ std::function<void(MenuDisplayInfo*)> on_info;
  explicit SessionControl(Operations& o):operations(o) {}
  Error ReadInfo(std::uint64_t,MenuDisplayInfo* out) override {
   *out={};out->geometry={FesDe25ScanoutFrameWidth,FesDe25ScanoutFrameHeight,FesDe25ScanoutFrameStride,FesDe25ScanoutFrameBytes,FesDe25ScanoutSlotBytes};
@@ -107,6 +138,7 @@ struct SessionControl final : MenuDisplay {
   out->displayed_sequence=operations.state.displayed_sequence;
   if(stale_retired_counter&&!operations.allocated)out->displayed_sequence=1;
   out->pixel_format=2;out->picture={312,90,656,540};
+  if(on_info)on_info(out);
   return {};
  }
  Error Configure(std::uint64_t) override {assert(!enabled&&quiesced);configured=true;return {};}

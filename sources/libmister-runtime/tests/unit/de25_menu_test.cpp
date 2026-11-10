@@ -23,6 +23,103 @@ void Complete(LinuxDe25Menu& m,Operations& o,std::uint32_t sequence) {
  do {assert(m.ReadInfo(o.clock.now+100,&info).ok());} while(info.pending);
  assert(info.displayed_sequence==sequence&&info.enabled&&info.configured&&!info.quiesced&&!info.faulted);
 }
+void ConfigurationIntervalPreservesExactRunningGrant() {
+ Operations o;LinuxDe25Menu m(o.clock,o);Start(m,o);
+ assert(m.Submit(1,1,o.clock.now+100).ok());
+ const auto generation=o.state.generation;
+ o.never_complete=true;o.state.hardware_status&=~FesDe25ScanoutStatusDisplayReady;
+ for(unsigned n=0;n<4;++n){MenuDisplayInfo info;assert(m.ReadInfo(o.clock.now+100,&info).ok());
+  assert(info.pending&&info.enabled&&info.configured&&!info.faulted&&info.displayed_sequence==0);}
+ assert(o.state.generation==generation&&o.allocations==1&&o.reaps==0&&o.published.size()==3);
+ o.state.hardware_status|=FesDe25ScanoutStatusDisplayReady;o.never_complete=false;
+ Complete(m,o,1);assert(o.allocations==1&&o.reaps==0);assert(m.Revoke().ok());
+ for(unsigned fault=0;fault<7;++fault){
+  Operations x;LinuxDe25Menu display(x.clock,x);Start(display,x);
+  x.state.hardware_status&=~FesDe25ScanoutStatusDisplayReady;
+  if(fault==0)x.wrong_build=true;
+  if(fault==1)x.wrong_generation=true;
+  if(fault==2)x.state.hardware_status|=FesDe25ScanoutStatusFault;
+  if(fault==3)x.state.hardware_status|=FesDe25ScanoutStatusClockFault;
+  if(fault==4)x.state.hardware_errors=0x80;
+  if(fault==5)x.state.underflows=1;
+  if(fault==6)x.state.hardware_status&=~FesDe25ScanoutStatusRunning;
+  MenuDisplayInfo info;assert(!display.ReadInfo(x.clock.now+100,&info).ok());
+ }
+}
+void ConfigurationTimeoutRequiresExactCleanRetirementReceipt() {
+ for(unsigned fault=0;fault<16;++fault){
+  Operations o;SessionControl gp(o);LinuxDe25Menu m(o.clock,o,5);MenuDisplayInfo info;
+  assert(m.Bind(build,100,&gp).ok()&&m.Activate(true,false).ok()&&m.Configure(100).ok()&&m.Enable(100).ok());
+  assert(m.Submit(1,1,100).ok());o.never_complete=true;o.ready=false;
+  o.state.hardware_status&=~FesDe25ScanoutStatusDisplayReady;
+  assert(m.ReadInfo(100,&info).ok()&&info.pending&&info.displayed_sequence==0);
+  o.clock.now=101;assert(!m.ReadInfo(100,&info).ok());
+  if(fault==1)o.retirement_missing=true;
+  if(fault>=2&&fault<=13)o.retirement_mutation=fault-1;
+  if(fault==14)o.reap_error=true; // Existing epoch/transport authority fails.
+  if(fault==15)o.on_reap=[&]{o.state.hardware_errors=0x8;o.state.underflows=1;};
+  const auto result=m.Quiesce(200,nullptr,&info);
+  if(fault==0){
+   assert(result.ok()&&info.displayed_sequence==0&&info.quiesced);
+   assert(o.retirement_queries==1&&!o.grant_open&&!o.allocated&&o.published.size()==1);
+   o.ready=true;o.never_complete=false;
+   assert(m.Activate(false,false).ok()&&o.allocations==2);
+   assert(m.ReadInfo(200,&info).ok()&&info.displayed_sequence==0);
+   assert(m.Enable(200).ok()&&m.Submit(1,1,200).ok());
+   Complete(m,o,1);assert(o.published.size()==2);assert(m.Revoke().ok());
+  }else{
+   assert(!result.ok()&&!m.Activate(false,false).ok()&&o.allocations==1&&o.published.size()==1);
+   if(fault==14)assert(o.allocated&&o.retirement_queries==0);
+   else assert(!o.allocated&&!o.grant_open&&o.retirement_queries==1);
+  }
+ }
+}
+void ConfigurationDeadlineDuringSessionInfoRequiresCleanRetirement() {
+ // Refresh succeeds before the deadline; the independent GP observation
+ // consumes the last budget. A late healthy read is a deadline, not an ACK.
+ for(unsigned fault=0;fault<4;++fault) {
+  Operations o;SessionControl gp(o);LinuxDe25Menu m(o.clock,o,5);MenuDisplayInfo info;
+  assert(m.Bind(build,100,&gp).ok()&&m.Activate(true,false).ok()&&m.Configure(100).ok()&&m.Enable(100).ok());
+  assert(m.Submit(1,1,100).ok());o.never_complete=true;o.ready=false;
+  o.state.hardware_status&=~FesDe25ScanoutStatusDisplayReady;
+  bool observed=false;
+  gp.on_info=[&](MenuDisplayInfo* value) {
+   observed=true;assert(o.clock.now<100);o.clock.now=101;
+   if(fault==1)value->underflows=1;
+   if(fault==2)value->faulted=true;
+  };
+  const auto error=m.ReadInfo(100,&info);gp.on_info={};
+  assert(observed&&!error.ok());
+  if(fault==3)o.on_reap=[&]{o.state.hardware_errors=8;o.state.underflows=1;};
+  const auto result=m.Quiesce(200,nullptr,&info);
+  if(fault==0) {
+   assert(result.ok()&&info.displayed_sequence==0&&o.retirement_queries==1&&!o.allocated);
+   o.ready=true;o.never_complete=false;
+   assert(m.Activate(false,false).ok()&&m.Enable(200).ok());
+   assert(m.Submit(1,1,200).ok());Complete(m,o,1);assert(m.Revoke().ok());
+  } else {
+   assert(!result.ok()&&!m.Activate(false,false).ok()&&o.allocations==1);
+   assert(o.retirement_queries==(fault==3?1u:0u));
+  }
+ }
+}
+void ConfigurationCancellationPreservesNonzeroLogicalHistory() {
+ Operations o;SessionControl gp(o);LinuxDe25Menu m(o.clock,o,5);MenuDisplayInfo info;
+ assert(m.Bind(build,100,&gp).ok()&&m.Activate(true,false).ok()&&m.Configure(100).ok()&&m.Enable(100).ok());
+ assert(m.Submit(1,1,100).ok());Complete(m,o,1);
+ assert(m.Quiesce(100,nullptr,&info).ok()&&info.displayed_sequence==1);
+ assert(m.Activate(false,false).ok()&&m.Enable(100).ok());
+ assert(m.Submit(1,2,100).ok());o.never_complete=true;o.ready=false;
+ o.state.hardware_status&=~FesDe25ScanoutStatusDisplayReady;
+ assert(m.ReadInfo(100,&info).ok()&&info.displayed_sequence==1&&info.pending);
+ o.clock.now=101;assert(!m.ReadInfo(100,&info).ok());
+ assert(m.Quiesce(200,nullptr,&info).ok()&&info.displayed_sequence==1);
+ o.ready=true;o.never_complete=false;
+ assert(m.Activate(false,false).ok()&&m.Enable(200).ok());
+ assert(m.ReadInfo(200,&info).ok()&&info.displayed_sequence==1&&!info.pending);
+ assert(m.Submit(1,2,200).ok());Complete(m,o,2);
+ assert(o.allocations==3&&o.published.size()==3&&m.Revoke().ok());
+}
 void RetainedAllocationRequiresIndependentDrainAndLastPeer() {
  for(std::uint32_t state:{1U,3U,7U,11U,15U}) {
   Operations o;o.retained=o.allocated=true;o.state.state=state;
@@ -275,6 +372,10 @@ void UnsupportedPathsAndBounds() {
 void SelectedSessionContractBindsBeforeAnyExposure() {
  Operations o;SessionControl gp(o);LinuxDe25Menu m(o.clock,o,gp);
  auto d=mister_test::De25StandardDescriptor();
+ for(auto minor:{0u,1u,2u,4u}) {
+  auto unsupported=d;unsupported.interfaces.back().minor=minor;
+  assert(!m.BindSession(unsupported,100).ok()&&o.abi_calls==0&&o.allocations==0);
+ }
  auto bad=d;bad.interfaces.back()={"fes.memory.hps-ddr",1,0,true};
  assert(!m.BindSession(bad,100).ok()&&o.abi_calls==0&&o.allocations==0);
  assert(m.BindSession(d,100).ok()&&o.allocations==1&&o.published.empty());
@@ -375,7 +476,7 @@ CoreDescriptor MenuDescriptor() {
  d.target.programming_profile="de25-linux-menu-v1";
  d.abi={"fes.application",1,0};d.build.id="0123456789abcdeffedcba9876543210";
  d.interfaces={{"fes.video.fixed-720p60",1,0,true},{"fes.video.menu-display",1,0,true},
-  {"fes.fabric.de25-scanout",1,2,true}};return d;
+  {"fes.fabric.de25-scanout",1,3,true}};return d;
 }
 void SelectedMenuDriverUsesItsOwnReadiness() {
  Operations o;LinuxDe25Menu menu(o.clock,o);De25MenuCoreDriver driver(menu);De25VideoBringup video;
@@ -398,7 +499,7 @@ void SelectedMenuDriverUsesItsOwnReadiness() {
 void AllocatedMenuContractRejectsFixedDdrAndOldIdentity() {
  auto d=MenuDescriptor();assert(CheckDe25MenuContract(d).ok());
  std::array<std::uint32_t,4> parsed{};assert(De25BuildWords(d.build.id,&parsed).ok()&&parsed==build);
- for(unsigned kind=0;kind<8;++kind) {
+ for(unsigned kind=0;kind<10;++kind) {
   auto bad=d;
   if(kind==0)bad.interfaces[2]={"fes.memory.hps-ddr",1,0,true};
   if(kind==1)bad.interfaces[2].minor=0;
@@ -408,6 +509,8 @@ void AllocatedMenuContractRejectsFixedDdrAndOldIdentity() {
   if(kind==5)bad.build.id[1]='z';
   if(kind==6)bad.interfaces.push_back({"fes.video.menu-blitter",1,1,true});
   if(kind==7)bad.interfaces[2].minor=1;
+  if(kind==8)bad.interfaces[2].minor=2;
+  if(kind==9)bad.interfaces[2].minor=4;
   assert(!CheckDe25MenuContract(bad).ok());
   Operations o;LinuxDe25Menu menu(o.clock,o);De25MenuCoreDriver driver(menu);
   CoreDriverContext context;context.descriptor=&bad;context.expected_core="fes.menu";
@@ -416,4 +519,4 @@ void AllocatedMenuContractRejectsFixedDdrAndOldIdentity() {
 }
 
 }
-int main(){RetainedAllocationRequiresIndependentDrainAndLastPeer();SessionRetirementConfirmsPendingFrameBeforeClear();SessionRetirementRefusesUnconfirmedOrUnclearedCounters();SelectedSessionContractBindsBeforeAnyExposure();SessionReopenUsesNewStorageAndMonotonicLogicalFrames();SessionPinnedPeerAndUncertainCloseBlockReopen();SessionUncertainPublicationIsNotRetried();SelectedMenuDriverUsesItsOwnReadiness();AllocatedMenuContractRejectsFixedDdrAndOldIdentity();AbiAndIdentityBeforeExposure();ConfirmBlackAndReuseOneAllocation();WaitForReadyBeforeAnyDma();RetainOnIdentityFaultAndUseKernelRetirement();FailedPollReportsCachedFaultWithoutRecovery();FailedPollReportsOnlyVerifiedFirstFault();LatePublicationDoesNotAcknowledgeOrReplay();FailedRetirementRemainsSticky();PeerReferencesCannotBecomeIdleByClosingRuntimeFd();UnsupportedPathsAndBounds();}
+int main(){ConfigurationDeadlineDuringSessionInfoRequiresCleanRetirement();ConfigurationCancellationPreservesNonzeroLogicalHistory();ConfigurationTimeoutRequiresExactCleanRetirementReceipt();ConfigurationIntervalPreservesExactRunningGrant();RetainedAllocationRequiresIndependentDrainAndLastPeer();SessionRetirementConfirmsPendingFrameBeforeClear();SessionRetirementRefusesUnconfirmedOrUnclearedCounters();SelectedSessionContractBindsBeforeAnyExposure();SessionReopenUsesNewStorageAndMonotonicLogicalFrames();SessionPinnedPeerAndUncertainCloseBlockReopen();SessionUncertainPublicationIsNotRetried();SelectedMenuDriverUsesItsOwnReadiness();AllocatedMenuContractRejectsFixedDdrAndOldIdentity();AbiAndIdentityBeforeExposure();ConfirmBlackAndReuseOneAllocation();WaitForReadyBeforeAnyDma();RetainOnIdentityFaultAndUseKernelRetirement();FailedPollReportsCachedFaultWithoutRecovery();FailedPollReportsOnlyVerifiedFirstFault();LatePublicationDoesNotAcknowledgeOrReplay();FailedRetirementRemainsSticky();PeerReferencesCannotBecomeIdleByClosingRuntimeFd();UnsupportedPathsAndBounds();}

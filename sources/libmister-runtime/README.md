@@ -70,7 +70,7 @@ per command. Standard HID, live cassette and SAVE behavior use the existing
 Realign. The production factory selects this shared driver for the explicit
 `de25-linux-computer-v1` profile. Its standard ZX81 contract requires video,
 HID, controller ports, fixed PCM, cassette/SAVE, session display, shared blend
-plane and allocated scanout1.1. It declares no reserved HPS DDR window. The
+plane and allocated scanout1.3. It declares no reserved HPS DDR window. The
 existing BRAM profile remains separate; there is no automatic fallback.
 Software admission does not establish a sealed standard package or hardware
 acceptance.
@@ -206,7 +206,7 @@ that adapter. This path has software coverage only; canonical sealed standard
 package production and native acceptance remain unfinished.
 
 The MENU package declares application1.0 with fixed video1.0, menu-display1.0
-and `fes.fabric.de25-scanout`1.2. It declares no boot-latched HPS DDR window,
+and `fes.fabric.de25-scanout`1.3. It declares no boot-latched HPS DDR window,
 blitter or retained session plane. The runtime's ELF menu-interface records are
 the union of its explicit DE10 and DE25 contracts. A selected startup MENU is
 loaded directly; the default Start without a package uses the board's splash

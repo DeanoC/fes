@@ -4,7 +4,7 @@
 // and the physical memory/clock/transmitter boundaries remain separate.
 module fes_de25_standard_session_harness (
     input wire clk_sys, pixel_clk, reset_n, pixel_reset_n,
-    input wire display_ready, clock_fault, expansion_running,
+    input wire display_ready, stream_ready, clock_fault, expansion_running,
     input wire [4:0] computer_address,
     input wire computer_read, computer_write,
     input wire [3:0] computer_byteenable,
@@ -56,7 +56,7 @@ module fes_de25_standard_session_harness (
         .pixel_clk(pixel_clk),
         .reset_n(reset_n),
         .pixel_reset_n(pixel_reset_n),
-        .video_ready(display_ready),
+        .video_ready(display_ready), .stream_ready(stream_ready),
         .clock_fault(clock_fault),
         .expansion_running(expansion_running),
         .computer_address(computer_address),

@@ -133,7 +133,7 @@ module fes_display_plane #(
         .window_base(32'd0), .window_base_valid(1'b0), .response(2'b00),
         .current_sequence(), .current_slot(), .memory_errors(), .outstanding_beats(),
         .first_fault_state(), .first_fault_occupancy(), .first_fault_gaps(),
-        .clk(pixel_clk), .rst(port_reset), .enable(enable && !faulted), .quiesce(quiesce),
+        .presentation_ready(1'b1), .frame_presented(), .clk(pixel_clk), .rst(port_reset), .enable(enable && !faulted), .quiesce(quiesce),
         .raster_h(raster_h), .raster_v(raster_v),
         .submit_valid(submit_valid), .submit_slot(submit_slot), .submit_sequence(submit_sequence),
         .submit_ready(submit_ready), .displayed_sequence(displayed_sequence),

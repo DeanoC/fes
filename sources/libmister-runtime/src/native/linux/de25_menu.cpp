@@ -22,6 +22,8 @@ namespace {
 using namespace generated;
 constexpr std::uint32_t kAbi=3,kRevoked=1,kExposed=2,kUncertain=4,kPending=8,kNoSlot=~std::uint32_t(0),kBlackFrames=2;
 constexpr std::uint32_t kDiagnosticsVersion=1,kDiagnosticsValid=1;
+constexpr std::uint32_t kRetirementVersion=1,kRetirementValid=1;
+static_assert(sizeof(De25MenuRetirement)==96,"retirement layout differs");
 Error Invalid(const char* s){return {ErrorCode::invalid_request,s,"menu"};}
 Error Failed(const char* s){return {ErrorCode::io_failed,s,"menu"};}
 Error Unsupported(){return {ErrorCode::unsupported_interface,"DE25 allocated display has no blitter; reopening requires selected session control","menu"};}
@@ -58,6 +60,7 @@ void AppendFirstFault(Error& error,const De25MenuDiagnostics& v,std::uint64_t ge
 static_assert(FES_DE25_DMA_ABI_VERSION==kAbi&&FES_DE25_DMA_REVOKED==kRevoked&&FES_DE25_DMA_EXPOSED==kExposed&&FES_DE25_DMA_UNCERTAIN==kUncertain&&FES_DE25_DMA_PENDING==kPending,"kernel UAPI differs");
 static_assert(sizeof(fes_de25_dma_info)==104&&sizeof(fes_de25_dma_publish)==24,"kernel ioctl layout differs");
 static_assert(FES_DE25_DMA_DIAGNOSTICS_VERSION==kDiagnosticsVersion&&FES_DE25_DMA_DIAGNOSTICS_VALID==kDiagnosticsValid&&sizeof(fes_de25_dma_diagnostics)==48,"kernel diagnostics layout differs");
+static_assert(FES_DE25_DMA_RETIREMENT_VERSION==kRetirementVersion&&FES_DE25_DMA_RETIREMENT_VALID==kRetirementValid&&sizeof(fes_de25_dma_retirement)==96,"kernel retirement layout differs");
 Error Io(const char* s){return {ErrorCode::io_failed,std::string(s)+": "+std::strerror(errno),"menu"};}
 class KernelOperations final : public De25MenuOperations {
  int owner_=-1;
@@ -121,6 +124,19 @@ public:
  Error Publish(int fd,std::uint64_t generation,std::uint32_t sequence,std::uint32_t slot) override {
   fes_de25_dma_publish p{};p.version=kAbi;p.generation=generation;p.sequence=sequence;p.slot=slot;
   return ioctl(fd,FES_DE25_DMA_PUBLISH,&p)<0?Io("DE25 publish"):Error{};
+ }
+ Error Retirement(int fd,std::uint64_t generation,De25MenuRetirement* out) override {
+  fes_de25_dma_retirement raw{};raw.version=kRetirementVersion;raw.generation=generation;
+  if(ioctl(fd,FES_DE25_DMA_RETIREMENT,&raw)<0)return Io("DE25 retired grant receipt");
+  static_assert(sizeof(raw)==sizeof(*out),"retirement copy layout");
+  out->generation=raw.generation;out->version=raw.version;out->reserved=raw.reserved;
+  std::copy(std::begin(raw.build_id),std::end(raw.build_id),out->build_id.begin());
+#define FIELD(n) out->n=raw.n
+  FIELD(flags);FIELD(allocation_bytes);FIELD(slot_bytes);FIELD(frame_bytes);FIELD(width);FIELD(height);FIELD(stride);FIELD(slots);
+  FIELD(hardware_status);FIELD(hardware_errors);FIELD(underflows);FIELD(outstanding);
+  FIELD(accepted_sequence);FIELD(displayed_sequence);FIELD(current_sequence);FIELD(slot_state);
+#undef FIELD
+  return {};
  }
  Error Reap(bool* done) override {
   const int result=ioctl(owner_,FES_DE25_DMA_OWNER_REAP,0UL);
@@ -191,7 +207,10 @@ Error LinuxDe25Menu::Validate(const De25MenuGrant& v) const {
      v.accepted_sequence||v.displayed_sequence||v.displayed_slot||v.pending_sequence||
      v.pending_slot!=kNoSlot||v.back_slot!=1||v.outstanding)return Failed("DE25 allocation is not cold and drained");
  } else {
-  const auto required=FesDe25ScanoutStatusConfigured|FesDe25ScanoutStatusRunning|FesDe25ScanoutStatusDisplayReady;
+  // Initial Configure still waits for
+  // DISPLAY_READY. A live exact grant may wait through transmitter config;
+  // hardware faults and full-frame slot ownership remain independently strict.
+  const auto required=FesDe25ScanoutStatusConfigured|FesDe25ScanoutStatusRunning;
   if(!(v.state&kExposed)||(v.hardware_status&required)!=required||(v.hardware_status&FesDe25ScanoutStatusDrained)||
      v.accepted_sequence!=submitted_)return Failed("DE25 submit is not observed in the same running allocation");
   if(v.displayed_sequence==submitted_) {
@@ -205,7 +224,7 @@ Error LinuxDe25Menu::Validate(const De25MenuGrant& v) const {
  return {};
 }
 Error LinuxDe25Menu::Refresh(std::uint64_t d) {
- Error e=Deadline(d);if(!e.ok())return Fault(e);
+ Error e=Deadline(d);if(!e.ok()){configuration_timeout_=session_control_&&configuration_wait_&&submitted_!=completed_;return Fault(e);}
  if(grant_<0||faulted_)return Failed("DE25 MENU has no healthy allocation");
  De25MenuGrant next{};next.generation=info_.generation;next.version=kAbi;
  e=operations_->Poll(grant_,&next);
@@ -230,8 +249,14 @@ Error LinuxDe25Menu::Refresh(std::uint64_t d) {
    }
   }
  }
- if(e.ok())e=Deadline(d);
- if(e.ok())e=Validate(next);
+ if(e.ok()) {
+  const Error checked=Validate(next);
+  const bool waiting=checked.ok()&&exposure_possible_&&(next.state&kPending)&&
+   !(next.hardware_status&FesDe25ScanoutStatusDisplayReady)&&submitted_!=completed_;
+  e=Deadline(d);
+  if(!e.ok())configuration_timeout_=session_control_&&waiting;
+  else {e=checked;configuration_wait_=waiting;}
+ } else {configuration_wait_=false;configuration_timeout_=false;}
  if(!e.ok())return Fault(e);
  info_=next;
  if(exposure_possible_&&info_.displayed_sequence==submitted_) {completed_=submitted_;completed_slot_=submitted_slot_;}
@@ -255,6 +280,7 @@ Error LinuxDe25Menu::BindLocked(const std::array<std::uint32_t,4>& expected,std:
  expected_=expected;session_control_=session_control;session_quiesced_=false;sequence_base_=0;
  info_={};submitted_=completed_=0;submitted_slot_=completed_slot_=0;
  activated_=bootstrapped_=exposure_possible_=reap_done_=faulted_=false;
+ configuration_wait_=configuration_timeout_=configuration_retired_=false;
  e=operations_->Allocate(&grant_);if(e.ok())e=Deadline(d);
  if(!e.ok())return Fault(e);
  if(grant_<0)return Fault(Failed("DE25 owner returned no allocation"));
@@ -353,9 +379,15 @@ void LinuxDe25Menu::Observation(MenuDisplayInfo* out,bool retired) const {
 }
 Error LinuxDe25Menu::SessionInfo(std::uint64_t d,MenuDisplayInfo* out) {
  MenuDisplayInfo observed;Error e=session_control_->ReadInfo(d,&observed);
- if(e.ok())e=Deadline(d);
  if(e.ok()&&(observed.displayed_sequence>submitted_||observed.underflows||observed.faulted))
   e=Failed("DE25 session control exceeds the kernel publication or has faulted");
+ if(e.ok()) {
+  e=Deadline(d);
+  // Refresh authenticated the pending, physically invisible grant before
+  // this healthy GP read consumed the last budget. Retirement still requires
+  // the same exact clean kernel receipt; GP faults are never this deadline.
+  if(!e.ok())configuration_timeout_=configuration_wait_&&submitted_!=completed_;
+ }
  if(!e.ok())return Fault(e);
  observed.displayed_sequence+=sequence_base_;*out=observed;return {};
 }
@@ -395,6 +427,25 @@ Error LinuxDe25Menu::Clean(std::uint8_t slot,const std::vector<MenuRect>& rects)
 Error LinuxDe25Menu::CleanBlit(std::uint32_t,std::uint32_t,const std::vector<MenuSpan>&) const {return Unsupported();}
 Error LinuxDe25Menu::RunBlit(std::uint32_t,std::uint32_t,std::uint8_t,std::uint64_t){return Unsupported();}
 Error LinuxDe25Menu::ReadBlit(std::uint64_t,MenuBlitState*){return Unsupported();}
+Error LinuxDe25Menu::ValidateRetirement(const De25MenuRetirement& r) const {
+ const auto required=FesDe25ScanoutStatusConfigured|FesDe25ScanoutStatusDrained;
+ if(r.generation!=info_.generation||r.version!=kRetirementVersion||r.reserved||r.build_id!=expected_||r.flags!=kRetirementValid||
+    r.allocation_bytes!=FesDe25ScanoutAllocationBytes||r.slot_bytes!=FesDe25ScanoutSlotBytes||r.frame_bytes!=FesDe25ScanoutFrameBytes||
+    r.width!=FesDe25ScanoutFrameWidth||r.height!=FesDe25ScanoutFrameHeight||r.stride!=FesDe25ScanoutFrameStride||r.slots!=FesDe25ScanoutSlotCount||
+    (r.hardware_status&~FesDe25ScanoutStatusMask)||(r.hardware_status&required)!=required||
+    (r.hardware_status&(FesDe25ScanoutStatusRunning|FesDe25ScanoutStatusPending|FesDe25ScanoutStatusFault|FesDe25ScanoutStatusClockFault))||
+    r.hardware_errors||r.underflows||r.outstanding||r.accepted_sequence!=submitted_||
+    (r.displayed_sequence!=completed_&&r.displayed_sequence!=submitted_)||
+    (r.current_sequence!=completed_&&r.current_sequence!=submitted_)||
+    (r.slot_state&~FesDe25ScanoutSlotsMask))return Failed("DE25 retired config receipt identity/health differs");
+ const auto displayed=(r.slot_state>>FesDe25ScanoutDisplayedSlotShift)&FesDe25ScanoutSlotMask;
+ const auto current=(r.slot_state>>FesDe25ScanoutCurrentSlotShift)&FesDe25ScanoutSlotMask;
+ const auto pending=(r.slot_state>>FesDe25ScanoutPendingSlotShift)&FesDe25ScanoutSlotMask;
+ if(displayed!=(r.displayed_sequence==completed_?completed_slot_:submitted_slot_)||
+    current!=(r.current_sequence==completed_?completed_slot_:submitted_slot_)||pending!=submitted_slot_)
+  return Failed("DE25 retired config receipt slot ownership differs");
+ return {};
+}
 Error LinuxDe25Menu::Retire(std::uint64_t d) {
  if(revoke_failed_)return revoke_error_;
  if(grant_<0)return {};
@@ -410,6 +461,14 @@ Error LinuxDe25Menu::Retire(std::uint64_t d) {
   e=operations_->Reap(&reap_done_);if(e.ok())e=Deadline(d);if(!e.ok())return failed(e);
   if(!reap_done_)operations_->WaitMs(1);
  }
+ Error receipt_error;
+ if(configuration_timeout_) {
+  De25MenuRetirement retired;
+  receipt_error=operations_->Retirement(grant_,info_.generation,&retired);
+  if(receipt_error.ok())receipt_error=Deadline(d);
+  if(receipt_error.ok())receipt_error=ValidateRetirement(retired);
+  configuration_retired_=receipt_error.ok();
+ }
  operations_->Close(grant_);grant_=-1;
  for(;;) {
   Error e=Deadline(d);if(!e.ok())return failed(e);
@@ -417,6 +476,7 @@ Error LinuxDe25Menu::Retire(std::uint64_t d) {
   if(idle)break;
   operations_->WaitMs(1);
  }
+ if(!receipt_error.ok())return failed(receipt_error);
  activated_=false;faulted_=false;return {};
 }
 Error LinuxDe25Menu::Revoke() {
@@ -480,6 +540,13 @@ Error LinuxDe25Menu::Quiesce(std::uint64_t d,const CoreDescriptor* identity,Menu
   if(e.ok())e=Deadline(d);
   // Successful OWNER_REAP already performed CLEAR. GP must observe zero;
   // the final logical completion was independently confirmed before retirement.
+  // A typed configuration timeout is not a completion. Only the exact owned
+  // pre-CLEAR receipt + successful REAP/close/OWNER_IDLE above permits dropping
+  // its unpresented submission after GP independently confirms cold sequence0.
+  if(e.ok()&&observed.displayed_sequence==0&&configuration_timeout_&&configuration_retired_) {
+   submitted_=completed_;submitted_slot_=completed_slot_;
+   configuration_timeout_=configuration_wait_=configuration_retired_=false;
+  }
   if(e.ok()&&(observed.displayed_sequence!=0||completed_!=submitted_||
       completed_>std::numeric_limits<std::uint32_t>::max()-sequence_base_)) {
    std::ostringstream detail;

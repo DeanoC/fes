@@ -81,6 +81,7 @@ add_interface_port clock_fault clock_fault export Input 1
 
 add_interface ready conduit end
 add_interface_port ready display_ready export Input 1
+add_interface_port ready stream_ready stream_ready Input 1
 
 # Standalone MENU keeps its internal raster. The standard-core session wrapper
 # instantiates this HDL directly with EXTERNAL_RASTER=1 and live machine timing.

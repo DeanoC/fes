@@ -13,7 +13,7 @@ namespace native {
 namespace generated {
 
 constexpr std::uint32_t FesDe25ScanoutIdentity = 0x44325343u;
-constexpr std::uint32_t FesDe25ScanoutVersion = 0x10002u;
+constexpr std::uint32_t FesDe25ScanoutVersion = 0x10003u;
 constexpr std::uint32_t FesDe25ScanoutArchitecturalLwBase = 0x20000000u;
 constexpr std::uint32_t FesDe25ScanoutArchitecturalLwSpan = 0x20000000u;
 constexpr std::uint32_t FesDe25ScanoutPeripheralOffset = 0x10200u;

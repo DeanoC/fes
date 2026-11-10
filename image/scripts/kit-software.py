@@ -157,6 +157,11 @@ def base_contract(target, executables, board='de10-nano'):
     # supervisor passes -catalog-config; this one uses the local-host options.
     abi = {'format': 2, 'architecture': abi_name, 'libraries': inventory,
            'launcher_supervisor': 'local-host-v1'}
+    # DE25's exact scanout/kernel cohort is a base ABI, not a userspace-only
+    # upgrade. Older immutable supervisors must reject this new runtime before
+    # their historical minor>= MENU coverage rule could start it on scanout1.2.
+    if board == 'de25-nano':
+        abi['de25_scanout'] = '1.3'
     digest = hashlib.sha256(json.dumps(abi, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     return {'board': board, 'architecture': architecture,
             'base_contract': 'fes-kit-base-v2-' + digest, 'interfaces': INTERFACES}
@@ -218,11 +223,12 @@ def runtime_menu_interfaces(runtime):
 
 
 def unmet(provides, requires):
-    """Required interfaces not provided at the same major and at least that minor."""
+    """Required interfaces not provided; DE25 scanout requires the exact minor."""
     missing = []
     for key, version in sorted(requires.items()):
         have, need = VERSION.fullmatch(provides.get(key, '')), VERSION.fullmatch(version)
-        if not have or not need or have[1] != need[1] or int(have[2]) < int(need[2]):
+        if not have or not need or have[1] != need[1] or int(have[2]) < int(need[2]) or (
+                key == 'menu.fes.fabric.de25-scanout' and have[2] != need[2]):
             missing.append(f'{key} {version}')
     return missing
 

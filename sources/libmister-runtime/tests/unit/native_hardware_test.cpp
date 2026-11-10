@@ -2265,7 +2265,7 @@ void TestSessionDisplayRejectsPlaneWithoutBlend()
 
 // Kit software packing publishes these records so an image can refuse a
 // runtime that would reject its menu. The union covers both explicit board
-// contracts. DE10 keeps its accepted older minors; DE25 requires scanout1.1.
+// contracts. DE10 keeps its accepted older minors; DE25 requires scanout1.3.
 void TestMenuInterfaceRecordsMatchMenuAdmission()
 {
  using namespace mister::native;
@@ -5339,7 +5339,7 @@ void TestDe25SelectedPlatformLifecycle()
 }
 
 enum class StaticTrial { ordinary, empty, ram16k, missing_backend, changed_empty, changed_ram, program_failure };
-void TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(StaticTrial trial=StaticTrial::ordinary) {
+void TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(StaticTrial trial=StaticTrial::ordinary,bool configuration_timeout=false,bool concurrent_retirement_fault=false) {
  using namespace mister;using namespace mister::native;using namespace mister::native::generated;
  namespace dm=mister_test::de25_menu;
  Fixture base;dm::Operations operations;dm::SessionControl control(operations);
@@ -5366,7 +5366,7 @@ void TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(StaticTrial tri
  auto menu_manifest=manifest;
  ReplaceAll(&menu_manifest,"fes.pong","fes.menu");ReplaceAll(&menu_manifest,"fes-gp-v1","de25-linux-menu-v1");
  ReplaceAll(&menu_manifest,"fes.simple-game","fes.application");ReplaceAll(&menu_manifest,"fes.gamepad","fes.video.menu-display");
- menu_manifest+="\n[[interfaces]]\nid=\"fes.fabric.de25-scanout\"\nmajor=1\nminor=2\nrequired=true\n";
+ menu_manifest+="\n[[interfaces]]\nid=\"fes.fabric.de25-scanout\"\nmajor=1\nminor=3\nrequired=true\n";
  ReplaceAll(&manifest,"fes.pong","fes.zx81");ReplaceAll(&manifest,"fes-gp-v1","de25-linux-computer-v1");
  ReplaceAll(&manifest,"fes.simple-game","fes.computer");
  manifest.erase(manifest.find("[[interfaces]]"),manifest.find("[build]")-manifest.find("[[interfaces]]"));
@@ -5459,6 +5459,57 @@ void TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(StaticTrial tri
  if(const char* path=std::getenv("FES_TEST_DE25_STANDARD_PROTOCOL_STATUS_RECORD")) {
   std::ofstream output(path);output<<daemon::EncodeResponse(2,true,state,"de25-standard-producer-fixture")<<'\n';assert(output.good());
  }
+ if(configuration_timeout) {
+  assert(runtime.SetSessionDisplay(game_package.package_id,generation,true,true).ok());
+  const auto opened=runtime.status().menu_display.generation;
+  std::unique_ptr<MenuFrame> frame;assert(runtime.BeginMenuFrame(opened,&frame).ok());
+  bool expired=false;
+  operations.on_poll=[&] {
+   if(!expired&&(operations.state.state&8)) {
+    expired=true;operations.ready=false;operations.never_complete=true;
+    operations.state.hardware_status&=~FesDe25ScanoutStatusDisplayReady;
+    // Actual production deadline is10000ms; advance the existing fake clock
+    // beyond it after accepted publication, without relaxing that deadline.
+    operations.clock.now+=10001;
+   }
+  };
+  if(concurrent_retirement_fault)operations.on_reap=[&]{operations.state.hardware_errors=0x8;operations.state.underflows=1;};
+  const auto programs=base.fpga.calls;
+  const auto publications=operations.published.size();const auto reaps=operations.reaps;
+  MenuDisplayInfo info;
+  const auto failure=runtime.PresentMenuFrame(opened,*frame,&info);
+  assert(expired&&!failure.ok());
+  const auto failed=runtime.status();
+  assert(failed.state==State::running_development&&failed.generation==generation&&
+   !failed.menu_display.available&&failed.menu_display.generation==0&&
+   !bridge.endpoint.held&&base.fpga.calls==programs);
+  assert(operations.published.size()==publications+1&&operations.reaps==reaps+1&&!operations.allocated&&!operations.grant_open);
+  const auto allocations=operations.allocations;
+  operations.ready=true;operations.never_complete=false;
+  operations.state.hardware_status|=FesDe25ScanoutStatusDisplayReady;
+  const auto shown=runtime.SetSessionDisplay(game_package.package_id,generation,true,true);
+  assert(!runtime.PresentMenuFrame(opened,*frame,&info).ok());
+  if(concurrent_retirement_fault) {
+   assert(!shown.ok()&&operations.allocations==allocations&&operations.published.size()==publications+1);
+   assert(operations.retirement_queries==1&&operations.retirement.hardware_errors==0x8&&operations.retirement.underflows==1);
+   puts("PASS concurrent draining fault retained in receipt; config-timeout reopen refused without programming/CPUhold");
+  } else {
+   assert(shown.ok()&&operations.allocations==allocations+1);
+   const auto fresh=runtime.status().menu_display.generation;
+   assert(fresh&&fresh!=opened&&runtime.status().menu_display.displayed_sequence==0);
+   assert(runtime.BeginMenuFrame(fresh,&frame).code==ErrorCode::invalid_request);frame.reset();
+   assert(runtime.BeginMenuFrame(fresh,&frame).ok()&&runtime.PresentMenuFrame(fresh,*frame,&info).ok());
+   assert(info.displayed_sequence==1&&operations.published.size()==publications+2);
+   assert(runtime.SetSessionDisplay(game_package.package_id,generation,false,false).ok());
+   puts("PASS config deadline cancellation: old frame not ACKed/replayed; fresh allocation/display generation reopens without programming/CPUhold");
+  }
+  bool original=false;
+  for(const auto& record:base.log.records())
+   if(record.operation=="session_display"&&record.phase=="present"&&record.error.message.find("deadline")!=std::string::npos)original=true;
+  assert(original&&base.fpga.calls==programs&&!bridge.endpoint.held&&runtime.status().generation==generation);
+  operations.on_poll=nullptr;operations.on_reap=nullptr;
+  return;
+ }
  for(unsigned cycle=0;cycle<3;++cycle) {
   assert(runtime.SetSessionDisplay(game_package.package_id,generation,true,true).ok());
   std::uint8_t slot=0;assert(hardware.MenuBackSlot(&slot).ok()&&slot==1);
@@ -5490,7 +5541,7 @@ void TestDe25AllocatedMenuLaunchStopAndPinnedPeer(bool clean_shutdown = false)
  ReplaceAll(&menu_manifest,"fes.pong","fes.menu");ReplaceAll(&menu_manifest,"fes-gp-v1","de25-linux-menu-v1");
  ReplaceAll(&menu_manifest,"fes.simple-game","fes.application");ReplaceAll(&menu_manifest,"fes.gamepad","fes.video.menu-display");
  ReplaceAll(&menu_manifest,"0123456789abcdef0123456789abcdef","0123456789abcdeffedcba9876543210");
- menu_manifest+="\n[[interfaces]]\nid=\"fes.fabric.de25-scanout\"\nmajor=1\nminor=2\nrequired=true\n";
+ menu_manifest+="\n[[interfaces]]\nid=\"fes.fabric.de25-scanout\"\nmajor=1\nminor=3\nrequired=true\n";
  auto game_manifest=manifest;
  ReplaceAll(&game_manifest,"fes.pong","zx81");ReplaceAll(&game_manifest,"fes-gp-v1","de25-hps-first-v1");
  ReplaceAll(&game_manifest,"fes.simple-game","fes.computer");ReplaceAll(&game_manifest,"fes.gamepad","fes.keyboard.hid");
@@ -5559,6 +5610,15 @@ void TestStaticDispatch() {
 }
 int main(int argc,char** argv)
 {
+ if(argc==2&&std::strcmp(argv[1],"--menu-interface-records")==0) {
+  TestMenuInterfaceRecordsMatchMenuAdmission();return 0;
+ }
+ if(argc==2&&std::strcmp(argv[1],"--configuration-timeout-fault")==0) {
+  TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(StaticTrial::ordinary,true,true);return 0;
+ }
+ if(argc==2&&std::strcmp(argv[1],"--configuration-timeout")==0) {
+  TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(StaticTrial::ordinary,true);return 0;
+ }
  if(argc==2&&std::strcmp(argv[1],"--static-dispatch")==0) {
   TestStaticDispatch();
   puts(mister::native::De25StaticEnabled()?"static dispatch: enabled cases passed":"static dispatch: default refusal passed");return 0;

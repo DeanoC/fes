@@ -29,6 +29,11 @@ STATIC_CASES = frozenset((
 DISABLED_CASE = "owner_static_disabled_refuses_base_before_programming"
 REQUIRED_CASES = frozenset((
     DISABLED_CASE,
+    "retirement_receipt_requires_success_and_is_cached",
+    "retirement_receipt_preserves_draining_error_before_clear",
+    "retirement_receipt_epoch_or_build_failure_is_unavailable",
+    "retirement_receipt_new_grant_has_no_old_record",
+    "retirement_receipt_failed_post_clear_epoch_never_valid",
     "diagnostics_cached_query_checks_request_without_mmio",
     "diagnostics_retains_fault_after_failed_poll_without_mmio",
     "diagnostics_latch_after_frozen_snapshot_is_coherent",

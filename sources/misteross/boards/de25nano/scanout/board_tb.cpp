@@ -79,6 +79,19 @@ struct Rig {
     void pixels(unsigned n){uint64_t end=pixel_edges+n;for(unsigned i=0;pixel_edges<end;++i){check(i<50000,"pixel progress bound");step();}}
     void train(){ref.running=sys.running=pix.running=true;for(unsigned i=0;!t.HDMI_TX_DE||!t.display_ready||!t.scanout_reset_n;++i){check(i<20000,"startup/recovery bound");step();}check(!t.clock_fault,"cold startup falsely latched fault");}
     void high_sync(){for(unsigned i=0;!t.HDMI_TX_HS||!t.HDMI_TX_VS;++i){check(i<20000,"sync setup bound");step();}}
+    void configuration_case(){
+        const auto before=pixel_edges;
+        t.rootp->fes_de25_scanout_board__DOT__hdmi_config__DOT__configured=0;t.eval();
+        for(unsigned n=0;t.display_ready;++n){check(n<2000,"HDMI reconfiguration readiness close bound");step();}
+        check(pixel_edges>before&&!t.clock_fault&&t.scanout_reset_n&&t.stream_ready,
+              "configuration interval changed clock/bridge epoch");
+        black();events(300);
+        check(!t.display_ready&&!t.clock_fault&&t.scanout_reset_n&&t.stream_ready,
+              "configuration interval did not preserve active clocks and epoch");
+        t.rootp->fes_de25_scanout_board__DOT__hdmi_config__DOT__configured=1;t.eval();train();
+        check(!t.clock_fault&&t.scanout_reset_n,"configuration recovery reset clock epoch");
+        std::puts("PASS HDMI configuration-only interval closes readiness with clocks/raster live");
+    }
     void loss_case(unsigned which){
         high_sync();
         ref.running=which!=0&&which!=2;sys.running=which!=0&&which!=1;pix.running=which!=3;
@@ -98,6 +111,7 @@ int main(int argc, char **argv) {
     Verilated::commandArgs(argc,argv);
     Rig before_reference(0, true);
     Rig configuration_wait(77, false, true);
+    configuration_wait.configuration_case();
     for (uint64_t phase : {0ull,77ull,999999ull}) {
         Rig r(phase);
         for (unsigned c=0;c<4;++c) r.loss_case(c);

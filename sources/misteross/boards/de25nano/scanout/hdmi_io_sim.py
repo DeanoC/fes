@@ -57,7 +57,7 @@ def main():
         if sorted(lut) != list(range(33)) or len(rows) != 33:
             raise ValueError('expected exactly the 33 selected vendor LUT rows')
         (output / 'expected_lut.h').write_text('static const unsigned expected_lut[33] = {' +
-            ','.join(hex(lut[n]) for n in range(33)) + '};\n')
+            ','.join(hex(lut[n]) for n in [15,*range(15),*range(16,33)]) + '};\n')
         files = [project / 'fes_mailbox' / name for name in inputs['derived_source_sha256']]
         files += [project / 'fes_mailbox/fes_de25_scanout_board.v', project / 'fes_mailbox/fes_de25_top_reset.v',
                   HERE / 'hdmi_io_tb.v', HERE / 'hdmi_io_tb.cpp', HERE.parent / 'display/sim_models.v']
@@ -66,7 +66,7 @@ def main():
         before.update({str(vendor / n): digest for n, digest in inputs['vendor_source_sha256'].items()})
         before[str(inputs_path)] = inputs_sha
         command = [args.verilator, '--cc', '--exe', '--build', '-O3', '--top-module', 'fes_de25_hdmi_io_tb',
-            '--Mdir', str(output / 'obj'), '-Wno-DECLFILENAME', '-Wno-UNUSEDSIGNAL', '-Wno-PINCONNECTEMPTY',
+            '--public-flat-rw', '--Mdir', str(output / 'obj'), '-Wno-DECLFILENAME', '-Wno-UNUSEDSIGNAL', '-Wno-PINCONNECTEMPTY',
             # The retained vendor cell leaves three unused test/direction pins
             # open, uses a bounded 16-bit divider comparison and a hold-default
             # case. Its combinational LUT uses nonblocking assignment syntax.
@@ -78,6 +78,21 @@ def main():
         cases = [json.loads(line) for line in (output / 'simulation.log').read_text().splitlines()]
         if [c['case'] for c in cases] != ['hdmi-inputs-nack-' + str(n) for n in (3, 0, 1, 2)] or any(c['status'] != 'pass' for c in cases):
             raise ValueError('incomplete HDMI protocol cases')
+        checked([executable, '--controls'], output / 'model-controls.log')
+        controls = [json.loads(line) for line in (output / 'model-controls.log').read_text().splitlines()]
+        if len(controls)!=1 or controls[0].get('status')!='pass':
+            raise ValueError('incomplete HPD/monitor/W1C model controls')
+        cases += controls
+        for monitor in (False,True):
+            for phase in range(5):
+                log = output / f'hotplug-{phase}-monitor-{int(monitor)}.log'
+                checked([executable,'--phase',str(phase),*(['--monitor'] if monitor else [])],log)
+                observed=[json.loads(line) for line in log.read_text().splitlines()]
+                if len(observed)!=2 or observed[0].get('case')!=f'hpd-reconnect-phase-{phase}' or any(
+                        not observed[0][name] for name in ('hpd','ready')) or observed[0]['power_down'] or observed[0]['irq_pending'] or (
+                        observed[1].get('missing_resettable_rows')!=0):
+                    raise ValueError('incomplete HPD/register replay restoration')
+                cases += [dict(c,status='pass',monitor_sense=monitor) for c in observed]
         spec = importlib.util.spec_from_file_location('hdmi_proof_derivation', helper_path)
         helper = importlib.util.module_from_spec(spec); spec.loader.exec_module(helper)
         gold = helper.controller_inputs(vendor_bytes['I2C_Controller.v'])

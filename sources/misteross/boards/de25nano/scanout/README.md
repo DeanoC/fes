@@ -257,7 +257,9 @@ unproven.
 Canonical package builds use Terasic's stock HDMI_ASx4/SCS golden board profile,
 as selected by the user. The review binds the verified resource ZIP, all 37
 actual fitted pins and I/O standards (including the vendor's 1.1-V clock pin),
-all pixel PLL parameters and the unchanged transmitter register table. It also
+all pixel PLL parameters and all unchanged transmitter register values. The
+The hotplug correction moves the interrupt-clear write before configuration;
+its exact permutation and complete derived bytes are checked. It also
 checks the complete guarded I2C derivation. The 29 HDMI data/control outputs
 and asynchronous status LED retain their raw missing-output-delay findings;
 this reference acceptance does not claim an independent PCB timing model.
@@ -310,7 +312,7 @@ The [isolated-stream compilation and transport proof](../../../../../docs/valida
 retains the actual sole-master graph, profile-bound artifacts, eight passing
 transport cases, original failures and open Linux/physical acceptance gates.
 
-The current endpoint is fabric version 1.1. Its read-only 128-bit build identity
+The current endpoint is fabric version 1.3. Its read-only 128-bit build identity
 is bound to the selected functional source/profile, passed as an actual Qsys
 HDL parameter and checked in generated handoff metadata. The owner UAPI version
 3 checks this identity before allocation and across later snapshots. Unbound
@@ -318,8 +320,9 @@ zero identities and the older endpoint/API versions are refused. These source
 changes require a matching new kernel and FPGA image; they do not extend the
 older physical diagnostic evidence or enable normal runtime startup.
 
-DisplayReady reports registered HDMI visibility after configuration completion;
-loss during scanout latches a Display fault and cannot acknowledge the frame.
+DisplayReady reports registered HDMI visibility after configuration completion.
+Config-only loss prevents completion until a fresh whole visible frame; loss
+of independent stream/epoch qualification still latches a Display fault.
 The board still releases the control/memory bridges after initial clock lock,
 independently of a slow transmitter configuration. Software can wait through
 cold snapshots without enabling DMA. These changes await new exact-artifact
@@ -449,3 +452,14 @@ held-response close and new-generation allocation/reopen. The normal `sim.py`
 run includes it. Memory backing and machine video are test models. The adapter is
 not yet selected by the ZX81 package producer or production runtime; no new
 Quartus artifact or hardware support is claimed.
+
+Scanout1.3 separates transmitter configuration visibility from the existing
+clock/epoch transport qualification. A configuration interval keeps the grant
+and reader running; only a whole newly visible frame can complete. Clock,
+response and underflow faults and STOP/drain/CLEAR fences stay strict. The
+matching runtime uses a96-byte per-grant cached retirement receipt to cancel
+an unacknowledged configuration-timeout publication only after authenticated
+clean retirement. Existing ABI3 and INFO/PUBLISH/diagnostics sizes stay fixed.
+Exact1.3 admission requires matching regenerated consumers, kernel and new
+producer identities. Offboard proofs do not establish physical hotplug support;
+fresh fitted timing, independent RBF and switcher/audio/video gates remain open.

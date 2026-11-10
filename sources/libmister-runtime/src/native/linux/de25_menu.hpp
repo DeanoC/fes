@@ -27,6 +27,15 @@ struct De25MenuDiagnostics {
  std::array<std::uint32_t,4> build_id{};
  std::uint32_t flags=0,first_fault_state=0,first_fault_occupancy=0,first_fault_gaps=0;
 };
+// Scanout1.3 companion; read only on this still-owned retired grant FD.
+struct De25MenuRetirement {
+ std::uint64_t generation=0;
+ std::uint32_t version=0,reserved=0;
+ std::array<std::uint32_t,4> build_id{};
+ std::uint32_t flags=0,allocation_bytes=0,slot_bytes=0,frame_bytes=0,width=0,height=0,stride=0,slots=0;
+ std::uint32_t hardware_status=0,hardware_errors=0,underflows=0,outstanding=0;
+ std::uint32_t accepted_sequence=0,displayed_sequence=0,current_sequence=0,slot_state=0;
+};
 class De25MenuOperations {
 public:
  virtual ~De25MenuOperations() {}
@@ -40,6 +49,9 @@ public:
  // A generation-bound cached read only: never sample MMIO after failed POLL.
  virtual Error Diagnostics(int,std::uint64_t,De25MenuDiagnostics*) {
   return {ErrorCode::unsupported_interface,"cached DE25 diagnostics unavailable","menu"};
+ }
+ virtual Error Retirement(int,std::uint64_t,De25MenuRetirement*) {
+  return {ErrorCode::unsupported_interface,"authenticated retirement receipt unavailable","menu"};
  }
  virtual Error Publish(int,std::uint64_t,std::uint32_t,std::uint32_t)=0;
  // Only the kernel's EAGAIN drain observation returns false without error.
@@ -87,6 +99,7 @@ private:
  Error Fault(Error);
  Error Validate(const De25MenuGrant&) const;
  Error Refresh(std::uint64_t);
+ Error ValidateRetirement(const De25MenuRetirement&) const;
  Error Publish(std::uint32_t,std::uint8_t,std::uint64_t);
  Error Complete(std::uint64_t);
  Error Retire(std::uint64_t);
@@ -108,6 +121,7 @@ private:
  std::uint8_t submitted_slot_=0,completed_slot_=0;
  bool activated_=false,bootstrapped_=false,exposure_possible_=false,reap_done_=false;
  bool faulted_=false,revoke_failed_=false;
+ bool configuration_wait_=false,configuration_timeout_=false,configuration_retired_=false;
  Error revoke_error_;
 };
 } }

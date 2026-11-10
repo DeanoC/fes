@@ -93,9 +93,23 @@ are required too. Beside its base interfaces, a bundle manifest lists the
 runtime binary's `.fes_menu_interfaces` section, which
 `sources/libmister-runtime/src/native/menu_admission.hpp` defines next to
 `CheckMenu`. A bundle accepts a required interface when it lists the same major
-version and at least the required minor. Supervisors that predate these keys
-ignore them, so a newer bundle still installs and runs on an older image. The
-image build fails when its own factory runtime does not accept its menu.
+version and at least the required minor, except DE25 allocated scanout, which
+requires the exact minor. Scanout1.3 also adds its exact cohort to the DE25 base
+ABI identity, so an older immutable supervisor refuses the newer-only runtime
+before its older additive minor rule could admit it. DE10 identity and other
+interface rules are unchanged. The image build fails when its own factory
+runtime does not accept its menu.
+
+A scanout1.2-to1.3 transition requires a coherent new DE25 factory image,
+matching kernel, MENU/ordinary-core packages and runtime. A1.3-only software
+bundle cannot be prepared against the old1.2 base; there is no assumed bridge
+bundle or software-before-image route. The existing boot resolver retains an
+incompatible durable selection and its generation, holds it back and starts
+the new image's matching factory. The reverse image transition likewise uses
+that image's factory. These are source-tested resolver rules; actual image
+update admission and native fallback must be verified with the newly built
+artifacts before selecting a deployment path. A refused update must not be
+bypassed or relabelled as successful factory fallback.
 
 The base contract includes both the system-library ABI and the supervisor's
 launcher invocation ABI. The local-host launcher uses the v2 contract; an older

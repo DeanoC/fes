@@ -78,7 +78,7 @@ public:
     FirstFault expected_fault;
 
     Endpoint() {
-        dut.clk = 0; dut.reset_n = 0; dut.clock_fault = 0; dut.display_ready = 0;
+        dut.clk = 0; dut.reset_n = 0; dut.clock_fault = 0; dut.stream_ready = 0; dut.display_ready = 0;
         dut.address = 0; dut.read = 0; dut.write = 0; dut.byteenable = 0; dut.writedata = 0;
         dut.avm_waitrequest = 0; dut.avm_readdatavalid = 0; dut.avm_response = 0;
         for (unsigned lane = 0; lane < 4; ++lane) dut.avm_readdata[lane] = 0;
@@ -92,11 +92,14 @@ public:
         write(FES_DE25_SCANOUT_BUILD_ID0_OFFSET, 0xffffffffu);
         equal(read(FES_DE25_SCANOUT_BUILD_ID0_OFFSET), 0x76543210u, "build identity is read-only");
         equal(read(FES_DE25_SCANOUT_STATUS_OFFSET), FES_DE25_SCANOUT_STATUS_DRAINED, "cold state");
+        dut.stream_ready = 1;
         dut.display_ready = 1; idle(2);
         equal(read(FES_DE25_SCANOUT_STATUS_OFFSET), FES_DE25_SCANOUT_STATUS_DRAINED | FES_DE25_SCANOUT_STATUS_DISPLAY_READY,
               "readiness is observed without enabling DMA");
+        dut.stream_ready = 0;
         dut.display_ready = 0; idle(2);
         equal(read(FES_DE25_SCANOUT_STATUS_OFFSET), FES_DE25_SCANOUT_STATUS_DRAINED, "readiness loss is observed");
+        dut.stream_ready = 1;
         dut.display_ready = 1; idle(2);
         require(bursts.empty() && !dut.avm_read, "cold endpoint fetched memory");
     }
@@ -610,17 +613,58 @@ static void clock_fault_cannot_clear_into_new_lease() {
 static void display_readiness_loss_stops_without_releasing_traffic() {
     Endpoint e; Descriptor d;
     e.stall = true; e.responses = false; e.submit(d); e.wait_request(); e.idle(2);
+    e.dut.stream_ready = 0;
     e.dut.display_ready = 0; e.idle(4);
     auto lost = e.snapshot();
     require(lost.errors() & FES_DE25_SCANOUT_ERROR_DISPLAY, "visibility loss was not latched");
+    equal(lost.errors(), FES_DE25_SCANOUT_ERROR_DISPLAY, "readiness-only loss mixed unrelated faults");
+    equal(lost.words[8], 0, "HDMI readiness loss invented a scanout underflow");
     require(!(lost.status() & FES_DE25_SCANOUT_STATUS_DRAINED) && lost.outstanding(),
             "visibility loss manufactured a drain proof");
     equal(lost.displayed(), 0, "invisible frame was acknowledged");
     require(e.dut.avm_read, "visibility loss withdrew a held memory command");
-    e.stop_and_drain(); e.dut.display_ready = 1; e.idle(4);
+    e.stop_and_drain(); e.dut.stream_ready = 1; e.dut.display_ready = 1; e.idle(4);
     require(e.snapshot().errors() & FES_DE25_SCANOUT_ERROR_DISPLAY, "readiness recovery erased the fault");
     e.command(FES_DE25_SCANOUT_COMMAND_CLEAR);
     equal(e.snapshot().errors(), 0, "checked drain could not retire visibility fault");
+}
+
+static void configuration_interval_preserves_grant_and_requires_visible_frame() {
+    const std::array<std::array<unsigned,2>,4> phases{{{{0,0}},{{641,65}},{{1279,719}},{{1280,719}}}};
+    for(const auto& phase:phases) {
+        Endpoint e;Descriptor d;e.submit(d);
+        auto* r=e.dut.rootp;
+        for(unsigned n=0;;++n){
+            require(n<3000000,"configuration phase not reached");
+            if(r->fes_de25_scanout__DOT__video__DOT__state==3&&
+               r->fes_de25_scanout__DOT__video__DOT__internal_h==phase[0]&&
+               r->fes_de25_scanout__DOT__video__DOT__internal_v==phase[1])break;
+            // The ACK-adoption edge has moved the video to DRAIN.
+            if(phase[0]==1280&&r->fes_de25_scanout__DOT__video_frame_presented)break;
+            e.idle();
+        }
+        e.dut.display_ready=0;e.idle(64);
+        auto suspended=e.snapshot();equal(suspended.errors(),0,"configuration-only interval faulted");
+        equal(suspended.words[8],0,"configuration-only interval underflowed");
+        equal(suspended.generation(),d.generation,"configuration changed grant generation");
+        equal(suspended.accepted(),d.sequence,"configuration changed accepted publication");
+        equal(suspended.displayed(),0,"invisible or stale frame was acknowledged");
+        require(suspended.status()&FES_DE25_SCANOUT_STATUS_PENDING,"configuration lost pending slot");
+        e.dut.display_ready=1;
+        const auto rearm=e.cycles;
+        for(unsigned n=0;n<1000;++n)e.idle();
+        equal(e.snapshot().displayed(),0,"readiness return adopted old sticky video ACK");
+        auto shown=e.wait_displayed(1);
+        require(e.cycles-rearm>=719U*1650U+1280U,"completion did not wait a whole fresh visible frame");
+        equal(shown.generation(),d.generation,"rearm changed grant");
+        equal((shown.slots()>>8)&1U,1,"rearm completed wrong slot");
+        e.stop_and_drain();
+    }
+    // STOP still owns a held command even when TX configuration is unavailable.
+    Endpoint e;Descriptor d;e.stall=true;e.responses=false;e.submit(d);e.wait_request();
+    e.dut.display_ready=0;e.idle(4);require(e.dut.avm_read,"config withdrew held command");
+    e.stop_and_drain();equal(e.snapshot().errors(),0,"STOP during config faulted");
+    e.command(FES_DE25_SCANOUT_COMMAND_CLEAR);equal(e.snapshot().generation(),0,"drained config CLEAR failed");
 }
 
 static void expect_first_fault(Endpoint& e, const FirstFault& expected) {
@@ -790,6 +834,7 @@ int main(int argc, char** argv) {
 #define RUN(name) do { name(); ++groups; std::cout << "PASS " #name "\n"; } while (0)
         RUN(disabled_and_snapshot);
         RUN(display_readiness_loss_stops_without_releasing_traffic);
+        RUN(configuration_interval_preserves_grant_and_requires_visible_frame);
         RUN(raster_sync_runs_while_disabled_and_survives_reset);
         RUN(clock_fault_does_not_shorten_active_hsync);
         two_complete_frames(false); ++groups; std::cout << "PASS two_complete_frames_delayed\n";

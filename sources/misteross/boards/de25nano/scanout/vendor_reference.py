@@ -75,7 +75,8 @@ def profile(members):
     derived, _ = hdmi_inputs.derive(members[PREFIX + 'HDMI_I2C/I2C_HDMI_Config.v'],
                                     members[PREFIX + 'HDMI_I2C/I2C_Controller.v'])
     return {'pins': expected, 'pll_parameters': display.pll_parameters(pll),
-            'transmitter_lut': lut(members[PREFIX + 'HDMI_I2C/I2C_HDMI_Config.v'].decode()),
+            'transmitter_lut': lut(hdmi_inputs.clear_first(members[PREFIX + 'HDMI_I2C/I2C_HDMI_Config.v'].decode())),
+            'transmitter_order': 'reviewed clear-first permutation; all stock values retained',
             'derived_hdmi_sha256': {n: sha(data) for n, data in derived.items()}}
 
 
@@ -117,7 +118,7 @@ def validate_project(project, expected, core_id, *, standard_core=False):
             'forwarded clock/source differs from the selected vendor profile')
     config = project / 'fes_mailbox/fes_de25_scanout_hdmi_config.v'
     require(lut(config.read_text()) == expected['transmitter_lut'],
-            'transmitter register values/order differ from Terasic')
+            'transmitter values/reviewed clear-first order differ')
     require({name: sha((project / 'fes_mailbox' / name).read_bytes())
              for name in expected['derived_hdmi_sha256']} == expected['derived_hdmi_sha256'],
             'compiled HDMI controller/configuration differs from the checked vendor derivation')
@@ -128,10 +129,11 @@ def validate_project(project, expected, core_id, *, standard_core=False):
             'reference': 'Terasic rev-B resource package HDMI_ASx4 and SCS Golden_top',
             'pins': expected['pins'], 'pll_parameters': expected['pll_parameters'],
             'transmitter_lut': expected['transmitter_lut'],
+            'transmitter_order': expected['transmitter_order'],
             'derived_hdmi_sha256': expected['derived_hdmi_sha256'],
             'compiled_files_sha256': {p.relative_to(project).as_posix(): sha(p.read_bytes()) for p in paths},
             'independent_pcb_timing_qualified': False,
-            'acceptance_basis': 'User-selected stock Terasic Linux/resources board setup; exact reference settings retained',
+            'acceptance_basis': 'User-selected stock Terasic Linux/resources board setup; pins/PLL/values retained; functional clear-first order checked',
             'hardware_acceptance': False}
 
 

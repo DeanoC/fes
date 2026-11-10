@@ -62,6 +62,21 @@ struct fes_de25_dma_diagnostics {
 	__u32 first_fault_gaps;
 };
 
+/* Scanout1.3 companion: immutable cached pre-CLEAR retirement.
+ * VALID is published only after same stored epoch/build/window STOP+drain,
+ * successful CLEAR and cold confirmation. No address is exposed. */
+#define FES_DE25_DMA_RETIREMENT_VERSION 1U
+#define FES_DE25_DMA_RETIREMENT_VALID 1U
+struct fes_de25_dma_retirement {
+ __u64 generation;
+ __u32 version, reserved;
+ __u32 build_id[4];
+ __u32 flags;
+ __u32 allocation_bytes, slot_bytes, frame_bytes, width, height, stride, slots;
+ __u32 hardware_status, hardware_errors, underflows, outstanding;
+ __u32 accepted_sequence, displayed_sequence, current_sequence, slot_state;
+};
+
 #define FES_DE25_DMA_REVOKED 1U
 #define FES_DE25_DMA_EXPOSED 2U
 #define FES_DE25_DMA_UNCERTAIN 4U
@@ -81,6 +96,12 @@ struct fes_de25_dma_diagnostics {
  * words mean no authenticated observation is available, not "no fault".
  */
 #define FES_DE25_DMA_DIAGNOSTICS _IOWR(0xD5, 0x05, struct fes_de25_dma_diagnostics)
+
+/* Grant-only cached query: generation/version1/reserved0 input; all output
+ * overwritten. ENODATA until actual successful retirement. No MMIO, refresh,
+ * REAP, CLEAR or lease change. The owned grant FD binds the hidden epoch;
+ * VALID is historical retirement evidence, not a global programming fence. */
+#define FES_DE25_DMA_RETIREMENT _IOWR(0xD5, 0x06, struct fes_de25_dma_retirement)
 
 /* Permanent owner control: no argument. ALLOC returns a CLOEXEC grant fd.
  * REAP revokes the active grant using kernel hardware proof, then releases the

@@ -8,6 +8,7 @@ module fes_menu_video #(
     // scanned frame. Defaults preserve the standalone idle-menu contract.
     parameter [0:0] EXTERNAL_RASTER = 1'b0,
     parameter [0:0] COMPLETE_FRAME_ACK = 1'b0,
+    parameter [0:0] CHECK_PRESENTATION = 1'b0,
     parameter [0:0] DYNAMIC_BASE = 1'b0,
     parameter [7:0] MAX_BURST_BEATS = 8'd128,
     parameter [8:0] MAX_OUTSTANDING_BEATS = 9'd256,
@@ -20,6 +21,7 @@ module fes_menu_video #(
     parameter [0:0] PRESERVE_RASTER_ON_RESET = 1'b0
 ) (
     input wire clk, rst, enable, quiesce,
+    input wire presentation_ready,
     input wire [31:0] window_base,
     input wire window_base_valid,
     input wire [10:0] raster_h,
@@ -28,6 +30,7 @@ module fes_menu_video #(
     input wire [31:0] submit_sequence,
     output wire submit_ready,
     output reg [31:0] displayed_sequence = 32'd0,
+    output reg frame_presented = 1'b0,
     output reg [31:0] current_sequence = 32'd0,
     output reg current_slot = 1'b0,
     output wire [1:0] memory_errors,
@@ -65,6 +68,7 @@ module fes_menu_video #(
     reg [31:0] pending_sequence = 32'd0;
     reg fetch_slot = 1'b0;
     reg [31:0] fetch_sequence = 32'd0;
+    wire presentable = !CHECK_PRESENTATION || presentation_ready;
     wire running = enable && !quiesce && !rst && memory_errors == 2'b00;
     wire frame_end = h == 11'd1649 && v == 10'd749;
     wire blank_start = h == 11'd1279 && v == 10'd719;
@@ -158,6 +162,7 @@ module fes_menu_video #(
         .diagnostic_max_held_command_age(diagnostic_max_held_command_age)
     );
     always @(posedge clk) begin
+        frame_presented <= 1'b0;
         if (!EXTERNAL_RASTER) begin
             if (internal_h == 11'd1649) begin
                 internal_h <= 11'd0;
@@ -189,20 +194,22 @@ module fes_menu_video #(
                         state <= DISPLAY;
                         current_slot <= fetch_slot;
                         current_sequence <= fetch_sequence;
-                        frame_complete <= 1'b1;
+                        frame_complete <= presentable;
                         if (!COMPLETE_FRAME_ACK) begin
                             displayed_sequence <= fetch_sequence;
+                            frame_presented <= 1'b1;
                             pending <= 1'b0;
                         end
                     end else state <= DRAIN;
                 end
                 DISPLAY: begin
-                    if (de && !pixel_matches) frame_complete <= 1'b0;
+                    if (de && (!pixel_matches || !presentable)) frame_complete <= 1'b0;
                     if (blank_start) begin
                         state <= DRAIN;
                         // Include the final pixel in the completion decision.
-                        if (COMPLETE_FRAME_ACK && frame_complete && pixel_matches) begin
+                        if (COMPLETE_FRAME_ACK && frame_complete && pixel_matches && presentable) begin
                             displayed_sequence <= fetch_sequence;
+                            frame_presented <= 1'b1;
                             // A new submission received during this frame
                             // belongs to the next fetch, not this completion.
                             if (pending && pending_sequence == fetch_sequence) pending <= 1'b0;
@@ -223,6 +230,7 @@ module fes_menu_video #(
             internal_v <= 10'd720;
         end
         if (rst) begin
+            frame_presented <= 1'b0;
             frame_complete <= 1'b0;
             raster_index <= 20'd0;
             displayed_sequence <= 32'd0;

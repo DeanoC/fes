@@ -1,6 +1,6 @@
 # DE25 allocated-buffer scanout
 
-`fes.fabric.de25-scanout` 1.2 is a disabled-by-default two-slot diagnostic
+`fes.fabric.de25-scanout` 1.3 is a disabled-by-default two-slot diagnostic
 endpoint. It supplies no runtime profile, Linux resource, DMA stream binding,
 firewall permission or firmware/hardware acceptance. Its relative lightweight
 offset is `0x10200`, span 128 bytes; the architectural CPU candidate
@@ -19,9 +19,12 @@ documentation-only commit. The builder sets the actual Platform Designer HDL
 parameter and verifies its generated value against the retained inputs. The
 value is also recorded beside the RBF digest; those are distinct identities.
 Unbound HDL defaults to zero, which the Linux owner refuses before allocating
-storage. Interface version 1.2 is exact: the matching kernel refuses older
-endpoints before accessing the first-underflow registers. This adds diagnostic
-observations, not production MENU or hardware/timing admission. The producer,
+storage. Interface version 1.3 is exact: the matching kernel refuses older
+endpoints before accessing their contract. Version1.2 introduced the retained
+first-underflow registers; version1.3 separates transmitter configuration
+visibility from clock/epoch transport readiness and requires a complete newly
+visible frame before display completion. These definitions grant no physical
+MENU or hardware/timing acceptance. The producer,
 kernel and runtime must be rebuilt together; an older bitstream does not gain
 these fields by using a newer software bundle.
 
@@ -72,9 +75,13 @@ to the same observation. Other command combinations fault and stop new fetches.
 DisplayReady reports the board shell's registered HDMI visibility, after its
 configuration-complete result crosses through a registered source and the
 system/pixel synchronizers. It is observable while scanout is disabled; waiting
-for it never resets a live bridge. Loss during a running frame latches Display,
-stops new work and prevents a healthy complete-frame acknowledgement. Restoring
-readiness alone cannot clear that fault or retire outstanding memory traffic.
+for it never resets a live bridge. Transmitter configuration loss alone blanks
+presentation while the clock/epoch-qualified reader and grant remain active.
+It neither completes the pending submission nor latches Display. Restoring
+visibility requires a whole new visible frame before acknowledgement. Loss of
+the independent transport qualification remains fatal Display (0x80); clock,
+visibility/epoch, memory response and underflow fault guards remain strict.
+Readiness never proves STOP/drain or retires outstanding memory traffic.
 
 ## Register layout
 
@@ -84,7 +91,7 @@ read-only writes have no effect.
 
 | Offset | Register |
 | --- | --- |
-| `00`, `04` | Identity `0x44325343`, version `0x00010002` |
+| `00`, `04` | Identity `0x44325343`, version `0x00010003` |
 | `08`, `0c` | Live status, command |
 | `10`, `14`, `18` | Staged DMA base low/high, allocation span |
 | `1c`, `20`, `24`, `28` | Staged generation low/high, sequence, slot |
@@ -156,7 +163,7 @@ source-bound generation, timing and physical acceptance.
 ## System-clock control guard
 
 The CPU-facing control window is 256 bytes. Its lower 128 bytes forward to the
-pixel endpoint ABI 1.2; the upper half implements a distinct guard
+pixel endpoint ABI 1.3; the upper half implements a distinct guard
 identity/version on the 100 MHz peripheral clock. The guard uses the inherited
 peripheral reset, so its release does not wait for pixel PLL lock.
 
@@ -254,10 +261,21 @@ boundaries.
 ## MENU package binding
 
 `de25-linux-menu-v1` pairs application1.0 with the exact required interfaces
-`fes.video.fixed-720p60`1.0, `fes.video.menu-display`1.0 and this fabric1.1.
+`fes.video.fixed-720p60`1.0, `fes.video.menu-display`1.0 and this fabric1.3.
 The source-derived BUILD_ID must match the selected package before exposure.
 The runtime uses one ABI3 kernel allocation and two observed initial black
 frames, then grants coherent frame slots with explicit per-frame mapping
 agreement. This binding declares no physical address, boot-latched HPS DDR
 layout, blitter or retained session plane. A registry row or software/model
 result does not qualify native MENU or remove physical/reset/timing gates.
+
+The matching ABI3 kernel also exposes a96-byte version1 RETIREMENT ioctl on
+the owned grant FD. It caches the authenticated pre-CLEAR tuple only after
+successful STOP/drain, CLEAR and same-epoch/build cold confirmation. Queries
+perform no MMIO or lifecycle change. INFO104, PUBLISH24 and DIAGNOSTICS48 stay
+unchanged. A configuration-only software deadline may discard an unacknowledged
+submission only after this exact zero-error receipt, close/OWNER_IDLE and GP
+cold confirmation. It never fabricates completion or reuses uncertain storage.
+Missing/old kernels and every mismatch fail closed; this is no global SDM or
+reset fence. Release needs new producer, kernel and software identities and
+physical qualification.

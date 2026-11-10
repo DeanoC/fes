@@ -9,10 +9,10 @@ description: >-
   The explicit Linux DMA build selects the generated SMMU stream/layout.
   This contract assigns no Linux device, firewall, boot or runtime admission. See docs/de25-scanout.md.
 major: 1
-minor: 2
+minor: 3
 constants:
   - {name: FesDe25ScanoutIdentity, value: 0x44325343}
-  - {name: FesDe25ScanoutVersion, value: 0x00010002}
+  - {name: FesDe25ScanoutVersion, value: 0x00010003}
   - {name: FesDe25ScanoutArchitecturalLwBase, value: 0x20000000}
   - {name: FesDe25ScanoutArchitecturalLwSpan, value: 0x20000000}
   - {name: FesDe25ScanoutPeripheralOffset, value: 0x00010200}

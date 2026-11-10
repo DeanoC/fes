@@ -32,15 +32,19 @@ REPORTS = {'clocks.tsv', 'paths.tsv'} | {
 # PCM and expansion wiring are unchanged; each new fit still needs its own
 # fitted clock/path review and independent rebuild.
 # See docs/validation/2026-11-09-de25-service-window-audio-review.
+# The focused scanout1.3 hotplug source review changes only video-ready
+# qualification/conduit checks in the wrapper/Tcl/builder. The audio cone,
+# PCM, reset/hold and expansion wiring are unchanged. This source binding
+# grants no fitted evidence: all numerical and independent-fit gates remain.
 SOURCES = {
     'boards/de25nano/zx81-hps/fes_de25_audio.v': '9f2d1436b75ef1fe489a55ea4139b2f5dcd922072528b6f68d344d851cca6f33',
     'cores/fes-common/rtl/fes_audio_output.v': 'e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd',
     'cores/fes-common/rtl/fes_audio_i2s.v': '14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4',
     'cores/fes-zx81/rtl/fes_zx81_core.v': '79c070b837a6b455a4a4a64fcbef4d76ac3ca7c467ab692a16af7610bed42970',
-    'boards/de25nano/zx81-hps/fes_de25_zx81_standard.v': '8d2fb7121c633fbe50f8ced7a359faaf26f74f4bf7a3bc0cd685c2a721ecc870',
-    'boards/de25nano/zx81-hps/fes_de25_zx81_standard_hw.tcl': 'fd91780afe9892738c21bb76e83ab518275fecf0fb6502df7a2a0ef2ec724f8a',
+    'boards/de25nano/zx81-hps/fes_de25_zx81_standard.v': '66600e79818b75ae50d11fa003fe93537153869c3b4e68f11488f9177d7bceab',
+    'boards/de25nano/zx81-hps/fes_de25_zx81_standard_hw.tcl': '571eda4cd7e291e70c3604251c175e87c2023b66dc2dfb86410fe31f70ce4e23',
     'boards/de25nano/zx81-hps/standard-clocks.sdc': 'b7a528ac1a1bf0b147c269e83078a405b523698cfd16c1fe62cf028858b431d0',
-    'boards/de25nano/zx81-hps/build.py': '08743202143b032ed9b4e0c2e9e5f753b4f62e5f9562310bdab7cf017fabb7ea',
+    'boards/de25nano/zx81-hps/build.py': 'f1481f995a7301bc8ca1e093b601a6f4aa5a7bffd486a6b5c060c39ba5ca14c9',
 }
 
 

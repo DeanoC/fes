@@ -203,7 +203,7 @@ The normal board-selected producer is
 `fes.zx81` on `de25-nano`. It selects the shared standard ZX81 core, allocated
 session display and fixed audio, with the same internal16K base as DE10.
 The package declares `de25-linux-computer-v1` and its nine required interfaces,
-including cassette SAVE and scanout1.1. It declares no reserved HPS DDR window.
+including cassette SAVE and scanout1.3. It declares no reserved HPS DDR window.
 The reduced BRAM project remains a separate diagnostic.
 
 The complete machine/reader/audio closure, controlled execution and compiler

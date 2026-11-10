@@ -1175,7 +1175,7 @@ construction order. The production serializer on the native MENU test fixture
 supplies the Go client's idle-status fixture; both ends preserve this contract.
 
 The exact format2 `fes.menu` application1.0 package declares fixed video1.0,
-menu-display1.0 and `fes.fabric.de25-scanout`1.2, with a selected nonzero build ID.
+menu-display1.0 and `fes.fabric.de25-scanout`1.3, with a selected nonzero build ID.
 It does not declare the Cyclone V boot-latched DDR contract. The selected MENU
 driver checks this before binding ABI3 storage. Configure performs both observed
 black frames on that same allocation. Selected video readiness and Start observe
@@ -1194,6 +1194,23 @@ diagnostics preserve the original error and retirement gates. They never
 complete a failed presentation. Producer, kernel and runtime changes require
 fresh artifact qualification; this path is not a repair or a physical root-cause
 claim for the intermittent MENU underflow.
+
+Scanout1.3 separates transmitter configuration visibility from transport
+readiness. A running exact grant can wait invisibly, but only a complete fresh
+visible frame acknowledges its publication. A configuration deadline may drop
+an unacknowledged submission only after the owned grant's96-byte version1
+cached pre-CLEAR retirement receipt authenticates the exact generation, build,
+geometry and fault-free/drained tuple. Existing REAP/close/OWNER_IDLE and GP
+cold confirmation remain mandatory. The completed sequence never advances for
+a canceled frame; reopening allocates fresh storage/display generation without
+programming or resetting the core. Missing receipt, GP error, real hardware
+fault or uncertain retirement blocks continuation. This does not clear or
+weaken failed-SDM-transfer quarantine. Exact1.3 hardware needs the matching
+rebuilt kernel; old1.2 packages are refused, not adapted. The DE25 software
+base ABI also binds scanout1.3; packing and supervisor checks require exact
+scanout minors. Older immutable supervisors reject its distinct base identity
+before their additive interface rule could accept a newer-only runtime. DE10
+base identity and additive interface semantics stay unchanged.
 
 MenuMemory retirement precedes any replacement. OWNER_REAP must prove drain;
 OWNER_IDLE must subsequently show the last peer FD/VMA gone. A failed retirement

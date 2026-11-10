@@ -1057,3 +1057,52 @@ func TestBootHoldsBackLauncherABIMismatchInBothDirections(t *testing.T) {
 		})
 	}
 }
+
+func TestBootHoldsBackDE25ScanoutCohortInBothDirections(t *testing.T) {
+	const key = "menu.fes.fabric.de25-scanout"
+	release := func(base, minor string) software.Release {
+		r, _, _ := softwareFixture(t, base)
+		r.Manifest.Board = "de25-nano"
+		r.Manifest.Architecture = "aarch64"
+		r.Manifest.Interfaces[key] = minor
+		var err error
+		r.ID, err = r.Manifest.ID()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	old := release("fes-kit-base-v2-pre-scanout13", "1.2")
+	current := release("fes-kit-base-v2-scanout13", "1.3")
+	for _, tc := range []struct {
+		name              string
+		factory, selected software.Release
+		minor             string
+	}{
+		{"new image retains old selection", current, old, "1.3"},
+		{"old image retains new selection", old, current, "1.2"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r, engine, fake, _ := setup(t)
+			selectRelease(t, r, tc.selected.ID)
+			before, err := r.Read()
+			if err != nil {
+				t.Fatal(err)
+			}
+			control := &contractCheckingControl{fakeControl: fake,
+				base: software.Compatibility{Board: "de25-nano", Architecture: "aarch64", BaseContract: tc.factory.Manifest.BaseContract,
+					Interfaces: map[string]string{"runtime": "1"}, Requires: map[string]string{key: tc.minor}},
+				releases: map[string]software.Manifest{tc.factory.ID: tc.factory.Manifest, tc.selected.ID: tc.selected.Manifest}}
+			engine.Controller, engine.Factory = control, tc.factory.ID
+			if err := engine.Boot(context.Background(), req()); err != nil {
+				t.Fatal(err)
+			}
+			after, err := r.Read()
+			if err != nil || fake.active != tc.factory.ID || fake.starts != 1 || after.Selected != before.Selected || after.Previous != before.Previous ||
+				after.Generation != before.Generation || after.Pending != nil || after.Unreleased != nil || len(after.Receipts) != len(before.Receipts) ||
+				engine.HeldBack != tc.selected.ID || !strings.Contains(engine.HeldBackReason, "base contract") {
+				t.Fatalf("active=%s state=%+v before=%+v held=%s reason=%s err=%v", fake.active, after, before, engine.HeldBack, engine.HeldBackReason, err)
+			}
+		})
+	}
+}

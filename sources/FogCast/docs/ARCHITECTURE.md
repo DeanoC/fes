@@ -864,7 +864,7 @@ binding for either generation. On a menu-display kit, both that tape unit
 and a legacy blob session open the media selector only
 when the running package reports `fes.video.session-display` 1.0 with
 `fes.memory.hps-ddr` 1.0, or a `fes.computer` session reports that display
-interface with both `fes.fabric.de25-scanout` 1.2 and
+interface with both `fes.fabric.de25-scanout` 1.3 and
 `fes.fabric.video.display-plane` 1.0. Home posts `visible: true`, the runtime makes menu
 presentation available, and `BindSession` authorizes the launcher frames.
 On a kit, Home or Select/View opens **Change media** directly over the running
@@ -4400,7 +4400,7 @@ temporary HDMI notice while retaining the cassette operation's status.
 A running `fes.computer` generation that reports `fes.media.zx81-tape` 1.0 uses
 that same `POST /api/v1/session/display` when it also reports
 `fes.video.session-display` 1.0 and either `fes.memory.hps-ddr` 1.0 or the
-DE25 allocation pair, `fes.fabric.de25-scanout` 1.1 plus
+DE25 allocation pair, `fes.fabric.de25-scanout` 1.3 plus
 `fes.fabric.video.display-plane` 1.0. All three DE25 interfaces must be
 observed on the active `fes.computer` generation. The plane
 composites launcher frames over ZX81 video; closing it restores those pixels

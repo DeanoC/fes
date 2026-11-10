@@ -41,7 +41,7 @@ allocation. It adds no production runtime or GP interface.
 [`fes.fabric.de25-scanout`](packages/fabric/fes_fabric_de25_scanout.yaml) adds
 the separate allocated-buffer display diagnostic. [DE25 scanout](docs/de25-scanout.md)
 specifies coherent snapshots, accepted/current/displayed identities, slot
-ownership and cross-clock drain/reset limits. Version1.2 also retains the first
+ownership and cross-clock drain/reset limits. Version1.3 retains the first
 underflow's raster, reader occupancy and maximum request/response gaps through
 STOP and drain. It grants no hardware admission.
 
@@ -86,7 +86,7 @@ support. Historical oracle records remain provenance.
 The DE25 registry pairs `de25-hps-first-v1` with `fes.computer` major1 and
 `de25-linux-menu-v1` with `fes.application` major1 on the SCS board part.
 Runtime preflight requires explicit DE25 selection and either the exact BRAM
-computer contract or MENU's fixed-video/menu-display/scanout1.1 contract.
+computer contract or MENU's fixed-video/menu-display/scanout1.3 contract.
 The latter uses kernel-allocated coherent DMA, not a boot-latched HPS DDR window.
 Metadata never selects a hardware backend or establishes hardware acceptance.
 The production factory separately checks the board, lease, kernel receipt and

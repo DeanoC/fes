@@ -44,7 +44,7 @@ are refused. Generation allocation saturates rather than wrapping;
 sequence exhaustion requires revocation and a new allocation.
 
 ABI 3 also reports the observed immutable 128-bit hardware build identity as
-four words, least-significant first. Creation checks interface version 1.2 and
+four words, least-significant first. Creation checks interface version 1.3 and
 a nonzero build ID before allocating storage. Snapshot validation compares the
 image identity with the original grant, including before and after CLEAR;
 identity loss retains the uncertain exposure and provider lease. INFO remains
@@ -362,3 +362,15 @@ configuration and refuse missing, skipped or substituted cases. The fixtures
 retain the ordinary runtime's fixed 30-second configuration-completion budget;
 other timeout overrides are rejected. These tests model firmware completion,
 not SDM programming or physical PR.
+
+Scanout1.3 companion: RETIREMENT is a96-byte version1 read-only
+query on an already owned grant FD. ENODATA is required until STOP/drain,
+same hidden epoch/build/window checks, CLEAR and cold confirmation all succeed.
+The immutable returned tuple is the pre-CLEAR status/error/underflow/publication
+observation, including draining faults; it is never the last healthy POLL or
+the cleared state. No new MMIO or reference/mapping action occurs on query.
+The runtime must reject missing/old/malformed/error-bearing receipts before
+configuration-timeout cancellation/reopen. ABI3 and existing ioctl sizes stay
+unchanged. This display-allocation evidence is not an SDM failed-transfer or
+global reset fence. Exact1.3 admission requires regenerated consumers and this rebuilt kernel;
+offboard proof does not establish native hotplug acceptance.
