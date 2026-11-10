@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "2a10d84d9c49cff1c83b43da92d0b1fbfd7456d9",
+  "source_revision": "546532ac8c5d66ead98f89eab2e66bd04fa5e27c",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -75,7 +75,7 @@
     "sources/misteross/cores/fes-zx81/rtl/zx81_model.vh": "c421b4ec19d294bc6e2dc98562ebf99fb9ce1100efa78fea1ed15ffabd2c3d2f",
     "sources/misteross/cores/fes-zx81/rtl/zx81_ram_pack.v": "4c4a434af8300da18cea2a6a3431bfb5aab300223f1b75df7090cc5858f2a29a",
     "sources/misteross/cores/fes-zx81/rtl/zx81_tape_store.v": "3a144e4fb125475ec8e849112130600968065b895a264225193d43fdbe6e24a9",
-    "sources/misteross/scripts/build_zx81_openrom.py": "3156b5cc9e7767622dff9289cb43b2dba58ef611b98bfc349bf5dc5718da9a18",
+    "sources/misteross/scripts/build_zx81_openrom.py": "cfb478916dad753c7224c915b6c817796f057c6e3ddbff765b5856e60f5a49db",
     "sources/misteross/scripts/z80asm.py": "0cac3827b6f391c55afa89d9ae2668a3af0581cfb0c744f65f1771e99950125a"
   },
   "test_runtime_source_sha256": {
@@ -323,7 +323,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "e65ff7d38f0d5826e00d1e88a89b33cf971d824afcd915257eba1220752aa927",
-    "Vfes_de25_combined_sim": "6f96e4577c3911280ea124cd7ea75c3b8bf97f67b09dbe6569f7a6abc6132f13",
+    "Vfes_de25_combined_sim": "359d9d91b94cfa85a74f0f35f7273c229cc5a4458cd9de5303cb57a6353889cb",
     "client-aarch64": "169a3309dd104af655a6cdb7d552090c80f5197be6c74df7cd2c3ce00cb7dea6"
   },
   "physical_PR": "selection-mux-model-only",
