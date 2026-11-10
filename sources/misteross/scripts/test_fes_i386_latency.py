@@ -64,6 +64,8 @@ LOOPS: list[tuple[str, int, int]] = [
     ('call_ind1', 8000, 1),
     ('jmp_ind1', 8000, 1),
     ('call_alt', 8000, 1),
+    ('v86_int_iretd', 1000, 1),
+    ('v86_in', 1000, UNROLL),
 ]
 # CPU Phase 4 slice 5, indirect JMP and CALL predicted to their last target.
 # Before it: call_reg 164029, call_mem 164059, loop 42250, call_ind1 176046,
@@ -97,6 +99,10 @@ EXPECTED: dict[str, int] = {
     'call_ind1': 88068,
     'jmp_ind1': 32062,
     'call_alt': 184081,
+    # CPU Phase 5 slice 3, V86 mode: an INT round trip from V86 mode (the
+    # delivery and the IRETD back) and IN through the I/O permission bitmap.
+    'v86_int_iretd': 168080,
+    'v86_in': 211059,
 }
 
 

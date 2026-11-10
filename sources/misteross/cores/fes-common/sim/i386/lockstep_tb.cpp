@@ -6857,6 +6857,10 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     v86("v86-int-cs-dpl1", [](Asm &a) { a.op({0xcd, 0x2e}); }, 13, 0x78, 3, -1, {{0x2e, gate(0x78, 0x1800, 0xee)}}, {},
         {{15, desc(0, 0xffff, 0xbb, false, false)}});
     v86("v86-int-cs-np", [](Asm &a) { a.op({0xcd, 0x2e}); }, 11, 0x58, 3, -1, {{0x2e, gate(0x58, 0x1800, 0xee)}});
+    // A conforming CS is #GP(selector) before the TSS's stack is read: here
+    // CPL 3's slot is past TR's limit (13h), which would be #TS(38h).
+    v86("v86-int-conforming-small-tss", [](Asm &a) { a.op({0xcd, 0x2e}); }, 13, 0x60, 3, -1,
+        {{0x2e, gate(0x60, 0x1800, 0xee)}}, {}, {{7, desc(0x2500, 0x13, 0x89, false, false)}});
     v86("v86-int-ss0-np", int2b, -2, -1, 3, -1, {}, {{0x2508, {0x28, 0x00}}});
     v86("v86-int-286-tss", int2b, -1, -1, 3, 0x2b, {}, {}, {}, 0x50);
     v86("v86-int-ss0-big", [](Asm &a) { a.op({0xcd, 0x2a, 0x43, 0xcd, 0x2d}); }, -1, -1, 3, 0x2d, {}, {{0x2508, {0x20, 0x00}}});
@@ -6875,7 +6879,7 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     // LOCK below IOPL 3: #GP(0), as the 386 manual has it (Bochs runs the
     // instruction; the lockstep's v86-lock rule lets the RTL's #GP stand).
     // At IOPL 3 the locked ADD runs.
-    v86("v86-lock-iopl0", [](Asm &a) { a.op({0xb8, 0x00, 0x07, 0x8e, 0xc0, 0xf0, 0x26, 0x01, 0x07}); }, 13, 0, 0);
+    v86("v86-lock-iopl0", [](Asm &a) { a.op({0xb8, 0x00, 0x07, 0x8e, 0xc0, 0xf0, 0x26, 0x01, 0x07, 0x63, 0xc0}); }, 13, 0, 0);
     v86("v86-lock-iopl3", [=](Asm &a) { a.op({0xb8, 0x00, 0x07, 0x8e, 0xc0, 0xf0, 0x26, 0x01, 0x07}); int2b(a); }, -1, -1,
         3, 0x2b);
     v86("v86-lock-ud-iopl0", [](Asm &a) { a.op({0xf0, 0x40}); }, 6, -1, 0);       // an invalid LOCK: #UD first
@@ -6977,6 +6981,15 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     cases.push_back(Case{"v86-iretd-ss32", [=](Asm &a) {
         a.ax(0x20); a.op({0x8e, 0xd0, 0x66, 0xbc}); a.d(0x00000f00);                  // MOV SS, 20h; MOV ESP, 0F00h
         to_v86(a, 0x38, 3, 0x0100); a.op({0x40}); int2b(a);
+    }, -1, -1, {}, false, 0x2b});
+    // IRETD into V86 mode with EIP's high half set: Bochs keeps the low word.
+    cases.push_back(Case{"v86-iretd-eip-high", [=](Asm &a) {
+        a.ax(0x38); a.op({0x0f, 0x00, 0xd8});
+        for (uint32_t v : {0x0500u, 0x0400u, 0x0200u, 0x0300u, 0x00c0u, 0x0100u, 0x00023002u, 0x0100u}) {
+            a.op({0x66, 0x68}); a.d(v);
+        }
+        a.op({0x66, 0x68}); a.d(0x56780000u | uint32_t(a.here() + 6)); a.op({0x66, 0xcf});  // EIP 5678xxxxh; IRETD
+        int2b(a);
     }, -1, -1, {}, false, 0x2b});
     cases.push_back(Case{"v86-iretd-frame-limit", [=](Asm &a) {
         a.ax(0x38); a.op({0x0f, 0x00, 0xd8, 0xbc, 0x04, 0x00});                       // LTR; MOV SP, 4
