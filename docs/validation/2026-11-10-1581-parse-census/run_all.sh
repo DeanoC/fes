@@ -4,14 +4,14 @@
 # run (126, 127); otherwise it names what went wrong and exits 1, since those are not results.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd); OUT=$1
-: "${YOSYS_PC386:?set YOSYS_PC386 to the pc386-lock Yosys}" "${YOSYS_I386:?set YOSYS_I386 to the i386-lock Yosys}" \
-  "${YOSYS_SHARED:?set YOSYS_SHARED to the shared-lock Yosys}"
+# A marker from an earlier run must not survive a run that fails.
+mkdir -p "$OUT"; rm -f "$OUT/ALL_DONE.${TAG:-all}"
 FORMS=${FORMS:-$(cd "$HERE/forms" && ls f*.sv | sed 's/\.sv$//')}
 READERS=${READERS:-yosys-pc386 yosys-i386 yosys-shared verilator lite2005 pro2005 pro2009}
 LITE=${LITE:-$HOME/intelFPGA_lite/17.0/quartus/bin}; PRO=${PRO:-/data/altera_pro/26.3/quartus/bin}
 for r in $READERS; do
   case $r in
-    yosys-pc386) tool=$YOSYS_PC386 ;; yosys-i386) tool=$YOSYS_I386 ;; yosys-shared) tool=$YOSYS_SHARED ;;
+    yosys-pc386) tool=${YOSYS_PC386:-} ;; yosys-i386) tool=${YOSYS_I386:-} ;; yosys-shared) tool=${YOSYS_SHARED:-} ;;
     verilator) tool=$(command -v "${VERILATOR:-verilator}") ;;
     lite2005) tool=$LITE/quartus_map ;; pro2005|pro2009) tool=$PRO/quartus_syn ;;
     *) echo "unknown reader: $r" >&2; exit 1 ;;
@@ -27,6 +27,10 @@ for r in $READERS; do for f in $FORMS; do
   case $(cat "$OUT/$r/$f/rc") in
     124|126|127) echo "not a result: $r $f exited $(cat "$OUT/$r/$f/rc") (timeout or tool not run)" >&2; missing=1 ;;
   esac
+  # f04 also needs its simulation: accepted by lint, the bench must have run and printed its count.
+  if [ "$r" = verilator ] && [ "$f" = f04_struct_shadow ] && [ "$(cat "$OUT/$r/$f/rc")" = 0 ]; then
+    grep -qs "CENSUS f04 bad=" "$OUT/$r/$f/sim.log" || { echo "not a result: $r $f simulation did not run" >&2; missing=1; }
+  fi
 done; done
 if [ "$status" -ne 0 ] || [ "$missing" -ne 0 ]; then
   echo "census incomplete (xargs status $status)" >&2

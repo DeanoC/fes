@@ -70,11 +70,14 @@ def cell(reader, form):
             return f"**rejected** ({err[0][:120] if err else f'rc {rc}'})"
         warn = sorted(set(re.findall(r"%Warning-([A-Z0-9_]+)", log)))
         extra = ""
-        if (d / "sim.log").exists():
-            bad = " ".join(re.findall(r"bad=\d+", (d / "sim.log").read_text()))
+        if (d / "sim.rc").exists() or (d / "sim.log").exists():
+            log_text = (d / "sim.log").read_text() if (d / "sim.log").exists() else ""
+            bad = " ".join(re.findall(r"bad=\d+", log_text))
             sim_rc = int((d / "sim.rc").read_text()) if (d / "sim.rc").exists() else None
+            if not bad:
+                return f"**sim not run** (rc {sim_rc})"
             if sim_rc != 0:
-                return f"**wrong** (sim {bad or 'no result'}, rc {sim_rc})"
+                return f"**wrong** (sim {bad}, rc {sim_rc})"
             extra = "; sim " + bad
         if (d / "preproc").exists():
             extra = "; preprocessed: " + (d / "preproc").read_text().strip()

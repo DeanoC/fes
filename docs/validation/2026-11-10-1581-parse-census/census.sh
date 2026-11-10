@@ -8,7 +8,6 @@ OUT=$1; READER=$2; FORM=$3
 HERE=$(cd "$(dirname "$0")" && pwd); FORMS=$HERE/forms
 LITE=${LITE:-$HOME/intelFPGA_lite/17.0/quartus/bin}
 PRO=${PRO:-/data/altera_pro/26.3/quartus/bin}
-YOSYS_PC386=${YOSYS_PC386:?}; YOSYS_I386=${YOSYS_I386:?}; YOSYS_SHARED=${YOSYS_SHARED:?}
 VERILATOR=${VERILATOR:-verilator}
 W=$OUT/$READER/$FORM; rm -rf "$W"; mkdir -p "$W"; cd "$W"
 SRC="$FORMS/census_pkg.sv $FORMS/$FORM.sv"
@@ -27,7 +26,9 @@ case $READER in
     qsf "Agilex 5" A5EB013BB23BE4SCS SYSTEMVERILOG_${READER#pro}
     timeout 1800 "$PRO/quartus_syn" census > log 2>&1; echo $? > rc ;;
   yosys-pc386|yosys-i386|yosys-shared)
-    Y=$YOSYS_PC386; [ "$READER" = yosys-i386 ] && Y=$YOSYS_I386; [ "$READER" = yosys-shared ] && Y=$YOSYS_SHARED
+    case $READER in
+      yosys-pc386) Y=${YOSYS_PC386:?} ;; yosys-i386) Y=${YOSYS_I386:?} ;; yosys-shared) Y=${YOSYS_SHARED:?} ;;
+    esac
     OKW=ok; [ "$FORM" = f10_synthesis_defined ] && OKW=syn
     # The pc386 producer's front-end passes (read_verilog -sv; hierarchy; proc -norom; flatten; opt -purge),
     # then a SAT proof that the observable is a constant 1.
