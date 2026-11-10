@@ -39,9 +39,29 @@ exposed the missing cold-fixture instance and boot identity membership; both
 were added, retaining the original failing run. No device-driver fallback or
 firmware guard was weakened.
 
-Base is `1f35b4961`. Focused native race and setup/dispatcher tests pass. The
-complete Nano regression family, affected checks and matched entry/BL31 build
-are pending. Evidence is under `out/nano-mac-dispatch-20261110/`.
+Base is `1f35b4961da8efcb1d3c86929dfefa03f89da2e0`; tested source is
+`fed4e4e35b372321970efab495161c3cec804d4d`. All twelve affected checks pass, including parent/Nano
+regressions, SD/FAT, native runtime/producer, board control, firmware/RTL and
+FPGA Python integration. Focused native race, setup/dispatcher and exact-source
+binding tests pass. The committed generated-consumer check passes.
+
+The fresh entry/BL31 pair passes with firmware RAM/MMU checks intact. All
+2122 retained native SDK input hashes, 45 entry sources and
+128 firmware producer inputs match the live tree. SDK ELF remains
+`bcdc2e9195253904259d22969a0252f3e090bca667015c6cbb34034a70940a31`. Entry image SHA-256:
+`1d5756babcd2a092c7391b6c3df0c65189c128b4544b80fcfecfb075fc7149c3`. BL31 binary SHA-256:
+`09c64d6f0d45396968ac687771990e6f2c91d7ca22dd7360374f4ba8878ec4c4`; ELF SHA-256:
+`c594480b97ddc428db363b89e22beacbde2d87bb4a98839971f3a95d0c90d656`. The linked weak default setup is exactly
+`mov w0,#0; ret`; the MAC object is 128 bytes at OCRAM `0x5dfe8`, within
+the existing BSS exclusion. It supplies no physical provider.
+The linked check's initial helper attempts lacked its tool-library environment
+and used an incorrect ELF path; corrected inspection uses the build's environment
+and canonical nested ELF. Both original errors remain retained.
+
+Entry and firmware hashes match each other. SPL, FIT and SOF were not rebuilt;
+this pair is not a deployable or boot-qualified complete chain. Network stays
+disabled and SD read-only. Evidence and `validation.json` are under
+`out/nano-mac-dispatch-20261110/`.
 No kit, card, JTAG/UART, remote builder or cleanup operation was used. Hardware
 remains paused until the operator returns. A source-bound physical MAC/clock/
 PHY/SMMU supplier, independent interconnect drain and active-core coexistence
