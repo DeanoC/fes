@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Build and seal fes.pc386 with Quartus 17.0.2, the pc386 bring-up lane.
+"""Build and seal fes.pc386 with the Quartus cores/fes-pc386/quartus.lock pins,
+the pc386 bring-up lane.
 
 docs/pc386-machine-design.md, phase M5 (= CPU Phase 3): pc386_system, the
 machine (AT core, VGA, capture, presenter, the display plane on DDR port 2,
@@ -14,20 +15,22 @@ rational enable of it, set here from that frequency. It is a development
 package, labelled a Quartus build (docs/design/quartus-cores.md) and not
 registered in the FES recipe table; this recipe never programs hardware.
 
-Quartus 17.0.2's SystemVerilog front end rejects some of the RTL (the OPL2
+The locked Quartus's SystemVerilog front end rejects some of the RTL (the OPL2
 import's casts, the CPU's generate loops), so the pc386 lock's Yosys
 elaborates everything below the board shell, pc386_system, with the guest
 rates and the firmware. Memories with more than one write port and no
 ramstyle become registers there: Yosys writes their ports as separate always
 blocks, which Quartus rejects as multiple drivers, and Quartus infers no RAM
 from them either. Yosys's flattened names (\\a.b[3]) become plain
-identifiers, since Quartus 17.0.2's synthesis stops with an internal error on
-them. Quartus reads that netlist and the shell's own files, top.sv with
+identifiers, since the locked Quartus's synthesis stops with an internal
+error on them. Quartus reads that netlist and the shell's own files, top.sv with
 QUARTUS defined among them, and does all synthesis, placement and routing.
 Every timing analysis must pass on every clock at the slow and fast corners,
-or the build publishes nothing.
+or the build publishes nothing. quartus.lock authenticates quartus_sh by
+digest and its version line, and every Quartus version string the build
+writes derives from it; the toolchain lock's Yosys elaborates the machine.
 
-  QUARTUS_ROOTDIR=/abs/intelFPGA_lite/17.0/quartus \\
+  QUARTUS_ROOTDIR=/abs/<the Quartus install quartus.lock names>/quartus \\
     python3 scripts/build_fes_pc386_quartus.py --cache-root /abs/out/cache/misteross-toolchains
 """
 from __future__ import annotations
@@ -52,12 +55,13 @@ from scripts import fes_build_common as board
 from scripts import source_provenance
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package
-from scripts.quartus_tools import RebuildError, locate_quartus, quartus_version_line
+from scripts.quartus_tools import QuartusLock, RebuildError, load_quartus_lock, locate_quartus
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = "scripts/build_fes_pc386_quartus.py"
 OUTPUT = Path("build/fes-pc386-quartus")
 LOCK = "cores/fes-pc386/toolchain.lock"
+QUARTUS_LOCK = "cores/fes-pc386/quartus.lock"
 TOOLCHAIN_ROOT = "build/toolchain/fes-pc386"
 QSF = "cores/fes-pc386/constraints-oss.qsf"
 SDC = "cores/fes-pc386/clocks.sdc"
@@ -129,7 +133,8 @@ MACHINE_NETLIST = "pc386_system.v"
 ROM_HEX = firmware.ROM_HEX.relative_to(ROOT).as_posix()
 PINNED_INPUTS = (
     RECIPE, FIRMWARE_RECIPE, FIRMWARE_LOCK, "scripts/quartus_tools.py", "scripts/fes_build_common.py",
-    "scripts/source_provenance.py", ABI_DEFINITION, LOCK, QSF, SDC, *INCLUDES, *SHELL_SOURCES, *MACHINE_SOURCES,
+    "scripts/source_provenance.py", ABI_DEFINITION, LOCK, QUARTUS_LOCK, QSF, SDC, *INCLUDES, *SHELL_SOURCES,
+    *MACHINE_SOURCES,
 )
 BUILD_OUTPUTS = (
     "core.rbf", "top.sta.rpt", "top.fit.rpt", "yosys.log", "quartus.log", "quartus-version.log",
@@ -203,13 +208,21 @@ def guest_rates(clock_hz: int = SYSTEM_CLOCK_HZ) -> dict[str, int]:
     return parameters
 
 
+def quartus_lock(root: Path) -> QuartusLock:
+    """cores/fes-pc386/quartus.lock, the Quartus every version string names."""
+    try:
+        return load_quartus_lock(root, QUARTUS_LOCK)
+    except RebuildError as exc:
+        raise board.BuildError(str(exc)) from exc
+
+
 def _authenticate_tools(root: Path, *, cache_root: Path | None = None) -> dict[str, str]:
-    """The lock's Yosys and the Quartus install, each by digest."""
+    """The toolchain lock's Yosys and the quartus.lock install, each by digest."""
     yosys = board._authenticate_tools(root, lock_path=root / LOCK, toolchain_root=root / TOOLCHAIN_ROOT,
                                       cache_root=cache_root)["yosys"]
+    lock = quartus_lock(root)
     try:
-        quartus_root, quartus_sh = locate_quartus(os.environ.get("QUARTUS_ROOTDIR", ""), root)
-        version = quartus_version_line(quartus_sh)
+        quartus_root, quartus_sh, version = locate_quartus(os.environ.get("QUARTUS_ROOTDIR", ""), root, lock)
     except RebuildError as exc:
         raise board.BuildError(str(exc)) from exc
     return {
@@ -219,7 +232,7 @@ def _authenticate_tools(root: Path, *, cache_root: Path | None = None) -> dict[s
         "quartus_version": version,
         "identities": {
             "yosys": yosys.identity,
-            "quartus_sh": f"version=17.0.2; sha256={board._sha256(quartus_sh)}",
+            "quartus_sh": f"version={lock.release}; sha256={board._sha256(quartus_sh)}",
         },
     }
 
@@ -291,7 +304,8 @@ def record_fields(root: Path, repository: str, revision: str, identities: dict[s
         "abi_definition_sha256": board._sha256(board._regular_input(root, ABI_DEFINITION)),
         "dependencies": {}, "tools": dict(identities),
         "parameters": {
-            "compiler": "quartus-17.0.2", "device": board.TARGET, "top": board.TOP, "seed": _check_seed(seed),
+            "compiler": quartus_lock(root).compiler, "device": board.TARGET, "top": board.TOP,
+            "seed": _check_seed(seed),
             "toolchain_lock": LOCK, "toolchain_lock_sha256": board._sha256(board._regular_input(root, LOCK)),
             "system_clock_hz": SYSTEM_CLOCK_HZ, "pixel_clock_hz": 74_250_000, "audio_clock_hz": 12_288_000,
             "reference_clock_hz": 50_000_000, "audio_sample_hz": 48_000,
@@ -324,7 +338,7 @@ def project_qsf(root: Path, project: Path, build_id: str, seed: int) -> str:
         "set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL",
         f"set_global_assignment -name SEED {_check_seed(seed)}",
         "set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005",
-        'set_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"',
+        f'set_global_assignment -name LAST_QUARTUS_VERSION "{quartus_lock(root).qsf_version}"',
         f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-common/generated"',
         'set_global_assignment -name VERILOG_MACRO "QUARTUS=1"',
         f"set_global_assignment -name VERILOG_MACRO \"FES_PC386_BUILD_ID=128'h{build_id}\"",
@@ -346,7 +360,8 @@ def write_project(root: Path, output: Path, build_id: str, seed: int) -> Path:
     if project.exists():
         shutil.rmtree(project)
     project.mkdir()
-    (project / "top.qpf").write_text('QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n', encoding="utf-8")
+    series = quartus_lock(root).series
+    (project / "top.qpf").write_text(f'QUARTUS_VERSION = "{series}";\nPROJECT_REVISION = "top";\n', encoding="utf-8")
     (project / "top.qsf").write_text(project_qsf(root, project, build_id, seed), encoding="utf-8")
     return project
 
@@ -465,12 +480,13 @@ def validate_build_evidence(output: Path, project: Path) -> dict:
     }
 
 
-def toolchain_label(identities: dict[str, str]) -> str:
-    return (f"Quartus Prime Lite 17.0.2 ({identities['quartus_sh']}); "
+def toolchain_label(root: Path, identities: dict[str, str]) -> str:
+    return (f"{quartus_lock(root).product} ({identities['quartus_sh']}); "
             f"machine elaborated by Yosys ({identities['yosys']})")
 
 
-def manifest(record: bytes, evidence: dict, repository: str, revision: str, identities: dict[str, str]) -> bytes:
+def manifest(root: Path, record: bytes, evidence: dict, repository: str, revision: str,
+             identities: dict[str, str]) -> bytes:
     core = dict(CORE)
     core["name"] = f"{CORE['name']} (Quartus)"
     core["description"] = f"Quartus bring-up build. {CORE['description']}"
@@ -482,7 +498,8 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str, iden
         "abi": {"id": "fes.computer", "major": 1, "minor": 1},
         "interfaces": [{"id": name, "major": 1, "minor": 0, "required": True} for name in INTERFACES],
         "build": {"id": build_identity(record), "repository": repository, "revision": revision,
-                  "recipe_sha256": json.loads(record)["recipe_sha256"], "toolchain": toolchain_label(identities)},
+                  "recipe_sha256": json.loads(record)["recipe_sha256"],
+                  "toolchain": toolchain_label(root, identities)},
     })
 
 
@@ -510,10 +527,10 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
         evidence.update({"build_id": build_id, "device": board.TARGET, "top": board.TOP, "seed": seed,
                          "firmware": {**firmware_digests(root), "rom_hex": board._sha256(rom)},
                          "inputs": {p: board._sha256(root / p) for p in sorted(PINNED_INPUTS)},
-                         "tools": identities, "toolchain": toolchain_label(identities)})
+                         "tools": identities, "toolchain": toolchain_label(root, identities)})
         board._write_atomic(output / "build-summary.json",
                             (json.dumps(evidence, indent=2, sort_keys=True) + "\n").encode())
-        encoded = manifest(record, evidence, repository, revision, identities)
+        encoded = manifest(root, record, evidence, repository, revision, identities)
         board._write_atomic(output / "manifest.toml", encoded)
         if _authenticate_tools(root, cache_root=cache_root)["identities"] != identities:
             raise board.BuildError("authenticated tool identity changed during build")

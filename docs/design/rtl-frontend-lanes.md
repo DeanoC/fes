@@ -604,7 +604,7 @@ sha256 = "…"
 
 - Extend the existing `quartus_tools.locate_quartus(quartus_root, repo_root)` (`quartus_tools.py:27`) with an edition argument, and take the expected version line from the lock.
 - **Deleted, with no fallback:** the regex, every `LAST_QUARTUS_VERSION`, and the pc386 hard-coded label. In S6b (with S16), also DE25's `QUARTUS_VERSION` and its separate `locate_quartus(root)` (`M/boards/de25nano/build.py:19`, `:68-82`).
-- **pc386's Yosys pin** moves from `M/cores/fes-pc386/toolchain.lock` into this file, so the core has one Yosys pin. Its `[tool.nextpnr]` section stays only if something still reads it, such as `synth_fes_pc386.py`. Its rationale text, which names the non-existent `build_fes_pc386_oss.py`, is corrected.
+- **A core's Yosys pin stays where its Yosys is built.** `[yosys]` appears only in a lock whose core has no `toolchain.lock` of its own (PC/XT, whose Yosys slot comes from the shared lock). pc386 keeps its Yosys pin in `M/cores/fes-pc386/toolchain.lock`: `make toolchain-fes-pc386` builds that slot from the whole file, and the slot key includes the file's sha256, so moving the pin would leave either a second pin or no builder (S6a, #1647). The rationale text that names the non-existent `build_fes_pc386_oss.py` is corrected with the D2 lock move, which edits that file anyway.
 - **Locks are per core and last known good**, like nextpnr locks (`quartus-cores.md:288-297`).
 
 ### A newer Lite
@@ -738,8 +738,6 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
   - `quartus_tools.py` (extend `locate_quartus` at `:27`);
   - the pc386, Coleco, SMS, SG-1000 and ZX81 sealers and the RAM Tester Quartus producer;
   - a new `quartus.lock` for each of those cores;
-  - the `M/cores/fes-pc386/toolchain.lock` Yosys move and rationale fix;
-  - the pc386 status text in `quartus-cores.md`;
   - version-pinning tests (`test_build_fes_pc386_quartus.py:205-220`, `test_build_fes_zx81.py:190`).
 - **Acceptance:** every Lite Quartus producer authenticates from its lock. One compile per producer shows the lock's version in its identity string. The constants are gone.
 - **Measurement:** none (no RTL change).

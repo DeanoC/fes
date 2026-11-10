@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: MIT
 """The pc386 Quartus seal's sources, guest rates, machine netlist, project,
 timing gate, resources and manifest. No Quartus or Yosys needed."""
+import hashlib
 import json
+import os
 from pathlib import Path
 import re
+import shutil
 import tempfile
 import tomllib
 import unittest
+from unittest import mock
 
 from scripts import build_fes_pc386_quartus as quartus
 from scripts import fes_build_common as board
@@ -202,7 +206,7 @@ class ManifestTest(unittest.TestCase):
     def test_manifest_is_the_system_labelled_quartus(self):
         record = quartus.create_build_record(ROOT, "https://github.com/DeanoC/fes", "a" * 40, IDENTITIES, 1)
         evidence = {"rbf": {"sha256": "3" * 64, "size": 4096}}
-        fields = tomllib.loads(quartus.manifest(record, evidence, "https://github.com/DeanoC/fes", "a" * 40,
+        fields = tomllib.loads(quartus.manifest(ROOT, record, evidence, "https://github.com/DeanoC/fes", "a" * 40,
                                                 IDENTITIES).decode())
         self.assertEqual(fields["core"]["id"], "fes.pc386")
         self.assertEqual(fields["core"]["name"], "FES pc386 (Quartus)")
@@ -229,6 +233,73 @@ class ManifestTest(unittest.TestCase):
         first = quartus.create_build_record(ROOT, "https://github.com/DeanoC/fes", "a" * 40, IDENTITIES, 1)
         second = quartus.create_build_record(ROOT, "https://github.com/DeanoC/fes", "a" * 40, IDENTITIES, 2)
         self.assertNotEqual(build_identity(first), build_identity(second))
+
+
+class QuartusLockGoldenTest(unittest.TestCase):
+    """Every version string the producer writes derives from quartus.lock and
+    is byte-identical to the literals the producer wrote before the lock."""
+
+    def test_the_lock_is_pinned_but_not_a_record_field(self):
+        self.assertIn(quartus.QUARTUS_LOCK, quartus.PINNED_INPUTS)
+        self.assertIn(quartus.LOCK, quartus.PINNED_INPUTS)
+        self.assertEqual(quartus.LOCK, "cores/fes-pc386/toolchain.lock")
+        fields = json.loads(quartus.create_build_record(ROOT, "https://github.com/DeanoC/fes", "a" * 40,
+                                                        IDENTITIES, 1))
+        self.assertEqual(set(fields), {"format", "repository", "revision", "recipe", "recipe_sha256",
+                                       "abi_definition", "abi_definition_sha256", "dependencies", "tools",
+                                       "parameters"})
+        self.assertEqual(set(fields["parameters"]), {
+            "compiler", "device", "top", "seed", "toolchain_lock", "toolchain_lock_sha256", "system_clock_hz",
+            "pixel_clock_hz", "audio_clock_hz", "reference_clock_hz", "audio_sample_hz", "guest_rates", "cpu",
+            "firmware", "ata_disk", "machine_netlist", "machine_sources_sha256"})
+        self.assertEqual(fields["parameters"]["compiler"], "quartus-17.0.2")
+        self.assertEqual(fields["parameters"]["toolchain_lock"], "cores/fes-pc386/toolchain.lock")
+
+    def test_project_version_lines(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            project = quartus.write_project(ROOT, output, BUILD_ID, 1)
+            qpf = (project / "top.qpf").read_text(encoding="utf-8")
+            qsf = (project / "top.qsf").read_text(encoding="utf-8")
+        self.assertEqual(qpf, 'QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n')
+        self.assertIn('set_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"', qsf.splitlines())
+
+    def test_toolchain_label(self):
+        self.assertEqual(quartus.toolchain_label(ROOT, IDENTITIES),
+                         f"Quartus Prime Lite 17.0.2 ({IDENTITIES['quartus_sh']}); "
+                         f"machine elaborated by Yosys ({IDENTITIES['yosys']})")
+
+    def test_quartus_identity_and_version_line(self):
+        version = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
+        with tempfile.TemporaryDirectory() as temporary:
+            quartus_sh = Path(temporary) / "quartus_sh"
+            quartus_sh.write_bytes(b"not quartus")
+            digest = hashlib.sha256(b"not quartus").hexdigest()
+            yosys = mock.Mock(identity=IDENTITIES["yosys"])
+            with mock.patch.object(quartus.board, "_authenticate_tools", return_value={"yosys": yosys}), \
+                    mock.patch.object(quartus, "locate_quartus",
+                                      return_value=(Path(temporary), quartus_sh, version)) as locate, \
+                    mock.patch.dict(os.environ, {"QUARTUS_ROOTDIR": temporary}):
+                tools = quartus._authenticate_tools(ROOT)
+        lock = locate.call_args.args[2]
+        self.assertEqual(lock.path, "cores/fes-pc386/quartus.lock")
+        self.assertEqual(lock.version, version)
+        self.assertEqual(tools["identities"], {"yosys": IDENTITIES["yosys"],
+                                               "quartus_sh": f"version=17.0.2; sha256={digest}"})
+        self.assertEqual(tools["quartus_version"], version)
+
+    def test_a_missing_or_bad_lock_fails_as_a_build_error(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with self.assertRaisesRegex(board.BuildError, "not a regular file"):
+                quartus.quartus_lock(root)
+            lock = root / quartus.QUARTUS_LOCK
+            lock.parent.mkdir(parents=True)
+            shutil.copyfile(ROOT / quartus.QUARTUS_LOCK, lock)
+            self.assertEqual(quartus.quartus_lock(root).qsf_version, "17.0.2 Lite Edition")
+            lock.write_text(lock.read_text().replace('edition = "lite"', 'edition = "pro"'))
+            with self.assertRaises(board.BuildError):
+                quartus.quartus_lock(root)
 
 
 if __name__ == "__main__":

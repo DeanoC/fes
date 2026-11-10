@@ -1,4 +1,4 @@
-"""The TimeQuest 17.0.2 summary rows the Quartus sealers' timing gates read."""
+"""The TimeQuest summary rows the Quartus sealers' timing gates read."""
 
 import re
 

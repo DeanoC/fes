@@ -28,6 +28,8 @@ const (
 	PointerTapePicker
 	PointerHardwareRoom
 	PointerBrowseActions
+	PointerDetailRemove
+	PointerDetailRemoveCancel
 )
 
 // PointerHit is one hit-test result in logical sofa pixels.
@@ -43,6 +45,10 @@ func (k PointerKind) String() string {
 		return "catalog"
 	case PointerDetail:
 		return "detail"
+	case PointerDetailRemove:
+		return "detail-remove"
+	case PointerDetailRemoveCancel:
+		return "detail-remove-cancel"
 	case PointerCarousel:
 		return "carousel"
 	case PointerOSK:
@@ -230,6 +236,12 @@ func HitTest(snap Snapshot, x, y int) PointerHit {
 			return PointerHit{Kind: PointerBackdrop}
 		}
 		if snap.Detail.Open {
+			if hit, ok := detailRemoveHit(snap, x, y); ok {
+				return hit
+			}
+			if snap.Detail.RemoveConfirm {
+				return PointerHit{}
+			}
 			if geom, ok := detailGeomOf(snap); ok {
 				if geom.Carousel.contains(x, y) {
 					return PointerHit{Kind: PointerCarousel}
@@ -259,6 +271,12 @@ func HitTest(snap Snapshot, x, y int) PointerHit {
 		return PointerHit{}
 	}
 	if snap.Detail.Open {
+		if hit, ok := detailRemoveHit(snap, x, y); ok {
+			return hit
+		}
+		if snap.Detail.RemoveConfirm {
+			return PointerHit{}
+		}
 		if geom, ok := detailGeomOf(snap); ok {
 			if geom.Carousel.contains(x, y) {
 				return PointerHit{Kind: PointerCarousel}
@@ -480,6 +498,16 @@ func (a *App) applyPointerFocusLocked(hit PointerHit) {
 
 func (a *App) activatePointerHitLocked(hit PointerHit, now time.Time) {
 	switch hit.Kind {
+	case PointerDetailRemove:
+		if a.detailRemoveID != "" {
+			a.handleDetailRemoveConfirmLocked(CmdSelect)
+		} else {
+			a.startDetailRemovalLocked()
+		}
+		return
+	case PointerDetailRemoveCancel:
+		a.handleDetailRemoveConfirmLocked(CmdBack)
+		return
 	case PointerCatalog, PointerDetail:
 		if a.room != nil && a.detailOpen {
 			a.applyRoomDestinationConfirmLocked()
