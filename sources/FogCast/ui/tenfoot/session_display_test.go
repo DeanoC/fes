@@ -193,20 +193,66 @@ func TestColecoCartridgePlayHintSeparatesLiveMedia(t *testing.T) {
 
 func TestKitComputerTapeWithoutPlaneStaysHidden(t *testing.T) {
 	var displays atomic.Int32
+	stopBodies := make(chan string, 1)
+	stopEvents := make(chan struct{}, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		displays.Add(1)
-		http.NotFound(w, r)
+		switch r.URL.Path {
+		case "/api/v1/session/display":
+			displays.Add(1)
+			http.NotFound(w, r)
+		case "/api/v1/session/stop":
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Error(err)
+			}
+			select {
+			case stopBodies <- string(body):
+			default:
+				t.Error("unexpected additional roomless Stop")
+			}
+			io.WriteString(w, `{"state":"idle"}`)
+		case "/api/v1/debug/ui-events":
+			var event UIEvent
+			if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
+				t.Error(err)
+			}
+			if event.Kind == "ui.stop" {
+				select {
+				case stopEvents <- struct{}{}:
+				default:
+					t.Error("unexpected additional roomless Stop telemetry")
+				}
+			}
+			io.WriteString(w, `{}`)
+		default:
+			http.NotFound(w, r)
+		}
 	}))
 	t.Cleanup(server.Close)
 	app, _ := kitDisplayApp(t, server)
+	prior := computerTapeKitSession()
 	app.mu.Lock()
-	app.session = computerTapeKitSession()
+	app.session = prior
 	app.syncGPUParkLocked()
 	app.mu.Unlock()
 	now := time.Now()
 	app.HandleCommand(CmdHome, now)
 	app.HandleCommand(CmdSearch, now)
 	app.HandlePlayHIDScancode("f12", hidKeyboardF12, true, now)
+	// F12 intentionally stops a roomless session. Its asynchronous Stop and
+	// telemetry requests are not display-plane requests.
+	waitFor(t, app, "roomless F12 Stop", func(s Snapshot) bool { return s.Session.State == "idle" })
+	select {
+	case body := <-stopBodies:
+		assertStopReleasesCapturedPlay(t, body, prior)
+	case <-time.After(testwait.Timeout):
+		t.Fatal("roomless F12 Stop was not observed")
+	}
+	select {
+	case <-stopEvents:
+	case <-time.After(testwait.Timeout):
+		t.Fatal("roomless F12 Stop telemetry was not observed")
+	}
 	if snap := app.Snapshot(); snap.Session.LoadTape || snap.Session.HardwareRoom || snap.Session.ControlsOpen || snap.TapePicker.Open || displays.Load() != 0 {
 		t.Fatalf("computer tape without a plane opened controls: %+v displays=%d", snap.Session, displays.Load())
 	}
