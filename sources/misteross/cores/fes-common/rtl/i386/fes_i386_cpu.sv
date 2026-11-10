@@ -1016,9 +1016,12 @@ module fes_i386_cpu #(
     assign d_need0 = dc.tm0 || cpl == 2'd3 && dc.ts0;
     assign d_need1 = dc.tm1 || cpl == 2'd3 && dc.ts1;
     // A fetch past CS's limit is #GP(0) before any page is translated, as
-    // Bochs checks the limit first, so it walks nothing (an IRETD in V86 mode
-    // can leave EIP past FFFFh on a page the ITLB does not hold).
-    assign d_ifw = dc.fetched && !dc.xbad && (d_need0 || d_need1) && !cs_gp;
+    // Bochs checks the limit first (an IRETD in V86 mode can leave EIP past
+    // FFFFh on a page the ITLB does not hold): the walk uop then carries
+    // that #GP(0), and M1 starts no walk for a uop with a fault. d_ifw stays
+    // a function of registers, off cs_gp's compare, since it selects the
+    // whole uop.
+    assign d_ifw = dc.fetched && !dc.xbad && (d_need0 || d_need1);
     assign d_ifw_lin = d_need0 ? dc.lin : {dc.lin[31:4] + 28'd1, 4'd0};
     always_comb begin
         u = dc.uop;
@@ -1101,6 +1104,7 @@ module fes_i386_cpu #(
             u = '0;
             u.cls = fes_i386_pkg::UOP_SPECIAL;  // SPECIAL_NOP
             u.ctl.end_of_instruction = 1'b1;
+            u.ctl.fault = cs_gp ? fes_i386_pkg::FAULT_GP0 : fes_i386_pkg::FAULT_NONE;
         end
     end
     assign opsize32 = dc.opsize32;
