@@ -21,11 +21,13 @@ IOPL, which were not built before).
   cases (#PF from V86 mode), and random protected-mode programs that now
   enter V86 mode 7,559 times. Fifteen one-line mutants of the new RTL each
   fail directed cases ([mutants.txt](mutants.txt)).
-- **Seal.** (See [Seal](#seal).) A Quartus 17.0.2 fit at seed 1 of
-  `7837d3955` met every analysis: setup +0.568 ns, hold +0.075 ns, 36,492
-  ALMs (main 36,717) and 268 M10K (main 268). The seal at the PR's head
-  (`bd1a9f4b4`, one more term in D after Codex's review) did not fit at seed
-  1: routing stopped on congestion.
+- **Seal.** Quartus 17.0.2 at seed 1, from a clean checkout of the PR's
+  RTL (`2564ed8e3`), meets every analysis: setup +0.536 ns, hold +0.104
+  ns. ALMs 36,510 (main 36,717, -207: fit noise) and 268 M10K (main 268):
+  the ROM's wider word still fits its 6 blocks. A seed-1 seal of an earlier
+  head did not route; the cause was Codex's first fix, which put CS's limit
+  compare in front of a 147-fanout select in D, and its rework restored the
+  path ([Seal](#seal)).
 - **Kit B, max.** DOOM v1.9 `-timedemo demo3` 40.03 fps (main 40.04 the
   same hour), 3DBench, PCPBench and TopBench as main's within a few points.
   Under JEMM386 v5.85, Wolfenstein 3D reaches E1L1 and DOOM plays its demos
@@ -86,7 +88,7 @@ departs from the plan. In short:
 
 `scripts/test_fes_i386_lockstep.py` ran with every default (16 seeds of 2,000
 random programs, 16 seeds of 500 protected-mode programs, the full corpus) at
-`7884ea746`, the PR's RTL, on the RTL and on the netlist from the i386
+`2564ed8e3`, the sealed RTL, on the RTL and on the netlist from the i386
 lock's Yosys (`238eac9a4`):
 
 | Part | RTL | Netlist |
@@ -173,40 +175,67 @@ bitmap.
 
 ## test386.asm
 
-`scripts/test_fes_i386_test386.py --cpu rtl --no-cross-check`
-([test386-rtl-report.json](test386-rtl-report.json)): POST codes 00, 01,
+`scripts/test_fes_i386_test386.py --cpu rtl --no-cross-check` at
+`2564ed8e3` ([test386-rtl-report.json](test386-rtl-report.json)): POST codes 00, 01,
 02, 03, 04, 05, 06, 08, 09, 20, 21 and 22, no error, then a stop as not
 built after 799,276 retirements at 0053h:000E0A18h, `int 0x28` through a
 task gate (POST 22, slice 4).
 
 ## Seal
 
-Quartus 17.0.2 from clean checkouts, with `CACHE_ROOT` and
-`QUARTUS_ROOTDIR` as slice 2's record gives them.
+The seal is Quartus 17.0.2, seed 1, from clean checkout `2564ed8e3`
+([seal-summary.json](seal-summary.json)), the PR's RTL.
+- **Package.** `25052de3…`, build `d9820880…`, with `core.rbf` `55c2def0…`.
+- **Analyses.** Every one is met: setup +0.536 ns, hold +0.104 ns, recovery
+  +7.126 ns, removal +0.270 ns, minimum pulse width +1.122 ns.
+- **Clocks.** The system clock is 61.44 MHz.
+- **Resources.**
+
+  | Resource | This seal | Main (slice 2's seal `3429af98`) |
+  | --- | ---: | ---: |
+  | ALMs | 36,510 | 36,717 |
+  | Registers | 33,028 | 32,883 |
+  | M10K blocks | 268 | 268 |
+  | DSP blocks | 38 | 38 |
+
+  The plan estimated 550 ALMs and 3 M10K for this slice. It takes no more
+  than the fit noise of about ±200 the area audit measured, and no M10K:
+  slice 2 had already grown the ROM to 512 words, and the word's two new
+  bits fit the 6 blocks' 120. 5,400 ALMs (12.9%) are left, 1,990 under the
+  area audit's working ceiling of 38,500, for slices 4 and 5.
+
+**Diagnostics on the way** (not seals):
 
 | Fit | Commit | Seed | Result | Setup | Hold | ALMs | M10K |
 | --- | --- | ---: | --- | ---: | ---: | ---: | ---: |
-| a1 | `7837d3955` | 1 | every analysis met (package `7b29b38a…`, the kit's) | +0.568 ns | +0.075 ns | 36,492 | 268 |
-| s2 | `bd1a9f4b4` (the PR's RTL) | 1 | **no fit**: routing stopped on congestion while adding hold delay (peak interconnect 62% in X33-44, Y11-22) | | | | |
-| d2 | `bd1a9f4b4` | 2 | every analysis met, a diagnostic only (package `48f8cc11…`) | +0.629 ns | +0.080 ns | 36,442 | 268 |
+| a1 ([summary](seal-summary-7837d3955.json)) | `7837d3955` | 1 | met (package `7b29b38a…`, the kit's) | +0.568 ns | +0.075 ns | 36,492 | 268 |
+| s2 | `bd1a9f4b4` | 1 | **no fit**: routing stopped on congestion while adding hold delay (peak interconnect 65.4% total, 92.2% vertical; the router's estimate 62% in X33-44, Y11-22) | | | | |
+| d2 ([summary](seal-summary-bd1a9f4b4-seed2.json)) | `bd1a9f4b4` | 2 | met | +0.629 ns | +0.080 ns | 36,442 | 268 |
 
-Main's seal (slice 2's) used 36,717 ALMs and 268 M10K. Between a1 and s2
-the RTL gained one term in D (`d_ifw` needs `!cs_gp`, from Codex's review)
-and comments. The seed-1 seal at the PR's head is the gate, and it fails;
-the slice stops there for the coordinator's decision rather than take
-another seed as the seal.
+`bd1a9f4b4` carried Codex's first fix for a fetch past CS's limit under
+paging: `d_ifw && !cs_gp`. Its hold padding was no larger than a1's (1,608
+ns against 1,664 ns on the system clock), but the fix put CS's limit compare
+(`LessThan99`, four cells from D's EIP) in front of `d_ifw`, the 147-fanout
+select that replaces D's uop with the walk, and through
+`d_next_instruction` into AG's row and segment term. The worst path from
+D's EIP to AG had 2.615 ns of slack on d2, against 3.924 ns on a1. The
+sealed RTL keeps `d_ifw` a function of registers and gives the walk uop
+`cs_gp`'s #GP(0) as its fault instead; M1 starts no walk for a uop with a
+fault, so the behaviour is the same (the case `pg-v86-eip-past-limit-np`
+and the mutant `ifw-over-gp` stand). On the seal the worst path from D's EIP
+to AG is a plain move into `ag_row`, +10.112 ns.
 
 ## Kit
 
 Runs `m1` and `k1`-`k8` used Kit B, core-only, on 10 November from 13:59 to
 15:48 ([kit-scores.json](kit-scores.json)).
-- **Packages.** `7b29b38a…`, the fit of `7837d3955` above (build
+- **Packages.** `7b29b38a…`, diagnostic fit a1 of `7837d3955` (build
   `2179950d…`), at max (preset 0), each launch after a SCRUBX scrub. Run
   `m1` is the A/B reference: main's package `3429af98…` (slice 2's final
-  seal), the same runner, kit and baseline. The RTL changed after
-  `7837d3955` only in D's fetch walk under a fetch past CS's limit (a V86
-  IRETD to EIP past FFFFh under paging, which no kit title does) and in
-  comments, so the runs were not repeated.
+  seal), the same runner, kit and baseline. The sealed RTL
+  differs from `7837d3955` only in D's fetch walk for a fetch past CS's
+  limit (a V86 IRETD to EIP past FFFFh under paging, which no kit title
+  does) and in comments, so the runs were not repeated on the seal.
 - **Kit.** Baseline image `cd284ca3…` and software `7ddb0bfb`, with no
   install, no image change and no reboot. After each run Kit B was checked
   against its snapshot and logged FREE, and the run's FogCast data trees

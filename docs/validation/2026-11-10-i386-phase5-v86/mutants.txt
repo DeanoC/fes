@@ -1,4 +1,4 @@
-One-line mutants of slice 3's RTL (~/fes-scratch/p5v86/mut on Powerboat), each built as the lockstep
+One-line mutants of slice 3's RTL (fifteen) (~/fes-scratch/p5v86/mut on Powerboat), each built as the lockstep
 testbench and run on the protected-mode and paging cases (FES_I386_MODE=pmode, paging) and two seeds of
 200 protected-mode random programs. Each must fail a directed case.
 
@@ -38,6 +38,7 @@ v86cs-same's conforming form (DPL 0) cannot be told apart: the #GP's own deliver
 that the mutant reads first, so both sides fault on it alike (v86-int-conforming-small-tss shuts down on
 both).
 
-After Codex's review (the fetch walk taken over a fetch's #GP for CS's limit):
-ifw-over-gp     fes_i386_cpu.sv   a fetch past CS's limit on a page the ITLB lacks walks (#PF) before its #GP(0)
-                -> pg-v86-eip-past-limit-np; random 0
+After Codex's review (the fetch walk taken over a fetch's #GP for CS's limit), on the sealed RTL:
+ifw-over-gp     fes_i386_cpu.sv   the walk uop without cs_gp's #GP(0): a fetch past CS's limit on a page the
+                                  ITLB lacks walks (#PF) before its #GP(0)
+                -> pg-v86-eip-past-limit-np; random 0 (and on bd1a9f4b4's form, d_ifw without !cs_gp, the same)
