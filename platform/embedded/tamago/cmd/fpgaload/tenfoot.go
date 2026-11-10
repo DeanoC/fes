@@ -139,6 +139,9 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		panic(err)
 	}
 	var platform tenfoot.Platform = serialPlatform
+	if programWritableStorageSelected {
+		serialPlatform.EnableInstallerViews()
+	}
 	inputMode := "uart"
 	if expectedUSBControl != "" {
 		if expectedUSBInput == "gamepad" {

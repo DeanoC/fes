@@ -170,7 +170,7 @@ class NanoUploadTests(unittest.TestCase):
                 self.run_upload(fault,purpose='package')
             self.assertEqual(self.last_model.writes,1)
     def test_arbitrary_upload_destinations_reject_before_console_access(self):
-        for purpose in ('FES/RECOVERY.JSON','../u-boot.itb','package; boot','FES/PKGALT.BIN','package-third','',None):
+        for purpose in ('FES/RECOVERY.JSON','../u-boot.itb','package; boot','FES/PKGALT.BIN','FES/INSTALL.JSN','package-third','',None):
             model=Model(self.kit,self.payload)
             with self.subTest(purpose=purpose),self.assertRaises(ValueError):
                 upload.UploadSession(model,self.kit,'192.168.10.202','02:fe:25:08:cb:01').upload(self.payload,{},purpose=purpose)
@@ -236,6 +236,7 @@ class NanoUploadTests(unittest.TestCase):
                                     ('menu-package','FES/MENU.FCP',upload.LIMIT),
                                     ('menu-metadata','FES/MENU.JSN',16<<10),
                                     ('menu-selection','FES/MENUSEL.JSN',8192),
+                                    ('install-manifest','FES/INSTALL.JSN',8192),
                                     ('package-alt','FES/PKGALT.BIN',upload.LIMIT),('metadata-alt','FES/PROGALT.JSN',16<<10)):
             for size in (1,limit):
                 with self.subTest(purpose=purpose,size=size):
@@ -259,7 +260,8 @@ class NanoUploadTests(unittest.TestCase):
         payloads={'boot':b'b'*6144,'package':b'p'*2048,'metadata':b'm'*(16<<10),
                   'package-alt':b'q'*4096,'metadata-alt':b'n'*(16<<10),'selection':b's'*8192,'ui-catalog':b'u'*8192,
                   'firmware':b'f'*8192,'firmware-alt':b'a'*4096,
-                  'menu-package':b'c'*4096,'menu-metadata':b'd'*2676,'menu-selection':b'e'*282}
+                  'menu-package':b'c'*4096,'menu-metadata':b'd'*2676,'menu-selection':b'e'*282,
+                  'install-manifest':b'i'*8192}
         written={};fresh={}
         with patch('builtins.print'):
             for purpose,payload in payloads.items():

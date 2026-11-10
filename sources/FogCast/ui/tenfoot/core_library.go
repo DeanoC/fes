@@ -13,6 +13,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/storage"
+	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/FogCast/ui/shared"
 )
 
@@ -81,6 +82,9 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 	if s.Setup == nil {
 		add("Install core", "install")
 		return rows
+	}
+	if len(s.Setup.Entries) != 0 {
+		add("Open library", "library")
 	}
 	for _, r := range s.Setup.ROMs {
 		status := "choose file"
@@ -403,6 +407,17 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 	}
 	if row.Kind == "install" {
 		a.loadCoreSetupLocked(true)
+		return
+	}
+	if row.Kind == "library" {
+		if a.sessionStopOfferedLocked() {
+			s.Status = runningMachineLibraryBlockedStatus
+			return
+		}
+		s.Open = false
+		s.Gen++
+		a.closeSettingsLocked()
+		a.openLibraryFromRoomLocked(rooms.Action{})
 		return
 	}
 	if strings.HasPrefix(row.Kind, "rom:") || strings.HasPrefix(row.Kind, "media:") {

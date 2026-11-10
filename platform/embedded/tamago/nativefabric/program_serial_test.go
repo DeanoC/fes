@@ -109,6 +109,47 @@ func TestSerialEmitterFailureAndVolatilePreferenceOwnership(t *testing.T) {
 	}
 }
 
+func TestInstallerNavigationIsExplicitAndChangesIndependentlyOfAppStatus(t *testing.T) {
+	f := serviceTest(t)
+	var records [][]byte
+	p, err := NewProgramSerialPlatform(f.s, func() (byte, bool) { return 0, false }, func(_ context.Context, raw []byte) error {
+		records = append(records, bytes.Clone(raw))
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := tenfoot.Snapshot{Settings: tenfoot.SettingsSnapshot{Open: true, Index: 0, Rows: []tenfoot.SettingsRow{{ID: "layout"}, {ID: "systems"}}}}
+	if err = p.Present(context.Background(), snapshot); err != nil || len(records) != 1 || !bytes.HasPrefix(records[0], []byte("FES_NATIVE_TENFOOT_STATE ")) {
+		t.Fatal("ordinary serial mode changed", err, records)
+	}
+	p.EnableInstallerViews()
+	for _, index := range []int{0, 1, 1} {
+		snapshot.Settings.Index = index
+		if err = p.Present(context.Background(), snapshot); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(records) != 3 {
+		t.Fatal("navigation changes were lost or unchanged view was repeated", len(records))
+	}
+	for i, raw := range records[1:] {
+		prefix := []byte("FES_NATIVE_INSTALLER_VIEW ")
+		if !bytes.HasPrefix(raw, prefix) {
+			t.Fatal("navigation masqueraded as an App transition")
+		}
+		var view struct {
+			Owner      uint64                `json:"owner"`
+			Generation uint64                `json:"generation"`
+			Settings   programInstallerPanel `json:"settings"`
+			Systems    programInstallerPanel `json:"systems"`
+		}
+		if err = json.Unmarshal(raw[len(prefix):], &view); err != nil || view.Settings.Index != i || view.Owner != f.s.Status().Owner || view.Generation != f.s.Status().Generation || view.Systems.Open || len(view.Systems.Rows) != 0 {
+			t.Fatal("navigation lost cached ownership or panel state", view, err)
+		}
+	}
+}
+
 func TestFullTenfootSerialNativeLaunchReturnAndFailures(t *testing.T) {
 	for _, fault := range []string{"", "launch", "return"} {
 		t.Run(fault, func(t *testing.T) {

@@ -32,6 +32,16 @@ The changed native installer image has a
 and still needs physical acceptance; the earlier 25 MHz file test does not
 qualify package installation.
 
+The full App model additionally drives Settings → Systems → Install → Open
+library → launch/return from an empty catalogue. Sources with existing setup
+entries offer Open library through the shared UI; no duplicate entry-creation
+request is needed. An uncertain install write retires without advertising a
+playable entry. The explicit writable native selection enables separate bounded
+installer-navigation records, including changes that leave ordinary App status
+unchanged. Model-generated records are checked by the host decoder with their
+actual native counters; installation advances one request before launch/return.
+These changed UI/runtime bytes need a new matched image and physical trial.
+
 `ProgramService.AttachNetwork` transfers one active controller before frontend
 ownership. Attachment claims the shared handle without hardware IO. Once bound,
 launch, return, installation, running Park and menu shutdown drain networking

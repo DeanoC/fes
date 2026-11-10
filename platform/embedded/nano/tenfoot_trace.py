@@ -21,7 +21,8 @@ ZERO={k:0 if k in ('Major','Minor') else '' for k in IDENTITY}
 MAX_BYTES=1<<20
 
 
-def fetch_observation(raw):
+def fetch_observation(raw, *, generation_origin=0):
+    require(number(generation_origin,(1<<64)-1),'invalid fetch generation origin')
     def invalid(_):raise ValueError('nonfinite fetch JSON')
     r=json.loads(raw,object_pairs_hook=_unique,parse_constant=invalid)
     base={'scope','owner','generation','package_id','build_id','before','held','running','delta','polls','elapsed_ns','limit_ns'}
@@ -39,7 +40,7 @@ def fetch_observation(raw):
     else:
         require(set(r)==base and r.get('scope')=='nano-computer-fetch-v1','fetch observation fields/scope differ')
         require(number(r['limit_ns'],1000000000),'fetch control limit differs')
-    require(number(r['owner'],(1<<64)-1) and r['owner']>0 and number(r['generation'],(1<<64)-1) and r['generation']%2==1,'fetch owner/generation differs')
+    require(number(r['owner'],(1<<64)-1) and r['owner']>0 and number(r['generation'],(1<<64)-1) and r['generation']>generation_origin and (r['generation']-generation_origin)%2==1,'fetch owner/generation differs')
     require(type(r['package_id']) is str and re.fullmatch('[0-9a-f]{64}',r['package_id']) and type(r['build_id']) is str and re.fullmatch('[0-9a-f]{32}',r['build_id']),'fetch identity differs')
     for key in ('before','held','running'):
         a=r[key];require(type(a) is dict and set(a)=={'Cycles','Address'} and number(a['Cycles'],(1<<32)-1) and number(a['Address'],65535),'invalid fetch counter/address pair')
@@ -50,10 +51,12 @@ def fetch_observation(raw):
     return r
 
 
-def packet(data,*,startup=False,input_mode='uart',usb_records=None,fetch_records=None,input_records=None):
+def packet(data,*,startup=False,input_mode='uart',usb_records=None,fetch_records=None,input_records=None,
+           generation_origin=0,installing=False):
     """Separate complete App observations from unchanged firmware evidence."""
     require(isinstance(data,(bytes,bytearray)) and 0<len(data)<=MAX_BYTES and data.endswith(b'\n'),'bounded complete App capture required')
     require(input_mode in ('uart','uart+shared-usb-gamepad','uart+shared-usb-boot-keyboard'),'explicit App input scope required')
+    require(number(generation_origin,(1<<64)-1) and type(installing) is bool,'invalid explicit App operation context')
     begin=BEGIN if input_mode=='uart' else b'FES_NATIVE_TENFOOT_BEGIN display=serial-state-only input='+input_mode.encode()+b' preferences=ram'
     states=[];evidence=[];exited=None;begins=0;usb_ready=False
     def constant(_):raise ValueError('nonfinite App JSON')
@@ -67,7 +70,8 @@ def packet(data,*,startup=False,input_mode='uart',usb_records=None,fetch_records
             continue
         if raw.startswith(FETCH):
             require(not startup and exited is None and fetch_records is not None,'fetch observation outside a live launch')
-            r=fetch_observation(raw[len(FETCH):])
+            require(not installing,'core fetch during installation')
+            r=fetch_observation(raw[len(FETCH):],generation_origin=generation_origin)
             if fetch_records is not None:fetch_records.append(r)
             continue
         if raw.startswith(USB_PREFIX):
@@ -109,11 +113,16 @@ def packet(data,*,startup=False,input_mode='uart',usb_records=None,fetch_records
             # Launch first publishes the old even/empty view, then pins the
             # selected plan at the next odd generation while still held. That
             # staged identity is not Running or proof of configuration.
-            staged=v['State']=='loading' and v['Generation']%2==1
-            if v['State']=='ready' or v['State']=='loading' and not staged:
-                require(v['Generation']%2==0 and v['Held'] and ident==ZERO,'inactive App has live identity or lost Hold')
+            require(v['Generation']>=generation_origin,'App generation precedes explicit origin')
+            lifecycle=v['Generation']-generation_origin
+            staged=v['State']=='loading' and lifecycle%2==1
+            if installing:
+                require(v['State'] in ('ready','loading') and lifecycle in (0,1) and
+                        v['Held'] and ident==ZERO,'installation changed core identity, Hold or request extent')
+            elif v['State']=='ready' or v['State']=='loading' and not staged:
+                require(lifecycle%2==0 and v['Held'] and ident==ZERO,'inactive App has live identity or lost Hold')
             else:
-                require(v['Generation']%2==1 and v['Held']==staged,'selected App generation/Hold differs')
+                require(lifecycle%2==1 and v['Held']==staged,'selected App generation/Hold differs')
                 for key,length in (('PackageID',64),('BuildID',32),('ProgrammedSHA256',64)):
                     require(re.fullmatch('[0-9a-f]{'+str(length)+'}',ident[key]) and int(ident[key],16),'invalid live '+key)
             states.append(r);continue

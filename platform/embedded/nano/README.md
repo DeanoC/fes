@@ -97,6 +97,23 @@ The recovery uploader accepts `--purpose menu-package`, `menu-metadata` and
 unchanged boot-file checks. Upload the archive and metadata before the selection;
 uploading files does not activate the native image or grant runtime admission.
 
+`--purpose install-manifest` supplies only `FES/INSTALL.JSN`, bounded to 8 KiB,
+through the same owned upload and fresh readback checks. Upload its referenced
+package, metadata and ROM before the manifest. It does not install a core or
+enable writable native storage; the explicitly selected native installer
+independently validates the source and waits for the normal Tenfoot Install
+action. Arbitrary paths and protected boot files remain outside this purpose.
+
+Explicit writable Tenfoot images also emit `FES_NATIVE_INSTALLER_VIEW` when
+their Settings/Systems controls change. This bounded read-only record contains
+row kinds, focus, busy/status and cached native ownership, separately from App
+and firmware receipts. `installer_trace.py` checks its complete schema and
+closed-panel state. Its App decoder takes the caller's explicit install phase
+and completed-install generation origin; it preserves every native counter.
+Ordinary launch/return framing keeps its previous defaults. These observations
+do not establish an installation or replace fresh media, menu/USB drain,
+configuration or reboot/discovery proofs.
+
 The source-bound two-slot menu has an explicit native selection:
 `tamago/run.py fpgaload --board de25-nano --menu-present`, together with the
 sealed menu `--hps-first-project`, source-controlled SD profile and selected

@@ -85,6 +85,8 @@ type ProgramSerialPlatform struct {
 	quit            bool
 	stopQueued      bool
 	fetchGeneration uint64
+	installerViews  bool
+	previousView    []byte
 }
 
 func NewProgramSerialPlatform(service *ProgramService, read func() (byte, bool), emit func(context.Context, []byte) error) (*ProgramSerialPlatform, error) {
@@ -93,6 +95,10 @@ func NewProgramSerialPlatform(service *ProgramService, read func() (byte, bool),
 	}
 	return &ProgramSerialPlatform{service: service, read: read, emit: emit}, nil
 }
+
+// EnableInstallerViews selects read-only navigation diagnostics before the App
+// starts. It grants no storage, installation or firmware capability.
+func (p *ProgramSerialPlatform) EnableInstallerViews() { p.installerViews = true }
 func (p *ProgramSerialPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error) {
 	if ctx == nil {
 		return tenfoot.PlatformInput{}, errors.New("native serial UI: context required")
@@ -213,6 +219,7 @@ func (p *ProgramSerialPlatform) Present(ctx context.Context, snapshot tenfoot.Sn
 	for i, e := range snapshot.Games {
 		titles[i] = e.Title
 	}
+	serviceView := p.service.Status()
 	raw, err := json.Marshal(struct {
 		Scope       string               `json:"scope"`
 		Display     string               `json:"display"`
@@ -225,17 +232,76 @@ func (p *ProgramSerialPlatform) Present(ctx context.Context, snapshot tenfoot.Sn
 		LaunchError string               `json:"launch_error"`
 		RetryStop   bool                 `json:"retry_stop"`
 		Native      ProgramServiceStatus `json:"native"`
-	}{"nano-tenfoot-serial-v1", "serial-state-only", titles, snapshot.Grid.Focus, snapshot.Loading, snapshot.LoadErr, snapshot.Session.State, snapshot.Launch.Phase, snapshot.Launch.ErrorMessage, snapshot.Session.RetryStop, p.service.Status()})
+	}{"nano-tenfoot-serial-v1", "serial-state-only", titles, snapshot.Grid.Focus, snapshot.Loading, snapshot.LoadErr, snapshot.Session.State, snapshot.Launch.Phase, snapshot.Launch.ErrorMessage, snapshot.Session.RetryStop, serviceView})
 	if err != nil {
 		return err
 	}
-	if bytes.Equal(raw, p.previous) {
+	if !bytes.Equal(raw, p.previous) {
+		if err := p.emit(ctx, append(append([]byte("FES_NATIVE_TENFOOT_STATE "), raw...), '\n')); err != nil {
+			return fmt.Errorf("native serial UI: state output: %w", err)
+		}
+		p.previous = raw
+	}
+	if p.installerViews {
+		return p.presentInstallerView(ctx, snapshot, serviceView)
+	}
+	return nil
+}
+
+type programInstallerPanel struct {
+	Open   bool     `json:"open"`
+	Index  int      `json:"index"`
+	Rows   []string `json:"rows"`
+	Busy   bool     `json:"busy"`
+	Status string   `json:"status"`
+}
+
+func (p *ProgramSerialPlatform) presentInstallerView(ctx context.Context, snapshot tenfoot.Snapshot, v ProgramServiceStatus) error {
+	panel := func(open bool, index int, busy bool, status string, rows []string) programInstallerPanel {
+		if !open {
+			return programInstallerPanel{Rows: []string{}}
+		}
+		return programInstallerPanel{open, index, rows, busy, status}
+	}
+	settings := make([]string, len(snapshot.Settings.Rows))
+	for i, row := range snapshot.Settings.Rows {
+		settings[i] = row.ID
+	}
+	systems := make([]string, len(snapshot.CoreLibrary.Rows))
+	for i, row := range snapshot.CoreLibrary.Rows {
+		systems[i] = row.Kind
+	}
+	record := struct {
+		Scope      string                `json:"scope"`
+		Owner      uint64                `json:"owner"`
+		Generation uint64                `json:"generation"`
+		State      ProgramServiceState   `json:"state"`
+		Settings   programInstallerPanel `json:"settings"`
+		Systems    programInstallerPanel `json:"systems"`
+	}{"nano-installer-view-v1", v.Owner, v.Generation, v.State,
+		panel(snapshot.Settings.Open, snapshot.Settings.Index, snapshot.Settings.Busy || snapshot.Settings.Loading, snapshot.Settings.Status, settings),
+		panel(snapshot.CoreLibrary.Open, snapshot.CoreLibrary.Index, snapshot.CoreLibrary.Busy, snapshot.CoreLibrary.Status, systems)}
+	for _, view := range []programInstallerPanel{record.Settings, record.Systems} {
+		if len(view.Rows) > 64 || len(view.Status) > 1024 {
+			return ErrProgramSession
+		}
+		for _, key := range view.Rows {
+			if len(key) == 0 || len(key) > 128 {
+				return ErrProgramSession
+			}
+		}
+	}
+	raw, err := json.Marshal(record)
+	if err != nil {
+		return err
+	}
+	if bytes.Equal(raw, p.previousView) {
 		return nil
 	}
-	if err := p.emit(ctx, append(append([]byte("FES_NATIVE_TENFOOT_STATE "), raw...), '\n')); err != nil {
-		return fmt.Errorf("native serial UI: state output: %w", err)
+	if err = p.emit(ctx, append(append([]byte("FES_NATIVE_INSTALLER_VIEW "), raw...), '\n')); err != nil {
+		return err
 	}
-	p.previous = raw
+	p.previousView = raw
 	return nil
 }
 

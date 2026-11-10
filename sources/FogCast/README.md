@@ -54,6 +54,9 @@ and content selection; the MiSTer is a small, directly controlled target.
   Machine names are plain model names. New setups default to those names;
   package versions/hashes and generated HIL labels do not become headings.
   Custom game/setup names and exact launch/media identities are preserved.
+  Systems setup offers **Open library** when the source already advertises
+  configured entries. It refreshes the library and preserves ordinary launch
+  checks.
 
 - The tenfoot **Systems** room lists prepared playable systems, models and
   editions. **Set up** opens the selected workbench; **Add system** remains
