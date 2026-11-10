@@ -1,0 +1,14 @@
+RAM inference messages (Analysis & Synthesis):
+Info (19000): Inferred 1 megafunctions from design logic
+Info (276029): Inferred altsyncram megafunction from the following design logic: "fes_i386_ras:ras|stack_rtl_0"
+Warning (276020): Inferred RAM node "fes_i386_ras:ras|stack_rtl_0" from synchronous design logic.  Pass-through logic has been added to match the read-during-write behavior of the original design.
+
++---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Analysis & Synthesis RAM Summary                                                                                                                                                      ;
++-----------------------------------------------------------------------------------+------+------------------+--------------+--------------+--------------+--------------+------+------+
+; Name                                                                              ; Type ; Mode             ; Port A Depth ; Port A Width ; Port B Depth ; Port B Width ; Size ; MIF  ;
++-----------------------------------------------------------------------------------+------+------------------+--------------+--------------+--------------+--------------+------+------+
+; fes_i386_ras:ras|altsyncram:stack_rtl_0|altsyncram_8ji1:auto_generated|ALTSYNCRAM ; AUTO ; Simple Dual Port ; 16           ; 32           ; 16           ; 32           ; 512  ; None ;
++-----------------------------------------------------------------------------------+------+------------------+--------------+--------------+--------------+--------------+------+------+
+
+No registers were packed into an inferred megafunction.

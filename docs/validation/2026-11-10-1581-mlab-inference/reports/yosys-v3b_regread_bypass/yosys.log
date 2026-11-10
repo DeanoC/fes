@@ -1,0 +1,296 @@
+
+ /----------------------------------------------------------------------------\
+ |  yosys -- Yosys Open SYnthesis Suite                                       |
+ |  Copyright (C) 2012 - 2026  Claire Xenia Wolf <claire@yosyshq.com>         |
+ |  Distributed under an ISC-like license, type "license" to see terms        |
+ \----------------------------------------------------------------------------/
+ Yosys 0.70+ (git sha1 0a7927bf1, Release, GNU /usr/bin/c++ 14.2.0) [github.com/DeanoC/yosys at HEAD]
+
+-- Running command `read_verilog -sv -I cores/fes-common/generated -I cores/fes-common/vendor/kf8259 -I cores/fes-common/vendor/kf8253 <repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv <repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv; hierarchy -top s1d_harness; proc -norom; flatten; opt -purge; memory_collect; memory_map t:$mem_v2 r:WR_PORTS>1 %i a:ramstyle %d; opt -purge; attrmap -remove src; attrmap -remove hdlname; write_verilog <work>/yosys-v3b_regread_bypass/raw.v' --
+
+1. Executing Verilog-2005 frontend: <repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv
+Parsing SystemVerilog input from `<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv' to AST representation.
+Generating RTLIL representation for module `\s1d_harness'.
+Successfully finished Verilog frontend.
+
+2. Executing Verilog-2005 frontend: <repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv
+Parsing SystemVerilog input from `<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv' to AST representation.
+Generating RTLIL representation for module `\fes_i386_ras'.
+Successfully finished Verilog frontend.
+
+3. Executing HIERARCHY pass (managing design hierarchy).
+
+3.1. Analyzing design hierarchy..
+Top module:  \s1d_harness
+Used module:     \fes_i386_ras
+
+3.2. Analyzing design hierarchy..
+Top module:  \s1d_harness
+Used module:     \fes_i386_ras
+Removed 0 unused modules.
+
+4. Executing PROC pass (convert processes to netlists).
+
+4.1. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Cleaned up 0 empty switches.
+
+4.2. Executing PROC_RMDEAD pass (remove dead branches from decision trees).
+Marked 1 switch rules as full_case in process $<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:41$proc$14 in module fes_i386_ras.
+Marked 4 switch rules as full_case in process $<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:33$proc$11 in module fes_i386_ras.
+Removed a total of 0 dead cases.
+
+4.3. Executing PROC_PRUNE pass (remove redundant assignments in processes).
+Removed 0 redundant assignments.
+Promoted 9 assignments to connections.
+
+4.4. Executing PROC_INIT pass (extract init attributes).
+
+4.5. Executing PROC_ARST pass (detect async resets in processes).
+
+4.6. Executing PROC_MUX pass (convert decision trees to multiplexers).
+Creating decoders for process `\fes_i386_ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:41$proc$14'.
+     1/3: $1$memwr$\stack$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:42$4_EN[31:0]$20
+     2/3: $1$memwr$\stack$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:42$4_DATA[31:0]$19
+     3/3: $1$memwr$\stack$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:42$4_ADDR[3:0]$18
+Creating decoders for process `\fes_i386_ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:33$proc$11'.
+     1/4: $4\ptr_next[3:0]
+     2/4: $3\ptr_next[3:0]
+     3/4: $2\ptr_next[3:0]
+     4/4: $1\ptr_next[3:0]
+Creating decoders for process `\s1d_harness.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:21$proc$1'.
+
+4.7. Executing PROC_DLATCH pass (convert process syncs to latches).
+No latch inferred for signal `\fes_i386_ras.\ptr_next' from process `\fes_i386_ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:33$proc$11'.
+
+4.8. Executing PROC_DFF pass (convert process syncs to FFs).
+Creating register for signal `\fes_i386_ras.\top' using process `\fes_i386_ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:41$proc$14'.
+  created $dff cell `$procdff$62' with positive edge clock.
+Creating register for signal `\fes_i386_ras.\ptr' using process `\fes_i386_ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:41$proc$14'.
+  created $dff cell `$procdff$63' with positive edge clock.
+Creating register for signal `\fes_i386_ras.$memwr$\stack$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:42$4_ADDR' using process `\fes_i386_ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:41$proc$14'.
+  created $dff cell `$procdff$64' with positive edge clock.
+Creating register for signal `\fes_i386_ras.$memwr$\stack$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:42$4_DATA' using process `\fes_i386_ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:41$proc$14'.
+  created $dff cell `$procdff$65' with positive edge clock.
+Creating register for signal `\fes_i386_ras.$memwr$\stack$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:42$4_EN' using process `\fes_i386_ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:41$proc$14'.
+  created $dff cell `$procdff$66' with positive edge clock.
+Creating register for signal `\s1d_harness.\sr' using process `\s1d_harness.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:21$proc$1'.
+  created $dff cell `$procdff$67' with positive edge clock.
+Creating register for signal `\s1d_harness.\top_q' using process `\s1d_harness.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:21$proc$1'.
+  created $dff cell `$procdff$68' with positive edge clock.
+Creating register for signal `\s1d_harness.\sig' using process `\s1d_harness.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:21$proc$1'.
+  created $dff cell `$procdff$69' with positive edge clock.
+
+4.9. Executing PROC_MEMWR pass (convert process memory writes to cells).
+
+4.10. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Found and cleaned up 1 empty switch in `\fes_i386_ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:41$proc$14'.
+Removing empty process `fes_i386_ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:41$proc$14'.
+Found and cleaned up 4 empty switches in `\fes_i386_ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:33$proc$11'.
+Removing empty process `fes_i386_ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:33$proc$11'.
+Removing empty process `s1d_harness.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:21$proc$1'.
+Cleaned up 5 empty switches.
+
+4.11. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fes_i386_ras.
+Optimizing module s1d_harness.
+
+5. Executing FLATTEN pass (flatten design).
+Deleting now unused module fes_i386_ras.
+<suppressed ~1 debug messages>
+
+6. Executing OPT pass (performing simple optimizations).
+
+6.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module s1d_harness.
+
+6.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\s1d_harness'.
+Computing hashes of 35 cells of `\s1d_harness'.
+Finding duplicate cells in `\s1d_harness'.
+Computing hashes of 34 cells of `\s1d_harness'.
+Finding duplicate cells in `\s1d_harness'.
+<suppressed ~3 debug messages>
+Removed a total of 1 cells.
+
+6.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \s1d_harness..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+    dead port 1/2 on $mux $flatten\ras.$procmux$36.
+    dead port 1/2 on $mux $flatten\ras.$procmux$39.
+    dead port 1/2 on $mux $flatten\ras.$procmux$42.
+    dead port 1/2 on $mux $flatten\ras.$procmux$48.
+    dead port 1/2 on $mux $flatten\ras.$procmux$51.
+    dead port 1/2 on $mux $flatten\ras.$procmux$57.
+Removed 6 multiplexer ports.
+<suppressed ~28 debug messages>
+
+6.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \s1d_harness.
+    Consolidated identical input bits for $mux cell $flatten\ras.$procmux$24:
+      Old ports: A=0, B=32'11111111111111111111111111111111, Y=$flatten\ras.$procmux$24_Y
+      New ports: A=1'0, B=1'1, Y=$flatten\ras.$procmux$24_Y [0]
+      New connections: $flatten\ras.$procmux$24_Y [31:1] = { $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] $flatten\ras.$procmux$24_Y [0] }
+  Optimizing cells in module \s1d_harness.
+Performed a total of 1 changes.
+
+6.5. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\s1d_harness'.
+Computing hashes of 28 cells of `\s1d_harness'.
+Finding duplicate cells in `\s1d_harness'.
+Removed a total of 0 cells.
+
+6.6. Executing OPT_DFF pass (perform DFF optimizations).
+
+6.7. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \s1d_harness..
+Removed 4 unused cells and 53 unused wires.
+<suppressed ~15 debug messages>
+
+6.8. Executing OPT_EXPR pass (perform const folding).
+Optimizing module s1d_harness.
+
+6.9. Rerunning OPT passes. (Maybe there is more to do..)
+
+6.10. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \s1d_harness..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~22 debug messages>
+
+6.11. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \s1d_harness.
+Performed a total of 0 changes.
+
+6.12. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\s1d_harness'.
+Computing hashes of 24 cells of `\s1d_harness'.
+Finding duplicate cells in `\s1d_harness'.
+Removed a total of 0 cells.
+
+6.13. Executing OPT_DFF pass (perform DFF optimizations).
+
+6.14. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \s1d_harness..
+
+6.15. Executing OPT_EXPR pass (perform const folding).
+Optimizing module s1d_harness.
+
+6.16. Finished fast OPT passes. (There is nothing left to do.)
+
+7. Executing MEMORY_COLLECT pass (generating $mem cells).
+
+8. Executing MEMORY_MAP pass (converting memories to logic and flip-flops).
+
+9. Executing OPT pass (performing simple optimizations).
+
+9.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module s1d_harness.
+
+9.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\s1d_harness'.
+Computing hashes of 23 cells of `\s1d_harness'.
+Finding duplicate cells in `\s1d_harness'.
+Removed a total of 0 cells.
+
+9.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \s1d_harness..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~22 debug messages>
+
+9.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \s1d_harness.
+Performed a total of 0 changes.
+
+9.5. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\s1d_harness'.
+Computing hashes of 23 cells of `\s1d_harness'.
+Finding duplicate cells in `\s1d_harness'.
+Removed a total of 0 cells.
+
+9.6. Executing OPT_DFF pass (perform DFF optimizations).
+
+9.7. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \s1d_harness..
+
+9.8. Executing OPT_EXPR pass (perform const folding).
+Optimizing module s1d_harness.
+
+9.9. Finished fast OPT passes. (There is nothing left to do.)
+
+10. Executing ATTRMAP pass (move or copy attributes).
+Removed attribute on s1d_harness.$flatten\ras.$procmux$30: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:42.13-42.15|<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:42.9-42.33"
+Removed attribute on s1d_harness.$flatten\ras.$procmux$33: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:38.18-38.21|<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:38.14-38.45"
+Removed attribute on s1d_harness.$flatten\ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:29$ternary$6: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:29.28-29.52"
+Removed attribute on s1d_harness.$flatten\ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:29$logic_and$7: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:29.17-29.53"
+Removed attribute on s1d_harness.$flatten\ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:30$add$8: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:30.38-30.48"
+Removed attribute on s1d_harness.$flatten\ras.$procmux$45: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:37.18-37.22|<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:37.14-38.45"
+Removed attribute on s1d_harness.$flatten\ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:30$ternary$9: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:30.17-30.48"
+Removed attribute on s1d_harness.$flatten\ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:31$ternary$10: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:31.17-31.46"
+Removed attribute on s1d_harness.$flatten\ras.$procmux$54: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:36.18-36.26|<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:36.14-38.45"
+Removed attribute on s1d_harness.$flatten\ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:38$sub$13: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:38.34-38.44"
+Removed attribute on s1d_harness.$flatten\ras.$procmux$60: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:35.13-35.18|<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:35.9-38.45"
+Removed attribute on s1d_harness.$flatten\ras.$procdff$62: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:41.5-45.8"
+Removed attribute on s1d_harness.$flatten\ras.$procdff$63: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:41.5-45.8"
+Removed attribute on s1d_harness.$flatten\ras.$procmux$24: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:42.13-42.15|<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:42.9-42.33"
+Removed attribute on s1d_harness.$flatten\ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:43$ternary$22: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:43.16-43.41"
+Removed attribute on s1d_harness.\ras.stack: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:23.55-23.60"
+Removed attribute on s1d_harness.$flatten\ras.$procmux$27: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:42.13-42.15|<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:42.9-42.33"
+Removed attribute on s1d_harness.$procdff$69: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:21.5-25.8"
+Removed attribute on s1d_harness.$procdff$68: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:21.5-25.8"
+Removed attribute on s1d_harness.$procdff$67: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:21.5-25.8"
+Removed attribute on s1d_harness.$flatten\ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:29$logic_not$5: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:29.17-29.23"
+Removed attribute on s1d_harness.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:24$xor$3: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:24.18-24.46"
+Removed attribute on s1d_harness.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:23$ternary$2: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:23.18-23.40"
+Removed attribute on s1d_harness.$flatten\ras.$4\ptr_next[3:0]: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:33.16-33.16"
+Removed attribute on s1d_harness.$flatten\ras.$0$memwr$\stack$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:42$4_EN[31:0]$17: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:41.5-45.8"
+Removed attribute on s1d_harness.$flatten\ras.$3\ptr_next[3:0]: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:33.16-33.16"
+Removed attribute on s1d_harness.\ras.wd: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:28.18-28.20"
+Removed attribute on s1d_harness.\ras.wa: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:27.18-27.20"
+Removed attribute on s1d_harness.\ras.we: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:26.18-26.20"
+Removed attribute on s1d_harness.\ras.ptr_next: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:24.23-24.31"
+Removed attribute on s1d_harness.\ras.ptr: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:24.18-24.21"
+Removed attribute on s1d_harness.\ras.top: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:21.25-21.28"
+Removed attribute on s1d_harness.$flatten\ras.$2\ptr_next[3:0]: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:33.16-33.16"
+Removed attribute on s1d_harness.$flatten\ras.$0$memwr$\stack$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:42$4_ADDR[3:0]$15: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:41.5-45.8"
+Removed attribute on s1d_harness.$flatten\ras.$0$memwr$\stack$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:42$4_DATA[31:0]$16: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:41.5-45.8"
+Removed attribute on s1d_harness.$flatten\ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:38$sub$13_Y: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:38.34-38.44"
+Removed attribute on s1d_harness.$flatten\ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:43$memrd$21$\stack_DATA: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:43.26-43.31"
+Removed attribute on s1d_harness.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:24$xor$3_Y: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:24.18-24.46"
+Removed attribute on s1d_harness.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:23$ternary$2_Y: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:23.18-23.40"
+Removed attribute on s1d_harness.$flatten\ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:30$add$8_Y: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:30.38-30.48"
+Removed attribute on s1d_harness.$flatten\ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:43$ternary$22_Y: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:43.16-43.41"
+Removed attribute on s1d_harness.$flatten\ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:29$ternary$6_Y: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:29.28-29.52"
+Removed attribute on s1d_harness.\sig: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:19.30-19.33"
+Removed attribute on s1d_harness.\top_q: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:19.23-19.28"
+Removed attribute on s1d_harness.$flatten\ras.$<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:29$logic_not$5_Y: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/ras_v3b_regread_bypass.sv:29.17-29.23"
+Removed attribute on s1d_harness.\sr: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:18.18-18.20"
+Removed attribute on s1d_harness.\dout: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:15.18-15.22"
+Removed attribute on s1d_harness.\din: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:14.18-14.21"
+Removed attribute on s1d_harness.\clk: src="<repo>/docs/validation/2026-11-10-1581-mlab-inference/rtl/s1d_harness.sv:13.18-13.21"
+
+11. Executing ATTRMAP pass (move or copy attributes).
+Removed attribute on s1d_harness.\ras.stack: hdlname="ras stack"
+Removed attribute on s1d_harness.\ras.wd: hdlname="ras wd"
+Removed attribute on s1d_harness.\ras.wa: hdlname="ras wa"
+Removed attribute on s1d_harness.\ras.we: hdlname="ras we"
+Removed attribute on s1d_harness.\ras.ptr_next: hdlname="ras ptr_next"
+Removed attribute on s1d_harness.\ras.ptr: hdlname="ras ptr"
+Removed attribute on s1d_harness.\ras.top: hdlname="ras top"
+
+12. Executing Verilog backend.
+
+12.1. Executing BMUXMAP pass.
+
+12.2. Executing DEMUXMAP pass.
+Dumping module `\s1d_harness'.
+
+End of script. Logfile hash: c9e5d49b38, time: 0.01s, user: 0.00s, system: 0.01s, MEM: 32.72 MB peak
+Yosys 0.70+ (git sha1 0a7927bf1, Release, GNU /usr/bin/c++ 14.2.0) [github.com/DeanoC/yosys at HEAD]
+Time spent: 23% 3x read_verilog (0 sec), 15% 3x opt_clean (0 sec), ...
