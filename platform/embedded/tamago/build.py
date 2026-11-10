@@ -221,6 +221,14 @@ def sd_write_option(program, path, profile):
     return p
 
 
+def sd_transfer_clock_option(program, requested, plan):
+    if type(requested) is not int or requested not in (0,25000000):
+        raise ValueError('SD transfer clock must be 0 or the explicit 25 MHz experiment')
+    if requested and (program!='sdfile' or plan is None):
+        raise ValueError('25 MHz SD requires the separately bound sdfile diagnostic')
+    return requested
+
+
 def sd_file_option(path, profile):
     if (path is None or profile['sd_control'] is None or
             any(profile[k] is not None for k in ('network','display','fpga_probe')) or profile['usb_phy_clock_hz'] != 0):
@@ -309,6 +317,7 @@ def build(args):
     start, size, entry, frequency, usb_frequency, net, display, fpga, uart_index = profile_constants(profile)
     expected_package_id=package_option(args.program,args.package_id,profile)
     sd_write_plan=sd_write_option(args.program,getattr(args,'sd_write_plan',None),profile)
+    sd_transfer_clock=sd_transfer_clock_option(args.program,getattr(args,'sd_transfer_clock',0),sd_write_plan)
     sd_write_encoded=base64.b64encode(json.dumps(sd_write_plan,sort_keys=True,separators=(',',':')).encode()).decode() if sd_write_plan else None
     sd_scratch_inspect=scratch_inspect_option(args.program,getattr(args,'sd_scratch_inspect',False),profile)
     spec=importlib.util.spec_from_file_location('fes_native_hps_context',APP.parent/'nano/hps_context.py')
@@ -542,6 +551,7 @@ def build(args):
         link_flags+=' -X main.expectedUSBControl='+('owned-shared-usb-pio-v1' if usb_shared else 'owned-usb-pio-v1')+' -X main.expectedUSBInput='+usb_input
     if expected_package_id:link_flags+=' -X main.expectedPackageID='+expected_package_id
     if sd_write_encoded:link_flags+=' -X main.expectedSDWritePlan='+sd_write_encoded
+    if sd_transfer_clock:link_flags+=' -X main.expectedSDTransferClock='+str(sd_transfer_clock)
     if sd_scratch_inspect:link_flags+=' -X main.expectedScratchInspect=1'
     if context is not None:link_flags+=' -X main.expectedBootContext='+base64.b64encode(hps.encode(context)).decode()
     if io_map is not None:link_flags+=' -X main.expectedHPSIO='+base64.b64encode(hps.encode(io_map)).decode()
@@ -613,8 +623,11 @@ def build(args):
         raise ValueError('ARM64 feature discovery inputs changed while building')
     if sd_write_plan is not None and (sd_write_option(args.program,args.sd_write_plan,profile)!=sd_write_plan or sd_write_encoded.encode() not in data):
         raise ValueError('SD write plan changed during compilation or was not linked')
+    if sd_transfer_clock and str(sd_transfer_clock).encode() not in data:
+        raise ValueError('selected SD transfer clock was not linked')
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
               "sd_write_plan":sd_write_plan,"sd_write_plan_sha256":hashlib.sha256(base64.b64decode(sd_write_encoded)).hexdigest() if sd_write_encoded else None,
+              "sd_transfer_clock_hz":sd_transfer_clock,
               "sd_scratch_inspect":sd_scratch_inspect,
               "arm64_features":arm64_features,"cpu_feature_overlay":cpu_feature_overlay,
               "expected_package_id":expected_package_id,"usb_control":usb_control,"usb_shared":usb_shared,"usb_input":usb_input,

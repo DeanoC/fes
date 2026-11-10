@@ -1634,6 +1634,51 @@ class NativeFATFileTraceTests(unittest.TestCase):
         self.assertEqual(r['fat_file_observation']['expected_plan'],plan)
 
 
+class NativeFastFATFileTraceTests(unittest.TestCase):
+    plan=NativeFATFileTraceTests.plan
+
+    def capture(self):
+        raw=NativeFATFileTraceTests().capture()
+        return raw.replace('FES_NANO_FATFILE READY',
+            f'FES_NANO_SDCLOCK SELECTED hz=25000000 owner={OWNER:016x} generation=3\nFES_NANO_FATFILE READY')
+
+    def decode(self,raw):
+        return trace.decode_native_boot(raw,BUILD,SEED,fat_file=self.plan,sd_transfer_clock=25000000)
+
+    def test_selected_clock_requires_its_record_before_all_six_fat_stages(self):
+        raw=self.capture();r=self.decode(raw);self.assertTrue(r['complete'],r)
+        self.assertEqual(r['fat_file_observation']['requested_transfer_clock_hz'],25000000)
+        self.assertFalse(trace.decode_native_boot(raw,BUILD,SEED,fat_file=self.plan)['complete'])
+        self.assertFalse(self.decode(NativeFATFileTraceTests().capture())['complete'])
+        line=next(x for x in raw.splitlines(keepends=True) if x.startswith('FES_NANO_SDCLOCK'))
+        for changed in (line.replace('25000000','400000'),line.replace(f'owner={OWNER:016x}',f'owner={OWNER+2:016x}'),
+                line.replace('generation=3','generation=4'),line+line):
+            with self.subTest(changed=changed):
+                report=self.decode(raw.replace(line,changed));self.assertFalse(report['complete']);self.assertTrue(report['errors'])
+        self.assertFalse(self.decode(raw.replace(line,'')+line)['complete'])
+        for rate in (True,1,50000000):
+            with self.subTest(rate=rate),self.assertRaises(ValueError):
+                trace.decode_native_boot('',BUILD,SEED,fat_file=self.plan,sd_transfer_clock=rate)
+        with self.assertRaises(ValueError):trace.decode_native_boot('',BUILD,SEED,sd_transfer_clock=25000000)
+
+    def test_actual_c_dispatch_pio_clock_fat_and_independent_readback_match_decoder(self):
+        import os,subprocess
+        result=subprocess.run(['go','test','-race','-count=1','-timeout','90s','-run',
+            '^TestFATFileActualFirmwarePIOAt25MHzAndIndependentReadback$','-v','./sdcontrol'],
+            cwd=ROOT/'platform/embedded/tamago',env=dict(os.environ,GOWORK='off'),
+            stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=120)
+        self.assertEqual(result.returncode,0,result.stdout)
+        lines=[x[x.index('FES_NANO_'):] for x in result.stdout.splitlines()
+               if 'FES_NANO_FATFILE ' in x or 'FES_NANO_SDCLOCK ' in x]
+        self.assertEqual(len(lines),7,result.stdout)
+        plans=[x.split('FES_MODEL_FAT_PLAN ',1)[1] for x in result.stdout.splitlines() if 'FES_MODEL_FAT_PLAN ' in x]
+        self.assertEqual(len(plans),1,result.stdout);plan=json.loads(plans[0])
+        owner=int(re.search(r' owner=([0-9a-f]+)',lines[0])[1],16)
+        prefix=NativeSDTraceTests().capture().split('FES_STORAGE_PROBE')[0].replace(f'owner={OWNER:x}',f'owner={owner:x}')
+        r=trace.decode_native_boot(prefix+'\n'.join(lines)+'\n',BUILD,(owner^EPOCH)|1,fat_file=plan,sd_transfer_clock=25000000)
+        self.assertTrue(r['complete'],r)
+
+
 class NativePackageTraceTests(unittest.TestCase):
     expected={'package_id':'c'*64,'payload_sha256':'d'*64,'payload_bytes':12,'build_id':'e'*32}
 

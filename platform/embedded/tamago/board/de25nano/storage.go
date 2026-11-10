@@ -27,19 +27,28 @@ var attempted bool
 var storageSession *sdcontrol.Session
 
 func OpenStorage() (block.Device, error) {
-	return openStorage(sdhci.Identity{})
+	return openStorage(sdhci.Identity{}, 0)
 }
 
-// OpenWritableStorage is used only by the separately bound SD scratch test.
+// OpenWritableStorage is used only by separately bound SD write diagnostics.
 // It shares the one-attempt ownership boundary with ordinary read-only access.
 func OpenWritableStorage(expected sdhci.Identity) (*sdcontrol.Session, error) {
+	return OpenWritableStorageAtClock(expected, 0)
+}
+
+// OpenWritableStorageAtClock selects the trusted default-speed experiment.
+// Card discovery/PHY preparation and the firmware stop boundary stay slow.
+func OpenWritableStorageAtClock(expected sdhci.Identity, transferClockHz uint32) (*sdcontrol.Session, error) {
 	if expected == (sdhci.Identity{}) {
 		return nil, fmt.Errorf("de25-nano: expected writable card required")
 	}
-	return openStorage(expected)
+	if transferClockHz != 0 && transferClockHz != 25000000 {
+		return nil, fmt.Errorf("de25-nano: unsupported SD transfer clock")
+	}
+	return openStorage(expected, transferClockHz)
 }
 
-func openStorage(writeCard sdhci.Identity) (*sdcontrol.Session, error) {
+func openStorage(writeCard sdhci.Identity, transferClockHz uint32) (*sdcontrol.Session, error) {
 	if !profileSDControlEnabled || profileSDInputClockHz == 0 {
 		return nil, fmt.Errorf("de25-nano: SD is disabled by the firmware handoff")
 	}
@@ -53,6 +62,6 @@ func openStorage(writeCard sdhci.Identity) (*sdcontrol.Session, error) {
 	// DE25-Nano manual revB, Figure 3-28/Table 3-23: microSD CLK/CMD/DAT[3:0]
 	// pass through the level translator; no socket write-protect input exists.
 	// This board property does not enable writes without the expected identity.
-	storageSession, err = sdcontrol.Open(FabricCPUTransport{}, registers{}, sdcontrol.Config{InputClockHz: profileSDInputClockHz, WriteCard: writeCard, NoSocketWriteProtect: true})
+	storageSession, err = sdcontrol.Open(FabricCPUTransport{}, registers{}, sdcontrol.Config{InputClockHz: profileSDInputClockHz, TransferClockHz: transferClockHz, WriteCard: writeCard, NoSocketWriteProtect: true})
 	return storageSession, err
 }

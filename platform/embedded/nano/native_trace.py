@@ -108,6 +108,7 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('scratch_plan', r'FES_NANO_SD SCRATCH_PLAN (?P<plan>\{[^\r\n]{1,2048}\})'),
     *SCRATCH_WRITE_RULES,
     *fat_file_trace.RULES,
+    ('sd_transfer_clock', rf'FES_NANO_SDCLOCK SELECTED hz=(?P<hz>[0-9]{{1,10}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
     ('contained', rf'FES_NANO_SD CONTAINED owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
     ('resumed', rf'FES_NANO_SD RESUMED bytes=(?P<bytes>[0-9]{{1,10}}) sha256=(?P<sha256>[0-9a-f]{{64}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
     ('sd_pass', rf'FES_NANO_SD PASS read-only owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
@@ -117,7 +118,7 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('package_resumed', rf'FES_NANO_PACKAGE RESUMED package_id=(?P<package_id>[0-9a-f]{{64}}) payload_sha256=(?P<payload_sha256>[0-9a-f]{{64}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
     ('package_pass', rf'FES_NANO_PACKAGE PASS read-only package_id=(?P<package_id>[0-9a-f]{{64}}) payload_sha256=(?P<payload_sha256>[0-9a-f]{{64}}) payload_bytes=(?P<payload_bytes>[0-9]{{1,10}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
 )]
-DECIMAL = {'kind', 'valid', 'core', 'provider', 'result', 'status', 'counter',
+DECIMAL = {'kind', 'valid', 'core', 'provider', 'result', 'status', 'counter', 'hz',
            'cpu0', 'cpu1', 'cpu2', 'cpu3', 'setup', 'ready', 'bytes', 'sectors', 'sd_generation', 'payload_bytes','words','ordinal',
            'reads','identified','settled','bypass_controls_clear','arena_bytes','reader_reads','reader_polls','disable','probe_polls','cancel','complete',
            'index','layout_known','window_covered','mpfe_reset','fetches','execution_observed','part','pass','count','busy','error',
@@ -145,7 +146,7 @@ def checked_scratch_plan(p):
     return dict(p)
 
 
-def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_inspect=False, scratch_write=None, fat_file=None, package=None, hps_context=None, hps_io=None, fpga_identity=None,
+def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_inspect=False, scratch_write=None, fat_file=None, sd_transfer_clock=0, package=None, hps_context=None, hps_io=None, fpga_identity=None,
                        fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False,
                        smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, usb_control=False, usb_shared=False, firmware_ram_trace=False, firmware_mmu=None, _continuation=None, _window_prefix=False, _menu_prefix=False):
     """Retain partial progress, but qualify only one ordered, coherent boot.
@@ -171,6 +172,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
         raise ValueError('scratch inspection requires the explicitly selected storage diagnostic')
     if fat_file is not None:
         fat_file=fat_file_trace.checked_plan(fat_file)
+    if type(sd_transfer_clock) is not int or sd_transfer_clock not in (0,25000000) or sd_transfer_clock and fat_file is None:
+        raise ValueError('25 MHz SD observation requires its explicitly selected FAT file diagnostic')
     if scratch_write is not None or fat_file is not None:
         if scratch_write is not None:
             scratch_write=checked_scratch_plan(scratch_write)
@@ -318,7 +321,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
         index=base_stages.index('provider')+1
         stages=base_stages[:index]+('sd_platform',)+base_stages[index:-1]+('configuration_package',)+stages[len(base_stages)-1:]
     elif controlled:
-        suffix=(tuple('fat_file_'+phase for phase in fat_file_trace.PHASES) if fat_file is not None else
+        suffix=((('sd_transfer_clock',) if sd_transfer_clock else ())+tuple('fat_file_'+phase for phase in fat_file_trace.PHASES) if fat_file is not None else
                 tuple('scratch_'+phase for phase in SCRATCH_WRITE_PHASES) if scratch_write is not None else
                 ('storage','read',*(('scratch_plan',) if scratch_inspect else ()),'contained','resumed','sd_pass') if storage is not None else
                 ('package_probe','package_retained','package_contained','package_resumed','package_pass'))
@@ -828,6 +831,10 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
             except (ValueError,TypeError,RecursionError):
                 require(False,'malformed scratch inspection plan')
         if fat_file is not None:
+            selected=observed.get('sd_transfer_clock')
+            if selected is not None:
+                require(selected['hz']==sd_transfer_clock==25000000 and selected['owner']==matched_owner and selected['sd_generation']==3,
+                        'SD transfer clock selection or owner/generation differs')
             for phase,generation in zip(fat_file_trace.PHASES,fat_file_trace.GENERATIONS):
                 value=observed.get('fat_file_'+phase)
                 if value is not None:
@@ -878,6 +885,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
     report['complete'] = not report['errors'] and names == stages and not tail
     if fat_file is not None:
         report['fat_file_observation']={'expected_plan':fat_file,
+            'requested_transfer_clock_hz':sd_transfer_clock,
             'writes_possible_after_ready':'fat_file_ready' in observed,
             'created_record_present':'fat_file_created' in observed,
             'updated_record_present':'fat_file_updated' in observed,

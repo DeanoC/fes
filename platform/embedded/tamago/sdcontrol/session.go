@@ -27,6 +27,9 @@ var _ block.Device = (*Session)(nil)
 // Config is supplied by the trusted platform, never by package metadata.
 type Config struct {
 	InputClockHz uint32
+	// TransferClockHz is the trusted platform's opt-in post-discovery rate.
+	// Zero preserves identification speed; 25 MHz requires card/board support.
+	TransferClockHz uint32
 	// WriteCard authorizes writes only to this independently expected CID and
 	// capacity. Zero selects read-only access. Physical write-protect and
 	// exclusive writable-media ownership still need platform qualification.
@@ -41,7 +44,9 @@ type Config struct {
 // the last receipt. It never attempts an automatic firmware stop after failure.
 // InputClockHz must match the qualified platform's actual controller input.
 func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
-	if io == nil || config.InputClockHz < 400000 || config.InputClockHz > 200000000 {
+	if io == nil || config.InputClockHz < 400000 || config.InputClockHz > 200000000 ||
+		(config.TransferClockHz != 0 && config.TransferClockHz != 25000000) ||
+		(config.TransferClockHz != 0 && config.InputClockHz < config.TransferClockHz) {
 		return nil, fmt.Errorf("sdcontrol: invalid controller or input clock")
 	}
 	writable := config.WriteCard != (sdhci.Identity{})
@@ -66,7 +71,7 @@ func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 		return s, s.fail(err)
 	}
 	s.active = true
-	s.device, err = sdhci.Open(io, sdhci.Config{InputClockHz: config.InputClockHz, PrepareClock: firmware.Prepare, AllowWrites: writable, NoSocketWriteProtect: config.NoSocketWriteProtect})
+	s.device, err = sdhci.Open(io, sdhci.Config{InputClockHz: config.InputClockHz, TransferClockHz: config.TransferClockHz, PrepareClock: firmware.Prepare, AllowWrites: writable, NoSocketWriteProtect: config.NoSocketWriteProtect})
 	if err != nil {
 		return s, s.fail(err)
 	}

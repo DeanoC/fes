@@ -56,8 +56,10 @@ the existing secure stop callback. Resume rediscovers and checks the original
 card before selecting the faster rate again. Every transition is bounded and
 failure retires the device; it never retries at the slower rate.
 
-This option currently has model/race evidence only and is not selected by the
-Nano board adapter or build recipe. It grants no new firmware/PHY, DMA, voltage
+This option currently has model/race evidence only. The owned session and Nano
+board adapter now forward it for the explicit plan-bound
+`sdfile --sd-transfer-clock 25000000` diagnostic; ordinary startup keeps zero.
+It grants no new firmware/PHY, DMA, voltage
 or bus-width capability. The [Altera clock description](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/clocks?contentId=vITZ5tUjusRdH5RE7r9jwg)
 documents the qualified-input divider relationship; the card's CSD field follows
 the pinned Terasic U-Boot `drivers/mmc/mmc.c` default-speed interpretation.

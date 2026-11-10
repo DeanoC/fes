@@ -24,6 +24,14 @@ def profile():
 
 
 class BoardProfileTests(unittest.TestCase):
+    def test_transfer_clock_requires_explicit_owned_fat_file_mode(self):
+        self.assertEqual(build.sd_transfer_clock_option('sdfile',25000000,{'bound':'plan'}),25000000)
+        self.assertEqual(build.sd_transfer_clock_option('storage',0,None),0)
+        for program,rate,plan in [('sdfile',True,{}),('sdfile',1,{}),('sdfile',50000000,{}),
+                ('sdfile',25000000,None),('sdwrite',25000000,{}),('fpgaload',25000000,{})]:
+            with self.subTest(program=program,rate=rate),self.assertRaises(ValueError):
+                build.sd_transfer_clock_option(program,rate,plan)
+
     def test_fat_file_plan_requires_owned_profile_exact_card_and_bounded_target(self):
         p=profile();p.update(sd_control={'service':'fes-owned-sd-pio-v1'},usb_phy_clock_hz=0)
         plan={'format':1,'scope':'nano-sd-fat-file-v1','cid':'a'*30,'sectors':7774208,'mbr_sha256':'b'*64,

@@ -18,6 +18,7 @@ import (
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fatcheck"
+	"github.com/DeanoC/fes/platform/embedded/tamago/sdhci"
 )
 
 type checkedMedia struct{ *Session }
@@ -28,6 +29,10 @@ func (m checkedMedia) State() (fatcheck.State, bool) {
 }
 
 func fatFileFixture(t *testing.T) (*rpc, *card, *Session, fatcheck.Plan) {
+	return fatFileFixtureAtClock(t, 0)
+}
+
+func fatFileFixtureAtClock(t *testing.T, rate uint32) (*rpc, *card, *Session, fatcheck.Plan) {
 	t.Helper()
 	dir := t.TempDir()
 	image := filepath.Join(dir, "fat.img")
@@ -69,11 +74,44 @@ func fatFileFixture(t *testing.T) (*rpc, *card, *Session, fatcheck.Plan) {
 	binary.LittleEndian.PutUint32(boot[backup*512+28:], 2048)
 	p := fatcheck.Plan{Format: 1, Scope: "nano-sd-fat-file-v1", CID: fmt.Sprintf("%x", expectedWriteCard(uint64(len(c.image)/512)).CID), Sectors: uint64(len(c.image) / 512),
 		MBRSHA256: fmt.Sprintf("%x", sha256.Sum256(mbr)), Path: "FES/SDP-0123456789abcdef.JSN", RecoveryBytes: len(recovery), RecoverySHA256: fmt.Sprintf("%x", sha256.Sum256(recovery)), FitBytes: len(fit), FitSHA256: fmt.Sprintf("%x", sha256.Sum256(fit))}
-	s, err := Open(firmware, c, Config{InputClockHz: 200000000, WriteCard: p.Identity(), NoSocketWriteProtect: true})
+	var io sdhci.Registers = c
+	if rate != 0 {
+		io = &clockedCard{card: c, speed: 0x32}
+	}
+	s, err := Open(firmware, io, Config{InputClockHz: 200000000, TransferClockHz: rate, WriteCard: p.Identity(), NoSocketWriteProtect: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return firmware, c, s, p
+}
+
+func TestFATFileActualFirmwarePIOAt25MHzAndIndependentReadback(t *testing.T) {
+	fw, c, s, p := fatFileFixtureAtClock(t, 25000000)
+	r, valid := s.LastReceipt()
+	if !valid || !r.Active || !r.Prepared || c.regs[clock] != 14<<16|4<<8|7 {
+		t.Fatal("not at selected active rate", r, valid, c.regs[clock])
+	}
+	var log bytes.Buffer
+	fmt.Fprintf(&log, "FES_NANO_SDCLOCK SELECTED hz=25000000 owner=%016x generation=%d\n", r.Owner, r.Generation)
+	if err := fatcheck.Run(context.Background(), checkedMedia{s}, p, &log); err != nil {
+		t.Fatal(err, log.String())
+	}
+	r, valid = s.LastReceipt()
+	if !valid || r.Active || r.Generation != 7 || fw.stats[3] != 2 || c.regs[clock] != 14<<16|250<<8|3 {
+		t.Fatal("firmware stop did not receive original divider", r, c.regs[clock], fw.stats)
+	}
+	image := filepath.Join(t.TempDir(), "fast-fat.img")
+	if err := os.WriteFile(image, c.image, 0600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := exec.Command("mtype", "-i", image+"@@1048576", "::"+p.Path).Output()
+	want, _ := fatcheck.Payload(p.Path, true)
+	if err != nil || !bytes.Equal(got, want) {
+		t.Fatal("independent fast file readback", err)
+	}
+	data, _ := json.Marshal(p)
+	t.Logf("FES_MODEL_FAT_PLAN %s", data)
+	t.Log(log.String())
 }
 
 func TestFATFileActualFirmwarePIOCreateUpdateResumeAndIndependentReadback(t *testing.T) {

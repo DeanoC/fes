@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"os"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 )
 
 var expectedSDWritePlan string
+var expectedSDTransferClock string
 
 type owned struct{ *sdcontrol.Session }
 
@@ -32,12 +34,29 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	var rate uint32
+	switch expectedSDTransferClock {
+	case "":
+	case "25000000":
+		rate = 25000000
+	default:
+		panic("sdfile: unsupported trusted transfer clock")
+	}
 	if err = de25nano.InitDevices(); err != nil {
 		panic(err)
 	}
-	session, err := de25nano.OpenWritableStorage(plan.Identity())
+	session, err := de25nano.OpenWritableStorageAtClock(plan.Identity(), rate)
 	if err != nil {
 		panic(err)
+	}
+	if rate != 0 {
+		r, valid := session.LastReceipt()
+		if !valid || !r.Active || !r.Prepared {
+			panic("sdfile: clock selected without active ownership")
+		}
+		// Open checked the selected divider/stability and card readiness. The
+		// driver checks this mode again before every data request.
+		fmt.Printf("FES_NANO_SDCLOCK SELECTED hz=%d owner=%016x generation=%d\n", rate, r.Owner, r.Generation)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 	defer cancel()

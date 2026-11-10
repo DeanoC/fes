@@ -41,6 +41,18 @@ default socket checks and card CSD protection remain separate. This is limited
 raw-sector evidence, not FAT/install or power-loss qualification. A completed
 sector or batch is not power-loss atomicity.
 
+Trusted `Config.TransferClockHz=25000000` now forwards the driver's separate
+default-speed experiment through the actual owned session. Invalid rates or
+inadequate input clocks reject before firmware or MMIO. Discovery/PHY setup
+stay at identification speed; data requests check the selected divider. The
+driver restores the original disabled identification clock before secure Stop,
+and same-card resume selects the faster rate again. Actual C-service/PIO tests
+cover read-only and writable lifecycles, FAT persistence, divider/stability and
+restoration failures, replacement cards and no fallback or automatic stop.
+The Nano `sdfile --sd-transfer-clock 25000000` diagnostic is the only build
+selection; ordinary startup remains unchanged. Physical qualification of this
+changed clock path is separate from the previous 400 kHz write evidence.
+
 `Quiesce` fences new/queued reads and writes, finishes the current sector and stops the
 PIO driver. Firmware then independently checks drain and reset containment.
 The returned `LastReceipt` uses the same owner/generation as bridge control.
