@@ -1,5 +1,37 @@
 # Bounded keyboard test after the host observer repair
 
+The [physical result](hardware-result.json) passes on top TRWU8CBL: initial
+launcher → ZX81 plus 917-byte tape → physical USB Ctrl+Alt+Escape → launcher →
+ZX80 → owned Quit → launcher/final Park. All five exchanges independently
+replay from the saved wire with their original polling times. Five FPGA
+configurations, two computer launches and three menu sessions complete.
+
+The operator confirmed pressing/releasing the chord; the trace binds that
+USB keyboard Stop to owner `bccd5532330f95cd`/logical generation 1 with fresh
+report progress. It arrived after 52.80 seconds, inside the 60-second human
+wait. Core/menu return and the second launch/return pass their existing bounds.
+The native phase takes 354.65 seconds and the complete experiment 481.60.
+Tape transfer takes 1.213 seconds, with independent control/fetch under 0.1.
+The requested operator confirmation of visible HDMI launcher return remains
+pending; serial frame presentation alone does not establish that observation.
+
+Final logical Park is generation 5; the firmware menu-return observation has
+bridge generation 29/reset mask 15 and masters contained. Firmware return and
+CPU park were not observed. Independent cleanup passes exact USB permissions,
+recorded 15 MHz/automatic-adjustment-1 readback, owned private server gone and
+UART free. Programming failures remain historical two/new zero.
+
+The full 5,923-file hardware closure has archive readback/mode checks and an
+independently imported source bundle with strict fsck/pack verification at
+`/home/deano/fes-retained/de25-staged-observer-trial-hardware-20261110-r1`.
+Its source is `29b61b9ea`; the archive records HDMI confirmation as pending.
+The spare card stays installed, factory restoration remains waived, and the
+top kit remains claimed. This bounded diagnostic does not establish ordinary
+core installation, native Ethernet, writable native SD, broad USB/core support
+or whole-board timing signoff. The previous failed attempt remains preserved.
+
+The following records the frozen pre-test procedure.
+
 This is a fresh, single-attempt procedure using the materially repaired host
 observer from `a63d46d90`. It selects the unchanged matched native boot
 `a02d808ea11eb54f`, compiled from `db5fc2d66`, on top TRWU8CBL only. The

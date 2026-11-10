@@ -31,11 +31,12 @@ loads take about 1.206 seconds using size-dependent transfer budgets. Independen
 programming-connection cleanup and full evidence/source restore checks pass.
 This is a bounded diagnostic: physical display/input, ordinary appliance loading,
 general USB reliability, native Ethernet and whole-board timing remain open.
-The [new keyboard trial](../../docs/validation/2026-11-10-de25-controlled-keyboard-board/README.md)
-has operator-observed ZX81 video and typed keys appearing correctly. Its serial
-capture stopped because the host decoder rejected a valid held selected-plan
-snapshot; that decoder now has a captured regression fixture. The native
-keyboard return chord and visible launcher return still need a completed test.
+The [keyboard return trial](../../docs/validation/2026-11-10-de25-staged-observer-trial/README.md)
+now passes physical USB Ctrl+Alt+Escape from ZX81 to the launcher, then ZX80
+launch/return and final Park. All five exchanges replay from saved serial data.
+An earlier attempt has operator-observed ZX81 video and typed keys appearing
+correctly; visible launcher return on the current trial still awaits operator
+confirmation. Ordinary core installation and full appliance acceptance remain open.
 
 The [paired menu/core/menu hardware trial](../../docs/validation/2026-11-08-de25-verified-files-board-trial/hardware.md)
 now passes ZX81 → menu → ZX80 → menu → ZX81 → menu and final Park on TRWU8CBL:
