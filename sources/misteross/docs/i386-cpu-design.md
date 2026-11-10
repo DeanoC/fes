@@ -2112,7 +2112,7 @@ eight replicated hit sets.
   on. INT3 and INTO are not IOPL-sensitive. POPF at IOPL 3 leaves IOPL
   alone. HLT, LMSW, CLTS and MOV to or from CRn and DRn raise #GP(0). LAR,
   LSL, VERR, VERW, ARPL and the 0F00 group raise #UD.
-- **LOCK below IOPL 3, open.** The 386 manual
+- **LOCK below IOPL 3, #GP(0).** The 386 manual
   ([§15.4](https://www.css.csail.mit.edu/6.858/2013/readings/i386/s15_04.htm))
   also lists LOCK as IOPL-sensitive in V86, a #GP(0) below IOPL 3. Bochs,
   the lockstep's oracle, does not trap it, and Intel's later manuals drop
@@ -2316,7 +2316,42 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
 3. **V86.** Entry by IRETD, the V86 delivery to CPL 0, IOPL-sensitive
    faults, #GP(vector × 8 + 2), I/O through the bitmap in V86 and INS and
    OUTS through it at CPL > IOPL too, V86 segment
-   loads.
+   loads. Built
+   ([record](../../../docs/validation/2026-11-10-i386-phase5-v86/summary.md);
+   the RTL README's [V86 mode](../cores/fes-common/rtl/i386/README.md#v86-mode)).
+   As built, where it differs from the plan above:
+   - **IRETD branches at its descriptor read.** Bochs reads EFLAGS', CS's
+     and EIP's slots before it tests VM, and so does the RTL; the word that
+     reads CS's descriptor, which waits for T0 and so finds T4 settled,
+     branches for an IRETD into V86 mode: it and the word after it become
+     NOPs and the ROM goes on at the V86 return, so a protected-mode IRET
+     pays nothing. The return probes the four slots below GS's before its
+     first segment load, since Bochs reads all six before writing any.
+   - **The delivery from V86 mode is its own routine,** picked in DC from
+     VM, rather than conditional uops in `pint`, so no other delivery pays
+     for its four extra pushes. VM changes only at the far jump, so a fault
+     part way through the delivery is delivered from V86 mode again, as
+     Bochs's.
+   - **LOCK below IOPL 3 raises #GP(0),** after LOCK's own #UD, as the
+     plan above set out.
+   - **POPF below IOPL 3 raises #GP(0) before its pop,** as PUSHF, INT n
+     and IRET do. The 386's microcode tests IOPL at each one's V86 entry
+     before its stack access (reenigne/x86_microcode,
+     `80386/microcode_notes.txt`, 7F7-7FF: `7FB if (CPL <= IOPL) goto
+     "p POPFd"`, the read at 803). Bochs pops POPF first, so a stack fault
+     comes first there, and it runs a LOCK: for both the lockstep's oracle
+     steps CLI in the opcode's place, which Bochs faults the same way, and
+     compares the deliveries (its `v86-iopl-gp` rule).
+   - **A delivery's entry is not checked against CS's limit.** IRETD in V86
+     mode loads EIP whole, as Bochs does, so EIP may pass FFFFh until the
+     next fetch faults; the entry of that #GP fetches nothing.
+   - **The bitmap's read is #1552's routine** (`iochk`: three ROM uops and
+     the access), not one load uop with the access; INS and OUTS run it too
+     (`iostr`) before the string starts.
+   - **Speed.** An INT from V86 mode through a DPL-3 gate and the IRETD
+     back take 166 clocks on the latency bench, IN through the bitmap 26.
+     About 50 uops make the round trip, most of them ROM words at two
+     clocks each.
    - **Lockstep.** test386.asm's V86 cases; INT n at IOPL 0 and 3 through
      gates of DPL 0 and 3; IRETD to V86 from CPL 0 and its refusal from
      elsewhere; I/O at each bitmap edge; an interrupt and a #PF taken from
