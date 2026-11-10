@@ -20,6 +20,14 @@ mkdir -p "$out"; out=$(cd "$out" && pwd)
 if [ "$mode" = vo ]; then
   vo=$(cd "$(dirname "$1")" && pwd)/$(basename "$1"); shift
 fi
+# Extra arguments that name existing files (the FES trial cells, extra .v models) are made
+# absolute too; anything else (a Verilator flag) passes through unchanged.
+extra=()
+for arg in "$@"; do
+  if [ -f "$arg" ]; then extra+=("$(cd "$(dirname "$arg")" && pwd)/$(basename "$arg")")
+  else extra+=("$arg"); fi
+done
+set -- ${extra[@]+"${extra[@]}"}
 cd "$REPO" || exit 1
 python3 cores/fes-sms/diagnostic/generate.py --output "$out/mode4.rom" --preview "$out/mode4.ppm" || exit 1
 TB="$REPO/cores/fes-sms/sim/machine_tb.cpp"
