@@ -24,23 +24,35 @@ type Session struct {
 
 var _ block.Device = (*Session)(nil)
 
-// Access is selected by the trusted platform, never by package metadata. The
-// current Nano board profile selects ReadOnly; ReadWrite needs its own physical
-// card/write-protect qualification and exclusive writable-media ownership.
-type Access uint8
-
-const (
-	ReadOnly Access = iota
-	ReadWrite
-)
+// Config is supplied by the trusted platform, never by package metadata.
+type Config struct {
+	InputClockHz uint32
+	// WriteCard authorizes writes only to this independently expected CID and
+	// capacity. Zero selects read-only access. Physical write-protect and
+	// exclusive writable-media ownership still need platform qualification.
+	WriteCard sdhci.Identity
+}
 
 // Open grants the lease before the first register access. It returns a retired
 // non-nil Session on failures after the grant attempt so the caller can retain
 // the last receipt. It never attempts an automatic firmware stop after failure.
-// inputClockHz must match the qualified platform's actual controller input.
-func Open(cpu Caller, io sdhci.Registers, inputClockHz uint32, access Access) (*Session, error) {
-	if io == nil || inputClockHz < 400000 || inputClockHz > 200000000 || (access != ReadOnly && access != ReadWrite) {
+// InputClockHz must match the qualified platform's actual controller input.
+func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
+	if io == nil || config.InputClockHz < 400000 || config.InputClockHz > 200000000 {
 		return nil, fmt.Errorf("sdcontrol: invalid controller or input clock")
+	}
+	writable := config.WriteCard != (sdhci.Identity{})
+	if writable {
+		var nonzero, notFF byte
+		for _, b := range config.WriteCard.CID {
+			nonzero |= b
+			notFF |= ^b
+		}
+		// This driver supports CSD v2 SDHC/SDXC geometry only.
+		if nonzero == 0 || notFF == 0 || config.WriteCard.Sectors < 1024 ||
+			config.WriteCard.Sectors > 1<<32 || config.WriteCard.Sectors%1024 != 0 {
+			return nil, fmt.Errorf("sdcontrol: invalid expected writable card")
+		}
 	}
 	firmware, err := NewClient(cpu)
 	if err != nil {
@@ -51,9 +63,12 @@ func Open(cpu Caller, io sdhci.Registers, inputClockHz uint32, access Access) (*
 		return s, s.fail(err)
 	}
 	s.active = true
-	s.device, err = sdhci.Open(io, sdhci.Config{InputClockHz: inputClockHz, PrepareClock: firmware.Prepare, AllowWrites: access == ReadWrite})
+	s.device, err = sdhci.Open(io, sdhci.Config{InputClockHz: config.InputClockHz, PrepareClock: firmware.Prepare, AllowWrites: writable})
 	if err != nil {
 		return s, s.fail(err)
+	}
+	if writable && s.device.Identity() != config.WriteCard {
+		return s, s.fail(fmt.Errorf("sdcontrol: writable card identity mismatch"))
 	}
 	return s, nil
 }

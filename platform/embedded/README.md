@@ -9,6 +9,9 @@ owns FPGA programming, reset, input delivery and DMA lifetime.
 The native [SD PIO driver and owned session](tamago/sdhci/README.md) also have an
 explicit write-mode prototype. Host tests cover sector writes, uncertain-write
 retirement, stop/resume and FAT settings persistence with independent readback.
+Writable sessions now require an independently expected CID and capacity;
+wrong-card admission retires the lease without writing or retrying. This is
+host-tested media ownership, with physical write qualification still open.
 Current Nano board builds still select read-only access; enabling and physically
 qualifying writes remains separate from the accepted recovery-loader uploads.
 The [FAT32 allocation path](tamago/fat/README.md) now creates files and directories

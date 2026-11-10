@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
@@ -14,9 +15,124 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/sdhci"
 )
 
+// Independent fixture identity: CMD2 advertises these 120 bits; CMD9 advertises
+// 8192 sectors by default, or the backing FAT image's actual sector count.
+func expectedWriteCard(sectors uint64) sdhci.Identity {
+	return sdhci.Identity{
+		CID:     [15]byte{0x12, 0x34, 0x56, 0x99, 0xaa, 0xbb, 0xcc, 0x55, 0x66, 0x77, 0x88, 0x11, 0x22, 0x33, 0x44},
+		Sectors: sectors,
+	}
+}
+
+func TestInvalidWritableCardRejectedBeforeFirmwareOrMMIO(t *testing.T) {
+	for _, name := range []string{"missing-cid", "missing-capacity", "all-ff", "small", "unaligned", "too-large"} {
+		t.Run(name, func(t *testing.T) {
+			want := expectedWriteCard(8192)
+			switch name {
+			case "missing-cid":
+				want.CID = [15]byte{}
+			case "missing-capacity":
+				want.Sectors = 0
+			case "all-ff":
+				for i := range want.CID {
+					want.CID[i] = 0xff
+				}
+			case "small":
+				want.Sectors = 512
+			case "unaligned":
+				want.Sectors++
+			case "too-large":
+				want.Sectors = 1<<32 + 1024
+			}
+			cpu := callFunc(func([7]uint64) ([4]uint64, error) {
+				t.Fatal("invalid writable identity contacted firmware")
+				return [4]uint64{}, nil
+			})
+			c := newCard()
+			s, err := Open(cpu, c, Config{InputClockHz: 200000000, WriteCard: want})
+			if err == nil || s != nil || c.accesses != 0 {
+				t.Fatal("invalid writable identity accepted or touched hardware", s, err, c.accesses)
+			}
+		})
+	}
+}
+
+func TestWrongWritableCardRetainsLeaseWithoutWritesOrRecovery(t *testing.T) {
+	for _, name := range []string{"cid", "capacity"} {
+		t.Run(name, func(t *testing.T) {
+			firmware, c := newRPC(t, "")
+			want := expectedWriteCard(8192)
+			if name == "cid" {
+				want.CID[0] ^= 1
+			} else {
+				want.Sectors *= 2
+			}
+			s, err := Open(firmware, c, Config{InputClockHz: 200000000, WriteCard: want})
+			if s == nil || !errors.Is(err, ErrRetired) || !strings.Contains(err.Error(), "identity mismatch") {
+				t.Fatal("wrong writable card accepted", s, err)
+			}
+			receipt, valid := s.LastReceipt()
+			if valid || !receipt.Active || !c.active || firmware.stats[3] != 0 || len(c.written) != 0 || c.writing {
+				t.Fatal("mismatch wrote card or released uncertain ownership", receipt, firmware.stats)
+			}
+			if s.Identity() != expectedWriteCard(8192) {
+				t.Fatal("lost actual card identity")
+			}
+			accesses, calls := c.accesses, len(firmware.requests)
+			for _, call := range []func() error{
+				func() error { return s.WriteSectors(3, make([]byte, 512)) },
+				func() error { return s.ReadSectors(3, make([]byte, 512)) },
+				s.Flush, s.Quiesce, s.Resume,
+				func() error { return s.ResumeAfterReturn(receipt.Owner, receipt.Generation+1) },
+			} {
+				if err := call(); !errors.Is(err, ErrRetired) || c.accesses != accesses || len(firmware.requests) != calls {
+					t.Fatal("mismatched writable session reused", err)
+				}
+			}
+		})
+	}
+}
+
+func TestWritableCardReplacementOnResumeCannotWrite(t *testing.T) {
+	firmware, c := newRPC(t, "")
+	s, err := Open(firmware, c, Config{InputClockHz: 200000000, WriteCard: expectedWriteCard(8192)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.Quiesce(); err != nil {
+		t.Fatal(err)
+	}
+	c.cid++
+	if err = s.Resume(); !errors.Is(err, ErrRetired) {
+		t.Fatal("replacement admitted", err)
+	}
+	accesses, calls := c.accesses, len(firmware.requests)
+	if err = s.WriteSectors(3, make([]byte, 512)); !errors.Is(err, ErrRetired) || c.accesses != accesses || len(firmware.requests) != calls || len(c.written) != 0 || c.writing {
+		t.Fatal("replacement card was written", err)
+	}
+}
+
+func TestExpectedWritableCardStillHonorsWriteProtect(t *testing.T) {
+	firmware, c := newRPC(t, "")
+	s, err := Open(firmware, c, Config{InputClockHz: 200000000, WriteCard: expectedWriteCard(8192)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.writeProtected = true
+	if err = s.WriteSectors(3, make([]byte, 512)); !errors.Is(err, block.ErrReadOnly) || len(c.written) != 0 || c.writing {
+		t.Fatal(err)
+	}
+	if _, valid := s.LastReceipt(); !valid {
+		t.Fatal("protection refusal retired session")
+	}
+	if err = s.Quiesce(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestOwnedPIOWriteContainResume(t *testing.T) {
 	firmware, c := newRPC(t, "")
-	s, err := Open(firmware, c, 200000000, ReadWrite)
+	s, err := Open(firmware, c, Config{InputClockHz: 200000000, WriteCard: expectedWriteCard(8192)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +171,7 @@ func TestOwnedPIOWriteContainResume(t *testing.T) {
 
 func TestOwnedPIOWriteFailureRetainsLeaseWithoutStopOrReplay(t *testing.T) {
 	firmware, c := newRPC(t, "")
-	s, err := Open(firmware, c, 200000000, ReadWrite)
+	s, err := Open(firmware, c, Config{InputClockHz: 200000000, WriteCard: expectedWriteCard(8192)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,9 +193,9 @@ func TestOwnedPIOWriteFailureRetainsLeaseWithoutStopOrReplay(t *testing.T) {
 	}
 }
 
-func TestReadOnlySessionAndInvalidAccessCannotWrite(t *testing.T) {
+func TestReadOnlySessionCannotWrite(t *testing.T) {
 	firmware, c := newRPC(t, "")
-	s, err := Open(firmware, c, 200000000, ReadOnly)
+	s, err := Open(firmware, c, Config{InputClockHz: 200000000})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,13 +205,6 @@ func TestReadOnlySessionAndInvalidAccessCannotWrite(t *testing.T) {
 	}
 	if _, valid := s.LastReceipt(); !valid {
 		t.Fatal("read-only refusal retired a healthy lease")
-	}
-	cpu := callFunc(func([7]uint64) ([4]uint64, error) {
-		t.Fatal("invalid access contacted firmware")
-		return [4]uint64{}, nil
-	})
-	if s, err := Open(cpu, newCard(), 200000000, Access(2)); err == nil || s != nil {
-		t.Fatal("invalid access accepted")
 	}
 	if err := s.Quiesce(); err != nil {
 		t.Fatal(err)
@@ -135,7 +244,7 @@ func TestOwnedFATPreferencesSurviveContainResumeAndIndependentReadback(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := Open(firmware, c, 200000000, ReadWrite)
+	s, err := Open(firmware, c, Config{InputClockHz: 200000000, WriteCard: expectedWriteCard(uint64(len(c.image) / 512))})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,23 +8,32 @@ profiles supply no SD callbacks by default. The cold read/contain/resume path
 has separate hardware evidence; model tests and a linked firmware build do not
 establish physical acceptance for a changed path.
 
-`Open` requires an explicit trusted `ReadOnly` or `ReadWrite` selection, queries
-containment and obtains a firmware lease. Invalid access values reject before
-firmware or register access. The current Nano board selects `ReadOnly`; package
-metadata cannot choose access. The driver then
+`Open` takes a trusted `Config`, queries containment and obtains a firmware
+lease. `InputClockHz` supplies the actual controller input; zero `WriteCard`
+selects read-only access, including in the current Nano board. Package metadata
+cannot choose access. To authorize writes, the trusted caller supplies an
+independently expected card CID and sector count in `WriteCard`. Malformed
+identities reject before firmware or register access. Fresh card discovery must
+match both fields before a usable writable session is returned. A mismatch
+retires the session and retains its invalid receipt and actual card identity;
+it issues no sector write, automatic stop or retry. During discovery, the driver
 resets its host and establishes the internal clock. Its `PrepareClock` callback
 asks firmware to prepare the platform PHY before enabling card clocks or
 issuing commands. Input clock and all platform qualifications come from the
 matched trusted board profile; the wire tag supplies no authentication.
 
-`ReadWrite` connects the actual single-sector PIO writer to the same private
+An admitted `WriteCard` connects the actual single-sector PIO writer to the same private
 lease and stop/resume lifecycle. No new firmware call, DMA grant or concurrent
 core/SD access is introduced. Known protection/range/read-only refusals preserve
 a healthy session. An uncertain write retires both driver and session, retains
 the last receipt as invalid, and performs no automatic firmware stop or retry.
 Host tests join actual C firmware, PIO write/readback and a real FAT32 settings
-update/remount, including independent file readback. This mode is unselected in
-board builds and still needs physical write-protect, write/readback and lifecycle
+update/remount, including independent file readback. They also reject wrong
+initial CID/capacity, a replacement card on resume and physical write protection.
+Expected identity is a media-ownership check, not cryptographic card authentication
+or a restriction on which LBAs an admitted writer may modify. The platform must
+still establish where the expected identity came from and which writes it owns.
+This mode is unselected in board builds and still needs physical write-protect, write/readback and lifecycle
 qualification. A completed sector or batch is not power-loss atomicity.
 
 `Quiesce` fences new/queued reads and writes, finishes the current sector and stops the
