@@ -25,7 +25,7 @@
   "compiled_source": "0db6939655aec27b3d9be648081e900e85496769",
   "native_boot_id": "1aad09d24ae28f1c",
   "helper_sha256": {
-    "recovery.py": "b140fd3ff1ffbb121704d4c800d94d2144d5a29de7e9a210c680ab8c32ee4513",
+    "recovery.py": "14e62de5c04ca5ece34ed1f1b7ce832aafe250cc518d040c557627e08d8f8488",
     "private_jtag.py": "887b8d10933e59736044ef249551623657919232d754848c38e43610894a2965",
     "upload_checks.py": "9c81863cec82045a4d03a63bea1c9987c7b6c10409b63a6f7825dc70ad2d3c3f",
     "write_gates.py": "d83ba8abfdc967c6657bf2acd16bc51c4ff235852cf3d7f1013b114a1b181581",
@@ -2435,7 +2435,7 @@
     "/home/deano/fes/out/dev/de25-embedded-os/out/nano-sd-write-trial-20261110/preflight_final.py": "f8b99670abebe584dddd2e061d354580ee67932c280aa4aee04a49e99cff9b27",
     "/home/deano/fes/out/dev/de25-embedded-os/out/nano-sd-write-trial-20261110/audit_cleanup.py": "912ba0bb0782d50015e7718c55612b15c17372530fb4b088afbb654771965938",
     "/home/deano/fes/out/dev/de25-embedded-os/out/nano-sd-write-trial-20261110/run.py": "10e64dd990d75e256c8498a018dad8c33d5cbb0a84f08cc53cd86ac394a399e7",
-    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-sd-write-trial-20261110/trial/recovery.py": "b140fd3ff1ffbb121704d4c800d94d2144d5a29de7e9a210c680ab8c32ee4513",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-sd-write-trial-20261110/trial/recovery.py": "14e62de5c04ca5ece34ed1f1b7ce832aafe250cc518d040c557627e08d8f8488",
     "/home/deano/fes/out/dev/de25-embedded-os/out/nano-sd-write-trial-20261110/trial/private_jtag.py": "887b8d10933e59736044ef249551623657919232d754848c38e43610894a2965",
     "/home/deano/fes/out/dev/de25-embedded-os/out/nano-sd-write-trial-20261110/trial/upload_checks.py": "9c81863cec82045a4d03a63bea1c9987c7b6c10409b63a6f7825dc70ad2d3c3f",
     "/home/deano/fes/out/dev/de25-embedded-os/out/nano-sd-write-trial-20261110/trial/write_gates.py": "d83ba8abfdc967c6657bf2acd16bc51c4ff235852cf3d7f1013b114a1b181581",
