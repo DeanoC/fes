@@ -503,13 +503,20 @@ On Kit B the acceptance games play on the RTL CPU at `max`:
   [game checks](validation/2026-11-04-pc386-m5-game-checks/summary.md));
 - a Wolfenstein 3D and a DOOM level played to the exit, and Ultima VII
   saves loaded after a relaunch
-  ([acceptance record](validation/2026-11-06-pc386-game-acceptance/summary.md)).
+  ([acceptance record](validation/2026-11-06-pc386-game-acceptance/summary.md));
+- on a seal of main `65ec1f22a` (10 November), the FreeDOS, Wolfenstein 3D,
+  Ultima VI, DOOM and Black Gate checks pass again (the level exits weren't
+  repeated), and FreeDOS shows the kit's date and time
+  ([rerun record](validation/2026-11-10-pc386-game-acceptance-rerun/summary.md)).
 
 Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)):
 - Ultima VI walking speed at 286-12, against a reference;
-- Ultima VII NPC pace, against a reference;
-- FreeDOS date and time, which needs a kit image with
-  [#1279](https://github.com/DeanoC/fes/issues/1279).
+- Ultima VII NPC pace, against a reference.
+
+Serpent Isle sometimes shows a black picture for a whole launch while the
+game runs underneath: 1 launch in 20 on Kit B
+([#1494](https://github.com/DeanoC/fes/issues/1494),
+[record](validation/2026-11-10-pc386-si-reload-presets/summary.md)).
 
 The keyboard and mouse, the `fes.computer` 1.1 mailbox and the disk round
 trip with the runtime remain open.
