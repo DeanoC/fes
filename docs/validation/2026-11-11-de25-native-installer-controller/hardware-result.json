@@ -40,7 +40,7 @@
     "out/nano-installer-hardware-20261111/trial/upload-boot/result.json": "decea267154e08f4636a200c635f5cb149e82955bbcc530f08b56d4b9f88b3ce",
     "out/nano-installer-hardware-20261111/trial/uploads/console.log": "348885ad07d12be007f9f8e1b0a36278bc62429da1360fe64ad7ac5d25cad0d1",
     "out/nano-installer-hardware-20261111/cleanup-proof.json": "096c2aef3b8739495a9d9d17ceeeaa98b6a7f3b910ba40d0394ec7e9ed6071df",
-    "tests/fixtures/nano-upload/mmc-prefix-read.txt": "c26d42fdb03ed2e6a81691b92c95602bb4bcf4337db0dfcdfa8f30ec27de28ca"
+    "tests/fixtures/nano-upload/mmc-prefix-read.txt": "b12da72daa8a121dc1f9440de8d25ded51aa21cd51dab87c040f758d34e9d774"
   },
   "retention": {
     "status": "retained-first-failed-admission-before-any-sd-write",
@@ -56,5 +56,7 @@
     "sd_writes_attempted": false,
     "native_boot_attempted": false
   },
-  "retention_directory": "/home/deano/fes-retained/de25-native-installer-admission-stop-20261111-r1"
+  "retention_directory": "/home/deano/fes-retained/de25-native-installer-admission-stop-20261111-r1",
+  "fixture_representation": "text line normalized to LF; regression supplies captured CRLF; original raw serial capture remains retained",
+  "captured_completion_sha256": "c26d42fdb03ed2e6a81691b92c95602bb4bcf4337db0dfcdfa8f30ec27de28ca"
 }

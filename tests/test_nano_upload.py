@@ -138,7 +138,7 @@ class NanoUploadTests(unittest.TestCase):
         self.assertTrue(r['recovery_manifest_unchanged'])
 
     def test_captured_mmc_prefix_read_supports_upload_and_fresh_recovery_read(self):
-        captured=(ROOT/'tests/fixtures/nano-upload/mmc-prefix-read.txt').read_bytes().decode()
+        captured=(ROOT/'tests/fixtures/nano-upload/mmc-prefix-read.txt').read_text().replace('\n','\r\n')
         for read_only in (False,True):
             with self.subTest(read_only=read_only),patch('builtins.print'):
                 model,session=self.session();original=model.command
@@ -152,7 +152,7 @@ class NanoUploadTests(unittest.TestCase):
                 self.assertEqual(model.writes,0 if read_only else 1)
 
     def test_wrong_or_ambiguous_prefix_read_stops_before_transfer_or_write(self):
-        captured=(ROOT/'tests/fixtures/nano-upload/mmc-prefix-read.txt').read_bytes().decode()
+        captured=(ROOT/'tests/fixtures/nano-upload/mmc-prefix-read.txt').read_text().replace('\n','\r\n')
         responses=(captured.replace('32768 blocks','132768 blocks'),
                    captured.replace('count 32768','count 132768'),
                    captured.replace('dev # 0','dev # 1'),

@@ -4,5 +4,3 @@ docs/validation/** -whitespace
 docs/validation/**/*.md !whitespace
 sources/misteross/docs/validation/** -whitespace
 sources/misteross/docs/validation/**/*.md !whitespace
-# Raw UART fixture keeps CRLF; other trailing whitespace remains checked.
-tests/fixtures/nano-upload/mmc-prefix-read.txt whitespace=trailing-space,space-before-tab,cr-at-eol
