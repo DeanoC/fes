@@ -114,6 +114,28 @@ Ordinary launch/return framing keeps its previous defaults. These observations
 do not establish an installation or replace fresh media, menu/USB drain,
 configuration or reboot/discovery proofs.
 
+`installer_client.InstallerClient` joins these views to the existing paired
+boot, menu, configuration, master-stop and shared-USB verifiers. Its explicit
+single-source mode starts either empty or with an independently expected
+fresh-discovered entry. It navigates only presented controls, verifies one
+owned Install and then uses the existing launch/return/park path. Failed
+captures retire the client without another key. Growing UART buffers must
+preserve their prefix; polling predicates never consume a menu receipt.
+Navigation has the existing 5-second presentation bound. Install's collector
+composes 5-second dispatch/pause, 100-second work, 100-second independent menu
+restoration and 5-second resume/presentation bounds into a 220-second outer
+limit; native operation timeouts are unchanged. A successful Install observation
+does not establish persistence: the operator must verify a separate fresh boot.
+
+`UploadSession.read_existing` supplies that fresh recovery's read-only check
+for the fixed boot, bootstrap and source files. It verifies the protected
+prefix, boot FIT and recovery manifest before and after the selected file,
+under a new session marker and complete live scratch-map checks. It performs
+no download, SD write or activation and never adopts another session's RAM
+reservations. Its identity scope is capacity/layout/protected files; native
+writable startup separately checks the compiled CID. The original same-session
+post-upload `verify` remains scoped to files uploaded by that live object.
+
 The source-bound two-slot menu has an explicit native selection:
 `tamago/run.py fpgaload --board de25-nano --menu-present`, together with the
 sealed menu `--hps-first-project`, source-controlled SD profile and selected

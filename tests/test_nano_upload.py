@@ -50,6 +50,7 @@ class Model:
         if c=='mmcinfo':return 'SD version 2.0\nCapacity: 3.7 GiB'
         if c=='mmc part':return '1 32768 262144\n'
         if c.startswith('mmc read'):
+            if self.fault=='oversize-prefix':return '132768 blocks read: OK'
             self.memory[0x83000000]=None;return '32768 blocks read: OK'
         if c.startswith('fatload'):
             addr=int(c.split()[3],16);name=c.split()[4]
@@ -254,6 +255,63 @@ class NanoUploadTests(unittest.TestCase):
                 self.assertFalse(session.retired)
                 with self.assertRaises(ValueError):session.verify(b'x'*size,{'commands':[]},purpose=purpose)
                 self.assertEqual(model.commands,[])
+
+    def test_fresh_recovery_reads_expected_bootstrap_files_without_upload_or_write(self):
+        model,session=self.session()
+        receipts=[]
+        with patch('builtins.print'):
+            for purpose,payload in [('selection',b'empty selected programs'),('ui-catalog',b'empty UI catalogue'),('install-manifest',b'staged source')]:
+                model.payload=payload;model.files[upload.destination(purpose)]=payload
+                receipt={'commands':[]};session.read_existing(payload,receipt,purpose=purpose);receipts.append(receipt)
+                self.assertTrue(receipt['fresh_readback'] and receipt['read_only'] and receipt['card_verified'])
+                self.assertTrue(receipt['boot_files_unchanged'] and receipt['recovery_manifest_unchanged'])
+                self.assertFalse(receipt['sd_write_attempted'] or receipt['cid_verified'] or receipt['activation'])
+        self.assertEqual(len({r['upload_session'] for r in receipts}),1)
+        self.assertEqual(model.writes,0)
+        self.assertFalse(any(c.startswith(('fatwrite','tftpboot','dhcp','mw.b','saveenv')) for c in model.commands))
+        self.assertFalse(session.verified)
+
+    def test_existing_file_read_rejects_changed_media_or_boot_without_replay(self):
+        for fault in ('old-loader','wrong-card','prefix','reserved','oversize-prefix','oversize-boot','oversize-readback','readback'):
+            with self.subTest(fault=fault),patch('builtins.print'):
+                model=Model(dict(self.kit),self.payload,fault);_,session=self.session(model)
+                with self.assertRaises(ValueError):session.read_existing(self.payload,{'commands':[]},purpose='selection')
+                self.assertTrue(session.retired);self.assertEqual(model.writes,0)
+                before=list(model.commands)
+                with self.assertRaises(ValueError):session.read_existing(self.payload,{'commands':[]},purpose='selection')
+                self.assertEqual(model.commands,before)
+
+    def test_existing_file_read_rechecks_protection_and_boot_marker_after_target(self):
+        for fault in ('fit','marker'):
+            with self.subTest(fault=fault),patch('builtins.print'):
+                model=Model(dict(self.kit),self.payload);_,session=self.session(model);original=model.command
+                def command(value,timeout):
+                    result=original(value,timeout)
+                    if value=='fatload mmc 0:1 83000000 FES/CORESEL.JSN':
+                        if fault=='fit':model.kit['fit']=b'changed-protected-fit'
+                        else:model.marker=''
+                    return result
+                model.command=command
+                with self.assertRaises(ValueError):session.read_existing(self.payload,{'commands':[]},purpose='selection')
+                self.assertTrue(session.retired);self.assertEqual(model.writes,0)
+
+    def test_existing_file_read_never_adopts_an_old_sessions_marker_or_allocations(self):
+        with patch('builtins.print'):
+            model,session=self.session();session.read_existing(self.payload,{'commands':[]},purpose='selection');session.close()
+            for clear_marker in (False,True):
+                with self.subTest(clear_marker=clear_marker):
+                    if clear_marker:model.marker=''
+                    _,new=self.session(model);before=len(model.commands)
+                    with self.assertRaises(ValueError):new.read_existing(self.payload,{'commands':[]},purpose='selection')
+                    self.assertTrue(new.retired)
+                    self.assertFalse(any(c.startswith(('fatload','mmc read','tftpboot','fatwrite')) for c in model.commands[before:]))
+
+    def test_existing_file_read_has_fixed_paths_and_bounds_before_io(self):
+        for purpose,payload in [('FES/CORESEL.JSN',self.payload),('../u-boot.itb',self.payload),('selection',b''),('selection',b'x'*8193)]:
+            model,session=self.session()
+            with self.subTest(purpose=purpose,size=len(payload)),self.assertRaises(ValueError):session.read_existing(payload,{'commands':[]},purpose=purpose)
+            self.assertEqual(model.commands,[])
+            self.assertFalse(session.retired)
 
     def test_two_packages_metadata_and_selection_share_one_live_session_and_fresh_readbacks(self):
         model,session=self.session()

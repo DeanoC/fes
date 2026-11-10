@@ -154,6 +154,34 @@ class UploadSession:
             self._observe_memory(command, receipt, 'complete')
             receipt.update(status='verified', fresh_readback=True, sd_readback_verified=True)
 
+    def read_existing(self, payload, receipt, *, purpose='boot'):
+        """Read a fixed expected file after fresh recovery, without a download/write.
+
+        A new object must still establish its own empty boot marker and scratch
+        map. No old reservation, upload receipt or session token is adopted.
+        CID admission remains the native writable mount's independent check.
+        """
+        target = destination(purpose)
+        if not valid_payload_length(purpose,len(payload)):
+            raise ValueError('payload exceeds the fixed purpose limit')
+        payload = bytes(payload)
+        with self._operation(receipt):
+            receipt.update(read_only=True, fresh_readback=False, purpose=purpose, destination=target,
+                payload_bytes=len(payload),payload_sha256=sha(payload),cid_verified=False,
+                identity_scope='capacity-layout-protected-recovery-files',activation=False)
+            def command(value,timeout=15):
+                return self._command(receipt,value,timeout)
+            self._admit_card(command,receipt)
+            output = command('fatload mmc 0:1 83000000 '+target,60)
+            if not self._byte_count(output,len(payload),'read'):
+                raise ValueError('existing file SD read length differs')
+            self._digest(command,0x83000000,len(payload),sha(payload))
+            self.memory.loaded(0x83000000,len(payload))
+            self._protected_files(command,0x83000000)
+            self._observe_memory(command,receipt,'complete')
+            receipt.update(status='verified',stage='complete',fresh_readback=True,sd_readback_verified=True,
+                           boot_files_unchanged=True,recovery_manifest_unchanged=True)
+
     @contextmanager
     def _operation(self, receipt):
         if receipt.get('commands') != [] or receipt.get('sd_write_attempted', False) is not False or receipt.get('status') == 'verified':
@@ -202,6 +230,41 @@ class UploadSession:
         receipt['memory_observations'].append(dict(stage=stage, map=observed))
         receipt['scratch_owned'] = [list(row) for row in self.memory.owned]
 
+    @staticmethod
+    def _digest(command,address,size,expected):
+        output = command(f'hash sha256 {address:x} {size:x}')
+        if not re.search(r'(?i)(?<![0-9a-f])'+expected+r'(?![0-9a-f])',output):
+            raise ValueError('readback hash differs')
+
+    @staticmethod
+    def _byte_count(output,size,action):
+        return re.search(r'(?m)^\s*'+str(size)+r' bytes '+action+r'(?:\s|$)',output)
+
+    def _protected_files(self,command,manifest_address):
+        if not re.search(r'(?m)^\s*32768 blocks read: OK(?:\s|$)',command('mmc read 83000000 0 8000',45)):
+            raise ValueError('protected prefix read failed')
+        self._digest(command,0x83000000,PREFIX_SIZE,self.kit['prefix_sha256'])
+        if not self._byte_count(command('fatload mmc 0:1 83000000 u-boot.itb',30),len(self.kit['fit']),'read'):
+            raise ValueError('boot FIT length differs')
+        self._digest(command,0x83000000,len(self.kit['fit']),self.kit['fit_sha256'])
+        self.memory.loaded(0x83000000,len(self.kit['fit']))
+        if not self._byte_count(command(f'fatload mmc 0:1 {manifest_address:x} FES/RECOVERY.JSON'),len(self.kit['manifest']),'read'):
+            raise ValueError('wrong recovery card manifest')
+        self._digest(command,manifest_address,len(self.kit['manifest']),sha(self.kit['manifest']))
+        self.memory.loaded(manifest_address,len(self.kit['manifest']))
+
+    def _admit_card(self,command,receipt):
+        recovery.check_version(command('version'))
+        self._observe_memory(command,receipt,'admit')
+        command('mmc dev 0')
+        info = command('mmcinfo')
+        if 'SD version' not in info or '3.7 GiB' not in info:
+            raise ValueError('wrong spare card capacity/type')
+        if not re.search(r'(?m)^\s*1\s+32768\s+262144\s',command('mmc part')):
+            raise ValueError('wrong spare partition layout')
+        self._protected_files(command,0x82000000)
+        receipt['card_verified'] = True
+
     def _upload(self, payload, receipt, purpose):
         kit, host, mac = self.kit, self.host, self.mac
         serve = self.serve
@@ -209,35 +272,10 @@ class UploadSession:
         def command(value, timeout=15):
             return self._command(receipt, value, timeout)
         def digest(address, size, expected):
-            output = command(f'hash sha256 {address:x} {size:x}')
-            if not re.search(r'(?i)(?<![0-9a-f])' + expected + r'(?![0-9a-f])', output):
-                raise ValueError('readback hash differs')
+            return self._digest(command,address,size,expected)
         def byte_count(output, size, action):
-            return re.search(r'(?m)^\s*'+str(size)+r' bytes '+action+r'(?:\s|$)', output)
-        def prefix():
-            if '32768 blocks read: OK' not in command('mmc read 83000000 0 8000', 45):
-                raise ValueError('protected prefix read failed')
-            digest(0x83000000, PREFIX_SIZE, kit['prefix_sha256'])
-        def boot_file():
-            if not byte_count(command('fatload mmc 0:1 83000000 u-boot.itb', 30),len(kit['fit']),'read'):
-                raise ValueError('boot FIT length differs')
-            digest(0x83000000, len(kit['fit']), kit['fit_sha256'])
-            self.memory.loaded(0x83000000, len(kit['fit']))
-        def recovery_manifest(address):
-            if not byte_count(command(f'fatload mmc 0:1 {address:x} FES/RECOVERY.JSON'),len(kit['manifest']),'read'):
-                raise ValueError('wrong recovery card manifest')
-            digest(address,len(kit['manifest']),sha(kit['manifest']))
-            self.memory.loaded(address, len(kit['manifest']))
-        recovery.check_version(command('version'))
-        self._observe_memory(command, receipt, 'admit')
-        command('mmc dev 0')
-        info = command('mmcinfo')
-        if 'SD version' not in info or '3.7 GiB' not in info: raise ValueError('wrong spare card capacity/type')
-        if not re.search(r'(?m)^\s*1\s+32768\s+262144\s', command('mmc part')):
-            raise ValueError('wrong spare partition layout')
-        prefix(); boot_file()
-        recovery_manifest(0x82000000)
-        receipt['card_verified'] = True
+            return self._byte_count(output,size,action)
+        self._admit_card(command,receipt)
         for value in ('setenv autoload no', 'setenv netretry no', 'setenv bootpretryperiod 10000',
                       'setenv tftptimeout 1000', 'setenv tftptimeoutcountmax 3'):
             command(value)
@@ -313,7 +351,7 @@ class UploadSession:
         if f'{len(payload)} byte(s) were the same' not in command(f'cmp.b 82000000 82800000 {len(payload):x}', 30):
             raise ValueError('SD byte comparison failed')
         receipt['sd_readback_verified'] = True
-        prefix(); boot_file(); recovery_manifest(0x83000000)
+        self._protected_files(command,0x83000000)
         self._observe_memory(command, receipt, 'complete')
         receipt['boot_files_unchanged'] = True
         receipt.update(status='verified', stage='complete', destination=target, purpose=purpose, recovery_manifest_unchanged=True)

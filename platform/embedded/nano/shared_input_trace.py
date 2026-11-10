@@ -42,11 +42,12 @@ class SharedInput:
 
     def action(self,op,generation,rows,owner,raw,app_prefix):
         require(self.started,'shared USB startup absent')
+        require(op in ('focus','launch','stop','quit','install'),'unknown shared USB operation')
         if op=='focus':require(not rows,'focus changed shared USB ownership');return {'reports':self.reports,'polls':self.polls}
         require([r['stage'] for r in rows]==(['input','input','stop'] if op=='quit' else ['input','input']),'shared USB transition/stop observations differ')
         a,b=(r['values'] for r in rows[:2])
         require(a['phase']=='pause' and b['phase']=='resume','USB pause/resume order differs')
-        initial='ready' if op=='launch' else 'running';final='running' if op=='launch' else 'ready'
+        initial='ready' if op in ('launch','install') else 'running';final='running' if op=='launch' else 'ready'
         require(a['state']==initial and b['state']==final and a['native_generation']==generation and b['native_generation']==generation+1,'shared USB/native transition mismatch')
         require(all(v['owner']==owner and v['generation']==2 for v in (a,b)),'shared USB owner/generation changed during core transition')
         require(a['polls']>self.polls and b['polls']==a['polls'],'successful polling absent before transition or continued during pause')
@@ -59,7 +60,10 @@ class SharedInput:
         for line,data in enumerate(raw.splitlines(),1):
             if not data.startswith(app_prefix):continue
             state=json.loads(data[len(app_prefix):]);v=state['native']
-            if v['Generation']==generation+1 and v['State']==final and state['session']==('active' if op=='launch' else 'idle'):
+            # Installation may expose a cached native Ready while its App
+            # request is still busy. Its controller separately requires the
+            # completed setup view and fresh frame after Resume.
+            if op!='install' and v['Generation']==generation+1 and v['State']==final and state['session']==('active' if op=='launch' else 'idle'):
                 require(rows[1]['line']<line,'App completion preceded USB resume')
             if v['State'] in ('loading','returning'):
                 require(rows[0]['line']<line,'native mutation preceded USB pause')

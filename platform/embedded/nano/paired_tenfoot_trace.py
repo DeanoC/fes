@@ -12,6 +12,7 @@ import time
 
 import hps_context
 import tenfoot_trace as app
+import installer_trace as installer_view
 from menu_service_trace import MenuTrace, PREFIX as MENU
 from native_trace import decode_native_boot
 from paired_firmware_trace import configuration, menu_closed, menu_opening
@@ -59,16 +60,18 @@ def menu_policy(record, owner):
     return copy.deepcopy(companion), contract
 
 
-def observations(data, input_mode, *, startup=False):
+def observations(data, input_mode, *, startup=False, installer=False, generation_origin=0, installing=False):
     """Framing only: safe to call repeatedly on a growing transport buffer."""
     require(type(data) is bytes and 0 < len(data) <= app.MAX_BYTES and data.endswith(b'\n'),
             'bounded complete paired App capture required')
+    require(type(installer) is type(installing) is bool and number(generation_origin,(1<<64)-1),
+            'explicit paired observation context required')
     rows = []
     begin = BEGIN+input_mode.encode()+b' preferences=ram'
     for index, line in enumerate(data.splitlines(keepends=True), 1):
         raw = line.rstrip(b'\r\n')
         if raw.startswith(app.PREFIX):
-            states, evidence, exited = app.packet(line)
+            states, evidence, exited = app.packet(line, generation_origin=generation_origin, installing=installing)
             require(len(states) == 1 and not evidence and exited is None, 'invalid paired App state')
             kind, value = 'app', states[0]
         elif raw.startswith(MENU):
@@ -76,7 +79,11 @@ def observations(data, input_mode, *, startup=False):
             # exchange completes. Do not change it in a polling predicate.
             kind, value = 'menu', line
         elif raw.startswith(app.FETCH):
-            kind, value = 'fetch', app.fetch_observation(raw[len(app.FETCH):])
+            require(not installing, 'core fetch during paired installation')
+            kind, value = 'fetch', app.fetch_observation(raw[len(app.FETCH):], generation_origin=generation_origin)
+        elif raw.startswith(installer_view.PREFIX):
+            require(installer, 'installer navigation outside selected observer mode')
+            kind, value = 'installer', installer_view.record(line)
         elif raw.startswith(USB):
             require(input_mode != 'uart', 'shared USB evidence in UART-only paired App')
             kind, value = 'usb', usb_record(raw, index)
@@ -101,11 +108,11 @@ def observations(data, input_mode, *, startup=False):
                 'foreign or malformed paired App observation')
             kind, value = 'firmware', line
         rows.append(dict(kind=kind, value=value, line=index))
-    require(rows[-1]['kind'] in ('app', 'menu', 'exit'), 'unterminated paired App evidence')
+    require(rows[-1]['kind'] in (('app','menu','exit','installer') if installer else ('app','menu','exit')), 'unterminated paired App evidence')
     return rows
 
 
-def ready_frame(rows, *, generation=None, title=None):
+def ready_frame(rows, *, generation=None, title=None, titles=None):
     """Frame after Ready: ProgramMenuPlatform presents inner state first.
 
     This is a repeatable framing predicate, not a committed MenuTrace receipt.
@@ -121,7 +128,8 @@ def ready_frame(rows, *, generation=None, title=None):
     value = json.loads(rows[-1]['value'][len(MENU):])
     return (type(value) is dict and value.get('event') == 'frame' and
             rows[-1]['line'] > state['line'] and view['native']['State'] == 'ready' and
-            view['session'] == 'idle' and not view['loading'] and len(view['titles']) == 2 and
+            view['session'] == 'idle' and not view['loading'] and
+            (len(view['titles']) == 2 if titles is None else view['titles'] == titles) and
             (generation is None or view['native']['Generation'] == generation) and
             (title is None or view['titles'][view['focus']] == title))
 
@@ -138,12 +146,21 @@ class PairedTenfootClient(app.TenfootClient):
     """Explicit paired lifecycle; core-only TenfootClient remains unchanged."""
     def __init__(self, initial, *, build_record, build_id, owner_seed, atf, package,
                  programs, exchange, owns, now=time.monotonic, record=lambda _: None,
-                 shared_usb=None, firmware_ram_trace=False, firmware_mmu=None):
+                 shared_usb=None, firmware_ram_trace=False, firmware_mmu=None,
+                 installer=False, initial_titles=None):
         require(all(callable(f) for f in (exchange, owns, now, record)), 'owned exchange hooks required')
-        require(type(programs) is list and len(programs) == 2 and
-                len({p['title'] for p in programs}) == 2 and
+        require(type(installer) is bool, 'explicit paired observer mode required')
+        count = 1 if installer else 2
+        require(type(programs) is list and len(programs) == count and
+                len({p['title'] for p in programs}) == count and
                 len({(p['identity']['PackageID'], p['identity']['ActivationReceiptSHA256'])
-                     for p in programs}) == 2, 'two distinct titled activation choices required')
+                     for p in programs}) == count, 'explicit distinct titled activation choices required')
+        require(initial_titles in ([], [programs[0]['title']]) if installer else initial_titles is None,
+                'explicit empty or discovered installer catalogue required')
+        self.installer = installer
+        self.generation_origin = 0
+        self.catalogue_titles = list(initial_titles) if installer else [p['title'] for p in programs]
+        self.navigation = None
         require(all('fetch_address' not in p or number(p['fetch_address'], 65535)
                     for p in programs), 'explicit fetch address must be a 16-bit integer')
         self.programs = copy.deepcopy(programs)
@@ -151,7 +168,7 @@ class PairedTenfootClient(app.TenfootClient):
             app.program_tape(p)
         self.usb = SharedInput(shared_usb) if shared_usb is not None else None
         self.input_mode = 'uart' if self.usb is None else self.usb.input_mode
-        rows = observations(initial, self.input_mode, startup=True)
+        rows = self._observations(initial, startup=True)
         # Decode only the actual boot prefix. The first menu transfer follows
         # FAT mount, before BEGIN; it is runtime evidence, not boot evidence.
         first_arm = next((i for i, r in enumerate(rows) if r['kind'] == 'firmware'
@@ -213,6 +230,29 @@ class PairedTenfootClient(app.TenfootClient):
         self.startup = self._consume(rows[first_arm:], 'startup', 0, None)
         require(self.view is not None and self._ready(self.view), 'paired App is not initially Ready')
 
+    def _observations(self, data, *, startup=False):
+        return observations(data, self.input_mode, startup=startup, installer=self.installer,
+                            generation_origin=self.generation_origin)
+
+    def _ready(self, value):
+        return (value['native']['State'] == 'ready' and value['session'] == 'idle' and
+                not value['loading'] and (value['titles'] == self.catalogue_titles if self.installer else len(value['titles']) == 2))
+
+    def _state(self, value, generation, allowed, identity=None):
+        n = value['native']
+        require(n['Owner'] == self.owner and n['Generation'] == generation and n['State'] in allowed,
+                'App ownership/generation/state changed')
+        require(not value['titles'] or len(value['titles']) == len(self.catalogue_titles) and
+                set(value['titles']) == set(self.catalogue_titles), 'App catalogue changed')
+        selected = n['State'] in ('running','returning') or n['State'] == 'loading' and (generation-self.generation_origin)%2 == 1
+        if identity is not None and selected:
+            require(n['Identity'] == identity, 'App published wrong retained identity')
+        if n['State'] in ('running','returning'):
+            program = next((p for p in self.programs if p['identity'] == n['Identity']), None)
+            require(program is not None, 'App tape has no selected program')
+            actual = None if 'tape_sha256' not in n else dict(sha256=n['tape_sha256'],bytes=n['tape_bytes'])
+            require(actual == app.program_tape(program), 'App published wrong retained tape')
+
     def _configured(self, result):
         timing = result['configuration_timing']
         require(timing['first_counter'] > self.last_counter, 'paired configuration counter restarted')
@@ -237,6 +277,7 @@ class PairedTenfootClient(app.TenfootClient):
         final_menu_return = None
         ready_line = None
         ready_presented = False
+        navigation = []
         for row in rows:
             kind, value, line = row['kind'], row['value'], row['line']
             require(exited is None, 'evidence followed final paired exit')
@@ -263,6 +304,12 @@ class PairedTenfootClient(app.TenfootClient):
                             self.menu_source is not None and returned_menu == 0,
                             'Quit input preceded verified menu restoration or followed its close')
                 input_actions.append(value)
+            elif kind == 'installer':
+                previous = states[-1] if states else self.view
+                require(self.installer and previous is not None and installer_view.matches_state(value, previous),
+                        'installer view has no matching cached App ownership')
+                navigation.append(value)
+                self.navigation = copy.deepcopy(value)
             elif kind == 'menu':
                 require(op != 'startup' or begins == 0 or self.menu_source is not None,
                         'initial menu opened after App began')
@@ -346,7 +393,7 @@ class PairedTenfootClient(app.TenfootClient):
                 previous_generation = n['Generation']
                 expected = generation if op in ('startup', 'focus') or n['State'] in (
                     ('ready', 'loading') if op == 'launch' else ('running', 'returning')) else generation+1
-                if op == 'launch' and n['State'] == 'loading' and n['Generation'] % 2 == 1:
+                if op == 'launch' and n['State'] == 'loading' and (n['Generation']-self.generation_origin) % 2 == 1:
                     expected = generation+1
                 self._state(value, expected, tuple(phases),
                             selected['identity'] if op == 'launch' else self.view['native']['Identity']
@@ -388,6 +435,9 @@ class PairedTenfootClient(app.TenfootClient):
                     'paired return omitted core close or the presented Ready frame')
         result = dict(states=states, menu_observations=menus, fetch_observations=fetches,
                       input_actions=input_actions, exit_generation=exited)
+        if self.installer:
+            require(navigation, 'selected installer operation omitted navigation observations')
+            result['installer_views'] = navigation
         if self.usb is not None and op != 'startup':
             result['shared_usb'] = self.usb.action(op, generation, usb_rows, self.owner,
                 self._raw, app.PREFIX)
@@ -413,7 +463,7 @@ class PairedTenfootClient(app.TenfootClient):
         generation = self.view['native']['Generation']
         selected = None
         if op in ('launch', 'focus'):
-            require(self._ready(self.view) and type(selection) is int and 0 <= selection < 2,
+            require(self._ready(self.view) and type(selection) is int and 0 <= selection < len(self.programs),
                     'Ready paired App and selected program required')
             selected = self.programs[selection]
             target = self.view['titles'].index(selected['title'])
@@ -468,23 +518,27 @@ class PairedTenfootClient(app.TenfootClient):
                 if not raw.endswith(b'\n'):
                     return False
                 last = raw.splitlines()[-1].rstrip(b'\r')
-                if not last.startswith((app.PREFIX, MENU)) and not EXIT.fullmatch(last):
+                prefixes = (app.PREFIX, MENU, installer_view.PREFIX) if self.installer else (app.PREFIX, MENU)
+                if not last.startswith(prefixes) and not EXIT.fullmatch(last):
                     return False
-                framed = observations(raw, self.input_mode)
+                framed = self._observations(raw)
                 if op == 'quit':
                     return framed[-1]['kind'] == 'exit'
                 if op in ('focus', 'stop'):
                     return ready_frame(framed, generation=generation if op == 'focus' else generation+1,
-                                       title=selected['title'] if op == 'focus' else None)
-                if framed[-1]['kind'] != 'app':
+                                       title=selected['title'] if op == 'focus' else None,
+                                       titles=self.catalogue_titles if self.installer else None)
+                if framed[-1]['kind'] not in (('app','installer') if self.installer else ('app',)):
                     return False
-                value = framed[-1]['value']
+                value = next((r['value'] for r in reversed(framed) if r['kind'] == 'app'), None)
+                if value is None:
+                    return False
                 return value['native']['State'] == 'running' and value['session'] == 'active'
             self._raw = self.exchange(payload, bound, done)
             after = self.now()
             require(before <= after < before+bound and self.owns(), 'paired deadline/clock/claim failed')
             require(done(self._raw), 'paired action lacks a terminal observation')
-            result = self._consume(observations(self._raw, self.input_mode), op, generation, selected, input_source)
+            result = self._consume(self._observations(self._raw), op, generation, selected, input_source)
             entry.update(result, status='verified', raw_bytes=len(self._raw))
             self.record(copy.deepcopy(entry))
             if op == 'quit':
