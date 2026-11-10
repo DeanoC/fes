@@ -16,11 +16,12 @@ and RETF to an outer privilege.
   locked Yosys's netlist, with identical retirement traces: the full
   corpus, 32,000 random programs, 8,000 protected-mode programs (1,180 MOV
   DRn, 369 far CALLs to an inner privilege, 289 through a gate to the same
-  privilege, 1,031 RETFs to an outer privilege) and 51 new directed cases.
+  privilege, 1,031 RETFs to an outer privilege) and 53 new directed cases.
   Seven one-line mutants of the new RTL each fail directed cases.
-- **Seal.** Quartus 17.0.2 at seed 1 meets every analysis at 61.44 MHz:
-  setup +0.645 ns (main +0.396), hold +0.104 ns. ALMs grow from 36,225 to
-  36,683 (+458; 87.5%), so seed 1 still fits. The microcode ROM grows to 512
+- **Seal.** Quartus 17.0.2 at seed 1, at the PR's head RTL (`83b497361`),
+  meets every analysis at 61.44 MHz: setup +0.313 ns (main +0.396), hold
+  +0.089 ns. ALMs grow from 36,225 to 36,717 (+492; 87.6%), so seed 1
+  still fits. The microcode ROM grows to 512
   words: 3 more M10K blocks (268).
 - **Kit A, max.** U.S. Navy Fighters, newly unlocked, runs its extender
   (IRET to CPL 3, call gate back) and stops at its CD-ROM check: "Could not
@@ -95,7 +96,7 @@ unchanged (`r0-iretd-r3`, `r3-int-iretd` equal).
 
 `scripts/test_fes_i386_lockstep.py` ran with every default (16 seeds of 2,000
 random programs, 16 seeds of 500 protected-mode programs, the full corpus) at
-`9887e0543`, the sealed checkout, on the RTL and on the netlist from the i386
+`83b497361`, the sealed checkout, on the RTL and on the netlist from the i386
 lock's Yosys (`238eac9a4`):
 
 | Part | RTL | Netlist |
@@ -105,7 +106,7 @@ lock's Yosys (`238eac9a4`):
 | Protected-mode programs | 8,000 of 8,000 (462,989 retirements) | same |
 | Unbuilt encodings | 49,760, each stopped | same |
 | Directed cases | 77 of 77 | same |
-| Unreal, protected-mode, paging, no-387 and memory cases | 7, 198, 54, 1,933 and 27, all pass | same |
+| Unreal, protected-mode, paging, no-387 and memory cases | 7, 200, 54, 1,933 and 27, all pass | same |
 
 Every corpus file's and random seed's retirement trace hash is the same on
 both ([lockstep-report.json](lockstep-report.json),
@@ -131,7 +132,7 @@ fixed bits (DR6 FFFF0FF0h, DR7 400h), since no corpus instruction touches
 them. `why_e` drops the reasons nothing raises any more (an inner
 delivery, an outer return), so the reason numbers after them shift.
 
-**New directed cases** (`FES_I386_MODE=pmode`, 198 cases, 51 new):
+**New directed cases** (`FES_I386_MODE=pmode`, 200 cases, 53 new):
 - RETF to CPL 3: `r0-retf-r3`, `r0-retf-r3-imm`, `r0-retfd-r3`,
   `r0-retfd-r3-imm`; SS null (#GP(0)), RPL not the new CPL (#GP(68h)), not
   present (#SS(28h)); `r0-retf-r3-ds-null` (DS nulled, ES at DPL 3 kept);
@@ -176,7 +177,7 @@ a not-present gate taken (`r3-cg-np`).
 
 ## test386.asm
 
-`scripts/test_fes_i386_test386.py --cpu rtl` at `9887e0543`
+`scripts/test_fes_i386_test386.py --cpu rtl` at `9887e0543` and again at `83b497361`
 ([test386-rtl-report.json](test386-rtl-report.json)): POST codes 00, 01,
 02, 03, 04, 05, 06, 08, 09, 20 and 21, no error, then a stop as not built
 after 796,814 retirements at 00D0h:2D53h, an IRETD to V86 mode (POST 21,
@@ -184,32 +185,39 @@ slice 3). POST 20 runs its ring-3 code through `call RING0_GATE`.
 
 ## Seal
 
-The seal is Quartus 17.0.2, seed 1, from clean checkout `9887e0543`
-([seal-summary.json](seal-summary.json)).
-- **Package.** `0d17486e…`, build `cf2d9203…`, with `core.rbf` `cad673cb…`.
+The seal is Quartus 17.0.2, seed 1, from clean checkout `83b497361`
+([seal-summary.json](seal-summary.json)), the PR's RTL after the
+zero-count gate fix (see Changes after the seal).
+- **Package.** `3429af98…`, build `9400423d…`, with `core.rbf` `cb587c56…`.
 - **Analyses.** Every one is met:
-  - setup +0.645 ns;
-  - hold +0.104 ns;
-  - recovery +5.084 ns;
-  - removal +0.417 ns;
+  - setup +0.313 ns, in the pixel clock (the slow −40 °C corner); the system
+    clock's worst is +0.794 ns;
+  - hold +0.089 ns;
+  - recovery +6.756 ns;
+  - removal +0.525 ns;
   - minimum pulse width +1.122 ns.
+- **The first seal**, `9887e0543` before the fix
+  ([seal-summary-9887e0543.json](seal-summary-9887e0543.json)): package
+  `0d17486e…`, build `cf2d9203…`, `core.rbf` `cad673cb…`; setup +0.645 ns,
+  hold +0.104 ns, recovery +5.084 ns, removal +0.417 ns, 36,683 ALMs,
+  32,874 registers. The kit runs and stage-slack.json are from it.
 - **Clocks.** The system clock is 61.44 MHz.
 - **Resources.**
 
   | Resource | This seal | Main (#1587's seal `79c5009c`) |
   | --- | ---: | ---: |
-  | ALMs | 36,683 | 36,225 |
-  | Registers | 32,874 | 32,843 |
+  | ALMs | 36,717 | 36,225 |
+  | Registers | 32,883 | 32,843 |
   | M10K blocks | 268 | 265 |
   | DSP blocks | 38 | 38 |
 
   The plan estimated about 350 ALMs for the debug registers and inner call
-  gates; the slice takes 458, within the fit noise of about ±200 the area
-  audit measured. 5,227 ALMs (12.5%) are left, 1,817 under the area
+  gates; the slice takes 492 (458 at the first seal), within the fit noise of about ±200 the area
+  audit measured. 5,193 ALMs (12.4%) are left, 1,783 under the area
   audit's working ceiling of 38,500, for slices 3-5, which have about
-  1,550 of the audit's 2,000 estimate for slices 2-5 left.
+  1,500 of the audit's 2,000 estimate for slices 2-5 left.
 
-[stage-slack.json](stage-slack.json) gives each register group's worst setup
+[stage-slack.json](stage-slack.json) (the first seal) gives each register group's worst setup
 slack at the slow −40 °C corner. The worst path is D's load-forwarding
 register (`dfwd_ld_ex`) into a D register Yosys left unnamed, the same
 family as main's worst (into `r_dst`, +0.396), which this seal moves to
@@ -281,7 +289,8 @@ simulated seconds to free Powerboat for the two runs above.
 
 ## Changes after the seal
 
-The seal, lockstep and test386 runs are from `9887e0543`. After it:
+The kit runs and the first seal are from `9887e0543`; the lockstep,
+test386 and the seal above were rerun at `83b497361`. After `9887e0543`:
 - **Main merged in** (`770dbb1e8`): no CPU file changed; the KF8253 fix
   (#1549) changes the machine's PIT, under the pc386 reseal exemption.
 - **The governor's costs for MOV DRn** (`d718e66ff`): CI's check that
@@ -289,6 +298,20 @@ The seal, lockstep and test386 runs are from `9887e0543`. After it:
   one. They take the 386's 22 clocks (DR0-DR3) and 14 (DR6, DR7) and the
   i486's 9 and 10; the governor's ROM changes only at the presets with a
   table, not at max, which every run above used.
+- **A zero-count call gate copies nothing** (`83b497361`, from Codex's
+  review): the parameter copy's load and store are `XC_XP` uops, and
+  `x_drop` took `pdrop` only in its default arm, so a gate with a count of
+  0 still read the slot below the old ESP and wrote one on the new stack,
+  a spurious #SS or #PF at a stack boundary. `pdrop` now overrides every
+  `xc`. The new cases `r3-cg16-n0-sp0` and `r3-cg32-n0-sp0` (count 0 at
+  SP 0) take #SS(0) without the fix and match Bochs with it. The full
+  lockstep at `83b497361` passes on the RTL and the netlist with the same
+  pass counts and retirement traces as at `9887e0543`; only memory-port
+  and cycle totals move (fewer accesses, from the dropped copies).
+  test386 stops at the same POST 21 IRETD. The reseal is the seal above.
+  The kit runs were not repeated: the change only drops accesses that a
+  count-0 gate made, and the kit titles' behaviour is otherwise the same
+  RTL.
 
 ## What this record does not cover
 
