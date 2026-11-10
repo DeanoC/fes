@@ -87,7 +87,15 @@ def qsf(device: str, sources: list[tuple[str, str]]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def results(build: str, project: Path, out: Path) -> dict:
+def published(text: str, root: Path, work: Path) -> str:
+    """Text as committed under reports/: the checkout and work paths become <repo> and <work>
+    (the longer prefix first, in case one directory holds the other)."""
+    for path, name in sorted(((str(root), "<repo>"), (str(work), "<work>")), key=lambda p: -len(p[0])):
+        text = re.sub(re.escape(path) + r"(?![\w.-])", name, text)
+    return text
+
+
+def results(build: str, project: Path, out: Path, root: Path, work: Path) -> dict:
     reports = project / "output_files"
     map_rpt = (reports / f"{TOP}.map.rpt").read_text(errors="replace")
     fit_rpt = (reports / f"{TOP}.fit.rpt").read_text(errors="replace")
@@ -159,10 +167,10 @@ def results(build: str, project: Path, out: Path) -> dict:
     (out / "fit-extract.txt").write_text(fit_summary + "\n" + usage_trimmed + "\n" + by_entity + "\n" + fit_ram)
     fmax_tables = "".join(section(sta_rpt, f"{corner} Fmax Summary") + "\n" for corner in fmax)
     (out / "sta-extract.txt").write_text((reports / f"{TOP}.sta.summary").read_text() + "\n" + fmax_tables + unconstrained)
-    shutil.copy(project / f"{TOP}.qsf", out / f"{TOP}.qsf")
-    for name in ("s1d_harness.yosys.v", "yosys.log", "yosys-program.txt"):
+    for name in (f"{TOP}.qsf", "s1d_harness.yosys.v", "yosys.log", "yosys-program.txt"):
         if (project / name).exists():
-            shutil.copy(project / name, out / name)
+            text = (project / name).read_text(errors="surrogateescape")
+            (out / name).write_text(published(text, root, work), errors="surrogateescape")
     (out / "result.json").write_text(json.dumps(record, indent=2) + "\n")
     return record
 
@@ -221,7 +229,7 @@ def main() -> None:
         (project / f"{TOP}.qsf").write_text(qsf(board.TARGET, sources))
         for tool in ("quartus_map", "quartus_fit", "quartus_sta"):
             run([str(quartus_bin / tool), TOP], project, log, env)
-        record = results(build, project, HERE / "reports" / build)
+        record = results(build, project, HERE / "reports" / build, root, work)
         summary["builds"].append(record)
         print(f"  MLAB {record['mlab_inferred']}, ALMs {record['alms']}, registers {record['registers']}, "
               f"Fmax {record['fmax']}", flush=True)
