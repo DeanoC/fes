@@ -19,8 +19,28 @@ PREFIX_BYTES = 32768*512
 
 
 class ScratchReadback:
+    target_label='tail'
+
+    def _checked_plan(self,plan):
+        return checked_scratch_plan(plan)
+
+    def _target_metadata(self):
+        return dict(lba=self.plan['sectors']-8,sectors=8,pattern_sha256=SCRATCH_PATTERN_SHA256,
+                    independent_tail_readback=False)
+
+    def _read_target(self,raw_read,load_file,digest):
+        if any(low<TAIL_RAM+4096 and TAIL_RAM<=high for low,high,_ in self.memory.owned):
+            raise ValueError('tail read would overwrite an owned file load')
+        raw_read(TAIL_RAM,self.plan['sectors']-8,8)
+        digest(TAIL_RAM,4096,SCRATCH_PATTERN_SHA256)
+        # Raw MMC reads do not allocate LMB regions. Do not invent a file-load
+        # reservation; require the actual map to remain identical instead.
+
+    def _target_pass(self):
+        return dict(independent_tail_readback=True)
+
     def __init__(self, console, kit, plan, *, owns):
-        self.plan=checked_scratch_plan(plan)
+        self.plan=self._checked_plan(plan)
         self.kit=dict(kit,fit=bytes(kit['fit']),manifest=bytes(kit['manifest']))
         if (not 0<len(self.kit['fit'])<=8<<20 or not 0<len(self.kit['manifest'])<=16384 or
                 not re.fullmatch('[0-9a-f]{64}',self.kit['prefix_sha256']) or
@@ -42,10 +62,10 @@ class ScratchReadback:
                     receipt.get('commands')!=[] or receipt.get('sd_write_attempted',False) is not False):
                 raise ValueError('fresh read-only receipt required')
             receipt.update(status='running',read_only=True,sd_write_attempted=False,
-                memory_observations=[],session=self.token,lba=self.plan['sectors']-8,sectors=8,
-                pattern_sha256=SCRATCH_PATTERN_SHA256,plan=dict(self.plan),
-                independent_tail_readback=False,boot_files_unchanged=False,
+                memory_observations=[],session=self.token,plan=dict(self.plan),
+                boot_files_unchanged=False,
                 recovery_manifest_unchanged=False,mbr_unchanged=False,protected_prefix_unchanged=False)
+            receipt.update(self._target_metadata())
             try:
                 self._run(receipt)
             except BaseException as error:
@@ -91,17 +111,21 @@ class ScratchReadback:
                     tuple(map(int,rows[0]))!=(0,lba,count,count)):
                 raise ValueError('raw SD read incomplete or wrong device/extent')
 
+        def load_file(name,address,size,expected):
+            command('fatsize mmc 0:1 '+name)
+            sizes=re.findall(r'(?m)^FES_SCRATCH_FILESIZE=([0-9a-fA-F]+)\r?$',command('echo FES_SCRATCH_FILESIZE=${filesize}'))
+            if len(sizes)!=1 or int(sizes[0],16)!=size:raise ValueError('file size differs')
+            out=command(f'fatload mmc 0:1 {address:x} {name} {size:x}',30)
+            rows=re.findall(r'(?m)^\s*([0-9]+) bytes read(?:\s[^\r\n]*)?\r?$',out)
+            if rows!=[str(size)]:raise ValueError('file read incomplete or ambiguous')
+            digest(address,size,expected)
+            self.memory.loaded(address,size)
+
         def files():
             for name,address,data,expected in (
                 ('u-boot.itb',PREFIX_RAM,self.kit['fit'],self.kit['fit_sha256']),
                 ('FES/RECOVERY.JSON',MANIFEST_RAM,self.kit['manifest'],hashlib.sha256(self.kit['manifest']).hexdigest())):
-                command('fatsize mmc 0:1 '+name)
-                sizes=re.findall(r'(?m)^FES_SCRATCH_FILESIZE=([0-9a-fA-F]+)\r?$',command('echo FES_SCRATCH_FILESIZE=${filesize}'))
-                if len(sizes)!=1 or int(sizes[0],16)!=len(data):raise ValueError('protected file size differs')
-                out=command(f'fatload mmc 0:1 {address:x} {name} {len(data):x}',30)
-                if not re.search(r'(?m)^\s*'+str(len(data))+r' bytes read(?:\s|$)',out):raise ValueError('protected file read incomplete')
-                digest(address,len(data),expected)
-                self.memory.loaded(address,len(data))
+                load_file(name,address,len(data),expected)
 
         def media():
             raw_read(PREFIX_RAM,0,32768);digest(PREFIX_RAM,PREFIX_BYTES,self.kit['prefix_sha256'])
@@ -120,16 +144,12 @@ class ScratchReadback:
         rows=re.findall(r'(?m)^\s*(\d+)\s+(\d+)\s+(\d+)\s',command('mmc part'))
         if rows!=[('1','32768','262144')]:raise ValueError('qualified spare partition layout differs')
         media()
-        observe('before-tail')
-        if any(low<TAIL_RAM+4096 and TAIL_RAM<=high for low,high,_ in self.memory.owned):
-            raise ValueError('tail read would overwrite an owned file load')
-        raw_read(TAIL_RAM,self.plan['sectors']-8,8)
-        digest(TAIL_RAM,4096,SCRATCH_PATTERN_SHA256)
-        # Raw MMC reads do not allocate LMB regions. Do not invent a file-load
-        # reservation; require the actual map to remain identical instead.
-        observe('after-tail')
+        observe('before-'+self.target_label)
+        self._read_target(raw_read,load_file,digest)
+        observe('after-'+self.target_label)
         media()
         observe('complete')
-        receipt.update(status='verified',independent_tail_readback=True,boot_files_unchanged=True,
+        receipt.update(status='verified',boot_files_unchanged=True,
             recovery_manifest_unchanged=True,mbr_unchanged=True,protected_prefix_unchanged=True,
             card_summary_verified=True,full_cid_reobserved=False)
+        receipt.update(self._target_pass())
