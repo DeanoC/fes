@@ -1,0 +1,39 @@
+One-line mutants of slice 3's RTL (~/fes-scratch/p5v86/mut on Powerboat), each built as the lockstep
+testbench and run on the protected-mode and paging cases (FES_I386_MODE=pmode, paging) and two seeds of
+200 protected-mode random programs. Each must fail a directed case.
+
+push-gs-twice   ucode.toml        a delivery from V86 mode pushes GS where FS goes
+                -> 69 directed cases fail (v86-hlt, v86-int-iretd, ...); random 52
+no-v86-null     fes_i386_cpu.sv   the jump out of V86 mode leaves ES, DS, FS and GS loaded
+                -> 70 directed; random 55
+vm-kept         fes_i386_cpu.sv   the jump out of V86 mode leaves VM set
+                -> 70 directed; random 55
+v86-ar-93       fes_i386_cpu.sv   V86 segment loads give access rights 93h (DPL 0), not F3h
+                -> 72 directed; random 68
+pushf-iopl      fes_i386_decode.sv  PUSHF in V86 mode below IOPL 3 runs
+                -> 3 directed (v86-pushf-iopl0, v86-pushfd-iopl0, v86-pushf-sp1-iopl0); random 1
+popf-runs       fes_i386_decode.sv  POPF in V86 mode below IOPL 3 runs (no late #GP)
+                -> 2 directed (v86-popf-iopl0, v86-popfd-iopl0); random 0
+io-iopl3        fes_i386_decode.sv  IN and OUT in V86 mode skip the bitmap at IOPL 3
+                -> 8 directed (v86-out-denied-iopl3, v86-in-word-denied, ...); random 7
+no-v86-dpl      fes_i386_cpu.sv   a delivery from V86 mode to a CS of DPL 1 passes
+                -> v86-int-cs-dpl1; random 0
+image-no-vm     fes_i386_ex.sv    a delivery's EFLAGS image without VM
+                -> 68 directed; random 39
+eip-whole       fes_i386_cpu.sv   the jump into V86 mode takes T1 whole, not its low word
+                -> v86-iretd-eip-high; random 0
+vret-any-cpl    fes_i386_cpu.sv   IRETD returns to V86 mode at any CPL
+                -> r3-iretd-vm; random 0
+lock-runs       fes_i386_decode.sv  LOCK in V86 mode below IOPL 3 runs
+                -> v86-lock-iopl0; random 0
+iostr-unchecked fes_i386_decode.sv  INS and OUTS skip the bitmap
+                -> 7 directed (r3-outsb-denied, r3-rep-insw-cx0-denied, r3-insb-286-tss, v86-outsb-denied, ...); random 2
+v86cs-same      fes_i386_cpu.sv   a delivery from V86 mode to conforming code or DPL 3 passes the CS check
+                -> v86-int-cs-dpl3-small-tss; random 0
+
+eip-whole, lock-runs and v86cs-same passed every case of the first set; v86-iretd-eip-high, the ARPL
+after v86-lock-iopl0's LOCK (so a LOCK that runs ends at #UD instead), and v86-int-cs-dpl3-small-tss (TR's
+limit past DPL 0's stack slot but short of DPL 3's) were added for them, and each fails on its mutant.
+v86cs-same's conforming form (DPL 0) cannot be told apart: the #GP's own delivery reads the same TSS slot
+that the mutant reads first, so both sides fault on it alike (v86-int-conforming-small-tss shuts down on
+both).
