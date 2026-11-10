@@ -1905,7 +1905,9 @@ symlinks, mutable objects and missing coverage of a selected video-marked shell,
 then independently composes every indexed part against the exact shell before
 copying its original producer archive bytes. Canonical core package members
 and identities stay unchanged. Older unmarked package-only selections need no
-video tree. The external `fes-core-video-parts.json` is byte-identical to the
+video tree. A video-marked package must match the same exact shell profile as
+the FES catalog and core-dev admission rules; unsupported markers fail closed.
+The external `fes-core-video-parts.json` is byte-identical to the
 installed index; both reproducible image passes retain and compare that record.
 The installed selection copy and canonical build-input record bind the index
 digest, each selected shell/profile/part/archive identity and its install path.
