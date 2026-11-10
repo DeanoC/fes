@@ -50,6 +50,9 @@ func openStorage(writeCard sdhci.Identity) (*sdcontrol.Session, error) {
 	}
 	attempted = true
 	var err error
-	storageSession, err = sdcontrol.Open(FabricCPUTransport{}, registers{}, sdcontrol.Config{InputClockHz: profileSDInputClockHz, WriteCard: writeCard})
+	// DE25-Nano manual revB, Figure 3-28/Table 3-23: microSD CLK/CMD/DAT[3:0]
+	// pass through the level translator; no socket write-protect input exists.
+	// This board property does not enable writes without the expected identity.
+	storageSession, err = sdcontrol.Open(FabricCPUTransport{}, registers{}, sdcontrol.Config{InputClockHz: profileSDInputClockHz, WriteCard: writeCard, NoSocketWriteProtect: true})
 	return storageSession, err
 }

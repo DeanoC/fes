@@ -51,20 +51,21 @@ type Registers interface {
 }
 
 type Device struct {
-	lifecycle     sync.Mutex
-	mu            sync.Mutex
-	io            Registers
-	sectors       uint64
-	rca           uint16
-	failed        bool
-	quiesced      bool
-	config        Config
-	cid           [15]byte
-	stopRequested atomic.Bool
-	identClock    uint32
-	dataClock     uint32
-	dataClockHz   uint32
-	defaultSpeed  bool
+	lifecycle          sync.Mutex
+	mu                 sync.Mutex
+	io                 Registers
+	sectors            uint64
+	rca                uint16
+	failed             bool
+	quiesced           bool
+	config             Config
+	cid                [15]byte
+	stopRequested      atomic.Bool
+	identClock         uint32
+	dataClock          uint32
+	dataClockHz        uint32
+	defaultSpeed       bool
+	cardWriteProtected bool
 }
 
 // Identity contains the CID bits supplied by SDHCI's R2 registers (CID[127:8],
@@ -82,8 +83,13 @@ func (d *Device) Identity() Identity { return Identity{CID: d.cid, Sectors: d.se
 type Config struct {
 	InputClockHz uint32
 	// AllowWrites explicitly selects single-sector PIO writes. The platform must
-	// own writable media and a qualified write-protect input. Default is read-only.
+	// own writable media and a qualified board write-protect policy. Default is read-only.
 	AllowWrites bool
+	// NoSocketWriteProtect describes board wiring, not write authorization.
+	// Select it only when the socket has no mechanical write-protect input.
+	// The default samples SDHCI WPSL. Card CSD protection and R1 errors remain
+	// enforced with either wiring; AllowWrites is still required independently.
+	NoSocketWriteProtect bool
 	// TransferClockHz explicitly selects 25 MHz maximum after identification.
 	// Zero retains the existing <=400 kHz transport. Width, voltage and PIO
 	// remain unchanged; the identification divider is restored at quiescence.
@@ -254,6 +260,9 @@ func (d *Device) initialize(config Config) error {
 		return fmt.Errorf("sdhci: unsupported CSD structure")
 	}
 	csize := (d.io.Read32(response+4) >> 8) & 0x3fffff
+	// CSD[13] PERM_WRITE_PROTECT and [12] TMP_WRITE_PROTECT, shifted down
+	// by eight bits in SDHCI's R2 response registers like the other CSD fields.
+	d.cardWriteProtected = d.io.Read32(response)&(1<<5|1<<4) != 0
 	// CSD[103:96] is R2 register 2's high byte after SDHCI's eight-bit
 	// shift. SDHC/SDXC Default Speed advertises TRAN_SPEED 0x32 (25 MHz).
 	d.defaultSpeed = byte(d.io.Read32(response+8)>>24) == 0x32
@@ -491,6 +500,9 @@ func (d *Device) WriteSectors(lba uint64, src []byte) error {
 	if d.quiesced || d.stopRequested.Load() {
 		return ErrQuiesced
 	}
+	if d.cardWriteProtected {
+		return fmt.Errorf("sdhci: card CSD write protection: %w", block.ErrReadOnly)
+	}
 	for n := 0; n < len(src); n += 512 {
 		if d.stopRequested.Load() {
 			return ErrQuiesced
@@ -503,9 +515,13 @@ func (d *Device) WriteSectors(lba uint64, src []byte) error {
 			d.failed = true
 			return errors.New("sdhci: transfer mode changed before write")
 		}
-		// SDHCI WPSL is high when the socket's write-protect switch is off.
-		if d.io.Read32(present)&(1<<19) == 0 {
-			return block.ErrReadOnly
+		// SDHCI WPSL is high when a wired socket switch is off. A board
+		// without that input must explicitly select its actual wiring.
+		if !d.config.NoSocketWriteProtect {
+			state := d.io.Read32(present)
+			if state&(1<<19) == 0 {
+				return fmt.Errorf("sdhci: socket write protection (present=%#x): %w", state, block.ErrReadOnly)
+			}
 		}
 		var sector [512]byte
 		copy(sector[:], src[n:n+512])
@@ -684,6 +700,7 @@ func (d *Device) Resume() error {
 		return errors.New("sdhci: transfer clock changed across resume")
 	}
 	d.rca = next.rca
+	d.cardWriteProtected = next.cardWriteProtected
 	d.quiesced = false
 	d.stopRequested.Store(false)
 	return nil

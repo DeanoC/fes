@@ -130,6 +130,34 @@ func TestExpectedWritableCardStillHonorsWriteProtect(t *testing.T) {
 	}
 }
 
+func TestExpectedWritableCardWithoutSocketProtectionRetainsFirmwareLifecycle(t *testing.T) {
+	firmware, c := newRPC(t, "")
+	c.regs[0x224] &^= 1 << 19
+	s, err := Open(firmware, c, Config{InputClockHz: 200000000, WriteCard: expectedWriteCard(8192), NoSocketWriteProtect: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := bytes.Repeat([]byte{0xb7}, 512)
+	if err = s.WriteSectors(3, data); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.Quiesce(); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.WriteSectors(4, data); !errors.Is(err, sdhci.ErrQuiesced) {
+		t.Fatal("wiring property bypassed quiescence", err)
+	}
+	if err = s.Resume(); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.WriteSectors(4, data); err != nil || len(c.written) != 2 {
+		t.Fatal("wiring property lost across lease resume", err, c.written)
+	}
+	if err = s.Quiesce(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestOwnedPIOWriteContainResume(t *testing.T) {
 	firmware, c := newRPC(t, "")
 	s, err := Open(firmware, c, Config{InputClockHz: 200000000, WriteCard: expectedWriteCard(8192)})

@@ -31,6 +31,9 @@ type Config struct {
 	// capacity. Zero selects read-only access. Physical write-protect and
 	// exclusive writable-media ownership still need platform qualification.
 	WriteCard sdhci.Identity
+	// NoSocketWriteProtect is a trusted board-wiring property, not package
+	// policy or write permission. An expected WriteCard is still mandatory.
+	NoSocketWriteProtect bool
 }
 
 // Open grants the lease before the first register access. It returns a retired
@@ -63,7 +66,7 @@ func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 		return s, s.fail(err)
 	}
 	s.active = true
-	s.device, err = sdhci.Open(io, sdhci.Config{InputClockHz: config.InputClockHz, PrepareClock: firmware.Prepare, AllowWrites: writable})
+	s.device, err = sdhci.Open(io, sdhci.Config{InputClockHz: config.InputClockHz, PrepareClock: firmware.Prepare, AllowWrites: writable, NoSocketWriteProtect: config.NoSocketWriteProtect})
 	if err != nil {
 		return s, s.fail(err)
 	}

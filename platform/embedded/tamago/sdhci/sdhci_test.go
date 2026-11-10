@@ -31,6 +31,7 @@ type card struct {
 	accesses                                      int
 	quiesceFault                                  string
 	assignedRCA                                   uint16
+	csdWriteProtect                               uint32 // CSD bits before SDHCI's eight-bit shift.
 }
 
 func newCard() *card {
@@ -160,6 +161,7 @@ func (c *card) Write32(reg, value uint32) {
 			c.regs[response] = 0
 		}
 	case 9:
+		c.regs[response] = c.csdWriteProtect >> 8
 		if c.state != 3 || c.regs[argument] != uint32(c.assignedRCA)<<16 {
 			panic("CSD outside standby/address")
 		}

@@ -157,6 +157,78 @@ func TestPIOWriteRequiresSelectedAccessAndWriteProtectInput(t *testing.T) {
 	}
 }
 
+func TestSocketWithoutWriteProtectStillRequiresExplicitWrites(t *testing.T) {
+	for _, allow := range []bool{false, true} {
+		c := newWriteCard()
+		c.regs[present] &^= 1 << 19
+		d, err := Open(c, Config{InputClockHz: 100000000, AllowWrites: allow, NoSocketWriteProtect: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		before := c.accesses
+		err = d.WriteSectors(3, bytes.Repeat([]byte{0xad}, 512))
+		if !allow {
+			if !errors.Is(err, block.ErrReadOnly) || c.accesses != before || len(c.written) != 0 {
+				t.Fatal("socket wiring granted write permission", err)
+			}
+		} else if err != nil || len(c.written) != 1 || c.written[0] != 3 || c.image[3*512] != 0xad {
+			t.Fatal("explicit writes on unwired socket failed", err, c.written)
+		}
+	}
+}
+
+func TestCardCSDProtectionBlocksBothSocketPoliciesAndIsRefreshedOnResume(t *testing.T) {
+	for _, protection := range []uint32{1 << 13, 1 << 12, 1<<13 | 1<<12} {
+		for _, absent := range []bool{false, true} {
+			c := newWriteCard()
+			c.csdWriteProtect = protection
+			d, err := Open(c, Config{InputClockHz: 100000000, AllowWrites: true, NoSocketWriteProtect: absent})
+			if err != nil {
+				t.Fatal(err)
+			}
+			commands, accesses := len(c.commands), c.accesses
+			if err = d.WriteSectors(3, make([]byte, 512)); !errors.Is(err, block.ErrReadOnly) || len(c.commands) != commands || c.accesses != accesses || len(c.written) != 0 {
+				t.Fatal("protected CSD issued a write", protection, absent, err)
+			}
+			if err = d.ReadSectors(3, make([]byte, 512)); err != nil {
+				t.Fatal("card write protection blocked reads", err)
+			}
+			if err = d.Quiesce(); err != nil {
+				t.Fatal(err)
+			}
+			if protection&(1<<13) != 0 {
+				// Permanent protection cannot be cleared on a real card.
+				if err = d.Resume(); err != nil {
+					t.Fatal(err)
+				}
+				commands = len(c.commands)
+				if err = d.WriteSectors(3, make([]byte, 512)); !errors.Is(err, block.ErrReadOnly) || len(c.commands) != commands {
+					t.Fatal("permanent card protection lost on resume", err)
+				}
+				continue
+			}
+			c.csdWriteProtect = 0
+			if err = d.Resume(); err != nil {
+				t.Fatal(err)
+			}
+			if err = d.WriteSectors(3, make([]byte, 512)); err != nil {
+				t.Fatal("removed card write protection was not rediscovered", err)
+			}
+			if err = d.Quiesce(); err != nil {
+				t.Fatal(err)
+			}
+			c.csdWriteProtect = protection
+			if err = d.Resume(); err != nil {
+				t.Fatal(err)
+			}
+			commands = len(c.commands)
+			if err = d.WriteSectors(4, make([]byte, 512)); !errors.Is(err, block.ErrReadOnly) || len(c.commands) != commands || len(c.written) != 1 {
+				t.Fatal("new card write protection was not rediscovered", err)
+			}
+		}
+	}
+}
+
 func TestPIOWriteFailureNeverReplaysOrClaimsRollback(t *testing.T) {
 	for _, fault := range []string{"fifo-timeout", "fifo-disabled", "premature-complete", "data-crc", "transfer-timeout", "programming-timeout", "wrong-state", "card-reject", "frozen-clock", "dma-change"} {
 		t.Run(fault, func(t *testing.T) {
