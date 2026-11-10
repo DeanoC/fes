@@ -12,8 +12,11 @@ import (
 	"path/filepath"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 )
 
@@ -127,6 +130,10 @@ func builtDistinctROMPrograms(t *testing.T) (*romProgramFixture, []packagestore.
 		}
 		return region, nil
 	}
+	// Real exports can select an initial tape. Model its mailbox replies using
+	// the same endpoint as the tape tests; the ordinary computer-only endpoint
+	// supplies no media capabilities and must not be mistaken for a tape fault.
+	l.boot.cpu = &tapeCPU{CPUTransport: r.cpu, base: r.cpu.computerCPU, files: r.f.files}
 	r.f.s, err = NewProgramService(l, r.f.store, reserve, computerLimits())
 	if err != nil {
 		t.Fatal(err)
@@ -145,6 +152,8 @@ func TestBuiltDistinctROMProgramsLaunchAndReturn(t *testing.T) {
 	client := hostclient.NewClient("http://native.invalid", &http.Client{Transport: b})
 	ctx := context.Background()
 	var old hostclient.SessionResult
+	media := r.f.loader.boot.cpu.(*tapeCPU)
+	tapes := 0
 	for cycle, index := range []int{0, 1, 0} {
 		play, err := client.Launch(ctx, []string{"zx81", "zx80"}[index])
 		view := r.f.s.Status()
@@ -154,6 +163,17 @@ func TestBuiltDistinctROMProgramsLaunchAndReturn(t *testing.T) {
 			play.CorePackage == nil || play.CorePackage.ROMLink == nil ||
 			play.CorePackage.ROMLink.SourceSize != int64(len(r.cpu.expectedROM)) {
 			t.Fatal("actual package launch or retained ROM identity changed", play, view, err)
+		}
+		if tape := plans[index].state.program.tape; len(tape) != 0 {
+			tapes++
+			if !bytes.Equal(media.image, tape) || view.TapeSHA256 != requests[index].Tape.SHA256 || view.TapeBytes != len(tape) {
+				t.Fatal("actual retained tape differs from delivered bytes or running receipt", view)
+			}
+		} else if view.TapeSHA256 != "" || view.TapeBytes != 0 {
+			t.Fatal("tape-free package retained previous tape receipt", view)
+		}
+		if media.starts != tapes || media.commits != tapes || media.runs != cycle+1 {
+			t.Fatal("missing tape delivery or unexpected execution", media.starts, media.commits, media.runs)
 		}
 		if cycle > 0 {
 			calls := r.cpu.calls
@@ -172,6 +192,83 @@ func TestBuiltDistinctROMProgramsLaunchAndReturn(t *testing.T) {
 	}
 	if r.cpu.preparedHeaders != 3 || r.cpu.romOpens != 3 || r.cpu.configurations != 3 || r.f.lease.returns != 3 {
 		t.Fatal("missing C descriptor checks, transfers or owned returns")
+	}
+}
+
+func TestBuiltDistinctROMProgramsTenfootTapeLaunchReturn(t *testing.T) {
+	for _, initial := range []bool{false, true} {
+		name := "mailbox"
+		if initial {
+			name = "platform"
+		}
+		t.Run(name, func(t *testing.T) {
+			r, requests, plans := builtDistinctROMPrograms(t)
+			if len(plans[0].state.program.tape) == 0 {
+				t.Skip("provide a real first-program tape selection for the App tape cycle")
+			}
+			media := r.f.loader.boot.cpu.(*tapeCPU)
+			var platform *serviceInitialTapeCPU
+			if initial {
+				platform = &serviceInitialTapeCPU{tapeCPU: media}
+				r.f.loader.boot.cpu = platform
+			}
+			backend, err := NewProgramBackend(r.f.s, []ProgramEntry{{ID: "game", Title: "Real sealed tape game", Request: requests[0]}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			device, err := gfx.NewSoftware(640, 480)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer device.Close()
+			app := tenfoot.NewApp(tenfoot.NewClient("http://native.invalid", &http.Client{Transport: backend, Timeout: 10 * time.Second}), 640, 480, 100)
+			if err := app.SetPreferenceStore(nativePreferences{}); err != nil {
+				t.Fatal(err)
+			}
+			input := &nativeAppPlatform{app: app, service: r.f.s, device: device, fixture: r.f, backend: backend}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := tenfoot.RunPlatform(ctx, app, device, input); err != nil {
+				t.Fatal(err)
+			}
+			if input.cycles != 3 || input.keyboardCycles != 3 || !input.pixels ||
+				media.starts != 3 || media.commits != 3 || media.runs != 3 ||
+				!bytes.Equal(media.image, plans[0].state.program.tape) ||
+				r.f.s.Status().State != ProgramReady || r.f.s.Status().TapeSHA256 != "" || !r.f.lease.r.Active ||
+				r.cpu.preparedHeaders != 3 || r.cpu.romOpens != 3 || r.f.lease.returns != 3 {
+				t.Fatal("real-package App launch/input/return lost media, display or ownership", input.cycles, input.keyboardCycles, r.f.s.Status())
+			}
+			if platform != nil && platform.calls != 3 {
+				t.Fatal("App bypassed the initial-tape platform", platform.calls)
+			}
+		})
+	}
+}
+
+func TestBuiltDistinctROMProgramsTapeFailureDoesNotRunOrRetry(t *testing.T) {
+	for _, fault := range []string{"mailbox-commit", "platform-error", "platform-crc", "platform-owner"} {
+		t.Run(fault, func(t *testing.T) {
+			r, requests, _ := builtDistinctROMPrograms(t)
+			if requests[0].Tape == (packagestore.TapeRequest{}) {
+				t.Skip("provide a real first-program tape selection for tape failure checks")
+			}
+			media := r.f.loader.boot.cpu.(*tapeCPU)
+			if fault == "mailbox-commit" {
+				media.fault = "commit"
+			} else {
+				r.f.loader.boot.cpu = &serviceInitialTapeCPU{tapeCPU: media, hookFault: fault[len("platform-"):]}
+			}
+			_, err := r.f.s.Launch(context.Background(), 0, requests[0])
+			if err == nil || r.f.s.Status().State != ProgramRebootRequired || media.runs != 0 ||
+				r.f.lease.r.Active || r.f.s.Status().TapeSHA256 != "" || r.cpu.preparedHeaders != 1 {
+				t.Fatal("failed real tape exposed execution or storage", err, media.runs, r.f.s.Status())
+			}
+			calls, writes, starts := r.cpu.calls, r.cpu.writes, media.starts
+			if _, err := r.f.s.Launch(context.Background(), r.f.s.Status().Generation, requests[1]); err == nil ||
+				r.cpu.calls != calls || r.cpu.writes != writes || media.starts != starts {
+				t.Fatal("retired real-tape operation replayed")
+			}
+		})
 	}
 }
 
