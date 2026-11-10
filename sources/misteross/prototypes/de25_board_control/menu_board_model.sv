@@ -8,7 +8,7 @@ module menu_board_model #(
     output wire qualified_reset_n, running, stopped, fault,
     output wire [31:0] displayed_sequence, underflows,
     output wire [23:0] video_rgb,
-    output wire video_de, video_hs, video_vs,
+    output wire video_de, video_hs, video_vs, hdmi_clk,
     input wire [7:0] address,
     input wire read, write,
     input wire [3:0] byteenable,
@@ -55,7 +55,24 @@ module menu_board_model #(
     input wire ddr_bid,
     output wire ddr_bready
 );
-    fes_de25_menu #(.BUILD_ID(BUILD_ID),.CSR_TIMEOUT_CYCLES(256)) dut (.*);
+    wire [23:0] menu_rgb;
+    wire menu_de, menu_hs, menu_vs, hdmi_reset_n;
+    wire unused_pixel_clock;
+    reg refclk = 0;
+    always @(posedge clk) refclk <= !refclk;
+    fes_de25_menu #(.BUILD_ID(BUILD_ID),.CSR_TIMEOUT_CYCLES(256)) dut (
+        .video_rgb(menu_rgb),.video_de(menu_de),.video_hs(menu_hs),.video_vs(menu_vs),
+        .pixel_reset_n(pixel_reset_n && hdmi_reset_n),.*);
+    // Observe the actual selected board wrapper's FPGA pins, rather than the
+    // menu component's output alone. PLL and I2C models are explicitly supplied
+    // by the verifier; this does not model the transmitter or an HDMI receiver.
+    fes_de25_zx81_board hdmi (
+        .CLOCK0_50(refclk),.ninit_done(!reset_n),
+        .pixel_clk(unused_pixel_clock),.pixel_reset_n(hdmi_reset_n),
+        .video_rgb(menu_rgb),.video_de(menu_de),.video_hs(menu_hs),.video_vs(menu_vs),
+        .HDMI_TX_INT(1'b1),.HDMI_TX_CLK(hdmi_clk),.HDMI_TX_DE(video_de),
+        .HDMI_TX_HS(video_hs),.HDMI_TX_VS(video_vs),.HDMI_TX_D(video_rgb),
+        .HDMI_I2C_SCL(),.HDMI_I2C_SDA(),.HDMI_MCLK(),.HDMI_SCLK(),.HDMI_LRCLK(),.HDMI_I2S());
     assign qualified_reset_n=dut.pixel_core_reset_n;
     assign running=dut.unused_running;
     assign stopped=dut.unused_stopped;

@@ -53,6 +53,7 @@ struct Bench {
             for(unsigned i=0;i<8;i++)d.ddr_rdata[i]=word(b.address+b.index*32+i*4);
         }
         d.eval();
+        check(bool(d.hdmi_clk)==bool(d.pixel_clk),"HDMI output pixel clock differs");
         bool accepted=cr&&(d.read||d.write)&&!d.waitrequest;
         bool ar=pr&&d.ddr_arvalid&&d.ddr_arready,r=pr&&d.ddr_rvalid&&d.ddr_rready;
         bool active=d.qualified_reset_n;
@@ -74,7 +75,7 @@ struct Bench {
                 check(bool(d.video_de)==(h<1280&&v<720) && bool(d.video_hs)==(h>=1390&&h<1430) &&
                       bool(d.video_vs)==(v>=725&&v<730),"independent 720p raster differs");
                 if(d.video_de && d.running && have_frame && !d.fault && strict) {
-                    check(d.video_rgb==(word(0x95000000+fetch_slot*(4<<20)+(v*1280+h)*4)&0xffffff),"wrong HDMI-facing Tenfoot pixel");pixels++;
+                    check(d.video_rgb==(word(0x95000000+fetch_slot*(4<<20)+(v*1280+h)*4)&0xffffff),"wrong Tenfoot pixel at FPGA HDMI pins");pixels++;
                 }
             }
             held=d.ddr_arvalid&&!d.ddr_arready;held_address=d.ddr_araddr;held_length=d.ddr_arlen;

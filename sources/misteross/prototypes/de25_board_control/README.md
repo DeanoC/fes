@@ -63,9 +63,13 @@ python3 sources/misteross/prototypes/de25_board_control/verify_menu.py --output 
 Use `--allow-dirty` only for labelled working-tree models. `--project` also
 requires the exact sealed generated menu project and matching current model
 sources. The test checks real Tenfoot pixels through three frames and owned
-drain, plus 640 CSR packets, stopped clocks and short/in-flight reset. Broken
-timeout and reset re-arm controls must fail. It does not simulate the generated
-HPS AXI interconnect or establish physical HDMI/DDR acceptance.
+drain, plus 640 CSR packets, stopped clocks and short/in-flight reset. Its pixel
+oracle observes the selected board wrapper's FPGA HDMI pins, including RGB,
+sync/data enable and the output pixel clock. Disconnected RGB and a missing
+pixel clock must fail, alongside broken timeout/reset controls. The PLL and I2C
+initializer are explicit digital stubs in this pixel-route model; the separate
+`verify_hdmi.py` exercises the captured I2C circuit. Neither model simulates the
+generated HPS AXI interconnect, transmitter/receiver or physical HDMI/DDR acceptance.
 
 `fes_embedded_rom.sv` is a separate, currently unwired bulk-ROM receiver. A
 Start latches the expected IEEE CRC32 while execution is held. Exactly 4 KiB or
