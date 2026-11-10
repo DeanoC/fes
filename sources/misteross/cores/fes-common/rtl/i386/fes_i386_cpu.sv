@@ -951,6 +951,12 @@ module fes_i386_cpu #(
     assign mem = mkind != fes_i386_pkg::MEM_NONE;
     assign mem_reads = mkind == fes_i386_pkg::MEM_LOAD || mkind == fes_i386_pkg::MEM_RMW;
     assign mem_writes = mkind == fes_i386_pkg::MEM_STORE || mkind == fes_i386_pkg::MEM_RMW;
+    // XCHG m's load of its operand (into T1, before its store): checked
+    // against the segment as a write, and translated as one (wx), as Bochs
+    // reads it for a read-modify-write, so a segment its store cannot write
+    // raises #GP(0) or #SS(0) before the load's #PF (#1644).
+    logic xchg_ld;
+    assign xchg_ld = mkind == fes_i386_pkg::MEM_LOAD && !dc.gov.two && (dc.gov.op == 8'h86 || dc.gov.op == 8'h87);
     assign addr_use = a_addr;
     assign mseg = 3'(dc.uop.mem.seg);
     assign msize = dc.uop.mem.bytes[2] ? 2'd2 : dc.uop.mem.bytes[1] ? 2'd1 : 2'd0;
@@ -1623,7 +1629,7 @@ module fes_i386_cpu #(
                     : dc.tss == 3'(fes_i386_pkg::TSS_BITMAP) ? tss_tiny_bm
                     : dc.uop.mem.system && dc.uop.desc == 3'd0 && !dc.sel_part && dc.tss == 3'd0
                       ? idt_tiny3 : !dc.uop.mem.system && !dc.nochk
-                        && (seg_tiny[mseg][msize] || mem_reads && seg_rbad[mseg] || mem_writes && seg_wbad[mseg]);
+                        && (seg_tiny[mseg][msize] || mem_reads && seg_rbad[mseg] || (mem_writes || xchg_ld) && seg_wbad[mseg]);
         d_out.mlow = d_nstk ? ds_chk.low : seg_low[mseg];
         d_out.mexpd = d_nstk ? ds_chk.expd : !dc.uop.mem.system && !dc.nochk && seg_expd[mseg];
         // Loads whose data nothing uses: probes, ENTER's last check, POP m's
@@ -1701,8 +1707,7 @@ module fes_i386_cpu #(
         d_out.ipp1 = dc.pp1;
         d_out.nx = d_out.nodata && !dc.str_fin && dc.stk != fes_i386_pkg::STK_PROBE;
         d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE
-                || mkind == fes_i386_pkg::MEM_LOAD && !dc.gov.two
-                   && (dc.gov.op == 8'h86 || dc.gov.op == 8'h87 || dc.gov.op == 8'h63);
+                || xchg_ld || mkind == fes_i386_pkg::MEM_LOAD && !dc.gov.two && dc.gov.op == 8'h63;
         if (d_ifw) begin
             d_out.ifw = 1'b1;
             d_out.pf_lin = d_ifw_lin;
@@ -1989,8 +1994,11 @@ module fes_i386_cpu #(
         end else if (m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
             m1_out.uop.ctl.fault = m1_s.cs_late || m1_tpast && m1_s.uop.cls != fes_i386_pkg::UOP_BRANCH
                                  ? fes_i386_pkg::FAULT_GP0 : m1_s.dfault;
-            m1_out.dfl = !(m1_s.cs_late || m1_tpast && m1_s.uop.cls != fes_i386_pkg::UOP_BRANCH)
-                      && m1_s.dfault != fes_i386_pkg::FAULT_NONE;
+            // CALL rel's push past CS's limit (m1_tpast) translates as
+            // dfl does: the push's #PF comes before the #GP(0), as Bochs and
+            // the 386 push first (#1646).
+            m1_out.dfl = !m1_s.cs_late && (m1_tpast && m1_s.uop.cls != fes_i386_pkg::UOP_BRANCH
+                                           || m1_s.dfault != fes_i386_pkg::FAULT_NONE);
         end
         m1_out.tchk = m1_tpast;
         case (m1_zk)
@@ -2243,7 +2251,9 @@ module fes_i386_cpu #(
     // uop takes its physical pages from the L1D (M1's, or the walker's).
     always_comb begin
         m2_cap = capture(m2_s, 3'd2, wb_s.result);
-        if (l1d_replay && m2_cap.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
+        // A dfl uop the walker would have walked for, not the oldest,
+        // replays too: its #PF may come before its fault.
+        if (l1d_replay && (m2_cap.uop.ctl.fault == fes_i386_pkg::FAULT_NONE || m2_cap.dfl)) begin
             m2_cap.uop.ctl.fault = fes_i386_pkg::FAULT_REPLAY;
             m2_cap.txr = l1d_walked;
         end
