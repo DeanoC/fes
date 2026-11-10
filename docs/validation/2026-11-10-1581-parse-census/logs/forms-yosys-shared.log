@@ -1,0 +1,85 @@
+# yosys-shared f01a_signed_vibrato rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-shared f01b_signed_phase_inc rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-shared f01c_signed_operator rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-shared f01d_signed_ksl rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-shared f01e_signed_pkg rc=1
+docs/validation/2026-11-10-1581-parse-census/forms/f01e_signed_pkg.sv:2: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+
+# yosys-shared f01f_signed_pkg_value rc=1
+docs/validation/2026-11-10-1581-parse-census/forms/f01f_signed_pkg_value.sv:3: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+
+# yosys-shared f01g_signed_pkg_shift rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-shared f02b_generate_inline_genvar rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-shared f02c_generate_hoisted_genvar rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-shared f02_inline_genvar rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-shared f03b_generate_if_no_keywords rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-shared f03c_generate_if_keywords rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-shared f03_generate_no_keywords rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-shared f04b_pattern_key_shadow rc=1
+docs/validation/2026-11-10-1581-parse-census/forms/f04b_pattern_key_shadow.sv:3: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+
+# yosys-shared f04_struct_shadow rc=1
+docs/validation/2026-11-10-1581-parse-census/forms/f04_struct_shadow.sv:5: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+
+# yosys-shared f05_import_header rc=1
+docs/validation/2026-11-10-1581-parse-census/forms/f05_import_header.sv:2: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+
+# yosys-shared f06a_size_cast rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-shared f06b_enum_cast rc=1
+docs/validation/2026-11-10-1581-parse-census/forms/f06b_enum_cast.sv:2: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+
+# yosys-shared f06c_casts_together rc=1
+docs/validation/2026-11-10-1581-parse-census/forms/f06c_casts_together.sv:4: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+
+# yosys-shared f06d_enum_cast_operand rc=1
+docs/validation/2026-11-10-1581-parse-census/forms/f06d_enum_cast_operand.sv:3: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+
+# yosys-shared f07_struct_ports rc=1
+docs/validation/2026-11-10-1581-parse-census/forms/f07_struct_ports.sv:2: ERROR: syntax error, unexpected TOK_IMPORT, expecting '#' or '(' or ';'
+
+# yosys-shared f08_no_carry rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-shared f09_attr_in_define rc=0
+
+# yosys-shared f09b_ram_control rc=0
+
+# yosys-shared f10_synthesis_defined rc=0
+SAT proof finished - no model found: SUCCESS!
+
+# yosys-shared f11_undefined_macro rc=1
+docs/validation/2026-11-10-1581-parse-census/forms/f11_undefined_macro.sv:4: ERROR: Unimplemented compiler directive or undefined macro `FES_TOOLCHAIN_ERROR_no_front_end.
+
+# yosys-shared f12a_check_include rc=1
+ERROR: Can't open include file `FES_TOOLCHAIN_ERROR_no_front_end.svh'!
+
+# yosys-shared f12b_check_token rc=1
+docs/validation/2026-11-10-1581-parse-census/forms/f12b_check_token.sv:3: ERROR: syntax error, unexpected TOK_ID
+
+# yosys-shared f12c_check_elab_error rc=1
+docs/validation/2026-11-10-1581-parse-census/forms/f12c_check_elab_error.sv:7: ERROR: FES_TOOLCHAIN_ERROR_no_front_end.
+

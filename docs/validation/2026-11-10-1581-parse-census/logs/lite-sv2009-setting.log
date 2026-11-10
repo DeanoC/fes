@@ -1,0 +1,4 @@
+# lite VERILOG_INPUT_VERSION SYSTEMVERILOG_2009 (f10 project)
+Error (125036): Assignment value SYSTEMVERILOG_2009 for assignment VERILOG_INPUT_VERSION is illegal
+Error (125080): Can't open project -- Quartus Prime Settings File contains one or more errors
+Error: Quartus Prime Analysis & Synthesis was unsuccessful. 2 errors, 0 warnings
