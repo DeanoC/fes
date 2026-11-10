@@ -17,7 +17,10 @@ func TestPlanAndPayloadRejectUnboundCardPathAndProtectedFiles(t *testing.T) {
 	if got, err := ParsePlan(data); err != nil || got != p {
 		t.Fatal(got, err)
 	}
-	for _, raw := range [][]byte{nil, append(data, []byte(" true")...), []byte(`{"format":1,"format":1}`), []byte(`{"unknown":1}`), []byte("null"), []byte(strings.Repeat(" ", 4097))} {
+	for _, raw := range [][]byte{nil, append(data, []byte(" true")...),
+		[]byte(strings.TrimSuffix(string(data), "}") + `,"format":1}`),
+		[]byte(strings.TrimSuffix(string(data), "}") + `,"unknown":1}`),
+		[]byte("null"), []byte(strings.Repeat(" ", 4097))} {
 		if _, err := ParsePlan(raw); err == nil {
 			t.Fatal("invalid plan accepted", string(raw))
 		}
