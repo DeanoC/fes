@@ -11,18 +11,19 @@ Spike S1a of [RTL front-end lanes](../../design/rtl-frontend-lanes.md) (#1581, c
   - a named assignment pattern whose key names a module signal (`'{data: …}` beside `logic data`);
   - `signed'()` straight after a unary minus.
 - **Lite silently misreads one `signed'()` form.** With `int`-typed localparams, `signed'(D - S - 2) < 0` takes the wrong arm, with no message. The same expression with `$signed()`, or with no cast, is right. No FES file Lite reads has the misread form: OPL2's localparams are untyped, and Lite gets those right.
-- **Lite reads the struct-index shadow correctly** in the form tested here: a variable index into a packed-struct member named like a module signal.
+- **Lite reads the struct-index shadow correctly in the one form tested:** a variable index into a packed-struct member named like a module signal. The i386 report of a misread is not reproduced, so the rule stays on the list.
 - **The undefined-macro check does not stop Quartus.** Lite and Pro give a Critical Warning, expand the macro to nothing and carry on. A missing `` `include `` stops all seven readers tested and names the reason in the file name, so the header should use that.
 - **`(* no_carry *)` needs no fence.** Lite warns that it does not know the attribute (10335); Pro ignores it. Both compute the right sum.
 - **Neither Quartus predefines `SYNTHESIS`.** Yosys does; Verilator does not.
 - **P3:**
   - Lite infers the same true-dual-port M10K from the `FES_RAM_TDP` form as from the altsyncram form: 24 M10Ks, 55 ALMs, and `NEW_DATA_NO_NBE_READ` on both ports. The inferred form uses 2 more registers.
-  - Timing is equal within one seed's noise.
+  - At seed 1 the inferred form meets 200 MHz at every corner, and the altsyncram form misses by 0.052 ns at −40 °C. One seed cannot rank them.
   - So the P3 inferred form can replace altsyncram on Lite, subject to S11's per-producer measurement.
 - **Yosys:**
   - The pc386 and i386 locks behave identically on every form.
   - The census found one new fork bug, filed as [DeanoC/yosys#74](https://github.com/DeanoC/yosys/issues/74).
-  - The shared lock (`3a5accbd`, every other core) rejects any `import` inside a module.
+  - The shared lock (`3a5accbd`, every core except pc386, i386 and Coleco) rejects any `import` inside a module.
+  - Coleco's own lock (`5391eeb1`) was not run: no build of it is installed.
 - **Icarus was not run.** It is not installed on Powerboat or fes-build-3090, and Powerboat lacks `gperf`, which its source build needs.
 
 ## Tools
@@ -32,8 +33,9 @@ Spike S1a of [RTL front-end lanes](../../design/rtl-frontend-lanes.md) (#1581, c
 | `lite2005` | Quartus Prime 17.0.2 Build 602 07/19/2017 SJ Lite Edition (`~/intelFPGA_lite/17.0`) | `VERILOG_INPUT_VERSION SYSTEMVERILOG_2005`, Cyclone V `5CSEBA6U23I7`. 17.0.2 has no SV2009 setting: `SYSTEMVERILOG_2009` stops the project with error 125036 (`logs/lite-sv2009-setting.log`). |
 | `pro2005`, `pro2009` | Quartus Prime 26.3.0 Build 114 10/14/2026 SC Pro Edition (`/data/altera_pro/26.3`) | Agilex 5 `A5EB013BB23BE4SCS` (DE25-Nano), at `SYSTEMVERILOG_2005` and `SYSTEMVERILOG_2009`. No newer Lite is installed, so Pro stands in for the "newer Quartus" column. |
 | `yosys-pc386` | Yosys 0.70+ `0a7927bf1` (pc386 lock), binary sha256 `b6cd1fd2…74fbf5f` | The pc386 producer's front-end passes: `read_verilog -sv; hierarchy; proc -norom; flatten; opt -purge`. |
-| `yosys-i386` | Yosys 0.70+ `238eac9a4` (i386 lock), binary sha256 `bbce80f2…e8abe053` | Same passes. |
-| `yosys-shared` | Yosys 0.69+ `3a5accbd7` (`sources/misteross/toolchain.lock`, every other core) | Same passes. |
+| `yosys-i386` | Yosys 0.70+ `238eac9a4` (i386 lock), binary sha256 `bbce80f2…16abe053` | Same passes. |
+| `yosys-shared` | Yosys 0.69+ `3a5accbd7` (`sources/misteross/toolchain.lock` and every core lock except pc386, i386 and Coleco, PC/XT included), binary sha256 `6747da54…47131efa` | Same passes. |
+| Coleco's Yosys | `5391eeb1e` (`cores/fes-coleco/toolchain.lock`, read by `coleco_socket_v2`) | Not run: no build is installed. It is the shared lock's previous pin, so it likely shares the `import` gap, but that is untested. |
 | `verilator` | Verilator 5.032 2025-01-01 (Debian `5.032-1+b2`, `/usr/bin/verilator`) | `--lint-only -Wno-lint -Wno-style`, with warnings left fatal. This is the system build, not one built from the lock's commit `5e4151e3`. |
 | Icarus | — | Not run (see Result). |
 
@@ -88,15 +90,15 @@ Two forms prove only acceptance. Their `ok` cannot come out wrong, so the table 
 | `f11` failed check expands an undefined macro | **does not stop** (Critical Warning 10191) | **does not stop** (Critical Warning 13432) | stops | stops | stops |
 | `f12a` failed check includes a missing file | stops (10054) | stops (13363, 16827) | stops | stops | stops |
 | `f12b` failed check emits an unparsable token | stops (10170) | stops (13411) | stops | stops | stops |
-| `f12c` failed check calls `$error` in `generate`/`endgenerate` | stops, but as a syntax error at `$error` (10170): Lite has no elaboration `$error` | stops (21899) | stops | stops | stops (`USERERROR` is a warning; fatal unless `-Wno-fatal`) |
+| `f12c` failed check calls `$error` in `generate`/`endgenerate` | stops, but as a syntax error at `$error` (10170): Lite has no elaboration `$error` | stops (21899) | stops | stops | stops (`USERERROR` is a warning; fatal unless `-Wno-fatal`, which lets it pass: `logs/bisect-yosys74-and-neg.log`) |
 
-All Pro rows also carry warning 21620 (a Design Assistant rule on the tiny top), and some carry 23762 (hierarchy swept away); neither is about the form. "rejected (`import`)" in the shared-lock column is the same syntax error, "unexpected TOK_IMPORT", at the `import`; that reader never reaches the construct under test.
+All accepted Pro rows also carry warning 21620 (a Design Assistant rule on the tiny top), and some carry 23762 (hierarchy swept away); neither is about the form. "rejected (`import`)" in the shared-lock column is the same syntax error, "unexpected TOK_IMPORT", at the `import`; that reader never reaches the construct under test.
 
 `f01b`–`f01d` approximate the widths and signedness of their sites rather than copying them. For example, the real `tmp0_p1` in `ksl_add_rom.sv` is unsigned 6-bit; `f01d`'s operand is signed 5-bit. So "right" says those cast positions parse and compute as `$signed()` would. It does not say the real sites compute correctly. The whole-block Lite OPL2 run below elaborates the real sites but checks no values.
 
 ### Narrowing the `signed'()` results
 
-- **Lite's rejection is the unary minus.** `-signed'(x)` is rejected in any position (`bisect/neg_*.sv`, `logs/bisect-neg-cast.log`). The plain cast, a cast in a `?:` arm and `-(signed'(x))` all parse. `-(signed'(x))` is also accepted by all three Yosys locks, Verilator and Pro (`logs/bisect-yosys74-and-neg.log`). So `vibrato.sv:73` is the only OPL2 `signed'()` site that Lite rejects.
+- **Lite's rejection is the unary minus.** `-signed'(x)` is rejected in any position (`bisect/neg_*.sv`, `logs/bisect-neg-cast.log`). The plain cast, a cast in a `?:` arm and `-(signed'(x))` all parse. `-(signed'(x))` is also accepted by all three Yosys locks and Verilator (`logs/bisect-yosys74-and-neg.log`), and by Pro at its default input version (`logs/bisect-neg-cast.log`). So `vibrato.sv:73` is the only OPL2 `signed'()` site that Lite rejects.
 - **Lite's misread needs `int`-typed operands** (`bisect/h_*.sv`, `logs/bisect-signed-cast.log`):
   - With untyped localparams, in a package or a module, Lite computes 0 as it should.
   - With `int`-typed localparams in either place, `signed'(D - S - 2) < 0` is false and Lite takes the other arm.
@@ -111,7 +113,7 @@ All Pro rows also carry warning 21620 (a Design Assistant rule on the tiny top),
   - the loop is removed;
   - the loop comes after the cast.
 
-  The repros are `bisect/yosys74_*.sv`, with results in `logs/bisect-yosys74-and-neg.log`. This is a different path from yosys#72 (a cast as a `case` selector). A search of every `.sv` under `sources/misteross` that imports a package finds no cast to an unscoped typedef, so no FES RTL hits it. The search did find the three failing repros. The issue has a comment with the widened trigger.
+  The repros are `bisect/yosys74_*.sv`, with results in `logs/bisect-yosys74-and-neg.log`; `yosys74_constant_operand.sv` and `yosys74_loop_after_cast.sv` show the operand and loop-order cases. This is a different path from yosys#72 (a cast as a `case` selector). A search of every `.sv` under `sources/misteross` that imports a package finds no cast to an unscoped typedef, so no FES RTL hits it. Run over `bisect/`, the same search finds the three failing import repros, so it does detect the pattern. The issue has a comment with the widened trigger.
 - **The shared lock (`3a5accbd`) has no module-level `import`.** It rejects `module X import pkg::*;`, a named header import, and an `import` in the module body, all with "unexpected TOK_IMPORT". Every form that imports fails there before the construct under test is read. Its other cells match the newer locks.
 
 ## OPL2 tree and i386 modules
@@ -155,7 +157,7 @@ The design doc asks S1a whether 17.0.2 infers the same RAM from the `FES_RAM_TDP
 | Inferred `FES_RAM_TDP` | 24 M10K, True Dual Port, 196,608 bits | 55 | 58 | `NEW_DATA_NO_NBE_READ` on both ports, no pass-through logic | 212.9 / 222.87 MHz | 205.89 / 213.95 MHz | +0.142 ns |
 | altsyncram | 24 M10K, True Dual Port, 196,608 bits | 55 | 56 | `NEW_DATA_NO_NBE_READ` on both ports | 218.91 / 204.62 MHz | 213.95 / 197.94 MHz | −0.052 ns (−40 °C setup, clk_b) |
 
-**Decision.** The inferred form gives the same RAM in the same blocks, with the same ALMs and the same read-during-write modes, for 2 more registers. Its timing is within one seed's spread of the altsyncram form. That meets the design doc's "equal or smaller fit" condition for this shape. So on Lite, P3 can use the inferred form and record the fit, as the doc allows.
+**Decision.** The inferred form gives the same RAM in the same blocks, with the same ALMs and the same read-during-write modes. At map both have 56 registers, and the inferred form uses fewer ALUTs (40 against 48, `tdp.map.rpt`); the fitter adds 2 registers to the inferred form. At seed 1 the inferred form meets the 200 MHz constraint everywhere and the altsyncram form misses it by 0.052 ns at −40 °C. One seed cannot rank them on timing, but neither is worse on the doc's measures. That meets the design doc's "equal or smaller fit" condition for this shape. So on Lite, P3 can use the inferred form and record the fit, as the doc allows.
 
 Two things stay open for S11:
 
@@ -168,7 +170,7 @@ Two things stay open for S11:
 - Lite rejects one form, `-signed'(…)`, at one site. Rewriting it as `-(signed'(…))` or `$signed(…)` is accepted by every reader.
 - A macro cannot fix the silent `int` misread anyway: the form parses, so nothing could switch on it. `$signed()` and a plain expression are both right in the misread shape.
 - The common-subset rule is therefore a source rule: files that Lite reads write `$signed()`, not `signed'()`. Only `$signed()` was tested in place of the misread form, so the rule bans `signed'()` outright rather than guessing which other uses are safe.
-- No file Lite reads natively has a `signed'()` today: pc386 reaches Lite through Yosys. If S13 ever makes Lite read OPL2 natively, `vibrato.sv:73` becomes a D5 vendored edit (one token, recorded in `source.json` `local_changes`).
+- No file Lite reads natively has a `signed'()` today: pc386 reaches Lite through Yosys. If S13 ever makes Lite read OPL2 natively, only `vibrato.sv:73` stops Lite. Under this rule, though, all five OPL2 sites (seven casts: `vibrato.sv:73`, `calc_phase_inc.sv:70`, `operator.sv:230`, `ksl_add_rom.sv:86`, `opl2_pkg.sv:79`) move to `$signed()` as one D5 vendored edit, recorded in `source.json` `local_changes`.
 
 **`FES_NO_CARRY`: not added.** Both Quartus editions accept `(* no_carry *)` on a two-operand `+` and compute the sum. Lite only warns that the attribute is unknown (10335). Pro elaborated `fes_i386_qalign.sv`'s three sites. The other i386 sites use shapes no Quartus read here, such as chained attributes and an attribute after a ternary. The design doc already keeps the i386 off any native Quartus front end, so no fence is needed; a future native read would check those shapes.
 
@@ -178,11 +180,11 @@ Two things stay open for S11:
 - **Assignment patterns:** a named key must not name a signal of the enclosing module (10734).
 - **Sign casts:** no `signed'()`; use `$signed()`. `-signed'(…)` is rejected (10170), and `signed'()` on `int`-typed constants is silently wrong.
 
-The packed-struct member index whose name matches a module signal comes off the list: Lite read it correctly here. The misread `quartus_fes_i386.py:11-14` describes may need another shape, which this census did not find.
+- **Struct member index (reported, not reproduced):** a variable index into a packed-struct member whose name matches a module signal. `quartus_fes_i386.py:11-14` reports Lite misreading it in the i386. `f04` read correctly, so the failing shape is unknown. The rule stays on the list until a census finds the shape or shows it safe.
 
 For the Yosys locks:
 - **Until yosys#74 is fixed,** a cast to a package-imported type writes the package scope (`pkg::type_t'(x)`) when it comes after a loop-scoped `for` variable.
-- **Shared code read by the shared lock** (`3a5accbd`, every core but pc386 and i386) uses no module-level `import`. It refers to package items as `pkg::name` until that lock moves.
+- **Shared code read by the shared lock** (`3a5accbd`, every core but pc386, i386 and Coleco) uses no module-level `import`. It refers to package items as `pkg::name` until that lock moves. Treat Coleco's untested `5391eeb1` the same way.
 
 **Header check mechanism: a missing include, not an undefined macro.**
 - Quartus does not stop on an undefined macro: Lite gives Critical Warning 10191, Pro Critical Warning 13432, and both expand it to nothing.
@@ -197,7 +199,7 @@ For the Yosys locks:
 **Lite lock move: not worth proposing now.**
 - No newer Lite is installed, so this record cannot test one.
 - Pro 26.3 accepts every form Lite rejects. That suggests a newer release fixes them, but Pro's front end is not the same product as Lite's.
-- No lane in the plan needs the change. The i386 reaches Quartus through Yosys, and native-Lite OPL2 needs a one-token edit.
+- No lane in the plan needs the change. The i386 reaches Quartus through Yosys, and native-Lite OPL2 needs only the `$signed()` edit above.
 - S15 stays conditional. If S13 or S14 ever needs Lite to read the i386 natively, test a newer Lite then, against the 36 genvar sites.
 
 **P3:** the inferred `FES_RAM_TDP` form, as above.
@@ -212,6 +214,7 @@ For the Yosys locks:
 - **Elaboration-level errors in the 19 OPL2 files:** the per-file sweep is parse-only. The whole-block Lite elaboration covers them only in the `pc386_opl2` configuration, with `vibrato.sv:73` rewritten, and checks no values.
 - **The struct-index misread:** not reproduced. The shape `quartus_fes_i386.py` describes was not found.
 - **P3 seeds and shapes:** one seed and one shape. The ZX81 ROM with `INIT_FILE` and the MIF path were not tried.
+- **Coleco's Yosys lock (`5391eeb1`):** not run; no build is installed.
 - **`no_carry` shapes:** the chained and ternary `(* no_carry *)` shapes were not read by any Quartus.
 
 ## Files
@@ -220,7 +223,7 @@ For the Yosys locks:
 - `bisect/`:
   - `h_*.sv`: the `int`-typed `signed'()` misread and its `$signed()` and no-cast twins;
   - `neg_*.sv`: the unary-minus rejection;
-  - `yosys74_*.sv`: the yosys#74 repros and passing variants.
+  - `yosys74_*.sv`: the yosys#74 repros and passing variants, including the constant-operand and loop-after-cast cases.
 - `tdp/`: the P3 harness, both RAM forms, the SDC and `tdp.sh` (map, fit, STA).
 - `census.sh` and `run_all.sh`: one form through one reader, and the whole matrix (three jobs at a time). Set `YOSYS_PC386`, `YOSYS_I386` and `YOSYS_SHARED` to the locked binaries first. `run_all.sh` takes `READERS` and `FORMS` to run a subset.
 - `sweep.sh`: the per-file sweep. `elab.sh`: the whole-block elaboration.
