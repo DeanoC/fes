@@ -43,3 +43,37 @@ and its installed spare are selected. No physical keyboard action is required.
 Native Ethernet remains disabled; visible HDMI remains separate. Factory
 restoration is waived; its card and the bottom kit stay protected. Old-output
 cleanup remains paused.
+
+
+The [physical result](hardware-result.json) at source `a65a2a130` passed both
+actual image programmings, recovery boot, ten uploads/fresh readbacks, the
+matched native loader and complete firmware RAM/MMU/affinity/loader trace.
+Both distinct private services closed with15MHz/auto1 readback and exact USB
+permission restoration; their original files are separately archived. No new
+programming failure occurred. This is one successful bounded image-loading
+observation for the mitigation, not a demonstrated cause of the earlier87.
+
+Application startup stopped at `openProgramUSB` before the SD-open checkpoint
+or initial menu. HPRT offset0x440 was0x1000: the controller's power bit was set,
+but the connection bit remained clear at its unchanged500ms bound. No descriptor
+enumeration, Install or core launch was reached. The compiled main source and
+complete saved firmware trace were checked independently. The native client
+retains its partial USB resources and refuses retry; the first-failure capture
+and two-second passive tail remain unchanged. Host cleanup does not prove a
+native Park or final containment.
+
+The operator has been asked whether the keyboard/hub is still attached and
+powered. A connection failure is not converted into a successful input source,
+a dummy driver or a longer timeout. The current USB prototype requires an
+attached accepted device and does not implement hotplug recovery; normal
+no-device/late-attachment behavior remains a separate parity gap. The next
+physical run requires its physical preconditions and fresh admission; it cannot
+resume this retired USB instance.
+
+Independent root inspection verifies both owned services gone, both archived
+service-file hashes, exact USB baseline permissions and complete UART release.
+The [retention proof](retention-proof.json) covers183 files, archive readback
+and modes, independently restored source, strict fsck and pack verification,
+with the retained native candidate capsule declared as a dependency. The kit
+remains at the observed native panic with no final Park claimed. Factory
+restoration is waived; its card and the bottom kit remain untouched.
