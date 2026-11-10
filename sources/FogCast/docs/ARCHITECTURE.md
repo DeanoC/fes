@@ -1232,9 +1232,13 @@ focus and selection, not hardware configuration or running RAM.
 Kit Home reuses its presented display list while data generation, selected row
 and body, recent/family/menu selection, title and content size are unchanged.
 An asynchronous result, pointer or direction focus change, resize, or
-unpresented frame forces a redraw. Its completed redraw uses `gfx.paint` for the background;
-a soft overrun can therefore present the finished picture for reuse on the
-next frame. State-save debounce continues in `update` during reused frames.
+unpresented frame forces a redraw. Initial and data-changed hero pictures are
+assembled over several draws: the header and hero, shelf heading and recents,
+then pairs of family tiles. Each completed part is presented; a data, focus or
+geometry change restarts the partial picture. Warm focus and geometry changes
+redraw the whole picture. Completed parts use `gfx.paint` or `gfx.extend`, so
+a soft overrun can still present them. State-save debounce continues in `update`
+during reused frames.
 
 Lua room callbacks run on the launcher thread under per-callback soft budgets.
 A slow update, or a slow draw that did not finish a `gfx.paint`, keeps the
@@ -2614,7 +2618,10 @@ parked while a running core owns the display, including after a restart.
 A gamepad or USB keyboard on the kit
 writes raw input frames to `/run/fogcast/local-input.sock` through
 `ui/localfeed` while a runtime core is bound, and does not post those events to
-the host. A pad on another machine is delivered on the host-to-kit input stream
+the host. A kit-host session with a local feed does not require a host
+remote-input attachment to forward its keyboard; display
+transitions, launcher controls and foreign leases still suppress input. A pad on
+another machine is delivered on the host-to-kit input stream
 for the session that owns the play. A missing stream is an error to that
 caller. The kit pad does not fall back onto the host route.
 
@@ -4099,7 +4106,17 @@ focus moves. A refused surround closes the plane, and the setting stays off
 for that session. UI navigation is suppressed at both launcher and target;
 held keys and controller buttons require release and a fresh press, including B
 when Stop fails. Button releases still clear suppression while Stop is pending
-or retryable. Failed close retains
+or retryable. Stop queues neutralization of tracked holds after admitted input
+and waits up to five seconds for that queue before posting Stop. A refused Stop
+keeps the ordered queue available for physical releases. During Stop and
+retry-Stop, gameplay delivery admits only key and button releases, zero axes,
+and mouse reports with no motion or newly held buttons. Physical release
+cleanup retains the active route and foreign-lease checks while bypassing
+launcher-focus and capture gates. SDL releases relative mouse capture, so new
+pointer input can reach launcher controls. Keyboard recovery keys still reach
+normal navigation, so Escape and Backspace can return the captured display or
+retry Stop. Rejected mouse input does not accumulate motion or buttons for a
+later replay. Failed close retains
 focus for an explicit retry. Stop retains the display binding and pending display
 reply until idle or a replacement session is confirmed. If Stop fails, Back,
 controller B and shell exit can return the captured plane; a late open does not

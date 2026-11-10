@@ -105,7 +105,8 @@ def run_simulation(cmd, cwd, scenario, *, timeout=3 * 60 * 60, heartbeat=30, gra
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--scenario', choices=('dos', 'com', 'game'), default='dos')
+    parser.add_argument('--scenario', choices=('dos', 'com', 'game', 'reboot', 'relaunch'), default='dos',
+                        help='reboot: Ctrl+Alt+Del at the DOS prompt; relaunch: a warm-boot flag left in SDRAM')
     parser.add_argument('--disk', type=Path, help='previously built floppy image for the selected scenario')
     parser.add_argument('--digger-exe', type=Path, help='independently acquired pinned Digger executable (game only)')
     parser.add_argument('--prepare-only', action='store_true', help='verify inputs and compile without running')
@@ -135,6 +136,7 @@ def run(args):
                  'start-control.ppm', 'start-key.ppm', 'right-control.ppm', 'right-key.ppm',
                  'saved-floppy.img'):
         (build / name).unlink(missing_ok=True)
+    reboot = args.scenario in ('reboot', 'relaunch')
     if args.writable_test and args.scenario != 'dos':
         raise ValueError('writable test requires the dos scenario')
     check_space(build, args.scenario, args.writable_test)
@@ -142,7 +144,7 @@ def run(args):
     # Validate the exact bytes supplied to the device against the pinned boot
     # code, geometry and all 8086 FreeDOS files, while allowing harmless
     # unallocated-sector differences between image-building tool versions.
-    if args.scenario == 'dos':
+    if args.scenario == 'dos' or reboot:
         disk_path = args.disk.resolve() if args.disk else freedos.image(download=args.download)
         disk = disk_path.read_bytes()
         disk_identity = freedos.validate_selected_image(disk)
@@ -172,8 +174,9 @@ def run(args):
     inputs['source_tracked_diff_sha256'] = None if changed is None else hashlib.sha256(changed).hexdigest()
     inputs['source_has_tracked_changes'] = None if changed is None else bool(changed)
     inputs['runner_sha256'] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
-    inputs['testbench_sha256'] = hashlib.sha256((ROOT / 'cores/fes-pcxt/sim/dos_tb.cpp').read_bytes()).hexdigest()
-    if args.scenario != 'dos':
+    bench = 'cores/fes-pcxt/sim/' + ('reboot_tb.cpp' if reboot else 'dos_tb.cpp')
+    inputs['testbench_sha256'] = hashlib.sha256((ROOT / bench).read_bytes()).hexdigest()
+    if args.scenario != 'dos' and not reboot:
         inputs['media_builder_sha256'] = hashlib.sha256(Path(acceptance.__file__).read_bytes()).hexdigest()
         inputs['program_source_sha256'] = hashlib.sha256(acceptance.COM_SOURCE.read_bytes()).hexdigest() if args.scenario == 'com' else None
         inputs['program_sha256'] = disk_identity['program_sha256']
@@ -186,7 +189,7 @@ def run(args):
         'cores/fes-common/rtl/fes_computer_mailbox.v',
         'cores/fes-pcxt/rtl/pcxt_hid_keyboard.sv',
         'cores/fes-pcxt/rtl/pcxt_xt_keyboard_bat.sv',
-        sim.MEMORY_SOURCES[-1], 'cores/fes-pcxt/sim/bios_top.sv', 'cores/fes-pcxt/sim/dos_tb.cpp')
+        sim.MEMORY_SOURCES[-1], 'cores/fes-pcxt/sim/bios_top.sv', bench)
     subprocess.run([args.verilator, '--cc', '--exe', '--build', '-j', '4', '-Wall',
         '--timescale-override', '1ns/1ps',
         str(ROOT / 'cores/fes-pcxt/sim/cpu.vlt'), str(ROOT / 'cores/fes-pcxt/sim/chipset.vlt'),
@@ -201,6 +204,8 @@ def run(args):
         return
     cmd = [str(build / 'Vbios_top'), str(build / 'firmware.bin'), str(build / 'floppy.img'), args.scenario]
     run_simulation(cmd, build, args.scenario)
+    if reboot:
+        return
     if args.writable_test:
         verify_snapshot(build)
         return

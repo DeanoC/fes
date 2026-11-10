@@ -4,6 +4,9 @@
 // CPU/DMA share the motherboard port. Firmware writes require reset asserted.
 // Cold reset restarts SDRAM initialization; warm reset drains issued work,
 // suppresses its CPU response and preserves RAM/firmware and physical refresh.
+// SDRAM keeps its contents across an FPGA reconfiguration, so a cold reset is
+// a power-on: before firmware is accepted it zeroes the BIOS warm-boot word at
+// 0040:0072, and the BIOS then runs its full cold POST (#1534).
 module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTER = 0) (
     input wire clk, clk_pin, cold_reset, reset,
     output wire initialized,
@@ -56,7 +59,9 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
     end endgenerate
     localparam [1:0] OWNER_MEMORY=0, OWNER_FIRMWARE=1, OWNER_LOAD=2, OWNER_MEDIA=3;
     localparam [18:0] DISK_BYTES = 19'h5a000;
+    localparam [18:0] WARM_FLAG_HALFWORD = 19'h00239; // 0000:0472
     reg busy, discard, odd, physical;
+    reg warm_flag_cleared, clearing_warm_flag;
     reg [1:0] owner;
     reg memory_seen, firmware_seen, disk_load_seen, media_seen, prefer_media, prefer_load;
     reg [25:0] held_address;
@@ -75,14 +80,15 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
     wire waiting_media = (!reset || media_read_reset_safe) && media_read_valid && !media_seen;
     wire waiting_memory = !reset && memory_valid && !memory_seen;
     wire waiting_load = disk_load_valid && !disk_load_seen && disk_load_address < DISK_BYTES && !media_read_valid;
-    assign memory_ready = initialized && !cold_reset && !reset && !busy && !memory_seen &&
+    assign memory_ready = initialized && !cold_reset && !reset && !busy && !memory_seen && warm_flag_cleared &&
                           (!waiting_media || !prefer_media) &&
                           (waiting_media || !waiting_load || !prefer_load);
-    assign firmware_ready = initialized && !cold_reset && reset && !busy && !firmware_seen;
+    assign firmware_ready = initialized && !cold_reset && reset && !busy && !firmware_seen &&
+                            warm_flag_cleared;
     // The guest can keep running during a host upload. An outstanding floppy
     // read drains before an overwrite; CPU and upload then alternate under
     // sustained contention. Invalid offsets are never accepted.
-    assign disk_load_ready = initialized && !cold_reset && !busy && !disk_load_seen &&
+    assign disk_load_ready = initialized && !cold_reset && !busy && !disk_load_seen && warm_flag_cleared &&
                              disk_load_address < DISK_BYTES && !(reset && firmware_valid && !firmware_seen) &&
                              !media_read_valid && (!waiting_memory || prefer_load);
     /* verilator lint_off PINCONNECTEMPTY */
@@ -111,6 +117,7 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
         media_read_ready <= 0;
         if (cold_reset) begin
             busy <= 0; owner <= OWNER_MEMORY; discard <= 0; odd <= 0; physical <= 0;
+            warm_flag_cleared <= 0; clearing_warm_flag <= 0;
             memory_seen <= 0; firmware_seen <= 0; disk_load_seen <= 0; media_seen <= 0;
             prefer_media <= 0; prefer_load <= 0;
             held_address <= 0; held_data <= 0; held_lanes <= 0; held_write <= 0; held_media_reset_safe <= 0;
@@ -124,7 +131,9 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
             if (busy) begin
                 if (!physical || controller_done) begin
                     busy <= 0;
-                    if (owner == OWNER_FIRMWARE) firmware_done <= 1;
+                    if (clearing_warm_flag) begin
+                        clearing_warm_flag <= 0; warm_flag_cleared <= 1;
+                    end else if (owner == OWNER_FIRMWARE) firmware_done <= 1;
                     else if (owner == OWNER_LOAD) disk_load_done <= 1;
                     else if (owner == OWNER_MEMORY && !reset && !discard) begin
                         memory_done <= 1;
@@ -136,6 +145,12 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
                                            odd ? controller_data[15:8] : controller_data[7:0];
                     end
                 end
+            end else if (initialized && !warm_flag_cleared) begin
+                // Machine reset is held until firmware loads, which waits for this.
+                busy <= 1; owner <= OWNER_FIRMWARE; discard <= 0; physical <= 1;
+                clearing_warm_flag <= 1; odd <= 0;
+                held_address <= {7'd0, WARM_FLAG_HALFWORD};
+                held_data <= 0; held_lanes <= 2'b11; held_write <= 1;
             end else if (firmware_valid && firmware_ready) begin
                 busy <= 1; owner <= OWNER_FIRMWARE; discard <= 0; physical <= 1;
                 firmware_seen <= 1; odd <= firmware_address[0];

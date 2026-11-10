@@ -18,3 +18,11 @@ priority order. Register boundaries and bus timing are unchanged.
 request resolver and highest-service selection against the original equations
 for unconstrained requests, service vectors, masks, rotation and nested mode.
 `source.json` retains upstream hashes and records the changed local bytes.
+
+Local behavior change: upstream latched INT until an acknowledge sequence even
+after its request was masked or ICW1 cleared IRR. A request that arrived while
+the CPU had interrupts disabled then interrupted a BIOS that had masked every
+IRQ, which halted GLaBIOS's warm-reboot PIC test after Ctrl+Alt+Del (fes#1534).
+INT is withdrawn when ICW1 clears IRR or an IMR update leaves no eligible
+request. A request pin falling by itself does not withdraw INT before INTA;
+the acknowledge returns the default IRQ7 vector when its request is gone.
