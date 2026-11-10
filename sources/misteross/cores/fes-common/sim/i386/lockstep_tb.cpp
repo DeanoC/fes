@@ -2419,6 +2419,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // V86 mode.
         if ((before.cr0 & 1) && delivered && oracle_state.cpl < before.cpl) ++summary.pm_kinds["inner-delivery"];
         if ((before.cr0 & 1) && (before.eflags & 0x20000) && !(oracle_state.eflags & 0x20000)) ++summary.pm_kinds["v86-exit"];
+        if ((before.eflags & 0x20000) && interrupted) ++summary.pm_kinds["v86-interrupt"];
         compare(oracle_state, rtl_state, skip, at, out);
         hash_state(summary, rtl_state);
         if (!out.items.empty()) return outcome;
@@ -5516,7 +5517,7 @@ private:
         emit({0x66, 0xcf});                                          // IRETD
         items[size_t(at)].target = int(items.size());
         // Code under the V86 CS: offsets are the program's own (PM_OFF).
-        for (unsigned n = 1 + pick(10); n > 0; --n) {
+        for (unsigned n = 1 + pick(12); n > 0; --n) {
             switch (pick(14)) {
             case 0: {  // CLI, STI, PUSHF and POPF of a random image, 16 or 32 bits
                 switch (pick(5)) {
@@ -5545,7 +5546,11 @@ private:
                 items[size_t(n_at)].target = int(items.size());
                 break;
             }
-            case 2: case 3: {  // INT n, INT3, INTO
+            case 2: case 3: {  // INT n, INT3, INTO; mostly INT n through a present DPL-3 386 gate (a round trip)
+                std::vector<unsigned> trip;
+                for (unsigned v = 0x20; v < 0x2f && v * 8 + 7 <= pm_idt_limit; ++v)
+                    if (uint8_t(idt[v] >> 40) == 0xee || uint8_t(idt[v] >> 40) == 0xef) trip.push_back(v);
+                if (!trip.empty() && pick(4)) { emit({0xcd, uint8_t(trip[pick(unsigned(trip.size()))])}); break; }
                 switch (pick(6)) {
                 case 0: emit({0xcc}); break;
                 case 1: emit({0xce}); break;
@@ -5587,13 +5592,14 @@ private:
                 else { push_imm(real(), false); emit({uint8_t(pick(2) ? 0x1f : 0x07)}); }
                 break;
             }
-            case 8: {  // MOV AX, [offset] near the 64 KiB limit, now and then past it
-                const uint16_t o = uint16_t(pick(2) ? 0xfffe + pick(2) : pick(0x10000));
+            case 8: {  // MOV AX, [offset], now and then near or past the 64 KiB limit
+                const uint16_t o = uint16_t(pick(8) == 0 ? 0xfffe + pick(2) : pick(0x10000));
                 emit({0xa1, uint8_t(o), uint8_t(o >> 8)});
                 break;
             }
             case 9: emit({0x8c, uint8_t(0xc0 | pick(6) << 3 | (pick(7) + (pick(7) >= 4)))}); break;  // MOV r16, Sreg (not SP)
-            case 10:  // what V86 mode refuses: HLT, CRn, LGDT (#GP), LAR, ARPL (#UD)
+            case 10:  // what V86 mode refuses, now and then: HLT, CRn (#GP), LAR, ARPL (#UD)
+                if (pick(3)) { emit({0x0f, 0x01, 0xe0}); break; }  // SMSW AX: runs
                 switch (pick(5)) {
                 case 0: emit({0xf4}); break;
                 case 1: emit({0x0f, 0x20, 0xc0}); break;
@@ -5680,9 +5686,9 @@ private:
         }
         const unsigned ops = 1 + pick(8);
         for (unsigned n = 0; n < ops; ++n) {
-            switch (pick(23)) {
+            switch (pick(24)) {
             case 18: case 19: case 20: pm_ring3(); break;
-            case 21: case 22: pm_v86(); break;
+            case 21: case 22: case 23: pm_v86(); break;
             case 17: pm_limit(); break;
             case 12: pm_int(); break;
             case 13: pm_call(); break;
@@ -7189,6 +7195,21 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
                   bool together = false; std::vector<std::pair<unsigned, uint64_t>> gates = {}; bool a20m = false; };
     const uint32_t P = 0x01, W = 0x02, U = 0x04, A = 0x20, D = 0x40;
     auto pte = [](uint32_t page) { return PT0 + 4 * page; };
+    // V86 mode under paging (Phase 5's slice 3): from CPL 0, LTR 38h and an
+    // IRETD to V86 mode at 0100:IP (the code after it), SS 00C0h, SP 0100h,
+    // DS 0200h, ES 0300h, FS 0400h, GS 0500h, IOPL 3 and IF set. Its
+    // accesses are user ones; a delivery's reads and the ring-0 stack's
+    // pushes are supervisor ones.
+    auto to_v86 = [](Asm &a) {
+        a.op({0x66, 0xb8, 0x38, 0x00, 0x0f, 0x00, 0xd8});                          // MOV AX, 38h; LTR AX
+        for (uint32_t v : {0x0500u, 0x0400u, 0x0200u, 0x0300u, 0x00c0u, 0x0100u, 0x00023202u, 0x0100u}) {
+            a.op({0x68}); a.d(v);
+        }
+        const size_t at = a.here();
+        a.op({0x68}); a.d(0); a.op({0xcf});                                         // PUSH IP; IRETD
+        const uint32_t ip = uint32_t(a.here());
+        for (int i = 0; i < 4; ++i) a.b[at + 1 + i] = uint8_t(ip >> (8 * i));
+    };
     std::vector<Case> cases = {
         // A walk: A in the PDE and PTE for a read, D too for a write; a
         // write through a read's entry walks again for D.
@@ -7243,6 +7264,25 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
          {{0x2, 0x2000 | P | W}}, {}, {}, true, 0x2b},                                       // MOV AX, 83h; MOV FS, AX
         {"pg-r3-ldt-np", [=](Asm &a, uint32_t) { a.op({0x66, 0xb8, 0x1f, 0x00, 0x8e, 0xe0}); }, 14, 0, LDT + 0x18,
          {{0x7, LDT | W | U}}, {}, {}, true},                                                // MOV AX, 1Fh; MOV FS, AX
+        // V86 mode: #PF from it (U/S set in the error code) on a page not
+        // present, supervisor or read-only, and at a fetch; its user pages
+        // read and written; an INT round trip through 32-bit code; a GDT on
+        // a supervisor page, which the delivery reads.
+        {"pg-v86-np-read", [=](Asm &a, uint32_t) { to_v86(a); a.op({0xb8, 0x00, 0x10, 0x8e, 0xd8, 0xa0, 0x04, 0x00}); },
+         14, 4, 0x10004, {{0x10, 0x20000 | W | U}}},
+        {"pg-v86-sup-write", [=](Asm &a, uint32_t) { to_v86(a); a.op({0xb8, 0x00, 0x10, 0x8e, 0xd8, 0xa2, 0x04, 0x00}); },
+         14, 7, 0x10004, {{0x10, 0x20000 | P | W}}},
+        {"pg-v86-ro-write", [=](Asm &a, uint32_t) { to_v86(a); a.op({0xb8, 0x00, 0x10, 0x8e, 0xd8, 0xa2, 0x04, 0x00}); },
+         14, 7, 0x10004, {{0x10, 0x20000 | P | U}}},
+        {"pg-v86-user-rw", [=](Asm &a, uint32_t) {
+             to_v86(a); a.op({0xb8, 0x00, 0x10, 0x8e, 0xd8, 0xa2, 0x04, 0x00, 0xa0, 0x05, 0x00, 0xcd, 0x2b});
+         }, -1, -1, -1, {{0x10, 0x20000 | P | W | U}}, {}, {}, false, 0x2b},
+        {"pg-v86-fetch-np", [=](Asm &a, uint32_t) { to_v86(a); a.op({0xea, 0x10, 0x00, 0x00, 0x10}); }, 14, 4, 0x10010,
+         {{0x10, 0x20000 | W | U}}},
+        {"pg-v86-int-iretd", [=](Asm &a, uint32_t) { to_v86(a); a.op({0xcd, 0x2a, 0x43, 0xcd, 0x2b}); }, -1, -1, -1, {}, {},
+         {{0x1820, {0xcf}}}, false, 0x2b, false, {{0x2a, gate(0x18, 0x1820, 0xee)}}},
+        {"pg-v86-gdt-sup", [=](Asm &a, uint32_t) { to_v86(a); a.op({0xcd, 0x2b}); }, -1, -1, -1, {{0x2, 0x2000 | P | W}}, {},
+         {}, false, 0x2b},
         // A page-crossing access, whose second page is not adjacent, and
         // its #PF on the second page (CR2 that page's first byte), with
         // nothing of a crossing write made.
