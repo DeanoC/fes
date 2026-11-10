@@ -26,7 +26,7 @@ RTL = ROOT / 'cores/fes-common/rtl/i386'
 SOURCE = RTL / 'ucode.toml'
 PACKAGE = RTL / 'fes_i386_ucode_pkg.sv'
 ROM = RTL / 'fes_i386_ucode_rom.sv'
-DEPTH = 256
+DEPTH = 512
 
 # ucode_t, most significant field first, as fes_i386_pkg declares it.
 FIELDS: tuple[tuple[str, int], ...] = (
@@ -40,7 +40,8 @@ FIELDS: tuple[tuple[str, int], ...] = (
     ('desc', 3), ('segchk', 4), ('segw', 1), ('shadow', 1), ('nochk', 1), ('plus2', 1), ('fpn', 3), ('fpj', 5),
     ('x87p', 2), ('sys', 5),
     ('dmode', 2), ('gsz', 1), ('errp', 1), ('nwrap', 1), ('vmchk', 1), ('iimm', 1),
-    ('hold', 1), ('xfer', 1), ('nstk', 1), ('xc', 2), ('xs', 1), ('tss', 3), ('iof', 1),
+    ('hold', 1), ('xfer', 1), ('nstk', 1), ('xc', 3), ('xs', 1), ('tss', 3), ('pm', 2), ('zx', 1), ('pimm', 1),
+    ('xend', 1), ('iof', 1),
 )
 WIDTH = sum(width for _, width in FIELDS)
 
@@ -51,7 +52,7 @@ SEG = {'es': 0, 'cs': 1, 'ss': 2, 'ds': 3, 'fs': 4, 'gs': 5}
 VALUES: dict[str, dict[str, int]] = {
     'cls': {'alu': 0, 'shift': 1, 'branch': 4, 'segment': 5, 'system': 6, 'special': 7},
     'op': {'cmp': 7, 'mov': 9, 'jmp': 1, 'movzx': 15, 'flags': 30, 'zf': 1,
-           'cr0': 1, 'lmsw': 2, 'cr2': 3, 'cr3': 4, 'gdtr': 5, 'idtr': 6, 'ldtr': 7, 'tr': 8, 'gate': 9},
+           'cr0': 1, 'lmsw': 2, 'cr2': 3, 'cr3': 4, 'gdtr': 5, 'idtr': 6, 'ldtr': 7, 'tr': 8, 'gate': 9, 'dr': 10},
     'size': {'osz': 0, '16': 1, '32': 2, '8': 3},
     'src_size': {'osz': 0, '16': 1, '32': 2, '8': 3},
     'mbytes': {'osz': 0, '2': 1, '4': 2, '1': 3},
@@ -62,14 +63,15 @@ VALUES: dict[str, dict[str, int]] = {
     'b': {'src2': 0, 'eip': 1, 'sel': 2, 'far': 3, 't1': 4, 'sys': 5, 't4': 6},
     'seg': SEG,
     'desc': {'none': 0, 'lo': 1, 'hi': 2, 'acc': 3, 'idtlo': 4, 'idthi': 5, 'busy': 6, 'hacc': 7},
-    'segchk': {'none': 0, 'data': 1, 'ss': 2, 'jmp': 3, 'gate': 4, 'intcs': 5, 'call': 6, 'off': 7, 'ret': 8,
-               'ldt': 9, 'tss': 10, 'ssret': 11, 'ssint': 12, 'hoff': 13, 'rets': 14, 'iobm': 15},
+    'segchk': {'none': 0, 'data': 1, 'ss': 2, 'jmp': 3, 'gate': 4, 'intcs': 5, 'call': 6, 'ret': 7,
+               'ldt': 8, 'tss': 9, 'ssret': 10, 'ssint': 11, 'hoff': 12, 'iobm': 13},
     'sys': {'cr0': 0, 'cr2': 1, 'cr3': 2, 'gdtl': 3, 'gdtb': 4, 'idtl': 5, 'idtb': 6, 'ldtr': 7, 'tr': 8, 'err': 9,
             'ones': 10, 'fip': 11, 'fcs': 12, 'fdp': 13, 'fds': 14,
             'arpl': 15, 'lar': 16, 'lsl': 17, 'verr': 18, 'verw': 19},
     'x87p': {'none': 0, 'ip': 1, 'ipdp': 2},
     'dmode': {'load': 0, 'probe': 1, 'gdt': 2, 'ts': 3},
-    'xc': {'all': 0, 'xp': 1, 'same': 2},
+    'xc': {'all': 0, 'xp': 1, 'same': 2, 'direct': 3, 'gate': 4, 'gsame': 5},
+    'pm': {'none': 0, 'load': 1, 'store': 2, 'below': 3},
     'tss': {'none': 0, 'esp': 1, 'ss': 2, 'iomap': 3, 'bitmap': 4},
 }
 # Shorthands: a register as a source or destination.

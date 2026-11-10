@@ -76,6 +76,7 @@ module fes_i386_decode (
     input  logic                   pe,          // CR0.PE: protected mode
     input  logic [1:0]             cpl,         // the CPL (0 in real mode)
     input  logic [1:0]             iopl,        // EFLAGS.IOPL
+    input  logic                   dr_gd,       // DR7.GD: a MOV to or from DRn raises #DB
     output fes_i386_pkg::uop_t     uop,
     output logic                   opsize32,
     output logic                   lea,         // address operands go to AG
@@ -95,7 +96,7 @@ module fes_i386_decode (
     output logic                   far_chk,     // ... whose offset (imm) D checks against CS's limit
     output logic [15:0]            far_sel,
     output logic [5:0]             wseg,        // the segment registers the uop writes, one-hot
-    output logic [7:0]             upc,         // SEQ_UCODE: the ROM address of the routine's second uop
+    output logic [8:0]             upc,         // SEQ_UCODE: the ROM address of the routine's second uop
     output logic                   direct,      // the memory operand has no base or index: a moffs, the vector's entry
     output logic                   xlat,        // ... is XLAT's [BX + AL]
     output logic [2:0]             m_seg,       // the ModRM operand's segment, apart from a stack uop's SS
@@ -252,7 +253,7 @@ module fes_i386_decode (
         fptr = 1'b0;
         d_t1 = 1'b0;
         probe = fes_i386_pkg::PROBE_NONE;
-        upc = 8'd0;
+        upc = 9'd0;
         ivt = 1'b0;
         gdesc = 1'b0;
         nwrap = 1'b0;
@@ -1487,6 +1488,34 @@ module fes_i386_decode (
                         eoi = 1'b0;
                     end
                 end
+                8'h21, 8'h23: begin
+                    // MOV r32, DRn (21h) and MOV DRn, r32 (23h): DR0-DR3, DR6
+                    // and DR7, with DR4 as DR6 and DR5 as DR7. The ModRM is a
+                    // register form whatever its mod. A write puts the
+                    // register in T1 and the number in imm for the ROM's
+                    // write, which jumps to the next instruction.
+                    op = 5'd9;  // ALU_MOV
+                    size = 2'd2;
+                    if (!op2[1]) begin
+                        s1_valid = 1'b1;
+                        s1_idx = rm;
+                        d_valid = 1'b1;
+                        d_idx = rm;
+                        b_sys = 1'b1;
+                        sys_idx = !reg_f[2] ? 5'(5'(fes_i386_pkg::SYS_RD_DR0) + 5'(reg_f[1:0]))
+                                : reg_f[0] ? 5'(fes_i386_pkg::SYS_RD_DR7) : 5'(fes_i386_pkg::SYS_RD_DR6);
+                    end else begin
+                        s2_valid = 1'b1;
+                        s2_idx = rm;
+                        d_valid = 1'b1;
+                        d_temp = 1'b1;
+                        d_t1 = 1'b1;
+                        imm = {29'd0, reg_f};
+                        seq = fes_i386_pkg::SEQ_UCODE;
+                        upc = fes_i386_ucode_pkg::UC_WDR;
+                        eoi = 1'b0;
+                    end
+                end
                 8'h06: begin
                     // CLTS: CR0.TS cleared at WB, by a jump to the next
                     // instruction (SYSOP_CLTS). Real mode is CPL 0.
@@ -1779,8 +1808,11 @@ module fes_i386_decode (
     // (WHY_IOPERM). IOPL changes only
     // at CPL 0, where it gates nothing here, and reaching another CPL
     // flushes, so the IOPL D sees is the instruction's.
-    logic       priv_op, io_op, cpl_gp, io_perm;
-    logic [2:0] fault;
+    // A MOV to or from DRn with DR7.GD set raises #DB before its CPL check,
+    // as Bochs's MOV_DdRd and MOV_RdDd do. Only a DR7 write or #DB's
+    // delivery changes GD, each flushing what follows it.
+    logic       priv_op, io_op, cpl_gp, io_perm, gd_db;
+    logic [4:0] fault;
     logic       lock_ok;
     assign priv_op = two ? op2 == 8'h06 || op2[7:2] == 6'b001000
                          || op2 == 8'h00 && reg_f[2:1] == 2'b01 || op2 == 8'h01 && (reg_f[2:1] == 2'b01 || reg_f == 3'd6)
@@ -1788,16 +1820,19 @@ module fes_i386_decode (
     assign io_op = !two && b0[7:2] == 6'b011011;
     assign cpl_gp = pe && (cpl != 2'd0 && priv_op || cpl > iopl && !two && b0[7:1] == 7'b1111101);
     assign io_perm = pe && cpl > iopl && io_op;
+    assign gd_db = dr_gd && two && op2[7:2] == 6'b001000 && op2[0];
     assign lock_ok = lockable && mkind == 2'd3 || lock_any;
-    assign fault = !known && !cpl_gp ? 3'd4                           // FAULT_UNIMPLEMENTED
-                 : undefined || (q.prefixes.lock && !lock_ok) ? 3'd1  // FAULT_UD
-                 : q.too_long || cpl_gp ? 3'd2                        // FAULT_GP0
-                 : io_perm ? 3'd4
-                 : nm ? 3'd3 : 3'd0;                                  // FAULT_NM
-    assign stop = fault != 3'd0 || (cls == C_SPECIAL && op == 5'd1);
+    assign fault = !known && !cpl_gp ? 5'(fes_i386_pkg::FAULT_UNIMPLEMENTED)
+                 : undefined || (q.prefixes.lock && !lock_ok) ? 5'(fes_i386_pkg::FAULT_UD)
+                 : q.too_long ? 5'(fes_i386_pkg::FAULT_GP0)
+                 : gd_db ? 5'(fes_i386_pkg::FAULT_DB)
+                 : cpl_gp ? 5'(fes_i386_pkg::FAULT_GP0)
+                 : io_perm ? 5'(fes_i386_pkg::FAULT_UNIMPLEMENTED)
+                 : nm ? 5'(fes_i386_pkg::FAULT_NM) : 5'(fes_i386_pkg::FAULT_NONE);
+    assign stop = fault != 5'd0 || (cls == C_SPECIAL && op == 5'd1);
 
     uop_t u;
-    assign u.seg2 = seg2 && fault == 3'd0;
+    assign u.seg2 = seg2 && fault == 5'd0;
     assign u.seg2_idx = seg2_idx;
     assign u.seg2_t = seg2_t;
     assign wseg = (u.dst.valid && d_seg ? 6'(1) << d_idx : 6'd0) | (u.seg2 ? 6'(1) << seg2_idx : 6'd0);
@@ -1843,7 +1878,7 @@ module fes_i386_decode (
     assign u.src2.space = fes_i386_pkg::RS_GPR;
     assign u.src2.index = {1'b0, s2_idx};
     assign u.src2.hi8 = s2_hi8;
-    assign u.dst.valid = d_valid && fault == 3'd0;
+    assign u.dst.valid = d_valid && fault == 5'd0;
     assign u.dst.space = d_seg ? fes_i386_pkg::RS_SEG : d_temp ? fes_i386_pkg::RS_TEMP : fes_i386_pkg::RS_GPR;
     assign u.dst.index = {d_t1, d_idx};
     assign u.dst.hi8 = d_hi8;

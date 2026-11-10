@@ -716,6 +716,9 @@ public:
         cpu.init_cr0 = s.cr0;
         cpu.init_cr2 = s.cr2;
         cpu.init_cr3 = s.cr3;
+        for (int n = 0; n < 4; ++n) cpu.init_dr[n] = s.dr[n];
+        cpu.init_dr6 = s.dr6;
+        cpu.init_dr7 = s.dr7;
         cpu.init_gdtr_base = s.gdtr.base;
         cpu.init_gdtr_limit = s.gdtr.limit;
         cpu.init_idtr_base = s.idtr.base;
@@ -757,6 +760,9 @@ public:
         s.cr0 = (s.cr0 & 0x10u) | (cpu.arch_cr0 & ~0x10u);
         s.cr2 = cpu.arch_cr2;
         s.cr3 = cpu.arch_cr3;
+        for (int n = 0; n < 4; ++n) s.dr[n] = cpu.arch_dr[n];
+        s.dr6 = cpu.arch_dr6;
+        s.dr7 = cpu.arch_dr7;
         s.gdtr = {cpu.arch_gdtr_base, uint16_t(cpu.arch_gdtr_limit)};
         s.idtr = {cpu.arch_idtr_base, uint16_t(cpu.arch_idtr_limit)};
         s.ldtr = {uint16_t(cpu.arch_ldtr_sel), cpu.arch_ldtr_base, cpu.arch_ldtr_limit, uint16_t(cpu.arch_ldtr_ar),

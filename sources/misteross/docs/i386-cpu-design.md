@@ -2167,8 +2167,8 @@ eight replicated hit sets.
 - **Checks.** #TS, #NP, #GP and #SS with the 386's selectors and order. A
   fault after the commit point is raised in the new task.
 - **Microcode.** About 80–100 uops, with the 16-bit TSS as a size variant.
-  The ROM is 256 words of 101 bits with 197 used, so it grows to 512 words,
-  three more M10K blocks. New uop forms: a TSS field access through TR's
+  Slice 2 grew the ROM to 512 words (277 used) for the call gates' routine,
+  so slice 4's routine needs no more M10K. New uop forms: a TSS field access through TR's
   base (a system access), a CR3 load inside a routine, and a busy-bit store
   like LTR's.
 - **Speed.** The busiest title switches about 290 times a simulated second
@@ -2287,7 +2287,27 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
    the stack switch from the TSS, the parameter copy, and RETF to the outer
    privilege. CWSDPMI's first stop on the RTL is its MOV DRn
    (0018:2B93), before its task switches; Jump 'n Bump, Angband and U.S.
-   Navy Fighters return to CPL 0 through a call gate.
+   Navy Fighters return to CPL 0 through a call gate. Built
+   ([record](../../../docs/validation/2026-11-09-i386-phase5-dr-callgate/summary.md);
+   the RTL README's [Protected mode](../cores/fes-common/rtl/i386/README.md#protected-mode)).
+   As built, where it differs from the plan above:
+   - **Call gates to the same privilege too.** Phase 2's third slice built
+     none, so this slice builds both: far CALL through 286 and 386 gates to
+     the same privilege (pushes at the gate's size, wrapping as PUSH does)
+     and to an inner one. Far JMP through a call gate stays not built: no
+     census title uses one.
+   - **The parameter copy repeats two ROM words**, a load from the old stack
+     and a store to the new one, by stepping the ROM address back; with no
+     microbranch elsewhere, a far CALL's routine holds the direct, the
+     same-privilege and the inner forms as conditional uops, and the direct
+     CALL and the same-privilege RETF end at their own jumps. The ROM grows
+     to 512 words now, not in slice 4.
+   - **Bochs's order on the inner path**: the stores to the new stack, then
+     the gate's offset against its CS's limit, so a fault there leaves the
+     stores written, as Bochs's do.
+   - **#DB from GD** has RF clear in its frame (Bochs clears RF before each
+     instruction), and a DR7 write does not flush the TLBs (Bochs's does; a
+     386's does not).
    - **Lockstep.** Every DRn at CPL 0 and 3, and GD with its clear on #DB;
      call gates of each size with parameter counts 0 and above, #TS and
      #SS on the stack switch, and RETF across privileges.
