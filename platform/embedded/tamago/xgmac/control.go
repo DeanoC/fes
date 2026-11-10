@@ -4,6 +4,7 @@ package xgmac
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"runtime"
 	"time"
@@ -12,8 +13,10 @@ import (
 )
 
 const (
-	txDebug = 0x1108
-	rxDebug = 0x1148
+	txDebug     = 0x1108
+	rxDebug     = 0x1148
+	txReadShift = 1
+	txReadMask  = 3 // CS/R1 register map: TRCSTS is two bits, not the BSP's three.
 )
 
 // BindControl joins this exact driver/window to trusted platform callbacks.
@@ -157,6 +160,19 @@ func (d *Device) retireControl(err error) error {
 }
 
 func (d *Device) waitFIFO(ctx context.Context, offset uint32, empty func(uint32) bool) error {
+	return d.waitStop(ctx, offset, "FIFO", func(v uint32) (bool, error) { return empty(v), nil })
+}
+
+func (d *Device) waitStopped(ctx context.Context, want uint32) error {
+	return d.waitStop(ctx, channelStatus, "DMA process-stop acknowledgement", func(v uint32) (bool, error) {
+		if v&dmaFaults != 0 || v&(txStopped|rxStopped)&^want != 0 {
+			return false, fmt.Errorf("xgmac: invalid DMA status during stop: %#x", v)
+		}
+		return v&want == want, nil
+	})
+}
+
+func (d *Device) waitStop(ctx context.Context, offset uint32, what string, ready func(uint32) (bool, error)) error {
 	end := d.io.Now().Add(100 * time.Millisecond)
 	for count := 0; count < 1000000; count++ {
 		if err := d.Err(); err != nil {
@@ -172,7 +188,11 @@ func (d *Device) waitFIFO(ctx context.Context, offset uint32, empty func(uint32)
 		if err := d.Err(); err != nil {
 			return err
 		}
-		if empty(value) {
+		done, err := ready(value)
+		if err != nil {
+			return err
+		}
+		if done {
 			return nil
 		}
 		if !d.io.Now().Before(end) {
@@ -182,16 +202,24 @@ func (d *Device) waitFIFO(ctx context.Context, offset uint32, empty func(uint32)
 			runtime.Gosched()
 		}
 	}
-	return errors.New("xgmac: FIFO stop timeout; DMA ownership retained")
+	return fmt.Errorf("xgmac: %s timeout at %#x; DMA ownership retained", what, offset)
 }
 
-// Same ordered MAC/FIFO stages as the matched BSP, with checked timeouts and
-// context cancellation. This establishes only driver-side stop, not a DMA fence.
+// The vendor programming model additionally requires process-stop IRQ status,
+// rather than inferring completion from cleared start bits or FIFO state. Active
+// health checked both stop flags clear under this same driver lock before entry,
+// so only fresh acknowledgements can satisfy these waits. This is no NoC fence.
 func (d *Device) stopFIFO(ctx context.Context) error {
 	if err := d.stopEnable(ctx, txControl); err != nil {
 		return err
 	}
-	if err := d.waitFIFO(ctx, txDebug, func(v uint32) bool { return (v>>1)&7 != 1 && v&(1<<4) == 0 }); err != nil {
+	if err := d.waitStopped(ctx, txStopped); err != nil {
+		return err
+	}
+	if err := d.waitFIFO(ctx, txDebug, func(v uint32) bool { return (v>>txReadShift)&txReadMask != 1 && v&(1<<4) == 0 }); err != nil {
+		return err
+	}
+	if err := d.waitFIFO(ctx, rxDebug, func(v uint32) bool { return v&(3<<4) == 0 }); err != nil {
 		return err
 	}
 	if err := d.stopEnable(ctx, txConfig); err != nil {
@@ -204,6 +232,9 @@ func (d *Device) stopFIFO(ctx context.Context) error {
 		return err
 	}
 	if err := d.stopEnable(ctx, rxControl); err != nil {
+		return err
+	}
+	if err := d.waitStopped(ctx, txStopped|rxStopped); err != nil {
 		return err
 	}
 	d.memory.Barrier()

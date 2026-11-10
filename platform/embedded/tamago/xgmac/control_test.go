@@ -4,7 +4,9 @@ package xgmac
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -14,18 +16,60 @@ import (
 
 type stopRegisters struct {
 	*hardware
-	allowed          bool
-	busy             string
-	txReads, rxReads int
-	events           []string
-	cancel           context.CancelFunc
+	allowed                  bool
+	busy                     string
+	txReads, rxReads         int
+	txAcks, rxAcks, rxDrains int
+	events                   []string
+	cancel                   context.CancelFunc
 }
 
 func (r *stopRegisters) Read32(offset uint32) uint32 {
 	if !r.allowed {
 		panic("MMIO without platform grant")
 	}
+	if offset == channelStatus && r.regs[txControl]&1 == 0 {
+		v := r.hardware.Read32(offset)
+		r.txAcks++
+		if r.txAcks == 1 {
+			r.events = append(r.events, "tx-ack")
+		}
+		if r.busy == "cancel-tx-ack" {
+			r.cancel()
+		}
+		if r.busy == "no-tx-ack" || r.txAcks < 3 {
+			v &^= txStopped
+		}
+		if r.busy == "fault-tx-ack" {
+			v |= 1 << 12
+		}
+		if r.busy == "early-rx-ack" {
+			v |= rxStopped
+		}
+		if r.regs[rxControl]&1 == 0 {
+			r.rxAcks++
+			if r.rxAcks == 1 {
+				r.events = append(r.events, "rx-ack")
+			}
+			if r.busy == "cancel-rx-ack" {
+				r.cancel()
+			}
+			if r.busy == "no-rx-ack" || r.rxAcks < 3 {
+				v &^= rxStopped
+			}
+			if r.busy == "fault-rx-ack" {
+				v |= 1 << 12
+			}
+			if r.busy == "lost-tx-ack" {
+				v &^= txStopped
+			}
+		}
+		return v
+	}
 	if offset == txDebug {
+		if r.busy == "tx-reserved" {
+			return 1<<1 | 1<<3
+		}
 		if r.busy == "cancel-empty-tx" {
 			r.cancel()
 			return 0
@@ -42,6 +86,20 @@ func (r *stopRegisters) Read32(offset uint32) uint32 {
 		}
 	}
 	if offset == rxDebug {
+		if r.regs[rxConfig]&1 == 0 {
+			r.rxDrains++
+			if r.rxDrains == 1 {
+				r.events = append(r.events, "rx-drain")
+			}
+			if r.busy == "cancel-post-rx" {
+				r.cancel()
+				return 0
+			}
+			if r.busy == "rx-drain" || r.rxDrains < 3 {
+				return 1<<16 | 1<<4
+			}
+			return r.hardware.Read32(offset)
+		}
 		if r.busy == "cancel-empty-rx" {
 			r.cancel()
 			return 0
@@ -73,6 +131,7 @@ func (r *stopRegisters) Write32(offset, value uint32) {
 			}
 		}
 		if r.busy == "readback" && offset == rxControl {
+			r.regs[channelStatus] |= rxStopped
 			return
 		}
 	}
@@ -147,12 +206,13 @@ func TestControlledStopRestartPreservesPinnedWindowAndOrdersHardware(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"tx-dma", "tx-fifo", "tx-mac", "rx-mac", "rx-fifo", "rx-dma", "platform-stop"}
+	want := []string{"tx-dma", "tx-ack", "tx-fifo", "rx-fifo", "tx-mac", "rx-mac", "rx-drain", "rx-dma", "rx-ack", "platform-stop"}
 	original := &m.data[0]
 	m.data[len(m.data)-1] = 0xa5
 	for cycle := 0; cycle < 3; cycle++ {
 		r.events = nil
 		r.txReads, r.rxReads = 0, 0
+		r.txAcks, r.rxAcks, r.rxDrains = 0, 0, 0
 		if err = control.Stop(context.Background()); err != nil {
 			t.Fatal(err)
 		}
@@ -189,7 +249,7 @@ func TestControlledStopRestartPreservesPinnedWindowAndOrdersHardware(t *testing.
 }
 
 func TestControlledStopFailuresNeverGrantContainmentOrRetry(t *testing.T) {
-	for _, fault := range []string{"tx", "rx", "readback", "cancel-tx", "cancel-rx", "cancel-empty-tx", "cancel-empty-rx", "cancel-mac", "platform-stop", "cancel-stop", "frozen"} {
+	for _, fault := range []string{"tx", "tx-reserved", "rx", "rx-drain", "readback", "cancel-tx", "cancel-rx", "cancel-empty-tx", "cancel-empty-rx", "cancel-post-rx", "cancel-mac", "no-tx-ack", "no-rx-ack", "fault-tx-ack", "fault-rx-ack", "early-rx-ack", "lost-tx-ack", "cancel-tx-ack", "cancel-rx-ack", "platform-stop", "cancel-stop", "frozen"} {
 		t.Run(fault, func(t *testing.T) {
 			d, r, m := controlDevice(t)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -219,7 +279,7 @@ func TestControlledStopFailuresNeverGrantContainmentOrRetry(t *testing.T) {
 			if fault != "platform-stop" && fault != "cancel-stop" && stops != 0 {
 				t.Fatal("FIFO failure called platform fence")
 			}
-			if fault == "cancel-empty-tx" && len(r.events) != 1 {
+			if fault == "cancel-empty-tx" && len(r.events) != 2 {
 				t.Fatal("cancelled FIFO read continued MAC stop", r.events)
 			}
 			if fault == "cancel-empty-rx" && r.regs[rxControl]&1 == 0 {
@@ -236,6 +296,51 @@ func TestControlledStopFailuresNeverGrantContainmentOrRetry(t *testing.T) {
 			d.Receive(make([]byte, maxFrame))
 			if accesses != r.accesses || writes != m.writes || stops != called || starts != 0 {
 				t.Fatal("retired control touched device")
+			}
+		})
+	}
+}
+
+func TestProcessStopMatchesVendorRegisterMap(t *testing.T) {
+	raw, err := os.ReadFile("testdata/agilex5-stop-fields.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var source struct {
+		Status uint32 `json:"status_offset"`
+		Fields map[string]struct{ Bit, Width uint32 }
+	}
+	if err = json.Unmarshal(raw, &source); err != nil {
+		t.Fatal(err)
+	}
+	mask := func(name string) uint32 {
+		f, ok := source.Fields[name]
+		if !ok || f.Width != 1 {
+			t.Fatal("invalid source bit", name)
+		}
+		return 1 << f.Bit
+	}
+	if channelStatus != source.Status || txStopped != mask("TPS") || rxStopped != mask("RPS") || dmaFaults != mask("DDE")|mask("FBE")|mask("CDE") {
+		t.Fatal("DMA status diverges from vendor fields")
+	}
+	f := source.Fields["TRCSTS"]
+	if txReadShift != f.Bit || txReadMask != 1<<f.Width-1 {
+		t.Fatal("TRCSTS includes reserved bits")
+	}
+}
+
+func TestControlledStopRejectsPreviouslyStoppedChannels(t *testing.T) {
+	for _, flag := range []uint32{txStopped, rxStopped} {
+		t.Run(map[uint32]string{txStopped: "TX", rxStopped: "RX"}[flag], func(t *testing.T) {
+			d, r, _ := controlDevice(t)
+			calls := 0
+			c, err := d.BindControl(network.DMAControl{Stop: func(context.Context) error { calls++; return nil }, Start: func(context.Context) error { return nil }})
+			if err != nil {
+				t.Fatal(err)
+			}
+			r.regs[channelStatus] |= flag
+			if err = c.Stop(context.Background()); err == nil || d.Err() == nil || calls != 0 {
+				t.Fatal("old stopped status supplied fresh permission", err)
 			}
 		})
 	}

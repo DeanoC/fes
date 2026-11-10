@@ -36,8 +36,10 @@ XGMAC start bits remains insufficient evidence of DMA containment.
 
 `Device.BindControl` now supplies the actual driver stages for that controller.
 Bind during device creation, before packet workers start. Stop disables TX DMA,
-checks the MTL transmit FIFO, disables MAC traffic, checks receive FIFO and stops
-RX DMA, with checked readback and 100 ms/finite-poll bounds. The explicit platform
+waits for its process-stopped acknowledgement, checks the MTL transmit FIFO and
+receive queue, disables MAC traffic, drains the receive FIFO, stops RX DMA and
+waits for both process-stopped acknowledgements. Each wait has checked readback
+and 100 ms/finite-poll bounds. The explicit platform
 Stop callback must then independently establish DMA drain. A successful callback
 may revoke register access; the driver makes no later MMIO or descriptor access
 while contained. The original memory remains pinned and Receive/Transmit refuse.
@@ -50,11 +52,21 @@ register cleanup. The platform supplier must separately own PHY/clocks/resets,
 SMMU policy and the private firmware MAC generation; this API does not provide
 that supplier or enable a board profile.
 
-The ordered stages follow the matched Terasic BSP's `xgmac_stop`; its unchecked
-loop expiry is treated as failure here. The three-cycle HTTP test now uses these
-real Go driver stages with explicitly modeled platform drain/grant callbacks,
-rather than clearing/restarting MAC bits in the test. Its evidence remains
-software-only.
+The ordered stages follow the vendor's [stopping and starting transmission
+procedure](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/stopping-and-starting-transmission?contentId=aoHUqRdCxX615dKqdJAazA).
+Both stopped flags must be clear during active health checks under the same
+driver lock, so stale flags cannot satisfy the acknowledgement waits. DMA faults
+or an early receive stop retire the device. The [CS/R1 register
+map](https://docs.altera.com/v/u/resources/864455/agilextm-5-cs-and-r1-suffix-opn-hps-register-map)
+defines the transmit read state as two bits; a reserved bit cannot make a busy
+transmitter appear ready. Its extracted field facts and source hashes are
+retained in `testdata/agilex5-stop-fields.json` and checked by the tests.
+
+These checks also repair the matched Terasic BSP's omitted acknowledgement waits,
+three-bit transmit-state mask and unchecked loop expiry. The three-cycle HTTP
+test uses these real Go driver stages with explicitly modeled platform
+drain/grant callbacks. Its evidence remains software-only: process-stopped status
+does not independently establish interconnect DMA drain.
 
 ## Explicit firmware profile
 

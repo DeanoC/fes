@@ -103,7 +103,14 @@ func (h *hardware) Write32(reg, value uint32) {
 	case channelStatus:
 		h.regs[reg] &= ^value
 		return
+	case txControl:
+		if h.regs[reg]&1 != 0 && value&1 == 0 {
+			h.regs[channelStatus] |= txStopped
+		}
 	case rxControl:
+		if h.regs[reg]&1 != 0 && value&1 == 0 {
+			h.regs[channelStatus] |= rxStopped
+		}
 		if value&1 != 0 && (value>>h.layout)&((1<<(15-h.layout))-1) != bufferSize {
 			panic("incorrect explicit RX buffer register layout")
 		}

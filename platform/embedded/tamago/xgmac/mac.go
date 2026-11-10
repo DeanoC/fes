@@ -40,6 +40,9 @@ const (
 	rxTail           = 0x312c
 	channelInterrupt = 0x3138
 	channelStatus    = 0x3160
+	txStopped        = uint32(1 << 1)
+	rxStopped        = uint32(1 << 8)
+	dmaFaults        = uint32(1<<9 | 1<<12 | 1<<13)
 	ringSize         = 4
 	bufferSize       = 1600
 	maxFrame         = 1514
@@ -293,8 +296,8 @@ func (d *Device) health() error {
 	if d.paused {
 		return network.ErrPaused
 	}
-	if d.io.Read32(channelStatus)&(1<<12|1<<1) != 0 {
-		return d.fail(errors.New("xgmac: fatal DMA/stopped TX status"))
+	if d.io.Read32(channelStatus)&(dmaFaults|txStopped|rxStopped) != 0 {
+		return d.fail(errors.New("xgmac: DMA error or unexpected process stop"))
 	}
 	if d.io.Read32(txControl)&1 == 0 || d.io.Read32(rxControl)&1 == 0 || d.io.Read32(txConfig)&1 == 0 || d.io.Read32(rxConfig)&1 == 0 {
 		return d.fail(errors.New("xgmac: device stopped unexpectedly"))
