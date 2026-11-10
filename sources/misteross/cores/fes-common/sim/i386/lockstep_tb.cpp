@@ -7296,6 +7296,11 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
          }, -1, -1, -1, {{0x10, 0x20000 | P | W | U}}, {}, {}, false, 0x2b},
         {"pg-v86-fetch-np", [=](Asm &a, uint32_t) { to_v86(a); a.op({0xea, 0x10, 0x00, 0x00, 0x10}); }, 14, 4, 0x10010,
          {{0x10, 0x20000 | W | U}}},
+        // An IRETD in V86 mode to EIP 1xxxxh, past CS's limit, on a page not
+        // present: the next fetch is #GP(0), the limit first, not #PF.
+        {"pg-v86-eip-past-limit-np", [=](Asm &a, uint32_t) {
+             to_v86(a); a.op({0x66, 0x9c, 0x66, 0x0e, 0x66, 0x68}); a.d(0x10000u + uint32_t(a.here() + 6)); a.op({0x66, 0xcf});
+         }, 13, 0, -1, {{0x11, 0x40000 | W | U}}},
         {"pg-v86-int-iretd", [=](Asm &a, uint32_t) { to_v86(a); a.op({0xcd, 0x2a, 0x43, 0xcd, 0x2b}); }, -1, -1, -1, {}, {},
          {{0x1820, {0xcf}}}, false, 0x2b, false, {{0x2a, gate(0x18, 0x1820, 0xee)}}},
         {"pg-v86-gdt-sup", [=](Asm &a, uint32_t) { to_v86(a); a.op({0xcd, 0x2b}); }, -1, -1, -1, {{0x2, 0x2000 | P | W}}, {},

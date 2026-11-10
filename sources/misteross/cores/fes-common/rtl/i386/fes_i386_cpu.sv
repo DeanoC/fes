@@ -1015,7 +1015,10 @@ module fes_i386_cpu #(
     logic [31:0] d_ifw_lin;
     assign d_need0 = dc.tm0 || cpl == 2'd3 && dc.ts0;
     assign d_need1 = dc.tm1 || cpl == 2'd3 && dc.ts1;
-    assign d_ifw = dc.fetched && !dc.xbad && (d_need0 || d_need1);
+    // A fetch past CS's limit is #GP(0) before any page is translated, as
+    // Bochs checks the limit first, so it walks nothing (an IRETD in V86 mode
+    // can leave EIP past FFFFh on a page the ITLB does not hold).
+    assign d_ifw = dc.fetched && !dc.xbad && (d_need0 || d_need1) && !cs_gp;
     assign d_ifw_lin = d_need0 ? dc.lin : {dc.lin[31:4] + 28'd1, 4'd0};
     always_comb begin
         u = dc.uop;
