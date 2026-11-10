@@ -1,0 +1,108 @@
+== cpu-default.log (first errors)
+%Error-NEEDTIMINGOPT: sim_lib/altera_lnsim.sv:2789:5: Use --timing or --no-timing to specify how timing controls should be handled
+                                                                                                : ... note: In instance 'fes_i386_cpu.ucode__02erom_rtl_0__07cauto_generated__07cram_block1a102.ram_core0.ram_core0.wpgen_b'
+ 2789 | buf #(start_delay) (clk_ipd,clk);
+      |     ^
+%Warning-WIDTHEXPAND: sim_lib/altera_lnsim.sv:150:37: Operator OR expects 24 bits on the RHS, but RHS's VARREF 'temp_char' generates 8 bits.
+--
+%Error: sim_lib/cyclonev_atoms.v:4449:1: Cannot find file containing module: 'cyclonev_mac_encrypted'
+ 4449 | cyclonev_mac_encrypted inst(
+      | ^~~~~~~~~~~~~~~~~~~~~~
+%Error: sim_lib/cyclonev_atoms.v:4449:1: This may be because there's no search path specified with -I<dir>.
+ 4449 | cyclonev_mac_encrypted inst(
+      | ^~~~~~~~~~~~~~~~~~~~~~
+        ... Looked in:
+             cyclonev_mac_encrypted
+--
+%Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo:87819:3: Unsupported: Input port connection 'az' to inout signal requires 1 bits, but connection's CONST '26'h0' generates 26 bits.
+87819 |  .az(26'b00000000000000000000000000),
+      |   ^~
+%Warning-WIDTHTRUNC: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo:87819:3: Input port connection 'az' expects 1 bits on the pin connection, but pin connection's CONST '26'h0' generates 26 bits.
+87819 |  .az(26'b00000000000000000000000000),
+--
+%Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo:87820:3: Unsupported: Input port connection 'bx' to inout signal requires 16 bits, but connection's CONST '18'h0' generates 18 bits.
+87820 |  .bx(18'b000000000000000000),
+      |   ^~
+== cpu-ncrypt.log (first errors)
+%Error-BADSTDPRAGMA: sim_lib/mentor/cyclonev_atoms_ncrypt.v:30:17: Unknown '`pragma protect' error
+   30 | `pragma protect author = "Altera"
+      |                 ^~~~~~~~~~~~~~~~~
+                     ... For error description see https://verilator.org/warn/BADSTDPRAGMA?v=5.032
+%Error-BADSTDPRAGMA: sim_lib/mentor/cyclonev_atoms_ncrypt.v:33:17: Unknown '`pragma protect' error
+   33 | `pragma protect key_block encoding = (enctype = "base64", line_length = 64, bytes = 128)
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+%Error-BADSTDPRAGMA: sim_lib/mentor/cyclonev_atoms_ncrypt.v:37:17: Unknown '`pragma protect' error
+   37 | `pragma protect data_block encoding = (enctype = "base64", line_length = 64, bytes = 4445968)
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+%Error: sim_lib/mentor/cyclonev_atoms_ncrypt.v:34:1: syntax error, unexpected IDENTIFIER
+   34 | FXwmipagESKqSxCgathwy5DQkqW++Z+zQVqsuVRfRvs+Xpg0Y4q36h/gTAeftIHV
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+%Error: Exiting due to 4 error(s)
+        ... See the manual at https://verilator.org/verilator_doc.html for more assistance.
+
+real	0m6.349s
+user	0m5.078s
+== cpu-fesmac-notiming.log (first errors)
+%Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo:80061:3: Unsupported: tristate in top-level IO: 'i'
+80061 |  .i(clk),
+      |   ^
+%Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo:80071:3: Unsupported: tristate in top-level IO: 'i'
+80071 |  .i(reset),
+      |   ^
+%Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo:80081:3: Unsupported: tristate in top-level IO: 'i'
+80081 |  .i(attr_upper[16]),
+      |   ^
+%Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo:80091:3: Unsupported: tristate in top-level IO: 'i'
+80091 |  .i(attr_upper[24]),
+      |   ^
+%Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo:80101:3: Unsupported: tristate in top-level IO: 'i'
+80101 |  .i(attr_upper[0]),
+      |   ^
+%Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo:80111:3: Unsupported: tristate in top-level IO: 'i'
+80111 |  .i(attr_upper[8]),
+      |   ^
+%Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo:80121:3: Unsupported: tristate in top-level IO: 'i'
+80121 |  .i(dma_address[16]),
+      |   ^
+%Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo:80131:3: Unsupported: tristate in top-level IO: 'i'
+80131 |  .i(dma_write),
+      |   ^
+== cpu-fescells-notiming.log (first errors)
+%Error-UNSUPPORTED: sim_lib/altera_primitives.v:1257:5: Unsupported: Verilog 1995 UDP Tables. Use --bbox-unsup to ignore tables.
+                                                                                                  : ... note: In instance 'fes_i386_cpu.arch_tr_ar__05b0__05d__07ereg0'
+ 1257 |     table
+      |     ^~~~~
+%Warning-LATCH: sim_lib/cyclonev_atoms.v:1468:1: Latch inferred for signal 'fes_i386_cpu.ddr_burstcount[0]~output.prev_value' (not all control paths of combinational always assign a value)
+--
+%Error: Exiting due to 1 error(s)
+== sms-v5051-timing.log (first errors)
+%Error: sim_lib/cyclonev_atoms.v:4473:25: Dotted reference to instance that refers to missing module/interface: 'cyclonev_mac_encrypted'
+ 4473 |  defparam inst.ax_width = ax_width;
+      |                         ^
+        ... See the manual at https://verilator.org/verilator_doc.html?v=5.051 for more assistance.
+%Error: sim_lib/cyclonev_atoms.v:4474:33: Dotted reference to instance that refers to missing module/interface: 'cyclonev_mac_encrypted'
+ 4474 |  defparam inst.ay_scan_in_width = ay_scan_in_width;
+      |                                 ^
+%Error: sim_lib/cyclonev_atoms.v:4475:25: Dotted reference to instance that refers to missing module/interface: 'cyclonev_mac_encrypted'
+ 4475 |  defparam inst.az_width = az_width;
+      |                         ^
+%Error: sim_lib/cyclonev_atoms.v:4476:25: Dotted reference to instance that refers to missing module/interface: 'cyclonev_mac_encrypted'
+ 4476 |  defparam inst.bx_width = bx_width;
+      |                         ^
+%Error: sim_lib/cyclonev_atoms.v:4477:25: Dotted reference to instance that refers to missing module/interface: 'cyclonev_mac_encrypted'
+ 4477 |  defparam inst.by_width = by_width;
+      |                         ^
+%Error: sim_lib/cyclonev_atoms.v:4478:25: Dotted reference to instance that refers to missing module/interface: 'cyclonev_mac_encrypted'
+ 4478 |  defparam inst.bz_width = bz_width;
+      |                         ^
+%Error: sim_lib/cyclonev_atoms.v:4479:31: Dotted reference to instance that refers to missing module/interface: 'cyclonev_mac_encrypted'
+ 4479 |  defparam inst.scan_out_width = scan_out_width;
+      |                               ^
+%Error: sim_lib/cyclonev_atoms.v:4480:31: Dotted reference to instance that refers to missing module/interface: 'cyclonev_mac_encrypted'
+ 4480 |  defparam inst.result_a_width = result_a_width;
+== z80/suite-vo-fes-timing build.log (Intel cyclonev_ram_block, --timing)
+      3 %Error-BLKANDNBLK: sim_lib/altera_lnsim.sv:3140:32: Unsupported: Blocked and non-blocking assignments to same variable: 'dataout_a'
+      3 %Error-BLKANDNBLK: sim_lib/altera_lnsim.sv:3147:32: Unsupported: Blocked and non-blocking assignments to same variable: 'dataout_b'
+      3 %Error-BLKANDNBLK: sim_lib/altera_lnsim.sv:3151:25: Unsupported: Blocked and non-blocking assignments to same variable: 'read_data_latch'
+      4 %Error-BLKANDNBLK: sim_lib/altera_lnsim.sv:3155:30: Unsupported: Blocked and non-blocking assignments to same variable: 'read_unit_data_latch'
+      1 %Error: Exiting due to 13 error(s)
