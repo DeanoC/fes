@@ -1,0 +1,40 @@
+{
+  "status": "passed-six-selected-gates",
+  "source_head": "96c5a5b91317c08dda91c24607a1bff10cbc0ac1",
+  "checks": {
+    "software-0-result.json": {
+      "path": "out/nano-installer-prefix-fix-20261111/software-0-result.json",
+      "sha256": "2f17672ff7d4d527f66a794b4f420b8842cb4be32c2819b90b893aa1ec30100b",
+      "log_sha256": "75a741a5ed72a96658308a9da9604b3eae50474b79f7f755d80c6cbf80abc1b6"
+    },
+    "software-1-result.json": {
+      "path": "out/nano-installer-prefix-fix-20261111/software-1-result.json",
+      "sha256": "59e4a6902b29ab818f40350d6f8cf966f20deddcb2e67735b802808c158f53e0",
+      "log_sha256": "a38bc6659651a5a52c8cbd0388701be2bb5d82f8518ed88982f2ce28288931d1"
+    },
+    "software-2-result.json": {
+      "path": "out/nano-installer-prefix-fix-20261111/software-2-result.json",
+      "sha256": "0f8c56bf842f0910968ee8fd7b22a97c2d17f1f7dc3b48afb8933bc2021cc175",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-3-result.json": {
+      "path": "out/nano-installer-prefix-fix-20261111/software-3-result.json",
+      "sha256": "72746f8868518e91e3865d3090c476adb1aad9593efcd8c5d6f99f60bbbe7299",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-4-result.json": {
+      "path": "out/nano-installer-prefix-fix-20261111/software-4-result.json",
+      "sha256": "a3f72ecb2541bc3c6bea7e3dbe576d4805bc40f01f0c307cf27abcc47fe7e5f1",
+      "log_sha256": "ee7ad5793cc433a939dd5fc43afd656fb663d7b8b1dfb32577dc9f45880f35b8"
+    },
+    "software-5-result.json": {
+      "path": "out/nano-installer-prefix-fix-20261111/software-5-result.json",
+      "sha256": "92e4e1c567a95dad1fd12c8d5e61f95d592c2f011a106bbdeb3be78182d0fdaf",
+      "log_sha256": "0d3b9149ecd3c2180968462d0aaef1844c3af5a5185fce2b0ed1c02ec490ea89"
+    }
+  },
+  "parent_test_counts": [
+    "1910"
+  ],
+  "hardware_actions": false
+}
