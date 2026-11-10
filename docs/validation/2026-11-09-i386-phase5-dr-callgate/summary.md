@@ -264,12 +264,20 @@ prompt.
 | Title | Instructions on the RTL | With PE set | Protected-mode entries | Handed to Bochs | Ends |
 | --- | ---: | ---: | ---: | ---: | --- |
 | U.S. Navy Fighters ([report](machine-usnf-rtl-report.json)) | 78,491,184 | 568,281 | 318 | 0 | At the prompt after its CD-ROM message, 7.45 simulated seconds |
+| Jump 'n Bump ([report](machine-jumpbump-rtl-report.json)) | 65,696,761 | 71,669 | 1,937 | 298,886,507 | The 20-second limit; 1,937 stops, all at the far JMP `EA` at 0018:00002be7 |
+| Angband ([report](machine-angband-rtl-report.json)) | 1,134,172,563 | 59,681 | 1,613 | 52,997,755 | The 20-second limit; 1,613 stops, all at the far JMP `EA` at 0018:00002c37 |
 
-Outstanding: Jump 'n Bump and Angband (CWSDPMI), whose first stop on main's
-RTL was a MOV DRn, are running on this RTL; their rows follow in a later
-commit. Time Circle is not affected by this slice (slice 1's record and
+Jump 'n Bump and Angband run CWSDPMI. On main's RTL their first stop was
+a MOV DRn. On this RTL no MOV DRn, call gate or outer RETF stops; every
+stop is at one site, a far JMP (`EA`) in CWSDPMI's CPL-0 code. The Phase 5
+plan's census finds CWSDPMI's far JMPs go to TSSs (1,933 from CPL 0 to
+CPL 3 in Jump 'n Bump), which are slice 4's task switches. The machine
+hands each stop, and the protected-mode code after it, to Bochs. Their reports are trimmed to the
+RTL counters, the gaps and the first stops.
+
+Time Circle is not affected by this slice (slice 1's record and
 the kit run above cover it); its 20-second RTL run was stopped at 4
-simulated seconds to free Powerboat for them.
+simulated seconds to free Powerboat for the two runs above.
 
 ## Changes after the seal
 
