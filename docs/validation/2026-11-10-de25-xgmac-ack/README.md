@@ -44,7 +44,11 @@ software tests, not physical DMA qualification.
 All six affected checks pass, including parent Python regressions and generated
 consumer consistency. Selected source hashes and the vendor archive/member
 match their recorded identities after testing. The full Nano ARM64 launcher
-cross-build remains pending.
+cross-build passes from committed source `2d6f393395d1545da59c072857e7d033fa89ed65`.
+All 2121 compiler input hashes match their recorded source.
+ELF SHA-256: `d3cd28799cb7733e546ae8070444c94f8c723e67024562042dd79292e78522ec`.
+Network remains disabled, SD read-only and preferences volatile. No matched
+entry/BL31/FIT/SOF was rebuilt or deployed; this is cross-build evidence only.
 The change is based on `5bf212209009babbda1f5d0a4dddc43286130de2`.
 No kit, card, programmer or remote builder has been touched. Hardware testing
 remains paused until the operator returns; keyboard/HDMI, physical SD writes and
