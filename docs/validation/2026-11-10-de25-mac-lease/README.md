@@ -45,9 +45,17 @@ these controls qualifies interconnect drain. A physical source-bound MAC/clock/
 PHY/SMMU supplier, independent fence, live-core coexistence and complete secure
 boot/dispatcher composition remain required before native Ethernet can be enabled.
 
-Base is `7d622df69955b472ed6ae75fe36f5fce75394a1b`. Focused software tests pass;
-affected checks, committed generated-consumer check and Nano launcher cross-build
-are pending. The initial broader parent run found one coverage fixture still expecting 52
+Base is `7d622df69955b472ed6ae75fe36f5fce75394a1b`; final tested source is
+`9eda8554c48b3a3400ce00557d28dc452af707d1`. All fourteen affected checks pass, including parent
+Python regressions, SD/PIO, native runtime/producer, host/runtime/contracts,
+firmware/RTL integration and FPGA Python tests. Focused race/C tests and the
+committed generated-consumer check pass (54 generated consumers, 37 fixtures).
+The full Nano ARM64 launcher cross-build passes with all 2122 compiler
+input hashes verified. ELF SHA-256: `bcdc2e9195253904259d22969a0252f3e090bca667015c6cbb34034a70940a31`.
+Ethernet stays disabled, SD read-only and preferences volatile. No matched
+entry/BL31/FIT/SOF was rebuilt or deployed.
+
+The initial broader parent run found one coverage fixture still expecting 52
 generated files. Both its exact count and validated-source inventory now include
 the new C/Go contract. A separate fault injection proved confirmation could
 change the reported DMA window while restart published ready; the final driver
@@ -55,7 +63,9 @@ checks the original window again before reopening traffic. The negative test
 fails on the first source and passes with the repair; its logs are retained.
 The first make check stopped because the package source was still
 uncommitted, as required by the existing source gate; its log is retained.
-Evidence lives in `out/nano-mac-lease-20261110/`.
+Original attempts and fault injections remain in `out/nano-mac-lease-20261110/`;
+final commands, source snapshots, logs and `validation.json` are under
+`out/nano-mac-lease-final-20261110/`.
 No kit, card, JTAG/UART, remote builder or cleanup operation was used. Hardware
 remains paused until operator availability. Physical keyboard/HDMI, writable SD,
 broader packages and DE10-equivalent appliance acceptance remain incomplete.
