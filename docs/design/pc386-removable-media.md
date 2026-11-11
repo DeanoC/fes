@@ -249,10 +249,10 @@ Rules:
 | Prepare | Any time | The drive becomes empty: door open, not ready, change latch set. A sector store in flight finishes first. The unit is loading |
 | (runtime writes the image) | Unit loading | Through fes-window grants into the drive's region. The core never reads a loading region, so the CPU can keep running |
 | Commit (geometry, write-protect, CRC-32) | Unit loading | The CRC pass on port 2 checks the bytes (about 2 ms for 1.44 MB). The disk is then present and the change latch stays set until the guest steps |
-| Freeze, Resume, Saved | Any time | As for the ATA disk: fence new sector stores, drain, ACK. Saved clears the dirty flag |
-| Eject | Any time, after Freeze ACK | The drive becomes empty and its change latch is set |
+| Freeze, Resume, Saved | Any time | As for the ATA disk: fence new sector stores, drain, ACK. Saved clears the dirty flag and, as for the ATA disk, is what permits Eject while frozen |
+| Eject | Any time, frozen with Saved acknowledged (the inherited rule, `MP/docs/computer-io.md:468-481`) | The drive becomes empty and its change latch is set |
 
-The rule for writes: **the runtime saves a dirty disk before it ejects it, and before Stop.** A swap is Freeze, then save if dirty, then Eject, Prepare, write, Commit. The runtime does this as one `swap` operation, so the UI cannot leave a dirty disk half-swapped.
+The rule for writes: **the runtime saves a dirty disk before it ejects it, and before Stop.** A swap is Freeze, then save if dirty, then Saved, then Eject, Prepare, write, Commit. Saved is sent even for a clean or write-protected disk: there is nothing to publish, but Freeze clears any earlier Saved, and Eject while frozen needs it. The runtime does this as one `swap` operation, so the UI cannot leave a dirty disk half-swapped.
 
 **How the guest sees a swap:**
 
@@ -335,6 +335,8 @@ The only reason to reopen this would be a target OS from before ATAPI drivers ex
      - data-out: the core has produced `total length` bytes into the ring (the runtime posts the final record only after it has read them all);
      - none: no transfer; the final record alone ends the command.
 
+     **Abort.** A final record whose status is CHECK CONDITION ends the command whatever has been transferred: the runtime posts one when it gives up part-way (a cancelled disc, a read error). The core watches for the final record while it waits on the ring as well as after the transfer. On an abort it finishes the DRQ block already handed to the guest (for data-in) or already requested (for data-out), raises no further DRQ, and ends the command with the record's status and sense, as a drive that ends a transfer early does. The ring counters restart with the next command's header, so nothing of the aborted transfer carries over.
+
   **Ring handshake.** The control page holds two byte counters per command, both starting at 0 when the runtime writes the response header:
 
   - `produced`, written only by the runtime: bytes of the response now in the ring. The ring is circular; byte `n` of the response sits at ring offset `n mod ring size`. The ring size is exactly 4,128,768 bytes (4 MiB − 64 KiB, `0x02010000` up to the CD-DA ring at `0x02400000`); C1 publishes it with the control-page layout, and both sides use it for the offset and the producer bound.
@@ -379,7 +381,7 @@ Anything else gets ILLEGAL REQUEST (05h/20h). The interpreter is one C library i
 - **Guest eject.** START STOP UNIT with LoEj is refused while PREVENT ALLOW MEDIUM REMOVAL locks the disc. Otherwise the runtime, which serves that packet, runs the disc release below before it answers. The unit's state tells FogCast, so tenfoot shows the tray empty.
 - **Host eject.** An eject from the host while the guest has the medium locked is refused, with the guest's lock named in the error. Otherwise it runs the same disc release.
 - **Disc release.** Each inserted disc has a disc generation, and the service thread tags its work with it. Before either eject path publishes the empty state or drops the disc's files and track table, the runtime runs these steps in order:
-  1. It sets the disc's cancel flag. The thread stops producing data for the current command at the next segment, and finishes that command with NOT READY, medium not present (02h/3Ah), unless it is the eject itself.
+  1. It sets the disc's cancel flag. The thread stops producing data for the current command at the next segment, and finishes that command with an abort final record: NOT READY, medium not present (02h/3Ah), unless it is the eject itself. The abort rule in the PACKET steps lets the core end a partly transferred command on that record, so the command never waits for data that will not come.
   2. If CD-DA is playing, it runs the STOP handshake ([CD-DA](#cd-da)). The player is then idle and plays nothing more from the ring.
   3. It waits, with a deadline, until the thread reports the generation idle: no file read and no ring write outstanding. A missed deadline is a service fault that fails the eject; the disc stays bound and the drive reports a hardware error, never a half-released disc.
   4. It sends Eject to the core, unbinds the files and track table, and increments the disc generation.
