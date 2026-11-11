@@ -27,6 +27,7 @@
     "sha256": "4f69408c0974f60670ae5d46f2dde5b3b11d74dd96e9e4cce5ac597e16191a2d",
     "size": 3866592
   },
+  "repository": "https://github.com/DeanoC/fes",
   "resources": {
     "alms": {
       "available": 41910,
@@ -48,6 +49,7 @@
       "used": 32413
     }
   },
+  "revision": "83622e34aa172e4aac7683a1814e34710fb7dcd6",
   "status": "pass",
   "timing": {
     "analyses": {
@@ -90,6 +92,6 @@
   },
   "tools": {
     "quartus_sh": "version=17.0.2; sha256=71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93",
-    "yosys": "commit=0a7927bf126eb3d868c50b3bb5e11b69ff656ea9; sha256=7cb7c29590d49e89e1a2edcab8a5335896fdbbf1aea0948187e3ff56ebed801b"
+    "yosys": "commit=0a7927bf126eb3d868c50b3bb5e11b69ff656ea9; sha256=1c1fb5cda92e323b9fed142698d36f7da87f9186f05752af5b36df7c9d237ef9"
   }
 }

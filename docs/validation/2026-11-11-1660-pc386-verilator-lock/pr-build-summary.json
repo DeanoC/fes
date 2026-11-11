@@ -1,5 +1,5 @@
 {
-  "build_id": "143e2da3eb52bfea56023ef3e880ef7b",
+  "build_id": "ff4ce1dfbfa3955f92f5f34dea7c738a",
   "device": "5CSEBA6U23I7",
   "firmware": {
     "bios": "162e92cac39c3bd47f7a344fd3da715a4d169c765b5db6807231237c0ef154e1",
@@ -119,7 +119,7 @@
     "cores/fes-pc386/rtl/pc386_vga.sv": "fb376f8bbe1e9d96fdc4dc6e24ea40a6683508195928f602f654df3edf5705aa",
     "cores/fes-pc386/rtl/pc386_vga_scanout.sv": "281fe4b87ff2016fdab187a83df17b02443b2b8c44729d940494c9a2b994d0a3",
     "cores/fes-pc386/rtl/top.sv": "025247961d3ff26508bbb89109a3f85153e20733deb1b5c3b566b112dfe569e2",
-    "cores/fes-pc386/toolchain.lock": "81a47c253317ad69b8b0c10c28c08de47b88fb198020e5b7bdcab5c7123f1fe9",
+    "cores/fes-pc386/toolchain.lock": "2f08dd9bef3c60b9556dd26040e1f2832f7661edc1c1f6ea747142abac59225c",
     "cores/fes-pc386/vendor/opl2_fpga/calc_envelope_shift.sv": "148e8a9e9d7cf5dc3dce43c4b5469df48dd9be6bc7b29561aa33932a2e730949",
     "cores/fes-pc386/vendor/opl2_fpga/calc_phase_inc.sv": "c3fd37a32e7950f1d392f2faad6212e82c88f5b8dea1a1bca576fa27be6630eb",
     "cores/fes-pc386/vendor/opl2_fpga/calc_rhythm_phase.sv": "76e002cbe36c14293e690efa17f5015b24c4d8a7041ffd24d2a0272cba4a3b04",
@@ -147,13 +147,13 @@
     "scripts/source_provenance.py": "4ea875fb576bbe00d833fb2a78fcf938367bda0a6cb49f65b9c1735fcf832155"
   },
   "rbf": {
-    "sha256": "8ee527197c1b09a57c80bf8bf71efa20c0f6cc5e24e0cde020caec62cc750c91",
-    "size": 3853192
+    "sha256": "25684871f217148b8672870e14396af877c1fe22828dcef7c4fb28f511331d83",
+    "size": 3846716
   },
   "resources": {
     "alms": {
       "available": 41910,
-      "used": 36168
+      "used": 36123
     },
     "block_memory_bits": {
       "available": 5662720,
@@ -168,7 +168,7 @@
       "used": 268
     },
     "registers": {
-      "used": 32309
+      "used": 32470
     }
   },
   "seed": 1,
@@ -177,7 +177,7 @@
     "analyses": {
       "hold": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.069
+        "worst_slack_ns": 0.076
       },
       "minimum_pulse_width": {
         "tns_ns": 0.0,
@@ -185,15 +185,15 @@
       },
       "recovery": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 7.157
+        "worst_slack_ns": 6.88
       },
       "removal": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.393
+        "worst_slack_ns": 0.275
       },
       "setup": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.641
+        "worst_slack_ns": 0.803
       }
     },
     "clocks": {
@@ -212,10 +212,10 @@
     },
     "status": "pass"
   },
-  "toolchain": "Quartus Prime Lite 17.0.2 (version=17.0.2; sha256=71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93); machine elaborated by Yosys (commit=0a7927bf126eb3d868c50b3bb5e11b69ff656ea9; sha256=7cb7c29590d49e89e1a2edcab8a5335896fdbbf1aea0948187e3ff56ebed801b)",
+  "toolchain": "Quartus Prime Lite 17.0.2 (version=17.0.2; sha256=71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93); machine elaborated by Yosys (commit=0a7927bf126eb3d868c50b3bb5e11b69ff656ea9; sha256=1c1fb5cda92e323b9fed142698d36f7da87f9186f05752af5b36df7c9d237ef9)",
   "tools": {
     "quartus_sh": "version=17.0.2; sha256=71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93",
-    "yosys": "commit=0a7927bf126eb3d868c50b3bb5e11b69ff656ea9; sha256=7cb7c29590d49e89e1a2edcab8a5335896fdbbf1aea0948187e3ff56ebed801b"
+    "yosys": "commit=0a7927bf126eb3d868c50b3bb5e11b69ff656ea9; sha256=1c1fb5cda92e323b9fed142698d36f7da87f9186f05752af5b36df7c9d237ef9"
   },
   "top": "top"
 }
