@@ -273,7 +273,10 @@ relies on:
   486.
 - No CPUID.
 - No CR0.WP: supervisor accesses ignore page R/W protection.
-- BSWAP, XADD, CMPXCHG, INVD, WBINVD and INVLPG raise #UD.
+- BSWAP, XADD, CMPXCHG, INVD, WBINVD and INVLPG raise #UD, as does every
+  other encoding the 386's decoder rejects: XBTS and IBTS (0F A6, 0F A7),
+  which only the B-step 386 ran, and 0F 0D among them (#1701; the 386's
+  decoder ROM, reenigne/x86_microcode `80386/decoder23.txt`).
 - At reset, DX holds the profile's component and revision ID.
 
 An optional `i486-isa` profile, a later extension (Phase 7), adds those
