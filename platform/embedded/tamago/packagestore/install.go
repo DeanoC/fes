@@ -224,8 +224,8 @@ func (s *Store) ReadStagingRecord(ctx context.Context, name string) (data []byte
 
 // StageInstall snapshots exactly the manifest-bound input files into RAM before
 // the menu owns SD. Package/ROM validators still decide content validity.
-func (s *Store) StageInstall(ctx context.Context, request Request, checksums map[string]string) (plan *InstallPlan, err error) {
-	if s == nil || ctx == nil || len(checksums) < 1 || len(checksums) > 7 || len(request.Sources) > 2 || len(request.Parts) > 2 {
+func (s *Store) StageInstall(ctx context.Context, request Request, checksums map[string]string, maxBytes int) (plan *InstallPlan, err error) {
+	if s == nil || ctx == nil || maxBytes < 1 || maxBytes > MaxInstallBytes || len(checksums) < 1 || len(checksums) > 7 || len(request.Sources) > 2 || len(request.Parts) > 2 {
 		return nil, ErrState
 	}
 	request = copyRequest(request)
@@ -277,7 +277,10 @@ func (s *Store) StageInstall(ctx context.Context, request Request, checksums map
 	files := map[string][]byte{}
 	total := 0
 	for _, name := range names {
-		data, e := readInput(ctx, s.files, name, int64(MaxInstallBytes-total), -1, expected[name])
+		if total >= maxBytes {
+			return nil, ErrState
+		}
+		data, e := readInput(ctx, s.files, name, int64(maxBytes-total), -1, expected[name])
 		if e != nil {
 			if errors.Is(e, fat.ErrMutation) {
 				return nil, s.retire(e)

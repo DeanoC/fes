@@ -40,24 +40,34 @@ func sameProgramRequest(a, b packagestore.Request) bool {
 	return true
 }
 
-// AttachStagedProgram publishes one already-retained source to the normal
-// Tenfoot core-catalog API. It performs no filesystem or firmware IO and never
-// installs automatically at boot. Repeated or conflicting attachment refuses.
-func (b *ProgramBackend) AttachStagedProgram(ctx context.Context, staged *StagedProgram) error {
-	plan, err := b.PrepareStagedInstall(ctx, staged)
-	if err != nil {
-		return err
+// AttachStagedPrograms preflights and publishes a retained startup catalog as
+// one batch. Invalid later records cannot leave earlier sources advertised.
+func (b *ProgramBackend) AttachStagedPrograms(ctx context.Context, staged []*StagedProgram) error {
+	if ctx == nil || len(staged) < 1 || len(staged) > packagestore.MaxInstallRecords {
+		return ErrProgramSession
 	}
-	return b.AttachProgramInstall(ctx, plan)
+	plans := make([]*ProgramInstall, len(staged))
+	for i, source := range staged {
+		plan, err := b.PrepareStagedInstall(ctx, source)
+		if err != nil {
+			return err
+		}
+		plans[i] = plan
+	}
+	return b.AttachProgramInstalls(ctx, plans)
 }
 
-// AttachProgramInstall publishes one privately retained, platform-admitted plan
-// through Tenfoot's existing Install/Setup API. A plan from Download needs no
-// source connection after attachment. Publication never installs or activates
-// content and grants no network ownership. SD-staged and downloaded plans share
-// a bounded catalog with unique entry IDs and package references.
+// AttachProgramInstall publishes one admitted download or in-process upload.
+// Publication never installs content or grants network ownership.
 func (b *ProgramBackend) AttachProgramInstall(ctx context.Context, plan *ProgramInstall) error {
-	if b == nil || b.service == nil || b.service.state == nil || ctx == nil || plan == nil || plan.content == nil || plan.loader != b.service.state.loader {
+	return b.AttachProgramInstalls(ctx, []*ProgramInstall{plan})
+}
+
+// AttachProgramInstalls atomically publishes retained, platform-admitted plans.
+// The source connection/filesystem is no longer required. Every identity and
+// aggregate bound is checked before changing the catalog.
+func (b *ProgramBackend) AttachProgramInstalls(ctx context.Context, plans []*ProgramInstall) error {
+	if b == nil || b.service == nil || b.service.state == nil || ctx == nil || len(plans) < 1 || len(plans) > packagestore.MaxInstallRecords {
 		return ErrProgramSession
 	}
 	if err := ctx.Err(); err != nil {
@@ -72,24 +82,31 @@ func (b *ProgramBackend) AttachProgramInstall(ctx context.Context, plan *Program
 	}
 	b.viewMu.Lock()
 	defer b.viewMu.Unlock()
-	if len(b.catalog) >= packagestore.MaxInstallRecords || plan.content.ContentBytes() > packagestore.MaxInstallBytes-b.catalogBytes {
+	if len(plans) > packagestore.MaxInstallRecords-len(b.catalog) {
 		return ErrProgramSession
 	}
+	ids, packages := map[string]bool{}, map[string]bool{}
 	for _, retained := range b.catalog {
-		if retained.entry.ID == plan.entry.ID || retained.entry.Request.PackageID == plan.entry.Request.PackageID {
+		ids[retained.entry.ID], packages[retained.entry.Request.PackageID] = true, true
+	}
+	remaining := packagestore.MaxInstallBytes - b.catalogBytes
+	for _, plan := range plans {
+		if plan == nil || plan.content == nil || plan.loader != b.service.state.loader || ids[plan.entry.ID] || packages[plan.entry.Request.PackageID] || plan.content.ContentBytes() > remaining {
 			return ErrProgramSession
 		}
-	}
-	for _, entry := range b.entries {
-		if entry.ID == plan.entry.ID && (entry.Title != plan.entry.Title || !sameProgramRequest(entry.Request, plan.entry.Request)) {
-			return ErrProgramSession
+		ids[plan.entry.ID], packages[plan.entry.Request.PackageID] = true, true
+		remaining -= plan.content.ContentBytes()
+		for _, entry := range b.entries {
+			if entry.ID == plan.entry.ID && (entry.Title != plan.entry.Title || !sameProgramRequest(entry.Request, plan.entry.Request)) {
+				return ErrProgramSession
+			}
 		}
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	b.catalog = append(b.catalog, plan)
-	b.catalogBytes += plan.content.ContentBytes()
+	b.catalog = append(b.catalog, plans...)
+	b.catalogBytes = packagestore.MaxInstallBytes - remaining
 	return nil
 }
 

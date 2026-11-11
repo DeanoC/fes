@@ -55,14 +55,14 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		}
 	}
 	var preferences *nativefabric.ProgramPreferences
-	var staged *nativefabric.StagedProgram
+	var staged []*nativefabric.StagedProgram
 	var stagedError error
 	if err == nil {
 		preferences, err = nativefabric.LoadProgramPreferences(ctx, store, false)
 	}
 	if err == nil && programWritableStorageSelected {
-		staged, err = nativefabric.ReadStagedProgram(ctx, store, "FES/INSTALL.JSN")
-		if errors.Is(err, fs.ErrNotExist) {
+		staged, err = nativefabric.ReadStagedPrograms(ctx, store, "FES/INSTALL.JSN")
+		if errors.Is(err, nativefabric.ErrStagedCatalogAbsent) {
 			_, activeErr := store.ActiveReceipt()
 			err = activeErr
 		} else if err != nil {
@@ -109,8 +109,8 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	if err != nil {
 		panic(err)
 	}
-	if staged != nil {
-		if err = nativeProgramBackend.AttachStagedProgram(context.Background(), staged); err != nil {
+	if len(staged) != 0 {
+		if err = nativeProgramBackend.AttachStagedPrograms(context.Background(), staged); err != nil {
 			if programService.Status().State != nativefabric.ProgramReady {
 				panic(err)
 			}

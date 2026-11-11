@@ -1821,3 +1821,10 @@ timeouts, memory reservations and core-only bounds are unchanged.
 The returned summary remains controller evidence: physical display, real input
 controls, ordinary admission and hardware acceptance are false. A newly matched
 paired boot and a bounded TRWU8CBL trial remain separate required evidence.
+
+The native optional installer now reads the `nano-staged-program-catalog-v1`
+envelope at that fixed destination. Its nonempty `programs` array carries
+unique entry/package identities and exact input hashes. The previous single
+program envelope is rejected. The host producer and current startup contract
+are documented in [nativefabric](../tamago/nativefabric/README.md). Existing
+matched hardware evidence remains specific to its recorded image and schema.

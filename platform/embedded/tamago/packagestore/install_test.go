@@ -381,3 +381,25 @@ func TestInstallPlanContentBytesCountsPrivateUpload(t *testing.T) {
 		t.Fatal("private content byte count differs")
 	}
 }
+
+func TestStageInstallEnforcesRemainingCatalogBudgetBeforeRetention(t *testing.T) {
+	body, request, _ := basic(t)
+	s, files, _ := installFixture(t)
+	files.files[request.Path] = &fstest.MapFile{Data: body}
+	checksums := map[string]string{request.Path: blobHash(body)}
+	for _, limit := range []int{-1, 0, MaxInstallBytes + 1, len(body) - 1} {
+		if plan, err := s.StageInstall(context.Background(), request, checksums, limit); err == nil || plan != nil {
+			t.Fatal("invalid content budget retained input", limit, err)
+		}
+		if _, err := s.ActiveReceipt(); err != nil {
+			t.Fatal("budget refusal lost healthy storage", err)
+		}
+		if len(files.mutations) != 0 {
+			t.Fatal("budget refusal mutated storage")
+		}
+	}
+	plan, err := s.StageInstall(context.Background(), request, checksums, len(body))
+	if err != nil || plan.ContentBytes() != len(body) {
+		t.Fatal("exact content budget refused", err)
+	}
+}

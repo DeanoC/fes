@@ -13,7 +13,9 @@ calling the owned installer.
 its digest-bound files while the existing SD lease is active/prepared. They
 snapshot validated input into private RAM before menu construction; no open
 file or source path supplies write permission. `StageInstall` uses the same
-package/ROM validator and content-derived destinations as `PrepareInstall`.
+package/ROM validator and content-derived destinations as `PrepareInstall`. Its
+explicit byte allowance bounds reads by the remaining aggregate catalog budget,
+never above the existing 64 MiB per-install limit.
 Contained, changed or uncertain ownership refuses further source reads.
 
 `Store.Install` serializes with reads and containment under the exact active,

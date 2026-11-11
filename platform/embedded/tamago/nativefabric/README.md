@@ -4,15 +4,15 @@ The selected native Tenfoot image now accepts an explicit
 `--writable-storage-plan FILE --sd-transfer-clock 25000000`. That compiled
 card/recovery plan selects the owned writable session and partition-confined
 mount; package metadata cannot enable it. Startup reads the optional canonical
-`FES/INSTALL.JSN` source while SD is active and snapshots its exactly
+`FES/INSTALL.JSN` catalog while SD is active and snapshots its exactly
 digest-bound package/metadata/ROM/tape inputs into RAM. An invalid optional
 source is quarantined while a healthy installed library remains usable.
 Uncertain storage ownership still prevents startup.
 
 `ReadInstallerBootstrap` accepts explicitly empty `programs:[]` and `entries:[]`
 bootstrap manifests, then merges verified installed records. The base needs no
-dummy playable entry. `AttachStagedProgram` performs the existing immutable
-platform preflight and exposes staged sources through Tenfoot's standard
+dummy playable entry. `AttachStagedPrograms` performs the existing immutable
+platform preflight and atomically exposes staged sources through Tenfoot's standard
 core-catalog Install/Setup API. It performs no source filesystem access while
 the menu owns the fabric and never installs automatically on boot. Installation
 uses the existing input/menu/network ownership transitions; the newly configured
@@ -33,13 +33,34 @@ This joins the transport-independent download and frontend APIs; no shipped
 profile enables native Ethernet or automatically fetches an export.
 Duplicate/conflicting IDs and foreign references refuse without mutation.
 
-Source records have `format:1`, `scope:"nano-staged-program-install-v1"`, `id`,
-`title`, the existing `program` choice and a `files` map of exact input paths to
-SHA-256 values. Their JSON is canonical, sorted and newline terminated like the
-other Nano control records. Upload paths are labels, not destinations. This is
-an in-process source adapter, not a native network upload service. Model tests
-cover empty-library installation, the normal client API, real FAT persistence,
-fresh-boot discovery/launch/return and source/ownership/integrity failures.
+The catalog has `format:1`, `scope:"nano-staged-program-catalog-v1"` and a
+nonempty `programs` array. Each element has `id`, `title`, the existing `program`
+choice and a `files` map of exact input paths to SHA-256 values. The entire
+canonical, sorted, newline-terminated catalog retains the existing 8 KiB bound;
+32 records is an additional ceiling, not a guarantee that 32 full records fit.
+The prior single-program envelope is rejected. `ReadStagedPrograms` validates
+all entry/package identities before source reads, then snapshots every member
+under the active SD lease. Each read uses the remaining aggregate content
+allowance. Source errors return no partial batch; later platform-admission
+failure also publishes none. Healthy installed content remains usable when an
+optional source is quarantined; uncertain storage ownership prevents startup.
+
+The host-only producer builds staging content from an existing Nano export:
+
+```sh
+GOWORK=off go -C platform/embedded/tamago run ./cmd/stage-installer \
+  --export /absolute/export --id zx81 --id zx80 --output /absolute/new-staging
+```
+
+It validates selected package/ROM content, copies the exactly hashed inputs,
+creates empty bootstrap manifests, and writes `FES/INSTALL.JSN` last in a fresh
+host directory. Existing output paths refuse. Boot/menu artifacts are supplied
+separately from the matched base; this output is not a bootable image or a grant
+to program hardware. The fixed bounded `install-manifest` uploader destination
+is unchanged. There is no legacy-envelope fallback or native network listener.
+Model tests cover two-package FAT installation, fresh-store discovery without
+staging/reinstallation, alternating launch/return, independent mtools readback,
+and whole-batch source/platform failures.
 The matched `b3ed4389ad43d91b` image now passes
 [physical first installation](../../../../docs/validation/2026-11-11-de25-native-first-install-trial/README.md)
 and [independent reboot discovery/launch](../../../../docs/validation/2026-11-11-de25-installed-discovery-trial/README.md)

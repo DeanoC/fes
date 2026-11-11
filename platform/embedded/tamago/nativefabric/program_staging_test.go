@@ -29,7 +29,7 @@ func stagedRecord(t *testing.T, id string, request packagestore.Request, files m
 	for name, data := range files {
 		sums[name] = fmt.Sprintf("%x", sha256.Sum256(data))
 	}
-	raw, err := canonicalProgramRecord(map[string]any{"format": 1, "scope": "nano-staged-program-install-v1", "id": id, "title": "Staged core", "program": choices.Programs[0], "files": sums})
+	raw, err := canonicalProgramRecord(stagedProgramCatalog{1, "nano-staged-program-catalog-v1", []stagedProgramRecord{{id, "Staged core", choices.Programs[0], sums}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestStagedInstallerIntegrityFailureDoesNotAdvertiseOrRetry(t *testing.T) {
 func TestStagedCatalogRealFATInstallLaunchReturnAndFreshBootDiscovery(t *testing.T) {
 	var staged *StagedProgram
 	ownedInstallRealFATCycleWithStaging(t, func(b *ProgramBackend, _ packagestore.Request, _ map[string][]byte) (*ProgramInstall, error) {
-		if err := b.AttachStagedProgram(context.Background(), staged); err != nil {
+		if err := b.AttachStagedPrograms(context.Background(), []*StagedProgram{staged}); err != nil {
 			return nil, err
 		}
 		return b.PrepareStagedInstall(context.Background(), staged)
@@ -115,7 +115,11 @@ func TestStagedCatalogRealFATInstallLaunchReturnAndFreshBootDiscovery(t *testing
 			t.Fatal(err)
 		}
 		var err error
-		staged, err = ReadStagedProgram(context.Background(), store, "FES/INSTALL.JSN")
+		var sources []*StagedProgram
+		sources, err = ReadStagedPrograms(context.Background(), store, "FES/INSTALL.JSN")
+		if err == nil {
+			staged = sources[0]
+		}
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -142,7 +146,11 @@ func stagedFixture(t *testing.T, change func(*programMenuFixture, packagestore.R
 		}
 		f.r.f.files.files["FES/INSTALL.JSN"] = &fstest.MapFile{Data: raw}
 		calls, writes := f.r.cpu.calls, len(f.r.f.files.installOperations)
-		staged, stageErr = ReadStagedProgram(context.Background(), f.r.f.store, "FES/INSTALL.JSN")
+		sources, e := ReadStagedPrograms(context.Background(), f.r.f.store, "FES/INSTALL.JSN")
+		stageErr = e
+		if e == nil {
+			staged = sources[0]
+		}
 		if f.r.cpu.calls != calls || len(f.r.f.files.installOperations) != writes {
 			t.Fatal("staging accessed firmware or wrote files")
 		}
@@ -169,7 +177,7 @@ func TestStagedFirstCoreInstallsIntoEmptyBootstrapLibrary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = b.AttachStagedProgram(context.Background(), staged); err != nil {
+	if err = b.AttachStagedPrograms(context.Background(), []*StagedProgram{staged}); err != nil {
 		t.Fatal(err)
 	}
 	client := hostclient.NewClient("http://native.invalid", &http.Client{Transport: b})
@@ -203,7 +211,7 @@ func TestStagedCatalogUsesNormalInstallAPIThenLaunchAndReturn(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls, opens := f.r.cpu.calls, f.r.f.files.opens
-	if err = b.AttachStagedProgram(context.Background(), staged); err != nil {
+	if err = b.AttachStagedPrograms(context.Background(), []*StagedProgram{staged}); err != nil {
 		t.Fatal(err)
 	}
 	if calls != f.r.cpu.calls || opens != f.r.f.files.opens {
@@ -258,7 +266,7 @@ func TestStagingRejectsChangedSchemaDigestAndUnknownFilesWithoutMutation(t *test
 				if err := json.Unmarshal(raw, &fields); err != nil {
 					t.Fatal(err)
 				}
-				sums := fields["files"].(map[string]any)
+				sums := fields["programs"].([]any)[0].(map[string]any)["files"].(map[string]any)
 				switch fault {
 				case "unknown":
 					fields["unexpected"] = true
@@ -295,7 +303,7 @@ func TestStagedCatalogRejectsForeignReferencesMissingBodyAndRunningInstall(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = b.AttachStagedProgram(context.Background(), staged); err != nil {
+	if err = b.AttachStagedPrograms(context.Background(), []*StagedProgram{staged}); err != nil {
 		t.Fatal(err)
 	}
 	client := hostclient.NewClient("http://native.invalid", &http.Client{Transport: b})

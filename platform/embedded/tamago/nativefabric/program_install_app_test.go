@@ -158,7 +158,7 @@ func TestStagedFirstCoreThroughFullTenfootApp(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err = b.AttachStagedProgram(context.Background(), staged); err != nil {
+			if err = b.AttachStagedPrograms(context.Background(), []*StagedProgram{staged}); err != nil {
 				t.Fatal(err)
 			}
 			device, err := gfx.NewSoftware(1280, 720)
