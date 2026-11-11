@@ -3527,10 +3527,15 @@ stream only while the core, package, generation, keyboard, gamepad-port,
 keypad, and relative-mouse capabilities still match. Status reconciliation
 replaces the stream when any of those change. An explicit attach of a
 stream that no longer matches is refused and leaves the existing stream
-in place. If the stream is not live, the host
-returns 503 `INPUT_UNAVAILABLE` (`no live input stream`) and does not accept
-the event. Kit-local pads stay on the unix socket and do not silently fall
-back to the host.
+in place. If the stream is not live, the host returns 503 `INPUT_UNAVAILABLE`
+(`no live input stream`). The single-event POST waits for a correlated bridge
+PONG after its input stream prefix; success confirms that the bridge processed
+the prefix, not that its sink accepted the event or the guest consumed it. An
+uncertain write or missing PONG returns 503 `INPUT_UNCONFIRMED`: the event may
+have applied. The host closes the attachment and discards held input rather than
+replaying it. This adds a bridge round trip to each single-event POST. The
+launcher stream and timed key tap do not use this barrier. Kit-local pads stay
+on the unix socket and do not silently fall back to the host.
 
 Disconnect of the host stream releases the remote source. Lease expiry, core
 replacement and Stop neutralize every source on both dirty ports. A failed

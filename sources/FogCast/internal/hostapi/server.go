@@ -558,6 +558,10 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 		coordinator := requestSessionCoordinator(session, service, r, "")
 		if err := coordinator.sendCoreKey(r.Context(), *body.Event); err != nil {
+			if errors.Is(err, host.ErrRemoteInputUnconfirmed) {
+				writeError(w, http.StatusServiceUnavailable, "INPUT_UNCONFIRMED", "input may have applied but could not be confirmed")
+				return
+			}
 			if errors.Is(err, host.ErrRemoteInputNoStream) {
 				writeError(w, http.StatusServiceUnavailable, "INPUT_UNAVAILABLE", "no live input stream")
 				return

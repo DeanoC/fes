@@ -1719,12 +1719,12 @@ func (s *sessionCoordinator) sendCoreKey(ctx context.Context, event remoteinput.
 		return host.ErrRemoteInputNoStream
 	}
 	sender, ok := s.remoteInput.(interface {
-		SendEvent(context.Context, remoteinput.Event, time.Time) error
+		SendEventConfirmed(context.Context, remoteinput.Event, time.Time) error
 	})
 	if !ok {
 		return host.ErrRemoteInputNoStream
 	}
-	return sender.SendEvent(ctx, event, time.Now())
+	return sender.SendEventConfirmed(ctx, event, time.Now())
 }
 
 func (s *sessionCoordinator) tapCoreKey(ctx context.Context, sessionID string, event remoteinput.Event) (time.Duration, error) {

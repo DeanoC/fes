@@ -389,7 +389,7 @@ func (r *fakeRemoteInput) Detach(_ context.Context, reason string) error {
 	return nil
 }
 func (r *fakeRemoteInput) Status() host.RemoteInputStatus { return r.status }
-func (r *fakeRemoteInput) SendEvent(_ context.Context, e remoteinput.Event, _ time.Time) error {
+func (r *fakeRemoteInput) SendEventConfirmed(_ context.Context, e remoteinput.Event, _ time.Time) error {
 	if r.sendErr != nil {
 		return r.sendErr
 	}

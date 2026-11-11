@@ -207,6 +207,18 @@ func TestSessionInputEventNoLiveStreamReturnsError(t *testing.T) {
 	}
 }
 
+func TestSessionInputEventReportsUnconfirmed(t *testing.T) {
+	input := &fakeRemoteInput{
+		status:  host.RemoteInputStatus{State: host.RemoteInputAttached, Ready: true},
+		sendErr: host.ErrRemoteInputUnconfirmed,
+	}
+	handler := hostapi.New(&launcherService{}, hostapi.WithRemoteInput(input))
+	rec := postSessionInput(handler, remotePadEvent)
+	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "INPUT_UNCONFIRMED") || !strings.Contains(rec.Body.String(), "may have applied") {
+		t.Fatalf("unconfirmed input: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
 func postSessionInput(handler http.Handler, event string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/session/input/event", strings.NewReader(`{"event":`+eventJSON(event)+`}`))
 	req.Host = "127.0.0.1"
