@@ -25,11 +25,10 @@ enables; and a switch into a V86 task.
 - **Mutants.** 24 of 26 one-line mutants of the new RTL fail directed
   cases; one is equivalent, and one (NMI unblocked by a task return) is
   out of the lockstep's reach ([mutants.txt](mutants.txt)).
-- **Seal.** Quartus 17.0.2 at seed 1, from clean checkout `214cb3886`,
-  meets every analysis: setup +0.175 ns, hold +0.093 ns. The RTL has not
-  changed since; later commits touch only docs and the testbench. ALMs
-  36,155 (main 36,002 the same day, +153) and 269 M10K (main 268, +1)
-  ([Seal](#seal)).
+- **Seal.** Quartus 17.0.2 at seed 1, from clean checkout `fcb780f78`
+  (this branch with main merged), meets every analysis: setup +0.400 ns,
+  hold +0.080 ns. ALMs 36,132 (main 36,002 the same day, +130) and 269
+  M10K (main 268, +1) ([Seal](#seal)).
 - **Kit A, max.** DOOM v1.9 `-timedemo demo3` gives 40.03 fps, and 3DBench,
   PCPBench and TopBench match main's exactly, run the same hour. Descent now reaches its
   main menu; on main it stops after the DOS/4GW banner. Jump 'n Bump reaches
@@ -83,12 +82,10 @@ departs from the plan. In short:
 
 `scripts/test_fes_i386_lockstep.py` ran with every default (16 seeds of
 2,000 random programs, 16 seeds of 500 protected-mode programs, 16 seeds of
-250 task-switch programs, the full corpus). The RTL run was at `5083205bd`
-and the netlist run (Yosys `238eac9a4`, the i386 lock's) at `03e92ea45`, both with the
-lock's Verilator 5.054. Both have the sealed RTL. The protected-mode and paging cases
-then ran again, on the RTL and the netlist, with the final testbench at
-`e75343855`. That testbench fixes `ts-jmp-ti`, whose LDT entry was overwritten by the
-LDT's own setup, and adds `ts-gate-ti-ldt`.
+250 task-switch programs, the full corpus) at `fcb780f78`. That is this
+branch with main `1d45ba6e5` merged in, which moves the i386 lock's Yosys to
+`0a7927bf` (#1664). It ran on the RTL and on that Yosys's netlist, with the
+lock's Verilator 5.054:
 
 | Part | RTL | Netlist |
 | --- | --- | --- |
@@ -98,19 +95,15 @@ LDT's own setup, and adds `ts-gate-ti-ldt`.
 | Task-switch programs | 4,000 of 4,000 (202,130 retirements) | same |
 | Unbuilt encodings | 49,760, each stopped | same |
 | Directed cases | 77 of 77 | same |
-| Unreal, no-387 and memory cases | 7, 1,933 and 27, all pass | same |
-| Protected-mode cases (final testbench) | 349 of 349 | same |
-| Paging cases (final testbench) | 76 of 76 | same |
+| Unreal, protected-mode, paging, no-387 and memory cases | 7, 349, 76, 1,933 and 27, all pass | same |
 
-Of 996 trace hashes in the full runs, 995 match between RTL and netlist
+All 996 trace hashes match between the RTL and the netlist
 ([lockstep-report.json](lockstep-report.json),
-[lockstep-netlist-report.json](lockstep-netlist-report.json)). The other
-is the protected-mode cases', where the RTL run had 347 cases and the
-netlist run 348 (`ts-jmp-ti` was added between them). On the final
-testbench both give the same hashes for the protected-mode, paging and
-directed cases
-([directed-report.json](directed-report.json),
-[directed-netlist-report.json](directed-netlist-report.json)).
+[lockstep-netlist-report.json](lockstep-netlist-report.json)). Earlier runs
+on the unmerged branch, at `5083205bd` (RTL) and `03e92ea45` (Yosys
+`238eac9a4`'s netlist), gave the same results; they had 347 and 348
+protected-mode cases. `ts-jmp-ti`'s LDT entry was overwritten by the LDT's own
+setup there, which the testbench fixes; the fix also adds `ts-gate-ti-ldt`.
 
 **#1663.** In `random#1010#118`, an INTR delivery's handler's first fetch
 is on a page that is not present. Bochs takes that #PF inside the delivery's step;
@@ -166,7 +159,7 @@ IRET-NT placeholders are gone):
 `lockstep_tb`'s test386 mode, the run `scripts/test_fes_i386_test386.py
 --cpu rtl` makes, with the step limit raised to the script's 200,000,000
 (the runner now passes `FES_I386_LIMIT`; before, the testbench's default of
-30,000,000 ended the RTL inside POST EEh). The testbench was `03e92ea45`'s, with the sealed RTL
+30,000,000 ended the RTL inside POST EEh). The testbench was `03e92ea45`'s, with `214cb3886`'s RTL (the seal's logic)
 ([test386-rtl-report.json](test386-rtl-report.json)):
 - **POST codes** 00, 01, 02, 03, 04, 05, 06, 08, 09, 20, 21, 22, 0B-1C,
   E0, EE and FF, no error, no check stepped over. The run halts at
@@ -196,41 +189,46 @@ IRET-NT placeholders are gone):
 
 ## Seal
 
-The seal is Quartus 17.0.2, seed 1, from clean checkout `214cb3886`
-([seal-summary.json](seal-summary.json)). The RTL is the PR's: the commits
-after it change only docs, the testbench and test scripts. Main's
-`d56f0e558` was sealed the same way the same day for the kit's A/B
+The seal is Quartus 17.0.2, seed 1, from clean checkout `fcb780f78`
+([seal-summary.json](seal-summary.json)). That is the PR's RTL, with main
+`1d45ba6e5` merged in; main changed no RTL. An earlier seed-1 seal of
+`214cb3886` ([seal-summary-214cb3886.json](seal-summary-214cb3886.json))
+built the kit's package. Its RTL differs from the seal's only in how
+`dc_q.tsw` reads the decoder's routine address (the same logic, rewired so
+Verilator 5.032 sees no loop). Main's `d56f0e558` was sealed the same way
+the same day for the kit's A/B
 ([seal-summary-main-d56f0e558.json](seal-summary-main-d56f0e558.json)).
 
-| | This slice (`214cb3886`) | Main (`d56f0e558`) |
-| --- | ---: | ---: |
-| Package | `b3af9d7a…` | `bc4ab0d9…` |
-| Setup | +0.175 ns | +0.753 ns |
-| Hold | +0.093 ns | +0.077 ns |
-| Recovery | +6.897 ns | +7.097 ns |
-| Removal | +0.501 ns | +0.577 ns |
-| Minimum pulse width | +1.122 ns | +1.122 ns |
-| ALMs | 36,155 | 36,002 |
-| Registers | 32,552 | 32,413 |
-| M10K blocks | 269 | 268 |
-| Block memory bits | 1,349,500 | 1,342,310 |
-| DSP blocks | 38 | 38 |
+| | Seal (`fcb780f78`) | Kit package (`214cb3886`) | Main (`d56f0e558`) |
+| --- | ---: | ---: | ---: |
+| Package | `5565fff4…` | `b3af9d7a…` | `bc4ab0d9…` |
+| Setup | +0.400 ns | +0.175 ns | +0.753 ns |
+| Hold | +0.080 ns | +0.093 ns | +0.077 ns |
+| Recovery | +7.343 ns | +6.897 ns | +7.097 ns |
+| Removal | +0.399 ns | +0.501 ns | +0.577 ns |
+| Minimum pulse width | +1.122 ns | +1.122 ns | +1.122 ns |
+| ALMs | 36,132 | 36,155 | 36,002 |
+| Registers | 32,671 | 32,552 | 32,413 |
+| M10K blocks | 269 | 269 | 268 |
+| Block memory bits | 1,349,500 | 1,349,500 | 1,342,310 |
+| DSP blocks | 38 | 38 | 38 |
 
-The system clock is 61.44 MHz. The slice's worst setup path goes from
-`cpu_ex_ag_result` through D's load forwarding (`dfwd` base and row) and
-the store-to-load adder (`st_e`, `st_near`) to the issue enable. That path
-was built in Phase 4 and none of this slice's logic is on it; its slack
-moves with the fit.
-The plan gave slices 2-5 about 2,400 ALMs. This slice takes 153 over
+The system clock is 61.44 MHz. The seal's worst setup path runs from
+`cpu_dfwd_ready[15]` through D's load forwarding (`dfwd` base value) to
+`cpu_r_c1`. On `214cb3886`'s fit it ran from `cpu_ex_ag_result` through
+`dfwd` and the store-to-load adder (`st_e`, `st_near`) to the issue enable.
+Both are Phase 4 paths with none of this slice's logic on them, and their
+slack moves with the fit.
+The plan gave slices 2-5 about 2,400 ALMs. This slice takes 130 over
 main's fit of the same day, inside the ±200 fit noise the area audit
-measured. 5,755 ALMs (13.7%) are left, 2,345 under the working ceiling of
+measured. 5,778 ALMs (13.8%) are left, 2,368 under the working ceiling of
 38,500.
 
 ## Kit
 
 Runs `k1`-`k3` (this slice) and `m1`-`m3` (main) used Kit A, core-only,
 on 11 November from 11:24 to 12:28 ([kit-scores.json](kit-scores.json)).
-- **Packages.** `b3af9d7a…` (this slice's seal) and `bc4ab0d9…`, main
+- **Packages.** `b3af9d7a…` (this slice's seed-1 fit of `214cb3886`, the seal's logic) and `bc4ab0d9…`, main
   `d56f0e558`'s seal of the same day, at max (preset 0). Each launch came after a
   SCRUBX scrub.
 - **Kit.** Baseline image `179affbb…` and software `a2756499`, with no
