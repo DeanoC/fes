@@ -30,9 +30,15 @@ stops the RTL as not built (double fault and shutdown); the oracle must
 fault twice or shut down there.
 
 Beside the lockstep, every one-byte and 0Fh opcode followed by every second
-byte that SCOPE leaves out must stop the RTL with FAULT_UNIMPLEMENTED before
-anything retires (the testbench's unbuilt mode), so the lockstep, which only
-runs what SCOPE names, cannot pass over an unbuilt instruction.
+byte is classed by what the 386 does with it (i386_class, from its decoder
+ROMs; #1701), in the testbench's unbuilt mode: what the 386 rejects must raise
+#UD in lockstep with the oracle in real mode (the RTL alone where Bochs cannot
+step it or runs it, the [[lockstep]] ud_rtl entries of divergences.toml), and
+what it defines but SCOPE leaves out must stop the RTL with
+FAULT_UNIMPLEMENTED before anything retires, so the lockstep, which only runs
+what SCOPE names, cannot pass over an unbuilt instruction. Programs from
+seeds of their own put encodings the 386 rejects in real mode, protected mode
+at CPL 0 and 3, and V86 mode (--undefined-programs).
 
 With --yosys the CPU is first run through that Yosys (read, proc -norom,
 flatten, opt) and the netlist it writes is simulated instead of the RTL.
@@ -360,7 +366,8 @@ def run_pmode(testbench: str, env: dict) -> dict:
     IRET with NT, 16- and 32-bit TSSs, busy bits, the back link, a V86 task,
     CPL 3 and back, each check before the switch and each fault after its
     commit, in the 386's order (the cases where Bochs differs run on the RTL
-    alone)."""
+    alone); and #UD for what the 386's decoder rejects, in real mode, at CPL 0
+    and 3 and in V86 mode at IOPL 0 and 3 (#1701)."""
     env = dict(env, FES_I386_MODE='pmode', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -371,7 +378,9 @@ def run_pmode(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PMODE_CASES = 350
+# 350, and #1701's 42 #UD probes in real mode, at CPL 0 and 3 and in V86 mode
+# at IOPL 0 and 3.
+PMODE_CASES = 350 + 42 * 5
 
 
 def run_paging(testbench: str, env: dict) -> dict:
@@ -386,7 +395,9 @@ def run_paging(testbench: str, env: dict) -> dict:
     shadow, a #PF's double fault and shutdown, a MOV CR0 that sets PE and PG
     together, paging toggled around a far jump, #PF from V86 mode, and task
     switches under paging: #PF through a task gate and back by IRET, a new
-    CR3 that maps the GDT elsewhere, a new TSS on a page not present."""
+    CR3 that maps the GDT elsewhere, a new TSS on a page not present; #UD
+    for what the 386 rejects at CPL 0 and 3 and in V86 mode, before a
+    memory operand on a page not present (#1701)."""
     env = dict(env, FES_I386_MODE='paging', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -397,7 +408,9 @@ def run_paging(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PAGING_CASES = 77
+# 77, and #1701's #UD at CPL 0 and 3 before a memory operand on a page not
+# present (8 each) and its 42 probes in V86 mode.
+PAGING_CASES = 77 + 2 * 8 + 42
 
 
 def run_no387(testbench: str, env: dict) -> dict:
@@ -896,7 +909,8 @@ def main() -> int:
               f"{sum(gaps['store_other'].values())} other memory reads after a store, "
               f"{share(gaps['store_other'], 1)} one cycle apart; "
               f"{sum(gaps['after_store'].values())} others after a store, {share(gaps['after_store'], 1)} one cycle apart")
-    print(f"unbuilt encodings: {unbuilt_runs} outside SCOPE, {len(unbuilt_failures)} not stopped as unimplemented")
+    print(f"unbuilt encodings: {unbuilt_runs} the 386 rejects or this build does not run, "
+          f"{len(unbuilt_failures)} not raising #UD or stopped as unimplemented")
     print(f"BIU DMA/store: {biu_dma['output'] or 'FAIL'}")
     print(f"reset-store-on-reset: {reset_store['summary']['passed']} pass, {reset_store['summary']['failed']} fail")
     print(f"directed cases: {directed['summary']['passed']} pass, {directed['summary']['failed']} fail")
