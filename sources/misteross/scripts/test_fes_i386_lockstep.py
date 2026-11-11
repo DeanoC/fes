@@ -278,7 +278,12 @@ def run_pmode(testbench: str, env: dict) -> dict:
     IRET with NT, 16- and 32-bit TSSs, busy bits, the back link, a V86 task,
     CPL 3 and back, each check before the switch and each fault after its
     commit, in the 386's order (the cases where Bochs differs run on the RTL
-    alone)."""
+    alone); and breakpoints and single step: instruction breakpoints by
+    enable and LEN, ahead of the instruction's faults, RF from a handler's
+    IRETD and through a replay, data breakpoints by R/W and LEN and inside
+    REP strings, TF over MOV SS, POP SS, INT n, a fault, a REP string and
+    IRETD's image, the traps an edge merges, V86 mode and real mode, the
+    TSS's T bit and DR7's enables across a switch."""
     env = dict(env, FES_I386_MODE='pmode', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -289,7 +294,7 @@ def run_pmode(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PMODE_CASES = 349
+PMODE_CASES = 392
 
 
 def run_paging(testbench: str, env: dict) -> dict:

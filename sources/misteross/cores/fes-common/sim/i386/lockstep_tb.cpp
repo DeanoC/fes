@@ -6789,7 +6789,9 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
                   // entries past the table, its limit taking them in;
                   // alone_frame: a rtl_alone case checks the gate's frame.
                   std::vector<std::pair<uint32_t, std::vector<uint8_t>>> places = {};
-                  std::vector<uint64_t> more_gdt = {}; bool alone_frame = true; };
+                  std::vector<uint64_t> more_gdt = {}; bool alone_frame = true;
+                  // past_db: the run goes on past each #DB (debug_programs).
+                  bool past_db = false; };
     const uint64_t absent = gate(0x08, 0x1800, 0x0e);  // a 386 interrupt gate, not present
     const uint64_t window_ss = desc(MMIO_LO, 0xffff, 0x93, false, false);  // 28h: a 16-bit stack in the window
     std::vector<Case> cases = {
@@ -7791,6 +7793,209 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     ts("ts-ss-dpl-before-p", tsj(0x98), 10, 0x28, a_with([](TaskImage &t) { t.ss = 0x2b; }), {}, {}, 0x38, true);
     ts("ts-ud-gate-eip-past", [](Asm &a) { a.op({0x8e, 0xc8}); }, 13, 0, a_with([](TaskImage &t) { t.eip = 0x12345; }),
        {{6, gate(0x98, 0, 0x85)}}, {}, 0x38, true);
+    // Breakpoints and single step (Phase 5's fifth slice). Each arms what it
+    // needs with MOV DRn (arm: DRn's address, then DR7), most stop at the
+    // #DB the default gate's HLT takes (ending 1), where DR6 and the frame
+    // are compared; past_db cases go on through vector 1 to a handler in
+    // 32-bit code at 18h:1B00h that copies DR6 to ESI, sets RF in its
+    // frame and returns (MOV ESI, DR6; OR dword [ESP+8], RF; IRETD).
+    {
+        auto mov_eax = [](Asm &a, uint32_t v) { a.op({0x66, 0xb8}); a.d(v); };
+        auto mov_dr = [](Asm &a, unsigned n) { a.op({0x0f, 0x23, uint8_t(0xc0 | n << 3)}); };
+        // DR7's fields for breakpoint n: en (1 L, 2 G, 3 both), R/W, LEN.
+        auto f7 = [](unsigned n, unsigned en, unsigned rw, unsigned len) {
+            return uint32_t(en) << (2 * n) | uint32_t(rw | len << 2) << (16 + 4 * n);
+        };
+        auto arm = [=](Asm &a, unsigned n, uint32_t address) { mov_eax(a, address); mov_dr(a, n); };
+        auto dr7 = [=](Asm &a, uint32_t v) { mov_eax(a, v | 0x400); mov_dr(a, 7); };
+        // A later address: arm_at's MOV EAX's immediate, patched by here().
+        auto arm_at = [=](Asm &a, unsigned n) { const size_t at = a.here() + 2; arm(a, n, 0); return at; };
+        auto patch = [](Asm &a, size_t at, uint32_t v) { for (int i = 0; i < 4; ++i) a.b[at + i] = uint8_t(v >> (8 * i)); };
+        auto here = [](Asm &a) { return CODE + uint32_t(a.here()); };
+        auto set_tf = [](Asm &a) { a.op({0x9c, 0x5b, 0x80, 0xcf, 0x01, 0x53, 0x9d}); };  // PUSHF; POP BX; OR BH, 1; PUSH BX; POPF
+        auto clear_tf = [](Asm &a) { a.op({0x9c, 0x5b, 0x80, 0xe7, 0xfe, 0x53, 0x9d}); };
+        const std::pair<uint32_t, std::vector<uint8_t>> rf_handler{
+            0x1b00, {0x0f, 0x21, 0xf6, 0x81, 0x4c, 0x24, 0x08, 0x00, 0x00, 0x01, 0x00, 0xcf}};
+        const uint64_t rf_gate = gate(0x18, 0x1b00, 0x8e);
+        auto db = [&](const char *label, std::function<void(Asm &)> body, int ending, bool real = false,
+                      bool past = false, bool window = false, int soft = -1) {
+            Case c{label, body, ending, -1, {}, real, soft};
+            if (past) {
+                c.gates = {{1, rf_gate}};
+                c.places = {rf_handler};
+                c.past_db = true;
+            }
+            c.window = window;
+            cases.push_back(c);
+        };
+        // Instruction breakpoints: DR0 (L0) and DR1 (disabled) at INC AX:
+        // #DB before it, B0 and B1 (a disabled match reported too); with
+        // DR6's B2 set first, kept (the 386 never clears DR6: dr6_rule).
+        auto ibp = [=](Asm &a, unsigned en, uint32_t b6) {
+            if (b6) { mov_eax(a, b6); a.op({0x0f, 0x23, 0xf0}); }                   // MOV DR6, EAX
+            const size_t d1 = arm_at(a, 1), d0 = arm_at(a, 0);
+            dr7(a, f7(0, en, 0, 0));
+            patch(a, d1, here(a)); patch(a, d0, here(a));
+            a.op({0x40});
+        };
+        db("db-ibp", [=](Asm &a) { ibp(a, 1, 0); }, 1);
+        db("db-ibp-g0-sticky", [=](Asm &a) { ibp(a, 2, 0x4); }, 1);
+        db("db-real-ibp", [=](Asm &a) { ibp(a, 3, 0); }, 1, true);
+        // LEN 01 at the instruction's address plus one (an even address):
+        // LEN's mask matches it, as Bochs's; LEN 00 one byte in does not.
+        db("db-ibp-len2", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0);
+            dr7(a, f7(0, 1, 0, 1));
+            if (here(a) & 1) a.op({0x90});
+            patch(a, d0, here(a) + 1);
+            a.op({0x40});
+        }, 1);
+        db("db-ibp-mid", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0);
+            dr7(a, f7(0, 1, 0, 0));
+            patch(a, d0, here(a) + 1);
+            a.op({0x66, 0x40});                                                      // INC EAX
+        }, -1);
+        // Ahead of the instruction's own fault: #UD (MOV CS, AX), #GP(0).
+        db("db-ibp-ud", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0); dr7(a, f7(0, 1, 0, 0)); patch(a, d0, here(a)); a.op({0x8e, 0xc8});
+        }, 1);
+        db("db-ibp-gp", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0); dr7(a, f7(0, 1, 0, 0)); patch(a, d0, here(a)); a.op({0x8b, 0x06, 0xff, 0xff});
+        }, 1);
+        // RF: the handler sets RF in its frame; the instruction then runs
+        // with no #DB, and RF clears as it completes, so DR1's breakpoint on
+        // the next takes its #DB too.
+        db("db-ibp-rf", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0), d1 = arm_at(a, 1);
+            dr7(a, f7(0, 1, 0, 0) | f7(1, 2, 0, 0));
+            patch(a, d0, here(a)); a.op({0x40});
+            patch(a, d1, here(a)); a.op({0x43});
+        }, -1, false, true);
+        // RF through a replay: LDS SI, FS:[0A0000h] (FS 20h, flat), whose
+        // selector's load from the MMIO window is uncached and not the
+        // oldest uop, so it replays from the instruction, RF still set.
+        db("db-ibp-rf-replay", [=](Asm &a) {
+            a.ax(0x20); a.op({0x8e, 0xe0});                                         // MOV FS, 20h
+            const size_t d0 = arm_at(a, 0); dr7(a, f7(0, 1, 0, 0));
+            patch(a, d0, here(a));
+            a.op({0x67, 0x64, 0xc5, 0x35}); a.d(MMIO_LO);                          // LDS SI, FS:[0A0000h]
+            a.op({0x43});
+        }, -1, false, true, true);
+        // Data breakpoints, a trap after the access's instruction.
+        auto dbp = [=](Asm &a, unsigned n, uint32_t address, unsigned rw, unsigned len) {
+            arm(a, n, address); dr7(a, f7(n, 1, rw, len));
+        };
+        db("db-dbp-write-word", [=](Asm &a) { dbp(a, 2, 0x108, 1, 1); a.op({0xa3, 0x07, 0x01, 0x40}); }, 1);    // MOV [107h], AX
+        db("db-dbp-read-not-w", [=](Asm &a) {
+            dbp(a, 2, 0x108, 1, 0); a.op({0xa1, 0x08, 0x01, 0x40, 0xa2, 0x08, 0x01, 0x40});  // MOV AX, [108h]; INC; MOV [108h], AL
+        }, 1);
+        db("db-dbp-rw-read", [=](Asm &a) { dbp(a, 2, 0x10a, 3, 3); a.op({0xa0, 0x0b, 0x01, 0x40}); }, 1);       // MOV AL, [10Bh]
+        db("db-dbp-len8", [=](Asm &a) { dbp(a, 3, 0x10f, 1, 2); a.op({0xa3, 0x0e, 0x01, 0x40}); }, 1);          // word at 10Eh
+        db("db-dbp-straddle", [=](Asm &a) { dbp(a, 1, 0x110, 3, 3); a.op({0x66, 0xa1, 0x0e, 0x01, 0x40}); }, 1);  // dword at 10Eh
+        db("db-dbp-miss", [=](Asm &a) {
+            dbp(a, 0, 0x110, 1, 0); arm(a, 1, 0x10e);                               // DR1 at 10Eh, disabled R/W 00
+            a.op({0xa3, 0x0e, 0x01, 0x40});
+        }, -1);
+        db("db-dbp-rmw", [=](Asm &a) { dbp(a, 0, 0x120, 1, 0); a.op({0x80, 0x06, 0x20, 0x01, 0x05, 0x40}); }, 1);  // ADD byte [120h], 5
+        db("db-dbp-push", [=](Asm &a) { dbp(a, 0, 0x0efe, 1, 1); a.op({0x50, 0x40}); }, 1);                       // PUSH AX at SP 0F00h
+        db("db-dbp-xchg", [=](Asm &a) { dbp(a, 0, 0x120, 3, 0); a.op({0x86, 0x06, 0x20, 0x01, 0x40}); }, 1);    // XCHG [120h], AL
+        // Inside a REP string: the trap after the element that hits, with RF
+        // set in its frame and the string's registers stepped that far.
+        db("db-dbp-rep-stos", [=](Asm &a) {
+            dbp(a, 0, 0x124, 1, 0); a.op({0xbf, 0x20, 0x01, 0xb9, 0x08, 0x00, 0xfc, 0xf3, 0xaa, 0x40});
+        }, 1);
+        db("db-dbp-rep-lods-down", [=](Asm &a) {
+            dbp(a, 0, 0x135, 3, 0); a.op({0xbe, 0x3a, 0x01, 0xb9, 0x0a, 0x00, 0xfd, 0xf3, 0xac, 0x40});
+        }, 1);
+        db("db-dbp-rep-movs-dst", [=](Asm &a) {
+            dbp(a, 3, 0x146, 1, 1);
+            a.op({0xbe, 0x00, 0x01, 0xbf, 0x40, 0x01, 0xb9, 0x06, 0x00, 0xfc, 0xf3, 0xa5, 0x40});   // REP MOVSW
+        }, 1);
+        db("db-real-dbp-rep", [=](Asm &a) {
+            dbp(a, 0, 0x124, 1, 0); a.op({0xbf, 0x20, 0x01, 0xb9, 0x08, 0x00, 0xfc, 0xf3, 0xaa, 0x40});
+        }, 1, true);
+        // A data breakpoint's trap goes on to the next: the handler returns,
+        // a second hit traps again, and DR6 holds both B bits.
+        db("db-dbp-twice", [=](Asm &a) {
+            dbp(a, 0, 0x120, 1, 0); arm(a, 1, 0x122); dr7(a, f7(0, 1, 1, 0) | f7(1, 1, 1, 0));
+            a.op({0xa2, 0x20, 0x01, 0x40, 0xa2, 0x22, 0x01, 0x40});
+        }, -1, false, true);
+        // Single step: TF set by POPF traps after the instruction after it
+        // (BS), not after the POPF.
+        db("db-tf", [=](Asm &a) { set_tf(a); a.op({0x40}); }, 1);
+        db("db-real-tf", [=](Asm &a) { set_tf(a); a.op({0x40}); }, 1, true);
+        // MOV SS and POP SS: the trap waits for the instruction after them.
+        db("db-tf-movss", [=](Asm &a) { a.op({0x8c, 0xd0}); set_tf(a); a.op({0x8e, 0xd0, 0x40}); }, 1);
+        db("db-tf-popss", [=](Asm &a) { a.op({0x16}); set_tf(a); a.op({0x17, 0x40}); }, 1);
+        // INT n clears TF: its handler is not stepped, its IRET restores TF,
+        // and the instruction after it traps. After POP SS, the trap the
+        // shadow carried is dropped by the INT (Bochs's interrupt()).
+        db("db-tf-int", [=](Asm &a) { a.op({0x16}); set_tf(a); a.op({0x17, 0xcd, 0x20, 0x43}); clear_tf(a); }, -1, false,
+           true, false, 0x20);
+        // A fault: no trap after it, its handler not stepped.
+        db("db-tf-fault", [=](Asm &a) { set_tf(a); a.op({0x8e, 0xc8}); }, 6);
+        // Every instruction stepped, a REP string by its elements, until a
+        // POPF clears TF (which traps itself): the handler's IRETD goes on.
+        db("db-tf-run", [=](Asm &a) {
+            set_tf(a);
+            a.op({0xbf, 0x20, 0x01, 0xb9, 0x03, 0x00, 0xfc, 0xf3, 0xaa, 0x40, 0xa2, 0x30, 0x01});
+            clear_tf(a);
+        }, -1, false, true);
+        // The trap merges what else is due at that edge: the next
+        // instruction's breakpoint (BS with B0), a data breakpoint's (BS
+        // with B2), and a disabled breakpoint's match (B1, with DR0 enabled
+        // elsewhere).
+        db("db-tf-ibp", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0); dr7(a, f7(0, 1, 0, 0));
+            set_tf(a); a.op({0x40}); patch(a, d0, here(a)); a.op({0x43});
+        }, 1);
+        db("db-tf-dbp", [=](Asm &a) { dbp(a, 2, 0x108, 1, 1); set_tf(a); a.op({0xa3, 0x08, 0x01}); }, 1);
+        db("db-tf-dbp-disabled", [=](Asm &a) {
+            arm(a, 0, 0x5000); arm(a, 1, 0x108); dr7(a, f7(0, 1, 1, 0) | f7(1, 0, 1, 0));
+            set_tf(a); a.op({0xa3, 0x08, 0x01});
+        }, 1);
+        // TF from IRETD's image: no trap after the IRETD, one after the next.
+        db("db-tf-iretd", [=](Asm &a) {
+            a.op({0x66, 0x9c, 0x89, 0xe5, 0x66, 0x81, 0x4e, 0x00}); a.d(0x100);   // PUSHFD; MOV BP, SP; OR dword [BP], TF
+            a.op({0x66, 0x6a, 0x08});                                              // PUSH dword 08h
+            const size_t at = a.here();
+            a.op({0x66, 0x68}); a.d(0); a.op({0x66, 0xcf});                        // PUSH next; IRETD
+            patch(a, at + 2, here(a));
+            a.op({0x40, 0x43});
+        }, 1);
+        // In V86 mode: an instruction breakpoint (armed before the IRETD
+        // into it) and a POPF that sets TF (IOPL 3), each delivered to CPL 0.
+        v86("db-v86-ibp", [=](Asm &a) { a.op({0x40, 0x40, 0x43}); }, 1, -1, 3);
+        cases.back().body = [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0); dr7(a, f7(0, 1, 0, 0));
+            to_v86(a, 0x38, 3, 0x0100);
+            a.op({0x40}); patch(a, d0, here(a)); a.op({0x43});
+        };
+        v86("db-v86-tf", [=](Asm &a) { set_tf(a); a.op({0x40, 0x43}); }, 1, -1, 3);
+    }
+    // The T bit: a switch into a 386 TSS whose T bit (64h, bit 0) is set
+    // traps before the new task's first instruction, with DR6.BT; JMP,
+    // CALL, INT n through a task gate and IRET back to a task whose T bit
+    // is set; none into a 286 TSS. DR7's global enable
+    // stays across the switch and a local one does not: G0's breakpoint on
+    // task A's first instruction faults there, L0's does not.
+    const Places t_on{{0x2664, {0x01}}};
+    ts("ts-tbit-jmp", tsj(0x98), 1, -1, with({task(0x2600, a_img, HLT1), t_on}));
+    ts("ts-tbit-call", tsc(0x98), 1, -1, with({task(0x2600, a_img, IRET1), t_on}));
+    ts("ts-tbit-iret", tsc(0x98), 1, -1, with({task(0x2600, a_img, IRET1), Places{{0x2564, {0x01}}}}));
+    ts("ts-tbit-int-gate", [](Asm &a) { a.op({0xcd, 0x2e, 0x41}); }, 1, -1, with({task(0x2600, a_img, IRET1), t_on}),
+       {{0x2e, gate(0x98, 0, 0x85)}}, {}, 0x38, false, 0x2e);
+    ts("ts-tbit-286", tsj(0xa0), -1, -1, with({task(0x2680, b_img, HLT1), Places{{0x2680 + 0x2c, {0x01}}}}));
+    auto g_or_l = [](unsigned en) {
+        return [=](Asm &a) {
+            a.op({0x66, 0xb8}); a.d(0x1a00); a.op({0x0f, 0x23, 0xc0});            // MOV DR0, 1A00h
+            a.op({0x66, 0xb8}); a.d(0x400 | en); a.op({0x0f, 0x23, 0xf8});        // MOV DR7, en
+            a.op({0xea, 0x00, 0x00, 0x98, 0x00});
+        };
+    };
+    ts("ts-g0-kept", g_or_l(2), 1, -1, task(0x2600, a_img, HLT1));
+    ts("ts-l0-cleared", g_or_l(1), -1, -1, task(0x2600, a_img, HLT1));
     const char *only = std::getenv("FES_I386_CASE");
     for (const Case &c : cases) {
         if (only && std::string(only) != c.label) continue;
@@ -7915,7 +8120,10 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
             }
         } else {
             try {
-                outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 64, true, summary, out, CODE + uint32_t(a.b.size()));
+                debug_programs = c.past_db;
+                outcome = lockstep(oracle, bus, rtl, entries, Fields{}, c.past_db ? 256 : 64, true, summary, out,
+                                   CODE + uint32_t(a.b.size()));
+                debug_programs = false;
             } catch (const std::exception &error) {
                 out.add(label + ".oracle-error:" + error.what(), 0, 1);
                 oracle.reset();

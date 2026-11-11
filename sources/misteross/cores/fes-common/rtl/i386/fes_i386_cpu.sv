@@ -2033,7 +2033,7 @@ module fes_i386_cpu #(
         // An instruction's first uop: the instruction breakpoints its fetched
         // linear address matches (see Breakpoints), which EX turns into the
         // fault (FAULT_DBI) while RF is clear.
-        ag_out.ibp = ag_s.fchk ? ibp_match(ag_s.lin, dr, bp_any, bp_x, bp_m) : 4'd0;
+        ag_out.ibp = ag_s.fchk && !ibp_skip ? ibp_match(ag_s.lin, dr, bp_any, bp_x, bp_m) : 4'd0;
         ag_out.ibp_en = (ag_out.ibp & bp_en) != 4'd0;
         // Its bytes are not those at its EIP: it replays, touching nothing.
         if (ag_fbad) begin
@@ -2197,6 +2197,13 @@ module fes_i386_cpu #(
                      | (m1_s.uop.st2 ? dbp_match(m1_s.target, m1_s.uop.mem.bytes, 1'b0, 1'b1, dr, bp_any, bp_w, bp_rw, bp_m)
                                      : 4'd0);
         m1_out.dbp_en = (m1_out.dbp & bp_en) != 4'd0;
+        // An enabled instruction breakpoint's uop touches nothing from here
+        // on (no read, no walk, no fault of its own): EX makes it the #DB or,
+        // when RF or a MOV SS suppresses that, a replay (see EX).
+        if (m1_s.ibp_en) begin
+            m1_out.uop.ctl.fault = fes_i386_pkg::FAULT_DBI;
+            m1_out.dfl = 1'b0;
+        end
         m1_out.tchk = m1_tpast && m1_s.uop.cls == fes_i386_pkg::UOP_BRANCH;
         m1_out.cpast = m1_s.cpast || m1_tpast && m1_s.uop.cls != fes_i386_pkg::UOP_BRANCH;
         case (m1_zk)
@@ -2521,7 +2528,7 @@ module fes_i386_cpu #(
     logic        ex_taken, ex_br, ex_sh_out0, ex_sh_outn, ex_sh_cfw, ex_sh_wide, ex_def_co, ex_def_szap;
     logic [31:0] ex_ind_target, ex_ind_eip;
     pipe_t       ex_out;
-    logic        ex_dbi, ibp_sup;
+    logic        ex_ibp, ex_dbi, ibp_sup, ibp_skip;
 
     logic [7:0] wb_r8;
     logic       wb_sh_cf, wb_sh_of;
@@ -2617,13 +2624,16 @@ module fes_i386_cpu #(
         ex_out.sh_wide = ex_sh_wide;
         ex_out.def_co = ex_def_co;
         ex_out.def_szap = ex_def_szap;
-        // An instruction breakpoint (see Breakpoints) on an instruction's
-        // first uop, while RF is clear (EX's EFLAGS, RF after the instruction
-        // before) and not after a MOV SS or POP SS (ibp_sup), faults ahead of
-        // anything its instruction found: the 386's instruction breakpoint
-        // comes before the faults of fetching and decoding the instruction.
-        if (ex_dbi) begin
-            ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_DBI;
+        // An enabled instruction breakpoint (see Breakpoints) on an
+        // instruction's first uop (ex_ibp), while RF is clear (EX's EFLAGS,
+        // RF after the instruction before) and not after a MOV SS or POP SS
+        // (ibp_sup), faults ahead of anything its instruction found: the
+        // 386's instruction breakpoint comes before the faults of fetching
+        // and decoding the instruction. Suppressed, the uop, which M1 kept
+        // from touching memory, replays, and AG then skips the breakpoint
+        // once (ibp_skip).
+        if (ex_ibp) begin
+            ex_out.uop.ctl.fault = ex_dbi ? fes_i386_pkg::FAULT_DBI : fes_i386_pkg::FAULT_REPLAY;
             ex_out.taken = 1'b0;
             ex_out.def_co = 1'b0;
             ex_out.def_szap = 1'b0;
@@ -2655,10 +2665,10 @@ module fes_i386_cpu #(
             // the uops EX has run since the boundary.
             ex_flags <= eflags;
         end else if (ex_s.valid && !wb_flush) begin
-            // An instruction breakpoint's fault (ex_dbi) runs nothing of its
+            // An instruction breakpoint's uop (ex_ibp) runs nothing of its
             // instruction: EX's copy takes EFLAGS before it (flags_keep, an
             // older shift's flags in WB included).
-            ex_flags <= ex_dbi ? flags_keep : ex_flags_out;
+            ex_flags <= ex_ibp ? flags_keep : ex_flags_out;
         end else begin
             ex_flags <= flags_keep;
         end
@@ -2941,7 +2951,14 @@ module fes_i386_cpu #(
     // instruction after a shadowing MOV SS or POP SS (Bochs's
     // BX_INHIBIT_DEBUG), whose last uop may be in WB yet.
     assign ibp_sup = wb_s.valid && wb_eoi ? sh_ss : movss_sh;
-    assign ex_dbi = ex_s.valid && ex_s.ibp_en && !ex_flags[16] && !ibp_sup;
+    assign ex_ibp = ex_s.valid && ex_s.ibp_en;
+    assign ex_dbi = ex_ibp && !ex_flags[16] && !ibp_sup;
+    // A suppressed breakpoint's replay: the instruction's next pass by AG
+    // matches nothing.
+    always_ff @(posedge clk)
+        if (reset) ibp_skip <= 1'b0;
+        else if (rp_go && wb_s.ibp_en) ibp_skip <= 1'b1;
+        else if (!freeze && !wb_flush && ag_s.valid && ag_s.fchk) ibp_skip <= 1'b0;
 
     assign int_next = at_boundary && (dbg_fire || !int_shadow && (nmi_ok || intr && int_if)) || in_hlt && (nmi_ok || intr && int_if);
     assign int_cnmi_n = nmi_ok && (in_hlt || !int_shadow);
