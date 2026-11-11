@@ -16,7 +16,7 @@ struct Rig {
     Vfes_de25_scanout_board t;
     Clock ref{50000000,10000000},sys{100000000,5000000},pix;
     uint64_t system_edges=0,pixel_edges=0,loss_system=0,loss_pixel=0;
-    bool previous_hs=false,lost=false,released=false,fault_seen=false;
+    bool previous_hs=false,previous_boundary=false,lost=false,released=false,fault_seen=false;
     Rig(uint64_t phase, bool early_init=false, bool wait_hdmi=false):pix{74250000,phase+1}{
         t.CLOCK0_50=t.system_clk=0;t.ninit_done=1;t.top_reset_n=0;t.HDMI_TX_INT=1;
         t.video_rgb=0x123456;t.video_de=1;t.video_hs=t.video_vs=0;t.eval();
@@ -50,7 +50,7 @@ struct Rig {
     void step(){
         uint64_t now=std::min(ref.next,std::min(sys.next,pix.next));
         bool data=t.HDMI_TX_DE,hs=t.HDMI_TX_HS,vs=t.HDMI_TX_VS;
-        bool input_hs=t.video_hs,input_vs=t.video_vs,pixel_rise=false;
+        bool pixel_rise=false;
         if(ref.next==now){if(ref.running){ref.high=!ref.high;t.CLOCK0_50=ref.high;}ref.advance();}
         if(sys.next==now){if(sys.running){sys.high=!sys.high;t.system_clk=sys.high;if(sys.high)++system_edges;}sys.advance();}
         if(pix.next==now){if(pix.running){pix.high=!pix.high;t.rootp->fes_de25_scanout_board__DOT__video_clock__DOT__outclk_0=pix.high;pixel_rise=pix.high;
@@ -58,12 +58,13 @@ struct Rig {
             pix.advance();}
         bool boundary=pixel_rise&&previous_hs&&!t.video_hs&&!t.video_vs;
         t.eval();
-        if(!data&&t.HDMI_TX_DE)check(boundary,"picture re-enabled outside a complete HS trailing edge");
-        if(hs&&!t.HDMI_TX_HS)check(input_hs&&!t.video_hs,"HS pulse shortened");
-        if(!hs&&t.HDMI_TX_HS)check(!input_hs&&t.video_hs,"HS started mid-pulse");
-        if(vs&&!t.HDMI_TX_VS)check(input_vs&&!t.video_vs,"VS pulse shortened");
-        if(!vs&&t.HDMI_TX_VS)check(!input_vs&&t.video_vs,"VS started mid-pulse");
-        if(pixel_rise)previous_hs=t.video_hs;
+        if(!data&&t.HDMI_TX_DE)check(pixel_rise&&previous_boundary,"picture re-enabled outside the registered complete HS trailing edge");
+        if(hs&&!t.HDMI_TX_HS)check(pixel_rise&&!t.video_hs,"HS pulse shortened or changed off-clock");
+        if(!hs&&t.HDMI_TX_HS)check(pixel_rise&&t.video_hs,"HS started mid-pulse or changed off-clock");
+        if(vs&&!t.HDMI_TX_VS)check(pixel_rise&&!t.video_vs,"VS pulse shortened or changed off-clock");
+        if(!vs&&t.HDMI_TX_VS)check(pixel_rise&&t.video_vs,"VS started mid-pulse or changed off-clock");
+        if(pixel_rise){previous_hs=t.video_hs;previous_boundary=boundary;}
+        check(!t.display_ready||t.HDMI_TX_DE,"display readiness preceded registered pins");
         if(t.top_reset_n){
             if(released)check(t.scanout_reset_n,"clock loss reset live bridge/FIFO epoch");
             if(t.scanout_reset_n)released=true;

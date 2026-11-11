@@ -5,8 +5,9 @@ module fes_de25_scanout_board (
     input wire [23:0] video_rgb,
     input wire video_de, video_hs, video_vs,
     output wire pixel_clk, scanout_reset_n, clock_fault, display_ready, stream_ready,
-    output wire HDMI_TX_CLK, HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS,
-    output wire [23:0] HDMI_TX_D,
+    output wire HDMI_TX_CLK,
+    output reg HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS,
+    output reg [23:0] HDMI_TX_D,
     output wire HDMI_I2C_SCL,
     inout wire HDMI_I2C_SDA,
     output wire HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S
@@ -137,11 +138,31 @@ module fes_de25_scanout_board (
     // configuration visibility still uses the unchanged complete-line pin gate.
     assign stream_ready = qualified_sync[1] && allow_sync[1] &&
         pixel_epoch_sync[1] == pixel_ack;
-    assign display_ready = video_active && visible_line;
+    assign display_ready = hdmi_active;
     wire pin_allow = config_reset_n && visible_allow;
     assign HDMI_TX_CLK = pixel_clk;
-    assign HDMI_TX_D = pin_allow && video_active && visible_line ? video_rgb : 24'd0;
-    assign HDMI_TX_DE = pin_allow && video_active && visible_line && video_de;
-    assign HDMI_TX_HS = visible_line && video_hs;
-    assign HDMI_TX_VS = visible_line && video_vs;
+    reg hdmi_active = 0;
+    initial begin
+        HDMI_TX_D = 24'd0;
+        HDMI_TX_DE = 1'b0;
+        HDMI_TX_HS = 1'b0;
+        HDMI_TX_VS = 1'b0;
+    end
+    // Preserve the parent's aligned ADV7513 output stage. The retained token
+    // handshake still owns rearming; qualification loss blanks data at once.
+    always @(posedge pixel_clk or negedge pin_allow) begin
+        if (!pin_allow) begin
+            hdmi_active <= 0;
+            HDMI_TX_D <= 24'd0;
+            HDMI_TX_DE <= 1'b0;
+        end else begin
+            hdmi_active <= video_active && visible_line;
+            HDMI_TX_D <= video_active && visible_line ? video_rgb : 24'd0;
+            HDMI_TX_DE <= video_active && visible_line && video_de;
+        end
+    end
+    always @(posedge pixel_clk) begin
+        HDMI_TX_HS <= visible_line && video_hs;
+        HDMI_TX_VS <= visible_line && video_vs;
+    end
 endmodule

@@ -460,19 +460,23 @@ def verify_reset_synchronizers(project):
         "endelseif(boundary)beginvisible_line<=1;video_active<=1;end",
         "always@(posedgesystem_clkornegedgetop_reset_n)if(!top_reset_n)visible_request<=1'b0;"
         "elsevisible_request<=first_lock_seen&&monitor_ready_sync[1]&&!fault&&hdmi_ready_sync[1];",
-        "assigndisplay_ready=video_active&&visible_line;",
+        "assigndisplay_ready=hdmi_active;",
         "assignstream_ready=qualified_sync[1]&&allow_sync[1]&&pixel_epoch_sync[1]==pixel_ack;",
         "assignscanout_reset_n=first_lock_seen;", "assignclock_fault=fault;",
     )
     if any(token not in board for token in protocol) or re.search(r"system_ack<=\d|system_ack<=1'b", board):
         raise ValueError("scanout needs a retained fault token, cold-only ACK and unchanged live bridge reset")
     if ("always@(posedgepixel_clk)begin" not in board or
-            [event for event in re.findall(r"always@\(([^)]+)\)", board) if "pixel_clk" in event] != ["posedgepixel_clk"] or
+            [event for event in re.findall(r"always@\(([^)]+)\)", board) if "pixel_clk" in event] != ["posedgepixel_clk", "posedgepixel_clkornegedgepin_allow", "posedgepixel_clk"] or
             "visible_release" in board or "lock_qualifier" in board):
         raise ValueError("scanout visibility must retain ordinary pixel data registers without another reset chain")
     if ("wirepin_allow=config_reset_n&&visible_allow;" not in board or
-            "assignHDMI_TX_D=pin_allow&&video_active&&visible_line?video_rgb:24'd0;" not in board or
-            "assignHDMI_TX_DE=pin_allow&&video_active&&visible_line&&video_de;" not in board or
+            "always@(posedgepixel_clkornegedgepin_allow)beginif(!pin_allow)begin"
+            "hdmi_active<=0;HDMI_TX_D<=24'd0;HDMI_TX_DE<=1'b0;endelsebegin"
+            "hdmi_active<=video_active&&visible_line;HDMI_TX_D<=video_active&&visible_line?video_rgb:24'd0;"
+            "HDMI_TX_DE<=video_active&&visible_line&&video_de;endend" not in board or
+            "always@(posedgepixel_clk)beginHDMI_TX_HS<=visible_line&&video_hs;"
+            "HDMI_TX_VS<=visible_line&&video_vs;end" not in board or
             "wireboundary=previous_hs&&!video_hs&&!video_vs;" not in board):
         raise ValueError("scanout HDMI pin blanking and complete-sync visibility boundary changed")
     crossings = (

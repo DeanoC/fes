@@ -112,9 +112,10 @@ reference controller waits for both acknowledgements and observed inactivity
 before it can permit another visibility epoch. Retaining acknowledgement state
 across a global reset avoids aliasing a new token with a reset-to-zero ACK.
 
-Reference qualification blanks HDMI data/DE immediately. Pixel visibility
-closes at a complete HS trailing edge outside VS, preserving complete sync
-pulses; rearming also waits for that boundary. Eight new crossings cut only a
+Reference qualification blanks HDMI data/DE immediately. D/DE/HS/VS share
+one pixel-clock output stage, and DisplayReady follows that registered stage.
+Pixel visibility closes at a complete HS trailing edge outside VS, preserving
+complete sync pulses; rearming also waits for that boundary. Eight new crossings cut only a
 single registered source to stage0 D, with unique-object guards. Their later
 stages and consumers stay timed. The digital protocol does not establish
 physical CDC/reset or HDMI output timing. A common reset begins a new epoch

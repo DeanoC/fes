@@ -33,6 +33,22 @@ class ScanoutBuildTests(unittest.TestCase):
             return B.prepare(self.fixture.archive, self.root / "prepared", revision, hps_first=hps_first, linux_dma=linux_dma,
                              package_build_id=package_build_id)
 
+    def test_registered_hdmi_outputs_keep_the_adv7513_contract(self):
+        sources = B.capture()
+        prefix = "sources/misteross/boards/de25nano/scanout/"
+        board = sources[prefix + "fes_de25_scanout_board.v"].decode()
+        self.assertIn("output reg HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS", board)
+        self.assertIn("output reg [23:0] HDMI_TX_D", board)
+        for signal in ("HDMI_TX_D", "HDMI_TX_DE", "HDMI_TX_HS", "HDMI_TX_VS"):
+            self.assertIn(signal + " <=", board)
+            self.assertNotIn("assign " + signal + " =", board)
+        sdc = sources[prefix + "clocks.sdc"].decode()
+        self.assertIn("create_generated_clock -name HDMI_TX_CLK", sdc)
+        self.assertIn("-multiply_by 297 -divide_by 200", sdc)
+        self.assertIn("set_output_delay -clock HDMI_TX_CLK -max 1.000", sdc)
+        self.assertIn("set_output_delay -clock HDMI_TX_CLK -min -0.700", sdc)
+        self.assertIn("setup tVSU >= 1.0 ns and hold tVHLD >= 0.7 ns", sdc)
+
     def test_package_identity_is_inserted_before_generation_with_an_explicit_seed(self):
         selected = "0123456789abcdeffedcba9876543210"
         original_load = B.load
@@ -475,8 +491,10 @@ class ScanoutBuildTests(unittest.TestCase):
             ("if (!pending)", "if (1'b1)", "retained fault token"),
             ("if (!first_lock_seen) system_ack", "if (1'b1) system_ack", "retained fault token"),
             ("assign scanout_reset_n = first_lock_seen;", "assign scanout_reset_n = first_lock_seen && pixel_locked;", "retained fault token"),
-            ("always @(posedge pixel_clk)", "always @(posedge pixel_clk or negedge config_reset_n)", "ordinary pixel data"),
-            ("pin_allow && video_active && visible_line && video_de;", "visible_request && pin_allow && video_active && visible_line && video_de;", "pin blanking"),
+            ("always @(posedge pixel_clk) begin\n        qualified_sync", "always @(posedge pixel_clk or negedge config_reset_n) begin\n        qualified_sync", "ordinary pixel data"),
+            ("HDMI_TX_DE <= video_active && visible_line && video_de;", "HDMI_TX_DE <= visible_request && video_active && visible_line && video_de;", "pin blanking"),
+            ("assign display_ready = hdmi_active;", "assign display_ready = video_active;", "retained fault token"),
+            ("HDMI_TX_HS <= visible_line && video_hs;", "HDMI_TX_HS <= video_hs;", "pin blanking"),
             ("qualified_sync[0], config_reset_n", "qualified_sync[0], 1'b1", "data connection"),
         )
         for before, after, error in board_mutations:
