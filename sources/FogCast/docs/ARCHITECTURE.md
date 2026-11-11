@@ -3341,8 +3341,9 @@ core names `keyboard` when its package requires `fes.keyboard.hid`, or plain
 Master System, SG-1000 and earlier ColecoVision reuse that matrix as a
 joystick, so it is not a keyboard requirement.
 
-A pad or USB keyboard on the kit writes raw input frames to that socket; keyboard
-frames carry the key's USB HID usage (`internal/hidkeys`, from evdev `KEY_*`). mister-agent
+A pad or USB keyboard on the kit writes raw input frames to
+`/run/fogcast/local-input.sock`; keyboard frames carry the key's USB HID usage
+(`internal/hidkeys`, from evdev `KEY_*`). mister-agent
 shapes them with `playhid.StreamEvent` from the runtime's controller-port and keyboard
 capabilities, then applies the same keypad Start/Select aliases as the host stream.
 HID sessions keep the usages; `fes.keyboard` and native cores first map a usage to the
