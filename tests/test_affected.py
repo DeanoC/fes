@@ -357,11 +357,10 @@ class AffectedTests(unittest.TestCase):
                 self.assertTrue(result['lanes']['parent'])
                 self.assertEqual(result['cores'], [])
 
-    def test_i386_runs_software_tests_without_simulations(self):
+    def test_i386_software_inputs_do_not_select_core_simulations(self):
         for path in ('cores/fes-common/sim/i386/bochs_oracle.cpp', 'cores/fes-common/sim/i386/divergences.toml',
                      'cores/fes-common/sim/i386/bochs/instrument.h', 'cores/fes-common/sim/i386/frontend_tb.cpp',
-                     'cores/fes-common/sim/i386/spike/spike_ag.sv', 'cores/fes-common/rtl/i386/fes_i386_qalign.sv',
-                     'cores/fes-common/sim/i386/lockstep_tb.cpp', 'cores/fes-common/rtl/i386/fes_i386_cpu.sv',
+                     'cores/fes-common/sim/i386/spike/spike_ag.sv', 'cores/fes-common/sim/i386/lockstep_tb.cpp',
                      'cores/fes-common/rtl/i386/toolchain.lock',
                      'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
                      'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
@@ -375,6 +374,17 @@ class AffectedTests(unittest.TestCase):
                                  {'parent', 'fpga'})
         # The rule is the i386 directory only: a new shared RTL unit still fails broad.
         self.assertEqual(set(plan(['sources/misteross/cores/fes-common/rtl/fes_i386.sv'])['cores']), set(CORES))
+
+    def test_i386_rtl_selects_pc386_consumer(self):
+        for path in ('fes_i386_qalign.sv', 'fes_i386_cpu.sv', 'new_cpu_unit.sv'):
+            with self.subTest(path=path):
+                result = plan(['sources/misteross/cores/fes-common/rtl/i386/' + path])
+                self.assertEqual(result['cores'], ['pc386'])
+                self.assertEqual({lane for lane, selected in result['lanes'].items() if selected},
+                                 {'parent', 'fpga'})
+        mixed = plan(['sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv',
+                      'sources/misteross/cores/fes-zx81/rtl/zx81.v'])
+        self.assertEqual(set(mixed['cores']), {'pc386', 'zx81'})
 
     def test_pc386_cpu_profile_only_selects_its_simulation_family(self):
         result = plan(['sources/misteross/scripts/pc386_cpu_profile.py'])

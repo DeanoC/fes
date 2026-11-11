@@ -166,7 +166,9 @@ def fpga_cores(path):
         if len(parts) >= 5 and parts[1:4] == ('fes-common', 'sim', 'i386'):
             return (), 'i386 oracle adapter, testbenches, timing spikes and divergence list; no core consumer'
         if len(parts) >= 5 and parts[1:4] == ('fes-common', 'rtl', 'i386'):
-            return (), 'i386 CPU RTL, checked by its software-lane tests; no core consumer yet'
+            if relative.as_posix() == 'cores/fes-common/rtl/i386/toolchain.lock':
+                return (), 'i386 CPU toolchain lock; no pc386 producer consumer'
+            return ('pc386',), 'i386 CPU RTL and its pc386 consumer'
         if parts[1] == 'fes-menu' and '/'.join(parts[2:]) in MENU_SESSION_INPUTS:
             # pc386 uses the plane's RTL with its own DDR model.
             pc386 = ('pc386',) if parts[2] == 'rtl' else ()

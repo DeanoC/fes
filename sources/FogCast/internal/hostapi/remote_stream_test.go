@@ -53,6 +53,10 @@ type streamRig struct {
 }
 
 func newStreamRig(t *testing.T) *streamRig {
+	return newStreamRigWithHeartbeat(t, time.Hour)
+}
+
+func newStreamRigWithHeartbeat(t *testing.T, heartbeat time.Duration) *streamRig {
 	t.Helper()
 	rig := &streamRig{sink: &streamSink{}}
 	starter := host.BridgeStarterFunc(func(ctx context.Context, spec host.BridgeSpec) (host.BridgeHandle, error) {
@@ -69,7 +73,7 @@ func newStreamRig(t *testing.T) *streamRig {
 	input, err := host.NewRemoteInput(host.RemoteInputConfig{
 		Starter:           starter,
 		ReconnectGrace:    40 * time.Millisecond,
-		HeartbeatInterval: time.Hour,
+		HeartbeatInterval: heartbeat,
 		DialTimeout:       40 * time.Millisecond,
 	})
 	if err != nil {
@@ -83,6 +87,25 @@ func newStreamRig(t *testing.T) *streamRig {
 		}
 	})
 	return rig
+}
+
+func (r *streamRig) waitForFailedInput(t *testing.T) {
+	t.Helper()
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	tick := time.NewTicker(time.Millisecond)
+	defer tick.Stop()
+	for {
+		status := r.input.Status()
+		if status.State == host.RemoteInputFailed && !status.Ready {
+			return
+		}
+		select {
+		case <-deadline.C:
+			t.Fatalf("input did not observe the closed stream: %+v", status)
+		case <-tick.C:
+		}
+	}
 }
 
 func (r *streamRig) attach(t *testing.T) string {
@@ -133,7 +156,7 @@ func TestLauncherInputDeliversToLiveStream(t *testing.T) {
 }
 
 func TestLauncherInputNoLiveStreamReturnsError(t *testing.T) {
-	rig := newStreamRig(t)
+	rig := newStreamRigWithHeartbeat(t, 10*time.Millisecond)
 	handler := launcherHandler(t, rig.input)
 	req := launcherRequest("POST", "http://192.0.2.1/api/v1/launcher/input?session_id=abc", strings.NewReader(remotePadEvent+"\n"))
 	rec := httptest.NewRecorder()
@@ -149,6 +172,8 @@ func TestLauncherInputNoLiveStreamReturnsError(t *testing.T) {
 	if err := rig.server.Close(); err != nil {
 		t.Fatal(err)
 	}
+	// A remote close becomes observable asynchronously at the host.
+	rig.waitForFailedInput(t)
 	before := rig.sink.count()
 	req = launcherRequest("POST", "http://192.0.2.1/api/v1/launcher/input?session_id="+sessionID, strings.NewReader(remotePadEvent+"\n"))
 	rec = httptest.NewRecorder()
@@ -174,7 +199,7 @@ func TestLauncherInputStaleSessionStaysConflictWhileStreamIsLive(t *testing.T) {
 }
 
 func TestSessionInputEventNoLiveStreamReturnsError(t *testing.T) {
-	rig := newStreamRig(t)
+	rig := newStreamRigWithHeartbeat(t, 10*time.Millisecond)
 	handler := hostapi.New(&launcherService{}, hostapi.WithRemoteInput(rig.input))
 	rec := postSessionInput(handler, remotePadEvent)
 	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "INPUT_UNAVAILABLE") || !strings.Contains(rec.Body.String(), "no live input stream") {
@@ -197,6 +222,7 @@ func TestSessionInputEventNoLiveStreamReturnsError(t *testing.T) {
 	if err := rig.server.Close(); err != nil && !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
+	rig.waitForFailedInput(t)
 	before := rig.sink.count()
 	rec = postSessionInput(handler, remotePadEvent)
 	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "INPUT_UNAVAILABLE") || !strings.Contains(rec.Body.String(), "no live input stream") {

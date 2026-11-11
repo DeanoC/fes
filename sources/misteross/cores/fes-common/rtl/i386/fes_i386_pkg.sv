@@ -998,8 +998,11 @@ package fes_i386_pkg;
         logic        cs_late;     // D: a far transfer's offset past CS's limit (far_chk), #GP(0) at M1
                                   // when the uop's own checks pass
         logic        tchk;        // D: a near branch, or CALL rel's push, whose target_eip M1 checks
-                                  // against CS's limit; M1: that target is past it (#GP(0) at M1 for
-                                  // the push, at EX for a taken branch)
+                                  // against CS's limit; M1: a branch's target is past it (#GP(0) at
+                                  // EX when taken)
+        logic        cpast;       // D (CALL r/m) or M1 (CALL rel): a near CALL's push whose target is
+                                  // past CS's limit, which stores and leaves ESP (WB) for its jump's
+                                  // #GP(0)
         logic [31:0] ld;          // M2: the loaded value, zero-extended (fes_i386_exctl xl, yl)
         logic [31:0] result;      // AG: LEA's offset; EX: the destination's new value
         logic [31:0] target;      // AG: a branch's target linear address; D: a st2 uop's store address,
@@ -1059,7 +1062,7 @@ package fes_i386_pkg;
         // REP element, not its instruction.
         logic           txr;
         // dfl: M1, the uop's fault is its st2 store's segment check
-        // (dfault), which a #PF on its load's pages comes before.
+        // (dfault), which a #PF on its own pages comes before.
         logic           dfl;
     } pipe_t;
 
