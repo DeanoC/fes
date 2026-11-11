@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"syscall"
 	"testing"
 	"time"
@@ -105,22 +104,4 @@ func refuseSock(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return path
-}
-
-func serveUnix(t *testing.T, path string, handler http.Handler) {
-	t.Helper()
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		t.Fatal(err)
-	}
-	ln, err := net.Listen("unix", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	srv := httptest.NewUnstartedServer(handler)
-	if err := srv.Listener.Close(); err != nil {
-		t.Fatal(err)
-	}
-	srv.Listener = ln
-	srv.Start()
-	t.Cleanup(srv.Close)
 }

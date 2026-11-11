@@ -57,17 +57,6 @@ func New(roots Roots) *Service {
 	return &Service{roots: roots, listCtx: ctx, listCancel: cancel}
 }
 
-func (s *Service) List() []Core {
-	if s == nil {
-		return []Core{}
-	}
-	cores, err := s.list(context.Background())
-	if err != nil || cores == nil {
-		return []Core{}
-	}
-	return cores
-}
-
 func (s *Service) list(ctx context.Context) ([]Core, error) {
 	if s == nil {
 		return []Core{}, nil

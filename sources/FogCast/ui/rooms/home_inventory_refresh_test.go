@@ -13,7 +13,6 @@ import (
 // Hold an older successful empty read across a newer refresh. The old
 // response can arrive even after target readiness has supplied real inventory.
 type refreshingHomeCores struct {
-	fakeLocalCores
 	mu      sync.Mutex
 	calls   int
 	started chan struct{}
