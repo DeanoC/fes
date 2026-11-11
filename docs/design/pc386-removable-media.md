@@ -1,6 +1,6 @@
 # pc386 removable media: floppy drives and a CD-ROM
 
-Status: proposed design and slice plan, for Deano, 11 November 2026. Refs the tracker linked from the PR. Nothing here is implemented. Open decisions are marked **D*n*** and listed at the end.
+Status: proposed design and slice plan, for Deano, 11 November 2026. Refs [#1694](https://github.com/DeanoC/fes/issues/1694). Nothing here is implemented. Open decisions are marked **D*n*** and listed at the end.
 
 Path convention: `M/` is `sources/misteross/`, `MP/` is `sources/mister-packages/`, `RT/` is `sources/libmister-runtime/`, `FC/` is `sources/FogCast/`. `docs/`, `scripts/` and `AGENTS.md` are at the repo root.
 
@@ -599,7 +599,7 @@ Before an OS install is called an acceptance target, it must be checked against 
 
 ## Implementation plan
 
-Each slice is one PR with its own `Closes` issue under the tracker. Floppy and CD are independent after F0.
+Each slice is one PR with its own `Closes` issue under the tracker, [#1694](https://github.com/DeanoC/fes/issues/1694). Floppy and CD are independent after F0.
 
 ### F0. Design doc (this PR)
 
