@@ -95,7 +95,7 @@ func TestLaunchBlockClassifiesCatalogReadiness(t *testing.T) {
 		{name: "ready", game: ready, block: "", eligible: true},
 		{name: "ready-here-keeps-offline", game: func() Game {
 			game := ready
-			game.Execution = ExecutionHostOnly
+			game.Execution = "native_emu"
 			here := true
 			game.ReadyHere = &here
 			game.RootOnline = false

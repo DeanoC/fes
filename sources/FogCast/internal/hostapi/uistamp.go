@@ -143,7 +143,7 @@ func (e sessionStopExpectation) valid() bool {
 	}
 	// A package-free play has no generation. The launch flight is required
 	// because the host session id persists across launches. Target may be
-	// empty for a host-only play.
+	// empty only when no target binding is available.
 	return e.GameID != "" && e.FlightID != ""
 }
 

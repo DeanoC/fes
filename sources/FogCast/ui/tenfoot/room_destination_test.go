@@ -187,7 +187,7 @@ func TestRoomBackendChoiceIsNotAFailClosedPrompt(t *testing.T) {
 function load()
   destination.set({ kind = "game", label = "Data Storm", query = "Data Storm", matches = {
     { id = "fpga-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "fpga_native" },
-    { id = "sms-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "host_only" },
+    { id = "sms-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "other_backend" },
   }})
 end
 function draw() gfx.rect(0,0,10,10,'#fff') end
@@ -224,7 +224,7 @@ function draw() gfx.rect(0,0,10,10,'#fff') end
 	ready := false
 	blocked.ReadyHere = &ready
 	blocked.ReadyBlock = string(hostclient.LaunchVersionSkew)
-	busy := hostclient.Game{ID: "sms-data-storm", Title: "Data Storm", System: "sms", State: "available", RootOnline: true, Launchable: true, Execution: hostclient.ExecutionHostOnly}
+	busy := hostclient.Game{ID: "sms-data-storm", Title: "Data Storm", System: "sms", State: "available", RootOnline: true, Launchable: true, Execution: "other_backend"}
 	busy.ReadyHere = &ready
 	busy.ReadyBlock = string(hostclient.LaunchLeaseHeld)
 	app.mu.Lock()
@@ -244,7 +244,7 @@ func TestBlockedSiblingRefreshShowsUpInTheRoom(t *testing.T) {
 function load()
   destination.set({ kind = "game", label = "Data Storm", query = "Data Storm", matches = {
     { id = "fpga-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "fpga_native", ready_here = false, ready_block = "version_skew" },
-    { id = "sms-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "host_only" },
+    { id = "sms-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "other_backend" },
   }})
 end
 function draw() gfx.rect(0,0,10,10,'#fff') end
@@ -290,8 +290,8 @@ function draw() gfx.rect(0,0,10,10,'#fff') end
 	app.mu.Unlock()
 	snap = app.Snapshot()
 	dest = snap.Room.Destination
-	if dest.Availability != rooms.AvailReady || dest.Confirm() != rooms.ConfirmLaunch || dest.GameID != "sms-data-storm" || len(dest.Matches) != 1 {
-		t.Fatalf("foreign lease still offered fpga %+v", dest)
+	if dest.Availability != rooms.AvailUnavailable || dest.Confirm() != rooms.ConfirmExplain || !dest.LeaseHeld {
+		t.Fatalf("foreign lease did not block the choices %+v", dest)
 	}
 	held := false
 	for _, g := range dest.Candidates {
@@ -723,52 +723,6 @@ func TestPlacementSelectionLaunchesWithoutAMachineAsk(t *testing.T) {
 	}
 }
 
-func TestForeignLeaseLeavesEmulatorReadyInABackendChoice(t *testing.T) {
-	h := newRoomHost(t)
-	script := `
-function load()
-  destination.set({ kind = "game", label = "Data Storm", query = "Data Storm", matches = {
-    { id = "fpga-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "fpga_native" },
-    { id = "sms-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "host_only" },
-  }})
-end
-function draw() gfx.rect(0,0,10,10,'#fff') end
-`
-	index := rooms.NewIndex([]rooms.Pack{testRoomPack(t, "storm", script)})
-	app := newRoomApp(t, h, index, true)
-	now := time.Now()
-	waitFor(t, app, "picker", func(s Snapshot) bool { return s.RoomPicker.Open })
-	app.HandleCommand(CmdDown, now)
-	app.HandleCommand(CmdSelect, now)
-	waitFor(t, app, "backend choice", func(s Snapshot) bool {
-		return s.Room.Open && s.Room.Destination.Availability == rooms.AvailNeedsChoice
-	})
-
-	app.mu.Lock()
-	app.healthHave = true
-	app.health.Connection = hostclient.TargetConnection{State: "busy", Owner: "other-shell"}
-	app.mu.Unlock()
-	snap := app.Snapshot()
-	dest := snap.Room.Destination
-	if dest.Availability != rooms.AvailReady || dest.Confirm() != rooms.ConfirmLaunch || dest.GameID != "sms-data-storm" {
-		t.Fatalf("leased choice %+v confirm=%v", dest, dest.Confirm())
-	}
-	if len(dest.Matches) != 1 || dest.Matches[0].ID != "sms-data-storm" {
-		t.Fatalf("matches %+v", dest.Matches)
-	}
-	if snap.Room.Choice.Open {
-		t.Fatalf("choice overlay stayed open %+v", snap.Room.Choice)
-	}
-	if dest.Status == rooms.BackendChoiceStatus || dest.Status == rooms.InUseStatus {
-		t.Fatalf("status %q", dest.Status)
-	}
-	app.HandleCommand(CmdSelect, now)
-	waitFor(t, app, "emulator launch", func(s Snapshot) bool { return s.Launch.Phase == "ok" })
-	if h.launchCount() != 1 || !strings.Contains(h.launches[0], "sms-data-storm") || strings.Contains(h.launches[0], "fpga-data-storm") {
-		t.Fatalf("launches %v", h.launches)
-	}
-}
-
 func TestForeignLeaseShowsInUseAndDoesNotLaunch(t *testing.T) {
 	h := newRoomHost(t)
 	index := rooms.NewIndex([]rooms.Pack{
@@ -865,51 +819,5 @@ func TestPairedKitStatus404KeepsBrowsingAndRefusesLaunch(t *testing.T) {
 	snap = waitFor(t, app, "launch refusal", func(s Snapshot) bool { return s.Launch.Phase == "error" })
 	if snap.Launch.Message != machineStatusUnknown || h.launchCount() != 0 {
 		t.Fatalf("launch=%+v launches=%d", snap.Launch, h.launchCount())
-	}
-}
-
-func TestForeignLeaseHostOnlyStillLaunches(t *testing.T) {
-	h := newRoomHost(t)
-	index := rooms.NewIndex([]rooms.Pack{
-		testRoomPack(t, "overworld", destRoomScript),
-	})
-	app := newRoomApp(t, h, index, true)
-	now := time.Now()
-	waitFor(t, app, "picker", func(s Snapshot) bool { return s.RoomPicker.Open })
-	app.HandleCommand(CmdDown, now)
-	app.HandleCommand(CmdSelect, now)
-	waitFor(t, app, "ready", func(s Snapshot) bool {
-		return s.Room.Open && s.Room.Destination.Availability == rooms.AvailReady
-	})
-
-	app.mu.Lock()
-	app.healthHave = true
-	app.health.Connection = hostclient.TargetConnection{State: "busy", Owner: "other-shell"}
-	hostGame := availableGame("snes-mario", "Mario", "snes")
-	hostGame.Execution = hostclient.ExecutionHostOnly
-	app.room.RefreshCachedGames([]hostclient.Game{hostGame})
-	app.mu.Unlock()
-	snap := app.Snapshot()
-	if snap.Room.Destination.Availability != rooms.AvailReady || snap.Room.Destination.Confirm() != rooms.ConfirmLaunch {
-		t.Fatalf("host-only destination %+v confirm=%v", snap.Room.Destination, snap.Room.Destination.Confirm())
-	}
-	if strings.Contains(snap.Room.Destination.Status, "in use") {
-		t.Fatalf("host-only shown in use %+v", snap.Room.Destination)
-	}
-	app.HandleCommand(CmdSelect, now)
-	waitFor(t, app, "host launch", func(s Snapshot) bool { return s.Launch.Phase == "ok" })
-	if h.launchCount() != 1 || !strings.Contains(h.launches[0], "snes-mario") {
-		t.Fatalf("host-only confirm launches=%v", h.launches)
-	}
-
-	app.mu.Lock()
-	app.launch = LaunchSnapshot{}
-	fpga := availableGame("snes-zelda", "Zelda", "snes")
-	app.games = []hostclient.Game{fpga}
-	app.startLaunchGameLocked(app.games[0])
-	phase := app.launch.Phase
-	app.mu.Unlock()
-	if phase == "launching" || phase == "ok" || h.launchCount() != 1 {
-		t.Fatalf("busy FPGA library play phase=%s launches=%d", phase, h.launchCount())
 	}
 }

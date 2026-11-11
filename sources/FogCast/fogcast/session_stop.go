@@ -8,8 +8,8 @@ var ErrSessionChanged = errors.New("the running machine changed; refresh before 
 
 // SessionStopBinding names the play that was visible when Stop was chosen.
 // Package plays include package id and generation. A play without a package
-// leaves those empty and matches on game and target, or on the host-only
-// game when target is empty. The public coordinator also checks session id
+// leaves those empty and matches on game and target. The public coordinator
+// also checks session id
 // and launch flight, which persist separately from this binding.
 type SessionStopBinding struct {
 	GameID     string `json:"game_id"`
@@ -36,7 +36,7 @@ func (s *Service) matchesStopBinding(expected SessionStopBinding) bool {
 		return false
 	}
 	if expected.Target == "" {
-		return s.activeExecution == ExecutionHostOnly && s.activeGameID == expected.GameID
+		return false
 	}
 	play := s.plays[expected.Target]
 	if play.packageID != "" || play.packageGeneration != 0 || play.gameID != expected.GameID {

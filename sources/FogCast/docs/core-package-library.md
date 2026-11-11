@@ -647,7 +647,7 @@ immutable store and does not change titles, ROM choices, firmware or sessions.
 Without this setting, manual package import remains available. Registered cores
 without packages show **unproduced**; missing archives show **unavailable**.
 Apple II is experimental: its linked firmware, slot cards and disks have passed
-a kit diagnostic, while appliance acceptance remains separate; Catch is a demo.
+a kit diagnostic, while appliance acceptance remains separate.
 
 Open **FPGA library**, choose **Sega Master System** or **Sega SG-1000** under **Systems and
 guided setup**, and use **Install core** when a package is available. The installed

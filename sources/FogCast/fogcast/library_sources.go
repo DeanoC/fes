@@ -386,7 +386,7 @@ func (s *Service) prepareRemoteLibraryLaunch(ctx context.Context, gameID string,
 	if !found || !origin.Pending {
 		return nil
 	}
-	if s.launchUsesForeignKit(*snap, ExecutionFPGANative) {
+	if s.launchUsesForeignKit(*snap) {
 		return canonicalError(protocol.CodeKitLeaseDenied, nil)
 	}
 	release, err := s.acquireLifecycle(ctx)

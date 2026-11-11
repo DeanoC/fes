@@ -110,8 +110,7 @@ func (s *Service) placementEntryFunc() func(string) (meshcontent.Entry, bool) {
 // each advertisement. An fpga_native row carries the abis of that
 // node's content document, read only when the node is an enabled
 // configured kit. An advertisement alone is not eligibility. Rows keep
-// inventory order (node id order), which is the order Place reads when
-// several native_emu nodes can run a title.
+// inventory order (node id order), which is the order Place reads.
 func (s *Service) placementCandidates(ctx context.Context) []meshplace.Candidate {
 	nodes := s.MeshNodes()
 	out := make([]meshplace.Candidate, 0, len(nodes))

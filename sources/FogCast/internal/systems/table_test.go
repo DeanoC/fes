@@ -84,7 +84,7 @@ func TestTagsAreClassifiedAndCopied(t *testing.T) {
 
 func TestCatalogRowsHaveNoImplicitFPGALaunch(t *testing.T) {
 	for _, row := range Rows() {
-		if row.Capability != CapabilityCatalog && row.Capability != CapabilityHostOnly {
+		if row.Capability != CapabilityCatalog {
 			t.Fatalf("unexpected capability for %s: %s", row.PlatformID, row.Capability)
 		}
 	}

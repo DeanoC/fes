@@ -154,15 +154,17 @@ func TestGamesMeshReadyUsesReadyHere(t *testing.T) {
 		s := service(newExec(held, nil, abi, []string{pkg}), discovery.MeshProtocol, "kit-a", fpga)
 		assertMeshBlock(t, s, fpga.TitleID, meshcontent.BlockEnsureProgress, "wait")
 	})
-	t.Run("host only stays ready while the kit is busy", func(t *testing.T) {
-		exec := newExec(map[string]meshcontent.SlotState{cart.String(): meshcontent.StatePresent}, nil, nil, nil)
-		s := service(exec, discovery.MeshProtocol, "kit-a", hostOnly)
-		s.connection = TargetConnection{State: "busy", TargetID: "kit-a"}
-		got, on := s.GamesMeshReady(context.Background(), []string{hostOnly.TitleID})
-		if !on || !got[hostOnly.TitleID].Ready {
-			t.Fatalf("host only %#v on %v", got[hostOnly.TitleID], on)
-		}
-	})
+	for _, state := range []string{"ready", "busy"} {
+		t.Run("native emulation is unavailable on "+state+" kit", func(t *testing.T) {
+			exec := newExec(map[string]meshcontent.SlotState{cart.String(): meshcontent.StatePresent}, nil, nil, nil)
+			s := service(exec, discovery.MeshProtocol, "kit-a", hostOnly)
+			s.connection = TargetConnection{State: state, TargetID: "kit-a"}
+			got, on := s.GamesMeshReady(context.Background(), []string{hostOnly.TitleID})
+			if !on || got[hostOnly.TitleID].Ready || got[hostOnly.TitleID].Block != meshcontent.BlockInvalid || len(exec.pulls) != 0 {
+				t.Fatalf("native emulation %#v on %v pulls %+v", got[hostOnly.TitleID], on, exec.pulls)
+			}
+		})
+	}
 	t.Run("title outside the mesh contract is omitted", func(t *testing.T) {
 		got, on := base().GamesMeshReady(context.Background(), []string{"not-a-title", fpga.TitleID})
 		if !on || !got[fpga.TitleID].Ready {

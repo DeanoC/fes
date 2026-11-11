@@ -213,7 +213,7 @@ and content selection; the MiSTer is a small, directly controlled target.
   no reboot was started. Managed software updates wait for a released kit lease
   and restart through the base supervisor; successful releases remain installed.
   See [kit software releases](../../docs/kit-software-releases.md).
-- Browser UI, local media previews, and host-emulator/remote-media modes.
+- Browser UI and local media previews.
 - Linux hosts can provide the optional local session preview from a V4L2
   capture device through FFmpeg; configure the absolute device path in the
   private `media.capture_device` setting.

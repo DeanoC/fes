@@ -406,8 +406,7 @@ make tenfoot-smoke
 - `GET /api/v1/session` polled about once a second while the window is up, and
   again right after launch or stop. A poll that started before a launch or stop
   is discarded when that mutation finishes, so a stale idle or active snapshot
-  cannot unpark or re-park the GPU. That is the same observation point the host
-  uses to reap exited host-only / media sessions (`internal/hostapi/session.go`).
+  cannot unpark or re-park the GPU.
   When `state` is not `active`, `game_id` and `system` are omitted. An active
   session that omits `game_id` keeps that omission, including when another
   client replaces a launched game with a development RBF; tenfoot copies an ID
@@ -479,8 +478,7 @@ make tenfoot-smoke
   launch flight, game, and target. A missing flight is not posted unbound.
   A chord queued during input keeps that captured play and does not stop a
   replacement. Idle cleanup releases that play's grant. A grant retained on
-  another target, and a host-only stop that releases no kit grant, stays
-  tracked until shell exit or Release kit. A release that fails after the
+  another target stays tracked until shell exit or Release kit. A release that fails after the
   play is idle retries the idle-grant release; a failure that leaves the
   play running retries the bound stop. Offered while the session is
   active, a stop is in flight, or retry-Stop lockout is set. Shell exit (Start, Q, or window close) waits for

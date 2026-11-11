@@ -438,7 +438,7 @@ type App struct {
 	// still be renewing. A later active or relaunched play does not clear it:
 	// another target's grant can still be retained. Shell exit and Release
 	// kit are the global idle release. A bound Select+Start drops only the
-	// captured target, and a host-only stop drops none, so those exits leave
+	// captured target, so those exits leave
 	// every other retained grant tracked. B/Back does not release.
 	retainedIdleLease    bool
 	retainedIdleTargets  map[string]struct{}
@@ -1781,7 +1781,13 @@ func (a *App) Snapshot() Snapshot {
 		}
 	}
 	status := a.status
-	if a.tapePickerOpen && strings.TrimSpace(a.tapePickerStatus) != "" {
+	if a.setupRoomOpenLocked() && status == setupBlockedStatus && !a.setupSessionBusyLocked() {
+		status = ""
+	}
+	if a.setupRoomOpenLocked() && status == setupBlockedStatus && a.setupSessionBusyLocked() {
+		// Preserve the setup action's reason while a launch status is present.
+		status = setupBlockedStatus
+	} else if a.tapePickerOpen && strings.TrimSpace(a.tapePickerStatus) != "" {
 		status = a.tapePickerStatus
 	} else if line := a.stopStatusLocked(); line != "" {
 		status = line
@@ -2437,7 +2443,7 @@ func (a *App) startLaunchGameWithPackageLocked(game hostclient.Game, packageID, 
 		}
 		return
 	}
-	if a.foreignKitLeaseLocked() && !game.HostOnly() {
+	if a.foreignKitLeaseLocked() {
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: localInUseCopy}
 		a.launchLeaseRefusal = true
 		if a.room != nil {
@@ -2857,7 +2863,7 @@ func (a *App) clearRetainedLeasesLocked() {
 // noteRetainedLeaseLocked records a grant this stop did not release.
 // A later bound release of one target must not forget the others.
 func (a *App) noteRetainedLeaseLocked(play hostclient.SessionResult) {
-	if play.Execution == hostclient.ExecutionHostOnly || strings.TrimSpace(play.Target) == "" {
+	if strings.TrimSpace(play.Target) == "" {
 		a.retainedIdleUnscoped = true
 	} else {
 		if a.retainedIdleTargets == nil {
@@ -2869,12 +2875,9 @@ func (a *App) noteRetainedLeaseLocked(play hostclient.SessionResult) {
 }
 
 // noteExplicitReleaseLocked drops the grant a bound explicit stop released.
-// Host-only cleanup releases no kit grant. Any other retained target, and
-// any grant whose target was not named, stays until the global idle release.
+// Any other retained target, and any grant whose target was not named,
+// stays until the global idle release.
 func (a *App) noteExplicitReleaseLocked(play hostclient.SessionResult) {
-	if play.Execution == hostclient.ExecutionHostOnly {
-		return
-	}
 	target := strings.TrimSpace(play.Target)
 	if target == "" {
 		return

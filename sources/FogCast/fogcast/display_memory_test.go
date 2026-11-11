@@ -4,13 +4,9 @@ import (
 	"context"
 	"errors"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/internal/meshplace"
@@ -172,60 +168,6 @@ func TestFPGAPlayWithoutNodeIDLeavesLastSinkEmpty(t *testing.T) {
 	}
 	opts := service.PlaceOptions()
 	if opts.LastDisplaySink != "" || opts.DisplayPreference != "kit-den" {
-		t.Fatalf("options %+v", opts)
-	}
-}
-
-func TestHostOnlyPlayDoesNotRecordDisplaySink(t *testing.T) {
-	dir := t.TempDir()
-	cuePath := filepath.Join(dir, "game.cue")
-	binPath := filepath.Join(dir, "game.bin")
-	if err := os.WriteFile(cuePath, []byte("FILE \"game.bin\" BINARY\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(binPath, []byte("track-bytes"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	game := serviceGame(catalog.Content{})
-	game.RelativePath = "game.cue"
-	game.Content = nil
-	game.Fingerprint = fileServiceFingerprint(t, cuePath)
-	adapter := &fakePathHostExecutor{}
-	service := newService(
-		Config{
-			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: dir}},
-			Targets:        []TargetConfig{{Name: "den", TargetID: "kit-den", Enabled: true}},
-			SelectedTarget: "den",
-			RequestTimeout: time.Second,
-			UploadTimeout:  2 * time.Second,
-		},
-		Paths{Staging: filepath.Join(t.TempDir(), "staging")},
-		&fakeServiceCatalog{games: []catalog.Game{game}},
-		&fakeServiceScanner{},
-		&fakeServicePreparer{},
-		&fakeServiceClient{},
-		WithExecutionPolicy(ExecutionPolicy{
-			Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return ExecutionHostOnly, nil }),
-			Host:     adapter,
-		}),
-	)
-	service.SetDisplayPreference("kit-living")
-	if _, err := service.Launch(context.Background(), game.ID, nil); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if adapter.cleanup != nil {
-			adapter.cleanup()
-		}
-	})
-	if service.activeExecution != ExecutionHostOnly {
-		t.Fatalf("execution = %q", service.activeExecution)
-	}
-	if _, err := service.Stop(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	opts := service.PlaceOptions()
-	if opts.LastDisplaySink != "" || opts.DisplayPreference != "kit-living" || opts.OverrideNodeID != "" {
 		t.Fatalf("options %+v", opts)
 	}
 }

@@ -32,10 +32,11 @@ const (
 )
 
 var (
-	ErrRemoteInputClosed   = errors.New("remote input is closed")
-	ErrRemoteInputBusy     = errors.New("remote input is already attached")
-	ErrRemoteInputInvalid  = errors.New("remote input configuration is invalid")
-	ErrRemoteInputNoStream = errors.New("no live input stream")
+	ErrRemoteInputClosed      = errors.New("remote input is closed")
+	ErrRemoteInputBusy        = errors.New("remote input is already attached")
+	ErrRemoteInputInvalid     = errors.New("remote input configuration is invalid")
+	ErrRemoteInputNoStream    = errors.New("no live input stream")
+	ErrRemoteInputUnconfirmed = errors.New("input processing was not confirmed")
 )
 
 // BridgeSpec is the private identity handed to a per-session bridge. It is
@@ -140,6 +141,7 @@ type RemoteInput struct {
 	token            []byte
 	core             string
 	sequence         uint32
+	lastPing         uint64
 	inputState       remoteinput.State
 	keyboard         bool
 	controllerPorts  bool
@@ -337,6 +339,44 @@ func (r *RemoteInput) SendEvent(ctx context.Context, event remoteinput.Event, ca
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	return r.sendDesktopEventLocked(ctx, event, capturedAt, true)
+}
+
+// SendEventConfirmed waits until the bridge has processed the event's stream
+// prefix. This is not an acknowledgment that the sink accepted the event or
+// that the guest consumed it. It is used by the single-event HTTP API; the
+// launcher stream and the timed key tap keep their existing behavior.
+func (r *RemoteInput) SendEventConfirmed(ctx context.Context, event remoteinput.Event, capturedAt time.Time) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	err := r.sendDesktopEventLocked(ctx, event, capturedAt, false)
+	if err == nil {
+		err = r.confirmStreamPrefixLocked(ctx)
+		if err != nil {
+			err = ErrRemoteInputUnconfirmed
+		}
+	}
+	if errors.Is(err, ErrRemoteInputUnconfirmed) {
+		// The event may already have reached the bridge. Close before stopping
+		// the bridge so it releases its source; never replay ambiguous motion or
+		// retained holds into a later attachment.
+		r.closeConnLocked()
+		r.inputState.ReleaseAll()
+		r.colecoOutput = nil
+		stopCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		r.stopBridgeLocked(stopCtx)
+		cancel()
+		r.state = RemoteInputFailed
+		r.ready = false
+		r.metrics.shutdownReason = "bridge_error"
+	}
+	return err
+}
+
+func (r *RemoteInput) sendDesktopEventLocked(ctx context.Context, event remoteinput.Event, capturedAt time.Time, reconnect bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -350,10 +390,14 @@ func (r *RemoteInput) SendEvent(ctx context.Context, event remoteinput.Event, ca
 		return ErrRemoteInputNoStream
 	}
 	r.source = "desktop"
-	return r.sendEventLocked(ctx, event, capturedAt)
+	return r.sendEventModeLocked(ctx, event, capturedAt, reconnect)
 }
 
 func (r *RemoteInput) sendEventLocked(ctx context.Context, event remoteinput.Event, capturedAt time.Time) error {
+	return r.sendEventModeLocked(ctx, event, capturedAt, true)
+}
+
+func (r *RemoteInput) sendEventModeLocked(ctx context.Context, event remoteinput.Event, capturedAt time.Time, reconnect bool) error {
 	if event.Device == remoteinput.DeviceMouse {
 		if _, _, _, ok := remoteinput.MouseVector(event); !ok || !r.mouse {
 			return ErrRemoteInputInvalid
@@ -369,6 +413,8 @@ func (r *RemoteInput) sendEventLocked(ctx context.Context, event remoteinput.Eve
 	if r.state != RemoteInputAttached && r.state != RemoteInputReconnecting {
 		return ErrRemoteInputNoStream
 	}
+	// Reconnection and state sync here precede the new event. Once that event
+	// is sent, the confirmed path must not reconnect or replay it.
 	if err := r.ensureLiveStreamLocked(ctx); err != nil {
 		return err
 	}
@@ -395,6 +441,9 @@ func (r *RemoteInput) sendEventLocked(ctx context.Context, event remoteinput.Eve
 		r.state = RemoteInputAttached
 		r.ready = true
 		return nil
+	}
+	if !reconnect {
+		return ErrRemoteInputUnconfirmed
 	}
 
 	// A TCP write can fail after the bridge has applied the event. Keep the
@@ -927,6 +976,73 @@ func (r *RemoteInput) readPongLocked() {
 	_ = r.conn.SetReadDeadline(time.Time{})
 }
 
+// nextPingLocked gives each heartbeat or processing barrier a distinct echoed
+// value even when the configured clock has not advanced.
+func (r *RemoteInput) nextPingLocked() uint64 {
+	nonce := uint64(r.now().UnixNano())
+	if nonce <= r.lastPing {
+		nonce = r.lastPing + 1
+	}
+	r.lastPing = nonce
+	return nonce
+}
+
+func (r *RemoteInput) confirmStreamPrefixLocked(ctx context.Context) error {
+	if r.conn == nil || r.reader == nil {
+		return ErrRemoteInputNoStream
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	nonce := r.nextPingLocked()
+	// PING is not tracked as an input frame by the bridge. Reuse the last
+	// input sequence so the next event does not report a spurious gap.
+	ping := protocol.InputFrame{
+		Header: protocol.InputHeader{Type: protocol.InputTypePing, Session: r.session},
+		Seq:    r.sequence, ClientMonoNS: nonce,
+	}
+	if err := r.writeFrameLocked(ctx, ping, time.Time{}); err != nil {
+		return err
+	}
+	conn := r.conn
+	deadline := r.now().Add(r.dial)
+	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
+		deadline = d
+	}
+	if err := conn.SetReadDeadline(deadline); err != nil {
+		return err
+	}
+	callbackDone := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() {
+		_ = conn.SetReadDeadline(time.Now())
+		close(callbackDone)
+	})
+	defer func() {
+		if !stop() {
+			<-callbackDone
+		}
+		_ = conn.SetReadDeadline(time.Time{})
+	}()
+	// A delayed heartbeat may already be buffered. Ignore only older PONGs
+	// from this session and require the exact ping response for success.
+	for stale := 0; stale < 8; stale++ {
+		pong, err := protocol.DecodeInputFrame(r.reader, 4096)
+		if err != nil {
+			return err
+		}
+		if pong.Header.Type != protocol.InputTypePong || pong.Header.Session != r.session {
+			return ErrRemoteInputUnconfirmed
+		}
+		if pong.Seq == ping.Seq && pong.ClientMonoNS == nonce {
+			return ctx.Err()
+		}
+		if pong.ClientMonoNS >= nonce {
+			return ErrRemoteInputUnconfirmed
+		}
+	}
+	return ErrRemoteInputUnconfirmed
+}
+
 func (r *RemoteInput) startHeartbeatLocked() {
 	if r.heartbeatCancel != nil {
 		r.heartbeatCancel()
@@ -955,7 +1071,7 @@ func (r *RemoteInput) heartbeatLoop(ctx context.Context) {
 				Seq:    r.sequence,
 				// Echoed by the bridge in PONG so the host can report a real
 				// round-trip sample instead of an always-zero metric.
-				ClientMonoNS: uint64(r.now().UnixNano()),
+				ClientMonoNS: r.nextPingLocked(),
 			}
 			if err := r.writeFrameLocked(context.Background(), frame, time.Time{}); err != nil {
 				r.closeConnLocked()

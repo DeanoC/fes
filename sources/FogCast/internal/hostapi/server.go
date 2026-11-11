@@ -118,11 +118,10 @@ type editionPreferenceResult struct {
 }
 
 type healthResult struct {
-	Ready        bool                      `json:"ready"`
-	Host         hostIdentity              `json:"host"`
-	Target       targetHealth              `json:"target"`
-	Mesh         map[string]int            `json:"mesh"`
-	Capabilities []fogcast.SoftwareBackend `json:"software_backends,omitempty"`
+	Ready  bool           `json:"ready"`
+	Host   hostIdentity   `json:"host"`
+	Target targetHealth   `json:"target"`
+	Mesh   map[string]int `json:"mesh"`
 }
 
 type hostIdentity struct {
@@ -386,34 +385,16 @@ func New(service Service, options ...ServerOption) http.Handler {
 			target = launcherTargetFromContext(r.Context())
 		}
 		coordinatorTarget := target
-		hostOnlyLaunch := false
-		// A host-only launch belongs to the root coordinator. It has no FPGA
-		// target binding, even when the caller names a kit.
-		if resolver, ok := service.(interface {
-			SessionExecution(context.Context, string) (string, error)
-		}); ok {
-			execution, err := resolver.SessionExecution(r.Context(), request.GameID)
-			hostOnlyLaunch = err == nil && execution == fogcast.ExecutionHostOnly
+		if !configuredSessionTarget(service, target) {
+			writeError(w, http.StatusNotFound, string(protocol.CodeTargetNotFound), "target is not configured")
+			return
 		}
-		if hostOnlyLaunch {
-			coordinatorTarget = ""
-			target = ""
-			pairedTarget = ""
-		} else {
-			if !configuredSessionTarget(service, target) {
-				writeError(w, http.StatusNotFound, string(protocol.CodeTargetNotFound), "target is not configured")
-				return
-			}
-			if target == "" && pairedTarget == "" {
-				if selected, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
-					coordinatorTarget = selected.SelectedTargetConfig().Name
-				}
+		if target == "" && pairedTarget == "" {
+			if selected, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
+				coordinatorTarget = selected.SelectedTargetConfig().Name
 			}
 		}
-		coordinator := session
-		if !hostOnlyLaunch {
-			coordinator = requestSessionCoordinator(session, service, r, coordinatorTarget)
-		}
+		coordinator := requestSessionCoordinator(session, service, r, coordinatorTarget)
 		result, err := coordinator.launch(r.Context(), request.GameID, target, stamp)
 		if err != nil {
 			writeSessionError(w, err)
@@ -557,6 +538,10 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 		coordinator := requestSessionCoordinator(session, service, r, "")
 		if err := coordinator.sendCoreKey(r.Context(), *body.Event); err != nil {
+			if errors.Is(err, host.ErrRemoteInputUnconfirmed) {
+				writeError(w, http.StatusServiceUnavailable, "INPUT_UNCONFIRMED", "input may have applied but could not be confirmed")
+				return
+			}
 			if errors.Is(err, host.ErrRemoteInputNoStream) {
 				writeError(w, http.StatusServiceUnavailable, "INPUT_UNAVAILABLE", "no live input stream")
 				return
@@ -577,15 +562,6 @@ func New(service Service, options ...ServerOption) http.Handler {
 				Reachable: err == nil, Ready: err == nil && target.Ready,
 				Connection: targetConnection(service),
 			},
-		}
-		if provider, ok := service.(interface {
-			SoftwareBackendsContext(context.Context) []fogcast.SoftwareBackend
-		}); ok {
-			result.Capabilities = provider.SoftwareBackendsContext(r.Context())
-		} else if provider, ok := service.(interface {
-			SoftwareBackends() []fogcast.SoftwareBackend
-		}); ok {
-			result.Capabilities = provider.SoftwareBackends()
 		}
 		if targetID := fogcast.PairedTargetFromContext(r.Context()); targetID != "" {
 			state := "disconnected"
@@ -1101,9 +1077,6 @@ func rejectBody(w http.ResponseWriter, r *http.Request) error {
 
 func writeSessionError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.As(err, new(MediaBusyOtherKitError)):
-		writeError(w, http.StatusConflict, "MEDIA_BUSY_OTHER_KIT", "host media is already running on another kit")
-		return
 	case errors.Is(err, fogcast.ErrSessionChanged):
 		writeError(w, http.StatusConflict, "SESSION_CHANGED", fogcast.ErrSessionChanged.Error())
 		return
