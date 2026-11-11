@@ -25,7 +25,7 @@ func TestNamedROMMigrationPreservesSelectionsAndKitHostTriggers(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Reconstruct schema 22's single-ROM table without firing the edit triggers.
-	_, err = s.db.ExecContext(ctx, `
+	_, err = s.db.ExecContext(ctx, dropRemoteCacheSchemaForTest+`
 DROP TRIGGER kit_host_rom_insert;
 DROP TRIGGER kit_host_rom_update;
 DROP TRIGGER kit_host_rom_delete;

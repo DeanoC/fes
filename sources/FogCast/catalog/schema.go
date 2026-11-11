@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 23
+const schemaVersion = 24
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -408,6 +408,51 @@ END;
 PRAGMA user_version = 23;
 `
 
+// Only newly created remote imports can be proved remote-only. An attempted
+// ordinary reimport or local adoption makes an existing object ineligible for
+// remote cleanup, including an older still-running client's no-op reimport.
+const schemaV24 = `
+CREATE TABLE remote_cached_media (
+  media_id TEXT PRIMARY KEY REFERENCES core_media(media_id) ON DELETE CASCADE
+);
+CREATE TRIGGER core_media_import_protect BEFORE INSERT ON core_media BEGIN
+  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
+END;
+CREATE TRIGGER local_entry_cache_adopt_insert AFTER INSERT ON core_entries
+WHEN NEW.media_id <> '' BEGIN
+  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
+END;
+CREATE TRIGGER local_entry_cache_adopt_update AFTER UPDATE OF media_id ON core_entries
+WHEN NEW.media_id <> '' BEGIN
+  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
+END;
+CREATE TRIGGER core_entry_roms_cache_adopt_insert AFTER INSERT ON core_entry_roms BEGIN
+  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
+END;
+CREATE TRIGGER core_entry_roms_cache_adopt_update AFTER UPDATE OF media_id ON core_entry_roms BEGIN
+  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
+END;
+CREATE TRIGGER core_expansions_cache_adopt_insert AFTER INSERT ON core_expansions BEGIN
+  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
+END;
+CREATE TRIGGER core_expansions_cache_adopt_update AFTER UPDATE OF media_id ON core_expansions BEGIN
+  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
+END;
+CREATE TRIGGER core_video_parts_cache_adopt_insert AFTER INSERT ON core_video_parts BEGIN
+  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
+END;
+CREATE TRIGGER core_video_parts_cache_adopt_update AFTER UPDATE OF media_id ON core_video_parts BEGIN
+  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
+END;
+CREATE TRIGGER zx81_saves_cache_adopt_insert AFTER INSERT ON zx81_saves BEGIN
+  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
+END;
+CREATE TRIGGER zx81_saves_cache_adopt_update AFTER UPDATE OF media_id ON zx81_saves BEGIN
+  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
+END;
+PRAGMA user_version = 24;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -618,6 +663,12 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 		}
 		if err := foreignKeyCheck(ctx, connection); err != nil {
 			return fmt.Errorf("apply catalog schema version 23: %w", err)
+		}
+		version = 23
+	}
+	if version == 23 {
+		if _, err := connection.ExecContext(ctx, schemaV24); err != nil {
+			return fmt.Errorf("apply catalog schema version 24: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

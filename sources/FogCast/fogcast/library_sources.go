@@ -55,6 +55,10 @@ type remoteCoreEntryCatalog interface {
 	BindRemoteCoreEntryMedia(context.Context, string, catalog.RemoteCoreEntryOrigin) (catalog.CoreEntry, error)
 }
 
+type remoteCassetteImporter interface {
+	ImportRemoteCassetteStream(context.Context, int64, io.Reader) (catalog.CoreMedia, bool, error)
+}
+
 func normalizeLibrarySources(raw []LibrarySourceConfig) ([]LibrarySourceConfig, error) {
 	if len(raw) > 16 {
 		return nil, errors.New("at most 16 library sources are supported")
@@ -448,7 +452,11 @@ func (s *Service) prepareRemoteLibraryLaunch(ctx context.Context, gameID string,
 		if err := s.validateLaunchSnapshot(*snap); err != nil {
 			return err
 		}
-		media, _, err = mediaStore.ImportCoreMediaStream(ctx, int64(len(body)), bytes.NewReader(body))
+		importer, ok := s.catalog.(remoteCassetteImporter)
+		if !ok {
+			return canonicalError(protocol.CodeUnsupportedOperation, nil)
+		}
+		media, _, err = importer.ImportRemoteCassetteStream(ctx, int64(len(body)), bytes.NewReader(body))
 	}
 	if err != nil {
 		return mapCoreMediaError(err)
