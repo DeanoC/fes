@@ -514,7 +514,7 @@ Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)):
 - Ultima VII NPC pace, against a reference.
 
 Serpent Isle sometimes shows a black picture for a whole launch while the
-game runs underneath: 3 launches in 38 on Kit B; the VGA registers and
+game runs underneath: 3 launches in 56 on Kit B; the VGA registers and
 DAC are right, so the fault is downstream of them
 ([#1494](https://github.com/DeanoC/fes/issues/1494),
 [record](validation/2026-11-10-pc386-si-reload-presets/summary.md)).

@@ -6,7 +6,7 @@ while audio played. [#1506](../2026-11-05-pc386-si-reload/summary.md) didn't
 reproduce it in three runs. This record repeats it on a fresh seal of main
 with #1483's status ring and VRAM probes, at four governor presets.
 
-**Result: reproduced, 3 times in 38 Serpent Isle launches. It is a pc386
+**Result: reproduced, 3 times in 56 Serpent Isle launches. It is a pc386
 fault, not a speed artefact or a long load. The VGA's registers and DAC are
 right during a black launch, so the fault is downstream of them.**
 
@@ -28,9 +28,12 @@ right during a black launch, so the fault is downstream of them.**
   were all as in a lit launch: the state word was identical. So the fault is
   downstream of those registers: scanout geometry (the CRTC isn't in the
   word), capture, the 720p presenter or the display plane.
+- Runs `k4` and `k5` added 18 launches with capture-buffer samples and a
+  DOS-prompt grab. None of them was black, so the capture buffers haven't
+  been read during a black launch yet.
 - Input still works in a black launch. `k3`'s first launch made its save
   blind, and the later launches list it.
-- The other 35 Serpent Isle launches showed their pictures. The load itself
+- The other 53 Serpent Isle launches showed their pictures. The load itself
   works: all 22 Journey Onward loads in lit launches (`k1` 7, `k3` 15) put
   the party back on the ship within 3–6 s, as the Bochs-oracle machine does in about 5.5 s.
 - The stage isn't pinned yet (see [Next](#next)).
@@ -182,14 +185,19 @@ every preset.
 
 ## Next
 
-- **Which stage.** The VGA's registers and DAC are ruled out. The next run
-  needs no new seal: on a black grab, also hash the capture buffers in DDR,
-  which the 720p presenter reads from `CAPTURE_BASE`.
-  - If the capture buffer holds the picture, the fault is in the presenter
-    or the display plane.
+- **Which stage.** The VGA's registers and DAC are ruled out. `k5` read the
+  capture buffers but had no black launch, so this is still open.
+  - If the capture buffer holds the picture in a black launch, the fault is
+    in the presenter or the display plane.
   - If it is black or stale, it is in scanout or capture.
-- **A grab at the DOS prompt** before `SERPENT` in each launch, to see
-  whether a black launch is black from boot or only in the game's mode.
+- **A faster sample.** `k5`'s sample reads 1,200 words through `devmem` and
+  lands seconds after the HDMI grab, so it can't judge a black frame that
+  lasts under a few seconds. A whole black launch is long enough. Reading
+  fewer words, right after the grab, would close the gap.
+- **More launches per run.** The rate is about 1 in 19, and the black
+  launches were black from the introduction on. A run that stops after the
+  menu grabs (no Journey Onward and 60 s of play) fits about twice as many
+  launches into the same time.
 - **Later diagnostic word.** `fes_display_plane`'s `ui_active`, `locked`,
   `displayed_sequence` and `faulted` outputs aren't connected in
   `pc386_machine.sv`, and the CRTC geometry isn't in the ring.
@@ -258,8 +266,53 @@ DOS before each stop" doesn't explain why `k2` had none. Across the three
 runs it is 3 black launches in 38: `k1` 1 of 9, `k2` 0 of 12, `k3` 2 of 17,
 at 486DX2-66 once and at `max` twice.
 
+## Runs `k4` and `k5`: capture-buffer samples (11 November, 01:21–02:45 EET)
+
+- **Package and kit.** As `k3`: package `49ec6936…` on Kit B's baseline,
+  core-only. No new seal.
+- **What's new.** On every probed grab and every black grab, the driver
+  read the three capture buffers the 720p presenter reads. Each sample is
+  400 words per buffer: every 40th pixel of every 8th line, starting at host
+  address `0x30A00000`, 2 MiB apart. The record keeps each buffer's word
+  count, the count that aren't black, the brightest channel and a hash.
+  Each launch also got a grab at the DOS prompt before `SERPENT`, and the
+  setup launch a grab when its save was done.
+- **`k4`** stopped after its setup launch: the driver's sample parser split
+  on a hex digit. I stopped my own driver at 01:26 and cleaned its data.
+  Its one launch was lit (peak 122). The parser was fixed and the run
+  repeated as `k5`.
+- **`k5`**: the same flow as `k3` (a save at `max`, then 16 relaunches
+  alternating `max` and 486DX2-66, 8 each).
+
+**No black launch in 17.** Every launch reached a lit picture (peak 254–255),
+and every DOS-prompt grab was the same lit frame (peak 73). At the end of the
+setup launch the three buffers held a picture: 391 of 400 samples not black,
+brightest channel 255.
+
+**The short black frames in lit launches.** 24 grabs had a peak under 16.
+In each, the capture samples taken after it held a picture:
+
+- **At the introduction (6 launches).** VRAM was `0de8e137`, as in `k3`'s
+  five. The first buffer read had fewer lit samples and a dimmer brightest
+  channel (300–313 lit, peak 154–243) than the two read after it (364–365 lit,
+  mostly 243). That fits a fade-in still under way while the sample ran, so these
+  are left as a fade.
+- **3 s after Journey Onward (9 launches)**, where the load starts; **7
+  grabs during play** with VRAM at the menu frame `1f9b027f`; and 2 others.
+  These also come back as a picture, but the sample lands seconds after the
+  grab, so they don't say which stage was black at the grab.
+
+**Across the five runs** it is 3 black launches in 56: `k1` 1 of 9, `k2` 0
+of 12, `k3` 2 of 17, `k4` 0 of 1, `k5` 0 of 17. At the earlier rate (3 in 38), 17
+lit launches in a row happen about one run in four, so `k5` doesn't show the rate fell.
+
 ## Kit housekeeping
 
 Run `k3` claimed Kit B at 23:58 EET, restored and released it at 00:57, and
 removed its 5 FogCast data trees (2 game records, 2 media trees, the staged
 Serpent Isle image) at 00:59, as logged in Kit B's status file. Runs `k1` and `k2` shared Kit B's claims and housekeeping with #1368's rerun; [its record](../2026-11-10-pc386-game-acceptance-rerun/summary.md#kit-housekeeping) has the table.
+
+Run `k4` claimed Kit B at 01:21 EET and released it at 01:27, and its 5
+data trees were removed at 01:27. Run `k5` claimed it at 01:28, restored and
+released it at 02:44, and removed its 5 data trees at 02:45. Each is logged
+in Kit B's status file. Neither run installed software or changed the image.
