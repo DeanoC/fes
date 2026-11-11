@@ -46,7 +46,7 @@ how far main's RTL gets. It changes no CPU behaviour. Tracker:
     which are invalid opcodes by design.
   - 490,416 LIDTs run at CPL 0.
   - The 16-entry DTLB and 8-entry ITLB models walk on 3.0% and 3.3% of
-    accesses, ten times the DOS titles' worst.
+    accesses: 6.5 and 3.0 times the DOS titles' worst.
 - **The host DOS matters.** On pc386's FreeDOS games image, WIN.COM
   refuses the reported version. With `VERSION=6.22`, WIN386 starts,
   enables paging and runs 18M V86 steps, then exits with "ERROR:
@@ -228,5 +228,7 @@ post-B-step 386 and Bochs at CPU level 3 raise #UD.
   address as physical, so under paging its bytes and stem are wrong (the
   second stop prints `0000`). The census already walks the page tables.
 - The bench gives the CPU back to the RTL only in real mode or at CPL 0
-  without paging. Slices 1–3 run paging, V86 and CPL 3, so after the first
-  stop in Windows the rest of a run is the oracle's.
+  without paging. Slices 1–3 run paging, V86 and CPL 3, so after a stop
+  in one of those (here KRNL386's `0F FF`) the rest of a run is the
+  oracle's. A stop in real mode, like the loader's `0F A6`, hands back at
+  once.
