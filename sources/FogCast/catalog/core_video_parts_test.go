@@ -349,7 +349,7 @@ func TestCoreVideoPartMigration16PreservesCPUSelectionAndMedia(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Remove later tables to reconstruct the schema-16 fixture.
-	if _, err := db.ExecContext(ctx, `DROP TRIGGER remote_core_entry_selected; DROP TABLE remote_core_entries; DROP TRIGGER kit_host_entry_edit; DROP TRIGGER kit_host_rom_insert; DROP TRIGGER kit_host_rom_update; DROP TRIGGER kit_host_rom_delete; DROP TRIGGER kit_host_expansion_insert; DROP TRIGGER kit_host_expansion_update; DROP TRIGGER kit_host_expansion_delete; DROP TRIGGER kit_host_slot_insert; DROP TRIGGER kit_host_slot_update; DROP TRIGGER kit_host_slot_delete; DROP TABLE kit_host_entries; DROP TABLE zx81_saves; DROP TABLE core_video_parts; PRAGMA user_version=16;`); err != nil {
+	if _, err := db.ExecContext(ctx, `DROP TRIGGER core_media_import_protect; DROP TABLE remote_cached_media; DROP TRIGGER remote_core_entry_selected; DROP TABLE remote_core_entries; DROP TRIGGER kit_host_entry_edit; DROP TRIGGER kit_host_rom_insert; DROP TRIGGER kit_host_rom_update; DROP TRIGGER kit_host_rom_delete; DROP TRIGGER kit_host_expansion_insert; DROP TRIGGER kit_host_expansion_update; DROP TRIGGER kit_host_expansion_delete; DROP TRIGGER kit_host_slot_insert; DROP TRIGGER kit_host_slot_update; DROP TRIGGER kit_host_slot_delete; DROP TABLE kit_host_entries; DROP TABLE zx81_saves; DROP TABLE core_video_parts; PRAGMA user_version=16;`); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {

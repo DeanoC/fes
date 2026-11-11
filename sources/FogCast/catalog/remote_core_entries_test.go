@@ -18,7 +18,7 @@ func TestRemoteCoreEntryMigrationAndVisibleDistinctTitles(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Reconstruct a schema-21 catalog containing an existing user title.
-	if _, err := s.db.ExecContext(ctx, `DROP TRIGGER remote_core_entry_selected; DROP TABLE remote_core_entries; PRAGMA user_version = 21`); err != nil {
+	if _, err := s.db.ExecContext(ctx, `DROP TRIGGER core_media_import_protect; DROP TABLE remote_cached_media; DROP TRIGGER remote_core_entry_selected; DROP TABLE remote_core_entries; PRAGMA user_version = 21`); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Close(); err != nil {

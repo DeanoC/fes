@@ -2731,6 +2731,21 @@ rows; an unavailable source cannot supply an uncached cassette. No firmware,
 package or expansion transfer, discovery, or mounted SMB/NFS root is part of
 this first source path.
 
+The loopback host API can inspect and explicitly reclaim unused remote-only
+cassette content. `GET /api/v1/library/sources/cache` returns tracked and
+reclaimable object/byte counts and a page of eligible content IDs and sizes.
+Pass `after` from `next_after` to continue, and optionally `limit` (1–200;
+default 100). `POST /api/v1/library/sources/cache/cleanup` accepts
+`{"media_ids":["<digest>"]}` for up to 200 distinct IDs from that preview.
+It rechecks references transactionally and returns deleted objects, skipped IDs,
+and logical bytes removed; a concurrent selection or import wins. These routes
+are not exposed by the paired-launcher or source listeners. There is no quota
+or automatic deletion. Retained titles, saved cassettes, local imports, firmware,
+ROMs and expansion/video assets stay protected. Older media with unknown
+provenance stays protected rather than being inferred to be remote-only.
+Cleanup frees catalog database pages for SQLite to reuse; it does not compact
+the database or promise additional filesystem free space.
+
 ## Persistent kit software releases
 
 The FES base-image `fes-kit-software` supervisor owns the agent, native runtime

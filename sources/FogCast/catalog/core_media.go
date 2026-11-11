@@ -21,9 +21,10 @@ const (
 	MaxCoreMediaBytes = protocol.MaxContentBytes
 	// MaxHardDiskMediaBytes bounds only the hard-disk role's imports; every
 	// other role keeps MaxCoreMediaBytes and its own contract limits.
-	MaxHardDiskMediaBytes = protocol.AtaDiskMaxBytes
-	CoreMediaChunkBytes   = 64 << 10
-	legacyCoreMediaBytes  = 16 << 10
+	MaxHardDiskMediaBytes  = protocol.AtaDiskMaxBytes
+	CoreMediaChunkBytes    = 64 << 10
+	legacyCoreMediaBytes   = 16 << 10
+	maxRemoteCassetteBytes = 16 << 10
 )
 
 var (
@@ -91,7 +92,13 @@ func (r coreMediaContextReader) Read(p []byte) (int, error) {
 // ImportCoreMediaStream snapshots and hashes the exact body before reserving a
 // database writer. Memory usage is bounded by the chunk size.
 func (s *Store) ImportCoreMediaStream(ctx context.Context, size int64, body io.Reader) (CoreMedia, bool, error) {
-	return s.importCoreMediaStream(ctx, size, body, MaxCoreMediaBytes)
+	return s.importCoreMediaStream(ctx, size, body, MaxCoreMediaBytes, false)
+}
+
+// ImportRemoteCassetteStream records provenance only when the verified object
+// was newly created by the remote import. Existing bytes may be local imports.
+func (s *Store) ImportRemoteCassetteStream(ctx context.Context, size int64, body io.Reader) (CoreMedia, bool, error) {
+	return s.importCoreMediaStream(ctx, size, body, maxRemoteCassetteBytes, true)
 }
 
 // ImportHardDiskMediaStream imports a raw hard-disk image: 1..128 MiB in
@@ -100,10 +107,10 @@ func (s *Store) ImportHardDiskMediaStream(ctx context.Context, size int64, body 
 	if !protocol.AdmitAtaDiskSize(size) {
 		return CoreMedia{}, false, ErrInvalidCoreMedia
 	}
-	return s.importCoreMediaStream(ctx, size, body, MaxHardDiskMediaBytes)
+	return s.importCoreMediaStream(ctx, size, body, MaxHardDiskMediaBytes, false)
 }
 
-func (s *Store) importCoreMediaStream(ctx context.Context, size int64, body io.Reader, limit int64) (resultMedia CoreMedia, created bool, err error) {
+func (s *Store) importCoreMediaStream(ctx context.Context, size int64, body io.Reader, limit int64, remote bool) (resultMedia CoreMedia, created bool, err error) {
 	if size < 1 || size > limit || body == nil {
 		return CoreMedia{}, false, ErrInvalidCoreMedia
 	}
@@ -164,6 +171,11 @@ func (s *Store) importCoreMediaStream(ctx context.Context, size int64, body io.R
 				return CoreMedia{}, false, err
 			}
 			remaining -= count
+		}
+	}
+	if remote && changed == 1 {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO remote_cached_media(media_id) VALUES (?)`, media.MediaID); err != nil {
+			return CoreMedia{}, false, err
 		}
 	}
 	if err := tx.Commit(); err != nil {

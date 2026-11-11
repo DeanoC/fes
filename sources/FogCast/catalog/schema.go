@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 22
+const schemaVersion = 23
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -376,6 +376,19 @@ END;
 PRAGMA user_version = 22;
 `
 
+// Only newly created remote imports can be proved remote-only. An attempted
+// ordinary reimport makes an existing object ineligible for remote cleanup,
+// including when an older still-running client uses ON CONFLICT DO NOTHING.
+const schemaV23 = `
+CREATE TABLE remote_cached_media (
+  media_id TEXT PRIMARY KEY REFERENCES core_media(media_id) ON DELETE CASCADE
+);
+CREATE TRIGGER core_media_import_protect BEFORE INSERT ON core_media BEGIN
+  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
+END;
+PRAGMA user_version = 23;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -577,6 +590,12 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if version == 21 {
 		if _, err := connection.ExecContext(ctx, schemaV22); err != nil {
 			return fmt.Errorf("apply catalog schema version 22: %w", err)
+		}
+		version = 22
+	}
+	if version == 22 {
+		if _, err := connection.ExecContext(ctx, schemaV23); err != nil {
+			return fmt.Errorf("apply catalog schema version 23: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

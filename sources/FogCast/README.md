@@ -14,6 +14,8 @@ and content selection; the MiSTer is a small, directly controlled target.
   Titles are saved in its own library; first Play verifies and caches the
   cassette, and later plays work with the source offline. The exact sealed
   package must already be installed and firmware is selected on the kit.
+  The local API can inspect and explicitly remove unused remote-only cached
+  cassettes while retaining selected and locally imported media.
   See [remote library sources](docs/ARCHITECTURE.md#remote-library-sources).
 
 - **Settings → BIOS & media drives** remembers USB volumes and SMB shares on
