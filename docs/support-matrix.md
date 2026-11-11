@@ -41,7 +41,6 @@ Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That fla
 | `fes.menu` | Firmware | OSS | Quartus | HDMI | [README](../sources/misteross/cores/fes-menu/README.md) |
 | splash / idle | Firmware | OSS | Quartus | HDMI | [README](../sources/misteross/cores/fes-splash/README.md) |
 | `fes.pong` | Stale | OSS | Quartus | pad, HDMI | [cores](../sources/misteross/docs/cores.md) |
-| `fes.catch` | Demo | OSS | Quartus | pad, HDMI | [cores](../sources/misteross/docs/cores.md) |
 | `fes.ramtest` | Current | OSS | Quartus | pad, HDMI | [README](../sources/misteross/cores/fes-ramtest/README.md) |
 | ZX81 (ZX81, ZX80, TS1000, TS1500) | Current | OSS | Quartus | tape, keys, HDMI | [cores](../sources/misteross/docs/cores.md) |
 | `fes.coleco` | Aging | OSS | Quartus | cart, pad, HDMI | [README](../sources/misteross/cores/fes-coleco/README.md) |
@@ -54,7 +53,6 @@ Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That fla
 | Atari ST (520ST) | Current | OSS | Quartus | disk, keys, mouse, HDMI | [README](../sources/misteross/cores/fes-atari-st/README.md) |
 | Atari ST (STE) | Bring-up (queued) | — | — | — | [README](../sources/misteross/cores/fes-atari-st/README.md) |
 | `fes.riscv` | Aging | OSS | Quartus | pad, HDMI | [README](../sources/misteross/cores/fes-riscv/README.md) |
-| `fes.demo`, `fes.demo-media`, `fes.demo-audio` | Reference | OSS | Quartus | pad, HDMI | [cores](../sources/misteross/docs/cores.md) |
 | `cores/pong` simulation | Reference | — | — | — | [cores](../sources/misteross/docs/cores.md) |
 | PC/XT | Bring-up | Quartus | Quartus | disk, HDMI | [README](../sources/misteross/cores/fes-pcxt/README.md) |
 | PC/XT (FreeDOS) | Current | Quartus | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-pcxt/README.md) |
@@ -71,7 +69,7 @@ The first release lists only v1 cores in tenfoot Home, the rooms and the core ca
 
 - **v1:** `fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, `fes.c64`, `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`
 - **v2:** `fes.pcxt`, `fes.pcxt-dos`, `fes.pc386`
-- **Held back:** `fes.pong`, `fes.catch`, `fes.ramtest`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, C64 NTSC, Atari STE, `fes.riscv`, `fes.demo`, `fes.demo-media`, `fes.demo-audio`
+- **Held back:** `fes.pong`, `fes.ramtest`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, C64 NTSC, Atari STE, `fes.riscv`
 
 ## Open
 

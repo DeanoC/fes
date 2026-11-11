@@ -27,7 +27,6 @@ ENV = {
 # core's entry here, plus that core's recipe and argv goldens.
 LOCK_SHA256 = {
     "fes.menu": "2adfe0457b7d90debb76f52593c5101a88171a9c0b37ca3c2b2146c199ae0df0",
-    "fes.catch": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.pong": "e9c28e573a5037cc7a3acef7637097691bf5bfac6f1a0cdca3bace84b9383edc",
     "fes.zx81": "27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a",
     "fes.zx80": "27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a",
@@ -88,10 +87,8 @@ NO_PYTHON_GUI_OPTIONS = {
 # Stable digest of each complete recipe, plus the old producer command's
 # normalized argv digest (slot, synth, output and GPU are fixed test values).
 # The search vectors follow the former search_placer_qor._run_nextpnr order;
-# Catch follows build_fes_demo.build_commands plus its former GPU suffix.
 GOLDENS = {
     "fes.menu": ("2dab30da3b734c32b1ff52bfd0cdc035cca4bfe1fcc3989461bf3432be25e958", "b840cd3425c9582751f1a7847d988db554f889f0a27f7a234ad25077ccd473df"),
-    "fes.catch": ("2ca8900a129a4b954198e400c5939b8ff28ec3043302ce111f5fabfc9b5c5431", "2e741531aae85de2e7a8796342603dd261b4a025ae564f0575ef1b9caa1dd863"),
     "fes.pong": ("c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
     "fes.zx81": ("9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
     "fes.zx80": ("9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
@@ -116,7 +113,6 @@ GOLDENS = {
 # migrated argv layout and each production combination.
 ARGV_MATRIX_GOLDENS = {
     "fes.menu": "d356ffdf406928e2d588be6e41f92ef4a51dd6b02fce5e660f123c97d2cd7bcb",
-    "fes.catch": "79b8ac93741f11b180132307a0b3261e6e41839e89240c6363f0087e03e75bc4",
     "fes.pong": "177f0476e55e89727fd172de68e2a08b4c684e2a0c99184e4330acfaa4efa85c",
     "fes.zx81": "949fc3d65ea57966453b12b924c229f30974afb83311d95e0d1cdd544d529a16",
     "fes.zx80": "949fc3d65ea57966453b12b924c229f30974afb83311d95e0d1cdd544d529a16",
@@ -552,7 +548,7 @@ class PnrRecipeTests(unittest.TestCase):
     def test_nondefault_flags_and_recipe_extras_are_serialized(self):
         import copy
 
-        for core_id in ("fes.pong", "fes.catch"):
+        for core_id in ("fes.pong",):
             with self.subTest(core=core_id):
                 recipe = copy.deepcopy(pnr_recipe.recipe_for(core_id))
                 recipe["extra"] = ["--router2-alt-weights"]
@@ -774,15 +770,6 @@ class PnrRecipeTests(unittest.TestCase):
                                for keyword in call.keywords)
                 self.assertTrue(env_kw is not None or env_dict, entry["producer_script"])
 
-    def test_catch_direct_producer_uses_the_shared_builder(self):
-        from scripts import build_fes_demo as demo
-        commands = demo.build_commands(
-            ROOT, "0" * 32,
-            {"yosys": Path("/slot/bin/yosys"), "nextpnr-mistral": Path(SLOT)},
-            audio=True, catch=True, gpu_device=0, env=ENV)
-        recipe = pnr_recipe.recipe_for("fes.catch")
-        self.assertEqual(list(commands[1]), _legacy_argv(
-            "fes.catch", recipe, synth="build/fes-catch/synth.json", output="build/fes-catch"))
 
 
 if __name__ == "__main__":

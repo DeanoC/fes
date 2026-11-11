@@ -315,8 +315,7 @@ class HilPlanTest(unittest.TestCase):
         texts = plan.script_texts()
         pll = 'sources/misteross/cores/fes-pong/rtl/pixel_pll.v'
         consumers = {row['component'] for row in plan.core_consumers(pll, texts)}
-        # build_fes_catch reads it only through `from scripts import build_fes_demo`.
-        for component in ('core:pong', 'core:demo', 'core:ramtest', 'core:riscv', 'core:catch'):
+        for component in ('core:pong', 'core:ramtest', 'core:riscv'):
             self.assertIn(component, consumers)
         # build_fes_splash imports build_fes_pong, whose names reach this file, so
         # the boot /idle.rbf may change: the splash rule forces a full image.
@@ -359,8 +358,7 @@ class HilPlanTest(unittest.TestCase):
         texts = plan.script_texts()
         modules = plan.script_modules(texts)
         self.assertEqual([item for module in modules.values() for item in module.unresolved], [])
-        imports = [('build_fes_catch', 'build_fes_demo'),
-                   ('build_fes_menu_package', 'build_fes_menu'),
+        imports = [('build_fes_menu_package', 'build_fes_menu'),
                    ('build_fes_coleco_socket_dev', 'build_fes_coleco_oss'),
                    ('build_fes_coleco_socket_v2', 'build_fes_coleco_oss'),
                    ('build_fes_coleco_socket_v2', 'video_parts'),
@@ -429,8 +427,6 @@ class HilPlanTest(unittest.TestCase):
         # core:menu, so the overlay does not invent a second component.
         self.assertIn('core:menu', result['components'])
         self.assertNotIn('core:menu-package', result['components'])
-        result = plan.plan([scripts + 'build_fes_demo.py'], texts)
-        self.assertIn('core:catch', result['components'])
 
         base = {'scripts/helper.py': 'X = 1\n',
                 'scripts/build_fes_beta.py': 'Y = 2\n',

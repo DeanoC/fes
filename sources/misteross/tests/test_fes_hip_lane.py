@@ -196,31 +196,31 @@ class FesHipLaneTests(unittest.TestCase):
         # The image build authenticates every selected core against one cache
         # root. A core whose lock moves to another nextpnr gets that lock's
         # slot; a core on the old lock keeps the old slot.
-        from scripts import build_fes_catch
+        from scripts import build_fes_ramtest
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             root = base / "misteross"
             for relative in ("scripts/bootstrap.sh", "scripts/lockfile.py", "scripts/toolchain_cache.py",
-                             build_fes_pong.TOOLCHAIN_LOCK, build_fes_catch.TOOLCHAIN_LOCK):
+                             build_fes_pong.TOOLCHAIN_LOCK, build_fes_ramtest.TOOLCHAIN_LOCK):
                 (root / relative).parent.mkdir(parents=True, exist_ok=True)
                 (root / relative).write_bytes((ROOT / relative).read_bytes())
             # Keep the two cache requests distinct even when current locks
             # happen to pin the same nextpnr commit. The synthetic pin also
             # confirms recipe lookup is independent of a commit allowlist.
             pong_pin = "a" * 40
-            catch_pin = load_lock(ROOT / build_fes_catch.TOOLCHAIN_LOCK)["nextpnr"].commit
+            ramtest_pin = load_lock(ROOT / build_fes_ramtest.TOOLCHAIN_LOCK)["nextpnr"].commit
             for relative, pin in ((build_fes_pong.TOOLCHAIN_LOCK, pong_pin),
-                                  (build_fes_catch.TOOLCHAIN_LOCK, catch_pin)):
+                                  (build_fes_ramtest.TOOLCHAIN_LOCK, ramtest_pin)):
                 text, count = re.subn(r'(\[tool\.nextpnr\][^\[]*?commit = ")[0-9a-f]{40}"',
                                       rf'\g<1>{pin}"', (root / relative).read_text())
                 self.assertEqual(count, 1)
                 (root / relative).write_text(text)
             pong_request, pong_manifest = publish_shared_toolchain(
                 base, lock_path=root / build_fes_pong.TOOLCHAIN_LOCK, gpu_router=HIP)
-            catch_request, catch_manifest = publish_shared_toolchain(
-                base, lock_path=root / build_fes_catch.TOOLCHAIN_LOCK, gpu_router=HIP)
-            self.assertEqual(pong_request.cache_root, catch_request.cache_root)
-            self.assertNotEqual(pong_manifest.slot, catch_manifest.slot)
+            ramtest_request, ramtest_manifest = publish_shared_toolchain(
+                base, lock_path=root / build_fes_ramtest.TOOLCHAIN_LOCK, gpu_router=HIP)
+            self.assertEqual(pong_request.cache_root, ramtest_request.cache_root)
+            self.assertNotEqual(pong_manifest.slot, ramtest_manifest.slot)
             with patch.dict(os.environ, {"PATH": str(base)}, clear=True), patch.object(
                 toolchain_cache, "host_identity",
                 return_value={"system": "Linux", "release": "test", "machine": "x86_64"},
@@ -229,11 +229,11 @@ class FesHipLaneTests(unittest.TestCase):
                 return_value={"commands": {"cc": {"path": "/test/cc"}}},
             ):
                 pong = build_fes_pong._authenticate_tools(root, cache_root=pong_request.cache_root)
-                catch = build_fes_catch._authenticate_tools(root, cache_root=catch_request.cache_root)
+                ramtest = build_fes_ramtest._authenticate_tools(root, cache_root=ramtest_request.cache_root)
             self.assertEqual(pong["nextpnr-mistral"].path, pong_manifest.install / "bin/nextpnr-mistral")
-            self.assertEqual(catch["nextpnr-mistral"].path, catch_manifest.install / "bin/nextpnr-mistral")
+            self.assertEqual(ramtest["nextpnr-mistral"].path, ramtest_manifest.install / "bin/nextpnr-mistral")
             self.assertIn(f"commit={pong_pin};", pong["nextpnr-mistral"].identity)
-            self.assertIn(f"commit={catch_pin};", catch["nextpnr-mistral"].identity)
+            self.assertIn(f"commit={ramtest_pin};", ramtest["nextpnr-mistral"].identity)
 
     def test_ambient_cache_root_does_not_select_shared_lane(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -479,7 +479,6 @@ class FesHipLaneTests(unittest.TestCase):
     def test_each_registered_core_toolchain_target_selects_its_lock(self) -> None:
         targets = {
             "fes.menu": "toolchain-fes-menu",
-            "fes.catch": "toolchain-fes-catch",
             "fes.pong": "toolchain-fes-pong",
             "fes.zx81": "toolchain-fes-zx81",
             "fes.coleco": "toolchain-fes-coleco",
