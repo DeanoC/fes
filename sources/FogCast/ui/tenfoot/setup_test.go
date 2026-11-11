@@ -306,6 +306,26 @@ func TestSetupDeferredOfflineShelfRetainsRefreshFailureNotice(t *testing.T) {
 	}
 }
 
+func TestSetupOfflineNoticeAfterIdleBeforeSnapshot(t *testing.T) {
+	app := startFirstRun(t, t.TempDir(), 1280, 720)
+	waitRoom(t, app, "example.welcome")
+	waitFor(t, app, "library loaded", func(s Snapshot) bool { return !s.Loading })
+	app.mu.Lock()
+	app.cancel()
+	app.sessionGen++
+	app.session.State = "launching"
+	app.runSetupActionLocked("setup_continue")
+	app.setLibraryStatusLocked(savedListOfflineCopy)
+	app.session.State = "idle"
+	// The refresh goroutine's notice arrives before any idle Snapshot.
+	app.setLibraryRefreshNoticeLocked("Saved.")
+	app.mu.Unlock()
+	const want = "Saved. Couldn't refresh the library."
+	if got := app.Snapshot().Status; got != want {
+		t.Fatalf("status = %q, want %q", got, want)
+	}
+}
+
 func TestSkippingLaterStepRecordsCurrentStep(t *testing.T) {
 	dir := t.TempDir()
 	app := startFirstRun(t, dir, 1280, 720)

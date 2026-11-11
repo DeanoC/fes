@@ -1674,13 +1674,19 @@ func (a *App) reloadCatalogWithNoticeLocked(notice string) {
 		if ctx.Err() != nil || a.loadGen != gen || a.loading || !a.lastInput.Equal(lastInput) {
 			return
 		}
-		status := a.libraryStatusForNoticeLocked()
-		if a.loadErr != "" || status == savedListOfflineCopy || status == "Can't reach the library right now." {
-			a.setLibraryStatusLocked(notice + " Couldn't refresh the library.")
-			return
-		}
-		a.setLibraryStatusLocked(notice)
+		a.setLibraryRefreshNoticeLocked(notice)
 	}()
+}
+
+// setLibraryRefreshNoticeLocked keeps a failed refresh visible alongside the
+// outcome that requested it, including while setup defers library status.
+func (a *App) setLibraryRefreshNoticeLocked(notice string) {
+	status := a.libraryStatusForNoticeLocked()
+	if a.loadErr != "" || status == savedListOfflineCopy || status == "Can't reach the library right now." {
+		a.setLibraryStatusLocked(notice + " Couldn't refresh the library.")
+		return
+	}
+	a.setLibraryStatusLocked(notice)
 }
 
 func (a *App) replaceLoadContextLocked() context.Context {
