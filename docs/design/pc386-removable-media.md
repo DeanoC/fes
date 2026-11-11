@@ -387,16 +387,20 @@ The core never sees the track table. The runtime gives it only data and play sta
 **Playback path:**
 
 1. PLAY AUDIO validates the range against audio tracks; a data track gives 05h/64h.
-2. The runtime starts filling a 1 MiB audio ring in the window: about 5.9 s, or 446 sectors of 2,352 bytes.
-3. It writes `{start LBA, end LBA, ring base}` into the control page and sets *playing*.
-4. `pc386_cdda` reads the ring a sector at a time into a two-sector M10K buffer.
+2. The runtime fills the audio ring: 445 slots of one 2,352-byte sector each (1,046,640 bytes, inside the 1 MiB region; about 5.9 s). Slot `k` holds play sector `k mod 445`, counted from the start of the range.
+3. It writes `{start LBA, end LBA}` into the control page, with two monotonic 32-bit sector counters, both 0:
+   - `audio_produced`, written only by the runtime after the slot's data, its cache clean and a barrier;
+   - `audio_consumed`, written only by the core as it finishes a sector.
+   
+   The runtime writes a slot only while `audio_produced < audio_consumed + 445`, so it never overwrites a sector the core has not played. It sets *playing* once `audio_produced` reaches 75 sectors (1 s), or the whole range if shorter.
+4. `pc386_cdda` reads sector `audio_consumed` from the ring into a two-sector M10K buffer, but only while `audio_consumed < audio_produced`. A sector it has not been given is never read, so a wrapped ring cannot replay stale audio.
 5. It plays 16-bit stereo frames at 44,100 Hz from a `pc386_rate` divider of the 61.44 MHz clock (an exact ratio: 61,440,000 / 44,100 = 204,800 / 147).
-6. It publishes its frame position in the control page every sector.
-7. The runtime refills behind the position. The runtime answers READ SUB-CHANNEL from that position: absolute and relative MSF, track, index.
+6. It publishes `audio_consumed` and its frame within the sector in the control page.
+7. The runtime refills behind it and answers READ SUB-CHANNEL from that position: absolute and relative MSF, track, index. Play ends when `audio_consumed` reaches the range's length.
 
 PAUSE, RESUME and STOP set a control bit that the player obeys at the next frame.
 
-**Underrun.** If the ring runs dry, the player outputs silence and counts it. The runtime is about 6 s ahead, so an underrun means the service thread stalled. The status ring reports the count.
+**Underrun.** When the next frame's sector is not yet produced (`audio_consumed == audio_produced` before the range ends), the player outputs silence for that frame, counts it, and resumes at the same sector once it is produced, so position never skips ahead of the data. The runtime is about 6 s ahead, so an underrun means the service thread stalled. The status ring reports the count.
 
 **Mixer.** Page 0Eh's port 0 and port 1 volumes scale left and right (8-bit by 16-bit: two DSP blocks, or shifts and adds). The mixer integrates any held level over each 48 kHz period (`pc386_mixer.sv:1-6`), so a 44.1 kHz source needs no other resampler. The mixer is mono today, so v1 sums left and right at half scale each and the CD sits at the same gain as the DSP. Stereo waits for the SB Pro work in #1441, which needs a stereo mixer anyway. Whether CD-DA should wait for that is **D8**.
 
