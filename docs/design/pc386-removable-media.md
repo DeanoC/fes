@@ -473,7 +473,7 @@ CMOS bytes the machine writes (`pc386_rtc.sv:146-173`) become configuration, not
 | Byte | From |
 | --- | --- |
 | 10h | Drive types A (high nibble) and B (low nibble) |
-| 14h | Bit 0 set when a drive exists; bits 7–6 the count minus 1 |
+| 14h | Today's 04h (bits 5–4 VGA, bit 2 the PS/2 port) ORed with the floppy fields: bit 0 set when a drive exists, bits 7–6 the count minus 1. Two drives give 45h |
 | 2Dh bit 5 | Set when booting A: first |
 | 3Dh and 38h | Boot order. Bochs encoding: 1 floppy, 2 hard disk, 3 CD. Hard-disk launch: 02h, then 01h, then 03h, so a forgotten boot floppy behaves as on a real AT. Floppy launch: 01h, 02h, 03h. CD launch: 03h, 02h, 01h |
 
