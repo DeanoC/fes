@@ -404,7 +404,8 @@ PAUSE, RESUME and STOP set a control bit that the player obeys at the next frame
 
 1. The runtime clears *playing*.
 2. It waits until the core's idle word shows the current generation idle. The core sets it only after its in-flight ring read has returned and its last position write has landed. The wait is bounded by one sector read, and the runtime treats a timeout as a service fault.
-3. The runtime resets the counters, writes the new range, increments the generation, refills to the start watermark, and sets *playing*.
+3. For a STOP, it stops here: playback stays stopped, and the generation stays idle until a later PLAY AUDIO.
+4. For a PLAY AUDIO, the runtime resets the counters, writes the new range, increments the generation, refills to the start watermark, and sets *playing*.
 
 The core reads the generation with *playing* and tags everything it writes with it. The runtime ignores any position word whose generation is not current, so a stale write from the old range can never move the new range's counters.
 
