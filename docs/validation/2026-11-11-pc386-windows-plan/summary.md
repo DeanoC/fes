@@ -39,7 +39,7 @@ how far main's RTL gets. It changes no CPU behaviour. Tracker:
   - x87 appears only as one real-mode FPU probe (FNINIT, FNSTCW, FNSTSW).
   So slices 4 (task switches) and 5 (breakpoints and TF) of Phase 5 are
   not on Windows' path. Slices 1–3 and Phase 2's ring 3 are.
-- **Windows is the heaviest V86 user so far.** In 10.7 simulated seconds
+- **Windows is a heavy V86 user.** In 10.7 simulated seconds
   of Windows:
   - 621,160 IRETDs enter V86, all at IOPL 3 bar 406 at IOPL 0.
   - 613,278 #UD exceptions come out of V86 code: WIN386's V86 call-backs,
@@ -172,7 +172,7 @@ included):
 | --- | --- | --- |
 | Memory | HIMEM's XMS; DOS=HIGH; WIN386 takes the rest of the 16 MiB | 16 MiB is plenty for WfW 3.11 |
 | A20 | the 8042's output port (D1h, once) and port 92h (19 writes, 2,566 reads) | both built (#1386) |
-| PIT and PIC | 245,245 channel-0 latches (OUT 43h, 0) with 490,488 reads of 40h, and 245,246 IRR reads (OUT 20h, 0Ah; IN 20h): the timer and PIC VxDs reading time | built; every access is an ISA I/O at CPL 0, so its cost is the machine's ISA charge (#1362) |
+| PIT and PIC | 245,245 channel-0 latches (OUT 43h, 0) with 490,488 reads of 40h, and 245,246 IRR-select writes (OUT 20h, 0Ah) and 245,262 IN 20h reads: the timer and PIC VxDs reading time | built; every access is an ISA I/O at CPL 0, so its cost is the machine's ISA charge (#1362) |
 | Interrupt vectors | VPICD moves the master PIC to 50h and the slave to 58h | built |
 | RTC and CMOS | registers 00h–3Fh read at start; NMI masked through bit 7 | built |
 | Keyboard and mouse | 8042 commands ADh/AEh, A8h and D4h: the PS/2 mouse through the 8042, Windows' own MOUSE.DRV and VMD | built; Program Manager shows the pointer |
