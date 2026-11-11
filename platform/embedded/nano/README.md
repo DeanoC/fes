@@ -1,5 +1,14 @@
 # Nano recovery uploads and cold serial boot
 
+The host-only [boot-flash trial preparation](../../../docs/validation/2026-11-11-de25-bootflash-trial-preparation/README.md)
+adds explicit plan/role authorization and a one-use `flash_trial.FlashTrial`
+around the existing fresh-scan gate. Programmer success and boot acceptance
+remain separate. `power_on_trace.observe` additionally requires a confirmed
+physical cycle, SDM POR boot kind and final EL1 handoff; sticky reset history
+or a qualified JTAG boot cannot substitute. These helpers open no devices;
+the retained private operator owns transport, process bounds and cleanup.
+Permanent flash programming and power-on acceptance remain untested.
+
 The native U-Boot builder accepts an explicit `--native-autoboot` alongside
 `--native-entry-build` for a selected Tenfoot launcher with its paired menu.
 It starts the same guarded `fesboot` command after a two-second UART abort

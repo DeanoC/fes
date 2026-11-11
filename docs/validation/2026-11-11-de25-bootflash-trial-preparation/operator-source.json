@@ -1,0 +1,26 @@
+{
+  "scope": "reviewable-host-only-nonvolatile-boot-trial-preparation",
+  "prepared_from_source": "fd3e7b2a373432b54098a27deeb2426022424e09",
+  "hardware_actions": false,
+  "flash_write_authorized": false,
+  "helper_sha256": {
+    "audit_cleanup.py": "018bac583a378fe5d46c440452438e43f6821fcb033f03ef453c680dae9915f3",
+    "capture.py": "de95195bd809c6d27035b1ae430a558c4450660018a491a4b1abdaf812c8f07c",
+    "capture_models.py": "7561c3dae9b8babf63e2c2d56a6c04d25112252da4b52b83ded90e2dde272df7",
+    "common.py": "42a8643de49289d3cae98173905445caefb50f9519c40ad3fcd856e31b431ebf",
+    "confirm_cycle.py": "cf9bd876e5f998a671c42162949095c6352ad40d0311c487c9c98351259fe4c2",
+    "host_link.py": "f2a10245c541db49b0336d87eb9eea90f3c69cac478e6805d108603bff078790",
+    "models.py": "0246ef56f1daa4cde1deb5d777f9845d8f0a76b32e1e4bfab1759a412570b372",
+    "pending_checks.py": "a5b1f73d7bcc3288326ea17747363bef3f739080e7bd036a150a97ec6437fdbe",
+    "prepare.py": "564f48f3cfc40ac8b9a03fa432cda643118e6af9ac902a4f9572934e9ecd5303",
+    "prepare_capture.py": "848edf1fd2bb018de1cabb919c1eeb1be663e3baf65e6520063c7705606b3108",
+    "private_jtag.py": "887b8d10933e59736044ef249551623657919232d754848c38e43610894a2965",
+    "program.py": "a5e07a6b7406cd517f5e7402865237d4fe9cf4b9fc8bf72548749c3de05a346a",
+    "record_failed_boot.py": "0d49cf0c32a6aa42f098f52f5c9977155cc6c595fb12d7895c05e645734b1c09",
+    "retain.py": "707feaed305d82d6ce91c90d154f3e3e276c629980c3934f4e0f7bea28016ccb",
+    "run.py": "c8a359edab0d62d0f0c95e7f63b5863ac73a7edf3ee3fdab08424dc5509dc48d",
+    "transport_guards.py": "25f6208a5367d0e7e5a36fea8011390f2425c841eba453d9fccfcfaadfcfa225",
+    "trial_inputs.py": "1e3b748fe9230f85c58981059d6e8a2796748f9184d3627c880ec1f70f654133",
+    "usb_stability.py": "d800c8fbb56d8fb40591acd1db40452923fa6dc11eec98ee46be796371181cf2"
+  }
+}
