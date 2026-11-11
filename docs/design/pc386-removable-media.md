@@ -259,6 +259,7 @@ A floppy is small, so it is saved whole, as the PC/XT floppy is:
 
 - **Layout:** `fes.pc386-floppy.image` 1.0. The `fes-media-data-v1` envelope holds the whole current image, published with the existing tmp-fsync-rename rule (`MP/docs/media-data.md:44-50`).
 - **Key:** the existing `fes-media-data-v1` namespace of core, game, unit and base image SHA-256 (`MP/docs/media-data.md:9-12`, `:28`), with the unit field fixed at **1** for every pc386 floppy record, whichever drive holds the disk. The drive (unit 1 or 2 on the wire) is never part of the key, so the base SHA alone tells disks apart. Disk 2 of a set keeps its saved game whether the player puts it in A: or B:, and whichever disk was in a drive at Stop. The runtime maps a floppy unit to namespace unit 1 when it binds the record; `media-data.md` records the rule beside the layout.
+- **One drive per writable image.** The runtime refuses to insert a writable disk whose namespace is already bound to the other drive; FogCast says the disk is already in A: (or B:). The same base image may sit in both drives only write-protected, where no record is written. A disk keeps one binding, so each save has one writer.
 - **Dirty state:** one flag per unit, set when a sector store lands. A Format Track also sets it.
 - **Read-only inserts:** the host can insert any disk write-protected (ST3 WP; writes end with ST1 NW). The library default is writable for disks of a game's own set, and write-protected for install media from a shared OS folder (**D9**).
 - **Reset disk:** FogCast's existing "reset disk" (discard the record) applies per image.
@@ -334,6 +335,12 @@ The only reason to reopen this would be a target OS from before ATAPI drivers ex
 - It is new, and runs while a CD unit is present.
 - It polls the control page through an uncached mapping and runs each packet against the disc's track table and files.
 - It writes the response header, then the data in segments under the ring handshake, then the final record, with a cache clean and a barrier before each counter or record update.
+- **Stop and core replacement.** The thread belongs to one launch generation. Stop runs, in this order, before the runtime releases the window or programs another core:
+  1. Set the thread's cancel flag. The thread checks it between segments and before each window write, and never starts a new write after seeing it.
+  2. Join with a deadline (100 ms; a segment write takes far less).
+  3. Revoke its grants and unmap the control page.
+  
+  If the join misses its deadline, Stop fails as a fault cleanup does today. The window stays owned and no core is programmed; it is never handed over with a worker still mapped. A request the core posted but the thread never answered dies with the core, whose reset clears the drive. C2's kit smoke covers Stop during a long READ and during CD-DA playback, then relaunch, as `docs/core-media-evolution.md:92-94` requires.
 
 **Commands the runtime serves (MMC-1 / SFF-8020i subset):**
 
