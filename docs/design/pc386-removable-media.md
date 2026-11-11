@@ -357,7 +357,7 @@ Anything else gets ILLEGAL REQUEST (05h/20h). The interpreter is one C library i
 - **Disc inserted:** the first command after it gives UNIT ATTENTION (06h/28h), then the disc is ready. MSCDEX, Windows and Linux all handle a swap this way.
 - **Guest eject.** START STOP UNIT with LoEj ejects the disc in the core's state, unless PREVENT ALLOW MEDIUM REMOVAL locks it. The unit's state tells FogCast, so tenfoot shows the tray empty.
 - **Host eject.** An eject from the host while the guest has the medium locked is refused, with the guest's lock named in the error.
-- **El Torito.** Set CMOS 3Dh to 03h (CD first) for a CD launch. The BIOS boots no-emulation images (isolinux) and 1.44 MB floppy-emulation images (the Windows 98 SE OEM CD), with no patch.
+- **El Torito.** A CD launch boots CD, then hard disk, then floppy: CMOS 3Dh = 23h and 38h = 10h ([machine configuration](#machine-configuration)). The BIOS boots no-emulation images (isolinux) and 1.44 MB floppy-emulation images (the Windows 98 SE OEM CD), with no patch.
 
 ### Images
 
@@ -453,7 +453,7 @@ These are owned as `core-media-evolution.md:113-128` says.
   - `atapi-cd` has Prepare, Commit (no CRC: the track table is the runtime's) and Eject, and no dirty map.
   
   This is a minor ABI bump, 1.1 to 1.2. Old shells declare no new interfaces and keep working on the new runtime. Old runtimes do **not** accept the new pc386: they admit only minors 0 and 1, and they reject unknown required declarations (`RT/docs/computer-io.md:29-31`, `:47-48`). These media interfaces are required, so a 1.2 pc386 package ships only with a runtime that implements 1.2.
-- **New layouts.** `fes.pc386-floppy.image` 1.0 in `media-data.md`. The CD control-page layout is a published constant table, so the core, runtime and `machine_tb` share one definition.
+- **New layouts.** `fes.pc386-floppy.image` 1.0 in `media-data.md`. The CD control-page layout is a published constant table, so the core, runtime and `machine_tb` share one definition. It is published in C1, with its first consumers (the RTL and `machine_tb`); C2 adds the runtime as a consumer of the same table.
 
 **libmister-runtime:**
 
@@ -481,7 +481,7 @@ CMOS bytes the machine writes (`pc386_rtc.sv:146-173`) become configuration, not
 | 10h | Drive types A (high nibble) and B (low nibble) |
 | 14h | Today's 04h (bits 5–4 VGA, bit 2 the PS/2 port) ORed with the floppy fields: bit 0 set when a drive exists, bits 7–6 the count minus 1. Two drives give 45h |
 | 2Dh bit 5 | Set when booting A: first |
-| 3Dh and 38h | Boot order. Bochs encoding: 1 floppy, 2 hard disk, 3 CD. Hard-disk launch: 02h, then 01h, then 03h, so a forgotten boot floppy behaves as on a real AT. Floppy launch: 01h, 02h, 03h. CD launch: 03h, 02h, 01h |
+| 3Dh and 38h | Boot order, three devices. The BIOS takes the first device from 3Dh's low nibble, the second from its high nibble and the third from 38h's high nibble (`rombios.c:8549-8550`); codes 1 floppy, 2 hard disk, 3 CD. 38h bit 0 (skip the floppy boot-signature check) stays 0. Hard-disk launch (hard disk, floppy, CD): 3Dh = 12h, 38h = 30h. Floppy launch (floppy, hard disk, CD): 3Dh = 21h, 38h = 30h. CD launch (CD, hard disk, floppy): 3Dh = 23h, 38h = 10h. Every nibble is set, so a failed first device falls back instead of stopping at "No bootable device" |
 
 The checksum over 10h–2Dh covers them as it does today.
 
@@ -651,7 +651,7 @@ The floppy titles above, on Kit A or B. The records go under `docs/validation/`.
 
 ### C1. `pc386_atapi` transport and the MMC library (RTL + runtime library, sim only)
 
-- **Builds:** the secondary channel; the 170h split; the control-page client and PIO streamer; the MMC library with unit tests; `machine_tb`'s CD unit; `atapi_reference`; the `cdrom` and `cd-boot` suites.
+- **Builds:** the CD control-page layout, published in mister-packages' generated definitions with its consumers regenerated in this PR (`AGENTS.md:182-183`); the secondary channel; the 170h split; the control-page client and PIO streamer; the MMC library with unit tests; `machine_tb`'s CD unit; `atapi_reference`; the `cdrom` and `cd-boot` suites.
 - **Out:** the CMOS boot order stays hard-disk-first, and CD boot is a suite option.
 - **Gates:**
   - the suites on the oracle and `--cpu rtl`;
@@ -662,7 +662,7 @@ The floppy titles above, on Kit A or B. The records go under `docs/validation/`.
 ### C2. CD media ABI, runtime service and host (ABI, runtime, FogCast)
 
 - **Builds:**
-  - `fes.media.atapi-cd` 1.0 and the control-page layout;
+  - `fes.media.atapi-cd` 1.0 (the lifecycle); the runtime becomes a consumer of C1's control-page layout, and any change to that layout regenerates the RTL and `machine_tb` in the same PR;
   - the service thread;
   - the `cd` role with the cue parser, the 900 MB size class and kit staging;
   - media sets in the library;
