@@ -1,0 +1,10 @@
+{
+  "checked_utc": "2026-10-30T17:06:01.562882+00:00",
+  "owned_remote_directories_verified_absent": 25,
+  "all_owned_visual_uploads_removed": true,
+  "all_visual_clients_and_ssh_forwards_exited": true,
+  "all_successful_master_closures_verified": true,
+  "shared_capture_producer_and_viewer_untouched": true,
+  "factory_restored": false,
+  "claim_released": false
+}

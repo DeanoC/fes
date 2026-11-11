@@ -1,0 +1,22 @@
+{
+  "run_id": 40771811312,
+  "job_id": 123111178314,
+  "job_url": "https://github.com/DeanoC/fes/actions/runs/40771811312/job/123111178314",
+  "conclusion": "success",
+  "selected_log_lines": [
+    "2026-10-28T21:26:26.5780129Z [command]/usr/bin/git -c protocol.version=2 fetch --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/* +d040ca716fcac316c51f8d8d666ac8d3d8c0b237:refs/remotes/pull/1229/merge",
+    "2026-10-28T21:26:33.4963203Z  * [new ref]             d040ca716fcac316c51f8d8d666ac8d3d8c0b237 -> pull/1229/merge",
+    "2026-10-28T21:26:34.0803609Z HEAD is now at d040ca716 Merge b5e8f7ca4b67c9b11685ce05f23e148b33e3e24b into 53dbe27886eb3fe750e45fa71ece89415c03f99f",
+    "2026-10-28T21:26:34.0918866Z d040ca716fcac316c51f8d8d666ac8d3d8c0b237",
+    "2026-10-28T21:26:43.7471202Z PASS: ZX81 BASIC 8KiB through the machine ROM port",
+    "2026-10-28T21:26:50.2683657Z ZX81 16K pack decode passed",
+    "2026-10-28T21:26:56.9108957Z ZX81 Zon X decode, clock, reset and write transaction passed",
+    "2026-10-28T21:27:03.3549741Z ZX81 QS character window passed",
+    "2026-10-28T21:27:55.1311935Z ZX81 socket BASIC/keyboard/display passed, RAMTOP=4400",
+    "2026-10-28T21:29:59.2007855Z ZX81 socket BASIC/keyboard/display passed, RAMTOP=8000",
+    "2026-10-28T21:30:15.0140141Z PASS display plane: fixed three-clock latency, raster lock/relock, exact closed plane, premultiplied over at alpha 255/128/64/0 with saturation, picture rectangle, fault return (9900000 words checked)",
+    "2026-10-28T21:31:57.7338734Z PASS ZX81 session display: complete-frame HDMI, shared raster, asynchronous CDC, live CPU/RAM, keyboard neutralization, cassette busy/replace/eject, drain/reopen/hidden-underrun recovery, physical held-response/queued-command fault drain",
+    "2026-10-28T21:34:09.2938727Z FES ZX81 machine simulation passed (tape_addr=15 loader=1)",
+    "2026-10-28T21:37:24.6522303Z FES ZX81 SAVE simulation passed"
+  ]
+}

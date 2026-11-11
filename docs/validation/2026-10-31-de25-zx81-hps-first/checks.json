@@ -1,0 +1,60 @@
+{
+  "classification": "host checks and Quartus diagnostic build; internal setup timing fails",
+  "base": "8e432b82f799c5314f6580b5127b6f9e634a8f0e",
+  "producer": "42cb6e7ec2f7f28852db9c22cc6e43a6c2113f88",
+  "merged_prs": {
+    "1299": "3d8ce4449",
+    "1300": "61353263b"
+  },
+  "focused_tests": {
+    "count": 46,
+    "status": "passed"
+  },
+  "test_changed": {
+    "parent_tests": {
+      "count": 1244,
+      "skipped": 42
+    },
+    "expanded_tests": {
+      "count": 1669,
+      "skipped": 75
+    },
+    "status": "passed"
+  },
+  "documentation_links": "passed",
+  "quartus": {
+    "version": "26.3.0 Build 114 10/14/2026 SC Pro Edition",
+    "compile": "passed; 0 errors, 333 warnings",
+    "fitter": "successful",
+    "sta": "failed; -6.215 ns setup, -18.467 ns TNS",
+    "timing_acceptance": "not-qualified",
+    "build_output": "ignored task-worktree out/; /data not writable"
+  },
+  "hardware_acceptance": "not-run; HIL waived",
+  "programming": "not-performed",
+  "shared_contract_changes_in_evidence_commit": false,
+  "files_sha256": {
+    "README.md": "3cf86256309c60d39ac39557504e253aba66432124148af43e30a2d566c6b4ab",
+    "build.json": "9bea626b6113c09181efd40e64a38d8395ba777b9ef4a79867149d8d548e4f02",
+    "clear-generation.log.gz": "06a22cabfecb42ae316e2cf4ccf0e32787df3c386204f93226e8c7ba922add93",
+    "compile.log.gz": "c1ea3b61b00402af3dbdb171b66709b502ffc320e1a17d6ee3d5304a4a33a335",
+    "focused-tests.log": "28d1e7276e4c3ad60ad39a734d9e48163376b26a674357354e0f04a729f6b492",
+    "generation.json": "f3be774f0c497a3881d0ed65472e7bdc21479eefa4a4d4009064c14de4e84c74",
+    "golden_top.fit.rpt.gz": "2570584ef8b6db0d5d5c77eefecf0622ebcf31a277c53ce17ea729ba64e247f0",
+    "golden_top.fit.summary": "9e559919baadfdb75f26727e5978543014f0fba93fa33f95098afbf0c3a6ce8a",
+    "golden_top.sta.rpt.gz": "91f0174c3227d8d10bfc30524c0c149381b79a48c14cb5c60b3ca9d3c46f2a59",
+    "golden_top.sta.summary": "4fe86ede54f3be322cde06d4394c4005110f525b1f219b0c8d8ed5627a747c4d",
+    "golden_top.tq.drc.signoff.rpt.gz": "b88987da43ebd02cd92ae6e872604ce073c464885f1f3c6a6c1ded84b8a6c314",
+    "hps-emif-parameter-review.json": "5646923729a8d4be8315cab3d13a605718998b43466a806af3487c3d20798b11",
+    "inputs.json": "3f939495784fadcb71fdc582cf743f73b5b48e8e7e5c7c4b7bc0d60e73ccd70d",
+    "integration.log.gz": "38e055376441b99056b08cec1a893fd46e2eb1faedc2955c8f7882129e6ea7e0",
+    "ip-generation.log.gz": "4ff628ef58a7b3a9dca3cd2b77ea03a3f8b6f50b421b5dc5a3bc76ef3a6de6d1",
+    "linux-enrich.log.gz": "15227840ef140b2817f7e3e780a091b98ab804b63afaa483bae4330b93e8009c",
+    "linux-programming.json": "04326d5128ff7872a5c91a64156a34c93a527b2e5bd4f7ce3abdedd7c9d5a359",
+    "linux-split.log.gz": "9399ecf7a25c923a318c054d8bfeacb843051b45fabd27849f81cbf8bb258a9c",
+    "quartus-version.txt": "67e962ce5b26d55c897ea2e1ce5937d822e07ee3d2a3068e3e4d74a01bc5e1e1",
+    "test-changed.log.gz": "2cda2828db0024d7aba59f0b24966e540b1bf868e408895e17830595c7e3f3dd",
+    "timing.json": "0be99a6825ba9f92515c72be0256fff2f296ece0791953280db9129087d2b304",
+    "vendor-inputs.json": "ce04b2ae52aa1a79354d7e24d61ee05f697baf37417a135849263b218ad7e286"
+  }
+}

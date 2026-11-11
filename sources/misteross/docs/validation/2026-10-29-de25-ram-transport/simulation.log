@@ -1,0 +1,8 @@
+{"case":"raw_width_lanes_and_stalls","status":"passed","axi_aw":3,"axi_ar":3,"axi_w_beats":20,"axi_r_beats":20,"avalon_write_responses":3,"avalon_read_beats":20,"aw_stalls":2,"ar_stalls":1,"w_stalls":5}
+{"case":"endpoint_complete_scan","status":"passed","axi_aw":21,"axi_ar":1045,"axi_w_beats":224,"axi_r_beats":2272,"avalon_write_responses":21,"avalon_read_beats":2272,"aw_stalls":7,"ar_stalls":4,"w_stalls":54}
+{"case":"read_data_corruption","status":"passed","axi_aw":21,"axi_ar":1045,"axi_w_beats":224,"axi_r_beats":2272,"avalon_write_responses":21,"avalon_read_beats":2272,"aw_stalls":7,"ar_stalls":2,"w_stalls":53}
+{"case":"read_response_error","status":"passed","axi_aw":3,"axi_ar":1,"axi_w_beats":32,"axi_r_beats":2,"avalon_write_responses":3,"avalon_read_beats":2,"aw_stalls":2,"ar_stalls":0,"w_stalls":6}
+{"case":"write_response_error","status":"passed","axi_aw":1,"axi_ar":0,"axi_w_beats":2,"axi_r_beats":0,"avalon_write_responses":1,"avalon_read_beats":0,"aw_stalls":0,"ar_stalls":0,"w_stalls":0}
+{"case":"stop_waits_for_write_response","status":"passed","axi_aw":1,"axi_ar":0,"axi_w_beats":2,"axi_r_beats":0,"avalon_write_responses":1,"avalon_read_beats":0,"aw_stalls":0,"ar_stalls":0,"w_stalls":0}
+{"case":"stop_waits_for_read_response","status":"passed","axi_aw":3,"axi_ar":1,"axi_w_beats":32,"axi_r_beats":2,"avalon_write_responses":3,"avalon_read_beats":2,"aw_stalls":2,"ar_stalls":0,"w_stalls":6}
+{"case":"reset_does_not_invent_completion","status":"passed","axi_aw":3,"axi_ar":1,"axi_w_beats":32,"axi_r_beats":0,"avalon_write_responses":3,"avalon_read_beats":0,"aw_stalls":2,"ar_stalls":0,"w_stalls":6}

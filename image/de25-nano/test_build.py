@@ -153,6 +153,8 @@ class HeadlessBuildTests(unittest.TestCase):
                 put(relative, "builder input: " + relative)
             overlay = put("image/de25-nano/rootfs/overlay/etc/hostname", "fes-de25-nano")
             put("image/de25-nano/buildroot.lock.toml", "locked Buildroot input")
+            put("image/de25-nano/kernel-modules.lock.json", "locked kernel modules")
+            put("image/de25-nano/kernel_modules.py", "kernel module extraction")
             boot = put("image/de25-nano/boot.py", "boot assembly recipe")
             original = BUILD.recipe_key(root), BUILD.rootfs_key(root)
             put("docs/de25-linux.md", "documentation")

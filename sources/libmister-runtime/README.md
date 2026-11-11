@@ -16,6 +16,40 @@ its existing unavailable-hardware adapter and local protocol after refusal;
 it advertises no programming capabilities. An AArch64 compile or QEMU software
 test does not add DE25 hardware support.
 
+The internal `De25PrControl` diagnostic consumes the generated DE25 PR-control
+register contract through an exclusive injected `Mmio` backend and an injected
+persona-configuration operation. It validates the selected base identity,
+freezes and drains before configuration, and resumes only after the expected
+persona's identity response. Uncertain completion permanently poisons the
+controller. Native/AArch64 tests and actual-RTL co-simulation exercise this
+protocol; they add no device opener, daemon operation, programming profile or
+production hardware admission. See the
+[shared control contract](../mister-packages/docs/de25-pr-control.md).
+
+The separate native `De25Computer` diagnostic client selects the endpoint's
+exact `fes.computer` ABI 1.0, independently of the newest generated family minor.
+It uses resource-relative,
+ordered 32-bit register operations for `fes.fabric.de25-computer`. It requires
+the selected nonzero build ID and exact ZX81 capabilities before hold/run,
+full HID state or CRC/chunked tape delivery. Each command has one atomic GPO
+write; an uncertain completion permanently poisons the client without replay.
+Scripted-register unit tests and the DE25 ZX81 client/RTL co-simulation construct
+it. The latter executes the real client natively and under AArch64 QEMU against
+the real endpoint and machine RTL. It has no physical MMIO backend, daemon
+command, programming profile or production factory path;
+the ARMv7/DE10 guard above remains the production gate.
+
+`make de25-computer` builds an explicit maintenance CLI for an already loaded
+ZX81-HPS image on the FES DE25 rootfs. It uses the existing Linux MMIO adapter
+with a six-register read allowlist and only one full-word GPO write address.
+The caller supplies the selected boot UUID, full core build ID and audited CPU
+resource base. It refuses other architectures, rootfs/model identities and
+boot epochs, and holds an exclusive local maintenance lock. `probe` reads only
+endpoint ID/version; all controls additionally identify the selected computer.
+It neither programs an FPGA nor enables the production daemon. Software
+deadlines cannot interrupt a hardware bus stall; the bridge and loaded image
+must be qualified and exclusively owned before this maintenance command runs.
+
 Raw RBF loading is an explicit, idle-only hardware diagnostic using
 `development-contained-v1`; it does not infer a game, ABI, media, or persistence.
 Startup, Stop, and bounded failure recovery load the sealed splash through the

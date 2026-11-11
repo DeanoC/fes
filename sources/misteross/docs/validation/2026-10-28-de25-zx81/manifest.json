@@ -1,0 +1,21 @@
+{
+  "producer_revision": "1b40dc29379809e0d587fa9e8fcd8c4f16b33d99",
+  "scope_base": "53dbe27886eb3fe750e45fa71ece89415c03f99f",
+  "simulation_source_commit": "b5e8f7ca4b67c9b11685ce05f23e148b33e3e24b",
+  "evidence_class": "host-only",
+  "artifacts": {
+    "README.md": "9f594b36dbbe126caa3088a4271c2e101790e94073ec52d422ad51bf0d0eaca0",
+    "attempts.json": "bcdb95455129a5cb930269d113f067e8fd76b988df474b87785b58df354a6a8c",
+    "build.json": "cdb8695d9eab404bff844b1579d6afe2566ddc34b05ba35fc9f5d6e429613495",
+    "ci-merge.json": "1bfb5665378f163f7b53cfe1daf88cc68a511d046a5de7d352304c863c0cd2e1",
+    "default-control.json": "82224cf4be9b6dccec17c7d54639d56002e5c828a3407ecf14a6cec5d5ea42fe",
+    "default-control.log": "a5126626743f719c8394f32b3461154abc41a09c64290a3deeb7d855349e6c5e",
+    "hil-plan.json": "7a9986f40ce034bcee25a4e2433d7f51f1c87d6aea366da3c30060c574bd0fce",
+    "inputs.json": "39f8c8a8928e511777e73c48d3fcc998e59a9651d2df2ca7cb05b620d10888c2",
+    "quartus.json": "681fbbeeb48c592f024588275365c8ae79a151012c6e63d5163a382ee007df8a",
+    "simulation.log": "8def7f83e39524fe39371dfb86df30f5d1de38f1f3e3347663fb56c8228d65cd",
+    "software-checks.json": "a82e57d4ef7a04198e703f7399fcb39bf6f36f83b2597aa284d8c22b4e2ef5c3",
+    "source-binding.json": "451b67aeb3c087439c209950fc77e7f74078a5fe74cf6595a2a51f1a9494d260",
+    "zx81-ci-log.json": "80a298a960c67f70d020058fee350653a4d46adf83fcd7bd95aec68e3a35951b"
+  }
+}

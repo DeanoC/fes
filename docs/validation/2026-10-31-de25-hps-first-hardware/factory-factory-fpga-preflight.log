@@ -1,0 +1,35 @@
+--------------------------------------------------------------------------------
+ Version 26.3 114
+ Copyright (C) 2026 Intel Corporation. All rights reserved.
+ Your use of Intel Corporation's design tools, logic functions
+ and other software and tools, and its AMPP partner logic
+ functions, and any output files from any of the foregoing
+ (including device programming or simulation files), and any
+ associated documentation or information is expressly subject
+ to the terms and conditions of the Intel Program License
+ Subscription Agreement, the Intel Quartus Prime License Agreement,
+ the Intel MegaCore Function License Agreement, or other
+ applicable license agreement, including, without limitation,
+ that your use is for the sole purpose of programming logic
+ devices manufactured by Intel and sold by Intel or its
+ authorized distributors.  Please refer to the applicable
+ agreement for further details. For license details, refer to the
+ End User License Agreement at http://fpgasoftware.intel.com/eula.
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+ Welcome to Intel's FPGA System Console
+
+ This Tcl console provides access to the hardware modules instantiated in your
+ FPGA. You can use System Console for all of the following purposes:
+
+    * To read or write Avalon Memory-Mapped (Avalon-MM) slaves using special
+      masters
+    * To sample the Platform Designer system clock and system reset signal
+    * To run JTAG loopback tests to analyze board noise problems
+    * To shift arbitrary instruction register and data register values to
+      instantiated system level debug (SLD) nodes
+    * To source and probe signals connected to In-System Sources and Probes
+      (ISSP) nodes
+
+--------------------------------------------------------------------------------
+FES_BASELINE_FACTORY_FPGA_VERIFIED design_link: Device /devices/A5E(A013BB23B|B013BB23BCS)|..@1#3-11.3-iface0#DE25-Nano is not compatible with design /designs/zx81-jtag-with-spl.sof (Device has design hash 7BD008B4D4BF4BC62777 but design has hash 7CC83C41D576CEEB4B4D, Device has different visible SLD agents)

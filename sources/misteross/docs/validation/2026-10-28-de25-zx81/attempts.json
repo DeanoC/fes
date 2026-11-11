@@ -1,0 +1,51 @@
+{
+  "scope_base": "53dbe27886eb3fe750e45fa71ece89415c03f99f",
+  "rejected_quartus_candidate": {
+    "revision": "0c908ad44457d6290b892cf874294b1ad1fdcf52",
+    "status": "intentionally stopped, incomplete, no accepted SOF",
+    "reasons": [
+      "Requested 52.224 MHz machine PLL realized 52.222222 MHz",
+      "Quartus implicitly declared WAIT/NMI and ignored later net initializers, leaving the controls undriven"
+    ],
+    "retirement_receipt": "out/de25-zx81-candidate1-retirement.json",
+    "retirement_sha256": "c1c79648468ff612e42b2150825b6ab1a111e37cd960fad252d70c5b90c7ae9d"
+  },
+  "simulations": [
+    {
+      "path": "out/de25-zx81-simulation/attempt-01-missing-rom.log",
+      "sha256": "c47265ead58826c286f2971bba8995a88a771594ece2e570df704e0b14095a23",
+      "result": "failed or intentionally stopped fixture attempt"
+    },
+    {
+      "path": "out/de25-zx81-simulation/attempt-02-picture.log",
+      "sha256": "879d2715fba8b76dc1fd1dcd1f6bb9445fe387ff9e4b31e4c58765a6459b1871",
+      "result": "failed or intentionally stopped fixture attempt"
+    },
+    {
+      "path": "out/de25-zx81-simulation/attempt-03.log",
+      "sha256": "582a324c91abade93f0307f4e341a5c866531b18e012468846b8bfa738a42eec",
+      "result": "failed or intentionally stopped fixture attempt"
+    },
+    {
+      "path": "out/de25-zx81-simulation/attempt-04-shared-clock.log",
+      "sha256": "8e2434ec2fea6dc2d26ff6764923c913c47d67115a465e4dffb8b07d0a64cb43",
+      "result": "failed or intentionally stopped fixture attempt"
+    },
+    {
+      "path": "out/de25-zx81-simulation/attempt-05-editor-idle.log",
+      "sha256": "e3f34f481e7143e6e4ccbbc1501e65785c65b4ee8dd12808743423baaf8e8dc2",
+      "result": "failed or intentionally stopped fixture attempt"
+    },
+    {
+      "path": "out/de25-zx81-simulation/attempt-06-latched-idle.log",
+      "sha256": "db4cd708e6f150e1d9c58a1112b4a72ad6324a98e75b15e5493b3ecf69388e3a",
+      "result": "failed or intentionally stopped fixture attempt"
+    },
+    {
+      "path": "out/de25-zx81-simulation/attempt-07-full-editor.log",
+      "sha256": "8def7f83e39524fe39371dfb86df30f5d1de38f1f3e3347663fb56c8228d65cd",
+      "result": "passed"
+    }
+  ],
+  "explanation": "Attempt01 omitted the ROM working-directory input and was stopped; attempts02-04 required steady picture too early; attempts05-06 timed out before ROM display-file expansion completed. A passing unchanged default machine control established the justified editor wait. Attempt07 passes with the real CPU, ROM, machine and framebuffer, without forced pixels or RAM writes."
+}

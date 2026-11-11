@@ -1,0 +1,65 @@
+# Exact excerpts from golden_top.sta.rpt; full report SHA256 022a79f4f293dbbfe48d888311e121f9fbc687c9bfccdcb05b0100436eb470b4
+# Original report line699
+----------------------------------------------
+; Metastability Summary Slow fix4 100C Model ;
+----------------------------------------------
+Worst-Case MTBF of Design is 1e+09 years or 3.15e+16 seconds.
+MTBF(design) = 1 / SUM(1 / MTBF(synchronizer chain))
+
+Number of Synchronizer Chains Found: 73
+Shortest Synchronizer Chain: 2 Registers
+Number of Chains For Which MTBFs Could Not be Calculated Due to Timing Violations: 0, or 0.0%.
+Number of Chains Excluded from MTBF Analysis: 43, or 58.9%
+Worst Case Available Settling Time: 16.405 ns
+
+Worst-Case MTBF values are calculated based on the worst-case silicon characteristics, with worst-case operating conditions.
+  - Under worst-case conditions, an increase of 100ps in available settling time will increase MTBF values by a factor of 371.4
+
+# Original report line716
+--------------------------------------------
+; Metastability Summary Slow fix4 0C Model ;
+--------------------------------------------
+Worst-Case MTBF of Design is 1e+09 years or 3.15e+16 seconds.
+MTBF(design) = 1 / SUM(1 / MTBF(synchronizer chain))
+
+Number of Synchronizer Chains Found: 73
+Shortest Synchronizer Chain: 2 Registers
+Number of Chains For Which MTBFs Could Not be Calculated Due to Timing Violations: 0, or 0.0%.
+Number of Chains Excluded from MTBF Analysis: 43, or 58.9%
+Worst Case Available Settling Time: 15.964 ns
+
+Worst-Case MTBF values are calculated based on the worst-case silicon characteristics, with worst-case operating conditions.
+  - Under worst-case conditions, an increase of 100ps in available settling time will increase MTBF values by a factor of 22.4
+
+# Original report line733
+---------------------------------------------
+; Metastability Summary Slow fix4a 0C Model ;
+---------------------------------------------
+Worst-Case MTBF of Design is 1e+09 years or 3.15e+16 seconds.
+MTBF(design) = 1 / SUM(1 / MTBF(synchronizer chain))
+
+Number of Synchronizer Chains Found: 73
+Shortest Synchronizer Chain: 2 Registers
+Number of Chains For Which MTBFs Could Not be Calculated Due to Timing Violations: 0, or 0.0%.
+Number of Chains Excluded from MTBF Analysis: 43, or 58.9%
+Worst Case Available Settling Time: 15.958 ns
+
+Worst-Case MTBF values are calculated based on the worst-case silicon characteristics, with worst-case operating conditions.
+  - Under worst-case conditions, an increase of 100ps in available settling time will increase MTBF values by a factor of 22.4
+
+# Original report line750
+--------------------------------------------
+; Metastability Summary Fast fix4 0C Model ;
+--------------------------------------------
+Worst-Case MTBF of Design is 1e+09 years or 3.15e+16 seconds.
+MTBF(design) = 1 / SUM(1 / MTBF(synchronizer chain))
+
+Number of Synchronizer Chains Found: 73
+Shortest Synchronizer Chain: 2 Registers
+Number of Chains For Which MTBFs Could Not be Calculated Due to Timing Violations: 0, or 0.0%.
+Number of Chains Excluded from MTBF Analysis: 43, or 58.9%
+Worst Case Available Settling Time: 17.667 ns
+
+Worst-Case MTBF values are calculated based on the worst-case silicon characteristics, with worst-case operating conditions.
+  - Under worst-case conditions, an increase of 100ps in available settling time will increase MTBF values by a factor of 380.6
+

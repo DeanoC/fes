@@ -1,0 +1,418 @@
+[
+  {
+    "command": "keys",
+    "arguments": [
+      "28"
+    ],
+    "started_unix": 1793428988.8688638,
+    "completed_unix": 1793428989.325783,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "programmed_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "keys",
+      "status": "passed",
+      "register_reads": 604,
+      "register_writes": 40,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    },
+    "label": "enter-load"
+  },
+  {
+    "command": "hold",
+    "arguments": [],
+    "started_unix": 1793428946.5926368,
+    "completed_unix": 1793428946.739535,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "programmed_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "hold",
+      "status": "passed",
+      "register_reads": 349,
+      "register_writes": 23,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    },
+    "label": "hold-after-linux-load"
+  },
+  {
+    "command": "hold",
+    "arguments": [],
+    "started_unix": 1793429523.785538,
+    "completed_unix": 1793429523.9459572,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "programmed_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "hold",
+      "status": "passed",
+      "register_reads": 349,
+      "register_writes": 23,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    },
+    "label": "hold-before-reboot"
+  },
+  {
+    "command": "hold",
+    "arguments": [],
+    "started_unix": 1793429203.1542547,
+    "completed_unix": 1793429203.3006797,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "programmed_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "hold",
+      "status": "passed",
+      "register_reads": 349,
+      "register_writes": 23,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    },
+    "label": "hold-before-second-load"
+  },
+  {
+    "command": "media",
+    "arguments": [
+      "unused"
+    ],
+    "started_unix": 1793428987.5956566,
+    "completed_unix": 1793428987.7370355,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "programmed_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "media",
+      "status": "passed",
+      "register_reads": 7519,
+      "register_writes": 501,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    },
+    "label": "media-load"
+  },
+  {
+    "command": "probe",
+    "arguments": [],
+    "started_unix": 1793428946.4107063,
+    "completed_unix": 1793428946.5547898,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "programmed_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "probe",
+      "status": "passed",
+      "register_reads": 2,
+      "register_writes": 0,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    },
+    "label": "probe-after-linux-load"
+  },
+  {
+    "command": "probe",
+    "arguments": [],
+    "started_unix": 1793429243.4572082,
+    "completed_unix": 1793429243.6164088,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "programmed_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "probe",
+      "status": "passed",
+      "register_reads": 2,
+      "register_writes": 0,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    },
+    "label": "probe-after-second-linux-load"
+  },
+  {
+    "command": "reset",
+    "arguments": [],
+    "started_unix": 1793429403.8310354,
+    "completed_unix": 1793429403.9842238,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "programmed_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "reset",
+      "status": "passed",
+      "register_reads": 364,
+      "register_writes": 24,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    },
+    "label": "reset-after-second-load"
+  },
+  {
+    "command": "run",
+    "arguments": [],
+    "started_unix": 1793428946.772304,
+    "completed_unix": 1793428946.9224002,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "programmed_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "run",
+      "status": "passed",
+      "register_reads": 349,
+      "register_writes": 23,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    },
+    "label": "rom-run-after-linux-load"
+  },
+  {
+    "command": "run",
+    "arguments": [],
+    "started_unix": 1793429243.657879,
+    "completed_unix": 1793429243.8213186,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "programmed_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "run",
+      "status": "passed",
+      "register_reads": 349,
+      "register_writes": 23,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    },
+    "label": "run-after-second-linux-load"
+  },
+  {
+    "command": "keys",
+    "arguments": [
+      "15,28"
+    ],
+    "started_unix": 1793429066.6837409,
+    "completed_unix": 1793429067.443943,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "programmed_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "keys",
+      "status": "passed",
+      "register_reads": 874,
+      "register_writes": 58,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    },
+    "label": "run-basic"
+  },
+  {
+    "command": "keys",
+    "arguments": [
+      "28"
+    ],
+    "started_unix": 1793429476.6884031,
+    "completed_unix": 1793429477.138872,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "programmed_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "keys",
+      "status": "passed",
+      "register_reads": 604,
+      "register_writes": 40,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    },
+    "label": "second-enter-load"
+  },
+  {
+    "command": "media",
+    "arguments": [
+      "unused"
+    ],
+    "started_unix": 1793429475.374094,
+    "completed_unix": 1793429475.543108,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "programmed_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "media",
+      "status": "passed",
+      "register_reads": 7519,
+      "register_writes": 501,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    },
+    "label": "second-media"
+  },
+  {
+    "command": "keys",
+    "arguments": [
+      "15,28"
+    ],
+    "started_unix": 1793429519.7637413,
+    "completed_unix": 1793429520.5174203,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "programmed_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "keys",
+      "status": "passed",
+      "register_reads": 874,
+      "register_writes": 58,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    },
+    "label": "second-run-basic"
+  },
+  {
+    "command": "keys",
+    "arguments": [
+      "0d,13s,13s"
+    ],
+    "started_unix": 1793429475.5836434,
+    "completed_unix": 1793429476.649611,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "programmed_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "keys",
+      "status": "passed",
+      "register_reads": 1684,
+      "register_writes": 112,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    },
+    "label": "second-type-load"
+  },
+  {
+    "command": "keys",
+    "arguments": [
+      "0d,13s,13s"
+    ],
+    "started_unix": 1793428987.769714,
+    "completed_unix": 1793428988.8414419,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "programmed_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "keys",
+      "status": "passed",
+      "register_reads": 1684,
+      "register_writes": 112,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    },
+    "label": "type-load"
+  }
+]

@@ -1,0 +1,4 @@
+kernel/drivers/fpga/stratix10-soc.ko:
+kernel/drivers/fpga/fpga-bridge.ko:
+kernel/drivers/fpga/fpga-region.ko: kernel/drivers/fpga/fpga-bridge.ko
+kernel/drivers/fpga/of-fpga-region.ko: kernel/drivers/fpga/fpga-region.ko kernel/drivers/fpga/fpga-bridge.ko

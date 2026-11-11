@@ -1,0 +1,22 @@
+{
+  "architecture": "aarch64",
+  "kernel_release": "6.12.11-gd7d192a9ddd9",
+  "boot_id": "0e08d1ec-caa5-40e6-aac2-cbd9582b0447",
+  "model": "SoCFPGA Agilex5 Terasic DE25-Nano",
+  "root_device_number": "179:2",
+  "root_mount_source": "/dev/root",
+  "installed_file_sha256": {
+    "/bin/busybox": "afd28893ac9137d9c2c81c21d6f7a1b2f1375020fc01adb29311af2e1f66f3d8",
+    "/etc/fes-board": "3df9323bc037f67730dca626ba4e97e4266f6c56df03e866c0607dcbb939d975",
+    "/etc/hostname": "dc40a58415cc7a479340b1d667023d67e477044b863717d901e14204a9ef6738",
+    "/etc/init.d/S50dropbear": "248140e763de8f99369510a87f25c65a500fb8a7f8c6c6724e27d19faf1292db",
+    "/etc/inittab": "d616d80df596f8c0a28d4ab8ed53fdad077353fc0abebc0c2787a168d96ec8bf",
+    "/etc/network/interfaces": "de1b394b564e12b5ae0c2ce2c5cb489a045474e8eb47708fa609906e5691e5b1",
+    "/usr/sbin/dropbear": "54c283e4c9b275bce7f80b36aba95d9283f0a3283c4965eb9fad06f6aed2f78d"
+  },
+  "image_identity_scope": "selected diagnostic files match; whole SD image not attested",
+  "private_collector_receipt_sha256": "3aaaada00128105752385c717ca791cd44d393ea236f23cba1c6d22c06e42baa",
+  "automatic_dhcp_background_from_boot": true,
+  "manual_network_recovery_performed": false,
+  "ssh_host_key_fingerprint": "SHA256:CDDqdH7DFtRO4NmjtAXhGJAu55lWFW7DBRHZL8o3rqw"
+}

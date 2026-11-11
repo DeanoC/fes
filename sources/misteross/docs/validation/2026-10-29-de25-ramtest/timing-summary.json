@@ -1,0 +1,3176 @@
+{
+  "all_reported_slack_nonnegative": true,
+  "all_reported_tns_zero": true,
+  "build_sha256": "c438f4956d2deea4cea87fe64d4ee37eb4eacfab32ee375b1b82cd4be81857f2",
+  "candidate_history": "candidate-history.json",
+  "checks": {
+    "Hold": {
+      "all_tns_zero": true,
+      "minimum_slack_ns": 0.0,
+      "rows": 5
+    },
+    "Minimum Pulse Width": {
+      "all_tns_zero": true,
+      "minimum_slack_ns": 0.22,
+      "rows": 32
+    },
+    "Recovery": {
+      "all_tns_zero": true,
+      "minimum_slack_ns": 6.079,
+      "rows": 3
+    },
+    "Removal": {
+      "all_tns_zero": true,
+      "minimum_slack_ns": 0.158,
+      "rows": 3
+    },
+    "Setup": {
+      "all_tns_zero": true,
+      "minimum_slack_ns": 2.32,
+      "rows": 3
+    }
+  },
+  "classification": "compiler timing and scoped internal-path evidence; physical acceptance remains open",
+  "clock_status": [
+    {
+      "Clock": "ramtest_sdram50",
+      "Status": "Constrained",
+      "Target": "CLOCK1_50",
+      "Type": "Base"
+    },
+    {
+      "Clock": "pll_inst|iopll_0_refclk",
+      "Status": "Constrained",
+      "Target": "CLOCK2_50",
+      "Type": "Base"
+    },
+    {
+      "Clock": "ramtest_sdram_forwarded",
+      "Status": "Constrained",
+      "Target": "DRAM_CLK",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_in",
+      "Status": "Constrained",
+      "Target": "LPDDR4A_DQS[0]",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_in",
+      "Status": "Constrained",
+      "Target": "LPDDR4A_DQS[1]",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_in",
+      "Status": "Constrained",
+      "Target": "LPDDR4A_DQS[2]",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_in",
+      "Status": "Constrained",
+      "Target": "LPDDR4A_DQS[3]",
+      "Type": "Base"
+    },
+    {
+      "Clock": "EMIF_REF_CLOCK",
+      "Status": "Constrained",
+      "Target": "LPDDR4A_REFCLK_p",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[0]_in",
+      "Status": "Constrained",
+      "Target": "LPDDR4B_DQS[0]",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[1]_in",
+      "Status": "Constrained",
+      "Target": "LPDDR4B_DQS[1]",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[2]_in",
+      "Status": "Constrained",
+      "Target": "LPDDR4B_DQS[2]",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[3]_in",
+      "Status": "Constrained",
+      "Target": "LPDDR4B_DQS[3]",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_ref_clock",
+      "Status": "Constrained",
+      "Target": "LPDDR4B_REFCLK_p",
+      "Type": "Base"
+    },
+    {
+      "Clock": "altera_reserved_tck",
+      "Status": "Constrained",
+      "Target": "altera_reserved_tck",
+      "Type": "Base"
+    },
+    {
+      "Clock": "internal_clk",
+      "Status": "Constrained",
+      "Target": "auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg",
+      "Type": "Base"
+    },
+    {
+      "Clock": "pll_inst|iopll_0_outclk0",
+      "Status": "Constrained",
+      "Target": "pll_inst|iopll_0|tennm_ph2_iopll|out_clk[0]",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+      "Status": "Constrained",
+      "Target": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "pll_inst|iopll_0_m_cnt_clk",
+      "Status": "Constrained",
+      "Target": "pll_inst|iopll_0|tennm_ph2_iopll~mcntr_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "pll_inst|iopll_0_n_cnt_clk",
+      "Status": "Constrained",
+      "Target": "pll_inst|iopll_0|tennm_ph2_iopll~ncntr_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_0_rxclk_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_0_byte_rx_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[0]_nff",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_1_rxclk_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_1_byte_rx_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[1]_nff",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_1_c2p",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_falane|gen_lane_c2p_fa.fa_c2p_lane~div_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_1_p2c",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_falane|gen_lane_p2c_fa.fa_p2c_lane~div_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_2_rxclk_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_2_byte_rx_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_2_c2p",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_falane|gen_lane_c2p_fa.fa_c2p_lane~div_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_2_p2c",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_falane|gen_lane_p2c_fa.fa_p2c_lane~div_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_3_rxclk_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_3_byte_rx_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_3_c2p",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_falane|gen_lane_c2p_fa.fa_c2p_lane~div_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_3_p2c",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_falane|gen_lane_p2c_fa.fa_p2c_lane~div_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_4_rxclk_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_4_byte_rx_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[2]_nff",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_5_rxclk_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_5_byte_rx_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[3]_nff",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_hmc_wide_c2p",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_fahmc_wide|gen_hmc_c2p_fa.fa_c2p_hmc~div_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_hmc_wide_p2c",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_fahmc_wide|gen_hmc_p2c_fa.fa_p2c_hmc~div_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_phy_clk_0",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph0",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_phy_clk_sync_0",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph1",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_vco_clk_periph_0",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|vco_clk_periph",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_c0_cntr_0",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c0cntr_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_c1_cntr_0",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c1cntr_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_pll_ncntr",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~ncntr_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_vco_base_0",
+      "Status": "Constrained",
+      "Target": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~vcoph[0]",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_byte_rx_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_nff",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_byte_rx_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_nff",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_byte_rx_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_byte_rx_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_byte_rx_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_nff",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Type": "Base"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_byte_rx_gated",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_nff",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph0",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_sync_0",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph1",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|vco_clk_periph",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c0_cntr_0",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c0cntr_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c1_cntr_0",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c1cntr_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_pll_ncntr",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~ncntr_reg",
+      "Type": "Generated"
+    },
+    {
+      "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+      "Status": "Constrained",
+      "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~vcoph[0]",
+      "Type": "Generated"
+    }
+  ],
+  "clock_status_all_constrained": true,
+  "clocks": [
+    {
+      "Clock Name": "altera_reserved_tck",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "31.250",
+      "Frequency": "16.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "62.500",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ altera_reserved_tck }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "EMIF_REF_CLOCK",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "3.000",
+      "Frequency": "166.67 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "6.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ LPDDR4A_REFCLK_p }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "internal_clk",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "pll_inst|iopll_0_m_cnt_clk",
+      "Divide by": "1",
+      "Duty Cycle": "50.00",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "10.000",
+      "Frequency": "50.0 MHz",
+      "Inverted": "false",
+      "Master": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "20.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+      "Targets": "{ pll_inst|iopll_0|tennm_ph2_iopll~mcntr_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "pll_inst|iopll_0_n_cnt_clk",
+      "Divide by": "1",
+      "Duty Cycle": "50.00",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "10.000",
+      "Frequency": "50.0 MHz",
+      "Inverted": "false",
+      "Master": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "20.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+      "Targets": "{ pll_inst|iopll_0|tennm_ph2_iopll~ncntr_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "pll_inst|iopll_0_outclk0",
+      "Divide by": "32",
+      "Duty Cycle": "50.00",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "false",
+      "Master": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+      "Multiply by": "64",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+      "Targets": "{ pll_inst|iopll_0|tennm_ph2_iopll|out_clk[0] }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "pll_inst|iopll_0_refclk",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "10.000",
+      "Frequency": "50.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "20.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ CLOCK2_50 }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "10.000",
+      "Frequency": "50.0 MHz",
+      "Inverted": "false",
+      "Master": "pll_inst|iopll_0_refclk",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "20.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "CLOCK2_50",
+      "Targets": "{ pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0 }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "ramtest_sdram50",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "10.000",
+      "Frequency": "50.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "20.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ CLOCK1_50 }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "ramtest_sdram_forwarded",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "20.000",
+      "Frequency": "50.0 MHz",
+      "Inverted": "true",
+      "Master": "ramtest_sdram50",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "20.000",
+      "Phase": "",
+      "Rise": "10.000",
+      "Source": "CLOCK1_50",
+      "Targets": "{ DRAM_CLK }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_c0_cntr_0",
+      "Divide by": "2",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.937",
+      "Frequency": "533.33 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_vco_base_0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "1.874",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~vcoph[0]",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c0cntr_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_c1_cntr_0",
+      "Divide by": "8",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "3.749",
+      "Frequency": "133.33 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_vco_base_0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "7.498",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~vcoph[0]",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c1cntr_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_hmc_wide_c2p",
+      "Divide by": "4",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "3.749",
+      "Frequency": "133.33 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_phy_clk_0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "7.498",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph0",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_fahmc_wide|gen_hmc_c2p_fa.fa_c2p_hmc~div_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_hmc_wide_p2c",
+      "Divide by": "4",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "3.749",
+      "Frequency": "133.33 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_phy_clk_0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "7.498",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph0",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_fahmc_wide|gen_hmc_p2c_fa.fa_p2c_hmc~div_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_1_c2p",
+      "Divide by": "4",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "3.749",
+      "Frequency": "133.33 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_phy_clk_0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "7.498",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph0",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_falane|gen_lane_c2p_fa.fa_c2p_lane~div_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_1_p2c",
+      "Divide by": "4",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "3.749",
+      "Frequency": "133.33 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_phy_clk_0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "7.498",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph0",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_falane|gen_lane_p2c_fa.fa_p2c_lane~div_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_2_c2p",
+      "Divide by": "4",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "3.749",
+      "Frequency": "133.33 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_phy_clk_0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "7.498",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph0",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_falane|gen_lane_c2p_fa.fa_c2p_lane~div_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_2_p2c",
+      "Divide by": "4",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "3.749",
+      "Frequency": "133.33 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_phy_clk_0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "7.498",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph0",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_falane|gen_lane_p2c_fa.fa_p2c_lane~div_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_3_c2p",
+      "Divide by": "4",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "3.749",
+      "Frequency": "133.33 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_phy_clk_0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "7.498",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph0",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_falane|gen_lane_c2p_fa.fa_c2p_lane~div_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_3_p2c",
+      "Divide by": "4",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "3.749",
+      "Frequency": "133.33 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_phy_clk_0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "7.498",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph0",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_falane|gen_lane_p2c_fa.fa_p2c_lane~div_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_0_byte_rx_gated",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_0_rxclk_gated",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_0_rxclk_gated",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_1_byte_rx_gated",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_1_rxclk_gated",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_1_rxclk_gated",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_2_byte_rx_gated",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_2_rxclk_gated",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_2_rxclk_gated",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_3_byte_rx_gated",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_3_rxclk_gated",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_3_rxclk_gated",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_4_byte_rx_gated",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_4_rxclk_gated",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_4_rxclk_gated",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_5_byte_rx_gated",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_5_rxclk_gated",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_5_rxclk_gated",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[0]_in",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.469",
+      "Frequency": "1066.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "0.938",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ LPDDR4B_DQS[0] }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[0]_nff",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.938",
+      "Frequency": "1066.0 MHz",
+      "Inverted": "true",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[0]_in",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "0.938",
+      "Phase": "",
+      "Rise": "0.469",
+      "Source": "LPDDR4B_DQS[0]",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[1]_in",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.469",
+      "Frequency": "1066.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "0.938",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ LPDDR4B_DQS[1] }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[1]_nff",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.938",
+      "Frequency": "1066.0 MHz",
+      "Inverted": "true",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[1]_in",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "0.938",
+      "Phase": "",
+      "Rise": "0.469",
+      "Source": "LPDDR4B_DQS[1]",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[2]_in",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.469",
+      "Frequency": "1066.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "0.938",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ LPDDR4B_DQS[2] }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[2]_nff",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.938",
+      "Frequency": "1066.0 MHz",
+      "Inverted": "true",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[2]_in",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "0.938",
+      "Phase": "",
+      "Rise": "0.469",
+      "Source": "LPDDR4B_DQS[2]",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[3]_in",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.469",
+      "Frequency": "1066.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "0.938",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ LPDDR4B_DQS[3] }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[3]_nff",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.938",
+      "Frequency": "1066.0 MHz",
+      "Inverted": "true",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[3]_in",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "0.938",
+      "Phase": "",
+      "Rise": "0.469",
+      "Source": "LPDDR4B_DQS[3]",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_phy_clk_0",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.937",
+      "Frequency": "533.33 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_c0_cntr_0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "1.874",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c0cntr_reg",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph0 }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_phy_clk_sync_0",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "3.749",
+      "Frequency": "133.33 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_c1_cntr_0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "7.498",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c1cntr_reg",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph1 }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_pll_ncntr",
+      "Divide by": "5",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "14.997",
+      "Frequency": "33.33 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_ref_clock",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "29.995",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "LPDDR4B_REFCLK_p",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~ncntr_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_ref_clock",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "2.999",
+      "Frequency": "166.67 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "5.999",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ LPDDR4B_REFCLK_p }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_vco_base_0",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.468",
+      "Frequency": "1066.67 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_pll_ncntr",
+      "Multiply by": "32",
+      "Offset": "",
+      "Period": "0.937",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~ncntr_reg",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~vcoph[0] }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_vco_clk_periph_0",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.468",
+      "Frequency": "1066.67 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_pll_ncntr",
+      "Multiply by": "32",
+      "Offset": "",
+      "Period": "0.937",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~ncntr_reg",
+      "Targets": "{ soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|vco_clk_periph }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c0_cntr_0",
+      "Divide by": "2",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.750",
+      "Frequency": "666.67 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "1.500",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~vcoph[0]",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c0cntr_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c1_cntr_0",
+      "Divide by": "8",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "3.000",
+      "Frequency": "166.67 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "6.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~vcoph[0]",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c1cntr_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_byte_rx_gated",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_byte_rx_gated",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_byte_rx_gated",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_byte_rx_gated",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_byte_rx_gated",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_byte_rx_gated",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "5.000",
+      "Frequency": "100.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "10.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_in",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.375",
+      "Frequency": "1333.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "0.750",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ LPDDR4A_DQS[0] }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_nff",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.750",
+      "Frequency": "1333.0 MHz",
+      "Inverted": "true",
+      "Master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_in",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "0.750",
+      "Phase": "",
+      "Rise": "0.375",
+      "Source": "LPDDR4A_DQS[0]",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_in",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.375",
+      "Frequency": "1333.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "0.750",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ LPDDR4A_DQS[1] }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_nff",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.750",
+      "Frequency": "1333.0 MHz",
+      "Inverted": "true",
+      "Master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_in",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "0.750",
+      "Phase": "",
+      "Rise": "0.375",
+      "Source": "LPDDR4A_DQS[1]",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_in",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.375",
+      "Frequency": "1333.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "0.750",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ LPDDR4A_DQS[2] }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_nff",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.750",
+      "Frequency": "1333.0 MHz",
+      "Inverted": "true",
+      "Master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_in",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "0.750",
+      "Phase": "",
+      "Rise": "0.375",
+      "Source": "LPDDR4A_DQS[2]",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_in",
+      "Divide by": "",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.375",
+      "Frequency": "1333.0 MHz",
+      "Inverted": "",
+      "Master": "",
+      "Multiply by": "",
+      "Offset": "",
+      "Period": "0.750",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "",
+      "Targets": "{ LPDDR4A_DQS[3] }",
+      "Type": "Base"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_nff",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.750",
+      "Frequency": "1333.0 MHz",
+      "Inverted": "true",
+      "Master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_in",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "0.750",
+      "Phase": "",
+      "Rise": "0.375",
+      "Source": "LPDDR4A_DQS[3]",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.750",
+      "Frequency": "666.67 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c0_cntr_0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "1.500",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c0cntr_reg",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph0 }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_sync_0",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "3.000",
+      "Frequency": "166.67 MHz",
+      "Inverted": "false",
+      "Master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c1_cntr_0",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "6.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c1cntr_reg",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph1 }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_pll_ncntr",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "3.000",
+      "Frequency": "166.67 MHz",
+      "Inverted": "false",
+      "Master": "EMIF_REF_CLOCK",
+      "Multiply by": "1",
+      "Offset": "",
+      "Period": "6.000",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "LPDDR4A_REFCLK_p",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~ncntr_reg }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.375",
+      "Frequency": "1333.33 MHz",
+      "Inverted": "false",
+      "Master": "EMIF_REF_CLOCK",
+      "Multiply by": "8",
+      "Offset": "",
+      "Period": "0.750",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "LPDDR4A_REFCLK_p",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~vcoph[0] }",
+      "Type": "Generated"
+    },
+    {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+      "Divide by": "1",
+      "Duty Cycle": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Fall": "0.375",
+      "Frequency": "1333.33 MHz",
+      "Inverted": "false",
+      "Master": "EMIF_REF_CLOCK",
+      "Multiply by": "8",
+      "Offset": "",
+      "Period": "0.750",
+      "Phase": "",
+      "Rise": "0.000",
+      "Source": "LPDDR4A_REFCLK_p",
+      "Targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|vco_clk_periph }",
+      "Type": "Generated"
+    }
+  ],
+  "design_assistant": {
+    "all_waived_zero": true,
+    "failed": [
+      {
+        "Rule": "TMC-20012 - Missing Output Delay Constraint",
+        "Severity": "High",
+        "Tags": "sdc, system",
+        "Violations": "40",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20011 - Missing Input Delay Constraint",
+        "Severity": "High",
+        "Tags": "sdc, system",
+        "Violations": "16",
+        "Waived": "0"
+      },
+      {
+        "Rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+        "Severity": "Medium",
+        "Tags": "reset-usage, reset-reachability",
+        "Violations": "2",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20021 - Partial Min-Max Delay Assignment",
+        "Severity": "Medium",
+        "Tags": "sdc",
+        "Violations": "1",
+        "Waived": "0"
+      },
+      {
+        "Rule": "RES-50010 - Reset Synchronizer Chains with Constant Output",
+        "Severity": "Low",
+        "Tags": "synchronizer",
+        "Violations": "90",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20602 - Registers with High Timing Path Endpoint Tension",
+        "Severity": "Low",
+        "Tags": "register-duplication, register-spread, place",
+        "Violations": "42",
+        "Waived": "0"
+      },
+      {
+        "Rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+        "Severity": "Low",
+        "Tags": "reset-usage",
+        "Violations": "2",
+        "Waived": "0"
+      },
+      {
+        "Rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+        "Severity": "Low",
+        "Tags": "synchronizer, false-positive-synchronizer",
+        "Violations": "2",
+        "Waived": "0"
+      }
+    ],
+    "rules": [
+      {
+        "Rule": "TMC-20012 - Missing Output Delay Constraint",
+        "Severity": "High",
+        "Tags": "sdc, system",
+        "Violations": "40",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20011 - Missing Input Delay Constraint",
+        "Severity": "High",
+        "Tags": "sdc, system",
+        "Violations": "16",
+        "Waived": "0"
+      },
+      {
+        "Rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+        "Severity": "Medium",
+        "Tags": "reset-usage, reset-reachability",
+        "Violations": "2",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20021 - Partial Min-Max Delay Assignment",
+        "Severity": "Medium",
+        "Tags": "sdc",
+        "Violations": "1",
+        "Waived": "0"
+      },
+      {
+        "Rule": "RES-50010 - Reset Synchronizer Chains with Constant Output",
+        "Severity": "Low",
+        "Tags": "synchronizer",
+        "Violations": "90",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20602 - Registers with High Timing Path Endpoint Tension",
+        "Severity": "Low",
+        "Tags": "register-duplication, register-spread, place",
+        "Violations": "42",
+        "Waived": "0"
+      },
+      {
+        "Rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+        "Severity": "Low",
+        "Tags": "reset-usage",
+        "Violations": "2",
+        "Waived": "0"
+      },
+      {
+        "Rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+        "Severity": "Low",
+        "Tags": "synchronizer, false-positive-synchronizer",
+        "Violations": "2",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CDC-50001 - 1-Bit Asynchronous Transfer Not Synchronized",
+        "Severity": "High",
+        "Tags": "synchronizer",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CDC-50002 - 1-Bit Asynchronous Transfer with Insufficient Constraints",
+        "Severity": "High",
+        "Tags": "synchronizer",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CDC-50003 - CE-Type CDC Transfer with Insufficient Constraints",
+        "Severity": "High",
+        "Tags": "cdc-bus",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CDC-50004 - MUX-type CDC Transfer with Insufficient Constraints",
+        "Severity": "High",
+        "Tags": "cdc-bus",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CDC-50005 - CDC Bus Constructed with Multi-bit Synchronizer Chains of Different Lengths",
+        "Severity": "High",
+        "Tags": "synchronizer, cdc-bus",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CDC-50006 - CDC Bus Constructed with Unsynchronized Registers",
+        "Severity": "High",
+        "Tags": "synchronizer, cdc-bus",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CDC-50007 - CDC Bus Constructed with Multi-bit Synchronizer Chains with Insufficient Constraints",
+        "Severity": "High",
+        "Tags": "synchronizer, cdc-bus",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CDC-50011 - Combinational Logic Before Synchronizer Chain",
+        "Severity": "High",
+        "Tags": "synchronizer",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CDC-50012 - Multiple Clock Domains Driving a Synchronizer Chain",
+        "Severity": "High",
+        "Tags": "synchronizer",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CLK-30026 - Missing Clock Assignment",
+        "Severity": "High",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CLK-30027 - Multiple Clock Assignments Found",
+        "Severity": "High",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CLK-30028 - Invalid Generated Clock",
+        "Severity": "High",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CLK-30029 - Invalid Clock Assignments",
+        "Severity": "High",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CLK-30030 - PLL Setting Violation",
+        "Severity": "High",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CLK-30033 - Invalid Clock Group Assignment",
+        "Severity": "High",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CLK-30034 - Clock Pairs Missing Logically Exclusive Clock Group Assignment",
+        "Severity": "High",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CLK-30035 - Clock Pairs Missing Physically Exclusive Clock Group Assignment",
+        "Severity": "High",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CLK-30042 - Incorrect Clock Group Type",
+        "Severity": "High",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "RES-50001 - Asynchronous Reset Is Not Synchronized",
+        "Severity": "High",
+        "Tags": "synchronizer",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "RES-50002 - Asynchronous Reset is Insufficiently Synchronized",
+        "Severity": "High",
+        "Tags": "synchronizer",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "RES-50003 - Asynchronous Reset with Insufficient Constraints",
+        "Severity": "High",
+        "Tags": "synchronizer",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "RES-50004 - Multiple Asynchronous Resets within Reset Synchronizer Chain",
+        "Severity": "High",
+        "Tags": "synchronizer",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20013 - Partial Input Delay",
+        "Severity": "High",
+        "Tags": "sdc, system",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20014 - Partial Output Delay",
+        "Severity": "High",
+        "Tags": "sdc, system",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20015 - Inconsistent Min-Max Delay",
+        "Severity": "High",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20016 - Invalid Reference Pin",
+        "Severity": "High",
+        "Tags": "sdc, system",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20017 - Loops Detected",
+        "Severity": "High",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20019 - Partial Multicycle Assignment",
+        "Severity": "High",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20022 - I/O Delay Assignment Missing Parameters",
+        "Severity": "High",
+        "Tags": "sdc, system",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20023 - Invalid Set Net Delay Assignment",
+        "Severity": "High",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20027 - Collection Filter Matching Multiple Types",
+        "Severity": "High",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-30041 - Constraint with Invalid Clock Reference",
+        "Severity": "High",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CDC-50103 - Unsynchronized Intra-Clock Forced Synchronizer",
+        "Severity": "Medium",
+        "Tags": "synchronizer",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CLK-30031 - Input Delay Assigned to Clock",
+        "Severity": "Medium",
+        "Tags": "sdc, system",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CLK-30032 - Improper Clock Targets",
+        "Severity": "Medium",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "FLP-10000 - Physical RAM with Utilization Below Threshold",
+        "Severity": "Medium",
+        "Tags": "ram, resource-usage",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "FLP-10501 - Top-Level Ports Without Pin Location Assignment",
+        "Severity": "Medium",
+        "Tags": "system",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "LNT-30023 - Reset Nets with Polarity Conflict",
+        "Severity": "Medium",
+        "Tags": "reset-usage",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20018 - Unsupported Latches Detected",
+        "Severity": "Medium",
+        "Tags": "latch",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20024 - Synchronous Data Delay Assignment",
+        "Severity": "Medium",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20025 - Ignored or Overridden Constraints",
+        "Severity": "Medium",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20026 - Empty Collection Due To Unmatched Filter",
+        "Severity": "Medium",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20200 - Paths Failing Setup Analysis with Impossible Requirements",
+        "Severity": "Medium",
+        "Tags": "intrinsic-margin, impossible-requirements, sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20201 - Paths Failing Setup Analysis with High Clock Skew",
+        "Severity": "Medium",
+        "Tags": "intrinsic-margin",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20204 - Endpoints of Paths Failing Setup Analysis with Retiming Restrictions",
+        "Severity": "Medium",
+        "Tags": "retime",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20205 - Endpoints of Paths Failing Setup Analysis with Explicit Power-Up States that Restrict Retiming",
+        "Severity": "Medium",
+        "Tags": "retime",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20206 - DSP Blocks with Unregistered Outputs that are the Source of Paths Failing Setup Analysis",
+        "Severity": "Medium",
+        "Tags": "dsp",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20207 - DSP Blocks with Unregistered Inputs that are the Destination of Paths Failing Setup Analysis",
+        "Severity": "Medium",
+        "Tags": "dsp",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20208 - RAM Blocks with Unregistered Outputs that are the Source of Paths Failing Setup Analysis",
+        "Severity": "Medium",
+        "Tags": "ram",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20209 - Paths Failing Setup Analysis with High Routing Delay due to Congestion",
+        "Severity": "Medium",
+        "Tags": "route",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20210 - Paths Failing Setup Analysis with High Routing Delay Added for Hold",
+        "Severity": "Medium",
+        "Tags": "route",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20212 - Paths Failing Setup Analysis with Global Routing in Data Path",
+        "Severity": "Medium",
+        "Tags": "global-signal, route",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20213 - Paths Failing Setup Analysis with Locally Routed Clock",
+        "Severity": "Medium",
+        "Tags": "global-signal, clock-skew",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20214 - Buses with Incoming Paths Failing Setup Analysis with Multiple Sequential Adder Chains",
+        "Severity": "Medium",
+        "Tags": "logic-levels",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20215 - Buses with Incoming Paths Failing Setup Analysis with Multipliers Implemented in Logic",
+        "Severity": "Medium",
+        "Tags": "logic-levels, dsp",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20216 - Paths Failing Setup Analysis with Inferred-RAM Shift Register Endpoints",
+        "Severity": "Medium",
+        "Tags": "ram",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20217 - Paths Failing Setup Analysis with Clock-As-Data",
+        "Severity": "Medium",
+        "Tags": "nonstandard-timing",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20219 - DSP Blocks with Restricted Fmax below Required Fmax",
+        "Severity": "Medium",
+        "Tags": "dsp, minimum-pulse-width",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20220 - RAM Blocks with Restricted Fmax below Required Fmax",
+        "Severity": "Medium",
+        "Tags": "ram, minimum-pulse-width",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20221 - Nodes Failing Minimum Pulse Width Due to Clock Pulse Collapse",
+        "Severity": "Medium",
+        "Tags": "minimum-pulse-width",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20312 - Paths Failing Hold Analysis with Global Routing in Data Path",
+        "Severity": "Medium",
+        "Tags": "global-signal, route",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20313 - Paths Failing Hold Analysis with Locally Routed Clock",
+        "Severity": "Medium",
+        "Tags": "global-signal, clock-skew",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20712 - Paths Failing Recovery Analysis with Global Routing in Data Path",
+        "Severity": "Medium",
+        "Tags": "global-signal, route",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20713 - Paths Failing Recovery Analysis with Locally Routed Clock",
+        "Severity": "Medium",
+        "Tags": "global-signal, clock-skew",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20812 - Paths Failing Removal Analysis with Global Routing in Data Path",
+        "Severity": "Medium",
+        "Tags": "global-signal, route",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20813 - Paths Failing Removal Analysis with Locally Routed Clock",
+        "Severity": "Medium",
+        "Tags": "global-signal, clock-skew",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CDC-50008 - CDC Bus Constructed with Multi-bit Synchronizer Chains",
+        "Severity": "Low",
+        "Tags": "synchronizer, cdc-bus",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CDC-50101 - Intra-Clock False Path Synchronizer",
+        "Severity": "Low",
+        "Tags": "synchronizer, false-positive-synchronizer",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+        "Severity": "Low",
+        "Tags": "synchronizer, false-positive-synchronizer",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "FLP-40006 - Pipelining Registers That Might Be Recoverable",
+        "Severity": "Low",
+        "Tags": "resource-usage",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20020 - Invalid Multicycle Assignment",
+        "Severity": "Low",
+        "Tags": "sdc",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20550 - Automatically Selected Duplication Candidate Rejected for Placement Constraint",
+        "Severity": "Low",
+        "Tags": "register-duplication, place",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20551 - Automatically Selected Duplication Candidate Likely Requires More Duplication",
+        "Severity": "Low",
+        "Tags": "register-duplication, place",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20552 - User Selected Duplication Candidate was Rejected",
+        "Severity": "Low",
+        "Tags": "register-duplication, place",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20601 - Registers with High Immediate Fan-Out Tension",
+        "Severity": "Low",
+        "Tags": "register-duplication, register-spread, place",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20603 - Registers with High Immediate Fan-Out Span",
+        "Severity": "Low",
+        "Tags": "register-duplication, register-spread, place",
+        "Violations": "0",
+        "Waived": "0"
+      },
+      {
+        "Rule": "TMC-20604 - Registers with High Timing Path Endpoint Span",
+        "Severity": "Low",
+        "Tags": "register-duplication, register-spread, place",
+        "Violations": "0",
+        "Waived": "0"
+      }
+    ],
+    "title": "Design Assistant (Signoff) Results - 8 of 85 Rules Failed"
+  },
+  "format": 1,
+  "historical_calibration_experiment": "timing/calibration-experiment-04ba/receipt.json",
+  "inputs_sha256": "3f3d301ba9909f0042017d0c0f397a018061c2b0f0d1f7065978ee43fb448faa",
+  "limits": [
+    "No externalDQ input/output/PCB/clock-jitter or electrical qualification",
+    "No vendor EMIF or generated width/clock-crossing interconnect functional simulation claim",
+    "No HPS DMA ownership/admission or boot-handoff compatibility claim",
+    "No blanket reset-domain or whole-design MTBF signoff"
+  ],
+  "mtbf": [
+    {
+      "corner": "Slow fix4 100C Model",
+      "excluded": 43,
+      "found": 73,
+      "included_from_found_minus_excluded": 30,
+      "report_line": 699,
+      "reported_worst_case": "1e+09 years or 3.15e+16 seconds.",
+      "shortest_registers": 2,
+      "uncomputed_due_to_timing_violations": 0
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "excluded": 43,
+      "found": 73,
+      "included_from_found_minus_excluded": 30,
+      "report_line": 716,
+      "reported_worst_case": "1e+09 years or 3.15e+16 seconds.",
+      "shortest_registers": 2,
+      "uncomputed_due_to_timing_violations": 0
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "excluded": 43,
+      "found": 73,
+      "included_from_found_minus_excluded": 30,
+      "report_line": 733,
+      "reported_worst_case": "1e+09 years or 3.15e+16 seconds.",
+      "shortest_registers": 2,
+      "uncomputed_due_to_timing_violations": 0
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "excluded": 43,
+      "found": 73,
+      "included_from_found_minus_excluded": 30,
+      "report_line": 750,
+      "reported_worst_case": "1e+09 years or 3.15e+16 seconds.",
+      "shortest_registers": 2,
+      "uncomputed_due_to_timing_violations": 0
+    }
+  ],
+  "negative_slack_rows": [],
+  "nonzero_tns_rows": [],
+  "overall_closure": "not-qualified: unconstrained external IO and eight unwaived Design Assistant rule classes remain",
+  "physical_timing_acceptance": "not-qualified; external SDRAM IO budgets and unwaived DRC remain open",
+  "producer": "43c248d2dfbad7fa2d0ef4c72fa006fe21214dc9",
+  "project": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-calibration-contract/hps/project",
+  "receiver_query": {
+    "calibration_minima_ns": {
+      "fanout": {
+        "hold": 0.38,
+        "setup": 6.416
+      },
+      "stage": {
+        "hold": 0.129,
+        "setup": 9.542
+      }
+    },
+    "calibration_path_rows": 24272,
+    "calibration_summary": "timing/calibration-query-summary.json",
+    "clock_edges": {
+      "data": "ramtest_sdram50 falling to rising",
+      "enable": "ramtest_sdram50 rising to falling"
+    },
+    "clock_relationships_ns": {
+      "data": {
+        "hold": [
+          -10.0
+        ],
+        "setup": [
+          10.0
+        ]
+      },
+      "enable": {
+        "hold": [
+          -10.0
+        ],
+        "setup": [
+          10.0
+        ]
+      }
+    },
+    "command": [
+      "/data/altera_pro/26.3/quartus/bin/quartus_sta",
+      "-t",
+      "receiver-stage.tcl",
+      "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-calibration-contract/hps/project",
+      "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final"
+    ],
+    "compiled_cdc50002_violations": 0,
+    "corners": [
+      "Fast fix4 0C Model",
+      "Slow fix4 0C Model",
+      "Slow fix4 100C Model",
+      "Slow fix4a 0C Model"
+    ],
+    "cwd": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df",
+    "data_source_registers": 16,
+    "data_target_registers": 16,
+    "enable_target_registers": 16,
+    "exact_calibration_node_counts": {
+      "source": 1,
+      "stage0": 1,
+      "stage0_D": 1,
+      "stage1": 1
+    },
+    "exit_code": 0,
+    "full_path_report_sha256": {
+      "0-calibration-fanout-hold.rpt": "f4b15eae9a7093cfe665b70456ac66c1300dabdf09a3330986cf918ea7c89f24",
+      "0-calibration-fanout-setup.rpt": "2b85129e02fc52c243980fe0f9d97ece0e003b578b24c1cfb9fac605234f2f4b",
+      "0-calibration-stage-hold.rpt": "fbd11a00449e05472223e13b2e06a09b39395cede5b58b05a7b9edb4c4db8378",
+      "0-calibration-stage-setup.rpt": "626113322e64a7ea117677d090cec122cef3a1dcccabcb23be55e8b9f7d135e5",
+      "0-data-hold.rpt": "e524a68906b06a70bb519f437fb6d4d6d37b0686a1cf5a8be697eed195117667",
+      "0-data-setup.rpt": "39295a87d3386cb00def830b6855f8d2c443b15c4f378a2a6010a5af9b2889b4",
+      "0-enable-hold.rpt": "231ce7e026629b1083328a45fe3e95f189f55bd9cc3c86466f274b3599cfaa56",
+      "0-enable-setup.rpt": "008c0fddaa64552ad5f77462b252ba8fb21a7f9f06c4147f706e8d1151494da7",
+      "1-calibration-fanout-hold.rpt": "8b691e4b8da2b730e4592f058ccc860ac3e865b65159dfea1a908fafedb3b445",
+      "1-calibration-fanout-setup.rpt": "15f7dda81d8213edb8434ae99981a64d1dcca723c59a3e2ff5d975c7da764b48",
+      "1-calibration-stage-hold.rpt": "15f8649e656cfbe1b493d3c060b7f0ba06fbb9bcdcb9b1526d436a3e951dcd1d",
+      "1-calibration-stage-setup.rpt": "e1480905bd1eff92002c76571a2f5b3cb53fc0c09e325883a0d95ef7dbe7e5ba",
+      "1-data-hold.rpt": "e55c0f491e6a32441e48d6ea0f58a1425a1ec6f97b4934371c13b305bf53ce41",
+      "1-data-setup.rpt": "64ecd2bb9aa3351f6e4542dee46e874619f88fb2b95bfe30ccb5d691f42202f5",
+      "1-enable-hold.rpt": "e206a707a62beadeb993c34086d4f4d29a61032ef5b231e145fc607b4f4ac2d5",
+      "1-enable-setup.rpt": "7285f741579642333e6b0dd5b706345ca3af7acf63782ab16abdec1221b59b91",
+      "2-calibration-fanout-hold.rpt": "1e9dd648b92dc6fb007b4b7563d6ad6f3a2077057bf99179915b5d9f0a968e0b",
+      "2-calibration-fanout-setup.rpt": "00bb9c7a3418fdef10758d6f61a3bdd9f2c18dc666ce67b4572da7e6fdffebef",
+      "2-calibration-stage-hold.rpt": "f08ef4852443b554a42c822ac0b1b722dea2f1211d17f2cb1a6d7b1a64fdec04",
+      "2-calibration-stage-setup.rpt": "47a9753f80157bb97b5d9d0cab3b32dedf26f6286c59464a9389fce41bd89ce0",
+      "2-data-hold.rpt": "0ec28186c538bfe7d9aaa0e5394abede445727971ecaf150895d93aac5c3303c",
+      "2-data-setup.rpt": "41dbb339fc0c14d96371f5d18934903bcc9138adccfdd8752c149ce42debff9c",
+      "2-enable-hold.rpt": "0fb9fddf383bd62bcf635f6158716ae002058a402c5f17c4ad27870ad2a7623a",
+      "2-enable-setup.rpt": "269c0da8622aee31572da377bbdc39a460e9955118e9e030007d93d0b95ae328",
+      "3-calibration-fanout-hold.rpt": "9bddac96415d347976b36c376b7444caeb68768c6b0ca850e790d8ca252f92a9",
+      "3-calibration-fanout-setup.rpt": "e7dcfa65ef41c8d1a230761db80ac13be083253881d3243e16a3ed2e0e1f6a61",
+      "3-calibration-stage-hold.rpt": "7cfcb76059df7f4201441d0ba5cbd264355874dc7bb55e6f5c9aeee928a4818e",
+      "3-calibration-stage-setup.rpt": "517f2f005cb8edaf5c81a8ed62f9886e9f01caff889c118f6499ea2c080a51b5",
+      "3-data-hold.rpt": "8a836791ab434854cd713e6a8d3f071a857da3168b6aa0ad45374edd3b6c73ce",
+      "3-data-setup.rpt": "b34ff1678162c8462b627448db71161a3b3e61f5abeac8330d2fd746f9679b64",
+      "3-enable-hold.rpt": "cdc0bb16557382e6291abe4a5b687b3155f04e189f7d5dfd67cdcd024a6a8360",
+      "3-enable-setup.rpt": "1422e34aa222d842622d921bd6ed4a81bfb39a257330a3cf42315b59b198ad58"
+    },
+    "full_path_uncertainty_rows_ns": {
+      "0-calibration-fanout-hold.rpt": [
+        "0.000"
+      ],
+      "0-calibration-fanout-setup.rpt": [
+        "-0.030"
+      ],
+      "0-calibration-stage-hold.rpt": [
+        "0.000"
+      ],
+      "0-calibration-stage-setup.rpt": [
+        "-0.030"
+      ],
+      "0-data-hold.rpt": [
+        "0.030"
+      ],
+      "0-data-setup.rpt": [
+        "-0.030"
+      ],
+      "0-enable-hold.rpt": [
+        "0.030"
+      ],
+      "0-enable-setup.rpt": [
+        "-0.030"
+      ],
+      "1-calibration-fanout-hold.rpt": [
+        "0.000"
+      ],
+      "1-calibration-fanout-setup.rpt": [
+        "-0.030"
+      ],
+      "1-calibration-stage-hold.rpt": [
+        "0.000"
+      ],
+      "1-calibration-stage-setup.rpt": [
+        "-0.030"
+      ],
+      "1-data-hold.rpt": [
+        "0.030"
+      ],
+      "1-data-setup.rpt": [
+        "-0.030"
+      ],
+      "1-enable-hold.rpt": [
+        "0.030"
+      ],
+      "1-enable-setup.rpt": [
+        "-0.030"
+      ],
+      "2-calibration-fanout-hold.rpt": [
+        "0.000"
+      ],
+      "2-calibration-fanout-setup.rpt": [
+        "-0.030"
+      ],
+      "2-calibration-stage-hold.rpt": [
+        "0.000"
+      ],
+      "2-calibration-stage-setup.rpt": [
+        "-0.030"
+      ],
+      "2-data-hold.rpt": [
+        "0.030"
+      ],
+      "2-data-setup.rpt": [
+        "-0.030"
+      ],
+      "2-enable-hold.rpt": [
+        "0.030"
+      ],
+      "2-enable-setup.rpt": [
+        "-0.030"
+      ],
+      "3-calibration-fanout-hold.rpt": [
+        "0.000"
+      ],
+      "3-calibration-fanout-setup.rpt": [
+        "-0.030"
+      ],
+      "3-calibration-stage-hold.rpt": [
+        "0.000"
+      ],
+      "3-calibration-stage-setup.rpt": [
+        "-0.030"
+      ],
+      "3-data-hold.rpt": [
+        "0.030"
+      ],
+      "3-data-setup.rpt": [
+        "-0.030"
+      ],
+      "3-enable-hold.rpt": [
+        "0.030"
+      ],
+      "3-enable-setup.rpt": [
+        "-0.030"
+      ]
+    },
+    "log_sha256": "133cc34fa593c75b4d51a12286cf4f5b9c5fc7b7abb2f19fa0cdd9477ecf80ce",
+    "minima_ns": {
+      "data": {
+        "hold": 10.106,
+        "setup": 8.095
+      },
+      "enable": {
+        "hold": 9.153,
+        "setup": 7.195
+      }
+    },
+    "original_files_unchanged": 52,
+    "private_output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final",
+    "raw_calibration_paths_sha256": "7f64af33039f3382457414295b4400fd2d5a9cd079231254a41a68ed248e7365",
+    "raw_loaded_sdc_sha256": "6e847d655b336b6e1fe8492ce30d05562b261e32121f5c3a48a76b7425e9a334",
+    "receiver_path_rows": 256,
+    "script_sha256": "a90d8bcdbecdb8f2db15203388beb2d3606710be6da9163dbb3b8cbbe5db40d0",
+    "uncertainty_location": "Generated",
+    "uncertainty_ns": 0.03,
+    "waived": 0
+  },
+  "report_sha256": {
+    "golden_top.sta.rpt": "022a79f4f293dbbfe48d888311e121f9fbc687c9bfccdcb05b0100436eb470b4",
+    "golden_top.sta.summary": "7171054ea4662c82be32e616b29d4f3a244b4fb6d666f32d88996a642d3e2700",
+    "golden_top.tq.drc.signoff.rpt": "746154c0ae6b422317d9971fe6894acc106e362c08d9e228c85c3faedd6006a5"
+  },
+  "rows": [
+    {
+      "check": "Setup",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": 2.32,
+      "tns_ns": 0.0,
+      "type": "Setup 'pll_inst|iopll_0_outclk0'"
+    },
+    {
+      "check": "Setup",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 7.195,
+      "tns_ns": 0.0,
+      "type": "Setup 'ramtest_sdram50'"
+    },
+    {
+      "check": "Setup",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": 12.809,
+      "tns_ns": 0.0,
+      "type": "Setup 'altera_reserved_tck'"
+    },
+    {
+      "check": "Hold",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": 0.0,
+      "tns_ns": 0.0,
+      "type": "Hold 'pll_inst|iopll_0_outclk0'"
+    },
+    {
+      "check": "Hold",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": 0.067,
+      "tns_ns": 0.0,
+      "type": "Hold 'ramtest_sdram50'"
+    },
+    {
+      "check": "Hold",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": 0.095,
+      "tns_ns": 0.0,
+      "type": "Hold 'altera_reserved_tck'"
+    },
+    {
+      "check": "Hold",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": 0.376,
+      "tns_ns": 0.0,
+      "type": "Hold 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_phy_clk_0'"
+    },
+    {
+      "check": "Hold",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": 0.376,
+      "tns_ns": 0.0,
+      "type": "Hold 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'"
+    },
+    {
+      "check": "Recovery",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": 6.079,
+      "tns_ns": 0.0,
+      "type": "Recovery 'pll_inst|iopll_0_outclk0'"
+    },
+    {
+      "check": "Recovery",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 18.123,
+      "tns_ns": 0.0,
+      "type": "Recovery 'ramtest_sdram50'"
+    },
+    {
+      "check": "Recovery",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 60.134,
+      "tns_ns": 0.0,
+      "type": "Recovery 'altera_reserved_tck'"
+    },
+    {
+      "check": "Removal",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": 0.158,
+      "tns_ns": 0.0,
+      "type": "Removal 'pll_inst|iopll_0_outclk0'"
+    },
+    {
+      "check": "Removal",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": 0.164,
+      "tns_ns": 0.0,
+      "type": "Removal 'altera_reserved_tck'"
+    },
+    {
+      "check": "Removal",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": 0.205,
+      "tns_ns": 0.0,
+      "type": "Removal 'ramtest_sdram50'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": 0.22,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 0.231,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[1]_nff'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 0.272,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": 0.313,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_vco_clk_periph_0'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 0.365,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_vco_base_0'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 0.419,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 0.606,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_phy_clk_0'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": 2.22,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'EMIF_REF_CLOCK'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": 2.513,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_ref_clock'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 3.443,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_hmc_wide_c2p'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": 3.576,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_1_c2p'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 3.576,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_2_c2p'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": 3.576,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_3_c2p'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": 4.385,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'pll_inst|iopll_0_outclk0'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_0_rxclk_gated'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_1_rxclk_gated'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_2_rxclk_gated'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_3_rxclk_gated'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_4_rxclk_gated'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_5_rxclk_gated'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": 8.274,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'ramtest_sdram50'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": 8.274,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'ramtest_sdram_forwarded'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": 8.313,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": 9.231,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'pll_inst|iopll_0_refclk'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": 14.568,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_pll_ncntr'"
+    },
+    {
+      "check": "Minimum Pulse Width",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": 28.581,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width 'altera_reserved_tck'"
+    }
+  ],
+  "sof_sha256": "5b4bf7192dc58a2be0e8ba9b811fcac4aa082ede105c78231dcec8ffd06e1778",
+  "source_sha256": {
+    "axil_driver_calibration.sv": "e859792d2200835ee81b01d05637f0d03eb7a1f8583b183d96cbe58bd22ffa0c",
+    "clocks.sdc": "991020cab652a6b1343c17680281e00246be24a5248b397ae35125d70d45d075",
+    "endpoint.v": "a7b3f08f01fc0f886689305041f174b72818035af226d987737e02950df89c91",
+    "scan.v": "0474f84d1ad69e1fa181b59b9bbd6920251bd835303ea2516138f8e3dcc863ce",
+    "sdram.v": "f4bdc295625c13e74b306b06fd8dd0d4b04157072f71fac15c821878a385dcfc"
+  },
+  "summary_row_count": 46,
+  "tool": {
+    "path": "/data/altera_pro/26.3/quartus/bin/quartus_sta",
+    "version": "Quartus Prime Shell\nVersion 26.3.0 Build 114 10/14/2026 SC Pro Edition\nCopyright (C) 2026  Altera Corporation. All rights reserved."
+  },
+  "unconstrained_paths": [
+    {
+      "Hold": "0",
+      "Property": "Illegal Clocks",
+      "Setup": "0"
+    },
+    {
+      "Hold": "0",
+      "Property": "Unconstrained Clocks",
+      "Setup": "0"
+    },
+    {
+      "Hold": "16",
+      "Property": "Unconstrained Input Ports",
+      "Setup": "16"
+    },
+    {
+      "Hold": "16",
+      "Property": "Paths from Unconstrained Input Ports (Pairs-Only)",
+      "Setup": "16"
+    },
+    {
+      "Hold": "39",
+      "Property": "Unconstrained Output Ports",
+      "Setup": "39"
+    },
+    {
+      "Hold": "55",
+      "Property": "Paths to Unconstrained Output Ports (Pairs-Only)",
+      "Setup": "55"
+    }
+  ],
+  "zero_slack_rows": [
+    {
+      "check": "Hold",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": 0.0,
+      "tns_ns": 0.0,
+      "type": "Hold 'pll_inst|iopll_0_outclk0'"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+Warning: RAM block type is assumed as     AUTO
+Time: 0  Instance: tape_store_tb.primitive_store.banks[0].image.m_default.altsyncram_inst
+Warning: RAM block type is assumed as     AUTO
+Time: 0  Instance: tape_store_tb.primitive_store.banks[1].image.m_default.altsyncram_inst
+PASS tape-store differential: cycles=155660 compared_reads=147468 enables00/01/10/11=49084/32896/32797/40883 odd_writes=49319 old_low=65587 old_high=16383 suppressed_high=8 full_readbacks=2
+/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-vendor-03/tape_store_tb.sv:111: $finish called at 1556600000 (1ps)

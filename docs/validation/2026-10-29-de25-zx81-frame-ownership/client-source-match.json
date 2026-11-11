@@ -1,0 +1,13 @@
+{
+  "client_tested_revision": "67068382b7a12047dad227077bd57c4b05e7fec3",
+  "compiler_revision": "ec14fda2964fd4fba1f5d3396bc70b754a0e1d29",
+  "matched_source_files": 83,
+  "changed_files": [
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/clocks.sdc",
+      "tested_sha256": "80e0b73aa541b47ef3c7c1f697dd285825ccef4d0ce02d9f82410abf5bc81825",
+      "publication_sha256": "f7a648641f4a1e5d09dc5ed0edcea5ab6065c025442a5d182ec2f057e9df3521"
+    }
+  ],
+  "boundary": "All captured runtime C++, RTL, firmware and simulation bytes match exactly. Only static timing constraints gained explicit datapath/skew bounds; no client or RTL behavior changed."
+}

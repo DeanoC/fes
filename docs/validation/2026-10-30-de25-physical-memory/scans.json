@@ -1,0 +1,238 @@
+{
+  "format": 1,
+  "classification": "physical-board-diagnostic",
+  "results": [
+    {
+      "test": "smoke",
+      "bank": "fpga",
+      "length_bytes": 4096,
+      "snapshot": {
+        "serial": 1,
+        "status": 18,
+        "fault": 0,
+        "generation": 1,
+        "sequence": 2,
+        "pattern": 6,
+        "cursor": 448,
+        "errors": 0,
+        "first_address": 0,
+        "written_bytes": 28672,
+        "read_bytes": 61440,
+        "write_cycles": 3697,
+        "read_cycles": 31533,
+        "expected": 0,
+        "actual": 0,
+        "bad_bits": 0,
+        "samples": 1024,
+        "first_min": 24,
+        "first_max": 68,
+        "first_sum": 24907,
+        "last_min": 25,
+        "last_max": 69,
+        "last_sum": 25931,
+        "endpoints": {
+          "hps": {
+            "build_id": "6ee668470911276a9e553d0025c7ef0b",
+            "capacity": 1073741824,
+            "clock_hz": 100000000,
+            "data_bytes": 16,
+            "status": 0,
+            "fault": 0
+          },
+          "fpga": {
+            "build_id": "6ee668470911276a9e553d0025c7ef0b",
+            "capacity": 1073741824,
+            "clock_hz": 100000000,
+            "data_bytes": 16,
+            "status": 16,
+            "fault": 0
+          },
+          "sdram": {
+            "build_id": "6ee668470911276a9e553d0025c7ef0b",
+            "capacity": 134217728,
+            "clock_hz": 50000000,
+            "data_bytes": 2,
+            "status": 16,
+            "fault": 0
+          }
+        },
+        "outcome": "PASS"
+      },
+      "log_sha256": "c315d3ac9bd324bafd51a76a315b89bc391eb737f013ee34723d4c4b5ba2498d"
+    },
+    {
+      "test": "smoke",
+      "bank": "sdram",
+      "length_bytes": 4096,
+      "snapshot": {
+        "serial": 2,
+        "status": 18,
+        "fault": 0,
+        "generation": 1,
+        "sequence": 2,
+        "pattern": 6,
+        "cursor": 448,
+        "errors": 0,
+        "first_address": 0,
+        "written_bytes": 28672,
+        "read_bytes": 61440,
+        "write_cycles": 237492,
+        "read_cycles": 442731,
+        "expected": 0,
+        "actual": 0,
+        "bad_bits": 0,
+        "samples": 1024,
+        "first_min": 9,
+        "first_max": 9,
+        "first_sum": 9216,
+        "last_min": 219,
+        "last_max": 227,
+        "last_sum": 229600,
+        "endpoints": {
+          "hps": {
+            "build_id": "6ee668470911276a9e553d0025c7ef0b",
+            "capacity": 1073741824,
+            "clock_hz": 100000000,
+            "data_bytes": 16,
+            "status": 0,
+            "fault": 0
+          },
+          "fpga": {
+            "build_id": "6ee668470911276a9e553d0025c7ef0b",
+            "capacity": 1073741824,
+            "clock_hz": 100000000,
+            "data_bytes": 16,
+            "status": 18,
+            "fault": 0
+          },
+          "sdram": {
+            "build_id": "6ee668470911276a9e553d0025c7ef0b",
+            "capacity": 134217728,
+            "clock_hz": 50000000,
+            "data_bytes": 2,
+            "status": 16,
+            "fault": 0
+          }
+        },
+        "outcome": "PASS"
+      },
+      "log_sha256": "c315d3ac9bd324bafd51a76a315b89bc391eb737f013ee34723d4c4b5ba2498d"
+    },
+    {
+      "test": "full",
+      "bank": "fpga",
+      "length_bytes": 1073741824,
+      "snapshot": {
+        "serial": 172,
+        "status": 18,
+        "fault": 0,
+        "generation": 1,
+        "sequence": 3,
+        "pattern": 6,
+        "cursor": 679313856,
+        "errors": 0,
+        "first_address": 0,
+        "written_bytes": 7516192768,
+        "read_bytes": 7516225536,
+        "write_cycles": 968884226,
+        "read_cycles": 1189345957,
+        "expected": 0,
+        "actual": 0,
+        "bad_bits": 0,
+        "samples": 1024,
+        "first_min": 26,
+        "first_max": 63,
+        "first_sum": 28176,
+        "last_min": 27,
+        "last_max": 64,
+        "last_sum": 29200,
+        "endpoints": {
+          "hps": {
+            "build_id": "6ee668470911276a9e553d0025c7ef0b",
+            "capacity": 1073741824,
+            "clock_hz": 100000000,
+            "data_bytes": 16,
+            "status": 0,
+            "fault": 0
+          },
+          "fpga": {
+            "build_id": "6ee668470911276a9e553d0025c7ef0b",
+            "capacity": 1073741824,
+            "clock_hz": 100000000,
+            "data_bytes": 16,
+            "status": 18,
+            "fault": 0
+          },
+          "sdram": {
+            "build_id": "6ee668470911276a9e553d0025c7ef0b",
+            "capacity": 134217728,
+            "clock_hz": 50000000,
+            "data_bytes": 2,
+            "status": 18,
+            "fault": 0
+          }
+        },
+        "outcome": "PASS"
+      },
+      "log_sha256": "7e2c05310ae3b744ba37fa4741cc15bb7caef7f53ee69665b94197b3cb98a2cd"
+    },
+    {
+      "test": "full",
+      "bank": "sdram",
+      "length_bytes": 134217728,
+      "snapshot": {
+        "serial": 2378,
+        "status": 18,
+        "fault": 0,
+        "generation": 1,
+        "sequence": 3,
+        "pattern": 6,
+        "cursor": 8225216,
+        "errors": 0,
+        "first_address": 0,
+        "written_bytes": 939524096,
+        "read_bytes": 939556864,
+        "write_cycles": 7782950525,
+        "read_cycles": 6770936937,
+        "expected": 0,
+        "actual": 0,
+        "bad_bits": 0,
+        "samples": 1024,
+        "first_min": 9,
+        "first_max": 9,
+        "first_sum": 9216,
+        "last_min": 219,
+        "last_max": 227,
+        "last_sum": 229600,
+        "endpoints": {
+          "hps": {
+            "build_id": "6ee668470911276a9e553d0025c7ef0b",
+            "capacity": 1073741824,
+            "clock_hz": 100000000,
+            "data_bytes": 16,
+            "status": 0,
+            "fault": 0
+          },
+          "fpga": {
+            "build_id": "6ee668470911276a9e553d0025c7ef0b",
+            "capacity": 1073741824,
+            "clock_hz": 100000000,
+            "data_bytes": 16,
+            "status": 18,
+            "fault": 0
+          },
+          "sdram": {
+            "build_id": "6ee668470911276a9e553d0025c7ef0b",
+            "capacity": 134217728,
+            "clock_hz": 50000000,
+            "data_bytes": 2,
+            "status": 18,
+            "fault": 0
+          }
+        },
+        "outcome": "PASS"
+      },
+      "log_sha256": "7e2c05310ae3b744ba37fa4741cc15bb7caef7f53ee69665b94197b3cb98a2cd"
+    }
+  ]
+}

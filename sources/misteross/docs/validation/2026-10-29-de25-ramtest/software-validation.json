@@ -1,0 +1,115 @@
+{
+  "board_absent": true,
+  "classification": "host-only-software-and-digital-model-evidence",
+  "focused_rtl_source_producer": "04ba0d9c503162784cd6821c1b37e129126c47ca",
+  "focused_suite": {
+    "actual_models": 5,
+    "models": [
+      "128-bit scan",
+      "16-bit scan",
+      "HPS endpoint",
+      "local-memory endpoint",
+      "two-chip SDRAM pins"
+    ],
+    "status": "passed",
+    "tests": 20
+  },
+  "format": 1,
+  "generated_consistency": {
+    "fixture_copies": 37,
+    "generated_consumers": 33,
+    "source_pins": 0,
+    "status": "passed"
+  },
+  "generated_interconnect_functional_simulation": "not-run",
+  "hardware_test": "not-run",
+  "invocation_control": {
+    "base_default_prefix": "python3",
+    "base_override_prefix": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-computer-test-venv/bin/python",
+    "cause": "command-line PYTHON inherited by recursive make dry runs; no FPGA/hardware execution",
+    "identical_base_inputs": [
+      "sources/misteross/Makefile",
+      "sources/misteross/tests/test_build_fes_apple2.py",
+      "sources/misteross/tests/test_build_fes_c64.py",
+      "sources/misteross/tests/test_build_fes_coleco.py",
+      "sources/misteross/tests/test_build_fes_pong.py",
+      "sources/misteross/tests/test_build_fes_sg1000.py",
+      "sources/misteross/tests/test_build_fes_sms.py",
+      "sources/misteross/tests/test_build_fes_zx81.py",
+      "sources/misteross/tests/test_build_fes_zx81_oss.py",
+      "sources/misteross/tests/test_fes_hip_lane.py",
+      "sources/misteross/tests/test_pcxt_toolchain.py"
+    ],
+    "rerun_methods": 10,
+    "status": "passed"
+  },
+  "invocation_control_base": "ff73fe2173861b216ef16512340c3adfe4f54147",
+  "local_aggregate": {
+    "affected_make_dry_run_methods": 10,
+    "cause": "command-line PYTHON inherited by recursive make dry runs; no FPGA/hardware execution",
+    "fpga_failure_records": 12,
+    "fpga_skipped": 35,
+    "fpga_tests": 1470,
+    "host_runtime_contracts": "passed",
+    "not_relabelled_as_pass": true,
+    "parent_skipped": 2,
+    "parent_tests": 1092,
+    "status": "failed"
+  },
+  "negative_controls": "Original late direct sampling and retiring live DQ instead of captured DQ fail the strengthened pin model; these expected failures are not hardware measurements.",
+  "normal_path_targeted_rerun": {
+    "methods": 10,
+    "status": "passed"
+  },
+  "retained_logs": {
+    "out/ramtest-check.log": {
+      "bytes": 137,
+      "sha256": "6902dd9fa181ad390effba37e77c007fa4d2437fe1aa9bf638fabb99aacddd2c"
+    },
+    "out/ramtest-failed-invocation-cases.json": {
+      "bytes": 832,
+      "sha256": "0f36615921738e87bfe3a4ce42e90672d46711f1499efad37b5701ea623e205d"
+    },
+    "out/ramtest-focused-04ba.log": {
+      "bytes": 3417,
+      "sha256": "105db32b436dc97c7b520b671072c967a6df8144a0b9ba0a1c9a3998f778703e"
+    },
+    "out/ramtest-invocation-control.json": {
+      "bytes": 924,
+      "sha256": "85c09b856ae8c3686cf19812b16768410b64049b17998e91c4f62307e27c6817"
+    },
+    "out/ramtest-invocation-rerun.log": {
+      "bytes": 1357,
+      "sha256": "324aee57373fec7af37eafd4b6f182a6e2f712ad92c411d16bbc005f2f87172d"
+    },
+    "out/ramtest-issi-negedge-01.log": {
+      "bytes": 3303,
+      "sha256": "38e18c801a51c17edbc6a18db75644400c708cec7973211718218b8bacf13166"
+    },
+    "out/ramtest-late-capture-negative.log": {
+      "bytes": 3194,
+      "sha256": "9849da4a17dbd88b39a792008fbe45c20c6dc4310d1d567c27efee32db6004eb"
+    },
+    "out/ramtest-live-dq-negative.log": {
+      "bytes": 3169,
+      "sha256": "00c62e84bab1ac54be6c8a7c4a59a834da54d8f125929dc1eac6016263808921"
+    },
+    "out/ramtest-test-changed-03.log": {
+      "bytes": 1459458,
+      "sha256": "68dc29483ff3dbcf3554b0a025c419bed9833c2c5c0a486926e351732ac1d80c"
+    }
+  },
+  "unaffected_files_match_base_sha256": {
+    "sources/misteross/Makefile": "473e22bdd3cd16150e412efdc0edd834b018011032f8f76e568b9a6f1caea759",
+    "sources/misteross/tests/test_build_fes_apple2.py": "314482ceba32985c87fddf2811ea7614e2430f76d5fa90deb71e2ce26f048b9a",
+    "sources/misteross/tests/test_build_fes_c64.py": "195d8225a3866691bf069a535b0f81563ab511b3ee0356697bbc3b4dafd25b80",
+    "sources/misteross/tests/test_build_fes_coleco.py": "b89031650ded1988ed910b9cba2b6b2c9ce20fad49f8042ffbe9b200bab1cc87",
+    "sources/misteross/tests/test_build_fes_pong.py": "87c04b4833bd54757a14947e167c884494e040657536adf5b5513271c781165e",
+    "sources/misteross/tests/test_build_fes_sg1000.py": "a70711191115d68952e4be9b5c6893a9f74fe2d3980d1c801dfc6ba3e084684a",
+    "sources/misteross/tests/test_build_fes_sms.py": "7b8570aef719418e8e10a6b19eb20bb7aade2218e7249d482ea5743dccb8de04",
+    "sources/misteross/tests/test_build_fes_zx81.py": "583f34b8c6fb42ccad537aa4c0396da162249ffa0ba48bcd32ea17fd24a0d4f9",
+    "sources/misteross/tests/test_build_fes_zx81_oss.py": "4db492a08b03ccdd931f5b23917e31696424c893b1dbb204174f859ee33cd05f",
+    "sources/misteross/tests/test_fes_hip_lane.py": "20e57b8470fb65843fca00a187c6b53cb7e954462a015a45169ccae0eeae452b",
+    "sources/misteross/tests/test_pcxt_toolchain.py": "5018c2aba18297d41bac9b0bf3a4c9775439712d391a1831bf712c9fd0da0810"
+  }
+}

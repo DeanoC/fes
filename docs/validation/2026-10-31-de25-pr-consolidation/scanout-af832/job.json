@@ -1,0 +1,22 @@
+{
+  "source_revision": "af83211cbb40f5207c2fdaf7f32a0462e2fd2da5",
+  "owner": "claude lane:deano, DeanoC/fes#1297",
+  "state": "passed",
+  "returncode": 0,
+  "elapsed_seconds": 528.3,
+  "command": [
+    "python3",
+    "/data/fes-de25-1297-af83211cb/source/sources/misteross/boards/de25nano/scanout/build.py",
+    "build",
+    "--quartus-root",
+    "/data/altera_pro/26.3",
+    "--vendor-archive",
+    "/data/fes-de25-1297-af83211cb/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+    "--output",
+    "/data/fes-de25-1297-af83211cb/out-scanout"
+  ],
+  "started_utc": "2026-10-31T13:17:04.790197+00:00",
+  "hardware_programming": "not-performed",
+  "classification": "normalized existing external-owner receipt; not a new build",
+  "original_receipt_sha256": "fbbe435a64168547f8a75a902244c446c9b5f2bed505cc436fa37187456900f9"
+}

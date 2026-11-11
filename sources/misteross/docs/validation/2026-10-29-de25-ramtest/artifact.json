@@ -1,0 +1,39 @@
+{
+  "artifact": {
+    "bytes": 2585054,
+    "path": "out/de25-ramtest-calibration-contract/hps/project/output_files/golden_top.sof",
+    "sha256": "5b4bf7192dc58a2be0e8ba9b811fcac4aa082ede105c78231dcec8ffd06e1778"
+  },
+  "boot_pairing_and_runtime_admission": "not-qualified",
+  "build_receipt": {
+    "bytes": 83817,
+    "path": "out/de25-ramtest-calibration-contract/hps/build.json",
+    "sha256": "c438f4956d2deea4cea87fe64d4ee37eb4eacfab32ee375b1b82cd4be81857f2"
+  },
+  "classification": "host-only-compiled-diagnostic",
+  "compile_log": {
+    "bytes": 354559,
+    "path": "out/de25-ramtest-calibration-contract/hps/compile.log",
+    "sha256": "8cbc0f2f114bdeda0f30a01370f2bba0e8e9451bc78594801a532c7c7b5fb649"
+  },
+  "format": 1,
+  "generation_receipt": {
+    "bytes": 4432,
+    "path": "out/de25-ramtest-calibration-contract/hps/generation.json",
+    "sha256": "a79de6ba2173798d8b471c8ac276ada9679e75d616560c302a49e697f39271fb"
+  },
+  "hardware_acceptance": "not-run",
+  "hps_destructive_enabled": false,
+  "inputs_receipt": {
+    "bytes": 37155,
+    "path": "out/de25-ramtest-calibration-contract/hps/inputs.json",
+    "sha256": "3f3d301ba9909f0042017d0c0f397a018061c2b0f0d1f7065978ee43fb448faa"
+  },
+  "ip_generation_log": {
+    "bytes": 138867,
+    "path": "out/de25-ramtest-calibration-contract/hps/ip-generation.log",
+    "sha256": "6240992314b8205807a3a33666a256648d7f550def3d8b67a689ab09e4126973"
+  },
+  "output": "out/de25-ramtest-calibration-contract",
+  "source_producer": "43c248d2dfbad7fa2d0ef4c72fa006fe21214dc9"
+}

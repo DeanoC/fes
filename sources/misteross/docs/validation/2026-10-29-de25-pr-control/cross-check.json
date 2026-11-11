@@ -1,0 +1,143 @@
+{
+  "format": 1,
+  "kind": "fes.de25-pr-control-independent-final-cross-check",
+  "status": "passed",
+  "compiled_producer": "9663da282aade3e61de1702455636c3e3ec058c5",
+  "verification_and_composer_source": "1ec76837bb1cdf0f78b1dc0d5b20898cf94b1775",
+  "checks": {
+    "compiled_sources": {
+      "commit": "9663da282aade3e61de1702455636c3e3ec058c5",
+      "files": 23,
+      "mismatches": []
+    },
+    "verification_sources": {
+      "commit": "1ec76837bb1cdf0f78b1dc0d5b20898cf94b1775",
+      "files": 23,
+      "mismatches": []
+    },
+    "target_sources": {
+      "commit": "1ec76837bb1cdf0f78b1dc0d5b20898cf94b1775",
+      "files": 4,
+      "mismatches": []
+    },
+    "captured_target_sources": {
+      "files": 4,
+      "mismatches": []
+    },
+    "driver_sha256": "57804212d3d54bb5c7a121280bd5b7973364684318b0f3bc772fa2363e3258e3",
+    "project_files": {
+      "files": 16,
+      "mismatches": []
+    },
+    "generated_files": {
+      "files": 587,
+      "mismatches": []
+    },
+    "build_reports": {
+      "files": 67,
+      "mismatches": []
+    },
+    "audit_reports": {
+      "files": 34,
+      "mismatches": []
+    },
+    "compiled_bytes_across_packaging": {
+      "files": 70,
+      "mismatches": []
+    },
+    "boot_files": {
+      "files": 4,
+      "mismatches": []
+    },
+    "preserved_hps_emif_parameters": {
+      "modules": 3,
+      "parameters": 497
+    },
+    "vendor_boot_archive_match": true,
+    "control_identity": {
+      "build_id": "6aede5b08dad99a7139ed4f03b063d20",
+      "cosim_source": "9663da282aade3e61de1702455636c3e3ec058c5",
+      "cases": 14
+    },
+    "root_qdb_sha256": "37d7e071596a0a337bede8217df4b9cf9344a9ec3c52635de70cf2eef814ec53",
+    "revisions": {
+      "base": {
+        "timing_rows": 23,
+        "boundary_paths": 368,
+        "groups": 48,
+        "corners": 4,
+        "ROM_words": 256,
+        "m20k_site": "M20K_X24_Y11_N0",
+        "boundary_and_duplicate_clock_violations": 0,
+        "unwaived_rules": 4
+      },
+      "persona_a": {
+        "timing_rows": 23,
+        "boundary_paths": 352,
+        "groups": 48,
+        "corners": 4,
+        "ROM_words": 256,
+        "m20k_site": "M20K_X24_Y11_N0",
+        "boundary_and_duplicate_clock_violations": 0,
+        "unwaived_rules": 4
+      },
+      "persona_b": {
+        "timing_rows": 23,
+        "boundary_paths": 352,
+        "groups": 48,
+        "corners": 4,
+        "ROM_words": 256,
+        "m20k_site": "M20K_X24_Y12_N0",
+        "boundary_and_duplicate_clock_violations": 0,
+        "unwaived_rules": 4
+      }
+    },
+    "reset_fanin_files": {
+      "files": 2,
+      "mismatches": []
+    },
+    "packaging_logs": {
+      "files": 6,
+      "mismatches": []
+    },
+    "vendor_pof": {
+      "region": "0x01000000",
+      "hash": "a6fd335d94952434da577527fa1d87f27ef0fd9a0b152423bd33ffa4bac5ac54",
+      "revisions": 3
+    },
+    "bundles": {
+      "counter_a": {
+        "outputs": 4,
+        "sha256": "dc6f43b2ad30c8fe1884456dfe3ec22bf7925da49a940080a54f010049533ee1",
+        "size": 2497536,
+        "hardware_id": "0xc001a001"
+      },
+      "counter_b": {
+        "outputs": 4,
+        "sha256": "5869d44d4ff46e2c40e28eafbd79984c85d18dc99998b73f745215d375ab771d",
+        "size": 2497536,
+        "hardware_id": "0xc002b002"
+      }
+    },
+    "negative_controls": {
+      "count": 12,
+      "output_files_absent": true,
+      "process_exits": "from existing proof receipt; not rerun"
+    },
+    "AArch64_static_ELF": true
+  },
+  "issues": [],
+  "evidence_sha256": {
+    "out/pr-control-final-9663da282a/hps/project/build.json": "b6fe79e4488bfc3b5a21431fcdfe00d1b40ea3d473ea089f50e1f13948f66434",
+    "out/pr-control-final-9663da282a/hps/project/artifacts.json": "f7ecf09faa147e5e1ed5c5d1dc1e42ad753f39c3ac7f71585d0c90843709bf9e",
+    "out/pr-control-final-9663da282a/hps/project/independent-final-audit.json": "85c13cd7b66bdacd76f79f637add08b6ac0aaf18b91dd8b24bcd09f027049a02",
+    "out/pr-control-composition-1ec76837bb/proof.json": "44a74c3c148b5c181c617c4859c83b306da5f4bf17234a9ec28e95cb4ad47995",
+    "out/pr-control-cosim-9663da282a/proof.json": "f5a269edf34eb2db95405d2243d4309fc3bd6d0c358c96bfa596e242253e8d3b"
+  },
+  "limits": [
+    "Read-only source, receipt and actual-file comparison; no commands repeated.",
+    "Four unwaived Design Assistant rules remain per revision. Constrained timing success is not overall design closure.",
+    "No physical board, MMIO, SDM or exact-artifact hardware acceptance.",
+    "Negative process exit codes are recorded by existing proof; matrix and output absence independently checked."
+  ]
+}

@@ -88,6 +88,8 @@ TEST_BINS := \
 	$(BUILD_DIR)/tests/unit/ata_disk_test \
 	$(BUILD_DIR)/tests/unit/media_data_test \
 	$(BUILD_DIR)/tests/unit/fes_gp_test \
+	$(BUILD_DIR)/tests/unit/de25_computer_test \
+	$(BUILD_DIR)/tests/unit/de25_pr_control_test \
 	$(BUILD_DIR)/tests/unit/native_hardware_test \
 	$(BUILD_DIR)/tests/unit/fpga_manager_test \
 	$(BUILD_DIR)/tests/unit/mmio_test \
@@ -147,6 +149,13 @@ $(DAEMON): $(DAEMON_OBJECTS) $(ARCHIVE)
 		$(DAEMON_ARCHIVE_LINK) \
 		$(LDFLAGS) $(LDLIBS) -o "$@"
 
+.PHONY: de25-computer
+de25-computer: $(BUILD_DIR)/tools/de25-computer
+
+$(BUILD_DIR)/tools/de25-computer: tools/de25_computer_client.cpp src/native/de25_computer.cpp src/native/linux/mmio.cpp src/native/de25_computer.hpp src/native/generated/fes_de25_computer.hpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tools/de25_computer_client.cpp src/native/de25_computer.cpp src/native/linux/mmio.cpp -o $@
+
 menu-pattern-client: $(BUILD_DIR)/tools/menu-pattern-client
 
 $(BUILD_DIR)/tools/menu-pattern-client: tools/menu_pattern_client.cpp src/daemon/menu_frame_transport.cpp src/daemon/json.cpp
@@ -203,11 +212,20 @@ $(BUILD_DIR)/tests/unit/core_data_test: tests/unit/core_data_test.cpp src/native
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/core_data_test.cpp src/native/core_data.cpp src/native/sha256.cpp -o "$@"
 
+$(BUILD_DIR)/tests/unit/de25_computer_test: tests/unit/de25_computer_test.cpp src/native/de25_computer.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
+
 $(BUILD_DIR)/tests/unit/fes_gp_test: tests/unit/fes_gp_test.cpp \
 		tests/support/fake_mmio.cpp src/native/fes_gp.cpp src/native/artifacts.cpp src/native/diagnostic.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/fes_gp_test.cpp \
 		tests/support/fake_mmio.cpp src/native/fes_gp.cpp src/native/artifacts.cpp src/native/diagnostic.cpp -o "$@"
+
+$(BUILD_DIR)/tests/unit/de25_pr_control_test: tests/unit/de25_pr_control_test.cpp \
+		src/native/de25_pr_control.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
 
 $(BUILD_DIR)/tests/unit/video_recipe_test: tests/unit/video_recipe_test.cpp \
 		src/native/video_recipe.hpp src/native/video_recipe.cpp \

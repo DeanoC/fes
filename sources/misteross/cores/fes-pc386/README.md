@@ -106,8 +106,8 @@ python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.CO
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
 python3 scripts/sim_fes_pc386.py --suite system         # M5: FreeDOS to the prompt on pc386_system, about an hour
-make toolchain-fes-pc386 CACHE_ROOT=/abs/out/cache/misteross-toolchains  # once per lock
-make build-fes-pc386-quartus CACHE_ROOT=/abs/out/cache/misteross-toolchains  # seal fes.pc386 with Quartus 17.0.2 (SEED=)
+make toolchain-fes-pc386 CACHE_ROOT=/abs/out/cache/misteross-toolchains GPU_ROUTER=HIP  # once per lock
+make build-fes-pc386-quartus CACHE_ROOT=/abs/out/cache/misteross-toolchains GPU_ROUTER=HIP  # seal fes.pc386 with Quartus 17.0.2 (SEED=)
 ```
 
 The boot suite runs the locked BIOS and VGA BIOS on `pc386_machine`, boots the
@@ -448,6 +448,14 @@ builds of pc386 are parked with [#1235](https://github.com/DeanoC/fes/issues/123
 - Every analysis must pass on every clock, and TimeQuest must analyse every
   clock, or the build publishes nothing. The build summary records the fit's
   ALMs, registers, RAM and DSP blocks.
+- The build authenticates the whole slot of the core's `toolchain.lock`,
+  whose nextpnr links a GPU runtime. For CUDA, pass `GPU_ROUTER=CUDA` to both
+  `make toolchain-fes-pc386` and `make build-fes-pc386-quartus`, or pass
+  `--gpu-router CUDA` directly to the build script. This selects the CUDA
+  slot, so a host with CUDA and no ROCm can seal; HIP remains the default when
+  `GPU_ROUTER` is unset or empty. Nothing routes on a GPU. The record's
+  `gpu_backend` and `toolchain_configuration` name the slot, so HIP and CUDA
+  seals of one commit have distinct BUILD_IDs.
 
 **M4.** The diagnostic package `fes.pc386-diag`, the machine with a bus master
 running commands from a DDR ring in the CPU's place, passed every program on

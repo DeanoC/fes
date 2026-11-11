@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "source_base": "b3a25c26d039a78357c10fedfe8ce9c16b247d27",
+  "kernel": "6.12.11-gd7d192a9ddd9",
+  "modules": [
+    {
+      "path": "kernel/drivers/fpga/stratix10-soc.ko",
+      "size": 100328,
+      "sha256": "623b6c154326ccfc98fd457e528b974fc2f3fedd83a69b7b307b5bb7fe68a6ec"
+    },
+    {
+      "path": "kernel/drivers/fpga/fpga-bridge.ko",
+      "size": 66856,
+      "sha256": "1d79dba109ce3ab85f64ad6b1c418a5d995ad8f4936fabdb9907d94f86aa349b"
+    },
+    {
+      "path": "kernel/drivers/fpga/fpga-region.ko",
+      "size": 53912,
+      "sha256": "a2a3c218d4a3c414466539e76e133939c8301405c96feb001229ec22a3f52b72"
+    },
+    {
+      "path": "kernel/drivers/fpga/of-fpga-region.ko",
+      "size": 56544,
+      "sha256": "047c6b111243d9db71ede2979251b5554cd2bddca50b123c37ecd05485263b8c"
+    }
+  ],
+  "sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+  "rbf_sha256": "f552f40a9d4a822ea66f7e60841ec9a9cd4ebf6362486a84d101a2ae361ea628",
+  "result": "manager-probe-passed-core-load-failed",
+  "restoration": "pending",
+  "comparison": {
+    "factory_boot_uuid": "58cb032f-6994-4c3f-a951-6e9e85b7a834",
+    "factory_restored_boot_uuid": "4dd31651-34aa-4c7a-92f5-f855c81dbef7",
+    "matching_zx81_boot_uuid": "703ac63c-6a34-417b-929a-a344ac8f3c7d",
+    "matching_start_state": "volatile-qualified-complete-ZX81-SOF",
+    "matching_result": "same-buffer-timeout-and-kthread-stop-hang"
+  },
+  "issue": 1298
+}

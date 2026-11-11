@@ -1,0 +1,13 @@
+# Exact excerpt of golden_top.sta.rpt beginning line 14729; full report SHA256 022a79f4f293dbbfe48d888311e121f9fbc687c9bfccdcb05b0100436eb470b4
++------------------------------------------------------------------+
+; Unconstrained Paths Summary                                      ;
++---------------------------------------------------+-------+------+
+; Property                                          ; Setup ; Hold ;
++---------------------------------------------------+-------+------+
+; Illegal Clocks                                    ; 0     ; 0    ;
+; Unconstrained Clocks                              ; 0     ; 0    ;
+; Unconstrained Input Ports                         ; 16    ; 16   ;
+; Paths from Unconstrained Input Ports (Pairs-Only) ; 16    ; 16   ;
+; Unconstrained Output Ports                        ; 39    ; 39   ;
+; Paths to Unconstrained Output Ports (Pairs-Only)  ; 55    ; 55   ;
++---------------------------------------------------+-------+------+
