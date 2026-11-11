@@ -77,9 +77,11 @@ failure. The six unstarted core simulations are resumed separately, preserving
 the initial failed run rather than replacing its log with an aggregate pass.
 
 The current-source test uses the branch-local
-`sources/misteross/tests/fixtures/de25-combined-proof.json` fixture. Following
-the R2-1 refresh, it requires exact equality with the live compiler and runtime
-source closures and seven passing native results from the host Verilator run.
+`sources/misteross/tests/fixtures/de25-combined-proof.json` fixture, refreshed
+for R2-1 at the head that carries it (host Verilator plus pinned SDK/QEMU
+user-mode AArch64; no hardware). It requires exact equality with the live
+compiler and runtime source closures, all fourteen passing results and both
+native and AArch64 architectures, without reading any branch-only revision.
 Independent refreshed proofs run against the consolidated bring-up and platform
 producers; their dated records remain separate from the original receipt.
 Both complete all fourteen cases, with identical semantic results between

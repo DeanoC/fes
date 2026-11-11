@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "fa29fa056a9d53750e41dbe774d90e26a112325d",
+  "source_revision": "9bedd23761aedd3c13ef3dafd8dcb64a9c7d84e7",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -218,11 +218,103 @@
       "ramtop_empty": 0,
       "ramtop_16k": 0,
       "writes": 23
+    },
+    {
+      "architecture": "aarch64-cortex-a76",
+      "scenario": "session",
+      "result": "passed",
+      "callbacks": 3,
+      "loaded_bytes": 923,
+      "interrupted_bytes": 9,
+      "ramtop_empty": 17408,
+      "ramtop_16k": 32768,
+      "writes": 1548,
+      "roundtrip": {
+        "saved_bytes": 923,
+        "loads": 2,
+        "runs": 2,
+        "printed_value": 7,
+        "editor_returns": 24,
+        "saved_cdflag": 64,
+        "reload_removed_edit": true
+      },
+      "saved_image_sha256": "6eaec0372c752282f8b316a8920eed7e43efc8568c76ea1895c8bb183dc9f68b"
+    },
+    {
+      "architecture": "aarch64-cortex-a76",
+      "scenario": "wrong-build",
+      "result": "passed",
+      "callbacks": 0,
+      "loaded_bytes": 0,
+      "interrupted_bytes": 0,
+      "ramtop_empty": 0,
+      "ramtop_16k": 0,
+      "writes": 0
+    },
+    {
+      "architecture": "aarch64-cortex-a76",
+      "scenario": "program-failure",
+      "result": "passed",
+      "callbacks": 1,
+      "loaded_bytes": 0,
+      "interrupted_bytes": 0,
+      "ramtop_empty": 0,
+      "ramtop_16k": 0,
+      "writes": 25
+    },
+    {
+      "architecture": "aarch64-cortex-a76",
+      "scenario": "wrong-persona",
+      "result": "passed",
+      "callbacks": 1,
+      "loaded_bytes": 0,
+      "interrupted_bytes": 0,
+      "ramtop_empty": 0,
+      "ramtop_16k": 0,
+      "writes": 27
+    },
+    {
+      "architecture": "aarch64-cortex-a76",
+      "scenario": "ambiguous-write",
+      "result": "passed",
+      "callbacks": 0,
+      "loaded_bytes": 0,
+      "interrupted_bytes": 0,
+      "ramtop_empty": 0,
+      "ramtop_16k": 0,
+      "writes": 24
+    },
+    {
+      "architecture": "aarch64-cortex-a76",
+      "scenario": "missing-response",
+      "result": "passed",
+      "callbacks": 1,
+      "loaded_bytes": 0,
+      "interrupted_bytes": 0,
+      "ramtop_empty": 0,
+      "ramtop_16k": 0,
+      "writes": 27
+    },
+    {
+      "architecture": "aarch64-cortex-a76",
+      "scenario": "late-reset",
+      "result": "passed",
+      "callbacks": 0,
+      "loaded_bytes": 0,
+      "interrupted_bytes": 0,
+      "ramtop_empty": 0,
+      "ramtop_16k": 0,
+      "writes": 23
     }
   ],
   "tools": {
     "verilator": "Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)",
     "cxx": "c++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+    "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+    "sdk_volume": "fes-de25-stack-proof-sdk-12a74254-c134-20261109",
+    "sdk_before": "d2b8e8b3a9b53a80f20450824157a86eacddb0466d7310de47779ecb0624ed76  /build/sdk/bin/aarch64-buildroot-linux-gnu-g++\n29f631250421bf3c2fbe113fadf1cc1b89e8714c3530a43db06b507ada50145f  /build/sdk/bin/aarch64-buildroot-linux-gnu-g++.br_real\n",
+    "qemu_sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350",
+    "qemu_version": "qemu-aarch64 version 7.2.22 (Debian 1:7.2+dfsg-7+deb12u18+b3)\nCopyright (c) 2003-2022 Fabrice Bellard and the QEMU Project developers\n",
     "native_tools_sha256": {
       "/usr/bin/verilator": "672a1ccf3468902f66387049f001b04f254bbcece7d5e816e3861715889bf252",
       "/usr/bin/x86_64-linux-gnu-g++-14": "6b3696e4dcb85e1c949c732a02befa50e3983ecf94ce7e8e58d9d503b954b79d"
@@ -231,7 +323,8 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "e65ff7d38f0d5826e00d1e88a89b33cf971d824afcd915257eba1220752aa927",
-    "Vfes_de25_combined_sim": "79930e220e868978062993311b2bcdffa52a3354ea5b3ad3a1478661cdbc3e91"
+    "Vfes_de25_combined_sim": "01e813f755e65996816ec530f421c112f721d94ba2c8fa648e987e5c17b6b33c",
+    "client-aarch64": "169a3309dd104af655a6cdb7d552090c80f5197be6c74df7cd2c3ce00cb7dea6"
   },
   "physical_PR": "selection-mux-model-only",
   "memory": "behavioral",
