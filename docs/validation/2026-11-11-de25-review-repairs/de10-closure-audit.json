@@ -1,5 +1,5 @@
 {
-  "candidate": "c35542b992bbbdb893a7cf1c8d17e7e076e5f0a0",
+  "candidate": "cdb453111dc23389b5e028f592ae7c61e93059e8",
   "current_main": "bb5f1bfc14026b55113202fbc88b730241da9ee1",
   "method": "actual repository source_input_closure and per-producer declared roots; explicit PINNED_INPUTS for legacy Quartus producers",
   "profiles": {
@@ -98,7 +98,7 @@
         "main_count": 418,
         "candidate_count": 611,
         "main_sha256": "72bdc05a8e44a7dcd13ed449a46746fbd6193c9bb6305eb72a9d8b2e7cf00359",
-        "candidate_sha256": "45269641721fe1bdae6ac21acab512195edf5119ab51d5bef7842cabd5f7d178",
+        "candidate_sha256": "cc59e2671fa69ba288d6297f2b1a15f5d995d6f5a6b1acc46134bbe103f12f34",
         "equal": false,
         "changed_paths": [
           "boards/de25nano/build.py",

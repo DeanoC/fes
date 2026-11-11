@@ -1,6 +1,6 @@
 # DE10 source-identity audit after #1312 repairs
 
-Candidate `c35542b992bbbdb893a7cf1c8d17e7e076e5f0a0` compared with current main `bb5f1bfc14026b55113202fbc88b730241da9ee1`. Source-map proof only; full numeric functional BUILD_IDs were not computed. The earlier frozen9ea audit is retained separately, and the later main TV80 deletions are inherited from main.
+Candidate `cdb453111dc23389b5e028f592ae7c61e93059e8` compared with current main `bb5f1bfc14026b55113202fbc88b730241da9ee1`. Source-map proof only; full numeric functional BUILD_IDs were not computed. The earlier frozen9ea audit is retained separately, and the later main TV80 deletions are inherited from main.
 
 | Profile | Main / candidate files | Source map |
 | --- | --- | --- |
