@@ -7309,7 +7309,8 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
                               desc(0, 0xfffff, 0x9b, true, true), desc(0, 0xfffff, 0x93, true, true),
                               desc(0, 0xffff, 0x13, false, false), desc(LDT, 0x1f, 0x82, false, false),
                               desc(0x2500, 0x67, 0x89, false, false), desc(0, 0xff, 0x93, false, true),
-                              desc(0x10000, 0xffff, 0x93, false, false), 0, 0, 0, 0, 0,
+                              desc(0x10000, 0xffff, 0x93, false, false), desc(0, 0xffff, 0xfb, false, false),
+                              desc(0, 0xfffff, 0x91, true, true), 0, 0, 0,
                               desc(0, 0xfffff, 0xfb, true, true), desc(0, 0xfffff, 0xf3, true, true)};
     const uint64_t ldt[4] = {0, desc(0x5000, 0xffff, 0x93, false, false), desc(0, 0xffff, 0x9b, false, false),
                              desc(0, 0xfffff, 0xf3, true, true)};
@@ -7382,6 +7383,32 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
          }, -1, -1, -1, {{0x400, 0x20000 | P | W | U}}, {{1, PT1 | P | W | U}}, {}, true, 0x2b},
         {"pg-r3-rmw-ro", [=](Asm &a, uint32_t) { a.op({0xfe, 0x05}); a.d(0x10000); }, 14, 7, 0x10000,
          {{0x10, 0x20000 | P | U}}, {}, {}, true},
+        // XCHG m's load is checked against its segment as its store is
+        // (#1644): through a DS its store cannot write (readable code 18h,
+        // read-only data 58h), #GP(0) before the page's #PF.
+        {"pg-xchg-code-ds-np", [=](Asm &a, uint32_t) {
+             a.op({0x66, 0xb8, 0x18, 0x00, 0x8e, 0xd8, 0x87, 0x05}); a.d(0x10004);  // DS 18h; XCHG [10004h], EAX
+         }, 13, 0, -1, {}},
+        {"pg-xchg-ro-ds-np", [=](Asm &a, uint32_t) {
+             a.op({0x66, 0xb8, 0x58, 0x00, 0x8e, 0xd8, 0x86, 0x1d}); a.d(0x10004);  // DS 58h; XCHG [10004h], BL
+         }, 13, 0, -1, {}},
+        // A writable DS: the load walks as a write (D set, W in a #PF's error).
+        {"pg-xchg-np", [=](Asm &a, uint32_t) { a.op({0x87, 0x05}); a.d(0x10004); }, 14, 2, 0x10004, {}},
+        // CALL rel32 at CPL 3 from 16-bit code (53h, limit FFFFh) to a target
+        // past CS's limit (#1646): its push comes first, as on the 386 and in
+        // Bochs, so a push to a page not present, or read-only at CPL 3, is
+        // #PF (CR2 the slot), not the target's #GP(0). (A push that does not
+        // fault writes its slot before the #GP(0) on the 386: #1510.)
+        {"pg-r3-call-past-limit-np", [=](Asm &a, uint32_t base) {
+             a.op({0xea}); a.d(base + uint32_t(a.here()) + 6); a.w(0x53);             // JMP 53h:next
+             a.op({0x66, 0xbc}); a.d(0x10008);                                       // MOV ESP, 10008h
+             a.op({0x66, 0xe8}); a.d(0x20000);                                       // CALL rel32 past FFFFh
+         }, 14, 6, 0x10004, {}, {}, {}, true},
+        {"pg-r3-call-past-limit-ro", [=](Asm &a, uint32_t base) {
+             a.op({0xea}); a.d(base + uint32_t(a.here()) + 6); a.w(0x53);
+             a.op({0x66, 0xbc}); a.d(0x10008);
+             a.op({0x66, 0xe8}); a.d(0x20000);
+         }, 14, 7, 0x10004, {{0x10, 0x20000 | P | U}}, {}, {}, true},
         // CPL 3 runs from a page whose PDE is supervisor (the ITLB holds it
         // from CPL 0): #PF at the IRET's target.
         {"pg-r3-exec-sup", [=](Asm &, uint32_t) {}, 14, 5, -1, {}, {{0, PT0 | P | W}}, {}, true},

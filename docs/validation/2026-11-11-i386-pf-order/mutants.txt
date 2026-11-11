@@ -1,0 +1,13 @@
+One-line mutants of fes_i386_cpu.sv at 0ecbf9c34, each built from a scratch
+copy of the RTL and run with FES_I386_MODE=paging (69 cases; the
+unmutated RTL passes all 69).
+
+xchg-read-chk      D's mtiny: (mem_writes || xchg_ld) && seg_wbad -> mem_writes && seg_wbad
+                   FAIL pg-xchg-code-ds-np, pg-xchg-ro-ds-np (67 of 69 pass)
+xchg-wx-read       D's wx: drop xchg_ld (XCHG m's load translated as a read)
+                   FAIL pg-xchg-np (68 of 69 pass)
+call-tpast-no-dfl  M1's dfl back to !(cs_late || m1_tpast && !branch) && dfault != NONE
+                   FAIL pg-r3-call-past-limit-np, pg-r3-call-past-limit-ro (67 of 69 pass)
+dfl-no-replay      M2: l1d_replay only for a uop with no fault (a dfl uop not the oldest
+                   takes its #GP(0) instead of replaying for the walk)
+                   FAIL pg-r3-call-past-limit-np, pg-r3-call-past-limit-ro (67 of 69 pass)

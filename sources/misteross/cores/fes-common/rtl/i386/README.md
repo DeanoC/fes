@@ -668,7 +668,8 @@ the displacement, wrapped by operand size (`ag_call`).
 limit, raising #SS(0) for SS and #GP(0) otherwise, and sends a load's address
 to the data port. It checks a near branch's target, or CALL rel's push's,
 against CS's limit (`tchk`): the push raises #GP(0) here, after its own
-checks, as Bochs pushes before it checks; a branch carries the result to EX.
+checks and its page's #PF (`dfl`), as the 386 and Bochs push before they
+check; a branch carries the result to EX.
 A far transfer's offset that D found past the limit (`cs_late`) raises
 #GP(0) here when the uop's own checks pass. It also takes the load's distance from the stores in EX and
 WB, which have not written when the port reads: the one in EX will be in WB
@@ -1320,7 +1321,13 @@ as Bochs's `translate_linear_legacy` at CPU level 3.
   load whose data nothing uses (a probe, POP m's step, the multiply and
   divide unit's LOAD and HI) translates nothing (`nx`): Bochs pushes and
   faults on the pushes, as the stores then do. ENTER's last check
-  translates as a write (`wx`, Bochs's `tickle_write_virtual`).
+  translates as a write (`wx`, Bochs's `tickle_write_virtual`), and so do
+  XCHG m's and ARPL m's loads of their operands; XCHG m's load also takes
+  its store's segment check, so a segment it cannot write raises #GP(0)
+  (#SS(0)) before the load's #PF (#1644). A uop whose fault is a later one
+  than its pages' #PF (`dfl`: a st2 store's segment check, or CALL rel's
+  push's target past CS's limit) still translates, replaying when it is not
+  the oldest, and its #PF comes first.
 - **The walker** (`fes_i386_l1d`) runs only for the oldest uop, as an
   uncached load reads (`L_UNC`, then `oldest`), else the uop replays and
   its instruction issues alone, up to the end of the REP element it was in
