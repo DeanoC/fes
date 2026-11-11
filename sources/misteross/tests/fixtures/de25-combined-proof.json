@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "cdb453111dc23389b5e028f592ae7c61e93059e8",
+  "source_revision": "f9ff4d4f276753cd44e962b4a2131d6bd990180e",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -37,9 +37,9 @@
     "sources/misteross/boards/de25nano/link-proof/zx81-ram/profile.py": "6fdb9646b74431f1f5e7b7a24a71e8cb3fa345f93fe6dd2a86400c82188d6865",
     "sources/misteross/boards/de25nano/link-proof/zx81-ram/static.v": "10755a86b98ca1f3465c74c17fa44a667ba828e21952bb04505e1bb641c0944a",
     "sources/misteross/boards/de25nano/link-proof/zx81-ram/timing.tcl": "733ce2b528d51776b12d8956b557038e0ad07a122199b3ffbf982c25d6134755",
-    "sources/misteross/boards/de25nano/scanout/build.py": "a52ac964facc359fe246a95243cf42ea855b8db1d03755d9fc71bfaa4178f349",
-    "sources/misteross/boards/de25nano/scanout/clocks.sdc": "39a52643dc5dfc97b2d1bdf498fc1e93de50abe9e7a834c2a9be36fc297abfab",
-    "sources/misteross/boards/de25nano/scanout/fes_de25_scanout_board.v": "f45717a0a3ebc3204a330ede451f880fd59467a1d4e6c65e33551285190263c0",
+    "sources/misteross/boards/de25nano/scanout/build.py": "677f40efc7ee3fdc4da8a554b4cf814350fd713bcd6c81c317fa7193854c4619",
+    "sources/misteross/boards/de25nano/scanout/clocks.sdc": "3a13ccd605b34844b6d733713146ddf46a5d4cd05cf7fcea9f62843c6b3c72b1",
+    "sources/misteross/boards/de25nano/scanout/fes_de25_scanout_board.v": "1fae19aeced8499dadd2acc471a245ff06afa73a296c9dd5a4bb1e80db6726c7",
     "sources/misteross/boards/de25nano/scanout/hdmi_inputs.py": "e14cc505c5550b8412fcd55f52d094fa525cf2ceb3af00690a74dcc1060664e8",
     "sources/misteross/boards/de25nano/scanout/linux_dma.py": "9a5e6579e44f5fffd4aefc1de719acfe93bc1bfb4de0cf5b34ca16fb2a4e3179",
     "sources/misteross/boards/de25nano/shared-rtl/fes_computer_mailbox.v": "32578859de678583386af75a5fad6b4ac9296c1b85d736534fbf791ece3c39d3",
@@ -49,9 +49,9 @@
     "sources/misteross/boards/de25nano/shared-rtl/zx81_top.v": "e13695878042b6fafc86db37de4a4cfddae2f6c624889b8e4fb8d8d7f0ad52a5",
     "sources/misteross/boards/de25nano/zx81/build.py": "f88226b6ad891e0262db4221d9778e0e3739d57b9903230402c3d5a69ec3e23d",
     "sources/misteross/boards/de25nano/zx81/firmware.py": "d4f1859dfed1372f3926eb9d14e9e5ba477cc50a900293fdd68ab618c72507c0",
-    "sources/misteross/boards/de25nano/zx81-hps/board.v": "7c2af8b8ed0966cdda5c915e50b1681022003e12275f9e9556e9f49c65bf22ce",
+    "sources/misteross/boards/de25nano/zx81-hps/board.v": "4cfdcfd6e6d17fc38a34c9a413922cf8796b7fa643fc746094982f2dd441962e",
     "sources/misteross/boards/de25nano/zx81-hps/build.py": "0a3ad7bee409e656c6206115e12c4ec81e4a45d9274151308fac13e44681bb97",
-    "sources/misteross/boards/de25nano/zx81-hps/clocks.sdc": "0dade2b9891801243460bb800a0cfc00441b229865c732912207fa6238a3ec1e",
+    "sources/misteross/boards/de25nano/zx81-hps/clocks.sdc": "f24d5c1ec7d7bb54045d5201f3d414d52b4179ae0ad251de927b98fb871c1cbf",
     "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v": "7ccfc1ccdadd3e65b900030f480b54c4680df83fd9599edb358aee7cb90cba4f",
     "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl": "8947f4661549117011c05cc705f368369db0fd7fbea7cfe836863b5d2ae035bc",
     "sources/misteross/boards/de25nano/zx81-hps/generated/fes_computer.vh": "2238e03a42939f2f5485d9ea15b77088ab1c229bb47d3130a703624d7fa5297c",
@@ -341,7 +341,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "a3c8d49d179e6a13dedc740fd2e181c2ba884ef9111d35d8e955820960bd35ea",
-    "Vfes_de25_combined_sim": "234c2ec4b76f18d09a7fb9f0189f5828008a332f030bdb226e92812e49b01621",
+    "Vfes_de25_combined_sim": "5bbee00fc0d034953a6a052c570d2c3875d6958dee250e6c636cdb82796698f1",
     "client-aarch64": "7bce4ba2c6ed39a45f61e60a0b5d3d4c68dbef928e0a092b36f7133459b3c000"
   },
   "physical_PR": "selection-mux-model-only",
