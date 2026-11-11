@@ -18,7 +18,7 @@ enables; and a switch into a V86 task.
 - **Lockstep.** Everything passes against Bochs on the RTL and on the
   i386 lock's Yosys netlist, with identical retirement traces. That covers the full corpus,
   the random and protected-mode programs, 4,000 new task-switch programs,
-  71 more protected-mode cases and 4 more paging cases. Main's one failure,
+  71 more protected-mode cases and 5 more paging cases. Main's one failure,
   [#1663](https://github.com/DeanoC/fes/issues/1663), now passes: the harness takes a
   fault at a transfer's first fetch into the transfer's step, as the 386
   and Bochs do (`fetch_rule`).
@@ -82,10 +82,11 @@ departs from the plan. In short:
 
 `scripts/test_fes_i386_lockstep.py` ran with every default (16 seeds of
 2,000 random programs, 16 seeds of 500 protected-mode programs, 16 seeds of
-250 task-switch programs, the full corpus) at `fcb780f78`. That is this
+250 task-switch programs, the full corpus) at `fdf79c057`. That is this
 branch with main `1d45ba6e5` merged in, which moves the i386 lock's Yosys to
-`0a7927bf` (#1664). It ran on the RTL and on that Yosys's netlist, with the
-lock's Verilator 5.054:
+`0a7927bf` (#1664), plus the fix to Codex's review (IRET waits for NT; see
+below). It ran on the RTL and on that Yosys's netlist, with the lock's
+Verilator 5.054:
 
 | Part | RTL | Netlist |
 | --- | --- | --- |
@@ -95,15 +96,27 @@ lock's Verilator 5.054:
 | Task-switch programs | 4,000 of 4,000 (202,130 retirements) | same |
 | Unbuilt encodings | 49,760, each stopped | same |
 | Directed cases | 77 of 77 | same |
-| Unreal, protected-mode, paging, no-387 and memory cases | 7, 349, 76, 1,933 and 27, all pass | same |
+| Unreal, protected-mode, paging, no-387 and memory cases | 7, 349, 77, 1,933 and 27, all pass | same |
 
 All 996 trace hashes match between the RTL and the netlist
 ([lockstep-report.json](lockstep-report.json),
-[lockstep-netlist-report.json](lockstep-netlist-report.json)). Earlier runs
-on the unmerged branch, at `5083205bd` (RTL) and `03e92ea45` (Yosys
+[lockstep-netlist-report.json](lockstep-netlist-report.json)). The same
+runs at `fcb780f78`, before the fix, passed on both with 76 paging cases.
+Earlier runs on the unmerged branch, at `5083205bd` (RTL) and `03e92ea45` (Yosys
 `238eac9a4`'s netlist), gave the same results; they had 347 and 348
 protected-mode cases. `ts-jmp-ti`'s LDT entry was overwritten by the LDT's own
 setup there, which the testbench fixes; the fix also adds `ts-gate-ti-ldt`.
+
+**An IRET that DC decoded by a stale NT** (Codex's review): a POPF in
+flight that sets NT leaves DC picking the stack return. The RTL's first
+uop used to replay only in EX, after its stack load had issued, and under
+paging that load's walk set the stack page's accessed bit. A 386 with NT
+set reads no stack. D now holds a protected-mode IRET's first uop while
+any uop that may write NT is in flight (`nt_busy`), and replays it with no
+access when the committed NT differs. `pg-ts-popf-nt-iret` (POPFD setting
+NT, then IRETD with ESP on a page no access has walked; the new task reads
+that page's PTE) fails on the old RTL (PTE 13027h against Bochs's 13007h)
+and passes now.
 
 **#1663.** In `random#1010#118`, an INTR delivery's handler's first fetch
 is on a page that is not present. Bochs takes that #PF inside the delivery's step;
@@ -132,7 +145,7 @@ after the old task's save (`iret_save_rule`).
   IF and NT.
 - `why_e` drops the task-switch reasons nothing raises any more.
 
-**New directed cases** (71 protected-mode, 4 paging; the old task-gate and
+**New directed cases** (71 protected-mode, 5 paging; the old task-gate and
 IRET-NT placeholders are gone):
 - Round trips: JMP and CALL to 386 and 286 TSSs from 32-bit and 16-bit
   code, through task gates, INT, INT3 and exceptions (#UD, #GP with an
@@ -152,7 +165,8 @@ IRET-NT placeholders are gone):
   present; EIP past CS's limit.
 - Paging: #PF through a task gate and back by IRET with NT (as Descent
   does), CR3 switched with the GDT on a mapped page, a new TSS not
-  present, a TSS across a page boundary.
+  present, a TSS across a page boundary, an IRET right after the POPFD
+  that sets NT.
 
 ## test386.asm
 
