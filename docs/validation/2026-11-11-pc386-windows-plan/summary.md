@@ -144,7 +144,7 @@ rest at CPL 0.
 | LAR, LSL, VERW | 14,887 LAR and 2,504 LSL at CPL 3 and 0; 12 VERW | Phase 2 slice 2 |
 | LIDT | 490,416 at CPL 0, and 1,675 SGDT | Phase 2 |
 | Debug registers | MOV to DR0–DR3, DR6 and DR7 once each, DR6 read twice, DR7 once; DR7 never changes, no #DB | slice 2 (built) |
-| Task switches | none: LTR once, LLDT once | slice 4 not needed |
+| Task switches | none: LTR once; LLDT three times, of one LDT | slice 4 not needed |
 | Breakpoints, TF | none | slice 5 not needed (WDEB386 would need them) |
 | 486 instructions | none: no CPUID, BSWAP, CMPXCHG, XADD, INVD, WBINVD or INVLPG | — |
 | x87 | FNINIT, FNSTCW and FNSTSW once each, in real mode before WIN386 | the empty socket's answers (as built) |
