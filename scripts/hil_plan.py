@@ -430,6 +430,23 @@ def core_consumers(path, texts):
     return found
 
 
+def expansion_input_consumers(path, texts):
+    """Find expansion archive producers that declare this path in INPUTS."""
+    relative = path.removeprefix(MISTEROSS)
+    modules = script_modules(texts)
+    found = []
+    for stem, module in sorted(modules.items()):
+        row = classify_path(SCRIPTS_DIR + stem + '.py')
+        if row['component'] != 'expansion-archive':
+            continue
+        inputs = module.defs.get('INPUTS')
+        if inputs is None:
+            continue
+        if relative in inputs[0]:
+            found.append(row)
+    return found
+
+
 def unresolved_row(stem, module):
     return {'path': SCRIPTS_DIR + stem + '.py', 'class': 'full',
             'component': 'unresolved-script-import', 'rule': module.unresolved[0]}
@@ -488,6 +505,10 @@ def plan(paths, texts=None):
             if texts is None:
                 texts = script_texts()
             expand(row, core_consumers(row['path'], texts))
+        elif row['path'] == 'sources/misteross/toolchain.lock' and row['class'] == 'overlay':
+            if texts is None:
+                texts = script_texts()
+            expand(row, expansion_input_consumers(row['path'], texts))
         elif row['class'] != 'full' and is_script_module(row['path']):
             # A changed script also changes every producer that imports it.
             if texts is None:

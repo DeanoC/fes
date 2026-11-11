@@ -299,6 +299,18 @@ class HilPlanTest(unittest.TestCase):
                 self.assertEqual(result['decision'], 'FULL_IMAGE')
                 self.assertIn(' <- ', result['rows'][0]['rule'])
 
+        toolchain_lock = 'sources/misteross/toolchain.lock'
+        lock_consumers = plan.expansion_input_consumers(toolchain_lock, texts)
+        self.assertEqual(
+            {row['path'] for row in lock_consumers},
+            {scripts + 'build_coleco_bus_diagnostic.py', scripts + 'build_coleco_sgm.py'},
+        )
+        result = plan.plan([toolchain_lock], texts)
+        self.assertEqual(result['decision'], 'FULL_IMAGE')
+        self.assertEqual(result['rows'][0]['component'], 'expansion-archive')
+        self.assertIn(' <- ' + scripts + 'build_coleco_bus_diagnostic.py',
+                      result['rows'][0]['rule'])
+
         # Shared helpers also affect the archive producer that imports them.
         for name, producer in (('apple2_slots.py', 'build_apple2_slot_card.py'),
                                ('atari_st_slot.py', 'build_atari_st_slot_card.py'),
