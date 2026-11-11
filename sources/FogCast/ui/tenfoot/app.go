@@ -1674,7 +1674,8 @@ func (a *App) reloadCatalogWithNoticeLocked(notice string) {
 		if ctx.Err() != nil || a.loadGen != gen || a.loading || !a.lastInput.Equal(lastInput) {
 			return
 		}
-		if a.loadErr != "" || a.status == savedListOfflineCopy || a.status == "Can't reach the library right now." {
+		status := a.libraryStatusForNoticeLocked()
+		if a.loadErr != "" || status == savedListOfflineCopy || status == "Can't reach the library right now." {
 			a.setLibraryStatusLocked(notice + " Couldn't refresh the library.")
 			return
 		}

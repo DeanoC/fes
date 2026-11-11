@@ -270,6 +270,42 @@ func TestSetupBlockedStatusSurvivesLibraryResponse(t *testing.T) {
 	}
 }
 
+func TestSetupDeferredOfflineShelfRetainsRefreshFailureNotice(t *testing.T) {
+	host := newRoomHost(t)
+	host.mu.Lock()
+	host.state = "launching"
+	host.mu.Unlock()
+	app := startFirstRunWithHost(t, host, t.TempDir(), 1280, 720)
+	waitRoom(t, app, "example.welcome")
+	waitFor(t, app, "initial library and busy session", func(s Snapshot) bool {
+		return !s.Loading && len(s.Games) > 0 && s.Session.State == "launching"
+	})
+	host.mu.Lock()
+	host.gamesStatus = http.StatusInternalServerError
+	host.mu.Unlock()
+	const want = "Saved. Couldn't refresh the library."
+	app.mu.Lock()
+	app.runSetupActionLocked("setup_continue")
+	app.reloadCatalogWithNoticeLocked("Saved.")
+	app.mu.Unlock()
+	waitFor(t, app, "deferred offline refresh notice", func(s Snapshot) bool {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		return !s.Loading && app.setup.deferredLibraryStatus == want
+	})
+	host.mu.Lock()
+	host.state = "idle"
+	host.mu.Unlock()
+	select {
+	case app.sessionKick <- struct{}{}:
+	default:
+	}
+	snap := waitFor(t, app, "idle session", func(s Snapshot) bool { return s.Session.State == "idle" })
+	if snap.Status != want {
+		t.Fatalf("status after idle = %q, want %q", snap.Status, want)
+	}
+}
+
 func TestSkippingLaterStepRecordsCurrentStep(t *testing.T) {
 	dir := t.TempDir()
 	app := startFirstRun(t, dir, 1280, 720)

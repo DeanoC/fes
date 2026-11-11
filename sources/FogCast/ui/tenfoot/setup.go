@@ -127,6 +127,15 @@ func (a *App) setLibraryStatusLocked(status string) {
 	a.status = status
 }
 
+// A refresh notice must inspect the underlying library result even while
+// the setup explanation temporarily owns the visible status.
+func (a *App) libraryStatusForNoticeLocked() string {
+	if a.setupRoomOpenLocked() && a.status == setupBlockedStatus && a.setupSessionBusyLocked() {
+		return a.setup.deferredLibraryStatus
+	}
+	return a.status
+}
+
 func (a *App) setupBlockedLocked() bool {
 	if a.setupSessionBusyLocked() {
 		if a.status != setupBlockedStatus {
