@@ -56,10 +56,28 @@ that transition; it never blindly repeats an accepted activation.
 | Target route | Request | Result |
 | --- | --- | --- |
 | `GET /v1/update` | Bearer authentication | Actual boot/image, trial, `fallback_image_sha256`, raw idle, good/previous/pending, state integrity, `fat_idle_sha256`, `idle_sha256`, and `splash_warning` when a non-trial splash repair fails |
+| `GET /v1/update/capacity?image_sha256=…&image_size=…` | Bearer authentication | Read-only, point-in-time release-space estimate for this image |
 | `POST /v1/update/stage` | Raw image, exact Content-Length, `X-FogCast-Release-Manifest` base64 JSON | Verified immutable staged manifest (201) |
 | `POST /v1/update/activate` | JSON `image_sha256` | Persist selection, flush `rebooting:true`, reboot (202) |
 | `POST /v1/update/rollback` | Empty body | Select previous, flush, reboot (202) |
 | `POST /v1/update/confirm` | JSON `boot_id`, `image_sha256` | Durable exact trial confirmation (200) |
+
+Before uploading, the update client asks the selected agent for capacity using
+the incoming image hash and byte size. The response reports `required_bytes`,
+`available_bytes`, the estimated logical bytes in unprotected images, whether a
+qualifying spill is available, and whether admission is still possible. The
+spill is checked only when direct space is short (`spill_checked` is true). If
+direct room is short and no spill or no prunable image exists, the client
+returns `UPDATE_NO_SPACE` without sending the image. On FAT, the report also
+uses an intentionally generous upper bound on reclaiming unprotected images,
+manifests and splash sidecars to reject a clear shortfall. On other filesystems,
+the estimate is informational because allocation rules differ. Sparse or
+hard-linked images can make the estimate larger than the actual recovered
+space, so the presence of a prunable image does not guarantee success. An existing published
+image can be checked without reserving a second image's space. This report does
+not reserve storage; Stage validates the image and rechecks under the store
+lock. Install a kit-software bundle that supports this route before using a
+client that requires it.
 
 All mutations require `X-FogCast-Kit-Lease` in addition to bearer authentication.
 Manifest format 1 is `manifest_format` `1.0` and binds `de10-nano`,
@@ -100,8 +118,9 @@ into the release store. It keeps the factory image, known-good, previous,
 pending, trial, the `boot.json` image, and every image in the release store
 that backs a loop device. It does not change the boot selection and does not
 touch `u-boot.txt` or FAT `/idle.rbf`. If no qualifying filesystem can hold
-the upload, or the retained images still leave too little free space, staging
-returns the storage error and deletes nothing. An unreadable `boot.json`,
+the upload, staging returns the storage error without deleting images. If the
+verified spill exists but unprotected images still cannot make enough room,
+staging can prune those images before returning the error. An unreadable `boot.json`,
 corrupt selection state, or a failed loop-device scan refuses the prune.
 Prune also deletes `splashes/<image sha256>.rbf` and its `.sha256` sidecar
 with that image.

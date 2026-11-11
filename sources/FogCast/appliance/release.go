@@ -40,6 +40,21 @@ type Manifest struct {
 	ImagePasses    int64  `json:"image_passes,omitempty"`
 }
 
+// Capacity is a point-in-time estimate, not a reservation. Reclaimable is the
+// logical length of unprotected regular images; sparse files or hard links can
+// make the actual freed space smaller. Stage remains authoritative.
+type Capacity struct {
+	Existing     bool   `json:"existing"`
+	Available    uint64 `json:"available_bytes"`
+	Reclaimable  uint64 `json:"reclaimable_bytes_estimate"`
+	ReclaimUpper uint64 `json:"reclaimable_bytes_upper_bound"`
+	UpperKnown   bool   `json:"reclaimable_upper_bound_known"`
+	Required     uint64 `json:"required_bytes"`
+	Spill        bool   `json:"spill_available"`
+	SpillChecked bool   `json:"spill_checked"`
+	Possible     bool   `json:"possible"`
+}
+
 var hashPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 var revisionPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
 

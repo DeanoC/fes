@@ -1126,6 +1126,149 @@ func TestStageReportsInsufficientStorageWithoutDeletingRetainedImages(t *testing
 	}
 }
 
+func TestCapacityDoesNotMutateAndRespectsStageAdmission(t *testing.T) {
+	s, factory, raw := fixture(t)
+	stale := stageDistinctUnpruned(t, s, raw, 5)
+	staleImage, staleManifest := releasePaths(t, s, stale.ImageSHA256)
+	other := bytes.Clone(raw)
+	other[0] = 7
+	incoming := manifest(other)
+	need := releaseStorageNeed(incoming.ImageSize)
+
+	// A known existing image follows Stage's verification path even when the
+	// release volume cannot hold a second copy.
+	s.availableBytes = func(string) (uint64, error) { return 0, nil }
+	got, err := s.CapacityContext(context.Background(), factory.ImageSHA256, factory.ImageSize)
+	if err != nil || !got.Existing || !got.Possible {
+		t.Fatalf("existing: %+v %v", got, err)
+	}
+	// Sufficient direct space does not depend on spill or a loop-device scan.
+	s.availableBytes = func(string) (uint64, error) { return need, nil }
+	s.loopBackings = func() ([]string, error) { return nil, errors.New("not needed") }
+	got, err = s.CapacityContext(context.Background(), incoming.ImageSHA256, incoming.ImageSize)
+	if err != nil || !got.Possible || got.Required != need {
+		t.Fatalf("direct: %+v %v", got, err)
+	}
+
+	s.availableBytes = func(string) (uint64, error) { return 0, nil }
+	s.loopBackings = func() ([]string, error) { return nil, nil }
+	s.spillCandidates = func() []string { return nil }
+	got, err = s.CapacityContext(context.Background(), incoming.ImageSHA256, incoming.ImageSize)
+	if err != nil || got.Possible || got.Spill || got.Reclaimable == 0 {
+		t.Fatalf("no spill: %+v %v", got, err)
+	}
+	// A directory outside the release root is not enough: Stage rejects a
+	// spill on the same backing filesystem even if it has space.
+	s.spillCandidates = func() []string { return []string{filepath.Dir(s.root)} }
+	got, err = s.CapacityContext(context.Background(), incoming.ImageSHA256, incoming.ImageSize)
+	if err != nil || got.Possible || got.Spill {
+		t.Fatalf("same-device spill: %+v %v", got, err)
+	}
+	mustExist(t, staleImage)
+	mustExist(t, staleManifest)
+
+	// The fixture's explicit spill root matches Stage's test-only override.
+	s.spillRoot = t.TempDir()
+	got, err = s.CapacityContext(context.Background(), incoming.ImageSHA256, incoming.ImageSize)
+	if err != nil || !got.Possible || !got.Spill || got.Reclaimable != uint64(len(raw)) {
+		t.Fatalf("spill and reclaim: %+v %v", got, err)
+	}
+	// On the real FAT release filesystem a generous bound for the tiny
+	// candidate is still below the splash reserve, so this is provably short.
+	s.filesystemType = func(string) (uint32, error) { return uint32(unix.MSDOS_SUPER_MAGIC), nil }
+	got, err = s.CapacityContext(context.Background(), incoming.ImageSHA256, incoming.ImageSize)
+	if err != nil || got.Possible || !got.UpperKnown || got.ReclaimUpper >= got.Required {
+		t.Fatalf("FAT short even after prune: %+v %v", got, err)
+	}
+	if err := os.MkdirAll(filepath.Join(s.root, "splashes"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	splash, _, err := SplashPaths(s.root, stale.ImageSHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(splash, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(splash, 32<<20); err != nil {
+		t.Fatal(err)
+	}
+	got, err = s.CapacityContext(context.Background(), incoming.ImageSHA256, incoming.ImageSize)
+	if err != nil || !got.Possible || got.ReclaimUpper < 32<<20 {
+		t.Fatalf("candidate splash must be counted: %+v %v", got, err)
+	}
+	mustExist(t, splash)
+	if err := os.Remove(splash); err != nil {
+		t.Fatal(err)
+	}
+	// A sparse image might reclaim much less than its logical length. It is
+	// counted optimistically, so the capacity report never refuses because of
+	// an underestimate; Stage checks actual free bytes after verified pruning.
+	if err := os.Truncate(staleImage, 32<<20); err != nil {
+		t.Fatal(err)
+	}
+	got, err = s.CapacityContext(context.Background(), incoming.ImageSHA256, incoming.ImageSize)
+	if err != nil || !got.Possible || got.ReclaimUpper < 32<<20 {
+		t.Fatalf("sparse optimistic bound: %+v %v", got, err)
+	}
+	// If filesystem type inspection fails, do not turn an uncertain estimate
+	// into a no-space refusal.
+	s.filesystemType = func(string) (uint32, error) { return 0, errors.New("unknown filesystem") }
+	got, err = s.CapacityContext(context.Background(), incoming.ImageSHA256, incoming.ImageSize)
+	if err != nil || !got.Possible || got.UpperKnown {
+		t.Fatalf("unknown filesystem: %+v %v", got, err)
+	}
+	// A loop-backed image is protected and is not counted as reclaimable.
+	s.loopBackings = func() ([]string, error) { return []string{staleImage}, nil }
+	got, err = s.CapacityContext(context.Background(), incoming.ImageSHA256, incoming.ImageSize)
+	if err != nil || got.Possible || got.Reclaimable != 0 {
+		t.Fatalf("only protected images: %+v %v", got, err)
+	}
+	mustExist(t, staleImage)
+	mustExist(t, staleManifest)
+}
+
+func TestCapacityFailClosedAndNeverTreatsEstimateAsGuaranteed(t *testing.T) {
+	s, factory, raw := fixture(t)
+	incomingBytes := bytes.Clone(raw)
+	incomingBytes[0] = 10
+	incoming := manifest(incomingBytes)
+	s.availableBytes = func(string) (uint64, error) { return 0, nil }
+	s.spillRoot = t.TempDir()
+	s.loopBackings = func() ([]string, error) { return nil, errors.New("loop scan unavailable") }
+	if _, err := s.CapacityContext(context.Background(), incoming.ImageSHA256, incoming.ImageSize); err == nil {
+		t.Fatal("capacity ignored the failed loop scan")
+	}
+	s.loopBackings = func() ([]string, error) { return nil, nil }
+	if err := os.WriteFile(filepath.Join(s.root, "boot.json"), []byte("bad"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CapacityContext(context.Background(), incoming.ImageSHA256, incoming.ImageSize); err == nil {
+		t.Fatal("capacity ignored the unreadable boot ticket")
+	}
+	if err := os.Remove(filepath.Join(s.root, "boot.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	// A hard link to the protected factory image would not actually free its
+	// data; an estimate must not be used as proof that staging will fit.
+	image, _ := releasePaths(t, s, factory.ImageSHA256)
+	if err := os.Truncate(image, 32<<20); err != nil {
+		t.Fatal(err)
+	}
+	linked := filepath.Join(s.root, "images", strings.Repeat("e", 64)+".img")
+	if err := os.Link(image, linked); err != nil {
+		t.Fatal(err)
+	}
+	s.filesystemType = func(string) (uint32, error) { return uint32(unix.MSDOS_SUPER_MAGIC), nil }
+	got, err := s.CapacityContext(context.Background(), incoming.ImageSHA256, incoming.ImageSize)
+	if err != nil || !got.Possible || got.Reclaimable == 0 {
+		t.Fatalf("hard-link estimate: %+v %v", got, err)
+	}
+	mustExist(t, image)
+	mustExist(t, linked)
+}
+
 func TestStageRefusesToPruneWhenBootTicketIsUnreadable(t *testing.T) {
 	s, _, raw := fixture(t)
 	stale := stageDistinct(t, s, raw, 5)
