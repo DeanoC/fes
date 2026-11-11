@@ -20,7 +20,7 @@ rationale = "DeanoC/nextpnr main commit bd7a1c0d (squash merge of #292), the i38
 repo = "https://github.com/verilator/verilator.git"
 commit = "bbb60a403932a9f695cb6ff001ceb73de6ad9234"
 order = 40
-rationale = "Verilator v5.054 (2026-11-01), as the i386 lock pins it (#1581 S3). The previous pin, 5e4151e3, was an untagged 5.051 development snapshot that stops with an internal error at fes_i386_seq.sv:317. The pc386 simulations take $(VERILATOR), the system Verilator by default, and the i386 parts take the i386 lock's slot, so no pc386 build or simulation reads this pin; it keeps the slot this lock builds on one Verilator with the i386 lock (#1660)."
+rationale = "Verilator v5.054 (2026-11-01), as the i386 lock pins it (#1581 S3). The previous pin, 5e4151e3, was an untagged 5.051 development snapshot that stops with an internal error at fes_i386_seq.sv:317. No pc386 build or simulation reads this pin: the producer takes only Yosys from this lock's slot, and the pc386 simulations, the i386 CPU in them included, take $(VERILATOR), the system Verilator by default. Only the standalone i386 tests (scripts/i386_verilator.py) take Verilator from a slot, the i386 lock's. The pin keeps this lock's slot on the same Verilator as the i386 lock. The pc386 simulations do not build under v5.054 yet (#1678)."
 
 [tool.openfpgaloader]
 repo = "https://github.com/trabucayre/openFPGALoader.git"

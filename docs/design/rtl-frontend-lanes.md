@@ -624,7 +624,7 @@ S1b records the actual install, build string and licence state on both hosts. Th
 
 ### Verilator
 
-The locked 5e4151e3 hits an internal error at `fes_i386_seq.sv:317`. Recent evidence used the unlocked system Verilator 5.020 and 5.032 with `-Wno-fatal` (`docs/validation/2026-11-02-i386-cs-limit/summary.md:86-94`). The lock moves forward (S3) before lockstep becomes a producer gate.
+The i386 lock's old 5e4151e3 hit an internal error at `fes_i386_seq.sv:317`, so earlier evidence used the unlocked system Verilator 5.020 and 5.032 with `-Wno-fatal` (`docs/validation/2026-11-02-i386-cs-limit/summary.md:86-94`). S3 (#1653) moved the i386 lock to v5.054, and the i386 sims take it from that lock's slot. The pc386 lock follows (#1660); the pc386 sims still take the system Verilator until they build under v5.054 (#1678).
 
 ## Implementation plan
 
