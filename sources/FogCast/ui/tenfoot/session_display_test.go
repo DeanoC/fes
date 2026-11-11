@@ -867,7 +867,7 @@ func TestKitSelectStartKeepsStopPriority(t *testing.T) {
 	now := time.Now()
 	app.HandleLocalPad(remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Code: remoteinput.ButtonSelect, Action: remoteinput.ActionPress}, now)
 	app.HandleLocalPad(remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Code: remoteinput.ButtonStart, Action: remoteinput.ActionPress}, now.Add(time.Millisecond))
-	app.Tick(now.Add(time.Millisecond + localChordHold))
+	app.Tick(now.Add(time.Millisecond + sessionStopChordHold))
 	waitFor(t, app, "chord Stop", func(s Snapshot) bool { return s.Session.State == "idle" })
 	if stops.Load() != 1 || displays.Load() != 0 || feed.saw(remoteinput.ButtonSelect, remoteinput.ActionPress) || feed.saw(remoteinput.ButtonStart, remoteinput.ActionPress) {
 		t.Fatal("Select/View opened controls or reached core ahead of Stop chord")

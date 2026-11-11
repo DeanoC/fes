@@ -45,7 +45,6 @@ type Service interface {
 
 type gameResult struct {
 	ID               string              `json:"id"`
-	ROMSHA256        string              `json:"rom_sha256,omitempty"`
 	Title            string              `json:"title"`
 	System           protocol.System     `json:"system"`
 	CoreID           string              `json:"core_id,omitempty"`
@@ -715,16 +714,6 @@ func New(service Service, options ...ServerOption) http.Handler {
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "INTERNAL", "catalog is unavailable")
 			return
-		}
-		// The ROM hash reads source bytes, so only callers that ask for it
-		// (the kit's local cartridge match) pay for it.
-		if hasher, ok := service.(interface {
-			NativeSMSROMHash(context.Context, catalog.Game) (string, error)
-		}); ok && r.URL.Query().Get("rom_sha256") == "1" {
-			result.ROMSHA256, err = hasher.NativeSMSROMHash(r.Context(), game)
-			if err != nil {
-				result.ROMSHA256 = ""
-			}
 		}
 		writeJSON(w, http.StatusOK, result)
 	})

@@ -1,21 +1,15 @@
 package localcores
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
-	"strings"
 )
 
 // Handler is the no-bearer local-control API.
 func Handler(service *Service) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/local/status", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, service.RunStatus())
-	})
 	mux.HandleFunc("GET /v1/local/cores", func(w http.ResponseWriter, r *http.Request) {
 		// An unreadable durable library is HTTP 200 and an empty list.
 		// Bearer /v1/core-packages uses HTTP 503 for that failure.
@@ -42,87 +36,7 @@ func Handler(service *Service) http.Handler {
 		}
 		writeJSON(w, http.StatusOK, cores)
 	})
-	mux.HandleFunc("POST /v1/local/cores/{package_id}/launch", func(w http.ResponseWriter, r *http.Request) {
-		core, err := launchFromRequest(service, r)
-		if err != nil {
-			writeServiceError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, struct {
-			OK         bool   `json:"ok"`
-			PackageID  string `json:"package_id"`
-			CoreID     string `json:"core_id"`
-			Generation string `json:"generation"`
-		}{true, core.PackageID, core.CoreID, core.Generation})
-	})
-	mux.HandleFunc("POST /v1/local/stop", func(w http.ResponseWriter, r *http.Request) {
-		var body struct {
-			ExpectedGeneration string `json:"expected_generation"`
-		}
-		data, readErr := io.ReadAll(io.LimitReader(r.Body, 4097))
-		if readErr != nil || len(data) > 4096 || json.Unmarshal(data, &body) != nil || !sha256Hex(body.ExpectedGeneration) {
-			writeLocalError(w, http.StatusConflict, "in_use")
-			return
-		}
-		if err := service.Stop(r.Context(), body.ExpectedGeneration); err != nil {
-			writeServiceError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, struct {
-			OK bool `json:"ok"`
-		}{true})
-	})
 	return mux
-}
-
-// launchFromRequest keeps an empty body on the package launch. JSON
-// library_root and relative_path names one file under that library.
-// The agent opens it from a directory handle on the root. It does not
-// open a network connection.
-func launchFromRequest(service *Service, r *http.Request) (LaunchResult, error) {
-	data, err := io.ReadAll(io.LimitReader(r.Body, 4096))
-	if err != nil {
-		return LaunchResult{}, errUnavailable
-	}
-	if len(bytes.TrimSpace(data)) == 0 {
-		return service.Launch(r.Context(), r.PathValue("package_id"))
-	}
-	var body struct {
-		ROMPath      string `json:"rom_path"`
-		LibraryRoot  string `json:"library_root"`
-		RelativePath string `json:"relative_path"`
-	}
-	if json.Unmarshal(data, &body) != nil {
-		return LaunchResult{}, errUnavailable
-	}
-	// rom_path was the absolute path. It is not opened. A body that still
-	// sends it must not fall through to a bare-core launch.
-	if strings.TrimSpace(body.ROMPath) != "" {
-		return LaunchResult{}, errUnavailable
-	}
-	if strings.TrimSpace(body.LibraryRoot) == "" && strings.TrimSpace(body.RelativePath) == "" {
-		return service.Launch(r.Context(), r.PathValue("package_id"))
-	}
-	rom, err := readCartridgeFile(body.LibraryRoot, body.RelativePath)
-	if err != nil {
-		return LaunchResult{}, err
-	}
-	return service.LaunchCartridge(r.Context(), r.PathValue("package_id"), rom)
-}
-
-func writeServiceError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, errNotFound):
-		writeLocalError(w, http.StatusNotFound, "not_found")
-	case errors.Is(err, errBlocked):
-		writeLocalError(w, http.StatusConflict, "blocked")
-	case errors.Is(err, errInUse):
-		writeLocalError(w, http.StatusConflict, "in_use")
-	case errors.Is(err, errWarming):
-		writeLocalError(w, http.StatusServiceUnavailable, "warming")
-	default:
-		writeLocalError(w, http.StatusServiceUnavailable, "unavailable")
-	}
 }
 
 func writeLocalError(w http.ResponseWriter, status int, code string) {

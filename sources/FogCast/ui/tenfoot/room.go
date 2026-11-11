@@ -681,7 +681,7 @@ func (a *App) tickRoomLocked(now time.Time) {
 	a.room.SetSessionState(a.session.State)
 	a.room.SetLiveControls(a.liveControlsOfferedLocked())
 	a.room.SetOverlay(a.roomOverlayLocked())
-	if a.gpuParked || a.localPresentsPaused {
+	if a.gpuParked {
 		a.roomWasParked = true
 		return
 	}

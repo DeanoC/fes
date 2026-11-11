@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -131,6 +132,52 @@ func TestRoomDestinationPanelAndConfirmStates(t *testing.T) {
 	snap = waitFor(t, app, "parent", func(s Snapshot) bool { return s.Room.Open && s.Room.ID == "overworld" })
 	if snap.RoomPicker.Open {
 		t.Fatal("back from nested must restore the parent room, not the picker")
+	}
+}
+
+func TestPairedSharedHostDoesNotPromoteKitHostSMSCartridge(t *testing.T) {
+	h := newRoomHost(t)
+	pack := testRoomPack(t, "paired-sms", `
+function load()
+  destination.set({ kind = "game", label = "SMS Game", matches = {
+    { id = "sms-game", title = "SMS Game", system = "sms", state = "available", launchable = false },
+  }})
+end
+function draw() end
+`)
+	app := newRoomApp(t, h, rooms.NewIndex([]rooms.Pack{pack}), false, true)
+	app.SetKitLocal(&fakeLocalCores{cores: []localcores.Core{{CoreID: "fes.sms"}}}, &fakePadFeed{})
+	if app.kitHost || !app.client.paired {
+		t.Fatalf("test requires paired shared-host mode: kitHost=%v paired=%v", app.kitHost, app.client.paired)
+	}
+	app.mu.Lock()
+	_, installed := app.localInstalled["fes.sms"]
+	known, hasCores, hasFeed := app.localInstallKnown, app.localCores != nil, app.localFeed != nil
+	app.openRoomLocked("paired-sms")
+	app.mu.Unlock()
+	if !known || !installed || !hasCores || !hasFeed {
+		t.Fatalf("test setup missing local SMS inventory or feed: known=%v installed=%v cores=%v feed=%v", known, installed, hasCores, hasFeed)
+	}
+
+	snap := waitFor(t, app, "paired SMS room", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.ID == "paired-sms" && s.Room.Destination.Kind == rooms.KindGame
+	})
+	dest := snap.Room.Destination
+	game, ok := dest.Game()
+	if !ok || !game.KitHostCartridgeEligible() {
+		t.Fatalf("test row is not an eligible browse-only SMS cartridge: game=%+v ok=%v destination=%+v", game, ok, dest)
+	}
+	if dest.Availability == rooms.AvailReady || dest.KitHostCartridge {
+		t.Fatalf("paired shared host promoted kit-local cartridge readiness: %+v", dest)
+	}
+	if dest.Confirm() == rooms.ConfirmLaunchKitCartridge {
+		t.Fatalf("paired shared host offered kit-local cartridge Play: %+v", dest)
+	}
+
+	app.HandleCommand(CmdSelect, time.Now())
+	snap = app.Snapshot()
+	if snap.Launch.Phase == "launching" || snap.Launch.Phase == "ok" || h.launchCount() != 0 {
+		t.Fatalf("paired shared-host confirm launched browse-only game: launch=%+v requests=%d", snap.Launch, h.launchCount())
 	}
 }
 

@@ -140,7 +140,7 @@ func (a *App) sessionReturnDisplayLocked() protocol.SessionDisplay {
 // input. Launcher transitions, an uncertain plane and Stop take precedence.
 func (a *App) syncSurroundLocked() {
 	if a.menuDisplay == nil || a.session.State != "active" || a.sessionDisplayBusy || a.sessionDisplayUncertain ||
-		a.roomDuringPlay || a.launcherDisplayFocusedLocked() || a.stopPhase == "stopping" || a.retryStopLock || a.localPresentsPaused {
+		a.roomDuringPlay || a.launcherDisplayFocusedLocked() || a.stopPhase == "stopping" || a.retryStopLock {
 		return
 	}
 	if want := a.sessionReturnDisplayLocked(); want != a.sessionDisplayLocked() {

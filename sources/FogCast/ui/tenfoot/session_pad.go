@@ -9,7 +9,7 @@ import (
 func (a *App) coreOwnsPadInput() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.localCoreBusyLocked() || a.needsSessionDisplayLocked() && a.session.State == "active" && (!a.roomDuringPlay || a.sessionDisplayBusy)
+	return a.needsSessionDisplayLocked() && a.session.State == "active" && (!a.roomDuringPlay || a.sessionDisplayBusy)
 }
 
 // sessionKeypadLocked is a running machine with keypad ports, such as the
@@ -177,7 +177,7 @@ func (a *App) sessionPadLocked(e remoteinput.Event, now time.Time) (bool, []remo
 }
 
 func (a *App) tickSessionPadLocked(now time.Time) {
-	if a.session.State != "active" || a.playPadChordFired || a.playPadChordSince.IsZero() || now.Sub(a.playPadChordSince) < localChordHold {
+	if a.session.State != "active" || a.playPadChordFired || a.playPadChordSince.IsZero() || now.Sub(a.playPadChordSince) < sessionStopChordHold {
 		return
 	}
 	a.playPadChordFired = true

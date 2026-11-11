@@ -42,13 +42,8 @@ func TestNonHeroRoomFooterShowsActionableStatusOnly(t *testing.T) {
 		want  string
 	}{
 		{name: "routine health and lease are hidden"},
-		{name: "local launch checking", setup: func(s *Snapshot) { s.Status = localLaunchCheckingCopy }, want: localLaunchCheckingCopy},
 		{name: "settings unavailable during play", setup: func(s *Snapshot) { s.Status = "Settings are unavailable during play." }, want: "Settings are unavailable during play."},
 		{name: "unsupported action", setup: func(s *Snapshot) { s.Status = "That action is not available." }, want: "That action is not available."},
-		{name: "local core status", setup: func(s *Snapshot) {
-			s.Status = "ZX Spectrum is still starting."
-			s.LocalCoreStatus = s.Status
-		}, want: "ZX Spectrum is still starting."},
 		{name: "Coleco session notice", setup: func(s *Snapshot) {
 			s.Room.DuringPlay = true
 			s.Room.Notice = colecoCartridgeSessionStatus

@@ -46,7 +46,6 @@ type serverOptions struct {
 	development         DevelopmentController
 	diagnostics         DiagnosticController
 	update              *applianceupdate.Service
-	kitLocal            func() KitLocalRun
 }
 
 type Option func(*serverOptions)

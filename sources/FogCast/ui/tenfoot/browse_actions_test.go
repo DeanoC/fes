@@ -151,7 +151,7 @@ func TestHomeHeroActionsFollowSpatialDirectionsWithoutMovingSelection(t *testing
 			}
 			app.HandleCommand(CmdRight, time.Now())
 			app.HandleCommand(CmdSelect, time.Now())
-			if snap := app.Snapshot(); !snap.Room.HeroDetail || fake.launchCount() != 0 {
+			if snap := app.Snapshot(); !snap.Room.HeroDetail || app.Snapshot().Launch.Phase == "launching" {
 				t.Fatalf("Details action launched or failed to open: %+v", snap.Room)
 			}
 			app.HandleCommand(CmdBack, time.Now())
@@ -172,8 +172,8 @@ func TestHomeHeroActionsFollowSpatialDirectionsWithoutMovingSelection(t *testing
 			// Ordinary Confirm on a family opens its workbench.
 			app.HandleCommand(CmdSelect, time.Now())
 			waitFor(t, app, "workbench", func(s Snapshot) bool { return s.Room.ID == hardwareRoomID })
-			if fake.launchCount() != 0 {
-				t.Fatalf("Open launched %d cores", fake.launchCount())
+			if app.Snapshot().Launch.Phase == "launching" {
+				t.Fatalf("Open started a launch: %s", app.Snapshot().Launch.Phase)
 			}
 		})
 	}
@@ -211,8 +211,8 @@ func TestReadyHomeActionsDoNotWaitForUnrelatedLibraryLoad(t *testing.T) {
 			}
 			app.HandleCommand(CmdRight, time.Now())
 			app.HandleCommand(CmdSelect, time.Now())
-			if snap := app.Snapshot(); !snap.Room.HeroDetail || fake.launchCount() != 0 || !snap.Loading {
-				t.Fatalf("pending library blocked Home Details or changed launch state: detail=%v launches=%d loading=%v", snap.Room.HeroDetail, fake.launchCount(), snap.Loading)
+			if snap := app.Snapshot(); !snap.Room.HeroDetail || app.Snapshot().Launch.Phase == "launching" || !snap.Loading {
+				t.Fatalf("pending library blocked Home Details or changed launch state: detail=%v launch=%s loading=%v", snap.Room.HeroDetail, app.Snapshot().Launch.Phase, snap.Loading)
 			}
 		})
 	}
@@ -242,8 +242,8 @@ func TestHomeHeroActionsRejectAChangedDestination(t *testing.T) {
 	app.mu.Unlock()
 	app.HandleCommand(CmdSelect, time.Now())
 	snap := app.Snapshot()
-	if fake.launchCount() != 0 || snap.Room.HeroDetail || snap.Room.ID != installedCoresHomeID || snap.Status != staleBrowseActionStatus {
-		t.Fatalf("stale Home action activated replacement: status=%q launches=%d", snap.Status, fake.launchCount())
+	if app.Snapshot().Launch.Phase == "launching" || snap.Room.HeroDetail || snap.Room.ID != installedCoresHomeID || snap.Status != staleBrowseActionStatus {
+		t.Fatalf("stale Home action activated replacement: status=%q launch=%s", snap.Status, app.Snapshot().Launch.Phase)
 	}
 	if !snap.Room.Hero {
 		t.Fatal("expected Home hero room")

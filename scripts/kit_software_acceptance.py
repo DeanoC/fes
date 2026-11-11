@@ -16,7 +16,6 @@ import socket
 import threading
 import stat
 import subprocess
-import select
 import sys
 import tarfile
 import time
@@ -158,37 +157,14 @@ def command_file(path):
     return {'argv': argv, 'sha256': hashlib.sha256(raw).hexdigest()}
 
 
-def external(command, timeout, *, output=False):
+def external(command, timeout):
     # No shell or arbitrary command output in public receipts.
     process = None
     try:
         process = subprocess.Popen(command['argv'], stdin=subprocess.DEVNULL,
-                                   stdout=subprocess.PIPE if output else subprocess.DEVNULL,
-                                   stderr=subprocess.DEVNULL, shell=False)
-        until = time.monotonic() + timeout
-        raw = b''
-        if output:
-            os.set_blocking(process.stdout.fileno(), False)
-            while True:
-                remaining = until - time.monotonic()
-                if remaining <= 0:
-                    raise subprocess.TimeoutExpired(command['argv'][0], timeout)
-                ready, _, _ = select.select([process.stdout], [], [], min(.05, remaining))
-                if not ready:
-                    continue
-                chunk = os.read(process.stdout.fileno(), 4097 - len(raw))
-                if not chunk:
-                    break
-                raw += chunk
-                require(len(raw) <= 4096, 'local probe response exceeds limit')
-        code = process.wait(timeout=max(.001, until-time.monotonic()))
-        result = {'outcome': 'exited', 'exit_code': code, 'command_sha256': command['sha256']}
-        if output:
-            value = json.loads(raw)
-            require(isinstance(value, dict) and value.get('http_status') == 409 and
-                    value.get('error') in ('in_use', 'blocked'), 'local probe did not report a busy launch')
-            result['probe'] = {'http_status': 409, 'error': value['error']}
-        return result
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=False)
+        code = process.wait(timeout=timeout)
+        return {'outcome': 'exited', 'exit_code': code, 'command_sha256': command['sha256']}
     except subprocess.TimeoutExpired:
         return {'outcome': 'timeout', 'command_sha256': command['sha256']}
     except OSError:
@@ -197,8 +173,6 @@ def external(command, timeout, *, output=False):
         if process is not None:
             if process.poll() is None:
                 process.kill(); process.wait()
-            if process.stdout is not None:
-                process.stdout.close()
 
 
 class Evidence:
@@ -275,7 +249,7 @@ class Runner:
         self.generation = None
         self.stages = {name: {'status': 'skipped'} for name in
                        ('held_install', 'competing_client', 'queue_cancel', 'requester_exit',
-                        'retained_stop', 'activation', 'local_busy', 'reboot', 'recovery',
+                        'retained_stop', 'activation', 'reboot', 'recovery',
                         'core_inventory', 'input', 'hdmi')}
         self.client.deadline = time.monotonic() + args.timeout
 
@@ -580,7 +554,7 @@ class Runner:
             if self.session.thread:
                 self.session.thread.join(timeout=20)
 
-    def run(self, frozen, recovery_frozen, reboot_command, local_command):
+    def run(self, frozen, recovery_frozen, reboot_command):
         try:
             sw, lease, h, native = self.snapshot('baseline')
             self.boot = h['boot_id']
@@ -614,15 +588,6 @@ class Runner:
             self.install(frozen, self.args.candidate)
             self.stages['held_install'] = {'status': 'passed', 'candidate': self.args.candidate,
                                            'selection_unchanged_while_held': True}
-            if local_command:
-                self.phase = 'local-busy'
-                self.held()
-                probe = external(local_command, max(.001, min(20, self.client.deadline-time.monotonic())), output=True)
-                require(probe.get('exit_code') == 0 and probe.get('probe', {}).get('http_status') == 409 and
-                        probe['probe'].get('error') in ('in_use', 'blocked'), 'local probe did not report busy')
-                self.held()
-                self.stages['local_busy'] = {'status': 'passed', 'scope': 'external busy-only probe; no local launch claim',
-                                             'command_sha256': local_command['sha256']}
             self.phase = 'queue-cancel'
             first = self.request_for(self.args.candidate)
             self.queue(first)
@@ -711,7 +676,6 @@ def parser():
     p.add_argument('--recovery-bundle', type=Path)
     p.add_argument('--expected-recovery-sha256')
     p.add_argument('--reboot-command-file', type=Path)
-    p.add_argument('--local-command-file', type=Path)
     p.add_argument('--timeout', type=float, default=600, help='total seconds before bounded cleanup (default 600)')
     p.add_argument('--execute', action='store_true')
     return p
@@ -733,7 +697,7 @@ def main(argv=None):
             require(DIGEST.fullmatch(args.recovery_candidate) and DIGEST.fullmatch(args.expected_recovery_sha256), 'invalid recovery identities')
             require(args.recovery_candidate != args.candidate, 'failing recovery candidate must differ from accepted candidate')
         require(0 < args.timeout <= 1800, 'timeout must be between zero and 1800 seconds')
-        reboot = command_file(args.reboot_command_file); local = command_file(args.local_command_file)
+        reboot = command_file(args.reboot_command_file)
         evidence = Evidence(args.evidence_dir)
         bundle = evidence.freeze(args.bundle, args.expected_bundle_sha256, args.candidate, 'candidate')
         active_manifest([{'id': args.candidate, 'manifest': bundle[2]}], args.candidate)
@@ -741,7 +705,7 @@ def main(argv=None):
         if bad:
             active_manifest([{'id': args.recovery_candidate, 'manifest': bad[2]}], args.recovery_candidate)
         client = load_target(args.config, args.expected_target_id)
-        success = Runner(args, client, evidence).run(bundle, bad, reboot, local)
+        success = Runner(args, client, evidence).run(bundle, bad, reboot)
         if not success:
             print('Diagnostic failed: inspect failure/cleanup records and current ownership. Private maintenance recovery material, if created, is under the evidence directory/private. No automatic restore or mutation retry.', file=sys.stderr)
         return 0 if success else 1

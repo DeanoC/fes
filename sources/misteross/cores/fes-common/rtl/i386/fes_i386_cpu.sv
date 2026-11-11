@@ -517,9 +517,11 @@ module fes_i386_cpu #(
     end
     // A delivery refetches from the faulting instruction, or the one before
     // (start_linear is a cycle old), which the delivery's far jump discards.
-    // D's EIP is the faulting instruction's, limit+1 on a fetch fault, so it
-    // passes at the entry's length 0. Real-mode delivery redirects also cut
-    // out-of-range EIPs to the low 16-bit IP. An interrupt's EIP is the next
+    // D's EIP is the faulting instruction's, a fetch fault's too (its first
+    // byte, which may be under the limit when the instruction runs past it),
+    // and the delivery's entry fetches nothing, so it is not checked against
+    // CS's limit. Every real-mode delivery's redirect restarts at the low 16
+    // bits of EIP, the IP its frame pushes. An interrupt's EIP is the next
     // instruction's. The address selects key on WB's fault field and int_take,
     // registers (a taken branch has neither), so
     // the fetch address stays off exc_take's path.
@@ -951,6 +953,12 @@ module fes_i386_cpu #(
     assign mem = mkind != fes_i386_pkg::MEM_NONE;
     assign mem_reads = mkind == fes_i386_pkg::MEM_LOAD || mkind == fes_i386_pkg::MEM_RMW;
     assign mem_writes = mkind == fes_i386_pkg::MEM_STORE || mkind == fes_i386_pkg::MEM_RMW;
+    // XCHG m's load of its operand (into T1, before its store): checked
+    // against the segment as a write, and translated as one (wx), as Bochs
+    // reads it for a read-modify-write, so a segment its store cannot write
+    // raises #GP(0) or #SS(0) before the load's #PF (#1644).
+    logic xchg_ld;
+    assign xchg_ld = mkind == fes_i386_pkg::MEM_LOAD && !dc.gov.two && (dc.gov.op == 8'h86 || dc.gov.op == 8'h87);
     assign addr_use = a_addr;
     assign mseg = 3'(dc.uop.mem.seg);
     assign msize = dc.uop.mem.bytes[2] ? 2'd2 : dc.uop.mem.bytes[1] ? 2'd1 : 2'd0;
@@ -971,11 +979,12 @@ module fes_i386_cpu #(
     // A far transfer's selector and offset, from the instruction or from T0
     // and T1. An offset past CS's limit, the limit before the transfer as
     // Bochs checks a real-mode one, raises #GP(0) at the uop that checks it
-    // (far_chk; CALL r/m's too, a near call to T1), before anything is
-    // written: at a far CALL's probe, ahead of the probe's own check, as
-    // Bochs checks before it pushes; at any other uop (CALL r/m's push,
-    // RETF's jump, IRET's FLAGS read) after the uop's own checks, at M1
-    // (cs_late), as Bochs pushes or pops first. A protected-mode transfer
+    // (far_chk), before anything is written: at a far CALL's probe, ahead of
+    // the probe's own check, as Bochs checks before it pushes; at any other
+    // uop (RETF's jump, IRET's FLAGS read) after the uop's own checks, at M1
+    // (cs_late), as Bochs pops first. CALL r/m's push checks T1, a near
+    // call's target, the same way, but only to leave ESP as it was (cpast):
+    // it pushes, and its jump raises the #GP(0). A protected-mode transfer
     // checks its offset against the held descriptor's limit (CHK_HOFF).
     logic [15:0] far_sel;
     logic [31:0] far_off;
@@ -985,6 +994,9 @@ module fes_i386_cpu #(
     // Bochs's EIP = new_eip & 0xffff.
     assign far_off = dc.far_t ? {dc.uop.v86 && !dc.uop.xfer ? 16'd0 : t1[31:16], t1[15:0]} : dc.uop.imm;
     assign far_bad = dc.far_chk && far_off > seg_limit[SEG_CS];
+    // CALL r/m's push checks T1 only to keep ESP (cpast): no fault, no stop.
+    logic chk_calli;
+    assign chk_calli = dc.seq == fes_i386_pkg::SEQ_CALLI;
     assign t_wait = dc.t_rd && t_busy;
     // A protected-mode segment load reads nothing for a null selector, and
     // writes the accessed bit only when the descriptor's is clear (T3's bit
@@ -1162,7 +1174,10 @@ module fes_i386_cpu #(
     assign consumes = dc.consumes;
     assign reads_seg = dc.reads_seg;
     assign seg_index = dc.seg_index;
-    assign stop = dc.xbad || d_ifw || !s_kill1 && (dc.stop || d_unimpl || cs_gp || far_bad || cr0_gp);
+    // A far transfer's offset past CS's limit faults at this uop, so D
+    // issues nothing after it; CALL r/m's push past it (cpast) does not, and
+    // its jump issues.
+    assign stop = dc.xbad || d_ifw || !s_kill1 && (dc.stop || d_unimpl || cs_gp || far_bad && !chk_calli || cr0_gp);
 
     // The producers in AG, M1, M2 and EX.
     logic [3:0]       prod_valid, prod_early, prod_sp;
@@ -1623,7 +1638,7 @@ module fes_i386_cpu #(
                     : dc.tss == 3'(fes_i386_pkg::TSS_BITMAP) ? tss_tiny_bm
                     : dc.uop.mem.system && dc.uop.desc == 3'd0 && !dc.sel_part && dc.tss == 3'd0
                       ? idt_tiny3 : !dc.uop.mem.system && !dc.nochk
-                        && (seg_tiny[mseg][msize] || mem_reads && seg_rbad[mseg] || mem_writes && seg_wbad[mseg]);
+                        && (seg_tiny[mseg][msize] || mem_reads && seg_rbad[mseg] || (mem_writes || xchg_ld) && seg_wbad[mseg]);
         d_out.mlow = d_nstk ? ds_chk.low : seg_low[mseg];
         d_out.mexpd = d_nstk ? ds_chk.expd : !dc.uop.mem.system && !dc.nochk && seg_expd[mseg];
         // Loads whose data nothing uses: probes, ENTER's last check, POP m's
@@ -1642,10 +1657,12 @@ module fes_i386_cpu #(
         // far jump, nor INTO's JNO to the next instruction), and CALL rel's
         // push, whose target AG works out (ag_call). A far transfer's offset
         // past the limit at a uop other than a probe, #GP(0) after the uop's
-        // own checks (cs_late).
+        // own checks (cs_late). CALL r/m's push, whose target T1 is past the
+        // limit, faults on none of it (cpast; see M1).
         d_out.tchk = u.cls == fes_i386_pkg::UOP_BRANCH && u.op < 5'd10 && !dc.far_jmp && !u.eoi_taken
                   || dc.seq == fes_i386_pkg::SEQ_CALL && dc.step == 3'd0;
-        d_out.cs_late = far_bad && stk != fes_i386_pkg::STK_PROBE;
+        d_out.cs_late = far_bad && stk != fes_i386_pkg::STK_PROBE && !chk_calli;
+        d_out.cpast = far_bad && chk_calli;
         // A string's first element with a count of 1 is the last, with no
         // REPE or REPNE exit; with a count of 0, a NOP that ends the
         // instruction.
@@ -1701,8 +1718,7 @@ module fes_i386_cpu #(
         d_out.ipp1 = dc.pp1;
         d_out.nx = d_out.nodata && !dc.str_fin && dc.stk != fes_i386_pkg::STK_PROBE;
         d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE
-                || mkind == fes_i386_pkg::MEM_LOAD && !dc.gov.two
-                   && (dc.gov.op == 8'h86 || dc.gov.op == 8'h87 || dc.gov.op == 8'h63);
+                || xchg_ld || mkind == fes_i386_pkg::MEM_LOAD && !dc.gov.two && dc.gov.op == 8'h63;
         if (d_ifw) begin
             d_out.ifw = 1'b1;
             d_out.pf_lin = d_ifw_lin;
@@ -1710,6 +1726,7 @@ module fes_i386_cpu #(
             d_out.nx = 1'b0;
             d_out.wx = 1'b0;
             d_out.cs_late = 1'b0;
+            d_out.cpast = 1'b0;
             d_out.tchk = 1'b0;
             d_out.dfault = fes_i386_pkg::FAULT_NONE;
             d_out.dbr = 1'b0;
@@ -1960,8 +1977,14 @@ module fes_i386_cpu #(
     // and LSL's result in b, from the staged descriptor.
     logic [2:0] m1_zk;
     // A near branch's target, or CALL rel's push's, past CS's limit (tchk):
-    // #GP(0) here for the push, after its own checks, as Bochs pushes
-    // first; EX raises it for a branch that is taken.
+    // EX raises #GP(0) for a branch that is taken. A near CALL's push whose
+    // target is past it (cpast: CALL rel's here, CALL r/m's from D) faults
+    // on none of it: it stores its slot, leaving ESP as it was (WB), and the
+    // CALL's jump, which checks the same target, raises the #GP(0). So the
+    // push's own faults come first and its bytes are written, as on the 386,
+    // whose microcode writes the slot (CALL cw: 075 OPR_W = EIP; WR) before
+    // it forms the target through CS's descriptor (076 DESCOD) and then
+    // writes ESP (077), and as in Bochs (#1510).
     logic m1_tpast;
     assign m1_tpast = m1_s.tchk && m1_s.target_eip > seg_limit[SEG_CS];
     assign m1_zk = m1_s.uop.cls == fes_i386_pkg::UOP_SEGMENT && m1_s.uop.op == 5'(fes_i386_pkg::SEGOP_ZF)
@@ -1987,12 +2010,11 @@ module fes_i386_cpu #(
             m1_out.uop.ctl.fault = m1_segchk;
             m1_out.uop.ctl.why = m1_why;
         end else if (m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
-            m1_out.uop.ctl.fault = m1_s.cs_late || m1_tpast && m1_s.uop.cls != fes_i386_pkg::UOP_BRANCH
-                                 ? fes_i386_pkg::FAULT_GP0 : m1_s.dfault;
-            m1_out.dfl = !(m1_s.cs_late || m1_tpast && m1_s.uop.cls != fes_i386_pkg::UOP_BRANCH)
-                      && m1_s.dfault != fes_i386_pkg::FAULT_NONE;
+            m1_out.uop.ctl.fault = m1_s.cs_late ? fes_i386_pkg::FAULT_GP0 : m1_s.dfault;
+            m1_out.dfl = !m1_s.cs_late && m1_s.dfault != fes_i386_pkg::FAULT_NONE;
         end
-        m1_out.tchk = m1_tpast;
+        m1_out.tchk = m1_tpast && m1_s.uop.cls == fes_i386_pkg::UOP_BRANCH;
+        m1_out.cpast = m1_s.cpast || m1_tpast && m1_s.uop.cls != fes_i386_pkg::UOP_BRANCH;
         case (m1_zk)
             3'd1: begin
                 m1_out.uop.imm[0] = ds_lar_ok;
@@ -2243,7 +2265,9 @@ module fes_i386_cpu #(
     // uop takes its physical pages from the L1D (M1's, or the walker's).
     always_comb begin
         m2_cap = capture(m2_s, 3'd2, wb_s.result);
-        if (l1d_replay && m2_cap.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
+        // A dfl uop the walker would have walked for, not the oldest,
+        // replays too: its #PF may come before its fault.
+        if (l1d_replay && (m2_cap.uop.ctl.fault == fes_i386_pkg::FAULT_NONE || m2_cap.dfl)) begin
             m2_cap.uop.ctl.fault = fes_i386_pkg::FAULT_REPLAY;
             m2_cap.txr = l1d_walked;
         end
@@ -2926,8 +2950,10 @@ module fes_i386_cpu #(
                 // faults part way leaves it at the instruction.
                 if (wb_eoi) eip <= wb_s.taken ? wb_s.target_eip : wb_s.eip_next;
                 // A stack operation's ESP, which a destination of ESP overrides;
-                // RETF's step, at the stack's width.
-                if (wb_s.uop.sp_write) gpr[4] <= wb_s.sp_new;
+                // RETF's step, at the stack's width. A near CALL's push whose
+                // target is past CS's limit (cpast) leaves ESP as it was for
+                // its jump's #GP(0).
+                if (wb_s.uop.sp_write && !wb_s.cpast) gpr[4] <= wb_s.sp_new;
                 if (wb_s.uop.sp_add)
                     gpr[4] <= ss32 ? gpr[4] + wb_s.sp_new : {gpr[4][31:16], gpr[4][15:0] + wb_s.sp_new[15:0]};
                 if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_GPR)

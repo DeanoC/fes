@@ -76,7 +76,7 @@ func TestSavedProfileRemapsThatPad(t *testing.T) {
 			if err := os.WriteFile(path, []byte(tc.prefs), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			a, _ := runningLocalApp(t)
+			a := runningLocalCoreApp(nil)
 			feed := &localPadRecorder{}
 			a.mu.Lock()
 			a.localFeed = feed
@@ -522,7 +522,8 @@ func TestFramebufferDpadRoutesToLocalCoreAndMenu(t *testing.T) {
 			a.mu.Lock()
 			a.games = []hostclient.Game{{ID: "a", Title: "A"}, {ID: "b", Title: "B"}}
 			a.grid.Count, a.grid.Columns = 2, 1
-			a.localPhase = localPhaseRunning
+			a.session.State = "active"
+			a.localCores = &fakeLocalCores{}
 			a.localFeed = feed
 			a.mu.Unlock()
 			in := &nativeInput{fd: 9}
@@ -540,7 +541,7 @@ func TestFramebufferDpadRoutesToLocalCoreAndMenu(t *testing.T) {
 				t.Fatalf("local release: %#v", feed.events)
 			}
 			a.mu.Lock()
-			a.localPhase = ""
+			a.session.State = "idle"
 			a.mu.Unlock()
 			before := a.Snapshot().Grid.Focus
 			tc.send(in, a, now.Add(2*time.Millisecond))
@@ -913,19 +914,6 @@ func fdsFor(path string) int {
 
 // runningLocalApp is a kit app whose local core is running with a known
 // generation, as after a successful kit-local launch.
-func runningLocalApp(t *testing.T) (*App, *fakeLocalCores) {
-	t.Helper()
-	fake := &fakeLocalCores{}
-	a := NewApp(nil, 1280, 720, 10)
-	a.mu.Lock()
-	a.localCores = fake
-	a.localPhase = localPhaseRunning
-	a.localLeaseGeneration = strings.Repeat("a", 64)
-	a.localPackageID = tenfootPongID
-	a.mu.Unlock()
-	return a, fake
-}
-
 func pollNative(t *testing.T, events ...[]byte) (*nativeInputs, func(*App)) {
 	t.Helper()
 	reader, writer, err := os.Pipe()
@@ -948,17 +936,6 @@ func pollNative(t *testing.T, events ...[]byte) (*nativeInputs, func(*App)) {
 	}
 }
 
-func waitStops(t *testing.T, fake *fakeLocalCores, want int) {
-	t.Helper()
-	deadline := time.Now().Add(testwait.Timeout)
-	for fake.stopCount() < want && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	if got := fake.stopCount(); got != want {
-		t.Fatalf("stops %d, want %d", got, want)
-	}
-}
-
 func TestSessionGuideKeepsColecoRoomAndCartridgeActionsDistinct(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -978,31 +955,6 @@ func TestSessionGuideKeepsColecoRoomAndCartridgeActionsDistinct(t *testing.T) {
 	}
 }
 
-func TestKitLocalCoreStopsOnOnePressOfF12OrGuide(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		code uint16
-	}{{"F12", nativeKeyF12}, {"Guide", 316}} {
-		t.Run(tc.name, func(t *testing.T) {
-			a, fake := runningLocalApp(t)
-			_, poll := pollNative(t, nativeTestEvent(1, tc.code, 1), nativeTestEvent(1, tc.code, 0))
-			poll(a)
-			waitStops(t, fake, 1)
-			a.mu.Lock()
-			gens := append([]string(nil), fake.stopGenerations...)
-			a.mu.Unlock()
-			if len(gens) != 1 || gens[0] != strings.Repeat("a", 64) {
-				t.Fatalf("stop was not generation-checked: %v", gens)
-			}
-			if a.Snapshot().Settings.Open {
-				t.Fatal("the stop press also reached the menu")
-			}
-		})
-	}
-}
-
-// Guide reaches the roomless host-session Stop through the same native evdev
-// path as a kit pad, including a pad whose Guide comes from the controller DB.
 func TestNativeGuideStopsRoomlessHostSession(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -1065,38 +1017,6 @@ func TestNativeGuideOpensPlayingRoomWithoutStopping(t *testing.T) {
 	}
 }
 
-func TestKitLocalStopRepeatWhileStoppingIsNotASecondStop(t *testing.T) {
-	a, fake := runningLocalApp(t)
-	a.mu.Lock()
-	a.localPhase = localPhaseStopping
-	a.mu.Unlock()
-	if !a.RequestLocalStop() {
-		t.Fatal("stopping core did not own the press")
-	}
-	time.Sleep(20 * time.Millisecond)
-	if fake.stopCount() != 0 {
-		t.Fatalf("repeat press sent another Stop: %d", fake.stopCount())
-	}
-}
-
-func TestKitLocalStopDuringLoadWaitsForTheRunningCore(t *testing.T) {
-	a := NewApp(nil, 1280, 720, 10)
-	a.mu.Lock()
-	a.localCores = &fakeLocalCores{}
-	a.localPhase = localPhaseLaunching
-	a.mu.Unlock()
-	if !a.RequestLocalStop() {
-		t.Fatal("loading core did not own the press")
-	}
-	a.mu.Lock()
-	deferred := a.localStopAfterStart
-	phase := a.localPhase
-	a.mu.Unlock()
-	if !deferred || phase != localPhaseLaunching {
-		t.Fatalf("stop during load: deferred=%v phase=%q", deferred, phase)
-	}
-}
-
 func TestEvdevF12OpensZX81SelectorWithoutPFiles(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("not a tape"), 0o644); err != nil {
@@ -1125,9 +1045,6 @@ func TestIdleF12LeavesTheMenuAlone(t *testing.T) {
 
 func TestGuideAndF12LeaveTheMenuAloneWithNoCore(t *testing.T) {
 	a := NewApp(nil, 1280, 720, 10)
-	if a.RequestLocalStop() {
-		t.Fatal("idle menu claimed a stop press")
-	}
 	_, poll := pollNative(t, nativeTestEvent(1, 316, 1), nativeTestEvent(1, 316, 0))
 	poll(a)
 	if !a.Snapshot().Settings.Open {
@@ -1169,41 +1086,8 @@ func TestMappedGuideFollowsTheDB(t *testing.T) {
 			t.Fatal("the DB's Guide did not open Settings")
 		}
 	})
-	t.Run("mapped Guide stops a kit-local core", func(t *testing.T) {
-		a, fake := runningLocalApp(t)
-		inputs, poll := pollNative(t, nativeTestEvent(1, 300, 1), nativeTestEvent(1, 300, 0))
-		inputs.devices[0].mapper = genericDualSense(t)
-		poll(a)
-		waitStops(t, fake, 1)
-		if a.Snapshot().Settings.Open {
-			t.Fatal("the stop press also reached the menu")
-		}
-	})
+
 }
 
 // PowerA's 0x200f entry binds guide and start both to its BTN_START. Start
 // reaches a kit-local core and does not stop it.
-func TestStartSharingAGuideBindingReachesLocalCore(t *testing.T) {
-	keys := make([]byte, 96)
-	for _, code := range []int{304, 305, 307, 308, 310, 311, 314, 315, 316, 317, 318} {
-		keys[code/8] |= 1 << uint(code%8)
-	}
-	a, fake := runningLocalApp(t)
-	feed := &localPadRecorder{}
-	a.mu.Lock()
-	a.localFeed = feed
-	a.mu.Unlock()
-	inputs, poll := pollNative(t, nativeTestEvent(1, 315, 1), nativeTestEvent(1, 315, 0))
-	inputs.devices[0].mapper = controller.NewMapper(controller.Device{Bus: 3, Vendor: 0x20d6, Product: 0x200f, Version: 0x0101, Keys: keys})
-	poll(a)
-	if len(feed.events) != 2 || feed.events[0].Code != remoteinput.ButtonStart || feed.events[0].Action != remoteinput.ActionPress ||
-		feed.events[1].Code != remoteinput.ButtonStart || feed.events[1].Action != remoteinput.ActionRelease {
-		t.Fatalf("local events: %#v", feed.events)
-	}
-	a.mu.Lock()
-	phase := a.localPhase
-	a.mu.Unlock()
-	if phase != localPhaseRunning || fake.stopCount() != 0 {
-		t.Fatalf("Start stopped the core: phase %q", phase)
-	}
-}

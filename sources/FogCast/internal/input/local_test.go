@@ -2,17 +2,20 @@ package input
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/bridge"
 	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
@@ -960,34 +963,68 @@ func TestLocalFrameDuringCoreReplacementDoesNotRebindRetiredGeneration(t *testin
 	}
 }
 
-// blockingInstalledControl accepts load_core and holds it until release is
-// closed. It does not inspect a package directory.
-type blockingInstalledControl struct {
+// blockingPackageControl holds the staged package load until release is closed.
+type blockingPackageControl struct {
 	entered chan struct{}
 	release chan struct{}
 	once    sync.Once
 }
 
-func (c *blockingInstalledControl) Protocol2Status(context.Context) (misterruntime.Protocol2Response, error) {
+func (c *blockingPackageControl) Protocol2Status(context.Context) (misterruntime.Protocol2Response, error) {
 	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
 }
-func (c *blockingInstalledControl) Protocol2Stop(context.Context) (misterruntime.Protocol2Response, error) {
+func (c *blockingPackageControl) Protocol2Stop(context.Context) (misterruntime.Protocol2Response, error) {
 	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
 }
-func (c *blockingInstalledControl) Protocol2LoadDevelopmentRBF(context.Context, string) (misterruntime.Protocol2Response, error) {
+func (c *blockingPackageControl) Protocol2LoadDevelopmentRBF(context.Context, string) (misterruntime.Protocol2Response, error) {
 	return misterruntime.Protocol2Response{}, errors.New("unexpected raw load")
 }
-func (c *blockingInstalledControl) LoadCore(context.Context, string, string) (misterruntime.Protocol2Response, error) {
+func (c *blockingPackageControl) InspectCore(_ context.Context, path, id string) (misterruntime.Protocol2Response, error) {
+	inspection, err := corepackage.InspectPackage(path)
+	if err != nil {
+		return misterruntime.Protocol2Response{}, err
+	}
+	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test",
+		InspectedPackage: &misterruntime.Protocol2Inspection{PackageID: id, Descriptor: inspection.Descriptor, Compatible: true}}, nil
+}
+
+func (c *blockingPackageControl) LoadCore(_ context.Context, path, id string) (misterruntime.Protocol2Response, error) {
+	inspection, err := corepackage.InspectPackage(path)
+	if err != nil {
+		return misterruntime.Protocol2Response{}, err
+	}
 	c.once.Do(func() { close(c.entered) })
 	<-c.release
 	generation := uint64(9)
 	return misterruntime.Protocol2Response{
 		Protocol: 2, OK: true, State: "running_development", Execution: "development", Version: "test",
-		Generation: &generation,
+		Generation: &generation, ActivePackage: &misterruntime.Protocol2ActivePackage{PackageID: id, Descriptor: inspection.Descriptor},
 	}, nil
 }
 
-func TestLocalFrameDuringLocalLaunchDoesNotRebindRetiredGeneration(t *testing.T) {
+func fixtureCoreArchive(t *testing.T) []byte {
+	t.Helper()
+	base := filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2")
+	dir := t.TempDir()
+	for _, file := range []struct{ src, dst string }{
+		{"manifests/valid-basic.toml", "manifest.toml"}, {"payloads/fes-fixture.rbf", "core.rbf"},
+	} {
+		data, err := os.ReadFile(filepath.Join(base, file.src))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, file.dst), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	archive, err := corepackage.CanonicalArchive(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return archive
+}
+
+func TestLocalFrameDuringPackageLaunchDoesNotRebindRetiredGeneration(t *testing.T) {
 	var mu sync.Mutex
 	var writes []portWrite
 	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(_ context.Context, id string, generation uint64, port, buttons uint8, keypad uint16) error {
@@ -1015,21 +1052,32 @@ func TestLocalFrameDuringLocalLaunchDoesNotRebindRetiredGeneration(t *testing.T)
 	var releaseOnce sync.Once
 	releaseLoad := func() { releaseOnce.Do(func() { close(release) }) }
 	t.Cleanup(releaseLoad)
-	control := &blockingInstalledControl{entered: make(chan struct{}), release: release}
+	control := &blockingPackageControl{entered: make(chan struct{}), release: release}
 	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond,
-		misterruntime.WithCoreReplacementBarrier(controller))
+		misterruntime.WithCorePackageRoot(t.TempDir()), misterruntime.WithCoreReplacementBarrier(controller))
+	archive := fixtureCoreArchive(t)
 	loadDone := make(chan error, 1)
-	go func() {
-		response, err := runtime.LoadInstalledCoreOwned(ctx, ctx, "/tmp/fes-pong", "abababababababababababababababababababababababababababababababab")
-		if err == nil && !response.OK {
-			err = errors.New("installed load was not ok")
+	finished := make(chan struct{})
+	t.Cleanup(func() {
+		releaseLoad()
+		<-finished
+		if _, apiErr := runtime.Stop(context.Background()); apiErr != nil {
+			t.Errorf("clean up staged package: %v", apiErr)
 		}
-		loadDone <- err
+	})
+	go func() {
+		defer close(finished)
+		_, _, apiErr := runtime.LoadCoreOwned(ctx, ctx, ctx, int64(len(archive)), bytes.NewReader(archive))
+		if apiErr != nil {
+			loadDone <- apiErr
+			return
+		}
+		loadDone <- nil
 	}()
 	select {
 	case <-control.entered:
 	case <-time.After(2 * time.Second):
-		t.Fatal("local launch did not reach load_core")
+		t.Fatal("package launch did not reach load_core")
 	}
 	// The replacement barrier still holds the lifecycle lock. ReleaseAll has
 	// cleared the old binding. A pad frame here must return without observing
@@ -1038,7 +1086,7 @@ func TestLocalFrameDuringLocalLaunchDoesNotRebindRetiredGeneration(t *testing.T)
 	released := len(writes)
 	mu.Unlock()
 	if sink.hasBinding() {
-		t.Fatal("local launch left the old binding in place")
+		t.Fatal("package launch left the old binding in place")
 	}
 	if err := controller.deliverLocal(ctx, gamepad(0, remoteinput.ButtonB, remoteinput.ActionPress, 0)); err != nil {
 		t.Fatal(err)
@@ -1048,14 +1096,14 @@ func TestLocalFrameDuringLocalLaunchDoesNotRebindRetiredGeneration(t *testing.T)
 		t.Fatal(err)
 	}
 	if sink.hasBinding() {
-		t.Fatal("local frame rebound a generation during local launch")
+		t.Fatal("local frame rebound a generation during package launch")
 	}
 	mu.Lock()
 	wrote := len(writes) != released
 	during := append([]portWrite(nil), writes[released:]...)
 	mu.Unlock()
 	if wrote {
-		t.Fatalf("local frame wrote during local launch: %+v", during)
+		t.Fatalf("local frame wrote during package launch: %+v", during)
 	}
 	releaseLoad()
 	select {
@@ -1064,10 +1112,10 @@ func TestLocalFrameDuringLocalLaunchDoesNotRebindRetiredGeneration(t *testing.T)
 			t.Fatal(err)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("local launch did not finish")
+		t.Fatal("package launch did not finish")
 	}
 	if sink.hasBinding() {
-		t.Fatal("local launch left the old binding")
+		t.Fatal("package launch left the old binding")
 	}
 	if err := controller.deliverLocal(ctx, gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err != nil {
 		t.Fatal(err)

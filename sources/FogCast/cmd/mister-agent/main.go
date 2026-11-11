@@ -522,10 +522,8 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		if updater != nil {
 			options = append(options, httpapi.WithUpdate(updater))
 		}
-		// Keep the same admission fence for the kit-local launcher.
 		localUpdater = updater
 	}
-	localProgram := &kitLocalProgram{}
 	leaseOptions, err := maintenanceLeaseOptions(dependencies)
 	if err != nil {
 		return errors.New("maintenance boot identity could not be verified")
@@ -538,7 +536,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			probe = native.RuntimeSocketOpen
 		}
 		cleanupErr := kitLeaseCleanup(cleanup, probe, 2*time.Second, cleanupPeripherals, func(ctx context.Context) (protocol.Status, *protocol.APIError) {
-			return stopLeasedRuntime(ctx, coordinator.Stop, native, localProgram)
+			return coordinator.Stop(ctx)
 		})
 		if errors.Is(cleanupErr, kitlease.ErrRuntimeUnreachable) {
 			slog.Warn("kit ownership cleanup: runtime socket unavailable")
@@ -558,35 +556,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	}
 
 	if dependencies.localControlSocket != "" {
-		native, ok := runtime.(*misterruntime.Runtime)
-		if !ok {
-			return errors.New("kit-local control requires the native runtime")
-		}
-		cores := localcores.New(leases, nativeLocalRuntime{runtime: native, program: localProgram}, localcores.Roots{
-			Selections: installedSelectionRoot,
-			Packages:   kitpackages.FactoryRoot,
-		})
-		if localUpdater != nil {
-			cores.SetAdmission(localUpdater.BeginOperation)
-		}
-
-		if softwareFence != nil {
-			cores.SetAdmission(func(ctx context.Context) (context.Context, func(), error) {
-				admitted, done, err := softwareFence.Begin(ctx)
-				if err != nil {
-					return nil, nil, err
-				}
-				if localUpdater == nil {
-					return admitted, done, nil
-				}
-				updateCtx, updateDone, err := localUpdater.BeginOperation(admitted)
-				if err != nil {
-					done()
-					return nil, nil, err
-				}
-				return updateCtx, func() { updateDone(); done() }, nil
-			})
-		}
+		cores := localcores.New(localcores.Roots{Selections: installedSelectionRoot, Packages: kitpackages.FactoryRoot})
 		if read := localCoreInventory(ctx, packages, coreLibraryError); read != nil {
 			cores.SetInventory(read)
 		}
@@ -599,10 +569,6 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			cores.Warm()
 		}
 		defer cores.Close()
-		options = append(options, httpapi.WithKitLocalRun(func() httpapi.KitLocalRun {
-			status := cores.RunStatus()
-			return httpapi.KitLocalRun{Phase: status.Phase, CoreID: status.CoreID}
-		}))
 		go func() {
 			err := localcores.Serve(ctx, dependencies.localControlSocket, localcores.Handler(cores))
 			if err != nil && ctx.Err() == nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, http.ErrServerClosed) {
