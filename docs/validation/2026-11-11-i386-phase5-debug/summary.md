@@ -82,8 +82,12 @@ breakpoint is reported exactly, as the 386 does with GE or LE set
 `scripts/test_fes_i386_lockstep.py` ran with every default (16 seeds of
 2,000 random programs, 16 of 500 protected-mode programs, 16 of 250
 task-switch programs, and now 16 of 250 debug programs, and the full corpus)
-at `c0a6a2682`, on the RTL and on the netlist of the i386 lock's Yosys
-(`0a7927bf`), with the lock's Verilator 5.054, on Powerboat:
+at `5a74d5598`: this branch with #1684's tip, main `25d5eec67` and the NMI
+fix (#1705, below) merged in. It ran on the RTL and on the netlist of the i386 lock's Yosys
+(`0a7927bf`), with the lock's Verilator 5.054, on Powerboat. The same runs at
+`c0a6a2682`, before those merges, passed too, with the same counts but for
+the protected-mode cases (398, the merges add `nmi-in-nmi-handler`,
+`ts-nmi-iret-link-null` and this slice's last three):
 
 | Part | RTL | Netlist |
 | --- | --- | --- |
@@ -94,17 +98,13 @@ at `c0a6a2682`, on the RTL and on the netlist of the i386 lock's Yosys
 | Debug programs (new) | 4,000 of 4,000 (2,185,253 retirements) | same |
 | Unbuilt encodings | 49,760, each stopped | same |
 | Directed cases | 77 of 77 | same |
-| Unreal, protected-mode, paging, no-387 and memory cases | 7, 398, 77, 1,933 and 27, all pass | same |
+| Unreal, protected-mode, paging, no-387 and memory cases | 7, 403, 77, 1,933 and 27, all pass | same |
 
 All 1,012 trace hashes match between the RTL and the netlist
 ([lockstep-report.json](lockstep-report.json),
 [lockstep-netlist-report.json](lockstep-netlist-report.json)). The random,
 protected-mode and task-switch programs' hashes are slice 4's: no program
-before this slice arms a breakpoint or sets TF. The three protected-mode
-cases added at `25dacd623` after this run (`db-popfd-rf`, `ts-tf-jmp`,
-`db-tf-none-enabled`; 401 in all) change only the testbench and pass on the
-RTL there.
-
+before this slice arms a breakpoint or sets TF. 
 **Debug programs** (`--debug-programs`, seeds from 5001, `FES_I386_DEBUG`):
 real-mode random programs with a #DB handler through vector 1 and blocks that
 arm instruction and data breakpoints and run stretches under TF (the
