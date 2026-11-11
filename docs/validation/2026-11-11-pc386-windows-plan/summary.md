@@ -139,7 +139,7 @@ rest at CPL 0.
 | V86 mode | entered by IRETD 621,160 times, at IOPL 3 (406 at IOPL 0, during start-up); CLI, STI, PUSHF, POPF and IRET run there 1.6M times without faulting; INT n through DPL-3 386 interrupt gates to CPL 0 (4,712) | slice 3 (V86) |
 | #UD | 613,278 from V86 code: WIN386's V86 call-backs and breakpoints are invalid opcodes by design. Also KRNL386's `0F FF` at CPL 3 and WIN386's `0F A6` probe in real mode | slice 3 delivers from V86; #UD for undefined encodings is not built ([#1701](https://github.com/DeanoC/fes/issues/1701)) |
 | I/O bitmap | 25,065 V86 accesses allowed and 2,812 trapped as #GP(0); 4,178 allowed and 401 trapped at CPL 3 in protected mode. One TSS, I/O map base 68h, limit 2069h | slice 3 (V86), Phase 2 slice 3 (#1535, CPL 3) |
-| Ring 3 | Windows' KRNL386, USER and GDI run at CPL 3: INT 30h to CPL 0 through a DPL-3 386 gate (124,571); INT 2Fh, 31h, 21h, 33h, 15h and 10h through DPL-3 286 trap gates to CPL-3 handlers (123,231); INT 28h through a DPL-0 gate as #GP(142h) (121,958); #NP on segment loads (3: demand-loaded segments) | Phase 2 slice 3, Phase 2's gates |
+| Ring 3 | Windows' KRNL386, USER and GDI run at CPL 3: INT 30h to CPL 0 through a DPL-3 386 gate (124,571); INT 2Fh, 31h, 21h, 33h, 15h and 10h through DPL-3 286 trap gates to CPL-3 handlers (123,231); INT 28h through a DPL-0 gate as #GP(142h) (121,958); #NP on segment loads (3, most likely segments loaded on demand) | Phase 2 slice 3, Phase 2's gates |
 | VMM calls | INT 20h at CPL 0 (1,358): VxD service calls, which the VMM patches in place on first use | Phase 2 delivery; self-modifying code under paging |
 | LAR, LSL, VERW | 14,887 LAR and 2,504 LSL at CPL 3 and 0; 12 VERW | Phase 2 slice 2 |
 | LIDT | 490,416 at CPL 0, and 1,675 SGDT | Phase 2 |
@@ -156,7 +156,6 @@ planned TLBs:
 | --- | ---: | ---: |
 | `wfw-386` | 3.034 | 3.294 |
 | DOS titles' worst ([Phase 5 plan](../2026-11-08-i386-phase5-plan/summary.md#tlb-sizes)) | 0.469 (Angband) | 1.095 (Master of Orion's prompt) |
-
 | `wfw-dosbox` (a DOS virtual machine from Program Manager) | 3.043 | 3.291 |
 
 Windows runs three working sets at once: the VMM's linear pages above
@@ -172,8 +171,8 @@ included):
 | Area | What Windows does | pc386 today |
 | --- | --- | --- |
 | Memory | HIMEM's XMS; DOS=HIGH; WIN386 takes the rest of the 16 MiB | 16 MiB is plenty for WfW 3.11 |
-| A20 | the 8042's output port (D1h) and port 92h, toggled 19 times; 2,566 reads of 92h | both built (#1386) |
-| PIT and PIC | 245,249 channel-0 latches (OUT 43h, 0) with 490,488 reads of 40h, and 245,246 IRR reads (OUT 20h, 0Ah; IN 20h): the timer and PIC VxDs reading time | built; every access is an ISA I/O at CPL 0, so its cost is the machine's ISA charge (#1362) |
+| A20 | the 8042's output port (D1h, once) and port 92h (19 writes, 2,566 reads) | both built (#1386) |
+| PIT and PIC | 245,245 channel-0 latches (OUT 43h, 0) with 490,488 reads of 40h, and 245,246 IRR reads (OUT 20h, 0Ah; IN 20h): the timer and PIC VxDs reading time | built; every access is an ISA I/O at CPL 0, so its cost is the machine's ISA charge (#1362) |
 | Interrupt vectors | VPICD moves the master PIC to 50h and the slave to 58h | built |
 | RTC and CMOS | registers 00h–3Fh read at start; NMI masked through bit 7 | built |
 | Keyboard and mouse | 8042 commands ADh/AEh, A8h and D4h: the PS/2 mouse through the 8042, Windows' own MOUSE.DRV and VMD | built; Program Manager shows the pointer |
@@ -209,8 +208,8 @@ Ranked by what blocks first:
    - WDCTRL's validation, for 32-bit disk access;
    - Sound Blaster 2.0 and AdLib drivers under Windows;
    - an x87 run of WIN87EM's emulation (pc386 has no FPU).
-6. **Other versions.** Windows 3.0 and 3.1 (standard mode, through DOSX and
-   a 286 DOS extender at CPL 3) and Windows 95 need media. Windows 95 also
+6. **Other versions.** Windows 3.0 and 3.1 (standard mode runs KRNL286 under
+   DOSX) and Windows 95 need media. Windows 95 also
    needs its setup run from a hard disk, since pc386 has no CD-ROM.
 
 Phase 5's slice 4 (task switches) and slice 5 (breakpoints and TF) are not
