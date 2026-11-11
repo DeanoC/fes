@@ -163,15 +163,15 @@ The firmware README says the floppy POST and INT 13h paths stay, and that the un
 
 3F6h stays the ATA device-control register. The 82077's 3F0h and 3F1h (PS/2 status A and B) read FFh, as an AT's do.
 
-**Commands.** These are the PC/XT set and the AT additions:
+**Commands.** These are the PC/XT set and the AT additions. Commands marked * are listed by their base code (bits 4–0); each is accepted with every modifier combination the modifier table below allows, and only those:
 
 | Command | Code |
 | --- | --- |
-| Read Data | 06h/46h/66h/E6h, MT and MFM honoured |
-| Write Data | 05h/45h/C5h |
-| Read Deleted Data, Write Deleted Data | 0Ch, 09h. Read as data with the CM bit; write as data. Images carry no deleted marks |
-| Read ID | 0Ah |
-| Format Track | 0Dh/4Dh (the BIOS sends 4Dh, `rombios.c:7893-7894`). Fills the track's sectors in the image with the fill byte; the guest's ID bytes must match the image geometry, or it ends with an error |
+| Read Data | 06h*. MT and MFM honoured |
+| Write Data | 05h*. MT and MFM honoured |
+| Read Deleted Data, Write Deleted Data | 0Ch*, 09h*. Read as data with the CM bit; write as data. Images carry no deleted marks |
+| Read ID | 0Ah* |
+| Format Track | 0Dh* (the BIOS sends 4Dh, `rombios.c:7893-7894`). Fills the track's sectors in the image with the fill byte; the guest's ID bytes must match the image geometry, or it ends with an error |
 | Recalibrate, Seek, Relative Seek | 07h, 0Fh, 8Fh/CFh |
 | Sense Interrupt Status, Sense Drive Status | 08h, 04h. ST3 carries WP, T0, two-side and ready |
 | Specify | 03h. SRT, HUT and HLT drive the step time; ND is honoured as DMA versus PIO |
