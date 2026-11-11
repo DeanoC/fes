@@ -100,7 +100,9 @@ a modified library:
   driver, WDCTRL, compares AH=08h with the INT 41h table, allows for the AT's
   reserved cylinder, and refused the disk at "phase 03"
   ([#1719](https://github.com/DeanoC/fes/issues/1719)). Partitions still reach
-  the last cylinder: reads and writes check the drive's own geometry.
+  the last cylinder: reads and writes check the drive's own geometry. A
+  one-cylinder disk reserves none, in AH=08h and AH=15h alike; upstream's
+  AH=15h reported it as empty.
 - `vgabios.c`: INT 10h AH=00h, the mode set, keeps every register but AL, as
   IBM's VGA BIOS does: the dispatcher saves ES, DS and the general registers
   around `biosfn_set_video_mode`. Upstream saved only DS, BX, CX and AX, so the
