@@ -47,7 +47,8 @@ func pipeKind(fd int) InputKind {
 func runningLocalCoreApp(feed localPadSender) *App {
 	a := NewApp(nil, 1280, 720, 10)
 	a.mu.Lock()
-	a.localPhase = localPhaseRunning
+	a.session.State = "active"
+	a.localCores = &fakeLocalCores{}
 	a.localFeed = feed
 	a.mu.Unlock()
 	return a
@@ -202,11 +203,11 @@ func TestUnpluggedPadReleasesOnlyItsPort(t *testing.T) {
 	feed := &localPadRecorder{}
 	a := runningLocalCoreApp(feed)
 	a.mu.Lock()
-	a.localPair.set(0, remoteinput.ButtonSelect, true)
-	a.localPair.set(1, remoteinput.ButtonSelect, true)
-	a.localPair.set(1, remoteinput.ButtonStart, true)
-	a.localChordSince = time.Now()
-	a.localSent = map[padKey]bool{{0, remoteinput.ButtonSelect}: true, {1, remoteinput.ButtonSelect}: true}
+	a.playPadPair.set(0, remoteinput.ButtonSelect, true)
+	a.playPadPair.set(1, remoteinput.ButtonSelect, true)
+	a.playPadPair.set(1, remoteinput.ButtonStart, true)
+	a.playPadChordSince = time.Now()
+	a.playPadSuppressed = map[padKey]bool{{0, remoteinput.ButtonSelect}: true, {1, remoteinput.ButtonSelect}: true}
 	a.mu.Unlock()
 	var fds [2]int
 	if err := unix.Pipe(fds[:]); err != nil {
@@ -227,11 +228,11 @@ func TestUnpluggedPadReleasesOnlyItsPort(t *testing.T) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.localPair.at(1) != (chordPair{}) || !a.localPair.at(0).selectDown || !a.localChordSince.IsZero() {
-		t.Fatalf("unplug left pad 2 chord state or cleared pad 1: %+v since=%v", a.localPair, a.localChordSince)
+	if a.playPadPair.at(1) != (chordPair{}) || !a.playPadPair.at(0).selectDown || !a.playPadChordSince.IsZero() {
+		t.Fatalf("unplug left pad 2 chord state or cleared pad 1: %+v since=%v", a.playPadPair, a.playPadChordSince)
 	}
-	if a.localSent[padKey{1, remoteinput.ButtonSelect}] || !a.localSent[padKey{0, remoteinput.ButtonSelect}] {
-		t.Fatalf("sent state after unplug: %v", a.localSent)
+	if a.playPadSuppressed[padKey{1, remoteinput.ButtonSelect}] || !a.playPadSuppressed[padKey{0, remoteinput.ButtonSelect}] {
+		t.Fatalf("sent state after unplug: %v", a.playPadSuppressed)
 	}
 	if len(inputs.devices) != 1 || inputs.devices[0] != first || inputs.freePlayer() != 1 {
 		t.Fatal("port 2 was not freed")
@@ -251,7 +252,7 @@ func TestPortlessPadIsMenuOnly(t *testing.T) {
 		t.Fatalf("portless pad reached the machine or the hidden menu: feed=%+v controls=%v", feed.events, in.controls)
 	}
 	a.mu.Lock()
-	a.localPhase = ""
+	a.session.State = "idle"
 	a.mu.Unlock()
 	in.button(a, ButtonSouth, 1, now)
 	if len(feed.events) != 0 || len(in.controls) != 1 {
@@ -397,23 +398,12 @@ func TestPortlessPadBReturnsAfterLostHDMIOpen(t *testing.T) {
 }
 
 // Guide is a system button: a pad without a port still stops a kit-local core.
-func TestPortlessPadGuideStopsAKitLocalCore(t *testing.T) {
-	a, fake := runningLocalApp(t)
-	inputs, poll := pollNative(t, nativeTestEvent(1, 316, 1), nativeTestEvent(1, 316, 0))
-	inputs.devices[0].kind = InputGamepad
-	inputs.devices[0].player = noLocalPlayer
-	poll(a)
-	waitStops(t, fake, 1)
-}
-
-// A pad without a port holds nothing at the machine, so unplugging it sends
-// nothing and leaves both ports alone.
 func TestUnpluggedPortlessPadSendsNothing(t *testing.T) {
 	feed := &localPadRecorder{}
 	a := runningLocalCoreApp(feed)
 	a.mu.Lock()
-	a.localSent = map[padKey]bool{{0, remoteinput.ButtonA}: true}
-	a.localPair.set(0, remoteinput.ButtonSelect, true)
+	a.playPadSuppressed = map[padKey]bool{{0, remoteinput.ButtonA}: true}
+	a.playPadPair.set(0, remoteinput.ButtonSelect, true)
 	a.mu.Unlock()
 	var fds [2]int
 	if err := unix.Pipe(fds[:]); err != nil {
@@ -429,7 +419,7 @@ func TestUnpluggedPortlessPadSendsNothing(t *testing.T) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if !a.localSent[padKey{0, remoteinput.ButtonA}] || !a.localPair.at(0).selectDown {
+	if !a.playPadSuppressed[padKey{0, remoteinput.ButtonA}] || !a.playPadPair.at(0).selectDown {
 		t.Fatal("portless unplug cleared pad 1's state")
 	}
 }

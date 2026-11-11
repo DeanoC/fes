@@ -15,11 +15,11 @@ marked *proposed* are not yet decided.
 
 - Each kit runs its own `fogcast-api` on `127.0.0.1:8787` and is its own
   owner. Its `fogcast-tenfoot` is an unpaired client of that loopback API. The
-  kit-local launch path (`internal/localcores`, the local cartridge loader,
-  the agent's `-local-control` launch, kit-local catalog serving) is deleted
-  in #863 slice 7, with its tests and docs. The separate, authenticated
-  launcher listener remains the only LAN control surface; it is not used by
-  the kit-local tenfoot client.
+  kit-local direct launch and cartridge loader have been removed. The agent's
+  root-only `-local-control` socket remains for installed-core inventory;
+  tenfoot launches through the kit host. The separate, authenticated launcher
+  listener remains the LAN control surface; the kit-local tenfoot client uses
+  the loopback host API instead.
 - Powerboat, a NAS and desktops are library and content sources. A source is
   never an owner; a second owning host is still refused (Q16).
 - The kit host has exactly one executor: its own agent at `127.0.0.1:8182`.

@@ -22,7 +22,7 @@ type systemExpansionState struct {
 }
 
 func (a *App) openSystemExpansionsLocked(action rooms.Action) {
-	if a.client == nil || a.session.State == "active" || hostclient.SessionKitLocal(a.session.State) || a.stopPhase == "stopping" || a.retryStopLock || a.launch.Phase == "launching" || a.localCoreBusyLocked() || a.localLaunchBlockedLocked() {
+	if a.client == nil || a.session.State == "active" || a.stopPhase == "stopping" || a.retryStopLock || a.launch.Phase == "launching" {
 		a.status = "Stop the machine before choosing its next setup."
 		return
 	}

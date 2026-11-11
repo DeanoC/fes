@@ -149,7 +149,7 @@ func (a *App) forgetPadLocked(player uint8, now time.Time) {
 			delete(a.playPadHeld, key)
 		}
 	}
-	for _, sent := range []map[padKey]bool{a.playPadSuppressed, a.localSent} {
+	for _, sent := range []map[padKey]bool{a.playPadSuppressed} {
 		for key := range sent {
 			if key.player == player {
 				delete(sent, key)
@@ -157,7 +157,6 @@ func (a *App) forgetPadLocked(player uint8, now time.Time) {
 		}
 	}
 	a.playPadPair.drop(player, &a.playPadChordSince, now)
-	a.localPair.drop(player, &a.localChordSince, now)
 }
 
 // suppressPadLocked swallows the rest of one pad's held buttons once its
@@ -185,9 +184,6 @@ func (a *App) portlessPadReachesMenu(code remoteinput.Code) bool {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.localUnownedRun || a.localCoreBusyLocked() {
-		return false
-	}
 	if !a.needsSessionDisplayLocked() || a.session.State != "active" {
 		return true
 	}

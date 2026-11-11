@@ -63,3 +63,23 @@ func TestTargetReadLoggingRetainsDebugDetailAndOperationalFailures(t *testing.T)
 		})
 	}
 }
+
+func TestStatusReadLogsSessionMetadataAtDebug(t *testing.T) {
+	var logs bytes.Buffer
+	gameID, system := "game-123", protocol.SystemPong
+	status := protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system}
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	handler := httpapi.New(&fakeController{status: status}, "bearer", "test", logger)
+	request := httptest.NewRequest(http.MethodGet, "/v1/status", nil)
+	request.Header.Set("Authorization", "Bearer bearer")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status read = %d", response.Code)
+	}
+	for _, field := range []string{`"route":"/v1/status"`, `"state":"active"`, `"game_id":"game-123"`, `"system":"pong"`} {
+		if !strings.Contains(logs.String(), field) {
+			t.Fatalf("request log %s does not contain %s", logs.String(), field)
+		}
+	}
+}

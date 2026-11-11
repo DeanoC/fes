@@ -126,14 +126,14 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 			snapped := time.Now()
 			skip, pauseErr := hold.skip(ctx, dev, snap)
 			if pauseErr != nil {
-				app.completeLocalLaunchHandoff(pauseErr)
+				app.completeHostLaunchHandoff(pauseErr)
 				if display, ok := dev.(*gfx.MenuDisplay); ok {
 					display.Resume()
 				}
 				hold.armed = false
 				hold.paused = false
 			} else if hold.paused {
-				app.completeLocalLaunchHandoff(nil)
+				app.completeHostLaunchHandoff(nil)
 			}
 			_, menuDevice := dev.(*gfx.MenuDisplay)
 			app.reportSessionReady(menuDevice && skip && pauseErr == nil && hold.paused, snap.sessionObservation)
@@ -473,13 +473,7 @@ devices:
 								app.Press(command, now)
 							} else if app.coreOwnsPadInput() {
 								app.NoteInput(InputGamepad, in.fd)
-								// Guide is a launcher button, never sent to a core:
-								// on a kit-local core it is the one-press Stop.
-								// A host session with no playing room takes the
-								// same Stop (#1561).
-								if !app.RequestLocalStop() {
-									app.RequestRoomlessStop(now)
-								}
+								app.RequestRoomlessStop(now)
 							} else {
 								app.NoteInput(InputGamepad, in.fd)
 								in.setButton(code, CmdSettings, true)
@@ -778,8 +772,8 @@ func (ins *nativeInputs) key(app *App, in *nativeInput, code uint16, value int32
 	return in.key(app, code, value, now)
 }
 
-// nativeKeyF12 is MiSTer's menu key. A kit-local core treats a press as Stop.
-// A host session that can change removable media opens that selector instead,
+// nativeKeyF12 is MiSTer's menu key. A host session that can change
+// removable media opens that selector,
 // including when the library has no .p files yet; otherwise it opens the
 // playing room, and with no room it stops the session. The key is never
 // forwarded.
@@ -787,13 +781,6 @@ const nativeKeyF12 = 88
 
 func (in *nativeInput) key(app *App, code uint16, value int32, now time.Time) bool {
 	if code == nativeKeyF12 {
-		if app.localCoreOwnsInput() {
-			if value == 1 {
-				app.NoteInput(InputKeyboard, in.fd)
-				app.RequestLocalStop()
-			}
-			return false
-		}
 		if value == 2 {
 			return false
 		}
@@ -1191,15 +1178,11 @@ func releasePortLocked(app *App, in *nativeInput) []remoteinput.Event {
 		app.playPadChordSince = time.Time{}
 		app.playPadChordFired = false
 	}
-	if !app.localPair.anyHeld() {
-		app.localChordSince = time.Time{}
-		app.localChordFired = false
-	}
 	return padEvents
 }
 
 func localPadForwardLocked(app *App) bool {
-	return (app.localPhase == localPhaseRunning || app.localUnownedRun || app.session.State == "active") && !app.playHIDFailClosedLocked()
+	return (app.session.State == "active") && !app.playHIDFailClosedLocked()
 }
 
 func menuQueuedSeq(dev gfx.Device) uint64 {

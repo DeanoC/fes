@@ -246,52 +246,46 @@ type Snapshot struct {
 	// classify with, the same as Details and Confirm.
 	KitPlay kitPlayState
 	// LibraryBackTo names the room Back returns to from the Library.
-	LibraryBackTo   string
-	Collection      string
-	ViewLabel       string
-	ViewPicker      bool
-	ViewPickerIndex int
-	Views           []LibraryView
-	PickerRows      []LibraryView
-	CollectionMenu  CollectionMenuSnapshot
-	Session         SessionSnapshot
-	GPUParked       bool
-	Surround        SurroundSnapshot
-	Attract         AttractSnapshot
-	SafeAreaPct     float64
-	Settings        SettingsSnapshot
-	Filters         FilterSnapshot
-	Genre           string
-	Year            string
-	Region          string
-	HidePrerelease  bool
-	HideHacks       bool
-	OSK             shared.OSKSnapshot
-	Health          HealthSnapshot
-	KitLease        KitLeaseSnapshot
-	Detail          DetailSnapshot
-	BrowseActions   BrowseActionsSnapshot
-	Screenshots     map[string]*image.RGBA
-	Preview         PreviewSnapshot
-	Theme           theme.Theme
-	DebugHUD        DebugHUDSnapshot
-	Room            RoomSnapshot
-	RoomPicker      RoomPickerSnapshot
-	Storage         FirmwarePickerSnapshot
-	CoreLibrary     FirmwarePickerSnapshot
-	FirmwarePicker  FirmwarePickerSnapshot
-	FirmwareCard    FirmwareCardSnapshot
-	TapePicker      TapePickerSnapshot
-	ReducedMotion   bool
-	LocalCorePhase  string
-	LocalCoreTitle  string
-	// LocalCoreStatus is the latest kit-local launch or failure sentence.
-	LocalCoreStatus         string
-	LocalCoreStartedAt      time.Time
-	LocalCorePresentsPaused bool
-	LocalCoreLateAdopt      bool
-	LocalCoreRedraw         uint64
-	sessionObservation      uint64
+	LibraryBackTo      string
+	Collection         string
+	ViewLabel          string
+	ViewPicker         bool
+	ViewPickerIndex    int
+	Views              []LibraryView
+	PickerRows         []LibraryView
+	CollectionMenu     CollectionMenuSnapshot
+	Session            SessionSnapshot
+	GPUParked          bool
+	Surround           SurroundSnapshot
+	Attract            AttractSnapshot
+	SafeAreaPct        float64
+	Settings           SettingsSnapshot
+	Filters            FilterSnapshot
+	Genre              string
+	Year               string
+	Region             string
+	HidePrerelease     bool
+	HideHacks          bool
+	OSK                shared.OSKSnapshot
+	Health             HealthSnapshot
+	KitLease           KitLeaseSnapshot
+	Detail             DetailSnapshot
+	BrowseActions      BrowseActionsSnapshot
+	Screenshots        map[string]*image.RGBA
+	Preview            PreviewSnapshot
+	Theme              theme.Theme
+	DebugHUD           DebugHUDSnapshot
+	Room               RoomSnapshot
+	RoomPicker         RoomPickerSnapshot
+	Storage            FirmwarePickerSnapshot
+	CoreLibrary        FirmwarePickerSnapshot
+	FirmwarePicker     FirmwarePickerSnapshot
+	FirmwareCard       FirmwareCardSnapshot
+	TapePicker         TapePickerSnapshot
+	ReducedMotion      bool
+	HostPresentsPaused bool
+	HostLateAdopt      bool
+	sessionObservation uint64
 }
 
 // DebugHUDSnapshot is the optional corner overlay (off by default).
@@ -625,56 +619,30 @@ type App struct {
 	previewFails       int
 	previewNext        time.Time
 
-	localCores                 rooms.LocalCores
-	kitHost                    bool
-	kitHostPreparing           bool
-	hostLaunchPending          func()
-	hostPresentsPaused         bool
-	hostAwaitStatus            bool
-	sessionObservation         uint64
-	sessionObservedAt          time.Time
-	sessionReadyWrittenAt      time.Time
-	kitMenuStartedAt           time.Time
-	kitMenuSessionSeen         bool
-	kitMenuSessionState        string
-	kitMenuSessionHTTPStatus   int
-	kitMenuSessionError        string
-	kitMenuHealthSeen          bool
-	kitMenuHealthError         string
-	kitMenuReadyLogf           func(string, ...any)
-	kitMenuReadyLogKey         string
-	kitMenuReadyLogAt          time.Time
-	localFeed                  localPadSender
-	localInstallKnown          bool
-	localInstalled             map[string]struct{}
-	localInstallGen            uint64
-	localInstallCancel         context.CancelFunc
-	localPhase                 string
-	localReconcileAfterFailure bool
-	localUnownedRun            bool
-	localTitle                 string
-	localStartedAt             time.Time
-	localStatus                string
-	localGen                   uint64
-	localLeaseGeneration       string
-	localPackageID             string
-	localPresentsPaused        bool
-	localLateAdopt             bool
-	localRedraw                uint64
-	localPair                  chordPairs
-	localChordSince            time.Time
-	localChordFired            bool
-	localStopAfterStart        bool
-	localSent                  map[padKey]bool
-	localStatusBusy            bool
-	localStatusNext            time.Time
-	localStatusEpoch           uint64
-	// localStartupStatusChecked is set after the first successful local
-	// status read. A later idle menu does not keep polling.
-	localStartupStatusChecked bool
-	// localWatchStartup keeps polling a launching or stopping generation
-	// seen at startup until that generation is running or generation-free idle.
-	localWatchStartup bool
+	localCores               rooms.LocalCores
+	kitHost                  bool
+	kitHostPreparing         bool
+	hostLaunchPending        func()
+	hostPresentsPaused       bool
+	hostAwaitStatus          bool
+	sessionObservation       uint64
+	sessionObservedAt        time.Time
+	sessionReadyWrittenAt    time.Time
+	kitMenuStartedAt         time.Time
+	kitMenuSessionSeen       bool
+	kitMenuSessionState      string
+	kitMenuSessionHTTPStatus int
+	kitMenuSessionError      string
+	kitMenuHealthSeen        bool
+	kitMenuHealthError       string
+	kitMenuReadyLogf         func(string, ...any)
+	kitMenuReadyLogKey       string
+	kitMenuReadyLogAt        time.Time
+	localFeed                localPadSender
+	localInstallKnown        bool
+	localInstalled           map[string]struct{}
+	localInstallGen          uint64
+	localInstallCancel       context.CancelFunc
 
 	// settingsSection is the open Settings section; "" is the section list.
 	settingsSection string
@@ -981,9 +949,6 @@ func postLeaseRelease(client *Client, stamp ClientStamp, release func(*Client, c
 }
 
 func idleRetainedSession(state string) bool {
-	if hostclient.SessionKitLocal(state) {
-		return false
-	}
 	switch strings.TrimSpace(state) {
 	case "", "idle":
 		return true
@@ -1004,9 +969,6 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 	a.traceInputLocked(cmd, now)
 	a.noteActivityLocked(now)
-	if a.localCoreBusyLocked() {
-		return
-	}
 	if a.sessionDisplayBusy {
 		if cmd == CmdStop {
 			a.startStopLocked()
@@ -1031,7 +993,6 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		}
 	}
-	a.localStatus = ""
 	if a.driveSettings.Open {
 		if a.settingsOSKOpenLocked() {
 			a.handleSettingsOSKLocked(cmd)
@@ -1773,7 +1734,6 @@ func (a *App) Tick(now time.Time) Command {
 	a.flushSearchLocked(now)
 	a.tickAttractLocked(now)
 	a.syncPreviewLocked()
-	a.tickLocalCoreLocked(now)
 	a.tickSessionPadLocked(now)
 	a.syncSurroundLocked()
 	// Stop drains a shown plane, so its frames fail without a display fault.
@@ -1821,9 +1781,7 @@ func (a *App) Snapshot() Snapshot {
 		}
 	}
 	status := a.status
-	if strings.TrimSpace(a.localStatus) != "" {
-		status = a.localStatus
-	} else if a.tapePickerOpen && strings.TrimSpace(a.tapePickerStatus) != "" {
+	if a.tapePickerOpen && strings.TrimSpace(a.tapePickerStatus) != "" {
 		status = a.tapePickerStatus
 	} else if line := a.stopStatusLocked(); line != "" {
 		status = line
@@ -1865,71 +1823,66 @@ func (a *App) Snapshot() Snapshot {
 		status = health.Line
 	}
 	snap := Snapshot{
-		Games:                   games,
-		Grid:                    a.grid,
-		Status:                  status,
-		LoadErr:                 a.loadErr,
-		Loading:                 a.loading,
-		Covers:                  covers,
-		Launch:                  a.launch,
-		Gamepads:                a.gamepads,
-		Keyboards:               a.keyboards,
-		Mice:                    a.mice,
-		Affinity:                a.affinity.current.Kind,
-		AffinityID:              a.affinity.current.ID,
-		CoverHits:               hits,
-		Platforms:               a.platforms,
-		PlatformID:              a.platformID,
-		Sort:                    a.sort,
-		Query:                   a.searchField.Buffer,
-		SearchOpen:              a.searchOpen,
-		FocusDetail:             a.focusDetailLocked(),
-		DetailPlay:              a.detailPlayLocked(),
-		KitPlay:                 a.kitPlayStateLocked(),
-		LibraryBackTo:           a.libraryBackToLocked(),
-		Collection:              a.collectionID,
-		ViewLabel:               a.viewLabelLocked(),
-		ViewPicker:              a.viewPickerOpen,
-		ViewPickerIndex:         a.viewPickerIndex,
-		Views:                   a.viewChoicesLocked(),
-		PickerRows:              a.pickerRowsLocked(),
-		CollectionMenu:          a.collectionMenuSnapshotLocked(),
-		Session:                 a.sessionSnapshotLocked(),
-		GPUParked:               a.gpuParked,
-		Surround:                SurroundSnapshot{Active: a.surroundShownLocked()},
-		Attract:                 a.attractSnapshotLocked(),
-		SafeAreaPct:             a.safeAreaPct,
-		Settings:                a.settingsSnapshotLocked(),
-		Filters:                 a.filtersSnapshotLocked(),
-		Genre:                   a.filterGenre,
-		Year:                    a.filterYear,
-		Region:                  a.filterRegion,
-		HidePrerelease:          a.hidePrerelease,
-		HideHacks:               a.hideHacks,
-		OSK:                     a.oskSnapshotLocked(),
-		Health:                  health,
-		KitLease:                a.kitLeaseSnapshotLocked(),
-		Detail:                  a.detailSnapshotLocked(),
-		Screenshots:             a.screenshotImagesLocked(),
-		Preview:                 a.previewSnapshotLocked(),
-		Theme:                   a.theme.Complete(),
-		DebugHUD:                a.debugHUDSnapshotLocked(),
-		Room:                    a.roomSnapshotLocked(true),
-		RoomPicker:              a.roomPickerSnapshotLocked(),
-		Storage:                 a.driveSettingsSnapshotLocked(),
-		CoreLibrary:             a.coreLibrarySnapshotLocked(),
-		FirmwarePicker:          a.firmwarePickerSnapshotLocked(),
-		FirmwareCard:            a.firmwareCardSnapshotLocked(),
-		TapePicker:              a.tapePickerSnapshotLocked(),
-		ReducedMotion:           a.reducedMotion,
-		LocalCorePhase:          a.localPhase,
-		LocalCoreTitle:          a.localTitle,
-		LocalCoreStatus:         a.localStatus,
-		LocalCoreStartedAt:      a.localStartedAt,
-		sessionObservation:      a.sessionObservation,
-		LocalCorePresentsPaused: a.localPresentsPaused || a.hostPresentsPaused || (a.kitHost && (a.session.State == "launching" || a.session.State == "stopping" || hostclient.SessionKitLocal(a.session.State) || (a.session.State == "active" && !a.sessionDisplayLocked().Visible))),
-		LocalCoreLateAdopt:      a.localLateAdopt || (a.kitHost && (a.hostAwaitStatus || a.session.State == "active" || a.session.State == "launching" || a.session.State == "stopping" || hostclient.SessionKitLocal(a.session.State))),
-		LocalCoreRedraw:         a.localRedraw,
+		Games:              games,
+		Grid:               a.grid,
+		Status:             status,
+		LoadErr:            a.loadErr,
+		Loading:            a.loading,
+		Covers:             covers,
+		Launch:             a.launch,
+		Gamepads:           a.gamepads,
+		Keyboards:          a.keyboards,
+		Mice:               a.mice,
+		Affinity:           a.affinity.current.Kind,
+		AffinityID:         a.affinity.current.ID,
+		CoverHits:          hits,
+		Platforms:          a.platforms,
+		PlatformID:         a.platformID,
+		Sort:               a.sort,
+		Query:              a.searchField.Buffer,
+		SearchOpen:         a.searchOpen,
+		FocusDetail:        a.focusDetailLocked(),
+		DetailPlay:         a.detailPlayLocked(),
+		KitPlay:            a.kitPlayStateLocked(),
+		LibraryBackTo:      a.libraryBackToLocked(),
+		Collection:         a.collectionID,
+		ViewLabel:          a.viewLabelLocked(),
+		ViewPicker:         a.viewPickerOpen,
+		ViewPickerIndex:    a.viewPickerIndex,
+		Views:              a.viewChoicesLocked(),
+		PickerRows:         a.pickerRowsLocked(),
+		CollectionMenu:     a.collectionMenuSnapshotLocked(),
+		Session:            a.sessionSnapshotLocked(),
+		GPUParked:          a.gpuParked,
+		Surround:           SurroundSnapshot{Active: a.surroundShownLocked()},
+		Attract:            a.attractSnapshotLocked(),
+		SafeAreaPct:        a.safeAreaPct,
+		Settings:           a.settingsSnapshotLocked(),
+		Filters:            a.filtersSnapshotLocked(),
+		Genre:              a.filterGenre,
+		Year:               a.filterYear,
+		Region:             a.filterRegion,
+		HidePrerelease:     a.hidePrerelease,
+		HideHacks:          a.hideHacks,
+		OSK:                a.oskSnapshotLocked(),
+		Health:             health,
+		KitLease:           a.kitLeaseSnapshotLocked(),
+		Detail:             a.detailSnapshotLocked(),
+		Screenshots:        a.screenshotImagesLocked(),
+		Preview:            a.previewSnapshotLocked(),
+		Theme:              a.theme.Complete(),
+		DebugHUD:           a.debugHUDSnapshotLocked(),
+		Room:               a.roomSnapshotLocked(true),
+		RoomPicker:         a.roomPickerSnapshotLocked(),
+		Storage:            a.driveSettingsSnapshotLocked(),
+		CoreLibrary:        a.coreLibrarySnapshotLocked(),
+		FirmwarePicker:     a.firmwarePickerSnapshotLocked(),
+		FirmwareCard:       a.firmwareCardSnapshotLocked(),
+		TapePicker:         a.tapePickerSnapshotLocked(),
+		ReducedMotion:      a.reducedMotion,
+		sessionObservation: a.sessionObservation,
+		HostPresentsPaused: a.hostPresentsPaused || (a.kitHost && (a.session.State == "launching" || a.session.State == "stopping" || (a.session.State == "active" && !a.sessionDisplayLocked().Visible))),
+		HostLateAdopt:      (a.kitHost && (a.hostAwaitStatus || a.session.State == "active" || a.session.State == "launching" || a.session.State == "stopping")),
 	}
 	destination := snap.DetailPlay
 	if snap.Room.Open {
@@ -2413,11 +2366,7 @@ func (a *App) focusIndexLocked(i int) bool {
 }
 
 func (a *App) startLaunchLocked() {
-	if a.localLaunchBlockedLocked() {
-		a.status = localLaunchCheckingCopy
-		return
-	}
-	if a.launch.Phase == "launching" || hostclient.SessionKitLocal(a.session.State) || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
+	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
 		if a.session.State == "active" && a.colecoSessionLocked() && a.roomDuringPlay {
 			a.status = colecoCartridgeSessionStatus
 		}
@@ -2457,11 +2406,7 @@ func (a *App) startLaunchGameWithPackageLocked(game hostclient.Game, packageID, 
 		a.status = "Releasing the kit"
 		return
 	}
-	if a.localLaunchBlockedLocked() {
-		a.status = localLaunchCheckingCopy
-		return
-	}
-	if a.launch.Phase == "launching" || hostclient.SessionKitLocal(a.session.State) || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
+	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
 		if a.session.State == "active" && a.colecoSessionLocked() && a.roomDuringPlay {
 			a.status = colecoCartridgeSessionStatus
 		}
@@ -2987,12 +2932,11 @@ func mediaSelectorKey(name string, usage uint8) bool {
 // openRunningMediaSelector opens the running machine's media selector. An
 // empty tape and a folder with no .p files still open: Eject and a typed path
 // stay available. F12 opens a ROM-linked Coleco session's title selector;
-// Guide opens its cartridge picker. A kit-local core keeps F12 as Stop, so
-// this returns false there.
+// Guide opens its cartridge picker.
 func (a *App) openRunningMediaSelector(down bool, now time.Time) bool {
 	a.mu.Lock()
 	colecoSession := a.colecoSessionLocked()
-	available := !a.localCoreBusyLocked() && a.playingHardwareRoomAvailableLocked()
+	available := a.playingHardwareRoomAvailableLocked()
 	mediaOffer := available && a.sessionLiveMediaOfferedLocked()
 	colecoOffer := available && colecoSession && !a.sessionLiveMediaOfferedLocked() && !a.roomDuringPlay
 	a.mu.Unlock()
@@ -3030,18 +2974,11 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 		return true
 	}
 	if mediaSelectorKey(name, usage) {
-		// F12 is the running selector. A kit-local core keeps it as Stop.
-		// Every other session consumes the key, including an empty tape and
+		// F12 is the running selector. The session consumes the key, including an empty tape and
 		// a folder that has no .p files, so it is never forwarded. With no
 		// media selector to open, F12 opens the running room as Home does,
 		// which the surround hint advertises (#1132). With no room either,
 		// F12 stops the session (#1561).
-		if a.localCoreOwnsInput() {
-			if down {
-				a.RequestLocalStop()
-			}
-			return true
-		}
 		if !a.openRunningMediaSelector(down, now) {
 			a.handlePlayingMenuKey(down, now)
 		}
@@ -3321,7 +3258,7 @@ func (a *App) fetchSession(ctx context.Context) {
 		a.noteKitMenuSessionObservation(result, nil)
 		return
 	}
-	if a.hostAwaitStatus && result.ErrorCode == "" && (result.State == "idle" || result.State == "active" || result.State == "failed" || hostclient.SessionKitLocal(result.State)) {
+	if a.hostAwaitStatus && result.ErrorCode == "" && (result.State == "idle" || result.State == "active" || result.State == "failed") {
 		a.hostAwaitStatus = false
 		a.hostPresentsPaused = false
 	}
@@ -3772,11 +3709,6 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 		a.invalidateSessionDisplayLocked()
 	}
 	a.session = result
-	if hostclient.SessionKitLocal(a.session.State) {
-		a.session.GameID = ""
-		a.session.System = ""
-		a.session.Input = nil
-	}
 	a.rememberFlightLocked(result.FlightID)
 	// Keep retainedIdleLease. Soft-stop of foreground B can promote A, and
 	// a later launch can go active, while B's idle grant is still retained.

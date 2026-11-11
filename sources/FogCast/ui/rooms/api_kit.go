@@ -19,12 +19,9 @@ const localCoresStartupRetry = 60 * time.Second
 
 // LocalCores is the kit-local control socket. A nil value leaves the kit
 // table unset. Tenfoot passes *localcores.Client only for -gfx menu-display.
-// A host session leaves it nil. Status is GET /v1/local/status.
+// A host session leaves it nil.
 type LocalCores interface {
 	List(ctx context.Context) ([]localcores.Core, error)
-	Launch(ctx context.Context, packageID string) (localcores.LaunchResult, error)
-	Stop(ctx context.Context, expectedGeneration string) error
-	Status(ctx context.Context) (localcores.RunStatus, error)
 }
 
 // ErrNoLocalCores is returned when a core destination is activated and no
@@ -114,28 +111,4 @@ func (r *Instance) coresTable(cores []localcores.Core) *lua.LTable {
 		t.Append(row)
 	}
 	return t
-}
-
-// ActivateDestination launches the published core destination through the
-// injected client. Any other kind, and a core that is not launchable, is a
-// no-op. A missing client returns ErrNoLocalCores. in_use, blocked and
-// not_found come back as the client sent them and do not fail the room.
-func (r *Instance) ActivateDestination(ctx context.Context) error {
-	if r == nil || r.dest.Kind != KindCore || !r.dest.CoreLaunchable {
-		return nil
-	}
-	if r.opts.Local == nil {
-		return ErrNoLocalCores
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	_, err := r.opts.Local.Launch(ctx, r.dest.PackageID)
-	if err != nil {
-		r.dest.Availability = AvailUnavailable
-		r.dest.Status = err.Error()
-		r.dest.Action = err.Error()
-		return err
-	}
-	return nil
 }

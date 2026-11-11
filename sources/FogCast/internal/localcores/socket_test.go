@@ -24,7 +24,7 @@ func TestLocalControlSocketMode(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		done <- Serve(ctx, path, Handler(New(nil, nil, Roots{})))
+		done <- Serve(ctx, path, Handler(New(Roots{})))
 	}()
 	deadline := time.Now().Add(2 * time.Second)
 	var info os.FileInfo

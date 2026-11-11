@@ -121,9 +121,9 @@ tape/disk input.
 
 The [durable kit core library](kit-core-library.md) installs and selects immutable
 versions on an existing FESDATA3 volume through the target REST API. It retains
-the factory inventory and older versions, affects the next kit-local launch and
-requires no OS rebuild, reboot or service restart. Host library import remains
-separate; installation does not activate the FPGA.
+the factory inventory and older versions, and changes the selected package in
+the kit inventory without an OS rebuild, reboot or service restart. Host library
+entries name their own package IDs; installation does not activate the FPGA.
 
 ## Library video preference
 
