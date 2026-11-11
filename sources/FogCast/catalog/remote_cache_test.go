@@ -132,6 +132,30 @@ func TestRemoteCacheLocalSelectionAdoptionSurvivesRemoval(t *testing.T) {
 	}
 }
 
+func TestRemoteCacheRemoteTitleAdoptingOtherMediaSurvivesRemoval(t *testing.T) {
+	ctx := context.Background()
+	s, _ := mediaTestStore(t)
+	original := remoteCacheImport(t, s, "remote origin cassette")
+	adopted := remoteCacheImport(t, s, "other cassette selected by user")
+	entry, err := s.CreateRemoteCoreEntry(ctx, "Remote title", "fes.zx81", strings.Repeat("a", 64), RemoteCoreEntryOrigin{SourceID: "home", SourceGameID: "title", MediaID: original.MediaID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryMedia(ctx, entry.GameID, entry.PackageID, "", "cassette", adopted.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RemoveCoreEntry(ctx, entry.GameID); err != nil {
+		t.Fatal(err)
+	}
+	result, err := s.RemoveRemoteCassetteCache(ctx, []string{adopted.MediaID})
+	if err != nil || len(result.Deleted) != 0 {
+		t.Fatalf("explicit remote-title adoption lost: %+v %v", result, err)
+	}
+	if _, err := s.CoreMediaInfo(ctx, adopted.MediaID); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRemoteCachePreviewPaginationAndValidation(t *testing.T) {
 	s, _ := mediaTestStore(t)
 	ctx := context.Background()
