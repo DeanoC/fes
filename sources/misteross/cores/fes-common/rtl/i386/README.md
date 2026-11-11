@@ -907,9 +907,11 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   IDT entry for `GP_IDT` and `NP_IDT` (from the gate's read, `idt_vec`), else
   0, with EXT set for a fault in a delivery; a double fault's is 0. Only a
   protected-mode delivery of #DF, #NP, #SS or #GP pushes it (`exc_haserr`).
-- **RF.** IRETD's image sets RF (the architectural EFLAGS shows it until the
-  next instruction retires: every uop but IRET's last clears it, as Bochs
-  clears it before the next instruction runs). A delivery's EFLAGS image has
+- **RF.** IRETD's image sets RF. The 386 clears RF when the next ordinary
+  instruction completes, at its WB boundary: its last uop or a taken
+  `eoi_taken` uop such as INTO's no-overflow JNO or a REP CMPS/SCAS early
+  compare exit. IRET and the flags-load/task-switch paths keep or load RF as
+  specified by their own controls. A delivery's EFLAGS image has
   RF set for a fault, and for an INTR or NMI between a REP string's elements
   (`int_rep`) or after an IRETD that set it (`del_rf`); EX puts it in bit 16
   from the uop's imm.

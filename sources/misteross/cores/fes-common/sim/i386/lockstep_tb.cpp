@@ -7947,6 +7947,29 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
             patch(a, d0, here(a)); a.op({0x40});
             patch(a, d1, here(a)); a.op({0x43});
         }, -1, false, true);
+        // RF also clears when INTO's taken JNO ends the instruction, although
+        // that uop is not end_of_instruction. The handler sets RF before INTO;
+        // with OF clear, DR1's next-instruction breakpoint must then fire.
+        db("db-ibp-rf-into-no-overflow", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0), d1 = arm_at(a, 1);
+            dr7(a, f7(0, 1, 0, 0) | f7(1, 2, 0, 0));
+            a.op({0x31, 0xc0});                                                     // XOR EAX, EAX; OF = 0
+            patch(a, d0, here(a)); a.op({0xce});                                   // INTO, no-overflow path
+            patch(a, d1, here(a)); a.op({0x43});
+        }, -1, false, true);
+        // REPNE SCASB ends on its first equal byte with ECX still nonzero.
+        // RF must clear at that taken compare-condition boundary so DR1's
+        // breakpoint on the following instruction fires.
+        db("db-ibp-rf-repne-scas-early", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0), d1 = arm_at(a, 1);
+            dr7(a, f7(0, 1, 0, 0) | f7(1, 2, 0, 0));
+            a.op({0xbf}); a.d(0x100);                                              // EDI = 0100h
+            a.op({0xb0, 0x00});                                                    // AL = 0
+            a.op({0xc6, 0x05}); a.d(0x100); a.op({0x00});                         // [0100h] = 0
+            a.op({0xb9}); a.d(3);                                                  // ECX = 3
+            patch(a, d0, here(a)); a.op({0xf2, 0xae});                            // REPNE SCASB
+            patch(a, d1, here(a)); a.op({0x43});
+        }, -1, false, true);
         // RF over an instruction that reads the MMIO window: LDS SI,
         // FS:[0A0000h] (FS 20h, flat). Its first uop, matched, reads nothing
         // (M1), RF makes it a replay, and the instruction then runs with each
