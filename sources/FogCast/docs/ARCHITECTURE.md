@@ -3359,19 +3359,21 @@ in place. When the host has observed that the stream is unavailable and cannot
 reconnect, a new launcher input POST or event POST returns 503
 `INPUT_UNAVAILABLE` (`no live input stream`). An already-open launcher stream
 ends when a subsequent event encounters the loss or its read timeout expires;
-its initial ready response does not acknowledge individual events. For
-launcher streaming, an event accepted by the host transport can still be lost
-if a disconnect occurs before the host observes it; HTTP acceptance does not
-establish delivery to the target or guest. A successful single-event POST waits
-for a correlated bridge PONG after its input stream prefix, confirming that the
-bridge processed those preceding bytes, not that its sink accepted the event
-or the guest consumed it. An uncertain write or missing PONG returns 503
-`INPUT_UNCONFIRMED`: the event may have applied. The host closes its connection
+its initial ready response does not acknowledge individual events. Launcher
+clients can request sequenced event receipts; the original stream has no
+per-event response. Single-event POSTs and launcher events wait for a
+correlated bridge receipt that the sink accepted the emitted frames under its
+current focus policy. Mappings may emit no frames, and acceptance can include
+intentional no-ops; neither proves guest consumption. An uncertain write,
+rejected input or missing receipt returns 503 `INPUT_UNCONFIRMED` for a
+single-event POST, or an `unconfirmed` launcher receipt followed by closure:
+the event may have applied. The host closes its connection
 without replay, clears its held-input snapshot and attempts to stop the bridge;
 the error does not confirm remote release. This adds a bridge round trip to each
-single-event POST. The launcher stream and timed key tap do not use this
-barrier. Kit-local pads stay on the unix socket and do not silently fall back
-to the host.
+event. The timed key tap does not use this barrier. Receipt capability is
+probed before the first confirmed event on each connection; an older kit bridge
+still attaches but cannot accept confirmed remote input. Kit-local pads stay on the unix socket
+and do not silently fall back to the host.
 
 Disconnect of the host stream releases the remote source. Lease expiry, core
 replacement and Stop neutralize every source on both dirty ports. A failed
