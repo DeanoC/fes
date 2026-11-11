@@ -24,6 +24,16 @@ recovery boot, CID admission, prior successful installation and subsequent
 native boot/launch remain separate operator gates. This helper leaves the
 console lifetime with its caller and retains partial failed-read evidence.
 
+`installer_boot_refresh.refresh_staged_boot` checks the previous staged FIT,
+all thirteen other catalog source files and explicit installed records before
+one recovery upload to `FES/UPLOAD.BIN`. It reads/hashes the full set again
+afterward, preserving records and sources rather than uploading every core for
+a CPU-image change. The caller supplies immutable expected bytes for both FITs
+and owns fresh recovery, source and kit admission. Any failed check retires the
+session; uncertain writes are recorded and never retried or rolled back.
+The protected recovery boot files remain independently checked by UploadSession.
+This operation neither activates the staged FIT nor proves native persistence.
+
 `jtag_enumeration.cpp` is a separate scan-only diagnostic for the installed
 programmer's two-pass automatic enumeration: count zero/null list/automatic
 scan enabled, followed by one bounded device-list read. It requires the exact
