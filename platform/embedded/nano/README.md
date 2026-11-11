@@ -172,6 +172,15 @@ reservations. Its identity scope is capacity/layout/protected files; native
 writable startup separately checks the compiled CID. The original same-session
 post-upload `verify` remains scoped to files uploaded by that live object.
 
+`UploadSession.read_installed_record` checks an independently expected installed
+record with the same protected-media and scratch ownership checks. It derives
+`FES/INSTALLED/<sha256>.JSN` from bounded immutable expected bytes; callers cannot
+choose a path, and installed records are not an upload purpose. Envelope checks
+reject malformed JSON, duplicate fields and nonfinite constants before device commands.
+Successful readback proves those bytes only: native discovery must still admit
+the record and all referenced package, metadata and ROM content. This allows a
+later install trial to check preservation of a prior record across fresh boots.
+
 The source-bound two-slot menu has an explicit native selection:
 `tamago/run.py fpgaload --board de25-nano --menu-present`, together with the
 sealed menu `--hps-first-project`, source-controlled SD profile and selected

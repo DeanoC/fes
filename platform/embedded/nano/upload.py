@@ -165,6 +165,37 @@ class UploadSession:
         if not valid_payload_length(purpose,len(payload)):
             raise ValueError('payload exceeds the fixed purpose limit')
         payload = bytes(payload)
+        self._read_expected(payload, receipt, purpose, target)
+
+    def read_installed_record(self, payload, receipt):
+        """Read expected installed JSON by its content hash, without write authority.
+
+        This proves byte identity only. Native discovery still admits the record
+        and its retained package, metadata and ROM independently.
+        """
+        if type(payload) is not bytes or not 0 < len(payload) <= 8192:
+            raise ValueError('bounded immutable installed record required')
+        def unique(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError('duplicate installed record field')
+                result[key] = value
+            return result
+        def invalid(_):
+            raise ValueError('nonfinite installed record field')
+        record = json.loads(payload, object_pairs_hook=unique, parse_constant=invalid)
+        if (type(record) is not dict or
+                set(record) != {'format','scope','id','title','program'} or
+                type(record['format']) is not int or record['format'] != 1 or
+                record['scope'] != 'nano-installed-program-v1' or
+                any(type(record[k]) is not str or not record[k] for k in ('id','title')) or
+                type(record['program']) is not dict or not record['program']):
+            raise ValueError('expected installed program record envelope required')
+        target = 'FES/INSTALLED/'+sha(payload)+'.JSN'
+        self._read_expected(payload, receipt, 'installed-record', target)
+
+    def _read_expected(self, payload, receipt, purpose, target):
         with self._operation(receipt):
             receipt.update(read_only=True, fresh_readback=False, purpose=purpose, destination=target,
                 payload_bytes=len(payload),payload_sha256=sha(payload),cid_verified=False,

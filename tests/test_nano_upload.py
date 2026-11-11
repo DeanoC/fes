@@ -61,7 +61,7 @@ class Model:
             else:data=b'corrupt' if self.fault=='readback' else self.files.get(name,self.payload)
             self.memory[addr]=data
             self.allocations[addr]=max(self.allocations.get(addr,0),len(data))
-            if (self.fault=='oversize-readback' and name in upload.DESTINATIONS.values()) or (self.fault=='oversize-boot' and name=='u-boot.itb'):
+            if (self.fault=='oversize-readback' and (name in upload.DESTINATIONS.values() or name.startswith('FES/INSTALLED/'))) or (self.fault=='oversize-boot' and name=='u-boot.itb'):
                 return f'1{len(data)} bytes read'
             return f'{len(data)} bytes read'
         if c.startswith('hash sha256'):
@@ -348,6 +348,80 @@ class NanoUploadTests(unittest.TestCase):
             with self.subTest(purpose=purpose,size=len(payload)),self.assertRaises(ValueError):session.read_existing(payload,{'commands':[]},purpose=purpose)
             self.assertEqual(model.commands,[])
             self.assertFalse(session.retired)
+
+    def installed_record(self):
+        return (json.dumps(dict(format=1,scope='nano-installed-program-v1',id='old-core',
+                    title='Existing core',program={'path':'FES/CONTENT/'+('a'*64)+'.BIN'}),
+                    sort_keys=True,separators=(',',':'))+'\n').encode()
+
+    def test_installed_record_read_derives_path_without_network_write_or_adoption(self):
+        payload=self.installed_record();model,session=self.session()
+        target='FES/INSTALLED/'+upload.sha(payload)+'.JSN'
+        model.files[target]=payload;receipt={'commands':[]}
+        with patch('builtins.print'),patch.object(session,'serve',side_effect=AssertionError('network forbidden')):
+            session.read_installed_record(payload,receipt)
+        self.assertEqual(receipt['destination'],target)
+        self.assertEqual(receipt['purpose'],'installed-record')
+        self.assertEqual(receipt['payload_sha256'],upload.sha(payload))
+        self.assertTrue(all(receipt[k] for k in ('read_only','fresh_readback','sd_readback_verified',
+                                                'boot_files_unchanged','recovery_manifest_unchanged','card_verified')))
+        self.assertFalse(any(receipt[k] for k in ('sd_write_attempted','activation','cid_verified')))
+        self.assertEqual([v['stage'] for v in receipt['memory_observations']],['admit','complete'])
+        self.assertIn('fatload mmc 0:1 83000000 '+target,model.commands)
+        self.assertFalse(any(c.startswith(('fatwrite','tftpboot','dhcp','saveenv')) for c in model.commands))
+        self.assertEqual(model.writes,0);self.assertFalse(session.verified)
+        with self.assertRaises(ValueError):upload.destination('installed-record')
+
+    def test_installed_record_failure_retires_without_replay(self):
+        payload=self.installed_record()
+        for fault in ('old-loader','wrong-card','prefix','reserved','oversize-prefix','oversize-boot','oversize-readback','readback',
+                      'same-length-corruption','lost-claim','changed-marker','changed-protected-fit'):
+            with self.subTest(fault=fault),patch('builtins.print'):
+                model=Model(dict(self.kit),payload,fault);_,session=self.session(model)
+                target='FES/INSTALLED/'+upload.sha(payload)+'.JSN'
+                model.files[target]=b'x'*len(payload) if fault=='same-length-corruption' else payload
+                original=model.command
+                def command(value,timeout):
+                    result=original(value,timeout)
+                    if value=='fatload mmc 0:1 83000000 '+target:
+                        if fault=='lost-claim':session.owns=lambda:False
+                        if fault=='changed-marker':model.marker=''
+                        if fault=='changed-protected-fit':model.kit['fit']=b'changed'
+                    return result
+                model.command=command;receipt={'commands':[]}
+                with self.assertRaises(ValueError):session.read_installed_record(payload,receipt)
+                self.assertTrue(session.retired);self.assertEqual(receipt['status'],'failed')
+                before=list(model.commands)
+                with self.assertRaises(ValueError):session.read_installed_record(payload,{'commands':[]})
+                self.assertEqual(model.commands,before);self.assertEqual(model.writes,0)
+
+    def test_installed_record_cannot_reuse_old_recovery_session(self):
+        payload=self.installed_record()
+        with patch('builtins.print'):
+            model,session=self.session();model.files['FES/INSTALLED/'+upload.sha(payload)+'.JSN']=payload
+            session.read_installed_record(payload,{'commands':[]});session.close()
+            for clear_marker in (False,True):
+                with self.subTest(clear_marker=clear_marker):
+                    if clear_marker:model.marker=''
+                    _,fresh=self.session(model);before=len(model.commands)
+                    with self.assertRaises(ValueError):fresh.read_installed_record(payload,{'commands':[]})
+                    self.assertTrue(fresh.retired)
+                    self.assertFalse(any(c.startswith(('fatload','mmc read','tftpboot','fatwrite')) for c in model.commands[before:]))
+
+    def test_installed_record_rejects_bad_expectations_before_io(self):
+        valid=self.installed_record();record=json.loads(valid)
+        invalid=[b'',b'x'*8193,bytearray(valid),b'not json',b'[]',b'null',
+                 valid.replace(b'"format":1',b'"format":true'),
+                 valid.replace(b'"format":1',b'"format":1,"format":1'),
+                 valid.replace(b'"program":{',b'"program":{"bad":NaN,'),
+                 valid.replace(b'nano-installed-program-v1',b'nano-staged-program-install-v1')]
+        for field,value in [('program',{}),('id',''),('title',None),('format',2),('scope','wrong')]:
+            invalid.append(json.dumps(dict(record,**{field:value})).encode())
+        for payload in invalid:
+            with self.subTest(payload=payload[:60]):
+                model,session=self.session()
+                with self.assertRaises(ValueError):session.read_installed_record(payload,{'commands':[]})
+                self.assertEqual(model.commands,[]);self.assertFalse(session.retired)
 
     def test_two_packages_metadata_and_selection_share_one_live_session_and_fresh_readbacks(self):
         model,session=self.session()
