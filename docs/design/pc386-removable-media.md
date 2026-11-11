@@ -318,8 +318,8 @@ The only reason to reopen this would be a target OS from before ATAPI drivers ex
 - **PACKET:**
   1. The core takes the 12-byte packet in one DRQ.
   2. It posts a request record `{sequence, packet, byte-count limit}` to the control page on port 2 and holds BSY.
-  3. It polls the response header (one 64-bit read every 4 µs while busy; nothing otherwise) until the runtime has written `{sequence, total length}` for this request.
-  4. It streams the response data to the guest in DRQ blocks no larger than the byte-count limit, raising IRQ 15 per block. It reads 64 bits at a time from the data ring into a two-block M10K buffer, as `pc386_ata`'s prefetch does. The ring handshake is below.
+  3. It polls the response header (one 64-bit read every 4 µs while busy; nothing otherwise) until the runtime has written `{sequence, direction, total length}` for this request. The direction is none, data-in (to the guest) or data-out (from the guest); the core decodes no opcodes, so the runtime's header is the only source of the direction. With none, the core goes straight to step 5.
+  4. For data-in, it streams the response data to the guest in DRQ blocks no larger than the byte-count limit, raising IRQ 15 per block. It reads 64 bits at a time from the data ring into a two-block M10K buffer, as `pc386_ata`'s prefetch does. The ring handshake is below.
   5. Once it has consumed `total length` bytes and the runtime's final record (status and sense) carries the sequence, it ends the command with them.
 
   **Ring handshake.** The control page holds two byte counters per command, both starting at 0 when the runtime writes the response header:
@@ -327,8 +327,8 @@ The only reason to reopen this would be a target OS from before ATAPI drivers ex
   - `produced`, written only by the runtime: bytes of the response now in the ring. The ring is circular; byte `n` of the response sits at ring offset `n mod ring size`.
   - `consumed`, written only by the core: bytes it has read out of the ring into its buffer.
 
-  The core starts a DRQ block only when `produced − consumed` covers the whole block (or the rest of the response), so a block never stalls mid-transfer. The runtime writes ring bytes only below `consumed + ring size`, so it never overwrites bytes the core has not read. Each `produced` update follows its data's cache clean and a barrier. A response of any length, up to READ(12)'s, streams through the 4 MiB ring this way, and the first block can go to the guest as soon as it is produced. Each counter is 32 bits, written as one aligned word; READ(12)'s largest response at 2,352 bytes per sector exceeds that, so the runtime refuses a transfer over 4 GiB − 1 with ILLEGAL REQUEST (05h/24h). For a guest write the roles swap: the core produces and the runtime consumes, and the runtime posts its final record after it has read every byte.
-- **Writes from the guest** (MODE SELECT parameter lists) go the other way: the core stores the bytes into the ring, then posts.
+  The core starts a DRQ block only when `produced − consumed` covers the whole block (or the rest of the response), so a block never stalls mid-transfer. The runtime writes ring bytes only below `consumed + ring size`, so it never overwrites bytes the core has not read. Each `produced` update follows its data's cache clean and a barrier. A response of any length, up to READ(12)'s, streams through the 4 MiB ring this way, and the first block can go to the guest as soon as it is produced. Each counter is 32 bits, written as one aligned word; READ(12)'s largest response at 2,352 bytes per sector exceeds that, so the runtime refuses a transfer over 4 GiB − 1 with ILLEGAL REQUEST (05h/24h). For data-out the roles swap: the core raises DRQ for the guest's bytes (in blocks under the byte-count limit), stores them into the ring and advances `produced`; the runtime consumes them and posts its final record after it has read every byte.
+- **Writes from the guest** (MODE SELECT parameter lists) are data-out commands: the runtime reads the parameter list length from the packet and answers with a data-out header of that length.
 
 **Runtime: a CD service thread.**
 
@@ -362,8 +362,15 @@ Anything else gets ILLEGAL REQUEST (05h/20h). The interpreter is one C library i
 
 - **No disc:** TEST UNIT READY gives NOT READY (02h/3Ah).
 - **Disc inserted:** the first command after it gives UNIT ATTENTION (06h/28h), then the disc is ready. MSCDEX, Windows and Linux all handle a swap this way.
-- **Guest eject.** START STOP UNIT with LoEj ejects the disc in the core's state, unless PREVENT ALLOW MEDIUM REMOVAL locks it. The unit's state tells FogCast, so tenfoot shows the tray empty.
-- **Host eject.** An eject from the host while the guest has the medium locked is refused, with the guest's lock named in the error.
+- **Guest eject.** START STOP UNIT with LoEj is refused while PREVENT ALLOW MEDIUM REMOVAL locks the disc. Otherwise the runtime, which serves that packet, runs the disc release below before it answers. The unit's state tells FogCast, so tenfoot shows the tray empty.
+- **Host eject.** An eject from the host while the guest has the medium locked is refused, with the guest's lock named in the error. Otherwise it runs the same disc release.
+- **Disc release.** Each inserted disc has a disc generation, and the service thread tags its work with it. Before either eject path publishes the empty state or drops the disc's files and track table, the runtime runs these steps in order:
+  1. It sets the disc's cancel flag. The thread stops producing data for the current command at the next segment, and finishes that command with NOT READY, medium not present (02h/3Ah), unless it is the eject itself.
+  2. If CD-DA is playing, it runs the STOP handshake ([CD-DA](#cd-da)). The player is then idle and plays nothing more from the ring.
+  3. It waits, with a deadline, until the thread reports the generation idle: no file read and no ring write outstanding. A missed deadline is a service fault that fails the eject; the disc stays bound and the drive reports a hardware error, never a half-released disc.
+  4. It sends Eject to the core, unbinds the files and track table, and increments the disc generation.
+  
+  A later insert then starts clean, and nothing of the old disc can reach a command or the speakers.
 - **El Torito.** A CD launch boots CD, then hard disk, then floppy: CMOS 3Dh = 23h and 38h = 10h ([machine configuration](#machine-configuration)). The BIOS boots no-emulation images (isolinux) and 1.44 MB floppy-emulation images (the Windows 98 SE OEM CD), with no patch.
 
 ### Images
