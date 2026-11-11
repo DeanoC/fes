@@ -1123,7 +1123,7 @@ The listener forwards that body unchanged and pins the session target to the
 requesting kit so compatibility uses that kit. Other methods on that collection
 stay denied. For named ROM selection it admits
 `GET /api/v1/library/core-entries/{game_id}`,
-`GET /api/v1/library/core-entries/{game_id}/rom`, and
+`GET /api/v1/library/core-entries/{game_id}/rom?rom_id={rom_id}`, and
 `PUT /api/v1/library/core-entries/{game_id}/rom` for a strict game ID. It admits
 `DELETE /api/v1/library/core-entries/{game_id}` for the same strict ID after
 the paired-target checks; the host checks each configured enabled kit before
@@ -1690,11 +1690,10 @@ local file path; no browser file picker and no host file-list API). That POST
 is the same public `application/octet-stream` session endpoint. Sofa chrome
 labels the result DIAGNOSTIC: HDMI and input may be down, and it is not a
 playable game session. Stop uses the ordinary session Stop-to-idle path.
-Household Coleco BIOS import is a separate overlay: rooms/library Confirm on
-a firmware-required title opens a local file picker and posts
-`POST /api/v1/core-media` plus `PUT /api/v1/library/firmware`, including while
-the selected kit is busy. That is not a development RBF load and does not
-claim the kit. Mid-session ZX81 Load-tape is another overlay: while an
+Coleco BIOS import is a title-specific overlay: rooms/library Confirm on a
+missing firmware requirement opens a local file picker, imports the media and
+binds it to the title's named ROM requirement. This does not claim the kit.
+Mid-session ZX81 Load-tape is another overlay: while an
 active session can take a `.p` tape (`fes.media.zx81-tape` on `fes.computer`,
 or `fes.media.blob` on `fes.simple-computer`), Y opens a `.p` picker that
 arms or ejects through the session live-media API without relaunch or
@@ -2591,7 +2590,7 @@ FPGA title aimed at that kit as Unavailable, with the copy "In use" /
 "Someone else is playing on this machine. You can play when they're done."
 Confirm explains and does not launch. Library and detail Confirm
 apply that gate only after catalog blocks: a title missing Coleco BIOS still
-opens the household firmware picker, and any other catalog block keeps its
+opens the title firmware picker, and any other catalog block keeps its
 own copy. Firmware import posts host library endpoints and does not claim
 the kit. Rooms leave those destinations unchanged because a foreign lease
 applies only to a Ready FPGA title. A host-only title stays Ready
@@ -3017,14 +3016,16 @@ starts before FESDATA3 is ready recovers without a restart.
 
 ## Installed core packages and library entries
 
-Coleco firmware and optional ZX81/Coleco CPU expansion-bus modules use the normal library launch
-path. A title may require a household firmware object; rooms/catalog **Ready**
-follows that fill, and `session/launch` binds firmware before cartridge media
-and reset release. Tenfoot Confirm imports an 8192-byte BIOS through the
-existing media/firmware APIs. Expansion selection binds an independently linked
-pack to the exact shell package. The Apple II disk is the first removable
-media; see [removable disks](#removable-disks-fescomputer-media-units) and
-[launch composition](launch-composition.md).
+Coleco firmware and optional ZX81/Coleco CPU expansion-bus modules use the
+normal library launch path. Format-4 Coleco titles bind their BIOS and cartridge
+independently by manifest ROM name. Readiness and launch require both exact-size
+objects, and the target links them before programming. Schema 23 preserves
+existing named ROM selections and media, removes the household BIOS pointer,
+and requires titles that used it to select the BIOS again. The shared legacy
+`fes.firmware.blob` mailbox definitions remain a separate removal follow-up;
+current format-4 Coleco packages do not use that interface. Expansion selection
+binds an independently linked pack to the exact shell package. See
+[removable disks](#removable-disks-fescomputer-media-units).
 
 Library list, detail and variant responses report expansion selection and
 readiness independently of firmware requirements, including firmware-free ZX81
@@ -3981,7 +3982,7 @@ exact size, when the host loaded one from its `[firmware] bundled_dir`. The
 host derives that default for reads and launches without saving it as a user
 selection, so a later bundle update changes the effective default. An explicit
 selection is preserved. Catalog setup also leaves a selected bundled default
-unsaved. `GET /api/v1/library/core-entries/{game_id}/rom` returns an empty
+unsaved. `GET /api/v1/library/core-entries/{game_id}/rom?rom_id={rom_id}` returns an empty
 `media_id` for that unsaved default, with its digest in `bundled_media_id` and
 `bundled_default: true`. Installed setup can use that digest as the
 compare-and-swap expectation when replacing it. Library readiness uses the
@@ -4326,11 +4327,9 @@ plain FAT file access but requires re-entry after a restart. The local and host
 stores remain independent of library settings and target selection.
 
 The paired launcher admits only the explicit `/api/v1/storage/drives` CRUD,
-drive-relative `entries`/`file` operations, and the existing explicit household
-firmware selection. A paired launcher may manage and browse these household
-host drives by design; it cannot address another kit's private local storage.
-The Coleco firmware selection is likewise a single household slot, updated
-only through the explicit BIOS selection flow, not a per-target setting. API
+drive-relative `entries`/`file` operations, and named title ROM selection. A
+paired launcher may manage and browse these household host drives by design;
+it cannot address another kit's private local storage. API
 reads cannot address arbitrary host paths: USB reads use `os.Root`, reject
 escaping paths and nonregular files, and ordinary reads are limited to 32 MiB.
 Expansion archive reads use their declared archive bound. SMB reads stay

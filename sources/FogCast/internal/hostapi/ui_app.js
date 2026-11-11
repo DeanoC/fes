@@ -920,7 +920,7 @@
     if (game.firmware_required === true && game.firmware_ready !== true) {
       return game.rom_role === 'firmware'
         ? 'Required machine firmware is missing. Import it before Play.'
-        : 'Coleco BIOS required. Import household firmware before Play.';
+        : 'Coleco BIOS required. Choose a BIOS for this title before Play.';
     }
     if (game.rom_required === true && game.rom_ready !== true) return 'Needs a cartridge';
     if (game.placement === 'unresolved' || game.placement === 'fail_closed') {

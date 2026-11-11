@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 22
+const schemaVersion = 23
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -376,6 +376,38 @@ END;
 PRAGMA user_version = 22;
 `
 
+// Schema 23 lets one title bind each named ROM independently. The kit-host
+// edit triggers are recreated after copying so migration does not detach
+// generated entries, while subsequent edits still do.
+const schemaV23 = `
+DROP TRIGGER kit_host_rom_insert;
+DROP TRIGGER kit_host_rom_update;
+DROP TRIGGER kit_host_rom_delete;
+CREATE TABLE core_entry_roms_v23 (
+  game_id TEXT NOT NULL REFERENCES core_entries(game_id) ON DELETE CASCADE,
+  package_id TEXT NOT NULL,
+  rom_id TEXT NOT NULL,
+  media_id TEXT NOT NULL REFERENCES core_media(media_id),
+  source_size INTEGER NOT NULL CHECK(source_size > 0),
+  PRIMARY KEY(game_id, rom_id)
+);
+INSERT INTO core_entry_roms_v23(game_id,package_id,rom_id,media_id,source_size)
+  SELECT game_id,package_id,rom_id,media_id,source_size FROM core_entry_roms;
+DROP TABLE core_entry_roms;
+ALTER TABLE core_entry_roms_v23 RENAME TO core_entry_roms;
+DROP TABLE core_firmware;
+CREATE TRIGGER kit_host_rom_insert AFTER INSERT ON core_entry_roms BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = NEW.game_id;
+END;
+CREATE TRIGGER kit_host_rom_update AFTER UPDATE ON core_entry_roms BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = NEW.game_id;
+END;
+CREATE TRIGGER kit_host_rom_delete AFTER DELETE ON core_entry_roms BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = OLD.game_id;
+END;
+PRAGMA user_version = 23;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -577,6 +609,15 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if version == 21 {
 		if _, err := connection.ExecContext(ctx, schemaV22); err != nil {
 			return fmt.Errorf("apply catalog schema version 22: %w", err)
+		}
+		version = 22
+	}
+	if version == 22 {
+		if _, err := connection.ExecContext(ctx, schemaV23); err != nil {
+			return fmt.Errorf("apply catalog schema version 23: %w", err)
+		}
+		if err := foreignKeyCheck(ctx, connection); err != nil {
+			return fmt.Errorf("apply catalog schema version 23: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

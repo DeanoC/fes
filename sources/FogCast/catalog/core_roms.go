@@ -20,12 +20,12 @@ type CoreEntryROM struct {
 	BundledDefault bool   `json:"bundled_default,omitempty"`
 }
 
-func (s *Store) CoreEntryROM(ctx context.Context, gameID string) (CoreEntryROM, error) {
-	if protocol.ValidateGameID(gameID) != nil {
+func (s *Store) CoreEntryROM(ctx context.Context, gameID, romID string) (CoreEntryROM, error) {
+	if protocol.ValidateGameID(gameID) != nil || strings.TrimSpace(romID) == "" {
 		return CoreEntryROM{}, ErrInvalidCoreEntry
 	}
 	result := CoreEntryROM{GameID: gameID}
-	err := s.db.QueryRowContext(ctx, `SELECT package_id,rom_id,media_id,source_size FROM core_entry_roms WHERE game_id=?`, gameID).Scan(&result.PackageID, &result.ROMID, &result.MediaID, &result.SourceSize)
+	err := s.db.QueryRowContext(ctx, `SELECT package_id,rom_id,media_id,source_size FROM core_entry_roms WHERE game_id=? AND rom_id=?`, gameID, romID).Scan(&result.PackageID, &result.ROMID, &result.MediaID, &result.SourceSize)
 	if errors.Is(err, sql.ErrNoRows) {
 		return result, nil
 	}
@@ -55,7 +55,7 @@ func (s *Store) SelectCoreEntryROM(ctx context.Context, gameID, packageID, romID
 		return CoreEntryROM{}, ErrCoreEntryConflict
 	}
 	current := ""
-	err = tx.QueryRowContext(ctx, `SELECT media_id FROM core_entry_roms WHERE game_id=?`, gameID).Scan(&current)
+	err = tx.QueryRowContext(ctx, `SELECT media_id FROM core_entry_roms WHERE game_id=? AND rom_id=?`, gameID, romID).Scan(&current)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return CoreEntryROM{}, err
 	}
@@ -64,7 +64,7 @@ func (s *Store) SelectCoreEntryROM(ctx context.Context, gameID, packageID, romID
 	}
 	result := CoreEntryROM{GameID: gameID}
 	if mediaID == "" {
-		_, err = tx.ExecContext(ctx, `DELETE FROM core_entry_roms WHERE game_id=?`, gameID)
+		_, err = tx.ExecContext(ctx, `DELETE FROM core_entry_roms WHERE game_id=? AND rom_id=?`, gameID, romID)
 	} else {
 		media, verifyErr := verifyCoreMedia(ctx, tx, mediaID, io.Discard)
 		if verifyErr != nil {
@@ -73,7 +73,7 @@ func (s *Store) SelectCoreEntryROM(ctx context.Context, gameID, packageID, romID
 		if media.Size != sourceSize {
 			return CoreEntryROM{}, ErrInvalidCoreROM
 		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO core_entry_roms(game_id,package_id,rom_id,media_id,source_size) VALUES(?,?,?,?,?) ON CONFLICT(game_id) DO UPDATE SET package_id=excluded.package_id,rom_id=excluded.rom_id,media_id=excluded.media_id,source_size=excluded.source_size`, gameID, packageID, romID, mediaID, sourceSize)
+		_, err = tx.ExecContext(ctx, `INSERT INTO core_entry_roms(game_id,package_id,rom_id,media_id,source_size) VALUES(?,?,?,?,?) ON CONFLICT(game_id,rom_id) DO UPDATE SET package_id=excluded.package_id,media_id=excluded.media_id,source_size=excluded.source_size`, gameID, packageID, romID, mediaID, sourceSize)
 		result = CoreEntryROM{GameID: gameID, PackageID: packageID, ROMID: romID, MediaID: mediaID, SourceSize: sourceSize}
 	}
 	if err != nil {

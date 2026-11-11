@@ -6,7 +6,6 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/libraryuser"
-	"github.com/DeanoC/FogCast/protocol"
 )
 
 // Availability is the play-availability family rooms, tenfoot, and the
@@ -673,7 +672,7 @@ func (d *Destination) FillCopy() {
 				d.Status = reason
 			}
 			if d.Matches[0].LaunchBlock() == hostclient.LaunchMissingFirmware {
-				d.Action = "Import Coleco BIOS."
+				d.Action = "Import firmware."
 			}
 		}
 	case AvailReady:
@@ -756,10 +755,7 @@ func LaunchBlockCopy(game hostclient.Game) string {
 	case hostclient.LaunchNotReady:
 		return "This game isn't ready to launch."
 	case hostclient.LaunchMissingFirmware:
-		if game.ROMRole == protocol.FirmwareRole {
-			return "Required machine firmware is missing. Import it before Play."
-		}
-		return "Coleco BIOS required. Import household firmware before Play."
+		return "Required machine firmware is missing. Import it before Play."
 	case hostclient.LaunchMissingROM:
 		return "Needs a cartridge"
 	case hostclient.LaunchDistant:

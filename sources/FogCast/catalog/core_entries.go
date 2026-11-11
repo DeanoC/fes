@@ -138,7 +138,7 @@ func (s *Store) CreateCoreMediaEntry(ctx context.Context, title, coreID, package
 	return s.createCoreEntry(ctx, title, coreID, packageID, mediaRole, mediaID, false, nil, nil)
 }
 
-// CreateFirmwareRequiredEntry creates a title that cannot become Ready without household firmware.
+// CreateFirmwareRequiredEntry creates a title that requires firmware to become Ready.
 func (s *Store) CreateFirmwareRequiredEntry(ctx context.Context, title, coreID, packageID, mediaRole, mediaID string) (CoreEntry, error) {
 	return s.createCoreEntry(ctx, title, coreID, packageID, mediaRole, mediaID, true, nil, nil)
 }

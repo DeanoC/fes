@@ -963,7 +963,7 @@ function draw() gfx.rect(0,0,10,10,'#fff') end`
 	}
 	stepUntil(t, r, func(Frame) bool { return r.Destination().Availability == AvailUnavailable })
 	d := r.Destination()
-	if d.Confirm() != ConfirmImportFirmware || d.Action != "Import Coleco BIOS." {
+	if d.Confirm() != ConfirmImportFirmware || d.Action != "Import firmware." {
 		t.Fatalf("unavailable dest %+v", d)
 	}
 	label := d.Label

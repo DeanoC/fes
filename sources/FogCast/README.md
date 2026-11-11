@@ -485,9 +485,9 @@ For the target image, fixture details, deployment, and live launch checks,
 read [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). The current process
 boundaries and source entry points are in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-Phase 1 Coleco firmware (household BIOS slot, Ready gate, sofa import picker)
-is in [docs/launch-composition.md](docs/launch-composition.md), with the
-ZX81/Coleco expansions, Apple II slot cards and the Apple II removable disk.
+Coleco BIOS and cartridge selection is documented in
+[the core package library](docs/core-package-library.md), alongside ZX81/Coleco
+expansions, Apple II slot cards and the Apple II removable disk.
 
 The [Sinclair ZX81 workbench](../../docs/hardware-rooms.md) adds local installed-package
 setup for ZX81, ZX80, TS1000 and TS1500, compatible expansion import with progress labels, and cassettes selected

@@ -32,11 +32,10 @@ type SetupROM struct {
 }
 type CoreSetup struct {
 	CoreReference
-	Descriptor      corepackage.Descriptor         `json:"descriptor"`
-	ROMs            []SetupROM                     `json:"roms"`
-	Entries         []CoreEntry                    `json:"entries"`
-	Capabilities    protocol.CoreMediaCapabilities `json:"capabilities"`
-	FirmwareMediaID string                         `json:"firmware_media_id,omitempty"`
+	Descriptor   corepackage.Descriptor         `json:"descriptor"`
+	ROMs         []SetupROM                     `json:"roms"`
+	Entries      []CoreEntry                    `json:"entries"`
+	Capabilities protocol.CoreMediaCapabilities `json:"capabilities"`
 }
 type CoreSetupRequest struct {
 	CoreReference

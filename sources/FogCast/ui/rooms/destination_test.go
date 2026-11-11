@@ -123,8 +123,8 @@ func TestDestinationCopyAndConfirmNeverNoOp(t *testing.T) {
 		{
 			name:    "frogger missing firmware",
 			dest:    Destination{Kind: KindGame, Availability: AvailUnavailable, Matches: []hostclient.Game{blockedGame("fpga-frogger", "Frogger", "fpga", hostclient.LaunchMissingFirmware)}},
-			status:  "Coleco BIOS required. Import household firmware before Play.",
-			action:  "Import Coleco BIOS.",
+			status:  "Required machine firmware is missing. Import it before Play.",
+			action:  "Import firmware.",
 			confirm: ConfirmImportFirmware,
 		},
 		{

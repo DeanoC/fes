@@ -50,7 +50,7 @@ func TestCoreROMSelectionBindsExactPackageRequirementAndBinary(t *testing.T) {
 	if _, err = s.SelectCoreEntry(ctx, entry.GameID, "fes.pong", pkg, strings.Repeat("b", 64)); err != nil {
 		t.Fatal(err)
 	}
-	old, err := s.CoreEntryROM(ctx, entry.GameID)
+	old, err := s.CoreEntryROM(ctx, entry.GameID, "machine")
 	if err != nil || old.PackageID != pkg {
 		t.Fatalf("ROM rebound implicitly: %+v %v", old, err)
 	}
@@ -60,5 +60,43 @@ func TestCoreROMSelectionBindsExactPackageRequirementAndBinary(t *testing.T) {
 	cleared, err := s.SelectCoreEntryROM(ctx, entry.GameID, strings.Repeat("b", 64), "machine", 9, media.MediaID, "")
 	if err != nil || cleared.MediaID != "" {
 		t.Fatalf("clear: %+v %v", cleared, err)
+	}
+}
+
+func TestNamedROMSelectionsAreIndependent(t *testing.T) {
+	ctx := context.Background()
+	s := openStore(t)
+	pkg := strings.Repeat("a", 64)
+	entry, err := s.CreateCoreEntry(ctx, "Coleco game", "fes.coleco", pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bios, _, err := s.ImportCoreMedia(ctx, []byte("bios"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cart, _, err := s.ImportCoreMedia(ctx, []byte("cartridge"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, pkg, "bios", 4, "", bios.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, pkg, "cart", 9, "", cart.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, pkg, "bios", 4, cart.MediaID, ""); !errors.Is(err, catalog.ErrCoreEntryConflict) {
+		t.Fatalf("accepted another ROM's digest for CAS: %v", err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, pkg, "bios", 4, bios.MediaID, ""); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.CoreEntryROM(ctx, entry.GameID, "cart")
+	if err != nil || got.MediaID != cart.MediaID || got.ROMID != "cart" {
+		t.Fatalf("clearing BIOS changed cartridge: %+v %v", got, err)
+	}
+	got, err = s.CoreEntryROM(ctx, entry.GameID, "bios")
+	if err != nil || got.MediaID != "" {
+		t.Fatalf("BIOS was not cleared: %+v %v", got, err)
 	}
 }

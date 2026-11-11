@@ -117,7 +117,7 @@ Allowed operations are:
   posts to a child path.
 - `GET /api/v1/library/core-entries/{game_id}` reads one entry for ROM
   selection. The game ID is a strict slug.
-- `GET /api/v1/library/core-entries/{game_id}/rom` reads that entry's named
+- `GET /api/v1/library/core-entries/{game_id}/rom?rom_id={rom_id}` reads that entry's named
   ROM binding. The game ID is a strict slug. Extra suffixes stay unavailable.
 - `PUT /api/v1/library/core-entries/{game_id}/rom` saves one named ROM
   selection. The body keeps `package_id`, `rom_id`, `expected_media_id` and

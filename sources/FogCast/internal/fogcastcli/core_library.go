@@ -28,7 +28,7 @@ func (e *coreRemoveAdmissionError) Error() string { return "core entry removal b
 
 func coreLibraryCommand(name string) bool {
 	switch name {
-	case "video-parts", "video-part-install", "video-profile", "core-video", "core-media-capabilities", "core-media-install", "core-hard-disk-install", "core-disk-geometry", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select", "core-remove", "core-firmware-select", "create-blank-st-disk":
+	case "video-parts", "video-part-install", "video-profile", "core-video", "core-media-capabilities", "core-media-install", "core-hard-disk-install", "core-disk-geometry", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select", "core-remove", "create-blank-st-disk":
 		return true
 	}
 	return false
@@ -168,13 +168,6 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 			return commandResult{err: &protocol.APIError{Code: protocol.CodeBadRequest, Message: "core entry is title, package ID, optional media, optional firmware"}, exit: 1}
 		}
 		data, _ = json.Marshal(entry)
-	case "core-firmware-select":
-		next := args[1]
-		if next == "none" {
-			next = ""
-		}
-		method, path = http.MethodPut, "/api/v1/library/firmware"
-		data, _ = json.Marshal(map[string]string{"slot": "firmware", "media_id": next})
 	case "core-select":
 		method, path = http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(args[1])
 		data, _ = json.Marshal(map[string]string{"expected_package_id": args[2], "package_id": args[3]})

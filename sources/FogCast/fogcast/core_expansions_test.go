@@ -339,3 +339,15 @@ func TestMissingOrMismatchedExpansionRejectsBeforeRecoveryStop(t *testing.T) {
 		})
 	}
 }
+
+func attachLibraryMedia(t *testing.T, s *Service, entryGameID, packageID, expectedMedia string, body []byte) {
+	t.Helper()
+	ctx := context.Background()
+	asset, _, err := s.ImportCoreMedia(ctx, int64(len(body)), bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryMedia(ctx, entryGameID, packageID, expectedMedia, "blob", asset.MediaID); err != nil {
+		t.Fatal(err)
+	}
+}

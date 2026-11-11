@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/DeanoC/FogCast/catalog"
-	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 	"io"
 	"os"
@@ -78,11 +77,11 @@ func TestCoreSetupKeepsBundledFirmwareAsDerivedDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := s.catalog.(coreROMCatalog)
-	raw, err := store.CoreEntryROM(ctx, entry.GameID)
+	raw, err := store.CoreEntryROM(ctx, entry.GameID, "spectrum-firmware")
 	if err != nil || raw.MediaID != "" {
 		t.Fatalf("raw ROM selection was saved: %+v, err %v", raw, err)
 	}
-	effective, err := s.CoreEntryROM(ctx, entry.GameID)
+	effective, err := s.CoreEntryROM(ctx, entry.GameID, "spectrum-firmware")
 	if err != nil || effective.MediaID != bundled.Firmware[0].MediaID || !effective.BundledDefault {
 		t.Fatalf("effective default %+v, err %v", effective, err)
 	}
@@ -236,7 +235,7 @@ func TestCoreSetupExactCartridgeSizesAndRetry(t *testing.T) {
 			if _, err := s.CreateCoreSetupEntry(ctx, req); err == nil {
 				t.Fatal("replaced existing selection")
 			}
-			selected, err := s.CoreEntryROM(ctx, entry.GameID)
+			selected, err := s.CoreEntryROM(ctx, entry.GameID, setup.ROMs[0].ID)
 			if err != nil || selected.MediaID != media.MediaID {
 				t.Fatalf("selection changed %+v %v", selected, err)
 			}
@@ -266,7 +265,7 @@ func TestCoreSetupExactCartridgeSizesAndRetry(t *testing.T) {
 			if err != nil || len(entries) != 1 || entries[0].GameID != entry.GameID {
 				t.Fatalf("restart %+v %v", entries, err)
 			}
-			selected, err = s.CoreEntryROM(ctx, entry.GameID)
+			selected, err = s.CoreEntryROM(ctx, entry.GameID, setup.ROMs[0].ID)
 			if err != nil || selected.MediaID != media.MediaID {
 				t.Fatal(selected, err)
 			}
@@ -293,16 +292,6 @@ func TestCoreSetupTwoROMBIOSSelectionIsExplicit(t *testing.T) {
 		t.Fatal(err)
 	}
 	req := CoreSetupRequest{LibrarySourceID: setup.LibrarySourceID, SourceID: setup.SourceID, CoreID: cid, PackageID: pid, Title: "MegaCart", ROMs: map[string]string{setup.ROMs[0].ID: bios.MediaID}}
-	if _, err := s.CreateCoreSetupEntry(ctx, req); err == nil {
-		t.Fatal("implicitly selected BIOS")
-	}
-	f, err := s.CoreFirmware(ctx, protocol.FirmwareRole)
-	if err != nil || f.MediaID != "" {
-		t.Fatal(f, err)
-	}
-	if _, err := s.SelectCoreFirmware(ctx, protocol.FirmwareRole, bios.MediaID); err != nil {
-		t.Fatal(err)
-	}
 	e, err := s.CreateCoreSetupEntry(ctx, req)
 	if err != nil {
 		t.Fatal(err)
@@ -355,8 +344,8 @@ func TestCoreSetupIndependentLibrarySources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ra, _ := a.CoreEntryROM(ctx, ea.GameID)
-	rb, _ := b.CoreEntryROM(ctx, eb.GameID)
+	ra, _ := a.CoreEntryROM(ctx, ea.GameID, "machine-rom")
+	rb, _ := b.CoreEntryROM(ctx, eb.GameID, "machine-rom")
 	if ra.MediaID == rb.MediaID {
 		t.Fatal("ROM selections collided")
 	}
