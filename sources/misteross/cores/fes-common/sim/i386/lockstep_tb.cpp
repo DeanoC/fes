@@ -7323,8 +7323,9 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     }, -1, -1, {}, false, -1, 0, {}, {{17, cgate(0x18, 0x1940, 12, 0, 0)}}});
     // The debug registers: MOV to and from each, DR4 and DR5 as DR6 and DR7,
     // DR6's and DR7's fixed bits; DR7.GD, whose next MOV DRn (read or
-    // write, at CPL 0 or 3) raises #DB, a fault without RF, with DR6.BD set
-    // and GD cleared; at CPL 3 without GD, #GP(0); in real mode, as at CPL 0.
+    // write, at CPL 0 or 3) raises #DB, a fault whose image has RF as it is
+    // (set after an IRETD that set it: db_rf_rule), with DR6.BD set and GD
+    // cleared; at CPL 3 without GD, #GP(0); in real mode, as at CPL 0.
     auto drs = [](Asm &a) {
         a.op({0x66, 0xb8}); a.d(0x12345678); a.op({0x0f, 0x23, 0xc0});               // MOV EAX, 12345678h; MOV DR0, EAX
         a.op({0x66, 0xbb}); a.d(0x9abcdef0); a.op({0x0f, 0x23, 0xcb});               // MOV EBX, ...; MOV DR1, EBX
@@ -7349,7 +7350,7 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     cases.push_back(Case{"dr-gd-write", [=](Asm &a) { gd(a); a.op({0x0f, 0x23, 0xf8}); }, 1, -1, {}, false});
     cases.push_back(Case{"real-dr-gd", [=](Asm &a) { gd(a); a.op({0x0f, 0x21, 0xf0}); }, 1, -1, {}, true});
     cases.push_back(Case{"dr-gd-lock", [=](Asm &a) { gd(a); a.op({0xf0, 0x0f, 0x21, 0xc3}); }, 6, -1, {}, false});
-    cases.push_back(Case{"dr-gd-rf", [=](Asm &a) {                                    // IRETD with RF set, then the #DB
+    cases.push_back(Case{"dr-gd-rf", [=](Asm &a) {                                    // IRETD with RF set, then the #DB (RF set)
         gd(a); a.op({0x66, 0x9c, 0x89, 0xe5, 0x66, 0x81, 0x4e, 0x00}); a.d(0x10000);   // PUSHFD; OR dword [BP], RF
         a.op({0x66, 0x6a, 0x08});                                                      // PUSH dword 08h
         const size_t at = a.here();
@@ -7862,6 +7863,12 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
             patch(a, d0, here(a) + 1);
             a.op({0x66, 0x40});                                                      // INC EAX
         }, -1);
+        // After a MOV SS that shadows it, an instruction's breakpoint is
+        // passed over (Bochs's BX_INHIBIT_DEBUG).
+        db("db-ibp-movss", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0); dr7(a, f7(0, 1, 0, 0));
+            a.op({0x8c, 0xd0, 0x8e, 0xd0}); patch(a, d0, here(a)); a.op({0x40});
+        }, -1);
         // Ahead of the instruction's own fault: #UD (MOV CS, AX), #GP(0).
         db("db-ibp-ud", [=](Asm &a) {
             const size_t d0 = arm_at(a, 0); dr7(a, f7(0, 1, 0, 0)); patch(a, d0, here(a)); a.op({0x8e, 0xc8});
@@ -7878,9 +7885,10 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
             patch(a, d0, here(a)); a.op({0x40});
             patch(a, d1, here(a)); a.op({0x43});
         }, -1, false, true);
-        // RF through a replay: LDS SI, FS:[0A0000h] (FS 20h, flat), whose
-        // selector's load from the MMIO window is uncached and not the
-        // oldest uop, so it replays from the instruction, RF still set.
+        // RF over an instruction that reads the MMIO window: LDS SI,
+        // FS:[0A0000h] (FS 20h, flat). Its first uop, matched, reads nothing
+        // (M1), RF makes it a replay, and the instruction then runs with each
+        // device byte read once.
         db("db-ibp-rf-replay", [=](Asm &a) {
             a.ax(0x20); a.op({0x8e, 0xe0});                                         // MOV FS, 20h
             const size_t d0 = arm_at(a, 0); dr7(a, f7(0, 1, 0, 0));
