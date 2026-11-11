@@ -93,18 +93,20 @@ function draw()
   local shown = math.min(4, #F.list)
   local row_h = math.min(90, math.floor((buttons_y - 16 - y - gap * (shown - 1)) / shown))
   local w = room.width - m * 2
-  local name = row_h >= 80 and 22 or 20
+  local compact = row_h < 55
+  local name = compact and 16 or (row_h >= 80 and 22 or 20)
   for i = 1, shown do
     local f = F.list[i]
     local ry = y + (i - 1) * (row_h + gap)
     gfx.rect(m, ry, w, row_h, C.surface)
     F.outline(m, ry, w, row_h, 1, C.divider)
-    local pad = 7
+    local pad = compact and 4 or 7
     local mw = math.floor((row_h - pad * 2) * 1.4)
     F.mark(f, m + pad, ry + pad, mw, row_h - pad * 2)
     local tx = m + pad + mw + 18
-    gfx.text(f.label, tx, ry + row_h * 0.18, { size = name, bold = true, color = C.text, max_w = w - (tx - m) - 160 })
-    gfx.text(detail(f), tx, ry + row_h * 0.18 + name + 8, { size = name - 2, color = C.secondary, max_w = w - (tx - m) - 160 })
+    local text_y = ry + (compact and 1 or row_h * 0.18)
+    gfx.text(f.label, tx, text_y, { size = name, bold = true, color = C.text, max_w = w - (tx - m) - 160 })
+    gfx.text(detail(f), tx, text_y + name + (compact and 0 or 8), { size = compact and 13 or name - 2, color = C.secondary, max_w = w - (tx - m) - 160 })
     local chip = F.tile(f)
     local cw = gfx.measure(chip, 18, true) + 24
     F.chip(chip, m + w - cw - 16, ry + (row_h - 30) / 2, 18)

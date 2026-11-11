@@ -19,6 +19,8 @@ var setupSteps = []setupStep{
 	{id: "ready", room: "example.setup-ready"},
 }
 
+const setupBlockedStatus = "Stop the running machine to continue setup."
+
 // setupState is first-run setup. done is the first-run marker; skipped
 // lists the steps Skip setup left, which Home's banner offers to finish.
 // step is the open setup room's index, or -1.
@@ -111,7 +113,7 @@ func (a *App) persistSetupLocked() {
 // replace Home, so they wait for it to stop.
 func (a *App) setupBlockedLocked() bool {
 	if a.sessionStopOfferedLocked() || a.launch.Phase == "launching" {
-		a.status = "Stop the running machine to continue setup."
+		a.status = setupBlockedStatus
 		return true
 	}
 	return false
@@ -138,7 +140,7 @@ func (a *App) runSetupActionLocked(id string) {
 	i := a.setup.step
 	switch id {
 	case "setup_continue":
-		if i < 0 {
+		if i < 0 || i >= len(setupSteps) || a.setupBlockedLocked() {
 			return
 		}
 		a.setup.skipped = slices.DeleteFunc(a.setup.skipped, func(s string) bool { return s == setupSteps[i].id })
@@ -152,13 +154,16 @@ func (a *App) runSetupActionLocked(id string) {
 			a.openSetupStepLocked(i - 1)
 		}
 	case "setup_skip":
+		if i < 0 || i >= len(setupSteps) {
+			return
+		}
 		// Skipping Run setup again keeps what the finished setup left.
 		if a.setup.done {
 			a.endSetupLocked(a.setup.skipped)
 			return
 		}
 		var left []string
-		for _, s := range setupSteps[max(i+1, 1):] {
+		for _, s := range setupSteps[max(i, 1):] {
 			left = append(left, s.id)
 		}
 		a.endSetupLocked(left)

@@ -1821,7 +1821,10 @@ func (a *App) Snapshot() Snapshot {
 		}
 	}
 	status := a.status
-	if strings.TrimSpace(a.localStatus) != "" {
+	if a.setupRoomOpenLocked() && status == setupBlockedStatus && (a.sessionStopOfferedLocked() || a.launch.Phase == "launching") {
+		// Preserve the setup action's reason while a launch status is present.
+		status = setupBlockedStatus
+	} else if strings.TrimSpace(a.localStatus) != "" {
 		status = a.localStatus
 	} else if a.tapePickerOpen && strings.TrimSpace(a.tapePickerStatus) != "" {
 		status = a.tapePickerStatus

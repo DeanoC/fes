@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -151,6 +152,157 @@ func TestKitRoomsHomeEnablesTheFirstRunGate(t *testing.T) {
 func TestFirstRunGateIsOffUnlessEnabled(t *testing.T) {
 	app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
 	waitFor(t, app, "Home", homeFamilySettled)
+}
+
+func TestSetupWaitsForRunningOrStartingSession(t *testing.T) {
+	for _, phase := range []string{"active", "launching"} {
+		t.Run(phase, func(t *testing.T) {
+			dir := t.TempDir()
+			app := startFirstRun(t, dir, 1280, 720)
+			waitRoom(t, app, "example.welcome")
+			app.mu.Lock()
+			if phase == "active" {
+				app.session.State = "active"
+			} else {
+				app.launch.Phase = "launching"
+				app.launch.Message = "Starting the machine"
+			}
+			app.setup.skipped = []string{"welcome", "ready"}
+			app.runSetupActionLocked("setup_continue")
+			continueState, continueStatus := app.setup, app.status
+			continueState.skipped = slices.Clone(app.setup.skipped)
+			app.runSetupActionLocked("setup_skip")
+			skipState := app.setup
+			skipState.skipped = slices.Clone(app.setup.skipped)
+			opened := app.openSetupStepLocked(1)
+			app.runSetupAgainLocked()
+			settingsStatus := app.settingsStatus
+			app.mu.Unlock()
+			if continueState.step != 0 || continueState.done || !slices.Equal(continueState.skipped, []string{"welcome", "ready"}) || continueStatus != setupBlockedStatus {
+				t.Fatalf("blocked continue changed setup: %+v, status %q", continueState, continueStatus)
+			}
+			if skipState.step != 0 || skipState.done || !slices.Equal(skipState.skipped, []string{"welcome", "ready"}) {
+				t.Fatalf("blocked skip changed setup: %+v", skipState)
+			}
+			if opened || settingsStatus != setupBlockedStatus {
+				t.Fatalf("blocked open = %v, settings status = %q", opened, settingsStatus)
+			}
+			snap := app.Snapshot()
+			if got := renderRoomLabelSource(t, snap, "nopanel-status"); got != setupBlockedStatus {
+				t.Fatalf("setup footer = %q, want %q", got, setupBlockedStatus)
+			}
+		})
+	}
+}
+
+func TestSkippingLaterStepRecordsCurrentStep(t *testing.T) {
+	dir := t.TempDir()
+	app := startFirstRun(t, dir, 1280, 720)
+	waitRoom(t, app, "example.welcome")
+	app.HandleCommand(CmdSelect, time.Now())
+	waitRoom(t, app, "example.setup-ready")
+	app.mu.Lock()
+	app.runSetupActionLocked("setup_skip")
+	app.mu.Unlock()
+	snap := waitFor(t, app, "Home with unfinished setup", func(s Snapshot) bool {
+		return homeFamilySettled(s) && roomTextHas(s, "Setup isn't finished")
+	})
+	if p := setupPrefs(t, dir); !p.SetupDone || !slices.Equal(p.SetupSkipped, []string{"ready"}) {
+		t.Fatalf("Skip on Ready wrote %+v", p)
+	}
+	app.HandleCommand(CmdUp, time.Now())
+	if d := app.Snapshot().Room.Destination; d.LauncherAction != "setup_resume" {
+		t.Fatalf("unfinished banner destination after %+v: %+v", snap.Room.ID, d)
+	}
+	app.HandleCommand(CmdSelect, time.Now())
+	waitRoom(t, app, "example.setup-ready")
+}
+
+func TestFirstRunMaximumSafeAreaRender(t *testing.T) {
+	dir := t.TempDir()
+	app := startFirstRun(t, dir, 1280, 720)
+	waitRoom(t, app, "example.welcome")
+	app.SetSafeAreaPct(maxSafeAreaPct)
+	snap := waitFor(t, app, "768x432 Welcome", func(s Snapshot) bool {
+		return s.Room.Width == 768 && s.Room.Height == 432 && roomTextHas(s, "Welcome to FES")
+	})
+	assertSetupTextClearOfButtons(t, snap)
+	writeHomeScreenshot(t, snap, "welcome-max-safe")
+	app.HandleCommand(CmdRight, time.Now())
+	snap = waitFor(t, app, "Skip copy", func(s Snapshot) bool { return roomTextHas(s, "Skip goes straight to Home.") })
+	assertSetupTextClearOfButtons(t, snap)
+	writeHomeScreenshot(t, snap, "welcome-skip-max-safe")
+	app.mu.Lock()
+	previousSession, previousStatus := app.session.State, app.status
+	app.session.State = "active"
+	app.runSetupActionLocked("setup_skip")
+	app.mu.Unlock()
+	snap = app.Snapshot()
+	if got := renderRoomLabelSource(t, snap, "nopanel-status"); got != setupBlockedStatus {
+		t.Fatalf("small setup footer = %q, want %q", got, setupBlockedStatus)
+	}
+	writeHomeScreenshot(t, snap, "welcome-blocked-max-safe")
+	app.mu.Lock()
+	app.session.State, app.status = previousSession, previousStatus
+	app.mu.Unlock()
+	app.HandleCommand(CmdLeft, time.Now())
+	app.HandleCommand(CmdSelect, time.Now())
+	snap = waitFor(t, app, "768x432 Ready", func(s Snapshot) bool {
+		return s.Room.ID == "example.setup-ready" && s.Room.Width == 768 && s.Room.Height == 432 && roomTextHas(s, "Atari ST") && !roomTextHas(s, "Checking…")
+	})
+	assertSetupTextClearOfButtons(t, snap)
+	// Every detail must finish before the next family row starts.
+	var details []rooms.Op
+	var names []rooms.Op
+	for _, op := range snap.Room.Frame.Ops {
+		if op.Kind != rooms.OpText {
+			continue
+		}
+		switch op.Text {
+		case "Sinclair ZX81", "ZX Spectrum", "Atari ST", "Commodore 64":
+			names = append(names, op)
+		case "No games yet", "No games yet  ·  needs your firmware files", "Not on this kit":
+			details = append(details, op)
+		}
+	}
+	if len(names) != 4 || len(details) != 4 {
+		t.Fatalf("Ready rows: %d names, %d details", len(names), len(details))
+	}
+	for i := 0; i < len(names)-1; i++ {
+		if details[i].Y+float32(gfx.TextHeight(details[i].Size)) > names[i+1].Y {
+			t.Errorf("detail %q overlaps next row %q", details[i].Text, names[i+1].Text)
+		}
+	}
+	writeHomeScreenshot(t, snap, "ready-max-safe")
+}
+
+func assertSetupTextClearOfButtons(t *testing.T, snap Snapshot) {
+	t.Helper()
+	if len(snap.Room.Frame.Hits) < 2 {
+		t.Fatal("setup buttons have no hit regions")
+	}
+	for _, op := range snap.Room.Frame.Ops {
+		if op.Kind != rooms.OpText {
+			continue
+		}
+		switch op.Text {
+		case "A  Continue", "Skip setup", "A  Finish", "B  Back":
+			continue
+		}
+		width := gfx.MeasureText(op.Text, op.Size)
+		if op.MaxW > 0 && width > op.MaxW {
+			width = op.MaxW
+		}
+		x := op.X
+		if op.Align == "right" && op.MaxW > 0 {
+			x += float32(op.MaxW - width)
+		}
+		for _, hit := range snap.Room.Frame.Hits {
+			if x < hit.X+hit.W && x+float32(width) > hit.X && op.Y < hit.Y+hit.H && op.Y+float32(gfx.TextHeight(op.Size)) > hit.Y {
+				t.Errorf("text %q overlaps button %q", op.Text, hit.ID)
+			}
+		}
+	}
 }
 
 func TestFirstRunNativeRender(t *testing.T) {

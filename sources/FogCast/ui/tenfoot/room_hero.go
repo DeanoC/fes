@@ -611,6 +611,9 @@ func drawHeroDestination(dev gfx.Device, snap Snapshot, pane rectI, labels map[s
 // heroFooterStatus is the footer's left line: only conditions a player can
 // act on. Lease generations and routine health stay in Settings/Details.
 func heroFooterStatus(snap Snapshot) string {
+	if snap.Room.NoPanel && strings.TrimSpace(snap.Status) == setupBlockedStatus {
+		return setupBlockedStatus
+	}
 	if !launchOverlayVisible(snap) {
 		switch snap.Launch.Phase {
 		case "launching", "error", "host":

@@ -1613,9 +1613,17 @@ The configured FogCast service still supplies library/setup operations and
 the host session path still launches games. Cached offline titles remain
 browse-only. This option does not install or select menu firmware in an image.
 
-The built-in room set contains Home, Systems, System setup and Sinclair setup.
-The last two are internal templates opened with an exact model/entry, excluded
-from room and default-home pickers. Release Home presents recent titles and
+The built-in room set contains Home, Systems, System setup, Sinclair setup,
+Welcome and Ready. System setup and Sinclair setup are internal templates
+opened with an exact model/entry, excluded from room and default-home pickers.
+On a menu-display kit with rooms Home, first use opens Welcome and then Ready
+instead of Home. Finish records the setup marker in `tenfoot.json`; Skip opens
+Home with the unfinished steps recorded and a banner to resume them. Settings
+can also start setup again without clearing the completed marker. Host launchers
+and kits using Library Home do not use the first-run gate. A running or starting
+session blocks setup transitions, with the reason in the setup footer. Welcome
+and Ready are internal setup rooms, not routes in the room picker.
+Release Home presents recent titles and
 computer-family tiles; opening a family enters its workbench, while Play on a
 recent title launches that title. Settings is its only header route in the v1
 scope. Show all cores restores Library and Systems routes and the remaining
