@@ -38,7 +38,7 @@ func programExport(t *testing.T, id string, request packagestore.Request, files 
 	return result
 }
 
-func TestProgramDownloadHTTPThenOwnedInstallLaunchAndReturn(t *testing.T) {
+func TestProgramDownloadHTTPThenCatalogInstallLaunchAndReturn(t *testing.T) {
 	f, b, _, _ := newProgramInstallFixture(t)
 	request := b.entries[0].Request
 	files := programUpload(f.r.f.files, request)
@@ -87,10 +87,28 @@ func TestProgramDownloadHTTPThenOwnedInstallLaunchAndReturn(t *testing.T) {
 	}
 	mu.Unlock()
 	server.Close() // Installation and activation must use only retained content.
-	if err = b.Install(context.Background(), 0, plan); err != nil {
+	if err = b.AttachProgramInstall(context.Background(), plan); err != nil {
 		t.Fatal(err)
 	}
+	if calls != f.r.cpu.calls || opens != f.r.f.files.opens || len(f.r.f.files.installOperations) != 0 {
+		t.Fatal("catalog publication touched devices")
+	}
 	client := hostclient.NewClient("http://native.invalid", &http.Client{Transport: b})
+	rows, err := client.AvailableCores(context.Background())
+	if err != nil || len(rows) != 1 || rows[0].ArtifactState != "available" {
+		t.Fatal(rows, err)
+	}
+	if err = client.InstallAvailableCore(context.Background(), rows[0].CoreReference); err != nil {
+		t.Fatal(err)
+	}
+	setup, err := client.CoreSetup(context.Background(), rows[0].SourceID, rows[0].CoreID, rows[0].PackageID)
+	if err != nil || len(setup.Entries) != 1 || setup.Entries[0].GameID != "downloaded" {
+		t.Fatal(setup, err)
+	}
+	rows, err = client.AvailableCores(context.Background())
+	if err != nil || len(rows) != 1 || rows[0].ArtifactState != "installed" {
+		t.Fatal(rows, err)
+	}
 	play, err := client.Launch(context.Background(), "downloaded")
 	if err != nil {
 		t.Fatal(err)
@@ -257,4 +275,51 @@ func TestProgramDownloadRealFATInstallAndFreshBoot(t *testing.T) {
 		}
 		return source.Download(context.Background(), b, "persisted")
 	})
+}
+
+func TestProgramRetainedCatalogAttachmentRefusesWithoutDeviceIO(t *testing.T) {
+	for _, kind := range []string{"nil-backend", "nil-context", "nil-plan", "foreign-plan", "cancelled", "running", "duplicate", "existing-id"} {
+		t.Run(kind, func(t *testing.T) {
+			f, b, plan, _ := newProgramInstallFixture(t)
+			ctx := context.Background()
+			target := b
+			switch kind {
+			case "nil-backend":
+				target = nil
+			case "nil-context":
+				ctx = nil
+			case "nil-plan":
+				plan = nil
+			case "foreign-plan":
+				_, _, plan, _ = newProgramInstallFixture(t)
+			case "cancelled":
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+			case "running":
+				client := hostclient.NewClient("http://native.invalid", &http.Client{Transport: b})
+				if _, err := client.Launch(ctx, "existing"); err != nil {
+					t.Fatal(err)
+				}
+			case "duplicate":
+				if err := b.AttachProgramInstall(ctx, plan); err != nil {
+					t.Fatal(err)
+				}
+			case "existing-id":
+				var err error
+				plan, err = b.prepareInstallContent(ctx, "existing", "Conflicting title", plan.content)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			calls, opens := f.r.cpu.calls, f.r.f.files.opens
+			writes, retained := len(f.r.f.files.installOperations), b.staged
+			if err := target.AttachProgramInstall(ctx, plan); err == nil {
+				t.Fatal("invalid catalog publication accepted")
+			}
+			if calls != f.r.cpu.calls || opens != f.r.f.files.opens || writes != len(f.r.f.files.installOperations) || retained != b.staged {
+				t.Fatal("rejected attachment mutated devices or catalog")
+			}
+		})
+	}
 }

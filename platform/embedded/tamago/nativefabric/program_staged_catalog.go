@@ -48,6 +48,21 @@ func (b *ProgramBackend) AttachStagedProgram(ctx context.Context, staged *Staged
 	if err != nil {
 		return err
 	}
+	return b.AttachProgramInstall(ctx, plan)
+}
+
+// AttachProgramInstall publishes one privately retained, platform-admitted plan
+// through Tenfoot's existing Install/Setup API. A plan from Download needs no
+// source connection after attachment. Publication never installs or activates
+// content and grants no network ownership. The single retained-source slot is
+// shared with AttachStagedProgram.
+func (b *ProgramBackend) AttachProgramInstall(ctx context.Context, plan *ProgramInstall) error {
+	if b == nil || b.service == nil || b.service.state == nil || ctx == nil || plan == nil || plan.content == nil || plan.loader != b.service.state.loader {
+		return ErrProgramSession
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if !b.operation.TryLock() {
 		return ErrProgramBusy
 	}
@@ -64,6 +79,9 @@ func (b *ProgramBackend) AttachStagedProgram(ctx context.Context, staged *Staged
 		if entry.ID == plan.entry.ID && (entry.Title != plan.entry.Title || !sameProgramRequest(entry.Request, plan.entry.Request)) {
 			return ErrProgramSession
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	b.staged = plan
 	return nil

@@ -18,6 +18,13 @@ the menu owns the fabric and never installs automatically on boot. Installation
 uses the existing input/menu/network ownership transitions; the newly configured
 entry appears only after content/catalogue readback and menu restoration.
 The setup response describes that preconfigured entry and its sealed ROMs.
+`AttachProgramInstall` exposes the same explicit Install/Setup flow for an
+already admitted HTTP `Download` plan. Download and catalog publication perform
+no SD or firmware IO; the export server may disappear before the user installs.
+Both adapters share one retained-source slot. Cancelled, foreign, duplicate,
+conflicting and non-Ready attachments refuse without replacing that source.
+This joins the transport-independent download and frontend APIs; no shipped
+profile enables native Ethernet or automatically fetches an export.
 Duplicate/conflicting IDs and foreign references refuse without mutation.
 
 Source records have `format:1`, `scope:"nano-staged-program-install-v1"`, `id`,
