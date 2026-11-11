@@ -1,0 +1,1 @@
+insmod /lib/modules/6.12.11-gd7d192a9ddd9/kernel/drivers/fpga/stratix10-soc.ko 

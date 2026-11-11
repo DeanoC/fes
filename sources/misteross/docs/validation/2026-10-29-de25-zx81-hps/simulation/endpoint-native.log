@@ -1,0 +1,4 @@
+PASS DE25 computer: identity/HOLD/RUN/HID, CRC rejection, odd tape tail, commit/eject, stopped PIX
+PASS DE25 computer: coherent GPI snapshot, READY during BUSY, no GP overwrite
+PASS DE25 computer: partial, same-toggle, read-only/reserved/misaligned accesses fail closed
+PASS DE25 computer: stopped-high/low reset, retained epoch, suppressed late tape writes

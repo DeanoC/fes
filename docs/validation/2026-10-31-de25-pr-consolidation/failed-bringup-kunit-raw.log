@@ -1,0 +1,154 @@
+Booting Linux on physical CPU 0x0000000000 [0x000f0510]
+Linux version 6.12.11 (fes@de25-kunit) (aarch64-buildroot-linux-gnu-gcc.br_real (Buildroot 2021.02.4) 9.4.0, GNU ld (GNU Binutils) 2.35.2) #1 SMP Sat Oct 31 12:44:30 UTC 2026
+random: crng init done
+Machine model: linux,dummy-virt
+efi: UEFI not found.
+Zone ranges:
+  DMA      [mem 0x0000000040000000-0x000000007fffffff]
+  DMA32    empty
+  Normal   empty
+Movable zone start for each node
+Early memory node ranges
+  node   0: [mem 0x0000000040000000-0x000000007fffffff]
+Initmem setup node 0 [mem 0x0000000040000000-0x000000007fffffff]
+cma: Reserved 32 MiB at 0x000000007cc00000 on node -1
+psci: probing for conduit method from DT.
+psci: PSCIv1.1 detected in firmware.
+psci: Using standard PSCI v0.2 function IDs
+psci: Trusted OS migration not required
+psci: SMC Calling Convention v1.0
+percpu: Embedded 14 pages/cpu s26080 r0 d31264 u57344
+Detected PIPT I-cache on CPU0
+CPU features: detected: Address authentication (IMP DEF algorithm)
+CPU features: detected: 52-bit Virtual Addressing (LPA2)
+CPU features: detected: Spectre-v4
+alternatives: applying boot alternatives
+Kernel command line: kunit.filter_glob=fes-de25-dma* kunit.enable=1 console=ttyAMA0 kunit_shutdown=reboot
+Dentry cache hash table entries: 131072 (order: 8, 1048576 bytes, linear)
+Inode-cache hash table entries: 65536 (order: 7, 524288 bytes, linear)
+Built 1 zonelists, mobility grouping on.  Total pages: 262144
+mem auto-init: stack:off, heap alloc:off, heap free:off
+software IO TLB: SWIOTLB bounce buffer size adjusted to 1MB
+software IO TLB: area num 1.
+software IO TLB: mapped [mem 0x000000007ca00000-0x000000007cb00000] (1MB)
+SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=1, Nodes=1
+rcu: Hierarchical RCU implementation.
+rcu: 	RCU restricting CPUs from NR_CPUS=512 to nr_cpu_ids=1.
+rcu: RCU calculated value of scheduler-enlistment delay is 25 jiffies.
+rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=1
+NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+Root IRQ handler: gic_handle_irq
+rcu: srcu_init: Setting srcu_struct sizes based on contention.
+arch_timer: cp15 timer(s) running at 62.50MHz (virt).
+clocksource: arch_sys_counter: mask: 0x1ffffffffffffff max_cycles: 0x1cd42e208c, max_idle_ns: 881590405314 ns
+sched_clock: 57 bits at 63MHz, resolution 16ns, wraps every 4398046511096ns
+Console: colour dummy device 80x25
+Calibrating delay loop (skipped), value calculated using timer frequency.. 125.00 BogoMIPS (lpj=250000)
+pid_max: default: 32768 minimum: 301
+Mount-cache hash table entries: 2048 (order: 2, 16384 bytes, linear)
+Mountpoint-cache hash table entries: 2048 (order: 2, 16384 bytes, linear)
+cacheinfo: Unable to detect cache hierarchy for CPU 0
+rcu: Hierarchical SRCU implementation.
+rcu: 	Max phase no-delay instances is 1000.
+EFI services will not be available.
+smp: Bringing up secondary CPUs ...
+smp: Brought up 1 node, 1 CPU
+SMP: Total of 1 processors activated.
+CPU: All CPU(s) started at EL1
+CPU features: detected: Branch Target Identification
+CPU features: detected: 32-bit EL0 Support
+CPU features: detected: ARMv8.4 Translation Table Level
+CPU features: detected: Data cache clean to the PoU not required for I/D coherence
+CPU features: detected: Common not Private translations
+CPU features: detected: CRC32 instructions
+CPU features: detected: Data independent timing control (DIT)
+CPU features: detected: E0PD
+CPU features: detected: Generic authentication (IMP DEF algorithm)
+CPU features: detected: RCpc load-acquire (LDAPR)
+CPU features: detected: 52-bit Virtual Addressing for KVM (LPA2)
+CPU features: detected: LSE atomic instructions
+CPU features: detected: Privileged Access Never
+CPU features: detected: RAS Extension Support
+CPU features: detected: Random Number Generator
+CPU features: detected: Speculation barrier (SB)
+CPU features: detected: Stage-2 Force Write-Back
+CPU features: detected: TLB range maintenance instructions
+CPU features: detected: Speculative Store Bypassing Safe (SSBS)
+CPU features: detected: Scalable Vector Extension
+alternatives: applying system-wide alternatives
+CPU features: detected: Hardware dirty bit management on CPU0
+SVE: maximum available vector length 256 bytes per vector
+SVE: default vector length 64 bytes per vector
+Memory: 983448K/1048576K available (3200K kernel code, 664K rwdata, 700K rodata, 896K init, 476K bss, 29260K reserved, 32768K cma-reserved)
+clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
+futex hash table entries: 256 (order: 2, 16384 bytes, linear)
+DMI not present or invalid.
+DMA: preallocated 128 KiB GFP_KERNEL pool for atomic allocations
+DMA: preallocated 128 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+DMA: preallocated 128 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+ASID allocator initialised with 65536 entries
+Serial: AMBA PL011 UART driver
+9000000.pl011: ttyAMA0 at MMIO 0x9000000 (irq = 13, base_baud = 0) is a PL011 rev1
+printk: legacy console [ttyAMA0] enabled
+iommu: Default domain type: Translated
+iommu: DMA domain TLB invalidation policy: strict mode
+clocksource: Switched to clocksource arch_sys_counter
+workingset: timestamp_bits=62 max_order=18 bucket_order=0
+io scheduler mq-deadline registered
+io scheduler kyber registered
+Serial: AMBA driver
+clk: Disabling unused clocks
+KTAP version 1
+1..1
+    KTAP version 1
+    # Subtest: fes-de25-dma
+    # module: fes_de25_dma
+    1..17
+    ok 1 binding_stays_closed
+    ok 2 rejects_bad_publish_before_effects
+    ok 3 kernel_owns_descriptor_and_drain_lifetime
+    ok 4 failed_start_is_held_until_drain
+    ok 5 unreadable_epoch_retains_exposed_storage
+    ok 6 acceptance_is_not_display_and_slots_alternate
+    ok 7 ordered_descriptor_precedes_first_submit
+    ok 8 stale_generation_and_reset_cannot_prove_drain
+    ok 9 mismatched_completion_never_releases_slot
+    ok 10 faults_never_release_pending_slot
+    ok 11 snapshot_handshake_is_bounded_and_consistent
+    ok 12 sequence_and_generation_never_wrap
+    ok 13 poll_identity_rejects_before_register_effects
+    ok 14 coherent_mapping_uapi_and_revoke
+    ok 15 rejects_invalid_mapping_shapes
+BUG: Bad page map in process kunit_try_catch  pte:16800007cd00ccb pmd:8000000415e5003
+addr:0000000010000000 vm_flags:040440fb anon_vma:0000000000000000 mapping:0000000000000000 index:0
+file:(null) fault:0x0 mmap:0x0 read_folio:0x0
+CPU: 0 UID: 0 PID: 54 Comm: kunit_try_catch Tainted: G                 N 6.12.11 #1
+Tainted: [N]=TEST
+Hardware name: linux,dummy-virt (DT)
+Call trace:
+ dump_backtrace+0x94/0xec
+ show_stack+0x18/0x24
+ dump_stack_lvl+0x78/0x90
+ dump_stack+0x18/0x24
+ print_bad_pte+0x1cc/0x258
+ vm_normal_page+0xbc/0xdc
+ unmap_page_range+0x76c/0xeb4
+ unmap_vmas+0xa8/0xf4
+ unmap_region+0xa4/0x120
+ __mmap_region+0x700/0x770
+ mmap_region+0xbc/0x144
+ do_mmap+0x380/0x4e4
+ vm_mmap_pgoff+0x9c/0x124
+ vm_mmap+0x2c/0x40
+ refused_mapping_releases_new_mm_reference+0x70/0x1b8
+ kunit_try_run_case+0x64/0x15c
+ kunit_generic_run_threadfn_adapter+0x28/0x4c
+ kthread+0xdc/0xe8
+ ret_from_fork+0x10/0x20
+Disabling lock debugging due to kernel taint
+    ok 16 refused_mapping_releases_new_mm_reference
+    ok 17 revoke_catches_inflight_mmap_link
+# fes-de25-dma: pass:17 fail:0 skip:0 total:17
+# Totals: pass:17 fail:0 skip:0 total:17
+ok 1 fes-de25-dma
+reboot: Restarting system

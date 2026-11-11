@@ -11,7 +11,11 @@ for mode in ("idle", "menu-pattern"):
     output.mkdir(parents=True, exist_ok=True)
     sources = [HERE / "top.v", HERE / "sim_models.v", HERE.parent / "hps/fes_de25_top_reset.v"]
     names = ["fes_splash_core"] if mode == "idle" else ["fes_menu_reader", "fes_menu_video", "fes_menu_pattern_memory"]
-    sources += [ROOT / "cores" / ("fes-splash" if mode == "idle" else "fes-menu") / "rtl" / (name + ".v") for name in names]
+    for name in names:
+        if name in ("fes_menu_reader", "fes_menu_video"):
+            sources.append(HERE.parent / "shared-rtl" / (name + ".v"))
+        else:
+            sources.append(ROOT / "cores" / ("fes-splash" if mode == "idle" else "fes-menu") / "rtl" / (name + ".v"))
     if mode == "menu-pattern":
         original = sources[3]
         adapted = output / "fes_menu_reader_de25.v"

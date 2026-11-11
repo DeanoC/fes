@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "source_head": "995a51d0f8e19150144120a8dab77b1e7342412f",
+  "ci": {
+    "run_id": 40855650705,
+    "conclusion": "success",
+    "source_head": "995a51d0f8e19150144120a8dab77b1e7342412f"
+  },
+  "local_aggregate": {
+    "command": "make test-changed TEST_CHANGED_ARGS=--base d1bca43f02ef935d2d44e88ad745378f98407140",
+    "result": "failed",
+    "parent": {
+      "tests": 1092,
+      "skipped": 2,
+      "result": "passed"
+    },
+    "fpga": {
+      "tests": 1480,
+      "failures": 2,
+      "errors": 1,
+      "skipped": 35
+    },
+    "log_sha256": "ea290866b6bc0ad07e23652bc179c1e946cd4b051e5a185f8596235387b5f53e",
+    "failure_summary": "ERROR: test_keyboard_tape_and_transport_faults_on_real_machine (test_de25nano_zx81_hps.ComputerSimulationTests.test_keyboard_tape_and_transport_faults_on_real_machine)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/deano/.codex/worktrees/c134/fes/out/dev/de25-quartus-link-proof/sources/misteross/tests/test_de25nano_zx81_hps.py\", line 33, in test_keyboard_tape_and_transport_faults_on_real_machine\n    result = subprocess.run([sys.executable, \"sim.py\"], cwd=BOARD,\n                            capture_output=True, text=True, timeout=600)\n  File \"/usr/lib/python3.13/subprocess.py\", line 556, in run\n    stdout, stderr = process.communicate(input, timeout=timeout)\n                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/subprocess.py\", line 1222, in communicate\n    stdout, stderr = self._communicate(input, endtime, timeout)\n                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/subprocess.py\", line 2129, in _communicate\n    self._check_timeout(endtime, orig_timeout, stdout, stderr)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/subprocess.py\", line 1269, in _check_timeout\n    raise TimeoutExpired(\n    ...<2 lines>...\n            stderr=b''.join(stderr_seq) if stderr_seq else None)\nsubprocess.TimeoutExpired: Command '['/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-computer-test-venv/bin/python3', 'sim.py']' timed out after 600 seconds\n\n======================================================================\nFAIL: test_environment_prepends_repository_local_install_bin (test_bootstrap_interface.BootstrapInterfaceTests.test_environment_prepends_repository_local_install_bin)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/deano/.codex/worktrees/c134/fes/out/dev/de25-quartus-link-proof/sources/misteross/tests/test_bootstrap_interface.py\", line 516, in test_environment_prepends_repository_local_install_bin\n    self.assertNotIn(\"quartus\", result.stdout.lower() + result.stderr.lower())\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'quartus' unexpectedly found in '/home/deano/.codex/worktrees/c134/fes/out/dev/de25-quartus-link-proof/sources/misteross\\n/home/deano/.codex/worktrees/c134/fes/out/dev/de25-quartus-link-proof/sources/misteross/build/toolchain/install/bin\\n/home/deano/.codex/worktrees/c134/fes/out/dev/de25-quartus-link-proof/sources/misteross/build/toolchain/install/lib/pkgconfig\\n'\n\n======================================================================\nFAIL: test_script_and_commands_have_no_proprietary_lane_references (test_oss_purity.OssPipelinePurityTests.test_script_and_commands_have_no_proprietary_lane_references)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/deano/.codex/worktrees/c134/fes/out/dev/de25-quartus-link-proof/sources/misteross/tests/test_oss_purity.py\", line 1065, in test_script_and_commands_have_no_proprietary_lane_references\n    self.assertNotIn(word, result.stdout)\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'quartus' unexpectedly found in 'experiment: 010_blinky\\ntarget: 5CSEBA6U23I7\\nsynthesis: read_verilog experiments/010_blinky/rtl/top.v; synth_intel_alm -nobram -nolutram -nodsp -top top; cd top; rename LED \\\\LED[0]; ; stat; write_json build/oss/010_blinky/synth.json\\ncommand: /home/deano/.codex/worktrees/c134/fes/out/dev/de25-quartus-link-proof/sources/misteross/scripts/run_logged.sh build/oss/010_blinky/yosys.log /tmp/oss-purity-v40bflvk/toolchain/install/bin/yosys -p read_verilog\\\\ experiments/010_blinky/rtl/top.v\\\\;\\\\ synth_intel_alm\\\\ -nobram\\\\ -nolutram\\\\ -nodsp\\\\ -top\\\\ top\\\\;\\\\ cd\\\\ top\\\\;\\\\ rename\\\\ LED\\\\ \\\\\\\\LED\\\\[0\\\\]\\\\;\\\\ \\\\;\\\\ stat\\\\;\\\\ write_json\\\\ build/oss/010_blinky/synth.json\\ncommand: /home/deano/.codex/worktrees/c134/fes/out/dev/de25-quartus-link-proof/sources/misteross/scripts/run_logged.sh build/oss/010_blinky/nextpnr-help.log /tmp/oss-purity-v40bflvk/toolchain/install/bin/nextpnr-mistral --help\\ncommand: /home/deano/.codex/worktrees/c134/fes/out/dev/de25-quartus-link-proof/sources/misteross/scripts/run_logged.sh build/oss/010_blinky/nextpnr.log /tmp/oss-purity-v40bflvk/toolchain/install/bin/nextpnr-mistral --json build/oss/010_blinky/synth.json --device 5CSEBA6U23I7 --qsf boards/de10nano/pins.qsf --sdc boards/de10nano/clocks.sdc --freq 50 --rbf build/oss/010_blinky/top.rbf --compress-rbf --write build/oss/010_blinky/routed.json --report build/oss/010_blinky/timing.json --detailed-timing-report\\n'\n\n----------------------------------------------------------------------\nRan 1480 tests in 1472.893s\n\nFAILED (failures=2, errors=1, skipped=35)"
+  },
+  "evidence_limits": [
+    "Path assertions include the worktree name in forbidden-word scans; unchanged-base paired bootstrap control isolates the directory-name effect.",
+    "All 27 HPS simulation inputs and 10 derived files are unchanged from base; a baseline timeout reproduction was not run.",
+    "The aggregate began before verifier-only fixes; final focused guards passed at 18be and exact published code CI passed at 995a.",
+    "No existing test, timeout or production constraint was changed."
+  ]
+}

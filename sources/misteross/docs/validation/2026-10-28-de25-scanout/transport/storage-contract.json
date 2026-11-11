@@ -1,0 +1,34 @@
+{
+  "classification": "Source review for an explicit storage-only simulation model; not vendor-model equivalence.",
+  "excluded": [
+    "undefined startup values",
+    "mixed-port same-address collision behavior",
+    "metastability/physical timing",
+    "vendor primitive equivalence"
+  ],
+  "format": 1,
+  "model_sha256": "a19baa9bba68e7d6273f78e08d4a5111e87935c9580d63550a9ab37d641bd760",
+  "primary_sources": [
+    {
+      "path": "/data/altera_pro/26.3/ip/altera/sopc_builder_ip/altera_avalon_dc_fifo/altera_avalon_dc_fifo_hw.tcl",
+      "reviewed_anchors": "54\u201385: synthesis/simulation share the FIFO source; only constraint emission differs.",
+      "sha256": "e1da93fcaa6a9c03c1d137b6c723a48dbd51dbca8b082f25d9732356645afbc1"
+    },
+    {
+      "path": "/data/altera_pro/26.3/ip/altera/sopc_builder_ip/altera_avalon_dc_fifo/altera_avalon_dc_fifo.v",
+      "reviewed_anchors": "343\u2013398: instantiated primitive parameters and port ties.",
+      "sha256": "d18de1495c6aeee97ac897bf75e812ad1370fdb832e9f582cf3882fbfec342a5"
+    },
+    {
+      "path": "/data/altera_pro/26.3/quartus/libraries/megafunctions/xml_info/altera_syncram_info.xml",
+      "reviewed_anchors": "14/19\u201324/42/47/50/52/54/76\u201399: address register, BYPASS options, DUAL_PORT, unregistered output, power-up and DONT_CARE mixed-port defaults, ports.",
+      "sha256": "ea0aee153f175f6d498bcb780bea8711bed0a0c07dff57650818c0a6e4819ced"
+    },
+    {
+      "path": "/data/altera_pro/26.3/quartus/libraries/megafunctions/xml_info/altera_syncram_rules.xml",
+      "reviewed_anchors": "483\u2013485: dual-port read-control register follows the address register.",
+      "sha256": "642ac1d7b4cfc2ebc43975169301eb8978dbc4341444ec4f5ea758d231bf4c15"
+    }
+  ],
+  "tool": "Quartus Prime Pro26.3.0 Build114 SC Pro Edition"
+}

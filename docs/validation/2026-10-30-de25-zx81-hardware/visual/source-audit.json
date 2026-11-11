@@ -1,0 +1,36 @@
+{
+  "original_protocol_client": {
+    "source_revision": "75d626d27",
+    "source_sha256": "f04fb87065cee2bd00193407a3db2975dcc333ea3ade68f4b044faa55876a577",
+    "aarch64_sha256": "d353ad5673959fac9cea50ac34eb01035798d7857d6754d1df3d33b66121e88f",
+    "note": "Original run02 receipts bind to this committed source, not later visual-step additions."
+  },
+  "visual_client": {
+    "source_revision": "64f6067bdd245ba75dd809e0fc2fccbdeb8d4409",
+    "source_sha256": "718625c243e9f13e8a663e6cf98fe7a3978d5e5e226e75618343e1f4b3e8e681",
+    "aarch64_sha256": "b962c9c86fe21f60b8a930f83c90b2ac7e31fe791638b8212d76f3893043cff6",
+    "native_sha256": "a903ad02835e6bb3d9abefd0b953483af5df2bde77a3f8b47e09b2f1501f0716",
+    "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+    "sdk_sha256": [
+      "e6721a510ce704c0cc62deff7cd3066a844bed620d79b750e4fce16f17bb0f10  /build/5f9db22ff81ff50d1fe1a9fe7401fda88253c73cf941abc0cdede299df91b8eb/sdk/bin/aarch64-buildroot-linux-gnu-g++",
+      "4ebff4fcafd479ed5a9a6db2d816e8916916e2cc9133c006448a0e9a80431a39  /build/5f9db22ff81ff50d1fe1a9fe7401fda88253c73cf941abc0cdede299df91b8eb/sdk/bin/aarch64-buildroot-linux-gnu-g++.br_real"
+    ],
+    "runtime_source_sha256": "d0f914e46d914c5f768b9e86112d4f21c3b9359e2c904c4945ed847893785b4f"
+  },
+  "fpga_source_revision": "0534e1ec71e04a00b377e4dd0be8d64391b1dbb5",
+  "visual_client_modifier_staging": {
+    "source_revision": "143a883cdfedd66cc28f68089e28e211daa9dafd",
+    "source_sha256": "614b879ff77ab5afc546020f38da9efe2ef43f20ae163191aeb4b9377afd40a4",
+    "aarch64_sha256": "93de2d86bf4cc730414d12cc0532c1199a06693f4971f7a03a85be8059866813",
+    "native_sha256": "17d334b82cdf8f0c448d4d10564e86675726bade9bc0e339d163859d8027b9d9",
+    "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+    "sdk_sha256": [
+      "e6721a510ce704c0cc62deff7cd3066a844bed620d79b750e4fce16f17bb0f10  /build/5f9db22ff81ff50d1fe1a9fe7401fda88253c73cf941abc0cdede299df91b8eb/sdk/bin/aarch64-buildroot-linux-gnu-g++",
+      "4ebff4fcafd479ed5a9a6db2d816e8916916e2cc9133c006448a0e9a80431a39  /build/5f9db22ff81ff50d1fe1a9fe7401fda88253c73cf941abc0cdede299df91b8eb/sdk/bin/aarch64-buildroot-linux-gnu-g++.br_real"
+    ],
+    "runtime_source_sha256": "d0f914e46d914c5f768b9e86112d4f21c3b9359e2c904c4945ed847893785b4f"
+  },
+  "console_source_sha256": "9169865bdd0c9cb83182442e733126232075d0d1a03f24f078169a353961cbcf",
+  "console_startup_note": "Bounded discovery only; control protocol unchanged. Original run02 console source is frozen at 75d626d27.",
+  "programmed_sof_quartus_checksum": "0x0649BFAE"
+}

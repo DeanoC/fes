@@ -1,0 +1,34 @@
+[
+  {
+    "name": "parser",
+    "reason": "Verilog2001 wildcard ports rejected before synthesis",
+    "retained_output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-ram-pr/out/zx81-ram-quartus-frozen01/hps/project"
+  },
+  {
+    "name": "rom-depth",
+    "reason": "Critical23414 ROMMIFdepth mismatch; owned build stopped before fit",
+    "retained_output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-ram-pr/out/zx81-ram-quartus-frozen02/hps/project"
+  },
+  {
+    "log_sha256": "da0c4957e8568bb66e6379827ba7a62c678c85fd5ad77de96da3eef5b687b245",
+    "name": "diagnostic-phase",
+    "reason": "Actual four-cycle CSR negative control reads a stale external RAM byte; repaired with profile-only five-cycle diagnostic latency",
+    "retained_output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-ram-pr/out/zx81-ram-sim03"
+  },
+  {
+    "name": "folded-response",
+    "reason": "Base compiled with passing timing but twenty constant outputs failed BBD-60000 and BBD-60002; the owned run was stopped before implementation evidence was collected",
+    "retained_output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-ram-pr/out/zx81-ram-quartus-frozen03/hps/project"
+  },
+  {
+    "name": "static-constant-route",
+    "reason": "Base passed BBD and timing, but imported empty-persona routing failed from ~GND into bus_request[41]~IPORT; repaired by retaining all 46 static launch FFs",
+    "retained_output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-ram-pr/out/zx81-ram-quartus-frozen04/hps/project"
+  },
+  {
+    "compiled_candidate": "3e2c423db2",
+    "name": "late-read-response",
+    "reason": "The fully registered base passed boundary timing, but committed real-CPU test 8f8578 observed a read-response change on a post-Frozen edge; repaired by fencing the complete CPU bus to idle independently of CPU reset latency",
+    "retained_output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-ram-pr/out/zx81-real-cpu-freeze-edges"
+  }
+]

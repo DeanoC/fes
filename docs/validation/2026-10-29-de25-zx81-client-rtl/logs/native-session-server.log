@@ -1,0 +1,10 @@
+DE25 computer waiting for editor: clocks=50004748 E_LINE=0000 bus=006e
+DE25 computer waiting for editor: clocks=100004620 E_LINE=411b bus=02bd
+DE25 computer waiting for editor: clocks=150004492 E_LINE=41c1 bus=0044
+DE25 computer waiting for editor: clocks=200004364 E_LINE=426d bus=1ee9
+DE25 computer waiting for editor: clocks=250004236 E_LINE=4324 bus=1eb7
+EDITOR: cycles=287507212 E_LINE=4397 halt=1 source_ink=0
+EDITOR: cycles=301445684 E_LINE=4397 halt=1 source_ink=381
+EDITOR: cycles=315265660 E_LINE=4397 halt=1 source_ink=959
+EDITOR: cycles=329089732 E_LINE=4397 halt=1 source_ink=1557
+PASS: actual DE25 endpoint/machine RTL session complete

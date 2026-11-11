@@ -1,0 +1,13 @@
+# Insert while the retained peripheral subsystem is loaded.
+add_instance fes_computer_pixel_clk altera_clock_bridge 19.2.0
+set_instance_parameter_value fes_computer_pixel_clk EXPLICIT_CLOCK_RATE 74250000
+add_interface fes_computer_pixel_clk clock sink
+set_interface_property fes_computer_pixel_clk EXPORT_OF fes_computer_pixel_clk.in_clk
+add_instance fes_computer fes_de25_computer 1.0
+add_connection periph_clk.out_clk fes_computer.clk
+add_connection periph_rst_in.out_reset fes_computer.reset
+add_connection fes_computer_pixel_clk.out_clk fes_computer.pixel_clk
+add_connection pb_cpu_0.m0 fes_computer.avs
+set_connection_parameter_value pb_cpu_0.m0/fes_computer.avs baseAddress @COMPUTER_BASE@
+add_interface fes_computer_video conduit end
+set_interface_property fes_computer_video EXPORT_OF fes_computer.video

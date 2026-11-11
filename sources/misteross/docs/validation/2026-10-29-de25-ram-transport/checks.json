@@ -1,0 +1,25 @@
+{
+  "source": "e75ebf6a0b68507fce00cda6c60ed1e967c1c424",
+  "focused_tests": {
+    "count": 26,
+    "status": "passed",
+    "log_sha256": "06c13cd39e031eaaadf5a893ec240c4daa64dd0769f17c192568b75b7dc6c770"
+  },
+  "consistency_tests": {
+    "count": 11,
+    "status": "passed",
+    "log_sha256": "e78d814503be67b404bcbd0bb7eefcbb4824ef437041e2edfc6390058b4d9b0d"
+  },
+  "generated_transport": {
+    "status": "passed",
+    "normal_cases": 8,
+    "expected_assertion_cases": 1,
+    "receipt_sha256": "a806b1645f929c11d8d212c29b40aa06879da0815ba3c76bdda2b826294458ea"
+  },
+  "generated_consistency": {
+    "status": "passed",
+    "consumers": 34,
+    "fixtures": 37
+  },
+  "physical_acceptance": "not-run"
+}

@@ -1,0 +1,27 @@
+{
+  "source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+  "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+  "sdk_archive_sha256": "e4c09c2ebe908a4fa1077b98122a9b561712345435ae1b2fe7d4c563d1ac12c7",
+  "binaries_sha256": {
+    "native": "57910e9558c9d98d49479115c9c68735cec345a4fba613efd8b74c34eaa26112",
+    "aarch64": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539"
+  },
+  "elf_machine": 183,
+  "static_elf_no_interpreter": true,
+  "flags": [
+    "-std=c++14",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-pthread",
+    "-static",
+    "-D_FILE_OFFSET_BITS=64"
+  ],
+  "source_sha256": {
+    "sources/libmister-runtime/tools/de25_computer_client.cpp": "bed31f068ae8cc8b1331d0868ae65562bb49e797ff814e08dd603d200b83fc66",
+    "sources/libmister-runtime/src/native/de25_computer.cpp": "d0f914e46d914c5f768b9e86112d4f21c3b9359e2c904c4945ed847893785b4f",
+    "sources/libmister-runtime/src/native/linux/mmio.cpp": "b32afe0c9a269114df5b35f3760f9673a2eb842c82fa9c1560cd82a2897f1b4f"
+  },
+  "compiler_identity_log_sha256": "63010a1f38772cf700f18d37d9af03ba75298c326766c71164fed529e15a00ec"
+}

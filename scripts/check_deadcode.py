@@ -27,6 +27,7 @@ MODULES = (
     'sources/FogCast',
     'sources/FogCast/appliance',
     'sources/mister-packages',
+    'sources/misteross/boards/de25nano/link-proof/target',
     'sources/misteross/expansion',
 )
 LANES = (

@@ -1,0 +1,9 @@
+{
+  "classification": "QEMU userspace dry-run in isolated chroot; no kernel module loaded",
+  "busybox_sha256": "afd28893ac9137d9c2c81c21d6f7a1b2f1375020fc01adb29311af2e1f66f3d8",
+  "kernel_release_override": "6.12.11-gd7d192a9ddd9",
+  "module_source": "real vendor bytes recovered read-only and verified against image lock",
+  "dependency_list_checked": true,
+  "manager_list_checked": true,
+  "physical_boot_autoload": "not tested"
+}

@@ -1,0 +1,4 @@
+BOOT persona=0 RAMTOP=4400 cycles=20607055 CPUwrite-observed=1
+FREEZE cycles=20608214 lastRAMwrite=0 remainingWrites=0
+BOOT persona=1 RAMTOP=8000 cycles=287514752 CPUwrite-observed=1
+CSR LAST_DATA differs from real machine peek

@@ -1,0 +1,147 @@
+{
+  "artifact_sha256": "46f59fd3b7a60bb6afb3ecdce7792c1e943e2194c4b9d9d302b0bf058e5bcd70",
+  "calibration_exact_node_counts": {
+    "source": 1,
+    "stage0": 1,
+    "stage0_D": 1,
+    "stage1": 1
+  },
+  "calibration_fanout": {
+    "hold": {
+      "after_count": 3018,
+      "before_count": 3018,
+      "endpoint_slack_map_sha256": "0d32d6742978f8042b47589a139fd14d13ebc733712574b5270f17865407e7ff",
+      "identical_endpoint_slack_map": true,
+      "minimum_slack_ns": 0.294
+    },
+    "setup": {
+      "after_count": 3018,
+      "before_count": 3018,
+      "endpoint_slack_map_sha256": "cf317a63d69d2a7dfda116bb57433bfb07401843b691a379ca560029ec7c8c5a",
+      "identical_endpoint_slack_map": true,
+      "minimum_slack_ns": 6.159
+    }
+  },
+  "calibration_stage_setup_hold_ns": {
+    "after": [
+      9.431,
+      0.176
+    ],
+    "before": [
+      9.431,
+      0.176
+    ]
+  },
+  "candidate_history": "../../candidate-history.json",
+  "cdc50002": {
+    "after_in_memory_exception": 0,
+    "before": 1,
+    "waived": 0
+  },
+  "changed_original_files": [],
+  "classification": "historical-in-memory-constraint-experiment; original04ba artifact remains rejected on CDC-50002",
+  "command": [
+    "/data/altera_pro/26.3/quartus/bin/quartus_sta",
+    "-t",
+    "receiver-stage.tcl",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-registered-capture/hps/project",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-04ba/attempt03"
+  ],
+  "compiled_report_sha256": {
+    "golden_top.sta.rpt": "55a1f1402153a53786a5d414e3630742485ab36b00953ab4141564c7bd6e9612",
+    "golden_top.sta.summary": "2d71db259b38cd52e73201c0a75f2f63b6f9baae984440061c45340e65edf661",
+    "golden_top.tq.drc.signoff.rpt": "5724d70254f33ab84e2a851391a9a57d2fe642c0ec67502824af1645f756ad2b"
+  },
+  "compiled_source_sha256": {
+    "sources/misteross/boards/de25nano/ramtest/clocks.sdc": "45f575c28c6b7f6ffa97d9e874abc58d2dd1303bf925dc7609b9d472f5e2567c",
+    "sources/misteross/boards/de25nano/ramtest/endpoint.v": "a7b3f08f01fc0f886689305041f174b72818035af226d987737e02950df89c91",
+    "sources/misteross/boards/de25nano/ramtest/sdram.v": "f4bdc295625c13e74b306b06fd8dd0d4b04157072f71fac15c821878a385dcfc"
+  },
+  "cwd": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-04ba",
+  "exit_code": 0,
+  "hashes": {
+    "attempt03/loaded-sdc-after.rpt": "699f1c119ee652ed27e95f0c93b6754ec4b718de2dab57ecb158fe681e171557",
+    "attempt03/loaded-sdc-before.rpt": "6306fb3ea44712cfe4df68f5d70b072aa9fab442895200342332eda52506d0c6",
+    "attempt03/paths.tsv": "662436c57f122cf5ad6f69ab7db614bcba7b8b54aa3904dc36ca152df5e3ad85",
+    "attempt03/post-query-sha256.json": "f2d4d7db9d51952ab3ac66fd5659843bead5041e98b02e15ef17c036eb904fba",
+    "attempt03/query.log": "2e5409400610db7a5675d6eccc96c37c5173913dd9a606e72c1e4986e169abb9",
+    "attempt03/receiver-stage.tcl": "7e9c715b3e8b84dcabfe3d334fc8bce1705fbb4dde0cf7a506a5272b68f6d4a2",
+    "pre-query-sha256.json": "f2d4d7db9d51952ab3ac66fd5659843bead5041e98b02e15ef17c036eb904fba"
+  },
+  "limits": [
+    "No source/compiled SDC modification in the experiment",
+    "No externalDQ input/output/PCB timing claim",
+    "No vendorEMIF/interconnect functional or physical acceptance"
+  ],
+  "original_command_script": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-04ba/receiver-stage.tcl",
+  "original_file_hashes_unchanged": 52,
+  "private_run": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-04ba/attempt03",
+  "producer": "04ba0d9c503162784cd6821c1b37e129126c47ca",
+  "project": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-registered-capture/hps/project",
+  "quartus_version": "Quartus Prime Shell\nVersion 26.3.0 Build 114 10/14/2026 SC Pro Edition\nCopyright (C) 2026  Altera Corporation. All rights reserved.",
+  "query_report_sha256": {
+    "0-data-hold.rpt": "20f7c741b8201ae706e5433a20f061fc143c29416f3a8d288d401b803cb25818",
+    "0-data-setup.rpt": "9ef3fb781f9abb39774963c607818b5f4a433a8f05f884ce0788007cb484db77",
+    "0-enable-hold.rpt": "dfce1d2952b53a9a52157dacc742e248b69dae6015276460a674b6fac6b9583b",
+    "0-enable-setup.rpt": "1949440d35ebd95efd49fb376fa55072e753fb20222306bc8ba60ba4bd10d73e",
+    "1-data-hold.rpt": "6b14a6ff8b3c52cd95ed68df37a96d1abf75544523d7e506e78667576b1d0742",
+    "1-data-setup.rpt": "bcc7a011344032122e9c94829dabdc4cc6f84c7a6bf5f89c4425864a262f869d",
+    "1-enable-hold.rpt": "99db405d787b05a717491960b04cf9fd3d522f49e4e0a207c3a1d1c888adc776",
+    "1-enable-setup.rpt": "ec187a7ee14bc695b2e38a1975051da100499369d3468e530efdd61165eaa7f0",
+    "2-data-hold.rpt": "72a650952717ff4a147b99e742461bb25115de85421b49ffc1181505bf946d88",
+    "2-data-setup.rpt": "71bb79f14fc65f550a29d33f5237a65368561328e2db242d59eda47cc5e47dcf",
+    "2-enable-hold.rpt": "1a8daec44b2a1f4a240a54ce2f885ab3f84dc9558b49cf66f931854b63e0dd46",
+    "2-enable-setup.rpt": "758ccbb77a1f14faf93adc633188caefba59dd0b8cb5415524ba60145d2bb546",
+    "3-data-hold.rpt": "7b15ffd9682f4cdc878ff3a42ca3bcafbcb88490ce6e4ebb327cdffcdd472fe9",
+    "3-data-setup.rpt": "908a28c0f8ef5b0178c41735d56836eb57a64cd2e4eed9624c22a1a21e0b972f",
+    "3-enable-hold.rpt": "0d25cd657ba335a7d62181e302c4e4c2b3e1b5b4f90b8da679faa704dbc7997d",
+    "3-enable-setup.rpt": "ad51207eda37eb02e2991b57b24f40f5d87ab759835a2771abcb2aa71d0756de"
+  },
+  "receiver": {
+    "checks": [
+      "setup",
+      "hold"
+    ],
+    "clock_uncertainty_ns": 0.03,
+    "data_bits": 16,
+    "enable_endpoints": 16,
+    "minimum_slack_ns": {
+      "data": {
+        "hold": 10.127,
+        "setup": 8.107
+      },
+      "enable": {
+        "hold": 9.358,
+        "setup": 6.95
+      }
+    },
+    "published_corners": [
+      "Fast fix4 0C Model",
+      "Slow fix4 0C Model",
+      "Slow fix4 100C Model",
+      "Slow fix4a 0C Model"
+    ],
+    "rows": 256,
+    "uncertainty_report_location": "Generated"
+  },
+  "retained_failed_helper_attempts": [
+    {
+      "path": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-04ba/attempt01",
+      "reason": "new report folder missing; stopped before experimental exception",
+      "sha256": {
+        "query.log": "17eaa60a4efd7a4263611a01d81581132ee90005c7d817430e1a786587d018cb",
+        "receiver-stage.tcl": "3eb8e71553b7a05c106fe1c95cd0a8e1d02801cdc20b9a309443df038793d5cb"
+      }
+    },
+    {
+      "path": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-04ba/attempt02",
+      "reason": "bounded downstream inventory exceeded initial1024path cap; stopped before experimental exception",
+      "sha256": {
+        "query.log": "07ee69bbf2907dafa0ba778a8806f8c78094054e8a1e9fae7250cb7e68d35606",
+        "receiver-stage.tcl": "5aef08a2054dcc8dc49fdf4cf3fe150f3d20b994fa0ecab698643261cf2ad2ba"
+      }
+    }
+  ],
+  "script_header_limit": "The historical header excludes persistent project assignments; this experiment deliberately applies exactly one in-memory set_false_path as shown in its body.",
+  "tool": "/data/altera_pro/26.3/quartus/bin/quartus_sta"
+}

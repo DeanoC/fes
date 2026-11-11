@@ -1,0 +1,10 @@
+{
+  "kind": "JTAG SRAM diagnostic and off-board receipts; not an appliance image",
+  "file": "out/de25-zx81-frame-ownership-artifacts.tar.gz",
+  "bytes": 1786258,
+  "sha256": "2209b7508f852a99cc19260a33063453eeda490c8290375f01bb6a9724a7ae06",
+  "sof_sha256": "e89f5a8f9543d69794e581ac476433bb68dcd201cc083a893ef9366c5892f320",
+  "source_revision": "ae8b394b61d815ab69eb090f5158e8fc2a0951c1",
+  "hardware_acceptance": "not-run",
+  "boot_firmware_pairing": "not-qualified"
+}

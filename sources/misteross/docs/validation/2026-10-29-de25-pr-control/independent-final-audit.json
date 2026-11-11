@@ -1,0 +1,1499 @@
+{
+  "format": 1,
+  "producer": "9663da282aade3e61de1702455636c3e3ec058c5",
+  "control_build_id": "6aede5b08dad99a7139ed4f03b063d20",
+  "scope": "host compiler and source artifacts; no physical programming",
+  "verification_recipe": {
+    "snapshot": "verification-recipe",
+    "source_committed": true,
+    "source_revision": "1ec76837bb1cdf0f78b1dc0d5b20898cf94b1775",
+    "source_sha256": {
+      "sources/misteross/boards/de25nano/build.py": "104fc74e5bf448396e3e078535615efd9ac30ce6d47cc1e96cf98a5622211d6c",
+      "sources/misteross/boards/de25nano/hps/build.py": "9655d7d9bf226b8382ca8458063759a24932e4e337176d06cc112b4afda5c83c",
+      "sources/misteross/boards/de25nano/hps/fes_de25_ddr_probe.v": "884512e8259f8ac1becdeae5dd2845de450ee6ec3dc5b977f67fb11bb676d498",
+      "sources/misteross/boards/de25nano/hps/fes_de25_ddr_probe_hw.tcl": "a370ef58e230603c738c3c30be69527d4c78b509509415154c239aa33b547bd7",
+      "sources/misteross/boards/de25nano/hps/fes_de25_mailbox.v": "c7cb18157ad5476b0c2824e56a88855dd29f81f6470f8820405434acd301945e",
+      "sources/misteross/boards/de25nano/hps/fes_de25_mailbox_hw.tcl": "fecd51d784e9bb595f7aa0d456055a32d9587a6dd4041ecb11395cd1a4a14f2a",
+      "sources/misteross/boards/de25nano/hps/fes_de25_top.sdc": "bfeec4459f58d8287a55119b899bd663805942f7d51e915bc7c8e2dc7d77c2e7",
+      "sources/misteross/boards/de25nano/hps/fes_de25_top_reset.v": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a",
+      "sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp": "ab191c5b6bfbb455abf21a3b80f2925fbfa97f69e2ab2290781e748bdf205105",
+      "sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.vh": "5e79081cdf4daca60057540a3c3ce4eb12ad6f88eceb475a828779588ac717c3",
+      "sources/misteross/boards/de25nano/hps/generated/fes_de25_mailbox.hpp": "8b1f04a79981b7f77cc0d0035a7ca112ef3c75f35dea9b4596133f4e07719c6b",
+      "sources/misteross/boards/de25nano/hps/generated/fes_de25_mailbox.vh": "f0404bd1898a0f825a6fbdab20018d7efe95e48e06e57640477266d4a2f5cd9a",
+      "sources/misteross/boards/de25nano/hps/integrate.tcl": "101c2c6600c2e5912e0d051bdaf3db72eedc07779f1cfada661d3f6f2f203bc0",
+      "sources/misteross/boards/de25nano/hps/vendor.lock.toml": "cd72e8f75190725071d14830348b574542894aa97027650a546badac55c2c2fb",
+      "sources/misteross/boards/de25nano/link-proof/build.py": "b422484eee8ab57d024b9c28a2606ca4cb78354c632af64d544b216e1fed1ff1",
+      "sources/misteross/boards/de25nano/link-proof/build_timing.tcl": "2a1bd795bd601c4f060b623f80a33fdb3a82b5474ec60ce2454f7eb6f6169ac6",
+      "sources/misteross/boards/de25nano/link-proof/clocks.sdc": "bde0f37f20b84b07618cea05a9cc4f039318a591373443fe70faed8d3949dd3f",
+      "sources/misteross/boards/de25nano/link-proof/fpga/fes_de25_pr_control_hw.tcl": "06d67156d4376d006d12b3a73fad84e03a7225e7862be3bb2b8c75245ba415bc",
+      "sources/misteross/boards/de25nano/link-proof/fpga/persona_a.hex": "a9660675ab0514cf6e5b7b3247b6a0877d391f60c90cc4602f4da06ab41bdfa3",
+      "sources/misteross/boards/de25nano/link-proof/fpga/persona_b.hex": "39142fe44734c61cf7916cfb9af6bd6ae4ef33b3a68416a9b2eec2344004577d",
+      "sources/misteross/boards/de25nano/link-proof/fpga/personas.v": "dd44cf3e3aeb46f8995474d0fdba80276e761f7cb7dd2f209fac8adb8fd72d09",
+      "sources/misteross/boards/de25nano/link-proof/fpga/shell.v": "2c23b4fa45ababed2c73643df5e61fa81be68abfc4fcec431396252f75b74786",
+      "sources/misteross/boards/de25nano/link-proof/generated/fes_de25_pr_control.vh": "04763cefbcde93ce16a4cb331aca510166e003d3fd2d3f8eaaf57111d62ebdcd"
+    },
+    "timing_script": {
+      "path": "verification-recipe/sources/misteross/boards/de25nano/link-proof/build_timing.tcl",
+      "sha256": "2a1bd795bd601c4f060b623f80a33fdb3a82b5474ec60ce2454f7eb6f6169ac6",
+      "size": 5709
+    }
+  },
+  "packaging": {
+    "bootloader": {
+      "path": "software/u-boot/spl/u-boot-spl-dtb.hex",
+      "sha256": "096f53ea0bb0ba6e7449b2acf012eae734840dbcdd2943b506567bad2f72f823",
+      "size": 721613
+    },
+    "compiled_sof": {
+      "path": "output_files/base.sof",
+      "sha256": "69aee57fa32e52fc9b6938a790d4db1eafc62e6fa47a544b22f538e8d1443f83",
+      "size": 1590927
+    },
+    "compiled_sof_inspection": {
+      "status": "known-incomplete-metadata-only",
+      "vendor_pof": {
+        "hash": "a6fd335d94952434da577527fa1d87f27ef0fd9a0b152423bd33ffa4bac5ac54",
+        "info_sha256": "3b7e8fcb7431cff7c4fda5d650b8d6afffcb85c608b776dfc94415ac9b97c2ac",
+        "region_id": "0x01000000"
+      }
+    },
+    "enriched_sof": {
+      "path": "artifacts/base_hps.sof",
+      "sha256": "fe92e17f9b62e635ebae885c239e44abddf035c78859e0e9582de205a495bb13",
+      "size": 1723097
+    },
+    "enriched_sof_pof": {
+      "hash": "a6fd335d94952434da577527fa1d87f27ef0fd9a0b152423bd33ffa4bac5ac54",
+      "info_sha256": "c63efb2b30f5dbae286a9d79d0e487b69987536df2d6ac021d5fdd32eee5d477",
+      "region_id": "0x01000000"
+    },
+    "logs_sha256": {
+      "base-compiled-info.log": "3b7e8fcb7431cff7c4fda5d650b8d6afffcb85c608b776dfc94415ac9b97c2ac",
+      "base-convert.log": "ec7c96350142fa64e9f5cf4bf1ee959f5ab15a965cd88a85134fba61d0911a92",
+      "base-enrich.log": "e897b9774b4228f101bb52249645c138c71fef6810d0db9b994a6b14845e9d89",
+      "base-enriched-info.log": "c63efb2b30f5dbae286a9d79d0e487b69987536df2d6ac021d5fdd32eee5d477",
+      "base-info.log": "eecdd48496f23c616aaf51cd47cc73069cf3f4442c41c5b38030ebcc7ee17fb7",
+      "base-integrity.log": "f1cd856c7e2fda8abaa336608920403ab9bc41cd29fef9e0a92be8f73d66698b"
+    },
+    "quartus_pfg_sha256": "ed0026052cadd2ee56ae4e850c20a733ce0d0106bbd39687e15f045637404869",
+    "strategy": "vendor-sof-enrichment-then-full-rbf",
+    "vendor_recipe": {
+      "path": "sof_with_hps.bat",
+      "sha256": "1335a663e7e08e39f1d83556a82ef6a60a243d13fab616a6cc33a26d7ad5a0fe",
+      "size": 158
+    }
+  },
+  "source_handoff": {
+    "format": 1,
+    "producer": "9663da282aade3e61de1702455636c3e3ec058c5",
+    "phase": "final",
+    "result": "passed",
+    "source_files": 23,
+    "project_files": 16,
+    "generated_files": 587,
+    "preserved_hps_emif_modules": 3,
+    "preserved_hps_emif_parameter_count": 497,
+    "preserved_boot_files": 4,
+    "control": {
+      "clock_hz": 100000000,
+      "module": "subsys_periph.fes_pr_control",
+      "peripheral_offset": 67328,
+      "physical_mmio": "not-established"
+    },
+    "control_build_id": "6aede5b08dad99a7139ed4f03b063d20",
+    "lw_regions": 7,
+    "manifest_sha256": {
+      "inputs.json": "7e18874af9f3de69d1b7a634c737897d91d78b7cddb5b2a28525bf2d0df9b325",
+      "generated-inputs.json": "a3b01b1164f67d5751fea40e7adb0f147bc58be431daa39e62c948ba55c7da55",
+      "hps-handoff.json": "241675d549eea0007e8613ce415f1ce39ee345f4676d88ad64f8a815d8a0aa28"
+    },
+    "source_errors": [],
+    "file_errors": [],
+    "parameter_errors": [],
+    "boot_errors": [],
+    "physical_acceptance": "not-run"
+  },
+  "tool_executables_and_launchers_checked": 16,
+  "root_qdb_sha256": "37d7e071596a0a337bede8217df4b9cf9344a9ec3c52635de70cf2eef814ec53",
+  "revisions": {
+    "base": {
+      "constrained_timing_rows": 23,
+      "pr_boundary_and_clock_rules": [
+        {
+          "rule": "BBD-60000 - Partial Reconfiguration or Reserved Core Input/Output Ports not Directly Registered",
+          "severity": "Medium",
+          "violations": 0,
+          "waived": 0
+        },
+        {
+          "rule": "BBD-60001 - Partial Reconfiguration or Reserved Core Input Port(s) does not Drive a Register",
+          "severity": "Medium",
+          "violations": 0,
+          "waived": 0
+        },
+        {
+          "rule": "BBD-60002 - Partial Reconfiguration or Reserved Core Output Port(s) is Driven by a Constant",
+          "severity": "Medium",
+          "violations": 0,
+          "waived": 0
+        },
+        {
+          "rule": "CLK-30032 - Improper Clock Targets",
+          "severity": "Medium",
+          "violations": 0,
+          "waived": 0
+        },
+        {
+          "rule": "TMC-20025 - Ignored or Overridden Constraints",
+          "severity": "Medium",
+          "violations": 0,
+          "waived": 0
+        }
+      ],
+      "remaining_unwaived_findings": [
+        {
+          "rule": "TMC-20012 - Missing Output Delay Constraint",
+          "severity": "High",
+          "violations": 1,
+          "waived": 0
+        },
+        {
+          "rule": "LNT-30023 - Reset Nets with Polarity Conflict",
+          "severity": "Medium",
+          "violations": 1,
+          "waived": 0
+        },
+        {
+          "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+          "severity": "Medium",
+          "violations": 1,
+          "waived": 0
+        },
+        {
+          "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+          "severity": "Low",
+          "violations": 2,
+          "waived": 0
+        }
+      ],
+      "m20k_site": "M20K_X24_Y11_N0",
+      "mif_sha256": "c5ed57c53cc6ed0af14dc05a14ee14d90b2e9bf16eabcfad205d86a6309cbe58",
+      "captured_hex_sha256": "a9660675ab0514cf6e5b7b3247b6a0877d391f60c90cc4602f4da06ab41bdfa3",
+      "rom_words_checked": 256,
+      "rom_mif": "qdb/_compiler/base/slot0/26.3.0/partitioned/1/mifs/ram0_fes_link_persona_a_fcaf3cab.hdl.mif",
+      "assembler_verification": [
+        "Info (20553): Using Static Region Mask Hash BED4D2E1BF0700B029EC12678041C6444B9D617AC2047165B5DD46D8F7ACB3DA0B10971BF4A701FAE17A78925F4A60D8",
+        "Info (20553): Using PR Region: base.slot0 Hash A4EC88CE9CBF4BC67AC6DE89FF2381756C13FCC560A1ED4CC8A3A932C7D79C050106C29D0E79461AC8E6D9F6B9246AEE",
+        "Info (20553): Using CVP Hash e46ad5e6eb008be05e63a788e9397501aa2b7501e0229851277b78909ff741f2",
+        "Info (20553): Using HPS IO Hash 09D51919DD52AAA82F87D4835D085A40345792AB7F1A7B4030D3042B5B0D3D51"
+      ],
+      "static_excluding_pr_preservation": [],
+      "published_corners": [
+        "Fast fix4 0C Model",
+        "Slow fix4 0C Model",
+        "Slow fix4 100C Model",
+        "Slow fix4a 0C Model"
+      ],
+      "boundary_paths": [
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "address_ingress",
+          "check": "hold",
+          "count": 9,
+          "minimum_slack_ns": "0.150"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "address_ingress",
+          "check": "setup",
+          "count": 9,
+          "minimum_slack_ns": "9.559"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "data_egress",
+          "check": "hold",
+          "count": 32,
+          "minimum_slack_ns": "0.529"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "data_egress",
+          "check": "setup",
+          "count": 32,
+          "minimum_slack_ns": "8.655"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "request_ingress",
+          "check": "hold",
+          "count": 2,
+          "minimum_slack_ns": "0.662"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "request_ingress",
+          "check": "setup",
+          "count": 2,
+          "minimum_slack_ns": "8.927"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "reset_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.673"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "reset_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.929"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "reset_release",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.111"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "reset_release",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.764"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "valid_egress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.350"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "valid_egress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.371"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "address_ingress",
+          "check": "hold",
+          "count": 9,
+          "minimum_slack_ns": "0.298"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "address_ingress",
+          "check": "setup",
+          "count": 9,
+          "minimum_slack_ns": "9.210"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "data_egress",
+          "check": "hold",
+          "count": 32,
+          "minimum_slack_ns": "0.940"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "data_egress",
+          "check": "setup",
+          "count": 32,
+          "minimum_slack_ns": "7.696"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "request_ingress",
+          "check": "hold",
+          "count": 2,
+          "minimum_slack_ns": "1.122"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "request_ingress",
+          "check": "setup",
+          "count": 2,
+          "minimum_slack_ns": "8.129"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "reset_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "1.136"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "reset_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.168"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "reset_release",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.238"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "reset_release",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.569"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "valid_egress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.623"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "valid_egress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.939"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "address_ingress",
+          "check": "hold",
+          "count": 9,
+          "minimum_slack_ns": "0.258"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "address_ingress",
+          "check": "setup",
+          "count": 9,
+          "minimum_slack_ns": "9.302"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "data_egress",
+          "check": "hold",
+          "count": 32,
+          "minimum_slack_ns": "0.881"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "data_egress",
+          "check": "setup",
+          "count": 32,
+          "minimum_slack_ns": "7.943"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "request_ingress",
+          "check": "hold",
+          "count": 2,
+          "minimum_slack_ns": "1.050"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "request_ingress",
+          "check": "setup",
+          "count": 2,
+          "minimum_slack_ns": "8.328"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "reset_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "1.065"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "reset_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.349"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "reset_release",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.198"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "reset_release",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.621"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "valid_egress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.563"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "valid_egress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.045"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "address_ingress",
+          "check": "hold",
+          "count": 9,
+          "minimum_slack_ns": "0.298"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "address_ingress",
+          "check": "setup",
+          "count": 9,
+          "minimum_slack_ns": "9.210"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "data_egress",
+          "check": "hold",
+          "count": 32,
+          "minimum_slack_ns": "0.943"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "data_egress",
+          "check": "setup",
+          "count": 32,
+          "minimum_slack_ns": "7.693"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "request_ingress",
+          "check": "hold",
+          "count": 2,
+          "minimum_slack_ns": "1.120"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "request_ingress",
+          "check": "setup",
+          "count": 2,
+          "minimum_slack_ns": "8.127"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "reset_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "1.135"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "reset_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.169"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "reset_release",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.237"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "reset_release",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.570"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "valid_egress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.622"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "valid_egress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.938"
+        }
+      ]
+    },
+    "persona_a": {
+      "constrained_timing_rows": 23,
+      "pr_boundary_and_clock_rules": [
+        {
+          "rule": "BBD-60000 - Partial Reconfiguration or Reserved Core Input/Output Ports not Directly Registered",
+          "severity": "Medium",
+          "violations": 0,
+          "waived": 0
+        },
+        {
+          "rule": "BBD-60001 - Partial Reconfiguration or Reserved Core Input Port(s) does not Drive a Register",
+          "severity": "Medium",
+          "violations": 0,
+          "waived": 0
+        },
+        {
+          "rule": "BBD-60002 - Partial Reconfiguration or Reserved Core Output Port(s) is Driven by a Constant",
+          "severity": "Medium",
+          "violations": 0,
+          "waived": 0
+        },
+        {
+          "rule": "CLK-30032 - Improper Clock Targets",
+          "severity": "Medium",
+          "violations": 0,
+          "waived": 0
+        },
+        {
+          "rule": "TMC-20025 - Ignored or Overridden Constraints",
+          "severity": "Medium",
+          "violations": 0,
+          "waived": 0
+        }
+      ],
+      "remaining_unwaived_findings": [
+        {
+          "rule": "TMC-20012 - Missing Output Delay Constraint",
+          "severity": "High",
+          "violations": 1,
+          "waived": 0
+        },
+        {
+          "rule": "LNT-30023 - Reset Nets with Polarity Conflict",
+          "severity": "Medium",
+          "violations": 1,
+          "waived": 0
+        },
+        {
+          "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+          "severity": "Medium",
+          "violations": 1,
+          "waived": 0
+        },
+        {
+          "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+          "severity": "Low",
+          "violations": 2,
+          "waived": 0
+        }
+      ],
+      "m20k_site": "M20K_X24_Y11_N0",
+      "mif_sha256": "c5ed57c53cc6ed0af14dc05a14ee14d90b2e9bf16eabcfad205d86a6309cbe58",
+      "captured_hex_sha256": "a9660675ab0514cf6e5b7b3247b6a0877d391f60c90cc4602f4da06ab41bdfa3",
+      "rom_words_checked": 256,
+      "rom_mif": "qdb/_compiler/persona_a/slot0/26.3.0/partitioned/1/mifs/ram0_fes_link_persona_a_fcaf3cab.hdl.mif",
+      "assembler_verification": [
+        "Info (18936): Using revision output_files/base.slot0.pmsf as a baseline for persona_a.slot0 mask verification",
+        "Info (18938): Using revision output_files/base.static.msf as a baseline for static mask verification",
+        "Info (18937): Using revision output_files/base.sof as a baseline for root region logic preservation verification",
+        "Info (20553): Using PR Region: persona_a.slot0 Hash 163CC820FBB799F7FF09398FB85070F57352914DD551DFD5D98EBFDA92D7F240B1D9116B67DB1CA98634363514204916",
+        "Info (20553): Using CVP Hash e46ad5e6eb008be05e63a788e9397501aa2b7501e0229851277b78909ff741f2",
+        "Info (20553): Using HPS IO Hash 09D51919DD52AAA82F87D4835D085A40345792AB7F1A7B4030D3042B5B0D3D51"
+      ],
+      "static_excluding_pr_preservation": [
+        {
+          "Statistic": "Total Preserved Core Logic",
+          "root_partition": "100.00%",
+          "slot0": "0.00%"
+        },
+        {
+          "Statistic": "Preserved Dedicated Logic Registers",
+          "root_partition": "100.00%",
+          "slot0": "0.00%"
+        },
+        {
+          "Statistic": "Preserved Combinational ALUTs",
+          "root_partition": "100.00%",
+          "slot0": "0.00%"
+        },
+        {
+          "Statistic": "Preserved ALMs used for memory",
+          "root_partition": "100.00%",
+          "slot0": "-"
+        }
+      ],
+      "published_corners": [
+        "Fast fix4 0C Model",
+        "Slow fix4 0C Model",
+        "Slow fix4 100C Model",
+        "Slow fix4a 0C Model"
+      ],
+      "boundary_paths": [
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "address_ingress",
+          "check": "hold",
+          "count": 8,
+          "minimum_slack_ns": "0.150"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "address_ingress",
+          "check": "setup",
+          "count": 8,
+          "minimum_slack_ns": "9.557"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "data_egress",
+          "check": "hold",
+          "count": 32,
+          "minimum_slack_ns": "0.554"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "data_egress",
+          "check": "setup",
+          "count": 32,
+          "minimum_slack_ns": "8.656"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "request_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.657"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "request_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.935"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "reset_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.668"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "reset_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.924"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "reset_release",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.111"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "reset_release",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.764"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "valid_egress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.350"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "valid_egress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.371"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "address_ingress",
+          "check": "hold",
+          "count": 8,
+          "minimum_slack_ns": "0.298"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "address_ingress",
+          "check": "setup",
+          "count": 8,
+          "minimum_slack_ns": "9.188"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "data_egress",
+          "check": "hold",
+          "count": 32,
+          "minimum_slack_ns": "0.998"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "data_egress",
+          "check": "setup",
+          "count": 32,
+          "minimum_slack_ns": "7.702"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "request_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "1.113"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "request_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.139"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "reset_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "1.126"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "reset_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.143"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "reset_release",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.238"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "reset_release",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.569"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "valid_egress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.623"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "valid_egress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.939"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "address_ingress",
+          "check": "hold",
+          "count": 8,
+          "minimum_slack_ns": "0.258"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "address_ingress",
+          "check": "setup",
+          "count": 8,
+          "minimum_slack_ns": "9.289"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "data_egress",
+          "check": "hold",
+          "count": 32,
+          "minimum_slack_ns": "0.931"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "data_egress",
+          "check": "setup",
+          "count": 32,
+          "minimum_slack_ns": "7.941"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "request_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "1.039"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "request_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.339"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "reset_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "1.056"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "reset_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.331"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "reset_release",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.198"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "reset_release",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.621"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "valid_egress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.563"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "valid_egress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.045"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "address_ingress",
+          "check": "hold",
+          "count": 8,
+          "minimum_slack_ns": "0.298"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "address_ingress",
+          "check": "setup",
+          "count": 8,
+          "minimum_slack_ns": "9.190"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "data_egress",
+          "check": "hold",
+          "count": 32,
+          "minimum_slack_ns": "1.001"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "data_egress",
+          "check": "setup",
+          "count": 32,
+          "minimum_slack_ns": "7.700"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "request_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "1.110"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "request_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.140"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "reset_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "1.125"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "reset_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.143"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "reset_release",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.237"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "reset_release",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.570"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "valid_egress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.622"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "valid_egress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.938"
+        }
+      ]
+    },
+    "persona_b": {
+      "constrained_timing_rows": 23,
+      "pr_boundary_and_clock_rules": [
+        {
+          "rule": "BBD-60000 - Partial Reconfiguration or Reserved Core Input/Output Ports not Directly Registered",
+          "severity": "Medium",
+          "violations": 0,
+          "waived": 0
+        },
+        {
+          "rule": "BBD-60001 - Partial Reconfiguration or Reserved Core Input Port(s) does not Drive a Register",
+          "severity": "Medium",
+          "violations": 0,
+          "waived": 0
+        },
+        {
+          "rule": "BBD-60002 - Partial Reconfiguration or Reserved Core Output Port(s) is Driven by a Constant",
+          "severity": "Medium",
+          "violations": 0,
+          "waived": 0
+        },
+        {
+          "rule": "CLK-30032 - Improper Clock Targets",
+          "severity": "Medium",
+          "violations": 0,
+          "waived": 0
+        },
+        {
+          "rule": "TMC-20025 - Ignored or Overridden Constraints",
+          "severity": "Medium",
+          "violations": 0,
+          "waived": 0
+        }
+      ],
+      "remaining_unwaived_findings": [
+        {
+          "rule": "TMC-20012 - Missing Output Delay Constraint",
+          "severity": "High",
+          "violations": 1,
+          "waived": 0
+        },
+        {
+          "rule": "LNT-30023 - Reset Nets with Polarity Conflict",
+          "severity": "Medium",
+          "violations": 1,
+          "waived": 0
+        },
+        {
+          "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+          "severity": "Medium",
+          "violations": 1,
+          "waived": 0
+        },
+        {
+          "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+          "severity": "Low",
+          "violations": 2,
+          "waived": 0
+        }
+      ],
+      "m20k_site": "M20K_X24_Y12_N0",
+      "mif_sha256": "2e0ca3f969d2c64f092e8a970143582479ad248097e8876bbb7e2c6bfa856fc1",
+      "captured_hex_sha256": "39142fe44734c61cf7916cfb9af6bd6ae4ef33b3a68416a9b2eec2344004577d",
+      "rom_words_checked": 256,
+      "rom_mif": "qdb/_compiler/persona_b/slot0/26.3.0/partitioned/1/mifs/ram0_fes_link_persona_b_fcaf3caa.hdl.mif",
+      "assembler_verification": [
+        "Info (18936): Using revision output_files/base.slot0.pmsf as a baseline for persona_b.slot0 mask verification",
+        "Info (18938): Using revision output_files/base.static.msf as a baseline for static mask verification",
+        "Info (18937): Using revision output_files/base.sof as a baseline for root region logic preservation verification",
+        "Info (20553): Using PR Region: persona_b.slot0 Hash F18026D478E4881EAF6CB29D8A5D6545D7934009F3066EBA58680229AD814B0DE470EE69258A476C510BFA5F229A900D",
+        "Info (20553): Using CVP Hash e46ad5e6eb008be05e63a788e9397501aa2b7501e0229851277b78909ff741f2",
+        "Info (20553): Using HPS IO Hash 09D51919DD52AAA82F87D4835D085A40345792AB7F1A7B4030D3042B5B0D3D51"
+      ],
+      "static_excluding_pr_preservation": [
+        {
+          "Statistic": "Total Preserved Core Logic",
+          "root_partition": "100.00%",
+          "slot0": "0.00%"
+        },
+        {
+          "Statistic": "Preserved Dedicated Logic Registers",
+          "root_partition": "100.00%",
+          "slot0": "0.00%"
+        },
+        {
+          "Statistic": "Preserved Combinational ALUTs",
+          "root_partition": "100.00%",
+          "slot0": "0.00%"
+        },
+        {
+          "Statistic": "Preserved ALMs used for memory",
+          "root_partition": "100.00%",
+          "slot0": "-"
+        }
+      ],
+      "published_corners": [
+        "Fast fix4 0C Model",
+        "Slow fix4 0C Model",
+        "Slow fix4 100C Model",
+        "Slow fix4a 0C Model"
+      ],
+      "boundary_paths": [
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "address_ingress",
+          "check": "hold",
+          "count": 8,
+          "minimum_slack_ns": "0.150"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "address_ingress",
+          "check": "setup",
+          "count": 8,
+          "minimum_slack_ns": "9.558"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "data_egress",
+          "check": "hold",
+          "count": 32,
+          "minimum_slack_ns": "0.639"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "data_egress",
+          "check": "setup",
+          "count": 32,
+          "minimum_slack_ns": "8.557"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "request_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.657"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "request_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.935"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "reset_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.671"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "reset_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.928"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "reset_release",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.111"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "reset_release",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.764"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "valid_egress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.437"
+        },
+        {
+          "corner": "Fast fix4 0C Model",
+          "group": "valid_egress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.257"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "address_ingress",
+          "check": "hold",
+          "count": 8,
+          "minimum_slack_ns": "0.298"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "address_ingress",
+          "check": "setup",
+          "count": 8,
+          "minimum_slack_ns": "9.191"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "data_egress",
+          "check": "hold",
+          "count": 32,
+          "minimum_slack_ns": "1.147"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "data_egress",
+          "check": "setup",
+          "count": 32,
+          "minimum_slack_ns": "7.510"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "request_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "1.114"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "request_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.140"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "reset_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "1.133"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "reset_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.150"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "reset_release",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.238"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "reset_release",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.569"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "valid_egress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.790"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "group": "valid_egress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.720"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "address_ingress",
+          "check": "hold",
+          "count": 8,
+          "minimum_slack_ns": "0.258"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "address_ingress",
+          "check": "setup",
+          "count": 8,
+          "minimum_slack_ns": "9.292"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "data_egress",
+          "check": "hold",
+          "count": 32,
+          "minimum_slack_ns": "1.074"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "data_egress",
+          "check": "setup",
+          "count": 32,
+          "minimum_slack_ns": "7.771"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "request_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "1.040"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "request_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.339"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "reset_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "1.062"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "reset_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.339"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "reset_release",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.198"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "reset_release",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.621"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "valid_egress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.715"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "group": "valid_egress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.861"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "address_ingress",
+          "check": "hold",
+          "count": 8,
+          "minimum_slack_ns": "0.298"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "address_ingress",
+          "check": "setup",
+          "count": 8,
+          "minimum_slack_ns": "9.193"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "data_egress",
+          "check": "hold",
+          "count": 32,
+          "minimum_slack_ns": "1.151"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "data_egress",
+          "check": "setup",
+          "count": 32,
+          "minimum_slack_ns": "7.507"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "request_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "1.111"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "request_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.141"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "reset_ingress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "1.132"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "reset_ingress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.150"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "reset_release",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.237"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "reset_release",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "9.570"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "valid_egress",
+          "check": "hold",
+          "count": 1,
+          "minimum_slack_ns": "0.790"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "group": "valid_egress",
+          "check": "setup",
+          "count": 1,
+          "minimum_slack_ns": "8.719"
+        }
+      ]
+    }
+  },
+  "artifacts": {
+    "base": {
+      "path": "artifacts/base.rbf",
+      "size": 1986560,
+      "sha256": "9440adb021226e6df6334bd15e433d8879dfcc7e3642a947d79671cc3c59d0c6"
+    },
+    "counter_a": {
+      "path": "artifacts/counter_a.rbf",
+      "size": 503808,
+      "sha256": "894ebc43c3e613204a4179081d52146e74a1d1741ba1f1e132fe009f6c2cdec5"
+    },
+    "counter_b": {
+      "path": "artifacts/counter_b.rbf",
+      "size": 503808,
+      "sha256": "8183eedb6356824d0bed6020994d5bf8f4dbe467577dcf24b2d0a3808b4a6c7a"
+    }
+  },
+  "report_sha256": {
+    "base-compile.log": "5bfe4a450255c0b7548ecfd91dacbef6e1db963bda8e3c4a5b9ffc82dfaeb4ca",
+    "base-timing-audit.log": "e6eeff13a05c04d60f6bdade51b25283b8b11df200989052e973907eb4dac375",
+    "output_files/base.syn.rpt": "c64d795053afe274a2d3f40ff73cfd8cffbfb67939dc3a4b3a007031734efd37",
+    "output_files/base.fit.rpt": "37aae4d421556dbb3b6833294d39d945447b4cbcbe926072793411ae89ad59b9",
+    "output_files/base.asm.rpt": "137fb427275eb9e6e1fafae3a384c3fce32d9b20153f6d3d79f7b0abd09e7870",
+    "output_files/base.sta.rpt": "27d4f4eaa877fd92093b2d897abba439166eedc4796d5d53d8703bb408c32470",
+    "output_files/base.sta.summary": "6528be0d82485afa692899d93636193075a30eca244b378d36b799cba28b27f8",
+    "output_files/base.tq.drc.signoff.rpt": "31ec574f3f2a33cfe5b1bba1cd2dfdfbc855c85b22a4b708de365a81be0221c2",
+    "timing-base/boundary-paths.tsv": "5f05ad1ce96917c359705efe9a579b445afe4c7e2767c37da6cfce9abcc0aa93",
+    "persona_a-compile.log": "5e0b537083f69c70250b9d21c173fa1203c56b9dbca6ae53ea4b941022603cde",
+    "persona_a-timing-audit.log": "8b68f82d1c61a147bd76be99c6c54c4dc5a873bcec4ee98b4bdff30804d5a88d",
+    "output_files/persona_a.syn.rpt": "06f38b9203f2cccbb958ef3b73de04c8e043c171e66fe83478055d82a8900384",
+    "output_files/persona_a.fit.rpt": "1ed8aaccc64f0b2d8715371bf189ef98b92863c316d3f8fe2688b20d1cb5e442",
+    "output_files/persona_a.asm.rpt": "23a6a2989e087e4d99e7c47cd39b0e07de3f2e35385b3f712a87f188fa92ab29",
+    "output_files/persona_a.sta.rpt": "36d9df0b823df764a10ec319d1c5be07a27d040ce7a0ef4866e8dfbc70e616c3",
+    "output_files/persona_a.sta.summary": "6528be0d82485afa692899d93636193075a30eca244b378d36b799cba28b27f8",
+    "output_files/persona_a.tq.drc.signoff.rpt": "6eae62b9f675cd32053e87aa461136592842ccf8a5e1655ece77ccb02a587a39",
+    "timing-persona_a/boundary-paths.tsv": "33d92e780c387cfe77950d488ead8faee32184fe27ba9fc5971a712607c6edca",
+    "persona_b-compile.log": "4bfa08a8cffe42bca805656e4200efd0516ec4b0f7ce27d5de47f100b4b31393",
+    "persona_b-timing-audit.log": "26a0dfef79d5b358d8b299f1c658e595518f3f10f7b96ae414090df5eaf81809",
+    "output_files/persona_b.syn.rpt": "50ba6481855261445dcae618ca4915851e59c75ed342262abd8b27eaf0839ef3",
+    "output_files/persona_b.fit.rpt": "de86374bdd981587f8444dc7267dccd9a5ac5fdf26ec144a5930d3fb42e3e215",
+    "output_files/persona_b.asm.rpt": "5a2b3e6f3499366223b3e384e54cef77c743fbd6833a9f625b5f0cbbb21d59b8",
+    "output_files/persona_b.sta.rpt": "41e91c45a9fb14dc5dae7d93087a7c46c42d8e03dca0a483982ffeed2b080dd9",
+    "output_files/persona_b.sta.summary": "6528be0d82485afa692899d93636193075a30eca244b378d36b799cba28b27f8",
+    "output_files/persona_b.tq.drc.signoff.rpt": "ba3d21adca9697d76958a42cdf131f590b5ba42e8e1310c3bf9c780c2b635723",
+    "timing-persona_b/boundary-paths.tsv": "7fa1ee75124e474434fbd13c1b466cf46afc4ca4071f946cb5c6e5dc30aee35c",
+    "build.json": "b6fe79e4488bfc3b5a21431fcdfe00d1b40ea3d473ea089f50e1f13948f66434",
+    "artifacts.json": "f7ecf09faa147e5e1ed5c5d1dc1e42ad753f39c3ac7f71585d0c90843709bf9e",
+    "inputs.json": "7e18874af9f3de69d1b7a634c737897d91d78b7cddb5b2a28525bf2d0df9b325",
+    "generated-inputs.json": "a3b01b1164f67d5751fea40e7adb0f147bc58be431daa39e62c948ba55c7da55",
+    "tools.json": "8137dd1c26519a3d2dfaca282a10dea6f11880141303c0fe2c77483d8750d4d0",
+    "hps-handoff.json": "241675d549eea0007e8613ce415f1ce39ee345f4676d88ad64f8a815d8a0aa28",
+    "root-qdb.json": "a931453d5977bb7854b1c0a7043a1407f9443c813210b47897b00e4422057787"
+  },
+  "compiled_artifacts_unchanged_across_packaging": 70,
+  "vendor_pof": {
+    "base": {
+      "region_id": "0x01000000",
+      "hash": "a6fd335d94952434da577527fa1d87f27ef0fd9a0b152423bd33ffa4bac5ac54",
+      "info_sha256": "eecdd48496f23c616aaf51cd47cc73069cf3f4442c41c5b38030ebcc7ee17fb7"
+    },
+    "persona_a": {
+      "region_id": "0x01000000",
+      "hash": "a6fd335d94952434da577527fa1d87f27ef0fd9a0b152423bd33ffa4bac5ac54",
+      "info_sha256": "aed7bea05b9fe9146b8c657c26c11ea86308cf81143e80c01a1cc208dfcf8040"
+    },
+    "persona_b": {
+      "region_id": "0x01000000",
+      "hash": "a6fd335d94952434da577527fa1d87f27ef0fd9a0b152423bd33ffa4bac5ac54",
+      "info_sha256": "a9b256b55cf8ef4ed1a3c9574d24ad3019a50609b1adf9fd76736d9bec3203e3"
+    }
+  },
+  "reset_boundary_fanin": {
+    "status": "passed",
+    "observed": [
+      "REGISTER slot_inst|core|reset_q",
+      "FANIN plain reg soc_inst|subsys_periph|fes_pr_control|fes_pr_control|slot_reset"
+    ],
+    "sha256": {
+      "pr-reset-final-audit.tcl": "bbf4c29b03217ca41b70243c4063f9725eb1961f2dde3c52ca389298cb8eea9f",
+      "pr-reset-final-audit.log": "0fa28d519665ea6f4c2bcd3f195551aad8b95153a7e306cdbd7727c60341be1a"
+    }
+  }
+}

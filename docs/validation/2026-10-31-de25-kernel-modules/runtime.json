@@ -1,0 +1,82 @@
+{
+  "architecture": "aarch64",
+  "board": "de25-nano",
+  "build_volume": "fes-de25-runtime-4dc9573ee25a3a27",
+  "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+  "checks": {
+    "agent_tests": [
+      "TestClientRejectsWrongProtocolAndUnknownResponseFields",
+      "TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial",
+      "TestRuntimeSocketOpenIsFalseWhenDialFails",
+      "TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse",
+      "TestNativeReconcileMapsRebootRequiredToFailedUnavailable"
+    ],
+    "compiler_version": "aarch64-buildroot-linux-gnu-g++.br_real (Buildroot 2021.02.4) 9.4.0",
+    "runtime_build_key": "845f66332a21f65c41a574806a5bad5d5c473429faf4b8b8a91d4551681425ce",
+    "runtime_tests": [
+      {
+        "name": "runtime_test",
+        "result": "passed",
+        "sha256": "2d0e3d289db96be3ef965537873bcde2a5b28aff5cb637c07cc6601af43ee1f8"
+      },
+      {
+        "name": "protocol_test",
+        "result": "passed",
+        "sha256": "9bda7e8961228d6067006ade1208f0d574b45369c629f2f57637e56ee09129d4"
+      },
+      {
+        "name": "mmio_test",
+        "result": "passed",
+        "sha256": "aa17a692e8857ecda397569958359d1c80b6f70ad52694103725836ddb2fa343"
+      },
+      {
+        "name": "fpga_manager_test",
+        "result": "passed",
+        "sha256": "f367235e6056c1a788fb3e8afa724aca3f1483b34571956d9d6323c05fff42cf"
+      },
+      {
+        "name": "off_t_test",
+        "result": "passed",
+        "sha256": "10705275058ef89f6ced828c31498a99c6fb1cb178492909cf029ace251ecf96"
+      },
+      {
+        "name": "production_hardware_test",
+        "result": "passed",
+        "sha256": "8299e99efd86044466d14a11d6317a921287e212b300ebe60195362de13e5ddf"
+      },
+      {
+        "name": "de25_computer_test",
+        "result": "passed",
+        "sha256": "b9c1bb67d8785e2c247ea5f7eed5f4e654fcf070adad314ee2a0d00b10ea7800"
+      }
+    ]
+  },
+  "classification": "userspace-only",
+  "fes_revision": "6cbbcacb7d40157d6b6cc94f561ba5e4e07415b3",
+  "files": {
+    "agent-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "agent-cli.log": "1e2e9c3cea95b4efdf1243abdcf1a970f4e65cde3f78caee950cbf42b03821de",
+    "agent-runtime-tests": "0c1724883a072a101b60158e00926cbdfca4e0718db9ac5a6787a1e6601a0318",
+    "agent-runtime-tests.log": "16249091eea9d211d7756f2daada6bbf10e84765bb231821824848468d0ac743",
+    "agent-test-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "checks.json": "d84240c5914a51e660a182d783fc31bb3b12fd4131f27de1798bc40599b76f72",
+    "de25_computer_test.log": "9833b1b9c7cda8810e4c4eccb01edca9230719d3598ec8382d5ee3b94f6a7667",
+    "fpga_manager_test.log": "3f43bb52397f6a3ef67a273a69a85e0da6dc76040fc35b7b4228f971b699c402",
+    "libmister-runtime.a": "eb8be6b3691c67f0fc0b4ca6714192e720c3b140318cc1936fdedb62076844e6",
+    "mister-agent-linux-arm64": "26e15e39529e05197138a68f3ef9f9d4b1c0f4c74229ffedc87c34d36a6cb15f",
+    "mister-runtime": "9575a8dc0373f4e58028513fdd130207eef8853bcc06ca4a0f745b67deb4aeea",
+    "mmio_test.log": "43cd6eaefeb517964da92758f974b089947e8ba763034f38e4879c077cdc1aaa",
+    "off_t_test.log": "69cd3e20a967026027021cc69e1ecf305836719305a5795d939a89d8eb4f2fb2",
+    "production_hardware_test.log": "dcaea052ab312ad7776ab72a420c9cbc89706e5fe46a9f2f3b68ad48cfbd752f",
+    "protocol_test.log": "3ac78ef74d5def9120a3acdc030a8f57a284b11b881f7ccee25313655047f567",
+    "runtime_test.log": "22044a7203a8b8f1a64d7bba6d57230fc44ebd568e7c93b3ca7a1439086494b1"
+  },
+  "format": 1,
+  "go_target": "linux/arm64 GOARM64=v8.0 CGO_ENABLED=0",
+  "go_version": "go version go1.26.5 linux/amd64",
+  "hardware_acceptance": "not-run",
+  "image_fes_revision": "0da63d1044cc7ecf9908efba52af17b3e55e6271",
+  "qemu_cpu": "cortex-a53",
+  "runtime_source_tree": "71565654baecc2eca19ac92e8aed302b89c22e97",
+  "sdk_sha256": "7912076c08d93c8d8c28c0ef81bd406abf6b1acb9e01ccac37d44307e39759a7"
+}

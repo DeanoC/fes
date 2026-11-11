@@ -1,0 +1,432 @@
+Info: *******************************************************************
+Info: Running Quartus Prime Timing Analyzer
+    Info: Version 26.3.0 Build 114 10/14/2026 SC Pro Edition
+    Info: Copyright (C) 2026  Altera Corporation. All rights reserved.
+    Info: Your use of Altera Corporation's design tools, logic functions 
+    Info: and other software and tools, and any partner logic 
+    Info: functions, and any output files from any of the foregoing 
+    Info: (including device programming or simulation files), and any 
+    Info: associated documentation or information are expressly subject 
+    Info: to the terms and conditions of the Altera Program License 
+    Info: Subscription Agreement, the Altera Quartus Prime License Agreement,
+    Info: the Altera IP License Agreement, or other applicable license
+    Info: agreement, including, without limitation, that your use is for
+    Info: the sole purpose of programming logic devices manufactured by
+    Info: Altera and sold by Altera or its authorized distributors.  Please
+    Info: refer to the Altera Software License Subscription Agreements 
+    Info: on the Quartus Prime software download page.
+    Info: Processing started: Thu Oct 29 10:56:33 2026
+    Info: System process ID: 841586
+Info: Command: quartus_sta -t receiver-stage.tcl /home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-calibration-contract/hps/project /home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final
+Info: Quartus(args): /home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-calibration-contract/hps/project /home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final
+Info (20032): Parallel compilation is enabled and will use up to 2 processors
+Info (16677): Loading final database.
+Info (16734): Loading "final" snapshot for partition "root_partition".
+Info (16734): Loading "final" snapshot for partition "auto_fab_0".
+Info (16678): Successfully loaded final database: elapsed time is 00:00:04.
+Info (21076): High junction temperature operating condition is not set. Assuming a default value of '100'.
+Info (21076): Low junction temperature operating condition is not set. Assuming a default value of '0'.
+Info (332164): Evaluating HDL-embedded SDC commands
+    Info (332165): Entity altera_std_synchronizer
+        Info (332166): set_false_path -to [get_keepers {*altera_std_synchronizer:*|din_s1}]
+Info (19539): Reading the HDL-embedded SDC files elapsed 00:00:01.
+Info (332104): Reading SDC File: 'ip/pll/altera_iopll_2110/synth/pll_altera_iopll_2110_xltklsq.sdc'
+Info (332151): Clock uncertainty is not calculated until you update the timing netlist.
+Info: Initializing PLL database for CORE pll_altera_iopll_2110_xltklsq
+Info: Finding port-to-pin mapping for CORE: pll_altera_iopll_2110_xltklsq INSTANCE: pll_inst|iopll_0
+Info (332104): Reading SDC File: 'ghrd_timing.sdc'
+Info (332151): Clock uncertainty is not calculated until you update the timing netlist.
+Info (332104): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_001'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_002'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_003'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_001'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_002'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_003'
+Info (332104): Reading SDC File: 'ip/qsys_top/user_rst_clkgate_0/intel_user_rst_clkgate_101/synth/intel_user_rst_clkgate_agilex.sdc'
+Info (18794): Reading SDC File: 'hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/agilex_hps_intel_sundancemesa_hps_100_z5bqzvi.sdc' for instance: 'soc_inst|subsys_hps|agilex_hps|intel_agilex_5_soc_inst|sm_hps'
+Info (332104): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_001'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_002'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_003'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_001'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_002'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_003'
+Info (332104): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_001'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_002'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_003'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_001'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_002'
+Info (18794): Reading SDC File: 'jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_003'
+Info (18794): Reading SDC File: 'qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller'
+Info (18794): Reading SDC File: 'qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_001'
+Info (18794): Reading SDC File: 'qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_002'
+Info (18794): Reading SDC File: 'qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_003'
+Info (18794): Reading SDC File: 'qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller'
+Info (18794): Reading SDC File: 'qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_001'
+Info (18794): Reading SDC File: 'qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_002'
+Info (18794): Reading SDC File: 'qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_003'
+Info (332104): Reading SDC File: 'peripheral_subsys/peripheral_subsys/hs_clk_xer_1941/synth/alt_hiconnect_handshake_clock_crosser.sdc'
+Info (18794): Reading SDC File: 'peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller'
+Info (18794): Reading SDC File: 'peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_001'
+Info (18794): Reading SDC File: 'peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_002'
+Info (18794): Reading SDC File: 'peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_003'
+Info (18794): Reading SDC File: 'peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller'
+Info (18794): Reading SDC File: 'peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_001'
+Info (18794): Reading SDC File: 'peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_002'
+Info (18794): Reading SDC File: 'peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_003'
+Info (332104): Reading SDC File: 'hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc'
+Info (18794): Reading SDC File: 'hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller'
+Info (18794): Reading SDC File: 'hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_001'
+Info (18794): Reading SDC File: 'hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_002'
+Info (18794): Reading SDC File: 'hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_003'
+Info (18794): Reading SDC File: 'hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller'
+Info (18794): Reading SDC File: 'hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_001'
+Info (18794): Reading SDC File: 'hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_002'
+Info (18794): Reading SDC File: 'hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_003'
+Info (332104): Reading SDC File: 'hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/emif_io96b_lpddr4_510/synth/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_lpddr4_510_r23assy.sdc'
+Info (332151): Clock uncertainty is not calculated until you update the timing netlist.
+Info: Initializing DDR database for CORE emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_lpddr4_510_r23assy
+Info: Finding port-to-pin mapping for CORE: emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_lpddr4_510_r23assy INSTANCE: soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4 BANK:0
+Info (332104): Reading SDC File: 'fes_mailbox/fes_de25_top.sdc'
+Info: DE25 top reset asynchronous clear pins: 2 (expected 2); D and release fanout remain timed
+Info: DE25 asynchronous human-visible LED output ports: 4 (expected 4)
+Info (332104): Reading SDC File: 'fes_mailbox/clocks.sdc'
+DE25 RAM calibration asynchronous ingress: 1 source, 1 first stage, 1 second stage, 1 first-stage D pin
+Info (332104): Reading SDC File: 'ramtest_b/ip/EMIF_Qsys/EMIF_Qsys_emif_ddr4a_0/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc'
+Info (18794): Reading SDC File: 'ramtest_b/ip/EMIF_Qsys/EMIF_Qsys_emif_ddr4a_0/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'ramtest_b/ip/EMIF_Qsys/EMIF_Qsys_emif_ddr4a_0/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'ramtest_b/ip/EMIF_Qsys/EMIF_Qsys_emif_ddr4a_0/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller'
+Info (18794): Reading SDC File: 'ramtest_b/ip/EMIF_Qsys/EMIF_Qsys_emif_ddr4a_0/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller'
+Info (18794): Reading SDC File: 'ramtest_b/ip/EMIF_Qsys/EMIF_Qsys_emif_ddr4a_0/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_001'
+Info (18794): Reading SDC File: 'ramtest_b/ip/EMIF_Qsys/EMIF_Qsys_emif_ddr4a_0/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_002'
+Info (18794): Reading SDC File: 'ramtest_b/ip/EMIF_Qsys/EMIF_Qsys_emif_ddr4a_0/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_003'
+Info (18794): Reading SDC File: 'ramtest_b/ip/EMIF_Qsys/EMIF_Qsys_emif_ddr4a_0/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller'
+Info (18794): Reading SDC File: 'ramtest_b/ip/EMIF_Qsys/EMIF_Qsys_emif_ddr4a_0/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_001'
+Info (18794): Reading SDC File: 'ramtest_b/ip/EMIF_Qsys/EMIF_Qsys_emif_ddr4a_0/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_002'
+Info (18794): Reading SDC File: 'ramtest_b/ip/EMIF_Qsys/EMIF_Qsys_emif_ddr4a_0/altera_reset_controller_1925/synth/altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_003'
+Info (332104): Reading SDC File: 'ramtest_b/ip/EMIF_Qsys/EMIF_Qsys_emif_ddr4a_0/emif_io96b_lpddr4_510/synth/EMIF_Qsys_emif_ddr4a_0_emif_io96b_lpddr4_510_rplrc7y.sdc'
+Info (332151): Clock uncertainty is not calculated until you update the timing netlist.
+Info: Initializing DDR database for CORE EMIF_Qsys_emif_ddr4a_0_emif_io96b_lpddr4_510_rplrc7y
+Info: Finding port-to-pin mapping for CORE: EMIF_Qsys_emif_ddr4a_0_emif_io96b_lpddr4_510_rplrc7y INSTANCE: soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0 BANK:0
+Info (332104): Reading SDC File: '/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-calibration-contract/hps/project/qdb/_compiler/golden_top/_flat/26.3.0/source/1/.temp/cpt_proxy/default_jtag.sdc'
+Info (19449): Reading SDC files elapsed 00:00:02.
+Info (332097): The following timing edges are non-unate.  The Timing Analyzer will assume pos-unate behavior for these edges in the clock network.
+    Info (332098): Cell: soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_bufs_mem|g_MEM_DQS_T_0_out[0].obuf  from: i  to: o
+    Info (332098): Cell: soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_bufs_mem|g_MEM_DQS_T_0_out[1].obuf  from: i  to: o
+    Info (332098): Cell: soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_bufs_mem|g_MEM_DQS_T_0_out[2].obuf  from: i  to: o
+    Info (332098): Cell: soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_bufs_mem|g_MEM_DQS_T_0_out[3].obuf  from: i  to: o
+    Info (332098): Cell: soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_bufs_mem|g_MEM_DQS_T_0_out[0].obuf  from: i  to: o
+    Info (332098): Cell: soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_bufs_mem|g_MEM_DQS_T_0_out[1].obuf  from: i  to: o
+    Info (332098): Cell: soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_bufs_mem|g_MEM_DQS_T_0_out[2].obuf  from: i  to: o
+    Info (332098): Cell: soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_bufs_mem|g_MEM_DQS_T_0_out[3].obuf  from: i  to: o
+Info (332123): Deriving Clock Uncertainty. Please refer to report_sdc in the Timing Analyzer to see clock uncertainties.
+Info (332152): Existing clock uncertainty assignments were detected. They will take precedence over the derive_clock_uncertainty command
+COUNT calibration_source 1
+NODE calibration_source fes_ram_calibration|r_cal_done_rst_n
+COUNT calibration_head 1
+NODE calibration_head soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]
+COUNT calibration_tail 1
+NODE calibration_tail soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]
+COUNT calibration_head_D 1
+NODE calibration_head_D soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]|d
+Info (21615): Running Design Assistant Rules for snapshot 'final'
+Info: No waiver waived any violations
+Info (22360): Design Assistant Results: 1 of 1 enabled rules passed, and 94 rules was disabled, in snapshot 'final'
+Info (21661): Design Assistant Results: 0 of 1 High severity rules issued violations in snapshot 'final'
+DRC compiled violations=0 waived=0
+CLOCK ramtest_sdram50 period=20.000 waveform=0.000 10.000  inverted=0 type=base
+CLOCK ramtest_sdram_forwarded period=20.000 waveform=10.000 20.000  inverted=1 type=generated
+CORNER 0 Slow fix4 100C Model
+CALIBRATION_STAGE 0 setup 9.591
+CALIBRATION_FANOUT_COUNT 0 setup 3033 minimum=6.814
+Info (332115): Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 9.591
+    Info (20696): -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]}]
+    Info (20696): -to [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}]
+    Info (20696): -setup
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/0-calibration-stage-setup.rpt}
+Info (332115): Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 6.814
+    Info (20696): -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}]
+    Info (20696): -setup
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/0-calibration-fanout-setup.rpt}
+Info (332115): Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 8.095
+    Info (20696): -from [get_registers {*|sampled_dq[*]}]
+    Info (20696): -to [get_registers {soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[*]}]
+    Info (20696): -fall_from_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -rise_to_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -setup
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/0-data-setup.rpt}
+Info (332115): Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 7.814
+    Info (20696): -to [get_registers {*|sampled_dq[*]}]
+    Info (20696): -rise_from_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -fall_to_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -setup
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/0-enable-setup.rpt}
+CALIBRATION_STAGE 0 hold 0.226
+CALIBRATION_FANOUT_COUNT 0 hold 3033 minimum=0.624
+Info (332115): Report Timing: Found 1 hold paths (0 violated).  Worst case slack is 0.226
+    Info (20696): -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]}]
+    Info (20696): -to [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}]
+    Info (20696): -hold
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/0-calibration-stage-hold.rpt}
+Info (332115): Report Timing: Found 1 hold paths (0 violated).  Worst case slack is 0.624
+    Info (20696): -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}]
+    Info (20696): -hold
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/0-calibration-fanout-hold.rpt}
+Info (332115): Report Timing: Found 1 hold paths (0 violated).  Worst case slack is 10.387
+    Info (20696): -from [get_registers {*|sampled_dq[*]}]
+    Info (20696): -to [get_registers {soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[*]}]
+    Info (20696): -fall_from_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -rise_to_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -hold
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/0-data-hold.rpt}
+Info (332115): Report Timing: Found 1 hold paths (0 violated).  Worst case slack is 9.225
+    Info (20696): -to [get_registers {*|sampled_dq[*]}]
+    Info (20696): -rise_from_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -fall_to_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -hold
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/0-enable-hold.rpt}
+CORNER 1 Slow fix4 0C Model
+CALIBRATION_STAGE 1 setup 9.542
+CALIBRATION_FANOUT_COUNT 1 setup 3033 minimum=6.422
+Info (332115): Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 9.542
+    Info (20696): -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]}]
+    Info (20696): -to [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}]
+    Info (20696): -setup
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/1-calibration-stage-setup.rpt}
+Info (332115): Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 6.422
+    Info (20696): -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}]
+    Info (20696): -setup
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/1-calibration-fanout-setup.rpt}
+Info (332115): Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 8.120
+    Info (20696): -from [get_registers {*|sampled_dq[*]}]
+    Info (20696): -to [get_registers {soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[*]}]
+    Info (20696): -fall_from_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -rise_to_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -setup
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/1-data-setup.rpt}
+Info (332115): Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 7.195
+    Info (20696): -to [get_registers {*|sampled_dq[*]}]
+    Info (20696): -rise_from_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -fall_to_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -setup
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/1-enable-setup.rpt}
+CALIBRATION_STAGE 1 hold 0.263
+CALIBRATION_FANOUT_COUNT 1 hold 3033 minimum=0.686
+Info (332115): Report Timing: Found 1 hold paths (0 violated).  Worst case slack is 0.263
+    Info (20696): -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]}]
+    Info (20696): -to [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}]
+    Info (20696): -hold
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/1-calibration-stage-hold.rpt}
+Info (332115): Report Timing: Found 1 hold paths (0 violated).  Worst case slack is 0.686
+    Info (20696): -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}]
+    Info (20696): -hold
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/1-calibration-fanout-hold.rpt}
+Info (332115): Report Timing: Found 1 hold paths (0 violated).  Worst case slack is 10.106
+    Info (20696): -from [get_registers {*|sampled_dq[*]}]
+    Info (20696): -to [get_registers {soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[*]}]
+    Info (20696): -fall_from_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -rise_to_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -hold
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/1-data-hold.rpt}
+Info (332115): Report Timing: Found 1 hold paths (0 violated).  Worst case slack is 9.434
+    Info (20696): -to [get_registers {*|sampled_dq[*]}]
+    Info (20696): -rise_from_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -fall_to_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -hold
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/1-enable-hold.rpt}
+CORNER 2 Slow fix4a 0C Model
+CALIBRATION_STAGE 2 setup 9.542
+CALIBRATION_FANOUT_COUNT 2 setup 3033 minimum=6.416
+Info (332115): Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 9.542
+    Info (20696): -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]}]
+    Info (20696): -to [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}]
+    Info (20696): -setup
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/2-calibration-stage-setup.rpt}
+Info (332115): Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 6.416
+    Info (20696): -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}]
+    Info (20696): -setup
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/2-calibration-fanout-setup.rpt}
+Info (332115): Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 8.203
+    Info (20696): -from [get_registers {*|sampled_dq[*]}]
+    Info (20696): -to [get_registers {soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[*]}]
+    Info (20696): -fall_from_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -rise_to_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -setup
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/2-data-setup.rpt}
+Info (332115): Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 7.258
+    Info (20696): -to [get_registers {*|sampled_dq[*]}]
+    Info (20696): -rise_from_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -fall_to_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -setup
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/2-enable-setup.rpt}
+CALIBRATION_STAGE 2 hold 0.263
+CALIBRATION_FANOUT_COUNT 2 hold 3033 minimum=0.687
+Info (332115): Report Timing: Found 1 hold paths (0 violated).  Worst case slack is 0.263
+    Info (20696): -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]}]
+    Info (20696): -to [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}]
+    Info (20696): -hold
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/2-calibration-stage-hold.rpt}
+Info (332115): Report Timing: Found 1 hold paths (0 violated).  Worst case slack is 0.687
+    Info (20696): -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}]
+    Info (20696): -hold
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/2-calibration-fanout-hold.rpt}
+Info (332115): Report Timing: Found 1 hold paths (0 violated).  Worst case slack is 10.170
+    Info (20696): -from [get_registers {*|sampled_dq[*]}]
+    Info (20696): -to [get_registers {soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[*]}]
+    Info (20696): -fall_from_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -rise_to_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -hold
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/2-data-hold.rpt}
+Info (332115): Report Timing: Found 1 hold paths (0 violated).  Worst case slack is 9.517
+    Info (20696): -to [get_registers {*|sampled_dq[*]}]
+    Info (20696): -rise_from_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -fall_to_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -hold
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/2-enable-hold.rpt}
+CORNER 3 Fast fix4 0C Model
+CALIBRATION_STAGE 3 setup 9.740
+CALIBRATION_FANOUT_COUNT 3 setup 3033 minimum=7.927
+Info (332115): Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 9.740
+    Info (20696): -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]}]
+    Info (20696): -to [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}]
+    Info (20696): -setup
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/3-calibration-stage-setup.rpt}
+Info (332115): Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 7.927
+    Info (20696): -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}]
+    Info (20696): -setup
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/3-calibration-fanout-setup.rpt}
+Info (332115): Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 8.478
+    Info (20696): -from [get_registers {*|sampled_dq[*]}]
+    Info (20696): -to [get_registers {soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[*]}]
+    Info (20696): -fall_from_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -rise_to_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -setup
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/3-data-setup.rpt}
+Info (332115): Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 8.825
+    Info (20696): -to [get_registers {*|sampled_dq[*]}]
+    Info (20696): -rise_from_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -fall_to_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -setup
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/3-enable-setup.rpt}
+CALIBRATION_STAGE 3 hold 0.129
+CALIBRATION_FANOUT_COUNT 3 hold 3033 minimum=0.380
+Info (332115): Report Timing: Found 1 hold paths (0 violated).  Worst case slack is 0.129
+    Info (20696): -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]}]
+    Info (20696): -to [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}]
+    Info (20696): -hold
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/3-calibration-stage-hold.rpt}
+Info (332115): Report Timing: Found 1 hold paths (0 violated).  Worst case slack is 0.380
+    Info (20696): -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}]
+    Info (20696): -hold
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/3-calibration-fanout-hold.rpt}
+Info (332115): Report Timing: Found 1 hold paths (0 violated).  Worst case slack is 10.416
+    Info (20696): -from [get_registers {*|sampled_dq[*]}]
+    Info (20696): -to [get_registers {soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[*]}]
+    Info (20696): -fall_from_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -rise_to_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -hold
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/3-data-hold.rpt}
+Info (332115): Report Timing: Found 1 hold paths (0 violated).  Worst case slack is 9.153
+    Info (20696): -to [get_registers {*|sampled_dq[*]}]
+    Info (20696): -rise_from_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -fall_to_clock [get_clocks {ramtest_sdram50}]
+    Info (20696): -hold
+    Info (20696): -npaths 1
+    Info (20696): -detail full_path
+    Info (20696): -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/3-enable-hold.rpt}
+PASS16 paired internal data paths and16 internal enable paths at4 published operating conditions
+Info (23030): Evaluation of Tcl script receiver-stage.tcl was successful
+Info: Quartus Prime Timing Analyzer was successful. 0 errors, 0 warnings
+    Info: Peak virtual memory: 3400 megabytes
+    Info: Processing ended: Thu Oct 29 10:57:07 2026
+    Info: Elapsed time: 00:00:34
+    Info: System process ID: 841586
+Info (19538): Reading SDC files took 00:00:02 cumulatively in this process.

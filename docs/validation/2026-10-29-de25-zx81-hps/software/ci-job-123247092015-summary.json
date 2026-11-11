@@ -1,0 +1,67 @@
+{
+  "schema": "fes.github-actions.job-log-summary.v1",
+  "job_id": 123247092015,
+  "job_name": "host (1)",
+  "job_url": "https://github.com/DeanoC/fes/actions/runs/40812839901/job/123247092015",
+  "conclusion": "success",
+  "source": "GitHub connector fetch_workflow_job_logs (decoded log; full log not copied)",
+  "source_log_characters": 34050,
+  "source_log_line_count": 428,
+  "go_package_pass_lines": 33,
+  "unique_go_packages": 33,
+  "excerpts": [
+    {
+      "line": 119,
+      "text": "HEAD is now at 66d0cff Merge 786e6383b32617af8baeb32e9de6cf99231a19f9 into 1db4ba71e973aa01fc521fe42ed0a901061ad8b0"
+    },
+    {
+      "line": 294,
+      "text": "\"label\": \"host binary build\","
+    },
+    {
+      "line": 302,
+      "text": "\"label\": \"host artifact functional suites\","
+    },
+    {
+      "line": 315,
+      "text": "\"label\": \"host race suite excluding race-expensive packages (1/3)\","
+    },
+    {
+      "line": 357,
+      "text": "\"label\": \"expansion functional suite\","
+    },
+    {
+      "line": 388,
+      "text": "\"label\": \"host binary build\","
+    },
+    {
+      "line": 389,
+      "text": "\"returncode\": 0"
+    },
+    {
+      "line": 392,
+      "text": "\"label\": \"host artifact functional suites\","
+    },
+    {
+      "line": 393,
+      "text": "\"returncode\": 0"
+    },
+    {
+      "line": 396,
+      "text": "\"label\": \"host race suite excluding race-expensive packages (1/3)\","
+    },
+    {
+      "line": 397,
+      "text": "\"returncode\": 0"
+    },
+    {
+      "line": 400,
+      "text": "\"label\": \"expansion functional suite\","
+    },
+    {
+      "line": 401,
+      "text": "\"returncode\": 0"
+    }
+  ],
+  "note": "Go package results are package pass lines, not individual test counts."
+}

@@ -8,6 +8,7 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import shlex
 import struct
 import sys
 import zlib
@@ -151,54 +152,6 @@ def fit_images(data):
     return nodes, images
 
 
-def uboot_commands(script):
-    """Split U-Boot commands while honoring quotes, escapes and comments."""
-    commands, current = [], []
-    quote = None
-    escaped = False
-    comment = False
-
-    def finish_command():
-        command = "".join(current).strip()
-        if command:
-            commands.append(command)
-        current.clear()
-
-    for char in script:
-        if comment:
-            if char in "\r\n":
-                comment = False
-                finish_command()
-            continue
-        if escaped:
-            current.append(char)
-            escaped = False
-            continue
-        if char == "\\":
-            current.append(char)
-            escaped = True
-            continue
-        if quote is not None:
-            current.append(char)
-            if char == quote:
-                quote = None
-            continue
-        if char in ("'", '"'):
-            quote = char
-            current.append(char)
-        elif char == "#":
-            comment = True
-        elif char in ";\r\n":
-            finish_command()
-        else:
-            current.append(char)
-
-    if quote is not None:
-        raise ValueError("unterminated quote in U-Boot script")
-    finish_command()
-    return commands
-
-
 def tree_summary(data):
     nodes, _ = parse_fdt(data)
     aliases = {name: strings(value)[0] for name, value in nodes.get("/aliases", {}).items()}
@@ -230,6 +183,183 @@ def tree_summary(data):
             "firmware_interfaces": firmware}
 
 
+def split_uboot_commands(script):
+    """Split U-Boot hush commands on unquoted semicolons and line boundaries."""
+    raw_commands, current = [], []
+    quote = None
+    escaped = False
+    comment = False
+
+    def finish():
+        raw = "".join(current).strip()
+        current.clear()
+        if raw:
+            try:
+                tokens = shlex.split(raw, comments=False, posix=True)
+            except ValueError as error:
+                raise ValueError("malformed boot-script command") from error
+            if tokens:
+                raw_commands.append(tokens)
+
+    for character in script:
+        if comment:
+            if character in "\r\n":
+                comment = False
+                finish()
+            continue
+        if escaped:
+            current.append(character)
+            escaped = False
+            continue
+        if character == "\\":
+            current.append(character)
+            escaped = True
+            continue
+        if quote:
+            current.append(character)
+            if character == quote:
+                quote = None
+            continue
+        if character in ("'", '"'):
+            current.append(character)
+            quote = character
+        elif character == "#" and (not current or current[-1].isspace()):
+            comment = True
+        elif character in ";\r\n":
+            finish()
+        else:
+            current.append(character)
+    if quote or escaped:
+        raise ValueError("malformed boot-script command")
+    finish()
+    return raw_commands
+
+
+def parse_uboot_mmroot(data):
+    """Read the exact NUL-delimited mmcroot default, never a longer key suffix."""
+    values = [entry[len(b"mmcroot="):]
+              for entry in data.split(b"\0") if entry.startswith(b"mmcroot=")]
+    if len(values) != 1:
+        raise ValueError("U-Boot root-device environment is missing or ambiguous")
+    try:
+        value = values[0].decode("ascii")
+    except UnicodeDecodeError as error:
+        raise ValueError("U-Boot root-device environment is not ASCII") from error
+    if not value:
+        raise ValueError("U-Boot root-device environment is empty")
+    return value
+
+
+def inspect_boot_script(script, mmroot):
+    """Resolve direct boot commands and report the effective bridge/root handoff."""
+    environment = {"mmcroot": mmroot}
+    bridge_state = None
+    bootargs_command_seen = False
+    loaded_images = {}
+    booti_count = 0
+    exit_count = 0
+
+    def expand(value):
+        pattern = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)")
+
+        def substitute(match):
+            name = match.group(1) or match.group(2)
+            if name not in environment:
+                raise ValueError("boot script references an unknown environment entry: " + name)
+            return environment[name]
+
+        return pattern.sub(substitute, value)
+
+    parsed = split_uboot_commands(script)
+    commands = []
+    inside_target_block = False
+    waiting_for_then = False
+    target_block_count = 0
+    for tokens in parsed:
+        if tokens[0] == "if":
+            if inside_target_block or tokens != ["if", "test", "${target}", "=", "mmc0"]:
+                raise ValueError("boot script target condition differs")
+            inside_target_block = True
+            waiting_for_then = True
+            target_block_count += 1
+        elif tokens == ["then"]:
+            if not inside_target_block or not waiting_for_then:
+                raise ValueError("boot script has an unmatched then")
+            waiting_for_then = False
+        elif tokens == ["fi"]:
+            if not inside_target_block or waiting_for_then:
+                raise ValueError("boot script has an unmatched fi")
+            inside_target_block = False
+        elif inside_target_block and waiting_for_then:
+            raise ValueError("boot script target condition is missing then")
+        elif inside_target_block:
+            commands.append(tokens)
+        elif tokens[0] == "echo":
+            continue
+        else:
+            raise ValueError("boot script command is outside the expected MMC boot branch")
+    if inside_target_block or waiting_for_then or target_block_count != 1:
+        raise ValueError("boot script is missing its MMC boot branch")
+
+    for index, tokens in enumerate(commands):
+        name = tokens[0]
+        if name == "bridge":
+            if len(tokens) != 2 or tokens[1] not in {"enable", "disable"}:
+                raise ValueError("boot script bridge command is malformed")
+            bridge_state = tokens[1]
+        elif name == "setenv":
+            if len(tokens) < 2:
+                raise ValueError("boot script setenv command is malformed")
+            variable = tokens[1]
+            if len(tokens) == 2:
+                environment.pop(variable, None)
+            else:
+                environment[variable] = expand(" ".join(tokens[2:]))
+            if variable == "bootargs":
+                bootargs_command_seen = len(tokens) > 2
+        elif name == "echo":
+            continue
+        elif name == "mmc":
+            if tokens != ["mmc", "rescan"]:
+                raise ValueError("boot script MMC command differs")
+        elif name == "fatload":
+            if tokens == ["fatload", "mmc", "0:1", "${kernel_addr_r}", "Image"]:
+                loaded_images["${kernel_addr_r}"] = "Image"
+            elif tokens == ["fatload", "mmc", "0:1", "${fdt_addr_r}", "socfpga_agilex5_de25_nano.dtb"]:
+                loaded_images["${fdt_addr_r}"] = "socfpga_agilex5_de25_nano.dtb"
+            else:
+                raise ValueError("boot script FAT load command differs")
+        elif name == "booti":
+            booti_count += 1
+            if tokens != ["booti", "${kernel_addr_r}", "-", "${fdt_addr_r}"]:
+                raise ValueError("boot script Linux handoff command differs")
+        elif name == "exit":
+            if tokens != ["exit"]:
+                raise ValueError("boot script exit command differs")
+            exit_count += 1
+        else:
+            raise ValueError("boot script uses unsupported command: " + name)
+
+    expected_bootargs = f"console=ttyS0,115200 root={mmroot} rw rootwait"
+    effective_bootargs = environment.get("bootargs")
+    if bridge_state != "enable":
+        raise ValueError("boot script does not leave FPGA bridges enabled")
+    if not bootargs_command_seen or effective_bootargs != expected_bootargs:
+        raise ValueError("boot script final bootargs differ")
+    if loaded_images != {"${kernel_addr_r}": "Image",
+                         "${fdt_addr_r}": "socfpga_agilex5_de25_nano.dtb"}:
+        raise ValueError("boot script does not load the pinned Linux kernel and DE25 device tree")
+    if (len(commands) < 2 or booti_count != 1 or exit_count != 1
+            or commands[-2][0] != "booti" or commands[-1] != ["exit"]):
+        raise ValueError("boot script must have one final Linux handoff")
+    root = re.search(r"(?:^|\s)root=([^\s]+)(?:$|\s)", effective_bootargs)
+    if root is None or root.group(1) != mmroot:
+        raise ValueError("boot script effective root differs from U-Boot environment")
+    return {"bridge_state": bridge_state,
+            "overrides_chosen_bootargs": bootargs_command_seen,
+            "root_device": root.group(1)}
+
+
 def inspect_boot(directory, lock, boot):
     boot._verify_prepared_boot(directory, lock)
 
@@ -250,15 +380,7 @@ def inspect_boot(directory, lock, boot):
     script_nodes, script_images = fit_images(pinned_bytes("boot.scr.uimg"))
     script_name = strings(script_nodes["/images"]["default"])[0]
     script = script_images[script_name]["data"].decode("ascii")
-    commands = uboot_commands(script)
-    expected_bootargs = 'setenv bootargs "console=ttyS0,115200 root=${mmcroot} rw rootwait"'
-    expected_loads = [
-        "fatload mmc 0:1 ${kernel_addr_r} Image",
-        "fatload mmc 0:1 ${fdt_addr_r} socfpga_agilex5_de25_nano.dtb",
-    ]
-    expected_boot = "booti ${kernel_addr_r} - ${fdt_addr_r}"
-    expected_commands = ["bridge enable", expected_bootargs, *expected_loads, expected_boot]
-    if script_images[script_name]["type"] != "script" or commands != expected_commands:
+    if script_images[script_name]["type"] != "script":
         raise ValueError("pinned boot script contract differs")
     fit_nodes, images = fit_images(pinned_bytes("u-boot.itb"))
     selected = strings(fit_nodes["/configurations"]["default"])[0]
@@ -269,19 +391,19 @@ def inspect_boot(directory, lock, boot):
     for references in roles.values():
         if any(name not in images for name in references):
             raise ValueError("FIT configuration references missing image")
-    uboot_tree = tree_summary(images["fdt-0"]["data"])
-    env = images["uboot"]["data"]
-    root_entries = [entry for entry in env.split(b"\0")
-                    if entry.partition(b"=")[0] == b"mmcroot"]
-    if root_entries != [b"mmcroot=/dev/mmcblk0p2"]:
+    mmroot = parse_uboot_mmroot(images["uboot"]["data"])
+    handoff = inspect_boot_script(script, mmroot)
+    if handoff["root_device"] != "/dev/mmcblk0p2":
         raise ValueError("U-Boot root-device environment differs")
+    uboot_tree = tree_summary(images["fdt-0"]["data"])
     return {"linux_device_tree": linux, "uboot_device_tree": uboot_tree,
             "fit_configuration": {"name": selected, **roles},
             "fit_images": {name: {key: value for key, value in image.items() if key != "data"}
                            for name, image in images.items()},
             "boot_script": {"sha256": script_images[script_name]["sha256"], "text": script,
-                            "enables_fpga_bridges": True, "overrides_chosen_bootargs": True},
-            "root_device": "/dev/mmcblk0p2", "cpu_mailbox_address": "not-established",
+                            "enables_fpga_bridges": handoff["bridge_state"] == "enable",
+                            "overrides_chosen_bootargs": handoff["overrides_chosen_bootargs"]},
+            "root_device": handoff["root_device"], "cpu_mailbox_address": "not-established",
             "memory_size": "raw DT declarations; runtime memory banks require board observation"}
 
 

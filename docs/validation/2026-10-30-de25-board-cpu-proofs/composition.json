@@ -1,0 +1,440 @@
+[
+  {
+    "status": "passed",
+    "board": "TRWU8J8G",
+    "execution": "physical-DE25-AArch64",
+    "physical_FPGA": "not-run",
+    "driver_sha256": "4c6b50443714b9fa5d167a8884a02696b325aab0a16618b117a6473f5e5761ad",
+    "profiles": [
+      {
+        "profile": "counter",
+        "reference_receipt_sha256": "44a74c3c148b5c181c617c4859c83b306da5f4bf17234a9ec28e95cb4ad47995",
+        "executable_sha256": "5b9dcdbc2ba6936decd9d3209b5f0ed79c98c288f1ad54976deac8b3ef41718f",
+        "descriptor_sha256": "f7ecf09faa147e5e1ed5c5d1dc1e42ad753f39c3ac7f71585d0c90843709bf9e",
+        "positive": [
+          {
+            "case": "counter_a-0",
+            "result": "passed",
+            "sha256": "dc6f43b2ad30c8fe1884456dfe3ec22bf7925da49a940080a54f010049533ee1",
+            "size": 2497536,
+            "composition_id": "b166dde67e291869e96a506cb4aeea362bf9e8bae2ba5224129f04135efc7ff1",
+            "base_sha256": "9440adb021226e6df6334bd15e433d8879dfcc7e3642a947d79671cc3c59d0c6",
+            "persona_sha256": "894ebc43c3e613204a4179081d52146e74a1d1741ba1f1e132fe009f6c2cdec5"
+          },
+          {
+            "case": "counter_a-1",
+            "result": "passed",
+            "sha256": "dc6f43b2ad30c8fe1884456dfe3ec22bf7925da49a940080a54f010049533ee1",
+            "size": 2497536,
+            "composition_id": "b166dde67e291869e96a506cb4aeea362bf9e8bae2ba5224129f04135efc7ff1",
+            "base_sha256": "9440adb021226e6df6334bd15e433d8879dfcc7e3642a947d79671cc3c59d0c6",
+            "persona_sha256": "894ebc43c3e613204a4179081d52146e74a1d1741ba1f1e132fe009f6c2cdec5"
+          },
+          {
+            "case": "counter_b-0",
+            "result": "passed",
+            "sha256": "5869d44d4ff46e2c40e28eafbd79984c85d18dc99998b73f745215d375ab771d",
+            "size": 2497536,
+            "composition_id": "ba15e5676809bb934c1f56e893c5cd19817cc983620a76201f50f8b28d33011c",
+            "base_sha256": "9440adb021226e6df6334bd15e433d8879dfcc7e3642a947d79671cc3c59d0c6",
+            "persona_sha256": "8183eedb6356824d0bed6020994d5bf8f4dbe467577dcf24b2d0a3808b4a6c7a"
+          },
+          {
+            "case": "counter_b-1",
+            "result": "passed",
+            "sha256": "5869d44d4ff46e2c40e28eafbd79984c85d18dc99998b73f745215d375ab771d",
+            "size": 2497536,
+            "composition_id": "ba15e5676809bb934c1f56e893c5cd19817cc983620a76201f50f8b28d33011c",
+            "base_sha256": "9440adb021226e6df6334bd15e433d8879dfcc7e3642a947d79671cc3c59d0c6",
+            "persona_sha256": "8183eedb6356824d0bed6020994d5bf8f4dbe467577dcf24b2d0a3808b4a6c7a"
+          }
+        ],
+        "negative": [
+          {
+            "case": "wrong-shell",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "wrong-base",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "foreign-root",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "replaced-descriptor",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "corrupt-persona",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "overlapping-personas",
+            "result": "rejected-no-output"
+          }
+        ]
+      },
+      {
+        "profile": "ram-pack",
+        "reference_receipt_sha256": "01e8eafa7f811518fc139dfd00e986187dbd4d0120f603ec2a026ab4ceef1caf",
+        "executable_sha256": "5b9dcdbc2ba6936decd9d3209b5f0ed79c98c288f1ad54976deac8b3ef41718f",
+        "descriptor_sha256": "fe8d5735224202028b189a29b3d2a40f09d80d795fafe6105d01bffec51e1358",
+        "positive": [
+          {
+            "case": "zx81_empty-0",
+            "result": "passed",
+            "sha256": "59ef1baa61f4f8f3bf75e96f99b1b1e79f66b2b83f308e1ec275775df942b833",
+            "size": 2616320,
+            "composition_id": "56fca0f9f9c70217ee44220aff6d90ac5f038da3fe054ce0d07a650e5ae30e5d",
+            "base_sha256": "dbe20c1758a8a45ae87085f6aae0c825f0472e3f871db65c0c210cc564840c4e",
+            "persona_sha256": "fa5e017405e8c085b62a319da34e93d2ad70b1afd0b3ddc8ba0435c81ab3f389"
+          },
+          {
+            "case": "zx81_empty-1",
+            "result": "passed",
+            "sha256": "59ef1baa61f4f8f3bf75e96f99b1b1e79f66b2b83f308e1ec275775df942b833",
+            "size": 2616320,
+            "composition_id": "56fca0f9f9c70217ee44220aff6d90ac5f038da3fe054ce0d07a650e5ae30e5d",
+            "base_sha256": "dbe20c1758a8a45ae87085f6aae0c825f0472e3f871db65c0c210cc564840c4e",
+            "persona_sha256": "fa5e017405e8c085b62a319da34e93d2ad70b1afd0b3ddc8ba0435c81ab3f389"
+          },
+          {
+            "case": "zx81_ram16k-0",
+            "result": "passed",
+            "sha256": "587c81081dc42d512588b81e32fd88b4ea8d3e3ddc0627c9c3ade3c943a124d5",
+            "size": 2649088,
+            "composition_id": "80729ac55deee9b5a982eb9c4d56d7785609c0fccb34b00d89bf186331e876df",
+            "base_sha256": "dbe20c1758a8a45ae87085f6aae0c825f0472e3f871db65c0c210cc564840c4e",
+            "persona_sha256": "3c55c44a83b3eb0c8b7b3be71cd0e2679b14c4d21313b619bf706d37a9131c6c"
+          },
+          {
+            "case": "zx81_ram16k-1",
+            "result": "passed",
+            "sha256": "587c81081dc42d512588b81e32fd88b4ea8d3e3ddc0627c9c3ade3c943a124d5",
+            "size": 2649088,
+            "composition_id": "80729ac55deee9b5a982eb9c4d56d7785609c0fccb34b00d89bf186331e876df",
+            "base_sha256": "dbe20c1758a8a45ae87085f6aae0c825f0472e3f871db65c0c210cc564840c4e",
+            "persona_sha256": "3c55c44a83b3eb0c8b7b3be71cd0e2679b14c4d21313b619bf706d37a9131c6c"
+          }
+        ],
+        "negative": [
+          {
+            "case": "wrong-shell",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "wrong-base",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "foreign-root",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "replaced-descriptor",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "corrupt-persona",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "overlapping-personas",
+            "result": "rejected-no-output"
+          }
+        ]
+      },
+      {
+        "profile": "computer",
+        "reference_receipt_sha256": "4d425c374e5cb55a4314ffbc12591f3bd8d4dfe13e4bf1a180189958e7fd01fa",
+        "executable_sha256": "5b9dcdbc2ba6936decd9d3209b5f0ed79c98c288f1ad54976deac8b3ef41718f",
+        "descriptor_sha256": "245202d62dd4d5cfeeffe1a92db6b95b1e529738fd601f6b8a676043243a0233",
+        "positive": [
+          {
+            "case": "zx81_empty-0",
+            "result": "passed",
+            "sha256": "b49c0890ee4353a963a246bd4cd1328f85d293adbc588760c60234be572c3aa6",
+            "size": 2685952,
+            "composition_id": "e9df4338d900c0a8bdf97ca871534ba72e17e409415471ab49c22cfaad0e8352",
+            "base_sha256": "fcb8e45820c532b19982db17638f30afeb305a6f5e0ebdb4d35f57fadec3bd44",
+            "persona_sha256": "408938a6b0a83ec9db56fb86cd76f039af62a914f7d706be66172400ba21c740"
+          },
+          {
+            "case": "zx81_empty-1",
+            "result": "passed",
+            "sha256": "b49c0890ee4353a963a246bd4cd1328f85d293adbc588760c60234be572c3aa6",
+            "size": 2685952,
+            "composition_id": "e9df4338d900c0a8bdf97ca871534ba72e17e409415471ab49c22cfaad0e8352",
+            "base_sha256": "fcb8e45820c532b19982db17638f30afeb305a6f5e0ebdb4d35f57fadec3bd44",
+            "persona_sha256": "408938a6b0a83ec9db56fb86cd76f039af62a914f7d706be66172400ba21c740"
+          },
+          {
+            "case": "zx81_ram16k-0",
+            "result": "passed",
+            "sha256": "4ee351449f42cf796ef562b666f61c7c9e27fa7b6d6fe38231a4f2bb5e3039c1",
+            "size": 2718720,
+            "composition_id": "903bb4d367e81da9b1512f73644be9acbb69112fa43acb2efd9117c5ca23f8b3",
+            "base_sha256": "fcb8e45820c532b19982db17638f30afeb305a6f5e0ebdb4d35f57fadec3bd44",
+            "persona_sha256": "419b8b07e6dadab70bd7250cbfd78e3bc92a2d8895ea583ff8b4e7fb7e1dbc83"
+          },
+          {
+            "case": "zx81_ram16k-1",
+            "result": "passed",
+            "sha256": "4ee351449f42cf796ef562b666f61c7c9e27fa7b6d6fe38231a4f2bb5e3039c1",
+            "size": 2718720,
+            "composition_id": "903bb4d367e81da9b1512f73644be9acbb69112fa43acb2efd9117c5ca23f8b3",
+            "base_sha256": "fcb8e45820c532b19982db17638f30afeb305a6f5e0ebdb4d35f57fadec3bd44",
+            "persona_sha256": "419b8b07e6dadab70bd7250cbfd78e3bc92a2d8895ea583ff8b4e7fb7e1dbc83"
+          }
+        ],
+        "negative": [
+          {
+            "case": "wrong-shell",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "wrong-base",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "foreign-root",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "replaced-descriptor",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "corrupt-persona",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "overlapping-personas",
+            "result": "rejected-no-output"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "status": "passed",
+    "board": "TRWU8CBL",
+    "execution": "physical-DE25-AArch64",
+    "physical_FPGA": "not-run",
+    "driver_sha256": "4c6b50443714b9fa5d167a8884a02696b325aab0a16618b117a6473f5e5761ad",
+    "profiles": [
+      {
+        "profile": "counter",
+        "reference_receipt_sha256": "44a74c3c148b5c181c617c4859c83b306da5f4bf17234a9ec28e95cb4ad47995",
+        "executable_sha256": "5b9dcdbc2ba6936decd9d3209b5f0ed79c98c288f1ad54976deac8b3ef41718f",
+        "descriptor_sha256": "f7ecf09faa147e5e1ed5c5d1dc1e42ad753f39c3ac7f71585d0c90843709bf9e",
+        "positive": [
+          {
+            "case": "counter_a-0",
+            "result": "passed",
+            "sha256": "dc6f43b2ad30c8fe1884456dfe3ec22bf7925da49a940080a54f010049533ee1",
+            "size": 2497536,
+            "composition_id": "b166dde67e291869e96a506cb4aeea362bf9e8bae2ba5224129f04135efc7ff1",
+            "base_sha256": "9440adb021226e6df6334bd15e433d8879dfcc7e3642a947d79671cc3c59d0c6",
+            "persona_sha256": "894ebc43c3e613204a4179081d52146e74a1d1741ba1f1e132fe009f6c2cdec5"
+          },
+          {
+            "case": "counter_a-1",
+            "result": "passed",
+            "sha256": "dc6f43b2ad30c8fe1884456dfe3ec22bf7925da49a940080a54f010049533ee1",
+            "size": 2497536,
+            "composition_id": "b166dde67e291869e96a506cb4aeea362bf9e8bae2ba5224129f04135efc7ff1",
+            "base_sha256": "9440adb021226e6df6334bd15e433d8879dfcc7e3642a947d79671cc3c59d0c6",
+            "persona_sha256": "894ebc43c3e613204a4179081d52146e74a1d1741ba1f1e132fe009f6c2cdec5"
+          },
+          {
+            "case": "counter_b-0",
+            "result": "passed",
+            "sha256": "5869d44d4ff46e2c40e28eafbd79984c85d18dc99998b73f745215d375ab771d",
+            "size": 2497536,
+            "composition_id": "ba15e5676809bb934c1f56e893c5cd19817cc983620a76201f50f8b28d33011c",
+            "base_sha256": "9440adb021226e6df6334bd15e433d8879dfcc7e3642a947d79671cc3c59d0c6",
+            "persona_sha256": "8183eedb6356824d0bed6020994d5bf8f4dbe467577dcf24b2d0a3808b4a6c7a"
+          },
+          {
+            "case": "counter_b-1",
+            "result": "passed",
+            "sha256": "5869d44d4ff46e2c40e28eafbd79984c85d18dc99998b73f745215d375ab771d",
+            "size": 2497536,
+            "composition_id": "ba15e5676809bb934c1f56e893c5cd19817cc983620a76201f50f8b28d33011c",
+            "base_sha256": "9440adb021226e6df6334bd15e433d8879dfcc7e3642a947d79671cc3c59d0c6",
+            "persona_sha256": "8183eedb6356824d0bed6020994d5bf8f4dbe467577dcf24b2d0a3808b4a6c7a"
+          }
+        ],
+        "negative": [
+          {
+            "case": "wrong-shell",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "wrong-base",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "foreign-root",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "replaced-descriptor",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "corrupt-persona",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "overlapping-personas",
+            "result": "rejected-no-output"
+          }
+        ]
+      },
+      {
+        "profile": "ram-pack",
+        "reference_receipt_sha256": "01e8eafa7f811518fc139dfd00e986187dbd4d0120f603ec2a026ab4ceef1caf",
+        "executable_sha256": "5b9dcdbc2ba6936decd9d3209b5f0ed79c98c288f1ad54976deac8b3ef41718f",
+        "descriptor_sha256": "fe8d5735224202028b189a29b3d2a40f09d80d795fafe6105d01bffec51e1358",
+        "positive": [
+          {
+            "case": "zx81_empty-0",
+            "result": "passed",
+            "sha256": "59ef1baa61f4f8f3bf75e96f99b1b1e79f66b2b83f308e1ec275775df942b833",
+            "size": 2616320,
+            "composition_id": "56fca0f9f9c70217ee44220aff6d90ac5f038da3fe054ce0d07a650e5ae30e5d",
+            "base_sha256": "dbe20c1758a8a45ae87085f6aae0c825f0472e3f871db65c0c210cc564840c4e",
+            "persona_sha256": "fa5e017405e8c085b62a319da34e93d2ad70b1afd0b3ddc8ba0435c81ab3f389"
+          },
+          {
+            "case": "zx81_empty-1",
+            "result": "passed",
+            "sha256": "59ef1baa61f4f8f3bf75e96f99b1b1e79f66b2b83f308e1ec275775df942b833",
+            "size": 2616320,
+            "composition_id": "56fca0f9f9c70217ee44220aff6d90ac5f038da3fe054ce0d07a650e5ae30e5d",
+            "base_sha256": "dbe20c1758a8a45ae87085f6aae0c825f0472e3f871db65c0c210cc564840c4e",
+            "persona_sha256": "fa5e017405e8c085b62a319da34e93d2ad70b1afd0b3ddc8ba0435c81ab3f389"
+          },
+          {
+            "case": "zx81_ram16k-0",
+            "result": "passed",
+            "sha256": "587c81081dc42d512588b81e32fd88b4ea8d3e3ddc0627c9c3ade3c943a124d5",
+            "size": 2649088,
+            "composition_id": "80729ac55deee9b5a982eb9c4d56d7785609c0fccb34b00d89bf186331e876df",
+            "base_sha256": "dbe20c1758a8a45ae87085f6aae0c825f0472e3f871db65c0c210cc564840c4e",
+            "persona_sha256": "3c55c44a83b3eb0c8b7b3be71cd0e2679b14c4d21313b619bf706d37a9131c6c"
+          },
+          {
+            "case": "zx81_ram16k-1",
+            "result": "passed",
+            "sha256": "587c81081dc42d512588b81e32fd88b4ea8d3e3ddc0627c9c3ade3c943a124d5",
+            "size": 2649088,
+            "composition_id": "80729ac55deee9b5a982eb9c4d56d7785609c0fccb34b00d89bf186331e876df",
+            "base_sha256": "dbe20c1758a8a45ae87085f6aae0c825f0472e3f871db65c0c210cc564840c4e",
+            "persona_sha256": "3c55c44a83b3eb0c8b7b3be71cd0e2679b14c4d21313b619bf706d37a9131c6c"
+          }
+        ],
+        "negative": [
+          {
+            "case": "wrong-shell",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "wrong-base",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "foreign-root",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "replaced-descriptor",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "corrupt-persona",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "overlapping-personas",
+            "result": "rejected-no-output"
+          }
+        ]
+      },
+      {
+        "profile": "computer",
+        "reference_receipt_sha256": "4d425c374e5cb55a4314ffbc12591f3bd8d4dfe13e4bf1a180189958e7fd01fa",
+        "executable_sha256": "5b9dcdbc2ba6936decd9d3209b5f0ed79c98c288f1ad54976deac8b3ef41718f",
+        "descriptor_sha256": "245202d62dd4d5cfeeffe1a92db6b95b1e529738fd601f6b8a676043243a0233",
+        "positive": [
+          {
+            "case": "zx81_empty-0",
+            "result": "passed",
+            "sha256": "b49c0890ee4353a963a246bd4cd1328f85d293adbc588760c60234be572c3aa6",
+            "size": 2685952,
+            "composition_id": "e9df4338d900c0a8bdf97ca871534ba72e17e409415471ab49c22cfaad0e8352",
+            "base_sha256": "fcb8e45820c532b19982db17638f30afeb305a6f5e0ebdb4d35f57fadec3bd44",
+            "persona_sha256": "408938a6b0a83ec9db56fb86cd76f039af62a914f7d706be66172400ba21c740"
+          },
+          {
+            "case": "zx81_empty-1",
+            "result": "passed",
+            "sha256": "b49c0890ee4353a963a246bd4cd1328f85d293adbc588760c60234be572c3aa6",
+            "size": 2685952,
+            "composition_id": "e9df4338d900c0a8bdf97ca871534ba72e17e409415471ab49c22cfaad0e8352",
+            "base_sha256": "fcb8e45820c532b19982db17638f30afeb305a6f5e0ebdb4d35f57fadec3bd44",
+            "persona_sha256": "408938a6b0a83ec9db56fb86cd76f039af62a914f7d706be66172400ba21c740"
+          },
+          {
+            "case": "zx81_ram16k-0",
+            "result": "passed",
+            "sha256": "4ee351449f42cf796ef562b666f61c7c9e27fa7b6d6fe38231a4f2bb5e3039c1",
+            "size": 2718720,
+            "composition_id": "903bb4d367e81da9b1512f73644be9acbb69112fa43acb2efd9117c5ca23f8b3",
+            "base_sha256": "fcb8e45820c532b19982db17638f30afeb305a6f5e0ebdb4d35f57fadec3bd44",
+            "persona_sha256": "419b8b07e6dadab70bd7250cbfd78e3bc92a2d8895ea583ff8b4e7fb7e1dbc83"
+          },
+          {
+            "case": "zx81_ram16k-1",
+            "result": "passed",
+            "sha256": "4ee351449f42cf796ef562b666f61c7c9e27fa7b6d6fe38231a4f2bb5e3039c1",
+            "size": 2718720,
+            "composition_id": "903bb4d367e81da9b1512f73644be9acbb69112fa43acb2efd9117c5ca23f8b3",
+            "base_sha256": "fcb8e45820c532b19982db17638f30afeb305a6f5e0ebdb4d35f57fadec3bd44",
+            "persona_sha256": "419b8b07e6dadab70bd7250cbfd78e3bc92a2d8895ea583ff8b4e7fb7e1dbc83"
+          }
+        ],
+        "negative": [
+          {
+            "case": "wrong-shell",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "wrong-base",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "foreign-root",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "replaced-descriptor",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "corrupt-persona",
+            "result": "rejected-no-output"
+          },
+          {
+            "case": "overlapping-personas",
+            "result": "rejected-no-output"
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,43 @@
+{
+  "schema": "fes.github-actions.job-log-summary.v1",
+  "job_id": 123246961987,
+  "job_name": "plan",
+  "job_url": "https://github.com/DeanoC/fes/actions/runs/40812839901/job/123246961987",
+  "conclusion": "success",
+  "source": "GitHub connector fetch_workflow_job_logs (decoded log; full log not copied)",
+  "source_log_characters": 129187,
+  "source_log_line_count": 1099,
+  "go_package_pass_lines": 0,
+  "unique_go_packages": 0,
+  "excerpts": [
+    {
+      "line": 894,
+      "text": "Ran 1 test in 0.000s"
+    },
+    {
+      "line": 896,
+      "text": "OK"
+    },
+    {
+      "line": 948,
+      "text": "Ran 102 tests in 2.769s"
+    },
+    {
+      "line": 950,
+      "text": "OK"
+    },
+    {
+      "line": 956,
+      "text": "doc links: ok"
+    },
+    {
+      "line": 1076,
+      "text": "Ran 74 tests in 1.189s"
+    },
+    {
+      "line": 1078,
+      "text": "OK"
+    }
+  ],
+  "note": "Unittest Ran counts include skipped cases; nested fixture test runs are shown separately and must not be summed blindly. Go package results are package pass lines, not individual test counts."
+}

@@ -1,0 +1,12 @@
+{
+  "serial": "TRWU8J8G",
+  "boot_id": "c291b236-7eed-4e65-86c5-fb039dde3e68",
+  "owned_uploads_removed": true,
+  "computer_held": true,
+  "exclusive_owner_finished_and_lock_released": true,
+  "all_client_and_ssh_connections_closed": true,
+  "jtag_claim_closed_before_cpu_access": true,
+  "factory_fpga_restore_pending": true,
+  "board_claim_released": false,
+  "checked_utc": "2026-10-30T18:19:59.123168+00:00"
+}

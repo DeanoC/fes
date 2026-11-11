@@ -1,0 +1,30 @@
+{
+  "classification": "host checks and Quartus diagnostic build only",
+  "producer": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+  "base": "c6e978159dcf5277c0c86dbd0f368ff036b314b5",
+  "focused_build_tests": 16,
+  "test_changed": "passed",
+  "documentation_links": "passed",
+  "whitespace": "passed",
+  "physical_boot": "not-run",
+  "Linux_load": "not-run",
+  "shared_contract_changes": false,
+  "files_sha256": {
+    "README.md": "e260c4042c31100a8c0c451777e7dbd81f6a11a06118aea0f5464eed4ac20f1b",
+    "build-tests.log": "32606e03f0ea4780d027fd51fb638b3e861f9717e9d92dbb7048a1150c4b6091",
+    "build.json": "60cef8fa016d0ad9d0e2023514713d236ff06a677f2b581d65c70301ef09a8ff",
+    "compile.log.gz": "903d756d2ee4eef9b8a20843c815479582d022f6fd07e338522b65caa7803701",
+    "generation.json": "2e212c04096b5d2eda9dc64950017d47ec5545b8cbe97152d5c5f9baf9c2c624",
+    "inputs.json": "47a409326733845a2520ce137aa57aca82c96dedac495261de61d89dbc06fd34",
+    "integration.log.gz": "d0ca24f21088484ca4798b14a7e2d1740eecc962ee9c4d1c67391fef84e31e3a",
+    "ip-generation.log.gz": "30d265bc49645589126e37f8904d083f0a2767b5a374c978b2e56092dac2930e",
+    "linux-enrich.log": "adf1f7a6a54c5af640b65e76c9e58922349d0a06725359d1a3973e2116ac17c8",
+    "linux-programming.json": "0b77307f66eb416f31806b41255dc794e8b0229cbc4c598f9ff910d6f11a7337",
+    "linux-split.log": "8fd70a8672b9f55cfeb03f2486f602eb0ab8a71ca82fcce838d8bcbc7fffefaf",
+    "profile-comparison.json": "d8255b2c7e7d15449c603b647513d1f469ef96aa9e05df818ac5dff9dc8b9073",
+    "quartus-version.txt": "67e962ce5b26d55c897ea2e1ce5937d822e07ee3d2a3068e3e4d74a01bc5e1e1",
+    "test-changed.log.gz": "1bd9133f5df1980e21fb85d79d416c0f0cfd74e6e2e3702bb93ae52e6c1c2374",
+    "timing.json": "8adfa7c70a5a2c38bb8bcb46922d5e6f67cccd5eb585a69493a69de51dbb614f",
+    "timing.summary": "806aa9621f08fe228432c6ad2795ebf81cb8f61d272b8e350131d676844cdb6d"
+  }
+}

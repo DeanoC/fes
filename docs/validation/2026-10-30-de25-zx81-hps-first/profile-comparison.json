@@ -1,0 +1,12 @@
+{
+  "classification": "real-archive-project-preparation-only",
+  "profiles": {
+    "AFTER INIT_DONE": "e3ac2ab409a3532093bd57830516dd9a",
+    "HPS FIRST": "06ee047f143317df0fd1d98717b2b991"
+  },
+  "same_hps_emif_parameters": true,
+  "same_top_source": true,
+  "same_captured_source_bytes": true,
+  "timing_acceptance": "not-established",
+  "hardware_access": "none"
+}

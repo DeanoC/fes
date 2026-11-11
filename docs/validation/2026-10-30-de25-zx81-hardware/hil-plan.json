@@ -1,0 +1,49 @@
+{
+  "rows": [
+    {
+      "path": "docs/validation/2026-10-30-de25-zx81-hardware/client.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-zx81-hardware/proxy.py",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-zx81-hardware/registers.tcl",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/build.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/test_build.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/docs/architecture.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    }
+  ],
+  "class": "none",
+  "components": [],
+  "decision": "NO_DEPLOY_CHANGE"
+}

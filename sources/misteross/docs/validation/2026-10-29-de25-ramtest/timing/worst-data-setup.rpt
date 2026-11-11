@@ -1,0 +1,115 @@
+----------------
+; Command Info ;
+----------------
+Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 8.095 
+
+Tcl Command:
+    report_timing -setup -file /home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/0-data-setup.rpt -from [get_registers {*|sampled_dq[*]}] -to [get_registers {soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[*]}] -fall_from_clock [get_clocks {ramtest_sdram50}] -rise_to_clock [get_clocks {ramtest_sdram50}] -npaths 1 -detail full_path
+
+Options:
+    -from [get_registers {*|sampled_dq[*]}] 
+    -to [get_registers {soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[*]}] 
+    -fall_from_clock [get_clocks {ramtest_sdram50}] 
+    -rise_to_clock [get_clocks {ramtest_sdram50}] 
+    -setup 
+    -npaths 1 
+    -detail full_path 
+    -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/0-data-setup.rpt} 
+
+Snapshot:
+    final
+
+Delay Model:
+    Slow fix4 100C Model
+
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Summary of Paths                                                                                                                                                                                                                                                  ;
++-------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------+----------------------------+-----------------+--------------+------------+------------+
+; Slack ; From Node                                                                        ; To Node                                                                        ; Launch Clock               ; Latch Clock     ; Relationship ; Clock Skew ; Data Delay ;
++-------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------+----------------------------+-----------------+--------------+------------+------------+
+; 8.095 ; soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|sampled_dq[10] ; soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[10] ; ramtest_sdram50 (INVERTED) ; ramtest_sdram50 ; 10.000       ; -1.287     ; 0.581      ;
++-------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------+----------------------------+-----------------+--------------+------------+------------+
+
+Path #1: Setup slack is 8.095 
+===============================================================================
++--------------------------------------------------------------------------------------------------------------------+
+; Path Summary                                                                                                       ;
++---------------------------------+----------------------------------------------------------------------------------+
+; Property                        ; Value                                                                            ;
++---------------------------------+----------------------------------------------------------------------------------+
+; From Node                       ; soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|sampled_dq[10] ;
+; To Node                         ; soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[10]   ;
+; Launch Clock                    ; ramtest_sdram50 (INVERTED)                                                       ;
+; Latch Clock                     ; ramtest_sdram50                                                                  ;
+; SDC Exception                   ; No SDC Exception on Path                                                         ;
+; Data Arrival Time               ; 15.376                                                                           ;
+; Data Required Time              ; 23.471                                                                           ;
+; Slack                           ; 8.095                                                                            ;
+; Worst-Case Operating Conditions ; Slow fix4 100C Model                                                             ;
++---------------------------------+----------------------------------------------------------------------------------+
+
++------------------------------------------------------------------------------------+
+; Statistics                                                                         ;
++------------------------+--------+-------+-------------+------------+-------+-------+
+; Property               ; Value  ; Count ; Total Delay ; % of Total ; Min   ; Max   ;
++------------------------+--------+-------+-------------+------------+-------+-------+
+; Setup Relationship     ; 10.000 ;       ;             ;            ;       ;       ;
+; Clock Skew             ; -1.287 ;       ;             ;            ;       ;       ;
+; Data Delay             ; 0.581  ;       ;             ;            ;       ;       ;
+; Number of Logic Levels ;        ; 0     ;             ;            ;       ;       ;
+; Physical Delays        ;        ;       ;             ;            ;       ;       ;
+;  Arrival Path          ;        ;       ;             ;            ;       ;       ;
+;   Clock                ;        ;       ;             ;            ;       ;       ;
+;    IC                  ;        ; 2     ; 1.999       ; 42         ; 0.000 ; 1.999 ;
+;    Cell                ;        ; 3     ; 2.796       ; 58         ; 0.000 ; 1.544 ;
+;   Data                 ;        ;       ;             ;            ;       ;       ;
+;    IC                  ;        ; 1     ; 0.309       ; 53         ; 0.309 ; 0.309 ;
+;    Cell                ;        ; 1     ; 0.000       ; 0          ; 0.000 ; 0.000 ;
+;    uTco                ;        ; 1     ; 0.272       ; 47         ; 0.272 ; 0.272 ;
+;  Required Path         ;        ;       ;             ;            ;       ;       ;
+;   Clock                ;        ;       ;             ;            ;       ;       ;
+;    IC                  ;        ; 2     ; 1.711       ; 49         ; 0.000 ; 1.711 ;
+;    Cell                ;        ; 3     ; 1.762       ; 51         ; 0.000 ; 1.279 ;
++------------------------+--------+-------+-------------+------------+-------+-------+
+Note: Negative delays are omitted from totals when calculating percentages
+
++--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Data Arrival Path                                                                                                                                                        ;
++----------+---------+----+------+--------+----------------------+------------------+--------------------------------------------------------------------------------------+
+; Total    ; Incr    ; RF ; Type ; Fanout ; Location             ; Element Type     ; Element                                                                              ;
++----------+---------+----+------+--------+----------------------+------------------+--------------------------------------------------------------------------------------+
+; 10.000   ; 10.000  ;    ;      ;        ;                      ;                  ; launch edge time                                                                     ;
+; 14.795   ; 4.795   ;    ;      ;        ;                      ;                  ; clock path                                                                           ;
+;   10.000 ;   0.000 ;    ;      ;        ;                      ;                  ; source latency                                                                       ;
+;   10.000 ;   0.000 ;    ;      ; 1      ; PIN_V16              ; I/O pad          ; CLOCK1_50                                                                            ;
+;   10.000 ;   0.000 ; FF ; IC   ; 1      ; IOIBUF_X108_Y53_N779 ; I/O input buffer ; CLOCK1_50~input|i                                                                    ;
+;   11.252 ;   1.252 ; FF ; CELL ; 1      ; IOIBUF_X108_Y53_N779 ; I/O input buffer ; CLOCK1_50~input|o                                                                    ;
+;   12.796 ;   1.544 ; FF ; CELL ; 3286   ; IOIBUF_X108_Y53_N779 ; I/O input buffer ; CLOCK1_50~input~hviowr/s414_0_1__hvioc_core_periphery__clock_to_core[11]             ;
+;   14.795 ;   1.999 ; FR ; IC   ; 1      ; FF_X120_Y32_N28      ; ALM Register     ; soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|sampled_dq[10]|clk ;
+;   14.795 ;   0.000 ; RR ; CELL ; 1      ; FF_X120_Y32_N28      ; ALM Register     ; soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|sampled_dq[10]     ;
+; 15.376   ; 0.581   ;    ;      ;        ;                      ;                  ; data path                                                                            ;
+;   15.067 ;   0.272 ; FF ; uTco ; 1      ; FF_X120_Y32_N28      ; ALM Register     ; soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|sampled_dq[10]|q   ;
+;   15.376 ;   0.309 ; FF ; IC   ; 1      ; FF_X118_Y32_N37      ; ALM Register     ; soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[10]|d     ;
+;   15.376 ;   0.000 ; FF ; CELL ; 1      ; FF_X118_Y32_N37      ; ALM Register     ; soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[10]       ;
++----------+---------+----+------+--------+----------------------+------------------+--------------------------------------------------------------------------------------+
+
++------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Data Required Path                                                                                                                                                     ;
++----------+---------+----+------+--------+----------------------+------------------+------------------------------------------------------------------------------------+
+; Total    ; Incr    ; RF ; Type ; Fanout ; Location             ; Element Type     ; Element                                                                            ;
++----------+---------+----+------+--------+----------------------+------------------+------------------------------------------------------------------------------------+
+; 20.000   ; 20.000  ;    ;      ;        ;                      ;                  ; latch edge time                                                                    ;
+; 23.508   ; 3.508   ;    ;      ;        ;                      ;                  ; clock path                                                                         ;
+;   20.000 ;   0.000 ;    ;      ;        ;                      ;                  ; source latency                                                                     ;
+;   20.000 ;   0.000 ;    ;      ; 1      ; PIN_V16              ; I/O pad          ; CLOCK1_50                                                                          ;
+;   20.000 ;   0.000 ; RR ; IC   ; 1      ; IOIBUF_X108_Y53_N779 ; I/O input buffer ; CLOCK1_50~input|i                                                                  ;
+;   20.483 ;   0.483 ; RR ; CELL ; 1      ; IOIBUF_X108_Y53_N779 ; I/O input buffer ; CLOCK1_50~input|o                                                                  ;
+;   21.762 ;   1.279 ; RR ; CELL ; 3286   ; IOIBUF_X108_Y53_N779 ; I/O input buffer ; CLOCK1_50~input~hviowr/s414_0_1__hvioc_core_periphery__clock_to_core[11]           ;
+;   23.473 ;   1.711 ; RR ; IC   ; 1      ; FF_X118_Y32_N37      ; ALM Register     ; soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[10]|clk ;
+;   23.473 ;   0.000 ; RR ; CELL ; 1      ; FF_X118_Y32_N37      ; ALM Register     ; soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[10]     ;
+;   23.508 ;   0.035 ;    ;      ;        ;                      ;                  ; advanced clock effects                                                             ;
+; 23.478   ; -0.030  ;    ;      ;        ;                      ;                  ; clock uncertainty                                                                  ;
+; 23.471   ; -0.007  ;    ; uTsu ; 1      ; FF_X118_Y32_N37      ; ALM Register     ; soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory|readdata[10]     ;
++----------+---------+----+------+--------+----------------------+------------------+------------------------------------------------------------------------------------+
+
+

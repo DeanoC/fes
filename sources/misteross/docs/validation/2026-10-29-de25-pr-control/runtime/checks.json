@@ -1,0 +1,40 @@
+{
+  "aarch64_binary_sha256": "207999d8f6f916e44e60d05d576bf827c96400fc2a681574f87cdbf9ae3f0a7b",
+  "aarch64_elf": "ELF64 little-endian EM_AARCH64; static without PT_INTERP",
+  "aarch64_result": "passed",
+  "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+  "classification": "runtime-controller-native-and-AArch64-QEMU-software-tests",
+  "compiler": "aarch64-buildroot-linux-gnu-g++.br_real (Buildroot 2021.02.4) 9.4.0",
+  "format": 1,
+  "frozen_runtime_source_map_sha256": "265d52d48051100fc5299de2837408af4d3c9f11311cc6aa65649768dbdc91b1",
+  "hardware_acceptance": "not-run",
+  "hardware_support_truth": "passed",
+  "native_binary_sha256": "c93e4117c539ef735e5ff1f97dc7ce24cc2d479e338fd9a587a9d8160cc8dccd",
+  "native_result": "passed",
+  "production_admission": "unchanged-closed",
+  "production_target_refusal": "passed",
+  "qemu": "qemu-aarch64 version 7.2.22 (Debian 1:7.2+dfsg-7+deb12u18+b3)",
+  "qemu_cpu": "cortex-a76",
+  "runtime_active_tree": "passed with unchanged frozen sources",
+  "runtime_archive_audit": "passed",
+  "source_base": "f5542eaba6989b5612adbbefc6290eb225910d49",
+  "source_binding": "compiled captured working-copy bytes verified identical to the later coherent Git commit",
+  "source_files_match_head": false,
+  "source_files_match_verified_commit": true,
+  "source_sha256": {
+    "sources/libmister-runtime/Makefile": "c2d3d8d6cd7155e67c8b966e8eb3e5b5ccdb207a2130827f73dc3b29b3a8eb0d",
+    "sources/libmister-runtime/scripts/check-active-tree.sh": "13e96c3842ec788b97f9680c7889561c4b068452c64b7833d26f7e407fe213b4",
+    "sources/libmister-runtime/src/native/de25_pr_control.cpp": "99938d34482403ba61be766ecfb1ad1e8b23ad8de4ca507386abeb91aa258904",
+    "sources/libmister-runtime/src/native/de25_pr_control.hpp": "c084cfe3acd464072b29e3997ffb71accf4addf9d1f30a2db71600a8b6d136dc",
+    "sources/libmister-runtime/src/native/generated/fes_de25_pr_control.hpp": "4170d9b03db6e17af2956e8e26349f152429be148c7fc5305c55a5751979c702",
+    "sources/libmister-runtime/tests/active_tree_test.sh": "c208236f11250b3d6a76eaacb30fd9959f0ed8d908ae4ee85b9eb2cd229d4960",
+    "sources/libmister-runtime/tests/unit/de25_pr_control_test.cpp": "1bfae7108d0e632571c48a9f55d9189d15ae4fb519f0b5f268b5feec1a1ea68d"
+  },
+  "tests": "seven groups, normal A/B/A at immediate and delayed completion; identity/status/sequence/argument/IO/program failure; callback mutation; clock regression/stall/deadline; no-wrap; no retries/resume after uncertainty",
+  "tool_sha256": [
+    "e6721a510ce704c0cc62deff7cd3066a844bed620d79b750e4fce16f17bb0f10  /build/5f9db22ff81ff50d1fe1a9fe7401fda88253c73cf941abc0cdede299df91b8eb/sdk/bin/aarch64-buildroot-linux-gnu-g++",
+    "4ebff4fcafd479ed5a9a6db2d816e8916916e2cc9133c006448a0e9a80431a39  /build/5f9db22ff81ff50d1fe1a9fe7401fda88253c73cf941abc0cdede299df91b8eb/sdk/bin/aarch64-buildroot-linux-gnu-g++.br_real",
+    "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350  /usr/bin/qemu-aarch64-static"
+  ],
+  "verified_commit": "d1197220156fdc26e62e07a7caed9b3e0d19a09a"
+}
