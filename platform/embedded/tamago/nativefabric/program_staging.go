@@ -73,8 +73,14 @@ func ReadStagedPrograms(ctx context.Context, store *packagestore.Store, name str
 		}
 		return nil, err
 	}
+	return retainStagedPrograms(ctx, raw, store.StageInstall)
+}
+
+// The source adapter supplies only bytes; every source uses the same complete
+// catalog decoder, request identities and aggregate retained-content bound.
+func retainStagedPrograms(ctx context.Context, raw []byte, stage func(context.Context, packagestore.Request, map[string]string, int) (*packagestore.InstallPlan, error)) ([]*StagedProgram, error) {
 	var catalog stagedProgramCatalog
-	if err = decodeCompleteRecord(raw, packagestore.MaxInstallRecordBytes, &catalog); err != nil {
+	if err := decodeCompleteRecord(raw, packagestore.MaxInstallRecordBytes, &catalog); err != nil {
 		return nil, err
 	}
 	if catalog.Format != 1 || catalog.Scope != "nano-staged-program-catalog-v1" || len(catalog.Programs) < 1 || len(catalog.Programs) > packagestore.MaxInstallRecords {
@@ -97,12 +103,15 @@ func ReadStagedPrograms(ctx context.Context, store *packagestore.Store, name str
 	remaining := packagestore.MaxInstallBytes
 	for i, request := range requests {
 		record := catalog.Programs[i]
-		content, err := store.StageInstall(ctx, request, record.Files, remaining)
+		content, err := stage(ctx, request, record.Files, remaining)
 		if err != nil {
 			return nil, err
 		}
 		remaining -= content.ContentBytes()
 		result = append(result, &StagedProgram{record.ID, record.Title, content})
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	return result, nil
 }

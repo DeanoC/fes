@@ -120,6 +120,18 @@ also applies a backend's compiled platform admission and returns its opaque
 install plan. Neither call touches SD, firmware or input. `Install` remains a
 separate owned operation, described below.
 
+For an installer export with an empty playable bootstrap,
+`FetchStagedCatalog` reads the bounded `FES/INSTALL.JSN` envelope directly.
+It shares the SD staging decoder, retains every declared member with its file
+checksum, and rejects the complete batch if any record fails. The aggregate
+32-record/64 MiB content limit and one 100-second operation deadline still apply.
+`DownloadStagedCatalog` also preflights every entry against the backend's compiled
+platform. It returns opaque plans for a separate atomic `AttachProgramInstalls`
+publication; it never publishes, installs or switches devices during delivery.
+This path does not fall back to a playable catalog when the installer envelope
+is invalid. Native Ethernet remains disabled until its secure MAC/window,
+coexistence and independent DMA-drain supplier is qualified.
+
 The caller supplies an HTTP client and fixed numeric IPv4 origin, with an
 optional export prefix and virtual Host. Redirects and transformed responses
 are refused. A download has a 100-second total bound, bounded control/metadata/

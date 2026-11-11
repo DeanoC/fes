@@ -3,6 +3,8 @@ package nativefabric
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -184,7 +186,19 @@ func (s *ProgramSource) Fetch(ctx context.Context, id string) (entry ProgramEntr
 	if selected == nil {
 		return ProgramEntry{}, nil, errors.New("native download: catalogue ID not found")
 	}
-	r := selected.Request
+	content, err = s.fetchContent(work, selected.Request, nil, packagestore.MaxInstallBytes)
+	if err != nil {
+		return ProgramEntry{}, nil, err
+	}
+	entry = *selected
+	entry.Request = content.Request()
+	return entry, content, nil
+}
+
+func (s *ProgramSource) fetchContent(ctx context.Context, r packagestore.Request, checksums map[string]string, remaining int) (*packagestore.InstallPlan, error) {
+	if remaining < 1 || remaining > packagestore.MaxInstallBytes {
+		return nil, ErrProgramSession
+	}
 	limits := map[string]int{}
 	var names []string
 	add := func(name string, limit int) {
@@ -203,23 +217,80 @@ func (s *ProgramSource) Fetch(ctx context.Context, id string) (entry ProgramEntr
 	if r.Tape != (packagestore.TapeRequest{}) {
 		add(r.Tape.Path, packagestore.MaxRetainedTapeBytes)
 	}
+	if checksums != nil {
+		if len(checksums) != len(names) {
+			return nil, ErrProgramSession
+		}
+		for _, name := range names {
+			if !nonzeroDigest(checksums[name]) {
+				return nil, ErrProgramSession
+			}
+		}
+	}
 	files := map[string][]byte{}
-	remaining := packagestore.MaxInstallBytes
 	for _, name := range names {
-		data, err := s.read(work, name, min(limits[name], remaining))
+		data, err := s.read(ctx, name, min(limits[name], remaining))
 		if err != nil {
-			return ProgramEntry{}, nil, err
+			return nil, err
+		}
+		if checksums != nil {
+			sum := sha256.Sum256(data)
+			if hex.EncodeToString(sum[:]) != checksums[name] {
+				return nil, errors.New("native download: staged file checksum differs")
+			}
 		}
 		files[name] = data
 		remaining -= len(data)
 	}
-	content, err = packagestore.PrepareInstall(work, r, files)
-	if err != nil {
-		return ProgramEntry{}, nil, err
+	return packagestore.PrepareInstall(ctx, r, files)
+}
+
+// FetchStagedCatalog downloads the installer envelope used by SD staging.
+// Empty bootstrap files need not advertise playable games. The complete batch
+// is privately retained or rejected; no source is published and no SD or
+// firmware call is made. This does not initialize a NIC or grant DMA ownership.
+func (s *ProgramSource) FetchStagedCatalog(ctx context.Context) ([]*StagedProgram, error) {
+	if s == nil || ctx == nil {
+		return nil, ErrProgramSession
 	}
-	entry = *selected
-	entry.Request = content.Request()
-	return entry, content, nil
+	work, cancel := context.WithTimeout(ctx, 100*time.Second)
+	defer cancel()
+	raw, err := s.read(work, "FES/INSTALL.JSN", packagestore.MaxInstallRecordBytes)
+	if err != nil {
+		return nil, err
+	}
+	return retainStagedPrograms(work, raw, func(ctx context.Context, r packagestore.Request, sums map[string]string, limit int) (*packagestore.InstallPlan, error) {
+		if len(sums) < 1 {
+			return nil, ErrProgramSession
+		}
+		return s.fetchContent(ctx, r, sums, limit)
+	})
+}
+
+// DownloadStagedCatalog applies this backend's immutable platform admission to
+// every downloaded entry. Publication and installation remain separate owned
+// operations; no partial batch escapes if a later entry is incompatible.
+func (s *ProgramSource) DownloadStagedCatalog(ctx context.Context, backend *ProgramBackend) ([]*ProgramInstall, error) {
+	if ctx == nil || backend == nil {
+		return nil, ErrProgramSession
+	}
+	work, cancel := context.WithTimeout(ctx, 100*time.Second)
+	defer cancel()
+	staged, err := s.FetchStagedCatalog(work)
+	if err != nil {
+		return nil, err
+	}
+	plans := make([]*ProgramInstall, len(staged))
+	for i, entry := range staged {
+		plans[i], err = backend.PrepareStagedInstall(work, entry)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if err := work.Err(); err != nil {
+		return nil, err
+	}
+	return plans, nil
 }
 
 // Download joins pure content delivery to this backend's compiled admission.
