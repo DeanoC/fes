@@ -1165,8 +1165,11 @@ established. The routines are `ucode.toml`'s `tsjg`, `tsgate`, `tsw`,
   T0) or `tsgate` (a delivery's), with the switch's kind (`tsk`: JMP, CALL,
   INT, IRET) from the word (`tgk`). An IRET with NT set in protected mode
   starts at `tssave` from DC; DC reads NT as it stands, which an older POPF
-  may not have written yet, so IRET's first uop replays (EX, `ntchk`,
-  `ntset`) when NT as it runs is not what DC saw.
+  may not have written yet. So IRET's first uop (`ntchk`) waits in D while
+  any older uop that may write NT is in AG to WB (`nt_busy`), and replays,
+  with no access, when the committed NT is not what DC saw (`ntset`): no
+  access of the wrong path is made, nor a page walk that would set an
+  accessed bit for it.
 - **Checks before the switch,** each with the 386's tests:
   - JMP or CALL to a TSS: DPL below CPL or RPL, then TI=1 (`TST_SEL_TASKGT`,
     ahead of `AVAIL_TSS_NP`'s #NP), a busy TSS, #GP(selector); not

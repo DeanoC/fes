@@ -85,7 +85,7 @@ module fes_i386_decode (
     input  logic                   vm,          // EFLAGS.VM: V86 mode (with pe)
     input  logic [1:0]             cpl,         // the CPL (0 in real mode)
     input  logic [1:0]             iopl,        // EFLAGS.IOPL
-    input  logic                   nt,          // EFLAGS.NT as it stands (IRET's form; EX checks it, ntchk)
+    input  logic                   nt,          // EFLAGS.NT as it stands (IRET's form; D checks it, ntchk)
     input  logic                   dr_gd,       // DR7.GD: a MOV to or from DRn raises #DB
     output fes_i386_pkg::uop_t     uop,
     output logic                   opsize32,
@@ -1039,8 +1039,9 @@ module fes_i386_decode (
                     // task (fes_i386_cpu, "Task switches"): a NOP, then the
                     // old task's save (UC_TSSAVE), before any stack read.
                     // NT as DC sees it may be stale (a POPF in flight): the
-                    // first uop's EX check (ntchk, ntset) replays the IRET
-                    // when it is not NT as it runs.
+                    // first uop (ntchk, ntset) waits in D for NT to be
+                    // committed and replays the IRET, accessing nothing,
+                    // when it is not what DC saw (fes_i386_cpu, nt_busy).
                     nwrap = pm;
                     op = 5'd9;  // ALU_MOV
                     size = 2'd2;

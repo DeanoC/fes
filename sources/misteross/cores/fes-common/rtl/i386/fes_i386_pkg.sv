@@ -427,8 +427,8 @@ package fes_i386_pkg;
     // protected-mode far CALL's, RETF's or IRET's stack slot on a 16-bit
     // stack, at SP plus or less sdisp without the 64 KiB wrap, as Bochs
     // reads and writes it (M1). ntchk: a protected-mode IRET's first uop,
-    // which EFLAGS.NT set stops as not built, a return from a nested task
-    // (EX). v86 (fes_i386_cpu, "V86 mode"): a real-mode segment load gives
+    // which waits in D for NT to be committed and replays when it is not
+    // what DC decoded by (fes_i386_cpu, nt_busy). v86 (fes_i386_cpu, "V86 mode"): a real-mode segment load gives
     // the segment V86's cache (limit FFFFh, access rights F3h) whatever the
     // mode; the far jump into V86 mode (no xfer) sets VM and CPL 3 and
     // loads ESP from T5; the far jump out of it (xfer) clears VM and nulls
@@ -442,8 +442,8 @@ package fes_i386_pkg;
     // slot), whose fault is #SS(selector); sflt, the fault a system read's
     // check raises (sflt_e).
     // A task switch (fes_i386_cpu, "Task switches"): ntset, IRET's first
-    // uop for a return from a nested task, which replays (EX) unless NT is
-    // set, as ntchk's does for one with NT clear; tcom, the switch's commit,
+    // uop for a return from a nested task (NT as DC saw it, which D checks
+    // with ntchk); tcom, the switch's commit,
     // a far jump to the new task's EIP after which its descriptors load;
     // tscpl, the uop that loads the new task's SS, after which the CPL is
     // CS's RPL.

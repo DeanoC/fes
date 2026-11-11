@@ -8193,6 +8193,21 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
                              {{0x10, 0x10000 | P | W | U}, {0x11, 0}},
                              {}, {{0x2060, bytes8(desc(0x10fc0, 0x67, 0x89, false, false))},
                                   {0x10fc0, tss32(0x1b40, PD, 0x0d00)}}});
+        // POPFD sets NT just before IRETD, which so returns to the back link
+        // (task 60h, busy): no stack read. ESP after the POPFD is 13000h,
+        // whose page no access has walked, so a stack read there would set
+        // its PTE's accessed bit, which the new task reads (Codex's review:
+        // the RTL's IRET waits for NT to be committed, not reading by a
+        // stale one).
+        cases.push_back(Case{"pg-ts-popf-nt-iret", [=](Asm &a, uint32_t) {
+            ltr38(a);
+            a.op({0xbc}); a.d(0x12ffc);  // MOV ESP, 12FFCh
+            a.op({0x9d, 0xcf});          // POPFD; IRETD
+        }, -1, -1, -1, {{0x12, 0x12000 | P | W | U}, {0x13, 0x13000 | P | W | U}},
+                             {}, {{0x2060, bytes8(desc(0x2600, 0x67, 0x8b, false, false))},
+                                  {0x2500, {0x60, 0x00}}, {0x2600, tss32(0x1b40, PD, 0x0d00)},
+                                  {0x1b40, {0xa1, 0x4c, 0x90, 0x00, 0x00, 0xf4}},  // MOV EAX, [904Ch] (13000h's PTE); HLT
+                                  {0x12ffc, {0x02, 0x40, 0x00, 0x00}}}});
     }
     const char *only = std::getenv("FES_I386_CASE");
     for (const Case &c : cases) {

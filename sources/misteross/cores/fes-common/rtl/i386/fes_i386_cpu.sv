@@ -1417,6 +1417,22 @@ module fes_i386_cpu #(
     logic str_hazard;
     assign str_hazard = |(dc.rd_str & str_busy);
 
+    // A protected-mode IRET's routine is picked in DC by NT as it stands
+    // (fes_i386_decode: UC_TSSAVE with NT set, else the stack return). An
+    // older POPF, IRET, delivery or task switch may still be writing NT, so
+    // the IRET's first uop (ntchk) waits in D while any uop that may write
+    // EFLAGS from a load, a delivery's clear or a TSS (nt_busy) is in AG to
+    // WB; it then issues with NT committed, and replays, touching nothing,
+    // when that is not what DC saw (ntset). The task return reads no stack
+    // and the stack return reads no TSS, so no access of the wrong path, nor
+    // its page walk, is ever made.
+    logic nt_busy;
+    function automatic logic writes_nt(input uop_t v);
+        writes_nt = v.cls == fes_i386_pkg::UOP_ALU && v.op == 5'd30
+                 && (v.imm[3:0] == 4'd9 || v.imm[3:0] == 4'd11 || v.imm[3:0] == 4'd12 || v.imm[3:0] == 4'd13
+                     || v.imm[3:0] == 4'd15);  // LOAD, READ_INT, LOAD_RF, READ_PM, LOAD_TSS
+    endfunction
+
     // An I/O instruction's access is at WB, and IN's data reaches only WB, so
     // nothing younger issues until it has retired (io_busy, as t_busy): no
     // load reads memory an OUT may remap, and nothing reads IN's data before
@@ -1499,7 +1515,8 @@ module fes_i386_cpu #(
     logic d_first, d_first_next, gov_hold, gov_block;
     assign issue = cur_valid && !(addr_use && lea_stall) && !(reads_seg && seg_hazard) && !(mem && mseg_hazard)
                 && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !t_wait && !uc_wait && !str_wait
-                && !str_hazard && !io_hazard && !(ser_wait && !dc.x_prev) && !freeze && !halted && !gov_block;
+                && !str_hazard && !io_hazard && !(ser_wait && !dc.x_prev) && !(dc.uop.ntchk && nt_busy) && !freeze
+                && !halted && !gov_block;
     assign d_first_next = reset || redirect || (issue ? !dc_more || u.str_cx : d_first);
     always_ff @(posedge clk) begin
         d_first <= d_first_next;
@@ -1518,7 +1535,11 @@ module fes_i386_cpu #(
             df_busy <= 1'b0;
             io_busy <= 1'b0;
             ser_wait <= 1'b0;
+            nt_busy <= 1'b0;
         end else if (!freeze) begin
+            nt_busy <= issue && !s_kill1 && writes_nt(u) || ag_s.valid && writes_nt(ag_s.uop)
+                    || m1_s.valid && writes_nt(m1_s.uop) || m2_s.valid && writes_nt(m2_s.uop)
+                    || ex_s.valid && writes_nt(ex_s.uop) || wb_s.valid && writes_nt(wb_s.uop);
             io_busy <= issue && u.io != 2'd0 && !s_kill1 || does_io(ag_s) || does_io(m1_s) || does_io(m2_s)
                     || does_io(ex_s);
             // A delivery under paging issues one uop at a time too, so each
@@ -1780,6 +1801,11 @@ module fes_i386_cpu #(
         if (dc.xbad) begin
             d_out.uop.ctl.fault = fes_i386_pkg::FAULT_REPLAY;
             d_out.fbad = 1'b1;
+        end
+        // A protected-mode IRET decoded by a stale NT (above, nt_busy).
+        if (!s_kill1 && dc.uop.ntchk && eflags[14] != dc.uop.ntset) begin
+            d_out.uop.ctl.fault = fes_i386_pkg::FAULT_REPLAY;
+            d_out.uop.mem.kind = fes_i386_pkg::MEM_NONE;
         end
         // Paging: the physical page bits 19:12 of the instruction's lines
         // (self-modifying code); a fetch walk, of the page at pf_lin, and
@@ -2508,17 +2534,6 @@ module fes_i386_cpu #(
         ex_out.taken = ex_taken && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
         // BOUND's #BR, after the taken select, which a compare never sets.
         if (ex_br && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_BR;
-        // A protected-mode IRET with NT set returns from a nested task
-        // (UC_TSSAVE), else it returns on the stack (UC_PIRET): DC picks the
-        // routine by NT as it stands there, which an older POPF may not have
-        // written yet, so the first uop replays when NT as EX runs it is not
-        // what DC saw (ntset). The task return reads no stack, as Bochs's
-        // and the 386's take that path first, so this stands over the first
-        // slot's read fault.
-        if (ex_s.uop.ntchk && flags_keep[14] != ex_s.uop.ntset && ex_s.uop.ctl.fault != fes_i386_pkg::FAULT_UNIMPLEMENTED) begin
-            ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_REPLAY;
-            ex_out.taken = 1'b0;
-        end
         ex_out.sh_out0 = ex_sh_out0;
         ex_out.sh_outn = ex_sh_outn;
         ex_out.sh_cfw = ex_sh_cfw;
