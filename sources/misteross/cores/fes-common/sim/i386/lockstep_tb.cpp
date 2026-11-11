@@ -2009,12 +2009,19 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // Bochs checks there too); the RTL, as the 386, at its next fetch,
         // its next event. When the RTL's transfer ends without the oracle's
         // last exception, that next event is taken into the step: its
-        // delivery of that vector, with the transfer's writes and I/O.
-        if (event == Rtl::Event::Retired && !result.events.empty()
-            && result.events.back().kind == fes_i386::EventKind::Exception
-            && (result.events.back().vector == 14 || result.events.back().vector == 13)
-            && !(rtl.top.trace_exception && rtl.top.trace_vector == result.events.back().vector)
-            && (rtl.top.trace_exception || rtl.state().tr.selector != before.tr.selector)) {
+        // delivery of that vector, with the transfer's writes and I/O. The
+        // exception must be the fetch's at the RTL's new CS:EIP: a #PF with
+        // that address in the oracle's CR2, or #GP(0) with EIP past CS's
+        // limit; and no divergence entry decides the step.
+        const State rtl_after = rtl.state();
+        const auto &last_event = result.events.empty() ? fes_i386::Event{} : result.events.back();
+        const bool fetch_fault =
+            last_event.vector == 14 && oracle.get_state().cr2 == rtl_after.seg[fes_i386::SEG_CS].base + rtl_after.eip
+            || last_event.vector == 13 && last_event.error_code == 0 && rtl_after.eip > rtl_after.seg[fes_i386::SEG_CS].limit;
+        if (event == Rtl::Event::Retired && !result.events.empty() && !skip.all
+            && last_event.kind == fes_i386::EventKind::Exception && fetch_fault
+            && !(rtl.top.trace_exception && rtl.top.trace_vector == last_event.vector)
+            && (rtl.top.trace_exception || rtl_after.tr.selector != before.tr.selector)) {
             const std::set<uint32_t> writes = rtl.step_writes;
             const auto io_log = rtl.io.log;
             const Rtl::Event again = rtl.next();
@@ -2095,7 +2102,21 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                     for (unsigned i = 0; i < result.writes[k].length; ++i)
                         (k < own ? own_writes : later_writes).insert(write_key(result.writes[k].physical + i));
                 const bool switched = oracle_now.tr.selector != before.tr.selector;
+                // An IRET with NT set saved the old task before its back link
+                // faulted (iret_save_rule): the oracle takes those bytes.
+                unsigned ipfx = 0;
+                while (ipfx < 15 && is_prefix(code[ipfx])) ++ipfx;
+                const bool iret_nt = (before.cr0 & 1) && !(before.eflags & 0x20000) && (before.eflags & 0x4000)
+                                  && code[ipfx] == 0xcf && !interrupted;
+                const uint32_t tss_lo = before.tr.base, tss_hi = tss_lo + ((before.tr.ar & 0x08) ? 0x5eu : 0x2au);
                 for (uint32_t address : rtl.step_writes) {
+                    if (iret_nt && address >= tss_lo && address < tss_hi && !own_writes.count(address)
+                        && !later_writes.count(address) && address < RAM_BYTES) {
+                        bus.ram[address] = rtl.ram[address];
+                        oracle.invalidate(address, 1);
+                        ++summary.iret_save_rule;
+                        continue;
+                    }
                     if (switched ? !own_writes.count(address) && !later_writes.count(address) : !own_writes.count(address))
                         out.add(at + "fault-write", address, address < RAM_BYTES ? rtl.ram[address] : 0);
                     else if ((switched || !later_writes.count(address)) && address < RAM_BYTES
@@ -7455,6 +7476,10 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     // FS and GS, live before; the new task's LDT and a data segment in it.
     ts("ts-jmp-nt-image", tsj(0x98), -1, -1, a_with([](TaskImage &t) { t.eflags = 0x4002; }, {0x9c, 0xf4}));
     ts("ts-cr3-pg-off", tsj(0x98), -1, -1, a_with([](TaskImage &t) { t.cr3 = 0x00123000; }));
+    // DR7's local enables (L0-L3, LE) cleared by the switch, the global ones
+    // kept (DR0-DR3 0, no code at linear 0): MOV EAX, 3FFh; MOV DR7, EAX.
+    ts("ts-dr7-local", [](Asm &a) { a.op({0x66, 0xb8}); a.d(0x3ff); a.op({0x0f, 0x23, 0xf8, 0xea, 0x00, 0x00, 0x98, 0x00}); },
+       -1, -1, task(0x2600, a_img, HLT1));
     ts("ts-16-fs-gs", tsj(0xa0), -1, -1, task(0x2680, b_img, {0x8c, 0xe0, 0x8c, 0xeb, 0xf4}));   // MOV AX, FS; MOV BX, GS
     ts("ts-ldt", tsj(0x98), -1, -1, a_with([](TaskImage &t) { t.ldt = 0x30; t.ds = 0x0c; }, {0xa1, 0x00, 0x00, 0xf4}));
     // The checks before the switch: a busy TSS, not present, RPL above its
