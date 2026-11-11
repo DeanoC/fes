@@ -2148,6 +2148,13 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 // TF, IF and NT before their faults, which the RTL's make
                 // only at their jumps: those four are the RTL's.
                 if (switched) want.eflags = (oracle_now.eflags & ~0x14300u) | (rtl.state().eflags & 0x14300u);
+                // A #DB whose delivery shut down has set DR6's bits and
+                // cleared GD on both sides first (DR6 kept: dr6_rule).
+                if (!result.events.empty() && result.events[0].kind == fes_i386::EventKind::Exception
+                    && result.events[0].vector == 1) {
+                    want.dr6 = oracle_now.dr6 | (before.dr6 & 0xf00f);
+                    want.dr7 = oracle_now.dr7;
+                }
                 if (!switched) {
                     for (int r : {fes_i386::REG_EAX, fes_i386::REG_ECX, fes_i386::REG_ESI, fes_i386::REG_EDI})
                         want.gpr[r] = oracle_now.gpr[r];

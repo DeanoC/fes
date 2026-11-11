@@ -2953,11 +2953,12 @@ module fes_i386_cpu #(
     assign ibp_sup = wb_s.valid && wb_eoi ? sh_ss : movss_sh;
     assign ex_ibp = ex_s.valid && ex_s.ibp_en;
     assign ex_dbi = ex_ibp && !ex_flags[16] && !ibp_sup;
-    // A suppressed breakpoint's replay: the instruction's next pass by AG
-    // matches nothing.
+    // A suppressed breakpoint's replay (not the fetch check's or
+    // self-modifying code's, which refetch the instruction's bytes): the
+    // instruction's next pass by AG matches nothing.
     always_ff @(posedge clk)
         if (reset) ibp_skip <= 1'b0;
-        else if (rp_go && wb_s.ibp_en) ibp_skip <= 1'b1;
+        else if (rp_go && wb_s.ibp_en && !wb_frp && !wb_smc) ibp_skip <= 1'b1;
         else if (!freeze && !wb_flush && ag_s.valid && ag_s.fchk) ibp_skip <= 1'b0;
 
     assign int_next = at_boundary && (dbg_fire || !int_shadow && (nmi_ok || intr && int_if)) || in_hlt && (nmi_ok || intr && int_if);
