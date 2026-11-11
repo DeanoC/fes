@@ -63,7 +63,7 @@ how far main's RTL gets. It changes no CPU behaviour. Tracker:
 | Windows 3.1 (standard, 386 enhanced) | none on the share | not run | media |
 | WfW 3.11, standard mode | OEM floppies | `WIN /S` refuses (QEMU check) | none: WfW 3.11 has no standard mode |
 | WfW 3.11, 386 enhanced, MS-DOS 6.22, oracle | as above | Program Manager by 6.0 s simulated (`win` at 3.3 s) | none |
-| WfW 3.11, 386 enhanced, MS-DOS 6.22, MS-DOS Prompt from Program Manager, oracle | as above | a full-screen DOS virtual machine at `C:\WINDOWS>` by 14.0 s; no new CPU feature (619,576 V86 entries, 2,114 CR3 writes, no task switch) | none |
+| WfW 3.11, 386 enhanced, MS-DOS 6.22, MS-DOS Prompt from Program Manager, oracle | as above | a full-screen DOS virtual machine at `C:\WINDOWS>` by 14.0 s; no new CPU feature (619,955 V86 entries, 379 of them at IOPL 0; 2,114 CR3 writes, no task switch) | none |
 | WfW 3.11, 386 enhanced, MS-DOS 6.22, RTL from the prompt | as above | 39.0M retired, 11.3M in protected mode, into KRNL386 at CPL 3 | `0F A6` in WIN386's loader, then `0F FF` in KRNL386: #UD not built ([#1701](https://github.com/DeanoC/fes/issues/1701)) |
 | WfW 3.11, 386 enhanced, 32-bit disk access, oracle | as above | WDCTRL "validation failed at phase 03, 3F"; a key goes on without it | WDCTRL's BIOS check (machine side) |
 | WfW 3.11, 386 enhanced, FreeDOS games image, oracle | as above | WIN386 enters paging and V86, then "Unsupported MS-DOS version" | FreeDOS as WIN386's DOS |
