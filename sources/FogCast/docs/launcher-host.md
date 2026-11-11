@@ -168,11 +168,11 @@ This stream is not the kit-local pad path. A gamepad or USB keyboard on the
 kit writes `/run/fogcast/local-input.sock` and does not open the POST below.
 The route stays for a pad on another machine. The host delivers that pad on
 the kit input stream of the session that owns the play. When the host detects
-that this stream is unavailable, a new `POST /api/v1/launcher/input` or
-`POST /api/v1/session/input/event` returns 503 `INPUT_UNAVAILABLE` with
-`no live input stream`. An already-open launcher stream instead ends when a
-subsequent event encounters the loss or its read timeout expires; its initial
-ready response does not acknowledge individual events.
+that this stream is unavailable and cannot reconnect, a new
+`POST /api/v1/launcher/input` or `POST /api/v1/session/input/event` returns
+503 `INPUT_UNAVAILABLE` with `no live input stream`. An already-open launcher
+stream instead ends when a subsequent event encounters the loss or its read
+timeout expires; its initial ready response does not acknowledge individual events.
 
 The single-event POST waits for a correlated PONG after its stream prefix.
 That proves bridge progress, not acceptance by the target sink or consumption

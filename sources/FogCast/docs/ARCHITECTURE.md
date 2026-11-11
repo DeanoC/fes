@@ -3527,14 +3527,14 @@ stream only while the core, package, generation, keyboard, gamepad-port,
 keypad, and relative-mouse capabilities still match. Status reconciliation
 replaces the stream when any of those change. An explicit attach of a
 stream that no longer matches is refused and leaves the existing stream
-in place. If the stream is not live, the host returns 503 `INPUT_UNAVAILABLE`
-(`no live input stream`). The single-event POST waits for a correlated bridge
-PONG after its input stream prefix; success confirms that the bridge processed
-the prefix, not that its sink accepted the event or the guest consumed it. An
-uncertain write or missing PONG returns 503 `INPUT_UNCONFIRMED`: the event may
-have applied. The host closes its connection and discards its held-input
-snapshot rather than replaying it. It attempts to stop the bridge; remote
-release can be delayed or fail and is not confirmed by the error response.
+in place. If the host cannot reconnect an unavailable stream, it returns 503
+`INPUT_UNAVAILABLE` (`no live input stream`). The single-event POST waits for a
+correlated bridge PONG after its input stream prefix; success confirms that the
+bridge processed the prefix, not that its sink accepted the event or the guest
+consumed it. An uncertain write or missing PONG returns 503 `INPUT_UNCONFIRMED`:
+the event may have applied. The host closes its connection and discards its
+held-input snapshot rather than replaying it. It attempts to stop the bridge;
+remote release can be delayed or fail and is not confirmed by the error response.
 This adds a bridge round trip to each single-event POST. The launcher stream
 and timed key tap do not use this barrier. Kit-local pads stay on the unix
 socket and do not silently fall back to the host.
