@@ -2391,7 +2391,7 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      delivery's gate are tgo words that go on at the switch for a TSS or a
      task gate (`fes_i386_seq`), as IRETD's vgo goes on at the V86 return;
      an IRET with NT set starts there from DC, which replays IRET when an
-     older POPF changed NT under it. 100 ROM words, 434 of 512 in all; the
+     older POPF changed NT under it. 103 ROM words, 435 of 512 in all; the
      word grows to 133 bits.
    - **The new task's registers load straight from its TSS,** after reads
      of its first and last bytes, so no temporaries hold them; the switch's

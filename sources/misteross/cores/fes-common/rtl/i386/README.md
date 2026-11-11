@@ -1156,7 +1156,7 @@ the 386's where it shows, from its microcode (reenigne/x86_microcode,
 `80386/microcode_notes.txt`, 65C-7E4, and the protection tests in
 `tests.txt`); Bochs's `task_switch` (`tasking.cc`) where the 386 can't be
 established. The routines are `ucode.toml`'s `tsjg`, `tsgate`, `tsw`,
-`tssave`, `tsload` and `tsv86`: 100 ROM words, 434 of 512 in all.
+`tssave`, `tsload` and `tsv86`: 103 ROM words, 435 of 512 in all.
 - **Getting there.** A far JMP's or CALL's descriptor check, and a
   delivery's gate (`SYSOP_GATE`), are tgo words: with an available TSS
   (types 1 and 9) or a task gate in T3, which the word waits for (`t_rd`),
