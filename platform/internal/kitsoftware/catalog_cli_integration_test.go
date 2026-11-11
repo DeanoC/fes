@@ -94,7 +94,7 @@ func testCatalogCLIIntegration(t *testing.T, helper string, baselineSchema int) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if schema, err := manager.supportedSchema(ctx, helperID); err != nil || schema != 23 {
+	if schema, err := manager.supportedSchema(ctx, helperID); err != nil || schema != 24 {
 		t.Fatalf("real helper schema: %d %v", schema, err)
 	}
 	original := fixture(fmt.Sprintf("seed%d", baselineSchema), manager.database)
@@ -231,7 +231,7 @@ func main() {
  for rows.Next() { var title string; must(rows.Scan(&title)); titles=append(titles,title) }; must(rows.Err()); must(rows.Close())
  must(db.QueryRow("SELECT count(*) FROM core_entry_roms").Scan(&roms))
  if schema >= 22 { must(db.QueryRow("SELECT count(*) FROM remote_core_entries").Scan(&remote)) }
- if schema >= 23 { must(db.QueryRow("SELECT count(*) FROM remote_cached_media").Scan(&remoteCached)) }
+ if schema >= 24 { must(db.QueryRow("SELECT count(*) FROM remote_cached_media").Scan(&remoteCached)) }
  media:=map[string]string{}
  rows,err=db.Query("SELECT media_id,data FROM core_media"); must(err)
  for rows.Next() {
