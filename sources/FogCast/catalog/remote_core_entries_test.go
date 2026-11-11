@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -52,6 +53,18 @@ func TestRemoteCoreEntryMigrationAndVisibleDistinctTitles(t *testing.T) {
 	page, err := s.QueryGames(ctx, Query{Platform: CorePlatform, Limit: 10})
 	if err != nil || len(page.Games) != 3 {
 		t.Fatalf("visible games = %+v, %v", page.Games, err)
+	}
+	machines, err := s.QueryGames(ctx, Query{Platform: CorePlatform, CoreEntryKind: "machine", Limit: 10})
+	if err != nil || len(machines.Games) != 1 || machines.Games[0].ID != local.GameID {
+		t.Fatalf("machine filter = %+v, %v", machines, err)
+	}
+	titles, err := s.QueryGames(ctx, Query{Platform: CorePlatform, CoreEntryKind: "title", Limit: 1})
+	if err != nil || len(titles.Games) != 1 || titles.NextCursor == "" {
+		t.Fatalf("pending remote title filter = %+v, %v", titles, err)
+	}
+	next, err := s.QueryGames(ctx, Query{Platform: CorePlatform, CoreEntryKind: "title", Limit: 1, Cursor: titles.NextCursor})
+	if err != nil || len(next.Games) != 1 || next.NextCursor != "" || next.Games[0].ID == titles.Games[0].ID {
+		t.Fatalf("next title page = %+v, %v", next, err)
 	}
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
@@ -201,5 +214,32 @@ func TestRemoteCoreEntryRejectsInvalidOriginAndMissingMedia(t *testing.T) {
 	after, _, err := s.RemoteCoreEntry(ctx, entry.GameID)
 	if err != nil || !after.Pending {
 		t.Fatalf("failed bind changed origin = %+v, %v", after, err)
+	}
+}
+
+func TestCoreEntriesByIDsReturnsOnlyRequestedAtLargeBatch(t *testing.T) {
+	ctx := context.Background()
+	s, _ := mediaTestStore(t)
+	defer s.Close()
+	pkg := strings.Repeat("a", 64)
+	wanted, err := s.CreateCoreEntry(ctx, "Wanted", "fes.zx81", pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateCoreEntry(ctx, "Unrequested", "fes.zx81", pkg); err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]string, 0, 2502)
+	for i := 0; i < 2500; i++ {
+		ids = append(ids, fmt.Sprintf("fpga-fake-%d", i))
+	}
+	ids = append(ids, wanted.GameID, wanted.GameID)
+	got, err := s.CoreEntriesByIDs(ctx, ids)
+	if err != nil || len(got) != 1 || got[0].GameID != wanted.GameID {
+		t.Fatalf("batch got=%+v err=%v", got, err)
+	}
+	empty, err := s.CoreEntriesByIDs(ctx, nil)
+	if err != nil || len(empty) != 0 {
+		t.Fatalf("empty got=%+v err=%v", empty, err)
 	}
 }
