@@ -370,6 +370,10 @@ Ready when the lease state becomes free. A health update also clears refusal-own
 status and library launch messages when a foreign lease ends, while preserving
 newer errors. Unpaired host connection state does not mark installed-core tiles in use.
 
+During setup, a blocked action keeps its busy-session explanation in the
+footer while background library responses arrive; it clears when the session
+becomes idle. Library refreshes still update the shelf and its error state.
+
 The dependency direction is host/UI/`catalog`/`internal/hostapi` -> public
 contracts and `targetclient`; the target executable -> target implementation
 plus those same public contracts; the runtime remains the physical owner.

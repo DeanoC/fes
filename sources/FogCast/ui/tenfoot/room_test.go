@@ -350,6 +350,9 @@ type roomHost struct {
 	platforms    []hostclient.Platform
 	recents      []hostclient.Game
 	recentsGate  chan struct{}
+	gamesStatus  int
+	gamesGate    chan struct{}
+	gamesArrived chan struct{}
 	prefs        map[string]hostclient.EditionPreference
 	uiPosts      []UIEvent
 	pairedLease  bool
@@ -389,7 +392,21 @@ func newRoomHost(t *testing.T) *roomHost {
 			}
 			h.mu.Lock()
 			games := append([]hostclient.Game(nil), h.games...)
+			gate, arrived, status := h.gamesGate, h.gamesArrived, h.gamesStatus
 			h.mu.Unlock()
+			if arrived != nil {
+				select {
+				case arrived <- struct{}{}:
+				default:
+				}
+			}
+			if gate != nil {
+				<-gate
+			}
+			if status != 0 {
+				http.Error(w, "library unavailable", status)
+				return
+			}
 			if games == nil {
 				games = []hostclient.Game{
 					availableGame("snes-mario", "Mario", "snes"),

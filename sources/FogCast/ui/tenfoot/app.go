@@ -1658,11 +1658,11 @@ func (a *App) reloadCatalogWithNoticeLocked(notice string) {
 	gen := a.loadGen
 	a.loading = true
 	a.loadErr = ""
-	a.status = "loading library"
+	a.setLibraryStatusLocked("loading library")
 	ctx := a.replaceLoadContextLocked()
 	lastInput := a.lastInput
 	if notice != "" {
-		a.status = notice
+		a.setLibraryStatusLocked(notice)
 	}
 	go func() {
 		a.loadLibrary(ctx, gen)
@@ -1675,10 +1675,10 @@ func (a *App) reloadCatalogWithNoticeLocked(notice string) {
 			return
 		}
 		if a.loadErr != "" || a.status == savedListOfflineCopy || a.status == "Can't reach the library right now." {
-			a.status = notice + " Couldn't refresh the library."
+			a.setLibraryStatusLocked(notice + " Couldn't refresh the library.")
 			return
 		}
-		a.status = notice
+		a.setLibraryStatusLocked(notice)
 	}()
 }
 
@@ -1782,7 +1782,9 @@ func (a *App) Snapshot() Snapshot {
 	}
 	status := a.status
 	if a.setupRoomOpenLocked() && status == setupBlockedStatus && !a.setupSessionBusyLocked() {
-		status = ""
+		status = a.setup.deferredLibraryStatus
+		a.status = status
+		a.setup.deferredLibraryStatus = ""
 	}
 	if a.setupRoomOpenLocked() && status == setupBlockedStatus && a.setupSessionBusyLocked() {
 		// Preserve the setup action's reason while a launch status is present.
