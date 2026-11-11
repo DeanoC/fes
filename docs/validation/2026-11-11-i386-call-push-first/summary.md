@@ -40,9 +40,11 @@ through CS's descriptor:
 | CALL r/m by register | `079` | `07A` | `07B` |
 | CALL r/m by memory | `07E` | `080` | `07F` |
 
-The memory form writes ESP at `07F`, the delay slot before `080`. The notes do
-not say whether a #GP(0) there keeps that ESP. The RTL leaves ESP as it was
-for every form, as Bochs does. Bochs 3.1 (the pinned oracle) pushes first in
+The memory form writes ESP at `07F`, the delay slot before its target check
+at `080`, so the microcode does not settle whether a #GP(0) there keeps that
+ESP. **Deano's decision (11 November):** ESP stays as it was at the #GP(0)
+for every near CALL form, CALL r/m's memory form included, as Bochs does.
+Bochs 3.1 (the pinned oracle) pushes first in
 `CALL_Jw`, `CALL_Jd`, `CALL_EwR` and `CALL_EdR` (`RSP_SPECULATIVE`, the push,
 then the check). Its rollback restores ESP but not the written bytes, so the
 RTL now agrees with the oracle, and no divergence entry is needed.
