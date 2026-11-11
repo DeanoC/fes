@@ -9,14 +9,17 @@ with #1483's status ring and VRAM probes, at four governor presets.
 **Result: reproduced, 12 times in 400 launches. It isn't a speed artefact or
 a long load. In `k6`'s black launch, the capture buffers held the same
 picture as in the lit launches, and the picture was black from the DOS
-prompt on. In `k8`'s six black launches, the core still drove lit pixels to
-the HDMI transmitter pins: the 720p presenter's output and the display
-plane's output both had lit pixels in every sampled frame, and the plane was
-closed. In `k9`'s two black launches, the ADV7513's registers matched the
-lit launches and the grabber still received the game's HDMI audio at full
-level. So the HDMI link was up and the transmitter was set up as usual. What
-remains is the pixel bus into the ADV7513 (its sampling of the core's data,
-DE and sync) or the grabber's video path.**
+prompt on. In `k8`'s six black launches on the instrumented `d2` seal, the
+core still drove lit pixels to the HDMI transmitter pins: the 720p
+presenter's output and the display plane's output both had lit pixels in
+every sampled frame, and the plane was closed. In `k9`'s two black launches,
+also on `d2`, the ADV7513's registers matched the lit launches and the
+grabber still received the game's HDMI audio at full level. So for `d2`'s
+black launches the HDMI link was up, the transmitter was set up as usual,
+and what remains is after the core: the ADV7513's sampling of the pixel bus,
+the ADV7513's internal video processing or TMDS video output, or the
+grabber's video path. The four black launches on main's seal and `d1` had
+no presenter or plane-output probe, so this isn't established for them.**
 
 - In Kit B run `k1`, one launch at 486DX2-66 showed a flat black picture
   for the whole launch: introduction, menu, Journey Onward and 60 s after
@@ -60,6 +63,10 @@ DE and sync) or the grabber's video path.**
 - Run `k9` (101 launches, 2 black) dumped the ADV7513's register map read-only
   at every launch and recorded the grabber's HDMI audio through Serpent
   Isle's introduction. See [Run `k9`](#run-k9-adv7513-registers-and-hdmi-audio-11-november-13111440-eet).
+- Both `k8` and `k9` ran the `d2` seal. Of the four black launches on main's
+  seal (`k1`) and `d1` (`k3` two, `k6` one), only `k6`'s had capture samples,
+  which place it after capture. None of the four had a presenter or
+  plane-output probe.
 - Which stage after the core's pins isn't pinned yet (see [Next](#next)).
 
 The issue's title describes it too narrowly. The fault isn't tied to Journey
@@ -212,21 +219,28 @@ every preset.
 
 ## Next
 
-- **What's left.** In a black launch the core drives lit pixels with DE
-  onto the HDMI pins, the ADV7513's registers are as in a lit launch, and
-  HDMI audio reaches the grabber. That leaves:
+- **What's left, for `d2`.** In `d2`'s black launches (`k8`, `k9`) the core
+  drives lit pixels with DE onto the HDMI pins, the ADV7513's registers are
+  as in a lit launch, and HDMI audio reaches the grabber. For the four black
+  launches on main's seal and `d1`, the stages after VRAM (after capture for
+  `k6`'s) stay open until a probe like `d2`'s covers them.
+  For `d2` that leaves:
   - the ADV7513's sampling of the pixel bus. The pins come from fabric
     registers with no output constraints and change from about 1.4 ns
     before to 3.8 ns after the `HDMI_TX_CLK` edge (see [HDMI pin
     timing](#hdmi-pin-timing-host-only)). That skew is fixed for a build,
     so it alone doesn't explain one launch in twenty or so going black;
+  - the ADV7513's internal video processing and its TMDS video output.
+    Matching registers and arriving audio show the transmitter is set up
+    and the link carries audio. They don't show its video path works;
   - the grabber's video path (Kit B's ASUS 4KPRO, a UVC device that reports
     no detected timings). `4c6d2c8d` is any flat-black grab, so it can't
     tell black video from video it dropped.
 - **Next diagnostics, proposed on #1494 before any of them:**
   1. Kit A, read-only, same `d2` package and runner: its grabber is a
-     different model (GENKI ShadowCast 3). Black launches there would clear
-     the 4KPRO; none in about 100 would point at Kit B's grabber or cable.
+     different model (GENKI ShadowCast 3) and its transmitter another ADV7513.
+     Black launches there would clear the 4KPRO; none in about 100 would
+     point at Kit B's grabber, cable or ADV7513.
   2. On Kit B, a short video recording across a black launch's DOS prompt
      (the HIL driver's `video_start`), to see whether every frame is flat
      black or the grabber passes some frames.
@@ -419,8 +433,8 @@ frame `4c6d2c8d`.
 - Both plane slots read fully transparent (alpha 0 at all 48 words) at
   every grab, black or lit, in both runs.
 - The plane's output is `video`, which `top.sv` drives straight onto
-  `HDMI_TX_D`/`DE`/`HS`/`VS`. So in a black launch the core puts lit
-  pixels on the HDMI pins. The flag doesn't count pixels or check sync and
+  `HDMI_TX_D`/`DE`/`HS`/`VS`. So in these six black launches the core put
+  lit pixels on the HDMI pins. The flag doesn't count pixels or check sync and
   DE geometry, so it shows the presenter and plane aren't blanking the
   picture, not that every pixel is right.
 

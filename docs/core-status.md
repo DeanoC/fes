@@ -514,10 +514,13 @@ Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)):
 - Ultima VII NPC pace, against a reference.
 
 Serpent Isle sometimes shows a black picture for a whole launch while the
-game runs underneath: 12 launches in 400 on Kit B. In a black launch the
-core still drives lit pixels onto the HDMI transmitter pins, the ADV7513 is
-set up as in a lit launch and HDMI audio arrives. So the fault is in the
-ADV7513's sampling of the pixel bus or in the capture grabber's video path
+game runs underneath: 12 launches in 400 on Kit B. In the eight black
+launches on an instrumented scratch seal, the core still drove lit pixels
+onto the HDMI transmitter pins, the ADV7513 was set up as in a lit launch
+and HDMI audio arrived. For those, the fault is after the core: the
+ADV7513's sampling of the pixel bus, its internal video path or TMDS video
+output, or the capture grabber's video path. The four earlier black launches
+had no such probe
 ([#1494](https://github.com/DeanoC/fes/issues/1494),
 [record](validation/2026-11-10-pc386-si-reload-presets/summary.md)).
 
