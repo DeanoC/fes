@@ -22,6 +22,10 @@
 #
 # [[corpora]]  test386 TEST_UNDEF cases that SingleStepTests states with the same
 #   inputs contradict.
+#
+# [[lockstep]]  The whole-CPU lockstep's rules (lockstep_tb.cpp) where the FES
+#   CPU follows the 386 and the oracle does not: the rule that adopts or checks
+#   the difference, the directed cases that show it, and the 386 source.
 
 [[vectors]]
 id = "bit-test-of"
@@ -504,3 +508,23 @@ corpus = "test386 TEST_UNDEF expects the i386 result (its README cites a 386SX c
 follow = "corpus"
 # [[corpora]] has no entries: wherever a SingleStepTests state has the inputs
 # of a test386 TEST_UNDEF case, the two agree.
+
+[[lockstep]]
+id = "ud-0f0d"
+title = "0F 0D is #UD"
+rule = "ud_rtl"
+encodings = ["0F0D"]
+oracle = "Bochs at CPU level 3 decodes 0F 0D as NOP Ev (a later CPU's prefetch hint) and runs it."
+i386 = "The 386's decoder sends 0F 0C-0F 0F to its #UD entry whatever follows."
+source = "reenigne/x86_microcode 80386/decoder23.txt (?000011????11 illegal), microcode_notes.txt 82B (#UD: goto FAULT)."
+follow = "386"
+
+[[lockstep]]
+id = "ud-invlpg"
+title = "0F 01 /7 is #UD (INVLPG is the 486's)"
+rule = "ud_rtl"
+encodings = ["0F01.7 memory"]
+oracle = "Bochs at CPU level 3 runs 0F 01 /7 with a memory operand as INVLPG."
+i386 = "The 386's group 7 has no /7: its decoder sends it to the #UD entry with either operand."
+source = "reenigne/x86_microcode 80386/decoder23.txt (0F 01 reg 7, register and memory: illegal), microcode_notes.txt 82B; 80386 Programmer's Reference Manual, group 7 (SGDT-LMSW only); INVLPG is new in the i486."
+follow = "386"
