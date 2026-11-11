@@ -123,7 +123,7 @@ All 1,012 trace hashes match between the RTL and the netlist
 ([lockstep-report.json](lockstep-report.json),
 [lockstep-netlist-report.json](lockstep-netlist-report.json)). The random,
 protected-mode and task-switch programs' hashes are slice 4's: no program
-before this slice arms a breakpoint or sets TF. 
+before this slice arms a breakpoint or sets TF.
 **Debug programs** (`--debug-programs`, seeds from 5001, `FES_I386_DEBUG`):
 real-mode random programs with a #DB handler through vector 1 and blocks that
 arm instruction and data breakpoints and run stretches under TF (the
