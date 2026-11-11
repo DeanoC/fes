@@ -1,11 +1,11 @@
 i386 Phase 5 slice 4 (task switches): one-line mutants of the new RTL
 =====================================================================
 
-Each mutant changes one line (or one expression) of fes_i386_cpu.sv, builds
-the lockstep testbench (lock's Verilator 5.054) and runs the pmode (349) and
-paging (76) directed cases against Bochs. "fails" counts the cases that fail;
-the names follow. A mutant whose case was added after its first run was run
-again on the testbench with that case (marked "rerun").
+The original sweep changed one line (or one expression) of fes_i386_cpu.sv,
+built the lockstep testbench (lock's Verilator 5.054) and ran the pmode (349)
+and paging (76) directed cases against Bochs. "fails" counts the cases that
+fail; the names follow. A mutant whose case was added after the sweep was run
+again against that case (marked "rerun").
 
 no-link             back link never written (XC_NEST always drops)        16 fails: ts-call32-iret ts-call16-iret ts-from16-call32 ts-from16-call16 ts-call-gate ts-call-gate16 ts-int-gate ts-int-gate16 ts-int3-gate ts-call-chain ts-ud-gate ts-gp-gate32 ts-np-gate16 ts-v86-task ts-v86-task-call pg-ts-pf-gate
 old-busy-kept       old TSS's busy bit never cleared (XC_UNNEST)          43 fails (ts-jmp32 ... pg-ts-cr3-gdt)
@@ -39,11 +39,7 @@ tss-jmp-ti          JMP to a TSS through a TI=1 selector (rerun)          1 fail
                                                                           read a data descriptor; the testbench now
                                                                           writes the LDT before a case's places)
 ldt-np-ok           an LDT not present accepted                           1 fail: ts-ldt-np
-nmi-kept            NMI stays blocked after an IRET task return           0 fails: not covered. The lockstep raises
-                                                                          NMI in real mode only, so no NMI handler
-                                                                          returns through a task. Also run against
-                                                                          8 seeds of 250 task programs (2,307 NMIs,
-                                                                          all real mode): 0 fails.
+nmi-kept            NMI stays blocked after an IRET task return           1 fail (rerun): ts-nmi-iret-link-null
 
-24 of 26 mutants fail cases; gate-tss-ti is equivalent and nmi-kept is not
-reachable by the lockstep.
+25 of 26 mutants fail cases; gate-tss-ti is equivalent. The original sweep
+and task-program runs above remain records of their earlier heads.

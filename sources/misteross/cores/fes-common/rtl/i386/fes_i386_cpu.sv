@@ -2880,6 +2880,7 @@ module fes_i386_cpu #(
     logic [3:0] int_cbp, int_b;
     logic [5:0] dbg_dr6;  // the #DB's DR6 bits: BT, BS, B3-B0
     logic       int_cbp_ok, int_cbp_hit;
+    logic       iret_start;
     assign wb_commit = wb_s.valid && !halted && !freeze && !int_take && wb_fault == fes_i386_pkg::FAULT_NONE;
     // An ESC memory form's offset, the x87 data pointer's: 16 bits under a
     // 16-bit address size, zero-extended.
@@ -2893,6 +2894,9 @@ module fes_i386_cpu #(
     assign sh_ss = wb_ss_load && !movss_sh;
     assign int_shadow = sh_ss || wb_sti && !eflags[9];
     assign nmi_edge = nmi && !nmi_q;
+    assign iret_start = issue && dc.seq == fes_i386_pkg::SEQ_UCODE
+                     && (dc.upc == fes_i386_ucode_pkg::UC_IRET || dc.upc == fes_i386_ucode_pkg::UC_VIRET
+                      || dc.upc == fes_i386_ucode_pkg::UC_PIRET || dc.upc == fes_i386_ucode_pkg::UC_TSSAVE);
     assign nmi_ok = (nmi_pend || nmi_edge) && (!nmi_block || at_boundary && wb_s.uop.iret);
     assign int_if = at_boundary ? wb_flags[9] : eflags[9];
 
@@ -2977,8 +2981,9 @@ module fes_i386_cpu #(
             int_ph <= 2'd0;
         end else begin
             if (at_boundary) movss_sh <= sh_ss;
-            // A return from a nested task unblocks it at its commit.
-            if ((at_boundary || wb_commit && wb_s.uop.tcom) && wb_s.uop.iret) nmi_block <= 1'b0;
+            // The 386 clears the NMI block when IRET starts, before it checks
+            // a nested task's back link; a faulting return still unblocks it.
+            if (iret_start) nmi_block <= 1'b0;
             // An edge stays pending until an NMI is taken; one that comes
             // while another is pending, or as it is taken, is that one. One
             // that comes while the CPU chooses is another; a #DB chosen in

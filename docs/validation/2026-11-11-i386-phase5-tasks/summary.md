@@ -22,9 +22,9 @@ enables; and a switch into a V86 task.
   [#1663](https://github.com/DeanoC/fes/issues/1663), now passes: the harness takes a
   fault at a transfer's first fetch into the transfer's step, as the 386
   and Bochs do (`fetch_rule`).
-- **Mutants.** 24 of 26 one-line mutants of the new RTL fail directed
-  cases; one is equivalent, and one (NMI unblocked by a task return) is
-  out of the lockstep's reach ([mutants.txt](mutants.txt)).
+- **Mutants.** 25 of 26 one-line mutants fail directed cases; one is
+  equivalent. The added `ts-nmi-iret-link-null` case covers the previously
+  untested NMI unblock timing ([mutants.txt](mutants.txt)).
 - **Seal.** Quartus 17.0.2 at seed 1, from clean checkout `fdf79c057`
   (this branch with main merged and Codex's fix), meets every analysis:
   setup +0.583 ns, hold +0.061 ns. ALMs 36,261 (main 36,002 the same day,
@@ -298,13 +298,6 @@ for 80-180 s; this is a check of how far they get, not acceptance.
 ## What this record does not cover
 
 - **The T bit's #DB** on a switch, and breakpoints (slice 5).
-- **NMI unblocked by a task return.** The RTL unblocks NMI at the commit
-  of an IRET to a nested task. The 386's microcode clears the block at
-  IRET's start, in the delay slot of the branch to TASK_RETURN (673-674),
-  so the two differ only when the switch faults inside an NMI handler,
-  where the 386 has unblocked NMI and the RTL has not (as for a plain IRET
-  that faults). The lockstep raises NMI in real mode only, so no case
-  reaches either (mutant `nmi-kept`).
 - **A far JMP through a call gate,** which stays not built (no task
   switch is involved).
 - **nextpnr.** No route was made (fes#1235).

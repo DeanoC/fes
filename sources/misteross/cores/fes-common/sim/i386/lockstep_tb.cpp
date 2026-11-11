@@ -1563,6 +1563,11 @@ struct Irq {
     uint16_t pm_idt_limit = 0;
     std::array<uint64_t, 48> pm_gates{};
     uint32_t pm_h32 = 0, pm_h16 = 0;
+    bool directed_nmi_only = false;
+    std::vector<uint32_t> directed_nmi_points;
+    size_t directed_nmi_next = 0;
+    uint64_t pm_nmi_alt_gate = 0;
+    bool pm_nmi_alt_gate_valid = false;
 };
 
 // Run from the state both sides hold now. label_corpus and label_oracle hold
@@ -1715,6 +1720,15 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
     // its next. The handler's NOP counts as special too: an NMI after it
     // meets the one being handled.
     auto raise = [&](const uint8_t *code, uint32_t at, bool wake) {
+        if (irq->directed_nmi_only) {
+            if (irq->directed_nmi_next < irq->directed_nmi_points.size()
+                && at == irq->directed_nmi_points[irq->directed_nmi_next]) {
+                ++irq->directed_nmi_next;
+                rtl.pic.nmi = true;
+                irq->nmi_at = 0;
+            }
+            return;
+        }
         unsigned i = 0;
         while (i < 15 && is_prefix(code[i])) ++i;
         const uint8_t op = code[i];
@@ -1809,9 +1823,13 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 if (before.idtr.base != irq->pm_idt || before.idtr.limit != irq->pm_idt_limit || v * 8 + 7 > before.idtr.limit
                     || v >= irq->pm_gates.size())
                     return false;
+                uint64_t actual = 0;
                 for (unsigned i = 0; i < 8; ++i)
-                    if (bus.ram[irq->pm_idt + v * 8 + i] != uint8_t(irq->pm_gates[v] >> (8 * i))) return false;
-                const uint32_t h = (irq->pm_gates[v] >> 43 & 1) ? irq->pm_h32 : irq->pm_h16;
+                    actual |= uint64_t(bus.ram[irq->pm_idt + v * 8 + i]) << (8 * i);
+                if (actual != irq->pm_gates[v]
+                    && !(irq->pm_nmi_alt_gate_valid && v == 2 && actual == irq->pm_nmi_alt_gate)) return false;
+                if ((actual >> 40 & 0x1f) == 5) return true;  // task gate
+                const uint32_t h = (actual >> 43 & 1) ? irq->pm_h32 : irq->pm_h16;
                 return bus.ram[h] == 0x90 && bus.ram[h + 1] == 0xcf;
             }
             if (bus.ram[irq->handler] != 0x90 || bus.ram[irq->handler + 1] != 0xcf) return false;
@@ -1830,7 +1848,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             const bool nmi_before = irq->nmi_last;
             raise(code, linear, false);
             const uint32_t count = rep_count(code, code32, before);
-            if (count > 1) {
+            if (!irq->directed_nmi_only && count > 1) {
                 const unsigned span = count - 1 < 16 ? unsigned(count - 1) : 16u;
                 if (!rtl.pic.intr && (*irq->random)() % 2) intr_plan = 1 + unsigned((*irq->random)() % span);
                 if (irq->nmi_at < 0 && !nmi_before && (*irq->random)() % 8 == 0)
@@ -6798,6 +6816,8 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
                   // alone_frame: a rtl_alone case checks the gate's frame.
                   std::vector<std::pair<uint32_t, std::vector<uint8_t>>> places = {};
                   std::vector<uint64_t> more_gdt = {}; bool alone_frame = true;
+                  std::vector<uint32_t> nmi_pulses = {}; uint64_t nmi_gate_alt = 0;
+                  bool stop_at_exception = true, expect_halt = false; int expected_nmis = -1;
                   // past_db: the run goes on past each #DB (debug_programs).
                   bool past_db = false; };
     const uint64_t absent = gate(0x08, 0x1800, 0x0e);  // a 386 interrupt gate, not present
@@ -7739,6 +7759,28 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     ts("ts-iret-link-avail", iret_nt, 10, 0x98, link(0x98));
     ts("ts-iret-link-np", iret_nt, 11, 0x98, link(0x98), {}, {{19, desc(0x2600, 0x67, 0x0b, false, false)}});
     ts("ts-iret-link-past", iret_nt, 10, 0xf8, link(0xf8));
+    // An NMI task gate starts task A with NT set. Queue a second NMI at its
+    // IRET after it changes the vector to a normal gate and faults its back
+    // link; the pending NMI must then run during the #TS handler.
+    {
+        const std::vector<uint8_t> nmi_task = {
+            0xc7, 0x06, 0x10, 0x30, 0x10, 0x1b,  // MOV word [IDT+16], 1B10h
+            0xc7, 0x06, 0x12, 0x30, 0x08, 0x00,  // MOV word [IDT+18], 08h
+            0xc6, 0x06, 0x15, 0x30, 0x86,        // MOV byte [IDT+21], 86h (16-bit interrupt gate)
+            0xc7, 0x06, 0x00, 0x26, 0x00, 0x00,  // MOV word [TSS+0], 0 (faulting back link)
+            0xcf};                                 // IRET, with NT set by the task-gate switch
+        ts("ts-nmi-iret-link-null", [](Asm &a) { a.op({0x90, 0xf4}); }, 10, 0,
+           with({task(0x2600, a_img, nmi_task)}),
+           {{2, gate(0x98, 0, 0x85)}, {10, gate(0x08, 0x1b00, 0x86)}}, {}, 0x38);
+        Case &c = cases.back();
+        c.places.emplace_back(0x1b00, std::vector<uint8_t>{0x90, 0xf4});
+        c.places.emplace_back(0x1b10, std::vector<uint8_t>{0x90, 0xcf});
+        c.nmi_pulses = {CODE + 50, 0x1a17};  // HLT after LTR, then task IRET
+        c.nmi_gate_alt = gate(0x08, 0x1b10, 0x86);
+        c.stop_at_exception = false;
+        c.expect_halt = true;
+        c.expected_nmis = 2;
+    }
     // After the commit: each of the new task's descriptors faults in the
     // new task (its EIP, its stack). The LDT: TI=1, not an LDT, not
     // present; SS: null, read-only, RPL and DPL not CS's RPL, not present;
@@ -8152,6 +8194,7 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         Mismatches out;
         Outcome outcome;
         const std::string label = c.label;
+        const uint64_t nmis_before = summary.nmis;
         if (c.rtl_alone) {
             // The RTL alone, to its HLT: the last vector it delivered.
             for (int n = 0; n < 64 && !rtl.stopped(); ++n) {
@@ -8177,9 +8220,22 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
             }
         } else {
             try {
+                Irq directed_irq;
+                Irq *irq = nullptr;
+                if (!c.nmi_pulses.empty()) {
+                    directed_irq.directed_nmi_only = true;
+                    directed_irq.directed_nmi_points = c.nmi_pulses;
+                    directed_irq.pm_idt = IDT;
+                    directed_irq.pm_idt_limit = 48 * 8 - 1;
+                    directed_irq.pm_gates = idt;
+                    directed_irq.pm_h32 = directed_irq.pm_h16 = 0x1b10;
+                    directed_irq.pm_nmi_alt_gate = c.nmi_gate_alt;
+                    directed_irq.pm_nmi_alt_gate_valid = c.nmi_gate_alt != 0;
+                    irq = &directed_irq;
+                }
                 debug_programs = c.past_db;
-                outcome = lockstep(oracle, bus, rtl, entries, Fields{}, c.past_db ? 256 : 64, true, summary, out,
-                                   CODE + uint32_t(a.b.size()));
+                outcome = lockstep(oracle, bus, rtl, entries, Fields{}, c.nmi_pulses.empty() && !c.past_db ? 64 : 256,
+                                   c.stop_at_exception, summary, out, CODE + uint32_t(a.b.size()), irq);
                 debug_programs = false;
             } catch (const std::exception &error) {
                 out.add(label + ".oracle-error:" + error.what(), 0, 1);
@@ -8205,6 +8261,9 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
                 if (got != uint32_t(c.error)) out.add(label + ".error-code", uint32_t(c.error), got);
             }
         }
+        if (c.expect_halt && !outcome.halted) out.add(label + ".halt-after-exception", 1, 0);
+        if (c.expected_nmis >= 0 && summary.nmis - nmis_before != uint64_t(c.expected_nmis))
+            out.add(label + ".nmis", uint64_t(c.expected_nmis), summary.nmis - nmis_before);
         end_run(bus, rtl, outcome.halted, out);
         summary.cycles += rtl.cycles;
         rtl.cycles = 0;
