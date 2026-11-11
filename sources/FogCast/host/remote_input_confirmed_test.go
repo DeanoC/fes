@@ -198,6 +198,44 @@ func TestConfirmedInputSerializesReleaseBehindPong(t *testing.T) {
 	}
 }
 
+func TestConfirmedInputSerializesDetachAndInvalidation(t *testing.T) {
+	for _, action := range []string{"detach", "invalidate"} {
+		t.Run(action, func(t *testing.T) {
+			r, peer := confirmedRig(t, time.Second)
+			sent := make(chan error, 1)
+			go func() { sent <- r.SendEventConfirmed(context.Background(), tapA, time.Now()) }()
+			_ = readConfirmedFrame(t, peer)
+			ping := readConfirmedFrame(t, peer)
+			finished := make(chan struct{})
+			go func() {
+				if action == "detach" {
+					_ = r.Detach(context.Background(), "session_stop")
+				} else {
+					r.Invalidate()
+				}
+				close(finished)
+			}()
+			select {
+			case <-finished:
+				t.Fatal("lifecycle operation bypassed the in-flight barrier")
+			case <-time.After(20 * time.Millisecond):
+			}
+			replyConfirmed(t, peer, ping)
+			if err := <-sent; err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-finished:
+			case <-time.After(time.Second):
+				t.Fatal("lifecycle operation did not finish")
+			}
+			if status := r.Status(); status.State != RemoteInputDetached || status.Ready {
+				t.Fatalf("status after %s: %+v", action, status)
+			}
+		})
+	}
+}
+
 type confirmedRejectSink struct{}
 
 func (*confirmedRejectSink) Apply(protocol.InputFrame) error {

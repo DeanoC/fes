@@ -167,11 +167,21 @@ identity mismatch returns 403, and unavailable routes return 404.
 This stream is not the kit-local pad path. A gamepad or USB keyboard on the
 kit writes `/run/fogcast/local-input.sock` and does not open the POST below.
 The route stays for a pad on another machine. The host delivers that pad on
-the kit input stream of the session that owns the play. If that stream is
-not live, or nothing is listening, `POST /api/v1/launcher/input` and
-`POST /api/v1/session/input/event` return 503 `INPUT_UNAVAILABLE` with
-`no live input stream` and do not accept the event. The kit does not fall
-back to this route when its local socket is down.
+the kit input stream of the session that owns the play. When the host detects
+that this stream is unavailable, a new `POST /api/v1/launcher/input` or
+`POST /api/v1/session/input/event` returns 503 `INPUT_UNAVAILABLE` with
+`no live input stream`. An already-open launcher stream instead ends when a
+subsequent event encounters the loss or its read timeout expires; its initial
+ready response does not acknowledge individual events.
+
+The single-event POST waits for a correlated PONG after its stream prefix.
+That proves bridge progress, not acceptance by the target sink or consumption
+by the guest. An uncertain write or missing PONG returns 503
+`INPUT_UNCONFIRMED`: the event may have applied. The host closes its connection,
+discards its held-input snapshot and attempts to stop the bridge; remote
+release can be delayed or fail. The check adds a bridge round trip to each
+single-event POST. It does not change the launcher stream or timed key tap. The
+kit does not fall back to the host route when its local socket is down.
 
 An attached input status contains `session_id`, a non-secret hexadecimal
 attachment identifier, and optionally `source` (`launcher` or `desktop`). The
