@@ -106,6 +106,11 @@ truncating the final handoff could still leave that indication true. Power-on
 acceptance now requires the final EL1 marker as well. The initial failed model
 and a later sandbox setup failure remain in the private preparation logs.
 Other failed model and result-publication attempts remain retained as failures.
+The first source freeze stopped before publishing files because the inherited
+backup closure pinned the previous Nano guide. The corrected preparer explicitly
+rebinds that guide to the committed source, while requiring the inherited code
+and artifact bytes to match and checking that only the two new host contracts
+and that guide changed under `platform/embedded`.
 
 No result here qualifies physical flash programming/restoration, autonomous
 boot, whole-array post-program readback, current HDMI/keyboard behavior,
