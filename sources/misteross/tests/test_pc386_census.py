@@ -97,6 +97,26 @@ int main(int, char **argv) {
         put(0x30010, {0x0f, 0x22, 0xd8});
         s.eip = 0x00400010;
         assert(census.begin(s, "x") == "0F22.3:pm0");
+        // machine_tb's RTL STOP and GAP lines and its retire path read an
+        // instruction's bytes through the same walk (#1707): 0F FF at linear
+        // 0x00400ff8 is on physical 0x30ff8, not 0x400ff8, and the bytes
+        // past the page, which is not present, read FFh.
+        const pc386_census::PhysicalByte bus = [](uint32_t at) { return at < ram.size() ? ram[at] : uint8_t(0xff); };
+        put(0x30ff8, {0x0f, 0xff, 0x90});
+        uint8_t bytes[15];
+        pc386_census::fetch(s.cr0, s.cr3, 0x00400ff8, bus, bytes);
+        assert(bytes[0] == 0x0f && bytes[1] == 0xff && bytes[2] == 0x90 && bytes[7] == 0 && bytes[8] == 0xff);
+        assert(pc386_census::stem(bytes, 2) == "0FFF");
+        // Without paging the bytes are at the linear address, across pages.
+        ram[0x31000] = 0x42;
+        pc386_census::fetch(s.cr0 & ~0x80000000u, s.cr3, 0x30ff8, bus, bytes);
+        assert(bytes[0] == 0x0f && bytes[1] == 0xff && bytes[8] == 0x42);
+        // A walk that crosses into a present page reads it.
+        put32(0x11000 + 1 * 4, 0x32000 | 7);
+        ram[0x32000] = 0x37;
+        pc386_census::fetch(s.cr0, s.cr3, 0x00400ff8, bus, bytes);
+        assert(bytes[1] == 0xff && bytes[8] == 0x37);
+        put32(0x11000 + 1 * 4, 0);
         // A CR3 write flushes the TLBs.
         StepResult r = retired();
         r.reads.push_back({0x00400200, 0x30200, 4});
