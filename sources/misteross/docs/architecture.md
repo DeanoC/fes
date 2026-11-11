@@ -233,6 +233,12 @@ reads a private final database and retains all216 reports. Historical/static
 profiles retain their original finding set and cannot inherit this proof.
 The registered video outputs use a two-register pixel-domain reset release;
 only its raw clear ingress is cut, while local recovery/removal stays timed.
+The approved terminal-output reset review covers only the single RDC-50003
+finding for that chain and the cold-only DMA reset receiver. Exact chain heads,
+three reset sources, one pixel domain and26 terminal output/readiness consumers
+must match each fit, with208 nonnegative recovery/removal paths. It permits no
+additional reset consumer or warning. The forwarded HDMI clock explicitly
+derives from the pixel PLL output; its phase/rate and pin budget stay the same.
 Raw findings remain visible; the ADV7513 pin budget assumes zero board flight
 time, so independently derived PCB timing is not claimed. All85 signoff rules, every internal timing
 family, zero Quartus waivers and an independent identical RBF remain required;

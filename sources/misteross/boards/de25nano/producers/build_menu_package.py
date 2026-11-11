@@ -54,6 +54,8 @@ REVIEW_INPUTS = ('boards/de25nano/scanout/async_inputs.py',
                  'boards/de25nano/scanout/async_inputs.tcl',
                  'boards/de25nano/scanout/video_outputs.py',
                  'boards/de25nano/scanout/video_outputs.tcl',
+                 'boards/de25nano/scanout/output_reset.py',
+                 'boards/de25nano/scanout/output_reset.tcl',
                  'boards/de25nano/scanout/vendor_reference.py')
 DEVICE = 'A5EB013BB23BE4SCS'
 
@@ -252,6 +254,7 @@ def create_build_record(root, repository, revision, identities, execution, captu
             'signoff_policy': async_inputs.POLICY,
             'hdmi_output_policy': async_inputs.vendor_reference.POLICY,
             'hdmi_video_timing_policy': async_inputs.video_outputs.POLICY,
+            'hdmi_output_reset_review_policy': async_inputs.output_reset.POLICY,
             'reset_release_timing': TIMED_RESET_RELEASE,
             'fabric_initiator_policy': MANAGED_FABRIC,
             'fifo_reset_sharing': SHARED_FIFO_RESETS,
@@ -329,6 +332,11 @@ def timing_evidence(directory, *, async_review=None, audio_review=None, revision
         audio_proof = audio_reference.verify(directory, audio_review)
     if async_review is not None:
         proof = async_inputs.verify(directory, async_review)
+        if 'output_reset_review' in proof:
+            reset = next(r for r in rows if r[0] == 'RDC-50003')
+            if reset[2:] != ('1', '0'):
+                raise BuildError('DE25 output-reset RDC finding count/waivers changed')
+            reviewed.append(proof['output_reset_review']['finding'])
         findings = next(r for r in rows if r[0] == 'TMC-20011')
         if int(findings[2]):
             if findings[2:] != ('2', '0'):

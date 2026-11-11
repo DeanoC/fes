@@ -465,7 +465,7 @@ toolchain = "test"
     def test_reconstruction_failure_removes_partial_archive_and_provenance(self):
         original = core_dev.subprocess.run
         def fail(*args, **kwargs):
-            if any("from scripts.export_core_package import _archive_bytes" in str(arg) for arg in args[0]):
+            if any("_archive_bytes(package.manifest_bytes" in str(arg) for arg in args[0]):
                 (self.output / ".core.fcore.tmp").write_bytes(b"partial")
                 raise subprocess.CalledProcessError(1, args[0])
             return original(*args, **kwargs)
@@ -513,6 +513,11 @@ class DE25CachedPreparationTest(CachedPreparationTest):
     interfaces = '[' + ', '.join(
         '{id = "' + name + '", major = 1, minor = 0, required = true}'
         for name in ("fes.video.fixed-720p60", "fes.keyboard.hid", "fes.media.zx81-tape")) + ']'
+
+    def test_independently_selected_de10_reader_rejects_de25_package(self):
+        other = replace(self.recipe, board='de10-nano')
+        with self.assertRaises(subprocess.CalledProcessError):
+            core_dev.inspect_archive(self.source, self.package, self.package, other)
 
 
 class ROMArchiveReconstructionTest(unittest.TestCase):

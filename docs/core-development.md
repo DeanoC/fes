@@ -15,6 +15,9 @@ data, not a list of shell commands. DE10 playable recipes use HIP/nextpnr;
 the PC/XT diagnostic and DE25 recipes select their registered Quartus producers.
 A failed producer remains failed. The existing image builder and the developer
 command consume the same board-scoped registry.
+Cached-package inspection and archive reconstruction use that independently
+selected board's canonical reader/exporter. DE25 uses its board-local codec;
+DE10 keeps the shared codec. A package targeting another board is refused.
 
 Keep ABI, programming profile and interface declarations in the sealed package
 manifest, generated from the owning shared/core definitions. Runtime compatibility

@@ -155,6 +155,7 @@ class DE25MenuPackageTests(unittest.TestCase):
         # Keep that historical fixture explicit; production records select it.
         fields = json.loads(record)
         fields['parameters'].pop('hdmi_video_timing_policy')
+        fields['parameters'].pop('hdmi_output_reset_review_policy')
         record = producer.encode_build_record(fields)
         (self.root.parent / 'build-inputs.json').write_bytes(record)
         hps = self.root / 'combined/hps'

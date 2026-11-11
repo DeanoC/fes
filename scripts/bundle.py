@@ -182,8 +182,13 @@ import json
 import sys
 from pathlib import Path
 import importlib
-from scripts.core_package import read_package
-from scripts.export_core_package import build_identity, _decode_build_record
+board = sys.argv[4]
+if board not in ('de10-nano', 'de25-nano'):
+    raise ValueError('unsupported independently selected board')
+namespace = 'boards.de25nano.package' if board == 'de25-nano' else 'scripts'
+read_package = importlib.import_module(namespace + '.core_package').read_package
+exporter = importlib.import_module(namespace + '.export_core_package')
+build_identity, _decode_build_record = exporter.build_identity, exporter._decode_build_record
 producer = importlib.import_module(sys.argv[3])
 root = Path.cwd().resolve()
 package_path = Path(sys.argv[1]).resolve()
@@ -196,8 +201,7 @@ if manifest.get("target", {}).get("platform") != sys.argv[4].replace("-", "_"):
     raise ValueError("cached package target differs from independently selected board")
 if record_fields["format"] != 2:
     raise ValueError("normal FES packages require functional build record 2")
-from scripts.export_core_package import verify_record_source_at_revision
-verify_record_source_at_revision(root, record)
+exporter.verify_record_source_at_revision(root, record)
 build = manifest["build"]
 toolchain = "; ".join(f"{name} {record_fields['tools'][name]}" for name in sorted(record_fields["tools"]))
 if package_path.name != package.package_id:

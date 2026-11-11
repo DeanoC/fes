@@ -25,6 +25,38 @@ class BundleTest(unittest.TestCase):
         module.ARTIFACT_CACHE_ROOT = Path(cache.name)
         return module
 
+    def test_de25_cached_package_uses_its_source_closed_board_reader(self):
+        module = self.module()
+        source = SCRIPT.parents[1] / 'sources/misteross'
+        # Parser fixture only: no synthesis, timing qualification or deployment.
+        program = '''
+import json, subprocess, sys
+from pathlib import Path
+from boards.de25nano.producers import build_menu_package as producer
+from boards.de25nano.package.core_package import package_identity
+root=Path.cwd(); output=Path(sys.argv[1]); revision=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+record=producer.create_build_record(root,'https://github.com/DeanoC/fes',revision,
+    {n:'parser-fixture' for n in ('quartus','qsys','ipgenerate','pfg')}, {'toolchain':'quartus'})
+payload=output/'fixture.rbf'; payload.write_bytes(b'parser fixture, not FPGA configuration')
+manifest=producer.manifest(record,payload); identity=package_identity(manifest,payload.read_bytes())
+package=output/identity; package.mkdir()
+for name,data in [('manifest.toml',manifest),('core.rbf',payload.read_bytes())]:
+    path=package/name; path.write_bytes(data); path.chmod(0o444)
+package.chmod(0o555); record_path=output/'build-inputs.json'; record_path.write_bytes(record); record_path.chmod(0o444)
+print(json.dumps({'package':str(package),'record':str(record_path)}))
+'''
+        with tempfile.TemporaryDirectory() as temp:
+            built = subprocess.run([sys.executable, '-c', program, temp], cwd=source,
+                                   capture_output=True, text=True, timeout=30)
+            self.assertEqual(built.returncode, 0, built.stderr)
+            artifact = json.loads(built.stdout)
+            inspected = module._inspect_package_candidate(source, Path(artifact['package']),
+                Path(artifact['record']), recipe=module.recipe_for('fes.menu', board='de25-nano'))
+            self.assertEqual(inspected['manifest']['target']['platform'], 'de25_nano')
+            with self.assertRaises(ValueError):
+                module._inspect_package_candidate(source, Path(artifact['package']),
+                    Path(artifact['record']), recipe=module.recipe_for('fes.menu', board='de10-nano'))
+
     def test_de25_license_selection_matches_real_child_record_and_changes_key(self):
         module = self.module()
         with tempfile.TemporaryDirectory(prefix="fes license ' space ") as temporary:

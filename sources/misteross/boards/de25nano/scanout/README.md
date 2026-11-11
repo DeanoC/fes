@@ -454,6 +454,21 @@ the output-register reset. Only the raw ingress to those two clear pins is
 cut; interstage timing and output recovery/removal remain required. Retained
 visibility/fault state keeps its separate epoch protocol and no new clear.
 
+The user-approved `de25-reviewed-terminal-hdmi-output-reset-v1` policy reviews
+only the one `RDC-50003` pixel-domain finding for this output chain and the
+existing cold-only DMA reset receiver. The fitted query must find one
+stage0-to-stage1 connection and exactly26 terminal loads (24 data registers,
+DE and `hdmi_active`). Every load requires positive or zero recovery/removal
+in all four models (208 paths). Any new consumer, reset source, chain head,
+domain, waiver or incomplete/negative result blocks admission. The raw rule
+remains visible. This scope does not cover static personas or recovery after
+failed programming.
+
+The HDMI forwarded-clock constraint explicitly uses the actual fitted PLL
+output as its source/master. It preserves the clock's phase and rate and the
+same receiver setup/hold requirements; it prevents Quartus implicitly choosing
+an unrelated intermediate counter clock and assuming zero source latency.
+
 ## Standard-core session display adapter
 
 `fes_de25_session_display.v` combines the existing kernel-owned scanout CSR,
