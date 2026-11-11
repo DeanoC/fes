@@ -388,7 +388,7 @@ func TestSystemsRoomListsPreparedWorkingFamilies(t *testing.T) {
 	}
 	assertRowContrast(t, frame)
 	queries := svc.recorded()
-	if len(queries) != 1 || queries[0].Platform != "fpga" || queries[0].Sort != "title" || len(queries[0].CoreIDs) != 18 {
+	if len(queries) != 1 || queries[0].Platform != "fpga" || queries[0].Sort != "title" || len(queries[0].CoreIDs) != 17 {
 		t.Fatalf("queries %+v", queries)
 	}
 	if got := r.Destination(); got.Kind != "" || got.GameID != "" {

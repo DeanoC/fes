@@ -296,9 +296,6 @@ func TestInstalledCoreRoomDefaultBudgetDwell(t *testing.T) {
 		}
 	}
 	t.Logf("cores=%d viewport=1280x720 frames=%d max_step=%s mean_step=%s soft_budget=%s hard_budget=%s", count, frames, maximum, total/frames, r.budget.Frame, r.budget.Frame*callbackHardLimitFactor)
-	if got := fake.launchedIDs(); len(got) != 0 {
-		t.Fatalf("fixture unexpectedly launched %v", got)
-	}
 }
 
 func BenchmarkInstalledCoreRoomOneTile(b *testing.B) {

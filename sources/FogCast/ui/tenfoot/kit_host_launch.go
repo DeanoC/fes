@@ -48,7 +48,7 @@ func (a *App) resolveKitHostSessionTitleLocked() {
 // before using the normal host session path. The room lock is never held while
 // content is imported or the host checks the package.
 func (a *App) startKitHostEntryLocked(packageID, gameID, label string) {
-	if a.hostAwaitStatus || a.kitHostPreparing || a.launch.Phase == "launching" || a.sessionStopOfferedLocked() || a.localCoreBusyLocked() || a.localLaunchBlockedLocked() {
+	if a.hostAwaitStatus || a.kitHostPreparing || a.launch.Phase == "launching" || a.sessionStopOfferedLocked() {
 		return
 	}
 	a.kitHostPreparing = true
@@ -76,4 +76,20 @@ func (a *App) startKitHostEntryLocked(packageID, gameID, label string) {
 		a.kitHostPreparing = false
 		a.status = "Could not prepare " + label + ": " + err.Error()
 	}()
+}
+
+// completeHostLaunchHandoff starts a pending host launch after the menu display is paused.
+func (a *App) completeHostLaunchHandoff(err error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if launch := a.hostLaunchPending; launch != nil {
+		a.hostLaunchPending = nil
+		if err != nil {
+			a.hostPresentsPaused = false
+			a.launch.Phase = "error"
+			a.launch.Message = "display handoff failed: " + err.Error()
+			return
+		}
+		launch()
+	}
 }

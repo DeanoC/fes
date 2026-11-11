@@ -256,7 +256,7 @@ them, so a uop reads one at WB, or waits in D until its writers retire.
   (`far_chk`): at a far call's probe, ahead of the probe's own check, as
   Bochs checks before it pushes; at RETF's jump and IRET's FLAGS read after
   their own reads, at M1 (`cs_late`), as Bochs pops first. CALL r/m near's
-  push checks T1 the same way, after its own check.
+  push checks T1 the same way, but faults on none of it (`cpast`, below).
 - Far transfers are taken branches, with no prediction yet: each redirects
   from WB.
 
@@ -375,8 +375,9 @@ registers).
   index (`direct`). XLAT's index is AL zero-extended, which D's address
   forwarding masks (`index8`), holding the uop when AL would come late.
   SALC is SBB AL, AL writing no flags.
-- CALL r/m near loads its target into T1, pushes the next EIP after checking
-  T1 against CS's limit, then jumps to T1. PUSH m loads into T1 and pushes
+- CALL r/m near loads its target into T1, pushes the next EIP, then jumps to
+  T1. A target past CS's limit leaves the push's slot written and ESP as it
+  was, and the jump raises #GP(0) (`cpast`, below). PUSH m loads into T1 and pushes
   it. POP m reads the stack's slot into T1 without moving ESP, stores T1 to
   the operand, whose address registers DC kept beside the stack uop's
   (`m_*`), then pops into nothing to step ESP, so a store that faults leaves
@@ -667,9 +668,20 @@ the displacement, wrapped by operand size (`ag_call`).
 **M1** checks the segment limit with one compare, the offset against D's
 limit, raising #SS(0) for SS and #GP(0) otherwise, and sends a load's address
 to the data port. It checks a near branch's target, or CALL rel's push's,
-against CS's limit (`tchk`): the push raises #GP(0) here, after its own
-checks and its page's #PF (`dfl`), as the 386 and Bochs push before they
-check; a branch carries the result to EX.
+against CS's limit (`tchk`); a branch carries the result to EX. A near CALL's
+push whose target is past the limit (`cpast`: CALL rel's from here, CALL
+r/m's from D's `far_chk`) faults on none of it: it stores its slot, its own
+faults and its page's #PF first, and WB leaves ESP as it was. The CALL's
+jump, which checks the same target, raises #GP(0). That is the 386's order:
+its die-extracted microcode (reenigne/x86_microcode, `microcode_notes.txt`)
+writes the slot (`OPR_W = EIP; WR`: CALL rel at `075`, CALL r/m by register
+at `079`, by memory at `07E`) before it forms the target through CS's
+descriptor (`DESCOD` at `076`, `07A`, `080`). CALL rel and CALL r/m by
+register write ESP after that (`077`, `07B`); the memory form writes it at
+`07F`, the delay slot before `080`, and the notes do not say whether a #GP(0)
+there keeps it. The RTL leaves ESP as it was for every form, as Bochs does
+(`RSP_SPECULATIVE`, the push, the check: its rollback restores ESP but not
+the bytes). This rests on the microcode, not a silicon test (#1510).
 A far transfer's offset that D found past the limit (`cs_late`) raises
 #GP(0) here when the uop's own checks pass. It also takes the load's distance from the stores in EX and
 WB, which have not written when the port reads: the one in EX will be in WB
@@ -1325,9 +1337,10 @@ as Bochs's `translate_linear_legacy` at CPU level 3.
   XCHG m's and ARPL m's loads of their operands; XCHG m's load also takes
   its store's segment check, so a segment it cannot write raises #GP(0)
   (#SS(0)) before the load's #PF (#1644). A uop whose fault is a later one
-  than its pages' #PF (`dfl`: a st2 store's segment check, or CALL rel's
-  push's target past CS's limit) still translates, replaying when it is not
-  the oldest, and its #PF comes first.
+  than its pages' #PF (`dfl`: a st2 store's segment check) still
+  translates, replaying when it is not the oldest, and its #PF comes first.
+  A near CALL's push past CS's limit (`cpast`) has no fault, so it
+  translates as any store does and its #PF comes before its jump's #GP(0).
 - **The walker** (`fes_i386_l1d`) runs only for the oldest uop, as an
   uncached load reads (`L_UNC`, then `oldest`), else the uop replays and
   its instruction issues alone, up to the end of the REP element it was in
@@ -1440,8 +1453,11 @@ lockstep under a preset and fails on any architectural difference from max.
 ## Synthesis notes
 
 The i386 RTL has its own toolchain lock, [`toolchain.lock`](toolchain.lock)
-here: the DeanoC Yosys fork's main at `238eac9a49`, with nextpnr `bd7a1c0d`
-and Mistral `8fcc4cb4`. The timing spikes default to it. The repository's
+here: the DeanoC Yosys fork's main at `0a7927bf`, with nextpnr `bd7a1c0d`
+and Mistral `8fcc4cb4`. It is the pc386 lock's Yosys pin, so lockstep, the
+Quartus spikes and the pc386 seal read the CPU with one Yosys (#1581 D2,
+[record](../../../../../../docs/validation/2026-11-10-1581-d2-yosys-lock/README.md)).
+The timing spikes default to it. The repository's
 shared lock stays at Yosys `3a5accbd`, which reads this RTL wrongly, so check
 and route the i386 RTL with this lock's Yosys. Each later Yosys fix is a
 small bump of this lock, the removal of its one workaround, the `--yosys`

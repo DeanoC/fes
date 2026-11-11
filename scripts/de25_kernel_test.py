@@ -68,6 +68,7 @@ REQUIRED_CASES = frozenset((
     "constructor_failure_releases_backend_lease", "uncertain_dma_retains_lease_until_storage_free",
     "binding_stays_closed", "rejects_bad_publish_before_effects",
     "kernel_owns_descriptor_and_drain_lifetime", "failed_start_is_held_until_drain",
+    "delayed_drain_releases_exposure", "retry_after_clear_accepts_pristine_snapshot",
     "unreadable_epoch_retains_exposed_storage",
     "coherent_mapping_uapi_and_revoke", "contiguous_aliases_are_revoked", "rejects_invalid_mapping_shapes",
     "refused_mapping_releases_new_mm_reference",

@@ -84,7 +84,8 @@
 //   SEQ_XCHGM  (XCHG r/m, r with a memory operand): the operand into T1;
 //              the register stored to it; the register from T1.
 //   SEQ_CALLI  (CALL r/m near): the target into T1; push the next EIP, which
-//              checks T1 against CS's limit first (far_chk); jump to T1.
+//              checks T1 against CS's limit (far_chk) and, past it, stores
+//              but leaves ESP (cpast); jump to T1, which raises the #GP(0).
 //   SEQ_PUSHM  (PUSH m): the operand into T1; push T1.
 //   SEQ_POPM   (POP m): the stack's slot into T1, ESP unmoved; T1 stored to
 //              the operand (its address fields restored from m_*); a pop

@@ -47,7 +47,7 @@ Held-back cores are hidden from the release catalog, not deleted. Because Pong i
 | --- | --- | --- |
 | 1 | What Home shows | 4 family tiles plus a Recent/Continue row. No Library destination in v1. |
 | 2 | Games folder layout | The user picks the folders. The picker suggests likely folders (e.g. existing `games/<System>` dirs) but no FES layout is imposed. |
-| 3 | Firmware/ROMs | Ship legally redistributable firmware where possible (EmuTOS; Amstrad-permitted ZX/Spectrum ROMs; open C64 replacements if viable). Show firmware info on first use of each system. |
+| 3 | Firmware/ROMs | Ship redistributable firmware where permitted and show firmware info on first use of each system. See the [firmware licensing record](v1-firmware-licensing.md) for the subsequent per-model decisions and conditions. |
 | 4 | Controllers | Aim to support any pad (GameControllerDB); test a short list well and mark those as Tested. |
 | 5 | Model tiles on Home | Families only; the model is chosen inside the family. |
 
@@ -80,6 +80,8 @@ Held-back cores are hidden from the release catalog, not deleted. Because Pong i
 Out of v1: a Library destination, per-core remap overrides, themes, multiple users and mesh settings.
 
 ## Milestone and issues
+
+The table records the 1 November plan; follow the linked issues and milestone for current status and ownership.
 
 Milestone [v1: DE10 first release](https://github.com/DeanoC/fes/milestone/2). Sizes: S = a few days, M = 1–2 weeks, L = 2–4 weeks. Rows marked Existing got the milestone and a cross-link rather than a new issue. The duplicate check on 1 Nov found no existing release milestone or matching issues; #489 (ST qualification) and #387 (licence-notice audit) are related and cross-linked.
 

@@ -185,7 +185,7 @@ func TestRemoteInputNoLiveStreamRejectsEvent(t *testing.T) {
 	input, err := host.NewRemoteInput(host.RemoteInputConfig{
 		Starter:           starter,
 		ReconnectGrace:    40 * time.Millisecond,
-		HeartbeatInterval: time.Hour,
+		HeartbeatInterval: 10 * time.Millisecond,
 		DialTimeout:       40 * time.Millisecond,
 	})
 	if err != nil {
@@ -214,6 +214,12 @@ func TestRemoteInputNoLiveStreamRejectsEvent(t *testing.T) {
 	if err = server.Close(); err != nil {
 		t.Fatal(err)
 	}
+	// A remote close is not immediately visible to the client. Wait until
+	// the heartbeat has observed it and the reconnect attempt has failed.
+	waitFor(t, 5*time.Second, func() bool {
+		status := input.Status()
+		return status.State == host.RemoteInputFailed && !status.Ready
+	})
 	if err = input.SendEvent(context.Background(), event, time.Now()); !errors.Is(err, host.ErrRemoteInputNoStream) {
 		t.Fatalf("send with no listener: %v", err)
 	}

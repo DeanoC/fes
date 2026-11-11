@@ -155,6 +155,7 @@ def execute(args) -> dict:
          "-I" + str(board), "-I" + str(board / "generated"),
          "-I" + str(snapshot / "sources/misteross/cores/fes-common/generated"),
          "-I" + str(snapshot / "sources/misteross/cores/fes-zx81/rtl"),
+         "-I" + str(snapshot / "sources/misteross/boards/de25nano/shared-rtl"),
          "-I" + str(snapshot / "sources/misteross/cores/fes-common/rtl/z80"),
          "-GBUILD_ID=128'h" + args.build_id,
          "-CFLAGS", f"-O2 -I{rtl} -I{board} -I{board / 'generated'}",

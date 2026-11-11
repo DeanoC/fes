@@ -36,9 +36,10 @@ SOURCE_PATHS.update({"display_build.py": HERE.parent / "display/build.py",
     "board_build.py": HERE.parent / "build.py",
     "vendor.lock.toml": HERE.parent / "display/vendor.lock.toml",
     "fes_de25_top_reset.v": HERE.parent / "hps/fes_de25_top_reset.v"})
+SOURCE_PATHS.update({name: HERE.parent / "shared-rtl" / name for name in (
+    "zx81_machine.sv", "zx81_machine_clock.v")})
 SOURCE_PATHS.update({name: MISTEROSS / "cores/fes-zx81/rtl" / name for name in (
-    "zx81_machine.sv", "zx81_machine_clock.v", "zx81_dpram.v", "zx81_video_720p.v",
-    "zx81_model.vh")})
+    "zx81_dpram.v", "zx81_video_720p.v", "zx81_model.vh")})
 SOURCE_PATHS.update({name: MISTEROSS / "cores/fes-common/rtl/z80" / name for name in (
     "fes_z80_alu.sv", "fes_z80_engine.sv", "fes_z80_bus.sv", "fes_z80_nmos.sv")})
 

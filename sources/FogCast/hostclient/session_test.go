@@ -11,8 +11,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestReadResponseBodyRejectsOversize(t *testing.T) {
@@ -216,18 +214,6 @@ func TestDecodeSessionHPSFramebufferIsOptional(t *testing.T) {
 	}
 	if on.HPSFramebuffer == nil || !*on.HPSFramebuffer {
 		t.Fatalf("explicit true = %v", on.HPSFramebuffer)
-	}
-}
-
-func TestGetSessionDecodesKitLocalState(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, `{"state":"local"}`)
-	}))
-	defer server.Close()
-
-	result, err := GetSession(context.Background(), server.Client(), server.URL, 1024)
-	if err != nil || result.State != string(protocol.StateLocal) || result.GameID != "" {
-		t.Fatalf("session = %+v, error = %v", result, err)
 	}
 }
 

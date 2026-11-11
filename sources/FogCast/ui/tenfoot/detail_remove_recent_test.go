@@ -129,7 +129,7 @@ func TestReleaseHomeRecentRemovesDisplayedCoreEntry(t *testing.T) {
 	if beforeConfirm != 0 {
 		t.Fatal("entry removed before confirmation")
 	}
-	if host.launchCount() != 0 || cores.launchCount() != 0 {
+	if host.launchCount() != 0 {
 		t.Fatal("navigation launched a title")
 	}
 	app.HandleCommand(CommandFromKey("return"), time.Now())
@@ -158,7 +158,7 @@ func TestReleaseHomeRecentRemovesDisplayedCoreEntry(t *testing.T) {
 	if string(before) != string(after) {
 		t.Fatal("first-use firmware preferences changed")
 	}
-	if host.launchCount() != 0 || cores.launchCount() != 0 {
+	if host.launchCount() != 0 {
 		t.Fatal("removal launched a title")
 	}
 }

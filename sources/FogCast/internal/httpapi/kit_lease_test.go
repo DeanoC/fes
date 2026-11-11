@@ -133,7 +133,7 @@ func TestKitLocalCorePurposeCannotUseHostRoutes(t *testing.T) {
 		grant, err = manager.Claim(kitlease.ClaimRequest{
 			RequestID: "cccccccccccccccccccccccccccccccc",
 			Owner:     kitlease.HostlessOwner,
-			Purpose:   kitlease.LocalCorePurpose,
+			Purpose:   "kit-local-core",
 		})
 		if err == nil {
 			break

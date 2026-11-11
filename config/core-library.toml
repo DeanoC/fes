@@ -50,12 +50,6 @@ system = "sg1000"
 standing = "supported"
 
 [[cores]]
-core_id = "fes.catch"
-label = "Catch"
-system = "catch"
-standing = "demo"
-
-[[cores]]
 core_id = "fes.apple2"
 label = "Apple II"
 system = "apple2"

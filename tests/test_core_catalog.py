@@ -163,8 +163,6 @@ x=read_package(p/'core.fcore');print(json.dumps({'package_id':x.package_id,'core
         self.assertEqual(rows['fes.sg1000']['label'], 'Sega SG-1000')
         self.assertEqual(rows['fes.coleco']['label'], 'ColecoVision')
         self.assertEqual(rows['fes.coleco']['system'], 'coleco')
-        self.assertEqual(rows['fes.catch']['label'], 'Catch')
-        self.assertEqual(rows['fes.catch']['standing'], 'demo')
         self.assertEqual(rows['fes.ramtest']['standing'], 'supported')
         self.assertEqual(rows['fes.ramtest']['system'], 'ramtest')
         self.assertEqual(rows['fes.pcxt-dos']['system'], 'pcxt')

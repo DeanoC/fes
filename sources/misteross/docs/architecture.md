@@ -621,7 +621,7 @@ remain separate gates. No normal runtime profile is admitted by these models.
 
 ## Functional input identity
 
-Pong, ZX81, Coleco, SMS, SG-1000, Catch and all demo variants use functional
+Pong, ZX81, Coleco, SMS and SG-1000 use functional
 identity 2 exclusively. Both Python and CLI entrypoints default to 2 and reject
 other identity versions. Quartus oracle and board-firmware records retain their
 current evidence schema. Rebuilt script closures receive new identities;
@@ -805,7 +805,7 @@ locks are byte copies of each other and share one slot; the other seven
 per-core locks that differ from `toolchain.lock` each have their own. The
 Atari ST video-part producer
 authenticates the ST lock and validates the same map. The Coleco development
-shell remains on `9128800f` and validates its C/D map. The other four
+shell remains on `9128800f` and validates its C/D map. The other three
 per-core locks remain byte copies of `toolchain.lock` on nextpnr `9128800f`,
 so those cores share that slot.
 Placement seeds and weights, clock checks, routing mode, GPU binding,
@@ -815,7 +815,7 @@ producer constants are read from this table.
 
 `scripts/pnr_recipe.py` builds the complete nextpnr argv and validates the
 producer's controlled environment. `search_placer_qor.py` uses it for every
-registered search route; Catch uses it for its direct route. A producer's
+registered search route. A producer's
 seed, weight, clock, timeout or raw extra argument must be listed in its
 recipe. Candidate evidence carries the argv, environment, recipe digest and
 authenticated toolchain slot. The producer-argv regression test pins the
@@ -869,16 +869,7 @@ nextpnr binary keeps the per-invocation lease above.
 
 ## Build lanes
 
-### Composable application reference
-
-`fes.catch` is an original ROM-less application using the same shell and ABI.
-`fes_catch_game.v` advances paddle/target/score/lives state only on the shared
-video frame tick; `fes_catch_core.v` supplies the shared raster. A synchronized
-event toggle triggers a bounded stereo chime in `fes_catch_audio.v`, which
-uses `fes_audio_i2s.v` and the existing audio PLL. The Catch producer reuses
-the demo's board command/electrical checks and seals a functional-identity v2
-package. `make sim-fes-demo` covers gameplay, event audio and board mailbox
-integration. It adds no host/runtime core allowlist or factory package.
+### Composable application endpoint
 
 `cores/fes-common/rtl/fes_application_gp.v` implements the new
 `fes.application` 1.0 mailbox (ABI tag 3). It preserves the existing GPO/GPI
@@ -924,28 +915,7 @@ contains an incomplete replacement.
 
 `cores/fes-common/rtl/fes_video_720p.v` provides the proven fixed 1650×750
 raster and centered 3× 320×240 image mapping derived from the Pong shell.
-`cores/fes-demo/rtl/top.v` connects the application endpoint, HPS GP, fractional
-74.25 MHz PLL, HDMI RGB and open-drain HPS I2C bridge. The common endpoint and
-reference image operate in the same pixel domain; application reset does not
-stop video timing. Pong now uses this same video module; its timing and image
-mapping are unchanged, and its legacy mailbox remains separate.
-
-The same source produces three independently identified packages:
-
-| Command | Core ID | Required interfaces | Output |
-| --- | --- | --- | --- |
-| `make build-fes-demo` | `fes.demo` | fixed 720p video | `build/fes-demo/core.rbf` |
-| `make build-fes-demo-media` | `fes.demo-media` | fixed 720p video, gamepad, blob | `build/fes-demo-media/core.rbf` |
-| `make build-fes-demo-audio` | `fes.demo-audio` | fixed 720p video, gamepad, stereo audio | `build/fes-demo-audio/core.rbf` |
-
-The first animates without input or media. The second requires an asset before
-release, uses its first three bytes as RGB channel masks, and uses Left/Right
-to reverse/increase animation speed. Missing palette bytes are zero, and bytes
-after the first three are accepted but unused by this reference application.
-A white palette can be created with
-`python3 -c 'from pathlib import Path; Path("palette.rgb").write_bytes(bytes([255,255,255]))'`.
-This demonstrates composition without a new emulated-machine implementation
-or an application-name branch in host software.
+Pong uses this video module; its legacy mailbox remains separate.
 
 `fes.ramtest` is a separate utility on the same mailbox with fixed 720p, the
 gamepad and `fes.memory.hps-ddr` 1.0. Its SDRAM channel first runs a bounded
@@ -1027,27 +997,10 @@ a burst stopped midway. The endpoint parameter `ENABLE_HPS_DDR` advertises
 capability bit 8. The runtime releases the FPGA ports only after identity and
 the SDR mirror registers prove the layout.
 
-`scripts/build_fes_demo.py` reuses the existing board tool-authentication,
-timing/resource and HDMI electrical checks from `build_fes_pong.py`. It records
-its own recipe, ABI definition and variant parameters in the build identity,
-pins the helper source, and includes the full input digests in build evidence.
-`CACHE_ROOT=/absolute/cache` selects the HIP slot of the repository-level
-`toolchain.lock` (nextpnr `9128800f`). Pong's lock pins nextpnr `552ba246`,
-so Pong uses a separate slot; [shared compiler installation](#shared-compiler-installation)
-lists the other per-core slots.
-Failed checks invalidate candidate artifacts; clean committed tracked source
-is required before synthesis and again before export. It produces ordinary
-format-2 packages under `build/packages/` after those checks, and never programs
-hardware. Parent image selection is a separate integrator action.
-
-`make sim-fes-demo` checks eight capability combinations, shared wire
+`make sim-fes-application` checks eight capability combinations, shared wire
 fixtures, interleaved input/identity/HOLD during blob loading, invalid command
-isolation, full 16 KiB transfer and short replacement. It also checks three
-full video frames and both production tops with controllable board models:
-pixel-clock isolation, I2C low-or-release/feedback, palette output and controller
-effect. These digital models do not prove PLL lock, electrical timing or actual
-HDMI output. This implementation has simulation and producer-unit-test evidence;
-new routed artifacts and exact-artifact hardware acceptance remain outstanding.
+isolation, full 16 KiB transfer and short replacement. It also tests the shared
+I2S serializer. These host simulations do not establish hardware timing.
 
 ### Board-firmware splash
 
@@ -1126,8 +1079,7 @@ frame; the completed snapshot becomes a later output frame (bounded latency,
 not an audio FIFO). HOLD synchronizes into the audio domain and substitutes
 zero, while PLL unlock gates data immediately and resets framing. Transfer
 state survives lock loss to avoid interpreting a stale acknowledgement as a
-new sample. The custom tone demo remains a native audio-clock source and needs
-no CDC. V11 reaches two qualified PLL sites, so Coleco uses a shared fractional
+new sample. V11 reaches two qualified PLL sites, so Coleco uses a shared fractional
 417.792 MHz VCO for system 52.224 MHz (C8) and audio 12.288 MHz (C34), plus
 the separate video PLL. The shared `fes_z80_ce.sv` supplies Coleco, SG-1000
 and SMS with alternating CPU half-cycle enables at an exact average
@@ -1144,12 +1096,6 @@ asynchronous stereo transfer, serial padding, hold and lock loss. The existing
 machine tests execute Z80 PSG OUT instructions in both memory timing models.
 These are host simulations, not proof of audible HDMI output on a receiver.
 
-The audio variant declares required `fes.audio.pcm-s16-stereo-48k` 1.0 and
-advertises application capability bit 4. It uses the existing execution hold
-and gamepad commands; no audio mailbox opcode or host sample transport exists.
-The producer's `FES_DEMO_AUDIO` define includes the four physical audio ports
-and second PLL only for this variant. Media is not required or advertised.
-
 `cores/fes-common/rtl/fes_audio_i2s.v` consumes signed 16-bit stereo PCM in its
 12.288 MHz audio domain. It emits 3.072 MHz BCLK, 48 kHz LRCLK, 32-bit slots,
 MSB-first data one BCLK after each LRCLK transition, and zero padding. LRCLK
@@ -1157,33 +1103,6 @@ low denotes left. `sample_tick` is high in the final MCLK cycle of a stereo
 frame; at the next rising MCLK edge both input samples are captured together
 for the next frame. A consumer advances its samples on that edge for the
 following tick. Inputs from other domains need their own coherent CDC.
-
-`fes_demo_audio.v` generates left 1000 Hz and right 500 Hz square waves at
-signed amplitude 4096. Right doubles both frequencies. Hold and the used
-controller bit cross from the pixel domain through two registers. Hold replaces
-both samples with zero by the next stereo frame after synchronization while
-MCLK/BCLK/LRCLK continue. PLL unlock asynchronously resets the framing and gates
-serial data low even if the clock stops; release waits for two new audio edges.
-This digital behavior does not establish the HDMI receiver's analog silence or
-clock-loss holdover latency. Runtime transmitter mute remains its own lifecycle
-responsibility.
-
-`fes_audio_pll.v` uses the checked fractional 50-to-12.288 MHz profile. The demo
-combines it with the separate 74.25 MHz video PLL. `constraints-audio.qsf`
-preserves the Pong video/I2C pins and adds MCLK U11, BCLK T12, LRCLK T11 and
-I2S data T13 at 3.3-V LVTTL, matching the authoritative shared board definition
-and [MiSTer board mapping](https://github.com/MiSTer-devel/Template_MiSTer/blob/3ea1134cf05d62c2b1db30362277a823d739ced2/sys/sys.tcl).
-
-The producer explicitly validates both PLL parameter sets, routed clock
-evidence, both Fmax domains and every audio output pad's pin and electrical
-standard. The original single-PLL validator remains the default. Source
-closure includes the audio RTL and constraints. `make sim-fes-demo` decodes
-actual serialized sample pairs, checks atomic updates, padding, clock ratios,
-mute and stopped-clock reset; it measures both tone frequencies before and
-after controller input and simulates the complete board with independent
-pixel/audio clocks and real GP commands. The audio extension currently has
-simulation and producer-test evidence; combined HIP routing and hardware
-audio capture remain outstanding.
 
 ### Experiment lanes
 
@@ -4258,8 +4177,7 @@ ZX81/Coleco/SMS/SG-1000 OSS producers own their recipes and package metadata.
 controlled tool invocation and shared evidence primitives. Tool invocations
 explicitly name their output directory. `scripts/fes_de10nano_evidence.py`
 validates the fixed video/audio board profile with resource expectations supplied
-by Pong or the application demo; those policies are not universal core limits.
-The demo imports these shared modules directly rather than importing Pong.
+by each producer; those policies are not universal core limits.
 
 `cores/fes-common/rtl` owns the CPU wrapper and TV80 implementation used by
 Coleco, SMS and SG-1000, their shared PLLs, RAMs, TMS9918 video path and legacy

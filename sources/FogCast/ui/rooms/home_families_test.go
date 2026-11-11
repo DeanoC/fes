@@ -388,9 +388,6 @@ func TestHomeFallsBackToTheKitWhenTheLibraryFails(t *testing.T) {
 	if d := r.Destination(); d.Label != "Atari ST" || d.Status != "Not installed on this kit" || d.Availability != AvailUnavailable {
 		t.Fatalf("missing family %+v", d)
 	}
-	if got := fake.launchedIDs(); len(got) != 0 {
-		t.Fatalf("Home launched %v", got)
-	}
 }
 
 func TestHomeFailedRefreshClearsStaleHostData(t *testing.T) {

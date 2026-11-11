@@ -125,7 +125,7 @@ type Options struct {
 	// StorePath is the per-room JSON persistence file; empty disables store.
 	StorePath string
 	// Local is the kit-local control socket. Nil on a host launcher: kit
-	// is absent and activating a core destination returns ErrNoLocalCores.
+	// is absent and inventory is unavailable.
 	Local  LocalCores
 	Budget Budget
 	Now    func() time.Time

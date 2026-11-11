@@ -15,6 +15,12 @@ GHRD lightweight bridge to the current computer mailbox for keyboard and
 CRC-checked tape delivery. Its computer/control runs at 100 MHz independently
 of the HDMI pixel clock. Production MMIO/runtime binding remains closed.
 
+DE25-only menu and ZX81 adaptations live under `shared-rtl/`; the DE10 core
+sources remain byte-identical to `origin/main`. The three HDMI board shells
+register D/DE/HS/VS at the pixel clock and constrain the ADV7513's documented
+video setup/hold requirements. Board flight time, I2C timing and physical
+acceptance remain open.
+
 The [ZX81 diagnostic](zx81/README.md) builds the real NMOS Z80/ZX81 machine
 with internal RAM and 720p HDMI, local reset and an ENTER button. It is a
 standalone FPGA diagnostic; HPS input, tape delivery and runtime launch are

@@ -6,6 +6,9 @@ mailbox, read-only DDR probe, lightweight control map and vendor debug/JTAG
 paths. It produces a diagnostic `golden_top.sof` for
 `A5EB013BB23BE4SCS` using Quartus Prime Pro 26.3.0. No command programs hardware.
 
+Menu-pattern uses the DE25 reader/video copies in `../shared-rtl/`; DE10 core
+RTL and its build identities remain unchanged.
+
 The display uses the GHRD's existing `ninit_done`, its free HDMI ports and a
 separate Terasic 50-to-74.25 MHz PLL on `CLOCK0_50`. The existing 100 MHz
 system PLL remains on `CLOCK2_50`; no HPS/EMIF clock or parameter changes are
@@ -88,3 +91,5 @@ electrical/link checks and board acceptance remain separate gates.
 The next interactive MENU step needs an admitted DMA grant, fenced reset
 lifetime, real framebuffer scanout and the runtime upload/control path. This
 lane supplies their combined HPS/display shell without claiming those pieces.
+The DE25 menu-pattern path uses its reader/video copies from `../shared-rtl/`;
+the DE10 core sources and their build identities remain unchanged.

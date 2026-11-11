@@ -54,7 +54,7 @@ func (a *App) browseActionsAllowedLocked() bool {
 	if a.settingsOpen || a.settingsOSKOpenLocked() || a.filtersOpen || a.searchOpen || a.viewPickerOpen || a.nameEntryOpenLocked() || a.roomPickerOpen || a.driveSettings.Open || a.coreLibrary.Open || a.firmwarePickerOpen || a.tapePickerOpen {
 		return false
 	}
-	if a.sessionStopOfferedLocked() || a.localPhase != "" || a.launch.Phase == "launching" || a.detailOpen || a.roomHeroDetail != "" {
+	if a.sessionStopOfferedLocked() || a.launch.Phase == "launching" || a.detailOpen || a.roomHeroDetail != "" {
 		return false
 	}
 	if a.room != nil {
@@ -95,7 +95,7 @@ func browseActionLabels(d rooms.Destination) (primary string, secondary bool) {
 		return "Open", true
 	}
 	switch d.Confirm() {
-	case rooms.ConfirmLaunch, rooms.ConfirmLaunchCore, rooms.ConfirmLaunchKit:
+	case rooms.ConfirmLaunch, rooms.ConfirmLaunchCore, rooms.ConfirmLaunchKitCartridge:
 		return "Play", true
 	case rooms.ConfirmChoose:
 		return "Choose", false

@@ -62,7 +62,7 @@ func kitLeaseApp(t *testing.T, server *httptest.Server, session hostclient.Sessi
 func holdSelectStart(app *App, now time.Time) {
 	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), now)
 	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), now.Add(time.Millisecond))
-	app.Tick(now.Add(time.Millisecond + localChordHold))
+	app.Tick(now.Add(time.Millisecond + sessionStopChordHold))
 }
 
 func releaseSelectStart(app *App, now time.Time) {

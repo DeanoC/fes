@@ -11,6 +11,7 @@ from build import load, retarget_ram, retarget_tape
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 ZX81 = ROOT / "cores/fes-zx81/rtl"
+SHARED_RTL = ROOT / "boards/de25nano/shared-rtl"
 COMMON = ROOT / "cores/fes-common"
 Z80 = COMMON / "rtl/z80"
 
@@ -39,8 +40,8 @@ def prepare(bench, output=None):
     (output / "fes_computer.hpp").write_bytes(runtime.read_bytes())
     sources = [HERE / "fes_de25_computer.v", HERE / "video.v",
                COMMON / "rtl/fes_computer_mailbox.v",
-               ZX81 / "zx81_keyboard.v", ZX81 / "zx81_machine_clock.v",
-               ZX81 / "zx81_machine.sv", *adapted]
+               ZX81 / "zx81_keyboard.v", SHARED_RTL / "zx81_machine_clock.v",
+               SHARED_RTL / "zx81_machine.sv", *adapted]
     sources += [Z80 / (name + ".sv") for name in
                 ("fes_z80_alu", "fes_z80_engine", "fes_z80_bus", "fes_z80_nmos")]
     return output, sources

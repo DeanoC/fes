@@ -28,8 +28,9 @@ SOURCE_PATHS = {name: HERE / name for name in LOCAL}
 SOURCE_PATHS.update({"board_build.py": HERE.parent / "build.py",
     "fes_de25_top_reset.v": HERE.parent / "hps/fes_de25_top_reset.v",
     "fes_splash_core.v": MISTEROSS / "cores/fes-splash/rtl/fes_splash_core.v",
-    **{name + ".v": MISTEROSS / ("cores/fes-menu/rtl/" + name + ".v")
-       for name in ("fes_menu_reader", "fes_menu_video", "fes_menu_pattern_memory")}})
+    "fes_menu_reader.v": HERE.parent / "shared-rtl/fes_menu_reader.v",
+    "fes_menu_video.v": HERE.parent / "shared-rtl/fes_menu_video.v",
+    "fes_menu_pattern_memory.v": MISTEROSS / "cores/fes-menu/rtl/fes_menu_pattern_memory.v"})
 VENDOR_FILES = ("golden_top.qsf", "sys_pll.ip", "agilex_reset_release.ip",
                 "HDMI_I2C/I2C_HDMI_Config.v", "HDMI_I2C/I2C_Controller.v")
 SCS_GOLDEN = "Demonstration/FPGA/Golden_top/golden_top.qsf"

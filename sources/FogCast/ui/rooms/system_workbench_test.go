@@ -37,7 +37,7 @@ func TestSystemWorkbenchEmptyLibrarySetsUpEveryPlayableModel(t *testing.T) {
 		{"fes.c64"},
 		{"fes.spectrum", "fes.spectrum128", "fes.spectrum-plus3", "fes.pentagon"},
 		{"fes.apple2"}, {"fes.atari-st"}, {"fes.coleco"}, {"fes.sms"}, {"fes.sg1000"},
-		{"fes.pong"}, {"fes.catch"}, {"fes.ramtest"}, {"fes.riscv"},
+		{"fes.pong"}, {"fes.ramtest"}, {"fes.riscv"},
 	}
 	for _, variants := range families {
 		for i, id := range variants {

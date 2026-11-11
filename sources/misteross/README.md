@@ -209,7 +209,6 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | `fes.spectrum128` (128K/+2) | `make sim-fes-spectrum` | `make build-fes-spectrum128` | none | library, experimental |
 | `fes.spectrum-plus3` (+2A/+3) | `make sim-fes-spectrum` | `make build-fes-spectrum-plus3` | none | library, experimental |
 | `fes.pentagon` (Pentagon 128) | `make sim-fes-spectrum` | `make build-fes-pentagon` | none | library, experimental |
-| `fes.catch` | `make sim-fes-demo` | `python3 scripts/build_fes_catch.py` | no oracle | library, demo |
 | `fes.ramtest` | `make sim-fes-ramtest` | `make build-fes-ramtest-100` | `make build-fes-ramtest-quartus` | library utility, supported, OSS 100 MHz |
 | `fes.riscv` | `make sim-fes-riscv` | `make build-fes-riscv` | none | library, experimental |
 | splash / idle | `make sim-fes-splash` | `make build-fes-splash` | none | `sealed/fes-splash.rbf`, not a play package |
@@ -234,7 +233,6 @@ build/fes-zx81-oss/core.rbf
 build/fes-coleco-socket-v2/core.rbf
 build/fes-sms-oss/core.rbf
 build/fes-sg1000-oss/core.rbf
-build/fes-catch/core.rbf
 build/fes-riscv/core.rbf
 build/packages/<package-id>/manifest.toml
 build/packages/<package-id>/core.rbf
@@ -266,7 +264,7 @@ make toolchain
 `make toolchain-fes` provisions the repository-level `toolchain.lock` HIP
 lane for consumers that still select that lock. Every registered core has a
 matching `toolchain-fes-<core>` target that provisions its
-`cores/fes-<core>/toolchain.lock`: menu, Catch, Pong, ZX81, Coleco, SMS,
+`cores/fes-<core>/toolchain.lock`: menu, Pong, ZX81, Coleco, SMS,
 SG-1000, Apple II, C64, Spectrum, RISC-V, RAM Tester and Atari ST. Without a
 cache, each producer reads the local install that its own target writes.
 Menu and ZX81 pin nextpnr `1eecf877`, Pong's lock pins `552ba246`, and

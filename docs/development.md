@@ -229,7 +229,7 @@ Flex/zlib development libraries, then run:
 
 ```sh
 bash scripts/ci_verilator.sh "$PWD/out/tools/ci-verilator" "$PWD/out/work/ci-verilator"
-make -C sources/misteross VERILATOR="$PWD/out/tools/ci-verilator/bin/verilator" sim-fes-demo
+make -C sources/misteross VERILATOR="$PWD/out/tools/ci-verilator/bin/verilator" sim-fes-application
 ```
 
 ## Incremental native image

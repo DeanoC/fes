@@ -240,70 +240,6 @@
       }
     },
     {
-      "id": "fes.catch",
-      "label": "`fes.catch`",
-      "tier": "demo",
-      "release": "held-back",
-      "covers": [
-        "fes-catch"
-      ],
-      "paths": [],
-      "recipe": true,
-      "optional": false,
-      "quartus_role": "no oracle required",
-      "recipe_gpu_router": "HIP",
-      "producer_script": "scripts/build_fes_catch.py",
-      "library_standing": "demo",
-      "in_bootstrap_image": false,
-      "oss_lock": {
-        "path": "sources/misteross/cores/fes-catch/toolchain.lock",
-        "yosys": "3a5accbd",
-        "mistral": "8fcc4cb4",
-        "nextpnr": "9128800f"
-      },
-      "board": "de10",
-      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-device` only; the authenticated toolchain sets the backend (misteross AGENTS.md).",
-      "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
-      "features": "Media: ROM-less. Input: `fes.gamepad`. HDMI: fixed 720p60 with audio on the demo shell. Display plane is Planned in `docs/display-pipeline.md`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Library standing `demo`. RTL lives in `cores/fes-demo`; the lock file is the only file under `cores/fes-catch`. Not in the bootstrap image. No separate kit acceptance is recorded in core status.",
-      "evidence": [
-        "config/core-recipes.toml",
-        "config/core-library.toml",
-        "profiles/native-integration-dev.toml",
-        "docs/core-status.md",
-        "docs/design/quartus-cores.md",
-        "docs/display-pipeline.md",
-        "sources/misteross/docs/cores.md",
-        "sources/misteross/boards/de10nano/README.md",
-        "sources/misteross/AGENTS.md",
-        "sources/misteross/cores/fes-catch/toolchain.lock",
-        "sources/misteross/scripts/build_fes_catch.py",
-        "sources/misteross/cores/fes-demo/rtl/fes_catch_core.v"
-      ],
-      "tier_role": "demo",
-      "family": null,
-      "variant": null,
-      "signals": {
-        "as_of": "2026-10-29",
-        "window_start": "2026-08-30",
-        "recent_cutoff": "2026-10-16",
-        "catalog_weight": "weak",
-        "last_rtl_change": null,
-        "last_rtl_sha": null,
-        "last_rtl_subject": null,
-        "last_host_change": null,
-        "last_host_sha": null,
-        "last_host_subject": null,
-        "last_hil_pass": null,
-        "hil_note": null,
-        "hil_scope": null,
-        "open_issues": [],
-        "media_gen": "none",
-        "image_role": "none",
-        "catalog_standing": "demo"
-      }
-    },
-    {
       "id": "fes.ramtest",
       "label": "`fes.ramtest`",
       "tier": "current",
@@ -1494,59 +1430,6 @@
       }
     },
     {
-      "id": "fes.demo",
-      "label": "`fes.demo`, `fes.demo-media`, `fes.demo-audio`",
-      "tier": "reference",
-      "release": "held-back",
-      "covers": [
-        "fes-demo"
-      ],
-      "paths": [],
-      "recipe": false,
-      "library_standing": null,
-      "in_bootstrap_image": false,
-      "oss_lock": {
-        "path": "sources/misteross/toolchain.lock",
-        "yosys": "3a5accbd",
-        "mistral": "8fcc4cb4",
-        "nextpnr": "9128800f"
-      },
-      "board": "de10",
-      "router": "Reference producers use the repository lock. Not registered, so there is no recipe `gpu_router`.",
-      "quartus": "No Quartus product lane was found. Not registered.",
-      "features": "`fes.demo`: fixed 720p60 only. `fes.demo-media`: gamepad plus `fes.media.blob`. `fes.demo-audio`: gamepad plus stereo PCM. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Reference packages. Core status standing is Reference. No recipe row. Catch is the registered game on this shell.",
-      "evidence": [
-        "sources/misteross/docs/cores.md",
-        "sources/misteross/scripts/build_fes_demo.py",
-        "sources/misteross/toolchain.lock",
-        "docs/core-status.md",
-        "docs/display-pipeline.md"
-      ],
-      "tier_role": "reference",
-      "family": null,
-      "variant": null,
-      "signals": {
-        "as_of": "2026-10-29",
-        "window_start": "2026-08-30",
-        "recent_cutoff": "2026-10-16",
-        "catalog_weight": "weak",
-        "last_rtl_change": "2026-09-21",
-        "last_rtl_sha": "cbb6299ec",
-        "last_rtl_subject": "Add original Catch application through shared core developer workflow",
-        "last_host_change": null,
-        "last_host_sha": null,
-        "last_host_subject": null,
-        "last_hil_pass": null,
-        "hil_note": null,
-        "hil_scope": null,
-        "open_issues": [],
-        "media_gen": "none",
-        "image_role": "none",
-        "catalog_standing": null
-      }
-    },
-    {
       "id": "sim.pong",
       "label": "`cores/pong` simulation",
       "tier": "reference",
@@ -1803,7 +1686,7 @@
       "in_bootstrap_image": false,
       "oss_lock": {
         "path": "sources/misteross/cores/fes-common/rtl/i386/toolchain.lock",
-        "yosys": "238eac9a",
+        "yosys": "0a7927bf",
         "mistral": "8fcc4cb4",
         "nextpnr": "bd7a1c0d"
       },
@@ -1812,7 +1695,7 @@
       "router": "CPU timing spikes use this lock with the GPU router. Not a package producer and not a recipe row.",
       "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker. Quartus 17.0.2 fits the same Yosys netlist (`scripts/quartus_fes_i386.py`). The far-transfer record is about 69\u201374 MHz nextpnr and about 98\u2013104 MHz Quartus. A nextpnr-only gap is filed on the flow (DeanoC/nextpnr#300, `docs/i386-cpu-design.md`). Recipe and package selection for a labelled variant are not implemented.",
       "features": "Not a system package. No media, HDMI, Bluetooth or mesh of its own. Phase 1 real-mode pipeline is in progress in the CPU design doc. The pc386 machine is its consumer: the development package `fes.pc386` (pc386 M5) seals it with Quartus 17.0.2.",
-      "notes": "Shared CPU RTL. Device `5CSEBA6U23I7` in the spike harness. Yosys pin `238eac9a` is newer than the repository lock's `3a5accbd` and is scoped to this CPU.",
+      "notes": "Shared CPU RTL. Device `5CSEBA6U23I7` in the spike harness. Yosys pin `0a7927bf` is newer than the repository lock's `3a5accbd`; it is the pc386 lock's pin, so one Yosys reads the CPU (#1581 D2).",
       "evidence": [
         "sources/misteross/docs/i386-cpu-design.md",
         "sources/misteross/cores/fes-common/rtl/i386/toolchain.lock",

@@ -16,11 +16,6 @@
 // ddr_hold as that wrapper's hold and returns port 0's reset and drained.
 module fes_display_plane #(
     parameter [31:0] WINDOW_BASE = `FES_APPLICATION_HPS_DDR_WINDOW_BASE,
-    // Board memory adapters may use shorter bursts and independent reads.
-    // Defaults preserve the DE10 transport and its buffer reservation.
-    parameter [7:0] MEMORY_MAX_BURST_BEATS = 8'd128,
-    parameter [0:0] MEMORY_READ_AHEAD = 1'b0,
-    parameter integer MEMORY_FIFO_ADDR_BITS = 8,
     // Where the machine picture lands in the 1280x720 raster, for surrounds.
     parameter [15:0] PICTURE_LEFT = 16'd0,
     parameter [15:0] PICTURE_TOP = 16'd0,
@@ -36,9 +31,9 @@ module fes_display_plane #(
     output wire [15:0] response_data,
     output wire quiesced_sys,
     input wire [27:0] machine,
-    output wire [27:0] video,
+    output reg [27:0] video = 28'd0,
     output reg ui_active = 1'b0,
-    output wire locked,
+    output reg locked = 1'b0,
     output wire [31:0] displayed_sequence, underflows,
     output wire faulted,
     output wire ddr_hold,
@@ -52,6 +47,7 @@ module fes_display_plane #(
 );
     localparam [10:0] H_LAST = 11'd1649;
     localparam [9:0] V_LAST = 10'd749;
+    localparam [9:0] VS_FIRST = 10'd725;
 
     wire pixel_request, pixel_response_valid, pixel_response_error;
     wire [6:0] pixel_opcode;
@@ -67,8 +63,36 @@ module fes_display_plane #(
         .pixel_response_data(pixel_response_data)
     );
 
-    wire [10:0] raster_h;
-    wire [9:0] raster_v;
+    // Stage 1 holds the incoming word and its raster coordinate. The fixed
+    // CTA-770.3 720p60 raster is predicted from the previous coordinate; a DE
+    // rise starts a row and a VS rise is row 725. A whole frame matching that
+    // prediction locks the coordinate; any mismatch unlocks it.
+    reg [27:0] stage1 = 28'd0;
+    reg [10:0] raster_h = H_LAST;
+    reg [9:0] raster_v = V_LAST;
+    reg consistent = 1'b0;
+    wire [10:0] h_step = raster_h == H_LAST ? 11'd0 : raster_h + 11'd1;
+    wire [9:0] v_step = raster_h != H_LAST ? raster_v :
+                        raster_v == V_LAST ? 10'd0 : raster_v + 10'd1;
+    wire expected_de = h_step < 11'd1280 && v_step < 10'd720;
+    wire expected_hs = h_step >= 11'd1390 && h_step < 11'd1430;
+    wire expected_vs = v_step >= VS_FIRST && v_step < 10'd730;
+    wire mismatch = machine[27:24] != {1'b1, expected_vs, expected_hs, expected_de};
+    wire de_rise = machine[24] && !stage1[24];
+    wire vs_rise = machine[26] && !stage1[26];
+    always @(posedge pixel_clk) begin
+        stage1 <= machine;
+        raster_h <= de_rise || vs_rise ? 11'd0 : h_step;
+        raster_v <= vs_rise ? VS_FIRST : v_step;
+        if (vs_rise) begin
+            locked <= consistent && !mismatch;
+            consistent <= 1'b1;
+        end else if (mismatch) begin
+            locked <= 1'b0;
+            consistent <= 1'b0;
+        end
+    end
+
     (* async_reg = "true" *) reg [1:0] execution_sync = 2'b11;
     (* async_reg = "true" *) reg [1:0] quiesced_sync = 2'b11;
     wire enable, quiesce, submit_valid, submit_slot, submit_ready, drained;
@@ -89,7 +113,7 @@ module fes_display_plane #(
         .PICTURE_INFO(1'b1), .PICTURE_LEFT(PICTURE_LEFT), .PICTURE_TOP(PICTURE_TOP),
         .PICTURE_WIDTH(PICTURE_WIDTH), .PICTURE_HEIGHT(PICTURE_HEIGHT)
     ) control (
-        .clk(pixel_clk), .external_pending(1'b0), .request(pixel_request), .opcode(pixel_opcode),
+        .clk(pixel_clk), .request(pixel_request), .opcode(pixel_opcode),
         .index(pixel_index), .argument(pixel_argument), .exec_reset(execution_sync[1]),
         .drained(quiesced), .faulted(faulted), .submit_ready(submit_ready),
         .displayed_sequence(displayed_sequence), .underflows(underflows),
@@ -127,13 +151,8 @@ module fes_display_plane #(
         end
     end
     fes_menu_video #(.WINDOW_BASE(WINDOW_BASE),
-                    .MAX_BURST_BEATS(MEMORY_MAX_BURST_BEATS),
-                    .READ_AHEAD(MEMORY_READ_AHEAD), .FIFO_ADDR_BITS(MEMORY_FIFO_ADDR_BITS),
                     .EXTERNAL_RASTER(1'b1), .COMPLETE_FRAME_ACK(1'b1)) scanout (
-        .window_base(32'd0), .window_base_valid(1'b0), .response(2'b00),
-        .current_sequence(), .current_slot(), .memory_errors(), .outstanding_beats(),
-        .first_fault_state(), .first_fault_occupancy(), .first_fault_gaps(),
-        .presentation_ready(1'b1), .frame_presented(), .clk(pixel_clk), .rst(port_reset), .enable(enable && !faulted), .quiesce(quiesce),
+        .clk(pixel_clk), .rst(port_reset), .enable(enable && !faulted), .quiesce(quiesce),
         .raster_h(raster_h), .raster_v(raster_v),
         .submit_valid(submit_valid), .submit_slot(submit_slot), .submit_sequence(submit_sequence),
         .submit_ready(submit_ready), .displayed_sequence(displayed_sequence),
@@ -145,64 +164,13 @@ module fes_display_plane #(
     // No execution hold: physical machine reset and display drain are separate.
     assign ddr_hold = reset_hold || hard_fault;
 
-    wire show = ui_active && !faulted && !reset_hold && locked;
-    fes_display_compositor compositor (
-        .pixel_clk(pixel_clk), .machine(machine), .show(show),
-        .launcher_rgb(launcher_rgb), .launcher_alpha(launcher_alpha),
-        .video(video), .locked(locked), .raster_h(raster_h), .raster_v(raster_v)
-    );
-endmodule
-
-// Shared raster recovery and premultiplied blend pipeline. Both reserved-window
-// and allocated-memory adapters supply pixels here; it owns no memory or grants.
-module fes_display_compositor (
-    input wire pixel_clk,
-    input wire [27:0] machine,
-    input wire show,
-    input wire [23:0] launcher_rgb,
-    input wire [7:0] launcher_alpha,
-    output reg [27:0] video = 28'd0,
-    output reg locked = 1'b0,
-    output reg [10:0] raster_h = 11'd1649,
-    output reg [9:0] raster_v = 10'd749
-);
-    localparam [10:0] H_LAST = 11'd1649;
-    localparam [9:0] V_LAST = 10'd749;
-    localparam [9:0] VS_FIRST = 10'd725;
-    // Stage 1 holds the incoming word and its raster coordinate. The fixed
-    // CTA-770.3 720p60 raster is predicted from the previous coordinate; a DE
-    // rise starts a row and a VS rise is row 725. A whole frame matching that
-    // prediction locks the coordinate; any mismatch unlocks it.
-    reg [27:0] stage1 = 28'd0;
-    reg consistent = 1'b0;
-    wire [10:0] h_step = raster_h == H_LAST ? 11'd0 : raster_h + 11'd1;
-    wire [9:0] v_step = raster_h != H_LAST ? raster_v :
-                        raster_v == V_LAST ? 10'd0 : raster_v + 10'd1;
-    wire expected_de = h_step < 11'd1280 && v_step < 10'd720;
-    wire expected_hs = h_step >= 11'd1390 && h_step < 11'd1430;
-    wire expected_vs = v_step >= VS_FIRST && v_step < 10'd730;
-    wire mismatch = machine[27:24] != {1'b1, expected_vs, expected_hs, expected_de};
-    wire de_rise = machine[24] && !stage1[24];
-    wire vs_rise = machine[26] && !stage1[26];
-    always @(posedge pixel_clk) begin
-        stage1 <= machine;
-        raster_h <= de_rise || vs_rise ? 11'd0 : h_step;
-        raster_v <= vs_rise ? VS_FIRST : v_step;
-        if (vs_rise) begin
-            locked <= consistent && !mismatch;
-            consistent <= 1'b1;
-        end else if (mismatch) begin
-            locked <= 1'b0;
-            consistent <= 1'b0;
-        end
-    end
-
     // Stage 2 selects the plane pixel and the machine weight. Premultiplied
     // "over" is out = P + M * (255 - a) / 255; 256 - a - a[7] maps alpha 0 to
     // 256 (machine exact) and 255 to 0 (plane exact).
     reg [27:0] stage2 = 28'd0;
     reg [23:0] plane_rgb = 24'd0;
     reg [8:0] machine_weight = 9'd256;
+    wire show = ui_active && !faulted && !reset_hold && locked;
     always @(posedge pixel_clk) begin
         stage2 <= stage1;
         plane_rgb <= show ? launcher_rgb : 24'd0;

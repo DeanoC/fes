@@ -29,10 +29,11 @@ scheduler keeps its default 1625/13056 ratio for its 52.224 MHz shell.
 Preparation derives board-local copies of `zx81_dpram` and
 `zx81_video_720p`, replacing their guarded Cyclone V/M10K selections with
 Agilex 5/M20K. It records original and derived hashes and retains the RAM's
-one-cycle read and same-port new-data semantics. The shared scheduler accepts
-the board's rational ratio, retaining its DE10 defaults. The shared machine
-also declares WAIT/NMI before the CPU instance so Quartus Pro connects their
-assignments correctly. DE10 package recipes are unchanged.
+one-cycle read and same-port new-data semantics. The DE25-only machine and
+scheduler copies in `../shared-rtl/` use the board's rational ratio and
+declare WAIT/NMI before the CPU instance so Quartus Pro connects their
+assignments correctly. The DE10 machine and scheduler remain byte-identical to
+`origin/main`; DE10 package recipes are unchanged.
 
 `project` prepares a fresh private output. `build` requires clean committed
 source, regenerates IP and compiles with two CPU workers. `OUTPUT=/new/path`
@@ -58,9 +59,8 @@ or qualify a pairing with Terasic boot firmware. Initial physical testing
 requires the identified SCS board, this exact SOF and an HDMI capture; Linux
 serial/DHCP/SSH bring-up remains a separate target.
 
-The shared machine/scheduler changes also require current DE10 ZX81 consumer
-regression and package/HIL evidence before integration. Earlier sealed packages
-and board diagnostics do not accept these new source bytes.
+The DE25 copies do not change the DE10 ZX81 source closure. Earlier sealed
+packages and board diagnostics do not accept these new DE25 source bytes.
 
 The [compiler and simulation record](../../../docs/validation/2026-10-28-de25-zx81/README.md)
 binds the compiled SOF, passing editor/button checks, software coverage and

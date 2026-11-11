@@ -267,9 +267,9 @@ func TestC64RoomBlocksStartWhileAnotherTitleRuns(t *testing.T) {
 	}
 }
 
-func TestC64RoomDisablesStartForLocalAndTransitioningSessions(t *testing.T) {
+func TestC64RoomDisablesStartForTransitioningSessions(t *testing.T) {
 	game := preparedComputer("fpga-c64-game", "Impossible Mission", "fes.c64")
-	for _, state := range []string{"local", "launching", "stopping"} {
+	for _, state := range []string{"launching", "stopping"} {
 		t.Run(state, func(t *testing.T) {
 			r := loadC64WithSessionState(t, &fakeServices{games: []hostclient.Game{game}}, state)
 			frame := stepUntil(t, r, func(f Frame) bool {
@@ -328,7 +328,7 @@ func TestC64RoomFiltersLargeLibraryAndFetchesSelectedGameBeyondLimit(t *testing.
 		t.Fatal("another family's entries appeared in the C64 selection")
 	}
 	queries := svc.recorded()
-	if len(queries) != 1 || queries[0].Platform != "fpga" || len(queries[0].CoreIDs) != 18 {
+	if len(queries) != 1 || queries[0].Platform != "fpga" || len(queries[0].CoreIDs) != 17 {
 		t.Fatalf("shared workbench query did not filter registered core rows: %+v", queries)
 	}
 	foundC64 := false

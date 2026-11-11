@@ -32,6 +32,13 @@ LOCAL = ("build.py", "board.v", "clocks.sdc", "integrate.tcl",
 CORE_FILES = ("zx81_machine.sv", "zx81_machine_clock.v", "zx81_dpram.v",
               "zx81_model.vh", "zx81_bus_pack.vh", "zx81_keyboard.v",
               "zx81_tape_store.v")
+SHARED_CORE_FILES = frozenset(("zx81_machine.sv", "zx81_machine_clock.v"))
+
+
+def core_source_path(name):
+    if name in SHARED_CORE_FILES:
+        return BOARD + "shared-rtl/" + name
+    return "sources/misteross/cores/fes-zx81/rtl/" + name
 
 
 def sha(data): return hashlib.sha256(data).hexdigest()
@@ -82,7 +89,7 @@ def capture(revision=None):
     paths = {BOARD + "hps/" + n for n in names} | {BOARD + "build.py", BOARD + "zx81/build.py",
         BOARD + "display/build.py", BOARD + "display/vendor.lock.toml"}
     paths |= {BOARD + "zx81-hps/" + n for n in LOCAL}
-    paths |= {"sources/misteross/cores/fes-zx81/rtl/" + n for n in CORE_FILES}
+    paths |= {core_source_path(n) for n in CORE_FILES}
     firmware = load(HERE.parent / 'zx81/firmware.py', 'de25_computer_firmware_inputs')
     paths |= {p.relative_to(ROOT).as_posix() for p in firmware.source_paths(revision)}
     paths |= {"sources/misteross/cores/fes-common/rtl/z80/" + n + ".sv" for n in
@@ -566,7 +573,7 @@ def prepare_captured(archive, output, sources, selected, *, hps_first=False, pac
     files = {n: sources[BOARD + "zx81-hps/" + n] for n in LOCAL if n not in ("build.py", "integrate.tcl")}
     files["computer-build.py"] = sources[BOARD + "zx81-hps/build.py"]
     for name in CORE_FILES:
-        files[name] = sources["sources/misteross/cores/fes-zx81/rtl/" + name]
+        files[name] = sources[core_source_path(name)]
     firmware_record = None
     rom_paths = ["sources/misteross/cores/fes-zx81/rtl/" + name for name in ('zx8x.hex', 'zx8x.mif')]
     if all(name in sources for name in rom_paths):

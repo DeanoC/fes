@@ -13,7 +13,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -22,7 +21,6 @@ import (
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/kitpackages"
 	"github.com/DeanoC/FogCast/internal/localcores"
-	"github.com/DeanoC/FogCast/internal/misterruntime"
 )
 
 func durablePackageFixture(t *testing.T, version string) ([]byte, corepackage.Inspection, string) {
@@ -208,7 +206,7 @@ func TestRepeatedLocalCoreListDoesNotRereadSelectedPackage(t *testing.T) {
 	if _, err := store.Select(context.Background(), "fes.coleco", "", inspection.PackageID); err != nil {
 		t.Fatal(err)
 	}
-	service := localcores.New(nil, nil, localcores.Roots{Selections: selections, Packages: packages})
+	service := localcores.New(localcores.Roots{Selections: selections, Packages: packages})
 	t.Cleanup(service.Close)
 	service.SetInventory(localCoreInventory(context.Background(), store, nil))
 	handler := localcores.Handler(service)
@@ -248,7 +246,7 @@ func TestWarmListIsFastThenCompleteWithoutRereading(t *testing.T) {
 	if _, err := store.Select(context.Background(), "fes.coleco", "", inspection.PackageID); err != nil {
 		t.Fatal(err)
 	}
-	service := localcores.New(nil, nil, localcores.Roots{Selections: selections, Packages: packages})
+	service := localcores.New(localcores.Roots{Selections: selections, Packages: packages})
 	t.Cleanup(service.Close)
 	service.SetInventory(localCoreInventory(context.Background(), store, nil))
 	handler := localcores.Handler(service)
@@ -453,111 +451,6 @@ func TestDurableCorruptionIsNotAdvertised(t *testing.T) {
 			}
 			if _, _, err := store.Read(ctx, inspection.PackageID); err == nil {
 				t.Fatal("corrupt installed object read successfully")
-			}
-		})
-	}
-}
-
-type durableStagedControl struct {
-	scriptedControl
-	t           *testing.T
-	stagingRoot string
-	archive     []byte
-	packageID   string
-	path        string
-}
-
-func (c *durableStagedControl) LoadCore(ctx context.Context, path, packageID string) (misterruntime.Protocol2Response, error) {
-	if !strings.HasPrefix(path, c.stagingRoot+string(filepath.Separator)) || filepath.Dir(path) != c.stagingRoot {
-		c.t.Fatalf("installed core bypassed existing staging root: %q", path)
-	}
-	if packageID != c.packageID {
-		c.t.Fatalf("load identity: %s want %s", packageID, c.packageID)
-	}
-	archive, err := corepackage.CanonicalArchive(path)
-	if err != nil {
-		return misterruntime.Protocol2Response{}, err
-	}
-	if !bytes.Equal(archive, c.archive) {
-		c.t.Fatal("staged bytes differ from installed canonical package")
-	}
-	c.path = path
-	return c.scriptedControl.LoadCore(ctx, path, packageID)
-}
-
-type durableFileSnapshot struct {
-	Mode os.FileMode
-	Data string
-}
-
-func durableTreeSnapshot(t *testing.T, root string) map[string]durableFileSnapshot {
-	t.Helper()
-	result := map[string]durableFileSnapshot{}
-	if err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return err
-		}
-		relative, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		value := durableFileSnapshot{Mode: info.Mode()}
-		if info.Mode().IsRegular() {
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			value.Data = string(data)
-		}
-		result[relative] = value
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
-	return result
-}
-
-func TestInstalledCoreActivationStagesWithoutChangingRetainedBytes(t *testing.T) {
-	for _, source := range []string{"factory", "durable"} {
-		t.Run(source, func(t *testing.T) {
-			archive, inspection, path := durablePackageFixture(t, "0.1.0")
-			retainedRoot := path
-			if source == "durable" {
-				store, root := durablePackageStore(t)
-				installDurablePackage(t, store, archive)
-				var err error
-				path, err = store.Path(context.Background(), inspection.PackageID)
-				if err != nil {
-					t.Fatal(err)
-				}
-				retainedRoot = root
-			}
-			before := durableTreeSnapshot(t, retainedRoot)
-			stagingRoot := leasePackageStagingRoot(t)
-			control := &durableStagedControl{t: t, stagingRoot: stagingRoot, archive: archive, packageID: inspection.PackageID}
-			runtime := misterruntime.NewRuntime(control, "", 0, 0, misterruntime.WithCorePackageRoot(stagingRoot))
-			program := &kitLocalProgram{}
-			native := nativeLocalRuntime{runtime: runtime, program: program}
-			t.Cleanup(func() { _ = native.Stop(context.Background(), context.Background()) })
-			if err := native.LoadCore(context.Background(), context.Background(), path, inspection.PackageID); err != nil {
-				t.Fatal(err)
-			}
-			loads, _, _ := control.counts()
-			if loads != 1 || !program.active() || control.path == path {
-				t.Fatalf("activation: loads=%d programmed=%v stage=%q", loads, program.active(), control.path)
-			}
-			if after := durableTreeSnapshot(t, retainedRoot); !reflect.DeepEqual(before, after) {
-				t.Fatal("installed directory or archive changed during activation")
-			}
-			if err := native.Stop(context.Background(), context.Background()); err != nil {
-				t.Fatal(err)
-			}
-			if after := durableTreeSnapshot(t, retainedRoot); !reflect.DeepEqual(before, after) {
-				t.Fatal("installed directory or archive changed during Stop")
 			}
 		})
 	}

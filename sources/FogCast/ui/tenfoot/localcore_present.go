@@ -23,7 +23,7 @@ func (h *presentHold) skip(ctx context.Context, dev gfx.Device, snap Snapshot) (
 	if h == nil {
 		return false, nil
 	}
-	if !snap.LocalCorePresentsPaused {
+	if !snap.HostPresentsPaused {
 		if h.paused {
 			if md, ok := dev.(*gfx.MenuDisplay); ok {
 				md.Resume()
@@ -34,7 +34,7 @@ func (h *presentHold) skip(ctx context.Context, dev gfx.Device, snap Snapshot) (
 		return false, nil
 	}
 	if !h.armed {
-		if snap.LocalCoreLateAdopt {
+		if snap.HostLateAdopt {
 			if !h.paused {
 				if md, ok := dev.(*gfx.MenuDisplay); ok {
 					parent := ctx

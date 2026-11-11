@@ -1658,74 +1658,23 @@ is separate from the broader SDL smoke.
 | FPGA | `gfx.NewFPGA` (`ui/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. |
 | FPGA stub | `gfx.NewFPGAStub` (`ui/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. Used by `fogcast-tenfoot -gfx linuxfb`. Look tokens live in `ui/theme` and are consumed by the sofa `Clear` sites. Chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
-| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The base-image supervisor starts `fogcast-tenfoot` on this socket. On this backend tenfoot submits one indeterminate loading frame with phase and elapsed time and waits until that frame has been presented. A failed or unpresented loading frame aborts dispatch. A presented frame pauses presents, then the launch is dispatched so the core owns HDMI. Late adoption of a core that already owns HDMI submits no loading frame: outstanding menu work is drained and presents pause, and an older menu failure does not block that pause. On the HPS framebuffer, loading overlays continue animating and show elapsed time. Launches return to the menu after the local 60 second load bound plus five seconds grace, without adopting a later same-package session after a lost launch reply. Select+Start, F12 or Guide during local loading defers stop until the exact launch reply supplies its claim generation. A capable library computer opens a generation-bound media selector on the session plane while execution continues; pixels outside the selector remain transparent. |
-
-`gfx.Recorder` remains a call-order test double and does not draw pixels.
-`gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
-
-The kit display loop records an always-on frame trace (`ui/tenfoot/frame_trace.go`): per tick the poll, `Tick` with that iteration's room Lua async/update/draw time (zero when the room did not step), `Snapshot` and render; per input the command; per menu frame the worker's copy, queue, status and present phases plus the runtime's write-back, submit and scanout wait from `menu_frame.timing`. Tick time starts when the loop begins the iteration. Each `SIGUSR1` writes a new JSON Lines file. `scripts/frame-trace-summary.py` reports where displayed frames spend their time and counts failed presents separately. See [frame trace](frame-trace.md).
-
-`gfx.MenuDisplay` rasters RGBA8888 in
-software and queues only the
-newest complete frame. Its
-local `ui/menudisplay` client reads the runtime's menu generation and fixed
-1280×720 geometry, maps the generation's grant of both slots once, and per
-frame writes into the slot the runtime names: this frame's damage and the
-previous frame's when that slot holds the frame before, otherwise the whole
-frame, converted to the scanout's BGRX order with the pixel's alpha as X,
-which a session plane blends with. It commits the rectangles it
-wrote and waits for displayed-sequence completion through protocol 2. The UI
-receives no DDR address or FPGA register access; stale generations and
-unavailable menu firmware reject frames at the runtime, and a fault from a
-grant revoked mid-frame fails that frame. CPU row conversion uses NEON for
-complete 32-byte blocks on ARMv7 with NEON and on AArch64; the remaining
-pixels use the scalar conversion. Both paths preserve alpha and stay within
-the row at arbitrary source and destination byte alignments. Conversion
-runs under the client's revoked-mapping fault guard. Submission runs off
-the pad loop.
-When the idle menu's grant includes a minor 1 or later menu blitter,
-`MenuDisplay` records each frame as blitter commands instead of rastering it
-(`ui/gfx/menu_blit.go`): fills, copies, blends and text-mask expands that draw
-the pixels `Software` would, with scaled draws and debug glyphs made into
-cached bitmaps. The runtime does not issue a blitter grant below minor 1; an
-unexpected unsupported grant is rejected before any frame is submitted.
-The client uploads each bitmap or mask a frame reads into the grant's texture
-heap once, keeps it there while it is reachable and the heap has room, writes
-the list and commits it; the fabric draws the slot (`ui/menudisplay/blit.go`).
-A first frame drawn before the grant is known goes as one copy. A blitter
-grant accepts CPU frames only before its first list. A session plane or a menu
-without the selected blitter gets CPU pixels, rasterizing a list that reaches
-it; a list too large for the blitter is rasterized and copied whole.
-`fogcast-tenfoot -gfx menu-display` is the client of that socket and
-opts into change-driven presents. An unchanged frame reads menu status once
-a second and is submitted again when the generation changes. Status errors,
-underflow, and present failures back off from 250ms to 5s. An unavailable
-menu backs off on that schedule but no longer than one second, so a Stop
-redraws within about a second. A generation mismatch does not start a new
-wait. A change-driven worker with a damage-capable client also skips
-the per-frame status read for up to a second after a successful present, and
-hands the client only the row bands that differ from the frame the runtime is
-showing (at most 16 rectangles). If a shortcut no longer holds, for example
-after a new generation, the frame is retried once with fresh status and
-complete pixels; Pause, Resume, rebinding and any failure drop both
-shortcuts. On this backend tenfoot opens
-the kit-local control socket and submits one room launch overlay frame with
+| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The base-image supervisor starts `fogcast-tenfoot` on this socket. On this backend tenfoot submits one room launch overlay frame with
 phase and elapsed time. Dispatch waits until that frame has been presented,
-then pauses presents and dispatches the local launch. A completed pause also
-releases the menu client's grant mapping after its last frame transaction has
-finished. This permits a kernel-owned allocation to retire when the runtime
+then pauses presents and dispatches the host session launch. A completed pause
+also releases the menu client's grant mapping after its last frame transaction
+has finished. This permits a kernel-owned allocation to retire when the runtime
 revokes it, rather than leaving the paused UI's VMA holding the device lease.
 An unmap error or cancelled drain refuses launch; a concurrent Resume prevents
 the old pause from releasing a new mapping. Resume after a rejected launch
 can remap the same generation without clearing its pixels. This uses the
-existing menu client/socket and changes no programming authority. A failed or unpresented
-frame aborts dispatch. A status probe acknowledges only the submission
-sequence that was presented, so a healthy status for an older frame does not
-accept a newer frame that never reached the display. Late adoption submits no
-overlay: it drains outstanding menu work and pauses, and an older failure
-does not block that pause. On the HPS framebuffer the overlay keeps animating and shows
-elapsed time. A loading Select+Start chord stops after the runtime reports
-`running`.
+existing menu client/socket and changes no programming authority. A failed or
+unpresented frame aborts dispatch. A status probe acknowledges only the
+submission sequence that was presented, so a healthy status for an older frame
+does not accept a newer frame that never reached the display. An observed host
+session already owning HDMI submits no overlay: it drains outstanding menu work
+and pauses, and an older failure does not block that pause. On the HPS framebuffer
+the overlay keeps animating and shows elapsed time. A loading Select+Start chord
+stops after the runtime reports `running`.
 The configured FogCast service still supplies library/setup operations and
 the host session path still launches games. Cached offline titles remain
 browse-only. This option does not install or select menu firmware in an image.

@@ -333,22 +333,27 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-common/rtl/tv80/tv80_core.v': {'coleco', 'sms'},
             'cores/fes-coleco/rtl/coleco_machine.sv': {'coleco', 'sg1000', 'sms'},
             'cores/fes-coleco/generated/fes_simple_computer.vh': {'coleco', 'sg1000', 'sms'},
-            'cores/fes-common/rtl/fes_application_gp.v': {'demo', 'coleco', 'menu', 'ramtest', 'riscv'},
-            'cores/fes-common/rtl/fes_video_720p.v': {'demo', 'pong', 'ramtest', 'riscv'},
-            'cores/fes-common/rtl/fes_audio_i2s.v': {'demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st',
+            'cores/fes-common/rtl/fes_application_gp.v': {'application', 'coleco', 'menu', 'ramtest', 'riscv'},
+            'cores/fes-common/rtl/fes_video_720p.v': {'pong', 'ramtest', 'riscv'},
+            'cores/fes-common/rtl/fes_audio_i2s.v': {'application', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st',
                                                  'pc386', 'pcxt'},
-            'cores/fes-common/rtl/fes_audio_pll.v': {'demo', 'pcxt'},
+            'cores/fes-common/rtl/fes_audio_pll.v': {'pcxt'},
             'cores/fes-common/rtl/fes_audio_output.v': {'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st',
                                                     'pc386', 'pcxt'},
             'cores/fes-common/rtl/fes_sn76489.sv': {'coleco', 'sg1000'},
             'cores/fes-common/rtl/fes_z80_ce.sv': {'coleco', 'sg1000', 'sms'},
-            'cores/fes-pong/sim/board_models.v': {'demo', 'pong', 'riscv'},
+            'cores/fes-pong/sim/board_models.v': {'pong', 'riscv'},
             'cores/pong/rtl/pong_game.sv': {'pong'},
             'cores/fes-sms/rtl/sms_vdp.sv': {'sms'},
             'cores/fes-zx81/rtl/zx81_machine.sv': {'zx81'},
             'cores/fes-sg1000/diagnostic/generate.py': {'sg1000'},
             'cores/fes-sms/rtl/new_unit.sv': {'sms'},
-            'scripts/sim_fes_demo.py': {'demo'},
+            'scripts/sim_fes_application.py': {'application'},
+            'cores/fes-common/sim/gp_tb.cpp': {'application'},
+            'cores/fes-common/sim/audio_tb.cpp': {'application'},
+            'cores/fes-common/generated/exchanges.json': {'application'},
+            'cores/fes-common/generated/controller-exchanges.json': {'application'},
+            'cores/fes-common/generated/fes_application.vh': set(CORES),
             'cores/fes-menu/rtl/fes_menu_reader.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco', 'pc386'},
             'cores/fes-menu/rtl/fes_menu_control.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco', 'pc386'},
             'cores/fes-menu/rtl/fes_menu_video.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco', 'pc386'},
@@ -388,7 +393,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-c64/rtl/c64_system_pll.v': {'c64', 'atari-st'},
             'cores/fes-zx81/expansions/zonx_ay.v': {'zx81', 'atari-st', 'spectrum'},
             'cores/fes-ramtest/rtl/sdram_addon_port.v': {'ramtest', 'atari-st', 'pcxt'},
-            'cores/fes-pong/rtl/pixel_pll.v': {'demo', 'pong', 'ramtest', 'riscv'},
+            'cores/fes-pong/rtl/pixel_pll.v': {'pong', 'ramtest', 'riscv'},
             'cores/fes-common/rtl/riscv/fes_rv32_cpu.sv': {'riscv'},
             'cores/fes-pcxt/rtl/pcxt_isa_bridge.sv': {'pcxt'},
             'cores/fes-common/generated/fes_pcxt_isa.vh': {'pcxt'},
@@ -433,7 +438,7 @@ class AffectedTests(unittest.TestCase):
                                  {'parent', 'fpga'})
 
     def test_producer_software_does_not_recompile_unchanged_rtl(self):
-        for path in ('scripts/build_fes_coleco_oss.py', 'scripts/build_fes_demo.py',
+        for path in ('scripts/build_fes_coleco_oss.py',
                      'scripts/fes_build_common.py', 'scripts/core_package.py',
                      'scripts/compiler_read_audit.py', 'tests/test_build_fes_sms.py',
                      'tests/test_export_core_package.py', 'tests/test_coleco_sim_shards.py',
@@ -538,13 +543,13 @@ class AffectedTests(unittest.TestCase):
             recipe = subprocess.check_output(
                 ['make', '--no-print-directory', '--dry-run', 'VERILATOR=true', *targets],
                 cwd=root, env=environment, text=True)
-            # Demo's recipe delegates to Python. Inspect that script as well as
+            # Some simulation recipes delegate to Python. Inspect that script as well as
             # each producer's literal source/include references; never import
             # producer modules (which could have execution side effects).
             producer_name = core.replace('-', '_')
             sources = [root / 'scripts' / ('build_fes_' + producer_name + '.py'),
                        root / 'scripts' / ('build_fes_' + producer_name + '_oss.py')]
-            if core in ('demo', 'menu', 'z80', 'riscv', 'pcxt', 'pc386'):
+            if core in ('application', 'menu', 'z80', 'riscv', 'pcxt', 'pc386'):
                 sources.append(root / ('scripts/sim_fes_' + core + '.py'))
             if core == 'zx81':
                 sources.append(root / 'scripts/sim_fes_zx81_session.py')

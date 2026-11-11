@@ -9,7 +9,7 @@ from scripts.affected import CORES
 
 COLECO_SCENARIOS = ('graphics', 'stream', 'interactive', 'controllers', 'vdp-io', 'sprites')
 TARGETS = {
-    'demo': ('sim-fes-demo',),
+    'application': ('sim-fes-application',),
     'pong': ('sim-fes-pong',),
     'zx81': ('sim-fes-zx81',),
     'coleco': tuple(
