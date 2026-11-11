@@ -130,7 +130,7 @@ with the current `fes.coleco` package for an independent-player hardware check.
 SMS, SG-1000 and older Coleco packages that declare `fes.keyboard` take their
 joystick through the keyboard matrix: mister-agent turns both pads' directions
 and A (and Coleco's B) into that one joystick, so both pads steer the same
-player. A core with only the single-pad `fes.gamepad` interface (Catch, Pong)
+player. A core with only the single-pad `fes.gamepad` interface (Pong)
 also sees both pads as one, and one pad letting go never releases what the
 other still holds. Closing the connection
 releases only that local source. Unplugging one pad sends the releases for its

@@ -576,7 +576,6 @@ def _fes_hip_local_provision_hint(root: Path, lock_path: Path, configuration: st
     target = {
         "toolchain.lock": "toolchain-fes",
         "cores/fes-menu/toolchain.lock": "toolchain-fes-menu",
-        "cores/fes-catch/toolchain.lock": "toolchain-fes-catch",
         "cores/fes-pong/toolchain.lock": "toolchain-fes-pong",
         "cores/fes-zx81/toolchain.lock": "toolchain-fes-zx81",
         "cores/fes-coleco/toolchain.lock": "toolchain-fes-coleco",

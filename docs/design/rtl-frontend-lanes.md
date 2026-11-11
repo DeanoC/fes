@@ -79,7 +79,7 @@ Today one label, `toolchain = "quartus"`, means "Quartus places and routes". It 
 
 | Producer | Front end | Place and route | Record today |
 | --- | --- | --- | --- |
-| `*_oss.py`, coleco_socket_v2, pong, catch, menu, riscv, ramtest, atari_st (`config/core-recipes.toml:9-1855`) | yosys | nextpnr (HIP/CUDA) | format 2, no `toolchain` |
+| `*_oss.py`, coleco_socket_v2, pong, menu, riscv, ramtest, atari_st (`config/core-recipes.toml:9-1855`) | yosys | nextpnr (HIP/CUDA) | format 2, no `toolchain` |
 | pc386 sealer (`M/scripts/build_fes_pc386_quartus.py:236-248`, `:333`) | yosys for the machine; Quartus reads the shell | Quartus Lite 17.0.2 | format 1, `compiler: quartus-17.0.2` (`:294`) |
 | PC/XT (`M/scripts/quartus_fes_pcxt.py:92-140`) | yosys (whole top) | Quartus Lite 17.0.2 | format 2, `toolchain: quartus` (`build_fes_pcxt_quartus.py:236`) |
 | i386 oracle (`quartus_fes_i386.py:64`) | yosys, unlocked `--yosys` (`:215`) | Quartus Lite 17.0.2 | diagnostic only (`:289`) |
@@ -153,7 +153,7 @@ This follows `sim_fes_coleco_quartus.py:33`, which already records the `altera_m
 
 **Toolchain cache.** The slot key (`M/scripts/toolchain_cache.py:223-241`, `:268-285`) has no Quartus axis. Quartus is not provisioned through the cache, and this design adds no axis. Quartus identity is the lock plus the authenticated binary digest.
 
-**Identity churn.** `export_core_package.py`, `core_package.py` and `fes_build_common.py` appear in all 11 audited entries of `M/scripts/source_closures.json`: apple2_oss, atari_st_oss, c64_oss, coleco_socket_v2, menu_package, pong, ramtest, sg1000_oss, sms_oss, spectrum_oss and zx81_oss. Fallback-closure producers such as PC/XT, Catch and RISC-V read them too. An edit to any of these files changes those cores' BUILD_IDs even when the record's fields stay the same. Nothing in the tree yet says whether a change that touches only the closure needs a reseal and HIL on main (D12). S7 records the answer before it merges:
+**Identity churn.** `export_core_package.py`, `core_package.py` and `fes_build_common.py` appear in all 11 audited entries of `M/scripts/source_closures.json`: apple2_oss, atari_st_oss, c64_oss, coleco_socket_v2, menu_package, pong, ramtest, sg1000_oss, sms_oss, spectrum_oss and zx81_oss. Fallback-closure producers such as PC/XT and RISC-V read them too. An edit to any of these files changes those cores' BUILD_IDs even when the record's fields stay the same. Nothing in the tree yet says whether a change that touches only the closure needs a reseal and HIL on main (D12). S7 records the answer before it merges:
 
 - **If a reseal is needed**, the reseal list is generated from `source_closures.json` plus the producer source lists, not written by hand. That reseal is its own slice (S7r) and is not folded into the header slice. `AGENTS.md:198` requires a pin bump to build every core it touches before merging, and S7r follows the same rule.
 - **If no reseal is needed**, S7 says so and merges alone.

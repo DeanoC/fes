@@ -32,7 +32,6 @@ var models = map[string]model{
 	"fes.sms":            {"Sega Master System", []string{"Master System", "SMS"}},
 	"fes.sg1000":         {"Sega SG-1000", []string{"SG-1000"}},
 	"fes.pong":           {"Pong", nil},
-	"fes.catch":          {"Catch", nil},
 	"fes.ramtest":        {"RAM Tester", nil},
 	"fes.riscv":          {"RISC-V", nil},
 }

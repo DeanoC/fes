@@ -13,7 +13,7 @@ bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 
 The recipe registry supports the described `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.c64`, `fes.spectrum`,
-`fes.catch`, `fes.riscv`, `fes.ramtest` and `fes.atari-st` HIP/nextpnr
+`fes.riscv`, `fes.ramtest` and `fes.atari-st` HIP/nextpnr
 producers, and `fes.pcxt` through its Quartus diagnostic producer. The default target-image selector installs the closed package set
 containing only `fes.menu` display firmware. All playable systems are installed
 independently through the core catalog. Coleco and Atari ST installations need
