@@ -1,0 +1,108 @@
+{
+  "status": "failed-native-usb-disconnected-before-installer",
+  "source_head": "dc2b92830606356749222f00c0dbbe7d396e5032",
+  "compiled_source": "e4e695d5b0ebad8f8573de4f1e61726e16423ff6",
+  "native_boot_id": "fc2cec132701a0d8",
+  "whole_attempt_passed": false,
+  "recovery_programming_complete": true,
+  "native_programming_complete": true,
+  "native_secure_cold_boot_verified": true,
+  "uploads_verified": 14,
+  "fresh_readbacks_verified": 14,
+  "prior_record": {
+    "before": {
+      "readback_verified": true,
+      "read_only": true,
+      "sha256": "6581aab8a5b415a8dceac77198cbb104d76108f9ae38a34ba45f164a630c891d",
+      "bytes": 754,
+      "receipt_sha256": "ec7b7210c62c419e672605931bf74981c28ee03206303470d8b169795ca04688",
+      "cid_verified": false
+    },
+    "after": {
+      "readback_verified": true,
+      "read_only": true,
+      "sha256": "6581aab8a5b415a8dceac77198cbb104d76108f9ae38a34ba45f164a630c891d",
+      "bytes": 754,
+      "receipt_sha256": "b30bd7054190a5ecb33e8beebb4bb1218467036995996aa832cfe4d971d64c74",
+      "cid_verified": false
+    }
+  },
+  "card_identity_scope": "capacity-layout-protected-recovery-files",
+  "native_writable_cid_admission_reached": false,
+  "driver_startup_stage": "driver",
+  "driver_stop_attempted": true,
+  "driver_stop_verified": true,
+  "root_port_register": "0x440",
+  "root_port_value": "0x1000",
+  "expected_mask": "0x1",
+  "expected_value": "0x1",
+  "connection_wait_ms": 500,
+  "native_sd_open_reached": false,
+  "app_commands_sent": 0,
+  "native_installs": 0,
+  "computer_launches": 0,
+  "normal_final_park_verified": false,
+  "native_timeout_widened": false,
+  "native_proof_retried": false,
+  "persistence_verified": false,
+  "two_core_hardware_acceptance": false,
+  "physical_display_verified": false,
+  "ordinary_core_load_acceptance": false,
+  "cleanup": {
+    "status": "passed-failed-attempt-host-cleanup-only",
+    "board": "TRWU8CBL",
+    "native_attempt_passed": false,
+    "normal_final_park_verified": false,
+    "roles": {
+      "recovery": {
+        "private_server_absent": true,
+        "archive_hashes_verified": true,
+        "clock_readback": {
+          "auto_adjust": 1,
+          "clock": "15M"
+        }
+      },
+      "native": {
+        "private_server_absent": true,
+        "archive_hashes_verified": true,
+        "clock_readback": {
+          "auto_adjust": 1,
+          "clock": "15M"
+        }
+      }
+    },
+    "restored_parameters": {
+      "JtagClockAutoAdjust": 1,
+      "JtagClock": "15M"
+    },
+    "exact_usb_permissions_restored": true,
+    "uart_owners": [],
+    "processes_inventoried": 471,
+    "hardware_commands_sent": 0,
+    "original_factory_card_touched": false
+  },
+  "total_transport_programming_failures": 3,
+  "incomplete_programming_phases": [],
+  "evidence_sha256": {
+    "out/nano-catalog-install-trial-20261111/trial/experiment-result.json": "e7c5cdfcdc6b06665ace405f3214b38de5d9624a5a4afaa21405c0ea45ef3b44",
+    "out/nano-catalog-install-trial-20261111/trial/native-result.json": "716f9a5ea69125027910551e0274974479d2ad87b7eb7f820dc8f0cc2186da20",
+    "out/nano-catalog-install-trial-20261111/trial/native-console.log": "d49c560a6f91c337a07911a247b22595db6eb9cfbd3fb3b27e46782e8c943633",
+    "out/nano-catalog-install-trial-20261111/trial/uploads/result.json": "ae8e73dd73cd6719ca11204f50d459c6c364265d0954df03858fc29045d3bf9b",
+    "out/nano-catalog-install-trial-20261111/failed-cleanup-evidence.json": "bb2bd4a3b7d676bae2d95701148e4a6dfdec3010c4fd0b39544ae54669498d7e",
+    "out/nano-catalog-install-trial-20261111/hardware-trial-result.json": "3151abdb19bc4badcd45f95ada15eecb17d8879edc1bf93a0a7fd119c78bd07a",
+    "out/nano-catalog-install-trial-20261111/hardware-trial.log": "2812c9fb86e272a5b98d633410ad32f3da9d8e0fcb2e024402c654792130e01d",
+    "out/nano-catalog-install-trial-20261111/usb-disconnect-control-result.json": "2ffff4026bd56d39d7475e24f13e0bd64bde759128358a1d47cff7c9abacdde5",
+    "out/nano-catalog-install-trial-20261111/usb-disconnect-control.log": "538fe7ff9bf0b92513b764eb3089dcd8e7e876a81572bd8bb10987a0ba6d2592"
+  },
+  "retention": "/home/deano/fes-retained/de25-catalog-install-usb-stop-20261111-r1",
+  "usb_selected_source_comparison": {
+    "scope": "USB-selected-source-comparison-to-single-core-physical-image",
+    "compared": 18,
+    "identical": 18,
+    "changed": [],
+    "old_image_boot_id": "b3ed4389ad43d91b",
+    "new_image_boot_id": "fc2cec132701a0d8",
+    "causal_diagnosis_proven": false,
+    "hardware_commands_sent": 0
+  }
+}
