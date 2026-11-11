@@ -97,7 +97,7 @@ def eligible(directory):
     return {p.relative_to(project).as_posix(): async_inputs.sha(p) for p in files}
 
 
-def output_findings(drc):
+def output_findings(drc, *, timed_video=False):
     sections = [s for s in re.split(r'(?m)^Status:\s*', drc)[1:]
                 if re.search(r'^; TMC-20012 - [^;]+;', s, re.M)]
     require(len(sections) == 1, 'missing/ambiguous output finding detail')
@@ -106,9 +106,12 @@ def output_findings(drc):
     require(['Port', 'Reason', 'Waived'] in rows, 'missing output finding columns')
     rows = [r for r in rows if len(r) == 3 and r[0] != 'Port']
     expected = vendor_reference.OUTPUTS | PORTS
-    require(len(rows) == 32 and {r[0] for r in rows} == expected and
+    if timed_video:
+        from boards.de25nano.scanout.video_outputs import PORTS as video_ports
+        expected -= video_ports
+    require(len(rows) == len(expected) and {r[0] for r in rows} == expected and
             all(r[1] == 'No output delay was set on the output port.' and not r[2] for r in rows),
-            'only the existing30 outputs and the two approved audio clocks are covered')
+            'only the selected vendor outputs and the two approved audio clocks are covered')
     return sorted(expected)
 
 
@@ -159,7 +162,11 @@ def verify(directory, review):
             'stock pins, voltage or complete PLL changed')
     require(receipt['vendor_hdmi_reference'] == vendor_reference.verify(directory, review / 'vendor-reference'),
             'receiver mode or stock reference changed')
-    ports = output_findings((project / 'output_files/golden_top.tq.drc.signoff.rpt').read_text())
+    from boards.de25nano.scanout import video_outputs
+    timed_video = video_outputs.selected(directory)
+    if timed_video:
+        video_outputs.verify(directory, directory.with_name(directory.name + '-async-input-review') / 'video-outputs')
+    ports = output_findings((project / 'output_files/golden_top.tq.drc.signoff.rpt').read_text(), timed_video=timed_video)
     return {'policy': POLICY, 'ports': ports, 'receipt_sha256': async_inputs.sha(review / 'receipt.json'),
             'approved_reference_sha256': async_inputs.sha(review / 'approved-reference.json'),
             'conditional_pin_budgets': observations['conditional_pin_budgets'],

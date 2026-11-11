@@ -49,6 +49,21 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertIn("set_output_delay -clock HDMI_TX_CLK -min -0.700", sdc)
         self.assertIn("setup tVSU >= 1.0 ns and hold tVHLD >= 0.7 ns", sdc)
 
+    def test_output_reset_release_cannot_bypass_the_pixel_synchronizer(self):
+        output, _, _, _ = self.prepare()
+        project = output / "combined/hps/project"
+        board = project / "fes_mailbox/fes_de25_scanout_board.v"
+        original = board.read_text()
+        for before, after in (("negedge output_release[1]", "negedge pin_allow"),
+                              ("output_release[0], 1'b1", "output_release[1], 1'b1")):
+            self.assertEqual(original.count(before), 1)
+            board.write_text(original.replace(before, after))
+            with self.assertRaises(ValueError): B.verify_reset_synchronizers(project)
+        board.write_text(original)
+        sdc = project / "fes_mailbox/clocks.sdc"; original = sdc.read_text()
+        sdc.write_text(original.replace('$hdmi_output_release] != 2', '$hdmi_output_release] != 3'))
+        with self.assertRaises(ValueError): B.verify_reset_synchronizers(project)
+
     def test_package_identity_is_inserted_before_generation_with_an_explicit_seed(self):
         selected = "0123456789abcdeffedcba9876543210"
         original_load = B.load

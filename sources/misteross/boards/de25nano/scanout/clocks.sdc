@@ -90,3 +90,10 @@ create_generated_clock -name HDMI_TX_CLK -source [get_ports {CLOCK0_50}] \
 set hdmi_video_ports [get_ports {HDMI_TX_D[*] HDMI_TX_DE HDMI_TX_HS HDMI_TX_VS}]
 set_output_delay -clock HDMI_TX_CLK -max 1.000 $hdmi_video_ports
 set_output_delay -clock HDMI_TX_CLK -min -0.700 $hdmi_video_ports
+
+# Raw qualification enters only this two-register output-reset release chain.
+# Its pixel-clocked Q drives the output resets; those recovery/removal paths
+# and the chain's stage-to-stage data path remain timed.
+set hdmi_output_release [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|output_release[*]|aclr fes_video_inst|output_release[*]|clrn}]
+if {[get_collection_size $hdmi_output_release] != 2} {error "DE25 HDMI requires two output-reset ingress pins"}
+set_false_path -to $hdmi_output_release

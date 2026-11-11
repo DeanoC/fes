@@ -151,6 +151,11 @@ class DE25MenuPackageTests(unittest.TestCase):
         revision, captured, identities, execution = self.prepare_repository()
         record = producer.create_build_record(self.root, 'https://github.com/DeanoC/fes', revision,
                                                identities, execution, captured)
+        # These retained reports predate the numerical video-output profile.
+        # Keep that historical fixture explicit; production records select it.
+        fields = json.loads(record)
+        fields['parameters'].pop('hdmi_video_timing_policy')
+        record = producer.encode_build_record(fields)
         (self.root.parent / 'build-inputs.json').write_bytes(record)
         hps = self.root / 'combined/hps'
         (hps / 'inputs.json').write_text(json.dumps({'fes_revision': revision,

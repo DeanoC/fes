@@ -223,10 +223,18 @@ pixel PLL parameters, forwarded-clock source and all33 transmitter values.
 The scanout1.3 hotplug derivation checks one explicit clear-first ordering
 correction and every derived byte, without changing pins, PLL or raw finding
 scope. Exact1.3 admission requires matching generated consumers and kernel.
-The complete derived controller/configuration bytes remain checked. Only the
-29 vendor HDMI outputs and asynchronous status LED may retain the reference's
-missing-output-delay findings. Raw findings remain visible; independently
-derived PCB timing is not claimed. All 85 signoff rules, every internal timing
+The complete derived controller/configuration bytes remain checked. Normal
+MENU/ordinary ZX81 records select `de25-hdmi-video-output-timing-v1`: all27
+video outputs must have finite nonnegative setup and hold in each of the four
+fitted models, with exact endpoints/clocks and no path exception. This shrinks
+the stock-reference missing-output-delay set to I2C/status outputs; ZX81 keeps
+its separately approved two audio-clock findings. The source-bound collector
+reads a private final database and retains all216 reports. Historical/static
+profiles retain their original finding set and cannot inherit this proof.
+The registered video outputs use a two-register pixel-domain reset release;
+only its raw clear ingress is cut, while local recovery/removal stays timed.
+Raw findings remain visible; the ADV7513 pin budget assumes zero board flight
+time, so independently derived PCB timing is not claimed. All85 signoff rules, every internal timing
 family, zero Quartus waivers and an independent identical RBF remain required;
 other output, reset or clock-crossing findings still block export. The shared report reader
 also checks Quartus's conditional Setup Data Delay rows for completeness,

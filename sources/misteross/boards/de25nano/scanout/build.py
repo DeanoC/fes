@@ -467,11 +467,11 @@ def verify_reset_synchronizers(project):
     if any(token not in board for token in protocol) or re.search(r"system_ack<=\d|system_ack<=1'b", board):
         raise ValueError("scanout needs a retained fault token, cold-only ACK and unchanged live bridge reset")
     if ("always@(posedgepixel_clk)begin" not in board or
-            [event for event in re.findall(r"always@\(([^)]+)\)", board) if "pixel_clk" in event] != ["posedgepixel_clk", "posedgepixel_clkornegedgepin_allow", "posedgepixel_clk"] or
+            [event for event in re.findall(r"always@\(([^)]+)\)", board) if "pixel_clk" in event] != ["posedgepixel_clk", "posedgepixel_clkornegedgepin_allow", "posedgepixel_clkornegedgeoutput_release[1]", "posedgepixel_clk"] or
             "visible_release" in board or "lock_qualifier" in board):
         raise ValueError("scanout visibility must retain ordinary pixel data registers without another reset chain")
     if ("wirepin_allow=config_reset_n&&visible_allow;" not in board or
-            "always@(posedgepixel_clkornegedgepin_allow)beginif(!pin_allow)begin"
+            "always@(posedgepixel_clkornegedgeoutput_release[1])beginif(!output_release[1])begin"
             "hdmi_active<=0;HDMI_TX_D<=24'd0;HDMI_TX_DE<=1'b0;endelsebegin"
             "hdmi_active<=video_active&&visible_line;HDMI_TX_D<=video_active&&visible_line?video_rgb:24'd0;"
             "HDMI_TX_DE<=video_active&&visible_line&&video_de;endend" not in board or
@@ -479,6 +479,9 @@ def verify_reset_synchronizers(project):
             "HDMI_TX_VS<=visible_line&&video_vs;end" not in board or
             "wireboundary=previous_hs&&!video_hs&&!video_vs;" not in board):
         raise ValueError("scanout HDMI pin blanking and complete-sync visibility boundary changed")
+    if ("always@(posedgepixel_clkornegedgepin_allow)beginif(!pin_allow)output_release<=0;"
+            "elseoutput_release<={output_release[0],1'b1};end" not in board):
+        raise ValueError("scanout output reset must release through exactly two pixel registers")
     crossings = (
         ("system_ack", "fes_video_inst|system_ack", "system_ack_sync", "system_ack"),
         ("pixel_ack", "fes_video_inst|pixel_ack", "pixel_ack_sync", "pixel_ack"),
@@ -517,11 +520,16 @@ def verify_reset_synchronizers(project):
                 target not in sdc or
                 f"if{{[get_collection_size$scanout_{name}_source]!=1||[get_collection_size$scanout_{name}_head]!=1}}" not in sdc):
             raise ValueError("scanout registered " + name + " source to stage0 D changed")
+    output_ingress = compact('''set hdmi_output_release [get_pins -compatibility_mode -nocase -nowarn
+        {fes_video_inst|output_release[*]|aclr fes_video_inst|output_release[*]|clrn}]''')
+    if (output_ingress not in sdc or
+            'if{[get_collection_size$hdmi_output_release]!=2}' not in sdc):
+        raise ValueError("scanout output reset cuts must cover only two raw ingress pins")
     timed_system = timed_reset_release(json.loads((project.parent / "inputs.json").read_text()))
     fifo_sdc = compact(re.sub(r"#[^\n]*", "", FIFO_RESET_SDC))
     if (sdc.count(fifo_sdc) != (1 if timed_system else 0)):
         raise ValueError("scanout shared FIFO reset requires exactly two peer-to-first-D crossings")
-    allowed_cuts = ["set_false_path -to $scanout_aclr", "set_false_path -to $scanout_clrn",
+    allowed_cuts = ["set_false_path -to $hdmi_output_release", "set_false_path -to $scanout_aclr", "set_false_path -to $scanout_clrn",
                     "set_false_path -from $hdmi_input -to $hdmi_input_head",
                     "set_false_path -from $retained_source -to $retained_head"] + [
         f"set_false_path -from $scanout_{name}_source -to $scanout_{name}_head" for name in ("fault", "visible", "ready")]

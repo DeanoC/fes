@@ -137,17 +137,19 @@ def validate_project(project, expected, core_id, *, standard_core=False):
             'hardware_acceptance': False}
 
 
-def output_findings(drc):
+def output_findings(drc, *, timed_video=False):
     sections = [s for s in re.split(r'(?m)^Status:\s*', drc)[1:]
                 if re.search(r'^; TMC-20012 - [^;]+;', s, re.M)]
     require(len(sections) == 1, 'missing/ambiguous output finding detail')
     rows = [[c.strip() for c in line.split(';')[1:-1]] for line in sections[0].splitlines() if line.startswith(';')]
     require(['Port', 'Reason', 'Waived'] in rows, 'missing output finding columns')
     rows = [r for r in rows if len(r) == 3 and r[0] != 'Port']
-    require(len(rows) == 30 and {r[0] for r in rows} == OUTPUTS and
+    from boards.de25nano.scanout.video_outputs import PORTS
+    expected = OUTPUTS - PORTS if timed_video else OUTPUTS
+    require(len(rows) == len(expected) and {r[0] for r in rows} == expected and
             all(r[1] == 'No output delay was set on the output port.' and not r[2] for r in rows),
-            'only the 29 vendor HDMI outputs and asynchronous status LED are covered')
-    return sorted(OUTPUTS)
+            'only the selected vendor-reference output findings are covered')
+    return sorted(expected)
 
 
 def collect(directory, destination, archive):

@@ -52,6 +52,8 @@ SOURCE_ROOTS = [
 ]
 REVIEW_INPUTS = ('boards/de25nano/scanout/async_inputs.py',
                  'boards/de25nano/scanout/async_inputs.tcl',
+                 'boards/de25nano/scanout/video_outputs.py',
+                 'boards/de25nano/scanout/video_outputs.tcl',
                  'boards/de25nano/scanout/vendor_reference.py')
 DEVICE = 'A5EB013BB23BE4SCS'
 
@@ -249,6 +251,7 @@ def create_build_record(root, repository, revision, identities, execution, captu
             'f2sdram_master_profile': 'scanout-only', 'seed': 1, 'threads': 2,
             'signoff_policy': async_inputs.POLICY,
             'hdmi_output_policy': async_inputs.vendor_reference.POLICY,
+            'hdmi_video_timing_policy': async_inputs.video_outputs.POLICY,
             'reset_release_timing': TIMED_RESET_RELEASE,
             'fabric_initiator_policy': MANAGED_FABRIC,
             'fifo_reset_sharing': SHARED_FIFO_RESETS,
@@ -333,14 +336,17 @@ def timing_evidence(directory, *, async_review=None, audio_review=None, revision
             reviewed.append({'id': 'TMC-20011', 'violations': 2,
                              'ports': async_inputs.input_findings(drc)})
         if 'vendor_hdmi_reference' in proof:
+            timed_video = 'video_output_timing' in proof
+            if timed_video and not {('Setup', 'HDMI_TX_CLK'), ('Hold', 'HDMI_TX_CLK')} <= standard:
+                raise BuildError('missing numerical HDMI output-clock timing')
             outputs = next(r for r in rows if r[0] == 'TMC-20012')
             if int(outputs[2]):
-                count = 32 if audio_proof is not None else 30
+                count = (32 if audio_proof is not None else 30) - (27 if timed_video else 0)
                 if outputs[2:] != (str(count), '0'):
                     raise BuildError('DE25 vendor HDMI output finding count/waivers changed')
                 reviewed.append({'id': 'TMC-20012', 'violations': count,
-                    'ports': audio_reference.output_findings(drc) if audio_proof is not None else
-                             async_inputs.vendor_reference.output_findings(drc),
+                    'ports': audio_reference.output_findings(drc, timed_video=timed_video) if audio_proof is not None else
+                             async_inputs.vendor_reference.output_findings(drc, timed_video=timed_video),
                     'basis': audio_reference.POLICY if audio_proof is not None else
                              async_inputs.vendor_reference.POLICY})
     unreviewed = failed - len(reviewed)

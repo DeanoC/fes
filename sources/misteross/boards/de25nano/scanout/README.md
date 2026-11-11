@@ -436,6 +436,24 @@ Quartus `~DUPLICATE` copies of the reviewed ACK1/2/3 and LUT_INDEX0..5
 registers are permitted after stage two. Raw inputs and stage zero still have
 exactly one consumer each; other register names or copy suffixes are refused.
 
+The normal MENU and ordinary ZX81 producers also select
+`de25-hdmi-video-output-timing-v1`. `video_outputs.tcl` reads a private final
+fit and requires setup and hold paths for all 27 HDMI video outputs in all
+four operating models (216 paths). `video_outputs.py` requires the exact
+launch/output clocks, endpoints, nonnegative finite slack and no path
+exception, and binds every report to the fitted database and source record.
+Only after this proof may the missing-output-delay review shrink to the
+remaining I2C/status pins (plus the separately approved audio clocks for
+ZX81). The ADV7513 setup/hold pin budget still assumes zero PCB flight time;
+this is not independent PCB timing qualification. Historical/static profiles
+cannot inherit the numerical-output result.
+
+Output blanking asserts asynchronously when raw qualification is lost.
+Release passes through two dedicated pixel-clocked registers before driving
+the output-register reset. Only the raw ingress to those two clear pins is
+cut; interstage timing and output recovery/removal remain required. Retained
+visibility/fault state keeps its separate epoch protocol and no new clear.
+
 ## Standard-core session display adapter
 
 `fes_de25_session_display.v` combines the existing kernel-owned scanout CSR,

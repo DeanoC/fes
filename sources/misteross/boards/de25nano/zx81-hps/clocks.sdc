@@ -109,3 +109,10 @@ foreach {ready_source ready_stage0 ready_stage1} {
     set_false_path -from $ready_source_reg -to $ready_stage0_d
 }
 post_message -type info "DE25 HDMI readiness: 2 registered sources, 2 first-stage ingress exceptions; stage-to-stage and reset paths timed"
+
+# Raw qualification enters only this two-register output-reset release chain.
+# Its pixel-clocked Q drives the output resets; those recovery/removal paths
+# and the chain's stage-to-stage data path remain timed.
+set hdmi_output_release [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|output_release[*]|aclr fes_video_inst|output_release[*]|clrn}]
+if {[get_collection_size $hdmi_output_release] != 2} {error "DE25 HDMI requires two output-reset ingress pins"}
+set_false_path -to $hdmi_output_release

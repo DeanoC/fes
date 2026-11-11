@@ -86,6 +86,14 @@ module fes_de25_zx81_board (
     end
     wire visible_request = config_reset_n && visible_allow;
     // Acknowledge the output stage, rather than its one-cycle-earlier line gate.
+    // Assert blanking asynchronously, but release output resets only from
+    // the pixel domain. Retained visibility/token state is not reset here.
+    (* async_reg="true", altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg [1:0] output_release = 0;
+    always @(posedge pixel_clk or negedge config_reset_n) begin
+        if (!config_reset_n) output_release <= 0;
+        else output_release <= {output_release[0], 1'b1};
+    end
     reg hdmi_active = 0;
     initial begin
         HDMI_TX_D = 24'd0;
@@ -95,8 +103,8 @@ module fes_de25_zx81_board (
     end
     // Keep all ADV7513 video inputs in the same pixel-clock output stage.
     // Reset/PLL loss blanks data immediately; sync completes its current pulse.
-    always @(posedge pixel_clk or negedge config_reset_n) begin
-        if (!config_reset_n) begin
+    always @(posedge pixel_clk or negedge output_release[1]) begin
+        if (!output_release[1]) begin
             hdmi_active <= 0;
             HDMI_TX_D <= 24'd0;
             HDMI_TX_DE <= 1'b0;

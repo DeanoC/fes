@@ -12,7 +12,7 @@ import shutil
 import subprocess
 
 from scripts.export_core_package import build_identity
-from boards.de25nano.scanout import vendor_reference
+from boards.de25nano.scanout import vendor_reference, video_outputs
 from scripts.fes_build_common import BuildError
 
 POLICY = 'de25-menu-reviewed-async-inputs-v1'
@@ -194,6 +194,9 @@ def collect(directory, quartus_sta, *, vendor_archive=None):
     if vendor_archive is not None:
         receipt['vendor_hdmi_reference'] = vendor_reference.collect(
             directory, output / 'vendor-reference', vendor_archive)
+    if video_outputs.selected(directory):
+        video_outputs.collect(directory, copied / 'combined/hps/project',
+                              output / 'video-outputs', tool)
     (output / 'receipt.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
     return output
 
@@ -210,4 +213,6 @@ def verify(directory, review):
         reference = vendor_reference.verify(directory, Path(review) / 'vendor-reference')
         require(reference == receipt['vendor_hdmi_reference'], 'vendor HDMI reference binding changed')
         result['vendor_hdmi_reference'] = reference
+    if video_outputs.selected(directory):
+        result['video_output_timing'] = video_outputs.verify(directory, Path(review) / 'video-outputs')
     return result

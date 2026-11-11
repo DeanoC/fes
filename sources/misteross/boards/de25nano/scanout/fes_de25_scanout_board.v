@@ -141,6 +141,14 @@ module fes_de25_scanout_board (
     assign display_ready = hdmi_active;
     wire pin_allow = config_reset_n && visible_allow;
     assign HDMI_TX_CLK = pixel_clk;
+    // Assert blanking asynchronously, but release output resets only from
+    // the pixel domain. Retained visibility/token state is not reset here.
+    (* async_reg="true", altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg [1:0] output_release = 0;
+    always @(posedge pixel_clk or negedge pin_allow) begin
+        if (!pin_allow) output_release <= 0;
+        else output_release <= {output_release[0], 1'b1};
+    end
     reg hdmi_active = 0;
     initial begin
         HDMI_TX_D = 24'd0;
@@ -150,8 +158,8 @@ module fes_de25_scanout_board (
     end
     // Preserve the parent's aligned ADV7513 output stage. The retained token
     // handshake still owns rearming; qualification loss blanks data at once.
-    always @(posedge pixel_clk or negedge pin_allow) begin
-        if (!pin_allow) begin
+    always @(posedge pixel_clk or negedge output_release[1]) begin
+        if (!output_release[1]) begin
             hdmi_active <= 0;
             HDMI_TX_D <= 24'd0;
             HDMI_TX_DE <= 1'b0;
