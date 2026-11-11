@@ -258,7 +258,7 @@ The rule for writes: **the runtime saves a dirty disk before it ejects it, and b
 A floppy is small, so it is saved whole, as the PC/XT floppy is:
 
 - **Layout:** `fes.pc386-floppy.image` 1.0. The `fes-media-data-v1` envelope holds the whole current image, published with the existing tmp-fsync-rename rule (`MP/docs/media-data.md:44-50`).
-- **Key:** core, game and **base image SHA-256**. The unit is a class value (`floppy`), not the drive. Disk 2 of a set keeps its saved game whether the player puts it in A: or B:, and whichever disk was in a drive at Stop.
+- **Key:** the existing `fes-media-data-v1` namespace of core, game, unit and base image SHA-256 (`MP/docs/media-data.md:9-12`, `:28`), with the unit field fixed at **1** for every pc386 floppy record, whichever drive holds the disk. The drive (unit 1 or 2 on the wire) is never part of the key, so the base SHA alone tells disks apart. Disk 2 of a set keeps its saved game whether the player puts it in A: or B:, and whichever disk was in a drive at Stop. The runtime maps a floppy unit to namespace unit 1 when it binds the record; `media-data.md` records the rule beside the layout.
 - **Dirty state:** one flag per unit, set when a sector store lands. A Format Track also sets it.
 - **Read-only inserts:** the host can insert any disk write-protected (ST3 WP; writes end with ST1 NW). The library default is writable for disks of a game's own set, and write-protected for install media from a shared OS folder (**D9**).
 - **Reset disk:** FogCast's existing "reset disk" (discard the record) applies per image.
@@ -317,17 +317,23 @@ The only reason to reopen this would be a target OS from before ATAPI drivers ex
 - **PACKET:**
   1. The core takes the 12-byte packet in one DRQ.
   2. It posts a request record `{sequence, packet, byte-count limit}` to the control page on port 2 and holds BSY.
-  3. It polls the completion word (one 64-bit read every 4 µs while busy; nothing otherwise).
-  4. It streams the response data to the guest in DRQ blocks no larger than the byte-count limit, raising IRQ 15 per block. It reads 64 bits at a time from the data ring into a two-block M10K buffer, as `pc386_ata`'s prefetch does.
-  5. It ends with the status and sense the runtime wrote.
+  3. It polls the response header (one 64-bit read every 4 µs while busy; nothing otherwise) until the runtime has written `{sequence, total length}` for this request.
+  4. It streams the response data to the guest in DRQ blocks no larger than the byte-count limit, raising IRQ 15 per block. It reads 64 bits at a time from the data ring into a two-block M10K buffer, as `pc386_ata`'s prefetch does. The ring handshake is below.
+  5. Once it has consumed `total length` bytes and the runtime's final record (status and sense) carries the sequence, it ends the command with them.
+
+  **Ring handshake.** The control page holds two byte counters per command, both starting at 0 when the runtime writes the response header:
+
+  - `produced`, written only by the runtime: bytes of the response now in the ring. The ring is circular; byte `n` of the response sits at ring offset `n mod ring size`.
+  - `consumed`, written only by the core: bytes it has read out of the ring into its buffer.
+
+  The core starts a DRQ block only when `produced − consumed` covers the whole block (or the rest of the response), so a block never stalls mid-transfer. The runtime writes ring bytes only below `consumed + ring size`, so it never overwrites bytes the core has not read. Each `produced` update follows its data's cache clean and a barrier. A response of any length, up to READ(12)'s, streams through the 4 MiB ring this way, and the first block can go to the guest as soon as it is produced. Each counter is 32 bits, written as one aligned word; READ(12)'s largest response at 2,352 bytes per sector exceeds that, so the runtime refuses a transfer over 4 GiB − 1 with ILLEGAL REQUEST (05h/24h). For a guest write the roles swap: the core produces and the runtime consumes, and the runtime posts its final record after it has read every byte.
 - **Writes from the guest** (MODE SELECT parameter lists) go the other way: the core stores the bytes into the ring, then posts.
 
 **Runtime: a CD service thread.**
 
 - It is new, and runs while a CD unit is present.
 - It polls the control page through an uncached mapping and runs each packet against the disc's track table and files.
-- It writes data into the data ring, then the completion record, with a cache clean and a barrier before the completion.
-- A READ of N sectors is produced in segments, so a 64 KiB transfer starts as soon as its first DRQ block is ready.
+- It writes the response header, then the data in segments under the ring handshake, then the final record, with a cache clean and a barrier before each counter or record update.
 
 **Commands the runtime serves (MMC-1 / SFF-8020i subset):**
 
