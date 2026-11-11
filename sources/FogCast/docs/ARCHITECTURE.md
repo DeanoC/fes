@@ -1716,7 +1716,18 @@ bootstrap. FogCast supplies the public appliance module, target update API, and
 `/etc/fes/software-base.json` with `internal/ext4image` and refuses an image
 whose menu interfaces the kit's selected software bundle does not accept. A
 bundle built for another base contract cannot go first, so it only reports
-that the image will hold that bundle back. Online releases replace
+that the image will hold that bundle back. It also requests an authenticated,
+read-only capacity estimate for the image size and hash before uploading. The
+agent reports current release-volume space, estimated unprotected image bytes
+and whether an independent FESDATA3 spill is available. It refuses early when
+the image cannot fit directly and either no spill or no prunable image exists.
+On FAT, it also refuses if an intentionally generous upper bound for all
+prunable images and sidecars is still too small. Neither the ordinary estimate
+nor the upper bound guarantees that pruning will recover those bytes. A
+previously published image follows its existing verification path. The report
+is a snapshot, not a reservation: Stage repeats admission and remains
+authoritative. The selected kit software must support the capacity route.
+Online releases replace
 only a content-addressed read-only ext4 system image. The locked kernel, U-Boot,
 and fixed `/linux/linux.img` bootstrap stay outside that operation. Configurations,
 target identity, ROM cache, launcher catalog/cover cache, and SNES saves remain
@@ -1845,7 +1856,9 @@ tmpfs and ramfs are not used. Factory, known-good, previous, pending, trial,
 the `boot.json` image, and loop-backed images in the release store stay. A
 volume that is still too small, or that has nowhere outside itself to verify
 the upload, fails the stage with HTTP 507 `UPDATE_NO_SPACE`
-(`insufficient release storage`) and deletes nothing.
+(`insufficient release storage`). Without a qualifying spill no images are
+deleted; after a verified spill, unprotected images may already have been
+pruned before a remaining shortage is detected. Protected images stay intact.
 `internal/appliancedata` owns the optional FESDATA3 bind at agent startup.
 The FES bootstrap owns fallback ordering, Linux mounts, loops, and the
 watchdog. The bootstrap records its selected image in
