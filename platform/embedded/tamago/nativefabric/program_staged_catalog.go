@@ -4,6 +4,8 @@ package nativefabric
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"strings"
@@ -85,16 +87,16 @@ func (b *ProgramBackend) AttachProgramInstalls(ctx context.Context, plans []*Pro
 	if len(plans) > packagestore.MaxInstallRecords-len(b.catalog) {
 		return ErrProgramSession
 	}
-	ids, packages := map[string]bool{}, map[string]bool{}
+	ids := map[string]bool{}
 	for _, retained := range b.catalog {
-		ids[retained.entry.ID], packages[retained.entry.Request.PackageID] = true, true
+		ids[retained.entry.ID] = true
 	}
 	remaining := packagestore.MaxInstallBytes - b.catalogBytes
 	for _, plan := range plans {
-		if plan == nil || plan.content == nil || plan.loader != b.service.state.loader || ids[plan.entry.ID] || packages[plan.entry.Request.PackageID] || plan.content.ContentBytes() > remaining {
+		if plan == nil || plan.content == nil || plan.loader != b.service.state.loader || ids[plan.entry.ID] || plan.content.ContentBytes() > remaining {
 			return ErrProgramSession
 		}
-		ids[plan.entry.ID], packages[plan.entry.Request.PackageID] = true, true
+		ids[plan.entry.ID] = true
 		remaining -= plan.content.ContentBytes()
 		for _, entry := range b.entries {
 			if entry.ID == plan.entry.ID && (entry.Title != plan.entry.Title || !sameProgramRequest(entry.Request, plan.entry.Request)) {
@@ -110,6 +112,13 @@ func (b *ProgramBackend) AttachProgramInstalls(ctx context.Context, plans []*Pro
 	return nil
 }
 
+// The reference binds the complete prepared configuration, not just its FPGA
+// package. Different ROM/tape receipts can legitimately share that package.
+func (p *ProgramInstall) catalogSourceID() string {
+	sum := sha256.Sum256(p.record)
+	return stagedSourceID + ":" + hex.EncodeToString(sum[:])
+}
+
 type programCatalogItem struct {
 	plan  *ProgramInstall
 	ref   hostclient.CoreReference
@@ -122,7 +131,7 @@ func (b *ProgramBackend) catalogSnapshot() ([]programCatalogItem, error) {
 	items := make([]programCatalogItem, 0, len(b.catalog))
 	for _, plan := range b.catalog {
 		inspection := plan.content.Selection().Inspection()
-		item := programCatalogItem{plan: plan, ref: hostclient.CoreReference{LibrarySourceID: nativeLibraryID, SourceID: stagedSourceID, CoreID: inspection.Descriptor.Core.ID, PackageID: plan.entry.Request.PackageID}}
+		item := programCatalogItem{plan: plan, ref: hostclient.CoreReference{LibrarySourceID: nativeLibraryID, SourceID: plan.catalogSourceID(), CoreID: inspection.Descriptor.Core.ID, PackageID: plan.entry.Request.PackageID}}
 		for _, e := range b.entries {
 			if e.ID == plan.entry.ID && e.Title == plan.entry.Title && sameProgramRequest(e.Request, plan.entry.Request) {
 				copy := e

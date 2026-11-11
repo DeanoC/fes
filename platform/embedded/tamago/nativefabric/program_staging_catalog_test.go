@@ -211,7 +211,7 @@ func TestProgramStagedCatalogProducerFATInstallAndReboot(t *testing.T) {
 }
 
 func TestProgramStagedCatalogRejectsWholeBatchWithoutPublication(t *testing.T) {
-	for _, fault := range []string{"missing-member", "missing-catalog", "second-digest", "duplicate-id", "duplicate-package", "empty", "old-schema", "unknown", "oversize", "preflight"} {
+	for _, fault := range []string{"missing-member", "missing-catalog", "second-digest", "duplicate-id", "crossed-package", "empty", "old-schema", "unknown", "oversize", "preflight"} {
 		t.Run(fault, func(t *testing.T) {
 			var sources []*StagedProgram
 			var stageErr error
@@ -230,7 +230,7 @@ func TestProgramStagedCatalogRejectsWholeBatchWithoutPublication(t *testing.T) {
 					catalog.Programs[1].Files[catalog.Programs[1].Program.Path] = strings.Repeat("0", 64)
 				case "duplicate-id":
 					catalog.Programs[1].ID = catalog.Programs[0].ID
-				case "duplicate-package":
+				case "crossed-package":
 					catalog.Programs[1].Program.PackageID = catalog.Programs[0].Program.PackageID
 				case "empty":
 					catalog.Programs = []stagedProgramRecord{}
@@ -301,7 +301,7 @@ func TestProgramStagedCatalogRejectsWholeBatchWithoutPublication(t *testing.T) {
 
 func TestProgramStagingProducerRefusesUnknownDuplicateAndCorruptSources(t *testing.T) {
 	f := newProgramMenuFixture(t, "")
-	for _, fault := range []string{"unknown", "duplicate-id", "duplicate-package", "corrupt", "cancelled"} {
+	for _, fault := range []string{"unknown", "duplicate-id", "crossed-package", "corrupt", "cancelled"} {
 		t.Run(fault, func(t *testing.T) {
 			export := stagingCatalogExport(t, f)
 			ids := []string{"first", "second"}
@@ -311,12 +311,12 @@ func TestProgramStagingProducerRefusesUnknownDuplicateAndCorruptSources(t *testi
 				ids[1] = "missing"
 			case "duplicate-id":
 				ids[1] = "first"
-			case "duplicate-package":
+			case "crossed-package":
 				var choices programChoices
 				if err := json.Unmarshal(export["FES/CORESEL.JSN"].Data, &choices); err != nil {
 					t.Fatal(err)
 				}
-				choices.Programs[1] = choices.Programs[0]
+				choices.Programs[1].PackageID = choices.Programs[0].PackageID
 				export["FES/CORESEL.JSN"].Data = programJSON(t, choices)
 			case "corrupt":
 				export["FES/ALT.FCP"].Data = []byte("bad archive")

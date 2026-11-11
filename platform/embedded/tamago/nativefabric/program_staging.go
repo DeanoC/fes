@@ -4,8 +4,9 @@ package nativefabric
 import (
 	"context"
 	"errors"
-	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 	"io/fs"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 )
 
 // StagedProgram holds validated private RAM content, never an open SD handle.
@@ -60,7 +61,7 @@ type stagedProgramCatalog struct {
 
 // ReadStagedPrograms snapshots the entire optional source before menu ownership.
 // It never returns a partial catalog. The 8 KiB control-record bound is unchanged;
-// at most 32 unique entries/packages and 64 MiB of input content are admitted.
+// at most 32 unique entries and 64 MiB of input content are admitted.
 func ReadStagedPrograms(ctx context.Context, store *packagestore.Store, name string) ([]*StagedProgram, error) {
 	if ctx == nil || store == nil {
 		return nil, ErrProgramSession
@@ -80,16 +81,16 @@ func ReadStagedPrograms(ctx context.Context, store *packagestore.Store, name str
 		return nil, ErrProgramSession
 	}
 	requests := make([]packagestore.Request, len(catalog.Programs))
-	ids, packages := map[string]bool{}, map[string]bool{}
+	ids := map[string]bool{}
 	for i, record := range catalog.Programs {
 		request, err := requestForProgramChoice(record.Program)
 		if err != nil {
 			return nil, err
 		}
-		if !validProgramEntry(ProgramEntry{ID: record.ID, Title: record.Title, Request: request}) || ids[record.ID] || packages[request.PackageID] {
+		if !validProgramEntry(ProgramEntry{ID: record.ID, Title: record.Title, Request: request}) || ids[record.ID] {
 			return nil, ErrProgramSession
 		}
-		ids[record.ID], packages[request.PackageID] = true, true
+		ids[record.ID] = true
 		requests[i] = request
 	}
 	result := make([]*StagedProgram, 0, len(requests))

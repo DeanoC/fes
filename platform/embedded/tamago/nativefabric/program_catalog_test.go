@@ -104,19 +104,12 @@ func TestProgramCatalogDownloadsSelectExactPackageAndAlternateLaunches(t *testin
 	}
 }
 
-func TestProgramCatalogRefusesAliasesAndContentBudgetWithoutMutation(t *testing.T) {
+func TestProgramCatalogRefusesContentBudgetWithoutMutation(t *testing.T) {
 	f, b, first, _ := newProgramInstallFixture(t)
 	if err := b.AttachProgramInstall(context.Background(), first); err != nil {
 		t.Fatal(err)
 	}
-	alias, err := b.prepareInstallContent(context.Background(), "alias", "Alias", first.content)
-	if err != nil {
-		t.Fatal(err)
-	}
 	calls, opens := f.r.cpu.calls, f.r.f.files.opens
-	if err = b.AttachProgramInstall(context.Background(), alias); err == nil {
-		t.Fatal("ambiguous package reference accepted")
-	}
 	request, _, _ := addROMProgramChanged(t, f.r, 0, 8192, func(manifest string) string {
 		return strings.Replace(manifest, `version = "0.1.0"`, `version = "0.2.0"`, 1)
 	})

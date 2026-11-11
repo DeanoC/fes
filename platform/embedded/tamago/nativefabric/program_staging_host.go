@@ -102,14 +102,14 @@ func BuildStagedCatalog(ctx context.Context, files fs.FS, ids []string) (map[str
 	}
 	result := map[string][]byte{}
 	catalog := stagedProgramCatalog{Format: 1, Scope: "nano-staged-program-catalog-v1"}
-	seenIDs, seenPackages := map[string]bool{}, map[string]bool{}
+	seenIDs := map[string]bool{}
 	remaining := packagestore.MaxInstallBytes
 	for _, id := range ids {
 		entry, ok := byID[id]
-		if !ok || seenIDs[id] || seenPackages[entry.Request.PackageID] {
+		if !ok || seenIDs[id] {
 			return nil, ErrProgramSession
 		}
-		seenIDs[id], seenPackages[entry.Request.PackageID] = true, true
+		seenIDs[id] = true
 		r := entry.Request
 		choice := programChoice{Path: r.Path, PackageID: r.PackageID, MetadataPath: r.MetadataPath, MetadataSHA256: r.MetadataSHA256, ROMReceiptSHA256: r.ReceiptSHA256}
 		names := []string{r.Path, r.MetadataPath}

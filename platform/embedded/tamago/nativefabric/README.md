@@ -23,9 +23,10 @@ already admitted HTTP `Download` plan. Download and catalog publication perform
 no SD or firmware IO; the export server may disappear before the user installs.
 Both adapters share a catalog of at most 32 plans and 64 MiB of retained upload
 file content in total. This content allowance excludes parsed archive/ROM
-allocations and is not a whole-heap limit. Each entry ID and package digest must
-be unique within the catalog so the standard source/core/package reference
-selects exactly one install plan, including different versions of the same core.
+allocations and is not a whole-heap limit. Each entry ID must be unique.
+The source reference includes the SHA-256 of the canonical prepared install record, binding its entry ID, title, package,
+metadata and ROM/tape choices. The standard source/core/package reference selects
+exactly one plan even when several ROM configurations share an FPGA package.
 Cancelled, foreign, duplicate, conflicting, full and non-Ready attachments refuse
 without replacing existing rows. Setup and installed status require the exact
 entry title and retained request, not just an entry ID match.
@@ -39,7 +40,7 @@ choice and a `files` map of exact input paths to SHA-256 values. The entire
 canonical, sorted, newline-terminated catalog retains the existing 8 KiB bound;
 32 records is an additional ceiling, not a guarantee that 32 full records fit.
 The prior single-program envelope is rejected. `ReadStagedPrograms` validates
-all entry/package identities before source reads, then snapshots every member
+all entry identities before source reads, then snapshots every member
 under the active SD lease. Each read uses the remaining aggregate content
 allowance. Source errors return no partial batch; later platform-admission
 failure also publishes none. Healthy installed content remains usable when an
