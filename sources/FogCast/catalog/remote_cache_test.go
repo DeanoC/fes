@@ -437,3 +437,180 @@ func TestRemoteCacheNonCassetteUpdateAdoptionSurvivesUnbinding(t *testing.T) {
 		})
 	}
 }
+
+func TestRemoteCacheExplicitOriginalSelectionProtectsAfterRemoval(t *testing.T) {
+	for _, afterBind := range []bool{false, true} {
+		t.Run(fmt.Sprintf("after-bind-%v", afterBind), func(t *testing.T) {
+			ctx := context.Background()
+			s, _ := mediaTestStore(t)
+			media := remoteCacheImport(t, s, "explicitly selected original")
+			pkg := strings.Repeat("a", 64)
+			entry, err := s.CreateRemoteCoreEntry(ctx, "Remote title", "fes.zx81", pkg, RemoteCoreEntryOrigin{SourceID: "home", SourceGameID: "title", MediaID: media.MediaID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			prior := ""
+			if afterBind {
+				origin, _, err := s.RemoteCoreEntry(ctx, entry.GameID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				bound, err := s.BindRemoteCoreEntryMedia(ctx, entry.GameID, origin)
+				if err != nil {
+					t.Fatal(err)
+				}
+				prior = bound.MediaID
+			}
+			if _, err := s.SelectCoreEntryMedia(ctx, entry.GameID, pkg, prior, "cassette", media.MediaID); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.RemoveCoreEntry(ctx, entry.GameID); err != nil {
+				t.Fatal(err)
+			}
+			result, err := s.RemoveRemoteCassetteCache(ctx, []string{media.MediaID})
+			if err != nil || len(result.Deleted) != 0 {
+				t.Fatalf("explicit original selection lost: %+v %v", result, err)
+			}
+		})
+	}
+}
+
+func TestRemoteCacheDuplicateFetchKeepsRemoteOwnership(t *testing.T) {
+	ctx := context.Background()
+	first, path := mediaTestStore(t)
+	second, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	payload := []byte("same fetched remote cassette")
+	result := make(chan error, 2)
+	for _, s := range []*Store{first, second} {
+		go func(s *Store) {
+			_, _, err := s.ImportRemoteCassetteStream(ctx, int64(len(payload)), bytes.NewReader(payload))
+			result <- err
+		}(s)
+	}
+	for range 2 {
+		if err := <-result; err != nil {
+			t.Fatal(err)
+		}
+	}
+	usage, err := first.RemoteCassetteCache(ctx, "", 100)
+	if err != nil || usage.TrackedObjects != 1 || usage.ReclaimableObjects != 1 {
+		t.Fatalf("duplicate fetch lost remote provenance: %+v %v", usage, err)
+	}
+}
+
+func TestRemoteCacheFailedAutomaticBindRollsBackProvenance(t *testing.T) {
+	ctx := context.Background()
+	s, _ := mediaTestStore(t)
+	media := remoteCacheImport(t, s, "failed automatic bind")
+	entry, err := s.CreateRemoteCoreEntry(ctx, "Remote", "fes.zx81", strings.Repeat("a", 64), RemoteCoreEntryOrigin{SourceID: "home", SourceGameID: "remote", MediaID: media.MediaID, MediaName: "original.p"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	origin, _, err := s.RemoteCoreEntry(ctx, entry.GameID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale := origin
+	stale.MediaName = "changed.p"
+	if _, err := s.BindRemoteCoreEntryMedia(ctx, entry.GameID, stale); !errors.Is(err, ErrCoreEntryConflict) {
+		t.Fatalf("stale bind: %v", err)
+	}
+	if err := s.RemoveCoreEntry(ctx, entry.GameID); err != nil {
+		t.Fatal(err)
+	}
+	result, err := s.RemoveRemoteCassetteCache(ctx, []string{media.MediaID})
+	if err != nil || len(result.Deleted) != 1 {
+		t.Fatalf("failed bind changed provenance: %+v %v", result, err)
+	}
+}
+
+func TestRemoteCacheLegacyAutomaticBindIsConservativelyProtected(t *testing.T) {
+	ctx := context.Background()
+	s, _ := mediaTestStore(t)
+	media := remoteCacheImport(t, s, "legacy automatic bind")
+	entry, err := s.CreateRemoteCoreEntry(ctx, "Remote", "fes.zx81", strings.Repeat("a", 64), RemoteCoreEntryOrigin{SourceID: "home", SourceGameID: "remote", MediaID: media.MediaID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A schema-22 process already running at migration can issue its old
+	// automatic UPDATE, without the schema-23 provenance restoration.
+	if _, err := s.db.ExecContext(ctx, `UPDATE core_entries SET media_role='cassette', media_id=? WHERE game_id=?`, media.MediaID, entry.GameID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RemoveCoreEntry(ctx, entry.GameID); err != nil {
+		t.Fatal(err)
+	}
+	result, err := s.RemoveRemoteCassetteCache(ctx, []string{media.MediaID})
+	if err != nil || len(result.Deleted) != 0 {
+		t.Fatalf("legacy ambiguous bind collected: %+v %v", result, err)
+	}
+}
+
+func TestRemoteCacheCleanupCannotInterleaveAutomaticBindingTransaction(t *testing.T) {
+	ctx := context.Background()
+	writer, path := mediaTestStore(t)
+	cleaner, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleaner.Close()
+	media := remoteCacheImport(t, writer, "binding writer transaction")
+	entry, err := writer.CreateRemoteCoreEntry(ctx, "Remote", "fes.zx81", strings.Repeat("a", 64), RemoteCoreEntryOrigin{SourceID: "home", SourceGameID: "remote", MediaID: media.MediaID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := writer.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	// Simulate the automatic bind while its selection trigger has removed the
+	// provenance marker but before the same writer restores and commits it.
+	var tracked int
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM remote_cached_media WHERE media_id=?)`, media.MediaID).Scan(&tracked); err != nil || tracked != 1 {
+		t.Fatalf("tracked=%d err=%v", tracked, err)
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE core_entries SET media_role='cassette', media_id=? WHERE game_id=?`, media.MediaID, entry.GameID); err != nil {
+		t.Fatal(err)
+	}
+	started, done := make(chan struct{}), make(chan error, 1)
+	go func() {
+		close(started)
+		result, e := cleaner.RemoveRemoteCassetteCache(ctx, []string{media.MediaID})
+		if e == nil && len(result.Deleted) != 0 {
+			e = errors.New("cleanup interleaved bind")
+		}
+		done <- e
+	}()
+	<-started
+	select {
+	case e := <-done:
+		t.Fatalf("cleanup passed open writer: %v", e)
+	case <-time.After(30 * time.Millisecond):
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO remote_cached_media(media_id) VALUES (?)`, media.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case e := <-done:
+		if e != nil {
+			t.Fatal(e)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("cleanup remained blocked")
+	}
+	if err := writer.RemoveCoreEntry(ctx, entry.GameID); err != nil {
+		t.Fatal(err)
+	}
+	result, err := cleaner.RemoveRemoteCassetteCache(ctx, []string{media.MediaID})
+	if err != nil || len(result.Deleted) != 1 {
+		t.Fatalf("completed automatic bind lost provenance: %+v %v", result, err)
+	}
+}

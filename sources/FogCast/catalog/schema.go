@@ -387,11 +387,11 @@ CREATE TRIGGER core_media_import_protect BEFORE INSERT ON core_media BEGIN
   DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
 END;
 CREATE TRIGGER local_entry_cache_adopt_insert AFTER INSERT ON core_entries
-WHEN NEW.media_id <> '' AND NOT EXISTS (SELECT 1 FROM remote_core_entries r WHERE r.game_id = NEW.game_id AND r.media_id = NEW.media_id) BEGIN
+WHEN NEW.media_id <> '' BEGIN
   DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
 END;
 CREATE TRIGGER local_entry_cache_adopt_update AFTER UPDATE OF media_id ON core_entries
-WHEN NEW.media_id <> '' AND NOT EXISTS (SELECT 1 FROM remote_core_entries r WHERE r.game_id = NEW.game_id AND r.media_id = NEW.media_id) BEGIN
+WHEN NEW.media_id <> '' BEGIN
   DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
 END;
 CREATE TRIGGER core_firmware_cache_adopt_insert AFTER INSERT ON core_firmware BEGIN

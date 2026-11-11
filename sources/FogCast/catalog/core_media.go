@@ -146,6 +146,25 @@ func (s *Store) importCoreMediaStream(ctx context.Context, size int64, body io.R
 		return CoreMedia{}, false, err
 	}
 	defer tx.Rollback()
+	if remote {
+		// A second remote fetch is not a local adoption. Checking under the
+		// immediate writer reservation avoids firing the local-import trigger
+		// for deduplicated remote content. Unknown existing content stays
+		// unclassified rather than acquiring remote-only provenance.
+		var exists int
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM core_media WHERE media_id = ?)`, media.MediaID).Scan(&exists); err != nil {
+			return CoreMedia{}, false, err
+		}
+		if exists != 0 {
+			if _, err := verifyCoreMedia(ctx, tx, media.MediaID, io.Discard); err != nil {
+				return CoreMedia{}, false, err
+			}
+			if err := tx.Commit(); err != nil {
+				return CoreMedia{}, false, err
+			}
+			return media, false, nil
+		}
+	}
 	result, err := tx.ExecContext(ctx, `INSERT INTO core_media(media_id, size, data) VALUES (?, ?, X'') ON CONFLICT(media_id) DO NOTHING`, media.MediaID, size)
 	if err != nil {
 		return CoreMedia{}, false, err

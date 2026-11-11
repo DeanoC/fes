@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,6 +28,15 @@ func TestCatalogCLIIntegration(t *testing.T) {
 	if !filepath.IsAbs(helper) {
 		t.Fatal("FES_CATALOG_CLI must be absolute")
 	}
+	for _, baselineSchema := range []int{21, 22} {
+		t.Run(fmt.Sprintf("schema-%d", baselineSchema), func(t *testing.T) {
+			testCatalogCLIIntegration(t, helper, baselineSchema)
+		})
+	}
+}
+
+func testCatalogCLIIntegration(t *testing.T, helper string, baselineSchema int) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	base := t.TempDir()
@@ -84,12 +94,12 @@ func TestCatalogCLIIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if schema, err := manager.supportedSchema(ctx, helperID); err != nil || schema != 22 {
+	if schema, err := manager.supportedSchema(ctx, helperID); err != nil || schema != 23 {
 		t.Fatalf("real helper schema: %d %v", schema, err)
 	}
-	original := fixture("seed21", manager.database)
-	if original["schema"] != float64(21) || original["roms"] != float64(1) || len(original["titles"].([]any)) != 1 {
-		t.Fatalf("real schema21 fixture: %+v", original)
+	original := fixture(fmt.Sprintf("seed%d", baselineSchema), manager.database)
+	if original["schema"] != float64(baselineSchema) || original["roms"] != float64(1) || len(original["titles"].([]any)) != 1 {
+		t.Fatalf("real schema%d fixture: %+v", baselineSchema, original)
 	}
 	settings := filepath.Join(manager.hostRoot, "state", "library-settings.json")
 	if err := os.WriteFile(settings, []byte("retained settings bytes"), 0600); err != nil {
@@ -127,8 +137,8 @@ func TestCatalogCLIIntegration(t *testing.T) {
 	if err := manager.Apply(ctx, upgrade, upgrade.Previous); err != nil {
 		t.Fatal(err)
 	}
-	newer := fixture("upgrade22", manager.database)
-	if newer["schema"] != float64(22) || newer["remote"] != float64(1) || len(newer["titles"].([]any)) != 2 || len(newer["media"].(map[string]any)) != len(original["media"].(map[string]any))+1 {
+	newer := fixture("upgrade23", manager.database)
+	if newer["schema"] != float64(23) || newer["remote"] != float64(1) || newer["remote_cached"] != float64(1) || len(newer["titles"].([]any)) != 2 || len(newer["media"].(map[string]any)) != len(original["media"].(map[string]any))+1 {
 		t.Fatalf("real migration/new embedded media: %+v", newer)
 	}
 	finish(upgrade, "applying", "accepted")
@@ -169,7 +179,7 @@ func TestCatalogCLIIntegration(t *testing.T) {
 	if data, err := os.ReadFile(settings); err != nil || string(data) != "retained settings bytes" {
 		t.Fatalf("catalog restoration changed settings: %q %v", data, err)
 	}
-	t.Logf("real helper schema22; actual catalog21→22; baseline21 retains newer embedded media; failed-return recovers22; final baseline21; %d helper invocations", resolutions)
+	t.Logf("real helper schema23; catalog%d→23; baseline%d retains newer embedded media; failed-return recovers23; final baseline%d; %d helper invocations", baselineSchema, baselineSchema, baselineSchema, resolutions)
 }
 
 const catalogCLIFixtureSource = `package main
@@ -190,30 +200,37 @@ func must(err error) { if err != nil { panic(err) } }
 func main() {
  action, path := os.Args[1], os.Args[2]
  ctx := context.Background()
- if action == "seed21" || action == "upgrade22" {
+ if action == "seed21" || action == "seed22" || action == "upgrade23" {
   store, err := catalog.Open(path); must(err)
   pkg := strings.Repeat("a",64)
-  if action == "seed21" {
+  if action == "seed21" || action == "seed22" {
    entry, err := store.CreateCoreEntry(ctx,"Original title","fes.zx81",pkg); must(err)
    rom,_,err := store.ImportCoreMedia(ctx,bytes.Repeat([]byte{0x5a},8192)); must(err)
    _,err = store.SelectCoreEntryROM(ctx,entry.GameID,pkg,"machine-rom",rom.Size,"",rom.MediaID); must(err)
    media,_,err := store.ImportCoreMedia(ctx,[]byte("original cassette bytes")); must(err)
    _,err = store.SelectCoreEntryMedia(ctx,entry.GameID,pkg,"","cassette",media.MediaID); must(err)
   } else {
-   media,_,err := store.ImportCoreMedia(ctx,[]byte("new remotely cached cassette bytes")); must(err)
+   remote := []byte("new remotely cached cassette bytes")
+   media,_,err := store.ImportRemoteCassetteStream(ctx,int64(len(remote)),bytes.NewReader(remote)); must(err)
    _,err = store.CreateRemoteCoreEntry(ctx,"New remote title","fes.zx81",pkg,catalog.RemoteCoreEntryOrigin{SourceID:"remote-a",SourceGameID:"source-game",MediaID:media.MediaID}); must(err)
   }
   must(store.Close())
  }
  db,err := sql.Open("sqlite",path); must(err); defer db.Close()
- if action == "seed21" { _,err = db.Exec("DROP TRIGGER remote_core_entry_selected; DROP TABLE remote_core_entries; PRAGMA user_version=21"); must(err) }
- var schema,roms,remote int
+ if action == "seed21" || action == "seed22" {
+  triggers := []string{"core_media_import_protect", "local_entry_cache_adopt_insert", "local_entry_cache_adopt_update", "core_firmware_cache_adopt_insert", "core_firmware_cache_adopt_update", "core_entry_roms_cache_adopt_insert", "core_entry_roms_cache_adopt_update", "core_expansions_cache_adopt_insert", "core_expansions_cache_adopt_update", "core_video_parts_cache_adopt_insert", "core_video_parts_cache_adopt_update", "zx81_saves_cache_adopt_insert", "zx81_saves_cache_adopt_update"}
+  for _, trigger := range triggers { _,err=db.Exec("DROP TRIGGER " + trigger); must(err) }
+  _,err=db.Exec("DROP TABLE remote_cached_media"); must(err)
+  if action == "seed21" { _,err=db.Exec("DROP TRIGGER remote_core_entry_selected; DROP TABLE remote_core_entries; PRAGMA user_version=21"); must(err) } else { _,err=db.Exec("PRAGMA user_version=22"); must(err) }
+ }
+ var schema,roms,remote,remoteCached int
  must(db.QueryRow("PRAGMA user_version").Scan(&schema))
  var titles []string
  rows,err := db.Query("SELECT games.title FROM core_entries JOIN games USING(game_id) ORDER BY games.title"); must(err)
  for rows.Next() { var title string; must(rows.Scan(&title)); titles=append(titles,title) }; must(rows.Err()); must(rows.Close())
  must(db.QueryRow("SELECT count(*) FROM core_entry_roms").Scan(&roms))
  if schema >= 22 { must(db.QueryRow("SELECT count(*) FROM remote_core_entries").Scan(&remote)) }
+ if schema >= 23 { must(db.QueryRow("SELECT count(*) FROM remote_cached_media").Scan(&remoteCached)) }
  media:=map[string]string{}
  rows,err=db.Query("SELECT media_id,data FROM core_media"); must(err)
  for rows.Next() {
@@ -222,6 +239,6 @@ func main() {
   for chunks.Next() { var chunk []byte; must(chunks.Scan(&chunk)); data=append(data,chunk...) }; must(chunks.Err()); must(chunks.Close())
   sum:=sha256.Sum256(data); digest:=hex.EncodeToString(sum[:]); if digest != id { panic(fmt.Sprintf("embedded media mismatch %s",id)) }; media[id]=digest
  }; must(rows.Err()); must(rows.Close())
- must(json.NewEncoder(os.Stdout).Encode(map[string]any{"schema":schema,"titles":titles,"roms":roms,"remote":remote,"media":media}))
+ must(json.NewEncoder(os.Stdout).Encode(map[string]any{"schema":schema,"titles":titles,"roms":roms,"remote":remote,"remote_cached":remoteCached,"media":media}))
 }
 `
