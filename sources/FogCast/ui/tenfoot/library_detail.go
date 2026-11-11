@@ -211,12 +211,11 @@ type kitPlayState struct {
 
 // classifyLibraryGame classifies one title as startLaunchGameLocked treats
 // it: a paired kit whose status is unknown, or that another session holds,
-// refuses before the catalog block or host-only exemption is considered.
+// refuses before the catalog block is considered.
 // The header, list rows, cover cells, Details and Confirm all use it.
 //
-// A paired client launches on its own target, so a Ready title that is not
-// host-only plays on this kit's HDMI output; Status then says so. A
-// host-only title plays on the host and makes no claim about the picture.
+// A paired client launches on its own target, so a Ready title plays on this
+// kit's HDMI output; Status then says so.
 func classifyLibraryGame(game hostclient.Game, k kitPlayState) rooms.Destination {
 	d := libraryPlayDestination(game)
 	if d.Availability != rooms.AvailReady || missingFirmwareGame(game) {
@@ -227,12 +226,12 @@ func classifyLibraryGame(game hostclient.Game, k kitPlayState) rooms.Destination
 		d.Availability = rooms.AvailUnavailable
 		d.Status = machineStatusUnknown
 		d.Action = "Wait for the kit to answer before starting anything."
-	case k.Foreign && (k.Paired || !game.HostOnly()):
+	case k.Foreign:
 		d.Availability = rooms.AvailUnavailable
 		d.LeaseHeld = true
 		d.Status = rooms.InUseStatus
 		d.Action = rooms.InUseDetail
-	case k.Paired && !game.HostOnly():
+	case k.Paired:
 		d.Status = heroPlaysOnThisTV
 	}
 	return d

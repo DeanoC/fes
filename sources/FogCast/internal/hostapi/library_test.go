@@ -377,23 +377,6 @@ func TestGamesListRejectsMalformedCursorAndInvalidSort(t *testing.T) {
 	}
 }
 
-func TestGamesListHonorsHostPlatformLaunchPolicy(t *testing.T) {
-	service := &launchableFake{
-		fakeService: fakeService{games: []catalog.Game{{
-			ID: "gba-mario-test", Title: "Mario", System: "gba",
-			Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
-		}}},
-		launchable: map[protocol.System]bool{"gba": true},
-	}
-	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games")
-	if response.Code != http.StatusOK {
-		t.Fatal(response.Body.String())
-	}
-	if !strings.Contains(response.Body.String(), `"launchable":true`) {
-		t.Fatalf("host-emulator launchable missing: %s", response.Body.String())
-	}
-}
-
 type launchCompositionFake struct {
 	launchableFake
 	compositions map[string]protocol.CoreComposition

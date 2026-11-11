@@ -106,7 +106,7 @@ func TestRemoteInputGates(t *testing.T) {
 	if !remoteInputCanAttach(active) {
 		t.Fatal("failed should allow attach")
 	}
-	active.Execution = "host_emulator"
+	active.Execution = "unknown_execution"
 	active.Input.State = "detached"
 	if remoteInputCanAttach(active) || remoteInputCanDetach(active) {
 		t.Fatal("non-fpga should not offer input")
@@ -340,7 +340,7 @@ func TestAppIgnoresInputToggleWhenNotFPGANative(t *testing.T) {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
-			_, _ = io.WriteString(w, `{"state":"active","game_id":"snes-mario","execution":"host_emulator","input":{"state":"detached"}}`)
+			_, _ = io.WriteString(w, `{"state":"active","game_id":"snes-mario","execution":"unknown_execution","input":{"state":"detached"}}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/input/attach":
 			attaches++
 			http.Error(w, "should not attach", http.StatusInternalServerError)
@@ -358,6 +358,6 @@ func TestAppIgnoresInputToggleWhenNotFPGANative(t *testing.T) {
 	app.Press(CmdSortCycle, time.Now())
 	time.Sleep(50 * time.Millisecond)
 	if attaches != 0 {
-		t.Fatalf("attach posted for host_emulator, n=%d", attaches)
+		t.Fatalf("attach posted for unknown execution, n=%d", attaches)
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/targetclient"
@@ -74,64 +73,30 @@ func TestObserveMeshKeepsPhase0BindAndSilenceDoesNotRelease(t *testing.T) {
 }
 
 func TestForeignLeaseBlocksFPGALaunchOnTheBusyKit(t *testing.T) {
-	game := serviceGame(catalog.Content{})
-	client := &fakeServiceClient{}
-	store := &fakeServiceCatalog{games: []catalog.Game{game}}
-	s := newTestService(store, &fakeServicePreparer{}, client)
+	s, client, _, entry := namedPackageFixture(t)
 	lease := &targetclient.KitLease{}
 	s.stoppedKitLeases = []*targetclient.KitLease{lease}
-	s.connection = TargetConnection{State: "busy", Owner: "other-shell"}
-
+	s.connection = TargetConnection{State: "busy", Owner: "other-shell", Address: "http://192.0.2.10:8182"}
+	beforeCore, beforeHealth, beforeStatus, beforeStop := client.coreCalls, client.healthCalls, client.statusCalls, client.stopCalls
 	for _, target := range []string{"", "dev"} {
-		_, err := s.LaunchOn(context.Background(), game.ID, target, nil)
+		_, err := s.LaunchOn(context.Background(), entry.GameID, target, nil)
 		var api *protocol.APIError
 		if !errors.As(err, &api) || api.Code != protocol.CodeKitLeaseDenied {
 			t.Fatalf("target %q = %v", target, err)
 		}
 	}
-	if client.launchCalls != 0 || client.nativeLaunchCalls != 0 || client.coreCalls != 0 || client.healthCalls != 0 || client.statusCalls != 0 || client.stopCalls != 0 {
+	if client.coreCalls != beforeCore || client.healthCalls != beforeHealth || client.statusCalls != beforeStatus || client.stopCalls != beforeStop {
 		t.Fatalf("foreign kit launch contacted the target: %+v", client)
 	}
 	if len(s.stoppedKitLeases) != 1 || s.stoppedKitLeases[0] != lease {
 		t.Fatal("foreign denial released the retained grant")
 	}
-
 	s.connection = TargetConnection{State: "ready", Address: "http://192.0.2.10:8182"}
-	_, err := s.Launch(context.Background(), game.ID, nil)
-	var api *protocol.APIError
-	if errors.As(err, &api) && api.Code == protocol.CodeKitLeaseDenied {
-		t.Fatal("owned shell was treated as a foreign lease")
+	if _, err := s.Launch(context.Background(), entry.GameID, nil); err != nil {
+		t.Fatalf("ready kit launch: %v", err)
 	}
-	if store.gameCalls == 0 {
-		t.Fatal("owned launch did not enter catalog admission")
-	}
-}
-
-func TestForeignLeaseAllowsHostOnlyLaunch(t *testing.T) {
-	identity := protocol.ContentIdentity{SHA256: serviceDigest, Size: 3, Extension: "sfc"}
-	game := serviceGame(catalog.Content{})
-	game.Content = nil
-	prepared := preparedServiceFixture(t, []byte("rom"), identity)
-	client := &fakeServiceClient{}
-	adapter := &fakeHostExecutor{}
-	s := newTestServiceWithExecution(&fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServicePreparer{prepared: prepared}, client, ExecutionPolicy{
-		Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return ExecutionHostOnly, nil }),
-		Host:     adapter,
-	})
-	s.connection = TargetConnection{State: "busy", Owner: "other-shell"}
-
-	response, err := s.Launch(context.Background(), game.ID, nil)
-	if err != nil {
-		t.Fatalf("host launch = %v", err)
-	}
-	if response.Status.State != protocol.StateActive || adapter.launchCalls != 1 || adapter.contentPath != "rom" {
-		t.Fatalf("response=%+v calls=%d", response.Status, adapter.launchCalls)
-	}
-	if client.launchCalls != 0 || client.coreCalls != 0 || client.healthCalls != 0 || client.statusCalls != 0 {
-		t.Fatalf("host launch used the busy kit: %+v", client)
-	}
-	if s.activeExecution != ExecutionHostOnly || s.activeTarget != "" {
-		t.Fatalf("execution=%q target=%q", s.activeExecution, s.activeTarget)
+	if client.coreCalls != beforeCore+1 {
+		t.Fatalf("ready kit loads = %d", client.coreCalls)
 	}
 }
 
@@ -156,56 +121,5 @@ func TestForeignLeaseAllowsDifferentNamedTarget(t *testing.T) {
 	}
 	if s.selectedTarget != "dev" {
 		t.Fatalf("selected target changed to %s", s.selectedTarget)
-	}
-}
-
-func TestForeignLeaseSpareLaunchAfterStickyHostOnlyUsesSpare(t *testing.T) {
-	s, dev, spare, entry := namedPackageFixture(t)
-	host := &fakeHostExecutor{}
-	s.hostExecutor = host
-	s.connection = TargetConnection{State: "busy", Owner: "other-shell", Address: "http://192.0.2.10:8182"}
-	s.executionMu.Lock()
-	s.activeExecution = ExecutionHostOnly
-	s.activeTarget = "host"
-	s.activeGameID = "prior-host"
-	s.executionMu.Unlock()
-	devCore, devStatus, devHealth, devStop := dev.coreCalls, dev.statusCalls, dev.healthCalls, dev.stopCalls
-	spareCore := spare.coreCalls
-
-	_, err := s.LaunchOn(context.Background(), entry.GameID, "", nil)
-	var api *protocol.APIError
-	if !errors.As(err, &api) || api.Code != protocol.CodeKitLeaseDenied {
-		t.Fatalf("default kit launch = %v", err)
-	}
-	if _, err = s.LaunchOn(context.Background(), entry.GameID, "dev", nil); !errors.As(err, &api) || api.Code != protocol.CodeKitLeaseDenied {
-		t.Fatalf("named busy kit launch = %v", err)
-	}
-	if dev.coreCalls != devCore || spare.coreCalls != spareCore || dev.statusCalls != devStatus || dev.healthCalls != devHealth || dev.stopCalls != devStop {
-		t.Fatalf("denied launch contacted a kit dev core=%d status=%d health=%d stop=%d spare=%d", dev.coreCalls-devCore, dev.statusCalls-devStatus, dev.healthCalls-devHealth, dev.stopCalls-devStop, spare.coreCalls-spareCore)
-	}
-
-	if _, err = s.LaunchOn(context.Background(), entry.GameID, "spare", nil); err != nil {
-		t.Fatalf("spare launch = %v", err)
-	}
-	if spare.coreCalls != spareCore+1 || dev.coreCalls != devCore || dev.statusCalls != devStatus || dev.healthCalls != devHealth || dev.stopCalls != devStop {
-		t.Fatalf("loads dev core=%d status=%d health=%d stop=%d spare=%d", dev.coreCalls-devCore, dev.statusCalls-devStatus, dev.healthCalls-devHealth, dev.stopCalls-devStop, spare.coreCalls-spareCore)
-	}
-	if host.stopCalls != 0 {
-		t.Fatalf("host stop calls = %d, want independent non-cast host play", host.stopCalls)
-	}
-	if s.selectedTarget != "dev" {
-		t.Fatalf("selected target changed to %s", s.selectedTarget)
-	}
-	s.executionMu.Lock()
-	gotTarget, gotExec := s.activeTarget, s.activeExecution
-	s.executionMu.Unlock()
-	if gotTarget != "host" || gotExec != ExecutionHostOnly || s.plays["spare"].execution != ExecutionFPGANative {
-		t.Fatalf("session target=%q execution=%q", gotTarget, gotExec)
-	}
-	if status, err := s.StatusTarget(context.Background(), "spare"); err != nil || status.State != protocol.StateActive {
-		t.Fatalf("spare StatusTarget = %+v, err=%v", status, err)
-	}
-	if status, err := s.Status(context.Background()); err != nil || status.State != protocol.StateActive || status.GameID == nil || *status.GameID != "prior-host" {
-		t.Fatalf("root host Status = %+v, err=%v", status, err)
 	}
 }

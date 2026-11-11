@@ -1,5 +1,12 @@
 # Mesh node protocol (design draft)
 
+**Host emulation update (11 November 2026):** FogCast's host emulator,
+remote-play sender and target cast path have been removed (#988). References
+below to those implementations, their `software_backends` advertisements or
+casting acceptance describe historical or proposed work. FPGA kit sessions and
+read-only remote FogCast library sources remain supported; see
+[mesh under kit-as-host](mesh-kit-host.md) for current behavior.
+
 **Superseded (22 October 2026):** the kit is its own FogCast host ([#863](https://github.com/DeanoC/fes/issues/863)). The kit-side placement, pairing and paired-listener material on this page is historical; the current design is [mesh under kit-as-host](mesh-kit-host.md), which also lists what from here stays in use.
 
 **Status:** merged as #131. Phase 1 closed on main `3d34b6e0`. Phase 2

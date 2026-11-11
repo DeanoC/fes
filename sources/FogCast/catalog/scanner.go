@@ -37,20 +37,6 @@ const (
 
 var errRemoteRootUnmounted = errors.New("catalog root is a remote UNC path; mount an absolute local path")
 
-// SourceErrorCode maps a catalog source state to the public launch error code
-// without exposing scanner diagnostics or host paths.
-func SourceErrorCode(game Game) protocol.ErrorCode {
-	if game.State == SourceStateInvalid && game.Kind == SourceKindZIP {
-		switch game.Reason {
-		case reasonSourceDisappeared, reasonSourceUnreadable:
-			return protocol.CodeSourceUnavailable
-		default:
-			return protocol.CodeInvalidArchive
-		}
-	}
-	return protocol.CodeSourceUnavailable
-}
-
 type Scanner struct {
 	Store         *Store
 	Platforms     PlatformRegistry

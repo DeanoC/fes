@@ -952,7 +952,7 @@ func (s *Service) stopRejectedCoreWithAdmission(ctx context.Context, explicitSto
 }
 
 // stopRejectedKitCoreWithAdmission resolves only the named kit's retained
-// rejection. It never cleans up the independent host-only executor.
+// rejection.
 func (s *Service) stopRejectedKitCore(ctx context.Context, target string) (protocol.Status, error) {
 	return s.stopRejectedKitCoreWithAdmission(ctx, false, target)
 }

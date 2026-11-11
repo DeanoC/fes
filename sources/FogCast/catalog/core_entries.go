@@ -46,6 +46,28 @@ type CoreEntry struct {
 	DiskGeometry *protocol.DiskGeometry `json:"disk_geometry,omitempty"`
 }
 
+// ValidateCoreEntry checks the persisted identity and media selection without
+// reading media bytes. Launch still verifies the selected media and geometry
+// against its actual size.
+func ValidateCoreEntry(entry CoreEntry) error {
+	if err := protocol.ValidateGameID(entry.GameID); err != nil {
+		return fmt.Errorf("%w: invalid game id", ErrInvalidCoreEntry)
+	}
+	if err := validateCoreEntry(strings.TrimSpace(entry.Title), entry.CoreID, entry.PackageID); err != nil {
+		return err
+	}
+	if err := validateCoreMediaSelection(entry.MediaRole, entry.MediaID); err != nil {
+		return err
+	}
+	if entry.MediaName != "" && (entry.MediaID == "" || !AdmitCoreEntryMediaName(entry.MediaName)) {
+		return fmt.Errorf("%w: invalid media name", ErrInvalidCoreMedia)
+	}
+	if entry.DiskGeometry != nil && (entry.MediaRole != protocol.HardDiskRole || !entry.DiskGeometry.Valid(protocol.AtaDiskMaxBytes)) {
+		return fmt.Errorf("%w: invalid disk geometry", ErrInvalidCoreEntry)
+	}
+	return nil
+}
+
 // CoreEntryID returns the deterministic ID of a validated local title.
 func CoreEntryID(title, coreID, packageID string) (string, error) {
 	title = strings.TrimSpace(title)

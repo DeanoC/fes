@@ -30,7 +30,7 @@ func (n noCatalogTargetTransport) RoundTrip(r *http.Request) (*http.Response, er
 	return nil, fmt.Errorf("target prohibited")
 }
 
-func TestCoreCatalogHostOnlyInstallSetupRestart(t *testing.T) {
+func TestCoreCatalogInstallSetupRestartWithoutKit(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
 	publication := filepath.Join(root, "published")

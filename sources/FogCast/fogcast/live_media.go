@@ -250,7 +250,7 @@ func ejectRetryable(err error) bool {
 
 func (s *Service) prepareLiveMediaClient(ctx context.Context, b protocol.DevelopmentMediaBinding) error {
 	s.executionMu.Lock()
-	blocked := s.plays[b.Target].packageRejection != nil || (s.hostCastClaimsKitDisplay && s.activeExecution == ExecutionHostOnly)
+	blocked := s.plays[b.Target].packageRejection != nil
 	s.executionMu.Unlock()
 	if blocked {
 		return protocol.LiveMediaIdentityError()

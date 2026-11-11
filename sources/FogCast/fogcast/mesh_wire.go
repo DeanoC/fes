@@ -190,10 +190,8 @@ func (s *Service) installDialedMeshSession(want meshTargetIdentity, remote *kitc
 	}
 }
 
-// meshCatalogEntry projects one package-backed FPGA title. Host-only
-// titles and unrecognized play ABIs return false so they stay on the
-// existing launch path and omit ready_here. A title the projection
-// cannot name returns false for the same reason.
+// meshCatalogEntry projects one package-backed FPGA title. Unrecognized
+// play ABIs and titles the projection cannot name return false.
 func (s *Service) meshCatalogEntry(gameID string) (meshcontent.Entry, bool) {
 	title, firmware, ok := s.meshCatalogTitle(context.Background(), gameID)
 	if !ok {

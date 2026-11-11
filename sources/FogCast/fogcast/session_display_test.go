@@ -26,7 +26,7 @@ func TestDisplayAndLiveIdentityStayOnCapturedKitWhenForegroundChanges(t *testing
 		ABI: protocol.RuntimeContract{ID: "fes.simple-computer", Major: 1}, ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.media.blob", Major: 1}, {ID: "fes.memory.hps-ddr", Major: 1}, {ID: "fes.video.session-display", Major: 1}}}}
 	a := &displayServiceClient{fakeServiceClient: fakeServiceClient{statusResult: status}}
 	bClient := &displayServiceClient{fakeServiceClient: fakeServiceClient{statusResult: status}}
-	s := &Service{uploadTimeout: time.Second, selectedTarget: "kit-b", activeTarget: "kit-b", activeExecution: ExecutionHostOnly,
+	s := &Service{uploadTimeout: time.Second, selectedTarget: "kit-b", activeTarget: "kit-b", activeExecution: ExecutionFPGANative,
 		targets:       []TargetConfig{{Name: "kit-a", TargetID: "target-a", Enabled: true}, {Name: "kit-b", TargetID: "target-b", Enabled: true}},
 		targetClients: map[string]serviceClient{"kit-a": a, "kit-b": bClient},
 		plays:         map[string]targetPlay{"kit-a": {execution: ExecutionFPGADevelopment, gameID: "rom-zx81", system: "zx81", packageID: id, packageGeneration: 9}}}

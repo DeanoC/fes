@@ -30,7 +30,7 @@ endif
 GO_RACE_TIMEOUT ?= 30m
 GO_TEST_FLAGS ?= -short
 
-.PHONY: fmt test test-ui test-ui-boundary test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix test-kit-diagnostics test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-fogcast-kit build-fogcast-tenfoot-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-package-smoke
+.PHONY: fmt test test-ui test-ui-boundary test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix test-kit-diagnostics test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-cli build-fogcast-kit build-fogcast-tenfoot-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-package-smoke
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -78,7 +78,7 @@ vet:
 
 check: fmt test vet
 
-build: build-fogcast build-fogcast-api build-cli build-fes-software build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-agent build-bridge build-target-image-lock build-target-image-lock-container
+build: build-fogcast build-fogcast-api build-cli build-fes-software build-agent build-bridge build-target-image-lock build-target-image-lock-container
 
 build-fogcast:
 	mkdir -p "$(dir $(FOGCAST_OUTPUT))"
@@ -116,22 +116,6 @@ tenfoot-smoke: build-fogcast-tenfoot
 build-cli:
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/fogcast ./cmd/fogcast
-
-build-remote-play-sender:
-	mkdir -p bin
-	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/remote-play-sender ./cmd/remote-play-sender
-
-build-remote-play-receiver:
-	mkdir -p bin
-	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/remote-play-receiver ./cmd/remote-play-receiver
-
-build-remote-play-impair:
-	mkdir -p bin
-	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/remote-play-impair ./cmd/remote-play-impair
-
-build-remote-play-audiobridge:
-	mkdir -p bin
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/remote-play-audiobridge ./cmd/remote-play-audiobridge
 
 build-fogcast-kit:
 	mkdir -p bin
