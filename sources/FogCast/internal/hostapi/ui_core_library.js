@@ -217,7 +217,7 @@
       const value = await request('/api/v1/core-catalog/' + encodeURIComponent(row.core_id) + '/setup?' + query);
       if (!value || value.library_source_id !== row.library_source_id || value.source_id !== row.source_id || value.core_id !== row.core_id || value.package_id !== row.package_id ||
           !Array.isArray(value.roms) || !value.roms.every(r => typeof r.id === 'string' && r.id && Number.isSafeInteger(r.source_size) &&
-            r.source_size > 0 && r.source_size <= MAX_MEDIA_BYTES && ['entry','household-firmware'].includes(r.binding))) throw new Error('Invalid setup requirements.');
+            r.source_size > 0 && r.source_size <= MAX_MEDIA_BYTES && r.binding === 'entry')) throw new Error('Invalid setup requirements.');
       if (requestEpoch === epoch) state.setup = value;
     }
     async function refresh() {
@@ -359,15 +359,6 @@
           state.setupROMs[id] = value;
         }, 'ROM stored and explicitly chosen for this setup.');
       },
-      selectSetupFirmware(id) {
-        return mutate(async () => {
-          requireCore(); const r = state.setup && state.setup.roms.find(r => r.id === id);
-          const choice = state.setupROMs[id];
-          if (!r || r.binding !== 'household-firmware' || !choice) throw new Error('Choose the BIOS first.');
-          await request('/api/v1/library/firmware',{method:'PUT',...json({slot:'firmware',media_id:choice.media_id})});
-          await loadSetup(epoch);
-        }, 'Household BIOS selection updated explicitly. Existing titles use this shared BIOS.');
-      },
       createSetupEntry(title) {
         return mutate(async () => {
           const row = requireCore();
@@ -377,9 +368,7 @@
           const roms = {};
           for (const r of state.setup.roms) {
             const choice = state.setupROMs[r.id];
-            if (!choice && r.binding === 'household-firmware' && state.setup.firmware_media_id) { roms[r.id] = state.setup.firmware_media_id; continue; }
             if (!choice) throw new Error('Missing ' + r.role + ': choose ' + r.id + '.');
-            if (r.binding === 'household-firmware' && choice.media_id !== state.setup.firmware_media_id) throw new Error('Explicitly select this BIOS for the household before creating the title.');
             roms[r.id] = choice.media_id;
           }
           const body = {...state.coreRef,title:trimmed,roms};
@@ -570,7 +559,7 @@
           const field = el('fieldset','');
           const legend = el('legend', r.role + ': ' + r.id + ' — exactly ' + r.source_size + ' bytes');
           const choice = state.setupROMs[r.id];
-          const status = el('p', choice ? 'Chosen SHA-256: ' + choice.media_id : r.binding === 'household-firmware' && state.setup.firmware_media_id ? 'Shared household BIOS: ' + state.setup.firmware_media_id : 'Missing — choose a file or an imported digest.');
+          const status = el('p', choice ? 'Chosen SHA-256: ' + choice.media_id : 'Missing — choose a file or an imported digest.');
           const file = el('input',''); file.type = 'file'; file.setAttribute('aria-label','Choose ' + r.id);
           const upload = el('button','Import and choose ' + r.role); upload.type = 'button';
           upload.addEventListener('click', () => { void controller.importSetupROM(r.id,file.files[0]); });
@@ -579,11 +568,6 @@
           const useStored = el('button','Choose stored ROM'); useStored.type = 'button';
           useStored.addEventListener('click', () => { void controller.useStoredSetupROM(r.id,stored.value.trim()); });
           const children = [legend,status,file,upload,drive,stored,useStored];
-          if (r.binding === 'household-firmware') {
-            const select = el('button','Use this BIOS for the household'); select.type = 'button'; select.disabled = !choice;
-            select.addEventListener('click', () => { void controller.selectSetupFirmware(r.id); }); children.push(select);
-            children.push(el('p','This explicit action changes the shared BIOS used by existing titles.'));
-          }
           for (const node of children) if (['input','button'].includes(node.tagName && node.tagName.toLowerCase())) node.disabled ||= state.busy || state.loading || !state.catalogOnline;
           field.replaceChildren(...children); fields.push(field);
         }

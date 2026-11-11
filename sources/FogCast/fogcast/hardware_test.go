@@ -500,7 +500,7 @@ func TestBundledFirmwareIsSelectedWithoutReplacingUserSelection(t *testing.T) {
 	ctx := context.Background()
 	archive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, true, "fes.computer", "fes.media.zx81-tape", strings.Repeat("6", 40), nil, bytes.Repeat([]byte{0x00}, 8192))
 	s, _, entry, _ := newCoreEntryLaunchFixture(t, archive, "Workshop ZX81")
-	before, err := s.CoreEntryROM(ctx, entry.GameID)
+	before, err := s.CoreEntryROM(ctx, entry.GameID, "machine-rom")
 	if err != nil || before.MediaID != "" {
 		t.Fatalf("fixture should start without a ROM selection: %+v err=%v", before, err)
 	}
@@ -515,11 +515,11 @@ func TestBundledFirmwareIsSelectedWithoutReplacingUserSelection(t *testing.T) {
 	if err != nil || len(view) != 1 || !view[0].Ready || !view[0].FirmwareReady {
 		t.Fatalf("missing-ROM setup did not select bundled firmware: %+v err=%v", view, err)
 	}
-	selected, err := s.CoreEntryROM(ctx, entry.GameID)
+	selected, err := s.CoreEntryROM(ctx, entry.GameID, "machine-rom")
 	if err != nil || selected.PackageID != entry.PackageID || selected.ROMID != "machine-rom" || selected.SourceSize != 8192 || selected.MediaID != fmt.Sprintf("%x", sha256.Sum256(bundled)) {
 		t.Fatalf("effective bundled ROM = %+v err=%v", selected, err)
 	}
-	saved, err := s.catalog.(coreROMCatalog).CoreEntryROM(ctx, entry.GameID)
+	saved, err := s.catalog.(coreROMCatalog).CoreEntryROM(ctx, entry.GameID, "machine-rom")
 	if err != nil || saved.MediaID != "" {
 		t.Fatalf("bundled default should not become a saved user selection: %+v err=%v", saved, err)
 	}
@@ -549,7 +549,7 @@ func TestBundledFirmwareIsSelectedWithoutReplacingUserSelection(t *testing.T) {
 	if err != nil || len(view) != 1 || !view[0].Ready {
 		t.Fatalf("user-selected firmware was changed or rejected: %+v err=%v", view, err)
 	}
-	selected, err = s.CoreEntryROM(ctx, entry.GameID)
+	selected, err = s.CoreEntryROM(ctx, entry.GameID, "machine-rom")
 	if err != nil || selected.MediaID != customMedia.MediaID {
 		t.Fatalf("user-selected ROM was replaced: %+v err=%v", selected, err)
 	}
@@ -592,7 +592,7 @@ func testHardwareSnapshotUsesExactPackageAdmissionAndFirmware(t *testing.T, majo
 	if err != nil {
 		t.Fatal(err)
 	}
-	selectedROM, err := s.CoreEntryROM(ctx, entry.GameID)
+	selectedROM, err := s.CoreEntryROM(ctx, entry.GameID, "machine-rom")
 	if err != nil || selectedROM.MediaID == "" {
 		t.Fatalf("missing provisioned default firmware binding: %+v %v", selectedROM, err)
 	}

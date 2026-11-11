@@ -216,7 +216,7 @@ func TestLocalPreviewRejectsMissingFactories(t *testing.T) {
 	if _, err := NewLocalPreview(nil, nil); err == nil || !strings.Contains(err.Error(), "invalid") {
 		t.Fatalf("error = %v", err)
 	}
-	if _, err := (&LocalPreview{newCapture: func() (CaptureSource, error) { return nil, errors.New("private") }, newDecoder: func(context.Context) (ManagedDecoder, error) { return nil, nil }}).Start(context.Background(), "game"); !errors.Is(err, ErrManagedReceiverStart) {
+	if _, err := (&LocalPreview{newCapture: func() (CaptureSource, error) { return nil, errors.New("private") }, newDecoder: func(context.Context) (ManagedDecoder, error) { return nil, nil }}).Start(context.Background(), "game"); !errors.Is(err, errPreviewStart) {
 		t.Fatalf("start error = %v", err)
 	}
 }

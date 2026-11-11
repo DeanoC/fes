@@ -300,7 +300,7 @@ func (c *invalidServiceCoreMediaCatalog) CoreEntry(ctx context.Context, id strin
 }
 
 func TestServiceCoreMediaRejectedBeforeLoad(t *testing.T) {
-	for _, name := range []string{"missing-media", "unsupported-descriptor", "unsupported-role"} {
+	for _, name := range []string{"missing-media", "unsupported-descriptor", "unsupported-role", "invalid-digest"} {
 		t.Run(name, func(t *testing.T) {
 			ctx := context.Background()
 			raw := colecoLibraryPackageFixture(t)
@@ -316,6 +316,8 @@ func TestServiceCoreMediaRejectedBeforeLoad(t *testing.T) {
 				id, wantCode = strings.Repeat("a", 64), protocol.CodeROMNotFound
 			case "unsupported-role":
 				role, wantCode = "cartridge", protocol.CodeBadRequest
+			case "invalid-digest":
+				id, wantCode = "invalid", protocol.CodeBadRequest
 			}
 			loads := recordServiceCoreMediaLoads(client, inspection)
 			_, err := s.SelectCoreEntryMedia(ctx, entry.GameID, entry.PackageID, entry.MediaID, role, id)

@@ -29,7 +29,7 @@ func TestInstalledCoreSetupCreatesManifestROMAndMediaSelections(t *testing.T) {
 			ctx := context.Background()
 			entry := CoreEntry{GameID: "my-machine", Title: "My machine", CoreID: tc.descriptor.Core.ID, PackageID: pkg, MediaRole: tc.mediaRole, MediaID: tc.mediaID, FirmwareRequired: len(tc.descriptor.ROMs) > 0}
 			created, romWrites := false, 0
-			binding := CoreEntryROMSelection{GameID: entry.GameID}
+			bindings := map[string]CoreEntryROMSelection{}
 			capabilities := protocol.CoreMediaCapabilities{PackageID: pkg, Media: []protocol.CoreMediaCapability{{Role: tc.mediaRole, Format: "manifest-media", Extensions: []string{".tap", ".z80"}}}}
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
@@ -39,12 +39,6 @@ func TestInstalledCoreSetupCreatesManifestROMAndMediaSelections(t *testing.T) {
 					json.NewEncoder(w).Encode(capabilities)
 				case "/api/v1/core-packages":
 					json.NewEncoder(w).Encode(map[string]any{"packages": []any{}})
-				case "/api/v1/library/firmware":
-					if r.Method != http.MethodGet {
-						t.Error("setup changed household firmware")
-						return
-					}
-					json.NewEncoder(w).Encode(CoreFirmware{Slot: "firmware", MediaID: firmware, Size: 8192})
 				case "/api/v1/library/core-entries":
 					if r.Method == http.MethodGet {
 						rows := []CoreEntry{}
@@ -62,6 +56,7 @@ func TestInstalledCoreSetupCreatesManifestROMAndMediaSelections(t *testing.T) {
 					w.WriteHeader(http.StatusCreated)
 					json.NewEncoder(w).Encode(entry)
 				case "/api/v1/library/core-entries/my-machine/rom":
+					romID := r.URL.Query().Get("rom_id")
 					if r.Method == http.MethodPut {
 						var request map[string]string
 						json.NewDecoder(r.Body).Decode(&request)
@@ -69,7 +64,15 @@ func TestInstalledCoreSetupCreatesManifestROMAndMediaSelections(t *testing.T) {
 							t.Errorf("unsafe ROM replacement: %+v", request)
 						}
 						romWrites++
-						binding = CoreEntryROMSelection{GameID: entry.GameID, PackageID: pkg, ROMID: request["rom_id"], MediaID: request["media_id"]}
+						romID = request["rom_id"]
+						bindings[request["rom_id"]] = CoreEntryROMSelection{GameID: entry.GameID, PackageID: pkg, ROMID: request["rom_id"], MediaID: request["media_id"]}
+					}
+					if r.Method == http.MethodGet && (romID == "" || tc.roms[romID] == "") {
+						t.Errorf("missing or unknown ROM id: %q", romID)
+					}
+					binding, ok := bindings[romID]
+					if !ok {
+						binding = CoreEntryROMSelection{GameID: entry.GameID}
 					}
 					json.NewEncoder(w).Encode(binding)
 				default:
@@ -89,12 +92,18 @@ func TestInstalledCoreSetupCreatesManifestROMAndMediaSelections(t *testing.T) {
 					t.Fatalf("create/retry: %+v err=%v", got, err)
 				}
 			}
-			wantWrites := 0
-			if len(tc.roms) > 0 {
-				wantWrites = 1
-			}
+			wantWrites := len(tc.roms)
 			if romWrites != wantWrites {
 				t.Fatalf("ROM writes %d; expected %d", romWrites, wantWrites)
+			}
+			if tc.name == "coleco-bios-and-cartridge" {
+				changed := map[string]string{"bios": strings.Repeat("e", 64), "cartridge": tc.roms["cartridge"]}
+				if _, err := client.CreateInstalledCoreEntry(ctx, setup, entry.Title, changed, tc.mediaRole, tc.mediaID); err == nil {
+					t.Fatal("retry replaced selected BIOS")
+				}
+				if romWrites != wantWrites || bindings["cartridge"].MediaID != tc.roms["cartridge"] {
+					t.Fatal("failed BIOS retry changed an existing ROM")
+				}
 			}
 			if _, err := client.CreateInstalledCoreEntry(ctx, setup, entry.Title, tc.roms, "disk", strings.Repeat("e", 64)); err == nil {
 				t.Fatal("overwrote existing media selection")

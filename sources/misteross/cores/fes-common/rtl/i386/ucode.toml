@@ -261,7 +261,7 @@ uops = [
 name = "vint"
 uops = [
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "idthi" },
-    { cls = "system", op = "gate", d = "t0", segchk = "gate" },
+    { cls = "system", op = "gate", d = "t0", segchk = "gate", tgo = true, tgk = "int" },
     { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
     { cls = "alu", op = "mov", segchk = "v86cs", hold = true },
@@ -443,7 +443,7 @@ uops = [
     { cls = "alu", op = "mov", d = "t0", size = "32", b = "far" },
     { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
-    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "jmp" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "jmp", tgo = true, tgk = "jmp" },
     { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true },
 ]
 
@@ -453,7 +453,7 @@ uops = [
     { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", rm = true },
     { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
-    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "jmp" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "jmp", tgo = true, tgk = "jmp" },
     { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true },
 ]
 
@@ -487,7 +487,7 @@ uops = [
 name = "pint"
 uops = [
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "idthi" },
-    { cls = "system", op = "gate", d = "t0", segchk = "gate" },
+    { cls = "system", op = "gate", d = "t0", segchk = "gate", tgo = true, tgk = "int" },
     { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
     { cls = "alu", op = "mov", segchk = "intcs", hold = true },
@@ -612,7 +612,7 @@ uops = [
     { cls = "alu", op = "mov", d = "t0", size = "32", b = "far" },
     { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
-    { cls = "alu", op = "mov", segchk = "call", hold = true },
+    { cls = "alu", op = "mov", segchk = "call", hold = true, tgo = true, tgk = "call" },
     { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -1, nwrap = true, xc = "direct" },
     { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -2, nwrap = true, xc = "direct" },
     { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "hacc", segchk = "hoff", xc = "direct" },
@@ -647,7 +647,7 @@ uops = [
     { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", rm = true },
     { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
-    { cls = "alu", op = "mov", segchk = "call", hold = true },
+    { cls = "alu", op = "mov", segchk = "call", hold = true, tgo = true, tgk = "call" },
     { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -1, nwrap = true, xc = "direct" },
     { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -2, nwrap = true, xc = "direct" },
     { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "hacc", segchk = "hoff", xc = "direct" },
@@ -674,6 +674,193 @@ uops = [
     { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "hacc", segchk = "hoff", xc = "gate" },
     { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", xc = "xp" },
     { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = -2, gsz = true, pm = "below", xs = true, xfer = true },
+]
+
+# Task switches (fes_i386_cpu, "Task switches"), in the 386's order where it
+# shows (reenigne/x86_microcode, 80386/microcode_notes.txt 65C-7E4). A far
+# JMP's or CALL's descriptor check, or a delivery's gate (tgo), goes on at
+# tsjg (a JMP or CALL to a task gate: its TSS's selector into T0), tsgate
+# (an interrupt or exception through one) or tsw (a JMP or CALL to a TSS),
+# with the switch's kind (tgk, decoded_t tsk); an IRET with NT set starts at
+# tssave from DC. tsgate reads the TSS's descriptor from the GDT and checks
+# it (TSGATE: null, TI=1 or not an available TSS #GP(selector), not present
+# #NP(selector)). tsw checks the new TSS's limit (#TS with its selector) and
+# the old one's (#TS with TR's), as Bochs's task_switch; reads the new TSS's
+# first and last bytes, so a #PF there comes before anything is written, as
+# Bochs probes them (the 386 has no probe: an exception the RTL makes); and
+# sets the new TSS's busy bit, before the old task is saved, as the 386 does
+# (74B-74C).
+[[routine]]
+name = "tsjg"
+falls_through = true
+uops = [
+    { cls = "system", op = "gate", imm = 1, d = "t0" },
+]
+
+[[routine]]
+name = "tsgate"
+falls_through = true
+uops = [
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", dmode = "gdt" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", dmode = "gdt" },
+    { cls = "alu", op = "mov", segchk = "tsgate" },
+]
+
+[[routine]]
+name = "tsw"
+falls_through = true
+uops = [
+    { cls = "alu", op = "mov", segchk = "tsw" },
+    { cls = "alu", op = "mov", d = "t4", size = "32", mkind = "load", tss = "nfld", tsf = 0 },
+    { cls = "alu", op = "mov", d = "t4", size = "32", mkind = "load", tss = "nfld", tsf = 31 },
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, desc = "busy" },
+]
+
+# The old task's save, in its TSS's layout (tss fld: TR's TSS, tsf its
+# field): EIP (the next instruction's, or a fault's own), EFLAGS (READ_TSS:
+# RF as a delivery's frame takes it, NT clear for IRET's), the GPRs, and the
+# selectors, FS and GS only in a 386 TSS (IRET's first checks the old TSS's
+# limit, TSOLD, which tsw checks for the others). Then IRET's back link (the
+# 386 saves first, 65F-667): its word at the old TSS's 0 into T0, its descriptor
+# from the GDT (dmode ts: past the table #TS) and TSRET's checks (null, TI=1
+# or not a busy TSS #TS(selector), not present #NP(selector)), then tsw's
+# limits and reads. A nesting switch stores the old TR's selector as the new
+# TSS's back link; JMP and IRET clear the old TSS's busy bit (TRHI, UNBUSY).
+# TR takes the new TSS (TSTR, after which tss fld names it); the new EIP
+# into T1, EFLAGS into T4, the GPRs into their registers (a 286 TSS's words
+# with ones above), CS's selector into T0, the others' into their segments
+# with their caches refused (TSEL; a 286 TSS's FS and GS null), the LDT's
+# selector into T5 and LDTR (TSLDT), a 386 TSS's CR3 into T2 under paging;
+# the flags from T4 (LOAD_TSS: NT set too for a nesting switch), and the
+# commit (tcom): a far jump to the new EIP that writes CS's selector, CR3,
+# CR0.TS and DR7's local enables, and after which DC takes tsload or tsv86.
+[[routine]]
+name = "tssave"
+uops = [
+    { cls = "alu", op = "mov", segchk = "tsold", xc = "iret" },
+    { cls = "alu", op = "mov", b = "eip", size = "32", mkind = "store", in_a = true, tss = "fld", tsf = 2 },
+    { cls = "alu", op = "flags", imm = 14, size = "32", mkind = "store", in_a = true, tss = "fld", tsf = 3, rd_cf = true, rd_oszap = true },
+    { cls = "alu", op = "mov", s2 = "eax", size = "32", mkind = "store", in_a = true, tss = "fld", tsf = 4 },
+    { cls = "alu", op = "mov", s2 = "ecx", size = "32", mkind = "store", in_a = true, tss = "fld", tsf = 5 },
+    { cls = "alu", op = "mov", s2 = "edx", size = "32", mkind = "store", in_a = true, tss = "fld", tsf = 6 },
+    { cls = "alu", op = "mov", s2 = "ebx", size = "32", mkind = "store", in_a = true, tss = "fld", tsf = 7 },
+    { cls = "alu", op = "mov", s2 = "esp", size = "32", mkind = "store", in_a = true, tss = "fld", tsf = 8 },
+    { cls = "alu", op = "mov", s2 = "ebp", size = "32", mkind = "store", in_a = true, tss = "fld", tsf = 9 },
+    { cls = "alu", op = "mov", s2 = "esi", size = "32", mkind = "store", in_a = true, tss = "fld", tsf = 10 },
+    { cls = "alu", op = "mov", s2 = "edi", size = "32", mkind = "store", in_a = true, tss = "fld", tsf = 11 },
+    { cls = "alu", op = "movzx", src_size = "16", size = "32", b = "sel", seg = "es", mkind = "store", in_a = true, tss = "fld", tsf = 12 },
+    { cls = "alu", op = "movzx", src_size = "16", size = "32", b = "sel", seg = "cs", mkind = "store", in_a = true, tss = "fld", tsf = 13 },
+    { cls = "alu", op = "movzx", src_size = "16", size = "32", b = "sel", seg = "ss", mkind = "store", in_a = true, tss = "fld", tsf = 14 },
+    { cls = "alu", op = "movzx", src_size = "16", size = "32", b = "sel", seg = "ds", mkind = "store", in_a = true, tss = "fld", tsf = 15 },
+    { cls = "alu", op = "movzx", src_size = "16", size = "32", b = "sel", seg = "fs", mkind = "store", in_a = true, tss = "fld", tsf = 16, xc = "t32" },
+    { cls = "alu", op = "movzx", src_size = "16", size = "32", b = "sel", seg = "gs", mkind = "store", in_a = true, tss = "fld", tsf = 17, xc = "t32" },
+    { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", tss = "fld", tsf = 0, xc = "iret" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", dmode = "ts", xc = "iret" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", dmode = "ts", xc = "iret" },
+    { cls = "alu", op = "mov", segchk = "tsret", xc = "iret" },
+    { cls = "alu", op = "mov", segchk = "tsw", xc = "iret" },
+    { cls = "alu", op = "mov", d = "t4", size = "32", mkind = "load", tss = "nfld", tsf = 0, xc = "iret" },
+    { cls = "alu", op = "mov", d = "t4", size = "32", mkind = "load", tss = "nfld", tsf = 31, xc = "iret" },
+    { cls = "alu", op = "mov", b = "sys", sys = "tr", size = "32", mkind = "store", in_a = true, tss = "nfld", tsf = 0, xc = "nest" },
+    { cls = "alu", op = "mov", d = "t4", size = "32", mkind = "load", mbytes = "4", desc = "trhi", xc = "unnest" },
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, desc = "unbusy", xc = "unnest" },
+    { cls = "system", op = "tstr" },
+    { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", tss = "fld", tsf = 2 },
+    { cls = "alu", op = "mov", d = "t4", size = "32", mkind = "load", tss = "fld", tsf = 3 },
+    { cls = "alu", op = "mov", d = "eax", size = "32", mkind = "load", tss = "fld", tsf = 4 },
+    { cls = "alu", op = "mov", d = "ecx", size = "32", mkind = "load", tss = "fld", tsf = 5 },
+    { cls = "alu", op = "mov", d = "edx", size = "32", mkind = "load", tss = "fld", tsf = 6 },
+    { cls = "alu", op = "mov", d = "ebx", size = "32", mkind = "load", tss = "fld", tsf = 7 },
+    { cls = "alu", op = "mov", d = "esp", size = "32", mkind = "load", tss = "fld", tsf = 8 },
+    { cls = "alu", op = "mov", d = "ebp", size = "32", mkind = "load", tss = "fld", tsf = 9 },
+    { cls = "alu", op = "mov", d = "esi", size = "32", mkind = "load", tss = "fld", tsf = 10 },
+    { cls = "alu", op = "mov", d = "edi", size = "32", mkind = "load", tss = "fld", tsf = 11 },
+    { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", tss = "fld", tsf = 13 },
+    { cls = "segment", op = "tsel", d = "es", mkind = "load", tss = "fld", tsf = 12 },
+    { cls = "segment", op = "tsel", d = "ss", mkind = "load", tss = "fld", tsf = 14 },
+    { cls = "segment", op = "tsel", d = "ds", mkind = "load", tss = "fld", tsf = 15 },
+    { cls = "segment", op = "tsel", d = "fs", mkind = "load", tss = "fld", tsf = 16, xc = "t32" },
+    { cls = "segment", op = "tsel", d = "gs", mkind = "load", tss = "fld", tsf = 17, xc = "t32" },
+    { cls = "segment", op = "tsel", d = "fs", xc = "t16" },
+    { cls = "segment", op = "tsel", d = "gs", xc = "t16" },
+    { cls = "alu", op = "mov", d = "t5", size = "32", mkind = "load", tss = "fld", tsf = 18 },
+    { cls = "system", op = "tsldt" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", tss = "fld", tsf = 1, xc = "t32pg" },
+    { cls = "alu", op = "flags", imm = 15, size = "32", b = "t4", wr_cf = true, wr_oszap = true },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, tcom = true },
+]
+
+# The new task's descriptors (Bochs's task_switch after its commit, in the
+# 386's order, 7AB-7D6): DC takes this routine, at the new EIP and length 0,
+# right after the commit, so a fault here is the new task's. The LDT from
+# the GDT (null: none; TI=1, past the table, not an LDT or not present,
+# #TS(selector)); SS (TSSS: null, TI or type wrong, RPL or DPL not CS's RPL
+# #TS(selector), then not present #SS(selector)), after which the CPL is
+# CS's RPL (tscpl; Bochs runs these two at CPL 3); CS (TSCS: null, not
+# code, nonconforming with DPL not RPL or conforming with DPL above it
+# #TS(selector), not present #NP(selector)), held; DS, ES, FS and GS
+# (TSDATA: none for null, which keeps the selector alone; not data or
+# readable code, or data or nonconforming code with DPL below CPL or RPL
+# #TS(selector), not present #NP(selector)); each with its accessed bit.
+# Then a delivery's error code, pushed at the new TSS's size; and the jump
+# to the new EIP, which writes CS from the hold. Bochs then checks EIP
+# against CS's limit; the 386 does not (7D0-7E2), and its fetch faults.
+[[routine]]
+name = "tsload"
+uops = [
+    { cls = "alu", op = "mov", d = "t0", size = "32", b = "sys", sys = "ldtr" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", dmode = "ts", xc = "nnull" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", dmode = "ts", xc = "nnull" },
+    { cls = "system", op = "tsldtd", segchk = "tsldt", xc = "nnull" },
+    { cls = "alu", op = "mov", d = "t0", size = "32", b = "sel", seg = "ss" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", dmode = "ts" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", dmode = "ts" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "tsss", segw = true, wsg = true, seg = "ss", tscpl = true },
+    { cls = "alu", op = "mov", d = "t0", size = "32", b = "sel", seg = "cs" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", dmode = "ts" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", dmode = "ts" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "tscs", hold = true },
+    { cls = "alu", op = "mov", d = "t0", size = "32", b = "sel", seg = "ds" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", dmode = "ts", xc = "nnull" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", dmode = "ts", xc = "nnull" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "tsdata", segw = true, wsg = true, seg = "ds", xc = "nnull" },
+    { cls = "alu", op = "mov", d = "t0", size = "32", b = "sel", seg = "es" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", dmode = "ts", xc = "nnull" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", dmode = "ts", xc = "nnull" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "tsdata", segw = true, wsg = true, seg = "es", xc = "nnull" },
+    { cls = "alu", op = "mov", d = "t0", size = "32", b = "sel", seg = "fs" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", dmode = "ts", xc = "nnull" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", dmode = "ts", xc = "nnull" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "tsdata", segw = true, wsg = true, seg = "fs", xc = "nnull" },
+    { cls = "alu", op = "mov", d = "t0", size = "32", b = "sel", seg = "gs" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", dmode = "ts", xc = "nnull" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", dmode = "ts", xc = "nnull" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "tsdata", segw = true, wsg = true, seg = "gs", xc = "nnull" },
+    { cls = "alu", op = "mov", b = "sys", sys = "err", mkind = "store", in_a = true, stk = "push", gsz = true, xc = "err" },
+    { cls = "alu", op = "mov", d = "t1", size = "32", b = "eip" },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, xfer = true },
+]
+
+# A switch into a V86 task (VM set in the new EFLAGS): the LDT as tsload's;
+# SS, DS, ES, FS and GS from their selectors as V86 segments, with no
+# descriptor read or check; a delivery's error code; then the far jump,
+# which loads CS as one, at CPL 3 (Bochs's task_switch; the 386's 798-7A5).
+[[routine]]
+name = "tsv86"
+uops = [
+    { cls = "alu", op = "mov", d = "t0", size = "32", b = "sys", sys = "ldtr" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", dmode = "ts", xc = "nnull" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", dmode = "ts", xc = "nnull" },
+    { cls = "system", op = "tsldtd", segchk = "tsldt", xc = "nnull" },
+    { cls = "segment", op = "load", d = "ss", b = "sel", seg = "ss" },
+    { cls = "segment", op = "load", d = "ds", b = "sel", seg = "ds" },
+    { cls = "segment", op = "load", d = "es", b = "sel", seg = "es" },
+    { cls = "segment", op = "load", d = "fs", b = "sel", seg = "fs" },
+    { cls = "segment", op = "load", d = "gs", b = "sel", seg = "gs" },
+    { cls = "alu", op = "mov", b = "sys", sys = "err", mkind = "store", in_a = true, stk = "push", gsz = true, xc = "err" },
+    { cls = "alu", op = "mov", d = "t0", size = "32", b = "sel", seg = "cs" },
+    { cls = "alu", op = "mov", d = "t1", size = "32", b = "eip" },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true },
 ]
 
 # LLDT (CPL 0): DC puts the selector in T0. Its descriptor from the GDT

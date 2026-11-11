@@ -22,7 +22,6 @@ import (
 	"github.com/DeanoC/FogCast/internal/appliancedata"
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
 	"github.com/DeanoC/FogCast/internal/buildinputs"
-	"github.com/DeanoC/FogCast/internal/cast"
 	"github.com/DeanoC/FogCast/internal/kitmemory"
 
 	"github.com/DeanoC/FogCast/internal/discovery"
@@ -56,7 +55,6 @@ const (
 	maintenanceMarkerFile   = "/run/fogcast/kit-maintenance.json"
 	maintenanceLockFile     = "/run/fogcast/kit-maintenance.lock"
 	maintenanceContract     = "fes-kit-maintenance-v1"
-	castShutdownTimeout     = 2 * time.Second
 	// Release staging accepts multi-gigabyte raw images; this exceeds the
 	// operator's five-minute transport timeout by a bounded margin while the
 	// header timeout still limits slow request setup.
@@ -67,7 +65,6 @@ const (
 	maxCoreLoadTimeout     = 10 * time.Minute
 )
 
-var errCastShutdown = errors.New("cast controller could not be stopped")
 var errDataPartitionAbsent = errors.New("appliance data partition absent")
 
 type runDependencies struct {
@@ -78,7 +75,6 @@ type runDependencies struct {
 	configureRuntime      func(agent.Runtime, httpapi.InputController) error
 	newInput              func(agentconfig.Config) (httpapi.InputController, error)
 	inputBeforeInitialize bool
-	newCast               func(agentconfig.Config) (httpapi.CastController, error)
 	serve                 func(*http.Server) error
 	advertise             func(context.Context, string, int) error
 	targetIDPath          string
@@ -125,15 +121,6 @@ func runtimeDependencies(nativeControl misterruntime.Control) (runDependencies, 
 		},
 		newInput: func(cfg agentconfig.Config) (httpapi.InputController, error) {
 			return input.NewTargetControllerWithConfig(cfg.InputListenAddress, cfg.InputUInputPath), nil
-		},
-		newCast: func(cfg agentconfig.Config) (httpapi.CastController, error) {
-			return cast.New(cast.Config{
-				Binary: cfg.CastBinary, RTPAddress: cfg.CastRTPAddress, Control: cfg.CastControlAddress,
-				Framebuffer: cfg.CastFramebuffer, NativeCmd: cfg.CastNativeCmd, NativeMode: cfg.CastNativeMode,
-				TokenFile:   cfg.CastTokenFile,
-				Generation:  cfg.CastGeneration,
-				StopTimeout: 2 * time.Second,
-			}, nil)
 		},
 		serve:                 func(server *http.Server) error { return server.ListenAndServe() },
 		advertise:             discovery.Advertise,
@@ -333,7 +320,7 @@ func validateCoreLoadTimeout(timeout time.Duration) error {
 	return nil
 }
 
-func runWithDependencies(ctx context.Context, configPath string, logger *slog.Logger, dependencies runDependencies) (resultErr error) {
+func runWithDependencies(ctx context.Context, configPath string, logger *slog.Logger, dependencies runDependencies) error {
 	if dependencies.coreLoadTimeout == 0 {
 		dependencies.coreLoadTimeout = defaultCoreLoadTimeout
 	}
@@ -464,35 +451,6 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	if targetID != "" {
 		options = append(options, httpapi.WithTargetID(targetID), httpapi.WithLauncherPairing(launcherConfigPath))
 	}
-	var leaseCast httpapi.CastController
-	if cfg.CastBinary != "" {
-		if dependencies.newCast == nil {
-			return errors.New("cast controller could not be configured")
-		}
-		castController, castErr := dependencies.newCast(cfg)
-		if castErr != nil {
-			return errors.New("cast controller could not be configured")
-		}
-		leaseCast = castController
-		options = append(options, httpapi.WithCast(castController))
-		defer func() {
-			status := castController.Status(context.Background())
-			if status.State != cast.Active {
-				return
-			}
-			shutdown, cancel := context.WithTimeout(context.Background(), castShutdownTimeout)
-			stopErr := castController.Stop(shutdown, status.Session, status.Generation)
-			cancel()
-			if stopErr == nil {
-				return
-			}
-
-			retry, retryCancel := context.WithTimeout(context.Background(), castShutdownTimeout)
-			_ = castController.Stop(retry, status.Session, status.Generation)
-			retryCancel()
-			resultErr = errCastShutdown
-		}()
-	}
 	if !dependencies.inputBeforeInitialize && dependencies.newInput != nil {
 		inputController, err = dependencies.newInput(cfg)
 		if err != nil || inputController == nil {
@@ -510,12 +468,6 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 				cleanupErr = errors.Join(cleanupErr, releaser.ReleaseAll(cleanup))
 			} else {
 				cleanupErr = errors.Join(cleanupErr, errors.New("input controller cannot release kit ownership"))
-			}
-		}
-		if leaseCast != nil {
-			status := leaseCast.Status(cleanup)
-			if status.State == cast.Active {
-				cleanupErr = errors.Join(cleanupErr, leaseCast.Stop(cleanup, status.Session, status.Generation))
 			}
 		}
 		return cleanupErr

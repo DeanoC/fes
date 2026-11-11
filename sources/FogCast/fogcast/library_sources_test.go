@@ -521,3 +521,40 @@ func TestRemoteSourceEntryOnlySessionWithoutMeshExecutor(t *testing.T) {
 		t.Fatalf("core=%d cassette=%d", f.target.coreCalls, f.target.insertions)
 	}
 }
+
+func TestRemoteCassetteCleanupPreservesOfflineTitleUntilRemoved(t *testing.T) {
+	ctx := context.Background()
+	f := newRemoteSourceFixture(t, []byte("remote cassette retained offline"), nil)
+	if _, err := f.service.Launch(ctx, f.entry.GameID, nil); err != nil {
+		t.Fatal(err)
+	}
+	f.server.Close()
+	f.service.libraryMu.Lock()
+	f.service.librarySources = nil // Source configuration removed, title retained.
+	f.service.libraryMu.Unlock()
+	usage, err := f.service.RemoteCassetteCache(ctx, "", 100)
+	if err != nil || usage.TrackedObjects != 1 || usage.ReclaimableObjects != 0 {
+		t.Fatalf("selected preview: %+v %v", usage, err)
+	}
+	result, err := f.service.RemoveRemoteCassetteCache(ctx, []string{f.mediaID})
+	if err != nil || len(result.Deleted) != 0 || len(result.Skipped) != 1 {
+		t.Fatalf("selected cleanup: %+v %v", result, err)
+	}
+	if _, err := f.service.Launch(ctx, f.entry.GameID, nil); err != nil {
+		t.Fatalf("offline replay after cleanup: %v", err)
+	}
+	if f.objects.Load() != 1 {
+		t.Fatalf("offline replay contacted source: %d", f.objects.Load())
+	}
+	if err := f.store.RemoveCoreEntry(ctx, f.entry.GameID); err != nil {
+		t.Fatal(err)
+	}
+	usage, err = f.service.RemoteCassetteCache(ctx, "", 100)
+	if err != nil || len(usage.Candidates) != 1 || usage.Candidates[0].MediaID != f.mediaID {
+		t.Fatalf("removed preview: %+v %v", usage, err)
+	}
+	result, err = f.service.RemoveRemoteCassetteCache(ctx, []string{f.mediaID})
+	if err != nil || len(result.Deleted) != 1 || result.Deleted[0].MediaID != f.mediaID {
+		t.Fatalf("removed cleanup: %+v %v", result, err)
+	}
+}

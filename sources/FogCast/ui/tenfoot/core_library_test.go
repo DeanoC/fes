@@ -280,19 +280,20 @@ func TestCoreLibraryROMCreationKeepsSourceAndDoesNotLaunch(t *testing.T) {
 	}
 }
 
-func TestCoreLibraryBIOSNeedsExplicitHouseholdSelection(t *testing.T) {
+func TestCoreLibraryRequiresEachNamedROM(t *testing.T) {
 	a := NewApp(nil, 1280, 720, 10)
 	ref := hostclient.CoreReference{}
-	a.coreLibrary = coreLibraryState{Open: true, Online: true, Ref: &ref, Setup: &hostclient.CoreSetup{ROMs: []hostclient.SetupROM{{ID: "bios", Role: "firmware", SourceSize: 8192, Binding: "household-firmware"}}}, ROMs: map[string]string{"bios": "chosen"}, Title: "Test"}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.createCoreLibraryGameLocked()
-	if a.coreLibrary.Busy || !strings.Contains(a.coreLibrary.Status, "Explicitly") {
-		t.Fatal("BIOS silently changed")
-	}
+	a.coreLibrary = coreLibraryState{Open: true, Online: true, Ref: &ref, Setup: &hostclient.CoreSetup{ROMs: []hostclient.SetupROM{
+		{ID: "coleco-bios", Role: "firmware", SourceSize: 8192, Binding: "entry"},
+		{ID: "coleco-cart", Role: "cartridge", SourceSize: 16384, Binding: "entry"},
+	}}, ROMs: map[string]string{"coleco-bios": "selected"}, Title: "Game"}
 	rows := a.coreLibraryRowsLocked()
-	if len(rows) < 2 || rows[1].Kind != "firmware:bios" {
-		t.Fatal("no explicit BIOS action")
+	if len(rows) < 2 || rows[0].Kind != "rom:coleco-bios" || rows[1].Kind != "rom:coleco-cart" {
+		t.Fatalf("named ROM rows: %+v", rows)
+	}
+	a.createCoreLibraryGameLocked()
+	if a.coreLibrary.Busy || a.coreLibrary.Status != "Choose coleco-cart" {
+		t.Fatalf("missing cartridge not blocked: %q", a.coreLibrary.Status)
 	}
 }
 

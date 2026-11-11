@@ -8,7 +8,6 @@ import (
 	"net/url"
 
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
-	"github.com/DeanoC/FogCast/internal/cast"
 
 	"github.com/DeanoC/FogCast/internal/flightdiag"
 	"github.com/DeanoC/FogCast/internal/kitlease"
@@ -43,7 +42,6 @@ type serverOptions struct {
 	content             ContentController
 	meshContent         meshcontent.Executor
 	input               InputController
-	cast                CastController
 	development         DevelopmentController
 	diagnostics         DiagnosticController
 	update              *applianceupdate.Service
@@ -76,23 +74,6 @@ func WithInput(controller InputController) Option {
 	return func(options *serverOptions) {
 		options.input = controller
 	}
-}
-
-type CastController interface {
-	Start(context.Context, string, string, uint64) error
-	Stop(context.Context, string, uint64) error
-	Status(context.Context) cast.Status
-}
-
-// MediaCastController is an optional extension. Legacy cast controllers keep
-// receiving video-only requests through CastController.Start.
-type MediaCastController interface {
-	StartWithMedia(context.Context, string, string, uint64, protocol.CastMediaSet) error
-	CastMediaCapabilities(context.Context) protocol.CastMediaCapabilities
-}
-
-func WithCast(controller CastController) Option {
-	return func(options *serverOptions) { options.cast = controller }
 }
 
 type CachedIdentityController interface {

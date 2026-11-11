@@ -16,7 +16,7 @@ import (
 )
 
 type coreROMCatalog interface {
-	CoreEntryROM(context.Context, string) (catalog.CoreEntryROM, error)
+	CoreEntryROM(context.Context, string, string) (catalog.CoreEntryROM, error)
 	SelectCoreEntryROM(context.Context, string, string, string, int64, string, string) (catalog.CoreEntryROM, error)
 }
 
@@ -55,7 +55,7 @@ func romSelectionError(err error) error {
 	}
 	return mapCoreEntryError(err)
 }
-func (s *Service) CoreEntryROM(ctx context.Context, gameID string) (catalog.CoreEntryROM, error) {
+func (s *Service) CoreEntryROM(ctx context.Context, gameID, romID string) (catalog.CoreEntryROM, error) {
 	store, ok := s.catalog.(coreROMCatalog)
 	if !ok {
 		return catalog.CoreEntryROM{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
@@ -64,15 +64,21 @@ func (s *Service) CoreEntryROM(ctx context.Context, gameID string) (catalog.Core
 	if err != nil {
 		return catalog.CoreEntryROM{}, err
 	}
-	result, err := store.CoreEntryROM(ctx, gameID)
+	inspection, err := s.installedCoreInspection(ctx, entry.PackageID)
+	if err != nil {
+		return catalog.CoreEntryROM{}, err
+	}
+	if inspection.Descriptor.Core.ID != entry.CoreID || romRequirement(inspection.Descriptor, romID) == nil {
+		return catalog.CoreEntryROM{}, romAdmissionError()
+	}
+	result, err := store.CoreEntryROM(ctx, gameID, romID)
 	if err != nil {
 		return result, romSelectionError(err)
 	}
 	if result.MediaID != "" {
 		return result, nil
 	}
-	inspection, err := s.installedCoreInspection(ctx, entry.PackageID)
-	if err != nil || inspection.Descriptor.Format != 3 || inspection.Descriptor.Core.ID != entry.CoreID ||
+	if inspection.Descriptor.Format != 3 || inspection.Descriptor.Core.ID != entry.CoreID ||
 		inspection.Descriptor.ROM == nil || inspection.Descriptor.ROM.Role != protocol.FirmwareRole {
 		return result, nil
 	}
@@ -80,6 +86,20 @@ func (s *Service) CoreEntryROM(ctx context.Context, gameID string) (catalog.Core
 		return bundledFirmwareSelection(entry, inspection.Descriptor.ROM, fw), nil
 	}
 	return result, nil
+}
+
+// romRequirement resolves a named requirement only from the installed package.
+func romRequirement(d corepackage.Descriptor, id string) *corepackage.ROM {
+	if d.ROM != nil && d.ROM.ID == id {
+		return d.ROM
+	}
+	for i := range d.ROMs {
+		if d.ROMs[i].ID == id {
+			r := d.ROMs[i]
+			return &corepackage.ROM{ID: r.ID, Role: r.Role, SourceSize: r.SourceSize}
+		}
+	}
+	return nil
 }
 func (s *Service) SelectCoreEntryROM(parent context.Context, gameID, packageID, romID, expected, mediaID string) (catalog.CoreEntryROM, error) {
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
@@ -104,22 +124,13 @@ func (s *Service) SelectCoreEntryROM(parent context.Context, gameID, packageID, 
 	if err != nil {
 		return catalog.CoreEntryROM{}, err
 	}
-	req := inspected.Descriptor.ROM
-	var sourceSize int64
-	if req != nil {
-		sourceSize = req.SourceSize
-	}
-	if inspected.Descriptor.Format == 4 && len(inspected.Descriptor.ROMs) == 2 {
-		romIDExpected := inspected.Descriptor.ROMs[1].ID
-		if romID != romIDExpected {
-			return catalog.CoreEntryROM{}, romAdmissionError()
-		}
-		sourceSize = inspected.Descriptor.ROMs[1].SourceSize
-	} else if req == nil || req.ID != romID {
+	req := romRequirement(inspected.Descriptor, romID)
+	if req == nil || inspected.Descriptor.Core.ID != entry.CoreID {
 		return catalog.CoreEntryROM{}, romAdmissionError()
 	}
+	sourceSize := req.SourceSize
 	if expected != "" {
-		current, currentErr := store.CoreEntryROM(ctx, gameID)
+		current, currentErr := store.CoreEntryROM(ctx, gameID, romID)
 		if currentErr != nil {
 			return catalog.CoreEntryROM{}, romSelectionError(currentErr)
 		}
@@ -144,16 +155,16 @@ func (s *Service) readCoreEntryROM(ctx context.Context, entry catalog.CoreEntry,
 	if !ok || !mediaOK || (descriptor.ROM == nil && descriptor.Format != 4) {
 		return catalog.CoreEntryROM{}, nil, romAdmissionError()
 	}
-	selected, err := store.CoreEntryROM(ctx, entry.GameID)
-	if err != nil {
-		return selected, nil, romSelectionError(err)
-	}
 	reqID, reqSize := "", int64(0)
 	if descriptor.ROM != nil {
 		reqID, reqSize = descriptor.ROM.ID, descriptor.ROM.SourceSize
 	}
 	if descriptor.Format == 4 && len(descriptor.ROMs) == 2 {
 		reqID, reqSize = descriptor.ROMs[1].ID, descriptor.ROMs[1].SourceSize
+	}
+	selected, err := store.CoreEntryROM(ctx, entry.GameID, reqID)
+	if err != nil {
+		return selected, nil, romSelectionError(err)
 	}
 	if descriptor.Core.ID == entry.CoreID && descriptor.Format == 3 && descriptor.ROM != nil && descriptor.ROM.Role == protocol.FirmwareRole {
 		bundled, hasBundled := s.bundledFirmwareFor(entry.CoreID, descriptor.ROM)
@@ -197,7 +208,7 @@ func (s *Service) readCoreEntryROM(ctx context.Context, entry catalog.CoreEntry,
 
 // rebindCoreFirmware carries a saved firmware binary across package changes
 // only when the active package declares the same named, exact-size contract.
-// It applies to every ZX81 selection and to bundled firmware on any core.
+// It applies to ZX81 selections, bundled firmware and format-4 title BIOSes.
 // The media digest is the compare-and-swap value, so concurrent user choices
 // are not overwritten.
 func (s *Service) rebindCoreFirmware(ctx context.Context, entry catalog.CoreEntry, selected catalog.CoreEntryROM, requirement *corepackage.ROM) (catalog.CoreEntryROM, error) {
@@ -211,7 +222,7 @@ func (s *Service) rebindCoreFirmware(ctx context.Context, entry catalog.CoreEntr
 	}
 	// A concurrent request may already have migrated or replaced the selection.
 	// Keep its winner only if it now matches the active package's exact contract.
-	current, readErr := roms.CoreEntryROM(ctx, entry.GameID)
+	current, readErr := roms.CoreEntryROM(ctx, entry.GameID, requirement.ID)
 	if readErr == nil && current.MediaID != "" && current.PackageID == entry.PackageID && current.ROMID == requirement.ID && current.SourceSize == requirement.SourceSize {
 		return current, nil
 	}
@@ -266,7 +277,7 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 	if descriptor.Format == 4 {
 		var bios []byte
 		var biosErr error
-		biosMediaID, bios, biosErr = s.readTwoROMFirmware(ctx, descriptor)
+		biosMediaID, bios, biosErr = s.readTwoROMFirmware(ctx, entry, descriptor)
 		if biosErr != nil {
 			return coreLoadSource{}, biosErr
 		}
@@ -311,28 +322,40 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 	return source, nil
 }
 
-func (s *Service) readTwoROMFirmware(ctx context.Context, descriptor corepackage.Descriptor) (string, []byte, error) {
-	store, ok := s.catalog.(coreFirmwareCatalog)
-	if !ok || descriptor.Format != 4 || len(descriptor.ROMs) != 2 || descriptor.ROMs[0].Role != "firmware" {
+func (s *Service) readTwoROMFirmware(ctx context.Context, entry catalog.CoreEntry, descriptor corepackage.Descriptor) (string, []byte, error) {
+	roms, ok := s.catalog.(coreROMCatalog)
+	media, mediaOK := s.catalog.(coreMediaCatalog)
+	if !ok || !mediaOK || descriptor.Core.ID != entry.CoreID || descriptor.Format != 4 || len(descriptor.ROMs) != 2 || descriptor.ROMs[0].Role != "firmware" {
 		return "", nil, romAdmissionError()
 	}
-	slot, err := store.CoreFirmware(ctx, protocol.FirmwareRole)
+	req := descriptor.ROMs[0]
+	slot, err := roms.CoreEntryROM(ctx, entry.GameID, req.ID)
 	if err != nil {
-		return "", nil, mapCoreFirmwareError(err)
+		return "", nil, romSelectionError(err)
 	}
-	if slot.MediaID == "" || slot.Size != descriptor.ROMs[0].SourceSize || protocol.ValidateDigest(slot.MediaID) != nil {
+	// Preserve a title's saved BIOS across a package update only when the new
+	// descriptor names the same exact-size requirement. The compare-and-swap
+	// in rebindCoreFirmware does not overwrite a concurrent user selection.
+	if slot.MediaID != "" && slot.PackageID != entry.PackageID && slot.ROMID == req.ID && slot.SourceSize == req.SourceSize {
+		selected := &corepackage.ROM{ID: req.ID, Role: req.Role, SourceSize: req.SourceSize}
+		slot, err = s.rebindCoreFirmware(ctx, entry, slot, selected)
+		if err != nil {
+			return "", nil, err
+		}
+	}
+	if slot.MediaID == "" || slot.PackageID != entry.PackageID || slot.ROMID != req.ID || slot.SourceSize != req.SourceSize || protocol.ValidateDigest(slot.MediaID) != nil {
 		return "", nil, romAdmissionError()
 	}
-	object, reader, err := store.OpenCoreMedia(ctx, slot.MediaID)
+	object, reader, err := media.OpenCoreMedia(ctx, slot.MediaID)
 	if err != nil {
-		return "", nil, mapCoreFirmwareError(err)
+		return "", nil, romSelectionError(err)
 	}
 	defer reader.Close()
-	if object.MediaID != slot.MediaID || object.Size != slot.Size {
+	if object.MediaID != slot.MediaID || object.Size != req.SourceSize {
 		return "", nil, romAdmissionError()
 	}
-	data, err := io.ReadAll(io.LimitReader(reader, slot.Size+1))
-	if err != nil || int64(len(data)) != slot.Size || fmt.Sprintf("%x", sha256.Sum256(data)) != slot.MediaID {
+	data, err := io.ReadAll(io.LimitReader(reader, req.SourceSize+1))
+	if err != nil || int64(len(data)) != req.SourceSize || fmt.Sprintf("%x", sha256.Sum256(data)) != slot.MediaID {
 		return "", nil, romAdmissionError()
 	}
 	return slot.MediaID, data, nil

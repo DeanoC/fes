@@ -366,6 +366,5 @@ locally, then run the actual operation on the designated kit when the change
 touches FPGA loading, input, video, audio, or target lifecycle.
 
 Names in the active tree describe current use: the image toolchain is
-`target-image`, the target FAT directory is `fogcast`, and the sender command
-is `remote-play-sender`. Do not introduce numbered experiment names into
-active code or docs.
+`target-image` and the target FAT directory is `fogcast`. Do not introduce
+numbered experiment names into active code or docs.

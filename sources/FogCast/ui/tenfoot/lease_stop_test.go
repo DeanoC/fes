@@ -370,10 +370,6 @@ func TestExplicitStopKeepsAnotherRetainedLease(t *testing.T) {
 	pkg := *kitB.CorePackage
 	pkg.Generation = 10
 	kitB.CorePackage = &pkg
-	hostOnly := hostclient.SessionResult{
-		ID: "host-session", State: "active", GameID: "host-game", Execution: hostclient.ExecutionHostOnly,
-		FlightID: "22222222-2222-4222-8222-222222222222",
-	}
 	var mu sync.Mutex
 	var bodies []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -428,24 +424,6 @@ func TestExplicitStopKeepsAnotherRetainedLease(t *testing.T) {
 		assertShellStillReleases(t, app)
 	})
 
-	t.Run("host-only", func(t *testing.T) {
-		app := kitLeaseApp(t, server, kitA)
-		app.HandleCommand(CmdBack, time.Now())
-		waitFor(t, app, "soft-stop idle", func(s Snapshot) bool { return s.Session.State == "idle" })
-		app.mu.Lock()
-		app.session = hostOnly
-		app.syncGPUParkLocked()
-		app.mu.Unlock()
-		holdSelectStart(app, time.Now())
-		waitFor(t, app, "host-only idle", func(s Snapshot) bool { return s.Session.State == "idle" })
-		mu.Lock()
-		got := append([]string(nil), bodies...)
-		mu.Unlock()
-		if len(got) != 2 || !strings.Contains(got[1], hostOnly.FlightID) {
-			t.Fatalf("stops before shell exit = %#v, want the host-only flight and not a release of kit A", got)
-		}
-		assertShellStillReleases(t, app)
-	})
 }
 
 func TestSelectStartLeaseReleaseFailureRetriesIdleGrant(t *testing.T) {

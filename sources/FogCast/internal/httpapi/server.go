@@ -71,9 +71,6 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 	if settings.corePackagesEnabled {
 		registerCorePackageRoutes(mux, token, settings.corePackages, settings.corePackageInspect)
 	}
-	if settings.cast != nil {
-		registerCastRoutes(mux, token, settings.cast)
-	}
 	if settings.content != nil {
 		registerContentRoutes(mux, token, settings.content)
 	}

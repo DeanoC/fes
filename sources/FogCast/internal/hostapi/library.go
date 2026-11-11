@@ -829,7 +829,7 @@ func enrichLaunchable(ctx context.Context, service Service, result gameResult) g
 
 // gameRowLaunchable reports the catalog platform/target gate for one row.
 // Installed FPGA packages stay launchable even when their browse system
-// (Coleco, for example) has no host-emulator mapping. Raw cartridge rows
+// (Coleco, for example) is not launchable as a raw cartridge. Raw rows
 // still follow PlatformLaunchable / catalog.Launchable.
 func gameRowLaunchable(service Service, result gameResult) bool {
 	if result.Kind == catalog.SourceKindCorePackage || result.System == catalog.CorePlatform {

@@ -643,7 +643,7 @@ func (s *Service) invalidateTargetSession(client *targetclient.Client) {
 			if s.boundKitTarget == name {
 				s.boundKitTarget = ""
 			}
-			invalidatedActive = invalidatedActive || s.activeExecution != ExecutionHostOnly && s.activeTarget == name
+			invalidatedActive = invalidatedActive || s.activeTarget == name
 		}
 	}
 	if invalidatedActive {
@@ -724,10 +724,10 @@ func (s *Service) kitLeaseForeign() bool {
 }
 
 // launchUsesForeignKit reports an FPGA launch that would use the kit whose
-// cached connection is held by another session. Host-only execution does not
-// use that kit. A different named target does not use the selected connection.
-func (s *Service) launchUsesForeignKit(pinned launchSnapshot, execution string) bool {
-	if execution == ExecutionHostOnly || !s.kitLeaseForeign() {
+// cached connection is held by another session. A different named target does
+// not use the selected connection.
+func (s *Service) launchUsesForeignKit(pinned launchSnapshot) bool {
+	if !s.kitLeaseForeign() {
 		return false
 	}
 	return s.launchObservesSelectedConnection(pinned)

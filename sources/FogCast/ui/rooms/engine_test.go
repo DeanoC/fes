@@ -963,7 +963,7 @@ function draw() gfx.rect(0,0,10,10,'#fff') end`
 	}
 	stepUntil(t, r, func(Frame) bool { return r.Destination().Availability == AvailUnavailable })
 	d := r.Destination()
-	if d.Confirm() != ConfirmImportFirmware || d.Action != "Import Coleco BIOS." {
+	if d.Confirm() != ConfirmImportFirmware || d.Action != "Import firmware." {
 		t.Fatalf("unavailable dest %+v", d)
 	}
 	label := d.Label
@@ -982,7 +982,7 @@ result = nil
 function load()
   local games = {
     { id = "fpga-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "fpga_native", ready_here = false, ready_block = "version_skew" },
-    { id = "sms-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "host_only" },
+    { id = "sms-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "other_backend" },
   }
   result = destination.classify(games, { q = "Data Storm" })
   destination.set{ kind = "game", label = "Data Storm", query = "Data Storm", matches = result.candidates or result.matches }
@@ -1012,7 +1012,7 @@ function draw() end`
 	}
 
 	no := false
-	emu := hostclient.Game{ID: "sms-data-storm", Title: "Data Storm", System: "sms", State: "available", RootOnline: true, Launchable: true, Execution: hostclient.ExecutionHostOnly, ReadyHere: &no, ReadyBlock: string(hostclient.LaunchLeaseHeld)}
+	emu := hostclient.Game{ID: "sms-data-storm", Title: "Data Storm", System: "sms", State: "available", RootOnline: true, Launchable: true, Execution: "other_backend", ReadyHere: &no, ReadyBlock: string(hostclient.LaunchLeaseHeld)}
 	r.RefreshCachedGames([]hostclient.Game{emu})
 	d = r.Destination()
 	if d.Availability != AvailReady || d.Confirm() != ConfirmLaunch || d.GameID != "fpga-data-storm" || len(d.Matches) != 1 || len(d.Candidates) != 2 {

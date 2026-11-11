@@ -6,7 +6,6 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/libraryuser"
-	"github.com/DeanoC/FogCast/protocol"
 )
 
 // Availability is the play-availability family rooms, tenfoot, and the
@@ -315,8 +314,6 @@ func PlayChoiceKind(matches []hostclient.Game) ChoiceKind {
 func playExecution(game hostclient.Game) string {
 	exec := strings.TrimSpace(game.Execution)
 	switch exec {
-	case hostclient.ExecutionHostOnly, "native_emu":
-		return "native_emu"
 	case "fpga_native", "fpga_development":
 		return "fpga_native"
 	default:
@@ -327,8 +324,6 @@ func playExecution(game hostclient.Game) string {
 // BackendLabel is the sofa name for one play option.
 func BackendLabel(game hostclient.Game) string {
 	switch playExecution(game) {
-	case "native_emu":
-		return "Emulator"
 	case "fpga_native":
 		return "FPGA"
 	default:
@@ -342,9 +337,8 @@ func BackendLabel(game hostclient.Game) string {
 
 // ApplyForeignLease applies a foreign kit lease to each launch-eligible
 // candidate before viable choices are counted. foreign is false for the
-// shell that holds the grant, including after Soft-stop. A host-only
-// candidate stays viable, so an emulator beside a leased FPGA is the sole
-// Ready option. A lone leased option is Unavailable with the in-use reason.
+// shell that holds the grant, including after Soft-stop. A leased option is
+// Unavailable with the in-use reason.
 // Confirm then explains and does not launch or take the lease. An existing
 // catalog block (firmware, skew) is left as that block. A leased sibling
 // stays in Candidates with the in-use reason and is not a choice, so a
@@ -366,7 +360,7 @@ func ApplyForeignLease(d Destination, foreign bool) Destination {
 	changed := false
 	for i, g := range source {
 		next[i] = g
-		if g.HostOnly() || !g.LaunchEligible() {
+		if !g.LaunchEligible() {
 			continue
 		}
 		next[i] = leaseHeldCandidate(g)
@@ -673,7 +667,7 @@ func (d *Destination) FillCopy() {
 				d.Status = reason
 			}
 			if d.Matches[0].LaunchBlock() == hostclient.LaunchMissingFirmware {
-				d.Action = "Import Coleco BIOS."
+				d.Action = "Import firmware."
 			}
 		}
 	case AvailReady:
@@ -756,10 +750,7 @@ func LaunchBlockCopy(game hostclient.Game) string {
 	case hostclient.LaunchNotReady:
 		return "This game isn't ready to launch."
 	case hostclient.LaunchMissingFirmware:
-		if game.ROMRole == protocol.FirmwareRole {
-			return "Required machine firmware is missing. Import it before Play."
-		}
-		return "Coleco BIOS required. Import household firmware before Play."
+		return "Required machine firmware is missing. Import it before Play."
 	case hostclient.LaunchMissingROM:
 		return "Needs a cartridge"
 	case hostclient.LaunchDistant:

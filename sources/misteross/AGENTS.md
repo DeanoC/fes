@@ -24,7 +24,9 @@ and Metal builds keep distinct `BUILD_ID`s and artifact identities because backe
 is part of functional execution identity, even though their timing and route
 evidence is interchangeable. Among current core
 package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS,
-Spectrum and ZX81 accept `--gpu-router {HIP,CUDA}`. Menu, Pong, RAM Tester
+Spectrum and ZX81 accept `--gpu-router {HIP,CUDA}`. The pc386 Quartus sealer
+accepts it too, but only to select which toolchain slot it authenticates; it
+routes nothing on a GPU. Menu, Pong, RAM Tester
 and RISC-V accept only `--gpu-device`; their authenticated toolchain determines
 the backend. On a CUDA host, select CUDA and its matching toolchain for a
 router-selectable producer; a device-only producer can use CUDA only with an

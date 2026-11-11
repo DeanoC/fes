@@ -235,6 +235,92 @@ class ManifestTest(unittest.TestCase):
         self.assertNotEqual(build_identity(first), build_identity(second))
 
 
+class GpuRouterTest(unittest.TestCase):
+    """--gpu-router selects the toolchain lock's HIP or CUDA slot, and the record names it."""
+
+    REPOSITORY = "https://github.com/DeanoC/fes"
+
+    def record(self, *args):
+        return quartus.create_build_record(ROOT, self.REPOSITORY, "a" * 40, IDENTITIES, 1, *args)
+
+    def test_hip_is_the_default_slot(self):
+        self.assertEqual(self.record(), self.record("HIP"))
+        parameters = json.loads(self.record())["parameters"]
+        self.assertEqual(parameters["gpu_backend"], "hip")
+        self.assertEqual(parameters["toolchain_configuration"], board.FES_TOOLCHAIN_CONFIGURATION)
+
+    def test_the_cuda_slot_is_recorded_and_has_its_own_build_id(self):
+        with mock.patch.dict(os.environ):
+            os.environ.pop("FES_TOOLCHAIN_CUDA_ARCHITECTURES", None)
+            cuda = self.record("CUDA")
+        parameters = json.loads(cuda)["parameters"]
+        self.assertEqual(parameters["gpu_backend"], "cuda")
+        self.assertEqual(parameters["toolchain_configuration"], board.FES_CUDA_TOOLCHAIN_CONFIGURATION)
+        self.assertNotEqual(build_identity(cuda), build_identity(self.record("HIP")))
+
+    def test_an_unknown_router_fails(self):
+        with self.assertRaisesRegex(board.BuildError, "unsupported GPU router"):
+            self.record("Metal")
+        with self.assertRaisesRegex(board.BuildError, "unsupported GPU router"):
+            quartus._authenticate_tools(ROOT, gpu_router="Metal")
+
+    def authenticate(self, **kwargs):
+        yosys = mock.Mock(identity=IDENTITIES["yosys"])
+        with tempfile.TemporaryDirectory() as temporary:
+            quartus_sh = Path(temporary) / "quartus_sh"
+            quartus_sh.write_bytes(b"not quartus")
+            with mock.patch.object(quartus.board, "_authenticate_tools", return_value={"yosys": yosys}) as shared, \
+                    mock.patch.object(quartus, "locate_quartus", return_value=(Path(temporary), quartus_sh, "v")):
+                quartus._authenticate_tools(ROOT, **kwargs)
+        return shared.call_args.kwargs
+
+    def test_each_router_authenticates_its_own_slot(self):
+        hip = self.authenticate()
+        self.assertEqual((hip["gpu_router"], hip["hip_architectures"], hip["expected_configuration"]),
+                         ("HIP", board.FES_GPU_ARCHITECTURES, {"nextpnr": board.FES_TOOLCHAIN_CONFIGURATION}))
+        with mock.patch.object(quartus.board, "cuda_toolchain_configuration", return_value="cuda-lane"):
+            cuda = self.authenticate(gpu_router="CUDA", cache_root=Path("/cache"))
+        self.assertEqual((cuda["gpu_router"], cuda["hip_architectures"], cuda["expected_configuration"],
+                          cuda["cache_root"], cuda["lock_path"]),
+                         ("CUDA", "unused", {"nextpnr": "cuda-lane"}, Path("/cache"), ROOT / quartus.LOCK))
+
+    def test_build_keeps_the_router_through_the_final_checks(self):
+        tools = {"yosys": mock.Mock(path=Path("yosys")), "quartus_sh": Path("quartus_sh"),
+                 "quartus_root": Path("q"), "quartus_version": "v", "identities": dict(IDENTITIES)}
+        evidence = {"rbf": {"sha256": "0" * 64, "size": 1}}
+        with tempfile.TemporaryDirectory() as temporary, \
+                mock.patch.object(quartus, "require_clean_source", return_value=(self.REPOSITORY, "a" * 40)), \
+                mock.patch.object(quartus, "_authenticate_tools", return_value=tools) as authenticate, \
+                mock.patch.object(quartus, "create_build_record", return_value=self.record()) as record, \
+                mock.patch.object(quartus.board, "_prepare_output", return_value=Path(temporary)), \
+                mock.patch.object(quartus.board, "_write_atomic") as write, \
+                mock.patch.object(quartus, "write_project"), mock.patch.object(quartus, "firmware_rom"), \
+                mock.patch.object(quartus, "elaborate_machine"), mock.patch.object(quartus, "run_quartus"), \
+                mock.patch.object(quartus, "validate_build_evidence", return_value=evidence), \
+                mock.patch.object(quartus, "firmware_digests", return_value={}), \
+                mock.patch.object(quartus.board, "_sha256", return_value="0" * 64), \
+                mock.patch.object(quartus, "manifest", return_value=b""), \
+                mock.patch.object(quartus, "export_package", return_value=Path("package")):
+            self.assertEqual(quartus.build(ROOT, cache_root=Path("/cache"), gpu_router="CUDA"), Path("package"))
+        self.assertEqual([call.kwargs for call in authenticate.call_args_list],
+                         [{"cache_root": Path("/cache"), "gpu_router": "CUDA"}] * 2)
+        self.assertEqual([call.args[-1] for call in record.call_args_list], ["CUDA", "CUDA"])
+        summary = next(json.loads(call.args[1]) for call in write.call_args_list
+                       if call.args[0].name == "build-summary.json")
+        self.assertEqual(summary["gpu_backend"], "cuda")
+
+    def test_the_command_line_passes_the_router(self):
+        for argv, router in (([], "HIP"), (["--gpu-router", "CUDA"], "CUDA")):
+            with mock.patch.object(quartus, "build", return_value=Path("package")) as build, \
+                    mock.patch("sys.argv", ["build_fes_pc386_quartus.py", *argv]), \
+                    mock.patch("builtins.print"):
+                self.assertEqual(quartus.main(), 0)
+            self.assertEqual(build.call_args.kwargs["gpu_router"], router)
+        with mock.patch("sys.argv", ["build_fes_pc386_quartus.py", "--gpu-router", "Metal"]), \
+                mock.patch("sys.stderr"), self.assertRaises(SystemExit):
+            quartus.main()
+
+
 class QuartusLockGoldenTest(unittest.TestCase):
     """Every version string the producer writes derives from quartus.lock and
     is byte-identical to the literals the producer wrote before the lock."""
@@ -251,7 +337,8 @@ class QuartusLockGoldenTest(unittest.TestCase):
         self.assertEqual(set(fields["parameters"]), {
             "compiler", "device", "top", "seed", "toolchain_lock", "toolchain_lock_sha256", "system_clock_hz",
             "pixel_clock_hz", "audio_clock_hz", "reference_clock_hz", "audio_sample_hz", "guest_rates", "cpu",
-            "firmware", "ata_disk", "machine_netlist", "machine_sources_sha256"})
+            "firmware", "ata_disk", "machine_netlist", "machine_sources_sha256", "gpu_backend",
+            "toolchain_configuration"})
         self.assertEqual(fields["parameters"]["compiler"], "quartus-17.0.2")
         self.assertEqual(fields["parameters"]["toolchain_lock"], "cores/fes-pc386/toolchain.lock")
 
