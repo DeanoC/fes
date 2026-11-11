@@ -1,8 +1,8 @@
 # pc386: early Linux on a kit, 12 November 2026
 
 This record boots the three early Linux kernels from the early-Linux plan
-record ([PR #1709](https://github.com/DeanoC/fes/pull/1709),
-`docs/validation/2026-11-11-pc386-linux-plan/summary.md`) on a real kit with
+record ([`2026-11-11-pc386-linux-plan`](../2026-11-11-pc386-linux-plan/summary.md),
+PR [#1709](https://github.com/DeanoC/fes/pull/1709)) on a real kit with
 main's pc386 core. The plan record had no kit run: before Phase 5 slice 4
 (task switches, [#1684](https://github.com/DeanoC/fes/pull/1684)) merged, a
 kit would have stopped at the first `switch_to`. It also reruns all three
@@ -47,7 +47,8 @@ Refs [#1708](https://github.com/DeanoC/fes/issues/1708).
   blocks.
 - **Why this is main's core.** Under `cores/fes-pc386` and
   `cores/fes-common`, main has changed only the pc386 README since #1684
-  merged as `b080fa896`; the sealer gained `--gpu-router` (#1699).
+  merged as `b080fa896`; the sealer gained `--gpu-router` (#1699). Main has
+  since moved to `78b7ee4b7` (#1709's record), which changes no source.
 
 ## Kit and disks
 
