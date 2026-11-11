@@ -7498,6 +7498,9 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         for (unsigned i = 0; i < 8; ++i) b[i] = uint8_t(lt >> (8 * i));
         ts("ts-jmp-ti", [](Asm &a) { a.ax(0x30); a.op({0x0f, 0x00, 0xd0, 0xea, 0x00, 0x00, 0x1c, 0x00}); }, 13, 0x1c,
            with({Places{{LDT + 0x18, b}}, task(0x2600, a_img, HLT1)}));
+        // A task gate naming it: #GP(selector) too (TASKGT on the gate's TSS selector).
+        ts("ts-gate-ti-ldt", [](Asm &a) { a.ax(0x30); a.op({0x0f, 0x00, 0xd0, 0xea, 0x00, 0x00, 0xa8, 0x00}); }, 13, 0x1c,
+           with({Places{{LDT + 0x18, b}}, task(0x2600, a_img, HLT1)}), {}, {{21, gate(0x1c, 0, 0x85)}});
     }
     ts("ts-jmp-limit", tsj(0x98), 10, 0x98, {}, {}, {{19, desc(0x2600, 0x66, 0x89, false, false)}});
     ts("ts-jmp16-limit", tsj(0xa0), 10, 0xa0, {}, {}, {{20, desc(0x2680, 0x2a, 0x81, false, false)}});
@@ -7617,6 +7620,9 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
                                       {0x2583u, 0x0e}, {0x2584u, 0x10}})
             image.emplace_back(address, uint8_t(value));
         for (size_t i = 0; i < c.tail.size(); ++i) image.emplace_back(c.at + uint32_t(i), c.tail[i]);
+        // The LDT before the places, so a case can place its own entry there.
+        for (unsigned n = 0; n < 4; ++n)
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(LDT + 8 * n + i, uint8_t(ldt[n] >> (8 * i)));
         for (const auto &[place, bytes] : c.places)
             for (size_t i = 0; i < bytes.size(); ++i) image.emplace_back(place + uint32_t(i), bytes[i]);
         std::vector<uint64_t> table(std::begin(gdt), std::end(gdt));
@@ -7625,8 +7631,6 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         const unsigned gdt_entries = unsigned(table.size());
         for (unsigned n = 0; n < gdt_entries; ++n)
             for (unsigned i = 0; i < 8; ++i) image.emplace_back(GDT + 8 * n + i, uint8_t(table[n] >> (8 * i)));
-        for (unsigned n = 0; n < 4; ++n)
-            for (unsigned i = 0; i < 8; ++i) image.emplace_back(LDT + 8 * n + i, uint8_t(ldt[n] >> (8 * i)));
         std::array<uint64_t, 48> idt;
         for (unsigned v = 0; v < 48; ++v) idt[v] = gate(0x08, 0x1800, 0x8e);
         idt[0x20] = gate(0x08, 0x1810, 0x86);
