@@ -132,5 +132,3 @@ class DE25StaticExportTests(unittest.TestCase):
             export_package(manifest_path.read_bytes(), self.rbf, self.store, persona=persona)
         self.assertEqual(b"damaged readonly persona", installed.read_bytes())
         self.assertEqual(archive, directory.with_suffix(".fcore").read_bytes())
-
-

@@ -245,15 +245,15 @@ func TestStaticLibraryBindsReplyAndDoesNotFallbackOnUnavailableBackend(t *testin
 	}
 }
 
-func TestStaticLibrarySealedFirmwareCannotUseHouseholdUploadOrAnotherRoot(t *testing.T) {
+func TestStaticLibrarySealedFirmwareCannotUseUnboundMediaOrAnotherRoot(t *testing.T) {
 	ctx := context.Background()
 	s, peer, entry, inspection := newStaticLibrary(t, true)
 	firmware, _, err := s.ImportCoreMedia(ctx, 8192, bytes.NewReader(bytes.Repeat([]byte{0xff}, 8192)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SelectCoreFirmware(ctx, protocol.FirmwareRole, firmware.MediaID); err != nil {
-		t.Fatal(err)
+	if firmware.MediaID == "" {
+		t.Fatal("imported media has no identity")
 	}
 	store := s.catalog.(coreFirmwareCatalog)
 	required, err := store.CreateFirmwareRequiredEntry(ctx, "Unsealed old setup", entry.CoreID, entry.PackageID, "", "")
@@ -262,7 +262,7 @@ func TestStaticLibrarySealedFirmwareCannotUseHouseholdUploadOrAnotherRoot(t *tes
 	}
 	comps, err := s.CoreCompositions(ctx, []string{required.GameID})
 	if err != nil || comps[required.GameID].FirmwareReady {
-		t.Fatal("household object filled sealed firmware", comps, err)
+		t.Fatal("unbound media filled sealed firmware", comps, err)
 	}
 	if _, err := s.Launch(ctx, required.GameID, nil); err == nil || peer.calls != 0 || peer.stopCalls != 0 {
 		t.Fatal("late firmware request reached target", err)

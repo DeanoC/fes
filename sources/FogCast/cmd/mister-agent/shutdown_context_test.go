@@ -55,7 +55,6 @@ func TestRunRetainsBoundedOwnedStopUntilLeaseShutdownFinishes(t *testing.T) {
 		},
 		newRuntime: func(agentconfig.Config) agent.Runtime { return runtime },
 		serve: func(server *http.Server) error {
-			waitForKitStartup(t, server.Handler)
 			request := httptest.NewRequest(http.MethodPost, "/v1/kit/claim", strings.NewReader(`{"request_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","owner":"shutdown-test","purpose":"owned active cleanup"}`))
 			request.Header.Set("Authorization", "Bearer test-token")
 			response := httptest.NewRecorder()
