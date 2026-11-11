@@ -3,9 +3,8 @@
 // Place is host-local. It implements Decision 7 in docs/mesh-lan.md,
 // which Deano has locked, as read by docs/mesh-phase3.md. This package
 // does not store a preference. When the household display preference
-// and the last play DisplaySink leave several eligible kits, or when
-// several native_emu nodes can run a title, the first in candidate
-// order whose mesh major matches is selected. Those are the current
+// and the last play DisplaySink leave several eligible kits, the first in
+// candidate order whose mesh major matches is selected. Those are the current
 // tie-breaks; a defined order or selection may replace them.
 //
 // The caller passes the projected catalog entry and the candidate nodes
@@ -119,11 +118,6 @@ type Result struct {
 // means Execute fpga_native and meshcontent.ABIMatches against the
 // caller's abis. A kit whose mesh major does not match is skipped.
 //
-// native_emu is considered only when no FPGA candidate can run the
-// title. Exactly one such candidate is selected. Among several, the
-// first in candidate order whose mesh major matches is selected.
-// Preference and last sink do not pick among them.
-//
 // A non-empty OverrideNodeID selects that node when it is already
 // one of those candidates and its mesh major matches. For
 // fpga_native that includes meshcontent.ABIMatches against the
@@ -140,28 +134,15 @@ func Place(entry meshcontent.Entry, candidates []Candidate, opts Options) Result
 	}
 	fpga := runnableFPGA(entry, candidates)
 	if opts.OverrideNodeID != "" {
-		return placeOverride(entry, fpga, candidates, opts.OverrideNodeID)
+		return placeOverride(fpga, opts.OverrideNodeID)
 	}
-	if len(fpga) > 0 {
-		return finishFPGA(fpga, opts)
-	}
-	if entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu {
-		return fail(ReasonNoCandidate)
-	}
-	return finishNative(runnableNative(candidates))
+	return finishFPGA(fpga, opts)
 }
 
 // placeOverride selects nodeID when it can already run the title.
 // A miss does not fall through to preference, last sink, or a
 // single other node.
-func placeOverride(entry meshcontent.Entry, fpga []Candidate, candidates []Candidate, nodeID string) Result {
-	could := fpga
-	if len(could) == 0 {
-		if entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu {
-			return fail(ReasonNoCandidate)
-		}
-		could = runnableNative(candidates)
-	}
+func placeOverride(could []Candidate, nodeID string) Result {
 	rows := oneRowPerNode(could)
 	if len(rows) == 0 {
 		return fail(ReasonNoCandidate)
@@ -189,16 +170,6 @@ func finishFPGA(could []Candidate, opts Options) Result {
 		return selected(c)
 	}
 	// Neither display fact names an eligible kit: the first kit wins.
-	return firstMeshMajorOK(rows)
-}
-
-func finishNative(could []Candidate) Result {
-	rows, done, stop := gate(could)
-	if stop {
-		return done
-	}
-	// Several native_emu nodes: the first wins. Preference and last
-	// sink are not consulted.
 	return firstMeshMajorOK(rows)
 }
 
@@ -249,17 +220,6 @@ func runnableFPGA(entry meshcontent.Entry, candidates []Candidate) []Candidate {
 			continue
 		}
 		if !meshcontent.ABIMatches(pkg, candidate.ABIs) {
-			continue
-		}
-		out = append(out, candidate)
-	}
-	return out
-}
-
-func runnableNative(candidates []Candidate) []Candidate {
-	out := make([]Candidate, 0, len(candidates))
-	for _, candidate := range candidates {
-		if candidate.NodeID == "" || !hasKind(candidate, meshcontent.ExecuteNativeEmu) {
 			continue
 		}
 		out = append(out, candidate)

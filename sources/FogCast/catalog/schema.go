@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 23
+const schemaVersion = 24
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -376,10 +376,42 @@ END;
 PRAGMA user_version = 22;
 `
 
+// Schema 23 lets one title bind each named ROM independently. The kit-host
+// edit triggers are recreated after copying so migration does not detach
+// generated entries, while subsequent edits still do.
+const schemaV23 = `
+DROP TRIGGER kit_host_rom_insert;
+DROP TRIGGER kit_host_rom_update;
+DROP TRIGGER kit_host_rom_delete;
+CREATE TABLE core_entry_roms_v23 (
+  game_id TEXT NOT NULL REFERENCES core_entries(game_id) ON DELETE CASCADE,
+  package_id TEXT NOT NULL,
+  rom_id TEXT NOT NULL,
+  media_id TEXT NOT NULL REFERENCES core_media(media_id),
+  source_size INTEGER NOT NULL CHECK(source_size > 0),
+  PRIMARY KEY(game_id, rom_id)
+);
+INSERT INTO core_entry_roms_v23(game_id,package_id,rom_id,media_id,source_size)
+  SELECT game_id,package_id,rom_id,media_id,source_size FROM core_entry_roms;
+DROP TABLE core_entry_roms;
+ALTER TABLE core_entry_roms_v23 RENAME TO core_entry_roms;
+DROP TABLE core_firmware;
+CREATE TRIGGER kit_host_rom_insert AFTER INSERT ON core_entry_roms BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = NEW.game_id;
+END;
+CREATE TRIGGER kit_host_rom_update AFTER UPDATE ON core_entry_roms BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = NEW.game_id;
+END;
+CREATE TRIGGER kit_host_rom_delete AFTER DELETE ON core_entry_roms BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = OLD.game_id;
+END;
+PRAGMA user_version = 23;
+`
+
 // Only newly created remote imports can be proved remote-only. An attempted
 // ordinary reimport or local adoption makes an existing object ineligible for
 // remote cleanup, including an older still-running client's no-op reimport.
-const schemaV23 = `
+const schemaV24 = `
 CREATE TABLE remote_cached_media (
   media_id TEXT PRIMARY KEY REFERENCES core_media(media_id) ON DELETE CASCADE
 );
@@ -392,12 +424,6 @@ WHEN NEW.media_id <> '' BEGIN
 END;
 CREATE TRIGGER local_entry_cache_adopt_update AFTER UPDATE OF media_id ON core_entries
 WHEN NEW.media_id <> '' BEGIN
-  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
-END;
-CREATE TRIGGER core_firmware_cache_adopt_insert AFTER INSERT ON core_firmware BEGIN
-  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
-END;
-CREATE TRIGGER core_firmware_cache_adopt_update AFTER UPDATE OF media_id ON core_firmware BEGIN
   DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
 END;
 CREATE TRIGGER core_entry_roms_cache_adopt_insert AFTER INSERT ON core_entry_roms BEGIN
@@ -424,7 +450,7 @@ END;
 CREATE TRIGGER zx81_saves_cache_adopt_update AFTER UPDATE OF media_id ON zx81_saves BEGIN
   DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
 END;
-PRAGMA user_version = 23;
+PRAGMA user_version = 24;
 `
 
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
@@ -634,6 +660,15 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if version == 22 {
 		if _, err := connection.ExecContext(ctx, schemaV23); err != nil {
 			return fmt.Errorf("apply catalog schema version 23: %w", err)
+		}
+		if err := foreignKeyCheck(ctx, connection); err != nil {
+			return fmt.Errorf("apply catalog schema version 23: %w", err)
+		}
+		version = 23
+	}
+	if version == 23 {
+		if _, err := connection.ExecContext(ctx, schemaV24); err != nil {
+			return fmt.Errorf("apply catalog schema version 24: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

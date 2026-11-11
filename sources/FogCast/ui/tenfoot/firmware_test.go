@@ -22,7 +22,7 @@ import (
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
-func TestListFirmwarePickerDirMarksExactBIOS(t *testing.T) {
+func TestListFirmwarePickerDirMarksDeclaredBIOS(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	bios := filepath.Join(dir, "coleco.bios")
@@ -45,6 +45,8 @@ func TestListFirmwarePickerDirMarksExactBIOS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	app := &App{firmwarePickerGame: hostclient.Game{ROMID: "coleco-bios", ROMRole: protocol.FirmwareRole, ROMSourceSize: protocol.FirmwareBytes}}
+	app.markFirmwarePickerRowsLocked(rows)
 	var names []string
 	var biosRow FirmwarePickerRow
 	for _, row := range rows {
@@ -65,6 +67,13 @@ func TestListFirmwarePickerDirMarksExactBIOS(t *testing.T) {
 	if !strings.Contains(strings.Join(names, ","), "usb/") {
 		t.Fatalf("directory missing: %v", names)
 	}
+	app.firmwarePickerGame = hostclient.Game{}
+	app.markFirmwarePickerRowsLocked(rows)
+	for _, row := range rows {
+		if row.Kind == firmwarePickerKindFile && row.Selectable {
+			t.Fatal("file is selectable without a named firmware requirement")
+		}
+	}
 }
 
 func TestOpenColecoBIOSFileRejectsWrongSize(t *testing.T) {
@@ -74,10 +83,10 @@ func TestOpenColecoBIOSFileRejectsWrongSize(t *testing.T) {
 	if err := os.WriteFile(path, []byte("nope"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := importAndSelectColecoBIOS(context.Background(), NewClient("", nil), path, nil); err == nil || !strings.Contains(err.Error(), "8192") {
+	if err := importAndSelectCoreFirmwareROM(context.Background(), NewClient("", nil), hostclient.Game{ID: "frogger", ROMID: "coleco-bios", ROMRole: "firmware", ROMSourceSize: 8192}, path, nil); err == nil || !strings.Contains(err.Error(), "8192") {
 		t.Fatalf("wrong size err = %v", err)
 	}
-	if err := importAndSelectColecoBIOS(context.Background(), NewClient("", nil), dir, nil); err == nil || !strings.Contains(err.Error(), "regular file") {
+	if err := importAndSelectCoreFirmwareROM(context.Background(), NewClient("", nil), hostclient.Game{ID: "frogger", ROMID: "coleco-bios", ROMRole: "firmware", ROMSourceSize: 8192}, dir, nil); err == nil || !strings.Contains(err.Error(), "regular file") {
 		t.Fatalf("directory err = %v", err)
 	}
 }
@@ -326,7 +335,7 @@ function draw() gfx.rect(0,0,10,10,'#fff') end
 		return s.Room.Open && s.Room.Destination.Confirm() == rooms.ConfirmImportFirmware
 	})
 	label := snap.Room.Destination.Label
-	if snap.Room.Destination.Action != "Import Coleco BIOS." {
+	if snap.Room.Destination.Action != "Import firmware." {
 		t.Fatalf("action %q", snap.Room.Destination.Action)
 	}
 
@@ -529,21 +538,25 @@ func newFirmwareHost(t *testing.T) *firmwareHost {
 			id := fmt.Sprintf("%x", sha256.Sum256(body))
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(hostclient.CoreMedia{MediaID: id, Size: int64(len(body))})
-		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/library/firmware":
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/core-entries/fpga-frogger":
+			_ = json.NewEncoder(w).Encode(hostclient.CoreEntry{GameID: "fpga-frogger", PackageID: strings.Repeat("a", 64)})
+		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/library/core-entries/fpga-frogger/rom":
 			var req struct {
-				Slot    string `json:"slot"`
-				MediaID string `json:"media_id"`
+				PackageID string `json:"package_id"`
+				ROMID     string `json:"rom_id"`
+				Expected  string `json:"expected_media_id"`
+				MediaID   string `json:"media_id"`
 			}
 			_ = json.NewDecoder(r.Body).Decode(&req)
-			if req.Slot != protocol.FirmwareRole || req.MediaID == "" {
-				http.Error(w, `{"error":{"code":"BAD_REQUEST","message":"slot"}}`, http.StatusBadRequest)
+			if req.PackageID != strings.Repeat("a", 64) || req.ROMID != "coleco-bios" || req.Expected != "" || req.MediaID == "" {
+				http.Error(w, `{"error":{"code":"BAD_REQUEST","message":"ROM"}}`, http.StatusBadRequest)
 				return
 			}
 			h.mu.Lock()
 			h.selects++
 			h.ready = true
 			h.mu.Unlock()
-			_ = json.NewEncoder(w).Encode(hostclient.CoreFirmware{Slot: protocol.FirmwareRole, MediaID: req.MediaID, Size: protocol.FirmwareBytes})
+			_ = json.NewEncoder(w).Encode(hostclient.CoreEntryROMSelection{GameID: "fpga-frogger", PackageID: req.PackageID, ROMID: req.ROMID, MediaID: req.MediaID})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch":
 			var body struct {
 				GameID string `json:"game_id"`
@@ -574,7 +587,7 @@ func newFirmwareHost(t *testing.T) *firmwareHost {
 func (h *firmwareHost) frogger() hostclient.Game {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	g := hostclient.Game{ID: "fpga-frogger", Title: "Frogger", System: "fpga", State: "available", RootOnline: true, Launchable: true, FirmwareRequired: true}
+	g := hostclient.Game{ID: "fpga-frogger", Title: "Frogger", System: "fpga", State: "available", RootOnline: true, Launchable: true, FirmwareRequired: true, ROMID: "coleco-bios", ROMRole: "firmware", ROMSourceSize: protocol.FirmwareBytes}
 	g.FirmwareReady = h.ready
 	return g
 }

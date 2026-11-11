@@ -137,8 +137,8 @@ func testCatalogCLIIntegration(t *testing.T, helper string, baselineSchema int) 
 	if err := manager.Apply(ctx, upgrade, upgrade.Previous); err != nil {
 		t.Fatal(err)
 	}
-	newer := fixture("upgrade23", manager.database)
-	if newer["schema"] != float64(23) || newer["remote"] != float64(1) || newer["remote_cached"] != float64(1) || len(newer["titles"].([]any)) != 2 || len(newer["media"].(map[string]any)) != len(original["media"].(map[string]any))+1 {
+	newer := fixture("upgrade24", manager.database)
+	if newer["schema"] != float64(24) || newer["remote"] != float64(1) || newer["remote_cached"] != float64(1) || len(newer["titles"].([]any)) != 2 || len(newer["media"].(map[string]any)) != len(original["media"].(map[string]any))+1 {
 		t.Fatalf("real migration/new embedded media: %+v", newer)
 	}
 	finish(upgrade, "applying", "accepted")
@@ -179,7 +179,7 @@ func testCatalogCLIIntegration(t *testing.T, helper string, baselineSchema int) 
 	if data, err := os.ReadFile(settings); err != nil || string(data) != "retained settings bytes" {
 		t.Fatalf("catalog restoration changed settings: %q %v", data, err)
 	}
-	t.Logf("real helper schema23; catalog%d→23; baseline%d retains newer embedded media; failed-return recovers23; final baseline%d; %d helper invocations", baselineSchema, baselineSchema, baselineSchema, resolutions)
+	t.Logf("real helper schema24; catalog%d→24; baseline%d retains newer embedded media; failed-return recovers24; final baseline%d; %d helper invocations", baselineSchema, baselineSchema, baselineSchema, resolutions)
 }
 
 const catalogCLIFixtureSource = `package main
@@ -200,7 +200,7 @@ func must(err error) { if err != nil { panic(err) } }
 func main() {
  action, path := os.Args[1], os.Args[2]
  ctx := context.Background()
- if action == "seed21" || action == "seed22" || action == "upgrade23" {
+ if action == "seed21" || action == "seed22" || action == "upgrade24" {
   store, err := catalog.Open(path); must(err)
   pkg := strings.Repeat("a",64)
   if action == "seed21" || action == "seed22" {
@@ -218,9 +218,10 @@ func main() {
  }
  db,err := sql.Open("sqlite",path); must(err); defer db.Close()
  if action == "seed21" || action == "seed22" {
-  triggers := []string{"core_media_import_protect", "local_entry_cache_adopt_insert", "local_entry_cache_adopt_update", "core_firmware_cache_adopt_insert", "core_firmware_cache_adopt_update", "core_entry_roms_cache_adopt_insert", "core_entry_roms_cache_adopt_update", "core_expansions_cache_adopt_insert", "core_expansions_cache_adopt_update", "core_video_parts_cache_adopt_insert", "core_video_parts_cache_adopt_update", "zx81_saves_cache_adopt_insert", "zx81_saves_cache_adopt_update"}
+  triggers := []string{"core_media_import_protect", "local_entry_cache_adopt_insert", "local_entry_cache_adopt_update", "core_entry_roms_cache_adopt_insert", "core_entry_roms_cache_adopt_update", "core_expansions_cache_adopt_insert", "core_expansions_cache_adopt_update", "core_video_parts_cache_adopt_insert", "core_video_parts_cache_adopt_update", "zx81_saves_cache_adopt_insert", "zx81_saves_cache_adopt_update"}
   for _, trigger := range triggers { _,err=db.Exec("DROP TRIGGER " + trigger); must(err) }
   _,err=db.Exec("DROP TABLE remote_cached_media"); must(err)
+  _,err=db.Exec("DROP TRIGGER kit_host_rom_insert; DROP TRIGGER kit_host_rom_update; DROP TRIGGER kit_host_rom_delete; CREATE TABLE old_roms (game_id TEXT PRIMARY KEY REFERENCES core_entries(game_id) ON DELETE CASCADE, package_id TEXT NOT NULL, rom_id TEXT NOT NULL, media_id TEXT NOT NULL REFERENCES core_media(media_id), source_size INTEGER NOT NULL CHECK(source_size>0)); INSERT INTO old_roms SELECT game_id,package_id,rom_id,media_id,source_size FROM core_entry_roms; DROP TABLE core_entry_roms; ALTER TABLE old_roms RENAME TO core_entry_roms; CREATE TRIGGER kit_host_rom_insert AFTER INSERT ON core_entry_roms BEGIN DELETE FROM kit_host_entries WHERE game_id=NEW.game_id; END; CREATE TRIGGER kit_host_rom_update AFTER UPDATE ON core_entry_roms BEGIN DELETE FROM kit_host_entries WHERE game_id=NEW.game_id; END; CREATE TRIGGER kit_host_rom_delete AFTER DELETE ON core_entry_roms BEGIN DELETE FROM kit_host_entries WHERE game_id=OLD.game_id; END; CREATE TABLE core_firmware (slot TEXT PRIMARY KEY, media_id TEXT NOT NULL REFERENCES core_media(media_id), CHECK(slot='firmware'))"); must(err)
   if action == "seed21" { _,err=db.Exec("DROP TRIGGER remote_core_entry_selected; DROP TABLE remote_core_entries; PRAGMA user_version=21"); must(err) } else { _,err=db.Exec("PRAGMA user_version=22"); must(err) }
  }
  var schema,roms,remote,remoteCached int

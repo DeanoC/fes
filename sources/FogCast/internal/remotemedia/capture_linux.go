@@ -28,8 +28,7 @@ const (
 )
 
 // NativeCapture is the Linux V4L2 adapter. FFmpeg reads the UVC device and
-// emits low-latency H.264 access units, preserving the CaptureSource contract
-// used by both local preview and the existing RTP sender.
+// emits low-latency H.264 access units for the local preview.
 type NativeCapture struct {
 	mu       sync.Mutex
 	cmd      *exec.Cmd
@@ -47,10 +46,6 @@ type NativeCapture struct {
 	stats    CaptureStats
 	runtime  error
 	origin   time.Time
-}
-
-func ListCaptureDevices() ([]CaptureDevice, error) {
-	return nil, errors.New("Linux capture-device enumeration is not implemented; configure a V4L2 path")
 }
 
 func OpenNativeCapture(config CaptureConfig) (*NativeCapture, error) {

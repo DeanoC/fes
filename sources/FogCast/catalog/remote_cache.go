@@ -32,7 +32,6 @@ type RemoteCacheUsage struct {
 const remoteCacheUnreferenced = `
  NOT EXISTS (SELECT 1 FROM core_entries e WHERE e.media_id = m.media_id)
  AND NOT EXISTS (SELECT 1 FROM remote_core_entries r WHERE r.media_id = m.media_id)
- AND NOT EXISTS (SELECT 1 FROM core_firmware f WHERE f.media_id = m.media_id)
  AND NOT EXISTS (SELECT 1 FROM core_entry_roms r WHERE r.media_id = m.media_id)
  AND NOT EXISTS (SELECT 1 FROM core_expansions e WHERE e.media_id = m.media_id)
  AND NOT EXISTS (SELECT 1 FROM core_video_parts p WHERE p.media_id = m.media_id)

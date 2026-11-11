@@ -15,11 +15,10 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-func TestImportCoreMediaAndSelectHouseholdFirmware(t *testing.T) {
+func TestImportCoreMedia(t *testing.T) {
 	t.Parallel()
 	payload := bytes.Repeat([]byte{0x55, 0xaa}, int(protocol.FirmwareBytes/2))
 	wantID := fmt.Sprintf("%x", sha256.Sum256(payload))
-	var puts int
 	var gotBody []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -34,21 +33,6 @@ func TestImportCoreMediaAndSelectHouseholdFirmware(t *testing.T) {
 			gotBody = body
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(CoreMedia{MediaID: wantID, Size: int64(len(body))})
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/firmware":
-			_ = json.NewEncoder(w).Encode(CoreFirmware{Slot: protocol.FirmwareRole})
-		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/library/firmware":
-			puts++
-			var req struct {
-				Slot    string `json:"slot"`
-				MediaID string `json:"media_id"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				t.Errorf("decode put: %v", err)
-			}
-			if req.Slot != protocol.FirmwareRole || req.MediaID != wantID {
-				t.Errorf("put = %+v", req)
-			}
-			_ = json.NewEncoder(w).Encode(CoreFirmware{Slot: protocol.FirmwareRole, MediaID: wantID, Size: protocol.FirmwareBytes})
 		default:
 			http.NotFound(w, r)
 		}
@@ -62,14 +46,7 @@ func TestImportCoreMediaAndSelectHouseholdFirmware(t *testing.T) {
 	if !bytes.Equal(gotBody, payload) {
 		t.Fatalf("stored %d bytes", len(gotBody))
 	}
-	empty, err := client.HouseholdFirmware(context.Background())
-	if err != nil || empty.MediaID != "" || empty.Slot != protocol.FirmwareRole {
-		t.Fatalf("get empty = %+v err=%v", empty, err)
-	}
-	slot, err := client.SelectHouseholdFirmware(context.Background(), wantID)
-	if err != nil || slot.MediaID != wantID || slot.Size != protocol.FirmwareBytes || puts != 1 {
-		t.Fatalf("select = %+v puts=%d err=%v", slot, puts, err)
-	}
+
 }
 
 func TestImportCoreMediaRejectsEmptyAndMismatchedIdentity(t *testing.T) {

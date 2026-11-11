@@ -13,7 +13,6 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/internal/kitcontent"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
-	"github.com/DeanoC/FogCast/protocol"
 )
 
 const meshDialBackoff = 5 * time.Second
@@ -190,16 +189,14 @@ func (s *Service) installDialedMeshSession(want meshTargetIdentity, remote *kitc
 	}
 }
 
-// meshCatalogEntry projects one package-backed FPGA title. Host-only
-// titles and unrecognized play ABIs return false so they stay on the
-// existing launch path and omit ready_here. A title the projection
-// cannot name returns false for the same reason.
+// meshCatalogEntry projects one package-backed FPGA title. Unrecognized
+// play ABIs and titles the projection cannot name return false.
 func (s *Service) meshCatalogEntry(gameID string) (meshcontent.Entry, bool) {
-	title, firmware, ok := s.meshCatalogTitle(context.Background(), gameID)
+	title, ok := s.meshCatalogTitle(context.Background(), gameID)
 	if !ok {
 		return meshcontent.Entry{}, false
 	}
-	entries, _ := ProjectMeshLibrary(MeshLibrary{Firmware: firmware, Titles: []MeshTitle{title}})
+	entries, _ := ProjectMeshLibrary(MeshLibrary{Titles: []MeshTitle{title}})
 	if len(entries) != 1 {
 		return meshcontent.Entry{}, false
 	}
@@ -208,34 +205,36 @@ func (s *Service) meshCatalogEntry(gameID string) (meshcontent.Entry, bool) {
 
 // meshCatalogTitle is shared by placement's single-entry lookup and the
 // local backend library. Both use the selected core media and ABI contract.
-func (s *Service) meshCatalogTitle(ctx context.Context, gameID string) (MeshTitle, catalog.CoreFirmware, bool) {
+func (s *Service) meshCatalogTitle(ctx context.Context, gameID string) (MeshTitle, bool) {
 	if s == nil || s.catalog == nil {
-		return MeshTitle{}, catalog.CoreFirmware{}, false
+		return MeshTitle{}, false
 	}
 	store, ok := s.catalog.(coreEntryCatalog)
 	if !ok {
-		return MeshTitle{}, catalog.CoreFirmware{}, false
+		return MeshTitle{}, false
 	}
 	entry, err := store.CoreEntry(ctx, gameID)
 	if err != nil {
-		return MeshTitle{}, catalog.CoreFirmware{}, false
+		return MeshTitle{}, false
 	}
 	inspection, err := s.installedCoreInspection(ctx, entry.PackageID)
 	if err != nil {
-		return MeshTitle{}, catalog.CoreFirmware{}, false
+		return MeshTitle{}, false
 	}
 	// Named linked ROMs live in core_entry_roms, independently of optional
 	// blob/disk media. Use a ROM only when no primary media is selected;
 	// incomplete titles remain package-backed browse entries. Launch checks ROM readiness.
-	if entry.MediaID == "" && (inspection.Descriptor.ROM != nil || inspection.Descriptor.Format == 4) {
+	if inspection.Descriptor.Format == 4 || entry.MediaID == "" && inspection.Descriptor.ROM != nil {
 		selected, _, err := s.readCoreEntryROM(ctx, entry, inspection.Descriptor)
 		if err == nil {
 			entry.MediaID = selected.MediaID
+		} else if inspection.Descriptor.Format == 4 {
+			return MeshTitle{}, false
 		}
 	}
 	abi := inspection.Descriptor.ABI
 	if !RecognizedPlayABI(abi.ID, abi.Major, abi.Minor) {
-		return MeshTitle{}, catalog.CoreFirmware{}, false
+		return MeshTitle{}, false
 	}
 	game, err := s.catalog.Game(ctx, gameID)
 	if err != nil {
@@ -248,15 +247,26 @@ func (s *Service) meshCatalogTitle(ctx context.Context, gameID string) (MeshTitl
 		Core:       &entry,
 		ABI:        abi,
 	}
+	if inspection.Descriptor.Format == 4 {
+		bios, _, err := s.readTwoROMFirmware(ctx, entry, inspection.Descriptor)
+		if err != nil {
+			return MeshTitle{}, false
+		}
+		title.FirmwareRequired = true
+		title.FirmwareDigest = bios
+	} else if entry.FirmwareRequired && inspection.Descriptor.ROM == nil {
+		// Legacy mailbox titles have no named firmware binding to project.
+		return MeshTitle{}, false
+	}
 	if expansions, ok := s.catalog.(coreExpansionCatalog); ok {
 		selected, err := expansions.CoreEntryExpansion(ctx, gameID)
 		if err != nil {
-			return MeshTitle{}, catalog.CoreFirmware{}, false
+			return MeshTitle{}, false
 		}
 		if selected.ExpansionID != "" {
 			asset, err := expansions.ReadCoreExpansion(ctx, selected.ExpansionID)
 			if err != nil || strings.TrimSpace(asset.Manifest.Slot) == "" || asset.Manifest.CartSHA256 == "" {
-				return MeshTitle{}, catalog.CoreFirmware{}, false
+				return MeshTitle{}, false
 			}
 			title.Expansions = []MeshExpansion{{
 				Name:   asset.Manifest.Slot,
@@ -264,15 +274,7 @@ func (s *Service) meshCatalogTitle(ctx context.Context, gameID string) (MeshTitl
 			}}
 		}
 	}
-	var firmware catalog.CoreFirmware
-	if entry.FirmwareRequired {
-		slot, err := s.CoreFirmware(ctx, protocol.FirmwareRole)
-		if err != nil || slot.MediaID == "" {
-			return MeshTitle{}, catalog.CoreFirmware{}, false
-		}
-		firmware = slot
-	}
-	return title, firmware, true
+	return title, true
 }
 
 // MeshContentAdvertises reports whether this host holds id as core-media

@@ -913,7 +913,7 @@ test('playAvailability uses Checking, Ready, Needs a choice, and Unavailable', (
 });
 
 const dataStormFPGA = 'fpga-data-storm';
-const dataStormEmu = 'sms-data-storm';
+const dataStormAlt = 'sms-data-storm';
 
 function dataStormPlayRow(id, execution, extra = {}) {
   return {
@@ -936,8 +936,8 @@ function dataStormTitle(available = true) {
     title_id: dataStormFPGA,
     system: 'sms',
     options: [
-      { source_game_id: dataStormFPGA, execution: 'fpga_native', available, host_local: false },
-      { source_game_id: dataStormEmu, execution: 'native_emu', available, host_local: true },
+      { source_game_id: dataStormFPGA, execution: 'fpga_native', available },
+      { source_game_id: dataStormAlt, execution: 'other_backend', available },
     ],
   };
 }
@@ -950,17 +950,17 @@ function launchPosts(calls) {
 // also one option's source_game_id. Opening that row is not a household choice.
 test('canonical title id stays a choice until the household picks a backend', () => {
   const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
-  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const emu = dataStormPlayRow(dataStormAlt, 'other_backend');
   const title = dataStormTitle(true);
   const games = [fpga, emu];
   assert.equal(playChoiceFor(fpga, [title], {}, games).needsChoice, true);
-  assert.equal(playChoiceFor(fpga, [title], { [dataStormFPGA]: dataStormEmu }, games).needsChoice, undefined);
-  assert.equal(playChoiceFor(fpga, [title], { 'data storm': dataStormEmu }, games).needsChoice, undefined);
+  assert.equal(playChoiceFor(fpga, [title], { [dataStormFPGA]: dataStormAlt }, games).needsChoice, undefined);
+  assert.equal(playChoiceFor(fpga, [title], { 'data storm': dataStormAlt }, games).needsChoice, undefined);
   const mario = dataStormPlayRow(dataStormFPGA, 'fpga_native', { title: 'Super Mario Bros.' });
   const spaced = dataStormPlayRow(dataStormFPGA, 'fpga_native', { title: 'Super   Mario\tBros.' });
-  assert.equal(playChoiceFor(mario, [title], { 'super mario bros': dataStormEmu }, [mario, emu]).needsChoice, undefined);
-  assert.equal(playChoiceFor(spaced, [title], { 'super mario bros': dataStormEmu }, [spaced, emu]).needsChoice, undefined);
-  assert.equal(playChoiceFor(mario, [title], { 'super mario bros.': dataStormEmu }, [mario, emu]).needsChoice, true);
+  assert.equal(playChoiceFor(mario, [title], { 'super mario bros': dataStormAlt }, [mario, emu]).needsChoice, undefined);
+  assert.equal(playChoiceFor(spaced, [title], { 'super mario bros': dataStormAlt }, [spaced, emu]).needsChoice, undefined);
+  assert.equal(playChoiceFor(mario, [title], { 'super mario bros.': dataStormAlt }, [mario, emu]).needsChoice, true);
   assert.equal(playChoiceFor(fpga, [dataStormTitle(false)], {}, games).needsChoice, true);
   const leased = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'lease_held' });
   const skewed = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'version_skew' });
@@ -975,7 +975,7 @@ test('canonical title id stays a choice until the household picks a backend', ()
 // no saved pick says Needs a choice, not Ready (#424).
 test('card status follows the play pane choice', () => {
   const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
-  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const emu = dataStormPlayRow(dataStormAlt, 'other_backend');
   const titles = [dataStormTitle(true)];
   const games = [fpga, emu];
   const lookup = playLookup(titles, games);
@@ -983,11 +983,11 @@ test('card status follows the play pane choice', () => {
   assert.equal(coverStatusLabel(fpga), 'Ready');
   assert.equal(coverStatusLabel(fpga, unpicked), 'Needs a choice');
   assert.equal(coverStatusLabel(emu, resolvePlay(emu, titles, {}, null, '', lookup)), 'Needs a choice');
-  const picked = resolvePlay(fpga, titles, { 'data storm': dataStormEmu }, null, '', lookup);
+  const picked = resolvePlay(fpga, titles, { 'data storm': dataStormAlt }, null, '', lookup);
   assert.equal(coverStatusLabel(fpga, picked), 'Ready');
   assert.equal(picked.game, emu);
   // The prebuilt lookup answers as the per-call path does.
-  for (const [game, picks] of [[fpga, {}], [emu, {}], [fpga, { 'data storm': dataStormEmu }]]) {
+  for (const [game, picks] of [[fpga, {}], [emu, {}], [fpga, { 'data storm': dataStormAlt }]]) {
     const plain = resolvePlay(game, titles, picks, games);
     const indexed = resolvePlay(game, titles, picks, null, '', lookup);
     assert.deepEqual(indexed.choice, plain.choice);
@@ -1031,7 +1031,7 @@ async function openDataStorm(fpga, emu, preferences, extraRoutes = {}) {
 
 test('opening the canonical source row does not launch until a backend is chosen', async () => {
   const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
-  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const emu = dataStormPlayRow(dataStormAlt, 'other_backend');
   const { calls, controller } = await openDataStorm(fpga, emu, []);
   await controller.launchSelected();
   assert.equal(launchPosts(calls).length, 0);
@@ -1044,7 +1044,7 @@ test('opening the canonical source row does not launch until a backend is chosen
 
 test('reversing a backend choice drops the superseded source id', async () => {
   const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
-  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const emu = dataStormPlayRow(dataStormAlt, 'other_backend');
   let saved = '';
   const { fetchImpl } = routedFetch({
     '/api/v1/games': [jsonResponse({ games: [fpga, emu] })],
@@ -1075,15 +1075,15 @@ test('reversing a backend choice drops the superseded source id', async () => {
   await new Promise(resolve => setImmediate(resolve));
   await controller.ensurePlayContext();
   const picks = controller.getState().playPicks;
-  assert.equal(picks[dataStormEmu], undefined);
+  assert.equal(picks[dataStormAlt], undefined);
   assert.equal(picks['data storm'], fpga.id);
-  const poisoned = { ...dataStormTitle(), title_id: dataStormEmu };
+  const poisoned = { ...dataStormTitle(), title_id: dataStormAlt };
   assert.equal(playChoiceFor(fpga, [poisoned], picks, [fpga, emu]).needsChoice, undefined);
 });
 
 test('replacing a persisted backend drops its source id', async () => {
   const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
-  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const emu = dataStormPlayRow(dataStormAlt, 'other_backend');
   let saved = emu.id;
   const fetchImpl = async (requestPath, options) => {
     const pathOnly = String(requestPath || '').split('?')[0];
@@ -1107,15 +1107,15 @@ test('replacing a persisted backend drops its source id', async () => {
   await new Promise(resolve => setImmediate(resolve));
   await controller.ensurePlayContext();
   const picks = controller.getState().playPicks;
-  assert.equal(picks[dataStormEmu], undefined);
+  assert.equal(picks[dataStormAlt], undefined);
   assert.equal(picks['data storm'], fpga.id);
   const other = dataStormPlayRow('other-game', 'fpga_native', { title: 'Other Game' });
   const poisoned = {
-    title_id: dataStormEmu,
+    title_id: dataStormAlt,
     system: 'sms',
     options: [
-      { source_game_id: dataStormEmu, execution: 'native_emu', available: true, host_local: true },
-      { source_game_id: 'other-game', execution: 'fpga_native', available: true, host_local: false },
+      { source_game_id: dataStormAlt, execution: 'other_backend', available: true },
+      { source_game_id: 'other-game', execution: 'fpga_native', available: true },
     ],
   };
   assert.equal(playChoiceFor(other, [poisoned], picks, [other, emu]).needsChoice, true);
@@ -1123,12 +1123,12 @@ test('replacing a persisted backend drops its source id', async () => {
 
 test('a refreshed preference replaces the owned source id', async () => {
   const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
-  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const emu = dataStormPlayRow(dataStormAlt, 'other_backend');
   const intermediateID = 'sms-data-storm-alt';
-  const intermediate = dataStormPlayRow(intermediateID, 'native_emu');
+  const intermediate = dataStormPlayRow(intermediateID, 'other_backend');
   const title = dataStormTitle();
   title.options = title.options.concat([
-    { source_game_id: intermediateID, execution: 'native_emu', available: true, host_local: true },
+    { source_game_id: intermediateID, execution: 'other_backend', available: true },
   ]);
   let preferenceID = emu.id;
   let releaseSave = () => {};
@@ -1168,8 +1168,8 @@ test('a refreshed preference replaces the owned source id', async () => {
     title_id: intermediateID,
     system: 'sms',
     options: [
-      { source_game_id: intermediateID, execution: 'native_emu', available: true, host_local: true },
-      { source_game_id: 'other-game', execution: 'fpga_native', available: true, host_local: false },
+      { source_game_id: intermediateID, execution: 'other_backend', available: true },
+      { source_game_id: 'other-game', execution: 'fpga_native', available: true },
     ],
   };
   assert.equal(playChoiceFor(other, [poisoned], picks, [other, intermediate]).needsChoice, true);
@@ -1177,12 +1177,12 @@ test('a refreshed preference replaces the owned source id', async () => {
 
 test('a failed later save keeps the earlier saved choice and drops the persisted source id', async () => {
   const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
-  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const emu = dataStormPlayRow(dataStormAlt, 'other_backend');
   const altID = 'sms-data-storm-alt';
-  const alt = dataStormPlayRow(altID, 'native_emu');
+  const alt = dataStormPlayRow(altID, 'other_backend');
   const title = dataStormTitle();
   title.options = title.options.concat([
-    { source_game_id: altID, execution: 'native_emu', available: true, host_local: true },
+    { source_game_id: altID, execution: 'other_backend', available: true },
   ]);
   let saved = emu.id;
   const fetchImpl = async (requestPath, options) => {
@@ -1220,7 +1220,7 @@ test('a failed later save keeps the earlier saved choice and drops the persisted
 
 test('a preference changed elsewhere replaces this browser\'s saved choice', async () => {
   const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
-  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const emu = dataStormPlayRow(dataStormAlt, 'other_backend');
   let saved = fpga.id;
   const fetchImpl = async (requestPath, options) => {
     const pathOnly = String(requestPath || '').split('?')[0];
@@ -1253,7 +1253,7 @@ test('a preference changed elsewhere replaces this browser\'s saved choice', asy
 
 test('a household backend pick wins when the title id equals a source id', async () => {
   const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
-  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const emu = dataStormPlayRow(dataStormAlt, 'other_backend');
   const { calls, controller } = await openDataStorm(fpga, emu, [
     { query: 'Data Storm', platform: 'sms', game_id: emu.id },
   ]);
@@ -1264,7 +1264,7 @@ test('a household backend pick wins when the title id equals a source id', async
 });
 
 test('browser play follows launch readiness when inventory available is stale', async () => {
-  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const emu = dataStormPlayRow(dataStormAlt, 'other_backend');
   const leased = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'lease_held' });
   const leasedOpen = await openDataStorm(leased, emu, [
     { query: 'Data Storm', platform: 'sms', game_id: leased.id },
@@ -3119,25 +3119,6 @@ test('starting and reconnecting input reasons describe Attach/Detach only', asyn
   }
 });
 
-test('host_only session details still show media state and hide input controls', async () => {
-  const active = sessionFixture({
-    state: 'active',
-    game_id: 'megadrive-sonic-test',
-    system: 'megadrive',
-    execution: 'host_only',
-    media: 'active',
-  });
-  const { document } = await runBrowserApp({
-    responses: [jsonResponse(readFixture('catalog-populated.json'))],
-    sessionResponses: [jsonResponse(active)],
-  });
-  const details = browserText(document.nodes.get('session-details'));
-  assert.match(details, /Executionhost_only/);
-  assert.match(details, /Mediaactive/);
-  assert.equal(document.getElementById('detach-session-input').hidden, true);
-  assert.equal(document.getElementById('attach-session-input').hidden, true);
-});
-
 test('fpga_native session details show local media and attached input together', async () => {
   const active = sessionFixture({
     state: 'active',
@@ -3168,32 +3149,6 @@ test('session live picture surface is in the Play panel and hides outside active
   });
   assert.equal(document.getElementById('session-preview').hidden, true);
   assert.equal(document.getElementById('session-preview-image').attributes.has('src'), false);
-});
-
-test('host_only session with detached input does not offer Attach', async () => {
-  const active = sessionFixture({
-    state: 'active',
-    game_id: 'megadrive-sonic-test',
-    system: 'megadrive',
-    execution: 'host_only',
-    media: 'active',
-    input: { ...inputFixture(), state: 'detached', ready: false },
-  });
-  const { calls, fetchImpl } = routedFetch({
-    '/api/v1/session': [jsonResponse(active)],
-    '/api/v1/session/input/attach': [jsonResponse(active)],
-  });
-  const { document } = await runBrowserApp({
-    responses: [jsonResponse(readFixture('catalog-populated.json'))],
-    sessionResponses: [jsonResponse(active)],
-  });
-  assert.equal(document.getElementById('attach-session-input').hidden, true);
-  assert.equal(document.getElementById('detach-session-input').hidden, true);
-  assert.doesNotMatch(document.getElementById('session-action-reason').textContent, /wait before attach or detach/i);
-  const controller = createAppController({ fetchImpl });
-  await controller.loadSession();
-  await controller.attachInput();
-  assert.equal(calls.filter(call => call.path === '/api/v1/session/input/attach').length, 0);
 });
 
 test('session malformed state exposes a safe retry without leaking response fields', async () => {
@@ -12765,7 +12720,7 @@ test('keyboard HID events reach the host in order and failed releases are retrie
 
 test('launchBlockReason requires selected ROM readiness', () => {
   const ready = { launchable: true, state: 'available', root_online: true };
-  assert.equal(launchBlockReason({ ...ready, firmware_required: true, rom_required: true, rom_ready: true }), 'Coleco BIOS required. Import household firmware before Play.');
+  assert.equal(launchBlockReason({ ...ready, firmware_required: true, rom_required: true, rom_ready: true }), 'Coleco BIOS required. Choose a BIOS for this title before Play.');
   assert.equal(launchBlockReason({ ...ready, firmware_required: true, firmware_ready: true, rom_required: true, rom_ready: true }), '');
   assert.equal(launchBlockReason({ ...ready, firmware_required: true, firmware_ready: false, rom_role: 'firmware' }), 'Required machine firmware is missing. Import it before Play.');
   assert.equal(launchBlockReason({ ...ready, firmware_required: true, firmware_ready: true, rom_role: 'firmware' }), '');

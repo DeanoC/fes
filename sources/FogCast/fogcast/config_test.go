@@ -51,11 +51,6 @@ token = "  exact token  "
 request_timeout_seconds = 12
 upload_timeout_seconds = 60
 
-[host_emulator]
-binary = "/Applications/RetroArch"
-core = "/cores/snes.dylib"
-systems = ["snes"]
-
 [[libraries]]
 id = "snes-main"
 system = "snes"
@@ -85,9 +80,6 @@ root = "`+megaRoot+`"
 	}
 	if got := cfg.Libraries[1]; got.ID != "genesis-main" || got.System != protocol.SystemMegaDrive || got.Path != filepath.Clean(megaRoot) {
 		t.Fatalf("Mega Drive library = %#v", got)
-	}
-	if got := cfg.HostEmulator; got.Binary != "/Applications/RetroArch" || got.Core != "/cores/snes.dylib" || len(got.Systems) != 1 || got.Systems[0] != protocol.SystemSNES {
-		t.Fatalf("host emulator = %#v", got)
 	}
 }
 
@@ -204,174 +196,6 @@ func TestLoadConfigRejectsInvalidNamedTargetsWithoutLeakingAgent(t *testing.T) {
 	}
 }
 
-func TestLoadConfigRejectsInvalidHostEmulatorSystems(t *testing.T) {
-	dir := t.TempDir()
-	root := filepath.Join(dir, "games")
-	if err := os.MkdirAll(root, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	base := validConfig(root, filepath.Join(dir, "other"))
-	for name, systems := range map[string]string{"unknown": `["not-a-platform"]`, "duplicate": `["snes", "snes"]`} {
-		t.Run(name, func(t *testing.T) {
-			content := base + "\n[host_emulator]\nbinary = \"/Applications/RetroArch\"\ncore = \"/cores/snes.dylib\"\nsystems = " + systems + "\n"
-			if _, err := fogcast.LoadConfig(writeConfig(t, content)); err == nil {
-				t.Fatal("invalid systems accepted")
-			}
-		})
-	}
-}
-
-func TestLoadConfigAcceptsHostEmulatorCatalogPlatforms(t *testing.T) {
-	dir := t.TempDir()
-	root := filepath.Join(dir, "games")
-	if err := os.MkdirAll(root, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	content := validConfig(root, filepath.Join(dir, "other")) + `
-[host_emulator]
-binary = "/Applications/RetroArch"
-core = "/cores/nes.dylib"
-systems = ["nes"]
-`
-	config, err := fogcast.LoadConfig(writeConfig(t, content))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(config.HostEmulator.Systems) != 1 || config.HostEmulator.Systems[0] != "nes" {
-		t.Fatalf("host emulator systems = %#v", config.HostEmulator.Systems)
-	}
-}
-
-func TestLoadConfigAcceptsPerPlatformHostEmulatorCores(t *testing.T) {
-	dir := t.TempDir()
-	root := filepath.Join(dir, "games")
-	if err := os.MkdirAll(root, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	content := validConfig(root, filepath.Join(dir, "other")) + `
-[host_emulator]
-binary = "/Applications/RetroArch"
-
-[[host_emulator.cores]]
-platform = "nes"
-core = "/cores/nestopia_libretro.dylib"
-
-[[host_emulator.cores]]
-platform = "gba"
-core = "/cores/mgba_libretro.dylib"
-`
-	config, err := fogcast.LoadConfig(writeConfig(t, content))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if config.HostEmulator.CoreFor("nes") != "/cores/nestopia_libretro.dylib" {
-		t.Fatalf("nes core = %#v", config.HostEmulator)
-	}
-	if config.HostEmulator.CoreFor("gba") != "/cores/mgba_libretro.dylib" {
-		t.Fatalf("gba core = %#v", config.HostEmulator)
-	}
-	if got := config.HostEmulator.LaunchPlatforms(); len(got) != 2 || got[0] != "nes" || got[1] != "gba" {
-		t.Fatalf("launch platforms = %#v", got)
-	}
-}
-
-func TestLoadConfigHostEmulatorLaunchOptionsAndBackendIdentity(t *testing.T) {
-	dir := t.TempDir()
-	root := filepath.Join(dir, "games")
-	if err := os.MkdirAll(root, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	content := validConfig(root, filepath.Join(dir, "other")) + `
-[host_emulator]
-binary = "/usr/bin/retroarch"
-args = ["--appendconfig", "/etc/retroarch/headless.cfg"]
-env = ["DISPLAY=:93", "SDL_AUDIODRIVER=dummy"]
-
-[[host_emulator.cores]]
-platform = "sms"
-core = "/usr/lib/libretro/genesis_plus_gx_libretro.so"
-id = "genesis_plus_gx"
-version = " c2838c7d"
-sha256 = "051cb96ad3d1a98809c103b3836e2830e269de43f9f1943d482749873082bc49"
-`
-	config, err := fogcast.LoadConfig(writeConfig(t, content))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(config.HostEmulator.Args) != 2 || len(config.HostEmulator.Env) != 2 || config.HostEmulator.Cores[0].ID != "genesis_plus_gx" || config.HostEmulator.Cores[0].Version != " c2838c7d" {
-		t.Fatalf("host emulator = %#v", config.HostEmulator)
-	}
-}
-
-func TestLoadConfigRejectsMixingLegacyCoreWithPerPlatformCores(t *testing.T) {
-	dir := t.TempDir()
-	root := filepath.Join(dir, "games")
-	if err := os.MkdirAll(root, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	content := validConfig(root, filepath.Join(dir, "other")) + `
-[host_emulator]
-binary = "/Applications/RetroArch"
-core = "/cores/snes.dylib"
-systems = ["snes"]
-
-[[host_emulator.cores]]
-platform = "nes"
-core = "/cores/nestopia_libretro.dylib"
-`
-	if _, err := fogcast.LoadConfig(writeConfig(t, content)); err == nil {
-		t.Fatal("mixed host emulator config accepted")
-	}
-}
-
-func TestLoadConfigRejectsConflictingPinsForSharedHostEmulatorCore(t *testing.T) {
-	dir := t.TempDir()
-	root := filepath.Join(dir, "games")
-	if err := os.MkdirAll(root, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	content := validConfig(root, filepath.Join(dir, "other")) + `
-[host_emulator]
-binary = "/usr/bin/retroarch"
-
-[[host_emulator.cores]]
-platform = "nes"
-core = "/cores/shared.dylib"
-sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-
-[[host_emulator.cores]]
-platform = "gba"
-core = "/cores/shared.dylib"
-sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-`
-	_, err := fogcast.LoadConfig(writeConfig(t, content))
-	if err == nil || !strings.Contains(err.Error(), "conflicting sha256 pins") {
-		t.Fatalf("LoadConfig error = %v, want conflicting core pin error", err)
-	}
-}
-
-func TestLoadConfigRejectsMixedPinPolicyForSharedHostEmulatorCore(t *testing.T) {
-	dir := t.TempDir()
-	root := filepath.Join(dir, "games")
-	content := validConfig(root, filepath.Join(dir, "other")) + `
-[host_emulator]
-binary = "/usr/bin/retroarch"
-
-[[host_emulator.cores]]
-platform = "nes"
-core = "/cores/shared.dylib"
-sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-
-[[host_emulator.cores]]
-platform = "gba"
-core = "/cores/shared.dylib"
-`
-	_, err := fogcast.LoadConfig(writeConfig(t, content))
-	if err == nil || !strings.Contains(err.Error(), "mixes pinned and unpinned") {
-		t.Fatalf("LoadConfig error = %v, want mixed core pin policy error", err)
-	}
-}
-
 func TestLoadConfigDefaultsMediaDisabled(t *testing.T) {
 	dir := t.TempDir()
 	config, err := fogcast.LoadConfig(writeConfig(t, validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))))
@@ -380,36 +204,6 @@ func TestLoadConfigDefaultsMediaDisabled(t *testing.T) {
 	}
 	if config.Media.Enabled {
 		t.Fatalf("media unexpectedly enabled: %#v", config.Media)
-	}
-}
-
-func TestLoadConfigLoadsAndValidatesMediaConfiguration(t *testing.T) {
-	dir := t.TempDir()
-	path := writeConfig(t, validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))+`
-[media]
-enabled = true
-session = "session-1"
-generation = 7
-ssrc = 42
-rtp_listen = "127.0.0.1:5000"
-rtp_destination = "127.0.0.1:5001"
-control_address = "127.0.0.1:5002"
-decoder = "none"
-capture_device = "device-1"
-width = 1280
-height = 720
-fps_numerator = 30
-fps_denominator = 1
-bitrate = 4000000
-gop = 60
-mtu = 1200
-`)
-	config, err := fogcast.LoadConfig(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := config.Media; !got.Enabled || got.Session != "session-1" || got.Generation != 7 || got.SSRC != 42 || got.RTPListen != "127.0.0.1:5000" || got.RTPDestination != "127.0.0.1:5001" || got.ControlAddress != "127.0.0.1:5002" || got.CaptureDevice != "device-1" || got.Width != 1280 || got.Height != 720 || got.FPSNumerator != 30 || got.FPSDenominator != 1 || got.Bitrate != 4000000 || got.GOP != 60 || got.MTU != 1200 {
-		t.Fatalf("media config = %#v", got)
 	}
 }
 
@@ -425,90 +219,8 @@ capture_device = "fixture-device"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := config.Media; !got.Enabled || got.Decoder != "mjpeg" || got.CaptureDevice != "fixture-device" || got.Session != "" || got.SSRC != 0 {
+	if got := config.Media; !got.Enabled || got.Decoder != "mjpeg" || got.CaptureDevice != "fixture-device" {
 		t.Fatalf("media config = %#v", got)
-	}
-}
-
-func TestLoadConfigLoadsNestedAudioConfiguration(t *testing.T) {
-	dir := t.TempDir()
-	path := writeConfig(t, validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))+`
-[media]
-enabled = true
-session = "session-1"
-ssrc = 42
-rtp_listen = "127.0.0.1:5000"
-rtp_destination = "127.0.0.1:5001"
-capture_device = "screen"
-
-[media.audio]
-enabled = true
-source = "shadowcast_uac"
-device = "ShadowCast 3"
-device_uid = "uid-redacted-in-test"
-device_hash = "sha256:be0109cefaf140745eb4824851b296d5fd2ba5443e8e775d8c9fa5b7763f039a"
-rtp_destination = "127.0.0.1:5101"
-control_address = "127.0.0.1:5102"
-ssrc = 43
-sample_rate = 48000
-channels = 2
-frame_samples = 240
-mtu = 1200
-`)
-	config, err := fogcast.LoadConfig(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := config.Media.Audio
-	if !got.Enabled || got.Source.Kind != "shadowcast_uac" || got.Source.EndpointName != "ShadowCast 3" || got.Source.EndpointUID != "uid-redacted-in-test" || got.Source.EndpointDigest == "" || got.Transport.SSRC != 43 || got.Transport.RTPDestination != "127.0.0.1:5101" || got.Transport.ControlAddress != "127.0.0.1:5102" {
-		t.Fatalf("audio config = %#v", got)
-	}
-}
-
-func TestLoadConfigRejectsInvalidAudioConfiguration(t *testing.T) {
-	dir := t.TempDir()
-	base := validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis")) + `
-[media]
-enabled = true
-session = "session-1"
-ssrc = 42
-rtp_listen = "127.0.0.1:5000"
-rtp_destination = "127.0.0.1:5001"
-capture_device = "screen"
-
-[media.audio]
-enabled = true
-source = "shadowcast_uac"
-device = "ShadowCast 3"
-device_uid = "uid-redacted-in-test"
-device_hash = "sha256:be0109cefaf140745eb4824851b296d5fd2ba5443e8e775d8c9fa5b7763f039a"
-rtp_destination = "127.0.0.1:5101"
-control_address = "127.0.0.1:5102"
-ssrc = 43
-sample_rate = 48000
-channels = 2
-frame_samples = 240
-mtu = 1200
-`
-	for name, mutate := range map[string]func(string) string{
-		"unknown field":   func(value string) string { return value + "unexpected = true\n" },
-		"duplicate SSRC":  func(value string) string { return strings.Replace(value, "ssrc = 43", "ssrc = 42", 1) },
-		"zero SSRC":       func(value string) string { return strings.Replace(value, "ssrc = 43", "ssrc = 0", 1) },
-		"invalid address": func(value string) string { return strings.Replace(value, "127.0.0.1:5101", "not-an-address", 1) },
-		"invalid port":    func(value string) string { return strings.Replace(value, "127.0.0.1:5101", "127.0.0.1:not-a-port", 1) },
-		"invalid source":  func(value string) string { return strings.Replace(value, "shadowcast_uac", "unknown", 1) },
-		"missing endpoint identity": func(value string) string {
-			return strings.Replace(value, "device_uid = \"uid-redacted-in-test\"\n", "", 1)
-		},
-		"mismatched endpoint digest": func(value string) string {
-			return strings.Replace(value, "be0109cefaf140745eb4824851b296d5fd2ba5443e8e775d8c9fa5b7763f039a", "0000000000000000000000000000000000000000000000000000000000000000", 1)
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			if _, err := fogcast.LoadConfig(writeConfig(t, mutate(base))); err == nil {
-				t.Fatal("invalid audio configuration accepted")
-			}
-		})
 	}
 }
 
@@ -516,17 +228,28 @@ func TestLoadConfigRejectsInvalidEnabledMediaWithoutLeakingValues(t *testing.T) 
 	dir := t.TempDir()
 	base := validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))
 	for name, media := range map[string]string{
-		"missing capture": `enabled = true\nsession = "secret-session"\nssrc = 1\nrtp_listen = "127.0.0.1:5000"\nrtp_destination = "127.0.0.1:5001"`,
-		"bad decoder":     `enabled = true\nsession = "secret-session"\nssrc = 1\nrtp_listen = "127.0.0.1:5000"\nrtp_destination = "127.0.0.1:5001"\ncapture_device = "device"\ndecoder = "secret-decoder"`,
-		"bad address":     `enabled = true\nsession = "secret-session"\nssrc = 1\nrtp_listen = "not-an-address"\nrtp_destination = "127.0.0.1:5001"\ncapture_device = "device"`,
-		"partial fps":     `enabled = true\nsession = "secret-session"\nssrc = 1\nrtp_listen = "127.0.0.1:5000"\nrtp_destination = "127.0.0.1:5001"\ncapture_device = "device"\nfps_numerator = 30`,
+		"missing capture":   `enabled = true`,
+		"bad decoder":       `enabled = true\ncapture_device = "device"\ndecoder = "secret-decoder"`,
+		"streaming decoder": `enabled = true\ncapture_device = "device"\ndecoder = "none"`,
+		"partial fps":       `enabled = true\ncapture_device = "device"\nfps_numerator = 30`,
+		"retired transport": `enabled = true\ncapture_device = "device"\nrtp_destination = "127.0.0.1:5001"`,
+		"retired audio":     `enabled = true\ncapture_device = "device"\n[media.audio]\nenabled = true`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := fogcast.LoadConfig(writeConfig(t, base+"\n[media]\n"+strings.ReplaceAll(media, `\n`, "\n")+"\n"))
-			if err == nil || strings.Contains(err.Error(), "secret-session") || strings.Contains(err.Error(), "secret-decoder") {
+			if err == nil || strings.Contains(err.Error(), "secret-decoder") {
 				t.Fatalf("error = %v", err)
 			}
 		})
+	}
+}
+
+func TestLoadConfigRejectsRetiredHostEmulator(t *testing.T) {
+	dir := t.TempDir()
+	base := validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))
+	_, err := fogcast.LoadConfig(writeConfig(t, base+"\n[host_emulator]\nbinary = \"/retroarch\"\n"))
+	if err == nil {
+		t.Fatal("retired host emulator accepted")
 	}
 }
 

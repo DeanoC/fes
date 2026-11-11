@@ -6,8 +6,29 @@ while audio played. [#1506](../2026-11-05-pc386-si-reload/summary.md) didn't
 reproduce it in three runs. This record repeats it on a fresh seal of main
 with #1483's status ring and VRAM probes, at four governor presets.
 
-**Result: reproduced, once in 21 Serpent Isle launches. It is a pc386
-fault, not a speed artefact or a long load.**
+**Result: reproduced as 12 black DOS-prompt grabs in 400 launches. It isn't
+a speed artefact or a long load.** Four of those cases were also observed
+through gameplay (`k1`, `k3` twice, `k6`). The other eight were prompt-only:
+`k8`'s six black grabs were taken at the DOS prompt and those launches
+stopped before Serpent Isle ran; `k9`'s two black grabs were also at the
+DOS prompt, after which it started the game for audio checks, with no later
+video grab.
+
+**In `k6`'s black case, the capture buffers held the same picture as in the
+lit launches, and the picture was already black at the DOS prompt. In
+`k8`'s six black DOS-prompt grabs on the instrumented `d2` seal, the core
+still drove lit pixels to the HDMI transmitter pins: the 720p presenter's
+output and the display plane's output both had lit pixels in every sampled
+frame, and the plane was closed. `k9`'s two black DOS-prompt grabs, also on
+`d2`, read the same, so all eight `d2` black prompt grabs are after the
+core. Only `k9`'s two had the transmitter checks: the ADV7513's registers
+matched the lit launches and the grabber still received the game's HDMI
+audio at full level, so in those two the HDMI link was up and the
+transmitter was set up as usual. What remains is after the core: the ADV7513's sampling of the pixel bus,
+the ADV7513's internal video processing or TMDS video output, or the
+grabber's video path. The four gameplay-observed black cases on main's seal
+and `d1` had no presenter or plane-output probe, so this isn't established
+for them.**
 
 - In Kit B run `k1`, one launch at 486DX2-66 showed a flat black picture
   for the whole launch: introduction, menu, Journey Onward and 60 s after
@@ -20,18 +41,54 @@ fault, not a speed artefact or a long load.**
     introduction's frame and the main menu, byte for byte at the sampled
     words.
 - So the game drew its pictures, and what went wrong is between VRAM and the
-  picture: the VGA's output state (attribute controller, pel mask, DAC) or the
-  scanout.
-- The other 20 Serpent Isle launches showed their pictures: `k1`'s first
-  launch, which made the save, its other 7 relaunches, and `k2`'s 12. The load itself
-  works: 7 of `k1`'s 8 Journey Onward loads put the party back on the ship
-  within 3–6 s.
-- The cause isn't pinned yet. A scratch seal that adds the VGA output state
-  to the status ring is built and passes timing. Its kit run is pending (see
-  [Next](#next)).
+  picture.
+- Run `k3`, on a scratch seal that puts the VGA's output state in the status
+  ring, had 2 black launches in 17. In the one with ring data, palette
+  address source, video enable, the screen-off bit, the pel mask, the
+  sequencer and the count of non-black DAC entries were all as in a lit
+  launch: the state word was identical. That rules out those bits only.
+  The word leaves out the CRTC geometry and the attribute controller's
+  palette and colour-select mappings, and the DAC count can't tell a dim
+  palette from a black one or say which entries scanout uses. A mapping that
+  sent every colour to a black DAC entry would leave the word unchanged. So
+  for that launch the remaining candidates are all the VGA state it didn't
+  sample (the CRTC, the attribute controller's mappings, the DAC's values
+  and any other control or mapping state), capture, the 720p presenter and
+  the display plane.
+- Runs `k4` and `k5` added 18 launches with capture-buffer samples and a
+  DOS-prompt grab. None of them was black.
+- Run `k6` (41 short launches, a capture sample during every grab) had one
+  black launch. It was black at the DOS prompt, before `SERPENT` ran. At
+  every grab its three capture buffers matched the lit launches either side
+  at all 48 sampled pixels per buffer. The presenter showed 60 frames a
+  second with no underflow. See [Run `k6`](#run-k6-capture-samples-during-the-grab-11-november-07190840-eet).
+- Input still works in a black launch. `k3`'s first launch made its save
+  blind, and the later launches list it.
+- The other 93 launches showed their pictures. The load itself
+  works: all 22 Journey Onward loads in lit launches (`k1` 7, `k3` 15) put
+  the party back on the ship within 3–6 s, as the Bochs-oracle machine does in about 5.5 s.
+- Runs `k7` (101 launches, 0 black) and `k8` (101 launches, 6 black) stopped
+  every launch at the DOS prompt. `k8`'s scratch seal adds the presenter's and
+  display plane's state to the ring. In all six black DOS-prompt grabs it read the
+  same as lit: presenter and plane output lit, plane closed (`ui_active` 0,
+  `locked` 1, `faulted` 0), presenter showing a 720x400 picture. See
+  [Runs `k7` and `k8`](#runs-k7-and-k8-presenter-and-display-plane-state-11-november-09131200-eet).
+- Run `k9` (101 launches, 2 black) dumped the ADV7513's register map read-only
+  at every launch and recorded the grabber's HDMI audio through Serpent
+  Isle's introduction. See [Run `k9`](#run-k9-adv7513-registers-and-hdmi-audio-11-november-13111440-eet).
+- Both `k8` and `k9` ran the `d2` seal. Of the four black launches on main's
+  seal (`k1`) and `d1` (`k3` two, `k6` one), only `k6`'s had capture samples,
+  which place it after capture. None of the four had a presenter or
+  plane-output probe.
+- Which stage after the core's pins isn't pinned yet (see [Next](#next)).
 
 The issue's title describes it too narrowly. The fault isn't tied to Journey
-Onward or the save: it blacks out a whole launch from the introduction on.
+Onward, the save or Serpent Isle. The aggregate is 12 black DOS-prompt grabs
+in 400 launches of that disk image: four cases (`k1`, `k3` twice, `k6`) were
+also observed black through gameplay, and the other eight (`k8` six, `k9`
+two) were prompt-only. The count stays per launch of the image, as a
+DOS-prompt grab, not as a whole-launch black picture in every case.
+
 `v1`'s black main menu, and the black picture after its load, fit the same
 fault.
 
@@ -152,8 +209,8 @@ path fault.
 40 s leaves 2 black frames (41 and 42 s), then the menu shows from 43 s. On
 the kit the menu showed by Esc + 6 s in every lit launch. So a menu that
 stays black for 10–20 s, as in `v1`, isn't the oracle machine's behaviour
-either. The bench's Journey Onward load (click at 64.5 s) was still running
-when this record was written; it runs at about 2 minutes a simulated second.
+either. Journey Onward (click at 64.5 s) shows the blue loading screen at
+67 s and the ship from about 70 s, a 5.5 s load, as on the kit.
 
 ## Period hardware and emulators
 
@@ -177,30 +234,318 @@ every preset.
 
 ## Next
 
-- **The diagnostic seal.** A scratch Quartus 17.0.2 seal of main `65ec1f22a`
-  carries the VGA's output state in the status ring's `capture_drops` word,
-  which is always 0 on the kit. The word holds:
+- **What's left, for `d2`.** In all eight of `d2`'s black DOS-prompt grabs (`k8`,
+  `k9`) the core drives lit pixels with DE onto the HDMI pins. In `k9`'s
+  two, the only ones checked, the ADV7513's registers are as in a lit
+  launch and HDMI audio reaches the grabber. For the four black
+  launches on main's seal and `d1`, the stages after VRAM (after capture for
+  `k6`'s) stay open until a probe like `d2`'s covers them.
+  For `d2` that leaves:
+  - the ADV7513's sampling of the pixel bus. The pins come from fabric
+    registers with no output constraints and change from about 1.4 ns
+    before to 3.8 ns after the `HDMI_TX_CLK` edge (see [HDMI pin
+    timing](#hdmi-pin-timing-host-only)). That skew is fixed for a build,
+    so it alone doesn't explain one launch in twenty or so going black;
+  - the ADV7513's internal video processing and its TMDS video output.
+    Matching registers and arriving audio show the transmitter is set up
+    and the link carries audio. They don't show its video path works;
+  - the grabber's video path (Kit B's ASUS 4KPRO, a UVC device that reports
+    no detected timings). `4c6d2c8d` is any flat-black grab, so it can't
+    tell black video from video it dropped.
+- **Next diagnostics, proposed on #1494 before any of them:**
+  1. Kit A, read-only, same `d2` package and runner: its grabber is a
+     different model (GENKI ShadowCast 3) and its transmitter another ADV7513.
+     Black launches there would clear the 4KPRO; none in about 100 would
+     point at Kit B's grabber, cable or ADV7513.
+  2. On Kit B, a short video recording across a black launch's DOS prompt
+     (the HIL driver's `video_start`), to see whether every frame is flat
+     black or the grabber passes some frames.
+  3. Any ADV7513 write, such as a `0xBA` clock-delay sweep, or constraining
+     the HDMI outputs (an RTL or SDC change), needs Deano's OK.
+- **The intro grab at 486DX2-66.** It is black in 13 of 20 lit `k6`
+  launches there (1 of 20 at `max`), and in all three of `k9`'s 486DX2-66
+  introductions. The capture samples show a fade in some, so it is
+  probably the grab landing on a scene change. Open, not counted.
+- No stage is named as the cause yet, and no RTL fix is indicated in the
+  core. A fix will be proposed on #1494 before any RTL is written.
+
+## Run `k3`: the VGA state in the ring (11 November, 23:58–00:57 EET)
+
+- **Package.** `49ec69368d038d19c8abe9e7dc9cbcc78944322aa1fbd10faa2c841b05aa1941`,
+  a scratch Quartus 17.0.2 seal of main `65ec1f22a` plus a diagnostic that
+  isn't for merge (setup +0.724 ns, hold +0.044 ns, 36,563 ALMs). It puts
+  the VGA's output state in the status ring's `capture_drops` word:
   - palette address source and the 3C0h flip-flop;
   - 3C3h video enable and SR01's screen-off bit;
-  - the pel mask and the overscan colour;
-  - the attribute index;
+  - the pel mask, the overscan colour and the attribute index;
+  - the sequencer reset bits;
   - a count of DAC entries that aren't black, kept as the DAC is written.
+- **Kit.** Kit B, core-only, on its new baseline (image `179affbb…`,
+  software `7ddb0bfb…`).
+- **Flow.** `k1`'s: at `max`, a new game and a save to slot 1 ("fesk3"),
+  then 16 relaunches alternating 486DX2-66 and `max` (8 each), each with the
+  introduction, Esc, Journey Onward and a grab every 3 s for 60 s.
 
-  Package `49ec6936…`, setup +0.724 ns, hold +0.044 ns, 36,563 ALMs. It's
-  not for merge. Run `k3` (`k1`'s flow, 16 relaunches alternating
-  486DX2-66 and `max`) is ready. It couldn't start: at 20:29 and 20:36 EET
-  Codex claimed both kits for #863's image work.
-- **What it decides.** On a black launch, the snapshot says which of
-  these holds:
-  - palette address source off (a mode-set race, or a VGA fault in the
-    attribute flip-flop);
-  - the pel mask 0;
-  - the screen switched off;
-  - a black DAC.
+**2 black launches in 17:**
 
-  If none of them holds, the fault is in scanout. A fix will be proposed on
-  #1494 before any RTL is written.
+- **The first launch, at `max`.** It made the save. All 18 of its grabs are
+  the flat black frame `4c6d2c8d`. It has no ring snapshots (the save steps
+  don't take them), so it is HDMI evidence only. The save landed anyway: the
+  later launches' slot lists show "fesk3" (frame `p0n10-slots`). So mouse
+  and keyboard input reached the game through a black launch.
+- **Relaunch 12 (`p0n11`, `max`).** All 26 grabs are `4c6d2c8d`. Its 52
+  ring snapshots, from 60 to 334 s of core time, all read:
+
+  | Field | Value | In a lit launch |
+  | --- | --- | --- |
+  | Palette address source | 1 | 1 |
+  | 3C0h flip-flop | 0 (index next) | 0 |
+  | Video enable (3C3h) | 1 | 1 |
+  | SR01 screen off | 0 | 0 |
+  | Pel mask | FFh | FFh |
+  | Sequencer reset | 3 (running) | 3 |
+  | Overscan, attribute index | 0, 00h | 0, 00h |
+  | Non-black DAC entries | 118–255 | 118–256 |
+
+  The word at its menu (`p0n11-m6`) equals the word at the lit `p0n10`
+  menu, 2952265216. VRAM at the menu is `1f9b027f` in both. The CPU, audio
+  and `frames_shown` advanced as in `k1`'s black launch.
+- **The click didn't load in either black launch with probes.** In
+  `p0n11`, as in `k1`'s, VRAM went back to the introduction after the
+  Journey Onward click (`c6370a05` at +6 s, CS `1A60`) and then to the menu.
+  Input reached the game in the first launch, so this isn't lost input. Why
+  the click missed isn't known.
+
+**Five lit launches had a black grab at the introduction.** In `p7n01`,
+`p0n03`, `p7n04`, `p7n05` and `p0n15`, the grab at about 59.5 s of core time
+is `4c6d2c8d`, with VRAM `0de8e137` (the introduction's first scene) and a
+non-black DAC count of 255. VRAM had changed 1 s later, and the menu showed
+in each. Lit grabs at 59.35 s (`p7n00`) and 61.4 s (`p0n10`) show that
+scene. The DAC count can't tell a dim palette from a black one, so this is
+probably a fade in the introduction. It's left open, not counted as a
+fault.
+
+**`k3` against `k1` and `k2`.** `k3`'s first launch followed the stop of
+the scrub image at the DOS prompt, not a stop in the game. So "`k2` quit to
+DOS before each stop" doesn't explain why `k2` had none. Across the three
+runs it is 3 black launches in 38: `k1` 1 of 9, `k2` 0 of 12, `k3` 2 of 17,
+at 486DX2-66 once and at `max` twice.
+
+## Runs `k4` and `k5`: capture-buffer samples (11 November, 01:21–02:45 EET)
+
+- **Package and kit.** As `k3`: package `49ec6936…` on Kit B's baseline,
+  core-only. No new seal.
+- **What's new.** On every probed grab and every black grab, the driver
+  read the three capture buffers the 720p presenter reads. Each sample is
+  400 words per buffer: every 40th pixel of every 8th line, starting at host
+  address `0x30A00000`, 2 MiB apart. The record keeps each buffer's word
+  count, the count that aren't black, the brightest channel and a hash.
+  Each launch also got a grab at the DOS prompt before `SERPENT`, and the
+  setup launch a grab when its save was done.
+- **`k4`** stopped after its setup launch: the driver's sample parser split
+  on a hex digit. I stopped my own driver at 01:26 and cleaned its data.
+  Its one launch was lit (peak 122). The parser was fixed and the run
+  repeated as `k5`.
+- **`k5`**: the same flow as `k3` (a save at `max`, then 16 relaunches
+  alternating `max` and 486DX2-66, 8 each).
+
+**No black launch in 17.** Every launch reached a lit picture (peak 254–255),
+and every DOS-prompt grab was the same lit frame (peak 73). At the end of the
+setup launch the three buffers held a picture: 391 of 400 samples not black,
+brightest channel 255.
+
+**The short black frames in lit launches.** 24 grabs had a peak under 16.
+In each, the capture samples taken after it held a picture:
+
+- **At the introduction (6 launches).** VRAM was `0de8e137`, as in `k3`'s
+  five. The first buffer read had fewer lit samples and a dimmer brightest
+  channel (300–313 lit, peak 154–243) than the two read after it (364–365 lit,
+  mostly 243). That fits a fade-in still under way while the sample ran, so these
+  are left as a fade.
+- **3 s after Journey Onward (9 launches)**, where the load starts; **7
+  grabs during play** with VRAM at the menu frame `1f9b027f`; and 2 others.
+  These also come back as a picture, but the sample lands seconds after the
+  grab, so they don't say which stage was black at the grab.
+
+**Across the five runs** it is 3 black launches in 56: `k1` 1 of 9, `k2` 0
+of 12, `k3` 2 of 17, `k4` 0 of 1, `k5` 0 of 17. At the earlier rate (3 in 38), 17
+lit launches in a row happen about one run in four, so `k5` doesn't show the rate fell.
+
+## Run `k6`: capture samples during the grab (11 November, 07:19–08:40 EET)
+
+- **Package and kit.** As `k3` (package `49ec6936…`), Kit B's baseline,
+  core-only.
+- **Flow.** The setup launch made a save at `max`. Then 40 relaunches
+  alternated 486DX2-66 and `max`, each with a DOS-prompt grab, `SERPENT`,
+  an introduction grab, Esc and menu grabs at +6, +10 and +14 s, then stop.
+  No Journey Onward.
+- **Sample.** Every grab starts a read of the three capture buffers while
+  the HDMI grab runs: 48 pixels a buffer (8 lines × 6 pixels), about 1 s
+  for all three. A black grab also gets `k5`'s 400-pixel sample, VRAM and
+  the ring, twice, 1 s apart.
+
+**1 black launch in 41: relaunch 33 (`p7n32`, 486DX2-66).**
+
+- All five grabs are the black frame `4c6d2c8d`, from the DOS prompt on.
+  The 18 black grabs in `k6` all have that hash, the same frame as `k1`'s
+  and `k3`'s black launches.
+- At the DOS prompt and at the menu, the fast samples have the same hashes
+  as the lit launches before and after it (`p0n31`, `p7n33`):
+  `1b6a5ad9`/`6f9b4838`/`6f9b4838` at the prompt, `b3d3e215`/`29ec6e20`/
+  `29ec6e20` at the menu. Those are steady pictures, so the second or so
+  between grab and sample doesn't matter. At the introduction, the samples
+  hold its picture (42 of 48 lit, brightest channel 158), as in the lit
+  launches.
+- VRAM went from the DOS screen to the introduction (`0de8e137`) and the
+  menu (`1f9b027f`) as in a lit launch. The VGA word was 2952265216 at the
+  menu, the lit value.
+- The presenter's `frames_shown` rose 60 a second, with
+  `present_underflows`, `scanout_underflows` and `plane_underflows` all 0.
+- Its load took 12.56 s, inside the run's 11.22–13.46 s spread. Input
+  attached as in the other launches.
+- By the second probe at +10 s, VRAM had left the menu for the
+  introduction's segment (CS `1A60`). The probes stretched the menu grabs
+  to about 27 s apart. That fits the menu going back to the introduction
+  when left idle, and would explain why the Journey Onward click missed in
+  `k1`'s and `k3`'s probed black launches. Not tested.
+
+**The rest:** 40 lit launches. Every DOS-prompt grab is the same lit frame,
+and every menu grab is lit.
+
+**Across the six runs** it is 4 black launches in 97: `k1` 1 of 9, `k2` 0
+of 12, `k3` 2 of 17, `k4` 0 of 1, `k5` 0 of 17, `k6` 1 of 41.
+
+## Runs `k7` and `k8`: presenter and display-plane state (11 November, 09:13–12:00 EET)
+
+- **Kit.** Kit B, core-only on its baseline (image `179affbb…`, software
+  `7ddb0bfb…`). No install, no image change, no reboot.
+- **Flow.** Each run: a setup launch, then 100 relaunches alternating 486DX2-66
+  and `max`. Each launch stops after a DOS-prompt grab 22 s after load
+  (about 47 s a launch). Every grab also reads the ring, the three capture
+  buffers (48 pixels each) and the two display-plane slots in DDR (48 words
+  each, `0x30000000` and `0x30400000`). The runtime's status socket can't be
+  read from the kit (it has no `nc`, `socat` or Python), so the plane's
+  state comes from the ring.
+- **`k7`** ran `k3`'s package `49ec6936…`: **0 black in 101.** Every grab was
+  the same lit DOS frame.
+- **`k8`** ran a new scratch Quartus 17.0.2 seal (`d2`, package
+  `ecef12e2…`, main `65ec1f22a` plus `k3`'s VGA word plus this one, not for
+  merge; worst setup slack +0.960 ns, hold +0.082 ns). It puts in the ring's
+  `samples` word: presenter output lit, plane output lit, the plane's
+  `ui_active`, `locked` and `faulted`, and the presenter's `showing`, shown
+  buffer, width and height. "Lit" means at least one DE pixel with non-zero
+  RGB in the last frame.
+
+**`k8`: 6 black DOS-prompt grabs in 101 launches:** `p0n49`, `p0n61`, `p7n68`, `p7n90`,
+`p7n94`, `p7n98` (2 at `max`, 4 at 486DX2-66). Each grab is the flat-black
+frame `4c6d2c8d`.
+
+- In all six, the ring read just after the grab and twice more 1 s apart
+  says: presenter output lit, plane output lit, `ui_active` 0, `locked` 1,
+  `faulted` 0, `showing` 1, 720x400. That is the same as all 95 lit
+  launches. Only the shown buffer changes, cycling 0–2 as in lit launches.
+- The capture-buffer samples have the lit DOS-prompt hashes (`1b6a5ad9`/
+  `6f9b4838`/`6f9b4838`).
+- Both plane slots read fully transparent (alpha 0 at all 48 words) at
+  every grab, black or lit, in both runs.
+- The plane's output is `video`, which `top.sv` drives straight onto
+  `HDMI_TX_D`/`DE`/`HS`/`VS`. So in these six black DOS-prompt grabs the core put
+  lit pixels on the HDMI pins. The flag doesn't count pixels or check sync and
+  DE geometry, so it shows the presenter and plane aren't blanking the
+  picture, not that every pixel is right.
+
+**By seal** (observations, not a significant split): main's seal 1 of 21
+(`k1`, `k2`), `d1` 3 of 177 (`k3`–`k7`), `d2` 6 of 101 (`k8`). `k8`'s six
+are all in relaunches 49–98. A placement-dependent rate would fit the pin
+timing candidate in [Next](#next), but these counts don't show one.
+
+**Across the eight runs** it is 10 black DOS-prompt grabs in 299 launches.
+
+## HDMI pin timing (host only)
+
+`quartus_sta` (17.0.2) on each seal's project. A clock is generated at the
+`HDMI_TX_CLK` port from the pixel PLL output, and the data, DE and sync ports
+get a zero output delay against it, for this report only. The hold slack
+then reads as when each pin changes relative to the clock edge at the pins
+(negative: before it). All 27 pins come from fabric registers
+(`pc386_system|video[*]`), not I/O registers, and the seals have no output
+constraints, so the spread is set by placement.
+
+| Seal | Corner | Earliest pin | Latest pin | DE | HS | VS |
+|---|---|---|---|---|---|---|
+| main `650bc477` | slow 100 °C | −1.02 (DE) | +3.76 (D18) | −1.02 | +0.47 | −0.17 |
+| main `650bc477` | fast −40 °C | −0.61 (DE) | +2.17 (D18) | −0.61 | −0.06 | −0.12 |
+| `d1` `49ec6936` | slow 100 °C | −1.30 (DE) | +2.50 (D19) | −1.30 | −1.17 | −1.05 |
+| `d1` `49ec6936` | fast −40 °C | −0.78 (DE) | +1.25 (D19) | −0.78 | −0.66 | −0.60 |
+| `d2` `ecef12e2` | slow 100 °C | −1.15 (HS) | +3.57 (D20) | +1.83 | −1.15 | +3.36 |
+| `d2` `ecef12e2` | fast −40 °C | −0.65 (HS) | +1.95 (D17) | +0.69 | −0.65 | +1.56 |
+
+Times are in ns. Every seal has pins changing within about 1.4 ns of the
+edge on both sides, so each could sit near the ADV7513's sampling window.
+None stands out from the others. The runtime sets the ADV7513's input clock
+delay (`0xBA`) to `0x20`, as `k9` read it.
+
+## Run `k9`: ADV7513 registers and HDMI audio (11 November, 13:11–14:40 EET)
+
+- **Package and kit.** `d2` (`ecef12e2…`) on Kit B's baseline, core-only.
+- **Flow.** As `k8`, plus, at every launch's DOS prompt, a read-only dump of
+  the ADV7513's main register map. It used the kit's own `i2cdump` on bus 1,
+  address `0x39`, the bus whose `0x39` answered `i2cget`; nothing was
+  written. In the setup launch, each black launch and the lit launch after
+  each, it typed `SERPENT` and recorded the grabber's HDMI audio (ALSA, 48
+  kHz) through the introduction's music. The run would stop after 3 black
+  launches, and it didn't reach 3.
+- **Grabber.** Kit B's grabber is an ASUS 4KPRO (UVC) behind a loopback
+  fan-out. `VIDIOC_QUERY_DV_TIMINGS` isn't supported on either device, so
+  there are no detected timings to read.
+
+**2 black DOS-prompt grabs in 101 launches:** `p7n18` and `p7n52`, both at 486DX2-66, both
+`4c6d2c8d` at the DOS prompt.
+
+- **Ring and capture.** As in `k8`: presenter and plane output lit, plane
+  closed, 720x400. The capture samples hold the lit DOS-prompt hashes.
+- **HDMI audio.** Both black launches carried the introduction's music to
+  the grabber: peak 19667 and 19482, loudest 100 ms RMS −12.5 and
+  −12.7 dBFS. The four lit controls had peaks 19461–19790 and −12.5 to
+  −12.7 dBFS; the floor is −48 dBFS. So the HDMI link was up and carrying the
+  machine's audio while the grab was black.
+- **ADV7513 registers.** All 256 matched the lit launches except `0x9E` and
+  `0xA0`, whose values change between lit launches too (`0x9E` 12/13, `0xA0`
+  00/01). The lit and black dumps agree on:
+  - `0x41` 10: powered up;
+  - `0x42` f0: hot-plug and monitor sense;
+  - `0x3E` 10: detected VIC 4, 720p60;
+  - `0x15`–`0x18` 20/38/62/a8: input format and colour space;
+  - `0xAF` 06: HDMI mode;
+  - `0xBA` 20: input clock delay −0.8 ns, as the runtime sets it;
+  - `0xD6` c0;
+  - the AVI infoframe bytes from `0x55`.
+
+**Across the nine runs** it is 12 black DOS-prompt grabs in 400 launches.
+By seal: main 1 of 21, `d1` 3 of 177, `d2` 8 of 202.
 
 ## Kit housekeeping
 
-Runs `k1` and `k2` shared Kit B's claims and housekeeping with #1368's rerun; [its record](../2026-11-10-pc386-game-acceptance-rerun/summary.md#kit-housekeeping) has the table.
+Run `k3` claimed Kit B at 23:58 EET, restored and released it at 00:57, and
+removed its 5 FogCast data trees (2 game records, 2 media trees, the staged
+Serpent Isle image) at 00:59, as logged in Kit B's status file. Runs `k1` and `k2` shared Kit B's claims and housekeeping with #1368's rerun; [its record](../2026-11-10-pc386-game-acceptance-rerun/summary.md#kit-housekeeping) has the table.
+
+Run `k4` claimed Kit B at 01:21 EET and released it at 01:27, and its 5
+data trees were removed at 01:27. Run `k5` claimed it at 01:28, restored and
+released it at 02:44, and removed its 5 data trees at 02:45. Each is logged
+in Kit B's status file. Neither run installed software or changed the image.
+
+Run `k6` claimed Kit B at 07:19 EET, restored and released it at 08:38, and
+removed its 5 data trees at 08:40, as logged in Kit B's status file. It
+installed no software and changed no image.
+
+Run `k7` claimed Kit B at 09:13 EET, restored and released it at 10:33, and
+removed its 3 data trees at 10:34. Run `k8` claimed it at 10:35, restored
+and released it at 11:58, and removed its 3 data trees at 12:00. Each is
+logged in Kit B's status file. Neither installed software or changed the
+image.
+
+Run `k9` claimed Kit B at 13:11 EET, restored and released it at 14:39, and
+removed its 3 data trees at 14:40, as logged in Kit B's status file. It
+installed no software, changed no image, and only read the ADV7513 (no
+`i2cset`).

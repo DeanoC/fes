@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const dropRemoteCacheSchemaForTest = `DROP TRIGGER core_media_import_protect; DROP TRIGGER local_entry_cache_adopt_insert; DROP TRIGGER local_entry_cache_adopt_update; DROP TRIGGER core_firmware_cache_adopt_insert; DROP TRIGGER core_firmware_cache_adopt_update; DROP TRIGGER core_entry_roms_cache_adopt_insert; DROP TRIGGER core_entry_roms_cache_adopt_update; DROP TRIGGER core_expansions_cache_adopt_insert; DROP TRIGGER core_expansions_cache_adopt_update; DROP TRIGGER core_video_parts_cache_adopt_insert; DROP TRIGGER core_video_parts_cache_adopt_update; DROP TRIGGER zx81_saves_cache_adopt_insert; DROP TRIGGER zx81_saves_cache_adopt_update; DROP TABLE remote_cached_media; `
+const dropRemoteCacheSchemaForTest = `DROP TRIGGER core_media_import_protect; DROP TRIGGER local_entry_cache_adopt_insert; DROP TRIGGER local_entry_cache_adopt_update; DROP TRIGGER core_entry_roms_cache_adopt_insert; DROP TRIGGER core_entry_roms_cache_adopt_update; DROP TRIGGER core_expansions_cache_adopt_insert; DROP TRIGGER core_expansions_cache_adopt_update; DROP TRIGGER core_video_parts_cache_adopt_insert; DROP TRIGGER core_video_parts_cache_adopt_update; DROP TRIGGER zx81_saves_cache_adopt_insert; DROP TRIGGER zx81_saves_cache_adopt_update; DROP TABLE remote_cached_media; `
 
 func remoteCacheImport(t *testing.T, s *Store, value string) CoreMedia {
 	t.Helper()
@@ -56,7 +56,7 @@ func TestRemoteCacheOnlyCollectsProvenRemoteUnreferencedContent(t *testing.T) {
 	if err := s.RemoveCoreEntry(ctx, retained.GameID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.db.ExecContext(ctx, `INSERT INTO core_firmware(slot,media_id) VALUES ('firmware',?)`, firmware.MediaID); err != nil {
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO core_entry_roms(game_id,package_id,rom_id,media_id,source_size) VALUES (?,?,?,?,?)`, entry.GameID, pkg, "firmware", firmware.MediaID, firmware.Size); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.db.ExecContext(ctx, `INSERT INTO core_entry_roms(game_id,package_id,rom_id,media_id,source_size) VALUES (?,?,?,?,?)`, entry.GameID, pkg, "rom", rom.MediaID, rom.Size); err != nil {
@@ -89,12 +89,12 @@ func TestRemoteCacheOnlyCollectsProvenRemoteUnreferencedContent(t *testing.T) {
 		}
 	}
 	// Explicitly unbind/delete each association. Adoption remains durable even
-	// after a firmware slot, saved cassette or local title is later removed.
+	// after a firmware ROM binding, saved cassette or local title is later removed.
 	if err := s.RemoveCoreEntry(ctx, entry.GameID); err != nil {
 		t.Fatal(err)
 	}
 	for _, statement := range []string{
-		`DELETE FROM zx81_saves`, `DELETE FROM core_firmware`, `DELETE FROM core_expansions`, `DELETE FROM core_video_parts`,
+		`DELETE FROM zx81_saves`, `DELETE FROM core_expansions`, `DELETE FROM core_video_parts`,
 	} {
 		if _, err := s.db.ExecContext(ctx, statement); err != nil {
 			t.Fatal(err)
@@ -218,7 +218,7 @@ func TestRemoteCacheOldStyleDuplicateImportWinsBeforeCleanup(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer other.Close()
-	// A client from before schema 23 uses this exact INSERT ... DO NOTHING.
+	// A client from before schema 24 uses this exact INSERT ... DO NOTHING.
 	// Hold its transaction while cleanup starts on a separate Store.
 	tx, err := other.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -306,7 +306,7 @@ func TestRemoteCacheMigrationLeavesSchema22ContentUnclassified(t *testing.T) {
 	ctx := context.Background()
 	s, path := mediaTestStore(t)
 	old := remoteCacheImport(t, s, "pre-migration unknown")
-	if _, err := s.db.ExecContext(ctx, dropRemoteCacheSchemaForTest+`PRAGMA user_version=22`); err != nil {
+	if _, err := s.db.ExecContext(ctx, dropRemoteCacheSchemaForTest+`CREATE TABLE core_firmware (slot TEXT PRIMARY KEY, media_id TEXT NOT NULL REFERENCES core_media(media_id), CHECK(slot='firmware')); PRAGMA user_version=22`); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Close(); err != nil {
@@ -371,7 +371,7 @@ func TestRemoteCacheRecognizesEverySchemaForeignKeyToMedia(t *testing.T) {
 	}
 	// core_media_chunks and the provenance marker are storage owned by the
 	// candidate itself. Every other FK requires an explicit protection rule.
-	want := map[string]bool{"core_media_chunks": true, "remote_cached_media": true, "core_firmware": true, "core_entry_roms": true, "core_expansions": true, "core_video_parts": true, "zx81_saves": true}
+	want := map[string]bool{"core_media_chunks": true, "remote_cached_media": true, "core_entry_roms": true, "core_expansions": true, "core_video_parts": true, "zx81_saves": true}
 	for _, table := range tables {
 		quoted := `"` + strings.ReplaceAll(table, `"`, `""`) + `"`
 		fk, err := s.db.QueryContext(ctx, `PRAGMA foreign_key_list(`+quoted+`)`)
@@ -399,7 +399,7 @@ func TestRemoteCacheNonCassetteUpdateAdoptionSurvivesUnbinding(t *testing.T) {
 		name, insert, update, remove string
 		args                         func(string, string, string) []any
 	}{
-		{"firmware", `INSERT INTO core_firmware(slot,media_id) VALUES ('firmware',?)`, `UPDATE core_firmware SET media_id=? WHERE slot='firmware'`, `DELETE FROM core_firmware WHERE slot='firmware'`, func(old, _, _ string) []any { return []any{old} }},
+		{"firmware ROM", `INSERT INTO core_entry_roms(game_id,package_id,rom_id,media_id,source_size) VALUES (?,?,'firmware',?,1)`, `UPDATE core_entry_roms SET media_id=? WHERE rom_id='firmware'`, `DELETE FROM core_entry_roms WHERE rom_id='firmware'`, func(old, game, pkg string) []any { return []any{game, pkg, old} }},
 		{"rom", `INSERT INTO core_entry_roms(game_id,package_id,rom_id,media_id,source_size) VALUES (?,?, 'rom',?,1)`, `UPDATE core_entry_roms SET media_id=?`, `DELETE FROM core_entry_roms`, func(old, game, pkg string) []any { return []any{game, pkg, old} }},
 		{"expansion", `INSERT INTO core_expansions(expansion_id,media_id,shell_package_id) VALUES (?,?,?)`, `UPDATE core_expansions SET media_id=?`, `DELETE FROM core_expansions`, func(old, _, pkg string) []any { return []any{strings.Repeat("b", 64), old, pkg} }},
 		{"video", `INSERT INTO core_video_parts(part_id,media_id,shell_package_id,profile) VALUES (?,?,?,'direct')`, `UPDATE core_video_parts SET media_id=?`, `DELETE FROM core_video_parts`, func(old, _, pkg string) []any { return []any{strings.Repeat("c", 64), old, pkg} }},
@@ -536,8 +536,8 @@ func TestRemoteCacheLegacyAutomaticBindIsConservativelyProtected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A schema-22 process already running at migration can issue its old
-	// automatic UPDATE, without the schema-23 provenance restoration.
+	// A schema-23 process already running at migration can issue its old
+	// automatic UPDATE, without the schema-24 provenance restoration.
 	if _, err := s.db.ExecContext(ctx, `UPDATE core_entries SET media_role='cassette', media_id=? WHERE game_id=?`, media.MediaID, entry.GameID); err != nil {
 		t.Fatal(err)
 	}

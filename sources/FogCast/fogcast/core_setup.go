@@ -25,7 +25,6 @@ type CoreSetup struct {
 	ROMs            []SetupROM                     `json:"roms"`
 	Entries         []catalog.CoreEntry            `json:"entries"`
 	Capabilities    protocol.CoreMediaCapabilities `json:"capabilities"`
-	FirmwareMediaID string                         `json:"firmware_media_id,omitempty"`
 }
 type CoreSetupRequest struct {
 	LibrarySourceID  string            `json:"library_source_id"`
@@ -67,12 +66,8 @@ func (s *Service) CoreSetup(ctx context.Context, sourceID, coreID, packageID str
 	if r := p.Descriptor.ROM; r != nil {
 		result.ROMs = append(result.ROMs, SetupROM{r.ID, r.Role, r.SourceSize, "entry"})
 	}
-	for i, r := range p.Descriptor.ROMs {
-		binding := "entry"
-		if i == 0 && r.Role == "firmware" {
-			binding = "household-firmware"
-		}
-		result.ROMs = append(result.ROMs, SetupROM{r.ID, r.Role, r.SourceSize, binding})
+	for _, r := range p.Descriptor.ROMs {
+		result.ROMs = append(result.ROMs, SetupROM{r.ID, r.Role, r.SourceSize, "entry"})
 	}
 	entries, err := s.CoreEntries(ctx)
 	if err != nil {
@@ -86,13 +81,6 @@ func (s *Service) CoreSetup(ctx context.Context, sourceID, coreID, packageID str
 	result.Capabilities, err = s.CoreMediaCapabilities(ctx, packageID)
 	if err != nil {
 		return CoreSetup{}, err
-	}
-	if len(p.Descriptor.ROMs) > 0 {
-		f, err := s.CoreFirmware(ctx, protocol.FirmwareRole)
-		if err != nil {
-			return CoreSetup{}, err
-		}
-		result.FirmwareMediaID = f.MediaID
 	}
 	return result, nil
 }
@@ -138,12 +126,9 @@ func (s *Service) CreateCoreSetupEntry(parent context.Context, req CoreSetupRequ
 		if m.Size != r.SourceSize {
 			return catalog.CoreEntry{}, romAdmissionError()
 		}
-		if r.Binding == "household-firmware" && mediaID != setup.FirmwareMediaID {
-			return catalog.CoreEntry{}, canonicalError(protocol.CodeStaleRevision, nil)
-		}
 	}
 	firmwareRequired := req.FirmwareRequired || len(setup.Descriptor.ROMs) > 0
-	if req.FirmwareRequired && len(setup.Capabilities.Firmware) == 0 {
+	if req.FirmwareRequired && setup.Descriptor.Format != 4 && len(setup.Capabilities.Firmware) == 0 {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
 	var entry catalog.CoreEntry
@@ -192,7 +177,7 @@ func (s *Service) CreateCoreSetupEntry(parent context.Context, req CoreSetupRequ
 		if !ok {
 			return entry, canonicalError(protocol.CodeUnsupportedOperation, nil)
 		}
-		current, err := romStore.CoreEntryROM(ctx, entry.GameID)
+		current, err := romStore.CoreEntryROM(ctx, entry.GameID, r.ID)
 		if err != nil {
 			return entry, romSelectionError(err)
 		}

@@ -28,8 +28,6 @@ func TestCoreMediaCommandsUseHostShapes(t *testing.T) {
 		{[]string{"core-entry", "Core", pkg}, "POST", "/api/v1/library/core-entries", map[string]any{"title": "Core", "package_id": pkg}},
 		{[]string{"core-entry", "Core", pkg, "blob", id}, "POST", "/api/v1/library/core-entries", map[string]any{"title": "Core", "package_id": pkg, "media_role": "blob", "media_id": id}},
 		{[]string{"core-entry", "Frogger", pkg, "blob", id, "firmware"}, "POST", "/api/v1/library/core-entries", map[string]any{"title": "Frogger", "package_id": pkg, "media_role": "blob", "media_id": id, "firmware_required": true}},
-		{[]string{"core-firmware-select", id}, "PUT", "/api/v1/library/firmware", map[string]any{"slot": "firmware", "media_id": id}},
-		{[]string{"core-firmware-select", "none"}, "PUT", "/api/v1/library/firmware", map[string]any{"slot": "firmware", "media_id": ""}},
 		{[]string{"core-media-select", "core-test", pkg, "none", id}, "PUT", "/api/v1/library/core-entries/core-test/media", map[string]any{"expected_package_id": pkg, "expected_media_id": "", "media_role": "blob", "media_id": id}},
 		{[]string{"core-media-select", "core-test", pkg, id, "none"}, "PUT", "/api/v1/library/core-entries/core-test/media", map[string]any{"expected_package_id": pkg, "expected_media_id": id, "media_role": "", "media_id": ""}},
 	} {
@@ -57,14 +55,17 @@ func TestCoreMediaCommandsUseHostShapes(t *testing.T) {
 }
 
 func TestCoreMediaCommandArguments(t *testing.T) {
-	for _, name := range []string{"core-entry", "core-media-install", "core-media-select", "core-media-capabilities", "core-firmware-select"} {
+	if validCommand([]string{"core-firmware-select", "none"}) || coreLibraryCommand("core-firmware-select") || strings.Contains(usageText, "core-firmware-select") {
+		t.Fatal("removed household firmware command is still available")
+	}
+	for _, name := range []string{"core-entry", "core-media-install", "core-media-select", "core-media-capabilities"} {
 		for n := 1; n <= 7; n++ {
 			args := []string{name}
 			for len(args) < n {
 				args = append(args, "x")
 			}
 			want := name == "core-entry" && (n == 3 || n == 4 || n == 5 || n == 6) ||
-				(name == "core-media-install" || name == "core-media-capabilities" || name == "core-firmware-select") && n == 2 ||
+				(name == "core-media-install" || name == "core-media-capabilities") && n == 2 ||
 				name == "core-media-select" && n == 5
 			if validCommand(args) != want || !coreLibraryCommand(name) {
 				t.Fatalf("args=%v valid=%v", args, validCommand(args))

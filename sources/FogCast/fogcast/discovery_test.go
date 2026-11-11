@@ -752,24 +752,14 @@ func TestMaintenanceOwnershipIsNeverReportedReady(t *testing.T) {
 }
 
 func TestTargetInvalidationClearsPackageAssociationAndRejection(t *testing.T) {
-	for _, execution := range []string{ExecutionFPGADevelopment, ExecutionHostOnly} {
-		t.Run(execution, func(t *testing.T) {
-			base, _ := url.Parse("http://127.0.0.1:8182")
-			client := targetclient.NewClient(base, "test", nil)
-			s := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
-			if execution == ExecutionHostOnly {
-				s.activeExecution, s.activeGameID = ExecutionHostOnly, "prior"
-			}
-			s.plays[s.selectedTarget] = targetPlay{execution: ExecutionFPGADevelopment, packageID: "package", packageGeneration: 7,
-				packageRejection: &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Phase: "identity"}}
-			s.invalidateTargetSession(client)
-			if _, retained := s.plays[s.selectedTarget]; retained {
-				t.Fatal("obsolete target package state survived invalidation")
-			}
-			if execution == ExecutionHostOnly && s.activeGameID != "prior" {
-				t.Fatal("target invalidation discarded independent host owner")
-			}
-		})
+	base, _ := url.Parse("http://127.0.0.1:8182")
+	client := targetclient.NewClient(base, "test", nil)
+	s := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+	s.plays[s.selectedTarget] = targetPlay{execution: ExecutionFPGADevelopment, packageID: "package", packageGeneration: 7,
+		packageRejection: &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Phase: "identity"}}
+	s.invalidateTargetSession(client)
+	if _, retained := s.plays[s.selectedTarget]; retained {
+		t.Fatal("obsolete target package state survived invalidation")
 	}
 }
 
@@ -887,7 +877,6 @@ func TestKitHostStatusDoesNotReportIdleWhenAgentIsUnavailable(t *testing.T) {
 	cfg := Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}
 	s := newService(cfg, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
 	s.kitHost = true
-	s.hostEmulator = HostEmulatorConfig{Binary: "/configured/retroarch"}
 	if status, err := s.Status(context.Background()); err == nil {
 		t.Fatalf("unreachable agent reported status %+v", status)
 	}

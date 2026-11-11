@@ -118,7 +118,7 @@ func TestBundledFirmwareDefaultTracksBundleUpdatesWithoutSavingSelection(t *test
 	if err != nil || !compositions[entry.GameID].FirmwareReady || compositions[entry.GameID].ROMMediaID != firstID {
 		t.Fatalf("first bundle default %+v err=%v", compositions[entry.GameID], err)
 	}
-	stored, err := s.catalog.(coreROMCatalog).CoreEntryROM(ctx, entry.GameID)
+	stored, err := s.catalog.(coreROMCatalog).CoreEntryROM(ctx, entry.GameID, "machine-rom")
 	if err != nil || stored.MediaID != "" {
 		t.Fatalf("default was saved as a title selection: %+v err=%v", stored, err)
 	}
@@ -130,7 +130,7 @@ func TestBundledFirmwareDefaultTracksBundleUpdatesWithoutSavingSelection(t *test
 	if err != nil || !compositions[entry.GameID].FirmwareReady || compositions[entry.GameID].ROMMediaID != nextID {
 		t.Fatalf("updated bundle default %+v err=%v", compositions[entry.GameID], err)
 	}
-	effective, err := s.CoreEntryROM(ctx, entry.GameID)
+	effective, err := s.CoreEntryROM(ctx, entry.GameID, "machine-rom")
 	if err != nil || effective.MediaID != nextID {
 		t.Fatalf("effective selection after bundle update %+v err=%v", effective, err)
 	}

@@ -11,7 +11,6 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
-	"github.com/DeanoC/FogCast/internal/hostexec"
 	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -43,17 +42,8 @@ type MediaHandle interface {
 	Stop(context.Context) error
 }
 
-type MediaBusyOtherKitError struct{}
-
-func (MediaBusyOtherKitError) Error() string                    { return "host media is already running on another kit" }
-func (err MediaBusyOtherKitError) PublicMediaStartError() error { return err }
-
 type sessionExecutionService interface {
 	SessionExecution(context.Context, string) (string, error)
-}
-
-type hostExecutionStatusService interface {
-	HostExecutionStatus(context.Context) (hostexec.Status, error)
 }
 
 type sessionDevelopmentService interface {
@@ -127,7 +117,6 @@ type sessionCoordinator struct {
 	liveMediaBinding  protocol.DevelopmentMediaBinding
 	liveMediaFlightID string
 	liveMediaEjected  bool
-	terminalStatus    *protocol.Status
 	inputBinding      sessionInputBinding
 	mu                sync.Mutex
 	observationMu     sync.Mutex
@@ -178,7 +167,6 @@ type adoptionSnapshot struct {
 	mediaState        string
 	mediaHandle       MediaHandle
 	mediaGeneration   uint64
-	terminalStatus    *protocol.Status
 	inputBinding      sessionInputBinding
 	flightID          string
 }
@@ -345,45 +333,17 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 		return s.publicSession(st, nil), err
 	}
 
-	// Service.Status is also the observation point for host-only processes:
-	// the host adapter can reap a process between requests and report idle
-	// without knowing about this coordinator's media handle. Serialize this
-	// transition so concurrent status requests cannot stop the same handle or
-	// emit duplicate exit events.
 	s.mu.Lock()
-	execution, mediaHandle, mediaState, terminalStatus := s.execution, s.mediaHandle, s.mediaState, s.terminalStatus
+	execution, mediaHandle, mediaState := s.execution, s.mediaHandle, s.mediaState
 	s.mu.Unlock()
-	if mediaState == "stopped" && terminalStatus != nil {
-		st = *terminalStatus
-	}
 	if mediaHandle != nil && mediaState == "active" && mediaHandleDone(mediaHandle) {
-		if !mediaOwnsSession(execution) {
-			mediaErr := s.stopMediaBounded(execution)
-			result := s.publicSession(st, nil)
-			result.Execution = execution
-			result.Media = s.currentMediaState()
-			if mediaErr != nil {
-				s.record("session.media.exit_failed", result, nil)
-				return result, nil
-			}
-			s.record("session.media.exit", result, nil)
-			return result, nil
-		}
-		inputErr := s.detachInputBounded("media_exit")
 		mediaErr := s.stopMediaBounded(execution)
-		stopped, stopErr := s.stopServiceBounded()
-		result := s.publicSession(stopped, nil)
+		result := s.publicSession(st, nil)
 		result.Execution = execution
 		result.Media = s.currentMediaState()
-		if mediaErr != nil || inputErr != nil || stopErr != nil {
+		if mediaErr != nil {
 			s.record("session.media.exit_failed", result, nil)
-			if mediaErr != nil {
-				return result, mediaErr
-			}
-			if inputErr != nil {
-				return result, inputErr
-			}
-			return result, stopErr
+			return result, nil
 		}
 		s.record("session.media.exit", result, nil)
 		return result, nil
@@ -401,7 +361,6 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 		result := s.publicSession(st, nil)
 		result.Execution = execution
 		result.Media = "stopped"
-		s.clearHostOnlyExecution(execution)
 		s.record("session.exit", result, nil)
 		return result, nil
 	}
@@ -413,28 +372,19 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 			s.execution = execution
 			s.packageOwned = packageOwned
 			s.bindExecutionPackageLocked(st)
-			s.terminalStatus = nil
 			s.nativeStoppedIdle = false
 		}
 	}
 	if st.State == protocol.StateIdle && (s.execution == fogcast.ExecutionFPGADevelopment || s.packageOwned) {
 		s.execution = ""
 		s.packageOwned = false
-		s.terminalStatus = nil
 		s.nativeStoppedIdle = false
-	}
-	if st.State == protocol.StateIdle && s.execution == fogcast.ExecutionHostOnly {
-		s.execution = ""
-		s.mediaState = "stopped"
-		s.terminalStatus = nil
 	}
 	// A package may have been replaced by another actor since this
 	// coordinator last owned it. Do not relabel that replacement with the
 	// previous package's execution type.
 	ownedPackageChanged := st.State == protocol.StateActive && s.executionPackage.packageID != "" && !s.matchesExecutionPackageLocked(st)
-	ownedHostChanged := st.State == protocol.StateActive && s.execution == fogcast.ExecutionHostOnly &&
-		s.executionPackage.hasGame && s.executionPackage.hasSystem && !s.matchesUnpackagedExecutionLocked(st)
-	if s.execution != "" && !ownedPackageChanged && !ownedHostChanged {
+	if s.execution != "" && !ownedPackageChanged {
 		result.Execution = s.execution
 	}
 	if s.mediaState != "" {
@@ -510,36 +460,12 @@ func (s *sessionCoordinator) watchMedia(handle MediaHandle, generation uint64, e
 		if !current {
 			return
 		}
-		if !mediaOwnsSession(execution) {
-			mediaErr := s.stopMediaBounded(execution)
-			st, _ := s.service.Status(s.scoped(context.Background()))
-			result := s.publicSession(st, nil)
-			result.Execution = execution
-			result.Media = s.currentMediaState()
-			if mediaErr != nil {
-				s.record("session.media.exit_failed", result, nil)
-				return
-			}
-			s.record("session.media.exit", result, nil)
-			return
-		}
-		inputErr := s.detachInputBounded("media_exit")
 		mediaErr := s.stopMediaBounded(execution)
-		stopped, stopErr := s.stopServiceBounded()
-		if stopErr == nil {
-			s.mu.Lock()
-			terminal := stopped
-			s.terminalStatus = &terminal
-			s.mu.Unlock()
-		}
-		result := s.publicSession(stopped, nil)
+		st, _ := s.service.Status(s.scoped(context.Background()))
+		result := s.publicSession(st, nil)
 		result.Execution = execution
+		result.Media = s.currentMediaState()
 		if mediaErr != nil {
-			result.Media = "active"
-		} else {
-			result.Media = "stopped"
-		}
-		if mediaErr != nil || inputErr != nil || stopErr != nil {
 			s.record("session.media.exit_failed", result, nil)
 			return
 		}
@@ -601,7 +527,7 @@ func (s *sessionCoordinator) launchLocked(ctx context.Context, id, target string
 			result, err = s.adoptPlacedPlay(ctx, owner, response.Status, func() (sessionResult, error) {
 				owner.mu.Lock()
 				owner.execution, owner.packageOwned = "", false
-				owner.nativeStoppedIdle, owner.terminalStatus = false, nil
+				owner.nativeStoppedIdle = false
 				owner.mediaHandle, owner.mediaState, owner.inputBinding = nil, "", sessionInputBinding{}
 				owner.mu.Unlock()
 				return owner.finishCoreLoad(owner.scoped(ctx), response.Status, err, "session.launch", stamp, execution)
@@ -623,27 +549,13 @@ func (s *sessionCoordinator) launchLocked(ctx context.Context, id, target string
 		return result, err
 	}
 	development, err := s.developmentActive(ctx)
-	// Host-only execution has no kit dependency. Keep the development probe
-	// when the target answers (so a live development session still blocks),
-	// but an unavailable kit cannot prevent a software launch.
-	if err != nil && !(execution == fogcast.ExecutionHostOnly && targetUnavailable(err)) {
+	if err != nil {
 		return sessionResult{}, err
 	}
 	if development {
 		return sessionResult{}, developmentMustStopError()
 	}
-	// RetroArch rejects a second process while one is running. Ask the real
-	// executor before retiring the current media owner, so BUSY leaves the
-	// active emulator and its content together.
-	if execution == fogcast.ExecutionHostOnly {
-		if executor, ok := s.service.(hostExecutionStatusService); ok {
-			status, statusErr := executor.HostExecutionStatus(ctx)
-			if statusErr == nil && status.State == hostexec.Active {
-				return sessionResult{}, busyError()
-			}
-		}
-	}
-	if err := s.stopPackageOwnedForReplacement(ctx, target, execution); err != nil {
+	if err := s.stopPackageOwnedForReplacement(ctx, target); err != nil {
 		return sessionResult{}, err
 	}
 
@@ -653,7 +565,6 @@ func (s *sessionCoordinator) launchLocked(ctx context.Context, id, target string
 	previousExecution := s.execution
 	previousNativeStoppedIdle := s.nativeStoppedIdle
 	previousFlight := s.flightID
-	previousTerminal := s.terminalStatus
 	previousPackageOwned := s.packageOwned
 	s.mu.Unlock()
 	if s.remoteInput != nil {
@@ -670,20 +581,9 @@ func (s *sessionCoordinator) launchLocked(ctx context.Context, id, target string
 	s.mu.Lock()
 	s.execution = execution
 	s.nativeStoppedIdle = false
-	s.terminalStatus = nil
-	if execution != fogcast.ExecutionHostOnly {
-		s.mediaHandle = nil
-		s.mediaState = ""
-	}
+	s.mediaHandle = nil
+	s.mediaState = ""
 	s.mu.Unlock()
-	if execution == fogcast.ExecutionHostOnly {
-		if err := s.startMedia(ctx, id, execution); err != nil {
-			s.restoreExecution(previousExecution)
-			s.restoreNativeStoppedIdle(previousNativeStoppedIdle)
-			s.restoreFlight(previousFlight)
-			return sessionResult{}, err
-		}
-	}
 
 	var progress sessionProgress
 	resp, err := s.launchGame(ctx, id, target, func(value fogcast.Progress) {
@@ -706,7 +606,7 @@ func (s *sessionCoordinator) launchLocked(ctx context.Context, id, target string
 	if target == "" && s.root != nil && resolvedTarget != "" && resolvedTarget != s.target {
 		owner = s.root.forTarget(resolvedTarget)
 		return s.adoptPlacedPlay(ctx, owner, resp.Status, func() (sessionResult, error) {
-			s.handoffLaunchState(owner, previousExecution, previousNativeStoppedIdle, previousFlight, previousTerminal, previousPackageOwned)
+			s.handoffLaunchState(owner, previousExecution, previousNativeStoppedIdle, previousFlight, previousPackageOwned)
 			return s.finishOrdinaryLaunch(owner.scoped(ctx), owner, id, execution, resp.Status, &progress, stamp)
 		})
 	}
@@ -719,15 +619,7 @@ func (s *sessionCoordinator) finishOrdinaryLaunch(ctx context.Context, owner *se
 	owner.mu.Unlock()
 	result := owner.publicSession(status, progress)
 	result.Execution = execution
-	if execution == fogcast.ExecutionHostOnly {
-		if status.State != protocol.StateActive {
-			if err := owner.stopMediaBounded(execution); err != nil {
-				return sessionResult{}, err
-			}
-		}
-		result.Media = owner.currentMediaState()
-	}
-	if execution != fogcast.ExecutionHostOnly && status.State == protocol.StateActive {
+	if status.State == protocol.StateActive {
 		if err := owner.startMedia(ctx, id, execution); err != nil {
 			_ = owner.stopMediaBounded(execution)
 			owner.mu.Lock()
@@ -743,7 +635,7 @@ func (s *sessionCoordinator) finishOrdinaryLaunch(ctx context.Context, owner *se
 			result.Media = owner.currentMediaState()
 		}
 	}
-	if owner.remoteInput != nil && execution != fogcast.ExecutionHostOnly && status.State == protocol.StateActive {
+	if owner.remoteInput != nil && status.State == protocol.StateActive {
 		core := sessionCore(status)
 		if core == "" {
 			return sessionResult{}, owner.stopAfterFailedAttach(execution)
@@ -794,8 +686,8 @@ func (s *sessionCoordinator) adoptPlacedPlay(ctx context.Context, dst *sessionCo
 		executionPackage:  dst.executionPackage,
 		nativeStoppedIdle: dst.nativeStoppedIdle, mediaState: dst.mediaState,
 		mediaHandle: dst.mediaHandle, mediaGeneration: dst.mediaGeneration,
-		terminalStatus: dst.terminalStatus, inputBinding: dst.inputBinding,
-		flightID: dst.flightID,
+		inputBinding: dst.inputBinding,
+		flightID:     dst.flightID,
 	}
 	dst.mu.Unlock()
 	oldExecution := previous.execution
@@ -829,7 +721,7 @@ func (s *sessionCoordinator) restoreAdoptionSnapshot(previous adoptionSnapshot) 
 	s.executionPackage = previous.executionPackage
 	s.nativeStoppedIdle, s.mediaState = previous.nativeStoppedIdle, previous.mediaState
 	s.mediaHandle, s.mediaGeneration = previous.mediaHandle, previous.mediaGeneration
-	s.terminalStatus, s.inputBinding = previous.terminalStatus, previous.inputBinding
+	s.inputBinding = previous.inputBinding
 	s.flightID = previous.flightID
 	s.mu.Unlock()
 }
@@ -859,7 +751,7 @@ func (s *sessionCoordinator) rollbackPlacedIfCurrent(_ context.Context, placed p
 // handoffLaunchState moves the just-started play to the coordinator for the
 // executor FogCast selected. Lock ordering is stable even when two launches
 // resolve in opposite directions.
-func (s *sessionCoordinator) handoffLaunchState(dst *sessionCoordinator, previousExecution string, previousNativeStoppedIdle bool, previousFlight string, previousTerminal *protocol.Status, previousPackageOwned bool) {
+func (s *sessionCoordinator) handoffLaunchState(dst *sessionCoordinator, previousExecution string, previousNativeStoppedIdle bool, previousFlight string, previousPackageOwned bool) {
 	first, second := s, dst
 	if first.target > second.target {
 		first, second = second, first
@@ -868,11 +760,11 @@ func (s *sessionCoordinator) handoffLaunchState(dst *sessionCoordinator, previou
 	second.mu.Lock()
 	dst.execution, dst.packageOwned = s.execution, s.packageOwned
 	dst.nativeStoppedIdle, dst.mediaState = s.nativeStoppedIdle, s.mediaState
-	dst.terminalStatus, dst.mediaHandle = s.terminalStatus, s.mediaHandle
+	dst.mediaHandle = s.mediaHandle
 	dst.mediaGeneration, dst.inputBinding = s.mediaGeneration, s.inputBinding
 	dst.flightID = s.flightID
 	s.execution, s.packageOwned = previousExecution, previousPackageOwned
-	s.nativeStoppedIdle, s.terminalStatus = previousNativeStoppedIdle, previousTerminal
+	s.nativeStoppedIdle = previousNativeStoppedIdle
 	s.flightID = previousFlight
 	s.mediaHandle, s.mediaState, s.inputBinding = nil, "", sessionInputBinding{}
 	s.mediaGeneration = 0
@@ -942,11 +834,9 @@ func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64,
 			case observed.Development && observed.State != protocol.StateIdle:
 				s.execution = fogcast.ExecutionFPGADevelopment
 				s.packageOwned = false
-				s.terminalStatus = nil
 			case observed.State == protocol.StateIdle:
 				s.execution = ""
 				s.packageOwned = false
-				s.terminalStatus = nil
 			}
 			s.mu.Unlock()
 		}
@@ -958,7 +848,6 @@ func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64,
 	s.packageOwned = false
 	s.mediaHandle = nil
 	s.mediaState = ""
-	s.terminalStatus = nil
 	s.mu.Unlock()
 	result := s.publicSession(status, nil)
 	result.Execution = fogcast.ExecutionFPGADevelopment
@@ -1000,21 +889,14 @@ func (s *sessionCoordinator) finishCoreLoad(ctx context.Context, status protocol
 	}
 	if !corePackageInputStatus(status) {
 		// The target result is ambiguous or post-mutation. Retire stale target
-		// input ownership. Preserve a still-running host-only owner when the
-		// service proves target idle but cannot stop that executor.
+		// input ownership.
 		_ = s.detachInputBounded("session_replace_ambiguous")
 		s.mu.Lock()
 		previousExecution := s.execution
-		preserveHostOnly := hostOnlyCorePackageCleanupFailure(previousExecution, status, err)
-		if !preserveHostOnly {
-			s.execution = ""
-			s.packageOwned = false
-			s.terminalStatus = nil
-		}
+		s.execution = ""
+		s.packageOwned = false
 		s.mu.Unlock()
-		if !preserveHostOnly {
-			_ = s.stopMediaBounded(previousExecution)
-		}
+		_ = s.stopMediaBounded(previousExecution)
 		if err != nil {
 			return sessionResult{}, err
 		}
@@ -1027,7 +909,6 @@ func (s *sessionCoordinator) finishCoreLoad(ctx context.Context, status protocol
 	previousExecution := s.execution
 	s.execution = execution
 	s.packageOwned = true
-	s.terminalStatus = nil
 	s.mu.Unlock()
 	// Publish the confirmed target owner before cleaning up the retired host
 	// session. Cleanup failures must not make subsequent status calls report
@@ -1087,23 +968,6 @@ func corePackagePreMutationFailure(err error) bool {
 	}
 }
 
-func hostOnlyCorePackageCleanupFailure(execution string, status protocol.Status, err error) bool {
-	if execution != fogcast.ExecutionHostOnly || status.LastError == nil {
-		return false
-	}
-	var apiErr *protocol.APIError
-	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeInternal || apiErr.Phase != "recovery" {
-		return false
-	}
-	if status.Development && status.CorePackage != nil {
-		return (status.LastError.Code == protocol.CodeUnrecognizedCore && status.LastError.Phase == "identity") ||
-			(status.LastError.Code == protocol.CodeInternal && status.LastError.Phase == "recovery")
-	}
-	return status.State == protocol.StateIdle && status.GameID == nil && status.System == nil &&
-		status.ExpectedCore == nil && status.ObservedCore == nil && !status.Development &&
-		status.Recovery == "" && status.CorePackage == nil
-}
-
 func (s *sessionCoordinator) clearInputBinding() {
 	s.mu.Lock()
 	s.inputBinding = sessionInputBinding{}
@@ -1126,13 +990,7 @@ func packageReplacementApplies(requestedTarget, packageOwnerTarget string) bool 
 	return requestedTarget == packageOwnerTarget
 }
 
-func (s *sessionCoordinator) stopPackageOwnedForReplacement(ctx context.Context, requestedTarget, replacementExecution string) error {
-	// Root host-only launches own only the local RetroArch execution. The
-	// service may also expose a kit package play, but replacing host media must
-	// never stop that independently owned kit session.
-	if s.target == "" && replacementExecution == fogcast.ExecutionHostOnly {
-		return nil
-	}
+func (s *sessionCoordinator) stopPackageOwnedForReplacement(ctx context.Context, requestedTarget string) error {
 	s.mu.Lock()
 	packageOwned := s.packageOwned
 	previousExecution := s.execution
@@ -1204,33 +1062,20 @@ func (s *sessionCoordinator) startMedia(ctx context.Context, id, execution strin
 	if s.media == nil {
 		return nil
 	}
-	ctx = WithMediaExecution(ctx, execution)
 	handle, err := s.media.Start(ctx, id)
 	if err != nil {
 		media := "failed"
-		if handle != nil && mediaOwnsSession(execution) {
-			s.mu.Lock()
-			s.execution = execution
+		s.mu.Lock()
+		var generation uint64
+		if handle != nil {
 			s.mediaHandle = handle
-			s.mediaState = "active"
 			s.mediaGeneration++
-			generation := s.mediaGeneration
-			s.mu.Unlock()
+			generation = s.mediaGeneration
+		}
+		s.mediaState = "failed"
+		s.mu.Unlock()
+		if handle != nil {
 			s.watchMedia(handle, generation, execution)
-			media = "active"
-		} else {
-			s.mu.Lock()
-			var generation uint64
-			if handle != nil {
-				s.mediaHandle = handle
-				s.mediaGeneration++
-				generation = s.mediaGeneration
-			}
-			s.mediaState = "failed"
-			s.mu.Unlock()
-			if handle != nil {
-				s.watchMedia(handle, generation, execution)
-			}
 		}
 		s.record("session.media.failed", sessionResult{State: protocol.StateIdle, Execution: execution, Media: media}, nil)
 		return err
@@ -1245,23 +1090,6 @@ func (s *sessionCoordinator) startMedia(ctx context.Context, id, execution strin
 	s.watchMedia(handle, generation, execution)
 	s.record("session.media.start", sessionResult{State: protocol.StateActive, Execution: execution, Media: mediaState(handle)}, nil)
 	return nil
-}
-
-type mediaExecutionContextKey struct{}
-
-// MediaExecutionFromContext reports the execution type requesting host media.
-// It lets the configured physical capture pipeline distinguish host-only
-// playback from FPGA sessions.
-func MediaExecutionFromContext(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
-	value, _ := ctx.Value(mediaExecutionContextKey{}).(string)
-	return value
-}
-
-func WithMediaExecution(ctx context.Context, execution string) context.Context {
-	return context.WithValue(ctx, mediaExecutionContextKey{}, execution)
 }
 
 func (s *sessionCoordinator) stopMediaBounded(execution string) error {
@@ -1407,7 +1235,6 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retain
 		if s.execution == execution {
 			s.execution = ""
 			s.packageOwned = false
-			s.terminalStatus = nil
 			s.nativeStoppedIdle = false
 		}
 		s.mu.Unlock()
@@ -1424,7 +1251,7 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retain
 	// including one whose client was dropped when idle settings changed
 	// selected_target. Sofa Soft-stop (retain_lease) keeps those grants.
 	// A stop that does not reach idle, including reboot_required, never releases.
-	if st.State == protocol.StateIdle && !retainLease && execution != fogcast.ExecutionHostOnly {
+	if st.State == protocol.StateIdle && !retainLease {
 		if err := s.releaseKitLeaseNow(); err != nil {
 			return sessionResult{}, err
 		}
@@ -1515,16 +1342,6 @@ func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error
 	if execution != "" {
 		return false, nil
 	}
-	// An unscoped host coordinator has no FPGA play to reconstruct when the
-	// service reports no bound foreground target. Probing the selected kit here
-	// made idle Stop fail whenever that unrelated kit was offline.
-	if s.target == "" {
-		if idleSafe, ok := s.service.(interface{ HostOnlyIdleStopSafe() bool }); ok && idleSafe.HostOnlyIdleStopSafe() {
-			if foreground, bound := s.service.(interface{ ForegroundSessionTargetName() string }); bound && foreground.ForegroundSessionTargetName() == "" {
-				return false, nil
-			}
-		}
-	}
 	var development bool
 	var reconstructedExecution string
 	var err error
@@ -1554,34 +1371,16 @@ func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error
 		case reconstructedExecution == fogcast.ExecutionFPGANative:
 			s.execution = fogcast.ExecutionFPGANative
 			s.packageOwned = packageOwned
-			s.terminalStatus = nil
 			s.nativeStoppedIdle = false
 		case development:
 			s.execution = fogcast.ExecutionFPGADevelopment
 			s.packageOwned = packageOwned
-			s.terminalStatus = nil
 			s.nativeStoppedIdle = false
 		}
 	}
 	development = s.execution == fogcast.ExecutionFPGADevelopment
 	s.mu.Unlock()
 	return development, nil
-}
-
-func targetUnavailable(err error) bool {
-	var apiErr *protocol.APIError
-	return errors.As(err, &apiErr) && apiErr.Code == protocol.CodeMiSTerUnavailable
-}
-
-func (s *sessionCoordinator) clearHostOnlyExecution(execution string) {
-	s.mu.Lock()
-	if s.execution == execution && execution == fogcast.ExecutionHostOnly {
-		s.execution = ""
-		s.mediaHandle = nil
-		s.mediaState = "stopped"
-		s.terminalStatus = nil
-	}
-	s.mu.Unlock()
 }
 
 func (s *sessionCoordinator) restoreExecution(execution string) {
@@ -1591,7 +1390,6 @@ func (s *sessionCoordinator) restoreExecution(execution string) {
 		s.packageOwned = false
 		s.nativeStoppedIdle = false
 	}
-	s.terminalStatus = nil
 	s.mu.Unlock()
 }
 
@@ -1941,12 +1739,9 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 	s.mu.Lock()
 	result.ID = s.id
 	result.FlightID = s.flightID
-	execution := s.execution
 	name, binding, mediaFlightID, mediaEjected := s.liveMediaName, s.liveMediaBinding, s.liveMediaFlightID, s.liveMediaEjected
 	s.mu.Unlock()
-	if result.Execution == fogcast.ExecutionHostOnly || execution == fogcast.ExecutionHostOnly {
-		result.Target, result.TargetID = "", ""
-	} else if s.target != "" {
+	if s.target != "" {
 		result.Target = s.target
 		if binder, ok := s.service.(interface{ TargetIDForName(string) string }); ok {
 			result.TargetID = binder.TargetIDForName(s.target)
@@ -2006,7 +1801,7 @@ func (s *sessionCoordinator) matchesExecutionPackageLocked(st protocol.Status) b
 
 func (s *sessionCoordinator) matchesUnpackagedExecutionLocked(st protocol.Status) bool {
 	binding := s.executionPackage
-	return (s.execution == fogcast.ExecutionHostOnly || s.execution == fogcast.ExecutionFPGANative) &&
+	return s.execution == fogcast.ExecutionFPGANative &&
 		binding.packageID == "" && !st.Development && st.CorePackage == nil &&
 		binding.flightID == s.flightID && binding.hasGame && binding.hasSystem && matchesExecutionIdentity(binding, st)
 }
@@ -2211,10 +2006,6 @@ func mediaState(handle MediaHandle) string {
 		return "inactive"
 	}
 	return "active"
-}
-
-func mediaOwnsSession(execution string) bool {
-	return execution == fogcast.ExecutionHostOnly
 }
 
 func publicEvents(events []sessionEvent) []sessionEvent {
