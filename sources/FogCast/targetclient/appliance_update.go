@@ -43,6 +43,34 @@ func (c *Client) ApplianceStatus(ctx context.Context) (ApplianceStatus, error) {
 	err := c.doJSON(ctx, http.MethodGet, "/v1/update", nil, &status)
 	return status, err
 }
+
+// ApplianceCapacity reads a point-in-time admission estimate without uploading.
+// Stage remains authoritative; available space can change after this request.
+func (c *Client) ApplianceCapacity(ctx context.Context, m appliance.Manifest) (appliance.Capacity, error) {
+	return c.applianceCapacityForBoard(ctx, m, appliance.Board)
+}
+
+func (c *Client) applianceCapacityForBoard(ctx context.Context, m appliance.Manifest, board string) (appliance.Capacity, error) {
+	if err := m.ValidateForBoard(board); err != nil {
+		return appliance.Capacity{}, err
+	}
+	q := url.Values{"image_sha256": {m.ImageSHA256}, "image_size": {fmt.Sprint(m.ImageSize)}}
+	var capacity appliance.Capacity
+	if err := c.doJSONQuery(ctx, http.MethodGet, "/v1/update/capacity", q, nil, &capacity); err != nil {
+		var apiErr *protocol.APIError
+		var statusErr *httpStatusError
+		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound ||
+			errors.As(err, &statusErr) && statusErr.status == http.StatusNotFound {
+			return capacity, fmt.Errorf("kit software does not provide release capacity; update the kit software first: %w", err)
+		}
+		return capacity, fmt.Errorf("check release capacity: %w", err)
+	}
+	if capacity.Required < uint64(m.ImageSize) || (!capacity.Possible &&
+		(capacity.Existing || capacity.Available >= capacity.Required || !capacity.SpillChecked)) {
+		return appliance.Capacity{}, errors.New("invalid release capacity response")
+	}
+	return capacity, nil
+}
 func (c *Client) StageAppliance(ctx context.Context, m appliance.Manifest, content io.Reader) error {
 	return c.StageApplianceForBoard(ctx, m, content, appliance.Board)
 }
@@ -185,6 +213,19 @@ func (c *Client) UpdateApplianceForBoard(ctx context.Context, targetID string, m
 	}
 	if reported != board {
 		return before, errors.New("target appliance board differs from selected release board")
+	}
+	c.reportProgress("check capacity", fmt.Sprintf("%d bytes", m.ImageSize))
+	capacity, err := c.applianceCapacityForBoard(ctx, m, board)
+	if err != nil {
+		return before, err
+	}
+	if !capacity.Possible {
+		detail := fmt.Sprintf("insufficient release storage: need %d bytes, available %d bytes, reclaimable image estimate %d bytes, spill available %t", capacity.Required, capacity.Available, capacity.Reclaimable, capacity.Spill)
+		if capacity.UpperKnown {
+			detail += fmt.Sprintf(", reclaimable upper bound %d bytes", capacity.ReclaimUpper)
+		}
+		return before, &protocol.APIError{Code: "UPDATE_NO_SPACE", StatusCode: http.StatusInsufficientStorage,
+			Message: detail}
 	}
 	if err = c.StageApplianceForBoard(ctx, m, content, board); err != nil {
 		return before, err

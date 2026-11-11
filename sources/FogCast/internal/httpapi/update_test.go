@@ -246,6 +246,42 @@ func TestUpdateHTTPAuthenticationLeaseAndTrialGate(t *testing.T) {
 	}
 }
 
+func TestUpdateCapacityHTTPIsAuthenticatedAndReadOnly(t *testing.T) {
+	h, s, m, _, _ := updateFixture(t, false, nil)
+	path := fmt.Sprintf("/v1/update/capacity?image_sha256=%s&image_size=%d", m.ImageSHA256, m.ImageSize)
+	request := httptest.NewRequest(http.MethodGet, path, nil)
+	response := httptest.NewRecorder()
+	h.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated capacity: %d", response.Code)
+	}
+	before, err := s.Status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	request = httptest.NewRequest(http.MethodGet, path, nil)
+	request.Header.Set("Authorization", "Bearer bearer")
+	response = httptest.NewRecorder()
+	h.ServeHTTP(response, request)
+	var got release.Capacity
+	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &got) != nil || got.Required <= uint64(m.ImageSize) {
+		t.Fatalf("capacity: %d %s", response.Code, response.Body.String())
+	}
+	after, err := s.Status()
+	if err != nil || before != after {
+		t.Fatalf("capacity changed selection: before=%+v after=%+v err=%v", before, after, err)
+	}
+	for _, query := range []string{"", "?image_sha256=bad&image_size=4096", "?image_sha256=" + m.ImageSHA256 + "&image_size=0", "?image_sha256=" + m.ImageSHA256 + "&image_size=4096&extra=1"} {
+		request = httptest.NewRequest(http.MethodGet, "/v1/update/capacity"+query, nil)
+		request.Header.Set("Authorization", "Bearer bearer")
+		response = httptest.NewRecorder()
+		h.ServeHTTP(response, request)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("bad query %q: %d %s", query, response.Code, response.Body.String())
+		}
+	}
+}
+
 func TestRollbackUsesUpdaterWhenSoftwareMaintenanceIsBlocked(t *testing.T) {
 	root := t.TempDir()
 	var cleanups atomic.Int32

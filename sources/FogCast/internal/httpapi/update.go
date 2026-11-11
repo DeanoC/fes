@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -56,6 +57,27 @@ func registerUpdateRoutes(mux *http.ServeMux, token string, s *applianceupdate.S
 			return
 		}
 		writeJSON(w, http.StatusOK, status)
+	})))
+	mux.Handle("GET /v1/update/capacity", authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		hashes, sizes := q["image_sha256"], q["image_size"]
+		if len(q) != 2 || len(hashes) != 1 || len(sizes) != 1 || !release.ValidHash(hashes[0]) {
+			writeBadRequest(w, r, "capacity requires one image_sha256 and image_size")
+			return
+		}
+		size, err := strconv.ParseInt(sizes[0], 10, 64)
+		if err != nil || size < 2048 || size > release.MaxImageSize {
+			writeBadRequest(w, r, "capacity image_size is outside supported bounds")
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		capacity, err := s.Capacity(ctx, hashes[0], size)
+		if err != nil {
+			updateError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, capacity)
 	})))
 	mutation := func(h http.HandlerFunc) http.Handler {
 		return authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

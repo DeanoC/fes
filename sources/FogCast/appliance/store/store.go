@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	release "github.com/DeanoC/FogCast/appliance"
@@ -76,6 +77,7 @@ type Store struct {
 	syncFile       func(*os.File) error
 	syncDirectory  func(string) error
 	availableBytes func(string) (uint64, error)
+	filesystemType func(string) (uint32, error)
 	loopBackings   func() ([]string, error)
 	// spillRoot receives an upload that does not fit on the release volume so
 	// it can be verified before any image is deleted. Tests set it. Production
@@ -94,6 +96,7 @@ type Status struct {
 	TrialImage      string `json:"trial_image,omitempty"`
 	Corrupt         bool   `json:"corrupt"`
 }
+
 type Selection struct {
 	Manifest            release.Manifest `json:"manifest"`
 	Path                string           `json:"path"`
@@ -154,6 +157,7 @@ func NewForBoard(root string, factory release.Manifest, board string) (*Store, e
 		syncFile:       (*os.File).Sync,
 		syncDirectory:  syncDir,
 		availableBytes: statAvailable,
+		filesystemType: statFilesystemType,
 		loopBackings:   loopBackingFiles,
 	}, nil
 }
@@ -523,6 +527,168 @@ func trialBootID(st diskState) string {
 	}
 	return ""
 }
+
+// CapacityContext is a non-mutating pre-upload check, not a reservation.
+// When an unprotected image exists the estimate may be inaccurate (for
+// example because of sparse files or hard links), so it does not reject based
+// on the estimate alone. Stage remains authoritative.
+func (s *Store) CapacityContext(ctx context.Context, hash string, size int64) (release.Capacity, error) {
+	if !release.ValidHash(hash) || size < 2048 || size > release.MaxImageSize {
+		return release.Capacity{}, errors.New("invalid image identity or size")
+	}
+	unlock, err := s.lock(ctx)
+	if err != nil {
+		return release.Capacity{}, err
+	}
+	defer unlock()
+	result := release.Capacity{Required: releaseStorageNeed(size)}
+	path, _ := s.ImagePath(hash)
+	if _, err = os.Lstat(path); err == nil {
+		// Stage verifies the existing immutable image and manifest before reuse;
+		// it does not require space for a second full image.
+		result.Existing, result.Possible = true, true
+		return result, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return release.Capacity{}, err
+	}
+	result.Available, err = s.availableBytes(s.root)
+	if err != nil {
+		return release.Capacity{}, err
+	}
+	if result.Available >= result.Required {
+		result.Possible = true
+		return result, nil
+	}
+	keep, err := s.protectedImages()
+	if err != nil {
+		return release.Capacity{}, err
+	}
+	entries, err := os.ReadDir(filepath.Join(s.root, "images"))
+	if err != nil {
+		return release.Capacity{}, err
+	}
+	var candidates int
+	var fatUpper uint64
+	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return release.Capacity{}, err
+		}
+		candidate, ok := publishedImageHash(entry.Name())
+		if !ok {
+			continue
+		}
+		if _, protected := keep[candidate]; protected {
+			continue
+		}
+		info, err := os.Lstat(filepath.Join(s.root, "images", entry.Name()))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return release.Capacity{}, err
+		}
+		if !info.Mode().IsRegular() {
+			continue
+		}
+		candidates++
+		// Logical length is an optimistic estimate; it can exceed allocated
+		// bytes for sparse or hard-linked files. Never use it to refuse Stage.
+		if info.Size() > 0 {
+			n := uint64(info.Size())
+			if ^uint64(0)-result.Reclaimable < n {
+				result.Reclaimable = ^uint64(0)
+			} else {
+				result.Reclaimable += n
+			}
+		}
+		// Stage also deletes the associated manifest and splash sidecars.
+		// On FAT the file allocation and directory metadata are bounded by
+		// the file's allocated blocks, with extra cluster slack. Count hard
+		// links separately and sparse files at logical length to overestimate.
+		for _, path := range []string{
+			filepath.Join(s.root, "images", entry.Name()),
+			filepath.Join(s.root, "manifests", candidate+".json"),
+			filepath.Join(s.root, "splashes", candidate+".rbf"),
+			filepath.Join(s.root, "splashes", candidate+".sha256"),
+		} {
+			upper, err := fatFileReclaimUpper(path)
+			if err != nil {
+				return release.Capacity{}, err
+			}
+			fatUpper = addCapacity(fatUpper, upper)
+		}
+	}
+	result.SpillChecked = true
+	if s.spillRoot != "" {
+		info, statErr := os.Stat(s.spillRoot)
+		result.Spill = statErr == nil && info.IsDir() && spillInsideRelease(s.root, s.spillRoot) == nil
+	} else {
+		candidates := releaseSpillCandidates
+		if s.spillCandidates != nil {
+			candidates = s.spillCandidates
+		}
+		for _, dir := range candidates() {
+			if s.spillUsable(dir, size) {
+				result.Spill = true
+				break
+			}
+		}
+	}
+	result.Possible = result.Spill && candidates > 0
+	if result.Possible {
+		// Only use the bound to reject on FAT, the release filesystem. Other
+		// filesystems can have different allocation/metadata semantics; there
+		// the estimate is informational and Stage decides.
+		if kind, err := s.filesystemType(s.root); err == nil && kind == uint32(unix.MSDOS_SUPER_MAGIC) {
+			result.ReclaimUpper = fatUpper
+			result.UpperKnown = true
+			result.Possible = addCapacity(result.Available, fatUpper) >= result.Required
+		}
+	}
+	return result, nil
+}
+
+// FAT's allocation tables are reserved on the filesystem, not released per
+// file. The extra 1 MiB per existing directory entry is deliberately much
+// larger than a FAT cluster or entry, so the estimate stays optimistic.
+func fatFileReclaimUpper(path string) (uint64, error) {
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	var size uint64
+	if info.Size() > 0 {
+		size = uint64(info.Size())
+	}
+	if st, ok := info.Sys().(*syscall.Stat_t); ok && st.Blocks > 0 {
+		allocated := ^uint64(0)
+		if uint64(st.Blocks) <= ^uint64(0)/512 {
+			allocated = uint64(st.Blocks) * 512
+		}
+		if allocated > size {
+			size = allocated
+		}
+	}
+	return addCapacity(size, releaseHeadroom), nil
+}
+
+func addCapacity(a, b uint64) uint64 {
+	if ^uint64(0)-a < b {
+		return ^uint64(0)
+	}
+	return a + b
+}
+
+func statFilesystemType(path string) (uint32, error) {
+	var fs unix.Statfs_t
+	if err := unix.Statfs(path, &fs); err != nil {
+		return 0, err
+	}
+	return uint32(fs.Type), nil
+}
 func validBootID(id string) bool {
 	return len(id) > 0 && len(id) <= 128 && strings.IndexFunc(id, func(r rune) bool {
 		return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-')
@@ -631,8 +797,10 @@ func verifyImage(ctx context.Context, f *os.File, m release.Manifest) error {
 // keeps the current good image, one verified fallback, the new staged image,
 // in-progress selections, the boot-ticket image, and loop-backed images. It
 // removes other releases oldest first without touching boot files. If no
-// qualifying filesystem can hold the upload, or retained images leave too
-// little room, Stage returns ErrInsufficientStorage and deletes nothing.
+// qualifying filesystem can hold the upload, Stage returns
+// ErrInsufficientStorage without deleting images. After a verified spill,
+// unprotected images may have been pruned before a remaining shortage is
+// detected; retained images stay protected.
 func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.Reader) error {
 	if e := m.CompatibleForBoard(s.factory.KernelSHA256, s.factory.Board); e != nil {
 		return e

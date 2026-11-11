@@ -69,6 +69,8 @@ func updateLostRepliesForBoard(t *testing.T, board string) {
 				return
 			}
 			fmt.Fprintf(w, `{"board":%q,"boot_id":%q,"image_sha256":%q,"trial":%t,"raw_idle_ready":true,"good":%q}`, board, boot, image, rebooted.Load() && !confirmed.Load(), image)
+		case "/v1/update/capacity":
+			fmt.Fprint(w, `{"required_bytes":20000000,"possible":true}`)
 		case "/v1/update/stage":
 			if r.Header.Get(KitLeaseHeader) != "lease-1" {
 				t.Error("stage lacks current lease")
@@ -167,6 +169,8 @@ func TestUpdateAcceptsAlreadyConfirmedObservationWithoutRepeatingConfirmation(t 
 			fmt.Fprintf(w, `{"target_id":"kit","boot_id":%q}`, boot)
 		case "/v1/update":
 			fmt.Fprintf(w, `{"boot_id":%q,"image_sha256":%q,"trial":false,"raw_idle_ready":true,"good":%q}`, boot, image, image)
+		case "/v1/update/capacity":
+			fmt.Fprint(w, `{"required_bytes":20000000,"possible":true}`)
 		case "/v1/kit/claim":
 			fmt.Fprint(w, `{"token":"lease","status":{"state":"held","generation":"g","expires_in_ms":90000}}`)
 		case "/v1/update/stage":
@@ -197,6 +201,63 @@ func TestUpdateAcceptsAlreadyConfirmedObservationWithoutRepeatingConfirmation(t 
 	got, err := c.UpdateAppliance(ctx, "kit", m, strings.NewReader(body), nil)
 	if err != nil || got.Trial || got.ImageSHA256 != m.ImageSHA256 || got.Good != m.ImageSHA256 || confirmed.Load() {
 		t.Fatalf("result %+v, err=%v, confirmed=%v", got, err, confirmed.Load())
+	}
+}
+
+func TestUpdateRejectsInsufficientCapacityBeforeUploading(t *testing.T) {
+	body := strings.Repeat("x", 4096)
+	m := updateManifest(body)
+	var stages atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			fmt.Fprint(w, `{"target_id":"kit","boot_id":"old"}`)
+		case "/v1/update":
+			fmt.Fprintf(w, `{"boot_id":"old","image_sha256":%q,"good":%q,"raw_idle_ready":true}`, strings.Repeat("f", 64), strings.Repeat("f", 64))
+		case "/v1/update/capacity":
+			if r.Header.Get("Authorization") != "Bearer secret" || r.URL.Query().Get("image_sha256") != m.ImageSHA256 || r.URL.Query().Get("image_size") != "4096" {
+				t.Errorf("capacity request %s", r.URL)
+			}
+			fmt.Fprint(w, `{"required_bytes":20000000,"available_bytes":1024,"reclaimable_bytes_estimate":0,"spill_checked":true,"possible":false}`)
+		case "/v1/update/stage":
+			stages.Add(1)
+		default:
+			t.Errorf("unexpected request %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	c := NewClient(u, "secret", srv.Client())
+	_, err := c.UpdateAppliance(context.Background(), "kit", m, strings.NewReader(body), nil)
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != "UPDATE_NO_SPACE" || !strings.Contains(api.Message, "20000000") || !strings.Contains(api.Message, "1024") || stages.Load() != 0 {
+		t.Fatalf("error=%v stages=%d", err, stages.Load())
+	}
+}
+
+func TestCapacityRequiresSupportedAgentAndValidResponse(t *testing.T) {
+	m := updateManifest(strings.Repeat("x", 4096))
+	for _, tc := range []struct {
+		name, body, want string
+		status           int
+	}{
+		{"older agent", "404 page not found", "update the kit software first", http.StatusNotFound},
+		{"missing capacity", `{}`, "invalid release capacity response", http.StatusOK},
+		{"inconsistent capacity", `{"required_bytes":20000000,"available_bytes":20000000,"spill_checked":true,"possible":false}`, "invalid release capacity response", http.StatusOK},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+				fmt.Fprint(w, tc.body)
+			}))
+			defer srv.Close()
+			u, _ := url.Parse(srv.URL)
+			_, err := NewClient(u, "secret", srv.Client()).ApplianceCapacity(context.Background(), m)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("got %v, want %q", err, tc.want)
+			}
+		})
 	}
 }
 

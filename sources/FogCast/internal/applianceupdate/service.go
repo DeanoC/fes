@@ -62,6 +62,11 @@ type Service struct {
 }
 type operation struct{ cancel context.CancelFunc }
 
+// Capacity inspects upload space without changing releases or boot selection.
+func (s *Service) Capacity(ctx context.Context, hash string, size int64) (release.Capacity, error) {
+	return s.store.CapacityContext(ctx, hash, size)
+}
+
 func New(store *appliance.Store, coordinator *agent.Coordinator, boot BootIdentity, reboot func(context.Context) error, cleanup func(context.Context) error) *Service {
 	return NewWithSplash(store, coordinator, boot, reboot, cleanup, nil)
 }
