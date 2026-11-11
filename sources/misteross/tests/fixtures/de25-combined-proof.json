@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "0da7e9afc10013f38bf32154d85ea0b179b9d9b4",
+  "source_revision": "23c601ba28a3ff3a0f867693065dfaa20e2e8802",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -69,7 +69,7 @@
     "sources/misteross/cores/fes-zx81/openrom/hw.asm": "56a70219224244c9ac06436b33c0a8dd49f6d5381075c8b595f93b05f4a0ff28",
     "sources/misteross/cores/fes-zx81/openrom/init.asm": "d2c26c2b7dd94153810fd4643ffcb70d9beb3526d14b3c9cbc3ae3df553aaf7a",
     "sources/misteross/cores/fes-zx81/openrom/openrom.asm": "27f504172e37587a279759a6406cfcb0164aad45537b61ae37485fe5035b05e4",
-    "sources/misteross/cores/fes-zx81/openrom/print.asm": "dde06e9881702f4be3a9412ee842b680034f06f1c647585e81d1375d270d09d7",
+    "sources/misteross/cores/fes-zx81/openrom/print.asm": "ab9d985f47d19037512a5499a4ffe129f526b070065d788ff5cfa3450015db2b",
     "sources/misteross/cores/fes-zx81/openrom/stmt.asm": "244d61e4a3a1ac564329de4ceff6a764a85a7d1049a011dac217ae4eeb96a360",
     "sources/misteross/cores/fes-zx81/openrom/sysvars.inc": "cdeb151d01da2e2eab3075bbec1aa079eea4049edbfbb532124a66b9c755ab8c",
     "sources/misteross/cores/fes-zx81/openrom/tables.asm": "f0bff0dc29b6ac10bfada14b0e2745dbd4326c3e98c0fbc17f777cb408f19674",
@@ -339,7 +339,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "a3c8d49d179e6a13dedc740fd2e181c2ba884ef9111d35d8e955820960bd35ea",
-    "Vfes_de25_combined_sim": "1bd8a847cfd2bd8270ee9c3d7fae30dcacb92459c85f5b656db3b28b538c12e2",
+    "Vfes_de25_combined_sim": "19776159d281bab7d041405c5da3c1baa5a38ee6a6aac6b36918e60ada0b5cb3",
     "client-aarch64": "7bce4ba2c6ed39a45f61e60a0b5d3d4c68dbef928e0a092b36f7133459b3c000"
   },
   "physical_PR": "selection-mux-model-only",

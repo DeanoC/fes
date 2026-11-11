@@ -39,11 +39,26 @@ without an active exception`; it remains a failed check. A trace-only dynamic
 control and the final unmodified test entrypoint both pass against the SDK
 sysroot. The static abort's cause is unproven.
 
-The physical trial and its failures belong to source536. This reporting repair
-has not been deployed or accepted on hardware. No new kernel or FPGA artifact
-is required by this userspace-only change. #1642 remains open pending focused
-review and changed-bundle native acceptance; #1298's approved scoped recovery
-exception and #1568's default-off persona waiver are separate.
+The original physical failures belong to source536. Focused Codex review of
+repair `e4dccf5d19c530fc638909043d7412ce9cf35529` found no actionable issues.
+Its normal userspace bundle `1b16e35b21ed84080427db4104a7c76b45ba9f6d13102d45d59c7837f44405c9`
+then passed a bounded native MENU trial on the unchanged Linux image: the
+operator confirmed the picture returned after a 60-second HDMI outage, and
+fresh captures confirmed the return and a subsequent menu selection change.
+All 285 retained observations over 570 seconds had null global/MENU errors and
+zero underflows. The same boot, five process identities and idle session were
+preserved; the public plane sequence advanced 9 → 20 → 30. The working bundle
+was restored and verified before the kit and instrumentation were released.
+The native receipt is `hdmi-hotplug-9c/hdmi-reporting-e4-native-20261111/complete.json`,
+SHA256 `0f00f4ec66a578f88634e63d2bdc984ad708d708fe812955c48559e6b725d9c5`.
+
+This trial did not physically reproduce the original presentation failure;
+its error-clear path remains regression-test evidence. It adds no new gameplay,
+reboot or raw DMA-retirement acceptance. No kernel or FPGA change was needed
+for this reporting repair. #1642 remains open for broader coverage; #1298's
+approved scoped recovery exception and #1568's default-off persona waiver are
+separate. Later merged-source builds and tests retain their own producer
+identities and do not inherit this bundle's hardware acceptance.
 
 Retained physical receipt:
 `hdmi-hotplug-9c/hdmi-switcher-physical-20261111/complete.json`, SHA256
