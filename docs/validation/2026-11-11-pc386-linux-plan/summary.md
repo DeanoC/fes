@@ -169,9 +169,12 @@ and four commands.
   the write must not fault. It doesn't on the oracle, and it doesn't on
   the slice-4 RTL: the census has no CPL-0 #PF with error 3, and neither
   boot prints the line.
-- **TLB models.** The 16-entry DTLB walks on 0.014, 0.537 and 0.636 per 100
-  data accesses, and the 8-entry ITLB on 0.005, 0.043 and 0.121 per 100
-  instructions. That is within the Phase 5 plan's game range.
+- **TLB models.** For Linux 0.99.15, 1.2.13 and 2.0.0, the 16-entry DTLB
+  walks on 0.014, 0.537 and 0.636 per 100 data accesses, and the 8-entry ITLB
+  on 0.005, 0.043 and 0.121 per 100 instructions. The 0.99.15 DTLB16 rate
+  and all three ITLB8 rates are within the Phase 5 game range; the 1.2.13 and
+  2.0.0 DTLB16 rates (0.537 and 0.636) exceed the worst measured game rate,
+  0.469 per 100 data accesses.
 
 ## What the machine must do
 
