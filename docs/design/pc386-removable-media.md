@@ -400,6 +400,14 @@ The core never sees the track table. The runtime gives it only data and play sta
 
 PAUSE, RESUME and STOP set a control bit that the player obeys at the next frame.
 
+**Changing the range.** Each range has a 16-bit play generation. The core writes `audio_consumed` and its frame position as one aligned 64-bit word tagged with the generation it is playing, and it publishes an idle word `{generation, idle}`. A PLAY AUDIO that replaces an active range, or a STOP, runs in this order:
+
+1. The runtime clears *playing*.
+2. It waits until the core's idle word shows the current generation idle. The core sets it only after its in-flight ring read has returned and its last position write has landed. The wait is bounded by one sector read, and the runtime treats a timeout as a service fault.
+3. The runtime resets the counters, writes the new range, increments the generation, refills to the start watermark, and sets *playing*.
+
+The core reads the generation with *playing* and tags everything it writes with it. The runtime ignores any position word whose generation is not current, so a stale write from the old range can never move the new range's counters.
+
 **Underrun.** When the next frame's sector is not yet produced (`audio_consumed == audio_produced` before the range ends), the player outputs silence for that frame, counts it, and resumes at the same sector once it is produced, so position never skips ahead of the data. The runtime is about 6 s ahead, so an underrun means the service thread stalled. The status ring reports the count.
 
 **Mixer.** Page 0Eh's port 0 and port 1 volumes scale left and right (8-bit by 16-bit: two DSP blocks, or shifts and adds). The mixer integrates any held level over each 48 kHz period (`pc386_mixer.sv:1-6`), so a 44.1 kHz source needs no other resampler. The mixer is mono today, so v1 sums left and right at half scale each and the CD sits at the same gain as the DSP. Stereo waits for the SB Pro work in #1441, which needs a stereo mixer anyway. Whether CD-DA should wait for that is **D8**.
