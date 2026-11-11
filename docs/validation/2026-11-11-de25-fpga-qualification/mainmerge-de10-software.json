@@ -1,0 +1,70 @@
+{
+  "source_commit": "7dc116032fca35b26997519baa93b9bd1c1ae6f9",
+  "source_trees": {
+    "image": "b39cf0cf1d0e5b80da55b5ea3903c1aa8d13e932",
+    "sources/FogCast": "5ef25d4d5506a5b6ee402c999c36e3a92e1669df",
+    "sources/libmister-runtime": "62e379488835de14c662cf0bd3a7204be06b33d9"
+  },
+  "board": "de10-nano",
+  "architecture": "armv7",
+  "base_image_sha256": "179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018",
+  "base_contract": "fes-kit-base-v2-40d6e4a66418189a1fb3948097fd3435a57e9da6db25dd0a80bd070dc3b13dc2",
+  "artifacts": {
+    "bundle.tar": {
+      "sha256": "b5d95180cb8cfd102e9126120e880d723c96434f5b887a11e2417fce69b47a0f",
+      "size": 48798208
+    }
+  },
+  "go_toolchain": {
+    "compile_sha256": "10c67b9de41c1e546b9bf416ceef410e5e3dd87a76d129b08b74a9570db9c463",
+    "flags": [
+      "-buildvcs=false",
+      "-trimpath",
+      "-ldflags",
+      "-s -w -X github.com/DeanoC/FogCast/internal/version.Version=pr1312-main-7dc116032 -X github.com/DeanoC/FogCast/internal/version.Revision=7dc116032fca35b26997519baa93b9bd1c1ae6f9"
+    ],
+    "go_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
+    "helper": "linux/amd64 CGO_ENABLED=0",
+    "target": "linux/arm GOARM=7 CGO_ENABLED=0",
+    "version": "go version go1.26.5 linux/amd64"
+  },
+  "toolchain": {
+    "archive_sha256": "a1ca6fe19c61414abb79fd3ca4acf3028e41618c1722284f707b0f08611018f1",
+    "container_base": {
+      "digest": "sha256:b1a741487078b369e78119849663d7f1a5341ef2768798f7b7406c4240f86aef",
+      "image": "docker.io/library/debian:12.11-slim",
+      "platform": "linux/amd64"
+    },
+    "container_context_sha256": "996fbce4333e5ff1b393891fe4a87e26ebbd596fe2e9f1e6ff6e03f660aa5a85",
+    "container_id": "sha256:a58c3939121c5871f55addcea2f6701163a71d0aa2e9df4a288abab397bcf5ec",
+    "key": "d76b0b1867badbe3584465ab989bedee79fb60a29e1d0fe3071e61bde28bbb32",
+    "runtime_make_variables": {
+      "ENABLE_DE25_STATIC": 0
+    }
+  },
+  "deployed": false,
+  "bundle_id": "ebb67b7d32a18c5f6ba837913e2b4d8ad6ceba04ad40ee102b0733943d440e4a",
+  "running_roles_to_verify": {
+    "bin/fogcast-kit": "b559f8425f6e4f5d55f6f68f4275830b570892c33d6f9ec49f8ea373ebc5d86d",
+    "bin/fogcast-tenfoot": "32fdb42e378b6500e0ded86791b7e9f453edb4bc508926a1670d0932c19a6547",
+    "bin/mister-agent": "e8f7ec266fecc317026ebac82080530220bfab51e0f2af2cbfc79608375289b1",
+    "bin/mister-runtime": "e6b61b471083e9d52d1b0e85299b9ae372a062cb6cfb954dac4c6c8eff50d06c"
+  },
+  "build_result": {
+    "argv": [
+      "env",
+      "FES_TARGET_IMAGE_SHARED_CACHE=/home/deano/fes/out/cache/target-image",
+      "make",
+      "kit-software",
+      "KIT_SOFTWARE_BASE=/data/fes-de25-qualification-20261111/base179.img",
+      "KIT_SOFTWARE_BASE_SHA256=179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018",
+      "KIT_SOFTWARE_VERSION=pr1312-main-7dc116032",
+      "KIT_SOFTWARE_OUTPUT=/data/fes-de25-qualification-20261111/mainmerge-de10-software"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-main-input",
+    "exit": 0,
+    "seconds": 111.58719426789321
+  },
+  "hardware": "not deployed; Kit A claimed by another owner after our native-image restoration/release",
+  "receipt_sha256": "ca91d90998ec1a22568f82ce24559804c3e13bf7d68328d008315f8fb707dbda"
+}

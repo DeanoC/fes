@@ -1,5 +1,27 @@
 # DE25 FPGA qualification and DE10 software HIL
 
+Current integration status (12 November): #1297 is merged and #1312 now targets
+main. Normal merge03f71932c incorporates main78b7ee4b;7dc116032 repairs two tests
+for APIs retired by main. Three unused standalone claim artifacts resurrected
+by the parent squash are removed again; the platform patch stays authoritative.
+`parent-main-source-audit.json` verifies unchanged74/143 DE25,43 RISC-V and80/61
+combined-proof inputs. Original producer identities remain attached to their
+results. Image recipe bytes match the native-tested4ac tree.
+
+The completed approved DE10 native trial verifies image744/e203, actual Linux
+initialization, MENU, ordinary ZX81 and restoration. Healthy reboot readiness
+still misses120 seconds (129.673s; main baseline133.672s). All tables in the
+before/restored catalog snapshots also compare equal semantically, beyond the
+protected rows/media-chunk checks. KitA was released and subsequently claimed
+by another task. New merged ARMv7 software bundleebb67b7d is built at7dc, not
+deployed; its role hashes and producer are in `mainmerge-de10-software.json`.
+Neither this build nor older hardware receipts qualify merged userspace.
+
+The software checks for this integration are recorded separately below; no
+full39-command all-core campaign or current-head green CI is claimed. The new
+DE25 MENU/ZX81 packages still need physical acceptance. The chronological
+candidate/failure records below retain their original evidence boundaries.
+
 The fresh e3f40059d MENU and ordinary ZX81 fits failed admission. Both retain raw reports on fes-build-3090 under `/data/fes-de25-pr1312-qualification-e3f-20261111`. MENU has pixel reset-recovery slack of -4.771 ns; the HDMI output setup/hold diagnostic is positive across all216 paths, with minimum +0.463 ns. The old output-warning inventory also disagrees with the now-constrained video pins. Neither failed candidate was exported or programmed.
 
 The repair adds only output-reset release registers, keeps local reset timing required, and admits the reduced warning set only after a source/database-bound numerical proof for all27 video outputs and four models. Focused unit tests and both affected board simulations pass. Fresh complete producers, independent reproducibility, and physical DE25 acceptance remain required.
@@ -134,3 +156,25 @@ U-Boot, QSPI, JTAG or shared service change occurred. Normal update history now
 retains744 as the previous image. `de10-native-image-hardware.json` binds sanitized
 results to private receipts; the PNG shows this trial’s existing ZX81 K prompt.
 This supplies actual shared-init native DE10 evidence, not fresh DE25 acceptance.
+
+
+Integration software results after #1297 landed:1714 routine parent tests pass
+with one skip; generated consistency checks41 consumers/45 fixture copies. Full
+native runtime and contract/schema suites pass. The initial system-Python
+contract invocation lacked jsonschema; the existing test venv passes without
+changing a test. `make check`, unused-code checking, FogCast production build
+and94 affected FPGA identity/codec/closure tests pass. Agent, targetclient,
+appliance-update and Tenfoot race packages pass; exact static-library race tests
+also pass.
+
+The broader FogCast race selection reached its local10-minute budget; a broad
+firmware filter reached4 minutes in ST video cases. A software-proxy case in
+the first aggregate also returned503; the complete HTTP API race package passes
+independent rerun, with the earlier cause unproved. The broad FPGA suite was
+deliberately stopped in unrelated pc386 device/OPL benches after at least1515
+completed cases. Its device error was induced by that stop. The94 affected
+producer/codec/closure checks then completed separately. No full-suite or
+full39-command test plan pass is claimed, and no internal assertion or timing
+limit was relaxed. `mainmerge-software-checks.json` retains all terminal results
+and interruption context. The new bundle still needs hardware revalidation;
+current-head CI and a clean review remain required.
