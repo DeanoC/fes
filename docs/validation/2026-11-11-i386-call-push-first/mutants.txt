@@ -1,0 +1,15 @@
+The directed cases (FES_I386_MODE directed, pmode, paging) with this
+branch's testbench (5b1a87678), on two RTLs other than this branch's.
+
+main-rtl           cores/fes-common/rtl/i386 from main 92884dfa6 (#1645's RTL):
+                   the push raises #GP(0) at M1 and writes nothing
+                   FAIL r3-call-rel32-past, r3-call-rm32-past, r3-call-m32-past
+                   (write-bytes: Bochs writes the slot at 6Bh:0CFCh or 0CF8h,
+                   the RTL does not; 275 of 278 pmode cases, 77 of 77 directed,
+                   64 of 64 paging pass)
+esp-written        WB: if (wb_s.uop.sp_write && !wb_s.cpast) -> if (wb_s.uop.sp_write)
+                   (the push writes its slot and moves ESP before the #GP(0))
+                   FAIL directed call-rel32-cs-limit, call-rm32-cs-limit;
+                   pmode cs16-call-past, cs16-call-rel32-past, cs16-call-rm-past,
+                   cs32-call-past, r3-call-rel32-past, r3-call-rm32-past,
+                   r3-call-m32-past (ESP and the #GP frame's place differ)
