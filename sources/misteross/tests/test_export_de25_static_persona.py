@@ -8,8 +8,8 @@ import tempfile
 import unittest
 from unittest import mock
 
-from scripts import export_de25_static_persona as exporter
-from scripts.core_package import read_package
+from boards.de25nano.producers import export_static_persona as exporter
+from boards.de25nano.package.core_package import read_package
 
 ROOT = Path(__file__).resolve().parents[1]
 

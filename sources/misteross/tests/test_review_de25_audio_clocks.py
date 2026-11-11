@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from scripts import review_de25_audio_clocks as review
+from boards.de25nano.producers import review_audio_clocks as review
 
 
 class AudioObservationTests(unittest.TestCase):

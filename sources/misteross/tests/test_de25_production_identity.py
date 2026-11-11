@@ -9,8 +9,8 @@ import subprocess
 import tempfile
 import unittest
 
-from scripts import build_de25_menu_package as menu, build_de25_zx81_package as zx81
-from scripts.export_core_package import build_identity, verify_record_source_at_revision
+from boards.de25nano.producers import build_menu_package as menu, build_zx81_package as zx81
+from boards.de25nano.package.export_core_package import build_identity, verify_record_source_at_revision
 from scripts.source_closure import imports
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,8 +25,14 @@ class ProductionIdentityTests(unittest.TestCase):
                  for name, data in captured.items()}
         # Keep actual producer imports and fitted qualification inputs, rather
         # than stubbing the source-closure function under test.
-        helpers = imports(Path(producer.RECIPE).stem, ROOT)
-        helpers |= imports('review_de25_audio_clocks', ROOT)
+        helpers = {producer.RECIPE, 'boards/de25nano/producers/build_menu_package.py',
+                   'boards/de25nano/producers/build_zx81_package.py',
+                   'boards/de25nano/package/core_package.py',
+                   'boards/de25nano/package/export_core_package.py'}
+        for module in ('build_fes_pcxt_quartus', 'fes_build_common', 'functional_execution',
+                       'source_closure', 'compiler_read_audit'):
+            helpers |= imports(module, ROOT)
+        helpers.add('boards/de25nano/producers/review_audio_clocks.py')
         helpers |= {'boards/de25nano/scanout/' + name for name in (
             'async_inputs.py', 'async_inputs.tcl', 'vendor_reference.py',
             'audio_reference.py', 'audio_clocks.tcl')}
@@ -74,7 +80,8 @@ class ProductionIdentityTests(unittest.TestCase):
                 changed = self.record(producer, root, captured)
                 self.assertEqual(build_identity(original), build_identity(changed))
                 fields = verify_record_source_at_revision(root, changed)
-                self.assertNotIn('boards/de25nano', fields['source_roots'])
+                self.assertTrue(any(path.startswith('boards/de25nano/')
+                                    for path in fields['source_roots']))
                 self.assertNotIn('scripts', fields['source_roots'])
 
     def test_captured_rtl_changes_identity_and_stale_capture_is_refused(self):

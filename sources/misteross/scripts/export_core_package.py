@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export deterministic FES core packages from pinned producer inputs."""
+"""Export deterministic format-2/3 FES core packages."""
 
 from __future__ import annotations
 
@@ -28,7 +28,6 @@ from scripts.core_package import (
     MAX_ARCHIVE_SIZE_V3,
     encode_manifest,
     validate_rom_map,
-    validate_persona,
     MAX_PAYLOAD_SIZE,
     PackageError,
     _decode_manifest,
@@ -237,7 +236,7 @@ def _decode_build_record(record: bytes) -> dict:
 
 
 def _snapshot_regular(path: Path, maximum: int, field: str) -> bytes:
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0) | os.O_NONBLOCK
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
         fd = os.open(path, flags)
     except OSError as exc:
@@ -476,14 +475,12 @@ def _verify_build_evidence(payload: Path, record: bytes, fields: dict, manifest_
     return root
 
 
-def _archive_bytes(manifest: bytes, payload: bytes, rom_map: bytes | None = None,
-                   persona: bytes | None = None) -> bytes:
+def _archive_bytes(manifest: bytes, payload: bytes, rom_map: bytes | None = None) -> bytes:
     def member(name: str, data: bytes) -> bytes:
         return _ustar_header(name, len(data)) + data + b"\0" * ((-len(data)) % 512)
 
     return (member("manifest.toml", manifest) + member("core.rbf", payload)
-            + (member("rom-map.json", rom_map) if rom_map is not None else b"")
-            + (member("persona.rbf", persona) if persona is not None else b"") + b"\0" * 1024)
+            + (member("rom-map.json", rom_map) if rom_map is not None else b"") + b"\0" * 1024)
 
 
 def _write_sealed(path: Path, data: bytes) -> None:
@@ -514,7 +511,7 @@ def _is_read_only(path: Path) -> bool:
     return stat.S_IMODE(path.stat().st_mode) & 0o222 == 0
 
 
-def _reuse_existing(directory: Path, archive: Path, evidence: Path, manifest: bytes, payload: bytes, archive_bytes: bytes, record: bytes, rom_map: bytes | None = None, persona: bytes | None = None) -> Path:
+def _reuse_existing(directory: Path, archive: Path, evidence: Path, manifest: bytes, payload: bytes, archive_bytes: bytes, record: bytes, rom_map: bytes | None = None) -> Path:
     if not all(path.exists() and not path.is_symlink() for path in (directory, archive, evidence)):
         raise PackageExportError("existing package export is incomplete or contains a symlink")
     if not all(_is_read_only(path) for path in (directory, archive, evidence)):
@@ -522,18 +519,12 @@ def _reuse_existing(directory: Path, archive: Path, evidence: Path, manifest: by
     members = (directory / "manifest.toml", directory / "core.rbf")
     if rom_map is not None:
         members += (directory / "rom-map.json",)
-    if persona is not None:
-        members += (directory / "persona.rbf",)
     if not all(path.exists() and not path.is_symlink() and _is_read_only(path) for path in members):
         raise PackageExportError("existing package members are missing, linked, or writable")
-    try:
-        package = read_package(directory)
-    except PackageError as exc:
-        raise PackageExportError("existing package members are invalid") from exc
-    if (package.manifest_bytes != manifest or package.payload_bytes != payload or
-        package.rom_map_bytes != rom_map or package.persona_bytes != persona):
+    package = read_package(directory)
+    if package.manifest_bytes != manifest or package.payload_bytes != payload or package.rom_map_bytes != rom_map:
         raise PackageExportError("existing package directory differs")
-    if _snapshot_regular(archive, MAX_ARCHIVE_SIZE_V3 if rom_map is not None or persona is not None else 33 * 1024 * 1024, "existing archive") != archive_bytes:
+    if _snapshot_regular(archive, MAX_ARCHIVE_SIZE_V3 if rom_map is not None else 33 * 1024 * 1024, "existing archive") != archive_bytes:
         raise PackageExportError("existing package archive differs")
     if _snapshot_regular(evidence, MAX_BUILD_RECORD_SIZE, "existing build evidence") != record:
         raise PackageExportError("existing package build evidence differs")
@@ -542,7 +533,7 @@ def _reuse_existing(directory: Path, archive: Path, evidence: Path, manifest: by
 
 def export_package(manifest: bytes, payload: Path, destination: Path, *,
                    rom_map: Path | None = None, rom_id: str | None = None,
-                   rom_role: str | None = None, persona: Path | None = None) -> Path:
+                   rom_role: str | None = None) -> Path:
     """Verify pinned build inputs and publish a content-addressed directory and archive."""
 
     if not isinstance(manifest, bytes):
@@ -568,41 +559,15 @@ def export_package(manifest: bytes, payload: Path, destination: Path, *,
             raise PackageExportError("ROM map is required exactly for format-3/4 packages")
         if map_snapshot is not None:
             validate_rom_map(map_snapshot, manifest_fields)
-        if (manifest_fields["format"] == 5) != (persona is not None):
-            raise PackageExportError("default persona is required exactly for format 5")
-        persona_snapshot = None
-        if persona is not None:
-            persona = Path(persona)
-            if persona.parent.resolve() != payload.parent.resolve():
-                raise PackageExportError("base and default persona must share their producer build directory")
-            persona_snapshot = _snapshot_regular(persona, MAX_PAYLOAD_SIZE, "default persona")
-            validate_persona(persona_snapshot, manifest_fields)
     except PackageError as exc:
         raise PackageExportError(str(exc)) from exc
     record_path = payload.with_name("build-inputs.json")
     record = _snapshot_regular(record_path, MAX_BUILD_RECORD_SIZE, "build-input record")
     record_fields = _decode_build_record(record)
     root = _verify_build_evidence(payload, record, record_fields, manifest_fields)
-    if persona_snapshot is not None:
-        parameters = record_fields["parameters"]
-        expected = {
-            "device": manifest_fields["target"]["device"],
-            "programming_profile": "de25-linux-static-computer-v1",
-            "hps_initialization": "HPS FIRST",
-            "static_control_build_id": manifest_fields["static_expansion"]["control_build_id"],
-            "static_default_persona_id": manifest_fields["static_expansion"]["hardware_id"],
-        }
-        if (record_fields["format"] != 2 or record_fields.get("toolchain") != "quartus" or
-            set(record_fields["tools"]) != {"quartus", "qsys", "ipgenerate", "pfg"} or
-            any(type(parameters.get(key)) is not type(value) or parameters[key] != value
-                for key, value in expected.items())):
-            raise PackageExportError("format 5 requires matching source-closed Quartus static startup inputs")
-        # Frozen-root/RBF hashes are post-fit outputs sealed by package identity;
-        # putting them in the functional build ID embedded in the base is cyclic.
-        # The producer still owns timing, QDB reuse and independent-fit gates.
 
     package_id = package_identity(manifest, snapshot, map_snapshot,
-                                  format_version=manifest_fields["format"], persona=persona_snapshot)
+                                  format_version=manifest_fields["format"])
     store = Path(destination)
     store.mkdir(parents=True, exist_ok=True)
     if store.is_symlink() or not store.is_dir():
@@ -610,9 +575,9 @@ def export_package(manifest: bytes, payload: Path, destination: Path, *,
     directory = store / package_id
     archive = directory.with_suffix(".fcore")
     evidence = directory.with_suffix(".build-inputs.json")
-    archive_data = _archive_bytes(manifest, snapshot, map_snapshot, persona_snapshot)
+    archive_data = _archive_bytes(manifest, snapshot, map_snapshot)
     if any(path.exists() or path.is_symlink() for path in (directory, archive, evidence)):
-        return _reuse_existing(directory, archive, evidence, manifest, snapshot, archive_data, record, map_snapshot, persona_snapshot)
+        return _reuse_existing(directory, archive, evidence, manifest, snapshot, archive_data, record, map_snapshot)
 
     staging = Path(tempfile.mkdtemp(prefix=".export-files-", dir=store))
     staged_directory = Path(tempfile.mkdtemp(prefix=".export-package-", dir=store))
@@ -624,8 +589,6 @@ def export_package(manifest: bytes, payload: Path, destination: Path, *,
         _write_sealed(staged_directory / "core.rbf", snapshot)
         if map_snapshot is not None:
             _write_sealed(staged_directory / "rom-map.json", map_snapshot)
-        if persona_snapshot is not None:
-            _write_sealed(staged_directory / "persona.rbf", persona_snapshot)
         staged_directory.chmod(0o555)
         _write_sealed(staged_archive, archive_data)
         _write_sealed(staged_evidence, record)
@@ -673,12 +636,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--rom-map", type=Path, help="producer ROM map; never uploaded ROM content")
     parser.add_argument("--rom-id", help="ROM identifier; opts a format-2 manifest into format 3")
     parser.add_argument("--rom-role", choices=("firmware", "cartridge"))
-    parser.add_argument("--persona", type=Path, help="format-5 sealed default empty partial RBF")
     arguments = parser.parse_args(argv)
     try:
         manifest = _snapshot_regular(arguments.manifest, MAX_MANIFEST_SIZE, "manifest")
         print(export_package(manifest, arguments.rbf, arguments.output, rom_map=arguments.rom_map,
-                             rom_id=arguments.rom_id, rom_role=arguments.rom_role, persona=arguments.persona))
+                             rom_id=arguments.rom_id, rom_role=arguments.rom_role))
     except (OSError, PackageExportError, PackageError) as exc:
         print(f"export-core-package: {exc}", file=sys.stderr)
         return 1

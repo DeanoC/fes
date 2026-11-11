@@ -25,10 +25,9 @@ func TestLauncherPairingUsesExistingLeaseAndPersistsForRestart(t *testing.T) {
 	const secret = "0123456789abcdef0123456789abcdef"
 	path := filepath.Join(t.TempDir(), "launcher.json")
 	controller := &fakeController{health: protocol.Health{Ready: true}, status: protocol.Status{State: protocol.StateIdle}}
-	local := httpapi.KitLocalRun{Phase: "idle"}
 	handler := httpapi.New(controller, "bearer", "test", nil,
 		httpapi.WithTargetID(target), httpapi.WithKitLease(manager), httpapi.WithLauncherPairing(path),
-		httpapi.WithKitLocalRun(func() httpapi.KitLocalRun { return local }))
+	)
 	body := `{"api":"http://host:18789/","token":"` + secret + `","target_id":"` + target + `"}`
 	send := func(bearer, lease, body string, cancelled bool) *httptest.ResponseRecorder {
 		t.Helper()
@@ -64,11 +63,6 @@ func TestLauncherPairingUsesExistingLeaseAndPersistsForRestart(t *testing.T) {
 		}
 	}
 	controller.status.State = protocol.StateIdle
-	local.Phase = "running"
-	if got := send("bearer", grant.Token, body, false).Code; got != 409 {
-		t.Fatalf("local core: %d", got)
-	}
-	local.Phase = "idle"
 	controller.health.Ready = false
 	if got := send("bearer", grant.Token, body, false).Code; got != 409 {
 		t.Fatalf("unready: %d", got)

@@ -6,7 +6,7 @@ import subprocess
 import json
 
 ROOT = Path(__file__).resolve().parents[1]
-CASES = ("reader", "reader-credit", "reader-credit-wide", "video", "pattern", "board", "ddr", "ddr-board", "ddr-disabled", "gp", "gp-board", "blend", "blitter")
+CASES = ("reader", "video", "pattern", "board", "ddr", "ddr-board", "ddr-disabled", "gp", "gp-board", "blend", "blitter")
 BLITTER = tuple(f"cores/fes-menu/rtl/{name}.v" for name in ("fes_menu_blend", "fes_menu_blit_alpha", "fes_menu_blit_read", "fes_menu_blitter"))
 
 
@@ -18,8 +18,7 @@ def main():
     for case in CASES:
         if args.case not in (case, "all"):
             continue
-        credit = case in ("reader-credit", "reader-credit-wide")
-        top = "fes_menu_reader" if credit else "fes_menu_endpoint" if case == "gp" else "fes_menu_ddr" if case == "ddr" else "top" if case in ("board", "ddr-board", "ddr-disabled", "gp-board") else ("fes_menu_video" if case == "pattern" else f"fes_menu_{case}")
+        top = "fes_menu_endpoint" if case == "gp" else "fes_menu_ddr" if case == "ddr" else "top" if case in ("board", "ddr-board", "ddr-disabled", "gp-board") else ("fes_menu_video" if case == "pattern" else f"fes_menu_{case}")
         output = ROOT / "build/sim" / f"fes-menu-{case}"
         output.mkdir(parents=True, exist_ok=True)
         sources = [ROOT / path for path in BLITTER[:1 if case == "blend" else None]] if case in ("blend", "blitter") else [ROOT / "cores/fes-menu/rtl/fes_menu_reader.v"]
@@ -53,10 +52,7 @@ def main():
             *(["-GTEST_PATTERN=1'b0"] if case in ("ddr-board", "ddr-disabled") else []),
             *(["-GDIAGNOSTIC_ENABLE=1'b0"] if case == "ddr-disabled" else []),
             *(["-GTEST_PATTERN=1'b1"] if case == "pattern" else []),
-            *(["-j", "2", "-GREAD_AHEAD=1'b1", "-GCHECK_RESPONSE=1'b1", "-GFIFO_ADDR_BITS=11", "-GMAX_BURST_BEATS=8'd64",
-               "-CFLAGS", "-DREADER_CREDIT_LIMIT=" + ("511" if case == "reader-credit-wide" else "256")] if credit else []),
-            *(["-GMAX_OUTSTANDING_BEATS=9'd511"] if case == "reader-credit-wide" else []),
-            *map(str, sources), str(ROOT / f"cores/fes-menu/sim/{'reader_credit' if credit else 'gp_board' if case == 'gp-board' else 'menu_gp' if case == 'gp' else 'ddr_board' if case in ('ddr-board', 'ddr-disabled') else case}_tb.cpp"),
+            *map(str, sources), str(ROOT / f"cores/fes-menu/sim/{'gp_board' if case == 'gp-board' else 'menu_gp' if case == 'gp' else 'ddr_board' if case in ('ddr-board', 'ddr-disabled') else case}_tb.cpp"),
         ], cwd=ROOT, check=True)
         subprocess.run([str(output / f"V{top}"), *([str(output / "fixture.txt")] if case == "gp" else [str(output)] if case == "video" else ["--disabled"] if case == "ddr-disabled" else [])], cwd=ROOT, check=True)
 

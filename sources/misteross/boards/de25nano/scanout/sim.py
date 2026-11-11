@@ -13,14 +13,14 @@ ROOT = MISTEROSS / "build/sim/de25-scanout"
 
 def run(case, top, rtl, bench, extra=(), shared=True, arguments=()):
     output = ROOT / case; output.mkdir(parents=True, exist_ok=True)
-    reader, _ = DISPLAY.retarget_menu_ram((MISTEROSS / "cores/fes-menu/rtl/fes_menu_reader.v").read_bytes())
+    reader, _ = DISPLAY.retarget_menu_ram((MISTEROSS / "boards/de25nano/shared-rtl/fes_menu_reader.v").read_bytes())
     adapted = output / "fes_menu_reader_de25.v"; adapted.write_bytes(reader)
     subprocess.run(["verilator", "--cc", "--exe", "--build", "--public-flat-rw", "-O3", "-Wall",
         "-Wno-PINCONNECTEMPTY", "-Wno-UNUSEDSIGNAL", "-Wno-DECLFILENAME", "--top-module", top,
         # Qualification can assert between independent domain clock edges.
         "-Wno-SYNCASYNCNET",
         "--Mdir", str(output), "-I" + str(HERE), "-CFLAGS", "-O2 -I" + str(HERE),
-        *extra, *([str(adapted), str(MISTEROSS / "cores/fes-menu/rtl/fes_menu_video.v")] if shared else []),
+        *extra, *([str(adapted), str(MISTEROSS / "boards/de25nano/shared-rtl/fes_menu_video.v")] if shared else []),
         *map(str, rtl), str(HERE / bench)], check=True, timeout=180)
     subprocess.run([str(output / ("V" + top)), *arguments], check=True, timeout=30)
 
@@ -55,6 +55,6 @@ if args.case in ("guard", "all"):
 if args.case in ("session", "all"):
     common = MISTEROSS / "cores/fes-common"
     run("session", "fes_de25_session_display", [HERE / "fes_de25_session_display.v",
-        HERE / "fes_de25_scanout.v", common / "rtl/fes_display_plane.v",
-        common / "rtl/fes_display_cdc.v", MISTEROSS / "cores/fes-menu/rtl/fes_menu_control.v"],
+        HERE / "fes_de25_scanout.v", MISTEROSS / "boards/de25nano/shared-rtl/fes_display_plane.v",
+        common / "rtl/fes_display_cdc.v", MISTEROSS / "boards/de25nano/shared-rtl/fes_menu_control.v"],
         "session_tb.cpp", ("-I" + str(common / "generated"),))

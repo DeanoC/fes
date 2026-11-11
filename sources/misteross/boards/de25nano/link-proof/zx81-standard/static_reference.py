@@ -14,8 +14,8 @@ import subprocess
 import tempfile
 
 from boards.de25nano.scanout import async_inputs, vendor_reference
-from scripts import review_de25_audio_clocks as audio
-from scripts import build_de25_menu_package as timing
+from boards.de25nano.producers import review_audio_clocks as audio
+from boards.de25nano.producers import build_menu_package as timing
 from scripts.fes_build_common import BuildError
 
 POLICY = 'de25-static-stock-reference-v2'

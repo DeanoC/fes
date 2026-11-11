@@ -19,7 +19,7 @@ def run(output=None, *, basic=False):
     display = sim.load(HERE.parent / 'display/build.py', 'standard_expansion_reader')
     reader = output / 'fes_menu_reader_de25.v'
     reader.write_bytes(display.retarget_menu_ram(
-        (ROOT / 'cores/fes-menu/rtl/fes_menu_reader.v').read_bytes())[0])
+        (ROOT / 'boards/de25nano/shared-rtl/fes_menu_reader.v').read_bytes())[0])
     # Real CPU writes distinct bytes 1KiB apart repeatedly. A vacant socket
     # mirrors those addresses in internal1K; the real16K persona separates them.
     program = bytes.fromhex('f3 31 ff 7f 3e 5a 32 00 40 3e a5 32 00 44 c3 04 00')
@@ -29,11 +29,11 @@ def run(output=None, *, basic=False):
     else:
         firmware.write_text(''.join(f'{byte:02x}\n' for byte in program + bytes(8192 - len(program))))
     sources += [HERE / 'fes_de25_zx81_standard.v', HERE / 'standard_expansion_harness.v',
-        sim.ZX81 / 'fes_zx81_core.v', sim.ZX81 / 'zx81_video_720p.v',
+        sim.SHARED_RTL / 'fes_zx81_core.v', sim.ZX81 / 'zx81_video_720p.v',
         sim.ZX81 / 'zx81_ram_pack.v', scanout / 'fes_de25_session_display.v',
-        scanout / 'fes_de25_scanout.v', sim.COMMON / 'rtl/fes_display_plane.v',
-        sim.COMMON / 'rtl/fes_display_cdc.v', ROOT / 'cores/fes-menu/rtl/fes_menu_control.v',
-        ROOT / 'cores/fes-menu/rtl/fes_menu_video.v', reader,
+        scanout / 'fes_de25_scanout.v', sim.SHARED_RTL / 'fes_display_plane.v',
+        sim.COMMON / 'rtl/fes_display_cdc.v', sim.SHARED_RTL / 'fes_menu_control.v',
+        sim.SHARED_RTL / 'fes_menu_video.v', reader,
         link / 'fpga/shell.v', link / 'zx81-ram/personas.v', link / 'zx81-standard/bus.v']
     derived = {p.name: p.read_bytes() for p in sources if p.is_relative_to(output)}
     derived[firmware.name] = firmware.read_bytes()

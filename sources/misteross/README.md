@@ -137,7 +137,7 @@ and retains the eleven exact generated inputs and verifies the derived wiring
 before and after compilation. Existing reset SDCs stay unchanged. This source
 repair does not close the remaining reset or HDMI signoff findings; package
 and native acceptance remain separate gates.
-The canonical standard ZX81 producer is `scripts/build_de25_zx81_package.py`.
+The canonical standard ZX81 producer is `boards/de25nano/producers/build_zx81_package.py`.
 It selects the shared computer core, 16 KiB internal RAM, allocated session
 display and fixed audio under `de25-linux-computer-v1`. The board recipe binds
 actual Quartus tools and source before generation, keeps scanout as the sole

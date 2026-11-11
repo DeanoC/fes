@@ -8,7 +8,7 @@ from pathlib import Path
 import re
 
 from boards.de25nano.scanout import async_inputs, vendor_reference
-from scripts import review_de25_audio_clocks as fitted
+from boards.de25nano.producers import review_audio_clocks as fitted
 from scripts.fes_build_common import BuildError
 
 POLICY = 'de25-standard-stock-audio-clocks-v1'
@@ -40,7 +40,7 @@ SOURCES = {
     'boards/de25nano/zx81-hps/fes_de25_audio.v': '9f2d1436b75ef1fe489a55ea4139b2f5dcd922072528b6f68d344d851cca6f33',
     'cores/fes-common/rtl/fes_audio_output.v': 'e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd',
     'cores/fes-common/rtl/fes_audio_i2s.v': '14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4',
-    'cores/fes-zx81/rtl/fes_zx81_core.v': '79c070b837a6b455a4a4a64fcbef4d76ac3ca7c467ab692a16af7610bed42970',
+    'boards/de25nano/shared-rtl/fes_zx81_core.v': '79c070b837a6b455a4a4a64fcbef4d76ac3ca7c467ab692a16af7610bed42970',
     'boards/de25nano/zx81-hps/fes_de25_zx81_standard.v': '66600e79818b75ae50d11fa003fe93537153869c3b4e68f11488f9177d7bceab',
     'boards/de25nano/zx81-hps/fes_de25_zx81_standard_hw.tcl': '571eda4cd7e291e70c3604251c175e87c2023b66dc2dfb86410fe31f70ce4e23',
     'boards/de25nano/zx81-hps/standard-clocks.sdc': 'b7a528ac1a1bf0b147c269e83078a405b523698cfd16c1fe62cf028858b431d0',

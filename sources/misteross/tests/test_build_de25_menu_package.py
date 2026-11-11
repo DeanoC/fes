@@ -14,9 +14,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 from unittest import mock
 
-from scripts import build_de25_menu_package as producer
-from scripts.core_package import PackageError, encode_manifest
-from scripts.export_core_package import build_identity, verify_record_source_at_revision
+from boards.de25nano.producers import build_menu_package as producer
+from boards.de25nano.package.core_package import PackageError, encode_manifest
+from boards.de25nano.package.export_core_package import build_identity, verify_record_source_at_revision
 
 
 class DE25MenuPackageTests(unittest.TestCase):

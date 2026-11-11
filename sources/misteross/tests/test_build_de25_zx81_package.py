@@ -11,9 +11,9 @@ import tempfile
 import tomllib
 import unittest
 from unittest import mock
-from scripts import build_de25_zx81_package as producer
-from scripts import build_de25_zx81_static_package as static
-from scripts.export_core_package import build_identity,verify_record_source_at_revision
+from boards.de25nano.producers import build_zx81_package as producer
+from boards.de25nano.producers import build_zx81_static_package as static
+from boards.de25nano.package.export_core_package import build_identity,verify_record_source_at_revision
 
 ROOT=Path(__file__).resolve().parents[1]
 

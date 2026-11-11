@@ -13,9 +13,9 @@ import shutil
 import tempfile
 import tomllib
 
-from scripts import build_de25_zx81_package as standard
-from scripts.core_package import encode_manifest
-from scripts.export_core_package import build_identity, encode_build_record, export_package
+from boards.de25nano.producers import build_zx81_package as standard
+from boards.de25nano.package.core_package import encode_manifest
+from boards.de25nano.package.export_core_package import build_identity, encode_build_record, export_package
 from scripts.fes_build_common import BuildError
 
 PROFILE = 'fes.de25-standard-zx81-empty-ram16k.v1'

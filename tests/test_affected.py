@@ -445,14 +445,29 @@ class AffectedTests(unittest.TestCase):
                      'scripts/rom_map.py', 'scripts/rom_map_oracle.py', 'tests/test_rom_map.py',
                      'tests/test_core_package_v3.py', 'scripts/build_fes_atari_st_oss.py',
                      'tests/test_atari_st_producer.py', 'tests/test_atari_st_slot_card.py',
-                     'scripts/synth_fes_pc386.py', 'scripts/build_fes_pcxt_quartus.py',
-                     'scripts/build_de25_menu_package.py', 'scripts/build_de25_zx81_package.py',
-                     'scripts/build_de25_zx81_static_package.py'):
+                     'scripts/synth_fes_pc386.py', 'scripts/build_fes_pcxt_quartus.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertTrue(result['lanes']['fpga'])
                 self.assertTrue(result['lanes']['parent'])
                 self.assertEqual(result['cores'], [])
+
+    def test_de25_local_producers_select_only_their_package_consumers(self):
+        cases = {
+            'boards/de25nano/producers/build_menu_package.py': {'menu', 'zx81'},
+            'boards/de25nano/producers/build_zx81_package.py': {'zx81'},
+            'boards/de25nano/producers/build_zx81_static_package.py': {'zx81'},
+            'boards/de25nano/producers/export_static_persona.py': {'zx81'},
+            'boards/de25nano/producers/review_audio_clocks.py': {'zx81'},
+            'boards/de25nano/package/core_package.py': {'menu', 'zx81'},
+            'boards/de25nano/package/export_core_package.py': {'menu', 'zx81'},
+        }
+        for path, consumers in cases.items():
+            with self.subTest(path=path):
+                result = plan(['sources/misteross/' + path])
+                self.assertEqual(set(result['cores']), consumers)
+                self.assertTrue(result['lanes']['fpga'])
+                self.assertTrue(result['lanes']['parent'])
 
     def test_i386_software_inputs_do_not_select_core_simulations(self):
         for path in ('cores/fes-common/sim/i386/bochs_oracle.cpp', 'cores/fes-common/sim/i386/divergences.toml',

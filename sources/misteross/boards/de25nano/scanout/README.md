@@ -406,7 +406,7 @@ the modeled slave's ACK edges.
 The separate canonical MENU producer runs from the misteross module:
 
 ```sh
-python3 scripts/build_de25_menu_package.py --compile-only --quartus-root /absolute/26.3 --vendor-archive /absolute/ResourcePackage.zip
+python3 boards/de25nano/producers/build_menu_package.py --compile-only --quartus-root /absolute/26.3 --vendor-archive /absolute/ResourcePackage.zip
 ```
 
 It hashes the actual tool installation and controlled execution, writes

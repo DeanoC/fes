@@ -51,11 +51,10 @@ class CorePackage:
     payload_bytes: bytes
     package_id: str
     rom_map_bytes: bytes | None = None
-    persona_bytes: bytes | None = None
 
 
 def package_identity(manifest: bytes, payload: bytes, rom_map: bytes | None = None,
-                     *, format_version: int | None = None, persona: bytes | None = None) -> str:
+                     *, format_version: int | None = None) -> str:
     """Hash exact members using their format-specific domain."""
 
     if not isinstance(manifest, bytes) or not isinstance(payload, bytes):
@@ -63,23 +62,18 @@ def package_identity(manifest: bytes, payload: bytes, rom_map: bytes | None = No
     digest = hashlib.sha256()
     if rom_map is not None and not isinstance(rom_map, bytes):
         raise TypeError("rom map must be bytes")
-    if persona is not None and not isinstance(persona, bytes):
-        raise TypeError("persona must be bytes")
     if format_version is None:
-        format_version = 5 if persona is not None else 2 if rom_map is None else 3
-    if (type(format_version) is not int or format_version not in (2, 3, 4, 5) or
-        (format_version in (3, 4)) != (rom_map is not None) or
-        (format_version == 5) != (persona is not None)):
+        format_version = 2 if rom_map is None else 3
+    if format_version not in (2, 3, 4) or (format_version == 2) != (rom_map is None):
         raise PackageError("identity members do not match format")
     digest.update(f"FES-CORE-PACKAGE-{format_version}\n".encode())
     digest.update(struct.pack("<Q", len(manifest)))
     digest.update(manifest)
     digest.update(struct.pack("<Q", len(payload)))
     digest.update(payload)
-    extra = persona if persona is not None else rom_map
-    if extra is not None:
-        digest.update(struct.pack("<Q", len(extra)))
-        digest.update(extra)
+    if rom_map is not None:
+        digest.update(struct.pack("<Q", len(rom_map)))
+        digest.update(rom_map)
     return digest.hexdigest()
 
 
@@ -143,13 +137,12 @@ def _repository(value: object) -> str:
 
 def _validate_fields(fields: object, payload: bytes | None) -> dict:
     format_version = fields.get("format") if isinstance(fields, dict) else None
-    if type(format_version) is not int or format_version not in (2, 3, 4, 5):
-        raise PackageError("format must be the TOML integer 2, 3, 4 or 5")
+    if type(format_version) is not int or format_version not in (2, 3, 4):
+        raise PackageError("format must be the TOML integer 2, 3 or 4")
     root = _exact_dict(
         fields,
         {"format", "core", "target", "payload", "abi", "interfaces", "build"} |
-        ({"rom"} if format_version == 3 else {"roms", "rom_map"} if format_version == 4 else
-         {"static_expansion"} if format_version == 5 else set()),
+        ({"rom"} if format_version == 3 else {"roms", "rom_map"} if format_version == 4 else set()),
         set(),
         "manifest",
     )
@@ -168,30 +161,8 @@ def _validate_fields(fields: object, payload: bytes | None) -> dict:
     _identifier(target["platform"], "target.platform")
     _string(target["device"], "target.device", nonempty=True)
     _identifier(target["programming_profile"], "target.programming_profile")
-    devices = {"de10_nano": "5CSEBA6U23I7", "de25_nano": "A5EB013BB23BE4SCS"}
-    if devices.get(target["platform"]) != target["device"]:
-        raise PackageError("target must match a supported board and its exact device")
-    if target["platform"] == "de25_nano" and format_version not in (2, 5):
-        raise PackageError("DE25 packages require format 2 or 5; Cyclone V ROM maps are unsupported")
-    if format_version == 5:
-        if target["platform"] != "de25_nano" or target["programming_profile"] != "de25-linux-static-computer-v1":
-            raise PackageError("format 5 requires the exact DE25 static profile")
-        selected = _exact_dict(root["static_expansion"], {
-            "file", "size", "sha256", "control_build_id", "hardware_id", "root_qdb_sha256",
-            "interface_sha256", "clock_reset_sha256", "pof0_hash"}, set(), "static_expansion")
-        if selected["file"] != "persona.rbf":
-            raise PackageError("static_expansion.file must be persona.rbf")
-        _integer(selected["size"], "static_expansion.size", 1, MAX_PAYLOAD_SIZE)
-        if HEX64_RE.fullmatch(_string(selected["sha256"], "static_expansion.sha256")) is None:
-            raise PackageError("static persona digest must be lowercase SHA256")
-        controller = _string(selected["control_build_id"], "static_expansion.control_build_id")
-        if HEX32_RE.fullmatch(controller) is None or controller == "0" * 32:
-            raise PackageError("static controller build must be nonzero lowercase 32-hex")
-        _integer(selected["hardware_id"], "static_expansion.hardware_id", 0xc001a001, 0xc001a001)
-        for key in ("root_qdb_sha256", "interface_sha256", "clock_reset_sha256", "pof0_hash"):
-            value = _string(selected[key], "static_expansion." + key)
-            if HEX64_RE.fullmatch(value) is None or value == "0" * 64:
-                raise PackageError("static frozen-root identities must be nonzero lowercase SHA256")
+    if target["platform"] != "de10_nano" or target["device"] != "5CSEBA6U23I7":
+        raise PackageError("target must be de10_nano device 5CSEBA6U23I7")
 
     payload_fields = _exact_dict(root["payload"], {"file", "size", "sha256"}, set(), "payload")
     if payload_fields["file"] != "core.rbf":
@@ -354,15 +325,6 @@ def validate_rom_map(data: bytes, fields: dict) -> dict:
     return mapping
 
 
-def validate_persona(data: bytes, fields: dict) -> None:
-    """Bind the opaque default persona without parsing or editing FPGA frames."""
-    if fields["format"] != 5:
-        raise PackageError("persona requires format 5")
-    selected = fields["static_expansion"]
-    if len(data) != selected["size"] or hashlib.sha256(data).hexdigest() != selected["sha256"]:
-        raise PackageError("persona size or digest does not match manifest")
-
-
 def _toml_string(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
@@ -437,12 +399,6 @@ def encode_manifest(fields: dict) -> bytes:
         for key in ("file", "size", "sha256"):
             value = root["rom_map"][key]
             lines.append(f"{key} = {_toml_string(value) if isinstance(value, str) else value}")
-    if root["format"] == 5:
-        lines.extend(["", "[static_expansion]"])
-        for key in ("file", "size", "sha256", "control_build_id", "hardware_id", "root_qdb_sha256",
-                    "interface_sha256", "clock_reset_sha256", "pof0_hash"):
-            value = root["static_expansion"][key]
-            lines.append(f"{key} = {_toml_string(value) if isinstance(value, str) else value}")
     encoded = ("\n".join(lines) + "\n").encode("utf-8")
     if len(encoded) > MAX_MANIFEST_SIZE:
         raise PackageError(f"encoded manifest exceeds {MAX_MANIFEST_SIZE} bytes")
@@ -465,7 +421,7 @@ def _read_fd(fd: int, size: int, maximum: int, field: str) -> bytes:
     return b"".join(chunks)
 
 
-def _read_directory(path: Path) -> tuple[bytes, bytes, bytes | None, bytes | None]:
+def _read_directory(path: Path) -> tuple[bytes, bytes, bytes | None]:
     flags = os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
         directory_fd = os.open(path, flags)
@@ -473,20 +429,17 @@ def _read_directory(path: Path) -> tuple[bytes, bytes, bytes | None, bytes | Non
         raise PackageError(f"cannot open package directory: {path}") from exc
     try:
         names = set(os.listdir(directory_fd))
-        if names not in ({"manifest.toml", "core.rbf"}, {"manifest.toml", "core.rbf", "rom-map.json"},
-                         {"manifest.toml", "core.rbf", "persona.rbf"}):
+        if names not in ({"manifest.toml", "core.rbf"}, {"manifest.toml", "core.rbf", "rom-map.json"}):
             raise PackageError("package directory has unexpected members")
         values: list[bytes] = []
         members = [("manifest.toml", MAX_MANIFEST_SIZE), ("core.rbf", MAX_PAYLOAD_SIZE)]
         if "rom-map.json" in names:
             members.append(("rom-map.json", MAX_ROM_MAP_SIZE))
-        if "persona.rbf" in names:
-            members.append(("persona.rbf", MAX_PAYLOAD_SIZE))
         for name, maximum in members:
             try:
                 fd = os.open(
                     name,
-                    os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0) | os.O_NONBLOCK,
+                    os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0),
                     dir_fd=directory_fd,
                 )
             except OSError as exc:
@@ -500,8 +453,7 @@ def _read_directory(path: Path) -> tuple[bytes, bytes, bytes | None, bytes | Non
                 os.close(fd)
         if set(os.listdir(directory_fd)) != names:
             raise PackageError("package directory changed while reading")
-        return (values[0], values[1], values[2] if "rom-map.json" in names else None,
-                values[2] if "persona.rbf" in names else None)
+        return values[0], values[1], values[2] if len(values) == 3 else None
     finally:
         os.close(directory_fd)
 
@@ -527,8 +479,8 @@ def _ustar_header(name: str, size: int) -> bytes:
     return info.tobuf(format=tarfile.USTAR_FORMAT, encoding="ascii", errors="strict")
 
 
-def _read_archive(path: Path) -> tuple[bytes, bytes, bytes | None, bytes | None]:
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0) | os.O_NONBLOCK
+def _read_archive(path: Path) -> tuple[bytes, bytes, bytes | None]:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
         fd = os.open(path, flags)
     except OSError as exc:
@@ -565,18 +517,15 @@ def _read_archive(path: Path) -> tuple[bytes, bytes, bytes | None, bytes | None]
             fields = _decode_manifest(values[0], None)
             if fields["format"] in (3, 4):
                 members.append(("rom-map.json", MAX_ROM_MAP_SIZE))
-            elif fields["format"] == 5:
-                members.append(("persona.rbf", MAX_PAYLOAD_SIZE))
             elif len(data) > MAX_ARCHIVE_SIZE:
                 raise PackageError("format-2 archive exceeds 33 MiB")
     if data[offset:] != b"\0" * 1024:
         raise PackageError("archive must end with exactly two zero blocks")
-    return (values[0], values[1], values[2] if fields["format"] in (3, 4) else None,
-            values[2] if fields["format"] == 5 else None)
+    return values[0], values[1], values[2] if len(values) == 3 else None
 
 
 def read_package(path: Path) -> CorePackage:
-    """Read and validate an exact format-2/3/4/5 directory or restricted .fcore archive."""
+    """Read and validate an exact format-2/3/4 directory or restricted .fcore archive."""
 
     path = Path(path)
     try:
@@ -586,9 +535,9 @@ def read_package(path: Path) -> CorePackage:
     if stat.S_ISLNK(metadata.st_mode):
         raise PackageError("package path must not be a symlink")
     if stat.S_ISDIR(metadata.st_mode):
-        manifest, payload, rom_map, persona = _read_directory(path)
+        manifest, payload, rom_map = _read_directory(path)
     elif stat.S_ISREG(metadata.st_mode):
-        manifest, payload, rom_map, persona = _read_archive(path)
+        manifest, payload, rom_map = _read_archive(path)
     else:
         raise PackageError("package path must be a directory or regular archive")
     fields = _decode_manifest(manifest, payload)
@@ -596,13 +545,8 @@ def read_package(path: Path) -> CorePackage:
         raise PackageError("package members do not match declared format")
     if rom_map is not None:
         validate_rom_map(rom_map, fields)
-    if (fields["format"] == 5) != (persona is not None):
-        raise PackageError("persona is required exactly for format 5")
-    if persona is not None:
-        validate_persona(persona, fields)
     return CorePackage(manifest, fields, payload,
-                       package_identity(manifest, payload, rom_map, format_version=fields["format"],
-                                        persona=persona), rom_map, persona)
+                       package_identity(manifest, payload, rom_map, format_version=fields["format"]), rom_map)
 
 
 def main(argv: list[str] | None = None) -> int:

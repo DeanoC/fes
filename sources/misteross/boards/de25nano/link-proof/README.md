@@ -152,7 +152,7 @@ Its base and both personas require their own complete fit/timing and hardware
 acceptance. The standalone composer remains diagnostic; normal FES deployment
 of base-plus-persona output is still open.
 
-The normal `scripts/build_de25_zx81_package.py --static-expansion` frontend also
+The normal `boards/de25nano/producers/build_zx81_package.py --static-expansion` frontend also
 selects this compiler with explicit `--placement` and `--routing` arguments.
 Before IP generation it binds a functional package/computer ID separately from
 the controller ID. `--compile-only` retains an unqualified candidate; export

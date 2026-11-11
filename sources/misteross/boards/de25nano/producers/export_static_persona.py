@@ -17,19 +17,19 @@ import tarfile
 import tempfile
 
 if __package__ in (None, ''):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from scripts import build_de25_zx81_static_package as static
-from scripts.core_package import read_package, MAX_PAYLOAD_SIZE
-from scripts.export_core_package import (
+from boards.de25nano.producers import build_zx81_static_package as static
+from boards.de25nano.package.core_package import read_package, MAX_PAYLOAD_SIZE
+from boards.de25nano.package.export_core_package import (
     MAX_BUILD_RECORD_SIZE, _is_read_only, _publish_no_replace, _snapshot_regular, _write_sealed,
     source_input_closure, verify_record_source_at_revision,
 )
 from scripts.fes_build_common import BuildError, _require_clean_source
 from scripts.source_closure import imports as script_imports
 
-ROOT = Path(__file__).resolve().parents[1]
-RECIPE = 'scripts/export_de25_static_persona.py'
+ROOT = Path(__file__).resolve().parents[3]
+RECIPE = 'boards/de25nano/producers/export_static_persona.py'
 PERSONAS = ('zx81_empty', 'zx81_ram16k')
 
 
@@ -127,7 +127,14 @@ def export(root, output, package_path, destination, *, persona_id='zx81_ram16k')
     if persona_id not in PERSONAS:
         raise BuildError('unsupported static ZX81 persona')
     repository, revision = _require_clean_source(root, pinned_inputs=(RECIPE,))
-    roots = sorted({RECIPE, *script_imports(Path(RECIPE).stem, root)})
+    roots = {RECIPE, 'boards/de25nano/producers/build_zx81_static_package.py',
+             'boards/de25nano/producers/build_zx81_package.py',
+             'boards/de25nano/producers/build_menu_package.py',
+             'boards/de25nano/package/core_package.py',
+             'boards/de25nano/package/export_core_package.py'}
+    for module in ('fes_build_common', 'source_closure', 'compiler_read_audit'):
+        roots.update(script_imports(module, root))
+    roots = sorted(roots)
     closure = source_input_closure(root, roots)
     package, record, project, descriptor, reports = qualified_inputs(root, output, package_path)
     persona = next(p for p in descriptor['personas'] if p['id'] == persona_id)

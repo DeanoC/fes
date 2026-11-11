@@ -283,8 +283,10 @@ def load_recipes(path=REGISTRY_PATH, *, board=DEFAULT_BOARD):
             if not _relative_path(entry[field]):
                 raise ValueError(f"invalid relative {field}")
         module = entry["producer_module"]
+        board_local = module.startswith("boards.de25nano.producers.")
         if (not all(re.fullmatch(_IDENTIFIER, part) and not keyword.iskeyword(part)
                     for part in module.split("."))
+                or not (module.startswith("scripts.") or board_local)
                 or entry["producer_script"] != module.replace(".", "/") + ".py"):
             raise ValueError("invalid producer_module or producer_script mismatch")
         auth = entry["authenticate"]

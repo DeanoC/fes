@@ -41,7 +41,7 @@ class NightlyDecisionTests(unittest.TestCase):
             (repo / 'config').mkdir(parents=True); (repo / 'profiles').mkdir()
             (repo / 'profiles/native-integration-dev.toml').write_text('fpga_packages = [{core_id="fes.menu"}]\n')
             de10 = '[[recipes]]\ncore_id="fes.menu"\nproducer_module="scripts.build_fes_menu_package"\n'
-            de25 = '[[recipes]]\ncore_id="fes.menu"\nboard="de25-nano"\nproducer_module="scripts.build_de25_menu_package"\n'
+            de25 = '[[recipes]]\ncore_id="fes.menu"\nboard="de25-nano"\nproducer_module="boards.de25nano.producers.build_menu_package"\n'
             output = Path(temporary) / 'not-built'
             for rows in ((de10, de25), (de25, de10)):
                 (repo / 'config/core-recipes.toml').write_text('version=1\n' + '\n'.join(rows))

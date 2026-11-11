@@ -39,7 +39,7 @@ def prepare(bench, output=None):
     runtime = ROOT.parent / "libmister-runtime/src/native/generated/fes_computer.hpp"
     (output / "fes_computer.hpp").write_bytes(runtime.read_bytes())
     sources = [HERE / "fes_de25_computer.v", HERE / "video.v",
-               COMMON / "rtl/fes_computer_mailbox.v",
+               SHARED_RTL / "fes_computer_mailbox.v",
                ZX81 / "zx81_keyboard.v", SHARED_RTL / "zx81_machine_clock.v",
                SHARED_RTL / "zx81_machine.sv", *adapted]
     sources += [Z80 / (name + ".sv") for name in
@@ -101,15 +101,15 @@ def run_standard():
     scanout = HERE.parent / "scanout"
     display = load(HERE.parent / "display/build.py", "standard_session_display_ram")
     reader = output / "fes_menu_reader_de25.v"
-    reader.write_bytes(display.retarget_menu_ram((ROOT / "cores/fes-menu/rtl/fes_menu_reader.v").read_bytes())[0])
+    reader.write_bytes(display.retarget_menu_ram((SHARED_RTL / "fes_menu_reader.v").read_bytes())[0])
     # DI; marker=5a at5000; continuously increment5001 without firmware services.
     program = bytes.fromhex("f3 31 ff 7f 3e 5a 32 00 50 3a 01 50 3c 32 01 50 c3 09 00")
     (output / "standard-session-rom.hex").write_text("".join(f"{b:02x}\n" for b in program + bytes(8192-len(program))))
     sources += [HERE / "fes_de25_zx81_standard.v", HERE / "standard_session_harness.v",
-        ZX81 / "fes_zx81_core.v", ZX81 / "zx81_video_720p.v",
+        SHARED_RTL / "fes_zx81_core.v", ZX81 / "zx81_video_720p.v",
         scanout / "fes_de25_session_display.v", scanout / "fes_de25_scanout.v",
-        COMMON / "rtl/fes_display_plane.v", COMMON / "rtl/fes_display_cdc.v",
-        ROOT / "cores/fes-menu/rtl/fes_menu_control.v", ROOT / "cores/fes-menu/rtl/fes_menu_video.v", reader]
+        SHARED_RTL / "fes_display_plane.v", COMMON / "rtl/fes_display_cdc.v",
+        SHARED_RTL / "fes_menu_control.v", SHARED_RTL / "fes_menu_video.v", reader]
     waivers = ("UNUSEDSIGNAL", "UNUSEDPARAM", "UNOPTFLAT", "CASEINCOMPLETE", "WIDTHTRUNC",
         "WIDTHEXPAND", "SYNCASYNCNET", "PINCONNECTEMPTY", "DECLFILENAME", "IMPLICITSTATIC", "VARHIDDEN", "CASEX", "BLKSEQ")
     subprocess.run(["verilator", "--cc", "--exe", "--build", "-j", "2", "--public-flat-rw",

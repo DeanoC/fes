@@ -26,11 +26,11 @@ import tempfile
 from decimal import Decimal, InvalidOperation
 
 if __package__ in (None, ''):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from scripts.build_fes_pcxt_quartus import tree_digest
-from scripts.core_package import encode_manifest
-from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
+from boards.de25nano.package.core_package import encode_manifest
+from boards.de25nano.package.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
 from scripts.fes_build_common import AuthenticatedTool, BuildError, _require_clean_source as require_clean_source
 from scripts.functional_execution import execution_digest, execution_environment as base_execution_environment
 from scripts.source_closure import imports as script_imports
@@ -38,10 +38,15 @@ from scripts.compiler_read_audit import POLICY as SOURCE_POLICY
 from boards.de25nano.scanout import async_inputs
 from boards.de25nano.scanout.build import TIMED_RESET_RELEASE, MANAGED_FABRIC, SHARED_FIFO_RESETS
 
-ROOT = Path(__file__).resolve().parents[1]
-RECIPE = 'scripts/build_de25_menu_package.py'
+ROOT = Path(__file__).resolve().parents[3]
+RECIPE = 'boards/de25nano/producers/build_menu_package.py'
 ABI = 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'
-SOURCE_ROOTS = ['cores/fes-menu/rtl', 'cores/fes-splash/rtl']
+SOURCE_ROOTS = [
+    'boards/de25nano/shared-rtl/fes_menu_reader.v',
+    'boards/de25nano/shared-rtl/fes_menu_video.v',
+    'cores/fes-menu/rtl/fes_menu_pattern_memory.v',
+    'cores/fes-splash/rtl',
+]
 REVIEW_INPUTS = ('boards/de25nano/scanout/async_inputs.py',
                  'boards/de25nano/scanout/async_inputs.tcl',
                  'boards/de25nano/scanout/vendor_reference.py')
@@ -203,8 +208,14 @@ def captured_source_closure(root, source_roots, captured, recipe, review_inputs)
     roots = set(source_roots) | set(review_inputs)
     helpers = {recipe, *(name for name in review_inputs if name.startswith('scripts/'))}
     for helper in helpers:
-        roots.update(script_imports(Path(helper).stem, root))
+        if (root / 'scripts' / (Path(helper).stem + '.py')).is_file():
+            roots.update(script_imports(Path(helper).stem, root))
     roots.update(helpers)
+    roots.update({'boards/de25nano/package/core_package.py',
+                  'boards/de25nano/package/export_core_package.py'})
+    for module in ('build_fes_pcxt_quartus', 'fes_build_common', 'functional_execution',
+                   'source_closure', 'compiler_read_audit'):
+        roots.update(script_imports(module, root))
     paths = {Path(name).relative_to('sources/misteross').as_posix(): data
              for name, data in captured.items()}
     roots.update(paths)

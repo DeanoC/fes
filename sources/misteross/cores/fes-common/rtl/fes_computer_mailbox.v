@@ -39,8 +39,6 @@ module fes_computer_mailbox_core #(
     parameter bit ENABLE_SPECTRUM_TAPE = 0,
     parameter bit ENABLE_ZX81_TAPE = 0,
     parameter bit ENABLE_SESSION_DISPLAY = 0,
-    // A display may use a board-owned allocation instead of the DE10 window.
-    parameter bit ENABLE_HPS_DDR_WINDOW = ENABLE_SESSION_DISPLAY,
     parameter bit ENABLE_ATARI_ST_FLOPPY = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_WRITE = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_GEOMETRY = 0,
@@ -135,7 +133,7 @@ module fes_computer_mailbox_core #(
         (ST_WRITE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_WRITE_CAPABILITY_MASK) : 16'd0) |
         (ZX81_WRITE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ZX81_TAPE_WRITE_CAPABILITY_MASK) : 16'd0) |
         (UNIT1 ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_SPECTRUM_DISK_CAPABILITY_MASK) : 16'd0) |
-        (ENABLE_SESSION_DISPLAY && ENABLE_HPS_DDR_WINDOW ? 16'(`FES_COMPUTER_INTERFACE_MEMORY_HPS_DDR_CAPABILITY_MASK) : 16'd0) |
+        (ENABLE_SESSION_DISPLAY ? 16'(`FES_COMPUTER_INTERFACE_MEMORY_HPS_DDR_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_SESSION_DISPLAY ? 16'(`FES_COMPUTER_INTERFACE_VIDEO_SESSION_DISPLAY_CAPABILITY_MASK) : 16'd0);
     // Identity word 16: capabilities 16..31.
     localparam [31:0] CAPABILITIES_1_1 =
@@ -856,8 +854,6 @@ module fes_computer_mailbox #(
     parameter bit ENABLE_SPECTRUM_TAPE = 0,
     parameter bit ENABLE_ZX81_TAPE = 0,
     parameter bit ENABLE_SESSION_DISPLAY = 0,
-    // A display may use a board-owned allocation instead of the DE10 window.
-    parameter bit ENABLE_HPS_DDR_WINDOW = ENABLE_SESSION_DISPLAY,
     parameter bit ENABLE_ATARI_ST_FLOPPY = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_WRITE = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_GEOMETRY = 0,
@@ -916,7 +912,6 @@ module fes_computer_mailbox #(
         .ENABLE_SPECTRUM_TAPE(ENABLE_SPECTRUM_TAPE),
         .ENABLE_ZX81_TAPE(ENABLE_ZX81_TAPE),
         .ENABLE_SESSION_DISPLAY(ENABLE_SESSION_DISPLAY),
-        .ENABLE_HPS_DDR_WINDOW(ENABLE_HPS_DDR_WINDOW),
         .ENABLE_ATARI_ST_FLOPPY(ENABLE_ATARI_ST_FLOPPY),
         .ENABLE_ATARI_ST_FLOPPY_WRITE(ENABLE_ATARI_ST_FLOPPY_WRITE),
         .ENABLE_ATARI_ST_FLOPPY_GEOMETRY(ENABLE_ATARI_ST_FLOPPY_GEOMETRY),

@@ -63,7 +63,7 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertIn(b"DEPTH = 16384;", mif)
         self.assertIn(b"3FFF: FF;", mif)
         sources = B.capture_standard()
-        machine = "sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv"
+        machine = "sources/misteross/boards/de25nano/shared-rtl/zx81_machine.sv"
         sources[machine] = sources[machine].replace(b".address_a({1'b0, rom_a[12]", b".address_a({1'b1, rom_a[12]")
         with mock.patch.object(B, "capture_standard", return_value=sources):
             with self.assertRaisesRegex(ValueError, "reachable firmware window"):
@@ -87,7 +87,7 @@ class HpsZX81BuildTests(unittest.TestCase):
     def test_capture_contains_current_mailbox_machine_hid_tape_and_generated_consumers(self):
         sources = B.capture()
         required = {
-            "sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v",
+            "sources/misteross/boards/de25nano/shared-rtl/fes_computer_mailbox.v",
             *["sources/misteross/cores/fes-zx81/rtl/" + name for name in
               ("zx81_keyboard.v", "zx81_tape_store.v")],
             *[B.BOARD + "shared-rtl/" + name for name in B.SHARED_CORE_FILES],
@@ -309,7 +309,7 @@ class HpsZX81BuildTests(unittest.TestCase):
     def test_selected_revision_capture_reads_git_blobs_instead_of_working_files(self):
         sources = B.capture()
         selected = "b" * 40
-        target = "sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v"
+        target = "sources/misteross/boards/de25nano/shared-rtl/fes_computer_mailbox.v"
         frozen = dict(sources)
         frozen[target] += b"\n// selected Git blob differs from working file\n"
         calls = []

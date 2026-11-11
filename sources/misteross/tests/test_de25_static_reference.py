@@ -11,7 +11,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-from scripts import build_de25_zx81_static_package as producer
+from boards.de25nano.producers import build_zx81_static_package as producer
 review = producer.reviewer(ROOT)
 
 

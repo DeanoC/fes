@@ -12,15 +12,15 @@ ROOT = Path(__file__).resolve().parents[1]
 class ComputerMemoryBackendTests(unittest.TestCase):
     def test_reserved_window_is_independent_of_session_display(self):
         sources = (
-            'cores/fes-common/sim/computer_memory_top.v',
-            'cores/fes-common/rtl/fes_computer_mailbox.v',
-            'cores/fes-zx81/rtl/fes_zx81_core.v',
+            'boards/de25nano/sim/computer_memory_top.v',
+            'boards/de25nano/shared-rtl/fes_computer_mailbox.v',
+            'boards/de25nano/shared-rtl/fes_zx81_core.v',
             'cores/fes-zx81/rtl/zx81_keyboard.v',
             'cores/fes-zx81/rtl/zx81_tape_store.v',
             'cores/fes-zx81/rtl/zx81_video_720p.v',
             'cores/fes-zx81/rtl/zx81_dpram.v',
-            'cores/fes-zx81/rtl/zx81_machine_clock.v',
-            'cores/fes-zx81/rtl/zx81_machine.sv',
+            'boards/de25nano/shared-rtl/zx81_machine_clock.v',
+            'boards/de25nano/shared-rtl/zx81_machine.sv',
             'cores/fes-common/rtl/z80/fes_z80_alu.sv',
             'cores/fes-common/rtl/z80/fes_z80_engine.sv',
             'cores/fes-common/rtl/z80/fes_z80_bus.sv',
@@ -37,7 +37,7 @@ class ComputerMemoryBackendTests(unittest.TestCase):
                        '-I' + str(ROOT / 'cores/fes-zx81/rtl'),
                        '-I' + str(ROOT / 'cores/fes-common/rtl/z80'),
                        '--Mdir', directory, *[str(ROOT / name) for name in sources],
-                       str(ROOT / 'cores/fes-common/sim/computer_memory_tb.cpp')]
+                       str(ROOT / 'boards/de25nano/sim/computer_memory_tb.cpp')]
             compiled = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=120)
             self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
             result = subprocess.run([str(Path(directory) / 'Vcomputer_memory_top')],

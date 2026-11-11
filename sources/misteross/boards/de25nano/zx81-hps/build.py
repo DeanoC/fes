@@ -31,13 +31,14 @@ LOCAL = ("build.py", "board.v", "clocks.sdc", "integrate.tcl",
          "generated/fes_computer.vh")
 CORE_FILES = ("zx81_machine.sv", "zx81_machine_clock.v", "zx81_dpram.v",
               "zx81_model.vh", "zx81_bus_pack.vh", "zx81_keyboard.v",
-              "zx81_tape_store.v")
-SHARED_CORE_FILES = frozenset(("zx81_machine.sv", "zx81_machine_clock.v"))
+              "zx81_tape_store.v", "fes_zx81_core.v", "top.v")
+SHARED_CORE_FILES = frozenset(("zx81_machine.sv", "zx81_machine_clock.v",
+                               "fes_zx81_core.v", "top.v"))
 
 
 def core_source_path(name):
     if name in SHARED_CORE_FILES:
-        return BOARD + "shared-rtl/" + name
+        return BOARD + "shared-rtl/" + {"top.v": "zx81_top.v"}.get(name, name)
     return "sources/misteross/cores/fes-zx81/rtl/" + name
 
 
@@ -94,7 +95,7 @@ def capture(revision=None):
     paths |= {p.relative_to(ROOT).as_posix() for p in firmware.source_paths(revision)}
     paths |= {"sources/misteross/cores/fes-common/rtl/z80/" + n + ".sv" for n in
               ("fes_z80_alu", "fes_z80_engine", "fes_z80_bus", "fes_z80_nmos")}
-    paths.add("sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v")
+    paths.add(BOARD + "shared-rtl/fes_computer_mailbox.v")
     paths |= {BOARD + "scanout/" + name for name in
               ("build.py", "linux_dma.py", "hdmi_inputs.py", "clocks.sdc", "fes_de25_scanout_board.v")}
     return {p: hps_source if p == hps_path else read(p) for p in sorted(paths)}
@@ -110,13 +111,12 @@ def capture_standard(revision=None):
     sources = capture(revision)
     paths = {BOARD + "zx81-hps/" + name for name in
              ("fes_de25_zx81_standard.v", "fes_de25_zx81_standard_hw.tcl", "standard-clocks.sdc")}
-    paths |= {"sources/misteross/cores/fes-zx81/rtl/" + name for name in
-              ("fes_zx81_core.v", "zx81_video_720p.v")}
-    paths |= {"sources/misteross/cores/fes-common/rtl/" + name for name in
-              ("fes_display_plane.v", "fes_display_cdc.v")}
+    paths |= {core_source_path(name) for name in ("fes_zx81_core.v", "zx81_video_720p.v")}
+    paths |= {BOARD + "shared-rtl/" + name for name in ("fes_computer_mailbox.v", "fes_display_plane.v")}
+    paths.add("sources/misteross/cores/fes-common/rtl/fes_display_cdc.v")
     paths |= {"sources/misteross/cores/fes-common/generated/" + name for name in
               ("fes_computer.vh", "fes_application.vh", "fes_display_plane.vh")}
-    paths |= {"sources/misteross/cores/fes-menu/rtl/" + name for name in
+    paths |= {BOARD + "shared-rtl/" + name for name in
               ("fes_menu_control.v", "fes_menu_video.v", "fes_menu_reader.v")}
     paths |= {BOARD + "scanout/" + name for name in
               ("fes_de25_session_display.v", "fes_de25_scanout.v", "generated/fes_de25_scanout.vh")}
@@ -142,19 +142,21 @@ def prepare_standard_component(output, revision=None):
     display = load(snapshot / BOARD / "display/build.py", "standard_retained_display")
     core = "sources/misteross/cores/fes-zx81/rtl/"
     common = "sources/misteross/cores/fes-common/"
+    def core_data(name):
+        return sources[core_source_path(name)]
     files = {name: sources[BOARD + "zx81-hps/" + name] for name in
              ("fes_de25_zx81_standard.v", "fes_de25_zx81_standard_hw.tcl", "fes_de25_computer.v")}
-    files.update({name: sources[core + name] for name in
+    files.update({name: core_data(name) for name in
         ("fes_zx81_core.v", "zx81_machine.sv", "zx81_machine_clock.v", "zx81_keyboard.v",
          "zx81_model.vh", "zx81_bus_pack.vh")})
     repairs = {}
-    if sources[core + "zx81_machine.sv"].count(b".address_a({1'b0, rom_a[12], rom_a[11:0]}),") != 1:
+    if core_data("zx81_machine.sv").count(b".address_a({1'b0, rom_a[12], rom_a[11:0]}),") != 1:
         raise ValueError("standard ZX81 reachable firmware window changed")
     if core + "zx8x.mif" in sources:
         # An explicitly selected historical revision executes its own captured
         # conversion recipe. Current builds never read the deleted ROM files.
         files["zx8x.mif"], repairs["zx8x.mif"] = retained.complete_standard_firmware(
-            sources[core + "zx8x.mif"], sources[core + "zx81_machine.sv"])
+            sources[core + "zx8x.mif"], core_data("zx81_machine.sv"))
     else:
         firmware = load(snapshot / BOARD / "zx81/firmware.py", "standard_selected_firmware")
         generated, repairs["zx8x.mif"] = firmware.generate(sources, output / "firmware")
@@ -163,15 +165,16 @@ def prepare_standard_component(output, revision=None):
         ("zx81_dpram.v", "zx81_dpram_de25.v", retained.retarget_ram),
         ("zx81_tape_store.v", "zx81_tape_store_de25.v", retained.retarget_tape),
         ("zx81_video_720p.v", "zx81_video_720p_de25.v", retained.ZX81.retarget_video)):
-        files[target], repairs[target] = derive(sources[core + source])
+        files[target], repairs[target] = derive(core_data(source))
     files["fes_menu_reader_de25.v"], repairs["fes_menu_reader_de25.v"] = display.retarget_menu_ram(
-        sources["sources/misteross/cores/fes-menu/rtl/fes_menu_reader.v"])
-    for name in ("fes_computer_mailbox.v", "fes_display_plane.v", "fes_display_cdc.v"):
-        files[name] = sources[common + "rtl/" + name]
+        sources[BOARD + "shared-rtl/fes_menu_reader.v"])
+    for name in ("fes_computer_mailbox.v", "fes_display_plane.v"):
+        files[name] = sources[BOARD + "shared-rtl/" + name]
+    files["fes_display_cdc.v"] = sources[common + "rtl/fes_display_cdc.v"]
     for name in ("fes_z80_alu", "fes_z80_engine", "fes_z80_bus", "fes_z80_nmos"):
         files[name + ".sv"] = sources[common + "rtl/z80/" + name + ".sv"]
     for name in ("fes_menu_control.v", "fes_menu_video.v"):
-        files[name] = sources["sources/misteross/cores/fes-menu/rtl/" + name]
+        files[name] = sources[BOARD + "shared-rtl/" + name]
     for name in ("fes_computer.vh", "fes_application.vh", "fes_display_plane.vh"):
         files["generated/" + name] = sources[common + "generated/" + name]
     files["generated/fes_de25_computer.vh"] = sources[BOARD + "zx81-hps/generated/fes_de25_computer.vh"]
@@ -584,7 +587,7 @@ def prepare_captured(archive, output, sources, selected, *, hps_first=False, pac
         files.update(generated)
     for name in ("fes_z80_alu", "fes_z80_engine", "fes_z80_bus", "fes_z80_nmos"):
         files[name + ".sv"] = sources["sources/misteross/cores/fes-common/rtl/z80/" + name + ".sv"]
-    files["fes_computer_mailbox.v"] = sources["sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v"]
+    files["fes_computer_mailbox.v"] = sources["sources/misteross/boards/de25nano/shared-rtl/fes_computer_mailbox.v"]
     repairs = {}
     for name, transform in (("zx81_dpram", helpers.retarget_ram),
                             ("zx81_tape_store", lambda source: retarget_tape(source, files["tape_store.v"]))):

@@ -54,7 +54,7 @@ class RecipeRegistryTest(unittest.TestCase):
         default = recipes.recipe_for('fes.menu')
         self.assertEqual(default.board, 'de10-nano')
         selected = recipes.recipe_for('fes.menu', board='de25-nano')
-        self.assertEqual(selected.producer_module, 'scripts.build_de25_menu_package')
+        self.assertEqual(selected.producer_module, 'boards.de25nano.producers.build_menu_package')
         self.assertEqual(selected.board, 'de25-nano')
         self.assertEqual(selected.toolchain, 'quartus')
         self.assertEqual(selected.quartus, {'version': '26.3.0', 'seeds': [1], 'threads': 2})
@@ -62,7 +62,7 @@ class RecipeRegistryTest(unittest.TestCase):
         with patch.dict(os.environ, {'BOARD': 'de25-nano', 'FES_TARGET_BOARD': 'de25-nano'}):
             self.assertIs(recipes.recipe_for('fes.menu'), default)
         zx81 = recipes.recipe_for('fes.zx81', board='de25-nano')
-        self.assertEqual(zx81.producer_module, 'scripts.build_de25_zx81_package')
+        self.assertEqual(zx81.producer_module, 'boards.de25nano.producers.build_zx81_package')
         self.assertEqual(zx81.toolchain, 'quartus')
         self.assertEqual(recipes.recipe_for('fes.zx81').board, 'de10-nano')
         for core, board in (('fes.zx80', 'de25-nano'), ('fes.menu', 'unknown')):

@@ -39,8 +39,6 @@ SOFTWARE_CI_INPUTS = frozenset({
 # misteross unittest suite runs (about two minutes); tool-dependent cases skip.
 FPGA_SOFTWARE_TESTS = ('test_*.py',)
 FPGA_PRODUCER_HELPERS = {
-    'build_de25_menu_package.py', 'build_de25_zx81_package.py',
-    'build_de25_zx81_static_package.py',
     'bootstrap.sh', 'audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'build_fes_pcxt_quartus.py', 'pcxt_quartus_mailbox.py', 'pcxt_quartus_audio.py',
     'audit_fes_pcxt_hps_i2c.py', 'characterize_fes_pcxt_hps_i2c.py', 'screen_fes_pcxt_uncertainty.py',
     'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
@@ -126,6 +124,23 @@ def fpga_cores(path):
     relative = Path(path).relative_to(MODULE_ROOTS['fpga'])
     parts = relative.parts
     if len(parts) >= 3 and parts[:2] == ('boards', 'de25nano') and '..' not in parts:
+        if len(parts) >= 4 and parts[2] == 'producers':
+            name = parts[3]
+            if name in ('build_menu_package.py', 'core_package.py', 'export_core_package.py'):
+                return ('menu', 'zx81'), 'DE25 package producer and format implementation'
+            if name in ('build_zx81_package.py', 'build_zx81_static_package.py',
+                        'export_static_persona.py', 'review_audio_clocks.py'):
+                return ('zx81',), 'DE25 ZX81 package producer and qualified review'
+        if len(parts) >= 4 and parts[2] == 'package':
+            return ('menu', 'zx81'), 'DE25 package format implementation'
+        if len(parts) >= 4 and parts[2] == 'shared-rtl':
+            name = parts[3]
+            if name in ('fes_menu_reader.v', 'fes_menu_video.v', 'fes_menu_control.v'):
+                return ('menu', 'zx81'), 'DE25 local display and menu consumers'
+            if name in ('fes_computer_mailbox.v', 'fes_display_plane.v',
+                        'fes_zx81_core.v', 'zx81_machine.sv', 'zx81_machine_clock.v',
+                        'zx81_top.v'):
+                return ('zx81',), 'DE25 local ZX81 computer consumer'
         return (), 'standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer'
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
         return ('pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'

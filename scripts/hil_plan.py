@@ -67,9 +67,9 @@ RULES = [
     # DE25 now has deployed MENU and ZX81 packages. Keep board-qualified names:
     # a DE10 package/HIL run cannot satisfy these consumers. Shared board code
     # conservatively selects both DE25 packages; it does not require an OS image.
-    ('sources/misteross/scripts/build_de25_menu_package.py', 'overlay', 'core:de25-menu'),
-    ('sources/misteross/scripts/build_de25_zx81_package.py', 'overlay', 'core:de25-zx81'),
-    ('sources/misteross/scripts/review_de25_audio_clocks.py', 'overlay', 'core:de25-zx81'),
+    ('sources/misteross/boards/de25nano/producers/build_menu_package.py', 'overlay', 'core:de25-menu'),
+    ('sources/misteross/boards/de25nano/producers/build_zx81_package.py', 'overlay', 'core:de25-zx81'),
+    ('sources/misteross/boards/de25nano/producers/review_audio_clocks.py', 'overlay', 'core:de25-zx81'),
     ('sources/misteross/boards/de25nano/**/test_*.py', 'none', None),
     ('sources/misteross/boards/de25nano/**/*_tb.cpp', 'none', None),
     ('sources/misteross/boards/de25nano/**/*_harness.v', 'none', None),
@@ -195,6 +195,45 @@ def glob_matches(path, pattern):
 
 def classify_path(path):
     path = path.replace('\\', '/')
+    # DE25 package inputs live under the board namespace so edits cannot alter
+    # DE10 source closures. Keep their deployed package consumers explicit.
+    de25 = {
+        'sources/misteross/boards/de25nano/producers/build_menu_package.py':
+            ('core:de25-menu', ('core:de25-zx81',)),
+        'sources/misteross/boards/de25nano/producers/build_zx81_package.py':
+            ('core:de25-zx81', ()),
+        'sources/misteross/boards/de25nano/producers/build_zx81_static_package.py':
+            ('core:de25-zx81', ()),
+        'sources/misteross/boards/de25nano/producers/export_static_persona.py':
+            ('core:de25-zx81', ()),
+        'sources/misteross/boards/de25nano/producers/review_audio_clocks.py':
+            ('core:de25-zx81', ()),
+        'sources/misteross/boards/de25nano/package/core_package.py':
+            ('core:de25-menu', ('core:de25-zx81',)),
+        'sources/misteross/boards/de25nano/package/export_core_package.py':
+            ('core:de25-menu', ('core:de25-zx81',)),
+        'sources/misteross/boards/de25nano/shared-rtl/fes_menu_reader.v':
+            ('core:de25-menu', ('core:de25-zx81',)),
+        'sources/misteross/boards/de25nano/shared-rtl/fes_menu_video.v':
+            ('core:de25-menu', ('core:de25-zx81',)),
+    }
+    local = de25.get(path)
+    if local is None and path.startswith('sources/misteross/boards/de25nano/shared-rtl/'):
+        name = Path(path).name
+        if name in ('fes_menu_control.v', 'fes_menu_ddr.v',
+                    'fes_menu_endpoint.v', 'fes_menu_top.v'):
+            local = ('core:de25-menu', ())
+        elif name in ('fes_computer_mailbox.v', 'fes_display_plane.v',
+                      'fes_zx81_core.v', 'zx81_top.v', 'zx81_machine.sv',
+                      'zx81_machine_clock.v'):
+            local = ('core:de25-zx81', ())
+    if local is not None:
+        component, consumers = local
+        row = {'path': path, 'class': 'overlay', 'component': component,
+               'rule': 'DE25 board-local package input'}
+        if consumers:
+            row['consumers'] = list(consumers)
+        return row
     for pattern, category, component in RULES:
         if glob_matches(path, pattern):
             if component and '{' in component:

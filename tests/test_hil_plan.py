@@ -622,26 +622,25 @@ class HilPlanTest(unittest.TestCase):
 
     def test_de25_producer_changes_include_both_package_consumers(self):
         planner = hil_module()
-        menu = 'sources/misteross/scripts/build_de25_menu_package.py'
-        zx81 = 'sources/misteross/scripts/build_de25_zx81_package.py'
+        menu = 'sources/misteross/boards/de25nano/producers/build_menu_package.py'
+        zx81 = 'sources/misteross/boards/de25nano/producers/build_zx81_package.py'
         result = planner.plan([menu], texts={menu: 'X = 1', zx81:
-            'from scripts import build_de25_menu_package as common\nX = common.X\n'})
+            'from boards.de25nano.producers import build_menu_package as common\nX = common.X\n'})
         self.assertEqual(result['components'], ['core:de25-menu', 'core:de25-zx81'])
         self.assertEqual(result['class'], 'overlay')
         self.assertEqual(planner.plan([zx81], texts={})['decision'], 'OVERLAY core:de25-zx81')
         self.assertEqual(planner.plan([
-            'sources/misteross/scripts/review_de25_audio_clocks.py'], texts={})[
+            'sources/misteross/boards/de25nano/producers/review_audio_clocks.py'], texts={})[
                 'decision'], 'OVERLAY core:de25-zx81')
 
-    def test_core_root_declarations_include_de25_package_consumers(self):
+    def test_board_local_de25_inputs_select_their_package_consumers(self):
         planner = hil_module()
-        texts = planner.script_texts()
         for path, component in (
-                ('cores/fes-zx81/rtl/fes_zx81_core.v', 'core:de25-zx81'),
-                ('cores/fes-menu/rtl/fes_menu_reader.v', 'core:de25-menu')):
+                ('boards/de25nano/shared-rtl/fes_zx81_core.v', 'core:de25-zx81'),
+                ('boards/de25nano/shared-rtl/fes_menu_reader.v', 'core:de25-menu')):
             with self.subTest(path=path):
-                components = {row['component'] for row in planner.core_consumers(
-                    'sources/misteross/' + path, texts)}
+                row = planner.classify_path('sources/misteross/' + path)
+                components = {row['component'], *row.get('consumers', ())}
                 self.assertIn(component, components)
         # A producer naming the core root reads descendants, but not its
         # similarly named neighbour. No "cores"-wide literal is inferred.

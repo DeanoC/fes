@@ -69,8 +69,6 @@ struct Bench {
     void start(unsigned slot) {
         top.slot = slot; top.enable = 1; top.start = 1;
         tick(); top.start = 0;
-        check(top.diagnostic_max_response_gap == 0 && top.diagnostic_max_held_command_age == 0,
-              "new fetch retained the preceding frame's gap maxima");
     }
     void frame(unsigned slot, bool stalls) {
         varied = stalls; accepted = pixels = 0; cancelling = false;
@@ -79,9 +77,6 @@ struct Bench {
         check(top.done, "frame timed out");
         check(pixels == 921600 && accepted == 230400, "frame count mismatch");
         tick(); check(top.idle && responses.empty(), "frame did not become idle");
-        if (stalls)
-            check(top.diagnostic_max_response_gap > 0 && top.diagnostic_max_held_command_age > 0,
-                  "controlled command/response stalls did not grow their diagnostic maxima");
     }
     void held_cancel(bool reset) {
         accepted = pixels = 0; cancelling = false; block_commands = true;

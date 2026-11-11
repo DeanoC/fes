@@ -11,12 +11,12 @@ import sys
 import zipfile
 
 if __package__ in (None, ''):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from boards.de25nano.scanout import async_inputs, vendor_reference
 from scripts.fes_build_common import BuildError
 
-HERE = Path(__file__).resolve().parents[1]
+HERE = Path(__file__).resolve().parents[3]
 TCL = HERE / 'boards/de25nano/scanout/audio_clocks.tcl'
 MASTER = 'fes_audio_inst|clock|iopll_0_outclk0'
 PINS = {'CLOCK1_50': 'V16', 'HDMI_SCLK': 'BW1', 'HDMI_LRCLK': 'BR6',

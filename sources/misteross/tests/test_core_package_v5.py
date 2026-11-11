@@ -7,8 +7,8 @@ import tempfile
 import tomllib
 import unittest
 
-from scripts.core_package import PackageError, encode_manifest, package_identity, read_package
-from scripts.export_core_package import _archive_bytes
+from boards.de25nano.package.core_package import PackageError, encode_manifest, package_identity, read_package
+from boards.de25nano.package.export_core_package import _archive_bytes
 from tests.test_core_package import _rewrite_checksum
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -117,5 +117,5 @@ class StaticCorePackageTests(unittest.TestCase):
             (root / "manifest.toml").write_bytes((FIXTURES / "manifests/valid-basic.toml").read_bytes())
             (root / "core.rbf").write_bytes((FIXTURES / "payloads/base.rbf").read_bytes())
             os.mkfifo(root / "persona.rbf")
-            program = "import sys; from scripts.core_package import read_package,PackageError; from pathlib import Path\ntry: read_package(Path(sys.argv[1]))\nexcept PackageError: sys.exit(0)\nsys.exit(1)"
+            program = "import sys; from boards.de25nano.package.core_package import read_package,PackageError; from pathlib import Path\ntry: read_package(Path(sys.argv[1]))\nexcept PackageError: sys.exit(0)\nsys.exit(1)"
             subprocess.run([sys.executable, "-c", program, str(root)], cwd=ROOT, check=True, timeout=3)

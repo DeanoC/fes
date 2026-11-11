@@ -40,9 +40,6 @@ func launcherPairingHandler(controller Controller, agentToken string, settings s
 		lock.Lock()
 		defer lock.Unlock()
 		status := controller.Status()
-		if settings.kitLocal != nil {
-			status = applyKitLocalRun(status, settings.kitLocal())
-		}
 		if r.Context().Err() != nil {
 			writeError(w, statusClientClosedRequest, "PAIRING_CANCELLED", "pairing request cancelled")
 			return

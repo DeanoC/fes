@@ -63,7 +63,7 @@ register path and allocated display RTL. Its diagnostic ROM/internal16K model
 checks real CPU writes and retained RAM across kernel-only display publication,
 drain, new grant bases and sequence restart. It reuses the allocated frame bench;
 `--bench all` includes it. These simulations do not qualify a package. The
-canonical `scripts/build_de25_zx81_package.py` selects the internal-16K board,
+canonical `boards/de25nano/producers/build_zx81_package.py` selects the internal-16K board,
 and the explicit runtime profile uses the shared computer driver. The
 [dated native evidence](../../../docs/validation/2026-11-04-de25-standard-zx81/README.md#native-lost-process-recovery)
 identifies its exact older sealed core; a rebuild with the new reset export
@@ -197,7 +197,7 @@ DE25 currently uses the separate bring-up wrapper described below. Porting the
 standard core's board adapters replaces that reduced wrapper; adding more
 guest features to the bring-up implementation is not the standard-core path.
 
-`scripts/build_de25_zx81_package.py` provides the canonical format-2 BRAM ZX81
+`boards/de25nano/producers/build_zx81_package.py` provides the canonical format-2 BRAM ZX81
 recipe for explicit `fes.zx81`/`de25-nano` lookup. It binds captured machine,
 transport, ROM, board, producer and actual installed Quartus execution inputs
 before Qsys generation and uses that BUILD_ID in both the HDL parameter and
@@ -262,7 +262,7 @@ readiness. Lock loss restarts HDMI configuration and immediately blanks data
 and readiness without clipping sync. This does not merge the renderer's reset
 with PLL loss or establish fitted reset coordination or physical acceptance.
 
-`scripts/build_de25_menu_package.py` prepares the allocated-buffer MENU with a
+`boards/de25nano/producers/build_menu_package.py` prepares the allocated-buffer MENU with a
 canonical format-2 functional record before generating IP. Its record binds the
 captured board inputs, MENU/splash RTL and transitive producer-script closure,
 locked vendor resource archive,
@@ -4338,7 +4338,7 @@ The collector selects physical enable pins by their full names because the
 compatibility query may also return a fitted duplicate. Correct collection
 does not admit any logical consumer beyond the two specifically reviewed names.
 
-`scripts/export_de25_static_persona.py --producer /absolute/qualified-build
+`boards/de25nano/producers/export_static_persona.py --producer /absolute/qualified-build
 --package /absolute/package.fcore --output /absolute/expansions` exports the
 selected `zx81_ram16k` persona; `--persona zx81_empty` selects the empty image.
 It requires the completed package producer's signoff and repeat projects,

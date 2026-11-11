@@ -54,7 +54,7 @@ def execute(args):
         dest.write_bytes(frozen["files"][comp.core_source_path(name)])
     for name in ("fes_z80_alu", "fes_z80_engine", "fes_z80_bus", "fes_z80_nmos"):
         (mailbox / (name + ".sv")).write_bytes(frozen["files"]["sources/misteross/cores/fes-common/rtl/z80/" + name + ".sv"])
-    (mailbox / "fes_computer_mailbox.v").write_bytes(frozen["files"]["sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v"])
+    (mailbox / "fes_computer_mailbox.v").write_bytes(frozen["files"]["sources/misteross/boards/de25nano/shared-rtl/fes_computer_mailbox.v"])
     (mailbox / "zx81_dpram_de25.v").write_bytes((local / "zx81_dpram.v").read_bytes())
     (mailbox / "zx81_tape_store_de25.v").write_bytes(comp.retarget_tape((mailbox / "zx81_tape_store.v").read_bytes(), (mailbox / "tape_store.v").read_bytes())[0])
     inputs = {"source_revision": frozen["revision"], "source_committed": frozen["committed"],

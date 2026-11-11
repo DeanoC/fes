@@ -16,26 +16,32 @@ import sys
 import tempfile
 
 if __package__ in (None, ''):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from scripts import build_de25_menu_package as common
-from scripts.core_package import encode_manifest
-from scripts.export_core_package import build_identity, encode_build_record, export_package
+from boards.de25nano.producers import build_menu_package as common
+from boards.de25nano.package.core_package import encode_manifest
+from boards.de25nano.package.export_core_package import build_identity, encode_build_record, export_package
 from scripts.fes_build_common import AuthenticatedTool, BuildError, _require_clean_source as require_clean_source
 from scripts.functional_execution import execution_digest
 from boards.de25nano.scanout import async_inputs, audio_reference
 
-ROOT = Path(__file__).resolve().parents[1]
-RECIPE = 'scripts/build_de25_zx81_package.py'
+ROOT = Path(__file__).resolve().parents[3]
+RECIPE = 'boards/de25nano/producers/build_zx81_package.py'
 ABI = 'cores/fes-common/generated/fes_computer.vh'
-COMMON_LIBRARY_INPUTS = ['cores/fes-common/rtl/' + name for name in (
-    'fes_computer_mailbox.v', 'fes_display_plane.v', 'fes_display_cdc.v',
+COMMON_LIBRARY_INPUTS = ['boards/de25nano/shared-rtl/' + name for name in (
+    'fes_computer_mailbox.v', 'fes_display_plane.v') ] + ['cores/fes-common/rtl/' + name for name in (
+    'fes_display_cdc.v',
     'fes_audio_output.v', 'fes_audio_i2s.v')]
 SOURCE_ROOTS = sorted([*common.SOURCE_ROOTS, 'cores/fes-common/generated', 'cores/fes-common/rtl/z80',
-                      'cores/fes-zx81/rtl', *COMMON_LIBRARY_INPUTS])
+                      'cores/fes-zx81/rtl/zx81_keyboard.v', 'cores/fes-zx81/rtl/zx81_tape_store.v',
+                      'cores/fes-zx81/rtl/zx81_dpram.v', 'cores/fes-zx81/rtl/zx81_model.vh',
+                      'cores/fes-zx81/rtl/zx81_bus_pack.vh', 'cores/fes-zx81/rtl/zx81_video_720p.v',
+                      'boards/de25nano/shared-rtl/fes_zx81_core.v',
+                      'boards/de25nano/shared-rtl/zx81_machine.sv',
+                      'boards/de25nano/shared-rtl/zx81_machine_clock.v', *COMMON_LIBRARY_INPUTS])
 REVIEW_INPUTS = (*common.REVIEW_INPUTS, 'boards/de25nano/scanout/audio_reference.py',
                  'boards/de25nano/scanout/audio_clocks.tcl',
-                 'scripts/review_de25_audio_clocks.py')
+                 'boards/de25nano/producers/review_audio_clocks.py')
 DEVICE = common.DEVICE
 FABRIC = common.MANAGED_FABRIC
 sha = common.sha
@@ -73,6 +79,12 @@ def create_build_record(root, repository, revision, identities, execution, captu
         captured = computer(root).capture_standard_board(revision)
     top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
     roots, closure = common.captured_source_closure(root, SOURCE_ROOTS, captured, RECIPE, REVIEW_INPUTS)
+    roots = sorted(set(roots) | {'boards/de25nano/package/core_package.py',
+                                 'boards/de25nano/package/export_core_package.py'})
+    for module in ('build_fes_pcxt_quartus', 'fes_build_common', 'functional_execution',
+                   'source_closure', 'compiler_read_audit'):
+        roots = sorted(set(roots) | set(common.script_imports(module, root)))
+    closure = common.source_input_closure(root, roots, policy=common.SOURCE_POLICY)
     return encode_build_record({'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
         'source_path': root.relative_to(top).as_posix(), 'source_roots': roots, 'source_inputs': closure,
         'recipe': RECIPE, 'recipe_sha256': sha(root / RECIPE), 'abi_definition': ABI,
@@ -113,7 +125,7 @@ def manifest(record, payload):
 def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_output=None, compile_only=False,
           license_file=None, static_expansion=False, placement=None, routing=None):
     if static_expansion:
-        from scripts.build_de25_zx81_static_package import build_static
+        from boards.de25nano.producers.build_zx81_static_package import build_static
         return build_static(root, quartus_root=quartus_root, vendor_archive=vendor_archive,
             output=output, package_output=package_output, compile_only=compile_only,
             license_file=license_file, placement=placement, routing=routing)

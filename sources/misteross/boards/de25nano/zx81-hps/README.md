@@ -207,7 +207,7 @@ standalone diagnostic retains its internal-RAM selection and no PR control.
 ## Canonical source package
 
 The normal board-selected producer is
-`scripts/build_de25_zx81_package.py`, selected by the parent registry for
+`boards/de25nano/producers/build_zx81_package.py`, selected by the parent registry for
 `fes.zx81` on `de25-nano`. It selects the shared standard ZX81 core, allocated
 session display and fixed audio, with the same internal16K base as DE10.
 The package declares `de25-linux-computer-v1` and its nine required interfaces,

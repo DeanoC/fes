@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from scripts import build_de25_menu_package as menu, build_de25_zx81_package as zx81
+from boards.de25nano.producers import build_menu_package as menu, build_zx81_package as zx81
 from scripts.functional_execution import execution_digest
 
 

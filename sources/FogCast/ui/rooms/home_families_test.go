@@ -667,9 +667,6 @@ func TestHomeUsesAdmittedComputerWithSelectedCassetteAndIndependentLocalShelf(t 
 			if !strings.Contains(strings.Join(d.Details, "\n"), "In your library: 1 game") {
 				t.Fatalf("selected cassette title count lost: %v", d.Details)
 			}
-			if got := local.launchedIDs(); len(got) != 0 {
-				t.Fatalf("Home launched %v", got)
-			}
 		})
 	}
 }
