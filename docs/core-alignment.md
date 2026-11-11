@@ -105,14 +105,14 @@ of the current tree.
 ## Standing
 
 The bootstrap image installs `fes.menu` only (#919, 20 October 2026).
-Playable packages are catalog installations through the core library, and
+Playable offerings are catalog installations through the core library, and
 `config/core-library.toml` registers them with a standing: supported
-(`fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
-`fes.ramtest`), experimental (`fes.spectrum`, `fes.spectrum128`,
+(`fes.pong`, `fes.zx81`, `fes.coleco`, `fes.ramtest`), experimental (`fes.spectrum`, `fes.spectrum128`,
 `fes.spectrum-plus3`, `fes.pentagon`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`,
 `fes.atari-st`, `fes.c64`, `fes.apple2`,
 `fes.riscv`). Registration is not acceptance, and no
-playable package is in the image. The first table below is the former
+playable package is in the image. SMS and SG-1000 retain development recipes
+but are outside the first-party catalog. The first table below is the former
 nine-package image set; its evidence limits are unchanged.
 
 | Package | Usable as | Matches | Does not match |

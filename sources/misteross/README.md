@@ -60,14 +60,15 @@ command retains its CPU-only socket; `make build-fes-coleco-video` explicitly
 builds the video variant. The shared RTL contract is owned by
 [mister-packages](../mister-packages/docs/video-parts.md).
 
-The bootstrap image installs `fes.menu` only (fes#919). Playable packages
-install through the core library; `config/core-library.toml` registers
-`fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000` and
-`fes.ramtest` as supported, and `fes.spectrum`, `fes.spectrum128`,
+The bootstrap image installs `fes.menu` only (fes#919). First-party playable
+offerings install through the core library; `config/core-library.toml` registers
+`fes.pong`, `fes.zx81`, `fes.coleco` and `fes.ramtest` as supported, and
+`fes.spectrum`, `fes.spectrum128`,
 `fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`, `fes.c64`, `fes.apple2`
 and `fes.riscv` as experimental. `fes.menu` is the idle display,
 not a playable library entry. A package is not registered merely because its
-producer exists.
+producer exists. SMS and SG-1000 retain development recipes but are outside
+the first-party catalog.
 
 The first 16-bit machine is the [Atari 520ST](cores/fes-atari-st/README.md):
 real 68000, physical SDRAM arbitration, pluggable 192 KiB firmware and
@@ -172,8 +173,8 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | `fes.ts1000` | `make sim-fes-zx81` | `make build-fes-ts1000` | none | library, experimental, package-only |
 | `fes.ts1500` | `make sim-fes-zx81` | `make build-fes-ts1500` | none | library, experimental, package-only |
 | `fes.coleco` | `make sim-fes-coleco` | `make build-fes-coleco` | `make build-fes-coleco-quartus` | library, supported |
-| `fes.sms` | `make sim-fes-sms` and `make sim-fes-sms-oss` | `make build-fes-sms` | `make build-fes-sms-quartus` | library, supported |
-| `fes.sg1000` | `make sim-fes-sg1000-rom-link` (plus `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` diagnostics) | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` | library, supported |
+| `fes.sms` | `make sim-fes-sms` and `make sim-fes-sms-oss` | `make build-fes-sms` | `make build-fes-sms-quartus` | development; outside first-party catalog |
+| `fes.sg1000` | `make sim-fes-sg1000-rom-link` (plus `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` diagnostics) | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` | development; outside first-party catalog |
 | `fes.spectrum` (48K) | `make sim-fes-spectrum` | `make build-fes-spectrum` | none | library, experimental |
 | `fes.spectrum128` (128K/+2) | `make sim-fes-spectrum` | `make build-fes-spectrum128` | none | library, experimental |
 | `fes.spectrum-plus3` (+2A/+3) | `make sim-fes-spectrum` | `make build-fes-spectrum-plus3` | none | library, experimental |

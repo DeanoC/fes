@@ -38,18 +38,6 @@ system = "coleco"
 standing = "supported"
 
 [[cores]]
-core_id = "fes.sms"
-label = "Sega Master System"
-system = "sms"
-standing = "supported"
-
-[[cores]]
-core_id = "fes.sg1000"
-label = "Sega SG-1000"
-system = "sg1000"
-standing = "supported"
-
-[[cores]]
 core_id = "fes.apple2"
 label = "Apple II"
 system = "apple2"

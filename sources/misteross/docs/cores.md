@@ -19,10 +19,11 @@ they were written. They are not the schedule for this tree.
 Boards, toolchains and support tiers for these cores are the parent
 [core support matrix](../../../docs/support-matrix.md). Parent recipe rows
 live in FES `config/core-recipes.toml`. The bootstrap
-image installs the idle display `fes.menu` only (fes#919); every playable
-package is a core-library installation with a standing in
-`config/core-library.toml`. `fes.coleco` and `fes.atari-st` are video-socket
-shells whose sealed Direct and Scanlines parts install alongside them. ST
+image installs the idle display `fes.menu` only (fes#919); first-party playable
+offerings are core-library installations with a standing in
+`config/core-library.toml`. SMS and SG-1000 retain development recipes but
+are outside the first-party catalog. `fes.coleco` and `fes.atari-st` are
+video-socket shells whose sealed Direct and Scanlines parts install alongside them. ST
 firmware remains a separate user input. A producer in this module registers
 nothing by itself.
 
@@ -35,8 +36,8 @@ nothing by itself.
 | `fes.ts1000` | `cores/fes-zx81` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-zx81/toolchain.lock` | `make build-fes-ts1000` | experimental; NTSC, 8 KiB ROM, 2 KiB RAM |
 | `fes.ts1500` | `cores/fes-zx81` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-zx81/toolchain.lock` | `make build-fes-ts1500` | experimental; NTSC, 8 KiB ROM, 16 KiB RAM |
 | `fes.coleco` | `cores/fes-coleco` | `fes.application` with session display and HPS DDR | `cores/fes-coleco/toolchain.lock` | `make build-fes-coleco-native-video` (FES selects the native variant) | supported; optional Coleco bus 2.0 and mandatory linked native video; Direct and Scanlines parts ship alongside |
-| `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `cores/fes-sms/toolchain.lock` | `make build-fes-sms` | supported |
-| `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `cores/fes-sg1000/toolchain.lock` | `make build-fes-sg1000` | supported |
+| `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `cores/fes-sms/toolchain.lock` | `make build-fes-sms` | outside first-party catalog |
+| `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `cores/fes-sg1000/toolchain.lock` | `make build-fes-sg1000` | outside first-party catalog |
 | `fes.apple2` | `cores/fes-apple2` | `fes.computer` | `cores/fes-apple2/toolchain.lock` | `make build-fes-apple2` (HIP default; shared-pin seal still open) | experimental; per-slot cards via `scripts/build_apple2_slot_card.py` |
 | `fes.c64` | `cores/fes-c64` | `fes.computer` with session display and HPS DDR | `cores/fes-c64/toolchain.lock` | `make build-fes-c64` (shared-pin CUDA seal recorded) | experimental; cartridge cards via `scripts/build_c64_slot_card.py` |
 | `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum` | experimental; four edge sockets |
@@ -399,10 +400,10 @@ framebuffer `0x002f`. Idle handling must not send those commands.
 
 ## Status that is easy to get wrong
 
-- `fes.sms` is a supported library package. Historical parent pins and launch/Stop
+- `fes.sms` is outside the first-party catalog. Historical parent pins and launch/Stop
   records do not accept HDMI audio on a bitstream built later. Kit HDMI-audio
   acceptance of the current tree is not recorded here.
-- `fes.sg1000` is a supported library package. A historical launch/Stop note does not
+- `fes.sg1000` is outside the first-party catalog. A historical launch/Stop note does not
   accept the current bitstream.
 - Coleco audio is in the core (`make sim-fes-coleco-audio`, shared SN76489
   and 48 kHz I2S). It is not an unimplemented slice.
