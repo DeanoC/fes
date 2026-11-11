@@ -1,0 +1,163 @@
+{
+  "status": "passed-software-only-discovery-preparation",
+  "source_commit": "d47639349e48c6828f0aaa47a243bd111f2cd911",
+  "selected_gates": 6,
+  "parent_test_counts": [
+    "1935"
+  ],
+  "checks": {
+    "discovery-models-final": {
+      "receipt_sha256": "25aa005bead5670b09b487196bf69b453e89545cdceae16b6138bb178d9a0c37",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_installer_*.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.6011329169850796,
+      "log_sha256": "f8f89ca52ab6373abf82ac5dd9887ca16658a97f7be8a0821b4b905916cd4ce7"
+    },
+    "discovery-operator-models": {
+      "receipt_sha256": "0c475383dcc1703ac7c0ac7c1168b50630e905ec75ce3fe710f7ce73a573d7ec",
+      "argv": [
+        "python3",
+        "out/nano-installer-discovery-20261111/trial/operator_transport_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40129333501681685,
+      "log_sha256": "57ba2ab81388bab7b25d9c11f4439da2cdf5149b44a0e669f63ccd2d8ff5449b"
+    },
+    "read-only-operator-models": {
+      "receipt_sha256": "cb8db1d0e8df5db3d8261f647c461a58a75d34d2d4981e30672a302ad5f1bdce",
+      "argv": [
+        "python3",
+        "out/nano-installer-discovery-20261111/read_only_operator_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20121121895499527,
+      "log_sha256": "f14fa4d68125be780e9740d44119802d97d828ad67e5d698da64639170ef5df2"
+    },
+    "software-0": {
+      "receipt_sha256": "aa84c7a16313f7a94b5e8643ac8d564ce8f078a4fbbc21b5c64555a0bd871c4b",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2005789061076939,
+      "log_sha256": "277074bd3e93634fb6c350314cedee3da43ea0ae1f048aeafa34f696efb5775d"
+    },
+    "software-1": {
+      "receipt_sha256": "23e76292509d802619047ade130a6487dd5736707b3a8a3e1fca3783ee4e3796",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.2010417270939797,
+      "log_sha256": "f35070304ca41a1456bc51cad9ea6a3b52b5503b5ae300641e635b8ed4e700df"
+    },
+    "software-2": {
+      "receipt_sha256": "6c94de2b4f950dc4f76bd8afa588665e0a4f5eec2fbc47a29ace5616eac062ff",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "acf940c6cd032ff1499ca6951de0c9757cd99394",
+        "--head",
+        "d47639349e48c6828f0aaa47a243bd111f2cd911"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20063725602813065,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-3": {
+      "receipt_sha256": "b56637a9e734c04bbba83577b3a4d64c086b95327a2eadb6f162db3b26ad36d7",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20091124111786485,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-4": {
+      "receipt_sha256": "bcc5578805cf774449c75060867985b9913900828562f8d47414b030d9b94a62",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/nano/README.md\", \"platform/embedded/nano/installer_cycle.py\", \"platform/embedded/nano/installer_recovery.py\", \"tests/test_nano_installer_cycle.py\", \"tests/test_nano_installer_recovery.py\"]"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 367.0784543771297,
+      "log_sha256": "be1135050a7d386a595bc0e22695bd82a952e2a1131b275b4c14a2beae0d6046"
+    },
+    "software-5": {
+      "receipt_sha256": "f99d291859efa0135429c1990a618b33b1110f2a769946ce26e8dc08d0737b05",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.003823760896921,
+      "log_sha256": "0d3b9149ecd3c2180968462d0aaef1844c3af5a5185fce2b0ed1c02ec490ea89"
+    }
+  },
+  "hardware_actions": false,
+  "live_admission": false,
+  "physical_installation_verified": false,
+  "persistence_verified": false,
+  "limits": [
+    "physical first installation not yet performed",
+    "independent fresh native discovery not tested",
+    "template final admission not generated",
+    "native image unchanged"
+  ]
+}
