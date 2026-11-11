@@ -48,8 +48,7 @@
   },
   "prior_failed_attempt_archive": "/home/deano/fes-retained/de25-native-autoboot-scan-stop-20261111-r1",
   "evidence_sha256": {
-    "out/nano-autoboot-link-inspect-20261111/finalize.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "out/nano-autoboot-link-inspect-20261111/finalize.py": "91d2bcc0a54a9e63320e2fd960eccd8a21e2c2f9ef1ebd0f8399bb426916c4ea",
+    "out/nano-autoboot-link-inspect-20261111/finalize.py": "7f3f07b471f493fc8c57bed6aac427396277578de5e23bdcc567b979beadd036",
     "out/nano-autoboot-link-inspect-20261111/jtag-readonly/forced-scan.log": "55e1a4770b719cb153e30c00e30f528b270b2c27cbf0dc91d390ba8a2f2630ad",
     "out/nano-autoboot-link-inspect-20261111/jtag-readonly/private-client-setup.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "out/nano-autoboot-link-inspect-20261111/jtag-readonly/private-client.conf": "db04d43cf8eb61ddd94c8c07c16a6b0357515382077e9cda36ee196eb17271b1",
