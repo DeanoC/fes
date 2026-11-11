@@ -441,7 +441,7 @@ These are owned as `core-media-evolution.md:113-128` says.
 **mister-packages** (`MP/packages/abi/fes_computer.yaml`, `MP/docs/computer-io.md`):
 
 - **More than one unit-0 interface.** Lift "at most one unit-0 media interface" to "one interface per unit". pc386 declares `ata-disk` on unit 0, `pc-floppy` on units 1–2 and `atapi-cd` on unit 3.
-- **Unit-indexed Disk operations.** Make DiskInfo, DiskControl, DiskCommit and DiskDirty unit-indexed in their index field (the 8-bit field already exists), with per-interface semantics:
+- **Unit-indexed Disk operations.** DiskInfo (`unit*8+field`) and DiskControl (`unit`) already carry a unit and today refuse any but 0 (`MP/docs/computer-io.md:117-118`, `:444-453`); they accept units 1–3. DiskCommit becomes `unit*8+word`, which fits the 8-bit index for all eight units. **DiskDirty stays unit 0 only:** its index is already the ATA map's word 0–127 (`:121`, `:493`), so a unit field would not fit, and neither new interface has a chunk map (a floppy's dirty state is one DiskInfo flag; a CD has none). Per-interface semantics:
   - `ata-disk` keeps its "held execution only" rules;
   - `pc-floppy` allows them while running, as above;
   - `atapi-cd` has Prepare, Commit (no CRC: the track table is the runtime's) and Eject, and no dirty map.
