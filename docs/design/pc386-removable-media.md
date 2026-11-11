@@ -313,7 +313,7 @@ The only reason to reopen this would be a target OS from before ATAPI drivers ex
   - SET FEATURES (EFh), accepted;
   - CHECK POWER MODE and the idle group;
   - NOP.
-  
+
   IDENTIFY DEVICE (ECh) aborts and leaves the packet signature (14h/EBh in the cylinder registers), so the BIOS's ATA probe classifies the drive as ATAPI (`rombios.c:2793`).
 - **PACKET:**
   1. The core takes the 12-byte packet in one DRQ.
@@ -339,7 +339,7 @@ The only reason to reopen this would be a target OS from before ATAPI drivers ex
   1. Set the thread's cancel flag. The thread checks it between segments and before each window write, and never starts a new write after seeing it.
   2. Join with a deadline (100 ms; a segment write takes far less).
   3. Revoke its grants and unmap the control page.
-  
+
   If the join misses its deadline, Stop fails as a fault cleanup does today. The window stays owned and no core is programmed; it is never handed over with a worker still mapped. A request the core posted but the thread never answered dies with the core, whose reset clears the drive. C2's kit smoke covers Stop during a long READ and during CD-DA playback, then relaunch, as `docs/core-media-evolution.md:92-94` requires.
 
 **Commands the runtime serves (MMC-1 / SFF-8020i subset):**
@@ -369,7 +369,7 @@ Anything else gets ILLEGAL REQUEST (05h/20h). The interpreter is one C library i
   2. If CD-DA is playing, it runs the STOP handshake ([CD-DA](#cd-da)). The player is then idle and plays nothing more from the ring.
   3. It waits, with a deadline, until the thread reports the generation idle: no file read and no ring write outstanding. A missed deadline is a service fault that fails the eject; the disc stays bound and the drive reports a hardware error, never a half-released disc.
   4. It sends Eject to the core, unbinds the files and track table, and increments the disc generation.
-  
+
   A later insert then starts clean, and nothing of the old disc can reach a command or the speakers.
 - **El Torito.** A CD launch boots CD, then hard disk, then floppy: CMOS 3Dh = 23h and 38h = 10h ([machine configuration](#machine-configuration)). The BIOS boots no-emulation images (isolinux) and 1.44 MB floppy-emulation images (the Windows 98 SE OEM CD), with no patch.
 
@@ -398,7 +398,7 @@ The core never sees the track table. The runtime gives it only data and play sta
 3. It writes `{start LBA, end LBA}` into the control page, with two monotonic 32-bit sector counters, both 0:
    - `audio_produced`, written only by the runtime after the slot's data, its cache clean and a barrier;
    - `audio_consumed`, written only by the core as it finishes a sector.
-   
+
    The runtime writes a slot only while `audio_produced < audio_consumed + 445`, so it never overwrites a sector the core has not played. It sets *playing* once `audio_produced` reaches 75 sectors (1 s), or the whole range if shorter.
 4. `pc386_cdda` reads sector `audio_consumed` from the ring into a two-sector M10K buffer, but only while `audio_consumed < audio_produced`. A sector it has not been given is never read, so a wrapped ring cannot replay stale audio.
 5. It plays 16-bit stereo frames at 44,100 Hz from a `pc386_rate` divider of the 61.44 MHz clock (an exact ratio: 61,440,000 / 44,100 = 204,800 / 147).
@@ -478,7 +478,7 @@ These are owned as `core-media-evolution.md:113-128` says.
   - `ata-disk` keeps its "held execution only" rules;
   - `pc-floppy` allows them while running, as above;
   - `atapi-cd` has Prepare, Commit (no CRC: the track table is the runtime's) and Eject, and no dirty map.
-  
+
   This is a minor ABI bump, 1.1 to 1.2. Old shells declare no new interfaces and keep working on the new runtime. Old runtimes do **not** accept the new pc386: they admit only minors 0 and 1, and they reject unknown required declarations (`RT/docs/computer-io.md:29-31`, `:47-48`). These media interfaces are required, so a 1.2 pc386 package ships only with a runtime that implements 1.2.
 - **New layouts.** `fes.pc386-floppy.image` 1.0 in `media-data.md`. The CD control-page layout is a published constant table, so the core, runtime and `machine_tb` share one definition. It is published in C1, with its first consumers (the RTL and `machine_tb`); C2 adds the runtime as a consumer of the same table.
 
@@ -559,7 +559,7 @@ Bochs's own device models are the oracle, as `vga_reference.cpp` wraps `vgacore.
   - port reads;
   - IRQ and DRQ edges, within a tolerance for modelled time;
   - image bytes after writes.
-  
+
   `fdc_divergences.toml` records every difference with its deciding case. The data-rate check starts as one: both ignore it.
 - **`atapi_reference`** wraps `harddrv.cc`'s ATAPI half for the task file and packet protocol. Data and sense come from the MMC library on both sides, so the replay checks transport, not the interpreter. The interpreter has its own C unit tests: TOC, sub-channel and mode pages against cue sheets, including multi-file, pregap and MODE2.
 - **`cdda_tb`** runs the player alone against a ring model and checks frame rate, position reporting, pause and underrun.
