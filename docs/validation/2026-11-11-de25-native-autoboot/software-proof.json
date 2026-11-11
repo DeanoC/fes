@@ -102,5 +102,6 @@
   },
   "hardware_actions": false,
   "hardware_acceptance": false,
-  "live_authority": false
+  "live_authority": false,
+  "fpga_tooling_skips": 79
 }

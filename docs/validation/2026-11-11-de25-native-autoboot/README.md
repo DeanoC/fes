@@ -35,7 +35,7 @@ passes. Exact hashes and source identity are in `matched-chain.json`.
 - Parent suite: 1,973 tests, passing with three skips.
 - Generated consumer consistency, native firmware/FPGA launch integration,
   producer integration and embedded firmware/identity-drain checks pass.
-- FPGA tooling suite: 1,595 pass, run separately after the aggregate
+- FPGA tooling suite: 1,595 tests, passing with 79 skips, run separately after the aggregate
   850-second host wrapper timed out in that final lane. The failed wrapper and
   partial log are retained. Product/native test deadlines were unchanged.
 - Fresh matched chain builds and file/source/hash/size verification pass.
@@ -45,7 +45,7 @@ and DT-tool environment; its setup failure was followed by the configured
 focused run. A final focused run also covers the completed FDT-parser change.
 See `software-proof.json` for exact commands, results and captured-log hashes.
 Private raw logs/artifacts are under `out/nano-autoboot-20261111/`.
-Retention destination: `/home/deano/fes-retained/de25-native-autoboot-chain-20261111-r1`.
+Retention destination: `/home/deano/fes-retained/de25-native-autoboot-chain-20261111-r2`.
 
 ## Hardware boundary and next step
 
