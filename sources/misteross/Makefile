@@ -164,7 +164,7 @@ help:
 		"  sim-fes-pc386-sound  Boot FreeDOS and run the audio start-up exercise; writes sound.wav" \
 		"  sim-fes-pc386-vga  Check the pc386 presenter and plane, run the VGA test disk, replay its VGA trace against Bochs" \
 		"  synth-fes-pc386  Synthesize and pack the pc386 machine without the CPU (needs CACHE_ROOT)" \
-		"  build-fes-pc386-quartus  Seal fes.pc386, the machine with fes_i386_cpu, with its locked Quartus (CACHE_ROOT=, SEED=)" \
+		"  build-fes-pc386-quartus  Seal fes.pc386, the machine with fes_i386_cpu, with its locked Quartus (CACHE_ROOT=, SEED=, GPU_ROUTER=HIP|CUDA)" \
 		"  build-fes-pcxt  Quartus PC/XT diagnostic package (QUARTUS_ROOTDIR and pinned Yosys)" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
@@ -2906,7 +2906,7 @@ synth-fes-pc386:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pc386.py --cache-root "$(CACHE_ROOT)"
 
 build-fes-pc386-quartus:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pc386_quartus.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(strip $(SEED)), --seed "$(SEED)",)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pc386_quartus.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(strip $(SEED)), --seed "$(SEED)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 
 .PHONY: synth-fes-pcxt-isa
 synth-fes-pcxt-isa:
