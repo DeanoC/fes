@@ -380,21 +380,10 @@ screen ("Display setup incomplete" for `parts`). Details (Y / `i`, or A
 on a blocked core) shows the core id, a short package id and the verbatim
 block inside the hero; Back or moving focus closes it. With a pointer, the
 hero's Play and Details buttons do what they say; the rest of the hero is
-Details. While an ambiguous earlier local launch is still being
-reconciled, a launchable core is Checking rather than Ready. Activating a
-launchable core calls the injected local-control client's Launch. With no
-client that activation returns an error and does not panic. `in_use` and
-`blocked` from the socket are returned the same way and do not fail the
-room.
-
-`pending = true` on a core is a package the room remembers but the kit has
-not listed yet (the agent is still warming its catalog). It is Checking
-("Still checking this kit's machines."), and Confirm still queues Play:
-tenfoot asks the socket again while it answers `warming`, for up to 60
-seconds, and the agent starts the package only if the finished list has it
-launchable. A missing or blocked package then fails like any other launch.
-A held lease explains instead of queuing.
-Tenfoot connects the socket when it is started with `-gfx menu-display`. A host session leaves it unset.
+Details. A core selection is resolved into a host library entry and launched
+through the normal host session. A remembered package not yet listed is
+Checking while inventory warms; a held lease is reported as unavailable.
+Tenfoot connects the inventory socket when started with `-gfx menu-display`.
 
 `destination.classify(games, {q=})` returns that result without changing
 focus. `matches` is the viable play rows when any can play. `candidates`

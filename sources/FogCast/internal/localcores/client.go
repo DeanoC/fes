@@ -1,7 +1,6 @@
 package localcores
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,8 +8,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -19,26 +16,12 @@ import (
 const (
 	clientDialTimeout = time.Second
 	clientTimeout     = 3 * time.Second
-	// launchPostTimeout covers the agent's 60s load plus a short margin so a
-	// normal program returns on this POST. List stays on clientTimeout.
-	launchPostTimeout = 65 * time.Second
-	// stopPostTimeout covers the 30s runtime stop plus the lease manager's
-	// 30s cleanup and a short margin. Stop waits for that cleanup before the
-	// lease can be claimed again, so the list timeout is too short.
-	stopPostTimeout = stopTimeout + 30*time.Second + 5*time.Second
-	// launchReconcileTimeout is how long Launch keeps reading status after
-	// that POST deadline. A lost response is not "did not launch".
-	launchReconcileTimeout = 8 * time.Second
-	launchReconcilePoll    = 200 * time.Millisecond
-	maxClientBody          = 1 << 20
+	maxClientBody     = 1 << 20
 )
 
 // Typed failures from the local-control socket. Error text is the JSON
-// code the agent writes (in_use, blocked, not_found, unavailable, warming).
+// code the agent writes (unavailable or warming).
 var (
-	ErrInUse       = errors.New("in_use")
-	ErrBlocked     = errors.New("blocked")
-	ErrNotFound    = errors.New("not_found")
 	ErrUnavailable = errors.New("unavailable")
 	// ErrWarming means the agent is still filling the catalog caches. The
 	// HTTP call itself already returned. Callers that poll, including
@@ -49,25 +32,13 @@ var (
 
 // Client calls the kit-local control socket over HTTP. A nil or empty
 // client returns ErrUnavailable and does not panic. List gives up after 3s.
-// Launch waits long enough for the agent's load, then reads status before
-// deciding the program failed. Stop waits long enough for the runtime stop
-// and the lease cleanup, then reads status if that POST is lost. The agent
-// keeps an in-flight program if this process gives up.
 type Client struct {
 	path string
 	http *http.Client
-	// launchPost, stopPost, reconcileFor and reconcileEvery override the
-	// launch and stop deadlines. Zero uses the production values. Tests set
-	// them short.
-	launchPost     time.Duration
-	stopPost       time.Duration
-	reconcileFor   time.Duration
-	reconcileEvery time.Duration
 }
 
 // NewClient dials socketPath for each request. An empty path does not listen.
-// The shared HTTP client has no overall timeout: each call applies its own
-// deadline so Launch and Stop can outlive List.
+// The shared HTTP client applies a deadline to each list call.
 func NewClient(socketPath string) *Client {
 	path := strings.TrimSpace(socketPath)
 	dialer := &net.Dialer{Timeout: clientDialTimeout}
@@ -105,138 +76,7 @@ func (c *Client) List(ctx context.Context) ([]Core, error) {
 	return cores, nil
 }
 
-// Launch returns the exact claim generation acknowledged by this launch.
-// A lost reply is unavailable: observing the same package cannot distinguish
-// this launch from a replacement session. No second launch is posted.
-func (c *Client) Launch(ctx context.Context, packageID string) (LaunchResult, error) {
-	if !sha256Hex(packageID) {
-		return LaunchResult{}, ErrNotFound
-	}
-	if c == nil || c.http == nil || c.path == "" {
-		return LaunchResult{}, ErrUnavailable
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	post := c.launchPost
-	if post <= 0 {
-		post = launchPostTimeout
-	}
-	postCtx, cancel := context.WithTimeout(ctx, post)
-	var result LaunchResult
-	err := c.doRequest(postCtx, http.MethodPost, "/v1/local/cores/"+packageID+"/launch", nil, &result)
-	cancel()
-	if err != nil {
-		switch {
-		case errors.Is(err, ErrInUse), errors.Is(err, ErrBlocked), errors.Is(err, ErrNotFound), errors.Is(err, ErrWarming):
-			return LaunchResult{}, err
-		}
-		return LaunchResult{}, ErrUnavailable
-	}
-	if !sha256Hex(result.Generation) || result.PackageID != packageID || result.CoreID == "" {
-		return LaunchResult{}, ErrUnavailable
-	}
-	return result, nil
-}
-
-// LaunchROM posts the same launch route with a library root and the
-// catalog-relative cartridge path. Spaces in that path are kept; trimming
-// them would open a different file. The agent opens that pair from a
-// directory handle on the root. An empty root, a relative root, or an
-// absolute cartridge path is not sent. This does not call the host session.
-func (c *Client) LaunchROM(ctx context.Context, packageID, libraryRoot, relativePath string) (LaunchResult, error) {
-	if !sha256Hex(packageID) {
-		return LaunchResult{}, ErrNotFound
-	}
-	libraryRoot = strings.TrimSpace(libraryRoot)
-	if libraryRoot == "" || !filepath.IsAbs(libraryRoot) || strings.ContainsAny(libraryRoot, "\r\n\x00") {
-		return LaunchResult{}, ErrUnavailable
-	}
-	if relativePath == "" || filepath.IsAbs(relativePath) || strings.ContainsAny(relativePath, "\r\n\x00") {
-		return LaunchResult{}, ErrUnavailable
-	}
-	if c == nil || c.http == nil || c.path == "" {
-		return LaunchResult{}, ErrUnavailable
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	body, err := json.Marshal(struct {
-		LibraryRoot  string `json:"library_root"`
-		RelativePath string `json:"relative_path"`
-	}{LibraryRoot: libraryRoot, RelativePath: relativePath})
-	if err != nil {
-		return LaunchResult{}, ErrUnavailable
-	}
-	post := c.launchPost
-	if post <= 0 {
-		post = launchPostTimeout
-	}
-	postCtx, cancel := context.WithTimeout(ctx, post)
-	var result LaunchResult
-	err = c.doRequest(postCtx, http.MethodPost, "/v1/local/cores/"+packageID+"/launch", body, &result)
-	cancel()
-	if err != nil {
-		switch {
-		case errors.Is(err, ErrInUse), errors.Is(err, ErrBlocked), errors.Is(err, ErrNotFound), errors.Is(err, ErrWarming):
-			return LaunchResult{}, err
-		}
-		return LaunchResult{}, ErrUnavailable
-	}
-	if !sha256Hex(result.Generation) || result.PackageID != packageID || result.CoreID == "" {
-		return LaunchResult{}, ErrUnavailable
-	}
-	return result, nil
-}
-
-// Status reads the agent's launch phase. Running is true only after load
-// has published the kit-local lease.
-func (c *Client) Status(ctx context.Context) (RunStatus, error) {
-	var status RunStatus
-	if err := c.do(ctx, http.MethodGet, "/v1/local/status", &status); err != nil {
-		return RunStatus{}, err
-	}
-	return status, nil
-}
-
-// Stop returns only the caller-specified claim generation to the menu.
-// Missing or malformed generations are rejected without contacting the agent. The POST waits for the runtime stop and for
-// lease revocation to settle. If that deadline fires and the caller did
-// not cancel, Stop polls GET /v1/local/status. Idle means the lease is
-// claimable again. Running means the stop did not finish. Stopping keeps
-// polling until the reconcile budget ends, then returns ErrUnavailable.
-// It does not post stop a second time.
-func (c *Client) Stop(ctx context.Context, expectedGeneration string) error {
-	if !sha256Hex(expectedGeneration) {
-		return ErrInUse
-	}
-	if c == nil || c.http == nil || c.path == "" {
-		return ErrUnavailable
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	post := c.stopPost
-	if post <= 0 {
-		post = stopPostTimeout
-	}
-	postCtx, cancel := context.WithTimeout(ctx, post)
-	body, _ := json.Marshal(struct {
-		ExpectedGeneration string `json:"expected_generation"`
-	}{expectedGeneration})
-	err := c.doRequest(postCtx, http.MethodPost, "/v1/local/stop", body, nil)
-	cancel()
-	if err == nil || !timedOut(err) || ctx.Err() != nil {
-		return err
-	}
-	return c.reconcileStopped(ctx, expectedGeneration)
-}
-
 func (c *Client) do(ctx context.Context, method, path string, out any) error {
-	return c.doRequest(ctx, method, path, nil, out)
-}
-
-func (c *Client) doRequest(ctx context.Context, method, path string, body []byte, out any) error {
 	if c == nil || c.http == nil || c.path == "" {
 		return ErrUnavailable
 	}
@@ -248,16 +88,9 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body []byte
 		ctx, cancel = context.WithTimeout(ctx, clientTimeout)
 		defer cancel()
 	}
-	var reader io.Reader
-	if len(body) > 0 {
-		reader = bytes.NewReader(body)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, "http://local-control"+path, reader)
+	req, err := http.NewRequestWithContext(ctx, method, "http://local-control"+path, nil)
 	if err != nil {
 		return err
-	}
-	if len(body) > 0 {
-		req.Header.Set("Content-Type", "application/json")
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -289,20 +122,12 @@ func classifyStatus(status int, body []byte) error {
 	}
 	_ = json.Unmarshal(body, &payload)
 	switch payload.Error {
-	case ErrInUse.Error():
-		return ErrInUse
-	case ErrBlocked.Error():
-		return ErrBlocked
-	case ErrNotFound.Error():
-		return ErrNotFound
 	case ErrUnavailable.Error():
 		return ErrUnavailable
 	case ErrWarming.Error():
 		return ErrWarming
 	}
 	switch status {
-	case http.StatusNotFound:
-		return ErrNotFound
 	case http.StatusServiceUnavailable:
 		return ErrUnavailable
 	default:
@@ -313,88 +138,6 @@ func classifyStatus(status int, body []byte) error {
 	}
 }
 
-// reconcileStopped reads status after a lost stop POST. Idle is published
-// only once the lease is claimable, so a menu that resumes on nil does not
-// launch into a revoking grant.
-func (c *Client) reconcileStopped(ctx context.Context, expectedGeneration string) error {
-	budget := c.reconcileFor
-	if budget <= 0 {
-		budget = launchReconcileTimeout
-	}
-	every := c.reconcileEvery
-	if every <= 0 {
-		every = launchReconcilePoll
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	deadline := time.Now().Add(budget)
-	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
-		deadline = d
-	}
-	timer := time.NewTimer(0)
-	if !timer.Stop() {
-		select {
-		case <-timer.C:
-		default:
-		}
-	}
-	defer timer.Stop()
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if !time.Now().Before(deadline) {
-			return ErrUnavailable
-		}
-		poll, cancel := context.WithTimeout(ctx, clientTimeout)
-		status, err := c.Status(poll)
-		cancel()
-		if err == nil {
-			if status.Generation != "" && status.Generation != expectedGeneration {
-				return ErrInUse
-			}
-			switch status.Phase {
-			case phaseIdle, "":
-				if status.Generation != "" {
-					return ErrUnavailable
-				}
-				return nil
-			case phaseRunning:
-				return ErrUnavailable
-			}
-		} else if errors.Is(err, ErrUnavailable) {
-			return ErrUnavailable
-		}
-		wait := every
-		if remain := time.Until(deadline); remain < wait {
-			wait = remain
-		}
-		if wait <= 0 {
-			return ErrUnavailable
-		}
-		timer.Reset(wait)
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timer.C:
-		}
-	}
-}
-
-func timedOut(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) {
-		return true
-	}
-	var netErr net.Error
-	return errors.As(err, &netErr) && netErr.Timeout()
-}
-
-// dialUnavailable is a missing socket or a refused connect. A timeout is
-// not this: Launch still has to ask whether the program kept running.
 func dialUnavailable(err error) bool {
 	return errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ECONNREFUSED)
 }

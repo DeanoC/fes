@@ -63,7 +63,7 @@ const (
 )
 
 // ValidPackageID reports whether id is a lowercase SHA-256 hex package id,
-// the same rule the local-control socket accepts.
+// matching the inventory package identity.
 func ValidPackageID(id string) bool {
 	return localcores.SHA256Hex(id)
 }
@@ -109,9 +109,8 @@ const (
 	ConfirmOpenLibraryBrowse
 	ConfirmLauncherAction
 	ConfirmLaunchCore
-	// ConfirmLaunchKit plays a present local cartridge through the kit
-	// socket. It is not the host session launch.
-	ConfirmLaunchKit
+	// ConfirmLaunchKitCartridge prepares a present cartridge as a host entry.
+	ConfirmLaunchKitCartridge
 )
 
 // Destination is the selected location a room publishes to the launcher.
@@ -125,15 +124,14 @@ type Destination struct {
 	// It is not the Action copy line.
 	LauncherAction string
 	// PackageID and CoreID identify an installed core when Kind is KindCore.
-	// CoreLaunchable is false when the socket would refuse the package.
-	// CoreBlock is that refusal, verbatim ("Needs a cartridge", "Needs firmware").
+	// CoreLaunchable and CoreBlock describe package inventory readiness
+	// for host-owned setup (such as "Needs a cartridge" or "Needs firmware").
 	PackageID      string
 	CoreID         string
 	CoreLaunchable bool
 	CoreBlock      string
 	// CorePending is a remembered package shown before the kit has listed
-	// its cores. Confirm queues a launch that the kit accepts only once
-	// listing finishes and the package is still installed and launchable.
+	// its cores. The kit host checks readiness before preparing the entry.
 	CorePending bool
 	// CoreNeeds is the kit inventory's requirement class for a core
 	// ("none", "media", "firmware", "parts", "unsupported", "unavailable").
@@ -163,10 +161,9 @@ type Destination struct {
 	// LeaseHeld is a foreign kit lease. The same shell's Soft-stop retained
 	// grant leaves this false so that shell stays Ready.
 	LeaseHeld bool
-	// KitDirect is a present local cartridge the kit plays through the
-	// local-control socket. Confirm returns ConfirmLaunchKit and does not
-	// post the host session. Host-eligible rows leave this false.
-	KitDirect bool
+	// KitHostCartridge is a present cartridge prepared as a host entry before
+	// launching. Host-eligible rows leave this false.
+	KitHostCartridge bool
 	// ReadyBlock and NextAction are ReadyHere when the mesh seam is on.
 	// Empty when that seam is off.
 	ReadyBlock string
@@ -734,9 +731,9 @@ func (d Destination) Confirm() ConfirmIntent {
 		return ConfirmExplain
 	case AvailReady:
 		// A selected placement stays on this launch. Confirm does not
-		// ask which machine. A kit-direct cartridge never posts the host.
-		if d.KitDirect {
-			return ConfirmLaunchKit
+		// ask which machine. A cartridge is prepared by the kit host.
+		if d.KitHostCartridge {
+			return ConfirmLaunchKitCartridge
 		}
 		return ConfirmLaunch
 	default:

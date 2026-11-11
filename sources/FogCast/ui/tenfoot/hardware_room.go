@@ -397,7 +397,7 @@ func (a *App) RequestRoomlessStop(now time.Time) bool {
 // stopWithoutRoomLocked stops an active host session that has no playing room
 // on the down edge, releasing the kit lease like the Select+Start hold.
 func (a *App) stopWithoutRoomLocked(down bool, now time.Time) bool {
-	if a.firmwarePickerOpen || a.localCoreBusyLocked() {
+	if a.firmwarePickerOpen {
 		return false
 	}
 	if down {

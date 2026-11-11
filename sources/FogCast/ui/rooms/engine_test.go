@@ -1275,11 +1275,9 @@ const (
 )
 
 type fakeLocalCores struct {
-	mu        sync.Mutex
-	cores     []localcores.Core
-	listErr   error
-	launchErr error
-	launched  []string
+	mu      sync.Mutex
+	cores   []localcores.Core
+	listErr error
 }
 
 func (f *fakeLocalCores) List(context.Context) ([]localcores.Core, error) {
@@ -1289,25 +1287,6 @@ func (f *fakeLocalCores) List(context.Context) ([]localcores.Core, error) {
 		return nil, f.listErr
 	}
 	return append([]localcores.Core(nil), f.cores...), nil
-}
-
-func (f *fakeLocalCores) Launch(_ context.Context, packageID string) (localcores.LaunchResult, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.launched = append(f.launched, packageID)
-	return localcores.LaunchResult{Generation: strings.Repeat("a", 64)}, f.launchErr
-}
-
-func (f *fakeLocalCores) Stop(context.Context, string) error { return nil }
-
-func (f *fakeLocalCores) Status(context.Context) (localcores.RunStatus, error) {
-	return localcores.RunStatus{}, nil
-}
-
-func (f *fakeLocalCores) launchedIDs() []string {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return append([]string(nil), f.launched...)
 }
 
 func TestKitCoresAbsentWithoutClient(t *testing.T) {
@@ -1324,12 +1303,9 @@ function draw() end`
 	if err := r.CheckGlobal(`has_kit == false and has_cores == false`); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.ActivateDestination(context.Background()); err != nil {
-		t.Fatal(err)
-	}
 }
 
-func TestKitCoresRowsAndLaunch(t *testing.T) {
+func TestKitCoresRows(t *testing.T) {
 	fake := &fakeLocalCores{cores: []localcores.Core{{
 		PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true,
 	}}}
@@ -1364,12 +1340,6 @@ function draw() end`
 	if d.PackageID != corePongID || d.CoreID != "fes.pong" || !d.CoreLaunchable || d.Confirm() != ConfirmLaunchCore {
 		t.Fatalf("dest %+v confirm %v", d, d.Confirm())
 	}
-	if err := r.ActivateDestination(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if got := fake.launchedIDs(); len(got) != 1 || got[0] != corePongID {
-		t.Fatalf("launched %v", got)
-	}
 	if r.Err() != nil {
 		t.Fatal(r.Err())
 	}
@@ -1393,16 +1363,6 @@ func (f *warmThenCores) List(context.Context) ([]localcores.Core, error) {
 		return nil, localcores.ErrWarming
 	}
 	return append([]localcores.Core(nil), f.cores...), nil
-}
-
-func (f *warmThenCores) Launch(context.Context, string) (localcores.LaunchResult, error) {
-	return localcores.LaunchResult{Generation: strings.Repeat("a", 64)}, nil
-}
-
-func (f *warmThenCores) Stop(context.Context, string) error { return nil }
-
-func (f *warmThenCores) Status(context.Context) (localcores.RunStatus, error) {
-	return localcores.RunStatus{}, nil
 }
 
 func TestKitCoresRetriesWarming(t *testing.T) {
@@ -1459,42 +1419,6 @@ function draw() end`
 	if got := bare.Destination(); got.Kind != KindCore || got.PackageID != corePongID || !got.CoreLaunchable {
 		t.Fatalf("setup %+v", got)
 	}
-	if err := bare.ActivateDestination(context.Background()); !errors.Is(err, ErrNoLocalCores) {
-		t.Fatalf("missing client %v", err)
-	}
-	if bare.Err() != nil {
-		t.Fatal(bare.Err())
-	}
-
-	for _, tc := range []struct {
-		name string
-		err  error
-	}{
-		{name: "in_use", err: localcores.ErrInUse},
-		{name: "blocked", err: localcores.ErrBlocked},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			fake := &fakeLocalCores{launchErr: tc.err}
-			r := newRoom(t, memPack(t, "core-"+tc.name, src, nil), Options{Local: fake})
-			if err := r.Load(); err != nil {
-				t.Fatal(err)
-			}
-			err := r.ActivateDestination(context.Background())
-			if !errors.Is(err, tc.err) {
-				t.Fatalf("activate %v", err)
-			}
-			if r.Err() != nil {
-				t.Fatal(r.Err())
-			}
-			if got := r.Destination(); got.Status != tc.err.Error() || got.Availability != AvailUnavailable {
-				t.Fatalf("status %+v", got)
-			}
-			if ids := fake.launchedIDs(); len(ids) != 1 || ids[0] != corePongID {
-				t.Fatalf("launched %v", ids)
-			}
-		})
-	}
-
 	reject := newRoom(t, memPack(t, "bad-core", src, nil), Options{})
 	if err := reject.Load(); err != nil {
 		t.Fatal(err)
@@ -1553,12 +1477,6 @@ function draw() end`
 	d := r.Destination()
 	if d.Kind != KindCore || d.CoreLaunchable || d.Status != "Needs a cartridge" || d.Confirm() != ConfirmExplain {
 		t.Fatalf("dest %+v confirm %v", d, d.Confirm())
-	}
-	if err := r.ActivateDestination(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if ids := fake.launchedIDs(); len(ids) != 0 {
-		t.Fatalf("blocked launched %v", ids)
 	}
 	if r.Err() != nil {
 		t.Fatal(r.Err())

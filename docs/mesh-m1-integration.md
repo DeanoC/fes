@@ -27,9 +27,8 @@ Ownership contract: `Service.plays[target]` is the sole source of truth for
 each kit's game, development load, rejected-package state, and recovery
 admission. Root `activeExecution` and its game identity belong only to the
 host-local `host_only` executor. Kit load success or failure never stops or
-replaces that host game in non-cast mode; kit-local cores run directly on the
-kit. Cast mode still makes the host sender claim the kit display, so a cast
-host launch and a kit launch replace one another. Scoped Stop, status projection,
+replaces that host game in non-cast mode. Cast mode still makes the host sender
+claim the kit display, so a cast host launch and a kit launch replace one another. Scoped Stop, status projection,
 and recovery use the selected kit record; unscoped Stop addresses host-only
 play when it is active.
 

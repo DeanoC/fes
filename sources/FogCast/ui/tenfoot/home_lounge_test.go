@@ -281,8 +281,8 @@ func TestHomeWorkbenchReturnsToTheSameFamily(t *testing.T) {
 	waitFor(t, app, "Spectrum", func(s Snapshot) bool { return s.Room.Destination.Label == "ZX Spectrum" })
 	app.HandleCommand(CmdSelect, time.Now())
 	snap := waitFor(t, app, "workbench", func(s Snapshot) bool { return s.Room.Open && s.Room.ID == systemRoomID })
-	if fake.launchCount() != 0 {
-		t.Fatalf("Open launched %d cores", fake.launchCount())
+	if app.Snapshot().Launch.Phase == "launching" {
+		t.Fatalf("Open started a launch: %s", app.Snapshot().Launch.Phase)
 	}
 	app.HandleCommand(CmdBack, time.Now())
 	snap = waitFor(t, app, "home", func(s Snapshot) bool { return s.Room.Open && s.Room.ID == installedCoresHomeID })
@@ -398,13 +398,13 @@ func TestHomeHeroButtonsDoWhatTheySayWithAPointer(t *testing.T) {
 		t.Fatalf("buttons %+v %+v", primary, secondary)
 	}
 	app.PointerClick(secondary.X+secondary.W/2, secondary.Y+secondary.H/2, time.Now())
-	if !app.Snapshot().Room.HeroDetail || fake.launchCount() != 0 {
-		t.Fatalf("Details button: detail=%v launches=%d", app.Snapshot().Room.HeroDetail, fake.launchCount())
+	if !app.Snapshot().Room.HeroDetail || app.Snapshot().Launch.Phase == "launching" {
+		t.Fatalf("Details button: detail=%v launch=%s", app.Snapshot().Room.HeroDetail, app.Snapshot().Launch.Phase)
 	}
 	app.PointerClick(primary.X+primary.W/2, primary.Y+primary.H/2, time.Now())
 	waitFor(t, app, "workbench", func(s Snapshot) bool { return s.Room.ID == hardwareRoomID })
-	if fake.launchCount() != 0 {
-		t.Fatalf("Open launched %d cores", fake.launchCount())
+	if app.Snapshot().Launch.Phase == "launching" {
+		t.Fatalf("Open started a launch: %s", app.Snapshot().Launch.Phase)
 	}
 }
 
@@ -627,8 +627,8 @@ func TestHomeSmallLayoutPointerReachesFamiliesAndRoutes(t *testing.T) {
 	}
 	now := time.Now()
 	app.PointerMove(family[0], family[1], now)
-	if got := app.Snapshot().Room.Destination; got.Label != "ZX Spectrum" || fake.launchCount() != 0 {
-		t.Fatalf("pointer focus %+v launches=%d", got, fake.launchCount())
+	if got := app.Snapshot().Room.Destination; got.Label != "ZX Spectrum" || app.Snapshot().Launch.Phase == "launching" {
+		t.Fatalf("pointer focus %+v launch=%s", got, app.Snapshot().Launch.Phase)
 	}
 	app.PointerMove(library[0], library[1], now)
 	if got := app.Snapshot().Room.Destination; got.Kind != rooms.KindLibrary {
@@ -638,8 +638,8 @@ func TestHomeSmallLayoutPointerReachesFamiliesAndRoutes(t *testing.T) {
 		t.Fatalf("settings pointer %+v", got)
 	}
 	app.PointerClick(settings[0], settings[1], now)
-	if snap = app.Snapshot(); !snap.Settings.Open || fake.launchCount() != 0 {
-		t.Fatalf("settings click open=%v launches=%d dest=%+v", snap.Settings.Open, fake.launchCount(), snap.Room.Destination)
+	if snap = app.Snapshot(); !snap.Settings.Open || app.Snapshot().Launch.Phase == "launching" {
+		t.Fatalf("settings click open=%v launch=%s dest=%+v", snap.Settings.Open, app.Snapshot().Launch.Phase, snap.Room.Destination)
 	}
 }
 

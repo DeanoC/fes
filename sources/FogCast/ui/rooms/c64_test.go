@@ -267,9 +267,9 @@ func TestC64RoomBlocksStartWhileAnotherTitleRuns(t *testing.T) {
 	}
 }
 
-func TestC64RoomDisablesStartForLocalAndTransitioningSessions(t *testing.T) {
+func TestC64RoomDisablesStartForTransitioningSessions(t *testing.T) {
 	game := preparedComputer("fpga-c64-game", "Impossible Mission", "fes.c64")
-	for _, state := range []string{"local", "launching", "stopping"} {
+	for _, state := range []string{"launching", "stopping"} {
 		t.Run(state, func(t *testing.T) {
 			r := loadC64WithSessionState(t, &fakeServices{games: []hostclient.Game{game}}, state)
 			frame := stepUntil(t, r, func(f Frame) bool {

@@ -138,23 +138,6 @@ A changed boot, selection, operation or reservation forbids replaying old
 credentials. Preserve newer intent. These are explicit operator actions; this
 runner never performs them after its reboot-attempt boundary.
 
-## Optional local-admission probe
-
-`--local-command-file /absolute/private/local-probe.json` opts into another
-bounded JSON argv command. It runs while the execution lease is held, before
-queueing software. The operator-provided on-kit probe should attempt the existing
-root-only local-control launch and print only:
-
-```json
-{"http_status":409,"error":"in_use"}
-```
-
-`blocked` is also accepted. The runner requires exit zero, bounded JSON output,
-and preserved owned generation/selection before and after. It retains only this
-fixed projection and the command-file digest. This is external busy-admission
-evidence; it does not establish a successful local launch or local core execution.
-No local probe is synthesized and no kit helper is installed automatically.
-
 ## Failure and evidence
 
 Mutations are sent once. The duplicate-ID test deliberately sends the same

@@ -54,15 +54,7 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 			d.Action = machineStatusUnknown
 		}
 	}
-	// After an ambiguous local launch, Confirm is refused until the agent
-	// reports idle; say Checking rather than Ready.
-	if d.Kind == rooms.KindCore && (d.CoreLaunchable || d.CorePending) && !d.LeaseHeld && a.localLaunchBlockedLocked() {
-		d.CorePending = false
-		d.Availability = rooms.AvailChecking
-		d.Status = localLaunchCheckingCopy
-		d.Action = rooms.CheckingAction
-	}
-	d = a.applyKitDirectLocked(d)
+	d = a.applyKitHostCartridgeLocked(d)
 	if a.session.State == "active" && a.roomDuringPlay && a.room.ID() == colecoArcadeRoomID && a.colecoSessionLocked() &&
 		(d.Confirm() == rooms.ConfirmLaunch || d.Confirm() == rooms.ConfirmChoose) {
 		// This room browses other ROM-linked cartridges while the current one
@@ -73,20 +65,20 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 	return d
 }
 
-// applyKitDirectLocked marks one present browse-only cartridge ready for
-// the local socket once fes.sms is installed. Host-eligible rows, offline
+// applyKitHostCartridgeLocked marks one present browse-only cartridge ready for
+// the kit host once fes.sms is installed. Host-eligible rows, offline
 // rows, and a shell with no local pad stay on the host classification.
-// A missing core explains itself here. There is no network fallback.
-func (a *App) applyKitDirectLocked(d rooms.Destination) rooms.Destination {
+// A missing core explains itself here.
+func (a *App) applyKitHostCartridgeLocked(d rooms.Destination) rooms.Destination {
 	if a == nil || a.localCores == nil || a.localFeed == nil {
 		return d
 	}
-	game, ok := kitDirectMatch(d)
+	game, ok := kitHostCartridgeMatch(d)
 	if !ok {
 		return d
 	}
 	d.GameID = game.ID
-	d.KitDirect = false
+	d.KitHostCartridge = false
 	if !a.localInstallKnown {
 		d.Availability = rooms.AvailChecking
 		d.Status = localCoreCheckingCopy
@@ -99,14 +91,14 @@ func (a *App) applyKitDirectLocked(d rooms.Destination) rooms.Destination {
 		d.Action = localCoreMissingAction
 		return d
 	}
-	d.KitDirect = true
+	d.KitHostCartridge = true
 	d.Availability = rooms.AvailReady
 	d.FillCopy()
 	return d
 }
 
-func kitDirectMatch(d rooms.Destination) (hostclient.Game, bool) {
-	if game, ok := d.Game(); ok && game.LocalCatalogPlayable() {
+func kitHostCartridgeMatch(d rooms.Destination) (hostclient.Game, bool) {
+	if game, ok := d.Game(); ok && game.KitHostCartridgeEligible() {
 		return game, true
 	}
 	// Ready and Needs a choice already have a host play row. Do not scan
@@ -124,7 +116,7 @@ func kitDirectMatch(d rooms.Destination) (hostclient.Game, bool) {
 
 func localCatalogIn(games []hostclient.Game) (hostclient.Game, bool) {
 	for _, game := range games {
-		if game.LocalCatalogPlayable() {
+		if game.KitHostCartridgeEligible() {
 			return game, true
 		}
 	}
@@ -479,7 +471,7 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 			a.startKitHostEntryLocked(dest.PackageID, "", dest.Label)
 		}
 		return true
-	case rooms.ConfirmLaunchKit:
+	case rooms.ConfirmLaunchKitCartridge:
 		if game, ok := dest.Game(); ok {
 			if a.kitHost {
 				a.startKitHostEntryLocked("", game.ID, displayGameTitle(game))

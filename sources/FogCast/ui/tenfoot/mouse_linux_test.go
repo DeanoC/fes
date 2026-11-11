@@ -27,7 +27,7 @@ func TestFramebufferMouseSYNAtomicCapture(t *testing.T) {
 	a.localFeed = feed
 	a.session = hostclient.SessionResult{State: "active", CoreMouse: true, Input: &hostclient.SessionInput{State: "attached", Ready: true}}
 	// The normal hardware-room path selects the same local socket feed.
-	a.localPhase = localPhaseRunning
+	a.localCores = &fakeLocalCores{}
 	in := &nativeInput{fd: fd, kind: InputMouse, mapper: controller.NewMouseMapper()}
 	ins := &nativeInputs{devices: []*nativeInput{in}}
 	for _, v := range [][3]int32{{2, 0, 7}, {2, 1, -4}, {1, 272, 1}} {

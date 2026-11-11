@@ -49,52 +49,6 @@ func TestChordPairsTrackEachPad(t *testing.T) {
 	}
 }
 
-// Select on one pad and Start on another is two players playing. The
-// kit-local stop chord needs both buttons on the same pad.
-func TestLocalStopChordNeedsBothButtonsOnOnePad(t *testing.T) {
-	feed := &fakePadFeed{}
-	app := &App{localPhase: localPhaseRunning, localFeed: feed}
-	t0 := time.Unix(10, 0)
-	armed := func() bool {
-		app.mu.Lock()
-		defer app.mu.Unlock()
-		return !app.localChordSince.IsZero()
-	}
-	app.HandleLocalPad(padButtonFor(0, remoteinput.ButtonSelect, true), t0)
-	app.HandleLocalPad(padButtonFor(1, remoteinput.ButtonStart, true), t0)
-	if armed() {
-		t.Fatal("Select on pad 1 and Start on pad 2 armed the stop chord")
-	}
-	got := feed.snapshot()
-	if len(got) != 2 || got[0].Player != 0 || got[0].Code != remoteinput.ButtonSelect || got[1].Player != 1 || got[1].Code != remoteinput.ButtonStart {
-		t.Fatalf("cross-pad presses were not forwarded as two players: %+v", got)
-	}
-	// Pad 2 completes its own chord: its Start comes back up at the core.
-	// Pad 1's Select stays down.
-	app.HandleLocalPad(padButtonFor(1, remoteinput.ButtonSelect, true), t0.Add(10*time.Millisecond))
-	app.mu.Lock()
-	sentSelect := app.localSent[padKey{0, remoteinput.ButtonSelect}]
-	app.mu.Unlock()
-	if !armed() || !sentSelect {
-		t.Fatalf("same-pad chord armed=%v, pad 1 Select still sent=%v", armed(), sentSelect)
-	}
-	got = feed.snapshot()
-	if last := got[len(got)-1]; len(got) != 3 || last.Player != 1 || last.Code != remoteinput.ButtonStart || last.Action != remoteinput.ActionRelease {
-		t.Fatalf("chord did not release only pad 2's Start: %+v", got)
-	}
-	// Pad 1 letting go reaches the core and leaves pad 2's chord armed.
-	app.HandleLocalPad(padButtonFor(0, remoteinput.ButtonSelect, false), t0.Add(20*time.Millisecond))
-	got = feed.snapshot()
-	if last := got[len(got)-1]; !armed() || len(got) != 4 || last.Player != 0 || last.Code != remoteinput.ButtonSelect || last.Action != remoteinput.ActionRelease {
-		t.Fatalf("pad 1 release: armed=%v events=%+v", armed(), got)
-	}
-	// Pad 2 letting go of Select cancels the chord and rearms it.
-	app.HandleLocalPad(padButtonFor(1, remoteinput.ButtonSelect, false), t0.Add(30*time.Millisecond))
-	if armed() {
-		t.Fatal("releasing one chord button left the chord armed")
-	}
-}
-
 // The same rule holds for a library session with a session display.
 func TestSessionStopChordNeedsBothButtonsOnOnePad(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(http.NotFound))
@@ -156,46 +110,6 @@ func TestStopChordTimerFollowsThePadStillHolding(t *testing.T) {
 		a.HandleLocalPad(padButtonFor(player, remoteinput.ButtonSelect, true), at)
 		a.HandleLocalPad(padButtonFor(player, remoteinput.ButtonStart, true), at)
 	}
-	t.Run("kit-local core", func(t *testing.T) {
-		app := &App{localPhase: localPhaseRunning, localFeed: &fakePadFeed{}}
-		hold(app, 0, t0)
-		hold(app, 1, t0.Add(900*time.Millisecond))
-		app.HandleLocalPad(padButtonFor(0, remoteinput.ButtonSelect, false), t0.Add(950*time.Millisecond))
-		app.mu.Lock()
-		defer app.mu.Unlock()
-		app.tickLocalCoreLocked(t0.Add(time.Second))
-		if app.localChordFired {
-			t.Fatal("stop fired after pad 2 held its pair for 100 ms")
-		}
-		app.tickLocalCoreLocked(t0.Add(900*time.Millisecond + localChordHold))
-		if !app.localChordFired {
-			t.Fatal("pad 2's held pair never stopped the core")
-		}
-	})
-	t.Run("later pad lets go", func(t *testing.T) {
-		app := &App{localPhase: localPhaseRunning, localFeed: &fakePadFeed{}}
-		hold(app, 0, t0)
-		hold(app, 1, t0.Add(500*time.Millisecond))
-		app.HandleLocalPad(padButtonFor(1, remoteinput.ButtonStart, false), t0.Add(600*time.Millisecond))
-		app.mu.Lock()
-		defer app.mu.Unlock()
-		app.tickLocalCoreLocked(t0.Add(time.Second))
-		if !app.localChordFired {
-			t.Fatalf("pad 2 letting go postponed pad 1's stop to %v", app.localChordSince.Sub(t0))
-		}
-	})
-	t.Run("earlier pad unplugged", func(t *testing.T) {
-		app := &App{localPhase: localPhaseRunning, localFeed: &fakePadFeed{}}
-		hold(app, 0, t0)
-		hold(app, 1, t0.Add(900*time.Millisecond))
-		app.mu.Lock()
-		defer app.mu.Unlock()
-		app.forgetPadLocked(0, t0.Add(950*time.Millisecond))
-		app.tickLocalCoreLocked(t0.Add(time.Second))
-		if app.localChordFired || !app.localChordSince.Equal(t0.Add(900*time.Millisecond)) {
-			t.Fatalf("unplug kept the earlier pad's timer: fired=%v since=%v", app.localChordFired, app.localChordSince)
-		}
-	})
 	t.Run("library session", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(http.NotFound))
 		t.Cleanup(server.Close)
@@ -260,19 +174,17 @@ func TestForgetPadKeepsTheOtherPad(t *testing.T) {
 	app := &App{
 		playPadHeld:       map[padKey]remoteinput.Event{{0, a.Code}: a, {1, b.Code}: b},
 		playPadSuppressed: map[padKey]bool{{0, remoteinput.ButtonB}: true, {1, remoteinput.ButtonB}: true},
-		localSent:         map[padKey]bool{{0, remoteinput.ButtonA}: true, {1, remoteinput.ButtonA}: true},
 	}
 	for player := uint8(0); player < 2; player++ {
 		app.playPadPair.set(player, remoteinput.ButtonSelect, true)
-		app.localPair.set(player, remoteinput.ButtonStart, true)
 	}
 	app.forgetPadLocked(0, time.Now())
-	if len(app.playPadHeld) != 1 || len(app.playPadSuppressed) != 1 || len(app.localSent) != 1 ||
-		!app.playPadSuppressed[padKey{1, remoteinput.ButtonB}] || !app.localSent[padKey{1, remoteinput.ButtonA}] {
-		t.Fatalf("forget touched pad 2: held=%v suppressed=%v sent=%v", app.playPadHeld, app.playPadSuppressed, app.localSent)
+	if len(app.playPadHeld) != 1 || len(app.playPadSuppressed) != 1 ||
+		!app.playPadSuppressed[padKey{1, remoteinput.ButtonB}] {
+		t.Fatalf("forget touched pad 2: held=%v suppressed=%v", app.playPadHeld, app.playPadSuppressed)
 	}
-	if app.playPadPair.at(0) != (chordPair{}) || app.localPair.at(0) != (chordPair{}) ||
-		!app.playPadPair.at(1).selectDown || !app.localPair.at(1).startDown {
-		t.Fatalf("pairs after forget: session=%+v local=%+v", app.playPadPair, app.localPair)
+	if app.playPadPair.at(0) != (chordPair{}) ||
+		!app.playPadPair.at(1).selectDown {
+		t.Fatalf("pairs after forget: session=%+v", app.playPadPair)
 	}
 }
