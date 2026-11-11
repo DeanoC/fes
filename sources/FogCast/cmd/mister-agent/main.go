@@ -22,7 +22,6 @@ import (
 	"github.com/DeanoC/FogCast/internal/appliancedata"
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
 	"github.com/DeanoC/FogCast/internal/buildinputs"
-	"github.com/DeanoC/FogCast/internal/cast"
 	"github.com/DeanoC/FogCast/internal/kitmemory"
 
 	"github.com/DeanoC/FogCast/internal/discovery"
@@ -56,7 +55,6 @@ const (
 	maintenanceMarkerFile   = "/run/fogcast/kit-maintenance.json"
 	maintenanceLockFile     = "/run/fogcast/kit-maintenance.lock"
 	maintenanceContract     = "fes-kit-maintenance-v1"
-	castShutdownTimeout     = 2 * time.Second
 	// Release staging accepts multi-gigabyte raw images; this exceeds the
 	// operator's five-minute transport timeout by a bounded margin while the
 	// header timeout still limits slow request setup.
@@ -67,7 +65,6 @@ const (
 	maxCoreLoadTimeout     = 10 * time.Minute
 )
 
-var errCastShutdown = errors.New("cast controller could not be stopped")
 var errDataPartitionAbsent = errors.New("appliance data partition absent")
 
 type runDependencies struct {
@@ -78,7 +75,6 @@ type runDependencies struct {
 	configureRuntime      func(agent.Runtime, httpapi.InputController) error
 	newInput              func(agentconfig.Config) (httpapi.InputController, error)
 	inputBeforeInitialize bool
-	newCast               func(agentconfig.Config) (httpapi.CastController, error)
 	serve                 func(*http.Server) error
 	advertise             func(context.Context, string, int) error
 	targetIDPath          string
@@ -125,15 +121,6 @@ func runtimeDependencies(nativeControl misterruntime.Control) (runDependencies, 
 		},
 		newInput: func(cfg agentconfig.Config) (httpapi.InputController, error) {
 			return input.NewTargetControllerWithConfig(cfg.InputListenAddress, cfg.InputUInputPath), nil
-		},
-		newCast: func(cfg agentconfig.Config) (httpapi.CastController, error) {
-			return cast.New(cast.Config{
-				Binary: cfg.CastBinary, RTPAddress: cfg.CastRTPAddress, Control: cfg.CastControlAddress,
-				Framebuffer: cfg.CastFramebuffer, NativeCmd: cfg.CastNativeCmd, NativeMode: cfg.CastNativeMode,
-				TokenFile:   cfg.CastTokenFile,
-				Generation:  cfg.CastGeneration,
-				StopTimeout: 2 * time.Second,
-			}, nil)
 		},
 		serve:                 func(server *http.Server) error { return server.ListenAndServe() },
 		advertise:             discovery.Advertise,
@@ -331,7 +318,7 @@ func validateCoreLoadTimeout(timeout time.Duration) error {
 	return nil
 }
 
-func runWithDependencies(ctx context.Context, configPath string, logger *slog.Logger, dependencies runDependencies) (resultErr error) {
+func runWithDependencies(ctx context.Context, configPath string, logger *slog.Logger, dependencies runDependencies) error {
 	if dependencies.coreLoadTimeout == 0 {
 		dependencies.coreLoadTimeout = defaultCoreLoadTimeout
 	}
@@ -457,35 +444,6 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	if targetID != "" {
 		options = append(options, httpapi.WithTargetID(targetID))
 	}
-	var leaseCast httpapi.CastController
-	if cfg.CastBinary != "" {
-		if dependencies.newCast == nil {
-			return errors.New("cast controller could not be configured")
-		}
-		castController, castErr := dependencies.newCast(cfg)
-		if castErr != nil {
-			return errors.New("cast controller could not be configured")
-		}
-		leaseCast = castController
-		options = append(options, httpapi.WithCast(castController))
-		defer func() {
-			status := castController.Status(context.Background())
-			if status.State != cast.Active {
-				return
-			}
-			shutdown, cancel := context.WithTimeout(context.Background(), castShutdownTimeout)
-			stopErr := castController.Stop(shutdown, status.Session, status.Generation)
-			cancel()
-			if stopErr == nil {
-				return
-			}
-
-			retry, retryCancel := context.WithTimeout(context.Background(), castShutdownTimeout)
-			_ = castController.Stop(retry, status.Session, status.Generation)
-			retryCancel()
-			resultErr = errCastShutdown
-		}()
-	}
 	if !dependencies.inputBeforeInitialize && dependencies.newInput != nil {
 		inputController, err = dependencies.newInput(cfg)
 		if err != nil || inputController == nil {
@@ -505,12 +463,6 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 				cleanupErr = errors.Join(cleanupErr, errors.New("input controller cannot release kit ownership"))
 			}
 		}
-		if leaseCast != nil {
-			status := leaseCast.Status(cleanup)
-			if status.State == cast.Active {
-				cleanupErr = errors.Join(cleanupErr, leaseCast.Stop(cleanup, status.Session, status.Generation))
-			}
-		}
 		return cleanupErr
 	}
 	var localUpdater *applianceupdate.Service
@@ -522,10 +474,8 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		if updater != nil {
 			options = append(options, httpapi.WithUpdate(updater))
 		}
-		// Keep the same admission fence for the kit-local launcher.
 		localUpdater = updater
 	}
-	localProgram := &kitLocalProgram{}
 	leaseOptions, err := maintenanceLeaseOptions(dependencies)
 	if err != nil {
 		return errors.New("maintenance boot identity could not be verified")
@@ -538,7 +488,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			probe = native.RuntimeSocketOpen
 		}
 		cleanupErr := kitLeaseCleanup(cleanup, probe, 2*time.Second, cleanupPeripherals, func(ctx context.Context) (protocol.Status, *protocol.APIError) {
-			return stopLeasedRuntime(ctx, coordinator.Stop, native, localProgram)
+			return coordinator.Stop(ctx)
 		})
 		if errors.Is(cleanupErr, kitlease.ErrRuntimeUnreachable) {
 			slog.Warn("kit ownership cleanup: runtime socket unavailable")
@@ -558,35 +508,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	}
 
 	if dependencies.localControlSocket != "" {
-		native, ok := runtime.(*misterruntime.Runtime)
-		if !ok {
-			return errors.New("kit-local control requires the native runtime")
-		}
-		cores := localcores.New(leases, nativeLocalRuntime{runtime: native, program: localProgram}, localcores.Roots{
-			Selections: installedSelectionRoot,
-			Packages:   kitpackages.FactoryRoot,
-		})
-		if localUpdater != nil {
-			cores.SetAdmission(localUpdater.BeginOperation)
-		}
-
-		if softwareFence != nil {
-			cores.SetAdmission(func(ctx context.Context) (context.Context, func(), error) {
-				admitted, done, err := softwareFence.Begin(ctx)
-				if err != nil {
-					return nil, nil, err
-				}
-				if localUpdater == nil {
-					return admitted, done, nil
-				}
-				updateCtx, updateDone, err := localUpdater.BeginOperation(admitted)
-				if err != nil {
-					done()
-					return nil, nil, err
-				}
-				return updateCtx, func() { updateDone(); done() }, nil
-			})
-		}
+		cores := localcores.New(localcores.Roots{Selections: installedSelectionRoot, Packages: kitpackages.FactoryRoot})
 		if read := localCoreInventory(ctx, packages, coreLibraryError); read != nil {
 			cores.SetInventory(read)
 		}
@@ -599,10 +521,6 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			cores.Warm()
 		}
 		defer cores.Close()
-		options = append(options, httpapi.WithKitLocalRun(func() httpapi.KitLocalRun {
-			status := cores.RunStatus()
-			return httpapi.KitLocalRun{Phase: status.Phase, CoreID: status.CoreID}
-		}))
 		go func() {
 			err := localcores.Serve(ctx, dependencies.localControlSocket, localcores.Handler(cores))
 			if err != nil && ctx.Err() == nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, http.ErrServerClosed) {

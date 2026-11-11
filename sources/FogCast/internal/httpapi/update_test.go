@@ -222,7 +222,7 @@ func TestUpdateHTTPAuthenticationLeaseAndTrialGate(t *testing.T) {
 			t.Fatalf("unleased %s: %d", path, w.Code)
 		}
 	}
-	for _, path := range []string{"/v1/development/media-stream", "/v1/development/media", "/v1/library/core/load", "/v1/library/core/parts", "/v1/development/rbf", "/v1/development/core", "/v1/input/attach", "/v1/input/stream", "/v1/cast/start"} {
+	for _, path := range []string{"/v1/development/media-stream", "/v1/development/media", "/v1/library/core/load", "/v1/library/core/parts", "/v1/development/rbf", "/v1/development/core", "/v1/input/attach", "/v1/input/stream"} {
 		if w := updateRequest(h, path, "", lease); w.Code != 409 {
 			t.Fatalf("trial %s: %d %s", path, w.Code, w.Body.String())
 		}
@@ -238,6 +238,42 @@ func TestUpdateHTTPAuthenticationLeaseAndTrialGate(t *testing.T) {
 	st, e := s.Status()
 	if e != nil || st.Good != m.ImageSHA256 {
 		t.Fatalf("not durably confirmed: %+v %v", st, e)
+	}
+}
+
+func TestUpdateCapacityHTTPIsAuthenticatedAndReadOnly(t *testing.T) {
+	h, s, m, _, _ := updateFixture(t, false, nil)
+	path := fmt.Sprintf("/v1/update/capacity?image_sha256=%s&image_size=%d", m.ImageSHA256, m.ImageSize)
+	request := httptest.NewRequest(http.MethodGet, path, nil)
+	response := httptest.NewRecorder()
+	h.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated capacity: %d", response.Code)
+	}
+	before, err := s.Status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	request = httptest.NewRequest(http.MethodGet, path, nil)
+	request.Header.Set("Authorization", "Bearer bearer")
+	response = httptest.NewRecorder()
+	h.ServeHTTP(response, request)
+	var got release.Capacity
+	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &got) != nil || got.Required <= uint64(m.ImageSize) {
+		t.Fatalf("capacity: %d %s", response.Code, response.Body.String())
+	}
+	after, err := s.Status()
+	if err != nil || before != after {
+		t.Fatalf("capacity changed selection: before=%+v after=%+v err=%v", before, after, err)
+	}
+	for _, query := range []string{"", "?image_sha256=bad&image_size=4096", "?image_sha256=" + m.ImageSHA256 + "&image_size=0", "?image_sha256=" + m.ImageSHA256 + "&image_size=4096&extra=1"} {
+		request = httptest.NewRequest(http.MethodGet, "/v1/update/capacity"+query, nil)
+		request.Header.Set("Authorization", "Bearer bearer")
+		response = httptest.NewRecorder()
+		h.ServeHTTP(response, request)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("bad query %q: %d %s", query, response.Code, response.Body.String())
+		}
 	}
 }
 

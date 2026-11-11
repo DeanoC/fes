@@ -89,12 +89,6 @@ func TestStopExpectedPackageFreeRejectsReplacement(t *testing.T) {
 		t.Fatalf("package replacement err=%v stops=%d", err, c.stopCalls)
 	}
 
-	s, c, _ = testBoundStop()
-	s.activeExecution = ExecutionHostOnly
-	s.activeGameID = "host-game"
-	if _, err = s.StopExpected(context.Background(), SessionStopBinding{GameID: "other-host"}); !errors.Is(err, ErrSessionChanged) || c.stopCalls != 0 {
-		t.Fatalf("host-only replacement err=%v stops=%d", err, c.stopCalls)
-	}
 }
 
 func TestStopExpectedKeepsOrdinaryStopSaveSemantics(t *testing.T) {

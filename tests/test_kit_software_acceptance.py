@@ -187,7 +187,7 @@ def bundle(directory, version="good"):
 
 
 class AcceptanceTests(unittest.TestCase):
-    def run_suite(self, directory, url, state, *, candidate=GOOD, recovery=False, reboot=None, local=None, timeout=10, configure=None):
+    def run_suite(self, directory, url, state, *, candidate=GOOD, recovery=False, reboot=None, timeout=10, configure=None):
         args = types.SimpleNamespace(expected_target_id=TARGET, expected_base=BASE,
                                      expected_active_bundle=OLD, candidate=candidate,
                                      recovery_candidate=BAD, timeout=timeout)
@@ -207,7 +207,7 @@ class AcceptanceTests(unittest.TestCase):
             runner.install = install
         if configure:
             configure(runner)
-        ok = runner.run(frozen, recovery_frozen, reboot, local)
+        ok = runner.run(frozen, recovery_frozen, reboot)
         return ok, runner, list(evidence.root.glob('*.json'))
 
     def test_real_http_default_requester_process_exit_and_no_restore(self):
@@ -219,7 +219,7 @@ class AcceptanceTests(unittest.TestCase):
             self.assertTrue(result['success']); self.assertFalse(result['overall_hardware_acceptance'])
             for name in ('held_install', 'competing_client', 'queue_cancel', 'requester_exit', 'retained_stop', 'activation'):
                 self.assertEqual(result['stages'][name]['status'], 'passed')
-            for name in ('reboot', 'recovery', 'local_busy', 'input', 'hdmi'):
+            for name in ('reboot', 'recovery', 'input', 'hdmi'):
                 self.assertEqual(result['stages'][name]['status'], 'skipped')
             self.assertEqual(result['stages']['activation']['activation_kind'], 'change_selected')
             self.assertGreater(sum(path == '/v1/kit/renew' for _, path, _ in state.calls), 0)
@@ -376,7 +376,7 @@ class AcceptanceTests(unittest.TestCase):
             def record_fsync(fd):
                 events.append(Path(os.readlink(f'/proc/self/fd/{fd}')).resolve())
                 return real_fsync(fd)
-            def fake_external(command, timeout, output=False):
+            def fake_external(command, timeout):
                 events.append('external')
                 return {'outcome': 'spawn-failed', 'command_sha256': command['sha256']}
             command = {'argv': ['/must-not-run'], 'sha256': 'f' * 64}
@@ -483,19 +483,10 @@ class AcceptanceTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'manifest identity'):
                 evidence.freeze(path,sha,BAD,'candidate')
 
-    def test_external_command_is_argv_only_and_probe_output_is_bounded(self):
-        command = {'argv': [sys.executable, '-c', 'print("x"*10000)'], 'sha256': 'e'*64}
-        with self.assertRaises(ValueError): accept.external(command, 2, output=True)
-        good = {'argv': [sys.executable, '-c', 'print(\'{"http_status":409,"error":"in_use","ignored":"secret"}\')'], 'sha256': 'f'*64}
-        self.assertEqual(accept.external(good, 2, output=True)['probe'], {'http_status': 409, 'error': 'in_use'})
-
-    def test_optional_local_probe_is_busy_only_and_keeps_selection(self):
-        with tempfile.TemporaryDirectory() as temporary, server() as (state, url):
-            command={'argv':[sys.executable,'-c','print(\'{"http_status":409,"error":"blocked"}\')'],'sha256':'f'*64}
-            ok,runner,_=self.run_suite(Path(temporary),url,state,local=command)
-            self.assertTrue(ok)
-            self.assertEqual(runner.stages['local_busy']['status'],'passed')
-            self.assertEqual(state.software['selected'],GOOD)
+    def test_external_command_discards_output(self):
+        command = {'argv': [sys.executable, '-c', 'print("private output")'], 'sha256': 'e'*64}
+        self.assertEqual(accept.external(command, 2),
+                         {'outcome': 'exited', 'exit_code': 0, 'command_sha256': 'e'*64})
 
     def test_incompatible_contracts_refuse_before_claim(self):
         with tempfile.TemporaryDirectory() as temporary, server() as (state,url):

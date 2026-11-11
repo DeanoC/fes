@@ -107,9 +107,9 @@ func TestRecoveredDiskStopReusesDiscoveryStatusWithoutRememberedPackage(t *testi
 	}
 }
 
-// A local host play can coexist with a disk on a sibling kit. Its Stop must
+// A foreground play can coexist with a disk on a sibling kit. Its Stop must
 // use that kit's observed persistence, regardless of the foreground cache.
-func TestScopedDiskStopUsesOwnBindingWhileHostOnlyPlayContinues(t *testing.T) {
+func TestScopedDiskStopUsesOwnBindingWhileOtherKitPlayContinues(t *testing.T) {
 	for _, persistent := range []bool{false, true} {
 		t.Run(fmt.Sprint(persistent), func(t *testing.T) {
 			p := &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 9, ABI: protocol.RuntimeContract{ID: "fes.computer", Major: 1}, ActiveInterfaces: []protocol.RuntimeInterface{{ID: protocol.AtariStFloppyInterface().ID, Major: 1}, {ID: protocol.AtariStFloppyWriteInterface().ID, Major: 1}}, MediaUnits: []protocol.MediaUnitStatus{{Interface: protocol.AtariStFloppyInterface(), MinBytes: 737280, MaxBytes: 737280, ChunkBytes: 512, State: protocol.MediaUnitReady}}}
@@ -148,7 +148,7 @@ func TestScopedDiskStopUsesOwnBindingWhileHostOnlyPlayContinues(t *testing.T) {
 			s := newService(Config{Targets: []TargetConfig{{Name: "foreground", Enabled: true, Address: foreground.String(), TargetID: "foreground-id"}, {Name: "sibling", Enabled: true, Address: sibling.String()}}, SelectedTarget: "foreground", RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, foregroundClient)
 			s.targetClients["sibling"] = targetclient.NewClient(sibling, "secret", httpClient)
 			s.plays["sibling"] = targetPlay{execution: ExecutionFPGANative, packageID: p.PackageID, packageGeneration: p.Generation}
-			s.activeExecution, s.activeTarget, s.activeGameID = ExecutionHostOnly, "host", "local-game"
+			s.activeExecution, s.activeTarget, s.activeGameID = ExecutionFPGANative, "foreground", "foreground-game"
 			s.connection = TargetConnection{persistentMediaBound: !persistent}
 			status, err := s.StopTarget(context.Background(), "sibling")
 			// The unidentified package is observed once for disk persistence and
@@ -162,14 +162,14 @@ func TestScopedDiskStopUsesOwnBindingWhileHostOnlyPlayContinues(t *testing.T) {
 			if !persistent && (budget <= 0 || budget > time.Second) {
 				t.Fatalf("volatile sibling inherited foreground save budget: %v", budget)
 			}
-			if s.activeExecution != ExecutionHostOnly || s.activeTarget != "host" || s.activeGameID != "local-game" || s.plays["sibling"].execution != "" {
-				t.Fatalf("scoped Stop changed host ownership or retained stopped kit: %+v", s.plays)
+			if s.activeExecution != ExecutionFPGANative || s.activeTarget != "foreground" || s.activeGameID != "foreground-game" || s.plays["sibling"].execution != "" {
+				t.Fatalf("scoped Stop changed foreground: execution=%q target=%q game=%q plays=%+v", s.activeExecution, s.activeTarget, s.activeGameID, s.plays)
 			}
 		})
 	}
 }
 
-func TestSiblingLibraryMediaLaunchKeepsIndependentHostOwner(t *testing.T) {
+func TestSiblingLibraryMediaLaunchKeepsOtherKitPlay(t *testing.T) {
 	s, sibling, entry, inspection := newCoreEntryLaunchFixture(t, colecoLibraryPackageFixture(t), "Sibling library media")
 	active := coreEntryActiveStatus(inspection, 7, true)
 	sibling.mediaStatus = active
@@ -181,9 +181,8 @@ func TestSiblingLibraryMediaLaunchKeepsIndependentHostOwner(t *testing.T) {
 	s.targets = []TargetConfig{{Name: "foreground", Enabled: true, TargetID: "foreground-id"}, {Name: "sibling", Enabled: true, TargetID: "sibling-id"}}
 	s.selectedTarget = "foreground"
 	s.targetClients = map[string]serviceClient{"foreground": foreground, "sibling": sibling}
-	host := &fakeHostExecutor{}
-	s.hostExecutor = host
-	s.activeExecution, s.activeTarget, s.activeGameID = ExecutionHostOnly, "local-host", "local-game"
+	s.activeExecution, s.activeTarget, s.activeGameID = ExecutionFPGANative, "foreground", "foreground-game"
+	s.plays["foreground"] = targetPlay{execution: ExecutionFPGANative, gameID: "foreground-game"}
 	response, err := s.LaunchOn(context.Background(), entry.GameID, "sibling", nil)
 	if err != nil {
 		t.Fatalf("sibling library launch: %v", err)
@@ -195,8 +194,11 @@ func TestSiblingLibraryMediaLaunchKeepsIndependentHostOwner(t *testing.T) {
 	if response.Status.GameID == nil || *response.Status.GameID != entry.GameID || response.Status.System == nil || *response.Status.System != catalog.CorePlatform {
 		t.Fatalf("sibling response lost library identity: %+v", response.Status)
 	}
-	if s.activeExecution != ExecutionHostOnly || s.activeTarget != "local-host" || s.activeGameID != "local-game" || host.stopCalls != 0 || foreground.statusCalls != 0 {
-		t.Fatalf("sibling launch changed independent host or accessed foreground: execution=%q target=%q game=%q host stops=%d foreground reads=%d", s.activeExecution, s.activeTarget, s.activeGameID, host.stopCalls, foreground.statusCalls)
+	if s.activeTarget != "sibling" || foreground.statusCalls != 0 {
+		t.Fatalf("sibling launch target=%q foreground reads=%d", s.activeTarget, foreground.statusCalls)
+	}
+	if play := s.plays["foreground"]; play.execution != ExecutionFPGANative || play.gameID != "foreground-game" {
+		t.Fatalf("sibling launch changed other kit play: %+v", play)
 	}
 	if play := s.plays["sibling"]; play.gameID != entry.GameID || play.packageID != entry.PackageID || play.packageGeneration != 7 {
 		t.Fatalf("sibling launch lost kit ownership: %+v", play)

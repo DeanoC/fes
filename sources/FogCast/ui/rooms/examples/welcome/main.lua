@@ -55,21 +55,28 @@ function draw()
   S.header(lay, room.title)
   local left_w = math.floor((room.width - m * 3) * 0.48)
   local y = lay.top
-  local big = room.height >= 648 and 40 or 34
-  local body = room.height >= 648 and 24 or 21
+  local compact = room.height < 600
+  local big = compact and 28 or (room.height >= 648 and 40 or 34)
+  local body = compact and 17 or (room.height >= 648 and 24 or 21)
   gfx.text("Welcome to FES", m, y, { size = big, bold = true, color = C.text })
   y = y + math.floor(big * 1.5)
-  y = S.text("FES turns this kit into classic home computers, rebuilt in its chip. Four are ready to set up.", m, y, left_w, body, C.text)
-  y = y + 12
-  local note = "Some computers have their built-in software (firmware) included. For the others, and for your games, you use your own files. You don't need a network or a computer to start."
-  local note_size = body - 4
-  local lines = S.wrap(note, note_size, left_w - 40)
-  local note_h = #lines * math.floor(note_size * 1.35) + 24
+  local intro = compact and "FES turns this kit into classic home computers." or "FES turns this kit into classic home computers, rebuilt in its chip. Four are ready to set up."
+  y = S.text(intro, m, y, left_w, body, C.text)
+  y = y + (compact and 8 or 12)
+  local note = compact and "Some computers include firmware. Others and your games need your own files. No network or computer is needed to start." or "Some computers have their built-in software (firmware) included. For the others, and for your games, you use your own files. You don't need a network or a computer to start."
+  local note_size = compact and 14 or body - 4
+  local pad = compact and 12 or 20
+  local lines = S.wrap(note, note_size, left_w - pad * 2)
+  local note_h = #lines * math.floor(note_size * 1.35) + (compact and 16 or 24)
   gfx.rect(m, y, left_w, note_h, C.raised)
   F.outline(m, y, left_w, note_h, 2, C.divider)
-  S.text(note, m + 20, y + 12, left_w - 40, note_size, C.text)
-  y = y + note_h + 14
-  S.text(focus == 2 and SKIP or NEXT, m, y, left_w, note_size, C.secondary)
+  S.text(note, m + pad, y + (compact and 8 or 12), left_w - pad * 2, note_size, C.text)
+  y = y + note_h + (compact and 8 or 14)
+  local hint = focus == 2 and SKIP or NEXT
+  if compact then
+    hint = focus == 2 and "Skip goes straight to Home. Finish setup there or run it again from Settings." or "Continue to see which computers are ready."
+  end
+  S.text(hint, m, y, left_w, note_size, C.secondary)
 
   -- The four computers, two by two, each name outside its mark.
   local gx = m * 2 + left_w

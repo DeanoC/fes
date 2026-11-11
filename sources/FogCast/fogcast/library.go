@@ -837,7 +837,7 @@ func (s *Service) setLibrarySettingsLocked(next LibraryConfig) (bool, error) {
 	currentSelected := targetByName(s.targets, s.selectedTarget)
 	s.executionMu.Lock()
 	play := s.plays[s.selectedTarget]
-	active := play.execution != "" || play.packageRejection != nil || (s.hostCastClaimsKitDisplay && s.activeExecution == ExecutionHostOnly)
+	active := play.execution != "" || play.packageRejection != nil
 	reconciled := s.selectedTargetReconciled
 	repairAllowed := s.selectedTargetRepairAllowed
 	s.executionMu.Unlock()

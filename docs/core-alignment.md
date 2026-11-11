@@ -46,10 +46,10 @@ of the current tree.
    Quartus remains a check and does not produce the installed package.
    `FES_OSS_ONLY` is a proposed rollout option, not a control in this tree.
 2. Registered producers use per-core locks named by `lock_path` in
-   `config/core-recipes.toml`. Four locks are byte-identical to the
+   `config/core-recipes.toml`. Three locks are byte-identical to the
    repository-level `sources/misteross/toolchain.lock`: Yosys `3a5accbd`,
    Mistral `8fcc4cb4`, nextpnr `9128800f`, deliberately before nextpnr #172
-   (Catch, RAM Tester, SG-1000, SMS). Apple II and C64 pin that Yosys and
+   (RAM Tester, SG-1000, SMS). Apple II and C64 pin that Yosys and
    Mistral with nextpnr `5fe55f3d` (nextpnr #276, #1007) for its F0/F1
    boundary `$ROUTETHRU` map; their locks are byte-identical and share one
    cache slot. Seven registered locks select their own slot: Atari ST on
@@ -76,7 +76,7 @@ of the current tree.
    shared display plane, then the HDMI pins. [The display pipeline](display-pipeline.md)
    is the design and lists which shells have each stage.
    - An application or ROM-less shell uses shared `fes_video_720p`. That is
-     Pong, Catch, the demos, RAM test and RISC-V. The optimizer-generated
+     Pong, RAM test and RISC-V. The optimizer-generated
      scaler is that module. Do not force video parts onto these shells.
    - A machine shell that emits a raster source uses linked Direct/Scanlines
      parts and does not own HDMI timing. Coleco native is the standard: no
@@ -111,7 +111,7 @@ Playable packages are catalog installations through the core library, and
 `fes.ramtest`), experimental (`fes.spectrum`, `fes.spectrum128`,
 `fes.spectrum-plus3`, `fes.pentagon`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`,
 `fes.atari-st`, `fes.c64`, `fes.apple2`,
-`fes.riscv`) and demo (`fes.catch`). Registration is not acceptance, and no
+`fes.riscv`). Registration is not acceptance, and no
 playable package is in the image. The first table below is the former
 nine-package image set; its evidence limits are unchanged.
 
@@ -133,10 +133,8 @@ nine-package image set; its evidence limits are unchanged.
 | `fes.riscv` 0.1.0 | Original RV32I demo. No historical machine, no audio, no user programs. | Current lock: `cores/fes-riscv/toolchain.lock`. Qualified ALU package `c6c11fcd…` (build `a7118693…`, [receipt](validation/riscv-timing-alu-2026-10-11.json)) closed 74.25 MHz. Its both-kit loads showed the scene, timer colour and Stop. | Not in the image. Those ALU loads did not test the gamepad. The [11 Oct video diagnostic](validation/2026-10-11-riscv-video-diagnostic.md) of baseline `72f3b2be…` (build `39ccdf04…`) is a static-scene and Stop check; candidate `85bf8676…` there is a video comparison only. Neither is a gamepad check. The [4 Oct kit A load](validation/2026-10-04-riscv-kit-a.md) of `e5c4bd79…` (build `55de600f…`) observed dpad-right. No seal accepts another package. |
 | `fes.c64` 0.1.0 | Package-only pathfinder. The [6 Oct Kit A diagnostic](validation/2026-10-06-c64-functional-closure.md) passed firmware, both probes, input and a read-only D64 on that package. | Sync M10K, format 3. Shared-pin retirement is complete. Sealed on `toolchain.lock`: package `1d599353eaef5502…` (build `6f865fddebe62184…`), seed 5, CUDA lane on the 3090, final signoff system 54.29/52.224, pixel 75.10/74.25, audio 229.67/12.288. That CUDA seal is the recorded pin result. Audited static source closure. | The 6 Oct diagnostic used nextpnr `0c5ed400` and does not accept this pin. No kit evidence exists for these bytes. The static closure is not a compiler-read derive. No disk writes. Not in the image. Keyboard transposition ([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated to the pin. |
 | `fes.apple2` 0.1.0 | Package-only pathfinder. A Sept 27 kit diagnostic covered linked firmware, four cards and a live disk swap. | Sync M10K, format 3. Current lock: `cores/fes-apple2/toolchain.lock`. Audited static source closure. | The Sept 27 note does not accept a shared-pin seal. Product default remains HIP. The shared-pin route reported with the lock move was exploratory and is not a recorded seal, so this pin is still open. A recorded compiler-read derive of the source closure waits on that seal. No writes. No Apple ROM. No image acceptance. |
-| `fes.catch` 1.0.0 | Registered ROM-less paddle demo. | Current lock: `cores/fes-catch/toolchain.lock`. Sims cover the optimizer scaler. | Not in the image. No separate kit acceptance. |
 
-`fes.demo`, `fes.demo-media` and `fes.demo-audio` are references. Catch is the
-registered game on that shell. Splash is `sources/misteross/sealed/fes-splash.rbf`:
+Splash is `sources/misteross/sealed/fes-splash.rbf`:
 720p60, GPU router off, no user-io. `cores/pong` is a simulation module, not
 `fes.pong`. There is no NES, SNES or Mega Drive package.
 
@@ -243,7 +241,7 @@ accident.
 
 ### 6. Image
 
-Do not add C64, RISC-V, Apple II or Catch to the factory image as a side
+Do not add C64, RISC-V or Apple II to the factory image as a side
 effect of a pin move or a CPU swap. Promotion is its own acceptance gate.
 
 ## What this page does not do

@@ -37,7 +37,7 @@ func admitSetupMedia(cap protocol.CoreMediaCapability, name string, size int64) 
 }
 
 func (a *App) openSystemMediaLocked(action rooms.Action) {
-	if a.client == nil || a.session.State == "active" || hostclient.SessionKitLocal(a.session.State) || a.localLaunchBlockedLocked() || a.localCoreBusyLocked() || a.stopPhase == "stopping" || a.retryStopLock || a.launch.Phase == "launching" {
+	if a.client == nil || a.session.State == "active" || a.stopPhase == "stopping" || a.retryStopLock || a.launch.Phase == "launching" {
 		a.status = "Stop the machine before choosing media for its next start."
 		return
 	}

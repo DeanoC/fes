@@ -191,7 +191,6 @@ func TestKitHomeRefreshesEmptyInventoryWhenTargetBecomesReady(t *testing.T) {
 // client that does not promptly honor cancellation. It must not restore the
 // earlier inventory over the new one.
 type delayedInventoryCores struct {
-	fakeLocalCores
 	calls    atomic.Int32
 	started  chan struct{}
 	release  chan struct{}

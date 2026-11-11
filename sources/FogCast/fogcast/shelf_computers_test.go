@@ -33,7 +33,7 @@ func TestShelfComputersIncludesPreparedFamiliesAndPrefersBareSetup(t *testing.T)
 	archive := libraryPackageFixture(t, "1.0.0")
 	s, _, _, _ := newCoreEntryLaunchFixture(t, archive, "Pong")
 	store := s.catalog.(*catalog.Store)
-	cores := []string{"fes.apple2", "fes.atari-st", "fes.c64", "fes.catch", "fes.coleco", "fes.pentagon", "fes.ramtest", "fes.riscv", "fes.sg1000", "fes.sms", "fes.spectrum", "fes.spectrum128", "fes.spectrum-plus3", "fes.ts1000", "fes.ts1500", "fes.zx80"}
+	cores := []string{"fes.apple2", "fes.atari-st", "fes.c64", "fes.coleco", "fes.pentagon", "fes.ramtest", "fes.riscv", "fes.sg1000", "fes.sms", "fes.spectrum", "fes.spectrum128", "fes.spectrum-plus3", "fes.ts1000", "fes.ts1500", "fes.zx80"}
 	for _, coreID := range cores {
 		raw, _ := apple2LibraryPackageFixture(t, false, func(manifest string) string { return strings.Replace(manifest, "fes.apple2", coreID, 1) })
 		installed, _, err := s.ImportCorePackage(ctx, int64(len(raw)), bytes.NewReader(raw))

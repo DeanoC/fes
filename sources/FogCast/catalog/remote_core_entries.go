@@ -120,6 +120,13 @@ func (s *Store) BindRemoteCoreEntryMedia(ctx context.Context, gameID string, ori
 	if _, err := verifyCoreMedia(ctx, tx, origin.MediaID, io.Discard); err != nil {
 		return CoreEntry{}, err
 	}
+	// The selection trigger revokes remote-only provenance for every user
+	// selection. An automatic bind may restore only an already-tracked digest,
+	// inside the same writer transaction, after its pending-origin CAS succeeds.
+	var tracked int
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM remote_cached_media WHERE media_id = ?)`, origin.MediaID).Scan(&tracked); err != nil {
+		return CoreEntry{}, fmt.Errorf("read remote media provenance: %w", err)
+	}
 	result, err := tx.ExecContext(ctx, `UPDATE core_entries SET media_role = ?, media_id = ?, media_name = ?
 		WHERE game_id = ? AND package_id = ? AND media_role = '' AND media_id = ''
 		AND EXISTS (SELECT 1 FROM remote_core_entries r WHERE r.game_id = core_entries.game_id
@@ -135,6 +142,11 @@ func (s *Store) BindRemoteCoreEntryMedia(ctx context.Context, gameID string, ori
 	}
 	if changed != 1 {
 		return CoreEntry{}, ErrCoreEntryConflict
+	}
+	if tracked != 0 {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO remote_cached_media(media_id) VALUES (?)`, origin.MediaID); err != nil {
+			return CoreEntry{}, fmt.Errorf("retain remote media provenance: %w", err)
+		}
 	}
 	entry, err := scanCoreEntry(tx.QueryRowContext(ctx, coreEntrySelect+` WHERE e.game_id = ?`, gameID).Scan)
 	if err != nil {

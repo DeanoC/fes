@@ -17,10 +17,47 @@ import (
 type romAPIService struct {
 	coreLibraryAPIService
 	bound []string
+	read  []string
 }
 
-func (s *romAPIService) CoreEntryROM(_ context.Context, game string) (catalog.CoreEntryROM, error) {
-	return catalog.CoreEntryROM{GameID: game}, nil
+func (s *romAPIService) CoreEntryROM(_ context.Context, game, rom string) (catalog.CoreEntryROM, error) {
+	s.read = []string{game, rom}
+	return catalog.CoreEntryROM{GameID: game, ROMID: rom}, nil
+}
+
+func TestROMAPIReadsExplicitNamedSelection(t *testing.T) {
+	s := &romAPIService{}
+	handler := hostapi.New(s)
+	for _, tc := range []struct {
+		query string
+		code  int
+	}{
+		{"?rom_id=coleco-bios", http.StatusOK},
+		{"?rom_id=coleco-cart", http.StatusOK},
+		{"", http.StatusBadRequest},
+		{"?rom_id=", http.StatusBadRequest},
+		{"?rom_id=%20", http.StatusBadRequest},
+		{"?rom_id=BAD", http.StatusBadRequest},
+		{"?rom_id=coleco-bios&rom_id=coleco-cart", http.StatusBadRequest},
+		{"?rom_id=coleco-bios&other=1", http.StatusBadRequest},
+	} {
+		s.read = nil
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/library/core-entries/fpga-example/rom"+tc.query, nil)
+		req.Host = "127.0.0.1"
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != tc.code {
+			t.Fatalf("query %q: %d %s", tc.query, rec.Code, rec.Body.String())
+		}
+		if tc.code == http.StatusOK {
+			want := strings.TrimPrefix(tc.query, "?rom_id=")
+			if len(s.read) != 2 || s.read[0] != "fpga-example" || s.read[1] != want || !strings.Contains(rec.Body.String(), `"rom_id":"`+want+`"`) {
+				t.Fatalf("query %q: read %v body %s", tc.query, s.read, rec.Body.String())
+			}
+		} else if s.read != nil {
+			t.Fatalf("query %q reached service: %v", tc.query, s.read)
+		}
+	}
 }
 func (s *romAPIService) SelectCoreEntryROM(_ context.Context, game, pkg, rom, expected, media string) (catalog.CoreEntryROM, error) {
 	s.bound = []string{game, pkg, rom, expected, media}
@@ -75,6 +112,10 @@ func TestPairedLauncherCanReadCoreEntryAndSelectROM(t *testing.T) {
 	}
 	if service.entryTarget != launcherIDB {
 		t.Fatalf("core-entry read target = %q, want paired kit %q", service.entryTarget, launcherIDB)
+	}
+	read := pairedCall(http.MethodGet, "/api/v1/library/core-entries/fpga-zx81/rom?rom_id=machine-rom", launcherTokenB, launcherIDB, "")
+	if read.Code != http.StatusOK || len(service.read) != 2 || service.read[0] != "fpga-zx81" || service.read[1] != "machine-rom" {
+		t.Fatalf("paired ROM read: %d %s, forwarded %v", read.Code, read.Body.String(), service.read)
 	}
 
 	body := `{"package_id":"` + packageID + `","rom_id":"zx81-firmware","expected_media_id":"","media_id":"` + mediaID + `"}`

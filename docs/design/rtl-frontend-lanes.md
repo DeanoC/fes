@@ -1,8 +1,17 @@
 # RTL front-end lanes
 
-Status: proposed design and implementation plan for [#1581](https://github.com/DeanoC/fes/issues/1581), for Deano, 9 November 2026. Refs #1581. None of it is implemented. Open decisions are marked **D*n*** and listed at the end.
+Status: design and implementation plan for [#1581](https://github.com/DeanoC/fes/issues/1581), originally written 9 November 2026. The implementation status below records landed slices; the detailed plan preserves their original rationale and acceptance criteria. Decisions are marked **D*n*** and listed at the end.
 
 Path convention: `M/` means `sources/misteross/`. These are at the repo root: `scripts/recipes.py`, `scripts/bundle.py`, `scripts/artifact_cache.py`, `config/core-recipes.toml`, `docs/`, `AGENTS.md`, `.github/`.
+
+## Implementation status
+
+As of 11 November 2026:
+
+- S1a–S1d have validation records: [parse census](../validation/2026-11-10-1581-parse-census/README.md) ([#1632](https://github.com/DeanoC/fes/pull/1632)), [Pro probe](../validation/2026-11-10-1581-pro-probe/README.md) ([#1628](https://github.com/DeanoC/fes/pull/1628)), [Quartus-netlist simulation feasibility](../validation/2026-11-10-1581-netlist-sim/README.md) ([#1633](https://github.com/DeanoC/fes/pull/1633)) and [MLAB inference](../validation/2026-11-10-1581-mlab-inference/README.md) ([#1630](https://github.com/DeanoC/fes/pull/1630)). These records report each spike's results and limits; their completion does not by itself approve a native lane.
+- S2's return-stack change landed in [#1638](https://github.com/DeanoC/fes/pull/1638). S3's i386 simulation Verilator lock landed in [#1653](https://github.com/DeanoC/fes/pull/1653); the separate pc386 lock update is open in [#1680](https://github.com/DeanoC/fes/pull/1680).
+- S6a's per-core Quartus Lite locks landed in [#1652](https://github.com/DeanoC/fes/pull/1652). D2's i386 Yosys lock change landed in [#1664](https://github.com/DeanoC/fes/pull/1664).
+- D12's closure-only BUILD_ID rule landed in [#1649](https://github.com/DeanoC/fes/pull/1649). The binding rule and required evidence are in [AGENTS.md](../../AGENTS.md#hard-rules).
 
 ## Summary
 
@@ -31,7 +40,7 @@ Measured area still on the table:
 
 That leaves about 250 to 400 ALMs, mostly in one module. The other reasons for #1581 have nothing to do with area:
 
-1. **DE25 / Agilex 5 needs Quartus Pro** (`AGENTS.md:73-76`). The only files that have ever gone through Pro are `.v` files from fes-menu and fes-splash (`M/boards/de25nano/display/build.py:26-32`). Open question 3 in `docs/design/quartus-cores.md` asks whether Pro still needs the Yosys route (`:434-441`).
+1. **DE25 / Agilex 5 needs Quartus Pro** (`AGENTS.md:73-76`). The [S1b probe](../validation/2026-11-10-1581-pro-probe/README.md) synthesized both a Yosys netlist and the native OPL2 SystemVerilog on the DE25 part; it did not fit, time or program the design.
 2. **Quartus 17.0.2 cannot parse some FES RTL.** Known cases are the OPL2 `signed'()` cast (error 10170), inline `for (genvar …)`, and a packed-struct member index whose name matches a signal (`docs/validation/2026-10-29-pc386-m4-quartus/summary.md:44-48`, `M/scripts/quartus_fes_i386.py:11-14`).
 3. **Build identity cannot tell the routes apart.** In pc386 and PC/XT, Yosys elaborates and Quartus fits. In the ZX81, Coleco, SMS and SG-1000 Quartus sealers and the RAM Tester Quartus diagnostic, Quartus reads the RTL itself. All of them are labelled only "quartus".
 4. **Lockstep checks a different netlist from the one that is sealed** (`docs/validation/2026-11-02-i386-cs-limit/summary.md:91-98`).
@@ -67,7 +76,7 @@ What the design does:
 | KBC RAM in MLAB | `ram[0]` is read every clock as `command` (`M/cores/fes-pc386/rtl/pc386_kbc.sv:46-47`). Reset writes all 32 entries in one clock: `ram[0]` to 63h and the rest to 0 (`:155-157`). There are bit writes to `ram[0][5]` and `ram[0][2]` (`:204-207`). Restructuring it is worth "a few tens" of ALMs (`summary.md:189`), so it is deferred unless a Phase 5 slice runs over budget. |
 | Migrating the `VERILATOR`/`SYNTHESIS`/`SIM`/`FES_SIMULATION` guards and about 2,800 `MISTRAL_*` instances in about 48 files | Those cores have no planned Quartus front end. They are touched only if one of them gains a Quartus lane (D7). |
 | A single BUILD_ID injection path (today chparam for Yosys, a `FES_<CORE>_BUILD_ID` VERILOG_MACRO for Quartus) | It touches every top and every producer and does nothing for lanes. Out of scope (D8). |
-| A pc386 OSS/nextpnr producer | The pc386 lock rationale cites `build_fes_pc386_oss.py`, but that file does not exist. Not S6a: the next PR that changes the pc386 lock fixes the text (#1660; D2 did not touch that lock). |
+| A pc386 OSS/nextpnr producer | The pc386 lock rationale cited `build_fes_pc386_oss.py`, which M5 (#1268) deleted. Fixed with the lock's Verilator move to v5.054 (#1660), not in S6a or D2. |
 | DE25 board shell, FPGA runtime, HIL | Not built yet (`docs/de25-linux.md:10-12`, `:78-88`). DE25 HIL is waived (`AGENTS.md:32`). |
 | A Quartus lane in CI | CI installs no Quartus: no workflow under `.github/workflows/` mentions Quartus. Lite 17.0.2 needs no licence (`quartus-cores.md:240`). What CI should do about Quartus is still open question 2 (`quartus-cores.md:436-437`), and this design does not answer it. |
 
@@ -79,7 +88,7 @@ Today one label, `toolchain = "quartus"`, means "Quartus places and routes". It 
 
 | Producer | Front end | Place and route | Record today |
 | --- | --- | --- | --- |
-| `*_oss.py`, coleco_socket_v2, pong, catch, menu, riscv, ramtest, atari_st (`config/core-recipes.toml:9-1855`) | yosys | nextpnr (HIP/CUDA) | format 2, no `toolchain` |
+| `*_oss.py`, coleco_socket_v2, pong, menu, riscv, ramtest, atari_st (`config/core-recipes.toml:9-1855`) | yosys | nextpnr (HIP/CUDA) | format 2, no `toolchain` |
 | pc386 sealer (`M/scripts/build_fes_pc386_quartus.py:236-248`, `:333`) | yosys for the machine; Quartus reads the shell | Quartus Lite 17.0.2 | format 1, `compiler: quartus-17.0.2` (`:294`) |
 | PC/XT (`M/scripts/quartus_fes_pcxt.py:92-140`) | yosys (whole top) | Quartus Lite 17.0.2 | format 2, `toolchain: quartus` (`build_fes_pcxt_quartus.py:236`) |
 | i386 oracle (`quartus_fes_i386.py:64`) | yosys, unlocked `--yosys` (`:215`) | Quartus Lite 17.0.2 | diagnostic only (`:289`) |
@@ -153,7 +162,7 @@ This follows `sim_fes_coleco_quartus.py:33`, which already records the `altera_m
 
 **Toolchain cache.** The slot key (`M/scripts/toolchain_cache.py:223-241`, `:268-285`) has no Quartus axis. Quartus is not provisioned through the cache, and this design adds no axis. Quartus identity is the lock plus the authenticated binary digest.
 
-**Identity churn.** `export_core_package.py`, `core_package.py` and `fes_build_common.py` appear in all 11 audited entries of `M/scripts/source_closures.json`: apple2_oss, atari_st_oss, c64_oss, coleco_socket_v2, menu_package, pong, ramtest, sg1000_oss, sms_oss, spectrum_oss and zx81_oss. Fallback-closure producers such as PC/XT, Catch and RISC-V read them too. An edit to any of these files changes those cores' BUILD_IDs even when the record's fields stay the same. Nothing in the tree yet says whether a change that touches only the closure needs a reseal and HIL on main (D12). S7 records the answer before it merges:
+**Identity churn.** `export_core_package.py`, `core_package.py` and `fes_build_common.py` appear in all 11 audited entries of `M/scripts/source_closures.json`: apple2_oss, atari_st_oss, c64_oss, coleco_socket_v2, menu_package, pong, ramtest, sg1000_oss, sms_oss, spectrum_oss and zx81_oss. Fallback-closure producers such as PC/XT and RISC-V read them too. An edit to any of these files changes those cores' BUILD_IDs even when the record's fields stay the same. D12 is now recorded in [AGENTS.md](../../AGENTS.md#hard-rules); S7 must supply its required evidence or use the normal reseal and HIL path:
 
 - **If a reseal is needed**, the reseal list is generated from `source_closures.json` plus the producer source lists, not written by hand. That reseal is its own slice (S7r) and is not folded into the header slice. `AGENTS.md:198` requires a pin bump to build every core it touches before merging, and S7r follows the same rule.
 - **If no reseal is needed**, S7 says so and merges alone.
@@ -233,7 +242,7 @@ Today one Makefile target can set some of the three `FES_*_OSS` macros and not o
 
   The 49 plain `ramstyle = "M10K"` sites stay literal until a quartus-pro build reads them.
 
-**Consistency checks.** SystemVerilog has no `` `error `` directive. A failed check expands a deliberately undefined macro, such as `` `FES_TOOLCHAIN_ERROR_no_front_end ``, which the preprocessor rejects. S1a confirms that Yosys, Quartus Lite, Verilator and Icarus all reject it. If one of them does not, that reader falls back to instantiating an undefined module, which fails at elaboration. The header fails if:
+**Consistency checks.** SystemVerilog has no `` `error `` directive. S1a found that Quartus Lite and Pro warn on an undefined macro and continue, so a failed check instead includes a missing file named for the reason, such as `` `include "FES_TOOLCHAIN_ERROR_no_front_end.svh" ``. All seven readers tested stopped; Icarus was not tested. S8 must test Icarus and ensure that no `FES_TOOLCHAIN_ERROR_*` file exists on any include path. See the [S1a record](../validation/2026-11-10-1581-parse-census/README.md). The header fails if:
 
 - not exactly one macro from each group is set;
 - `FES_TC_QLITE` is set without `FES_PNR_QUARTUS` and `FES_DEV_CYCLONEV`;
@@ -534,7 +543,7 @@ Each lane PR names its check. An i386-style lockstep is not assumed for any othe
 ### Quartus front-end lanes: proposed mechanism
 
 1. Build a CPU-only Quartus project with every port kept. Start from the `spike_cpu` project in `quartus_fes_i386.py` (`:249-267`), reading RTL under the lane macros, with the seal's version, edition and settings.
-2. Run `quartus_map`, then `quartus_eda --simulation --functional=on --format=verilog` to write a `.vo`. S1c confirms the exact flags. `quartus_eda` has never been run in this repo, and no QSF has an `EDA_*` setting.
+2. Run `quartus_map`, then `quartus_eda <top> --simulation --tool=modelsim --format=verilog --functional=on` to write a `.vo`. The [S1c record](../validation/2026-11-10-1581-netlist-sim/README.md) confirms these flags on Lite 17.0.2; `--tool=modelsim` chooses the output dialect and directory and does not require ModelSim to write the file.
 3. Simulate the `.vo` against the Intel models from the locked install. `cyclonev_atoms.v` holds `cyclonev_ff` (`:394`), `cyclonev_lcell_comb` (`:567`), `cyclonev_ram_block` (`:961`) and `cyclonev_mlab_cell` (`:1208`). `altera_lnsim.sv` holds `generic_m10k` (`:4269`) and `generic_28nm_lc_mlab_cell_impl` (`:5062-5220`). All of these are plain text.
 4. `lockstep_tb.cpp` reads only top-level ports and never uses `rootp`, so a netlist with the same ports drops in (`fes_i386_cpu.sv:214-251`).
 
@@ -555,7 +564,7 @@ Each lane PR names its check. An i386-style lockstep is not assumed for any othe
 - **(b)** Verilator cannot compile them. FES writes behavioural models of the few cells used and checks them against the Intel models on unit benches under Icarus. These are FES models, so their fidelity has to be shown.
 - **(c)** Neither (a) nor (b) is affordable. The rule as the issue states it cannot be met with the installed tools for that leg. If the i386 leg gets (c), native Quartus lanes do not seal the i386 and the yosys route stays the only i386 route. The remaining options go to Deano: a licensed vendor simulator (none is installed) or a VPI port of `lockstep_tb.cpp` to Icarus (a large job).
 
-**Quartus Pro.** No Pro install and no `tennm_*` simulation libraries exist on this host (searched `/home/deano`, `/data`, `/opt`). Pro lockstep waits on S1b, which records the install, whether the libraries are encrypted, and the simulator entitlement.
+**Quartus Pro.** The [S1b record](../validation/2026-11-10-1581-pro-probe/README.md) found Pro 26.3 installed and licensed for Agilex 5 E-Series on Powerboat and fes-build-3090. Neither host had the `tennm_*` simulation models, Questa or a simulator licence. The probe wrote a post-synthesis `.vo` but did not simulate it; Pro lockstep needs a simulator and suitable models or further evidence for another approach.
 
 ### Gate strength
 
@@ -604,7 +613,7 @@ sha256 = "…"
 
 - Extend the existing `quartus_tools.locate_quartus(quartus_root, repo_root)` (`quartus_tools.py:27`) with an edition argument, and take the expected version line from the lock.
 - **Deleted, with no fallback:** the regex, every `LAST_QUARTUS_VERSION`, and the pc386 hard-coded label. In S6b (with S16), also DE25's `QUARTUS_VERSION` and its separate `locate_quartus(root)` (`M/boards/de25nano/build.py:19`, `:68-82`).
-- **A core's Yosys pin stays where its Yosys is built.** `[yosys]` appears only in a lock whose core has no `toolchain.lock` of its own (PC/XT, whose Yosys slot comes from the shared lock). pc386 keeps its Yosys pin in `M/cores/fes-pc386/toolchain.lock`: `make toolchain-fes-pc386` builds that slot from the whole file, and the slot key includes the file's sha256, so moving the pin would leave either a second pin or no builder (S6a, #1647). The rationale text that names the non-existent `build_fes_pc386_oss.py` is corrected by the next PR that changes that lock (its Verilator move to v5.054, #1660): any byte of it moves the fes.pc386 BUILD_ID, and D2 does not edit it.
+- **A core's Yosys pin stays where its Yosys is built.** `[yosys]` appears only in a lock whose core has no `toolchain.lock` of its own (PC/XT, whose Yosys slot comes from the shared lock). pc386 keeps its Yosys pin in `M/cores/fes-pc386/toolchain.lock`: `make toolchain-fes-pc386` builds that slot from the whole file, and the slot key includes the file's sha256, so moving the pin would leave either a second pin or no builder (S6a, #1647). The rationale text that named the deleted `build_fes_pc386_oss.py` was corrected with that lock's Verilator move to v5.054 (#1660). Any byte of the lock moves the fes.pc386 BUILD_ID, so that PR carries the D12 evidence (`docs/validation/2026-11-11-1660-pc386-verilator-lock`).
 - **Locks are per core and last known good**, like nextpnr locks (`quartus-cores.md:288-297`).
 
 ### A newer Lite
@@ -624,7 +633,7 @@ S1b records the actual install, build string and licence state on both hosts. Th
 
 ### Verilator
 
-The locked 5e4151e3 hits an internal error at `fes_i386_seq.sv:317`. Recent evidence used the unlocked system Verilator 5.020 and 5.032 with `-Wno-fatal` (`docs/validation/2026-11-02-i386-cs-limit/summary.md:86-94`). The lock moves forward (S3) before lockstep becomes a producer gate.
+The i386 lock's old 5e4151e3 hit an internal error at `fes_i386_seq.sv:317`, so earlier evidence used the unlocked system Verilator 5.020 and 5.032 with `-Wno-fatal` (`docs/validation/2026-11-02-i386-cs-limit/summary.md:86-94`). S3 (#1653) moved the i386 lock to v5.054, and the i386 sims take it from that lock's slot. The pc386 lock follows (#1660); the pc386 sims still take the system Verilator until they build under v5.054 (#1678).
 
 ## Implementation plan
 
@@ -880,7 +889,7 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
 
 ## Risks
 
-- **S7 may force a reseal of every core for zero ALMs.** S7's helpers are in all 11 audited closures and in the fallback closures. D12 decides whether a closure-only change needs a reseal. If it does, S7r carries the reseal as its own scoped work, with a generated core list. A nextpnr core that misses timing on reseal points to a router or lock regression: move the lock forward and do not change RTL.
+- **S7 may force a reseal of every core for zero ALMs.** S7's helpers are in all 11 audited closures and in the fallback closures. D12 specifies the evidence needed to avoid a reseal for a closure-only change. If a reseal is needed, S7r carries it as its own scoped work, with a generated core list. A nextpnr core that misses timing on reseal points to a router or lock regression: move the lock forward and do not change RTL.
 - **S8's reader set is wider than the 14 files suggest.** It includes PC/XT, the video parts, the ZX81 carts, native video and about 25 Makefile targets. The census-first rule and the S8a/S8b split contain this. A reader the census missed fails loudly at the header check.
 - **The sim lane mapping may not reproduce every target exactly** where a target sets only part of the `FES_*_OSS` set today. S8 diffs every target and lists any change.
 - **S1c may show that the issue's lockstep rule cannot be met with open tools**, because of UDPs, specify blocks, an encrypted DSP model, no vendor simulator, and no Icarus on this host. The plan then stops native lanes for that leg and reports. The rule is not lowered.
@@ -903,8 +912,8 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
 6. **D6. Quartus-lane lockstep when the CPU netlist contains DSPs.** Recommendation: S1c measures first. If there are no DSPs, there is no conflict. If there are, do not seal a native-Quartus i386 lane on a lockstep netlist with DSPs in logic. Either obtain a simulator entitlement that can run `cyclonev_mac`, or keep the i386 on the yosys lane. Never forbid DSPs in the seal.
 7. **D7. Do the `MISTRAL_*`-heavy nextpnr cores ever get a Quartus front end, and are PC/XT's adapters a shim?** Recommendation: not in #1581. A PC/XT-scoped PR replaces PC/XT's adapters with `prim/` primitives when PC/XT next touches its pads or clocks.
 8. **D8. Unify BUILD_ID injection through the header?** Recommendation: no. It touches every top and producer for no lane benefit.
-9. **D9. When should S2 (return-stack MLAB) land?** Recommendation: as soon as S1d shows at least 150 ALMs saved, before Phase 5 slice 2. It is independent and measured, and it gives slices 2–5 room under the 92% ceiling.
+9. **D9. When should S2 (return-stack MLAB) land?** S2 landed in [#1638](https://github.com/DeanoC/fes/pull/1638) after S1d; its three-seed comparison reported an average saving of 418 ALMs.
 10. **D10. Production lane per core when two lanes can seal it.** Recommendation: the recipe names one production `front_end` per core. A second lane is promoted only on a measured win, and the losing lane's producer configuration is then deleted, not kept as a fallback.
 11. **D11. Header location.** Recommendation: `M/cores/fes-common/include/`, a directory for hand-written files only, rather than `generated/`.
-12. **D12. Does a BUILD_ID change caused only by a closure edit (no RTL or netlist change) require a reseal and HIL on main?** This decides whether S7 needs S7r. Recommendation: no reseal for a change whose Yosys netlists and Quartus resource summaries are byte-identical to main apart from the BUILD_ID constant; the PR shows that diff instead. Record the rule in `AGENTS.md` before S7 merges.
+12. **D12. Does a BUILD_ID change caused only by a closure edit require a reseal and HIL on main?** Decided in [#1649](https://github.com/DeanoC/fes/pull/1649): the exception and all required evidence are stated in [AGENTS.md](../../AGENTS.md#hard-rules). S7 must meet that rule for each affected core or use the normal reseal and HIL path.
 13. **D13. Kit baselines.** If S7r, S8 or S11 changes the package IDs of cores in the designated baseline bundles named in `~/kit-status/kit{A,B}-STATUS.md`, do the baselines move, and who updates them and when? Recommendation: the PR that changes a baseline core's package ID names the candidate package, and nobody moves a status file by hand. PR-head HIL restores the kit to the baseline its status file names. After the merge, `baseline-auto.py` promotes from main and publishes the new baseline (`AGENTS.md:59`, `:63-66`).

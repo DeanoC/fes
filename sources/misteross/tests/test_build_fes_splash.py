@@ -56,7 +56,6 @@ class SplashProducerTests(unittest.TestCase):
         self.assertIn("cores/fes-splash/rtl/fes_splash_core.v", yosys)
         self.assertIn("cores/fes-splash/rtl/top.v", yosys)
         self.assertIn("-nobram -nolutram -nodsp", yosys)
-        self.assertNotIn("fes-demo", yosys)
         self.assertNotIn("fes_application", yosys)
         self.assertEqual(nextpnr[nextpnr.index("--qsf") + 1], splash.QSF)
         self.assertEqual(nextpnr[nextpnr.index("--freq") + 1], "74.25")

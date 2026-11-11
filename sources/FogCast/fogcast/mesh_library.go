@@ -52,26 +52,19 @@ type MeshContentSource struct {
 	NodeIDs   []string
 }
 
-// MeshBackendOption keeps each composition distinct. A HostLocal option is
-// usable on this host only when Reason is empty. Nodes are capability
+// MeshBackendOption keeps each composition distinct. Nodes are capability
 // candidates; their presence never makes this option Ready for a session.
 // CoreID is the catalog core id on a package-backed option (fes.sms).
 type MeshBackendOption struct {
-	Entry     meshcontent.Entry
-	Nodes     []MeshBackendNode
-	HostLocal bool
-	Reason    string
-	CoreID    string
+	Entry  meshcontent.Entry
+	Nodes  []MeshBackendNode
+	Reason string
+	CoreID string
 }
 
-// Available is the library wire flag. A host-local option is available
-// when its reason is empty, including when a nested remote node is not.
-// Any other option is available when one of its nodes is. This is not
-// session Ready.
+// Available reports whether any candidate node can run this option.
+// This is not session Ready.
 func (o MeshBackendOption) Available() bool {
-	if o.HostLocal {
-		return o.Reason == ""
-	}
 	for _, node := range o.Nodes {
 		if node.Available {
 			return true
@@ -89,9 +82,7 @@ type MeshBackendNode struct {
 // MeshBackendLibrary projects the existing local catalog and observed node
 // inventory. GET /api/v1/library/titles is the wire view of this same
 // projection. It does not discover titles, select a session backend, or
-// report Ready. Content-source node ids stay empty until #396. A
-// native_emu inventory node is not dialed: remote eligibility waits on
-// #298 and the runner prerequisites, and this method sends no bearer.
+// report Ready. Content-source node ids stay empty until #396.
 // FPGA package facts come from a read of the configured [[targets]]
 // address, cached on this path. A configured hostname is resolved once
 // per process and later reads dial only that pinned IP. If a fresh
@@ -113,13 +104,10 @@ func (s *Service) MeshBackendLibrary(ctx context.Context) ([]MeshBackendRow, []M
 	var skipped []MeshSkip
 	for _, game := range games {
 		if game.Kind == catalog.SourceKindCorePackage {
-			title, firmware, ok := s.meshCatalogTitle(ctx, game.ID)
+			title, ok := s.meshCatalogTitle(ctx, game.ID)
 			if !ok {
 				skipped = append(skipped, MeshSkip{TitleID: game.ID, Reason: "core package projection unavailable"})
 				continue
-			}
-			if firmware.MediaID != "" {
-				lib.Firmware = firmware
 			}
 			lib.Titles = append(lib.Titles, title)
 			continue
@@ -148,7 +136,7 @@ func (s *Service) MeshBackendLibrary(ctx context.Context) ([]MeshBackendRow, []M
 		// Package facts are read at the enrolled origin, or reused from
 		// this path's cache. The dial never uses a discovered or
 		// reconciled address. A hostname is dialed only at the IP this
-		// process pinned. A native_emu node is not a kit content read.
+		// process pinned.
 		if fpga {
 			var reason string
 			abis[node.NodeID], packages[node.NodeID], reason = s.libraryNodeFacts(ctx, node.NodeID)
@@ -167,7 +155,7 @@ func (s *Service) MeshBackendLibrary(ctx context.Context) ([]MeshBackendRow, []M
 
 // applyLibraryNodeReasons marks nodes a library read refused. The node
 // stays unavailable with that reason even when an older package list
-// would have passed. Host-local availability is not cleared.
+// would have passed.
 func applyLibraryNodeReasons(rows []MeshBackendRow, reasons map[string]string) {
 	if len(reasons) == 0 {
 		return
@@ -182,9 +170,6 @@ func applyLibraryNodeReasons(rows []MeshBackendRow, reasons map[string]string) {
 				}
 				opt.Nodes[k].Available = false
 				opt.Nodes[k].Reason = reason
-			}
-			if opt.HostLocal {
-				continue
 			}
 			available := false
 			for _, node := range opt.Nodes {
@@ -211,7 +196,7 @@ func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool,
 	}
 	var projected []projectedMeshTitle
 	for _, title := range lib.Titles {
-		entry, skip, ok := projectMeshTitle(lib.Firmware.MediaID, title)
+		entry, skip, ok := projectMeshTitle(title)
 		if !ok {
 			skipped = append(skipped, skip)
 			continue
@@ -219,11 +204,9 @@ func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool,
 		projected = append(projected, projectedMeshTitle{title: title, entry: entry})
 	}
 	canonical := linkMeshTitles(projected)
-	projected = appendRemoteNativeEmuOptions(projected, nodes)
 	byID := map[string]int{}
 	for _, item := range projected {
 		title, entry := item.title, item.entry
-		hostLocal := title.Execute == ExecutionHostOnly
 		rowID := canonical[entry.TitleID]
 		index, found := byID[rowID]
 		if !found {
@@ -237,7 +220,7 @@ func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool,
 		row := &rows[index]
 		duplicate := false
 		for _, old := range row.Options {
-			if old.HostLocal == hostLocal && reflect.DeepEqual(old.Entry, entry) {
+			if reflect.DeepEqual(old.Entry, entry) {
 				duplicate = true
 				break
 			}
@@ -257,16 +240,11 @@ func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool,
 				row.ContentIDs = append(row.ContentIDs, id)
 			}
 		}
-		option := MeshBackendOption{Entry: entry, HostLocal: hostLocal}
+		option := MeshBackendOption{Entry: entry}
 		if title.Core != nil {
 			if _, pkg := meshEntryPackage(entry); pkg {
 				option.CoreID = title.Core.CoreID
 			}
-		}
-		// Mirror the launch check: an unavailable or offline local source is
-		// not a usable host-local option.
-		if hostLocal && (title.Game.State != catalog.SourceStateAvailable || !title.Game.RootOnline) {
-			option.Reason = "local source unavailable"
 		}
 		for _, node := range nodes {
 			kind := ""
@@ -290,12 +268,6 @@ func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool,
 				candidate.Reason = "node identity or address is ambiguous"
 			case !discovery.MeshMajorCompatible(node.Mesh):
 				candidate.Reason = "mesh protocol major mismatch"
-			case kind == meshcontent.ExecuteNativeEmu:
-				// Pin, system, and software_backends are not consulted.
-				// #298 and runner admission and provisioning are open, so
-				// a weaker check must not mark the node available, and no
-				// bearer is sent to learn them.
-				candidate.Reason = "remote emulator system and version unverified"
 			case kind == meshcontent.ExecuteFPGANative:
 				pkg, ok := meshEntryPackage(entry)
 				if !ok || !containsString(kitPackages[node.NodeID], pkg.PackageID) {
@@ -310,17 +282,15 @@ func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool,
 			}
 			option.Nodes = append(option.Nodes, candidate)
 		}
-		if !option.HostLocal {
-			available := false
-			for _, candidate := range option.Nodes {
-				available = available || candidate.Available
-			}
-			switch {
-			case len(option.Nodes) == 0:
-				option.Reason = "no advertised executor in inventory"
-			case !available:
-				option.Reason = "no compatible executor in inventory"
-			}
+		available := false
+		for _, candidate := range option.Nodes {
+			available = available || candidate.Available
+		}
+		switch {
+		case len(option.Nodes) == 0:
+			option.Reason = "no advertised executor in inventory"
+		case !available:
+			option.Reason = "no compatible executor in inventory"
 		}
 		row.Options = append(row.Options, option)
 	}
@@ -374,53 +344,9 @@ func linkMeshTitles(projected []projectedMeshTitle) map[string]string {
 	return canonical
 }
 
-// appendRemoteNativeEmuOptions adds the phase-2 remote option. Each
-// host-local emulator title gains one synthetic copy with the same game,
-// system, and primary-media digest and with Execute set to native_emu.
-// The existing loop keeps it because host_local differs. The option is
-// emitted only when inventory advertises native_emu, so a kit-only
-// library stays the FPGA option plus the host-local option. Nodes on the
-// synthetic option stay unavailable; this does not read a runner and does
-// not send a bearer.
-func appendRemoteNativeEmuOptions(projected []projectedMeshTitle, nodes []MeshNode) []projectedMeshTitle {
-	if !inventoryAdvertises(nodes, meshcontent.ExecuteNativeEmu) {
-		return projected
-	}
-	extra := make([]projectedMeshTitle, 0)
-	for _, item := range projected {
-		if item.title.Execute != ExecutionHostOnly {
-			continue
-		}
-		if _, ok := meshEntryPrimaryMedia(item.entry); !ok {
-			continue
-		}
-		if len(item.entry.Execute) != 1 || item.entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu {
-			continue
-		}
-		synth := item
-		synth.title.Execute = meshcontent.ExecuteNativeEmu
-		extra = append(extra, synth)
-	}
-	if len(extra) == 0 {
-		return projected
-	}
-	return append(projected, extra...)
-}
-
-func inventoryAdvertises(nodes []MeshNode, kind string) bool {
-	for _, node := range nodes {
-		for _, execute := range node.Capabilities.Execute {
-			if execute.Kind == kind {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 // orderMeshBackendRow makes a row independent of catalog input order:
-// package-backed options first, then by source game id, host-local before
-// sourced; content ids follow that option order.
+// package-backed options first, then by source game id; content ids follow
+// that option order.
 func orderMeshBackendRow(row *MeshBackendRow) {
 	sort.SliceStable(row.Options, func(i, j int) bool {
 		a, b := row.Options[i], row.Options[j]
@@ -432,7 +358,7 @@ func orderMeshBackendRow(row *MeshBackendRow) {
 		if a.Entry.TitleID != b.Entry.TitleID {
 			return a.Entry.TitleID < b.Entry.TitleID
 		}
-		return a.HostLocal && !b.HostLocal
+		return false
 	})
 	row.ContentIDs = row.ContentIDs[:0]
 	for _, option := range row.Options {
@@ -484,27 +410,26 @@ func containsString(values []string, want string) bool {
 	return false
 }
 
-// MeshLibrary is the host catalog view Slice 2 can already see.
-// Firmware.MediaID is the household BIOS core-media id when that slot
-// is filled. Digests are stored SHA-256 strings. This view has no paths
-// and no file bytes.
+// MeshLibrary is the host catalog view. Digests are stored SHA-256 strings;
+// this view has no paths or file bytes.
 type MeshLibrary struct {
-	Firmware catalog.CoreFirmware
-	Titles   []MeshTitle
+	Titles []MeshTitle
 }
 
 // MeshTitle is one library row. Game is the catalog identity. Core is
 // set for a package-backed title. ABI is that package's described
 // contract; ABI.Major is the package ABI major, not the mesh protocol
-// major. Execute is today's session label (fpga_native or host_only).
+// major. Execute is today's session label.
 // Expansions carry the name and digest the catalog already stored.
 type MeshTitle struct {
-	Game       catalog.Game
-	Launchable bool
-	Execute    string
-	Core       *catalog.CoreEntry
-	ABI        corepackage.Contract
-	Expansions []MeshExpansion
+	Game             catalog.Game
+	Launchable       bool
+	Execute          string
+	Core             *catalog.CoreEntry
+	ABI              corepackage.Contract
+	FirmwareRequired bool
+	FirmwareDigest   string
+	Expansions       []MeshExpansion
 }
 
 // MeshExpansion is one named expansion slot.
@@ -535,7 +460,7 @@ type MeshSkip struct {
 // not call ReadyHere. There is no cross-node pull and no host route.
 func ProjectMeshLibrary(lib MeshLibrary) (entries []meshcontent.Entry, skipped []MeshSkip) {
 	for _, title := range lib.Titles {
-		entry, skip, ok := projectMeshTitle(lib.Firmware.MediaID, title)
+		entry, skip, ok := projectMeshTitle(title)
 		if !ok {
 			skipped = append(skipped, skip)
 			continue
@@ -545,7 +470,7 @@ func ProjectMeshLibrary(lib MeshLibrary) (entries []meshcontent.Entry, skipped [
 	return entries, skipped
 }
 
-func projectMeshTitle(firmwareDigest string, title MeshTitle) (meshcontent.Entry, MeshSkip, bool) {
+func projectMeshTitle(title MeshTitle) (meshcontent.Entry, MeshSkip, bool) {
 	id := title.Game.ID
 	if err := protocol.ValidateGameID(id); err != nil {
 		return meshcontent.Entry{}, MeshSkip{TitleID: id, Reason: "title id is not a catalog game id"}, false
@@ -558,7 +483,7 @@ func projectMeshTitle(firmwareDigest string, title MeshTitle) (meshcontent.Entry
 		return meshcontent.Entry{}, MeshSkip{TitleID: id, Reason: "execution is not a mesh catalog kind"}, false
 	}
 	system := meshBrowseSystem(title)
-	slots, reason, ok := meshSlots(firmwareDigest, title, packageBacked)
+	slots, reason, ok := meshSlots(title, packageBacked)
 	if !ok {
 		return meshcontent.Entry{}, MeshSkip{TitleID: id, Reason: reason}, false
 	}
@@ -581,8 +506,6 @@ func meshExecuteKind(execute string, launchable bool) (kind string, packageBacke
 	switch strings.TrimSpace(execute) {
 	case ExecutionFPGANative:
 		return meshcontent.ExecuteFPGANative, true, true
-	case ExecutionHostOnly, meshcontent.ExecuteNativeEmu:
-		return meshcontent.ExecuteNativeEmu, false, true
 	case "":
 		if launchable {
 			return "", false, false
@@ -600,14 +523,14 @@ func meshExecuteKind(execute string, launchable bool) (kind string, packageBacke
 func meshBrowseSystem(title MeshTitle) string {
 	if title.Core != nil {
 		switch title.Core.CoreID {
-		case "fes.coleco", "fes.zx81", "fes.pong", "fes.catch", "fes.sms", "fes.sg1000":
+		case "fes.coleco", "fes.zx81", "fes.pong", "fes.sms", "fes.sg1000":
 			return strings.TrimPrefix(title.Core.CoreID, "fes.")
 		}
 	}
 	return string(title.Game.System)
 }
 
-func meshSlots(firmwareDigest string, title MeshTitle, packageBacked bool) ([]meshcontent.Slot, string, bool) {
+func meshSlots(title MeshTitle, packageBacked bool) ([]meshcontent.Slot, string, bool) {
 	var slots []meshcontent.Slot
 	if packageBacked {
 		pkg, reason, ok := meshPackage(title)
@@ -616,9 +539,8 @@ func meshSlots(firmwareDigest string, title MeshTitle, packageBacked bool) ([]me
 		}
 		slots = append(slots, meshcontent.PackageSlot(pkg))
 	}
-	firmwareRequired := title.Core != nil && title.Core.FirmwareRequired
-	if firmwareRequired {
-		next, reason, ok := appendStoredDigest(slots, firmwareDigest, true, "household firmware", meshcontent.FromSHA256, meshcontent.BIOSSlot)
+	if title.FirmwareRequired {
+		next, reason, ok := appendStoredDigest(slots, title.FirmwareDigest, true, "title firmware", meshcontent.FromSHA256, meshcontent.BIOSSlot)
 		if !ok {
 			return nil, reason, false
 		}

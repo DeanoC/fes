@@ -55,6 +55,10 @@ type remoteCoreEntryCatalog interface {
 	BindRemoteCoreEntryMedia(context.Context, string, catalog.RemoteCoreEntryOrigin) (catalog.CoreEntry, error)
 }
 
+type remoteCassetteImporter interface {
+	ImportRemoteCassetteStream(context.Context, int64, io.Reader) (catalog.CoreMedia, bool, error)
+}
+
 func normalizeLibrarySources(raw []LibrarySourceConfig) ([]LibrarySourceConfig, error) {
 	if len(raw) > 16 {
 		return nil, errors.New("at most 16 library sources are supported")
@@ -278,7 +282,7 @@ type remoteSelectionSnapshot struct {
 }
 
 type remoteSelectionCatalog interface {
-	CoreEntryROM(context.Context, string) (catalog.CoreEntryROM, error)
+	CoreEntryROM(context.Context, string, string) (catalog.CoreEntryROM, error)
 	CoreEntryExpansion(context.Context, string) (catalog.CoreEntryExpansion, error)
 	CoreEntrySlotExpansions(context.Context, string) ([]catalog.CoreEntrySlotExpansion, error)
 }
@@ -293,8 +297,14 @@ func (s *Service) captureRemoteSelection(ctx context.Context, gameID string) (re
 	if selection.entry, err = s.CoreEntry(ctx, gameID); err != nil {
 		return selection, err
 	}
-	if selection.rom, err = store.CoreEntryROM(ctx, gameID); err != nil {
-		return selection, mapCoreEntryError(err)
+	inspection, err := s.installedCoreInspection(ctx, selection.entry.PackageID)
+	if err != nil {
+		return selection, err
+	}
+	if inspection.Descriptor.ROM != nil {
+		if selection.rom, err = store.CoreEntryROM(ctx, gameID, inspection.Descriptor.ROM.ID); err != nil {
+			return selection, mapCoreEntryError(err)
+		}
 	}
 	if selection.expansion, err = store.CoreEntryExpansion(ctx, gameID); err != nil {
 		return selection, mapCoreEntryError(err)
@@ -309,8 +319,21 @@ func (s *Service) snapshotRemoteSelectionDrift(snap launchSnapshot) error {
 	if snap.remoteSelection == nil {
 		return nil
 	}
+	// Detect an entry change before looking up its new package. It may have
+	// disappeared or not yet be installed while the source fetch was in flight.
+	entry, err := s.CoreEntry(context.Background(), snap.gameID)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(snap.remoteSelection.entry, entry) {
+		return snapshotMismatch(launchSnapshotCompositionChanged)
+	}
 	current, err := s.captureRemoteSelection(context.Background(), snap.gameID)
 	if err != nil {
+		// A package can change after the first read but before inspection.
+		if latest, readErr := s.CoreEntry(context.Background(), snap.gameID); readErr == nil && !reflect.DeepEqual(snap.remoteSelection.entry, latest) {
+			return snapshotMismatch(launchSnapshotCompositionChanged)
+		}
 		return err
 	}
 	if !reflect.DeepEqual(*snap.remoteSelection, current) {
@@ -367,7 +390,7 @@ func (s *Service) prepareRemoteLibraryLaunch(ctx context.Context, gameID string,
 	if !found || !origin.Pending {
 		return nil
 	}
-	if s.launchUsesForeignKit(*snap, ExecutionFPGANative) {
+	if s.launchUsesForeignKit(*snap) {
 		return canonicalError(protocol.CodeKitLeaseDenied, nil)
 	}
 	release, err := s.acquireLifecycle(ctx)
@@ -429,7 +452,11 @@ func (s *Service) prepareRemoteLibraryLaunch(ctx context.Context, gameID string,
 		if err := s.validateLaunchSnapshot(*snap); err != nil {
 			return err
 		}
-		media, _, err = mediaStore.ImportCoreMediaStream(ctx, int64(len(body)), bytes.NewReader(body))
+		importer, ok := s.catalog.(remoteCassetteImporter)
+		if !ok {
+			return canonicalError(protocol.CodeUnsupportedOperation, nil)
+		}
+		media, _, err = importer.ImportRemoteCassetteStream(ctx, int64(len(body)), bytes.NewReader(body))
 	}
 	if err != nil {
 		return mapCoreMediaError(err)

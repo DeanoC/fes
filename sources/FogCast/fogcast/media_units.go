@@ -24,12 +24,11 @@ type mediaUnitClient interface {
 	EjectMedia(context.Context, protocol.MediaUnitBinding) (protocol.Status, error)
 }
 
-// prepareMediaUnitClient repeats the development-media admission: host-only
-// play and a pending rejection block delivery, and the binding must name the
-// session's target. Caller holds lifecycle admission.
+// prepareMediaUnitClient rejects a pending package recovery and checks the
+// bound target before media delivery. Caller holds lifecycle admission.
 func (s *Service) prepareMediaUnitClient(ctx context.Context, b protocol.MediaUnitBinding) error {
 	s.executionMu.Lock()
-	blocked := s.plays[b.Target].packageRejection != nil || (s.hostCastClaimsKitDisplay && s.activeExecution == ExecutionHostOnly)
+	blocked := s.plays[b.Target].packageRejection != nil
 	s.executionMu.Unlock()
 	if blocked {
 		return protocol.MediaUnitIdentityError()

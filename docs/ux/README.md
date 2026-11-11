@@ -367,7 +367,7 @@ as a blanket pass for the combined build.
   ZX81 bring-up computer. Master System, SG-1000 and the earlier
   ColecoVision package use that matrix as a joystick and are not shown.
   Pads are not listed.
-- **Destination.** A kit-local core plays on the kit's own HDMI output, so
+- **Destination.** A kit-host session plays on the kit's own HDMI output, so
   the hero says "Plays on this TV". No chooser is shown: this path has one
   destination.
 - **Readiness copy.** Checking, Ready, Needs a choice and Unavailable appear
@@ -375,8 +375,7 @@ as a blanket pass for the combined build.
   a solid bar). Opaque blocks become consequences: `parts` is "Display setup
   incomplete" with "Start it from the FogCast library instead". Details
   (Y, or A on a blocked core) shows the core id, short package id and the
-  kit's verbatim block in the hero; Back closes it. After an ambiguous local
-  launch the core shows Checking, not Ready, until the agent reports idle.
+  kit's verbatim block in the hero; Back closes it.
   A Ready item also has a directional route: Up enters Play/Details,
   Left/Right chooses, and Confirm opens the focused action. Back returns to
   the same shelf item without launching it.
@@ -400,17 +399,9 @@ as a blanket pass for the combined build.
   content width and three with the default 5% TV safe area (as on the kit)
   or at 1024. A long title, explanation or Details list shrinks (one-line
   explanation, one-line title, no kicker) before it can reach the buttons.
-- **Gameplay exit.** A kit-local core stops with one press of keyboard F12
-  (MiSTer's menu key) or a pad's Guide button. Neither is forwarded to a
-  core, and the menu cannot draw while the core owns HDMI, so neither asks
-  for confirmation. The Select+Start one-second hold remains, and it is the
-  only route on a pad without Guide; that is an accepted limit for sparse
-  pads, since every other button belongs to the game. The hero names all
-  three routes before Play. A press during loading stops the core once it is
-  running, as the hold does. These routes have the #787 kit evidence linked
-  above. The Guide-less exception is recorded in
-  [the 17 October decision](https://github.com/DeanoC/fes/issues/770#issuecomment-6234959632);
-  it does not waive menu or Details reachability.
+- **Gameplay exit.** Holding Select+Start on one pad for one second stops
+  the active kit session. F12 and Guide can open playing controls when
+  available; in supported roomless sessions they stop instead.
 
 ## Library and Details: second-slice decisions
 

@@ -6,7 +6,6 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/libraryuser"
-	"github.com/DeanoC/FogCast/protocol"
 )
 
 // Availability is the play-availability family rooms, tenfoot, and the
@@ -63,7 +62,7 @@ const (
 )
 
 // ValidPackageID reports whether id is a lowercase SHA-256 hex package id,
-// the same rule the local-control socket accepts.
+// matching the inventory package identity.
 func ValidPackageID(id string) bool {
 	return localcores.SHA256Hex(id)
 }
@@ -109,9 +108,8 @@ const (
 	ConfirmOpenLibraryBrowse
 	ConfirmLauncherAction
 	ConfirmLaunchCore
-	// ConfirmLaunchKit plays a present local cartridge through the kit
-	// socket. It is not the host session launch.
-	ConfirmLaunchKit
+	// ConfirmLaunchKitCartridge prepares a present cartridge as a host entry.
+	ConfirmLaunchKitCartridge
 )
 
 // Destination is the selected location a room publishes to the launcher.
@@ -125,15 +123,14 @@ type Destination struct {
 	// It is not the Action copy line.
 	LauncherAction string
 	// PackageID and CoreID identify an installed core when Kind is KindCore.
-	// CoreLaunchable is false when the socket would refuse the package.
-	// CoreBlock is that refusal, verbatim ("Needs a cartridge", "Needs firmware").
+	// CoreLaunchable and CoreBlock describe package inventory readiness
+	// for host-owned setup (such as "Needs a cartridge" or "Needs firmware").
 	PackageID      string
 	CoreID         string
 	CoreLaunchable bool
 	CoreBlock      string
 	// CorePending is a remembered package shown before the kit has listed
-	// its cores. Confirm queues a launch that the kit accepts only once
-	// listing finishes and the package is still installed and launchable.
+	// its cores. The kit host checks readiness before preparing the entry.
 	CorePending bool
 	// CoreNeeds is the kit inventory's requirement class for a core
 	// ("none", "media", "firmware", "parts", "unsupported", "unavailable").
@@ -163,10 +160,9 @@ type Destination struct {
 	// LeaseHeld is a foreign kit lease. The same shell's Soft-stop retained
 	// grant leaves this false so that shell stays Ready.
 	LeaseHeld bool
-	// KitDirect is a present local cartridge the kit plays through the
-	// local-control socket. Confirm returns ConfirmLaunchKit and does not
-	// post the host session. Host-eligible rows leave this false.
-	KitDirect bool
+	// KitHostCartridge is a present cartridge prepared as a host entry before
+	// launching. Host-eligible rows leave this false.
+	KitHostCartridge bool
 	// ReadyBlock and NextAction are ReadyHere when the mesh seam is on.
 	// Empty when that seam is off.
 	ReadyBlock string
@@ -318,8 +314,6 @@ func PlayChoiceKind(matches []hostclient.Game) ChoiceKind {
 func playExecution(game hostclient.Game) string {
 	exec := strings.TrimSpace(game.Execution)
 	switch exec {
-	case hostclient.ExecutionHostOnly, "native_emu":
-		return "native_emu"
 	case "fpga_native", "fpga_development":
 		return "fpga_native"
 	default:
@@ -330,8 +324,6 @@ func playExecution(game hostclient.Game) string {
 // BackendLabel is the sofa name for one play option.
 func BackendLabel(game hostclient.Game) string {
 	switch playExecution(game) {
-	case "native_emu":
-		return "Emulator"
 	case "fpga_native":
 		return "FPGA"
 	default:
@@ -345,9 +337,8 @@ func BackendLabel(game hostclient.Game) string {
 
 // ApplyForeignLease applies a foreign kit lease to each launch-eligible
 // candidate before viable choices are counted. foreign is false for the
-// shell that holds the grant, including after Soft-stop. A host-only
-// candidate stays viable, so an emulator beside a leased FPGA is the sole
-// Ready option. A lone leased option is Unavailable with the in-use reason.
+// shell that holds the grant, including after Soft-stop. A leased option is
+// Unavailable with the in-use reason.
 // Confirm then explains and does not launch or take the lease. An existing
 // catalog block (firmware, skew) is left as that block. A leased sibling
 // stays in Candidates with the in-use reason and is not a choice, so a
@@ -369,7 +360,7 @@ func ApplyForeignLease(d Destination, foreign bool) Destination {
 	changed := false
 	for i, g := range source {
 		next[i] = g
-		if g.HostOnly() || !g.LaunchEligible() {
+		if !g.LaunchEligible() {
 			continue
 		}
 		next[i] = leaseHeldCandidate(g)
@@ -676,7 +667,7 @@ func (d *Destination) FillCopy() {
 				d.Status = reason
 			}
 			if d.Matches[0].LaunchBlock() == hostclient.LaunchMissingFirmware {
-				d.Action = "Import Coleco BIOS."
+				d.Action = "Import firmware."
 			}
 		}
 	case AvailReady:
@@ -734,9 +725,9 @@ func (d Destination) Confirm() ConfirmIntent {
 		return ConfirmExplain
 	case AvailReady:
 		// A selected placement stays on this launch. Confirm does not
-		// ask which machine. A kit-direct cartridge never posts the host.
-		if d.KitDirect {
-			return ConfirmLaunchKit
+		// ask which machine. A cartridge is prepared by the kit host.
+		if d.KitHostCartridge {
+			return ConfirmLaunchKitCartridge
 		}
 		return ConfirmLaunch
 	default:
@@ -759,10 +750,7 @@ func LaunchBlockCopy(game hostclient.Game) string {
 	case hostclient.LaunchNotReady:
 		return "This game isn't ready to launch."
 	case hostclient.LaunchMissingFirmware:
-		if game.ROMRole == protocol.FirmwareRole {
-			return "Required machine firmware is missing. Import it before Play."
-		}
-		return "Coleco BIOS required. Import household firmware before Play."
+		return "Required machine firmware is missing. Import it before Play."
 	case hostclient.LaunchMissingROM:
 		return "Needs a cartridge"
 	case hostclient.LaunchDistant:

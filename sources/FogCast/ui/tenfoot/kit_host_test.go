@@ -20,6 +20,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/testwait"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
 func TestKitHostUsesUnpairedHostInventoryInsteadOfEmbeddedCatalog(t *testing.T) {
@@ -76,7 +77,7 @@ func TestKitHostStartupAndActiveSessionHoldDisplay(t *testing.T) {
 	}
 	defer app.Stop()
 	app.fetchSession(t.Context())
-	if snap := app.Snapshot(); !snap.LocalCorePresentsPaused || !snap.LocalCoreLateAdopt {
+	if snap := app.Snapshot(); !snap.HostPresentsPaused || !snap.HostLateAdopt {
 		t.Fatal("unavailable host allowed startup presentation")
 	}
 	if !app.HandlePlayHIDScancode("a", 4, true, time.Now()) {
@@ -84,19 +85,19 @@ func TestKitHostStartupAndActiveSessionHoldDisplay(t *testing.T) {
 	}
 	available.Store(true)
 	app.fetchSession(t.Context())
-	if app.Snapshot().LocalCorePresentsPaused {
+	if app.Snapshot().HostPresentsPaused {
 		t.Fatal("confirmed idle session kept startup display paused")
 	}
 	app.mu.Lock()
 	app.session.State = "active"
 	app.mu.Unlock()
-	if snap := app.Snapshot(); !snap.LocalCorePresentsPaused || !snap.LocalCoreLateAdopt {
+	if snap := app.Snapshot(); !snap.HostPresentsPaused || !snap.HostLateAdopt {
 		t.Fatal("active host session allowed presentation over machine pixels")
 	}
 	app.mu.Lock()
 	app.sessionDisplay = protocol.SessionDisplayShown
 	app.mu.Unlock()
-	if app.Snapshot().LocalCorePresentsPaused {
+	if app.Snapshot().HostPresentsPaused {
 		t.Fatal("visible session plane did not allow presentation")
 	}
 }
@@ -174,7 +175,7 @@ func TestKitHostMenuBecomesReadyWhenHostSessionIsIdleWithoutTargetID(t *testing.
 	if targetID != "" {
 		t.Fatalf("offline fixture unexpectedly supplied a target ID: %q", targetID)
 	}
-	if snap := app.Snapshot(); snap.LocalCorePresentsPaused || snap.LocalCoreLateAdopt {
+	if snap := app.Snapshot(); snap.HostPresentsPaused || snap.HostLateAdopt {
 		t.Fatalf("confirmed idle session left the menu held: %+v", snap)
 	}
 	if skip, err := hold.skip(t.Context(), dev, app.Snapshot()); skip || err != nil {
@@ -352,11 +353,11 @@ func TestKitHostWaitsForDisplayHandoffBeforeLaunching(t *testing.T) {
 	app.mu.Lock()
 	app.startLaunchGameLocked(hostclient.Game{ID: "game", Title: "Game", State: "available", RootOnline: true, Launchable: true})
 	app.mu.Unlock()
-	if !app.Snapshot().LocalCorePresentsPaused || requests.Load() != 0 {
+	if !app.Snapshot().HostPresentsPaused || requests.Load() != 0 {
 		t.Fatal("host launch was not held for the display")
 	}
-	app.completeLocalLaunchHandoff(errors.New("display unavailable"))
-	if requests.Load() != 0 || app.Snapshot().LocalCorePresentsPaused || app.Snapshot().Launch.Phase != "error" {
+	app.completeHostLaunchHandoff(errors.New("display unavailable"))
+	if requests.Load() != 0 || app.Snapshot().HostPresentsPaused || app.Snapshot().Launch.Phase != "error" {
 		t.Fatal("failed display handoff did not abort the launch")
 	}
 }
@@ -384,16 +385,16 @@ func TestKitHostLostLaunchReplyWaitsForHostStatus(t *testing.T) {
 	app.mu.Lock()
 	app.startLaunchGameLocked(hostclient.Game{ID: "game", Title: "Game", State: "available", RootOnline: true, Launchable: true})
 	app.mu.Unlock()
-	app.completeLocalLaunchHandoff(nil)
+	app.completeHostLaunchHandoff(nil)
 	deadline := time.Now().Add(testwait.Timeout)
 	for app.Snapshot().Launch.Phase == "launching" && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
 	}
-	if !app.Snapshot().LocalCorePresentsPaused {
+	if !app.Snapshot().HostPresentsPaused {
 		t.Fatal("lost launch reply resumed presents before reconciliation")
 	}
 	app.fetchSession(context.Background())
-	if app.Snapshot().LocalCorePresentsPaused {
+	if app.Snapshot().HostPresentsPaused {
 		t.Fatal("confirmed idle session did not resume presents")
 	}
 }
@@ -606,7 +607,7 @@ func TestKitHostReattachesAfterHostAndLauncherRestart(t *testing.T) {
 		session := app.session
 		waiting := app.hostAwaitStatus
 		app.mu.Unlock()
-		if waiting || session.State != "active" || session.ID != "session-1" || !packageStopIdentity(session) || !app.Snapshot().LocalCorePresentsPaused {
+		if waiting || session.State != "active" || session.ID != "session-1" || !packageStopIdentity(session) || !app.Snapshot().HostPresentsPaused {
 			t.Fatalf("session not safely reattached: %+v waiting=%v", session, waiting)
 		}
 	}
@@ -615,7 +616,7 @@ func TestKitHostReattachesAfterHostAndLauncherRestart(t *testing.T) {
 	assertAttached(app)
 	available.Store(false)
 	app.fetchSession(t.Context())
-	if app.Snapshot().Session.State != "active" || !app.Snapshot().LocalCorePresentsPaused {
+	if app.Snapshot().Session.State != "active" || !app.Snapshot().HostPresentsPaused {
 		t.Fatal("host outage discarded the running session or resumed display")
 	}
 	available.Store(true)
@@ -636,7 +637,6 @@ func TestKitHostStartupAcceptsTerminalSessionStates(t *testing.T) {
 	}{
 		{"idle", false, false},
 		{"active", false, true},
-		{"local", false, true},
 		{"failed", false, false},
 		{"launching", true, true},
 		{"stopping", true, true},
@@ -659,8 +659,78 @@ func TestKitHostStartupAcceptsTerminalSessionStates(t *testing.T) {
 			app.mu.Lock()
 			waiting := app.hostAwaitStatus
 			app.mu.Unlock()
-			if waiting != tc.waiting || app.Snapshot().LocalCorePresentsPaused != tc.paused {
-				t.Fatalf("state %s: waiting=%v paused=%v", tc.state, waiting, app.Snapshot().LocalCorePresentsPaused)
+			if waiting != tc.waiting || app.Snapshot().HostPresentsPaused != tc.paused {
+				t.Fatalf("state %s: waiting=%v paused=%v", tc.state, waiting, app.Snapshot().HostPresentsPaused)
+			}
+		})
+	}
+}
+
+func TestKitHostRoomConfirmPreparesAndLaunchesHostEntry(t *testing.T) {
+	packageID := strings.Repeat("b", 64)
+	cases := []struct{ name, script, wantPackage, wantGame string }{
+		{"core", `function load() destination.set{kind="core",package_id="` + packageID + `",core_id="fes.pong",label="Pong",launchable=true} end function draw() end`, packageID, ""},
+		{"cartridge", `function load() destination.set{kind="game",label="Game",matches={{id="cartridge",title="Game",system="sms",state="available",launchable=false}}} end function draw() end`, "", "cartridge"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			requests := make(chan string, 2)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/v1/library/local-core-entry":
+					var req struct {
+						PackageID string `json:"package_id"`
+						GameID    string `json:"game_id"`
+					}
+					if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PackageID != tc.wantPackage || req.GameID != tc.wantGame {
+						t.Errorf("prepare request %+v: %v", req, err)
+					}
+					requests <- "prepare"
+					coreID := "fes.pong"
+					if tc.wantGame != "" {
+						coreID = "fes.sms"
+					}
+					_ = json.NewEncoder(w).Encode(hostclient.CoreEntry{GameID: "prepared", CoreID: coreID, PackageID: packageID})
+				case "/api/v1/games/prepared":
+					_ = json.NewEncoder(w).Encode(hostclient.Game{ID: "prepared", Title: "Pong", State: "available", RootOnline: true, Launchable: true})
+				case "/api/v1/session/launch":
+					var req struct {
+						GameID string `json:"game_id"`
+					}
+					_ = json.NewDecoder(r.Body).Decode(&req)
+					if req.GameID != "prepared" {
+						t.Errorf("launched game %q", req.GameID)
+					}
+					requests <- "launch"
+					_, _ = w.Write([]byte(`{"state":"active"}`))
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+			pack := testRoomPack(t, "core-confirm", tc.script)
+			room, err := rooms.New(pack, rooms.Options{Width: 1280, Height: 720})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer room.Close()
+			if err := room.Load(); err != nil {
+				t.Fatal(err)
+			}
+			app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 50)
+			defer app.Stop()
+			app.SetKitLocal(&fakeLocalCores{cores: []localcores.Core{{CoreID: "fes.sms"}}}, &fakePadFeed{})
+			app.kitHost, app.room = true, room
+			app.HandleCommand(CmdSelect, time.Now())
+			for _, want := range []string{"prepare", "launch"} {
+				select {
+				case got := <-requests:
+					if got != want {
+						t.Fatalf("got %s, want %s", got, want)
+					}
+				case <-time.After(testwait.Timeout):
+					t.Fatalf("waiting for %s; status=%q destination=%+v", want, app.Snapshot().Status, app.Snapshot().Room.Destination)
+				}
 			}
 		})
 	}

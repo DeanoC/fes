@@ -8,7 +8,6 @@ import (
 // Game is one catalog row from GET /api/v1/games.
 type Game struct {
 	ID           string   `json:"id"`
-	ROMSHA256    string   `json:"rom_sha256,omitempty"`
 	Title        string   `json:"title"`
 	System       string   `json:"system"`
 	CoreID       string   `json:"core_id,omitempty"`
@@ -34,7 +33,7 @@ type Game struct {
 	// Variants. Rooms read them; they are not a second wire field.
 	Editions         []Game `json:"-"`
 	FirmwareRequired bool   `json:"firmware_required,omitempty"`
-	// Execution is the service policy for this row (fpga_native, fpga_development, host_only).
+	// Execution is the service policy for this row (fpga_native or fpga_development).
 	Execution      string `json:"execution,omitempty"`
 	ExpansionID    string `json:"expansion_id,omitempty"`
 	ROMRequired    bool   `json:"rom_required,omitempty"`
@@ -99,7 +98,7 @@ const (
 
 // LaunchBlock classifies catalog-side launch ineligibility. ListGames variant
 // selection and sofa admission share this rule. A true ReadyHere still
-// applies the catalog gates: a host-only row whose root is offline is
+// applies the catalog gates: a row whose root is offline is
 // not Play. A false ReadyHere keeps the mesh block.
 func (g Game) LaunchBlock() LaunchBlock {
 	if g.ReadyHere != nil && !*g.ReadyHere {
@@ -165,20 +164,11 @@ func (g Game) LaunchEligible() bool {
 	return g.LaunchBlock() == ""
 }
 
-// LocalCatalogPlayable admits a present SMS cartridge to the kit-local core.
+// KitHostCartridgeEligible admits a present SMS cartridge for kit-host entry preparation.
 // Host-eligible rows keep their ordinary session route.
-func (g Game) LocalCatalogPlayable() bool {
-	return !g.HostOnly() && !g.LaunchEligible() && g.LaunchBlock() == LaunchBrowseOnly &&
+func (g Game) KitHostCartridgeEligible() bool {
+	return !g.LaunchEligible() && g.LaunchBlock() == LaunchBrowseOnly &&
 		g.RootOnline && g.State == "available" && strings.EqualFold(strings.TrimSpace(g.System), "sms")
-}
-
-// ExecutionHostOnly is a title that plays on the host executor and does not
-// claim a kit lease.
-const ExecutionHostOnly = "host_only"
-
-// HostOnly reports a catalog row whose service execution is the host executor.
-func (g Game) HostOnly() bool {
-	return strings.TrimSpace(g.Execution) == ExecutionHostOnly
 }
 
 // CoreEntry is the stable library mapping for one FPGA-core game.

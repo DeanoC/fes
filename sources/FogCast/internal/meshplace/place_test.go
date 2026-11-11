@@ -161,15 +161,11 @@ func TestDisplayAndInputStayOnTheExecuteNode(t *testing.T) {
 	}
 }
 
-func TestNativeEmuSelectedOnlyWhenNoFPGACanRun(t *testing.T) {
-	// The FPGA kit advertises fpga_native with an empty family list, so
-	// it cannot run this title. The shell cannot either.
-	got := Place(nativeEntry(), []Candidate{
-		shellNode(shellMac),
-		fpgaNode(kitLiving, nil),
-		emuNode(emuOne),
-	}, Options{DisplayPreference: shellMac})
-	mustSelected(t, got, emuOne, true, true)
+func TestNativeEmuIsNotPlaced(t *testing.T) {
+	for _, opts := range []Options{{}, {OverrideNodeID: emuOne}} {
+		got := Place(nativeEntry(), []Candidate{emuNode(emuOne)}, opts)
+		mustFail(t, got, ReasonNoCandidate)
+	}
 }
 
 func TestFPGACandidateBeatsNativeEmu(t *testing.T) {
@@ -186,27 +182,6 @@ func TestNativeEmuDoesNotRunAnFPGATitle(t *testing.T) {
 		fpgaNode(kitLiving, nil),
 	}, Options{})
 	mustFail(t, got, ReasonNoCandidate)
-}
-
-func TestSeveralNativeEmuSelectTheFirst(t *testing.T) {
-	one := emuNode(emuOne)
-	two := emuNode(emuTwo)
-	// Preference and last sink name the other node. Candidate order,
-	// not the display facts, picks among native_emu nodes.
-	forward := Place(nativeEntry(), []Candidate{one, two}, Options{
-		DisplayPreference: emuTwo,
-		LastDisplaySink:   emuTwo,
-	})
-	reverse := Place(nativeEntry(), []Candidate{two, one}, Options{
-		DisplayPreference: emuOne,
-		LastDisplaySink:   emuOne,
-	})
-	mustSelected(t, forward, emuOne, true, true)
-	mustSelected(t, reverse, emuTwo, true, true)
-
-	// A shell or an FPGA kit ahead of them is not a native_emu node.
-	behind := Place(nativeEntry(), []Candidate{shellNode(shellMac), fpgaNode(kitLiving, nil), two, one}, Options{})
-	mustSelected(t, behind, emuTwo, true, true)
 }
 
 func TestNotLaunchableFailsClosed(t *testing.T) {
@@ -235,10 +210,6 @@ func TestMeshMajorMismatchFailsClosed(t *testing.T) {
 	both := Place(fpgaEntry(), []Candidate{bad, other}, Options{DisplayPreference: kitLiving})
 	mustFail(t, both, ReasonMeshMajor)
 
-	emu := emuNode(emuOne)
-	emu.MeshMajorOK = false
-	native := Place(nativeEntry(), []Candidate{emu, fpgaNode(kitLiving, colecoABIs())}, Options{})
-	mustFail(t, native, ReasonMeshMajor)
 }
 
 func TestMeshMajorMismatchIsSkippedAmongSeveralKits(t *testing.T) {
@@ -259,15 +230,6 @@ func TestMeshMajorMismatchIsSkippedAmongSeveralKits(t *testing.T) {
 	namedBad := Place(fpgaEntry(), []Candidate{bad, good}, Options{DisplayPreference: kitDen})
 	mustSelected(t, namedBad, kitLiving, true, true)
 
-	// Among native_emu nodes the first that can run the title wins, so a
-	// mismatched node ahead of it is skipped rather than selected.
-	nativeGood := emuNode(emuOne)
-	nativeBad := emuNode(emuTwo)
-	nativeBad.MeshMajorOK = false
-	native := Place(nativeEntry(), []Candidate{nativeBad, nativeGood}, Options{
-		DisplayPreference: emuTwo,
-	})
-	mustSelected(t, native, emuOne, true, true)
 }
 
 func TestMissingRequiredSlotFailsClosed(t *testing.T) {
@@ -324,8 +286,6 @@ func TestEmptyOverrideMatchesUnset(t *testing.T) {
 	den := fpgaNode(kitDen, colecoABIs())
 	bad := living
 	bad.MeshMajorOK = false
-	one := emuNode(emuOne)
-	two := emuNode(emuTwo)
 	cases := []struct {
 		name       string
 		entry      meshcontent.Entry
@@ -348,18 +308,6 @@ func TestEmptyOverrideMatchesUnset(t *testing.T) {
 			entry:      fpgaEntry(),
 			candidates: []Candidate{den, living},
 			opts:       Options{DisplayPreference: kitDen, LastDisplaySink: kitLiving},
-		},
-		{
-			name:       "one native",
-			entry:      nativeEntry(),
-			candidates: []Candidate{shellNode(shellMac), fpgaNode(kitLiving, nil), one},
-			opts:       Options{DisplayPreference: shellMac},
-		},
-		{
-			name:       "several native",
-			entry:      nativeEntry(),
-			candidates: []Candidate{two, one},
-			opts:       Options{DisplayPreference: emuOne, LastDisplaySink: emuOne},
 		},
 		{
 			name:       "mesh major",
@@ -514,41 +462,6 @@ func TestOverrideOfMeshMajorFailDoesNotSelect(t *testing.T) {
 	namedGood := Place(fpgaEntry(), []Candidate{bad, good}, Options{OverrideNodeID: kitDen})
 	mustSelected(t, namedGood, kitDen, true, true)
 
-	nativeBad := emuNode(emuOne)
-	nativeBad.MeshMajorOK = false
-	nativeGood := emuNode(emuTwo)
-	nativeMiss := Place(nativeEntry(), []Candidate{nativeGood, nativeBad}, Options{
-		DisplayPreference: emuTwo,
-		OverrideNodeID:    emuOne,
-	})
-	mustUnresolved(t, nativeMiss)
-
-	bothBad := nativeGood
-	bothBad.MeshMajorOK = false
-	nativeFail := Place(nativeEntry(), []Candidate{nativeBad, bothBad}, Options{OverrideNodeID: emuOne})
-	mustFail(t, nativeFail, ReasonMeshMajor)
-}
-
-func TestOverrideSelectsOneOfSeveralNative(t *testing.T) {
-	one := emuNode(emuOne)
-	two := emuNode(emuTwo)
-	two.InputSource = false
-	got := Place(nativeEntry(), []Candidate{one, two, shellNode(shellMac)}, Options{
-		DisplayPreference: emuOne,
-		LastDisplaySink:   emuOne,
-		OverrideNodeID:    emuTwo,
-	})
-	mustSelected(t, got, emuTwo, true, false)
-
-	swapped := Place(nativeEntry(), []Candidate{two, one}, Options{OverrideNodeID: emuTwo})
-	mustSelected(t, swapped, emuTwo, true, false)
-
-	empty := Place(nativeEntry(), []Candidate{two, one}, Options{
-		DisplayPreference: emuOne,
-		LastDisplaySink:   emuOne,
-		OverrideNodeID:    "",
-	})
-	mustSelected(t, empty, emuTwo, true, false)
 }
 
 func TestOverrideMissLeavesNotLaunchableAndMissingSlot(t *testing.T) {

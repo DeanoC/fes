@@ -445,8 +445,7 @@ func TestDetailsClassifyTheChosenEditionAndPairedLease(t *testing.T) {
 	app.roomDetail = blocked
 	d := app.detailPlayLocked()
 	app.roomDetail = hostclient.Game{}
-	host := availableGame("emu-pong", "Pong", "pong")
-	host.Execution = hostclient.ExecutionHostOnly
+	host := availableGame("fpga-pong", "Pong", "pong")
 	app.kitLeaseHave = true
 	app.kitLease = KitLeaseStatus{State: "held", Owner: "another-shell", Purpose: "playing"}
 	leased := app.gamePlayDestinationLocked(host)
@@ -455,7 +454,7 @@ func TestDetailsClassifyTheChosenEditionAndPairedLease(t *testing.T) {
 		t.Fatalf("edition Details described the room destination: %+v", c)
 	}
 	if leased.Availability != rooms.AvailUnavailable || !leased.LeaseHeld || libraryDetailHint(InputGamepad, 0, leased) != "B back  Y search  GUIDE settings" {
-		t.Fatalf("paired foreign lease left a host-only title Ready: %+v", leased)
+		t.Fatalf("paired foreign lease left a title Ready: %+v", leased)
 	}
 }
 
@@ -706,15 +705,9 @@ func TestLibraryHeaderListAndDetailsShareOneClassifier(t *testing.T) {
 
 func TestReadyDetailsSaysWhereAPairedLaunchPlays(t *testing.T) {
 	kit := availableGame("pong", "Pong", "pong")
-	host := availableGame("emu-pong", "Pong", "pong")
-	host.Execution = hostclient.ExecutionHostOnly
 	paired := kitPlayState{Paired: true}
 	if c := detailReadiness(classifyLibraryGame(kit, paired)); c.State != heroStateReady || c.Headline != heroPlaysOnThisTV {
 		t.Fatalf("paired kit title %+v", c)
-	}
-	// A host-only title plays on the host; no picture claim.
-	if c := detailReadiness(classifyLibraryGame(host, paired)); c.State != heroStateReady || c.Headline != "" {
-		t.Fatalf("host-only title %+v", c)
 	}
 	// An unpaired launcher does not know where the host will send it.
 	if c := detailReadiness(classifyLibraryGame(kit, kitPlayState{})); c.Headline != "" {

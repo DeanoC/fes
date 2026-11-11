@@ -70,7 +70,7 @@ func TestPairedStatusEnrichesOnlyMatchingObservedCore(t *testing.T) {
 					pairedTargetClients: map[string]serviceClient{"kit-a": client},
 					plays:               map[string]targetPlay{"kit-a": play}}
 				if foreground {
-					s.activeExecution, s.activeTarget, s.activeGameID = ExecutionHostOnly, "host", "host-game"
+					s.activeExecution, s.activeTarget, s.activeGameID = ExecutionFPGANative, "kit-b", "kit-b-game"
 				}
 				got, err := s.Status(WithPairedTarget(context.Background(), "a"))
 				if err != nil {
@@ -83,8 +83,8 @@ func TestPairedStatusEnrichesOnlyMatchingObservedCore(t *testing.T) {
 				} else if got.GameID != nil || got.System != nil {
 					t.Fatalf("stale identity attached to changed core: %+v", got)
 				}
-				if foreground && (s.activeExecution != ExecutionHostOnly || s.activeTarget != "host" || s.activeGameID != "host-game") {
-					t.Fatal("paired read changed host identity")
+				if foreground && (s.activeExecution != ExecutionFPGANative || s.activeTarget != "kit-b" || s.activeGameID != "kit-b-game") {
+					t.Fatal("paired read changed foreground kit identity")
 				}
 			})
 		}

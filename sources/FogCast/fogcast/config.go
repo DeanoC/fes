@@ -5,8 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"net"
-	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -15,7 +13,6 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/internal/discovery"
-	"github.com/DeanoC/FogCast/internal/remotemedia"
 	"github.com/DeanoC/FogCast/internal/systems"
 	"github.com/DeanoC/FogCast/librarymedia"
 	"github.com/DeanoC/FogCast/protocol"
@@ -75,7 +72,6 @@ type Config struct {
 	UploadTimeout       time.Duration
 	Libraries           []catalog.Root
 	RemoteInput         RemoteInputConfig
-	HostEmulator        HostEmulatorConfig
 	ZX81MachineROM      ZX81MachineROMConfig
 	Media               MediaConfig
 	Firmware            FirmwareConfig
@@ -157,23 +153,6 @@ type MetadataConfig struct {
 	Archive      string
 }
 
-type HostEmulatorConfig struct {
-	Binary  string
-	Core    string
-	Systems []protocol.System
-	Cores   []HostEmulatorCore
-	Args    []string
-	Env     []string
-}
-
-type HostEmulatorCore struct {
-	Platform protocol.System
-	Core     string
-	ID       string
-	Version  string
-	SHA256   string
-}
-
 // ZX81MachineROMConfig names the host linker that fills the empty ZX81 machine
 // ROM after the sealed package identity is fixed. An empty config leaves launch
 // unchanged.
@@ -182,34 +161,6 @@ type ZX81MachineROMConfig struct {
 	Script    string
 	Image     string
 	MistralCV string
-}
-
-func (c HostEmulatorConfig) CoreFor(system protocol.System) string {
-	for _, entry := range c.Cores {
-		if entry.Platform == system {
-			return entry.Core
-		}
-	}
-	if c.Core == "" {
-		return ""
-	}
-	for _, candidate := range c.Systems {
-		if candidate == system {
-			return c.Core
-		}
-	}
-	return ""
-}
-
-func (c HostEmulatorConfig) LaunchPlatforms() []protocol.System {
-	if len(c.Cores) > 0 {
-		platforms := make([]protocol.System, 0, len(c.Cores))
-		for _, entry := range c.Cores {
-			platforms = append(platforms, entry.Platform)
-		}
-		return platforms
-	}
-	return append([]protocol.System(nil), c.Systems...)
 }
 
 // RemoteInputConfig contains private remote-input composition settings. The
@@ -241,16 +192,9 @@ type CorePackagesConfig struct {
 	Kit bool
 }
 
-// MediaConfig contains opt-in host capture, preview, and transport settings.
-// Zero values keep physical capture and all media sockets disabled.
+// MediaConfig describes an opt-in local video preview capture.
 type MediaConfig struct {
 	Enabled        bool
-	Session        string
-	Generation     uint64
-	SSRC           uint32
-	RTPListen      string
-	RTPDestination string
-	ControlAddress string
 	Decoder        string
 	CaptureDevice  string
 	Width          int
@@ -259,8 +203,6 @@ type MediaConfig struct {
 	FPSDenominator int
 	Bitrate        int
 	GOP            int
-	MTU            int
-	Audio          remotemedia.AudioConfig
 }
 
 type fileCoreCatalog struct {
@@ -287,7 +229,6 @@ type fileConfig struct {
 	LibrarySources     []LibrarySourceConfig `toml:"library_sources,omitempty"`
 	LibrarySourceToken string                `toml:"library_source_token,omitempty"`
 	RemoteInput        fileRemoteInput       `toml:"remote_input"`
-	HostEmulator       fileHostEmulator      `toml:"host_emulator"`
 	ZX81MachineROM     fileZX81MachineROM    `toml:"zx81_machine_rom"`
 	Media              fileMedia             `toml:"media"`
 	Firmware           *fileFirmware         `toml:"firmware"`
@@ -354,23 +295,6 @@ type fileRemoteInput struct {
 	Enabled bool `toml:"enabled"`
 }
 
-type fileHostEmulator struct {
-	Binary  string                 `toml:"binary"`
-	Core    string                 `toml:"core"`
-	Systems []protocol.System      `toml:"systems"`
-	Cores   []fileHostEmulatorCore `toml:"cores"`
-	Args    []string               `toml:"args"`
-	Env     []string               `toml:"env"`
-}
-
-type fileHostEmulatorCore struct {
-	Platform protocol.System `toml:"platform"`
-	Core     string          `toml:"core"`
-	ID       string          `toml:"id"`
-	Version  string          `toml:"version"`
-	SHA256   string          `toml:"sha256"`
-}
-
 type fileZX81MachineROM struct {
 	Python    string `toml:"python,omitempty"`
 	Script    string `toml:"script,omitempty"`
@@ -379,45 +303,15 @@ type fileZX81MachineROM struct {
 }
 
 type fileMedia struct {
-	Enabled        bool      `toml:"enabled"`
-	Session        string    `toml:"session"`
-	Generation     uint64    `toml:"generation"`
-	SSRC           uint32    `toml:"ssrc"`
-	RTPListen      string    `toml:"rtp_listen"`
-	RTPDestination string    `toml:"rtp_destination"`
-	ControlAddress string    `toml:"control_address"`
-	Decoder        string    `toml:"decoder"`
-	CaptureDevice  string    `toml:"capture_device"`
-	Width          int       `toml:"width"`
-	Height         int       `toml:"height"`
-	FPSNumerator   int       `toml:"fps_numerator"`
-	FPSDenominator int       `toml:"fps_denominator"`
-	Bitrate        int       `toml:"bitrate"`
-	GOP            int       `toml:"gop"`
-	MTU            int       `toml:"mtu"`
-	Audio          fileAudio `toml:"audio"`
-}
-
-type fileAudio struct {
-	Enabled                  bool   `toml:"enabled"`
-	Source                   string `toml:"source"`
-	Device                   string `toml:"device"`
-	DeviceUID                string `toml:"device_uid"`
-	DeviceHash               string `toml:"device_hash"`
-	DisplayDigest            string `toml:"display_digest"`
-	DisplayHardwareUUID      string `toml:"display_hardware_uuid"`
-	DisplayEDIDVendor        string `toml:"display_edid_vendor"`
-	DisplayEDIDModel         string `toml:"display_edid_model"`
-	DisplayEDIDSerial        string `toml:"display_edid_serial"`
-	DisplayExplicitSelection bool   `toml:"display_explicit_selection"`
-	DisplaySelectionContext  string `toml:"display_selection_context"`
-	RTPDestination           string `toml:"rtp_destination"`
-	ControlAddress           string `toml:"control_address"`
-	SSRC                     uint32 `toml:"ssrc"`
-	SampleRate               int    `toml:"sample_rate"`
-	Channels                 int    `toml:"channels"`
-	FrameSamples             int    `toml:"frame_samples"`
-	MTU                      int    `toml:"mtu"`
+	Enabled        bool   `toml:"enabled"`
+	Decoder        string `toml:"decoder"`
+	CaptureDevice  string `toml:"capture_device"`
+	Width          int    `toml:"width"`
+	Height         int    `toml:"height"`
+	FPSNumerator   int    `toml:"fps_numerator"`
+	FPSDenominator int    `toml:"fps_denominator"`
+	Bitrate        int    `toml:"bitrate"`
+	GOP            int    `toml:"gop"`
 }
 
 func LoadConfig(path string) (Config, error) {
@@ -457,10 +351,6 @@ func LoadConfig(path string) (Config, error) {
 	}
 	if raw.LibrarySourceToken != "" && !ValidLibrarySourceToken(raw.LibrarySourceToken) {
 		return Config{}, fmt.Errorf("library_source_token must contain 32 to 256 non-whitespace characters")
-	}
-	hostEmulator, err := normalizeHostEmulator(raw.HostEmulator)
-	if err != nil {
-		return Config{}, err
 	}
 	machineROM, err := normalizeZX81MachineROM(raw.ZX81MachineROM)
 	if err != nil {
@@ -529,7 +419,6 @@ func LoadConfig(path string) (Config, error) {
 		RemoteInput: RemoteInputConfig{
 			Enabled: raw.RemoteInput.Enabled,
 		},
-		HostEmulator:        hostEmulator,
 		ZX81MachineROM:      machineROM,
 		Media:               media,
 		Firmware:            firmware,
@@ -732,148 +621,21 @@ func normalizeMedia(raw fileMedia) (MediaConfig, error) {
 	}
 	decoder := strings.ToLower(strings.TrimSpace(raw.Decoder))
 	if decoder == "" {
-		decoder = "none"
-	}
-	if decoder != "none" && decoder != "ffplay" && decoder != "mjpeg" {
-		return MediaConfig{}, fmt.Errorf("media decoder must be none, ffplay, or mjpeg")
-	}
-	if strings.TrimSpace(raw.CaptureDevice) == "" {
-		return MediaConfig{}, fmt.Errorf("media configuration is invalid")
+		decoder = "mjpeg"
 	}
 	if decoder != "mjpeg" {
-		if strings.TrimSpace(raw.Session) == "" || raw.SSRC == 0 {
-			return MediaConfig{}, fmt.Errorf("media configuration is invalid")
-		}
-		for name, address := range map[string]string{"rtp_listen": raw.RTPListen, "rtp_destination": raw.RTPDestination} {
-			if _, _, err := net.SplitHostPort(address); err != nil {
-				return MediaConfig{}, fmt.Errorf("media %s must be a host:port address", name)
-			}
-		}
+		return MediaConfig{}, fmt.Errorf("media decoder must be mjpeg")
 	}
-	if strings.TrimSpace(raw.ControlAddress) != "" {
-		if _, _, err := net.SplitHostPort(raw.ControlAddress); err != nil {
-			return MediaConfig{}, fmt.Errorf("media control_address must be a host:port address")
-		}
+	if strings.TrimSpace(raw.CaptureDevice) == "" {
+		return MediaConfig{}, fmt.Errorf("media capture device is required")
 	}
-	if raw.Width < 0 || raw.Height < 0 || raw.FPSNumerator < 0 || raw.FPSDenominator < 0 || raw.Bitrate < 0 || raw.GOP < 0 || raw.MTU < 0 {
-		return MediaConfig{}, fmt.Errorf("media dimensions, frame rate, bitrate, gop, and mtu must not be negative")
+	if raw.Width < 0 || raw.Height < 0 || raw.FPSNumerator < 0 || raw.FPSDenominator < 0 || raw.Bitrate < 0 || raw.GOP < 0 {
+		return MediaConfig{}, fmt.Errorf("media dimensions, frame rate, bitrate, and gop must not be negative")
 	}
 	if (raw.FPSNumerator == 0) != (raw.FPSDenominator == 0) {
 		return MediaConfig{}, fmt.Errorf("media frame rate numerator and denominator must both be set or unset")
 	}
-	audio, err := normalizeAudio(raw.Audio, raw)
-	if err != nil {
-		return MediaConfig{}, err
-	}
-	return MediaConfig{Enabled: true, Session: raw.Session, Generation: raw.Generation, SSRC: raw.SSRC,
-		RTPListen: raw.RTPListen, RTPDestination: raw.RTPDestination, ControlAddress: raw.ControlAddress,
-		Decoder: decoder, CaptureDevice: raw.CaptureDevice, Width: raw.Width, Height: raw.Height,
-		FPSNumerator: raw.FPSNumerator, FPSDenominator: raw.FPSDenominator,
-		Bitrate: raw.Bitrate, GOP: raw.GOP, MTU: raw.MTU, Audio: audio}, nil
-}
-
-func normalizeAudio(raw fileAudio, video fileMedia) (remotemedia.AudioConfig, error) {
-	if !raw.Enabled {
-		return remotemedia.AudioConfig{}, nil
-	}
-	if raw.SSRC == 0 || raw.SSRC == video.SSRC {
-		return remotemedia.AudioConfig{}, fmt.Errorf("audio ssrc must be non-zero and differ from video")
-	}
-	rtpDestination, err := parsePrivateEndpoint("audio rtp_destination", raw.RTPDestination)
-	if err != nil {
-		return remotemedia.AudioConfig{}, err
-	}
-	controlAddress, err := parsePrivateEndpoint("audio control_address", raw.ControlAddress)
-	if err != nil {
-		return remotemedia.AudioConfig{}, err
-	}
-	if rtpDestination == controlAddress {
-		return remotemedia.AudioConfig{}, fmt.Errorf("audio RTP and control addresses must differ")
-	}
-	for _, videoAddress := range []string{video.RTPListen, video.RTPDestination, video.ControlAddress} {
-		if videoAddress == "" {
-			continue
-		}
-		videoEndpoint, err := parseEndpoint(videoAddress)
-		if err != nil {
-			return remotemedia.AudioConfig{}, fmt.Errorf("video transport address is invalid")
-		}
-		if rtpDestination == videoEndpoint || controlAddress == videoEndpoint {
-			return remotemedia.AudioConfig{}, fmt.Errorf("audio transport addresses must differ from video")
-		}
-	}
-	source := remotemedia.AudioSourceConfig{
-		Kind: remotemedia.AudioSourceKind(strings.ToLower(strings.TrimSpace(raw.Source))), Enabled: true,
-		EndpointName: strings.TrimSpace(raw.Device), EndpointUID: raw.DeviceUID, EndpointDigest: strings.TrimSpace(raw.DeviceHash),
-		Display:       remotemedia.AudioDisplayIdentity{HardwareUUID: raw.DisplayHardwareUUID, EDIDVendor: raw.DisplayEDIDVendor, EDIDModel: raw.DisplayEDIDModel, EDIDSerial: raw.DisplayEDIDSerial, ExplicitSelection: raw.DisplayExplicitSelection, SelectionContext: raw.DisplaySelectionContext},
-		DisplayDigest: strings.TrimSpace(raw.DisplayDigest), SampleRate: raw.SampleRate, Channels: raw.Channels, FrameSamples: raw.FrameSamples,
-	}
-	if err := remotemedia.ValidateAudioFormat(remotemedia.AudioFormat{SampleRate: source.SampleRate, Channels: source.Channels, Encoding: remotemedia.AudioEncodingPCM16LE, FrameSamples: source.FrameSamples}); err != nil {
-		return remotemedia.AudioConfig{}, fmt.Errorf("audio format: %w", err)
-	}
-	switch source.Kind {
-	case remotemedia.AudioSourceShadowCastUAC:
-		digest, err := remotemedia.CanonicalAudioEndpointDigest(remotemedia.AudioEndpoint{UID: source.EndpointUID, DisplayName: source.EndpointName, SampleRate: source.SampleRate, Channels: source.Channels})
-		if err != nil || source.EndpointDigest == "" || source.EndpointDigest != digest {
-			return remotemedia.AudioConfig{}, fmt.Errorf("audio shadowcast endpoint identity is invalid")
-		}
-	case remotemedia.AudioSourceHostOutput:
-		if strings.HasPrefix(source.EndpointName, "screen:") {
-			selection := strings.TrimSpace(strings.TrimPrefix(source.EndpointName, "screen:"))
-			if selection == "" {
-				return remotemedia.AudioConfig{}, fmt.Errorf("audio host output requires screen selection or display identity")
-			}
-			source.Display.ExplicitSelection = true
-			source.Display.SelectionContext = selection
-			digest, err := remotemedia.CanonicalAudioDisplayDigest(source.Display)
-			if err != nil {
-				return remotemedia.AudioConfig{}, fmt.Errorf("audio host output requires screen selection or display identity")
-			}
-			if source.DisplayDigest != "" && source.DisplayDigest != digest {
-				return remotemedia.AudioConfig{}, fmt.Errorf("audio host output display identity is invalid")
-			}
-			source.DisplayDigest = digest
-		} else {
-			if source.Display.HardwareUUID == "" && source.Display.EDIDSerial == "" {
-				return remotemedia.AudioConfig{}, fmt.Errorf("audio host output requires screen selection or display identity")
-			}
-			digest, err := remotemedia.CanonicalAudioDisplayDigest(source.Display)
-			if err != nil || source.DisplayDigest == "" || source.DisplayDigest != digest {
-				return remotemedia.AudioConfig{}, fmt.Errorf("audio host output display identity is invalid")
-			}
-		}
-	default:
-		return remotemedia.AudioConfig{}, fmt.Errorf("audio source is invalid")
-	}
-	if raw.MTU <= 0 {
-		return remotemedia.AudioConfig{}, fmt.Errorf("audio mtu must be positive")
-	}
-	config := remotemedia.AudioConfig{Enabled: true, Source: source, Transport: remotemedia.AudioTransportConfig{RTPDestination: rtpDestination, ControlAddress: controlAddress, SSRC: raw.SSRC, MTU: raw.MTU, FormatCapabilityVersion: 1}}
-	if err := remotemedia.ValidateAudioConfig(config); err != nil {
-		return remotemedia.AudioConfig{}, fmt.Errorf("audio configuration is invalid")
-	}
-	return config, nil
-}
-
-func parsePrivateEndpoint(name, address string) (string, error) {
-	endpoint, err := netip.ParseAddrPort(address)
-	if err != nil || !endpoint.IsValid() || endpoint.Port() == 0 {
-		return "", fmt.Errorf("%s must be a private host:port address", name)
-	}
-	endpoint = netip.AddrPortFrom(endpoint.Addr().Unmap(), endpoint.Port())
-	if !endpoint.Addr().IsPrivate() && !endpoint.Addr().IsLoopback() {
-		return "", fmt.Errorf("%s must be a private host:port address", name)
-	}
-	return endpoint.String(), nil
-}
-
-func parseEndpoint(address string) (string, error) {
-	endpoint, err := netip.ParseAddrPort(address)
-	if err != nil || !endpoint.IsValid() || endpoint.Port() == 0 {
-		return "", fmt.Errorf("invalid endpoint")
-	}
-	endpoint = netip.AddrPortFrom(endpoint.Addr().Unmap(), endpoint.Port())
-	return endpoint.String(), nil
+	return MediaConfig{Enabled: true, Decoder: decoder, CaptureDevice: raw.CaptureDevice, Width: raw.Width, Height: raw.Height, FPSNumerator: raw.FPSNumerator, FPSDenominator: raw.FPSDenominator, Bitrate: raw.Bitrate, GOP: raw.GOP}, nil
 }
 
 func normalizeZX81MachineROM(raw fileZX81MachineROM) (ZX81MachineROMConfig, error) {
@@ -893,106 +655,6 @@ func normalizeZX81MachineROM(raw fileZX81MachineROM) (ZX81MachineROMConfig, erro
 		return ZX81MachineROMConfig{}, fmt.Errorf("zx81_machine_rom python must be a clean absolute path")
 	}
 	return config, nil
-}
-
-func normalizeHostEmulator(raw fileHostEmulator) (HostEmulatorConfig, error) {
-	binary := strings.TrimSpace(raw.Binary)
-	legacyCore := strings.TrimSpace(raw.Core)
-	systems := append([]protocol.System(nil), raw.Systems...)
-	if len(raw.Cores) > 0 && (legacyCore != "" || len(systems) > 0) {
-		return HostEmulatorConfig{}, fmt.Errorf("host_emulator cores cannot mix with core and systems")
-	}
-	if len(raw.Cores) > 0 {
-		if binary == "" {
-			return HostEmulatorConfig{}, fmt.Errorf("host_emulator cores require binary")
-		}
-		if !filepath.IsAbs(binary) || filepath.Clean(binary) != binary {
-			return HostEmulatorConfig{}, fmt.Errorf("host_emulator binary must be a clean absolute path")
-		}
-		cores := make([]HostEmulatorCore, 0, len(raw.Cores))
-		seen := make(map[protocol.System]struct{}, len(raw.Cores))
-		corePins := make(map[string]string, len(raw.Cores))
-		corePinPolicies := make(map[string]bool, len(raw.Cores))
-		corePinSeen := make(map[string]bool, len(raw.Cores))
-		for _, entry := range raw.Cores {
-			if err := catalog.ValidatePlatform(entry.Platform); err != nil {
-				return HostEmulatorConfig{}, fmt.Errorf("host_emulator cores: %w", err)
-			}
-			if _, ok := seen[entry.Platform]; ok {
-				return HostEmulatorConfig{}, fmt.Errorf("host_emulator cores contains duplicate %q", entry.Platform)
-			}
-			core := strings.TrimSpace(entry.Core)
-			if core == "" || !filepath.IsAbs(core) || filepath.Clean(core) != core {
-				return HostEmulatorConfig{}, fmt.Errorf("host_emulator core for %q must be a clean absolute path", entry.Platform)
-			}
-			seen[entry.Platform] = struct{}{}
-			sha := strings.ToLower(strings.TrimSpace(entry.SHA256))
-			if corePinSeen[core] && corePinPolicies[core] != (sha != "") {
-				return HostEmulatorConfig{}, fmt.Errorf("host_emulator core %q mixes pinned and unpinned sha256 policy", core)
-			}
-			corePinSeen[core] = true
-			corePinPolicies[core] = sha != ""
-			if sha != "" {
-				decoded, decodeErr := hex.DecodeString(sha)
-				if decodeErr != nil || len(decoded) != sha256.Size {
-					return HostEmulatorConfig{}, fmt.Errorf("host_emulator core sha256 for %q is invalid", entry.Platform)
-				}
-				if pinned, ok := corePins[core]; ok && pinned != sha {
-					return HostEmulatorConfig{}, fmt.Errorf("host_emulator core %q has conflicting sha256 pins", core)
-				}
-				corePins[core] = sha
-			}
-			cores = append(cores, HostEmulatorCore{Platform: entry.Platform, Core: core, ID: strings.TrimSpace(entry.ID), Version: entry.Version, SHA256: sha})
-		}
-		if err := validateHostEmulatorOptions(raw.Args, raw.Env); err != nil {
-			return HostEmulatorConfig{}, err
-		}
-		return HostEmulatorConfig{Binary: binary, Cores: cores, Args: append([]string(nil), raw.Args...), Env: append([]string(nil), raw.Env...)}, nil
-	}
-	seen := make(map[protocol.System]struct{}, len(systems))
-	for _, system := range systems {
-		if err := catalog.ValidatePlatform(system); err != nil {
-			return HostEmulatorConfig{}, fmt.Errorf("host_emulator systems: %w", err)
-		}
-		if _, ok := seen[system]; ok {
-			return HostEmulatorConfig{}, fmt.Errorf("host_emulator systems contains duplicate %q", system)
-		}
-		seen[system] = struct{}{}
-	}
-	if binary == "" && legacyCore == "" {
-		if len(systems) != 0 {
-			return HostEmulatorConfig{}, fmt.Errorf("host_emulator systems require binary and core")
-		}
-		return HostEmulatorConfig{}, nil
-	}
-	if binary == "" || legacyCore == "" {
-		return HostEmulatorConfig{}, fmt.Errorf("host_emulator requires binary and core")
-	}
-	if !filepath.IsAbs(binary) || filepath.Clean(binary) != binary {
-		return HostEmulatorConfig{}, fmt.Errorf("host_emulator binary must be a clean absolute path")
-	}
-	if !filepath.IsAbs(legacyCore) || filepath.Clean(legacyCore) != legacyCore {
-		return HostEmulatorConfig{}, fmt.Errorf("host_emulator core must be a clean absolute path")
-	}
-	if err := validateHostEmulatorOptions(raw.Args, raw.Env); err != nil {
-		return HostEmulatorConfig{}, err
-	}
-	return HostEmulatorConfig{Binary: binary, Core: legacyCore, Systems: systems, Args: append([]string(nil), raw.Args...), Env: append([]string(nil), raw.Env...)}, nil
-}
-
-func validateHostEmulatorOptions(args, env []string) error {
-	for _, arg := range args {
-		if strings.ContainsRune(arg, 0) {
-			return fmt.Errorf("host_emulator args contain NUL")
-		}
-	}
-	for _, item := range env {
-		key, _, ok := strings.Cut(item, "=")
-		if !ok || key == "" || strings.ContainsAny(key, "=\x00") || strings.ContainsRune(item, 0) {
-			return fmt.Errorf("host_emulator env entries must be KEY=VALUE")
-		}
-	}
-	return nil
 }
 
 func normalizeHTTPOrigin(raw string) (string, error) {

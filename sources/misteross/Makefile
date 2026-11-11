@@ -48,7 +48,6 @@ help:
 		"  toolchain-fes  Build the repository-local HIP toolchain from toolchain.lock" \
 		"  toolchain-fes-pcxt  Provision the PC/XT diagnostic toolchain (PCXT_GPU_ROUTER=HIP or CUDA)" \
 		"  toolchain-fes-menu  Provision the FES menu HIP toolchain (per-core lock)" \
-		"  toolchain-fes-catch  Provision the FES Catch HIP toolchain (per-core lock)" \
 		"  toolchain-fes-pong  Provision the FES Pong HIP toolchain (per-core lock)" \
 		"  toolchain-fes-zx81  Build the repository-local HIP toolchain for the standard FES ZX81 socket" \
 		"  toolchain-fes-coleco  Build the Coleco v2 SGM toolchain" \
@@ -64,7 +63,7 @@ help:
 		"  doctor-strict  Require host and OSS readiness (Quartus/hardware optional)" \
 		"  sim        Simulate an experiment with the Verilator lane" \
 		"  sim-pong   Test the standalone Pong game logic (no board wrapper)" \
-		"  sim-fes-demo  Test composable application endpoints and reference demos" \
+		"  sim-fes-application  Test shared application endpoints and I2S audio" \
 		"  sim-fes-video-parts  Test direct and scanline video parts through the physical socket" \
 		"  build-fes-coleco-video  Seal the separate Coleco video development shell" \
 		"  build-fes-video-part  Build VIDEO_VARIANT=direct|scanlines against VIDEO_SHELL and VIDEO_PACKAGE" \
@@ -77,9 +76,6 @@ help:
 		"  build-fes-ramtest-quartus  Quartus (cores/fes-ramtest/quartus.lock) SDRAM and HPS DDR tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
 		"  sim-fes-splash  Test HDMI splash logo, motion and ADV7513 I2C board path" \
 		"  build-fes-splash  Produce splash RBF + native-inputs provenance (OSS, not a play package)" \
-		"  build-fes-demo  Seal autonomous video application with HIP nextpnr" \
-		"  build-fes-demo-media  Seal gamepad/palette-media application with HIP nextpnr" \
-		"  build-fes-demo-audio  Seal gamepad/stereo-tone application with HIP nextpnr" \
 		"  sim-fes-pong  Test the FES GP mailbox and fixed 720p Pong shell" \
 		"  sim-fes-zx81  Test the ZX81 machine, GP mailbox, raster and live DDR session display (BASIC benches need FES_ZX81_ROM=)" \
 		"  sim-fes-zx81-diagnostic  Boot the open ZX81 diagnostic firmware: display, keyboard, LOAD/SAVE, RAMTOP (no ROM)" \
@@ -224,7 +220,7 @@ $(error misteross: shared toolchain cache is unsupported for Make simulation tar
 endif
 endif
 
-.PHONY: toolchain toolchain-fes toolchain-fes-menu toolchain-fes-catch toolchain-fes-pong toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-fes-apple2 toolchain-fes-c64 toolchain-fes-spectrum toolchain-fes-riscv toolchain-fes-pc386 toolchain-fes-i386 toolchain-fes-ramtest toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-c64 c64-diagnostic sim-fes-spectrum spectrum-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong build-fes-c64 build-fes-spectrum oss export-core-package program clean
+.PHONY: toolchain toolchain-fes toolchain-fes-menu toolchain-fes-pong toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-fes-apple2 toolchain-fes-c64 toolchain-fes-spectrum toolchain-fes-riscv toolchain-fes-pc386 toolchain-fes-i386 toolchain-fes-ramtest toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-c64 c64-diagnostic sim-fes-spectrum spectrum-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong build-fes-c64 build-fes-spectrum oss export-core-package program clean
 
 sim-pong:
 	$(require_local_sim)
@@ -233,7 +229,7 @@ sim-pong:
 		--Mdir "$(CURDIR)/build/sim/pong" cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/pong/sim/tb.cpp"
 	@build/sim/pong/Vpong_game
 
-.PHONY: sim-fes-demo build-fes-demo build-fes-demo-media sim-fes-splash build-fes-splash sim-fes-ramtest build-fes-ramtest-100 build-fes-ramtest-130 diagnose-fes-ramtest-timing build-fes-ramtest-quartus
+.PHONY: sim-fes-application sim-fes-splash build-fes-splash sim-fes-ramtest build-fes-ramtest-100 build-fes-ramtest-130 diagnose-fes-ramtest-timing build-fes-ramtest-quartus
 sim-fes-ramtest:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_ramtest.py
@@ -250,9 +246,9 @@ diagnose-fes-ramtest-timing:
 build-fes-ramtest-quartus:
 	$(PYTHON) scripts/build_fes_ramtest_quartus.py
 
-sim-fes-demo:
+sim-fes-application:
 	$(require_local_sim)
-	$(PYTHON) scripts/sim_fes_demo.py --verilator "$(VERILATOR)"
+	$(PYTHON) scripts/sim_fes_application.py --verilator "$(VERILATOR)"
 
 .PHONY: sim-fes-video-parts build-fes-coleco-video build-fes-video-part
 sim-fes-video-parts:
@@ -306,15 +302,6 @@ sim-fes-splash:
 build-fes-splash:
 	$(PYTHON) scripts/build_fes_splash.py
 
-build-fes-demo:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_demo.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
-
-build-fes-demo-media:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_demo.py --media $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
-
-.PHONY: build-fes-demo-audio
-build-fes-demo-audio:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_demo.py --audio $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
 
 sim-fes-pong:
 	$(require_local_sim)
@@ -1968,11 +1955,6 @@ toolchain-fes:
 
 toolchain-fes-menu:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-menu/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-menu") \
-	FES_TOOLCHAIN_GPU_ROUTER=HIP \
-	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
-
-toolchain-fes-catch:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-catch/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-catch") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 

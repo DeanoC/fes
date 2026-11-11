@@ -28,12 +28,10 @@ type MeshLibraryContentSource struct {
 	NodeIDs   []string `json:"node_ids"`
 }
 
-// MeshLibraryOption is one backend for a title. host_only is not a value
-// of Execution; a host-local emulator option is native_emu with HostLocal.
+// MeshLibraryOption is one backend for a title.
 type MeshLibraryOption struct {
 	SourceGameID string              `json:"source_game_id"`
 	Execution    string              `json:"execution"`
-	HostLocal    bool                `json:"host_local"`
 	Available    bool                `json:"available"`
 	Reason       string              `json:"reason,omitempty"`
 	CoreID       string              `json:"core_id,omitempty"`
@@ -101,7 +99,6 @@ func MeshLibraryTitles(rows []MeshBackendRow) (MeshLibraryDocument, error) {
 			view := MeshLibraryOption{
 				SourceGameID: option.Entry.TitleID,
 				Execution:    option.Entry.Execute[0].Kind,
-				HostLocal:    option.HostLocal,
 				Available:    option.Available(),
 				Reason:       option.Reason,
 				Nodes:        make([]MeshLibraryNode, 0, len(option.Nodes)),

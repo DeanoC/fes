@@ -1,15 +1,15 @@
 # M1 two-node integration evidence (#363)
 
-**Context (22 October 2026):** this is evidence for the host-local RetroArch executor and the paired-kit path. The kit is now its own FogCast host ([#863](https://github.com/DeanoC/fes/issues/863)) and the paired-kit path is retired; this evidence does not transfer to the kit profile. See [mesh under kit-as-host](mesh-kit-host.md).
+**Historical record (22 October 2026):** these tests covered the former host-local RetroArch executor and paired-kit path. Both paths have been removed. The named tests and implementation are historical; this evidence does not transfer to the kit profile. The kit is now its own FogCast host ([#863](https://github.com/DeanoC/fes/issues/863)); see [mesh under kit-as-host](mesh-kit-host.md).
 
-M1 has two execution nodes: an FPGA kit target running its agent and kit
+M1 had two execution nodes: an FPGA kit target running its agent and kit
 launcher, and the host-local RetroArch `host_only` executor. Kit mutations use
 the target's existing lease, per-kit bearer and `X-FogCast-Target-ID`. The
 RetroArch process is owned by the root host session coordinator. Remote mesh
 software-runner admission is outside this topology.
 
-This matrix records the #363 two-node regression coverage. Tests run from
-`sources/FogCast`.
+This matrix records the #363 two-node regression coverage at the time. The
+named tests ran from `sources/FogCast`; some have since been removed.
 
 | #363 area | Proving tests | Limits |
 |---|---|---|
@@ -27,9 +27,8 @@ Ownership contract: `Service.plays[target]` is the sole source of truth for
 each kit's game, development load, rejected-package state, and recovery
 admission. Root `activeExecution` and its game identity belong only to the
 host-local `host_only` executor. Kit load success or failure never stops or
-replaces that host game in non-cast mode; kit-local cores run directly on the
-kit. Cast mode still makes the host sender claim the kit display, so a cast
-host launch and a kit launch replace one another. Scoped Stop, status projection,
+replaces that host game in non-cast mode. Cast mode still makes the host sender
+claim the kit display, so a cast host launch and a kit launch replace one another. Scoped Stop, status projection,
 and recovery use the selected kit record; unscoped Stop addresses host-only
 play when it is active.
 
@@ -42,13 +41,9 @@ binary identities. The listed host tests use synthetic in-process fakes,
 temporary ROM/core bytes and protocol-shaped fixtures; no sealed package or
 exact artifact is claimed.
 
-## Remaining for #364
+## Hardware evidence limit
 
-Run the approved exact artifacts on the designated FPGA kit and host-local
-RetroArch executor. Record source revisions, sealed package/RBF and emulator
-binary provenance, ROM digest, node identities and capabilities, concurrent
-play/input/Stop and failure/reconnect observations, and cleanup. Host tests do
-not establish hardware acceptance.
+The host tests did not establish hardware acceptance for those artifacts.
 
 ## M1 input limit
 

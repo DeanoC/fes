@@ -61,18 +61,12 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 	})
 	mux.Handle("GET /v1/status", authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		status := controller.Status()
-		if settings.kitLocal != nil {
-			status = applyKitLocalRun(status, settings.kitLocal())
-		}
 		setRequestState(r, status)
 		writeJSON(w, http.StatusOK, status)
 	})))
 	mux.Handle("POST /v1/stop", authenticate(token, stopHandler(controller)))
 	if settings.corePackagesEnabled {
 		registerCorePackageRoutes(mux, token, settings.corePackages, settings.corePackageInspect)
-	}
-	if settings.cast != nil {
-		registerCastRoutes(mux, token, settings.cast)
 	}
 	if settings.content != nil {
 		registerContentRoutes(mux, token, settings.content)

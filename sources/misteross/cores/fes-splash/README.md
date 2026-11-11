@@ -7,7 +7,7 @@ The bitstream is the U-Boot / Stop-idle splash: a logo plus motion on HDMI so
 the board is visibly alive. It is **not** rooms, **not** attract ABI, and
 **not** a format-2 play package.
 
-Do not retarget `fes-demo`, `fes-pong`, or sealed MiSTer `menu.rbf` as this
+Do not retarget `fes-pong` or sealed MiSTer `menu.rbf` as this
 bitstream. The tracked seal is `sealed/fes-splash.rbf`. FES image policy pins
 that file as both splash and Stop-idle. Replacing it means rebuilding,
 updating `sealed/`, and changing the FES pin. Work on this recipe in FES

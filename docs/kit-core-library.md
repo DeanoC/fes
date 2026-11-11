@@ -2,8 +2,9 @@
 
 The target agent can install described core packages on existing FESDATA3 storage
 without rebuilding the appliance image, restarting services, or activating the
-FPGA. Installation retains immutable versions. Explicit selection controls the
-next kit-local launch; a running core keeps its package and execution lease.
+FPGA. Installation retains immutable versions. Explicit selection determines
+which package appears for a core in the kit inventory; existing host library
+entries name their own package IDs, and a running core keeps its package.
 
 The library requires the existing writable ext4 FESDATA3 volume. Startup
 resolves that volume the same way appliance-data preparation does:
@@ -64,7 +65,7 @@ and `SelectCorePackage`; mutations are not automatically replayed after a lost
 reply. Reconcile through inventory first. An interrupted unselected install is
 completed from its verified retained archive when the store is reopened.
 
-## Launch and recovery
+## Inventory and recovery
 
 The kit-local inventory combines factory selections with writable selections,
 overriding only the same core ID. Unselected installs do not add tiles. The
@@ -72,10 +73,9 @@ factory inventory and earlier installed versions are retained. There is no
 package deletion API and no implicit rollback. Downgrade by selecting a retained
 compatible version with the expected current selection ID.
 
-Launch requirements come from the verified manifest. Firmware, multiple ROMs,
-native-pixel shells requiring video parts and unsupported local media paths
-remain blocked. The current local cartridge path supports one format-3
-cartridge map. When the durable store is open, `GET /v1/local/cores` overlays
+The inventory derives setup requirements from the verified manifest. The
+host library resolves firmware, media and parts for its own session launches.
+When the durable store is open, `GET /v1/local/cores` overlays
 writable selections on the factory catalog. The factory pass reads manifests,
 streams payload and ROM-map digests, and structurally validates each ROM map
 while streaming it. A map that full inspection would reject is omitted. The
@@ -92,10 +92,6 @@ that arrives while the warm is still reading package bytes returns HTTP 503
 `{"error":"warming"}` and does not start another scan. The kit-local client
 returns that as `warming` immediately. Tenfoot and the installed-cores room
 retry until the finished catalog is ready. The next list is that catalog.
-A launch posted during that warm uses the same wait and returns the same
-`warming` response. It does not claim a lease or program a core. The client
-returns `warming` immediately so the caller can retry; it is not an
-unavailable agent.
 
 A selected durable package is listed from the byte verification recorded at
 install, reopen, warm-up, or the last fingerprint miss. Listing keeps that result
@@ -104,32 +100,27 @@ ctime, device, inode, mode, and directory entries. On Linux, ctime and device
 come from the file stat. Repeated lists do not read payload or ROM-map bytes.
 A changed fingerprint verifies the bytes again. A same-size rewrite that
 restores mtime updates ctime, so the next list verifies the bytes and
-withholds a package that fails authentication. Select, path lookup, and
-launch still inspect the retained bytes in full. Missing or corrupt selected
-bytes then block local launch, including after restart, and do not silently
-substitute a factory version. Reopening the store verifies every installed
-package before it serves. Corruption that leaves every stat field unchanged
-is outside this fingerprint; the next select, path, launch, or reopen
-rejects it.
-Native runtime inspection checks the exact canonical bytes before activation
-through its existing trusted staging path. Every physical launch and stop
-still uses the execution lease; local launches also participate in appliance
-update admission and draining.
+withholds a package that fails authentication. Selection inspects the retained
+bytes in full. Missing or corrupt selected bytes are not silently replaced by a
+factory version. Reopening the store verifies every installed package before it
+serves. Corruption that leaves every stat field unchanged is outside this
+fingerprint; the next full verification detects it. Host sessions validate
+package bytes and use execution leases for physical launch and Stop.
 
 Bearer routes report a broken library as HTTP 503
 `CORE_PACKAGE_STORE_UNAVAILABLE`. Kit-local clients call `GET /v1/local/cores`
 on the root-only control socket. That route returns HTTP 200 and an empty list
 when the durable library cannot be read, including when FESDATA3 is absent, and
-it does not read factory package bytes. Local launch stays on that empty
-inventory. An empty local list is that socket's response for this failure.
+it does not read factory package bytes. An empty local list is that socket's
+response for this failure.
 Mesh inventory advertises a durable package only when that byte verification
 is current for the fingerprint above. A failed verification omits the durable
 library from the advertisement. A changed archive or member stat, including
 ctime, verifies the bytes again before the package is advertised.
 
-Package persistence is separate from settings and progress persistence. Kit-local
-execution still uses its existing volatile core-data mode. Persistent settings,
-ROMs, expansion/video parts and title-specific media follow their own contracts.
+Package persistence is separate from settings and progress persistence.
+Persistent settings, ROMs, expansion/video parts and title-specific media follow
+their own contracts.
 Software tests cover concurrent publication, selection conflicts, process
 restart, interrupted installation, update exclusion and activation boundaries.
 They do not establish card power-loss behavior or exact-artifact hardware

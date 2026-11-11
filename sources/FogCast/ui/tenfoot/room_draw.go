@@ -458,7 +458,15 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		// can act on goes on the left of that band.
 		if line := heroFooterStatus(snap); line != "" {
 			footer := max(44, snap.Room.Height*7/100)
-			drawFESLabel(dev, labels, used, "nopanel-status", snap.Room.OffsetX+16, snap.Room.OffsetY+snap.Room.Height-footer+12, snap.Room.Width/2, 18, line)
+			width := snap.Room.Width / 2
+			if line == setupBlockedStatus {
+				// Setup owns this footer. Replace its hint while the actionable
+				// status is shown so neither line obscures the other.
+				x, y := snap.Room.OffsetX, snap.Room.OffsetY+snap.Room.Height-footer+2
+				fillRect(dev, float32(x), float32(y), float32(snap.Room.Width), float32(footer-2), 244, 240, 232, 255)
+				width = snap.Room.Width - 32
+			}
+			drawFESLabel(dev, labels, used, "nopanel-status", snap.Room.OffsetX+16, snap.Room.OffsetY+snap.Room.Height-footer+12, width, 18, line)
 		}
 		return
 	}

@@ -60,7 +60,7 @@ in `ui/tenfoot/sdl.go` until a later slice.
 | FPGA | `gfx.NewFPGA` (`fpga_device.go`) | Records the versioned FC2D command stream (`fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` stays true; this is not HDMI FPGA UI. |
 | FPGA stub | `gfx.NewFPGAStub` (`fpga.go`) | Thin Software wrapper without a command stream (`fpga-stub`). `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`linuxfb.go`) | Software rasterizer; `Present` blits onto a 32bpp Linux framebuffer (`/dev/fb0`) with stride and BGRX. Used by `fogcast-tenfoot -gfx linuxfb` with its native evdev input. |
-| menu-display | `gfx.NewMenuDisplay` (`menu_display.go`) | Software rasterizer; `Present` submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot -gfx menu-display` (`-menu-socket`, default `/run/mister-runtime.sock`) turns on change-driven presents and reuses the linuxfb app and evdev loop. Both direct CPU shells cache complete draw commands and textures, skipping identical raster work; menu-display uses frame revisions to skip byte comparison. An unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new idle menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. An idle generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). Host-testable. The base-image supervisor starts this client as the kit UI. For direct kit-local package launches, tenfoot opens the kit-local control socket, shows "Starting {title}…", and pauses presents after that loading frame is presented so the core owns HDMI. A failed or unpresented frame aborts the launch. Late adoption drains outstanding menu work and pauses without a loading frame; an older menu failure does not block that pause. Presents resume after a Stop (F12, Guide or the Select+Start hold), or when that kit-local session is no longer running. |
+| menu-display | `gfx.NewMenuDisplay` (`menu_display.go`) | Software rasterizer; `Present` submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot -gfx menu-display` (`-menu-socket`, default `/run/mister-runtime.sock`) turns on change-driven presents and reuses the linuxfb app and evdev loop. Both direct CPU shells cache complete draw commands and textures, skipping identical raster work; menu-display uses frame revisions to skip byte comparison. An unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new idle menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. An idle generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). Host-testable. The base-image supervisor starts this client as the kit UI. Tenfoot shows "Starting {title}…" and pauses presents after that loading frame is presented so the core owns HDMI. A failed or unpresented frame aborts the host-session launch. A session already owning the display keeps presents parked; they resume after Stop. |
 
 `gfx.Recorder` is a call-order test double and does not draw pixels. Optional
 `TENFOOT_GFX=software|sdl|fpga|fpga-stub` (or `Options.GFX` / `-gfx`) selects a
@@ -406,8 +406,7 @@ make tenfoot-smoke
 - `GET /api/v1/session` polled about once a second while the window is up, and
   again right after launch or stop. A poll that started before a launch or stop
   is discarded when that mutation finishes, so a stale idle or active snapshot
-  cannot unpark or re-park the GPU. That is the same observation point the host
-  uses to reap exited host-only / media sessions (`internal/hostapi/session.go`).
+  cannot unpark or re-park the GPU.
   When `state` is not `active`, `game_id` and `system` are omitted. An active
   session that omits `game_id` keeps that omission, including when another
   client replaces a launched game with a development RBF; tenfoot copies an ID
@@ -479,8 +478,7 @@ make tenfoot-smoke
   launch flight, game, and target. A missing flight is not posted unbound.
   A chord queued during input keeps that captured play and does not stop a
   replacement. Idle cleanup releases that play's grant. A grant retained on
-  another target, and a host-only stop that releases no kit grant, stays
-  tracked until shell exit or Release kit. A release that fails after the
+  another target stays tracked until shell exit or Release kit. A release that fails after the
   play is idle retries the idle-grant release; a failure that leaves the
   play running retries the bound stop. Offered while the session is
   active, a stop is in flight, or retry-Stop lockout is set. Shell exit (Start, Q, or window close) waits for
@@ -526,10 +524,10 @@ id. Back at that root room opens this picker. A missing or invalid id
 falls back to the picker without putting the id on screen.
 When several editions match, Confirm and Details force a choice unless a
 household preference is already saved (`libraryuser` via the edition-preferences
-host API). A firmware-required title with an empty household BIOS slot is
-**Unavailable**; Confirm opens a pad-friendly file picker that imports an
-8192-byte Coleco BIOS through `POST /api/v1/core-media` and
-`PUT /api/v1/library/firmware`. Back closes the picker without moving the
+host API). A title with a missing required BIOS is **Unavailable**; Confirm
+opens a pad-friendly file picker that imports it through
+`POST /api/v1/core-media` and binds it to the title's named ROM requirement.
+Back closes the picker without moving the
 selected location. Room logical-action bindings live in
 [rooms-controller-bindings.md](../rooms-controller-bindings.md). Packs are
 one directory each under `-rooms DIR`, `FOGCAST_ROOMS`, `tenfoot.json`

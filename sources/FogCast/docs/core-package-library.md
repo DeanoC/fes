@@ -144,23 +144,11 @@ selected snapshot. Selection never rewrites an active session.
 An optional blob declaration is eligible for selection, not a promise that
 every target activates it; missing active support fails launch with cleanup.
 
-Household Coleco BIOS uses the same core-media store. Import the 8192-byte
-object, then bind the household slot. Titles created with trailing `firmware`
-are Unavailable until that slot is filled **and** the selected package
-declares `fes.firmware.blob` 1.0:
-
-```sh
-fogcast --api http://127.0.0.1:8787 --json core-media-install /absolute/path/coleco.bios
-fogcast --api http://127.0.0.1:8787 --json core-firmware-select MEDIA_ID
-fogcast --api http://127.0.0.1:8787 --json core-entry 'Frogger' PACKAGE_ID blob CART_MEDIA_ID firmware
-fogcast --api http://127.0.0.1:8787 --json core-firmware-select none
-```
-
-`GET`/`PUT /api/v1/library/firmware` is the same slot. Tenfoot/rooms Confirm
-on **Import Coleco BIOS.** posts those same endpoints from a local file picker
-(Home, configured library roots, and a path OSK). Graphics I / graphics-i
-omit the title-level flag and stay Ready without BIOS. The private `--bios`
-producer is not this path.
+Coleco BIOS and cartridge bytes are imported into the core-media store and
+selected separately for each title against the package's named ROM requirements.
+The current two-ROM packages require an exact 8192-byte BIOS and an exact-size
+cartridge. Importing bytes alone does not select them or affect another title.
+The private `--bios` producer is a separate build-time path.
 
 `core-media-capabilities PACKAGE_ID` works offline and returns:
 
@@ -289,8 +277,10 @@ foreign keys held off for the migration and checks every child selection
 before commit. Schema 12
 records each imported card's `slot_index` (0 for single-socket expansions) and
 adds per-title slot selections keyed by `(game_id, slot)`; existing expansion
-rows and single-expansion selections are unchanged. Schema 9
-adds a household `firmware` pointer and `firmware_required` on core entries.
+rows and single-expansion selections are unchanged. Schema 23 keys ROM
+selections by title and ROM name and removes the former household firmware
+pointer. Existing ROM bindings and media objects are retained; a title that
+used the household BIOS must select that BIOS again for its named requirement.
 Schema 8 already added 64 KiB chunk rows for new imports while retaining
 existing inline objects, digests, entries and history. The migration does not
 rewrite package archives.
@@ -447,8 +437,8 @@ FPGA payloads remain bounded to 32 MiB.
 Format-4 Coleco packages link the BIOS and a cartridge through one map: the
 socket shells with a 16 KiB cartridge, and the MegaCart development lane with a
 128 KiB cartridge. They require two selections. Import an exact 8 KiB private
-BIOS into the existing household `firmware` slot, then import an exact-size
-cartridge and select it for the title as `coleco-cart` against that package ID. Library responses report `firmware_required` /
+BIOS and an exact-size cartridge, then select each for the title by its
+manifest ROM ID against that package ID. Library responses report `firmware_required` /
 `firmware_ready` and `rom_required` / `rom_ready` independently; the launch
 control blocks either missing input. The host sends both original bytes in a
 versioned source-only archive. The target links them before download and
@@ -461,7 +451,7 @@ after launch capture is rejected before target load. The factory format-4
 package uses this same two-source launch path and has no `fes.media.blob*` or
 `fes.firmware.blob` mailbox interfaces.
 
-## Named ROM selection for format-3 packages
+## Named ROM selection
 Format-3 packages declare one required ROM (`rom.id`, role `firmware` or
 `cartridge`, and exact `source_size`). Import its binary through the existing
 `POST /api/v1/core-media` endpoint, then bind the returned immutable digest to a
@@ -474,7 +464,7 @@ Content-Type: application/json
 {"package_id":"PACKAGE_ID","rom_id":"machine-rom","expected_media_id":"","media_id":"IMPORTED_SHA256"}
 ```
 
-`GET` on the same path returns the selection. When no explicit selection is
+`GET /api/v1/library/core-entries/GAME_ID/rom?rom_id=ROM_ID` returns the named selection. When no explicit selection is
 saved and the package matches bundled firmware, it returns `media_id: ""`,
 reports the effective default in `bundled_media_id`, and marks the response
 `bundled_default: true` without storing it. Installed setup may send that
@@ -504,8 +494,7 @@ can repair a stale package binding. Cartridge selections report
 `rom_required` / `rom_ready`; firmware-role selections report
 `firmware_required` / `firmware_ready` and open the package-firmware picker.
 That picker binds the selected binary to the title's ROM requirement. This
-per-title firmware is independent of ordinary tape/media selection and the
-legacy household Coleco firmware slot. Cartridge ROM bytes are consumed by
+per-title firmware is independent of ordinary tape/media selection. Cartridge ROM bytes are consumed by
 linking and are never streamed a second time as media. Linked cartridge
 exports must omit `fes.media.blob-stream` 1.0, `fes.firmware.blob` 1.0, and,
 under `fes.application` 1.x, `fes.media.blob` 1.0, including optional declarations.
@@ -658,7 +647,7 @@ immutable store and does not change titles, ROM choices, firmware or sessions.
 Without this setting, manual package import remains available. Registered cores
 without packages show **unproduced**; missing archives show **unavailable**.
 Apple II is experimental: its linked firmware, slot cards and disks have passed
-a kit diagnostic, while appliance acceptance remains separate; Catch is a demo.
+a kit diagnostic, while appliance acceptance remains separate.
 
 Open **FPGA library**, choose **Sega Master System** or **Sega SG-1000** under **Systems and
 guided setup**, and use **Install core** when a package is available. The installed
@@ -669,12 +658,10 @@ title below and use **Add game**. The resulting title uses the ordinary library,
 readiness, mesh placement and launch paths. Creating it does not start a game.
 A package's standing is not a compatibility result; launch checks the executor.
 
-Coleco two-ROM packages show the BIOS and cartridge separately. Importing a BIOS
-does not select it globally. **Use this BIOS for the household** is an explicit
-shared-firmware change, affecting existing titles. Add-game never changes that
-shared default. The existing expansion selection APIs continue to apply to the
-new game identity. Blob/disk media still uses the declared limits and the panel's
-media controls.
+Coleco two-ROM packages show the BIOS and cartridge separately. Choose each
+input for the title; no selection changes another title. The existing expansion
+selection APIs continue to apply to the new game identity. Blob/disk media still
+uses the declared limits and the panel's media controls.
 
 A lost add-game response can be retried with the same exact title, package and
 selections. It returns the same identity and can finish an empty ROM selection.
@@ -704,8 +691,8 @@ Choose each ROM using the local file picker (Home, configured library roots and
 mounted-media roots) or **Type a path…**. Paths refer to the machine running
 `fogcast-tenfoot`; only the selected file bytes are uploaded to the serving host.
 This does not browse a remote host's filesystem. Incorrect sizes and nonregular
-files are rejected before upload. A preselected household BIOS is reused; a newly
-imported BIOS needs the separate **Use selected BIOS for household** action.
+files are rejected before upload. Select each named ROM for this title,
+including the Coleco BIOS and cartridge when the package requires both.
 
 Select **Title** to enter the game name with the existing on-screen keyboard, then
 **Add game to library**. The game belongs to the serving library; package publication

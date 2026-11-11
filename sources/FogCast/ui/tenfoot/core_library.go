@@ -93,9 +93,6 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 			status = "selected"
 		}
 		add(fmt.Sprintf("%s · %s · %d bytes · %s", r.ID, r.Role, r.SourceSize, status), "rom:"+r.ID)
-		if r.Binding == "household-firmware" && s.ROMs[r.ID] != "" && s.ROMs[r.ID] != s.Setup.FirmwareMediaID {
-			add("Use selected BIOS for household", "firmware:"+r.ID)
-		}
 	}
 	blankDisk := false
 	for _, m := range s.Setup.Capabilities.Media {
@@ -276,9 +273,6 @@ func (a *App) loadCoreSetupLocked(install bool) {
 		a.coreLibrary.ROMs = map[string]string{}
 		a.coreLibrary.BuiltIn = map[string]protocol.BundledFirmware{}
 		for _, r := range setup.ROMs {
-			if r.Binding == "household-firmware" && setup.FirmwareMediaID != "" {
-				a.coreLibrary.ROMs[r.ID] = setup.FirmwareMediaID
-			}
 			if fw, ok := hostclient.BundledFirmwareFor(bundled, setup.CoreID, r.ID, r.SourceSize); ok && r.Binding == "entry" && r.Role == protocol.FirmwareRole {
 				a.coreLibrary.ROMs[r.ID] = fw.MediaID
 				a.coreLibrary.BuiltIn[r.ID] = fw
@@ -435,12 +429,6 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		s.Files = a.storagePickerRootsLocked(a.corePickerPurposeLocked())
 		a.refreshStorageRootsLocked()
 		s.Index = 0
-		return
-	}
-	if strings.HasPrefix(row.Kind, "firmware:") {
-		id := strings.TrimPrefix(row.Kind, "firmware:")
-		media := s.ROMs[id]
-		a.coreLibraryAsyncLocked(func(ctx context.Context) error { _, err := a.client.SelectHouseholdFirmware(ctx, media); return err }, func() { s.Setup.FirmwareMediaID = media; s.Status = "Household BIOS selected explicitly." })
 		return
 	}
 	if row.Kind == "blank-disk" {
@@ -622,10 +610,6 @@ func (a *App) createCoreLibraryGameLocked() {
 		id := s.ROMs[r.ID]
 		if id == "" {
 			s.Status = "Choose " + r.ID
-			return
-		}
-		if r.Binding == "household-firmware" && id != s.Setup.FirmwareMediaID {
-			s.Status = "Explicitly select this BIOS for the household first."
 			return
 		}
 		roms[r.ID] = id
