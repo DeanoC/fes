@@ -1,0 +1,23 @@
+{
+  "complete": true,
+  "passed": true,
+  "selected_gates": 7,
+  "tested_source_commit": "c62d00a863d6cc65124a97cea09b806dd0924dbf",
+  "current_compiled_source": "da33a94cc56ca7a975eb275ce04d1d3cf30c0890",
+  "changes_since_tests": [
+    "docs/validation/2026-11-11-de25-usb-startup-outcome/README.md",
+    "docs/validation/2026-11-11-de25-usb-startup-outcome/retention-proof.json",
+    "docs/validation/2026-11-11-de25-usb-startup-outcome/software-result.json"
+  ],
+  "native_integration_source_hashes_still_match": true,
+  "evidence_sha256": {
+    "out/nano-usb-startup-outcome-20261111/software-0-result.json": "6c55b43b2fb9f055f2417340e3607ac9250842ce4b83ff7e39050b26c7645a7a",
+    "out/nano-usb-startup-outcome-20261111/software-1-result.json": "554e1dd97a3c371365b2b7671612b1f57f5ea97b5f313ca10cf0c31d51e2cbe8",
+    "out/nano-usb-startup-outcome-20261111/software-2-result.json": "db8bfc12c4773471eb1389a9f9afb3ac4a67cb51aee359387b92e534f2b202ab",
+    "out/nano-usb-startup-outcome-20261111/software-3-result.json": "469c9284ef40198517a8bbeb3cffa81f2c4af0a1c5a20f8ba46e06135f062d93",
+    "out/nano-usb-startup-outcome-20261111/software-4-result.json": "61248f3f814f11d980c99b6614d0895a73189915f3466279c943cdbf03576653",
+    "out/nano-usb-startup-outcome-20261111/software-5-result.json": "341e0c84b23702528e9e1c20caad8b582e0b312fe86c0664222287fb744bb33f",
+    "out/nano-usb-startup-outcome-20261111/software-6-result.json": "147ccdf9116e4078b1657f6aa7b456c95b6026f4fadbcc17ef17ca6c1a325e14"
+  },
+  "hardware_acceptance": false
+}
