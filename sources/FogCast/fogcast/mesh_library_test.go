@@ -26,7 +26,7 @@ func TestProjectMeshLibraryRepresentativeTitles(t *testing.T) {
 	zx.ABI = corepackage.Contract{ID: "fes.simple-computer", Major: 1, Minor: 0}
 	zx.Expansions = []MeshExpansion{{Name: expansion.Slot, Digest: ram}}
 	native := meshNativeTitle("Super Mario World", protocol.SystemSNES, snesROM)
-	prefixed := meshNativeTitle("Prefixed", protocol.SystemSNES, "sha256:"+snesROM)
+	prefixed := meshCoreTitle("Prefixed", "fes.coleco", colecoPkg, "sha256:"+snesROM, false)
 	missingBIOS := meshCoreTitle("Donkey Kong", "fes.coleco", colecoPkg, cart, true)
 	uppercase := meshCoreTitle("Frogger", "fes.coleco", colecoPkg, cart, true)
 	development := meshCoreTitle("Probe", "fes.coleco", colecoPkg, cart, false)
@@ -96,20 +96,9 @@ func TestProjectMeshLibraryRepresentativeTitles(t *testing.T) {
 			},
 		},
 		{
-			name: "native emu",
-			lib:  MeshLibrary{Firmware: filled, Titles: []MeshTitle{native}},
-			check: func(t *testing.T, entry meshcontent.Entry) {
-				if entry.System != string(protocol.SystemSNES) || len(entry.Execute) != 1 || entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu {
-					t.Fatalf("native shape %+v", entry)
-				}
-				if len(entry.Slots) != 1 || entry.Slots[0].Kind != meshcontent.SlotPrimaryMedia || entry.Slots[0].Content.Digest != snesROM {
-					t.Fatalf("slots %+v", entry.Slots)
-				}
-				if entry.Slots[0].Package != nil {
-					t.Fatal("native_emu gained a package slot")
-				}
-				assertNoPath(t, entry)
-			},
+			name:       "native emulation is unavailable",
+			lib:        MeshLibrary{Firmware: filled, Titles: []MeshTitle{native}},
+			skipReason: "execution is not a mesh catalog kind",
 		},
 		{
 			name:       "missing household firmware",
@@ -300,13 +289,13 @@ func TestProjectMeshLibrarySkipsOneTitleAndKeepsTheRest(t *testing.T) {
 		Titles:   []MeshTitle{coleco, broken, zx, native},
 	}
 	entries, skipped := ProjectMeshLibrary(lib)
-	if len(entries) != 3 || len(skipped) != 1 || skipped[0].TitleID != broken.Game.ID || skipped[0].Reason != "package abi is required" {
+	if len(entries) != 2 || len(skipped) != 2 || skipped[0].TitleID != broken.Game.ID || skipped[0].Reason != "package abi is required" || skipped[1].TitleID != native.Game.ID || skipped[1].Reason != "execution is not a mesh catalog kind" {
 		t.Fatalf("entries %+v skipped %+v", entries, skipped)
 	}
-	if entries[0].System != "coleco" || entries[1].System != "zx81" || entries[2].Execute[0].Kind != meshcontent.ExecuteNativeEmu {
+	if entries[0].System != "coleco" || entries[1].System != "zx81" {
 		t.Fatalf("order %+v", entries)
 	}
-	if entries[0].Slots[1].Content.Digest != bios || entries[1].Slots[1].Content.Digest != ram || entries[2].Slots[0].Content.Digest != snesROM {
+	if entries[0].Slots[1].Content.Digest != bios || entries[1].Slots[1].Content.Digest != ram {
 		t.Fatalf("digests changed %+v", entries)
 	}
 }
@@ -341,7 +330,7 @@ func meshNativeTitle(title string, system protocol.System, digest string) MeshTi
 			Content:      &catalog.Content{SHA256: digest, Size: 32, Extension: "sfc"},
 		},
 		Launchable: true,
-		Execute:    ExecutionHostOnly,
+		Execute:    meshcontent.ExecuteNativeEmu,
 	}
 }
 

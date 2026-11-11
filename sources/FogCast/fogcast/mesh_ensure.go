@@ -298,14 +298,11 @@ func (s *Service) captureLaunchSnapshot(gameID, target string) (launchSnapshot, 
 // when the installed executor is a different node. Readiness keeps the
 // selected-target session. A failed dial leaves that executor in the
 // snapshot, so Ensure returns ErrUnboundNode and does not pull on it.
-// Host-only play stays on the installed session node. A successful
+// A successful
 // dial captures the named kit's client before the snapshot is returned,
 // so Ensure claims that kit's lease through a real client.
 func (s *Service) useRequestedMeshExecutor(snap *launchSnapshot) error {
 	if s == nil || snap == nil || !snap.explicit || !snap.entryOK || !snap.known || !snap.enabled {
-		return nil
-	}
-	if meshLaunchExecution(snap.entry) == ExecutionHostOnly {
 		return nil
 	}
 	if snap.executor == nil || strings.TrimSpace(snap.nodeID) == "" || snap.executor.NodeID() == snap.nodeID {
@@ -422,8 +419,7 @@ func (s *Service) captureTargetLocked(session MeshExecuteSession, requested stri
 // meshEnsureBeforeExecute runs only when a session executor is installed.
 // The snapshot is the target and catalog row LaunchOn already captured.
 // FPGA ensure uses that identity and does not read selectedTarget again.
-// Host-only execution stays on the installed session node, because that
-// launch does not bind the named kit. A foreign-kit denial returns
+// A foreign-kit denial returns
 // before Ensure, so a rejected FPGA launch does not pull. A node
 // mismatch returns ErrUnboundNode before Pull or Link. LeaseFree is
 // this session's grant and generation, not the absence of a foreign
@@ -442,9 +438,12 @@ func (s *Service) meshEnsureBeforeExecute(ctx context.Context, snap launchSnapsh
 	if s == nil || !snap.frozen || snap.executor == nil || !snap.entryOK {
 		return nil
 	}
+	if meshEntryHasNativeEmulator(snap.entry) {
+		return canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
 	node := snap.boundNode
-	if snap.entry.Launchable && meshLaunchExecution(snap.entry) != ExecutionHostOnly {
-		if s.launchUsesForeignKit(snap, ExecutionFPGANative) {
+	if snap.entry.Launchable {
+		if s.launchUsesForeignKit(snap) {
 			s.releaseLaunchClaim(snap, false)
 			return canonicalError(protocol.CodeKitLeaseDenied, nil)
 		}
@@ -456,21 +455,19 @@ func (s *Service) meshEnsureBeforeExecute(ctx context.Context, snap launchSnapsh
 	}
 	// LeaseFree is this session's grant on the kit this launch executes
 	// on, including that grant's generation. InUse is the Phase 1 busy
-	// connection: another session holds the kit. Host-only play does
-	// not take that lease. A foreign holder still returns the lease
+	// connection: another session holds the kit. A foreign holder returns the lease
 	// denial before Ensure. A launchable FPGA session that does not
 	// yet hold a grant claims it here, using the same acquiring
 	// authorization as content pull, and Ensure then sees that grant.
 	// A grant that is already held and fails the generation check is
 	// left unchanged.
-	fpga := meshLaunchExecution(snap.entry) != ExecutionHostOnly
 	leaseFree, inUse := s.meshLeaseFacts(snap)
-	if fpga && inUse {
+	if inUse {
 		s.releaseLaunchClaim(snap, false)
 		return canonicalError(protocol.CodeKitLeaseDenied, nil)
 	}
 	claimed := false
-	if fpga && snap.entry.Launchable && !leaseFree {
+	if snap.entry.Launchable && !leaseFree {
 		if err := s.claimContentPullLease(ctx, snap); err != nil {
 			s.releaseLaunchClaim(snap, false)
 			return err
@@ -986,13 +983,9 @@ func meshClaimDenied(err error) bool {
 // FPGA play is owned only when this session holds the kit grant and,
 // once ownership has been observed, that observation is the same
 // generation. A free or unleased kit is not owned. InUse is the Phase 1
-// busy connection for the kit this launch would execute on. Host-only
-// play does not use that lease.
+// busy connection for the kit this launch would execute on.
 func (s *Service) meshLeaseFacts(snap launchSnapshot) (leaseFree, inUse bool) {
-	if meshLaunchExecution(snap.entry) == ExecutionHostOnly {
-		return true, false
-	}
-	inUse = s.launchUsesForeignKit(snap, ExecutionFPGANative)
+	inUse = s.launchUsesForeignKit(snap)
 	owned, generation := false, ""
 	if lease, ok := snap.client.(meshKitLease); ok {
 		owned, generation = lease.MeshKitLease()
@@ -1012,12 +1005,12 @@ func (s *Service) meshLeaseFacts(snap launchSnapshot) (leaseFree, inUse bool) {
 	return true, inUse
 }
 
-// meshLaunchExecution maps a mesh entry onto the launch execution kind
-// the foreign-kit check already uses. Host emulator play does not take
-// the kit lease. Package-backed play does.
-func meshLaunchExecution(entry meshcontent.Entry) string {
-	if len(entry.Execute) > 0 && entry.Execute[0].Kind == meshcontent.ExecuteNativeEmu {
-		return ExecutionHostOnly
+// Native software executors are unsupported; do not pull or claim a kit for them.
+func meshEntryHasNativeEmulator(entry meshcontent.Entry) bool {
+	for _, execute := range entry.Execute {
+		if execute.Kind == meshcontent.ExecuteNativeEmu {
+			return true
+		}
 	}
-	return ExecutionFPGANative
+	return false
 }

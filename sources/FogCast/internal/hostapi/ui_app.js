@@ -651,7 +651,6 @@
   function backendOptionLabel(option) {
     if (!option) return 'Play';
     if (option.execution === 'fpga_native' || option.execution === 'fpga_development') return 'FPGA';
-    if (option.execution === 'native_emu' || option.host_local === true) return 'Emulator';
     return option.execution || option.source_game_id;
   }
 

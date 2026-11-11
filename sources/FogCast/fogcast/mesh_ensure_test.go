@@ -41,6 +41,7 @@ func TestLaunchCheckingDoesNotExecute(t *testing.T) {
 		targets:        []TargetConfig{{Name: "dev", Enabled: true, TargetID: "kit-a"}},
 		selectedTarget: "dev",
 		targetClients:  map[string]serviceClient{"dev": ownedMeshClient()},
+		catalog:        &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}},
 	}
 	service.SetMeshCheckingTimeout(40 * time.Millisecond)
 	service.SetMeshExecuteSession(MeshExecuteSession{
@@ -60,85 +61,36 @@ func TestLaunchCheckingDoesNotExecute(t *testing.T) {
 }
 
 func TestLaunchMissingNoSourceAndUnboundNode(t *testing.T) {
-	cart := meshcontent.SumSHA256([]byte("source-rom"))
-	entry := meshcontent.Entry{
-		TitleID:    "snes-mario",
-		System:     "snes",
-		Launchable: true,
-		Execute:    []meshcontent.Execute{{Kind: meshcontent.ExecuteNativeEmu}},
-		Slots:      []meshcontent.Slot{meshcontent.PrimaryMediaSlot(cart)},
-	}
-	exec := &meshLaunchExecutor{node: "host-a"}
-	service := &Service{}
-	service.SetMeshExecuteSession(MeshExecuteSession{
-		BoundNode: "host-a",
-		Executor:  exec,
-		Entry:     func(string) (meshcontent.Entry, bool) { return entry, true },
-	})
+	entry, cart := fpgaMeshEntry("coleco-frogger")
+	exec := &meshLaunchExecutor{node: "node-a", abis: []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}}}
+	service := meshTargetService(exec, "node-a", entry)
 	_, err := service.Launch(context.Background(), entry.TitleID, nil)
-	if !errors.Is(err, meshcontent.ErrContentMissingNoSource) {
-		t.Fatalf("missing err %v", err)
+	if !errors.Is(err, meshcontent.ErrContentMissingNoSource) || len(exec.pulls) != 0 {
+		t.Fatalf("missing err %v pulls %+v", err, exec.pulls)
 	}
-	if len(exec.pulls) != 0 {
-		t.Fatalf("missing launch pulled %+v", exec.pulls)
-	}
-
-	other := &meshLaunchExecutor{node: "other", sources: map[string]bool{cart.String(): true}}
-	service.SetMeshExecuteSession(MeshExecuteSession{
-		BoundNode: "host-a",
-		Executor:  other,
-		Entry:     func(string) (meshcontent.Entry, bool) { return entry, true },
-	})
+	other := &meshLaunchExecutor{node: "other", sources: map[string]bool{cart.String(): true}, abis: exec.abis}
+	service = meshTargetService(other, "node-a", entry)
 	_, err = service.Launch(context.Background(), entry.TitleID, nil)
-	if !errors.Is(err, meshcontent.ErrUnboundNode) {
-		t.Fatalf("unbound err %v", err)
-	}
-	if len(other.pulls) != 0 || len(other.links) != 0 {
-		t.Fatal("unbound launch pulled onto another node")
+	if !errors.Is(err, meshcontent.ErrUnboundNode) || len(other.pulls) != 0 || len(other.links) != 0 {
+		t.Fatalf("unbound err %v pulls %+v links %+v", err, other.pulls, other.links)
 	}
 }
 
 func TestLaunchPullThenPresentAllowsTheExistingPathOnlyAfterEnsure(t *testing.T) {
-	cart := meshcontent.SumSHA256([]byte("source-rom"))
-	entry := meshcontent.Entry{
-		TitleID:    "snes-mario",
-		System:     "snes",
-		Launchable: true,
-		Execute:    []meshcontent.Execute{{Kind: meshcontent.ExecuteNativeEmu}},
-		Slots:      []meshcontent.Slot{meshcontent.PrimaryMediaSlot(cart)},
-	}
-	exec := &meshLaunchExecutor{
-		node:    "host-a",
-		sources: map[string]bool{cart.String(): true},
-	}
-	service := &Service{}
-	service.SetMeshExecuteSession(MeshExecuteSession{
-		BoundNode: "host-a",
-		Executor:  exec,
-		Entry:     func(string) (meshcontent.Entry, bool) { return entry, true },
-	})
-	snap, err := service.captureLaunchSnapshot(entry.TitleID, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := service.meshEnsureBeforeExecute(context.Background(), snap); err != nil {
-		t.Fatal(err)
+	entry, cart := fpgaMeshEntry("coleco-frogger")
+	exec := &meshLaunchExecutor{node: "node-a", sources: map[string]bool{cart.String(): true}, abis: []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}}}
+	service := meshTargetService(exec, "node-a", entry)
+	for i := 0; i < 2; i++ {
+		snap, err := service.captureLaunchSnapshot(entry.TitleID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := service.meshEnsureBeforeExecute(context.Background(), snap); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if len(exec.pulls) != 1 || exec.pulls[0] != cart || exec.Slot(cart) != meshcontent.StatePresent {
 		t.Fatalf("pulls %+v state %s", exec.pulls, exec.Slot(cart))
-	}
-	// A second ensure sees the id Present and does not pull again.
-	// Launch would continue into the existing path; this service has
-	// no catalog, so the assertion stops at the seam.
-	snap, err = service.captureLaunchSnapshot(entry.TitleID, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := service.meshEnsureBeforeExecute(context.Background(), snap); err != nil {
-		t.Fatal(err)
-	}
-	if len(exec.pulls) != 1 {
-		t.Fatalf("present id pulled again %+v", exec.pulls)
 	}
 }
 
@@ -235,7 +187,7 @@ func TestImplicitEmptyTargetIDEnsuresWhenNameIsTheBoundNode(t *testing.T) {
 		},
 		selectedTarget: "dev",
 		targetClients:  map[string]serviceClient{"dev": ownedMeshClient()},
-		catalog:        &fakeServiceCatalog{gameErr: errors.New("stop after ensure")},
+		catalog:        &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}},
 	}
 	service.SetMeshExecuteSession(MeshExecuteSession{
 		BoundNode: "dev",
@@ -262,10 +214,10 @@ func TestLaunchOnMatchingTargetEnsuresThatNode(t *testing.T) {
 		abis:    []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
 	}
 	service := meshTargetService(exec, "stale-session-node", entry)
-	service.catalog = &fakeServiceCatalog{gameErr: errors.New("stop after ensure")}
+	service.catalog = &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}}
 	_, err := service.LaunchOn(context.Background(), entry.TitleID, "dev", nil)
 	var api *protocol.APIError
-	if !errors.As(err, &api) || api.Code != protocol.CodeInternal {
+	if !errors.As(err, &api) || api.Code != protocol.CodeUnsupportedOperation {
 		t.Fatalf("err %v", err)
 	}
 	if len(exec.pulls) != 1 || exec.pulls[0] != cart || exec.node != "node-a" {
@@ -329,7 +281,7 @@ func TestObservedLeaseGenerationMismatchDoesNotPull(t *testing.T) {
 	}
 
 	service.connection.leaseGeneration = "gen-owned"
-	service.catalog = &fakeServiceCatalog{gameErr: errors.New("stop after ensure")}
+	service.catalog = &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}}
 	_, err = service.LaunchOn(context.Background(), entry.TitleID, "", nil)
 	var api *protocol.APIError
 	if !errors.As(err, &api) || api.Code != protocol.CodeInternal {
@@ -337,31 +289,6 @@ func TestObservedLeaseGenerationMismatchDoesNotPull(t *testing.T) {
 	}
 	if len(exec.pulls) != 1 || exec.pulls[0] != cart {
 		t.Fatalf("pulls %+v", exec.pulls)
-	}
-}
-
-func TestLaunchOnHostEntryStaysOnTheSessionNode(t *testing.T) {
-	cart := meshcontent.SumSHA256([]byte("source-rom"))
-	entry := meshcontent.Entry{
-		TitleID:    "snes-mario",
-		System:     "snes",
-		Launchable: true,
-		Execute:    []meshcontent.Execute{{Kind: meshcontent.ExecuteNativeEmu}},
-		Slots:      []meshcontent.Slot{meshcontent.PrimaryMediaSlot(cart)},
-	}
-	exec := &meshLaunchExecutor{
-		node:    "host-a",
-		sources: map[string]bool{cart.String(): true},
-	}
-	service := meshTargetService(exec, "host-a", entry)
-	service.catalog = &fakeServiceCatalog{gameErr: errors.New("stop after ensure")}
-	_, err := service.LaunchOn(context.Background(), entry.TitleID, "spare", nil)
-	var api *protocol.APIError
-	if !errors.As(err, &api) || api.Code != protocol.CodeInternal {
-		t.Fatalf("err %v", err)
-	}
-	if len(exec.pulls) != 1 || exec.pulls[0] != cart {
-		t.Fatalf("host pulls %+v", exec.pulls)
 	}
 }
 
@@ -392,6 +319,7 @@ func meshTargetService(exec *meshLaunchExecutor, bound string, entry meshcontent
 		},
 		selectedTarget: "dev",
 		targetClients:  map[string]serviceClient{"dev": ownedMeshClient()},
+		catalog:        &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}},
 	}
 	service.SetMeshExecuteSession(MeshExecuteSession{
 		BoundNode: bound,
@@ -485,57 +413,6 @@ func TestLaunchRejectsCompositionChangeAfterEnsure(t *testing.T) {
 	}
 }
 
-func TestHostLaunchRejectsCompositionChangeAfterEnsure(t *testing.T) {
-	identity := protocol.ContentIdentity{SHA256: serviceDigest, Size: 3, Extension: "sfc"}
-	game := serviceGame(catalog.Content{})
-	game.Content = nil
-	prepared := preparedServiceFixture(t, []byte("rom"), identity)
-	t.Cleanup(func() { _ = prepared.Remove() })
-	adapter := &fakeHostExecutor{}
-	service := newTestServiceWithExecution(&fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServicePreparer{prepared: prepared}, &fakeServiceClient{}, ExecutionPolicy{
-		Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return ExecutionHostOnly, nil }),
-		Host:     adapter,
-	})
-	cartA := meshcontent.SumSHA256([]byte("composition-a"))
-	cartB := meshcontent.SumSHA256([]byte("composition-b"))
-	current := cartA
-	exec := &meshLaunchExecutor{
-		node:    "host-a",
-		sources: map[string]bool{cartA.String(): true, cartB.String(): true},
-	}
-	service.SetMeshExecuteSession(MeshExecuteSession{
-		BoundNode: "host-a",
-		Executor:  exec,
-		Entry: func(gameID string) (meshcontent.Entry, bool) {
-			if gameID != game.ID {
-				return meshcontent.Entry{}, false
-			}
-			return meshcontent.Entry{
-				TitleID:    game.ID,
-				System:     "snes",
-				Launchable: true,
-				Execute:    []meshcontent.Execute{{Kind: meshcontent.ExecuteNativeEmu}},
-				Slots:      []meshcontent.Slot{meshcontent.PrimaryMediaSlot(current)},
-			}, true
-		},
-	})
-	meshEnsureFinishedHook = func() { current = cartB }
-	t.Cleanup(func() { meshEnsureFinishedHook = nil })
-
-	service.targets[0].Enabled = true
-	_, err := service.Launch(context.Background(), game.ID, nil)
-	var drifted *LaunchSnapshotError
-	if !errors.As(err, &drifted) || drifted.Reason != launchSnapshotCompositionChanged {
-		t.Fatalf("err %v", err)
-	}
-	if adapter.launchCalls != 0 {
-		t.Fatalf("host launch calls %d", adapter.launchCalls)
-	}
-	if len(exec.pulls) != 1 || exec.pulls[0] != cartA {
-		t.Fatalf("pulls %+v", exec.pulls)
-	}
-}
-
 func TestSeamOffBindFollowsLiveTarget(t *testing.T) {
 	original := &fakeServiceClient{}
 	replacement := &fakeServiceClient{}
@@ -546,17 +423,18 @@ func TestSeamOffBindFollowsLiveTarget(t *testing.T) {
 		},
 		selectedTarget: "dev",
 		targetClients:  map[string]serviceClient{"dev": original},
-		hostExecutor:   &fakeHostExecutor{},
-		executionResolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) {
-			return ExecutionHostOnly, nil
-		}),
 	}
 	service.catalog = &seamOffTargetCatalog{fakeServiceCatalog: &fakeServiceCatalog{}, service: service, replacement: replacement, next: "spare"}
 	var bound string
 	launchPinnedTargetBoundHook = func(name string) { bound = name }
 	t.Cleanup(func() { launchPinnedTargetBoundHook = nil })
 
-	_, err := service.Launch(context.Background(), "snes-mario", nil)
+	snap, err := service.captureLaunchSnapshot("snes-mario", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = service.catalog.Game(context.Background(), "snes-mario")
+	err = service.revalidateLaunchSnapshot(snap)
 	if bound != "spare" {
 		t.Fatalf("bound %q err %v selected %q", bound, err, service.selectedTarget)
 	}
@@ -659,14 +537,16 @@ type flipSelectedCoreCatalog struct {
 	*fakeServiceCatalog
 	service *Service
 	flipped bool
+	reads   int
 }
 
-func (c *flipSelectedCoreCatalog) CoreEntry(context.Context, string) (catalog.CoreEntry, error) {
-	if c != nil && !c.flipped {
+func (c *flipSelectedCoreCatalog) CoreEntry(_ context.Context, id string) (catalog.CoreEntry, error) {
+	c.reads++
+	if c != nil && c.reads > 1 && !c.flipped {
 		c.flipped = true
 		c.service.selectedTarget = "spare"
 	}
-	return catalog.CoreEntry{GameID: "coleco-frogger"}, nil
+	return meshTestCoreEntry(id), nil
 }
 
 func (c *flipSelectedCoreCatalog) CoreEntries(context.Context) ([]catalog.CoreEntry, error) {
@@ -1068,12 +948,12 @@ type stableCoreCatalog struct {
 	id string
 }
 
-func (c *stableCoreCatalog) CoreEntry(context.Context, string) (catalog.CoreEntry, error) {
-	id := "coleco-frogger"
-	if c != nil && c.id != "" {
-		id = c.id
-	}
-	return catalog.CoreEntry{GameID: id}, nil
+func (c *stableCoreCatalog) CoreEntry(_ context.Context, id string) (catalog.CoreEntry, error) {
+	return meshTestCoreEntry(id), nil
+}
+
+func meshTestCoreEntry(id string) catalog.CoreEntry {
+	return catalog.CoreEntry{GameID: id, Title: "Test game", CoreID: "fes.pong", PackageID: strings.Repeat("ab", 32)}
 }
 
 func (c *stableCoreCatalog) CoreEntries(context.Context) ([]catalog.CoreEntry, error) {

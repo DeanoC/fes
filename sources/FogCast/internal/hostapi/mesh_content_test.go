@@ -81,7 +81,7 @@ func (m *meshReadyList) GamesMeshReady(context.Context, []string) (map[string]fo
 
 func (m *meshReadyList) SessionExecution(_ context.Context, id string) (string, error) {
 	if id == "snes-mario" {
-		return fogcast.ExecutionHostOnly, nil
+		return fogcast.ExecutionFPGANative, nil
 	}
 	return "", nil
 }
@@ -137,8 +137,8 @@ func TestGamesSeamOffKeepsLaunchableTitlesReady(t *testing.T) {
 			t.Fatalf("%s launchable=%v eligible=%v ready=%v exec=%s", id, game.Launchable, game.LaunchEligible(), game.ReadyHere, game.Execution)
 		}
 	}
-	if byID["snes-mario"].Execution != fogcast.ExecutionHostOnly {
-		t.Fatalf("host execution %s", byID["snes-mario"].Execution)
+	if byID["snes-mario"].Execution != fogcast.ExecutionFPGANative {
+		t.Fatalf("FPGA execution %s", byID["snes-mario"].Execution)
 	}
 	frogger := byID["fpga-frogger"]
 	if !frogger.Launchable || frogger.LaunchEligible() || frogger.LaunchBlock() != hostclient.LaunchMissingFirmware {

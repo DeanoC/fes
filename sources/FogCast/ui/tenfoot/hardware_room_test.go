@@ -613,7 +613,7 @@ func TestColecoBackendChoiceShowsStopGuidanceWhileRunning(t *testing.T) {
 	pack := testRoomPack(t, colecoArcadeRoomID, `
 local matches = {
   { id = "coleco-fpga", title = "Donkey Kong", system = "coleco", launchable = true, state = "available", execution = "fpga_native" },
-  { id = "coleco-host", title = "Donkey Kong", system = "coleco", launchable = true, state = "available", execution = "host_only" },
+  { id = "coleco-host", title = "Donkey Kong", system = "coleco", launchable = true, state = "available", execution = "other_backend" },
 }
 function load()
   destination.set({ kind = "game", label = "Donkey Kong", query = "Donkey Kong", platform = "coleco", system = "coleco", matches = matches })

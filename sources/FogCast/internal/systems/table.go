@@ -13,8 +13,7 @@ const DefaultSMBShareRoot = "//deano-clawz/Games/Games"
 type Capability string
 
 const (
-	CapabilityCatalog  Capability = "catalog"
-	CapabilityHostOnly Capability = "host_only"
+	CapabilityCatalog Capability = "catalog"
 )
 
 const CoverProviderIGDB = "igdb"

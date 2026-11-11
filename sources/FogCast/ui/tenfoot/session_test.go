@@ -169,7 +169,7 @@ func TestAppSessionPollObservesExternalStopAndPark(t *testing.T) {
 	})
 
 	mu.Lock()
-	sessionJSON = `{"state":"active","game_id":"snes-mario","execution":"host_only"}`
+	sessionJSON = `{"state":"active","game_id":"snes-mario","execution":"fpga_native"}`
 	mu.Unlock()
 	app.kickSessionPollLocked()
 	waitSnapshot(t, app, func(snap Snapshot) bool {

@@ -13,8 +13,8 @@ type PreviewCaptureFactory func() (CaptureSource, error)
 type PreviewDecoderFactory func(context.Context) (ManagedDecoder, error)
 
 // LocalPreview feeds one native capture source directly into a browser
-// preview converter. It avoids claiming the target cast surface and keeps the
-// capture/converter lifetime inside the enclosing media session.
+// preview converter and keeps the capture/converter lifetime inside the
+// enclosing media session.
 type LocalPreview struct {
 	newCapture PreviewCaptureFactory
 	newDecoder PreviewDecoderFactory
@@ -25,7 +25,7 @@ func NewLocalPreview(newCapture PreviewCaptureFactory, newDecoder PreviewDecoder
 	if newCapture == nil || newDecoder == nil {
 		return nil, errors.New("local preview configuration is invalid")
 	}
-	return &LocalPreview{newCapture: newCapture, newDecoder: newDecoder, timeout: defaultManagedReceiverStopTimeout}, nil
+	return &LocalPreview{newCapture: newCapture, newDecoder: newDecoder, timeout: defaultPreviewStopTimeout}, nil
 }
 
 func (p *LocalPreview) Start(ctx context.Context, _ string) (mediasession.ComponentHandle, error) {
@@ -33,25 +33,25 @@ func (p *LocalPreview) Start(ctx context.Context, _ string) (mediasession.Compon
 		ctx = context.Background()
 	}
 	if ctx.Err() != nil {
-		return nil, ErrManagedReceiverStart
+		return nil, errPreviewStart
 	}
 	decoder, err := p.newDecoder(ctx)
 	if err != nil || decoder == nil {
-		return nil, ErrManagedReceiverStart
+		return nil, errPreviewStart
 	}
 	if err := decoder.Start(); err != nil {
 		cleanupDecoder(decoder, p.timeout)
-		return nil, ErrManagedReceiverStart
+		return nil, errPreviewStart
 	}
 	capture, err := p.newCapture()
 	if err != nil || capture == nil {
 		cleanupDecoder(decoder, p.timeout)
-		return nil, ErrManagedReceiverStart
+		return nil, errPreviewStart
 	}
 	if err := capture.Start(); err != nil {
 		_ = capture.Close()
 		cleanupDecoder(decoder, p.timeout)
-		return nil, ErrManagedReceiverStart
+		return nil, errPreviewStart
 	}
 	runCtx, cancel := context.WithCancel(context.Background())
 	h := &localPreviewHandle{capture: capture, decoder: decoder, cancel: cancel, done: make(chan struct{}), stopped: make(chan struct{}), timeout: p.timeout}
@@ -80,7 +80,7 @@ func (h *localPreviewHandle) run(ctx context.Context) {
 		if err != nil {
 			continue
 		}
-		// Match managed RTP receiver: drop a bad frame instead of ending preview.
+		// Drop a bad frame instead of ending preview.
 		_, _ = h.decoder.Write(annexB)
 	}
 }
@@ -96,7 +96,7 @@ func (h *localPreviewHandle) Stop(ctx context.Context) error {
 	case <-h.stopped:
 		return nil
 	case <-ctx.Done():
-		return ErrManagedReceiverStop
+		return errPreviewStop
 	}
 }
 
@@ -111,3 +111,50 @@ func (h *localPreviewHandle) cleanup() {
 }
 
 var _ mediasession.Component = (*LocalPreview)(nil)
+
+const defaultPreviewStopTimeout = 2 * time.Second
+
+var (
+	errPreviewStart = errors.New("local preview failed to start")
+	errPreviewStop  = errors.New("local preview failed to stop")
+)
+
+type ManagedDecoder interface {
+	Start() error
+	Write([]byte) (int, error)
+	Close() error
+	Wait() error
+	Kill() error
+}
+
+func cleanupDecoder(decoder ManagedDecoder, timeout time.Duration) {
+	_ = decoder.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		_ = waitDecoder(decoder, ctx)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-ctx.Done():
+		// The waiter continues in the background so a process that takes
+		// longer than the startup budget is still reaped after Kill.
+	}
+}
+func waitDecoder(decoder ManagedDecoder, ctx context.Context) error {
+	done := make(chan error, 1)
+	go func() { done <- decoder.Wait() }()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		_ = decoder.Kill()
+		// Reap after killing whenever the decoder honors Kill. Callers that
+		// need a bounded wait run this function asynchronously (as startup
+		// cleanup does, and Stop's cleanup worker does).
+		<-done
+		return ctx.Err()
+	}
+}

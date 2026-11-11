@@ -79,9 +79,8 @@ func (s *Service) MeshSessionPlacement() MeshPlacement {
 // rejects and does not steal. Generation takeover is not this path.
 // Ensure then runs on that executor only when mesh ensure is already
 // on; otherwise Ensure stays off and the snapshot still pins the
-// claimed kit through bind. Picture and pad stay on that kit. A native_emu
-// selection of any other node returns ErrUnboundNode and does not
-// change the bind. Unresolved and fail closed do not name an Execute
+// claimed kit through bind. Picture and pad stay on that kit. Unresolved
+// and fail closed do not name an Execute
 // node, so they are not recorded and are not that refusal. No request
 // returns the snapshot unchanged. A launch that names a target is the
 // caller's executor choice: placement does not run for it.
@@ -96,6 +95,9 @@ func (s *Service) applyMatchingPlacement(ctx context.Context, gameID string, sna
 	entry, ok := s.placementEntry(gameID, snap)
 	if !ok {
 		return snap, nil
+	}
+	if meshEntryHasNativeEmulator(entry) {
+		return snap, canonicalError(protocol.CodeUnsupportedOperation, nil)
 	}
 	opts := s.PlaceOptions()
 	opts.OverrideNodeID = ask.OverrideNodeID
@@ -224,11 +226,8 @@ func (s *Service) installPlacementRebind(cfg TargetConfig, choice meshplace.Choi
 	}
 	s.meshMu.Unlock()
 	s.targetMu.Unlock()
-	// The origin hook is the production path that points CastStart at
-	// the selected kit. The lease is the grant just claimed, so media
-	// keeps the kit-lease header. Call the hook only after both locks
-	// are released, and only when the selected name changed. The hook
-	// must not call back into Service.
+	// Update the input origin after both locks are released, and only
+	// when the selected name changed. The hook must not call back into Service.
 	if origin != nil && previous != cfg.Name {
 		origin(cfg, lease)
 	}
@@ -613,7 +612,7 @@ func placementRolesLocal(choice meshplace.Choice) bool {
 }
 
 // placementFPGANode reports that the selected candidate advertises
-// Execute fpga_native. A native_emu selection is not rebound here.
+// Execute fpga_native.
 func placementFPGANode(candidates []meshplace.Candidate, nodeID string) bool {
 	for _, candidate := range candidates {
 		if candidate.NodeID != nodeID {

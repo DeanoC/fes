@@ -28,8 +28,7 @@ const (
 )
 
 // NativeCapture is the Linux V4L2 adapter. FFmpeg reads the UVC device and
-// emits low-latency H.264 access units, preserving the CaptureSource contract
-// used by both local preview and the existing RTP sender.
+// emits low-latency H.264 access units for the local preview.
 type NativeCapture struct {
 	mu       sync.Mutex
 	cmd      *exec.Cmd

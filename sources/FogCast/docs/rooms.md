@@ -406,8 +406,7 @@ has finished.") and is not queued: a queued Confirm could start whatever the
 finished list focuses, which the player has not seen. The acknowledgement
 clears when the destination stops Checking. A kit
 lease held by another session is applied to each candidate before viable
-choices are counted. A leased FPGA beside a playable host emulator leaves
-that emulator Ready, with no choice. A lone leased option is Unavailable
+choices are counted. A lone leased option is Unavailable
 with the copy "In use" / "Someone else is playing on this machine. You can play
 when they're done." (or "{name} is playing {title}" when a friendly name
 exists). There is no take-over option. (The "executor in use" wording is
