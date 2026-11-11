@@ -446,7 +446,7 @@ These are owned as `core-media-evolution.md:113-128` says.
   - `pc-floppy` allows them while running, as above;
   - `atapi-cd` has Prepare, Commit (no CRC: the track table is the runtime's) and Eject, and no dirty map.
   
-  This is a minor ABI bump, 1.1 to 1.2. Old shells declare no new interfaces, and old runtimes ignore unknown ones (`RT/docs/computer-io.md:47`).
+  This is a minor ABI bump, 1.1 to 1.2. Old shells declare no new interfaces and keep working on the new runtime. Old runtimes do **not** accept the new pc386: they admit only minors 0 and 1, and they reject unknown required declarations (`RT/docs/computer-io.md:29-31`, `:47-48`). These media interfaces are required, so a 1.2 pc386 package ships only with a runtime that implements 1.2.
 - **New layouts.** `fes.pc386-floppy.image` 1.0 in `media-data.md`. The CD control-page layout is a published constant table, so the core, runtime and `machine_tb` share one definition.
 
 **libmister-runtime:**
@@ -637,7 +637,7 @@ Each slice is one PR with its own `Closes` issue under the tracker, [#1694](http
   - the endpoint's golden exchanges in the `storage` suite;
   - Kit smoke 1.
 - **Estimate:** +200 ALMs.
-- **May split:** it may become one PR per repository area if Lander's PR-size rule asks, with the ABI first.
+- **One PR:** the ABI change and every consumer that implements it (endpoint RTL, runtime, FogCast) land together, since a shared-definition change regenerates its consumers in the same change (`AGENTS.md:182-183`). If it is too large, split by feature (A: alone first, then B: and swap) rather than by repository.
 
 ### F4. Floppy acceptance (records)
 
