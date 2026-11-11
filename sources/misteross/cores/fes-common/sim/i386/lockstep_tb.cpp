@@ -7929,6 +7929,26 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         db("db-real-dbp-rep", [=](Asm &a) {
             dbp(a, 0, 0x124, 1, 0); a.op({0xbf, 0x20, 0x01, 0xb9, 0x08, 0x00, 0xfc, 0xf3, 0xaa, 0x40});
         }, 1, true);
+        // MOV SS, [120h] reading DR0's field: the shadow carries the trap to
+        // the next instruction's end; an INT n there drops it (Bochs's
+        // interrupt()), its pushes elsewhere.
+        auto ss_word = [](Asm &a) { a.op({0xc7, 0x06, 0x20, 0x01, 0x10, 0x00}); };  // MOV word [120h], 10h
+        db("db-dbp-movss", [=](Asm &a) { ss_word(a); dbp(a, 0, 0x120, 3, 1); a.op({0x8e, 0x16, 0x20, 0x01, 0x40}); }, 1);
+        db("db-dbp-movss-int", [=](Asm &a) {
+            ss_word(a); dbp(a, 0, 0x120, 3, 1); a.op({0x8e, 0x16, 0x20, 0x01, 0xcd, 0x20, 0x43});
+        }, -1, false, false, false, 0x20);
+        // A descriptor's read matches a data breakpoint as any access does
+        // (Bochs's system_read): MOV DS, 10h with DR0 over GDT entry 10h.
+        db("db-dbp-gdt", [=](Asm &a) { dbp(a, 0, GDT + 0x10, 3, 3); arm(a, 1, GDT + 0x14); a.ax(0x10); a.op({0x8e, 0xd8, 0x40}); }, 1);
+        // A data breakpoint's trap between a REP string's elements reports
+        // no match of the string's own address (RF, as Bochs's REP sets it):
+        // DR1, disabled, on the REP STOSB.
+        db("db-dbp-rep-own", [=](Asm &a) {
+            const size_t d1 = arm_at(a, 1);
+            dbp(a, 0, 0x124, 1, 0);
+            a.op({0xbf, 0x20, 0x01, 0xb9, 0x08, 0x00, 0xfc});
+            patch(a, d1, here(a)); a.op({0xf3, 0xaa, 0x40});
+        }, 1);
         // A data breakpoint's trap goes on to the next: the handler returns,
         // a second hit traps again, and DR6 holds both B bits.
         db("db-dbp-twice", [=](Asm &a) {

@@ -2186,11 +2186,11 @@ module fes_i386_cpu #(
             m1_out.dfl = !m1_s.cs_late && m1_s.dfault != fes_i386_pkg::FAULT_NONE;
         end
         // The data breakpoints the uop's accesses match (see Breakpoints): its
-        // memory operand's, read, written or both, and a st2 uop's store at
-        // its second address. A system access (a descriptor's, a gate's, a
-        // TSS's or a page table's) matches none, as Bochs's system_read and
-        // system_write check none.
-        m1_out.dbp = m1_s.uop.mem.kind == fes_i386_pkg::MEM_NONE || m1_s.uop.mem.system ? 4'd0
+        // memory operand's, read, written or both, a descriptor's, gate's or
+        // TSS's too (Bochs's system_read and system_write check a page that
+        // holds a data breakpoint as any access), and a st2 uop's store at
+        // its second address. The walker's page-table accesses are physical.
+        m1_out.dbp = m1_s.uop.mem.kind == fes_i386_pkg::MEM_NONE ? 4'd0
                    : dbp_match(m1_s.maddr, m1_s.uop.mem.bytes, reads_mem(m1_s),
                                m1_s.uop.mem.kind == fes_i386_pkg::MEM_STORE || m1_s.uop.mem.kind == fes_i386_pkg::MEM_RMW,
                                dr, bp_any, bp_w, bp_rw, bp_m)

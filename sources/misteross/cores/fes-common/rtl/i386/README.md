@@ -1295,9 +1295,9 @@ RTL follows Bochs (the lockstep README's Known limits lists both).
   that (so GD's #DB after an IRETD that set RF pushes it set, where Bochs
   pushes it clear: `[[lockstep]] db-frame-rf`).
 - **Data breakpoints** compare each uop's accesses at M1 (`dbp_match`): its
-  memory operand, read, written or both, and a st2 uop's store; a system
-  access (a descriptor's, gate's, TSS's, page table's) matches none, as
-  Bochs's `system_read`. Any byte of the access in DRn's field matches: the
+  memory operand, read, written or both, a descriptor's, gate's or TSS's
+  too (Bochs checks those as any access), and a st2 uop's store; the
+  walker's page-table accesses, physical, match none. Any byte of the access in DRn's field matches: the
   field lies in one 8-byte block, and the access's own block and the next
   (compared carry-free) are checked with byte masks. The matches ride the
   uop (`dbp`, `dbp_en`) and gather only as it commits (`dbg_b`, `dbg_en`),

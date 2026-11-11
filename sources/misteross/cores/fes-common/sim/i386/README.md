@@ -301,8 +301,9 @@ differs. Directed tests in later phases decide these, not the oracle:
   and a #DB fault's image has RF as it is (`db_rf_rule`). Where the 386
   can't be established the RTL takes Bochs's: B bits of a disabled
   breakpoint's match reported only with a #DB at that edge and none while
-  no breakpoint is enabled; no data breakpoint on a descriptor's, gate's,
-  TSS's or page table's access; LEN 10 as eight bytes and a LEN other than
+  no breakpoint is enabled; data breakpoints on a descriptor's, gate's and
+  TSS's accesses too (Bochs's `system_read` checks a page that holds one);
+  LEN 10 as eight bytes and a LEN other than
   00 on an instruction breakpoint as a range; RF cleared by POPF and a
   16-bit IRET; a single step pending at a task switch dropped; an
   instruction breakpoint ignored after a MOV SS or POP SS that shadows
