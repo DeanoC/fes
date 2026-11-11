@@ -69,7 +69,7 @@ for them.**
   the party back on the ship within 3–6 s, as the Bochs-oracle machine does in about 5.5 s.
 - Runs `k7` (101 launches, 0 black) and `k8` (101 launches, 6 black) stopped
   every launch at the DOS prompt. `k8`'s scratch seal adds the presenter's and
-  display plane's state to the ring. In all six black launches it read the
+  display plane's state to the ring. In all six black DOS-prompt grabs it read the
   same as lit: presenter and plane output lit, plane closed (`ui_active` 0,
   `locked` 1, `faulted` 0), presenter showing a 720x400 picture. See
   [Runs `k7` and `k8`](#runs-k7-and-k8-presenter-and-display-plane-state-11-november-09131200-eet).
@@ -234,7 +234,7 @@ every preset.
 
 ## Next
 
-- **What's left, for `d2`.** In all eight of `d2`'s black launches (`k8`,
+- **What's left, for `d2`.** In all eight of `d2`'s black DOS-prompt grabs (`k8`,
   `k9`) the core drives lit pixels with DE onto the HDMI pins. In `k9`'s
   two, the only ones checked, the ADV7513's registers are as in a lit
   launch and HDMI audio reaches the grabber. For the four black
@@ -436,7 +436,7 @@ of 12, `k3` 2 of 17, `k4` 0 of 1, `k5` 0 of 17, `k6` 1 of 41.
   buffer, width and height. "Lit" means at least one DE pixel with non-zero
   RGB in the last frame.
 
-**`k8`: 6 black launches in 101:** `p0n49`, `p0n61`, `p7n68`, `p7n90`,
+**`k8`: 6 black DOS-prompt grabs in 101 launches:** `p0n49`, `p0n61`, `p7n68`, `p7n90`,
 `p7n94`, `p7n98` (2 at `max`, 4 at 486DX2-66). Each grab is the flat-black
 frame `4c6d2c8d`.
 
@@ -449,7 +449,7 @@ frame `4c6d2c8d`.
 - Both plane slots read fully transparent (alpha 0 at all 48 words) at
   every grab, black or lit, in both runs.
 - The plane's output is `video`, which `top.sv` drives straight onto
-  `HDMI_TX_D`/`DE`/`HS`/`VS`. So in these six black launches the core put
+  `HDMI_TX_D`/`DE`/`HS`/`VS`. So in these six black DOS-prompt grabs the core put
   lit pixels on the HDMI pins. The flag doesn't count pixels or check sync and
   DE geometry, so it shows the presenter and plane aren't blanking the
   picture, not that every pixel is right.
@@ -459,7 +459,7 @@ frame `4c6d2c8d`.
 are all in relaunches 49–98. A placement-dependent rate would fit the pin
 timing candidate in [Next](#next), but these counts don't show one.
 
-**Across the eight runs** it is 10 black launches in 299.
+**Across the eight runs** it is 10 black DOS-prompt grabs in 299 launches.
 
 ## HDMI pin timing (host only)
 
@@ -499,7 +499,7 @@ delay (`0xBA`) to `0x20`, as `k9` read it.
   fan-out. `VIDIOC_QUERY_DV_TIMINGS` isn't supported on either device, so
   there are no detected timings to read.
 
-**2 black launches in 101:** `p7n18` and `p7n52`, both at 486DX2-66, both
+**2 black DOS-prompt grabs in 101 launches:** `p7n18` and `p7n52`, both at 486DX2-66, both
 `4c6d2c8d` at the DOS prompt.
 
 - **Ring and capture.** As in `k8`: presenter and plane output lit, plane
@@ -521,8 +521,8 @@ delay (`0xBA`) to `0x20`, as `k9` read it.
   - `0xD6` c0;
   - the AVI infoframe bytes from `0x55`.
 
-**Across the nine runs** it is 12 black launches in 400. By seal: main 1 of
-21, `d1` 3 of 177, `d2` 8 of 202.
+**Across the nine runs** it is 12 black DOS-prompt grabs in 400 launches.
+By seal: main 1 of 21, `d1` 3 of 177, `d2` 8 of 202.
 
 ## Kit housekeeping
 
