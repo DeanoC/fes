@@ -66,11 +66,12 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 }
 
 // applyKitHostCartridgeLocked marks one present browse-only cartridge ready for
-// the kit host once fes.sms is installed. Host-eligible rows, offline
-// rows, and a shell with no local pad stay on the host classification.
-// A missing core explains itself here.
+// local entry preparation on the kit host once fes.sms is installed. Paired
+// shared hosts leave the destination unchanged because they cannot prepare that
+// entry. Host-eligible rows, offline rows, and a shell with no local pad stay on
+// the host classification. A missing core explains itself here.
 func (a *App) applyKitHostCartridgeLocked(d rooms.Destination) rooms.Destination {
-	if a == nil || a.localCores == nil || a.localFeed == nil {
+	if a == nil || !a.kitHost || a.localCores == nil || a.localFeed == nil {
 		return d
 	}
 	game, ok := kitHostCartridgeMatch(d)

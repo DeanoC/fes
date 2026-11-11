@@ -2627,8 +2627,8 @@ inventory. When target health first becomes ready or recovers, tenfoot refreshes
 its installed-core cache and the visible Home room's kit and library data. A
 successful empty startup inventory does not remain cached after that transition;
 unchanged ready health does not poll inventory. Suspended Home rooms refresh
-both sources when resumed, preserving their instance and selection. Core and
-local SMS cartridge selections are resolved into host
+both sources when resumed, preserving their instance and selection. In
+kit-host mode, core and local SMS cartridge selections are resolved into host
 catalog entries through `POST /api/v1/library/local-core-entry`, then use the
 host session launch and Stop paths. The host checks the selected package and
 resolves a cartridge by catalog identity, imports its content, and reuses its
