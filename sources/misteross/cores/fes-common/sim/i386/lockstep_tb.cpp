@@ -158,6 +158,16 @@ constexpr uint32_t MMIO_LO = 0xa0000, MMIO_HI = 0xc0000;  // the MMIO window, wh
 // the ROM's or the hole's shows. One slot each: a program whose stack or far
 // pointers land there runs astray (Outcome::stray).
 constexpr uint32_t MIX_LO = 0xb8000, MIX_HI = 0xbc000, ROM_LO = 0xc0000, HOLE_LO = 0xc4000, HOLE_HI = 0xc8000;
+// The debug programs (FES_I386_DEBUG; Phase 5's fifth slice): random
+// programs whose blocks arm breakpoints and single-step, through vector 1 to
+// a #DB handler at FFFF:FFE4 (DB_HANDLER), beside the interrupts' handler,
+// which disables every breakpoint (DR7 &= FFFFFF00h) and returns:
+// PUSH EAX; MOV EAX, DR7; AND EAX, FFFFFF00h; MOV DR7, EAX; POP EAX; IRET.
+// A run goes on past each #DB.
+constexpr uint32_t DB_HANDLER = 0x10ffd4, DB_HANDLER_BYTES = 17;
+constexpr uint8_t DB_HANDLER_CODE[DB_HANDLER_BYTES] = {0x66, 0x50, 0x0f, 0x21, 0xf8, 0x66, 0x25, 0x00, 0xff,
+                                                        0xff, 0xff, 0x0f, 0x23, 0xf8, 0x66, 0x58, 0xcf};
+bool debug_programs = false;
 // The random programs' page directory and its four tables (Generator::pg_tables).
 constexpr uint32_t PG_PD = 0xf00000, PG_END = PG_PD + 0x5000, PG_ARENA = 0x200000;
 bool mixed = false;
@@ -1259,6 +1269,15 @@ struct Summary {
     // into the step. iret_save_rule: IRETs with NT set whose back link
     // faulted, where the RTL, as the 386, had saved the old task first.
     uint64_t fetch_rule = 0, iret_save_rule = 0;
+    // Phase 5's fifth slice. dr6_rule: #DB deliveries where the RTL's DR6
+    // keeps the bits it held, which the 386 never clears and Bochs clears
+    // first (B0-B3 and BT). db_rf_rule: #DB faults whose EFLAGS image the
+    // oracle took with RF set, as the 386 pushes it (GD after an IRETD that
+    // set RF), where Bochs's has it clear. debug_kinds: the #DB deliveries
+    // by what DR6 reports (the oracle's new bits: B for a breakpoint, BS,
+    // BT, BD), and those with TF set or a breakpoint enabled.
+    uint64_t dr6_rule = 0, db_rf_rule = 0;
+    std::map<std::string, uint64_t> debug_kinds;
     std::map<int, uint64_t> pm_deliveries, unbuilt;
     std::map<std::string, uint64_t> pm_kinds;  // retirements with PE set of this slice's instructions, by kind
     // Code under a CS limit other than FFFFh and FFFFFFFFh: its retirements
@@ -1743,8 +1762,9 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 outcome.window_code = true;
                 return outcome;
             }
-            const bool handler = irq && (at - irq->handler < 2 || at - irq->pm_h32 < 2 || at - irq->pm_h16 < 2);
-            if (mixed && own && (!(at >= own->lo && at < own->hi) && !handler || now.eflags & 0x100
+            const bool handler = irq && (at - irq->handler < 2 || at - irq->pm_h32 < 2 || at - irq->pm_h16 < 2
+                                         || debug_programs && at - DB_HANDLER < DB_HANDLER_BYTES);
+            if (mixed && own && (!(at >= own->lo && at < own->hi) && !handler || (now.eflags & 0x100) && !debug_programs
                                  || bus.mixed_read && at - mixed_from >= 16 && !handler)) {
                 outcome.stray = true;
                 return outcome;
@@ -2297,6 +2317,27 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                         }
                     }
                 }
+                // A #DB fault's EFLAGS image: the 386 pushes EFLAGS as it is
+                // (BREAKPOINT_CMN goes to INTERRUPT_X past FAULT's RF set),
+                // so an instruction that runs with RF set (after an IRETD
+                // that set it) and takes GD's #DB pushes RF set, where Bochs
+                // has cleared RF before the instruction ran (db_rf_rule;
+                // divergences.toml db-frame-rf). Its first push, or its third
+                // to an inner privilege, a 32-bit image's byte 2.
+                if (delivered && last && last->kind == fes_i386::EventKind::Exception && last->vector == 1
+                    && (before.eflags & 0x10000) && (before.cr0 & 1)) {
+                    const bool inner = oracle.get_state().cpl < before.cpl;
+                    const size_t slot = last->writes_before + (inner ? 2 : 0);
+                    if (slot < result.writes.size() && result.writes[slot].length == 4) {
+                        const uint32_t rf_at = write_key(result.writes[slot].physical + 2);
+                        if (rf_at < RAM_BYTES && oracle_writes.count(rf_at) && (bus.ram[rf_at] ^ rtl.ram[rf_at]) == 1
+                            && (rtl.ram[rf_at] & 1)) {
+                            bus.ram[rf_at] = rtl.ram[rf_at];
+                            oracle.invalidate(rf_at, 1);
+                            ++summary.db_rf_rule;
+                        }
+                    }
+                }
                 unsigned pfx = 0;
                 while (pfx < 15 && is_prefix(code[pfx])) ++pfx;
                 const bool far_call = code[pfx] == 0x9a || code[pfx] == 0xff && ((code[pfx + 1] >> 3) & 7) == 3;
@@ -2536,6 +2577,32 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 if (oracle_state.eflags & 0x20000) ++summary.pm_kinds["task-v86"];
             }
         }
+        // A #DB: the 386 never clears DR6 (its manual's 12.2.3; its microcode
+        // only ORs DR6, 3A3, 93F and 7E0), where Bochs's exception() clears
+        // B0-B3 and BT first, so the RTL's DR6 is the oracle's with the bits
+        // it held before (dr6_rule; divergences.toml dr6-sticky).
+        for (const auto &e : result.events) {
+            if (e.kind != fes_i386::EventKind::Exception || e.vector != 1) continue;
+            const uint32_t fresh = oracle_state.dr6 & ~before.dr6;
+            ++summary.debug_kinds["db"];
+            if (oracle_state.dr6 & 0xf) ++summary.debug_kinds["db-b"];
+            if (fresh & 0x4000) ++summary.debug_kinds["db-bs"];
+            if (oracle_state.dr6 & 0x8000) ++summary.debug_kinds["db-bt"];
+            if (fresh & 0x2000) ++summary.debug_kinds["db-bd"];
+            if ((oracle_state.dr6 & 0xf) && (oracle_state.dr6 & 0x4000) && !(before.dr6 & 0x4000)) ++summary.debug_kinds["db-b-bs"];
+            if (before.eflags & 0x20000) ++summary.debug_kinds["db-v86"];
+            if (before.cr0 & 1) ++summary.debug_kinds["db-pm"];
+            if (iterations > 0 || rep_count(code, code32, before) > 1) ++summary.debug_kinds["db-rep"];
+            const uint32_t want = oracle_state.dr6 | (before.dr6 & 0xf00f);
+            if (want != oracle_state.dr6) {
+                oracle_state.dr6 = want;
+                oracle.set_state(oracle_state);
+                ++summary.dr6_rule;
+            }
+            break;
+        }
+        if (before.eflags & 0x100) ++summary.debug_kinds["tf-steps"];
+        if (before.dr7 & 0xff) ++summary.debug_kinds["armed-steps"];
         compare(oracle_state, rtl_state, skip, at, out);
         hash_state(summary, rtl_state);
         if (!out.items.empty()) return outcome;
@@ -2561,7 +2628,8 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         }
         for (const auto &e : result.events)
             if (e.kind == fes_i386::EventKind::SoftwareInterrupt) outcome.interrupt = e.vector;
-        if (delivered && !interrupted) {
+        // The debug programs run on past each #DB (their handler at DB_HANDLER).
+        if (delivered && !interrupted && !(debug_programs && rtl.top.trace_vector == 1)) {
             outcome.exception = rtl.top.trace_vector;
             if (stop_at_exception) return outcome;
         }
@@ -3730,7 +3798,9 @@ public:
         // PM_OFF: a protected-mode far transfer's offset at rel_at, the
         // target's EIP under the program's own CS base, which the code
         // descriptors take (pm_block); its selector is in the bytes already.
-        enum { NEAR, FAR_PTR, FAR_OFF, FAR_SEL, NEAR_ABS, PM_OFF } far = NEAR;
+        // LIN_ABS: the target's linear address plus target_byte, 32 bits at
+        // rel_at, which a MOV loads for a breakpoint's DRn (debug_block).
+        enum { NEAR, FAR_PTR, FAR_OFF, FAR_SEL, NEAR_ABS, PM_OFF, LIN_ABS } far = NEAR;
         unsigned target_byte = 0;
         unsigned rewrites = 0;  // the bytes from there a store rewrites (smc_block)
     };
@@ -3745,6 +3815,9 @@ public:
     // slice): H and its gates, pm_task. Off, a seed's programs are as they
     // were before them, so earlier repros reproduce.
     bool tasks = false;
+    // debug: the debug programs (FES_I386_DEBUG; Phase 5's fifth slice),
+    // whose debug_block items are drawn from side.
+    bool debug = false;
     std::vector<std::pair<uint32_t, uint8_t>> image;
 
     // base: the program's linear address, which far targets need; eip: its
@@ -3758,6 +3831,10 @@ public:
         program_eip = eip;
         gdt_table();
         while (items.size() < count) {
+            if (debug && side() % 100 < 12) {
+                debug_block();
+                continue;
+            }
             const unsigned kind = pick(100);
             if (kind < 6) forward_branch();
             else if (kind < 9) loop_block();
@@ -6268,6 +6345,116 @@ private:
         items.push_back(target);
     }
 
+    // ---- Breakpoints and single step (debug_block) ------------------------------
+    // A real-mode block of the debug programs, its choices drawn from side:
+    //   0 an instruction breakpoint (DRn at a later instruction's linear
+    //     address, now and then one byte into it or after a MOV SS that
+    //     shadows it, LEN mostly 00), the instructions before it and after;
+    //   1 a data breakpoint (DRn in a scratch area FS addresses, R/W 01 or
+    //     11, any LEN, GE and LE at random) and accesses near it: loads,
+    //     stores, read-modify-writes, XCHG, PUSH and POP of memory, REP
+    //     STOS, MOVS and LODS over it in either direction;
+    //   2 TF set by POPF for a stretch of instructions (MOV SS and POP SS,
+    //     STI, INT n to the interrupts' handler, short REP strings, PUSHF and
+    //     POPF), then cleared;
+    //   3 a data breakpoint's accesses under TF.
+    // Each arms one breakpoint with the others' DR7 fields random but
+    // disabled (so B bits of matching disabled ones show), never GD, and
+    // ends with DR7 cleared. The #DB handler (DB_HANDLER) disables every
+    // breakpoint before it returns, so an instruction breakpoint's
+    // instruction then runs.
+    uint32_t dside(uint32_t n) { return uint32_t(side() % n); }
+    void push_bytes(std::vector<uint8_t> b) { items.push_back(Item{std::move(b), -1, 0, 0}); }
+    void mov_eax(uint32_t v) { push_bytes({0x66, 0xb8, uint8_t(v), uint8_t(v >> 8), uint8_t(v >> 16), uint8_t(v >> 24)}); }
+    void mov_dr(unsigned n) { push_bytes({0x0f, 0x23, uint8_t(0xc0 | (n << 3))}); }  // MOV DRn, EAX
+    // DR7 with breakpoint n enabled (L, G or both), R/W rw and LEN len, the
+    // others' enables clear and their R/W and LEN random; GE, LE and bits
+    // 11, 12, 14 and 15 random; GD clear.
+    uint32_t dr7_for(unsigned n, unsigned rw, unsigned len) {
+        uint32_t v = uint32_t(side()) & 0xffffdb00u;
+        v |= uint32_t(1 + dside(3)) << (2 * n);
+        v &= ~(0xfu << (16 + 4 * n));
+        v |= (rw | len << 2) << (16 + 4 * n);
+        return v | 0x400;
+    }
+    void debug_block() {
+        const unsigned form = dside(4);
+        const unsigned n = dside(4);
+        // The scratch area: away from the program, below 1 MiB, outside the
+        // MMIO window and the mixed memory; FS selects it.
+        const uint32_t area = program_base >= 0x10000 ? 0x800 : 0x20000;
+        if (form == 0) {
+            const size_t mov = items.size();
+            Item load;
+            load.bytes = {0x66, 0xb8, 0, 0, 0, 0};
+            load.far = Item::LIN_ABS;
+            load.rel_at = 2;
+            load.rel_size = 4;
+            if (dside(6) == 0) load.target_byte = 1 + dside(2);
+            items.push_back(load);
+            mov_dr(n);
+            mov_eax(dr7_for(n, 0, dside(8) == 0 ? dside(4) : 0));
+            mov_dr(7);
+            for (unsigned k = dside(3); k > 0; --k) items.push_back(Item{instruction(false), -1, 0, 0});
+            if (dside(5) == 0) push_bytes({0x8c, 0xd0, 0x8e, 0xd0});  // MOV AX, SS; MOV SS, AX
+            items[mov].target = int(items.size());
+            items.push_back(Item{instruction(false), -1, 0, 0});
+            for (unsigned k = dside(3); k > 0; --k) items.push_back(Item{instruction(false), -1, 0, 0});
+        } else {
+            const bool tf = form >= 2;
+            if (tf) push_bytes({0x9c, 0x58, 0x80, 0xcc, 0x01, 0x50, 0x9d});  // PUSHF; POP AX; OR AH, 1; PUSH AX; POPF
+            const uint16_t off = uint16_t(0x10 + 8 * dside(4));
+            if (form != 2) {
+                push_bytes({0xb8, uint8_t(area >> 4), uint8_t(area >> 12), 0x8e, 0xe0});  // MOV AX, area >> 4; MOV FS, AX
+                mov_eax(area + off + dside(8));
+                mov_dr(n);
+                mov_eax(dr7_for(n, dside(2) ? 3 : 1, dside(4)));
+                mov_dr(7);
+            }
+            const unsigned count = tf ? 2 + dside(6) : 3 + dside(6);
+            for (unsigned k = 0; k < count; ++k) {
+                const uint16_t at = uint16_t(off - 4 + dside(16));
+                const uint8_t lo = uint8_t(at), hi = uint8_t(at >> 8);
+                switch (form == 2 ? 100 + dside(8) : dside(10)) {
+                case 0: push_bytes({0x64, 0xa0, lo, hi}); break;                         // MOV AL, FS:[at]
+                case 1: push_bytes({0x64, 0xa1, lo, hi}); break;                         // MOV AX, FS:[at]
+                case 2: push_bytes({0x66, 0x64, 0xa1, lo, hi}); break;                   // MOV EAX, FS:[at]
+                case 3: push_bytes({0x64, 0xa2, lo, hi}); break;                         // MOV FS:[at], AL
+                case 4: push_bytes({0x66, 0x64, 0xa3, lo, hi}); break;                   // MOV FS:[at], EAX
+                case 5: push_bytes({0x64, 0x80, 0x06, lo, hi, byte()}); break;           // ADD byte FS:[at], ib
+                case 6: push_bytes({0x64, 0x87, 0x1e, lo, hi}); break;                   // XCHG FS:[at], BX
+                case 7: push_bytes({0x64, 0xff, 0x36, lo, hi}); break;                   // PUSH word FS:[at]
+                case 8: push_bytes({0x64, 0x8f, 0x06, lo, hi}); break;                   // POP word FS:[at]
+                case 9: {                                                                // a REP string over the area
+                    const uint8_t ops[] = {0xaa, 0xab, 0xa4, 0xa5, 0xac, 0xad};
+                    const uint8_t op = ops[dside(6)];
+                    push_bytes({0x0f, 0xa0, 0x07});                                        // PUSH FS; POP ES
+                    push_bytes({0xbf, lo, hi, 0xbe, lo, hi, 0xb9, uint8_t(1 + dside(tf ? 3 : 9)), 0x00});  // DI, SI, CX
+                    push_bytes({dside(2) ? uint8_t(0xfc) : uint8_t(0xfd)});                // CLD or STD
+                    std::vector<uint8_t> str;
+                    if (dside(3) == 0) str.push_back(0x66);
+                    str.push_back(0xf3);
+                    if (op == 0xa4 || op == 0xa5 || op == 0xac || op == 0xad) str.push_back(0x64);
+                    str.push_back(op);
+                    push_bytes(str);
+                    break;
+                }
+                case 100: push_bytes({0x8c, 0xd0, 0x8e, 0xd0}); break;                   // MOV AX, SS; MOV SS, AX
+                case 101: push_bytes({0x16, 0x17}); break;                               // PUSH SS; POP SS
+                case 102: push_bytes({0xfb}); break;                                     // STI
+                case 103: push_bytes({0xcd, uint8_t(8 + dside(8))}); break;              // INT 8-15
+                case 104: push_bytes({0xb9, uint8_t(1 + dside(3)), 0x00, 0xf3, 0xaa}); break;  // MOV CX, n; REP STOSB
+                case 105: push_bytes({0x9c, 0x9d}); break;                               // PUSHF; POPF
+                default: items.push_back(Item{instruction(false), -1, 0, 0}); break;
+                }
+            }
+            if (tf) push_bytes({0x9c, 0x58, 0x80, 0xe4, 0xfe, 0x50, 0x9d});  // PUSHF; POP AX; AND AH, FEh; PUSH AX; POPF
+        }
+        mov_eax(0x400);
+        mov_dr(7);
+        fence = int(items.size());
+    }
+
     std::vector<uint8_t> layout() {
         rewritten.clear();
         std::vector<uint32_t> offset(items.size() + 1, 0);
@@ -6275,7 +6462,10 @@ private:
         std::vector<uint8_t> out;
         for (size_t n = 0; n < items.size(); ++n) {
             Item &item = items[n];
-            if (item.target >= 0 && item.far == Item::NEAR_ABS) {
+            if (item.target >= 0 && item.far == Item::LIN_ABS) {
+                const uint32_t value = program_base + offset[size_t(item.target)] + item.target_byte;
+                for (unsigned i = 0; i < item.rel_size; ++i) item.bytes[item.rel_at + i] = uint8_t(value >> (8 * i));
+            } else if (item.target >= 0 && item.far == Item::NEAR_ABS) {
                 const uint32_t value = program_eip + offset[size_t(item.target)] + item.target_byte;
                 for (unsigned i = 0; i < item.rewrites; ++i)
                     rewritten.insert(program_base + offset[size_t(item.target)] + item.target_byte + i);
@@ -6315,6 +6505,7 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
     Generator generator(random);
     if (const char *weight = std::getenv("FES_I386_PM")) generator.pm_weight = unsigned(std::strtoul(weight, nullptr, 0));
     generator.tasks = std::getenv("FES_I386_TASKS") != nullptr;
+    generator.debug = debug_programs = std::getenv("FES_I386_DEBUG") != nullptr;
     for (uint64_t n = 0; n < programs; ++n) {
         State state;
         for (auto &r : state.gpr) r = uint32_t(random());
@@ -6346,6 +6537,11 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         std::vector<std::pair<uint32_t, uint8_t>> image{{IRQ_HANDLER, 0x90}, {IRQ_HANDLER + 1, 0xcf}};
         for (uint32_t vector : {2u, 8u, 9u, 10u, 11u, 12u, 13u, 14u, 15u})
             for (uint32_t i = 0; i < 4; ++i) image.emplace_back(vector * 4 + i, uint8_t(0xffffffe0u >> (8 * i)));
+        if (debug_programs) {
+            for (uint32_t i = 0; i < 4; ++i) image.emplace_back(4 + i, uint8_t(0xffffffe4u >> (8 * i)));  // FFFF:FFE4
+            for (uint32_t i = 0; i < DB_HANDLER_BYTES; ++i) image.emplace_back(DB_HANDLER + i, DB_HANDLER_CODE[i]);
+            static_assert(0xffff0 + 0xffe4 == DB_HANDLER);
+        }
         static_assert(0xffff0 + 0xffe0 == IRQ_HANDLER);
         // The protected-mode blocks' GDT, LGDT's pointer and scratch area.
         image.insert(image.end(), generator.image.begin(), generator.image.end());
@@ -9708,7 +9904,8 @@ int main(int argc, char **argv) {
                 "\"pm_retirements\": %llu, \"cs_rule\": %llu, \"ss_error_rule\": %llu, \"fetch_rule\": %llu, "
                 "\"iret_save_rule\": %llu, \"pm_deliveries\": {%s}, "
                 "\"unbuilt_stops\": {%s}, \"pm_kinds\": {%s}, \"cs_limit\": {%s}, "
-                "\"no387_rule\": %llu, \"no387_skips\": %llu}\n",
+                "\"no387_rule\": %llu, \"no387_skips\": %llu, \"dr6_rule\": %llu, \"db_rf_rule\": %llu, "
+                "\"debug_kinds\": {%s}}\n",
                 mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
@@ -9743,6 +9940,7 @@ int main(int argc, char **argv) {
                 (unsigned long long)summary.iret_save_rule, pm_deliveries.c_str(),
                 unbuilt.c_str(), pm_kinds.c_str(), cs_limit.c_str(),
                 (unsigned long long)summary.no387_rule,
-                (unsigned long long)summary.no387_skips);
+                (unsigned long long)summary.no387_skips, (unsigned long long)summary.dr6_rule,
+                (unsigned long long)summary.db_rf_rule, named(summary.debug_kinds).c_str());
     return summary.failed ? 1 : 0;
 }
