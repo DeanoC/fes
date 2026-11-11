@@ -3527,10 +3527,15 @@ stream only while the core, package, generation, keyboard, gamepad-port,
 keypad, and relative-mouse capabilities still match. Status reconciliation
 replaces the stream when any of those change. An explicit attach of a
 stream that no longer matches is refused and leaves the existing stream
-in place. If the stream is not live, the host
-returns 503 `INPUT_UNAVAILABLE` (`no live input stream`) and does not accept
-the event. Kit-local pads stay on the unix socket and do not silently fall
-back to the host.
+in place. When the host has observed that the stream is unavailable and cannot
+reconnect, an event POST or a new launcher input POST returns 503
+`INPUT_UNAVAILABLE` (`no live input stream`). An already-open launcher stream
+ends when a subsequent event encounters the loss or its read timeout expires;
+its initial ready response does not acknowledge individual events. A successful
+event POST reports acceptance by the host's transport path, not target or guest
+delivery: a disconnect can occur before the host observes it, so an accepted
+event can still be lost. Kit-local pads stay on the unix socket and do not
+silently fall back to the host.
 
 Disconnect of the host stream releases the remote source. Lease expiry, core
 replacement and Stop neutralize every source on both dirty ports. A failed
