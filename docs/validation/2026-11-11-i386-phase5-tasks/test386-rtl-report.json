@@ -1,7 +1,4 @@
 {
- "revision": "cfd052d1e64d5375dea5a681c1eadeed64ceda2c",
- "commit": "03e92ea45 (testbench), RTL as sealed 214cb3886",
- "step_limit": 200000000,
  "posts": [
   0,
   1,
@@ -39,19 +36,24 @@
  ],
  "errors": [],
  "forgiven": [],
+ "stop": null,
  "end": {
   "reason": "halt",
   "retirements": 79640765,
   "cs": "00d0",
   "eip": "0000ffb9"
  },
- "oracle_end": {
-  "reason": "halt",
-  "steps": 79641629,
-  "cs": "00d0",
-  "eip": "0000ffb9"
+ "verilator": {
+  "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+  "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+  "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+  "version": "Verilator 5.054 2026-11-01 rev v5.054",
+  "slot": "44e245aaa92a062bb98bb3a918e9f3caa3f0554284549319e2f8bb1867655654"
  },
- "ee_lines": 44926,
+ "stop_listing": null,
+ "text_sha256": "83634482603b193bd8a2ca1e4ebd2b2e774eb367ee904d697f490eb4396cea4e",
+ "text_lines": 44926,
+ "commit": "8337808e915b975f1b186c7eccfc3353718742ca (scripts/test_fes_i386_test386.py --cpu rtl)",
  "ee_differences_from_reference": [
   [
    "F7 IDIV W EAX=00007FFF EDX=00008000 PS=0000 #DE EAX=00007FFF EDX=00008000 PS=0000",
@@ -70,6 +72,5 @@
    "F7 IDIV D EAX=80000001 EDX=7FFFFFFF PS=0000 EAX=80000000 EDX=00000001 PS=0000"
   ]
  ],
- "ee_text_sha256": "83634482603b193bd8a2ca1e4ebd2b2e774eb367ee904d697f490eb4396cea4e",
- "note": "The four EE differences are IDIV quotients of exactly -2^(n-1): the RTL completes them as the 386EX corpus does (divergences.toml [[vectors]] idiv-unchecked-overflow, follow corpus); test386 reference and Bochs raise #DE."
+ "note": "The four EE differences are IDIV quotients of exactly -2^(n-1): the RTL completes them as the 386EX corpus does (divergences.toml [[vectors]] idiv-unchecked-overflow, follow corpus); test386 reference and Bochs raise #DE. The text is the run's test386-rtl-output.txt, trimmed here to its hash; the differences were compared by hand."
 }

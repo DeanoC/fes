@@ -156,11 +156,13 @@ IRET-NT placeholders are gone):
 
 ## test386.asm
 
-`lockstep_tb`'s test386 mode, the run `scripts/test_fes_i386_test386.py
---cpu rtl` makes, with the step limit raised to the script's 200,000,000
-(the runner now passes `FES_I386_LIMIT`; before, the testbench's default of
-30,000,000 ended the RTL inside POST EEh). The testbench was `03e92ea45`'s, with `214cb3886`'s RTL (the seal's logic)
-([test386-rtl-report.json](test386-rtl-report.json)):
+`scripts/test_fes_i386_test386.py --cpu rtl` at `8337808e9`
+([test386-rtl-report.json](test386-rtl-report.json), its output text
+trimmed to a hash). The runner now passes its 200,000,000-retirement limit
+to the testbench (`FES_I386_LIMIT`). Before, the testbench's default of
+30,000,000 ended the RTL inside POST EEh. The RTL is `214cb3886`'s, the
+seal's logic. A run of the same testbench by a scratch script, before the
+runner change, gave the same POST codes, end and output text:
 - **POST codes** 00, 01, 02, 03, 04, 05, 06, 08, 09, 20, 21, 22, 0B-1C,
   E0, EE and FF, no error, no check stepped over. The run halts at
   00D0h:0000FFB9h after 79,640,765 retirements; Bochs halts at the same place.
@@ -257,8 +259,15 @@ on 11 November from 11:24 to 12:28 ([kit-scores.json](kit-scores.json)).
 | Angband (CWSDPMI) | `dpmi` | Hangs at launch | Exits: SIGNOFP, "Coprocessor not available at eip=00112a07" |
 | Time Circle (32RTM) | `dpmi` | Its main menu | Its main menu |
 
-The machine has no 387, and this Angband build carries no emulator. On
-main the runtime never got that far. Each title was launched and watched
+**Angband's exit is what a 386 without a 387 does.** The design plan
+listed Angband as unlocked by this slice. The census's oracle runs, which
+reached its character menu, were on Bochs with a working 387: the machine
+testbench never empties the oracle's socket. Without a 387, a DJGPP
+program sets CR0.EM, and its first ESC raises #NM. DJGPP then loads
+`EMU387.DXE` if it can find it, else exits with SIGNOFP ("Coprocessor not
+available"). The `dpmi` drive has no `EMU387.DXE` anywhere. The machine
+sim on Bochs (with its 387) reaches the character menu here too; on main the
+runtime never got as far as the ESC. Each title was launched and watched
 for 80-180 s; this is a check of how far they get, not acceptance.
 
 ## What this record does not cover
