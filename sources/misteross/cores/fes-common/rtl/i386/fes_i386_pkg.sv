@@ -187,10 +187,14 @@ package fes_i386_pkg;
     // LOAD_RF RF too (IRETD); READ gives FLAGS' image (PUSHF), READ_INT too,
     // clearing IF and TF (a real-mode INT). READ_PM is a protected-mode
     // delivery's EFLAGS image, RF (bit 16) from imm[4], and clears TF and NT,
-    // and IF unless imm[5] says the gate is a trap gate.
+    // and IF unless imm[5] says the gate is a trap gate. READ_TSS is a task
+    // switch's image of EFLAGS for the old TSS: all of it, VM too, RF from
+    // imm[4] and NT cleared by imm[6] (IRET's). LOAD_TSS writes every flag
+    // from src2, IOPL, IF, NT, RF and VM included, NT set too by imm[6] (a
+    // nesting switch: CALL, an interrupt or an exception).
     typedef enum logic [3:0] {
         FLAG_CLC, FLAG_STC, FLAG_CMC, FLAG_CLI, FLAG_STI, FLAG_CLD, FLAG_STD, FLAG_SAHF, FLAG_LAHF,
-        FLAG_LOAD, FLAG_READ, FLAG_READ_INT, FLAG_LOAD_RF, FLAG_READ_PM
+        FLAG_LOAD, FLAG_READ, FLAG_READ_INT, FLAG_LOAD_RF, FLAG_READ_PM, FLAG_READ_TSS, FLAG_LOAD_TSS
     } flag_op_e;
 
     // UOP_SHIFT. The first eight follow the x86 group-2 order.
@@ -202,8 +206,11 @@ package fes_i386_pkg;
     // UOP_SEGMENT: a real-mode or V86 load of the selector in src2, which
     // sets the base to selector * 16; or ZF, the result of LAR, LSL, VERR,
     // VERW or ARPL: ZF from imm[0], and the destination takes src2 when it
-    // is set, else keeps src1 (fes_i386_cpu, "System segments").
-    typedef enum logic [4:0] { SEGOP_LOAD_REAL, SEGOP_ZF } segment_op_e;
+    // is set, else keeps src1 (fes_i386_cpu, "System segments"); or TSEL, a
+    // task switch's selector alone, from src2 or its load, the segment's
+    // cache kept and every access refused until the new task's descriptor
+    // loads it (fes_i386_cpu, "Task switches").
+    typedef enum logic [4:0] { SEGOP_LOAD_REAL, SEGOP_ZF, SEGOP_TSEL } segment_op_e;
 
     // UOP_SPECIAL.
     typedef enum logic [4:0] { SPECIAL_NOP, SPECIAL_HLT } special_op_e;
@@ -220,11 +227,19 @@ package fes_i386_pkg;
     // pushes (fes_i386_cpu, "Protected-mode delivery"); with imm[0] a far
     // CALL's call gate, T2 and T3, and its parameter count. DR takes T1
     // into the debug register imm[2:0] names (MOV DRn, r32; DR4 is DR6,
-    // DR5 DR7).
+    // DR5 DR7). A task switch's (fes_i386_cpu, "Task switches") do not jump
+    // (sys_nojmp, as GATE): TSTR, TR from T0's descriptor, busy; TSLDT,
+    // LDTR's selector from T5, its cache not valid; TSLDTD, LDTR from T0's
+    // descriptor (the new task's LDT, after its checks).
     typedef enum logic [4:0] {
-        SYSOP_CLTS, SYSOP_CR0, SYSOP_LMSW, SYSOP_CR2, SYSOP_CR3, SYSOP_GDTR, SYSOP_IDTR, SYSOP_LDTR, SYSOP_TR,
-        SYSOP_GATE, SYSOP_DR
+        SYSOP_CLTS = 5'd0, SYSOP_CR0 = 5'd1, SYSOP_LMSW = 5'd2, SYSOP_CR2 = 5'd3, SYSOP_CR3 = 5'd4,
+        SYSOP_GDTR = 5'd5, SYSOP_IDTR = 5'd6, SYSOP_LDTR = 5'd7, SYSOP_TR = 5'd8, SYSOP_GATE = 5'd9,
+        SYSOP_DR = 5'd10, SYSOP_TSTR = 5'd12, SYSOP_TSLDT = 5'd13, SYSOP_TSLDTD = 5'd14
     } system_op_e;
+    // The system uops that do not jump to the next instruction.
+    function automatic logic sys_nojmp(input logic [4:0] op);
+        sys_nojmp = op == 5'(SYSOP_GATE) || op[4:2] == 3'b011;
+    endfunction
 
     // UOP_MUL and UOP_DIV, in EX's multiply and divide unit (fes_i386_muldiv).
     // HI writes the high half a two-destination MUL or DIV kept (EDX, DX);
@@ -358,13 +373,10 @@ package fes_i386_pkg;
 
     // Why an instruction stops as not built (FAULT_UNIMPLEMENTED), kept
     // with its uop (uop_t why) for trace_unbuilt: an encoding or form this
-    // build does not decode; a delivery through a task gate; a far JMP
-    // through a call gate, or a far JMP or CALL to a TSS or a task gate; a
-    // protected-mode 16-bit stack access past 64 KiB under a limit that
-    // reaches there; a protected-mode IRET with NT set, a return from a
-    // nested task.
+    // build does not decode; a far JMP through a call gate; a protected-mode
+    // 16-bit stack access past 64 KiB under a limit that reaches there.
     typedef enum logic [3:0] {
-        WHY_ENCODING, WHY_TASK_GATE, WHY_GATE, WHY_STACK64K, WHY_TASK_RETURN
+        WHY_ENCODING, WHY_GATE, WHY_STACK64K
     } why_e;
 
     typedef struct packed {
@@ -429,14 +441,23 @@ package fes_i386_pkg;
     // to the new stack (the staged SS's base and checks, at T5 plus its
     // slot), whose fault is #SS(selector); sflt, the fault a system read's
     // check raises (sflt_e).
+    // A task switch (fes_i386_cpu, "Task switches"): ntset, IRET's first
+    // uop for a return from a nested task, which replays (EX) unless NT is
+    // set, as ntchk's does for one with NT clear; tcom, the switch's commit,
+    // a far jump to the new task's EIP after which its descriptors load;
+    // tscpl, the uop that loads the new task's SS, after which the CPL is
+    // CS's RPL.
     typedef struct packed {
+        logic        ntset;
+        logic        tcom;
+        logic        tscpl;
         logic        hold;
         logic        xfer;
         logic        nstk;
         logic [1:0]  sflt;
         logic [1:0]  x87p;
-        logic [2:0]  desc;
-        logic [3:0]  segchk;
+        logic [3:0]  desc;
+        logic [4:0]  segchk;
         logic        nwrap;
         logic        v86;
         logic        ntchk;
@@ -688,7 +709,7 @@ package fes_i386_pkg;
         // stored as SP or IP from a 16-bit stack or code segment. pimm: the
         // stack slot is past the instruction's immediate too (RETF imm16's
         // SS and ESP slots).
-        logic [2:0]  xc;
+        logic [3:0]  xc;
         logic        xs;
         logic [2:0]  tss;
         logic [1:0]  pm;
@@ -701,6 +722,17 @@ package fes_i386_pkg;
         // set, is a NOP, as is the word after it, after which the ROM goes
         // on at the return to V86 mode (UC_V86RET, fes_i386_seq).
         logic        vgo;
+        // A task switch (fes_i386_cpu, "Task switches"): tgo and tgk, the
+        // ROM word's (ucode_t); tsk, the switch's kind (tsk_e), set as the
+        // ROM goes on at it, which its xc reads; tsf, a TSS access's field.
+        logic        tgo;
+        logic [1:0]  tgk;
+        logic [1:0]  tsk;
+        logic [4:0]  tsf;
+        // tsw: the uop is a task switch's (from its tgo word's successor,
+        // IRET's UC_TSSAVE, or the commit's tsload), which issues serially
+        // under paging, so none replays (fes_i386_cpu, "Task switches").
+        logic        tsw;
         // Which of ESI, EDI and ECX (bits 0-2) the uop reads, as a source,
         // a CL count or an address register (str_reads): D holds it while
         // a string element that steps one is in flight.
@@ -771,8 +803,12 @@ package fes_i386_pkg;
     // IDT gate, its low and high dword, at IDTR's base plus the vector times
     // 8.
     // DESC_HACC is the held CS descriptor's access byte (a privilege
-    // transition's accessed bit, after its pushes).
-    typedef enum logic [2:0] { DESC_NONE, DESC_LO, DESC_HI, DESC_ACC, DESC_IDT_LO, DESC_IDT_HI, DESC_BUSY, DESC_HACC } desc_e;
+    // transition's accessed bit, after its pushes). DESC_TRHI is TR's
+    // descriptor's high dword, read, and DESC_UNBUSY the same stored from T4
+    // with the busy bit clear (a task switch's old TSS).
+    typedef enum logic [3:0] {
+        DESC_NONE, DESC_LO, DESC_HI, DESC_ACC, DESC_IDT_LO, DESC_IDT_HI, DESC_BUSY, DESC_HACC, DESC_TRHI, DESC_UNBUSY
+    } desc_e;
     // The fault a system read past its limit raises (uop_t sflt): #GP with
     // the selector (a descriptor's), #TS with it (a delivery's new SS), #TS
     // with TR's (the TSS's stack slots).
@@ -781,8 +817,18 @@ package fes_i386_pkg;
     // only when the transfer changes privilege (xp); only when it does not;
     // and for a protected-mode far CALL, only to a code segment (direct),
     // only through a call gate (gate), only through one to the same
-    // privilege (gsame).
-    typedef enum logic [2:0] { XC_ALL, XC_XP, XC_SAME, XC_DIRECT, XC_GATE, XC_GSAME } xc_e;
+    // privilege (gsame). A task switch's
+    // (fes_i386_cpu, "Task switches"), by its kind (decoded_t tsk): nest,
+    // CALL, an interrupt or an exception; unnest, JMP or IRET; iret; by
+    // TR's TSS (the old one until TSTR, the new after): t32, a 386 TSS; t16,
+    // a 286 one; t32pg, a 386 one with paging on; err, a delivery with an
+    // error code; nnull, T0's selector is not null.
+    typedef enum logic [3:0] {
+        XC_ALL, XC_XP, XC_SAME, XC_DIRECT, XC_GATE, XC_GSAME,
+        XC_NEST, XC_UNNEST, XC_IRET, XC_T32, XC_T16, XC_T32PG, XC_ERR, XC_NNULL
+    } xc_e;
+    // A task switch's kind (decoded_t tsk).
+    typedef enum logic [1:0] { TSK_JMP, TSK_CALL, TSK_INT, TSK_IRET } tsk_e;
     // A call gate's parameter copy (decoded_t pm): a parameter's load from
     // the old stack, at slot count - 1 - pk; its store to the new stack, at
     // slot -3 - pk, after which the copy goes back to its load until it has
@@ -792,8 +838,11 @@ package fes_i386_pkg;
     // A read from the TSS (decoded_t tss): a delivery's new stack, ESP
     // (checked against TR's limit) and SS; an I/O access's permission
     // bitmap base, at 66h, and its bitmap's word for the port (T5) at that
-    // base (T4) plus the port's byte, checked against TR's limit.
-    typedef enum logic [2:0] { TSS_NONE, TSS_ESP, TSS_SS, TSS_IOMAP, TSS_BITMAP } tss_e;
+    // base (T4) plus the port's byte, checked against TR's limit. A task
+    // switch's field (decoded_t tsf) of the TSS TR holds (FLD), or of the
+    // new TSS, the staged descriptor's (NFLD), in that TSS's layout
+    // (fes_i386_cpu, "Task switches").
+    typedef enum logic [2:0] { TSS_NONE, TSS_ESP, TSS_SS, TSS_IOMAP, TSS_BITMAP, TSS_FLD, TSS_NFLD } tss_e;
     // The staged descriptor's checks M1 raises (uop_t segchk;
     // fes_i386_cpu "Protected mode: a segment load's descriptor"): a data
     // segment's load, SS's, a far JMP's CS, a delivery's gate, a delivery's
@@ -804,9 +853,14 @@ package fes_i386_pkg;
     // a delivery from V86 mode's CS as a delivery's, which must also be
     // nonconforming code below CPL 3, and that CS's DPL, which must be 0
     // (fes_i386_cpu, "V86 mode").
-    typedef enum logic [3:0] {
+    // A task switch's (fes_i386_cpu, "Task switches"): the new TSS's limit
+    // and the old one's (TSW); a task gate's TSS (TSGATE); IRET's back
+    // link's (TSRET); the new task's LDT, SS, CS and data segments; the old
+    // TSS's limit alone, ahead of IRET's save (TSOLD).
+    typedef enum logic [4:0] {
         CHK_NONE, CHK_DATA, CHK_SS, CHK_JMP, CHK_GATE, CHK_INTCS, CHK_CALL, CHK_RET, CHK_LDT, CHK_TSS,
-        CHK_SSRET, CHK_SSINT, CHK_HOFF, CHK_IOBM, CHK_V86CS, CHK_V86DPL
+        CHK_SSRET, CHK_SSINT, CHK_HOFF, CHK_IOBM, CHK_V86CS, CHK_V86DPL,
+        CHK_TSW, CHK_TSGATE, CHK_TSRET, CHK_TSLDT, CHK_TSSS, CHK_TSCS, CHK_TSDATA, CHK_TSOLD
     } segchk_e;
     // How a descriptor read treats its selector (decoded_t dmode): load and
     // check it; LAR, LSL, VERR and VERW, which read nothing for a selector
@@ -858,8 +912,8 @@ package fes_i386_pkg;
         logic        rg;         // s1_idx and s2_idx are the instruction's register, which its first uop has in src1
         logic        rm;         // the memory operand is the instruction's ModRM operand, not a stack slot
         logic        bound;      // BOUND's compare (uop_t bound)
-        logic [2:0]  desc;       // uop_t desc (desc_e)
-        logic [3:0]  segchk;     // uop_t segchk (segchk_e)
+        logic [3:0]  desc;       // uop_t desc (desc_e)
+        logic [4:0]  segchk;     // uop_t segchk (segchk_e)
         logic        segw;       // the uop writes segment register seg2 from T0's descriptor (uop_t seg2_pm)
         logic        shadow;     // uop_t shadow, when the segment is SS
         logic        nochk;      // ESP's step after a POP Sreg: no access, no limit check
@@ -877,7 +931,7 @@ package fes_i386_pkg;
         logic        hold;       // uop_t hold
         logic        xfer;       // uop_t xfer
         logic        nstk;       // uop_t nstk
-        logic [2:0]  xc;         // decoded_t xc
+        logic [3:0]  xc;         // decoded_t xc
         logic        xs;         // decoded_t xs
         logic [2:0]  tss;        // decoded_t tss
         logic [1:0]  pm;         // decoded_t pm
@@ -886,6 +940,18 @@ package fes_i386_pkg;
         logic        xend;       // the uop ends the routine when its xc keeps it (fes_i386_seq)
         logic        iof;        // the instruction's I/O access, which its first uop keeps (fes_i386_seq)
         logic        v86;        // uop_t v86
+        // A task switch (fes_i386_cpu, "Task switches"): tgo, a far JMP's
+        // or CALL's descriptor check, or a delivery's gate, after which the
+        // ROM goes on at the switch for a TSS or a task gate, of kind tgk
+        // (decoded_t tsk); tsf, the TSS field the word's tss access names;
+        // tcom, uop_t tcom; wsg, segw writes the word's seg, not the
+        // instruction's; tscpl, uop_t tscpl.
+        logic        tgo;
+        logic [1:0]  tgk;
+        logic [4:0]  tsf;
+        logic        tcom;
+        logic        wsg;
+        logic        tscpl;
     } ucode_t;
 
     // The shifter's controls (fes_i386_shift), decoded in M2. sel gates
@@ -938,6 +1004,8 @@ package fes_i386_pkg;
         logic       f_rf;                      // ... and RF (IRETD); every other uop clears RF, but IRET's last
         logic       f_clrit;                   // IF and TF cleared (INT)
         logic       f_clrpm;                   // TF and NT cleared, and IF unless imm[5] (a protected-mode delivery)
+        logic       f_rdtss;                   // READ_TSS's image: VM, RF from imm[4], NT cleared by imm[6]
+        logic       f_ldtss;                   // every flag from y, NT set by imm[6] (a task switch's new EFLAGS)
         logic       fl_cf, fl_cmc, fl_set;
         // BT, BTS, BTR and BTC: the flags (f_bt) and result (r_bt) of the bit
         // the shifter's count numbers, which BTS ORs in (bt_or), BTR clears
@@ -1064,6 +1132,9 @@ package fes_i386_pkg;
         // dfl: M1, the uop's fault is its st2 store's segment check
         // (dfault), which a #PF on its own pages comes before.
         logic           dfl;
+        // ones: D, a load of a 286 TSS's word into a GPR, whose high half
+        // reads as ones (fes_i386_cpu, "Task switches").
+        logic           ones;
     } pipe_t;
 
 endpackage
