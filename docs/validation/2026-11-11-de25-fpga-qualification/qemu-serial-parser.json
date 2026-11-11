@@ -1,0 +1,10 @@
+{
+  "producer_revision": "e9981c96d1ecccda167fba161fff4a346eac4978",
+  "image_sha256": "744789c985c686e3a9cc0e3fe2efc529d1f01fd099697a9754744fe8bb7a852a",
+  "raw_qemu_log_sha256": "d972f70198e98205124279649ee6472dac6d4c9dcda5d249a79efd6a3a82b0e4",
+  "normal_parent_verify": "failed at exact DBus sentinel due to CRLF",
+  "corrected_parser_accepts_same_raw_capture": true,
+  "LF_CRLF_missing_malformed_regressions": "pass",
+  "physical_boot": "not-run",
+  "new_normal_image_and_verify": "pending after parser-source commit"
+}

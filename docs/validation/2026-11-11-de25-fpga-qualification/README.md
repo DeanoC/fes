@@ -52,3 +52,29 @@ relative directory link. The rootfs contract test passes. New image/QEMU and
 physical shared-init boot acceptance remain required. Standalone diagnostic
 verifier invocations without the producer's package environment stopped before
 verification; their logs are retained, and normal producer verification is next.
+
+
+RISC-V's full authenticated production build at e9981c96d passes the unchanged
+74.25MHz timing requirement at79.4723MHz on seed2 and exports sealed package
+3df4dc23c0fb1789d581a0ac4f551f77d6a7ee53e0d23dc706186c0993796ec0.
+Seed1's timing miss remains retained. The actual record is7068 bytes, covering
+43 inputs under31 roots; compiler-read guards and source-history verification
+pass. Directory and archive readers agree. `riscv-qualification.json` binds the
+exact record/package/RBF and timing. A core-only KitA claim was refused by its
+held lock, so no hardware access or acceptance is claimed for this new package.
+
+The full DE10 MENU simulation target passes (261.16 seconds), including DDR,
+reset/drain, board gating and full-frame blitter cases. The broader standard
+ZX81 target remains running. The repaired image fixture also passes after its
+fake SDK source cache was isolated from the warm real build cache.
+
+The normal e998 bootstrap image and native host builds pass. The QEMU kernel
+boot reaches read-only root, writable volatile state, real D-Bus machine-id and
+system-bus checks, and the ready sentinel. Normal verification nevertheless
+fails because its exact D-Bus line matcher rejected the serial console's CRLF.
+The parser now accepts only the exact sentinel with LF or CRLF, preserving the
+raw capture. Tests reject missing and malformed sentinels, and the repaired
+parser accepts the retained real log. `qemu-serial-parser.json` preserves the
+failed parent result. A fresh normal image/verification from the repaired
+recipe remains required; no successful parent receipt or hardware boot is
+inferred. VExpress has no DE10 Ethernet device, so its boot is no DHCP/SSH proof.

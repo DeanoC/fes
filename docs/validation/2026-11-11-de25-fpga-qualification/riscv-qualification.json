@@ -1,0 +1,41 @@
+{
+  "source_revision": "e9981c96d1ecccda167fba161fff4a346eac4978",
+  "package_id": "3df4dc23c0fb1789d581a0ac4f551f77d6a7ee53e0d23dc706186c0993796ec0",
+  "build_id": "c754f86e1ee1b23624f5baa8f55235b0",
+  "record_bytes": 7068,
+  "record_sha256": "43039cad12f45f6efd908d31210ad93b0a547d950d8f82efaa48a010eb51fe6f",
+  "source_root_count": 31,
+  "source_input_count": 43,
+  "closure_mode": "audited-v1",
+  "rbf": {
+    "sha256": "94cfa673ace33f75c0fe2cf8825e21c465065328daebf1680adde4ac26084ca6",
+    "size": 2247586
+  },
+  "route": {
+    "gpu_backend": "hip",
+    "placer_heap_timingweight": 10,
+    "placer_seed": 2,
+    "status": "pass",
+    "unrouted": false
+  },
+  "timing": {
+    "pixel": {
+      "achieved_mhz": 79.47230529785156,
+      "clock": "endpoint.clk",
+      "constraint_mhz": 74.25006866455078,
+      "requested_mhz": 74.25,
+      "status": "pass"
+    },
+    "reference": {
+      "clock": "FPGA_CLK1_50",
+      "constraint_mhz": 50.0,
+      "evidence": "boards/de10nano/clocks.sdc and routed PLL",
+      "requested_mhz": 50.0,
+      "status": "pass"
+    },
+    "status": "pass"
+  },
+  "directory_archive_equal": true,
+  "archive_sha256": "9371c0cefdf9f9a9a949a0a4e96cef9a8e03e0e782605a22375cc1a9a7d7b50f",
+  "hardware": "pending, shared kits busy; no claim acquired"
+}
