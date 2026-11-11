@@ -52,7 +52,8 @@ class Model(PairedModel):
 
     def client(self,initial=None):
         return installer_client.InstallerClient(self.initial if initial is None else initial,
-            program=PROGRAMS[0],installed=self.preinstalled,build_record=self.profile,
+            programs=[PROGRAMS[0]],installed=[self.preinstalled],
+            initial_titles=[PROGRAMS[0]['title']] if self.preinstalled else [],build_record=self.profile,
             build_id=SPEC['build_id'],owner_seed=SPEC['owner_seed'],atf=SPEC['atf'],package=SPEC['package'],
             exchange=self.exchange,owns=lambda:self.service.owned,now=lambda:self.service.clock,
             shared_usb=self.policy if self.shared else None)
@@ -244,7 +245,7 @@ class InstallerClientTests(unittest.TestCase):
         for supplied in (False,None,1):
             m=Model(installed=True)
             with self.subTest(installed=supplied),self.assertRaises(ValueError):
-                installer_client.InstallerClient(m.initial,program=PROGRAMS[0],installed=supplied,
+                installer_client.InstallerClient(m.initial,programs=[PROGRAMS[0]],installed=[supplied],initial_titles=[],
                     build_record=m.profile,build_id=SPEC['build_id'],owner_seed=SPEC['owner_seed'],
                     atf=SPEC['atf'],package=SPEC['package'],exchange=m.exchange,owns=lambda:True)
             self.assertEqual(m.keys,[])

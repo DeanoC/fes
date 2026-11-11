@@ -10,9 +10,12 @@ from upload import UploadSession, destination, sha, valid_payload_length
 
 PURPOSES = ('boot','package','metadata','firmware','menu-package','menu-metadata',
             'menu-selection','selection','ui-catalog','install-manifest')
+CATALOG_PURPOSES = ('boot','package','metadata','firmware','package-alt','metadata-alt',
+                    'firmware-alt','tape','menu-package','menu-metadata','menu-selection',
+                    'selection','ui-catalog','install-manifest')
 
 
-def read_staged_sources(session, payloads, receipt):
+def read_staged_sources(session, payloads, receipt, *, purposes):
     require(type(receipt) is dict and not receipt, 'fresh staged-read receipt required')
     require(isinstance(session,UploadSession), 'owned UploadSession required')
     receipt.update(scope='nano-read-only-staged-sources-v1',status='checking',files={},
@@ -21,9 +24,11 @@ def read_staged_sources(session, payloads, receipt):
     failure = None
     try:
         require(not session.retired and not session.verified, 'read-only session must not adopt an upload ledger')
-        require(type(payloads) is dict and set(payloads) == set(PURPOSES), 'exact staged source set required')
+        require(type(purposes) is tuple and purposes in (PURPOSES,CATALOG_PURPOSES),
+                'independently selected fixed source role set required')
+        require(type(payloads) is dict and set(payloads) == set(purposes), 'exact staged source set required')
         expected = {}
-        for purpose in PURPOSES:
+        for purpose in purposes:
             payload = payloads[purpose]
             require(type(payload) is bytes and valid_payload_length(purpose,len(payload)),
                     'bounded immutable staged payload required')
@@ -38,7 +43,7 @@ def read_staged_sources(session, payloads, receipt):
                 selection == dict(format=1,programs=[],scope='nano-program-selection-v1') and
                 catalogue == dict(format=1,entries=[],scope='nano-tenfoot-catalog-v1'),
                 'independently expected bootstrap must remain empty')
-        for purpose in PURPOSES:
+        for purpose in purposes:
             row = {'commands':[]}
             receipt['files'][purpose] = row
             session.read_existing(expected[purpose],row,purpose=purpose)
@@ -55,7 +60,7 @@ def read_staged_sources(session, payloads, receipt):
                     'staged read scope or protected-file proof differs')
             require([v['stage'] for v in row['memory_observations']] == ['admit','complete'],
                     'staged read lacks complete scratch ownership checks')
-        receipt.update(status='verified',purposes=list(PURPOSES),bootstrap_empty=True)
+        receipt.update(status='verified',purposes=list(purposes),bootstrap_empty=True)
     except BaseException as error:
         failure = error
         receipt.update(status='failed',error=str(error))

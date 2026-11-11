@@ -1828,3 +1828,21 @@ unique entry identities and exact input hashes. The previous single
 program envelope is rejected. The host producer and current startup contract
 are documented in [nativefabric](../tamago/nativefabric/README.md). Existing
 matched hardware evidence remains specific to its recorded image and schema.
+
+`InstallerClient` now takes an explicit source list, installed-state mask and
+independently expected initial library titles. It navigates one presented source
+at a time, counts each completed install without rewriting native generations,
+and focuses the selected installed program through ordinary bounded arrow keys.
+`installer_cycle.exercise` installs or discovers every declared source and
+launches/returns each one before final Park. The original per-operation limits
+remain unchanged. Navigation and focus grant no storage or programming authority.
+The observer rejects a target whose title is ambiguous with the prior library;
+physical test assets must use distinct target labels while preserving prior
+entries. This diagnostic constraint does not change Tenfoot's game-ID handling.
+
+The separately owned read-only recovery check requires an explicit fixed role
+sequence: the ten-file single-source set or fourteen-file catalog set. It never
+infers a source set from payload keys, starts a download server, writes the card,
+or treats source readback as installed-record/persistence proof. The live
+operator still needs a current claim, independently checked prior installed
+records, matched target/source admission, and the bounded physical trial driver.

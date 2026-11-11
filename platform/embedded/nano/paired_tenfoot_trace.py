@@ -129,7 +129,7 @@ def ready_frame(rows, *, generation=None, title=None, titles=None):
     return (type(value) is dict and value.get('event') == 'frame' and
             rows[-1]['line'] > state['line'] and view['native']['State'] == 'ready' and
             view['session'] == 'idle' and not view['loading'] and
-            (len(view['titles']) == 2 if titles is None else view['titles'] == titles) and
+            (len(view['titles']) == 2 if titles is None else sorted(view['titles']) == sorted(titles)) and
             (generation is None or view['native']['Generation'] == generation) and
             (title is None or view['titles'][view['focus']] == title))
 
@@ -150,13 +150,16 @@ class PairedTenfootClient(app.TenfootClient):
                  installer=False, initial_titles=None):
         require(all(callable(f) for f in (exchange, owns, now, record)), 'owned exchange hooks required')
         require(type(installer) is bool, 'explicit paired observer mode required')
-        count = 1 if installer else 2
-        require(type(programs) is list and len(programs) == count and
-                len({p['title'] for p in programs}) == count and
+        require(type(programs) is list and (1 <= len(programs) <= 32 if installer else len(programs) == 2),
+                'bounded explicit activation choices required')
+        count = len(programs)
+        require(len({p['title'] for p in programs}) == count and
                 len({(p['identity']['PackageID'], p['identity']['ActivationReceiptSHA256'])
                      for p in programs}) == count, 'explicit distinct titled activation choices required')
-        require(initial_titles in ([], [programs[0]['title']]) if installer else initial_titles is None,
-                'explicit empty or discovered installer catalogue required')
+        require(type(initial_titles) is list and len(initial_titles) <= 32 and all(
+                    type(title) is str and 0 < len(title) <= 256 for title in initial_titles)
+                if installer else initial_titles is None,
+                'explicit bounded initial installer catalogue required')
         self.installer = installer
         self.generation_origin = 0
         self.catalogue_titles = list(initial_titles) if installer else [p['title'] for p in programs]
@@ -236,14 +239,14 @@ class PairedTenfootClient(app.TenfootClient):
 
     def _ready(self, value):
         return (value['native']['State'] == 'ready' and value['session'] == 'idle' and
-                not value['loading'] and (value['titles'] == self.catalogue_titles if self.installer else len(value['titles']) == 2))
+                not value['loading'] and (sorted(value['titles']) == sorted(self.catalogue_titles) if self.installer else len(value['titles']) == 2))
 
-    def _state(self, value, generation, allowed, identity=None):
+    def _state(self, value, generation, allowed, identity=None, *, catalogue_titles=None):
         n = value['native']
         require(n['Owner'] == self.owner and n['Generation'] == generation and n['State'] in allowed,
                 'App ownership/generation/state changed')
-        require(not value['titles'] or len(value['titles']) == len(self.catalogue_titles) and
-                set(value['titles']) == set(self.catalogue_titles), 'App catalogue changed')
+        expected_titles = self.catalogue_titles if catalogue_titles is None else catalogue_titles
+        require(not value['titles'] or sorted(value['titles']) == sorted(expected_titles), 'App catalogue changed')
         selected = n['State'] in ('running','returning') or n['State'] == 'loading' and (generation-self.generation_origin)%2 == 1
         if identity is not None and selected:
             require(n['Identity'] == identity, 'App published wrong retained identity')
@@ -436,7 +439,9 @@ class PairedTenfootClient(app.TenfootClient):
         result = dict(states=states, menu_observations=menus, fetch_observations=fetches,
                       input_actions=input_actions, exit_generation=exited)
         if self.installer:
-            require(navigation, 'selected installer operation omitted navigation observations')
+            require(navigation or op == 'focus' and self.navigation is not None and
+                    installer_view.matches_state(self.navigation,self.view),
+                    'selected installer operation omitted navigation observations')
             result['installer_views'] = navigation
         if self.usb is not None and op != 'startup':
             result['shared_usb'] = self.usb.action(op, generation, usb_rows, self.owner,
@@ -481,6 +486,18 @@ class PairedTenfootClient(app.TenfootClient):
             payload, bound = (b's' if op == 'stop' else b'q'), 105 if op == 'stop' else 110
         else:
             raise ValueError('unsupported paired App action')
+        return self._key(op, selection, selected, payload, bound, input_source)
+
+    def focus_index(self, target):
+        require(not self.retired and self._ready(self.view) and type(target) is int and
+                0 <= target < len(self.view['titles']) and abs(target-self.view['focus']) == 1,
+                'one real Ready library focus change required')
+        selected = dict(title=self.view['titles'][target], identity=app.ZERO)
+        payload = b'\x1b[C' if target > self.view['focus'] else b'\x1b[D'
+        return self._key('focus',None,selected,payload,5,'uart')
+
+    def _key(self, op, selection, selected, payload, bound, input_source):
+        generation = self.view['native']['Generation']
         if input_source != 'uart':
             payload = b''
         require(self.active.acquire(blocking=False), 'paired App exchange already active')

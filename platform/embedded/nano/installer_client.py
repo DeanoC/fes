@@ -1,4 +1,4 @@
-"""Bounded first-install observer over the existing paired native verifier.
+"""Bounded catalogue installer observer over the paired native verifier.
 
 File/transport admission remains the operator's responsibility. An observed
 Install is not persistence proof: a separately admitted fresh boot must discover
@@ -15,20 +15,46 @@ from service_trace import require
 
 
 class InstallerClient(paired.PairedTenfootClient):
-    def __init__(self, initial, *, program, installed, **options):
-        require(type(installed) is bool, 'explicit empty or fresh-discovered catalogue required')
-        self.installed = installed
-        super().__init__(initial, programs=[program], installer=True,
-                         initial_titles=[program['title']] if installed else [], **options)
+    def __init__(self, initial, *, programs, installed, initial_titles, **options):
+        require(type(programs) is list and 1 <= len(programs) <= 32 and
+                type(installed) is list and len(installed) == len(programs) and
+                all(type(flag) is bool for flag in installed) and type(initial_titles) is list,
+                'explicit bounded source list, installed mask and prior library required')
+        require(all(initial_titles.count(p['title']) == int(flag) for p,flag in zip(programs,installed)),
+                'target title is missing, duplicated or conflicts with prior library')
+        require(len(initial_titles)+installed.count(False) <= 32, 'installed catalogue would exceed its bound')
+        self.installed = list(installed)
+        self.all_titles = list(initial_titles)
+        self.source_selection = None
+        self.library_previous_titles = None
+        super().__init__(initial, programs=programs, installer=True,
+                         initial_titles=initial_titles, **options)
         require(self.navigation is not None and not self.navigation['settings']['open'] and
                 not self.navigation['systems']['open'], 'installer startup has uncommanded controls')
 
     def key(self, op, selection=None, **options):
-        require(self.installed, 'core operation before verified install or fresh discovery')
+        require(any(self.installed), 'core operation before verified install or fresh discovery')
         if op in ('launch','focus'):
-            require(self.catalogue_titles == [self.programs[0]['title']] and self._ready(self.view),
-                    'core operation before presented library publication')
+            require(not self.navigation['settings']['open'] and not self.navigation['systems']['open'],
+                    'core operation while installer controls remain open')
+            require(type(selection) is int and 0 <= selection < len(self.programs) and self.installed[selection] and
+                    self.view['titles'].count(self.programs[selection]['title']) == 1 and self._ready(self.view),
+                    'core operation before unambiguous presented library publication')
         return super().key(op, selection, **options)
+
+    def focus(self, selection):
+        require(not self.navigation['settings']['open'] and not self.navigation['systems']['open'],
+                'focus while installer controls remain open')
+        require(type(selection) is int and 0 <= selection < len(self.programs) and self.installed[selection] and
+                self._ready(self.view) and self.view['titles'].count(self.programs[selection]['title']) == 1,
+                'focus needs an installed unambiguous target')
+        for _ in range(len(self.view['titles'])):
+            target = self.view['titles'].index(self.programs[selection]['title'])
+            current = self.view['focus']
+            if target == current:
+                return
+            self.focus_index(current+(1 if target > current else -1))
+        raise ValueError('focus traversal exceeded the presented library bound')
 
     def _exchange_step(self, op, payload, bound, done, consume):
         require(not self.retired and self.active.acquire(blocking=False), 'installer observer retired or busy')
@@ -100,7 +126,9 @@ class InstallerClient(paired.PairedTenfootClient):
             for row in rows:
                 kind, value = row['kind'], row['value']
                 if kind == 'app':
-                    self._state(value,generation,('ready',))
+                    self._state(value,generation,('ready',), catalogue_titles=
+                        self.library_previous_titles if self.library_previous_titles is not None and
+                        value['titles'] == self.library_previous_titles else None)
                     state = value
                 elif kind == 'installer':
                     require(navigation.matches_state(value,state), 'navigation has no matching App state')
@@ -125,40 +153,50 @@ class InstallerClient(paired.PairedTenfootClient):
             return dict(installer_views=views,menu_observations=frames,input_actions=actions)
         return self._exchange_step('navigate',payload,5,done,consume)
 
-    def _focus_row(self, panel, kind):
+    def _focus_row(self, panel, kind, occurrence=0):
         view = self.navigation[panel]
-        require(view['open'] and not view['busy'] and view['rows'].count(kind) == 1,
-                'unique presented installer row required')
+        require(view['open'] and not view['busy'] and type(occurrence) is int and 0 <= occurrence < view['rows'].count(kind),
+                'explicit presented installer row required')
         expected = list(view['rows'])
+        target = [i for i,row in enumerate(expected) if row == kind][occurrence]
         for _ in range(len(expected)):
             view = self.navigation[panel]
-            if view['rows'][view['index']] == kind:
+            if view['index'] == target:
                 return
             index = (view['index']+1)%len(expected)
             self._navigation_key(b'\x1b[B',lambda v: v[panel]['open'] and not v[panel]['busy'] and
                 v[panel]['rows'] == expected and v[panel]['index'] == index)
         raise ValueError('installer row traversal exceeded its presented bound')
 
-    def open_source(self):
+    def open_source(self, selection=0):
+        require(type(selection) is int and 0 <= selection < len(self.programs), 'explicit source selection required')
         require(self.navigation is not None and not self.navigation['settings']['open'] and
                 not self.navigation['systems']['open'], 'source navigation needs closed presented controls')
         self._navigation_key(b'o',lambda v: v['settings']['open'] and not v['settings']['busy'] and not v['systems']['open'])
         self._focus_row('settings','systems')
         self._navigation_key(b'\r',lambda v: v['systems']['open'] and not v['systems']['busy'] and
-                             v['systems']['rows'] == ['refresh','system'])
-        self._focus_row('systems','system')
+                             v['systems']['rows'] == ['refresh']+['system']*len(self.programs))
+        self._focus_row('systems','system',selection)
         self._navigation_key(b'\r',lambda v: v['systems']['open'] and not v['systems']['busy'] and
-            ('library' in v['systems']['rows'] if self.installed else v['systems']['rows'] == ['install']))
+            ('library' in v['systems']['rows'] if self.installed[selection] else v['systems']['rows'] == ['install']))
+        self.source_selection = selection
 
     def open_library(self):
-        require(self.installed, 'library publication before installation/discovery')
+        require(self.source_selection is not None and self.installed[self.source_selection],
+                'library publication before installation/discovery')
         self._focus_row('systems','library')
-        self.catalogue_titles = [self.programs[0]['title']]
-        self._navigation_key(b'\r',lambda v: not v['systems']['open'] and not v['settings']['open'])
+        self.library_previous_titles = list(self.view['titles'])
+        self.catalogue_titles = list(self.all_titles)
+        try:
+            self._navigation_key(b'\r',lambda v: not v['systems']['open'] and not v['settings']['open'])
+        finally:
+            self.library_previous_titles = None
 
     def install(self):
-        require(not self.installed and self.generation_origin == 0 and self._ready(self.view) and
-                self.view['native']['Generation'] == 0, 'first installation needs an empty Ready boot')
+        require(self.source_selection is not None and not self.installed[self.source_selection] and self._ready(self.view),
+                'installation requires a selected uninstalled source and Ready library')
+        origin = self.view['native']['Generation']
+        prior_titles = list(self.view['titles'])
         panel = self.navigation['systems']
         require(panel['open'] and not panel['busy'] and panel['rows'] == ['install'] and panel['index'] == 0,
                 'Install control was not independently presented')
@@ -167,7 +205,7 @@ class InstallerClient(paired.PairedTenfootClient):
         # No native operation's timeout is extended by this collector.
         phases = dict(action=None,work=None,restore=None,frame=None,resume=None)
         def rows_for(raw):
-            return paired.observations(raw,self.input_mode,installer=True,generation_origin=0,installing=True)
+            return paired.observations(raw,self.input_mode,installer=True,generation_origin=origin,installing=True)
         def done(raw, now, before):
             lines = raw.splitlines(keepends=True)
             arms = [i for i,line in enumerate(lines) if line.endswith(b'\n') and paired.ARM.match(line)]
@@ -177,7 +215,7 @@ class InstallerClient(paired.PairedTenfootClient):
             if phases['action'] is None:
                 require(now < before+5, 'installer key dispatch exceeded 5s bound')
                 if actions:
-                    validate_actions(actions,'launch',self.owner,0)
+                    validate_actions(actions,'launch',self.owner,origin)
                     phases['action'] = now
             usb = [paired.usb_record(line.rstrip(b'\r\n'),i+1) for i,line in enumerate(lines)
                    if line.endswith(b'\n') and line.startswith(paired.USB)]
@@ -212,7 +250,7 @@ class InstallerClient(paired.PairedTenfootClient):
             views = [r for r in rows if r['kind'] == 'installer']
             return (rows[-1]['kind'] == 'menu' and states and views and
                     states[-1]['value']['native']['State'] == 'ready' and
-                    states[-1]['value']['native']['Generation'] == 1 and self._ready(states[-1]['value']) and
+                    states[-1]['value']['native']['Generation'] == origin+1 and self._ready(states[-1]['value']) and
                     navigation.matches_state(views[-1]['value'],states[-1]['value']) and
                     views[-1]['value']['systems']['open'] and not views[-1]['value']['systems']['busy'] and
                     'library' in views[-1]['value']['systems']['rows'] and
@@ -224,7 +262,7 @@ class InstallerClient(paired.PairedTenfootClient):
             states, views, menus, actions, usb = [], [], [], [], []
             returned = opened = 0
             rank = -1
-            generation = 0
+            generation = origin
             first_mutation = restored_line = completed_line = None
             for row in rows:
                 kind, value, line = row['kind'], row['value'], row['line']
@@ -240,10 +278,10 @@ class InstallerClient(paired.PairedTenfootClient):
                     actions.append(value)
                 elif kind == 'app':
                     n = value['native']
-                    require(n['Owner'] == self.owner and n['Generation'] >= generation and not value['titles'],
+                    require(n['Owner'] == self.owner and n['Generation'] >= generation and value['titles'] == prior_titles,
                             'installation changed owner/catalogue or regressed generation')
                     generation = n['Generation']
-                    phase = 1 if n['State'] == 'loading' else 2 if generation == 1 else 0
+                    phase = 1 if n['State'] == 'loading' else 2 if generation == origin+1 else 0
                     require(phase >= rank, 'installation App state regressed')
                     rank = phase
                     if phase == 2:
@@ -254,7 +292,7 @@ class InstallerClient(paired.PairedTenfootClient):
                 elif kind == 'installer':
                     require(navigation.matches_state(value,state), 'installer view lost App ownership')
                     views.append(value)
-                    if value['state'] == 'ready' and value['generation'] == 1 and not value['systems']['busy'] and 'library' in value['systems']['rows']:
+                    if value['state'] == 'ready' and value['generation'] == origin+1 and not value['systems']['busy'] and 'library' in value['systems']['rows']:
                         completed_line = line
                 elif kind == 'menu':
                     observed = self.menu.feed(value)
@@ -284,14 +322,14 @@ class InstallerClient(paired.PairedTenfootClient):
                     menus.append(observed)
                 else:
                     raise ValueError('unexpected evidence during installation')
-            validate_actions(actions,'launch',self.owner,0)
+            validate_actions(actions,'launch',self.owner,origin)
             require(returned == opened == 1 and completed_line is not None and states and
-                    states[-1]['native']['Generation'] == 1 and self._ready(states[-1]) and paired.app.quiet(firmware),
+                    states[-1]['native']['Generation'] == origin+1 and self._ready(states[-1]) and paired.app.quiet(firmware),
                     'incomplete owned installation')
             result = dict(states=states,installer_views=views,menu_observations=menus,input_actions=actions,
                           persistence_verified=False,hardware_acceptance=False)
             if self.usb is not None:
-                result['shared_usb'] = self.usb.action('install',0,usb,self.owner,raw,paired.app.PREFIX)
+                result['shared_usb'] = self.usb.action('install',origin,usb,self.owner,raw,paired.app.PREFIX)
                 require(first_mutation is not None and usb[0]['line'] < first_mutation and
                         usb[1]['line'] > restored_line and usb[1]['line'] < completed_line,
                         'installer USB pause/resume crossed firmware or completed setup ownership')
@@ -301,6 +339,7 @@ class InstallerClient(paired.PairedTenfootClient):
             self.navigation = copy.deepcopy(views[-1])
             return result
         result = self._exchange_step('install',b'\r',220,done,consume)
-        self.installed = True
-        self.generation_origin = 1
+        self.installed[self.source_selection] = True
+        self.all_titles.append(self.programs[self.source_selection]['title'])
+        self.generation_origin += 1
         return result

@@ -14,26 +14,30 @@ from tenfoot_trace import MAX_BYTES
 
 def exercise(client, *, discovered, settle):
     require(type(discovered) is bool and callable(settle), 'explicit discovery context and settle hook required')
-    require(client.installed is discovered and not client.retired and client.loads == 0,
+    require(client.installed == [discovered]*len(client.programs) and not client.retired and client.loads == 0,
             'cycle context differs from the fresh observed catalogue')
-    client.open_source()
-    if not discovered:
-        client.install()
-    client.open_library()
-    client.key('launch',0)
-    settle(.5)
-    client.key('quit')
-    origin = 0 if discovered else 1
-    require(client.loads == 1 and client.retired and client.records[-1]['exit_generation'] == origin+3,
+    count = len(client.programs)
+    for selection in range(count):
+        client.open_source(selection)
+        if not discovered:
+            client.install()
+        client.open_library()
+    for selection in range(count):
+        client.focus(selection)
+        client.key('launch',selection)
+        settle(.5)
+        client.key('quit' if selection == count-1 else 'stop')
+    origin = 0 if discovered else count
+    require(client.loads == count and client.retired and client.records[-1]['exit_generation'] == origin+2*count+1,
             'installer launch/return did not reach final Park')
     menu = client.menu.finish()
-    require(menu['menu_sessions'] == (2 if discovered else 3) and
-            menu['final_return']['Generation'] == (18 if discovered else 24),
+    sessions = 1+count+(0 if discovered else count)
+    require(menu['menu_sessions'] == sessions and menu['final_return']['Generation'] == 7+11*count+(0 if discovered else 6*count),
             'installer launch/return omitted final menu drain')
     usb = client.records[-1]['shared_usb']['stop'] if client.usb is not None else None
     return dict(passed=True,installed_during_test=not discovered,initially_discovered=discovered,
                 fetch_activity_observed=True,display='fpga-menu',menu=menu,
-                launch_generation=origin+1,exit_generation=origin+3,
+                launch_generation=origin+1,exit_generation=origin+2*count+1,
                 shared_usb_reports=usb['reports'] if usb is not None else None,
                 shared_usb_polls=usb['polls'] if usb is not None else None,
                 hardware_acceptance=False,ordinary_admission=False,
@@ -97,7 +101,7 @@ def replay(raw, receipt, *, discovered, **options):
         require(finished, 'replay did not reach a verified exchange')
         clock = before+window['elapsed_seconds']
         return raw[window['start']:window['end']]
-    client = InstallerClient(raw[:initial],installed=discovered,exchange=exchange,
+    client = InstallerClient(raw[:initial],installed=[discovered]*len(options['programs']),exchange=exchange,
                              now=lambda:clock,owns=lambda:True,**options)
     require(client.view == receipt['startup_reply'] and client.boot == receipt['startup_service_boot'],
             'saved startup receipt differs from wire')

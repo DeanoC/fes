@@ -20,7 +20,7 @@ class Capture:
         self.startup=copy.deepcopy(self.client.view)
         self.boot=copy.deepcopy(self.client.boot)
         self.discovered=discovered
-        self.options=dict(program=PROGRAMS[0],build_record=self.model.profile,build_id=SPEC['build_id'],
+        self.options=dict(programs=[PROGRAMS[0]],initial_titles=[PROGRAMS[0]['title']] if discovered else [],build_record=self.model.profile,build_id=SPEC['build_id'],
                           owner_seed=SPEC['owner_seed'],atf=SPEC['atf'],package=SPEC['package'],
                           shared_usb=self.model.policy if shared else None)
         self.client.exchange=self.exchange
