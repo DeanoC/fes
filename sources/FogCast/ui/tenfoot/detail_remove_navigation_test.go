@@ -17,9 +17,8 @@ import (
 )
 
 // Exercise release Home with a fake kit-local host, Sinclair setup and Library against
-// one catalog. The hardware room first opens the ZX81 tape platform; core
-// entries live under FPGA, so the user explicitly switches the platform before
-// opening the target. No launch is needed to open or remove Details.
+// one catalog. The hardware room opens the selected ZX81 core shelf directly.
+// No launch is needed to open or remove Details.
 func TestReleaseHomeLibraryRemovesOnlyDisplayedCoreEntry(t *testing.T) {
 	const targetID, targetTitle = "remove-target-zx81", "A Unique Remove Target"
 	const otherID, otherTitle = "keep-other-zx81", "Z Keep Other Title"
@@ -131,12 +130,9 @@ func TestReleaseHomeLibraryRemovesOnlyDisplayedCoreEntry(t *testing.T) {
 		t.Fatal("navigating to Library launched a title")
 	}
 	app.HandleCommand(CommandFromButton(ButtonSouth), time.Now())
-	waitFor(t, app, "ZX81 tape library", func(s Snapshot) bool { return !s.Room.Open && !s.Loading && s.PlatformID == "zx81" })
-	if len(app.Snapshot().Games) != 0 {
-		t.Fatal("ZX81 tape platform unexpectedly included FPGA core entries")
-	}
-	app.HandleCommand(CommandFromButton(ButtonLeftShoulder), time.Now())
-	s = waitFor(t, app, "FPGA entries", func(s Snapshot) bool { return !s.Loading && s.PlatformID == "fpga" && len(s.Games) == 2 })
+	s = waitFor(t, app, "ZX81 FPGA library", func(s Snapshot) bool {
+		return !s.Room.Open && !s.Loading && s.PlatformID == "fpga" && len(s.Games) == 2
+	})
 	if s.Games[s.Grid.Focus].ID != targetID {
 		t.Fatalf("focused unexpected title: %+v", s.Games[s.Grid.Focus])
 	}
