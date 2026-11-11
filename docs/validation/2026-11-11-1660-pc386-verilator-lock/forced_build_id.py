@@ -3,7 +3,7 @@
 Usage, from sources/misteross of a clean checkout at the PR commit, with QUARTUS_ROOTDIR set as for
 `make build-fes-pc386-quartus`:
 
-    python3 forced_build_id.py <main's build-summary.json> <CACHE_ROOT>
+    python3 ../../docs/validation/2026-11-11-1660-pc386-verilator-lock/forced_build_id.py <main's build-summary.json> <CACHE_ROOT>
 
 It runs the producer's build() steps into build/fes-pc386-quartus, the producer's output path,
 with the BUILD_ID taken from main's build summary in place of the one the record gives: the
