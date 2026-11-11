@@ -1,6 +1,6 @@
 # pc386 removable media: floppy drives and a CD-ROM
 
-Status: proposed design and slice plan, for Deano, 11 November 2026. Refs [#1694](https://github.com/DeanoC/fes/issues/1694). Nothing here is implemented. Open decisions are marked **D*n*** and listed at the end.
+Status: design and slice plan, 11 November 2026. Refs [#1694](https://github.com/DeanoC/fes/issues/1694). Nothing here is implemented. Decisions are marked **D*n*** and listed at the end; Deano accepted every recommendation on 11 November 2026.
 
 Path convention: `M/` is `sources/misteross/`, `MP/` is `sources/mister-packages/`, `RT/` is `sources/libmister-runtime/`, `FC/` is `sources/FogCast/`. `docs/`, `scripts/` and `AGENTS.md` are at the repo root.
 
@@ -25,7 +25,7 @@ The design:
   - **CD-DA.** The runtime fills an audio ring in the window. A small player in the core reads it at 44.1 kHz into the mixer.
 - **Media delivery.** Floppy images go into the window whole, through fes-window grants, while the machine runs. A CD stays a file on the kit. Only the sectors a command asks for, and the audio ahead of the play position, pass through the window.
 - **ABI.** Three new `fes.computer` interfaces: `fes.media.pc-floppy` on units 1 and 2, `fes.media.atapi-cd` on unit 3, and unit-indexed Disk operations. The runtime gets a running-time CD service thread. FogCast gets a CD role, media sets (disk 1..N, disc 1..N), and a drive selector in the live-media API and the tenfoot picker.
-- **Area.** About 2,300 ALMs and 7 M10K in all. That takes the current seal from 36,118 ALMs to about 38,400 (91.6%), right at the 92% ceiling the area audit found untested. CPU Phase 5 is still landing, so area is the main risk. It is open question **D7**.
+- **Area.** About 2,300 ALMs and 7 M10K in all. That takes the current seal from 36,118 ALMs to about 38,400 (91.6%), right at the 92% ceiling the area audit found untested. CPU Phase 5 is still landing, so area is the main risk; **D7** settles the order (floppy first).
 
 ## Goals
 
@@ -75,7 +75,7 @@ Around the card:
 - the boot gate's rule;
 - the whole-image record.
 
-The command state machine is the one large reusable piece, but it is 360K-only, XT-clocked, built on the XT ISA endpoint and GPL. Whether pc386 shares one FDC with PC/XT is **D5**.
+The command state machine is the one large reusable piece, but it is 360K-only, XT-clocked, built on the XT ISA endpoint and GPL. **D5** settles it: pc386 gets a fresh MIT controller.
 
 ### pc386 today
 
@@ -291,7 +291,7 @@ Without this patch DOS treats the drives as XT-style. It assumes a change after 
 
 **Why the secondary channel and not the primary slave.** `pc386_ata` models device 1 as absent with shared registers (`pc386_ata.sv:44-50`). Making it a packet device would put a second state machine behind one task file. The BIOS, Windows and Linux all prefer the CD on its own channel. IRQ 15 is free.
 
-The only reason to reopen this would be a target OS from before ATAPI drivers existed. The sibling early-Windows and early-Linux reports should confirm that none is in scope: Windows 3.1 needs a DOS ATAPI driver, which exists. That confirmation is **D1**.
+The only reason to reopen this would be a target OS from before ATAPI drivers existed. The sibling early-Windows and early-Linux reports should confirm that none is in scope: Windows 3.1 needs a DOS ATAPI driver, which exists. **D1** chose ATAPI on that basis.
 
 ### Where the command set runs
 
@@ -354,7 +354,7 @@ The only reason to reopen this would be a target OS from before ATAPI drivers ex
 
 Anything else gets ILLEGAL REQUEST (05h/20h). The interpreter is one C library in `RT/`, and both the runtime and `M/cores/fes-pc386/sim/machine_tb.cpp` link it.
 
-**Latency.** A real 2× drive takes 100–300 ms to seek and 1–5 ms per command. The service thread's wake-up latency is **not measured yet**. Slice C2 measures it on Kit B and sets the poll interval to keep each command under 2 ms. If polling costs too much ARM time, the fallback is an FPGA-to-HPS interrupt through a fes-window event, a kernel change, recorded as **D3**.
+**Latency.** A real 2× drive takes 100–300 ms to seek and 1–5 ms per command. The service thread's wake-up latency is **not measured yet**. Slice C2 measures it on Kit B and sets the poll interval to keep each command under 2 ms. If polling costs too much ARM time, the fallback is an FPGA-to-HPS interrupt through a fes-window event, a kernel change, recorded in **D3**.
 
 **Speed.** The drive reports a 4× drive (600 KB/s). The core paces its own streaming: a byte-rate limiter in `pc386_atapi` lets a DRQ block start only when the bytes sent since the response header stay within 600 KB/s of elapsed time (a counter against a `pc386_rate` tick). The pace holds however fast the runtime fills the ring, including reads from cache. The runtime adds seek time before it writes the response header: a fixed access time per command and a distance-scaled seek, from a constant table. Games that time the drive then see a period drive. Port 2 load is under 1 MB/s next to its measured 700 MB/s.
 
@@ -385,7 +385,7 @@ FogCast gets a `cd` role:
   - FogCast parses the sheet on import into a canonical track table (number, type, start LBA, file, byte offset, sector size) and stores it beside the files.
 - **Size:** up to 900 MB in all, the 80-minute ceiling plus raw overhead. This raises the 32 MiB ordinary limit for this role only, under `core-media-evolution.md`'s storage rules.
 - **Rejected:** a `.cue` naming a missing file, a `CATALOG`/`CDTEXT`-only quirk the parser does not know, or an audio track not a whole number of 2,352-byte sectors. Each fails with the line number.
-- **Staging:** the kit holds the files by SHA-256, as for the hard disk, so relaunching does not move them again. Where they live on the kit is **D6**.
+- **Staging:** the kit holds the files by SHA-256, as for the hard disk, so relaunching does not move them again. **D6** puts them on kit storage.
 
 The core never sees the track table. The runtime gives it only data and play state.
 
@@ -418,7 +418,7 @@ The core reads the generation with *playing* and tags everything it writes with 
 
 **Underrun.** When the next frame's sector is not yet produced (`audio_consumed == audio_produced` before the range ends), the player outputs silence for that frame, counts it, and resumes at the same sector once it is produced, so position never skips ahead of the data. The runtime is about 6 s ahead, so an underrun means the service thread stalled. The status ring reports the count.
 
-**Mixer.** Page 0Eh's port 0 and port 1 volumes scale left and right (8-bit by 16-bit: two DSP blocks, or shifts and adds). The mixer integrates any held level over each 48 kHz period (`pc386_mixer.sv:1-6`), so a 44.1 kHz source needs no other resampler. The mixer is mono today, so v1 sums left and right at half scale each and the CD sits at the same gain as the DSP. Stereo waits for the SB Pro work in #1441, which needs a stereo mixer anyway. Whether CD-DA should wait for that is **D8**.
+**Mixer.** Page 0Eh's port 0 and port 1 volumes scale left and right (8-bit by 16-bit: two DSP blocks, or shifts and adds). The mixer integrates any held level over each 48 kHz period (`pc386_mixer.sv:1-6`), so a 44.1 kHz source needs no other resampler. The mixer is mono today, so v1 sums left and right at half scale each and the CD sits at the same gain as the DSP. Stereo waits for the SB Pro work in #1441, which needs a stereo mixer anyway. **D8** chose mono now.
 
 **Talkie streaming** (Day of the Tentacle, Sam & Max) is data reads, not CD-DA. It is covered by READ(10) pacing.
 
@@ -713,7 +713,7 @@ The floppy titles above, on Kit A or B. The records go under `docs/validation/`.
   - the tests in each repository;
   - Kit smoke 2, which records latency and ARM load;
   - the poll interval set from that measurement.
-- **Depends on:** **D6** answered.
+- **Gate from D6:** the record states the kit storage free space and the largest disc it staged; staging refuses a disc that would not fit, with a clear message.
 
 ### C3. CD-DA (RTL + runtime)
 
@@ -737,16 +737,18 @@ The CD titles above. Windows 98 SE setup belongs to the early-Windows plan's mil
 
 **Order:** F1 → F2 → F3 → F4, and C1 → C2 → C3 → C4 → C5. C1 can start in parallel with F2 once F1's AUX arbiter shape is merged, since both touch `pc386_port2.sv`'s `AUX` client. C2 depends on F3's unit-indexed operations.
 
-## Open decisions
+## Decisions
 
-| | Decision | Recommendation |
+Deano accepted each recommendation below on 11 November 2026.
+
+| | Decision | Decided |
 | --- | --- | --- |
-| **D1** | CD interface: ATAPI on the secondary channel, or a proprietary interface | ATAPI, secondary master. Not close for any target in view. Reopen only if the sibling OS reports name a target that predates ATAPI drivers |
-| **D2** | Where the MMC command set runs: in RTL, or in the runtime with a thin ATAPI transport in RTL | Runtime. The runtime must serve every read anyway, since a disc does not fit the window, and the RTL version costs 1,500–2,000 ALMs at 91%+ fill |
+| **D1** | CD interface: ATAPI on the secondary channel, or a proprietary interface | ATAPI, secondary master. Reopen only if a target OS predates ATAPI drivers |
+| **D2** | Where the MMC command set runs: in RTL, or in the runtime with a thin ATAPI transport in RTL | The runtime. The runtime must serve every read anyway, since a disc does not fit the window, and the RTL version costs 1,500–2,000 ALMs at 91%+ fill |
 | **D3** | How the core gets the runtime's attention: the runtime polls the control page, or a new FPGA-to-HPS interrupt through fes-window | Poll first; C2 measures ARM load and latency. The interrupt is a kernel change, kept for if polling costs too much |
 | **D4** | Drive types | A: 3.5" 1.44M, B: 5.25" 1.2M, changeable per entry (2.88M and 720K available). Both drives present by default |
-| **D5** | Share one FDC with PC/XT | Write `pc386_fdc` fresh under MIT from the 82077AA datasheet and Bochs's `floppy.cc`, parameterised by clock and geometry. Moving PC/XT onto it (and deleting `pcxt_fdc_card`, per the delete-don't-shim rule) is a separate PR with its own PC/XT reseal and kit check, if Deano wants one FDC. Taking the GPL module into pc386 instead would put GPL RTL into the pc386 bitstream; that licensing call is Deano's |
-| **D6** | Where a CD image lives on the kit | Staged to kit storage by SHA-256, as the hard disk is, and read by the runtime from there. Needs Deano's word on kit storage capacity for 400–850 MB discs. Streaming from the host over the network is the alternative, at the cost of a network dependency during play |
+| **D5** | Share one FDC with PC/XT | `pc386_fdc` is written fresh under MIT from the 82077AA datasheet and Bochs's `floppy.cc`, parameterised by clock and geometry. pc386 takes no GPL FDC RTL. Moving PC/XT onto it (and deleting `pcxt_fdc_card`, per the delete-don't-shim rule) is a later, separate PR with its own PC/XT reseal and kit check |
+| **D6** | Where a CD image lives on the kit | Staged to kit storage by SHA-256, as the hard disk is, and read by the runtime from there. C2 records the free space and refuses a disc that does not fit. Streaming from the host is not built |
 | **D7** | Area at 91.6% after both devices, with Phase 5 still landing | Land the floppy first. Start C1 once Phase 5's measured area is known. Drop to one floppy drive or defer CD-DA if the seal will not close. Never relax gates |
 | **D8** | CD-DA in mono now, or wait for #1441's stereo mixer | Mono now (L+R at half scale). Stereo when #1441 lands |
 | **D9** | Write-protect default | Writable for disks in a game's own media set; write-protected for OS and tool install media from a shared folder; the player can flip it per insert |
