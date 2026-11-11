@@ -3237,6 +3237,9 @@ shelf. Selecting a cassette does not remove a host machine from Home. Host
 package, ABI, firmware, media and composition checks remain in that projection;
 library titles do not establish machine readiness. Separate per-family library
 queries count titles without changing the machine or its selected media. The
+hardware refreshes requested while a previous read is pending coalesce into
+one fresh read after its callback. Home discards the superseded response and
+clears old host admission if the fresh read fails. The
 v1 release scope shows its fixed families;
 **Show all cores**, available through Settings, `tenfoot.json` `all_cores`, or
 `FOGCAST_TENFOOT_ALL_CORES=1`, adds the remaining families in `systems.lua`

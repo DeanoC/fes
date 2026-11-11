@@ -283,10 +283,19 @@ end
 -- The host already verifies each computer's package, ABI, firmware, media
 -- and composition. Library titles never stand in for this admission result.
 local hardware_generation = 0
-local function load_hardware()
-  hardware_generation = hardware_generation + 1
-  local gen = hardware_generation
+local hardware_reading = false
+local hardware_refresh_pending = false
+local function read_hardware(gen)
+  hardware_reading = true
   hardware.read(function(value, err)
+    hardware_reading = false
+    -- A resume can supersede an outstanding read. Wait for its callback
+    -- before requesting the newest snapshot: the bridge admits one read.
+    if hardware_refresh_pending then
+      hardware_refresh_pending = false
+      read_hardware(hardware_generation)
+      return
+    end
     if gen ~= hardware_generation then return end
     machines, hardware_loaded = {}, true
     if not err then
@@ -298,6 +307,15 @@ local function load_hardware()
     end
     on_change()
   end)
+end
+
+local function load_hardware()
+  hardware_generation = hardware_generation + 1
+  if hardware_reading then
+    hardware_refresh_pending = true
+    return
+  end
+  read_hardware(hardware_generation)
 end
 
 -- One query per family keeps a large family's titles from consuming another
