@@ -1,5 +1,5 @@
 {
-  "build_id": "d1b9654e2f6c5c1cc053394309884e29",
+  "build_id": "b7a485567599d3c087eaa6264b3b94ae",
   "device": "5CSEBA6U23I7",
   "firmware": {
     "bios": "162e92cac39c3bd47f7a344fd3da715a4d169c765b5db6807231237c0ef154e1",
@@ -46,7 +46,7 @@
     "cores/fes-common/rtl/i386/fes_i386_amode.sv": "8c751ec8a884f0dddd2f767ed94738842260ca0d8dd9080253a81139cb6c7759",
     "cores/fes-common/rtl/i386/fes_i386_biu.sv": "a9ed2b2b277b03a8b73e8f070fa5c6e7a75f7ab8edf425809bd938aa7eba0a59",
     "cores/fes-common/rtl/i386/fes_i386_btb.sv": "1e79cb7e2b6abfedb651f514d843052f0dfb05bda19005af3c1ea43a2e09dca9",
-    "cores/fes-common/rtl/i386/fes_i386_cpu.sv": "f5ad00349addc98d55ad1ac034ee416e36d815c1e8521a9a7330c45f43a77d16",
+    "cores/fes-common/rtl/i386/fes_i386_cpu.sv": "7b46d4ae682399e27babc2d75be3c85e26c34001fd6844cd6e5833899234fddc",
     "cores/fes-common/rtl/i386/fes_i386_decode.sv": "b320ac650edf3090b00e44166e84148378c06646e46a5ca44485642f7d3c17bc",
     "cores/fes-common/rtl/i386/fes_i386_dfwd.sv": "e7f5f51a89fdd63744f8c92cbe8bb1aedd45835b37be0f7ed7f0db8d54739f59",
     "cores/fes-common/rtl/i386/fes_i386_dops.sv": "769aae53a66479ac3cc2cf8ad986b0c442846d2997454a3dc33d6e17d9d06dc8",
@@ -63,7 +63,7 @@
     "cores/fes-common/rtl/i386/fes_i386_lstage.sv": "0da7e9b4df54fa365da63dfcce0cdd4cf6779ff2191206a835f3b4a4fc8bb757",
     "cores/fes-common/rtl/i386/fes_i386_muldiv.sv": "13854a2c8bb898a0388aae2cb3315cc3fc57790deb353324ef372660eaad82a9",
     "cores/fes-common/rtl/i386/fes_i386_oplen.sv": "b47fe415fff8fd741ad9b06b5e88177b7168bdeaa78adb804210c1efda4a68dd",
-    "cores/fes-common/rtl/i386/fes_i386_pkg.sv": "26f3dd1020975e403cb59070d588dfc4e7a197ae3068e7ab862d549b16315165",
+    "cores/fes-common/rtl/i386/fes_i386_pkg.sv": "8e4d460c7270e19937a1b268a4f0d67eb4409ed4bc581d06a18f2f73e30406ee",
     "cores/fes-common/rtl/i386/fes_i386_qalign.sv": "30d4b5b87fb4a27834efca3c2c65b795d0db31dc6b0a8ed3b3fcb06c53897fdd",
     "cores/fes-common/rtl/i386/fes_i386_ras.sv": "7ac962343dc69ee0727de061209f39271c050aa7f7f8f2a3b2f3fcf0d9b38a64",
     "cores/fes-common/rtl/i386/fes_i386_seq.sv": "14ff03ca8ebf97954b068f00480306f0e9378b7e2bcaca309174081f104d2673",
@@ -147,13 +147,13 @@
     "scripts/source_provenance.py": "4ea875fb576bbe00d833fb2a78fcf938367bda0a6cb49f65b9c1735fcf832155"
   },
   "rbf": {
-    "sha256": "bf6415dc277671e9e7b28e9114379b2d2efe13c79272b8c6ce160e1fed94486f",
-    "size": 3877572
+    "sha256": "f3b85bf43e85d092cc4e7858c5b7ca75fa883574d0c449cb4c49603a9e87b54f",
+    "size": 3861276
   },
   "resources": {
     "alms": {
       "available": 41910,
-      "used": 36048
+      "used": 36118
     },
     "block_memory_bits": {
       "available": 5662720,
@@ -168,7 +168,7 @@
       "used": 268
     },
     "registers": {
-      "used": 32561
+      "used": 32429
     }
   },
   "seed": 1,
@@ -177,7 +177,7 @@
     "analyses": {
       "hold": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.08
+        "worst_slack_ns": 0.072
       },
       "minimum_pulse_width": {
         "tns_ns": 0.0,
@@ -185,15 +185,15 @@
       },
       "recovery": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 7.188
+        "worst_slack_ns": 5.675
       },
       "removal": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.395
+        "worst_slack_ns": 0.271
       },
       "setup": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.657
+        "worst_slack_ns": 0.803
       }
     },
     "clocks": {

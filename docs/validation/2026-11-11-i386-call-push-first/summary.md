@@ -16,9 +16,13 @@ item 3 of [#1514](https://github.com/DeanoC/fes/issues/1514) (a comment).
   known failure #1663, which fails as #1663 records.
 - **test386** on the RTL reaches POST 22 and stops at `int 0x28`, a delivery
   through a task gate (not built), as on main.
-- **Seal.** Quartus 17.0.2 seed 1 from a clean checkout of `5b1a87678`
-  meets every analysis: setup +0.657 ns, hold +0.080 ns. It uses 36,048
-  ALMs (main 36,398, −350) and 268 M10K (main 268).
+- **Seal.** Quartus 17.0.2 seed 1 from a clean checkout of `e054d6ecc`
+  (this branch with main and #1666 merged in) meets every analysis: setup
+  +0.803 ns, hold +0.072 ns. It uses 36,118 ALMs (main 36,139) and 268
+  M10K (main 268).
+- **#1666** merged first. Main is merged in, M1 keeps this branch's side,
+  #1666's `dfl` term for CALL rel's push is gone, and three paging cases
+  are added (69 → 72).
 
 ## Why push first
 
@@ -69,15 +73,17 @@ are 16-bit operand cases).
   checked against CS's limit. Every real-mode delivery redirect restarts at
   the low 16 bits of EIP.
 
-**#1666** (#1646, open) makes CALL rel's past-limit push translate under
-paging (`dfl`) so its #PF comes first. After this change the push has no
-fault, so it translates as any store does, and #PF comes first without that
-term. The paging cases need #1666's DPL-3 paging descriptors, so they land
-with whichever of the two PRs merges second. A trial merge of #1666's head
-`1a8b973a9` into this branch's `a5467f777` (not pushed):
+**#1666** (#1646, merged first as `13d217ca9`) made CALL rel's past-limit
+push translate under paging (`dfl`) so its #PF came first. After this
+change the push has no fault, so it translates as any store does, and #PF
+comes first without that term. Main is merged into this branch at
+`e054d6ecc`:
 - **Resolution.** One conflict in the RTL, M1's fault and `dfl`: this
-  branch's side, `dfl = !cs_late && dfault != NONE` (no `m1_tpast` term).
-  #1666's XCHG m changes and its M2 replay for `dfl` uops merge cleanly.
+  branch's side, `dfl = !cs_late && dfault != NONE` (no `m1_tpast` term),
+  which deletes #1666's term for CALL rel's push. Its comments in
+  `fes_i386_pkg.sv` and the RTL README now name only the st2 store's
+  segment check. #1666's XCHG m changes and its M2 replay for `dfl` uops
+  merge cleanly.
 - **Three paging cases added** (69 → 72), at CPL 3 with ESP 10008h and the
   target 20000h past CS 53h's limit:
   - `pg-r3-call-past-limit-ok`: `CALL rel32`, the push's page present and
@@ -87,8 +93,10 @@ with whichever of the two PRs merges second. A trial merge of #1666's head
   - `pg-r3-call-rm-past-limit-ok`: `CALL EBX`, the page present: the slot
     written, then #GP(0).
 - **Merged RTL:** directed 77, protected-mode 278 and paging 72 cases, all
-  pass, #1666's `pg-r3-call-past-limit-np`, `-ro` and XCHG cases included.
-- **#1666's RTL alone** with that testbench fails the three new paging
+  pass, #1666's `pg-r3-call-past-limit-np`, `-ro` and XCHG cases included
+  (see Lockstep).
+- **#1666's RTL alone** with that testbench (a trial before #1666 merged)
+  fails the three new paging
   cases and the three CPL-3 protected-mode cases: no slot written, and
   CALL EBX's push not present raises #GP(0) instead of #PF.
 
@@ -113,8 +121,7 @@ some of those JMPs.
 
 ## Lockstep
 
-`scripts/test_fes_i386_lockstep.py --jobs 20` with the side-stream testbench
-on the sealed RTL (`5b1a87678`; the testbench change is sim-only), on the RTL and
+`scripts/test_fes_i386_lockstep.py --jobs 16` at the merge `e054d6ecc`, on the RTL and
 on the netlist from the i386 lock's Yosys (`238eac9a4`, slot `44e245aa…`),
 with the lock's Verilator 5.054:
 
@@ -125,7 +132,7 @@ with the lock's Verilator 5.054:
 | Protected-mode programs | 7,999 of 8,000 (432,655 retirements); `random#1010#118` fails, the known #1663 | same |
 | Unbuilt encodings | 49,760, each stopped | same |
 | Directed cases | 77 of 77 | same |
-| Unreal, protected-mode, paging, no-387 and memory cases | 7, 278, 64, 1,933 and 27, all pass | same |
+| Unreal, protected-mode, paging, no-387 and memory cases | 7, 278, 72, 1,933 and 27, all pass | same |
 
 Every trace hash is the same on the RTL and the netlist. The full runs are
 [lockstep-report.json](lockstep-report.json) (RTL) and
@@ -142,31 +149,31 @@ pm-gp 606, pm-retired 19,391, real-gp 390, real-retired 1,331.
 
 ## test386
 
-`scripts/test_fes_i386_test386.py --cpu rtl`: POST 00-09, 20, 21, 22, and
+`scripts/test_fes_i386_test386.py --cpu rtl` at `e054d6ecc`: POST 00-09, 20, 21, 22, and
 the stop at `int 0x28` (E0A18h, a task gate) with 799,276 retirements and
 no errors, as on main ([test386-rtl-report.json](test386-rtl-report.json)).
 
 ## Seal
 
-Quartus 17.0.2 Lite, seed 1, from a clean checkout of `5b1a87678`
+Quartus 17.0.2 Lite, seed 1, from a clean checkout of the merge `e054d6ecc`
 ([seal-summary.json](seal-summary.json)):
-- **Package.** `f8bfae51…`, build `d1b9654e…`, `core.rbf` `bf6415dc…`.
-- **Analyses.** All met: setup +0.657 ns, hold +0.080 ns, recovery +7.188
-  ns, removal +0.395 ns, minimum pulse width +1.122 ns. Clocks: system
-  61.44 MHz, pixel 74.27 MHz, audio 12.29 MHz.
-- **Against main.** Main's seal is #1645's (`2026-11-10-i386-phase5-v86`):
-  setup +0.841 ns, hold +0.082 ns.
+- **Package.** `6b4a917e…`, build `b7a48556…`, `core.rbf` `f3b85bf4…`.
+- **Analyses.** All met: setup +0.803 ns, hold +0.072 ns, recovery +5.675
+  ns, removal +0.271 ns, minimum pulse width +1.122 ns.
+- **Against main.** Main's seal is #1666's (`2026-11-11-i386-pf-order`):
+  setup +0.673 ns, hold +0.085 ns.
 
-  | Resource | This seal | Main (#1645) |
+  | Resource | This seal | Main (#1666) |
   | --- | ---: | ---: |
-  | ALMs | 36,048 | 36,398 |
-  | Registers | 32,561 | 32,797 |
+  | ALMs | 36,118 | 36,139 |
+  | Registers | 32,429 | 32,531 |
   | M10K blocks | 268 | 268 |
   | DSP blocks | 38 | 38 |
 
-Setup slack is 0.184 ns below main's and still met; the area change is fit
-noise. No kit run: the change is a fault's order, which the lockstep
-covers, and the seal shows no significant change in timing or area.
+The pre-merge seal of `5b1a87678` (setup +0.657 ns, hold +0.080 ns, 36,048
+ALMs) is superseded by this one. No kit run: the change is a fault's order,
+which the lockstep covers, and the seal shows no significant change in
+timing or area.
 
 ## Commands
 
