@@ -1,0 +1,106 @@
+{
+  "status": "passed-offboard-preparation",
+  "code_commit": "303771739a9ad18d824d35ca245b633e9d74f6b4",
+  "base_commit": "a0a53cb62bdbb2013523de9395815ba3e1bc19a3",
+  "source_scope": "FES native boot producer and package admission; no shared wire ABI, Go runtime or FPGA source change",
+  "parent_tests": 1973,
+  "parent_skips": 3,
+  "final_focused_tests": 41,
+  "fpga_tooling_tests": 1595,
+  "aggregate_host_timeout_retained": true,
+  "unfinished_lane_completed_separately": true,
+  "affected_phases_completed": true,
+  "phase_results": {
+    "affected-checks": {
+      "argv": [
+        "python3",
+        "out/nano-autoboot-20261111/checks.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": -15,
+      "timed_out": true,
+      "elapsed": 850.1542110119481,
+      "log_sha256": "92b60045fade58ad5cb4878a98231d1cd0c39c64f569bce4e21ec9876f7c4be0"
+    },
+    "final-focused": {
+      "argv": [
+        "python3",
+        "out/nano-autoboot-20261111/focused.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 40.62516705086455,
+      "log_sha256": "343bd9b166933cba071bba60c2cf60120d1bc588bce252511487e8a02df1176a"
+    },
+    "fpga-checks": {
+      "argv": [
+        "python3",
+        "out/nano-autoboot-20261111/fpga_checks.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 332.2044801758602,
+      "log_sha256": "76d5420e83ba21061dcf3eb960da18a41c7920b166d86e3cebfad1606e4b3239"
+    },
+    "entry-build": {
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-autoboot-20261111/build_entry.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 64.23527820804156,
+      "log_sha256": "069bf58745bfb928deb9b9b35c4fd74f33ed86723a566d1d2053abbd96c1bec5"
+    },
+    "bl31-build": {
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-autoboot-20261111/build_bl31.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 48.62642454705201,
+      "log_sha256": "c9cff486eacce0113ff890cbceb7a86e8bc2e679f9d0ddbeb9137529fa23d109"
+    },
+    "uboot-build": {
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-autoboot-20261111/build_uboot.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 113.86508621205576,
+      "log_sha256": "a9daf40bc6e1e360ab8118a57cb3623f1350bb7c4e417178011825411c278193"
+    },
+    "compose-build": {
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-autoboot-20261111/compose.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 72.84862560709007,
+      "log_sha256": "5018aa061f6394ff2c02dff45854aec7cd40aac5cab7ebfc534ab8a9648a0368"
+    },
+    "matched-verify": {
+      "argv": [
+        "python3",
+        "out/nano-autoboot-20261111/verify_matched.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2012719470076263,
+      "log_sha256": "7425e17210a81fa2df8e9b4e3f69ecd48b6d4da329ab2f15b8b3bb054960325b"
+    }
+  },
+  "hardware_actions": false,
+  "hardware_acceptance": false,
+  "live_authority": false
+}
