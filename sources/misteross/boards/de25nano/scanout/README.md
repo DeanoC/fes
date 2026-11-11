@@ -497,3 +497,7 @@ clean retirement. Existing ABI3 and INFO/PUBLISH/diagnostics sizes stay fixed.
 Exact1.3 admission requires matching regenerated consumers, kernel and new
 producer identities. Offboard proofs do not establish physical hotplug support;
 fresh fitted timing, independent RBF and switcher/audio/video gates remain open.
+
+`hdmi_active` carries `dont_replicate` so the terminal reset bank has exactly
+one physical readiness acknowledgement. A fitted copy is rejected by the
+26-load inventory rather than implicitly extending the reviewed scope.

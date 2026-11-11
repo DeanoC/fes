@@ -482,6 +482,8 @@ def verify_reset_synchronizers(project):
     if ("always@(posedgepixel_clkornegedgepin_allow)beginif(!pin_allow)output_release<=0;"
             "elseoutput_release<={output_release[0],1'b1};end" not in board):
         raise ValueError("scanout output reset must release through exactly two pixel registers")
+    if "(*dont_replicate*)reghdmi_active=0;" not in board:
+        raise ValueError("scanout needs one nonreplicated readiness acknowledgement")
     crossings = (
         ("system_ack", "fes_video_inst|system_ack", "system_ack_sync", "system_ack"),
         ("pixel_ack", "fes_video_inst|pixel_ack", "pixel_ack_sync", "pixel_ack"),

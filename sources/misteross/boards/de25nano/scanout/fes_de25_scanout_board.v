@@ -149,7 +149,8 @@ module fes_de25_scanout_board (
         if (!pin_allow) output_release <= 0;
         else output_release <= {output_release[0], 1'b1};
     end
-    reg hdmi_active = 0;
+    // Keep one physical readiness acknowledgement in the reviewed reset bank.
+    (* dont_replicate *) reg hdmi_active = 0;
     initial begin
         HDMI_TX_D = 24'd0;
         HDMI_TX_DE = 1'b0;

@@ -56,7 +56,8 @@ class ScanoutBuildTests(unittest.TestCase):
         board = project / "fes_mailbox/fes_de25_scanout_board.v"
         original = board.read_text()
         for before, after in (("negedge output_release[1]", "negedge pin_allow"),
-                              ("output_release[0], 1'b1", "output_release[1], 1'b1")):
+                              ("output_release[0], 1'b1", "output_release[1], 1'b1"),
+                              ("(* dont_replicate *) reg hdmi_active", "reg hdmi_active")):
             self.assertEqual(original.count(before), 1)
             board.write_text(original.replace(before, after))
             with self.assertRaises(ValueError): B.verify_reset_synchronizers(project)
