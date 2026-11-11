@@ -171,12 +171,22 @@ The firmware README says the floppy POST and INT 13h paths stay, and that the un
 | Write Data | 05h/45h/C5h |
 | Read Deleted Data, Write Deleted Data | 0Ch, 09h. Read as data with the CM bit; write as data. Images carry no deleted marks |
 | Read ID | 0Ah |
-| Format Track | 0Dh. Fills the track's sectors in the image with the fill byte; the guest's ID bytes must match the image geometry, or it ends with an error |
+| Format Track | 0Dh/4Dh (the BIOS sends 4Dh, `rombios.c:7893-7894`). Fills the track's sectors in the image with the fill byte; the guest's ID bytes must match the image geometry, or it ends with an error |
 | Recalibrate, Seek, Relative Seek | 07h, 0Fh, 8Fh/CFh |
 | Sense Interrupt Status, Sense Drive Status | 08h, 04h. ST3 carries WP, T0, two-side and ready |
 | Specify | 03h. SRT, HUT and HLT drive the step time; ND is honoured as DMA versus PIO |
 | Version | 10h. Returns 90h, an 82077. Windows 95 and Linux use it to pick the enhanced controller |
 | Configure, Lock, Dumpreg, Perpendicular | 13h, 94h/14h, 0Eh, 12h. Accepted, with fixed answers. Linux probes them |
+
+**Modifier bits.** Read Data, Write Data, Read Deleted Data, Write Deleted Data, Read ID and Format Track carry modifier bits in the top three bits of the command byte: MT (bit 7), MFM (bit 6) and SK (bit 5). The decoder matches these commands on bits 4–0 and then checks the modifiers against the 82077's encoding for that command:
+
+| Command | Bits 4–0 | Modifiers it takes |
+| --- | --- | --- |
+| Read Data, Read Deleted Data | 06h, 0Ch | MT, MFM, SK |
+| Write Data, Write Deleted Data | 05h, 09h | MT, MFM |
+| Read ID, Format Track | 0Ah, 0Dh | MFM |
+
+A modifier the command does not take makes the byte invalid, as on the 82077. MFM clear (FM) is accepted, but every image is MFM, so an FM read, write or Read ID finds no address mark and ends with abnormal termination (ST0 IC 01) and ST1 MA, as an FM controller would against an MFM disk; an FM Format Track ends the same way and leaves the image unchanged. Images carry no deleted marks, so SK changes nothing for Read Data; Read Deleted Data with SK set follows Bochs's `floppy.cc`, which the `fdc_reference` replay checks. The other commands carry no modifier bits in that sense and decode on the whole byte: Relative Seek's bit 6 is its direction and bit 7 is fixed, and Lock's bit 7 is the lock bit, as the table above lists.
 
 Anything else is invalid (ST0 80h), as the 82077 answers.
 
@@ -319,8 +329,11 @@ The only reason to reopen this would be a target OS from before ATAPI drivers ex
   1. The core takes the 12-byte packet in one DRQ.
   2. It posts a request record `{sequence, packet, byte-count limit}` to the control page on port 2 and holds BSY.
   3. It polls the response header (one 64-bit read every 4 µs while busy; nothing otherwise) until the runtime has written `{sequence, direction, total length}` for this request. The direction is none, data-in (to the guest) or data-out (from the guest); the core decodes no opcodes, so the runtime's header is the only source of the direction. With none, the core goes straight to step 5.
-  4. For data-in, it streams the response data to the guest in DRQ blocks no larger than the byte-count limit, raising IRQ 15 per block. It reads 64 bits at a time from the data ring into a two-block M10K buffer, as `pc386_ata`'s prefetch does. The ring handshake is below.
-  5. Once it has consumed `total length` bytes and the runtime's final record (status and sense) carries the sequence, it ends the command with them.
+  4. For data-in, it streams the response data to the guest in DRQ blocks no larger than the byte-count limit, raising IRQ 15 per block. It reads 64 bits at a time from the data ring into a two-block M10K buffer, as `pc386_ata`'s prefetch does. For data-out, it raises DRQ for the guest's bytes in blocks under the byte-count limit and stores them into the ring. The ring handshake is below.
+  5. It ends the command with the status and sense of the runtime's final record once that record carries this request's sequence and the transfer for the header's direction is complete:
+     - data-in: the core has consumed `total length` bytes from the ring;
+     - data-out: the core has produced `total length` bytes into the ring (the runtime posts the final record only after it has read them all);
+     - none: no transfer; the final record alone ends the command.
 
   **Ring handshake.** The control page holds two byte counters per command, both starting at 0 when the runtime writes the response header:
 
