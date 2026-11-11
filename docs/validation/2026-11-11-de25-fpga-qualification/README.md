@@ -17,3 +17,38 @@ The corrected full parent software lane passes1714 tests with two skips; generat
 The subsequent main-baseline-only DE10 reboot control became ready after133.672 seconds, also outside120 seconds. Bundle/image stayed a275/179 at generation142. All four role hashes, idle/launcher, idle/free lease and FES Home were reverified before release. The readiness delay reproduces on the main baseline; the timeout is retained and no shared-init image boot acceptance is inferred.
 
 The final single-readiness-register source25bc6ef78 passes the full14-case native/AArch64 combined proof (80 compiler and61 runtime source bindings) and the scanout board simulation's12 stopped-clock cases. Fresh full MENU/ZX81 producer qualification is still in progress at this record.
+
+
+The completed25bc6ef78 normal MENU and ordinary ZX81 producers each pass the
+original and independent repeat. Their RBFs are byte-identical per role. Each
+of the four fits checks all85 signoff rules, all216 HDMI setup/hold paths and
+all208 output-reset recovery/removal paths with the approved26 terminal loads.
+There are zero unreviewed findings and zero Quartus waiver counts. Raw missing
+HDMI input/output and terminal reset findings remain visible under the approved
+source-bound reviews. `qualification.json` records exact package, RBF, record,
+report hashes and minima. `qualified-local-readback.json` binds the transferred
+packages, both canonical readers and all74/143 source inputs. No physical
+acceptance of these new bitstreams is claimed.
+
+The final FPGA software suite ran2079 tests with21 errors and82 skips. Twelve
+DE25 identity fixtures omitted the new review helpers, five static-export tests
+still selected the shared DE10 codec, and three DE10 fixtures copied unrelated
+DE25 sources into broad fallback records. Those fixtures now select their own
+board codec/inputs. One real RISC-V record exceeded64KiB (67490 bytes); its
+producer now selects a dedicated31-root closure with the existing Python and
+compiler-read guards. The64KiB limit is unchanged. This changes RISC-V functional
+identity, so the previous shared-producer equality statement does not apply to
+that producer. A normal source-bound timing/seal build remains required.
+
+All93 affected fixture/producer/codec/closure tests pass after repair, plus a
+real-module RISC-V regression confirms the bounded audited record, every pinned
+input and exclusion of unrelated DE25 files. The prior full-suite failure is
+retained; this is focused repair evidence, not a new full-suite result.
+
+The bootstrap DE10 image assembled successfully but its old verifier expected
+a machine-id file link. The producer already redirects the whole D-Bus directory
+to `/run/dbus` for atomic sibling writes; verification now checks that exact
+relative directory link. The rootfs contract test passes. New image/QEMU and
+physical shared-init boot acceptance remain required. Standalone diagnostic
+verifier invocations without the producer's package environment stopped before
+verification; their logs are retained, and normal producer verification is next.

@@ -38,6 +38,7 @@ class ProductionIdentityTests(unittest.TestCase):
                     for directory in ('producers', 'package')
                     for path in (ROOT / 'boards/de25nano' / directory).glob('*.py')}
         helpers.update(static.REVIEW_INPUTS)
+        helpers.update(menu.REVIEW_INPUTS)
         helpers |= {'boards/de25nano/scanout/' + name for name in (
             'async_inputs.py', 'async_inputs.tcl', 'vendor_reference.py',
             'audio_reference.py', 'audio_clocks.tcl')}

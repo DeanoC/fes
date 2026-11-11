@@ -674,13 +674,15 @@ Both working-tree and historical Git-object validation apply the recorded
 policy. Existing format-1 and format-2 records without that parameter retain
 their original semantics, including documentation in declared roots.
 
-The nine factory producers now select committed per-producer roots from
+Factory producers, including RISC-V, select committed per-producer roots from
 `scripts/source_closures.json`, setting `parameters.source_closure_mode` to
 `audited-v1`. Their source key covers the declared import, HDL, recipe, ABI and
 toolchain-lock closure rather than the entire scripts and shared-core trees.
 Python and traced compiler reads and directory listings enforce these roots;
 an uncovered source access fails the build. Other producers retain the broad
-roots. The operator workflow and nightly broad-rebuild comparison are in the
+roots. RISC-V's closure includes its firmware, CPU, board constraints and tool
+helpers while excluding unrelated DE25 producers; the canonical record retains
+its 64 KiB limit. The operator workflow and nightly broad-rebuild comparison are in the
 FES [core-key guide](../../../docs/core-key-narrowing.md).
 
 The functional producers trace synthesis and each route attempt with
