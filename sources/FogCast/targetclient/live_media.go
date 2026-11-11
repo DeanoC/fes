@@ -10,7 +10,7 @@ import (
 )
 
 func (c *Client) ReplaceLiveMedia(ctx context.Context, size int64, body io.Reader, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
-	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole {
+	if !b.Valid() || b.Stream {
 		return protocol.Status{}, protocol.LiveMediaRequestError()
 	}
 	data, apiErr := protocol.ReadDevelopmentMedia(size, body)
@@ -50,7 +50,7 @@ func (c *Client) ReplaceLiveMedia(ctx context.Context, size int64, body io.Reade
 }
 
 func (c *Client) ClearLiveMedia(ctx context.Context, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
-	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole {
+	if !b.Valid() || b.Stream {
 		return protocol.Status{}, protocol.LiveMediaRequestError()
 	}
 	if c.kitLease == nil {

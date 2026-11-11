@@ -125,7 +125,7 @@ func applicationMachine(p *CorePackageStatus) bool {
 }
 
 func (b DevelopmentMediaBinding) MatchesSessionDisplay(s Status) bool {
-	if !b.Valid() || b.Stream || b.Role == FirmwareRole || s.State != StateActive || !s.Development ||
+	if !b.Valid() || b.Stream || s.State != StateActive || !s.Development ||
 		s.Recovery != "" || s.LastError != nil || s.CorePackage == nil ||
 		s.CorePackage.PackageID != b.PackageID || s.CorePackage.Generation != b.Generation {
 		return false

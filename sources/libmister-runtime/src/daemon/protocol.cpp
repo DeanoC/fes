@@ -1454,15 +1454,6 @@ Error ParseRequest(const std::string& line, Request* request)
             parsed.operation = library?Operation::insert_library_media:save?Operation::save_media:insert ? Operation::insert_media : Operation::eject_media;
 			parsed.expected_package_id = *package;
 			parsed.media_unit = static_cast<std::uint8_t>(unit->integer_value);
-		} else if (operation->string_value == "load_firmware") {
-			const char* const fields[] = {"protocol", "operation", "path"};
-			if (!HasOnly(root, fields, 3, &error)) return error;
-			const std::string* path = nullptr;
-			if (!StringMember(root, "path", &path, &error)) return error;
-			if (!Path(*path))
-				return Invalid("path must be an absolute path of at most 4095 bytes");
-			parsed.operation = Operation::load_firmware;
-			parsed.media_path = *path;
 		} else if (operation->string_value == "load_media") {
 			const char* const fields_path[] = {"protocol", "operation", "path"};
 			const char* const fields_bound[] = {"protocol", "operation", "path",

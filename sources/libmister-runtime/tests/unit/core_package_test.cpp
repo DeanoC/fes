@@ -302,17 +302,10 @@ void TestLinkedCartridgeRejectsResetHeldMediaContracts()
 	descriptor.abi = {"fes.application", 1, 0};
 	descriptor.interfaces = {{"fes.video.fixed-720p60", 1, 0, true}};
 	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
-	for (bool required : {false, true}) {
-		auto firmware_mailbox = descriptor;
-		firmware_mailbox.interfaces.push_back({"fes.firmware.blob", 1, 0, required});
-		assert(mister::native::CheckCoreCompatibility(firmware_mailbox).code == mister::ErrorCode::unsupported_interface);
-		firmware_mailbox.rom.role = "firmware";
-		assert(mister::native::CheckCoreCompatibility(firmware_mailbox).ok());
-	}
 	auto game = descriptor;
 	game.abi = {"fes.simple-game", 1, 0};
 	game.interfaces.push_back({"fes.gamepad", 1, 0, true});
-	game.interfaces.push_back({"fes.firmware.blob", 1, 0, false});
+	game.interfaces.push_back({"fes.firmware.blob", 1, 0, true});
 	assert(mister::native::CheckCoreCompatibility(game).code == mister::ErrorCode::unsupported_interface);
 	descriptor.interfaces.push_back({"fes.media.blob", 1, 0, true});
 	assert(mister::native::CheckCoreCompatibility(descriptor).code == mister::ErrorCode::unsupported_interface);
@@ -450,12 +443,12 @@ void TestApplicationCompatibilityComposesInterfaces()
 	firmware.interfaces.push_back({"fes.firmware.blob", 1, 0, false});
 	assert(mister::native::CheckCoreCompatibility(firmware).ok());
 	firmware.interfaces.back().required = true;
-	assert(mister::native::CheckCoreCompatibility(firmware).ok());
+	assert(!mister::native::CheckCoreCompatibility(firmware).ok());
 	firmware.interfaces.back().minor = 1;
 	assert(!mister::native::CheckCoreCompatibility(firmware).ok());
 	firmware.interfaces.back().required = false;
 	assert(mister::native::CheckCoreCompatibility(firmware).ok());
-	// HPS DDR is operational: required when declared, like every non-firmware interface.
+	// HPS DDR is operational: required when declared, like every other operational interface.
 	auto memory = descriptor;
 	memory.interfaces.push_back({"fes.memory.hps-ddr", 1, 0, true});
 	assert(mister::native::CheckCoreCompatibility(memory).ok());

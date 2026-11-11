@@ -1412,15 +1412,14 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 		"development-contained-v1", "fes-gp-v1"}));
 	assert(capabilities.abis.size() == 5);
 	assert(capabilities.abis[0].id == "fes.application");
-	assert(capabilities.abis[0].interfaces.size() == 10);
+	assert(capabilities.abis[0].interfaces.size() == 9);
 	assert(capabilities.abis[0].interfaces[1].id == "fes.expansion.coleco-bus");
 	assert(capabilities.abis[0].interfaces[1].major == 1);
 	assert(capabilities.abis[0].interfaces[1].minor == 0);
-	assert(capabilities.abis[0].interfaces[2].id == "fes.firmware.blob");
-	assert(capabilities.abis[0].interfaces[8].id == "fes.memory.hps-ddr");
-	assert(capabilities.abis[0].interfaces[8].major == 1);
-	assert(capabilities.abis[0].interfaces[8].minor == 0);
-	assert(capabilities.abis[0].interfaces[9].id == "fes.video.fixed-720p60");
+	assert(capabilities.abis[0].interfaces[7].id == "fes.memory.hps-ddr");
+	assert(capabilities.abis[0].interfaces[7].major == 1);
+	assert(capabilities.abis[0].interfaces[7].minor == 0);
+	assert(capabilities.abis[0].interfaces[8].id == "fes.video.fixed-720p60");
 	const auto& computer = capabilities.abis[1];
 	assert(computer.id == "fes.computer" && computer.major == 1 && computer.minor == 0);
 	std::vector<std::string> computer_interfaces;
@@ -1565,38 +1564,6 @@ void TestSimpleComputerAudioIsEnabledOnlyAfterIdentity()
 	driver.identify_result.error = {mister::ErrorCode::core_mismatch, "injected identity failure"};
 	assert(!load(true, 3).error.ok());
 	assert(!has_phase("audio_setup") && !has_phase("audio_enable"));
-}
-
-void TestApplicationFirmwareStatusAdvertisesOptionalSlot()
-{
-	std::vector<std::string> events;
-	RecordingDriver gp(events);
-	IntegratedFixture fixture(&gp);
-	fixture.Start();
-	const auto idle = fixture.native.hardware.capabilities();
-	assert(idle.abis[0].id == "fes.application");
-	bool advertised = false;
-	for (const auto& contract : idle.abis[0].interfaces)
-		if (contract.id == "fes.firmware.blob" && contract.major == 1 && contract.minor == 0)
-			advertised = true;
-	assert(advertised);
-	TempDirectory package;
-	std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
-	ReplaceAll(&manifest, "fes.simple-game", "fes.application");
-	manifest += "\n[[interfaces]]\nid = \"fes.media.blob\"\nmajor = 1\nminor = 0\nrequired = true\n";
-	manifest += "\n[[interfaces]]\nid = \"fes.firmware.blob\"\nmajor = 1\nminor = 0\nrequired = false\n";
-	package.File("manifest.toml", manifest);
-	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
-	mister::native::OpenedCorePackage opened;
-	assert(mister::native::OpenCorePackage(package.path, "", &opened).ok());
-	assert(fixture.runtime.LoadCore(package.path, opened.package_id).ok());
-	const auto status = fixture.runtime.status();
-	bool active = false;
-	for (const auto& contract : status.capabilities.active_interfaces)
-		if (contract.id == "fes.firmware.blob" && contract.major == 1 && contract.minor == 0)
-			active = true;
-	assert(active);
-	assert(fixture.runtime.Stop().ok());
 }
 
 void TestComputerSnapshotInterfacesBecomeActiveThroughRuntime()
@@ -2156,7 +2123,7 @@ void TestMenuInterfaceRecordsMatchMenuAdmission()
  for(const char* id:{generated::FesApplicationInterfaceGamepadID,generated::FesApplicationInterfaceVideoFixed720p60ID,
   generated::FesApplicationInterfaceMediaBlobID,generated::FesApplicationInterfaceMediaBlobStreamID,
   generated::FesApplicationInterfaceAudioPcmS16Stereo48kID,generated::FesApplicationInterfaceGamepadPortsID,
-  generated::FesApplicationInterfaceKeypadPortsID,generated::FesApplicationInterfaceFirmwareBlobID,
+  generated::FesApplicationInterfaceKeypadPortsID,
   generated::FesApplicationInterfaceMemoryHpsDdrID,generated::FesApplicationInterfaceVideoMenuDisplayID,
   generated::FesApplicationInterfaceVideoMenuBlitterID}){
   bool named=false;
@@ -5069,6 +5036,11 @@ void TestZx81ComputerDisplayPackageAdmittedWhenAdvertised()
 void TestLiveComputerStatusResponsesMatchRuntime()
 {
 	assert(live_computer_status_responses.size() == 3);
+	if (std::getenv("FES_EMIT_LIVE_COMPUTER_FIXTURES")) {
+		for (const auto& response : live_computer_status_responses)
+			puts(response.c_str());
+		return;
+	}
 	std::istringstream expected(ReadText("tests/fixtures/protocol-v2-live-computer-statuses.jsonl"));
 	std::string line;
 	for (const std::string& response : live_computer_status_responses) {
@@ -5110,7 +5082,6 @@ int main()
 	TestFormat3InspectionAndLoadGateBeforeMutation();
 	TestApplicationVideoOnlyLifecycleNeedsNoInput();
 	TestSimpleComputerAudioIsEnabledOnlyAfterIdentity();
-	TestApplicationFirmwareStatusAdvertisesOptionalSlot();
 	TestComputerSnapshotInterfacesBecomeActiveThroughRuntime();
 	TestHpsDdrPortsReleaseAfterIdentityBeforeExecution();
 	TestHpsDdrReleaseFailureRecoversBeforeExecution();

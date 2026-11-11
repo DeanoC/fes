@@ -137,9 +137,6 @@ std::string Controller::Handle(const std::string& line)
 		result = runtime_.ClearComputerMedia(request.expected_package_id,
 			request.expected_generation);
 		break;
-	case Operation::load_firmware:
-		result = runtime_.LoadComputerFirmware(request.media_path);
-		break;
 	case Operation::load_media_stream:
 		result = runtime_.LoadComputerMediaStream(request.media_path,
 			request.expected_package_id, request.expected_generation, request.media_size);

@@ -241,10 +241,6 @@ public:
 	{
 		return hardware_.ClearComputerMedia();
 	}
-	Error LoadComputerFirmware(const std::string& path) override
-	{
-		return hardware_.LoadComputerFirmware(path);
-	}
 	Error LoadComputerMediaStream(const std::string& path, std::uint32_t size) override
 	{
 		return hardware_.LoadComputerMediaStream(path, size);

@@ -113,7 +113,7 @@ class NativeVideoProducerTest(unittest.TestCase):
                 {"id": "coleco-bios", "role": "firmware", "source_size": 8192, "source_offset": 0},
                 {"id": "coleco-cart", "role": "cartridge", "source_size": 16384, "source_offset": 8192}])
             self.assertEqual(fields["rom_map"], evidence["rom_map"])
-            self.assertFalse(any(row["id"].startswith("fes.media.blob") or row["id"] == "fes.firmware.blob"
+            self.assertFalse(any(row["id"].startswith("fes.media.blob")
                                  for row in fields["interfaces"]))
             self.assertEqual(fields["core"]["id"], "fes.coleco")
             self.assertIn({"id": "fes.expansion.coleco-bus", "major": 2,

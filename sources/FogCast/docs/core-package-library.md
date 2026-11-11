@@ -448,8 +448,8 @@ any CPU part); the archive records the host's parts composition and programmed
 digest, and the target relinks and must reproduce both before it returns
 `parts_composition` beside `rom_links`. A BIOS or cartridge selection changed
 after launch capture is rejected before target load. The factory format-4
-package uses this same two-source launch path and has no `fes.media.blob*` or
-`fes.firmware.blob` mailbox interfaces.
+package uses this same two-source launch path and has no `fes.media.blob*`
+mailbox interfaces.
 
 ## Named ROM selection
 Format-3 packages declare one required ROM (`rom.id`, role `firmware` or
@@ -496,8 +496,8 @@ can repair a stale package binding. Cartridge selections report
 That picker binds the selected binary to the title's ROM requirement. This
 per-title firmware is independent of ordinary tape/media selection. Cartridge ROM bytes are consumed by
 linking and are never streamed a second time as media. Linked cartridge
-exports must omit `fes.media.blob-stream` 1.0, `fes.firmware.blob` 1.0, and,
-under `fes.application` 1.x, `fes.media.blob` 1.0, including optional declarations.
+exports must omit `fes.media.blob-stream` 1.0 and, under `fes.application`
+1.x, `fes.media.blob` 1.0, including optional declarations.
 These startup endpoints wait for a separate media upload and
 would leave the linked cartridge in reset. The host reports such combinations
 as not ready and rejects launch before contacting the target. Selecting a

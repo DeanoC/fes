@@ -19,7 +19,7 @@ func (c *Coordinator) ReplaceLiveMedia(parent context.Context, size int64, body 
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running", NoChange: true}
 	}
 	defer c.end()
-	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole {
+	if !b.Valid() || b.Stream {
 		return c.Status(), protocol.LiveMediaRequestError()
 	}
 	if !b.MatchesLive(c.Status()) {
@@ -55,7 +55,7 @@ func (c *Coordinator) ClearLiveMedia(parent context.Context, b protocol.Developm
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running", NoChange: true}
 	}
 	defer c.end()
-	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole {
+	if !b.Valid() || b.Stream {
 		return c.Status(), protocol.LiveMediaRequestError()
 	}
 	if !b.MatchesLive(c.Status()) {

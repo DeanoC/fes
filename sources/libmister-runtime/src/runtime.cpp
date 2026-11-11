@@ -824,27 +824,6 @@ public:
 		return error;
 	}
 
-	Error LoadComputerFirmware(const std::string& path)
-	{
-		if (!ValidAbsolutePath(path))
-			return Invalid("invalid computer firmware path");
-		{
-			std::lock_guard<std::mutex> lock(mutex_);
-			if (busy_ || !started_ || status_.state != State::running_development)
-				return Busy("FES computer is not running");
-			busy_ = true;
-		}
-		const Error error = hardware_.LoadComputerFirmware(path);
-		{
-			std::lock_guard<std::mutex> lock(mutex_);
-			busy_ = false;
-		}
-		condition_.notify_all();
-		Log("load_firmware", status_.system, status_.core,
-			error.ok() ? "running" : "request", error);
-		return error;
-	}
-
 	Error LoadComputerMediaStream(const std::string& path, const std::string& package_id,
 		std::uint64_t generation, std::uint32_t size)
 	{
@@ -1671,11 +1650,6 @@ Error Runtime::ClearComputerMedia(const std::string& expected_package_id,
 	std::uint64_t expected_generation)
 {
 	return impl_->ClearComputerMedia(expected_package_id, expected_generation);
-}
-
-Error Runtime::LoadComputerFirmware(const std::string& path)
-{
-	return impl_->LoadComputerFirmware(path);
 }
 
 Error Runtime::LoadComputerMediaStream(const std::string& path,

@@ -124,7 +124,6 @@ public:
 	Error LoadComputerMedia(const std::string& path) override;
 	Error LoadComputerMediaLive(const std::string& path) override;
 	Error ClearComputerMedia() override;
-	Error LoadComputerFirmware(const std::string& path) override;
 	Error LoadComputerMediaStream(const std::string& path, std::uint32_t size) override;
 	Error SendMouseRelative(std::int16_t dx, std::int16_t dy, std::uint8_t buttons) override;
 	Error SetKeyboardHid(const KeyboardHidRows& rows) override;

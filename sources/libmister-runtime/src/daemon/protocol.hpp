@@ -33,7 +33,6 @@ enum class Operation {
 	load_media,
 	replace_live_media,
 	clear_media,
-	load_firmware,
 	load_media_stream,
 	set_keyboard_hid,
 	send_mouse_relative,
