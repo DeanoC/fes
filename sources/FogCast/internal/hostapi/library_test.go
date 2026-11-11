@@ -1083,3 +1083,25 @@ func serveBody(t *testing.T, handler http.Handler, method, path, body string) *h
 	handler.ServeHTTP(response, request)
 	return response
 }
+
+func TestCoreEntryKindFilterIsValidatedAndAcknowledged(t *testing.T) {
+	service := &queryCaptureFake{}
+	for _, kind := range []string{"machine", "title"} {
+		response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games?platform=fpga&core_entry_kind="+kind)
+		if response.Code != http.StatusOK || service.last.CoreEntryKind != kind || !strings.Contains(response.Body.String(), `"core_entry_kind":"`+kind+`"`) {
+			t.Fatalf("kind %s: code=%d query=%+v body=%s", kind, response.Code, service.last, response.Body.String())
+		}
+	}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games?core_entry_kind=unknown")
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("invalid kind: %d %s", response.Code, response.Body.String())
+	}
+	response = serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games?core_entry_kind=machine&collection=recents")
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("collection must not claim unsupported filtering: %d %s", response.Code, response.Body.String())
+	}
+	response = serve(t, hostapi.New(&fakeService{}), http.MethodGet, "/api/v1/games?core_entry_kind=machine")
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("fallback must not claim filter support: %d %s", response.Code, response.Body.String())
+	}
+}

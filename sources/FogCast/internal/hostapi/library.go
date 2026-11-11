@@ -291,7 +291,7 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 		writeError(w, http.StatusInternalServerError, "INTERNAL", "catalog is unavailable")
 		return
 	}
-	result := gamesResult{Games: make([]gameResult, 0, len(page.Games)), NextCursor: page.NextCursor}
+	result := gamesResult{Games: make([]gameResult, 0, len(page.Games)), NextCursor: page.NextCursor, CoreEntryKind: query.CoreEntryKind}
 	ids := make([]string, 0, len(page.Games))
 	for _, game := range page.Games {
 		ids = append(ids, game.ID)
@@ -336,7 +336,7 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 }
 
 func shelfNoticeApplies(query catalog.Query) bool {
-	return query.Text == "" && query.Platform == "" && len(query.CoreIDs) == 0 && query.Collection == "" && query.Region == "" && query.Genre == "" && query.Year == "" && !query.HidePrerelease && !query.HideHacks && query.Cursor == "" && len(query.RestrictIDs) == 0 && len(query.ExcludeIDs) == 0
+	return query.Text == "" && query.Platform == "" && len(query.CoreIDs) == 0 && query.CoreEntryKind == "" && query.Collection == "" && query.Region == "" && query.Genre == "" && query.Year == "" && !query.HidePrerelease && !query.HideHacks && query.Cursor == "" && len(query.RestrictIDs) == 0 && len(query.ExcludeIDs) == 0
 }
 
 func parseGameQuery(r *http.Request) (catalog.Query, error) {
@@ -353,6 +353,15 @@ func parseGameQuery(r *http.Request) (catalog.Query, error) {
 		HideHacks:      queryFlag(values.Get("hide_hacks")),
 		Grouped:        true,
 		Cursor:         strings.TrimSpace(values.Get("cursor")),
+		CoreEntryKind:  strings.TrimSpace(values.Get("core_entry_kind")),
+	}
+	switch query.CoreEntryKind {
+	case "", "machine", "title":
+	default:
+		return catalog.Query{}, fmt.Errorf("unsupported core entry kind")
+	}
+	if query.CoreEntryKind != "" && query.Collection != "" {
+		return catalog.Query{}, fmt.Errorf("core entry kind cannot be combined with a collection")
 	}
 	for _, coreID := range values["core_id"] {
 		if coreID = strings.TrimSpace(coreID); coreID != "" {
@@ -400,6 +409,9 @@ func queryFlag(raw string) bool {
 }
 
 func fallbackGamePage(ctx context.Context, service Service, query catalog.Query) (catalog.Page, error) {
+	if query.CoreEntryKind != "" {
+		return catalog.Page{}, catalog.ErrInvalidQuery
+	}
 	var games []catalog.Game
 	var err error
 	if query.Text == "" {

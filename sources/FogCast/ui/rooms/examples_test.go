@@ -269,18 +269,19 @@ func TestInstalledCoreRoomDefaultBudgetDwell(t *testing.T) {
 			t.Fatal("diagnostic core count must be 1 or 8")
 		}
 	}
-	cores := []localcores.Core{{PackageID: coreColecoID, CoreID: "fes.coleco", Name: "ColecoVision", Needs: "media", Block: "Needs a cartridge"}}
-	// Synthetic identities: exercise eight rows/six visible tiles without
-	// claiming hardware acceptance of any factory package.
-	for i := 1; i < count; i++ {
-		cores = append(cores, localcores.Core{PackageID: fmt.Sprintf("%064x", i), CoreID: fmt.Sprintf("fes.fixture%d", i), Name: fmt.Sprintf("Installed core fixture %d", i), Needs: "media", Block: "Needs a cartridge"})
+	ids := []string{"fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500", "fes.c64", "fes.spectrum", "fes.spectrum128", "fes.atari-st"}
+	var cores []localcores.Core
+	// Synthetic package identities: these rows exercise room rendering and do
+	// not establish acceptance of a physical package.
+	for i := 0; i < count; i++ {
+		cores = append(cores, localcores.Core{PackageID: fmt.Sprintf("%064x", i+1), CoreID: ids[i], Name: ids[i], Launchable: true})
 	}
 	fake := &fakeLocalCores{cores: cores}
 	r := newRoom(t, examplePack(t, "example.fes-cores"), Options{Local: fake, Width: 1280, Height: 720, Budget: DefaultBudget()})
 	if err := r.Load(); err != nil {
 		t.Fatal(err)
 	}
-	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "ColecoVision") })
+	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Sinclair ZX81") })
 	const frames = 10000
 	var total, maximum time.Duration
 	for i := 0; i < frames; i++ {
@@ -306,7 +307,7 @@ func BenchmarkInstalledCoreRoomOneTile(b *testing.B) {
 			break
 		}
 	}
-	fake := &fakeLocalCores{cores: []localcores.Core{{PackageID: coreColecoID, CoreID: "fes.coleco", Name: "ColecoVision", Needs: "media", Block: "Needs a cartridge"}}}
+	fake := &fakeLocalCores{cores: []localcores.Core{{PackageID: coreZXID, CoreID: "fes.zx81", Name: "Sinclair ZX81", Launchable: true}}}
 	r, err := New(pack, Options{Local: fake, Width: 1280, Height: 720, Budget: DefaultBudget()})
 	if err != nil {
 		b.Fatal(err)
@@ -316,7 +317,7 @@ func BenchmarkInstalledCoreRoomOneTile(b *testing.B) {
 		b.Fatal(err)
 	}
 	deadline := time.Now().Add(time.Second)
-	for r.Destination().Kind != KindCore {
+	for r.Destination().Kind != KindFamily || r.Destination().Availability != AvailReady {
 		r.Step(time.Now())
 		if r.Err() != nil {
 			b.Fatal(r.Err())

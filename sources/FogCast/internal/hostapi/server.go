@@ -97,8 +97,9 @@ type gameResult struct {
 }
 
 type gamesResult struct {
-	Games      []gameResult `json:"games"`
-	NextCursor string       `json:"next_cursor,omitempty"`
+	Games         []gameResult `json:"games"`
+	NextCursor    string       `json:"next_cursor,omitempty"`
+	CoreEntryKind string       `json:"core_entry_kind,omitempty"`
 	// Notice is plain shelf copy for an unfiltered local library.
 	// Empty omits the field. It is not a shared mesh wire field.
 	Notice string `json:"notice,omitempty"`

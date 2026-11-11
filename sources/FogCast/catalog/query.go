@@ -40,6 +40,7 @@ type Query struct {
 	Text             string
 	Platform         protocol.System
 	CoreIDs          []string
+	CoreEntryKind    string
 	Collection       string
 	Region           string
 	Genre            string
@@ -94,6 +95,14 @@ func NormalizeQuery(query Query) (Query, error) {
 		}
 	}
 	query.CoreIDs = coreIDs
+	switch query.CoreEntryKind {
+	case "", "machine", "title":
+	default:
+		return Query{}, fmt.Errorf("%w: unsupported core entry kind %q", ErrInvalidQuery, query.CoreEntryKind)
+	}
+	if query.CoreEntryKind != "" && query.Collection != "" {
+		return Query{}, fmt.Errorf("%w: core entry kind cannot be combined with a collection", ErrInvalidQuery)
+	}
 	rawRegion := strings.TrimSpace(query.Region)
 	query.Region = mapDumpRegion(foldDumpToken(rawRegion))
 	if query.Region == "" && strings.EqualFold(rawRegion, "other") {

@@ -59,6 +59,8 @@ type Game struct {
 	// and fail_closed are not Ready. Codes match meshplace.Outcome.
 	// They are not sofa copy.
 	Placement string `json:"placement,omitempty"`
+	// CoreEntryKind is set locally by a filtered query, not read from a row.
+	CoreEntryKind string `json:"-"`
 }
 
 // Placement outcomes rooms read from the games row. They match
@@ -457,10 +459,13 @@ func (item AttractItem) StillHandles() []string {
 // An empty Availability keeps the ready-only shelf. Rooms pass "all" so a
 // saved title stays visible when its files are offline.
 type GameListQuery struct {
-	Cursor         string
-	Limit          int
-	Platform       string
-	CoreIDs        []string
+	Cursor        string
+	Limit         int
+	Platform      string
+	CoreIDs       []string
+	CoreEntryKind string
+	// HomeFamily is a room-local request for bounded machine and title reads.
+	HomeFamily     bool
 	Sort           string
 	Q              string
 	Collection     string
@@ -474,9 +479,10 @@ type GameListQuery struct {
 
 // GamePage is one GET /api/v1/games response.
 type GamePage struct {
-	Games      []Game `json:"games"`
-	NextCursor string `json:"next_cursor"`
-	Notice     string `json:"notice,omitempty"`
+	Games         []Game `json:"games"`
+	NextCursor    string `json:"next_cursor"`
+	Notice        string `json:"notice,omitempty"`
+	CoreEntryKind string `json:"core_entry_kind,omitempty"`
 }
 
 // FacetValues is GET /api/v1/library/facets. The host does not return regions.

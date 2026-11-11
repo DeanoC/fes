@@ -1719,6 +1719,9 @@ func (s *Service) QueryGames(ctx context.Context, query catalog.Query) (catalog.
 	if err := ctx.Err(); err != nil {
 		return catalog.Page{}, err
 	}
+	if query.CoreEntryKind != "" && query.Collection != "" {
+		return catalog.Page{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
 	if len(query.PreferredRegions) == 0 {
 		query.PreferredRegions = s.currentPreferredRegions()
 	}

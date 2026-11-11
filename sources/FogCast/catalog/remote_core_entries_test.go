@@ -53,6 +53,18 @@ func TestRemoteCoreEntryMigrationAndVisibleDistinctTitles(t *testing.T) {
 	if err != nil || len(page.Games) != 3 {
 		t.Fatalf("visible games = %+v, %v", page.Games, err)
 	}
+	machines, err := s.QueryGames(ctx, Query{Platform: CorePlatform, CoreEntryKind: "machine", Limit: 10})
+	if err != nil || len(machines.Games) != 1 || machines.Games[0].ID != local.GameID {
+		t.Fatalf("machine filter = %+v, %v", machines, err)
+	}
+	titles, err := s.QueryGames(ctx, Query{Platform: CorePlatform, CoreEntryKind: "title", Limit: 1})
+	if err != nil || len(titles.Games) != 1 || titles.NextCursor == "" {
+		t.Fatalf("pending remote title filter = %+v, %v", titles, err)
+	}
+	next, err := s.QueryGames(ctx, Query{Platform: CorePlatform, CoreEntryKind: "title", Limit: 1, Cursor: titles.NextCursor})
+	if err != nil || len(next.Games) != 1 || next.NextCursor != "" || next.Games[0].ID == titles.Games[0].ID {
+		t.Fatalf("next title page = %+v, %v", next, err)
+	}
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}

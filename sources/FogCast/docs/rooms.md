@@ -257,7 +257,7 @@ cover. Handles expose `ready`, `w`, `h`, `err`. Draw nothing until `ready`.
 
 | call | callback |
 | --- | --- |
-| `library.query({platform, core_ids, collection, q, sort, genre, year, region, hide_prerelease, hide_hacks, limit}, fn(games, err, transient))` | `games` is an array of game tables. The query returns matching catalog rows, including titles that are not ready. `core_ids` restricts results to prepared core-package entries with those core IDs. `transient` identifies retryable network or temporary host errors. The returned function cancels an outstanding query. |
+| `library.query({platform, core_ids, collection, q, sort, genre, year, region, hide_prerelease, hide_hacks, limit, home_family}, fn(games, err, transient, more))` | `games` is an array of game tables. The query returns matching catalog rows, including titles that are not ready. `core_ids` restricts results to prepared core-package entries with those core IDs. `transient` identifies retryable network or temporary host errors; `more` says rows remain beyond the limit. `home_family` performs bounded machine-first and title reads; each row's `core_entry_kind` identifies its source. If machine entries exceed the budget, it returns an error with `more` true. The returned function cancels an outstanding query. |
 | `library.platforms(fn(platforms, err))` | `{id, label, game_count, online, launchable, tags}` |
 | `library.collections(fn(collections, err))` | `{id, name}` |
 | `library.game(id, fn(game, err))` | one game. A cached list row is returned immediately. When `variant_count` is greater than one and that row has no `variants`, the call loads the detail row so grouped editions are present. |
