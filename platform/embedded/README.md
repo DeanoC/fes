@@ -2,7 +2,8 @@
 
 This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
 launcher integration, while bounded Nano CPU/SD/package diagnostics now run on
-the top kit. Playable-core readiness remains open. FES owns
+the top kit. Bounded ZX81 installation and reboot discovery now pass; general
+appliance readiness remains open. FES owns
 the base image; FogCast owns tenfoot and its application services; the runtime
 owns FPGA programming, reset, input delivery and DMA lifetime.
 
@@ -35,8 +36,12 @@ read-only transport. The explicit faster selection now supports the
 [staged native installer candidate](../../docs/validation/2026-11-10-de25-native-installer-navigation/README.md):
 an empty playable library, checked writable mount and the normal Tenfoot
 Install/Setup APIs. Its full App Install → library → launch/return test,
-software/FAT model cycles and matched boot chain pass;
-physical installation and fresh-boot discovery still need their own trial.
+software/FAT model cycles and matched boot chain pass. The subsequent
+[physical first installation](../../docs/validation/2026-11-11-de25-native-first-install-trial/README.md)
+and [independent reboot discovery](../../docs/validation/2026-11-11-de25-installed-discovery-trial/README.md)
+also pass on TRWU8CBL: the empty bootstrap stays unchanged, the installed ZX81
+entry is discovered without reinstalling, and verified launch/return reaches
+final Park. This is bounded package qualification, not full appliance acceptance.
 The [FAT32 allocation path](tamago/fat/README.md) now creates files and directories
 without preallocation, with independent mtools readback and real package-store
 retention tests. The [owned in-process installer](tamago/nativefabric/README.md)
@@ -46,8 +51,8 @@ Real HTTP/FAT-image tests now cover download of an existing Nano export,
 compiled admission, installation, launch/return and modeled fresh-boot discovery.
 The Linux-free QEMU `programfetch` diagnostic separately verifies package/ROM/
 tape identities over VirtIO HTTP and leaves its FAT disk unchanged. A native
-network upload service, NIC containment and physical package-install qualification
-remain separate work; ordinary Nano networking and SD writes stay disabled in
+network upload service and NIC containment remain separate work; ordinary Nano
+networking and SD writes stay disabled in
 the board profile.
 
 The current [queued-menu hardware trial](../../docs/validation/2026-11-09-de25-menu-queue-trial/README.md)

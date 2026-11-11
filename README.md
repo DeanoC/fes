@@ -9,9 +9,10 @@ DE25-Nano bring-up includes a [headless AArch64 image](docs/de25-linux.md),
 and [off-board runtime software checks](docs/de25-linux.md#aarch64-runtime-and-agent-checks-without-a-board).
 The separate [Linux-free native prototype](platform/embedded/README.md) now
 passes bounded physical ZX81 → ZX80 → ZX81 package loading and return on
-DE25-Nano, with selected FPGA/ROM identities checked over serial. Visible
-launcher/core transitions, broader package support and full appliance acceptance
-remain open. The default appliance and playable packages target DE10-Nano.
+DE25-Nano, with selected FPGA/ROM identities checked over serial. Bounded native
+ZX81 installation and independent reboot discovery/launch also pass. Broader
+package/device support and full appliance acceptance remain open. The default
+appliance and playable packages target DE10-Nano.
 
 Agents: read [AGENTS.md](AGENTS.md), then the
 [development guide](docs/development.md) and the selected component's guidance.

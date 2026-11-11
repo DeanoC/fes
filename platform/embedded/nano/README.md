@@ -1,5 +1,12 @@
 # Nano recovery uploads and cold serial boot
 
+The bounded [native installation](../../../docs/validation/2026-11-11-de25-native-first-install-trial/README.md)
+and [independent reboot discovery](../../../docs/validation/2026-11-11-de25-installed-discovery-trial/README.md)
+now pass on TRWU8CBL for ZX81. The second boot retains the empty staging
+bootstrap, discovers the installed entry without Install and completes verified
+launch/return/final Park. General appliance, device and power-loss qualification
+remain separate.
+
 `installer_cycle.exercise` requires an explicit first-install or independently
 expected discovery context. The discovery cycle opens the existing library,
 launches the pinned program and returns to final Park without issuing Install.
