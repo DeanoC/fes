@@ -1,0 +1,8 @@
+{
+  "selected_board": "TRWU8CBL",
+  "selected_model": "combined",
+  "selector_sha256": "83e37667e98671db8f18cc5841ab257bb949565582b41669b306999e8a2161e4",
+  "replay_sha256": "0eae6c12d75aaaa4655965c040811e3ce91403fe62d31028b28d48fab9294ca2",
+  "session_host_watchdog_seconds": 1800,
+  "retained_binaries_seed_and_guest_limits": "unchanged"
+}

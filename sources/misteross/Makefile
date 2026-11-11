@@ -57,7 +57,7 @@ help:
 		"  toolchain-fes-c64  Provision the FES C64 HIP toolchain (per-core lock)" \
 		"  toolchain-fes-spectrum  Provision the FES Spectrum HIP toolchain (per-core lock)" \
 		"  toolchain-fes-riscv  Provision the FES RISC-V HIP toolchain (per-core lock)" \
-		"  toolchain-fes-pc386  Provision the pc386 HIP toolchain (per-core lock)" \
+		"  toolchain-fes-pc386  Provision the pc386 toolchain (per-core lock, GPU_ROUTER=HIP|CUDA)" \
 		"  toolchain-fes-i386  Provision the i386 lock's shared slot, OFF lane, whose Verilator the i386 sims use (needs CACHE_ROOT)" \
 		"  doctor     Report host, toolchain, optional Quartus, and hardware readiness" \
 		"  doctor-strict  Require host and OSS readiness (Quartus/hardware optional)" \
@@ -164,7 +164,7 @@ help:
 		"  sim-fes-pc386-sound  Boot FreeDOS and run the audio start-up exercise; writes sound.wav" \
 		"  sim-fes-pc386-vga  Check the pc386 presenter and plane, run the VGA test disk, replay its VGA trace against Bochs" \
 		"  synth-fes-pc386  Synthesize and pack the pc386 machine without the CPU (needs CACHE_ROOT)" \
-		"  build-fes-pc386-quartus  Seal fes.pc386, the machine with fes_i386_cpu, with its locked Quartus (CACHE_ROOT=, SEED=)" \
+		"  build-fes-pc386-quartus  Seal fes.pc386, the machine with fes_i386_cpu, with its locked Quartus (CACHE_ROOT=, SEED=, GPU_ROUTER=HIP|CUDA)" \
 		"  build-fes-pcxt  Quartus PC/XT diagnostic package (QUARTUS_ROOTDIR and pinned Yosys)" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
@@ -2023,7 +2023,7 @@ toolchain-fes-riscv:
 
 toolchain-fes-pc386:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-pc386/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-pc386") \
-	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_GPU_ROUTER=$(if $(strip $(GPU_ROUTER)),$(GPU_ROUTER),HIP) \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 # The i386 sims (scripts/i386_verilator.py) take Verilator from this slot only.
@@ -2906,7 +2906,7 @@ synth-fes-pc386:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pc386.py --cache-root "$(CACHE_ROOT)"
 
 build-fes-pc386-quartus:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pc386_quartus.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(strip $(SEED)), --seed "$(SEED)",)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pc386_quartus.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(strip $(SEED)), --seed "$(SEED)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 
 .PHONY: synth-fes-pcxt-isa
 synth-fes-pcxt-isa:

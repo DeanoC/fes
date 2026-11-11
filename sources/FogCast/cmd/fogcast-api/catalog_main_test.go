@@ -14,7 +14,7 @@ import (
 func TestKitCatalogOfflineCommands(t *testing.T) {
 	ctx := context.Background()
 	var stdout, stderr bytes.Buffer
-	if code := kitMain(ctx, []string{"catalog", "schema"}, &stdout, &stderr, nil); code != 0 || stdout.String() != "{\"schema\":22}\n" {
+	if code := kitMain(ctx, []string{"catalog", "schema"}, &stdout, &stderr, nil); code != 0 || stdout.String() != "{\"schema\":24}\n" {
 		t.Fatalf("schema: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 	root := t.TempDir()
@@ -42,7 +42,7 @@ func TestKitCatalogOfflineCommands(t *testing.T) {
 	_ = store.Close()
 	stdout.Reset()
 	stderr.Reset()
-	if code := kitMain(ctx, []string{"catalog", "restore", "--database", database, "--snapshot", snapshot, "--retain", retained, "--expected-current-schema", "22"}, &stdout, &stderr, nil); code != 0 {
+	if code := kitMain(ctx, []string{"catalog", "restore", "--database", database, "--snapshot", snapshot, "--retain", retained, "--expected-current-schema", "24"}, &stdout, &stderr, nil); code != 0 {
 		t.Fatalf("restore code=%d stderr=%q", code, stderr.String())
 	}
 	for _, args := range [][]string{{"catalog"}, {"catalog", "schema", "--database", database}, {"catalog", "inspect"}, {"catalog", "restore", "--database", database}, {"catalog", "inspect", "--database", database, "extra"}} {

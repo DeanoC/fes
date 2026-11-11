@@ -2366,7 +2366,48 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      Master of Orion, Darklands and Frontier past their EMS checks, each
      then rechecked.
 4. **Task switches.** Every form above, both TSS sizes, busy bits, the back
-   link, NT, CR0.TS, and a switch into V86.
+   link, NT, CR0.TS, and a switch into V86. Built
+   ([record](../../../docs/validation/2026-11-11-i386-phase5-tasks/summary.md);
+   the RTL README's [Task switches](../cores/fes-common/rtl/i386/README.md#task-switches)).
+   As built, where it differs from the plan above:
+   - **The 386's order, not Bochs's,** where it shows, from its microcode
+     (reenigne/x86_microcode, `80386/microcode_notes.txt` 65C-7E4 and its
+     protection tests): the new TSS's busy bit before the old task's save
+     (74B-74C); an IRET with NT saves the old task before it reads and
+     checks the back link (65F-667), so a back link that faults leaves the
+     old TSS written; the new task's LDT, SS, CS and then the data
+     segments (7AB-7CE), where Bochs loads CS last; SS's privilege before
+     its presence (`TST_DES_SS`); no check of the new EIP against CS's
+     limit in the switch (7D0-7E2), so the first fetch faults. Where the
+     386 can't be established the RTL takes Bochs's: the TSS limit checks
+     up front, the new TSS's read probes before anything is written, CPL 3
+     through the LDT's and SS's loads.
+   - **The new task's descriptors load after the commit** in a routine DC
+     takes as it takes a fault's entry, at the new EIP and length 0
+     (`tsload`, `tsv86`), so a fault there is the new task's with no more
+     machinery. The commit is a far jump that does not end the instruction;
+     a delivery's exception stays active through it.
+   - **One shared body.** A far JMP's or CALL's descriptor check and a
+     delivery's gate are tgo words that go on at the switch for a TSS or a
+     task gate (`fes_i386_seq`), as IRETD's vgo goes on at the V86 return;
+     an IRET with NT set starts there from DC, which replays IRET when an
+     older POPF changed NT under it. 103 ROM words, 435 of 512 in all; the
+     word grows to 133 bits.
+   - **The new task's registers load straight from its TSS,** after reads
+     of its first and last bytes, so no temporaries hold them; the switch's
+     uops issue one at a time under paging, so none replays part way.
+   - **Lockstep rules.** A fault at the first fetch of a transfer's target
+     (a handler's, a new task's) is within the transfer's step in Bochs and
+     the RTL's next event, as on a 386, which the lockstep takes into the
+     step (`fetch_rule`; this fixes #1663); the oracle takes the old TSS's
+     bytes an IRET with NT saved before its back link faulted
+     (`iret_save_rule`). Task-switch programs (`--task-programs`) add a
+     handler task and its task gates, and JMP, CALL, INT and V86 switches,
+     from the generator's side stream, so earlier seeds' programs stay.
+   - **Titles (Kit A).** Descent reaches its main menu; Jump 'n Bump and
+     NetHack start. Angband exits with DJGPP's SIGNOFP at its first ESC: a
+     machine without a 387 needs `EMU387.DXE`, which its drive lacks (the
+     census's oracle had a 387).
    - **Lockstep.** test386.asm's task cases; #PF through a task gate and
      back by IRET with NT, as Descent does, and the old task's saved NT
      cleared; a JMP to a TSS whose EFLAGS image has NT set; a switch whose

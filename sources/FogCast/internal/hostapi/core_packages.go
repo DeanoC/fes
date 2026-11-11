@@ -134,9 +134,9 @@ func registerCoreLibrary(mux *http.ServeMux, service Service) {
 		var value catalog.CoreEntry
 		var err error
 		if request.FirmwareRequired {
-			firmware, ok := service.(coreFirmwareLibraryService)
+			firmware, ok := service.(coreFirmwareEntryService)
 			if !ok {
-				writeError(w, 501, "UNSUPPORTED_OPERATION", "core firmware library is unavailable")
+				writeError(w, 501, "UNSUPPORTED_OPERATION", "core firmware setup is unavailable")
 				return
 			}
 			value, err = firmware.CreateCoreEntryWithFirmware(r.Context(), request.Title, request.PackageID, request.MediaRole, request.MediaID, true)

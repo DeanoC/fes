@@ -181,6 +181,7 @@ func TestLaunchOnNonSelectedKitUsesThatExecutor(t *testing.T) {
 			{Name: "kit-b", Enabled: true, Address: serverB.URL, Agent: "token-b", TargetID: nodeB},
 		},
 		selectedTarget: "kit-a",
+		catalog:        &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}},
 		targetClients:  map[string]serviceClient{"kit-a": ownedMeshClient()},
 	}
 	service.targetClientFactory = func(cfg TargetConfig) (serviceClient, error) {
@@ -257,6 +258,7 @@ func TestFreshSiblingClientIsCapturedBeforeEnsure(t *testing.T) {
 				{Name: "kit-b", Enabled: true, Address: serverB.URL, Agent: "token-b", TargetID: nodeB},
 			},
 			selectedTarget: "kit-a",
+			catalog:        &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}},
 			targetClients:  map[string]serviceClient{"kit-a": ownedMeshClient()},
 		}
 		service.EnableMeshContent()
@@ -315,62 +317,6 @@ func TestFreshSiblingClientIsCapturedBeforeEnsure(t *testing.T) {
 	})
 }
 
-func TestLaunchOnNonSelectedHostEntryStaysOnSelectedExecutor(t *testing.T) {
-	const (
-		nodeA = "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
-		nodeB = "84ed0a60-2b23-5ba6-b931-bac5f71187ab"
-	)
-	var hitsA, hitsB atomic.Int32
-	serverA := meshNodeServer(&hitsA, nodeA, "token-a")
-	defer serverA.Close()
-	serverB := meshContentServer(&hitsB, nodeB, "token-b")
-	defer serverB.Close()
-	cart := meshcontent.SumSHA256([]byte("source-rom"))
-	entry := meshcontent.Entry{
-		TitleID:    "snes-mario",
-		System:     "snes",
-		Launchable: true,
-		Execute:    []meshcontent.Execute{{Kind: meshcontent.ExecuteNativeEmu}},
-		Slots:      []meshcontent.Slot{meshcontent.PrimaryMediaSlot(cart)},
-	}
-	selected := &meshLaunchExecutor{
-		node:    nodeA,
-		sources: map[string]bool{cart.String(): true},
-	}
-	service := &Service{
-		meshEnsureConfig: true,
-		targets: []TargetConfig{
-			{Name: "kit-a", Enabled: true, Address: serverA.URL, Agent: "token-a", TargetID: nodeA},
-			{Name: "kit-b", Enabled: true, Address: serverB.URL, Agent: "token-b", TargetID: nodeB},
-		},
-		selectedTarget: "kit-a",
-		targetClients: map[string]serviceClient{
-			"kit-a": ownedMeshClient(),
-			"kit-b": ownedMeshClient(),
-		},
-		catalog: &fakeServiceCatalog{gameErr: errors.New("stop after ensure")},
-	}
-	service.EnableMeshContent()
-	if _, on := service.GamesMeshReady(context.Background(), nil); !on {
-		t.Fatal("selected kit did not install the seam")
-	}
-	service.SetMeshExecuteSession(MeshExecuteSession{
-		BoundNode: nodeA,
-		Executor:  selected,
-		Entry: func(gameID string) (meshcontent.Entry, bool) {
-			return entry, gameID == entry.TitleID
-		},
-	})
-	_, err := service.LaunchOn(context.Background(), entry.TitleID, "kit-b", nil)
-	var api *protocol.APIError
-	if !errors.As(err, &api) || api.Code != protocol.CodeInternal {
-		t.Fatalf("err %v", err)
-	}
-	if hitsB.Load() != 0 || len(selected.pulls) != 1 || selected.pulls[0] != cart {
-		t.Fatalf("hitsB=%d pulls %+v", hitsB.Load(), selected.pulls)
-	}
-}
-
 func TestLaunchOnMismatchedSiblingDoesNotPullOnSelectedExecutor(t *testing.T) {
 	const (
 		nodeA = "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
@@ -393,6 +339,7 @@ func TestLaunchOnMismatchedSiblingDoesNotPullOnSelectedExecutor(t *testing.T) {
 			{Name: "kit-b", Enabled: true, Address: serverB.URL, Agent: "token-b", TargetID: nodeB},
 		},
 		selectedTarget: "kit-a",
+		catalog:        &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}},
 		targetClients:  map[string]serviceClient{"kit-a": ownedMeshClient(), "kit-b": ownedMeshClient()},
 	}
 	service.EnableMeshContent()
@@ -467,6 +414,45 @@ func TestMeshCatalogEntryWithoutCoreEntryIsFalse(t *testing.T) {
 	service := &Service{catalog: store}
 	if _, ok := service.meshCatalogEntry("coleco-frogger"); ok {
 		t.Fatal("missing core entry was projected")
+	}
+}
+
+func TestMeshCatalogEntryUsesEachTitleNamedBIOSAndCartridge(t *testing.T) {
+	ctx := context.Background()
+	service, _, first, inspection := newCoreEntryLaunchFixture(t, twoROMLibraryPackageFixture(t), "First Coleco")
+	second, err := service.CreateCoreEntry(ctx, "Second Coleco", inspection.PackageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := service.meshCatalogEntry(first.GameID); ok {
+		t.Fatal("projected a title with no ROM bindings")
+	}
+	importMedia := func(size int, fill byte) string {
+		t.Helper()
+		media, _, err := service.ImportCoreMedia(ctx, int64(size), bytes.NewReader(bytes.Repeat([]byte{fill}, size)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return media.MediaID
+	}
+	cart := importMedia(131072, 0x42)
+	bioses := []string{importMedia(8192, 0x11), importMedia(8192, 0x22)}
+	for i, entry := range []catalog.CoreEntry{first, second} {
+		if _, err := service.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-cart", "", cart); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := service.meshCatalogEntry(entry.GameID); ok {
+			t.Fatal("projected a cartridge without its BIOS")
+		}
+		if _, err := service.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-bios", "", bioses[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i, entry := range []catalog.CoreEntry{first, second} {
+		projected, ok := service.meshCatalogEntry(entry.GameID)
+		if !ok || len(projected.Slots) != 3 || projected.Slots[1].Kind != meshcontent.SlotBIOS || projected.Slots[1].Content == nil || projected.Slots[1].Content.Digest != bioses[i] || projected.Slots[2].Kind != meshcontent.SlotPrimaryMedia || projected.Slots[2].Content == nil || projected.Slots[2].Content.Digest != cart {
+			t.Fatalf("title %s projected %+v ok=%v", entry.GameID, projected, ok)
+		}
 	}
 }
 

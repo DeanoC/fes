@@ -1,0 +1,6 @@
+{
+  "mutation": "consume uninitialized PR responses during initial RESET_SETTLE",
+  "returncode": -6,
+  "result": "rejected by actual RTL cold-start bench",
+  "log_sha256": "036c7bd732a7f6d436d6980a88228f9dea79b8f752645063fb7147685ef81af6"
+}

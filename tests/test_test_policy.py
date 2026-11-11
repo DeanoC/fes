@@ -25,6 +25,27 @@ RACE = ['go', 'test', '-race', '-short', '-timeout', '30m']
 
 
 class SelectTestModesTests(unittest.TestCase):
+    def test_de25_pr_control_selects_diagnostic_checks_without_expensive_core_modes(self):
+        definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml'
+        paths = [definition, 'sources/misteross/boards/de25nano/link-proof/fpga/control.v',
+                 'sources/libmister-runtime/src/native/de25_pr_control.cpp']
+        self.assertEqual(test_policy.select_test_modes(paths), ALL_FALSE)
+        self.assertEqual(test_policy.select_test_modes(
+            [*paths, definition.replace('pr_control.yaml', 'pr_control_other.yaml')]), ALL_TRUE)
+
+    def test_standalone_de25_ramtest_does_not_admit_de10_or_shared_contracts(self):
+        definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_ramtest.yaml'
+        diagnostic = [definition, 'sources/misteross/boards/de25nano/ramtest/endpoint.v',
+                      'sources/misteross/boards/de25nano/ramtest/jtag.tcl']
+        self.assertEqual(test_policy.select_test_modes(diagnostic), ALL_FALSE)
+        for other in (definition.replace('ramtest.yaml', 'ramtest_other.yaml'),
+                      'sources/mister-packages/packages/abi/fes_application.yaml'):
+            with self.subTest(other=other):
+                self.assertEqual(test_policy.select_test_modes([*diagnostic, other]), ALL_TRUE)
+        self.assertEqual(test_policy.select_test_modes(
+            [*diagnostic, 'sources/misteross/cores/fes-ramtest/rtl/ramtest.v']),
+            {'video': True, 'media': False, 'full_race': False})
+
     def test_private_de25_dma_test_kernel_has_no_appliance_media_consumer(self):
         path = 'image/kernel/de25-dma/de25_dma.c'
         self.assertEqual(test_policy.select_test_modes([path]), ALL_FALSE)
@@ -123,6 +144,7 @@ class SelectTestModesTests(unittest.TestCase):
 
     def test_descriptive_de25_board_stays_routine_without_narrowing_shared_changes(self):
         de25 = ['sources/mister-packages/packages/board/de25_nano.yaml',
+                'sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml',
                 'sources/misteross/boards/de25nano/blinky.sv']
         self.assertEqual(test_policy.select_test_modes(de25), ALL_FALSE)
         for path in ('sources/mister-packages/packages/board/de10_nano.yaml',

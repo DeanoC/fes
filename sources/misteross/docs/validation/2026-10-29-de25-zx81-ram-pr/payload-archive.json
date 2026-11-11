@@ -1,0 +1,20 @@
+{
+  "contents": [
+    "artifacts.json",
+    "artifacts/base.rbf",
+    "artifacts/base_hps.sof",
+    "artifacts/zx81_empty.rbf",
+    "artifacts/zx81_ram16k.rbf",
+    "build.json",
+    "deployments/zx81_empty.tar",
+    "deployments/zx81_ram16k.tar",
+    "inputs.json",
+    "proof.json",
+    "root-qdb.json",
+    "root_partition.qdb"
+  ],
+  "hardware_acceptance": "not-run",
+  "path": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-ram-pr/out/de25-zx81-ram-pr-artifacts.tar.gz",
+  "sha256": "2b7e93bcf4a09a44d0e0e9e2a14f466a1a6f96be32890a80c1b74fb0e5b7d9f6",
+  "size": 25712360
+}

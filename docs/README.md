@@ -19,9 +19,13 @@ a dated record. A dated record is not the schedule.
 | Decide whether a PR needs a full image for hardware testing | [HIL plan](hil-plan.md) |
 | See which module owns a change | [Project map](project-map.md), [component boundaries](component-boundaries.md) |
 | Build, provision or verify a flashable disk | [Bootable media](bootable-media.md) |
+| Track DE25 parity with the normal managed Linux kit | [Linux platform acceptance](design/de25-linux-platform.md) |
 | Build the headless DE25-Nano AArch64 Linux diagnostic | [DE25-Nano Linux](de25-linux.md) |
 | Prepare the DE25 HPS/DDR diagnostic and MENU allocation contract | [DE25 DDR](../sources/mister-packages/docs/de25-ddr.md) |
 | Build combined DE25 HPS/HDMI or test Linux DMA ownership under QEMU | [Combined diagnostic](../sources/misteross/boards/de25nano/combined/README.md), [DMA ownership](../image/kernel/de25-dma/README.md) |
+| Build DE25 allocated-buffer scanout and test displayed-frame ownership | [Scanout diagnostic](../sources/misteross/boards/de25nano/scanout/README.md), [Shared contract](../sources/mister-packages/docs/de25-scanout.md) |
+| Build an FPGA-only ZX81 BASIC diagnostic for DE25 | [DE25 ZX81](../sources/misteross/boards/de25nano/zx81/README.md) |
+| Build DE25 ZX81 with HPS keyboard and tape control | [HPS-controlled ZX81](../sources/misteross/boards/de25nano/zx81-hps/README.md) |
 | Publish a versioned appliance image | [Appliance releases](appliance-releases.md) |
 | Share the kit | [Kit sharing](kit-sharing.md) |
 | Work in misteross | [misteross README](../sources/misteross/README.md): OSS place-and-route experiments, or a described core |
@@ -65,11 +69,16 @@ Use these when the start-here page names the job and you need the steps.
 ## Not current instructions
 
 [validation/](validation/) records what a named artifact did on a named day.
+The [2026-10-31 DE25 consolidated ZX81 HPS-first record](validation/2026-10-31-de25-zx81-hps-first/README.md) binds the final Quartus 26.3 rebuild and its still-failing internal setup timing.
 The [C64 functional diagnostic](validation/2026-10-06-c64-functional-closure.md)
 records both cartridge probes, input, SID, read-only D64 LOAD and CIA checks;
 it does not promote C64 into a factory image or add disk writes.
 [superpowers/](superpowers/) holds old design and task plans. Do not treat
-either as the way to build or accept the tree you have open.
+either as the way to build or accept the tree you have open. The root
+`.superpowers/sdd/` task working reports were removed from the active tree;
+they remain in Git at `bb5f1bfc14026b55113202fbc88b730241da9ee1`. List them
+with `git ls-tree -r --name-only bb5f1bfc -- .superpowers/sdd/` and read one
+with `git show bb5f1bfc:<path>`.
 
 The approved [cores-as-apps plan](cores-as-apps-plan.md) and its
 [per-core recipe option audit](recipe-option-audit.md) are design context for

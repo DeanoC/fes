@@ -438,7 +438,7 @@ type App struct {
 	// still be renewing. A later active or relaunched play does not clear it:
 	// another target's grant can still be retained. Shell exit and Release
 	// kit are the global idle release. A bound Select+Start drops only the
-	// captured target, and a host-only stop drops none, so those exits leave
+	// captured target, so those exits leave
 	// every other retained grant tracked. B/Back does not release.
 	retainedIdleLease    bool
 	retainedIdleTargets  map[string]struct{}
@@ -1674,13 +1674,19 @@ func (a *App) reloadCatalogWithNoticeLocked(notice string) {
 		if ctx.Err() != nil || a.loadGen != gen || a.loading || !a.lastInput.Equal(lastInput) {
 			return
 		}
-		status := a.libraryStatusForNoticeLocked()
-		if a.loadErr != "" || status == savedListOfflineCopy || status == "Can't reach the library right now." {
-			a.setLibraryStatusLocked(notice + " Couldn't refresh the library.")
-			return
-		}
-		a.setLibraryStatusLocked(notice)
+		a.setLibraryRefreshNoticeLocked(notice)
 	}()
+}
+
+// setLibraryRefreshNoticeLocked keeps a failed refresh visible alongside the
+// outcome that requested it, including while setup defers library status.
+func (a *App) setLibraryRefreshNoticeLocked(notice string) {
+	status := a.libraryStatusForNoticeLocked()
+	if a.loadErr != "" || status == savedListOfflineCopy || status == "Can't reach the library right now." {
+		a.setLibraryStatusLocked(notice + " Couldn't refresh the library.")
+		return
+	}
+	a.setLibraryStatusLocked(notice)
 }
 
 func (a *App) replaceLoadContextLocked() context.Context {
@@ -2023,11 +2029,7 @@ func (a *App) oskSnapshotLocked() shared.OSKSnapshot {
 		case settingsOSKCorePath:
 			snap.Prompt = "ROM or media path"
 		case settingsOSKFirmwarePath:
-			if a.entryFirmwarePickerLocked() {
-				snap.Prompt = "Firmware ROM path"
-			} else {
-				snap.Prompt = "Coleco BIOS path"
-			}
+			snap.Prompt = "Firmware ROM path"
 		case settingsOSKTapePath:
 			snap.Prompt = "Media path"
 		}
@@ -2450,7 +2452,7 @@ func (a *App) startLaunchGameWithPackageLocked(game hostclient.Game, packageID, 
 		}
 		return
 	}
-	if a.foreignKitLeaseLocked() && !game.HostOnly() {
+	if a.foreignKitLeaseLocked() {
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: localInUseCopy}
 		a.launchLeaseRefusal = true
 		if a.room != nil {
@@ -2870,7 +2872,7 @@ func (a *App) clearRetainedLeasesLocked() {
 // noteRetainedLeaseLocked records a grant this stop did not release.
 // A later bound release of one target must not forget the others.
 func (a *App) noteRetainedLeaseLocked(play hostclient.SessionResult) {
-	if play.Execution == hostclient.ExecutionHostOnly || strings.TrimSpace(play.Target) == "" {
+	if strings.TrimSpace(play.Target) == "" {
 		a.retainedIdleUnscoped = true
 	} else {
 		if a.retainedIdleTargets == nil {
@@ -2882,12 +2884,9 @@ func (a *App) noteRetainedLeaseLocked(play hostclient.SessionResult) {
 }
 
 // noteExplicitReleaseLocked drops the grant a bound explicit stop released.
-// Host-only cleanup releases no kit grant. Any other retained target, and
-// any grant whose target was not named, stays until the global idle release.
+// Any other retained target, and any grant whose target was not named,
+// stays until the global idle release.
 func (a *App) noteExplicitReleaseLocked(play hostclient.SessionResult) {
-	if play.Execution == hostclient.ExecutionHostOnly {
-		return
-	}
 	target := strings.TrimSpace(play.Target)
 	if target == "" {
 		return

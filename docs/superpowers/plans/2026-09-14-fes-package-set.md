@@ -1,5 +1,8 @@
 # FES Multi-Package Image Selection Implementation Plan
 
+This is a historical plan. The task ledger referenced below is available in
+Git history; see the [documentation index](../../README.md#not-current-instructions).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the FES package-only image install and verify the ordered Pong, ZX81 and Coleco format-2 package set with independent cache-backed resolution.

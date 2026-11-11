@@ -1,0 +1,82 @@
+{
+  "evidence_class": "final routed four-corner diagnostic; no physical acceptance",
+  "source_revision": "67068382b7a12047dad227077bd57c4b05e7fec3",
+  "corner_count": 4,
+  "paired_rows": 104,
+  "groups": {
+    "acknowledge_tail": {
+      "setup": {
+        "rows": 4,
+        "min_slack_ns": 9.369
+      },
+      "hold": {
+        "rows": 4,
+        "min_slack_ns": 0.201
+      }
+    },
+    "metadata": {
+      "setup": {
+        "rows": 36,
+        "min_slack_ns": 3.239
+      },
+      "hold": {
+        "rows": 36,
+        "min_slack_ns": 0.001
+      }
+    },
+    "pixel_release": {
+      "setup": {
+        "rows": 4,
+        "min_slack_ns": 12.949
+      },
+      "hold": {
+        "rows": 4,
+        "min_slack_ns": 0.127
+      }
+    },
+    "request_tail": {
+      "setup": {
+        "rows": 4,
+        "min_slack_ns": 13.014
+      },
+      "hold": {
+        "rows": 4,
+        "min_slack_ns": 0.103
+      }
+    },
+    "system_release": {
+      "setup": {
+        "rows": 4,
+        "min_slack_ns": 9.563
+      },
+      "hold": {
+        "rows": 4,
+        "min_slack_ns": 0.11
+      }
+    }
+  },
+  "metadata_data_delay_max_ns": 4.272,
+  "audit_sha256": "09becc0487f3b339a60b8ab8d62127c0bb9b88e07c82ed45d713e990f5d72c94",
+  "sof_sha256": "c2ec50ef6b6298a5d12429408806e65471c7acb37674c0f8b56d4fe573c59cda",
+  "renderer_memory": {
+    "kind": "M20K simple-dual-port dual-clock",
+    "logical_bits": 177120,
+    "words": 22140,
+    "width": 8,
+    "m20k_blocks": 11
+  },
+  "timing_closure": "Pass",
+  "overall_design_closure": "Fail",
+  "unconstrained_input_ports": 2,
+  "unconstrained_output_ports": 30,
+  "unconstrained_input_path_pairs": 9,
+  "unconstrained_output_path_pairs": 2605,
+  "hold_minimum_note": "Global displayed 0.000 ns is rounded and is not physical or positive-margin signoff.",
+  "constrained_summary_minima_ns": {
+    "Setup": 1.829,
+    "Hold": 0.0,
+    "Recovery": 7.445,
+    "Removal": 0.041,
+    "Minimum Pulse Width": 0.22
+  }
+}

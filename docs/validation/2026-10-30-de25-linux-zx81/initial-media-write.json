@@ -1,0 +1,12 @@
+{
+  "device_by_id": "/dev/disk/by-id/usb-Generic_STORAGE_DEVICE_000000000819-0:0",
+  "device_at_write": "/dev/sda",
+  "usb_serial": "000000000819",
+  "capacity_bytes": 62914560000,
+  "image_bytes": 3984588800,
+  "image_sha256": "e8836b89667899efe1350d94668644fda19ebf397a3c18d770f6e93dd2d3e854",
+  "readback_sha256": "e8836b89667899efe1350d94668644fda19ebf397a3c18d770f6e93dd2d3e854",
+  "elapsed_seconds": 212.71,
+  "factory_board_sd_and_qspi_untouched": true,
+  "user_authorized_wipe": true
+}

@@ -1,0 +1,45 @@
+i386 Phase 5 slice 4 (task switches): one-line mutants of the new RTL
+=====================================================================
+
+The original sweep changed one line (or one expression) of fes_i386_cpu.sv,
+built the lockstep testbench (lock's Verilator 5.054) and ran the pmode (349)
+and paging (76) directed cases against Bochs. "fails" counts the cases that
+fail; the names follow. A mutant whose case was added after the sweep was run
+again against that case (marked "rerun").
+
+no-link             back link never written (XC_NEST always drops)        16 fails: ts-call32-iret ts-call16-iret ts-from16-call32 ts-from16-call16 ts-call-gate ts-call-gate16 ts-int-gate ts-int-gate16 ts-int3-gate ts-call-chain ts-ud-gate ts-gp-gate32 ts-np-gate16 ts-v86-task ts-v86-task-call pg-ts-pf-gate
+old-busy-kept       old TSS's busy bit never cleared (XC_UNNEST)          43 fails (ts-jmp32 ... pg-ts-cr3-gdt)
+new-busy-clear      new TSS's busy bit not set                            267 fails (every case that runs LTR or switches)
+no-nest-nt          NT not set in a CALL/INT's new EFLAGS                 18 fails (ts-call32-iret ... pg-ts-pf-gate)
+iret-image-nt       IRET's saved image keeps NT                           15 fails (ts-call32-iret ... pg-ts-pf-gate)
+image-rf            a fault's saved image without RF                      5 fails: ts-ud-gate ts-gp-gate32 ts-np-gate16 ts-gp-gate-ds-np pg-ts-pf-gate
+no-cr0-ts           CR0.TS not set at the commit                          48 fails (ts-jmp32 ... pg-ts-cr3-gdt)
+dr7-kept            DR7's local enables kept at the commit (rerun)        1 fail: ts-dr7-local
+cr3-kept            CR3 not loaded under PG                               1 fail: pg-ts-cr3-gdt
+cpl-rpl             CPL from the selector's RPL during the loads          10 fails (ts-ldt-ti ... ts-ss-dpl-before-p)
+ss-present-first    SS's present check ahead of its DPL (Bochs order)     2 fails: ts-ss-null ts-ss-dpl-before-p
+zeros-286           a 286 TSS's high words read 0, not FFFFh              11 fails (ts-call16-iret ... ts-v86-task-call)
+no-old-limit        no #TS for the old TSS's limit                        1 fail: ts-old-limit
+new-limit-66        new 386 TSS limit compared with 66h                   1 fail: ts-jmp-limit
+back-link-avail     IRET's back link accepted when available              1 fail: ts-iret-link-avail
+gate-tss-ti         task gate's TSS selector TI not checked               0 fails: equivalent. The gate's TSS reads
+                                                                          (dmode gdt) drop for TI=1, so T3 keeps the
+                                                                          gate, which fails !dd_atss with the same
+                                                                          #GP(selector); ts-gate-ti and ts-gate-ti-ldt
+                                                                          (an in-range LDT TSS) pass on the mutant.
+fsgs-kept-286       FS/GS loaded from a 286 TSS                           11 fails (ts-call16-iret ... ts-v86-task-call)
+no-error-push       a delivery's error code not pushed after the switch   3 fails: ts-gp-gate32 ts-np-gate16 pg-ts-pf-gate
+v86-as-pm           a VM=1 image loaded as protected mode (rerun)         2 fails: ts-v86-task ts-v86-task-call
+nt-unchecked        NT change in flight not replayed                      7 fails: ts-iret-nt ts-iret-nt16 ts-iret-link-null ts-iret-link-ti ts-iret-link-avail ts-iret-link-np ts-iret-link-past
+tss-last-byte       new TSS's last-byte probe at offset 0                 1 fail: pg-ts-tss-cross
+data-dpl-unchecked  a data selector's DPL/RPL not checked                 1 fail: ts-ds-rpl
+tss-jmp-ti          JMP to a TSS through a TI=1 selector (rerun)          1 fail: ts-jmp-ti
+                                                                          (the first run passed: the case's LDT entry
+                                                                          was overwritten by the LDT's own setup, so it
+                                                                          read a data descriptor; the testbench now
+                                                                          writes the LDT before a case's places)
+ldt-np-ok           an LDT not present accepted                           1 fail: ts-ldt-np
+nmi-kept            NMI stays blocked after an IRET task return           1 fail (rerun): ts-nmi-iret-link-null
+
+25 of 26 mutants fail cases; gate-tss-ti is equivalent. The original sweep
+and task-program runs above remain records of their earlier heads.

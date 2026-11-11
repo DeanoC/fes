@@ -1,0 +1,93 @@
+{
+  "instance": "subsys_periph.fes_computer",
+  "peripheral_slave_map": [
+    {
+      "name": "subsys_periph.sysid.control_slave",
+      "base": 65536,
+      "span": 8
+    },
+    {
+      "name": "subsys_periph.button_pio.s1",
+      "base": 65632,
+      "span": 16
+    },
+    {
+      "name": "subsys_periph.dipsw_pio.s1",
+      "base": 65648,
+      "span": 16
+    },
+    {
+      "name": "subsys_periph.led_pio.s1",
+      "base": 65664,
+      "span": 16
+    },
+    {
+      "name": "subsys_periph.fes_mailbox.avs",
+      "base": 65696,
+      "span": 32
+    },
+    {
+      "name": "subsys_periph.fes_ddr_probe.avs",
+      "base": 65792,
+      "span": 128
+    },
+    {
+      "name": "subsys_periph.fes_computer.avs",
+      "base": 66304,
+      "span": 32
+    }
+  ],
+  "jtag_slave_map": [
+    {
+      "name": "ocm.axi_s1",
+      "base": 262144,
+      "span": 262144
+    },
+    {
+      "name": "subsys_periph.sysid.control_slave",
+      "base": 1114112,
+      "span": 8
+    },
+    {
+      "name": "subsys_periph.button_pio.s1",
+      "base": 1114208,
+      "span": 16
+    },
+    {
+      "name": "subsys_periph.dipsw_pio.s1",
+      "base": 1114224,
+      "span": 16
+    },
+    {
+      "name": "subsys_periph.led_pio.s1",
+      "base": 1114240,
+      "span": 16
+    },
+    {
+      "name": "subsys_periph.fes_mailbox.avs",
+      "base": 1114272,
+      "span": 32
+    },
+    {
+      "name": "subsys_periph.fes_ddr_probe.avs",
+      "base": 1114368,
+      "span": 128
+    },
+    {
+      "name": "subsys_periph.fes_computer.avs",
+      "base": 1114880,
+      "span": 32
+    }
+  ],
+  "jtag_computer_base": 1114880,
+  "clock_hz": 100000000,
+  "pixel_hz": 74250000,
+  "physical_mmio": "not-tested-yet; explicit maintenance only",
+  "hps_bridge_cpu_base": 536870912,
+  "hps_bridge_reference": "https://altera-fpga.github.io/rel-26.1.1/embedded-designs/agilex-5/e-series/premium-065a/fabric-config-linux/ug-fabric-config-linux-agx5e-premium-065a/",
+  "hps_to_peripheral_base": 0,
+  "cpu_computer_base": 536937216,
+  "cpu_computer_span": 32,
+  "handoff_sha256": "4881f8670d4ae9a45ac54503a86956dda6930a567124d848878a3a0377a9607e",
+  "fpga_source_revision": "0534e1ec71e04a00b377e4dd0be8d64391b1dbb5"
+}

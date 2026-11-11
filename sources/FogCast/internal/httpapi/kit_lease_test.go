@@ -45,7 +45,7 @@ func TestKitLeaseGuardsPhysicalRoutes(t *testing.T) {
 	grant := claimKit(t, manager)
 	controller := &fakeController{}
 	handler := httpapi.New(controller, "bearer", "test", nil, httpapi.WithKitLease(manager))
-	for _, path := range []string{"/v1/stop", "/v1/development/rbf", "/v1/development/core", "/v1/development/reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/cast/start", "/v1/cast/stop", "/v1/mesh/content/pull", "/v1/mesh/content/link"} {
+	for _, path := range []string{"/v1/stop", "/v1/development/rbf", "/v1/development/core", "/v1/development/reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/mesh/content/pull", "/v1/mesh/content/link"} {
 		for _, token := range []string{"", "foreign"} {
 			request := httptest.NewRequest(http.MethodPost, path, nil)
 			request.Header.Set("Authorization", "Bearer bearer")
@@ -67,7 +67,7 @@ func TestKitLeaseGuardsPhysicalRoutes(t *testing.T) {
 	}
 }
 
-func TestHostlessOwnerCannotCastOrDirectLaunch(t *testing.T) {
+func TestHostlessOwnerCannotDirectLaunch(t *testing.T) {
 	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
 	defer manager.Close()
 	deadline := time.Now().Add(time.Second)
@@ -85,7 +85,7 @@ func TestHostlessOwnerCannotCastOrDirectLaunch(t *testing.T) {
 	}
 	content := &fakeContentController{}
 	handler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithContent(content))
-	for _, path := range []string{"/v1/cast/start", "/v1/development/rbf", "/v1/mesh/content/pull", "/v1/mesh/content/link"} {
+	for _, path := range []string{"/v1/development/rbf", "/v1/mesh/content/pull", "/v1/mesh/content/link"} {
 		request := httptest.NewRequest(http.MethodPost, path, nil)
 		request.Header.Set("Authorization", "Bearer bearer")
 		request.Header.Set(httpapi.KitLeaseHeader, grant.Token)
@@ -147,7 +147,7 @@ func TestKitLocalCorePurposeCannotUseHostRoutes(t *testing.T) {
 		t.Fatalf("host must see kit-local lease as foreign: %+v", grant.Status)
 	}
 	handler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager))
-	for _, path := range []string{"/v1/stop", "/v1/input/attach", "/v1/cast/start", "/v1/development/rbf"} {
+	for _, path := range []string{"/v1/stop", "/v1/input/attach", "/v1/development/rbf"} {
 		request := httptest.NewRequest(http.MethodPost, path, nil)
 		request.Header.Set("Authorization", "Bearer bearer")
 		request.Header.Set(httpapi.KitLeaseHeader, grant.Token)
@@ -587,6 +587,23 @@ func TestLocalHostLeaseRequiresLoopbackAndDoesNotAdoptForeign(t *testing.T) {
 		handler.ServeHTTP(rec, req)
 		if rec.Code != tc.want || strings.Contains(rec.Body.String(), foreign.Token) {
 			t.Fatalf("%s from %s: %d %s", tc.path, tc.remote, rec.Code, rec.Body.String())
+		}
+	}
+}
+
+func TestRetiredCastRoutesAreAbsent(t *testing.T) {
+	handler := httpapi.New(&fakeController{}, "bearer", "test", nil)
+	for _, route := range []struct{ method, path string }{
+		{http.MethodPost, "/v1/cast/start"},
+		{http.MethodPost, "/v1/cast/stop"},
+		{http.MethodGet, "/v1/cast/status"},
+	} {
+		request := httptest.NewRequest(route.method, route.path, nil)
+		request.Header.Set("Authorization", "Bearer bearer")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusNotFound {
+			t.Errorf("%s %s = %d, want 404", route.method, route.path, response.Code)
 		}
 	}
 }

@@ -134,7 +134,7 @@ func (s *Service) KitHostEntry(ctx context.Context, packageID, gameID string) (c
 	if found {
 		matches := entry.CoreID == pkg.Descriptor.Core.ID && entry.PackageID == packageID && entry.MediaRole == role && entry.MediaID == entryMediaID && !entry.FirmwareRequired
 		if matches && pkg.Descriptor.ROM != nil {
-			binding, err := s.CoreEntryROM(ctx, entry.GameID)
+			binding, err := s.CoreEntryROM(ctx, entry.GameID, pkg.Descriptor.ROM.ID)
 			if err != nil {
 				return catalog.CoreEntry{}, err
 			}

@@ -14,6 +14,8 @@ and content selection; the MiSTer is a small, directly controlled target.
   Titles are saved in its own library; first Play verifies and caches the
   cassette, and later plays work with the source offline. The exact sealed
   package must already be installed and firmware is selected on the kit.
+  The local API can inspect and explicitly remove unused remote-only cached
+  cassettes while retaining selected and locally imported media.
   See [remote library sources](docs/ARCHITECTURE.md#remote-library-sources).
 
 - **Settings → BIOS & media drives** remembers USB volumes and SMB shares on
@@ -213,7 +215,7 @@ and content selection; the MiSTer is a small, directly controlled target.
   no reboot was started. Managed software updates wait for a released kit lease
   and restart through the base supervisor; successful releases remain installed.
   See [kit software releases](../../docs/kit-software-releases.md).
-- Browser UI, local media previews, and host-emulator/remote-media modes.
+- Browser UI and local media previews.
 - Linux hosts can provide the optional local session preview from a V4L2
   capture device through FFmpeg; configure the absolute device path in the
   private `media.capture_device` setting.
@@ -485,9 +487,9 @@ For the target image, fixture details, deployment, and live launch checks,
 read [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). The current process
 boundaries and source entry points are in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-Phase 1 Coleco firmware (household BIOS slot, Ready gate, sofa import picker)
-is in [docs/launch-composition.md](docs/launch-composition.md), with the
-ZX81/Coleco expansions, Apple II slot cards and the Apple II removable disk.
+Coleco BIOS and cartridge selection is documented in
+[the core package library](docs/core-package-library.md), alongside ZX81/Coleco
+expansions, Apple II slot cards and the Apple II removable disk.
 
 The [Sinclair ZX81 workbench](../../docs/hardware-rooms.md) adds local installed-package
 setup for ZX81, ZX80, TS1000 and TS1500, compatible expansion import with progress labels, and cassettes selected

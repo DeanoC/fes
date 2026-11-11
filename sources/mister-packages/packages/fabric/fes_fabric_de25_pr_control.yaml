@@ -1,0 +1,54 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.de25-pr-control
+description: >-
+  Diagnostic DE25 HPS lightweight Avalon control of one partially
+  reconfigurable slot. These are resource-relative offsets and a logical
+  freeze/drain/reset/resume protocol, not physical MMIO addresses or permission
+  to program hardware. Unknown completion requires a new FPGA configuration.
+major: 1
+minor: 0
+constants:
+  - {name: FesDe25PrControlIdentity, value: 0x44325052}
+  - {name: FesDe25PrControlVersion, value: 0x00010000}
+  - {name: FesDe25PrControlIdOffset, value: 0x00}
+  - {name: FesDe25PrControlVersionOffset, value: 0x04}
+  - {name: FesDe25PrControlStatusOffset, value: 0x08}
+  - {name: FesDe25PrControlArgumentOffset, value: 0x0c}
+  - {name: FesDe25PrControlCommandOffset, value: 0x10}
+  - {name: FesDe25PrControlFaultOffset, value: 0x14}
+  - {name: FesDe25PrControlCompletedSeqOffset, value: 0x18}
+  - {name: FesDe25PrControlStaticCountOffset, value: 0x1c}
+  - {name: FesDe25PrControlRetiredOffset, value: 0x20}
+  - {name: FesDe25PrControlLastDataOffset, value: 0x24}
+  - {name: FesDe25PrControlPersonaIdOffset, value: 0x28}
+  - {name: FesDe25PrControlBuildId0Offset, value: 0x2c}
+  - {name: FesDe25PrControlBuildId1Offset, value: 0x30}
+  - {name: FesDe25PrControlBuildId2Offset, value: 0x34}
+  - {name: FesDe25PrControlBuildId3Offset, value: 0x38}
+  - {name: FesDe25PrControlTimeoutCyclesOffset, value: 0x3c}
+  - {name: FesDe25PrControlSpan, value: 64}
+  - {name: FesDe25PrControlAddressBits, value: 6}
+  - {name: FesDe25PrControlPeripheralOffset, value: 0x00010700}
+  - {name: FesDe25PrControlClockHz, value: 100000000}
+  - {name: FesDe25PrControlTimeoutCycles, value: 1000000}
+  - {name: FesDe25PrControlStatusReady, value: 1}
+  - {name: FesDe25PrControlStatusBusy, value: 2}
+  - {name: FesDe25PrControlStatusFrozen, value: 4}
+  - {name: FesDe25PrControlStatusRunning, value: 8}
+  - {name: FesDe25PrControlStatusFault, value: 16}
+  - {name: FesDe25PrControlStatusMask, value: 31}
+  - {name: FesDe25PrControlCommandShift, value: 24}
+  - {name: FesDe25PrControlSequenceMask, value: 0x00ffffff}
+  - {name: FesDe25PrControlCommandFreeze, value: 1}
+  - {name: FesDe25PrControlCommandResume, value: 2}
+  - {name: FesDe25PrControlPersonaA, value: 0xc001a001}
+  - {name: FesDe25PrControlPersonaB, value: 0xc002b002}
+  - {name: FesDe25PrControlFaultReset, value: 1}
+  - {name: FesDe25PrControlFaultPartial, value: 2}
+  - {name: FesDe25PrControlFaultBusy, value: 4}
+  - {name: FesDe25PrControlFaultSequence, value: 8}
+  - {name: FesDe25PrControlFaultAddress, value: 16}
+  - {name: FesDe25PrControlFaultTimeout, value: 32}
+  - {name: FesDe25PrControlFaultPersona, value: 64}
+  - {name: FesDe25PrControlFaultProtocol, value: 128}

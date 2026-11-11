@@ -1,0 +1,24 @@
+{
+  "kit": "A",
+  "date": "2026-11-11",
+  "baseline": {"image": "179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018", "software": "a2756499"},
+  "preset": 0,
+  "packages": {
+    "main": {"package": "bc4ab0d99389591e8f34873ae628ebdd27399ed54240d04cb918797448b66310", "commit": "d56f0e558", "seal": "Quartus 17.0.2 seed 1, this record's seal-summary-main-d56f0e558.json"},
+    "slice4": {"package": "b3af9d7a0eeedaa6baebb3702324c091c34ebfcb6007b7d949e961e92ea1f18b", "commit": "214cb3886", "build_id": "171e6bbbfe2ee51b6758281b9f9616b0"}
+  },
+  "benchmarks": {
+    "doom_demo3": {"main": {"gametics": 3863, "realtics": 3378, "fps": 40.03}, "slice4": {"gametics": 3863, "realtics": 3378, "fps": 40.03}},
+    "3dbench": {"main": 76.9, "slice4": 76.9},
+    "pcpbench": {"main": 13.3, "slice4": 13.3},
+    "topbench": {"main": 307, "slice4": 307}
+  },
+  "runs": {
+    "m1": {"package": "main", "part": "bench", "titles": {"tcircle": "main menu"}},
+    "k1": {"package": "slice4", "part": "bench", "titles": {"tcircle": "main menu"}},
+    "m2": {"package": "main", "part": "cwsdpmi", "drive": "dpmi 9e6ae3a3", "titles": {"jumpbump": "hangs at launch, blank screen", "angband": "hangs at launch, nothing printed", "nethack": "hangs at launch, blank screen"}},
+    "k2": {"package": "slice4", "part": "cwsdpmi", "drive": "dpmi 9e6ae3a3", "titles": {"jumpbump": "title screen", "angband": "exits: SIGNOFP, Coprocessor not available at eip=00112a07 (no 387, no emulator)", "nethack": "'Who are you?' prompt"}},
+    "m3": {"package": "main", "part": "descent", "drive": "pmode b4be6e29", "titles": {"descent": "stops after the DOS/4GW 1.97 banner"}},
+    "k3": {"package": "slice4", "part": "descent", "drive": "pmode b4be6e29", "titles": {"descent": "main menu"}}
+  }
+}

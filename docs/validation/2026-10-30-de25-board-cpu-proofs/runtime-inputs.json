@@ -1,0 +1,50 @@
+[
+  {
+    "model": "internal",
+    "input": "zx8x.hex",
+    "runtime_file_sha256": "93afab88ef8f12e6848700f4824f4268f193651657d23acbd30f8e9bb131131b",
+    "captured_source_sha256": "93afab88ef8f12e6848700f4824f4268f193651657d23acbd30f8e9bb131131b",
+    "runtime_words": 16384,
+    "source_words": 16384,
+    "first_8192_ROM_bytes_match": true,
+    "decoded_bytes_sha256": "8a7c5b30616fc3e41e6628a41b1c9fe1b4d99218a67db1e22da231cec02fd3fe"
+  },
+  {
+    "model": "combined",
+    "input": "zx8x.hex",
+    "runtime_file_sha256": "6dd6f7466dfee3bd1f52675a3875d865bf18974d75b2ced48c870cdfed50d48d",
+    "captured_source_sha256": "93afab88ef8f12e6848700f4824f4268f193651657d23acbd30f8e9bb131131b",
+    "runtime_words": 16384,
+    "source_words": 16384,
+    "first_8192_ROM_bytes_match": true,
+    "decoded_bytes_sha256": "d2529188bae9fcacc3853e757de030b648d211db67384d44ad44271b7b923763",
+    "matches_prior_compiler_model_ROM_audit": true,
+    "prior_audit": "docs/validation/2026-10-29-de25-zx81-pr-computer/rtl-source-match.json",
+    "note": "Source unreachable FF tail is padded to zero in selected model HEX, as in prior compiler/model audit; full decoded selected ROM identity matches.",
+    "prior_audit_revision": "725532742eaf4e8c51ff42f9875c543a3268a364"
+  },
+  {
+    "model": "control",
+    "input": "persona_a.hex",
+    "runtime_file_sha256": "a9660675ab0514cf6e5b7b3247b6a0877d391f60c90cc4602f4da06ab41bdfa3",
+    "matches_captured_input": true
+  },
+  {
+    "model": "control",
+    "input": "persona_b.hex",
+    "runtime_file_sha256": "39142fe44734c61cf7916cfb9af6bd6ae4ef33b3a68416a9b2eec2344004577d",
+    "matches_captured_input": true
+  },
+  {
+    "model": "combined",
+    "input": "persona_a.hex",
+    "runtime_file_sha256": "a9660675ab0514cf6e5b7b3247b6a0877d391f60c90cc4602f4da06ab41bdfa3",
+    "usage": "Prepared producer metadata only; combined RAM persona RTL has no readmemh for these counter HEX files."
+  },
+  {
+    "model": "combined",
+    "input": "persona_b.hex",
+    "runtime_file_sha256": "39142fe44734c61cf7916cfb9af6bd6ae4ef33b3a68416a9b2eec2344004577d",
+    "usage": "Prepared producer metadata only; combined RAM persona RTL has no readmemh for these counter HEX files."
+  }
+]

@@ -76,6 +76,17 @@
 // reads T4 (its descriptor read waits for T0, loaded after T4), so vret
 // holds when the word after it is expanded, as that word issues. A ROM
 // segment load (d a segment register) writes that segment (wseg).
+// A task switch (fes_i386_cpu, "Task switches"). A word marked tgo (a far
+// JMP's or CALL's descriptor check, a delivery's gate) goes on, for a TSS
+// or a task gate in T3 (tsw_tss, tsw_tg: its type, which the word waits
+// for), at the switch: the word after it is a NOP (pdrop) whose next ROM
+// address is UC_TSW for a TSS, UC_TSJG for a JMP's or CALL's task gate and
+// UC_TSGATE for a delivery's, and the switch's kind (tsk) is the word's
+// tgk, which DC's routines start with as IRET's (an IRET with NT set starts
+// at UC_TSSAVE). A segment's write (segw) with wsg is the word's segment
+// (seg), not the instruction's. The commit (tcom) is a far jump that writes
+// no segment register here and does not end the instruction: the new
+// task's descriptors load after it (tsload, tsv86), whose last uop does.
 // INS and OUTS under the I/O permission bitmap run iostr, from a first uop
 // DC decodes as the string's own, its NOP; that routine's iof word is the
 // string's first uop, as DC decodes it unchecked (SEQ_STRING, str_load).
@@ -153,6 +164,8 @@ module fes_i386_seq (
     input  logic                   cg,     // a far CALL goes through a call gate
     input  logic [4:0]             pcnt,   // a call gate's parameter count
     input  logic                   vret,   // an IRETD at CPL 0 whose EFLAGS image has VM set
+    input  logic                   tsw_tss, // T3 is an available TSS's descriptor (a task switch's)
+    input  logic                   tsw_tg,  // ... a task gate
     output fes_i386_pkg::decoded_t n
 );
     // A ROM word's size: the operand size, 16, 32 or 8 bits (size_e).
@@ -251,11 +264,11 @@ module fes_i386_seq (
     logic w_keep;
     always_comb
         case (w.xc)
-            3'(fes_i386_pkg::XC_XP): w_keep = xp;
-            3'(fes_i386_pkg::XC_SAME): w_keep = !xp;
-            3'(fes_i386_pkg::XC_DIRECT): w_keep = !cg;
-            3'(fes_i386_pkg::XC_GATE): w_keep = cg;
-            3'(fes_i386_pkg::XC_GSAME): w_keep = cg && !xp;
+            4'(fes_i386_pkg::XC_XP): w_keep = xp;
+            4'(fes_i386_pkg::XC_SAME): w_keep = !xp;
+            4'(fes_i386_pkg::XC_DIRECT): w_keep = !cg;
+            4'(fes_i386_pkg::XC_GATE): w_keep = cg;
+            4'(fes_i386_pkg::XC_GSAME): w_keep = cg && !xp;
             default: w_keep = 1'b1;
         endcase
 
@@ -283,6 +296,9 @@ module fes_i386_seq (
         n.zx = 1'b0;
         n.pimm = 1'b0;
         n.vgo = 1'b0;
+        n.tgo = 1'b0;
+        n.tgk = 2'd0;
+        n.tsf = 5'd0;
         // The parameter after a copy's store.
         n.pk = d.pk + 5'(d.pm == 2'(fes_i386_pkg::PM_STORE));
         n.a_t1 = 1'b0;
@@ -309,8 +325,8 @@ module fes_i386_seq (
         n.uop.iret = 1'b0;
         n.uop.bound = 1'b0;
         n.uop.bound_pair = 1'b0;
-        n.uop.desc = 3'd0;
-        n.uop.segchk = 4'd0;
+        n.uop.desc = 4'd0;
+        n.uop.segchk = 5'd0;
         n.uop.seg2_pm = 1'b0;
         n.uop.shadow = 1'b0;
         n.b_far = 1'b0;
@@ -326,6 +342,9 @@ module fes_i386_seq (
         n.uop.nwrap = 1'b0;
         n.uop.v86 = 1'b0;
         n.uop.ntchk = 1'b0;
+        n.uop.ntset = 1'b0;
+        n.uop.tcom = 1'b0;
+        n.uop.tscpl = 1'b0;
         n.uop.ctl.why = fes_i386_pkg::WHY_ENCODING;
         n.opsize32 = d0.opsize32;
         // The rewritten fields, from the first uop.
@@ -446,7 +465,7 @@ module fes_i386_seq (
                 n.step = 3'd0;
                 n.str_load = 1'b1;
                 n.more = 1'b1;
-                n.xc = 3'd0;
+                n.xc = 4'd0;
                 n.xs = 1'b0;
                 n.tss = 3'd0;
                 n.uop.hold = 1'b0;
@@ -473,10 +492,10 @@ module fes_i386_seq (
                 n.uop.mem.bytes = w.mbytes == 2'd0 ? (n.opsize32 ? 4'd4 : 4'd2)
                                 : w.mbytes == 2'd1 ? 4'd2 : w.mbytes == 2'd2 ? 4'd4 : 4'd1;
                 n.uop.mem.in_a = w.in_a;
-                n.uop.mem.system = w.ivt || w.desc != 3'd0 || w.tss != 3'd0;
+                n.uop.mem.system = w.ivt || w.desc != 4'd0 || w.tss != 3'd0;
                 n.uop.desc = w.desc;
-                n.uop.segchk = w.segchk == 4'(fes_i386_pkg::CHK_DATA) && d0.uop.seg2_idx == 3'(fes_i386_pkg::SEG_SS)
-                             ? 4'(fes_i386_pkg::CHK_SS) : w.segchk;
+                n.uop.segchk = w.segchk == 5'(fes_i386_pkg::CHK_DATA) && d0.uop.seg2_idx == 3'(fes_i386_pkg::SEG_SS)
+                             ? 5'(fes_i386_pkg::CHK_SS) : w.segchk;
                 n.uop.shadow = w.shadow && d0.uop.seg2_idx == 3'(fes_i386_pkg::SEG_SS);
                 n.uop.nwrap = w.nwrap;
                 n.uop.v86 = w.v86;
@@ -502,6 +521,11 @@ module fes_i386_seq (
                     n.pdrop = 1'b1;
                     n.upc = fes_i386_ucode_pkg::UC_V86RET;
                 end
+                n.tgo = w.tgo;
+                n.tgk = w.tgk;
+                n.tsf = w.tsf;
+                n.uop.tcom = w.tcom;
+                n.uop.tscpl = w.tscpl;
                 n.tss = w.tss;
                 n.uop.hold = w.hold;
                 n.uop.xfer = w.xfer;
@@ -517,12 +541,12 @@ module fes_i386_seq (
                 n.uop.probe = w.probe;
                 n.uop.sp_write = w.stk == 3'(fes_i386_pkg::STK_PUSH) || w.stk == 3'(fes_i386_pkg::STK_POP) || w.sp_step;
                 n.uop.sp_add = w.sp_add;
-                n.uop.seg2 = w.far_jmp || w.segw;
-                n.uop.seg2_idx = w.far_jmp ? 3'd1 : d0.uop.seg2_idx;  // CS for a far jump
+                n.uop.seg2 = (w.far_jmp || w.segw) && !w.tcom;
+                n.uop.seg2_idx = w.far_jmp ? 3'd1 : w.wsg ? w.seg : d0.uop.seg2_idx;  // CS for a far jump
                 n.uop.seg2_t = 1'b0;
                 n.uop.seg2_pm = w.segw;
                 n.uop.flags = '{read: '{oszap: w.rd_oszap, cf: w.rd_cf}, write: '{oszap: w.wr_oszap, cf: w.wr_cf}};
-                n.uop.ctl.end_of_instruction = w.last || w.xend && w_keep;
+                n.uop.ctl.end_of_instruction = (w.last || w.xend && w_keep) && !w.tcom;
                 n.uop.ctl.fault = fes_i386_pkg::FAULT_NONE;
                 n.uop.iret = w.iret;
                 n.uop.bound = w.bound;
@@ -556,14 +580,36 @@ module fes_i386_seq (
                 n.far_jmp = w.far_jmp;
                 n.far_chk = w.far_chk;
                 n.far_t = w.far_t;
-                n.wseg = w.far_jmp ? 6'b000010 : w.segw ? 6'(1) << d0.uop.seg2_idx
+                n.wseg = w.far_jmp ? 6'b000010 : w.segw ? 6'(1) << n.uop.seg2_idx
                        : w.d && w.d_space == 2'(fes_i386_pkg::RS_SEG) ? 6'(1) << w.d_idx[2:0] : 6'd0;
+                // The word after a tgo word whose descriptor is a TSS or a
+                // task gate: a NOP, then the task switch, of the tgo word's
+                // kind. Nothing of the word stays but its place.
+                if (d.tgo && (tsw_tss || tsw_tg)) begin
+                    n.pdrop = 1'b1;
+                    n.upc = tsw_tss ? fes_i386_ucode_pkg::UC_TSW
+                          : d.tgk == 2'(fes_i386_pkg::TSK_INT) ? fes_i386_ucode_pkg::UC_TSGATE : fes_i386_ucode_pkg::UC_TSJG;
+                    n.tsk = d.tgk;
+                    n.tsw = 1'b1;
+                    n.more = 1'b1;
+                    n.uop.ctl.end_of_instruction = 1'b0;
+                    n.far_jmp = 1'b0;
+                    n.far_chk = 1'b0;
+                    n.far_t = 1'b0;
+                    n.wseg = 6'd0;
+                    n.stk = 3'd0;
+                    n.uop.probe = 1'b0;
+                    n.uop.sp_write = 1'b0;
+                    n.uop.sp_add = 1'b0;
+                    n.xc = 4'd0;
+                    n.tgo = 1'b0;
+                end
                 // IN or OUT after its I/O permission check (iof): the access
                 // the instruction's first uop keeps, its direction in
                 // ctl.cond, its size in src_size, DX in src2 or the port in
                 // imm (fes_i386_decode); IN merges into eAX, OUT sends it.
                 // A string's (INS, OUTS) is its element's.
-                if (w.segchk == 4'(fes_i386_pkg::CHK_IOBM))
+                if (w.segchk == 5'(fes_i386_pkg::CHK_IOBM))
                     n.uop.size = d0.uop.cls == fes_i386_pkg::UOP_SPECIAL ? d0.uop.size : d0.uop.src_size;
                 if (w.iof) begin
                     n.uop.io = d0.uop.ctl.cond[1:0];
@@ -854,8 +900,10 @@ module fes_i386_seq (
         // A privilege transition's conditional uops read the hold's xp, and
         // the TSS's reads its CPL; a new-stack access reads T5 and the
         // staged SS; the far jump the hold.
-        n.t_rd = n.far_t || n.a_t1 || n.b_t1 || n.b_t4 || n.uop.desc != 3'd0 || n.uop.segchk != 4'd0
-              || n.xc != 3'd0 || n.xs || n.tss != 3'd0 || n.uop.nstk || n.uop.xfer
+        // A task switch's system uops read T0 or T5, and its TSS fields TR.
+        n.t_rd = n.far_t || n.a_t1 || n.b_t1 || n.b_t4 || n.uop.desc != 4'd0 || n.uop.segchk != 5'd0
+              || n.xc != 4'd0 || n.xs || n.tss != 3'd0 || n.uop.nstk || n.uop.xfer
+              || n.uop.cls == fes_i386_pkg::UOP_SYSTEM
               || n.b_sys && n.sys_idx >= 5'(fes_i386_pkg::SYS_RD_FIP);
     end
 endmodule

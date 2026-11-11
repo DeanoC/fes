@@ -1,0 +1,9 @@
+busy firmware reaches bounded error
+firmware error clears all stale callback pointers
+already stopped client produces no SMC or callback
+stop during busy polling produces no late callback
+four buffers across two replies preserve success
+repeated OK replies without progress terminate
+deadline survives jiffies wrap
+real buffer progress refreshes only the inactivity deadline
+stop after SMC suppresses even a successful late callback

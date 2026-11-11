@@ -1,0 +1,163 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.de25-ramtest
+major: 1
+minor: 0
+description: DE25 bounded memory diagnostics; constants confer no device or DMA admission.
+constants:
+  - name: FesDe25RamtestJtagBridgeBase
+    value: 0x100000
+  - name: FesDe25RamtestBuildIdOffset
+    value: 0xe8
+  - name: FesDe25RamtestBuildIdWordCount
+    value: 4
+  - name: FesDe25RamtestIdentity
+    value: 0x44325254
+  - name: FesDe25RamtestVersion
+    value: 0x00010000
+  - name: FesDe25RamtestSpan
+    value: 256
+  - name: FesDe25RamtestAddressBits
+    value: 8
+  - name: FesDe25RamtestHpsOffset
+    value: 0x10400
+  - name: FesDe25RamtestFpgaOffset
+    value: 0x10500
+  - name: FesDe25RamtestSdramOffset
+    value: 0x10600
+  - name: FesDe25RamtestHpsChannel
+    value: 0
+  - name: FesDe25RamtestFpgaChannel
+    value: 1
+  - name: FesDe25RamtestSdramChannel
+    value: 2
+  - name: FesDe25RamtestLpddr4Bytes
+    value: 0x40000000
+  - name: FesDe25RamtestSdramBytes
+    value: 0x08000000
+  - name: FesDe25RamtestGrantAlignment
+    value: 32
+  - name: FesDe25RamtestCommandStart
+    value: 1
+  - name: FesDe25RamtestCommandStop
+    value: 2
+  - name: FesDe25RamtestCommandClear
+    value: 4
+  - name: FesDe25RamtestCommandSnapshot
+    value: 8
+  - name: FesDe25RamtestStatusBusy
+    value: 1
+  - name: FesDe25RamtestStatusDone
+    value: 2
+  - name: FesDe25RamtestStatusStopped
+    value: 4
+  - name: FesDe25RamtestStatusFault
+    value: 8
+  - name: FesDe25RamtestStatusCalibrated
+    value: 16
+  - name: FesDe25RamtestStatusResetUncertain
+    value: 32
+  - name: FesDe25RamtestFaultTimeout
+    value: 1
+  - name: FesDe25RamtestFaultResponse
+    value: 2
+  - name: FesDe25RamtestFaultProtocol
+    value: 4
+  - name: FesDe25RamtestFaultCalibration
+    value: 8
+  - name: FesDe25RamtestFaultArgument
+    value: 16
+  - name: FesDe25RamtestFaultReset
+    value: 32
+  - name: FesDe25RamtestFaultCommand
+    value: 0x10000
+  - name: FesDe25RamtestFaultBounds
+    value: 0x20000
+  - name: FesDe25RamtestFaultTransportReset
+    value: 0x40000
+  - name: FesDe25RamtestFaultPartial
+    value: 0x80000
+  - name: FesDe25RamtestIdOffset
+    value: 0x00
+  - name: FesDe25RamtestVersionOffset
+    value: 0x04
+  - name: FesDe25RamtestStatusOffset
+    value: 0x08
+  - name: FesDe25RamtestCommandOffset
+    value: 0x0c
+  - name: FesDe25RamtestFaultOffset
+    value: 0x10
+  - name: FesDe25RamtestChannelOffset
+    value: 0x14
+  - name: FesDe25RamtestCapacityOffset
+    value: 0x18
+  - name: FesDe25RamtestBaseOffset
+    value: 0x20
+  - name: FesDe25RamtestBaseHighOffset
+    value: 0x24
+  - name: FesDe25RamtestSpanOffset
+    value: 0x28
+  - name: FesDe25RamtestSpanHighOffset
+    value: 0x2c
+  - name: FesDe25RamtestTransferOffset
+    value: 0x30
+  - name: FesDe25RamtestLengthOffset
+    value: 0x34
+  - name: FesDe25RamtestGenerationOffset
+    value: 0x38
+  - name: FesDe25RamtestGenerationHighOffset
+    value: 0x3c
+  - name: FesDe25RamtestSequenceOffset
+    value: 0x40
+  - name: FesDe25RamtestSerialOffset
+    value: 0x44
+  - name: FesDe25RamtestSnapshotStatusOffset
+    value: 0x48
+  - name: FesDe25RamtestSnapshotFaultOffset
+    value: 0x4c
+  - name: FesDe25RamtestSnapshotGenerationOffset
+    value: 0x50
+  - name: FesDe25RamtestSnapshotGenerationHighOffset
+    value: 0x54
+  - name: FesDe25RamtestSnapshotSequenceOffset
+    value: 0x58
+  - name: FesDe25RamtestPatternOffset
+    value: 0x5c
+  - name: FesDe25RamtestCursorOffset
+    value: 0x60
+  - name: FesDe25RamtestErrorsOffset
+    value: 0x64
+  - name: FesDe25RamtestFirstAddressOffset
+    value: 0x68
+  - name: FesDe25RamtestWrittenOffset
+    value: 0x6c
+  - name: FesDe25RamtestReadOffset
+    value: 0x74
+  - name: FesDe25RamtestWriteCyclesOffset
+    value: 0x7c
+  - name: FesDe25RamtestReadCyclesOffset
+    value: 0x84
+  - name: FesDe25RamtestExpectedOffset
+    value: 0x8c
+  - name: FesDe25RamtestActualOffset
+    value: 0x9c
+  - name: FesDe25RamtestBadBitsOffset
+    value: 0xac
+  - name: FesDe25RamtestSamplesOffset
+    value: 0xbc
+  - name: FesDe25RamtestFirstMinOffset
+    value: 0xc0
+  - name: FesDe25RamtestFirstMaxOffset
+    value: 0xc4
+  - name: FesDe25RamtestFirstSumOffset
+    value: 0xc8
+  - name: FesDe25RamtestLastMinOffset
+    value: 0xd0
+  - name: FesDe25RamtestLastMaxOffset
+    value: 0xd4
+  - name: FesDe25RamtestLastSumOffset
+    value: 0xd8
+  - name: FesDe25RamtestClockHzOffset
+    value: 0xe0
+  - name: FesDe25RamtestDataBytesOffset
+    value: 0xe4

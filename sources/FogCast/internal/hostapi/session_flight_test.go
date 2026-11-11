@@ -118,7 +118,7 @@ func TestSequentialLaunchesAllocateDistinctFlightIDs(t *testing.T) {
 	firstID, secondID := "first", "second"
 	system := protocol.SystemSNES
 	service := &fakeService{
-		execution: "host_only",
+		execution: "fpga_native",
 		launch:    protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &firstID, System: &system}},
 		stopped:   protocol.Status{State: protocol.StateIdle},
 	}

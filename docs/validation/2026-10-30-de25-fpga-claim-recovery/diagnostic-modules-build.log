@@ -1,0 +1,6 @@
+make: Entering directory '/work/kernel-input'
+  MODPOST drivers/fpga/Module.symvers
+make[2]: *** No rule to make target 'drivers/fpga/altera-cvp.ko', needed by '__modfinal'.  Stop.
+make[1]: *** [/work/kernel-input/Makefile:1870: modules] Error 2
+make: *** [Makefile:224: __sub-make] Error 2
+make: Leaving directory '/work/kernel-input'

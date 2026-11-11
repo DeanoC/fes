@@ -51,8 +51,9 @@ def capture(revision=None):
     paths = {HPS + name for name in names} | {BOARD + "build.py", COMBINED + "build.py"}
     paths |= {DISPLAY + name for name in ("build.py", "vendor.lock.toml", "top.v", "clocks.sdc")}
     paths |= {"sources/misteross/cores/fes-splash/rtl/fes_splash_core.v"}
-    paths |= {"sources/misteross/cores/fes-menu/rtl/" + name + ".v"
-              for name in ("fes_menu_reader", "fes_menu_video", "fes_menu_pattern_memory")}
+    paths |= {BOARD + "shared-rtl/" + name + ".v"
+              for name in ("fes_menu_reader", "fes_menu_video")}
+    paths.add("sources/misteross/cores/fes-menu/rtl/fes_menu_pattern_memory.v")
     return {path: hps_builder if path == HPS + "build.py" else read(path) for path in sorted(paths)}
 
 
@@ -189,7 +190,10 @@ def prepare(archive, mode, output=None, revision=None):
     core_names = ("fes_splash_core",) if mode == "idle" else ("fes_menu_reader", "fes_menu_video", "fes_menu_pattern_memory")
     for name in core_names:
         kind = "fes-splash" if mode == "idle" else "fes-menu"
-        data = sources[f"sources/misteross/cores/{kind}/rtl/{name}.v"]
+        source_path = (BOARD + "shared-rtl/" + name + ".v"
+                       if name in ("fes_menu_reader", "fes_menu_video")
+                       else f"sources/misteross/cores/{kind}/rtl/{name}.v")
+        data = sources[source_path]
         target = name + ".v"
         if name == "fes_menu_reader":
             data, menu_repair = display.retarget_menu_ram(data)

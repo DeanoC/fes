@@ -1,0 +1,104 @@
+{
+  "physical_usb_id": "534d:2109",
+  "initial_device": "/dev/video4",
+  "shared_feed": "/dev/v4l/by-id/fes-ms2109-hil",
+  "shared_feed_resolved": "/dev/video24",
+  "frames": [
+    {
+      "still": "after-settle.png",
+      "still_sha256": "5ed1e81fb2a554f8ecf0ecaaa398a08661b34f664f393a57733ab76a298c34e0",
+      "captured_file_utc": "2026-10-30T16:44:40.821722+00:00",
+      "retained_clip": "out/hdmi/current-3s.mkv",
+      "clip_sha256": "eed4ed97649995fac2f5bdbf127eb590e83d632c7dbe3af02f7591d06498c5da",
+      "extraction_seconds": 2
+    },
+    {
+      "still": "after-key-actual.png",
+      "still_sha256": "06798cb477f9ff7082810f46d99e54f29698110a7b76fe623e117bbc4e4972d2",
+      "captured_file_utc": "2026-10-30T16:55:10.783278+00:00",
+      "retained_clip": "out/hdmi/after-key-actual.mkv",
+      "clip_sha256": "3af43c3949cbdef415ea62c6c165279c7230f59afa5fa0efa73ad07a33b90892",
+      "extraction_seconds": 2
+    },
+    {
+      "still": "entered-line-shared.png",
+      "still_sha256": "5bfe3367ad9c90657199ef85f55d0c44e1a4ad9a675edf2e4738976db424fa9b",
+      "captured_file_utc": "2026-10-30T16:57:43.805520+00:00",
+      "retained_clip": "out/hdmi/entered-line-shared.mkv",
+      "clip_sha256": "40fe255cae8de9d228699f756617fe07b2e877338e06b78a1ef41b2ad3905464",
+      "extraction_seconds": 2
+    },
+    {
+      "still": "run-seven.png",
+      "still_sha256": "65e0d3b26e57cc37dac66824af274c525a1c89d9fd3ed17dac55f508fc88d9b0",
+      "captured_file_utc": "2026-10-30T16:58:33.015529+00:00",
+      "retained_clip": "out/hdmi/run-seven.mkv",
+      "clip_sha256": "4f0bfa9e181c3e43b28b860e6791b7cf2b020c8b2dd327c8b0748eec026ffafc",
+      "extraction_seconds": 2
+    },
+    {
+      "still": "load-result.png",
+      "still_sha256": "34c594df811158e4557c02898d84a016ee0a70c3193c2622b06f8f4a4420ac55",
+      "captured_file_utc": "2026-10-30T17:00:03.255214+00:00",
+      "retained_clip": "out/hdmi/load-result.mkv",
+      "clip_sha256": "71231c17fc453a7ac658787093c7163c10249d65cbce4d29f3c4e8a99f880253",
+      "extraction_seconds": 2
+    },
+    {
+      "still": "clean-load-typed.png",
+      "still_sha256": "da520feb5bb969e908f214bdd29224ee94bdeaa1d9f1bb2138c2f70ab3ac4868",
+      "captured_file_utc": "2026-10-30T17:02:11.952473+00:00",
+      "retained_clip": "out/hdmi/clean-load-typed.mkv",
+      "clip_sha256": "a206e6ceec029c7d1e65859d51fa32b93c448e332d746be2832541f0079161a8",
+      "extraction_seconds": 2
+    },
+    {
+      "still": "clean-load-result.png",
+      "still_sha256": "4070631504130fdc769e201851f5a945fbbd0dc059c034461556d48a2d5c05ed",
+      "captured_file_utc": "2026-10-30T17:02:28.541152+00:00",
+      "retained_clip": "out/hdmi/clean-load-result.mkv",
+      "clip_sha256": "df5a1ec57dba4e09be7cb3b3ce00dc1e50154697f64125224a39b181df65d3f5",
+      "extraction_seconds": 2
+    },
+    {
+      "still": "loaded-run.png",
+      "still_sha256": "65e0d3b26e57cc37dac66824af274c525a1c89d9fd3ed17dac55f508fc88d9b0",
+      "captured_file_utc": "2026-10-30T17:03:14.095014+00:00",
+      "retained_clip": "out/hdmi/loaded-run.mkv",
+      "clip_sha256": "aaac3c99ef65219f33e684bc0d50345b1d5c4c33c287660cae087cdda7f7a40d",
+      "extraction_seconds": 2
+    },
+    {
+      "still": "edited-program.png",
+      "still_sha256": "0ede8f24f406a6bfa41194c0b7ee0f763441b470524b4850740ad93c4d8f0520",
+      "captured_file_utc": "2026-10-30T17:03:31.831739+00:00",
+      "retained_clip": "out/hdmi/edited-program.mkv",
+      "clip_sha256": "508dff811fcc5d1e8e7be91b241f83bc6de67d46d9fc42ca40f915a336f97c9b",
+      "extraction_seconds": 2
+    },
+    {
+      "still": "reload-result.png",
+      "still_sha256": "4070631504130fdc769e201851f5a945fbbd0dc059c034461556d48a2d5c05ed",
+      "captured_file_utc": "2026-10-30T17:04:13.117427+00:00",
+      "retained_clip": "out/hdmi/reload-result.mkv",
+      "clip_sha256": "c0a5e468f91aa80a756eb280370289b3acac89b61e6853528cae8c908b0a192e",
+      "extraction_seconds": 2
+    },
+    {
+      "still": "reloaded-run.png",
+      "still_sha256": "65e0d3b26e57cc37dac66824af274c525a1c89d9fd3ed17dac55f508fc88d9b0",
+      "captured_file_utc": "2026-10-30T17:04:30.534139+00:00",
+      "retained_clip": "out/hdmi/reloaded-run.mkv",
+      "clip_sha256": "c08310806c7e277d284b47013e4f8b024ad50d828a41052b025aa2ae423abaf6",
+      "extraction_seconds": 2
+    },
+    {
+      "still": "restored-list.png",
+      "still_sha256": "32a9a5ad707809f6d6237a4c91081961e55583ffb2cdb71d9740a0e29eeec5c8",
+      "captured_file_utc": "2026-10-30T17:05:38.352913+00:00",
+      "retained_clip": "out/hdmi/restored-list.mkv",
+      "clip_sha256": "02bcd72ac192d544b5f517d7769555f1b37dd77d8a36095a064befdddec65303",
+      "extraction_seconds": 2
+    }
+  ]
+}

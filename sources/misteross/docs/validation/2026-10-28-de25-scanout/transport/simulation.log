@@ -1,0 +1,9 @@
+{"case":"reset_disabled","status":"pass","axi_bursts":0,"axi_beats":0,"full_frames_slot0":0,"full_frames_slot1":0,"ar_stall_cycles":0,"r_stall_cycles":0,"endpoint128_beats":0,"endpoint_error_beats":0,"ram_storage_self_test_passed":true}
+{"case":"atomic_snapshot","status":"pass","axi_bursts":1,"axi_beats":16,"full_frames_slot0":0,"full_frames_slot1":0,"ar_stall_cycles":0,"r_stall_cycles":0,"endpoint128_beats":16,"endpoint_error_beats":0,"ram_storage_self_test_passed":false}
+{"case":"complete_frames_and_slot_reuse","status":"pass","axi_bursts":72021,"axi_beats":1152242,"full_frames_slot0":2,"full_frames_slot1":3,"ar_stall_cycles":4239,"r_stall_cycles":0,"endpoint128_beats":1152242,"endpoint_error_beats":0,"ram_storage_self_test_passed":false}
+{"case":"stop_drains_accepted_reads","status":"pass","axi_bursts":1,"axi_beats":2,"full_frames_slot0":0,"full_frames_slot1":0,"ar_stall_cycles":0,"r_stall_cycles":0,"endpoint128_beats":2,"endpoint_error_beats":0,"ram_storage_self_test_passed":false}
+{"case":"pixel_clock_stall_preserves_responses","status":"pass","axi_bursts":1,"axi_beats":2,"full_frames_slot0":0,"full_frames_slot1":0,"ar_stall_cycles":0,"r_stall_cycles":0,"endpoint128_beats":2,"endpoint_error_beats":0,"ram_storage_self_test_passed":false}
+AXI RRESP 2: exact endpoint response and drain passed
+AXI RRESP 3: exact endpoint response and drain passed
+{"case":"axi_error_crosses_cdc","status":"pass","axi_bursts":1,"axi_beats":2,"full_frames_slot0":0,"full_frames_slot1":0,"ar_stall_cycles":0,"r_stall_cycles":0,"endpoint128_beats":2,"endpoint_error_beats":1,"ram_storage_self_test_passed":false}
+{"case":"clock_fault_is_sticky","status":"pass","axi_bursts":1,"axi_beats":2,"full_frames_slot0":0,"full_frames_slot1":0,"ar_stall_cycles":0,"r_stall_cycles":0,"endpoint128_beats":2,"endpoint_error_beats":0,"ram_storage_self_test_passed":false}

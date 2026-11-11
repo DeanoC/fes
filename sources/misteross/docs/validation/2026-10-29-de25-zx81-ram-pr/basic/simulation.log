@@ -1,0 +1,13 @@
+BOOT persona=0 RAMTOP=4400 cycles=20607055 CPUwrite-observed=1
+FREEZE cycles=20608214 lastRAMwrite=0 remainingWrites=0
+BOOT persona=1 RAMTOP=8000 cycles=287514752 CPUwrite-observed=1
+RAM read/write/peek checked16384addresses twoaddresspatterns last7fff=1 outOfRange8000NoWrite=1
+DRAIN phase=0 postFrozenWrites=0
+DRAIN phase=1 postFrozenWrites=0
+DRAIN phase=2 postFrozenWrites=0
+DRAIN phase=3 postFrozenWrites=0
+DRAIN phase=4 postFrozenWrites=0
+DRAIN phase=5 postFrozenWrites=0
+BOOT persona=0 RAMTOP=4400 cycles=20607071 CPUwrite-observed=1
+FREEZE cycles=329062070 lastRAMwrite=308453863 remainingWrites=0
+PASS actual ZX81 CPU+BASIC ROM, empty/RAM16K/reset/drain

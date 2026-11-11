@@ -1,0 +1,235 @@
+------------------------------------------------------------
+Timing Analyzer Summary
+------------------------------------------------------------
+
+Type  : Setup 'pll_inst|iopll_0_outclk0'
+Slack : 2.320
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Setup 'ramtest_sdram50'
+Slack : 7.195
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Setup 'altera_reserved_tck'
+Slack : 12.809
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Hold 'pll_inst|iopll_0_outclk0'
+Slack : 0.000
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Hold 'ramtest_sdram50'
+Slack : 0.067
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Hold 'altera_reserved_tck'
+Slack : 0.095
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Hold 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_phy_clk_0'
+Slack : 0.376
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Hold 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'
+Slack : 0.376
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Recovery 'pll_inst|iopll_0_outclk0'
+Slack : 6.079
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Recovery 'ramtest_sdram50'
+Slack : 18.123
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Recovery 'altera_reserved_tck'
+Slack : 60.134
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Removal 'pll_inst|iopll_0_outclk0'
+Slack : 0.158
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Removal 'altera_reserved_tck'
+Slack : 0.164
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Removal 'ramtest_sdram50'
+Slack : 0.205
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0'
+Slack : 0.220
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_LPDDR4B_DQS[1]_nff'
+Slack : 0.231
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0'
+Slack : 0.272
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_vco_clk_periph_0'
+Slack : 0.313
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_vco_base_0'
+Slack : 0.365
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'
+Slack : 0.419
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_phy_clk_0'
+Slack : 0.606
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'EMIF_REF_CLOCK'
+Slack : 2.220
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_ref_clock'
+Slack : 2.513
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_hmc_wide_c2p'
+Slack : 3.443
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_1_c2p'
+Slack : 3.576
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_2_c2p'
+Slack : 3.576
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_fa_lane_3_c2p'
+Slack : 3.576
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Minimum Pulse Width 'pll_inst|iopll_0_outclk0'
+Slack : 4.385
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_0_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_1_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_2_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_3_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_4_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_lane_5_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'ramtest_sdram50'
+Slack : 8.274
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'ramtest_sdram_forwarded'
+Slack : 8.274
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0'
+Slack : 8.313
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'pll_inst|iopll_0_refclk'
+Slack : 9.231
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0_0_pll_ncntr'
+Slack : 14.568
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'altera_reserved_tck'
+Slack : 28.581
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+------------------------------------------------------------

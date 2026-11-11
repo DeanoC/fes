@@ -11,8 +11,6 @@ var ErrNativeCaptureUnavailable = errors.New("native AVFoundation/VideoToolbox c
 
 type NativeCapture struct{}
 
-func ListCaptureDevices() ([]CaptureDevice, error) { return nil, ErrNativeCaptureUnavailable }
-
 func OpenNativeCapture(CaptureConfig) (*NativeCapture, error) {
 	return nil, ErrNativeCaptureUnavailable
 }

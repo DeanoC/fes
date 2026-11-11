@@ -30,8 +30,14 @@ or the build publishes nothing. quartus.lock authenticates quartus_sh by
 digest and its version line, and every Quartus version string the build
 writes derives from it; the toolchain lock's Yosys elaborates the machine.
 
+The build authenticates the toolchain lock's whole slot, whose nextpnr is
+linked against a GPU runtime: --gpu-router HIP (the default) or CUDA selects
+that slot, so a CUDA host with no ROCm can seal. Nothing routes on a GPU here.
+The record names the selection, so HIP and CUDA builds have distinct BUILD_IDs.
+
   QUARTUS_ROOTDIR=/abs/<the Quartus install quartus.lock names>/quartus \\
-    python3 scripts/build_fes_pc386_quartus.py --cache-root /abs/out/cache/misteross-toolchains
+    python3 scripts/build_fes_pc386_quartus.py --cache-root /abs/out/cache/misteross-toolchains \\
+    [--gpu-router CUDA]
 """
 from __future__ import annotations
 
@@ -216,9 +222,21 @@ def quartus_lock(root: Path) -> QuartusLock:
         raise board.BuildError(str(exc)) from exc
 
 
-def _authenticate_tools(root: Path, *, cache_root: Path | None = None) -> dict[str, str]:
-    """The toolchain lock's Yosys and the quartus.lock install, each by digest."""
+def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
+    """The backend, architectures and nextpnr configuration of the slot gpu_router selects."""
+    backend = board.gpu_backend_for_router(gpu_router)
+    if gpu_router == "HIP":
+        return backend, board.FES_GPU_ARCHITECTURES, board.FES_TOOLCHAIN_CONFIGURATION
+    return backend, "unused", board.cuda_toolchain_configuration()
+
+
+def _authenticate_tools(root: Path, *, cache_root: Path | None = None, gpu_router: str = "HIP") -> dict[str, str]:
+    """The toolchain lock's Yosys and the quartus.lock install, each by digest. The
+    lock's slot for gpu_router is authenticated whole; the build runs only its Yosys."""
+    _backend, architectures, configuration = gpu_choice(gpu_router)
     yosys = board._authenticate_tools(root, lock_path=root / LOCK, toolchain_root=root / TOOLCHAIN_ROOT,
+                                      expected_configuration={"nextpnr": configuration},
+                                      gpu_router=gpu_router, hip_architectures=architectures,
                                       cache_root=cache_root)["yosys"]
     lock = quartus_lock(root)
     try:
@@ -294,9 +312,11 @@ def firmware_digests(root: Path) -> dict[str, str]:
     return {name: lock["images"][name]["sha256"] for name in firmware.IMAGES}
 
 
-def record_fields(root: Path, repository: str, revision: str, identities: dict[str, str], seed: int) -> dict:
+def record_fields(root: Path, repository: str, revision: str, identities: dict[str, str], seed: int,
+                  gpu_router: str = "HIP") -> dict:
     # A format-1 record names its files from the repository root.
     qualify = source_provenance.context(root).qualify
+    backend, _architectures, configuration = gpu_choice(gpu_router)
     return {
         "format": 1, "repository": repository, "revision": revision,
         "recipe": qualify(RECIPE), "recipe_sha256": board._sha256(board._regular_input(root, RECIPE)),
@@ -307,6 +327,8 @@ def record_fields(root: Path, repository: str, revision: str, identities: dict[s
             "compiler": quartus_lock(root).compiler, "device": board.TARGET, "top": board.TOP,
             "seed": _check_seed(seed),
             "toolchain_lock": LOCK, "toolchain_lock_sha256": board._sha256(board._regular_input(root, LOCK)),
+            # The authenticated slot of that lock. Nothing routes on the GPU.
+            "gpu_backend": backend, "toolchain_configuration": configuration,
             "system_clock_hz": SYSTEM_CLOCK_HZ, "pixel_clock_hz": 74_250_000, "audio_clock_hz": 12_288_000,
             "reference_clock_hz": 50_000_000, "audio_sample_hz": 48_000,
             "guest_rates": json.dumps(guest_rates(), sort_keys=True, separators=(",", ":")),
@@ -320,8 +342,9 @@ def record_fields(root: Path, repository: str, revision: str, identities: dict[s
     }
 
 
-def create_build_record(root: Path, repository: str, revision: str, identities: dict[str, str], seed: int) -> bytes:
-    return encode_build_record(record_fields(root, repository, revision, identities, seed))
+def create_build_record(root: Path, repository: str, revision: str, identities: dict[str, str], seed: int,
+                        gpu_router: str = "HIP") -> bytes:
+    return encode_build_record(record_fields(root, repository, revision, identities, seed, gpu_router))
 
 
 def project_qsf(root: Path, project: Path, build_id: str, seed: int) -> str:
@@ -503,18 +526,20 @@ def manifest(root: Path, record: bytes, evidence: dict, repository: str, revisio
     })
 
 
-def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = None, seed: int = 1) -> Path:
+def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = None, seed: int = 1,
+          gpu_router: str = "HIP") -> Path:
     _check_seed(seed)
+    backend = gpu_choice(gpu_router)[0]
     root = Path(root).resolve()
     package_store = root / "build/packages" if package_store is None else Path(package_store).resolve()
     if package_store != root / "build/packages":
         raise board.BuildError("fes.pc386 package store must be build/packages")
     repository, revision = require_clean_source(root)
-    tools = _authenticate_tools(root, cache_root=cache_root)
+    tools = _authenticate_tools(root, cache_root=cache_root, gpu_router=gpu_router)
     identities = tools["identities"]
     output = None
     try:
-        record = create_build_record(root, repository, revision, identities, seed)
+        record = create_build_record(root, repository, revision, identities, seed, gpu_router)
         build_id = build_identity(record)
         output = board._prepare_output(root, relative=OUTPUT, build_outputs=BUILD_OUTPUTS)
         board._write_atomic(output / "build-inputs.json", record)
@@ -525,6 +550,7 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
         board._write_atomic(output / "quartus-version.log", (tools["quartus_version"] + "\n").encode())
         evidence = validate_build_evidence(output, project)
         evidence.update({"build_id": build_id, "device": board.TARGET, "top": board.TOP, "seed": seed,
+                         "gpu_backend": backend,
                          "firmware": {**firmware_digests(root), "rom_hex": board._sha256(rom)},
                          "inputs": {p: board._sha256(root / p) for p in sorted(PINNED_INPUTS)},
                          "tools": identities, "toolchain": toolchain_label(root, identities)})
@@ -532,11 +558,11 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
                             (json.dumps(evidence, indent=2, sort_keys=True) + "\n").encode())
         encoded = manifest(root, record, evidence, repository, revision, identities)
         board._write_atomic(output / "manifest.toml", encoded)
-        if _authenticate_tools(root, cache_root=cache_root)["identities"] != identities:
+        if _authenticate_tools(root, cache_root=cache_root, gpu_router=gpu_router)["identities"] != identities:
             raise board.BuildError("authenticated tool identity changed during build")
         if require_clean_source(root) != (repository, revision):
             raise board.BuildError("source identity changed during build")
-        if create_build_record(root, repository, revision, identities, seed) != record:
+        if create_build_record(root, repository, revision, identities, seed, gpu_router) != record:
             raise board.BuildError("source inputs changed during build")
         return export_package(encoded, output / "core.rbf", package_store)
     except Exception:
@@ -551,9 +577,12 @@ def main() -> int:
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--seed", type=int, default=1, help="Quartus fitter seed; a timing miss fails")
+    parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default="HIP",
+                        help="the toolchain lock's slot to authenticate: HIP or CUDA (no GPU routing)")
     args = parser.parse_args()
     try:
-        print(build(args.root, args.package_output, cache_root=args.cache_root, seed=args.seed))
+        print(build(args.root, args.package_output, cache_root=args.cache_root, seed=args.seed,
+                    gpu_router=args.gpu_router))
     except (board.BuildError, OSError, ValueError) as exc:
         print(f"FES pc386 (Quartus): {exc}", file=sys.stderr)
         return 1

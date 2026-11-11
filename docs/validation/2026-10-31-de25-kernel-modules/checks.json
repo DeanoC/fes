@@ -1,0 +1,48 @@
+{
+  "runtime_tests": [
+    {
+      "name": "runtime_test",
+      "result": "passed",
+      "sha256": "2d0e3d289db96be3ef965537873bcde2a5b28aff5cb637c07cc6601af43ee1f8"
+    },
+    {
+      "name": "protocol_test",
+      "result": "passed",
+      "sha256": "9bda7e8961228d6067006ade1208f0d574b45369c629f2f57637e56ee09129d4"
+    },
+    {
+      "name": "mmio_test",
+      "result": "passed",
+      "sha256": "aa17a692e8857ecda397569958359d1c80b6f70ad52694103725836ddb2fa343"
+    },
+    {
+      "name": "fpga_manager_test",
+      "result": "passed",
+      "sha256": "f367235e6056c1a788fb3e8afa724aca3f1483b34571956d9d6323c05fff42cf"
+    },
+    {
+      "name": "off_t_test",
+      "result": "passed",
+      "sha256": "10705275058ef89f6ced828c31498a99c6fb1cb178492909cf029ace251ecf96"
+    },
+    {
+      "name": "production_hardware_test",
+      "result": "passed",
+      "sha256": "8299e99efd86044466d14a11d6317a921287e212b300ebe60195362de13e5ddf"
+    },
+    {
+      "name": "de25_computer_test",
+      "result": "passed",
+      "sha256": "b9c1bb67d8785e2c247ea5f7eed5f4e654fcf070adad314ee2a0d00b10ea7800"
+    }
+  ],
+  "agent_tests": [
+    "TestClientRejectsWrongProtocolAndUnknownResponseFields",
+    "TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial",
+    "TestRuntimeSocketOpenIsFalseWhenDialFails",
+    "TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse",
+    "TestNativeReconcileMapsRebootRequiredToFailedUnavailable"
+  ],
+  "runtime_build_key": "845f66332a21f65c41a574806a5bad5d5c473429faf4b8b8a91d4551681425ce",
+  "compiler_version": "aarch64-buildroot-linux-gnu-g++.br_real (Buildroot 2021.02.4) 9.4.0"
+}

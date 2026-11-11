@@ -41,7 +41,6 @@ func TestLibraryTitlesUsesServiceContract(t *testing.T) {
 				Execute: []meshcontent.Execute{{Kind: meshcontent.ExecuteNativeEmu}},
 				Slots:   []meshcontent.Slot{meshcontent.PrimaryMediaSlot(id)},
 			},
-			HostLocal: true,
 		}},
 	}}}
 	rows, skipped := service.MeshBackendLibrary(context.Background())
@@ -89,8 +88,7 @@ func TestLibraryTitlesRoute(t *testing.T) {
 				Execute: []meshcontent.Execute{{Kind: meshcontent.ExecuteNativeEmu}},
 				Slots:   []meshcontent.Slot{meshcontent.PrimaryMediaSlot(id)},
 			},
-			HostLocal: true,
-			Nodes:     []fogcast.MeshBackendNode{},
+			Nodes: []fogcast.MeshBackendNode{},
 		}},
 	}
 	service := &libraryTitlesService{

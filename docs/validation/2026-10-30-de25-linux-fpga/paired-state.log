@@ -1,0 +1,12 @@
+write
+703ac63c-6a34-417b-929a-a344ac8f3c7d
+[    3.585297] socfpga-dwmac 10810000.ethernet eth0: PHY [stmmac-0:01] driver [Micrel KSZ9031 Gigabit PHY] (irq=POLL)
+[    3.595740] socfpga-dwmac 10810000.ethernet eth0: No Safety Features support found
+[    3.603334] socfpga-dwmac 10810000.ethernet eth0: IEEE 1588-2008 Advanced Timestamp supported
+[    3.612309] socfpga-dwmac 10810000.ethernet eth0: registered PTP clock
+[    3.618906] socfpga-dwmac 10810000.ethernet eth0: configuring for phy/rgmii link mode
+[    6.691538] socfpga-dwmac 10810000.ethernet eth0: Link is Up - 1Gbps/Full - flow control rx/tx
+[   57.896536] fpga_manager fpga0: Stratix10 SOC FPGA Manager registered
+[   59.304582] of-fpga-region fpga-region: FPGA Region probed
+[   60.452844] fpga_manager fpga0: writing fes-c134-zx81.core.rbf to Stratix10 SOC FPGA Manager
+[   67.554673] Stratix10 SoC FPGA manager firmware:svc:fpga-mgr: timeout waiting for svc layer buffers

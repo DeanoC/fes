@@ -45,9 +45,6 @@ type coreEntryCatalog interface {
 type coreFirmwareCatalog interface {
 	coreMediaCatalog
 	CreateFirmwareRequiredEntry(context.Context, string, string, string, string, string) (catalog.CoreEntry, error)
-	CoreFirmware(context.Context, string) (catalog.CoreFirmware, error)
-	SelectCoreFirmware(context.Context, string, string) (catalog.CoreFirmware, error)
-	HouseholdFirmwareFilled(context.Context) (bool, error)
 }
 
 // corePackageStore holds the installed core packages. A desktop host uses its
@@ -492,6 +489,10 @@ func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected
 	if !check.Compatible {
 		return catalog.CoreEntry{}, check.CompatibilityError
 	}
+	// Format-4 requires all named sources even when the caller omits the flag.
+	if check.Descriptor.Format == 4 {
+		firmwareRequired = true
+	}
 	if err := s.validateCoreEntryMedia(ctx, check.Descriptor, role, mediaID); err != nil {
 		return catalog.CoreEntry{}, err
 	}
@@ -590,16 +591,12 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 	}()
 	var entry catalog.CoreEntry
 	var media *coreEntryMedia
-	var firmware *coreEntryMedia
 	var hardDisk *hardDiskSource
 	var imageSHA string
 	defer func() {
 		resultErr = errors.Join(resultErr, hardDisk.Close())
 		if media != nil {
 			resultErr = errors.Join(resultErr, media.Close())
-		}
-		if firmware != nil {
-			resultErr = errors.Join(resultErr, firmware.Close())
 		}
 	}()
 	status, err := s.loadCoreLocked(ctx, parent, func(ctx context.Context) (coreLoadSource, error) {
@@ -632,25 +629,8 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 			return coreLoadSource{}, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission",
 				Message: "application requires selected library media before launch"}
 		}
-		if entry.FirmwareRequired && inspection.Descriptor.Format != 4 {
-			if !protocol.DeclaresFirmwareSlot(inspection.Descriptor) {
-				return coreLoadSource{}, protocol.FirmwareAdmissionError("required firmware cannot be bound; package does not declare fes.firmware.blob 1.0")
-			}
-			store, ok := s.catalog.(coreFirmwareCatalog)
-			if !ok {
-				return coreLoadSource{}, protocol.FirmwareAdmissionError("")
-			}
-			slot, err := store.CoreFirmware(ctx, protocol.FirmwareRole)
-			if err != nil {
-				return coreLoadSource{}, mapCoreFirmwareError(err)
-			}
-			if slot.MediaID == "" {
-				return coreLoadSource{}, protocol.FirmwareAdmissionError("")
-			}
-			firmware, err = s.readCoreFirmware(ctx, inspection.Descriptor, slot.MediaID)
-			if err != nil {
-				return coreLoadSource{}, err
-			}
+		if entry.FirmwareRequired && inspection.Descriptor.Format != 4 && inspection.Descriptor.ROM == nil {
+			return coreLoadSource{}, protocol.FirmwareAdmissionError("this package requires the retired household firmware slot")
 		}
 		if inspection.Descriptor.ROM != nil || inspection.Descriptor.Format == 4 {
 			// Cartridge bytes are consumed by linking, never delivered again as media.
@@ -782,26 +762,11 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 	// The core load recorded execution. Keep a placement claim through
 	// later media delivery. A failure before this return releases it.
 	s.settlePlacementClaim(snap)
-	if firmware == nil && media == nil {
+	if media == nil {
 		return response, nil
 	}
 	if status.CorePackage == nil {
 		return response, canonicalError(protocol.CodeInternal, nil)
-	}
-	if firmware != nil {
-		fwBinding := s.libraryDevelopmentMediaBinding(*status.CorePackage)
-		fwBinding.Role = protocol.FirmwareRole
-		fwStatus, fwErr := s.loadDevelopmentMediaReaderLocked(ctx, firmware.size, firmware.ReadCloser, fwBinding)
-		fwErr = errors.Join(fwErr, firmware.Close())
-		firmware = nil
-		if fwErr != nil {
-			return s.recoverLibrarySlot(parent, fwStatus, fwErr)
-		}
-		status = retainImageSHA(s.retainKitSessionIdentity(fwBinding.Target, fwStatus), imageSHA)
-		response.Status = status
-	}
-	if media == nil {
-		return response, nil
 	}
 	if media.unit != nil {
 		// Other removable-media contracts insert after Start. Writable format-3
@@ -973,7 +938,7 @@ func (s *Service) stopRejectedCoreWithAdmission(ctx context.Context, explicitSto
 }
 
 // stopRejectedKitCoreWithAdmission resolves only the named kit's retained
-// rejection. It never cleans up the independent host-only executor.
+// rejection.
 func (s *Service) stopRejectedKitCore(ctx context.Context, target string) (protocol.Status, error) {
 	return s.stopRejectedKitCoreWithAdmission(ctx, false, target)
 }

@@ -363,39 +363,6 @@ func TestInstalledPackageSelectionAndLibraryLaunch(t *testing.T) {
 	if err != nil || got.LastError != nil {
 		t.Fatalf("stop did not clear rejection: %+v %v", got, err)
 	}
-	// Retain a host executor whose cleanup fails while the unexpected FPGA owner also needs recovery.
-	executor := &fakeHostExecutor{stopErr: errors.New("host busy")}
-	s.hostExecutor = executor
-	s.hostCastClaimsKitDisplay = true // This case exercises cast-mode dual-owner recovery.
-	s.activeExecution = ExecutionHostOnly
-	s.activeGameID = "host-game"
-	client.stopErr = errors.New("target stop lost")
-	client.statusResult = unexpected
-	response, err = s.Launch(ctx, entry.GameID, nil)
-	if err == nil || executor.stopCalls != 1 || s.activeExecution != ExecutionHostOnly {
-		t.Fatalf("host owner lost: %+v %v stops=%d execution=%s", response, err, executor.stopCalls, s.activeExecution)
-	}
-	s.targets = []TargetConfig{{Name: s.selectedTarget, Enabled: true}}
-	got, err = s.StatusTarget(ctx, s.selectedTarget)
-	if err != nil || got.LastError == nil || got.CorePackage == nil || got.GameID != nil {
-		t.Fatalf("dual recovery hidden: %+v %v", got, err)
-	}
-	client.stopErr = nil
-	if _, err = s.Stop(ctx); err == nil {
-		t.Fatal("declared idle while host cleanup failed")
-	}
-	client.statusResult = protocol.Status{State: protocol.StateIdle}
-	stops := client.stopCalls
-	executor.stopErr = nil
-	if _, err = s.Stop(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if client.stopCalls != stops || s.activeExecution != "" || executor.stopCalls != 3 || s.plays[s.selectedTarget].packageRejection == nil {
-		t.Fatalf("host cleanup retry: target stops=%d/%d host=%d execution=%s kit=%+v", client.stopCalls, stops, executor.stopCalls, s.activeExecution, s.plays[s.selectedTarget])
-	}
-	if _, err = s.Stop(ctx); err != nil || s.plays[s.selectedTarget].packageRejection != nil {
-		t.Fatalf("kit recovery: %v play=%+v", err, s.plays[s.selectedTarget])
-	}
 
 }
 
@@ -477,41 +444,6 @@ func TestPackageRejectionClearsOnNewRawOwnership(t *testing.T) {
 	}
 }
 
-func TestRejectedLibraryKitRecoversBeforeReplacementWhileHostPlays(t *testing.T) {
-	ctx := context.Background()
-	raw := libraryPackageFixture(t, "0.1.0")
-	s, client, entry, inspection := newCoreEntryLaunchFixture(t, raw, "Pong")
-	host := &fakeHostExecutor{}
-	s.hostExecutor = host
-	s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = ExecutionHostOnly, "host", "host-game", protocol.SystemSNES
-	active := coreEntryActiveStatus(inspection, 3, false)
-	client.statusResult = active
-	client.stopErr = errors.New("kit recovery unavailable")
-	client.coreLoad = func(context.Context, int64, io.Reader) (protocol.Status, error) {
-		wrong := active
-		wrong.CorePackage = &protocol.CorePackageStatus{PackageID: fmt.Sprintf("%064x", 1), Generation: 3,
-			ABI: active.CorePackage.ABI, BuildID: active.CorePackage.BuildID}
-		return wrong, nil
-	}
-	if _, err := s.Launch(ctx, entry.GameID, nil); err == nil {
-		t.Fatal("mismatched package was accepted")
-	}
-	if s.plays[s.selectedTarget].packageRejection == nil || host.stopCalls != 0 || s.activeTarget != "host" || s.activeGameID != "host-game" || len(s.PlaySessions()) != 0 {
-		t.Fatalf("rejection=%+v host stops=%d host game=%q plays=%+v", s.plays[s.selectedTarget], host.stopCalls, s.activeGameID, s.PlaySessions())
-	}
-	priorLoads := client.coreCalls
-	client.stopErr = nil
-	client.stopResult = protocol.Status{State: protocol.StateIdle}
-	client.statusResult = protocol.Status{State: protocol.StateIdle}
-	client.coreLoad = func(context.Context, int64, io.Reader) (protocol.Status, error) { return active, nil }
-	if _, err := s.Launch(ctx, entry.GameID, nil); err != nil {
-		t.Fatal(err)
-	}
-	if client.stopCalls == 0 || client.coreCalls != priorLoads+1 || s.plays[s.selectedTarget].packageRejection != nil || host.stopCalls != 0 || s.activeTarget != "host" || s.activeGameID != "host-game" {
-		t.Fatalf("recovery stops=%d loads=%d/%d kit=%+v host stops=%d host game=%q", client.stopCalls, client.coreCalls, priorLoads, s.plays[s.selectedTarget], host.stopCalls, s.activeGameID)
-	}
-}
-
 func TestPendingPackageRejectionPreservesRecoveryFailure(t *testing.T) {
 	rejection := &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Phase: "identity", Expected: "selected", Observed: "unexpected"}
 	unexpected := protocol.Status{
@@ -552,79 +484,11 @@ func TestStopUsesUploadTimeoutForPendingPackageRejection(t *testing.T) {
 		Config{RequestTimeout: 10 * time.Millisecond, UploadTimeout: time.Second},
 		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
 	)
-	s.hostExecutor = &fakeHostExecutor{}
-	s.activeExecution = ExecutionHostOnly
 	s.plays[s.selectedTarget] = targetPlay{packageRejection: &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Phase: "identity"}}
 
 	status, err := s.Stop(context.Background())
 	if err != nil || status.State != protocol.StateIdle {
 		t.Fatalf("stop = %+v, %v", status, err)
-	}
-}
-
-func TestActivatedLibraryPackageRetainsFailedHostCleanup(t *testing.T) {
-	ctx := context.Background()
-	root := t.TempDir()
-	catalogStore, err := catalog.OpenContext(ctx, filepath.Join(root, "catalog.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer catalogStore.Close()
-	packages, err := corepackage.NewStore(filepath.Join(root, "packages"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	client := &packageLibraryClient{fakeServiceClient: &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}}
-	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, catalogStore, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
-	s.corePackages = packages
-	raw := libraryPackageFixture(t, "0.1.0")
-	installed, _, err := s.ImportCorePackage(ctx, int64(len(raw)), bytes.NewReader(raw))
-	if err != nil {
-		t.Fatal(err)
-	}
-	client.inspection = protocol.CoreInspection{PackageID: installed.PackageID, Descriptor: installed.Descriptor, Compatible: true}
-	entry, err := s.CreateCoreEntry(ctx, "Cleanup Pong", installed.PackageID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	core := installed.Descriptor.Core.ID
-	active := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, CorePackage: &protocol.CorePackageStatus{PackageID: installed.PackageID, Generation: 7, ABI: protocol.RuntimeContract{ID: installed.Descriptor.ABI.ID, Major: 1}, BuildID: installed.Descriptor.Build.ID, Gamepad: true}}
-	client.coreLoad = func(context.Context, int64, io.Reader) (protocol.Status, error) {
-		client.statusResult = active
-		return active, nil
-	}
-	executor := &fakeHostExecutor{stopErr: errors.New("host cleanup failed")}
-	s.hostExecutor = executor
-	s.hostCastClaimsKitDisplay = true // Failed cast cleanup must retain the host owner.
-	s.activeExecution = ExecutionHostOnly
-	s.activeGameID = "host-game"
-	response, err := s.Launch(ctx, entry.GameID, nil)
-	var apiErr *protocol.APIError
-	if !errors.As(err, &apiErr) || apiErr.Phase != "recovery" {
-		t.Fatalf("launch error: %v", err)
-	}
-	if s.activeExecution != ExecutionHostOnly || s.plays[s.selectedTarget].packageRejection == nil || response.Status.LastError == nil {
-		t.Fatalf("lost host cleanup owner: execution=%s status=%+v", s.activeExecution, response.Status)
-	}
-	s.targets = []TargetConfig{{Name: s.selectedTarget, Enabled: true}}
-	status, err := s.StatusTarget(ctx, s.selectedTarget)
-	if err != nil || status.LastError == nil || status.CorePackage == nil || status.GameID != nil || s.activeGameID != "host-game" {
-		t.Fatalf("pending cleanup hidden: %+v %v", status, err)
-	}
-	// A replacement must finish pending cleanup before dispatching another package.
-	client.stopResult = protocol.Status{State: protocol.StateIdle}
-	if _, err = s.Launch(ctx, entry.GameID, nil); err == nil || client.coreCalls != 1 {
-		t.Fatalf("replacement skipped cleanup: calls=%d err=%v", client.coreCalls, err)
-	}
-	client.statusResult = protocol.Status{State: protocol.StateIdle}
-	if _, err = s.Stop(ctx); err == nil {
-		t.Fatal("idle reported while host cleanup still fails")
-	}
-	stops := client.stopCalls
-	executor.stopErr = nil
-	status, err = s.Stop(ctx)
-	if err != nil || status.State != protocol.StateIdle || s.activeExecution != "" || s.plays[s.selectedTarget].packageRejection != nil || executor.stopCalls != 4 || client.stopCalls != stops {
-		t.Fatalf("cleanup retry: %+v %v host=%d target=%d/%d execution=%s", status, err, executor.stopCalls, client.stopCalls, stops, s.activeExecution)
 	}
 }
 

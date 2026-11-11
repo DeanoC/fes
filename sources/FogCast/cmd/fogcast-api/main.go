@@ -26,7 +26,6 @@ import (
 	"github.com/DeanoC/FogCast/internal/mediasession"
 	"github.com/DeanoC/FogCast/internal/metadata"
 	"github.com/DeanoC/FogCast/internal/remotemedia"
-	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/storage"
 	"github.com/DeanoC/FogCast/targetclient"
 )
@@ -46,26 +45,11 @@ type composeAPIFunc func(service, fogcast.Config, bridgeStarterFactory) (http.Ha
 type bridgeStarterFactory func(fogcast.Config) (host.BridgeStarter, error)
 
 type captureSourceFactory func(fogcast.MediaConfig) (remotemedia.CaptureSource, error)
-type audioSourceFactory func(remotemedia.AudioSourceConfig) (remotemedia.AudioSource, error)
-type mediaSourcesFactory func(fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error)
 type metadataOpener func(context.Context, metadata.RuntimeConfig) (metadata.Runtime, error)
 type compositionOption func(*compositionDeps)
 
-type targetCast interface {
-	CastStart(context.Context, string, string, uint64) (targetclient.CastStatus, error)
-	CastStop(context.Context, string, uint64) (targetclient.CastStatus, error)
-	CastStatus(context.Context) (targetclient.CastStatus, error)
-}
-
-type targetMediaCast interface {
-	targetCast
-	CastStartWithMedia(context.Context, string, string, uint64, protocol.CastMediaSet) (targetclient.CastStatus, error)
-}
-
 const (
 	targetCleanupTimeout   = 2 * time.Second
-	targetStatusInterval   = 100 * time.Millisecond
-	targetStatusFailures   = 3
 	folderWatchStopTimeout = 2 * time.Second
 	folderWatchLogInterval = time.Second
 )
@@ -156,15 +140,10 @@ func reportFolderWatchTerminalError(ctx context.Context, stderr io.Writer, err e
 }
 
 type compositionDeps struct {
-	newCapture      captureSourceFactory
-	newPreview      remotemedia.PreviewDecoderFactory
-	previewHandler  http.Handler
-	newAudio        audioSourceFactory
-	openMetadata    metadataOpener
-	receiverOptions []remotemedia.ManagedReceiverOption
-	senderOptions   []remotemedia.ManagedSenderOption
-	audioOptions    []remotemedia.ManagedAudioSenderOption
-	targetCast      targetCast
+	newCapture     captureSourceFactory
+	newPreview     remotemedia.PreviewDecoderFactory
+	previewHandler http.Handler
+	openMetadata   metadataOpener
 }
 
 func withCaptureSourceFactory(factory captureSourceFactory) compositionOption {
@@ -179,28 +158,8 @@ func withPreviewHandler(handler http.Handler) compositionOption {
 	return func(deps *compositionDeps) { deps.previewHandler = handler }
 }
 
-func withAudioSourceFactory(factory audioSourceFactory) compositionOption {
-	return func(deps *compositionDeps) { deps.newAudio = factory }
-}
-
 func withMetadataOpener(opener metadataOpener) compositionOption {
 	return func(deps *compositionDeps) { deps.openMetadata = opener }
-}
-
-func withManagedReceiverOptions(options ...remotemedia.ManagedReceiverOption) compositionOption {
-	return func(deps *compositionDeps) { deps.receiverOptions = options }
-}
-
-func withManagedSenderOptions(options ...remotemedia.ManagedSenderOption) compositionOption {
-	return func(deps *compositionDeps) { deps.senderOptions = options }
-}
-
-func withManagedAudioSenderOptions(options ...remotemedia.ManagedAudioSenderOption) compositionOption {
-	return func(deps *compositionDeps) { deps.audioOptions = options }
-}
-
-func withTargetCast(controller targetCast) compositionOption {
-	return func(deps *compositionDeps) { deps.targetCast = controller }
 }
 
 func defaultCaptureSource(config fogcast.MediaConfig) (remotemedia.CaptureSource, error) {
@@ -208,39 +167,6 @@ func defaultCaptureSource(config fogcast.MediaConfig) (remotemedia.CaptureSource
 		Device: config.CaptureDevice, Width: config.Width, Height: config.Height, FPS: remotemedia.FrameRate{Numerator: config.FPSNumerator, Denominator: config.FPSDenominator}, Bitrate: config.Bitrate, GOP: config.GOP,
 	})
 	return capture, err
-}
-
-func defaultAudioSource(config remotemedia.AudioSourceConfig) (remotemedia.AudioSource, error) {
-	return remotemedia.OpenNativeAudioSource(config)
-}
-
-func makeMediaSourcesFactory(newCapture captureSourceFactory, newAudio audioSourceFactory) mediaSourcesFactory {
-	return func(config fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
-		if newCapture == nil {
-			return nil, nil, errors.New("media capture source is unavailable")
-		}
-		capture, err := newCapture(config)
-		if err != nil || capture == nil {
-			if err != nil {
-				return capture, nil, err
-			}
-			return capture, nil, errors.New("media capture source is unavailable")
-		}
-		if !config.Audio.Enabled {
-			return capture, nil, nil
-		}
-		if newAudio == nil {
-			return capture, nil, errors.New("audio source is unavailable")
-		}
-		audio, err := newAudio(config.Audio.Source)
-		if err != nil || audio == nil {
-			if err != nil {
-				return capture, audio, err
-			}
-			return capture, audio, errors.New("audio source is unavailable")
-		}
-		return capture, audio, nil
-	}
 }
 
 func defaultBridgeStarter(config fogcast.Config) (host.BridgeStarter, error) {
@@ -251,22 +177,11 @@ func defaultBridgeStarter(config fogcast.Config) (host.BridgeStarter, error) {
 	return host.NewHTTPBridgeStarter(host.HTTPBridgeStarterConfig{BaseURL: baseURL, Token: config.Token})
 }
 
-func newTargetCast(config fogcast.Config) (targetCast, error) {
-	if strings.TrimSpace(config.BaseURL) == "" {
-		return nil, nil
-	}
-	baseURL, err := url.Parse(config.BaseURL)
-	if err != nil {
-		return nil, err
-	}
-	return targetclient.NewClient(baseURL, config.Token, nil), nil
-}
-
 func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarterFactory, options ...compositionOption) (http.Handler, func() error, error) {
 	if service == nil {
 		return nil, nil, errors.New("fogcast-api: composition dependency is unavailable")
 	}
-	deps := compositionDeps{newCapture: defaultCaptureSource, newAudio: defaultAudioSource, openMetadata: metadata.Open}
+	deps := compositionDeps{newCapture: defaultCaptureSource, openMetadata: metadata.Open}
 	for _, option := range options {
 		if option != nil {
 			option(&deps)
@@ -295,91 +210,34 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 		// composition order stops those dependants before closing metadata.
 		cleanup = append(cleanup, metadataRuntime.Close)
 	}
-	var mediaOwner *compositionMediaSession
 	if config.Media.Enabled {
-		var err error
-		if (config.Media.Decoder == "ffplay" || config.Media.Decoder == "mjpeg") && config.Media.Audio.Enabled {
-			_ = closeComposition(cleanup)
-			return nil, nil, errors.New("fogcast-api: local media playback is video-only")
-		}
 		if deps.newCapture == nil {
 			_ = closeComposition(cleanup)
 			return nil, nil, errors.New("fogcast-api: media capture source is unavailable")
 		}
-		if config.Media.Decoder == "mjpeg" {
-			preview := remotemedia.NewMJPEGPreview()
-			decoderFactory := preview.Decoder
-			previewHandler := http.Handler(preview)
-			if deps.newPreview != nil {
-				decoderFactory = deps.newPreview
-			}
-			if deps.previewHandler != nil {
-				previewHandler = deps.previewHandler
-			}
-			component, previewErr := remotemedia.NewLocalPreview(func() (remotemedia.CaptureSource, error) {
-				return deps.newCapture(config.Media)
-			}, decoderFactory)
-			if previewErr != nil {
-				_ = closeComposition(cleanup)
-				return nil, nil, errors.New("fogcast-api: media configuration failed")
-			}
-			mediaOwner = newCompositionMediaSession(hostapi.NewMediaSessionAdapter(mediasession.New(component, noopMediaComponent{})), nil, "", "", 0)
-			cleanup = append(cleanup, mediaOwner.Close)
-			serverOptions = append(serverOptions, hostapi.WithMediaSession(mediaOwner), hostapi.WithMediaPreview(previewHandler))
-		} else {
-			sender := &managedSenderComponent{
-				media:        config.Media,
-				token:        config.Token,
-				newSources:   makeMediaSourcesFactory(deps.newCapture, deps.newAudio),
-				options:      deps.senderOptions,
-				audioOptions: deps.audioOptions,
-				ownership:    &hostMediaOwnership{},
-			}
-			target := deps.targetCast
-			if target == nil {
-				if castService, ok := service.(targetCast); ok {
-					target = castService
-				} else {
-					target, err = newTargetCast(config)
-				}
-				if err != nil {
-					_ = closeComposition(cleanup)
-					return nil, nil, errors.New("fogcast-api: target cast configuration failed")
-				}
-			}
-			var receiver mediasession.Component
-			mediaTarget := target
-			if config.Media.Decoder == "ffplay" {
-				// Local playback is the sofa-path preview: the existing capture
-				// sender feeds the host receiver/ffplay window and must not claim
-				// the target presentation surface from the active FPGA core.
-				mediaTarget = nil
-				receiver, err = remotemedia.NewManagedReceiver(remotemedia.ManagedReceiverConfig{
-					Session: config.Media.Session, Generation: config.Media.Generation, Token: config.Token,
-					SSRC: config.Media.SSRC, RTPAddress: config.Media.RTPListen, ControlAddress: config.Media.ControlAddress, Decoder: config.Media.Decoder,
-				}, deps.receiverOptions...)
-			} else if target != nil {
-				receiver = noopMediaComponent{}
-			} else {
-				receiver, err = remotemedia.NewManagedReceiver(remotemedia.ManagedReceiverConfig{
-					Session: config.Media.Session, Generation: config.Media.Generation, Token: config.Token,
-					SSRC: config.Media.SSRC, RTPAddress: config.Media.RTPListen, ControlAddress: config.Media.ControlAddress, Decoder: config.Media.Decoder,
-				}, deps.receiverOptions...)
-			}
-			if err != nil {
-				_ = closeComposition(cleanup)
-				return nil, nil, errors.New("fogcast-api: media configuration failed")
-			}
-			mediaOwner = newCompositionMediaSession(hostapi.NewMediaSessionAdapter(mediasession.New(sender, receiver)), mediaTarget, config.Media.Session, config.Token, config.Media.Generation)
-			if config.Media.Audio.Enabled {
-				mediaOwner.mediaSet = &protocol.CastMediaSet{Version: protocol.CastMediaSetVersion, Video: true, Audio: true}
-			}
-			cleanup = append(cleanup, mediaOwner.Close)
-			serverOptions = append(serverOptions, hostapi.WithMediaSession(mediaOwner))
+		preview := remotemedia.NewMJPEGPreview()
+		decoderFactory := preview.Decoder
+		previewHandler := http.Handler(preview)
+		if deps.newPreview != nil {
+			decoderFactory = deps.newPreview
 		}
+		if deps.previewHandler != nil {
+			previewHandler = deps.previewHandler
+		}
+		component, previewErr := remotemedia.NewLocalPreview(func() (remotemedia.CaptureSource, error) {
+			return deps.newCapture(config.Media)
+		}, decoderFactory)
+		if previewErr != nil {
+			_ = closeComposition(cleanup)
+			return nil, nil, errors.New("fogcast-api: media configuration failed")
+		}
+		mediaOwner := newCompositionMediaSession(hostapi.NewMediaSessionAdapter(mediasession.New(component, noopMediaComponent{})))
+		cleanup = append(cleanup, mediaOwner.Close)
+		serverOptions = append(serverOptions, hostapi.WithMediaSession(mediaOwner), hostapi.WithMediaPreview(previewHandler))
 	}
+
 	if !config.RemoteInput.Enabled {
-		bindSessionTargetOrigin(service, nil, mediaOwner)
+		bindSessionTargetOrigin(service, nil)
 		return hostapi.New(service, serverOptions...), func() error { return closeComposition(cleanup) }, nil
 	}
 	if makeStarter == nil {
@@ -429,7 +287,7 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 			}
 		})
 	}
-	bindSessionTargetOrigin(service, targetStarter, mediaOwner)
+	bindSessionTargetOrigin(service, targetStarter)
 	serverOptions = append(serverOptions, hostapi.WithRemoteInput(remoteInput), hostapi.WithRemoteInputFactory(targetInputFactory))
 	return hostapi.New(service, serverOptions...), func() error {
 		return closeAPIComposition(func() error {
@@ -472,16 +330,13 @@ func makeTargetBridgeStarter(config fogcast.Config, targetName string, service s
 	return starter, nil
 }
 
-func bindSessionTargetOrigin(service service, starter *host.HTTPBridgeStarter, media *compositionMediaSession) {
+func bindSessionTargetOrigin(service service, starter *host.HTTPBridgeStarter) {
 	apply := func(target fogcast.TargetConfig, lease *targetclient.KitLease) {
-		address := kitCastAddress(target, lease)
+		address := kitTargetAddress(target, lease)
 		if starter != nil && address != "" {
 			if parsed, err := url.Parse(address); err == nil {
 				_ = starter.SetOrigin(parsed, target.Agent)
 			}
-		}
-		if media != nil {
-			media.SetCastTarget(target, lease)
 		}
 	}
 	if origin, ok := service.(interface {
@@ -498,250 +353,15 @@ func bindSessionTargetOrigin(service service, starter *host.HTTPBridgeStarter, m
 	}
 }
 
-// kitCastAddress is the cast endpoint for a rebound kit. An adopted
-// lease endpoint wins over the configured address so media follows the
-// kit the claim verified.
-func kitCastAddress(target fogcast.TargetConfig, lease *targetclient.KitLease) string {
+// kitTargetAddress selects the verified endpoint for the input bridge.
+// An adopted lease endpoint wins over the configured address.
+func kitTargetAddress(target fogcast.TargetConfig, lease *targetclient.KitLease) string {
 	if lease != nil {
 		if endpoint := lease.Endpoint(); endpoint != nil && endpoint.Scheme != "" && endpoint.Host != "" {
 			return endpoint.String()
 		}
 	}
 	return strings.TrimSpace(target.Address)
-}
-
-type managedSenderComponent struct {
-	media        fogcast.MediaConfig
-	token        string
-	newSources   mediaSourcesFactory
-	options      []remotemedia.ManagedSenderOption
-	audioOptions []remotemedia.ManagedAudioSenderOption
-	ownership    *hostMediaOwnership
-}
-
-var errMediaBusyOtherKit error = hostapi.MediaBusyOtherKitError{}
-
-type hostMediaOwnership struct {
-	mu    sync.Mutex
-	owner string
-}
-
-func (o *hostMediaOwnership) claim(target string) (func(), error) {
-	if o == nil {
-		return func() {}, nil
-	}
-	o.mu.Lock()
-	if o.owner != "" && o.owner != target {
-		o.mu.Unlock()
-		return nil, errMediaBusyOtherKit
-	}
-	o.owner = target
-	o.mu.Unlock()
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			o.mu.Lock()
-			if o.owner == target {
-				o.owner = ""
-			}
-			o.mu.Unlock()
-		})
-	}, nil
-}
-
-type ownedMediaHandle struct {
-	mediasession.ComponentHandle
-	release func()
-}
-
-func (h *ownedMediaHandle) Stop(ctx context.Context) error {
-	if err := h.ComponentHandle.Stop(ctx); err != nil {
-		return err
-	}
-	h.release()
-	return nil
-}
-
-func (h *ownedMediaHandle) Done() <-chan struct{} {
-	if terminal, ok := h.ComponentHandle.(interface{ Done() <-chan struct{} }); ok {
-		return terminal.Done()
-	}
-	return nil
-}
-
-func (s *managedSenderComponent) Start(ctx context.Context, gameID string) (mediasession.ComponentHandle, error) {
-	if s == nil {
-		return nil, errors.New("media sources could not be started")
-	}
-	if hostapi.MediaExecutionFromContext(ctx) == fogcast.ExecutionFPGANative {
-		return noopMediaHandle{}, nil
-	}
-	release, err := s.ownership.claim(fogcast.SessionTargetFromContext(ctx))
-	if err != nil {
-		return nil, err
-	}
-	if s.newSources == nil {
-		release()
-		return nil, errors.New("media sources could not be started")
-	}
-	capture, audio, err := s.newSources(s.media)
-	if err != nil || capture == nil {
-		if capture != nil || audio != nil {
-			return cleanupClaimedMediaSources(capture, audio, release, "media sources could not be started")
-		}
-		release()
-		if err != nil {
-			return nil, fmt.Errorf("media sources could not be started: %w", err)
-		}
-		return nil, errors.New("media sources could not be started")
-	}
-	video, err := remotemedia.NewManagedSender(remotemedia.ManagedSenderConfig{
-		Session: s.media.Session, Generation: s.media.Generation, Token: s.token,
-		SSRC: s.media.SSRC, RTPAddress: s.media.RTPDestination, ControlAddress: s.media.ControlAddress,
-		Bitrate: s.media.Bitrate, GOP: s.media.GOP, MTU: s.media.MTU,
-	}, capture, s.options...)
-	if err != nil {
-		return cleanupClaimedMediaSources(capture, audio, release, "media sender could not be configured")
-	}
-	var managedAudio *remotemedia.ManagedAudioSender
-	if audio != nil {
-		config := s.media.Audio
-		managedAudio, err = remotemedia.NewManagedAudioSender(remotemedia.AudioSenderConfig{
-			RTPAddress: config.Transport.RTPDestination, ControlAddress: config.Transport.ControlAddress,
-			Session: s.media.Session, Generation: s.media.Generation, Token: s.token, SSRC: config.Transport.SSRC,
-			MTU: config.Transport.MTU, SampleRate: config.Source.SampleRate, Channels: config.Source.Channels,
-			FrameSamples: config.Source.FrameSamples, FormatCapabilityVersion: config.Transport.FormatCapabilityVersion,
-		}, audio, s.audioOptions...)
-		if err != nil {
-			return cleanupClaimedMediaSources(capture, audio, release, "audio sender could not be configured")
-		}
-	}
-	sender, err := remotemedia.NewManagedMediaSender(video, managedAudio)
-	if err != nil {
-		return cleanupClaimedMediaSources(capture, audio, release, "media sender could not be configured")
-	}
-	// Ownership transfers to the managed sender before Start. From this point
-	// onward its startup rollback owns every source, including an unstarted
-	// sibling, so the caller must never close the raw sources a second time.
-	capture, audio = nil, nil
-	handle, err := sender.Start(ctx, gameID)
-	if err != nil || handle == nil {
-		if handle == nil {
-			release()
-			return nil, errors.New("media sender could not be started")
-		}
-		return &ownedMediaHandle{ComponentHandle: handle, release: release}, errors.New("media sender could not be started")
-	}
-	return &ownedMediaHandle{ComponentHandle: handle, release: release}, nil
-}
-
-func cleanupClaimedMediaSources(capture remotemedia.CaptureSource, audio remotemedia.AudioSource, release func(), message string) (mediasession.ComponentHandle, error) {
-	handle, err := cleanupUnownedMediaSources(capture, audio, message)
-	if handle == nil {
-		release()
-		return nil, err
-	}
-	return &ownedMediaHandle{ComponentHandle: handle, release: release}, err
-}
-
-type mediaSourcesCleanupHandle struct {
-	capture *mediaSourceCleanupSlot
-	audio   *mediaSourceCleanupSlot
-}
-
-type mediaSourceCleanupSlot struct {
-	source interface{ Close() error }
-
-	mu       sync.Mutex
-	closed   bool
-	inFlight bool
-}
-
-func (s *mediaSourceCleanupSlot) closeWithin(ctx context.Context, timeout time.Duration) error {
-	if s == nil || s.source == nil {
-		return nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	s.mu.Lock()
-	if s.closed {
-		s.mu.Unlock()
-		return nil
-	}
-	if s.inFlight {
-		s.mu.Unlock()
-		return errors.New("media source cleanup is already in progress")
-	}
-	s.inFlight = true
-	s.mu.Unlock()
-
-	result := make(chan error, 1)
-	go func() {
-		err := s.source.Close()
-		s.mu.Lock()
-		s.inFlight = false
-		if err == nil {
-			s.closed = true
-		}
-		s.mu.Unlock()
-		result <- err
-	}()
-
-	if timeout <= 0 {
-		timeout = targetCleanupTimeout
-	}
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-	select {
-	case err := <-result:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return errors.New("media source cleanup timed out")
-	}
-}
-
-func (h *mediaSourcesCleanupHandle) Stop(ctx context.Context) error {
-	if h == nil {
-		return nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	type cleanupResult struct{ err error }
-	results := make(chan cleanupResult, 2)
-	count := 0
-	if h.audio != nil {
-		count++
-		go func() { results <- cleanupResult{err: h.audio.closeWithin(ctx, targetCleanupTimeout)} }()
-	}
-	if h.capture != nil {
-		count++
-		go func() { results <- cleanupResult{err: h.capture.closeWithin(ctx, targetCleanupTimeout)} }()
-	}
-	var first error
-	for index := 0; index < count; index++ {
-		if result := <-results; result.err != nil && first == nil {
-			first = result.err
-		}
-	}
-	return first
-}
-
-func cleanupUnownedMediaSources(capture remotemedia.CaptureSource, audio remotemedia.AudioSource, message string) (mediasession.ComponentHandle, error) {
-	handle := &mediaSourcesCleanupHandle{}
-	if capture != nil {
-		handle.capture = &mediaSourceCleanupSlot{source: capture}
-	}
-	if audio != nil {
-		handle.audio = &mediaSourceCleanupSlot{source: audio}
-	}
-	if err := handle.Stop(context.Background()); err != nil {
-		return handle, errors.New(message)
-	}
-	return nil, errors.New(message)
 }
 
 type noopMediaComponent struct{}
@@ -754,333 +374,40 @@ type noopMediaHandle struct{}
 
 func (noopMediaHandle) Stop(context.Context) error { return nil }
 
+// compositionMediaSession tracks preview handles so shutdown releases capture
+// even when a session was not explicitly stopped.
 type compositionMediaSession struct {
-	mu           sync.Mutex
-	media        hostapi.MediaSession
-	target       targetCast
-	targets      map[string]targetCast
-	tokens       map[string]string
-	session      string
-	token        string
-	generation   uint64
-	mediaSet     *protocol.CastMediaSet
-	targetActive bool
-	// liveCasts is the number of casts that started and have not
-	// stopped. A rebind replaces s.target before the next cast starts,
-	// so stopping the previous handle must not leave this flag set for
-	// a kit that never started one.
-	liveCasts int
-	handle    hostapi.MediaHandle
-	handles   []hostapi.MediaHandle
+	media   hostapi.MediaSession
+	mu      sync.Mutex
+	handles []hostapi.MediaHandle
 }
 
-func newCompositionMediaSession(media hostapi.MediaSession, target targetCast, session, token string, generation uint64) *compositionMediaSession {
-	return &compositionMediaSession{media: media, target: target, targets: make(map[string]targetCast), tokens: make(map[string]string), session: session, token: token, generation: generation}
-}
-
-func (s *compositionMediaSession) SetCastTarget(target fogcast.TargetConfig, lease *targetclient.KitLease) {
-	if s == nil {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if strings.TrimSpace(target.Name) == "" || strings.TrimSpace(target.Agent) == "" {
-		return
-	}
-	address := kitCastAddress(target, lease)
-	if address == "" {
-		return
-	}
-	parsed, err := url.Parse(address)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return
-	}
-	// Share the placement grant. A bare client sends CastStart without
-	// X-FogCast-Kit-Lease, and the kit rejects the media admission.
-	client := targetclient.NewClient(parsed, target.Agent, nil)
-	if lease != nil {
-		client = client.WithKitLease(lease)
-	}
-	s.targets[target.Name] = client
-	s.tokens[target.Name] = target.Agent
-	// Keep the legacy unscoped path aligned with the most recently selected
-	// target; coordinator launches always select from targets by context.
-	s.target = client
-	s.token = target.Agent
+func newCompositionMediaSession(media hostapi.MediaSession) *compositionMediaSession {
+	return &compositionMediaSession{media: media}
 }
 
 func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hostapi.MediaHandle, error) {
-	// Resolve the cast client from this coordinator's target context. The
-	// returned handle retains that client even if another launch rebinds.
-	s.mu.Lock()
-	targetName := fogcast.SessionTargetFromContext(ctx)
-	target := s.targets[targetName]
-	if target == nil && targetName == "" {
-		target = s.target
-	}
-	token := s.token
-	if targetName != "" && s.tokens[targetName] != "" {
-		token = s.tokens[targetName]
-	}
-	session := s.session
-	generation := s.generation
-	mediaSet := s.mediaSet
-	if hostapi.MediaExecutionFromContext(ctx) == fogcast.ExecutionFPGANative {
-		mediaSet = nil
-	}
-	s.mu.Unlock()
-	if target != nil {
-		var status targetclient.CastStatus
-		var err error
-		if mediaSet == nil {
-			status, err = target.CastStart(ctx, session, token, generation)
-		} else {
-			mediaTarget, ok := target.(targetMediaCast)
-			if !ok {
-				return nil, errors.New("target does not support media admission")
-			}
-			status, err = mediaTarget.CastStartWithMedia(ctx, session, token, generation, *mediaSet)
-			if err == nil {
-				err = protocol.ValidateCastMediaAcknowledgement(*mediaSet, status.Media)
-			}
-		}
-		if err != nil || status.State != "active" || status.Session != session || status.Generation != generation {
-			s.noteCastStarted()
-			cleanupCtx, cancel := boundedTargetContext(context.Background())
-			_, cleanupErr := target.CastStop(cleanupCtx, session, generation)
-			cancel()
-			if cleanupErr == nil {
-				s.noteCastStopped()
-				return nil, errors.New("target cast could not be started")
-			}
-			_, monitorCancel := context.WithCancel(context.Background())
-			owned := &compositionMediaHandle{
-				owner: s, cast: target, localStopped: true, done: make(chan struct{}), monitorCancel: monitorCancel,
-			}
-			s.mu.Lock()
-			s.handle = owned
-			s.handles = append(s.handles, owned)
-			s.mu.Unlock()
-			return owned, errors.New("target cast could not be started")
-		}
-		s.noteCastStarted()
-	}
 	handle, err := s.media.Start(ctx, gameID)
-	if err != nil || handle == nil {
-		targetStopped := target == nil
-		var targetErr error
-		if target != nil {
-			cleanupCtx, cancel := boundedTargetContext(context.Background())
-			_, targetErr = target.CastStop(cleanupCtx, session, generation)
-			cancel()
-			if targetErr == nil {
-				targetStopped = true
-				s.noteCastStopped()
-			}
-		}
-		if err == nil {
-			err = errors.New("media sender could not be started")
-		}
-		if handle == nil && targetErr != nil {
-			err = errors.Join(err, targetErr)
-		}
-		if handle != nil || !targetStopped {
-			_, monitorCancel := context.WithCancel(context.Background())
-			owned := &compositionMediaHandle{
-				owner: s, cast: target, handle: handle, localStopped: handle == nil,
-				targetStopped: targetStopped, done: make(chan struct{}), monitorCancel: monitorCancel,
-			}
-			s.mu.Lock()
-			s.handle = owned
-			s.handles = append(s.handles, owned)
-			s.mu.Unlock()
-			return owned, err
-		}
-		return nil, err
+	if handle != nil {
+		s.mu.Lock()
+		s.handles = append(s.handles, handle)
+		s.mu.Unlock()
 	}
-	monitorCtx, monitorCancel := context.WithCancel(context.Background())
-	owned := &compositionMediaHandle{
-		owner: s, cast: target, handle: handle, done: make(chan struct{}), monitorCancel: monitorCancel,
-		targetStopped: target == nil,
-	}
-	s.mu.Lock()
-	s.handle = owned
-	s.handles = append(s.handles, owned)
-	s.mu.Unlock()
-	go owned.monitor(monitorCtx)
-	return owned, nil
-}
-
-// noteCastStarted records one cast this session has admitted.
-func (s *compositionMediaSession) noteCastStarted() {
-	if s == nil {
-		return
-	}
-	s.mu.Lock()
-	s.liveCasts++
-	s.targetActive = true
-	s.mu.Unlock()
-}
-
-// noteCastStopped records that one admitted cast has stopped. The
-// session flag stays set while another cast is still running, and
-// clears when the last one stops, including after a rebind that has
-// not started a replacement cast.
-func (s *compositionMediaSession) noteCastStopped() {
-	if s == nil {
-		return
-	}
-	s.mu.Lock()
-	if s.liveCasts > 0 {
-		s.liveCasts--
-	}
-	s.targetActive = s.liveCasts > 0
-	s.mu.Unlock()
+	return handle, err
 }
 
 func (s *compositionMediaSession) Close() error {
 	s.mu.Lock()
 	handles := append([]hostapi.MediaHandle(nil), s.handles...)
-	if len(handles) == 0 && s.handle != nil {
-		handles = append(handles, s.handle)
-	}
-	targetActive := s.targetActive
 	s.mu.Unlock()
-	var first error
-	if len(handles) != 0 {
-		for _, handle := range handles {
-			if err := handle.Stop(context.Background()); err != nil {
-				first = errors.Join(first, err)
-				_ = handle.Stop(context.Background())
-			}
-		}
-	} else if targetActive && s.target != nil {
-		cleanupCtx, cancel := boundedTargetContext(context.Background())
-		_, err := s.target.CastStop(cleanupCtx, s.session, s.generation)
-		cancel()
-		if err != nil {
-			first = err
-			retryCtx, retryCancel := boundedTargetContext(context.Background())
-			_, _ = s.target.CastStop(retryCtx, s.session, s.generation)
-			retryCancel()
-		} else {
-			s.mu.Lock()
-			s.targetActive = false
-			s.liveCasts = 0
-			s.mu.Unlock()
+	var result error
+	for _, handle := range handles {
+		if err := handle.Stop(context.Background()); err != nil {
+			result = errors.Join(result, err)
+			_ = handle.Stop(context.Background())
 		}
 	}
-	return first
-}
-
-type compositionMediaHandle struct {
-	owner         *compositionMediaSession
-	handle        hostapi.MediaHandle
-	cast          targetCast
-	mu            sync.Mutex
-	localStopped  bool
-	targetStopped bool
-	done          chan struct{}
-	doneOnce      sync.Once
-	monitorCancel context.CancelFunc
-}
-
-func (h *compositionMediaHandle) Stop(ctx context.Context) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	var first error
-	if !h.localStopped {
-		localCtx, cancel := boundedTargetContext(ctx)
-		err := h.handle.Stop(localCtx)
-		cancel()
-		if err != nil {
-			first = err
-		} else {
-			h.localStopped = true
-		}
-	}
-	target := h.cast
-	if !h.targetStopped && target != nil {
-		targetCtx, cancel := boundedTargetContext(context.Background())
-		_, err := target.CastStop(targetCtx, h.owner.session, h.owner.generation)
-		cancel()
-		if err != nil {
-			if first == nil {
-				first = err
-			}
-		} else {
-			h.targetStopped = true
-			h.owner.noteCastStopped()
-		}
-	}
-	if target == nil {
-		h.targetStopped = true
-	}
-	if h.localStopped && h.targetStopped {
-		h.monitorCancel()
-		h.doneOnce.Do(func() { close(h.done) })
-		h.owner.mu.Lock()
-		if h.owner.handle == h {
-			h.owner.handle = nil
-		}
-		h.owner.mu.Unlock()
-	}
-	return first
-}
-
-func (h *compositionMediaHandle) Done() <-chan struct{} {
-	return h.done
-}
-
-func (h *compositionMediaHandle) monitor(ctx context.Context) {
-	var localDone <-chan struct{}
-	if terminal, ok := h.handle.(interface{ Done() <-chan struct{} }); ok {
-		localDone = terminal.Done()
-	}
-	ticker := time.NewTicker(targetStatusInterval)
-	defer ticker.Stop()
-	consecutiveFailures := 0
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-localDone:
-			h.doneOnce.Do(func() { close(h.done) })
-			return
-		case <-ticker.C:
-			target := h.cast
-			if target == nil {
-				continue
-			}
-			statusCtx, cancel := boundedTargetContext(ctx)
-			status, err := target.CastStatus(statusCtx)
-			cancel()
-			if err != nil {
-				consecutiveFailures++
-				if consecutiveFailures >= targetStatusFailures {
-					h.doneOnce.Do(func() { close(h.done) })
-					return
-				}
-				continue
-			}
-			consecutiveFailures = 0
-			if status.State != "active" || status.Session != h.owner.session || status.Generation != h.owner.generation {
-				h.mu.Lock()
-				h.targetStopped = true
-				h.mu.Unlock()
-				h.owner.noteCastStopped()
-				h.doneOnce.Do(func() { close(h.done) })
-				return
-			}
-		}
-	}
-}
-
-func boundedTargetContext(parent context.Context) (context.Context, context.CancelFunc) {
-	if parent == nil {
-		parent = context.Background()
-	}
-	return context.WithTimeout(parent, targetCleanupTimeout)
+	return result
 }
 
 func closeComposition(cleanup []func() error) error {

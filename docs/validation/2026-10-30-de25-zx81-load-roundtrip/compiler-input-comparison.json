@@ -1,0 +1,21 @@
+{
+  "previous_compiler_producer": "c7a991110c993f69ad1a94af504679289aae4c9e",
+  "simulation_producer": "a05bd205c6929a72d5c070d353c8ea37203fd665",
+  "previous_artifact_claim": "Only the original captured inputs; no Quartus build performed for the integrated tree.",
+  "changed_sources": {
+    "sources/misteross/boards/de25nano/zx81-hps/clocks.sdc": {
+      "compiler": "bc25898c65a4079c1b8e2c6e72d99a39398d9bf9fd787555400e34cb895a9d90",
+      "simulation": "c9cc9109c6ce697f311c54fce890a2ed39f61d749b838d8482b4cea0aa04bb05"
+    },
+    "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v": {
+      "compiler": "12999cc89c4ebfc228bd3e533190c267e09b492edf74e234c829843ed22e2fbb",
+      "simulation": "8ff47eed1c8693a8b018df7a7da70de4eb74e0cca1d7d4ecede0f3919ab2743a"
+    },
+    "sources/misteross/boards/de25nano/zx81-hps/video.v": {
+      "compiler": "a59b68c567785de5b23ecced277d39549a95fcc409da27a09144f6392dc3706a",
+      "simulation": "73a4ed20dd1d19440e8ef4ceb6e766f4ff25e61b9354a4cc9c9cabb5c631f605"
+    }
+  },
+  "unchanged_count": 55,
+  "fixture_PR_changes_production_sources": false
+}

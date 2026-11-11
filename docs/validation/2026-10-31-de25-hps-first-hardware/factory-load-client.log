@@ -1,0 +1,26 @@
+Traceback (most recent call last):
+  File "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-board-cpu-proofs/docs/validation/2026-10-30-de25-board-cpu-proofs/replay.py", line 56, in run
+    stdout, stderr = process.communicate(data, timeout=timeout)
+                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 1222, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 2129, in _communicate
+    self._check_timeout(endtime, orig_timeout, stdout, stderr)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 1269, in _check_timeout
+    raise TimeoutExpired(
+    ...<2 lines>...
+            stderr=b''.join(stderr_seq) if stderr_seq else None)
+subprocess.TimeoutExpired: Command '['sshpass', '-d', '3', 'ssh', '-o', 'StrictHostKeyChecking=yes', '-o', 'UserKnownHostsFile=/home/deano/.codex/worktrees/c134/fes/out/dev/de25-platform/out/factory-linux-live-20261031/known_hosts', '-o', 'HostKeyAlgorithms=ssh-ed25519', '-o', 'PreferredAuthentications=password', '-o', 'PubkeyAuthentication=no', '-o', 'NumberOfPasswordPrompts=1', '-o', 'ConnectTimeout=6', '-o', 'ExitOnForwardFailure=yes', 'root@[private-ip]', 'test "$(cat /sys/class/net/eth0/address)" = [private-mac] && test "$(cat /proc/sys/kernel/random/boot_id)" = e29bcc8c-f48a-43b9-9742-2fcd6f57b9aa || exit 93\nset -eu; test -z "$(cat /sys/module/firmware_class/parameters/path)"; test ! -d /sys/kernel/config/device-tree; mount -t configfs none /sys/kernel/config; echo /tmp/fes-c134-platform-XXbuBRNI > /sys/module/firmware_class/parameters/path; mkdir /sys/kernel/config/device-tree/overlays/fes-c134-platform; cat /tmp/fes-c134-platform-XXbuBRNI/zx81-linux.dtbo > /sys/kernel/config/device-tree/overlays/fes-c134-platform/dtbo; cat /sys/kernel/config/device-tree/overlays/fes-c134-platform/status; cat /sys/class/fpga_manager/fpga0/state; cat /proc/sys/kernel/random/boot_id; dmesg | tail -25']' timed out after 55 seconds
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-platform/out/factory-linux-live-20261031/load.py", line 6, in <module>
+    r=host.run('set -eu; test -z "$(cat /sys/module/firmware_class/parameters/path)"; test ! -d /sys/kernel/config/device-tree; mount -t configfs none /sys/kernel/config; echo '+host.m.quote(remote)+' > /sys/module/firmware_class/parameters/path; mkdir /sys/kernel/config/device-tree/overlays/fes-c134-platform; cat '+host.m.quote(remote+'/zx81-linux.dtbo')+' > /sys/kernel/config/device-tree/overlays/fes-c134-platform/dtbo; cat /sys/kernel/config/device-tree/overlays/fes-c134-platform/status; cat /sys/class/fpga_manager/fpga0/state; cat /proc/sys/kernel/random/boot_id; dmesg | tail -25','paired-linux-core-load',timeout=55)
+  File "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-platform/out/factory-linux-live-20261031/host.py", line 10, in run
+    r=board.run(command,data=data,allow_failure=True,timeout=timeout)
+  File "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-board-cpu-proofs/docs/validation/2026-10-30-de25-board-cpu-proofs/replay.py", line 66, in run
+    raise RuntimeError(self.serial + ': owned SSH proof timed out')
+RuntimeError: TRWU8J8G: owned SSH proof timed out
