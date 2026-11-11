@@ -1,0 +1,95 @@
+{
+  "build_id": "4946e8584c9093a86d3e6ae0d029770c",
+  "guest_rates": {
+    "ATA_RESET_CLOCKS": 615,
+    "AUDIO_D": 1280,
+    "AUDIO_N": 1,
+    "DMA_D": 9216,
+    "DMA_N": 625,
+    "DOT0_D": 12288,
+    "DOT0_N": 5035,
+    "DOT1_D": 30720,
+    "DOT1_N": 14161,
+    "GOV_D": 3072,
+    "GOV_N": 5,
+    "ISA_D": 4608,
+    "ISA_N": 625,
+    "OPL2_D": 1081344,
+    "OPL2_N": 875,
+    "PIT_D": 22528,
+    "PIT_N": 875,
+    "RTC_D": 1875,
+    "RTC_N": 1,
+    "US_D": 1536,
+    "US_N": 25
+  },
+  "rbf": {
+    "sha256": "4f69408c0974f60670ae5d46f2dde5b3b11d74dd96e9e4cce5ac597e16191a2d",
+    "size": 3866592
+  },
+  "resources": {
+    "alms": {
+      "available": 41910,
+      "used": 36002
+    },
+    "block_memory_bits": {
+      "available": 5662720,
+      "used": 1342310
+    },
+    "dsp_blocks": {
+      "available": 112,
+      "used": 38
+    },
+    "ram_blocks": {
+      "available": 553,
+      "used": 268
+    },
+    "registers": {
+      "used": 32413
+    }
+  },
+  "status": "pass",
+  "timing": {
+    "analyses": {
+      "hold": {
+        "tns_ns": 0.0,
+        "worst_slack_ns": 0.077
+      },
+      "minimum_pulse_width": {
+        "tns_ns": 0.0,
+        "worst_slack_ns": 1.122
+      },
+      "recovery": {
+        "tns_ns": 0.0,
+        "worst_slack_ns": 7.097
+      },
+      "removal": {
+        "tns_ns": 0.0,
+        "worst_slack_ns": 0.577
+      },
+      "setup": {
+        "tns_ns": 0.0,
+        "worst_slack_ns": 0.753
+      }
+    },
+    "clocks": {
+      "audio": {
+        "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+        "mhz": 12.29
+      },
+      "pixel": {
+        "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+        "mhz": 74.27
+      },
+      "system": {
+        "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+        "mhz": 61.44
+      }
+    },
+    "status": "pass"
+  },
+  "tools": {
+    "quartus_sh": "version=17.0.2; sha256=71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93",
+    "yosys": "commit=0a7927bf126eb3d868c50b3bb5e11b69ff656ea9; sha256=7cb7c29590d49e89e1a2edcab8a5335896fdbbf1aea0948187e3ff56ebed801b"
+  }
+}
