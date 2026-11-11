@@ -1359,6 +1359,58 @@ void TestMenuPresentationFailureUsesIdleRecovery()
  assert(!f.runtime.BeginMenuFrame(generation,&frame).ok());
 }
 
+// A recovered presentation has its own error lifetime. It must not become a
+// permanent lifecycle fault, or erase a different launch failure on redraw.
+void TestRecoveredMenuFrameErrorClearsOnlyAfterConfirmedRedraw()
+{
+ for(const bool prior_launch_error : {false,true}) {
+  Fixture f;const std::string id(64,'a');assert(f.runtime.Start().ok());
+  assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
+  if(prior_launch_error) {
+   f.hardware.core_result={{ErrorCode::io_failed,"earlier core refusal","load"},false,""};
+   assert(!f.runtime.LoadCore("/game",id).ok());
+  }
+  const auto prior=f.runtime.status().error;
+  const auto generation=f.runtime.status().menu_display.generation;
+  std::unique_ptr<mister::MenuFrame> frame;assert(f.runtime.BeginMenuFrame(generation,&frame).ok());
+  f.hardware.menu_present_result={ErrorCode::io_failed,"DE25 HDMI is not ready","menu"};
+  mister::MenuDisplayInfo info;
+  const auto failed=f.runtime.PresentMenuFrame(generation,*frame,&info);
+  assert(failed.code==ErrorCode::io_failed&&failed.message=="DE25 HDMI is not ready");
+  const auto recovered=f.runtime.status();
+  assert(recovered.state==State::idle&&recovered.menu_display.available);
+  assert(recovered.menu_display.generation>generation);
+  assert(recovered.error.code==prior.code&&recovered.error.message==prior.message);
+  assert(recovered.menu_display.error.message==failed.message);
+  // Opening the new generation is insufficient to acknowledge a redraw.
+  frame.reset();assert(f.runtime.BeginMenuFrame(recovered.menu_display.generation,&frame).ok());
+  assert(f.runtime.status().menu_display.error.message==failed.message);
+  f.hardware.menu_present_result={};
+  assert(f.runtime.PresentMenuFrame(recovered.menu_display.generation,*frame,&info).ok());
+  const auto redrawn=f.runtime.status();
+  assert(info.displayed_sequence>0&&redrawn.menu_display.error.ok());
+  assert(redrawn.error.code==prior.code&&redrawn.error.message==prior.message);
+ }
+}
+
+void TestMenuFrameRecoveryRequiresHealthyAvailableMenu()
+{
+ for(const bool stale_menu_fault : {false,true}) {
+  Fixture f;const std::string id(64,'a');assert(f.runtime.Start().ok());
+  assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
+  const auto generation=f.runtime.status().menu_display.generation;
+  std::unique_ptr<mister::MenuFrame> frame;assert(f.runtime.BeginMenuFrame(generation,&frame).ok());
+  f.hardware.menu_present_result={ErrorCode::io_failed,"presentation refused","menu"};
+  f.hardware.on_menu_present=[&] {
+   if(stale_menu_fault)f.hardware.menu_status.error={ErrorCode::io_failed,"cleanup display fault","menu"};
+   else f.hardware.menu_configured=false;
+  };
+  mister::MenuDisplayInfo info;assert(!f.runtime.PresentMenuFrame(generation,*frame,&info).ok());
+  assert(f.runtime.status().error.message=="presentation refused");
+  assert(stale_menu_fault?!f.runtime.status().menu_display.error.ok():!f.runtime.status().menu_display.available);
+ }
+}
+
 void TestMenuFrameYieldsToCoreDataAndLaunch()
 {
  for (const bool inspect_data : {true, false}) {
@@ -1981,6 +2033,8 @@ int main()
  TestMenuBlitterGrantTakesCpuFramesUntilAList();
  TestMenuPreparationFencesLifecycle();
  TestMenuPresentationFailureUsesIdleRecovery();
+ TestRecoveredMenuFrameErrorClearsOnlyAfterConfirmedRedraw();
+ TestMenuFrameRecoveryRequiresHealthyAvailableMenu();
  TestMenuIdleStopAndPreMutationFailurePreserveFences();
 	TestComputerMouseBindingAndFaultRetirement();
 	TestComputerKeyboardBindingSerializationAndFaults();

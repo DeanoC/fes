@@ -115,6 +115,7 @@ bool DeclaresComputerInterface(const CoreDescriptor& descriptor, const char* id)
 } // namespace
 
 class Runtime::Impl final : public HardwareFaultSink {
+ enum class FailureScope { lifecycle, menu_frame };
 public:
 	Impl(Hardware& hardware, LogSink& log)
 		: mutex_(), condition_(), hardware_(hardware),
@@ -288,14 +289,18 @@ public:
    // Hardware keeps the menu package while a bounded reactivation is allowed
    // and clears it once that limit is exhausted. LoadIdle then reprograms the
    // package or the splash. The failure path revoked the window.
-   const Error failure=FinishLaunchFailure("menu_frame_commit","","fes.menu",{error,true,"fes.menu"});
+   const Error failure=FinishLaunchFailure("menu_frame_commit","","fes.menu",{error,true,"fes.menu"},
+    nullptr,nullptr,FailureScope::menu_frame);
    { std::lock_guard<std::mutex> lock(mutex_);menu_frame_busy_=false; }
    condition_.notify_all();return failure;
   }
   {
    std::lock_guard<std::mutex> lock(mutex_);
    status_.menu_display.displayed_sequence=info.displayed_sequence;
-   status_.menu_display.underflows=info.underflows;busy_=false;menu_frame_busy_=false;*output=info;
+   status_.menu_display.underflows=info.underflows;
+   // A new completed frame retires only the prior presentation error.
+   // Lifecycle failures remain independently visible in status_.error.
+   status_.menu_display.error={};busy_=false;menu_frame_busy_=false;*output=info;
    if(frame.draw_.blit)status_.menu_display.blitted=true;
   }
   condition_.notify_all();return {};
@@ -1380,10 +1385,12 @@ public:
 	Error FinishLaunchFailure(const std::string& operation,
 		const std::string& system, const std::string& core,
 		const HardwareResult& result,const Status* previous_status=nullptr,
-		const Status* retained_owner=nullptr)
+		const Status* retained_owner=nullptr,
+  FailureScope scope=FailureScope::lifecycle)
 	{
 		const Error primary = result.error;
 		Status retained;
+  Error retained_lifecycle_error;
 		if (result.bound_media_may_have_run) {
 			std::lock_guard<std::mutex> lock(mutex_);
 			retained = retained_owner ? *retained_owner : status_;
@@ -1393,6 +1400,7 @@ public:
 			std::lock_guard<std::mutex> lock(mutex_);
 			active_generation_ = 0;
 			pending_fault_generation_ = 0;
+   if(scope==FailureScope::menu_frame)retained_lifecycle_error=status_.error;
 		}
 		Log(operation, system, core, "failure", primary);
 		if (!result.mutation_attempted) {
@@ -1430,7 +1438,13 @@ public:
 			{
 				std::lock_guard<std::mutex> lock(mutex_);
 				status_ = FreshStatus(State::idle);
-				status_.error = primary;
+    if(scope==FailureScope::menu_frame&&status_.menu_display.available&&
+       status_.menu_display.error.ok()&&status_.error.ok()) {
+     // Cleanup authenticated a replacement MENU grant. Preserve the failed
+     // request/log, and keep its error local until a confirmed new frame.
+     status_.error=retained_lifecycle_error;
+     status_.menu_display.error=primary;
+    } else status_.error = primary;
 				busy_ = false;
 			}
 			condition_.notify_all();

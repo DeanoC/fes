@@ -1212,6 +1212,17 @@ scanout minors. Older immutable supervisors reject its distinct base identity
 before their additive interface rule could accept a newer-only runtime. DE10
 base identity and additive interface semantics stay unchanged.
 
+Idle MENU presentation failures retain their failed request and log, but a
+successful cleanup to an available fresh MENU keeps that presentation error in
+`menu_display.error`, rather than replacing the independent lifecycle error.
+Preparing or sharing the new grant does not clear the error; only a successfully
+completed new frame clears it. A previous lifecycle failure remains global even
+after that redraw. Unavailable MENU, failed cleanup and reboot-required recovery
+retain the existing global failure behavior. No grant, drain, programming or
+hardware-fault predicate changes. Native hardware acceptance of this reporting
+change remains pending after the 2026-11-11 switcher trial exposed the stale
+global HDMI-readiness error.
+
 MenuMemory retirement precedes any replacement. OWNER_REAP must prove drain;
 OWNER_IDLE must subsequently show the last peer FD/VMA gone. A failed retirement
 remains sticky, including after the peer eventually closes. The kernel's file
