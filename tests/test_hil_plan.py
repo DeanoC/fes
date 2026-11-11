@@ -271,6 +271,48 @@ class HilPlanTest(unittest.TestCase):
         row = hil_module().classify_path('sources/misteross/scripts/build_fes_coleco_socket_v2.py')
         self.assertEqual(row['component'], 'core:coleco')
 
+    def test_expansion_archives_and_their_inputs_require_full_plan(self):
+        plan = hil_module()
+        scripts = 'sources/misteross/scripts/'
+        texts = plan.script_texts()
+        producers = (
+            'build_apple2_slot_card.py', 'build_atari_st_slot_card.py',
+            'build_c64_slot_card.py', 'build_coleco_bus_diagnostic.py',
+            'build_coleco_sgm.py', 'build_zx81_bus_validation_cart.py',
+        )
+        for name in producers:
+            with self.subTest(producer=name):
+                result = plan.plan([scripts + name], texts)
+                self.assertEqual(result['decision'], 'FULL_IMAGE')
+                self.assertEqual(result['rows'][0]['component'], 'expansion-archive')
+
+        for path in (
+            'cores/fes-apple2/expansions/probe_rom.vh',
+            'cores/fes-atari-st/expansions/st_probe.sv',
+            'cores/fes-c64/expansions/probe.v',
+            'cores/fes-coleco/expansions/diagnostic.v',
+            'cores/fes-coleco/expansions/sgm_ay.v',
+            'cores/fes-zx81/expansions/zonx_ay.v',
+        ):
+            with self.subTest(source=path):
+                result = plan.plan(['sources/misteross/' + path], texts)
+                self.assertEqual(result['decision'], 'FULL_IMAGE')
+                self.assertIn(' <- ', result['rows'][0]['rule'])
+
+        # Shared helpers also affect the archive producer that imports them.
+        for name, producer in (('apple2_slots.py', 'build_apple2_slot_card.py'),
+                               ('atari_st_slot.py', 'build_atari_st_slot_card.py'),
+                               ('c64_slots.py', 'build_c64_slot_card.py')):
+            with self.subTest(helper=name):
+                result = plan.plan([scripts + name], texts)
+                self.assertEqual(result['decision'], 'FULL_IMAGE')
+                self.assertIn(scripts + producer,
+                              {row['path'] for row in plan.script_importers(scripts + name, texts)})
+
+        # An ordinary core producer and documentation must not match the new rules.
+        self.assertEqual(plan.classify_path(scripts + 'build_fes_ramtest_oss.py')['class'], 'overlay')
+        self.assertEqual(plan.classify_path('docs/hil-plan.md')['class'], 'none')
+
     @unittest.skipUnless(shutil.which('go'), 'go toolchain not installed')
     def test_go_packages_used_only_by_unmapped_commands_force_full(self):
         import importlib.util

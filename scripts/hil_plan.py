@@ -130,6 +130,13 @@ RULES = [
     ('sources/misteross/scripts/build_fes_splash*', 'full', 'image-splash'),
     # Video parts ship as separate part archives the overlay cannot attest.
     ('sources/misteross/scripts/*video_part*', 'full', 'video-part'),
+    # Expansion archives are independent of the core packages an overlay loads.
+    # The full-image plan escalates the change; the archive still needs its own
+    # build and artifact-specific validation (the default image does not ship it).
+    ('sources/misteross/scripts/*slot_card*', 'full', 'expansion-archive'),
+    ('sources/misteross/scripts/build_coleco_bus_diagnostic.py', 'full', 'expansion-archive'),
+    ('sources/misteross/scripts/build_coleco_sgm.py', 'full', 'expansion-archive'),
+    ('sources/misteross/scripts/build_zx81_bus_validation_cart.py', 'full', 'expansion-archive'),
     ('sources/misteross/cores/*/**', 'overlay', 'core:{core}'),
     ('sources/misteross/scripts/build_fes_*', 'overlay', 'core:{script}'),
     ('sources/misteross/scripts/**', 'overlay', 'core:ALL'),
@@ -463,7 +470,7 @@ def expand(row, consumers):
     """Fold the scripts that consume a changed file into its plan row."""
     full = [item for item in consumers if item['class'] == 'full']
     if full:
-        # A full-image producer (splash, video part) or an unresolved import.
+        # A full-image producer (splash, video part, expansion) or an unresolved import.
         row.update({'class': 'full', 'component': full[0]['component'],
                     'rule': row['rule'] + ' <- ' + full[0]['path']})
         return
