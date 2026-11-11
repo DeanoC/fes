@@ -5965,7 +5965,12 @@ int13_harddisk(DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS)
       nlspt = read_word_DS(&EbdaData->ata.devices[device].lchs.spt);
       count = read_byte_DS(&EbdaData->ata.hdcount);
 
-      nlc = nlc - 1; /* 0 based */
+      // FES 2026-11-12: the highest cylinder below the AT's diagnostic
+      // cylinder, as the IBM PC/AT BIOS reports it: the table's count less
+      // two. AH=15h already leaves that cylinder out of the size, and
+      // Windows' WDCTRL checks the count against INT 41h's table and fails
+      // at phase 3 when only one is taken off.
+      nlc = nlc - 2;
       SET_AL(0);
       SET_CH(nlc & 0xff);
       SET_CL(((nlc >> 2) & 0xc0) | (nlspt & 0x3f));
