@@ -29,7 +29,7 @@ def main():
             sources.append(SHARED_RTL / "fes_menu_video.v")
             sources.append(ROOT / "cores/fes-menu/rtl/fes_menu_pattern_memory.v")
         if case in ("board", "ddr-board", "ddr-disabled", "gp-board"):
-            sources.extend([SHARED_RTL / ("menu_top.v" if case == "gp-board" else "fes_menu_top.v"), ROOT / "cores/fes-menu/sim/board_models.v"])
+            sources.extend([(ROOT / "cores/fes-menu/rtl/menu_top.v" if case == "gp-board" else SHARED_RTL / "fes_menu_top.v"), ROOT / "cores/fes-menu/sim/board_models.v"])
         if case in ("ddr", "ddr-board", "ddr-disabled", "gp", "gp-board"):
             sources.extend([ROOT / "cores/fes-common/rtl/fes_hps_ddr.v",
                             ROOT / "cores/fes-common/rtl/fes_hps_ddr_guard.v",
