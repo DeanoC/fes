@@ -86,7 +86,8 @@ Tracker: [#1548](https://github.com/DeanoC/fes/issues/1548) (Phase 5).
 - **RTL runs.** `machine_tb --cpu rtl --rtl-from 3` for 40 s: the oracle
   boots FreeDOS, and the RTL takes over at 3.0 s in real mode, before
   LOADLIN. Main ran all three kernels and slice 4 ran 1.2.13 and 2.0.0, with no keys.
-  One more slice-4 run of 2.0.0 had the oracle runs' keys.
+  One more slice-4 run of 2.0.0 ran for 42 s (`--limit-seconds 42`) with
+  the oracle runs' keys, so its 42 s frame compares with theirs.
 - **Reading the screen.** The Linux console scrolls by moving the CRTC
   start address. `machine_tb`'s `SCREEN` lines and prompt detection read
   VRAM from offset 0, so they show stale text. Every result here was read
@@ -131,7 +132,7 @@ and four commands.
 | #PF from CPL 3: error 4 (read, not present), 6 (write, not present), 7 (write, protection: copy-on-write) | 715 / 72 / 664 | 811 / 82 / 508 | 783 / 222 / 330 | Slice 1 |
 | #PF from CPL 0 | 1, error 0 (read, not present) | none | 49, error 2 (write, not present) | Slice 1 |
 | Task switches: far JMP (`FF /5`) to a 32-bit TSS, LDT changes, CPL 0 to 0 | 91, every one changing CR3 | 86, every one changing CR3 | 90 (82 changing CR3, 8 not: kernel threads) | **Slice 4 (PR #1684)** |
-| TSS I/O map | base 0068h (77) and 8000h (15), limit EBh: never read | as 0.99.15 | as 0.99.15 | — |
+| TSS I/O map at each TR change, limit EBh: never read | base 0068h (77), 8000h (15) | 0068h (69), 8000h (18) | 0068h (70), 8000h (21) | — |
 | LTR once, LLDT at boot and per task switch | yes | yes | yes | Phase 2 |
 | Ring 3: IRET to CPL 3 | 2,950,303 | 3,932 | 3,689 | Phase 2 slice 3 (merged) |
 | INT 80h through a DPL-3 trap gate, from CPL 3 (from CPL 0) | 2,948,657 | 2,487 (7) | 2,312 (15) | Phase 2 slice 3 |
