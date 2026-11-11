@@ -328,7 +328,7 @@ func TestC64RoomFiltersLargeLibraryAndFetchesSelectedGameBeyondLimit(t *testing.
 		t.Fatal("another family's entries appeared in the C64 selection")
 	}
 	queries := svc.recorded()
-	if len(queries) != 1 || queries[0].Platform != "fpga" || len(queries[0].CoreIDs) != 18 {
+	if len(queries) != 1 || queries[0].Platform != "fpga" || len(queries[0].CoreIDs) != 17 {
 		t.Fatalf("shared workbench query did not filter registered core rows: %+v", queries)
 	}
 	foundC64 := false
