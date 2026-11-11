@@ -2330,8 +2330,9 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                     const size_t slot = last->writes_before + (inner ? 2 : 0);
                     if (slot < result.writes.size() && result.writes[slot].length == 4) {
                         const uint32_t rf_at = write_key(result.writes[slot].physical + 2);
-                        if (rf_at < RAM_BYTES && oracle_writes.count(rf_at) && (bus.ram[rf_at] ^ rtl.ram[rf_at]) == 1
-                            && (rtl.ram[rf_at] & 1)) {
+                        if (rf_at < RAM_BYTES && oracle_writes.count(rf_at) && !(rtl.ram[rf_at] & 1))
+                            out.add(at + "db-frame-rf", 1, 0);
+                        else if (rf_at < RAM_BYTES && oracle_writes.count(rf_at) && (bus.ram[rf_at] ^ rtl.ram[rf_at]) == 1) {
                             bus.ram[rf_at] = rtl.ram[rf_at];
                             oracle.invalidate(rf_at, 1);
                             ++summary.db_rf_rule;
@@ -7839,6 +7840,11 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
             a.op({0x40});
         };
         db("db-ibp", [=](Asm &a) { ibp(a, 1, 0); }, 1);
+        // GD's #DB with DR6's B1 and BS set first: BD joins them.
+        db("db-gd-sticky", [=](Asm &a) {
+            mov_eax(a, 0x4002); a.op({0x0f, 0x23, 0xf0});                         // MOV DR6, B1 | BS
+            dr7(a, 0x2000); a.op({0x0f, 0x21, 0xc3});                             // GD; MOV EBX, DR0
+        }, 1);
         db("db-ibp-g0-sticky", [=](Asm &a) { ibp(a, 2, 0x4); }, 1);
         db("db-real-ibp", [=](Asm &a) { ibp(a, 3, 0); }, 1, true);
         // LEN 01 at the instruction's address plus one (an even address):

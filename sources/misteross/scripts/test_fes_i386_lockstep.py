@@ -294,7 +294,7 @@ def run_pmode(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PMODE_CASES = 392
+PMODE_CASES = 393
 
 
 def run_paging(testbench: str, env: dict) -> dict:
