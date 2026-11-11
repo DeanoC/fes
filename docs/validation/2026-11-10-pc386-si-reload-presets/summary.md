@@ -6,15 +6,17 @@ while audio played. [#1506](../2026-11-05-pc386-si-reload/summary.md) didn't
 reproduce it in three runs. This record repeats it on a fresh seal of main
 with #1483's status ring and VRAM probes, at four governor presets.
 
-**Result: reproduced, 10 times in 299 launches. It isn't a speed artefact or
+**Result: reproduced, 12 times in 400 launches. It isn't a speed artefact or
 a long load. In `k6`'s black launch, the capture buffers held the same
 picture as in the lit launches, and the picture was black from the DOS
 prompt on. In `k8`'s six black launches, the core still drove lit pixels to
 the HDMI transmitter pins: the 720p presenter's output and the display
 plane's output both had lit pixels in every sampled frame, and the plane was
-closed. So the black comes after the core's video output: the pin timing
-into the ADV7513, the ADV7513 and its per-launch setup, the HDMI link, or
-the Powerboat grabber.**
+closed. In `k9`'s two black launches, the ADV7513's registers matched the
+lit launches and the grabber still received the game's HDMI audio at full
+level. So the HDMI link was up and the transmitter was set up as usual. What
+remains is the pixel bus into the ADV7513 (its sampling of the core's data,
+DE and sync) or the grabber's video path.**
 
 - In Kit B run `k1`, one launch at 486DX2-66 showed a flat black picture
   for the whole launch: introduction, menu, Journey Onward and 60 s after
@@ -55,11 +57,14 @@ the Powerboat grabber.**
   same as lit: presenter and plane output lit, plane closed (`ui_active` 0,
   `locked` 1, `faulted` 0), presenter showing a 720x400 picture. See
   [Runs `k7` and `k8`](#runs-k7-and-k8-presenter-and-display-plane-state-11-november-09131200-eet).
+- Run `k9` (101 launches, 2 black) dumped the ADV7513's register map read-only
+  at every launch and recorded the grabber's HDMI audio through Serpent
+  Isle's introduction. See [Run `k9`](#run-k9-adv7513-registers-and-hdmi-audio-11-november-13111440-eet).
 - Which stage after the core's pins isn't pinned yet (see [Next](#next)).
 
 The issue's title describes it too narrowly. The fault isn't tied to Journey
 Onward, the save or Serpent Isle: it blacks out a whole launch from the DOS
-prompt on. All 299 launches ran Serpent Isle's disk image, so the count stays
+prompt on. All 400 launches ran Serpent Isle's disk image, so the count stays
 per launch of that image.
 
 `v1`'s black main menu, and the black picture after its load, fit the same
@@ -207,33 +212,30 @@ every preset.
 
 ## Next
 
-- **Which stage after the core.** In a black launch the core drives lit
-  pixels with DE into `HDMI_TX_D` (`top.sv` wires the plane's output
-  straight to the pins). What's left:
-  - the pin timing into the ADV7513. Every core drives `HDMI_TX_CLK` from
-    `pixel_clk` with no output-delay constraints, and #1003 found a
-    placement-specific dropout at the ADV7513's sampling edge (fixed by
-    the runtime's `0xBA` clock delay in #1011);
-  - the ADV7513 and the runtime's setup of it at each load;
-  - the HDMI link;
-  - the Powerboat grabber. Every black observation comes from it, and
-    `4c6d2c8d` is any flat-black 720p grab (the PC/XT records' `empty.png`
-    has it too), so the grab can't tell black video from a lost signal.
-- **Next diagnostics, cheapest first, proposed on #1494 before any of them:**
-  1. Host only: Quartus timing of the `HDMI_TX_D`/`DE`/`HS`/`VS` pads against
-     `HDMI_TX_CLK` for main's seal, `d1` and `d2`, to see whether they sit
-     near the ADV7513's sampling edge.
-  2. Powerboat, read-only: the grabber's signal status and detected timings
-     at a black grab (`v4l2-ctl --query-dv-timings`), and HDMI audio across
-     a black launch: audio means the link is up with black video.
-  3. Kit, read-only: the ADV7513's registers (including `0xBA` and the
-     status registers) in a black launch and a lit one, if the kit has an
-     I2C read tool. Nothing installed.
-  4. Any ADV7513 register write (a `0xBA` sweep) needs Deano's OK.
+- **What's left.** In a black launch the core drives lit pixels with DE
+  onto the HDMI pins, the ADV7513's registers are as in a lit launch, and
+  HDMI audio reaches the grabber. That leaves:
+  - the ADV7513's sampling of the pixel bus. The pins come from fabric
+    registers with no output constraints and change from about 1.4 ns
+    before to 3.8 ns after the `HDMI_TX_CLK` edge (see [HDMI pin
+    timing](#hdmi-pin-timing-host-only)). That skew is fixed for a build,
+    so it alone doesn't explain one launch in twenty or so going black;
+  - the grabber's video path (Kit B's ASUS 4KPRO, a UVC device that reports
+    no detected timings). `4c6d2c8d` is any flat-black grab, so it can't
+    tell black video from video it dropped.
+- **Next diagnostics, proposed on #1494 before any of them:**
+  1. Kit A, read-only, same `d2` package and runner: its grabber is a
+     different model (GENKI ShadowCast 3). Black launches there would clear
+     the 4KPRO; none in about 100 would point at Kit B's grabber or cable.
+  2. On Kit B, a short video recording across a black launch's DOS prompt
+     (the HIL driver's `video_start`), to see whether every frame is flat
+     black or the grabber passes some frames.
+  3. Any ADV7513 write, such as a `0xBA` clock-delay sweep, or constraining
+     the HDMI outputs (an RTL or SDC change), needs Deano's OK.
 - **The intro grab at 486DX2-66.** It is black in 13 of 20 lit `k6`
-  launches there (1 of 20 at `max`). The capture samples show a fade in
-  some, so it is probably the grab landing on a scene change. Open, not
-  counted.
+  launches there (1 of 20 at `max`), and in all three of `k9`'s 486DX2-66
+  introductions. The capture samples show a fade in some, so it is
+  probably the grab landing on a scene change. Open, not counted.
 - No stage is named as the cause yet, and no RTL fix is indicated in the
   core. A fix will be proposed on #1494 before any RTL is written.
 
@@ -429,6 +431,69 @@ timing candidate in [Next](#next), but these counts don't show one.
 
 **Across the eight runs** it is 10 black launches in 299.
 
+## HDMI pin timing (host only)
+
+`quartus_sta` (17.0.2) on each seal's project. A clock is generated at the
+`HDMI_TX_CLK` port from the pixel PLL output, and the data, DE and sync ports
+get a zero output delay against it, for this report only. The hold slack
+then reads as when each pin changes relative to the clock edge at the pins
+(negative: before it). All 27 pins come from fabric registers
+(`pc386_system|video[*]`), not I/O registers, and the seals have no output
+constraints, so the spread is set by placement.
+
+| Seal | Corner | Earliest pin | Latest pin | DE | HS | VS |
+|---|---|---|---|---|---|---|
+| main `650bc477` | slow 100 °C | −1.02 (DE) | +3.76 (D18) | −1.02 | +0.47 | −0.17 |
+| main `650bc477` | fast −40 °C | −0.61 (DE) | +2.17 (D18) | −0.61 | −0.06 | −0.12 |
+| `d1` `49ec6936` | slow 100 °C | −1.30 (DE) | +2.50 (D19) | −1.30 | −1.17 | −1.05 |
+| `d1` `49ec6936` | fast −40 °C | −0.78 (DE) | +1.25 (D19) | −0.78 | −0.66 | −0.60 |
+| `d2` `ecef12e2` | slow 100 °C | −1.15 (HS) | +3.57 (D20) | +1.83 | −1.15 | +3.36 |
+| `d2` `ecef12e2` | fast −40 °C | −0.65 (HS) | +1.95 (D17) | +0.69 | −0.65 | +1.56 |
+
+Times are in ns. Every seal has pins changing within about 1.4 ns of the
+edge on both sides, so each could sit near the ADV7513's sampling window.
+None stands out from the others. The runtime sets the ADV7513's input clock
+delay (`0xBA`) to `0x20`, as `k9` read it.
+
+## Run `k9`: ADV7513 registers and HDMI audio (11 November, 13:11–14:40 EET)
+
+- **Package and kit.** `d2` (`ecef12e2…`) on Kit B's baseline, core-only.
+- **Flow.** As `k8`, plus, at every launch's DOS prompt, a read-only dump of
+  the ADV7513's main register map. It used the kit's own `i2cdump` on bus 1,
+  address `0x39`, the bus whose `0x39` answered `i2cget`; nothing was
+  written. In the setup launch, each black launch and the lit launch after
+  each, it typed `SERPENT` and recorded the grabber's HDMI audio (ALSA, 48
+  kHz) through the introduction's music. The run would stop after 3 black
+  launches, and it didn't reach 3.
+- **Grabber.** Kit B's grabber is an ASUS 4KPRO (UVC) behind a loopback
+  fan-out. `VIDIOC_QUERY_DV_TIMINGS` isn't supported on either device, so
+  there are no detected timings to read.
+
+**2 black launches in 101:** `p7n18` and `p7n52`, both at 486DX2-66, both
+`4c6d2c8d` at the DOS prompt.
+
+- **Ring and capture.** As in `k8`: presenter and plane output lit, plane
+  closed, 720x400. The capture samples hold the lit DOS-prompt hashes.
+- **HDMI audio.** Both black launches carried the introduction's music to
+  the grabber: peak 19667 and 19482, loudest 100 ms RMS −12.5 and
+  −12.7 dBFS. The four lit controls had peaks 19461–19790 and −12.5 to
+  −12.7 dBFS; the floor is −48 dBFS. So the HDMI link was up and carrying the
+  machine's audio while the grab was black.
+- **ADV7513 registers.** All 256 matched the lit launches except `0x9E` and
+  `0xA0`, whose values change between lit launches too (`0x9E` 12/13, `0xA0`
+  00/01). The lit and black dumps agree on:
+  - `0x41` 10: powered up;
+  - `0x42` f0: hot-plug and monitor sense;
+  - `0x3E` 10: detected VIC 4, 720p60;
+  - `0x15`–`0x18` 20/38/62/a8: input format and colour space;
+  - `0xAF` 06: HDMI mode;
+  - `0xBA` 20: input clock delay −0.8 ns, as the runtime sets it;
+  - `0xD6` c0;
+  - the AVI infoframe bytes from `0x55`.
+
+**Across the nine runs** it is 12 black launches in 400. By seal: main 1 of
+21, `d1` 3 of 177, `d2` 8 of 202.
+
 ## Kit housekeeping
 
 Run `k3` claimed Kit B at 23:58 EET, restored and released it at 00:57, and
@@ -449,3 +514,8 @@ removed its 3 data trees at 10:34. Run `k8` claimed it at 10:35, restored
 and released it at 11:58, and removed its 3 data trees at 12:00. Each is
 logged in Kit B's status file. Neither installed software or changed the
 image.
+
+Run `k9` claimed Kit B at 13:11 EET, restored and released it at 14:39, and
+removed its 3 data trees at 14:40, as logged in Kit B's status file. It
+installed no software, changed no image, and only read the ADV7513 (no
+`i2cset`).
