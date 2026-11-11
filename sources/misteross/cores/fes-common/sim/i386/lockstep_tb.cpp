@@ -7989,6 +7989,18 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
             arm(a, 0, 0x5000); arm(a, 1, 0x108); dr7(a, f7(0, 1, 1, 0) | f7(1, 0, 1, 0));
             set_tf(a); a.op({0xa3, 0x08, 0x01});
         }, 1);
+        // POPFD of an image with RF set: RF is clear once it completes (as
+        // Bochs), so the next instruction's breakpoint is taken.
+        db("db-popfd-rf", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0); dr7(a, f7(0, 1, 0, 0));
+            a.op({0x66, 0x9c, 0x89, 0xe5, 0x66, 0x81, 0x4e, 0x00}); a.d(0x10000);   // PUSHFD; MOV BP, SP; OR dword [BP], RF
+            a.op({0x66, 0x9d}); patch(a, d0, here(a)); a.op({0x40});              // POPFD; INC AX
+        }, 1);
+        // TF with a disabled breakpoint's match and none enabled: BS alone
+        // (Bochs compares nothing while no breakpoint is enabled).
+        db("db-tf-none-enabled", [=](Asm &a) {
+            arm(a, 1, 0x108); dr7(a, f7(1, 0, 1, 0)); set_tf(a); a.op({0xa3, 0x08, 0x01});
+        }, 1);
         // TF from IRETD's image: no trap after the IRETD, one after the next.
         db("db-tf-iretd", [=](Asm &a) {
             a.op({0x66, 0x9c, 0x89, 0xe5, 0x66, 0x81, 0x4e, 0x00}); a.d(0x100);   // PUSHFD; MOV BP, SP; OR dword [BP], TF
@@ -8029,6 +8041,10 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         };
     };
     ts("ts-g0-kept", g_or_l(2), 1, -1, task(0x2600, a_img, HLT1));
+    // TF set before a JMP to a TSS whose image has TF clear: the step the
+    // JMP armed is dropped at the switch (Bochs's task_switch), so none.
+    ts("ts-tf-jmp", [](Asm &a) { a.op({0x9c, 0x5b, 0x80, 0xcf, 0x01, 0x53, 0x9d, 0xea, 0x00, 0x00, 0x98, 0x00}); },
+       -1, -1, task(0x2600, a_img, HLT1));
     ts("ts-l0-cleared", g_or_l(1), -1, -1, task(0x2600, a_img, HLT1));
     const char *only = std::getenv("FES_I386_CASE");
     for (const Case &c : cases) {
