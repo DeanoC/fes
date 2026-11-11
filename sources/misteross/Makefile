@@ -57,7 +57,7 @@ help:
 		"  toolchain-fes-c64  Provision the FES C64 HIP toolchain (per-core lock)" \
 		"  toolchain-fes-spectrum  Provision the FES Spectrum HIP toolchain (per-core lock)" \
 		"  toolchain-fes-riscv  Provision the FES RISC-V HIP toolchain (per-core lock)" \
-		"  toolchain-fes-pc386  Provision the pc386 HIP toolchain (per-core lock)" \
+		"  toolchain-fes-pc386  Provision the pc386 toolchain (per-core lock, GPU_ROUTER=HIP|CUDA)" \
 		"  toolchain-fes-i386  Provision the i386 lock's shared slot, OFF lane, whose Verilator the i386 sims use (needs CACHE_ROOT)" \
 		"  doctor     Report host, toolchain, optional Quartus, and hardware readiness" \
 		"  doctor-strict  Require host and OSS readiness (Quartus/hardware optional)" \
@@ -2023,7 +2023,7 @@ toolchain-fes-riscv:
 
 toolchain-fes-pc386:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-pc386/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-pc386") \
-	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_GPU_ROUTER=$(if $(strip $(GPU_ROUTER)),$(GPU_ROUTER),HIP) \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 # The i386 sims (scripts/i386_verilator.py) take Verilator from this slot only.
