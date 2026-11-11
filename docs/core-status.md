@@ -513,17 +513,20 @@ Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)):
 - Ultima VI walking speed at 286-12, against a reference;
 - Ultima VII NPC pace, against a reference.
 
-Launches with Serpent Isle's disk image sometimes show a black picture for
-the whole launch, from the DOS prompt on: 12 launches in 400 on Kit B. In
-six of them Serpent Isle was started and ran underneath (its CPU, sound or
-VRAM progressed as in a lit launch). The other six (run `k8`) stopped at
-the DOS prompt, before the game ran. In the eight black
-launches on an instrumented scratch seal, the core still drove lit pixels
+Launches with Serpent Isle's disk image sometimes show a black picture at
+the DOS prompt: 12 black DOS-prompt grabs in 400 launches on Kit B. Four of
+those cases were also observed through gameplay (`k1`, `k3` twice, `k6`):
+Serpent Isle was started and ran underneath (its CPU, sound or VRAM
+progressed as in a lit launch). The other eight were prompt-only: `k8`'s
+six grabs stopped at the DOS prompt, before the game ran, and `k9`'s two
+were taken at the prompt; that run then started the game for audio checks
+with no later video grab. In the eight black
+prompt grabs on an instrumented scratch seal, the core still drove lit pixels
 onto the HDMI transmitter pins, so for those the fault is after the core.
 In two of them, the only ones checked, the ADV7513 was set up as in a lit
 launch and HDMI audio arrived. The candidates are the ADV7513's sampling of
 the pixel bus, its internal video path or TMDS video output, and the capture
-grabber's video path. The four earlier black launches had no such probe
+grabber's video path. The four earlier gameplay-observed black cases had no such probe
 ([#1494](https://github.com/DeanoC/fes/issues/1494),
 [record](validation/2026-11-10-pc386-si-reload-presets/summary.md)).
 

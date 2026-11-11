@@ -6,21 +6,29 @@ while audio played. [#1506](../2026-11-05-pc386-si-reload/summary.md) didn't
 reproduce it in three runs. This record repeats it on a fresh seal of main
 with #1483's status ring and VRAM probes, at four governor presets.
 
-**Result: reproduced, 12 times in 400 launches. It isn't a speed artefact or
-a long load. In `k6`'s black launch, the capture buffers held the same
-picture as in the lit launches, and the picture was black from the DOS
-prompt on. In `k8`'s six black launches on the instrumented `d2` seal, the
-core still drove lit pixels to the HDMI transmitter pins: the 720p
-presenter's output and the display plane's output both had lit pixels in
-every sampled frame, and the plane was closed. `k9`'s two black launches,
-also on `d2`, read the same, so all eight `d2` black launches are after the
+**Result: reproduced as 12 black DOS-prompt grabs in 400 launches. It isn't
+a speed artefact or a long load.** Four of those cases were also observed
+through gameplay (`k1`, `k3` twice, `k6`). The other eight were prompt-only:
+`k8`'s six black grabs were taken at the DOS prompt and those launches
+stopped before Serpent Isle ran; `k9`'s two black grabs were also at the
+DOS prompt, after which it started the game for audio checks, with no later
+video grab.
+
+**In `k6`'s black case, the capture buffers held the same picture as in the
+lit launches, and the picture was already black at the DOS prompt. In
+`k8`'s six black DOS-prompt grabs on the instrumented `d2` seal, the core
+still drove lit pixels to the HDMI transmitter pins: the 720p presenter's
+output and the display plane's output both had lit pixels in every sampled
+frame, and the plane was closed. `k9`'s two black DOS-prompt grabs, also on
+`d2`, read the same, so all eight `d2` black prompt grabs are after the
 core. Only `k9`'s two had the transmitter checks: the ADV7513's registers
 matched the lit launches and the grabber still received the game's HDMI
 audio at full level, so in those two the HDMI link was up and the
 transmitter was set up as usual. What remains is after the core: the ADV7513's sampling of the pixel bus,
 the ADV7513's internal video processing or TMDS video output, or the
-grabber's video path. The four black launches on main's seal and `d1` had
-no presenter or plane-output probe, so this isn't established for them.**
+grabber's video path. The four gameplay-observed black cases on main's seal
+and `d1` had no presenter or plane-output probe, so this isn't established
+for them.**
 
 - In Kit B run `k1`, one launch at 486DX2-66 showed a flat black picture
   for the whole launch: introduction, menu, Journey Onward and 60 s after
@@ -75,9 +83,11 @@ no presenter or plane-output probe, so this isn't established for them.**
 - Which stage after the core's pins isn't pinned yet (see [Next](#next)).
 
 The issue's title describes it too narrowly. The fault isn't tied to Journey
-Onward, the save or Serpent Isle: it blacks out a whole launch from the DOS
-prompt on. All 400 launches ran Serpent Isle's disk image, so the count stays
-per launch of that image.
+Onward, the save or Serpent Isle. The aggregate is 12 black DOS-prompt grabs
+in 400 launches of that disk image: four cases (`k1`, `k3` twice, `k6`) were
+also observed black through gameplay, and the other eight (`k8` six, `k9`
+two) were prompt-only. The count stays per launch of the image, as a
+DOS-prompt grab, not as a whole-launch black picture in every case.
 
 `v1`'s black main menu, and the black picture after its load, fit the same
 fault.
