@@ -1,0 +1,22 @@
+{
+  "hardware_actions": false,
+  "records": [
+    {
+      "bytes": 940,
+      "destination": "FES/INSTALLED/3667b4b5af2f1540e4f8bd53e577e17b99d22255569c2b8f83b1e0f2092fef8f.JSN",
+      "file": "zx81-rom.json",
+      "id": "zx81-rom",
+      "sha256": "3667b4b5af2f1540e4f8bd53e577e17b99d22255569c2b8f83b1e0f2092fef8f",
+      "title": "ZX81 trial"
+    },
+    {
+      "bytes": 754,
+      "destination": "FES/INSTALLED/ed7a3e61d7fc989187b4932f239ed59fec64d527ebe396365cc0739e7aa75a85.JSN",
+      "file": "zx80-rom.json",
+      "id": "zx80-rom",
+      "sha256": "ed7a3e61d7fc989187b4932f239ed59fec64d527ebe396365cc0739e7aa75a85",
+      "title": "ZX80 trial"
+    }
+  ],
+  "scope": "expected-records-from-production-prepare-install"
+}
