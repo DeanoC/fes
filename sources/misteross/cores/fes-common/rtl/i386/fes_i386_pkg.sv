@@ -359,13 +359,12 @@ package fes_i386_pkg;
     // Why an instruction stops as not built (FAULT_UNIMPLEMENTED), kept
     // with its uop (uop_t why) for trace_unbuilt: an encoding or form this
     // build does not decode; a delivery through a task gate; a far JMP
-    // through a call gate, or a far JMP or CALL to a TSS or a task gate; an
-    // IRET to V86 mode; a protected-mode 16-bit stack access past 64 KiB under
-    // a limit that reaches there; a protected-mode IRET with NT set, a
-    // return from a nested task; an I/O instruction at a CPL above IOPL,
-    // which the TSS's I/O permission bitmap decides.
+    // through a call gate, or a far JMP or CALL to a TSS or a task gate; a
+    // protected-mode 16-bit stack access past 64 KiB under a limit that
+    // reaches there; a protected-mode IRET with NT set, a return from a
+    // nested task.
     typedef enum logic [3:0] {
-        WHY_ENCODING, WHY_TASK_GATE, WHY_GATE, WHY_V86, WHY_STACK64K, WHY_TASK_RETURN, WHY_IOPERM
+        WHY_ENCODING, WHY_TASK_GATE, WHY_GATE, WHY_STACK64K, WHY_TASK_RETURN
     } why_e;
 
     typedef struct packed {
@@ -415,10 +414,13 @@ package fes_i386_pkg;
     // MOV SS or POP SS, after which no interrupt is taken. nwrap: a
     // protected-mode far CALL's, RETF's or IRET's stack slot on a 16-bit
     // stack, at SP plus or less sdisp without the 64 KiB wrap, as Bochs
-    // reads and writes it (M1). vmchk: IRETD's EFLAGS image, a protected-mode
-    // IRET's first uop, whose VM bit stops it as not built (EX). ntchk: the
-    // same uop, which EFLAGS.NT set stops as not built, a return from a
-    // nested task (EX). x87p: the uop is an ESC instruction's last, which
+    // reads and writes it (M1). ntchk: a protected-mode IRET's first uop,
+    // which EFLAGS.NT set stops as not built, a return from a nested task
+    // (EX). v86 (fes_i386_cpu, "V86 mode"): a real-mode segment load gives
+    // the segment V86's cache (limit FFFFh, access rights F3h) whatever the
+    // mode; the far jump into V86 mode (no xfer) sets VM and CPL 3 and
+    // loads ESP from T5; the far jump out of it (xfer) clears VM and nulls
+    // ES, DS, FS and GS. x87p: the uop is an ESC instruction's last, which
     // writes the x87 pointers as it retires (x87p_e).
     // A privilege transition (fes_i386_cpu, "Privilege transitions"): hold,
     // WB keeps the staged CS descriptor and whether the transfer changes
@@ -436,7 +438,7 @@ package fes_i386_pkg;
         logic [2:0]  desc;
         logic [3:0]  segchk;
         logic        nwrap;
-        logic        vmchk;
+        logic        v86;
         logic        ntchk;
         logic        seg2_pm;
         logic        shadow;
@@ -611,8 +613,8 @@ package fes_i386_pkg;
         // or its second destination's (D's segment-busy update).
         logic [5:0]  wseg;
         // A stack slot at ESP plus slot operand-sized slots, ESP unmoved
-        // (STK_PEEK): -8 to 7 from the ROM or the decode, further for a call
-        // gate's parameters (fes_i386_seq).
+        // (STK_PEEK): -16 to 15 from the ROM, -8 to 7 from the decode,
+        // further for a call gate's parameters (fes_i386_seq).
         logic [6:0]  slot;
         logic        a_t1;       // src1's value is T1's (POPAD's ESP), which waits as far_t does
         logic        b_t1;       // src2's value is T1's, which waits the same way
@@ -694,6 +696,11 @@ package fes_i386_pkg;
         logic        pdrop;
         logic        zx;
         logic        pimm;
+        // V86 mode (fes_i386_cpu, "V86 mode"): vgo, a protected-mode IRET's
+        // word that, for an IRETD at CPL 0 whose EFLAGS image (T4) has VM
+        // set, is a NOP, as is the word after it, after which the ROM goes
+        // on at the return to V86 mode (UC_V86RET, fes_i386_seq).
+        logic        vgo;
         // Which of ESI, EDI and ECX (bits 0-2) the uop reads, as a source,
         // a CL count or an address register (str_reads): D holds it while
         // a string element that steps one is in flight.
@@ -793,10 +800,13 @@ package fes_i386_pkg;
     // or call gate's CS, a far CALL's CS or call gate, IRET's or RETF's CS,
     // LLDT's descriptor, LTR's; an outer return's new SS, an inner
     // transfer's new SS, the offset against the held CS's limit; an I/O
-    // access's bits in the permission bitmap's word (T2) for the port (T5).
+    // access's bits in the permission bitmap's word (T2) for the port (T5);
+    // a delivery from V86 mode's CS as a delivery's, which must also be
+    // nonconforming code below CPL 3, and that CS's DPL, which must be 0
+    // (fes_i386_cpu, "V86 mode").
     typedef enum logic [3:0] {
         CHK_NONE, CHK_DATA, CHK_SS, CHK_JMP, CHK_GATE, CHK_INTCS, CHK_CALL, CHK_RET, CHK_LDT, CHK_TSS,
-        CHK_SSRET, CHK_SSINT, CHK_HOFF, CHK_IOBM
+        CHK_SSRET, CHK_SSINT, CHK_HOFF, CHK_IOBM, CHK_V86CS, CHK_V86DPL
     } segchk_e;
     // How a descriptor read treats its selector (decoded_t dmode): load and
     // check it; LAR, LSL, VERR and VERW, which read nothing for a selector
@@ -827,7 +837,7 @@ package fes_i386_pkg;
         logic [1:0]  mbytes;     // operand size, 2, 4, 1
         logic        in_a;
         logic [2:0]  stk;        // stk_e
-        logic [3:0]  slot;       // -8 to 7
+        logic [4:0]  slot;       // -16 to 15
         logic        ivt;        // the interrupt vector's entry, at linear vector * 4
         logic        sel_part;   // ... its selector, at + 2
         logic        probe;      // probe_e
@@ -862,7 +872,7 @@ package fes_i386_pkg;
         logic        gsz;        // decoded_t gsz: the gate's operand size
         logic        errp;       // decoded_t errp: the error code's slot
         logic        nwrap;      // uop_t nwrap
-        logic        vmchk;      // uop_t vmchk
+        logic        vgo;        // decoded_t vgo
         logic        iimm;       // imm is the instruction's (RETF imm16's), not the word's
         logic        hold;       // uop_t hold
         logic        xfer;       // uop_t xfer
@@ -875,6 +885,7 @@ package fes_i386_pkg;
         logic        pimm;       // decoded_t pimm
         logic        xend;       // the uop ends the routine when its xc keeps it (fes_i386_seq)
         logic        iof;        // the instruction's I/O access, which its first uop keeps (fes_i386_seq)
+        logic        v86;        // uop_t v86
     } ucode_t;
 
     // The shifter's controls (fes_i386_shift), decoded in M2. sel gates
@@ -987,8 +998,11 @@ package fes_i386_pkg;
         logic        cs_late;     // D: a far transfer's offset past CS's limit (far_chk), #GP(0) at M1
                                   // when the uop's own checks pass
         logic        tchk;        // D: a near branch, or CALL rel's push, whose target_eip M1 checks
-                                  // against CS's limit; M1: that target is past it (#GP(0) at M1 for
-                                  // the push, at EX for a taken branch)
+                                  // against CS's limit; M1: a branch's target is past it (#GP(0) at
+                                  // EX when taken)
+        logic        cpast;       // D (CALL r/m) or M1 (CALL rel): a near CALL's push whose target is
+                                  // past CS's limit, which stores and leaves ESP (WB) for its jump's
+                                  // #GP(0)
         logic [31:0] ld;          // M2: the loaded value, zero-extended (fes_i386_exctl xl, yl)
         logic [31:0] result;      // AG: LEA's offset; EX: the destination's new value
         logic [31:0] target;      // AG: a branch's target linear address; D: a st2 uop's store address,
@@ -1048,7 +1062,7 @@ package fes_i386_pkg;
         // REP element, not its instruction.
         logic           txr;
         // dfl: M1, the uop's fault is its st2 store's segment check
-        // (dfault), which a #PF on its load's pages comes before.
+        // (dfault), which a #PF on its own pages comes before.
         logic           dfl;
     } pipe_t;
 

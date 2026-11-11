@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
 import os
 import re
 import shutil
@@ -19,13 +18,14 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import source_provenance
+from scripts import quartus_timing_summary, source_provenance
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package
 from scripts.quartus_tools import (
+    QuartusLock,
     RebuildError,
+    load_quartus_lock,
     locate_quartus,
-    quartus_version_line,
 )
 
 
@@ -34,6 +34,7 @@ TARGET = "5CSEBA6U23I7"
 TOP = "top"
 OUTPUT_RELATIVE = Path("build/fes-coleco-quartus")
 RECIPE = "scripts/build_fes_coleco.py"
+QUARTUS_LOCK = "cores/fes-coleco/quartus.lock"
 ABI_DEFINITION = "cores/fes-common/generated/fes_application.vh"
 QSF_PINS = "cores/fes-coleco/constraints.qsf"
 SDC = "cores/fes-coleco/clocks.sdc"
@@ -66,6 +67,8 @@ PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
     "scripts/source_provenance.py",
     "scripts/quartus_tools.py",
+    "scripts/quartus_timing_summary.py",
+    QUARTUS_LOCK,
     ABI_DEFINITION,
     QSF_PINS,
     SDC,
@@ -78,18 +81,6 @@ HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
 I2C_SITE = "HPSINTERFACEPERIPHERALI2C_X52_Y60_N111"
-TIMING_CATEGORIES = ("Setup", "Hold", "Recovery", "Removal", "Minimum Pulse Width")
-# The patterns take no sign, so any miss, even one TimeQuest prints as -0.000,
-# matches nothing and fails closed.
-WORST_SLACK_RE = re.compile(
-    r"Worst-case Slack\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)"
-)
-DESIGN_TNS_RE = re.compile(
-    r"Design-wide TNS\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)"
-)
-# Registers on a clock TimeQuest cannot analyse are in no slack row.
-UNANALYSED_CLOCKS = ("Illegal Clocks", "Unconstrained Clocks")
-UNANALYSED_ROW_RE = re.compile(r"^; (Illegal Clocks|Unconstrained Clocks)\s*; (\d+)\s*; (\d+)\s*;", re.M)
 
 
 class BuildError(ValueError):
@@ -138,14 +129,32 @@ def require_clean_source(root: Path) -> tuple[str, str]:
         raise BuildError(str(exc)) from exc
 
 
-def authenticate_quartus(root: Path) -> tuple[Path, Path, str, str]:
+def quartus_lock(root: Path) -> QuartusLock:
+    """The Quartus this core's quartus.lock names; every version string derives from it."""
     try:
-        quartus_root, quartus_sh = locate_quartus(os.environ.get("QUARTUS_ROOTDIR", ""), root)
-        version = quartus_version_line(quartus_sh)
+        return load_quartus_lock(root, QUARTUS_LOCK)
+    except RebuildError as exc:
+        raise BuildError(str(exc)) from exc
+
+
+def toolchain_label(lock: QuartusLock, identity: str) -> str:
+    return f"{lock.product} ({identity})"
+
+
+def project_qpf(lock: QuartusLock) -> str:
+    return f'QUARTUS_VERSION = "{lock.series}";\nPROJECT_REVISION = "{TOP}";\n'
+
+
+def authenticate_quartus(root: Path) -> tuple[Path, Path, str, str]:
+    lock = quartus_lock(root)
+    try:
+        quartus_root, quartus_sh, version = locate_quartus(
+            os.environ.get("QUARTUS_ROOTDIR", ""), root, lock
+        )
     except RebuildError as exc:
         raise BuildError(str(exc)) from exc
     digest = _sha256(quartus_sh)
-    identity = f"version=17.0.2; sha256={digest}"
+    identity = f"version={lock.release}; sha256={digest}"
     return quartus_root, quartus_sh, version, identity
 
 
@@ -167,7 +176,7 @@ def create_build_record(
         "dependencies": {},
         "tools": dict(tool_identities),
         "parameters": {
-            "compiler": "quartus-17.0.2",
+            "compiler": quartus_lock(root).compiler,
             "device": TARGET,
             "pixel_clock_hz": 74_250_000,
             "reference_clock_hz": 50_000_000,
@@ -201,7 +210,7 @@ def project_qsf(root: Path, project: Path, build_id: str) -> str:
         "set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL",
         "set_global_assignment -name SEED 1",
         "set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005",
-        'set_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"',
+        f'set_global_assignment -name LAST_QUARTUS_VERSION "{quartus_lock(root).qsf_version}"',
         f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-common/generated"',
         'set_global_assignment -name VERILOG_MACRO "QUARTUS=1"',
         f'set_global_assignment -name VERILOG_MACRO "FES_COLECO_BUILD_ID=128\'h{build_id}"',
@@ -225,10 +234,7 @@ def write_project(root: Path, output: Path, build_id: str) -> Path:
     if project.exists():
         shutil.rmtree(project)
     project.mkdir(parents=True)
-    (project / "top.qpf").write_text(
-        'QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n',
-        encoding="utf-8",
-    )
+    (project / "top.qpf").write_text(project_qpf(quartus_lock(root)), encoding="utf-8")
     (project / "top.qsf").write_text(project_qsf(root, project, build_id), encoding="utf-8")
     rom_dir = project / "cores" / "fes-coleco" / "rtl"
     rom_dir.mkdir(parents=True)
@@ -272,26 +278,7 @@ def require_clocks(sta_text: str) -> None:
 
 
 def validate_timing_report(sta_text: str) -> list[dict[str, object]]:
-    slack_match = WORST_SLACK_RE.search(sta_text)
-    tns_match = DESIGN_TNS_RE.search(sta_text)
-    if slack_match is None or tns_match is None:
-        raise BuildError("timing summary lacks required analysis categories")
-    result = []
-    for name, slack_text, tns_text in zip(TIMING_CATEGORIES, slack_match.groups(), tns_match.groups()):
-        try:
-            slack, tns = float(slack_text), float(tns_text)
-        except ValueError as exc:
-            raise BuildError("invalid timing number") from exc
-        if not all(math.isfinite(value) and value >= 0 for value in (slack, tns)):
-            raise BuildError("timing summary contains an unsupported or failing result")
-        result.append({"type": name, "slack_ns": slack, "tns_ns": tns})
-    unanalysed = UNANALYSED_ROW_RE.findall(sta_text)
-    if sorted(row[0] for row in unanalysed) != sorted(UNANALYSED_CLOCKS):
-        raise BuildError("timing report lacks the unconstrained paths summary")
-    for row, setup, hold in unanalysed:
-        if int(setup) or int(hold):
-            raise BuildError(f"timing report has {row.lower()}: {setup} setup, {hold} hold")
-    return result
+    return quartus_timing_summary.validate_timing_report(sta_text, BuildError)
 
 
 def validate_quartus_evidence(output: Path, project: Path) -> dict:
@@ -411,7 +398,7 @@ def build(
         _run_quartus(quartus_sh, quartus_root, project, output / "quartus.log")
         (output / "quartus-version.log").write_text(version + "\n", encoding="utf-8")
         evidence = validate_quartus_evidence(output, project)
-        toolchain = f"Quartus Prime Lite 17.0.2 ({identity})"
+        toolchain = toolchain_label(quartus_lock(root), identity)
         evidence.update(
             {
                 "build_id": build_id,

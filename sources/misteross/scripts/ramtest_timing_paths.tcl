@@ -1,4 +1,4 @@
-# Quartus 17.0.2: extract paths from an existing fitted RAM-test project.
+# Quartus (cores/fes-ramtest/quartus.lock): extract paths from an existing fitted RAM-test project.
 # Run on a private copy of the project/database; this does not compile RTL.
 # Usage: quartus_sta -t ramtest_timing_paths.tcl /path/to/top.qpf /path/to/reports
 if {[llength $quartus(args)] != 2} {

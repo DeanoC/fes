@@ -31,7 +31,7 @@ from scripts.export_core_package import (build_identity, encode_build_record,
 from scripts.core_package import encode_manifest
 from scripts.fes_build_common import BuildError, _require_clean_source as require_clean_source
 from scripts.functional_execution import execution_digest, execution_environment
-from scripts.quartus_tools import locate_quartus, quartus_version_line
+from scripts.quartus_tools import load_quartus_lock, locate_quartus
 from scripts.sim_fes_pcxt import cga_font
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,20 +84,21 @@ class Tool:
 
 def authenticate_tools(root, *, cache_root=None, core_id='fes.pcxt'):
     root = Path(root)
-    lock = tomllib.loads((root / LOCK).read_text())
-    _, quartus = locate_quartus(os.environ.get('QUARTUS_ROOTDIR', ''), root)
-    version = quartus_version_line(quartus)
-    if version != lock['version'] or selected_recipe(root, core_id)['quartus']['version'] != version:
+    lock = load_quartus_lock(root, LOCK)
+    if lock.yosys_commit is None:
+        raise BuildError('the PC/XT Quartus lock must pin its Yosys in [yosys]')
+    _, quartus, version = locate_quartus(os.environ.get('QUARTUS_ROOTDIR', ''), root, lock)
+    if selected_recipe(root, core_id)['quartus']['version'] != version:
         raise BuildError('Quartus version differs from the PC/XT lock/recipe')
     candidates = ([Path(os.environ['FES_PCXT_YOSYS'])] if os.environ.get('FES_PCXT_YOSYS') else
                   sorted(Path(cache_root).glob('slots/*/install/bin/yosys')) if cache_root else [])
     yosys = next((p for p in candidates if p.is_file() and not p.is_symlink()
-                  and sha(p) == lock['yosys_sha256']), None)
+                  and sha(p) == lock.yosys_sha256), None)
     if yosys is None:
         raise BuildError('set FES_PCXT_YOSYS to the PC/XT lock\'s Yosys binary')
     yosys = yosys.resolve()
     yversion = subprocess.check_output([str(yosys), '-V'], text=True).strip()
-    if 'git sha1 ' + lock['yosys_commit'][:9] not in yversion:
+    if 'git sha1 ' + lock.yosys_commit[:9] not in yversion:
         raise BuildError('Yosys version differs from the PC/XT lock')
     return {'yosys': Tool(yosys, yversion + ' sha256:' + sha(yosys)),
             'quartus': Tool(quartus.resolve(), version + ' sha256:' + sha(quartus))}

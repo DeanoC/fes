@@ -98,11 +98,24 @@ func (s *Store) UpsertCollection(ctx context.Context, id, name string) (Collecti
 }
 
 func (s *Store) Collection(ctx context.Context, id string) (Collection, error) {
+	return collection(ctx, s.db, id)
+}
+
+func (m *GameMutation) Collection(ctx context.Context, id string) (Collection, error) {
+	return collection(ctx, m.conn, id)
+}
+
+type gameQueryExecer interface {
+	gameExecer
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func collection(ctx context.Context, db gameQueryExecer, id string) (Collection, error) {
 	if err := ValidateCollectionID(id); err != nil {
 		return Collection{}, err
 	}
 	var collection Collection
-	err := s.db.QueryRowContext(ctx, `
+	err := db.QueryRowContext(ctx, `
 		SELECT id, name, created_at FROM collections WHERE id = ?`, id,
 	).Scan(&collection.ID, &collection.Name, &collection.CreatedAt)
 	if err != nil {
@@ -152,17 +165,25 @@ func (s *Store) DeleteCollection(ctx context.Context, id string) error {
 }
 
 func (s *Store) SetCollectionMember(ctx context.Context, collectionID, gameID string, member bool) error {
+	return setCollectionMember(ctx, s.db, collectionID, gameID, member)
+}
+
+func (m *GameMutation) SetCollectionMember(ctx context.Context, collectionID, gameID string, member bool) error {
+	return setCollectionMember(ctx, m.conn, collectionID, gameID, member)
+}
+
+func setCollectionMember(ctx context.Context, db gameQueryExecer, collectionID, gameID string, member bool) error {
 	if err := ValidateCollectionID(collectionID); err != nil {
 		return err
 	}
 	if err := protocol.ValidateGameID(gameID); err != nil {
 		return fmt.Errorf("%w: %s", ErrInvalid, err.Error())
 	}
-	if _, err := s.Collection(ctx, collectionID); err != nil {
+	if _, err := collection(ctx, db, collectionID); err != nil {
 		return err
 	}
 	if !member {
-		_, err := s.db.ExecContext(ctx, `
+		_, err := db.ExecContext(ctx, `
 			DELETE FROM collection_membership
 			WHERE collection_id = ? AND game_id = ?`,
 			collectionID, gameID,
@@ -173,7 +194,7 @@ func (s *Store) SetCollectionMember(ctx context.Context, collectionID, gameID st
 		return nil
 	}
 	now := time.Now().UnixNano()
-	_, err := s.db.ExecContext(ctx, `
+	_, err := db.ExecContext(ctx, `
 		INSERT INTO collection_membership(collection_id, game_id, added_at)
 		VALUES(?, ?, ?)
 		ON CONFLICT(collection_id, game_id) DO NOTHING`,

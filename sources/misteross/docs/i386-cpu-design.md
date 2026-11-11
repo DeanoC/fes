@@ -397,7 +397,7 @@ PC/XT's FFh for unclaimed reads.
 | Item | Value | Source |
 | --- | --- | --- |
 | Device | 5CSEBA6U23I7: 41,910 ALMs (83,820 COMB cells), 553 M10K, 112 DSP blocks | [RISC-V QoR](../cores/fes-riscv/qor.md); DSP count from the Cyclone V SE A6 device table |
-| Compilers | Yosys and nextpnr-mistral with the GPU router, one lock per core. The i386 routes in #1115, #1141 and #1143 use Yosys `238eac9a49`, nextpnr `bd7a1c0d` and Mistral `8fcc4cb4`; the lock is a last known good and moves forward | [i386 lock on main](https://github.com/DeanoC/fes/blob/main/sources/misteross/cores/fes-common/rtl/i386/toolchain.lock), [Yosys pin record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-25-i386-yosys-238eac9a49.md) |
+| Compilers | Yosys and nextpnr-mistral with the GPU router, one lock per core. The i386 routes in #1115, #1141 and #1143 use Yosys `238eac9a49`, nextpnr `bd7a1c0d` and Mistral `8fcc4cb4`. The lock is a last known good and moves forward: it now pins Yosys `0a7927bf`, the pc386 lock's pin, which writes the same CPU netlist ([D2 record](../../../docs/validation/2026-11-10-1581-d2-yosys-lock/README.md)) | [i386 lock on main](https://github.com/DeanoC/fes/blob/main/sources/misteross/cores/fes-common/rtl/i386/toolchain.lock), [Yosys pin record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-25-i386-yosys-238eac9a49.md) |
 | CPU clocks seen | Pipelined RV32I cores 79.7–83.6 MHz in the QoR harness; the sealed `fes.riscv` system 75–79 MHz | [RISC-V QoR](../cores/fes-riscv/qor.md) |
 | i386 Phase 1 spikes | Historical four-seed isolated endpoints, in MHz; F1–Q share the front-end route, D and AG share pre-DC D+AG, and M2 is separate. The #1095 ranges use the older Yosys `3a5accbd`. The later record-RTL reroute on Yosys `d4ac300d9d` measured F1 83.0–105.6, F2 82.6–87.8, L1 89.5–93.2, L2 89.2–94.5, Q 78.7–82.5, D 85.8–90.1 and AG 85.5–95.7. The M2 control spike is 97.8–106.5 MHz (one seed below 100); it was not re-routed for that RTL. These routes predate DC and the data-port freeze | [#1095](https://github.com/DeanoC/fes/pull/1095), [toolchain-lock record](validation/2026-10-25-i386-toolchain-lock.md) |
 | Memory clocks seen | HPS DDR and SDRAM domains ship at 100 MHz; RAM-test experiments reached about 117–118 MHz; 130 MHz is unresolved | [RAM tester](../cores/fes-ramtest/README.md), [dated records](README.md#dated-records) |
@@ -2112,7 +2112,7 @@ eight replicated hit sets.
   on. INT3 and INTO are not IOPL-sensitive. POPF at IOPL 3 leaves IOPL
   alone. HLT, LMSW, CLTS and MOV to or from CRn and DRn raise #GP(0). LAR,
   LSL, VERR, VERW, ARPL and the 0F00 group raise #UD.
-- **LOCK below IOPL 3, open.** The 386 manual
+- **LOCK below IOPL 3, #GP(0).** The 386 manual
   ([§15.4](https://www.css.csail.mit.edu/6.858/2013/readings/i386/s15_04.htm))
   also lists LOCK as IOPL-sensitive in V86, a #GP(0) below IOPL 3. Bochs,
   the lockstep's oracle, does not trap it, and Intel's later manuals drop
@@ -2316,7 +2316,42 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
 3. **V86.** Entry by IRETD, the V86 delivery to CPL 0, IOPL-sensitive
    faults, #GP(vector × 8 + 2), I/O through the bitmap in V86 and INS and
    OUTS through it at CPL > IOPL too, V86 segment
-   loads.
+   loads. Built
+   ([record](../../../docs/validation/2026-11-10-i386-phase5-v86/summary.md);
+   the RTL README's [V86 mode](../cores/fes-common/rtl/i386/README.md#v86-mode)).
+   As built, where it differs from the plan above:
+   - **IRETD branches at its descriptor read.** Bochs reads EFLAGS', CS's
+     and EIP's slots before it tests VM, and so does the RTL; the word that
+     reads CS's descriptor, which waits for T0 and so finds T4 settled,
+     branches for an IRETD into V86 mode: it and the word after it become
+     NOPs and the ROM goes on at the V86 return, so a protected-mode IRET
+     pays nothing. The return probes the four slots below GS's before its
+     first segment load, since Bochs reads all six before writing any.
+   - **The delivery from V86 mode is its own routine,** picked in DC from
+     VM, rather than conditional uops in `pint`, so no other delivery pays
+     for its four extra pushes. VM changes only at the far jump, so a fault
+     part way through the delivery is delivered from V86 mode again, as
+     Bochs's.
+   - **LOCK below IOPL 3 raises #GP(0),** after LOCK's own #UD, as the
+     plan above set out.
+   - **POPF below IOPL 3 raises #GP(0) before its pop,** as PUSHF, INT n
+     and IRET do. The 386's microcode tests IOPL at each one's V86 entry
+     before its stack access (reenigne/x86_microcode,
+     `80386/microcode_notes.txt`, 7F7-7FF: `7FB if (CPL <= IOPL) goto
+     "p POPFd"`, the read at 803). Bochs pops POPF first, so a stack fault
+     comes first there, and it runs a LOCK: for both the lockstep's oracle
+     steps CLI in the opcode's place, which Bochs faults the same way, and
+     compares the deliveries (its `v86-iopl-gp` rule).
+   - **A delivery's entry is not checked against CS's limit.** IRETD in V86
+     mode loads EIP whole, as Bochs does, so EIP may pass FFFFh until the
+     next fetch faults; the entry of that #GP fetches nothing.
+   - **The bitmap's read is #1552's routine** (`iochk`: three ROM uops and
+     the access), not one load uop with the access; INS and OUTS run it too
+     (`iostr`) before the string starts.
+   - **Speed.** An INT from V86 mode through a DPL-3 gate and the IRETD
+     back take 166 clocks on the latency bench, IN through the bitmap 26.
+     About 50 uops make the round trip, most of them ROM words at two
+     clocks each.
    - **Lockstep.** test386.asm's V86 cases; INT n at IOPL 0 and 3 through
      gates of DPL 0 and 3; IRETD to V86 from CPL 0 and its refusal from
      elsewhere; I/O at each bitmap edge; an interrupt and a #PF taken from

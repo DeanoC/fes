@@ -1072,6 +1072,23 @@ The `core_ids` catalog filter resolves installed entries through their
 candidates and grouped editions before selecting a representative; recents
 also applies it before the page limit.
 
+`DELETE /api/v1/library/core-entries/{game_id}` removes one core title and
+clears its recents, favorite, collection memberships and edition choices while
+retaining core data, media bytes, and saved-tape names and timestamps. Recreating
+the same local title and core restores its saved tapes. An explicit refresh can
+reimport a remote title with the same ID; its package, media and ROM selections
+must then be made again.
+
+Removal never stops a running core. Each configured enabled kit must respond
+idle or positively identify a different active title; an unavailable kit gives
+503, while the matching title, an unidentified session or recovery gives 409. Connect the kits
+or stop play / finish recovery before retrying. Checks and lifecycle admission
+cover this host's configured targets; exclusion across separate hosts with
+different target configurations is not established. A cleanup failure can hide
+the title before reporting an error, and the same ID can be retried. The CLI
+exposes `fogcast core-remove GAME_ID`; tenfoot Details asks for confirmation
+bound to the title shown. A response cannot close another title's Details.
+
 The kit reconnects with the existing `launcher.json` API URL on that launcher
 listener. See [the host connection contract](launcher-host.md).
 
@@ -1107,7 +1124,11 @@ requesting kit so compatibility uses that kit. Other methods on that collection
 stay denied. For named ROM selection it admits
 `GET /api/v1/library/core-entries/{game_id}`,
 `GET /api/v1/library/core-entries/{game_id}/rom`, and
-`PUT /api/v1/library/core-entries/{game_id}/rom` for a strict game ID. It also
+`PUT /api/v1/library/core-entries/{game_id}/rom` for a strict game ID. It admits
+`DELETE /api/v1/library/core-entries/{game_id}` for the same strict ID after
+the paired-target checks; the host checks each configured enabled kit before
+removing the title.
+It also
 admits `PUT /api/v1/library/core-entries/{game_id}/expansion` for the existing
 single-entry expansion selection. Selection bodies are forwarded unchanged
 after paired-target checks; none of these writes replaces the foreground
@@ -3506,10 +3527,15 @@ stream only while the core, package, generation, keyboard, gamepad-port,
 keypad, and relative-mouse capabilities still match. Status reconciliation
 replaces the stream when any of those change. An explicit attach of a
 stream that no longer matches is refused and leaves the existing stream
-in place. If the stream is not live, the host
-returns 503 `INPUT_UNAVAILABLE` (`no live input stream`) and does not accept
-the event. Kit-local pads stay on the unix socket and do not silently fall
-back to the host.
+in place. When the host has observed that the stream is unavailable and cannot
+reconnect, an event POST or a new launcher input POST returns 503
+`INPUT_UNAVAILABLE` (`no live input stream`). An already-open launcher stream
+ends when a subsequent event encounters the loss or its read timeout expires;
+its initial ready response does not acknowledge individual events. A successful
+event POST reports acceptance by the host's transport path, not target or guest
+delivery: a disconnect can occur before the host observes it, so an accepted
+event can still be lost. Kit-local pads stay on the unix socket and do not
+silently fall back to the host.
 
 Disconnect of the host stream releases the remote source. Lease expiry, core
 replacement and Stop neutralize every source on both dirty ports. A failed
