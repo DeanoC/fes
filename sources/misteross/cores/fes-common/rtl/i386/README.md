@@ -1215,7 +1215,12 @@ established. The routines are `ucode.toml`'s `tsjg`, `tsgate`, `tsw`,
   L0-L3 and LE cleared (the 386's 7D7-7DE, Bochs's); CR3 from a 386 TSS
   under paging when it differs (77F-794: no flush for the same, as Bochs);
   and the gate size (`gate32`) the new TSS's, for an error code. The commit
-  of a return from a nested task unblocks NMI, as IRET does. The cycle
+  of a return from a nested task unblocks NMI, as a plain IRET's end does.
+  The 386 clears NMI's block at IRET's start (674, in the delay slot of
+  673's branch to TASK_RETURN), so there an IRET whose switch then faults
+  has unblocked NMI too; the RTL keeps it blocked then, as it does for a
+  plain IRET that faults. The lockstep raises NMI only in real mode, so
+  neither is compared. The cycle
   after, DC takes the new task's descriptor loads as it takes a fault's
   entry (`tsw_inj`, `dc_exc`): at the new EIP, length 0, so a fault there
   is the new task's, its frame the new CS:EIP. A delivery's exception stays

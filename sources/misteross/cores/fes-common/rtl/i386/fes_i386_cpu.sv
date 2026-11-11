@@ -581,6 +581,7 @@ module fes_i386_cpu #(
     logic [2:0] q_stk;              // dc_q.stk and .seq, apart so no field of dc_q reads another
     logic [4:0] q_seq;
     logic       q_direct, q_xlat;   // no base or index (a moffs, the vector's entry); XLAT's [BX + AL]
+    logic [8:0] q_upc;              // the decoder's routine address (dc_q.upc), read for tsw too
     uop_t       q_uop;              // dc_q.uop, .lea and the address registers, for dc_q.rd_str
     logic       q_lea, q_has_base, q_has_index, q_opsize32;
     logic [2:0] q_base, q_index;
@@ -592,7 +593,7 @@ module fes_i386_cpu #(
         .lea_disp(q_lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
         .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(q_stk), .push_eip(dc_q.push_eip),
         .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part), .far_jmp(dc_q.far_jmp), .far_chk(dc_q.far_chk),
-        .far_sel(dc_q.far_sel), .wseg(dc_q.wseg), .upc(dc_q.upc), .direct(q_direct), .xlat(q_xlat),
+        .far_sel(dc_q.far_sel), .wseg(dc_q.wseg), .upc(q_upc), .direct(q_direct), .xlat(q_xlat),
         .m_seg(dc_q.m_seg), .slot(q_slot), .str_op(dc_q.str_op), .str_rep(dc_q.str_rep), .ecnt(dc_q.ecnt),
         .b_sys(q_b_sys), .sys_idx(dc_q.sys_idx), .moff(dc_q.moff)
     );
@@ -697,7 +698,8 @@ module fes_i386_cpu #(
     assign dc_q.tgk = 2'd0;
     assign dc_q.tsk = 2'(fes_i386_pkg::TSK_IRET);
     assign dc_q.tsf = 5'd0;
-    assign dc_q.tsw = q_seq == fes_i386_pkg::SEQ_UCODE && dc_q.upc == fes_i386_ucode_pkg::UC_TSSAVE;
+    assign dc_q.upc = q_upc;
+    assign dc_q.tsw = q_seq == fes_i386_pkg::SEQ_UCODE && q_upc == fes_i386_ucode_pkg::UC_TSSAVE;
     assign dc_q.slot = {{3{q_slot[3]}}, q_slot};
     // The string engine's first uop loads D's copies; the rest are
     // fes_i386_seq's.

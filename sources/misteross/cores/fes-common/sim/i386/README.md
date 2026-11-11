@@ -137,6 +137,15 @@ address and instruction bytes instead.
 python3 scripts/test_fes_i386_test386.py --download
 ```
 
+`--cpu rtl` runs the ROM on `fes_i386_cpu` alone (`lockstep_tb.cpp`'s
+test386 mode, up to the runner's 200,000,000-retirement limit) and reports
+its POST codes, failed checks and end; it does not compare POST EEh's text.
+Since Phase 5's slice 4 the RTL reaches POST FFh with no failed check. Its
+POST EEh text differs from the reference in four lines, `IDIV AX` and `IDIV
+EAX` overflows that the 386EX's check lets through (the
+`idiv-unchecked-overflow` predicate holds for each), which the RTL completes
+with a quotient of 8000h or 80000000h where Bochs and the reference raise #DE.
+
 ### Cross-check
 
 The test386 runner also checks test386's i386 undefined-behaviour cases

@@ -65,8 +65,8 @@ departs from the plan. In short:
   loads.
 - **Routines.** `tsjg`, `tsgate`, `tsw`, `tssave`, `tsload` and `tsv86`
   hold 103 ROM words, 435 of 512 in all. The word grows from 119 to 133
-  bits and still fits in 7 M10K blocks; main's ROM takes 6, hence the one
-  more M10K. A far JMP's or CALL's descriptor check and a delivery's gate
+  bits. The fit reports put the 512×133 ROM in 7 M10K blocks, where main's
+  512×119 takes 6: that is the one more M10K. A far JMP's or CALL's descriptor check and a delivery's gate
   are tgo words that go on at the switch for a TSS or task gate
   (`fes_i386_seq`). An IRET with NT starts at `tssave` from DC, and replays
   if an older POPF changed NT under it.
@@ -183,9 +183,12 @@ IRET-NT placeholders are gone):
   | `F7 IDIV W EAX=00008001 EDX=00007FFF PS=0000 #DE EAX=00008001 EDX=00007FFF` | `... EAX=00008000 EDX=00000001` |
   | `F7 IDIV D EAX=7FFFFFFF EDX=80000000 PS=0000 #DE ...` | `... EAX=80000000 EDX=FFFFFFFF` |
   | `F7 IDIV D EAX=80000001 EDX=7FFFFFFF PS=0000 #DE ...` | `... EAX=80000000 EDX=00000001` |
-  These are overflows the 386EX's division check lets through, which the RTL
-  follows from the corpus (`divergences.toml`, `[[vectors]]
-  idiv-unchecked-overflow`, decided on an 8-bit case). No slice-4
+  Each is the `IDIV AX` or `IDIV EAX` form (test386 divides EDX:EAX by the
+  register; the neighbouring lines' results show which). For all four, the
+  vectors runner's `idiv-unchecked-overflow` predicate holds: the quotient
+  overflows and the 386EX's division check does not fault. The RTL follows
+  the 386EX there (`divergences.toml`, `[[vectors]]
+  idiv-unchecked-overflow`). No slice-4
   RTL touches the divider (`fes_i386_muldiv` is main's); main's RTL never
   reached POST EEh before.
 - `--cpu rtl` does not compare POST EEh's output with the reference, so
@@ -264,8 +267,12 @@ for 80-180 s; this is a check of how far they get, not acceptance.
 
 - **The T bit's #DB** on a switch, and breakpoints (slice 5).
 - **NMI unblocked by a task return.** The RTL unblocks NMI at the commit
-  of an IRET to a nested task, as IRET does; the lockstep raises NMI in
-  real mode only, so no case reaches it (mutant `nmi-kept`).
+  of an IRET to a nested task. The 386's microcode clears the block at
+  IRET's start, in the delay slot of the branch to TASK_RETURN (673-674),
+  so the two differ only when the switch faults inside an NMI handler,
+  where the 386 has unblocked NMI and the RTL has not (as for a plain IRET
+  that faults). The lockstep raises NMI in real mode only, so no case
+  reaches either (mutant `nmi-kept`).
 - **A far JMP through a call gate,** which stays not built (no task
   switch is involved).
 - **nextpnr.** No route was made (fes#1235).
