@@ -43,9 +43,11 @@ crossing. There is one physical release chain for this peripheral-reset source
 in the pixel domain. The board has no independent pixel reset chain. Its
 reference controller retains one pending visibility token across repeated PLL
 losses, waits for a pixel reply confirming allow-low and a closed visible line,
-then permits rearming at a later complete horizontal sync pulse. The four
-single-bit handshake crossings each have two stages; only first-stage data
-paths are cut. HDMI completion and returned pixel activity are synchronized
+then permits rearming at a later complete horizontal sync pulse. D/DE/HS/VS
+share a pixel-clock output stage. Readiness acknowledges that output stage,
+so a stopped pixel clock cannot advertise the preceding internal line gate
+as visible HDMI output. The four single-bit handshake crossings each have
+two stages; only first-stage data paths are cut. HDMI completion and returned pixel activity are synchronized
 into reference before registered readiness crosses to control. PLL loss also
 restarts HDMI configuration. A stopped pixel clock cannot release a frame bank.
 DE, sync and the scaled pixel selector share the RAM's registered read latency.

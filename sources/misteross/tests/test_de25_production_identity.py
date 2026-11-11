@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import unittest
 
-from boards.de25nano.producers import build_menu_package as menu, build_zx81_package as zx81
+from boards.de25nano.producers import build_menu_package as menu, build_zx81_package as zx81, build_zx81_static_package as static
 from boards.de25nano.package.export_core_package import build_identity, verify_record_source_at_revision
 from scripts.source_closure import imports
 
@@ -34,6 +34,10 @@ class ProductionIdentityTests(unittest.TestCase):
                        'source_closure', 'compiler_read_audit'):
             helpers |= imports(module, ROOT)
         helpers.add('boards/de25nano/producers/review_audio_clocks.py')
+        helpers |= {path.relative_to(ROOT).as_posix()
+                    for directory in ('producers', 'package')
+                    for path in (ROOT / 'boards/de25nano' / directory).glob('*.py')}
+        helpers.update(static.REVIEW_INPUTS)
         helpers |= {'boards/de25nano/scanout/' + name for name in (
             'async_inputs.py', 'async_inputs.tcl', 'vendor_reference.py',
             'audio_reference.py', 'audio_clocks.tcl')}
@@ -114,6 +118,36 @@ class ProductionIdentityTests(unittest.TestCase):
                 changed = self.record(producer, root, captured)
                 self.assertNotEqual(build_identity(original), build_identity(changed))
                 verify_record_source_at_revision(root, changed)
+
+    def test_relocated_common_helper_changes_zx81_identity(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            root, captured = self.repository(zx81, directory)
+            original = self.record(zx81, root, captured)
+            self.assertIn(menu.RECIPE, verify_record_source_at_revision(root, original)['source_inputs'])
+            helper = root / menu.RECIPE
+            helper.write_bytes(helper.read_bytes() + b'\n# Changed authentication/timing helper.\n')
+            self.commit(directory)
+            changed = self.record(zx81, root, captured)
+            self.assertNotEqual(build_identity(original), build_identity(changed))
+
+    def test_static_producer_helper_changes_static_identity(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            root, captured = self.repository(zx81, directory)
+            def record():
+                return static.create_build_record(root, 'https://github.com/DeanoC/fes',
+                    self.git(root, 'rev-parse', 'HEAD'),
+                    {name: 'explicit identity fixture ' + name for name in ('quartus', 'qsys', 'ipgenerate', 'pfg')},
+                    {'toolchain': 'quartus', 'identity_fixture': True}, captured,
+                    control_build_id='a' * 32, placement='X2 Y7 X26 Y12', routing='X1 Y6 X27 Y13')
+            original = record()
+            name = 'boards/de25nano/producers/build_zx81_static_package.py'
+            self.assertIn(name, verify_record_source_at_revision(root, original)['source_inputs'])
+            helper = root / name
+            helper.write_bytes(helper.read_bytes() + b'\n# Changed static producer helper.\n')
+            self.commit(directory)
+            self.assertNotEqual(build_identity(original), build_identity(record()))
 
     def test_every_fitted_qualification_input_is_bound(self):
         for producer in (menu, zx81):

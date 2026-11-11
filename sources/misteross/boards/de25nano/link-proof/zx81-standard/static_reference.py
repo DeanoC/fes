@@ -24,7 +24,7 @@ PINS = vendor_reference.OUTPUTS | {'HDMI_SCLK', 'HDMI_LRCLK', 'HDMI_I2S'}
 RESET = 'soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out'
 SYSTEM_CLOCK = 'pll_inst|iopll_0_outclk0'
 OPTIONAL_ENABLE = 'soc_inst|subsys_periph|fes_pr_control|fes_pr_control|first_seen'
-BOUND_FILES = {'reviewed-inputs.json': '51d8e65979a42f224b7b8e41a4f74a929e9e0d7c718826767bd192d7f75c004d',
+BOUND_FILES = {'reviewed-inputs.json': 'cd83ebf829dc82c57cecef25ec804799e149d27d60fd68fd5d2cd7eb86ca55d0',
                'reviewed-topology.json': '0dbcac3fd72ccdeb60c9dc6a42968a7dd755c007ef3b06623666e30849cd7fd1'}
 SLUGS = ('4_slow_fix4_0c', '4_slow_fix4_100c', '4_slow_fix4a_0c', 'MIN_fast_fix4_0c')
 

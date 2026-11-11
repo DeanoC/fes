@@ -90,7 +90,7 @@ class HpsZX81BuildTests(unittest.TestCase):
             "sources/misteross/boards/de25nano/shared-rtl/fes_computer_mailbox.v",
             *["sources/misteross/cores/fes-zx81/rtl/" + name for name in
               ("zx81_keyboard.v", "zx81_tape_store.v")],
-            *[B.BOARD + "shared-rtl/" + name for name in B.SHARED_CORE_FILES],
+            *[B.core_source_path(name) for name in B.SHARED_CORE_FILES],
             *[B.BOARD + "zx81-hps/generated/" + name for name in
               ("fes_de25_computer.vh", "fes_de25_computer.hpp", "fes_computer.vh")],
         }
@@ -129,7 +129,7 @@ class HpsZX81BuildTests(unittest.TestCase):
         for source, destination in (("visible_allow", "visible_sync"),
                                     ("visibility_epoch", "visibility_epoch_sync"),
                                     ("visibility_ack", "visibility_ack_sync"),
-                                    ("video_active", "active_sync")):
+                                    ("hdmi_active", "active_sync")):
             self.assertIn("{fes_video_inst|" + source + "} {fes_video_inst|" +
                           destination + "[0]} {fes_video_inst|" + destination + "[1]}", sdc)
         self.assertIn('"${visibility_stage0}|D"', sdc)

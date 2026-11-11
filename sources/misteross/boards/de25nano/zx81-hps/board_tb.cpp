@@ -81,12 +81,12 @@ static void reset_and_sync_boundaries() {
     t.video_hs = 1;
     for (int i = 0; i < 4; ++i) { tick(); black(); }
     t.video_hs = 0; tick();
-    tick();
-    check(t.HDMI_TX_DE && t.HDMI_TX_D == 0x123456,
-          "video did not resume at the next complete line boundary");
     check(!t.video_ready, "video readiness bypassed the source register at the complete line");
     tick(); check(!t.video_ready, "pixel activity bypassed the return synchronizer");
+    check(t.HDMI_TX_DE && t.HDMI_TX_D == 0x123456,
+          "video did not resume one output stage after the complete line boundary");
     tick(); check(!t.video_ready, "pixel activity bypassed the registered reference source");
+    tick(); check(!t.video_ready, "output activity bypassed the registered reference source");
     tick(); check(t.video_ready, "video readiness did not recover after the complete line");
 
     // Configuration reset uses the same data/sync boundary behavior.
@@ -120,7 +120,7 @@ struct Rig {
     Vfes_de25_zx81_board t;
     DigitalClock ref, pix;
     uint64_t ref_edges = 0, pix_edges = 0;
-    bool previous_pixel_hs = false, is_locked = false;
+    bool previous_pixel_hs = false, previous_boundary = false, is_locked = false;
     unsigned visible_rises = 0;
     Rig(uint64_t phase): ref{50000000, 10000000}, pix{74250000, phase + 1} {
         t.CLOCK0_50 = 0; t.ninit_done = 1; t.HDMI_TX_INT = 1;
@@ -152,7 +152,6 @@ struct Rig {
     void step() {
         uint64_t now = std::min(ref.next, pix.next);
         bool old_visible = t.HDMI_TX_DE, old_hs = t.HDMI_TX_HS, old_vs = t.HDMI_TX_VS;
-        bool old_input_hs = t.video_hs, old_input_vs = t.video_vs;
         bool pixel_rise = false;
         if (ref.next == now) {
             if (ref.running) {
@@ -178,19 +177,29 @@ struct Rig {
         bool boundary = pixel_rise && previous_pixel_hs && !t.video_hs && !t.video_vs;
         t.eval();
         if (!old_visible && t.HDMI_TX_DE) {
-            check(boundary, "pixels re-enabled outside the complete HS trailing edge");
+            check(pixel_rise && previous_boundary,
+                  "pixels re-enabled outside the registered complete HS trailing edge");
             ++visible_rises;
         }
         if (old_hs && !t.HDMI_TX_HS)
-            check(old_input_hs && !t.video_hs, "an output HS pulse was shortened");
+            check(pixel_rise && !t.video_hs, "an output HS pulse was shortened or changed off-clock");
         if (!old_hs && t.HDMI_TX_HS)
-            check(!old_input_hs && t.video_hs, "an output HS pulse started mid-pulse");
+            check(pixel_rise && t.video_hs, "an output HS pulse started mid-pulse or changed off-clock");
         if (old_vs && !t.HDMI_TX_VS)
-            check(old_input_vs && !t.video_vs, "an output VS pulse was shortened");
+            check(pixel_rise && !t.video_vs, "an output VS pulse was shortened or changed off-clock");
         if (!old_vs && t.HDMI_TX_VS)
-            check(!old_input_vs && t.video_vs, "an output VS pulse started mid-pulse");
-        check(!t.video_ready || t.HDMI_TX_DE, "ready preceded visible output (DE input is held high)");
-        if (pixel_rise) previous_pixel_hs = t.video_hs;
+            check(pixel_rise && t.video_vs, "an output VS pulse started mid-pulse or changed off-clock");
+        if (t.video_ready && !t.HDMI_TX_DE) {
+            std::fprintf(stderr, "ready/de state: refs=%llu pixels=%llu cfg=%u allow=%u active=%u active_sync=%u visible_sync=%u locked=%u\n",
+                (unsigned long long)ref_edges, (unsigned long long)pix_edges,
+                t.rootp->fes_de25_zx81_board__DOT__config_reset_n,
+                t.rootp->fes_de25_zx81_board__DOT__visible_allow,
+                t.rootp->fes_de25_zx81_board__DOT__video_active,
+                t.rootp->fes_de25_zx81_board__DOT__active_sync,
+                t.rootp->fes_de25_zx81_board__DOT__visible_sync, unsigned(is_locked));
+            check(false, "ready preceded visible output (DE input is held high)");
+        }
+        if (pixel_rise) { previous_pixel_hs = t.video_hs; previous_boundary = boundary; }
         if (!is_locked) black();
     }
     void events(unsigned count) { while (count--) step(); }

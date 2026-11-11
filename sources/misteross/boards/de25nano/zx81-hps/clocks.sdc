@@ -9,6 +9,14 @@ if {$computer_clear_count != 2} {error "DE25 computer requires two reference HDM
 if {[get_collection_size $computer_aclr] > 0} {set_false_path -to $computer_aclr}
 if {[get_collection_size $computer_clrn] > 0} {set_false_path -to $computer_clrn}
 post_message -type info "DE25 computer HDMI reset ingress pins: $computer_clear_count (expected2)"
+# Analog Devices ADV7513 Hardware User's Guide Rev. 0, p. 12, AC Specifications:
+# setup tVSU >= 1.0 ns and hold tVHLD >= 0.7 ns. No board trace delay is
+# documented, so the pin budget assumes zero external flight time.
+create_generated_clock -name HDMI_TX_CLK -source [get_ports {CLOCK0_50}] \
+    -multiply_by 297 -divide_by 200 [get_ports {HDMI_TX_CLK}]
+set hdmi_video_ports [get_ports {HDMI_TX_D[*] HDMI_TX_DE HDMI_TX_HS HDMI_TX_VS}]
+set_output_delay -clock HDMI_TX_CLK -max 1.000 $hdmi_video_ports
+set_output_delay -clock HDMI_TX_CLK -min -0.700 $hdmi_video_ports
 # The computer runs on the preserved peripheral clock. No new GP control CDC,
 # clock groups, FIFO cuts or external HDMI/I2C delay assumptions are introduced.
 
@@ -69,7 +77,7 @@ foreach {visibility_source visibility_stage0 visibility_stage1} {
     {fes_video_inst|visible_allow} {fes_video_inst|visible_sync[0]} {fes_video_inst|visible_sync[1]}
     {fes_video_inst|visibility_epoch} {fes_video_inst|visibility_epoch_sync[0]} {fes_video_inst|visibility_epoch_sync[1]}
     {fes_video_inst|visibility_ack} {fes_video_inst|visibility_ack_sync[0]} {fes_video_inst|visibility_ack_sync[1]}
-    {fes_video_inst|video_active} {fes_video_inst|active_sync[0]} {fes_video_inst|active_sync[1]}
+    {fes_video_inst|hdmi_active} {fes_video_inst|active_sync[0]} {fes_video_inst|active_sync[1]}
 } {
     set visibility_source_reg [get_registers $visibility_source]
     set visibility_stage0_reg [get_registers $visibility_stage0]

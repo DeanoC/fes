@@ -4296,8 +4296,11 @@ is implied by the source change.
 
 The DE25 canonical ZX81 producer selects the standard shared computer core,
 allocated session display and fixed audio under `de25-linux-computer-v1`.
-Its full captured closure feeds functional identity before generation. The same
-generated component/topology and staged-source verifier runs before and after
+Its full captured closure feeds functional identity before generation. The board-local
+`producers/` and `package/` Python modules also enter that closure, including the
+common timing/authentication helpers and static producer; helper-only edits change
+the functional identity. Unrelated diagnostic scripts and simulations remain outside
+these roots. The same generated component/topology and staged-source verifier runs before and after
 compilation, retaining reset/FIFO, firmware, clock and endpoint checks.
 Compile-only preserves raw findings without export. Package export needs fresh
 fitted input/output-reference review and an independently identical RBF. The
