@@ -7490,6 +7490,15 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     ts("ts-call-busy", tsc(0x98), 13, 0x98, {}, {}, {{19, desc(0x2600, 0x67, 0x8b, false, false)}});
     ts("ts-jmp-np", tsj(0x98), 11, 0x98, {}, {}, {{19, desc(0x2600, 0x67, 0x09, false, false)}});
     ts("ts-jmp-rpl3", tsj(0x9b), 13, 0x98, {});
+    // A TSS's selector with TI=1 (the LDT's entry 3 an available 386 TSS):
+    // #GP(selector), the 386's TST_SEL_TASKGT.
+    {
+        const uint64_t lt = desc(0x2600, 0x67, 0x89, false, false);
+        std::vector<uint8_t> b(8);
+        for (unsigned i = 0; i < 8; ++i) b[i] = uint8_t(lt >> (8 * i));
+        ts("ts-jmp-ti", [](Asm &a) { a.ax(0x30); a.op({0x0f, 0x00, 0xd0, 0xea, 0x00, 0x00, 0x1c, 0x00}); }, 13, 0x1c,
+           with({Places{{LDT + 0x18, b}}, task(0x2600, a_img, HLT1)}));
+    }
     ts("ts-jmp-limit", tsj(0x98), 10, 0x98, {}, {}, {{19, desc(0x2600, 0x66, 0x89, false, false)}});
     ts("ts-jmp16-limit", tsj(0xa0), 10, 0xa0, {}, {}, {{20, desc(0x2680, 0x2a, 0x81, false, false)}});
     ts("ts-old-limit", tsj(0x98), 10, 0x38, task(0x2600, a_img, HLT1), {}, {{7, desc(0x2500, 0x5e, 0x89, false, false)}});
