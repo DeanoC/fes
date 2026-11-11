@@ -30,7 +30,12 @@ enables; and a switch into a V86 task.
   changed since; later commits touch only docs and the testbench. ALMs
   36,155 (main 36,002 the same day, +153) and 269 M10K (main 268, +1)
   ([Seal](#seal)).
-- **Kit A, max.** KIT_RESULT
+- **Kit A, max.** DOOM v1.9 `-timedemo demo3` gives 40.03 fps, and 3DBench,
+  PCPBench and TopBench match main's exactly, run the same hour. Descent now reaches its
+  main menu; on main it stops after the DOS/4GW banner. Jump 'n Bump reaches
+  its title screen and NetHack its first prompt; on main both hang at launch.
+  Angband now gets as far as DJGPP's "Coprocessor not available" exit,
+  where on main it hung: it needs a 387 or an emulator.
 
 ## Design as built
 
@@ -220,7 +225,40 @@ measured. 5,755 ALMs (13.7%) are left, 2,345 under the working ceiling of
 
 ## Kit
 
-KIT_SECTION
+Runs `k1`-`k3` (this slice) and `m1`-`m3` (main) used Kit A, core-only,
+on 11 November from 11:24 to 12:28 ([kit-scores.json](kit-scores.json)).
+- **Packages.** `b3af9d7a…` (this slice's seal) and `bc4ab0d9…`, main
+  `d56f0e558`'s seal of the same day, at max (preset 0). Each launch came after a
+  SCRUBX scrub.
+- **Kit.** Baseline image `179affbb…` and software `a2756499`, with no
+  install, no image change and no reboot. After each run Kit A was checked
+  against its snapshot and logged FREE.
+- **Cleanup.** Lander's own recovery at 12:35 had already removed the
+  game records and media trees the six runs left (restoring the kit's
+  listing). My cleanup then removed the three staged disk images, and the kit
+  was logged FREE on its baseline.
+- **Disks.** The Phase 4 bench disk, and the #1533 game drives `dpmi`
+  (`9e6ae3a3…`) and `pmode` (`b4be6e29…`), from Powerboat. None is
+  committed.
+
+| Benchmark | Main (m1) | This slice (k1) |
+| --- | ---: | ---: |
+| DOOM v1.9 `-timedemo demo3` | 3,863 gametics in 3,378 realtics, 40.03 fps | same |
+| 3DBench | 76.9 | 76.9 |
+| PCPBench | 13.3 | 13.3 |
+| TopBench | 307 | 307 |
+
+| Title | Drive | Main (m2, m3) | This slice (k2, k3) |
+| --- | --- | --- | --- |
+| Descent (DOS/4GW 1.97) | `pmode` | Stops after the DOS/4GW banner | Its main menu |
+| Jump 'n Bump (CWSDPMI) | `dpmi` | Hangs at launch, blank screen | Its title screen |
+| NetHack 3.4 (CWSDPMI) | `dpmi` | Hangs at launch, blank screen | "Who are you?" |
+| Angband (CWSDPMI) | `dpmi` | Hangs at launch | Exits: SIGNOFP, "Coprocessor not available at eip=00112a07" |
+| Time Circle (32RTM) | `dpmi` | Its main menu | Its main menu |
+
+The machine has no 387, and this Angband build carries no emulator. On
+main the runtime never got that far. Each title was launched and watched
+for 80-180 s; this is a check of how far they get, not acceptance.
 
 ## What this record does not cover
 
