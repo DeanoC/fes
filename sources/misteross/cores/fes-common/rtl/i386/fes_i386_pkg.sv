@@ -1062,7 +1062,7 @@ package fes_i386_pkg;
         // REP element, not its instruction.
         logic           txr;
         // dfl: M1, the uop's fault is its st2 store's segment check
-        // (dfault), which a #PF on its load's pages comes before.
+        // (dfault), which a #PF on its own pages comes before.
         logic           dfl;
     } pipe_t;
 

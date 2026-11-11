@@ -1333,7 +1333,14 @@ as Bochs's `translate_linear_legacy` at CPU level 3.
   load whose data nothing uses (a probe, POP m's step, the multiply and
   divide unit's LOAD and HI) translates nothing (`nx`): Bochs pushes and
   faults on the pushes, as the stores then do. ENTER's last check
-  translates as a write (`wx`, Bochs's `tickle_write_virtual`).
+  translates as a write (`wx`, Bochs's `tickle_write_virtual`), and so do
+  XCHG m's and ARPL m's loads of their operands; XCHG m's load also takes
+  its store's segment check, so a segment it cannot write raises #GP(0)
+  (#SS(0)) before the load's #PF (#1644). A uop whose fault is a later one
+  than its pages' #PF (`dfl`: a st2 store's segment check) still
+  translates, replaying when it is not the oldest, and its #PF comes first.
+  A near CALL's push past CS's limit (`cpast`) has no fault, so it
+  translates as any store does and its #PF comes before its jump's #GP(0).
 - **The walker** (`fes_i386_l1d`) runs only for the oldest uop, as an
   uncached load reads (`L_UNC`, then `oldest`), else the uop replays and
   its instruction issues alone, up to the end of the REP element it was in
