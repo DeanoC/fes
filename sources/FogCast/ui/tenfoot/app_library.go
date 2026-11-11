@@ -197,14 +197,14 @@ func (a *App) holdLibraryForRetry(gen int, query hostclient.GameListQuery, previ
 	saved, ok := sameFilterSavedShelf(a.shelfQuerySet, a.shelfQuery, a.shelfGames, previous, query)
 	if !ok {
 		a.loadErr = "Can't reach the library right now."
-		a.status = a.loadErr
+		a.setLibraryStatusLocked(a.loadErr)
 		return false
 	}
 	shown := append([]hostclient.Game(nil), saved...)
 	a.applyCatalogPageLocked(shown, keepID, keepIndex, pinned, lastFocus, navID)
 	a.loading = false
 	a.loadErr = ""
-	a.status = savedListOfflineCopy
+	a.setLibraryStatusLocked(savedListOfflineCopy)
 	return true
 }
 
@@ -285,7 +285,7 @@ func (a *App) collectLibraryPages(ctx context.Context, gen int, query hostclient
 		// once navigation had unpinned the reload id.
 		if publish {
 			a.applyCatalogPageLocked(append([]hostclient.Game(nil), all...), keepID, keepIndex, pinned, lastFocus, navID)
-			a.status = a.libraryStatusLocked()
+			a.setLibraryStatusLocked(a.libraryStatusLocked())
 		}
 		a.mu.Unlock()
 		if page.NextCursor == "" || len(all) >= a.maxGames || len(chunk) == 0 {
@@ -303,7 +303,7 @@ func (a *App) publishLibraryAttempt(gen int, games []hostclient.Game, keepID str
 		return
 	}
 	a.applyCatalogPageLocked(append([]hostclient.Game(nil), games...), keepID, keepIndex, pinned, lastFocus, navID)
-	a.status = a.libraryStatusLocked()
+	a.setLibraryStatusLocked(a.libraryStatusLocked())
 }
 
 func (a *App) finishLibraryLoad(ctx context.Context, gen int, query hostclient.GameListQuery, previous, games []hostclient.Game, keepID string, keepIndex int, notice string, err error) {
@@ -325,9 +325,9 @@ func (a *App) finishLibraryLoad(ctx context.Context, gen int, query hostclient.G
 			a.loadErr = ""
 			if len(a.games) == 0 {
 				a.grid.SetCount(0)
-				a.status = "Can't reach the library right now."
+				a.setLibraryStatusLocked("Can't reach the library right now.")
 			} else {
-				a.status = a.libraryShelfStatusLocked(query, a.games, notice)
+				a.setLibraryStatusLocked(a.libraryShelfStatusLocked(query, a.games, notice))
 			}
 			return
 		}
@@ -338,18 +338,18 @@ func (a *App) finishLibraryLoad(ctx context.Context, gen int, query hostclient.G
 			navID := ""
 			a.applyCatalogPageLocked(saved, keepID, keepIndex, &pinned, &lastFocus, &navID)
 			a.loadErr = ""
-			a.status = savedListOfflineCopy
+			a.setLibraryStatusLocked(savedListOfflineCopy)
 			return
 		}
 		a.loadErr = "Can't reach the library right now."
-		a.status = a.loadErr
+		a.setLibraryStatusLocked(a.loadErr)
 		return
 	}
 	a.shelfQuery = query
 	a.shelfQuerySet = true
 	a.shelfGames = append([]hostclient.Game(nil), games...)
 	a.loadErr = ""
-	a.status = a.libraryShelfStatusLocked(query, games, notice)
+	a.setLibraryStatusLocked(a.libraryShelfStatusLocked(query, games, notice))
 }
 
 func (a *App) libraryShelfStatusLocked(query hostclient.GameListQuery, games []hostclient.Game, notice string) string {
