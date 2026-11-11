@@ -76,10 +76,10 @@ contract and four native-video/socket/session commands passed before that
 failure. The six unstarted core simulations are resumed separately, preserving
 the initial failed run rather than replacing its log with an aggregate pass.
 
-The current-source test now uses the branch-local
-`sources/misteross/tests/fixtures/de25-combined-proof.json` fixture. It still
-requires exact equality with the live compiler and runtime source closures,
-all fourteen passing results and both native and AArch64 architectures.
+The current-source test uses the branch-local
+`sources/misteross/tests/fixtures/de25-combined-proof.json` fixture. Following
+the R2-1 refresh, it requires exact equality with the live compiler and runtime
+source closures and seven passing native results from the host Verilator run.
 Independent refreshed proofs run against the consolidated bring-up and platform
 producers; their dated records remain separate from the original receipt.
 Both complete all fourteen cases, with identical semantic results between

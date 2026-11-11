@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "c27ee4f3c5475cbbd5a3e343daca81541906538b",
+  "source_revision": "fa29fa056a9d53750e41dbe774d90e26a112325d",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -28,20 +28,22 @@
     "sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.vh": "5e79081cdf4daca60057540a3c3ce4eb12ad6f88eceb475a828779588ac717c3",
     "sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp": "ab191c5b6bfbb455abf21a3b80f2925fbfa97f69e2ab2290781e748bdf205105",
     "sources/misteross/boards/de25nano/build.py": "104fc74e5bf448396e3e078535615efd9ac30ce6d47cc1e96cf98a5622211d6c",
-    "sources/misteross/boards/de25nano/display/build.py": "a6daf1ca93d4b4dce6a8e558c1351b2992e16ef5c1c9fb4b587fa22f52ec7273",
+    "sources/misteross/boards/de25nano/display/build.py": "da3ba2d3dffc80975b40f82f24f7d2350426a0df05109507e1deaae3251c268c",
     "sources/misteross/boards/de25nano/display/vendor.lock.toml": "49cdc74e6e7b051c4cad17faf2ce91902dbc74e54a29b0ad4ff7846298ff95f3",
     "sources/misteross/boards/de25nano/link-proof/zx81-computer/profile.py": "fab7b5556e3357206add6e70c6a4a44805f9ce1116637901f2ae9e6f7262a8d8",
     "sources/misteross/boards/de25nano/link-proof/zx81-computer/timing.tcl": "d7244ea3adefa8e14ff69082ab9fabcf640ad0f0f0b7c7f0d19ec8f3defb2bcb",
     "sources/misteross/boards/de25nano/link-proof/zx81-ram/audit.py": "74f3d6f32eafde66947ff1d9eb44e222315cd048c4e3a8b5f9b41718726711b2",
     "sources/misteross/boards/de25nano/link-proof/zx81-ram/personas.v": "6fd38c3e6be7d0068383452bba6c179dd03ccce036091275146db4e82c0d2524",
-    "sources/misteross/boards/de25nano/link-proof/zx81-ram/profile.py": "ad07819582d16f7a6ab4e8e4ab13db789d231c6541e38ee0ca2b6654a045768c",
+    "sources/misteross/boards/de25nano/link-proof/zx81-ram/profile.py": "3dbfb7f829d65fcb47dece4a2b58c5afd1eafbfffb556bab6e70c6455199414e",
     "sources/misteross/boards/de25nano/link-proof/zx81-ram/static.v": "10755a86b98ca1f3465c74c17fa44a667ba828e21952bb04505e1bb641c0944a",
     "sources/misteross/boards/de25nano/link-proof/zx81-ram/timing.tcl": "733ce2b528d51776b12d8956b557038e0ad07a122199b3ffbf982c25d6134755",
-    "sources/misteross/boards/de25nano/zx81/build.py": "55a4db17ec68e17ed288bba72b99cbf6ee78d84f31b1e59c926b6b94a334c79d",
+    "sources/misteross/boards/de25nano/shared-rtl/zx81_machine.sv": "a4e54da2c769f9730bd2b5ca12a3fcc1c4b03133ccc48a551b0dc1a76f2a37f5",
+    "sources/misteross/boards/de25nano/shared-rtl/zx81_machine_clock.v": "d222d14bc64a9f7dd9cf1e3bad33be7708a70e0bfc94a9a6bf713d4d5ebbd501",
+    "sources/misteross/boards/de25nano/zx81/build.py": "f88226b6ad891e0262db4221d9778e0e3739d57b9903230402c3d5a69ec3e23d",
     "sources/misteross/boards/de25nano/zx81/firmware.py": "d4f1859dfed1372f3926eb9d14e9e5ba477cc50a900293fdd68ab618c72507c0",
-    "sources/misteross/boards/de25nano/zx81-hps/board.v": "0fa7ca6959644f3233f9bedf9373ba40ed95930d64f68e394f8b14d5300e2e36",
-    "sources/misteross/boards/de25nano/zx81-hps/build.py": "41c427adcef78e46af3862144935ccff19666f33ad3f37a4b7cfd406724962dc",
-    "sources/misteross/boards/de25nano/zx81-hps/clocks.sdc": "c9cc9109c6ce697f311c54fce890a2ed39f61d749b838d8482b4cea0aa04bb05",
+    "sources/misteross/boards/de25nano/zx81-hps/board.v": "2f2ff1508d6727395ed6884b7a7d8f7c0f1f1a524114d170e01f0c455581d0d7",
+    "sources/misteross/boards/de25nano/zx81-hps/build.py": "21c697d3fb13a8e3243bbb52792f3ac4f200f2a0723a1a10ca81d98e8a74a723",
+    "sources/misteross/boards/de25nano/zx81-hps/clocks.sdc": "0d465b8b0d1e61d6c3e3cd5a5003d490891a6e2c25b986c1bf663414febd0932",
     "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v": "8ff47eed1c8693a8b018df7a7da70de4eb74e0cca1d7d4ecede0f3919ab2743a",
     "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl": "995016e2a46adbfc32f9de2fda67fe054cd65e8174cac90d05659629f54fb0af",
     "sources/misteross/boards/de25nano/zx81-hps/generated/fes_computer.vh": "2238e03a42939f2f5485d9ea15b77088ab1c229bb47d3130a703624d7fa5297c",
@@ -70,8 +72,6 @@
     "sources/misteross/cores/fes-zx81/rtl/zx81_bus_pack.vh": "dbe3e58505b27a71362a602b1bc4e8c2249a0407d42abb52a56da8deab5cbfb0",
     "sources/misteross/cores/fes-zx81/rtl/zx81_dpram.v": "a72d4bb2c2311813f07575c12ea96e51d1269882eed795753c3061b30c006038",
     "sources/misteross/cores/fes-zx81/rtl/zx81_keyboard.v": "684185761646e975608fd29c57366d50c12d8710d36e5c69696baf1ae453b45f",
-    "sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv": "a4e54da2c769f9730bd2b5ca12a3fcc1c4b03133ccc48a551b0dc1a76f2a37f5",
-    "sources/misteross/cores/fes-zx81/rtl/zx81_machine_clock.v": "d222d14bc64a9f7dd9cf1e3bad33be7708a70e0bfc94a9a6bf713d4d5ebbd501",
     "sources/misteross/cores/fes-zx81/rtl/zx81_model.vh": "c421b4ec19d294bc6e2dc98562ebf99fb9ce1100efa78fea1ed15ffabd2c3d2f",
     "sources/misteross/cores/fes-zx81/rtl/zx81_ram_pack.v": "4c4a434af8300da18cea2a6a3431bfb5aab300223f1b75df7090cc5858f2a29a",
     "sources/misteross/cores/fes-zx81/rtl/zx81_tape_store.v": "3a144e4fb125475ec8e849112130600968065b895a264225193d43fdbe6e24a9",
@@ -84,7 +84,7 @@
     "sources/misteross/boards/de25nano/link-proof/zx81-computer/wire.hpp": "07803d2bb48acd2fde907d0fc830ef6ab1d9c8cd349f5befbc134119333773fa",
     "sources/misteross/boards/de25nano/link-proof/zx81-computer/sim.hpp": "668781c9536ee2ca196f1bab3e339c6a68151eed6128048d059431b407429cd3",
     "sources/misteross/boards/de25nano/link-proof/zx81-computer/sim_top.v": "9e253173be8aa49dd298432d72222f32c3b12026358b30198d62f9c219d80ce8",
-    "sources/misteross/boards/de25nano/link-proof/zx81-computer/proof.py": "deca272215844bede8844c465e9d9c00b246ff612a16589e6a5fd93fc5b392f7",
+    "sources/misteross/boards/de25nano/link-proof/zx81-computer/proof.py": "aa4fb505f5eaca8a09321cf136aaecf5a9fc0b05463542099a5d8b4e0449a2ca",
     "sources/libmister-runtime/src/native/menu_display.hpp": "736bff928cac9dfb5a1fcf9660fd9d589107f5618ba12d1f2b10041984cf12c1",
     "sources/libmister-runtime/src/native/idle_recipe.hpp": "743d820a3bdba213a5d806dc834236b0e149ed930982b5104cba732e47e62527",
     "sources/libmister-runtime/src/native/video_recipe.hpp": "b471a537d3ed136028465f5dd11db0e7fe52f2534a9762a28f63c8f89583e8c0",
@@ -129,7 +129,7 @@
     "sources/libmister-runtime/include/libmister-runtime/runtime.h": "f627a3f6f6905a9ce21841447f42fc8aa0d860b57a005a60dca93eb1a4ef900a",
     "sources/libmister-runtime/src/native/de25_computer.cpp": "a42ab860376ab2feacc92e7975a481632643566cea2fd831dcdb71894806c704",
     "sources/libmister-runtime/src/native/de25_pr_control.cpp": "99938d34482403ba61be766ecfb1ad1e8b23ad8de4ca507386abeb91aa258904",
-    "sources/misteross/boards/de25nano/zx81-hps/client_proof.py": "a399f5653a01cb8b0be9595be3666b88c0fd3525f3ce341bbcc8b0fb611c8d67"
+    "sources/misteross/boards/de25nano/zx81-hps/client_proof.py": "099dad0ab677b8253624d844838a23dafbe6dbd77a9881b054e936065cff2a45"
   },
   "results": [
     {
@@ -218,103 +218,11 @@
       "ramtop_empty": 0,
       "ramtop_16k": 0,
       "writes": 23
-    },
-    {
-      "architecture": "aarch64-cortex-a76",
-      "scenario": "session",
-      "result": "passed",
-      "callbacks": 3,
-      "loaded_bytes": 923,
-      "interrupted_bytes": 9,
-      "ramtop_empty": 17408,
-      "ramtop_16k": 32768,
-      "writes": 1548,
-      "roundtrip": {
-        "saved_bytes": 923,
-        "loads": 2,
-        "runs": 2,
-        "printed_value": 7,
-        "editor_returns": 24,
-        "saved_cdflag": 64,
-        "reload_removed_edit": true
-      },
-      "saved_image_sha256": "6eaec0372c752282f8b316a8920eed7e43efc8568c76ea1895c8bb183dc9f68b"
-    },
-    {
-      "architecture": "aarch64-cortex-a76",
-      "scenario": "wrong-build",
-      "result": "passed",
-      "callbacks": 0,
-      "loaded_bytes": 0,
-      "interrupted_bytes": 0,
-      "ramtop_empty": 0,
-      "ramtop_16k": 0,
-      "writes": 0
-    },
-    {
-      "architecture": "aarch64-cortex-a76",
-      "scenario": "program-failure",
-      "result": "passed",
-      "callbacks": 1,
-      "loaded_bytes": 0,
-      "interrupted_bytes": 0,
-      "ramtop_empty": 0,
-      "ramtop_16k": 0,
-      "writes": 25
-    },
-    {
-      "architecture": "aarch64-cortex-a76",
-      "scenario": "wrong-persona",
-      "result": "passed",
-      "callbacks": 1,
-      "loaded_bytes": 0,
-      "interrupted_bytes": 0,
-      "ramtop_empty": 0,
-      "ramtop_16k": 0,
-      "writes": 27
-    },
-    {
-      "architecture": "aarch64-cortex-a76",
-      "scenario": "ambiguous-write",
-      "result": "passed",
-      "callbacks": 0,
-      "loaded_bytes": 0,
-      "interrupted_bytes": 0,
-      "ramtop_empty": 0,
-      "ramtop_16k": 0,
-      "writes": 24
-    },
-    {
-      "architecture": "aarch64-cortex-a76",
-      "scenario": "missing-response",
-      "result": "passed",
-      "callbacks": 1,
-      "loaded_bytes": 0,
-      "interrupted_bytes": 0,
-      "ramtop_empty": 0,
-      "ramtop_16k": 0,
-      "writes": 27
-    },
-    {
-      "architecture": "aarch64-cortex-a76",
-      "scenario": "late-reset",
-      "result": "passed",
-      "callbacks": 0,
-      "loaded_bytes": 0,
-      "interrupted_bytes": 0,
-      "ramtop_empty": 0,
-      "ramtop_16k": 0,
-      "writes": 23
     }
   ],
   "tools": {
     "verilator": "Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)",
     "cxx": "c++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
-    "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
-    "sdk_volume": "fes-de25-stack-proof-sdk-12a74254-c134-20261109",
-    "sdk_before": "d2b8e8b3a9b53a80f20450824157a86eacddb0466d7310de47779ecb0624ed76  /build/sdk/bin/aarch64-buildroot-linux-gnu-g++\n29f631250421bf3c2fbe113fadf1cc1b89e8714c3530a43db06b507ada50145f  /build/sdk/bin/aarch64-buildroot-linux-gnu-g++.br_real\n",
-    "qemu_sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350",
-    "qemu_version": "qemu-aarch64 version 7.2.22 (Debian 1:7.2+dfsg-7+deb12u18+b3)\nCopyright (c) 2003-2022 Fabrice Bellard and the QEMU Project developers\n",
     "native_tools_sha256": {
       "/usr/bin/verilator": "672a1ccf3468902f66387049f001b04f254bbcece7d5e816e3861715889bf252",
       "/usr/bin/x86_64-linux-gnu-g++-14": "6b3696e4dcb85e1c949c732a02befa50e3983ecf94ce7e8e58d9d503b954b79d"
@@ -323,8 +231,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "e65ff7d38f0d5826e00d1e88a89b33cf971d824afcd915257eba1220752aa927",
-    "Vfes_de25_combined_sim": "5ee5df2a11d8ce4398ef25fe968f7b422080b160020330f1ff6313909ba6a5aa",
-    "client-aarch64": "169a3309dd104af655a6cdb7d552090c80f5197be6c74df7cd2c3ce00cb7dea6"
+    "Vfes_de25_combined_sim": "79930e220e868978062993311b2bcdffa52a3354ea5b3ad3a1478661cdbc3e91"
   },
   "physical_PR": "selection-mux-model-only",
   "memory": "behavioral",

@@ -2,7 +2,6 @@
 import importlib.util
 import json
 from pathlib import Path
-import subprocess
 import tempfile
 import unittest
 
@@ -12,7 +11,7 @@ SPEC.loader.exec_module(build)
 
 
 class RecipeTests(unittest.TestCase):
-    def test_historical_combined_client_receipt_and_moved_machine_sources(self):
+    def test_combined_client_proof_receipt_matches_captured_sources(self):
         combined = build.BOARD / "zx81-computer"
         build.PROFILE = build.load_profile(combined / "profile.py")
         try:
@@ -27,30 +26,26 @@ class RecipeTests(unittest.TestCase):
         receipt = json.loads(receipt_path.read_text())
         self.assertEqual(receipt["status"], "passed")
         self.assertTrue(receipt["production_source_committed"])
-        revision = receipt["source_revision"]
-        for name, digest in receipt["compiler_source_sha256"].items():
-            data = subprocess.check_output(["git", "-C", str(root), "show", revision + ":" + name])
-            self.assertEqual(build.sha(data), digest, name)
-        moved_sources = {
-            "sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv":
-                "sources/misteross/boards/de25nano/shared-rtl/zx81_machine.sv",
-            "sources/misteross/cores/fes-zx81/rtl/zx81_machine_clock.v":
-                "sources/misteross/boards/de25nano/shared-rtl/zx81_machine_clock.v",
-        }
-        for previous, selected in moved_sources.items():
-            self.assertNotIn(previous, frozen["files"])
-            self.assertIn(selected, frozen["files"])
-            self.assertEqual(receipt["compiler_source_sha256"][previous],
-                             build.sha(frozen["files"][selected]))
+        self.assertEqual(receipt["compiler_source_sha256"],
+                         {name: build.sha(data) for name, data in frozen["files"].items()})
 
         self.assertTrue(receipt["test_source_committed"])
-        for name, digest in receipt["test_runtime_source_sha256"].items():
-            data = subprocess.check_output(["git", "-C", str(root), "show", revision + ":" + name])
-            self.assertEqual(build.sha(data), digest, name)
-        self.assertEqual(len(receipt["results"]), 14)
+        runtime = root / "sources/libmister-runtime"
+        hps_cosim = build.BOARD.parent / "zx81-hps/cosim"
+        paths = list(combined.glob("*.cpp")) + list(combined.glob("*.hpp"))
+        paths += [combined / "sim_top.v", combined / "proof.py"]
+        paths += list((runtime / "src/native").rglob("*.hpp"))
+        paths += list(hps_cosim.glob("*.hpp"))
+        paths += [runtime / "include/libmister-runtime/runtime.h",
+                  runtime / "src/native/de25_computer.cpp",
+                  runtime / "src/native/de25_pr_control.cpp",
+                  build.BOARD.parent / "zx81-hps/client_proof.py"]
+        runtime_hashes = {path.relative_to(root).as_posix(): build.sha(path.read_bytes()) for path in paths}
+        self.assertEqual(receipt["test_runtime_source_sha256"], runtime_hashes)
+        self.assertEqual(len(receipt["results"]), 7)
         self.assertTrue(all(result["result"] == "passed" for result in receipt["results"]))
         self.assertEqual({result["architecture"] for result in receipt["results"]},
-                         {"native", "aarch64-cortex-a76"})
+                         {"native"})
 
     def test_real_preparation_declares_both_personas_reconfigurable(self):
         with tempfile.TemporaryDirectory() as tmp:
