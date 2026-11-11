@@ -8,8 +8,27 @@ bits, the TSS's T bit and TF's single step. No title in the Phase 5 census
 needs them; the compatibility contract does.
 
 **Result:**
-
-RESULT
+- **Lockstep.** Everything passes against Bochs at the merged tree
+  (`5a74d5598`), on the RTL and on the i386 lock's Yosys netlist, with
+  identical retirement traces: the full corpus, the random, protected-mode
+  and task-switch programs (their trace hashes slice 4's), 4,000 new debug
+  programs that took 70,960 #DBs, and 403 protected-mode cases, 52 of them
+  new.
+- **Mutants.** 21 of 23 one-line mutants of the new RTL fail directed
+  cases; one fails only the debug programs, and one is unreachable
+  ([mutants.txt](mutants.txt)).
+- **test386.asm** on the RTL still passes completely (POST FFh, halting
+  where Bochs does), its POST EEh text slice 4's byte for byte.
+- **Seal.** Quartus 17.0.2 at seed 1, from clean checkout `bf03f6739`,
+  meets every analysis: setup +0.617 ns, hold +0.083 ns. 36,848 ALMs and
+  269 M10K ([Seal](#seal)).
+- **Kit B, max.** DOOM v1.9 `-timedemo demo3` gives 40.06 fps (main 40.07),
+  and 3DBench, PCPBench and TopBench match main's run the same hour. Time
+  Circle, Wolfenstein 3D, Ultima VI, DOOM and both Ultima VIIs reach their
+  menus, games and introductions.
+- **On the way** the lockstep found #1704: #1684's last commit lets an NMI
+  in before the IRET that ends an NMI handler. Its fix is #1705, which
+  this branch merges.
 
 ## Design as built
 
@@ -174,11 +193,83 @@ text trimmed to a hash:
 
 ## Seal
 
-SEAL
+The seal is Quartus 17.0.2, seed 1, from a clean checkout of `bf03f6739` on
+Powerboat ([seal-summary.json](seal-summary.json)). That is this branch's
+RTL as the lockstep and test386 ran it (`5a74d5598`), plus record commits.
+- **Package.** `59737a5e…`, build `27066f33…`, `core.rbf` `57022ce7…`.
+- **Analyses.** Every one is met:
+  - setup +0.617 ns, the system clock at the slow −40 °C corner (the pixel
+    clock's worst +1.530 ns);
+  - hold +0.083 ns;
+  - recovery +6.923 ns;
+  - removal +0.404 ns;
+  - minimum pulse width +1.122 ns.
+- **The first seal**, `c0a6a2682` before the merges of #1684's tip, main and
+  #1705 ([seal-summary-c0a6a2682.json](seal-summary-c0a6a2682.json)):
+  package `2a1c2a35…`, build `421bae29…`, `core.rbf` `556cf089…`; setup
+  +0.674 ns, hold +0.055 ns, recovery +7.128 ns, removal +0.325 ns. The kit
+  runs are from it.
+- **Clocks.** The system clock is 61.44 MHz.
+- **Resources.**
+
+  | Resource | This seal | `c0a6a2682` | #1705's seal (main with the NMI fix) | Slice 4's seal (`fdf79c057`) |
+  | --- | ---: | ---: | ---: | ---: |
+  | ALMs | 36,848 | 36,718 | 36,197 | 36,261 |
+  | Registers | 32,716 | 32,891 | 32,588 | 32,643 |
+  | M10K blocks | 269 | 269 | 269 | 269 |
+  | DSP blocks | 38 | 38 | 38 | 38 |
+
+  The slice takes 457 to 651 ALMs over those fits, against the plan's 300 for
+  breakpoints and single step and the about ±200 of fit noise the area audit
+  measured: the four 32-bit compares at AG, the eight 29-bit block compares
+  at M1 (a uop's two addresses) and the boundary's compare at CS.base + EIP,
+  and the trap state. 5,062 ALMs (12.1%) are left, 1,652 under the area
+  audit's working ceiling of 38,500. The microcode ROM keeps its 7 M10K
+  blocks (436 of 512 words).
 
 ## Kit
 
-KIT
+Runs `k1`-`k6` (this slice) and `m1` (main) used Kit B, core-only, on 11
+November from 22:10 to 23:22 ([kit-scores.json](kit-scores.json)).
+- **Packages.** `2a1c2a35…` (the seal of `c0a6a2682`, this slice before the
+  merges) and `bc4ab0d9…`, main `d56f0e558`'s seal from #1684's record, at
+  max (preset 0). Each launch came after a SCRUBX scrub.
+- **Kit.** Baseline image `179affbb…` and software `7ddb0bfb`, with no
+  install, no image change and no reboot. Kit A was in another session's
+  recovery. After each run Kit B was checked against its snapshot and
+  logged FREE, and each run's FogCast data trees were removed.
+- **Disks.** The Phase 4 bench disk and the #1533 game drives `dpmi`,
+  `real`, `pmode`, `fpu` and `xms` (`5053c36b…`), from Powerboat by SHA-256.
+  None is committed.
+
+| Benchmark | Main (m1) | This slice (k1) |
+| --- | ---: | ---: |
+| DOOM v1.9 `-timedemo demo3` | 3,863 gametics in 3,374 realtics, 40.07 fps | 3,863 in 3,375, 40.06 fps |
+| 3DBench | 76.9 | 76.9 |
+| PCPBench | 13.3 | 13.3 |
+| TopBench | 307 | 306 |
+
+TopBench varies by a few points between runs of one package (slice 4's
+record); the DOOM run differs by one realtic.
+
+| Title | Drive | This slice |
+| --- | --- | --- |
+| Time Circle (32RTM) | `dpmi` | Its main menu (k1) |
+| Wolfenstein 3D | `real` | A new game, in E1M1 (k2) |
+| Ultima VI | `real` | Its introduction plays (k2) |
+| DOOM v1.9 | `pmode` | Its demos play in game (k5) |
+| Ultima VII: The Black Gate | `xms` | Its introduction plays (k6) |
+| Ultima VII Part Two: Serpent Isle | `fpu` | Its introduction plays (k6) |
+
+**Kit B's disk-image store filled.** The chain first ran k1-k4 with no
+cleanup between them. After k2 had staged its fourth drive, FogCast evicted
+k1's bench disk, and k2's DOOM, k3's Ultima VII drives and k4's DOOM retry
+failed to stage ("Broken pipe"), so those titles never loaded. That is the
+harness, not the CPU. Each run's own trees were then removed (the cleanup
+of k1 halted first, before removing anything, at the evicted disk; the kit
+was logged and released), and k5 and k6 ran with a cleanup after each.
+Each title was launched and watched for 80-120 s: a check that the slice
+leaves them running, not #1368's full acceptance.
 
 ## What this record does not cover
 
