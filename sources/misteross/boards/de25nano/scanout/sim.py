@@ -9,18 +9,19 @@ HERE = Path(__file__).resolve().parent
 MISTEROSS = HERE.parents[2]
 DISPLAY = load(HERE.parent / "display/build.py", "scanout_sim_display")
 ROOT = MISTEROSS / "build/sim/de25-scanout"
+SHARED_RTL = HERE.parent / "shared-rtl"
 
 
 def run(case, top, rtl, bench, extra=(), shared=True):
     output = ROOT / case; output.mkdir(parents=True, exist_ok=True)
-    reader, _ = DISPLAY.retarget_menu_ram((MISTEROSS / "cores/fes-menu/rtl/fes_menu_reader.v").read_bytes())
+    reader, _ = DISPLAY.retarget_menu_ram((SHARED_RTL / "fes_menu_reader.v").read_bytes())
     adapted = output / "fes_menu_reader_de25.v"; adapted.write_bytes(reader)
     subprocess.run(["verilator", "--cc", "--exe", "--build", "--public-flat-rw", "-O3", "-Wall",
         "-Wno-PINCONNECTEMPTY", "-Wno-UNUSEDSIGNAL", "-Wno-DECLFILENAME", "--top-module", top,
         # Async assertion with clocked release is intentional in the visibility reset chain.
         "-Wno-SYNCASYNCNET",
         "--Mdir", str(output), "-I" + str(HERE), "-CFLAGS", "-O2 -I" + str(HERE),
-        *extra, *([str(adapted), str(MISTEROSS / "cores/fes-menu/rtl/fes_menu_video.v")] if shared else []),
+        *extra, *([str(adapted), str(SHARED_RTL / "fes_menu_video.v")] if shared else []),
         *map(str, rtl), str(HERE / bench)], check=True)
     subprocess.run([str(output / ("V" + top))], check=True)
 

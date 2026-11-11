@@ -58,7 +58,8 @@ class HpsZX81BuildTests(unittest.TestCase):
         required = {
             "sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v",
             *["sources/misteross/cores/fes-zx81/rtl/" + name for name in
-              ("zx81_keyboard.v", "zx81_tape_store.v", "zx81_machine.sv", "zx81_machine_clock.v")],
+              ("zx81_keyboard.v", "zx81_tape_store.v")],
+            *[B.BOARD + "shared-rtl/" + name for name in B.SHARED_CORE_FILES],
             *[B.BOARD + "zx81-hps/generated/" + name for name in
               ("fes_de25_computer.vh", "fes_de25_computer.hpp", "fes_computer.vh")],
         }
@@ -81,6 +82,21 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertNotIn("visible_sync", sdc)
         self.assertNotIn("transport_ready_meta", sdc)
         self.assertNotIn("set_clock_groups", sdc)
+
+    def test_hdmi_video_outputs_are_registered_and_constrained(self):
+        sources = B.capture()
+        board = sources[B.BOARD + "zx81-hps/board.v"].decode()
+        self.assertIn("output reg HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS", board)
+        self.assertIn("output reg [23:0] HDMI_TX_D", board)
+        for signal in ("HDMI_TX_D", "HDMI_TX_DE", "HDMI_TX_HS", "HDMI_TX_VS"):
+            self.assertIn(signal + " <=", board)
+            self.assertNotIn("assign " + signal + " =", board)
+        sdc = sources[B.BOARD + "zx81-hps/clocks.sdc"].decode()
+        self.assertIn("create_generated_clock -name HDMI_TX_CLK", sdc)
+        self.assertIn("-multiply_by 297 -divide_by 200", sdc)
+        self.assertIn("set_output_delay -clock HDMI_TX_CLK -max 1.000", sdc)
+        self.assertIn("set_output_delay -clock HDMI_TX_CLK -min -0.700", sdc)
+        self.assertIn("setup tVSU >= 1.0 ns and hold tVHLD >= 0.7 ns", sdc)
 
     def test_frame_ownership_constraints_and_reset_pin_counts_match_rtl(self):
         sdc = B.capture()[B.BOARD + "zx81-hps/clocks.sdc"].decode()

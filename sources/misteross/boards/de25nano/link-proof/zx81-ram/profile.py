@@ -21,9 +21,12 @@ interface = {
         "freeze": "drain-diagnostic-then-four-reset-settle-cycles-flush-bus",
         "selection": "resets-machine-no-program-survival"}}
 CORE = MISTEROSS / "cores/fes-zx81/rtl"
+SHARED_RTL = MISTEROSS / "boards/de25nano/shared-rtl"
 Z80 = MISTEROSS / "cores/fes-common/rtl/z80"
-FILES = {name: CORE / name for name in ("zx81_machine.sv", "zx81_machine_clock.v", "zx81_dpram.v",
+FILES = {name: SHARED_RTL / name for name in ("zx81_machine.sv", "zx81_machine_clock.v")}
+FILES.update({name: CORE / name for name in ("zx81_dpram.v",
     "zx81_ram_pack.v", "zx81_bus_pack.vh", "zx81_model.vh")}
+)
 FILES.update({name: Z80 / name for name in ("fes_z80_alu.sv", "fes_z80_engine.sv", "fes_z80_bus.sv", "fes_z80_nmos.sv")})
 FIRMWARE = MISTEROSS / "boards/de25nano/zx81/firmware.py"
 

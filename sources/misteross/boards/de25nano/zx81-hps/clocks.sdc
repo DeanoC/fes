@@ -9,8 +9,16 @@ if {$computer_clear_count != 4} {error "DE25 computer requires four HDMI reset i
 if {[get_collection_size $computer_aclr] > 0} {set_false_path -to $computer_aclr}
 if {[get_collection_size $computer_clrn] > 0} {set_false_path -to $computer_clrn}
 post_message -type info "DE25 computer HDMI reset ingress pins: $computer_clear_count (expected4)"
+# Analog Devices ADV7513 Hardware User's Guide Rev. 0, p. 12, AC Specifications:
+# setup tVSU >= 1.0 ns and hold tVHLD >= 0.7 ns. No board trace delay is
+# documented, so the pin budget assumes zero external flight time.
+create_generated_clock -name HDMI_TX_CLK -source [get_ports {CLOCK0_50}] \
+    -multiply_by 297 -divide_by 200 [get_ports {HDMI_TX_CLK}]
+set hdmi_video_ports [get_ports {HDMI_TX_D[*] HDMI_TX_DE HDMI_TX_HS HDMI_TX_VS}]
+set_output_delay -clock HDMI_TX_CLK -max 1.000 $hdmi_video_ports
+set_output_delay -clock HDMI_TX_CLK -min -0.700 $hdmi_video_ports
 # The computer runs on the preserved peripheral clock. No new GP control CDC,
-# clock groups, FIFO cuts or external HDMI/I2C delay assumptions are introduced.
+# clock groups or FIFO cuts are introduced; I2C timing remains unqualified.
 
 # Cut only each first synchronizer D, never the second stage or whole clocks.
 foreach {label launch first} {
@@ -45,7 +53,8 @@ post_message -type info "DE25 video: 2 first-stage crossings, 9 bounded metadata
 
 # Only readiness first-stage data and raw reset-release ingress are cut.
 # The source is registered; destination reset is released in its own domain.
-# Stage-to-stage paths and both generated clocks stay timed; no broad clock groups or HDMI/I2C delay assumptions are introduced.
+# Stage-to-stage paths and both generated clocks stay timed; no broad clock
+# groups are introduced; I2C timing remains unqualified.
 set computer_pixel_ready_source [get_registers {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_source}]
 set computer_pixel_ready_stage0 [get_registers {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[0]}]
 set computer_pixel_ready_stage1 [get_registers {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[1]}]

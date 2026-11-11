@@ -4,6 +4,7 @@
 #include <linux/atomic.h>
 #include <linux/build_bug.h>
 #include <linux/completion.h>
+#include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
 #include <linux/kref.h>
@@ -41,7 +42,7 @@ struct fes_de25_dma {
 	u64 generation, epoch;
 	u32 sequence, accepted_sequence, displayed_sequence, displayed_slot, pending_slot;
 	u32 hardware_status, hardware_errors, underflows, outstanding;
-	bool revoked, exposed, uncertain, pending;
+	bool revoked, exposed, uncertain, pending, cleared;
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
 	struct fes_de25_dma_test_observer *observer;
 #endif
@@ -90,11 +91,23 @@ static void fes_de25_dma_destroy(struct kref *refs)
  * serial handshake and recheck reject a delayed command or another owner.
  */
 #define FES_DE25_SNAPSHOT_TRIES 128
+#define FES_DE25_DRAIN_TRIES 20
+#define FES_DE25_DRAIN_MIN_US 1000
+#define FES_DE25_DRAIN_MAX_US 2000
 struct fes_de25_snapshot {
 	u64 generation, dma;
 	u32 status, accepted, displayed, current_sequence, slots, errors, underflows;
 	u32 outstanding, span;
 };
+
+static bool fes_de25_snapshot_is_pristine(const struct fes_de25_snapshot *snapshot)
+{
+	return snapshot->status == FES_DE25_SCANOUT_STATUS_DRAINED &&
+		!snapshot->generation && !snapshot->dma && !snapshot->span &&
+		!snapshot->accepted && !snapshot->displayed &&
+		!snapshot->current_sequence && !snapshot->slots && !snapshot->errors &&
+		!snapshot->outstanding;
+}
 
 static int fes_de25_snapshot(struct fes_de25_dma *grant, struct fes_de25_snapshot *snapshot)
 {
@@ -376,6 +389,8 @@ int fes_de25_dma_revoke(struct file *file)
 	struct fes_de25_dma *grant = file->private_data;
 	struct fes_de25_dma_mm *entry;
 	bool drop_exposure = false;
+	bool drained = false;
+	unsigned int attempt;
 	int ret = 0;
 
 	mutex_lock(&grant->revoke_lock);
@@ -404,26 +419,49 @@ int fes_de25_dma_revoke(struct file *file)
 		ret = -ESTALE;
 		goto uncertain;
 	}
+	/* CLEAR consumes the old generation proof. A prior verification read may
+	 * have failed after the device accepted CLEAR; retry against the pristine
+	 * tuple and the same reset epoch instead of comparing generation zero to
+	 * the retired allocation forever.
+	 */
+	if (grant->cleared) {
+		struct fes_de25_snapshot snapshot;
+
+		ret = fes_de25_snapshot(grant, &snapshot);
+		if (!ret && (!fes_de25_snapshot_is_pristine(&snapshot) ||
+		    grant->backend.epoch(grant->backend.context) != grant->epoch))
+			ret = -ESTALE;
+		if (ret)
+			goto uncertain;
+		goto release_exposure;
+	}
 	ret = grant->backend.write32(grant->backend.context, FES_DE25_SCANOUT_COMMAND_OFFSET,
 			FES_DE25_SCANOUT_COMMAND_STOP);
 	if (!ret)
 		ret = grant->backend.io_fence(grant->backend.context);
-	if (!ret) {
+	for (attempt = 0; !ret && attempt < FES_DE25_DRAIN_TRIES; attempt++) {
 		struct fes_de25_snapshot snapshot;
 
 		ret = fes_de25_snapshot(grant, &snapshot);
 		if (!ret)
 			ret = fes_de25_dma_identity(grant, &snapshot);
-		if (!ret && (!(snapshot.status & FES_DE25_SCANOUT_STATUS_DRAINED) ||
-		    (snapshot.status & (FES_DE25_SCANOUT_STATUS_RUNNING | FES_DE25_SCANOUT_STATUS_PENDING)) ||
-		    snapshot.outstanding))
-			ret = -EAGAIN;
+		if (!ret && (snapshot.status & FES_DE25_SCANOUT_STATUS_DRAINED) &&
+		    !(snapshot.status & (FES_DE25_SCANOUT_STATUS_RUNNING | FES_DE25_SCANOUT_STATUS_PENDING)) &&
+		    !snapshot.outstanding) {
+			drained = true;
+			break;
+		}
+		if (!ret && attempt + 1 < FES_DE25_DRAIN_TRIES)
+			usleep_range(FES_DE25_DRAIN_MIN_US, FES_DE25_DRAIN_MAX_US);
 	}
+	if (!ret && !drained)
+		ret = -EAGAIN;
 	if (ret)
 		goto uncertain;
 	/* Consume the old generation's drain proof before CLEAR destroys it.
 	 * Only this owner may now clear for a later, distinct allocation lease.
 	 */
+	grant->cleared = true;
 	ret = grant->backend.write32(grant->backend.context, FES_DE25_SCANOUT_COMMAND_OFFSET,
 			FES_DE25_SCANOUT_COMMAND_CLEAR);
 	if (!ret)
@@ -432,17 +470,18 @@ int fes_de25_dma_revoke(struct file *file)
 		struct fes_de25_snapshot snapshot;
 
 		ret = fes_de25_snapshot(grant, &snapshot);
-		if (!ret && (snapshot.status != FES_DE25_SCANOUT_STATUS_DRAINED ||
-		    snapshot.generation || snapshot.dma || snapshot.span || snapshot.accepted ||
-		    snapshot.displayed || snapshot.current_sequence || snapshot.slots || snapshot.errors ||
-		    snapshot.outstanding || grant->backend.epoch(grant->backend.context) != grant->epoch))
+		if (!ret && (!fes_de25_snapshot_is_pristine(&snapshot) ||
+		    grant->backend.epoch(grant->backend.context) != grant->epoch))
 			ret = -ESTALE;
 	}
 	if (ret)
 		goto uncertain;
+
+release_exposure:
 	grant->exposed = false;
 	grant->uncertain = false;
 	grant->pending = false;
+	grant->cleared = false;
 	drop_exposure = true;
 	goto out;
 uncertain:

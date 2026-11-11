@@ -216,6 +216,7 @@ def verify_reset_synchronizers(project):
     """Require the registered HDMI visibility gate and its exact SDC clears."""
     def compact(path):
         source = re.sub(r"//[^\n]*", "", path.read_text())
+        source = re.sub(r"\\\s*", "", source)
         return re.sub(r"\s+", "", source)
 
     board = compact(project / "fes_mailbox/fes_de25_scanout_board.v")
@@ -228,17 +229,24 @@ def verify_reset_synchronizers(project):
             "always@(posedgepixel_clkornegedgequalified_lock)" in board):
         raise ValueError("scanout visibility crossing needs a registered source and a pixel-domain reset release")
     if ("always@(posedgepixel_clkornegedgevisible_sync[1])" not in board or
-            "assignHDMI_TX_D=video_active&&visible_line?video_rgb:24'd0;" not in board or
-            "assignHDMI_TX_DE=video_active&&visible_line&&video_de;" not in board or
-            "assignHDMI_TX_D=visible_request" in board or
-            "assignHDMI_TX_DE=visible_request" in board):
-        raise ValueError("scanout HDMI data/DE visibility is not pixel-registered with immediate lock assertion")
+            "always@(posedgepixel_clkornegedgevisible_sync[1])beginif(!visible_sync[1])begin"
+            "HDMI_TX_D<=24'd0;HDMI_TX_DE<=1'b0;endelsebegin"
+            "HDMI_TX_D<=video_active&&visible_line?video_rgb:24'd0;"
+            "HDMI_TX_DE<=video_active&&visible_line&&video_de;endend" not in board or
+            "always@(posedgepixel_clk)beginHDMI_TX_HS<=visible_line&&video_hs;"
+            "HDMI_TX_VS<=visible_line&&video_vs;end" not in board):
+        raise ValueError("scanout HDMI data/DE/sync outputs are not aligned pixel-clock flops")
     if ("if(!top_reset_n)beginfirst_lock_seen<=1'b0;" not in board or
             "if(qualified_lock)first_lock_seen<=1'b1;" not in board or
             "assignscanout_reset_n=first_lock_seen;" not in board):
         raise ValueError("scanout reset source no longer waits for first qualified lock")
 
     sdc = compact(project / "fes_mailbox/clocks.sdc")
+    if ("create_generated_clock-nameHDMI_TX_CLK-source[get_ports{CLOCK0_50}]"
+            "-multiply_by297-divide_by200[get_ports{HDMI_TX_CLK}]" not in sdc or
+            "set_output_delay-clockHDMI_TX_CLK-max1.000$hdmi_video_ports" not in sdc or
+            "set_output_delay-clockHDMI_TX_CLK-min-0.700$hdmi_video_ports" not in sdc):
+        raise ValueError("scanout SDC must constrain ADV7513 video setup and hold at the generated HDMI clock")
     for controller in ("rst_controller_001", "rst_controller_002"):
         for stage in (0, 1):
             target = ("soc_inst|" + controller + "|alt_rst_sync_uq1|"
@@ -265,7 +273,7 @@ def verify_reset_synchronizers(project):
         raise ValueError("scanout SDC still targets nonexistent board reset registers")
     return {"pixel_clock": "74250000 Hz", "system_clock": "100000000 Hz",
             "assertion": "asynchronous", "deassertion": "synchronous per domain",
-            "hdmi_data_de_gate": "pixel-registered; qualified-lock loss clears the pixel release immediately",
+            "hdmi_outputs": "D/DE/HS/VS registered in one pixel-clock stage; ADV7513 setup/hold constrained",
             "sdc_clear_pins": 10}
 
 

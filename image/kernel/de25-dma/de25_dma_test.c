@@ -24,7 +24,9 @@ struct test_descriptor {
 struct test_transport {
 	u64 epoch;
 	bool epoch_unknown, lose_epoch_after_start, freeze_serial, corrupt_serial;
+	bool fail_clear_verify_once, fail_next_snapshot;
 	int start_error, stop_error, drain_error;
+	unsigned int delayed_drain_snapshots;
 	unsigned int starts, stops, drains, clears, snapshots, writes, barriers;
 	u32 regs[32], live[13], frozen[13], serial;
 	u32 trace_offset[128], trace_value[128];
@@ -86,12 +88,22 @@ static int transport_write(void *context, u32 offset, u32 value)
 	}
 	if (value == FES_DE25_SCANOUT_COMMAND_SNAPSHOT) {
 		t->snapshots++;
+		if (t->stops && t->delayed_drain_snapshots && !t->drain_error) {
+			t->delayed_drain_snapshots--;
+			if (!t->delayed_drain_snapshots) {
+				t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] =
+					FES_DE25_SCANOUT_STATUS_CONFIGURED | FES_DE25_SCANOUT_STATUS_DRAINED;
+				t->live[9] = 0;
+			}
+		}
 		/* Explicit hardware tuple, atomically copied by CMD SNAPSHOT. */
 		t->live[0] = t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4];
 		t->live[1] = lower_32_bits(t->descriptor.generation);
 		t->live[2] = upper_32_bits(t->descriptor.generation);
 		memcpy(t->frozen, t->live, sizeof(t->frozen));
-		if (!t->freeze_serial)
+		if (t->fail_next_snapshot)
+			t->fail_next_snapshot = false;
+		else if (!t->freeze_serial)
 			t->serial++;
 		return 0;
 	}
@@ -123,13 +135,23 @@ static int transport_write(void *context, u32 offset, u32 value)
 		if (t->stop_error)
 			return t->stop_error;
 		t->drains++;
-		t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_CONFIGURED |
-			(t->drain_error ? 0 : FES_DE25_SCANOUT_STATUS_DRAINED);
-		t->live[9] = t->drain_error ? 1 : 0;
+		if (t->delayed_drain_snapshots && !t->drain_error) {
+			t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] =
+				FES_DE25_SCANOUT_STATUS_CONFIGURED | FES_DE25_SCANOUT_STATUS_RUNNING;
+			t->live[9] = 1;
+		} else {
+			t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_CONFIGURED |
+				(t->drain_error ? 0 : FES_DE25_SCANOUT_STATUS_DRAINED);
+			t->live[9] = t->drain_error ? 1 : 0;
+		}
 		return 0;
 	}
 	if (value == FES_DE25_SCANOUT_COMMAND_CLEAR) {
 		t->clears++;
+		if (t->fail_clear_verify_once) {
+			t->fail_clear_verify_once = false;
+			t->fail_next_snapshot = true;
+		}
 		memset(&t->descriptor, 0, sizeof(t->descriptor));
 		memset(t->live, 0, sizeof(t->live));
 		t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_DRAINED;
@@ -329,6 +351,46 @@ static void failed_start_is_held_until_drain(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), 0);
 	fes_de25_dma_info(fixture->file, &info);
 	KUNIT_EXPECT_EQ(test, info.state, FES_DE25_DMA_REVOKED);
+}
+
+static void delayed_drain_releases_exposure(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct fes_de25_dma_publish publish = publish_for(fixture->file);
+	struct fes_de25_dma_info info;
+	unsigned int snapshots_before;
+
+	fixture->transport.delayed_drain_snapshots = 3;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), 0);
+	snapshots_before = fixture->transport.snapshots;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), 0);
+	KUNIT_EXPECT_TRUE(test, fixture->transport.snapshots - snapshots_before >= 3);
+	KUNIT_EXPECT_EQ(test, fixture->transport.stops, 1U);
+	KUNIT_EXPECT_EQ(test, fixture->transport.clears, 1U);
+	fes_de25_dma_info(fixture->file, &info);
+	KUNIT_EXPECT_EQ(test, info.state, FES_DE25_DMA_REVOKED);
+}
+
+static void retry_after_clear_accepts_pristine_snapshot(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct fes_de25_dma_publish publish = publish_for(fixture->file);
+	struct fes_de25_dma_info info;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), 0);
+	fixture->transport.fail_clear_verify_once = true;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), -ETIMEDOUT);
+	fes_de25_dma_info(fixture->file, &info);
+	KUNIT_EXPECT_TRUE(test, info.state & FES_DE25_DMA_EXPOSED);
+	KUNIT_EXPECT_TRUE(test, info.state & FES_DE25_DMA_UNCERTAIN);
+	KUNIT_EXPECT_EQ(test, fixture->transport.stops, 1U);
+	KUNIT_EXPECT_EQ(test, fixture->transport.clears, 1U);
+
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), 0);
+	fes_de25_dma_info(fixture->file, &info);
+	KUNIT_EXPECT_EQ(test, info.state, FES_DE25_DMA_REVOKED);
+	KUNIT_EXPECT_EQ(test, fixture->transport.stops, 1U);
+	KUNIT_EXPECT_EQ(test, fixture->transport.clears, 1U);
 }
 
 static void unreadable_epoch_retains_exposed_storage(struct kunit *test)
@@ -760,6 +822,8 @@ static struct kunit_case fes_de25_dma_cases[] = {
 	KUNIT_CASE(rejects_bad_publish_before_effects),
 	KUNIT_CASE(kernel_owns_descriptor_and_drain_lifetime),
 	KUNIT_CASE(failed_start_is_held_until_drain),
+	KUNIT_CASE(delayed_drain_releases_exposure),
+	KUNIT_CASE(retry_after_clear_accepts_pristine_snapshot),
 	KUNIT_CASE(unreadable_epoch_retains_exposed_storage),
 	KUNIT_CASE(acceptance_is_not_display_and_slots_alternate),
 	KUNIT_CASE(ordered_descriptor_precedes_first_submit),

@@ -82,6 +82,20 @@ else begin mI2C_CLK_DIV <= 0; mI2C_CTRL_CLK <= ~mI2C_CTRL_CLK; end
         for key, value in inputs["prepared_project_sha256"].items():
             self.assertEqual(value, B.sha((project / key).read_bytes()))
 
+    def test_hdmi_video_outputs_are_registered_and_constrained(self):
+        board = B.SOURCE_PATHS["top.v"].read_text()
+        self.assertIn("output reg HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS", board)
+        self.assertIn("output reg [23:0] HDMI_TX_D", board)
+        for signal in ("HDMI_TX_D", "HDMI_TX_DE", "HDMI_TX_HS", "HDMI_TX_VS"):
+            self.assertIn(signal + " <=", board)
+            self.assertNotIn("assign " + signal + " =", board)
+        sdc = B.SOURCE_PATHS["clocks.sdc"].read_text()
+        self.assertIn("create_generated_clock -name HDMI_TX_CLK", sdc)
+        self.assertIn("-multiply_by 297 -divide_by 200", sdc)
+        self.assertIn("set_output_delay -clock HDMI_TX_CLK -max 1.000", sdc)
+        self.assertIn("set_output_delay -clock HDMI_TX_CLK -min -0.700", sdc)
+        self.assertIn("setup tVSU >= 1.0 ns and hold tVHLD >= 0.7 ns", sdc)
+
     def test_pll_targets_are_guarded(self):
         original = self.files["sys_pll.ip"]
         for before, after in ((b">74.25<", b">75.0<"), (b">true<", b">false<")):

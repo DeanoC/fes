@@ -41,6 +41,7 @@ int main(int argc, char** argv) {
     t.video_hs = 1;
     for (int i = 0; i < 4; ++i) { tick(); black(); }
     t.video_hs = 0; tick();
+    tick(); // Output pins add one aligned pixel-clock stage.
     check(t.HDMI_TX_DE && t.HDMI_TX_D == 0x123456,
           "initial video did not become visible after a complete sync pulse");
 
@@ -64,6 +65,7 @@ int main(int argc, char** argv) {
     t.video_hs = 1;
     for (int i = 0; i < 4; ++i) { tick(); black(); }
     t.video_hs = 0; tick();
+    tick();
     check(t.HDMI_TX_DE && t.HDMI_TX_D == 0x123456,
           "video did not resume at the next complete line boundary");
 

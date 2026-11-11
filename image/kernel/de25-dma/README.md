@@ -83,15 +83,21 @@ mmap callback that installed PTEs before its VMA was linked into the grant inode
 each mm was recorded under the grant lock, and revocation takes each mm's mmap
 write lock without holding the grant lock. It then removes mappings through the
 unique inode. Revoked mappings fault with SIGBUS; mmap cannot recreate them.
-Only afterward does the kernel issue STOP and request a frozen snapshot.
+Only afterward does the kernel issue STOP and request frozen snapshots in a
+bounded sleep loop. A delayed drain is polled up to twenty times while the
+grant mutex remains held; only an incomplete drain after that bound returns
+`EAGAIN`.
 
 The proof must retain the old nonzero generation and immutable grant in the
 same external epoch, report drained, have no running/pending work and zero
-outstanding traffic. Incomplete drain returns `EAGAIN`; callers can retry.
+outstanding traffic. Incomplete drain after the retry bound returns `EAGAIN`;
+callers can retry.
 Frame fault state does not replace this drain proof. Reset's zero generation
 cannot prove an old operation drained. After consuming the old proof, the owner
-issues CLEAR and verifies the empty, unconfigured, drained state before the
-allocation becomes releasable and the engine can accept a new grant.
+marks CLEAR in progress, issues CLEAR and verifies the empty, unconfigured,
+drained state before the allocation becomes releasable and the engine can
+accept a new grant. If verification fails after CLEAR, a retry accepts only
+the pristine zero-generation state in the original epoch.
 
 Exposed DMA holds an independent allocation reference and module pin alongside
 the file, inode and device references. Errors, missing/changed epochs, failed

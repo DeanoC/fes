@@ -51,7 +51,7 @@ def execute(args):
         dest.write_bytes(frozen["files"][comp.BOARD + "zx81-hps/" + name])
     for name in comp.CORE_FILES:
         dest = mailbox / name
-        dest.write_bytes(frozen["files"]["sources/misteross/cores/fes-zx81/rtl/" + name])
+        dest.write_bytes(frozen["files"][comp.core_source_path(name)])
     for name in ("fes_z80_alu", "fes_z80_engine", "fes_z80_bus", "fes_z80_nmos"):
         (mailbox / (name + ".sv")).write_bytes(frozen["files"]["sources/misteross/cores/fes-common/rtl/z80/" + name + ".sv"])
     (mailbox / "fes_computer_mailbox.v").write_bytes(frozen["files"]["sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v"])

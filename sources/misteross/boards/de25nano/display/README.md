@@ -44,12 +44,12 @@ output, zero phase and 50 MHz reference are unchanged. Original PLL/reset
 module parameters must survive generation/compile; changes fail with a
 retained review. The vendor I2C source and 33-entry register table are unchanged.
 
-The generic menu reader's Cyclone V `M10K` hint is illegal on Agilex. The
-DE25 preparation retains that original Git input and derives a separate
-`fes_menu_reader_de25.v` by replacing only the guarded FIFO RAM-style hint
-with `M20K`. Both hashes and the exact replacement are recorded; reader
-logic, dimensions and synchronous read behavior are unchanged. Simulation
-uses the same derived source. The default DE10 reader is untouched.
+The DE25 producers use their copies in `../shared-rtl/` for DE25 menu
+reader/video extensions. The reader's Cyclone V `M10K` hint is illegal on
+Agilex, so preparation derives `fes_menu_reader_de25.v` by replacing only the
+guarded FIFO RAM-style hint with `M20K`. Both hashes and the exact replacement
+are recorded. The DE10 reader and video sources remain at their `origin/main`
+bytes; DE25-only behavior stays outside their functional closures.
 
 The selected pin locations and IO standards must match the SCS
 `Demonstration/FPGA/Golden_top/golden_top.qsf` exactly. No DE10 pin names,
@@ -71,11 +71,12 @@ not validate PLL frequency/lock, serial I2C transfers, transmitter register
 acceptance or the electrical link. Compiles use actual vendor I2C source.
 Audio pins are tied low; no audio stream is implemented.
 
-The vendor reference supplies no complete HDMI flight-time/setup/hold
-budget. RGB, sync and DE terminate at the clocked ADV7513 receiver, so they
-receive no asynchronous-output exception or invented output delay. Retained
-reports expose missing external IO/I2C timing coverage; internal timing alone
-does not establish HDMI acceptance. An unresolved electrical-document
+The ADV7513 video inputs use one aligned pixel-clock output register stage.
+Their SDC uses the Hardware User's Guide Rev. 0 minimum setup/hold values
+(1.0 ns and 0.7 ns) with zero assumed board flight time; I2C timing and
+electrical acceptance remain open. Retained reports expose remaining external
+IO/I2C timing coverage; internal timing alone does not establish HDMI
+acceptance. An unresolved electrical-document
 discrepancy also remains: vendor QSFs assign HDMI clock DJ24 `1.1-V`, while
 revision-B manual table 3-13 says 3.3 V. The recipe preserves the SCS QSF.
 Board rail/translation evidence and a link test are required for acceptance.

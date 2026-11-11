@@ -52,7 +52,7 @@ class NativeClientProofTests(unittest.TestCase):
                     "sources/misteross/boards/de25nano/zx81-hps/cosim/client.cpp",
                     "sources/misteross/boards/de25nano/zx81-hps/cosim/server.cpp",
                     "sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v",
-                    "sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv",
+                    "sources/misteross/boards/de25nano/shared-rtl/zx81_machine.sv",
                     "sources/misteross/scripts/build_zx81_openrom.py",
                     "sources/misteross/cores/fes-zx81/openrom/openrom.asm"}
         self.assertTrue(expected <= sources.keys())

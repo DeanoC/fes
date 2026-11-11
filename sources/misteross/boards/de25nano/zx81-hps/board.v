@@ -7,8 +7,9 @@ module fes_de25_zx81_board (
     input wire [23:0] video_rgb,
     input wire video_de, video_hs, video_vs,
     input wire HDMI_TX_INT,
-    output wire HDMI_TX_CLK, HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS,
-    output wire [23:0] HDMI_TX_D,
+    output wire HDMI_TX_CLK,
+    output reg HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS,
+    output reg [23:0] HDMI_TX_D,
     output wire HDMI_I2C_SCL,
     inout wire HDMI_I2C_SDA,
     output wire HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S
@@ -24,6 +25,18 @@ module fes_de25_zx81_board (
         .I2C_SCLK(HDMI_I2C_SCL), .I2C_SDAT(HDMI_I2C_SDA), .HDMI_TX_INT(HDMI_TX_INT), .READY());
     assign {HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S} = 4'b0000;
     assign HDMI_TX_CLK = pixel_clk;
+    initial begin
+        HDMI_TX_D = 24'd0;
+        HDMI_TX_DE = 1'b0;
+        HDMI_TX_HS = 1'b0;
+        HDMI_TX_VS = 1'b0;
+    end
+    initial begin
+        HDMI_TX_D = 24'd0;
+        HDMI_TX_DE = 1'b0;
+        HDMI_TX_HS = 1'b0;
+        HDMI_TX_VS = 1'b0;
+    end
     wire visible_request = pixel_reset_n;
     (* async_reg = "true" *) reg [1:0] visible_sync = 2'b00;
     reg previous_hs = 1'b0;
@@ -39,8 +52,19 @@ module fes_de25_zx81_board (
             video_active <= visible_sync[1];
         end else if (!visible_sync[1]) video_active <= 1'b0;
     end
-    assign HDMI_TX_DE = visible_request && visible_sync[1] && visible_line && video_active && video_de;
-    assign HDMI_TX_HS = visible_line && video_hs;
-    assign HDMI_TX_VS = visible_line && video_vs;
-    assign HDMI_TX_D = visible_request && visible_sync[1] && visible_line && video_active ? video_rgb : 24'd0;
+    // Keep every ADV7513 video input aligned in one pixel-clock output stage.
+    // Data/DE retain their asynchronous blanking; sync completes its pulse.
+    always @(posedge pixel_clk or negedge pixel_reset_n) begin
+        if (!pixel_reset_n) begin
+            HDMI_TX_D <= 24'd0;
+            HDMI_TX_DE <= 1'b0;
+        end else begin
+            HDMI_TX_DE <= visible_request && visible_sync[1] && visible_line && video_active && video_de;
+            HDMI_TX_D <= visible_request && visible_sync[1] && visible_line && video_active ? video_rgb : 24'd0;
+        end
+    end
+    always @(posedge pixel_clk) begin
+        HDMI_TX_HS <= visible_line && video_hs;
+        HDMI_TX_VS <= visible_line && video_vs;
+    end
 endmodule

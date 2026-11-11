@@ -4,8 +4,9 @@ module de25nano_zx81 (
     input wire CLOCK0_50,
     input wire [1:0] KEY,
     input wire HDMI_TX_INT,
-    output wire HDMI_TX_CLK, HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS,
-    output wire [23:0] HDMI_TX_D,
+    output wire HDMI_TX_CLK,
+    output reg HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS,
+    output reg [23:0] HDMI_TX_D,
     output wire HDMI_I2C_SCL,
     inout wire HDMI_I2C_SDA,
     output wire HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S
@@ -72,8 +73,24 @@ module de25nano_zx81 (
         .frame_tick(), .raster_h(), .raster_v(), .src_x_max(), .src_y_max());
 
     assign HDMI_TX_CLK = pixel_clk;
-    assign HDMI_TX_DE = pixel_reset_n && de;
-    assign HDMI_TX_HS = pixel_reset_n && hs;
-    assign HDMI_TX_VS = pixel_reset_n && vs;
-    assign HDMI_TX_D = pixel_reset_n ? {red, green, blue} : 24'd0;
+    initial begin
+        HDMI_TX_D = 24'd0;
+        HDMI_TX_DE = 1'b0;
+        HDMI_TX_HS = 1'b0;
+        HDMI_TX_VS = 1'b0;
+    end
+    // Keep every ADV7513 video input aligned in one pixel-clock output stage.
+    always @(posedge pixel_clk or negedge pixel_reset_n) begin
+        if (!pixel_reset_n) begin
+            HDMI_TX_D <= 24'd0;
+            HDMI_TX_DE <= 1'b0;
+            HDMI_TX_HS <= 1'b0;
+            HDMI_TX_VS <= 1'b0;
+        end else begin
+            HDMI_TX_DE <= de;
+            HDMI_TX_HS <= hs;
+            HDMI_TX_VS <= vs;
+            HDMI_TX_D <= {red, green, blue};
+        end
+    end
 endmodule

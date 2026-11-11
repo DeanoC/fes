@@ -19,5 +19,11 @@ set zx81_key_ingress [get_pins -compatibility_mode -nocase {local_keys|key_meta*
 if {[get_collection_size $zx81_key_ingress] != 2} {error "DE25 ZX81 requires exactly two button ingress pins"}
 set_false_path -from [get_ports {KEY[*]}] -to $zx81_key_ingress
 
-# No complete ADV7513 setup/hold/flight-time budget is provided by the vendor
-# reference. Keep missing HDMI/I2C external timing visible; do not invent delays.
+# Analog Devices ADV7513 Hardware User's Guide Rev. 0, p. 12, AC Specifications:
+# setup tVSU >= 1.0 ns and hold tVHLD >= 0.7 ns. No board trace delay is
+# documented, so the pin budget assumes zero external flight time.
+create_generated_clock -name HDMI_TX_CLK -source [get_ports {CLOCK0_50}] \
+    -multiply_by 297 -divide_by 200 [get_ports {HDMI_TX_CLK}]
+set hdmi_video_ports [get_ports {HDMI_TX_D[*] HDMI_TX_DE HDMI_TX_HS HDMI_TX_VS}]
+set_output_delay -clock HDMI_TX_CLK -max 1.000 $hdmi_video_ports
+set_output_delay -clock HDMI_TX_CLK -min -0.700 $hdmi_video_ports

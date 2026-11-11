@@ -29,7 +29,10 @@ for mode in ("idle", "menu-pattern"):
     names = ("fes_splash_core",) if mode == "idle" else ("fes_menu_reader", "fes_menu_video", "fes_menu_pattern_memory")
     for name in names:
         kind = "fes-splash" if mode == "idle" else "fes-menu"
-        data = sources[f"sources/misteross/cores/{kind}/rtl/{name}.v"]
+        source_path = ("sources/misteross/boards/de25nano/shared-rtl/" + name + ".v"
+                       if name in ("fes_menu_reader", "fes_menu_video")
+                       else f"sources/misteross/cores/{kind}/rtl/{name}.v")
+        data = sources[source_path]
         target = name + ".v"
         if name == "fes_menu_reader":
             data, _ = display.retarget_menu_ram(data)

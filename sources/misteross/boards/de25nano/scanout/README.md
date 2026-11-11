@@ -27,15 +27,13 @@ most sixteen 16-byte beats, split at 4 KiB boundaries, and retain their full
 32-bit byte addresses. The FPGA has a real memory connection and no local
 pattern responder in this lane.
 
-The generic reader/video extensions default to the existing static-base,
-128-beat and unchecked-response behavior. This lane opts into the dynamic
-window, sixteen-beat bursts, response checking and complete-frame ACK. A
-shared zero-latency response-accounting fix preserves an accepted burst's
-budget, and the complete-frame controller retains a new submission accepted
-on the previous frame's last visible pixel. Existing consumers explicitly
-tie off the new optional ports; default DE10 package selections are unchanged.
-The shared reader/video fixes still affect rebuilt existing consumers; their
-package/HIL acceptance is separate from this undeployed DE25 build lane.
+The DE25-only reader/video copies in `../shared-rtl/` supply the dynamic
+window, sixteen-beat bursts, response checking and complete-frame ACK. Their
+response accounting preserves an accepted burst's budget, and the controller
+retains a submission accepted on the previous frame's last visible pixel.
+The copy also carries the pending-valid guard for the blank-start lost-frame
+case. The corresponding DE10 sources remain byte-identical to `origin/main`;
+no DE10 package behavior changes in this PR.
 
 STOP halts new fetches while holding an asserted command stable until
 acceptance, then drains all accepted responses and queued pixels. Missing
@@ -111,8 +109,10 @@ checks that those clear pins exist. It also cuts only the path from each
 registered source to the first D input of the sticky-fault and
 HDMI-visibility synchronizers; later synchronizer stages, line gating and
 output paths remain timed. Generation rejects a board whose data/DE pins are not driven by the
-registered gate or an SDC that does not name all ten clear pins. No HDMI IO
-delays are fabricated.
+registered gate or an SDC that does not name all ten clear pins. HDMI D/DE/HS/VS
+are registered together at the pins; the SDC applies the ADV7513 documented
+1.0 ns setup and 0.7 ns hold values with zero assumed board flight time. I2C
+and electrical acceptance remain open.
 
 Native tests exercise the real reader/video/control RTL with the same guarded
 M20K hint adaptation used by the build. They cover complete frames and lane

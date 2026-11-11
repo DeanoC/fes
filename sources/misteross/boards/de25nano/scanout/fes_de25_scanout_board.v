@@ -5,8 +5,9 @@ module fes_de25_scanout_board (
     input wire [23:0] video_rgb,
     input wire video_de, video_hs, video_vs,
     output wire pixel_clk, scanout_reset_n, clock_fault,
-    output wire HDMI_TX_CLK, HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS,
-    output wire [23:0] HDMI_TX_D,
+    output wire HDMI_TX_CLK,
+    output reg HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS,
+    output reg [23:0] HDMI_TX_D,
     output wire HDMI_I2C_SCL,
     inout wire HDMI_I2C_SDA,
     output wire HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S
@@ -77,13 +78,31 @@ module fes_de25_scanout_board (
         if (!visible_sync[1]) video_active <= 1'b0;
         else if (previous_hs && !video_hs && !video_vs) video_active <= 1'b1;
     end
+    initial begin
+        HDMI_TX_D = 24'd0;
+        HDMI_TX_DE = 1'b0;
+        HDMI_TX_HS = 1'b0;
+        HDMI_TX_VS = 1'b0;
+    end
     assign HDMI_TX_CLK = pixel_clk;
     // Data/DE use pixel-domain registered visibility only. qualified_lock
     // asynchronously clears the release chain on reset/PLL loss, then picture
     // returns only after the complete sync pulse outside VS. Sync keeps using
     // the unmasked raster until its own safe line boundary.
-    assign HDMI_TX_D = video_active && visible_line ? video_rgb : 24'd0;
-    assign HDMI_TX_DE = video_active && visible_line && video_de;
-    assign HDMI_TX_HS = visible_line && video_hs;
-    assign HDMI_TX_VS = visible_line && video_vs;
+    // The ADV7513 samples on HDMI_TX_CLK. Register every video input at the
+    // pins in one pixel-clock stage; data and DE blank asynchronously with
+    // the existing visibility reset while sync completes its current pulse.
+    always @(posedge pixel_clk or negedge visible_sync[1]) begin
+        if (!visible_sync[1]) begin
+            HDMI_TX_D <= 24'd0;
+            HDMI_TX_DE <= 1'b0;
+        end else begin
+            HDMI_TX_D <= video_active && visible_line ? video_rgb : 24'd0;
+            HDMI_TX_DE <= video_active && visible_line && video_de;
+        end
+    end
+    always @(posedge pixel_clk) begin
+        HDMI_TX_HS <= visible_line && video_hs;
+        HDMI_TX_VS <= visible_line && video_vs;
+    end
 endmodule

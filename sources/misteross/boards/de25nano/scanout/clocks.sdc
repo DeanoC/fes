@@ -38,5 +38,13 @@ set scanout_visible_head [get_pins -compatibility_mode -nocase -nowarn {fes_vide
 if {[get_collection_size $scanout_visible_source] != 1 || [get_collection_size $scanout_visible_head] != 1} {error "DE25 scanout visibility synchronizer ingress changed"}
 set_false_path -from $scanout_visible_source -to $scanout_visible_head
 post_message -type info "DE25 scanout visibility CDC ingress: one source and one stage0 D pin"
+# Analog Devices ADV7513 Hardware User's Guide Rev. 0, p. 12, AC Specifications:
+# setup tVSU >= 1.0 ns and hold tVHLD >= 0.7 ns. No board trace delay is
+# documented, so the pin budget assumes zero external flight time.
+create_generated_clock -name HDMI_TX_CLK -source [get_ports {CLOCK0_50}] \
+    -multiply_by 297 -divide_by 200 [get_ports {HDMI_TX_CLK}]
+set hdmi_video_ports [get_ports {HDMI_TX_D[*] HDMI_TX_DE HDMI_TX_HS HDMI_TX_VS}]
+set_output_delay -clock HDMI_TX_CLK -max 1.000 $hdmi_video_ports
+set_output_delay -clock HDMI_TX_CLK -min -0.700 $hdmi_video_ports
 # No clock groups or FIFO pointer cuts: mm_ccb owns its CDC constraints.
-# External HDMI/I2C delay and electrical contracts remain unqualified.
+# I2C delay and electrical contracts remain unqualified.

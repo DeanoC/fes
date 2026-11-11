@@ -54,9 +54,11 @@ int main(int argc, char** argv) {
     // HS pulse and becomes visible only in the following horizontal porch.
     for (int i = 0; i < 4; ++i) { tick_pixel(); blank(); }
     t.video_hs = 0; tick_pixel();
+    tick_pixel(); // Observe the one-stage HDMI pin register after the line gate.
     check(t.HDMI_TX_D == 0x123456 && !t.HDMI_TX_DE && !t.HDMI_TX_HS && !t.HDMI_TX_VS,
           "visible request was not applied after the sync pulse");
     t.video_de = 1; t.eval();
+    tick_pixel();
     check(t.HDMI_TX_DE && t.HDMI_TX_D == 0x123456, "visible active video did not pass");
 
     // A short asynchronous fault request between pixel edges must not feed a
@@ -96,6 +98,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i < 4; ++i) tick_system();
     for (int i = 0; i < 4; ++i) { tick_pixel(); blank(); }
     t.video_hs = 0; t.video_vs = 0; tick_pixel();
+    tick_pixel();
     check(t.HDMI_TX_D == 0x123456, "visibility did not recover after cold reset");
     t.video_de = 1; t.video_hs = 1; t.video_vs = 1; tick_pixel();
     check(t.HDMI_TX_HS && t.HDMI_TX_VS && t.HDMI_TX_DE,

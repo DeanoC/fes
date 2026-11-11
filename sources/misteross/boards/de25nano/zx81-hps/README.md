@@ -13,7 +13,8 @@ points from that assembly's symbol table. Historical Git captures retain their
 original firmware inputs and do not qualify the current firmware.
 
 The GHRD's HPS/LPDDR4 configuration, debug paths, inherited DDR probe and boot
-data remain selected. The new computer path adds no DMA master or DDR access.
+data remain selected. The DE25 machine/clock copies live in
+`../shared-rtl/`; the new computer path adds no DMA master or DDR access.
 It runs entirely on the existing 100 MHz peripheral clock, using 13/200
 enables for the unchanged 6.5 MHz ULA and 3.25 MHz CPU. HDMI uses its separate
 74.25 MHz PLL. Transport readiness crosses a two-stage pixel-clock
@@ -197,7 +198,7 @@ python3 build.py build --hps-first --quartus-root /absolute/altera_pro/26.3 \
 The profile adds the documented `HPS_INITIALIZATION "HPS FIRST"` assignment,
 binds that choice into the computer build identity and records it with captured
 inputs. Default maintenance builds explicitly select `AFTER INIT_DONE` and retain
-the FPGA-first JTAG flow. RTL, clocks, memory and endpoint contracts are shared.
+the FPGA-first JTAG flow. Memory and endpoint contracts are shared.
 No timing or reset constraint is relaxed.
 
 After full compilation, the HPS-first profile enriches the SOF with the preserved

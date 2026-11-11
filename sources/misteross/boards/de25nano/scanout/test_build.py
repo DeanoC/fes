@@ -54,10 +54,12 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertNotIn("negedge qualified_lock", board)
         self.assertNotIn("wire visible_request", board)
         self.assertIn("always @(posedge pixel_clk or negedge visible_sync[1])", board)
-        self.assertIn("assign HDMI_TX_D = video_active && visible_line ? video_rgb : 24'd0;", board)
-        self.assertIn("assign HDMI_TX_DE = video_active && visible_line && video_de;", board)
-        self.assertNotIn("assign HDMI_TX_D = visible_request", board)
-        self.assertNotIn("assign HDMI_TX_DE = visible_request", board)
+        self.assertIn("HDMI_TX_D <= video_active && visible_line ? video_rgb : 24'd0;", board)
+        self.assertIn("HDMI_TX_DE <= video_active && visible_line && video_de;", board)
+        self.assertIn("HDMI_TX_HS <= visible_line && video_hs;", board)
+        self.assertIn("HDMI_TX_VS <= visible_line && video_vs;", board)
+        self.assertNotIn("assign HDMI_TX_D =", board)
+        self.assertNotIn("assign HDMI_TX_DE =", board)
 
     def test_actual_preparation_replaces_pattern_with_response_preserving_real_scanout(self):
         output, _, hps, _ = self.prepare()
@@ -147,6 +149,10 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertIn("add_connection fes_scanout_pixel_reset.out_reset $instance.m0_reset", integrate)
         self.assertIn('if {[string compare $instance "fes_ctrl_cdc"] == 0}', integrate)
         self.assertEqual(B.verify_reset_synchronizers(project)["sdc_clear_pins"], 10)
+        sdc = (project / "fes_mailbox/clocks.sdc").read_text()
+        self.assertIn("create_generated_clock -name HDMI_TX_CLK", sdc)
+        self.assertIn("set_output_delay -clock HDMI_TX_CLK -max 1.000", sdc)
+        self.assertIn("set_output_delay -clock HDMI_TX_CLK -min -0.700", sdc)
 
     def test_generation_reset_guard_rejects_unregistered_gate_or_stale_sdc_targets(self):
         output, _, _, _ = self.prepare()
@@ -154,9 +160,9 @@ class ScanoutBuildTests(unittest.TestCase):
         board_path = project / "fes_mailbox/fes_de25_scanout_board.v"
         original_board = board_path.read_text()
         board_path.write_text(original_board.replace(
-            "assign HDMI_TX_DE = video_active && visible_line && video_de;",
-            "assign HDMI_TX_DE = visible_request && video_active && visible_line && video_de;", 1))
-        with self.assertRaisesRegex(ValueError, "not pixel-registered"):
+            "HDMI_TX_DE <= video_active && visible_line && video_de;",
+            "HDMI_TX_DE <= visible_request && video_active && visible_line && video_de;", 1))
+        with self.assertRaisesRegex(ValueError, "not aligned pixel-clock flops"):
             B.verify_reset_synchronizers(project)
         board_path.write_text(original_board)
         sdc_path = project / "fes_mailbox/clocks.sdc"

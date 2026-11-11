@@ -11,6 +11,7 @@ import firmware
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 ZX81 = ROOT / "cores/fes-zx81/rtl"
+SHARED_RTL = HERE.parent / "shared-rtl"
 Z80 = ROOT / "cores/fes-common/rtl/z80"
 
 
@@ -28,8 +29,8 @@ def main():
     (output / "zx81_firmware.hpp").write_bytes(firmware.simulation_header(record))
     sources = [HERE / "top.v", HERE / "sim_models.v",
                HERE.parent / "hps/fes_de25_top_reset.v",
-               HERE / "keyboard.v", ZX81 / "zx81_machine_clock.v",
-               ZX81 / "zx81_machine.sv", ram, video]
+               HERE / "keyboard.v", SHARED_RTL / "zx81_machine_clock.v",
+               SHARED_RTL / "zx81_machine.sv", ram, video]
     sources += [Z80 / (name + ".sv") for name in
                 ("fes_z80_alu", "fes_z80_engine", "fes_z80_bus", "fes_z80_nmos")]
     # QUARTUS is deliberately absent: the real RAM's matching registered-read
