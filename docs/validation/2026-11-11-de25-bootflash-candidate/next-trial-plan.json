@@ -1,0 +1,26 @@
+{
+  "scope": "proposed-phase1-only-volatile-JTAG-qualification",
+  "operator_implemented": false,
+  "hardware_actions": false,
+  "live_authority": false,
+  "selected_image": "out/nano-autoboot-20261111/native-composition/native-hps-first.hps.rbf",
+  "selected_image_sha256": "c01c97dde2fe75ce7e6145ccce2a52b6fa8449f43731ba0bd2ce94cbfc3d91d4",
+  "native_boot_id": "548caa50395f3d94",
+  "fit_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+  "purpose": "Check initial menu configuration when phase2 FPGA logic is absent, before any factory-flash change.",
+  "constraints": [
+    "Separate immutable operator and fresh lease/source/USB/UART/clock/identity admission.",
+    "Extend the selected-image gate explicitly for the exact phase1 RBF; reject other RBFs and preserve vendor/forced-scan checks.",
+    "Use the programmer documented volatile p;file.rbf operation, never a JIC/flash operation.",
+    "Read-only recovery admission of current FIT, staged files and three installed records.",
+    "Automatic native startup with no fesboot, initial menu load from SD, both installed-core launch/return cycles and final Park.",
+    "Unchanged per-phase bounds, first failure terminal, independent cleanup and retained trace."
+  ],
+  "separate_flash_requirements": [
+    "Identify actual flash part and geometry independently of the vendor recipe.",
+    "Create and verify a complete factory-flash backup and concrete rollback procedure.",
+    "Audit the backup path: stock recovery enables CONFIG_SPI_FLASH_UNLOCK_ALL; do not assume sf probe is read-only.",
+    "Programmer R means ERASE; any readback design must use the documented Examine operation and verify its supported device/helper behavior.",
+    "Obtain explicit approval for the final reviewed factory-flash change, then run an independent power-on test."
+  ]
+}
