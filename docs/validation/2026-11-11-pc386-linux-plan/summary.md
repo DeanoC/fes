@@ -43,7 +43,7 @@ Tracker: [#1548](https://github.com/DeanoC/fes/issues/1548) (Phase 5).
 - **Tree.** Main at `bb5f1bfc1`, before #1684 merged, with the merged
   census (`machine_tb --census`, Phase 5 slice 0). Slice 4 is a scratch
   worktree of `refs/heads/deano/i386-phase5-tasks-9eca45` at
-  `46995175a`, PR #1684's head then. #1684 merged later at `90f6b1b86`,
+  `46995175a`, PR #1684's head then. #1684 merged later as `b080fa896`,
   which changes `fes_i386_cpu.sv` by 9 lines after `46995175a`. These runs
   have not been repeated on it. Both were built with
   `sim_fes_pc386.py --suite boot`, and their `Vpc386_machine` binaries were
@@ -83,7 +83,8 @@ Tracker: [#1548](https://github.com/DeanoC/fes/issues/1548) (Phase 5).
   it. The Slackware root disks have no `ps`. [`census.jsonl`](census.jsonl)
   is `scripts/pc386_census_summary.py` over the three runs, and
   `census-linux-<version>.txt` are their `census.txt` files.
-- **RTL runs.** `machine_tb --cpu rtl --rtl-from 3` for 40 s: the oracle
+- **RTL runs.** `machine_tb --cpu rtl --rtl-from 3` for 40 s (42 s for the
+  keyed run below): the oracle
   boots FreeDOS, and the RTL takes over at 3.0 s in real mode, before
   LOADLIN. Main ran all three kernels and slice 4 ran 1.2.13 and 2.0.0, with no keys.
   One more slice-4 run of 2.0.0 ran for 42 s (`--limit-seconds 42`) with
