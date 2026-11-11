@@ -2741,7 +2741,9 @@ It rechecks references transactionally and returns deleted objects, skipped IDs,
 and logical bytes removed; a concurrent selection or import wins. These routes
 are not exposed by the paired-launcher or source listeners. There is no quota
 or automatic deletion. Retained titles, saved cassettes, local imports, firmware,
-ROMs and expansion/video assets stay protected. Older media with unknown
+ROMs and expansion/video assets stay protected. Explicit adoption by a local
+title or one of those assets also keeps the content protected after unbinding.
+Older media with unknown
 provenance stays protected rather than being inferred to be remote-only.
 Cleanup frees catalog database pages for SQLite to reuse; it does not compact
 the database or promise additional filesystem free space.

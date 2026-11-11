@@ -85,7 +85,7 @@ func realFixture(t *testing.T) (string, string, string) {
 	// The real schema-23 opener builds the preceding schema. Remove precisely
 	// its migration23 additions to reconstruct the installed schema22 format.
 	db := raw(t, path)
-	mustExec(t, db, "DROP TRIGGER core_media_import_protect; DROP TABLE remote_cached_media; PRAGMA user_version=22")
+	mustExec(t, db, "DROP TRIGGER core_media_import_protect; DROP TRIGGER local_entry_cache_adopt_insert; DROP TRIGGER local_entry_cache_adopt_update; DROP TRIGGER core_firmware_cache_adopt_insert; DROP TRIGGER core_firmware_cache_adopt_update; DROP TRIGGER core_entry_roms_cache_adopt_insert; DROP TRIGGER core_entry_roms_cache_adopt_update; DROP TRIGGER core_expansions_cache_adopt_insert; DROP TRIGGER core_expansions_cache_adopt_update; DROP TRIGGER core_video_parts_cache_adopt_insert; DROP TRIGGER core_video_parts_cache_adopt_update; DROP TRIGGER zx81_saves_cache_adopt_insert; DROP TRIGGER zx81_saves_cache_adopt_update; DROP TABLE remote_cached_media; PRAGMA user_version=22")
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}

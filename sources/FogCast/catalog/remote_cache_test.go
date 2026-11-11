@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const dropRemoteCacheSchemaForTest = `DROP TRIGGER core_media_import_protect; DROP TRIGGER local_entry_cache_adopt_insert; DROP TRIGGER local_entry_cache_adopt_update; DROP TRIGGER core_firmware_cache_adopt_insert; DROP TRIGGER core_firmware_cache_adopt_update; DROP TRIGGER core_entry_roms_cache_adopt_insert; DROP TRIGGER core_entry_roms_cache_adopt_update; DROP TRIGGER core_expansions_cache_adopt_insert; DROP TRIGGER core_expansions_cache_adopt_update; DROP TRIGGER core_video_parts_cache_adopt_insert; DROP TRIGGER core_video_parts_cache_adopt_update; DROP TRIGGER zx81_saves_cache_adopt_insert; DROP TRIGGER zx81_saves_cache_adopt_update; DROP TABLE remote_cached_media; `
+
 func remoteCacheImport(t *testing.T, s *Store, value string) CoreMedia {
 	t.Helper()
 	media, created, err := s.ImportRemoteCassetteStream(context.Background(), int64(len(value)), strings.NewReader(value))
@@ -86,8 +88,47 @@ func TestRemoteCacheOnlyCollectsProvenRemoteUnreferencedContent(t *testing.T) {
 			t.Fatalf("protected %s: %v", id, err)
 		}
 	}
+	// Explicitly unbind/delete each association. Adoption remains durable even
+	// after a firmware slot, saved cassette or local title is later removed.
+	if err := s.RemoveCoreEntry(ctx, entry.GameID); err != nil {
+		t.Fatal(err)
+	}
+	for _, statement := range []string{
+		`DELETE FROM zx81_saves`, `DELETE FROM core_firmware`, `DELETE FROM core_expansions`, `DELETE FROM core_video_parts`,
+	} {
+		if _, err := s.db.ExecContext(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	result, err = s.RemoveRemoteCassetteCache(ctx, ids[1:])
+	if err != nil || len(result.Deleted) != 0 {
+		t.Fatalf("adopted content became reclaimable after unbinding: %+v %v", result, err)
+	}
 	if _, err := s.RemoveRemoteCassetteCache(ctx, []string{removed.MediaID}); err != nil {
 		t.Fatalf("idempotent cleanup: %v", err)
+	}
+}
+
+func TestRemoteCacheLocalSelectionAdoptionSurvivesRemoval(t *testing.T) {
+	ctx := context.Background()
+	s, _ := mediaTestStore(t)
+	media := remoteCacheImport(t, s, "remote cassette adopted by local title")
+	entry, err := s.CreateCoreEntry(ctx, "Local title", "fes.zx81", strings.Repeat("a", 64))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryMedia(ctx, entry.GameID, entry.PackageID, "", "cassette", media.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RemoveCoreEntry(ctx, entry.GameID); err != nil {
+		t.Fatal(err)
+	}
+	result, err := s.RemoveRemoteCassetteCache(ctx, []string{media.MediaID})
+	if err != nil || len(result.Deleted) != 0 {
+		t.Fatalf("local adoption lost after removal: %+v %v", result, err)
+	}
+	if _, err := s.CoreMediaInfo(ctx, media.MediaID); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -241,7 +282,7 @@ func TestRemoteCacheMigrationLeavesSchema22ContentUnclassified(t *testing.T) {
 	ctx := context.Background()
 	s, path := mediaTestStore(t)
 	old := remoteCacheImport(t, s, "pre-migration unknown")
-	if _, err := s.db.ExecContext(ctx, `DROP TRIGGER core_media_import_protect; DROP TABLE remote_cached_media; PRAGMA user_version=22`); err != nil {
+	if _, err := s.db.ExecContext(ctx, dropRemoteCacheSchemaForTest+`PRAGMA user_version=22`); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Close(); err != nil {
@@ -326,5 +367,49 @@ func TestRemoteCacheRecognizesEverySchemaForeignKeyToMedia(t *testing.T) {
 		if err := errors.Join(fk.Err(), fk.Close()); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestRemoteCacheNonCassetteUpdateAdoptionSurvivesUnbinding(t *testing.T) {
+	for _, tc := range []struct {
+		name, insert, update, remove string
+		args                         func(string, string, string) []any
+	}{
+		{"firmware", `INSERT INTO core_firmware(slot,media_id) VALUES ('firmware',?)`, `UPDATE core_firmware SET media_id=? WHERE slot='firmware'`, `DELETE FROM core_firmware WHERE slot='firmware'`, func(old, _, _ string) []any { return []any{old} }},
+		{"rom", `INSERT INTO core_entry_roms(game_id,package_id,rom_id,media_id,source_size) VALUES (?,?, 'rom',?,1)`, `UPDATE core_entry_roms SET media_id=?`, `DELETE FROM core_entry_roms`, func(old, game, pkg string) []any { return []any{game, pkg, old} }},
+		{"expansion", `INSERT INTO core_expansions(expansion_id,media_id,shell_package_id) VALUES (?,?,?)`, `UPDATE core_expansions SET media_id=?`, `DELETE FROM core_expansions`, func(old, _, pkg string) []any { return []any{strings.Repeat("b", 64), old, pkg} }},
+		{"video", `INSERT INTO core_video_parts(part_id,media_id,shell_package_id,profile) VALUES (?,?,?,'direct')`, `UPDATE core_video_parts SET media_id=?`, `DELETE FROM core_video_parts`, func(old, _, pkg string) []any { return []any{strings.Repeat("c", 64), old, pkg} }},
+		{"save", `INSERT INTO zx81_saves(game_id,media_id,name,created_at) VALUES (?,?,'S',1)`, `UPDATE zx81_saves SET media_id=?`, `DELETE FROM zx81_saves`, func(old, game, _ string) []any { return []any{game, old} }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			s, _ := mediaTestStore(t)
+			pkg := strings.Repeat("a", 64)
+			entry, err := s.CreateCoreEntry(ctx, "Local", "fes.zx81", pkg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			old, _, err := s.ImportCoreMedia(ctx, []byte("old local bytes"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			remote := remoteCacheImport(t, s, "new remote "+tc.name)
+			if _, err := s.db.ExecContext(ctx, tc.insert, tc.args(old.MediaID, entry.GameID, pkg)...); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.db.ExecContext(ctx, tc.update, remote.MediaID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.db.ExecContext(ctx, tc.remove); err != nil {
+				t.Fatal(err)
+			}
+			result, err := s.RemoveRemoteCassetteCache(ctx, []string{remote.MediaID})
+			if err != nil || len(result.Deleted) != 0 {
+				t.Fatalf("updated adoption removed: %+v %v", result, err)
+			}
+			if _, err := s.CoreMediaInfo(ctx, remote.MediaID); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
