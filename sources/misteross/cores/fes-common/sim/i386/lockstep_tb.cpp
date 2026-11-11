@@ -3613,7 +3613,9 @@ int run_corpus(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
 // subroutines and stack frames.
 class Generator {
 public:
-    explicit Generator(std::mt19937_64 &random) : rng(random) {}
+    // side is seeded from a copy of random, so it takes nothing from random:
+    // a draw from side leaves every program a seed gives as it was.
+    explicit Generator(std::mt19937_64 &random) : rng(random), side(std::mt19937_64(random)()) {}
 
     struct Item {
         std::vector<uint8_t> bytes;
@@ -3679,6 +3681,7 @@ public:
 
 private:
     std::mt19937_64 &rng;
+    std::mt19937_64 side;  // choices added after a seed's programs were fixed (#1663)
     std::vector<Item> items;
     int fence = 0;  // no backward jump lands before here: inside a subroutine
     // A far transfer has run code under another CS, where a target's EIP
@@ -5819,7 +5822,9 @@ private:
             for (unsigned k = pick(3); k > 0; --k) emit(pm_instruction());
             const uint32_t past16 = limit + 1 + pick(0xffff - limit), past32 = limit + 1 + pick(0x20000);
             std::vector<uint8_t> out;
-            const bool call = pick(2);  // CALL for JMP (E8 for E9, /2 for /4)
+            // CALL for JMP (E8 for E9, /2 for /4), from side: a draw from rng
+            // here would change the programs after it (#1663's repro).
+            const bool call = side() & 1;
             switch (pick(5)) {
             case 0: {  // JMP or CALL rel16
                 out = {uint8_t(call ? 0xe8 : 0xe9)};

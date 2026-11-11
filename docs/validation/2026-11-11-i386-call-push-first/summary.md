@@ -12,7 +12,8 @@ item 3 of [#1514](https://github.com/DeanoC/fes/issues/1514) (a comment).
   cases). Main's RTL fails exactly those three; a mutant that lets the push
   move ESP fails those three and six others ([mutants.txt](mutants.txt)).
 - **Lockstep.** Everything passes on the RTL and on the netlist from the i386
-  lock's Yosys, with identical trace hashes.
+  lock's Yosys, with identical trace hashes, except `random#1010#118`, the
+  known failure #1663, which fails as #1663 records.
 - **test386** on the RTL reaches POST 22 and stops at `int 0x28`, a delivery
   through a task gate (not built), as on main.
 - **Seal.** Quartus 17.0.2 seed 1 from a clean checkout of `5b1a87678`
@@ -105,35 +106,39 @@ lockstep's comparison of the bytes each side wrote checks it. At CPL 0 the
 frame covers the slot.
 
 The random generator's real-gp exit (#1651) also draws CALL rel16, CALL
-rel32, CALL BX and CALL EBX besides the JMPs.
+rel32, CALL BX and CALL EBX besides the JMPs. It picks CALL or JMP from a
+side stream seeded from a copy of the seed's stream, so it takes no draw
+from that stream: every seed gives main's programs, with CALL in place of
+some of those JMPs.
 
 ## Lockstep
 
-`scripts/test_fes_i386_lockstep.py --jobs 16` at `5b1a87678`, on the RTL and
+`scripts/test_fes_i386_lockstep.py --jobs 20` with the side-stream testbench
+on the sealed RTL (`5b1a87678`; the testbench change is sim-only), on the RTL and
 on the netlist from the i386 lock's Yosys (`238eac9a4`, slot `44e245aa…`),
 with the lock's Verilator 5.054:
 
 | Part | RTL | Netlist |
 | --- | --- | --- |
 | SingleStepTests corpus | 1,758,699 of 1,758,699 | same |
-| Random programs | 32,000 of 32,000 (7,965,646 retirements) | same |
-| Protected-mode programs | 8,000 of 8,000 (425,221 retirements) | same |
+| Random programs | 32,000 of 32,000 (7,977,455 retirements) | same |
+| Protected-mode programs | 7,999 of 8,000 (432,655 retirements); `random#1010#118` fails, the known #1663 | same |
 | Unbuilt encodings | 49,760, each stopped | same |
 | Directed cases | 77 of 77 | same |
 | Unreal, protected-mode, paging, no-387 and memory cases | 7, 278, 64, 1,933 and 27, all pass | same |
 
-Every trace hash is the same on the RTL and the netlist.
-[lockstep-netlist-report.json](lockstep-netlist-report.json) is the
-netlist's full run. The RTL's full run,
-[lockstep-report.json](lockstep-report.json), ran its corpus part on a
-partial local corpus (1 file, 100 tests). The full corpus then ran alone on the same
-RTL: [lockstep-corpus-report.json](lockstep-corpus-report.json).
+Every trace hash is the same on the RTL and the netlist. The full runs are
+[lockstep-report.json](lockstep-report.json) (RTL) and
+[lockstep-netlist-report.json](lockstep-netlist-report.json).
 
-`random#1010#118` (#1663), the known failure on main, does not fail here.
-Not checked further; presumably the real-gp exit's new CALL draw changes
-the programs drawn after it from that seed. Programs under a CS
-limit other than 64 KiB and 4 GiB (`cs_limit`): pm-gp 615, pm-retired
-19,730, real-gp 405, real-retired 1,195.
+**Known failure: `random#1010#118` (#1663).** It fails on the RTL and the
+netlist exactly as #1663 records: at 42da:356f, Bochs nests a #PF (vector
+0Eh, CR2 FFEAF29Fh, CPL 0, CS 80h) in the delivery of INTR vector 8 to CS
+2Fh, while the RTL's delivery ends at the handler. An earlier draft of this
+PR drew the CALL choice from the seed's stream, which changed the programs
+after it and hid this case; Codex flagged it, and the side stream restores
+it. Programs under a CS limit other than 64 KiB and 4 GiB (`cs_limit`):
+pm-gp 606, pm-retired 19,391, real-gp 390, real-retired 1,331.
 
 ## test386
 
