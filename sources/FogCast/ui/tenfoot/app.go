@@ -1781,7 +1781,13 @@ func (a *App) Snapshot() Snapshot {
 		}
 	}
 	status := a.status
-	if a.tapePickerOpen && strings.TrimSpace(a.tapePickerStatus) != "" {
+	if a.setupRoomOpenLocked() && status == setupBlockedStatus && !a.setupSessionBusyLocked() {
+		status = ""
+	}
+	if a.setupRoomOpenLocked() && status == setupBlockedStatus && a.setupSessionBusyLocked() {
+		// Preserve the setup action's reason while a launch status is present.
+		status = setupBlockedStatus
+	} else if a.tapePickerOpen && strings.TrimSpace(a.tapePickerStatus) != "" {
 		status = a.tapePickerStatus
 	} else if line := a.stopStatusLocked(); line != "" {
 		status = line
