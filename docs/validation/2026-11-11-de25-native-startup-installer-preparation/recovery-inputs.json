@@ -1,0 +1,9 @@
+{
+  "status": "reused-current-checked-recovery-inputs",
+  "path": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-installer-hardware-prefix-20261111/recovery-kit",
+  "fit_sha256": "3722e24c551a794dd970e665cc4932b96cb62aefa353f39079285458d67d48e5",
+  "prefix_sha256": "80e36789a8de046c8e47899bbb6567d5afa58e3325c10d3944c7151a210d595c",
+  "record_sha256": "bda56953cd362efeaae6b16a3dd547a3f4770f79a8ace72bc72ffe0a436c691d",
+  "hardware_actions": false,
+  "live_authority": false
+}

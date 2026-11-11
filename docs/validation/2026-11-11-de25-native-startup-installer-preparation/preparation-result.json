@@ -1,0 +1,26 @@
+{
+  "status": "frozen-offboard-controller-only",
+  "native_boot_id": "b3ed4389ad43d91b",
+  "compiled_source": "da33a94cc56ca7a975eb275ce04d1d3cf30c0890",
+  "test_counts": {
+    "installer-models": 6,
+    "transport-models": 6,
+    "receipt-models": 3,
+    "epoch-models-complete": 6,
+    "program-gate-models": 2
+  },
+  "active_file_admission": "89b466e60ddb87a34ecaa1a0bef5fea76ded293bd24ce185a13df6950cf7500d",
+  "file_count": 5643,
+  "tree_count": 8,
+  "frozen_procedure_sha256": "296aa7bd86331f85ca16bc990f93e6ea5946564bfdf928aef424d7aa22cce0b4",
+  "no_live_preflight": true,
+  "no_programming_grants": true,
+  "no_uploads_started": true,
+  "historical_freeze_failure": "field mismatch against checked-in summary; corrected; file record regenerated",
+  "initial_file_record_superseded": true,
+  "hardware_actions": false,
+  "live_authority": false,
+  "physical_installation_verified": false,
+  "persistence_verified": false,
+  "keyboard_connection_confirmation_pending": true
+}
