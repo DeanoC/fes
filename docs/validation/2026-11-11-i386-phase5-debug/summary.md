@@ -155,8 +155,9 @@ added for them (`db-ibp-movss`, `db-dbp-movss`, `db-dbp-movss-int`,
 
 ## test386.asm
 
-`scripts/test_fes_i386_test386.py --cpu rtl --no-cross-check` at `c0a6a2682`
-on chip-30x0-ai-dev (Powerboat was loaded; the i386 lock's Verilator 5.054
+`scripts/test_fes_i386_test386.py --cpu rtl --no-cross-check` at `5a74d5598`
+(the merged tree the lockstep ran; `c0a6a2682`, before the merges, gave the
+same POST codes, end and output) on chip-30x0-ai-dev (Powerboat was loaded; the i386 lock's Verilator 5.054
 built there), [test386-rtl-report.json](test386-rtl-report.json), its output
 text trimmed to a hash:
 - **POST codes** 00, 01, 02, 03, 04, 05, 06, 08, 09, 20, 21, 22, 0B-1C, E0,
