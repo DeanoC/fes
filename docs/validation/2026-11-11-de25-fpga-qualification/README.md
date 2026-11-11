@@ -78,3 +78,59 @@ parser accepts the retained real log. `qemu-serial-parser.json` preserves the
 failed parent result. A fresh normal image/verification from the repaired
 recipe remains required; no successful parent receipt or hardware boot is
 inferred. VExpress has no DE10 Ethernet device, so its boot is no DHCP/SSH proof.
+
+
+The new sealed RISC-V package passes physical KitA import, compatibility,
+exact live package/build/target identity, a visible FES RV32I firmware scene
+and owned Stop. This used an isolated e998 host with the existing main a275
+bundle/image179. `riscv-hardware.json` and `riscv-hardware.png` record that scope;
+gamepad and long-term animation were not tested. KitA was released with the
+same generation154 and boot, all four baseline executable hashes, idle/launcher,
+original catalog and protected paths, and FES Home. The one new empty
+SHA256(fes.riscv) data directory was removed using rmdir after proving it absent
+before and empty after. The initial restoration mismatch remains retained.
+The earlier admission attempt used the kit launcher proxy and timed out before
+any FPGA load; the isolated host completed admission; the earlier timeout’s cause remains unproved. A nonconforming host
+container was also refused by its UID/GID gate before startup. Neither refusal
+was bypassed. The private host, credential and tunnel are retired.
+
+The broad `make sim-fes-zx81` job reached its1800-second outer cap and was
+terminated. Its standard session/display, variants, expansion and many BASIC
+regressions passed beforehand, but the full target is not claimed passing.
+This is an incomplete simulation campaign, not a physical-kit result or a
+waived bound. The complete MENU simulation passes.
+
+The normal4ac image, native host and verification pipeline passes, including
+structural and actual VExpress QEMU boot/packaging checks. The exported release
+binds root744789c9, the unchanged locked kernel a6c7b1be and the tested e3
+userspace. It records one-pass assembly; two-pass reproducibility is not claimed.
+The rootfs is byte-identical to the earlier image; the parser was the repaired
+input. `de10-image-preparation.json` records hashes and terminal results.
+The release was subsequently tested natively under the exact user-approved plan below. All80/61
+combined-proof inputs,74/143 DE25 package inputs and43 RISC-V inputs remain
+unchanged; their original producer revisions are preserved. The newly qualified
+DE25 packages still have no fresh physical acceptance.
+
+
+The approved network-only image744/e203 trial on KitA is complete. Actual ARMv7
+Linux verifies Ethernet/DHCP address and route, SSH, loopback, configured hostname,
+the running-kernel Bluetooth module path, writable D-Bus machine-id and a real
+system bus, read-only root and volatile tmpfs mounts. Persistent foreground DHCP
+is running without the quit flag; timed lease renewal was not observed. All four
+running candidate hashes match. MENU is visible. The existing sealed ZX81 package
+imports and launches normally with its existing user ROM, exact live identity and
+a clear black K prompt on white, then owned Stop returns to MENU. Input and BASIC
+were not repeated in this image trial.
+
+A normal idle software reboot returned the same image/bundle healthy and free
+after129.673 seconds, missing the unchanged120-second readiness requirement. The
+earlier main baseline also missed at133.672 seconds; no cause or timeout waiver
+is inferred. Original bundlea275 was fully activated before normal image rollback
+to179. Final checks verify generation160, all four original process hashes,
+idle/launcher/kernel, original catalog rows and media chunks, protected paths,
+ready/idle/free and visible FES Home. The owned private host and credential were
+retired and the claim released. No card swap, physical power cycle, kernel,
+U-Boot, QSPI, JTAG or shared service change occurred. Normal update history now
+retains744 as the previous image. `de10-native-image-hardware.json` binds sanitized
+results to private receipts; the PNG shows this trial’s existing ZX81 K prompt.
+This supplies actual shared-init native DE10 evidence, not fresh DE25 acceptance.
