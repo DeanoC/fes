@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"fmt"
+	"net/http"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -14,7 +15,11 @@ import (
 // startFirstRun starts Home with the first-run gate on and prefs in dir.
 func startFirstRun(t *testing.T, dir string, w, h int) *App {
 	t.Helper()
-	host := newRoomHost(t)
+	return startFirstRunWithHost(t, newRoomHost(t), dir, w, h)
+}
+
+func startFirstRunWithHost(t *testing.T, host *roomHost, dir string, w, h int) *App {
+	t.Helper()
 	app := NewApp(NewClient(host.server.URL, host.server.Client()), w, h, 50)
 	app.SetPrefsPath(filepath.Join(dir, "tenfoot.json"))
 	app.SetRooms(rooms.NewIndex(rooms.Examples()), t.TempDir())
@@ -168,7 +173,12 @@ func TestSetupWaitsForRunningOrStartingSession(t *testing.T) {
 			dir := t.TempDir()
 			app := startFirstRun(t, dir, 1280, 720)
 			waitRoom(t, app, "example.welcome")
+			waitFor(t, app, "library loaded", func(s Snapshot) bool { return !s.Loading })
 			app.mu.Lock()
+			// The fake host keeps reporting idle; stop its poll and invalidate
+			// an in-flight response before injecting the busy state.
+			app.cancel()
+			app.sessionGen++
 			tc.busy(app)
 			app.setup.skipped = []string{"welcome", "ready"}
 			app.runSetupActionLocked("setup_continue")
@@ -192,9 +202,127 @@ func TestSetupWaitsForRunningOrStartingSession(t *testing.T) {
 			}
 			snap := app.Snapshot()
 			if got := renderRoomLabelSource(t, snap, "nopanel-status"); got != setupBlockedStatus {
-				t.Fatalf("setup footer = %q, want %q", got, setupBlockedStatus)
+				app.mu.Lock()
+				status, step, id, state, phase := app.status, app.setup.step, app.room.ID(), app.session.State, app.launch.Phase
+				app.mu.Unlock()
+				t.Fatalf("setup footer = %q, want %q; snapshot status=%q session=%q launch=%q room=%q; app status=%q step=%d room=%q session=%q launch=%q", got, setupBlockedStatus, snap.Status, snap.Session.State, snap.Launch.Phase, snap.Room.ID, status, step, id, state, phase)
 			}
 		})
+	}
+}
+
+func TestSetupBlockedStatusSurvivesLibraryResponse(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		httpStatus int
+		want       string
+	}{
+		{"success", 0, "2 titles · All · All · Title"},
+		{"failure", http.StatusInternalServerError, "Can't reach the library right now."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			host := newRoomHost(t)
+			gate := make(chan struct{})
+			arrived := make(chan struct{}, 1)
+			host.mu.Lock()
+			host.state, host.gamesGate, host.gamesArrived, host.gamesStatus = "launching", gate, arrived, tc.httpStatus
+			host.mu.Unlock()
+			t.Cleanup(func() { close(gate) })
+			app := startFirstRunWithHost(t, host, t.TempDir(), 1280, 720)
+			waitRoom(t, app, "example.welcome")
+			select {
+			case <-arrived:
+			case <-time.After(5 * time.Second):
+				t.Fatal("library request did not arrive")
+			}
+			waitFor(t, app, "busy host session", func(s Snapshot) bool { return s.Session.State == "launching" })
+			app.mu.Lock()
+			app.runSetupActionLocked("setup_continue")
+			app.mu.Unlock()
+			if snap := app.Snapshot(); snap.Status != setupBlockedStatus {
+				t.Fatalf("blocked status = %q", snap.Status)
+			}
+			// Release the real in-flight response after the warning is set.
+			close(gate)
+			gate = make(chan struct{}) // cleanup closes this only on success
+			snap := waitFor(t, app, "library response", func(s Snapshot) bool { return !s.Loading })
+			if got := renderRoomLabelSource(t, snap, "nopanel-status"); got != setupBlockedStatus {
+				t.Fatalf("footer after library response = %q, want %q", got, setupBlockedStatus)
+			}
+			host.mu.Lock()
+			host.state = "idle"
+			host.mu.Unlock()
+			select {
+			case app.sessionKick <- struct{}{}:
+			default:
+			}
+			snap = waitFor(t, app, "idle host session", func(s Snapshot) bool { return s.Session.State == "idle" })
+			if snap.Status != tc.want {
+				t.Fatalf("status after idle = %q, want %q", snap.Status, tc.want)
+			}
+			if got := renderRoomLabelSource(t, snap, "nopanel-status"); got == setupBlockedStatus {
+				t.Fatalf("footer remains blocked after idle: %q", got)
+			}
+			if snap.Room.ID != "example.welcome" {
+				t.Fatalf("blocked setup advanced to %q", snap.Room.ID)
+			}
+		})
+	}
+}
+
+func TestSetupDeferredOfflineShelfRetainsRefreshFailureNotice(t *testing.T) {
+	host := newRoomHost(t)
+	host.mu.Lock()
+	host.state = "launching"
+	host.mu.Unlock()
+	app := startFirstRunWithHost(t, host, t.TempDir(), 1280, 720)
+	waitRoom(t, app, "example.welcome")
+	waitFor(t, app, "initial library and busy session", func(s Snapshot) bool {
+		return !s.Loading && len(s.Games) > 0 && s.Session.State == "launching"
+	})
+	host.mu.Lock()
+	host.gamesStatus = http.StatusInternalServerError
+	host.mu.Unlock()
+	const want = "Saved. Couldn't refresh the library."
+	app.mu.Lock()
+	app.runSetupActionLocked("setup_continue")
+	app.reloadCatalogWithNoticeLocked("Saved.")
+	app.mu.Unlock()
+	waitFor(t, app, "deferred offline refresh notice", func(s Snapshot) bool {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		return !s.Loading && app.setup.deferredLibraryStatus == want
+	})
+	host.mu.Lock()
+	host.state = "idle"
+	host.mu.Unlock()
+	select {
+	case app.sessionKick <- struct{}{}:
+	default:
+	}
+	snap := waitFor(t, app, "idle session", func(s Snapshot) bool { return s.Session.State == "idle" })
+	if snap.Status != want {
+		t.Fatalf("status after idle = %q, want %q", snap.Status, want)
+	}
+}
+
+func TestSetupOfflineNoticeAfterIdleBeforeSnapshot(t *testing.T) {
+	app := startFirstRun(t, t.TempDir(), 1280, 720)
+	waitRoom(t, app, "example.welcome")
+	waitFor(t, app, "library loaded", func(s Snapshot) bool { return !s.Loading })
+	app.mu.Lock()
+	app.cancel()
+	app.sessionGen++
+	app.session.State = "launching"
+	app.runSetupActionLocked("setup_continue")
+	app.setLibraryStatusLocked(savedListOfflineCopy)
+	app.session.State = "idle"
+	// The refresh goroutine's notice arrives before any idle Snapshot.
+	app.setLibraryRefreshNoticeLocked("Saved.")
+	app.mu.Unlock()
+	const want = "Saved. Couldn't refresh the library."
+	if got := app.Snapshot().Status; got != want {
+		t.Fatalf("status = %q, want %q", got, want)
 	}
 }
 
@@ -231,6 +359,31 @@ func TestSetupBlockedStatusClearsWhenSessionStops(t *testing.T) {
 	app.mu.Unlock()
 	if got := renderRoomLabelSource(t, app.Snapshot(), "nopanel-status"); got == setupBlockedStatus {
 		t.Fatal("setup still says to stop the machine after it stopped")
+	}
+}
+
+func TestSetupWaitsForRunningOrStartingSessionPreservesLibraryStatus(t *testing.T) {
+	app := NewApp(nil, 1280, 720, 50)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.SetRooms(rooms.NewIndex(rooms.Examples()), t.TempDir())
+	app.mu.Lock()
+	if !app.openSetupStepLocked(0) {
+		app.mu.Unlock()
+		t.Fatal("could not open setup room")
+	}
+	app.session.State = "active"
+	app.runSetupActionLocked("setup_continue")
+	app.setLibraryStatusLocked("Can't reach the library right now.")
+	app.mu.Unlock()
+
+	if got := renderRoomLabelSource(t, app.Snapshot(), "nopanel-status"); got != setupBlockedStatus {
+		t.Fatalf("setup footer during refresh = %q, want %q", got, setupBlockedStatus)
+	}
+	app.mu.Lock()
+	app.session.State = "idle"
+	app.mu.Unlock()
+	if got := app.Snapshot().Status; got != "Can't reach the library right now." {
+		t.Fatalf("library status after session stops = %q", got)
 	}
 }
 
@@ -409,5 +562,13 @@ func TestSkippingRunSetupAgainKeepsTheFinishedSetup(t *testing.T) {
 	}
 	if p := setupPrefs(t, dir); !p.SetupDone || len(p.SetupSkipped) != 0 {
 		t.Fatalf("prefs %+v", p)
+	}
+}
+
+func TestLibraryStatusOutsideSetupRemainsImmediate(t *testing.T) {
+	app := &App{status: "previous"}
+	app.setLibraryStatusLocked("library updated")
+	if app.status != "library updated" || app.setup.deferredLibraryStatus != "" {
+		t.Fatalf("status = %q, deferred = %q", app.status, app.setup.deferredLibraryStatus)
 	}
 }

@@ -393,10 +393,18 @@ module fes_i386_ex (
                 rest[17] = y[17];
             end
             // RF: IRETD's image sets it, IRET's last uop keeps it, and any
-            // other uop clears it, as Bochs clears it before the next
-            // instruction runs; a task switch's new EFLAGS loads it, which
-            // its commit and descriptor loads keep (ts_krf).
-            rest[16] = exc.f_rf || exc.f_ldtss ? y[16] : (u.iret || u.tcom || ts_krf) && flags_keep[16];
+            // other instruction clears it at WB's instruction boundary: its
+            // last uop or a taken eoi_taken uop. The 386 clears RF only as
+            // an instruction completes (its manual's 12.3.1.1), so an
+            // instruction RF lets past a breakpoint keeps it through a
+            // replay of its later uops. A 16-bit IRET's or a POPF's load
+            // clears it, as Bochs's (the 386's manual has a 16-bit IRET leave
+            // RF as it is, which its microcode cannot settle). A task
+            // switch's new EFLAGS loads it, which its commit and descriptor
+            // loads keep (ts_krf).
+            rest[16] = exc.f_rf || exc.f_ldtss ? y[16]
+                     : (u.iret || u.tcom || ts_krf
+                        || !(u.ctl.end_of_instruction || taken && u.eoi_taken)) && !exc.f_load && flags_keep[16];
             // The adjusts' flags take the multiply unit's select, which adds
             // no step to the older flags' chain.
             if (exc.md_fl || exc.r_bcd) begin

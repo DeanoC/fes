@@ -54,7 +54,7 @@ type fakeServices struct {
 	err         error
 }
 
-func (f *fakeServices) QueryGames(_ context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, error) {
+func (f *fakeServices) QueryGames(_ context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.queries = append(f.queries, q)
@@ -78,10 +78,27 @@ func (f *fakeServices) QueryGames(_ context.Context, q hostclient.GameListQuery,
 			games = append(games, game)
 		}
 	}
-	if max > 0 && len(games) > max {
+	if q.HomeFamily {
+		var machines, titles []hostclient.Game
+		for _, game := range games {
+			if game.CoreEntryKind == "machine" || (game.CoreEntryKind == "" && game.MediaID == "") {
+				game.CoreEntryKind = "machine"
+				machines = append(machines, game)
+			} else {
+				game.CoreEntryKind = "title"
+				titles = append(titles, game)
+			}
+		}
+		if max > 0 && len(machines) > max {
+			return nil, true, errors.New("too many machine entries to determine readiness")
+		}
+		games = append(machines, titles...)
+	}
+	more := max > 0 && len(games) > max
+	if more {
 		games = games[:max]
 	}
-	return games, f.err
+	return games, more, f.err
 }
 
 func (f *fakeServices) recorded() []hostclient.GameListQuery {

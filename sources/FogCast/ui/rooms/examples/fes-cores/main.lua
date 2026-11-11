@@ -556,7 +556,7 @@ local function draw_shelf(h, only_slot)
   end
   if only_slot == nil or only_slot == -1 then
     gfx.text("Computers", s.x, y, { size = label_size, bold = true, color = C.text })
-    if settled() then
+    if settled() and F.count_known() then
       gfx.text(F.on_kit() .. " on this kit", s.x, y + 4, { size = 18, color = C.secondary, max_w = s.w, align = "right" })
     end
   end

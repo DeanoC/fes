@@ -731,6 +731,8 @@ uops = [
 # with ones above), CS's selector into T0, the others' into their segments
 # with their caches refused (TSEL; a 286 TSS's FS and GS null), the LDT's
 # selector into T5 and LDTR (TSLDT), a 386 TSS's CR3 into T2 under paging;
+# a 386 TSS's word at 64h, whose bit 0 is the T bit, into T5 (the 386's
+# 781-784; the commit arms its #DB, fes_i386_cpu "Debug traps"),
 # the flags from T4 (LOAD_TSS: NT set too for a nesting switch), and the
 # commit (tcom): a far jump to the new EIP that writes CS's selector, CR3,
 # CR0.TS and DR7's local enables, and after which DC takes tsload or tsv86.
@@ -785,6 +787,7 @@ uops = [
     { cls = "segment", op = "tsel", d = "gs", xc = "t16" },
     { cls = "alu", op = "mov", d = "t5", size = "32", mkind = "load", tss = "fld", tsf = 18 },
     { cls = "system", op = "tsldt" },
+    { cls = "alu", op = "mov", d = "t5", size = "32", mkind = "load", tss = "fld", tsf = 19, xc = "t32" },
     { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", tss = "fld", tsf = 1, xc = "t32pg" },
     { cls = "alu", op = "flags", imm = 15, size = "32", b = "t4", wr_cf = true, wr_oszap = true },
     { cls = "branch", op = "jmp", far_jmp = true, far_t = true, tcom = true },

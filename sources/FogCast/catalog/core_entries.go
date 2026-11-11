@@ -449,6 +449,32 @@ func (s *Store) CoreEntry(ctx context.Context, gameID string) (CoreEntry, error)
 	return entry, nil
 }
 
+// CoreEntriesByIDs returns only the requested non-kit-host entries.
+// The JSON-backed ID predicate avoids the SQLite variable-count limit.
+func (s *Store) CoreEntriesByIDs(ctx context.Context, ids []string) ([]CoreEntry, error) {
+	if len(ids) == 0 {
+		return []CoreEntry{}, nil
+	}
+	clause, args := idListSQL("e.game_id", ids, false)
+	rows, err := s.db.QueryContext(ctx, coreEntrySelect+` WHERE NOT EXISTS (SELECT 1 FROM kit_host_entries k WHERE k.game_id = e.game_id)`+clause+` ORDER BY e.game_id`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list selected core entries: %w", err)
+	}
+	defer rows.Close()
+	entries := make([]CoreEntry, 0, len(ids))
+	for rows.Next() {
+		entry, err := scanCoreEntry(rows.Scan)
+		if err != nil {
+			return nil, fmt.Errorf("read selected core entry: %w", err)
+		}
+		entries = append(entries, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate selected core entries: %w", err)
+	}
+	return entries, nil
+}
+
 func (s *Store) CoreEntries(ctx context.Context) ([]CoreEntry, error) {
 	return s.coreEntries(ctx, false)
 }

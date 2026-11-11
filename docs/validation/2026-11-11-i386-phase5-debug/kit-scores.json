@@ -1,0 +1,24 @@
+{
+  "kit": "B",
+  "date": "2026-11-11",
+  "baseline": {"image": "179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018", "software": "7ddb0bfb"},
+  "preset": 0,
+  "packages": {
+    "slice5": {"package": "2a1c2a3557f2a5e7ccdf8a731407f34b4c9f6a5b3749f55ada1341a80059833c", "seal_of": "c0a6a268216c29b2b8bfdfad55a645b980c4b55e"},
+    "main": {"package": "bc4ab0d99389591e8f34873ae628ebdd27399ed54240d04cb918797448b66310", "seal_of": "d56f0e558958e7595da192b81c2ba1f7e465e4cc"}
+  },
+  "benchmarks": {
+    "doom_v19_timedemo_demo3": {"main_m1": {"gametics": 3863, "realtics": 3374, "fps": 40.07}, "slice5_k1": {"gametics": 3863, "realtics": 3375, "fps": 40.06}},
+    "3dbench": {"main_m1": 76.9, "slice5_k1": 76.9},
+    "pcpbench": {"main_m1": 13.3, "slice5_k1": 13.3},
+    "topbench": {"main_m1": 307, "slice5_k1": 306}
+  },
+  "titles": {
+    "time_circle": {"run": "k1", "drive": "dpmi", "result": "its main menu"},
+    "wolfenstein_3d": {"run": "k2", "drive": "real", "result": "a new game, in E1M1"},
+    "ultima_vi": {"run": "k2", "drive": "real", "result": "its introduction plays"},
+    "doom_v19": {"run": "k5", "drive": "pmode", "result": "its demos play in game (k2's load failed staging its disk: the kit's disk-image store was full)"},
+    "ultima_vii_black_gate": {"run": "k6", "drive": "xms (5053c36b)", "result": "its introduction plays"},
+    "ultima_vii_serpent_isle": {"run": "k6", "drive": "fpu", "result": "its introduction plays"}
+  }
+}

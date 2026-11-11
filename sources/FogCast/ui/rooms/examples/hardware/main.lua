@@ -631,7 +631,7 @@ local function picture(part)
   button("setup","Next setup",606,576,128,48,data and #data.machines > 1,function() next_machine() end)
   button("setup_library","Set up "..model().mark,746,576,170,48,not running(),function() hardware.setup{core_id=model().id} end)
   button("firmware","Firmware",928,576,168,48,true,function() firmware_info(false) end)
-  button("library","Library",976,514,120,28,not running(),function() rooms.open_library{platform="zx81"} end)
+  button("library","Library",976,514,120,28,not running(),function() rooms.open_library{platform="fpga",core_ids={model().id}} end)
   if part == "lower" then
     gfx.extend(sink)
     for i = 1, #sink do cmds[#cmds+1] = sink[i] end
