@@ -80,7 +80,7 @@ func (s *Service) defaultBundledFirmware(ctx context.Context, entry catalog.Core
 	if !ok {
 		return protocol.BundledFirmware{}, false
 	}
-	selected, err := roms.CoreEntryROM(ctx, entry.GameID)
+	selected, err := roms.CoreEntryROM(ctx, entry.GameID, requirement.ID)
 	if err != nil || selected.MediaID != "" {
 		return protocol.BundledFirmware{}, false
 	}

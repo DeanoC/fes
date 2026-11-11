@@ -417,6 +417,45 @@ func TestMeshCatalogEntryWithoutCoreEntryIsFalse(t *testing.T) {
 	}
 }
 
+func TestMeshCatalogEntryUsesEachTitleNamedBIOSAndCartridge(t *testing.T) {
+	ctx := context.Background()
+	service, _, first, inspection := newCoreEntryLaunchFixture(t, twoROMLibraryPackageFixture(t), "First Coleco")
+	second, err := service.CreateCoreEntry(ctx, "Second Coleco", inspection.PackageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := service.meshCatalogEntry(first.GameID); ok {
+		t.Fatal("projected a title with no ROM bindings")
+	}
+	importMedia := func(size int, fill byte) string {
+		t.Helper()
+		media, _, err := service.ImportCoreMedia(ctx, int64(size), bytes.NewReader(bytes.Repeat([]byte{fill}, size)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return media.MediaID
+	}
+	cart := importMedia(131072, 0x42)
+	bioses := []string{importMedia(8192, 0x11), importMedia(8192, 0x22)}
+	for i, entry := range []catalog.CoreEntry{first, second} {
+		if _, err := service.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-cart", "", cart); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := service.meshCatalogEntry(entry.GameID); ok {
+			t.Fatal("projected a cartridge without its BIOS")
+		}
+		if _, err := service.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-bios", "", bioses[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i, entry := range []catalog.CoreEntry{first, second} {
+		projected, ok := service.meshCatalogEntry(entry.GameID)
+		if !ok || len(projected.Slots) != 3 || projected.Slots[1].Kind != meshcontent.SlotBIOS || projected.Slots[1].Content == nil || projected.Slots[1].Content.Digest != bioses[i] || projected.Slots[2].Kind != meshcontent.SlotPrimaryMedia || projected.Slots[2].Content == nil || projected.Slots[2].Content.Digest != cart {
+			t.Fatalf("title %s projected %+v ok=%v", entry.GameID, projected, ok)
+		}
+	}
+}
+
 func TestMeshContentServesCoreMediaAndExpansionCart(t *testing.T) {
 	ctx := context.Background()
 	store, err := catalog.Open(filepath.Join(t.TempDir(), "library.sqlite3"))

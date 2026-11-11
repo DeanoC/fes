@@ -60,7 +60,7 @@ func colecoNativeROMPackageFixture(t *testing.T) []byte {
 	return tarMembers([2][]byte{[]byte("manifest.toml"), []byte(text)}, [2][]byte{[]byte("core.rbf"), base}, [2][]byte{[]byte("rom-map.json"), mapping})
 }
 
-// A launch links the household BIOS, the title's cartridge and the selected
+// A launch links the title's BIOS, the title's cartridge and the selected
 // native video part on the kit; a cartridge change relinks the same BIOS and
 // part with the new cartridge.
 func TestColecoNativeROMLaunchLinksBIOSCartridgeAndVideoPart(t *testing.T) {
@@ -76,7 +76,7 @@ func TestColecoNativeROMLaunchLinksBIOSCartridgeAndVideoPart(t *testing.T) {
 		return media.MediaID
 	}
 	bios, cart, otherCart := importMedia(0x31, 8192), importMedia(0x55, 16384), importMedia(0x66, 16384)
-	if _, err := s.SelectCoreFirmware(ctx, protocol.FirmwareRole, bios); err != nil {
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-bios", "", bios); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-cart", "", cart); err != nil {

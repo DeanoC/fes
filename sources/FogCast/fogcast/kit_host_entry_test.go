@@ -95,7 +95,7 @@ func TestKitHostEntryPreparesScannedCartridgeAndPreservesSelections(t *testing.T
 		t.Fatalf("recent=%+v err=%v", recent, err)
 	}
 
-	binding, err := s.CoreEntryROM(ctx, first.GameID)
+	binding, err := s.CoreEntryROM(ctx, first.GameID, pkg.Descriptor.ROM.ID)
 	if err != nil || binding.MediaID == "" {
 		t.Fatalf("binding=%+v err=%v", binding, err)
 	}
@@ -119,11 +119,11 @@ func TestKitHostEntryPreparesScannedCartridgeAndPreservesSelections(t *testing.T
 	if err != nil || changed.GameID == first.GameID || changed.Title != "Cartridge (2)" {
 		t.Fatalf("changed=%+v err=%v", changed, err)
 	}
-	prior, err := s.CoreEntryROM(ctx, first.GameID)
+	prior, err := s.CoreEntryROM(ctx, first.GameID, pkg.Descriptor.ROM.ID)
 	if err != nil || prior.MediaID != binding.MediaID {
 		t.Fatalf("prior=%+v err=%v", prior, err)
 	}
-	changedBinding, err := s.CoreEntryROM(ctx, changed.GameID)
+	changedBinding, err := s.CoreEntryROM(ctx, changed.GameID, pkg.Descriptor.ROM.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestKitHostEntryPreparesScannedCartridgeAndPreservesSelections(t *testing.T
 	if err != nil || replacement.GameID == first.GameID {
 		t.Fatalf("replacement=%+v err=%v", replacement, err)
 	}
-	customized, err := s.CoreEntryROM(ctx, first.GameID)
+	customized, err := s.CoreEntryROM(ctx, first.GameID, pkg.Descriptor.ROM.ID)
 	if err != nil || customized.MediaID != changedBinding.MediaID {
 		t.Fatalf("user edit overwritten: %+v %v", customized, err)
 	}

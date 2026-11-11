@@ -2020,11 +2020,7 @@ func (a *App) oskSnapshotLocked() shared.OSKSnapshot {
 		case settingsOSKCorePath:
 			snap.Prompt = "ROM or media path"
 		case settingsOSKFirmwarePath:
-			if a.entryFirmwarePickerLocked() {
-				snap.Prompt = "Firmware ROM path"
-			} else {
-				snap.Prompt = "Coleco BIOS path"
-			}
+			snap.Prompt = "Firmware ROM path"
 		case settingsOSKTapePath:
 			snap.Prompt = "Media path"
 		}

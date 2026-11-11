@@ -524,10 +524,10 @@ id. Back at that root room opens this picker. A missing or invalid id
 falls back to the picker without putting the id on screen.
 When several editions match, Confirm and Details force a choice unless a
 household preference is already saved (`libraryuser` via the edition-preferences
-host API). A firmware-required title with an empty household BIOS slot is
-**Unavailable**; Confirm opens a pad-friendly file picker that imports an
-8192-byte Coleco BIOS through `POST /api/v1/core-media` and
-`PUT /api/v1/library/firmware`. Back closes the picker without moving the
+host API). A title with a missing required BIOS is **Unavailable**; Confirm
+opens a pad-friendly file picker that imports it through
+`POST /api/v1/core-media` and binds it to the title's named ROM requirement.
+Back closes the picker without moving the
 selected location. Room logical-action bindings live in
 [rooms-controller-bindings.md](../rooms-controller-bindings.md). Packs are
 one directory each under `-rooms DIR`, `FOGCAST_ROOMS`, `tenfoot.json`

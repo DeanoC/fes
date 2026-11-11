@@ -215,9 +215,8 @@ type twoROMSourceSnapshot struct {
 
 func (s *Service) captureTwoROMSources(gameID string) (*twoROMSourceSnapshot, error) {
 	entries, entryOK := s.catalog.(coreEntryCatalog)
-	firmware, firmwareOK := s.catalog.(coreFirmwareCatalog)
 	roms, romOK := s.catalog.(coreROMCatalog)
-	if !entryOK || !firmwareOK || !romOK {
+	if !entryOK || !romOK {
 		return nil, nil
 	}
 	ctx := context.Background()
@@ -235,14 +234,14 @@ func (s *Service) captureTwoROMSources(gameID string) (*twoROMSourceSnapshot, er
 	if err != nil {
 		return nil, err
 	}
-	if inspection.Descriptor.Format != 4 {
+	if inspection.Descriptor.Format != 4 || len(inspection.Descriptor.ROMs) != 2 {
 		return nil, nil
 	}
-	bios, err := firmware.CoreFirmware(ctx, protocol.FirmwareRole)
+	bios, err := roms.CoreEntryROM(ctx, gameID, inspection.Descriptor.ROMs[0].ID)
 	if err != nil {
-		return nil, mapCoreFirmwareError(err)
+		return nil, romSelectionError(err)
 	}
-	cart, err := roms.CoreEntryROM(ctx, gameID)
+	cart, err := roms.CoreEntryROM(ctx, gameID, inspection.Descriptor.ROMs[1].ID)
 	if err != nil {
 		return nil, romSelectionError(err)
 	}

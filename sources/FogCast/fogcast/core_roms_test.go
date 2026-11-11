@@ -111,10 +111,10 @@ func TestColecoTwoROMLaunchRequiresBothPrivateSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SelectCoreFirmware(ctx, protocol.FirmwareRole, firmware.MediaID); err != nil {
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-bios", "", firmware.MediaID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SelectCoreFirmware(ctx, protocol.FirmwareRole, cart.MediaID); err == nil || client.coreCalls != 0 {
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-bios", firmware.MediaID, cart.MediaID); err == nil || client.coreCalls != 0 {
 		t.Fatalf("cartridge selected as BIOS: %v", err)
 	}
 	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-cart", cart.MediaID, firmware.MediaID); err == nil || client.coreCalls != 0 {
@@ -154,13 +154,36 @@ func TestColecoTwoROMLaunchRequiresBothPrivateSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SelectCoreFirmware(ctx, protocol.FirmwareRole, other.MediaID); err != nil {
+	second, err := s.catalog.(*catalog.Store).CreateCoreEntry(ctx, "Another MegaCart", entry.CoreID, entry.PackageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, second.GameID, second.PackageID, "coleco-bios", "", other.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, second.GameID, second.PackageID, "coleco-cart", "", cart.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	firstBIOS, err := s.CoreEntryROM(ctx, entry.GameID, "coleco-bios")
+	if err != nil || firstBIOS.MediaID != firmware.MediaID {
+		t.Fatalf("second title changed first title's BIOS: %+v %v", firstBIOS, err)
+	}
+	if err := s.revalidateLaunchSnapshot(snapshot); err != nil {
+		t.Fatalf("other title changed this title's snapshot: %v", err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-bios", other.MediaID, other.MediaID); err == nil {
+		t.Fatal("accepted a stale BIOS selection")
+	}
+	if binding, err := s.CoreEntryROM(ctx, entry.GameID, "coleco-cart"); err != nil || binding.MediaID != cart.MediaID {
+		t.Fatalf("BIOS CAS changed cartridge: %+v %v", binding, err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-bios", firmware.MediaID, other.MediaID); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.revalidateLaunchSnapshot(snapshot); !errors.Is(err, ErrLaunchSnapshot) || client.coreCalls != 0 {
-		t.Fatalf("changed household BIOS was not rejected before load: %v", err)
+		t.Fatalf("changed title BIOS was not rejected before load: %v", err)
 	}
-	if _, err := s.SelectCoreFirmware(ctx, protocol.FirmwareRole, firmware.MediaID); err != nil {
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-bios", other.MediaID, firmware.MediaID); err != nil {
 		t.Fatal(err)
 	}
 	active := coreEntryActiveStatus(inspection, 7, false)
@@ -181,6 +204,71 @@ func TestColecoTwoROMLaunchRequiresBothPrivateSources(t *testing.T) {
 	}
 	if client.coreCalls != 1 {
 		t.Fatalf("target calls: %d", client.coreCalls)
+	}
+}
+
+func TestColecoBIOSRebindAfterPackageSwitch(t *testing.T) {
+	ctx := context.Background()
+	raw := twoROMLibraryPackageFixture(t)
+	s, _, entry, first := newCoreEntryLaunchFixture(t, raw, "MegaCart upgrade", 2*time.Minute)
+	biosBytes := bytes.Repeat([]byte{0x31}, 8192)
+	bios, _, err := s.ImportCoreMedia(ctx, int64(len(biosBytes)), bytes.NewReader(biosBytes))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-bios", "", bios.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	nextArchive := bytes.Replace(raw, []byte(`version = "0.1.0"`), []byte(`version = "0.1.1"`), 1)
+	if bytes.Equal(nextArchive, raw) {
+		t.Fatal("fixture version was not changed")
+	}
+	next, created, err := s.ImportCorePackage(ctx, int64(len(nextArchive)), bytes.NewReader(nextArchive))
+	if err != nil || !created || next.PackageID == first.PackageID {
+		t.Fatalf("new package created=%v err=%v", created, err)
+	}
+	entry, err = s.SelectCoreEntry(ctx, entry.GameID, first.PackageID, next.PackageID)
+	if err != nil {
+		t.Fatalf("switch package: %v", err)
+	}
+	store := s.catalog.(coreROMCatalog)
+	stale, err := store.CoreEntryROM(ctx, entry.GameID, "coleco-bios")
+	if err != nil || stale.PackageID != first.PackageID || stale.MediaID != bios.MediaID {
+		t.Fatalf("saved old package binding: %+v %v", stale, err)
+	}
+	for _, change := range []func(*corepackage.ROMRequirement){
+		func(r *corepackage.ROMRequirement) { r.ID = "other-bios" },
+		func(r *corepackage.ROMRequirement) { r.SourceSize++ },
+	} {
+		bad := next.Descriptor
+		bad.ROMs = append([]corepackage.ROMRequirement(nil), bad.ROMs...)
+		change(&bad.ROMs[0])
+		if _, _, err := s.readTwoROMFirmware(ctx, entry, bad); err == nil {
+			t.Fatal("rebound a BIOS with a different named requirement")
+		}
+		if got, err := store.CoreEntryROM(ctx, entry.GameID, "coleco-bios"); err != nil || got != stale {
+			t.Fatalf("incompatible rebind modified stored BIOS: %+v %v", got, err)
+		}
+	}
+	id, data, err := s.readTwoROMFirmware(ctx, entry, next.Descriptor)
+	if err != nil || id != bios.MediaID || !bytes.Equal(data, biosBytes) {
+		t.Fatalf("compatible rebind id=%q bytes=%d err=%v", id, len(data), err)
+	}
+	if got, err := store.CoreEntryROM(ctx, entry.GameID, "coleco-bios"); err != nil || got.PackageID != next.PackageID || got.MediaID != bios.MediaID {
+		t.Fatalf("rebound BIOS: %+v %v", got, err)
+	}
+	otherBytes := bytes.Repeat([]byte{0x72}, 8192)
+	other, _, err := s.ImportCoreMedia(ctx, int64(len(otherBytes)), bytes.NewReader(otherBytes))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-bios", 8192, bios.MediaID, other.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	req := &corepackage.ROM{ID: "coleco-bios", Role: "firmware", SourceSize: 8192}
+	winner, err := s.rebindCoreFirmware(ctx, entry, stale, req)
+	if err != nil || winner.MediaID != other.MediaID || winner.PackageID != next.PackageID {
+		t.Fatalf("concurrent BIOS choice was lost: %+v %v", winner, err)
 	}
 }
 
@@ -489,7 +577,7 @@ func TestZX81LaunchWithoutMachineROMDoesNotContactKit(t *testing.T) {
 		req.ID != "machine-rom" || req.Role != protocol.FirmwareRole || req.SourceSize != zx81MachineROMBytes {
 		t.Fatalf("ZX81 fixture does not have the required ROM contract: entry=%+v descriptor=%+v", entry, inspection.Descriptor)
 	}
-	selected, err := s.catalog.(coreROMCatalog).CoreEntryROM(ctx, entry.GameID)
+	selected, err := s.catalog.(coreROMCatalog).CoreEntryROM(ctx, entry.GameID, "machine-rom")
 	if err != nil || selected.MediaID != "" {
 		t.Fatalf("fixture must have no selected ROM: %+v, %v", selected, err)
 	}
@@ -548,7 +636,7 @@ func TestZX81FirmwareSelectionRebindsAcrossCompatiblePackageSwitch(t *testing.T)
 				if err != nil || !compositions[entry.GameID].FirmwareReady {
 					t.Fatalf("initial bundled firmware readiness: %+v %v", compositions[entry.GameID], err)
 				}
-				selected, err := s.CoreEntryROM(ctx, entry.GameID)
+				selected, err := s.CoreEntryROM(ctx, entry.GameID, "machine-rom")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -574,7 +662,7 @@ func TestZX81FirmwareSelectionRebindsAcrossCompatiblePackageSwitch(t *testing.T)
 			if err != nil || !compositions[entry.GameID].FirmwareReady || compositions[entry.GameID].ROMMediaID != mediaID {
 				t.Fatalf("switched package firmware readiness: %+v %v", compositions[entry.GameID], err)
 			}
-			selected, err := s.CoreEntryROM(ctx, entry.GameID)
+			selected, err := s.CoreEntryROM(ctx, entry.GameID, "machine-rom")
 			if err != nil || selected.PackageID != next.PackageID || selected.ROMID != "machine-rom" || selected.SourceSize != zx81MachineROMBytes || selected.MediaID != mediaID {
 				t.Fatalf("firmware selection after switch: %+v err=%v", selected, err)
 			}
@@ -861,7 +949,7 @@ func TestCartridgeSwapReplacesOnlyThatLaunchesCartridge(t *testing.T) {
 				selected.MediaID != own.MediaID || !bytes.Equal(data, bytes.Repeat([]byte{0x5a}, 1024)) {
 				t.Fatalf("another title's swap applied: %+v %v", selected, err)
 			}
-			if binding, err := store.CoreEntryROM(ctx, entry.GameID); err != nil || binding.MediaID != own.MediaID {
+			if binding, err := store.CoreEntryROM(ctx, entry.GameID, installed.Descriptor.ROM.ID); err != nil || binding.MediaID != own.MediaID {
 				t.Fatalf("swap rewrote the title's binding: %+v %v", binding, err)
 			}
 		})
@@ -923,14 +1011,14 @@ func TestCartridgeSwapRelaunchPassesReplacementThroughTargetLinker(t *testing.T)
 		linked[0].ProgrammedSHA256 == linked[1].ProgrammedSHA256 || client.coreCalls != 2 {
 		t.Fatalf("target link identities=%+v core loads=%d", linked, client.coreCalls)
 	}
-	selected, err := s.CoreEntryROM(ctx, entry.GameID)
+	selected, err := s.CoreEntryROM(ctx, entry.GameID, inspection.Descriptor.ROM.ID)
 	if err != nil || selected.MediaID != original.MediaID {
 		t.Fatalf("swap changed the title's saved cartridge: %+v %v", selected, err)
 	}
 }
 
 // A format-4 swap replaces the cartridge source; the BIOS stays the kit's
-// firmware slot and the title's own cartridge binding is unchanged.
+// selected firmware and the title's own cartridge binding are unchanged.
 func TestCartridgeSwapReplacesTheFormat4Cartridge(t *testing.T) {
 	ctx := context.Background()
 	s, client, entry, inspection := newCoreEntryLaunchFixture(t, twoROMLibraryPackageFixture(t), "MegaCart swap", 2*time.Minute)
@@ -950,7 +1038,7 @@ func TestCartridgeSwapReplacesTheFormat4Cartridge(t *testing.T) {
 	if _, err = s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-cart", "", own.MediaID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.SelectCoreFirmware(ctx, protocol.FirmwareRole, bios.MediaID); err != nil {
+	if _, err = s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-bios", "", bios.MediaID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1033,7 +1121,7 @@ func TestCartridgeSwapReplacesTheFormat4Cartridge(t *testing.T) {
 		linked.Sources[1].ID != "coleco-cart" || linked.Sources[1].Role != "cartridge" || linked.Sources[1].SourceSHA256 != other.MediaID || client.coreCalls != 1 {
 		t.Fatalf("format-4 swap linked sources=%+v core loads=%d", linked, client.coreCalls)
 	}
-	if binding, err := s.catalog.(coreROMCatalog).CoreEntryROM(ctx, entry.GameID); err != nil || binding.MediaID != own.MediaID {
+	if binding, err := s.catalog.(coreROMCatalog).CoreEntryROM(ctx, entry.GameID, "coleco-cart"); err != nil || binding.MediaID != own.MediaID {
 		t.Fatalf("swap rewrote the title's binding: %+v %v", binding, err)
 	}
 }

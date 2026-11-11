@@ -3,14 +3,18 @@ package hostapi
 import (
 	"context"
 	"net/http"
+	"regexp"
 
 	"github.com/DeanoC/FogCast/catalog"
 )
 
 type coreROMService interface {
-	CoreEntryROM(context.Context, string) (catalog.CoreEntryROM, error)
+	CoreEntryROM(context.Context, string, string) (catalog.CoreEntryROM, error)
 	SelectCoreEntryROM(context.Context, string, string, string, string, string) (catalog.CoreEntryROM, error)
 }
+
+// ROM IDs use the identifier syntax of sealed core package descriptors.
+var coreROMIDRE = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,95}$`)
 
 type coreROMResponse struct {
 	GameID         string `json:"game_id"`
@@ -51,7 +55,12 @@ func registerCoreROMs(mux *http.ServeMux, service Service) {
 		if rejectCoreLibraryBody(w, r) {
 			return
 		}
-		value, err := s.CoreEntryROM(r.Context(), r.PathValue("game_id"))
+		query := r.URL.Query()
+		if len(query) != 1 || len(query["rom_id"]) != 1 || !coreROMIDRE.MatchString(query.Get("rom_id")) {
+			writeError(w, 400, "BAD_REQUEST", "invalid ROM selection")
+			return
+		}
+		value, err := s.CoreEntryROM(r.Context(), r.PathValue("game_id"), query.Get("rom_id"))
 		if err != nil {
 			writeCoreLibraryError(w, err)
 			return

@@ -104,13 +104,10 @@ func (s *Service) MeshBackendLibrary(ctx context.Context) ([]MeshBackendRow, []M
 	var skipped []MeshSkip
 	for _, game := range games {
 		if game.Kind == catalog.SourceKindCorePackage {
-			title, firmware, ok := s.meshCatalogTitle(ctx, game.ID)
+			title, ok := s.meshCatalogTitle(ctx, game.ID)
 			if !ok {
 				skipped = append(skipped, MeshSkip{TitleID: game.ID, Reason: "core package projection unavailable"})
 				continue
-			}
-			if firmware.MediaID != "" {
-				lib.Firmware = firmware
 			}
 			lib.Titles = append(lib.Titles, title)
 			continue
@@ -199,7 +196,7 @@ func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool,
 	}
 	var projected []projectedMeshTitle
 	for _, title := range lib.Titles {
-		entry, skip, ok := projectMeshTitle(lib.Firmware.MediaID, title)
+		entry, skip, ok := projectMeshTitle(title)
 		if !ok {
 			skipped = append(skipped, skip)
 			continue
@@ -413,13 +410,10 @@ func containsString(values []string, want string) bool {
 	return false
 }
 
-// MeshLibrary is the host catalog view Slice 2 can already see.
-// Firmware.MediaID is the household BIOS core-media id when that slot
-// is filled. Digests are stored SHA-256 strings. This view has no paths
-// and no file bytes.
+// MeshLibrary is the host catalog view. Digests are stored SHA-256 strings;
+// this view has no paths or file bytes.
 type MeshLibrary struct {
-	Firmware catalog.CoreFirmware
-	Titles   []MeshTitle
+	Titles []MeshTitle
 }
 
 // MeshTitle is one library row. Game is the catalog identity. Core is
@@ -428,12 +422,14 @@ type MeshLibrary struct {
 // major. Execute is today's session label.
 // Expansions carry the name and digest the catalog already stored.
 type MeshTitle struct {
-	Game       catalog.Game
-	Launchable bool
-	Execute    string
-	Core       *catalog.CoreEntry
-	ABI        corepackage.Contract
-	Expansions []MeshExpansion
+	Game             catalog.Game
+	Launchable       bool
+	Execute          string
+	Core             *catalog.CoreEntry
+	ABI              corepackage.Contract
+	FirmwareRequired bool
+	FirmwareDigest   string
+	Expansions       []MeshExpansion
 }
 
 // MeshExpansion is one named expansion slot.
@@ -464,7 +460,7 @@ type MeshSkip struct {
 // not call ReadyHere. There is no cross-node pull and no host route.
 func ProjectMeshLibrary(lib MeshLibrary) (entries []meshcontent.Entry, skipped []MeshSkip) {
 	for _, title := range lib.Titles {
-		entry, skip, ok := projectMeshTitle(lib.Firmware.MediaID, title)
+		entry, skip, ok := projectMeshTitle(title)
 		if !ok {
 			skipped = append(skipped, skip)
 			continue
@@ -474,7 +470,7 @@ func ProjectMeshLibrary(lib MeshLibrary) (entries []meshcontent.Entry, skipped [
 	return entries, skipped
 }
 
-func projectMeshTitle(firmwareDigest string, title MeshTitle) (meshcontent.Entry, MeshSkip, bool) {
+func projectMeshTitle(title MeshTitle) (meshcontent.Entry, MeshSkip, bool) {
 	id := title.Game.ID
 	if err := protocol.ValidateGameID(id); err != nil {
 		return meshcontent.Entry{}, MeshSkip{TitleID: id, Reason: "title id is not a catalog game id"}, false
@@ -487,7 +483,7 @@ func projectMeshTitle(firmwareDigest string, title MeshTitle) (meshcontent.Entry
 		return meshcontent.Entry{}, MeshSkip{TitleID: id, Reason: "execution is not a mesh catalog kind"}, false
 	}
 	system := meshBrowseSystem(title)
-	slots, reason, ok := meshSlots(firmwareDigest, title, packageBacked)
+	slots, reason, ok := meshSlots(title, packageBacked)
 	if !ok {
 		return meshcontent.Entry{}, MeshSkip{TitleID: id, Reason: reason}, false
 	}
@@ -534,7 +530,7 @@ func meshBrowseSystem(title MeshTitle) string {
 	return string(title.Game.System)
 }
 
-func meshSlots(firmwareDigest string, title MeshTitle, packageBacked bool) ([]meshcontent.Slot, string, bool) {
+func meshSlots(title MeshTitle, packageBacked bool) ([]meshcontent.Slot, string, bool) {
 	var slots []meshcontent.Slot
 	if packageBacked {
 		pkg, reason, ok := meshPackage(title)
@@ -543,9 +539,8 @@ func meshSlots(firmwareDigest string, title MeshTitle, packageBacked bool) ([]me
 		}
 		slots = append(slots, meshcontent.PackageSlot(pkg))
 	}
-	firmwareRequired := title.Core != nil && title.Core.FirmwareRequired
-	if firmwareRequired {
-		next, reason, ok := appendStoredDigest(slots, firmwareDigest, true, "household firmware", meshcontent.FromSHA256, meshcontent.BIOSSlot)
+	if title.FirmwareRequired {
+		next, reason, ok := appendStoredDigest(slots, title.FirmwareDigest, true, "title firmware", meshcontent.FromSHA256, meshcontent.BIOSSlot)
 		if !ok {
 			return nil, reason, false
 		}

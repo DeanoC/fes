@@ -383,6 +383,27 @@ test('systems exist before games and setup keeps source and exact ROM choice',as
  const req=JSON.parse(calls.find(c=>c.path==='/api/v1/core-catalog/entries').opt.body);assert.equal(req.source_id,'source-two');assert.deepEqual(req.roms,{'sms-cart':M});assert.equal(controller.snapshot().setupGame.source_id,'library-two');
  assert.ok(!calls.some(c=>c.path.includes('session')||c.path.includes('compatibility')));
 });
+test('Coleco setup binds the selected BIOS and cartridge to the new title',async()=>{
+ const calls=[];const row={library_source_id:'library',source_id:'source',core_id:'fes.coleco',label:'Coleco',standing:'supported',package_id:A,artifact_state:'installed'};
+ const controller=createController({fetchImpl:async(path,opt={})=>{
+  calls.push({path,opt});
+  if(path==='/api/v1/core-catalog')return response({cores:[row]});
+  if(path==='/api/v1/core-packages')return response({packages:[pkg(A,'fes.coleco')]});
+  if(path==='/api/v1/library/core-entries')return response({entries:[]});
+  if(path.includes('media-capabilities'))return response(caps(A));
+  if(path.includes('/setup?'))return response({...row,roms:[{id:'coleco-bios',role:'firmware',source_size:8192,binding:'entry'},{id:'coleco-cart',role:'cartridge',source_size:16384,binding:'entry'}]});
+  if(path==='/api/v1/core-catalog/entries')return response({source_id:'library',publication_source_id:'source',entry:{game_id:'coleco-title',title:'Game',core_id:'fes.coleco',package_id:A}});
+  throw Error(path);
+ }});
+ await controller.open();await controller.selectCore('source','fes.coleco');
+ controller.chooseSetupROM('coleco-cart',M,16384);
+ await controller.createSetupEntry('Game');assert.match(controller.snapshot().message,/Missing firmware/);
+ assert.equal(calls.filter(c=>c.path==='/api/v1/core-catalog/entries').length,0);
+ controller.chooseSetupROM('coleco-bios',B,8192);await controller.createSetupEntry('Game');
+ const req=JSON.parse(calls.find(c=>c.path==='/api/v1/core-catalog/entries').opt.body);
+ assert.deepEqual(req.roms,{'coleco-bios':B,'coleco-cart':M});
+ assert.ok(calls.every(c=>c.path!=='/api/v1/library/firmware'));
+});
 test('offline catalog retains systems for browsing and blocks setup mutations',async()=>{
  let offline=false;const calls=[];const row={library_source_id:'library-one',source_id:'one',core_id:'fes.sg1000',label:'SG-1000',standing:'experimental',artifact_state:'unproduced'};
  const controller=createController({fetchImpl:async(path,opt={})=>{calls.push({path,opt});if(path==='/api/v1/core-packages')return response({packages:[]});if(path==='/api/v1/library/core-entries')return response({entries:[]});if(path==='/api/v1/core-catalog'){if(offline)throw Error('offline');return response({cores:[row]});}throw Error(path);}});
