@@ -1957,45 +1957,6 @@ func preserveCorePackageError(err error) error {
 	return canonicalRemoteError(err, protocol.CodeTransferFailed)
 }
 
-func packageReplacementApplies(requestedTarget, packageOwnerTarget string) bool {
-	requestedTarget = strings.TrimSpace(requestedTarget)
-	packageOwnerTarget = strings.TrimSpace(packageOwnerTarget)
-	if requestedTarget == "" || packageOwnerTarget == "" {
-		return true
-	}
-	return requestedTarget == packageOwnerTarget
-}
-
-// Caller holds lifecycle admission and must not hold targetMu.
-func (s *Service) stopPackageOwnedForCatalogLaunch(ctx context.Context, requestedTarget string) error {
-	s.executionMu.Lock()
-	boundTarget := requestedTarget
-	if boundTarget == "" {
-		boundTarget = s.selectedTarget
-	}
-	play := s.plays[boundTarget]
-	development := play.execution == ExecutionFPGADevelopment && play.packageRejection == nil
-	packageOwned := play.packageID != ""
-	s.executionMu.Unlock()
-	if development {
-		return canonicalError(protocol.CodeBusy, nil)
-	}
-	if !packageOwned || !packageReplacementApplies(requestedTarget, boundTarget) {
-		return nil
-	}
-	timeout := s.uploadTimeout
-	stopCtx, cancel := serviceTimeout(ctx, timeout)
-	defer cancel()
-	stopped, err := s.stopLocked(stopCtx, ctx, timeout, boundTarget)
-	if err != nil {
-		return err
-	}
-	if !validRecoveredDevelopmentStatus(stopped) {
-		return canonicalError(protocol.CodeMiSTerUnavailable, nil)
-	}
-	return nil
-}
-
 func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 	if targetID := PairedTargetFromContext(parent); targetID != "" {
 		return s.statusPairedTarget(parent, targetID)
@@ -2725,22 +2686,6 @@ func canonicalRemoteError(err error, fallback protocol.ErrorCode) error {
 		return errors.Join(result, cause)
 	}
 	return result
-}
-
-func canonicalPreparationError(err error) error {
-	var prepareErr *romsource.Error
-	if errors.As(err, &prepareErr) {
-		return canonicalError(prepareErr.Code, safePreparationCause(err))
-	}
-	return canonicalError(protocol.CodeSourceUnavailable, safePreparationCause(err))
-}
-
-func safePreparationCause(err error) error {
-	causes := []error{safeContextError(err)}
-	if errors.Is(err, romsource.ErrCleanupRetained) {
-		causes = append(causes, romsource.ErrCleanupRetained)
-	}
-	return errors.Join(causes...)
 }
 
 func canonicalError(code protocol.ErrorCode, cause error) error {

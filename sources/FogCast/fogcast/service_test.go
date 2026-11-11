@@ -790,15 +790,6 @@ func TestServiceStatusTargetDoesNotMoveForeground(t *testing.T) {
 	}
 }
 
-func TestPackageReplacementIsTargetScoped(t *testing.T) {
-	if packageReplacementApplies("kit-b", "kit-a") {
-		t.Fatal("launch on kit B would replace kit A's package play")
-	}
-	if !packageReplacementApplies("kit-a", "kit-a") {
-		t.Fatal("same-kit launch must replace that kit's package play")
-	}
-}
-
 func TestServiceShutdownCleanupRequiredUsesLocalOwnership(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -2917,16 +2908,6 @@ func assertServiceErrorCode(t *testing.T, err error, want protocol.ErrorCode) {
 	if strings.Contains(err.Error(), "/private/") {
 		t.Fatalf("error exposes private path: %v", err)
 	}
-}
-
-func preparedServiceFixture(t *testing.T, body []byte, identity protocol.ContentIdentity) *romsource.Prepared {
-	t.Helper()
-	prepared, err := romsource.NewPreparedSnapshot(body, identity.Extension)
-	if err != nil {
-		t.Fatalf("NewPreparedSnapshot: %v", err)
-	}
-	prepared.Content = identity
-	return prepared
 }
 
 func writeServiceConfig(t *testing.T, path, baseURL, token, root string) {

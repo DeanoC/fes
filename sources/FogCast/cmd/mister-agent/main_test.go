@@ -671,28 +671,6 @@ token = "test-token"
 	return path
 }
 
-func waitForKitStartup(t *testing.T, handler http.Handler) {
-	t.Helper()
-	deadline := time.Now().Add(time.Second)
-	for {
-		request := httptest.NewRequest(http.MethodGet, "/v1/kit/lease", nil)
-		request.Header.Set("Authorization", "Bearer test-token")
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, request)
-		var status struct {
-			State string `json:"state"`
-		}
-		_ = json.Unmarshal(response.Body.Bytes(), &status)
-		if status.State == "free" {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("kit startup: %s", response.Body.String())
-		}
-		time.Sleep(time.Millisecond)
-	}
-}
-
 func TestAgentCLIReportsRetiredSettingsWithoutPrivateDetails(t *testing.T) {
 	for _, key := range []string{"mister_process_comm", "command_pipe", "core_name_file", "menu_rbf", "mgl_directory", "private_unknown_setting"} {
 		t.Run(key, func(t *testing.T) {

@@ -48,10 +48,6 @@ type NativeCapture struct {
 	origin   time.Time
 }
 
-func ListCaptureDevices() ([]CaptureDevice, error) {
-	return nil, errors.New("Linux capture-device enumeration is not implemented; configure a V4L2 path")
-}
-
 func OpenNativeCapture(config CaptureConfig) (*NativeCapture, error) {
 	if err := validateCaptureConfig(config); err != nil {
 		return nil, err
