@@ -12,11 +12,12 @@ picture as in the lit launches, and the picture was black from the DOS
 prompt on. In `k8`'s six black launches on the instrumented `d2` seal, the
 core still drove lit pixels to the HDMI transmitter pins: the 720p
 presenter's output and the display plane's output both had lit pixels in
-every sampled frame, and the plane was closed. In `k9`'s two black launches,
-also on `d2`, the ADV7513's registers matched the lit launches and the
-grabber still received the game's HDMI audio at full level. So for `d2`'s
-black launches the HDMI link was up, the transmitter was set up as usual,
-and what remains is after the core: the ADV7513's sampling of the pixel bus,
+every sampled frame, and the plane was closed. `k9`'s two black launches,
+also on `d2`, read the same, so all eight `d2` black launches are after the
+core. Only `k9`'s two had the transmitter checks: the ADV7513's registers
+matched the lit launches and the grabber still received the game's HDMI
+audio at full level, so in those two the HDMI link was up and the
+transmitter was set up as usual. What remains is after the core: the ADV7513's sampling of the pixel bus,
 the ADV7513's internal video processing or TMDS video output, or the
 grabber's video path. The four black launches on main's seal and `d1` had
 no presenter or plane-output probe, so this isn't established for them.**
@@ -219,9 +220,10 @@ every preset.
 
 ## Next
 
-- **What's left, for `d2`.** In `d2`'s black launches (`k8`, `k9`) the core
-  drives lit pixels with DE onto the HDMI pins, the ADV7513's registers are
-  as in a lit launch, and HDMI audio reaches the grabber. For the four black
+- **What's left, for `d2`.** In all eight of `d2`'s black launches (`k8`,
+  `k9`) the core drives lit pixels with DE onto the HDMI pins. In `k9`'s
+  two, the only ones checked, the ADV7513's registers are as in a lit
+  launch and HDMI audio reaches the grabber. For the four black
   launches on main's seal and `d1`, the stages after VRAM (after capture for
   `k6`'s) stay open until a probe like `d2`'s covers them.
   For `d2` that leaves:
