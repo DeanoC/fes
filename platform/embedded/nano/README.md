@@ -11,6 +11,15 @@ This prepares automatic native startup; it does not provision SD-only power-on
 boot or change the board's factory flash. A newly matched chain and separate
 physical startup test are required before claiming autonomous startup.
 
+Native trace and paired launcher observers accept an explicit `boot_startup`
+policy from the checked U-Boot handoff. Autoboot mode requires the pinned
+two-second countdown in place of the manual prompt; interrupted countdowns,
+changed delays and mixed manual/automatic captures reject. Omitting the
+selection retains manual observation. The fixture executes the pinned vendor
+countdown function with injected timer/key callbacks, and the paired model
+checks core launch/return through the selected startup mode. These checks grant
+no programming authority or physical startup acceptance.
+
 The bounded [native installation](../../../docs/validation/2026-11-11-de25-native-first-install-trial/README.md)
 and [independent reboot discovery](../../../docs/validation/2026-11-11-de25-installed-discovery-trial/README.md)
 now pass on TRWU8CBL for ZX81. The second boot retains the empty staging

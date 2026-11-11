@@ -12,6 +12,7 @@ import loader_progress
 import call_trace
 import mmu_trace
 import fat_file_trace
+import startup as startup_policy
 from configuration_trace import extract as extract_configuration
 from hps_context import reader_pattern, digest as context_digest
 from hps_io import validate as validate_hps_io
@@ -63,6 +64,7 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('uboot', r'U-Boot (?!SPL)[^\r\n]*?-fes-nano-(?P<id>[0-9a-f]{16})(?:[ \t].*)?'),
     ('dram', r'DRAM:[ \t]+1 GiB'),
     ('prompt', r'SOCFPGA_AGILEX5 # (?:fesboot)?'),
+    ('autoboot', r'Hit any key to stop autoboot:  2 \x08\x08\x08 1 \x08\x08\x08 0 '),
     ('boot', r'FES_NANO_BOOT id=(?P<id>[0-9a-f]{16})'),
     ('memory', rf'FES_NANO_MEMORY ram_top=(?P<ram_top>{H}) sp=(?P<sp>{H}) malloc=(?P<malloc_start>{H})\.\.(?P<malloc_end>{H}) reloc=(?P<reloc>{H}) fdt=(?P<fdt>{H})'),
     ('owned', rf'FES_NANO_OWNED phase=(?P<phase>[a-z-]{{1,32}}) status=(?P<status>-?[0-9]{{1,10}}) flags=(?P<flags>{H}) owner=(?P<owner>{H}) generation=(?P<generation>{H})'),
@@ -148,7 +150,7 @@ def checked_scratch_plan(p):
 
 def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_inspect=False, scratch_write=None, fat_file=None, sd_transfer_clock=0, package=None, hps_context=None, hps_io=None, fpga_identity=None,
                        fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False,
-                       smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, usb_control=False, usb_shared=False, firmware_ram_trace=False, firmware_mmu=None, _continuation=None, _window_prefix=False, _menu_prefix=False):
+                       smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, usb_control=False, usb_shared=False, firmware_ram_trace=False, firmware_mmu=None, boot_startup=None, _continuation=None, _window_prefix=False, _menu_prefix=False):
     """Retain partial progress, but qualify only one ordered, coherent boot.
 
     A bare prompt need not end in a newline. Other incomplete lines are held
@@ -161,6 +163,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
         raise ValueError('checked build ID and nonzero odd uint64 owner seed required')
     if not isinstance(data, (str, bytes, bytearray, memoryview)):
         raise TypeError('serial bytes or text required')
+    selected_startup = startup_policy.checked(boot_startup) if boot_startup is not None else startup_policy.policy(False)
+    startup_stage = 'autoboot' if selected_startup['mode']=='autoboot' else 'prompt'
     mmu_expected=mmu_trace.parameters(firmware_mmu)
     if mmu_expected is not None and (not firmware_ram_trace or _continuation is not None):
         raise ValueError('MMU trace requires the complete first cold RAM boot')
@@ -209,6 +213,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
     # that instrumentation require an explicit historical format selection;
     # never infer a weaker format from missing serial records.
     base_stages=STAGES if capture_trace else tuple(s for s in STAGES if not s.startswith('el3_capture_'))
+    if startup_stage=='autoboot':
+        base_stages=tuple(startup_stage if name=='prompt' else name for name in base_stages)
     if atf is not None:
         from prepare_uboot import checked_atf_descriptor
         if not capture_trace:
@@ -346,7 +352,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
         index=stages.index('hps_context');stages=stages[:index]+('cpu_mapping',)+stages[index:]
     if usb_control:
         index=stages.index('provider');stages=stages[:index]+('usb_setup',)+stages[index:]
-    loader_stages=() if continued else stages[:stages.index('prompt')+1]
+    loader_stages=() if continued else stages[:stages.index(startup_stage)+1]
     report = {'records': [], 'errors': [], 'loader_ready': False, 'complete': False,
               'last_checkpoint': None, 'core_load_acceptance': False,
               'loader_progress': loader_progress.state(),
@@ -354,6 +360,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
               'firmware_ram_trace': {'records': [], 'complete': False, 'valid': True,
                                      'vendor_records': [], 'vendor_complete': False, 'exceptions': [],
                                      'status_probe': fault_status.state(), 'ras_probe': fault_status.ras_state(), 'decode_log': fault_status.decode_state(), 'cache_maintenance': fault_status.cache_state(), 'runtime_startup': runtime_startup.state(), 'exit_cache': runtime_startup.exit_state()}}
+    if boot_startup is not None:report['startup_policy']=dict(selected_startup)
     if len(data) > MAX_BYTES:
         report['errors'].append('capture exceeds byte bound')
         return report
@@ -368,6 +375,9 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
     observed = {}
     for number, line in enumerate(lines, 1):
         line = line.rstrip('\r')
+        if line.startswith('Hit any key to stop autoboot:') and (
+                startup_stage!='autoboot' or not dict(RULES)['autoboot'].fullmatch(line)):
+            report['errors'].append(f'unexpected or interrupted autoboot countdown at line {number}')
         mmu_line=re.sub(r'^NOTICE:\s*','',line)
         if mmu_line.startswith('FES_NANO_EL3_MMU'):
             ram=report['firmware_ram_trace']

@@ -147,7 +147,7 @@ class PairedTenfootClient(app.TenfootClient):
     def __init__(self, initial, *, build_record, build_id, owner_seed, atf, package,
                  programs, exchange, owns, now=time.monotonic, record=lambda _: None,
                  shared_usb=None, firmware_ram_trace=False, firmware_mmu=None,
-                 installer=False, initial_titles=None):
+                 installer=False, initial_titles=None, boot_startup=None):
         require(all(callable(f) for f in (exchange, owns, now, record)), 'owned exchange hooks required')
         require(type(installer) is bool, 'explicit paired observer mode required')
         require(type(programs) is list and (1 <= len(programs) <= 32 if installer else len(programs) == 2),
@@ -181,6 +181,7 @@ class PairedTenfootClient(app.TenfootClient):
         require(all(r['kind'] in ('firmware', 'usb') for r in prefix), 'App/menu preceded native boot')
         boot_data = b''.join(r['value'] for r in prefix if r['kind'] == 'firmware')
         options = dict(firmware_ram_trace=firmware_ram_trace)
+        if boot_startup is not None:options['boot_startup']=boot_startup
         if firmware_mmu is not None:options['firmware_mmu']=firmware_mmu
         if self.usb is not None:
             options.update(usb_control=True, usb_shared=True,
