@@ -181,6 +181,15 @@ Successful readback proves those bytes only: native discovery must still admit
 the record and all referenced package, metadata and ROM content. This allows a
 later install trial to check preservation of a prior record across fresh boots.
 
+The read-only group verifier also accepts an explicit `retained_records` tuple
+alongside its fixed staged-source role set. It checks up to 32 independently
+expected records before any staged file, in the same fresh session, then closes
+that session. It never adopts the earlier upload ledger or starts a transfer.
+This supports an install attempt using files already staged on the card, as well
+as later reboot-discovery checks after an installation. Successful expected-byte
+reads do not establish an exhaustive installed-file inventory, native catalog
+admission, a fresh physical boot or persistence. Those remain separate checks.
+
 The source-bound two-slot menu has an explicit native selection:
 `tamago/run.py fpgaload --board de25-nano --menu-present`, together with the
 sealed menu `--hps-first-project`, source-controlled SD profile and selected

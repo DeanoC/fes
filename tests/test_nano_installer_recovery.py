@@ -113,4 +113,76 @@ class RecoveryTests(unittest.TestCase):
         with patch('builtins.print'),self.assertRaises(ValueError):read_staged_sources(s,p,r,purposes=PURPOSES)
         self.assertEqual(m.writes,0);self.assertTrue(s.retired);self.assertEqual(r['status'],'failed')
 
+    def retained(self, name='prior'):
+        return json.dumps(dict(format=1,scope='nano-installed-program-v1',id=name,
+                         title=name,program={'path':'FES/CONTENT/'+('a'*64)+'.BIN'})).encode()
+
+    def test_prior_record_and_fourteen_sources_share_one_fresh_read_only_session(self):
+        m,s,p=self.fixture(purposes=CATALOG_PURPOSES);payload=self.retained();digest=upload.sha(payload)
+        target='FES/INSTALLED/'+digest+'.JSN';m.files[target]=payload;r={}
+        with patch('builtins.print'):
+            read_staged_sources(s,p,r,purposes=CATALOG_PURPOSES,retained_records=(payload,))
+        self.assertTrue(r['retained_record_bytes_verified'] and r['session_closed'])
+        self.assertEqual(list(r['retained_records']),[digest]);self.assertEqual(list(r['files']),list(CATALOG_PURPOSES))
+        rows=[*r['retained_records'].values(),*r['files'].values()]
+        self.assertEqual(len({v['upload_session'] for v in rows}),1)
+        requests=[c.split()[-1] for c in m.commands if c.startswith('fatload') and
+                  c.split()[-1] in ({target}|set(upload.DESTINATIONS.values()))]
+        self.assertEqual(requests,[target]+[upload.destination(k) for k in CATALOG_PURPOSES])
+        self.assertFalse(r['cid_verified'] or r['persistence_verified'] or r['fresh_recovery_boot_proven'])
+        self.assertEqual(m.writes,0);self.assertFalse(s.verified)
+        self.assertFalse(any(c.startswith(('fatwrite','mmc write','tftpboot','dhcp')) for c in m.commands))
+
+    def test_three_independently_expected_records_precede_staged_reads(self):
+        m,s,p=self.fixture();expected=tuple(self.retained(name) for name in ('prior','zx81-trial','zx80-trial'))
+        for payload in expected:m.files['FES/INSTALLED/'+upload.sha(payload)+'.JSN']=payload
+        r={}
+        with patch('builtins.print'):read_staged_sources(s,p,r,purposes=PURPOSES,retained_records=expected)
+        self.assertEqual(list(r['retained_records']),[upload.sha(payload) for payload in expected])
+        self.assertTrue(all(v['status']=='verified' for v in r['retained_records'].values()))
+        self.assertFalse(r['persistence_verified']);self.assertEqual(m.writes,0)
+
+    def test_bad_retained_record_stops_before_all_staged_reads(self):
+        for fault in ('missing','corrupt','invalid-json','wrong-scope'):
+            with self.subTest(fault=fault),patch('builtins.print'):
+                m,s,p=self.fixture();payload=self.retained();target='FES/INSTALLED/'+upload.sha(payload)+'.JSN'
+                if fault=='corrupt':m.files[target]=b'x'*len(payload)
+                if fault=='invalid-json':payload=b'not json'
+                if fault=='wrong-scope':payload=payload.replace(b'nano-installed-program-v1',b'nano-staged-program-install-v1')
+                r={}
+                with self.assertRaises(ValueError):read_staged_sources(s,p,r,purposes=PURPOSES,retained_records=(payload,))
+                self.assertEqual(r['files'],{});self.assertEqual(r['status'],'failed')
+                self.assertFalse(r['retained_record_bytes_verified']);self.assertTrue(r['session_closed'] and s.retired)
+                self.assertFalse(any(c.startswith('fatload') and c.split()[-1] in upload.DESTINATIONS.values() for c in m.commands))
+                self.assertEqual(m.writes,0)
+
+    def test_retained_record_bounds_and_duplicates_reject_before_io(self):
+        payload=self.retained()
+        for records in ([payload],False,(payload,)*33,(b'',),(b'x'*8193,),(bytearray(payload),),(payload,payload)):
+            with self.subTest(records_type=type(records),count=len(records) if hasattr(records,'__len__') else None):
+                m,s,p=self.fixture();r={}
+                with self.assertRaises(ValueError):read_staged_sources(s,p,r,purposes=PURPOSES,retained_records=records)
+                self.assertEqual(m.commands,[]);self.assertTrue(s.retired and r['session_closed'])
+
+    def test_retained_read_cannot_change_session_or_promote_scope(self):
+        for field,value in [('upload_session','0'*32),('destination','FES/UPLOAD.BIN'),('cid_verified',True),
+                            ('activation',True),('purpose','boot'),('memory_observations',[])]:
+            with self.subTest(field=field),patch('builtins.print'):
+                m,s,p=self.fixture();payload=self.retained();m.files['FES/INSTALLED/'+upload.sha(payload)+'.JSN']=payload
+                original=s.read_installed_record
+                def read(data,receipt):
+                    original(data,receipt);receipt[field]=value
+                s.read_installed_record=read;r={}
+                with self.assertRaises(ValueError):read_staged_sources(s,p,r,purposes=PURPOSES,retained_records=(payload,))
+                self.assertEqual(r['files'],{});self.assertTrue(r['session_closed'] and s.retired);self.assertEqual(m.writes,0)
+
+    def test_changed_source_after_retained_read_does_not_promote_partial_result(self):
+        m,s,p=self.fixture();payload=self.retained();m.files['FES/INSTALLED/'+upload.sha(payload)+'.JSN']=payload
+        m.files[upload.destination('boot')]=b'changed';r={}
+        with patch('builtins.print'),self.assertRaises(ValueError):
+            read_staged_sources(s,p,r,purposes=PURPOSES,retained_records=(payload,))
+        self.assertEqual(r['retained_records'][upload.sha(payload)]['status'],'verified')
+        self.assertFalse(r['retained_record_bytes_verified']);self.assertEqual(list(r['files']),['boot'])
+        self.assertEqual(r['status'],'failed');self.assertTrue(s.retired);self.assertEqual(m.writes,0)
+
 if __name__=='__main__':unittest.main()

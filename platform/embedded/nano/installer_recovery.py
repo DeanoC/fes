@@ -15,12 +15,13 @@ CATALOG_PURPOSES = ('boot','package','metadata','firmware','package-alt','metada
                     'selection','ui-catalog','install-manifest')
 
 
-def read_staged_sources(session, payloads, receipt, *, purposes):
+def read_staged_sources(session, payloads, receipt, *, purposes, retained_records=()):
     require(type(receipt) is dict and not receipt, 'fresh staged-read receipt required')
     require(isinstance(session,UploadSession), 'owned UploadSession required')
-    receipt.update(scope='nano-read-only-staged-sources-v1',status='checking',files={},
+    receipt.update(scope='nano-read-only-staged-sources-v1',status='checking',files={},retained_records={},
                    read_only=True,sd_write_attempted=False,activation=False,
-                   fresh_recovery_boot_proven=False,cid_verified=False,persistence_verified=False)
+                   fresh_recovery_boot_proven=False,cid_verified=False,persistence_verified=False,
+                   retained_record_bytes_verified=False)
     failure = None
     try:
         require(not session.retired and not session.verified, 'read-only session must not adopt an upload ledger')
@@ -33,6 +34,15 @@ def read_staged_sources(session, payloads, receipt, *, purposes):
             require(type(payload) is bytes and valid_payload_length(purpose,len(payload)),
                     'bounded immutable staged payload required')
             expected[purpose] = payload
+        require(type(retained_records) is tuple and len(retained_records) <= 32,
+                'bounded explicit retained-record tuple required')
+        retained = {}
+        for payload in retained_records:
+            require(type(payload) is bytes and 0 < len(payload) <= 8192,
+                    'bounded immutable retained record required')
+            digest = sha(payload)
+            require(digest not in retained, 'duplicate expected retained record')
+            retained[digest] = payload
         def invalid(_):
             raise ValueError('nonfinite bootstrap field')
         token = session.token
@@ -43,15 +53,22 @@ def read_staged_sources(session, payloads, receipt, *, purposes):
                 selection == dict(format=1,programs=[],scope='nano-program-selection-v1') and
                 catalogue == dict(format=1,entries=[],scope='nano-tenfoot-catalog-v1'),
                 'independently expected bootstrap must remain empty')
-        for purpose in purposes:
+        reads = [('installed-record',digest,payload,'FES/INSTALLED/'+digest+'.JSN')
+                 for digest,payload in retained.items()]
+        reads.extend((purpose,purpose,expected[purpose],destination(purpose)) for purpose in purposes)
+        for purpose,key,payload,target in reads:
             row = {'commands':[]}
-            receipt['files'][purpose] = row
-            session.read_existing(expected[purpose],row,purpose=purpose)
+            if purpose == 'installed-record':
+                receipt['retained_records'][key] = row
+                session.read_installed_record(payload,row)
+            else:
+                receipt['files'][key] = row
+                session.read_existing(payload,row,purpose=purpose)
             require(row['upload_session'] == token == session.token and not session.verified,
                     'staged read adopted another session or upload ledger')
             require(row['status'] == 'verified' and row['purpose'] == purpose and
-                    row['destination'] == destination(purpose) and
-                    row['payload_bytes'] == len(expected[purpose]) and row['payload_sha256'] == sha(expected[purpose]),
+                    row['destination'] == target and
+                    row['payload_bytes'] == len(payload) and row['payload_sha256'] == sha(payload),
                     'staged read differs from independent expected content')
             require(all(row[k] is True for k in ('read_only','fresh_readback','sd_readback_verified',
                                                 'boot_files_unchanged','recovery_manifest_unchanged','card_verified')) and
@@ -60,7 +77,8 @@ def read_staged_sources(session, payloads, receipt, *, purposes):
                     'staged read scope or protected-file proof differs')
             require([v['stage'] for v in row['memory_observations']] == ['admit','complete'],
                     'staged read lacks complete scratch ownership checks')
-        receipt.update(status='verified',purposes=list(purposes),bootstrap_empty=True)
+        receipt.update(status='verified',purposes=list(purposes),bootstrap_empty=True,
+                       retained_record_bytes_verified=bool(retained))
     except BaseException as error:
         failure = error
         receipt.update(status='failed',error=str(error))
