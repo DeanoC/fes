@@ -1,0 +1,61 @@
+{
+  "scope": "two-independent-complete-QSPI-main-array-backups",
+  "complete_main_array_backup": true,
+  "complete_backup_scope": "16MiB main array only; OTP/security excluded",
+  "board": "TRWU8CBL",
+  "operator_source": "2e05f7b4cc06437ce69d6a5605ef285e9b43e8bc",
+  "array_bytes": 16777216,
+  "passes": 2,
+  "reads_per_pass": 4096,
+  "PRE_POST_grants_per_pass": 8208,
+  "full_SHA256": "165afd94489af66ba86160d47b3d404263b4cb4a0c10a7a2a007a4f340cb7fc6",
+  "independent_private_servers_and_namespaces": true,
+  "chronological_nonoverlapping_sessions": true,
+  "binary_byte_comparison": true,
+  "raw_packet_replay_passed": true,
+  "qualified_windows_match": true,
+  "AF_identity": "20bb18",
+  "status_bytes": [
+    0,
+    0
+  ],
+  "unchanged_CONFIG_STATUS": true,
+  "acknowledged_unique_CLOSE_each_pass": true,
+  "cleanup_independently_verified": true,
+  "source_and_evidence_sha256": {
+    "frozen-procedure.json": "2fe11963bbf68318f4403b00ea0d4538ced69171053a8fafae6e0d1db1459a16",
+    "pass1/result.json": "cf5eb5631925edc86ca0c2427e5adb44f7dbde757ab2802847001518927700b4",
+    "pass2/result.json": "b143b93e651275b4f5beccf50ffae9b8c8b864189fe98b36465690c87147b41e",
+    "pass1-cleanup-evidence.json": "0cc3548103f19e98b6cff4308e9db90bc73caa1a1b46aaf47a73b2ee6daa435f",
+    "pass2-cleanup-evidence.json": "f485b3c8354a142db7b1da6dbcb31a7b69f898942729460d395b2d5311a6fda3"
+  },
+  "OTP_security_covered": false,
+  "exact_die_package_qualified": false,
+  "usable_rollback_prepared": false,
+  "flash_write_authorized": false,
+  "flash_write_commands_sent": false,
+  "sd_write_commands_sent": false,
+  "image_programming_attempted": false,
+  "reset_or_reboot_attempted": false,
+  "current_CPU_Park_reobserved": false,
+  "autonomous_QSPI_poweron_qualified": false,
+  "pass_elapsed_seconds": {
+    "pass1": 969.4231407348998,
+    "pass2": 851.7592289468739
+  },
+  "pass1_retention": {
+    "source_head": "2e05f7b4cc06437ce69d6a5605ef285e9b43e8bc",
+    "archive_sha256": "1124603308b2a1d8872c6ca76458ebe16acfc20a3ea563bddfb2b7bcad0e32b1",
+    "source_restore_fsck_pack_verified": true,
+    "archive_readback_modes_verified": true,
+    "inherited_archive_sha256": "ad59f114fedede59952a1922d3684a3403e9ffcfb441911ef6b56c505b62c8a7",
+    "inherited_members_verified": true,
+    "whole_attempt_passed": true,
+    "complete_backup": false,
+    "status": "passed",
+    "path": "/home/deano/fes-retained/de25-qspi-full-pass1-20261111-r1",
+    "new_files": 261,
+    "inherited_files": 5925,
+    "new_uncompressed_bytes": 53899798
+  }
+}
