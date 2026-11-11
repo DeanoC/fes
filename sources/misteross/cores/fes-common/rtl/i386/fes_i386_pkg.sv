@@ -1135,6 +1135,10 @@ package fes_i386_pkg;
         // ones: D, a load of a 286 TSS's word into a GPR, whose high half
         // reads as ones (fes_i386_cpu, "Task switches").
         logic           ones;
+        // iret0: D, the uop is an IRET's first (a real-mode, V86 or
+        // protected-mode IRET's, or a return from a nested task's), which
+        // clears the NMI block as it reaches WB (fes_i386_cpu, "Interrupts").
+        logic           iret0;
     } pipe_t;
 
 endpackage
