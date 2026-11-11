@@ -24,10 +24,11 @@ Tracker: [#1548](https://github.com/DeanoC/fes/issues/1548) (Phase 5).
   and 4.2 s (2.0.0). From there the oracle runs the rest.
 - **With Phase 5 slice 4 (task switches, PR
   [#1684](https://github.com/DeanoC/fes/pull/1684), merged as `b080fa896`
-  after these runs) the RTL runs Linux with no oracle steps.** 1.2.13 and 2.0.0 reach `login:`, and 2.0.0 reaches
-  a root shell, logs in and runs `uname -a` and `cat /proc/meminfo`. The
-  output matches the oracle's byte for byte (see RTL runs).
-- **Task switches are the only CPU feature that Linux needs and main lacks.**
+  after these runs) the RTL runs Linux with no oracle steps.** 1.2.13 and
+  2.0.0 reach `login:`, and 2.0.0 logs in to a root shell and runs
+  `uname -a`, `cat /proc/meminfo`, `ps` and `ls /bin`. Its last frame
+  equals the oracle run's at 42 s.
+- **Task switches were the only CPU feature that Linux needs and main lacked before #1684.**
   Linux uses no INVLPG, CPUID, V86, call gates, I/O bitmap or breakpoints.
   It needs paging (slice 1, merged), MOV to and from DR6 and DR7 (slice 2,
   merged), far JMP to a 32-bit TSS with an LDT and CR3 change (slice 4), and
@@ -99,7 +100,7 @@ Tracker: [#1548](https://github.com/DeanoC/fes/issues/1548) (Phase 5).
 | --- | --- | --- | --- |
 | 0.99.15 | `darkstar login:` by 16 s; root shell, commands run | Stops at 6.0 s at `0010:0010cdad` `FF AA F4 08 00 00`, `switch_to`'s far JMP to a TSS. The oracle then runs 845.9M steps to 40 s | Not run (host load) |
 | 1.2.13 | `slackware login:` by 18 s; root shell, commands run | Stops at 7.0 s at `0010:00115913` `FF AA A0 04 00 00`, the same far JMP | `slackware login:` at 40 s; 337.3M retired, 0 oracle steps, no stop |
-| 2.0.0 | `slackware login:` by 20 s; root shell, commands run | Stops at 4.2 s at `0010:0011017a` `FF AF 00 03 00 00`, the same far JMP, in `schedule()` (System.map) | `slackware login:`, 106.0M retired, 0 oracle steps, no stop; with keys, a root shell that runs `uname -a` and `cat /proc/meminfo`, whose output matches the oracle's exactly |
+| 2.0.0 | `slackware login:` by 20 s; root shell, commands run | Stops at 4.2 s at `0010:0011017a` `FF AF 00 03 00 00`, the same far JMP, in `schedule()` (System.map) | `slackware login:`, 106.0M retired, 0 oracle steps, no stop; with keys, a root shell that runs all four commands: 108.5M retired, 0 oracle steps, no stop, and the 42 s frame equals the oracle's |
 
 - **The first blocker on main is the same for every kernel:** the first
   `schedule()` after `fork()`, switching from task 0 to `init` by
