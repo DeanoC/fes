@@ -2404,6 +2404,10 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      (`iret_save_rule`). Task-switch programs (`--task-programs`) add a
      handler task and its task gates, and JMP, CALL, INT and V86 switches,
      from the generator's side stream, so earlier seeds' programs stay.
+   - **Titles (Kit A).** Descent reaches its main menu; Jump 'n Bump and
+     NetHack start. Angband exits with DJGPP's SIGNOFP at its first ESC: a
+     machine without a 387 needs `EMU387.DXE`, which its drive lacks (the
+     census's oracle had a 387).
    - **Lockstep.** test386.asm's task cases; #PF through a task gate and
      back by IRET with NT, as Descent does, and the old task's saved NT
      cleared; a JMP to a TSS whose EFLAGS image has NT set; a switch whose
