@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -187,5 +188,34 @@ func TestCanceledCoreEntryAdmissionDoesNotStartMeshEnsure(t *testing.T) {
 	_, err := service.Launch(ctx, entry.TitleID, nil)
 	if !errors.Is(err, context.Canceled) || len(exec.pulls) != 0 || len(exec.links) != 0 {
 		t.Fatalf("err=%v pulls=%v links=%v", err, exec.pulls, exec.links)
+	}
+}
+
+type malformedAdmissionCatalog struct {
+	*fakeServiceCatalog
+	coreEntryCatalog
+	entry catalog.CoreEntry
+}
+
+func (c *malformedAdmissionCatalog) CoreEntry(context.Context, string) (catalog.CoreEntry, error) {
+	return c.entry, nil
+}
+
+func TestMalformedCoreEntryDoesNotStartMeshEnsure(t *testing.T) {
+	entry, media := fpgaMeshEntry("coleco-frogger")
+	for name, malformed := range map[string]catalog.CoreEntry{
+		"package digest":  {GameID: entry.TitleID, Title: "Frogger", CoreID: "fes.coleco", PackageID: "invalid"},
+		"media selection": {GameID: entry.TitleID, Title: "Frogger", CoreID: "fes.coleco", PackageID: strings.Repeat("a", 64), MediaRole: "blob", MediaID: "invalid"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			exec := &meshLaunchExecutor{node: "node-a", sources: map[string]bool{media.String(): true}, abis: []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}}}
+			service := meshTargetService(exec, "node-a", entry)
+			service.catalog = &malformedAdmissionCatalog{fakeServiceCatalog: &fakeServiceCatalog{}, entry: malformed}
+			_, err := service.Launch(context.Background(), entry.TitleID, nil)
+			assertServiceErrorCode(t, err, protocol.CodeInternal)
+			if len(exec.pulls) != 0 || len(exec.links) != 0 {
+				t.Fatalf("malformed entry started mesh work: pulls=%v links=%v", exec.pulls, exec.links)
+			}
+		})
 	}
 }
