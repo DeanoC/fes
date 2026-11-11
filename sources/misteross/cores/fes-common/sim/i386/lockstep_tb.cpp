@@ -2083,31 +2083,39 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 // write less: a far CALL or INT that checks its slots before
                 // its pushes, as the 386EX does, writes none of them. Nothing
                 // of a delivery is written.
-                // An INT n's own writes run to its first exception (a task
-                // switch through a task gate saves the old task first).
-                size_t own = result.events.empty() ? result.writes.size() : result.events[0].writes_before;
-                if (!result.events.empty() && result.events[0].kind == fes_i386::EventKind::SoftwareInterrupt)
-                    for (const auto &e : result.events)
-                        if (e.kind == fes_i386::EventKind::Exception) { own = e.writes_before; break; }
+                // A task switch that committed on the way (TR changed: the
+                // instruction's own, or a delivery's through a task gate)
+                // leaves the new task's state and the old task's save on
+                // both sides: each byte the RTL wrote the oracle wrote too,
+                // with its value, and the state is the oracle's.
+                const State oracle_now = oracle.get_state();
+                const size_t own = result.events.empty() ? result.writes.size() : result.events[0].writes_before;
                 std::set<uint32_t> own_writes, later_writes;
                 for (size_t k = 0; k < result.writes.size(); ++k)
                     for (unsigned i = 0; i < result.writes[k].length; ++i)
                         (k < own ? own_writes : later_writes).insert(write_key(result.writes[k].physical + i));
+                const bool switched = oracle_now.tr.selector != before.tr.selector;
                 for (uint32_t address : rtl.step_writes) {
-                    if (!own_writes.count(address))
+                    if (switched ? !own_writes.count(address) && !later_writes.count(address) : !own_writes.count(address))
                         out.add(at + "fault-write", address, address < RAM_BYTES ? rtl.ram[address] : 0);
-                    else if (!later_writes.count(address) && address < RAM_BYTES && bus.ram[address] != rtl.ram[address])
+                    else if ((switched || !later_writes.count(address)) && address < RAM_BYTES
+                             && bus.ram[address] != rtl.ram[address])
                         out.add(at + "fault-write." + hex(address), bus.ram[address], rtl.ram[address]);
                 }
-                State want = before;
-                const State oracle_now = oracle.get_state();
-                for (int r : {fes_i386::REG_EAX, fes_i386::REG_ECX, fes_i386::REG_ESI, fes_i386::REG_EDI})
-                    want.gpr[r] = oracle_now.gpr[r];
-                // The arithmetic flags: the oracle's delivery sets RF and
-                // clears IF before its second fault. A #PF on the way wrote
-                // CR2 on both sides.
-                want.eflags = (before.eflags & ~0x8d5u) | (oracle_now.eflags & 0x8d5u);
-                want.cr2 = oracle_now.cr2;
+                State want = switched ? oracle_now : before;
+                // After a switch, the oracle's deliveries set RF and clear
+                // TF, IF and NT before their faults, which the RTL's make
+                // only at their jumps: those four are the RTL's.
+                if (switched) want.eflags = (oracle_now.eflags & ~0x14300u) | (rtl.state().eflags & 0x14300u);
+                if (!switched) {
+                    for (int r : {fes_i386::REG_EAX, fes_i386::REG_ECX, fes_i386::REG_ESI, fes_i386::REG_EDI})
+                        want.gpr[r] = oracle_now.gpr[r];
+                    // The arithmetic flags: the oracle's delivery sets RF and
+                    // clears IF before its second fault. A #PF on the way
+                    // wrote CR2 on both sides.
+                    want.eflags = (before.eflags & ~0x8d5u) | (oracle_now.eflags & 0x8d5u);
+                    want.cr2 = oracle_now.cr2;
+                }
                 compare(want, rtl.state(), skip, at, out);
             }
             outcome.shutdown = true;
@@ -2491,6 +2499,22 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         if ((before.cr0 & 1) && delivered && oracle_state.cpl < before.cpl) ++summary.pm_kinds["inner-delivery"];
         if ((before.cr0 & 1) && (before.eflags & 0x20000) && !(oracle_state.eflags & 0x20000)) ++summary.pm_kinds["v86-exit"];
         if ((before.eflags & 0x20000) && interrupted) ++summary.pm_kinds["v86-interrupt"];
+        // Phase 5's fourth slice: task switches, by what made them (a far
+        // JMP or CALL, IRET with NT, a delivery through a task gate), into a
+        // 286 TSS, into V86 mode.
+        if ((before.cr0 & 1) && oracle_state.tr.selector != before.tr.selector) {
+            unsigned i = 0;
+            while (i < 15 && is_prefix(code[i])) ++i;
+            const uint8_t op = code[i], op2 = code[i + 1];
+            const bool ltr = op == 0x0f && op2 == 0x00 && ((code[i + 2] >> 3) & 7) == 3;
+            if (!ltr) {
+                ++summary.pm_kinds[delivered || interrupted || taken >= 0 ? "task-delivery"
+                                   : op == 0xcf ? "task-iret" : op == 0xea || op == 0xff && ((op2 >> 3) & 7) == 5 ? "task-jmp"
+                                   : "task-call"];
+                if (!(oracle_state.tr.ar & 0x08)) ++summary.pm_kinds["task-286"];
+                if (oracle_state.eflags & 0x20000) ++summary.pm_kinds["task-v86"];
+            }
+        }
         compare(oracle_state, rtl_state, skip, at, out);
         hash_state(summary, rtl_state);
         if (!out.items.empty()) return outcome;
@@ -3696,6 +3720,10 @@ public:
     // the last program's blocks read: its GDT, LGDT's pointer and a scratch
     // area (image, poked before the run).
     unsigned pm_weight = 2;
+    // tasks: the task-switch programs (FES_I386_TASKS; Phase 5's fourth
+    // slice): H and its gates, pm_task. Off, a seed's programs are as they
+    // were before them, so earlier repros reproduce.
+    bool tasks = false;
     std::vector<std::pair<uint32_t, uint8_t>> image;
 
     // base: the program's linear address, which far targets need; eip: its
@@ -4583,7 +4611,8 @@ private:
     // code (+2A4h); the handler of INT 2Fh, which a CPL-3 run ends with
     // (+2A8h, pm_ring3); the call gate's stub (+2B8h, pm_cgate); an LDT of 8
     // descriptors (+2C0h); a TSS (+300h),
-    // with its I/O permission bitmap at +68h; the ring-0 stack's top (+600h)
+    // with its I/O permission bitmap at +68h; the handler task H's TSS
+    // (+400h) and code (+4C0h, pm_task); the ring-0 stack's top (+600h)
     // and the ring-3 stack's (+700h).
     // Descriptors (selector index * 8):
     //   1 data RW 64K at a random base     9 data, not present
@@ -4597,7 +4626,8 @@ private:
     //   16 code RX 32-bit, flat (the 32-bit handler's)
     //   17 the LDT, mostly present         18 a TSS, mostly an available 386 one
     //   19 code RX 16-bit at the handlers' 64K (the 16-bit handler's)
-    //   20 a call gate to the stub (pm_cgate)  21 eight random bytes
+    //   20 a call gate to the stub (pm_cgate)  21 eight random bytes, or
+    //   mostly (side) H's TSS; 15 then mostly a task gate to it (pm_task)
     //   22 code RX 16-bit at the program's CS base, a small limit (pm_limit)
     //   23 code RX 32-bit, the same
     //   24 code RX 16-bit at DPL 3 at the program's CS base (pm_ring3)
@@ -4643,7 +4673,7 @@ private:
     }
     static constexpr uint32_t PM_LGDT = 0xe0, PM_SCRATCH = 0xe8, PM_LIDT = 0x110, PM_LIDT_REAL = 0x118, PM_IDT = 0x120,
                               PM_H32 = 0x2a0, PM_H16 = 0x2a4, PM_HRET = 0x2a8, PM_CGATE = 0x2b8, PM_LDT = 0x2c0,
-                              PM_TSS = 0x300,
+                              PM_TSS = 0x300, PM_TASK = 0x400, PM_TASKH = 0x4c0,
                               PM_ESP0 = 0x600, PM_ESP3 = 0x700;
     static constexpr unsigned GDT_SIZE = 28, IDT_GATES = 48;
     uint32_t gdt_lin = 0;
@@ -4682,7 +4712,9 @@ private:
         }
         return g;
     }
-    // A far jump's selector to a TSS, task gate or call gate: not built.
+    // A far jump's selector to a TSS, task gate or call gate, which pm_far_jump
+    // does not take: a call gate's is not built, and a task switch's new task
+    // runs elsewhere (pm_task makes them).
     bool gate(uint16_t sel) const {
         const unsigned index = sel >> 3;
         if (sel & 4) return index == 0 || index == 7;  // the LDT's random descriptors
@@ -4705,9 +4737,11 @@ private:
     // 32-bit handler or 286 to the 16-bit one; now and then one that fails a
     // check (not present; a data descriptor or call gate, not a gate; a
     // null, LDT, data, missing or not-present CS; an offset past CS's
-    // limit) or a task gate (not built). The
+    // limit) or a task gate (to H, pm_task, or the program's own TSS). The
     // interrupts the testbench injects (2, 8-15) take good ones but in a
-    // fifth of programs, where one fails.
+    // fifth of programs, where one fails. In the task-switch programs, from
+    // side, a sixteenth of the gates are task gates to H, DPL 3 a third of
+    // the time.
     uint64_t pm_gate(unsigned vector, bool good) {
         const bool trap = pick(4) == 0, g386 = pick(4) != 0;
         // DPL 3 a third of the time, so INT n reaches it from CPL 3.
@@ -4729,7 +4763,7 @@ private:
         case 5: return gate_bytes(uint16_t(0xc0 + 8 * pick(8)), h32, uint8_t(0x80 | type));  // past the GDT
         case 6: return gate_bytes(0x48, h32, uint8_t(0x80 | type));              // not present data
         case 7: return gate_bytes(0x98, 0x10000 + pick(0x10000), uint8_t(0x8e)); // past the 16-bit CS's limit
-        case 8: return gate_bytes(0x90, 0, 0x85);                                // a task gate: not built
+        case 8: return gate_bytes(tasks && side() % 4 ? 0xa8 : 0x90, 0, 0x85);   // a task gate to H, or to 90h
         default: return ok;
         }
     }
@@ -4774,6 +4808,11 @@ private:
         for (unsigned n = 0; n < GDT_SIZE; ++n) {
             uint64_t d = n == 15 || n == 21 ? rng() : desc_bytes(gdt[n]);
             if (n == 20) d = pm_cgate(stub);
+            // In the task-switch programs, H's TSS (21, A8h) and a task gate
+            // to it (15, 78h), mostly, from side, the random bytes' draw kept
+            // (pm_task).
+            if (tasks && n == 21 && side() % 8) d = desc_bytes(Desc{gdt_lin + PM_TASK, 0x67, false, false, 0x89});
+            if (tasks && n == 15 && side() % 8) d = gate_bytes(0xa8, 0, uint8_t(side() % 3 ? 0x85 : 0xe5));
             raw[n] = d;
             for (unsigned i = 0; i < 8; ++i) image.emplace_back(gdt_lin + 8 * n + i, uint8_t(d >> (8 * i)));
         }
@@ -4785,6 +4824,7 @@ private:
         for (unsigned v = 0; v < IDT_GATES; ++v) {
             const bool injected = v == 2 || (v >= 8 && v <= 15);
             idt[v] = pm_gate(v, injected && !(bad_irq && pick(4) == 0));
+            if (tasks && v != 0x2f && side() % 16 == 0) idt[v] = gate_bytes(0xa8, 0, uint8_t(side() % 3 ? 0x85 : 0xe5));
             for (unsigned i = 0; i < 8; ++i) image.emplace_back(gdt_lin + PM_IDT + 8 * v + i, uint8_t(idt[v] >> (8 * i)));
         }
         for (unsigned i = 0; i < 6; ++i) {
@@ -4833,7 +4873,28 @@ private:
         else { put(2, esp0, 2); put(4, ss0, 2); }
         put(0x66, pick(6) ? 0x68 : pick(0x100), 2);
         for (unsigned i = 0x68; i < 0xe8; ++i) tss[i] = pick(6) == 0 ? uint8_t(1u << pick(8)) : 0;
+        // A 386 TSS's CR3, which a task switch back to it loads under paging
+        // (none saves it): the tables'.
+        if (t386) put(0x1c, PG_PD, 4);
         for (unsigned i = 0; i < tss.size(); ++i) image.emplace_back(gdt_lin + PM_TSS + i, tss[i]);
+        if (!tasks) return;
+        // The handler task H (pm_task), from side: a 386 TSS at +400h whose
+        // task runs NOP; IRET; JMP back in 16-bit code under 98h (+4C0h), so
+        // a task gate's switch to it returns (its IRET is a return from a
+        // nested task) and the next starts at its NOP again. Flat SS 18h,
+        // the rest 10h, IF clear, CR3 the tables', its ring-0 stack in the
+        // TSS; its GPRs and flags at random.
+        std::vector<uint8_t> h(0x68, 0);
+        auto hput = [&](unsigned at, uint32_t v, unsigned n) { for (unsigned i = 0; i < n; ++i) h[at + i] = uint8_t(v >> (8 * i)); };
+        hput(4, gdt_lin + 0x5e0, 4); hput(8, 0x18, 2); hput(0x1c, PG_PD, 4);
+        hput(0x20, gdt_lin + PM_TASKH - (gdt_lin & 0xffff0000u), 4);
+        hput(0x24, 0x0002 | (uint32_t(side()) & 0x08d5), 4);
+        for (unsigned k = 0; k < 8; ++k) hput(0x28 + 4 * k, k == 4 ? gdt_lin + 0x5a0 : uint32_t(side()), 4);
+        for (unsigned k = 0; k < 6; ++k) hput(0x48 + 4 * k, k == 1 ? 0x98 : k == 2 ? 0x18 : 0x10, 2);
+        hput(0x60, side() % 4 ? 0 : 0x88, 2); hput(0x66, 0x68, 2);
+        for (unsigned i = 0; i < h.size(); ++i) image.emplace_back(gdt_lin + PM_TASK + i, h[i]);
+        for (auto [at, value] : {std::pair{0u, 0x90}, {1u, 0xcf}, {2u, 0xeb}, {3u, 0xfc}})
+            image.emplace_back(gdt_lin + PM_TASKH + at, uint8_t(value));
     }
 public:
     uint16_t pm_idt_limit = 0;
@@ -5557,6 +5618,123 @@ private:
     // continuation. Below IOPL 3 the first IOPL-sensitive form (or HLT) is
     // #GP(0), which ends the program; so does any fault. Injected
     // interrupts are delivered from V86 mode and return to it.
+    // Task switches (Phase 5's fourth slice), every choice from side, so a
+    // seed's own draws stay as they were: with the program's TSS (90h) in
+    // TR and descriptor 21 H's TSS, a JMP or CALL to H (A8h), or through
+    // the task gate (78h, descriptor 15) when it is one, an INT 2Dh through
+    // a task gate the block writes into the IDT, or a JMP into H as a V86
+    // task. H runs the block's own code (its EIP and CS stored into its TSS
+    // first; for V86 mode its EFLAGS image, VM and IOPL 3, and real-mode
+    // segments), a few instructions, then back: a JMP's by JMP FAR 90h:0, a
+    // CALL's or INT's by IRET (NT set), a V86 task's by INT 2Dh through a
+    // DPL-3 task gate to 90h. The block restores H's TSS and the IDT's gate
+    // after. DS, ES, FS and GS are 10h and SS 10h or 68h first, so the
+    // program's task's saved selectors load again.
+    void pm_task() {
+        if (!pm_cs || raw[21] != desc_bytes(Desc{gdt_lin + PM_TASK, 0x67, false, false, 0x89})) return;
+        const uint32_t cs_base = program_base - program_eip;
+        unsigned form = unsigned(side() % 6);
+        if (form == 5 && ((cs_base & 15) || cs_base >= 0x100000)) form = 0;
+        const bool gate15 = (raw[15] >> 40 & 0x1f) == 0x05;
+        if ((form == 2 || form == 3) && !gate15) form = form - 2;
+        if (!tr_loaded) {
+            emit({0xbb, 0x90, 0x00});  // MOV BX, 90h
+            emit({0x0f, 0x00, 0xdb});  // LTR BX
+            tr_loaded = true;
+        }
+        flat_fs();
+        for (unsigned sreg : {0u, 3u, 5u}) load_seg(sreg, 0x10);
+        load_seg(2, side() % 2 ? 0x10 : 0x68);
+        const uint32_t h = gdt_lin + PM_TASK, gate2d = gdt_lin + PM_IDT + 8 * 0x2d;
+        auto st32 = [&](uint32_t a, uint32_t v) {
+            std::vector<uint8_t> out{0x66, 0x64, 0x67, 0xc7, 0x05};
+            put32(out, a);
+            put32(out, v);
+            emit(out);
+        };
+        auto st16 = [&](uint32_t a, uint16_t v) {
+            std::vector<uint8_t> out{0x64, 0x67, 0xc7, 0x05};
+            put32(out, a);
+            out.insert(out.end(), {uint8_t(v), uint8_t(v >> 8)});
+            emit(out);
+        };
+        // H's EIP: the code after the switch's skip (PM_OFF).
+        Item eip;
+        eip.bytes = {0x66, 0x64, 0x67, 0xc7, 0x05};
+        put32(eip.bytes, h + 0x20);
+        eip.rel_at = unsigned(eip.bytes.size());
+        eip.rel_size = 2;
+        eip.bytes.insert(eip.bytes.end(), {0, 0, 0, 0});
+        eip.far = Item::PM_OFF;
+        const int eip_at = int(items.size());
+        items.push_back(eip);
+        const bool v86 = form == 5;
+        const uint16_t real_cs = uint16_t(cs_base >> 4), real_ss = uint16_t(gdt_lin >> 4);
+        st16(h + 0x4c, v86 ? real_cs : 0x30);
+        if (v86) {
+            st32(h + 0x24, 0x00023002u | (uint32_t(side()) & 0x08d5));
+            st32(h + 0x38, PM_ESP3);
+            st16(h + 0x50, real_ss);
+            for (unsigned k : {0u, 3u, 4u, 5u}) st16(h + 0x48 + 4 * k, uint16_t(side() % 4 ? real_ss : side()));
+        }
+        // The IDT's gate 2Dh: a task gate to H (INT 2Dh's switch), or to
+        // 90h, DPL 3 (the V86 task's way back).
+        if (form == 4 || v86) st32(gate2d + 4, uint32_t((v86 ? 0xe5u : 0x85u) << 8));
+        if (form == 4 || v86) st32(gate2d, uint32_t(v86 ? 0x90 : 0xa8) << 16);
+        const uint16_t to = form == 2 || form == 3 ? 0x78 : 0xa8;
+        switch (form) {
+        case 0: case 2: case 5: emit({0xea, 0x00, 0x00, uint8_t(to), 0x00}); break;   // JMP FAR to:0
+        case 1: case 3: emit({0x9a, 0x00, 0x00, uint8_t(to), 0x00}); break;           // CALL FAR to:0
+        default: emit({0xcd, 0x2d}); break;                                            // INT 2Dh
+        }
+        // The program's task goes on here, past H's code.
+        Item skip{{0xe9, 0, 0}, -1, 1, 2};
+        const int skip_at = int(items.size());
+        items.push_back(skip);
+        items[size_t(eip_at)].target = int(items.size());
+        for (unsigned n = 1 + unsigned(side() % 4); n > 0; --n) {
+            const uint8_t reg = uint8_t(std::array<unsigned, 7>{0, 1, 2, 3, 5, 6, 7}[side() % 7]);
+            switch (side() % 4) {
+            case 0: emit({uint8_t(0x40 | reg)}); break;                                  // INC r16
+            case 1: emit({uint8_t(0x48 | reg)}); break;                                  // DEC r16
+            case 2: emit({uint8_t(0xb8 | reg), uint8_t(side()), uint8_t(side())}); break; // MOV r16, imm16
+            default: emit({0x50}); emit({uint8_t(0x58 | reg)}); break;                    // PUSH AX; POP r16
+            }
+        }
+        if (v86) emit({0xcd, 0x2d});                                                    // INT 2Dh
+        else if (form == 1 || form == 3 || form == 4) emit({0xcf});                     // IRET
+        else emit({0xea, 0x00, 0x00, 0x90, 0x00});                                      // JMP FAR 90h:0
+        items[size_t(skip_at)].target = int(items.size());
+        // H's handler again (EIP, CS 98h, flags, and the segments a V86
+        // task left), and the IDT's gate as it was.
+        flat_fs();
+        st32(h + 0x20, gdt_lin + PM_TASKH - (gdt_lin & 0xffff0000u));
+        st16(h + 0x4c, 0x98);
+        st32(h + 0x24, 0x0002);
+        if (v86) {
+            st32(h + 0x38, gdt_lin + 0x5a0);
+            for (unsigned k : {0u, 3u, 4u, 5u}) st16(h + 0x48 + 4 * k, 0x10);
+            st16(h + 0x50, 0x18);
+        }
+        if (form == 4 || v86) {
+            st32(gate2d, uint32_t(idt[0x2d]));
+            st32(gate2d + 4, uint32_t(idt[0x2d] >> 32));
+        }
+        // The V86 task's way back nested: the program's task has NT set and
+        // H is busy. NT cleared (PUSHF; POP AX; AND AH, BFh; PUSH AX; POPF)
+        // and H's descriptor available again.
+        if (v86) {
+            emit({0x9c});
+            emit({0x58});
+            emit({0x80, 0xe4, 0xbf});
+            emit({0x50});
+            emit({0x9d});
+            std::vector<uint8_t> out{0x64, 0x67, 0xc6, 0x05};
+            put32(out, gdt_lin + 8 * 21 + 5);
+            out.push_back(0x89);
+            emit(out);
+        }
+    }
     void pm_v86() {
         const uint32_t cs_base = program_base - program_eip;
         if ((cs_base & 15) || cs_base >= 0x100000) return;
@@ -5762,6 +5940,7 @@ private:
         }
         const unsigned ops = 1 + pick(8);
         for (unsigned n = 0; n < ops; ++n) {
+            if (tasks && side() % 10 == 0) pm_task();  // from side: the draws below stay as they were
             switch (pick(24)) {
             case 18: case 19: case 20: pm_ring3(); break;
             case 21: case 22: case 23: pm_v86(); break;
@@ -6114,6 +6293,7 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
     std::mt19937_64 random(seed);
     Generator generator(random);
     if (const char *weight = std::getenv("FES_I386_PM")) generator.pm_weight = unsigned(std::strtoul(weight, nullptr, 0));
+    generator.tasks = std::getenv("FES_I386_TASKS") != nullptr;
     for (uint64_t n = 0; n < programs; ++n) {
         State state;
         for (auto &r : state.gpr) r = uint32_t(random());
