@@ -195,7 +195,7 @@ Anything else is invalid (ST0 80h), as the 82077 answers.
 | 500 kbit/s, 1.2M/1.44M/DMF | 16 µs |
 | 1 Mbit/s, 2.88M | 8 µs |
 
-**Double stepping.** A 40-track disk in an 80-track 1.2 MB drive is read on even physical tracks, as the BIOS double-steps. The drive maps physical track `t` to image cylinder `t/2`. An odd track gives "no ID" (ST1 bit 0).
+**40-track media in an 80-track drive.** The locked BIOS never double-steps: it sends the INT 13h track straight to Seek and Read (`rombios.c:7733-7741`), and Bochs's controller maps the cylinder to the image's cylinder directly. `pc386_fdc` does the same: a 360K disk in a 1.2 MB drive reads image cylinder `c` at cylinder `c`, so the BIOS and DOS work unpatched and the Bochs replay agrees. A real 1.2 MB drive needs the host to double-step; a driver that does so itself (Linux's `stretch` formats) would read the wrong cylinders. This is a recorded deviation. If a title needs real double-stepping, the fix is a BIOS patch that double-steps on 40-track media plus a physical-track model in the drive, in one slice. A B: drive configured as 360K (type 1) avoids the question for 5.25" DD sets.
 
 **DMA and IRQ.** DRQ goes to `dma_drq[2]` of controller 1 (`pc386_at_core.sv:47`), and TC ends the transfer. Guest memory cycles go through the CPU's DMA port, as the Sound Blaster's do. IRQ 6 is `device_irq[6]`. PIO (non-DMA) mode works too, for Linux's `floppy=nodma`.
 
@@ -349,7 +349,7 @@ Anything else gets ILLEGAL REQUEST (05h/20h). The interpreter is one C library i
 
 **Latency.** A real 2× drive takes 100–300 ms to seek and 1–5 ms per command. The service thread's wake-up latency is **not measured yet**. Slice C2 measures it on Kit B and sets the poll interval to keep each command under 2 ms. If polling costs too much ARM time, the fallback is an FPGA-to-HPS interrupt through a fes-window event, a kernel change, recorded as **D3**.
 
-**Speed.** The drive reports a 4× drive (600 KB/s). Reads are paced to that rate by the completion time, so games that time the drive see a period drive. Port 2 load is under 1 MB/s next to its measured 700 MB/s.
+**Speed.** The drive reports a 4× drive (600 KB/s). The core paces its own streaming: a byte-rate limiter in `pc386_atapi` lets a DRQ block start only when the bytes sent since the response header stay within 600 KB/s of elapsed time (a counter against a `pc386_rate` tick). The pace holds however fast the runtime fills the ring, including reads from cache. The runtime adds seek time before it writes the response header: a fixed access time per command and a distance-scaled seek, from a constant table. Games that time the drive then see a period drive. Port 2 load is under 1 MB/s next to its measured 700 MB/s.
 
 ### Media change, eject and boot
 
@@ -474,7 +474,21 @@ These are owned as `core-media-evolution.md:113-128` says.
 
 ### Machine configuration
 
-CMOS bytes the machine writes (`pc386_rtc.sv:146-173`) become configuration, not constants:
+The drive types and the boot device are per-entry settings. `fes.pc386.machine` 1.0 has no room for them: words 0–6 are settings, word 7 is reserved and must be 0, and words 8–71 are CMOS (`MP/docs/computer-io.md:554-570`). F3 therefore defines **`fes.pc386.machine` 1.1**, with these words added after the CMOS words:
+
+| Word | Content | Values | Default |
+| --- | --- | --- | --- |
+| 72 | Drive A: type | 0 none, CMOS 10h codes 1–5 | 4 (1.44M) |
+| 73 | Drive B: type | as word 72 | 2 (1.2M) |
+| 74 | Boot device | 0 hard disk, 1 A:, 2 CD | 0 |
+
+- Word 7 stays reserved; #1555 has a claim on it.
+- A 1.1 decoder reads a 1.0 record as 1.1 with these defaults, so existing records keep working. A 1.0 decoder rejects a 1.1 record by its layout version, as `media-data.md` requires.
+- Commit rejects values outside each set.
+- The golden vectors gain 1.1 cases and keep the 1.0 ones.
+- Until F3, the F2 simulation sets these inputs through `machine_tb`'s configuration, not through a record.
+
+The machine turns them into CMOS bytes (`pc386_rtc.sv:146-173`) instead of constants:
 
 | Byte | From |
 | --- | --- |
@@ -622,7 +636,7 @@ Each slice is one PR with its own `Closes` issue under the tracker, [#1694](http
 
 ### F2. Floppy in the machine: CMOS, BIOS patch, `machine_tb` units (RTL + firmware, sim)
 
-- **Builds:** CMOS rows from configuration; the INT 13h AH=15h/16h patch; file-backed units and `--swap` in `machine_tb`; the `floppy` and `floppy-boot` suites; FLOPTEST.COM.
+- **Builds:** CMOS rows from configuration inputs, driven by `machine_tb` until F3 adds the record words; the INT 13h AH=15h/16h patch; file-backed units and `--swap` in `machine_tb`; the `floppy` and `floppy-boot` suites; FLOPTEST.COM.
 - **Gates:**
   - both suites on the oracle and `--cpu rtl`;
   - the lockstep check;
@@ -634,6 +648,7 @@ Each slice is one PR with its own `Closes` issue under the tracker, [#1694](http
 
 - **Builds:**
   - unit-indexed Disk operations and `fes.media.pc-floppy` 1.0 (ABI 1.2);
+  - `fes.pc386.machine` 1.1 (drive types, boot device) with its RTL, runtime and FogCast consumers and the 1.0-to-1.1 read;
   - the endpoint's units 1–2 with the CRC pass;
   - per-unit runtime bindings and `swap_media`;
   - `fes.pc386-floppy.image`;
