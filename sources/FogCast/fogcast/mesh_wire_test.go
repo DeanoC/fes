@@ -258,6 +258,7 @@ func TestFreshSiblingClientIsCapturedBeforeEnsure(t *testing.T) {
 				{Name: "kit-b", Enabled: true, Address: serverB.URL, Agent: "token-b", TargetID: nodeB},
 			},
 			selectedTarget: "kit-a",
+			catalog:        &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}},
 			targetClients:  map[string]serviceClient{"kit-a": ownedMeshClient()},
 		}
 		service.EnableMeshContent()

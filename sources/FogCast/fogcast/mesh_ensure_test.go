@@ -155,6 +155,7 @@ func TestImplicitEmptyTargetIDDoesNotInheritBoundNode(t *testing.T) {
 			{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
 		},
 		selectedTarget: "spare",
+		catalog:        &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}},
 		targetClients:  map[string]serviceClient{"spare": &fakeServiceClient{}},
 	}
 	service.SetMeshExecuteSession(MeshExecuteSession{
@@ -198,7 +199,7 @@ func TestImplicitEmptyTargetIDEnsuresWhenNameIsTheBoundNode(t *testing.T) {
 	})
 	_, err := service.Launch(context.Background(), entry.TitleID, nil)
 	var api *protocol.APIError
-	if !errors.As(err, &api) || api.Code != protocol.CodeInternal {
+	if !errors.As(err, &api) || api.Code != protocol.CodeUnsupportedOperation {
 		t.Fatalf("err %v", err)
 	}
 	if len(exec.pulls) != 1 || exec.pulls[0] != cart || exec.node != "dev" {
@@ -284,7 +285,7 @@ func TestObservedLeaseGenerationMismatchDoesNotPull(t *testing.T) {
 	service.catalog = &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}}
 	_, err = service.LaunchOn(context.Background(), entry.TitleID, "", nil)
 	var api *protocol.APIError
-	if !errors.As(err, &api) || api.Code != protocol.CodeInternal {
+	if !errors.As(err, &api) || api.Code != protocol.CodeUnsupportedOperation {
 		t.Fatalf("matching generation err %v", err)
 	}
 	if len(exec.pulls) != 1 || exec.pulls[0] != cart {
@@ -858,6 +859,7 @@ func TestCheckingCancelDoesNotExecute(t *testing.T) {
 	service := &Service{
 		targets:        []TargetConfig{{Name: "dev", Enabled: true, TargetID: "kit-a"}},
 		selectedTarget: "dev",
+		catalog:        &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}},
 		targetClients:  map[string]serviceClient{"dev": ownedMeshClient()},
 	}
 	service.SetMeshCheckingTimeout(2 * time.Second)

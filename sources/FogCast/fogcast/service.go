@@ -1011,6 +1011,9 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeInternal, nil)
 	}
 	if err := catalog.ValidateCoreEntry(entry); err != nil {
+		if errors.Is(err, catalog.ErrInvalidCoreMedia) {
+			return protocol.CachedLaunchResponse{}, mapCoreMediaError(err)
+		}
 		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeInternal, nil)
 	}
 	snap, err := s.captureLaunchSnapshot(gameID, target)
