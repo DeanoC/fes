@@ -1,5 +1,22 @@
 # Nano recovery uploads and cold serial boot
 
+`installer_cycle.exercise` requires an explicit first-install or independently
+expected discovery context. The discovery cycle opens the existing library,
+launches the pinned program and returns to final Park without issuing Install.
+`replay` checks complete saved byte windows and monotonic polling offers under
+that same caller-selected context; it cannot reinterpret install wire as a
+fresh discovery. Both paths retain `persistence_verified=false`: a cycle alone
+is not a physical persistence verdict.
+
+`installer_recovery.read_staged_sources` uses the real `UploadSession` reader
+for the ten fixed staged sources and closes its exclusive session on success
+or failure. It rejects a populated/ambiguous bootstrap or an existing upload
+ledger before I/O, then reads/hashes every expected file and rechecks protected
+boot files. It performs no download, activation or SD write. The independent
+recovery boot, CID admission, prior successful installation and subsequent
+native boot/launch remain separate operator gates. This helper leaves the
+console lifetime with its caller and retains partial failed-read evidence.
+
 `jtag_enumeration.cpp` is a separate scan-only diagnostic for the installed
 programmer's two-pass automatic enumeration: count zero/null list/automatic
 scan enabled, followed by one bounded device-list read. It requires the exact
