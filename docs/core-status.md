@@ -513,8 +513,11 @@ Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)):
 - Ultima VI walking speed at 286-12, against a reference;
 - Ultima VII NPC pace, against a reference.
 
-Serpent Isle sometimes shows a black picture for a whole launch while the
-game runs underneath: 12 launches in 400 on Kit B. In the eight black
+Launches with Serpent Isle's disk image sometimes show a black picture for
+the whole launch, from the DOS prompt on: 12 launches in 400 on Kit B. In
+six of them Serpent Isle was started and ran underneath (its CPU, sound or
+VRAM progressed as in a lit launch). The other six (run `k8`) stopped at
+the DOS prompt, before the game ran. In the eight black
 launches on an instrumented scratch seal, the core still drove lit pixels
 onto the HDMI transmitter pins, so for those the fault is after the core.
 In two of them, the only ones checked, the ADV7513 was set up as in a lit
