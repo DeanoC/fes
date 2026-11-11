@@ -16,7 +16,7 @@ The full original core/part build is conservatively charged at 744 seconds, and 
 
 ## Main-based production build
 
-The committed recipe source `757575c740bc3b303166f187bdb50dcf31ff02a3`, based on main `c6bf1c9b68197825c8a7bdb6404b0b72533bc44f`, built a fresh native shell and both exact-shell video parts on Powerboat with the authenticated HIP slot. The production job did not reuse a cached shell or video part. Its normal timing, seal and strict CRAM containment checks passed; each part's routed settings record weight 300 and exponent 2.
+The committed recipe source `757575c740bc3b303166f187bdb50dcf31ff02a3`, based on main `c6bf1c9b68197825c8a7bdb6404b0b72533bc44f`, built a fresh native shell and both exact-shell video parts on <build-host> with the authenticated HIP slot. The production job did not reuse a cached shell or video part. Its normal timing, seal and strict CRAM containment checks passed; each part's routed settings record weight 300 and exponent 2.
 
 | Artifact | Pixel MHz | System MHz | Audio MHz |
 | --- | ---: | ---: | ---: |
@@ -25,6 +25,6 @@ The committed recipe source `757575c740bc3b303166f187bdb50dcf31ff02a3`, based on
 | Scanlines | 78.8395 | 54.6807 | 173.4605 |
 | Required | 74.2501 | 52.2248 | 12.2880 |
 
-The shell package ID is `e8ce3e46a23a0528d406812f7588e6445018656507c3ac2fc45b779f544f1aa1` and build ID is `7b9f7253673c572b83879c956f23f5cb`. The Direct part ID is `678cba471948e32e02bc064e4289b2faeaf03cd290076aee9f9ad415cbb19392`; Scanlines is `1b4e468e8397c22fc99a544106661950b6ea9d3acae41fd8cf77fdc68fcd9145`. Both manifests bind that exact shell. The retained build is under `/home/deano/fes/out/dev/coleco-video-timing-main-757575c74` on Powerboat.
+The shell package ID is `e8ce3e46a23a0528d406812f7588e6445018656507c3ac2fc45b779f544f1aa1` and build ID is `7b9f7253673c572b83879c956f23f5cb`. The Direct part ID is `678cba471948e32e02bc064e4289b2faeaf03cd290076aee9f9ad415cbb19392`; Scanlines is `1b4e468e8397c22fc99a544106661950b6ea9d3acae41fd8cf77fdc68fcd9145`. Both manifests bind that exact shell. The retained build is under `<repo>/out/dev/coleco-video-timing-main-757575c74` on <build-host>.
 
 The production build tested commit `757575c740bc3b303166f187bdb50dcf31ff02a3`; the subsequent commit adding this evidence changes documentation only. This is build and seal evidence, not hardware acceptance. Because the original failed shell came from the separate #1714 branch, this main-based build does not establish that the later combined #1714 shell closes. Its actual combined artifact needs its own production build and applicable hardware acceptance.
