@@ -155,18 +155,27 @@ func TestFirstRunGateIsOffUnlessEnabled(t *testing.T) {
 }
 
 func TestSetupWaitsForRunningOrStartingSession(t *testing.T) {
-	for _, phase := range []string{"active", "launching"} {
-		t.Run(phase, func(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		busy func(*App)
+	}{
+		{"active host session", func(a *App) { a.session.State = "active" }},
+		{"starting host session", func(a *App) { a.session.State = "launching" }},
+		{"local host session", func(a *App) { a.session.State = "local" }},
+		{"starting request", func(a *App) { a.launch.Phase, a.launch.Message = "launching", "Starting the machine" }},
+		{"starting local core", func(a *App) { a.localPhase = localPhaseLaunching }},
+		{"running local core", func(a *App) { a.localPhase = localPhaseRunning }},
+		{"stopping local core", func(a *App) { a.localPhase = localPhaseStopping }},
+		{"unowned local core", func(a *App) { a.localUnownedRun = true }},
+		{"uncertain local launch", func(a *App) { a.localReconcileAfterFailure = true }},
+		{"development load", func(a *App) { a.devLoadPhase = "loading" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			app := startFirstRun(t, dir, 1280, 720)
 			waitRoom(t, app, "example.welcome")
 			app.mu.Lock()
-			if phase == "active" {
-				app.session.State = "active"
-			} else {
-				app.launch.Phase = "launching"
-				app.launch.Message = "Starting the machine"
-			}
+			tc.busy(app)
 			app.setup.skipped = []string{"welcome", "ready"}
 			app.runSetupActionLocked("setup_continue")
 			continueState, continueStatus := app.setup, app.status
@@ -216,6 +225,19 @@ func TestSkippingLaterStepRecordsCurrentStep(t *testing.T) {
 	}
 	app.HandleCommand(CmdSelect, time.Now())
 	waitRoom(t, app, "example.setup-ready")
+}
+
+func TestSetupBlockedStatusClearsWhenSessionStops(t *testing.T) {
+	app := startFirstRun(t, t.TempDir(), 1280, 720)
+	waitRoom(t, app, "example.welcome")
+	app.mu.Lock()
+	app.session.State = "active"
+	app.runSetupActionLocked("setup_continue")
+	app.session.State = "idle"
+	app.mu.Unlock()
+	if got := renderRoomLabelSource(t, app.Snapshot(), "nopanel-status"); got == setupBlockedStatus {
+		t.Fatal("setup still says to stop the machine after it stopped")
+	}
 }
 
 func TestFirstRunMaximumSafeAreaRender(t *testing.T) {
@@ -274,6 +296,36 @@ func TestFirstRunMaximumSafeAreaRender(t *testing.T) {
 		}
 	}
 	writeHomeScreenshot(t, snap, "ready-max-safe")
+}
+
+func TestFirstRunIntermediateSafeAreaRender(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		pct  float64
+		h    int
+	}{
+		{"intermediate", 0.15, 504},
+		{"below compact boundary", 0.085, 598},
+		{"at compact boundary", 0.083, 600},
+		{"above compact boundary", 0.082, 602},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app := startFirstRun(t, t.TempDir(), 1280, 720)
+			waitRoom(t, app, "example.welcome")
+			app.SetSafeAreaPct(tc.pct)
+			waitFor(t, app, "resized Welcome", func(s Snapshot) bool { return s.Room.Height == tc.h })
+			app.HandleCommand(CmdRight, time.Now())
+			snap := waitFor(t, app, "Skip copy", func(s Snapshot) bool { return roomTextHas(s, "Skip goes straight to Home.") })
+			assertSetupTextClearOfButtons(t, snap)
+			writeHomeScreenshot(t, snap, "welcome-skip-"+tc.name)
+			app.HandleCommand(CmdLeft, time.Now())
+			app.HandleCommand(CmdSelect, time.Now())
+			snap = waitFor(t, app, "Ready", func(s Snapshot) bool {
+				return s.Room.ID == "example.setup-ready" && s.Room.Height == tc.h && roomTextHas(s, "Atari ST") && !roomTextHas(s, "Checking…")
+			})
+			assertSetupTextClearOfButtons(t, snap)
+		})
+	}
 }
 
 func assertSetupTextClearOfButtons(t *testing.T, snap Snapshot) {

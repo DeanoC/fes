@@ -55,7 +55,7 @@ function draw()
   S.header(lay, room.title)
   local left_w = math.floor((room.width - m * 3) * 0.48)
   local y = lay.top
-  local compact = room.height < 500
+  local compact = room.height < 600
   local big = compact and 28 or (room.height >= 648 and 40 or 34)
   local body = compact and 17 or (room.height >= 648 and 24 or 21)
   gfx.text("Welcome to FES", m, y, { size = big, bold = true, color = C.text })
