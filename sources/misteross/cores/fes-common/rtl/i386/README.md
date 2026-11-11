@@ -806,8 +806,9 @@ show each retirement.
 ## Protected mode
 
 Phase 2's three slices, and Phase 5's call gates, debug registers and V86
-mode: protected mode with privilege levels, without task gates, task
-switches or breakpoints (the design's
+mode: protected mode with privilege levels; task switches are
+[their own section](#task-switches), and breakpoints are not built (the
+design's
 [segment-cache contract](../../../../docs/i386-cpu-design.md#architecture);
 [Paging](#paging) is below).
 CR0.PE is a register that only a CR0 write changes, which jumps to the next
@@ -837,8 +838,9 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   #SS(selector).
 - **Far JMP** (`pjmp`, `pjmpm`) puts the selector in T0 and the offset in T1,
   reads the descriptor and raises `jump_protected`'s checks: null is #GP(0);
-  a TSS, task gate or call gate with DPL at least CPL and RPL is not built;
-  any other system descriptor or data is #GP(selector), as is
+  a TSS or task gate goes on at the task switch
+  ([Task switches](#task-switches)), a call gate with DPL at least CPL and
+  RPL is not built; any other system descriptor or data is #GP(selector), as is
   non-conforming code with DPL not CPL or RPL above CPL, or conforming code
   with DPL above CPL; not present is #NP(selector); an offset past the new
   limit #GP(0). The accessed bit's store comes after them all, then the
@@ -849,7 +851,7 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   code segment as the far JMP's checks it but the offset, or a call gate
   (Call gates, under Privilege transitions below); a system descriptor with
   DPL below CPL or RPL is #GP(selector), a call gate not present
-  #NP(selector), a TSS or task gate not built, any other #GP(selector). To
+  #NP(selector), a TSS or task gate a task switch, any other #GP(selector). To
   a code segment (`xc` direct): a probe of each of its two slots
   (`STK_PROBE` with a slot), then the offset against the held limit with
   the accessed bit's store (`hoff`, `hacc`), then CS and the next EIP in
@@ -885,7 +887,8 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   (`idt_lim7`), #GP with the IDT entry (`FAULT_GP_IDT`, error code
   vector × 8 + 2); then `SYSOP_GATE`, whose check raises
   `protected_mode_int`'s: an interrupt or trap gate, else #GP, not present
-  #NP, each with the IDT entry; a task gate is not built. At WB it puts the
+  #NP, each with the IDT entry; a task gate goes on at the task switch. At
+  WB it puts the
   gate's selector in T0 and its offset in T1 (a 286 gate's 16 bits), with
   the gate's size (`gate32`) and kind (`gate_trap`); a software
   interrupt's gate with DPL below CPL is #GP with the IDT entry. The CS
@@ -919,8 +922,7 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   stores the descriptor's high dword with the busy bit set (`desc` busy), as
   Bochs stores it, and TR takes the descriptor, busy. SLDT and STR are moves
   of the selectors (`SYS_RD_LDTR`, `SYS_RD_TR`): a word to memory, a
-  register zero-extended at a 32-bit size. TR is only held: no task switch
-  is built.
+  register zero-extended at a 32-bit size.
 - **LAR, LSL, VERR and VERW** (`plar`, `plsl`, `pverr`, `pverw`): the
   selector into T0, its descriptor's dwords unless it is null or past its
   table (`dmode` probe, `t0_oor`: nothing raised), then a `SEGOP_ZF` uop:
@@ -1070,13 +1072,9 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   DR7's enables do nothing yet (slice 5). Unlike Bochs, a DR7 write does
   not flush the TLBs, as a 386's does not.
 - **Not built:** each stops the CPU with `trace_unimplemented`, its reason in
-  `trace_unbuilt` (`why_e`, carried by the uop as `ctl.why`) and, for a
-  delivery's, its vector in `trace_vector`: a delivery through a task gate;
-  a far JMP through a call gate; a far JMP or CALL to a TSS or a task gate;
-  an IRET with NT set, a return from a nested task (`ntchk`: EX checks NT
-  as it runs IRET's first uop, over that uop's stack fault, since Bochs
-  returns from the task before it reads the stack); a protected-mode
-  16-bit stack slot past 64 KiB under a limit that reaches there.
+  `trace_unbuilt` (`why_e`, carried by the uop as `ctl.why`): a far JMP
+  through a call gate; a protected-mode 16-bit stack slot past 64 KiB
+  under a limit that reaches there.
 
 ## V86 mode
 
@@ -1145,7 +1143,118 @@ a far jump that flushes everything after it, so DC decodes with EFLAGS' VM
 - **Speed** (`scripts/test_fes_i386_latency.py`): an INT from V86 mode
   through a DPL-3 386 gate to an IRETD back takes 166 clocks; IN through
   the bitmap 26.
-- **No VME or PVI** (Pentium features), and no V86 task switch (slice 4).
+- **No VME or PVI** (Pentium features). A switch into a V86 task is
+  [Task switches](#task-switches)' `tsv86`.
+
+## Task switches
+
+Phase 5's fourth slice: JMP and CALL to a TSS or through a task gate, INT n,
+an exception, INTR and NMI through a task gate, and IRET with NT set; 16-bit
+(types 1 and 3) and 32-bit (9 and B) TSSs; the busy bits, the back link, NT,
+CR3, CR0.TS and DR7's local enables; a switch into a V86 task. The order is
+the 386's where it shows, from its microcode (reenigne/x86_microcode,
+`80386/microcode_notes.txt`, 65C-7E4, and the protection tests in
+`tests.txt`); Bochs's `task_switch` (`tasking.cc`) where the 386 can't be
+established. The routines are `ucode.toml`'s `tsjg`, `tsgate`, `tsw`,
+`tssave`, `tsload` and `tsv86`: 103 ROM words, 435 of 512 in all.
+- **Getting there.** A far JMP's or CALL's descriptor check, and a
+  delivery's gate (`SYSOP_GATE`), are tgo words: with an available TSS
+  (types 1 and 9) or a task gate in T3, which the word waits for (`t_rd`),
+  `fes_i386_seq` makes the word after it a NOP and goes on at `tsw` (a
+  TSS) or at `tsjg` (a JMP's or CALL's task gate: its TSS's selector into
+  T0) or `tsgate` (a delivery's), with the switch's kind (`tsk`: JMP, CALL,
+  INT, IRET) from the word (`tgk`). An IRET with NT set in protected mode
+  starts at `tssave` from DC; DC reads NT as it stands, which an older POPF
+  may not have written yet. So IRET's first uop (`ntchk`) waits in D while
+  any older uop that may write NT is in AG to WB (`nt_busy`), and replays,
+  with no access, when the committed NT is not what DC saw (`ntset`): no
+  access of the wrong path is made, nor a page walk that would set an
+  accessed bit for it.
+- **Checks before the switch,** each with the 386's tests:
+  - JMP or CALL to a TSS: DPL below CPL or RPL, then TI=1 (`TST_SEL_TASKGT`,
+    ahead of `AVAIL_TSS_NP`'s #NP), a busy TSS, #GP(selector); not
+    present, #NP(selector). To a task gate: DPL below CPL or RPL
+    #GP(selector), not present #NP(selector). A far JMP through a call
+    gate stays not built.
+  - A delivery's task gate: as an interrupt gate's (#GP or #NP with the IDT
+    entry; a software interrupt's DPL below CPL, #GP).
+  - A task gate's TSS (`tsgate`, `CHK_TSGATE`): null, TI=1, past the GDT,
+    not an available TSS, #GP(selector); not present #NP(selector).
+  - The new TSS's limit below 67h (2Bh for a 286 one), #TS(selector); the
+    old one's below 5Fh (29h), #TS(TR) (`CHK_TSW`, Bochs's: the 386 makes
+    no such check up front).
+  - IRET's back link (`CHK_TSRET`): null, TI=1, past the GDT, not a busy
+    TSS, #TS(selector); not present #NP(selector). The 386 clears NT and
+    saves the old task first (65F-667), so a back link that faults leaves
+    the old TSS written, as the RTL does; Bochs checks first and writes
+    nothing (the lockstep's `iret_save_rule`). IRET checks the old TSS's
+    limit before its save (`CHK_TSOLD`).
+- **The switch** (`tsw`, `tssave`): the new TSS's first and last bytes are
+  read, so a #PF there comes before anything is written (Bochs probes them;
+  the 386 does not: an exception the RTL makes, since after it the new
+  task's registers load directly); the new TSS's busy bit is set (not for
+  IRET), before the save, as the 386's 74B-74C; the old task is saved in its
+  TSS's layout (`tss` fld, `tsf` the field: a 386 TSS's dwords at 4f + 18h
+  and selectors there, a 286 TSS's words at 2f + 0Ah and four selectors):
+  EIP (the next instruction's, a fault's own), EFLAGS (`FLAG_READ_TSS`: RF
+  as a delivery's frame takes it, NT clear for IRET), the GPRs and the
+  selectors; a nesting switch (CALL, INT, a delivery) stores the old TR's
+  selector as the new TSS's back link (`tss` nfld: the new TSS through T2
+  and T3); JMP and IRET clear the old TSS's busy bit (`DESC_TRHI`,
+  `DESC_UNBUSY`), before the new task's state loads, where the 386 clears
+  it after (78D-791; nothing between can tell them apart but a #PF on the
+  GDT). TR takes the new TSS, busy (`SYSOP_TSTR`); the new EIP goes into
+  T1, EFLAGS into T4, the GPRs into their registers (a 286 TSS's words with
+  ones above, `pipe_t ones`, as Bochs and the 386's 773), CS's selector
+  into T0, the other selectors into their segment registers with their
+  caches kept and every access refused (`SEGOP_TSEL`; a 286 TSS's FS and GS
+  null), the LDT's selector into LDTR, its cache not valid (`SYSOP_TSLDT`),
+  and a 386 TSS's CR3 into T2 under paging; then the flags (`FLAG_LOAD_TSS`,
+  every flag, NT set too for a nesting switch). These uops issue one at a
+  time under paging (`decoded_t tsw`), so none replays.
+- **The commit** (`tcom`): a far jump to the new EIP that does not end the
+  instruction. WB writes CS's selector from T0 (its cache kept), CPL 3 until
+  the new SS loads, as Bochs runs the LDT's and SS's loads; CR0.TS; DR7's
+  L0-L3 and LE cleared (the 386's 7D7-7DE, Bochs's); CR3 from a 386 TSS
+  under paging when it differs (77F-794: no flush for the same, as Bochs);
+  and the gate size (`gate32`) the new TSS's, for an error code. The commit
+  of a return from a nested task unblocks NMI, as a plain IRET's end does.
+  The 386 clears NMI's block at IRET's start (674, in the delay slot of
+  673's branch to TASK_RETURN), so there an IRET whose switch then faults
+  has unblocked NMI too; the RTL keeps it blocked then, as it does for a
+  plain IRET that faults. The lockstep raises NMI only in real mode, so
+  neither is compared. The cycle
+  after, DC takes the new task's descriptor loads as it takes a fault's
+  entry (`tsw_inj`, `dc_exc`): at the new EIP, length 0, so a fault there
+  is the new task's, its frame the new CS:EIP. A delivery's exception stays
+  active through them, so a fault there is nested as in Bochs (a #PF's
+  task gate with a bad descriptor is a double fault).
+- **The new task's descriptors** (`tsload`), in the 386's order (7AB-7CE),
+  each with its accessed bit: the LDT (`CHK_TSLDT`: TI=1, not an LDT, not
+  present, #TS(selector); null, none); SS (`CHK_TSSS`: null, a system
+  descriptor, code or read-only data, RPL or DPL not CS's RPL,
+  #TS(selector), then not present #SS(selector): the 386's `TST_DES_SS`
+  tests privilege before presence, Bochs presence first), after which the
+  CPL is CS's RPL (`tscpl`); CS (`CHK_TSCS`: null, not code, nonconforming
+  with DPL not RPL or conforming with DPL above it, #TS(selector); not
+  present #NP(selector)), held; then DS, ES, FS and GS (`CHK_TSDATA`:
+  system or execute-only, data or nonconforming code with DPL below CPL or
+  RPL, #TS(selector); not present #NP(selector); null keeps the selector
+  alone, as Bochs leaves the cache not valid). Bochs loads CS last, after
+  the data segments. Then a delivery's error code is pushed on the new
+  stack at the new TSS's size, and the far jump writes CS from the hold and
+  ends the instruction. RF from the new EFLAGS holds through these
+  (`ts_krf`). Bochs checks the new EIP against CS's limit within the
+  switch; the 386 doesn't (7D0-7E2), and the RTL's next fetch raises the
+  #GP(0).
+- **A V86 task** (`tsv86`, VM in the new EFLAGS): the LDT as `tsload`'s,
+  then SS, DS, ES, FS, GS and CS as V86 segments from their selectors, with
+  no descriptor read or check, at CPL 3 (Bochs's, the 386's 798-7A5). A
+  delivery from V86 mode through a task gate saves the V86 task with VM set
+  in its EFLAGS image, and the handler's IRET returns to it.
+- **Speed.** About 70 uops a switch, most of them ROM words; nothing is on
+  a fast path (Jump 'n Bump switches about 290 times a simulated second).
+- **Not built:** the T bit's #DB (slice 5).
 
 ## Memory
 

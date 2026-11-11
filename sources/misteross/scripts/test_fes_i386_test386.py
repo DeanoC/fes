@@ -316,7 +316,7 @@ def run_rtl(rom: Path, error: int, forgive: dict[int, int], jobs: int,
     testbench = lockstep.verilate(verilator, oracle.link_inputs(jobs, False), jobs, None)
     env = dict(os.environ, FES_I386_MODE='test386', FES_I386_ROM=str(rom / 'test386.bin'), FES_I386_POST=hex(POST_PORT),
                FES_I386_OUTPUT=hex(OUTPUT_PORT), FES_I386_TEXT=str(BUILD / 'test386-rtl-output.txt'),
-               FES_I386_ERROR=hex(error), FES_I386_LATENCY='1',
+               FES_I386_ERROR=hex(error), FES_I386_LATENCY='1', FES_I386_LIMIT=str(STEP_LIMIT),
                FES_I386_FORGIVE=','.join(f'{address:#x}:{length}' for address, length in sorted(forgive.items())))
     result = subprocess.run([str(testbench)], env=env, capture_output=True, text=True)
     if result.returncode:

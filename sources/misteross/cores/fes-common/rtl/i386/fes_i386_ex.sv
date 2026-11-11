@@ -85,6 +85,7 @@ module fes_i386_ex (
     input  logic [17:0]          flags_keep,
     input  logic [11:0]          md_flags,
     input  logic [1:0]           cpl,         // the CPL, for POPF's and IRET's IF and IOPL
+    input  logic                 ts_krf,      // a task switch's descriptor loads, which keep RF
     output logic [31:0]          result,
     output logic [17:0]          flags_out,
     output logic                 taken,
@@ -292,7 +293,9 @@ module fes_i386_ex (
                    | ({32{exc.r_setcc}} & {31'b0, cc_true})
                    | ({32{exc.r_lahf}} & {24'b0, flags_in[7:6], 1'b0, flags_in[4], 1'b0, flags_in[2], 1'b1, flags_in[0]})
                    | ({32{exc.r_sign}} & {32{exc.src8 ? y[7] : exc.src16 ? y[15] : y[31]}})
-                   | ({32{exc.r_flags}} & {14'b0, exc.f_clrpm && flags_in[17], exc.f_clrpm && u.imm[4], flags_in[15:0]})
+                   | ({32{exc.r_flags}} & {14'b0, (exc.f_clrpm || exc.f_rdtss) && flags_in[17],
+                                           (exc.f_clrpm || exc.f_rdtss) && u.imm[4], flags_in[15],
+                                           flags_in[14] && !(exc.f_rdtss && u.imm[6]), flags_in[13:0]})
                    | ({32{exc.r_zf}} & (u.imm[0] ? y : x))
                    | ({32{exc.r_scan}} & (scan_z ? af : {27'b0, scan_n}))
                    | ({32{exc.r_bcd}} & {16'b0, bcd_r})
@@ -373,10 +376,27 @@ module fes_i386_ex (
             end
             // LAR, LSL, VERR, VERW and ARPL: ZF alone.
             if (exc.r_zf) rest[ZF] = u.imm[0];
+            // A task switch's new EFLAGS (LOAD_TSS): every flag from y, NT
+            // set too for a nesting switch (imm[6]).
+            if (exc.f_ldtss) begin
+                rest[0] = y[0];
+                rest[2] = y[2];
+                rest[4] = y[4];
+                rest[6] = y[6];
+                rest[7] = y[7];
+                rest[8] = y[8];
+                rest[9] = y[9];
+                rest[10] = y[10];
+                rest[11] = y[11];
+                rest[13:12] = y[13:12];
+                rest[14] = y[14] || u.imm[6];
+                rest[17] = y[17];
+            end
             // RF: IRETD's image sets it, IRET's last uop keeps it, and any
             // other uop clears it, as Bochs clears it before the next
-            // instruction runs.
-            rest[16] = exc.f_rf ? y[16] : u.iret && flags_keep[16];
+            // instruction runs; a task switch's new EFLAGS loads it, which
+            // its commit and descriptor loads keep (ts_krf).
+            rest[16] = exc.f_rf || exc.f_ldtss ? y[16] : (u.iret || u.tcom || ts_krf) && flags_keep[16];
             // The adjusts' flags take the multiply unit's select, which adds
             // no step to the older flags' chain.
             if (exc.md_fl || exc.r_bcd) begin
