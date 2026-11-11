@@ -1881,6 +1881,9 @@ module fes_i386_cpu #(
         d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE
                 || xchg_ld || mkind == fes_i386_pkg::MEM_LOAD && !dc.gov.two && dc.gov.op == 8'h63;
         d_out.ones = tsf_any && !tsf_32 && u.dst.valid && u.dst.space == fes_i386_pkg::RS_GPR;
+        d_out.iret0 = d_first && dc.fetched && dc.seq == fes_i386_pkg::SEQ_UCODE
+                   && (dc.upc == fes_i386_ucode_pkg::UC_IRET || dc.upc == fes_i386_ucode_pkg::UC_VIRET
+                    || dc.upc == fes_i386_ucode_pkg::UC_PIRET || dc.upc == fes_i386_ucode_pkg::UC_TSSAVE);
         if (d_ifw) begin
             d_out.ifw = 1'b1;
             d_out.pf_lin = d_ifw_lin;
@@ -2848,7 +2851,7 @@ module fes_i386_cpu #(
     // instruction's last uop retires, a delivery's included, or a REP
     // string element's last uop (str_cx), or while the CPU is in HLT. NMI
     // comes first, unless one is being handled (blocked
-    // until IRET's last uop retires); INTR if IF is set after the
+    // until an IRET starts: iret_start); INTR if IF is set after the
     // instruction. Neither is taken after MOV SS or POP SS, unless that one
     // follows another, nor after an STI that set IF: the shadow, as Bochs
     // keeps it. int_take holds from that edge until the delivery starts. An
@@ -2894,9 +2897,12 @@ module fes_i386_cpu #(
     assign sh_ss = wb_ss_load && !movss_sh;
     assign int_shadow = sh_ss || wb_sti && !eflags[9];
     assign nmi_edge = nmi && !nmi_q;
-    assign iret_start = issue && dc.seq == fes_i386_pkg::SEQ_UCODE
-                     && (dc.upc == fes_i386_ucode_pkg::UC_IRET || dc.upc == fes_i386_ucode_pkg::UC_VIRET
-                      || dc.upc == fes_i386_ucode_pkg::UC_PIRET || dc.upc == fes_i386_ucode_pkg::UC_TSSAVE);
+    // IRET starts when its first uop reaches WB as the oldest (iret0),
+    // whether it commits or faults there; one that replays starts again.
+    // Every instruction before it has completed then, as on the 386, whose
+    // CLRNMI (674) runs once the IRET starts.
+    assign iret_start = wb_s.valid && wb_s.iret0 && !halted && !freeze && !int_take
+                     && wb_fault != fes_i386_pkg::FAULT_REPLAY;
     assign nmi_ok = (nmi_pend || nmi_edge) && (!nmi_block || at_boundary && wb_s.uop.iret);
     assign int_if = at_boundary ? wb_flags[9] : eflags[9];
 

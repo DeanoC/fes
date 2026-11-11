@@ -1147,6 +1147,10 @@ package fes_i386_pkg;
         logic           ibp_en;
         logic [3:0]     dbp;
         logic           dbp_en;
+        // iret0: D, the uop is an IRET's first (a real-mode, V86 or
+        // protected-mode IRET's, or a return from a nested task's), which
+        // clears the NMI block as it reaches WB (fes_i386_cpu, "Interrupts").
+        logic           iret0;
     } pipe_t;
 
 endpackage

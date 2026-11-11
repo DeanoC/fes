@@ -7781,6 +7781,19 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         c.expect_halt = true;
         c.expected_nmis = 2;
     }
+    // A second NMI raised as the NMI handler's NOP retires waits for the
+    // handler's IRET (#1704): the handler (NOP; IRET at 1B10h, through a 286
+    // interrupt gate) runs twice, the second time after the first IRET, not
+    // at the NOP, which retires before the IRET starts. The body starts at
+    // CODE + 44, after the protected-mode entry.
+    {
+        Case c{"nmi-in-nmi-handler", [](Asm &a) { a.op({0x90, 0x90, 0x90, 0x40}); }, -1, -1,
+               {{2, gate(0x08, 0x1b10, 0x86)}}, false};
+        c.places = {{0x1b10, {0x90, 0xcf}}};
+        c.nmi_pulses = {CODE + 44, 0x1b10};
+        c.expected_nmis = 2;
+        cases.push_back(c);
+    }
     // After the commit: each of the new task's descriptors faults in the
     // new task (its EIP, its stack). The LDT: TI=1, not an LDT, not
     // present; SS: null, read-only, RPL and DPL not CS's RPL, not present;
