@@ -6,9 +6,12 @@ while audio played. [#1506](../2026-11-05-pc386-si-reload/summary.md) didn't
 reproduce it in three runs. This record repeats it on a fresh seal of main
 with #1483's status ring and VRAM probes, at four governor presets.
 
-**Result: reproduced, 3 times in 56 Serpent Isle launches. It is a pc386
-fault, not a speed artefact or a long load. The VGA's registers and DAC are
-right during a black launch, so the fault is downstream of them.**
+**Result: reproduced, 4 times in 97 launches. It isn't a speed artefact or a
+long load. In `k6`'s black launch, the capture buffers held the same picture
+as in the lit launches, and the picture was black from the DOS prompt on.
+So the VGA (CRTC and DAC included), scanout and capture are right. The black
+comes between the capture buffers and HDMI: the 720p presenter's reads, the
+display plane, or the HDMI output.**
 
 - In Kit B run `k1`, one launch at 486DX2-66 showed a flat black picture
   for the whole launch: introduction, menu, Journey Onward and 60 s after
@@ -24,22 +27,32 @@ right during a black launch, so the fault is downstream of them.**
   picture.
 - Run `k3`, on a scratch seal that puts the VGA's output state in the status
   ring, had 2 black launches in 17. In the one with ring data, palette
-  address source, video enable, the screen-off bit, the pel mask and the DAC
-  were all as in a lit launch: the state word was identical. So the fault is
-  downstream of those registers: scanout geometry (the CRTC isn't in the
-  word), capture, the 720p presenter or the display plane.
+  address source, video enable, the screen-off bit, the pel mask, the
+  sequencer and the count of non-black DAC entries were all as in a lit
+  launch: the state word was identical. That rules out those bits only.
+  The word leaves out the CRTC geometry, and the DAC count can't tell a dim
+  palette from a black one or say which entries scanout uses. So the
+  remaining candidates are the CRTC, the DAC's values, capture, the 720p
+  presenter and the display plane.
 - Runs `k4` and `k5` added 18 launches with capture-buffer samples and a
-  DOS-prompt grab. None of them was black, so the capture buffers haven't
-  been read during a black launch yet.
+  DOS-prompt grab. None of them was black.
+- Run `k6` (41 short launches, a capture sample during every grab) had one
+  black launch. It was black at the DOS prompt, before `SERPENT` ran. At
+  every grab its three capture buffers matched the lit launches either side
+  at all 48 sampled pixels per buffer. The presenter showed 60 frames a
+  second with no underflow. See [Run `k6`](#run-k6-capture-samples-during-the-grab-11-november-07190840-eet).
 - Input still works in a black launch. `k3`'s first launch made its save
   blind, and the later launches list it.
-- The other 53 Serpent Isle launches showed their pictures. The load itself
+- The other 93 launches showed their pictures. The load itself
   works: all 22 Journey Onward loads in lit launches (`k1` 7, `k3` 15) put
   the party back on the ship within 3–6 s, as the Bochs-oracle machine does in about 5.5 s.
-- The stage isn't pinned yet (see [Next](#next)).
+- The stage after capture isn't pinned yet (see [Next](#next)).
 
 The issue's title describes it too narrowly. The fault isn't tied to Journey
-Onward or the save: it blacks out a whole launch from the introduction on.
+Onward, the save or Serpent Isle: it blacks out a whole launch from the DOS
+prompt on. All 97 launches ran Serpent Isle's disk image, so the count stays
+per launch of that image.
+
 `v1`'s black main menu, and the black picture after its load, fit the same
 fault.
 
@@ -185,22 +198,27 @@ every preset.
 
 ## Next
 
-- **Which stage.** The VGA's registers and DAC are ruled out. `k5` read the
-  capture buffers but had no black launch, so this is still open.
-  - If the capture buffer holds the picture in a black launch, the fault is
-    in the presenter or the display plane.
-  - If it is black or stale, it is in scanout or capture.
-- **A faster sample.** `k5`'s sample reads 1,200 words through `devmem` and
-  lands seconds after the HDMI grab, so it can't judge a black frame that
-  lasts under a few seconds. A whole black launch is long enough. Reading
-  fewer words, right after the grab, would close the gap.
-- **More launches per run.** The rate is about 1 in 19, and the black
-  launches were black from the introduction on. A run that stops after the
-  menu grabs (no Journey Onward and 60 s of play) fits about twice as many
-  launches into the same time.
-- **Later diagnostic word.** `fes_display_plane`'s `ui_active`, `locked`,
-  `displayed_sequence` and `faulted` outputs aren't connected in
-  `pc386_machine.sv`, and the CRTC geometry isn't in the ring.
+- **Which stage after capture.** The capture buffers are right in a black
+  launch, so what's left is:
+  - the presenter's DDR reads. It showed every frame with no underflow, so
+    black from it would mean its line buffers filled with black, for
+    example from the wrong address;
+  - the display plane, which blends the launcher's frames over the
+    presenter's picture. An open plane with opaque black frames would black
+    out the whole raster;
+  - the HDMI output after the plane.
+- **Next diagnostic, proposed on #1494 first.** Before a new seal, check
+  whether the display plane's state (open, `ui_active`, `locked`,
+  `faulted`) can be read through the agent or the runtime. If not, a
+  scratch seal adds to the ring the plane's four outputs, which
+  `pc386_machine.sv` leaves unconnected, and the presenter's shown buffer,
+  width and height.
+- **More launches per run.** Black shows at the DOS-prompt grab, 22 s
+  after load. A run that stops there and probes only black launches fits
+  several times `k6`'s launches into the same time.
+- **The intro grab at 486DX2-66.** It is black in 13 of 20 lit launches
+  there (1 of 20 at `max`). The capture samples show a fade in some, so it
+  is probably the grab landing on a scene change. Open, not counted.
 - No stage is named as the cause yet. A fix will be proposed on #1494
   before any RTL is written.
 
@@ -306,6 +324,50 @@ In each, the capture samples taken after it held a picture:
 of 12, `k3` 2 of 17, `k4` 0 of 1, `k5` 0 of 17. At the earlier rate (3 in 38), 17
 lit launches in a row happen about one run in four, so `k5` doesn't show the rate fell.
 
+## Run `k6`: capture samples during the grab (11 November, 07:19–08:40 EET)
+
+- **Package and kit.** As `k3` (package `49ec6936…`), Kit B's baseline,
+  core-only.
+- **Flow.** The setup launch made a save at `max`. Then 40 relaunches
+  alternated 486DX2-66 and `max`, each with a DOS-prompt grab, `SERPENT`,
+  an introduction grab, Esc and menu grabs at +6, +10 and +14 s, then stop.
+  No Journey Onward.
+- **Sample.** Every grab starts a read of the three capture buffers while
+  the HDMI grab runs: 48 pixels a buffer (8 lines × 6 pixels), about 1 s
+  for all three. A black grab also gets `k5`'s 400-pixel sample, VRAM and
+  the ring, twice, 1 s apart.
+
+**1 black launch in 41: relaunch 33 (`p7n32`, 486DX2-66).**
+
+- All five grabs are the black frame `4c6d2c8d`, from the DOS prompt on.
+  The 18 black grabs in `k6` all have that hash, the same frame as `k1`'s
+  and `k3`'s black launches.
+- At the DOS prompt and at the menu, the fast samples have the same hashes
+  as the lit launches before and after it (`p0n31`, `p7n33`):
+  `1b6a5ad9`/`6f9b4838`/`6f9b4838` at the prompt, `b3d3e215`/`29ec6e20`/
+  `29ec6e20` at the menu. Those are steady pictures, so the second or so
+  between grab and sample doesn't matter. At the introduction, the samples
+  hold its picture (42 of 48 lit, brightest channel 158), as in the lit
+  launches.
+- VRAM went from the DOS screen to the introduction (`0de8e137`) and the
+  menu (`1f9b027f`) as in a lit launch. The VGA word was 2952265216 at the
+  menu, the lit value.
+- The presenter's `frames_shown` rose 60 a second, with
+  `present_underflows`, `scanout_underflows` and `plane_underflows` all 0.
+- Its load took 12.56 s, inside the run's 11.22–13.46 s spread. Input
+  attached as in the other launches.
+- By the second probe at +10 s, VRAM had left the menu for the
+  introduction's segment (CS `1A60`). The probes stretched the menu grabs
+  to about 27 s apart. That fits the menu going back to the introduction
+  when left idle, and would explain why the Journey Onward click missed in
+  `k1`'s and `k3`'s probed black launches. Not tested.
+
+**The rest:** 40 lit launches. Every DOS-prompt grab is the same lit frame,
+and every menu grab is lit.
+
+**Across the six runs** it is 4 black launches in 97: `k1` 1 of 9, `k2` 0
+of 12, `k3` 2 of 17, `k4` 0 of 1, `k5` 0 of 17, `k6` 1 of 41.
+
 ## Kit housekeeping
 
 Run `k3` claimed Kit B at 23:58 EET, restored and released it at 00:57, and
@@ -316,3 +378,7 @@ Run `k4` claimed Kit B at 01:21 EET and released it at 01:27, and its 5
 data trees were removed at 01:27. Run `k5` claimed it at 01:28, restored and
 released it at 02:44, and removed its 5 data trees at 02:45. Each is logged
 in Kit B's status file. Neither run installed software or changed the image.
+
+Run `k6` claimed Kit B at 07:19 EET, restored and released it at 08:38, and
+removed its 5 data trees at 08:40, as logged in Kit B's status file. It
+installed no software and changed no image.
