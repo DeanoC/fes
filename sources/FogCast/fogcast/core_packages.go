@@ -253,6 +253,27 @@ func (s *Service) CoreEntries(ctx context.Context) ([]catalog.CoreEntry, error) 
 	result, err := store.CoreEntries(ctx)
 	return result, mapCoreEntryError(err)
 }
+
+// CoreEntriesByIDs resolves the returned page without enumerating the catalog.
+func (s *Service) CoreEntriesByIDs(ctx context.Context, ids []string) ([]catalog.CoreEntry, error) {
+	for _, id := range ids {
+		if protocol.ValidateGameID(id) != nil {
+			return nil, canonicalError(protocol.CodeBadRequest, nil)
+		}
+	}
+	store, ok := s.catalog.(interface {
+		CoreEntriesByIDs(context.Context, []string) ([]catalog.CoreEntry, error)
+	})
+	if !ok {
+		return nil, canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
+	entries, err := store.CoreEntriesByIDs(ctx, ids)
+	if err != nil {
+		return nil, mapCoreEntryError(err)
+	}
+	return entries, nil
+}
+
 func (s *Service) CoreEntry(ctx context.Context, id string) (catalog.CoreEntry, error) {
 	if protocol.ValidateGameID(id) != nil {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeBadRequest, nil)

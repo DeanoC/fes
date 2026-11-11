@@ -23,6 +23,8 @@ func TestHomeFamilyQueryPreservesMachinesAndReportsActualCap(t *testing.T) {
 		{name: "below cap", machines: 1, titles: 1, max: 3, wantMachines: 1, wantTitles: 1},
 		{name: "exact cap", machines: 1, titles: 2, max: 3, wantMachines: 1, wantTitles: 2},
 		{name: "over cap", machines: 1, titles: 3, max: 3, wantMachines: 1, wantTitles: 2, wantMore: true},
+		{name: "2000 exact rows over multiple pages", machines: 1, titles: 1999, max: 2000, wantMachines: 1, wantTitles: 1999},
+		{name: "2001 rows over multiple pages", machines: 1, titles: 2000, max: 2000, wantMachines: 1, wantTitles: 1999, wantMore: true},
 		{name: "machine budget exhausted with titles", machines: 3, titles: 1, max: 3, wantMachines: 3, wantMore: true},
 		{name: "too many machines fails closed", machines: 4, max: 3, wantErr: true},
 		{name: "old host cannot confirm filter", machines: 1, max: 3, omitMarker: true, wantErr: true},

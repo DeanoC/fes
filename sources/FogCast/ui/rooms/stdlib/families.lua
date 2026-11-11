@@ -89,6 +89,7 @@ M.list = list
 
 -- Data. A table per source; nil while it is still loading.
 local kit_rows = nil   -- core_id -> kit.cores row
+local kit_error = false
 local machines = nil   -- core_id -> library machine entry
 local titles = nil     -- family id -> number of titles
 local capped = {}      -- family id -> true when its query hit the row limit
@@ -115,8 +116,11 @@ local function model_state(core_id)
     if kit_row.needs == "unavailable" then return "missing" end
     return "blocked", kit_row.block ~= "" and kit_row.block or nil
   end
+  if kit_error then return "blocked", "Can't check this kit" end
   return "missing"
 end
+
+function M.count_known() return not kit_error and next(overfull) == nil end
 
 -- Families wait for the library and the kit's list (it says which models
 -- are installed when the library has no row for them).
@@ -269,12 +273,15 @@ local kit_generation = 0
 local function load_kit()
   kit_generation = kit_generation + 1
   local gen = kit_generation
+  kit_rows = nil
+  kit_error = false
   if kit == nil or kit.cores == nil then
     kit_rows = {}
     return
   end
   kit.cores(function(rows, err)
     if gen ~= kit_generation then return end
+    kit_error = err ~= nil
     kit_rows = {}
     if not err then
       for _, r in ipairs(rows or {}) do
@@ -386,7 +393,9 @@ function M.reload()
   for _, req in ipairs(requests) do
     if req.cancel then req.cancel() end
   end
+  machines, titles, capped, known, overfull, library_err = nil, nil, {}, {}, {}, nil
   load_kit()
+  on_change()
   library_generation = library_generation + 1
   local gen = library_generation
   requests = {}

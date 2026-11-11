@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -213,5 +214,32 @@ func TestRemoteCoreEntryRejectsInvalidOriginAndMissingMedia(t *testing.T) {
 	after, _, err := s.RemoteCoreEntry(ctx, entry.GameID)
 	if err != nil || !after.Pending {
 		t.Fatalf("failed bind changed origin = %+v, %v", after, err)
+	}
+}
+
+func TestCoreEntriesByIDsReturnsOnlyRequestedAtLargeBatch(t *testing.T) {
+	ctx := context.Background()
+	s, _ := mediaTestStore(t)
+	defer s.Close()
+	pkg := strings.Repeat("a", 64)
+	wanted, err := s.CreateCoreEntry(ctx, "Wanted", "fes.zx81", pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateCoreEntry(ctx, "Unrequested", "fes.zx81", pkg); err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]string, 0, 2502)
+	for i := 0; i < 2500; i++ {
+		ids = append(ids, fmt.Sprintf("fpga-fake-%d", i))
+	}
+	ids = append(ids, wanted.GameID, wanted.GameID)
+	got, err := s.CoreEntriesByIDs(ctx, ids)
+	if err != nil || len(got) != 1 || got[0].GameID != wanted.GameID {
+		t.Fatalf("batch got=%+v err=%v", got, err)
+	}
+	empty, err := s.CoreEntriesByIDs(ctx, nil)
+	if err != nil || len(empty) != 0 {
+		t.Fatalf("empty got=%+v err=%v", empty, err)
 	}
 }

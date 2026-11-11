@@ -299,7 +299,7 @@ func TestInstalledCoreRoomDefaultBudgetDwell(t *testing.T) {
 	t.Logf("cores=%d viewport=1280x720 frames=%d max_step=%s mean_step=%s soft_budget=%s hard_budget=%s", count, frames, maximum, total/frames, r.budget.Frame, r.budget.Frame*callbackHardLimitFactor)
 }
 
-func BenchmarkInstalledCoreRoomOneTile(b *testing.B) {
+func BenchmarkInstalledCoreRoomOneInstalledCore(b *testing.B) {
 	var pack Pack
 	for _, candidate := range Examples() {
 		if candidate.ID == "example.fes-cores" {

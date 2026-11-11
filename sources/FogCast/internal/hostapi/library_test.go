@@ -1105,3 +1105,46 @@ func TestCoreEntryKindFilterIsValidatedAndAcknowledged(t *testing.T) {
 		t.Fatalf("fallback must not claim filter support: %d %s", response.Code, response.Body.String())
 	}
 }
+
+type filteredIdentityBatchService struct {
+	queryCaptureFake
+	entries  []catalog.CoreEntry
+	ids      []string
+	allCalls int
+	batchErr error
+}
+
+func (s *filteredIdentityBatchService) CoreEntries(context.Context) ([]catalog.CoreEntry, error) {
+	s.allCalls++
+	return nil, errors.New("unbounded read must not run")
+}
+func (s *filteredIdentityBatchService) CoreEntriesByIDs(_ context.Context, ids []string) ([]catalog.CoreEntry, error) {
+	s.ids = append([]string(nil), ids...)
+	return s.entries, s.batchErr
+}
+func TestFilteredCoreIdentitiesUseBoundedBatchAndFailClosed(t *testing.T) {
+	s := &filteredIdentityBatchService{
+		queryCaptureFake: queryCaptureFake{page: catalog.Page{Games: []catalog.Game{
+			{ID: "fpga-zx81-1", Title: "Z", System: catalog.CorePlatform, Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true},
+			{ID: "fpga-zx81-2", Title: "Z2", System: catalog.CorePlatform, Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true},
+		}}},
+		entries: []catalog.CoreEntry{
+			{GameID: "fpga-zx81-1", CoreID: "fes.zx81"},
+			{GameID: "fpga-zx81-2", CoreID: "fes.zx81"},
+		},
+	}
+	response := serve(t, hostapi.New(s), http.MethodGet, "/api/v1/games?platform=fpga&core_entry_kind=machine")
+	if response.Code != http.StatusOK || s.allCalls != 0 || len(s.ids) != 2 || strings.Count(response.Body.String(), `"core_id":"fes.zx81"`) != 2 {
+		t.Fatalf("status=%d all=%d ids=%v body=%s", response.Code, s.allCalls, s.ids, response.Body.String())
+	}
+	s.entries = s.entries[:1]
+	response = serve(t, hostapi.New(s), http.MethodGet, "/api/v1/games?platform=fpga&core_entry_kind=machine")
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("missing identity must fail closed: %d %s", response.Code, response.Body.String())
+	}
+	s.batchErr = errors.New("database unavailable")
+	response = serve(t, hostapi.New(s), http.MethodGet, "/api/v1/games?platform=fpga&core_entry_kind=machine")
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("batch failure must fail closed: %d %s", response.Code, response.Body.String())
+	}
+}

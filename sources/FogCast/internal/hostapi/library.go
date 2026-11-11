@@ -326,7 +326,14 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 		return
 	}
 	applyMeshReadiness(r.Context(), service, result.Games)
-	attachCoreIdentities(r.Context(), service, result.Games)
+	if query.CoreEntryKind != "" {
+		if err := attachFilteredCoreIdentities(r.Context(), service, result.Games); err != nil {
+			writeError(w, http.StatusInternalServerError, "INTERNAL", "catalog is unavailable")
+			return
+		}
+	} else {
+		attachCoreIdentities(r.Context(), service, result.Games)
+	}
 	if shelfNoticeApplies(query) {
 		if notice, ok := service.(shelfNoticeService); ok {
 			result.Notice = notice.LocalShelfNotice(r.Context())
@@ -720,6 +727,69 @@ type stampedCore struct {
 	packageID string
 	mediaID   string
 	mediaRole string
+}
+
+// attachFilteredCoreIdentities resolves exactly the returned rows in a batch.
+// A missing or conflicting identity fails the filtered page closed.
+func attachFilteredCoreIdentities(ctx context.Context, service Service, games []gameResult) error {
+	if len(games) == 0 {
+		return nil
+	}
+	reader, ok := service.(interface {
+		CoreEntriesByIDs(context.Context, []string) ([]catalog.CoreEntry, error)
+	})
+	if !ok {
+		return errors.New("filtered core identities are unavailable")
+	}
+	requested := make(map[string]bool)
+	ids := make([]string, 0, len(games))
+	collect := func(g gameResult) error {
+		if !gameWantsCoreID(g) || strings.TrimSpace(g.ID) == "" {
+			return errors.New("filtered row lacks a core identity")
+		}
+		if !requested[g.ID] {
+			requested[g.ID] = true
+			ids = append(ids, g.ID)
+		}
+		return nil
+	}
+	for _, g := range games {
+		if err := collect(g); err != nil {
+			return err
+		}
+		for _, v := range g.Variants {
+			if err := collect(v); err != nil {
+				return err
+			}
+		}
+	}
+	if len(ids) > catalog.MaxQueryLimit*(catalog.MaxVariantLimit+1) {
+		return errors.New("filtered identity page exceeds its bound")
+	}
+	entries, err := reader.CoreEntriesByIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+	byGame := make(map[string]stampedCore, len(entries))
+	for _, e := range entries {
+		if !requested[e.GameID] || strings.TrimSpace(e.CoreID) == "" {
+			return errors.New("unexpected filtered core identity")
+		}
+		if _, ok := byGame[e.GameID]; ok {
+			return errors.New("duplicate filtered core identity")
+		}
+		byGame[e.GameID] = stampedCore{coreID: strings.TrimSpace(e.CoreID), packageID: strings.TrimSpace(e.PackageID), mediaID: strings.TrimSpace(e.MediaID), mediaRole: strings.TrimSpace(e.MediaRole)}
+	}
+	if len(byGame) != len(requested) {
+		return errors.New("filtered core identity is missing")
+	}
+	for i := range games {
+		stampCoreID(&games[i], byGame)
+		for j := range games[i].Variants {
+			stampCoreID(&games[i].Variants[j], byGame)
+		}
+	}
+	return nil
 }
 
 // attachCoreIdentities stamps core_id, package_id, and saved media from
