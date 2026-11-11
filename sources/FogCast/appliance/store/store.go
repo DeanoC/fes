@@ -787,8 +787,10 @@ func verifyImage(ctx context.Context, f *os.File, m release.Manifest) error {
 // keeps the current good image, one verified fallback, the new staged image,
 // in-progress selections, the boot-ticket image, and loop-backed images. It
 // removes other releases oldest first without touching boot files. If no
-// qualifying filesystem can hold the upload, or retained images leave too
-// little room, Stage returns ErrInsufficientStorage and deletes nothing.
+// qualifying filesystem can hold the upload, Stage returns
+// ErrInsufficientStorage without deleting images. After a verified spill,
+// unprotected images may have been pruned before a remaining shortage is
+// detected; retained images stay protected.
 func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.Reader) error {
 	if e := m.Compatible(s.factory.KernelSHA256); e != nil {
 		return e
