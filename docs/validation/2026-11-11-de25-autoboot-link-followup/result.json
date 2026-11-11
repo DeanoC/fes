@@ -1,0 +1,115 @@
+{
+  "status": "passed-read-only-followup",
+  "scope": "board response and separate JTAG scan observations; no causal or programming qualification",
+  "source_head": "44883b3ce88c3f9b6a7cde3cf31fb0f5ddcec0d0",
+  "uart_fresh_recovery_prompt": true,
+  "serial_query_bytes": 1,
+  "uart_response_bytes": 1357,
+  "forced_first_scan_verified": true,
+  "vendor_list_after_forced_scan_ids": [
+    "4362C0DD"
+  ],
+  "fresh_vendor_first_ids": [
+    "4362C0DD"
+  ],
+  "fresh_vendor_first_forced_scan_verified": true,
+  "fresh_vendor_list_after_forced_scan_ids": [
+    "4362C0DD"
+  ],
+  "cause_established": false,
+  "ordering_causality_established": false,
+  "initial_failed_attempt_promoted": false,
+  "programming_commands": 0,
+  "fpga_or_cpu_reset_requests": 0,
+  "sd_writes": 0,
+  "programming_authority": false,
+  "hardware_boot_acceptance": false,
+  "cleanup": {
+    "roles": {
+      "jtag-readonly": {
+        "private_server_absent": true,
+        "clock_readback": {
+          "auto_adjust": 1,
+          "clock": "15M"
+        },
+        "usb_permissions_restored": true
+      },
+      "jtag-vendor-first": {
+        "private_server_absent": true,
+        "clock_readback": {
+          "auto_adjust": 1,
+          "clock": "15M"
+        },
+        "usb_permissions_restored": true
+      }
+    },
+    "uart_owners": [],
+    "status": "passed"
+  },
+  "prior_failed_attempt_archive": "/home/deano/fes-retained/de25-native-autoboot-scan-stop-20261111-r1",
+  "evidence_sha256": {
+    "out/nano-autoboot-link-inspect-20261111/finalize.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-autoboot-link-inspect-20261111/finalize.py": "91d2bcc0a54a9e63320e2fd960eccd8a21e2c2f9ef1ebd0f8399bb426916c4ea",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/forced-scan.log": "55e1a4770b719cb153e30c00e30f528b270b2c27cbf0dc91d390ba8a2f2630ad",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/private-client-setup.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/private-client.conf": "db04d43cf8eb61ddd94c8c07c16a6b0357515382077e9cda36ee196eb17271b1",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/private-pid": "22caa48a986ad5e98147218c1d2993df4798a1ca8ea664013cbc11858d637cc7",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/private-port": "ce2cce481c1e5abfd967037dcb874e419100f7c8e138f52ebc19e45f0b5246cd",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/private-server.log": "313024a2d27e45e1bf2ec046cf5695d802a800aa42e049777e9747e2299aa6ba",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/private-top-enumeration.log": "5536f22a9aff4c275ecda47cf67876ecf100d29e4cd7137eb4ae9c2362fe8473",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/progress.json": "174a3a9e5af5929697d3ab69d297e91ec6b9af983f0500f46c205a1ceb4fde77",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/read-0.log": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/read-1.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/read-10.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/read-3.log": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/read-5.log": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/read-6.log": "85c63fac9c727e3795d2f5b57e91a62757cc2ce9d1f34f6f6a737fd710a0d6d5",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/read-9.log": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/result.json": "b5776500c42cbeb9245085e86472ff9fb79d15cdbe58e02f298e29707a27f991",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/transport.json": "cd1acdcbcb00384768bea535e5b36b6baee0d57d774e2ad18e950007256d4b0b",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/vendor-list-after-forced-scan.log": "974d370a954cb8e2729f55bc57a93d89351a10a5f072f1ef3f5c34215069cde8",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/write-2.log": "8ae3543c6ecfd4b3fc409c8c1d7ec8161fd12a015efccc1c20d07849786a4a4e",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/write-4.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/write-7.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly/write-8.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly-process.json": "6346735e89e87bf8bb548851b87c94b99a1bdcd5730328888470f71134a3e5d8",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly-result.json": "381051edf5af95771c10c6dd0c42ee2eb2d73d8ebbbf04c8d8e0c6c9ce0d65d9",
+    "out/nano-autoboot-link-inspect-20261111/jtag-readonly.log": "7637e8425b0ee76ec8fa62e2ba109c7a25b1171cf67aa3c83943113c7be6e008",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/forced-scan.log": "1dabbc88af566555646c8e41a0cd7729a420307a03252cf3d1378a8f387c4a1a",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/private-client-setup.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/private-client.conf": "23947c4f34f669955f8922a62833935b6bd095ad2ba9e653692a5bbbccbea55d",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/private-pid": "7ab968a71ee14f09d0152d520d4acbe730a42cfc562f414d133e756a35a2be42",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/private-port": "6b9fad887155f2286e0fc8fdebc3540d462d136e83ec3361be551c736f7b1729",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/private-server.log": "313024a2d27e45e1bf2ec046cf5695d802a800aa42e049777e9747e2299aa6ba",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/private-top-enumeration.log": "a2204545c08cfcecd9f09fb56caef4745b4fafd74de518fa2ffe0469c04a3fcd",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/progress.json": "fc5b6e0d2e06de1b7255c0b33e2a2268668e40a4072c541f875ce6eefb3e44d3",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/read-0.log": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/read-1.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/read-10.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/read-3.log": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/read-5.log": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/read-6.log": "85c63fac9c727e3795d2f5b57e91a62757cc2ce9d1f34f6f6a737fd710a0d6d5",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/read-9.log": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/result.json": "359e9dda9fc18ae5f551e5f20a362f73764b5ce1c0701ffc39813fefd48ac127",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/transport.json": "95d242702736a83dcd7a4a7f36877fd91b2004f0ff7ce4f7b2c4e26e59915014",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/vendor-list-after-forced-scan.log": "5593051dd8972cc2f547700ae6ac6a3c3362a054e34a49009ddb83b906415b8a",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/vendor-list-before-forced-scan.log": "0ee0e1677caeaf769e20d77e38d191e4d3c5084f8d348cca8976bca85e28ae28",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/write-2.log": "8ae3543c6ecfd4b3fc409c8c1d7ec8161fd12a015efccc1c20d07849786a4a4e",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/write-4.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/write-7.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first/write-8.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first-process.json": "ad3575b34fe44a99a78fb77f9a8f08d220cd8bbb6b2c53c5a2ef3844f4c649e1",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first-result.json": "3b974629c48444896380a323d61b235c2ba4cc007cff157be52676ee7a954105",
+    "out/nano-autoboot-link-inspect-20261111/jtag-vendor-first.log": "7637e8425b0ee76ec8fa62e2ba109c7a25b1171cf67aa3c83943113c7be6e008",
+    "out/nano-autoboot-link-inspect-20261111/jtag_probe_once.py": "7ffe1531b1688fc3dacbf7d4a3d5b18976ad5698d728933cb4d7f174db179655",
+    "out/nano-autoboot-link-inspect-20261111/jtag_vendor_first_control.py": "b718d69de26430524d657428c15dc627b0efa39d35e9ef81d24fa4b725f2fb31",
+    "out/nano-autoboot-link-inspect-20261111/run.py": "10e64dd990d75e256c8498a018dad8c33d5cbb0a84f08cc53cd86ac394a399e7",
+    "out/nano-autoboot-link-inspect-20261111/uart-progress.json": "54b3baa362a9fab5dea98becc4a9e9fb4fbd151fa95d880a5d1274edffe5a309",
+    "out/nano-autoboot-link-inspect-20261111/uart-response-process.json": "933dc0ce63d3694ab3e5e5d819aaf839d2448d91c8cce695fdca24fa9a686a91",
+    "out/nano-autoboot-link-inspect-20261111/uart-response-result.json": "e7e601a6eb1db5052cae3d3713904aa3cf009055f66a80109fcafe5d353eefa2",
+    "out/nano-autoboot-link-inspect-20261111/uart-response.bin": "994670edb8e8576a3b80c89f94b0b381e72bf63fe27a00781511012938ff273b",
+    "out/nano-autoboot-link-inspect-20261111/uart-response.log": "af385bbff470c4bb5c82e0706aeee329e3af7f145868398557f85d013f1691f1",
+    "out/nano-autoboot-link-inspect-20261111/uart-result.json": "e2921e394c1b2ebd0168406a78de2335307823803ccf7e39315ac1772924ec5f",
+    "out/nano-autoboot-link-inspect-20261111/uart_probe.py": "5c78f27ae4fe26c3c9729830d43d098dd8905d350ee28b2606a3f5f44abcf308"
+  }
+}
