@@ -47,10 +47,9 @@
 # error code's slot, whose probe and store D drops for a delivery without
 # one, and whose jump's step of ESP is a slot less then. nwrap = true checks
 # a protected-mode far CALL's, RETF's or IRET's stack slot on a 16-bit stack
-# without the 64 KiB wrap, as Bochs does; vmchk = true stops IRETD as not
-# built when its EFLAGS image has VM set. iimm = true keeps the
+# without the 64 KiB wrap, as Bochs does. iimm = true keeps the
 # instruction's immediate (RETF imm16's) rather than the word's. d and b
-# also name T4 (IRET's EFLAGS image).
+# also name T4 (IRET's EFLAGS image). A slot is -16 to 15.
 #
 # Privilege transitions (fes_i386_cpu, "Privilege transitions"). hold =
 # true on a CS check's uop makes WB keep the staged CS descriptor and
@@ -67,6 +66,31 @@
 # jump writes CS from the hold, and with xp SS from the staged descriptor
 # and ESP from T5 plus imm (an outer return also nulls ES, DS, FS and GS
 # below the new CPL). d and b also name T5.
+#
+# A protected-mode far CALL (pcall, pcallm): its descriptor's check holds
+# it and says whether it is a call gate (cg). xc = "direct" issues the uop
+# only to a code segment, "gate" only through a call gate, "gsame" only
+# through one to the same privilege; xend = true ends the routine at the
+# uop when its xc keeps it. pm = "load" and "store" are a call gate's
+# parameter copy, which repeats for the gate's count (fes_i386_seq); pm =
+# "below" puts the uop's slot below the parameters, with xp. zx = true
+# stores the old ESP or the return EIP as SP or IP from a 16-bit stack or
+# code segment. pimm = true addresses the stack slot past the instruction's
+# immediate too (RETF imm16's SS and ESP). op = "gate" with imm = 1 splits
+# a call gate (T2 and T3) as GATE splits a delivery's. op = "dr" writes T1
+# into the debug register imm names (iimm, the instruction's).
+#
+# V86 mode (fes_i386_cpu, "V86 mode"). vgo = true on a protected-mode
+# IRET's word makes it and the word after it NOPs for an IRETD at CPL 0
+# whose EFLAGS image (T4) has VM set, and the routine goes on at v86ret
+# (fes_i386_seq). v86 = true on a segment load (cls = "segment", op =
+# "load", d a segment register) gives the segment V86 mode's cache; on the
+# far jump into V86 mode it sets VM and CPL 3, loads ESP from T5 and CS as
+# a V86 segment, with EIP T1's low word; on a delivery's jump out of it
+# (xfer) it clears VM and nulls ES, DS, FS and GS. segchk = "v86cs" raises
+# a delivery's CS checks ("intcs") and #GP(selector) for a CS that is not
+# nonconforming code below CPL 3; "v86dpl" #GP(selector) for one whose DPL
+# is not 0, the selector T0's while T0 still holds it.
 
 # IN and OUT at a CPL above IOPL (allow_io): DC puts the port in T5 (DX, or
 # the imm8). The ROM reads the TSS's I/O permission bitmap's base, the word
@@ -178,6 +202,116 @@ uops = [
     { cls = "branch", op = "jmp", far_jmp = true, far_t = true, sp_add = true, stk = "retf", slot = 3, iret = true },
 ]
 
+# The return to V86 mode (stack_return_to_v86): piret's vgo word goes on
+# here for an IRETD at CPL 0 whose EFLAGS image (T4) has VM set, CS's slot
+# in T0 and the offset's in T1. ESP's slot into T5; a probe of SS's, ES's,
+# DS's and FS's slots, then GS's load, so every slot is read before
+# anything is written, as Bochs reads all six first; FS, DS, ES and SS from
+# their slots (dwords, each selector the low word, without the 64 KiB wrap
+# on a 16-bit stack), each a V86 segment; the flags from T4 (at CPL 0,
+# IOPL, IF and RF too); then the jump, which loads CS (T0) as a V86
+# segment, EIP from T1's low word (Bochs checks no limit) and ESP from T5,
+# and sets VM and CPL 3.
+[[routine]]
+name = "v86ret"
+uops = [
+    { cls = "alu", op = "mov", d = "t5", size = "32", mkind = "load", stk = "peek", slot = 3, nwrap = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = 4, nwrap = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = 5, nwrap = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = 6, nwrap = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = 7, nwrap = true },
+    { cls = "segment", op = "load", d = "gs", size = "16", mkind = "load", stk = "peek", slot = 8, nwrap = true, v86 = true },
+    { cls = "segment", op = "load", d = "fs", size = "16", mkind = "load", stk = "peek", slot = 7, nwrap = true, v86 = true },
+    { cls = "segment", op = "load", d = "ds", size = "16", mkind = "load", stk = "peek", slot = 6, nwrap = true, v86 = true },
+    { cls = "segment", op = "load", d = "es", size = "16", mkind = "load", stk = "peek", slot = 5, nwrap = true, v86 = true },
+    { cls = "segment", op = "load", d = "ss", size = "16", mkind = "load", stk = "peek", slot = 4, nwrap = true, v86 = true },
+    { cls = "alu", op = "flags", imm = 12, b = "t4", wr_cf = true, wr_oszap = true },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, iret = true, v86 = true },
+]
+
+# IRET and IRETD in V86 mode at IOPL 3 (iret16_stack_return_from_v86 and
+# iret32's; below IOPL 3 DC raises #GP(0)): the real-mode routine, but with
+# no check of the offset against CS's limit (Bochs loads IRETD's whole; past
+# FFFFh the next fetch faults), CS loaded as a V86 segment and the flags by
+# CPL 3: IF, not IOPL or VM.
+[[routine]]
+name = "viret"
+uops = [
+    { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", stk = "peek", slot = 1 },
+    { cls = "alu", op = "flags", imm = 12, mkind = "load", stk = "peek", slot = 2, wr_cf = true, wr_oszap = true },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, sp_add = true, stk = "retf", slot = 3, iret = true },
+]
+
+# A delivery from V86 mode (protected_mode_int with v8086_mode()): DC's
+# entry as pvec's, or INT n's and INT3's first uop the gate's low dword
+# (INT n at IOPL 3; below it DC raises #GP(0)). As pint, but its CS must be
+# nonconforming code below CPL 3 (#GP(selector), as the hold's check), whose
+# DPL, after the TSS's stack is read, must be 0 (#GP(selector)), so it
+# always moves to the stack of CPL 0. The stores, at the gate's size, push
+# GS, FS, DS and ES first, then SS, ESP, EFLAGS (VM set), CS, EIP and the
+# error code; the jump clears VM and nulls ES, DS, FS and GS.
+[[routine]]
+name = "vvec"
+falls_through = true
+uops = [
+    { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", mbytes = "4", desc = "idtlo" },
+]
+
+[[routine]]
+name = "vint"
+uops = [
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "idthi" },
+    { cls = "system", op = "gate", d = "t0", segchk = "gate" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
+    { cls = "alu", op = "mov", segchk = "v86cs", hold = true },
+    { cls = "alu", op = "mov", d = "t5", size = "32", mkind = "load", tss = "esp" },
+    { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", mbytes = "2", tss = "ss", segchk = "v86dpl" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", dmode = "ts" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", dmode = "ts" },
+    { cls = "alu", op = "mov", segchk = "ssint" },
+    { cls = "alu", op = "mov", segchk = "hoff" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -1, gsz = true, nstk = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -2, gsz = true, nstk = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -3, gsz = true, nstk = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -4, gsz = true, nstk = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -5, gsz = true, nstk = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -6, gsz = true, nstk = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -7, gsz = true, nstk = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -8, gsz = true, nstk = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -9, gsz = true, nstk = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -10, gsz = true, errp = true, nstk = true },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "gs", mkind = "store", in_a = true, stk = "peek", slot = -1, gsz = true, nstk = true },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "fs", mkind = "store", in_a = true, stk = "peek", slot = -2, gsz = true, nstk = true },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "ds", mkind = "store", in_a = true, stk = "peek", slot = -3, gsz = true, nstk = true },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "es", mkind = "store", in_a = true, stk = "peek", slot = -4, gsz = true, nstk = true },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "ss", mkind = "store", in_a = true, stk = "peek", slot = -5, gsz = true, nstk = true },
+    { cls = "alu", op = "mov", s2 = "esp", mkind = "store", in_a = true, stk = "peek", slot = -6, gsz = true, nstk = true },
+    { cls = "alu", op = "flags", imm = 13, mkind = "store", in_a = true, stk = "peek", slot = -7, gsz = true, rd_cf = true, rd_oszap = true, nstk = true },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "cs", mkind = "store", in_a = true, stk = "peek", slot = -8, gsz = true, nstk = true },
+    { cls = "alu", op = "mov", b = "eip", mkind = "store", in_a = true, stk = "peek", slot = -9, gsz = true, nstk = true },
+    { cls = "alu", op = "mov", b = "sys", sys = "err", mkind = "store", in_a = true, stk = "peek", slot = -10, gsz = true, errp = true, nstk = true },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "hacc" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc" },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = -8, gsz = true, errp = true, xs = true, xfer = true, v86 = true },
+]
+
+# INS and OUTS under the I/O permission bitmap: in V86 mode, or at a CPL
+# above IOPL (allow_io, once before a REP's first element, its count 0
+# too). DC decodes the string's first uop as a NOP that starts this
+# routine: DX into T5, then iochk's reads of the bitmap's base and the
+# port's word and its check for the element's size; then the string's
+# first uop, which starts the string (iof, fes_i386_seq).
+[[routine]]
+name = "iostr"
+uops = [
+    { cls = "alu", op = "mov", s2 = "edx", d = "t5", size = "32" },
+    { cls = "alu", op = "mov", d = "t4", size = "32", mkind = "load", mbytes = "2", tss = "iomap" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "2", tss = "bitmap" },
+    { cls = "alu", op = "mov", segchk = "iobm" },
+    { cls = "special", iof = true },
+]
+
 # BOUND. DC decodes the load of the upper bound, past the lower by the
 # operand size and wrapped by address size, into T1, with the register in
 # src1. The ROM loads the lower bound and compares the register with it,
@@ -213,6 +347,14 @@ uops = [
 name = "wcr3"
 uops = [
     { cls = "system", op = "cr3", b = "t1" },
+]
+
+# MOV DRn, r32: DC puts the register in T1 and the debug register's number
+# in imm, which the write keeps (iimm).
+[[routine]]
+name = "wdr"
+uops = [
+    { cls = "system", op = "dr", b = "t1", iimm = true },
 ]
 
 [[routine]]
@@ -381,11 +523,11 @@ uops = [
 ]
 
 # IRET and IRETD in protected mode (iret_protected): DC reads the EFLAGS
-# slot into T4 (IRETD at CPL 0 with VM set in it stops as not built: V86);
-# the ROM reads CS's slot into T0 and the offset's into T1, in Bochs's order,
-# so a frame past the stack's limit faults before any read; each at SP plus
-# its slot without the 64 KiB wrap on a 16-bit stack, as Bochs reads them;
-# then CS's descriptor and its checks, which WB holds with xp for a return
+# slot into T4; the ROM reads CS's slot into T0 and the offset's into T1, in
+# Bochs's order, so a frame past the stack's limit faults before any read;
+# each at SP plus its slot without the 64 KiB wrap on a 16-bit stack, as
+# Bochs reads them. An IRETD at CPL 0 whose image has VM set returns to V86
+# mode (vgo, v86ret). Then CS's descriptor and its checks, which WB holds with xp for a return
 # to an outer privilege (RPL above CPL). That reads SS's word slot into T0,
 # its descriptor and checks against the new CPL, and ESP's slot into T5.
 # Then the offset's check against the held CS's limit with its accessed
@@ -398,7 +540,7 @@ name = "piret"
 uops = [
     { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", stk = "peek", slot = 1, nwrap = true },
     { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", stk = "peek", slot = 0, nwrap = true },
-    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", vgo = true },
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
     { cls = "alu", op = "mov", segchk = "ret", hold = true },
     { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", mbytes = "2", stk = "peek", slot = 4, nwrap = true, xc = "xp" },
@@ -412,41 +554,91 @@ uops = [
     { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = 3, iret = true, xfer = true },
 ]
 
-# RETF and RETF imm16 in protected mode, to the same privilege (to an outer
-# one is not built): DC reads
-# CS's slot into T0; the ROM reads the offset's into T1, in Bochs's order, as
-# IRET does, then CS's descriptor, its checks and the offset's with the
-# accessed bit, and the jump, which steps ESP past the two slots and imm16.
+# RETF and RETF imm16 in protected mode (return_protected): DC reads CS's
+# slot into T0; the ROM reads the offset's into T1, in Bochs's order, as IRET
+# does, then CS's descriptor and its checks, which WB holds with xp for a
+# return to an outer privilege (RPL above CPL). To the same privilege, the
+# offset's check with the accessed bit and the jump, which ends the routine.
+# With xp, SS's word slot
+# into T0 and ESP's slot into T5, each past the two slots and imm16 (pimm),
+# then SS's descriptor and its checks against the new CPL. Then the
+# offset's check against the held CS's limit with its accessed bit, SS's
+# accessed bit, and the jump, which loads SS and ESP (T5 plus imm16) and
+# nulls the data segments the new CPL may not use.
 [[routine]]
 name = "pretf"
 uops = [
     { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", stk = "peek", slot = 0, nwrap = true },
     { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
-    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "rets" },
-    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = 2, iimm = true },
+    { cls = "alu", op = "mov", segchk = "ret", hold = true },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "hacc", segchk = "hoff", xc = "same" },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = 2, iimm = true, xfer = true, xc = "same", xend = true },
+    { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", mbytes = "2", stk = "peek", slot = 3, nwrap = true, iimm = true, pimm = true, xc = "xp" },
+    { cls = "alu", op = "mov", d = "t5", size = "32", mkind = "load", stk = "peek", slot = 2, nwrap = true, iimm = true, pimm = true, xc = "xp" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", xc = "xp" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", xc = "xp" },
+    { cls = "alu", op = "mov", segchk = "ssret", xc = "xp" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "hacc", segchk = "hoff", xc = "xp" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", xc = "xp" },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, stk = "retf", slot = 2, iimm = true, xfer = true },
 ]
 
-# A far CALL in protected mode, at CPL 0 to a code segment (no gates): CALL
-# ptr's offset is in T1 (DC) and its selector goes into T0; CALL
-# m16:16/32's selector is in T0 (DC) and its offset goes into T1. The
-# descriptor's dwords and its checks; a probe of each of the two slots, at
-# SP less its slot without the 64 KiB wrap on a 16-bit stack, as Bochs
-# writes them; the offset's check with the accessed bit; CS and the next
-# EIP, each an operand-sized slot; then the jump, which steps ESP past them.
+# A far CALL in protected mode (call_protected): CALL ptr's offset is in T1
+# (DC) and its selector goes into T0; CALL m16:16/32's selector is in T0
+# (DC) and its offset goes into T1. The descriptor's dwords and its checks,
+# which WB holds: a code segment (direct), or a call gate (gate), whose
+# other system types stop as not built. Direct: a probe of each of the two
+# slots, at SP less its slot without the 64 KiB wrap on a 16-bit stack, as
+# Bochs writes them; the offset's check against the held limit with the
+# accessed bit; CS and the next EIP, each an operand-sized slot; the jump,
+# which steps ESP past them and ends the routine. Through a
+# call gate (call_gate): its selector into T0 and offset into T1, with its
+# size and parameter count; the code descriptor's dwords and checks, which
+# WB holds with xp for a nonconforming CS below CPL, an inner privilege.
+# With xp, the new stack's ESP into T5 and SS into T0 from the TSS for CS's
+# DPL, SS's descriptor (#TS past its table) and its checks; then in Bochs's
+# order on the new stack, at the gate's size: the old SS, the old ESP (SP
+# from a 16-bit stack), each parameter from the old stack's highest down,
+# CS and the return EIP (IP from 16-bit code). The parameter's load and
+# store repeat for the gate's count (pm). Without xp, CS and the next EIP
+# pushed at the gate's size, wrapping as PUSH does. Then the gate's offset
+# against the held limit with the accessed bit, and with xp SS's. The jump
+# writes CS from the hold and steps ESP past the two slots at the gate's
+# size, or with xp loads SS and ESP.
 [[routine]]
 name = "pcall"
 uops = [
     { cls = "alu", op = "mov", d = "t0", size = "32", b = "far" },
     { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
-    { cls = "alu", op = "mov", segchk = "call" },
-    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -1, nwrap = true },
-    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -2, nwrap = true },
-    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "off" },
-    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "cs", mkind = "store", in_a = true, stk = "peek", slot = -1 },
-    { cls = "alu", op = "mov", b = "eip", mkind = "store", in_a = true, stk = "peek", slot = -2 },
-    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = -2 },
+    { cls = "alu", op = "mov", segchk = "call", hold = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -1, nwrap = true, xc = "direct" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -2, nwrap = true, xc = "direct" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "hacc", segchk = "hoff", xc = "direct" },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "cs", mkind = "store", in_a = true, stk = "peek", slot = -1, xc = "direct" },
+    { cls = "alu", op = "mov", b = "eip", mkind = "store", in_a = true, stk = "peek", slot = -2, xc = "direct" },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = -2, gsz = true, xfer = true, xc = "direct", xend = true },
+    { cls = "system", op = "gate", imm = 1, d = "t0", xc = "gate" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", xc = "gate" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", xc = "gate" },
+    { cls = "alu", op = "mov", segchk = "intcs", hold = true, xc = "gate" },
+    { cls = "alu", op = "mov", d = "t5", size = "32", mkind = "load", tss = "esp", xc = "xp" },
+    { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", mbytes = "2", tss = "ss", xc = "xp" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", dmode = "ts", xc = "xp" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", dmode = "ts", xc = "xp" },
+    { cls = "alu", op = "mov", segchk = "ssint", xc = "xp" },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "ss", mkind = "store", in_a = true, stk = "peek", slot = -1, gsz = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", s2 = "esp", mkind = "store", in_a = true, stk = "peek", slot = -2, gsz = true, nstk = true, zx = true, xc = "xp" },
+    { cls = "alu", op = "mov", d = "t4", size = "32", mkind = "load", stk = "peek", gsz = true, nwrap = true, pm = "load", xc = "xp" },
+    { cls = "alu", op = "mov", b = "t4", mkind = "store", in_a = true, stk = "peek", gsz = true, nstk = true, pm = "store", xc = "xp" },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "cs", mkind = "store", in_a = true, stk = "peek", slot = -3, gsz = true, nstk = true, pm = "below", xc = "xp" },
+    { cls = "alu", op = "mov", b = "eip", mkind = "store", in_a = true, stk = "peek", slot = -4, gsz = true, nstk = true, pm = "below", zx = true, xc = "xp" },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "cs", mkind = "store", in_a = true, stk = "peek", slot = -1, gsz = true, xc = "gsame" },
+    { cls = "alu", op = "mov", b = "eip", mkind = "store", in_a = true, stk = "peek", slot = -2, gsz = true, xc = "gsame" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "hacc", segchk = "hoff", xc = "gate" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", xc = "xp" },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = -2, gsz = true, pm = "below", xs = true, xfer = true },
 ]
 
 [[routine]]
@@ -455,13 +647,33 @@ uops = [
     { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", rm = true },
     { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
-    { cls = "alu", op = "mov", segchk = "call" },
-    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -1, nwrap = true },
-    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -2, nwrap = true },
-    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "off" },
-    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "cs", mkind = "store", in_a = true, stk = "peek", slot = -1 },
-    { cls = "alu", op = "mov", b = "eip", mkind = "store", in_a = true, stk = "peek", slot = -2 },
-    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = -2 },
+    { cls = "alu", op = "mov", segchk = "call", hold = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -1, nwrap = true, xc = "direct" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -2, nwrap = true, xc = "direct" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "hacc", segchk = "hoff", xc = "direct" },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "cs", mkind = "store", in_a = true, stk = "peek", slot = -1, xc = "direct" },
+    { cls = "alu", op = "mov", b = "eip", mkind = "store", in_a = true, stk = "peek", slot = -2, xc = "direct" },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = -2, gsz = true, xfer = true, xc = "direct", xend = true },
+    { cls = "system", op = "gate", imm = 1, d = "t0", xc = "gate" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", xc = "gate" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", xc = "gate" },
+    { cls = "alu", op = "mov", segchk = "intcs", hold = true, xc = "gate" },
+    { cls = "alu", op = "mov", d = "t5", size = "32", mkind = "load", tss = "esp", xc = "xp" },
+    { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", mbytes = "2", tss = "ss", xc = "xp" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", dmode = "ts", xc = "xp" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", dmode = "ts", xc = "xp" },
+    { cls = "alu", op = "mov", segchk = "ssint", xc = "xp" },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "ss", mkind = "store", in_a = true, stk = "peek", slot = -1, gsz = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", s2 = "esp", mkind = "store", in_a = true, stk = "peek", slot = -2, gsz = true, nstk = true, zx = true, xc = "xp" },
+    { cls = "alu", op = "mov", d = "t4", size = "32", mkind = "load", stk = "peek", gsz = true, nwrap = true, pm = "load", xc = "xp" },
+    { cls = "alu", op = "mov", b = "t4", mkind = "store", in_a = true, stk = "peek", gsz = true, nstk = true, pm = "store", xc = "xp" },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "cs", mkind = "store", in_a = true, stk = "peek", slot = -3, gsz = true, nstk = true, pm = "below", xc = "xp" },
+    { cls = "alu", op = "mov", b = "eip", mkind = "store", in_a = true, stk = "peek", slot = -4, gsz = true, nstk = true, pm = "below", zx = true, xc = "xp" },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "cs", mkind = "store", in_a = true, stk = "peek", slot = -1, gsz = true, xc = "gsame" },
+    { cls = "alu", op = "mov", b = "eip", mkind = "store", in_a = true, stk = "peek", slot = -2, gsz = true, xc = "gsame" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "hacc", segchk = "hoff", xc = "gate" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", xc = "xp" },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = -2, gsz = true, pm = "below", xs = true, xfer = true },
 ]
 
 # LLDT (CPL 0): DC puts the selector in T0. Its descriptor from the GDT

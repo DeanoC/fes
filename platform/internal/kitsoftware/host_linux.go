@@ -28,12 +28,20 @@ type hostPlan struct {
 func (c *ProcessController) planHostLocked(root string, env []string) {
 	c.hostPlan = nil
 	c.hostRestart, c.hostDelay = time.Time{}, 0
-	c.hostPlan = &hostPlan{path: filepath.Join(root, hostExecutable), args: []string{"host"}, env: hostEnv(env)}
+	args := []string{"host"}
+	if c.PermitUpdateBlocked {
+		// A trial factory must stay on tmpfs even if it restarts after trial
+		// confirmation mounts FESDATA3 but before the queued selection stops
+		// this group and checkpoints the durable catalog. Keep this choice in
+		// the saved plan; the next ordinary group gets a new durable plan.
+		args = append(args, "-kit-state", "/run/fogcast/kit-host")
+	}
+	c.hostPlan = &hostPlan{path: filepath.Join(root, hostExecutable), args: args, env: hostEnv(env)}
 }
 
 // hostEnv is the group environment without the activation claim, the
 // launcher readiness file and the recovery fence. Those belong to the agent
-// and the launcher; the host is not part of activation.
+// and the launcher. The host proves API readiness without owning those claims.
 func hostEnv(env []string) []string {
 	out := make([]string, 0, len(env))
 	for _, kv := range env {

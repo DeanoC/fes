@@ -11,6 +11,7 @@
 #include "verilated.h"
 
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -41,12 +42,35 @@ struct Machine {
     unsigned frames = 0;
     bool old_vsync = false;
     bool acknowledge_keys = false;  // type() waits for the editor to take each key
+    bool watch_display_fetches = false;
+    bool reading_peek = false;
+    unsigned display_fetches = 0;
+    bool watch_display_cell = false;
+    uint16_t display_cell_address = 0;
+    uint8_t display_cell_value = 0;
+    unsigned display_cell_writes = 0;
 
     void tick() {
         if (!tape.empty())
             dut.tape_data = tape[dut.tape_addr_out < tape.size() ? dut.tape_addr_out : 0];
+        const uint16_t address = dut.cpu_addr;
+        const bool display_fetch = watch_display_fetches && !reading_peek &&
+            (address & 0xc000) == 0xc000 && !dut.bus_m1_n && !dut.bus_mreq_n &&
+            !dut.bus_rd_n && dut.halt_n;
+        if (watch_display_cell && dut.ram_write_enable &&
+            dut.ram_address == (display_cell_address & 0x3fff) &&
+            dut.ram_write_data == display_cell_value)
+            ++display_cell_writes;
+        if (display_fetch) dut.peek_addr = address & 0x7fff;
         dut.clk_sys = 1;
         dut.eval();
+        if (display_fetch) {
+            ++display_fetches;
+            const uint8_t op = dut.peek_data;
+            if ((op & 0x40) && op != 0x76)
+                fail("display executed invalid byte " + std::to_string(op) +
+                     " at " + std::to_string(address));
+        }
         dut.clk_sys = 0;
         dut.eval();
         ticks++;
@@ -56,9 +80,11 @@ struct Machine {
     }
 
     uint8_t peek(uint16_t addr) {
+        reading_peek = true;
         dut.peek_addr = addr;
         dut.eval();
         tick();                 // port B is registered
+        reading_peek = false;
         return uint8_t(dut.peek_data);
     }
 
@@ -725,6 +751,59 @@ void test_16k_regressions(Machine &m) {
     test_loaded_input_key(m);
 }
 
+// A collapsed display can expose a moved variable as an opcode while a
+// PRINT AT or PLOT expands a row. Watch every M1 in the display echo, not
+// just the completed display file after the move.
+void test_slow_display_gap(Machine &m, const std::string &which) {
+    m.acknowledge_keys = true;
+    type(m, "A NL");
+    type(m, "1 0 L A SHIFT+L 1 NL");           // 10 LET A=1
+    type(m, "2 0 V NL");                       // 20 CLS
+    if (which == "plot")
+        type(m, "3 0 Q 6 3 SHIFT+. 4 3 NL"); // 30 PLOT 63,43
+    else if (which == "edge")
+        type(m, "3 0 P SHIFT+NL C 2 1 SHIFT+. 3 SHIFT+X SHIFT+P X SHIFT+P NL");
+    else if (which == "short")
+        type(m, "3 0 P SHIFT+NL C 0 SHIFT+. 5 SHIFT+X SHIFT+P X SHIFT+P NL");
+    else {
+        require(which == "print", "unknown slow-gap case");
+        type(m, "3 0 P SHIFT+NL C 0 SHIFT+. 3 1 SHIFT+X SHIFT+P X SHIFT+P NL");
+    }
+    type(m, "4 0 G 2 0 NL");                 // 40 GOTO 20
+    m.watch_display_fetches = true;
+    type(m, "R NL");
+    const uint16_t dfile = m.word(0x400c);
+    const bool collapsed = m.word(0x4004) < 0x4d00;
+    const unsigned row = which == "edge" ? 21 : 0;
+    const unsigned col = which == "short" ? 5 : which == "edge" ? 3 : 31;
+    m.display_cell_address = dfile + 1 + row * (collapsed ? 1 : 33) + col;
+    m.display_cell_value = which == "plot" ? 2 : 0x3d; // top-right block or X
+    m.display_cell_writes = 0;
+    m.display_fetches = 0;
+    m.watch_display_cell = true;
+    m.run_frames(600);
+    m.watch_display_cell = false;
+    require(m.display_cell_writes != 0, "the expected display character was never written");
+    require(m.display_fetches >= 100, "the display echo was not monitored during the loop");
+    m.dut.keyboard = key_state({"SP"});
+    bool stopped = false;
+    for (unsigned i = 0; i != 50 && !stopped; ++i) {
+        m.run_frames(1);
+        stopped = m.peek(0x4000) == 0x0c;
+    }
+    m.run_frames(12);
+    m.dut.keyboard = 0xffffffffffull;
+    m.run_frames(6);
+    const std::string report = row_text(m, 23);
+    // BREAK can land in any statement of the 20 CLS / 30 operation /
+    // 40 GOTO 20 loop, including while the display is being cleared.
+    require(stopped && (report == "D/20" || report == "D/30" || report == "D/40"),
+            "BREAK did not stop the SLOW display loop: " + report);
+    require(m.peek(m.word(0x4010)) == 0x66, "LET A did not run before the loop");
+    m.watch_display_fetches = false;
+    std::cout << "SLOW " << which << ": 600 frames and BREAK " << report << '\n';
+}
+
 struct Frame {
     unsigned lines = 0;         // hsyncs from one vsync to the next
     unsigned sync = 0;          // hsyncs while vsync is high
@@ -795,11 +874,19 @@ void boot(Machine &m) {
 }  // namespace
 
 int main(int argc, char **argv) {
+    // Keep progress visible when the long-running suite writes to CI logs.
+    std::setvbuf(stdout, nullptr, _IOLBF, 0);
     Verilated::commandArgs(argc, argv);
     require(argc >= 2, "usage: geometry | check TAPE.p");
     const std::string mode = argv[1];
     Machine m;
     boot(m);
+
+    if (mode == "slow-gap") {
+        require(argc == 3, "usage: slow-gap print|edge|plot|short");
+        test_slow_display_gap(m, argv[2]);
+        return 0;
+    }
 
     if (mode == "geometry") {
         if (argc > 2) m.run_frames(std::stoul(argv[2]));
@@ -888,6 +975,11 @@ int main(int argc, char **argv) {
     // 36-43. NTSC (the TS1000 build, 2 KiB): 262 lines, the cell at 219-226.
     const uint16_t ramtop = m.word(0x4004);
     const bool ntsc = m.peek(0x4028) == 31;    // MARGIN, from the 50/60 Hz link
+    const std::string profile = ntsc ? "TS1000 2 KiB" : (ramtop == 0x8000 ? "ZX81 16 KiB" : "ZX81 1 KiB");
+    auto progress = [&](const char *section) {
+        std::cerr << ("[" + profile + "] " + section + "\n");
+    };
+    progress("boot and display geometry");
     std::cout << "RAMTOP=" << std::hex << ramtop << std::dec << (ntsc ? " NTSC" : " PAL") << '\n';
     require(ramtop == (ntsc ? 0x4800 : 0x4400) || ramtop == 0x8000,
             "RAMTOP is not the top of 1 KiB (2 KiB on the TS1000) or 16 KiB");
@@ -902,6 +994,21 @@ int main(int argc, char **argv) {
     // above all at 60 Hz, so wait for the editor to take each key.
     m.acknowledge_keys = true;
 
+    // Check the reported right edge, the row-dependent boundary, PLOT, and
+    // a short-row control on both collapsed displays. The expanded 16 KiB
+    // machine is an independent PRINT AT control.
+    progress("SLOW PRINT regression");
+    test_slow_display_gap(m, "print");
+    if (ramtop != 0x8000) {
+        progress("SLOW edge regression");
+        test_slow_display_gap(m, "edge");
+        progress("SLOW PLOT regression");
+        test_slow_display_gap(m, "plot");
+        progress("SLOW short-row control");
+        test_slow_display_gap(m, "short");
+    }
+
+    progress("keyboard and BASIC functional checks");
     // Enter is consumed by the end-of-frame keyboard scan, so NEW runs at the
     // NMI boundary. It must stop the display before clearing the system
     // variables, then publish a valid display file and restart SLOW mode.
@@ -1141,16 +1248,23 @@ int main(int argc, char **argv) {
               << row_text(m, 23) << "'\n";
     require(row_text(m, 21) == "30" && row_text(m, 20) == "29", "SCROLL lost the screen");
     require(row_text(m, 23) == "0/40", "the SCROLL loop did not end with 0/40");
+    progress("PAUSE, SCROLL and DIM");
     test_pause_scroll_dim(m);
+    progress("report, PLOT and FUNCTION");
     test_report_room_plot_function(m);
+    progress("slice copy and GOSUB");
     test_slice_copy_gosub_room(m);
+    progress("CONT and FAST PAUSE");
     test_cont_fast_pause(m);
+    progress("deep, long and wide expressions");
     test_deep_long_wide(m);
+    progress("quote and graphics");
     test_quote_graphics(m);
 
     // Exercise the display start/stop boundary repeatedly. The original
     // frame-sampling order could wait forever after the NMI stopped frames.
     if (ramtop == 0x8000) {
+        progress("FAST/SLOW NMI boundary loop");
         type(m, "A NL");
         type(m, "1 0 SHIFT+D NL");
         type(m, "2 0 M 1 NL");
@@ -1174,11 +1288,17 @@ int main(int argc, char **argv) {
     // grows the collapsed display. Fill a 1 KiB image so DIM fails with only
     // the dimension value occupying the workspace.
     if (ramtop == 0x4400) {
+        progress("low-memory report");
         test_low_memory_report(m);
     }
 
     // Exercise the held-key, overlong-line and SLOW STOP/CONT regressions.
-    if (ramtop == 0x8000) test_16k_regressions(m);
+    if (ramtop == 0x8000) {
+        progress("16 KiB regressions");
+        test_16k_regressions(m);
+    }
+
+    progress("complete");
 
     std::cout << "FES ZX81 open ROM: display, keyboard and rollover, edit, PRINT AT, INPUT, RETURN, INKEY$, "
                  "FAST/SLOW SAVE/LOAD, SCROLL, PAUSE, DIM, report 4 while printing, PLOT, FUNCTION, "

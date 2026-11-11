@@ -1,0 +1,16 @@
+== command
+/usr/bin/verilator --cc --exe --build -j 8 --top-module sms_machine -Wno-fatal -DFES_SMS_OSS=1 -DFES_COLECO_OSS=1 -CFLAGS -DFES_SMS_OSS=1 -DFES_COLECO_OSS=1 -Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 --Mdir s1c/z80/suite-rtl/obj cores/fes-sms/rtl/sms_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-sms/rtl/sms_vdp.sv cores/fes-sms/rtl/sms_psg.sv cores/fes-common/rtl/coleco_vdp.sv cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v cores/fes-common/rtl/tv80/tv80_reg.v sources/misteross/cores/fes-sms/sim/machine_tb.cpp
+== build (tail)
+- Verilator: Built from 1.412 MB sources in 15 modules, into 1.116 MB in 8 C++ files needing 0.001 MB
+- Verilator: Walltime 5.607 s (elab=0.049, cvt=0.348, bld=5.126); cpu 0.454 s on 8 threads; alloced 38.137 MB
+real	0m5.757s
+user	0m12.944s
+build exit 0
+warnings: 24
+== run
+FES SMS machine checks passed
+
+real	0m12.792s
+user	0m12.256s
+sys	0m0.004s
+run exit 0

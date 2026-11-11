@@ -25,6 +25,43 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BuildFesZx81Tests(unittest.TestCase):
+    def test_quartus_version_text_is_main_text_derived_from_the_core_lock(self) -> None:
+        import hashlib
+        import json
+        import os
+        import tempfile
+        from unittest.mock import patch
+
+        from scripts import build_fes_zx81 as producer
+
+        lock = producer.quartus_lock(ROOT)
+        self.assertEqual(lock.path, "cores/fes-zx81/quartus.lock")
+        self.assertIn(producer.QUARTUS_LOCK, producer.PINNED_INPUTS)
+        qsf = producer.project_qsf(ROOT, ROOT / producer.OUTPUT_RELATIVE / "project", "0" * 32)
+        self.assertIn('\nset_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"\n', qsf)
+        self.assertEqual(
+            producer.project_qpf(lock), 'QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n'
+        )
+        record = producer.create_build_record(
+            ROOT, "https://github.com/DeanoC/misteross.git", "0" * 40, {"quartus_sh": "fixture"}
+        )
+        self.assertEqual(json.loads(record)["parameters"]["compiler"], "quartus-17.0.2")
+        self.assertNotIn(b"quartus.lock", record)
+        with tempfile.TemporaryDirectory() as temporary:
+            fake = Path(temporary) / "quartus_sh"
+            fake.write_bytes(b"fake quartus_sh")
+            with patch.object(producer, "locate_quartus",
+                              return_value=(Path(temporary), fake, lock.version)) as located, \
+                    patch.dict(os.environ, {"QUARTUS_ROOTDIR": temporary}):
+                _, quartus_sh, version, identity = producer.authenticate_quartus(ROOT)
+            located.assert_called_once_with(temporary, ROOT, lock)
+        self.assertEqual(quartus_sh, fake)
+        self.assertEqual(version, "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition")
+        self.assertEqual(
+            identity, "version=17.0.2; sha256=" + hashlib.sha256(b"fake quartus_sh").hexdigest()
+        )
+        self.assertEqual(producer.toolchain_label(lock, identity), f"Quartus Prime Lite 17.0.2 ({identity})")
+
     def test_make_entrypoint_uses_the_quartus_recipe(self) -> None:
         result = subprocess.run(
             ["make", "-n", "build-fes-zx81-quartus"],
@@ -75,6 +112,8 @@ class BuildFesZx81Tests(unittest.TestCase):
     def test_zx81_smoke_runs_machine_variants_without_a_user_rom(self) -> None:
         env = os.environ.copy()
         env.pop("FES_ZX81_ROM", None)
+        env.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
+        env.pop("CACHE_ROOT", None)
         result = subprocess.run(
             ["make", "-n", "sim-fes-zx81-smoke"],
             cwd=ROOT,
@@ -90,6 +129,23 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertIn("variant_probe.hex", result.stdout)
         self.assertIn("zx80_load_probe.hex", result.stdout)
         self.assertIn('zx80:-DZX81_MODEL_ZX80', result.stdout)
+        self.assertIn("cores/fes-zx81/sim/diagnostic_tb.cpp", result.stdout)
+
+    def test_zx81_smoke_rejects_shared_cache_before_generating_firmware(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            marker = base / "python-invoked"
+            python = base / "python"
+            python.write_text(f"#!/bin/sh\ntouch '{marker}'\n", encoding="utf-8")
+            python.chmod(0o755)
+            env = dict(os.environ, FES_TOOLCHAIN_CACHE_ROOT=str(base / "cache"), CACHE_ROOT="")
+            result = subprocess.run(
+                ["make", "sim-fes-zx81-smoke", f"PYTHON={python}"],
+                cwd=ROOT, env=env, text=True, capture_output=True, check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("shared toolchain cache is unsupported", result.stderr)
+            self.assertFalse(marker.exists(), "firmware generator ran before the cache guard")
 
     def test_rom_benches_generate_and_use_hex_or_skip_without_rom(self) -> None:
         targets = (

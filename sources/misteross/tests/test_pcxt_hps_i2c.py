@@ -154,6 +154,14 @@ class HpsI2cReferenceTests(unittest.TestCase):
             with self.subTest(text=text[:20]), self.assertRaises((ValueError, ArithmeticError)):
                 self.parse(text)
 
+    def test_locked_quartus_bookkeeping_and_fit_version(self):
+        lock = reference.quartus_lock()
+        self.assertEqual(lock.qsf_version, '17.0.2 Lite Edition')
+        self.assertEqual(lock.version.removeprefix('Version '), '17.0.2 Build 602 07/19/2017 SJ Lite Edition')
+        text = reference.sources(0)['top.qsf']
+        self.assertNotEqual(reference.normalized_source(
+            'top.qsf', text + 'set_global_assignment -name LAST_QUARTUS_VERSION "17.0.1 Lite Edition"\n'), text)
+
     def test_source_identity_ignores_only_known_quartus_bookkeeping(self):
         text = reference.sources(0)['top.qsf']
         self.assertEqual(reference.normalized_source('top.qsf', text+'\nset_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"\n'), text)

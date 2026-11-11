@@ -27,6 +27,8 @@ module spike_cpu (
     // The reset state, held while reset is.
     logic [7:0][31:0] init_gpr;
     logic [31:0]      init_eflags, init_eip, init_cr0, init_cr2, init_cr3, init_gdtr_base, init_idtr_base;
+    logic [3:0][31:0] init_dr;
+    logic [31:0]      init_dr6, init_dr7;
     logic [15:0]      init_gdtr_limit, init_idtr_limit;
     logic [5:0][15:0] init_sel, init_ar;
     logic [5:0][31:0] init_base, init_limit;
@@ -49,6 +51,9 @@ module spike_cpu (
             init_cr0 <= noise[63:32];
             init_cr2 <= noise[95:64];
             init_cr3 <= noise[127:96];
+            init_dr <= noise[383:256];
+            init_dr6 <= noise[319:288];
+            init_dr7 <= noise[351:320];
             init_gdtr_base <= noise[159:128];
             init_gdtr_limit <= noise[175:160];
             init_idtr_base <= noise[207:176];
@@ -131,6 +136,8 @@ module spike_cpu (
     logic [7:0]       trace_vector;
     logic [7:0][31:0] arch_gpr;
     logic [31:0]      arch_eflags, arch_eip, arch_cr0, arch_cr2, arch_cr3, arch_gdtr_base, arch_idtr_base;
+    logic [3:0][31:0] arch_dr;
+    logic [31:0]      arch_dr6, arch_dr7;
     logic [15:0]      arch_gdtr_limit, arch_idtr_limit;
     logic [5:0][15:0] arch_sel, arch_ar;
     logic [5:0][31:0] arch_base, arch_limit;
@@ -144,7 +151,7 @@ module spike_cpu (
     logic [31:0]      trace_pw_data;
 
     fes_i386_cpu dut (
-        .clk, .cold_reset(reset), .reset, .init_gpr, .init_eflags, .init_eip, .init_cr0, .init_cr2, .init_cr3,
+        .clk, .cold_reset(reset), .reset, .init_gpr, .init_eflags, .init_eip, .init_cr0, .init_cr2, .init_cr3, .init_dr, .init_dr6, .init_dr7,
         .init_gdtr_base, .init_gdtr_limit, .init_idtr_base, .init_idtr_limit, .init_sel, .init_base, .init_limit,
         .init_ar, .init_ldtr_sel, .init_ldtr_base, .init_ldtr_limit, .init_ldtr_ar, .init_ldtr_valid, .init_tr_sel,
         .init_tr_base, .init_tr_limit, .init_tr_ar, .a20m, .attr_upper(ATTR_UPPER), .ram_top(7'd16), .queue16, .gov_preset, .gov_frequency, .gov_turbo,
@@ -159,7 +166,7 @@ module spike_cpu (
         .trace_store_mask, .trace_store_pg0, .trace_store_pg1, .trace_pw, .trace_pw_addr, .trace_pw_data,
         .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar,
         .trace_dread_addr, .trace_ex_store, .trace_gov_hold, .trace_gov_debt, .trace_gov_charge, .arch_cr0, .arch_cr2,
-        .arch_cr3, .arch_gdtr_base, .arch_gdtr_limit, .arch_idtr_base, .arch_idtr_limit, .arch_ldtr_sel, .arch_ldtr_base,
+        .arch_cr3, .arch_dr, .arch_dr6, .arch_dr7, .arch_gdtr_base, .arch_gdtr_limit, .arch_idtr_base, .arch_idtr_limit, .arch_ldtr_sel, .arch_ldtr_base,
         .arch_ldtr_limit, .arch_ldtr_ar, .arch_ldtr_valid, .arch_tr_sel, .arch_tr_base, .arch_tr_limit, .arch_tr_ar, .arch_cpl
     );
 
@@ -167,7 +174,8 @@ module spike_cpu (
     always_comb begin
         observed = arch_eflags ^ arch_eip ^ {20'b0, trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_vector}
                  ^ {trace_fetch_block, trace_fetch, trace_dread, trace_mem_wait, trace_replay ^ trace_smc ^ trace_smc_open ^ trace_fe_wait}
-                 ^ arch_cr0 ^ arch_cr2 ^ arch_cr3 ^ arch_gdtr_base ^ arch_idtr_base ^ {arch_gdtr_limit, arch_idtr_limit}
+                 ^ arch_cr0 ^ arch_cr2 ^ arch_cr3 ^ arch_dr[0] ^ arch_dr[1] ^ arch_dr[2] ^ arch_dr[3] ^ arch_dr6
+                 ^ arch_dr7 ^ arch_gdtr_base ^ arch_idtr_base ^ {arch_gdtr_limit, arch_idtr_limit}
                  ^ {11'd0, shutdown, trace_unbuilt, trace_error} ^ trace_dread_addr ^ {18'd0, trace_gov_charge, trace_ex_store}
                  ^ trace_store_addr ^ trace_store_data[3:0] ^ trace_store_data[7:4] ^ {23'b0, trace_store, trace_store_mask}
                  ^ {ddr_address, ddr_read, ddr_write, trace_mem_idle, trace_issue} ^ {ddr_burstcount, 8'd0, ddr_byteenable}

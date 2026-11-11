@@ -1,0 +1,162 @@
+# lite2005 f01a_signed_vibrato rc=3
+Error (10170): Verilog HDL syntax error at f01a_signed_vibrato.sv(3) near text: "signed";  expecting "(". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/knowledg
+Error (10759): Verilog HDL error at f01a_signed_vibrato.sv(3): object range declared in a list of port declarations cannot be redeclared within the module body
+Error (10112): Ignored design unit "f01a_signed_vibrato" at f01a_signed_vibrato.sv(2) due to previous errors
+Error: Quartus Prime Analysis & Synthesis was unsuccessful. 3 errors, 1 warning
+
+# lite2005 f01b_signed_phase_inc rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f01c_signed_operator rc=0
+Warning (10230): Verilog HDL assignment warning at f01c_signed_operator.sv(4): truncated value with size 32 to match size of target (22)
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "y[0]" is stuck at GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f01d_signed_ksl rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f01e_signed_pkg rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at GND
+
+# lite2005 f01f_signed_pkg_value rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "v[0]" is stuck at VCC
+    Warning (13410): Pin "v[1]" is stuck at GND
+    Warning (13410): Pin "v[2]" is stuck at GND
+    Warning (13410): Pin "v[3]" is stuck at VCC
+    Warning (13410): Pin "v[4]" is stuck at VCC
+    Warning (13410): Pin "v[5]" is stuck at VCC
+    Warning (13410): Pin "v[6]" is stuck at VCC
+    Warning (13410): Pin "v[7]" is stuck at VCC
+    Warning (13410): Pin "c" is stuck at VCC
+    Warning (13410): Pin "ok" is stuck at GND
+
+# lite2005 f01g_signed_pkg_shift rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "y[0]" is stuck at GND
+    Warning (13410): Pin "y[1]" is stuck at GND
+    Warning (13410): Pin "y[2]" is stuck at VCC
+    Warning (13410): Pin "y[3]" is stuck at GND
+    Warning (13410): Pin "y[4]" is stuck at VCC
+    Warning (13410): Pin "y[5]" is stuck at VCC
+    Warning (13410): Pin "y[6]" is stuck at GND
+    Warning (13410): Pin "y[7]" is stuck at GND
+    Warning (13410): Pin "y[8]" is stuck at GND
+    Warning (13410): Pin "y[9]" is stuck at VCC
+    Warning (13410): Pin "y[10]" is stuck at GND
+    Warning (13410): Pin "y[11]" is stuck at GND
+    Warning (13410): Pin "y[12]" is stuck at VCC
+    Warning (13410): Pin "y[13]" is stuck at GND
+    Warning (13410): Pin "y[14]" is stuck at GND
+    Warning (13410): Pin "y[15]" is stuck at GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f02b_generate_inline_genvar rc=3
+Error (10170): Verilog HDL syntax error at f02b_generate_inline_genvar.sv(4) near text: "genvar";  expecting an identifier ("genvar" is a reserved keyword ). Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https
+Error (10112): Ignored design unit "f02b_generate_inline_genvar" at f02b_generate_inline_genvar.sv(2) due to previous errors
+Error: Quartus Prime Analysis & Synthesis was unsuccessful. 2 errors, 1 warning
+
+# lite2005 f02c_generate_hoisted_genvar rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f02_inline_genvar rc=3
+Error (10170): Verilog HDL syntax error at f02_inline_genvar.sv(3) near text: "for";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/knowl
+Error (10112): Ignored design unit "f02_inline_genvar" at f02_inline_genvar.sv(2) due to previous errors
+Error: Quartus Prime Analysis & Synthesis was unsuccessful. 2 errors, 1 warning
+
+# lite2005 f03b_generate_if_no_keywords rc=3
+Error (10170): Verilog HDL syntax error at f03b_generate_if_no_keywords.sv(3) near text: "if";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resou
+Error (10112): Ignored design unit "f03b_generate_if_no_keywords" at f03b_generate_if_no_keywords.sv(2) due to previous errors
+Error: Quartus Prime Analysis & Synthesis was unsuccessful. 2 errors, 1 warning
+
+# lite2005 f03c_generate_if_keywords rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f03_generate_no_keywords rc=3
+Error (10170): Verilog HDL syntax error at f03_generate_no_keywords.sv(4) near text: "for";  expecting "endmodule". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resource
+Error (10112): Ignored design unit "f03_generate_no_keywords" at f03_generate_no_keywords.sv(2) due to previous errors
+Error: Quartus Prime Analysis & Synthesis was unsuccessful. 2 errors, 1 warning
+
+# lite2005 f04b_pattern_key_shadow rc=3
+Error (10734): Verilog HDL error at f04b_pattern_key_shadow.sv(6): data is not a constant
+Error: Quartus Prime Analysis & Synthesis was unsuccessful. 1 error, 1 warning
+
+# lite2005 f04_struct_shadow rc=0
+Warning (10036): Verilog HDL or VHDL warning at f04_struct_shadow.sv(7): object "data" assigned a value but never read
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f05_import_header rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "r.data[4]" is stuck at GND
+    Warning (13410): Pin "r.data[5]" is stuck at GND
+    Warning (13410): Pin "r.data[6]" is stuck at GND
+    Warning (13410): Pin "r.data[7]" is stuck at GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f06a_size_cast rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "slot[0]" is stuck at VCC
+    Warning (13410): Pin "slot[1]" is stuck at GND
+    Warning (13410): Pin "slot[2]" is stuck at GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f06b_enum_cast rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f06c_casts_together rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f06d_enum_cast_operand rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f07_struct_ports rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f08_no_carry rc=0
+Warning (10335): Unrecognized synthesis attribute "no_carry" at ../../../../s1fix/s1a/docs/validation/2026-11-10-1581-parse-census/forms/f08_no_carry.sv(3)
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f09_attr_in_define rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f09b_ram_control rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f10_synthesis_defined rc=0
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "syn" is stuck at GND
+
+# lite2005 f11_undefined_macro rc=0
+Critical Warning (10191): Verilog HDL Compiler Directive warning at f11_undefined_macro.sv(4): text macro "FES_TOOLCHAIN_ERROR_no_front_end" is undefined
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ok" is stuck at VCC
+
+# lite2005 f12a_check_include rc=3
+Error (10054): Verilog HDL File I/O error at f12a_check_include.sv(3): can't open Verilog Design File "FES_TOOLCHAIN_ERROR_no_front_end.svh"
+Error (10112): Ignored design unit "f12a_check_include" at f12a_check_include.sv(5) due to previous errors
+Error: Quartus Prime Analysis & Synthesis was unsuccessful. 2 errors, 1 warning
+
+# lite2005 f12b_check_token rc=3
+Error (10170): Verilog HDL syntax error at f12b_check_token.sv(3) near text: "!";  expecting ".", or an identifier. Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resource
+Error (10112): Ignored design unit "f12b_check_token" at f12b_check_token.sv(5) due to previous errors
+Error: Quartus Prime Analysis & Synthesis was unsuccessful. 2 errors, 1 warning
+
+# lite2005 f12c_check_elab_error rc=3
+Error (10170): Verilog HDL syntax error at f12c_check_elab_error.sv(7) near text: "$error";  expecting "end". Check for and fix any syntax errors that appear immediately before or at the specified keyword. The Intel FPGA Knowledge Database contains many articles with specific details on how to resolve this error. Visit the Knowledge Database at https://www.altera.com/support/support-resources/know
+Error (10112): Ignored design unit "f12c_check_elab_error" at f12c_check_elab_error.sv(3) due to previous errors
+Error: Quartus Prime Analysis & Synthesis was unsuccessful. 2 errors, 1 warning
+

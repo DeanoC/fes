@@ -1,0 +1,8 @@
+== report.json of the RTL run against the .vo run
+['biu_dma_test', 'corpus', 'directed_cases', 'governor', 'memory_cases', 'no387_cases', 'paging_cases', 'pmode', 'pmode_cases', 'random', 'reset_store', 'unbuilt', 'unreal_cases']
+corpus dict 11 11 identical [] 0
+{'revision': ('459d49fbe6280e9ed46fee887b58dacd9cb880ab', '459d49fbe6280e9ed46fee887b58dacd9cb880ab'), 'files': (11, 11)}
+random dict 1 1 identical [] 0
+{'programs_per_seed': (200, 200)}
+pmode dict 1 1 identical [] 0
+{'programs_per_seed': (50, 50), 'pm_weight': (30, 30)}

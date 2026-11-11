@@ -1,0 +1,75 @@
+== cpu-all.log
+     14 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'chainin' to inout signal requires 64 bits, but connection's CONST '1'h0' generates 1 bits.
+     14 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'bz' to inout signal requires 1 bits, but connection's CONST '18'h0' generates 18 bits.
+     14 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'az' to inout signal requires 1 bits, but connection's CONST '26'h0' generates 26 bits.
+     13 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'by' to inout signal requires 16 bits, but connection's CONST '19'h0' generates 19 bits.
+     13 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'bx' to inout signal requires 16 bits, but connection's CONST '18'h0' generates 18 bits.
+      3 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'scanin' to inout signal requires 17 bits, but connection's CONST '27'h0' generates 27 bits.
+      2 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'scanin' to inout signal requires 3 bits, but connection's CONST '27'h0' generates 27 bits.
+      2 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'scanin' to inout signal requires 2 bits, but connection's CONST '27'h0' generates 27 bits.
+      2 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'scanin' to inout signal requires 1 bits, but connection's CONST '27'h0' generates 27 bits.
+      1 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'scanin' to inout signal requires 5 bits, but connection's CONST '27'h0' generates 27 bits.
+      1 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'scanin' to inout signal requires 16 bits, but connection's CONST '27'h0' generates 27 bits.
+      1 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'scanin' to inout signal requires 15 bits, but connection's CONST '27'h0' generates 27 bits.
+warnings: 200
+real	0m27.696s
+exit 1
+== cpu-default.log
+      8 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'bz' to inout signal requires 1 bits, but connection's CONST '18'h0' generates 18 bits.
+      8 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'by' to inout signal requires 16 bits, but connection's CONST '19'h0' generates 19 bits.
+      8 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'bx' to inout signal requires 16 bits, but connection's CONST '18'h0' generates 18 bits.
+      8 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'az' to inout signal requires 1 bits, but connection's CONST '26'h0' generates 26 bits.
+      7 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'chainin' to inout signal requires 64 bits, but connection's CONST '1'h0' generates 1 bits.
+      3 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'scanin' to inout signal requires 17 bits, but connection's CONST '27'h0' generates 27 bits.
+      2 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'scanin' to inout signal requires 1 bits, but connection's CONST '27'h0' generates 27 bits.
+      1 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'scanin' to inout signal requires 5 bits, but connection's CONST '27'h0' generates 27 bits.
+      1 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'scanin' to inout signal requires 16 bits, but connection's CONST '27'h0' generates 27 bits.
+      1 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: Input port connection 'scanin' to inout signal requires 14 bits, but connection's CONST '27'h0' generates 27 bits.
+      1 %Error: sim_lib/cyclonev_atoms.v: This may be because there's no search path specified with -I<dir>.
+      1 %Error: sim_lib/cyclonev_atoms.v: Cannot find file containing module: 'cyclonev_mac_encrypted'
+warnings: 164
+real	0m23.632s
+exit 1
+== cpu-fescells-notiming.log
+      1 %Error-UNSUPPORTED: sim_lib/altera_primitives.v: Unsupported: Verilog 1995 UDP Tables. Use --bbox-unsup to ignore tables.
+      1 %Error: Exiting due to 1 error(s)
+warnings: 2109
+== cpu-fesmac-notiming.log
+   1598 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: tristate in top-level IO: 'i'
+      1 %Error: Exiting due to 1598 error(s)
+warnings: 204
+real	1m12.939s
+exit 1
+== cpu-fesmac-timing.log
+   1598 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: tristate in top-level IO: 'i'
+      1 %Error: Exiting due to 1598 error(s)
+warnings: 204
+real	1m11.196s
+exit 1
+== cpu-ncrypt.log
+      3 %Error-BADSTDPRAGMA: sim_lib/mentor/cyclonev_atoms_ncrypt.v: Unknown '`pragma protect' error
+      1 %Error: sim_lib/mentor/cyclonev_atoms_ncrypt.v: syntax error, unexpected IDENTIFIER
+      1 %Error: Exiting due to 4 error(s)
+warnings: 0
+real	0m6.349s
+exit 1
+== cpu-wrap-fesmac-notiming.log
+   1598 %Error-UNSUPPORTED: s1c/i386/cpu/simulation/modelsim/fes_i386_cpu.vo: Unsupported: tristate in top-level IO: 'i'
+      1 %Error: Exiting due to 1598 error(s)
+warnings: 204
+real	0m59.430s
+exit 1
+== sms-fes4-default.log
+warnings: 194
+real	0m34.053s
+exit 0
+== sms-fes-notiming.log
+warnings: 243
+real	0m33.231s
+exit 0
+== sms-v5051-timing.log
+     57 %Error: sim_lib/cyclonev_atoms.v: Dotted reference to instance that refers to missing module/interface: 'cyclonev_mac_encrypted'
+      1 %Error: Exiting due to 57 error(s)
+warnings: 34
+real	0m3.361s
+exit 1

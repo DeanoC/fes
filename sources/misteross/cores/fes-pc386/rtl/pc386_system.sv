@@ -450,6 +450,7 @@ module pc386_system #(
         // parameterised cell's port asserts in the lock's Yosys under
         // hierarchy -chparam (DeanoC/yosys#71).
         .init_gpr(256'd0), .init_eflags(32'h2), .init_cr0(32'h0), .init_cr2(32'h0), .init_cr3(32'h0),
+        .init_dr(128'd0), .init_dr6(32'hffff1ff0), .init_dr7(32'h400),
         .init_gdtr_base(32'h0), .init_gdtr_limit(16'hffff), .init_idtr_base(32'h0), .init_idtr_limit(16'hffff),
         .init_eip(32'hfff0),
         .init_sel({16'h0, 16'h0, 16'h0, 16'h0, 16'hf000, 16'h0}),
@@ -481,7 +482,7 @@ module pc386_system #(
         .trace_gov_hold(gov_hold), .trace_gov_debt(), .trace_gov_charge(),
         .trace_store(), .trace_store_addr(), .trace_store_data(), .trace_store_mask(), .trace_store_pg0(),
         .trace_store_pg1(), .trace_pw(), .trace_pw_addr(), .trace_pw_data(), .arch_gpr(),
-        .arch_eflags(), .arch_cr0(), .arch_cr2(), .arch_cr3(), .arch_gdtr_base(), .arch_gdtr_limit(),
+        .arch_eflags(), .arch_cr0(), .arch_cr2(), .arch_cr3(), .arch_dr(), .arch_dr6(), .arch_dr7(), .arch_gdtr_base(), .arch_gdtr_limit(),
         .arch_idtr_base(), .arch_idtr_limit(), .arch_eip(cpu_eip), .arch_sel(cpu_sel),
         .arch_base(), .arch_limit(), .arch_ar(), .arch_ldtr_sel(), .arch_ldtr_base(), .arch_ldtr_limit(),
         .arch_ldtr_ar(), .arch_ldtr_valid(), .arch_tr_sel(), .arch_tr_base(), .arch_tr_limit(), .arch_tr_ar(), .arch_cpl()

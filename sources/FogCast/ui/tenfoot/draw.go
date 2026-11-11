@@ -635,6 +635,30 @@ func drawDetail(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, use
 		drawScreenshotCarousel(dev, snap, labels, used, textures, geom.Carousel.X, geom.Carousel.Y, geom.Carousel.W, geom.Carousel.H)
 	}
 	drawLibraryActions(dev, snap, labels, used)
+	if action, cancel, ok := detailRemoveRects(snap); ok {
+		if snap.Detail.RemoveConfirm {
+			// Explain exactly what will happen before any removal is requested.
+			dev.FillRect(gfx.Rect{X: float32(cancel.X - 8), Y: float32(cancel.Y - 54), W: float32(action.X + action.W - cancel.X + 16), H: 91}, heroSurface)
+			message := "Remove this title? Saved data is kept."
+			if snap.Detail.RemoveError != "" {
+				message = snap.Detail.RemoveError
+			}
+			for i, line := range gfx.WrapText(message, 16, action.X+action.W-cancel.X, 2) {
+				drawFESLabel(dev, labels, used, fmt.Sprintf("d-remove-confirm-%d", i), cancel.X, cancel.Y-47+i*20, action.X+action.W-cancel.X, 16, line)
+			}
+			dev.FillRect(gfx.Rect{X: float32(cancel.X), Y: float32(cancel.Y), W: float32(cancel.W), H: float32(cancel.H)}, heroAccent)
+			drawTintedLabel(dev, labels, used, "d-remove-cancel", cancel.X+12, cancel.Y+6, cancel.W-24, 16, heroOnAccent, "Cancel")
+		}
+		dev.FillRect(gfx.Rect{X: float32(action.X), Y: float32(action.Y), W: float32(action.W), H: float32(action.H)}, heroAccent)
+		label := "Remove..."
+		if snap.Detail.RemoveConfirm {
+			label = "Remove"
+		}
+		if snap.Detail.RemoveBusy {
+			label = "Removing..."
+		}
+		drawTintedLabel(dev, labels, used, "d-remove", action.X+12, action.Y+6, action.W-24, 16, heroOnAccent, label)
+	}
 }
 
 func drawScreenshotCarousel(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}, textures map[string]gpuTexture, x, y, w, h int) {

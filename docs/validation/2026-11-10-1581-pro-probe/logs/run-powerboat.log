@@ -1,0 +1,7 @@
+[08:41:55] yosys-menu-m20k: quartus_syn fes_menu_reader
+[08:42:09] yosys-menu-m20k: exit 0 in 13s; 0 errors
+[08:42:09] yosys-opl2-fixed: quartus_syn pc386_opl2
+[08:42:29] yosys-opl2-fixed: exit 0 in 21s; 0 errors
+[08:42:29] native-opl2: quartus_syn pc386_opl2
+[08:42:44] native-opl2: exit 0 in 15s; 0 errors
+done

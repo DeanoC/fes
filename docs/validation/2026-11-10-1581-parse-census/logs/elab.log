@@ -1,0 +1,12 @@
+# lite-opl2-patched rc=0
+Warning (10958): SystemVerilog warning at calc_envelope_shift.sv(156): unique or priority keyword makes case statement complete
+
+# pro-i386-tlb rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+
+# pro-i386-qalign rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+
+# pro-i386-l1i rc=0
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+

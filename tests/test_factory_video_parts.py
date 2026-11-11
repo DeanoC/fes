@@ -405,6 +405,17 @@ class STProducerEvidenceTests(RealProducerEvidenceTests):
 
 
 class VideoShellAdmissionTests(unittest.TestCase):
+    def test_shared_shell_profile_vectors(self):
+        path = (Path(__file__).resolve().parents[1] / "sources/FogCast/internal/targetimage/testdata"
+                / "factory-video-shells.json")
+        for case in json.loads(path.read_text()):
+            with self.subTest(case=case["name"]):
+                if case["expect"] == "error":
+                    with self.assertRaises(ValueError):
+                        video.video_shell_profile(case["descriptor"])
+                else:
+                    self.assertEqual(video.video_shell_profile(case["descriptor"]) or "", case["expect"])
+
     def descriptor(self, interface):
         return {"format": 2, "core": {"id": "fes.coleco"},
                 "abi": {"id": "fes.application", "major": 1, "minor": 0},

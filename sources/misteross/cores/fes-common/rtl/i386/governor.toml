@@ -1020,6 +1020,28 @@ name = "mov_to_cr"
 stems = ["0F22.1", "0F22.2", "0F22.3", "0F22.4", "0F22.5", "0F22.6", "0F22.7"]
 cost = [4, 4, 4]
 
+# MOV r32, DRn and MOV DRn, r32 (Phase 5): 22 on the 386 for DR0-DR3 and 14
+# for DR6 and DR7 (DR4 and DR5, their aliases, as them); the i486's 9 and 10.
+[[class]]
+name = "mov_from_dr03"
+stems = ["0F21.0", "0F21.1", "0F21.2", "0F21.3"]
+cost = [22, 22, 9]
+
+[[class]]
+name = "mov_from_dr67"
+stems = ["0F21.4", "0F21.5", "0F21.6", "0F21.7"]
+cost = [14, 14, 9]
+
+[[class]]
+name = "mov_to_dr03"
+stems = ["0F23.0", "0F23.1", "0F23.2", "0F23.3"]
+cost = [22, 22, 10]
+
+[[class]]
+name = "mov_to_dr67"
+stems = ["0F23.4", "0F23.5", "0F23.6", "0F23.7"]
+cost = [14, 14, 10]
+
 # Group 6, LAR, LSL and ARPL (Phase 2), which run only in protected mode
 # (#UD in real mode, charged as INT's delivery): their protected-mode
 # counts, the only ones. LSL's 386 count is 20 or 25 by the descriptor's

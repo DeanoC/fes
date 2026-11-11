@@ -157,6 +157,13 @@ func (s *Service) CreateCoreSetupEntry(parent context.Context, req CoreSetupRequ
 		}
 	}
 	if entry.GameID == "" {
+		newID, err := s.localCoreEntryID(ctx, req.Title, req.CoreID, req.PackageID)
+		if err != nil {
+			return entry, mapCoreEntryError(err)
+		}
+		if err := s.cleanupRetainedEntry(ctx, newID); err != nil {
+			return entry, err
+		}
 		if firmwareRequired {
 			f, ok := s.catalog.(coreFirmwareCatalog)
 			if !ok {

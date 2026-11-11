@@ -164,8 +164,10 @@ char_addr:
         ld c,a
         ld b,0
         call make_room
+        add hl,bc               ; last byte of the gap first
+        dec hl                  ; keep the old NEWLINEs until the tail is safe
 .fill:  ld (hl),b
-        inc hl
+        dec hl
         dec c
         jr nz,.fill
         pop de

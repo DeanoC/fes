@@ -1,0 +1,227 @@
+{
+  "quartus_syn": "Quartus Prime Synthesis\nVersion 26.3.0 Build 114 10/14/2026 SC Pro Edition\nCopyright (C) 2026  Altera Corporation. All rights reserved.",
+  "device": "A5EB013BB23BE4SCS",
+  "cases": {
+    "yosys-menu-m20k": {
+      "top": "fes_menu_reader",
+      "front_end": "netlist",
+      "files": [
+        "fes_menu_reader.v"
+      ],
+      "parameters": {},
+      "exit": 0,
+      "seconds": 13,
+      "messages": {
+        "Critical Warning (20759)": {
+          "count": 1,
+          "first": "Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide."
+        },
+        "Warning (13448)": {
+          "count": 1,
+          "first": "Verilog HDL Case Statement warning at fes_menu_reader.v(265): honored parallel_case synthesis attribute - differences between design synthesis and simulation may occur File: <scratch>/run/yosys-menu-m20k/fes_menu_reader.v Line: 265"
+        },
+        "Warning (21620)": {
+          "count": 1,
+          "first": "Design Assistant Results: 1 of 1 High severity rules issued violations in snapshot 'partitioned'. Please refer to DRC report '<scratch>/run/yosys-menu-m20k/output_files/fes_menu_reader.drc.partitioned.rpt' for more information"
+        },
+        "Warning (13024)": {
+          "count": 1,
+          "first": "Output pins are stuck at VCC or GND"
+        },
+        "Warning (13410)": {
+          "count": 1,
+          "first": "Pin \"address[19..23,26..27]\" is stuck at GND File: <scratch>/run/yosys-menu-m20k/fes_menu_reader.v Line: 29"
+        }
+      },
+      "resources": {
+        "Top-level Entity Name": "fes_menu_reader",
+        "Family": "Agilex 5",
+        "Device": "A5EB013BB23BE4SCS",
+        "Total registers": "372",
+        "Estimate of Logic utilization (ALMs needed)": "393",
+        "Combinational ALUT usage for logic": "311",
+        "Dedicated logic registers": "372",
+        "Total MLAB memory bits": "0",
+        "Total block memory bits": "32768",
+        "Total DSP Blocks": "0"
+      }
+    },
+    "yosys-opl2-fixed": {
+      "top": "pc386_opl2",
+      "front_end": "netlist",
+      "files": [
+        "pc386_opl2.fixed.v"
+      ],
+      "parameters": {},
+      "exit": 0,
+      "seconds": 21,
+      "messages": {
+        "Critical Warning (20759)": {
+          "count": 1,
+          "first": "Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide."
+        },
+        "Warning (13448)": {
+          "count": 30,
+          "first": "Verilog HDL Case Statement warning at pc386_opl2.fixed.v(2159): honored parallel_case synthesis attribute - differences between design synthesis and simulation may occur File: <scratch>/run/yosys-opl2-fixed/pc386_opl2.fixed.v Line: 2159"
+        },
+        "Warning (16788)": {
+          "count": 1,
+          "first": "Net \"_1068_[12]\" does not have a driver at pc386_opl2.fixed.v(1092) File: <scratch>/run/yosys-opl2-fixed/pc386_opl2.fixed.v Line: 1092"
+        },
+        "Warning (21620)": {
+          "count": 1,
+          "first": "Design Assistant Results: 1 of 1 High severity rules issued violations in snapshot 'partitioned'. Please refer to DRC report '<scratch>/run/yosys-opl2-fixed/output_files/pc386_opl2.drc.partitioned.rpt' for more information"
+        },
+        "Warning (276020)": {
+          "count": 1,
+          "first": "Inferred RAM node \"queue_rtl_0\" from synchronous design logic.  Pass-through logic has been added to match the read-during-write behavior of the original design. File: <scratch>/run/yosys-opl2-fixed/pc386_opl2.fixed.v Line: 1717"
+        },
+        "Warning (113028)": {
+          "count": 10,
+          "first": "14 out of 32 addresses are uninitialized. The Quartus Prime software will initialize them to \"0\". There are 1 warnings found, and 1 warnings are reported. File: <scratch>/run/yosys-opl2-fixed/qdb/_compiler/pc386_opl2/root_partition/26.3.0/partitioned/1/mifs/ram5_pc386_opl2_555e60de"
+        },
+        "Warning (113027)": {
+          "count": 10,
+          "first": "Addresses ranging from 18 to 31 are not initialized File: <scratch>/run/yosys-opl2-fixed/qdb/_compiler/pc386_opl2/root_partition/26.3.0/partitioned/1/mifs/ram5_pc386_opl2_555e60de.hdl.mif Line: 1"
+        },
+        "Critical Warning (127004)": {
+          "count": 6,
+          "first": "Memory depth (10) in the design file differs from memory depth (16) in the Memory Initialization File \"<scratch>/run/yosys-opl2-fixed/qdb/_compiler/pc386_opl2/root_partition/26.3.0/partitioned/1/mifs/ram2_pc386_opl2_555e60de.hdl.mif\" -- truncated remaining initial content value to "
+        },
+        "Warning (14284)": {
+          "count": 1,
+          "first": "Synthesized away the following node(s):"
+        },
+        "Warning (25637)": {
+          "count": 1,
+          "first": "Synthesized away 1 node(s) of type RAM. See \"Registers Removed during Synthesis\" report for more details."
+        },
+        "Warning (13024)": {
+          "count": 1,
+          "first": "Output pins are stuck at VCC or GND"
+        },
+        "Warning (13410)": {
+          "count": 1,
+          "first": "Pin \"rdata[1..2]\" is stuck at VCC File: <scratch>/run/yosys-opl2-fixed/pc386_opl2.fixed.v Line: 18"
+        }
+      },
+      "resources": {
+        "Top-level Entity Name": "pc386_opl2",
+        "Family": "Agilex 5",
+        "Device": "A5EB013BB23BE4SCS",
+        "Total registers": "1450",
+        "Estimate of Logic utilization (ALMs needed)": "1246",
+        "Combinational ALUT usage for logic": "1689",
+        "Dedicated logic registers": "1450",
+        "Total MLAB memory bits": "0",
+        "Total block memory bits": "1530",
+        "Total DSP Blocks": "1"
+      }
+    },
+    "native-opl2": {
+      "top": "pc386_opl2",
+      "front_end": "native",
+      "files": [
+        "opl2_pkg.sv",
+        "pipeline_sr.sv",
+        "mem_simple_dual_port.sv",
+        "mem_simple_dual_port_async_read.sv",
+        "mem_single_bank.sv",
+        "mem_single_bank_reset.sv",
+        "opl2_log_sine_lut.sv",
+        "opl2_exp_lut.sv",
+        "ksl_add_rom.sv",
+        "tremolo.sv",
+        "vibrato.sv",
+        "calc_phase_inc.sv",
+        "calc_envelope_shift.sv",
+        "calc_rhythm_phase.sv",
+        "envelope_generator.sv",
+        "phase_generator.sv",
+        "operator.sv",
+        "control_operators.sv",
+        "dac_prep.sv",
+        "channels.sv",
+        "pc386_rate.sv",
+        "pc386_opl2.sv"
+      ],
+      "parameters": {},
+      "exit": 0,
+      "seconds": 15,
+      "messages": {
+        "Warning (21774)": {
+          "count": 10,
+          "first": "Verilog HDL warning at opl2_log_sine_lut.sv(52): non-net output port 'out' cannot be initialized at declaration in SystemVerilog mode File: <scratch>/run/native-opl2/opl2_log_sine_lut.sv Line: 52"
+        },
+        "Critical Warning (20759)": {
+          "count": 1,
+          "first": "Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide."
+        },
+        "Warning (13469)": {
+          "count": 34,
+          "first": "Verilog HDL assignment warning at control_operators.sv(138): truncated value with size 6 to match size of target (5) File: <scratch>/run/native-opl2/control_operators.sv Line: 138"
+        },
+        "Warning (17484)": {
+          "count": 5,
+          "first": "Verilog HDL warning at control_operators.sv(257): unique/priority if/case is not full File: <scratch>/run/native-opl2/control_operators.sv Line: 257"
+        },
+        "Warning (24541)": {
+          "count": 1,
+          "first": "Verilog HDL warning at mem_single_bank_reset.sv(118): actual bit length 32 differs from formal bit length 1 for port \"dia\" File: <scratch>/run/native-opl2/mem_single_bank_reset.sv Line: 118"
+        },
+        "Warning (21620)": {
+          "count": 1,
+          "first": "Design Assistant Results: 1 of 1 High severity rules issued violations in snapshot 'partitioned'. Please refer to DRC report '<scratch>/run/native-opl2/output_files/pc386_opl2.drc.partitioned.rpt' for more information"
+        },
+        "Warning (23762)": {
+          "count": 1,
+          "first": "Hierarchies were optimized away during sweep. For details, refer to \" Hierarchies Optimized Away During Sweep \" report."
+        },
+        "Warning (276020)": {
+          "count": 1,
+          "first": "Inferred RAM node \"queue_rtl_0\" from synchronous design logic.  Pass-through logic has been added to match the read-during-write behavior of the original design. File: <scratch>/run/native-opl2/pc386_opl2.sv Line: 45"
+        },
+        "Warning (113028)": {
+          "count": 10,
+          "first": "10 out of 32 addresses are uninitialized. The Quartus Prime software will initialize them to \"0\". There are 1 warnings found, and 1 warnings are reported. File: <scratch>/run/native-opl2/qdb/_compiler/pc386_opl2/root_partition/26.3.0/partitioned/1/mifs/ram1_pc386_opl2_555e60de.hdl."
+        },
+        "Warning (113027)": {
+          "count": 10,
+          "first": "Addresses ranging from 22 to 31 are not initialized File: <scratch>/run/native-opl2/qdb/_compiler/pc386_opl2/root_partition/26.3.0/partitioned/1/mifs/ram1_pc386_opl2_555e60de.hdl.mif Line: 1"
+        },
+        "Critical Warning (127004)": {
+          "count": 10,
+          "first": "Memory depth (22) in the design file differs from memory depth (32) in the Memory Initialization File \"<scratch>/run/native-opl2/qdb/_compiler/pc386_opl2/root_partition/26.3.0/partitioned/1/mifs/ram1_pc386_opl2_555e60de.hdl.mif\" -- truncated remaining initial content value to fit R"
+        },
+        "Warning (14284)": {
+          "count": 1,
+          "first": "Synthesized away the following node(s):"
+        },
+        "Warning (25637)": {
+          "count": 1,
+          "first": "Synthesized away 1 node(s) of type RAM. See \"Registers Removed during Synthesis\" report for more details."
+        },
+        "Warning (13024)": {
+          "count": 1,
+          "first": "Output pins are stuck at VCC or GND"
+        },
+        "Warning (13410)": {
+          "count": 1,
+          "first": "Pin \"rdata[1..2]\" is stuck at VCC File: <scratch>/run/native-opl2/pc386_opl2.sv Line: 29"
+        }
+      },
+      "resources": {
+        "Top-level Entity Name": "pc386_opl2",
+        "Family": "Agilex 5",
+        "Device": "A5EB013BB23BE4SCS",
+        "Total registers": "839",
+        "Estimate of Logic utilization (ALMs needed)": "870",
+        "Combinational ALUT usage for logic": "883",
+        "Dedicated logic registers": "839",
+        "Total MLAB memory bits": "1099",
+        "Total block memory bits": "6524",
+        "Total DSP Blocks": "1"
+      }
+    }
+  }
+}

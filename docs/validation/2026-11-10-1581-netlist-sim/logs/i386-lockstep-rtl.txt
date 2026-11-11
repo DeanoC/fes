@@ -1,0 +1,24 @@
+== run
+Corpus: https://github.com/SingleStepTests/80386 revision 459d49fbe6280e9ed46fee887b58dacd9cb880ab
+corpus: 11 files, 10 opcodes, 2200 tests: 2200 pass (2200 to HLT, 0 of them in an interrupt's handler, 78 in an exception's handler {'6': 46, '13': 22, '12': 1, '0': 9}), 0 fail; 4401 retirements and 0 I/O accesses compared; 1993 with the MMIO window, 952 MMIO bytes and 17 replays; 0 restarts for self-modifying code (queue16)
+random: 1 seeds x 200 programs, 56305 retirements: 200 pass (58 to HLT, 78 at a delivered exception (4 of them a fault in a delivery), 25 at a shutdown, 17 at the retirement limit, 6 at an interrupt whose vector they had rewritten, 0 at code in the MMIO window, 1 at a store into their code other than their rewrites, 14 at code outside the program or TF set, after control data read back from mixed memory; 173 with the window, 12042 MMIO bytes and 1177 replays; 42 restarts for self-modifying code; 252606 cycles waiting for memory; 603 I/O accesses compared; 4760 INTRs and 1767 NMIs taken, 49 of them between a REP string's elements), 0 fail; latency-free reruns of seeds [1]: trace unchanged
+protected mode: 1 seeds x 50 programs dense with protected-mode blocks, 4449 retirements (3214 with PE set in these and the random programs): 50 pass, 0 fail; 123 deliveries through the IDT by vector (256 + vector: an INTR) {'2': 1, '8': 5, '11': 4, '12': 2, '13': 52, '14': 5, '264': 6, '265': 4, '266': 9, '267': 5, '268': 7, '269': 8, '270': 8, '271': 7}; 12 shutdowns, 3 faults in a delivery delivered; 1 stopped at what is not built, by reason {'1': 1}; retired with PE set {'arpl': 3, 'call-far': 20, 'cpl3': 149, 'inner-delivery': 29, 'int': 14, 'io-bitmap': 3, 'iret': 93, 'lar': 4, 'ldt-load': 8, 'lldt': 55, 'lsl': 6, 'ltr': 41, 'outer-return': 45, 'paged': 1027, 'retf': 19, 'str': 2, 'verr': 2, 'verw': 6}; 2 real-mode CS loads under the 386 rule; under a CS limit but 64 KiB and 4 GiB, retirements and #GP deliveries {'pm-gp': 3, 'pm-retired': 70}
+cycles between retirements without latency: 3552 other instructions, 100.0% one cycle apart; 18 after a branch not taken, 94.4% one cycle apart; 4367 after a taken branch, 65.3% 1 cycles apart; 33 after a shift, 100.0% one cycle apart; 14 flag consumers after a shift, 100.0% two cycles apart; 40 memory reads after a store with bytes in common in address bits 11:0, 100.0% two cycles apart; 6 other memory reads after a store, 0.0% one cycle apart; 979 others after a store, 100.0% one cycle apart
+unbuilt encodings: 50272 outside SCOPE, 0 not stopped as unimplemented
+BIU DMA/store: PASS BIU DMA waits for committing store
+reset-store-on-reset: 1 pass, 0 fail
+directed cases: 77 pass, 0 fail
+unreal-mode cases: 7 pass, 0 fail (3 real-mode CS loads under the 386 rule)
+protected-mode cases: 147 pass, 0 fail (13 faults in a delivery delivered)
+paging cases: 54 pass, 0 fail (1 faults in a delivery delivered)
+no-387 cases: 1933 pass, 0 fail (5355 ESC instructions under the no-387 rule, 647 of them not stepped on the oracle)
+memory cases (DMA, FLUSH): 27 pass, 0 fail
+i386 lockstep passed (host simulation only; report: s1c/i386/lockstep-rtl/report.json)
+
+real	1m25.847s
+user	3m33.880s
+sys	0m6.395s
+exit 0
+== RTL build
+- Verilator: Built from 5.996 MB sources in 31 modules, into 16.570 MB in 28 C++ files needing 0.024 MB
+- Verilator: Walltime 20.133 s (elab=0.300, cvt=2.300, bld=17.236); cpu 2.947 s on 8 threads; alloced 187.168 MB

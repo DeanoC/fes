@@ -29,6 +29,65 @@ func TestHostEnvironmentLeavesOutActivationAndReadiness(t *testing.T) {
 	}
 }
 
+func TestTrialHostKeepsTemporaryStateAcrossIndependentRestart(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "bin"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	// Record what the actual restarted child receives after the controller's
+	// temporary startup permission is reset and persistent storage may mount.
+	path := filepath.Join(root, "arguments")
+	script := []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$FES_TEST_HOST_ARGUMENTS\"\nexec sleep 60\n")
+	if err := os.WriteFile(filepath.Join(root, hostExecutable), script, 0700); err != nil {
+		t.Fatal(err)
+	}
+	c := &ProcessController{RunDir: t.TempDir(), active: "trial", PermitUpdateBlocked: true}
+	defer func() { _ = c.Stop(context.Background()) }()
+	env := []string{"FES_TEST_HOST_ARGUMENTS=" + path}
+	c.planHostLocked(root, env)
+	c.PermitUpdateBlocked = false
+	checkArguments := func() {
+		t.Helper()
+		deadline := time.Now().Add(3 * time.Second)
+		for time.Now().Before(deadline) {
+			data, err := os.ReadFile(path)
+			if err == nil && string(data) == "host\n-kit-state\n/run/fogcast/kit-host\n" {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		data, err := os.ReadFile(path)
+		t.Fatalf("trial host arguments %q: %v", data, err)
+	}
+	if err := c.superviseHostLocked(); err != nil {
+		t.Fatal(err)
+	}
+	checkArguments()
+	first := c.host
+	if err := first.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	<-first.done
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	c.hostRestart = time.Time{}
+	if err := c.superviseHostLocked(); err != nil {
+		t.Fatal(err)
+	}
+	if c.host == first {
+		t.Fatal("trial host was not restarted")
+	}
+	checkArguments()
+	if err := c.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	c.planHostLocked(root, env)
+	if strings.Join(c.hostPlan.args, " ") != "host" {
+		t.Fatalf("ordinary activation retained trial state: %v", c.hostPlan.args)
+	}
+}
+
 func publishLauncherReady(t *testing.T, c *ProcessController, bundle string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(c.RunDir, "launcher-ready.json"), []byte(`{"bundle_id":"`+bundle+`","pid":1}`), 0o600); err != nil {

@@ -1072,6 +1072,23 @@ The `core_ids` catalog filter resolves installed entries through their
 candidates and grouped editions before selecting a representative; recents
 also applies it before the page limit.
 
+`DELETE /api/v1/library/core-entries/{game_id}` removes one core title and
+clears its recents, favorite, collection memberships and edition choices while
+retaining core data, media bytes, and saved-tape names and timestamps. Recreating
+the same local title and core restores its saved tapes. An explicit refresh can
+reimport a remote title with the same ID; its package, media and ROM selections
+must then be made again.
+
+Removal never stops a running core. Each configured enabled kit must respond
+idle or positively identify a different active title; an unavailable kit gives
+503, while the matching title, an unidentified session or recovery gives 409. Connect the kits
+or stop play / finish recovery before retrying. Checks and lifecycle admission
+cover this host's configured targets; exclusion across separate hosts with
+different target configurations is not established. A cleanup failure can hide
+the title before reporting an error, and the same ID can be retried. The CLI
+exposes `fogcast core-remove GAME_ID`; tenfoot Details asks for confirmation
+bound to the title shown. A response cannot close another title's Details.
+
 The kit reconnects with the existing `launcher.json` API URL on that launcher
 listener. See [the host connection contract](launcher-host.md).
 
@@ -1107,7 +1124,11 @@ requesting kit so compatibility uses that kit. Other methods on that collection
 stay denied. For named ROM selection it admits
 `GET /api/v1/library/core-entries/{game_id}`,
 `GET /api/v1/library/core-entries/{game_id}/rom`, and
-`PUT /api/v1/library/core-entries/{game_id}/rom` for a strict game ID. It also
+`PUT /api/v1/library/core-entries/{game_id}/rom` for a strict game ID. It admits
+`DELETE /api/v1/library/core-entries/{game_id}` for the same strict ID after
+the paired-target checks; the host checks each configured enabled kit before
+removing the title.
+It also
 admits `PUT /api/v1/library/core-entries/{game_id}/expansion` for the existing
 single-entry expansion selection. Selection bodies are forwarded unchanged
 after paired-target checks; none of these writes replaces the foreground
@@ -1905,7 +1926,9 @@ symlinks, mutable objects and missing coverage of a selected video-marked shell,
 then independently composes every indexed part against the exact shell before
 copying its original producer archive bytes. Canonical core package members
 and identities stay unchanged. Older unmarked package-only selections need no
-video tree. The external `fes-core-video-parts.json` is byte-identical to the
+video tree. A video-marked package must match the same exact shell profile as
+the FES catalog and core-dev admission rules; unsupported markers fail closed.
+The external `fes-core-video-parts.json` is byte-identical to the
 installed index; both reproducible image passes retain and compare that record.
 The installed selection copy and canonical build-input record bind the index
 digest, each selected shell/profile/part/archive identity and its install path.
@@ -2718,6 +2741,29 @@ supervisor holds such a selection back and runs the image's factory software in
 its place; status reports `held_back`. Installation and selection live on verified FESDATA3 independently of
 core packages and the base appliance image. The existing service scripts are
 replaced by one supervisor entrypoint; physical transitions remain runtime-owned.
+
+That supervisor checkpoints the stopped kit host's main catalog at a changed-bundle
+activation. Its existing operation ID, generation, prior/candidate bundle IDs
+and actual running source bundle, together with persistent-storage identity,
+bind the snapshot. An authenticated helper from the repaired image's retained
+factory release handles SQLite integrity, committed WAL contents and durable
+publication without invoking catalog migrations. A return to a known bundle with
+an older catalog schema retains the newer live catalog before restoring the prior
+one. Candidate failure restores the checkpoint of that exact operation, including
+failure while returning to an older bundle. Missing required or conflicting
+records leave maintenance held. Same-format changes preserve current data; ordinary host,
+launcher and group restarts do not restore snapshots.
+
+The checkpoint covers `state/library.sqlite3`, including core entries and embedded
+firmware/media. It does not roll back separate settings, favorites/history,
+configuration, package files or media-cache. Retained catalogs are preserved
+under the software control directory's `catalog-transitions/`; they are not
+automatically merged. The image-owned supervisor is required: updating the
+userspace bundle alone cannot retrofit the hook. Software activation additionally
+checks that the exact supervised host serves its recorded revision, without
+requiring target readiness before software maintenance has been released.
+The trial factory host's saved launch arguments keep it on tmpfs through
+independent restarts until the queued durable selection takes over.
 
 The lease manager's idle queue gives a caller-persisted software intent priority
 after the current execution owner naturally releases. Queueing preserves that

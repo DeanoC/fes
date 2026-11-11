@@ -25,7 +25,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const usageText = "usage: fogcast [--config path] [--api origin] [--json] {scan|games|search <text>|launch <game-id>|favorite <game-id>|unfavorite <game-id>|recents|media-scan|facets-sync|health|status|stop|change-tape <media-id-or-.p-path>|eject-tape|change-disk <media-id-or-.dsk/.do/.d64/.st-path>|eject-disk|save-disk|mouse <dx> <dy> <buttons>|insert-library-disk <game-id> <base-media-id>|change-cassette <media-id-or-.tzx/.tap/.pzx/.csw-path>|eject-cassette|core-inspect <path>|core-load <path>|core-media <path>|core-install <path>|core-media-install <path>|core-hard-disk-install <path>|core-disk-geometry <game-id> <expected-package-id> <expected-media-id> <cylinders/heads/sectors|infer>|core-media-capabilities <package-id>|core-media-select <game-id> <expected-package-id> <expected-media-id-or-none> <media-id-or-none> [blob|disk|cassette|hard-disk]|core-firmware-select <media-id-or-none>|video-parts|video-part-install <direct|scanlines> <path>|video-profile [direct|scanlines]|core-video <game-id>|core-list|core-check <package-id>|core-entry <title> <package-id> [<role> <media-id>] [firmware]|core-select <game-id> <expected-package-id> <package-id>|core-settings <game-id>|core-settings-set <game-id> <expected-package-id> <expected-revision> <speed>|core-progress <game-id>|create-blank-st-disk <name> [<tracks> <heads> <sectors>] [bind <game-id> <expected-package-id> <expected-media-id-or-none>]}\n       fogcast --version [--json]\n"
+const usageText = "usage: fogcast [--config path] [--api origin] [--json] {scan|games|search <text>|launch <game-id>|favorite <game-id>|unfavorite <game-id>|recents|media-scan|facets-sync|health|status|stop|change-tape <media-id-or-.p-path>|eject-tape|change-disk <media-id-or-.dsk/.do/.d64/.st-path>|eject-disk|save-disk|mouse <dx> <dy> <buttons>|insert-library-disk <game-id> <base-media-id>|change-cassette <media-id-or-.tzx/.tap/.pzx/.csw-path>|eject-cassette|core-inspect <path>|core-load <path>|core-media <path>|core-install <path>|core-media-install <path>|core-hard-disk-install <path>|core-disk-geometry <game-id> <expected-package-id> <expected-media-id> <cylinders/heads/sectors|infer>|core-media-capabilities <package-id>|core-media-select <game-id> <expected-package-id> <expected-media-id-or-none> <media-id-or-none> [blob|disk|cassette|hard-disk]|core-firmware-select <media-id-or-none>|video-parts|video-part-install <direct|scanlines> <path>|video-profile [direct|scanlines]|core-video <game-id>|core-list|core-check <package-id>|core-entry <title> <package-id> [<role> <media-id>] [firmware]|core-select <game-id> <expected-package-id> <package-id>|core-remove <game-id>|core-settings <game-id>|core-settings-set <game-id> <expected-package-id> <expected-revision> <speed>|core-progress <game-id>|create-blank-st-disk <name> [<tracks> <heads> <sectors>] [bind <game-id> <expected-package-id> <expected-media-id-or-none>]}\n       fogcast --version [--json]\n"
 
 const maxPublicGameIDBytes = 128
 
@@ -281,7 +281,7 @@ func validCommand(args []string) bool {
 		default:
 			return false
 		}
-	case "core-settings", "core-progress", "core-firmware-select":
+	case "core-settings", "core-progress", "core-firmware-select", "core-remove":
 		return len(args) == 2
 	case "core-entry":
 		return len(args) == 3 || len(args) == 4 || len(args) == 5 || len(args) == 6
@@ -705,6 +705,15 @@ func safeCommandError(err error) commandError {
 		return commandError{Code: "CANCELED", Message: "FogCast operation was canceled"}
 	case errors.Is(err, context.DeadlineExceeded):
 		return commandError{Code: "DEADLINE_EXCEEDED", Message: "FogCast operation timed out"}
+	}
+	var removal *coreRemoveAdmissionError
+	if errors.As(err, &removal) {
+		switch removal.code {
+		case protocol.CodeBusy:
+			return commandError{Code: removal.code, Phase: "core-entry-remove", Message: "A kit may be using this title. Stop the session or finish recovery, then retry."}
+		case protocol.CodeMiSTerUnavailable:
+			return commandError{Code: removal.code, Phase: "core-entry-remove", Message: "Cannot check every configured kit. Connect the kits and retry."}
+		}
 	}
 	var apiErr *protocol.APIError
 	if errors.As(err, &apiErr) {

@@ -2,7 +2,6 @@ package catalog
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -19,6 +18,7 @@ import (
 const (
 	corePackageLibraryID = "core-packages"
 	corePackageRoot      = "logical:core-packages"
+	retainedCoreReason   = "retained-core:"
 	maxCoreEntryTitle    = 256
 )
 
@@ -44,6 +44,64 @@ type CoreEntry struct {
 	// DiskGeometry overrides the geometry inferred from a hard-disk image's
 	// master boot record. Nil means inferred.
 	DiskGeometry *protocol.DiskGeometry `json:"disk_geometry,omitempty"`
+}
+
+// CoreEntryID returns the deterministic ID of a validated local title.
+func CoreEntryID(title, coreID, packageID string) (string, error) {
+	title = strings.TrimSpace(title)
+	if err := validateCoreEntry(title, coreID, packageID); err != nil {
+		return "", err
+	}
+	return GameID(CorePlatform, corePackageLibraryID, coreID+"\x00"+title, title), nil
+}
+
+type coreEntryQueryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+// retainedLocalEntryID recovers legacy IDs as well as current ones. Remote
+// entries use a separate 256-bit source identity and are not local titles.
+func retainedLocalEntryID(ctx context.Context, q coreEntryQueryer, title, coreID string) (string, error) {
+	rows, err := q.QueryContext(ctx, `SELECT g.game_id FROM games g
+		WHERE g.library_id = ? AND g.system = ?
+		  AND g.source_kind = ? AND g.reason = ? AND g.title = ?
+		  AND NOT (length(g.game_id) = 76 AND substr(g.game_id, 1, 12) = 'fpga-remote-')
+		  AND NOT EXISTS (SELECT 1 FROM core_entries e WHERE e.game_id = g.game_id)
+		ORDER BY g.game_id LIMIT 2`, corePackageLibraryID, CorePlatform, SourceKindCorePackage, retainedCoreReason+coreID, title)
+	if err != nil {
+		return "", fmt.Errorf("find retained core title: %w", err)
+	}
+	defer rows.Close()
+	var id string
+	for rows.Next() {
+		if id != "" {
+			return "", ErrCoreEntryConflict
+		}
+		if err := rows.Scan(&id); err != nil {
+			return "", fmt.Errorf("read retained core title: %w", err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return "", fmt.Errorf("list retained core title: %w", err)
+	}
+	return id, nil
+}
+
+// ResolveCoreEntryID returns the retained stable identity, including a legacy
+// ID, before a caller cleans interrupted household-state references.
+func (s *Store) ResolveCoreEntryID(ctx context.Context, title, coreID, packageID string) (string, error) {
+	id, err := CoreEntryID(title, coreID, packageID)
+	if err != nil {
+		return "", err
+	}
+	retained, err := retainedLocalEntryID(ctx, s.db, strings.TrimSpace(title), coreID)
+	if err != nil {
+		return "", err
+	}
+	if retained != "" {
+		return retained, nil
+	}
+	return id, nil
 }
 
 const coreEntrySelect = `SELECT e.game_id, g.title, e.core_id, e.package_id, e.media_role, e.media_id, e.media_name, e.firmware_required,
@@ -119,17 +177,25 @@ func (s *Store) createCoreEntry(ctx context.Context, title, coreID, packageID, m
 	// alone loses punctuation, case, non-ASCII text, and long suffixes. Existing
 	// rows retain their stored IDs; the core/title query below finds duplicates
 	// created by either identity scheme.
-	gameID := GameID(CorePlatform, corePackageLibraryID, coreID+"\x00"+title, title)
+	gameID, _ := CoreEntryID(title, coreID, packageID)
 	if remote != nil {
-		digest := sha256.Sum256([]byte("remote-core-entry\x00" + remote.SourceID + "\x00" + remote.SourceGameID))
-		gameID = fmt.Sprintf("fpga-remote-%x", digest)
+		gameID = RemoteCoreEntryID(remote.SourceID, remote.SourceGameID)
 	}
-	entry := CoreEntry{GameID: gameID, Title: title, CoreID: coreID, PackageID: packageID, MediaRole: mediaRole, MediaID: mediaID, FirmwareRequired: firmwareRequired}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return CoreEntry{}, fmt.Errorf("begin core entry creation: %w", err)
 	}
 	defer tx.Rollback()
+	if remote == nil && kit == nil {
+		retained, err := retainedLocalEntryID(ctx, tx, title, coreID)
+		if err != nil {
+			return CoreEntry{}, err
+		}
+		if retained != "" {
+			gameID = retained
+		}
+	}
+	entry := CoreEntry{GameID: gameID, Title: title, CoreID: coreID, PackageID: packageID, MediaRole: mediaRole, MediaID: mediaID, FirmwareRequired: firmwareRequired}
 	if remote != nil {
 		existing, err := scanCoreEntry(tx.QueryRowContext(ctx, coreEntrySelect+` WHERE e.game_id = (SELECT game_id FROM remote_core_entries WHERE source_id = ? AND source_game_id = ?)`, remote.SourceID, remote.SourceGameID).Scan)
 		if err == nil {
@@ -147,32 +213,62 @@ func (s *Store) createCoreEntry(ctx context.Context, title, coreID, packageID, m
 	if err := ensureCorePackageLibrary(ctx, tx); err != nil {
 		return CoreEntry{}, err
 	}
-	var exists int
-	query := `SELECT EXISTS(SELECT 1 FROM games WHERE game_id = ?)`
-	args := []any{gameID}
+	// A removed entry keeps its parent game row to retain captured SAVE
+	// metadata and target data keyed by this stable ID. Recreate only the
+	// exact core-package identity, never an unrelated scanned game.
+	var gameExists, reusable int
+	allowChangedTitle := 0
+	if remote != nil {
+		allowChangedTitle = 1
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM games WHERE game_id = ?),
+		EXISTS(SELECT 1 FROM games g WHERE g.game_id = ? AND g.library_id = ? AND g.system = ?
+		  AND g.source_kind = ? AND g.reason = ? AND (? = 1 OR g.title = ?) AND NOT EXISTS
+		  (SELECT 1 FROM core_entries e WHERE e.game_id = g.game_id))`,
+		gameID, gameID, corePackageLibraryID, CorePlatform, SourceKindCorePackage,
+		retainedCoreReason+coreID, allowChangedTitle, title).Scan(&gameExists, &reusable); err != nil {
+		return CoreEntry{}, fmt.Errorf("check retained core entry: %w", err)
+	}
+	if gameExists != 0 && reusable == 0 {
+		return CoreEntry{}, ErrCoreEntryConflict
+	}
+	if kit != nil && reusable != 0 {
+		// A generated helper must never claim a removed user's saved identity.
+		return CoreEntry{}, ErrCoreEntryConflict
+	}
 	if remote == nil {
 		// A remote title may share its visible name with a local title.
-		query = `SELECT EXISTS(SELECT 1 FROM core_entries AS e JOIN games AS g ON g.game_id = e.game_id WHERE (e.game_id = ? OR (e.core_id = ? AND g.title = ?)) AND NOT EXISTS (SELECT 1 FROM remote_core_entries AS r WHERE r.game_id = e.game_id)) OR EXISTS(SELECT 1 FROM games WHERE game_id = ?)`
-		args = []any{gameID, coreID, title, gameID}
-	}
-	if err := tx.QueryRowContext(ctx, query, args...).Scan(&exists); err != nil {
-		return CoreEntry{}, fmt.Errorf("check core entry conflict: %w", err)
-	}
-	if exists != 0 {
-		return CoreEntry{}, ErrCoreEntryConflict
+		var exists int
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM core_entries e
+		  JOIN games g ON g.game_id = e.game_id WHERE e.core_id = ? AND g.title = ?
+		  AND NOT EXISTS (SELECT 1 FROM remote_core_entries r WHERE r.game_id = e.game_id))`, coreID, title).Scan(&exists); err != nil {
+			return CoreEntry{}, fmt.Errorf("check core entry conflict: %w", err)
+		}
+		if exists != 0 {
+			return CoreEntry{}, ErrCoreEntryConflict
+		}
 	}
 	now := time.Now().UnixNano()
 	search := searchDocument(gameID, title, CorePlatform)
-	if _, err := tx.ExecContext(ctx, `
+	if reusable == 0 {
+		if _, err := tx.ExecContext(ctx, `
 		INSERT INTO games (
 		  game_id, library_id, system, relative_path, title, source_kind, source_state,
 		  source_size, modified_ns, seen_generation, search_text, canonical_title,
 		  group_key, first_seen_ns
 		) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?)`,
-		gameID, corePackageLibraryID, CorePlatform, gameID, title, SourceKindCorePackage,
-		SourceStateAvailable, search, title, gameID, now,
-	); err != nil {
-		return CoreEntry{}, fmt.Errorf("insert core package game: %w", err)
+			gameID, corePackageLibraryID, CorePlatform, gameID, title, SourceKindCorePackage,
+			SourceStateAvailable, search, title, gameID, now,
+		); err != nil {
+			return CoreEntry{}, fmt.Errorf("insert core package game: %w", err)
+		}
+	} else {
+		// Remote source titles may have changed since removal. Refresh the
+		// visible metadata on explicit recreation and clear the retention marker.
+		if _, err := tx.ExecContext(ctx, `UPDATE games SET title = ?, canonical_title = ?, search_text = ?, reason = '' WHERE game_id = ?`,
+			title, title, search, gameID); err != nil {
+			return CoreEntry{}, fmt.Errorf("restore retained core entry: %w", err)
+		}
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO core_entries(game_id, core_id, package_id, media_role, media_id, firmware_required) VALUES (?, ?, ?, ?, ?, ?)`, gameID, coreID, packageID, mediaRole, mediaID, firmwareRequiredInt(firmwareRequired)); err != nil {
 		return CoreEntry{}, fmt.Errorf("insert core entry: %w", err)
@@ -203,6 +299,79 @@ func (s *Store) createCoreEntry(ctx context.Context, title, coreID, packageID, m
 		return CoreEntry{}, fmt.Errorf("commit core entry creation: %w", err)
 	}
 	return entry, nil
+}
+
+// RetainedCoreEntry reports an invisible parent left to preserve saved media.
+func (s *Store) RetainedCoreEntry(ctx context.Context, gameID string) (bool, error) {
+	if protocol.ValidateGameID(gameID) != nil {
+		return false, ErrInvalidCoreEntry
+	}
+	var retained int
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM games g
+		WHERE g.game_id = ? AND g.library_id = ? AND g.system = ?
+		  AND g.source_kind = ? AND substr(g.reason, 1, ?) = ?
+		  AND NOT EXISTS (SELECT 1 FROM core_entries e WHERE e.game_id = g.game_id))`,
+		gameID, corePackageLibraryID, CorePlatform, SourceKindCorePackage,
+		len(retainedCoreReason), retainedCoreReason).Scan(&retained)
+	if err != nil {
+		return false, fmt.Errorf("find retained core entry: %w", err)
+	}
+	return retained != 0, nil
+}
+
+// RemoveCoreEntry removes the visible entry but retains the parent identity,
+// saved-cassette records and content-addressed data. Repeating removal for a
+// retained identity succeeds, so callers can retry separate user-state cleanup.
+func (s *Store) RemoveCoreEntry(ctx context.Context, gameID string) error {
+	if protocol.ValidateGameID(gameID) != nil {
+		return ErrInvalidCoreEntry
+	}
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("connect for core entry removal: %w", err)
+	}
+	defer conn.Close()
+	// Foreign keys are connection-local. Enable them on this connection so
+	// per-entry ROM, expansion, remote and kit-helper selections cascade.
+	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = ON`); err != nil {
+		return fmt.Errorf("enable core entry removal foreign keys: %w", err)
+	}
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin core entry removal: %w", err)
+	}
+	defer tx.Rollback()
+	var reason string
+	var coreID sql.NullString
+	var generated int
+	err = tx.QueryRowContext(ctx, `SELECT g.reason, e.core_id,
+		EXISTS(SELECT 1 FROM kit_host_entries k WHERE k.game_id = g.game_id) FROM games g
+		LEFT JOIN core_entries e ON e.game_id = g.game_id
+		WHERE g.game_id = ? AND g.library_id = ? AND g.system = ? AND g.source_kind = ?`,
+		gameID, corePackageLibraryID, CorePlatform, SourceKindCorePackage).Scan(&reason, &coreID, &generated)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrCoreEntryNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("find core entry removal: %w", err)
+	}
+	if generated != 0 {
+		return ErrCoreEntryNotFound
+	}
+	if !coreID.Valid {
+		if !strings.HasPrefix(reason, retainedCoreReason) {
+			return ErrCoreEntryNotFound
+		}
+	} else if _, err := tx.ExecContext(ctx, `UPDATE games SET reason = ? WHERE game_id = ?`, retainedCoreReason+coreID.String, gameID); err != nil {
+		return fmt.Errorf("retain core entry identity: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM core_entries WHERE game_id = ?`, gameID); err != nil {
+		return fmt.Errorf("remove core entry: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit core entry removal: %w", err)
+	}
+	return nil
 }
 
 // SelectCoreEntry replaces an entry's package only when both its core identity

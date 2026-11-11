@@ -335,7 +335,13 @@ func (a *App) handleRoomLocked(cmd Command) {
 }
 
 func (a *App) handleRoomDetailLocked(cmd Command) bool {
+	if a.handleDetailRemoveConfirmLocked(cmd) {
+		return true
+	}
 	switch cmd {
+	case CmdSortCycle:
+		a.startDetailRemovalLocked()
+		return true
 	case CmdBack, CmdUp:
 		a.closeDetailLocked()
 		a.roomDetail = hostclient.Game{}

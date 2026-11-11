@@ -31,10 +31,23 @@ type Admission interface {
 	Release(context.Context, Request) error
 }
 
+// CatalogTransition preserves the stopped kit host's catalog across a software
+// operation. Calls run under the existing activation worker and maintenance
+// reservation, after every former process has exited. Process-only restarts do
+// not call this interface.
+type CatalogTransition interface {
+	Apply(context.Context, Operation, string) error
+	Recover(context.Context, Operation, string) error
+}
+
 type Engine struct {
 	Repository Repository
 	Controller Controller
 	Admission  Admission
+	Catalogs   CatalogTransition
+	// ActivationReady supplements the service-group probe during Engine
+	// startup. It does not change independent host or accepted-group recovery.
+	ActivationReady func(context.Context, string) error
 	// Gate rejects activation during appliance trial/pending/corrupt state.
 	Gate func(context.Context) error
 	// Factory is this image's own software. It runs in place of a selection
@@ -96,6 +109,9 @@ func (e *Engine) health(ctx context.Context, id string, deadline time.Time) erro
 		}
 		probeCtx, cancel := context.WithTimeout(ctx, e.Poll*4)
 		err := e.Controller.Healthy(probeCtx, id)
+		if err == nil && e.ActivationReady != nil {
+			err = e.ActivationReady(probeCtx, id)
+		}
 		probeErr := probeCtx.Err()
 		if probeDeadline, ok := probeCtx.Deadline(); probeErr == nil && ok && !time.Now().Before(probeDeadline) {
 			// The deadline has passed even if timer delivery is delayed.
@@ -166,6 +182,10 @@ func (e *Engine) prepareSelection(ctx context.Context, id string) (string, error
 }
 
 func (e *Engine) switchPrepared(ctx context.Context, id string, request Request) error {
+	return e.switchPreparedAfterStop(ctx, id, request, nil)
+}
+
+func (e *Engine) switchPreparedAfterStop(ctx context.Context, id string, request Request, afterStop func(context.Context) error) error {
 	startupCtx, cancelStartup := context.WithTimeout(ctx, e.Deadline)
 	defer cancelStartup()
 	healthCtx, cancelHealth := context.WithTimeout(ctx, e.Deadline+e.Stable+5*e.Poll)
@@ -173,6 +193,11 @@ func (e *Engine) switchPrepared(ctx context.Context, id string, request Request)
 	deadline := e.Now().Add(e.Deadline)
 	if err := e.Controller.Stop(startupCtx); err != nil {
 		return fmt.Errorf("old processes did not exit: %w", err)
+	}
+	if afterStop != nil {
+		if err := afterStop(startupCtx); err != nil {
+			return fmt.Errorf("prepare kit catalog: %w", err)
+		}
 	}
 	// Restart only until the first accepted readiness window. An exit during
 	// native initialization and an exit observed by health share this deadline.
@@ -252,6 +277,10 @@ func (e *Engine) Run(ctx context.Context) error {
 		return errors.New(reason)
 	}
 	reason := "interrupted software activation"
+	// An interrupted applying operation has no live pre-stop source to inspect.
+	// Its journal must prove whether catalog work was authorized. A fresh
+	// request can skip catalog work when it restarts the actual active bundle.
+	needsCatalog := op.Phase != "queued"
 	if op.Phase == "queued" {
 		err := e.Controller.Verify(ctx, op.Candidate)
 		switch {
@@ -268,7 +297,13 @@ func (e *Engine) Run(ctx context.Context) error {
 			if err := transition(e.Repository, op, "queued", "applying", ""); err != nil {
 				return err
 			}
-			err = e.switchPrepared(ctx, op.Candidate, op.Request)
+			var catalog func(context.Context) error
+			source := e.Controller.Active()
+			needsCatalog = op.Candidate != source
+			if e.Catalogs != nil && needsCatalog {
+				catalog = func(ctx context.Context) error { return e.Catalogs.Apply(ctx, op, source) }
+			}
+			err = e.switchPreparedAfterStop(ctx, op.Candidate, op.Request, catalog)
 			if err == nil {
 				if err = complete(e.Repository, op, "applying", "accepted", ""); err != nil {
 					return err
@@ -292,7 +327,11 @@ func (e *Engine) Run(ctx context.Context) error {
 	// factory software takes its place and the selection is held back.
 	id, err := e.prepareSelection(ctx, op.Previous)
 	if err == nil {
-		err = e.switchPrepared(ctx, id, op.Request)
+		var catalog func(context.Context) error
+		if e.Catalogs != nil && needsCatalog {
+			catalog = func(ctx context.Context) error { return e.Catalogs.Recover(ctx, op, id) }
+		}
+		err = e.switchPreparedAfterStop(ctx, id, op.Request, catalog)
 	}
 	if err != nil {
 		failure := fmt.Sprintf("candidate failed (%s); recovery failed: %v", reason, err)
@@ -387,7 +426,12 @@ func (e *Engine) Boot(ctx context.Context, boot Request) error {
 	// software starts in its place instead of blocking startup.
 	id, err := e.prepareSelection(ctx, s.Selected)
 	if err == nil {
-		err = e.switchPrepared(ctx, id, req)
+		var catalog func(context.Context) error
+		if recovering && e.Catalogs != nil {
+			op := *s.Pending
+			catalog = func(ctx context.Context) error { return e.Catalogs.Recover(ctx, op, id) }
+		}
+		err = e.switchPreparedAfterStop(ctx, id, req, catalog)
 	}
 	if err != nil {
 		if recovering {

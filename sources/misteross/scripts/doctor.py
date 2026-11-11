@@ -21,7 +21,7 @@ from typing import Any, Sequence
 ROOT = Path(__file__).resolve().parents[1]
 if __package__ in (None, ""):
     sys.path.insert(0, str(ROOT))
-from scripts import toolchain_cache
+from scripts import quartus_tools, toolchain_cache
 
 INSTALL_BIN = ROOT / "build" / "toolchain" / "install" / "bin"
 TOOLCHAIN_BUILD = ROOT / "build" / "toolchain" / "build"
@@ -35,7 +35,9 @@ VID_PID_RE = re.compile(
     r"(?<![0-9a-f])(?:0x)?([0-9a-f]{4})\s*:\s*(?:0x)?([0-9a-f]{4})(?![0-9a-f])",
     re.I,
 )
-QUARTUS_VERSION_RE = re.compile(r"(^|[^0-9])17\.0\.2(?:\s|$)")
+# Every core's cores/<core>/quartus.lock names a Quartus the doctor accepts.
+QUARTUS_LOCK_ROOT = ROOT
+QUARTUS_LOCK_GLOB = "cores/*/quartus.lock"
 
 # Keep this table explicit: the doctor must not search for a different FPGA
 # implementation when a pinned repository-local binary is missing.
@@ -324,7 +326,11 @@ def oss_checks(
 
 
 def quartus_checks() -> list[dict[str, Any]]:
-    """Inspect Quartus only under an explicit QUARTUS_ROOTDIR."""
+    """Inspect Quartus only under an explicit QUARTUS_ROOTDIR.
+
+    The installation is OK when one core's quartus.lock names both a line of
+    its `quartus_sh --version` output and its quartus_sh sha256.
+    """
 
     quartus_root = os.environ.get("QUARTUS_ROOTDIR", "").strip()
     if not quartus_root:
@@ -391,6 +397,19 @@ def quartus_checks() -> list[dict[str, Any]]:
                 False,
             )
         ]
+    try:
+        locks = _quartus_locks()
+    except quartus_tools.RebuildError as error:
+        return [make_check("Quartus", "ERROR", str(error), False)]
+    if not locks:
+        return [
+            make_check(
+                "Quartus",
+                "NOT READY",
+                f"no {QUARTUS_LOCK_GLOB} names a Quartus to accept",
+                False,
+            )
+        ]
     outcome = run_command((str(executable), "--version"))
     if outcome.completed is None:
         return [make_check("Quartus", "ERROR", f"{outcome.error}; {executable}", False)]
@@ -398,17 +417,40 @@ def quartus_checks() -> list[dict[str, Any]]:
     detail = f"{executable} --version -> {_short_output(result.stdout, result.stderr)}"
     if result.returncode != 0:
         return [make_check("Quartus", "ERROR", f"exit {result.returncode}; {detail}", False)]
-    version_text = "\n".join((result.stdout, result.stderr))
-    if QUARTUS_VERSION_RE.search(version_text) is None:
+    try:
+        with executable.open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+    except OSError as error:
+        return [make_check("Quartus", "ERROR", f"cannot hash {executable}: {error}", False)]
+    lines = set(result.stdout.splitlines()) | set(result.stderr.splitlines())
+    matching = [
+        lock.path
+        for lock in locks
+        if lock.version in lines and digest == lock.quartus_sh_sha256
+    ]
+    if not matching:
+        versions = "; ".join(sorted({lock.version for lock in locks}))
         return [
             make_check(
                 "Quartus",
                 "NOT READY",
-                f"{detail}; exact Quartus Prime 17.0.2 is required",
+                f"{detail}; sha256 {digest}; no quartus.lock matches both its "
+                f"--version line and quartus_sh sha256 (locked: {versions})",
                 False,
             )
         ]
-    return [make_check("Quartus", "OK", detail, False)]
+    return [make_check("Quartus", "OK", f"{detail}; matches {', '.join(matching)}", False)]
+
+
+def _quartus_locks() -> list[quartus_tools.QuartusLock]:
+    """Load every core's quartus.lock, in path order."""
+
+    return [
+        quartus_tools.load_quartus_lock(
+            QUARTUS_LOCK_ROOT, path.relative_to(QUARTUS_LOCK_ROOT).as_posix()
+        )
+        for path in sorted(QUARTUS_LOCK_ROOT.glob(QUARTUS_LOCK_GLOB))
+    ]
 
 
 def _local_probe(

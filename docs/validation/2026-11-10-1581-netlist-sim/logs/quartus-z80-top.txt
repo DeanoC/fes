@@ -1,0 +1,44 @@
+Analysis & Synthesis Status : Successful - Tue Nov 10 08:45:16 2026
+Quartus Prime Version : 17.0.2 Build 602 07/19/2017 SJ Lite Edition
+Revision Name : top
+Top-level Entity Name : top
+Family : Cyclone V
+Logic utilization (in ALMs) : N/A
+Total registers : 1875
+Total pins : 35
+Total virtual pins : 0
+Total block memory bits : 1,546,752
+Total DSP Blocks : 1
+Total HSSI RX PCSs : 0
+Total HSSI PMA RX Deserializers : 0
+Total HSSI TX PCSs : 0
+Total HSSI PMA TX Serializers : 0
+Total PLLs : 2
+Total DLLs : 0
+
+z80/top/map.log:Info: Quartus Prime Analysis & Synthesis was successful. 0 errors, 30 warnings
+z80/top/map.log:    Info: Peak virtual memory: 1129 megabytes
+z80/top/map.log:    Info: Elapsed time: 00:00:45
+z80/top/eda.log:Info: Quartus Prime EDA Netlist Writer was successful. 0 errors, 3 warnings
+z80/top/eda.log:    Info: Peak virtual memory: 1272 megabytes
+z80/top/eda.log:    Info: Elapsed time: 00:00:01
+
+ 
+631272 top_modelsim.xrf
+35 top.sft
+7597653 top.vo
+
+cell census:
+   4198 cyclonev_lcell_comb 
+   1875 dffeas 
+    214 cyclonev_ram_block 
+     34 cyclonev_io_obuf 
+      3 cyclonev_pll_output_counter 
+      3 cyclonev_io_ibuf 
+      2 cyclonev_pll_refclk_select 
+      2 cyclonev_pll_reconfig 
+      2 cyclonev_fractional_pll 
+      1 cyclonev_mac 
+      1 cyclonev_hps_interface_peripheral_i2c 
+      1 cyclonev_hps_interface_mpu_general_purpose 
+      1 altera_pll_reconfig_tasks 

@@ -18,6 +18,82 @@ import (
 	"github.com/DeanoC/misteross/expansion"
 )
 
+// Python's catalog and core-dev admission tests consume these same cases.
+func TestFactoryVideoShellSharedVectors(t *testing.T) {
+	data, err := os.ReadFile("testdata/factory-video-shells.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases []struct {
+		Name       string                 `json:"name"`
+		Descriptor corepackage.Descriptor `json:"descriptor"`
+		Expect     string                 `json:"expect"`
+	}
+	if err := json.Unmarshal(data, &cases); err != nil {
+		t.Fatal(err)
+	}
+	if len(cases) == 0 {
+		t.Fatal("empty shared profile vector")
+	}
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			got, err := factoryVideoShellProfile(tc.Descriptor)
+			if tc.Expect == "error" {
+				if err == nil {
+					t.Fatalf("accepted unsupported profile %q", got)
+				}
+				return
+			}
+			if err != nil || got != tc.Expect {
+				t.Fatalf("profile = %q, %v; want %q", got, err, tc.Expect)
+			}
+		})
+	}
+}
+
+func TestFactoryVideoRejectsUnsupportedMarkedPackage(t *testing.T) {
+	base, _, _ := packageSelectionFixtureForCore(t, "fes.coleco")
+	manifestPath := filepath.Join(base, "manifest.toml")
+	manifest, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// This is a valid package descriptor with an unsupported video version.
+	manifest = append(manifest, []byte("\n[[interfaces]]\nid = 'fes.fabric.video.raster-rgb888'\nmajor = 2\nminor = 0\nrequired = false\n")...)
+	if err := os.Chmod(manifestPath, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifestPath, manifest, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(manifestPath, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	inspection, err := corepackage.InspectPackage(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	packages := filepath.Join(t.TempDir(), "core-packages")
+	if err := os.Mkdir(packages, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(base, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	selected := filepath.Join(packages, inspection.PackageID)
+	if err := os.Rename(base, selected); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(selected, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = removePath(packages) })
+	_, err = InspectFactoryVideoParts(context.Background(), "", packages)
+	if err == nil || !strings.Contains(err.Error(), "unsupported factory video shell profile") {
+		t.Fatalf("unsupported marked package returned %v", err)
+	}
+}
+
 func factoryVideoSelectionFixture(t *testing.T) (string, string) {
 	return factoryVideoSelectionFixtureLayout(t, expansion.ColecoVideoLayout)
 }

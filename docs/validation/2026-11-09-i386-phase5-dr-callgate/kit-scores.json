@@ -1,0 +1,19 @@
+{
+ "kit": "A",
+ "baseline": {"image": "cd284ca38fcefb9705580622266166fbee936b7b9e065b523aee7fc9049886d4", "software": "6631614914ce1ac0541fa450e2b6ca6c81e5a9181ec78049d2b4d53b779aed0c"},
+ "preset": 0,
+ "runs": {
+  "k1": {"package": "0d17486ee91f44502324c0cb99d2402ac5f2c38c9e8a9de2fe1c53fd80fa4f9a", "what": "this seal: benchmarks, then Time Circle"},
+  "m1": {"package": "79c5009c43982c441acf5a41df2132a7f93adf7aea26c36c57d57231384768e9", "what": "main's #1587 seal, the A/B reference: benchmarks, then Time Circle"},
+  "k2": {"package": "0d17486ee91f44502324c0cb99d2402ac5f2c38c9e8a9de2fe1c53fd80fa4f9a", "what": "Wolfenstein 3D, Ultima VI, DOOM"},
+  "k3": {"package": "0d17486ee91f44502324c0cb99d2402ac5f2c38c9e8a9de2fe1c53fd80fa4f9a", "what": "U.S. Navy Fighters"}
+ },
+ "benchmarks": {
+  "doom_v19_timedemo_demo3": {"k1": {"gametics": 3863, "realtics": 3378, "fps": 40.03}, "m1": {"gametics": 3863, "realtics": 3378, "fps": 40.03}},
+  "pack_doom_max_detail": {"k1": {"gametics": 2134, "realtics": 2062, "fps": 36.2}, "m1": {"gametics": 2134, "realtics": 2062, "fps": 36.2}},
+  "pack_doom_min_detail": {"k1": {"gametics": 2134, "realtics": 748, "fps": 99.9}},
+  "3dbench": {"k1": 76.9, "m1": 76.9},
+  "pcpbench": {"k1": 13.3},
+  "topbench": {"k1": 304, "m1": 306}
+ }
+}
