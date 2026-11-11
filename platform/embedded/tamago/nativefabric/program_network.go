@@ -12,9 +12,10 @@ import (
 // StartNetwork joins the trusted platform opener to this boot before frontend
 // ownership. bootOwner must come from independently accepted boot admission,
 // never a catalogue or cached application status. The opener retains partial
-// DMA resources and honors cancellation. Failure cannot trigger FPGA cleanup:
+// DMA resources, honors the first (startup) context and uses the second context
+// for the IP stack lifetime. Failure cannot trigger FPGA cleanup:
 // a failed or late opener leaves DMA ownership uncertain until reboot.
-func (s *ProgramService) StartNetwork(ctx context.Context, bootOwner uint64, open func(context.Context, uint64) (*network.Controller, error)) error {
+func (s *ProgramService) StartNetwork(ctx context.Context, bootOwner uint64, open func(context.Context, context.Context, uint64) (*network.Controller, error)) error {
 	if ctx == nil || bootOwner == 0 || open == nil {
 		return ErrProgramSession
 	}
@@ -31,6 +32,8 @@ func (s *ProgramService) StartNetwork(ctx context.Context, bootOwner uint64, ope
 	}
 	work, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+	lifetime, stopWorkers := context.WithCancel(ctx)
+	p.networkCancel = stopWorkers
 	finished := false
 	defer func() {
 		if !finished {
@@ -39,7 +42,7 @@ func (s *ProgramService) StartNetwork(ctx context.Context, bootOwner uint64, ope
 			p.networkFailure(errors.New("native network startup aborted"))
 		}
 	}()
-	p.networkStartup, err = open(work, bootOwner)
+	p.networkStartup, err = open(work, lifetime, bootOwner)
 	if err == nil {
 		err = work.Err()
 	}
@@ -82,6 +85,9 @@ func (s *ProgramService) AttachNetwork(control *network.Controller) error {
 // All helpers hold programService.operation. A failed network boundary cannot
 // invoke fail's ordinary FPGA cleanup: the platform DMA state is then unknown.
 func (p *programService) networkFailure(err error) error {
+	if p.networkCancel != nil {
+		p.networkCancel() // Software cancellation does not release DMA memory.
+	}
 	p.preferences.seal(err)
 	p.viewMu.Lock()
 	p.view.State, p.view.Error = ProgramRebootRequired, err.Error()
@@ -108,8 +114,12 @@ func (p *programService) finishNetwork(result *error) {
 	}
 	p.viewMu.Lock()
 	healthy := p.view.State == ProgramReady || p.view.State == ProgramRunning
+	parked := p.view.State == ProgramParked
 	p.viewMu.Unlock()
 	if !healthy {
+		if parked && p.networkCancel != nil {
+			p.networkCancel()
+		}
 		return
 	}
 	cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)

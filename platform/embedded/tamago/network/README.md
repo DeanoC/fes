@@ -86,6 +86,9 @@ The paired native launcher now wires that controlled opener through
 `ProgramService.StartNetwork` before frontend ownership. Its boot owner is
 captured under the original accepted cold context before USB/SD startup; a
 catalogue cannot replace it. Disabled compiled profiles perform no startup call.
+The board opener receives separate startup and stack-lifetime contexts: the
+bounded startup is used for XGMAC/firmware work, while `OpenDevice` workers use
+the longer lifetime. Canceling successful startup does not cancel the stack.
 The service retains partial returned controls and retires without FPGA cleanup
 after uncertain startup, including a propagated platform panic. This supplies
 the call path, not MAC/PHY/DMA qualification or a native upload listener.

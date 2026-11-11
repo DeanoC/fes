@@ -84,6 +84,7 @@ type programService struct {
 	preferences    *ProgramPreferences
 	network        *network.Controller
 	networkStartup *network.Controller // Retain a partial startup; never reuse it after failure.
+	networkCancel  context.CancelFunc  // Stops owned workers only; never a DMA fence.
 }
 
 // NewProgramService takes exclusive lifecycle ownership of this verifier once.
@@ -161,6 +162,9 @@ func (p *programService) fail(err error) error {
 		if networkErr != nil {
 			return p.networkFailure(errors.Join(err, networkErr))
 		}
+	}
+	if p.networkCancel != nil {
+		p.networkCancel()
 	}
 	p.preferences.seal(err)
 	if p.computer != nil && !p.closed {

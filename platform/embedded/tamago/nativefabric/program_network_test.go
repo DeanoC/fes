@@ -23,7 +23,7 @@ type programNetwork struct {
 
 func (*programNetwork) Receive([]byte) (int, error) { return 0, nil }
 func (*programNetwork) Transmit([]byte) error       { return nil }
-func newProgramNetwork(t *testing.T) (*programNetwork, *network.Controller) {
+func newProgramNetwork(t *testing.T, lifetime ...context.Context) (*programNetwork, *network.Controller) {
 	t.Helper()
 	n := &programNetwork{}
 	l, err := network.NewLink(gnet.NewLnetoStack(gnet.DefaultLnetoStackConfig()), n, "192.0.2.2/24", "02:00:00:00:00:02", "")
@@ -56,7 +56,11 @@ func newProgramNetwork(t *testing.T) (*programNetwork, *network.Controller) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	var parent context.Context = context.Background()
+	if len(lifetime) != 0 {
+		parent = lifetime[0]
+	}
+	ctx, cancel := context.WithCancel(parent)
 	done := make(chan error, 1)
 	go func() { done <- l.Start(ctx) }()
 	t.Cleanup(func() {

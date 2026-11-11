@@ -63,11 +63,16 @@ func NetworkEnabled() bool { return profileNetworkEnabled }
 // not from package metadata or a previous MAC receipt. Return the controller to
 // ProgramService.AttachNetwork before frontend ownership. This hook supplies
 // no secure MAC qualification and leaves unqualified profiles disabled.
-func OpenNetworkWithControl(ctx context.Context, bootOwner uint64) (*network.Interface, *network.Controller, error) {
-	if !profileNetworkEnabled || ctx == nil || bootOwner == 0 {
+// ctx bounds controller startup; lifetime owns the background socket/IP workers.
+// Canceling startup after successful return must not terminate those workers.
+func OpenNetworkWithControl(ctx, lifetime context.Context, bootOwner uint64) (*network.Interface, *network.Controller, error) {
+	if !profileNetworkEnabled || ctx == nil || lifetime == nil || bootOwner == 0 {
 		return nil, nil, fmt.Errorf("de25-nano: controlled Ethernet profile and trusted boot owner required")
 	}
 	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
+	if err := lifetime.Err(); err != nil {
 		return nil, nil, err
 	}
 	networkLock.Lock()
@@ -81,8 +86,14 @@ func OpenNetworkWithControl(ctx context.Context, bootOwner uint64) (*network.Int
 	}
 	var control network.DMAControl
 	var err error
-	ownedNetworkInterface, err = network.OpenDevice(ctx, profileNetworkAddress, profileNetworkGateway, func() (network.Device, error) {
+	ownedNetworkInterface, err = network.OpenDevice(lifetime, profileNetworkAddress, profileNetworkGateway, func() (network.Device, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		ownedNetworkDevice, control, err = xgmac.OpenControlled(ctx, FabricCPUTransport{}, bootOwner, macRegisters{}, networkMemory{}, xgmac.Config{MAC: profileNetworkMAC, PHYAddress: profileNetworkPHY, PHYID: profileNetworkPHYID, CSRClockHz: profileNetworkClock, RXBufferShift: profileNetworkRXShift})
+		if err == nil {
+			err = ctx.Err()
+		}
 		return ownedNetworkDevice, err
 	})
 	if err != nil {

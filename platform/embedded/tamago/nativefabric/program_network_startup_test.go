@@ -13,12 +13,14 @@ import (
 func TestProgramNetworkStartupBindsBeforeFrontendAndJoinsLifecycle(t *testing.T) {
 	var n *programNetwork
 	starts := 0
+	var startupContext, lifetimeContext context.Context
 	f, b, _ := backendFixture(t, func(f *serviceFixture) {
 		var control *network.Controller
-		n, control = newProgramNetwork(t)
 		calls := f.cpu.calls
-		err := f.s.StartNetwork(context.Background(), f.s.Status().Owner, func(ctx context.Context, owner uint64) (*network.Controller, error) {
+		err := f.s.StartNetwork(context.Background(), f.s.Status().Owner, func(ctx, lifetime context.Context, owner uint64) (*network.Controller, error) {
 			starts++
+			startupContext, lifetimeContext = ctx, lifetime
+			n, control = newProgramNetwork(t, lifetime)
 			end, ok := ctx.Deadline()
 			if !ok || time.Until(end) > 5*time.Second || owner != f.s.Status().Owner {
 				t.Fatal("startup lost owner or bound")
@@ -29,10 +31,13 @@ func TestProgramNetworkStartupBindsBeforeFrontendAndJoinsLifecycle(t *testing.T)
 			t.Fatal(err, "startup issued fabric IO")
 		}
 	})
+	if startupContext.Err() != context.Canceled || lifetimeContext.Err() != nil {
+		t.Fatal("startup cancellation leaked into stack lifetime")
+	}
 	if starts != 1 || n.stops != 0 || n.starts != 0 {
 		t.Fatal("startup repeated or changed controller")
 	}
-	opener := func(context.Context, uint64) (*network.Controller, error) {
+	opener := func(context.Context, context.Context, uint64) (*network.Controller, error) {
 		t.Fatal("late opener invoked")
 		return nil, nil
 	}
@@ -52,6 +57,16 @@ func TestProgramNetworkStartupBindsBeforeFrontendAndJoinsLifecycle(t *testing.T)
 	}
 	if n.stops != 2 || n.starts != 2 {
 		t.Fatal("return skipped network boundary")
+	}
+	session, err = f.s.Launch(ctx, f.s.Status().Generation, b.entries[0].Request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.s.Park(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	if lifetimeContext.Err() != context.Canceled || n.stops != 4 || n.starts != 3 {
+		t.Fatal("Park did not stop workers after network drain")
 	}
 }
 
@@ -74,9 +89,9 @@ func TestProgramNetworkStartupRejectsBeforeOpener(t *testing.T) {
 				ctx, cancel = context.WithCancel(ctx)
 				cancel()
 			}
-			var open func(context.Context, uint64) (*network.Controller, error)
+			var open func(context.Context, context.Context, uint64) (*network.Controller, error)
 			if mode != "nil-opener" {
-				open = func(context.Context, uint64) (*network.Controller, error) {
+				open = func(context.Context, context.Context, uint64) (*network.Controller, error) {
 					t.Fatal("invalid startup accessed opener")
 					return nil, nil
 				}
@@ -106,6 +121,7 @@ func TestProgramNetworkStartupFailureRetainsAndDoesNotCleanFabric(t *testing.T) 
 			cause := errors.New("partial startup")
 			var err error
 			panicked := false
+			var workerContext context.Context
 			func() {
 				defer func() {
 					if value := recover(); value != nil {
@@ -115,7 +131,8 @@ func TestProgramNetworkStartupFailureRetainsAndDoesNotCleanFabric(t *testing.T) 
 						}
 					}
 				}()
-				err = f.s.StartNetwork(ctx, f.s.Status().Owner, func(context.Context, uint64) (*network.Controller, error) {
+				err = f.s.StartNetwork(ctx, f.s.Status().Owner, func(_ context.Context, lifetime context.Context, _ uint64) (*network.Controller, error) {
+					workerContext = lifetime
 					opens++
 					switch mode {
 					case "panic":
@@ -133,6 +150,9 @@ func TestProgramNetworkStartupFailureRetainsAndDoesNotCleanFabric(t *testing.T) 
 			if (mode == "panic") != panicked {
 				t.Fatal("platform panic was changed")
 			}
+			if workerContext.Err() != context.Canceled {
+				t.Fatal("failed startup left owned workers live")
+			}
 			if mode != "panic" && err == nil {
 				t.Fatal("failure accepted")
 			}
@@ -145,7 +165,10 @@ func TestProgramNetworkStartupFailureRetainsAndDoesNotCleanFabric(t *testing.T) 
 			if f.s.Status().State != ProgramRebootRequired || f.cpu.calls != calls || n.stops != 0 || n.starts != 0 {
 				t.Fatal("uncertain startup performed cleanup")
 			}
-			err = f.s.StartNetwork(context.Background(), f.s.Status().Owner, func(context.Context, uint64) (*network.Controller, error) { opens++; return control, nil })
+			err = f.s.StartNetwork(context.Background(), f.s.Status().Owner, func(context.Context, context.Context, uint64) (*network.Controller, error) {
+				opens++
+				return control, nil
+			})
 			if !errors.Is(err, ErrProgramRetired) || opens != 1 || f.cpu.calls != calls {
 				t.Fatal("failed startup retried")
 			}

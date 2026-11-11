@@ -38,8 +38,8 @@ func startProgramNetwork() error {
 	if !de25nano.NetworkEnabled() {
 		return nil
 	}
-	return programService.StartNetwork(context.Background(), programNetworkBootOwner, func(ctx context.Context, owner uint64) (*network.Controller, error) {
-		_, control, err := de25nano.OpenNetworkWithControl(ctx, owner)
+	return programService.StartNetwork(context.Background(), programNetworkBootOwner, func(ctx, lifetime context.Context, owner uint64) (*network.Controller, error) {
+		_, control, err := de25nano.OpenNetworkWithControl(ctx, lifetime, owner)
 		return control, err
 	})
 }

@@ -54,14 +54,18 @@ do not touch the controller. Initial menu construction precedes network startup.
 `StartNetwork` connects an explicit platform opener before frontend ownership,
 using the owner captured from independent cold-boot admission. The existing
 cached service owner is only compared for identity, never used as permission.
-The five-second opener context must be honored by the supplier. The returned
+The five-second startup context must be honored by the supplier. Its separate
+worker-lifetime context remains active after startup returns; terminal failure
+or qualified Park cancels owned workers without treating cancellation as a DMA
+fence or releasing memory. The returned
 controller is claimed once; partial returns stay retained. Error, late
 cancellation, invalid controller or platform panic retires the service without
 ordinary FPGA cleanup or restart. A panic still propagates. Stale/late requests
 reject before calling the opener, and a failed attempt cannot be replayed.
 The Nano launcher now captures the cold owner before USB/SD startup and invokes
 the real `OpenNetworkWithControl` hook after initial menu construction and
-before creating its backend. Disabled compiled profiles make neither call.
+before creating its backend. Disabled compiled profiles perform neither the
+boot observation nor the MAC open.
 No shipped Nano profile is enabled or newly qualified by this wiring.
 
 Presentation and other frontend failures also drain before ordinary firmware
