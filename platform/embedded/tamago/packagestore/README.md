@@ -2,7 +2,9 @@
 
 `PrepareInstall` snapshots up to seven selected input files (64 MiB total) and
 uses the same canonical archive/ROM-linking implementation as normal retention.
-Upload paths are labels only: destinations derive from private bytes as
+`InstallPlan.ContentBytes` reports retained upload file bytes for aggregate
+catalog admission, counting each content-derived destination once. It excludes
+parsed archive/ROM allocations. Upload paths are labels only: destinations derive from private bytes as
 `FES/CONTENT/<sha256>.BIN`. The returned selection is unbound and cannot authorize
 storage containment. The runtime must check its compiled platform/ABI before
 calling the owned installer.

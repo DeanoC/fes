@@ -53,6 +53,21 @@ func (p *InstallPlan) Selection() *Selection {
 	}
 	return p.selection
 }
+
+// ContentBytes reports the privately retained upload file bytes, counting each
+// content-derived destination once. It excludes parsed archive/ROM allocations
+// and grants no storage or platform authority.
+func (p *InstallPlan) ContentBytes() int {
+	if p == nil {
+		return 0
+	}
+	total := 0
+	for _, data := range p.files {
+		total += len(data)
+	}
+	return total
+}
+
 func blobHash(data []byte) string { h := sha256.Sum256(data); return hex.EncodeToString(h[:]) }
 
 // PrepareInstall performs no device IO. Input paths are names in this upload,

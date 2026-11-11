@@ -313,11 +313,11 @@ func TestProgramRetainedCatalogAttachmentRefusesWithoutDeviceIO(t *testing.T) {
 				}
 			}
 			calls, opens := f.r.cpu.calls, f.r.f.files.opens
-			writes, retained := len(f.r.f.files.installOperations), b.staged
+			writes, retained := len(f.r.f.files.installOperations), len(b.catalog)
 			if err := target.AttachProgramInstall(ctx, plan); err == nil {
 				t.Fatal("invalid catalog publication accepted")
 			}
-			if calls != f.r.cpu.calls || opens != f.r.f.files.opens || writes != len(f.r.f.files.installOperations) || retained != b.staged {
+			if calls != f.r.cpu.calls || opens != f.r.f.files.opens || writes != len(f.r.f.files.installOperations) || retained != len(b.catalog) {
 				t.Fatal("rejected attachment mutated devices or catalog")
 			}
 		})

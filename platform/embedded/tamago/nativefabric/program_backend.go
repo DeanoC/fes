@@ -50,7 +50,8 @@ type ProgramBackend struct {
 	inputFault    error
 	inputPolling  programInputPolling
 	inputBoundary uint64
-	staged        *ProgramInstall
+	catalog       []*ProgramInstall
+	catalogBytes  int
 	stagedError   error
 }
 

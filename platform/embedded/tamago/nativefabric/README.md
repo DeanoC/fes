@@ -12,7 +12,7 @@ Uncertain storage ownership still prevents startup.
 `ReadInstallerBootstrap` accepts explicitly empty `programs:[]` and `entries:[]`
 bootstrap manifests, then merges verified installed records. The base needs no
 dummy playable entry. `AttachStagedProgram` performs the existing immutable
-platform preflight and exposes one staged source through Tenfoot's standard
+platform preflight and exposes staged sources through Tenfoot's standard
 core-catalog Install/Setup API. It performs no source filesystem access while
 the menu owns the fabric and never installs automatically on boot. Installation
 uses the existing input/menu/network ownership transitions; the newly configured
@@ -21,8 +21,14 @@ The setup response describes that preconfigured entry and its sealed ROMs.
 `AttachProgramInstall` exposes the same explicit Install/Setup flow for an
 already admitted HTTP `Download` plan. Download and catalog publication perform
 no SD or firmware IO; the export server may disappear before the user installs.
-Both adapters share one retained-source slot. Cancelled, foreign, duplicate,
-conflicting and non-Ready attachments refuse without replacing that source.
+Both adapters share a catalog of at most 32 plans and 64 MiB of retained upload
+file content in total. This content allowance excludes parsed archive/ROM
+allocations and is not a whole-heap limit. Each entry ID and package digest must
+be unique within the catalog so the standard source/core/package reference
+selects exactly one install plan, including different versions of the same core.
+Cancelled, foreign, duplicate, conflicting, full and non-Ready attachments refuse
+without replacing existing rows. Setup and installed status require the exact
+entry title and retained request, not just an entry ID match.
 This joins the transport-independent download and frontend APIs; no shipped
 profile enables native Ethernet or automatically fetches an export.
 Duplicate/conflicting IDs and foreign references refuse without mutation.

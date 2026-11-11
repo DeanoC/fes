@@ -364,3 +364,20 @@ func TestInstallCancellationBeforeAndAfterContentMutation(t *testing.T) {
 		})
 	}
 }
+
+func TestInstallPlanContentBytesCountsPrivateUpload(t *testing.T) {
+	var empty *InstallPlan
+	if empty.ContentBytes() != 0 {
+		t.Fatal("nil plan has content")
+	}
+	body, request, _ := basic(t)
+	plan, err := PrepareInstall(context.Background(), request, map[string][]byte{request.Path: body})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := len(body)
+	body[0] ^= 1
+	if plan.ContentBytes() != want {
+		t.Fatal("private content byte count differs")
+	}
+}
