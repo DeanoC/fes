@@ -14,6 +14,19 @@ background polling and do not re-enter the client. A known prepared lease gets
 one bounded stop on startup failure. A lost or malformed reply retires the
 client without a speculative stop or retry.
 
+An attempted `Open` failure now wraps its original cause in `StartupFailure`.
+Its stage distinguishes acquisition, driver startup and confirmation. The
+read-only `StopAttempted` and copied `StopReceipt` preserve the outcome of the
+existing cleanup before local retirement. Only a complete successful Stop
+response supplies that historical inactive receipt; missing, malformed, lost or
+failed replies remain unverified. `errors.Is` still finds the original cause
+and terminal retirement. Inspecting the record performs no firmware call and
+does not revive the source/client, release partial resources or authorize a
+retry. A verified Stop is controller containment evidence under the firmware
+contract, not a diagnosis of the missing device or electrical VBUS proof.
+Ordinary no-device boot and hotplug still require a separate input lifecycle;
+this record does not make startup failure optional in the native application.
+
 Polling and closing serialize with lease mutations. Cached receipts authorize
 only the source's own generation; they are not fresh hardware observations.
 Stale sources cannot poll or stop replacements. Driver errors latch, drop partial

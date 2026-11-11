@@ -40,9 +40,11 @@ func openReports(ctx context.Context, c *Client, factory func() (reportDriver, e
 		return nil, ErrTransition
 	}
 	s := &reportLease{client: c}
+	failed := &StartupFailure{stage: "acquire"}
 	err := c.transitionLocked(ctx, g.FesEmbeddedUsbAcquire)
 	if err == nil {
 		if err = ctx.Err(); err == nil {
+			failed.stage = "driver"
 			s.driver, err = factory()
 		}
 		if err == nil && s.driver == nil {
@@ -50,20 +52,28 @@ func openReports(ctx context.Context, c *Client, factory func() (reportDriver, e
 		}
 	}
 	if err == nil {
+		failed.stage = "confirm"
 		err = c.transitionLocked(ctx, g.FesEmbeddedUsbConfirm)
 	}
 	if err != nil {
 		current, known := c.LastReceipt()
 		if known && current.Active {
+			failed.stopAttempted = true
 			cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			err = errors.Join(err, c.transitionLocked(cleanup, g.FesEmbeddedUsbStop))
+			stopErr := c.transitionLocked(cleanup, g.FesEmbeddedUsbStop)
+			err = errors.Join(err, stopErr)
 			cancel()
+			if stopped, valid := c.LastReceipt(); stopErr == nil && valid && !stopped.Active && !stopped.Confirmed {
+				failed.stopped, failed.stopVerified = stopped, true
+			}
 		}
 		// If no wire mutation occurred, cancellation is recoverable at Client level.
 		// Any attempted driver startup or acquired lease is single-use after failure.
 		if s.driver != nil || current.Generation != before.Generation || !known {
 			err = c.retire(err)
 		}
+		failed.cause = err
+		err = failed
 		s.closed, s.fault = true, err
 		return s, err
 	}
