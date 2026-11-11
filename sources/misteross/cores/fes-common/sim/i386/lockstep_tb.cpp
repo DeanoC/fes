@@ -7587,6 +7587,20 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         c.expected_nmis = 2;
         cases.push_back(c);
     }
+    // The same handler in a code segment (98h) whose limit, 1B10h, ends at
+    // its NOP: the IRET's fetch is #GP(0) before the IRET starts, so the
+    // NMI block stays and the second NMI waits through the #GP handler.
+    {
+        Case c{"nmi-iret-fetch-gp", [](Asm &a) { a.op({0x90, 0x90, 0x90, 0x40}); }, 13, 0,
+               {{2, gate(0x98, 0x1b10, 0x86)}}, false};
+        c.more_gdt = {desc(0, 0x1b10, 0x9b, false, false)};
+        c.places = {{0x1b10, {0x90, 0xcf}}};
+        c.nmi_pulses = {CODE + 44, 0x1b10};
+        c.stop_at_exception = false;
+        c.expect_halt = true;
+        c.expected_nmis = 1;
+        cases.push_back(c);
+    }
     // After the commit: each of the new task's descriptors faults in the
     // new task (its EIP, its stack). The LDT: TI=1, not an LDT, not
     // present; SS: null, read-only, RPL and DPL not CS's RPL, not present;
