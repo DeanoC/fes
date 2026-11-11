@@ -1,0 +1,5 @@
+[quartus]
+edition = "pro"
+version = "Version 26.3.0 Build 114 10/14/2026 SC Pro Edition"
+device_family = "agilex5"
+quartus_sh_sha256 = "5bafd5c88c17a0ac82d950a23ac688b7ddbea7300676a48c02b9924139e0f636"

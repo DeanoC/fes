@@ -2,6 +2,12 @@
 
 Hardware-supported package paths: 0.
 
+Selected-MENU startup and its DE10 splash fallback have host unit coverage.
+When MENU fails and splash loads successfully, the runtime remains idle without
+a MENU display. DE25 rejects the Cyclone V splash before programming. Failure
+of both routes remains reboot-required; this is not failed-transfer recovery
+qualification. The changed fallback still needs exact-bundle DE10 kit acceptance.
+
 The [2026-11-08 ordinary DE25 development record](../../../docs/validation/2026-11-08-de25-ordinary-dev-kit/README.md)
 adds exact-artifact native evidence for standard ZX81 on default-off bundle
 `61a4b0aa`: BASIC load/run/reload, Stop/relaunch, idle and active OS reboot,

@@ -25,7 +25,8 @@ class ProductionIdentityTests(unittest.TestCase):
                  for name, data in captured.items()}
         # Keep actual producer imports and fitted qualification inputs, rather
         # than stubbing the source-closure function under test.
-        helpers = {producer.RECIPE, 'boards/de25nano/producers/build_menu_package.py',
+        helpers = {producer.RECIPE, 'boards/de25nano/build.py', 'boards/de25nano/quartus.lock',
+                   'boards/de25nano/producers/build_menu_package.py',
                    'boards/de25nano/producers/build_zx81_package.py',
                    'boards/de25nano/package/core_package.py',
                    'boards/de25nano/package/export_core_package.py'}

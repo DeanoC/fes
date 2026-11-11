@@ -150,6 +150,21 @@ mkdir -p "$target/usr/lib"
 
 "$repo/buildroot/board/fogcast-target/prepare-native-rootfs.sh" "$target"
 
+# Pin the DE10 boot behavior in the assembled rootfs: DHCP renews after the
+# first lease, loopback comes up before DHCP, and Bluetooth modules follow the
+# running kernel's module tree.
+network_init=$target/etc/init.d/S20mister-network
+bluetooth_init=$target/etc/init.d/S35fes-bluetooth
+test -f "$network_init" && test -f "$bluetooth_init"
+grep -Fq '/sbin/ip link set lo up' "$network_init"
+loopback_line=$(grep -nF '/sbin/ip link set lo up' "$network_init" | cut -d: -f1)
+wait_line=$(grep -nF 'while [ ! -e /sys/class/net/eth0 ]' "$network_init" | cut -d: -f1)
+test "$loopback_line" -lt "$wait_line"
+grep -Fq '/sbin/udhcpc -f -p "$pid_file" -t 5 -T 2 -i eth0' "$network_init"
+! grep -Fq 'udhcpc -f -q ' "$network_init"
+grep -Fqx 'mods=/lib/modules/$(uname -r)/kernel/drivers/bluetooth' "$bluetooth_init"
+grep -Fq 'ko=$mods/$name.ko' "$bluetooth_init"
+
 idle=$fixture/idle.rbf
 printf '%s\n' idle >"$idle"
 idle_sha=$(sha256sum "$idle" | awk '{print $1}')

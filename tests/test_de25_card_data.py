@@ -111,7 +111,7 @@ class De25CardDataTests(unittest.TestCase):
             node = root / 'sys/disk3'
             node.mkdir(parents=True)
             (node / 'start').write_text('4261888\n')
-            target = {'resolved_path': str(disk), 'size_bytes': CAPACITY,
+            target = {'by_id': data.USB_BY_ID, 'resolved_path': str(disk), 'size_bytes': CAPACITY,
                       'diskseq': 54, 'device': 0}
             filesystem = {'label': 'FESDATA3', 'incompat_features': '0x40',
                           'block_size': 4096, 'block_count': 56807424 // 8}
@@ -151,6 +151,62 @@ class De25CardDataTests(unittest.TestCase):
                 data.execute(self.args('apply'))
             self.assertEqual(disk.read_bytes(), base_mbr())
             formatter.assert_not_called()
+
+    def test_verify_accepts_same_card_after_reinsert_with_new_kernel_identity(self):
+        with self.modeled_apply() as (disk, reader, protected, formatter, target):
+            applied = {
+                'plan': data.plan(base_mbr(), CAPACITY),
+                'base_sha256': 'a' * 64,
+                'target': dict(target),
+                'protected_sha256': {'partition_1': 'a' * 64, 'partition_2': 'b' * 64},
+                'reference_bootstrap_sha256': IDENTITY['sha256'],
+                'bootstrap_identity': data.BOOTSTRAP_IDENTITY,
+                'bootstrap_normalized_sha256': IDENTITY['normalized_sha256'],
+                'filesystem': {'label': 'FESDATA3', 'incompat_features': '0x40',
+                               'block_size': 4096, 'block_count': 56807424 // 8},
+            }
+            with tempfile.TemporaryDirectory() as temporary:
+                receipt = Path(temporary) / 'receipt.json'
+                import json
+                receipt.write_text(json.dumps(applied))
+                args = self.args('verify', data_receipt=receipt)
+                reader.return_value = dict(target, resolved_path=str(disk) + '.reinserted',
+                                           diskseq=55, device=99)
+                with mock.patch.object(data, 'reference', return_value=(base_mbr(), data.layout(), IDENTITY)), \
+                        mock.patch.object(data, 'verify_table'), \
+                        mock.patch.object(data, 'protected_hashes', return_value=applied['protected_sha256']), \
+                        mock.patch.object(data.shared, 'require_partition_device', return_value=str(disk) + '3'), \
+                        mock.patch.object(data.shared, 'read_ext4_superblock', return_value=applied['filesystem']):
+                    verified = data.execute(args)
+            self.assertTrue(verified['independently_verified'])
+
+    def test_verify_still_binds_by_id_size_and_protected_hashes(self):
+        with self.modeled_apply() as (disk, reader, protected, formatter, target):
+            applied = {
+                'plan': data.plan(base_mbr(), CAPACITY), 'base_sha256': 'a' * 64,
+                'target': dict(target),
+                'protected_sha256': {'partition_1': 'a' * 64, 'partition_2': 'b' * 64},
+                'reference_bootstrap_sha256': IDENTITY['sha256'],
+                'bootstrap_identity': data.BOOTSTRAP_IDENTITY,
+                'bootstrap_normalized_sha256': IDENTITY['normalized_sha256'],
+                'filesystem': {'label': 'FESDATA3', 'incompat_features': '0x40',
+                               'block_size': 4096, 'block_count': 56807424 // 8},
+            }
+            with tempfile.TemporaryDirectory() as temporary:
+                receipt = Path(temporary) / 'receipt.json'
+                import json
+                receipt.write_text(json.dumps(applied))
+                args = self.args('verify', data_receipt=receipt)
+                reader.return_value = dict(target, size_bytes=CAPACITY + 512)
+                with mock.patch.object(data, 'reference', return_value=(base_mbr(), data.layout(), IDENTITY)), \
+                        self.assertRaisesRegex(ValueError, 'receipt differs'):
+                    data.execute(args)
+                reader.return_value = dict(target)
+                with mock.patch.object(data, 'reference', return_value=(base_mbr(), data.layout(), IDENTITY)), \
+                        mock.patch.object(data, 'verify_table'), \
+                        mock.patch.object(data, 'protected_hashes', return_value={'partition_1': 'x', 'partition_2': 'y'}), \
+                        self.assertRaisesRegex(ValueError, 'FAT/bootstrap changed'):
+                    data.execute(args)
 
     def test_bootstrap_change_during_validation_refused_before_metadata_write(self):
         with self.modeled_apply() as (disk, reader, protected, formatter, target):
@@ -229,10 +285,12 @@ class De25CardDataTests(unittest.TestCase):
                 data.reference(fifo, digest)
 
     def args(self, command, **extra):
-        return argparse.Namespace(command=command, mode='extra-partition',
-                                  base_image=Path('/reference.img'), base_sha256='a' * 64,
-                                  card_bytes=CAPACITY, image=Path(data.USB_BY_ID),
-                                  data_receipt=None, **extra)
+        values = dict(command=command, mode='extra-partition',
+                      base_image=Path('/reference.img'), base_sha256='a' * 64,
+                      card_bytes=CAPACITY, image=Path(data.USB_BY_ID),
+                      data_receipt=None)
+        values.update(extra)
+        return argparse.Namespace(**values)
 
     def test_grow_fat_and_unknown_commands_never_read_device(self):
         for command, mode in (('apply', 'grow-fat'), ('write-base', 'extra-partition'),

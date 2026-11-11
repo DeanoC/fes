@@ -24,7 +24,7 @@ struct Operations final : De25MenuOperations {
  bool retirement_valid=false,retirement_missing=false;
  unsigned retirement_mutation=0,retirement_queries=0;
  std::uint32_t abi=3;
- int abi_calls=0,allocations=0,infos=0,polls=0,reaps=0,closes=0,shares=0;
+ int abi_calls=0,allocations=0,infos=0,polls=0,reaps=0,idles=0,closes=0,shares=0;
  int drain_waits=0,peer_waits=0,peers=0,ready_waits=0,pending_polls=0;
  bool allocated=false,grant_open=false,ready=true,wrong_build=false,wrong_generation=false;
  bool never_complete=false,reap_error=false,late_publish=false;
@@ -113,6 +113,7 @@ struct Operations final : De25MenuOperations {
   *done=true;allocated=false;return {};
  }
  Error Idle(bool* idle) override {
+  ++idles;
   if(!allocated&&!grant_open&&peer_waits){--peer_waits;*idle=false;return {};}
   *idle=!allocated&&!grant_open&&!peers;return {};
  }

@@ -333,6 +333,15 @@ fallback) or `existing`. The host test
 `image/scripts/tests/ethaddr-init_test.sh` covers these cases through path
 overrides and a no-op `ip`.
 
+The DE10 image keeps `S20mister-network`'s foreground `udhcpc` alive under its
+pid file so it renews a lease and retries after a late PHY or switch start; it
+raises loopback before waiting for `eth0`. `S35fes-bluetooth` loads modules from
+`/lib/modules/$(uname -r)/kernel/drivers/bluetooth`, matching the running
+kernel. The rootfs contract is checked by
+`image/scripts/tests/target-image-rootfs_test.sh`. These checks do not replace a
+DE10 QEMU image smoke or a kit boot; those remain required for this init-script
+change.
+
 The same CID could later seed a per-card `target_id` or credential; that is
 not implemented here.
 

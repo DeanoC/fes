@@ -271,14 +271,19 @@ def execute(args):
         if args.data_receipt is None:
             raise ValueError('DE25 verification requires --data-receipt from apply')
         receipt = json.loads(Path(args.data_receipt).read_text())
+        recorded_target = receipt.get('target')
+        target_matches = (isinstance(recorded_target, dict) and
+                          recorded_target.get('by_id') == target['by_id'] and
+                          recorded_target.get('size_bytes') == target['size_bytes'])
         if (receipt.get('plan') != data_plan or receipt.get('base_sha256') != args.base_sha256
-                or receipt.get('target') != target or
+                or not target_matches or
                 receipt.get('reference_bootstrap_sha256') != reference_boot['sha256'] or
                 receipt.get('bootstrap_identity') != BOOTSTRAP_IDENTITY or
                 receipt.get('bootstrap_normalized_sha256') != reference_boot['normalized_sha256']):
             raise ValueError('DE25 data receipt differs from selected card and source')
         verify_table(path, expected)
-        if protected_hashes(path, geometry) != receipt['protected_sha256']:
+        recorded_hashes = receipt.get('protected_sha256')
+        if not isinstance(recorded_hashes, dict) or protected_hashes(path, geometry) != recorded_hashes:
             raise ValueError('DE25 FAT/bootstrap changed after data setup')
         partition = shared.require_partition_device(path, 3, data_plan['sector_count'])
         filesystem = shared.read_ext4_superblock(partition)

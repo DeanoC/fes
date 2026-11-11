@@ -26,8 +26,16 @@ class ZX81ProducerTests(unittest.TestCase):
               'cores/fes-zx81/rtl/machine.v':b'fixture machine',
               'cores/fes-common/rtl/z80/engine.sv':b'fixture CPU',
               'boards/de25nano/fixture.v':b'fixture board',
+              'boards/de25nano/build.py':b'# selected DE25 Quartus helper\n',
+              'boards/de25nano/quartus.lock':b'[quartus]\nversion = "26.3.0"\n',
+              'boards/de25nano/package/core_package.py':b'# package helper fixture\n',
+              'boards/de25nano/package/export_core_package.py':b'# export helper fixture\n',
               'cores/fes-menu/rtl/fixture.v':b'fixture reader',
               'cores/fes-splash/rtl/fixture.v':b'fixture display'}
+        for root in producer.SOURCE_ROOTS:
+            path=Path(root)
+            name=root if path.suffix else f'{root}/fixture.v'
+            data.setdefault(name,b'# source closure fixture\n')
         data.update({name:b'fixture shared library' for name in producer.COMMON_LIBRARY_INPUTS})
         data.update({name:b'# fitted review fixture\n' for name in producer.REVIEW_INPUTS})
         data.update({name:b'# static review fixture\n' for name in static.REVIEW_INPUTS})

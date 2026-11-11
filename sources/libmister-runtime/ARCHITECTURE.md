@@ -36,8 +36,10 @@ recovered idle failures visible through the strict agent decoder.
 `Runtime::Start` accepts an optional sealed MENU directory/package ID and loads
 it as the first idle image. The daemon passes `--menu-package` directly to that
 start. Without a selected package it keeps the existing splash recipe; DE25
-refuses that recipe. A failed selected startup does not program another board's
-splash and ends in reboot-required.
+refuses that recipe before programming. If the selected MENU fails, Start logs
+that failure and tries the board's splash recipe once. A successful DE10 splash
+keeps the daemon idle without a MENU display; if splash is unsupported or also
+fails, startup ends in reboot-required. DE25 never programs a Cyclone V splash.
 
 ## DE25 kernel programmer
 

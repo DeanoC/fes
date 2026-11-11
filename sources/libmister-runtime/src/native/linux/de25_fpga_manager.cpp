@@ -294,8 +294,34 @@ public:
             static_capable = field("static_expansion_contract") == kStaticContract;
             kernel_known = true;
         }
-        if (!SearchExact(search, search_owned ? firmware : ""))
-            return Failure("firmware search override differs from this programming context");
+        if (!SearchExact(search, search_owned ? firmware : "")) {
+            // A killed writer can leave the system-wide override set after the
+            // exact allocated overlay was applied but before it was cleared.
+            // Admit that state only when the root-owned private staging path
+            // and its retained DTBO still identify our recovery transaction.
+            bool retained = false;
+            if (!configuration_known && !search_owned && SearchExact(search, firmware)) {
+                Fd fw(open(firmware.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+                struct stat directory{};
+                const uid_t owner = Testing() ? geteuid() : 0;
+                Fd overlays(open((config + "/device-tree/overlays").c_str(),
+                    O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+                bool exists = false;
+                const auto blob = De25ProgrammingOverlay(De25OverlayProfile::allocated_scanout);
+                if (fw.n >= 0 && !fstat(fw.n, &directory) && S_ISDIR(directory.st_mode) &&
+                    directory.st_uid == owner && (directory.st_mode & 07777) == 0700 &&
+                    overlays.n >= 0 && DirectoryIsExclusive(overlays.n, &exists) && exists &&
+                    Exact(config + "/device-tree/overlays/" + kOverlay + "/status", "applied") &&
+                    Exact(state, "operating")) {
+                    Fd dir(openat(overlays.n, kOverlay, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+                    Fd dtbo(dir.n < 0 ? -1 : openat(dir.n, "dtbo", O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+                    std::vector<unsigned char> previous;
+                    retained = Read(dtbo.n, &previous, blob.size()) && previous == blob;
+                }
+            }
+            if (!retained)
+                return Failure("firmware search override differs from this programming context");
+        }
         // A lookup error in the private path must never select an old image
         // from the loader's remaining standard search locations.
         for (const auto& prefix : {"/updates/6.12.11-fes-de25-owner/", "/updates/", "/6.12.11-fes-de25-owner/", "/"}) {
@@ -461,6 +487,7 @@ public:
         if (!recovery_memory || recovery_attempted)
             return {Failure("configuration belongs to an earlier context; external recovery required"), false};
         recovery_attempted = true;
+        const bool restore_search_override = SearchExact(search, firmware);
         const auto blob = De25ProgrammingOverlay(De25OverlayProfile::allocated_scanout);
         Fd dir(openat(overlays, kOverlay, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
         Fd dtbo(dir.n < 0 ? -1 : openat(dir.n, "dtbo", O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
@@ -537,8 +564,21 @@ public:
         for (std::size_t i = 0; i < programmed_digest.size(); ++i)
             programmed_digest[i] = std::uint8_t((digit(digest[2*i]) << 4) | digit(digest[2*i+1]));
         configuration_known = true;
+        // RetireInherited has proved the owner drained and idle, so it is now
+        // safe to restore the interrupted process's temporary global override.
+        if (restore_search_override) {
+            search_owned = true;
+            error = RestoreSearch();
+            if (!error.ok()) { poisoned = true; return {error, true}; }
+        } else if (!SearchExact(search, "")) {
+            poisoned = true;
+            return {Failure("firmware search override changed during recovery"), true};
+        }
         const auto released = ReleaseConfiguration(deadline);
-        if (!released.error.ok()) { poisoned = true; return {released.error, true}; }
+        if (!released.error.ok()) {
+            if (released.mutation_attempted || released.error.code != ErrorCode::busy) poisoned = true;
+            return {released.error, true};
+        }
         return {{}, true};
     }
     Error EnsureConfigfs() {
@@ -835,21 +875,10 @@ public:
         if (exists) {
             if (!configuration_known)
                 return {Failure("configuration belongs to an earlier context; external recovery required"), false};
-            {
-            Fd dir(openat(overlays.n, kOverlay, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
-            Fd dtbo(dir.n < 0 ? -1 : openat(dir.n, "dtbo", O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
-            std::vector<unsigned char> previous;
-            if (dir.n < 0 || !Read(dtbo.n, &previous, configured_overlay.size()) || previous != configured_overlay ||
-                manager != "operating" || !Exact(config + "/device-tree/overlays/" + kOverlay + "/status", "applied"))
-                return {Failure("existing runtime configuration is not verified/applied; retained for recovery"), false};
-            }
-            error = Check(deadline); if (!error.ok()) return {error, false};
-            attempted = true;
-            if (Remove(overlays.n, kOverlay)) return fail(SystemError("remove previous configuration"));
-            struct stat old{};
-            if (fstatat(fw.n, kFirmware, &old, AT_SYMLINK_NOFOLLOW) || !S_ISREG(old.st_mode) ||
-                old.st_uid != geteuid() || unlinkat(fw.n, kFirmware, 0))
-                return fail(Failure("previous firmware identity/removal failed"));
+            const auto released = ReleaseConfiguration(deadline);
+            if (!released.error.ok()) return released;
+            attempted = released.mutation_attempted;
+            exists = false;
         }
         std::array<std::uint8_t,32> copied_digest{};
         error = CopyFirmware(fw.n, kFirmware, artifact, deadline, expected_digest, &copied_digest, &copied);
@@ -912,18 +941,34 @@ public:
                                 persona_size, persona_digest, deadline);
         if (!error.ok()) return {error, false};
         error = Check(deadline); if (!error.ok()) return {error, false};
-        // The caller already proved REAP and OWNER_IDLE. The kernel notifier
-        // independently refuses overlay removal while suppliers remain busy.
+        if (!recovery_memory && configured_overlay !=
+                De25ProgrammingOverlay(De25OverlayProfile::firmware_only))
+            return {{ErrorCode::unsupported_interface, "DE25 owner idle authority is unavailable", "recovery"}, false};
+        if (recovery_memory) {
+            bool idle = false;
+            error = recovery_memory->OwnerIdle(deadline, &idle);
+            if (!error.ok()) return {error, false};
+            if (!idle) return {{ErrorCode::busy, "DE25 owner still has a peer or mapping", "recovery"}, false};
+        }
+        // The owner idle query is the userspace preflight. The kernel notifier
+        // remains the final authority and refuses removal while suppliers are busy.
+        bool mutation = false;
         if (persona_known && Remove(overlays.n, kPersonaOverlay)) {
+            if (errno == EBUSY && !mutation)
+                return {{ErrorCode::busy, "release owned persona configuration: " + std::string(std::strerror(errno)), "recovery"}, false};
             poisoned = true; return {SystemError("release owned persona configuration"), true};
         }
         if (persona_known) {
+            mutation = true;
             error = Check(deadline);
             if (!error.ok()) { poisoned = true; return {error, true}; }
         }
         if (Remove(overlays.n, kOverlay)) {
+            if (errno == EBUSY && !mutation)
+                return {{ErrorCode::busy, "release owned configuration: " + std::string(std::strerror(errno)), "recovery"}, false};
             poisoned = true; return {SystemError("release owned configuration"), true};
         }
+        mutation = true;
         error = Check(deadline);
         if (!error.ok()) { poisoned = true; return {error, true}; }
         if (persona_known && unlinkat(fw.n, kPersonaFirmware, 0)) {

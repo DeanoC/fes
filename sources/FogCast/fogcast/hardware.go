@@ -228,7 +228,8 @@ func (s *Service) zx81FirmwareReady(ctx context.Context, entry catalog.CoreEntry
 		_, _, err := s.readCoreEntryROM(ctx, entry, descriptor)
 		return err == nil
 	}
-	if !zx81MachineROMLinkRequired(descriptor) {
+	if !zx81MachineROMLinkRequired(descriptor) &&
+		(descriptor.Format == 5 || descriptor.Target.Platform == "de25_nano") {
 		return true
 	}
 	if s.machineROM == nil {

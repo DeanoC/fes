@@ -121,7 +121,7 @@ void ConfigurationCancellationPreservesNonzeroLogicalHistory() {
  assert(o.allocations==3&&o.published.size()==3&&m.Revoke().ok());
 }
 void RetainedAllocationRequiresIndependentDrainAndLastPeer() {
- for(std::uint32_t state:{1U,3U,7U,11U,15U}) {
+ for(std::uint32_t state:{0U,2U,4U,6U,8U,10U,12U,14U}) {
   Operations o;o.retained=o.allocated=true;o.state.state=state;
   o.drain_waits=2;o.peer_waits=2;
   LinuxDe25Menu m(o.clock,o);auto descriptor=mister_test::De25StandardDescriptor();
@@ -136,22 +136,20 @@ void RetainedAllocationRequiresIndependentDrainAndLastPeer() {
   assert(o.owner_infos==1&&o.reaps==(present?1:0)&&!o.allocated&&o.allocations==0&&o.published.empty());
   assert(m.Bind(build,100).ok()&&o.allocations==1);assert(m.Revoke().ok());
  }
- for(int fault=0;fault<14;++fault) {
+ for(int fault=0;fault<12;++fault) {
   Operations o;o.retained=o.allocated=true;o.state.state=1;auto descriptor=mister_test::De25StandardDescriptor();
   if(fault==0)o.abi=2;
   if(fault==1)o.wrong_build=true;
   if(fault==2)o.state.version=2;
   if(fault==3)o.state.reserved=1;
-  if(fault==4)o.state.state=4;
-  if(fault==5)o.state.hardware_status|=FesDe25ScanoutStatusFault;
-  if(fault==6)o.state.hardware_status|=FesDe25ScanoutStatusClockFault;
-  if(fault==7)o.state.underflows=1;
-  if(fault==8)o.state.hardware_errors=1;
-  if(fault==9)++o.state.slot_bytes;
-  if(fault==10)o.info_error=true;
-  if(fault==11)o.state.state=0;
-  if(fault==12)o.state.state=2;
-  if(fault==13)o.state.state=1|16; // Unknown state bits cannot authorize kernel retirement.
+  if(fault==4)o.state.hardware_status|=FesDe25ScanoutStatusFault;
+  if(fault==5)o.state.hardware_status|=FesDe25ScanoutStatusClockFault;
+  if(fault==6)o.state.underflows=1;
+  if(fault==7)o.state.hardware_errors=1;
+  if(fault==8)++o.state.slot_bytes;
+  if(fault==9)o.info_error=true;
+  if(fault==10)o.state.state=1|16; // Unknown state bits cannot authorize kernel retirement.
+  if(fault==11)o.state.hardware_status|=1U<<31;
   LinuxDe25Menu m(o.clock,o);assert(!m.RetireInherited(descriptor,100).ok());
   assert(o.reaps==0&&o.allocations==0&&o.published.empty());assert(!m.Bind(build,100).ok());
  }

@@ -19,6 +19,28 @@ import (
 	"github.com/DeanoC/misteross/expansion"
 )
 
+func TestZX81FirmwareReadinessKeepsLegacyDE10NoROMGate(t *testing.T) {
+	service := &Service{}
+	entry := catalog.CoreEntry{}
+	descriptor := corepackage.Descriptor{
+		Format: 4,
+		Core: corepackage.Core{ID: "fes.pong"},
+		Target: corepackage.Target{Platform: "de10_nano"},
+	}
+	if service.zx81FirmwareReady(context.Background(), entry, descriptor) {
+		t.Fatal("format-4 DE10 non-ZX81 package without ROM became ready without the existing linker")
+	}
+	descriptor.Format = 5
+	if !service.zx81FirmwareReady(context.Background(), entry, descriptor) {
+		t.Fatal("format-5 non-ZX81 package should retain its DE25 firmware-free readiness")
+	}
+	descriptor.Format = 4
+	descriptor.Target.Platform = "de25_nano"
+	if !service.zx81FirmwareReady(context.Background(), entry, descriptor) {
+		t.Fatal("DE25 non-ZX81 package should not require the legacy ZX81 ROM linker")
+	}
+}
+
 // The retained synthetic M10K fixture exercises the real archive/linker path;
 // neither this package nor its no-op expansion is a working ZX81 bitstream.
 func hardwareZX81Fixture(t *testing.T, rom, sessionDisplay bool, majors ...int) (archive, firmware []byte) {

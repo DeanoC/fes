@@ -126,6 +126,7 @@ def source_identity():
 def fes_sources(revision=None):
     paths = {name: HERE / name for name in SOURCES}
     paths["board_build.py"] = HERE.parent / "build.py"
+    paths["quartus.lock"] = ROOT / "sources/misteross" / BOARD_BUILD.QUARTUS_LOCK
     if revision is None:
         return {name: path.read_bytes() for name, path in paths.items()}
     if not re.fullmatch(r"[a-f0-9]{40}", revision):
@@ -274,9 +275,12 @@ def prepare_project(archive, output=None, revision=None):
     selected = lock(sources["vendor.lock.toml"])
     offset = mailbox_base(sources["generated/fes_de25_mailbox.vh"].decode())
     probe_offset = probe_base(sources["generated/fes_de25_ddr_probe.vh"].decode())
-    helper_version = re.search(rb'^QUARTUS_VERSION = "([0-9.]+)"$', sources["board_build.py"], re.M)
-    if not helper_version or helper_version.group(1).decode() != BOARD_BUILD.QUARTUS_VERSION:
-        raise ValueError("selected board builder version differs from the invoking compiler helper")
+    helper_lock = re.search(rb'^QUARTUS_LOCK = "([^"]+)"$', sources["board_build.py"], re.M)
+    if not helper_lock or helper_lock.group(1).decode() != BOARD_BUILD.QUARTUS_LOCK:
+        raise ValueError("selected board builder Quartus lock differs from the invoking compiler helper")
+    if sources["quartus.lock"] != (ROOT / "sources/misteross" / BOARD_BUILD.QUARTUS_LOCK).read_bytes():
+        raise ValueError("selected board Quartus lock differs from the invoking compiler helper")
+    quartus_lock = BOARD_BUILD.quartus_metadata()
     if revision is None:
         identity = source_identity()
         identity = {"base_revision": identity.get("fes_revision", identity.get("base_revision")),
@@ -314,14 +318,14 @@ def prepare_project(archive, output=None, revision=None):
     (project / "integrate-mailbox.tcl").write_text(integration)
     with (project / "golden_top.qsf").open("a") as source:
         source.write('\n# FES diagnostic compiler selection; hardware settings remain vendor-owned.\n'
-                     f'set_global_assignment -name LAST_QUARTUS_VERSION "{BOARD_BUILD.QUARTUS_VERSION} Pro Edition"\n'
+                     f'set_global_assignment -name LAST_QUARTUS_VERSION "{quartus_lock["qsf_version"]}"\n'
                      'set_global_assignment -name NUM_PARALLEL_PROCESSORS 2\n'
                      'set_global_assignment -name IP_SEARCH_PATHS "custom_ip/**/*;fes_mailbox"\n'
                      'set_global_assignment -name VERILOG_FILE fes_mailbox/fes_de25_top_reset.v\n'
                      'set_global_assignment -name SDC_FILE fes_mailbox/fes_de25_top.sdc\n')
     inputs = {"board": "de25_nano", "device": DEVICE, "diagnostic_only": True,
               **identity,
-              "quartus_version": BOARD_BUILD.QUARTUS_VERSION,
+              "quartus_version": quartus_lock["release"],
               "vendor_archive_sha256": selected["archive"]["sha256"],
               "source_sha256": {name: digest(local / name) for name in sources},
               "mailbox_peripheral_offset": offset,

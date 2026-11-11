@@ -264,9 +264,22 @@ void TestStartWithSelectedMenuAvoidsSplash()
 	assert(f.hardware.menu_configure_calls == 1);
 	Fixture failed;
 	failed.hardware.menu_configure_result = {{ErrorCode::program_failed, "selected menu failed"},true,""};
-	assert(failed.runtime.Start("/menu",id).code == ErrorCode::idle_failed);
-	assert(failed.runtime.status().state == State::reboot_required);
-	assert(failed.hardware.idle_calls == 0 && failed.hardware.menu_configure_calls == 1);
+	assert(failed.runtime.Start("/menu",id).ok());
+	assert(failed.runtime.status().state == State::idle);
+	assert(failed.hardware.idle_calls == 1 && failed.hardware.menu_configure_calls == 1);
+	assert(!failed.runtime.status().menu_display.available);
+	Fixture unsupported;
+	unsupported.hardware.menu_configure_result = failed.hardware.menu_configure_result;
+	unsupported.hardware.idle_result.error = {ErrorCode::unsupported_interface, "board has no splash idle"};
+	assert(unsupported.runtime.Start("/menu",id).code == ErrorCode::idle_failed);
+	assert(unsupported.runtime.status().state == State::reboot_required);
+	assert(unsupported.hardware.idle_calls == 1 && unsupported.hardware.menu_configure_calls == 1);
+	Fixture uncertain;
+	uncertain.hardware.menu_configure_result = failed.hardware.menu_configure_result;
+	uncertain.hardware.idle_result.error = {ErrorCode::program_failed, "idle program failed"};
+	assert(uncertain.runtime.Start("/menu",id).code == ErrorCode::idle_failed);
+	assert(uncertain.runtime.status().state == State::reboot_required);
+	assert(uncertain.hardware.idle_calls == 1 && uncertain.hardware.menu_configure_calls == 1);
 }
 
 void TestNonMenuIdlePublishesIdleWithoutReboot()

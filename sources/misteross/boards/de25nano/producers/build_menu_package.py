@@ -35,6 +35,7 @@ from scripts.fes_build_common import AuthenticatedTool, BuildError, _require_cle
 from scripts.functional_execution import execution_digest, execution_environment as base_execution_environment
 from scripts.source_closure import imports as script_imports
 from scripts.compiler_read_audit import POLICY as SOURCE_POLICY
+from scripts import quartus_tools
 from boards.de25nano.scanout import async_inputs
 from boards.de25nano.scanout.build import TIMED_RESET_RELEASE, MANAGED_FABRIC, SHARED_FIFO_RESETS
 
@@ -42,6 +43,8 @@ ROOT = Path(__file__).resolve().parents[3]
 RECIPE = 'boards/de25nano/producers/build_menu_package.py'
 ABI = 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'
 SOURCE_ROOTS = [
+    'boards/de25nano/build.py',
+    'boards/de25nano/quartus.lock',
     'boards/de25nano/shared-rtl/fes_menu_reader.v',
     'boards/de25nano/shared-rtl/fes_menu_video.v',
     'cores/fes-menu/rtl/fes_menu_pattern_memory.v',
@@ -73,15 +76,13 @@ def scanout(root):
 
 
 def authenticate_tools(builder, quartus_root):
-    # The board locator checks the actual 26.3.0 Pro executable, rather than
-    # accepting a caller-supplied version string or a project-only placeholder.
     board = builder.load(builder.HERE.parent / 'build.py', 'de25_menu_tool_locator')
-    tool, version = board.locate_quartus(quartus_root)
-    lines = [line.strip() for line in version.splitlines()
-             if re.search(r'\bVersion 26\.3\.0(?![0-9.])', line) and 'Pro Edition' in line]
-    if len(lines) != 1:
-        raise BuildError('expected one actual Quartus 26.3.0 Pro version line')
-    version = lines[0]
+    try:
+        with board.de25_quartus_tools():
+            lock = quartus_tools.load_quartus_lock(ROOT, 'boards/de25nano/quartus.lock')
+            _, tool, version = quartus_tools.locate_quartus(quartus_root, ROOT, lock)
+    except quartus_tools.RebuildError as error:
+        raise BuildError(str(error)) from error
     tool = tool.resolve()
     install = tool.parent.parent.parent
     paths = {'quartus': tool, 'qsys': install / 'qsys/bin/qsys-script'}

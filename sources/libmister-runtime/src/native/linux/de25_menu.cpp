@@ -513,7 +513,7 @@ Error LinuxDe25Menu::RetireInherited(const CoreDescriptor& descriptor,std::uint6
     retained.slot_bytes!=FesDe25ScanoutSlotBytes||retained.frame_bytes!=FesDe25ScanoutFrameBytes||
     retained.width!=FesDe25ScanoutFrameWidth||retained.height!=FesDe25ScanoutFrameHeight||
     retained.stride!=FesDe25ScanoutFrameStride||retained.slots!=FesDe25ScanoutSlotCount||
-    !(retained.state&kRevoked)||(retained.state&~(kRevoked|kExposed|kUncertain|kPending))||
+    (retained.state&~(kRevoked|kExposed|kUncertain|kPending))||
     (retained.hardware_status&~FesDe25ScanoutStatusMask)||
     (retained.hardware_status&(FesDe25ScanoutStatusFault|FesDe25ScanoutStatusClockFault))||
     retained.hardware_errors||retained.underflows))
@@ -531,6 +531,13 @@ Error LinuxDe25Menu::RetireInherited(const CoreDescriptor& descriptor,std::uint6
   if(idle)return {};
   operations_->WaitMs(1);
  }
+}
+Error LinuxDe25Menu::OwnerIdle(std::uint64_t d,bool* idle) {
+ if(!idle)return Failed("DE25 owner idle result is unavailable");
+ std::lock_guard<std::mutex> lock(mutex_);
+ Error e=Deadline(d);if(!e.ok())return e;
+ e=operations_->Idle(idle);if(e.ok())e=Deadline(d);
+ return e;
 }
 Error LinuxDe25Menu::Quiesce(std::uint64_t d,const CoreDescriptor* identity,MenuDisplayInfo* out) {
  std::lock_guard<std::mutex> lock(mutex_);Error e=Retire(d);

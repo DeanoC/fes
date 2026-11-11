@@ -647,6 +647,11 @@ changes neither the development-only admission gate nor ordinary Stop or
 failed-library-load policy, and does not establish physical stalled-upload
 recovery on DE25.
 
+`POST /v1/development/reboot` uses that same board-aware backstop on DE10: the
+agent prepares the SoCFPGA watchdog reset registers, arms the 180-second
+watchdog, then executes the configured reboot command. The watchdog remains the
+fallback if shutdown signals the command before it can complete.
+
 ## FPGA product admission
 
 Only installed described FES packages are FPGA products. Historical bare Pong,
@@ -3815,10 +3820,12 @@ confirmed clean idle response. A failed Stop keeps the recovery error visible.
 Protocol-2 inspection and core-data replies include runtime status alongside
 the operation result. Their `ok` field reports whether that request succeeded;
 an idle MENU fault can remain in the status `error` after MENU has recovered.
-The adapter accepts successful, identity-checked inspection/data results without
-mistaking that retained diagnostic for a new operation failure. Status reads
-still expose it. Failed operations, invalid descriptors/data and physical load
-or recovery failures retain their existing refusal paths.
+For these operations, an `ok:true` result with valid inspected identity or
+core-data payload is success even when the same reply retains that MENU fault
+in status. The adapter preserves the diagnostic in status without mistaking it
+for a new operation failure. Status reads still expose it. `ok:false`, invalid
+descriptors/data and physical load or recovery failures retain their existing
+refusal paths.
 
 An idle menu therefore does not by itself establish launch readiness. A new
 explicit library launch can clear a retained idle legacy-launch error through

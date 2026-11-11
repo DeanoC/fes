@@ -48,7 +48,7 @@ def capture(revision=None):
     names = ast.literal_eval(declarations[0])
     if not isinstance(names, tuple) or any(not isinstance(name, str) or Path(name).is_absolute() or ".." in Path(name).parts for name in names):
         raise ValueError("unsafe HPS source closure")
-    paths = {HPS + name for name in names} | {BOARD + "build.py", COMBINED + "build.py"}
+    paths = {HPS + name for name in names} | {BOARD + "build.py", BOARD + "quartus.lock", COMBINED + "build.py"}
     paths |= {DISPLAY + name for name in ("build.py", "vendor.lock.toml", "top.v", "clocks.sdc")}
     paths |= {"sources/misteross/cores/fes-splash/rtl/fes_splash_core.v"}
     paths |= {BOARD + "shared-rtl/" + name + ".v"

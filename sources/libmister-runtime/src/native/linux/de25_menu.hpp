@@ -82,6 +82,7 @@ public:
  bool FreshSlotsOnActivate() const override {return true;}
  Error Revoke() override;
  Error RetireInherited(const CoreDescriptor&,std::uint64_t) override;
+ Error OwnerIdle(std::uint64_t,bool*) override;
  Error Share(int*) const override;
  Error Clean(std::uint8_t,const std::vector<MenuRect>&) const override;
  Error CleanBlit(std::uint32_t,std::uint32_t,const std::vector<MenuSpan>&) const override;

@@ -7,7 +7,15 @@ import datetime
 import hashlib
 import json
 import struct
+import sys
 import time
+if sys.flags.optimize:
+    raise SystemExit("DE25 proof verifier refuses optimized Python")
+
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
 from unicorn import Uc, UC_ARCH_ARM64, UC_MODE_ARM, UC_HOOK_CODE
 from unicorn.arm64_const import (
     UC_ARM64_REG_X0,
@@ -42,8 +50,10 @@ for off, word in {
     0x9018: 0xB940CBE0,
     0x901C: 0x34FFF900,
 }.items():
-    assert struct.unpack_from("<I", b, off)[0] == word
-assert BASE + 0x8B64 + 4 * struct.unpack_from("<h", b, 0xC62C)[0] == BASE + 0x8F00
+    require(struct.unpack_from("<I", b, off)[0] == word,
+            f"stock BL31 instruction differs at {off:#x}")
+require(BASE + 0x8B64 + 4 * struct.unpack_from("<h", b, 0xC62C)[0] == BASE + 0x8F00,
+        "stock BL31 branch target differs")
 
 
 def run(name, replies, expect, *, pending=True, mutation=False):
@@ -90,9 +100,11 @@ def run(name, replies, expect, *, pending=True, mutation=False):
         if address == READ:
             status, length = replies[min(n, len(replies) - 1)]
             n += 1
-            assert uc.reg_read(UC_ARM64_REG_X0) == BASE + 0x194E0
+            require(uc.reg_read(UC_ARM64_REG_X0) == BASE + 0x194E0,
+                    "stock SDM handler passed an unexpected response buffer")
             length_ptr = uc.reg_read(UC_ARM64_REG_X2)
-            assert STACK - 0x120 <= length_ptr < STACK
+            require(STACK - 0x120 <= length_ptr < STACK,
+                    "stock SDM handler passed an out-of-frame response length pointer")
             put(length_ptr, length)
             uc.reg_write(UC_ARM64_REG_X0, status & 0xFFFFFFFF)
             trace.append(
@@ -116,9 +128,9 @@ def run(name, replies, expect, *, pending=True, mutation=False):
 
     u.hook_add(UC_HOOK_CODE, hook)
     u.emu_start(ENTRY, END + 4, timeout=4000000, count=100000)
-    assert u.reg_read(UC_ARM64_REG_PC) == END
+    require(u.reg_read(UC_ARM64_REG_PC) == END, f"{name}: emulation did not reach its return address")
     regs = struct.unpack("<QQQQ", u.mem_read(CTX, 32))
-    assert regs == expect, (name, regs, expect)
+    require(regs == expect, f"{name}: returned SMC registers {regs}, expected {expect}")
     return dict(
         name=name,
         returned_smc_registers=[hex(x) for x in regs],

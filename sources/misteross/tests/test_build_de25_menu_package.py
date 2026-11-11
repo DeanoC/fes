@@ -347,8 +347,16 @@ class DE25MenuPackageTests(unittest.TestCase):
 
     def prepare_repository(self):
         paths = {producer.RECIPE: b'# actual recipe\n', producer.ABI: b'actual ABI',
+                 'boards/de25nano/build.py': b'# selected DE25 Quartus helper\n',
+                 'boards/de25nano/quartus.lock': b'[quartus]\nversion = "26.3.0"\n',
+                 'boards/de25nano/package/core_package.py': b'# package helper fixture\n',
+                 'boards/de25nano/package/export_core_package.py': b'# export helper fixture\n',
                  'cores/fes-menu/rtl/reader.v': b'module reader; endmodule',
                  'cores/fes-splash/rtl/splash.v': b'module splash; endmodule'}
+        for root in (*producer.SOURCE_ROOTS, *producer.REVIEW_INPUTS):
+            path = Path(root)
+            name = root if path.suffix else f'{root}/fixture.v'
+            paths.setdefault(name, b'# source closure fixture\n')
         paths.update({name: b'# fitted review fixture\n' for name in producer.REVIEW_INPUTS})
         for name, data in paths.items():
             path = self.root / name

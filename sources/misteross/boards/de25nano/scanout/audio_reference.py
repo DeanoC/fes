@@ -26,16 +26,23 @@ REPORTS = {'clocks.tsv', 'paths.tsv'} | {
 # PR mode remains ineligible, including when it uses that same builder.
 # The OpenROM-only builder refresh preserves all seven audio RTL/SDC sources,
 # six integration function ASTs and the actual compiled top byte-for-byte.
-# Its fresh fitted review is in docs/validation/2026-11-05-de25-openrom-audio-review.
+# Its source/fitted records are retained under
+# /data/fes-de25-main-integration-20261105/audio-openrom-review/.
 # The scanout service-window review changes only the wrapper/Tcl master burst
 # width and the builder's matching transport checks. Audio RTL, clocks, reset,
 # PCM and expansion wiring are unchanged; each new fit still needs its own
 # fitted clock/path review and independent rebuild.
-# See docs/validation/2026-11-09-de25-service-window-audio-review.
+# The dated policy and fitted records are in docs/validation/
+# 2026-11-04-de25-standard-zx81/audio-clock-{reference-proposal.md,fitted-review.json}.
+# Current canonical per-fit records are retained under /data/
+# fes-de25-main-integration-20261105/main-revalidation-23c-20261111/zx81-qualified/.
 # The focused scanout1.3 hotplug source review changes only video-ready
 # qualification/conduit checks in the wrapper/Tcl/builder. The audio cone,
 # PCM, reset/hold and expansion wiring are unchanged. This source binding
 # grants no fitted evidence: all numerical and independent-fit gates remain.
+# The board-local source move and exact Quartus lock preserve all seven audio
+# payloads and the six integration functions after source-path relocation; see
+# docs/validation/2026-11-11-de25-review-repairs/audio-reference-source.json.
 SOURCES = {
     'boards/de25nano/zx81-hps/fes_de25_audio.v': '9f2d1436b75ef1fe489a55ea4139b2f5dcd922072528b6f68d344d851cca6f33',
     'cores/fes-common/rtl/fes_audio_output.v': 'e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd',
@@ -44,7 +51,7 @@ SOURCES = {
     'boards/de25nano/zx81-hps/fes_de25_zx81_standard.v': '66600e79818b75ae50d11fa003fe93537153869c3b4e68f11488f9177d7bceab',
     'boards/de25nano/zx81-hps/fes_de25_zx81_standard_hw.tcl': '571eda4cd7e291e70c3604251c175e87c2023b66dc2dfb86410fe31f70ce4e23',
     'boards/de25nano/zx81-hps/standard-clocks.sdc': 'b7a528ac1a1bf0b147c269e83078a405b523698cfd16c1fe62cf028858b431d0',
-    'boards/de25nano/zx81-hps/build.py': 'f1481f995a7301bc8ca1e093b601a6f4aa5a7bffd486a6b5c060c39ba5ca14c9',
+    'boards/de25nano/zx81-hps/build.py': '0a3ad7bee409e656c6206115e12c4ec81e4a45d9274151308fac13e44681bb97',
 }
 
 

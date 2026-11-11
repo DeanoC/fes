@@ -186,8 +186,14 @@ public:
 		}
 		Log("start", "", "", "validate");
 		Log("start", "", "", "starting");
-		const HardwareResult result = menu_directory.empty() ? hardware_.LoadIdle() :
+		HardwareResult result = menu_directory.empty() ? hardware_.LoadIdle() :
 			hardware_.ConfigureMenuPackage(menu_directory, menu_package_id);
+		if (!result.error.ok() && !menu_directory.empty()) {
+			Log("start", "", "", "menu-failed", result.error);
+			// The board owns splash admission. DE10 can retain a usable idle
+			// after a selected MENU failure; DE25 refuses this recipe before I/O.
+			result = hardware_.LoadIdle();
+		}
 		if (!result.error.ok()) {
 			const Error error = IdleFailure(result.error);
 			{

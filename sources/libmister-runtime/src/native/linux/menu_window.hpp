@@ -51,6 +51,11 @@ public:
  virtual Error RetireInherited(const CoreDescriptor&,std::uint64_t) {
   return {ErrorCode::unsupported_interface,"inherited allocation retirement unavailable","recovery"};
  }
+ // Read the permanent DE25 owner's peer/mapping idle gate before removing an
+ // overlay. Other board adapters do not have this owner ABI.
+ virtual Error OwnerIdle(std::uint64_t,bool*) {
+  return {ErrorCode::unsupported_interface,"owner idle observation unavailable","recovery"};
+ }
  virtual Error Share(int* fd) const=0;
  virtual Error Clean(std::uint8_t slot,const std::vector<MenuRect>& rects) const=0;
  virtual Error CleanBlit(std::uint32_t first,std::uint32_t count,const std::vector<MenuSpan>& uploaded) const=0;

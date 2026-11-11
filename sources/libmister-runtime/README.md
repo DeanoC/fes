@@ -267,8 +267,12 @@ must be qualified and exclusively owned before this maintenance command runs.
 
 Raw RBF loading is an explicit, idle-only hardware diagnostic using
 `development-contained-v1`; it does not infer a game, ABI, media, or persistence.
-Startup, Stop, and bounded failure recovery load the sealed splash through the
-contained programming profile and ADV7513 video path. A `fes-gp-v1` package
+Startup loads the selected sealed MENU first; without a selection, DE10 loads
+the sealed splash through the contained programming profile and ADV7513 path.
+If selected MENU startup fails, DE10 can fall back to splash idle. DE25 refuses
+the Cyclone V splash, so a failed MENU still requires recovery. Stop restores
+the selected MENU; bounded failure recovery uses the board's idle recipe.
+A `fes-gp-v1` package
 load releases the HPS bridges after the FPGA enters user mode. The SDR FPGA
 ports stay in reset unless the package requires `fes.memory.hps-ddr` 1.0,
 the boot core latched the shared layout, and the package's verified identity

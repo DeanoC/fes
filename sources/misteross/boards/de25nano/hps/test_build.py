@@ -242,7 +242,8 @@ class HpsBuildTests(unittest.TestCase):
         repository = self.root / "frozen-repository"
         hps = repository / "sources/misteross/boards/de25nano/hps"
         for name, data in original.items():
-            target = hps.parent / "build.py" if name == "board_build.py" else hps / name
+            target = (hps.parent / "build.py" if name == "board_build.py" else
+                      hps.parent / "quartus.lock" if name == "quartus.lock" else hps / name)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
 

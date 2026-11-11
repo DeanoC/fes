@@ -42,6 +42,7 @@ struct Ops : De25FpgaTestOperations {
     bool Matches(const char* name) const { return fault_name.empty() || fault_name==name; }
     bool short_write=false, error_close=false, late_close=false, unapplied=false;
     bool remove_error=false, create_error=false, open_error=false;
+    int remove_errno=EBUSY;
     bool short_search=false, restore_error=false, changed_search=false;
     bool search_newline=false;
     LinuxMmioTestOperations* startup_registers=nullptr;
@@ -93,7 +94,7 @@ struct Ops : De25FpgaTestOperations {
     int Remove(int parent,const char* name) override {
         ++removed;events.push_back(std::string("remove:")+name);
         if(before_remove)before_remove(name);
-        if(remove_error && Matches(name)) {errno=EBUSY;return -1;}
+        if(remove_error && Matches(name)) {errno=remove_errno;return -1;}
         unlink((Dir(name)+"/dtbo").c_str());unlink((Dir(name)+"/status").c_str());
         const int result=unlinkat(parent,name,AT_REMOVEDIR);
         if(late_remove && Matches(name))time.now=1000;
@@ -101,7 +102,11 @@ struct Ops : De25FpgaTestOperations {
     }
     ssize_t WriteSearch(int fd,const char* p,std::size_t n) override {
         ++search_writes;
-        if(restore_error && n==1) {errno=EIO;return -1;}
+        if(restore_error && n==1) {
+            const auto retained=paths.firmware+"\n";
+            assert(write(fd,retained.data(),retained.size())==ssize_t(retained.size()));
+            errno=EIO;return -1;
+        }
         // Model the string parameter's setter and its newline-terminated show.
         if(n==1) {assert(p[0]=='\0');return write(fd,"\n",1);}
         assert(p[n-1]!='\n');
@@ -110,9 +115,14 @@ struct Ops : De25FpgaTestOperations {
 };
 struct Fixture {
     std::string root; Time clock; De25FpgaTestPaths paths; Ops ops;
+    mister_test::de25_menu::Operations owner_operations;
+    LinuxDe25Menu owner_memory;
     int lease=-1; Artifact artifact;
-    Fixture():ops(paths,clock) {
-        char name[]="/tmp/fes-de25-manager-XXXXXX";auto* made=mkdtemp(name);assert(made);root=made;
+    Fixture():ops(paths,clock),owner_memory(clock,owner_operations) {
+        const char* tmp=std::getenv("TMPDIR");
+        std::string pattern=(tmp&&*tmp?tmp:"/tmp");pattern+="/fes-de25-manager-XXXXXX";
+        std::vector<char> name(pattern.begin(),pattern.end());name.push_back('\0');
+        auto* made=mkdtemp(name.data());assert(made);root=made;
         paths={root+"/config",root+"/firmware",root+"/state",root+"/search",root+"/lease",root+"/record",root+"/notes",root+"/lib-firmware",{}};
         for(const auto& p:{paths.config,paths.config+"/device-tree",paths.config+"/device-tree/overlays",paths.firmware,paths.default_firmware})assert(!mkdir(p.c_str(),0700));
         Put(paths.state,"unknown\n");Put(paths.search,"\n");
@@ -126,7 +136,7 @@ struct Fixture {
         // Test-only tree: every name is our private mkdtemp directory.
         std::string cmd="rm -rf -- '"+root+"'";assert(!system(cmd.c_str()));if(lease>=0)close(lease);
     }
-    std::unique_ptr<LinuxDe25FpgaManager> Manager() {return std::unique_ptr<LinuxDe25FpgaManager>(new LinuxDe25FpgaManager(clock,lease,paths,ops));}
+    std::unique_ptr<LinuxDe25FpgaManager> Manager() {return std::unique_ptr<LinuxDe25FpgaManager>(new LinuxDe25FpgaManager(clock,lease,paths,ops,&owner_memory));}
     NativeResult Program(LinuxDe25FpgaManager& m, ProgrammingProfile p = ProgrammingProfile::de25_hps_first_v1) {return m.Program(artifact,p,100);}
     void Preserved() {assert(Exists(ops.Dir()) && Exists(paths.firmware+"/fes-runtime-core.rbf"));}
 };
@@ -202,6 +212,23 @@ void RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement() {
         if(fault==9)Put(f.paths.search,"/another/loader\n");
         LinuxDe25Menu memory(f.clock,owner);LinuxDe25FpgaManager fresh(f.clock,f.lease,f.paths,f.ops,&memory);
         const auto r=f.Program(fresh,ProgrammingProfile::de25_linux_menu_v1);
+        if(fault==7) {
+            assert(r.error.ok()&&r.mutation_attempted&&!fresh.Poisoned());
+            assert(owner.reaps==1&&f.ops.removed==1&&f.ops.written==2&&f.ops.created==2);
+            f.Preserved();
+            continue;
+        }
+        if(fault==8) {
+            assert(!r.error.ok()&&r.mutation_attempted&&!fresh.Poisoned());
+            assert(owner.reaps==1&&f.ops.removed==1&&f.ops.written==1&&f.ops.created==1);
+            f.Preserved();
+            f.ops.remove_error=false;
+            const auto retry=f.Program(fresh,ProgrammingProfile::de25_linux_menu_v1);
+            assert(retry.error.ok()&&retry.mutation_attempted&&!fresh.Poisoned());
+            assert(owner.reaps==1&&f.ops.removed==2&&f.ops.written==2&&f.ops.created==2);
+            f.Preserved();
+            continue;
+        }
         assert(!r.error.ok()&&f.ops.written==1&&f.ops.created==1);f.Preserved();
         assert(owner.reaps==(fault==8?1:0)&&f.ops.removed==(fault==8?1:0));
         const auto reaps=owner.reaps,removed=f.ops.removed;
@@ -240,6 +267,27 @@ void RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement() {
         assert(!f.Program(fresh,ProgrammingProfile::de25_linux_menu_v1).error.ok()&&calls==(missing?0u:1u));
     }
     std::cout<<"restart abandons only admitted allocated images after independent owner drain; uncertainty is retained\n";
+}
+void InterruptedFirmwareSearchOverrideRecoversAfterOwnerRetirement() {
+    Fixture f;RecoveryPackage(f,true);auto interrupted=f.Manager();
+    f.ops.restore_error=true;
+    const auto first=f.Program(*interrupted,ProgrammingProfile::de25_linux_menu_v1);
+    assert(!first.error.ok()&&first.mutation_attempted&&interrupted->Poisoned());
+    assert(Get(f.paths.search)==f.paths.firmware+"\n"&&Exists(f.ops.Dir())&&
+           Get(f.ops.Dir()+"/status")=="applied\n");f.Preserved();
+    interrupted.reset();
+
+    // Model a fresh process after the writer died between configfs apply and
+    // restoring firmware_class.path. The permanent owner now contains the
+    // retained allocation and OWNER_REAP must drain it before the restore.
+    f.ops.restore_error=false;
+    f.owner_operations.retained=f.owner_operations.allocated=true;
+    f.owner_operations.state.state=1;
+    auto recovered=f.Manager();
+    const auto retry=f.Program(*recovered,ProgrammingProfile::de25_linux_menu_v1);
+    assert(retry.error.ok()&&retry.mutation_attempted&&!recovered->Poisoned());
+    assert(f.owner_operations.owner_infos==1&&f.owner_operations.reaps==1);
+    assert(Get(f.paths.search)=="\n"&&f.ops.removed==1&&f.ops.written==2);f.Preserved();
 }
 
 void Positive() {
@@ -291,8 +339,9 @@ void ReleaseRefusals() {
     {
         Fixture f;auto m=f.Manager();assert(f.Program(*m).error.ok());f.ops.remove_error=true;
         const auto r=m->ReleaseConfiguration(100);
-        assert(!r.error.ok() && r.mutation_attempted && m->Poisoned());f.Preserved();
-        assert(!m->ReleaseConfiguration(100).error.ok() && f.ops.removed==1);
+        assert(!r.error.ok() && !r.mutation_attempted && !m->Poisoned());f.Preserved();
+        f.ops.remove_error=false;
+        assert(m->ReleaseConfiguration(100).error.ok() && f.ops.removed==2);
     }
     {
         Fixture f;auto m=f.Manager();f.ops.unapplied=true;
@@ -648,10 +697,19 @@ void StaticReleaseChecksBothIdentitiesBeforeEffects() {
     for(const char* blocked:{"fes-runtime-persona","fes-runtime"}) {
         StaticFixture f;auto manager=f.Manager();assert(f.Load(*manager).error.ok());
         f.ops.fault_name=blocked;f.ops.remove_error=true;
-        auto result=manager->ReleaseConfiguration(500);assert(!result.error.ok() && result.mutation_attempted && manager->Poisoned());
+        const bool first_remove=std::string(blocked)=="fes-runtime-persona";
+        auto result=manager->ReleaseConfiguration(500);
+        assert(!result.error.ok() && result.mutation_attempted==!first_remove && manager->Poisoned()==!first_remove);
         f.ImagesRetained();assert(Exists(f.ops.Dir()));
-        assert(Exists(f.ops.Dir("fes-runtime-persona"))==(std::string(blocked)=="fes-runtime-persona"));
-        const auto removed=f.ops.removed;assert(!manager->ReleaseConfiguration(500).error.ok() && f.ops.removed==removed);
+        assert(Exists(f.ops.Dir("fes-runtime-persona"))==first_remove);
+        if(first_remove) {
+            f.ops.remove_error=false;
+            assert(manager->ReleaseConfiguration(500).error.ok() && !manager->Poisoned());
+            assert(f.ops.removed==3&&!Exists(f.ops.Dir())&&!Exists(f.ops.Dir("fes-runtime-persona")));
+        } else {
+            const auto removed=f.ops.removed;
+            assert(!manager->ReleaseConfiguration(500).error.ok() && f.ops.removed==removed);
+        }
     }
     {
         StaticFixture f;auto manager=f.Manager();assert(f.Load(*manager).error.ok());
@@ -812,9 +870,33 @@ void FirmwareFallbacks() {
 void ExistingFailure() {
     Fixture f;auto m=f.Manager();assert(f.Program(*m).error.ok());
     f.ops.remove_error=true;auto r=f.Program(*m);
-    assert(!r.error.ok() && r.mutation_attempted && m->Poisoned());f.Preserved();
+    assert(!r.error.ok() && !r.mutation_attempted && !m->Poisoned());f.Preserved();
     assert(f.ops.written==1 && f.ops.closed==1);
-    std::cout<<"failed removal poisons without another image submission\n";
+    f.ops.remove_error=false;
+    assert(m->ReleaseConfiguration(100).error.ok());
+    Fixture other;auto poisoned=other.Manager();assert(other.Program(*poisoned).error.ok());
+    other.ops.remove_error=true;other.ops.remove_errno=EIO;
+    const auto uncertain=poisoned->ReleaseConfiguration(100);
+    assert(!uncertain.error.ok()&&uncertain.mutation_attempted&&poisoned->Poisoned());other.Preserved();
+    std::cout<<"EBUSY release is retryable before mutation; other removal errors poison and retain images\n";
+}
+void OwnerIdlePreflightPrecedesRemoval() {
+    Fixture f;auto manager=f.Manager();
+    assert(f.Program(*manager,ProgrammingProfile::de25_linux_menu_v1).error.ok());
+    f.owner_operations.peers=1;
+    const auto idle_queries=f.owner_operations.idles;
+    auto result=manager->ReleaseConfiguration(100);
+    assert(!result.error.ok()&&!result.mutation_attempted&&!manager->Poisoned());
+    assert(f.owner_operations.idles==idle_queries+1&&f.ops.removed==0);f.Preserved();
+    f.owner_operations.peers=0;f.ops.remove_error=true;
+    result=manager->ReleaseConfiguration(100);
+    assert(!result.error.ok()&&!result.mutation_attempted&&!manager->Poisoned());
+    assert(f.ops.removed==1);f.Preserved();
+    f.ops.remove_error=false;
+    result=manager->ReleaseConfiguration(100);
+    assert(result.error.ok()&&result.mutation_attempted&&!manager->Poisoned());
+    assert(f.ops.removed==2&&!Exists(f.ops.Dir()));
+    std::cout<<"OWNER_IDLE and kernel EBUSY both refuse before mutation; release remains retryable\n";
 }
 void ProfilesAndLease() {
     Fixture f;auto m=f.Manager();
@@ -936,6 +1018,6 @@ int main(int argc,char** argv) {
         const auto v=De25ProgrammingOverlay(profile);std::ofstream f(argv[argc-1],std::ios::binary);
         f.write(reinterpret_cast<const char*>(v.data()),v.size());assert(f.good());return 0;
     }
-    RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement();Positive();CleanRelease();ReleaseRefusals();AllocatedScanoutProfile();StaticStartupProfiles();StaticProductionDispatchGate();StaticStartupAndFullReplacement();OwnedStaticMappingHasOneFullBaseLifetime();OwnedStaticMappingFaultsRetainAndRefuseReplay();OwnedStaticMappingRefusesBeforeOpenAndAfterPersonaChange();StaticRefusalsBeforeHardware();StaticColdIdentityFailures();StaticPersonaFailuresRetainBothImages();StaticCopyAndLookupRacesNeverSubmitWrongBytes();StaticReleaseChecksBothIdentitiesBeforeEffects();Uncertain();BeforeMutation();FirmwareSearchLifecycle();FirmwareFallbacks();ExistingFailure();ProfilesAndLease();
+    RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement();InterruptedFirmwareSearchOverrideRecoversAfterOwnerRetirement();Positive();CleanRelease();ReleaseRefusals();AllocatedScanoutProfile();StaticStartupProfiles();StaticProductionDispatchGate();StaticStartupAndFullReplacement();OwnedStaticMappingHasOneFullBaseLifetime();OwnedStaticMappingFaultsRetainAndRefuseReplay();OwnedStaticMappingRefusesBeforeOpenAndAfterPersonaChange();StaticRefusalsBeforeHardware();StaticColdIdentityFailures();StaticPersonaFailuresRetainBothImages();StaticCopyAndLookupRacesNeverSubmitWrongBytes();StaticReleaseChecksBothIdentitiesBeforeEffects();Uncertain();BeforeMutation();FirmwareSearchLifecycle();FirmwareFallbacks();ExistingFailure();OwnerIdlePreflightPrecedesRemoval();ProfilesAndLease();
     std::cout<<"de25_fpga_manager_test: passed\n";
 }
