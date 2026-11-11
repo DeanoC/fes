@@ -25,10 +25,10 @@ enables; and a switch into a V86 task.
 - **Mutants.** 24 of 26 one-line mutants of the new RTL fail directed
   cases; one is equivalent, and one (NMI unblocked by a task return) is
   out of the lockstep's reach ([mutants.txt](mutants.txt)).
-- **Seal.** Quartus 17.0.2 at seed 1, from clean checkout `fcb780f78`
-  (this branch with main merged), meets every analysis: setup +0.400 ns,
-  hold +0.080 ns. ALMs 36,132 (main 36,002 the same day, +130) and 269
-  M10K (main 268, +1) ([Seal](#seal)).
+- **Seal.** Quartus 17.0.2 at seed 1, from clean checkout `fdf79c057`
+  (this branch with main merged and Codex's fix), meets every analysis:
+  setup +0.583 ns, hold +0.061 ns. ALMs 36,261 (main 36,002 the same day,
+  +259) and 269 M10K (main 268, +1) ([Seal](#seal)).
 - **Kit A, max.** DOOM v1.9 `-timedemo demo3` gives 40.03 fps, and 3DBench,
   PCPBench and TopBench match main's exactly, run the same hour. Descent now reaches its
   main menu; on main it stops after the DOS/4GW banner. Jump 'n Bump reaches
@@ -205,40 +205,47 @@ runner change, gave the same POST codes, end and output text:
 
 ## Seal
 
-The seal is Quartus 17.0.2, seed 1, from clean checkout `fcb780f78`
+The seal is Quartus 17.0.2, seed 1, from clean checkout `fdf79c057`
 ([seal-summary.json](seal-summary.json)). That is the PR's RTL, with main
-`1d45ba6e5` merged in; main changed no RTL. An earlier seed-1 seal of
-`214cb3886` ([seal-summary-214cb3886.json](seal-summary-214cb3886.json))
-built the kit's package. Its RTL differs from the seal's only in how
-`dc_q.tsw` reads the decoder's routine address (the same logic, rewired so
-Verilator 5.032 sees no loop). Main's `d56f0e558` was sealed the same way
-the same day for the kit's A/B
+`1d45ba6e5` merged in (main changed no RTL).
+
+Two earlier seed-1 seals came on the way:
+- `fcb780f78` ([seal-summary-fcb780f78.json](seal-summary-fcb780f78.json)),
+  before Codex's fix.
+- `214cb3886` ([seal-summary-214cb3886.json](seal-summary-214cb3886.json)),
+  which built the kit's package. Its RTL differs from the seal's in two
+  ways: how `dc_q.tsw` reads the decoder's routine address (the same
+  logic, rewired so Verilator 5.032 sees no loop), and the IRET's wait for
+  NT. That wait holds a protected-mode IRET for a few cycles only when a
+  POPF, delivery or task switch is still in flight ahead of it.
+
+Main's `d56f0e558` was sealed the same way the same day for the kit's A/B
 ([seal-summary-main-d56f0e558.json](seal-summary-main-d56f0e558.json)).
 
-| | Seal (`fcb780f78`) | Kit package (`214cb3886`) | Main (`d56f0e558`) |
-| --- | ---: | ---: | ---: |
-| Package | `5565fff4…` | `b3af9d7a…` | `bc4ab0d9…` |
-| Setup | +0.400 ns | +0.175 ns | +0.753 ns |
-| Hold | +0.080 ns | +0.093 ns | +0.077 ns |
-| Recovery | +7.343 ns | +6.897 ns | +7.097 ns |
-| Removal | +0.399 ns | +0.501 ns | +0.577 ns |
-| Minimum pulse width | +1.122 ns | +1.122 ns | +1.122 ns |
-| ALMs | 36,132 | 36,155 | 36,002 |
-| Registers | 32,671 | 32,552 | 32,413 |
-| M10K blocks | 269 | 269 | 268 |
-| Block memory bits | 1,349,500 | 1,349,500 | 1,342,310 |
-| DSP blocks | 38 | 38 | 38 |
+| | Seal (`fdf79c057`) | `fcb780f78` | Kit package (`214cb3886`) | Main (`d56f0e558`) |
+| --- | ---: | ---: | ---: | ---: |
+| Package | `97c56993…` | `5565fff4…` | `b3af9d7a…` | `bc4ab0d9…` |
+| Setup | +0.583 ns | +0.400 ns | +0.175 ns | +0.753 ns |
+| Hold | +0.061 ns | +0.080 ns | +0.093 ns | +0.077 ns |
+| Recovery | +6.418 ns | +7.343 ns | +6.897 ns | +7.097 ns |
+| Removal | +0.442 ns | +0.399 ns | +0.501 ns | +0.577 ns |
+| Minimum pulse width | +1.122 ns | +1.122 ns | +1.122 ns | +1.122 ns |
+| ALMs | 36,261 | 36,132 | 36,155 | 36,002 |
+| Registers | 32,643 | 32,671 | 32,552 | 32,413 |
+| M10K blocks | 269 | 269 | 269 | 268 |
+| Block memory bits | 1,349,492 | 1,349,500 | 1,349,500 | 1,342,310 |
+| DSP blocks | 38 | 38 | 38 | 38 |
 
 The system clock is 61.44 MHz. The seal's worst setup path runs from
-`cpu_dfwd_ready[15]` through D's load forwarding (`dfwd` base value) to
-`cpu_r_c1`. On `214cb3886`'s fit it ran from `cpu_ex_ag_result` through
-`dfwd` and the store-to-load adder (`st_e`, `st_near`) to the issue enable.
-Both are Phase 4 paths with none of this slice's logic on them, and their
-slack moves with the fit.
-The plan gave slices 2-5 about 2,400 ALMs. This slice takes 130 over
-main's fit of the same day, inside the ±200 fit noise the area audit
-measured. 5,778 ALMs (13.8%) are left, 2,368 under the working ceiling of
-38,500.
+`cpu_dfwd_ready[13]` (a duplicate) to D's EIP (`cpu_d_eip[28]`). On
+`fcb780f78` it ran from `cpu_dfwd_ready[15]` to `cpu_r_c1`. On `214cb3886`
+it ran from `cpu_ex_ag_result` through `dfwd` and the store-to-load adder
+(`st_e`, `st_near`) to the issue enable. All three are Phase 4's
+load-forwarding paths, and their slack moves with the fit.
+The plan gave slices 2-5 about 2,400 ALMs. The three fits of this slice
+take 130-259 over main's fit of the same day, about the ±200 fit noise the
+area audit measured. 5,649 ALMs (13.5%) are left, 2,239 under the working
+ceiling of 38,500.
 
 ## Kit
 
