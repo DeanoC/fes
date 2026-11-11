@@ -1,0 +1,21 @@
+{
+  "status": "passed-independent-readonly-identity-cleanup",
+  "whole_attempt_passed": false,
+  "board": "TRWU8CBL",
+  "private_server_absent": true,
+  "clock_readback": {
+    "JtagClockAutoAdjust": 1,
+    "JtagClock": "15M"
+  },
+  "exact_usb_permissions_restored": true,
+  "uart_owners": [],
+  "processes_inventoried": 604,
+  "no_qspi_session_attempted": true,
+  "configuration_query_qualified": false,
+  "live_part_identity_verified": false,
+  "complete_backup": false,
+  "flash_write_commands_sent": false,
+  "programming_attempted": false,
+  "hardware_commands_sent": 0,
+  "selected_internal_library_mapped": true
+}
