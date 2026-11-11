@@ -79,15 +79,97 @@ breakpoint is reported exactly, as the 386 does with GE or LE set
 
 ## Lockstep
 
-LOCKSTEP
+`scripts/test_fes_i386_lockstep.py` ran with every default (16 seeds of
+2,000 random programs, 16 of 500 protected-mode programs, 16 of 250
+task-switch programs, and now 16 of 250 debug programs, and the full corpus)
+at `c0a6a2682`, on the RTL and on the netlist of the i386 lock's Yosys
+(`0a7927bf`), with the lock's Verilator 5.054, on Powerboat:
+
+| Part | RTL | Netlist |
+| --- | --- | --- |
+| SingleStepTests corpus | 1,758,699 of 1,758,699 | same |
+| Random programs | 32,000 of 32,000 (7,977,648 retirements) | same |
+| Protected-mode programs | 8,000 of 8,000 (432,695 retirements) | same |
+| Task-switch programs | 4,000 of 4,000 (202,130 retirements) | same |
+| Debug programs (new) | 4,000 of 4,000 (2,185,253 retirements) | same |
+| Unbuilt encodings | 49,760, each stopped | same |
+| Directed cases | 77 of 77 | same |
+| Unreal, protected-mode, paging, no-387 and memory cases | 7, 398, 77, 1,933 and 27, all pass | same |
+
+All 1,012 trace hashes match between the RTL and the netlist
+([lockstep-report.json](lockstep-report.json),
+[lockstep-netlist-report.json](lockstep-netlist-report.json)). The random,
+protected-mode and task-switch programs' hashes are slice 4's: no program
+before this slice arms a breakpoint or sets TF. The three protected-mode
+cases added at `25dacd623` after this run (`db-popfd-rf`, `ts-tf-jmp`,
+`db-tf-none-enabled`; 401 in all) change only the testbench and pass on the
+RTL there.
+
+**Debug programs** (`--debug-programs`, seeds from 5001, `FES_I386_DEBUG`):
+real-mode random programs with a #DB handler through vector 1 and blocks that
+arm instruction and data breakpoints and run stretches under TF (the
+lockstep README has the generator). Over 16 seeds they took 70,960 #DBs:
+3,378 reporting B bits (instruction and data breakpoints, alone or with BS)
+and the rest single steps, 3,987 inside a REP string; 342,402 instructions
+ran with TF set and 63,758 with a breakpoint enabled. The `dr6_rule` kept
+DR6's bits past 26,185 #DBs. They also took 258,392 injected INTRs and
+114,547 NMIs, some meeting a trap at the same edge.
+
+**Harness changes.**
+- `dr6_rule` and `db_rf_rule` (divergences.toml's new `[[lockstep]]`
+  section, which the vectors and test386 runners do not read). `db_rf_rule`
+  fails the step when the RTL's image has RF clear where it should be set.
+- A #DB whose delivery shuts down: the shutdown check takes the DR6 and DR7
+  the #DB set first.
+- The oracle adapter: `set_state` keeps Bochs's pending `debug_trap`, which
+  the lockstep's rules hand back between instructions (it dropped single
+  steps after an `imul-flags` adoption), and a trap due between a REP
+  string's iterations is taken within the step, as an interrupt raised
+  there is.
+- `stop_at_exception` goes on past a #DB in the debug programs and the
+  `past_db` cases, and TF no longer stops a debug program as stray.
+
+**Bugs the lockstep found on the way** (each fixed before the run above):
+an instruction breakpoint's uop read the MMIO window before its fault, and
+could have walked a page (now it touches nothing from M1 on); its flags
+reached EX's running copy, and so its #DB's frame; an NMI edge that came
+while the CPU chose between events was lost; a POP SS shadow carried a
+single step into INT n; a fetch check's replay of a matched instruction
+skipped its breakpoint (`random#5014#237`, after a prediction a program 67
+runs earlier had left in the BTB).
+
+**New directed cases** (52 protected-mode cases, 49 of them in the run above): see the
+lockstep README's protected-mode row and the "Not established" table above
+for each, and [mutants.txt](mutants.txt) for which mutant each catches.
 
 ## Mutants
 
-MUTANTS
+23 one-line mutants of the new RTL ([mutants.txt](mutants.txt)): 21 fail
+directed cases; `edge-cbp-off` (no next-instruction breakpoint at an
+interrupt's edge) fails only the debug programs, since no directed case
+raises INTR; `rf-per-uop` is unreachable, since the replay that suppresses
+a breakpoint issues its instruction one uop at a time, so no later uop of
+it replays. Five mutants failed only the debug programs at first; the cases
+added for them (`db-ibp-movss`, `db-dbp-movss`, `db-dbp-movss-int`,
+`db-dbp-rep-own`, `db-dbp-gdt`) fail them now.
 
 ## test386.asm
 
-TEST386
+`scripts/test_fes_i386_test386.py --cpu rtl --no-cross-check` at `c0a6a2682`
+on chip-30x0-ai-dev (Powerboat was loaded; the i386 lock's Verilator 5.054
+built there), [test386-rtl-report.json](test386-rtl-report.json), its output
+text trimmed to a hash:
+- **POST codes** 00, 01, 02, 03, 04, 05, 06, 08, 09, 20, 21, 22, 0B-1C, E0,
+  EE and FF, no error, no check stepped over; the run halts at
+  00D0h:0000FFB9h after 79,640,765 retirements, where Bochs halts, as on
+  slice 4.
+- **POST EEh's output** (44,926 lines) is byte for byte slice 4's (SHA-256
+  `83634482…`): the same four IDIV overflows that the RTL completes as the
+  386EX does (`idiv-unchecked-overflow`; slice 4's record), and nothing
+  else differs from test386's reference.
+- An earlier run on Powerboat at `92d08101b`, before the last two RTL
+  changes (system accesses matching data breakpoints, the skip after a
+  suppressed breakpoint only), gave the same POST codes, end and output.
 
 ## Seal
 
