@@ -39,10 +39,14 @@ no presenter or plane-output probe, so this isn't established for them.**
   address source, video enable, the screen-off bit, the pel mask, the
   sequencer and the count of non-black DAC entries were all as in a lit
   launch: the state word was identical. That rules out those bits only.
-  The word leaves out the CRTC geometry, and the DAC count can't tell a dim
-  palette from a black one or say which entries scanout uses. So the
-  remaining candidates are the CRTC, the DAC's values, capture, the 720p
-  presenter and the display plane.
+  The word leaves out the CRTC geometry and the attribute controller's
+  palette and colour-select mappings, and the DAC count can't tell a dim
+  palette from a black one or say which entries scanout uses. A mapping that
+  sent every colour to a black DAC entry would leave the word unchanged. So
+  for that launch the remaining candidates are all the VGA state it didn't
+  sample (the CRTC, the attribute controller's mappings, the DAC's values
+  and any other control or mapping state), capture, the 720p presenter and
+  the display plane.
 - Runs `k4` and `k5` added 18 launches with capture-buffer samples and a
   DOS-prompt grab. None of them was black.
 - Run `k6` (41 short launches, a capture sample during every grab) had one
