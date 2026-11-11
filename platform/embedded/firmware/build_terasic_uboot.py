@@ -111,6 +111,8 @@ def main():
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--native-entry-build", type=Path,
                         help="bind the dedicated serial-only Nano handoff to this entry image")
+    parser.add_argument("--native-autoboot", action="store_true",
+                        help="start the selected paired native launcher after a two-second UART abort window")
     parser.add_argument("--nano-firmware-ocram", action="store_true",
                         help="require the selected matched SPL/EL3/native OCRAM reservation")
     parser.add_argument("--network-recovery", action="store_true",
@@ -119,6 +121,8 @@ def main():
                         help="explicit recovery-only bounded return observations; separate diagnostic artifact")
     parser.add_argument("--nano-firmware-mmu", action="store_true", help="selected late EL3 private-cache profile and writeback diagnostic")
     args = parser.parse_args()
+    if args.native_autoboot and args.native_entry_build is None:
+        parser.error('native autoboot requires --native-entry-build')
     if args.nano_firmware_mmu and not args.nano_firmware_ocram:
         parser.error("firmware MMU requires --nano-firmware-ocram")
     if args.network_return_trace and not args.network_recovery:
@@ -214,7 +218,7 @@ def main():
         spec = importlib.util.spec_from_file_location("fes_nano_prepare", HERE.parent / "nano/prepare_uboot.py")
         nano_prepare = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(nano_prepare)
-        native = nano_prepare.prepare(build_repo, entry_build, hashlib.sha256(blob).hexdigest(), len(blob),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu)
+        native = nano_prepare.prepare(build_repo, entry_build, hashlib.sha256(blob).hexdigest(), len(blob),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,autoboot=args.native_autoboot)
         if native['cold_boot_profile']!=cold_profile: raise ValueError('SPL and BL31 cold chain differ')
         (build/'fes-entry.img').write_bytes((entry_build/'entry.img').read_bytes())
     commands = []
@@ -242,11 +246,13 @@ def main():
         for name in nano_prepare.ENABLE:
             run("config-enable-" + name, [*configure, "-e", name])
         run("config-bootcmd", [*configure, "--set-str", "BOOTCOMMAND", "fesboot"])
-        run("config-bootdelay", [*configure, "--set-val", "BOOTDELAY", "-1"])
+        run("config-bootdelay", [*configure, "--set-val", "BOOTDELAY", str(native['startup']['bootdelay'])])
         run("config-localversion", [*configure, "--set-str", "LOCALVERSION", "-fes-nano-" + native["build_id"]])
         run('config-experimental-fit',[*configure,'--set-str','SPL_FS_LOAD_PAYLOAD_NAME',cold.EXPERIMENTAL_FILE])
         run("olddefconfig", [*base, "olddefconfig"])
     config = (build / ".config").read_text()
+    if native is not None:
+        nano_prepare.startup.check_config(native['startup'],config)
     if recovery is not None:
         recovery.check(config)
     if ("CONFIG_SPL_ATF=y\n" not in config or "CONFIG_CMD_ELF=y\n" not in config or
@@ -317,6 +323,7 @@ def main():
             check_uboot_load(segments, len(data))
     board_model = subprocess.check_output([fdtget, "-t", "s", str(output / "extracted-fdt-0.bin"), "/", "model"], env=env, text=True).strip()
     if native is not None:
+        nano_prepare.startup.check_dtb(native['startup'],output/'extracted-fdt-0.bin')
         if (parts['fes-entry']['sha256']!=native['entry_image_sha256'] or
                 (output/'extracted-fes-entry.bin').read_bytes()!=(entry_build/'entry.img').read_bytes() or
                 int(subprocess.check_output([fdtget,'-t','x',str(fit),'/images/fes-entry','load'],env=env,text=True).strip(),16)!=0x96080000):

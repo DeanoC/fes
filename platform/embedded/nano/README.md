@@ -1,5 +1,16 @@
 # Nano recovery uploads and cold serial boot
 
+The native U-Boot builder accepts an explicit `--native-autoboot` alongside
+`--native-entry-build` for a selected Tenfoot launcher with its paired menu.
+It starts the same guarded `fesboot` command after a two-second UART abort
+window. Omitting the option retains the manual diagnostic prompt. The selected
+policy contributes to the boot ID; build and package admission check the
+configuration and compiled device-tree delay, with alternate boot/retry paths
+disabled. The environment stays volatile and the recovery loader stays manual.
+This prepares automatic native startup; it does not provision SD-only power-on
+boot or change the board's factory flash. A newly matched chain and separate
+physical startup test are required before claiming autonomous startup.
+
 The bounded [native installation](../../../docs/validation/2026-11-11-de25-native-first-install-trial/README.md)
 and [independent reboot discovery](../../../docs/validation/2026-11-11-de25-installed-discovery-trial/README.md)
 now pass on TRWU8CBL for ZX81. The second boot retains the empty staging

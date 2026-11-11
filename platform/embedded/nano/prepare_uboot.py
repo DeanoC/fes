@@ -8,6 +8,9 @@ import shutil
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
+_startup_spec = importlib.util.spec_from_file_location('fes_nano_startup', HERE/'startup.py')
+startup = importlib.util.module_from_spec(_startup_spec)
+_startup_spec.loader.exec_module(startup)
 
 
 def sha(path):
@@ -82,11 +85,12 @@ def atf_source(text, *, firmware_ram=False, firmware_ocram=False):
     return '#include <nano_cold.h>\n'+('#include <nano_firmware_ram.h>\n' if firmware_ocram else '')+text
 
 
-def prepare(source, entry_build, bl31_sha256, bl31_size, *, firmware_ram=False, firmware_mmu=False):
+def prepare(source, entry_build, bl31_sha256, bl31_size, *, firmware_ram=False, firmware_mmu=False, autoboot=False):
     atf_handoff=atf_descriptor(bl31_sha256,bl31_size)
     spec=importlib.util.spec_from_file_location('fes_nano_cold_profile', HERE/'cold_profile.py')
     cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
     image, receipt_path=cold.entry(entry_build)
+    startup_policy=startup.select(autoboot,json.loads(receipt_path.read_text()))
     profile=cold.selected_profile(json.loads(receipt_path.read_text()))
     chain=cold.make(entry_build,firmware_ram=firmware_ram,firmware_mmu=firmware_mmu)
     if chain.get('firmware_ram') is not None:
@@ -190,7 +194,7 @@ def prepare(source, entry_build, bl31_sha256, bl31_size, *, firmware_ram=False, 
 };
 &board_config { board-0 { loadables = "uboot", "fes-entry"; }; };
 / { chosen { u-boot,spl-boot-order = &mmc; }; };
-''')
+'''+startup.dts(startup_policy))
     board_header=source/'include/configs/socfpga_agilex5_de25_nano.h'
     text=board_header.read_text();anchor='#include <configs/socfpga_soc64_common.h>\n'
     if text.count(anchor)!=1:raise ValueError('native board environment context changed')
@@ -199,7 +203,7 @@ def prepare(source, entry_build, bl31_sha256, bl31_size, *, firmware_ram=False, 
     makefile.write_text(makefile.read_text() + "\nobj-y += fes_nano.o fes_nano_policy.o\n")
     producer_sources = {str(p.relative_to(ROOT)): sha(p) for p in
                         (*cold.sources(), firmware/"generated/fes_embedded_bridges.h")}
-    build_id = hashlib.sha256(json.dumps({"sources": producer_sources, "entry": sha(image), "bl31": bl31_sha256}, sort_keys=True).encode()).hexdigest()[:16]
+    build_id = startup.identity(producer_sources,sha(image),bl31_sha256,startup_policy)
     digest = bytes.fromhex(sha(image))
     arenas=[]
     if chain.get('hps_configuration'):
@@ -216,7 +220,7 @@ def prepare(source, entry_build, bl31_sha256, bl31_size, *, firmware_ram=False, 
             "profile_sha256": sha(profile), "build_id": build_id,
             "classification": "source-derived serial-only Nano handoff; physical gate not executed",
             "producer_sources": producer_sources, "cold_boot_profile":chain, "preloaded_entry": True,
-            "atf_handoff":atf_handoff}
+            "atf_handoff":atf_handoff, "startup":startup_policy}
 
 
 DISABLE = ("NET", "NETDEVICES", "USB", "ENV_IS_IN_FAT", "ENV_IS_IN_UBI", "ENV_IS_IN_SPI_FLASH",
@@ -228,4 +232,5 @@ DISABLE = ("NET", "NETDEVICES", "USB", "ENV_IS_IN_FAT", "ENV_IS_IN_UBI", "ENV_IS
            "SPL_SPI", "SPL_SPI_FLASH_SUPPORT", "SPL_SPI_LOAD", "SPL_NAND_SUPPORT", "SPL_MTD",
            "SPL_DM_SPI_FLASH", "SPL_DM_SPI", "CMD_FPGA", "CMD_UBI", "CMD_UBIFS", "MTD_UBI", "SPL_RAM_DEVICE",
            "SPL_FS_FAT_DMA_ALIGN")
-ENABLE = ("NO_NET", "ENV_IS_NOWHERE", "CMD_BOOTI", "SHA256", "LMB", "CMD_BDI", "CMD_WDT")
+DISABLE += startup.DISABLE
+ENABLE = ("NO_NET", "ENV_IS_NOWHERE", "CMD_BOOTI", "SHA256", "LMB", "CMD_BDI", "CMD_WDT") + startup.ENABLE

@@ -149,6 +149,9 @@ class NanoExportTests(unittest.TestCase):
             self.assertNotIn("smp_kick_all_cpus();", text)
             self.assertEqual((source / "cmd/fes_nano.c").read_bytes(), (HERE / "uboot.c").read_bytes())
             self.assertEqual(len(result["build_id"]), 16)
+            self.assertEqual(result['startup'],prepare.startup.policy(False))
+            self.assertIn(prepare.startup.dts(result['startup']),
+                (source/'arch/arm/dts/socfpga_agilex5_de25_nano-u-boot.dtsi').read_text())
             self.assertEqual(result['atf_handoff']['bytes'],16)
             self.assertEqual(result['atf_handoff']['sha256'],'a'*64)
             self.assertTrue(result['cold_boot_profile']['spl_atf_trace'])
@@ -235,6 +238,14 @@ class NanoExportTests(unittest.TestCase):
                 self.assertTrue(result["preloaded_entry"])
                 identities.append(result["build_id"])
         self.assertNotEqual(*identities)
+
+    def test_probe_cannot_autostart_and_rejection_precedes_export_mutation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source,entry,_=self.fixture(Path(tmp))
+            before={str(p.relative_to(source)):p.read_bytes() for p in source.rglob('*') if p.is_file()}
+            with self.assertRaisesRegex(ValueError,'paired Tenfoot'):
+                prepare.prepare(source,entry,'a'*64,16,autoboot=True)
+            self.assertEqual(before,{str(p.relative_to(source)):p.read_bytes() for p in source.rglob('*') if p.is_file()})
 
     def test_generated_spl_atf_call_passes_current_cookie_and_record(self):
         """Execute the generated caller; a valid record with the old cookie rejects at EL3."""

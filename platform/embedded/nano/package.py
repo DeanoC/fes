@@ -45,6 +45,16 @@ def checked_native(uboot,entry):
             u.get('producer_sha256')!=sha(HERE.parent/'firmware/build_terasic_uboot.py')):
         raise ValueError('native FIT/SPL/entry/firmware seal differs from matched receipts')
     from prepare_uboot import DISABLE,ENABLE,atf_descriptor,checked_atf_descriptor
+    from startup import check_config,check_dtb,select,identity
+    check_config(native.get('startup'),config)
+    select(native['startup']['mode']=='autoboot',e)
+    if (native.get('build_id')!=identity(native['producer_sources'],sha(image),u.get('bl31_sha256'),native['startup']) or
+            'CONFIG_LOCALVERSION="-fes-nano-'+native['build_id']+'"\n' not in config):
+        raise ValueError('native startup identity differs from its selected bootloader')
+    dtb=uboot/'extracted-fdt-0.bin'
+    if sha(dtb)!=u.get('fit_components',{}).get('fdt-0',{}).get('sha256'):
+        raise ValueError('native startup device tree differs from the sealed FIT')
+    check_dtb(native['startup'],dtb)
     component=u.get('fit_components',{}).get('atf',{})
     if (native.get('cold_boot_profile',{}).get('spl_atf_trace') is not True or
             component.get('sha256')!=u.get('bl31_sha256') or
