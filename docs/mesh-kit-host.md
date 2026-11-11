@@ -90,7 +90,7 @@ marked *proposed* are not yet decided.
 | `mesh-phase2.md` ensure seam, still gated on #177 and #172 (both closed) | Re-scoped: ensure means fetch from a remote source |
 | `mesh-phase3.md` slices 1–8 | Cancelled for kits; `meshplace` may be reused by a desktop client to pick a kit |
 | `mesh-vnext.md` §2.4b and §4 P4a launcher credentials; P1–P3 PAKE; P4b; Q1–Q3, Q8, Q15, Q17 | Cancelled or moot; Q16 is revised in place |
-| `mesh-m1-integration.md` | Evidence for host-local RetroArch; it does not transfer to the kit profile |
+| `mesh-m1-integration.md` | Historical evidence for the removed host-local RetroArch executor and paired-kit path; it does not transfer to the kit profile |
 | `idle-menu-rooms.md` "kit-as-host is optional" | Replaced: kit-as-host is the product |
 
 ## Open
@@ -106,9 +106,6 @@ marked *proposed* are not yet decided.
   unrestricted host API. Define the kit-host pairing and credential delivery
   before enabling that client path; pointing a browser at the host URL alone
   does not authorize it.
-- Powerboat `host_only` RetroArch sessions and casting onto a kit are not a
-  supported path once slice 6 lands; whether host emulation stays in the
-  product at all is the re-opened #871 decision.
 
 ## Acceptance
 

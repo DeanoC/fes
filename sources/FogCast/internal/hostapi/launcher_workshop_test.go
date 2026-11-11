@@ -162,9 +162,9 @@ func (s *setupCreateAPIService) CreateCoreEntry(ctx context.Context, title, id s
 	return catalog.CoreEntry{GameID: "my-zx81", Title: title, CoreID: "fes.zx81", PackageID: id}, nil
 }
 
-func (s *setupCreateAPIService) CoreEntryROM(_ context.Context, game string) (catalog.CoreEntryROM, error) {
+func (s *setupCreateAPIService) CoreEntryROM(_ context.Context, game, rom string) (catalog.CoreEntryROM, error) {
 	s.romReads++
-	return catalog.CoreEntryROM{GameID: game}, nil
+	return catalog.CoreEntryROM{GameID: game, ROMID: rom}, nil
 }
 
 func (s *setupCreateAPIService) SelectCoreEntryROM(_ context.Context, game, pkg, rom, expected, media string) (catalog.CoreEntryROM, error) {

@@ -651,7 +651,6 @@
   function backendOptionLabel(option) {
     if (!option) return 'Play';
     if (option.execution === 'fpga_native' || option.execution === 'fpga_development') return 'FPGA';
-    if (option.execution === 'native_emu' || option.host_local === true) return 'Emulator';
     return option.execution || option.source_game_id;
   }
 
@@ -920,7 +919,7 @@
     if (game.firmware_required === true && game.firmware_ready !== true) {
       return game.rom_role === 'firmware'
         ? 'Required machine firmware is missing. Import it before Play.'
-        : 'Coleco BIOS required. Import household firmware before Play.';
+        : 'Coleco BIOS required. Choose a BIOS for this title before Play.';
     }
     if (game.rom_required === true && game.rom_ready !== true) return 'Needs a cartridge';
     if (game.placement === 'unresolved' || game.placement === 'fail_closed') {

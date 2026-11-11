@@ -1,17 +1,16 @@
 # Catalog core media
 
-Schema 9 stores immutable media bytes in SQLite, addressed by lowercase SHA-256,
-and adds a household firmware slot that points at those objects. The public
-comparable values expose IDs and metadata, never filesystem paths:
+The catalog stores immutable media bytes in SQLite, addressed by lowercase
+SHA-256. The public comparable values expose IDs and metadata, never filesystem
+paths:
 
 - CoreEntry adds MediaID and MediaRole, both omitted from JSON when empty, and
-  optional FirmwareRequired for titles that cannot become Ready without
-  household firmware (Coleco Frogger). BIOS-free diagnostics omit the flag.
-- CoreFirmware is one household slot (`firmware`) whose MediaID is a core-media
-  digest. Coleco BIOS must be exactly 8192 bytes. Clearing the slot deletes the
-  pointer, not the stored object. No BIOS/ROM bytes are stored in git. Tenfoot
-  imports through the same `POST /api/v1/core-media` and
-  `PUT /api/v1/library/firmware` APIs as the CLI.
+  optional FirmwareRequired for titles that need firmware. BIOS-free
+  diagnostics omit the flag.
+- ROM bindings identify each title, package and named ROM requirement. Coleco
+  BIOS and cartridge selections are independent; the catalog verifies the
+  selected object's exact size and content, and the service checks the named
+  requirement against the package manifest. No BIOS/ROM bytes are stored in git.
 - CoreMedia contains MediaID and Size.
 - MaxCoreMediaBytes is protocol.MaxContentBytes (32 MiB), independent of target
   development-media limits. CoreMediaChunkBytes is 64 KiB.
@@ -74,6 +73,10 @@ Schema 13 admits the `disk` role. SQLite cannot change a CHECK constraint, so
 the migration rebuilds `core_entries` on the migration connection with foreign
 keys off (a DROP would otherwise cascade into child selections), then runs
 `foreign_key_check` before commit and restores foreign keys.
+
+Schema 23 preserves existing named ROM selections and removes the household
+firmware slot. Its media objects remain stored. Existing titles that used the
+household BIOS must explicitly select their BIOS for the title again.
 
 Favorites and play history are owned by libraryuser and keyed by stable GameID.
 Catalog migration and selection preserve that identity. Service, API, CLI, and

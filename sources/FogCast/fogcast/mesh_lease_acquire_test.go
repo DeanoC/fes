@@ -52,11 +52,11 @@ func TestFreshFPGALaunchAcquiresOnContentPull(t *testing.T) {
 		State: "ready", TargetID: "node-a",
 		leaseSeen: true, leaseOwned: false, leaseGeneration: "free-gen",
 	}
-	service.catalog = &fakeServiceCatalog{gameErr: errors.New("stop after ensure")}
+	service.catalog = &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}}
 
 	_, err := service.LaunchOn(context.Background(), entry.TitleID, "", nil)
 	var api *protocol.APIError
-	if !errors.As(err, &api) || api.Code != protocol.CodeInternal {
+	if !errors.As(err, &api) || api.Code != protocol.CodeUnsupportedOperation {
 		t.Fatalf("err %v", err)
 	}
 	if client.claims != 1 || client.meshLeaseGeneration != "gen-acquired" {
@@ -145,7 +145,7 @@ func TestEnsureFailureReleasesGrantClaimedInThisCall(t *testing.T) {
 	client := &releasingMeshClient{}
 	service.targetClients["dev"] = client
 	service.connection = TargetConnection{State: "ready", TargetID: "node-a", leaseSeen: true}
-	service.catalog = &fakeServiceCatalog{gameErr: errors.New("stop after ensure")}
+	service.catalog = &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}}
 
 	_, err := service.LaunchOn(context.Background(), entry.TitleID, "", nil)
 	if !errors.Is(err, meshcontent.ErrContentMissingNoSource) {
@@ -169,7 +169,7 @@ func TestEnsureFailureKeepsGrantTheSessionAlreadyHeld(t *testing.T) {
 		State: "ready", TargetID: "node-a",
 		leaseSeen: true, leaseOwned: true, leaseGeneration: "gen-owned",
 	}
-	service.catalog = &fakeServiceCatalog{gameErr: errors.New("stop after ensure")}
+	service.catalog = &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}}
 
 	_, err := service.LaunchOn(context.Background(), entry.TitleID, "", nil)
 	if !errors.Is(err, meshcontent.ErrContentMissingNoSource) {
@@ -193,7 +193,7 @@ func TestExplicitLaunchDoesNotUseSelectedGeneration(t *testing.T) {
 		State: "ready", TargetID: "node-a",
 		leaseSeen: true, leaseOwned: true, leaseGeneration: "gen-a",
 	}
-	service.catalog = &fakeServiceCatalog{gameErr: errors.New("stop after ensure")}
+	service.catalog = &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}}
 
 	_, err := service.LaunchOn(context.Background(), entry.TitleID, "spare", nil)
 	if errors.Is(err, meshcontent.ErrLeaseNotFree) {

@@ -144,7 +144,8 @@ module fes_i386_exctl (
     assign c.kp_hi = !whole;
     assign c.r_logic = logic_op || lnot;
     assign c.r_lea = alu && op == 5'd14 || md;
-    assign c.r_y = (alu && (op == 5'd15 || op == 5'd9)) || cls == C_SEGMENT && op == 5'(fes_i386_pkg::SEGOP_LOAD_REAL);
+    assign c.r_y = (alu && (op == 5'd15 || op == 5'd9))
+                || cls == C_SEGMENT && (op == 5'(fes_i386_pkg::SEGOP_LOAD_REAL) || op == 5'(fes_i386_pkg::SEGOP_TSEL));
     assign c.r_zf = cls == C_SEGMENT && op == 5'(fes_i386_pkg::SEGOP_ZF);
     assign c.r_movsx = alu && op == 5'd16;
     assign c.r_setcc = alu && op == 5'd17;
@@ -169,7 +170,7 @@ module fes_i386_exctl (
     assign flagop = alu && op == 5'd30;
     assign fop = u.imm[3:0];
     assign c.r_lahf = flagop && fop == 4'd8;
-    assign c.r_flags = flagop && (fop == 4'd10 || fop == 4'd11 || fop == 4'd13);
+    assign c.r_flags = flagop && (fop == 4'd10 || fop == 4'd11 || fop == 4'd13 || fop == 4'd14);
     // An arithmetic or logic op writes the flags its uop says it writes:
     // XCHG's XORs and SALC's SBB write none.
     assign c.f_add = arith && u.flags.write.cf;
@@ -185,6 +186,8 @@ module fes_i386_exctl (
     assign c.f_rf = flagop && fop == 4'd12 && u.size == fes_i386_pkg::SIZE_32;
     assign c.f_clrit = flagop && fop == 4'd11;
     assign c.f_clrpm = flagop && fop == 4'd13;
+    assign c.f_rdtss = flagop && fop == 4'd14;
+    assign c.f_ldtss = flagop && fop == 4'd15;
     assign c.fl_cf = fop == 4'd1;
     assign c.fl_cmc = fop == 4'd2;
     assign c.fl_set = fop == 4'd4 || fop == 4'd6;
@@ -192,8 +195,9 @@ module fes_i386_exctl (
 
     assign c.b_jcc = cls == C_BRANCH && op == 5'd0;
     // CLTS and the other system writes (UOP_SYSTEM) jump to the next
-    // instruction too, but a delivery's GATE.
-    assign c.b_jmp = cls == C_BRANCH && op == 5'd1 || cls == C_SYSTEM && op != 5'(fes_i386_pkg::SYSOP_GATE);
+    // instruction too, but a delivery's GATE and a task switch's TR and LDTR
+    // writes (fes_i386_pkg sys_nojmp).
+    assign c.b_jmp = cls == C_BRANCH && op == 5'd1 || cls == C_SYSTEM && !fes_i386_pkg::sys_nojmp(op);
     assign c.b_loop = cls == C_BRANCH && op == 5'd6;
     assign c.b_loope = cls == C_BRANCH && op == 5'd7;
     assign c.b_loopne = cls == C_BRANCH && op == 5'd8;

@@ -1,4 +1,4 @@
-// Package mediasession provides the lifecycle boundary for host-only media.
+// Package mediasession provides the lifecycle boundary for local media preview.
 //
 // It intentionally knows nothing about capture devices, codecs, sockets, or
 // displays. Those concerns are supplied as component implementations so this

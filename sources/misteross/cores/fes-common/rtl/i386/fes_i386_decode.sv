@@ -85,6 +85,7 @@ module fes_i386_decode (
     input  logic                   vm,          // EFLAGS.VM: V86 mode (with pe)
     input  logic [1:0]             cpl,         // the CPL (0 in real mode)
     input  logic [1:0]             iopl,        // EFLAGS.IOPL
+    input  logic                   nt,          // EFLAGS.NT as it stands (IRET's form; D checks it, ntchk)
     input  logic                   dr_gd,       // DR7.GD: a MOV to or from DRn raises #DB
     output fes_i386_pkg::uop_t     uop,
     output logic                   opsize32,
@@ -1034,19 +1035,27 @@ module fes_i386_decode (
                     // any read; then the routine, which reads CS's slot, the
                     // offset's and CS's descriptor. In V86 mode the
                     // real-mode form's first uop, then the V86 routine.
+                    // In protected mode with NT set, a return from a nested
+                    // task (fes_i386_cpu, "Task switches"): a NOP, then the
+                    // old task's save (UC_TSSAVE), before any stack read.
+                    // NT as DC sees it may be stale (a POPF in flight): the
+                    // first uop (ntchk, ntset) waits in D for NT to be
+                    // committed and replays the IRET, accessing nothing,
+                    // when it is not what DC saw (fes_i386_cpu, nt_busy).
                     nwrap = pm;
                     op = 5'd9;  // ALU_MOV
                     size = 2'd2;
                     mbytes = osz32 ? 3'd4 : 3'd2;
-                    mkind = 2'd1;
-                    stk = fes_i386_pkg::STK_PEEK;
+                    mkind = pm && nt ? 2'd0 : 2'd1;
+                    stk = pm && nt ? fes_i386_pkg::STK_NONE : fes_i386_pkg::STK_PEEK;
                     slot = pm ? 4'd2 : 4'd0;
-                    d_valid = 1'b1;
+                    d_valid = !(pm && nt);
                     d_temp = 1'b1;
                     d_t1 = 1'b1;
                     d_idx = pm ? 3'd3 : 3'd0;  // T4, T1
                     seq = fes_i386_pkg::SEQ_UCODE;
-                    upc = vm ? fes_i386_ucode_pkg::UC_VIRET : pe ? fes_i386_ucode_pkg::UC_PIRET : fes_i386_ucode_pkg::UC_IRET;
+                    upc = vm ? fes_i386_ucode_pkg::UC_VIRET : pm && nt ? fes_i386_ucode_pkg::UC_TSSAVE
+                        : pe ? fes_i386_ucode_pkg::UC_PIRET : fes_i386_ucode_pkg::UC_IRET;
                     eoi = 1'b0;
                 end
                 8'b1100101?: begin
@@ -1879,16 +1888,19 @@ module fes_i386_decode (
     assign u.bound = 1'b0;
     // A protected-mode segment load's descriptor accesses come from the ROM;
     // INT n's and INT3's first uop reads the gate's low dword.
-    assign u.desc = gdesc ? 3'(fes_i386_pkg::DESC_IDT_LO) : 3'd0;
+    assign u.desc = gdesc ? 4'(fes_i386_pkg::DESC_IDT_LO) : 4'd0;
     assign u.x87p = x87p;
     assign u.hold = 1'b0;
     assign u.xfer = 1'b0;
     assign u.nstk = 1'b0;
     assign u.sflt = 2'(fes_i386_pkg::SFLT_GP);
-    assign u.segchk = 4'd0;
+    assign u.segchk = 5'd0;
     assign u.nwrap = nwrap;
     assign u.v86 = 1'b0;
     assign u.ntchk = b0 == 8'hcf && pm;
+    assign u.ntset = b0 == 8'hcf && pm && nt;
+    assign u.tcom = 1'b0;
+    assign u.tscpl = 1'b0;
     assign u.seg2_pm = 1'b0;
     assign u.shadow = 1'b0;
     assign u.bound_pair = b0 == 8'h62 && !reg_form;

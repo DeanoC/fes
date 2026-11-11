@@ -95,29 +95,6 @@ func TestLibraryPackageIdentityFailureNeverAttachesInput(t *testing.T) {
 	}
 }
 
-func TestLibraryPackageHostCleanupFailureRetainsMediaAndBlocksInput(t *testing.T) {
-	game, system, core := "host-game", protocol.SystemSNES, "fes.pong"
-	service := &fakeService{execution: fogcast.ExecutionHostOnly, launch: protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &game, System: &system}}, status: protocol.Status{State: protocol.StateActive, GameID: &game, System: &system}}
-	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
-	media := &fakeMediaSession{}
-	handler := hostapi.New(service, hostapi.WithRemoteInput(input), hostapi.WithMediaSession(media))
-	if result := launchSession(t, handler, game); result.Code != http.StatusOK {
-		t.Fatalf("host launch: %s", result.Body.String())
-	}
-	attached := len(input.attach)
-	failure := &protocol.APIError{Code: protocol.CodeInternal, Phase: "recovery", Message: "host cleanup failed after core package activation"}
-	active := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, LastError: failure, CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 9, ABI: protocol.RuntimeContract{ID: "fes.simple-game", Major: 1}, BuildID: strings.Repeat("b", 32), Gamepad: true}}
-	service.execution = fogcast.ExecutionFPGANative
-	service.game = catalog.Game{ID: "core-pong", Kind: catalog.SourceKindCorePackage}
-	service.launch = protocol.CachedLaunchResponse{Status: active}
-	service.launchErr = failure
-	service.status = active
-	result := launchSession(t, handler, "core-pong")
-	if result.Code == http.StatusOK || len(input.attach) != attached || len(media.stop) != 0 {
-		t.Fatalf("cleanup owner retired: status=%d attach=%v media.stop=%v", result.Code, input.attach, media.stop)
-	}
-}
-
 func TestCoreSaveFailureRestoresInputOnlyForSameResumedGeneration(t *testing.T) {
 	for _, kind := range []string{"resumed", "new generation", "recovery"} {
 		t.Run(kind, func(t *testing.T) {
@@ -208,100 +185,6 @@ func TestSessionCartridgeLaunchStopsRecognizedABIPackagePlay(t *testing.T) {
 	if !strings.Contains(out.Body.String(), `"execution":"fpga_native"`) {
 		t.Fatalf("cartridge session = %s", out.Body.String())
 	}
-}
-
-func TestSessionHostOnlyLaunchKeepsKitPackagePlay(t *testing.T) {
-	core, packageGame := "fes.zx81", "core-zx81"
-	active := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, GameID: &packageGame,
-		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 5,
-			ABI: protocol.RuntimeContract{ID: "fes.simple-computer", Major: 1}, BuildID: strings.Repeat("b", 32)}}
-	order := []string{}
-	hostGame := "host-title"
-	hostStatus := protocol.Status{State: protocol.StateActive, GameID: &hostGame, System: systemPtr(protocol.SystemSNES)}
-	service := &fakeService{
-		execution:    fogcast.ExecutionFPGANative,
-		game:         catalog.Game{ID: packageGame, Kind: catalog.SourceKindCorePackage},
-		status:       active,
-		launch:       protocol.CachedLaunchResponse{Status: active},
-		stopped:      protocol.Status{State: protocol.StateIdle},
-		order:        &order,
-		playSessions: []fogcast.PlaySession{{Target: "kit-b", Execution: fogcast.ExecutionFPGANative, GameID: packageGame}},
-	}
-	handler := hostapi.New(service)
-	if out := launchSession(t, handler, packageGame); out.Code != http.StatusOK {
-		t.Fatalf("package launch = %d %s", out.Code, out.Body.String())
-	}
-	// A stop aimed at a kit drops that play. An unscoped stop, and the
-	// host-only launch, leave the kit play listed.
-	service.stopHook = func(ctx context.Context) (protocol.Status, error) {
-		if target := fogcast.SessionTargetFromContext(ctx); target != "" {
-			service.playSessions = withoutPlayTarget(service.playSessions, target)
-		}
-		return service.stopped, nil
-	}
-
-	service.execution = fogcast.ExecutionHostOnly
-	service.game = catalog.Game{ID: hostGame, Kind: catalog.SourceKindRaw}
-	service.launch = protocol.CachedLaunchResponse{Status: hostStatus}
-	order = order[:0]
-	service.order = &order
-	out := launchSession(t, handler, hostGame)
-	if out.Code != http.StatusOK || service.launchCalls != 2 {
-		t.Fatalf("host-only replacement = %d %s calls=%d", out.Code, out.Body.String(), service.launchCalls)
-	}
-	if got := strings.Join(order, ","); got != "" {
-		t.Fatalf("host-only launch stopped kit play: order=%q", got)
-	}
-	plays := serve(t, handler, http.MethodGet, "/api/v1/sessions")
-	if plays.Code != http.StatusOK || !strings.Contains(plays.Body.String(), `"target":"kit-b"`) {
-		t.Fatalf("kit play missing after host-only launch: %d %s", plays.Code, plays.Body.String())
-	}
-}
-
-func TestHostStopKeepsKitPackagePlayListed(t *testing.T) {
-	gameID := "host-title"
-	service := &leasedService{fakeService: &fakeService{
-		execution:    fogcast.ExecutionHostOnly,
-		game:         catalog.Game{ID: gameID, Kind: catalog.SourceKindRaw},
-		status:       protocol.Status{State: protocol.StateActive, GameID: &gameID},
-		stopped:      protocol.Status{State: protocol.StateIdle},
-		playSessions: []fogcast.PlaySession{{Target: "kit-b", Execution: fogcast.ExecutionFPGANative, GameID: "core-pong"}},
-	}}
-	// An unscoped host Stop leaves the kit play listed. A stop aimed at that
-	// kit, and a lease release, drop it.
-	service.stopHook = func(ctx context.Context) (protocol.Status, error) {
-		if target := fogcast.SessionTargetFromContext(ctx); target != "" {
-			service.playSessions = withoutPlayTarget(service.playSessions, target)
-		}
-		return service.stopped, nil
-	}
-	service.releaseHook = func() {
-		service.playSessions = withoutPlayTarget(service.playSessions, "kit-b")
-	}
-	handler := hostapi.New(service)
-	if response := launchSession(t, handler, gameID); response.Code != http.StatusOK {
-		t.Fatalf("host launch = %d %s", response.Code, response.Body.String())
-	}
-	if response := serve(t, handler, http.MethodPost, "/api/v1/session/stop"); response.Code != http.StatusOK {
-		t.Fatalf("host Stop = %d %s", response.Code, response.Body.String())
-	}
-	if service.releases != 0 || len(service.stopCtxErrs) != 1 {
-		t.Fatalf("host Stop kit lease releases=%d service Stop calls=%d", service.releases, len(service.stopCtxErrs))
-	}
-	plays := serve(t, handler, http.MethodGet, "/api/v1/sessions")
-	if plays.Code != http.StatusOK || !strings.Contains(plays.Body.String(), `"target":"kit-b"`) || strings.Contains(plays.Body.String(), `"sessions":[]`) {
-		t.Fatalf("kit play missing after host Stop: %d %s", plays.Code, plays.Body.String())
-	}
-}
-
-func withoutPlayTarget(plays []fogcast.PlaySession, target string) []fogcast.PlaySession {
-	kept := make([]fogcast.PlaySession, 0, len(plays))
-	for _, play := range plays {
-		if play.Target != target {
-			kept = append(kept, play)
-		}
-	}
-	return kept
 }
 
 func TestSessionNoABIPackageMustStopBeforeCatalogLaunch(t *testing.T) {

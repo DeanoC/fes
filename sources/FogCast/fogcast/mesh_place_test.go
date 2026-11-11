@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,7 +13,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/internal/meshplace"
 	"github.com/DeanoC/FogCast/internal/meshpref"
@@ -301,7 +301,8 @@ func TestPlacementNativeSelectionDoesNotRebind(t *testing.T) {
 		},
 	})
 	boundName, err := launchAndObserveBind(t, service, entry.TitleID)
-	if !errors.Is(err, meshcontent.ErrUnboundNode) {
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeUnsupportedOperation {
 		t.Fatalf("err %v", err)
 	}
 	if boundName != "" || spare.claims != 0 {
@@ -546,62 +547,43 @@ func TestPlacementRebindReleasesClaimWhenEnsureDoesNotStart(t *testing.T) {
 	}
 }
 
-func TestPlacementRebindPinsTheClaimedKitThroughBind(t *testing.T) {
-	service := phase0PlacementService()
-	service.targets = append(service.targets, TargetConfig{Name: "spare", Enabled: true, TargetID: "node-b", Address: "http://192.0.2.11:8182"})
-	spare := &releasingMeshClient{}
-	service.targetClients["spare"] = spare
-	entry, _ := fpgaMeshEntry("coleco-frogger")
-	service.SetMeshExecuteSession(MeshExecuteSession{
-		Entry: func(string) (meshcontent.Entry, bool) { return entry, true },
-	})
-	service.SetMeshPlacementAsk(&MeshPlacementAsk{
-		Candidates: []meshplace.Candidate{placeFPGACandidate("node-b", true)},
-	})
-	service.executionResolver = ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) {
-		service.selectedTarget = "dev"
-		return ExecutionHostOnly, nil
-	})
-	boundName, err := launchAndObserveBind(t, service, entry.TitleID)
-	if boundName != "spare" {
-		t.Fatalf("bound %q selected %q err %v", boundName, service.selectedTarget, err)
-	}
-	if service.selectedTarget != "dev" {
-		t.Fatalf("selected %q", service.selectedTarget)
-	}
-	if service.meshEnsure || service.meshEnsureConfig {
-		t.Fatal("ensure flipped")
-	}
-	owned, _ := spare.MeshKitLease()
-	if spare.claims != 1 || spare.releases != 1 || owned {
-		t.Fatalf("claims %d releases %d owned %v", spare.claims, spare.releases, owned)
-	}
-}
-
-func TestPlacementRebindRejectsAReplacedClient(t *testing.T) {
-	service := phase0PlacementService()
-	service.targets = append(service.targets, TargetConfig{Name: "spare", Enabled: true, TargetID: "node-b", Address: "http://192.0.2.11:8182"})
-	spare := &releasingMeshClient{}
-	service.targetClients["spare"] = spare
-	entry, _ := fpgaMeshEntry("coleco-frogger")
-	service.SetMeshExecuteSession(MeshExecuteSession{
-		Entry: func(string) (meshcontent.Entry, bool) { return entry, true },
-	})
-	service.SetMeshPlacementAsk(&MeshPlacementAsk{
-		Candidates: []meshplace.Candidate{placeFPGACandidate("node-b", true)},
-	})
-	service.executionResolver = ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) {
-		service.targetClients["spare"] = &fakeServiceClient{}
-		return ExecutionHostOnly, nil
-	})
-	_, err := launchAndObserveBind(t, service, entry.TitleID)
-	var drifted *LaunchSnapshotError
-	if !errors.As(err, &drifted) || drifted.Reason != launchSnapshotClientChanged {
-		t.Fatalf("err %v", err)
-	}
-	owned, _ := spare.MeshKitLease()
-	if spare.claims != 1 || spare.releases != 1 || owned {
-		t.Fatalf("claims %d releases %d owned %v", spare.claims, spare.releases, owned)
+// A phase-0 placement pins its claimed FPGA kit even if selection changes,
+// and must reject a different client installed before bind.
+func TestPlacementRebindSnapshotKeepsClaimedKit(t *testing.T) {
+	for _, replaceClient := range []bool{false, true} {
+		t.Run(fmt.Sprintf("replace-client=%t", replaceClient), func(t *testing.T) {
+			service := phase0PlacementService()
+			service.targets = append(service.targets, TargetConfig{Name: "spare", Enabled: true, TargetID: "node-b", Address: "http://192.0.2.11:8182"})
+			spare := &releasingMeshClient{}
+			service.targetClients["spare"] = spare
+			entry, _ := fpgaMeshEntry("coleco-frogger")
+			service.SetMeshExecuteSession(MeshExecuteSession{Entry: func(string) (meshcontent.Entry, bool) { return entry, true }})
+			service.SetMeshPlacementAsk(&MeshPlacementAsk{Candidates: []meshplace.Candidate{placeFPGACandidate("node-b", true)}})
+			snap, err := service.captureLaunchSnapshot(entry.TitleID, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			snap, err = service.applyMatchingPlacement(context.Background(), entry.TitleID, snap)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { service.restorePlacementSession(snap.placementUndo); service.releaseClaimedContentLease(snap) })
+			service.selectedTarget = "dev"
+			if replaceClient {
+				service.targetClients["spare"] = &fakeServiceClient{}
+			}
+			err = service.revalidateLaunchSnapshot(snap)
+			if replaceClient {
+				var drifted *LaunchSnapshotError
+				if !errors.As(err, &drifted) || drifted.Reason != launchSnapshotClientChanged {
+					t.Fatalf("err %v", err)
+				}
+				return
+			}
+			if err != nil || service.activeTarget != "spare" || service.selectedTarget != "dev" {
+				t.Fatalf("err %v bound %q selected %q", err, service.activeTarget, service.selectedTarget)
+			}
+		})
 	}
 }
 
@@ -1026,11 +1008,7 @@ func TestLaunchWithoutPlacementAskKeepsBind(t *testing.T) {
 			},
 			selectedTarget: "dev",
 			targetClients:  map[string]serviceClient{"dev": original},
-			hostExecutor:   &fakeHostExecutor{},
-			executionResolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) {
-				return ExecutionHostOnly, nil
-			}),
-			displayMemory: meshpref.New(),
+			displayMemory:  meshpref.New(),
 		}
 		service.SetDisplayPreference("node-b")
 		service.catalog = &seamOffTargetCatalog{fakeServiceCatalog: &fakeServiceCatalog{}, service: service, replacement: replacement, next: "spare"}
@@ -1038,7 +1016,12 @@ func TestLaunchWithoutPlacementAskKeepsBind(t *testing.T) {
 		launchPinnedTargetBoundHook = func(name string) { bound = name }
 		t.Cleanup(func() { launchPinnedTargetBoundHook = nil })
 
-		_, err := service.Launch(context.Background(), "snes-mario", nil)
+		snap, err := service.captureLaunchSnapshot("snes-mario", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = service.catalog.Game(context.Background(), "snes-mario")
+		err = service.revalidateLaunchSnapshot(snap)
 		if bound != "spare" {
 			t.Fatalf("bound %q err %v selected %q", bound, err, service.selectedTarget)
 		}
@@ -1200,27 +1183,9 @@ func phase0PlacementService() *Service {
 		targets:        []TargetConfig{{Name: "dev", Enabled: true, TargetID: "node-a", Address: "http://192.0.2.10:8182"}},
 		selectedTarget: "dev",
 		targetClients:  map[string]serviceClient{"dev": &fakeServiceClient{}},
-		hostExecutor:   &fakeHostExecutor{},
-		executionResolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) {
-			return ExecutionHostOnly, nil
-		}),
-		displayMemory: meshpref.New(),
-		catalog: &fixedGameCatalog{game: catalog.Game{
-			ID: "coleco-frogger", System: protocol.SystemSNES, State: catalog.SourceStateAvailable, RootOnline: true,
-		}},
+		displayMemory:  meshpref.New(),
+		catalog:        &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}},
 	}
-}
-
-type fixedGameCatalog struct {
-	*fakeServiceCatalog
-	game catalog.Game
-}
-
-func (c *fixedGameCatalog) Game(context.Context, string) (catalog.Game, error) {
-	if c == nil {
-		return catalog.Game{}, errors.New("missing catalog")
-	}
-	return c.game, nil
 }
 
 func placeFPGACandidate(id string, input bool) meshplace.Candidate {

@@ -65,7 +65,7 @@ root = "`+dir+`"
 	var output bytes.Buffer
 	composed := false
 	code := runWithComposer(context.Background(), []string{"--config", configPath, "--launcher-config", path}, &output, &output,
-		func(context.Context, fogcast.Paths) (service, error) { return &hostOnlyCompositionService{}, nil },
+		func(context.Context, fogcast.Paths) (service, error) { return &compositionService{}, nil },
 		func(_ service, config fogcast.Config, _ bridgeStarterFactory) (http.Handler, func() error, error) {
 			composed = true
 			if !config.RemoteInput.Enabled {
@@ -99,7 +99,7 @@ capture_device = "/dev/video0"
 	var output bytes.Buffer
 	var enabled *bool
 	code := runWithComposer(context.Background(), []string{"--config", configPath, "--headless"}, &output, &output,
-		func(context.Context, fogcast.Paths) (service, error) { return &hostOnlyCompositionService{}, nil },
+		func(context.Context, fogcast.Paths) (service, error) { return &compositionService{}, nil },
 		func(_ service, config fogcast.Config, _ bridgeStarterFactory) (http.Handler, func() error, error) {
 			value := config.Media.Enabled
 			enabled = &value
@@ -170,7 +170,7 @@ root = "`+dir+`"
 	var output bytes.Buffer
 	composed := false
 	code := runWithComposer(context.Background(), []string{"--config", configPath, "--launcher-config", path}, &output, &output,
-		func(context.Context, fogcast.Paths) (service, error) { return &hostOnlyCompositionService{}, nil },
+		func(context.Context, fogcast.Paths) (service, error) { return &compositionService{}, nil },
 		func(service, fogcast.Config, bridgeStarterFactory) (http.Handler, func() error, error) {
 			composed = true
 			return nil, nil, errors.New("stop before listener")
@@ -230,7 +230,7 @@ agent = "`+disabledAgent+`"
 		var output bytes.Buffer
 		composed := false
 		code := runWithComposer(context.Background(), []string{"--config", configPath, "--launcher-config", path}, &output, &output,
-			func(context.Context, fogcast.Paths) (service, error) { return &hostOnlyCompositionService{}, nil },
+			func(context.Context, fogcast.Paths) (service, error) { return &compositionService{}, nil },
 			func(service, fogcast.Config, bridgeStarterFactory) (http.Handler, func() error, error) {
 				composed = true
 				return nil, nil, errors.New("stop before listener")

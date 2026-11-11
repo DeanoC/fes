@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
-	"github.com/DeanoC/FogCast/internal/hostexec"
 	"github.com/DeanoC/FogCast/libraryuser"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/romsource"
@@ -44,170 +43,21 @@ func TestServiceCatalogAdmissionWaitHonorsCancellation(t *testing.T) {
 	}
 }
 
-func TestStatusReportsIdleWhenNoKitIsReachableAndHostEmulatorIsConfigured(t *testing.T) {
-	service := &Service{hostEmulator: HostEmulatorConfig{Binary: "/configured/retroarch"}}
-	status, err := service.Status(context.Background())
-	if err != nil || status.State != protocol.StateIdle {
-		t.Fatalf("host runner status=%+v err=%v", status, err)
-	}
-	kitOnly := &Service{}
-	if _, err := kitOnly.Status(context.Background()); err == nil {
-		t.Fatal("kit-only configuration stopped reporting unavailable target")
-	}
-}
-
-func TestStatusWithOfflineSelectedKitFollowsHostOnlyExecution(t *testing.T) {
-	client := &fakeServiceClient{statusErr: errors.New("kit disconnected")}
-	host := &fakeHostExecutor{}
-	service := &Service{
-		hostEmulator: HostEmulatorConfig{Binary: "/configured/retroarch"},
-		targets:      []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
-		targetClients: map[string]serviceClient{"kit": client}, hostExecutor: host,
-	}
-	if status, err := service.Status(context.Background()); err != nil || status.State != protocol.StateIdle {
-		t.Fatalf("status before host launch=%+v err=%v, want idle", status, err)
-	}
-	service.executionMu.Lock()
-	service.activeExecution = ExecutionHostOnly
-	service.activeGameID = "software-game"
-	service.executionMu.Unlock()
-	if status, err := service.Status(context.Background()); err != nil || status.State != protocol.StateActive || status.GameID == nil || *status.GameID != "software-game" {
-		t.Fatalf("status during host-only session=%+v err=%v, want active host status", status, err)
-	}
-	service.executionMu.Lock()
-	service.activeExecution, service.activeGameID = "", ""
-	service.executionMu.Unlock()
-	host.idle = true
-	if status, err := service.Status(context.Background()); err != nil || status.State != protocol.StateIdle {
-		t.Fatalf("status after host Stop=%+v err=%v, want idle", status, err)
-	}
-}
-
-func TestStopSucceedsAfterHostOnlyProcessExitsWithOfflineSelectedKit(t *testing.T) {
-	client := &fakeServiceClient{statusErr: errors.New("kit disconnected")}
-	host := &fakeHostExecutor{}
-	service := &Service{
-		hostEmulator: HostEmulatorConfig{Binary: "/configured/retroarch"},
-		targets:      []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
-		targetClients: map[string]serviceClient{"kit": client}, hostExecutor: host,
-	}
-	service.executionMu.Lock()
-	service.activeExecution, service.activeGameID = ExecutionHostOnly, "software-game"
-	service.executionMu.Unlock()
-	host.idle = true // Status observes and reaps the naturally exited process.
-	if status, err := service.Status(context.Background()); err != nil || status.State != protocol.StateIdle {
-		t.Fatalf("Status after host process exit=%+v err=%v, want idle", status, err)
-	}
-	if status, err := service.Stop(context.Background()); err != nil || status.State != protocol.StateIdle {
-		t.Fatalf("Stop after host process exit=%+v err=%v, want idle", status, err)
-	}
-	if client.statusCalls != 0 || client.stopCalls != 0 {
-		t.Fatalf("kit status calls=%d stop calls=%d, want no kit access from Stop", client.statusCalls, client.stopCalls)
-	}
-}
-
-func TestStopWithNoBoundSessionDoesNotProbeOfflineSelectedKit(t *testing.T) {
-	client := &fakeServiceClient{statusErr: errors.New("kit disconnected")}
-	service := &Service{
-		hostEmulator: HostEmulatorConfig{Binary: "/configured/retroarch"},
-		targets:      []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
-		targetClients: map[string]serviceClient{"kit": client},
-	}
-	if status, err := service.Stop(context.Background()); err != nil || status.State != protocol.StateIdle {
-		t.Fatalf("Stop without session=%+v err=%v, want idle", status, err)
-	}
-	if client.statusCalls != 0 || client.stopCalls != 0 {
-		t.Fatalf("kit status calls=%d stop calls=%d, want no kit access", client.statusCalls, client.stopCalls)
-	}
-}
-
 func TestStatusDoesNotAssumeIdleWhenFPGAExecutionOrTargetIsKnown(t *testing.T) {
-	for _, tc := range []struct {
-		name            string
-		explicitTarget  bool
-		activeExecution string
-	}{
-		{name: "known FPGA play", activeExecution: ExecutionFPGANative},
-		{name: "explicit target during host-only execution", explicitTarget: true, activeExecution: ExecutionHostOnly},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			client := &fakeServiceClient{statusErr: errors.New("kit disconnected")}
-			service := &Service{
-				hostEmulator: HostEmulatorConfig{Binary: "/configured/retroarch"},
-				targets:      []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
-				targetClients: map[string]serviceClient{"kit": client},
-				plays:         map[string]targetPlay{"kit": {execution: tc.activeExecution}},
-			}
-			if tc.activeExecution == ExecutionHostOnly {
-				service.activeExecution = ExecutionHostOnly
-				delete(service.plays, "kit")
-			}
-			var err error
-			if tc.explicitTarget {
-				_, err = service.StatusTarget(context.Background(), "kit")
-			} else {
-				_, err = service.Status(context.Background())
-			}
-			var apiErr *protocol.APIError
-			if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeMiSTerUnavailable {
-				t.Fatalf("Status error = %v, want MISTER_UNAVAILABLE", err)
-			}
-		})
+	for _, explicit := range []bool{false, true} {
+		client := &fakeServiceClient{statusErr: errors.New("kit disconnected")}
+		service := &Service{targets: []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit", targetClients: map[string]serviceClient{"kit": client}, plays: map[string]targetPlay{"kit": {execution: ExecutionFPGANative}}}
+		var err error
+		if explicit {
+			_, err = service.StatusTarget(context.Background(), "kit")
+		} else {
+			_, err = service.Status(context.Background())
+		}
+		var apiErr *protocol.APIError
+		if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeMiSTerUnavailable {
+			t.Fatalf("Status error = %v, want MISTER_UNAVAILABLE", err)
+		}
 	}
-}
-
-func TestProgressReaderStartsAfterBodyBytesAndForwardsClose(t *testing.T) {
-	var starts int
-	reader := &progressReader{
-		Reader:      &scriptedReadCloser{reads: []scriptedRead{{n: 0, err: io.ErrUnexpectedEOF}, {n: 1, err: io.EOF}}},
-		onFirstRead: func() { starts++ },
-	}
-	buffer := make([]byte, 1)
-	if _, err := reader.Read(buffer); !errors.Is(err, io.ErrUnexpectedEOF) {
-		t.Fatalf("first read error = %v", err)
-	}
-	if starts != 0 {
-		t.Fatalf("upload-started emitted on empty/error read: %d", starts)
-	}
-	if _, err := reader.Read(buffer); !errors.Is(err, io.EOF) {
-		t.Fatalf("second read error = %v", err)
-	}
-	if starts != 1 {
-		t.Fatalf("upload-started count = %d, want 1", starts)
-	}
-	if err := reader.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
-	if err := reader.Close(); err != nil {
-		t.Fatalf("second Close: %v", err)
-	}
-	if got := reader.Reader.(*scriptedReadCloser).closeCount; got != 1 {
-		t.Fatalf("underlying reader close count = %d, want 1", got)
-	}
-}
-
-type scriptedRead struct {
-	n   int
-	err error
-}
-
-type scriptedReadCloser struct {
-	reads      []scriptedRead
-	closeCount int
-}
-
-func (r *scriptedReadCloser) Read([]byte) (int, error) {
-	if len(r.reads) == 0 {
-		return 0, io.EOF
-	}
-	next := r.reads[0]
-	r.reads = r.reads[1:]
-	return next.n, next.err
-}
-
-func (r *scriptedReadCloser) Close() error {
-	r.closeCount++
-	return nil
 }
 
 func TestServiceLaunchMapsOnlyUnknownGameToNotFound(t *testing.T) {
@@ -257,107 +107,6 @@ func TestServiceLaunchHonorsCancellationBeforeCatalogAccess(t *testing.T) {
 	}
 	if store.gameCalls != 0 {
 		t.Fatalf("catalog calls = %d, want 0", store.gameCalls)
-	}
-}
-
-func TestThrottledReaderDelaysReads(t *testing.T) {
-	reader := &throttledReader{Reader: strings.NewReader("x"), delay: 20 * time.Millisecond}
-	started := time.Now()
-	buf := make([]byte, 1)
-	if _, err := reader.Read(buf); err != nil {
-		t.Fatal(err)
-	}
-	if elapsed := time.Since(started); elapsed < 15*time.Millisecond {
-		t.Fatalf("read completed too quickly: %s", elapsed)
-	}
-}
-
-func TestServiceHostOnlyExecutionUsesInjectedResolverAndAdapter(t *testing.T) {
-	identity := protocol.ContentIdentity{SHA256: serviceDigest, Size: 3, Extension: "sfc"}
-	game := serviceGame(catalog.Content{})
-	game.Content = nil
-	prepared := preparedServiceFixture(t, []byte("rom"), identity)
-	store := &fakeServiceCatalog{games: []catalog.Game{game}}
-	adapter := &fakeHostExecutor{}
-	service := newTestServiceWithExecution(store, &fakeServicePreparer{prepared: prepared}, &fakeServiceClient{}, ExecutionPolicy{
-		Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return "host_only", nil }),
-		Host:     adapter,
-	})
-
-	if got, err := service.SessionExecution(context.Background(), game.ID); err != nil || got != "host_only" {
-		t.Fatalf("SessionExecution = %q, %v", got, err)
-	}
-	response, err := service.Launch(context.Background(), game.ID, nil)
-	if err != nil {
-		t.Fatalf("Launch: %v", err)
-	}
-	if response.Status.State != protocol.StateActive || response.Status.GameID == nil || *response.Status.GameID != game.ID {
-		t.Fatalf("host launch response = %+v", response)
-	}
-	if adapter.launchCalls != 1 || adapter.contentPath != "rom" {
-		t.Fatalf("host adapter launch calls=%d content=%q", adapter.launchCalls, adapter.contentPath)
-	}
-	status, err := service.Status(context.Background())
-	if err != nil || status.State != protocol.StateActive || status.GameID == nil || *status.GameID != game.ID {
-		t.Fatalf("host status = %+v, %v", status, err)
-	}
-	if _, err := service.Stop(context.Background()); err != nil {
-		t.Fatalf("Stop: %v", err)
-	}
-	if adapter.stopCalls != 1 {
-		t.Fatalf("host adapter stop calls=%d", adapter.stopCalls)
-	}
-}
-
-func TestConfiguredExecutionResolverSelectsOnlyConfiguredSystems(t *testing.T) {
-	adapter := &fakeHostExecutor{}
-	resolver := NewConfiguredExecutionResolver([]protocol.System{protocol.SystemSNES}, adapter)
-	game := serviceGame(catalog.Content{})
-	if got, err := resolver.Resolve(context.Background(), game); err != nil || got != ExecutionHostOnly {
-		t.Fatalf("SNES execution = %q, %v", got, err)
-	}
-	game.System = protocol.SystemMegaDrive
-	if got, err := resolver.Resolve(context.Background(), game); err != nil || got != ExecutionFPGANative {
-		t.Fatalf("Mega Drive execution = %q, %v", got, err)
-	}
-}
-
-func TestConfiguredExecutionResolverFallsBackWithoutAdapter(t *testing.T) {
-	resolver := NewConfiguredExecutionResolver([]protocol.System{protocol.SystemSNES}, nil)
-	if got, err := resolver.Resolve(context.Background(), serviceGame(catalog.Content{})); err != nil || got != ExecutionFPGANative {
-		t.Fatalf("execution = %q, %v", got, err)
-	}
-}
-
-func TestServiceHostLaunchRetainsOwnershipWhenPreparedCleanupFails(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "prepared.sfc")
-	if err := os.WriteFile(path, []byte("rom"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	game := serviceGame(catalog.Content{})
-	game.Content = nil
-	identity := protocol.ContentIdentity{SHA256: serviceDigest, Size: 3, Extension: "sfc"}
-	prepared := &romsource.Prepared{Path: path, Content: identity}
-	adapter := &fakeHostExecutor{}
-	service := newTestServiceWithExecution(&fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServicePreparer{prepared: prepared}, &fakeServiceClient{}, ExecutionPolicy{
-		Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return ExecutionHostOnly, nil }),
-		Host:     adapter,
-	})
-	if _, err := service.Launch(context.Background(), game.ID, nil); err == nil {
-		t.Fatal("cleanup failure was not returned")
-	}
-	status, err := service.Status(context.Background())
-	if err != nil || status.State != protocol.StateActive || status.GameID == nil || *status.GameID != game.ID {
-		t.Fatalf("owned host status = %+v, %v", status, err)
-	}
-	if adapter.launchCalls != 1 {
-		t.Fatalf("launch calls = %d", adapter.launchCalls)
-	}
-	if _, err := service.Stop(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if adapter.stopCalls != 1 {
-		t.Fatalf("stop calls = %d", adapter.stopCalls)
 	}
 }
 
@@ -886,17 +635,14 @@ func TestServiceStopTargetPreservesOtherTargetPlay(t *testing.T) {
 	}
 }
 
-func TestServiceFailedKitStatusDropsStalePlayWithoutChangingHost(t *testing.T) {
+func TestServiceFailedKitStatusDropsStalePlay(t *testing.T) {
 	client := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateFailed}}
-	host := &fakeHostExecutor{}
-	s := &Service{targets: []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
-		targetClients: map[string]serviceClient{"kit": client}, plays: map[string]targetPlay{"kit": {execution: ExecutionFPGANative, gameID: "stale"}},
-		hostExecutor: host, activeExecution: ExecutionHostOnly, activeTarget: "host", activeGameID: "host-game"}
+	s := &Service{targets: []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit", targetClients: map[string]serviceClient{"kit": client}, plays: map[string]targetPlay{"kit": {execution: ExecutionFPGANative, gameID: "stale"}}, activeTarget: "kit"}
 	if _, err := s.StatusTarget(context.Background(), "kit"); err != nil {
 		t.Fatal(err)
 	}
-	if len(s.PlaySessions()) != 0 || s.activeExecution != ExecutionHostOnly || s.activeTarget != "host" || s.activeGameID != "host-game" || host.stopCalls != 0 {
-		t.Fatalf("plays=%+v host=%q/%q/%q stops=%d", s.PlaySessions(), s.activeExecution, s.activeTarget, s.activeGameID, host.stopCalls)
+	if len(s.PlaySessions()) != 0 {
+		t.Fatalf("plays=%+v", s.PlaySessions())
 	}
 }
 
@@ -981,55 +727,16 @@ func TestServiceFailedDevelopmentKitStatusDropsGameIdentity(t *testing.T) {
 	})
 }
 
-func TestServiceStopRejectedNamedKitKeepsHostAndOtherKit(t *testing.T) {
+func TestServiceStopRejectedNamedKitKeepsOtherKit(t *testing.T) {
 	a := &fakeServiceClient{}
 	b := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateActive, Development: true}, stopResult: protocol.Status{State: protocol.StateIdle}}
-	host := &fakeHostExecutor{}
-	s := &Service{
-		targets:        []TargetConfig{{Name: "a", Enabled: true}, {Name: "b", Enabled: true}},
-		selectedTarget: "a", targetClients: map[string]serviceClient{"a": a, "b": b},
-		plays: map[string]targetPlay{
-			"a": {execution: ExecutionFPGANative, gameID: "kit-a"},
-			"b": {packageRejection: &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Phase: "identity"}},
-		},
-		hostExecutor: host, activeExecution: ExecutionHostOnly, activeTarget: "host", activeGameID: "host-game", activeSystem: protocol.SystemSNES,
-	}
+	s := &Service{targets: []TargetConfig{{Name: "a", Enabled: true}, {Name: "b", Enabled: true}}, selectedTarget: "a", targetClients: map[string]serviceClient{"a": a, "b": b}, plays: map[string]targetPlay{"a": {execution: ExecutionFPGANative, gameID: "kit-a"}, "b": {packageRejection: &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Phase: "identity"}}}, activeTarget: "a"}
 	status, err := s.StopTarget(context.Background(), "b")
-	if err != nil || status.State != protocol.StateIdle || a.stopCalls != 0 || b.stopCalls != 1 || host.stopCalls != 0 {
-		t.Fatalf("status=%+v err=%v stops a=%d b=%d host=%d", status, err, a.stopCalls, b.stopCalls, host.stopCalls)
+	if err != nil || status.State != protocol.StateIdle || a.stopCalls != 0 || b.stopCalls != 1 {
+		t.Fatalf("status=%+v err=%v stops=%d/%d", status, err, a.stopCalls, b.stopCalls)
 	}
-	if _, stale := s.plays["b"]; stale || s.plays["a"].gameID != "kit-a" || s.activeExecution != ExecutionHostOnly || s.activeTarget != "host" || s.activeGameID != "host-game" {
-		t.Fatalf("plays=%+v host=%q/%q/%q", s.plays, s.activeExecution, s.activeTarget, s.activeGameID)
-	}
-}
-
-func TestServiceStopTargetDoesNotStopHostOnlyExecution(t *testing.T) {
-	kit := &fakeServiceClient{stopResult: protocol.Status{State: protocol.StateIdle}}
-	host := &fakeHostExecutor{}
-	service := &Service{
-		hostEmulator:    HostEmulatorConfig{Binary: "/configured/retroarch"},
-		targets:         []TargetConfig{{Name: "kit", Enabled: true}},
-		selectedTarget:  "kit",
-		targetClients:   map[string]serviceClient{"kit": kit},
-		hostExecutor:    host,
-		activeExecution: ExecutionHostOnly,
-		activeGameID:    "software-game",
-	}
-
-	if status, err := service.StopTarget(context.Background(), "kit"); err != nil || status.State != protocol.StateIdle {
-		t.Fatalf("kit-scoped Stop=%+v err=%v, want kit idle", status, err)
-	}
-	if kit.stopCalls != 1 || host.stopCalls != 0 {
-		t.Fatalf("kit stops=%d host stops=%d, want kit-only Stop", kit.stopCalls, host.stopCalls)
-	}
-	if service.activeExecution != ExecutionHostOnly || service.activeTarget != "" {
-		t.Fatalf("host-only ownership after kit Stop: execution=%q target=%q", service.activeExecution, service.activeTarget)
-	}
-	if status, err := service.Stop(context.Background()); err != nil || status.State != protocol.StateIdle {
-		t.Fatalf("unscoped Stop=%+v err=%v, want host idle", status, err)
-	}
-	if host.stopCalls != 1 {
-		t.Fatalf("host stops after unscoped Stop=%d, want 1", host.stopCalls)
+	if _, stale := s.plays["b"]; stale || s.plays["a"].gameID != "kit-a" || s.activeTarget != "a" {
+		t.Fatalf("plays=%+v active=%q", s.plays, s.activeTarget)
 	}
 }
 
@@ -1083,15 +790,6 @@ func TestServiceStatusTargetDoesNotMoveForeground(t *testing.T) {
 	}
 }
 
-func TestPackageReplacementIsTargetScoped(t *testing.T) {
-	if packageReplacementApplies("kit-b", "kit-a") {
-		t.Fatal("launch on kit B would replace kit A's package play")
-	}
-	if !packageReplacementApplies("kit-a", "kit-a") {
-		t.Fatal("same-kit launch must replace that kit's package play")
-	}
-}
-
 func TestServiceShutdownCleanupRequiredUsesLocalOwnership(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -1106,7 +804,6 @@ func TestServiceShutdownCleanupRequiredUsesLocalOwnership(t *testing.T) {
 		{name: "owned development recovery", execution: ExecutionFPGADevelopment, target: "dev", grant: true, want: true},
 		{name: "lost native ownership", execution: ExecutionFPGANative, target: "dev", want: false},
 		{name: "lost development ownership", execution: ExecutionFPGADevelopment, target: "dev", want: false},
-		{name: "active host-only", execution: ExecutionHostOnly, target: "host", want: true},
 	}
 
 	for _, tc := range tests {
@@ -1717,23 +1414,17 @@ func TestServiceCorePackageMutatesOnlyAfterTargetAdmission(t *testing.T) {
 	}
 }
 
-func TestServiceDirectKitLoadAfterHostLaunchRecordsPerKitPlay(t *testing.T) {
+func TestServiceDirectKitLoadRecordsPerKitPlay(t *testing.T) {
 	payload := []byte("fcore")
-	packageStatus := protocol.Status{State: protocol.StateActive, Development: true,
-		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 3,
-			ABI: protocol.RuntimeContract{ID: "fes.simple-game", Major: 1}, BuildID: strings.Repeat("b", 32)}}
-	client := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}, coreLoad: func(context.Context, int64, io.Reader) (protocol.Status, error) {
-		return packageStatus, nil
-	}}
-	service := newTestServiceWithExecution(&fakeServiceCatalog{}, &fakeServicePreparer{}, client,
-		ExecutionPolicy{Host: &fakeHostExecutor{}})
-	service.activeExecution, service.activeGameID, service.activeSystem = ExecutionHostOnly, "host-game", protocol.SystemSNES
+	packageStatus := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 3, ABI: protocol.RuntimeContract{ID: "fes.simple-game", Major: 1}, BuildID: strings.Repeat("b", 32)}}
+	client := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}, coreLoad: func(context.Context, int64, io.Reader) (protocol.Status, error) { return packageStatus, nil }}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
 	if _, err := service.LoadCore(context.Background(), int64(len(payload)), bytes.NewReader(payload)); err != nil {
 		t.Fatal(err)
 	}
 	plays := service.PlaySessions()
-	if service.activeExecution != ExecutionHostOnly || service.activeGameID != "host-game" || len(plays) != 1 || plays[0].Target != service.selectedTarget {
-		t.Fatalf("host execution=%q game=%q plays=%+v", service.activeExecution, service.activeGameID, plays)
+	if len(plays) != 1 || plays[0].Target != service.selectedTarget || plays[0].Execution != ExecutionFPGADevelopment {
+		t.Fatalf("plays=%+v", plays)
 	}
 }
 
@@ -1766,11 +1457,11 @@ func TestServiceCorePackageMarksPriorStatusFailureAsPredispatch(t *testing.T) {
 	client := &fakeServiceClient{statusErr: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable,
 		Message: "status unavailable", Phase: "recovery"}}
 	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
-	service.activeExecution, service.activeGameID = ExecutionHostOnly, "prior-host-game"
+	service.activeExecution, service.activeGameID = ExecutionFPGANative, "prior-kit-game"
 	_, err := service.LoadCore(context.Background(), 5, strings.NewReader("fcore"))
 	var apiErr *protocol.APIError
 	if !errors.As(err, &apiErr) || apiErr.Phase != "request" || client.coreCalls != 0 ||
-		service.activeExecution != ExecutionHostOnly || service.activeGameID != "prior-host-game" {
+		service.activeExecution != ExecutionFPGANative || service.activeGameID != "prior-kit-game" {
 		t.Fatalf("error=%v core calls=%d execution=%q game=%q", err, client.coreCalls, service.activeExecution, service.activeGameID)
 	}
 }
@@ -1877,24 +1568,18 @@ func TestServiceCorePackageConfirmedIdleKeepsPriorHostOnlyExecution(t *testing.T
 				}
 				return idleFailure, nil
 			}
-			hostExecutor := &fakeHostExecutor{}
-			service := newTestServiceWithExecution(&fakeServiceCatalog{}, &fakeServicePreparer{}, client,
-				ExecutionPolicy{Host: hostExecutor})
-			service.activeExecution, service.activeTarget = ExecutionHostOnly, "host"
-			service.activeGameID, service.activeSystem = "prior-host-game", protocol.SystemSNES
+			service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+			service.activeTarget = service.selectedTarget
 			service.plays[service.selectedTarget] = targetPlay{execution: ExecutionFPGANative, gameID: "stale-kit"}
 
 			status, err := service.LoadCore(context.Background(), 5, strings.NewReader("fcore"))
 			var apiErr *protocol.APIError
 			if !errors.As(err, &apiErr) || apiErr.Code != test.wantCode || apiErr.Phase != test.wantPhase ||
-				status.State != protocol.StateIdle || hostExecutor.stopCalls != 0 || service.activeExecution != ExecutionHostOnly ||
+				status.State != protocol.StateIdle || service.activeExecution != "" ||
 				!service.selectedTargetReconciled || service.selectedTargetRepairAllowed {
 				t.Fatalf("status=%+v error=%v stops=%d execution=%q target=%q game=%q system=%q reconciled=%t repair=%t",
-					status, err, hostExecutor.stopCalls, service.activeExecution, service.activeTarget,
+					status, err, client.stopCalls, service.activeExecution, service.activeTarget,
 					service.activeGameID, service.activeSystem, service.selectedTargetReconciled, service.selectedTargetRepairAllowed)
-			}
-			if service.activeTarget != "host" || service.activeGameID != "prior-host-game" || service.activeSystem != protocol.SystemSNES {
-				t.Fatalf("lost host ownership target=%q game=%q system=%q", service.activeTarget, service.activeGameID, service.activeSystem)
 			}
 			if _, exists := service.plays[service.selectedTarget]; exists {
 				t.Fatal("confirmed idle retained stale kit play")
@@ -1979,28 +1664,6 @@ func TestServiceCorePackageDoesNotTreatAmbiguousTransferAsConfirmedIdleFailure(t
 	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Phase != "recovery" ||
 		status != (protocol.Status{}) || client.coreCalls != 1 || client.statusCalls != 2 {
 		t.Fatalf("status=%+v error=%v core=%d status_calls=%d", status, err, client.coreCalls, client.statusCalls)
-	}
-}
-
-func TestServiceCorePackageReportsTargetWhileRetainingHostCleanupOwner(t *testing.T) {
-	active := protocol.Status{State: protocol.StateActive, Development: true,
-		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 8,
-			ABI: protocol.RuntimeContract{ID: "fes.simple-game", Major: 1}, BuildID: strings.Repeat("b", 32)}}
-	client := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle},
-		coreLoad: func(context.Context, int64, io.Reader) (protocol.Status, error) { return active, nil }}
-	hostExecutor := &fakeHostExecutor{stopErr: errors.New("host stop failed")}
-	service := newTestServiceWithExecution(&fakeServiceCatalog{}, &fakeServicePreparer{}, client, ExecutionPolicy{Host: hostExecutor})
-	service.hostCastClaimsKitDisplay = true // This case exercises cast-mode cleanup failure.
-	service.activeExecution, service.activeGameID = ExecutionHostOnly, "prior-host-game"
-	status, err := service.LoadCore(context.Background(), 5, strings.NewReader("fcore"))
-	if err == nil || status.CorePackage == nil || status.LastError == nil || service.activeExecution != ExecutionHostOnly || service.activeGameID != "prior-host-game" {
-		t.Fatalf("status=%+v error=%v execution=%q game=%q", status, err, service.activeExecution, service.activeGameID)
-	}
-	client.statusResult = active
-	service.targets = []TargetConfig{{Name: service.selectedTarget, Enabled: true}}
-	status, err = service.StatusTarget(context.Background(), service.selectedTarget)
-	if err != nil || status.CorePackage == nil || status.LastError == nil || status.GameID != nil {
-		t.Fatalf("target observation lost during pending host cleanup: %+v %v", status, err)
 	}
 }
 
@@ -2393,14 +2056,12 @@ func TestServiceDevelopmentActiveReconstructsAfterHostRestart(t *testing.T) {
 	}
 }
 
-func TestServiceDevelopmentSessionStateScopesKitWhileHostPlays(t *testing.T) {
+func TestServiceDevelopmentSessionStateScopesKit(t *testing.T) {
 	s := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, &fakeServiceClient{})
-	s.activeExecution, s.activeGameID = ExecutionHostOnly, "host-game"
 	s.plays["other"] = targetPlay{execution: ExecutionFPGADevelopment, packageID: "kit-package", packageGeneration: 1}
-	ctx := WithSessionTarget(context.Background(), "other")
-	development, execution, err := s.DevelopmentSessionState(ctx)
-	if err != nil || !development || execution != ExecutionFPGADevelopment || !s.ActivePackageOwnedForTarget("other") || s.activeExecution != ExecutionHostOnly || s.activeGameID != "host-game" {
-		t.Fatalf("kit development=%t execution=%q err=%v package=%t host=%q/%q", development, execution, err, s.ActivePackageOwnedForTarget("other"), s.activeExecution, s.activeGameID)
+	development, execution, err := s.DevelopmentSessionState(WithSessionTarget(context.Background(), "other"))
+	if err != nil || !development || execution != ExecutionFPGADevelopment || !s.ActivePackageOwnedForTarget("other") {
+		t.Fatalf("development=%t execution=%q err=%v", development, execution, err)
 	}
 }
 
@@ -3186,15 +2847,6 @@ func (f *fakeServiceClient) Stop(ctx context.Context) (protocol.Status, error) {
 	return f.stopResult, f.stopErr
 }
 
-type fakeHostExecutor struct {
-	launchCalls int
-	stopCalls   int
-	statusCalls int
-	contentPath string
-	stopErr     error
-	idle        bool
-}
-
 type ambiguousPackageLoadError struct {
 	cause *protocol.APIError
 }
@@ -3203,42 +2855,9 @@ func (e *ambiguousPackageLoadError) Error() string           { return e.cause.Er
 func (e *ambiguousPackageLoadError) Unwrap() error           { return e.cause }
 func (e *ambiguousPackageLoadError) AmbiguousMutation() bool { return true }
 
-func (f *fakeHostExecutor) ID() string { return "fake" }
-func (f *fakeHostExecutor) Capabilities() []hostexec.Capability {
-	return []hostexec.Capability{hostexec.HostOnly}
-}
-func (f *fakeHostExecutor) Launch(_ context.Context, content io.Reader, identity protocol.ContentIdentity) (hostexec.Status, error) {
-	f.launchCalls++
-	if content == nil || identity.Size == 0 {
-		return hostexec.Status{}, errors.New("missing host content")
-	}
-	body, err := io.ReadAll(content)
-	if err != nil {
-		return hostexec.Status{}, err
-	}
-	f.contentPath = string(body)
-	return hostexec.Status{State: hostexec.Active}, nil
-}
-func (f *fakeHostExecutor) Stop(context.Context) error { f.stopCalls++; return f.stopErr }
-func (f *fakeHostExecutor) Status(context.Context) (hostexec.Status, error) {
-	f.statusCalls++
-	if f.idle {
-		return hostexec.Status{State: hostexec.Idle}, nil
-	}
-	return hostexec.Status{State: hostexec.Active}, nil
-}
-
 func newTestService(store *fakeServiceCatalog, preparer *fakeServicePreparer, client serviceClient) *Service {
-	return newTestServiceWithExecution(store, preparer, client, ExecutionPolicy{})
-}
-
-func newTestServiceWithExecution(store *fakeServiceCatalog, preparer *fakeServicePreparer, client serviceClient, policy ExecutionPolicy) *Service {
 	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}
-	return newService(
-		Config{Libraries: []catalog.Root{root}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
-		Paths{Staging: "/private/staging"}, store, &fakeServiceScanner{}, preparer, client,
-		WithExecutionPolicy(policy),
-	)
+	return newService(Config{Libraries: []catalog.Root{root}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second}, Paths{Staging: "/private/staging"}, store, &fakeServiceScanner{}, preparer, client)
 }
 
 func serviceGame(content catalog.Content) catalog.Game {
@@ -3262,26 +2881,6 @@ func TestCanonicalRemoteErrorPreservesUnsupportedOperation(t *testing.T) {
 	}
 }
 
-type fakePathHostExecutor struct {
-	fakeHostExecutor
-	pathCalls  int
-	lastPath   string
-	lastSystem protocol.System
-	cleanup    func()
-}
-
-func (f *fakePathHostExecutor) LaunchPath(_ context.Context, system protocol.System, sourcePath string) (hostexec.Status, error) {
-	return f.LaunchOwnedPath(context.Background(), system, sourcePath, nil)
-}
-
-func (f *fakePathHostExecutor) LaunchOwnedPath(_ context.Context, system protocol.System, sourcePath string, cleanup func()) (hostexec.Status, error) {
-	f.pathCalls++
-	f.lastSystem = system
-	f.lastPath = sourcePath
-	f.cleanup = cleanup
-	return hostexec.Status{State: hostexec.Active}, nil
-}
-
 func TestServiceFPGALaunchRejectsCueWithoutTargetUpload(t *testing.T) {
 	game := serviceGame(catalog.Content{})
 	game.RelativePath = "game.cue"
@@ -3300,202 +2899,6 @@ func TestServiceFPGALaunchRejectsCueWithoutTargetUpload(t *testing.T) {
 	}
 }
 
-func TestServiceHostOnlyCueLaunchUsesConfinedPath(t *testing.T) {
-	dir := t.TempDir()
-	cuePath := filepath.Join(dir, "game.cue")
-	binPath := filepath.Join(dir, "game.bin")
-	if err := os.WriteFile(cuePath, []byte("FILE \"game.bin\" BINARY\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(binPath, []byte("track-bytes"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	game := serviceGame(catalog.Content{})
-	game.RelativePath = "game.cue"
-	game.Content = nil
-	game.Fingerprint = fileServiceFingerprint(t, cuePath)
-	store := &fakeServiceCatalog{games: []catalog.Game{game}}
-	client := &fakeServiceClient{}
-	client.upload = func(context.Context, protocol.System, protocol.ContentIdentity, io.Reader) (protocol.CacheUploadResponse, error) {
-		t.Fatal("host cue launch uploaded to the target")
-		return protocol.CacheUploadResponse{}, nil
-	}
-	adapter := &fakePathHostExecutor{}
-	service := newService(
-		Config{Libraries: []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: dir}}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
-		Paths{Staging: filepath.Join(t.TempDir(), "staging")}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
-		WithExecutionPolicy(ExecutionPolicy{
-			Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return ExecutionHostOnly, nil }),
-			Host:     adapter,
-		}),
-	)
-	response, err := service.Launch(context.Background(), game.ID, nil)
-	if err != nil {
-		t.Fatalf("Launch: %v", err)
-	}
-	t.Cleanup(func() {
-		if adapter.cleanup != nil {
-			adapter.cleanup()
-		}
-	})
-	if response.Status.State != protocol.StateActive || adapter.pathCalls != 1 || adapter.lastSystem != protocol.SystemSNES {
-		t.Fatalf("path launch response=%+v adapter=%#v", response, adapter)
-	}
-	if adapter.lastPath == "" || adapter.lastPath == cuePath || filepath.Base(adapter.lastPath) != "game.cue" || !strings.Contains(adapter.lastPath, "fogcast-host-launch-") {
-		t.Fatalf("launched path = %q, want private copy of game.cue", adapter.lastPath)
-	}
-	copiedBin, err := os.ReadFile(filepath.Join(filepath.Dir(adapter.lastPath), "game.bin"))
-	if err != nil || string(copiedBin) != "track-bytes" {
-		t.Fatalf("copied companion = %q, %v", copiedBin, err)
-	}
-	if _, err := os.Stat(cuePath); err != nil {
-		t.Fatalf("library cue removed: %v", err)
-	}
-	if client.uploadCalls != 0 || adapter.launchCalls != 0 {
-		t.Fatalf("unexpected snapshot/upload launch=%d upload=%d", adapter.launchCalls, client.uploadCalls)
-	}
-}
-
-func TestServiceHostOnlyCueLaunchRejectsEscapingReference(t *testing.T) {
-	parent := t.TempDir()
-	dir := filepath.Join(parent, "library")
-	if err := os.Mkdir(dir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	outside := filepath.Join(parent, "secret.bin")
-	if err := os.WriteFile(outside, []byte("secret"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "game.cue"), []byte("FILE \"../secret.bin\" BINARY\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	game := serviceGame(catalog.Content{})
-	game.RelativePath = "game.cue"
-	game.Content = nil
-	game.Fingerprint = fileServiceFingerprint(t, filepath.Join(dir, "game.cue"))
-	store := &fakeServiceCatalog{games: []catalog.Game{game}}
-	client := &fakeServiceClient{}
-	client.probe = func(context.Context, protocol.System, protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
-		t.Fatal("escaping cue probed the target")
-		return protocol.CacheProbeResponse{}, nil
-	}
-	adapter := &fakePathHostExecutor{}
-	service := newService(
-		Config{Libraries: []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: dir}}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
-		Paths{Staging: filepath.Join(t.TempDir(), "staging")}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
-		WithExecutionPolicy(ExecutionPolicy{
-			Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return ExecutionHostOnly, nil }),
-			Host:     adapter,
-		}),
-	)
-	_, err := service.Launch(context.Background(), game.ID, nil)
-	assertServiceErrorCode(t, err, protocol.CodeInvalidArchive)
-	if adapter.pathCalls != 0 || client.probeCalls != 0 || client.uploadCalls != 0 {
-		t.Fatalf("escaping cue caused I/O adapter=%d probe=%d upload=%d", adapter.pathCalls, client.probeCalls, client.uploadCalls)
-	}
-}
-
-func TestServiceHostOnlyCueLaunchRejectsOversizedSheet(t *testing.T) {
-	dir := t.TempDir()
-	body := strings.Repeat("A", 1<<20+32) + "\nFILE \"../outside.bin\" BINARY\n"
-	if err := os.WriteFile(filepath.Join(dir, "game.cue"), []byte(body), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	game := serviceGame(catalog.Content{})
-	game.RelativePath = "game.cue"
-	game.Content = nil
-	game.Fingerprint = fileServiceFingerprint(t, filepath.Join(dir, "game.cue"))
-	store := &fakeServiceCatalog{games: []catalog.Game{game}}
-	adapter := &fakePathHostExecutor{}
-	service := newService(
-		Config{Libraries: []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: dir}}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
-		Paths{Staging: filepath.Join(t.TempDir(), "staging")}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{},
-		WithExecutionPolicy(ExecutionPolicy{
-			Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return ExecutionHostOnly, nil }),
-			Host:     adapter,
-		}),
-	)
-	_, err := service.Launch(context.Background(), game.ID, nil)
-	assertServiceErrorCode(t, err, protocol.CodeInvalidArchive)
-	if adapter.pathCalls != 0 {
-		t.Fatalf("oversized cue launched %q", adapter.lastPath)
-	}
-}
-
-func TestServiceHostOnlyCueLaunchRejectsMissingCompanion(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "game.cue"), []byte("FILE \"game.bin\" BINARY\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	game := serviceGame(catalog.Content{})
-	game.RelativePath = "game.cue"
-	game.Content = nil
-	game.Fingerprint = fileServiceFingerprint(t, filepath.Join(dir, "game.cue"))
-	store := &fakeServiceCatalog{games: []catalog.Game{game}}
-	adapter := &fakePathHostExecutor{}
-	service := newService(
-		Config{Libraries: []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: dir}}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
-		Paths{Staging: filepath.Join(t.TempDir(), "staging")}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{},
-		WithExecutionPolicy(ExecutionPolicy{
-			Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return ExecutionHostOnly, nil }),
-			Host:     adapter,
-		}),
-	)
-	_, err := service.Launch(context.Background(), game.ID, nil)
-	assertServiceErrorCode(t, err, protocol.CodeSourceUnavailable)
-	if adapter.pathCalls != 0 {
-		t.Fatalf("missing companion launched %q", adapter.lastPath)
-	}
-}
-
-func TestServiceHostOnlyLaunchRejectsReplacedSymlinkRoot(t *testing.T) {
-	parent := t.TempDir()
-	realRoot := filepath.Join(parent, "library")
-	if err := os.Mkdir(realRoot, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	rom := filepath.Join(realRoot, "game.chd")
-	if err := os.WriteFile(rom, []byte("original"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	outside := t.TempDir()
-	if err := os.WriteFile(filepath.Join(outside, "game.chd"), []byte("external"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.RemoveAll(realRoot); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(outside, realRoot); err != nil {
-		t.Fatal(err)
-	}
-	game := serviceGame(catalog.Content{})
-	game.RelativePath = "game.chd"
-	game.Content = nil
-	game.Fingerprint = fileServiceFingerprint(t, filepath.Join(outside, "game.chd"))
-	store := &fakeServiceCatalog{games: []catalog.Game{game}}
-	adapter := &fakePathHostExecutor{}
-	service := newService(
-		Config{Libraries: []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: realRoot}}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
-		Paths{Staging: filepath.Join(t.TempDir(), "staging")}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{},
-		WithExecutionPolicy(ExecutionPolicy{
-			Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return ExecutionHostOnly, nil }),
-			Host:     adapter,
-		}),
-	)
-	_, err := service.Launch(context.Background(), game.ID, nil)
-	assertServiceErrorCode(t, err, protocol.CodeSourceUnavailable)
-	if adapter.pathCalls != 0 {
-		t.Fatalf("symlink root launched %q", adapter.lastPath)
-	}
-}
-func fileServiceFingerprint(t *testing.T, path string) catalog.Fingerprint {
-	t.Helper()
-	info, err := os.Lstat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return catalog.Fingerprint{SourceSize: info.Size(), ModifiedNS: info.ModTime().UnixNano()}
-}
 func assertServiceErrorCode(t *testing.T, err error, want protocol.ErrorCode) {
 	t.Helper()
 	var apiErr *protocol.APIError
@@ -3505,16 +2908,6 @@ func assertServiceErrorCode(t *testing.T, err error, want protocol.ErrorCode) {
 	if strings.Contains(err.Error(), "/private/") {
 		t.Fatalf("error exposes private path: %v", err)
 	}
-}
-
-func preparedServiceFixture(t *testing.T, body []byte, identity protocol.ContentIdentity) *romsource.Prepared {
-	t.Helper()
-	prepared, err := romsource.NewPreparedSnapshot(body, identity.Extension)
-	if err != nil {
-		t.Fatalf("NewPreparedSnapshot: %v", err)
-	}
-	prepared.Content = identity
-	return prepared
 }
 
 func writeServiceConfig(t *testing.T, path, baseURL, token, root string) {

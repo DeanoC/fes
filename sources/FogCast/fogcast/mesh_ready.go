@@ -87,9 +87,15 @@ func (s *Service) GamesMeshReady(ctx context.Context, ids []string) (map[string]
 			continue
 		}
 		entries[id] = entry
-		ordered = append(ordered, entry)
+		if !meshEntryHasNativeEmulator(entry) {
+			ordered = append(ordered, entry)
+		}
 	}
-	views, err := contentViews(ctx, session.Executor, ordered)
+	views := make(map[string]meshcontent.SlotFact)
+	var err error
+	if len(ordered) != 0 {
+		views, err = contentViews(ctx, session.Executor, ordered)
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, false
@@ -111,6 +117,10 @@ func (s *Service) GamesMeshReady(ctx context.Context, ids []string) (map[string]
 	for id, entry := range entries {
 		if ctx.Err() != nil {
 			return nil, false
+		}
+		if meshEntryHasNativeEmulator(entry) {
+			out[id] = GameMeshReady{Block: meshcontent.BlockInvalid, NextAction: meshcontent.NextAction(meshcontent.BlockInvalid)}
+			continue
 		}
 		bound := s.meshReadyBound(entry, session, majorOK, views)
 		ready, block := discovery.ReadyForBoundExecutor(true, foreign, &discovery.ReadyHereInput{
@@ -180,15 +190,19 @@ func (s *Service) gamesPlacementOnly(ctx context.Context, ids []string) (map[str
 	// The ask is built only when a title projects, so a page without a
 	// package-backed title does not read a kit.
 	ask, opts, asked := s.placementAskForReady(ctx)
-	if !asked {
-		return nil, false
-	}
 	out := make(map[string]GameMeshReady, len(entries))
 	for id, entry := range entries {
+		if meshEntryHasNativeEmulator(entry) {
+			out[id] = GameMeshReady{Block: meshcontent.BlockInvalid, NextAction: meshcontent.NextAction(meshcontent.BlockInvalid)}
+			continue
+		}
+		if !asked {
+			continue
+		}
 		result := meshplace.Place(entry, ask.Candidates, opts)
 		out[id] = GameMeshReady{Placement: result.Outcome, PlacementOnly: true}
 	}
-	return out, true
+	return out, len(out) != 0
 }
 
 // applyPlacementReadiness folds one Place result into a ReadyHere
@@ -357,8 +371,7 @@ func meshMajorOK(nodes []MeshNode, boundNode string) bool {
 	return false
 }
 
-// readyLeaseFree is LeaseFree for ReadyHere. A host-only title does not
-// take the kit lease. An FPGA title is free when this session holds the
+// readyLeaseFree is LeaseFree for ReadyHere. An FPGA title is free when this session holds the
 // current grant and generation on the bound node, or that node's client
 // can claim an unleased kit. A foreign holder is not free. A lost or
 // closed grant is not free. A client for a different kit is not used.
@@ -366,9 +379,6 @@ func meshMajorOK(nodes []MeshNode, boundNode string) bool {
 // and is not claimed from this path. The generation observation is the
 // selected connection only when that connection is this bound node.
 func (s *Service) readyLeaseFree(entry meshcontent.Entry, boundNode string) bool {
-	if meshLaunchExecution(entry) == ExecutionHostOnly {
-		return true
-	}
 	if s.boundKitForeign(boundNode) {
 		return false
 	}

@@ -65,7 +65,7 @@ func ValidatePlatform(id protocol.System) error {
 }
 
 // Launchable reports whether the platform maps to a public protocol launch
-// system. Host-emulator launchability is a service policy on top of this.
+// system. The service independently admits described FPGA packages.
 func Launchable(id protocol.System) bool {
 	platform, ok := DefaultPlatforms().Lookup(id)
 	if !ok {

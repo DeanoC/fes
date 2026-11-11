@@ -37,7 +37,7 @@ func (s *Service) loadDevelopmentMediaLocked(ctx context.Context, data []byte, b
 
 func (s *Service) loadDevelopmentMediaReaderLocked(ctx context.Context, size int64, body io.Reader, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	s.executionMu.Lock()
-	blocked := s.plays[b.Target].packageRejection != nil || (s.hostCastClaimsKitDisplay && s.activeExecution == ExecutionHostOnly)
+	blocked := s.plays[b.Target].packageRejection != nil
 	s.executionMu.Unlock()
 	if blocked {
 		return protocol.Status{}, protocol.DevelopmentMediaIdentityError()

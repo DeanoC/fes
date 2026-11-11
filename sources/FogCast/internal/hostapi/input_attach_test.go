@@ -5,8 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast/catalog"
-	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/protocol"
@@ -138,33 +136,5 @@ func TestInputDetachDoesNotApplyOldExecutionToExternalReplacement(t *testing.T) 
 				t.Fatalf("status after external replacement: %d %s", observed.Code, observed.Body)
 			}
 		})
-	}
-}
-
-func TestInputDetachPreservesOnlyMatchingHostSession(t *testing.T) {
-	game, system := "host-game", protocol.SystemSNES
-	active := protocol.Status{State: protocol.StateActive, GameID: &game, System: &system}
-	service := &fakeService{execution: fogcast.ExecutionHostOnly, game: catalog.Game{ID: game, Kind: catalog.SourceKindRaw},
-		status: active, launch: protocol.CachedLaunchResponse{Status: active}}
-	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
-	handler := hostapi.New(service, hostapi.WithRemoteInput(input))
-	launched := launchSessionOn(t, handler, game, "")
-	if launched.Code != http.StatusOK || !strings.Contains(launched.Body.String(), `"execution":"host_only"`) {
-		t.Fatalf("launch: %d %s", launched.Code, launched.Body)
-	}
-	detached := serve(t, handler, http.MethodPost, "/api/v1/session/input/detach")
-	if detached.Code != http.StatusOK || !strings.Contains(detached.Body.String(), `"execution":"host_only"`) {
-		t.Fatalf("detach host play: %d %s", detached.Code, detached.Body)
-	}
-	other := "other-game"
-	service.status.GameID = &other
-	for _, req := range []struct{ method, path string }{
-		{http.MethodPost, "/api/v1/session/input/detach"},
-		{http.MethodGet, "/api/v1/session"},
-	} {
-		response := serve(t, handler, req.method, req.path)
-		if response.Code != http.StatusOK || strings.Contains(response.Body.String(), `"execution":"host_only"`) {
-			t.Fatalf("%s %s after replacement: %d %s", req.method, req.path, response.Code, response.Body)
-		}
 	}
 }

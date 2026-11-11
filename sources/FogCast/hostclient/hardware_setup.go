@@ -246,12 +246,8 @@ func (c *Client) InstalledCoreSetup(ctx context.Context, pkg string) (CoreSetup,
 	if r := descriptor.ROM; r != nil {
 		result.ROMs = append(result.ROMs, SetupROM{ID: r.ID, Role: r.Role, SourceSize: r.SourceSize, Binding: "entry"})
 	}
-	for i, r := range descriptor.ROMs {
-		binding := "entry"
-		if i == 0 && r.Role == protocol.FirmwareRole {
-			binding = "household-firmware"
-		}
-		result.ROMs = append(result.ROMs, SetupROM{ID: r.ID, Role: r.Role, SourceSize: r.SourceSize, Binding: binding})
+	for _, r := range descriptor.ROMs {
+		result.ROMs = append(result.ROMs, SetupROM{ID: r.ID, Role: r.Role, SourceSize: r.SourceSize, Binding: "entry"})
 	}
 	for _, entry := range library.Entries {
 		if entry.CoreID == descriptor.Core.ID {
@@ -261,13 +257,6 @@ func (c *Client) InstalledCoreSetup(ctx context.Context, pkg string) (CoreSetup,
 	result.Capabilities, err = c.PackageMediaCapabilities(ctx, pkg)
 	if err != nil {
 		return CoreSetup{}, err
-	}
-	if len(descriptor.ROMs) > 0 {
-		firmware, err := c.HouseholdFirmware(ctx)
-		if err != nil {
-			return CoreSetup{}, err
-		}
-		result.FirmwareMediaID = firmware.MediaID
 	}
 	return result, nil
 }
@@ -300,9 +289,6 @@ func (c *Client) CreateInstalledCoreEntry(ctx context.Context, setup CoreSetup, 
 		id := roms[rom.ID]
 		if protocol.ValidateDigest(id) != nil {
 			return CoreEntry{}, fmt.Errorf("choose the required %s ROM", rom.ID)
-		}
-		if rom.Binding == "household-firmware" && id != setup.FirmwareMediaID {
-			return CoreEntry{}, fmt.Errorf("select the chosen household BIOS before adding the game")
 		}
 	}
 	firmwareRequired := len(setup.Descriptor.ROMs) > 0
@@ -341,11 +327,11 @@ func (c *Client) CreateInstalledCoreEntry(ctx context.Context, setup CoreSetup, 
 			continue
 		}
 		var binding CoreEntryROMSelection
-		path := "/api/v1/library/core-entries/" + url.PathEscape(entry.GameID) + "/rom"
+		path := "/api/v1/library/core-entries/" + url.PathEscape(entry.GameID) + "/rom?" + (url.Values{"rom_id": {rom.ID}}).Encode()
 		if err = c.getJSON(ctx, path, &binding); err != nil {
 			return entry, err
 		}
-		if binding.GameID != entry.GameID || (binding.PackageID != "" && binding.PackageID != entry.PackageID) ||
+		if binding.GameID != entry.GameID || (binding.PackageID != "" && binding.PackageID != entry.PackageID) || (binding.ROMID != "" && binding.ROMID != rom.ID) ||
 			binding.BundledDefault && (binding.MediaID != "" || binding.BundledMediaID == "" || binding.ROMID != rom.ID) ||
 			!binding.BundledDefault && binding.BundledMediaID != "" {
 			return entry, fmt.Errorf("ROM selection identity changed")

@@ -145,8 +145,7 @@ func TestPlacementCandidatesComeFromTheInventoryAndNodeDocuments(t *testing.T) {
 	if len(got) != 5 {
 		t.Fatalf("candidates %+v", got)
 	}
-	// Candidates keep inventory order. Place reads that order when
-	// several native_emu nodes can run a title.
+	// Candidates keep inventory order for placement.
 	for i, want := range []string{wireKitA, wireKitB, wireKitC, wireKitD, wireKitE} {
 		if got[i].NodeID != want {
 			t.Fatalf("candidate %d is %s, want inventory order %s", i, got[i].NodeID, want)

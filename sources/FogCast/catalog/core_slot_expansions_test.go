@@ -188,7 +188,7 @@ func TestSchemaMigrationsKeepExistingSelections(t *testing.T) {
 	if err != nil || len(slots) != 0 {
 		t.Fatalf("slots %+v %v", slots, err)
 	}
-	rom, err := store.CoreEntryROM(ctx, gameID)
+	rom, err := store.CoreEntryROM(ctx, gameID, "machine-rom")
 	if err != nil || rom.MediaID != mediaID || rom.ROMID != "machine-rom" {
 		t.Fatalf("ROM selection lost: %+v %v", rom, err)
 	}

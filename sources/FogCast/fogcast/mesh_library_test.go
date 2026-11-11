@@ -22,17 +22,18 @@ func TestProjectMeshLibraryRepresentativeTitles(t *testing.T) {
 
 	coleco := meshCoreTitle("Frogger", "fes.coleco", colecoPkg, cart, true)
 	coleco.ABI = corepackage.Contract{ID: "fes.application", Major: 1, Minor: 0}
+	coleco.FirmwareDigest = bios
 	zx := meshCoreTitle("3D Monster Maze", "fes.zx81", zxPkg, "", false)
 	zx.ABI = corepackage.Contract{ID: "fes.simple-computer", Major: 1, Minor: 0}
 	zx.Expansions = []MeshExpansion{{Name: expansion.Slot, Digest: ram}}
 	native := meshNativeTitle("Super Mario World", protocol.SystemSNES, snesROM)
-	prefixed := meshNativeTitle("Prefixed", protocol.SystemSNES, "sha256:"+snesROM)
+	prefixed := meshCoreTitle("Prefixed", "fes.coleco", colecoPkg, "sha256:"+snesROM, false)
 	missingBIOS := meshCoreTitle("Donkey Kong", "fes.coleco", colecoPkg, cart, true)
 	uppercase := meshCoreTitle("Frogger", "fes.coleco", colecoPkg, cart, true)
+	uppercase.FirmwareDigest = strings.ToUpper(strings.Repeat("ab", 32))
 	development := meshCoreTitle("Probe", "fes.coleco", colecoPkg, cart, false)
 	development.Execute = ExecutionFPGADevelopment
 
-	filled := catalog.CoreFirmware{Slot: protocol.FirmwareRole, MediaID: bios, Size: protocol.FirmwareBytes}
 	cases := []struct {
 		name       string
 		lib        MeshLibrary
@@ -41,7 +42,7 @@ func TestProjectMeshLibraryRepresentativeTitles(t *testing.T) {
 	}{
 		{
 			name: "coleco fpga bios and cart",
-			lib:  MeshLibrary{Firmware: filled, Titles: []MeshTitle{coleco}},
+			lib:  MeshLibrary{Titles: []MeshTitle{coleco}},
 			check: func(t *testing.T, entry meshcontent.Entry) {
 				if entry.System != "coleco" || !entry.Launchable || len(entry.Execute) != 1 || entry.Execute[0].Kind != meshcontent.ExecuteFPGANative {
 					t.Fatalf("coleco shape %+v", entry)
@@ -73,7 +74,7 @@ func TestProjectMeshLibraryRepresentativeTitles(t *testing.T) {
 		},
 		{
 			name: "zx81 expansion",
-			lib:  MeshLibrary{Firmware: filled, Titles: []MeshTitle{zx}},
+			lib:  MeshLibrary{Titles: []MeshTitle{zx}},
 			check: func(t *testing.T, entry meshcontent.Entry) {
 				if entry.System != "zx81" || len(entry.Execute) != 1 || entry.Execute[0].Kind != meshcontent.ExecuteFPGANative {
 					t.Fatalf("zx shape %+v", entry)
@@ -89,37 +90,26 @@ func TestProjectMeshLibraryRepresentativeTitles(t *testing.T) {
 				}
 				for _, slot := range entry.Slots {
 					if slot.Kind == meshcontent.SlotBIOS {
-						t.Fatal("zx81 took the household bios")
+						t.Fatal("zx81 took an unrelated bios")
 					}
 				}
 				assertNoPath(t, entry)
 			},
 		},
 		{
-			name: "native emu",
-			lib:  MeshLibrary{Firmware: filled, Titles: []MeshTitle{native}},
-			check: func(t *testing.T, entry meshcontent.Entry) {
-				if entry.System != string(protocol.SystemSNES) || len(entry.Execute) != 1 || entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu {
-					t.Fatalf("native shape %+v", entry)
-				}
-				if len(entry.Slots) != 1 || entry.Slots[0].Kind != meshcontent.SlotPrimaryMedia || entry.Slots[0].Content.Digest != snesROM {
-					t.Fatalf("slots %+v", entry.Slots)
-				}
-				if entry.Slots[0].Package != nil {
-					t.Fatal("native_emu gained a package slot")
-				}
-				assertNoPath(t, entry)
-			},
+			name:       "native emulation is unavailable",
+			lib:        MeshLibrary{Titles: []MeshTitle{native}},
+			skipReason: "execution is not a mesh catalog kind",
 		},
 		{
-			name:       "missing household firmware",
+			name:       "missing title firmware",
 			lib:        MeshLibrary{Titles: []MeshTitle{missingBIOS}},
-			skipReason: "household firmware digest is required",
+			skipReason: "title firmware digest is required",
 		},
 		{
 			name:       "uppercase stored digest is not rewritten",
-			lib:        MeshLibrary{Firmware: catalog.CoreFirmware{Slot: protocol.FirmwareRole, MediaID: strings.ToUpper(strings.Repeat("ab", 32))}, Titles: []MeshTitle{uppercase}},
-			skipReason: "household firmware digest is not a stored sha256",
+			lib:        MeshLibrary{Titles: []MeshTitle{uppercase}},
+			skipReason: "title firmware digest is not a stored sha256",
 		},
 		{
 			name:       "prefixed digest is not coerced",
@@ -128,7 +118,7 @@ func TestProjectMeshLibraryRepresentativeTitles(t *testing.T) {
 		},
 		{
 			name:       "development execution is not relabeled",
-			lib:        MeshLibrary{Firmware: filled, Titles: []MeshTitle{development}},
+			lib:        MeshLibrary{Titles: []MeshTitle{development}},
 			skipReason: "execution is not a mesh catalog kind",
 		},
 	}
@@ -258,8 +248,7 @@ func TestProjectMeshLibraryROMLessPong(t *testing.T) {
 		t.Fatalf("pong fixture %+v core %+v", title.Game, title.Core)
 	}
 	entries, skipped := ProjectMeshLibrary(MeshLibrary{
-		Firmware: catalog.CoreFirmware{Slot: protocol.FirmwareRole, MediaID: strings.Repeat("11", 32)},
-		Titles:   []MeshTitle{title},
+		Titles: []MeshTitle{title},
 	})
 	if len(skipped) != 0 || len(entries) != 1 {
 		t.Fatalf("entries %+v skipped %+v", entries, skipped)
@@ -290,24 +279,42 @@ func TestProjectMeshLibrarySkipsOneTitleAndKeepsTheRest(t *testing.T) {
 	ram := strings.Repeat("33", 32)
 	snesROM := strings.Repeat("44", 32)
 	coleco := meshCoreTitle("Frogger", "fes.coleco", strings.Repeat("ab", 32), cart, true)
+	coleco.FirmwareDigest = bios
 	zx := meshCoreTitle("Monster Maze", "fes.zx81", strings.Repeat("cd", 32), "", false)
 	zx.Expansions = []MeshExpansion{{Name: expansion.Slot, Digest: ram}}
 	native := meshNativeTitle("Super Mario World", protocol.SystemSNES, snesROM)
 	broken := meshCoreTitle("Untitled", "fes.pong", "", "", false)
 	broken.Core.PackageID = ""
 	lib := MeshLibrary{
-		Firmware: catalog.CoreFirmware{Slot: protocol.FirmwareRole, MediaID: bios},
-		Titles:   []MeshTitle{coleco, broken, zx, native},
+		Titles: []MeshTitle{coleco, broken, zx, native},
 	}
 	entries, skipped := ProjectMeshLibrary(lib)
-	if len(entries) != 3 || len(skipped) != 1 || skipped[0].TitleID != broken.Game.ID || skipped[0].Reason != "package abi is required" {
+	if len(entries) != 2 || len(skipped) != 2 || skipped[0].TitleID != broken.Game.ID || skipped[0].Reason != "package abi is required" || skipped[1].TitleID != native.Game.ID || skipped[1].Reason != "execution is not a mesh catalog kind" {
 		t.Fatalf("entries %+v skipped %+v", entries, skipped)
 	}
-	if entries[0].System != "coleco" || entries[1].System != "zx81" || entries[2].Execute[0].Kind != meshcontent.ExecuteNativeEmu {
+	if entries[0].System != "coleco" || entries[1].System != "zx81" {
 		t.Fatalf("order %+v", entries)
 	}
-	if entries[0].Slots[1].Content.Digest != bios || entries[1].Slots[1].Content.Digest != ram || entries[2].Slots[0].Content.Digest != snesROM {
+	if entries[0].Slots[1].Content.Digest != bios || entries[1].Slots[1].Content.Digest != ram {
 		t.Fatalf("digests changed %+v", entries)
+	}
+}
+
+func TestProjectMeshLibraryKeepsFirmwarePerTitle(t *testing.T) {
+	pkg := strings.Repeat("ab", 32)
+	first := meshCoreTitle("First", "fes.coleco", pkg, strings.Repeat("22", 32), true)
+	first.FirmwareDigest = strings.Repeat("11", 32)
+	second := meshCoreTitle("Second", "fes.coleco", pkg, strings.Repeat("44", 32), true)
+	second.FirmwareDigest = strings.Repeat("33", 32)
+	missing := meshCoreTitle("Missing", "fes.coleco", pkg, strings.Repeat("55", 32), true)
+	entries, skipped := ProjectMeshLibrary(MeshLibrary{Titles: []MeshTitle{first, second, missing}})
+	if len(entries) != 2 || len(skipped) != 1 || skipped[0].TitleID != missing.Game.ID || skipped[0].Reason != "title firmware digest is required" {
+		t.Fatalf("entries %+v skipped %+v", entries, skipped)
+	}
+	for i, want := range []string{first.FirmwareDigest, second.FirmwareDigest} {
+		if len(entries[i].Slots) != 3 || entries[i].Slots[1].Kind != meshcontent.SlotBIOS || entries[i].Slots[1].Content == nil || entries[i].Slots[1].Content.Digest != want {
+			t.Fatalf("entry %d slots %+v", i, entries[i].Slots)
+		}
 	}
 }
 
@@ -326,7 +333,7 @@ func meshCoreTitle(title, coreID, packageID, mediaID string, firmware bool) Mesh
 		entry.MediaID = mediaID
 	}
 	return MeshTitle{
-		Game: game, Launchable: true, Execute: ExecutionFPGANative, Core: entry,
+		Game: game, Launchable: true, Execute: ExecutionFPGANative, Core: entry, FirmwareRequired: firmware,
 		ABI: corepackage.Contract{ID: "fes.application", Major: 1},
 	}
 }
@@ -341,7 +348,7 @@ func meshNativeTitle(title string, system protocol.System, digest string) MeshTi
 			Content:      &catalog.Content{SHA256: digest, Size: 32, Extension: "sfc"},
 		},
 		Launchable: true,
-		Execute:    ExecutionHostOnly,
+		Execute:    meshcontent.ExecuteNativeEmu,
 	}
 }
 

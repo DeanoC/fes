@@ -48,9 +48,9 @@ func TestReadyHereRoomsStayUnavailableUntilTheTitleIsHere(t *testing.T) {
 	coleco.FirmwareRequired = true
 	coleco.FirmwareReady = true
 	zx := readyGame("fpga-zx81-maze", "3D Monster Maze", "zx81")
-	hostOnly := readyGame("snes-mario", "Super Mario World", "snes")
-	hostOnly.Execution = hostclient.ExecutionHostOnly
-	for _, game := range []hostclient.Game{coleco, zx, hostOnly} {
+	alternate := readyGame("snes-mario", "Super Mario World", "snes")
+	alternate.Execution = "other_backend"
+	for _, game := range []hostclient.Game{coleco, zx, alternate} {
 		state, matches := ClassifyGames([]hostclient.Game{game}, game.Title)
 		dest := Destination{Kind: KindGame, Availability: state, Matches: matches, GameID: game.ID, Label: game.Title}
 		dest.FillCopy()
@@ -96,7 +96,7 @@ func TestReadyHereRoomsStayUnavailableUntilTheTitleIsHere(t *testing.T) {
 		t.Fatalf("ready here %+v", dest)
 	}
 
-	offline := hostOnly
+	offline := alternate
 	offline.ReadyHere = &ready
 	offline.State = "missing"
 	offline.RootOnline = false
