@@ -41,7 +41,7 @@ func TestForeignHIDFailClosed(t *testing.T) {
 	if ForeignHID(Status{State: "held"}) {
 		t.Fatal("held without owner is not observed foreign")
 	}
-	local := Status{State: "held", Owner: HostlessOwner, Purpose: LocalCorePurpose}
+	local := Status{State: "held", Owner: HostlessOwner, Purpose: "kit-local-core"}
 	if !ForeignHID(local) {
 		t.Fatal("kit-local core grant must stay foreign to the host")
 	}
@@ -70,13 +70,13 @@ func TestHostlessAndForeignSession(t *testing.T) {
 			t.Fatalf("hostless launch must not enter %s", state)
 		}
 	}
-	local := Status{State: "held", Owner: HostlessOwner, Purpose: LocalCorePurpose}
-	if HostlessSession(local) || !LocalCoreSession(local) || !ForeignSession(local) {
+	local := Status{State: "held", Owner: HostlessOwner, Purpose: "kit-local-core"}
+	if HostlessSession(local) || !ForeignSession(local) {
 		t.Fatalf("kit-local %+v", local)
 	}
 	launch := "/v1/local/cores/" + strings.Repeat("ab", 32) + "/launch"
-	if !HostlessAllows(local, "/v1/local/cores") || !HostlessAllows(local, "/v1/local/stop") || !HostlessAllows(local, launch) {
-		t.Fatal("kit-local purpose must allow only the local-control routes")
+	if HostlessAllows(local, "/v1/local/cores") || HostlessAllows(local, "/v1/local/stop") || HostlessAllows(local, launch) {
+		t.Fatal("retired purpose must not allow local-control routes")
 	}
 	if HostlessAllows(local, "/v1/stop") || HostlessAllows(local, "/v1/input/attach") || HostlessAllows(local, "/v1/cast/start") || HostlessAllows(local, "/v1/local/cores/zz/launch") {
 		t.Fatal("kit-local purpose permitted a host route")

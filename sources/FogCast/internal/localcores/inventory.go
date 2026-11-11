@@ -502,10 +502,6 @@ func SHA256Hex(value string) bool {
 	return true
 }
 
-func sha256Hex(value string) bool {
-	return SHA256Hex(value)
-}
-
 func realDir(path string) bool {
 	info, err := os.Lstat(path)
 	return err == nil && info.IsDir() && info.Mode()&os.ModeSymlink == 0

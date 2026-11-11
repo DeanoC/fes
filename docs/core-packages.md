@@ -13,7 +13,7 @@ bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 
 The recipe registry supports the described `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.c64`, `fes.spectrum`,
-`fes.catch`, `fes.riscv`, `fes.ramtest` and `fes.atari-st` HIP/nextpnr
+`fes.riscv`, `fes.ramtest` and `fes.atari-st` HIP/nextpnr
 producers, and `fes.pcxt` through its Quartus diagnostic producer. The default target-image selector installs the closed package set
 containing only `fes.menu` display firmware. All playable systems are installed
 independently through the core catalog. Coleco and Atari ST installations need
@@ -121,9 +121,9 @@ tape/disk input.
 
 The [durable kit core library](kit-core-library.md) installs and selects immutable
 versions on an existing FESDATA3 volume through the target REST API. It retains
-the factory inventory and older versions, affects the next kit-local launch and
-requires no OS rebuild, reboot or service restart. Host library import remains
-separate; installation does not activate the FPGA.
+the factory inventory and older versions, and changes the selected package in
+the kit inventory without an OS rebuild, reboot or service restart. Host library
+entries name their own package IDs; installation does not activate the FPGA.
 
 ## Library video preference
 

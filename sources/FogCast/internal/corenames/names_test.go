@@ -3,7 +3,7 @@ package corenames
 import "testing"
 
 func TestNamesUseExactFirstPartyIdentity(t *testing.T) {
-	if len(models) != 18 {
+	if len(models) != 17 {
 		t.Fatalf("registered models: %d", len(models))
 	}
 	for id, m := range models {
@@ -36,7 +36,6 @@ func TestEntryTitleRecognizesOnlyGeneratedMachineDefaults(t *testing.T) {
 		{"fes.ts1000", "FES Timex Sinclair 1000 1.7.0-hil790 · deadbeef", "Timex Sinclair 1000"},
 		{"fes.sms", "FES Sega Master System HIL 790 120000", "Sega Master System"},
 		{"fes.spectrum", "FES Manic Miner", "FES Manic Miner"},
-		{"fes.catch", "FES Catch", "Catch"},
 		{"fes.spectrum", "Manic Miner", "Manic Miner"},
 		{"fes.zx81", "My ZX81 HIL790", "My ZX81 HIL790"},
 		{"fes.coleco", "HIL Adventures", "HIL Adventures"},

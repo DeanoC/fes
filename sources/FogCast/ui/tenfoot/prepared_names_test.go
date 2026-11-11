@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/hostclient"
-	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/ui/gfx"
 )
 
@@ -51,14 +50,5 @@ func TestPreparedNamesStayDisplayOnlyAcrossLibraryDetailsAndSession(t *testing.T
 	projected.Title = game.Title
 	if !reflect.DeepEqual(projected, game) || !reflect.DeepEqual(app.games[0], game) || !reflect.DeepEqual(app.session, beforeSession) {
 		t.Fatal("display names changed stored metadata, selected media or active session identity")
-	}
-}
-
-func TestAdoptedLocalMachineUsesCanonicalNameAndKeepsClaim(t *testing.T) {
-	app := NewApp(nil, 1280, 720, 20)
-	status := localcores.RunStatus{CoreID: "fes.pong", PackageID: strings.Repeat("a", 64), Generation: "exact-generation"}
-	app.applyStartupClaimLocked(status, localPhaseRunning)
-	if app.localTitle != "Pong" || app.localPackageID != status.PackageID || app.localLeaseGeneration != status.Generation {
-		t.Fatalf("adopted label changed claim identity: %q %q %q", app.localTitle, app.localPackageID, app.localLeaseGeneration)
 	}
 }

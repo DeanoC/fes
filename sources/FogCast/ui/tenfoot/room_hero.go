@@ -61,15 +61,15 @@ type heroCopy struct {
 	Secondary string
 }
 
-// heroPlaysOnThisTV is the destination of a kit-local core: the kit's own
+// heroPlaysOnThisTV is the destination of a kit-host core: the kit's own
 // HDMI output, the screen this menu is on.
 const heroPlaysOnThisTV = "Plays on this TV"
 
-// heroStopCopy names every way to stop a kit-local core, before Play: the
-// menu cannot draw once the core owns HDMI. It is one line so the one-second
+// heroStopCopy gives the session stop chord before Play. It is one line
+// so the one-second
 // hold stays visible in the hero column at 1280×720 with the kit's default
 // 5% safe area, and at 1024×600.
-const heroStopCopy = "Stop: F12, Guide, or hold Select+Start for one second."
+const heroStopCopy = "Stop: hold Select+Start for one second."
 
 // heroPendingCopy is a remembered core shown before the kit lists its cores.
 const heroPendingCopy = "Play now and it starts once this kit has checked it."
@@ -242,7 +242,7 @@ func heroDestinationCopy(snap Snapshot) heroCopy {
 			c.Explain = action
 		}
 		switch d.Confirm() {
-		case rooms.ConfirmLaunch, rooms.ConfirmLaunchKit:
+		case rooms.ConfirmLaunch, rooms.ConfirmLaunchKitCartridge:
 			c.Primary, c.Filled = "Play", true
 			c.Secondary = "Details"
 		case rooms.ConfirmChoose:
@@ -611,6 +611,9 @@ func drawHeroDestination(dev gfx.Device, snap Snapshot, pane rectI, labels map[s
 // heroFooterStatus is the footer's left line: only conditions a player can
 // act on. Lease generations and routine health stay in Settings/Details.
 func heroFooterStatus(snap Snapshot) string {
+	if snap.Room.NoPanel && strings.TrimSpace(snap.Status) == setupBlockedStatus {
+		return setupBlockedStatus
+	}
 	if !launchOverlayVisible(snap) {
 		switch snap.Launch.Phase {
 		case "launching", "error", "host":
@@ -623,11 +626,8 @@ func heroFooterStatus(snap Snapshot) string {
 	if strings.HasPrefix(status, "room failed") || status == localInUseCopy || status == machineStatusUnknown {
 		return status
 	}
-	if local := strings.TrimSpace(snap.LocalCoreStatus); local != "" && local == status {
-		return local
-	}
 	switch status {
-	case localLaunchCheckingCopy, "Settings are unavailable during play.", "That action is not available.", staleBrowseActionStatus:
+	case "Settings are unavailable during play.", "That action is not available.", staleBrowseActionStatus:
 		return status
 	}
 	if snap.Health.Line != "" && (snap.Health.HostUnreachable || !snap.Health.TargetReachable) {

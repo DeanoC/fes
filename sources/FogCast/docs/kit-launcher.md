@@ -92,22 +92,14 @@ unavailable, the current FPGA picture is left alone. The FES native image
 selects the sealed `fes.menu` package; the boot splash remains the fallback
 when menu activation fails.
 
-## Kit-local catalog and play
+## Kit host and play
 
 Tenfoot reads the core inventory and catalog from the supervised kit host at
-`127.0.0.1:8787`, and launches through its normal session API. The agent's
-local control socket remains responsible for observing and safely adopting a
-core started outside the host session.
+`127.0.0.1:8787`, and launches and stops through its normal session API. The
+agent's local control socket provides read-only installed-core inventory. A
+session already owning the display keeps menu presents parked.
 
-Other local-control clients can launch a core outside the host session. Tenfoot
-observes `/run/fogcast/local-control.sock`, preserves its display, and adopts a
-running generation for input and Stop. `POST /v1/local/stop` requires that
-exact generation; missing or stale generations are refused before the runtime
-is called. Select+Start held for one second on one pad, F12, or Guide stops an
-adopted kit-local core. Late adoption submits no loading frame, drains pending
-menu work, and pauses without replacing the game picture.
-
-While a kit-local core runs, `ui/localfeed` writes pad and USB keyboard events
+While a host session runs on the kit, `ui/localfeed` writes pad and USB keyboard events
 as raw input frames on `/run/fogcast/local-input.sock`. mister-agent delivers
 them into the running core. Play input does not cross the LAN and does not fall
 back to the host.
@@ -122,15 +114,14 @@ goes menu only. Its held buttons come up first. So with the fixture and a
 DualSense attached, the DualSense is port 1, the pad a Coleco reads for its
 options keypad. A pad that finds both ports taken never reaches a machine and does
 not take a port that frees up later. It drives the menu wherever a pad with a
-port would, including the room shown during play, and its Guide button still
-stops a kit-local core like any pad's. Every pad event
+port would, including the room shown during play. Every pad event
 carries its port as `Player`, so a `fes.gamepad.ports` core sees two players
 and the kit's Select+Start stop needs both buttons on the same pad. Use two pads
 with the current `fes.coleco` package for an independent-player hardware check.
 SMS, SG-1000 and older Coleco packages that declare `fes.keyboard` take their
 joystick through the keyboard matrix: mister-agent turns both pads' directions
 and A (and Coleco's B) into that one joystick, so both pads steer the same
-player. A core with only the single-pad `fes.gamepad` interface (Catch, Pong)
+player. A core with only the single-pad `fes.gamepad` interface (Pong)
 also sees both pads as one, and one pad letting go never releases what the
 other still holds. Closing the connection
 releases only that local source. Unplugging one pad sends the releases for its

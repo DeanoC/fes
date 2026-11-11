@@ -20,8 +20,8 @@ func TestHostlessAndForeignSession(t *testing.T) {
 	if HostlessSession(free) || ForeignSession(free) {
 		t.Fatalf("free %+v", free)
 	}
-	local := Status{State: "held", Owner: HostlessOwner, Purpose: LocalCorePurpose}
-	if HostlessSession(local) || !LocalCoreSession(local) || !ForeignSession(local) || !HostlessAllows(local, "/v1/local/stop") {
+	local := Status{State: "held", Owner: HostlessOwner, Purpose: "kit-local-core"}
+	if HostlessSession(local) || !ForeignSession(local) || HostlessAllows(local, "/v1/local/stop") {
 		t.Fatalf("kit-local %+v", local)
 	}
 	if HostlessAllows(local, "/v1/stop") {

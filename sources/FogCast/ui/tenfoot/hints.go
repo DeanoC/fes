@@ -379,7 +379,7 @@ func (s Snapshot) HeaderHint() string {
 func libraryDetailHint(kind InputKind, count int, d rooms.Destination) string {
 	parts := []string{}
 	switch d.Confirm() {
-	case rooms.ConfirmLaunch, rooms.ConfirmLaunchKit:
+	case rooms.ConfirmLaunch, rooms.ConfirmLaunchKitCartridge:
 		parts = append(parts, selectWord(kind)+" play")
 	case rooms.ConfirmImportFirmware:
 		parts = append(parts, selectWord(kind)+" import BIOS")

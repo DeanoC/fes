@@ -41,7 +41,7 @@ valid selection, including after delayed artwork arrives.
 
 ## Names and navigation
 
-Machine labels are plain model names: Pong, Catch, Sinclair ZX81, Commodore 64
+Machine labels are plain model names: Pong, Sinclair ZX81, Commodore 64
 and the selected Spectrum model. Keep the FES wordmark in shared chrome; do not
 prefix every machine or game. Package versions, hashes and HIL build tags belong
 to package selection or technical details, not a machine heading or default setup

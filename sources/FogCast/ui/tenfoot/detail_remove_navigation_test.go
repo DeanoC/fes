@@ -127,7 +127,7 @@ func TestReleaseHomeLibraryRemovesOnlyDisplayedCoreEntry(t *testing.T) {
 			return controlFocused(s, step.id, step.label)
 		})
 	}
-	if h.launchCount() != 0 || cores.launchCount() != 0 {
+	if h.launchCount() != 0 {
 		t.Fatal("navigating to Library launched a title")
 	}
 	app.HandleCommand(CommandFromButton(ButtonSouth), time.Now())
@@ -150,7 +150,7 @@ func TestReleaseHomeLibraryRemovesOnlyDisplayedCoreEntry(t *testing.T) {
 	if !s.Detail.RemoveConfirm || s.FocusDetail.Title != targetTitle {
 		t.Fatalf("wrong confirmation: %+v %+v", s.Detail, s.FocusDetail)
 	}
-	if h.launchCount() != 0 || cores.launchCount() != 0 {
+	if h.launchCount() != 0 {
 		t.Fatal("navigating to removal launched a title")
 	}
 	app.HandleCommand(CommandFromButton(ButtonSouth), time.Now())
@@ -164,7 +164,7 @@ func TestReleaseHomeLibraryRemovesOnlyDisplayedCoreEntry(t *testing.T) {
 	if len(deleted) != 1 || deleted[0] != targetID {
 		t.Fatalf("deleted wrong entry: %v", deleted)
 	}
-	if h.launchCount() != 0 || cores.launchCount() != 0 {
+	if h.launchCount() != 0 {
 		t.Fatal("removal launched a title")
 	}
 }

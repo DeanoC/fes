@@ -258,9 +258,6 @@ func (a *App) currentAttractItemLocked() (hostclient.AttractItem, bool) {
 }
 
 func (a *App) attractBlockedLocked() bool {
-	if hostclient.SessionKitLocal(a.session.State) {
-		return true
-	}
 	switch a.session.State {
 	case "active", "launching", "stopping":
 		return true

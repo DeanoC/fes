@@ -14,6 +14,10 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
+// maxLocalCartridgeBytes bounds source and prepared cartridge bytes when the
+// kit host imports a local cartridge into its library.
+const maxLocalCartridgeBytes = 8 << 20
+
 // KitHostEntry resolves a kit-local package and optional scanned SMS cartridge
 // into a durable host entry. The caller supplies identities, never file paths.
 func (s *Service) KitHostEntry(ctx context.Context, packageID, gameID string) (catalog.CoreEntry, error) {

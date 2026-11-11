@@ -11,8 +11,8 @@ kit-local installed packages.
 
 `example.system` covers the ZX81 family, Commodore 64, the Spectrum 48K/128K/+3
 and Pentagon models, Apple II, Atari ST, ColecoVision, Sega Master System,
-SG-1000, Pong, Catch, RAM Tester and RISC-V. **Next system** chooses one of
-12 system families. **Variant** chooses a model within that family's workbench:
+SG-1000, Pong, RAM Tester and RISC-V. **Next system** chooses one of
+the system families. **Variant** chooses a model within that family's workbench:
 Spectrum has 48K, 128K, +3 and Pentagon 128; the ZX81 family has ZX81, ZX80,
 TS1000 and TS1500. Each family remembers its last browsed variant. Single-model
 families have no variant selector. The family stays in the header while the
