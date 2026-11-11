@@ -164,6 +164,9 @@ func main() {
 	} else if expectedProgramPlatform != "" || expectedCompiledMenuProgram != "" {
 		panic("program platform provided without selected program mode")
 	}
+	if err := prepareProgramNetwork(v); err != nil {
+		panic(err)
+	}
 	if err := openProgramUSB(v); err != nil {
 		panic(err)
 	}

@@ -102,6 +102,9 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 			_ = programService.Retire(errors.New("native Tenfoot exited before owned menu shutdown"))
 		}
 	}()
+	if err := startProgramNetwork(); err != nil {
+		panic(err)
+	}
 	nativeProgramBackend, err = nativefabric.NewProgramBackend(programService, entries)
 	if err != nil {
 		panic(err)

@@ -82,6 +82,14 @@ boot admission and returns the paired lifecycle controller. The generic Nano
 opener lacks that owner and refuses startup. No current profile selects or
 qualifies this path; QEMU startup is unchanged.
 
+The paired native launcher now wires that controlled opener through
+`ProgramService.StartNetwork` before frontend ownership. Its boot owner is
+captured under the original accepted cold context before USB/SD startup; a
+catalogue cannot replace it. Disabled compiled profiles perform no startup call.
+The service retains partial returned controls and retires without FPGA cleanup
+after uncertain startup, including a propagated platform panic. This supplies
+the call path, not MAC/PHY/DMA qualification or a native upload listener.
+
 This prototype supports IPv4 TCP with static addressing and a 1500-byte MTU.
 It enables neither checksum/segmentation offloads nor merged receive buffers.
 The Lneto configuration limits active TCP ports to 16 and listener connections

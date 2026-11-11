@@ -54,6 +54,11 @@ var ownedNetworkDevice *xgmac.Device // Never reclaim or replace failed DMA reso
 var ownedNetworkInterface *network.Interface
 var ownedNetworkController *network.Controller
 
+// NetworkEnabled reports the explicit compiled selection, not qualification.
+// The controlled opener still requires the independent boot owner and complete
+// firmware MAC/DMA contract; disabled profiles must never invoke it.
+func NetworkEnabled() bool { return profileNetworkEnabled }
+
 // OpenNetworkWithControl requires the owner from the trusted boot admission,
 // not from package metadata or a previous MAC receipt. Return the controller to
 // ProgramService.AttachNetwork before frontend ownership. This hook supplies

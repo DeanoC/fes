@@ -83,6 +83,7 @@ type programService struct {
 	menu           *programServiceMenu
 	preferences    *ProgramPreferences
 	network        *network.Controller
+	networkStartup *network.Controller // Retain a partial startup; never reuse it after failure.
 }
 
 // NewProgramService takes exclusive lifecycle ownership of this verifier once.

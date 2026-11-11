@@ -27,10 +27,11 @@ other Nano control records. Upload paths are labels, not destinations. This is
 an in-process source adapter, not a native network upload service. Model tests
 cover empty-library installation, the normal client API, real FAT persistence,
 fresh-boot discovery/launch/return and source/ownership/integrity failures.
-The changed native installer image has a
-[matched boot-chain build](../../../../docs/validation/2026-11-10-de25-native-installer-navigation/README.md)
-and still needs physical acceptance; the earlier 25 MHz file test does not
-qualify package installation.
+The matched `b3ed4389ad43d91b` image now passes
+[physical first installation](../../../../docs/validation/2026-11-11-de25-native-first-install-trial/README.md)
+and [independent reboot discovery/launch](../../../../docs/validation/2026-11-11-de25-installed-discovery-trial/README.md)
+for ZX81. That bounded evidence does not qualify subsequent runtime changes,
+other packages, native Ethernet or full appliance operation.
 
 The full App model additionally drives Settings → Systems → Install → Open
 library → launch/return from an empty catalogue. Sources with existing setup
@@ -40,8 +41,8 @@ playable entry. The explicit writable native selection enables separate bounded
 installer-navigation records, including changes that leave ordinary App status
 unchanged. Model-generated records are checked by the host decoder with their
 actual native counters; installation advances one request before launch/return.
-These changed UI/runtime bytes have a refreshed matched image and still need
-their own physical trial.
+The bounded hardware trial above exercises this App path; model success alone
+does not establish physical acceptance of another artifact.
 
 `ProgramService.AttachNetwork` transfers one active controller before frontend
 ownership. Attachment claims the shared handle without hardware IO. Once bound,
@@ -49,6 +50,19 @@ launch, return, installation, running Park and menu shutdown drain networking
 before native storage/configuration/closure. Healthy Ready/Running completion
 restarts it; terminal Park and failure leave it stopped. Rejected stale requests
 do not touch the controller. Initial menu construction precedes network startup.
+
+`StartNetwork` connects an explicit platform opener before frontend ownership,
+using the owner captured from independent cold-boot admission. The existing
+cached service owner is only compared for identity, never used as permission.
+The five-second opener context must be honored by the supplier. The returned
+controller is claimed once; partial returns stay retained. Error, late
+cancellation, invalid controller or platform panic retires the service without
+ordinary FPGA cleanup or restart. A panic still propagates. Stale/late requests
+reject before calling the opener, and a failed attempt cannot be replayed.
+The Nano launcher now captures the cold owner before USB/SD startup and invokes
+the real `OpenNetworkWithControl` hook after initial menu construction and
+before creating its backend. Disabled compiled profiles make neither call.
+No shipped Nano profile is enabled or newly qualified by this wiring.
 
 Presentation and other frontend failures also drain before ordinary firmware
 cleanup. An uncertain drain or restart retires in software without issuing more
@@ -99,8 +113,8 @@ checks the original ABI/platform/ROM contract and proves live configuration and
 return. No installer record supplies firmware, DMA or activation permission.
 Tests join real FAT allocation and independent readback to the actual native
 launch/return implementation, including a modeled fresh-boot discovery/launch.
-This API is not a network listener. Physical native Ethernet delivery, full native
-installation, uninstall/update policy and power-cut recovery remain open; ordinary
+This API is not a network listener. Physical native Ethernet delivery, general
+installation compatibility, uninstall/update policy and power-cut recovery remain open; ordinary
 Nano startup still selects read-only SD.
 
 `ProgramPreferences` loads the bounded `FES/PREFS.JSON` settings object before
