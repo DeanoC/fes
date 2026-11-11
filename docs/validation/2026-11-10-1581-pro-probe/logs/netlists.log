@@ -1,0 +1,6 @@
+Warning: Resizing cell port $paramod$5c589f2aac433e6c33350455c02ac6f32ea57fb8\mem_single_bank_reset.mem_single_bank.dia from 32 bits to 1 bits.
+Warning: Resizing cell port $paramod$5c589f2aac433e6c33350455c02ac6f32ea57fb8\mem_single_bank_reset.mem_single_bank.dia from 32 bits to 1 bits.
+Yosys 0.70+ (git sha1 0a7927bf1, Release, GNU /usr/bin/c++ 14.2.0) [github.com/DeanoC/yosys at HEAD]
+pc386_opl2 escaped identifiers: 2190 ramstyle: []
+pc386_opl2.fixed escaped identifiers: 2190 ramstyle: []
+fes_menu_reader escaped identifiers: 0 ramstyle: ['(* ramstyle = "M20K" *)']

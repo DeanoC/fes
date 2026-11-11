@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Route the i386 timing spikes through Quartus 17.0.2 for oracle evidence.
+"""Route the i386 timing spikes through Quartus for oracle evidence.
 
 This script emits diagnostic timing evidence; it does not create a sealed,
 labelled Quartus package. It answers whether the OSS flow's timing on
 fes_i386_cpu (Yosys and nextpnr, see scripts/benchmark_fes_i386.py) is the
 RTL's or the flow's. The whole-CPU spike is the question; the isolated spikes
 (m2, dag, frontend) calibrate the two flows' timing on logic that is the same
-on both sides.
+on both sides. The Quartus is the one cores/fes-pc386/quartus.lock pins, the
+lane that seals the CPU: quartus_sh is authenticated by digest and version
+line against that lock.
 
-Quartus 17.0.2's SystemVerilog front end rejects the i386 RTL (generate loops
+The locked Quartus's SystemVerilog front end rejects the i386 RTL (generate loops
 must declare their genvar outside the loop and sit in generate/endgenerate,
 and it misreads a variable index into a packed struct member that shares a
 name with a module signal). So Quartus reads the netlist the i386 lock's
@@ -33,7 +35,7 @@ and once, on the post-map netlist (no placement), the logic levels to every
 register: Quartus's synthesis-only depth, to set beside Yosys's.
 
 Example:
-  QUARTUS_ROOTDIR=/home/deano/intelFPGA_lite/17.0/quartus \\
+  QUARTUS_ROOTDIR=/abs/<the Quartus install quartus.lock names>/quartus \\
     python3 scripts/quartus_fes_i386.py --yosys /abs/path/to/i386-locked/yosys
 
 Writes build/quartus/fes-i386/<fingerprint>/summary.json.
@@ -57,9 +59,10 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import benchmark_fes_i386 as benchmark
-from scripts.quartus_tools import locate_quartus, quartus_version_line
+from scripts.quartus_tools import load_quartus_lock, locate_quartus
 
 ROOT = Path(__file__).resolve().parents[1]
+QUARTUS_LOCK = 'cores/fes-pc386/quartus.lock'  # the lane that seals the CPU
 DEVICE = '5CSEBA6U23I7'
 NETLIST = 'read_verilog -sv {files}; hierarchy -top {top}; proc -norom; flatten; opt -purge; write_verilog -noattr {out}'
 PATHS = 20000  # endpoints TimeQuest reports, one worst path each
@@ -203,6 +206,11 @@ def parse_sta(text: str, target_mhz: float, stages, names: dict | None = None) -
     return {'fmax_mhz': fmax, 'stages': stages_out, 'critical_paths': critical}
 
 
+def fingerprint_tail(spike: str, target_mhz: float, version: str, dsp_in_logic: bool) -> bytes:
+    """The run settings the output fingerprint hashes after the sources and Yosys."""
+    return f'{spike}{target_mhz}{version}{dsp_in_logic}'.encode()
+
+
 def run(command: list[str], cwd: Path, log: Path, env: dict) -> None:
     with log.open('w') as stream:
         result = subprocess.run(command, cwd=cwd, env=env, stdout=stream, stderr=subprocess.STDOUT)
@@ -224,8 +232,8 @@ def main() -> int:
     args = parser.parse_args()
     seeds = args.seed or [1, 2, 3, 4]
     try:
-        quartus_root, quartus_sh = locate_quartus(os.environ.get('QUARTUS_ROOTDIR', ''), ROOT)
-        version = quartus_version_line(quartus_sh)
+        lock = load_quartus_lock(ROOT, QUARTUS_LOCK)
+        quartus_root, quartus_sh, version = locate_quartus(os.environ.get('QUARTUS_ROOTDIR', ''), ROOT, lock)
         bin_dir = quartus_sh.parent
         TOP = benchmark.SPIKES[args.spike][0]
         stages = benchmark.STAGES[args.spike]
@@ -234,7 +242,7 @@ def main() -> int:
         for path in sources:
             digest.update(path.read_bytes())
         digest.update(Path(args.yosys).read_bytes())
-        digest.update(f'{args.spike}{args.target_mhz}{version}{args.dsp_in_logic}'.encode())
+        digest.update(fingerprint_tail(args.spike, args.target_mhz, version, args.dsp_in_logic))
         output = (args.output or ROOT / 'build/quartus/fes-i386' / digest.hexdigest()[:12]).resolve()
         base = output / 'synthesis'
         reuse = args.reuse and (base / 'db').is_dir()

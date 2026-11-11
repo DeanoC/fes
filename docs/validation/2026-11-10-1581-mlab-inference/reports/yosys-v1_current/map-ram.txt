@@ -1,0 +1,6 @@
+RAM inference messages (Analysis & Synthesis):
+(none)
+
+No Analysis & Synthesis RAM Summary: no RAM was inferred.
+
+No registers were packed into an inferred megafunction.

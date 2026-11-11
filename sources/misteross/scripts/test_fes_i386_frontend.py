@@ -32,6 +32,10 @@ it is the same design. The front-end bench also synthesizes Q's aligner on
 its own, as the spikes do, and fails if a multiplier or carry cell appears:
 Q has no wide sum (DeanoC/yosys#59).
 
+Verilator is the i386 lock's, from its authenticated slot in the shared
+toolchain cache (scripts/i386_verilator.py): pass --cache-root or set
+FES_TOOLCHAIN_CACHE_ROOT.
+
 Example:
   python3 scripts/test_fes_i386_frontend.py --download
   python3 scripts/test_fes_i386_frontend.py --instructions 50000 --seed 7
@@ -52,6 +56,7 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import fes_i386_oracle as oracle
+from scripts import i386_verilator
 from scripts.benchmark_fes_i386 import SYNTHESIS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -69,6 +74,16 @@ BENCHES = {
                  'fes_i386_frontend'),
     'dag': ('dag_tb_top', DAG_RTL, ('dag_tb_top.sv',), 'dag_tb.cpp', False, 'dag_tb_top'),
 }
+
+
+# Verilator on a Yosys netlist: the lint warnings that Yosys's flat output
+# raises by construction (the $pmux cases overlap and the bit-blasted
+# assignments change width), and no case assertions. Yosys marks every $pmux
+# parallel_case, which Verilator 5.054 checks by default and 5.032 never did.
+# The one site that fired selects on equalities of the same field
+# (docs/validation/2026-11-10-1581-verilator-lock).
+NETLIST_WARNINGS = ['-Wno-CASEOVERLAP', '-Wno-UNDRIVEN', '-Wno-UNOPTFLAT', '-Wno-WIDTHEXPAND', '-Wno-WIDTHTRUNC',
+                    '--no-assert-case']
 
 
 class FrontendError(RuntimeError):
@@ -113,7 +128,7 @@ def qalign_synthesis(yosys: str) -> dict[str, int]:
             'carry_cells': types.count('MISTRAL_ALUT_ARITH')}
 
 
-def verilate(verilator: str, name: str, linked: list[Path], jobs: int, yosys: str | None = None) -> Path:
+def verilate(verilator: i386_verilator.LockedVerilator, name: str, linked: list[Path], jobs: int, yosys: str | None = None) -> Path:
     """Build one testbench, from the RTL or Yosys's netlist of it; return the executable."""
     top, rtl, sim, source, uses_oracle, synthesized = BENCHES[name]
     output = OUTPUT / (name + ('-netlist' if yosys else ''))
@@ -123,17 +138,18 @@ def verilate(verilator: str, name: str, linked: list[Path], jobs: int, yosys: st
         # a wrapper left as SystemVerilog still needs the package's types.
         design = [yosys_netlist(yosys, name, output), RTL / 'fes_i386_pkg.sv',
                   *(SIM / path for path in sim if Path(path).stem != synthesized)]
-        warnings = ['-Wno-fatal', '+define+FES_I386_NETLIST']
+        warnings = [*NETLIST_WARNINGS, '+define+FES_I386_NETLIST']
     else:
         design = [*(RTL / path for path in rtl), *(SIM / path for path in sim)]
         warnings = []
-    command = [verilator, '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', top,
+    command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', top,
                '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, '--Mdir', str(output),
                '-CFLAGS', f'-std=c++17 -O2 -I{SIM}', '-LDFLAGS', '-pthread',
                *map(str, design), str(SIM / source), *(map(str, linked) if uses_oracle else ())]
     log = output / 'build.log'
     with log.open('w') as stream:
-        result = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
+        result = subprocess.run(command, cwd=ROOT, env=verilator.environment(), stdout=stream,
+                                stderr=subprocess.STDOUT)
     if result.returncode:
         raise FrontendError(f'verilator failed for {name}; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
     return output / ('V' + top)
@@ -210,7 +226,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--download', action='store_true',
                         help='explicitly fetch the pinned oracle into ignored build/')
-    parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
+    i386_verilator.add_argument(parser)
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     parser.add_argument('--instructions', type=int, default=400000,
                         help='instructions per front-end stream (default 400000)')
@@ -222,15 +238,15 @@ def main() -> int:
         parser.error('--jobs must be between 1 and 64')
     if args.instructions < 1 or args.seed < 0:
         parser.error('--instructions must be positive and --seed nonnegative')
-    if os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT'):
-        parser.error('simulation does not use the shared compiler cache')
-    verilator = shutil.which(args.verilator)
-    if verilator is None:
-        print(f'selected Verilator not found: {args.verilator}', file=sys.stderr)
+    try:
+        verilator = i386_verilator.locate(args.cache_root)
+    except i386_verilator.VerilatorError as error:
+        print('i386 front-end check error:', error, file=sys.stderr)
         return 2
     env = dict(os.environ, FES_I386_THREADS=str(args.jobs),
                FES_I386_INSTRUCTIONS=str(args.instructions), FES_I386_SEED=str(args.seed))
-    report: dict[str, object] = {'instructions_per_stream': args.instructions, 'seed': args.seed}
+    report: dict[str, object] = {'verilator': verilator.record(), 'instructions_per_stream': args.instructions,
+                                 'seed': args.seed}
     exit_code = 0
     try:
         selected = args.bench or tuple(BENCHES)

@@ -44,6 +44,10 @@ architectural results (counts, faults, interrupts, divergences, every trace
 hash), leaving out only timing (cycles, memory waits, replays, the
 latency-free gaps, which a governed run does not check either).
 
+Verilator is the i386 lock's (cores/fes-common/rtl/i386/toolchain.lock), from
+its authenticated slot in the shared toolchain cache (scripts/i386_verilator.py):
+pass --cache-root or set FES_TOOLCHAIN_CACHE_ROOT. The report records it.
+
 Example:
   python3 scripts/test_fes_i386_lockstep.py --download
   python3 scripts/test_fes_i386_lockstep.py --opcode 00 --opcode D3.4 --random-programs 0
@@ -69,6 +73,7 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import fes_i386_oracle as oracle
+from scripts import i386_verilator
 from scripts import test_fes_i386_frontend as frontend
 from scripts import test_fes_i386_vectors as vectors
 
@@ -136,6 +141,9 @@ SCOPE: frozenset[str] = frozenset([
     # LAR, LSL and ARPL, #UD in real mode. The corpus has none of them
     # either.
     '0F00', '0F02', '0F03', '63',
+    # Phase 5's second slice: MOV to and from DR0-DR7. The corpus has none;
+    # the random programs and the debug-register cases run them.
+    '0F21', '0F23',
     # The ESC instructions with no 387. The corpus has none; the directed
     # no-387 cases run every form.
     *(f'{opcode:02X}' for opcode in range(0xD8, 0xE0)),
@@ -249,10 +257,14 @@ def run_pmode(testbench: str, env: dict) -> dict:
     each fault's vector and error code, EXT, a double fault and shutdown,
     INT n, INT3, INTO and IRET through interrupt and trap gates, far CALL and
     RETF, LLDT, LTR, SLDT, STR, LAR, LSL, VERR, VERW, ARPL, their #UD in real
-    mode, what stops as not built (a task gate, a return to an outer
-    privilege), and CS's limit: code that runs to it and past it, and near
+    mode, MOV DRn, far CALL through call gates and RETF to an outer
+    privilege, what stops as not built (a task gate), CS's limit: code that runs to it and past it, and near
     branches, calls and returns to its last byte and past it, in 16- and
-    32-bit code and in real mode under a limit CS kept."""
+    32-bit code and in real mode under a limit CS kept; and V86 mode: entry by
+    IRETD and its frame's checks, deliveries from it through each kind of gate
+    and CS, its IOPL-sensitive forms at IOPL 0 and 3, its #UD and #GP forms,
+    segment loads and far transfers, and IN, OUT, INS and OUTS through the I/O
+    permission bitmap (INS and OUTS at CPL 3 too)."""
     env = dict(env, FES_I386_MODE='pmode', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -263,7 +275,7 @@ def run_pmode(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PMODE_CASES = 147
+PMODE_CASES = 275
 
 
 def run_paging(testbench: str, env: dict) -> dict:
@@ -276,7 +288,7 @@ def run_paging(testbench: str, env: dict) -> dict:
     write's flush, self-modifying code through an alias, a wrong path that
     sets no A, #PF inside REP strings, frames past RAM and in the reset
     shadow, a #PF's double fault and shutdown, a MOV CR0 that sets PE and PG
-    together, and paging toggled around a far jump."""
+    together, paging toggled around a far jump, and #PF from V86 mode."""
     env = dict(env, FES_I386_MODE='paging', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -287,7 +299,7 @@ def run_paging(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PAGING_CASES = 54
+PAGING_CASES = 69
 
 
 def run_no387(testbench: str, env: dict) -> dict:
@@ -335,7 +347,7 @@ def label_fields(entries: list[dict], stem: str, test: vectors.MooTest) -> tuple
     return corpus, oracle_side
 
 
-def verilate(verilator: str, linked: list[Path], jobs: int, yosys: str | None,
+def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs: int, yosys: str | None,
              parameters: dict[str, int] | None = None) -> Path:
     """The testbench, with the CPU's parameters (-G) if any."""
     output = OUTPUT / (('netlist' if yosys else 'rtl')
@@ -343,33 +355,35 @@ def verilate(verilator: str, linked: list[Path], jobs: int, yosys: str | None,
     output.mkdir(parents=True, exist_ok=True)
     if yosys:
         design = [frontend.synthesize_netlist(yosys, [RTL / path for path in CPU_RTL], TOP, output)]
-        warnings = ['-Wno-fatal']
+        warnings = frontend.NETLIST_WARNINGS
     else:
         design = [RTL / path for path in CPU_RTL]
         warnings = []
-    command = [verilator, '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', TOP,
+    command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', TOP,
                '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, '--Mdir', str(output),
                *(f'-G{name}={value}' for name, value in sorted((parameters or {}).items())),
                '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{DDR_MODEL}', '-LDFLAGS', '-pthread',
                *map(str, design), str(SIM / 'lockstep_tb.cpp'), *map(str, linked)]
     log = output / 'build.log'
     with log.open('w') as stream:
-        result = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
+        result = subprocess.run(command, cwd=ROOT, env=verilator.environment(), stdout=stream,
+                                stderr=subprocess.STDOUT)
     if result.returncode:
         raise LockstepError(f'verilator failed; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
     return output / ('V' + TOP)
 
 
-def run_biu_dma_test(verilator: str, jobs: int) -> dict:
+def run_biu_dma_test(verilator: i386_verilator.LockedVerilator, jobs: int) -> dict:
     """Drive a DMA request and a committing store into the BIU on adjacent edges."""
     output = OUTPUT / 'biu'
     output.mkdir(parents=True, exist_ok=True)
-    command = [verilator, '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', 'fes_i386_biu',
-               '-Wall', '-Wno-fatal', '--Mdir', str(output), '-CFLAGS', '-std=c++17 -O2',
+    command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', 'fes_i386_biu',
+               '-Wall', '-Wno-UNUSEDSIGNAL', '--Mdir', str(output), '-CFLAGS', '-std=c++17 -O2',
                str(RTL / 'fes_i386_pkg.sv'), str(RTL / 'fes_i386_biu.sv'), str(SIM / 'biu_dma_tb.cpp')]
     log = output / 'build.log'
     with log.open('w') as stream:
-        result = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
+        result = subprocess.run(command, cwd=ROOT, env=verilator.environment(), stdout=stream,
+                                stderr=subprocess.STDOUT)
     if result.returncode:
         raise LockstepError(f'BIU DMA testbench build failed; see {log}\n'
                             + '\n'.join(log.read_text().splitlines()[-30:]))
@@ -503,7 +517,7 @@ def main() -> int:
     parser.add_argument('--pm-programs', type=int, default=500,
                         help='random programs per seed dense with protected-mode blocks (default 500)')
     parser.add_argument('--no-latency', action='store_true', help='no fetch latency in the corpus run')
-    parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
+    i386_verilator.add_argument(parser)
     parser.add_argument('--yosys', help="simulate this Yosys's netlist of the CPU instead of the RTL")
     parser.add_argument('--preset', type=int, default=0, choices=range(8),
                         help="the governor's preset, fes.pc386.machine word 0 (default 0, max)")
@@ -518,14 +532,13 @@ def main() -> int:
         parser.error('--same-as must be absolute')
     if args.random_programs < 0 or args.pm_programs < 0 or args.random_seeds < 1 or args.seed < 0:
         parser.error('--random-programs must be nonnegative, --random-seeds positive, --seed nonnegative')
-    if os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT'):
-        parser.error('simulation does not use the shared compiler cache')
-    verilator = shutil.which(args.verilator)
-    if verilator is None:
-        print(f'selected Verilator not found: {args.verilator}', file=sys.stderr)
+    try:
+        verilator = i386_verilator.locate(args.cache_root)
+    except i386_verilator.VerilatorError as error:
+        print('i386 lockstep error:', error, file=sys.stderr)
         return 2
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    report: dict[str, object] = {}
+    report: dict[str, object] = {'verilator': verilator.record()}
     try:
         entries = vectors.load_divergences()
         table = OUTPUT / 'divergences.txt'

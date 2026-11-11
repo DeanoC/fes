@@ -336,6 +336,9 @@ func (s Snapshot) HeaderHint() string {
 			return firmwarePickerHint(kind)
 		}
 		if s.Detail.Open {
+			if s.Detail.RemoveConfirm || s.Detail.RemoveAvailable {
+				return s.Detail.Hint
+			}
 			if s.Room.Destination.Confirm() == rooms.ConfirmImportFirmware {
 				return selectWord(kind) + " import  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
 			}

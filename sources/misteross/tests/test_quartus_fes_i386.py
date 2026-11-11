@@ -80,5 +80,14 @@ class ParseTest(unittest.TestCase):
                                                      'nodes': ['dut.frontend.align.start[1]|q', 'Mux1|combout']}])
 
 
+
+class QuartusLockTest(unittest.TestCase):
+    def test_the_fingerprint_text_is_unchanged_under_the_pc386_lock(self):
+        from scripts.quartus_tools import load_quartus_lock
+        self.assertEqual(oracle.QUARTUS_LOCK, 'cores/fes-pc386/quartus.lock')
+        lock = load_quartus_lock(oracle.ROOT, oracle.QUARTUS_LOCK)
+        self.assertEqual(oracle.fingerprint_tail('cpu', 100.0, lock.version, False),
+                         b'cpu100.0Version 17.0.2 Build 602 07/19/2017 SJ Lite EditionFalse')
+
 if __name__ == '__main__':
     unittest.main()

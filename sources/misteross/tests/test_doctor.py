@@ -253,6 +253,33 @@ class DoctorTests(unittest.TestCase):
             for check in group:
                 self.assertEqual(set(check), {"name", "status", "detail", "required"})
 
+    LOCKED_LINE = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
+
+    def _write_quartus_lock(self, lock_root, core, quartus_sh, version=None):
+        digest = hashlib.sha256(Path(quartus_sh).read_bytes()).hexdigest()
+        path = Path(lock_root) / "cores" / core / "quartus.lock"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "[quartus]\n"
+            'edition = "lite"\n'
+            f'version = "{version or self.LOCKED_LINE}"\n'
+            'device_family = "cyclonev"\n'
+            f'quartus_sh_sha256 = "{digest}"\n',
+            encoding="utf-8",
+        )
+        return path
+
+    def _quartus_check(self, quartus_root, lock_root=None):
+        environment = os.environ.copy()
+        environment["QUARTUS_ROOTDIR"] = str(quartus_root)
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(mock.patch.dict(os.environ, environment, clear=True))
+            if lock_root is not None:
+                stack.enter_context(
+                    mock.patch.object(doctor, "QUARTUS_LOCK_ROOT", Path(lock_root))
+                )
+            return doctor.quartus_checks()
+
     def test_quartus_is_only_inspected_with_explicit_root(self):
         quartus_root = Path(self.tempdir.name) / "quartus"
         quartus_bin = quartus_root / "bin"
@@ -260,7 +287,7 @@ class DoctorTests(unittest.TestCase):
         marker = Path(self.tempdir.name) / "quartus-called"
         self._shim(
             "quartus_sh",
-            f'printf "Quartus Prime 17.0.2\\n"; : > "{marker}"',
+            f'printf "{self.LOCKED_LINE}\\n"; : > "{marker}"',
         )
         quartus_executable = quartus_bin / "quartus_sh"
         quartus_executable.write_text(
@@ -279,25 +306,85 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(with_root.returncode, 0, with_root.stderr)
         self.assertTrue(marker.exists())
         oracle = json.loads(with_root.stdout)["optional_oracle"]
-        self.assertTrue(any("17.0.2" in check["detail"] for check in oracle))
+        # The shim prints the locked line but is not the locked quartus_sh.
+        self.assertEqual(oracle[0]["status"], "NOT READY")
+        self.assertIn("sha256", oracle[0]["detail"])
 
-    def test_quartus_root_with_nested_quartus_bin_is_inspected(self):
+    def test_real_quartus_locks_load_in_path_order(self):
+        locks = doctor._quartus_locks()
+
+        self.assertEqual(
+            [lock.path for lock in locks],
+            [
+                "cores/fes-coleco/quartus.lock",
+                "cores/fes-pc386/quartus.lock",
+                "cores/fes-pcxt/quartus.lock",
+                "cores/fes-ramtest/quartus.lock",
+                "cores/fes-sg1000/quartus.lock",
+                "cores/fes-sms/quartus.lock",
+                "cores/fes-zx81/quartus.lock",
+            ],
+        )
+        self.assertEqual({lock.version for lock in locks}, {self.LOCKED_LINE})
+
+    def test_quartus_matching_lock_is_ok_and_named(self):
         quartus_root = Path(self.tempdir.name) / "quartus-nested"
-        quartus_bin = quartus_root / "quartus" / "bin"
-        quartus_bin.mkdir(parents=True)
+        quartus_sh = quartus_root / "quartus" / "bin" / "quartus_sh"
         marker = Path(self.tempdir.name) / "nested-quartus-called"
         self._write_executable(
-            quartus_bin / "quartus_sh",
-            f'printf "Quartus Prime 17.0.2 Build 602\\n"; : > "{marker}"',
+            quartus_sh,
+            f'printf "Quartus Prime Shell\\n{self.LOCKED_LINE}\\n"; : > "{marker}"',
+        )
+        lock_root = Path(self.tempdir.name) / "locks"
+        self._write_quartus_lock(lock_root, "fes-b", quartus_sh)
+        self._write_quartus_lock(lock_root, "fes-a", quartus_sh)
+        self._write_quartus_lock(
+            lock_root,
+            "fes-c",
+            quartus_sh,
+            version="Version 18.1.0 Build 625 09/12/2018 SJ Lite Edition",
         )
 
-        result = self._run("--json", extra_env={"QUARTUS_ROOTDIR": str(quartus_root)})
+        checks = self._quartus_check(quartus_root, lock_root)
 
-        self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(marker.exists())
-        oracle = json.loads(result.stdout)["optional_oracle"]
-        self.assertEqual(oracle[0]["status"], "OK")
-        self.assertIn("17.0.2", oracle[0]["detail"])
+        self.assertEqual(len(checks), 1)
+        self.assertEqual(checks[0]["status"], "OK")
+        self.assertEqual(
+            checks[0]["detail"],
+            f"{quartus_sh} --version -> Quartus Prime Shell; matches "
+            "cores/fes-a/quartus.lock, cores/fes-b/quartus.lock",
+        )
+
+    def test_quartus_with_locked_line_but_other_digest_is_not_ready(self):
+        quartus_root = Path(self.tempdir.name) / "quartus-digest"
+        quartus_sh = quartus_root / "bin" / "quartus_sh"
+        self._write_executable(quartus_sh, f'printf "{self.LOCKED_LINE}\\n"')
+        lock_root = Path(self.tempdir.name) / "locks"
+        self._write_quartus_lock(lock_root, "fes-a", quartus_sh)
+        self._write_executable(quartus_sh, f'printf "{self.LOCKED_LINE}\\n"\n# changed')
+        digest = hashlib.sha256(quartus_sh.read_bytes()).hexdigest()
+
+        checks = self._quartus_check(quartus_root, lock_root)
+
+        self.assertEqual(checks[0]["status"], "NOT READY")
+        self.assertEqual(
+            checks[0]["detail"],
+            f"{quartus_sh} --version -> {self.LOCKED_LINE}; sha256 {digest}; "
+            "no quartus.lock matches both its --version line and quartus_sh sha256 "
+            f"(locked: {self.LOCKED_LINE})",
+        )
+
+    def test_quartus_version_must_be_a_whole_locked_line(self):
+        quartus_root = Path(self.tempdir.name) / "quartus-partial"
+        quartus_sh = quartus_root / "bin" / "quartus_sh"
+        self._write_executable(quartus_sh, f'printf "  {self.LOCKED_LINE} \\n"')
+        lock_root = Path(self.tempdir.name) / "locks"
+        self._write_quartus_lock(lock_root, "fes-a", quartus_sh)
+
+        checks = self._quartus_check(quartus_root, lock_root)
+
+        self.assertEqual(checks[0]["status"], "NOT READY")
 
     def test_quartus_wrong_version_is_not_ready(self):
         quartus_root = Path(self.tempdir.name) / "quartus-wrong"
@@ -305,7 +392,7 @@ class DoctorTests(unittest.TestCase):
         quartus_bin.mkdir(parents=True)
         self._write_executable(
             quartus_bin / "quartus_sh",
-            'printf "Quartus Prime 17.0.0 Build 595\\n"',
+            'printf "Version 17.0.0 Build 595 04/25/2017 SJ Lite Edition\\n"',
         )
 
         result = self._run("--json", extra_env={"QUARTUS_ROOTDIR": str(quartus_root)})
@@ -313,7 +400,44 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         oracle = json.loads(result.stdout)["optional_oracle"]
         self.assertEqual(oracle[0]["status"], "NOT READY")
-        self.assertIn("17.0.2", oracle[0]["detail"])
+        # Golden text: the real locks name main's Quartus Prime Lite 17.0.2.
+        self.assertTrue(
+            oracle[0]["detail"].endswith(f"(locked: {self.LOCKED_LINE})"), oracle[0]["detail"]
+        )
+
+    def test_quartus_without_locks_is_not_ready(self):
+        quartus_root = Path(self.tempdir.name) / "quartus-nolock"
+        marker = Path(self.tempdir.name) / "nolock-called"
+        self._write_executable(
+            quartus_root / "bin" / "quartus_sh",
+            f'printf "{self.LOCKED_LINE}\\n"; : > "{marker}"',
+        )
+        lock_root = Path(self.tempdir.name) / "empty-locks"
+        lock_root.mkdir()
+
+        checks = self._quartus_check(quartus_root, lock_root)
+
+        self.assertFalse(marker.exists())
+        self.assertEqual(checks[0]["status"], "NOT READY")
+        self.assertIn("cores/*/quartus.lock", checks[0]["detail"])
+
+    def test_quartus_malformed_lock_is_an_error(self):
+        quartus_root = Path(self.tempdir.name) / "quartus-badlock"
+        marker = Path(self.tempdir.name) / "badlock-called"
+        self._write_executable(
+            quartus_root / "bin" / "quartus_sh",
+            f'printf "{self.LOCKED_LINE}\\n"; : > "{marker}"',
+        )
+        lock_root = Path(self.tempdir.name) / "bad-locks"
+        bad = lock_root / "cores" / "fes-a" / "quartus.lock"
+        bad.parent.mkdir(parents=True)
+        bad.write_text('[quartus]\nversion = "17.0.2"\n', encoding="utf-8")
+
+        checks = self._quartus_check(quartus_root, lock_root)
+
+        self.assertFalse(marker.exists())
+        self.assertEqual(checks[0]["status"], "ERROR")
+        self.assertIn("cores/fes-a/quartus.lock", checks[0]["detail"])
 
     def test_quartus_symlinked_root_is_not_ready_without_following_it(self):
         real_root = Path(self.tempdir.name) / "quartus-real"

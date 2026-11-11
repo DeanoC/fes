@@ -1,0 +1,27 @@
+{
+  "kit": "B",
+  "date": "2026-11-10",
+  "baseline": {"image": "cd284ca38fcefb9705580622266166fbee936b7b9e065b523aee7fc9049886d4", "software": "7ddb0bfb"},
+  "preset": 0,
+  "packages": {
+    "main": {"package": "3429af98dce5a7b7e981e6920353bcfa38ad9701fc510d4af75c6108c6c88f58", "seal": "slice 2's final seal (#1615)"},
+    "slice3": {"package": "7b29b38ab7d4b79104c0d1026581558a63d5da97104fb9d4fd62a886905bf896", "commit": "7837d3955", "build_id": "2179950d3bc8cfc0c08b65132e782293"}
+  },
+  "benchmarks": {
+    "doom_demo3": {"main": {"gametics": 3863, "realtics": 3377, "fps": 40.04}, "slice3": {"gametics": 3863, "realtics": 3378, "fps": 40.03}},
+    "3dbench": {"main": 76.9, "slice3": 76.9},
+    "pcpbench": {"main": 13.3, "slice3": 13.3},
+    "topbench": {"main": 307, "slice3": 301}
+  },
+  "runs": {
+    "m1": {"package": "main", "part": "bench", "titles": {"tcircle": "main menu"}},
+    "k1": {"package": "slice3", "part": "bench", "titles": {"tcircle": "main menu"}},
+    "k2": {"package": "slice3", "part": "games1", "titles": {"wolf3d": "E1L1", "ultima6": "introduction plays", "doom": "not run: the load lost the agent's pipe (BrokenPipeError), FogCast's Home room then failed its draw budget"}},
+    "k3": {"package": "slice3", "part": "usnf", "titles": {"usnf": "CD-ROM check: Could not find US Navy Fighters CD"}},
+    "k4": {"package": "slice3", "part": "jwolf3d", "drive": "real-jemm 5c0b4b06", "titles": {"wolf3d": "JEMM386 v5.85 loaded; E1L1"}},
+    "k5": {"package": "slice3", "part": "jdoom", "drive": "pmode-jemm e6d7b613", "titles": {"doom": "JEMM386 loaded; title and demos play (VCPI)"}},
+    "k6": {"package": "slice3", "part": "jmoo", "drive": "xms-jemm 1bc8d4af", "titles": {"moo": "back at the prompt after 'reconfigure hardware options'"}},
+    "k7": {"package": "slice3", "part": "pinfan", "drive": "real a6977555", "titles": {"pinfan": "eXceed 1.10 runs; its sound setup reaches 'Sound configuration complete', waiting for a key"}},
+    "k8": {"package": "slice3", "part": "doom", "drive": "pmode b4be6e29", "titles": {"doom": "title and demos play"}}
+  }
+}

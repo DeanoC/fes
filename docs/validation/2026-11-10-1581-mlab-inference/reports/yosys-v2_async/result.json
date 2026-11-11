@@ -1,0 +1,63 @@
+{
+  "build": "yosys-v2_async",
+  "mlab_inferred": true,
+  "ram_type": "MLAB",
+  "ram_messages": [
+    "Info (19000): Inferred 1 megafunctions from design logic",
+    "Info (276038): Inferred altdpram megafunction from the following logic: \"ras_stack_rtl_0\""
+  ],
+  "alms": "77 / 41,910 ( < 1 % )",
+  "alms_needed": 77,
+  "registers": 153,
+  "block_memory_bits": "0 / 5,662,720 ( 0 % )",
+  "mlab_memory_bits": "512",
+  "memory_aluts": "32",
+  "memory_alms": "20",
+  "fmax": {
+    "Slow 1100mV 100C Model": {
+      "fmax_mhz": 276.85,
+      "restricted_fmax_mhz": 276.85
+    },
+    "Slow 1100mV -40C Model": {
+      "fmax_mhz": 279.17,
+      "restricted_fmax_mhz": 279.17
+    }
+  },
+  "worst_slack_ns": {
+    "Slow 1100mV 100C Model Setup 'clk'": 12.664,
+    "Slow 1100mV 100C Model Hold 'clk'": 0.269,
+    "Slow 1100mV 100C Model Minimum Pulse Width 'clk'": 6.987,
+    "Slow 1100mV -40C Model Setup 'clk'": 12.694,
+    "Slow 1100mV -40C Model Hold 'clk'": 0.247,
+    "Slow 1100mV -40C Model Minimum Pulse Width 'clk'": 6.903,
+    "Fast 1100mV 100C Model Setup 'clk'": 14.237,
+    "Fast 1100mV 100C Model Hold 'clk'": 0.146,
+    "Fast 1100mV 100C Model Minimum Pulse Width 'clk'": 7.123,
+    "Fast 1100mV -40C Model Setup 'clk'": 14.516,
+    "Fast 1100mV -40C Model Hold 'clk'": 0.125,
+    "Fast 1100mV -40C Model Minimum Pulse Width 'clk'": 7.117
+  },
+  "timing_met": true,
+  "entities": [
+    [
+      "Compilation Hierarchy Node",
+      "ALMs needed [=A-B+C]",
+      "[A] ALMs used in final placement"
+    ],
+    [
+      "|s1d_harness",
+      "76.5 (55.5)",
+      "93.5 (72.4)"
+    ],
+    [
+      "|altdpram:ras_stack_rtl_0|",
+      "21.0 (0.0)",
+      "21.1 (0.0)"
+    ],
+    [
+      "|dpram_8no1:auto_generated|",
+      "21.0 (21.0)",
+      "21.1 (21.1)"
+    ]
+  ]
+}

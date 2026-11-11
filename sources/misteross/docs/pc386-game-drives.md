@@ -43,16 +43,22 @@ Each title's folders go into their own `C:` directory. A drive is at most 260
 cylinders: 128 MiB, the most the ATA disk window holds
 (`fes.media.ata-disk`, and the kit agent's limit).
 
-Built 2026-11-07 from the manifest with SHA-256 `c6a61087a324026c…`:
+Built 2026-11-10 from the manifest with SHA-256 `c6a61087a324026c…` on the
+games image `e69194ec9a8fd5b2…` (UMBM `/I=C800-DFFF`):
 
 | Drive | SHA-256 | Size | Titles | Free | What |
 | --- | --- | --- | --- | --- | --- |
-| `real` | `719dfedb147a62a608aa5c596854981ff35f536e87953ae93019b6ec858595a6` | 260 cylinders, 128.0 MiB | keen4, prince, civ, jill, stunts, vikings, starcon2, wolf3d, ultima6, jazz, pinfan, wacky, hocus, monkey2, wc1, falcon3, xwing | 25.4 MiB | Real-mode and 386 real-mode games, EMS users and sound setups |
-| `xms` | `e83b8185ba9e146d335178c5cc14d7ddedc69bc93ae88f51cad92f19f7ec9002` | 260 cylinders, 128.0 MiB | ultima7, strike, uw1, frontier, moo, darklands, tnt | 12.5 MiB | XMS and unreal-mode games and other own 386 memory managers |
-| `pmode` | `75d909ca0c86730df6928a2a2da1a72cc6ffaa731f42700c0cf03187ae35fbb2` | 260 cylinders, 128.0 MiB | doom, heretic, duke3d, descent, raptor, omf, rott, machines, hotspeed | 16.1 MiB | DOS/4GW and other CPL-0 DOS extenders |
-| `dpmi` | `48ab29728f39cf86310c12b1f3a15d50b7420ce763d6062e85047c96ae4af147` | 260 cylinders, 128.0 MiB | jumpbump, angband, nethack, tyrian, cyberdogs, tcircle, screamer, tv | 31.1 MiB | Ring-3 DPMI hosts (CWSDPMI, Borland RTM and 32RTM) and FPU users |
-| `fpu` | `152c83df9eec440c49941659b7151b7b1a0347f47efc4bd2906b3a728f8c6577` | 260 cylinders, 128.0 MiB | gp2, usnf, u7si | 26.8 MiB | FPU-required simulations, and Serpent Isle (an acceptance game) where there is room |
-| `bench` | `90f9b17550cace11fc2e2a875c45f9baf1e6f49cdbca3f73abca1df0077b06d8` | 80 cylinders, 39.4 MiB | 3dbench, pcpbench, topbench, speedsys, chkcpu, cachechk, si8, chrisb, quakes | 18.9 MiB | Non-game programs: PhilsComputerLab's DOS Benchmark Pack v1.5 tools |
+| `real` | `a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c` | 260 cylinders, 128.0 MiB | keen4, prince, civ, jill, stunts, vikings, starcon2, wolf3d, ultima6, jazz, pinfan, wacky, hocus, monkey2, wc1, falcon3, xwing | 25.4 MiB | Real-mode and 386 real-mode games, EMS users and sound setups |
+| `xms` | `5053c36bf89cf7973ec3dfe7817ddadec92c96243f08179e3aa26edc39affcba` | 260 cylinders, 128.0 MiB | ultima7, strike, uw1, frontier, moo, darklands, tnt | 12.4 MiB | XMS and unreal-mode games and other own 386 memory managers |
+| `pmode` | `b4be6e29297168abb31ca536829cbd8a42e9fb05093d16793932ea51d72814b3` | 260 cylinders, 128.0 MiB | doom, heretic, duke3d, descent, raptor, omf, rott, machines, hotspeed | 16.1 MiB | DOS/4GW and other CPL-0 DOS extenders |
+| `dpmi` | `9e6ae3a36cdad878ea91c3af04377527ce8c94264df9eeef61e9f784d3326dbd` | 260 cylinders, 128.0 MiB | jumpbump, angband, nethack, tyrian, cyberdogs, tcircle, screamer, tv | 31.1 MiB | Ring-3 DPMI hosts (CWSDPMI, Borland RTM and 32RTM) and FPU users |
+| `fpu` | `ff322ddc211a9ead665e6cf95417e7a0086f310dce1345da7cabe46b37781c5b` | 260 cylinders, 128.0 MiB | gp2, usnf, u7si | 26.8 MiB | FPU-required simulations, and Serpent Isle (an acceptance game) where there is room |
+| `bench` | `e69a4cb6462a79c47f55adef11d41c652481017dd541ae980cf27beed5e4823c` | 80 cylinders, 39.4 MiB | 3dbench, pcpbench, topbench, speedsys, chkcpu, cachechk, si8, chrisb, quakes | 18.9 MiB | Non-game programs: PhilsComputerLab's DOS Benchmark Pack v1.5 tools |
+
+Drives built before #1556 ask UMBM for C800-EFFF, which overlaps the EMS page
+frame at E000h. FreeDOS then aborts with "no RAM found at E000" and DOS gets no
+upper memory, so Ultima VII refuses to start. Rebuild such a drive on the current
+games image. The census record below ran on the 7 Nov builds.
 
 The census record,
 [2026-11-07 pc386 compatibility census](../../../docs/validation/2026-11-07-pc386-compat-census/summary.md),
@@ -112,7 +118,7 @@ prompt, and sends its keys, timed from the launch:
 ```sh
 python3 scripts/sim_fes_pc386.py --suite game --game wolf3d                 # the store's drive that holds wolf3d
 python3 scripts/sim_fes_pc386.py --suite game --game doom --drive pmode     # by name
-python3 scripts/sim_fes_pc386.py --suite game --game doom --drive 70713edb  # by SHA-256 prefix
+python3 scripts/sim_fes_pc386.py --suite game --game doom --drive b4be6e29  # by SHA-256 prefix
 python3 scripts/sim_fes_pc386.py --suite game --game duke3d --cpu rtl --rtl-at-prompt --frame-every 1
 ```
 

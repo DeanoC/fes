@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: MIT
 """i386 front end, D's address operands and AG: the check runner, the timing
 harness's report reading, and (when the tools are present) the RTL itself. No
-network access. Verilator cases skip without Verilator; the oracle-backed run
+network access. Verilator cases skip unless FES_TOOLCHAIN_CACHE_ROOT names a
+cache holding the i386 lock's Verilator slot; the oracle-backed run
 skips unless the pinned Bochs checkout is already in build/; the netlist run
 needs a Yosys named by FES_I386_YOSYS."""
 import json
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import sys
@@ -13,9 +15,23 @@ import unittest
 
 from scripts import benchmark_fes_i386 as benchmark
 from scripts import fes_i386_oracle as oracle
+from scripts import i386_verilator
 from scripts import test_fes_i386_frontend as frontend
 
-VERILATOR = shutil.which(os.environ.get('VERILATOR', 'verilator'))
+
+def _locked_verilator():
+    """The i386 lock's Verilator when FES_TOOLCHAIN_CACHE_ROOT names a cache
+    holding its slot, else None and why."""
+    cache = os.environ.get(i386_verilator.CACHE_ENVIRONMENT)
+    if not cache:
+        return None, f'{i386_verilator.CACHE_ENVIRONMENT} is not set (the i386 lock\'s Verilator slot)'
+    try:
+        return i386_verilator.locate(Path(cache)), ''
+    except i386_verilator.VerilatorError as error:
+        return None, str(error)
+
+
+VERILATOR, VERILATOR_ABSENT = _locked_verilator()
 YOSYS = shutil.which(os.environ.get('FES_I386_YOSYS', '')) if os.environ.get('FES_I386_YOSYS') else None
 BOCHS = (oracle.BUILD / ('bochs-' + oracle.BOCHS_REVISION) / '.git').is_dir()
 
@@ -207,18 +223,24 @@ class SynthesisTest(unittest.TestCase):
         self.assertEqual((synthesis['multipliers'], synthesis['carry_cells']), (0, 0), synthesis)
 
 
-@unittest.skipUnless(VERILATOR, 'Verilator not installed')
+@unittest.skipUnless(VERILATOR, VERILATOR_ABSENT)
 class RtlTest(unittest.TestCase):
     def test_spikes_and_their_rtl_lint(self):
         for spike, (top, _) in benchmark.SPIKES.items():
             with self.subTest(spike=spike):
                 files = [str(benchmark.ROOT / path) for path in benchmark.sources(spike)]
-                result = subprocess.run([VERILATOR, '--lint-only', '-Wall', '-Wno-UNUSEDSIGNAL', '--top-module', top,
-                                         *files], capture_output=True, text=True)
+                # The spike envelopes give their registers power-up values
+                # (spike_stimulus.sv's initial reset, spike_rom.sv's
+                # declaration initializer), which Verilator 5.054 lints as
+                # MULTIDRIVEN and PROCASSINIT; 5.032 did not.
+                result = subprocess.run([str(VERILATOR.path), '--lint-only', '-Wall', '-Wno-UNUSEDSIGNAL',
+                                         '-Wno-MULTIDRIVEN', '-Wno-PROCASSINIT', '--top-module', top, *files],
+                                        env=VERILATOR.environment(),
+                                        capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_d_and_ag_follow_the_late_operand_rule(self):
-        env = dict(os.environ, VERILATOR=VERILATOR, FES_I386_DAG_ROUNDS='2')
+        env = dict(os.environ, FES_I386_DAG_ROUNDS='2')
         result = subprocess.run([sys.executable, 'scripts/test_fes_i386_frontend.py', '--bench', 'dag', '--jobs', '2'],
                                 cwd=frontend.ROOT, env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -228,17 +250,17 @@ class RtlTest(unittest.TestCase):
 
     @unittest.skipUnless(YOSYS, 'FES_I386_YOSYS names no Yosys')
     def test_yosys_reads_d_and_ag_as_simulated(self):
-        env = dict(os.environ, VERILATOR=VERILATOR, FES_I386_DAG_ROUNDS='2')
+        env = dict(os.environ, FES_I386_DAG_ROUNDS='2')
         result = subprocess.run([sys.executable, 'scripts/test_fes_i386_frontend.py', '--bench', 'dag', '--jobs', '2',
                                  '--yosys', YOSYS], cwd=frontend.ROOT, env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('; 0 failures', result.stdout)
 
 
-@unittest.skipUnless(VERILATOR and BOCHS, 'Verilator or the pinned Bochs checkout is absent')
+@unittest.skipUnless(VERILATOR and BOCHS, VERILATOR_ABSENT or 'the pinned Bochs checkout is absent')
 class OracleFrontEndTest(unittest.TestCase):
     def test_length_decoders_and_front_end_match_the_oracle(self):
-        env = dict(os.environ, VERILATOR=VERILATOR)
+        env = dict(os.environ)
         jobs = str(min(os.cpu_count() or 2, 8))
         result = subprocess.run([sys.executable, 'scripts/test_fes_i386_frontend.py', '--bench', 'lendec',
                                  '--bench', 'frontend', '--instructions', '4000', '--jobs', jobs],

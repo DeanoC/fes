@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -24,6 +25,12 @@ type RemoteCoreEntryOrigin struct {
 }
 
 var remoteSourceIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{0,127}$`)
+
+// RemoteCoreEntryID identifies an already validated source/title pair.
+func RemoteCoreEntryID(sourceID, sourceGameID string) string {
+	digest := sha256.Sum256([]byte("remote-core-entry\x00" + sourceID + "\x00" + sourceGameID))
+	return fmt.Sprintf("fpga-remote-%x", digest)
+}
 
 func validRemoteCoreOrigin(origin RemoteCoreEntryOrigin) bool {
 	return remoteSourceIDPattern.MatchString(origin.SourceID) && len(origin.SourceGameID) <= 256 &&

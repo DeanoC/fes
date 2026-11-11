@@ -1,0 +1,1 @@
+module h_mod_int_12_dollar (output logic [7:0] v, output logic ok); localparam int D = 12; localparam int S = 16; localparam SH = $signed(D - S - 2) < 0 ? 0 : D - S - 3; assign v = 8'(SH); assign ok = (SH == 0); endmodule

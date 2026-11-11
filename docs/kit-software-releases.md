@@ -382,8 +382,47 @@ candidate recovery preserves that selection, the host, base image, core library
 and unrelated deployments. Bundle updates must preserve
 compatible configuration and persistent data formats for prior recovery.
 
+On images with catalog transition support, a changed-bundle activation also
+checkpoints the kit host's `state/library.sqlite3` after the complete old group
+has stopped. The software operation's ID, generation and prior/candidate bundle
+IDs, the bundle actually running before the stop, and persistent-storage identity
+bind that checkpoint. The image's authenticated, retained factory
+`fogcast-kit catalog` helper validates SQLite and includes committed WAL data
+without migrating the catalog. This is local supervisor work under its existing
+worker lock and maintenance reservation.
+
+When selecting a bundle with a recorded earlier catalog, the supervisor restores
+that catalog only if the live schema is newer. It first retains the complete live
+catalog, including newly imported firmware and media. A failed candidate recovers
+the checkpoint of that exact operation; a failed return to an older bundle
+therefore recovers the newer catalog it just retained. A missing, corrupt or
+foreign required record blocks the transition. A known factory helper's supported schema
+prevents a stale trial-boot checkpoint from replacing a readable current catalog.
+Recovery also checks that the resolved recovery bundle can read its checkpoint.
+Same-format activations preserve current data, and ordinary host, UI and
+service-group restarts do not restore checkpoints.
+
+Activation also requires the selected host to serve its own revision through the
+health API. Target readiness may remain false while software maintenance is held.
+An older host that cannot reopen the catalog cannot be accepted merely because
+the runtime, agent and launcher are running.
+
+Only the main catalog is restored. Configuration, library settings, favorites,
+history, package files and media-cache remain current. Checkpoints and retained
+catalogs remain beneath the software control directory's `catalog-transitions/`;
+they are not automatically merged into a later catalog or deleted. These offline
+helper commands require the host to be stopped and are not an online backup API.
+
+The transition hook is part of the OS-owned supervisor. A userspace bundle alone
+cannot add it to an older image. Install and qualify an image containing the
+repaired supervisor before relying on catalog rollback. Before restoring an older
+image, restore its compatible bundle and catalog through the repaired supervisor,
+following the software-before-image order below.
+
 During an appliance trial boot, the supervisor uses the factory software group
-and preserves the data gate. After confirmation it reconciles persistent storage
+and preserves the data gate. The trial host stays on temporary storage across
+independent restarts, including after confirmation mounts persistent storage.
+After confirmation the supervisor reconciles persistent storage
 and queued intent. A selection the confirmed image cannot run stays held back
 while the factory software keeps running. A pending OS image change defers
 software activation. Software installation joins appliance-operation draining;

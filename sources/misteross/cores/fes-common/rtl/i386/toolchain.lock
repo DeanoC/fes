@@ -18,9 +18,9 @@ rationale = "DeanoC/nextpnr main commit bd7a1c0d (squash merge of #292), the new
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
-commit = "5e4151e3e0c8ecf11d9845a93495f37a31b2f667"
+commit = "bbb60a403932a9f695cb6ff001ceb73de6ad9234"
 order = 40
-rationale = "Current lint and simulation baseline sampled 2026-08-26."
+rationale = "Verilator v5.054 (2026-11-01), the newest tagged release. The i386 simulations (scripts/i386_verilator.py) take Verilator from this lock's slot only. The previous pin, 5e4151e3, was an untagged 5.051 development snapshot that stopped with an internal error at fes_i386_seq.sv:317, so lockstep evidence had used the system 5.020 and 5.032. v5.054 builds the RTL lockstep testbench with no warnings and gives the same report as system 5.032, trace hashes included (#1648). v5.054 checks case assertions by default, which 5.032 did not; the Yosys netlist builds pass --no-assert-case because Yosys marks every $pmux parallel_case."
 
 [tool.openfpgaloader]
 repo = "https://github.com/trabucayre/openFPGALoader.git"

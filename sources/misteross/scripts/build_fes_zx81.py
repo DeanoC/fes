@@ -23,9 +23,10 @@ from scripts import source_provenance, zx81_rom
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package
 from scripts.quartus_tools import (
+    QuartusLock,
     RebuildError,
+    load_quartus_lock,
     locate_quartus,
-    quartus_version_line,
 )
 
 
@@ -34,6 +35,7 @@ TARGET = "5CSEBA6U23I7"
 TOP = "top"
 OUTPUT_RELATIVE = Path("build/fes-zx81-quartus")
 RECIPE = "scripts/build_fes_zx81.py"
+QUARTUS_LOCK = "cores/fes-zx81/quartus.lock"
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
 QSF_PINS = "cores/fes-zx81/constraints.qsf"
 SDC = "cores/fes-zx81/clocks.sdc"
@@ -75,6 +77,7 @@ PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
     "scripts/source_provenance.py",
     "scripts/quartus_tools.py",
+    QUARTUS_LOCK,
     "scripts/zx81_rom.py",
     ABI_DEFINITION,
     "cores/fes-zx81/generated/fes_simple_computer.vh",
@@ -150,14 +153,32 @@ def require_clean_source(root: Path) -> tuple[str, str]:
         raise BuildError(str(exc)) from exc
 
 
-def authenticate_quartus(root: Path) -> tuple[Path, Path, str, str]:
+def quartus_lock(root: Path) -> QuartusLock:
+    """The Quartus this core's quartus.lock names; every version string derives from it."""
     try:
-        quartus_root, quartus_sh = locate_quartus(os.environ.get("QUARTUS_ROOTDIR", ""), root)
-        version = quartus_version_line(quartus_sh)
+        return load_quartus_lock(root, QUARTUS_LOCK)
+    except RebuildError as exc:
+        raise BuildError(str(exc)) from exc
+
+
+def toolchain_label(lock: QuartusLock, identity: str) -> str:
+    return f"{lock.product} ({identity})"
+
+
+def project_qpf(lock: QuartusLock) -> str:
+    return f'QUARTUS_VERSION = "{lock.series}";\nPROJECT_REVISION = "{TOP}";\n'
+
+
+def authenticate_quartus(root: Path) -> tuple[Path, Path, str, str]:
+    lock = quartus_lock(root)
+    try:
+        quartus_root, quartus_sh, version = locate_quartus(
+            os.environ.get("QUARTUS_ROOTDIR", ""), root, lock
+        )
     except RebuildError as exc:
         raise BuildError(str(exc)) from exc
     digest = _sha256(quartus_sh)
-    identity = f"version=17.0.2; sha256={digest}"
+    identity = f"version={lock.release}; sha256={digest}"
     return quartus_root, quartus_sh, version, identity
 
 
@@ -179,7 +200,7 @@ def create_build_record(
         "dependencies": {},
         "tools": dict(tool_identities),
         "parameters": {
-            "compiler": "quartus-17.0.2",
+            "compiler": quartus_lock(root).compiler,
             "device": TARGET,
             "audio_clock_hz": 12_288_000,
             "pixel_clock_hz": 74_250_000,
@@ -213,7 +234,7 @@ def project_qsf(root: Path, project: Path, build_id: str) -> str:
         "set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL",
         "set_global_assignment -name SEED 1",
         "set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005",
-        'set_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"',
+        f'set_global_assignment -name LAST_QUARTUS_VERSION "{quartus_lock(root).qsf_version}"',
         f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-zx81/generated"',
         f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-zx81/rtl"',
         f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-common/generated"',
@@ -239,10 +260,7 @@ def write_project(root: Path, output: Path, build_id: str, rom: bytes) -> Path:
     if project.exists():
         shutil.rmtree(project)
     project.mkdir(parents=True)
-    (project / "top.qpf").write_text(
-        'QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n',
-        encoding="utf-8",
-    )
+    (project / "top.qpf").write_text(project_qpf(quartus_lock(root)), encoding="utf-8")
     (project / "top.qsf").write_text(project_qsf(root, project, build_id), encoding="utf-8")
     (project / ROM_MIF).write_text(zx81_rom.mif_text(rom), encoding="utf-8")
     return project
@@ -426,7 +444,7 @@ def build(
         _run_quartus(quartus_sh, quartus_root, project, output / "quartus.log")
         (output / "quartus-version.log").write_text(version + "\n", encoding="utf-8")
         evidence = validate_quartus_evidence(output, project)
-        toolchain = f"Quartus Prime Lite 17.0.2 ({identity})"
+        toolchain = toolchain_label(quartus_lock(root), identity)
         evidence.update(
             {
                 "build_id": build_id,

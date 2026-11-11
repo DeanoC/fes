@@ -1,0 +1,103 @@
+{
+  "command": [
+    "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+    "--bios",
+    "build/firmware/pc386/pc386-bios.bin",
+    "--vgabios",
+    "build/firmware/pc386/pc386-vgabios.bin",
+    "--disk",
+    "/home/deano/fes-drives/pc386/48ab29728f39cf86310c12b1f3a15d50b7420ce763d6062e85047c96ae4af147.img",
+    "--limit-seconds",
+    "20.0",
+    "--type",
+    "cd \\angband|angband|",
+    "--keys-after-type",
+    "1",
+    "--wav",
+    "build/sim/fes-pc386/game-angband-rtl/angband.wav",
+    "--opl2-log",
+    "build/sim/fes-pc386/game-angband-rtl/angband-opl2.log",
+    "--frames",
+    "build/sim/fes-pc386/game-angband-rtl/frames",
+    "--keys",
+    "6.0:|",
+    "--keys",
+    "9.0: ",
+    "--keys",
+    "12.0:|",
+    "--frame-every",
+    "4.0",
+    "--rtl-at-prompt",
+    "1",
+    "--cpu",
+    "rtl",
+    "--game-launch",
+    "1"
+  ],
+  "end": {
+    "reason": "limit",
+    "steps": 1308365855,
+    "cycles": 2000000049,
+    "seconds": 20.0
+  },
+  "rtl_counters": {
+    "retired": 1134172563,
+    "oracle_steps": 52997755,
+    "protected_steps": 52996142,
+    "parked_clocks": 12457009,
+    "tf_retired": 0,
+    "pe_retired": 59681,
+    "pe_entries": 1613,
+    "vga_loads": 5765,
+    "replays": 1685,
+    "port0_reads": 2199460,
+    "port0_writes": 27542008,
+    "smc_stores": 53,
+    "smc_addresses": 1,
+    "smc_executed": 0,
+    "smc_restarts": 430796,
+    "store_page_mismatches": 0
+  },
+  "gaps": [
+    {
+      "kind": "unimplemented",
+      "stem": "EA",
+      "name": null,
+      "built": true,
+      "stops": 1613,
+      "sites": 1,
+      "executed": 1613,
+      "first_site": "0018:00002c37",
+      "first_cycle": 696752352
+    }
+  ],
+  "first_stops": [
+    {
+      "kind": "unimplemented",
+      "cycle": 696752352,
+      "site": "0018:00002c37",
+      "bytes": "ea00006000",
+      "stem": "EA"
+    },
+    {
+      "kind": "unimplemented",
+      "cycle": 696755028,
+      "site": "0018:00002c37",
+      "bytes": "ea00006000",
+      "stem": "EA"
+    },
+    {
+      "kind": "unimplemented",
+      "cycle": 696757369,
+      "site": "0018:00002c37",
+      "bytes": "ea00006000",
+      "stem": "EA"
+    }
+  ],
+  "failures": [
+    "RTL oracle_steps=52997755, expected 0: the game handed instructions to the oracle",
+    "RTL protected_steps=52996142, expected 0: the game handed instructions to the oracle",
+    "the RTL stopped or stalled in the game: unimplemented EA at 0018:00002c37; unimplemented EA at 0018:00002c37; unimplemented EA at 0018:00002c37; unimplemented EA (1613 stops)"
+  ],
+  "note": "trimmed from build/sim/fes-pc386/game-angband-rtl/report.json (screens, frames and I/O tables dropped)"
+}

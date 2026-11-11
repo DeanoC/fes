@@ -1,0 +1,103 @@
+{
+  "command": [
+    "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+    "--bios",
+    "build/firmware/pc386/pc386-bios.bin",
+    "--vgabios",
+    "build/firmware/pc386/pc386-vgabios.bin",
+    "--disk",
+    "/home/deano/fes-drives/pc386/48ab29728f39cf86310c12b1f3a15d50b7420ce763d6062e85047c96ae4af147.img",
+    "--limit-seconds",
+    "20.0",
+    "--type",
+    "cd \\jumpbump|jumpbump|",
+    "--keys-after-type",
+    "1",
+    "--wav",
+    "build/sim/fes-pc386/game-jumpbump-rtl/jumpbump.wav",
+    "--opl2-log",
+    "build/sim/fes-pc386/game-jumpbump-rtl/jumpbump-opl2.log",
+    "--frames",
+    "build/sim/fes-pc386/game-jumpbump-rtl/frames",
+    "--keys",
+    "6.0:|",
+    "--keys",
+    "9.0: ",
+    "--keys",
+    "12.0:|",
+    "--frame-every",
+    "4.0",
+    "--rtl-at-prompt",
+    "1",
+    "--cpu",
+    "rtl",
+    "--game-launch",
+    "1"
+  ],
+  "end": {
+    "reason": "limit",
+    "steps": 485778805,
+    "cycles": 2000000003,
+    "seconds": 20.0
+  },
+  "rtl_counters": {
+    "retired": 65696761,
+    "oracle_steps": 298886507,
+    "protected_steps": 298884571,
+    "parked_clocks": 12420405,
+    "tf_retired": 0,
+    "pe_retired": 71669,
+    "pe_entries": 1937,
+    "vga_loads": 3842,
+    "replays": 1985,
+    "port0_reads": 2031602,
+    "port0_writes": 25325568,
+    "smc_stores": 56,
+    "smc_addresses": 1,
+    "smc_executed": 0,
+    "smc_restarts": 461485,
+    "store_page_mismatches": 0
+  },
+  "gaps": [
+    {
+      "kind": "unimplemented",
+      "stem": "EA",
+      "name": null,
+      "built": true,
+      "stops": 1937,
+      "sites": 1,
+      "executed": 1937,
+      "first_site": "0018:00002be7",
+      "first_cycle": 677583534
+    }
+  ],
+  "first_stops": [
+    {
+      "kind": "unimplemented",
+      "cycle": 677583534,
+      "site": "0018:00002be7",
+      "bytes": "ea00006000",
+      "stem": "EA"
+    },
+    {
+      "kind": "unimplemented",
+      "cycle": 677586315,
+      "site": "0018:00002be7",
+      "bytes": "ea00006000",
+      "stem": "EA"
+    },
+    {
+      "kind": "unimplemented",
+      "cycle": 677588722,
+      "site": "0018:00002be7",
+      "bytes": "ea00006000",
+      "stem": "EA"
+    }
+  ],
+  "failures": [
+    "RTL oracle_steps=298886507, expected 0: the game handed instructions to the oracle",
+    "RTL protected_steps=298884571, expected 0: the game handed instructions to the oracle",
+    "the RTL stopped or stalled in the game: unimplemented EA at 0018:00002be7; unimplemented EA at 0018:00002be7; unimplemented EA at 0018:00002be7; unimplemented EA (1937 stops)"
+  ],
+  "note": "trimmed from build/sim/fes-pc386/game-jumpbump-rtl/report.json (screens, frames and I/O tables dropped)"
+}

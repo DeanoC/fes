@@ -221,3 +221,43 @@ func TestSelectedKitSMSPackage(t *testing.T) {
 		})
 	}
 }
+
+func TestKitHostEntrySkipsRetainedUserTitle(t *testing.T) {
+	ctx := context.Background()
+	s, pkg := catalogServiceFixture(t)
+	s.kitHost = true
+	s.kitHostInventory = func(context.Context) ([]localcores.Core, error) {
+		return []localcores.Core{{CoreID: "fes.pong", PackageID: pkg}}, nil
+	}
+	inspection, err := s.installedCoreInspection(ctx, pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	title := kitHostEntryTitle(inspection.Descriptor.Core.Name, "fes.pong")
+	store := s.catalog.(*catalog.Store)
+	user, err := store.CreateCoreEntry(ctx, title, "fes.pong", pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	media, _, err := store.ImportCoreMedia(ctx, []byte{0, 10, 0x76})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.InsertZX81Save(ctx, user.GameID, media.MediaID, "Retained save"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RemoveCoreEntry(ctx, user.GameID); err != nil {
+		t.Fatal(err)
+	}
+	helper, err := s.KitHostEntry(ctx, pkg, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if helper.GameID == user.GameID || helper.Title != title+" (2)" {
+		t.Fatalf("helper claimed retained title: %+v", helper)
+	}
+	saves, err := store.ListZX81Saves(ctx, user.GameID)
+	if err != nil || len(saves) != 1 || saves[0].Name != "Retained save" {
+		t.Fatalf("retained saves=%+v err=%v", saves, err)
+	}
+}

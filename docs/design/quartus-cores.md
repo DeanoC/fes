@@ -298,14 +298,14 @@ same meaning. Nothing is relaxed because the toolchain is different.
 
 ## Pinning
 
-Open. The OSS lanes pin by commit in `toolchain.lock` (`[tool.yosys]`,
-`[tool.mistral]`, `[tool.nextpnr]`). Quartus is a binary install, so the pin is
-a version string plus an installer or install-tree digest where one exists.
-Proposal: a `quartus.lock` per core, or one shared `sources/misteross/quartus.lock`
-with per-core overrides, mirroring the OSS split between the repository-level
-lock and per-core locks. As with the OSS locks, a core's Quartus version is its
-last known good, not a required pin: a newer Quartus that closes timing moves
-the lock forward, and the seal and timing checks still apply.
+Per core (#1581 S6a). The OSS lanes pin by commit in `toolchain.lock` (`[tool.yosys]`,
+`[tool.mistral]`, `[tool.nextpnr]`). Quartus is a binary install, so each Quartus
+core has a `cores/<core>/quartus.lock` naming the edition, the exact `--version`
+line, the device family and the `quartus_sh` sha256 (`scripts/quartus_tools.py`),
+plus a `[yosys]` pin where its Yosys has no `toolchain.lock` of its own. Every
+version string a producer writes is derived from it. As with the OSS locks, a core's
+Quartus version is its last known good, not a required pin: a newer Quartus that
+closes timing moves the lock forward, and the seal and timing checks still apply.
 
 ## CI
 

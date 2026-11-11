@@ -1,0 +1,16 @@
+== command
+/usr/bin/verilator --cc --exe --build -j 8 --top-module sms_machine -Wno-fatal -CFLAGS -DFES_SMS_OSS=1 -DFES_COLECO_OSS=1 --Mdir s1c/z80/suite-vo-fes-notiming/obj s1c/z80/machine/simulation/modelsim/sms_machine.vo --no-timing docs/validation/2026-11-10-1581-netlist-sim/cyclonev_mac_fes.v docs/validation/2026-11-10-1581-netlist-sim/cyclonev_io_ibuf_fes.v docs/validation/2026-11-10-1581-netlist-sim/dffeas_fes.v -v sim_lib/cyclonev_atoms.v -v sim_lib/altera_lnsim.sv -v sim_lib/altera_primitives.v sources/misteross/cores/fes-sms/sim/machine_tb.cpp
+== build (tail)
+- Verilator: Built from 36.043 MB sources in 231 modules, into 62.742 MB in 170 C++ files needing 0.166 MB
+- Verilator: Walltime 72.163 s (elab=1.433, cvt=25.701, bld=43.977); cpu 25.230 s on 8 threads; alloced 1123.184 MB
+real	1m12.383s
+user	2m32.136s
+build exit 0
+warnings: 243
+== run
+FES SMS machine: cartridge base byte
+
+real	0m5.138s
+user	0m3.902s
+sys	0m0.008s
+run exit 1

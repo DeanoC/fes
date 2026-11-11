@@ -1,4 +1,4 @@
-"""The TimeQuest 17.0.2 summary rows the Quartus sealers' timing gates read."""
+"""The TimeQuest summary rows the Quartus sealers' timing gates read."""
 
 SLACK_ROW = "; Worst-case Slack                                            ; 1.559 ; 0.094 ; 6.508    ; 0.454   ; 1.122               ;"
 TNS_ROW = "; Design-wide TNS                                             ; 0.0   ; 0.0   ; 0.0      ; 0.0     ; 0.0                 ;"

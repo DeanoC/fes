@@ -14,6 +14,7 @@ import (
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/kitpackages"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
+	"github.com/DeanoC/FogCast/libraryuser"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/targetclient"
 	"github.com/DeanoC/misteross/expansion"
@@ -263,6 +264,160 @@ func (s *Service) CoreEntry(ctx context.Context, id string) (catalog.CoreEntry, 
 	result, err := store.CoreEntry(ctx, id)
 	return result, mapCoreEntryError(err)
 }
+
+type removableCoreEntryCatalog interface {
+	RemoveCoreEntry(context.Context, string) error
+	RetainedCoreEntry(context.Context, string) (bool, error)
+	CoreEntry(context.Context, string) (catalog.CoreEntry, error)
+}
+
+// checkRemovalTargets observes configured kits even when the host has just
+// restarted and has not yet reconstructed its local play records. The caller
+// holds lifecycle admission, so this host cannot launch during the check.
+func (s *Service) checkRemovalTargets(parent context.Context, gameID string) error {
+	var targets []serviceClient
+	s.targetMu.Lock()
+	for _, cfg := range s.targets {
+		if !cfg.Enabled {
+			continue
+		}
+		client, ok := s.targetClientLocked(cfg.Name)
+		if !ok {
+			s.targetMu.Unlock()
+			return canonicalError(protocol.CodeMiSTerUnavailable, nil)
+		}
+		targets = append(targets, client)
+	}
+	s.targetMu.Unlock()
+	timeout := s.requestTimeout
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(parent, timeout)
+	defer cancel()
+	for _, target := range targets {
+		status, err := target.Status(ctx)
+		if err != nil {
+			return canonicalError(protocol.CodeMiSTerUnavailable, nil)
+		}
+		if validRecoveredDevelopmentStatus(status) && status.CorePackage == nil {
+			continue
+		}
+		if status.State == protocol.StateActive && status.Recovery == "" && status.LastError == nil &&
+			status.GameID != nil && protocol.ValidateGameID(*status.GameID) == nil && *status.GameID != gameID {
+			continue
+		}
+		return canonicalError(protocol.CodeBusy, nil)
+	}
+	return nil
+}
+
+func (s *Service) localCoreEntryID(ctx context.Context, title, coreID, packageID string) (string, error) {
+	if store, ok := s.catalog.(interface {
+		ResolveCoreEntryID(context.Context, string, string, string) (string, error)
+	}); ok {
+		return store.ResolveCoreEntryID(ctx, title, coreID, packageID)
+	}
+	return catalog.CoreEntryID(title, coreID, packageID)
+}
+
+// RemoveCoreEntry removes a library title, retaining saved media and core data.
+// A retry also completes user-state cleanup if the earlier cleanup failed.
+func (s *Service) RemoveCoreEntry(ctx context.Context, gameID string) error {
+	if protocol.ValidateGameID(gameID) != nil {
+		return canonicalError(protocol.CodeBadRequest, nil)
+	}
+	store, ok := s.catalog.(removableCoreEntryCatalog)
+	if !ok {
+		return canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
+	if s.users == nil {
+		return canonicalError(protocol.CodeInternal, nil)
+	}
+	release, err := s.acquireLifecycle(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	if _, err := store.CoreEntry(ctx, gameID); err != nil {
+		if !errors.Is(err, catalog.ErrCoreEntryNotFound) {
+			return mapCoreEntryError(err)
+		}
+		retained, err := store.RetainedCoreEntry(ctx, gameID)
+		if err != nil {
+			return mapCoreEntryError(err)
+		}
+		if !retained {
+			return mapCoreEntryError(catalog.ErrCoreEntryNotFound)
+		}
+	}
+	s.executionMu.Lock()
+	busy := s.activeGameID == gameID
+	for _, play := range s.plays {
+		if play.gameID == gameID {
+			busy = true
+			break
+		}
+	}
+	s.executionMu.Unlock()
+	if busy {
+		return canonicalError(protocol.CodeBusy, nil)
+	}
+	if err := s.checkRemovalTargets(ctx, gameID); err != nil {
+		return err
+	}
+	err = s.users.MutateGame(ctx, func(m *libraryuser.GameMutation) error {
+		if err := store.RemoveCoreEntry(ctx, gameID); err != nil {
+			return mapCoreEntryError(err)
+		}
+		if err := m.RemoveGameReferences(ctx, gameID); err != nil {
+			return canonicalError(protocol.CodeInternal, safeContextError(err))
+		}
+		return nil
+	})
+	if err != nil {
+		var apiErr *protocol.APIError
+		if errors.As(err, &apiErr) {
+			return err
+		}
+		return canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	return nil
+}
+
+// cleanupRetainedEntry clears an interrupted removal before the same stable
+// identity is made visible again.
+func (s *Service) cleanupRetainedEntry(ctx context.Context, gameID string) error {
+	store, ok := s.catalog.(interface {
+		RetainedCoreEntry(context.Context, string) (bool, error)
+	})
+	if !ok {
+		return nil
+	}
+	if s.users == nil {
+		retained, err := store.RetainedCoreEntry(ctx, gameID)
+		if err != nil {
+			return mapCoreEntryError(err)
+		}
+		if retained {
+			return canonicalError(protocol.CodeInternal, nil)
+		}
+		return nil
+	}
+	if err := s.users.MutateGame(ctx, func(m *libraryuser.GameMutation) error {
+		retained, err := store.RetainedCoreEntry(ctx, gameID)
+		if err != nil {
+			return err
+		}
+		if retained {
+			return m.RemoveGameReferences(ctx, gameID)
+		}
+		return nil
+	}); err != nil {
+		return canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	return nil
+}
 func (s *Service) CreateCoreEntry(parent context.Context, title, id string) (catalog.CoreEntry, error) {
 	return s.writeCoreEntry(parent, "", title, "", id, "", "", false, nil)
 }
@@ -335,6 +490,15 @@ func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected
 	}
 	var entry catalog.CoreEntry
 	if gameID == "" {
+		if kit == nil {
+			newID, err := s.localCoreEntryID(ctx, title, check.Descriptor.Core.ID, id)
+			if err != nil {
+				return catalog.CoreEntry{}, mapCoreEntryError(err)
+			}
+			if err := s.cleanupRetainedEntry(ctx, newID); err != nil {
+				return catalog.CoreEntry{}, err
+			}
+		}
 		if kit != nil {
 			kitStore, ok := s.catalog.(interface {
 				CreateKitHostEntry(context.Context, string, string, string, string, string, catalog.KitHostEntryIdentity) (catalog.CoreEntry, error)

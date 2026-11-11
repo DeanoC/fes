@@ -1,0 +1,281 @@
+{
+  "post": [
+    {
+      "code": "00",
+      "cycle": 11744
+    },
+    {
+      "code": "21",
+      "cycle": 2471326
+    },
+    {
+      "code": "31",
+      "cycle": 2571522
+    },
+    {
+      "code": "41",
+      "cycle": 2971722
+    },
+    {
+      "code": "71",
+      "cycle": 3074326
+    },
+    {
+      "code": "77",
+      "cycle": 3174352
+    }
+  ],
+  "debug": [
+    {
+      "port": "402",
+      "text": "BIOS BUILD DATE: 11/03/26"
+    },
+    {
+      "port": "500",
+      "text": "VGABios ID: vgabios.c 2026-08-07"
+    },
+    {
+      "port": "402",
+      "text": "ata0-0: PCHS=260/16/63 translation=none LCHS=260/16/63"
+    },
+    {
+      "port": "402",
+      "text": "IDE time out"
+    },
+    {
+      "port": "402",
+      "text": "Booting from 0000:7c00"
+    },
+    {
+      "port": "402",
+      "text": "*** int 15h function AH=bf not yet supported!"
+    }
+  ],
+  "panic": [],
+  "io": {
+    "isa16 2": {
+      "38": 704256
+    },
+    "isa8 1": {
+      "74": 92286
+    },
+    "vga-in 1": {
+      "6": 6
+    },
+    "vga-out 1": {
+      "4": 823
+    },
+    "vga-out 2": {
+      "7": 4297
+    }
+  },
+  "io_wait": {},
+  "inta": {
+    "146": 177
+  },
+  "screen": [
+    " 1 - Games: DOS in conventional memory (default; Ultima VII needs this)         ",
+    " 2 - More memory: DOS=HIGH, not for Ultima VII                                  ",
+    "Select from Menu [012], or press [ENTER]- 0 - Singlestepping (F8) is: OFF       ",
+    "Note: BUFFERS will be in HMA or low RAM, not in UMB                             ",
+    "UMBM: Upper Memory Blocks: C800-EFFF - no RAM found at E000. Aborted!           ",
+    "UMBs unavailable!                                                               ",
+    "HimemX 3.38 [11/21/22] (c) 1995 Till Gerken, 2001-2006 tom ehlert               ",
+    "Interface : XMS 3.00 80386 4G                                                   ",
+    "Fast A20 method used                                                            ",
+    "                                                                                ",
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+    "                                                                                ",
+    "CuteMouse v2.1 beta4 [FreeDOS]                                                  ",
+    "Installed at PS/2 port                                                          ",
+    "                                                                                ",
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+    "C:\\>cd \\usnfgold                                                                ",
+    "C:\\USNFGOLD>usnf                                                                ",
+    "U.S. NAVY FIGHTERS (MARINE FIGHTERS), v1.2                                      ",
+    "Copyright 1994, 1995 Electronic Arts                                            ",
+    "Could not find US Navy Fighters CD.                                             ",
+    "                                                                                ",
+    "Please ensure that the US Navy Fighters CD is in the                            ",
+    "drive, and that you have loaded the MSCDEX driver.                              ",
+    "C:\\USNFGOLD>                                                                    "
+  ],
+  "end": {
+    "reason": "prompt",
+    "steps": 199664166,
+    "cycles": 745014109,
+    "seconds": 7.45
+  },
+  "prompt_cycle": 500014102,
+  "cpu_resets": 0,
+  "snaps": {
+    "final": {
+      "width": 720,
+      "height": 400,
+      "file": "/home/deano/fes/.claude/worktrees/i386-phase5-dr-callgate-aef1aa/sources/misteross/build/sim/fes-pc386/game-usnf-rtl/frames/final.ppm"
+    }
+  },
+  "present": {},
+  "vga": {
+    "frames": 10538,
+    "scanout_underflows": 0,
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "frames_shown": 0,
+    "port1_commands": 34249488,
+    "port2_commands": 4791476
+  },
+  "marks": {},
+  "game_launch": {
+    "seconds": 6.8,
+    "evidence": "frame"
+  },
+  "opl2": {
+    "samples": 370390,
+    "exact": 370390,
+    "nonzero": 0,
+    "writes": 0
+  },
+  "opl2_mismatch": null,
+  "audio_samples": 357606,
+  "sb": {
+    "resets": 0,
+    "commands": 0,
+    "dma": 0,
+    "irqs": 0
+  },
+  "mouse": {
+    "sent": 0,
+    "scheduled": 0
+  },
+  "ems": {
+    "pages": 128,
+    "reads": 4,
+    "writes": 3
+  },
+  "rtl_begin": {
+    "cycle": 500014109,
+    "flips": 2
+  },
+  "rtl": {
+    "stops": [],
+    "pmode": [],
+    "gaps": [],
+    "smc": [
+      {
+        "event": "store",
+        "cycle": 556122549,
+        "site": "118f:00002bae",
+        "instruction": "0001449e",
+        "address": "000144c0"
+      },
+      {
+        "event": "store",
+        "cycle": 660452020,
+        "site": "029e:000004ba",
+        "instruction": "00002e9a",
+        "address": "00003083"
+      },
+      {
+        "event": "store",
+        "cycle": 663407672,
+        "site": "1247:000020f9",
+        "instruction": "00014569",
+        "address": "0001457a"
+      },
+      {
+        "event": "store",
+        "cycle": 688563755,
+        "site": "1247:0000149d",
+        "instruction": "0001390d",
+        "address": "0001391d"
+      },
+      {
+        "event": "store",
+        "cycle": 690325723,
+        "site": "029e:000004db",
+        "instruction": "00002ebb",
+        "address": "0000308d"
+      },
+      {
+        "event": "store",
+        "cycle": 690326385,
+        "site": "029e:0000030e",
+        "instruction": "00002cee",
+        "address": "00003082"
+      }
+    ],
+    "notes": [],
+    "counters": {
+      "retired": 78491184,
+      "oracle_steps": 0,
+      "protected_steps": 0,
+      "parked_clocks": 10858977,
+      "tf_retired": 0,
+      "pe_retired": 568281,
+      "pe_entries": 318,
+      "vga_loads": 15368,
+      "replays": 7878,
+      "port0_reads": 1938776,
+      "port0_writes": 30159790,
+      "smc_stores": 106,
+      "smc_addresses": 6,
+      "smc_executed": 0,
+      "smc_restarts": 542594,
+      "store_page_mismatches": 0
+    }
+  },
+  "command": [
+    "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+    "--bios",
+    "build/firmware/pc386/pc386-bios.bin",
+    "--vgabios",
+    "build/firmware/pc386/pc386-vgabios.bin",
+    "--disk",
+    "/home/deano/fes-drives/pc386/152c83df9eec440c49941659b7151b7b1a0347f47efc4bd2906b3a728f8c6577.img",
+    "--limit-seconds",
+    "20.0",
+    "--type",
+    "cd \\usnfgold|usnf|",
+    "--keys-after-type",
+    "1",
+    "--wav",
+    "build/sim/fes-pc386/game-usnf-rtl/usnf.wav",
+    "--opl2-log",
+    "build/sim/fes-pc386/game-usnf-rtl/usnf-opl2.log",
+    "--frames",
+    "build/sim/fes-pc386/game-usnf-rtl/frames",
+    "--keys",
+    "6.0:|",
+    "--keys",
+    "9.0: ",
+    "--keys",
+    "12.0:|",
+    "--frame-every",
+    "4.0",
+    "--rtl-at-prompt",
+    "1",
+    "--cpu",
+    "rtl",
+    "--game-launch",
+    "1"
+  ],
+  "exit": 0,
+  "failures": [],
+  "game": {
+    "name": "usnf",
+    "drive": "fpu",
+    "drive_sha256": "152c83df9eec440c49941659b7151b7b1a0347f47efc4bd2906b3a728f8c6577",
+    "title": "U.S. Navy Fighters (Gold) (1995)",
+    "bucket": "fpu",
+    "zip_sha256": "55b77d09a9463ea914884ad3979aea695d2ddb0452e588beff9ad1847f8b09f0"
+  },
+  "work": "/home/deano/fes/.claude/worktrees/i386-phase5-dr-callgate-aef1aa/sources/misteross/build/sim/fes-pc386/game-usnf-rtl",
+  "audio": {
+    "hz": 0.0,
+    "rms": 0.0,
+    "peak": 0,
+    "samples": 357606
+  }
+}

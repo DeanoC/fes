@@ -292,7 +292,7 @@ module fes_i386_ex (
                    | ({32{exc.r_setcc}} & {31'b0, cc_true})
                    | ({32{exc.r_lahf}} & {24'b0, flags_in[7:6], 1'b0, flags_in[4], 1'b0, flags_in[2], 1'b1, flags_in[0]})
                    | ({32{exc.r_sign}} & {32{exc.src8 ? y[7] : exc.src16 ? y[15] : y[31]}})
-                   | ({32{exc.r_flags}} & {15'b0, exc.f_clrpm && u.imm[4], flags_in[15:0]})
+                   | ({32{exc.r_flags}} & {14'b0, exc.f_clrpm && flags_in[17], exc.f_clrpm && u.imm[4], flags_in[15:0]})
                    | ({32{exc.r_zf}} & (u.imm[0] ? y : x))
                    | ({32{exc.r_scan}} & (scan_z ? af : {27'b0, scan_n}))
                    | ({32{exc.r_bcd}} & {16'b0, bcd_r})

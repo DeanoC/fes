@@ -1,0 +1,37 @@
+Analysis & Synthesis Status : Successful - Tue Nov 10 08:42:46 2026
+Quartus Prime Version : 17.0.2 Build 602 07/19/2017 SJ Lite Edition
+Revision Name : sms_machine
+Top-level Entity Name : sms_machine
+Family : Cyclone V
+Logic utilization (in ALMs) : N/A
+Total registers : 1442
+Total pins : 229
+Total virtual pins : 0
+Total block memory bits : 989,696
+Total DSP Blocks : 1
+Total HSSI RX PCSs : 0
+Total HSSI PMA RX Deserializers : 0
+Total HSSI TX PCSs : 0
+Total HSSI PMA TX Serializers : 0
+Total PLLs : 0
+Total DLLs : 0
+
+z80/machine/map.log:Info: Quartus Prime Analysis & Synthesis was successful. 0 errors, 67 warnings
+z80/machine/map.log:    Info: Peak virtual memory: 1115 megabytes
+z80/machine/map.log:    Info: Elapsed time: 00:00:36
+z80/machine/eda.log:Info: Quartus Prime EDA Netlist Writer was successful. 0 errors, 0 warnings
+z80/machine/eda.log:    Info: Peak virtual memory: 1110 megabytes
+z80/machine/eda.log:    Info: Elapsed time: 00:00:01
+
+ 
+487640 sms_machine_modelsim.xrf
+35 sms_machine.sft
+5465093 sms_machine.vo
+
+cell census:
+   3283 cyclonev_lcell_comb 
+   1442 dffeas 
+    146 cyclonev_ram_block 
+    146 cyclonev_io_obuf 
+     83 cyclonev_io_ibuf 
+      1 cyclonev_mac 

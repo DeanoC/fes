@@ -730,8 +730,8 @@ the ITLB's page is the linear one with A20M applied.
     or DMA write's line with the lines of the instructions in Q, DC and D to
     EX, and of the blocks the front end holds or loads next.
 - **Return stack (built, [Phase 4 slice 3](#slices)):** 16 linear return
-  addresses in flip-flops and a top pointer, in the front end
-  (`fes_i386_ras`). It predicts near RET (C3h, C2h).
+  addresses in one MLAB (one write port, asynchronous read; #1581 S2) and a
+  top pointer, in the front end (`fes_i386_ras`). It predicts near RET (C3h, C2h).
   - **Entries.** The BTB keeps an entry for every near RET and CALL rel, with
     a bit for each. WB allocates a RET's entry as it does a taken branch's,
     always taken.
@@ -2112,7 +2112,7 @@ eight replicated hit sets.
   on. INT3 and INTO are not IOPL-sensitive. POPF at IOPL 3 leaves IOPL
   alone. HLT, LMSW, CLTS and MOV to or from CRn and DRn raise #GP(0). LAR,
   LSL, VERR, VERW, ARPL and the 0F00 group raise #UD.
-- **LOCK below IOPL 3, open.** The 386 manual
+- **LOCK below IOPL 3, #GP(0).** The 386 manual
   ([§15.4](https://www.css.csail.mit.edu/6.858/2013/readings/i386/s15_04.htm))
   also lists LOCK as IOPL-sensitive in V86, a #GP(0) below IOPL 3. Bochs,
   the lockstep's oracle, does not trap it, and Intel's later manuals drop
@@ -2167,8 +2167,8 @@ eight replicated hit sets.
 - **Checks.** #TS, #NP, #GP and #SS with the 386's selectors and order. A
   fault after the commit point is raised in the new task.
 - **Microcode.** About 80–100 uops, with the 16-bit TSS as a size variant.
-  The ROM is 256 words of 101 bits with 197 used, so it grows to 512 words,
-  three more M10K blocks. New uop forms: a TSS field access through TR's
+  Slice 2 grew the ROM to 512 words (277 used) for the call gates' routine,
+  so slice 4's routine needs no more M10K. New uop forms: a TSS field access through TR's
   base (a system access), a CR3 load inside a routine, and a busy-bit store
   like LTR's.
 - **Speed.** The busiest title switches about 290 times a simulated second
@@ -2287,7 +2287,27 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
    the stack switch from the TSS, the parameter copy, and RETF to the outer
    privilege. CWSDPMI's first stop on the RTL is its MOV DRn
    (0018:2B93), before its task switches; Jump 'n Bump, Angband and U.S.
-   Navy Fighters return to CPL 0 through a call gate.
+   Navy Fighters return to CPL 0 through a call gate. Built
+   ([record](../../../docs/validation/2026-11-09-i386-phase5-dr-callgate/summary.md);
+   the RTL README's [Protected mode](../cores/fes-common/rtl/i386/README.md#protected-mode)).
+   As built, where it differs from the plan above:
+   - **Call gates to the same privilege too.** Phase 2's third slice built
+     none, so this slice builds both: far CALL through 286 and 386 gates to
+     the same privilege (pushes at the gate's size, wrapping as PUSH does)
+     and to an inner one. Far JMP through a call gate stays not built: no
+     census title uses one.
+   - **The parameter copy repeats two ROM words**, a load from the old stack
+     and a store to the new one, by stepping the ROM address back; with no
+     microbranch elsewhere, a far CALL's routine holds the direct, the
+     same-privilege and the inner forms as conditional uops, and the direct
+     CALL and the same-privilege RETF end at their own jumps. The ROM grows
+     to 512 words now, not in slice 4.
+   - **Bochs's order on the inner path**: the stores to the new stack, then
+     the gate's offset against its CS's limit, so a fault there leaves the
+     stores written, as Bochs's do.
+   - **#DB from GD** has RF clear in its frame (Bochs clears RF before each
+     instruction), and a DR7 write does not flush the TLBs (Bochs's does; a
+     386's does not).
    - **Lockstep.** Every DRn at CPL 0 and 3, and GD with its clear on #DB;
      call gates of each size with parameter counts 0 and above, #TS and
      #SS on the stack switch, and RETF across privileges.
@@ -2296,7 +2316,42 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
 3. **V86.** Entry by IRETD, the V86 delivery to CPL 0, IOPL-sensitive
    faults, #GP(vector × 8 + 2), I/O through the bitmap in V86 and INS and
    OUTS through it at CPL > IOPL too, V86 segment
-   loads.
+   loads. Built
+   ([record](../../../docs/validation/2026-11-10-i386-phase5-v86/summary.md);
+   the RTL README's [V86 mode](../cores/fes-common/rtl/i386/README.md#v86-mode)).
+   As built, where it differs from the plan above:
+   - **IRETD branches at its descriptor read.** Bochs reads EFLAGS', CS's
+     and EIP's slots before it tests VM, and so does the RTL; the word that
+     reads CS's descriptor, which waits for T0 and so finds T4 settled,
+     branches for an IRETD into V86 mode: it and the word after it become
+     NOPs and the ROM goes on at the V86 return, so a protected-mode IRET
+     pays nothing. The return probes the four slots below GS's before its
+     first segment load, since Bochs reads all six before writing any.
+   - **The delivery from V86 mode is its own routine,** picked in DC from
+     VM, rather than conditional uops in `pint`, so no other delivery pays
+     for its four extra pushes. VM changes only at the far jump, so a fault
+     part way through the delivery is delivered from V86 mode again, as
+     Bochs's.
+   - **LOCK below IOPL 3 raises #GP(0),** after LOCK's own #UD, as the
+     plan above set out.
+   - **POPF below IOPL 3 raises #GP(0) before its pop,** as PUSHF, INT n
+     and IRET do. The 386's microcode tests IOPL at each one's V86 entry
+     before its stack access (reenigne/x86_microcode,
+     `80386/microcode_notes.txt`, 7F7-7FF: `7FB if (CPL <= IOPL) goto
+     "p POPFd"`, the read at 803). Bochs pops POPF first, so a stack fault
+     comes first there, and it runs a LOCK: for both the lockstep's oracle
+     steps CLI in the opcode's place, which Bochs faults the same way, and
+     compares the deliveries (its `v86-iopl-gp` rule).
+   - **A delivery's entry is not checked against CS's limit.** IRETD in V86
+     mode loads EIP whole, as Bochs does, so EIP may pass FFFFh until the
+     next fetch faults; the entry of that #GP fetches nothing.
+   - **The bitmap's read is #1552's routine** (`iochk`: three ROM uops and
+     the access), not one load uop with the access; INS and OUTS run it too
+     (`iostr`) before the string starts.
+   - **Speed.** An INT from V86 mode through a DPL-3 gate and the IRETD
+     back take 166 clocks on the latency bench, IN through the bitmap 26.
+     About 50 uops make the round trip, most of them ROM words at two
+     clocks each.
    - **Lockstep.** test386.asm's V86 cases; INT n at IOPL 0 and 3 through
      gates of DPL 0 and 3; IRETD to V86 from CPL 0 and its refusal from
      elsewhere; I/O at each bitmap edge; an interrupt and a #PF taken from

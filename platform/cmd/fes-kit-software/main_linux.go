@@ -306,6 +306,7 @@ func supervise(ctx context.Context, output io.Writer) error {
 	server := &kitsoftware.Server{BaseIdentity: baseIdentity, Factory: &factory}
 	var store *software.Store
 	var admission *kitsoftware.UnixAdmission
+	var catalogs *kitsoftware.CatalogTransitions
 	controller := &kitsoftware.ProcessController{RunDir: runDir, BaseIdentity: baseIdentity, Output: output}
 	server.Controller = controller
 	controller.Resolve = func(ctx context.Context, id string) (string, error) {
@@ -342,7 +343,14 @@ func supervise(ctx context.Context, output io.Writer) error {
 			nextRepo.Close()
 			return err
 		}
+		nextCatalogs, err := kitsoftware.OpenCatalogTransitions(nextRepo,
+			"/run/fogcast/fesdata3/fogcast-host", factory.ID, controller.Resolve)
+		if err != nil {
+			_ = nextRepo.Close()
+			return fmt.Errorf("open kit catalog transitions: %w", err)
+		}
 		store, repo, admission = next, nextRepo, nextAdmission
+		catalogs = nextCatalogs
 		server.Store = store
 		server.Repository = repo
 		server.RestartLedger = nextRestartLedger
@@ -407,7 +415,15 @@ func supervise(ctx context.Context, output io.Writer) error {
 		}
 	}()
 	defer restartHTTPServer.Close()
-	engine := &kitsoftware.Engine{Repository: repo, Controller: controller, Admission: admission, Gate: gate, Factory: factory.ID}
+	newEngine := func() *kitsoftware.Engine {
+		engine := &kitsoftware.Engine{Repository: repo, Controller: controller, Admission: admission,
+			Gate: gate, Factory: factory.ID, ActivationReady: controller.ActivationReady}
+		if catalogs != nil {
+			engine.Catalogs = catalogs
+		}
+		return engine
+	}
+	engine := newEngine()
 	// The engine holds back a selection this image cannot run and starts the
 	// factory software in its place; status reports which selection and why.
 	publish := func() {
@@ -505,7 +521,7 @@ func supervise(ctx context.Context, output io.Writer) error {
 								server.StorageError = err.Error()
 								_ = oldAdmission.Release(ctx, reconcile)
 							} else {
-								engine = &kitsoftware.Engine{Repository: repo, Controller: controller, Admission: admission, Gate: gate, Factory: factory.ID}
+								engine = newEngine()
 								trialHold = oldAdmission
 								trialRequest = reconcile
 							}
