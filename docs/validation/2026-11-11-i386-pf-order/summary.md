@@ -65,6 +65,11 @@ comes before any walk. `wx` reuses `xchg_ld`.
 The change makes the load's segment check agree with the page check the
 RTL already made for it, as Bochs's does.
 
+**Decision (Deano, 11 November 2026): keep the write check.** The
+microcode does not settle the 386's order, and the evidence above is
+inferred. The check stays because it matches the RTL's existing page check
+for that load.
+
 **ARPL m does not share the order on the 386.** `ARPL mw` (16AAh) reads
 with a plain `RD_W` at `6AA` and writes `WR_R` at `6B0` only on the path
 that raises the RPL. `ARPL_FAILED` (`6B3`) clears ZF with no bus cycle.
@@ -110,6 +115,15 @@ that does not fault still writes nothing before its #GP(0), and the 386
 and Bochs write the slot first. That is #1510's change after #1645, so
 the present-page case of a CALL past CS's limit under paging belongs with
 it.
+
+That change is draft PR [#1668](https://github.com/DeanoC/fes/pull/1668).
+Once the push happens before the #GP(0), the `dfl` term this PR adds for
+CALL rel's push (`m1_tpast && cls != UOP_BRANCH`) does nothing. If #1668
+merges first, this branch merges main, takes the trial-merge patch in
+#1668's body (one M1 conflict, keeping #1668's side, plus three paging
+cases) and deletes that term. If this PR merges first, #1668 deletes it.
+The M2 change that lets a `dfl` uop replay stays either way: st2 stores
+need it.
 
 ## Directed cases
 
