@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "f9ff4d4f276753cd44e962b4a2131d6bd990180e",
+  "source_revision": "25bc6ef78e4147497800a0e2b491f51d26902107",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -37,9 +37,9 @@
     "sources/misteross/boards/de25nano/link-proof/zx81-ram/profile.py": "6fdb9646b74431f1f5e7b7a24a71e8cb3fa345f93fe6dd2a86400c82188d6865",
     "sources/misteross/boards/de25nano/link-proof/zx81-ram/static.v": "10755a86b98ca1f3465c74c17fa44a667ba828e21952bb04505e1bb641c0944a",
     "sources/misteross/boards/de25nano/link-proof/zx81-ram/timing.tcl": "733ce2b528d51776b12d8956b557038e0ad07a122199b3ffbf982c25d6134755",
-    "sources/misteross/boards/de25nano/scanout/build.py": "677f40efc7ee3fdc4da8a554b4cf814350fd713bcd6c81c317fa7193854c4619",
+    "sources/misteross/boards/de25nano/scanout/build.py": "83a3938ca7568e66cddae9cee04e5a3991ba1eb72c32bbbde4cb7684ada53db0",
     "sources/misteross/boards/de25nano/scanout/clocks.sdc": "3a13ccd605b34844b6d733713146ddf46a5d4cd05cf7fcea9f62843c6b3c72b1",
-    "sources/misteross/boards/de25nano/scanout/fes_de25_scanout_board.v": "1fae19aeced8499dadd2acc471a245ff06afa73a296c9dd5a4bb1e80db6726c7",
+    "sources/misteross/boards/de25nano/scanout/fes_de25_scanout_board.v": "3e13d0caac4242c1eb967c0138c8efa1b4c77a5ff9886ae20606ad48c6e0f93f",
     "sources/misteross/boards/de25nano/scanout/hdmi_inputs.py": "e14cc505c5550b8412fcd55f52d094fa525cf2ceb3af00690a74dcc1060664e8",
     "sources/misteross/boards/de25nano/scanout/linux_dma.py": "9a5e6579e44f5fffd4aefc1de719acfe93bc1bfb4de0cf5b34ca16fb2a4e3179",
     "sources/misteross/boards/de25nano/shared-rtl/fes_computer_mailbox.v": "32578859de678583386af75a5fad6b4ac9296c1b85d736534fbf791ece3c39d3",
@@ -341,7 +341,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "a3c8d49d179e6a13dedc740fd2e181c2ba884ef9111d35d8e955820960bd35ea",
-    "Vfes_de25_combined_sim": "5bbee00fc0d034953a6a052c570d2c3875d6958dee250e6c636cdb82796698f1",
+    "Vfes_de25_combined_sim": "794f865b68e643a0c3ed709d33d4544fa5b8420d233afe569192ced78006ba20",
     "client-aarch64": "7bce4ba2c6ed39a45f61e60a0b5d3d4c68dbef928e0a092b36f7133459b3c000"
   },
   "physical_PR": "selection-mux-model-only",

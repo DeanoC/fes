@@ -96,5 +96,20 @@
       "sha256": "1eed405f6d4a2f71ac9702f0d9a45ba3e788432e41062c3b0718cfcb5cc0659f",
       "size": 297991
     }
+  },
+  "main_baseline_reboot_control": {
+    "generation": 142,
+    "selected": "a2756499ab07627e1b1fb7f00f3ebe334b6b564099c1b086d9c4f74eaf9aeb1e",
+    "active_bundle": "a2756499ab07627e1b1fb7f00f3ebe334b6b564099c1b086d9c4f74eaf9aeb1e",
+    "base_identity": "179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018",
+    "boot_id": "76b5db1a-8861-4746-964a-c90f73acce6a",
+    "source": "2320f64da7281468ee4dc2bfd4fda9268af6bb6b",
+    "after_boot_id": "797c95b4-f20b-47cb-b41b-cbe92e78a289",
+    "ready": true,
+    "ready_seconds": 133.67245217808522,
+    "within_120_seconds": false,
+    "lease": "free",
+    "idle": true,
+    "interpretation": "The120s miss reproduces on the main baseline; it is not unique evidence of a PR regression. The bound remains failed, not waived. This still boots the existing OS, not changed shared init bytes."
   }
 }
