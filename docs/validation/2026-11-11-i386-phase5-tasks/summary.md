@@ -279,9 +279,13 @@ reached its character menu, were on Bochs with a working 387: the machine
 testbench never empties the oracle's socket. Without a 387, a DJGPP
 program sets CR0.EM, and its first ESC raises #NM. DJGPP then loads
 `EMU387.DXE` if it can find it, else exits with SIGNOFP ("Coprocessor not
-available"). The `dpmi` drive has no `EMU387.DXE` anywhere. The machine
-sim on Bochs (with its 387) reaches the character menu here too; on main the
-runtime never got as far as the ESC. Each title was launched and watched
+available"). The `dpmi` drive has no `EMU387.DXE` anywhere. In the machine sim
+(`sim_fes_pc386.py --suite game --game angband --drive dpmi`, 20 s) Bochs,
+with its 387, reaches the character menu. The RTL (`--cpu rtl
+--rtl-at-prompt`, with `214cb3886`'s RTL) prints the kit's exit word for
+word, SIGNOFP at eip 00112a07 with the same registers, and is back at the
+prompt at 8.1 s with no instruction handed to Bochs. On main the runtime
+never got as far as the ESC. Each title was launched and watched
 for 80-180 s; this is a check of how far they get, not acceptance.
 
 ## What this record does not cover
