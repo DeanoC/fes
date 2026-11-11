@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"slices"
 
-	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -113,8 +112,7 @@ func (a *App) persistSetupLocked() {
 // setupBlockedLocked is a running or starting session: setup's rooms
 // replace Home, so they wait for it to stop.
 func (a *App) setupSessionBusyLocked() bool {
-	return a.sessionStopOfferedLocked() || a.session.State == "launching" || hostclient.SessionKitLocal(a.session.State) ||
-		a.launch.Phase == "launching" || a.localCoreBusyLocked() || a.localUnownedRun || a.localLaunchBlockedLocked() ||
+	return a.sessionStopOfferedLocked() || a.session.State == "launching" || a.launch.Phase == "launching" ||
 		a.developmentLoadingLocked() || a.gpuParked
 }
 

@@ -161,13 +161,7 @@ func TestSetupWaitsForRunningOrStartingSession(t *testing.T) {
 	}{
 		{"active host session", func(a *App) { a.session.State = "active" }},
 		{"starting host session", func(a *App) { a.session.State = "launching" }},
-		{"local host session", func(a *App) { a.session.State = "local" }},
 		{"starting request", func(a *App) { a.launch.Phase, a.launch.Message = "launching", "Starting the machine" }},
-		{"starting local core", func(a *App) { a.localPhase = localPhaseLaunching }},
-		{"running local core", func(a *App) { a.localPhase = localPhaseRunning }},
-		{"stopping local core", func(a *App) { a.localPhase = localPhaseStopping }},
-		{"unowned local core", func(a *App) { a.localUnownedRun = true }},
-		{"uncertain local launch", func(a *App) { a.localReconcileAfterFailure = true }},
 		{"development load", func(a *App) { a.devLoadPhase = "loading" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
