@@ -14,7 +14,8 @@ It also runs the EMS titles under JEMM386. Tracker:
 [#1548](https://github.com/DeanoC/fes/issues/1548).
 
 **Headline: 44 of 53 titles run on the kit, and 9 are blocked. Nothing
-regressed, and no CPU or core bug turned up.**
+regressed, and no CPU bug turned up.** One open display question remains:
+[Kit B's black frames](#incidents).
 
 - **13 titles that #1533 could not use now run.** Most need Phase 5:
   - Descent: DOS/4GW Professional with paging.
@@ -245,6 +246,12 @@ The x87 blockers group like this:
   three has the file: it is not in Angband's eXoDOS zip, and it is not in
   the DOSBench `MARKS` tree. So each exits with SIGNOFP, as on a real 386
   with no 387.
+  - None of the three links the emulator in. Chris's `BENCH.EXE` and
+    `QUAKE.EXE` hold only DJGPP's `___emu387_load_hook`, the "No 80387
+    detected" message and the file name `emu387.dxe`.
+  - `ANGBAND.EXE` has no emu387 reference at all.
+  - The x87 plan says these executables "carry DJGPP's `emu387`". That
+    matches only the loader's name for the file, not the emulator.
   - Adding DJGPP's free `EMU387.DXE` to the drive could run Angband and
     Chris's benchmark slowly without a 387.
   - Quake's manual says it must have a math coprocessor.
@@ -255,8 +262,8 @@ So the census counts all four as x87. The x87 plan's census
 
 ### The RTL runs
 
-All three ran the RTL in simulation, with the oracle-step count at 0 and no
-CPU stops:
+Three of the titles with a CPU-related stop ran the RTL in simulation, with
+the oracle-step count at 0 and no CPU stops:
 
 - **Angband (10 s)** exits with "SIGNOFP at eip=00112a07", as the kit does.
 - **Quake (`bench-q`, 12 s)** exits with "SIGNOFP at eip=0005425b", as the
@@ -264,6 +271,13 @@ CPU stops:
 - **Screamer (12 s)** retired 226.5M instructions and reached only DOS/4GW's
   banner. It did not get to the kit's #NM site, so the status ring is the
   evidence for Screamer's stop.
+
+Two titles had no RTL run to the fault:
+
+- Chris's 3D Benchmark has no RTL run, because its stop is the same DJGPP
+  SIGNOFP path as Angband and Quake.
+- Duke Nukem 3D's 20 s RTL run was stopped by its owner, because it could
+  not reach the fault.
 
 ### Duke Nukem 3D
 
@@ -278,18 +292,24 @@ This census's 20 s oracle run did not get that far: it ended at "Including
 USER.CON". A second oracle run, with a 50 s limit, reached the fault at 21.45
 simulated seconds. Bochs, configured as a 386, raised exception 6 at
 0180:00222BE2 and printed the same DOS/4GW dump as the kit, with the same
-registers and the same unrelocated address. So the 386-level oracle and the
+general registers and the same unrelocated address. Only CR0 differs, as
+the 387 makes it differ: ET:1 EM:0 on the oracle, against ET:0 EM:1 on the
+kit. So the 386-level oracle and the
 RTL agree, and this is the title needing a 486, not a CPU divergence. The
-oracle's census does not record the faulting opcode; the instruction just
-before it is a `ROR r/m32, CL` (`D3 /1`) at 0180:00222BDE.
+oracle's census does not record the faulting opcode; four bytes
+before it, at 0180:00222BDE, is a `ROR r/m32, CL` (`D3 /1`).
 
 ## Incidents
 
-- **Kit B's HDMI grabber sometimes returns all-black frames.** It did so for
-  Rise of the Triad (`k3`) and SpeedSys (`k6`), including the DOS prompt
-  before each launch, while the status ring showed both running. Both passed
-  on Kit A (`k12`, `k13`). This is the same grabber behaviour as
-  [#1494](https://github.com/DeanoC/fes/issues/1494).
+- **Kit B returned all-black HDMI frames for two titles.** These were Rise of
+  the Triad (`k3`) and SpeedSys (`k6`). The frames were black from the DOS
+  prompt before each launch, while the status ring showed both titles
+  running. Both passed on Kit A (`k12`, `k13`).
+  - The Kit A rerun changed the board and the grabber together, so it cannot
+    separate them. The cause is open, as in
+    [#1494](https://github.com/DeanoC/fes/issues/1494): the core's ADV7513
+    path, or Kit B's 4KPRO grabber.
+  - Both occurrences belong on #1494.
 - **Two cleanup verifications failed in the runner, not on the kits.** In
   each case I verified the kit by hand and logged the result in the kit's
   status file before release:
