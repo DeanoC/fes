@@ -8,18 +8,22 @@ import (
 )
 
 const (
-	InputVersion     uint8  = 1
-	InputTypeInput   uint8  = 1
-	InputTypePing    uint8  = 2
-	InputTypePong    uint8  = 3
-	InputCodeButtonC uint16 = 108
-	InputCodeButtonX uint16 = 109
-	InputCodeButtonY uint16 = 110
-	InputCodeButtonL uint16 = 111
-	InputCodeButtonR uint16 = 112
-	inputMagic              = "MSTR"
-	inputHeaderSize         = 16
-	inputPayloadSize        = 32
+	InputVersion     uint8 = 1
+	InputTypeInput   uint8 = 1
+	InputTypePing    uint8 = 2
+	InputTypePong    uint8 = 3
+	InputTypeReceipt uint8 = 4
+	// PING and RECEIPT use the same flag bit for different purposes.
+	InputFlagReceiptRequested uint16 = 1
+	InputFlagReceiptRejected  uint16 = 1
+	InputCodeButtonC          uint16 = 108
+	InputCodeButtonX          uint16 = 109
+	InputCodeButtonY          uint16 = 110
+	InputCodeButtonL          uint16 = 111
+	InputCodeButtonR          uint16 = 112
+	inputMagic                       = "MSTR"
+	inputHeaderSize                  = 16
+	inputPayloadSize                 = 32
 )
 
 type InputHeader struct {
@@ -100,9 +104,23 @@ func DecodeInputFrame(r io.Reader, max uint32) (InputFrame, error) {
 }
 
 func validInputFrame(f InputFrame) bool {
-	if (f.Header.Type != InputTypeInput && f.Header.Type != InputTypePing && f.Header.Type != InputTypePong) ||
-		f.Header.Session == 0 || f.Header.Flags != 0 || f.Player > 3 || f.Reserved != 0 {
+	if (f.Header.Type != InputTypeInput && f.Header.Type != InputTypePing && f.Header.Type != InputTypePong && f.Header.Type != InputTypeReceipt) ||
+		f.Header.Session == 0 || f.Player > 3 || f.Reserved != 0 {
 		return false
+	}
+	switch f.Header.Type {
+	case InputTypePing:
+		if f.Header.Flags != 0 && f.Header.Flags != InputFlagReceiptRequested {
+			return false
+		}
+	case InputTypeReceipt:
+		if f.Header.Flags != 0 && f.Header.Flags != InputFlagReceiptRejected {
+			return false
+		}
+	default:
+		if f.Header.Flags != 0 {
+			return false
+		}
 	}
 	if f.Header.Type != InputTypeInput {
 		if f.Player != 0 || f.Device != 0 || f.Kind != 0 || f.Action != 0 || f.Code != 0 || f.Reserved != 0 || f.Value != 0 {

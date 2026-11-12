@@ -66,7 +66,7 @@ func TestSendEventPreservesLeaseRefusal(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 			defer cancel()
-			err = input.sendEventLocked(ctx, event, time.Now())
+			err = input.sendEventModeLocked(ctx, event, time.Now(), true)
 			var api *protocol.APIError
 			status := input.statusLocked()
 			if !errors.As(err, &api) || api.Code != code || api.Message != "session does not own the kit lease" || errors.Is(err, ErrRemoteInputNoStream) || bridge.dials != 1 {

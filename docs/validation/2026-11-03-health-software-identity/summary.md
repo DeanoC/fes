@@ -15,6 +15,12 @@ Each window recorded the same things:
 - **Host traffic:** the driver read the shared Powerboat host's `ss` byte counters on its connections to the kit agent. It only read counters; the host was not touched.
 - **Health size:** one authenticated and one unauthenticated `GET /v1/health`.
 
+The CPU script filters the per-process output with `$2 != "cpu"` rather than
+`$1 != "cpu"`, so it also emits a row for the aggregate `/proc/stat` CPU line.
+That extra row is not a per-process measurement. The separate system-busy
+calculation below uses the aggregate line intentionally. The recorded results
+are retained as measured.
+
 Afterwards Kit A went back to `89173748…`, was verified, and was left idle and lease-free. [`h1-results.json`](h1-results.json) holds the record.
 
 ## Results

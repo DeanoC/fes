@@ -10,13 +10,14 @@
     "2026-11-03 rombios.c: INT 15h C2xx runs with the keyboard interface disabled (ADh) and enables it again (AEh) on every exit. A byte already in the 8042's output buffer first goes to INT 09h or INT 74h with interrupts on, and is discarded if no handler takes it; the command byte read (20h) skips aux bytes. A key byte mid-exchange no longer hangs the mouse services.",
     "2026-11-03 rombios.c, rombios.h: POST programs PIT counter 1, the refresh timer, as an AT BIOS does (binary, LSB only, mode 2, count 18 = 15.09 us), so port 61h bit 4 toggles and INT 15h AH=86h returns; rombios.h names port 41h PORT_PIT_COUNTER1.",
     "2026-11-03 rombios.c, rombios.h: POST programs PIT counter 2, the speaker timer, in the mode an AT BIOS's POST beep leaves it (binary, LSB then MSB, mode 3) with the IBM BIOS BEEP routine's count 0533h with port 61h's gate and speaker bits off, so games that write only a count to port 42h get mode 3; rombios.h names port 42h PORT_PIT_COUNTER2.",
-    "2026-11-08 rombios.c: the ROM carries a BIOS identification line after the copyright, 'Compatible: IBM PC/AT 1984, FES pc386 BIOS.', in the shape of a period AT BIOS's copyright line (a 198x year, a separator, a capitalised name ending in a full stop). SpeedSys 4.78 finds the BIOS vendor by such a year; with none it leaves DS at F000h and its speed test sorts the VGA ROM for ever (#1557)."
+    "2026-11-08 rombios.c: the ROM carries a BIOS identification line after the copyright, 'Compatible: IBM PC/AT 1984, FES pc386 BIOS.', in the shape of a period AT BIOS's copyright line (a 198x year, a separator, a capitalised name ending in a full stop). SpeedSys 4.78 finds the BIOS vendor by such a year; with none it leaves DS at F000h and its speed test sorts the VGA ROM for ever (#1557).",
+    "2026-11-12 rombios.c: INT 13h AH=08h reports the highest cylinder below the AT's diagnostic cylinder, the parameter table's count less two, as the IBM PC/AT BIOS does; AH=15h already left that cylinder out of the size. Windows' WDCTRL compares the two and failed at phase 3 (#1719). A one-cylinder disk reserves no cylinder in either, where AH=08h would have underflowed and AH=15h reported no sectors."
   ],
   "files": [
     {
       "path": "rombios.c",
       "upstream_path": "bochs/bios/rombios.c",
-      "sha256": "3606422c25e903a933f9bc374bdb38c4b5ed7e1daa9d9f71e504172ce5cf9e19",
+      "sha256": "9ef599b896de6ad408c6097f637dfdf3dc5179145de9d7ac39739cf598b1552d",
       "upstream_sha256": "1684aa54044872c8faf59dae2d6a465cb5fe1274f3c8ff0112f27e7eaea21703"
     },
     {

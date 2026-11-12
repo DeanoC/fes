@@ -19,12 +19,12 @@ type loadingSystemsServices struct {
 	ready <-chan struct{}
 }
 
-func (s loadingSystemsServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, limit int) ([]hostclient.Game, error) {
+func (s loadingSystemsServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, limit int) ([]hostclient.Game, bool, error) {
 	select {
 	case <-s.ready:
 		return s.fakeServices.QueryGames(ctx, q, limit)
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, false, ctx.Err()
 	}
 }
 
@@ -194,7 +194,7 @@ type delayedFirstSystemsQueryServices struct {
 	releaseOnce sync.Once
 }
 
-func (s *delayedFirstSystemsQueryServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, limit int) ([]hostclient.Game, error) {
+func (s *delayedFirstSystemsQueryServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, limit int) ([]hostclient.Game, bool, error) {
 	s.mu.Lock()
 	s.calls++
 	first := s.calls == 1
@@ -203,9 +203,9 @@ func (s *delayedFirstSystemsQueryServices) QueryGames(ctx context.Context, q hos
 		close(s.started)
 		select {
 		case <-s.release:
-			return append([]hostclient.Game(nil), s.firstResult...), nil
+			return append([]hostclient.Game(nil), s.firstResult...), false, nil
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, false, ctx.Err()
 		}
 	}
 	return s.fakeServices.QueryGames(ctx, q, limit)

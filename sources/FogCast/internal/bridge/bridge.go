@@ -237,8 +237,12 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 		}
 	}()
 	_ = conn.SetReadDeadline(time.Time{})
-	_, _ = io.WriteString(conn, "{\"ok\":true}\n")
+	welcome := "{\"ok\":true}\n"
+	if n, err := io.WriteString(conn, welcome); err != nil || n != len(welcome) {
+		return
+	}
 	tracker := protocol.SequenceTracker{}
+	rejectedSinceReceipt := false
 	last := time.Now()
 	timer := time.NewTicker(100 * time.Millisecond)
 	defer timer.Stop()
@@ -262,15 +266,39 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 		}
 		last = time.Now()
 		if f.Header.Type == protocol.InputTypePing {
-			f.Header.Type = protocol.InputTypePong
+			if f.Header.Session != s.cfg.Session {
+				return
+			}
+			wantsReceipt := f.Header.Flags == protocol.InputFlagReceiptRequested
+			if wantsReceipt {
+				f.Header.Type = protocol.InputTypeReceipt
+				f.Header.Flags = 0
+				if rejectedSinceReceipt {
+					f.Header.Flags = protocol.InputFlagReceiptRejected
+				}
+			} else {
+				f.Header.Type = protocol.InputTypePong
+			}
 			f.ServerMonoNS = uint64(time.Now().UnixNano())
 			wire, err := protocol.EncodeInputFrame(f)
 			if err != nil {
 				return
 			}
-			if _, err := conn.Write(wire); err != nil {
+			if n, err := conn.Write(wire); err != nil || n != len(wire) {
 				return
 			}
+			if wantsReceipt {
+				rejectedSinceReceipt = false
+			}
+			continue
+		}
+		// Replies are only sent by the bridge, never applied as input.
+		if f.Header.Type != protocol.InputTypeInput {
+			return
+		}
+		if f.Header.Session != s.cfg.Session {
+			s.metrics.Rejected.Add(1)
+			rejectedSinceReceipt = true
 			continue
 		}
 		var accepted, gap bool
@@ -282,13 +310,20 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 		if gap {
 			s.metrics.SequenceGaps.Add(1)
 		}
-		if f.Header.Session != s.cfg.Session || !accepted {
+		if !accepted {
 			s.metrics.Rejected.Add(1)
+			rejectedSinceReceipt = true
 			continue
 		}
-		if err := s.sink.Apply(f); err != nil {
+		applyErr := s.sink.Apply(f)
+		// A sink may block while the runtime processes an input. That is active
+		// work, not idle time: leave the sender a full heartbeat interval to
+		// receive a receipt or send the next frame once processing finishes.
+		last = time.Now()
+		if applyErr != nil {
 			s.metrics.Rejected.Add(1)
-			if errors.Is(err, errRejectedInputFrame) {
+			rejectedSinceReceipt = true
+			if errors.Is(applyErr, errRejectedInputFrame) {
 				continue
 			}
 			return

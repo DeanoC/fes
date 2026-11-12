@@ -291,7 +291,7 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 		writeError(w, http.StatusInternalServerError, "INTERNAL", "catalog is unavailable")
 		return
 	}
-	result := gamesResult{Games: make([]gameResult, 0, len(page.Games)), NextCursor: page.NextCursor}
+	result := gamesResult{Games: make([]gameResult, 0, len(page.Games)), NextCursor: page.NextCursor, CoreEntryKind: query.CoreEntryKind}
 	ids := make([]string, 0, len(page.Games))
 	for _, game := range page.Games {
 		ids = append(ids, game.ID)
@@ -326,7 +326,14 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 		return
 	}
 	applyMeshReadiness(r.Context(), service, result.Games)
-	attachCoreIdentities(r.Context(), service, result.Games)
+	if query.CoreEntryKind != "" {
+		if err := attachFilteredCoreIdentities(r.Context(), service, result.Games); err != nil {
+			writeError(w, http.StatusInternalServerError, "INTERNAL", "catalog is unavailable")
+			return
+		}
+	} else {
+		attachCoreIdentities(r.Context(), service, result.Games)
+	}
 	if shelfNoticeApplies(query) {
 		if notice, ok := service.(shelfNoticeService); ok {
 			result.Notice = notice.LocalShelfNotice(r.Context())
@@ -336,7 +343,7 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 }
 
 func shelfNoticeApplies(query catalog.Query) bool {
-	return query.Text == "" && query.Platform == "" && len(query.CoreIDs) == 0 && query.Collection == "" && query.Region == "" && query.Genre == "" && query.Year == "" && !query.HidePrerelease && !query.HideHacks && query.Cursor == "" && len(query.RestrictIDs) == 0 && len(query.ExcludeIDs) == 0
+	return query.Text == "" && query.Platform == "" && len(query.CoreIDs) == 0 && query.CoreEntryKind == "" && query.Collection == "" && query.Region == "" && query.Genre == "" && query.Year == "" && !query.HidePrerelease && !query.HideHacks && query.Cursor == "" && len(query.RestrictIDs) == 0 && len(query.ExcludeIDs) == 0
 }
 
 func parseGameQuery(r *http.Request) (catalog.Query, error) {
@@ -353,6 +360,15 @@ func parseGameQuery(r *http.Request) (catalog.Query, error) {
 		HideHacks:      queryFlag(values.Get("hide_hacks")),
 		Grouped:        true,
 		Cursor:         strings.TrimSpace(values.Get("cursor")),
+		CoreEntryKind:  strings.TrimSpace(values.Get("core_entry_kind")),
+	}
+	switch query.CoreEntryKind {
+	case "", "machine", "title":
+	default:
+		return catalog.Query{}, fmt.Errorf("unsupported core entry kind")
+	}
+	if query.CoreEntryKind != "" && query.Collection != "" {
+		return catalog.Query{}, fmt.Errorf("core entry kind cannot be combined with a collection")
 	}
 	for _, coreID := range values["core_id"] {
 		if coreID = strings.TrimSpace(coreID); coreID != "" {
@@ -400,6 +416,9 @@ func queryFlag(raw string) bool {
 }
 
 func fallbackGamePage(ctx context.Context, service Service, query catalog.Query) (catalog.Page, error) {
+	if query.CoreEntryKind != "" {
+		return catalog.Page{}, catalog.ErrInvalidQuery
+	}
 	var games []catalog.Game
 	var err error
 	if query.Text == "" {
@@ -708,6 +727,69 @@ type stampedCore struct {
 	packageID string
 	mediaID   string
 	mediaRole string
+}
+
+// attachFilteredCoreIdentities resolves exactly the returned rows in a batch.
+// A missing or conflicting identity fails the filtered page closed.
+func attachFilteredCoreIdentities(ctx context.Context, service Service, games []gameResult) error {
+	if len(games) == 0 {
+		return nil
+	}
+	reader, ok := service.(interface {
+		CoreEntriesByIDs(context.Context, []string) ([]catalog.CoreEntry, error)
+	})
+	if !ok {
+		return errors.New("filtered core identities are unavailable")
+	}
+	requested := make(map[string]bool)
+	ids := make([]string, 0, len(games))
+	collect := func(g gameResult) error {
+		if !gameWantsCoreID(g) || strings.TrimSpace(g.ID) == "" {
+			return errors.New("filtered row lacks a core identity")
+		}
+		if !requested[g.ID] {
+			requested[g.ID] = true
+			ids = append(ids, g.ID)
+		}
+		return nil
+	}
+	for _, g := range games {
+		if err := collect(g); err != nil {
+			return err
+		}
+		for _, v := range g.Variants {
+			if err := collect(v); err != nil {
+				return err
+			}
+		}
+	}
+	if len(ids) > catalog.MaxQueryLimit*(catalog.MaxVariantLimit+1) {
+		return errors.New("filtered identity page exceeds its bound")
+	}
+	entries, err := reader.CoreEntriesByIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+	byGame := make(map[string]stampedCore, len(entries))
+	for _, e := range entries {
+		if !requested[e.GameID] || strings.TrimSpace(e.CoreID) == "" {
+			return errors.New("unexpected filtered core identity")
+		}
+		if _, ok := byGame[e.GameID]; ok {
+			return errors.New("duplicate filtered core identity")
+		}
+		byGame[e.GameID] = stampedCore{coreID: strings.TrimSpace(e.CoreID), packageID: strings.TrimSpace(e.PackageID), mediaID: strings.TrimSpace(e.MediaID), mediaRole: strings.TrimSpace(e.MediaRole)}
+	}
+	if len(byGame) != len(requested) {
+		return errors.New("filtered core identity is missing")
+	}
+	for i := range games {
+		stampCoreID(&games[i], byGame)
+		for j := range games[i].Variants {
+			stampCoreID(&games[i].Variants[j], byGame)
+		}
+	}
+	return nil
 }
 
 // attachCoreIdentities stamps core_id, package_id, and saved media from

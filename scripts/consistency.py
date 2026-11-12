@@ -165,6 +165,8 @@ def main():
         validate(root)
         result = check(root)
         import sys
+        subprocess.run([sys.executable, str(root / 'scripts/hil_go_inventory.py'), '--check'],
+                       cwd=root, check=True)
         subprocess.run([sys.executable, str(root / 'sources/misteross/scripts/closure_tools/manifest.py'), 'check'],
                        cwd=root / 'sources/misteross', check=True, stdout=subprocess.DEVNULL)
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:

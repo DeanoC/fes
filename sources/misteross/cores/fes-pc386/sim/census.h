@@ -89,10 +89,47 @@ struct Tlb {
     }
 };
 
+// A byte at a physical address, as the bus sees it (A20 applied).
+using PhysicalByte = std::function<uint8_t(uint32_t)>;
+
+// Linear to physical through cr3's page tables when cr0 has PG: false if the
+// PDE or the PTE is not present. Without paging the address is its own. The
+// walk only reads; it sets no A or D bit.
+inline bool translate(uint32_t cr0, uint32_t cr3, uint32_t linear, const PhysicalByte &read, uint32_t &physical) {
+    auto read32 = [&](uint32_t at) {
+        uint32_t value = 0;
+        for (unsigned n = 0; n < 4; ++n) value |= uint32_t(read(at + n)) << (8 * n);
+        return value;
+    };
+    physical = linear;
+    if (!(cr0 & 0x80000000u)) return true;
+    const uint32_t pde = read32((cr3 & ~0xfffu) + ((linear >> 22) << 2));
+    if (!(pde & 1)) return false;
+    const uint32_t pte = read32((pde & ~0xfffu) + (((linear >> 12) & 0x3ff) << 2));
+    if (!(pte & 1)) return false;
+    physical = (pte & ~0xfffu) | (linear & 0xfff);
+    return true;
+}
+
+// The 15 bytes from linear, read through the page tables as the CPU fetches
+// them: FFh where a page is not present. machine_tb's RTL STOP and GAP lines
+// and its retire path read instructions here.
+inline void fetch(uint32_t cr0, uint32_t cr3, uint32_t linear, const PhysicalByte &read, uint8_t (&bytes)[15]) {
+    uint32_t page = 0, frame = 0;
+    bool present = false;
+    for (unsigned n = 0; n < 15; ++n) {
+        const uint32_t at = linear + n;
+        if (n == 0 || (at >> 12) != page) {
+            page = at >> 12;
+            present = translate(cr0, cr3, at & ~0xfffu, read, frame);
+        }
+        bytes[n] = present ? read(frame | (at & 0xfff)) : uint8_t(0xff);
+    }
+}
+
 class Census {
 public:
-    // A byte at a physical address, as the bus sees it (A20 applied).
-    using PhysicalByte = std::function<uint8_t(uint32_t)>;
+    using PhysicalByte = pc386_census::PhysicalByte;
     explicit Census(PhysicalByte read) : read_(std::move(read)) {}
 
     std::map<std::string, uint64_t> counts;
@@ -102,17 +139,9 @@ public:
     Tlb dtlb{16}, itlb{8};
     uint64_t paged_steps = 0, page_cross = 0;
 
-    // Linear to physical through s's page tables: false if the PDE or the PTE
-    // is not present. Without paging the address is its own.
+    // Linear to physical through s's page tables (pc386_census::translate).
     bool translate(const fes_i386::State &s, uint32_t linear, uint32_t &physical) const {
-        physical = linear;
-        if (!(s.cr0 & 0x80000000u)) return true;
-        const uint32_t pde = read32((s.cr3 & ~0xfffu) + ((linear >> 22) << 2));
-        if (!(pde & 1)) return false;
-        const uint32_t pte = read32((pde & ~0xfffu) + (((linear >> 12) & 0x3ff) << 2));
-        if (!(pte & 1)) return false;
-        physical = (pte & ~0xfffu) | (linear & 0xfff);
-        return true;
+        return pc386_census::translate(s.cr0, s.cr3, linear, read_, physical);
     }
     // FFh where the page is not present.
     uint8_t linear_byte(const fes_i386::State &s, uint32_t linear) const {
@@ -124,8 +153,7 @@ public:
     // first-seen column.
     const std::string &begin(const fes_i386::State &before, const std::string &site) {
         uint8_t bytes[15];
-        const uint32_t linear = before.seg[fes_i386::SEG_CS].base + before.eip;
-        for (unsigned n = 0; n < 15; ++n) bytes[n] = linear_byte(before, linear + n);
+        pc386_census::fetch(before.cr0, before.cr3, before.seg[fes_i386::SEG_CS].base + before.eip, read_, bytes);
         stem_ = stem(bytes, 15, true);
         if (before.eflags & 0x20000) stem_ += ":v86";
         else if (before.cr0 & 1) stem_ += ":pm" + std::to_string(before.cpl);
@@ -264,11 +292,6 @@ private:
     bool was_paged_ = false;
     uint32_t last_cr3_ = 0;
 
-    uint32_t read32(uint32_t physical) const {
-        uint32_t value = 0;
-        for (unsigned n = 0; n < 4; ++n) value |= uint32_t(read_(physical + n)) << (8 * n);
-        return value;
-    }
     void flush() {
         dtlb.flush();
         itlb.flush();

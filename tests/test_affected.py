@@ -11,6 +11,26 @@ from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
 
 
 class AffectedTests(unittest.TestCase):
+    def test_hil_inventory_selects_only_parent(self):
+        result = plan(['config/hil-go-consumers.json'])
+        self.assertEqual({name for name, enabled in result['lanes'].items() if enabled}, {'parent'})
+        self.assertEqual(result['cores'], [])
+
+    def test_go_source_under_docs_selects_host_and_inventory(self):
+        for name in ('execute.go', 'execute.s', 'execute.sx', 'execute.c', 'execute.hpp', 'execute.swigcxx', 'execute.syso'):
+            with self.subTest(name=name):
+                result = plan(['sources/FogCast/internal/session/docs/' + name])
+                self.assertTrue(result['lanes']['parent'])
+                self.assertTrue(result['lanes']['host'])
+
+    def test_embedded_readme_runs_inventory_and_host_checks(self):
+        embedded = 'sources/FogCast/ui/rooms/examples/hardware/assets/README.md'
+        result = plan([embedded])
+        self.assertTrue(result['lanes']['parent'])
+        self.assertTrue(result['lanes']['host'])
+        ordinary = plan(['sources/FogCast/README.md'])
+        self.assertFalse(any(ordinary['lanes'].values()))
+
     def test_de25_pr_control_tracks_generated_rtl_and_native_controller(self):
         definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml'
         result = plan([definition])
@@ -197,6 +217,20 @@ class AffectedTests(unittest.TestCase):
                 result = plan([path])
                 self.assertTrue(all(result['lanes'].values()))
                 self.assertEqual(set(result['cores']), set(CORES))
+
+    def test_catalog_metadata_selects_parent_and_unions_other_changes(self):
+        catalog = 'config/core-library.toml'
+        result = plan([catalog])
+        self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
+                         {'parent'})
+        self.assertEqual(result['cores'], [])
+        mixed = plan([catalog, 'sources/misteross/cores/fes-atari-st/rtl/st_machine.sv'])
+        self.assertEqual({lane for lane, enabled in mixed['lanes'].items() if enabled},
+                         {'parent', 'fpga'})
+        self.assertEqual(mixed['cores'], ['atari-st'])
+        unknown = plan(['config/core-library-other.toml'])
+        self.assertTrue(all(unknown['lanes'].values()))
+        self.assertEqual(set(unknown['cores']), set(CORES))
 
     def test_simulation_infrastructure_exercises_simulations_without_host(self):
         for path in CI_BROAD_INPUTS:

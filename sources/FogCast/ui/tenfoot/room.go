@@ -82,12 +82,48 @@ var errNoHostClient = errors.New("no host connection")
 // answer with an error.
 func (s roomServices) connected() bool { return s.client != nil && s.client.Client != nil }
 
-func (s roomServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, error) {
+func (s roomServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, bool, error) {
 	if !s.connected() {
-		return nil, errNoHostClient
+		return nil, false, errNoHostClient
 	}
+	if q.HomeFamily {
+		if max <= 0 {
+			return nil, false, errors.New("Home family query requires a positive limit")
+		}
+		if q.Platform != "fpga" || len(q.CoreIDs) == 0 || q.Collection != "" {
+			return nil, false, errors.New("Home family query requires FPGA core IDs and no collection")
+		}
+		q.HomeFamily = false
+		q.CoreEntryKind = "machine"
+		machines, more, err := s.queryGamesPages(ctx, q, max)
+		if err != nil {
+			return nil, false, err
+		}
+		if more {
+			return nil, true, errors.New("too many machine entries to determine readiness")
+		}
+		remaining := max - len(machines)
+		q.CoreEntryKind = "title"
+		if remaining == 0 {
+			// Find whether any titles exist without exceeding the returned budget.
+			titles, _, err := s.queryGamesPages(ctx, q, 1)
+			return machines, len(titles) > 0, err
+		}
+		titles, more, err := s.queryGamesPages(ctx, q, remaining)
+		if err != nil {
+			return nil, false, err
+		}
+		return append(machines, titles...), more, nil
+	}
+	return s.queryGamesPages(ctx, q, max)
+}
+
+func (s roomServices) queryGamesPages(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, bool, error) {
 	if q.Limit <= 0 || q.Limit > defaultPageLimit {
 		q.Limit = defaultPageLimit
+	}
+	if max > 0 && q.Limit > max {
+		q.Limit = max
 	}
 	// Rooms classify offline and missing-media rows. Other ListGames callers
 	// keep the ready-only default by leaving Availability empty.
@@ -95,11 +131,13 @@ func (s roomServices) QueryGames(ctx context.Context, q hostclient.GameListQuery
 		q.Availability = "all"
 	}
 	var out []hostclient.Game
+	var next string
 	for {
-		page, next, err := s.client.ListGames(ctx, q)
+		page, cursor, err := s.client.ListGames(ctx, q)
 		if err != nil {
-			return out, err
+			return nil, false, err
 		}
+		next = cursor
 		out = append(out, page...)
 		if next == "" || len(page) == 0 || (max > 0 && len(out) >= max) {
 			break
@@ -108,8 +146,9 @@ func (s roomServices) QueryGames(ctx context.Context, q hostclient.GameListQuery
 	}
 	if max > 0 && len(out) > max {
 		out = out[:max]
+		return out, true, nil
 	}
-	return out, nil
+	return out, next != "", nil
 }
 
 func (s roomServices) Platforms(ctx context.Context) ([]hostclient.Platform, error) {

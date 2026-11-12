@@ -226,10 +226,12 @@ void fes_bx_before_execution(bxInstruction_c *i) {
 void fes_bx_after_execution(bxInstruction_c *) {
     if (!context.result) return;
     // Bochs pauses a REP string instruction between iterations whenever it
-    // stores near code it has decoded. With no trap pending the instruction is
-    // still running, so the step continues it.
+    // stores near code it has decoded, and for a debug trap (single step, a
+    // data breakpoint). The instruction is still running, so the step
+    // continues it, and a trap is taken within the step after that
+    // iteration, as an interrupt raised there is.
     bool paused = context.rep_string && Bit32u(bx_cpu.prev_rip) == context.result->eip_before;
-    if (paused && !bx_cpu.debug_trap) return;
+    if (paused) return;
     context.result->retired = true;
     stop_at_next_boundary();
 }
@@ -382,7 +384,9 @@ public:
         write_segment(bx_cpu.tr, state.tr);
         bx_cpu.activity_state = BX_CPU_C::BX_ACTIVITY_STATE_ACTIVE;
         bx_cpu.inhibit_mask = 0;
-        bx_cpu.debug_trap = 0;
+        // A pending debug trap stays: a lockstep rule that hands the oracle
+        // the RTL's state between instructions must not drop the single step
+        // or data breakpoint the last instruction armed (reset() clears it).
         bx_cpu.last_exception_type = 0;
         bx_cpu.speculative_rsp = false;
         bx_cpu.handleCpuContextChange();

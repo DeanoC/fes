@@ -119,3 +119,34 @@ func TestStateRecoverySnapshot(t *testing.T) {
 		t.Fatal("snapshot not authoritative")
 	}
 }
+
+func TestInputReceiptControlFrames(t *testing.T) {
+	valid := []InputFrame{
+		{Header: InputHeader{Type: InputTypePing, Flags: InputFlagReceiptRequested, Session: 42}, Seq: 7, ClientMonoNS: 99},
+		{Header: InputHeader{Type: InputTypeReceipt, Session: 42}, Seq: 7, ClientMonoNS: 99, ServerMonoNS: 100},
+		{Header: InputHeader{Type: InputTypeReceipt, Flags: InputFlagReceiptRejected, Session: 42}, Seq: 7, ClientMonoNS: 99, ServerMonoNS: 100},
+	}
+	for _, frame := range valid {
+		wire, err := EncodeInputFrame(frame)
+		if err != nil {
+			t.Fatalf("encode %+v: %v", frame, err)
+		}
+		got, err := DecodeInputFrame(bytes.NewReader(wire), 1024)
+		if err != nil || got != frame {
+			t.Fatalf("roundtrip %+v = %+v, %v", frame, got, err)
+		}
+	}
+	invalid := []InputFrame{
+		{Header: InputHeader{Type: InputTypePing, Flags: 2, Session: 42}},
+		{Header: InputHeader{Type: InputTypeInput, Flags: 1, Session: 42}},
+		{Header: InputHeader{Type: InputTypePong, Flags: 1, Session: 42}, ServerMonoNS: 1},
+		{Header: InputHeader{Type: InputTypeReceipt, Flags: 2, Session: 42}, ServerMonoNS: 1},
+		{Header: InputHeader{Type: InputTypeReceipt, Session: 42}},
+		{Header: InputHeader{Type: InputTypeReceipt, Session: 42}, ServerMonoNS: 1, Value: 1},
+	}
+	for _, frame := range invalid {
+		if _, err := EncodeInputFrame(frame); err == nil {
+			t.Fatalf("accepted invalid frame %+v", frame)
+		}
+	}
+}
