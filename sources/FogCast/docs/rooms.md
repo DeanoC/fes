@@ -259,6 +259,11 @@ and moves runs drawn earlier in that draw behind the copy. A run that
 skipped an image still loading is not kept. A key may be drawn once per
 frame, and runs do not nest. Inside `fn`, `gfx.clear`, `gfx.paint`,
 `gfx.extend` and `gfx.reuse` raise an error: a copy holds only ops and hits.
+A copy does not call `fn`, so `fn` must do nothing but draw: caches,
+counters, image loads or `destination.set` inside it are skipped whenever
+the run is copied. A key drawn earlier in a draw that then calls
+`gfx.extend` must not also be in the presented frame, or `gfx.extend`
+raises an error, which retires the room.
 
 There are no lines, circles or rotation: the device has none. Draw paths as
 chains of small rects (see `widgets.nodemap`).

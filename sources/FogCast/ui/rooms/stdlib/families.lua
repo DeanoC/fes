@@ -481,18 +481,23 @@ function M.outline(x, y, w, h, t, color)
 end
 
 -- gfx.measure, remembered: the same few labels are measured on every
--- redraw. Dropped when it grows, so changing titles cannot fill it.
-local measured, measured_n = {}, 0
+-- redraw. Results are kept by weight, then by the size as given, so sizes
+-- gfx.measure would round or clamp to one size are only separate entries.
+-- Dropped when it grows, so changing titles cannot fill it.
+local measured, measured_n = { [false] = {}, [true] = {} }, 0
 function M.measure(text, size, bold)
-  local by_size = measured[bold and size or -size]
+  bold = bold and true or false
+  size = size or 18
+  local by_size = measured[bold][size]
   local m = by_size and by_size[text]
   if m then return m[1], m[2] end
-  if measured_n >= 256 then measured, measured_n = {}, 0 end
+  if measured_n >= 256 then
+    measured, measured_n, by_size = { [false] = {}, [true] = {} }, 0, nil
+  end
   local w, h = gfx.measure(text, size, bold)
-  by_size = measured[bold and size or -size]
   if not by_size then
     by_size = {}
-    measured[bold and size or -size] = by_size
+    measured[bold][size] = by_size
   end
   by_size[text] = { w, h }
   measured_n = measured_n + 1

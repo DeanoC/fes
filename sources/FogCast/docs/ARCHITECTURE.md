@@ -1367,7 +1367,11 @@ continues in `update` during reused frames. `TestHomeCallbackWorkCeiling`
 holds each Home callback kind under ceilings of Lua instructions and recorded
 draw ops, counted by the engine's test-only work meter (a context whose
 `Done` gopher-lua checks once per instruction), so the guard does not depend
-on the machine.
+on the machine. Draw, input and lifecycle counts are exact; `update` counts
+vary within a bound with the order the family answers arrive in, because
+`update` processes whichever family answer became pending first.
+`TestHomeTourFramesMatchRecorded` holds every tour picture to hashes
+recorded from the Home script before #1770.
 
 Lua room callbacks run on the launcher thread under per-callback soft budgets.
 A slow update, or a slow draw that did not finish a `gfx.paint`, keeps the

@@ -1,6 +1,9 @@
 package rooms
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -100,7 +103,11 @@ func homeTour(rs []*Instance, step func(what string)) {
 // TestHomeCallbackWorkCeiling holds Home's worst callbacks under fixed
 // ceilings of Lua instructions and recorded draw ops (#1770). The counts do
 // not depend on the machine, so this guards the kit's frame budget without
-// timing anything. Draws are split by what caused them: the staged first
+// timing anything. Every kind but update is exact on each run. The family
+// answers arrive on goroutines in real time and update processes whichever
+// became pending first, so the worst update varies with arrival order
+// within a bound (470-547 instructions seen); its ceiling covers that
+// bound. Fixing the order would need hooks in the family request code. Draws are split by what caused them: the staged first
 // picture and data changes (draw:paint), focus moves (draw:focus) and a
 // resize, which redraws everything at once (draw:resize). Ceilings are about
 // 1.25x the worst case measured with gfx.segment replays in Home.
@@ -111,13 +118,13 @@ func TestHomeCallbackWorkCeiling(t *testing.T) {
 		instructions uint64
 		ops          int
 	}{
-		"main":        {2870, 0},   // 2293
+		"main":        {2870, 0},   // 2299
 		"load":        {1800, 0},   // 1443
 		"async":       {760, 0},    // 608
-		"update":      {700, 0},    // 478-547, by family batch timing
-		"draw:paint":  {3820, 100}, // 3059, 80
-		"draw:focus":  {7130, 344}, // 5705, 275
-		"draw:resize": {5060, 443}, // 4047, 354
+		"update":      {700, 0},    // 470-547, by family answer order
+		"draw:paint":  {3820, 100}, // 3054, 80
+		"draw:focus":  {7130, 344}, // 5721, 275
+		"draw:resize": {5060, 443}, // 4088, 354
 		"on_input":    {800, 0},    // 641
 		"on_hover":    {790, 0},    // 631
 		"on_activate": {480, 0},    // 381
@@ -281,5 +288,61 @@ func BenchmarkHomeFocusChange(b *testing.B) {
 	b.StopTimer()
 	if err := r.Err(); err != nil {
 		b.Fatal(err)
+	}
+}
+
+// homeTourFrames is the sha256 (first 16 hex digits) of each frame and
+// destination the Home tour gives, recorded from the Home script before
+// #1770 drew keyboards, moons and hills from cached gfx.rects lists,
+// remembered gfx.measure results and copied segments. The cheaper script
+// must paint the same pixels and hit regions. A deliberate visual change to
+// Home records them again from this test's failure output.
+var homeTourFrames = []string{
+	"4f0c06e40a1b2d47", "8d94681b59611559", "038def75933ffbb4", "038def75933ffbb4",
+	"1edd9f1fb5c2a1ff", "576e3ed68a81f2f6", "0577bf99f6f2f513", "65d7c78c0164398d",
+	"3fe70f906c5116d4", "7cf48f193939a22a", "aaa50709bc7a242f", "e5858b042ba13bc4",
+	"37668531d81dc5aa", "9c5469c036f0fa61", "f71922d3f00c03d8", "f71922d3f00c03d8",
+	"f71922d3f00c03d8", "9c5469c036f0fa61", "37668531d81dc5aa", "e5858b042ba13bc4",
+	"aaa50709bc7a242f", "7cf48f193939a22a", "3fe70f906c5116d4", "65d7c78c0164398d",
+	"0577bf99f6f2f513", "576e3ed68a81f2f6", "1edd9f1fb5c2a1ff", "1edd9f1fb5c2a1ff",
+	"1edd9f1fb5c2a1ff", "038def75933ffbb4", "8d94681b59611559", "97f57277d57cc897",
+	"97f57277d57cc897", "97f57277d57cc897", "cb719c7b3897fc45", "8d94681b59611559",
+	"1edd9f1fb5c2a1ff", "576e3ed68a81f2f6", "0577bf99f6f2f513", "b66694787ea48943",
+	"8b650fa075063de8", "659a5fd8a967b30c", "b66694787ea48943", "1edd9f1fb5c2a1ff",
+	"65d7c78c0164398d", "a2d308b6e73d513e", "96dbe0bbe43e4c3d", "b10990f7d18bb3eb",
+	"96dbe0bbe43e4c3d", "3fe70f906c5116d4", "3fe70f906c5116d4", "3fe70f906c5116d4",
+	"3fe70f906c5116d4", "3fe70f906c5116d4", "3fe70f906c5116d4", "3fe70f906c5116d4",
+	"7cf48f193939a22a", "a4ed722a5f274bea", "193c8e7aad3c7a56",
+}
+
+// TestHomeTourFramesMatchRecorded holds Home's settled picture and every
+// picture of the tour to the recorded hashes.
+func TestHomeTourFramesMatchRecorded(t *testing.T) {
+	r := loadHome(t, homeWorkOptions(""))
+	homeSettledFully(t, r)
+	var got []string
+	record := func(what string) {
+		f := r.Step(time.Now())
+		b, err := json.Marshal(struct {
+			Frame       Frame
+			Destination Destination
+		}{f, r.Destination()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		sum := sha256.Sum256(b)
+		got = append(got, hex.EncodeToString(sum[:8]))
+	}
+	record("settled")
+	homeTour([]*Instance{r}, record)
+	if err := r.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, homeTourFrames) {
+		first := 0
+		for first < len(got) && first < len(homeTourFrames) && got[first] == homeTourFrames[first] {
+			first++
+		}
+		t.Fatalf("Home tour frames differ from the recorded ones from picture %d (%d pictures, %d recorded); got\n%#v", first, len(got), len(homeTourFrames), got)
 	}
 }
