@@ -231,6 +231,16 @@ def flatten(program: str, hierarchy: bool) -> str:
     return program.replace('flatten; ', '')
 
 
+PARAMOD = re.compile(r'\\\$paramod(?:\$[0-9a-f]+)?\\([A-Za-z_]\w*)\S*')
+
+
+def plain_module_names(netlist: Path) -> None:
+    """Quartus 17.0.2 can't find the ROM init file of an entity named $paramod$...; rename those."""
+    text = netlist.read_text()
+    netlist.write_text(PARAMOD.sub(
+        lambda match: f'{match.group(1)}_{hashlib.sha1(match.group(0).encode()).hexdigest()[:8]}', text))
+
+
 def standalone(args, yosys, bin_dir: Path, env: dict, output: Path) -> tuple[Path, str]:
     project = output / 'project'
     project.mkdir(parents=True)
@@ -239,6 +249,8 @@ def standalone(args, yosys, bin_dir: Path, env: dict, output: Path) -> tuple[Pat
         yosys_netlist.SEAL, top=TOP, sources=sources, includes=[ROOT / p for p in yosys_netlist.PC386_INCLUDES],
         parameters=VARIANTS[args.variant], netlist=f'{TOP}.v'), args.hierarchy),
         cwd=project, program_file=project / f'{TOP}.ys', log=output / 'yosys.log')
+    if args.hierarchy:
+        plain_module_names(project / f'{TOP}.v')
     pins = (ROOT / SPIKE / 'spike.qsf').read_text()
     (project / f'{TOP}.qpf').write_text(f'PROJECT_REVISION = "{TOP}"\n')
     # The seal's settings (build_fes_pc386_quartus.project_qsf) with this top.
@@ -279,6 +291,8 @@ def machine(args, tools: dict, output: Path) -> tuple[Path, str]:
                                     netlist=Path(netlist).as_posix())
     yosys_netlist.run(tools['yosys'].path, flatten(program, args.hierarchy), cwd=ROOT,
                       program_file=output / 'machine.ys', log=output / 'yosys.log')
+    if args.hierarchy:
+        plain_module_names(project / sealer.MACHINE_NETLIST)
     sealer.run_quartus(tools['quartus_sh'], tools['quartus_root'], project, output / 'quartus.log')
     return project, sealer.board.TOP
 

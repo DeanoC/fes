@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: MIT
 """The x87 fit spike runner's overlay and report parsing. No Quartus or Yosys needed."""
+import tempfile
 import unittest
+from pathlib import Path
 
 from scripts import quartus_x87_spike as spike
 
@@ -49,6 +51,17 @@ class OverlayTest(unittest.TestCase):
         program = 'proc -norom; flatten; opt -purge; '
         self.assertEqual(spike.flatten(program, False), program)
         self.assertEqual(spike.flatten(program, True), 'proc -norom; opt -purge; ')
+
+    def test_plain_module_names_drop_paramod(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            netlist = Path(tmp) / 'n.v'
+            netlist.write_text("module \\$paramod$4e48c8\\x87s_unit (a);\n"
+                               "  \\$paramod\\x87s_mul\\MODE=s32'0001 mul (.a(a));\nendmodule\n")
+            spike.plain_module_names(netlist)
+            text = netlist.read_text()
+        self.assertNotIn('$paramod', text)
+        self.assertRegex(text, r'module x87s_unit_[0-9a-f]{8} \(a\);')
+        self.assertRegex(text, r'  x87s_mul_[0-9a-f]{8} mul ')
 
 
 class ReportTest(unittest.TestCase):
