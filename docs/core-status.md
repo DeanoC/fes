@@ -507,6 +507,11 @@ On Kit B the acceptance games play on the RTL CPU at `max`:
   repeated), and FreeDOS shows the kit's date and time
   ([rerun record](validation/2026-11-10-pc386-game-acceptance-rerun/summary.md)).
 
+Windows for Workgroups 3.11 is a standing check beside the games: a scripted
+kit acceptance on each change's seal and a periodic RTL simulation to Program
+Manager ([Windows corpus](../sources/misteross/docs/pc386-windows-corpus.md)).
+KIT STATUS LINE.
+
 Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)):
 - Ultima VI walking speed at 286-12, against a reference;
 - Ultima VII NPC pace, against a reference.

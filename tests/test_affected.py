@@ -504,6 +504,12 @@ class AffectedTests(unittest.TestCase):
                       'sources/misteross/scripts/new_helper.py'])
         self.assertEqual(set(mixed['cores']), set(CORES))
 
+    def test_pc386_windows_checks_select_only_what_reads_them(self):
+        result = plan(['sources/misteross/scripts/pc386_wfw.py'])
+        self.assertEqual(result['cores'], ['pc386'])
+        result = plan(['sources/misteross/scripts/pc386_wfw_kit_acceptance.py'])
+        self.assertEqual(result['cores'], [])
+
     def test_unclassified_fpga_inputs_fail_broad(self):
         for path in ('', 'Makefile', 'toolchain.lock',
                      'toolchains/zx81-expansion.lock', 'scripts/new_helper.py',

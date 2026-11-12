@@ -110,6 +110,7 @@ python3 scripts/sim_fes_pc386.py --suite speaker --download  # SPKTEST.COM: PIT 
 python3 scripts/sim_fes_pc386.py --suite cpu-profile --download  # CPUPROF.COM on the oracle, then a 20 ms machine_tb --cpu-profile window on the RTL
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
+python3 scripts/sim_fes_pc386.py --suite wfw --cpu rtl    # WfW 3.11 from the DOS prompt to Program Manager on the RTL; about an hour, periodic (skips without the drive)
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
 python3 scripts/sim_fes_pc386.py --suite system         # M5: FreeDOS to the prompt on pc386_system, about an hour
 make toolchain-fes-pc386 CACHE_ROOT=/abs/out/cache/misteross-toolchains GPU_ROUTER=HIP  # once per lock
@@ -542,6 +543,12 @@ The images are test fixtures and are never distributed. The games
 themselves are user-supplied and go onto the reusable game drives, which stay
 outside the repository ([game drives](../../docs/pc386-game-drives.md)). The [games record](../../../../docs/validation/2026-11-01-pc386-m5-games/summary.md)
 has the kit runs.
+
+Windows for Workgroups 3.11 is a standing check beside the acceptance games:
+a kit acceptance (`scripts/pc386_wfw_kit_acceptance.py`: Program Manager, a
+mouse click, a DOS window and a Notepad save read back from the disk) on each
+CPU slice's or machine change's seal, and the periodic `--suite wfw`
+simulation ([Windows corpus](../../docs/pc386-windows-corpus.md)).
 
 ## EMS driver
 
