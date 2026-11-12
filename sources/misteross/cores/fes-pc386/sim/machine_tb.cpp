@@ -691,7 +691,7 @@ public:
     uint64_t store_page_mismatches = 0;  // store bytes whose CPU page is not phys's
     std::set<uint32_t> smc_addresses;
     std::vector<std::string> smc_sites;  // the first stores and executions
-    std::function<unsigned(uint32_t linear)> length;  // an instruction's length, from memory
+    std::function<unsigned(const uint8_t (&bytes)[15])> length;  // an instruction's length, from its bytes
     std::vector<bool> dirty;     // pages stored to since the oracle last ran
     CpuProfile *prof = nullptr;  // --cpu-profile
     GuestMemory guest;
@@ -705,6 +705,11 @@ public:
     uint8_t read8(uint32_t paddr) {
         uint8_t *page = m.page(paddr, false);
         return page ? page[paddr & 0xfff] : 0xff;
+    }
+    // The 15 bytes from linear through cr3's page tables, as the CPU fetches
+    // them (pc386_census::fetch).
+    void read_instruction(uint32_t cr0, uint32_t cr3, uint32_t linear, bool a20m, uint8_t (&bytes)[15]) {
+        pc386_census::fetch(cr0, cr3, linear, [&](uint32_t at) { return read8(physical(at, a20m)); }, bytes);
     }
 
     // Reset with this architectural state, with nothing in flight.
@@ -749,6 +754,9 @@ public:
         io = inta = Pending::Idle;
         last_retire = m.cycles;
         retire_next = physical(s.seg[fes_i386::SEG_CS].base + s.eip, m.top.a20m);
+        next_linear = s.seg[fes_i386::SEG_CS].base + s.eip;
+        next_cr0 = s.cr0;
+        next_cr3 = s.cr3;
         stale.reset();
     }
 
@@ -991,14 +999,16 @@ public:
             if (cpu.arch_cr0 & 1) { ++pe_retired; if (!pe) ++pe_entries; }
             pe = cpu.arch_cr0 & 1;
             const uint32_t start = retire_next;
+            // Its bytes through the page tables it was fetched with (#1707).
+            uint8_t ib[15];
+            read_instruction(next_cr0, next_cr3, next_linear, a20m, ib);
             retire_next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
+            next_linear = cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip;
+            next_cr0 = cpu.arch_cr0;
+            next_cr3 = cpu.arch_cr3;
             uint32_t byte = 0;
-            const unsigned ilen = length(start);
-            if (prof) {
-                uint8_t ib[15];
-                for (unsigned k = 0; k < 15; ++k) ib[k] = read8(physical(start + k, a20m));
-                prof->retire(m.cycles, start, retire_next, ib, ilen, cpu.trace_exception, cpu.arch_cr0 & 1);
-            }
+            const unsigned ilen = length(ib);
+            if (prof) prof->retire(m.cycles, start, retire_next, ib, ilen, cpu.trace_exception, cpu.arch_cr0 & 1);
             if (!cpu.trace_exception && stale.executed(start, start + ilen, byte)) {
                 ++smc_executed;
                 if (smc_sites.size() < 24) smc_sites.push_back(site("executed", start, byte));
@@ -1026,6 +1036,8 @@ private:
     uint32_t read_dword = 0;
     uint8_t read_enables = 0;
     uint32_t retire_next = 0;  // where the next instruction to retire starts
+    // Its linear address, and the CR0 and CR3 it is fetched with.
+    uint32_t next_linear = 0, next_cr0 = 0, next_cr3 = 0;
     SmcStaleTracker stale;  // bytes stored into fetched code since the last redirect
     uint64_t last_retire = 0;
 
@@ -1422,9 +1434,7 @@ int main(int argc, char **argv) {
             rtl->cpu.gov_preset = uint8_t(options.preset);
             rtl->cpu.gov_frequency = uint16_t(options.frequency);
             rtl->cpu.gov_turbo = uint8_t(options.turbo);
-            rtl->length = [&](uint32_t linear) {
-                uint8_t bytes[15];
-                for (unsigned n = 0; n < 15; ++n) bytes[n] = rtl->read8(linear + n);
+            rtl->length = [&](const uint8_t (&bytes)[15]) {
                 fes_i386::Decoded decoded = oracle->decode(bytes, 15, (rtl->cpu.arch_ar[0] >> 16) & 0x4000);  // CS.D
                 return decoded.complete ? unsigned(decoded.length) : 15u;
             };
@@ -1480,8 +1490,9 @@ int main(int argc, char **argv) {
             fes_i386::State s = rtl->state(oracle->get_state());
             rtl->settle();
             const uint32_t linear = s.seg[fes_i386::SEG_CS].base + s.eip;
+            // The bytes through the RTL's page tables (#1707).
             uint8_t bytes[15];
-            for (unsigned n = 0; n < 15; ++n) bytes[n] = rtl->read8(RtlCpu::physical(linear + n, machine.top.a20m));
+            rtl->read_instruction(s.cr0, s.cr3, linear, machine.top.a20m, bytes);
             fes_i386::Decoded decoded = oracle->decode(bytes, 15, s.seg[fes_i386::SEG_CS].ar & 0x4000);
             const unsigned length = decoded.complete ? decoded.length : 15;
             const std::string key = pc386_census::stem(bytes, length);
