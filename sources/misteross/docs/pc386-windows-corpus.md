@@ -124,7 +124,7 @@ menu bar, an open group window's title bar inside it, and the grey desktop.
 The WfW logo, the hourglass desktop, a dialog, Notepad, Control Panel and text
 screens all fail it.
 
-**Cost.** RUN TIMING. Run it on a host with spare cores (chip-30x0-ai-dev under
+**Cost.** The first run's timing is in the [corpus record](../../../docs/validation/2026-11-12-pc386-windows-corpus/summary.md). Run it on a host with spare cores (chip-30x0-ai-dev under
 `/data`), in the background.
 
 ## Kit acceptance
@@ -173,7 +173,8 @@ python3 scripts/pc386_wfw_kit_acceptance.py --kit B --owner Claude \
   kit records do; never the drive or its files.
 - It exits 0 only when every goal passed and the cleanup was verified.
 
-KIT RESULT.
+A run takes about 3.5 minutes on the kit, a scrub boot included
+([corpus record](../../../docs/validation/2026-11-12-pc386-windows-corpus/summary.md)).
 
 ## Records
 
