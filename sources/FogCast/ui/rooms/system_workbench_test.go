@@ -188,7 +188,7 @@ type delayedFirstWorkbenchQueryServices struct {
 	releaseOnce sync.Once
 }
 
-func (s *delayedFirstWorkbenchQueryServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, limit int) ([]hostclient.Game, error) {
+func (s *delayedFirstWorkbenchQueryServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, limit int) ([]hostclient.Game, bool, error) {
 	s.mu.Lock()
 	s.calls++
 	first := s.calls == 1
@@ -197,9 +197,9 @@ func (s *delayedFirstWorkbenchQueryServices) QueryGames(ctx context.Context, q h
 		close(s.started)
 		select {
 		case <-s.release:
-			return append([]hostclient.Game(nil), s.firstResult...), nil
+			return append([]hostclient.Game(nil), s.firstResult...), false, nil
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, false, ctx.Err()
 		}
 	}
 	return s.fakeServices.QueryGames(ctx, q, limit)

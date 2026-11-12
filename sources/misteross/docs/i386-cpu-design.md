@@ -2195,7 +2195,7 @@ eight replicated hit sets.
     DR6's B bits: an instruction breakpoint as a fault, which RF suppresses
     after IRETD, a data breakpoint as a trap after the instruction. A task
     switch to a TSS with its T bit set traps too, with DR6.BT.
-- **Single step.** TF is not built yet. With TF set, #DB with DR6.BS traps
+- **Single step.** With TF set, #DB with DR6.BS traps
   after each instruction, after any data breakpoint's B bits. The
   instruction that sets TF takes no trap. MOV SS and POP SS take none
   either; the instruction after them runs and then traps. An INT n or a
@@ -2434,6 +2434,30 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      each instruction class, REP strings, MOV SS (the trap after its
      follower), INT n and a fault.
    - **Unlocks.** No title in the census; DOS debuggers.
+   Built ([record](../../../docs/validation/2026-11-11-i386-phase5-debug/summary.md);
+   the RTL README's
+   [Breakpoints and single step](../cores/fes-common/rtl/i386/README.md#breakpoints-and-single-step)).
+   As built, where it differs from the plan above:
+   - **The 386's DR6 and RF.** A #DB never clears DR6's bits, only ORs in
+     its own (the 386's microcode 3A3, 93F, 7E0; its manual's 12.2.3), and
+     a #DB's EFLAGS image has RF as it is (BREAKPOINT_CMN skips FAULT's RF
+     set), where Bochs clears B0-B3 and BT first and clears RF before an
+     instruction runs; slice 2's GD #DB changes with them. RF clears as an
+     instruction completes, not at its first uop. The lockstep's
+     `dr6_rule` and `db_rf_rule` carry the two differences
+     (`divergences.toml`'s `[[lockstep]]`).
+   - **Instruction breakpoints fault at EX, not at AG.** AG compares the
+     fetched linear address it already holds; RF and a MOV SS shadow are
+     only certain at EX, so M1 stops the matching uop touching memory
+     (no read, walk or fault), and EX makes it the #DB or, suppressed, a
+     replay that skips the breakpoint once.
+   - **Traps are boundary events,** beside NMI and INTR, not WB faults: the
+     CPU takes two cycles at the boundary to compare the next instruction's
+     address with the breakpoints, so a trap and the next instruction's
+     breakpoint come as one #DB, and both come before NMI and INTR (the
+     386 manual's table 9-2). An interrupt costs those two cycles more.
+   - **The T bit** costs one ROM word (436 of 512): a 386 TSS's word at 64h
+     into T5 during the switch.
 
 After slice 4, by the census, eight titles that stop on Phase 5 today run:
 Time Circle, Pinball Fantasies, Descent, Strike Commander and the four

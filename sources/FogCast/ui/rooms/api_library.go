@@ -68,8 +68,8 @@ func optInt64(t *lua.LTable, key string) int64 {
 }
 
 // library.query({platform, core_ids, collection, q, sort, genre, year, region,
-// hide_prerelease, hide_hacks, limit}, function(games, err, transient) end)
-// returns a cancellation function for an outstanding query.
+// hide_prerelease, hide_hacks, limit, home_family},
+// function(games, err, transient, more) end) returns a cancellation function.
 func (r *Instance) libraryQuery(L *lua.LState) int {
 	opts := L.OptTable(1, nil)
 	cb := L.CheckFunction(2)
@@ -84,6 +84,7 @@ func (r *Instance) libraryQuery(L *lua.LState) int {
 		Region:         optString(opts, "region"),
 		HidePrerelease: optBool(opts, "hide_prerelease"),
 		HideHacks:      optBool(opts, "hide_hacks"),
+		HomeFamily:     optBool(opts, "home_family"),
 	}
 	max := optInt(opts, "limit", 200)
 	if max > r.budget.MaxQueryGames {
@@ -98,11 +99,11 @@ func (r *Instance) libraryQuery(L *lua.LState) int {
 	L.Push(L.NewFunction(func(*lua.LState) int { cancel(); return 0 }))
 	go func() {
 		defer cancel()
-		games, err := r.opts.Services.QueryGames(ctx, q, max)
+		games, more, err := r.opts.Services.QueryGames(ctx, q, max)
 		if games == nil && err == nil {
 			games = []hostclient.Game{}
 		}
-		r.deliver(asyncResult{cb: cb, games: games, err: err, libraryQuery: true, transient: transientLibraryError(err)})
+		r.deliver(asyncResult{cb: cb, games: games, err: err, libraryQuery: true, transient: transientLibraryError(err), more: more})
 	}()
 	return 1
 }
@@ -235,6 +236,7 @@ func (r *Instance) gameRow(g hostclient.Game, withVariants bool) *lua.LTable {
 	L := r.L
 	t := L.NewTable()
 	t.RawSetString("id", lua.LString(g.ID))
+	t.RawSetString("core_entry_kind", lua.LString(g.CoreEntryKind))
 	t.RawSetString("title", lua.LString(preparedGameTitle(g)))
 	t.RawSetString("system", lua.LString(g.System))
 	if coreID := strings.TrimSpace(g.CoreID); coreID != "" {

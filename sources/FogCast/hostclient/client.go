@@ -238,6 +238,9 @@ func (c *Client) ListGamePage(ctx context.Context, query GameListQuery) (GamePag
 			values.Add("core_id", coreID)
 		}
 	}
+	if query.CoreEntryKind != "" {
+		values.Set("core_entry_kind", query.CoreEntryKind)
+	}
 	if sort := catalogSortParam(query.Sort); sort != "" {
 		values.Set("sort", sort)
 	}
@@ -269,11 +272,15 @@ func (c *Client) ListGamePage(ctx context.Context, query GameListQuery) (GamePag
 	if err := c.getJSON(ctx, "/api/v1/games?"+values.Encode(), &page); err != nil {
 		return GamePage{}, err
 	}
+	if query.CoreEntryKind != "" && page.CoreEntryKind != query.CoreEntryKind {
+		return GamePage{}, fmt.Errorf("hostclient: host did not apply the core entry kind filter")
+	}
 	if page.Games == nil {
 		page.Games = []Game{}
 	}
 	for i, game := range page.Games {
 		page.Games[i] = preferLaunchable(game)
+		page.Games[i].CoreEntryKind = query.CoreEntryKind
 	}
 	return page, nil
 }

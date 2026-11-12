@@ -175,6 +175,11 @@ PM_WEIGHT = 30
 # as PM_SEED's, with the handler task, its task gates and pm_task's blocks
 # (FES_I386_TASKS), from seeds of their own.
 TASK_SEED = 3000
+# The debug programs (Phase 5's fifth slice): random programs with blocks that
+# arm instruction and data breakpoints and single-step, through vector 1 to a
+# #DB handler (lockstep_tb.cpp's debug_block, FES_I386_DEBUG), from seeds of
+# their own.
+DEBUG_SEED = 5000
 # The programs with undefined encodings (#1701): protected-mode programs as
 # PM_SEED's, now and then an encoding the 386 rejects in place of an
 # instruction (FES_I386_UNDEFINED), from seeds of their own. Each ends at
@@ -366,8 +371,14 @@ def run_pmode(testbench: str, env: dict) -> dict:
     IRET with NT, 16- and 32-bit TSSs, busy bits, the back link, a V86 task,
     CPL 3 and back, each check before the switch and each fault after its
     commit, in the 386's order (the cases where Bochs differs run on the RTL
-    alone); and #UD for what the 386's decoder rejects, in real mode, at CPL 0
-    and 3 and in V86 mode at IOPL 0 and 3 (#1701)."""
+    alone); and breakpoints and single step: instruction breakpoints by
+    enable and LEN, ahead of the instruction's faults, RF from a handler's
+    IRETD and through a replay, data breakpoints by R/W and LEN and inside
+    REP strings, TF over MOV SS, POP SS, INT n, a fault, a REP string and
+    IRETD's image, the traps an edge merges, V86 mode and real mode, the
+    TSS's T bit and DR7's enables across a switch; and #UD for what the 386's decoder
+    rejects, in real mode, at CPL 0 and 3 and in V86 mode at IOPL 0 and 3
+    (#1701)."""
     env = dict(env, FES_I386_MODE='pmode', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -378,9 +389,9 @@ def run_pmode(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-# 350, and #1701's 42 #UD probes in real mode, at CPL 0 and 3 and in V86 mode
+# 405, and #1701's 42 #UD probes in real mode, at CPL 0 and 3 and in V86 mode
 # at IOPL 0 and 3.
-PMODE_CASES = 350 + 42 * 5
+PMODE_CASES = 405 + 42 * 5
 
 
 def run_paging(testbench: str, env: dict) -> dict:
@@ -609,14 +620,16 @@ def run_file(path: str, testbench: str, env: dict, revoked: frozenset[str], entr
 
 
 def run_random(testbench: str, env: dict, seed: int, programs: int, latency: bool, pm_weight: int = 2,
-               tasks: bool = False, undefined: bool = False) -> dict:
+               tasks: bool = False, debug: bool = False, undefined: bool = False) -> dict:
     """Random programs of one seed. pm_weight: protected-mode blocks per hundred
-    items (lockstep_tb.cpp's pm_block); tasks: the task-switch programs;
-    undefined: the programs with undefined encodings."""
+    items (lockstep_tb.cpp's pm_block); tasks: the task-switch programs; debug:
+    the debug programs; undefined: the programs with undefined encodings."""
     env = dict(env, FES_I386_MODE='random', FES_I386_SEED=str(seed), FES_I386_PROGRAMS=str(programs),
                FES_I386_LATENCY='1' if latency else '0', FES_I386_PM=str(pm_weight))
     if tasks:
         env['FES_I386_TASKS'] = '1'
+    if debug:
+        env['FES_I386_DEBUG'] = '1'
     if undefined:
         env['FES_I386_UNDEFINED'] = '1'
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
@@ -640,6 +653,8 @@ def main() -> int:
                         help='random programs per seed dense with protected-mode blocks (default 500)')
     parser.add_argument('--task-programs', type=int, default=250,
                         help='task-switch programs per seed (default 250)')
+    parser.add_argument('--debug-programs', type=int, default=250,
+                        help='breakpoint and single-step programs per seed (default 250)')
     parser.add_argument('--undefined-programs', type=int, default=250,
                         help='programs with undefined encodings per seed (default 250)')
     parser.add_argument('--no-latency', action='store_true', help='no fetch latency in the corpus run')
@@ -656,8 +671,8 @@ def main() -> int:
         parser.error('--corpus must be absolute')
     if args.same_as is not None and not args.same_as.is_absolute():
         parser.error('--same-as must be absolute')
-    if (args.random_programs < 0 or args.pm_programs < 0 or args.task_programs < 0 or args.undefined_programs < 0
-            or args.random_seeds < 1 or args.seed < 0):
+    if (args.random_programs < 0 or args.pm_programs < 0 or args.task_programs < 0 or args.debug_programs < 0
+            or args.undefined_programs < 0 or args.random_seeds < 1 or args.seed < 0):
         parser.error('--random-programs must be nonnegative, --random-seeds positive, --seed nonnegative')
     try:
         verilator = i386_verilator.locate(args.cache_root)
@@ -717,8 +732,11 @@ def main() -> int:
             tasks = [executor.submit(run_random, testbench, env, TASK_SEED + args.seed + n, args.task_programs, True,
                                      PM_WEIGHT, True)
                      for n in range(args.random_seeds if args.task_programs else 0)]
+            debugs = [executor.submit(run_random, testbench, env, DEBUG_SEED + args.seed + n, args.debug_programs, True,
+                                      2, False, True)
+                      for n in range(args.random_seeds if args.debug_programs else 0)]
             undefined = [executor.submit(run_random, testbench, env, UNDEFINED_SEED + args.seed + n,
-                                         args.undefined_programs, True, PM_WEIGHT, False, True)
+                                         args.undefined_programs, True, PM_WEIGHT, undefined=True)
                          for n in range(args.random_seeds if args.undefined_programs else 0)]
             unbuilt_lines = unbuilt_encodings()
             unbuilt_chunks = [unbuilt_lines[n::args.jobs] for n in range(args.jobs)]
@@ -729,6 +747,7 @@ def main() -> int:
             steady_results = [future.result() for future in steady]
             pmode_results = [future.result() for future in pmode]
             task_results = [future.result() for future in tasks]
+            debug_results = [future.result() for future in debugs]
             undefined_results = [future.result() for future in undefined]
     except (OSError, oracle.OracleError, frontend.FrontendError, vectors.CorpusError, LockstepError,
             json.JSONDecodeError, KeyError) as error:
@@ -760,12 +779,15 @@ def main() -> int:
                               'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops',
                               'window_code_stops', 'code_store_stops', 'stray_stops', 'mmio_runs',
                               'mmio_accesses', 'replays', 'smc_restarts', 'port0_reads', 'port0_writes',
-                              'pm_retirements', 'cs_rule', 'ss_error_rule', 'fetch_rule', 'iret_save_rule')})
+                              'pm_retirements', 'cs_rule', 'ss_error_rule', 'fetch_rule', 'iret_save_rule',
+                              'dr6_rule', 'db_rf_rule')})
                     for result in results), Counter())
     random_totals = random_sum(random_results)
     pmode_totals = random_sum(pmode_results)
     task_totals = random_sum(task_results)
     task_kinds = sum((Counter(result['summary']['pm_kinds']) for result in task_results), Counter())
+    debug_totals = random_sum(debug_results)
+    debug_kinds = sum((Counter(result['summary']['debug_kinds']) for result in debug_results), Counter())
     undefined_totals = random_sum(undefined_results)
     undefined_kinds = sum((Counter(result['summary']['pm_kinds']) for result in undefined_results), Counter())
     undefined_vectors = sum((Counter(result['summary']['fault_vectors']) for result in undefined_results), Counter())
@@ -775,7 +797,7 @@ def main() -> int:
                         Counter())
     pm_kinds = sum((Counter(result['summary']['pm_kinds']) for result in random_results + pmode_results), Counter())
     cs_limit = sum((Counter(result['summary']['cs_limit']) for result in random_results + pmode_results), Counter())
-    random_failures = [line for result in random_results + steady_results + pmode_results + task_results
+    random_failures = [line for result in random_results + steady_results + pmode_results + task_results + debug_results
                        + undefined_results for line in result['failures']]
     hash_mismatches = [result['seed'] for result in steady_results
                        if result['summary']['trace_hash'] != next(
@@ -829,6 +851,9 @@ def main() -> int:
         'tasks': {'seeds': [result['seed'] for result in task_results], 'programs_per_seed': args.task_programs,
                   'pm_weight': PM_WEIGHT, 'totals': dict(task_totals), 'pm_kinds': dict(sorted(task_kinds.items())),
                   'trace_hashes': {str(result['seed']): result['summary']['trace_hash'] for result in task_results}},
+        'debug': {'seeds': [result['seed'] for result in debug_results], 'programs_per_seed': args.debug_programs,
+                  'totals': dict(debug_totals), 'debug_kinds': dict(sorted(debug_kinds.items())),
+                  'trace_hashes': {str(result['seed']): result['summary']['trace_hash'] for result in debug_results}},
         'undefined': {'seeds': [result['seed'] for result in undefined_results],
                       'programs_per_seed': args.undefined_programs, 'pm_weight': PM_WEIGHT,
                       'totals': dict(undefined_totals), 'fault_vectors': dict(sorted(undefined_vectors.items())),
@@ -886,6 +911,12 @@ def main() -> int:
                   f"{ {k: v for k, v in sorted(task_kinds.items()) if k.startswith(('task', 'v86'))} }; "
                   f"fetch faults taken into a transfer's step {task_totals['fetch_rule'] + pmode_totals['fetch_rule'] + random_totals['fetch_rule']}, "
                   f"IRET saves before a back link's fault {task_totals['iret_save_rule'] + pmode_totals['iret_save_rule']}")
+        if debug_results:
+            print(f"breakpoints and single step: {len(debug_results)} seeds x {args.debug_programs} programs, "
+                  f"{debug_totals['retirements']} retirements: {debug_totals['passed']} pass, "
+                  f"{debug_totals['failed']} fail; #DB deliveries by kind {dict(sorted(debug_kinds.items()))}; "
+                  f"DR6 kept past a #DB (dr6_rule) {debug_totals['dr6_rule']}, "
+                  f"#DB frames with RF set (db_rf_rule) {debug_totals['db_rf_rule']}")
         if undefined_results:
             print(f"undefined encodings: {len(undefined_results)} seeds x {args.undefined_programs} programs, "
                   f"{undefined_totals['retirements']} retirements: {undefined_totals['passed']} pass, "

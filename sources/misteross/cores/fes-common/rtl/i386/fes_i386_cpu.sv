@@ -361,12 +361,69 @@ module fes_i386_cpu #(
     assign cr0_rd = {cr0_pg, 26'h3ff_ffff, cr0_et, cr0_ts, cr0_em, cr0_mp, cr0_pe};
     // The debug registers (see "Debug registers"): DR0-DR3; DR6's bits 15-12
     // and 3-0, the only ones a 386 writes (the rest read as ones, as Bochs's
-    // 386 keeps them); DR7, whose bit 10 is always set. Nothing here arms a
-    // breakpoint yet; DR7.GD (bit 13) makes a MOV to or from DRn raise #DB.
+    // 386 keeps them); DR7, whose bit 10 is always set. DR7.GD (bit 13)
+    // makes a MOV to or from DRn raise #DB; its enables arm the breakpoints
+    // (see "Breakpoints").
     logic [3:0][31:0] dr;
     logic [3:0]       dr6_lo, dr6_hi;
     logic [31:0]      dr6_rd, dr7;
     assign dr6_rd = {16'hffff, dr6_hi, 8'hff, dr6_lo};
+    // ---- Breakpoints ----------------------------------------------------------------
+    // DR7's fields for each of DR0-DR3: enabled (Ln or Gn: bp_en), R/W 00
+    // (an instruction breakpoint: bp_x), 01 (data writes: bp_w) or 11 (data
+    // reads and writes: bp_rw; 10 matches nothing, as in Bochs), and LEN's
+    // mask of low address bits (bp_m: 00 one byte, 01 two, 11 four; the
+    // undefined 10 eight, as Bochs takes it, for data and instructions
+    // alike, LEN other than 00 on an instruction breakpoint being undefined
+    // on the 386 too). Nothing is compared while no breakpoint is enabled
+    // (bp_any), as in Bochs's hwdebug_compare; once one is, every
+    // breakpoint whose address and kind match is reported in DR6's B bits,
+    // enabled or not (the 386 manual's 12.2.3).
+    logic [3:0]       bp_en, bp_x, bp_w, bp_rw;
+    logic [3:0][2:0]  bp_m;
+    logic             bp_any;
+    for (genvar n = 0; n < 4; n++) begin : g_bp
+        assign bp_en[n] = dr7[2 * n] || dr7[2 * n + 1];
+        assign bp_x[n] = dr7[16 + 4 * n + 1 : 16 + 4 * n] == 2'b00;
+        assign bp_w[n] = dr7[16 + 4 * n + 1 : 16 + 4 * n] == 2'b01;
+        assign bp_rw[n] = dr7[16 + 4 * n + 1 : 16 + 4 * n] == 2'b11;
+        assign bp_m[n] = dr7[18 + 4 * n + 1 : 18 + 4 * n] == 2'b00 ? 3'd0
+                       : dr7[18 + 4 * n + 1 : 18 + 4 * n] == 2'b01 ? 3'd1
+                       : dr7[18 + 4 * n + 1 : 18 + 4 * n] == 2'b11 ? 3'd3 : 3'd7;
+    end
+    assign bp_any = bp_en != 4'd0;
+    // The instruction breakpoints an instruction at linear address lin
+    // matches: its address equal to DRn's but for LEN's low bits.
+    function automatic logic [3:0] ibp_match(input logic [31:0] lin, input logic [3:0][31:0] k_dr, input logic k_bp_any,
+                                              input logic [3:0] k_bp_x, input logic [3:0][2:0] k_bp_m);
+        for (int n = 0; n < 4; n++)
+            ibp_match[n] = k_bp_any && k_bp_x[n] && (lin[31:3] == k_dr[n][31:3])
+                        && ((lin[2:0] ^ k_dr[n][2:0]) & ~k_bp_m[n]) == 3'd0;
+    endfunction
+    // The data breakpoints an access of bytes bytes (1 to 8) at linear
+    // address a matches, a read (rd) or a write (wr; a read-modify-write is
+    // both): any byte of the access within DRn's field, as Bochs's
+    // hwdebug_compare and the 386 manual's 12.2.4 have it. The field lies in
+    // one 8-byte block; the access in its own block and the next, which is
+    // compared carry-free (a + 8 == the field's block).
+    function automatic logic [3:0] dbp_match(input logic [31:0] a, input logic [3:0] bytes, input logic rd,
+                                              input logic wr, input logic [3:0][31:0] k_dr, input logic k_bp_any,
+                                              input logic [3:0] k_bp_w, input logic [3:0] k_bp_rw,
+                                              input logic [3:0][2:0] k_bp_m);
+        logic [15:0] am;
+        logic [7:0]  fm;
+        logic [31:0] k_in, k_out, blk;
+        for (int n = 0; n < 4; n++) begin
+            am = ((16'd1 << bytes) - 16'd1) << a[2:0];
+            fm = ((8'd2 << k_bp_m[n]) - 8'd1) << (k_dr[n][2:0] & ~k_bp_m[n]);
+            blk = {k_dr[n][31:3], 3'd0};
+            k_in = {a[31:3], 3'd0} ^ 32'd8 ^ blk;
+            k_out = ({a[31:3], 3'd0} & 32'd8) | (({a[31:3], 3'd0} ^ 32'd8) & ~blk);
+            dbp_match[n] = k_bp_any && (rd && k_bp_rw[n] || wr && (k_bp_rw[n] || k_bp_w[n]))
+                        && (a[31:3] == k_dr[n][31:3] && (am[7:0] & fm) != 8'd0
+                            || k_in == {k_out[30:0], 1'b0} && (am[15:8] & fm) != 8'd0);
+        end
+    endfunction
     // The x87 pointers, which the 386 keeps for the 387 and FNSTENV and
     // FNSAVE store ("x87 pointers"): the instruction pointer (CS's selector
     // and the instruction's EIP) and the data pointer (the memory operand's
@@ -446,6 +503,8 @@ module fes_i386_cpu #(
     // store in WB while the write buffer has no room for it (st_wait, see
     // WB). Each wait is one register, so the freeze stays one LUT of six.
     logic freeze, m2_load, md_busy, io_wait, int_take, int_nmi, int_wait, st_wait;
+    logic       int_dbg;  // the event int_take delivers is a #DB (see Interrupts)
+    logic [1:0] int_ph;   // ... and how far its choice has got
     logic int_next;  // an interrupt is taken on this edge (see Interrupts)
     assign freeze = m2_load && !dmem_valid || md_busy || io_wait || int_wait || st_wait;
 
@@ -487,7 +546,7 @@ module fes_i386_cpu #(
     logic wb_flushes, wb_redir, wb_deliver, wb_nested, wb_df, wb_shut, int_go;
     assign wb_flush = !freeze && (wb_flushes || int_take);
     assign exc_take = !freeze && wb_deliver && !int_take;
-    assign int_go = !freeze && int_take;
+    assign int_go = !freeze && int_take && int_ph == 2'd2;
     // A replay in WB (rp_go) flushes as a fault does but delivers nothing: the
     // front end restarts at its instruction through start, two cycles on,
     // when start_linear holds CS.base + EIP, and D issues nothing until then.
@@ -1822,6 +1881,9 @@ module fes_i386_cpu #(
         d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE
                 || xchg_ld || mkind == fes_i386_pkg::MEM_LOAD && !dc.gov.two && dc.gov.op == 8'h63;
         d_out.ones = tsf_any && !tsf_32 && u.dst.valid && u.dst.space == fes_i386_pkg::RS_GPR;
+        d_out.iret0 = d_first && dc.fetched && dc.seq == fes_i386_pkg::SEQ_UCODE
+                   && (dc.upc == fes_i386_ucode_pkg::UC_IRET || dc.upc == fes_i386_ucode_pkg::UC_VIRET
+                    || dc.upc == fes_i386_ucode_pkg::UC_PIRET || dc.upc == fes_i386_ucode_pkg::UC_TSSAVE);
         if (d_ifw) begin
             d_out.ifw = 1'b1;
             d_out.pf_lin = d_ifw_lin;
@@ -1971,6 +2033,11 @@ module fes_i386_cpu #(
                           : ag_call ? {ag_o32 ? call_tgt[31:16] : 16'd0, call_tgt[15:0]} : offset;
         ag_out.maddr = linear;
         ag_out.moff = offset;
+        // An instruction's first uop: the instruction breakpoints its fetched
+        // linear address matches (see Breakpoints), which EX turns into the
+        // fault (FAULT_DBI) while RF is clear.
+        ag_out.ibp = ag_s.fchk && !ibp_skip ? ibp_match(ag_s.lin, dr, bp_any, bp_x, bp_m) : 4'd0;
+        ag_out.ibp_en = (ag_out.ibp & bp_en) != 4'd0;
         // Its bytes are not those at its EIP: it replays, touching nothing.
         if (ag_fbad) begin
             ag_out.uop.ctl.fault = fes_i386_pkg::FAULT_REPLAY;
@@ -2120,6 +2187,25 @@ module fes_i386_cpu #(
         end else if (m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
             m1_out.uop.ctl.fault = m1_s.cs_late ? fes_i386_pkg::FAULT_GP0 : m1_s.dfault;
             m1_out.dfl = !m1_s.cs_late && m1_s.dfault != fes_i386_pkg::FAULT_NONE;
+        end
+        // The data breakpoints the uop's accesses match (see Breakpoints): its
+        // memory operand's, read, written or both, a descriptor's, gate's or
+        // TSS's too (Bochs's system_read and system_write check a page that
+        // holds a data breakpoint as any access), and a st2 uop's store at
+        // its second address. The walker's page-table accesses are physical.
+        m1_out.dbp = m1_s.uop.mem.kind == fes_i386_pkg::MEM_NONE ? 4'd0
+                   : dbp_match(m1_s.maddr, m1_s.uop.mem.bytes, reads_mem(m1_s),
+                               m1_s.uop.mem.kind == fes_i386_pkg::MEM_STORE || m1_s.uop.mem.kind == fes_i386_pkg::MEM_RMW,
+                               dr, bp_any, bp_w, bp_rw, bp_m)
+                     | (m1_s.uop.st2 ? dbp_match(m1_s.target, m1_s.uop.mem.bytes, 1'b0, 1'b1, dr, bp_any, bp_w, bp_rw, bp_m)
+                                     : 4'd0);
+        m1_out.dbp_en = (m1_out.dbp & bp_en) != 4'd0;
+        // An enabled instruction breakpoint's uop touches nothing from here
+        // on (no read, no walk, no fault of its own): EX makes it the #DB or,
+        // when RF or a MOV SS suppresses that, a replay (see EX).
+        if (m1_s.ibp_en) begin
+            m1_out.uop.ctl.fault = fes_i386_pkg::FAULT_DBI;
+            m1_out.dfl = 1'b0;
         end
         m1_out.tchk = m1_tpast && m1_s.uop.cls == fes_i386_pkg::UOP_BRANCH;
         m1_out.cpast = m1_s.cpast || m1_tpast && m1_s.uop.cls != fes_i386_pkg::UOP_BRANCH;
@@ -2445,6 +2531,7 @@ module fes_i386_cpu #(
     logic        ex_taken, ex_br, ex_sh_out0, ex_sh_outn, ex_sh_cfw, ex_sh_wide, ex_def_co, ex_def_szap;
     logic [31:0] ex_ind_target, ex_ind_eip;
     pipe_t       ex_out;
+    logic        ex_ibp, ex_dbi, ibp_sup, ibp_skip;
 
     logic [7:0] wb_r8;
     logic       wb_sh_cf, wb_sh_of;
@@ -2540,6 +2627,20 @@ module fes_i386_cpu #(
         ex_out.sh_wide = ex_sh_wide;
         ex_out.def_co = ex_def_co;
         ex_out.def_szap = ex_def_szap;
+        // An enabled instruction breakpoint (see Breakpoints) on an
+        // instruction's first uop (ex_ibp), while RF is clear (EX's EFLAGS,
+        // RF after the instruction before) and not after a MOV SS or POP SS
+        // (ibp_sup), faults ahead of anything its instruction found: the
+        // 386's instruction breakpoint comes before the faults of fetching
+        // and decoding the instruction. Suppressed, the uop, which M1 kept
+        // from touching memory, replays, and AG then skips the breakpoint
+        // once (ibp_skip).
+        if (ex_ibp) begin
+            ex_out.uop.ctl.fault = ex_dbi ? fes_i386_pkg::FAULT_DBI : fes_i386_pkg::FAULT_REPLAY;
+            ex_out.taken = 1'b0;
+            ex_out.def_co = 1'b0;
+            ex_out.def_szap = 1'b0;
+        end
         // A fetch check's replay stands over anything found since.
         if (ex_s.fbad) begin
             ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_REPLAY;
@@ -2567,7 +2668,10 @@ module fes_i386_cpu #(
             // the uops EX has run since the boundary.
             ex_flags <= eflags;
         end else if (ex_s.valid && !wb_flush) begin
-            ex_flags <= ex_flags_out;
+            // An instruction breakpoint's uop (ex_ibp) runs nothing of its
+            // instruction: EX's copy takes EFLAGS before it (flags_keep, an
+            // older shift's flags in WB included).
+            ex_flags <= ex_ibp ? flags_keep : ex_flags_out;
         end else begin
             ex_flags <= flags_keep;
         end
@@ -2747,7 +2851,7 @@ module fes_i386_cpu #(
     // instruction's last uop retires, a delivery's included, or a REP
     // string element's last uop (str_cx), or while the CPU is in HLT. NMI
     // comes first, unless one is being handled (blocked
-    // until IRET's last uop retires); INTR if IF is set after the
+    // until an IRET starts: iret_start); INTR if IF is set after the
     // instruction. Neither is taken after MOV SS or POP SS, unless that one
     // follows another, nor after an STI that set IF: the shadow, as Bochs
     // keeps it. int_take holds from that edge until the delivery starts. An
@@ -2761,9 +2865,24 @@ module fes_i386_cpu #(
     // protected mode the delivery goes through the IDT (dc_exc), its EFLAGS
     // image with RF set between a REP string's elements (int_rep), as
     // Bochs's REP sets it when an event stops one.
+    // A debug trap (see Breakpoints) is taken at an instruction boundary
+    // too, ahead of NMI and INTR, and is not held off by STI's shadow, only
+    // by MOV SS's and POP SS's (sh_ss). From that edge (int_take) the CPU
+    // takes two cycles to choose what it delivers (int_ph): it compares the
+    // next instruction's linear address, CS.base + EIP once the edge has
+    // written them, with the instruction breakpoints (int_cbp), then takes
+    // #DB if a trap is pending or the next instruction hits an enabled
+    // breakpoint with RF clear and outside a REP string, the 386 manual's
+    // table 9-2 order (debug traps of this instruction, then debug faults of
+    // the next, then NMI, then INTR), else NMI, else INTR, whose vector it
+    // then asks the machine for. A #DB leaves NMI and INTR pending.
     logic       nmi_q, nmi_pend, nmi_edge, nmi_block, movss_sh, int_rep;
     logic [7:0] int_vec;
     logic       wb_commit, at_boundary, in_hlt, wb_ss_load, wb_sti, sh_ss, int_shadow, nmi_ok, int_if;
+    logic       int_cnmi, int_cnmi_n, int_trap, int_bt;
+    logic [3:0] int_cbp, int_b;
+    logic [5:0] dbg_dr6;  // the #DB's DR6 bits: BT, BS, B3-B0
+    logic       int_cbp_ok, int_cbp_hit;
     logic       iret_start;
     assign wb_commit = wb_s.valid && !halted && !freeze && !int_take && wb_fault == fes_i386_pkg::FAULT_NONE;
     // An ESC memory form's offset, the x87 data pointer's: 16 bits under a
@@ -2778,12 +2897,82 @@ module fes_i386_cpu #(
     assign sh_ss = wb_ss_load && !movss_sh;
     assign int_shadow = sh_ss || wb_sti && !eflags[9];
     assign nmi_edge = nmi && !nmi_q;
-    assign iret_start = issue && dc.seq == fes_i386_pkg::SEQ_UCODE
-                     && (dc.upc == fes_i386_ucode_pkg::UC_IRET || dc.upc == fes_i386_ucode_pkg::UC_VIRET
-                      || dc.upc == fes_i386_ucode_pkg::UC_PIRET || dc.upc == fes_i386_ucode_pkg::UC_TSSAVE);
+    // IRET starts when its first uop reaches WB as the oldest (iret0),
+    // whether it commits or faults there; one that replays starts again.
+    // Every instruction before it has completed then, as on the 386, whose
+    // CLRNMI (674) runs once the IRET starts.
+    assign iret_start = wb_s.valid && wb_s.iret0 && !halted && !freeze && !int_take
+                     && wb_fault != fes_i386_pkg::FAULT_REPLAY;
     assign nmi_ok = (nmi_pend || nmi_edge) && (!nmi_block || at_boundary && wb_s.uop.iret);
     assign int_if = at_boundary ? wb_flags[9] : eflags[9];
-    assign int_next = (at_boundary && !int_shadow || in_hlt) && (nmi_ok || intr && int_if);
+
+    // ---- Debug traps ------------------------------------------------------------------
+    // What the trap after an instruction reports, gathered as its uops
+    // commit (Bochs's debug_trap): the data breakpoints its accesses matched
+    // (dbg_b; dbg_en, an enabled one among them), single step (dbg_bs: TF
+    // was set as the instruction began, ss_arm, latched at each boundary),
+    // and the task switch's T bit (dbg_bt: the new TSS's, a 386 one's, at
+    // its commit). A delivery's start (a fault's, a trap's or interrupt's,
+    // and an INT's TF-clearing uop, dbg_nobs) drops single step, as
+    // Bochs's interrupt() drops debug_trap, so neither an exception's
+    // handler nor INT n's traps; a task switch's commit drops it too
+    // (Bochs's task_switch), and the new task's TF steps after its first
+    // instruction. At an edge MOV SS or POP SS shadows, the trap waits for
+    // the next instruction's end, which reports both.
+    logic       ss_arm, dbg_bs, dbg_bt, dbg_en, dbg_nobs, dbg_clr;
+    logic [3:0] dbg_b;
+    logic       b_bs, b_en, dbg_fire;
+    logic [3:0] b_b;
+    assign dbg_clr = wb_s.exc.f_clrit || wb_s.exc.f_clrpm;
+    assign b_bs = dbg_bs || ss_arm && !dbg_nobs && !dbg_clr;
+    assign b_en = dbg_en || wb_s.dbp_en;
+    assign b_b = dbg_b | wb_s.dbp;
+    assign dbg_fire = (b_bs || dbg_bt || b_en) && !sh_ss;
+    always_ff @(posedge clk) begin
+        if (reset || exc_take || int_go) begin
+            ss_arm <= reset && init_eflags[8];
+            dbg_bs <= 1'b0;
+            dbg_bt <= 1'b0;
+            dbg_en <= 1'b0;
+            dbg_b <= 4'd0;
+            dbg_nobs <= 1'b0;
+        end else if (tsw_go) begin
+            ss_arm <= 1'b0;
+            dbg_bs <= 1'b0;
+            dbg_bt <= tr_ar[3] && t5[0];
+        end else if (at_boundary) begin
+            ss_arm <= wb_flags[8];
+            dbg_nobs <= 1'b0;
+            {dbg_bs, dbg_en, dbg_b} <= sh_ss ? {b_bs, b_en, b_b} : '0;
+            if (!sh_ss) dbg_bt <= 1'b0;
+        end else if (wb_commit && dbg_clr) begin
+            // An INT's delivery drops what a MOV SS or POP SS before it
+            // carried, as Bochs's interrupt() drops debug_trap.
+            dbg_bs <= 1'b0;
+            dbg_en <= wb_s.dbp_en;
+            dbg_b <= wb_s.dbp;
+            dbg_nobs <= 1'b1;
+        end else if (wb_commit) begin
+            dbg_en <= b_en;
+            dbg_b <= b_b;
+        end
+    end
+    // The in-pipe instruction breakpoint's checks at EX (see EX): not on the
+    // instruction after a shadowing MOV SS or POP SS (Bochs's
+    // BX_INHIBIT_DEBUG), whose last uop may be in WB yet.
+    assign ibp_sup = wb_s.valid && wb_eoi ? sh_ss : movss_sh;
+    assign ex_ibp = ex_s.valid && ex_s.ibp_en;
+    assign ex_dbi = ex_ibp && !ex_flags[16] && !ibp_sup;
+    // A suppressed breakpoint's replay (not the fetch check's or
+    // self-modifying code's, which refetch the instruction's bytes): the
+    // instruction's next pass by AG matches nothing.
+    always_ff @(posedge clk)
+        if (reset) ibp_skip <= 1'b0;
+        else if (rp_go && wb_s.ibp_en && !wb_frp && !wb_smc) ibp_skip <= 1'b1;
+        else if (!freeze && !wb_flush && ag_s.valid && ag_s.fchk) ibp_skip <= 1'b0;
+
+    assign int_next = at_boundary && (dbg_fire || !int_shadow && (nmi_ok || intr && int_if)) || in_hlt && (nmi_ok || intr && int_if);
+    assign int_cnmi_n = nmi_ok && (in_hlt || !int_shadow);
     assign inta_req = int_wait;
     always_ff @(posedge clk) begin
         nmi_q <= nmi;
@@ -2794,21 +2983,37 @@ module fes_i386_cpu #(
             int_take <= 1'b0;
             int_nmi <= 1'b0;
             int_wait <= 1'b0;
+            int_dbg <= 1'b0;
+            int_ph <= 2'd0;
         end else begin
             if (at_boundary) movss_sh <= sh_ss;
             // The 386 clears the NMI block when IRET starts, before it checks
             // a nested task's back link; a faulting return still unblocks it.
             if (iret_start) nmi_block <= 1'b0;
             // An edge stays pending until an NMI is taken; one that comes
-            // while another is pending, or as it is taken, is that one.
-            if (int_next && nmi_ok) nmi_pend <= 1'b0;
-            else if (nmi_edge) nmi_pend <= 1'b1;
+            // while another is pending, or as it is taken, is that one. One
+            // that comes while the CPU chooses is another; a #DB chosen in
+            // its place leaves the NMI pending.
+            if (int_next && int_cnmi_n) nmi_pend <= 1'b0;
+            else if (nmi_edge || int_take && int_ph == 2'd1 && (int_trap || int_cbp_hit) && int_cnmi) nmi_pend <= 1'b1;
             if (int_next) begin
                 int_take <= 1'b1;
-                int_nmi <= nmi_ok;
-                int_wait <= !nmi_ok;
+                int_ph <= 2'd0;
+                int_trap <= at_boundary && dbg_fire;
+                int_bt <= at_boundary && dbg_bt;
+                int_cnmi <= int_cnmi_n;
                 int_rep <= at_boundary && !wb_eoi;
-                if (nmi_ok) nmi_block <= 1'b1;
+                dbg_dr6 <= at_boundary ? {dbg_bt, b_bs, b_b} : 6'd0;
+            end else if (int_take && int_ph == 2'd0) begin
+                int_ph <= 2'd1;
+                int_cbp <= ibp_match(cs_eip, dr, bp_any, bp_x, bp_m);
+            end else if (int_take && int_ph == 2'd1) begin
+                int_ph <= 2'd2;
+                int_dbg <= int_trap || int_cbp_hit;
+                int_nmi <= !(int_trap || int_cbp_hit) && int_cnmi;
+                int_wait <= !(int_trap || int_cbp_hit) && !int_cnmi;
+                if (!(int_trap || int_cbp_hit) && int_cnmi) nmi_block <= 1'b1;
+                if (int_cbp_ok) dbg_dr6[3:0] <= dbg_dr6[3:0] | int_cbp;
             end else if (int_go) begin
                 int_take <= 1'b0;
             end
@@ -2818,6 +3023,11 @@ module fes_i386_cpu #(
             end
         end
     end
+    // The next instruction's breakpoints count unless RF is set, the edge is
+    // between a REP string's elements (where Bochs's REP sets RF) or the
+    // trap is a task switch's T bit's, which Bochs takes before it compares.
+    assign int_cbp_ok = !eflags[16] && !int_rep && !int_bt;
+    assign int_cbp_hit = int_cbp_ok && (int_cbp & bp_en) != 4'd0;
 
     // ---- The speed governor ---------------------------------------------------------
     // It charges what WB retires (see fes_i386_governor): each instruction's
@@ -2873,7 +3083,7 @@ module fes_i386_cpu #(
             5'(fes_i386_pkg::FAULT_NP_SEL), 5'(fes_i386_pkg::FAULT_NP_IDT): fault_vector = 8'd11;
             5'(fes_i386_pkg::FAULT_TS_SEL), 5'(fes_i386_pkg::FAULT_TS_TR): fault_vector = 8'd10;
             5'(fes_i386_pkg::FAULT_PF): fault_vector = 8'd14;
-            5'(fes_i386_pkg::FAULT_DB): fault_vector = 8'd1;
+            5'(fes_i386_pkg::FAULT_DB), 5'(fes_i386_pkg::FAULT_DBI): fault_vector = 8'd1;
             default: fault_vector = 8'd12;  // FAULT_SS0, FAULT_SS_SEL
         endcase
     endfunction
@@ -2883,7 +3093,7 @@ module fes_i386_cpu #(
     logic [7:0] idt_vec, wb_idt_vec;
     assign wb_idt_vec = wb_s.uop.desc == 4'(fes_i386_pkg::DESC_IDT_LO) ? wb_s.moff[10:3] : idt_vec;
     always_ff @(posedge clk)
-        if (wb_s.valid && !freeze && wb_s.uop.desc == 4'(fes_i386_pkg::DESC_IDT_LO)) idt_vec <= wb_s.moff[10:3];
+        if (wb_s.valid && !freeze && !int_take && wb_s.uop.desc == 4'(fes_i386_pkg::DESC_IDT_LO)) idt_vec <= wb_s.moff[10:3];
     // A fault's error code, which a protected-mode delivery pushes for #DF,
     // #TS, #NP, #SS, #GP and #PF: a selector's, the IDT entry's, a #PF's
     // (P, W/R, U/S), or 0; EXT (bit 0) is set for a fault in a delivery
@@ -3015,14 +3225,23 @@ module fes_i386_cpu #(
             // An INTR or NMI: benign, with no error code; its EFLAGS image's
             // RF is EFLAGS', or set between a REP string's elements.
             exc_active <= 1'b1;
-            exc_vec <= int_nmi ? 8'd2 : int_vec;
+            exc_vec <= int_dbg ? 8'd1 : int_nmi ? 8'd2 : int_vec;
             exc_err <= 16'd0;
             exc_class <= EXC_BENIGN;
             exc_haserr <= 1'b0;
             del_rf <= eflags[16] || int_rep;
             hlt <= 1'b0;
             halted <= 1'b0;
-        end else if (wb_s.valid && !halted && !freeze) begin
+            // A debug trap, or the next instruction's breakpoint: DR6 takes
+            // its B, BS and BT bits on top of what it holds, which the 386
+            // never clears (its microcode only ORs DR6: 93F, 7E0), and GD is
+            // cleared for the handler (94C), as for every #DB.
+            if (int_dbg) begin
+                dr6_lo <= dr6_lo | dbg_dr6[3:0];
+                dr6_hi[3:2] <= dr6_hi[3:2] | dbg_dr6[5:4];
+                dr7[13] <= 1'b0;
+            end
+        end else if (wb_s.valid && !halted && !freeze && !int_take) begin
             if (exc_take) begin
                 // A fault, or one in a delivery in that delivery's place: a
                 // double fault when both are contributory.
@@ -3032,16 +3251,23 @@ module fes_i386_cpu #(
                 exc_class <= wb_df ? EXC_DF : contributory(wb_fault) ? EXC_CONTRIB
                            : wb_fault == 5'(fes_i386_pkg::FAULT_PF) ? EXC_PF : EXC_BENIGN;
                 exc_haserr <= cr0_pe && (wb_df || pushes_error(wb_vec));
-                // #DB's image has RF clear: Bochs's exception() asserts RF
-                // for every other fault, and clears RF before an instruction
-                // runs, so none it faults in has RF set any more.
-                del_rf <= wb_fault != 5'(fes_i386_pkg::FAULT_DB);
-                // #DB from DR7.GD (the only one built): DR6.BD set, B0-B3,
-                // bit 12 and BT cleared, BS kept, and GD cleared, so the
-                // handler can use the debug registers (Bochs's exception()).
+                // Every fault's EFLAGS image has RF set (the 386's FAULT,
+                // 893-899) but #DB's: the 386 reaches INTERRUPT_X from
+                // BREAKPOINT_CMN without it, so a #DB's image has RF as it
+                // is, which an RF-suppressed instruction's GD keeps set
+                // (Bochs clears RF before the instruction runs).
+                del_rf <= wb_fault == 5'(fes_i386_pkg::FAULT_DB) || wb_fault == 5'(fes_i386_pkg::FAULT_DBI) ? eflags[16] : 1'b1;
+                // #DB from DR7.GD sets DR6.BD, an instruction breakpoint
+                // DR6's B bits for the breakpoints it matched, on top of what
+                // DR6 holds (the 386 never clears it: GD_HIT's 3A3 ORs BD in),
+                // and either clears GD, so the handler can use the debug
+                // registers (94C).
                 if (wb_fault == 5'(fes_i386_pkg::FAULT_DB)) begin
-                    dr6_lo <= 4'd0;
-                    dr6_hi <= {1'b0, dr6_hi[2], 2'b10};
+                    dr6_hi[1] <= 1'b1;
+                    dr7[13] <= 1'b0;
+                end
+                if (wb_fault == 5'(fes_i386_pkg::FAULT_DBI)) begin
+                    dr6_lo <= dr6_lo | wb_s.ibp;
                     dr7[13] <= 1'b0;
                 end
                 // A #PF's linear address, before its delivery, as Bochs's

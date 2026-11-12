@@ -416,7 +416,17 @@ func newRoomHost(t *testing.T) *roomHost {
 					games = []hostclient.Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
 				}
 			}
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": games})
+			kind := r.URL.Query().Get("core_entry_kind")
+			if kind != "" {
+				filtered := make([]hostclient.Game, 0, len(games))
+				for _, game := range games {
+					if game.CoreID != "" && ((kind == "machine") == (game.MediaID == "")) {
+						filtered = append(filtered, game)
+					}
+				}
+				games = filtered
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": games, "core_entry_kind": kind})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/platforms":
 			h.mu.Lock()
 			platforms := append([]hostclient.Platform(nil), h.platforms...)

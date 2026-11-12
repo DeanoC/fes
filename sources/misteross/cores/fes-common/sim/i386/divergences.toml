@@ -510,6 +510,25 @@ follow = "corpus"
 # of a test386 TEST_UNDEF case, the two agree.
 
 [[lockstep]]
+id = "dr6-sticky"
+title = "A #DB leaves DR6's bits set"
+rule = "dr6_rule"
+cases = ["db-ibp-g0-sticky", "db-gd-sticky", "db-ibp-rf", "db-dbp-twice"]
+oracle = "Bochs's exception() clears B0-B3, bit 12 and BT before it sets the new #DB's bits (DR6 &= FFFF6FF0h)."
+i386 = "The 386 never clears DR6: its microcode only ORs bits in (GD_HIT 3A3 BD, SINGLE_STEP 93F BS, the task switch's 7E0 BT), and the debug unit sets B0-B3 on a match."
+source = "80386 Programmer's Reference Manual 12.2.3 (the bits of DR6 are never cleared by the processor); reenigne/x86_microcode 80386/microcode_notes.txt 3A3, 93F, 7E0."
+follow = "386"
+
+[[lockstep]]
+id = "db-frame-rf"
+title = "A #DB fault's EFLAGS image keeps RF"
+rule = "db_rf_rule"
+cases = ["dr-gd-rf"]
+oracle = "Bochs clears RF before an instruction runs, so GD's #DB from the instruction after an IRETD that set RF pushes RF clear."
+i386 = "The 386 clears RF only as an instruction completes, and its #DB (BREAKPOINT_CMN to INTERRUPT_X) skips FAULT's setting of RF, so it pushes EFLAGS as it is: RF set."
+source = "80386 Programmer's Reference Manual 12.3.1.1 (RF cleared at the successful completion of an instruction); reenigne/x86_microcode 80386/microcode_notes.txt 890-899 (FAULT sets RF), 943-94E (BREAKPOINT_CMN goes to INTERRUPT_X)."
+
+[[lockstep]]
 id = "ud-0f0d"
 title = "0F 0D is #UD"
 rule = "ud_rtl"

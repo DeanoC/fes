@@ -3013,6 +3013,19 @@ the recent row is hidden and the family tiles use a list layout.
 
 Home persists focus as `family:<family-id>` or `recent:<game-id>` in its room
 state, so a workbench visit or play return can restore the same destination.
+Each family read first asks the host for its machine entries, then for its
+titles, within the room's 2,000-row query budget. The host filters before
+pagination and returns a filter marker; if it cannot confirm that filter, Home
+does not treat unfiltered results as machine entries. Pending remote titles
+remain titles before their cassette is cached. A family's game count uses the
+actual next cursor to show `+` only when additional titles remain. The filtered
+page resolves only its returned entry IDs in one bounded batch; a missing
+identity fails the read instead of guessing. If machine entries alone exceed
+the budget, Home blocks that family instead of choosing an incomplete machine
+list as its readiness source. On refresh, prior library and kit results give way
+to Checking until fresh reads finish. A failed kit inventory says it cannot be
+checked rather than claiming a model is not installed, and hides the installed
+count while it is unknown.
 The opening selection waits for the recent titles, kit inventory and family
 library reads to settle, preventing focus from moving as asynchronous results
 arrive. A Home instance is reused only when its release scope matches the
@@ -3906,7 +3919,9 @@ retains existing package, ROM and media choices on retry; it does not overwrite
 a conflicting saved entry.
 
 The Sinclair ZX81 room retains its local package/ROM setup, specialist expansion
-import and prelaunch cassette selection. The picker saves a `.p`
+import and prelaunch cassette selection. Its Library action browses the `fpga`
+platform with the selected model's core ID, including local and imported source
+titles across package versions. The picker saves a `.p`
 selection as the role that package declares: `cassette` for `fes.media.zx81-tape`,
 and `blob` for a legacy `fes.media.blob` package. Installed setup uses existing
 package/library/ROM endpoints independently of publication. Media selection

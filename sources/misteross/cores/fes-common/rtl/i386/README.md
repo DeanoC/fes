@@ -913,9 +913,11 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   IDT entry for `GP_IDT` and `NP_IDT` (from the gate's read, `idt_vec`), else
   0, with EXT set for a fault in a delivery; a double fault's is 0. Only a
   protected-mode delivery of #DF, #NP, #SS or #GP pushes it (`exc_haserr`).
-- **RF.** IRETD's image sets RF (the architectural EFLAGS shows it until the
-  next instruction retires: every uop but IRET's last clears it, as Bochs
-  clears it before the next instruction runs). A delivery's EFLAGS image has
+- **RF.** IRETD's image sets RF. The 386 clears RF when the next ordinary
+  instruction completes, at its WB boundary: its last uop or a taken
+  `eoi_taken` uop such as INTO's no-overflow JNO or a REP CMPS/SCAS early
+  compare exit. IRET and the flags-load/task-switch paths keep or load RF as
+  specified by their own controls. A delivery's EFLAGS image has
   RF set for a fault, and for an INTR or NMI between a REP string's elements
   (`int_rep`) or after an IRETD that set it (`del_rf`); EX puts it in bit 16
   from the uop's imm.
@@ -1073,9 +1075,9 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   to the next instruction). Both are CPL 0 only (#GP(0)), but with DR7.GD
   set either raises #DB first, after LOCK's #UD, as Bochs's MOV_DdRd does
   (`FAULT_DB`, vector 1, a fault with no error code). Taking it sets DR6.BD,
-  clears B0-B3, bit 12 and BT, and clears GD; its EFLAGS image has RF clear,
-  as Bochs clears RF before an instruction runs. No breakpoint is armed:
-  DR7's enables do nothing yet (slice 5). Unlike Bochs, a DR7 write does
+  keeping DR6's other bits (the 386 never clears DR6), and clears GD; its
+  EFLAGS image has RF as it is (see Breakpoints and single step). DR7's
+  enables arm the breakpoints (slice 5). Unlike Bochs, a DR7 write does
   not flush the TLBs, as a 386's does not.
 - **Not built:** each stops the CPU with `trace_unimplemented`, its reason in
   `trace_unbuilt` (`why_e`, carried by the uop as `ctl.why`): a far JMP
@@ -1223,13 +1225,13 @@ established. The routines are `ucode.toml`'s `tsjg`, `tsgate`, `tsw`,
   the new SS loads, as Bochs runs the LDT's and SS's loads; CR0.TS; DR7's
   L0-L3 and LE cleared (the 386's 7D7-7DE, Bochs's); CR3 from a 386 TSS
   under paging when it differs (77F-794: no flush for the same, as Bochs);
-  and the gate size (`gate32`) the new TSS's, for an error code. The commit
-  of a return from a nested task unblocks NMI, as a plain IRET's end does.
-  The 386 clears NMI's block at IRET's start (674, in the delay slot of
-  673's branch to TASK_RETURN), so there an IRET whose switch then faults
-  has unblocked NMI too; the RTL keeps it blocked then, as it does for a
-  plain IRET that faults. The lockstep raises NMI only in real mode, so
-  neither is compared. The cycle
+  and the gate size (`gate32`) the new TSS's, for an error code. IRET
+  clears NMI's block as it starts, as the 386 does (674, CLRNMI in the
+  delay slot of 673's branch to TASK_RETURN): when its first uop (`iret0`)
+  reaches WB as the oldest, committing or faulting, once every instruction
+  before it has completed (#1704). So an IRET whose task return then faults
+  has unblocked NMI too (`ts-nmi-iret-link-null`), and an NMI raised in an
+  NMI's handler waits for the handler's IRET (`nmi-in-nmi-handler`). The cycle
   after, DC takes the new task's descriptor loads as it takes a fault's
   entry (`tsw_inj`, `dc_exc`): at the new EIP, length 0, so a fault there
   is the new task's, its frame the new CS:EIP. A delivery's exception stays
@@ -1260,7 +1262,80 @@ established. The routines are `ucode.toml`'s `tsjg`, `tsgate`, `tsw`,
   in its EFLAGS image, and the handler's IRET returns to it.
 - **Speed.** About 70 uops a switch, most of them ROM words; nothing is on
   a fast path (Jump 'n Bump switches about 290 times a simulated second).
-- **Not built:** the T bit's #DB (slice 5).
+- **The T bit** (slice 5): `tssave` reads a 386 TSS's word at 64h into T5
+  after the LDT's selector has gone to LDTR (the 386's 781-784), and the
+  commit arms its #DB when bit 0 is set (`dbg_bt`; see Breakpoints and
+  single step), taken once the new task's descriptors have loaded and before
+  its first instruction, with DR6.BT.
+
+## Breakpoints and single step
+
+Phase 5's fifth slice: DR7's instruction and data breakpoints, RF, DR6's
+B0-B3, BS and BT, the T bit and TF single step. The 386 wins where its
+manual (the 80386 Programmer's Reference Manual, chapter 12) or its microcode
+(reenigne/x86_microcode `80386/microcode_notes.txt`) shows; elsewhere the
+RTL follows Bochs (the lockstep README's Known limits lists both).
+- **DR7's fields** (`bp_en`, `bp_x`, `bp_w`, `bp_rw`, `bp_m`): each
+  breakpoint enabled by L or G; R/W 00 an instruction breakpoint, 01 data
+  writes, 11 data reads and writes, 10 nothing; LEN's mask of low address
+  bits (00 one byte, 01 two, 11 four, the undefined 10 eight, as Bochs).
+  Nothing matches while no breakpoint is enabled (`bp_any`); once one is,
+  every breakpoint whose address and kind match is reported, enabled or not
+  (the manual's 12.2.3), and an enabled one's match is what raises #DB.
+- **Instruction breakpoints** compare an instruction's fetched linear
+  address (`pipe_t lin`, on its first uop, `fchk`) at AG (`ibp_match`;
+  `ibp`, `ibp_en`). An enabled match makes the uop touch nothing from M1 on:
+  M1 marks it `FAULT_DBI`, so it reads, walks and faults nothing. EX then
+  decides: with RF clear and not after a MOV SS or POP SS that shadows it
+  (`ibp_sup`, Bochs's inhibit), `FAULT_DBI`, a fault ahead of every fault of
+  the instruction's own (the 386 checks the breakpoint before it fetches);
+  else a replay, after which AG skips the breakpoint once (`ibp_skip`). EX's
+  running EFLAGS take nothing of the uop. Taken at WB: vector 1, DR6's B
+  bits for the breakpoints it matched ORed in, GD cleared, the image's RF
+  as EFLAGS has it (clear, or the instruction would not have faulted).
+- **RF** is cleared as an instruction completes (its last uop), not by its
+  first uop, as the 386 manual has it. (The replay a suppressed breakpoint
+  makes issues the instruction serially, so none of its later uops replays
+  with RF already cleared either way.) IRETD's image sets it, and a task switch's new
+  EFLAGS (`ts_krf`); POPF and a 16-bit IRET clear it, as Bochs. A fault's
+  image has RF set (the 386's FAULT, 893-899); a #DB's, a fault's or a
+  trap's, has it as it is, the 386's BREAKPOINT_CMN going to INTERRUPT_X past
+  that (so GD's #DB after an IRETD that set RF pushes it set, where Bochs
+  pushes it clear: `[[lockstep]] db-frame-rf`).
+- **Data breakpoints** compare each uop's accesses at M1 (`dbp_match`): its
+  memory operand, read, written or both, a descriptor's, gate's or TSS's
+  too (Bochs checks those as any access), and a st2 uop's store; the
+  walker's page-table accesses, physical, match none. Any byte of the access in DRn's field matches: the
+  field lies in one 8-byte block, and the access's own block and the next
+  (compared carry-free) are checked with byte masks. The matches ride the
+  uop (`dbp`, `dbp_en`) and gather only as it commits (`dbg_b`, `dbg_en`),
+  so a wrong path, a replay or a faulting instruction contributes nothing.
+- **Single step**: TF as an instruction begins (`ss_arm`, latched at each
+  boundary) traps after it, so the POPF or IRET that sets TF takes none and
+  the one that clears it does. A delivery (a fault's, an interrupt's, a
+  trap's) and an INT's TF-clearing uop (`dbg_clr`, which also drops what a
+  MOV SS shadow carried, as Bochs's `interrupt()` drops `debug_trap`) drop
+  it; so does a task switch's commit, after which the new task's TF steps
+  after its first instruction.
+- **The trap** is a boundary event (see Interrupts), ahead of NMI and INTR,
+  and held off only by MOV SS's and POP SS's shadow, which carries it to the
+  next instruction's end (STI's shadow does not). From the boundary the CPU
+  takes two cycles to choose (`int_ph`): it compares CS.base + EIP, the next
+  instruction's address, with the instruction breakpoints (`int_cbp`). A
+  pending trap (`dbg_fire`: BS, BT, an enabled data match), or the next
+  instruction's enabled breakpoint with RF clear and not between a REP
+  string's elements, takes #DB, the 386 manual's table 9-2 order (debug
+  traps for this instruction, debug faults for the next, then NMI, then
+  INTR); else NMI, else INTR, whose vector is asked for only then. A #DB
+  chosen leaves NMI pending. The #DB's DR6 bits: B for the data matches and
+  (but for a T bit's trap, which Bochs takes before it compares) the next
+  instruction's, BS, BT, all ORed in; GD cleared; RF in the image as EFLAGS
+  has it, or set between a REP string's elements.
+- **DR6 is never cleared** by a #DB, only ORed (the 386's 3A3, 93F, 7E0;
+  the manual's 12.2.3), where Bochs clears B0-B3 and BT first:
+  `[[lockstep]] dr6-sticky`.
+- **GE and LE** are kept and change nothing: every data breakpoint is
+  reported exactly, as the 386 does with either set.
 
 ## Memory
 
