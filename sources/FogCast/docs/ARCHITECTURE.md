@@ -1442,11 +1442,14 @@ Invalid client clocks are ignored and do not fail the mutation. The current
 `flight_id` is also additive on `GET /api/v1/session` and on launch/stop
 responses. Focus and nav stamps, plus a copy of launch/stop actions, go to
 `POST /api/v1/debug/ui-events` (`layer=ui`, kinds `ui.launch` / `ui.stop` /
-`ui.focus` / `ui.nav` / `ui.launcher_action` / `ui.home_room_fallback`); fog-flight joins those rows to host and target events
+`ui.focus` / `ui.nav` / `ui.launcher_action` / `ui.home_room_fallback` /
+`ui.home_room_reopen`); fog-flight joins those rows to host and target events
 by `flight_id` when it is present. Token-like detail keys are dropped.
 `ui.home_room_fallback` carries `room` and `reason` for a `home_room` that
-could not be opened. `ui.launcher_action` records an id the allowlist
-rejected. Neither is a kit mutation.
+could not be opened. `ui.home_room_reopen` carries `room`, `attempt` and
+`error` for an automatic reopen of a root Home room that failed on its time
+budget. `ui.launcher_action` records an id the allowlist rejected. None is a
+kit mutation.
 
 TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), the local
 attract on/off gate, reduced motion, the look name, the optional debug HUD, and
@@ -1455,7 +1458,19 @@ local to the tenfoot process (CLI `-safe-area` / `-layout` / `-no-attract` /
 `-theme` / `-debug-hud` / `-home` / `-home-room` and optional `tenfoot.json`
 prefs). When `home` is `rooms` and `home_room` names an openable pack, start and
 Home open it as the root. If the selected Home room cannot open, the room
-picker is the fallback. A library or recents read that fails in the network
+picker is the fallback. A root Home room that fails on its time budget
+(`rooms.ErrBudget`: a callback deadline, a hard-limit miss, or retirement
+after consecutive soft overruns) keeps the red failed-room panel, which says
+it will retry, and is replaced by a fresh instance after 2 s, then 10 s, then
+30 s (`ui/tenfoot/home_recover.go`). The budgets and checks are unchanged. At
+most three automatic reopens run per launcher process, which is one kit boot
+unless the supervisor restarts the launcher; the count returns only after a
+Home instance has run for 10 minutes without failing, so a Home that keeps
+failing stops at the panel instead of looping. A reopen waits while the room
+picker or Settings is open. Script, load and API errors are never reopened
+automatically. Back or Confirm on a failed root Home reopens Home, at any time
+and without using an automatic reopen; on any other failed room Back returns to
+the parent room or, at the root, opens the picker. A library or recents read that fails in the network
 stack shows the temporary unreachable copy and retries with the presentation
 backoff, from 400 ms up to 8 s, until the host answers or the load is replaced.
 A host API error is not retried. An empty catalog stays the empty-library copy.

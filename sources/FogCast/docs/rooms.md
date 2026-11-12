@@ -614,6 +614,12 @@ bin/fogcast-tenfoot -api http://127.0.0.1:8787 -home rooms
 
 Exceeding a deadline or the op cap fails the room with a message naming the
 budget. Budgets are `rooms.Budget` in Go and can be tuned by the launcher.
+A failure caused by time (a callback deadline, a callback that returned past
+its hard limit, or retirement after consecutive soft overruns) is
+`errors.Is(inst.Err(), rooms.ErrBudget)`; Lua, load, compile and API errors,
+including the op cap, are not. The launcher reopens a root Home room that
+failed with `ErrBudget` after a backoff, a bounded number of times, and never
+reopens one that failed with a script error (see `docs/ARCHITECTURE.md`).
 
 ## Testing rooms without a display
 

@@ -592,7 +592,22 @@ func drawRoomError(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, 
 	for i, line := range lines {
 		drawLabel(dev, labels, used, fmt.Sprintf("room-err-%d", i), x+20, y+52+i*22, panelW-40, 16, line)
 	}
-	drawLabel(dev, labels, used, "room-err-hint", x+20, y+panelH-26, panelW-40, 14, "Fix the script and reopen the room. "+backWord(snap.Affinity)+" returns home.")
+	drawLabel(dev, labels, used, "room-err-hint", x+20, y+panelH-26, panelW-40, 14, roomErrorHint(snap.Room, snap.Affinity))
+}
+
+// roomErrorHint says what Back does on the failed-room panel.
+func roomErrorHint(room RoomSnapshot, kind InputKind) string {
+	back := backWord(kind)
+	switch {
+	case room.HomeRetry > 0:
+		return fmt.Sprintf("Home reopens by itself shortly (try %d of %d). %s reopens it now.", room.HomeRetry, homeAutoReopenMax, back)
+	case room.ErrHome:
+		return back + " reopens Home."
+	case len(room.Parents) > 0:
+		return back + " returns to the previous room."
+	default:
+		return back + " opens the menu."
+	}
 }
 
 func drawRoomPicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
