@@ -896,6 +896,15 @@ func gameFilterSQL(query Query, gameAlias, libraryAlias string) (string, []any) 
 		builder.WriteString(")")
 		args = append(args, coreArgs...)
 	}
+	if query.CoreEntryKind != "" {
+		// Imported remote titles may not have cached media yet; their origin
+		// distinguishes them from an empty machine entry.
+		machine := "COALESCE(e.media_id, '') = '' AND NOT EXISTS (SELECT 1 FROM remote_core_entries r WHERE r.game_id = e.game_id)"
+		if query.CoreEntryKind == "title" {
+			machine = "NOT (" + machine + ")"
+		}
+		builder.WriteString(" AND EXISTS (SELECT 1 FROM core_entries e WHERE e.game_id = " + gameAlias + ".game_id AND " + machine + ")")
+	}
 	if query.Region == "other" {
 		builder.WriteString(" AND (" + gameAlias + ".region = '' OR " + gameAlias + ".region = 'other')")
 	} else if query.Region != "" {

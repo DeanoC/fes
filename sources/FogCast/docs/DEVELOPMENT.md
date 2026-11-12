@@ -207,9 +207,10 @@ an absolute archive path; see [kit launcher HOW_TO_RUN](kit-launcher.md#how_to_r
 
 The designated kit runs a native appliance image. Managed images start the
 base-image `fes-kit-software` supervisor, which selects one immutable runtime,
-agent and launcher group. Software identities and pending updates are available
-through `fes-software --action status`; authenticated health reports them
-separately from base-image artifacts. Agent configuration remains
+agent and launcher group. Software identity and pending updates are available
+through `fes-software --action status` and the authenticated
+`GET /v1/kit/software` endpoint. Authenticated health reports only the software
+identity, separately from base-image artifacts. Agent configuration remains
 `/media/fat/fogcast/agent.toml`. There is no Main process or `/dev/MiSTer_cmd`.
 HDMI idle uses the locked idle RBF through runtime protocol 2. The root filesystem
 is the immutable appliance loop image; installed software and core packages use

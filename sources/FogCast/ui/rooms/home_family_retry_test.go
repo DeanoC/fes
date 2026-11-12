@@ -52,7 +52,7 @@ type retryHomeServices struct {
 	canceled    chan struct{}
 }
 
-func (s *retryHomeServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, error) {
+func (s *retryHomeServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, bool, error) {
 	match := q.Platform == "fpga" && q.Collection == ""
 	if match {
 		match = false
@@ -78,10 +78,10 @@ func (s *retryHomeServices) QueryGames(ctx context.Context, q hostclient.GameLis
 		close(s.entered)
 		<-ctx.Done()
 		close(s.canceled)
-		return nil, ctx.Err()
+		return nil, false, ctx.Err()
 	}
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	return s.homeServices.QueryGames(ctx, q, max)
 }
@@ -211,7 +211,7 @@ type mixedRetryHomeServices struct {
 	c64Reads int
 }
 
-func (s *mixedRetryHomeServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, error) {
+func (s *mixedRetryHomeServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, bool, error) {
 	var family string
 	if q.Platform == "fpga" && q.Collection == "" {
 		for _, id := range q.CoreIDs {
@@ -233,10 +233,10 @@ func (s *mixedRetryHomeServices) QueryGames(ctx context.Context, q hostclient.Ga
 	}
 	s.mu.Unlock()
 	if family == "fes.zx81" && n == 1 {
-		return nil, hostclient.APIStatusError(503, nil)
+		return nil, false, hostclient.APIStatusError(503, nil)
 	}
 	if family == "fes.c64" {
-		return nil, hostclient.APIStatusError(400, nil)
+		return nil, false, hostclient.APIStatusError(400, nil)
 	}
 	return s.homeServices.QueryGames(ctx, q, max)
 }
@@ -347,7 +347,7 @@ type staleRetryHomeServices struct {
 	once     sync.Once
 }
 
-func (s *staleRetryHomeServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, error) {
+func (s *staleRetryHomeServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, bool, error) {
 	zx := false
 	if q.Platform == "fpga" && q.Collection == "" {
 		for _, id := range q.CoreIDs {
@@ -362,14 +362,14 @@ func (s *staleRetryHomeServices) QueryGames(ctx context.Context, q hostclient.Ga
 	n := s.reads
 	s.mu.Unlock()
 	if n == 1 {
-		return nil, context.DeadlineExceeded
+		return nil, false, context.DeadlineExceeded
 	}
 	if n == 2 {
 		close(s.entered)
 		<-s.release // Deliberately ignore ctx to model a late completed response.
 		defer close(s.returned)
 		return []hostclient.Game{machineEntry("stale-machine", "fes.zx81", ""),
-			titleEntry("stale-title-1", "fes.zx81"), titleEntry("stale-title-2", "fes.zx81")}, nil
+			titleEntry("stale-title-1", "fes.zx81"), titleEntry("stale-title-2", "fes.zx81")}, false, nil
 	}
 	return s.homeServices.QueryGames(ctx, q, max)
 }

@@ -69,7 +69,8 @@ preparation grants no native kit acceptance. See the
 [DE25 development plan](design/de25-linux-platform.md) for remaining factory
 and hardware acceptance.
 
-For format-3 SMS or SG-1000, prepare the package without a startup media blob:
+SMS and SG-1000 are development packages outside the first-party catalog. For
+format-3 builds, prepare the package without a startup media blob:
 
 ```sh
 make core-dev CORE_DEV_ARGS='prepare --core fes.sms --output out/core-dev/sms-001'
@@ -257,8 +258,18 @@ checkout and live host library were otherwise left unchanged.
 
 ## Publish prepared cores for setup
 
-`make core-catalog CORE_CATALOG_ARGS='--prepared fes.sms=/absolute/prepared.json --output /absolute/new-catalog'` publishes a local catalog and verified archives from frozen candidates. Repeat `--prepared` for other cores. Registered cores without candidates remain visible but cannot be installed. Publication never builds cores, contacts a host or uses a kit. `config/core-library.toml` supplies display metadata; manifests retain ABI and ROM authority.
+`make core-catalog CORE_CATALOG_ARGS='--prepared fes.zx81=/absolute/prepared.json --output /absolute/new-catalog'`
+publishes a local catalog and verified archives from frozen candidates. Repeat
+`--prepared` for other catalog cores. Catalog entries without candidates remain
+visible but cannot be installed. Publication never builds cores, contacts a
+host or uses a kit. `config/core-library.toml` selects the first-party offerings
+and supplies display metadata; manifests retain ABI and ROM authority. SMS and
+SG-1000 retain development recipes but are not in this catalog.
 
 Configure FogCast `[core_catalog] path` to the resulting `catalog.json` and set a stable `library_source_id` unique to that host library. The publication namespace can be shared across hosts; their game-library namespaces must be distinct.
 
-To publish a new core, register its producer recipe in `config/core-recipes.toml`, add display metadata to `config/core-library.toml`, and supply its verified prepared receipt to `make core-catalog`. Existing supported descriptor contracts need no browser-specific core registration. The publication metadata regression checks coverage against the recipe registry.
+To publish a new core, register its producer recipe in `config/core-recipes.toml`,
+add display metadata to `config/core-library.toml`, and supply its verified
+prepared receipt to `make core-catalog`. Existing supported descriptor contracts
+need no browser-specific core registration. Each catalog entry must have a
+registered recipe; recipes can exist without a catalog entry.

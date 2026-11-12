@@ -89,7 +89,7 @@ Each changed path gets a class and a component:
   remains software-only. Tests check the actual driver directory and owner-image
   recipe inputs against this classification.
 - `full`: image, boot media, platform, profile, splash, video-part or kit
-  software-format changes. The decision is `FULL_IMAGE`: stop and build a
+  software-format or expansion-archive changes. The decision is `FULL_IMAGE`: stop and build a
   full image. A full image swap or reimage still needs Deano's explicit OK.
   On a shared kit, software goes first: install and activate a bundle the
   new image accepts, normally the PR's own bundle, before the image update.
@@ -149,6 +149,13 @@ script likewise requires every producer that imports it. If a shared helper
 names it, the plan requires `core:ALL`. The splash (`cores/fes-splash/**`,
 `build_fes_splash*`, `sealed/**`), the video part producers
 (`scripts/*video_part*`) and any core file they read force `FULL_IMAGE`.
+Expansion archive producers (`scripts/*slot_card*`,
+`scripts/build_coleco_bus_diagnostic.py`, `scripts/build_coleco_sgm.py` and
+`scripts/build_zx81_bus_validation_cart.py`) and their inputs also force
+`FULL_IMAGE`. This is an escalation, not archive attestation: the default image
+does not contain these archives. Identify and build the changed archive, record
+its identity, and validate that artifact through its applicable hardware path;
+an image build or core overlay alone cannot establish that evidence.
 
 For an `overlay` decision, use a private host for the changed artifacts. Install
 the PR kit-software bundle on the claimed kit's running image only when the plan

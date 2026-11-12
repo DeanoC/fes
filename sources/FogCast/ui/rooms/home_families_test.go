@@ -3,6 +3,7 @@ package rooms
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -71,7 +72,7 @@ func (s *homeServices) setLibraryError(err error) {
 	s.err = err
 }
 
-func (s *homeServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, error) {
+func (s *homeServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, bool, error) {
 	if q.Collection == "recents" {
 		s.recentsMu.Lock()
 		defer s.recentsMu.Unlock()
@@ -95,7 +96,7 @@ func (s *homeServices) QueryGames(ctx context.Context, q hostclient.GameListQuer
 		if max > 0 && len(games) > max {
 			games = games[:max]
 		}
-		return games, nil
+		return games, false, nil
 	}
 	return s.fakeServices.QueryGames(ctx, q, max)
 }
@@ -112,7 +113,7 @@ type delayedFirstHomeRecentServices struct {
 	releaseOnce sync.Once
 }
 
-func (s *delayedFirstHomeRecentServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, error) {
+func (s *delayedFirstHomeRecentServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, bool, error) {
 	if q.Collection != "recents" {
 		return s.homeServices.QueryGames(ctx, q, max)
 	}
@@ -126,10 +127,10 @@ func (s *delayedFirstHomeRecentServices) QueryGames(ctx context.Context, q hostc
 		case <-s.release:
 		case <-ctx.Done():
 			close(s.returned)
-			return nil, ctx.Err()
+			return nil, false, ctx.Err()
 		}
 		close(s.returned)
-		return append([]hostclient.Game(nil), s.staleGames...), s.staleErr
+		return append([]hostclient.Game(nil), s.staleGames...), false, s.staleErr
 	}
 	return s.homeServices.QueryGames(ctx, q, max)
 }
@@ -668,5 +669,63 @@ func TestHomeUsesAdmittedComputerWithSelectedCassetteAndIndependentLocalShelf(t 
 				t.Fatalf("selected cassette title count lost: %v", d.Details)
 			}
 		})
+	}
+}
+
+func TestHomeFamilyCapKeepsMachineAndReportsOnlyActualOverflow(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		titleCount int
+		want       string
+	}{
+		{name: "exact combined cap", titleCount: 1999, want: "1999 games"},
+		{name: "titles exceed combined cap", titleCount: 2000, want: "1999+ games"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			games := make([]hostclient.Game, 0, tc.titleCount+1)
+			for i := 0; i < tc.titleCount; i++ {
+				games = append(games, titleEntry(fmt.Sprintf("a-%04d", i), "fes.zx81"))
+			}
+			// This machine sorts after every title in the unfiltered catalog.
+			games = append(games, machineEntry("z-machine", "fes.zx81", ""))
+			svc := &homeServices{computers: []hostclient.ShelfComputer{computerEntry("z-machine", "fes.zx81", "")}, fakeServices: fakeServices{games: games}}
+			r := loadHome(t, Options{Services: svc, ReleaseOnly: true, Budget: DefaultBudget()})
+			stepUntil(t, r, func(Frame) bool {
+				d := r.Destination()
+				return homeSettled(r) && d.GameID == "z-machine"
+			})
+			if d := r.Destination(); d.Availability != AvailReady || d.Status != tc.want {
+				t.Fatalf("destination = %+v, want ready machine and %q", d, tc.want)
+			}
+		})
+	}
+}
+
+func TestHomeFamilyMachineOverflowFailsClosed(t *testing.T) {
+	games := make([]hostclient.Game, 0, 2001)
+	for i := 0; i < 2001; i++ {
+		games = append(games, machineEntry(fmt.Sprintf("machine-%04d", i), "fes.zx81", ""))
+	}
+	svc := &homeServices{fakeServices: fakeServices{games: games}}
+	local := &fakeLocalCores{cores: []localcores.Core{{PackageID: coreZXID, CoreID: "fes.zx81", Launchable: true}}}
+	r := loadHome(t, Options{Services: svc, Local: local, ReleaseOnly: true, Budget: DefaultBudget()})
+	stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
+	d := r.Destination()
+	if d.Availability == AvailReady || d.GameID != "" || d.Status != "Too many systems to check" {
+		t.Fatalf("overflow must not guess a launchable machine: %+v", d)
+	}
+}
+
+func TestHomeFamilyMachineBudgetDoesNotHideTitleExistence(t *testing.T) {
+	games := make([]hostclient.Game, 0, 2001)
+	for i := 0; i < 2000; i++ {
+		games = append(games, machineEntry(fmt.Sprintf("machine-%04d", i), "fes.zx81", ""))
+	}
+	games = append(games, titleEntry("a-title", "fes.zx81"))
+	svc := &homeServices{computers: []hostclient.ShelfComputer{computerEntry("machine-0000", "fes.zx81", "")}, fakeServices: fakeServices{games: games}}
+	r := loadHome(t, Options{Services: svc, ReleaseOnly: true, Budget: DefaultBudget()})
+	stepUntil(t, r, func(Frame) bool { return homeSettled(r) && r.Destination().GameID != "" })
+	if d := r.Destination(); d.Status != "1+ games" || d.Availability != AvailReady {
+		t.Fatalf("bounded result hid known title: %+v", d)
 	}
 }

@@ -39,7 +39,7 @@ type Setup struct {
 // Services is what a room may ask the launcher's host for. Calls run on
 // engine goroutines; results are delivered back on the launcher thread by Step.
 type Services interface {
-	QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, error)
+	QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, bool, error)
 	Platforms(ctx context.Context) ([]hostclient.Platform, error)
 	Collections(ctx context.Context) ([]hostclient.Collection, error)
 	Game(ctx context.Context, id string) (hostclient.Game, error)
@@ -202,6 +202,7 @@ type asyncResult struct {
 	err          error
 	libraryQuery bool
 	transient    bool
+	more         bool
 	games        []hostclient.Game
 	platforms    []hostclient.Platform
 	collections  []hostclient.Collection
@@ -977,6 +978,7 @@ func (r *Instance) applyResult(res asyncResult) {
 	args := []lua.LValue{payload, errVal}
 	if res.libraryQuery {
 		args = append(args, lua.LBool(res.transient))
+		args = append(args, lua.LBool(res.more))
 	}
 	if err := r.callSoft(res.cb, r.budget.Frame, 0, args...); err != nil {
 		err = fmt.Errorf("async callback: %w", err)

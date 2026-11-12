@@ -3156,6 +3156,20 @@ the recent row is hidden and the family tiles use a list layout.
 
 Home persists focus as `family:<family-id>` or `recent:<game-id>` in its room
 state, so a workbench visit or play return can restore the same destination.
+Each family read first asks the host for its machine entries, then for its
+titles, within the room's 2,000-row query budget. The host filters before
+pagination and returns a filter marker; if it cannot confirm that filter, Home
+rejects the unfiltered title-count read. Model readiness comes separately
+from the host hardware projection, never from library rows. Pending remote titles
+remain titles before their cassette is cached. A family's game count uses the
+actual next cursor to show `+` only when additional titles remain. The filtered
+page resolves only its returned entry IDs in one bounded batch; a missing
+identity fails the read instead of guessing. If machine entries alone exceed
+the budget, Home blocks that family instead of choosing an incomplete machine
+list while reporting its machine-admission state. On refresh, prior library and kit results give way
+to Checking until fresh reads finish. A failed kit inventory says it cannot be
+checked rather than claiming a model is not installed, and hides the installed
+count while it is unknown.
 The opening selection waits for the recent titles, admitted host machines,
 kit inventory and family library reads to settle, preventing focus from moving
 as asynchronous results arrive. A Home instance is reused only when its release scope matches the
@@ -3506,19 +3520,21 @@ in place. When the host has observed that the stream is unavailable and cannot
 reconnect, a new launcher input POST or event POST returns 503
 `INPUT_UNAVAILABLE` (`no live input stream`). An already-open launcher stream
 ends when a subsequent event encounters the loss or its read timeout expires;
-its initial ready response does not acknowledge individual events. For
-launcher streaming, an event accepted by the host transport can still be lost
-if a disconnect occurs before the host observes it; HTTP acceptance does not
-establish delivery to the target or guest. A successful single-event POST waits
-for a correlated bridge PONG after its input stream prefix, confirming that the
-bridge processed those preceding bytes, not that its sink accepted the event
-or the guest consumed it. An uncertain write or missing PONG returns 503
-`INPUT_UNCONFIRMED`: the event may have applied. The host closes its connection
+its initial ready response does not acknowledge individual events. Launcher
+clients can request sequenced event receipts; the original stream has no
+per-event response. Single-event POSTs and launcher events wait for a
+correlated bridge receipt that the sink accepted the emitted frames under its
+current focus policy. Mappings may emit no frames, and acceptance can include
+intentional no-ops; neither proves guest consumption. An uncertain write,
+rejected input or missing receipt returns 503 `INPUT_UNCONFIRMED` for a
+single-event POST, or an `unconfirmed` launcher receipt followed by closure:
+the event may have applied. The host closes its connection
 without replay, clears its held-input snapshot and attempts to stop the bridge;
 the error does not confirm remote release. This adds a bridge round trip to each
-single-event POST. The launcher stream and timed key tap do not use this
-barrier. Kit-local pads stay on the unix socket and do not silently fall back
-to the host.
+event. The timed key tap does not use this barrier. Receipt capability is
+probed before the first confirmed event on each connection; an older kit bridge
+still attaches but cannot accept confirmed remote input. Kit-local pads stay on the unix socket
+and do not silently fall back to the host.
 
 Disconnect of the host stream releases the remote source. Lease expiry, core
 replacement and Stop neutralize every source on both dirty ports. A failed
@@ -4064,7 +4080,9 @@ retains existing package, ROM and media choices on retry; it does not overwrite
 a conflicting saved entry.
 
 The Sinclair ZX81 room retains its local package/ROM setup, specialist expansion
-import and prelaunch cassette selection. The picker saves a `.p`
+import and prelaunch cassette selection. Its Library action browses the `fpga`
+platform with the selected model's core ID, including local and imported source
+titles across package versions. The picker saves a `.p`
 selection as the role that package declares: `cassette` for `fes.media.zx81-tape`,
 and `blob` for a legacy `fes.media.blob` package. Installed setup uses existing
 package/library/ROM endpoints independently of publication. Media selection

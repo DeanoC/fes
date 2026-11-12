@@ -93,6 +93,16 @@ a modified library:
   VGA ROM for ever ([#1557](https://github.com/DeanoC/fes/issues/1557)).
   `tests/test_pc386_machine.py` replays that scan on the line and on a built
   image.
+- `rombios.c`: INT 13h AH=08h reports the highest cylinder below the AT's
+  diagnostic cylinder: the parameter table's count less two, as the IBM PC/AT
+  BIOS reports it. Upstream took off only one, while its own AH=15h already
+  left the diagnostic cylinder out of the disk's size. Windows' 32-bit disk
+  driver, WDCTRL, compares AH=08h with the INT 41h table, allows for the AT's
+  reserved cylinder, and refused the disk at "phase 03"
+  ([#1719](https://github.com/DeanoC/fes/issues/1719)). Partitions still reach
+  the last cylinder: reads and writes check the drive's own geometry. A
+  one-cylinder disk reserves none, in AH=08h and AH=15h alike; upstream's
+  AH=15h reported it as empty.
 - `vgabios.c`: INT 10h AH=00h, the mode set, keeps every register but AL, as
   IBM's VGA BIOS does: the dispatcher saves ES, DS and the general registers
   around `biosfn_set_video_mode`. Upstream saved only DS, BX, CX and AX, so the

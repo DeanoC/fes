@@ -140,10 +140,14 @@ x=read_package(p/'core.fcore');print(json.dumps({'package_id':x.package_id,'core
             core_catalog.publish(ROOT, self.metadata, {'fes.sms': candidate}, self.root / 'out')
         self.assertFalse((self.root / 'out').exists())
 
-    def test_curated_metadata_covers_registered_cores(self):
+    def test_curated_metadata_covers_offered_registered_cores(self):
         value = core_catalog.publish(ROOT, ROOT / 'config/core-library.toml', {}, self.root / 'all')
         rows = {row['core_id']: row for row in value['entries']}
-        self.assertEqual(set(rows), set(core_catalog.recipes.load_recipes()) - {'fes.menu'})
+        retired = {'fes.sms', 'fes.sg1000'}
+        recipes = set(core_catalog.recipes.load_recipes())
+        self.assertTrue(retired <= recipes)
+        self.assertTrue(set(rows) <= recipes)
+        self.assertNotIn('fes.menu', rows)
         self.assertEqual(rows['fes.apple2']['standing'], 'experimental')
         self.assertEqual(rows['fes.c64']['standing'], 'experimental')
         self.assertEqual(rows['fes.c64']['system'], 'c64')
@@ -158,18 +162,23 @@ x=read_package(p/'core.fcore');print(json.dumps({'package_id':x.package_id,'core
         self.assertEqual(rows['fes.ts1000']['system'], 'zx81')
         self.assertEqual(rows['fes.ts1500']['label'], 'Timex Sinclair 1500')
         self.assertEqual(rows['fes.ts1500']['standing'], 'experimental')
-        self.assertEqual(rows['fes.sms']['label'], 'Sega Master System')
-        self.assertEqual(rows['fes.sms']['system'], 'sms')
-        self.assertEqual(rows['fes.sg1000']['label'], 'Sega SG-1000')
         self.assertEqual(rows['fes.coleco']['label'], 'ColecoVision')
         self.assertEqual(rows['fes.coleco']['system'], 'coleco')
         self.assertEqual(rows['fes.ramtest']['standing'], 'supported')
         self.assertEqual(rows['fes.ramtest']['system'], 'ramtest')
         self.assertEqual(rows['fes.pcxt-dos']['system'], 'pcxt')
         self.assertEqual(rows['fes.pcxt-dos']['standing'], 'experimental')
-        self.assertIn('fes.sms', rows)
-        self.assertIn('fes.sg1000', rows)
+        self.assertTrue(retired.isdisjoint(rows))
         self.assertTrue(all('package_id' not in row for row in rows.values()))
+
+    def test_first_party_catalog_rejects_retired_candidates(self):
+        for core_id in ('fes.sms', 'fes.sg1000'):
+            with self.subTest(core_id=core_id):
+                output = self.root / core_id
+                with self.assertRaisesRegex(ValueError, 'candidate core is not in catalog'):
+                    core_catalog.publish(ROOT, ROOT / 'config/core-library.toml',
+                                         {core_id: self.root / 'prepared.json'}, output)
+                self.assertFalse(output.exists())
 
     def test_colecovision_alias_is_emitted_as_coleco(self):
         self.metadata.write_text(

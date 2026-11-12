@@ -158,6 +158,16 @@ constexpr uint32_t MMIO_LO = 0xa0000, MMIO_HI = 0xc0000;  // the MMIO window, wh
 // the ROM's or the hole's shows. One slot each: a program whose stack or far
 // pointers land there runs astray (Outcome::stray).
 constexpr uint32_t MIX_LO = 0xb8000, MIX_HI = 0xbc000, ROM_LO = 0xc0000, HOLE_LO = 0xc4000, HOLE_HI = 0xc8000;
+// The debug programs (FES_I386_DEBUG; Phase 5's fifth slice): random
+// programs whose blocks arm breakpoints and single-step, through vector 1 to
+// a #DB handler at FFFF:FFE4 (DB_HANDLER), beside the interrupts' handler,
+// which disables every breakpoint (DR7 &= FFFFFF00h) and returns:
+// PUSH EAX; MOV EAX, DR7; AND EAX, FFFFFF00h; MOV DR7, EAX; POP EAX; IRET.
+// A run goes on past each #DB.
+constexpr uint32_t DB_HANDLER = 0x10ffd4, DB_HANDLER_BYTES = 17;
+constexpr uint8_t DB_HANDLER_CODE[DB_HANDLER_BYTES] = {0x66, 0x50, 0x0f, 0x21, 0xf8, 0x66, 0x25, 0x00, 0xff,
+                                                        0xff, 0xff, 0x0f, 0x23, 0xf8, 0x66, 0x58, 0xcf};
+bool debug_programs = false;
 // The random programs' page directory and its four tables (Generator::pg_tables).
 constexpr uint32_t PG_PD = 0xf00000, PG_END = PG_PD + 0x5000, PG_ARENA = 0x200000;
 bool mixed = false;
@@ -1259,6 +1269,15 @@ struct Summary {
     // into the step. iret_save_rule: IRETs with NT set whose back link
     // faulted, where the RTL, as the 386, had saved the old task first.
     uint64_t fetch_rule = 0, iret_save_rule = 0;
+    // Phase 5's fifth slice. dr6_rule: #DB deliveries where the RTL's DR6
+    // keeps the bits it held, which the 386 never clears and Bochs clears
+    // first (B0-B3 and BT). db_rf_rule: #DB faults whose EFLAGS image the
+    // oracle took with RF set, as the 386 pushes it (GD after an IRETD that
+    // set RF), where Bochs's has it clear. debug_kinds: the #DB deliveries
+    // by what DR6 reports (the oracle's new bits: B for a breakpoint, BS,
+    // BT, BD), and those with TF set or a breakpoint enabled.
+    uint64_t dr6_rule = 0, db_rf_rule = 0;
+    std::map<std::string, uint64_t> debug_kinds;
     std::map<int, uint64_t> pm_deliveries, unbuilt;
     std::map<std::string, uint64_t> pm_kinds;  // retirements with PE set of this slice's instructions, by kind
     // Code under a CS limit other than FFFFh and FFFFFFFFh: its retirements
@@ -1549,6 +1568,7 @@ struct Irq {
     size_t directed_nmi_next = 0;
     uint64_t pm_nmi_alt_gate = 0;
     bool pm_nmi_alt_gate_valid = false;
+    std::vector<uint8_t> pm_nmi_handler_bytes;
 };
 
 // Run from the state both sides hold now. label_corpus and label_oracle hold
@@ -1757,8 +1777,10 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 outcome.window_code = true;
                 return outcome;
             }
-            const bool handler = irq && (at - irq->handler < 2 || at - irq->pm_h32 < 2 || at - irq->pm_h16 < 2);
-            if (mixed && own && (!(at >= own->lo && at < own->hi) && !handler || now.eflags & 0x100
+            const size_t pm_h16_bytes = irq && !irq->pm_nmi_handler_bytes.empty() ? irq->pm_nmi_handler_bytes.size() : 2;
+            const bool handler = irq && (at - irq->handler < 2 || at - irq->pm_h32 < 2 || at - irq->pm_h16 < pm_h16_bytes
+                                         || debug_programs && at - DB_HANDLER < DB_HANDLER_BYTES);
+            if (mixed && own && (!(at >= own->lo && at < own->hi) && !handler || (now.eflags & 0x100) && !debug_programs
                                  || bus.mixed_read && at - mixed_from >= 16 && !handler)) {
                 outcome.stray = true;
                 return outcome;
@@ -1797,6 +1819,14 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // the handler, which is still there.
         // In protected mode, through the program's IDT, a gate as written and
         // its handler as written.
+        auto handler_intact = [&](unsigned v, uint32_t h) {
+            if (v == 2 && !irq->pm_nmi_handler_bytes.empty()) {
+                for (size_t i = 0; i < irq->pm_nmi_handler_bytes.size(); ++i)
+                    if (bus.ram[h + uint32_t(i)] != irq->pm_nmi_handler_bytes[i]) return false;
+                return true;
+            }
+            return bus.ram[h] == 0x90 && bus.ram[h + 1] == 0xcf;
+        };
         auto intact = [&](unsigned v) {
             if (!irq) return false;
             if (before.cr0 & 1) {
@@ -1810,7 +1840,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                     && !(irq->pm_nmi_alt_gate_valid && v == 2 && actual == irq->pm_nmi_alt_gate)) return false;
                 if ((actual >> 40 & 0x1f) == 5) return true;  // task gate
                 const uint32_t h = (actual >> 43 & 1) ? irq->pm_h32 : irq->pm_h16;
-                return bus.ram[h] == 0x90 && bus.ram[h + 1] == 0xcf;
+                return handler_intact(v, h);
             }
             if (bus.ram[irq->handler] != 0x90 || bus.ram[irq->handler + 1] != 0xcf) return false;
             for (unsigned i = 0; i < 4; ++i)
@@ -2146,6 +2176,13 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 // TF, IF and NT before their faults, which the RTL's make
                 // only at their jumps: those four are the RTL's.
                 if (switched) want.eflags = (oracle_now.eflags & ~0x14300u) | (rtl.state().eflags & 0x14300u);
+                // A #DB whose delivery shut down has set DR6's bits and
+                // cleared GD on both sides first (DR6 kept: dr6_rule).
+                if (!result.events.empty() && result.events[0].kind == fes_i386::EventKind::Exception
+                    && result.events[0].vector == 1) {
+                    want.dr6 = oracle_now.dr6 | (before.dr6 & 0xf00f);
+                    want.dr7 = oracle_now.dr7;
+                }
                 if (!switched) {
                     for (int r : {fes_i386::REG_EAX, fes_i386::REG_ECX, fes_i386::REG_ESI, fes_i386::REG_EDI})
                         want.gpr[r] = oracle_now.gpr[r];
@@ -2312,6 +2349,28 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                         if (at < RAM_BYTES && oracle_writes.count(at) && !((bus.ram[at] ^ rtl.ram[at]) & ~mask)) {
                             bus.ram[at] = rtl.ram[at];
                             oracle.invalidate(at, 1);
+                        }
+                    }
+                }
+                // A #DB fault's EFLAGS image: the 386 pushes EFLAGS as it is
+                // (BREAKPOINT_CMN goes to INTERRUPT_X past FAULT's RF set),
+                // so an instruction that runs with RF set (after an IRETD
+                // that set it) and takes GD's #DB pushes RF set, where Bochs
+                // has cleared RF before the instruction ran (db_rf_rule;
+                // divergences.toml db-frame-rf). Its first push, or its third
+                // to an inner privilege, a 32-bit image's byte 2.
+                if (delivered && last && last->kind == fes_i386::EventKind::Exception && last->vector == 1
+                    && (before.eflags & 0x10000) && (before.cr0 & 1)) {
+                    const bool inner = oracle.get_state().cpl < before.cpl;
+                    const size_t slot = last->writes_before + (inner ? 2 : 0);
+                    if (slot < result.writes.size() && result.writes[slot].length == 4) {
+                        const uint32_t rf_at = write_key(result.writes[slot].physical + 2);
+                        if (rf_at < RAM_BYTES && oracle_writes.count(rf_at) && !(rtl.ram[rf_at] & 1))
+                            out.add(at + "db-frame-rf", 1, 0);
+                        else if (rf_at < RAM_BYTES && oracle_writes.count(rf_at) && (bus.ram[rf_at] ^ rtl.ram[rf_at]) == 1) {
+                            bus.ram[rf_at] = rtl.ram[rf_at];
+                            oracle.invalidate(rf_at, 1);
+                            ++summary.db_rf_rule;
                         }
                     }
                 }
@@ -2554,6 +2613,32 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 if (oracle_state.eflags & 0x20000) ++summary.pm_kinds["task-v86"];
             }
         }
+        // A #DB: the 386 never clears DR6 (its manual's 12.2.3; its microcode
+        // only ORs DR6, 3A3, 93F and 7E0), where Bochs's exception() clears
+        // B0-B3 and BT first, so the RTL's DR6 is the oracle's with the bits
+        // it held before (dr6_rule; divergences.toml dr6-sticky).
+        for (const auto &e : result.events) {
+            if (e.kind != fes_i386::EventKind::Exception || e.vector != 1) continue;
+            const uint32_t fresh = oracle_state.dr6 & ~before.dr6;
+            ++summary.debug_kinds["db"];
+            if (oracle_state.dr6 & 0xf) ++summary.debug_kinds["db-b"];
+            if (fresh & 0x4000) ++summary.debug_kinds["db-bs"];
+            if (oracle_state.dr6 & 0x8000) ++summary.debug_kinds["db-bt"];
+            if (fresh & 0x2000) ++summary.debug_kinds["db-bd"];
+            if ((oracle_state.dr6 & 0xf) && (oracle_state.dr6 & 0x4000) && !(before.dr6 & 0x4000)) ++summary.debug_kinds["db-b-bs"];
+            if (before.eflags & 0x20000) ++summary.debug_kinds["db-v86"];
+            if (before.cr0 & 1) ++summary.debug_kinds["db-pm"];
+            if (iterations > 0 || rep_count(code, code32, before) > 1) ++summary.debug_kinds["db-rep"];
+            const uint32_t want = oracle_state.dr6 | (before.dr6 & 0xf00f);
+            if (want != oracle_state.dr6) {
+                oracle_state.dr6 = want;
+                oracle.set_state(oracle_state);
+                ++summary.dr6_rule;
+            }
+            break;
+        }
+        if (before.eflags & 0x100) ++summary.debug_kinds["tf-steps"];
+        if (before.dr7 & 0xff) ++summary.debug_kinds["armed-steps"];
         compare(oracle_state, rtl_state, skip, at, out);
         hash_state(summary, rtl_state);
         if (!out.items.empty()) return outcome;
@@ -2579,14 +2664,15 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         }
         for (const auto &e : result.events)
             if (e.kind == fes_i386::EventKind::SoftwareInterrupt) outcome.interrupt = e.vector;
-        if (delivered && !interrupted) {
+        // The debug programs run on past each #DB (their handler at DB_HANDLER).
+        if (delivered && !interrupted && !(debug_programs && rtl.top.trace_vector == 1)) {
             outcome.exception = rtl.top.trace_vector;
             if (stop_at_exception) return outcome;
         }
         // ... or one whose frame wrote over the handler.
         const uint32_t handler = !irq ? 0 : !(before.cr0 & 1) ? irq->handler
                                : (irq->pm_gates[unsigned(external) % irq->pm_gates.size()] >> 43 & 1) ? irq->pm_h32 : irq->pm_h16;
-        if (interrupted && irq && (bus.ram[handler] != 0x90 || bus.ram[handler + 1] != 0xcf)) {
+        if (interrupted && irq && !handler_intact(unsigned(external), handler)) {
             outcome.vector_moved = true;
             return outcome;
         }
@@ -3748,7 +3834,9 @@ public:
         // PM_OFF: a protected-mode far transfer's offset at rel_at, the
         // target's EIP under the program's own CS base, which the code
         // descriptors take (pm_block); its selector is in the bytes already.
-        enum { NEAR, FAR_PTR, FAR_OFF, FAR_SEL, NEAR_ABS, PM_OFF } far = NEAR;
+        // LIN_ABS: the target's linear address plus target_byte, 32 bits at
+        // rel_at, which a MOV loads for a breakpoint's DRn (debug_block).
+        enum { NEAR, FAR_PTR, FAR_OFF, FAR_SEL, NEAR_ABS, PM_OFF, LIN_ABS } far = NEAR;
         unsigned target_byte = 0;
         unsigned rewrites = 0;  // the bytes from there a store rewrites (smc_block)
     };
@@ -3763,6 +3851,9 @@ public:
     // slice): H and its gates, pm_task. Off, a seed's programs are as they
     // were before them, so earlier repros reproduce.
     bool tasks = false;
+    // debug: the debug programs (FES_I386_DEBUG; Phase 5's fifth slice),
+    // whose debug_block items are drawn from side.
+    bool debug = false;
     std::vector<std::pair<uint32_t, uint8_t>> image;
 
     // base: the program's linear address, which far targets need; eip: its
@@ -3776,6 +3867,10 @@ public:
         program_eip = eip;
         gdt_table();
         while (items.size() < count) {
+            if (debug && side() % 100 < 12) {
+                debug_block();
+                continue;
+            }
             const unsigned kind = pick(100);
             if (kind < 6) forward_branch();
             else if (kind < 9) loop_block();
@@ -6286,6 +6381,116 @@ private:
         items.push_back(target);
     }
 
+    // ---- Breakpoints and single step (debug_block) ------------------------------
+    // A real-mode block of the debug programs, its choices drawn from side:
+    //   0 an instruction breakpoint (DRn at a later instruction's linear
+    //     address, now and then one byte into it or after a MOV SS that
+    //     shadows it, LEN mostly 00), the instructions before it and after;
+    //   1 a data breakpoint (DRn in a scratch area FS addresses, R/W 01 or
+    //     11, any LEN, GE and LE at random) and accesses near it: loads,
+    //     stores, read-modify-writes, XCHG, PUSH and POP of memory, REP
+    //     STOS, MOVS and LODS over it in either direction;
+    //   2 TF set by POPF for a stretch of instructions (MOV SS and POP SS,
+    //     STI, INT n to the interrupts' handler, short REP strings, PUSHF and
+    //     POPF), then cleared;
+    //   3 a data breakpoint's accesses under TF.
+    // Each arms one breakpoint with the others' DR7 fields random but
+    // disabled (so B bits of matching disabled ones show), never GD, and
+    // ends with DR7 cleared. The #DB handler (DB_HANDLER) disables every
+    // breakpoint before it returns, so an instruction breakpoint's
+    // instruction then runs.
+    uint32_t dside(uint32_t n) { return uint32_t(side() % n); }
+    void push_bytes(std::vector<uint8_t> b) { items.push_back(Item{std::move(b), -1, 0, 0}); }
+    void mov_eax(uint32_t v) { push_bytes({0x66, 0xb8, uint8_t(v), uint8_t(v >> 8), uint8_t(v >> 16), uint8_t(v >> 24)}); }
+    void mov_dr(unsigned n) { push_bytes({0x0f, 0x23, uint8_t(0xc0 | (n << 3))}); }  // MOV DRn, EAX
+    // DR7 with breakpoint n enabled (L, G or both), R/W rw and LEN len, the
+    // others' enables clear and their R/W and LEN random; GE, LE and bits
+    // 11, 12, 14 and 15 random; GD clear.
+    uint32_t dr7_for(unsigned n, unsigned rw, unsigned len) {
+        uint32_t v = uint32_t(side()) & 0xffffdb00u;
+        v |= uint32_t(1 + dside(3)) << (2 * n);
+        v &= ~(0xfu << (16 + 4 * n));
+        v |= (rw | len << 2) << (16 + 4 * n);
+        return v | 0x400;
+    }
+    void debug_block() {
+        const unsigned form = dside(4);
+        const unsigned n = dside(4);
+        // The scratch area: away from the program, below 1 MiB, outside the
+        // MMIO window and the mixed memory; FS selects it.
+        const uint32_t area = program_base >= 0x10000 ? 0x800 : 0x20000;
+        if (form == 0) {
+            const size_t mov = items.size();
+            Item load;
+            load.bytes = {0x66, 0xb8, 0, 0, 0, 0};
+            load.far = Item::LIN_ABS;
+            load.rel_at = 2;
+            load.rel_size = 4;
+            if (dside(6) == 0) load.target_byte = 1 + dside(2);
+            items.push_back(load);
+            mov_dr(n);
+            mov_eax(dr7_for(n, 0, dside(8) == 0 ? dside(4) : 0));
+            mov_dr(7);
+            for (unsigned k = dside(3); k > 0; --k) items.push_back(Item{instruction(false), -1, 0, 0});
+            if (dside(5) == 0) push_bytes({0x8c, 0xd0, 0x8e, 0xd0});  // MOV AX, SS; MOV SS, AX
+            items[mov].target = int(items.size());
+            items.push_back(Item{instruction(false), -1, 0, 0});
+            for (unsigned k = dside(3); k > 0; --k) items.push_back(Item{instruction(false), -1, 0, 0});
+        } else {
+            const bool tf = form >= 2;
+            if (tf) push_bytes({0x9c, 0x58, 0x80, 0xcc, 0x01, 0x50, 0x9d});  // PUSHF; POP AX; OR AH, 1; PUSH AX; POPF
+            const uint16_t off = uint16_t(0x10 + 8 * dside(4));
+            if (form != 2) {
+                push_bytes({0xb8, uint8_t(area >> 4), uint8_t(area >> 12), 0x8e, 0xe0});  // MOV AX, area >> 4; MOV FS, AX
+                mov_eax(area + off + dside(8));
+                mov_dr(n);
+                mov_eax(dr7_for(n, dside(2) ? 3 : 1, dside(4)));
+                mov_dr(7);
+            }
+            const unsigned count = tf ? 2 + dside(6) : 3 + dside(6);
+            for (unsigned k = 0; k < count; ++k) {
+                const uint16_t at = uint16_t(off - 4 + dside(16));
+                const uint8_t lo = uint8_t(at), hi = uint8_t(at >> 8);
+                switch (form == 2 ? 100 + dside(8) : dside(10)) {
+                case 0: push_bytes({0x64, 0xa0, lo, hi}); break;                         // MOV AL, FS:[at]
+                case 1: push_bytes({0x64, 0xa1, lo, hi}); break;                         // MOV AX, FS:[at]
+                case 2: push_bytes({0x66, 0x64, 0xa1, lo, hi}); break;                   // MOV EAX, FS:[at]
+                case 3: push_bytes({0x64, 0xa2, lo, hi}); break;                         // MOV FS:[at], AL
+                case 4: push_bytes({0x66, 0x64, 0xa3, lo, hi}); break;                   // MOV FS:[at], EAX
+                case 5: push_bytes({0x64, 0x80, 0x06, lo, hi, byte()}); break;           // ADD byte FS:[at], ib
+                case 6: push_bytes({0x64, 0x87, 0x1e, lo, hi}); break;                   // XCHG FS:[at], BX
+                case 7: push_bytes({0x64, 0xff, 0x36, lo, hi}); break;                   // PUSH word FS:[at]
+                case 8: push_bytes({0x64, 0x8f, 0x06, lo, hi}); break;                   // POP word FS:[at]
+                case 9: {                                                                // a REP string over the area
+                    const uint8_t ops[] = {0xaa, 0xab, 0xa4, 0xa5, 0xac, 0xad};
+                    const uint8_t op = ops[dside(6)];
+                    push_bytes({0x0f, 0xa0, 0x07});                                        // PUSH FS; POP ES
+                    push_bytes({0xbf, lo, hi, 0xbe, lo, hi, 0xb9, uint8_t(1 + dside(tf ? 3 : 9)), 0x00});  // DI, SI, CX
+                    push_bytes({dside(2) ? uint8_t(0xfc) : uint8_t(0xfd)});                // CLD or STD
+                    std::vector<uint8_t> str;
+                    if (dside(3) == 0) str.push_back(0x66);
+                    str.push_back(0xf3);
+                    if (op == 0xa4 || op == 0xa5 || op == 0xac || op == 0xad) str.push_back(0x64);
+                    str.push_back(op);
+                    push_bytes(str);
+                    break;
+                }
+                case 100: push_bytes({0x8c, 0xd0, 0x8e, 0xd0}); break;                   // MOV AX, SS; MOV SS, AX
+                case 101: push_bytes({0x16, 0x17}); break;                               // PUSH SS; POP SS
+                case 102: push_bytes({0xfb}); break;                                     // STI
+                case 103: push_bytes({0xcd, uint8_t(8 + dside(8))}); break;              // INT 8-15
+                case 104: push_bytes({0xb9, uint8_t(1 + dside(3)), 0x00, 0xf3, 0xaa}); break;  // MOV CX, n; REP STOSB
+                case 105: push_bytes({0x9c, 0x9d}); break;                               // PUSHF; POPF
+                default: items.push_back(Item{instruction(false), -1, 0, 0}); break;
+                }
+            }
+            if (tf) push_bytes({0x9c, 0x58, 0x80, 0xe4, 0xfe, 0x50, 0x9d});  // PUSHF; POP AX; AND AH, FEh; PUSH AX; POPF
+        }
+        mov_eax(0x400);
+        mov_dr(7);
+        fence = int(items.size());
+    }
+
     std::vector<uint8_t> layout() {
         rewritten.clear();
         std::vector<uint32_t> offset(items.size() + 1, 0);
@@ -6293,7 +6498,10 @@ private:
         std::vector<uint8_t> out;
         for (size_t n = 0; n < items.size(); ++n) {
             Item &item = items[n];
-            if (item.target >= 0 && item.far == Item::NEAR_ABS) {
+            if (item.target >= 0 && item.far == Item::LIN_ABS) {
+                const uint32_t value = program_base + offset[size_t(item.target)] + item.target_byte;
+                for (unsigned i = 0; i < item.rel_size; ++i) item.bytes[item.rel_at + i] = uint8_t(value >> (8 * i));
+            } else if (item.target >= 0 && item.far == Item::NEAR_ABS) {
                 const uint32_t value = program_eip + offset[size_t(item.target)] + item.target_byte;
                 for (unsigned i = 0; i < item.rewrites; ++i)
                     rewritten.insert(program_base + offset[size_t(item.target)] + item.target_byte + i);
@@ -6333,6 +6541,7 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
     Generator generator(random);
     if (const char *weight = std::getenv("FES_I386_PM")) generator.pm_weight = unsigned(std::strtoul(weight, nullptr, 0));
     generator.tasks = std::getenv("FES_I386_TASKS") != nullptr;
+    generator.debug = debug_programs = std::getenv("FES_I386_DEBUG") != nullptr;
     for (uint64_t n = 0; n < programs; ++n) {
         State state;
         for (auto &r : state.gpr) r = uint32_t(random());
@@ -6364,6 +6573,11 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         std::vector<std::pair<uint32_t, uint8_t>> image{{IRQ_HANDLER, 0x90}, {IRQ_HANDLER + 1, 0xcf}};
         for (uint32_t vector : {2u, 8u, 9u, 10u, 11u, 12u, 13u, 14u, 15u})
             for (uint32_t i = 0; i < 4; ++i) image.emplace_back(vector * 4 + i, uint8_t(0xffffffe0u >> (8 * i)));
+        if (debug_programs) {
+            for (uint32_t i = 0; i < 4; ++i) image.emplace_back(4 + i, uint8_t(0xffffffe4u >> (8 * i)));  // FFFF:FFE4
+            for (uint32_t i = 0; i < DB_HANDLER_BYTES; ++i) image.emplace_back(DB_HANDLER + i, DB_HANDLER_CODE[i]);
+            static_assert(0xffff0 + 0xffe4 == DB_HANDLER);
+        }
         static_assert(0xffff0 + 0xffe0 == IRQ_HANDLER);
         // The protected-mode blocks' GDT, LGDT's pointer and scratch area.
         image.insert(image.end(), generator.image.begin(), generator.image.end());
@@ -6613,7 +6827,10 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
                   std::vector<std::pair<uint32_t, std::vector<uint8_t>>> places = {};
                   std::vector<uint64_t> more_gdt = {}; bool alone_frame = true;
                   std::vector<uint32_t> nmi_pulses = {}; uint64_t nmi_gate_alt = 0;
-                  bool stop_at_exception = true, expect_halt = false; int expected_nmis = -1; };
+                  std::vector<uint8_t> nmi_handler_bytes = {};
+                  bool stop_at_exception = true, expect_halt = false; int expected_nmis = -1;
+                  // past_db: the run goes on past each #DB (debug_programs).
+                  bool past_db = false; };
     const uint64_t absent = gate(0x08, 0x1800, 0x0e);  // a 386 interrupt gate, not present
     const uint64_t window_ss = desc(MMIO_LO, 0xffff, 0x93, false, false);  // 28h: a 16-bit stack in the window
     std::vector<Case> cases = {
@@ -7144,8 +7361,9 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     }, -1, -1, {}, false, -1, 0, {}, {{17, cgate(0x18, 0x1940, 12, 0, 0)}}});
     // The debug registers: MOV to and from each, DR4 and DR5 as DR6 and DR7,
     // DR6's and DR7's fixed bits; DR7.GD, whose next MOV DRn (read or
-    // write, at CPL 0 or 3) raises #DB, a fault without RF, with DR6.BD set
-    // and GD cleared; at CPL 3 without GD, #GP(0); in real mode, as at CPL 0.
+    // write, at CPL 0 or 3) raises #DB, a fault whose image has RF as it is
+    // (set after an IRETD that set it: db_rf_rule), with DR6.BD set and GD
+    // cleared; at CPL 3 without GD, #GP(0); in real mode, as at CPL 0.
     auto drs = [](Asm &a) {
         a.op({0x66, 0xb8}); a.d(0x12345678); a.op({0x0f, 0x23, 0xc0});               // MOV EAX, 12345678h; MOV DR0, EAX
         a.op({0x66, 0xbb}); a.d(0x9abcdef0); a.op({0x0f, 0x23, 0xcb});               // MOV EBX, ...; MOV DR1, EBX
@@ -7170,7 +7388,7 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     cases.push_back(Case{"dr-gd-write", [=](Asm &a) { gd(a); a.op({0x0f, 0x23, 0xf8}); }, 1, -1, {}, false});
     cases.push_back(Case{"real-dr-gd", [=](Asm &a) { gd(a); a.op({0x0f, 0x21, 0xf0}); }, 1, -1, {}, true});
     cases.push_back(Case{"dr-gd-lock", [=](Asm &a) { gd(a); a.op({0xf0, 0x0f, 0x21, 0xc3}); }, 6, -1, {}, false});
-    cases.push_back(Case{"dr-gd-rf", [=](Asm &a) {                                    // IRETD with RF set, then the #DB
+    cases.push_back(Case{"dr-gd-rf", [=](Asm &a) {                                    // IRETD with RF set, then the #DB (RF set)
         gd(a); a.op({0x66, 0x9c, 0x89, 0xe5, 0x66, 0x81, 0x4e, 0x00}); a.d(0x10000);   // PUSHFD; OR dword [BP], RF
         a.op({0x66, 0x6a, 0x08});                                                      // PUSH dword 08h
         const size_t at = a.here();
@@ -7574,6 +7792,48 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         c.expect_halt = true;
         c.expected_nmis = 2;
     }
+    // A second NMI raised as the NMI handler's NOP retires waits for the
+    // handler's IRET (#1704): the handler (NOP; IRET at 1B10h, through a 286
+    // interrupt gate) runs twice, the second time after the first IRET, not
+    // at the NOP, which retires before the IRET starts. The body starts at
+    // CODE + 44, after the protected-mode entry.
+    {
+        Case c{"nmi-in-nmi-handler", [](Asm &a) { a.op({0x90, 0x90, 0x90, 0x40}); }, -1, -1,
+               {{2, gate(0x08, 0x1b10, 0x86)}}, false};
+        c.places = {{0x1b10, {0x90, 0xcf}}};
+        c.nmi_pulses = {CODE + 44, 0x1b10};
+        c.expected_nmis = 2;
+        cases.push_back(c);
+    }
+    // The same handler in a code segment (98h) whose limit, 1B10h, ends at
+    // its NOP: the IRET's fetch is #GP(0) before the IRET starts, so the
+    // NMI block stays and the second NMI waits through the #GP handler.
+    {
+        Case c{"nmi-iret-fetch-gp", [](Asm &a) { a.op({0x90, 0x90, 0x90, 0x40}); }, 13, 0,
+               {{2, gate(0x98, 0x1b10, 0x86)}}, false};
+        c.more_gdt = {desc(0, 0x1b10, 0x9b, false, false)};
+        c.places = {{0x1b10, {0x90, 0xcf}}};
+        c.nmi_pulses = {CODE + 44, 0x1b10};
+        c.stop_at_exception = false;
+        c.expect_halt = true;
+        c.expected_nmis = 1;
+        cases.push_back(c);
+    }
+    // LOCK IRET is #UD before IRET microcode starts. With another NMI
+    // pending inside its handler, #UD advances past the faulting instruction
+    // and its valid IRET starts before that NMI can be taken.
+    {
+        Case c{"nmi-iret-lock-ud", [](Asm &a) { a.op({0x90, 0x90, 0x90, 0x40}); }, 6, -1,
+               {{2, gate(0x08, 0x1b10, 0x86)}, {6, gate(0x08, 0x1b20, 0x86)}}, false};
+        c.places = {{0x1b10, {0x90, 0xf0, 0xcf, 0xcf}},
+                    {0x1b20, {0x55, 0x89, 0xe5, 0x83, 0x46, 0x02, 0x02, 0x5d, 0xcf}}};
+        c.nmi_handler_bytes = {0x90, 0xf0, 0xcf, 0xcf};
+        c.nmi_pulses = {CODE + 44, 0x1b10};
+        c.stop_at_exception = false;
+        c.expect_halt = true;
+        c.expected_nmis = 2;
+        cases.push_back(c);
+    }
     // After the commit: each of the new task's descriptors faults in the
     // new task (its EIP, its stack). The LDT: TI=1, not an LDT, not
     // present; SS: null, read-only, RPL and DPL not CS's RPL, not present;
@@ -7637,6 +7897,280 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     ts("ts-ss-dpl-before-p", tsj(0x98), 10, 0x28, a_with([](TaskImage &t) { t.ss = 0x2b; }), {}, {}, 0x38, true);
     ts("ts-ud-gate-eip-past", [](Asm &a) { a.op({0x8e, 0xc8}); }, 13, 0, a_with([](TaskImage &t) { t.eip = 0x12345; }),
        {{6, gate(0x98, 0, 0x85)}}, {}, 0x38, true);
+    // Breakpoints and single step (Phase 5's fifth slice). Each arms what it
+    // needs with MOV DRn (arm: DRn's address, then DR7), most stop at the
+    // #DB the default gate's HLT takes (ending 1), where DR6 and the frame
+    // are compared; past_db cases go on through vector 1 to a handler in
+    // 32-bit code at 18h:1B00h that copies DR6 to ESI, sets RF in its
+    // frame and returns (MOV ESI, DR6; OR dword [ESP+8], RF; IRETD).
+    {
+        auto mov_eax = [](Asm &a, uint32_t v) { a.op({0x66, 0xb8}); a.d(v); };
+        auto mov_dr = [](Asm &a, unsigned n) { a.op({0x0f, 0x23, uint8_t(0xc0 | n << 3)}); };
+        // DR7's fields for breakpoint n: en (1 L, 2 G, 3 both), R/W, LEN.
+        auto f7 = [](unsigned n, unsigned en, unsigned rw, unsigned len) {
+            return uint32_t(en) << (2 * n) | uint32_t(rw | len << 2) << (16 + 4 * n);
+        };
+        auto arm = [=](Asm &a, unsigned n, uint32_t address) { mov_eax(a, address); mov_dr(a, n); };
+        auto dr7 = [=](Asm &a, uint32_t v) { mov_eax(a, v | 0x400); mov_dr(a, 7); };
+        // A later address: arm_at's MOV EAX's immediate, patched by here().
+        auto arm_at = [=](Asm &a, unsigned n) { const size_t at = a.here() + 2; arm(a, n, 0); return at; };
+        auto patch = [](Asm &a, size_t at, uint32_t v) { for (int i = 0; i < 4; ++i) a.b[at + i] = uint8_t(v >> (8 * i)); };
+        auto here = [](Asm &a) { return CODE + uint32_t(a.here()); };
+        auto set_tf = [](Asm &a) { a.op({0x9c, 0x5b, 0x80, 0xcf, 0x01, 0x53, 0x9d}); };  // PUSHF; POP BX; OR BH, 1; PUSH BX; POPF
+        auto clear_tf = [](Asm &a) { a.op({0x9c, 0x5b, 0x80, 0xe7, 0xfe, 0x53, 0x9d}); };
+        const std::pair<uint32_t, std::vector<uint8_t>> rf_handler{
+            0x1b00, {0x0f, 0x21, 0xf6, 0x81, 0x4c, 0x24, 0x08, 0x00, 0x00, 0x01, 0x00, 0xcf}};
+        const uint64_t rf_gate = gate(0x18, 0x1b00, 0x8e);
+        auto db = [&](const char *label, std::function<void(Asm &)> body, int ending, bool real = false,
+                      bool past = false, bool window = false, int soft = -1) {
+            Case c{label, body, ending, -1, {}, real, soft};
+            if (past) {
+                c.gates = {{1, rf_gate}};
+                c.places = {rf_handler};
+                c.past_db = true;
+            }
+            c.window = window;
+            cases.push_back(c);
+        };
+        // Instruction breakpoints: DR0 (L0) and DR1 (disabled) at INC AX:
+        // #DB before it, B0 and B1 (a disabled match reported too); with
+        // DR6's B2 set first, kept (the 386 never clears DR6: dr6_rule).
+        auto ibp = [=](Asm &a, unsigned en, uint32_t b6) {
+            if (b6) { mov_eax(a, b6); a.op({0x0f, 0x23, 0xf0}); }                   // MOV DR6, EAX
+            const size_t d1 = arm_at(a, 1), d0 = arm_at(a, 0);
+            dr7(a, f7(0, en, 0, 0));
+            patch(a, d1, here(a)); patch(a, d0, here(a));
+            a.op({0x40});
+        };
+        db("db-ibp", [=](Asm &a) { ibp(a, 1, 0); }, 1);
+        // GD's #DB with DR6's B1 and BS set first: BD joins them.
+        db("db-gd-sticky", [=](Asm &a) {
+            mov_eax(a, 0x4002); a.op({0x0f, 0x23, 0xf0});                         // MOV DR6, B1 | BS
+            dr7(a, 0x2000); a.op({0x0f, 0x21, 0xc3});                             // GD; MOV EBX, DR0
+        }, 1);
+        db("db-ibp-g0-sticky", [=](Asm &a) { ibp(a, 2, 0x4); }, 1);
+        db("db-real-ibp", [=](Asm &a) { ibp(a, 3, 0); }, 1, true);
+        // LEN 01 at the instruction's address plus one (an even address):
+        // LEN's mask matches it, as Bochs's; LEN 00 one byte in does not.
+        db("db-ibp-len2", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0);
+            dr7(a, f7(0, 1, 0, 1));
+            if (here(a) & 1) a.op({0x90});
+            patch(a, d0, here(a) + 1);
+            a.op({0x40});
+        }, 1);
+        db("db-ibp-mid", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0);
+            dr7(a, f7(0, 1, 0, 0));
+            patch(a, d0, here(a) + 1);
+            a.op({0x66, 0x40});                                                      // INC EAX
+        }, -1);
+        // After a MOV SS that shadows it, an instruction's breakpoint is
+        // passed over (Bochs's BX_INHIBIT_DEBUG).
+        db("db-ibp-movss", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0); dr7(a, f7(0, 1, 0, 0));
+            a.op({0x8c, 0xd0, 0x8e, 0xd0}); patch(a, d0, here(a)); a.op({0x40});
+        }, -1);
+        // Ahead of the instruction's own fault: #UD (MOV CS, AX), #GP(0).
+        db("db-ibp-ud", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0); dr7(a, f7(0, 1, 0, 0)); patch(a, d0, here(a)); a.op({0x8e, 0xc8});
+        }, 1);
+        db("db-ibp-gp", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0); dr7(a, f7(0, 1, 0, 0)); patch(a, d0, here(a)); a.op({0x8b, 0x06, 0xff, 0xff});
+        }, 1);
+        // RF: the handler sets RF in its frame; the instruction then runs
+        // with no #DB, and RF clears as it completes, so DR1's breakpoint on
+        // the next takes its #DB too.
+        db("db-ibp-rf", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0), d1 = arm_at(a, 1);
+            dr7(a, f7(0, 1, 0, 0) | f7(1, 2, 0, 0));
+            patch(a, d0, here(a)); a.op({0x40});
+            patch(a, d1, here(a)); a.op({0x43});
+        }, -1, false, true);
+        // RF also clears when INTO's taken JNO ends the instruction, although
+        // that uop is not end_of_instruction. The handler sets RF before INTO;
+        // with OF clear, DR1's next-instruction breakpoint must then fire.
+        db("db-ibp-rf-into-no-overflow", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0), d1 = arm_at(a, 1);
+            dr7(a, f7(0, 1, 0, 0) | f7(1, 2, 0, 0));
+            a.op({0x31, 0xc0});                                                     // XOR EAX, EAX; OF = 0
+            patch(a, d0, here(a)); a.op({0xce});                                   // INTO, no-overflow path
+            patch(a, d1, here(a)); a.op({0x43});
+        }, -1, false, true);
+        // REPNE SCASB ends on its first equal byte with ECX still nonzero.
+        // RF must clear at that taken compare-condition boundary so DR1's
+        // breakpoint on the following instruction fires.
+        db("db-ibp-rf-repne-scas-early", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0), d1 = arm_at(a, 1);
+            dr7(a, f7(0, 1, 0, 0) | f7(1, 2, 0, 0));
+            a.op({0xbf}); a.d(0x100);                                              // EDI = 0100h
+            a.op({0xb0, 0x00});                                                    // AL = 0
+            a.op({0xc6, 0x05}); a.d(0x100); a.op({0x00});                         // [0100h] = 0
+            a.op({0xb9}); a.d(3);                                                  // ECX = 3
+            patch(a, d0, here(a)); a.op({0xf2, 0xae});                            // REPNE SCASB
+            patch(a, d1, here(a)); a.op({0x43});
+        }, -1, false, true);
+        // RF over an instruction that reads the MMIO window: LDS SI,
+        // FS:[0A0000h] (FS 20h, flat). Its first uop, matched, reads nothing
+        // (M1), RF makes it a replay, and the instruction then runs with each
+        // device byte read once.
+        db("db-ibp-rf-replay", [=](Asm &a) {
+            a.ax(0x20); a.op({0x8e, 0xe0});                                         // MOV FS, 20h
+            const size_t d0 = arm_at(a, 0); dr7(a, f7(0, 1, 0, 0));
+            patch(a, d0, here(a));
+            a.op({0x67, 0x64, 0xc5, 0x35}); a.d(MMIO_LO);                          // LDS SI, FS:[0A0000h]
+            a.op({0x43});
+        }, -1, false, true, true);
+        // Data breakpoints, a trap after the access's instruction.
+        auto dbp = [=](Asm &a, unsigned n, uint32_t address, unsigned rw, unsigned len) {
+            arm(a, n, address); dr7(a, f7(n, 1, rw, len));
+        };
+        db("db-dbp-write-word", [=](Asm &a) { dbp(a, 2, 0x108, 1, 1); a.op({0xa3, 0x07, 0x01, 0x40}); }, 1);    // MOV [107h], AX
+        db("db-dbp-read-not-w", [=](Asm &a) {
+            dbp(a, 2, 0x108, 1, 0); a.op({0xa1, 0x08, 0x01, 0x40, 0xa2, 0x08, 0x01, 0x40});  // MOV AX, [108h]; INC; MOV [108h], AL
+        }, 1);
+        db("db-dbp-rw-read", [=](Asm &a) { dbp(a, 2, 0x10a, 3, 3); a.op({0xa0, 0x0b, 0x01, 0x40}); }, 1);       // MOV AL, [10Bh]
+        db("db-dbp-len8", [=](Asm &a) { dbp(a, 3, 0x10f, 1, 2); a.op({0xa3, 0x0e, 0x01, 0x40}); }, 1);          // word at 10Eh
+        db("db-dbp-straddle", [=](Asm &a) { dbp(a, 1, 0x110, 3, 3); a.op({0x66, 0xa1, 0x0e, 0x01, 0x40}); }, 1);  // dword at 10Eh
+        db("db-dbp-miss", [=](Asm &a) {
+            dbp(a, 0, 0x110, 1, 0); arm(a, 1, 0x10e);                               // DR1 at 10Eh, disabled R/W 00
+            a.op({0xa3, 0x0e, 0x01, 0x40});
+        }, -1);
+        db("db-dbp-rmw", [=](Asm &a) { dbp(a, 0, 0x120, 1, 0); a.op({0x80, 0x06, 0x20, 0x01, 0x05, 0x40}); }, 1);  // ADD byte [120h], 5
+        db("db-dbp-push", [=](Asm &a) { dbp(a, 0, 0x0efe, 1, 1); a.op({0x50, 0x40}); }, 1);                       // PUSH AX at SP 0F00h
+        db("db-dbp-xchg", [=](Asm &a) { dbp(a, 0, 0x120, 3, 0); a.op({0x86, 0x06, 0x20, 0x01, 0x40}); }, 1);    // XCHG [120h], AL
+        // Inside a REP string: the trap after the element that hits, with RF
+        // set in its frame and the string's registers stepped that far.
+        db("db-dbp-rep-stos", [=](Asm &a) {
+            dbp(a, 0, 0x124, 1, 0); a.op({0xbf, 0x20, 0x01, 0xb9, 0x08, 0x00, 0xfc, 0xf3, 0xaa, 0x40});
+        }, 1);
+        db("db-dbp-rep-lods-down", [=](Asm &a) {
+            dbp(a, 0, 0x135, 3, 0); a.op({0xbe, 0x3a, 0x01, 0xb9, 0x0a, 0x00, 0xfd, 0xf3, 0xac, 0x40});
+        }, 1);
+        db("db-dbp-rep-movs-dst", [=](Asm &a) {
+            dbp(a, 3, 0x146, 1, 1);
+            a.op({0xbe, 0x00, 0x01, 0xbf, 0x40, 0x01, 0xb9, 0x06, 0x00, 0xfc, 0xf3, 0xa5, 0x40});   // REP MOVSW
+        }, 1);
+        db("db-real-dbp-rep", [=](Asm &a) {
+            dbp(a, 0, 0x124, 1, 0); a.op({0xbf, 0x20, 0x01, 0xb9, 0x08, 0x00, 0xfc, 0xf3, 0xaa, 0x40});
+        }, 1, true);
+        // MOV SS, [120h] reading DR0's field: the shadow carries the trap to
+        // the next instruction's end; an INT n there drops it (Bochs's
+        // interrupt()), its pushes elsewhere.
+        auto ss_word = [](Asm &a) { a.op({0xc7, 0x06, 0x20, 0x01, 0x10, 0x00}); };  // MOV word [120h], 10h
+        db("db-dbp-movss", [=](Asm &a) { ss_word(a); dbp(a, 0, 0x120, 3, 1); a.op({0x8e, 0x16, 0x20, 0x01, 0x40}); }, 1);
+        db("db-dbp-movss-int", [=](Asm &a) {
+            ss_word(a); dbp(a, 0, 0x120, 3, 1); a.op({0x8e, 0x16, 0x20, 0x01, 0xcd, 0x20, 0x43});
+        }, -1, false, false, false, 0x20);
+        // A descriptor's read matches a data breakpoint as any access does
+        // (Bochs's system_read): MOV DS, 10h with DR0 over GDT entry 10h.
+        db("db-dbp-gdt", [=](Asm &a) { dbp(a, 0, GDT + 0x10, 3, 3); arm(a, 1, GDT + 0x14); a.ax(0x10); a.op({0x8e, 0xd8, 0x40}); }, 1);
+        // A data breakpoint's trap between a REP string's elements reports
+        // no match of the string's own address (RF, as Bochs's REP sets it):
+        // DR1, disabled, on the REP STOSB.
+        db("db-dbp-rep-own", [=](Asm &a) {
+            const size_t d1 = arm_at(a, 1);
+            dbp(a, 0, 0x124, 1, 0);
+            a.op({0xbf, 0x20, 0x01, 0xb9, 0x08, 0x00, 0xfc});
+            patch(a, d1, here(a)); a.op({0xf3, 0xaa, 0x40});
+        }, 1);
+        // A data breakpoint's trap goes on to the next: the handler returns,
+        // a second hit traps again, and DR6 holds both B bits.
+        db("db-dbp-twice", [=](Asm &a) {
+            dbp(a, 0, 0x120, 1, 0); arm(a, 1, 0x122); dr7(a, f7(0, 1, 1, 0) | f7(1, 1, 1, 0));
+            a.op({0xa2, 0x20, 0x01, 0x40, 0xa2, 0x22, 0x01, 0x40});
+        }, -1, false, true);
+        // Single step: TF set by POPF traps after the instruction after it
+        // (BS), not after the POPF.
+        db("db-tf", [=](Asm &a) { set_tf(a); a.op({0x40}); }, 1);
+        db("db-real-tf", [=](Asm &a) { set_tf(a); a.op({0x40}); }, 1, true);
+        // MOV SS and POP SS: the trap waits for the instruction after them.
+        db("db-tf-movss", [=](Asm &a) { a.op({0x8c, 0xd0}); set_tf(a); a.op({0x8e, 0xd0, 0x40}); }, 1);
+        db("db-tf-popss", [=](Asm &a) { a.op({0x16}); set_tf(a); a.op({0x17, 0x40}); }, 1);
+        // INT n clears TF: its handler is not stepped, its IRET restores TF,
+        // and the instruction after it traps. After POP SS, the trap the
+        // shadow carried is dropped by the INT (Bochs's interrupt()).
+        db("db-tf-int", [=](Asm &a) { a.op({0x16}); set_tf(a); a.op({0x17, 0xcd, 0x20, 0x43}); clear_tf(a); }, -1, false,
+           true, false, 0x20);
+        // A fault: no trap after it, its handler not stepped.
+        db("db-tf-fault", [=](Asm &a) { set_tf(a); a.op({0x8e, 0xc8}); }, 6);
+        // Every instruction stepped, a REP string by its elements, until a
+        // POPF clears TF (which traps itself): the handler's IRETD goes on.
+        db("db-tf-run", [=](Asm &a) {
+            set_tf(a);
+            a.op({0xbf, 0x20, 0x01, 0xb9, 0x03, 0x00, 0xfc, 0xf3, 0xaa, 0x40, 0xa2, 0x30, 0x01});
+            clear_tf(a);
+        }, -1, false, true);
+        // The trap merges what else is due at that edge: the next
+        // instruction's breakpoint (BS with B0), a data breakpoint's (BS
+        // with B2), and a disabled breakpoint's match (B1, with DR0 enabled
+        // elsewhere).
+        db("db-tf-ibp", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0); dr7(a, f7(0, 1, 0, 0));
+            set_tf(a); a.op({0x40}); patch(a, d0, here(a)); a.op({0x43});
+        }, 1);
+        db("db-tf-dbp", [=](Asm &a) { dbp(a, 2, 0x108, 1, 1); set_tf(a); a.op({0xa3, 0x08, 0x01}); }, 1);
+        db("db-tf-dbp-disabled", [=](Asm &a) {
+            arm(a, 0, 0x5000); arm(a, 1, 0x108); dr7(a, f7(0, 1, 1, 0) | f7(1, 0, 1, 0));
+            set_tf(a); a.op({0xa3, 0x08, 0x01});
+        }, 1);
+        // POPFD of an image with RF set: RF is clear once it completes (as
+        // Bochs), so the next instruction's breakpoint is taken.
+        db("db-popfd-rf", [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0); dr7(a, f7(0, 1, 0, 0));
+            a.op({0x66, 0x9c, 0x89, 0xe5, 0x66, 0x81, 0x4e, 0x00}); a.d(0x10000);   // PUSHFD; MOV BP, SP; OR dword [BP], RF
+            a.op({0x66, 0x9d}); patch(a, d0, here(a)); a.op({0x40});              // POPFD; INC AX
+        }, 1);
+        // TF with a disabled breakpoint's match and none enabled: BS alone
+        // (Bochs compares nothing while no breakpoint is enabled).
+        db("db-tf-none-enabled", [=](Asm &a) {
+            arm(a, 1, 0x108); dr7(a, f7(1, 0, 1, 0)); set_tf(a); a.op({0xa3, 0x08, 0x01});
+        }, 1);
+        // TF from IRETD's image: no trap after the IRETD, one after the next.
+        db("db-tf-iretd", [=](Asm &a) {
+            a.op({0x66, 0x9c, 0x89, 0xe5, 0x66, 0x81, 0x4e, 0x00}); a.d(0x100);   // PUSHFD; MOV BP, SP; OR dword [BP], TF
+            a.op({0x66, 0x6a, 0x08});                                              // PUSH dword 08h
+            const size_t at = a.here();
+            a.op({0x66, 0x68}); a.d(0); a.op({0x66, 0xcf});                        // PUSH next; IRETD
+            patch(a, at + 2, here(a));
+            a.op({0x40, 0x43});
+        }, 1);
+        // In V86 mode: an instruction breakpoint (armed before the IRETD
+        // into it) and a POPF that sets TF (IOPL 3), each delivered to CPL 0.
+        v86("db-v86-ibp", [=](Asm &a) { a.op({0x40, 0x40, 0x43}); }, 1, -1, 3);
+        cases.back().body = [=](Asm &a) {
+            const size_t d0 = arm_at(a, 0); dr7(a, f7(0, 1, 0, 0));
+            to_v86(a, 0x38, 3, 0x0100);
+            a.op({0x40}); patch(a, d0, here(a)); a.op({0x43});
+        };
+        v86("db-v86-tf", [=](Asm &a) { set_tf(a); a.op({0x40, 0x43}); }, 1, -1, 3);
+    }
+    // The T bit: a switch into a 386 TSS whose T bit (64h, bit 0) is set
+    // traps before the new task's first instruction, with DR6.BT; JMP,
+    // CALL, INT n through a task gate and IRET back to a task whose T bit
+    // is set; none into a 286 TSS. DR7's global enable
+    // stays across the switch and a local one does not: G0's breakpoint on
+    // task A's first instruction faults there, L0's does not.
+    const Places t_on{{0x2664, {0x01}}};
+    ts("ts-tbit-jmp", tsj(0x98), 1, -1, with({task(0x2600, a_img, HLT1), t_on}));
+    ts("ts-tbit-call", tsc(0x98), 1, -1, with({task(0x2600, a_img, IRET1), t_on}));
+    ts("ts-tbit-iret", tsc(0x98), 1, -1, with({task(0x2600, a_img, IRET1), Places{{0x2564, {0x01}}}}));
+    ts("ts-tbit-int-gate", [](Asm &a) { a.op({0xcd, 0x2e, 0x41}); }, 1, -1, with({task(0x2600, a_img, IRET1), t_on}),
+       {{0x2e, gate(0x98, 0, 0x85)}}, {}, 0x38, false, 0x2e);
+    ts("ts-tbit-286", tsj(0xa0), -1, -1, with({task(0x2680, b_img, HLT1), Places{{0x2680 + 0x2c, {0x01}}}}));
+    auto g_or_l = [](unsigned en) {
+        return [=](Asm &a) {
+            a.op({0x66, 0xb8}); a.d(0x1a00); a.op({0x0f, 0x23, 0xc0});            // MOV DR0, 1A00h
+            a.op({0x66, 0xb8}); a.d(0x400 | en); a.op({0x0f, 0x23, 0xf8});        // MOV DR7, en
+            a.op({0xea, 0x00, 0x00, 0x98, 0x00});
+        };
+    };
+    ts("ts-g0-kept", g_or_l(2), 1, -1, task(0x2600, a_img, HLT1));
+    // TF set before a JMP to a TSS whose image has TF clear: the step the
+    // JMP armed is dropped at the switch (Bochs's task_switch), so none.
+    ts("ts-tf-jmp", [](Asm &a) { a.op({0x9c, 0x5b, 0x80, 0xcf, 0x01, 0x53, 0x9d, 0xea, 0x00, 0x00, 0x98, 0x00}); },
+       -1, -1, task(0x2600, a_img, HLT1));
+    ts("ts-l0-cleared", g_or_l(1), -1, -1, task(0x2600, a_img, HLT1));
     const char *only = std::getenv("FES_I386_CASE");
     for (const Case &c : cases) {
         if (only && std::string(only) != c.label) continue;
@@ -7773,10 +8307,13 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
                     directed_irq.pm_h32 = directed_irq.pm_h16 = 0x1b10;
                     directed_irq.pm_nmi_alt_gate = c.nmi_gate_alt;
                     directed_irq.pm_nmi_alt_gate_valid = c.nmi_gate_alt != 0;
+                    directed_irq.pm_nmi_handler_bytes = c.nmi_handler_bytes;
                     irq = &directed_irq;
                 }
-                outcome = lockstep(oracle, bus, rtl, entries, Fields{}, c.nmi_pulses.empty() ? 64 : 256,
+                debug_programs = c.past_db;
+                outcome = lockstep(oracle, bus, rtl, entries, Fields{}, c.nmi_pulses.empty() && !c.past_db ? 64 : 256,
                                    c.stop_at_exception, summary, out, CODE + uint32_t(a.b.size()), irq);
+                debug_programs = false;
             } catch (const std::exception &error) {
                 out.add(label + ".oracle-error:" + error.what(), 0, 1);
                 oracle.reset();
@@ -9768,7 +10305,8 @@ int main(int argc, char **argv) {
                 "\"pm_retirements\": %llu, \"cs_rule\": %llu, \"ss_error_rule\": %llu, \"fetch_rule\": %llu, "
                 "\"iret_save_rule\": %llu, \"pm_deliveries\": {%s}, "
                 "\"unbuilt_stops\": {%s}, \"pm_kinds\": {%s}, \"cs_limit\": {%s}, "
-                "\"no387_rule\": %llu, \"no387_skips\": %llu}\n",
+                "\"no387_rule\": %llu, \"no387_skips\": %llu, \"dr6_rule\": %llu, \"db_rf_rule\": %llu, "
+                "\"debug_kinds\": {%s}}\n",
                 mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
@@ -9803,6 +10341,7 @@ int main(int argc, char **argv) {
                 (unsigned long long)summary.iret_save_rule, pm_deliveries.c_str(),
                 unbuilt.c_str(), pm_kinds.c_str(), cs_limit.c_str(),
                 (unsigned long long)summary.no387_rule,
-                (unsigned long long)summary.no387_skips);
+                (unsigned long long)summary.no387_skips, (unsigned long long)summary.dr6_rule,
+                (unsigned long long)summary.db_rf_rule, named(summary.debug_kinds).c_str());
     return summary.failed ? 1 : 0;
 }

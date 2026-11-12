@@ -439,8 +439,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertIn("5391eeb1", readme)
         self.assertIn("package-only", readme.lower())
         self.assertIn("sim-fes-sg1000-rom-link", readme)
-        self.assertIn("in the factory image", readme.lower())
-        self.assertNotIn("not in the factory image", readme.lower())
+        self.assertIn("outside the first-party catalog", readme.lower())
         self.assertNotIn("remain later jobs", readme.lower())
 
     def test_diagnostic_is_reproducible_and_enters_at_reset(self) -> None:

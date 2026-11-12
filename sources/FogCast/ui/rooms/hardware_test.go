@@ -252,6 +252,7 @@ func TestHardwareRoomUsesInitialGameIDInsteadOfSavedNavigation(t *testing.T) {
 
 func TestSinclairWorkshopUsesSelectedModel(t *testing.T) {
 	for _, tc := range []struct{ core, label, mark string }{
+		{"fes.zx81", "Sinclair ZX81", "ZX81"},
 		{"fes.zx80", "Sinclair ZX80", "ZX80"},
 		{"fes.ts1000", "Timex Sinclair 1000", "TS1000"},
 		{"fes.ts1500", "Timex Sinclair 1500", "TS1500"},
@@ -267,13 +268,20 @@ func TestSinclairWorkshopUsesSelectedModel(t *testing.T) {
 				t.Fatal(err)
 			}
 			frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Set up "+tc.mark) })
-			if !frameHas(frame, tc.label+" setup") || !frameHas(frame, strings.ToUpper(tc.label)) || frameHas(frame, "Sinclair ZX81 setup") {
+			if !frameHas(frame, tc.label+" setup") || !frameHas(frame, strings.ToUpper(tc.label)) ||
+				(tc.core != "fes.zx81" && frameHas(frame, "Sinclair ZX81 setup")) {
 				t.Fatalf("wrong model branding:\n%s", frameText(frame))
 			}
 			r.Activate("setup_library")
 			acts := r.TakeActions()
 			if len(acts) != 1 || acts[0].Kind != ActionHardwareSetup || acts[0].CoreID != tc.core {
 				t.Fatalf("wrong model setup action: %+v", acts)
+			}
+			r.Activate("library")
+			acts = r.TakeActions()
+			if len(acts) != 1 || acts[0].Kind != ActionOpenLibrary || acts[0].Platform != "fpga" ||
+				len(acts[0].CoreIDs) != 1 || acts[0].CoreIDs[0] != tc.core {
+				t.Fatalf("wrong model library filters: %+v", acts)
 			}
 		})
 	}
@@ -403,7 +411,8 @@ func TestHardwareRoomRestoresFocusAndUsesOrdinaryLaunch(t *testing.T) {
 		r.Input(dir)
 	}
 	r.Input("select")
-	if acts = r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionOpenLibrary {
+	if acts = r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionOpenLibrary || acts[0].Platform != "fpga" ||
+		len(acts[0].CoreIDs) != 1 || acts[0].CoreIDs[0] != "fes.zx81" {
 		t.Fatalf("direction navigation failed: %+v", acts)
 	}
 }

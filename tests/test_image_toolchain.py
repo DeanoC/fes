@@ -4,10 +4,14 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 import os
 from pathlib import Path
+import shlex
 import shutil
+import signal
+import subprocess
 import sys
 import tempfile
 import threading
+import time
 import tomllib
 import unittest
 from unittest import mock
@@ -264,6 +268,140 @@ class ToolchainCacheTest(unittest.TestCase):
         receipt = build.verification_record(output, "image", None)
         self.assertEqual(receipt["toolchain_key"], "a" * 64)
         self.assertEqual(receipt["toolchain_sha256"], "b" * 64)
+
+
+class ToolchainBuildLockTest(unittest.TestCase):
+    """Exercise the image and kit SDK entrypoints as separate worktree processes."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.shared = self.root / "shared"
+        self.gate = self.root / "release-builds"
+        self.log = self.root / "builds.log"
+        self.builder = self.root / "fake-builder"
+        self.builder.write_text('''#!/bin/sh
+set -eu
+repo=$1
+printf '%s\\n' "$repo" >> "$FAKE_BUILD_LOG"
+while [ ! -e "$FAKE_BUILD_GATE" ]; do sleep 0.05; done
+if [ "${FAKE_FAIL:-0}" = 1 ]; then exit 13; fi
+mkdir -p "$repo/fake-host/bin"
+printf compiler > "$repo/fake-host/bin/arm-buildroot-linux-gnueabihf-gcc"
+python3 "$repo/scripts/toolchain_cache.py" package "$repo/fake-host" >/dev/null
+''')
+        self.builder.chmod(0o755)
+        self.bin = self.root / "bin"
+        self.bin.mkdir()
+        flock = self.bin / "flock"
+        flock.write_text('#!/bin/sh\n'
+                         'if [ "$1" = -x ]; then touch "$FAKE_LOCK_ATTEMPT"; fi\n'
+                         f'exec {shlex.quote(shutil.which("flock"))} "$@"\n')
+        flock.chmod(0o755)
+        self.worktrees = [self.worktree("one"), self.worktree("two")]
+
+    def worktree(self, name):
+        image = self.root / name / "image"
+        for name in ("scripts/build-target-image.sh", "scripts/toolchain_cache.py",
+                     "buildroot/configs/fogcast_toolchain.fragment",
+                     "build/target-image.sources.lock.toml",
+                     "build/target-image-container-packages.sha256",
+                     *cache.BUILDER_CONTEXT):
+            destination = image / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / "image" / name, destination)
+        verifier = image / "scripts/verify-target-image-source-cache.sh"
+        verifier.write_text('#!/bin/sh\ntouch "$FAKE_FETCH_MARKER"\nexit 0\n')
+        verifier.chmod(0o755)
+        return image
+
+    def start(self, image, entry, *, forced=False, fail=False):
+        env = dict(os.environ, FES_TARGET_IMAGE_SHARED_CACHE=str(self.shared),
+                   TARGET_IMAGE_TEST_MODE="1", TARGET_IMAGE_BUILD_ONCE="/bin/true",
+                   TARGET_IMAGE_TOOLCHAIN_BUILD_ONCE=str(self.builder),
+                   FAKE_BUILD_GATE=str(self.gate), FAKE_BUILD_LOG=str(self.log),
+                   FAKE_FETCH_MARKER=str(image / "fetch-verified"),
+                   FAKE_LOCK_ATTEMPT=str(image / "build-lock-attempt"),
+                   PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
+                   TOOLCHAIN_REBUILD="1" if forced else "0", FAKE_FAIL="1" if fail else "0")
+        process = subprocess.Popen(["sh", str(image / "scripts/build-target-image.sh"), *entry],
+                                   env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   text=True, start_new_session=True)
+        self.addCleanup(self.stop, process)
+        return process
+
+    @staticmethod
+    def stop(process):
+        if process.poll() is None:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.communicate(timeout=10)
+
+    def wait_for(self, condition, message):
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            if condition():
+                return
+            time.sleep(0.05)
+        self.fail(message)
+
+    def builds(self):
+        return self.log.read_text().splitlines() if self.log.exists() else []
+
+    def finish(self, process, expected=0):
+        stdout, stderr = process.communicate(timeout=20)
+        self.assertEqual(process.returncode, expected, f"stdout: {stdout}\nstderr: {stderr}")
+
+    def test_shared_miss_serializes_image_and_kit_sdk(self):
+        first = self.start(self.worktrees[0], ["--ensure-toolchain", "native-dev"])
+        self.wait_for(lambda: len(self.builds()) == 1, "image build did not start")
+        second = self.start(self.worktrees[1], ["--ensure-kit-sdk"])
+        self.wait_for(lambda: (self.worktrees[1] / "fetch-verified").exists(), "kit source verification did not run")
+        self.wait_for(lambda: (self.worktrees[1] / "build-lock-attempt").exists(), "kit build did not attempt lock")
+        time.sleep(0.2)
+        self.assertEqual(len(self.builds()), 1, "kit build started before image build released the lock")
+        self.gate.touch()
+        self.finish(first)
+        self.finish(second)
+        self.assertEqual(len(self.builds()), 1, "a waiter rebuilt the newly published SDK")
+        directory = self.shared / "toolchains" / cache.key(self.worktrees[0])
+        self.assertIsNotNone(cache.validated_sha(directory, cache.key(self.worktrees[0])))
+
+    def test_failed_builder_releases_lock_for_waiter(self):
+        first = self.start(self.worktrees[0], ["--ensure-kit-sdk"], fail=True)
+        self.wait_for(lambda: len(self.builds()) == 1, "first build did not start")
+        second = self.start(self.worktrees[1], ["--ensure-toolchain", "native-dev"])
+        self.wait_for(lambda: (self.worktrees[1] / "build-lock-attempt").exists(), "waiter did not attempt lock")
+        self.gate.touch()
+        self.finish(first, 13)
+        self.finish(second)
+        self.assertEqual(len(self.builds()), 2)
+        self.assertIsNotNone(cache.validated_sha(self.shared / "toolchains" / cache.key(self.worktrees[1]),
+                                                 cache.key(self.worktrees[1])))
+
+    def test_forced_rebuilds_are_serialized_and_both_run(self):
+        first = self.start(self.worktrees[0], ["--ensure-toolchain", "native-dev"], forced=True)
+        self.wait_for(lambda: len(self.builds()) == 1, "first build did not start")
+        second = self.start(self.worktrees[1], ["--ensure-kit-sdk"], forced=True)
+        self.wait_for(lambda: (self.worktrees[1] / "fetch-verified").exists(), "kit source verification did not run")
+        self.wait_for(lambda: (self.worktrees[1] / "build-lock-attempt").exists(), "kit build did not attempt lock")
+        time.sleep(0.2)
+        self.assertEqual(len(self.builds()), 1, "forced build ran while another builder held the lock")
+        self.gate.touch()
+        self.finish(first)
+        self.finish(second)
+        self.assertEqual(len(self.builds()), 2, "forced waiter skipped its rebuild")
+
+    def test_different_keys_build_concurrently(self):
+        with (self.worktrees[1] / cache.FRAGMENT).open("a") as stream:
+            stream.write("# distinct toolchain key\n")
+        first = self.start(self.worktrees[0], ["--ensure-toolchain", "native-dev"])
+        self.wait_for(lambda: len(self.builds()) == 1, "first build did not start")
+        second = self.start(self.worktrees[1], ["--ensure-toolchain", "native-dev"])
+        self.wait_for(lambda: len(self.builds()) == 2, "different key waited on first build")
+        self.gate.touch()
+        self.finish(first)
+        self.finish(second)
 
 
 if __name__ == "__main__":

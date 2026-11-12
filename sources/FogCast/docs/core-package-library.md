@@ -649,12 +649,11 @@ without packages show **unproduced**; missing archives show **unavailable**.
 Apple II is experimental: its linked firmware, slot cards and disks have passed
 a kit diagnostic, while appliance acceptance remains separate.
 
-Open **FPGA library**, choose **Sega Master System** or **Sega SG-1000** under **Systems and
-guided setup**, and use **Install core** when a package is available. The installed
-manifest supplies each named ROM requirement. Choose a private cartridge file
-(exactly 32768 bytes for the current SMS package or 16384 bytes for SG-1000), or
-enter the digest of previously imported media and choose it explicitly. Enter a
-title below and use **Add game**. The resulting title uses the ordinary library,
+Open **FPGA library**, choose **Sinclair ZX81** under **Systems and guided setup**,
+and use **Install core** when a package is available. The installed manifest
+supplies each named ROM requirement. Choose an exact 8192-byte ZX81 firmware
+file, or enter the digest of previously imported media and choose it explicitly.
+Enter a title below and use **Add game**. The resulting title uses the ordinary library,
 readiness, mesh placement and launch paths. Creating it does not start a game.
 A package's standing is not a compatibility result; launch checks the executor.
 
