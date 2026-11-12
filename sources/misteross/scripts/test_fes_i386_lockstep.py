@@ -557,11 +557,11 @@ def same_as(report: dict, other: dict) -> list[str]:
         for key in SAME_MODE:
             compare(f'{mode} {key}', report[mode]['summary'].get(key), other[mode]['summary'].get(key))
     compare('unbuilt encodings', report['unbuilt']['encodings'], other['unbuilt']['encodings'])
+    mine, theirs = report.get('undefined', {}), other.get('undefined', {})
     for key in SAME_RANDOM:
-        compare(f'undefined {key}', report['undefined']['totals'].get(key),
-                other.get('undefined', {}).get('totals', {}).get(key))
+        compare(f'undefined {key}', mine.get('totals', {}).get(key), theirs.get('totals', {}).get(key))
     for key in ('seeds', 'programs_per_seed', 'trace_hashes', 'fault_vectors', 'pm_kinds'):
-        compare(f'undefined {key}', report['undefined'].get(key), other.get('undefined', {}).get(key))
+        compare(f'undefined {key}', mine.get(key), theirs.get(key))
     return differences
 
 

@@ -44,7 +44,8 @@ raises #UD (vector 6, a fault with no error code) for both.
   same way right after, 3373 (40.08 fps), twice. −0.09%, within the spread
   between packages slice 5 saw on this kit (40.06 and 40.07)
   ([kit.json](kit.json)).
-- **Windows.** WFW_LINE
+- **Windows.** Pending: the `wfw-rtl` run (WfW 3.11 on the RTL from the DOS
+  prompt) is still running; its result will replace this line.
 
 ## Which encodings the 386 rejects
 
