@@ -647,6 +647,22 @@ std::vector<Case> cases() {
         auto r = g.results();
         g.check(r == std::vector<uint8_t>{0x00, 0, 0, 10, 0, 1, 2}, "write ending at EOT: next is C+1, H 0, R 1");
     }});
+    list.push_back({"write_tc_mid_sector", 4, 2, false, [](Guest &g) {
+        { const Disk boot_disk = A144; g.boot(&boot_disk); }
+        start(g);
+        // A read first, so that a controller that writes its whole buffer
+        // writes that sector's tail.
+        read_back(g, 0, 6, 0, 1, 1, 18, Guest::original(A144, 6, 0, 1), "the sector before");
+        std::vector<uint8_t> data(203);
+        for (size_t i = 0; i < data.size(); ++i) data[i] = uint8_t(i + 0x40);
+        g.command(rw(0xc5, 0, 6, 0, 7, 18));
+        g.dma_out(data, long(data.size() - 1));
+        auto r = g.results();
+        g.check(r == std::vector<uint8_t>{0x00, 0, 0, 6, 0, 8, 2}, "write with TC mid-sector: result");
+        auto expect = data;
+        expect.resize(512, 0x00);
+        read_back(g, 0, 6, 0, 7, 1, 18, expect, "write with TC mid-sector: the rest of the sector is 00h");
+    }});
     list.push_back({"write_protected", 4, 2, false, [](Guest &g) {
         { const Disk boot_disk = Disk{G144, 8, true}; g.boot(&boot_disk); }
         start(g);

@@ -58,6 +58,15 @@ deciding = "docs/design/pc386-removable-media.md, Commands: Write Deleted Data w
 follow = "rtl"
 
 [[divergence]]
+id = "write-tc-padding"
+title = "A write that TC ends mid-sector"
+cases = ["write_tc_mid_sector"]
+reference = "The whole 512-byte buffer is written: the bytes after the TC are whatever an earlier sector left in it."
+rtl = "The sector is written whole, its bytes after the TC as 00h."
+deciding = "8272A/82077AA datasheets, Write Data: if TC arrives before the end of the sector, the rest of the data field is filled with 00h. The design: a torn sector never reaches the image."
+follow = "rtl"
+
+[[divergence]]
 id = "write-protect-status"
 title = "Writing a write-protected disk"
 cases = ["write_protected"]

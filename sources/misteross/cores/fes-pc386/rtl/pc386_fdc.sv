@@ -185,11 +185,16 @@ module pc386_fdc #(
     reg buffer_write;
     reg [5:0] buffer_waddress, buffer_raddress;
     reg [63:0] buffer_wdata;
-    reg [7:0] buffer_wbyteenable;
+    // A write's bytes reach the buffer a whole word at a time (one write
+    // port, no byte enables, so the buffer is two M10K): each byte rewrites
+    // its word with the bytes before it. Bytes past a TC are left from
+    // earlier words; the store writes them 00h.
+    reg [63:0] gathered;
+    reg [63:0] gathered_word;
     wire [63:0] buffer_word;
-    pc386_ram #(.WIDTH(64), .DEPTH(64), .BYTES(8)) buffer (
+    pc386_ram #(.WIDTH(64), .DEPTH(64)) buffer (
         .clk(clk), .write(buffer_write), .waddress(buffer_waddress), .wdata(buffer_wdata),
-        .wbyteenable(buffer_wbyteenable), .read(1'b1), .raddress(buffer_raddress), .rdata(buffer_word)
+        .wbyteenable(1'b1), .read(1'b1), .raddress(buffer_raddress), .rdata(buffer_word)
     );
     wire [7:0] buffer_byte = buffer_word[8 * index[2:0] +: 8];
 
@@ -243,6 +248,10 @@ module pc386_fdc #(
     wire pio_take = access && address == 3'd5 && phase == P_EXEC && ex == X_BYTE && pio && write == writing;
     wire byte_taken = (dack && drq_r) || pio_take;
     wire [7:0] taken_byte = pio_take ? wdata : dack_wdata;
+    always @* begin
+        gathered_word = gathered;
+        gathered_word[8 * index[2:0] +: 8] = taken_byte;
+    end
     // Non-DMA has no TC (the AT's TC comes from the 8237): such a transfer
     // ends at EOT with ST1 EN, as on the 82077AA.
     wire taken_tc = !pio_take && dack_tc;
@@ -393,7 +402,7 @@ module pc386_fdc #(
             target_lba <= 0; target_drive <= 0;
             fetching <= 0; storing <= 0; store_loaded <= 0; store_fill <= 0;
             fetch_beats <= 0; owed <= 0; store_word <= 0; store_bytes <= 0; fill_byte <= 0;
-            buffer_waddress <= 0; buffer_wdata <= 0; buffer_wbyteenable <= 0;
+            buffer_waddress <= 0; buffer_wdata <= 0; gathered <= 0;
         end else begin
             // A disk leaving or arriving sets its drive's change latch.
             present_q <= present;
@@ -415,7 +424,6 @@ module pc386_fdc #(
                 buffer_write <= 1;
                 buffer_waddress <= fetch_beats[5:0];
                 buffer_wdata <= aux_readdata;
-                buffer_wbyteenable <= 8'hff;
                 fetch_beats <= fetch_beats + 7'd1;
             end
 
@@ -666,8 +674,8 @@ module pc386_fdc #(
                         if (writing) begin
                             buffer_write <= 1;
                             buffer_waddress <= index[8:3];
-                            buffer_wdata <= {8{taken_byte}};
-                            buffer_wbyteenable <= 8'd1 << index[2:0];
+                            buffer_wdata <= gathered_word;
+                            gathered <= gathered_word;
                         end
                         index <= index + 9'd1;
                         if (index == 9'd511 || taken_tc) begin
