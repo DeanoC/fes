@@ -300,6 +300,7 @@ class Run:
         self.game = f'wfw-acceptance-{self.nonce.lower()}'
         self.session = None
         self.remote = None
+        self.recovery_required = False
         self.result = {'kit': args.kit, 'package': args.package.name, 'drive': self.record.get('drive'),
                        'drive_sha256': self.record['sha256'], 'library_game': self.game, 'nonce': self.nonce,
                        'goals': {}, 'events': []}
@@ -396,6 +397,7 @@ class Run:
         stopped = self.client.request('/v1/stop', token=self.session.token, timeout=180)
         self.session.needs_stop = False
         if stopped.get('recovery') == 'reboot_required':
+            self.recovery_required = True
             raise AcceptanceError('stop reported reboot_required; no recovery attempted')
 
     # -- goals ----------------------------------------------------------------
@@ -585,8 +587,19 @@ class Run:
             try:
                 if self.session.needs_stop:
                     self.stop()
-            finally:
+            except (AcceptanceError, kitlib.KitError, OSError) as error:
+                failure = failure or f'stop: {type(error).__name__}: {error}'
+                self.log('STOP FAILED', error)
+            try:
                 self.detach()
+            except (kitlib.KitError, OSError) as error:
+                self.log('input detach failed', error)
+            if self.recovery_required:
+                # A kit that needs recovery keeps this run's lease: it is not
+                # released as if it were idle. The caller keeps its claim.
+                self.session.done.set()
+                self.log('lease kept: the kit needs recovery')
+            else:
                 self.session.close()
                 self.log('lease released')
         created = [path for path in self.kit_paths() if path not in before]
@@ -607,9 +620,11 @@ class Run:
         left = [path for path in self.kit_paths() if path not in before]
         status, lease = self.client.request('/v1/status'), self.client.request('/v1/kit/lease')
         after = {'agent': status.get('state'), 'lease': lease.get('state'),
-                 'rebooted': self.client.request('/v1/health').get('boot_id') != boot_id, 'left': left}
+                 'rebooted': self.client.request('/v1/health').get('boot_id') != boot_id, 'left': left,
+                 'recovery_required': self.recovery_required}
         self.result['after'] = after
-        if left or after['agent'] != 'idle' or after['lease'] != 'free' or after['rebooted']:
+        if left or after['agent'] != 'idle' or after['lease'] != 'free' or after['rebooted'] or \
+                self.recovery_required:
             failure = failure or f'the kit is not as found: {after}'
         self.result['failure'] = failure
         self.result['pass'] = failure is None and all(goal['pass'] for goal in self.result['goals'].values()) \

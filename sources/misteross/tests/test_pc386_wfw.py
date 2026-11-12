@@ -195,6 +195,36 @@ class KitGoalTest(unittest.TestCase):
         self.assertTrue(kit.maximized_by_click(before, after))
         self.assertFalse(kit.maximized_by_click(before, before))
 
+    def test_a_stop_that_needs_recovery_cleans_up_and_keeps_the_lease(self):
+        tree = '/media/fat/fogcast/disk-images/' + '0' * 64 + '.img'
+        with tempfile.TemporaryDirectory() as directory:
+            run = kit.Run.__new__(kit.Run)
+            run.args = mock.Mock(status_file=Path(directory) / 'status', kit='A', owner='Claude')
+            run.out = Path(directory)
+            run.record, run.game, run.remote, run.recovery_required = {'sha256': '0' * 64}, 'g', None, False
+            run.result = {'goals': {}, 'events': []}
+            answers = {'/v1/status': {'state': 'idle'}, '/v1/kit/lease': {'state': 'free'},
+                       '/v1/health': {'boot_id': 'b'}, '/v1/stop': {'recovery': 'reboot_required'}}
+            run.client = mock.Mock(request=lambda path, **_: answers[path])
+            listings = iter([[], [tree], []])
+            run.kit_paths = lambda: next(listings)
+            run.ssh = mock.Mock()
+            session = mock.Mock(needs_stop=False)
+
+            def boot():
+                session.needs_stop = True
+                raise kit.AcceptanceError('Windows hung')
+            run.boot_dos = boot
+            with mock.patch.object(kit, 'check_claim', return_value='claim'), \
+                    mock.patch.object(kit.kitlib, 'Session', return_value=session), \
+                    mock.patch('sys.stdout'):
+                self.assertEqual(run.main(), 1)
+            session.close.assert_not_called()
+            session.done.set.assert_called_once()
+            run.ssh.assert_called_once_with(f"rm -r -- '{tree}'")
+            self.assertTrue(run.result['after']['recovery_required'])
+            self.assertFalse(run.result['pass'])
+
     def test_the_title_bar_target_is_inside_the_caption(self):
         found = wfw.program_manager(program_manager().frame())
         x, y = kit.caption_target(found)
