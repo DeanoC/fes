@@ -1179,9 +1179,9 @@ separately licensed programs, so FogCast's own licence is unaffected.
 callouts, so WIN386 quits with "Unsupported MS-DOS version". On the oracle,
 WfW 3.11 reaches Program Manager on kernel 2046's 386 FAT16 build with
 FreeDOS's SHARE loaded, `InDOSPolling=TRUE` and WfW's 32-bit file access off.
-Moving the lock to that kernel and shipping SHARE is a separate fixture change
-([record](../../../docs/validation/2026-11-12-pc386-freedos-win386/summary.md),
-[#1725](https://github.com/DeanoC/fes/issues/1725)).
+Moving the lock to that kernel and shipping SHARE is a separate fixture change,
+[#1729](https://github.com/DeanoC/fes/issues/1729)
+([record](../../../docs/validation/2026-11-12-pc386-freedos-win386/summary.md)).
 
 **Corresponding source.** Every image the builder writes carries the complete
 source with it, which GPL v2 §3(a) allows and which needs no written offer:
