@@ -87,7 +87,7 @@ SHARED_RTL = {
     'coleco_video_dpram.v': (*COLECO_CONSUMERS, 'pcxt'),
     'coleco_video_720p.v': COLECO_CONSUMERS,
     'fes_computer_gp.v': COLECO_CONSUMERS,
-    'fes_application_gp.v': ('application', 'coleco', 'menu', 'ramtest', 'riscv'),
+    'fes_application_gp.v': ('application', 'coleco', 'sg1000', 'menu', 'ramtest', 'riscv'),
     'fes_video_720p.v': ('pong', 'ramtest', 'riscv'),
     'fes_audio_i2s.v': ('application', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st', 'pc386', 'pcxt'),
     'fes_audio_pll.v': ('pcxt',),

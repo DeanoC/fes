@@ -35,7 +35,7 @@ TOP = "top"
 OUTPUT_RELATIVE = Path("build/fes-sg1000-quartus")
 RECIPE = "scripts/build_fes_sg1000.py"
 QUARTUS_LOCK = "cores/fes-sg1000/quartus.lock"
-ABI_DEFINITION = "cores/fes-sg1000/generated/fes_simple_computer.vh"
+ABI_DEFINITION = "cores/fes-common/generated/fes_application.vh"
 QSF_PINS = "cores/fes-sg1000/constraints.qsf"
 SDC = "cores/fes-sg1000/clocks.sdc"
 # Shared sibling modules and original FES NMOS CPU; no duplicated VDP or shell.
@@ -44,7 +44,8 @@ VERILOG_SOURCES = (
     "cores/fes-common/rtl/pixel_pll.v",
     "cores/fes-common/rtl/fes_audio_i2s.v",
     "cores/fes-common/rtl/fes_audio_output.v",
-    "cores/fes-common/rtl/fes_computer_gp.v",
+    "cores/fes-common/rtl/fes_application_gp.v",
+    "cores/fes-sg1000/rtl/sg1000_application_gp.v",
     "cores/fes-common/rtl/coleco_dpram.v",
     "cores/fes-common/rtl/coleco_video_dpram.v",
     "cores/fes-common/rtl/coleco_vdp.sv",
@@ -204,7 +205,7 @@ def project_qsf(root: Path, project: Path, build_id: str) -> str:
         "set_global_assignment -name SEED 1",
         "set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005",
         f'set_global_assignment -name LAST_QUARTUS_VERSION "{quartus_lock(root).qsf_version}"',
-        f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-sg1000/generated"',
+        f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-common/generated"',
         'set_global_assignment -name VERILOG_MACRO "QUARTUS=1"',
         f'set_global_assignment -name VERILOG_MACRO "FES_SG1000_BUILD_ID=128\'h{build_id}"',
         assignment("SDC_FILE", SDC),
@@ -298,8 +299,8 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
         "core": {
             "id": "fes.sg1000",
             "name": "FES SG-1000",
-            "description": "Quartus bring-up SG-1000 computer for the FES simple-computer ABI",
-            "version": "1.3.0",
+            "description": "Quartus bring-up SG-1000 console for the FES application ABI",
+            "version": "1.4.0",
         },
         "target": {
             "platform": "de10_nano",
@@ -307,9 +308,9 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
             "programming_profile": "fes-gp-v1",
         },
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},
-        "abi": {"id": "fes.simple-computer", "major": 1, "minor": 0},
+        "abi": {"id": "fes.application", "major": 1, "minor": 0},
         "interfaces": [
-            {"id": "fes.keyboard", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.gamepad.ports", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
             {"id": "fes.media.blob", "major": 1, "minor": 0, "required": True},
             {"id": "fes.audio.pcm-s16-stereo-48k", "major": 1, "minor": 0, "required": True},

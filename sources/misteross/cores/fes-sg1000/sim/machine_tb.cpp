@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
     Vsg1000_machine dut;
     dut.clk_sys = 0;
     dut.reset = 1;
-    dut.keyboard = 0xffffffffffull;
+    dut.controller_buttons = 0;
     dut.media_ready = 0;
     dut.media_size = 0;
     dut.media_data = 0;
@@ -212,7 +212,7 @@ int main(int argc, char **argv) {
     Vsg1000_machine dut;
     dut.clk_sys = 0;
     dut.reset = 1;
-    dut.keyboard = 0xffffffffffull;
+    dut.controller_buttons = 0;
     dut.media_ready = 0;
     dut.media_size = 0;
     dut.media_data = 0;
@@ -233,6 +233,24 @@ int main(int argc, char **argv) {
             "unmapped 8000 must read FF");
     require(uint8_t(dut.port_dc) == 0xff, "neutral DC");
     require(uint8_t(dut.port_dd) == 0xff, "neutral DD");
+    // Exercise every mapped logical button independently on both ports.
+    const uint8_t dc_mask[] = {1, 2, 4, 8, 16, 32, 64, 128, 0, 0};
+    const uint8_t dd_mask[] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 2};
+    const unsigned bit[] = {0, 1, 2, 3, 4, 8, 9, 10, 11, 12};
+    for (unsigned i = 0; i < 10; ++i) {
+        dut.controller_buttons = 1u << bit[i];
+        dut.eval();
+        require(uint8_t(dut.port_dc) == uint8_t(0xff ^ dc_mask[i]), "individual controller DC mapping");
+        require(uint8_t(dut.port_dd) == uint8_t(0xff ^ dd_mask[i]), "individual controller DD mapping");
+    }
+    dut.controller_buttons = 0xe0e0; // B, Select and Start are not wired.
+    dut.eval();
+    require(uint8_t(dut.port_dc) == 0xff && uint8_t(dut.port_dd) == 0xff, "unused buttons ignored");
+    dut.controller_buttons = (1u << 4) | (1u << 8) | (1u << 11);
+    dut.eval();
+    require(uint8_t(dut.port_dc) == 0xcf && uint8_t(dut.port_dd) == 0xfe, "simultaneous players");
+    dut.controller_buttons = 0;
+    dut.eval();
 
     std::vector<uint8_t> ram_prog{0xf3, 0x3e, 0x5a, 0x32, 0x00, 0xc0, 0x76};
     load_blob(dut, ram_prog, registered_media_data);
@@ -390,7 +408,7 @@ int main(int argc, char **argv) {
 
     std::vector<uint8_t> joy_prog{0xf3, 0xdb, 0xdc, 0x32, 0x01, 0xc0,
                                   0xdb, 0xdd, 0x32, 0x02, 0xc0, 0x76};
-    dut.keyboard = 0xffffffffffull ^ 0x01ull;  // P1 Up
+    dut.controller_buttons = 0x01;  // P1 Up
     load_blob(dut, joy_prog, registered_media_data);
     dut.reset = 0;
     cycles = 0;
@@ -507,7 +525,7 @@ int main(int argc, char **argv) {
             diagnostic.push_back(byte);
         std::fclose(rom);
         require(!diagnostic.empty(), "empty diagnostic ROM");
-        dut.keyboard = 0xffffffffffull;
+        dut.controller_buttons = 0;
         load_blob(dut, diagnostic, registered_media_data);
         dut.reset = 0;
         cycles = 0;
@@ -529,7 +547,7 @@ int main(int argc, char **argv) {
             controller_diagnostic.push_back(byte);
         std::fclose(rom);
         require(!controller_diagnostic.empty(), "empty controller diagnostic ROM");
-        dut.keyboard = 0xffffffffffull;
+        dut.controller_buttons = 0;
         load_blob(dut, controller_diagnostic, registered_media_data);
         dut.reset = 0;
         auto wait_for_cache = [&](uint8_t expected_dc, uint8_t expected_dd,
@@ -548,7 +566,7 @@ int main(int argc, char **argv) {
         require(uint8_t(dut.port_dc) == 0xff, "controller diagnostic neutral DC");
         require(uint8_t(dut.port_dd) == 0xff, "controller diagnostic neutral DD");
 
-        dut.keyboard = 0xffffffffffull ^ 0x01ull ^ (0x01ull << 9);
+        dut.controller_buttons = 0x01 | (0x10 << 8);
         wait_for_cache(0xfe, 0xfd, "controller diagnostic pressed cache timeout");
         require(uint8_t(dut.port_dc) == 0xfe, "controller diagnostic pressed DC");
         require(uint8_t(dut.port_dd) == 0xfd, "controller diagnostic pressed DD");

@@ -338,7 +338,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-common/rtl/tv80/tv80_core.v': {'coleco', 'sms'},
             'cores/fes-coleco/rtl/coleco_machine.sv': {'coleco', 'sg1000', 'sms'},
             'cores/fes-coleco/generated/fes_simple_computer.vh': {'coleco', 'sg1000', 'sms'},
-            'cores/fes-common/rtl/fes_application_gp.v': {'application', 'coleco', 'menu', 'ramtest', 'riscv'},
+            'cores/fes-common/rtl/fes_application_gp.v': {'application', 'coleco', 'sg1000', 'menu', 'ramtest', 'riscv'},
             'cores/fes-common/rtl/fes_video_720p.v': {'pong', 'ramtest', 'riscv'},
             'cores/fes-common/rtl/fes_audio_i2s.v': {'application', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st',
                                                  'pc386', 'pcxt'},
