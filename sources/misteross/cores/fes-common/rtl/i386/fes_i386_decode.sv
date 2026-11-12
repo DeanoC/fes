@@ -63,11 +63,20 @@
 // form's the data pointer too, as it retires (uop_t x87p), but for FNINIT,
 // FNCLEX, FENI, FDISI and FSETPM, FNSTSW, FNSTCW, FLDCW, FNSTENV, FLDENV,
 // FNSAVE and FRSTOR, the 387's control forms.
-// Encodings the i386 rejects raise #UD (LOCK on anything but a read-modify-
+// Encodings the i386 rejects raise #UD in every mode and at every CPL, as
+// the 386's decoder sends them to its #UD entry (#1701; reenigne/
+// x86_microcode 80386 decoder23.txt): LOCK on anything but a read-modify-
 // write of ADD, OR, ADC, SBB, AND, SUB, XOR, NOT, NEG, INC, DEC, BTS, BTR or
-// BTC, MOV to CS or to segment register 6 or 7, LEA of a register, C6h/C7h
-// with reg != 0);
-// an instruction over 15 bytes raises #GP(0). Everything else decodes as
+// BTC; MOV to CS or to segment register 6 or 7; LEA, LES, LDS, LSS, LFS,
+// LGS, BOUND, far CALL and JMP r/m and SGDT to LIDT with a register
+// operand; C6h/C7h and 8Fh with reg != 0; FEh /2-/7, FFh /7, 0F 00 /6 and
+// /7, 0F 01 /5 and /7, 0F BA /0-/3; MOV to or from CR1 and CR4-CR7, TR0-
+// TR3, or TR4-TR7 with a memory ModRM; and every 0Fh opcode the 386 does
+// not define, XBTS and IBTS (0F A6, 0F A7) included, which only the B-step
+// 386 ran.
+// An instruction over 15 bytes raises #GP(0). The 386's other instructions
+// that this build does not run, ICEBP (F1h), LOADALL (0F 07), UMOV (0F 10-
+// 0F 13) and MOV to and from TR4-TR7 with a register ModRM, decode as
 // FAULT_UNIMPLEMENTED. An instruction that runs past CS's limit raises
 // #GP(0) ahead of all of these, but D applies that, since only D knows the
 // instruction's EIP (fes_i386_cpu, cs_gp).
@@ -1346,8 +1355,9 @@ module fes_i386_decode (
                         seg2_t = 1'b0;
                         seq = reg_f[2] ? fes_i386_pkg::SEQ_JMPFM : fes_i386_pkg::SEQ_CALLFM;
                     end else begin
-                        // FEh /0 /1: INC, DEC r/m8; FFh /0 /1: INC, DEC r/m16/32
-                        known = reg_f[2:1] == 2'b00;
+                        // FEh /0 /1: INC, DEC r/m8; FFh /0 /1: INC, DEC r/m16/32.
+                        // FEh /2-/7 and FFh /7 are #UD (the 386's decoder).
+                        undefined = reg_f[2:1] != 2'b00;
                         op = reg_f[0] ? 5'd11 : 5'd10;
                         m_in_a = 1'b1;
                         mkind = reg_form ? 2'd0 : 2'd3;
@@ -1363,6 +1373,8 @@ module fes_i386_decode (
                         d_hi8 = s1_hi8;
                     end
                 end
+                // F1h (ICEBP, INT 1 on the 386) is not built; FES has no
+                // other one-byte opcode here.
                 default: known = 1'b0;
             endcase
         end else begin
@@ -1623,11 +1635,11 @@ module fes_i386_decode (
                     lptr = 1'b1;
                 end
                 8'hba: begin
-                    // BT, BTS, BTR, BTC r/m, imm8 (/4 to /7; /0 to /3 are not
-                    // built). BT writes nothing but flags. LOCK is valid on
+                    // BT, BTS, BTR, BTC r/m, imm8 (/4 to /7; /0 to /3 are
+                    // #UD). BT writes nothing but flags. LOCK is valid on
                     // a read-modify-write: the others' memory form, as on the
                     // 386EX.
-                    known = reg_f[2];
+                    undefined = !reg_f[2];
                     case (reg_f[1:0])
                         2'd0: op = 5'd19;  // ALU_BT
                         2'd1: op = 5'd20;  // ALU_BTS
@@ -1722,7 +1734,20 @@ module fes_i386_decode (
                     d_valid = 1'b1;
                     d_idx = reg_f;
                 end
-                default: known = 1'b0;
+                // The 386 defines LOADALL (07h), UMOV (10h-13h) and MOV to
+                // and from TR4-TR7 (24h, 26h) with a register ModRM, which
+                // are not built: they stop as FAULT_UNIMPLEMENTED. TR0-TR3,
+                // memory ModRM forms of 24h/26h and every other encoding
+                // here are #UD, XBTS and IBTS (A6h, A7h) included:
+                // the 386's decoder sends them to its #UD entry
+                // (reenigne/x86_microcode 80386 decoder23.txt, decode2.txt;
+                // microcode_notes.txt 82B).
+                8'h07, 8'b000100??: known = 1'b0;
+                8'h24, 8'h26: begin
+                    known = !reg_f[2] || !reg_form;
+                    undefined = !reg_f[2] || !reg_form;
+                end
+                default: undefined = 1'b1;
             endcase
         end
 
@@ -1830,7 +1855,9 @@ module fes_i386_decode (
 
     // ---- Faults and the uop ---------------------------------------------------
     // LOCK is checked before the 15-byte limit (Phase 0 divergence
-    // lock-ud-before-length-gp).
+    // lock-ud-before-length-gp), and before what is not built: a LOCK on
+    // an instruction it cannot lock is #UD whatever the instruction, ICEBP,
+    // LOADALL, UMOV and MOV TRn included (#1701).
     // Privilege, in protected mode: the instructions only CPL 0 runs (HLT,
     // CLTS, MOV to or from CRn and DRn, LGDT, LIDT, LMSW, LLDT, LTR) raise
     // #GP(0) at another CPL, and CLI and STI at a CPL above IOPL, each
@@ -1858,8 +1885,9 @@ module fes_i386_decode (
     assign cpl_gp = pe && (cpl != 2'd0 && priv_op || cpl > iopl && !two && b0[7:1] == 7'b1111101) || v86_gp;
     assign gd_db = dr_gd && two && op2[7:2] == 6'b001000 && op2[0];
     assign lock_ok = lockable && mkind == 2'd3 || lock_any;
-    assign fault = !known && !cpl_gp ? 5'(fes_i386_pkg::FAULT_UNIMPLEMENTED)
-                 : undefined || (q.prefixes.lock && !lock_ok) ? 5'(fes_i386_pkg::FAULT_UD)
+    assign fault = q.prefixes.lock && !lock_ok ? 5'(fes_i386_pkg::FAULT_UD)
+                 : !known && !cpl_gp ? 5'(fes_i386_pkg::FAULT_UNIMPLEMENTED)
+                 : undefined ? 5'(fes_i386_pkg::FAULT_UD)
                  : q.too_long ? 5'(fes_i386_pkg::FAULT_GP0)
                  : gd_db ? 5'(fes_i386_pkg::FAULT_DB)
                  : cpl_gp ? 5'(fes_i386_pkg::FAULT_GP0)

@@ -1,0 +1,56 @@
+{
+  "commit": "fb20aa113 (this branch, without #1705)",
+  "note": "RTL lockstep without #1705. The report keeps the first 200 failures; all are an NMI taken before IRET ends the NMI handler (#1704). With #1705 merged (lockstep-report.json) every set passes.",
+  "random": {
+    "runs": 32000,
+    "passed": 21515,
+    "failed": 10485
+  },
+  "pmode": {
+    "runs": 8000,
+    "passed": 7399,
+    "failed": 601
+  },
+  "tasks": {
+    "runs": 4000,
+    "passed": 3709,
+    "failed": 291
+  },
+  "undefined": {
+    "runs": 4000,
+    "passed": 3723,
+    "failed": 277
+  },
+  "recorded_failure_signatures": {
+    "@ffe1.unexpected-exception 0 2": 199,
+    "@ffe0.unexpected-exception 0 2": 1
+  },
+  "corpus": {
+    "tests": 1758699,
+    "passed": 1758699
+  },
+  "unbuilt": {
+    "encodings": 52496,
+    "failures": 0
+  },
+  "directed_cases": {
+    "runs": 77,
+    "passed": 77,
+    "failed": 0
+  },
+  "pmode_cases": {
+    "runs": 560,
+    "passed": 560,
+    "failed": 0
+  },
+  "paging_cases": {
+    "runs": 135,
+    "passed": 135,
+    "failed": 0
+  },
+  "no387_cases": {
+    "runs": 1933,
+    "passed": 1933,
+    "failed": 0
+  }
+}

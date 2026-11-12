@@ -84,9 +84,11 @@
 //           is. What is not built stops the RTL and ends the run, with its
 //           reason (trace_unbuilt); the oracle's step must show the like
 //           (below).
-//   unbuilt encodings this build does not execute, one per line on stdin as
-//           hex bytes: each must stop the RTL with FAULT_UNIMPLEMENTED before
-//           anything retires. The RTL runs alone; the oracle is not stepped.
+//   unbuilt the encodings outside SCOPE, one per line on stdin as hex bytes
+//           and a kind (run_unbuilt): those the 386 rejects must raise #UD
+//           in lockstep with the oracle; those it defines but this build
+//           does not execute must stop the RTL with FAULT_UNIMPLEMENTED
+//           before anything retires, the RTL alone.
 //   reset-store a store waiting in WB must not write memory on a reset edge.
 //   memory    DMA and FLUSH against the caches and the write buffer
 //             (run_memory_cases).
@@ -3854,6 +3856,11 @@ public:
     // debug: the debug programs (FES_I386_DEBUG; Phase 5's fifth slice),
     // whose debug_block items are drawn from side.
     bool debug = false;
+    // undefined: now and then an encoding the 386 rejects in place of an
+    // instruction (FES_I386_UNDEFINED; #1701), wherever the program runs:
+    // real mode, protected mode at CPL 0 and 3, V86 mode. Its #UD ends the
+    // program. Off, a seed's programs are as they were.
+    bool undefined = false;
     std::vector<std::pair<uint32_t, uint8_t>> image;
 
     // base: the program's linear address, which far targets need; eip: its
@@ -3928,7 +3935,67 @@ private:
     // One non-branch instruction; keep_ecx avoids writing ECX (a loop body),
     // keep_stack writing ESP, SS or memory (a subroutine's body, which must
     // leave its return address where RET finds it).
+    // An encoding the 386's decoder rejects (reenigne/x86_microcode 80386
+    // decoder23.txt), with prefixes and now and then LOCK, and the operand
+    // bytes its ModRM names (as a 16-bit or 32-bit address, at random). Not
+    // 0F 0D or 0F 01 /7 with memory, which Bochs runs (divergences.toml
+    // ud-0f0d, ud-invlpg), nor 0F 38 and 0F 3A, which it cannot step.
+    std::vector<uint8_t> undefined_encoding() {
+        static const uint8_t ud_0f[] = {
+            0x04, 0x05, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0e, 0x0f, 0x14, 0x18, 0x1f, 0x25, 0x27, 0x28, 0x30,
+            0x31, 0x32, 0x37, 0x40, 0x4f, 0x60, 0x6f, 0x77, 0x7f, 0xa2, 0xa6, 0xa7, 0xaa, 0xae, 0xb0, 0xb1,
+            0xb8, 0xb9, 0xc0, 0xc1, 0xc7, 0xc8, 0xcf, 0xd0, 0xe7, 0xf0, 0xff};
+        std::vector<uint8_t> out;
+        for (int n = 0; n < 2 && side() % 3 == 0; ++n) out.push_back(uint8_t(0x26 + 8 * (side() % 4)));
+        if (side() % 3 == 0) out.push_back(0x66);
+        if (side() % 3 == 0) out.push_back(0x67);
+        if (side() % 6 == 0) out.push_back(0xf0);
+        uint8_t modrm = uint8_t(side());
+        auto reg = [&](unsigned r) { modrm = uint8_t((modrm & 0xc7) | r << 3); };
+        auto regform = [&]() { modrm |= 0xc0; };
+        switch (side() % 12) {
+        case 0: case 1: case 2: case 3: out.insert(out.end(), {0x0f, ud_0f[side() % sizeof ud_0f]}); break;
+        case 4: out.push_back(0xfe); reg(2 + unsigned(side() % 6)); break;
+        case 5: out.push_back(0xff); reg(7); break;
+        case 6: out.insert(out.end(), {0x0f, 0xba}); reg(unsigned(side() % 4)); break;
+        case 7: {
+            static const uint8_t ops[] = {0x8f, 0xc6, 0xc7};
+            out.push_back(ops[side() % 3]);
+            reg(1 + unsigned(side() % 7));
+            break;
+        }
+        case 8: {  // a memory-only instruction with a register operand
+            static const uint8_t ops[] = {0x8d, 0xc4, 0xc5, 0x62};
+            if (side() % 4 == 0) out.insert(out.end(), {0x0f, uint8_t(side() % 2 ? 0xb2 : 0xb4 + side() % 2)});
+            else out.push_back(ops[side() % 4]);
+            regform();
+            break;
+        }
+        case 9:  // group 7 /5, /7 by register, /0-/3 by register
+            out.insert(out.end(), {0x0f, 0x01});
+            if (side() % 2) reg(5);
+            else { reg(side() % 2 ? 7 : unsigned(side() % 4)); regform(); }
+            break;
+        case 10: {  // CR1, CR4-CR7, TR0-TR3
+            static const uint8_t ops[] = {0x20, 0x22, 0x24, 0x26};
+            const uint8_t op = ops[side() % 4];
+            out.insert(out.end(), {0x0f, op});
+            if (op < 0x24) reg(side() % 2 ? 1 : 4 + unsigned(side() % 4));
+            else reg(unsigned(side() % 4));
+            break;
+        }
+        default:  // MOV Sreg 6, 7 and to CS; group 6 /6, /7
+            if (side() % 2) { out.push_back(side() % 2 ? 0x8c : 0x8e); reg(side() % 3 == 0 && out.back() == 0x8e ? 1 : 6 + unsigned(side() % 2)); }
+            else { out.insert(out.end(), {0x0f, 0x00}); reg(6 + unsigned(side() % 2)); }
+            break;
+        }
+        out.push_back(modrm);
+        for (unsigned n = unsigned(side() % 5); n; --n) out.push_back(uint8_t(side()));  // SIB, displacement, immediate
+        return out;
+    }
+
     std::vector<uint8_t> instruction(bool keep_ecx, bool keep_stack = false) {
+        if (undefined && side() % 48 == 0) return undefined_encoding();
         for (;;) {
             std::vector<uint8_t> out;
             bool os32;
@@ -6542,6 +6609,7 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
     if (const char *weight = std::getenv("FES_I386_PM")) generator.pm_weight = unsigned(std::strtoul(weight, nullptr, 0));
     generator.tasks = std::getenv("FES_I386_TASKS") != nullptr;
     generator.debug = debug_programs = std::getenv("FES_I386_DEBUG") != nullptr;
+    generator.undefined = std::getenv("FES_I386_UNDEFINED") != nullptr;
     for (uint64_t n = 0; n < programs; ++n) {
         State state;
         for (auto &r : state.gpr) r = uint32_t(random());
@@ -6779,6 +6847,31 @@ int run_test386(fes_i386::Oracle &oracle, Rtl &rtl) {
 // so CS keeps that limit: the vector table's #GP entry is 0180:0000 (the
 // HLT at 1800h, under the limit), INT 60h's is 0000:3000h (past it) and
 // INT 61h's 0180:0004 (a HLT at 1804h).
+// #1701's probes of what the 386's decoder rejects (reenigne/x86_microcode
+// 80386 decoder23.txt), for 16-bit code: undefined 0Fh opcodes, XBTS and
+// IBTS, the undefined ModRM reg fields, register forms of the memory-only
+// instructions, MOV of CR1 and TR0; with prefixes, LOCK, and memory
+// operands, which must not be read. 0F 0D and INVLPG are not here: Bochs
+// runs them (divergences.toml ud-0f0d, ud-invlpg), and the unbuilt sweep
+// checks the RTL's #UD alone.
+std::vector<std::pair<std::string, std::vector<uint8_t>>> ud_probes16() {
+    return {
+        {"xbts", {0x0f, 0xa6, 0xc0}}, {"ibts", {0x0f, 0xa7, 0xc8}}, {"xbts-mem", {0x0f, 0xa6, 0x07}},
+        {"0fff", {0x0f, 0xff, 0x00}}, {"ud2", {0x0f, 0x0b}}, {"0f05", {0x0f, 0x05}}, {"cpuid", {0x0f, 0xa2}},
+        {"invd", {0x0f, 0x08}}, {"rdtsc", {0x0f, 0x31}}, {"cmpxchg", {0x0f, 0xb1, 0xc8}}, {"bswap", {0x0f, 0xc8}},
+        {"0fc7", {0x0f, 0xc7, 0x08}}, {"fe2", {0xfe, 0xd0}}, {"fe7-mem", {0xfe, 0x3f}}, {"ff7", {0xff, 0xf8}},
+        {"ff3-reg", {0xff, 0xd8}}, {"ff5-reg", {0xff, 0xe8}}, {"les-reg", {0xc4, 0xc0}}, {"lds-reg", {0xc5, 0xc0}},
+        {"lea-reg", {0x8d, 0xc0}}, {"bound-reg", {0x62, 0xc0}}, {"lss-reg", {0x0f, 0xb2, 0xc0}},
+        {"lfs-reg", {0x0f, 0xb4, 0xc0}}, {"grp7-5", {0x0f, 0x01, 0xe8}}, {"grp7-7-reg", {0x0f, 0x01, 0xf8}},
+        {"sgdt-reg", {0x0f, 0x01, 0xc0}}, {"lidt-reg", {0x0f, 0x01, 0xd8}}, {"grp6-6", {0x0f, 0x00, 0xf0}},
+        {"bt0", {0x0f, 0xba, 0xc0, 0x01}}, {"bt3-mem", {0x0f, 0xba, 0x1f, 0x01}}, {"mov-cr1", {0x0f, 0x20, 0xc8}},
+        {"mov-cr4", {0x0f, 0x22, 0xe0}}, {"mov-tr0", {0x0f, 0x24, 0xc0}}, {"mov-tr3", {0x0f, 0x26, 0xd8}},
+        {"pop-8f1", {0x8f, 0xc8}}, {"mov-c6-1", {0xc6, 0xc8, 0x00}}, {"mov-c7-7-mem", {0xc7, 0x3f, 0x00, 0x00}},
+        {"mov-sreg6", {0x8c, 0xf0}}, {"lock-0fff", {0xf0, 0x0f, 0xff, 0x00}}, {"lock-fe2-mem", {0xf0, 0xfe, 0x17}},
+        {"prefixed-xbts", {0x26, 0x66, 0x67, 0x0f, 0xa6, 0x00}}, {"rep-0f0b", {0xf3, 0x0f, 0x0b}},
+    };
+}
+
 int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                     Summary &summary) {
     struct Asm {
@@ -7535,6 +7628,21 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     // slot (0FFCh) is past it, #SS; #SS's 286 gate's ten words fit.
     v86("v86-ud-nested-ss", [](Asm &a) { a.op({0x63, 0xc0}); }, 12, -1, 3, -1, {{12, gate(0x08, 0x1800, 0x86)}},
         {{0x2504, {0x20, 0x10, 0x00, 0x00, 0x48, 0x00}}}, {{9, desc(0, 0x0fff, 0x97, false, false)}});
+    // #1701: what the 386's decoder rejects raises #UD (vector 6, no error
+    // code) in real mode, at CPL 0 and 3, and in V86 mode below IOPL 3 and at
+    // it, before any operand and before a LOCK's or IOPL's check: one probe
+    // of each kind, with prefixes, LOCK and memory operands.
+    {
+        static std::deque<std::string> labels;
+        for (const auto &[name, bytes] : ud_probes16()) {
+            auto body = [bytes = bytes](Asm &a) { a.b.insert(a.b.end(), bytes.begin(), bytes.end()); };
+            cases.push_back(Case{labels.emplace_back("ud-real-" + name).c_str(), body, 6, -1, {}, true});
+            cases.push_back(Case{labels.emplace_back("ud-pm-" + name).c_str(), body, 6, -1, {}, false});
+            r3(labels.emplace_back("ud-r3-" + name).c_str(), body, 6, -1);
+            v86(labels.emplace_back("ud-v86-iopl0-" + name).c_str(), body, 6, -1, 0);
+            v86(labels.emplace_back("ud-v86-iopl3-" + name).c_str(), body, 6, -1, 3);
+        }
+    }
     // The I/O permission bitmap, which V86 mode always reads, at IOPL 3 too:
     // TSS 38h's limit FFh and the bitmap at 68h, port 61h's and 68h's bits
     // set (as the ring-3 cases).
@@ -8722,6 +8830,32 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
              a.op({0x8a, 0x1d}); a.d(0x10000);                                          // MOV BL, [10000h]
          }, -1, -1, -1, {{0x10, 0x21000 | P | W | U}}, {}, {{0x20000, {0x31}}, {0x21000, {0x32}}}},
     };
+    // #1701 under paging: what the 386 rejects is #UD at CPL 0 and 3 in
+    // 32-bit code, and in V86 mode, before its memory operand on a page not
+    // present (no walk, no #PF); then the 16-bit probes in V86 mode.
+    {
+        static std::deque<std::string> labels;
+        const std::vector<std::pair<std::string, std::vector<uint8_t>>> mem32 = {
+            {"fe2", {0xfe, 0x15}}, {"xbts", {0x0f, 0xa6, 0x05}}, {"0fff", {0x0f, 0xff, 0x05}},
+            {"lock-fe2", {0xf0, 0xfe, 0x15}}, {"bt0", {0x0f, 0xba, 0x05}}, {"lea-reg", {0x8d, 0xc0}},
+            {"grp7-5", {0x0f, 0x01, 0x2d}}, {"pop-8f7", {0x8f, 0x3d}},
+        };
+        for (bool r3 : {false, true})
+            for (const auto &[name, bytes] : mem32) {
+                const bool modrm_mem = (bytes.back() & 0xc7) == 0x05;
+                cases.push_back(Case{labels.emplace_back(std::string(r3 ? "pg-ud-r3-" : "pg-ud-r0-") + name).c_str(),
+                                     [=, bytes = bytes](Asm &a, uint32_t) {
+                                         a.b.insert(a.b.end(), bytes.begin(), bytes.end());
+                                         if (modrm_mem) a.d(0x10004);
+                                         if (name == "bt0") a.op({0x01});
+                                     }, 6, -1, -1, {{0x10, 0x20000 | W | U}}, {}, {}, r3});
+            }
+        for (const auto &[name, bytes] : ud_probes16())
+            cases.push_back(Case{labels.emplace_back("pg-ud-v86-" + name).c_str(), [=, bytes = bytes](Asm &a, uint32_t) {
+                                     to_v86(a);
+                                     a.b.insert(a.b.end(), bytes.begin(), bytes.end());
+                                 }, 6, -1, -1, {}});
+    }
     // Task switches under paging (Phase 5's fourth slice). GDT 60h: a 386
     // TSS (task A) at 2600h; 70h: a #PF handler's task H at 2680h, through
     // IDT 14, a task gate (DOS/4GW Professional's, as Descent runs it). Each
@@ -10055,20 +10189,101 @@ int run_memory_cases(Rtl &rtl, Summary &summary) {
     return run_dma_sweeps(rtl, summary);
 }
 
-// Every encoding the runner lists as outside the build must stop the CPU
-// before it retires, so no check passes over an unbuilt instruction.
-int run_unbuilt(Rtl &rtl, Summary &summary) {
+// An encoding the 386 rejects that the oracle cannot step: the RTL alone
+// must raise #UD from state, deliver it through the vector table with the
+// instruction's IP pushed and halt in the handler, with nothing of it
+// retired. oracle_runs: Bochs at CPU level 3 runs it (a [[lockstep]]
+// divergence in divergences.toml), so its decode must not call it #UD, or
+// the entry no longer matches. Else Bochs's step cannot run it at all (0F 38
+// and 0F 3A, whose three-byte tables it lacks below CPU level 6).
+void run_ud_alone(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, Summary &summary, const std::string &hex_bytes,
+                  const std::vector<uint8_t> &code, const State &state, bool oracle_runs) {
+    const std::string label = "ud-rtl:" + hex_bytes;
+    Mismatches out;
+    const fes_i386::Decoded decoded = oracle.decode(code.data(), unsigned(code.size()), false);
+    if (oracle_runs && (!decoded.complete || decoded.undefined)) out.add(label + ".oracle-runs", 1, 0);
+    const uint32_t code_base = state.seg[fes_i386::SEG_CS].base + state.eip;
+    std::vector<std::pair<uint32_t, uint8_t>> image;
+    for (size_t i = 0; i < code.size(); ++i) image.emplace_back(code_base + uint32_t(i), code[i]);
+    image.emplace_back(HANDLER, 0xf4);
+    image.emplace_back(6 * 4, uint8_t(HANDLER));
+    image.emplace_back(6 * 4 + 1, uint8_t(HANDLER >> 8));
+    for (auto [address, value] : image) {
+        bus.ram[address] = rtl.poke(address, value);
+        oracle.invalidate(address, 1);
+    }
+    rtl.start(state);
+    Rtl::Event event = rtl.next();
+    if (event != Rtl::Event::Retired || !rtl.top.trace_exception || rtl.top.trace_vector != 6)
+        out.add(label + ".first-event", 6,
+                event != Rtl::Event::Retired ? 0x100u + unsigned(event) : rtl.top.trace_exception ? rtl.top.trace_vector : 0xffu);
+    for (int n = 0; n < 4 && !rtl.stopped() && event == Rtl::Event::Retired; ++n) event = rtl.next();
+    if (!rtl.stopped() || !rtl.top.trace_halt) out.add(label + ".halt", 1, 0);
+    const uint32_t sp = (state.gpr[fes_i386::REG_ESP] - 6) & 0xffff;
+    const uint32_t frame = state.seg[fes_i386::SEG_SS].base + sp;
+    const uint32_t ip = rtl.ram[frame] | uint32_t(rtl.ram[frame + 1]) << 8;
+    if (ip != (state.eip & 0xffff)) out.add(label + ".pushed-ip", state.eip & 0xffff, ip);
+    if ((rtl.state().gpr[fes_i386::REG_ESP] & 0xffff) != sp) out.add(label + ".esp", sp, rtl.state().gpr[fes_i386::REG_ESP] & 0xffff);
+    end_run(bus, rtl, true, out);
+    summary.cycles += rtl.cycles;
+    rtl.cycles = 0;
+    for (auto [address, value] : image) {
+        bus.ram[address] = rtl.poke(address, 0);
+        oracle.invalidate(address, 1);
+    }
+    for (uint32_t address : rtl.written) {
+        if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+        oracle.invalidate(address, 1);
+    }
+    rtl.written.clear();
+    ++summary.runs;
+    if (out.items.empty()) {
+        ++summary.passed;
+    } else {
+        ++summary.failed;
+        std::cout << "FAIL " << label;
+        for (const auto &item : out.items) std::cout << ' ' << item;
+        std::cout << '\n';
+    }
+}
+
+// The encodings the runner lists outside SCOPE, one per line as hex bytes
+// and what the 386 does with them (#1701). "ud": the 386's decoder rejects
+// the encoding, so it must raise #UD in lockstep with the oracle, in real
+// mode from 1000:0100, with nothing of it retired, and its delivery through
+// the vector table must push its IP; "ud-rtl" and "ud-rtl-runs" the same,
+// the RTL alone, where the oracle cannot step it or runs it (run_ud_alone).
+// "stop": the 386 defines it but this
+// build does not run it, so it must stop the CPU with FAULT_UNIMPLEMENTED
+// before anything retires (the RTL alone), and no check passes over it.
+int run_unbuilt(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                Summary &summary) {
     State state;
     for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0x1000);
     state.eip = 0x100;
+    state.gpr[fes_i386::REG_ESP] = 0x0f00;
     const uint32_t base = state.seg[fes_i386::SEG_CS].base + state.eip;
     std::string line;
     while (std::getline(std::cin, line)) {
         if (line.empty()) continue;
+        std::istringstream fields(line);
+        std::string hex_bytes, kind;
+        fields >> hex_bytes >> kind;
         std::vector<uint8_t> code;
-        for (size_t i = 0; i + 1 < line.size(); i += 2) code.push_back(uint8_t(std::stoul(line.substr(i, 2), nullptr, 16)));
+        for (size_t i = 0; i + 1 < hex_bytes.size(); i += 2)
+            code.push_back(uint8_t(std::stoul(hex_bytes.substr(i, 2), nullptr, 16)));
         code.resize(16, 0);
         code.push_back(0xf4);
+        if (kind == "ud") {
+            run_fault_case(oracle, bus, rtl, entries, summary, "ud:" + hex_bytes, code, state, false, 0, nullptr, 6,
+                           false, UINT32_MAX, UINT32_MAX, -1, 4);
+            continue;
+        }
+        if (kind == "ud-rtl" || kind == "ud-rtl-runs") {
+            run_ud_alone(oracle, bus, rtl, summary, hex_bytes, code, state, kind == "ud-rtl-runs");
+            continue;
+        }
+        if (kind != "stop") throw std::runtime_error("unbuilt: unknown kind " + kind);
         for (size_t i = 0; i < code.size(); ++i) rtl.poke(base + i, code[i]);
         rtl.start(state);
         const Rtl::Event event = rtl.next();
@@ -10079,7 +10294,7 @@ int run_unbuilt(Rtl &rtl, Summary &summary) {
             ++summary.passed;
         } else {
             ++summary.failed;
-            std::cout << "FAIL unbuilt:" << line << ' '
+            std::cout << "FAIL unbuilt:" << hex_bytes << ' '
                       << (event != Rtl::Event::Retired ? "timeout" : rtl.top.trace_exception ? "exception" : "retired")
                       << " 1 0\n";
         }
@@ -10246,7 +10461,7 @@ int main(int argc, char **argv) {
     } else if (mode == "test386") {
         return run_test386(*oracle, rtl);
     } else if (mode == "unbuilt") {
-        run_unbuilt(rtl, summary);
+        run_unbuilt(*oracle, bus, rtl, entries, summary);
     } else if (mode == "memory") {
         run_memory_cases(rtl, summary);
     } else if (mode == "governor") {

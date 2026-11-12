@@ -3166,7 +3166,12 @@ actual next cursor to show `+` only when additional titles remain. The filtered
 page resolves only its returned entry IDs in one bounded batch; a missing
 identity fails the read instead of guessing. If machine entries alone exceed
 the budget, Home blocks that family instead of choosing an incomplete machine
-list while reporting its machine-admission state. On refresh, prior library and kit results give way
+list while reporting its machine-admission state. The launcher converts family
+rows and editions to Lua in bounded batches. Home and setup count the title
+rows in bounded batches across frames and publish only completed counts.
+Machine admission remains independent in `hardware.computers`; catalog rows,
+cache refreshes and editions never establish that readiness. A refresh discards
+unfinished batches from the prior read. On refresh, prior library and kit results give way
 to Checking until fresh reads finish. A failed kit inventory says it cannot be
 checked rather than claiming a model is not installed, and hides the installed
 count while it is unknown.

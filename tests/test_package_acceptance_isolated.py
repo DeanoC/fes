@@ -820,6 +820,42 @@ class IsolatedPackageAcceptanceOfflineTests(unittest.TestCase):
 
 
 class IsolatedPackageAcceptanceContainerTests(unittest.TestCase):
+    def test_failed_readiness_retains_only_safe_connection_observation(self):
+        for message, expected in (
+            ("Target ownership could not be reconciled.", "ownership_reconciliation"),
+            ("untrusted bearer top-secret lease-agent-secret", "unknown"),
+        ):
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as directory:
+                health = {"ready": True, "target": {"reachable": False, "ready": False,
+                    "connection": {"state": "disconnected", "message": message,
+                                   "address": "http://user:top-secret@example/agent-secret",
+                                   "owner": "lease-agent-secret", "token": "top-secret"}}}
+                bodies = {"/api/v1/health": json.dumps(health).encode()}
+                with package_acceptance_tests.bound_server(bodies) as server:
+                    paths = _write_inputs(directory)
+                    runtime = _write_fake_runtime(directory)
+                    evidence = Path(directory) / "evidence"
+                    runtime_log = Path(directory) / "runtime.log"
+                    result = _run_isolated(
+                        _isolated_command(paths, evidence, runtime, container_timeout="0.4"),
+                        runtime_log, Path(directory) / "runtime-state.json",
+                        api_port=server.server_port,
+                    )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse((evidence / "receipt.json").exists())
+                self.assertFalse((evidence / "container-home/.config/fogcast/config.toml").exists())
+                failure_text = (evidence / "failure.json").read_text()
+                failure = json.loads(failure_text)
+                self.assertEqual(failure["readiness_observation"], {
+                    "host_ready": True, "target_reachable": False, "target_ready": False,
+                    "connection_state": "disconnected", "stage": expected,
+                })
+                for secret in ("top-secret", "agent-secret", "lease-agent-secret"):
+                    self.assertNotIn(secret, failure_text + result.stdout + result.stderr)
+                records = [json.loads(line) for line in runtime_log.read_text().splitlines()]
+                self.assertEqual([record["kind"] for record in records if record["kind"] in {"stop", "rm"}],
+                                 ["stop", "rm"])
+
     def test_mixed_full_commits_pass_both_lifecycle_cycles_and_record_exact_revisions(self):
         state = package_acceptance_tests._state()
         state["entries"] = {}
@@ -1308,6 +1344,48 @@ class IsolatedInventoryResponseLimitTests(unittest.TestCase):
             expected_bundle_id=package_acceptance_tests.BUNDLE_ID,
             expected_base_image_sha256=package_acceptance_tests.BASE_ID,
         )
+
+    def test_readiness_categories_do_not_copy_untrusted_fields(self):
+        def observe(value, target_id):
+            return package_acceptance_isolated._readiness_observation(
+                value, target_id, package_acceptance_tests.BUNDLE_ID, package_acceptance_tests.BASE_ID)
+        cases = (
+            ("Target status could not be reconciled.", "disconnected", "status_reconciliation"),
+            ("Cannot uniquely find the configured kit; check its network or manual address.",
+             "disconnected", "health_or_discovery"),
+            ("Discovered kit failed identity, authentication, or protocol validation.",
+             "disconnected", "identity_auth_or_protocol"),
+            ("anything", "version_mismatch", "api_version"),
+            ("anything", "unexpected bearer secret", "unknown"),
+        )
+        for message, state, stage in cases:
+            with self.subTest(stage=stage):
+                result = observe({"target": {"connection": {"message": message, "state": state,
+                    "owner": "lease-secret"}}}, TARGET_ID)
+                self.assertEqual(result["stage"], stage)
+                self.assertNotIn("secret", json.dumps(result))
+
+        ready = {"ready": True, "target": {"reachable": True, "ready": True, "api_version": "v1",
+                 "software": {"active_bundle": package_acceptance_tests.BUNDLE_ID,
+                              "base_identity": package_acceptance_tests.BASE_ID},
+                 "connection": {"target_id": TARGET_ID, "state": "connected"}}}
+        self.assertEqual(observe(ready, TARGET_ID)["stage"], "health_passed")
+        ready["target"]["connection"]["target_id"] = "different-secret"
+        self.assertEqual(observe(ready, TARGET_ID)["stage"], "target_identity")
+        ready["target"]["connection"]["target_id"] = TARGET_ID
+        ready["target"]["api_version"] = "unsupported-secret"
+        self.assertEqual(observe(ready, TARGET_ID)["stage"], "api_version")
+        ready["target"]["ready"] = False
+        ready["target"]["connection"]["target_id"] = "wrong"
+        self.assertEqual(observe(ready, TARGET_ID)["stage"], "readiness")
+        ready["target"]["ready"] = True
+        self.assertEqual(observe(ready, TARGET_ID)["stage"], "target_identity")
+        ready["target"]["connection"]["target_id"] = TARGET_ID
+        ready["target"]["api_version"] = "v1"
+        ready["target"]["software"]["base_identity"] = "wrong-secret"
+        result = observe(ready, TARGET_ID)
+        self.assertEqual(result["stage"], "software_identity")
+        self.assertNotIn("wrong-secret", json.dumps(result))
 
     def test_readiness_inventory_accepts_retained_releases(self):
         self.assertEqual(package_acceptance_isolated.MAX_HTTP_BODY, 1 << 20)

@@ -146,6 +146,9 @@ function M.state(f)
 end
 
 local LIBRARY_LIMIT = 2000
+-- A query may return 2,000 rows. Process a bounded number of rows or
+-- editions per frame so one answer cannot exhaust the room callback budget.
+local FAMILY_BATCH = 256
 
 local function count_line(n, more)
   if n == 0 and more then return "1+ games" end
@@ -349,9 +352,11 @@ end
 -- A failed title count stays unknown; hardware admission is independent.
 local function publish_library(gen)
   if gen ~= library_generation then return end
-  local counts, more, answered, oversized, failed = {}, {}, {}, {}, nil
   for _, req in ipairs(requests) do
     if not req.answered then return end
+  end
+  local counts, more, answered, oversized, failed = {}, {}, {}, {}, nil
+  for _, req in ipairs(requests) do
     if req.err then
       failed = failed or req.err
       if req.overfull then oversized[req.family.id] = true end
@@ -360,6 +365,9 @@ local function publish_library(gen)
       counts[req.family.id] = req.count
       more[req.family.id] = req.more
     end
+    -- The published summaries are small; release the converted page so a
+    -- settled Home does not retain thousands of Lua rows.
+    req.data = nil
   end
   overfull = oversized
   if failed and not retry_enabled then
@@ -375,25 +383,43 @@ local function query_family(req, gen)
   req.cancel = library.query({ platform = "fpga", core_ids = req.ids, limit = LIBRARY_LIMIT, home_family = true }, function(games, err, transient, more)
     if gen ~= library_generation then return end
     req.cancel = nil
-    req.answered, req.err = true, err
+    req.err = err
     req.overfull = err and more or nil
     if err and transient and retry_enabled and req.retries < #RETRY_DELAYS then
+      req.answered = true
       req.retries = req.retries + 1
       req.due = room.time + RETRY_DELAYS[req.retries]
-    elseif not err then
-      local n = 0
-      for _, g in ipairs(games or {}) do
-        local family = systems.family_by_core[g.core_id or ""]
-        if g.core_entry_kind == "title" and family and family.id == req.family.id then
-          n = n + 1
-        end
-      end
-      req.count = n
+    elseif err then
+      req.answered = true
+    else
+      req.answered = false
+      req.data, req.index = games or {}, 1
+      req.pending, req.count = req.data, 0
       req.more = more or nil
     end
     schedule_next_retry()
     publish_library(gen)
   end)
+end
+
+-- Count one family's titles across updates. Machine admission comes from
+-- hardware.computers, so neither machine rows nor their editions establish
+-- readiness here. Reload discards any unfinished answer.
+local function process_family(req)
+  for work = 1, FAMILY_BATCH do
+    local g = req.pending[req.index]
+    if not g then
+      req.pending = nil
+      req.answered = true
+      publish_library(library_generation)
+      return
+    end
+    local family = systems.family_by_core[g.core_id or ""]
+    if g.core_entry_kind == "title" and family and family.id == req.family.id then
+      req.count = req.count + 1
+    end
+    req.index = req.index + 1
+  end
 end
 
 function M.reload()
@@ -421,6 +447,12 @@ end
 -- Called only by Home while it is active; no timer or retry worker survives
 -- a closed or suspended room. A reload discards the previous schedule.
 function M.update()
+  for _, req in ipairs(requests) do
+    if req.pending then
+      process_family(req)
+      break
+    end
+  end
   if not next_retry or room.time < next_retry then return end
   for _, req in ipairs(requests) do
     if req.due and room.time >= req.due then
