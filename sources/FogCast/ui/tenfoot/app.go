@@ -4334,7 +4334,13 @@ func (a *App) queueVisibleWork(now time.Time) {
 		a.mu.Unlock()
 		return
 	}
-	start, end := a.prefetchSpanLocked()
+	// An open room replaces the library grid on screen, so the grid's covers
+	// are not visible work. The room requests its own covers. Prefetching the
+	// hidden grid would only take the CPU from the room's Lua callbacks.
+	start, end := 0, 0
+	if a.room == nil {
+		start, end = a.prefetchSpanLocked()
+	}
 	var queue []pendingWork
 	order := make([]int, 0, end-start)
 	if a.grid.Focus >= start && a.grid.Focus < end {

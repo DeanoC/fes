@@ -242,6 +242,18 @@ Home's last selected package is `package_id` in
 `FogCast/rooms/example.fes-cores.state.json`. A state directory that cannot
 be written is logged once; the launcher keeps running.
 
+The host and the agent run at nice 10 with `GOMAXPROCS=1`; the runtime and
+the launcher keep the supervisor's priority and Go's default. On a two-core
+DE10-Nano the launcher's room callbacks run against a wall-clock budget, so
+background services must not take both CPUs from them while the group starts.
+Linux keeps nice per thread and a child copies its forking thread's value, so
+the supervisor starts the host and the agent from one OS thread that it keeps
+locked at nice 10 for its whole life. Every thread of those services starts at
+that nice; nothing renices a running process. The thread never exits, because
+the children's parent-death signal follows the thread that forked them. Raising
+nice needs no privilege; if it still fails, the supervisor logs it and those
+services keep its own priority.
+
 An accepted launcher that exits is restarted
 without stopping the runtime or agent, so a menu crash does not leave a frozen
 frame or drop an execution lease. An accepted agent or runtime exit restarts
