@@ -71,9 +71,9 @@ class ScopeTest(unittest.TestCase):
                                ('0fa700', 'ud'), ('0fff00', 'ud'), ('0f2400', 'ud'), ('0f01f8', 'ud'),
                                ('62c0', 'ud'), ('fed0', 'ud'), ('fff8', 'ud'), ('8fc8', 'ud'), ('0f3800', 'ud-rtl'),
                                ('0f3a10', 'ud-rtl'), ('0f0d00', 'ud-rtl-runs'), ('0f0138', 'ud-rtl-runs'),
-                               ('0f0700', 'stop'), ('0f1000', 'stop'), ('0f2420', 'ud'), ('0f2668', 'ud'),
-                               ('0f24e0', 'stop'), ('0f26f8', 'stop'), ('f100', 'stop'),
-                               ('f00f0700', 'ud'), ('f00f24e0', 'ud'), ('f0f100', 'ud')):
+                               ('0f0700', 'stop'), ('0f2418', 'ud'), ('0f2650', 'ud'),
+                               ('f00f0700', 'ud'), ('f00f24e0', 'ud'), ('f00f2620', 'ud'), ('f0f100', 'ud'),
+                               ('f00f1000', 'ud'), ('f00f1307', 'ud')):
             with self.subTest(encoding=encoding):
                 self.assertEqual(kinds.get(encoding), kind)
         for encoding in ('00c0', '0000', '04ff', '8d00', '0fa4c0', '0fa400', 'f4c0', '06c0', 'ff20', '0fa1c0',
@@ -81,7 +81,9 @@ class ScopeTest(unittest.TestCase):
                          'f6e0', 'f7f8', '0fafc0', '69c0', '6b00', 'd40a', 'd500', 'a400', 'afff', 'c800',
                          'e4c0', 'ef00', '6c00', '6fff', '0fbae0', '0fba20', '0fbcc0', '0fbd00', '0fa3c0', '0fbb00',
                          '0fabc0', '0fb3c0', '0fbbc0', '27c0', '2f00', '37ff', '3f90', '6200',
-                         '0f0600', '9bc0', '9bff', '9b90', '0f0110', '0f01e0', '0f20c0', '0f22d8', 'd6c0', 'fe08'):
+                         '0f0600', '9bc0', '9bff', '9b90', '0f0110', '0f01e0', '0f20c0', '0f22d8', 'd6c0', 'fe08',
+                         # #1730: ICEBP, UMOV, MOV TR4-TR7 by either ModRM form.
+                         'f100', 'f1ff', '0f1000', '0f13c0', '0f24e0', '0f2420', '0f2668', '0f26f8'):
             with self.subTest(encoding=encoding):
                 self.assertNotIn(encoding, kinds)
 

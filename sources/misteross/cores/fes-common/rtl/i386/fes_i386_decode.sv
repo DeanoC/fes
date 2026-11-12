@@ -70,13 +70,14 @@
 // BTC; MOV to CS or to segment register 6 or 7; LEA, LES, LDS, LSS, LFS,
 // LGS, BOUND, far CALL and JMP r/m and SGDT to LIDT with a register
 // operand; C6h/C7h and 8Fh with reg != 0; FEh /2-/7, FFh /7, 0F 00 /6 and
-// /7, 0F 01 /5 and /7, 0F BA /0-/3; MOV to or from CR1 and CR4-CR7, TR0-
-// TR3, or TR4-TR7 with a memory ModRM; and every 0Fh opcode the 386 does
-// not define, XBTS and IBTS (0F A6, 0F A7) included, which only the B-step
-// 386 ran.
-// An instruction over 15 bytes raises #GP(0). The 386's other instructions
-// that this build does not run, ICEBP (F1h), LOADALL (0F 07), UMOV (0F 10-
-// 0F 13) and MOV to and from TR4-TR7 with a register ModRM, decode as
+// /7, 0F 01 /5 and /7, 0F BA /0-/3; MOV to or from CR1, CR4-CR7 and TR0-
+// TR3; and every 0Fh opcode the 386 does not define, XBTS and IBTS (0F A6,
+// 0F A7) included, which only the B-step 386 ran.
+// The 386's undocumented instructions (#1730): ICEBP (F1h), INT 1 as an
+// exception's delivery; UMOV (0F 10-0F 13), MOV; MOV to and from TR4-TR7
+// (0F 24, 0F 26), registers that keep what is written.
+// An instruction over 15 bytes raises #GP(0). LOADALL (0F 07), the one
+// instruction of the 386 that this build does not run, decodes as
 // FAULT_UNIMPLEMENTED. An instruction that runs past CS's limit raises
 // #GP(0) ahead of all of these, but D applies that, since only D knows the
 // instruction's EIP (fes_i386_cpu, cs_gp).
@@ -142,6 +143,14 @@ module fes_i386_decode (
     assign b0 = by[0];
     assign two = b0 == 8'h0f;
     assign op2 = by[1];
+    // UMOV (0F 10-13) is MOV (88h-8Bh) outside the 386's ICE mode: its
+    // decoder sends both to the same entries (reenigne/x86_microcode 80386
+    // decoder23.txt "UMOV rm,r", "UMOV r,rm"; decode2.txt 28-2F), and FES
+    // has no ICE. The one-byte table decodes it by b0m.
+    logic       umov;
+    logic [7:0] b0m;
+    assign umov = two && op2[7:2] == 6'b000100;
+    assign b0m = umov ? {6'b100010, op2[1:0]} : b0;
     assign modrm = two ? by[2] : by[1];
     assign mode = modrm[7:6];
     assign reg_f = modrm[5:3];
@@ -149,11 +158,11 @@ module fes_i386_decode (
     assign reg_form = mode == 2'b11;
     logic osz32;  // the operand size as the prefixes set it
     assign osz32 = code32 ^ q.prefixes.opsize;
-    // INT3, INT n and INTO push 16-bit slots in real mode, whatever the
-    // operand size: D's stack steps follow opsize32. CLTS's jump to the
+    // INT3, INT n, INTO and ICEBP push 16-bit slots in real mode, whatever
+    // the operand size: D's stack steps follow opsize32. CLTS's jump to the
     // next instruction is not cut to 16 bits, so one that ends at FFFFh
     // leaves EIP 10000h as any other instruction does.
-    assign opsize32 = osz32 && !(!two && b0 >= 8'hcc && b0 <= 8'hce) || two && op2 == 8'h06;
+    assign opsize32 = osz32 && !(!two && (b0 >= 8'hcc && b0 <= 8'hce || b0 == 8'hf1)) || two && op2 == 8'h06;
     assign addr32 = code32 ^ q.prefixes.adsize;
     assign osz = osz32 ? 2'd2 : 2'd1;
 
@@ -239,7 +248,8 @@ module fes_i386_decode (
     logic        moffs;     // ... a direct offset, the bytes after the opcode (A0h-A3h)
     logic        lock_any;  // LOCK is valid whatever the first uop (XCHG with memory)
     logic        eoi_taken; // ends the instruction only when taken (INTO's JNO)
-    logic [7:0]  vec;       // INT3, INT n, INTO: the vector
+    logic [7:0]  vec;       // INT3, INT n, INTO, ICEBP: the vector
+    logic        ice;       // ICEBP (uop_t ice)
     logic        eoi;       // the uop ends the instruction
     logic [1:0]  mkind;     // a mem_kind_e
     logic        m_in_a;    // the memory operand stands for src1 (and the destination), else src2
@@ -307,6 +317,7 @@ module fes_i386_decode (
         m_in_a = 1'b0;
         mbytes = 3'd0;  // by size
         lockable = 1'b0;
+        ice = 1'b0;
         strop = 1'b0;
         enter = 1'b0;
         io = 2'd0;
@@ -323,8 +334,8 @@ module fes_i386_decode (
         seq = fes_i386_pkg::SEQ_NONE;
         eoi = 1'b1;
 
-        if (!two) begin
-            casez (b0)
+        if (!two || umov) begin
+            casez (b0m)
                 8'b01010???: begin
                     // PUSH r16/32
                     op = 5'd9;  // ALU_MOV
@@ -532,18 +543,19 @@ module fes_i386_decode (
                     s2_hi8 = !b0[0] && reg_f[2];
                 end
                 8'b100010??: begin
-                    // MOV r/m, r (a store) and MOV r, r/m (a load)
+                    // MOV r/m, r (a store) and MOV r, r/m (a load); UMOV
+                    // (0F 10-13) as them (b0m)
                     op = 5'd9;  // ALU_MOV
-                    m_in_a = !b0[1];
-                    mkind = reg_form ? 2'd0 : b0[1] ? 2'd1 : 2'd2;
-                    size = b0[0] ? osz : 2'd0;
+                    m_in_a = !b0m[1];
+                    mkind = reg_form ? 2'd0 : b0m[1] ? 2'd1 : 2'd2;
+                    size = b0m[0] ? osz : 2'd0;
                     s1_valid = 1'b1;
-                    s1_idx = b0[1] ? reg_f : rm;
+                    s1_idx = b0m[1] ? reg_f : rm;
                     s2_valid = 1'b1;
-                    s2_idx = b0[1] ? rm : reg_f;
-                    s1_hi8 = !b0[0] && s1_idx[2];
-                    s2_hi8 = !b0[0] && s2_idx[2];
-                    if (!b0[0]) begin
+                    s2_idx = b0m[1] ? rm : reg_f;
+                    s1_hi8 = !b0m[0] && s1_idx[2];
+                    s2_hi8 = !b0m[0] && s2_idx[2];
+                    if (!b0m[0]) begin
                         s1_idx = {1'b0, s1_idx[1:0]};
                         s2_idx = {1'b0, s2_idx[1:0]};
                     end
@@ -982,11 +994,18 @@ module fes_i386_decode (
                         eoi = 1'b0;
                     end
                 end
-                8'b1100110?: begin
+                8'b1100110?, 8'hf1: begin
                     // INT3 (CCh), INT n (CDh) (SEQ_UCODE): the vector's offset
                     // into T1, then the ROM's routine; in protected mode the
                     // gate's low dword into T1, then the delivery's.
-                    vec = b0[0] ? by[1] : 8'd3;
+                    // ICEBP (F1h, #1730) is INT 1 through these routines, as
+                    // the 386's ICEBP (microcode_notes.txt 93C) goes to
+                    // BREAKPOINT_CMN and INTERRUPT_X, an exception's entry:
+                    // no IOPL check in V86 mode, its gate not checked against
+                    // CPL, EXT in a fault's error code (ice), and DR7.GD
+                    // cleared (94C) as its first uop reaches WB.
+                    ice = b0 == 8'hf1;
+                    vec = b0 == 8'hf1 ? 8'd1 : b0[0] ? by[1] : 8'd3;
                     op = 5'd9;  // ALU_MOV
                     size = 2'd2;
                     mbytes = pe ? 3'd4 : 3'd2;
@@ -1373,8 +1392,8 @@ module fes_i386_decode (
                         d_hi8 = s1_hi8;
                     end
                 end
-                // F1h (ICEBP, INT 1 on the 386) is not built; FES has no
-                // other one-byte opcode here.
+                // The 386 defines every one-byte opcode, and FES builds
+                // them all.
                 default: known = 1'b0;
             endcase
         end else begin
@@ -1734,19 +1753,45 @@ module fes_i386_decode (
                     d_valid = 1'b1;
                     d_idx = reg_f;
                 end
-                // The 386 defines LOADALL (07h), UMOV (10h-13h) and MOV to
-                // and from TR4-TR7 (24h, 26h) with a register ModRM, which
-                // are not built: they stop as FAULT_UNIMPLEMENTED. TR0-TR3,
-                // memory ModRM forms of 24h/26h and every other encoding
-                // here are #UD, XBTS and IBTS (A6h, A7h) included:
-                // the 386's decoder sends them to its #UD entry
-                // (reenigne/x86_microcode 80386 decoder23.txt, decode2.txt;
-                // microcode_notes.txt 82B).
-                8'h07, 8'b000100??: known = 1'b0;
                 8'h24, 8'h26: begin
-                    known = !reg_f[2] || !reg_form;
-                    undefined = !reg_f[2] || !reg_form;
+                    // MOV r32, TRn (24h) and MOV TRn, r32 (26h), #1730:
+                    // TR4-TR7, the others #UD. The ModRM is a register form
+                    // whatever its mod, as the 386's decoder routes both
+                    // forms of TR4-TR7 to 391 and 3B6 (decode2.txt 49, 4B,
+                    // 5D, 5F). Each is a register that keeps what is
+                    // written: TR6's TLB test command does nothing
+                    // (docs/i386-cpu-design.md, Architecture). A write puts
+                    // the register in T1 and 8 + the number in imm for the
+                    // ROM's write (SYSOP_DR).
+                    undefined = !reg_f[2];
+                    op = 5'd9;  // ALU_MOV
+                    size = 2'd2;
+                    if (!op2[1]) begin
+                        s1_valid = 1'b1;
+                        s1_idx = rm;
+                        d_valid = 1'b1;
+                        d_idx = rm;
+                        b_sys = 1'b1;
+                        sys_idx = 5'(5'(fes_i386_pkg::SYS_RD_TR4) + 5'(reg_f[1:0]));
+                    end else begin
+                        s2_valid = 1'b1;
+                        s2_idx = rm;
+                        d_valid = 1'b1;
+                        d_temp = 1'b1;
+                        d_t1 = 1'b1;
+                        imm = {28'd0, 1'b1, reg_f};
+                        seq = fes_i386_pkg::SEQ_UCODE;
+                        upc = fes_i386_ucode_pkg::UC_WDR;
+                        eoi = 1'b0;
+                    end
                 end
+                // The 386 defines LOADALL (07h), which is not built: it
+                // stops as FAULT_UNIMPLEMENTED. Every other encoding here
+                // is #UD, XBTS and IBTS (A6h, A7h) included: the 386's
+                // decoder sends them to its #UD entry (reenigne/
+                // x86_microcode 80386 decoder23.txt, decode2.txt;
+                // microcode_notes.txt 82B).
+                8'h07: known = 1'b0;
                 default: undefined = 1'b1;
             endcase
         end
@@ -1856,10 +1901,10 @@ module fes_i386_decode (
     // ---- Faults and the uop ---------------------------------------------------
     // LOCK is checked before the 15-byte limit (Phase 0 divergence
     // lock-ud-before-length-gp), and before what is not built: a LOCK on
-    // an instruction it cannot lock is #UD whatever the instruction, ICEBP,
-    // LOADALL, UMOV and MOV TRn included (#1701).
+    // an instruction it cannot lock is #UD whatever the instruction, LOADALL
+    // included (#1701).
     // Privilege, in protected mode: the instructions only CPL 0 runs (HLT,
-    // CLTS, MOV to or from CRn and DRn, LGDT, LIDT, LMSW, LLDT, LTR) raise
+    // CLTS, MOV to or from CRn, DRn and TRn, LGDT, LIDT, LMSW, LLDT, LTR) raise
     // #GP(0) at another CPL, and CLI and STI at a CPL above IOPL, each
     // before its operands, as Bochs checks them, after LOCK's and the
     // form's #UD. An I/O instruction at a CPL above IOPL asks the TSS's I/O
@@ -1878,7 +1923,7 @@ module fes_i386_decode (
     logic       priv_op, cpl_gp, v86_gp, gd_db;
     logic [4:0] fault;
     logic       lock_ok;
-    assign priv_op = two ? op2 == 8'h06 || op2[7:2] == 6'b001000
+    assign priv_op = two ? op2 == 8'h06 || op2[7:2] == 6'b001000 || op2 == 8'h24 || op2 == 8'h26
                          || op2 == 8'h00 && reg_f[2:1] == 2'b01 || op2 == 8'h01 && (reg_f[2:1] == 2'b01 || reg_f == 3'd6)
                          : b0 == 8'hf4;
     assign v86_gp = vm && iopl != 2'd3 && (!two && (b0 == 8'h9c || b0 == 8'h9d || b0 == 8'hcd || b0 == 8'hcf) || q.prefixes.lock);
@@ -1927,6 +1972,7 @@ module fes_i386_decode (
     assign u.v86 = 1'b0;
     assign u.ntchk = b0 == 8'hcf && pm;
     assign u.ntset = b0 == 8'hcf && pm && nt;
+    assign u.ice = ice && fault == 5'd0;
     assign u.tcom = 1'b0;
     assign u.tscpl = 1'b0;
     assign u.seg2_pm = 1'b0;

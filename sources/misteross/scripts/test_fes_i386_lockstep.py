@@ -153,6 +153,10 @@ SCOPE: frozenset[str] = frozenset([
     # The ESC instructions with no 387. The corpus has none; the directed
     # no-387 cases run every form.
     *(f'{opcode:02X}' for opcode in range(0xD8, 0xE0)),
+    # The 386's undocumented instructions (#1730): ICEBP, UMOV and MOV to
+    # and from TR4-TR7. The corpus has none; the directed #1730 cases and
+    # the unbuilt sweep run them.
+    'F1', '0F10', '0F11', '0F12', '0F13', '0F24', '0F26',
 ])
 
 
@@ -198,9 +202,16 @@ I386_UD_0F = frozenset([
     0x04, 0x05, *range(0x08, 0x10), *range(0x14, 0x20), 0x25, *range(0x27, 0x80),
     0xA2, 0xA6, 0xA7, 0xAA, 0xAE, 0xB0, 0xB1, 0xB8, 0xB9, *range(0xC0, 0x100),
 ])
-# The 0Fh opcodes the 386 defines but this build does not run: LOADALL (07h)
-# and UMOV (10h-13h); MOV to and from TR4-TR7 (24h, 26h) by reg below.
-I386_UNBUILT_0F = frozenset([0x07, 0x10, 0x11, 0x12, 0x13])
+# The 0Fh opcodes the 386 defines but this build does not run: LOADALL (07h).
+I386_UNBUILT_0F = frozenset([0x07])
+
+
+# The 386's undocumented instructions this build runs (#1730), by their
+# opcode bytes: ICEBP, UMOV, MOV to and from TR4-TR7 (with TR0-TR3's #UD).
+UNDOCUMENTED = frozenset([
+    *(bytes([0xF1, following]) for following in range(256)),
+    *(bytes([0x0F, opcode]) for opcode in (0x10, 0x11, 0x12, 0x13, 0x24, 0x26)),
+])
 
 
 def i386_class(code: bytes) -> str:
@@ -210,8 +221,6 @@ def i386_class(code: bytes) -> str:
     op, modrm = (code[1], code[2]) if two else (code[0], code[1])
     reg, register = (modrm >> 3) & 7, modrm >> 6 == 3
     if not two:
-        if op == 0xF1:
-            return 'stop'  # ICEBP
         ud = (op == 0x8C and reg > 5 or op == 0x8E and (reg == 1 or reg > 5) or op == 0x8F and reg != 0
               or op in (0xC6, 0xC7) and reg != 0 or op == 0xFE and reg > 1 or op == 0xFF and reg == 7
               or op == 0xFF and reg in (3, 5) and register or op in (0x8D, 0xC4, 0xC5, 0x62) and register
@@ -220,7 +229,8 @@ def i386_class(code: bytes) -> str:
     if op in I386_UNBUILT_0F:
         return 'stop'
     if op in (0x24, 0x26):
-        return 'stop' if reg > 3 and register else 'ud'
+        # TR4-TR7 with either ModRM form (decode2.txt 49, 4B, 5D, 5F).
+        return 'defined' if reg > 3 else 'ud'
     ud = (op in I386_UD_0F or op in (0x00, 0x02, 0x03)
           or op == 0x01 and (reg in (5, 7) or reg < 4 and register)
           or op in (0x20, 0x22) and reg not in (0, 2, 3)
@@ -285,9 +295,10 @@ def unbuilt_encodings() -> list[str]:
                             matched.add(spec)
                 if kind != 'defined':
                     lines.append(f'{code.hex()} {kind}')
-                # A LOCK on what this build does not run is #UD all the same:
+                # A LOCK on what this build does not run, or on the 386's
+                # undocumented instructions (#1730), is #UD all the same:
                 # LOCK is valid only on the read-modify-write forms.
-                if kind == 'stop':
+                if kind == 'stop' or code[:2] in UNDOCUMENTED:
                     lines.append(f'f0{code.hex()} ud')
     if set(runs) - matched:
         raise LockstepError(f'[[lockstep]] ud_rtl encodings the 386 does not reject: {sorted(set(runs) - matched)}')
@@ -394,8 +405,10 @@ def run_pmode(testbench: str, env: dict) -> dict:
 
 
 # 407, #1701's 42 #UD probes in real mode, at CPL 0 and 3 and in V86 mode
-# at IOPL 0 and 3, and 3 NMI-after-faulting-IRET cases.
-PMODE_CASES = 407 + 42 * 5 + 3
+# at IOPL 0 and 3 with #1730's 3 (LOCK on ICEBP, UMOV and MOV TRn), 3
+# NMI-after-faulting-IRET cases, and #1730's 91: 15 bodies in the five
+# modes, ICEBP with TF in four, and 12 others.
+PMODE_CASES = 407 + 45 * 5 + 3 + 15 * 5 + 4 + 12
 
 
 def run_paging(testbench: str, env: dict) -> dict:
@@ -425,8 +438,9 @@ def run_paging(testbench: str, env: dict) -> dict:
 
 
 # 77, and #1701's #UD at CPL 0 and 3 before a memory operand on a page not
-# present (8 each), its 42 probes in V86 mode, and 6 ARPL paging cases.
-PAGING_CASES = 77 + 2 * 8 + 42 + 6
+# present (8 each), its 45 probes in V86 mode, 6 ARPL paging cases, and
+# #1730's UMOV #PF at CPL 0 and 3 (2 each).
+PAGING_CASES = 77 + 2 * 8 + 45 + 6 + 2 * 2
 
 
 def run_no387(testbench: str, env: dict) -> dict:

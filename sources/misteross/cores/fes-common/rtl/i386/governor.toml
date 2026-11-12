@@ -141,20 +141,22 @@ bus = 32
 
 # ---- Data movement
 
+# UMOV (0F 10-13) runs the 386's MOV microcode (#1730), and is charged as
+# MOV.
 [[class]]
 name = "mov_r"
-stems = ["88/r", "89/r", "8A/r", "8B/r", "B0-BF", "C6/r", "C7/r"]
+stems = ["88/r", "89/r", "8A/r", "8B/r", "B0-BF", "C6/r", "C7/r", "0F10/r", "0F11/r", "0F12/r", "0F13/r"]
 cost = [2, 2, 1]
 
 [[class]]
 name = "mov_load"
-stems = ["8A/m", "8B/m", "A0", "A1"]
+stems = ["8A/m", "8B/m", "A0", "A1", "0F12/m", "0F13/m"]
 memory = true
 cost = [5, 4, 1]
 
 [[class]]
 name = "mov_store"
-stems = ["88/m", "89/m", "C6/m", "C7/m", "A2", "A3"]
+stems = ["88/m", "89/m", "C6/m", "C7/m", "A2", "A3", "0F10/m", "0F11/m"]
 memory = true
 cost = [3, 2, 1]
 
@@ -706,9 +708,11 @@ name = "int"
 stems = ["CD"]
 cost = [24, 37, 30]
 
+# ICEBP (F1h, #1730), which no data sheet lists, is charged as INT3: both
+# are one byte and the 386 delivers both through its INTERRUPT routine.
 [[class]]
 name = "int3"
-stems = ["CC"]
+stems = ["CC", "F1"]
 cost = [24, 33, 26]
 
 [[class]]
@@ -1041,6 +1045,13 @@ cost = [22, 22, 10]
 name = "mov_to_dr67"
 stems = ["0F23.4", "0F23.5", "0F23.6", "0F23.7"]
 cost = [14, 14, 10]
+
+# MOV r32, TRn and MOV TRn, r32 (TR4-TR7, #1730): the 386's 12 for TR6 and
+# TR7, which TR4 and TR5 share; the i486's 4.
+[[class]]
+name = "mov_tr"
+stems = ["0F24", "0F26"]
+cost = [12, 12, 4]
 
 # Group 6, LAR, LSL and ARPL (Phase 2), which run only in protected mode
 # (#UD in real mode, charged as INT's delivery): their protected-mode

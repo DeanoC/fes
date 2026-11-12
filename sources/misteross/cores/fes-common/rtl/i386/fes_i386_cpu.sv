@@ -368,6 +368,11 @@ module fes_i386_cpu #(
     logic [3:0]       dr6_lo, dr6_hi;
     logic [31:0]      dr6_rd, dr7;
     assign dr6_rd = {16'hffff, dr6_hi, 8'hff, dr6_lo};
+    // TR4-TR7 (#1730), which MOV TRn writes and reads: the 386's decoder
+    // runs MOV to and from each (microcode_notes.txt 391, 3B6). They keep
+    // what is written; TR6's TLB test command does nothing
+    // (docs/i386-cpu-design.md, Architecture).
+    logic [3:0][31:0] trn;
     // ---- Breakpoints ----------------------------------------------------------------
     // DR7's fields for each of DR0-DR3: enabled (Ln or Gn: bp_en), R/W 00
     // (an instruction breakpoint: bp_x), 01 (data writes: bp_w) or 11 (data
@@ -1232,7 +1237,10 @@ module fes_i386_cpu #(
         end
         if (far_bad && stk == fes_i386_pkg::STK_PROBE && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
             u.ctl.fault = fes_i386_pkg::FAULT_GP0;
-        if (!s_kill1 && cs_gp) u.ctl.fault = fes_i386_pkg::FAULT_GP0;
+        if (!s_kill1 && cs_gp) begin
+            u.ctl.fault = fes_i386_pkg::FAULT_GP0;
+            u.ice = 1'b0;
+        end
         if (cr0_gp && u.ctl.fault == fes_i386_pkg::FAULT_NONE) u.ctl.fault = fes_i386_pkg::FAULT_GP0;
         u.str_down = s_down;
         // A fetch walk is a NOP that ends the instruction, with nothing else.
@@ -1734,6 +1742,10 @@ module fes_i386_cpu #(
             5'(fes_i386_pkg::SYS_RD_DR3): sys_val = dr[3];
             5'(fes_i386_pkg::SYS_RD_DR6): sys_val = dr6_rd;
             5'(fes_i386_pkg::SYS_RD_DR7): sys_val = dr7;
+            5'(fes_i386_pkg::SYS_RD_TR4): sys_val = trn[0];
+            5'(fes_i386_pkg::SYS_RD_TR5): sys_val = trn[1];
+            5'(fes_i386_pkg::SYS_RD_TR6): sys_val = trn[2];
+            5'(fes_i386_pkg::SYS_RD_TR7): sys_val = trn[3];
             default: sys_val = 32'd0;
         endcase
     end
@@ -1884,6 +1896,7 @@ module fes_i386_cpu #(
                    && u.ctl.fault == fes_i386_pkg::FAULT_NONE && dc.seq == fes_i386_pkg::SEQ_UCODE
                    && (dc.upc == fes_i386_ucode_pkg::UC_IRET || dc.upc == fes_i386_ucode_pkg::UC_VIRET
                     || dc.upc == fes_i386_ucode_pkg::UC_PIRET || dc.upc == fes_i386_ucode_pkg::UC_TSSAVE);
+        d_out.ice0 = d_first && dc.fetched && !d_ifw && u.ice && u.ctl.fault == fes_i386_pkg::FAULT_NONE;
         if (d_ifw) begin
             d_out.ifw = 1'b1;
             d_out.pf_lin = d_ifw_lin;
@@ -2105,8 +2118,8 @@ module fes_i386_cpu #(
             5'(fes_i386_pkg::CHK_SS): m1_segchk = ds_fault_ss;
             5'(fes_i386_pkg::CHK_JMP): m1_segchk = ds_fault_cs;
             // A software interrupt's gate (no delivery under way) is checked
-            // against CPL too.
-            5'(fes_i386_pkg::CHK_GATE): m1_segchk = exc_active ? ds_fault_gate : ds_fault_sgate;
+            // against CPL too, but ICEBP's (ice).
+            5'(fes_i386_pkg::CHK_GATE): m1_segchk = exc_active || m1_s.uop.ice ? ds_fault_gate : ds_fault_sgate;
             5'(fes_i386_pkg::CHK_INTCS): m1_segchk = ds_fault_intcs;
             // A delivery from V86 mode: its CS, and once the TSS's stack is
             // read, that CS's DPL (the held CPL), which must be 0.
@@ -2831,7 +2844,7 @@ module fes_i386_cpu #(
             wb_shut <= ex_s.valid && !smc_mark && ex_deliver && ex_shut;
         end
         if (!freeze) begin
-            wb_nested <= exc_busy;
+            wb_nested <= exc_busy || ex_out.uop.ice;
             wb_df <= exc_busy && (exc_class == EXC_CONTRIB && contributory(5'(ex_out.uop.ctl.fault))
                                   || exc_class == EXC_PF && (contributory(5'(ex_out.uop.ctl.fault))
                                                              || ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_PF));
@@ -2908,6 +2921,19 @@ module fes_i386_cpu #(
                      && wb_fault != fes_i386_pkg::FAULT_REPLAY;
     assign nmi_ok = (nmi_pend || nmi_edge) && (!nmi_block || at_boundary && wb_s.uop.iret);
     assign int_if = at_boundary ? wb_flags[9] : eflags[9];
+
+    // ---- ICEBP ------------------------------------------------------------------------
+    // ICEBP (F1h, #1730) runs INT 1 through INT n's routines (fes_i386_decode),
+    // each of its uops marked ice. The 386's ICEBP (microcode_notes.txt
+    // 93C) goes to BREAKPOINT_CMN, which clears DR7.GD (94C) and enters
+    // INTERRUPT_X, an exception's delivery, without the IOPL check of INT n
+    // in V86 mode. So its gate is not checked against CPL (CHK_GATE), a
+    // fault in its delivery has EXT set (wb_nested), as in Bochs's INT1
+    // (BX_PRIVILEGED_SOFTWARE_INTERRUPT, EXT = 1), and its first uop (ice0)
+    // clears GD as it reaches WB. It sets no DR6 bit. Its far jump is never
+    // predicted, so what follows it decodes with GD clear. DR7 bit 12 sends
+    // the 386's #DB, ICEBP's included, to an ICE (946-949); FES has none,
+    // and ignores the bit.
 
     // ---- Debug traps ------------------------------------------------------------------
     // What the trap after an instruction reports, gathered as its uops
@@ -3167,6 +3193,7 @@ module fes_i386_cpu #(
             cr2 <= init_cr2;
             cr3 <= init_cr3;
             dr <= init_dr;
+            trn <= '0;
             {dr6_hi, dr6_lo} <= {init_dr6[15:12], init_dr6[3:0]};
             dr7 <= init_dr7 | 32'h0000_0400;
             fpu_ip <= 32'd0;
@@ -3245,6 +3272,10 @@ module fes_i386_cpu #(
                 dr7[13] <= 1'b0;
             end
         end else if (wb_s.valid && !halted && !freeze && !int_take) begin
+            // ICEBP (see ICEBP): its first uop clears DR7.GD as it reaches
+            // WB, whether it commits or faults, as the 386 clears GD (94C)
+            // before INTERRUPT_X reads the gate.
+            if (wb_s.ice0 && wb_fault != fes_i386_pkg::FAULT_REPLAY) dr7[13] <= 1'b0;
             if (exc_take) begin
                 // A fault, or one in a delivery in that delivery's place: a
                 // double fault when both are contributory.
@@ -3393,13 +3424,16 @@ module fes_i386_cpu #(
                             pcnt <= t3[4:0];
                         end
                         // MOV DRn, r32: DR6 takes bits 15-12 and 3-0, DR7
-                        // keeps bit 10 set.
+                        // keeps bit 10 set. MOV TRn, r32 (imm 8 + n, TR4-
+                        // TR7): the whole register.
                         5'(fes_i386_pkg::SYSOP_DR): begin
-                            case (wb_s.uop.imm[2:0])
-                                3'd0, 3'd1, 3'd2, 3'd3: dr[wb_s.uop.imm[1:0]] <= t1;
-                                3'd4, 3'd6: {dr6_hi, dr6_lo} <= {t1[15:12], t1[3:0]};
-                                default: dr7 <= t1 | 32'h0000_0400;
-                            endcase
+                            if (wb_s.uop.imm[3]) trn[wb_s.uop.imm[1:0]] <= t1;
+                            else
+                                case (wb_s.uop.imm[2:0])
+                                    3'd0, 3'd1, 3'd2, 3'd3: dr[wb_s.uop.imm[1:0]] <= t1;
+                                    3'd4, 3'd6: {dr6_hi, dr6_lo} <= {t1[15:12], t1[3:0]};
+                                    default: dr7 <= t1 | 32'h0000_0400;
+                                endcase
                         end
                         // A task switch's (see Task switches): TR from the
                         // new TSS's descriptor, busy, as LTR's; LDTR's
