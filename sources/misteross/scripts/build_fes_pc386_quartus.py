@@ -39,7 +39,8 @@ The record names the selection, so HIP and CUDA builds have distinct BUILD_IDs.
 
 The seal needs a lockstep report (#1581 S5): scripts/test_fes_i386_lockstep.py
 --netlist, run on this tree with the same --cache-root and router. The build
-refuses to seal unless the report passed the default suite and names this
+refuses to seal unless the report passed the default suite (default suite
+arguments over every in-scope file of a full corpus download) and names this
 build's Yosys program, CPU sources and Yosys (lock, lock digest, router and
 slot binary), its Verilator is the i386 lock's, and the CPU netlist this
 build's Yosys writes through the seal's passes has the report's digest. The

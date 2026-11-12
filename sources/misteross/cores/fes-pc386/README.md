@@ -463,9 +463,10 @@ builds of pc386 are parked with [#1235](https://github.com/DeanoC/fes/issues/123
   `GPU_ROUTER` is unset or empty. Nothing routes on a GPU. The record's
   `gpu_backend` and `toolchain_configuration` name the slot, so HIP and CUDA
   seals of one commit have distinct BUILD_IDs.
-- The seal needs a lockstep report from this tree
+- The seal needs a lockstep report of this tree's CPU
   (`LOCKSTEP_REPORT=`, `--lockstep-report`): `scripts/test_fes_i386_lockstep.py
-  --netlist`, the default suite, with the same cache root and router. The
+  --netlist`, the default suite over every in-scope file of a full corpus
+  download, with the same cache root and router. The
   build refuses to seal unless the report passed and its Yosys program, CPU
   source digest and Yosys (lock, lock digest, router, slot binary) are this
   build's, its Verilator is the i386 lock's, and the CPU netlist this build's

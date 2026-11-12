@@ -743,6 +743,10 @@ def main() -> int:
         if args.opcode and len(paths) != len(set(args.opcode)):
             raise LockstepError('requested opcode files are absent or outside the scope')
         vectors.verify(corpus, paths + [corpus / 'revocation_list.txt'])
+        # Whether this run read every in-scope file of a full, verified download.
+        full = vectors.full_corpus(corpus)
+        complete_corpus = full is not None and {path.name for path in paths} == {
+            name for name in full if name.endswith('.MOO.gz') and in_scope(name[:-len('.MOO.gz')])}
         revoked = frozenset(vectors.revoked_hashes((corpus / 'revocation_list.txt').read_text()))
         with ProcessPoolExecutor(max_workers=args.jobs) as executor:
             files = [executor.submit(run_file, str(path), testbench, env, revoked, entries, args.limit_per_file)
@@ -901,11 +905,13 @@ def main() -> int:
         report['same_as'] = {'report': str(args.same_as), 'differences': differences[:200]}
         if differences:
             exit_code = 1
-    # Whether this run passed and covered the default suite, so a consumer
+    # Whether this run passed and covered the default suite (default suite
+    # arguments over every in-scope file of the full corpus), so a consumer
     # (the pc386 sealer's --lockstep-report) need not trust an exit status.
     report['run'] = {'passed': exit_code == 0,
-                     'default_suite': all(getattr(args, name) == parser.get_default(name)
-                                          for name in SUITE_ARGUMENTS),
+                     'default_suite': complete_corpus and all(getattr(args, name) == parser.get_default(name)
+                                                              for name in SUITE_ARGUMENTS),
+                     'complete_corpus': complete_corpus,
                      'arguments': {name: str(getattr(args, name)) for name in SUITE_ARGUMENTS}}
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(f"corpus: {len(corpus_results)} files, {len(by_opcode)} opcodes, {totals['tests']} tests: "

@@ -6,7 +6,8 @@ S5 of [`docs/design/rtl-frontend-lanes.md`](../../design/rtl-frontend-lanes.md) 
 
 - the run passed (`run.passed`);
 - the run was the default suite (`run.default_suite`): every suite argument
-  (`SUITE_ARGUMENTS` in `test_fes_i386_lockstep.py`) is at its default;
+  (`SUITE_ARGUMENTS` in `test_fes_i386_lockstep.py`) is at its default, and the run read every
+  in-scope file of a full download of the pinned corpus (`run.complete_corpus`, below);
 - the run was a `--netlist` run;
 - the report's netlist `program_sha256`, `cpu_source_sha256` and Yosys identity (lock, lock sha256,
   router, tool) equal this build's;
