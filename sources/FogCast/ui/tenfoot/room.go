@@ -307,6 +307,10 @@ func (a *App) openValidRoomLocked(pack rooms.Pack, initialGameID string, initial
 	a.closeFiltersLocked()
 	a.closeCollectionOverlaysLocked()
 	a.searchOpen = false
+	// Drop queued grid covers before the room's scripts load, so workers do
+	// not decode hidden covers during its first callbacks. queueVisibleWork
+	// repeats this each frame for the other paths that put a room on screen.
+	a.dropHiddenGridWorkLocked()
 	inst, err := a.newRoomInstanceLocked(pack, initialGameID, initialCoreID...)
 	if err != nil {
 		a.roomErr = err.Error()

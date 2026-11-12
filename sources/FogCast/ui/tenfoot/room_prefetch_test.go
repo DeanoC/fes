@@ -85,6 +85,11 @@ func TestOpenRoomDropsQueuedGridCoverWork(t *testing.T) {
 		app.mu.Unlock()
 		t.Fatalf("room did not open: %s", app.roomErr)
 	}
+	// Opening the room drops the queued grid cover itself, before any frame.
+	if _, busy := app.inflight[mario.ID]; busy {
+		app.mu.Unlock()
+		t.Fatal("opening the room kept the hidden grid cover inflight")
+	}
 	app.mu.Unlock()
 	t.Cleanup(func() {
 		app.mu.Lock()
