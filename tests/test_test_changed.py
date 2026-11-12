@@ -50,7 +50,7 @@ class TestChangedTest(unittest.TestCase):
         targets = [c["argv"][1] for c in result["commands"]
                    if c["lane"] == "fpga" and c["argv"][0] == "make"]
         self.assertEqual(set(targets), {"sim-fes-z80", "sim-fes-sg1000", "sim-fes-sg1000-oss",
-                                        "sim-fes-sg1000-rom-link", "sim-fes-sg1000-gp-audio",
+                                        "sim-fes-sg1000-rom-link", "sim-fes-sg1000-gp-audio", "sim-fes-sg1000-gp-media",
                                         "sim-fes-spectrum", "sim-fes-zx81"})
         self.assertEqual({lane for lane, enabled in result["impact"]["lanes"].items() if enabled},
                          {"parent", "fpga"})
@@ -299,7 +299,7 @@ class TestChangedTest(unittest.TestCase):
                                       "sim-fes-native-video", "sim-fes-coleco-native",
                                       "sim-fes-native-socket", "sim-fes-coleco-session",
                                       "sim-fes-sg1000-oss", "sim-fes-sg1000-rom-link",
-                                      "sim-fes-sg1000-gp-audio",
+                                      "sim-fes-sg1000-gp-audio", "sim-fes-sg1000-gp-media",
                                       "sim-fes-sms", "sim-fes-sms-oss"})
 
     def test_staged_and_untracked_changes_are_included_without_mutation(self):
