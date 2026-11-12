@@ -1,0 +1,30 @@
+One-line mutants of #1730's RTL, each built from a scratch copy of the RTL at
+97c61954d and run through FES_I386_MODE=pmode (726 cases) and
+FES_I386_MODE=paging (148 cases). The unmutated RTL passes all of them.
+Each line gives the mutant and its change, then its failures (all of them
+#1730 cases; paging fails none).
+
+m1-gate      fes_i386_cpu.sv CHK_GATE: exc_active || m1_s.uop.ice -> exc_active (ICEBP's gate checked against CPL)
+             pmode 12 fail
+m2-ext       fes_i386_cpu.sv: wb_nested <= exc_busy || ex_out.uop.ice -> exc_busy (no EXT in ICEBP's faults)
+             pmode 4 fail
+m3-gd        fes_i386_cpu.sv: ICEBP's first uop no longer clears DR7.GD
+             pmode 3 fail
+m4-ice       fes_i386_decode.sv: ice = b0 == 8'hf1 -> 0 (ICEBP as INT 1 n)
+             pmode 17 fail
+m5-opsize    fes_i386_decode.sv: opsize32 without F1h (32-bit slots in real mode under 66h)
+             pmode 1 fail
+m6-umov-dir  fes_i386_decode.sv: m_in_a = !b0m[1] -> !b0[1] (UMOV's operand order)
+             pmode 12 fail
+m7-umov-len  fes_i386_oplen.sv: 0F 10-13 without a ModRM (UMOV's length)
+             pmode 37 fail
+m8-tr-wr     fes_i386_cpu.sv: MOV TRn, r32 writes nothing
+             pmode 8 fail
+m9-tr-rd     fes_i386_cpu.sv: SYS_RD_TR6 reads TR7
+             pmode 6 fail
+m10-tr-priv  fes_i386_decode.sv: priv_op without 0F 24/26 (no #GP(0) above CPL 0)
+             pmode 12 fail
+m11-tr-mem   fes_i386_decode.sv: TR4-TR7 with a memory ModRM #UD (#1728's rule)
+             pmode 5 fail
+m12-tr-imm   fes_i386_decode.sv: imm = {28'd0, 1'b1, reg_f} -> {29'd0, reg_f} (MOV TRn writes DR4-DR7)
+             pmode 8 fail
