@@ -433,9 +433,9 @@ EOF
       printf '%s\n' 'verify-target-image: bluetooth storage is not the ext4 appliance data link' >&2
       exit 1
     }
-    machine_id_link=$(readlink "$root/var/lib/dbus/machine-id" || true)
-    [ -L "$root/var/lib/dbus/machine-id" ] && [ "$machine_id_link" = /run/dbus/machine-id ] || {
-      printf '%s\n' 'verify-target-image: dbus machine id is not the volatile link' >&2
+    dbus_link=$(readlink "$root/var/lib/dbus" || true)
+    [ -L "$root/var/lib/dbus" ] && [ "$dbus_link" = ../../run/dbus ] || {
+      printf '%s\n' 'verify-target-image: dbus directory is not the volatile link' >&2
       exit 1
     }
     (cd "$root/lib/firmware/rtl_bt" && /usr/bin/sha256sum -c "$repo/firmware/rtl_bt/SHA256SUMS") >/dev/null

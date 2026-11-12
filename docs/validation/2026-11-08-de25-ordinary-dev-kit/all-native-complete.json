@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "boot_id": "bd1544c0-9143-48a3-b43d-fc47860824a6",
+  "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+  "generation": 1,
+  "idle_and_active_OS_reboots": true,
+  "post_reboot_ordinary_relaunch": true,
+  "physical_USB_P_print": true,
+  "physical_F12_Escape_session_preserved": true,
+  "Stop_MENU_idle_free": true,
+  "same_card_kernel_root_FIT_QSPI": true,
+  "expansions_unsupported_default_off": true,
+  "waiver_issue": 1568,
+  "main_baseline_promoted": false
+}

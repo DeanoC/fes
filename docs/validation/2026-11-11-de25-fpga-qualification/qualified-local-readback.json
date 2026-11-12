@@ -1,0 +1,22 @@
+{
+  "checkout_revision": "126ef1b9d24a5993c4215313a159daa881ca5c7b",
+  "original_producer": "25bc6ef78e4147497800a0e2b491f51d26902107",
+  "roles": {
+    "menu": {
+      "package_id": "a5b65ea89789fca7e6416bb0a8099ad76799016a074f021f1cccf2d4b557c559",
+      "archive_sha256": "991b73fe558d8444deeae4f0a05ae3e702a73e74aec74cf6bffa74d9cc29a042",
+      "build_record_sha256": "ccc4172c7970bec795cd3407c868fa833bf34d58b1171165d79249001595d503",
+      "source_inputs_checked": 74,
+      "source_inputs_match": true
+    },
+    "zx81": {
+      "package_id": "e873bc2e20097c6c3250b087cf9c522581ee4a0e4140ba2dcf1d1220e45aad0b",
+      "archive_sha256": "a4c67c61703ef09fef8cab11087c16b769d408fea7fa23d00a44be12c9d2bb69",
+      "build_record_sha256": "aa3fbb8000ed88a656b51bb050e7afe05eb8288fdbb48fca233f9b1c51527ec8",
+      "source_inputs_checked": 143,
+      "source_inputs_match": true
+    }
+  },
+  "directory_archive_reader_equivalence": true,
+  "hardware": "not-run"
+}

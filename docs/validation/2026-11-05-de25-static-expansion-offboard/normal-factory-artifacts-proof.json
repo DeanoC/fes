@@ -1,0 +1,76 @@
+{
+  "source": "f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b",
+  "runtime_source": "5bf7346481ca2fad27c096da42962086c336177f",
+  "hardware_acceptance": false,
+  "normal_static_package_admission": false,
+  "inputs": {
+    "mister-agent": {
+      "source_revision": "f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b",
+      "sha256": "e5d129b1427d006f3539cb2ad1925bbb59cc043047178d331611205edebc0a17",
+      "producer_path": "/home/deano/fes/out/dev/de25-static-expansion-kernel/out/work/de25-linux-f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b/out/work/de25-linux-f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b/sources/FogCast/bin/mister-agent-linux-aarch64"
+    },
+    "mister-runtime": {
+      "source_revision": "5bf7346481ca2fad27c096da42962086c336177f",
+      "sha256": "bc2b751968bc96b4a21aeb133ade5edf432ff95504502c7e7461e1588d4c8a2c",
+      "producer_path": "/data/fes-de25-main-integration-20261105/static-default-runtime-probe-job/payload/bin/mister-runtime"
+    },
+    "fogcast-kit": {
+      "source_revision": "f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b",
+      "sha256": "38c993f70033f69fb322f2bc41ba80f06fc6fc62644a268d175c2c40866acaf6",
+      "producer_path": "/home/deano/fes/out/dev/de25-static-expansion-kernel/out/work/de25-linux-f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b/out/work/de25-linux-f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b/sources/FogCast/bin/fogcast-kit-linux-aarch64"
+    },
+    "fogcast-tenfoot": {
+      "source_revision": "f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b",
+      "sha256": "86125efe14950246d0e4b2f2c93b29ffc43174ed6fe79f12756b6bc810e9a318",
+      "producer_path": "/home/deano/fes/out/dev/de25-static-expansion-kernel/out/work/de25-linux-f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b/out/work/de25-linux-f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b/sources/FogCast/bin/fogcast-tenfoot-linux-aarch64"
+    },
+    "fes-kit-data": {
+      "source_revision": "f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b",
+      "sha256": "e68d338a9b4f4aab51d2b2653d32b03a1b5aab0c20f44b75050a1e8af78d77b8",
+      "producer_path": "/home/deano/fes/out/dev/de25-static-expansion-kernel/out/work/de25-linux-f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b/out/work/de25-linux-f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b/sources/FogCast/bin/fes-kit-data-linux-aarch64"
+    },
+    "fes-kit-software": {
+      "source_revision": "f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b",
+      "sha256": "89a66c80a9d3c3aa03e682cc45d737af5ff2fb666a137036cc0c114a4b2409c6",
+      "producer_path": "/home/deano/fes/out/dev/de25-static-expansion-kernel/out/work/de25-linux-f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b/out/work/de25-linux-f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b/sources/FogCast/bin/fes-kit-software-linux-aarch64"
+    }
+  },
+  "status": "passed",
+  "artifacts": {
+    "format": 1,
+    "board": "de25-nano",
+    "architecture": "aarch64",
+    "provenance": {
+      "fogcast": "f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b",
+      "runtime": "5bf7346481ca2fad27c096da42962086c336177f"
+    },
+    "binaries": {
+      "mister-agent": "e5d129b1427d006f3539cb2ad1925bbb59cc043047178d331611205edebc0a17",
+      "mister-runtime": "bc2b751968bc96b4a21aeb133ade5edf432ff95504502c7e7461e1588d4c8a2c",
+      "fogcast-kit": "38c993f70033f69fb322f2bc41ba80f06fc6fc62644a268d175c2c40866acaf6",
+      "fogcast-tenfoot": "86125efe14950246d0e4b2f2c93b29ffc43174ed6fe79f12756b6bc810e9a318",
+      "fes-kit-data": "e68d338a9b4f4aab51d2b2653d32b03a1b5aab0c20f44b75050a1e8af78d77b8",
+      "fes-kit-software": "89a66c80a9d3c3aa03e682cc45d737af5ff2fb666a137036cc0c114a4b2409c6"
+    },
+    "packages": [
+      {
+        "selection": {
+          "format": 2,
+          "kind": "core-package",
+          "core_id": "fes.menu",
+          "package_id": "d6b146c6de0771a2625abc68a78bfa2f11c06f1c5dcbba83b44a2ef9cadc13d7",
+          "payload_sha256": "64ee7cfca663ad0d2f864488b88a6f78644b1ec97ed0b2ba8e2b5a54a78f5dcc",
+          "misteross_revision": "d611450df1a33c43c41d754a4bbe4bf83556b311",
+          "mister_packages_revision": "d611450df1a33c43c41d754a4bbe4bf83556b311",
+          "install_path": "/usr/share/mister-runtime/core-packages/d6b146c6de0771a2625abc68a78bfa2f11c06f1c5dcbba83b44a2ef9cadc13d7"
+        },
+        "selection_sha256": "4d7e1481e3348ffbf98eb7d9251552f86fbd2f43e2d287fe563fb77d78b5444e",
+        "manifest_sha256": "764b850c331c124370e971e683055eba4a165df24583549b04702a15a301ff47",
+        "core_rbf_sha256": "64ee7cfca663ad0d2f864488b88a6f78644b1ec97ed0b2ba8e2b5a54a78f5dcc"
+      }
+    ]
+  },
+  "menu_original_record_sha256": "dfa06dd17e915b472f6716b2c52ed8be3159c37db94ca55f51b681e905fab89d",
+  "selection_sha256": "4d7e1481e3348ffbf98eb7d9251552f86fbd2f43e2d287fe563fb77d78b5444e",
+  "artifacts_sha256": "c9efed9242ac28e50380fc574918d535e7b23df83cb9880c1e396e85ef44dea3"
+}

@@ -1,0 +1,59 @@
+{
+  "head": "53f7f2ef6436939b8c21c65449a5444b76acec67",
+  "job": 128775845338,
+  "failed_test": "RecipeTests.test_combined_client_proof_receipt_matches_captured_sources",
+  "old_fixture_sha256": "707328c7831a8a33d1a55eff529e265c348c70e9a6f3c88e51abecf5c9ac948a",
+  "old_fixture_source_revision": "7f9b2a0d19a7c03a490775a5ab08820884a424cb",
+  "changed_runtime_capture": {
+    "sources/libmister-runtime/src/native/linux/de25_fpga_manager.hpp": {
+      "recorded": "d6f014b60cb37f5c9c5b98d913f6c511686804e0232a88eafa57dbb6a1560df0",
+      "current": "1721f1bb973cf7c1348009129146482f28cff56c456f5c902bbb83ffc1753c43"
+    }
+  },
+  "old_receipt_retained": true,
+  "guard_will_remain_strict": true,
+  "resolution": {
+    "status": "passed",
+    "source_revision": "53f7f2ef6436939b8c21c65449a5444b76acec67",
+    "cases": 14,
+    "semantic_results_equal_prior": true,
+    "fixture_sha256": "185d211029eb471b80044fec21a08220714b6f52d67926166f7d09cb303ad270",
+    "old_proof_retained": true,
+    "hardware": "not-run",
+    "guard_relaxed": false
+  },
+  "proof_argv": [
+    "python3",
+    "/home/deano/fes/out/dev/de25-linux-platform/sources/misteross/boards/de25nano/link-proof/zx81-computer/proof.py",
+    "--output",
+    "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/producer-ci-53f7/current-proof",
+    "--builder-image",
+    "sha256:a58c3939121c5871f55addcea2f6701163a71d0aa2e9df4a288abab397bcf5ec",
+    "--sdk-volume",
+    "fes-de25-combined-proof-0c1694fd4",
+    "--sdk-cxx",
+    "/build/sdk/bin/aarch64-buildroot-linux-gnu-g++",
+    "--qemu",
+    "/data/fes-de25-main-integration-20261105/openrom-sdk-job/qemu-aarch64-static"
+  ],
+  "actual_proof_job": {
+    "state": "completed",
+    "pid": 2909429,
+    "elapsed_seconds": 387.5,
+    "source_head": "53f7f2ef6436939b8c21c65449a5444b76acec67",
+    "no_board_access": true,
+    "returncode": 0
+  },
+  "focused_recipe_tests": {
+    "command": "python3 -m unittest build_test -v",
+    "cwd": "sources/misteross/boards/de25nano/link-proof",
+    "tests": 22,
+    "returncode": 0
+  },
+  "fixture": "sources/misteross/tests/fixtures/de25-combined-proof.json",
+  "physical_board_or_persona_programming": false,
+  "runtime_kernel_RBF_or_shared_contract_changed": false,
+  "CPU_client_binaries_byte_identical_to_prior": true,
+  "prior_head_CI_runtime": "success",
+  "prior_head_integration_failure_is_producer_aggregate": true
+}

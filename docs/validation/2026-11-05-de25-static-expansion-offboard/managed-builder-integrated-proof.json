@@ -1,0 +1,13 @@
+{
+  "tested_source_archive_revision": "f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b",
+  "test_job": "/data/fes-de25-main-integration-20261105/managed-locked-builder-preparation-job/job.json",
+  "test_elapsed_seconds": 38.836,
+  "files": {
+    "image/de25-nano/managed_boot.py": "101527795de284e19d33d63d3b4b8365661237bc27ae1d342469808b2a5a2363",
+    "image/de25-nano/managed_factory.py": "8de6a972bcdcdb06475d5b0015ca731e6a3de8d2db50e73aa5863502f5e872b4",
+    "tests/test_de25_managed_factory.py": "7685f36da782e8f89421eb6a8863e97f2b2e729c0591f71686aaf2764d491ade",
+    "tests/test_de25_managed_boot.py": "78ca5b5dcb4c3a37ce3a6b5935a464ad03bb294875f857f3ae479b0a3374d743",
+    "docs/de25-linux.md": "a5ac09e84adb70791398d831ad3ebfee789fb1cae46499550c224c56f99b2afa"
+  },
+  "source_files_byte_identical_to_tested_candidate": true
+}

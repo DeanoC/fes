@@ -1,0 +1,35 @@
+{
+  "classification": "offboard kernel/config/linkage verification",
+  "hardware_acceptance": "not-run",
+  "image_sha256": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b",
+  "kernel_config_sha256": "2395baf1c813f4b2c18f5069f8df32bf4ffc38914b9e48fcf68ef5d82a15d467",
+  "kernel_notes_sha256": "47b21fcf0a7a63b0ed940efe53c6f39daea8eddd8299539d71ecb731c0adaf34",
+  "kernel_producer": "59d3b43997b5827dda55125f0f651248a51e6ebf",
+  "required_builtins": {
+    "BT": true,
+    "BT_BCM": true,
+    "BT_BREDR": true,
+    "BT_HCIBTUSB": true,
+    "BT_HCIBTUSB_BCM": true,
+    "BT_HCIBTUSB_RTL": true,
+    "BT_HIDP": true,
+    "BT_INTEL": true,
+    "BT_LE": true,
+    "BT_RFCOMM": true,
+    "BT_RFCOMM_TTY": true,
+    "BT_RTL": true,
+    "HID_GENERIC": true,
+    "INPUT_EVDEV": true,
+    "INPUT_UINPUT": true,
+    "RFKILL": true,
+    "UHID": true,
+    "USB_HID": true
+  },
+  "required_linked_symbols": {
+    "btusb_probe": true,
+    "hci_register_dev": true,
+    "rfkill_register": true,
+    "uhid_misc_init": true,
+    "uinput_misc_init": true
+  }
+}

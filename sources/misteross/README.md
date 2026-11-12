@@ -131,9 +131,40 @@ acceptance require the configured Pro installation and a DE25-Nano board.
 
 The board definition lives in
 [`mister-packages`](../mister-packages/packages/board/de25_nano.yaml).
+The separate canonical DE25 MENU producer shares the four bridge FIFOs'
+five-edge reset releases through one flag pipeline per receiving clock; each
+FIFO side keeps its local parent as its sole asynchronous functional reset. It checks
+and retains the eleven exact generated inputs and verifies the derived wiring
+before and after compilation. Existing reset SDCs stay unchanged. This source
+repair does not close the remaining reset or HDMI signoff findings; package
+and native acceptance remain separate gates.
+The canonical standard ZX81 producer is `boards/de25nano/producers/build_zx81_package.py`.
+It selects the shared computer core, 16 KiB internal RAM, allocated session
+display and fixed audio under `de25-linux-computer-v1`. The board recipe binds
+actual Quartus tools and source before generation, keeps scanout as the sole
+fabric memory initiator and verifies the generated topology before and after
+compilation. Package export requires complete numerical/signoff coverage,
+fresh fitted input/output-reference review and an independently identical RBF.
+Compile-only retains an unadmitted candidate; native catalog acceptance remains
+separate. The standalone BRAM maintenance recipe remains diagnostic.
+
+The explicit `--static-expansion` variant also requires `--placement` and
+`--routing`. It compiles the base and empty/16K personas with independent
+controller and package identities and sealed fitted root/POF bindings. All
+three revisions must pass all 88 raw signoff rules and independent RBF equality
+before format5 export. It inherits no internal16K timing exceptions. Current
+live-audio/reset findings still block static package and partial-asset
+publication; runtime dispatch remains an explicit qualification build.
+Both canonical DE25 producers accept `--license-file /absolute/license.dat`
+for an existing local Quartus license. They copy it into the private build
+home, use that same snapshot for both fits and bind its hash and size to the
+recorded execution inputs. Temporary home paths are normalized; license
+contents are not published. Ambient license/server variables remain excluded.
+The option changes no timing, independent rebuild or package admission gate.
 The existing DE10-Nano producers, package admission and Quartus 17.0.2
-oracles retain their current target. DE25-Nano HPS, boot media, runtime,
-HDMI and memory integration are not implemented by this diagnostic.
+oracles retain their current target. The standalone clock/LED diagnostic does
+not implement the managed Linux/core lifecycle; see the FES
+[DE25 integration guide](../../docs/de25-linux.md) for that path.
 
 The original RV32I CPU in `cores/fes-common/rtl/riscv` is the first-party
 RISC-V lane; `make sim-fes-riscv` checks it against an independent model and

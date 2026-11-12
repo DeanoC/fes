@@ -1,0 +1,9 @@
+{"state": "running", "container": "fes-de25-owner-zx81-client-d2012e3ac", "pid": 599382, "time_cap_seconds": 240, "elapsed_seconds": 0.0, "heartbeat_utc": "2026-10-31T18:14:24.932448+00:00", "returncode": null}
+Relocating the buildroot SDK from /build/74e9849d7fe0cb2504cb8fb2db0fb6150f57a0edf72c47bff7cdbce069e2607f/host to /tmp/sdk ...
+make: Entering directory '/src/sources/libmister-runtime'
+/tmp/sdk/bin/aarch64-buildroot-linux-gnu-g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -O2 -std=c++14 -Wall -Wextra -Werror -pthread -static tools/de25_computer_client.cpp src/native/de25_computer.cpp src/native/linux/mmio.cpp -o /export/native/tools/de25-computer
+make: Leaving directory '/src/sources/libmister-runtime'
+de25-computer BOOT_UUID BUILD_ID CPU_BASE probe|hold|run|reset|keys|media [ARGUMENT]
+Explicit maintenance of an already loaded image; no FPGA programming or daemon admission.
+ZX81_OWNER_KERNEL_CLIENT_BUILD_PASS
+{"state": "passed", "container": "fes-de25-owner-zx81-client-d2012e3ac", "pid": 599382, "time_cap_seconds": 240, "elapsed_seconds": 5.5, "heartbeat_utc": "2026-10-31T18:14:30.413173+00:00", "returncode": 0}

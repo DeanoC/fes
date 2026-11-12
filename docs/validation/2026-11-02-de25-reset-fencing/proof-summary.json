@@ -1,0 +1,155 @@
+{
+  "FPGA_producer_revision": "72716153eb7be7b62917ed685d5d7380347a2d7d",
+  "RDC_50003_closed": false,
+  "checkpoint_probe": {
+    "RDC_50003_closed": false,
+    "classification": "Private complete-state checkpoint acceleration probe; not full matrix or hardware qualification",
+    "complete_host_members": [
+      "pending",
+      "endpoint_expected",
+      "time",
+      "next_mem",
+      "next_pixel",
+      "mem_cycles",
+      "pixel_cycles",
+      "response_latency",
+      "max_pending_axi",
+      "base",
+      "generation",
+      "pixel_stopped",
+      "hold_responses",
+      "holding_response",
+      "mem_rise",
+      "accepted_control",
+      "control_response",
+      "control_data",
+      "injected_response",
+      "error_beats",
+      "endpoint_error_beats",
+      "axi_bursts",
+      "axi_beats",
+      "endpoint_beats",
+      "ar_stalls",
+      "r_stalls",
+      "visible_index",
+      "visible_slot",
+      "complete_frames",
+      "frames_at_accept",
+      "observed_accepted",
+      "observed_displayed",
+      "check_pixels",
+      "ar_stalled",
+      "ram_storage_self_test_passed",
+      "held_ar"
+    ],
+    "executable_sha256": "cb75977000874345b543dffa7668de217177d7ed5e009896c401731ec7e05fd8",
+    "hardware_access": "not-performed",
+    "negative_checkpoint": "pass: complete host-state corruption rejected",
+    "negative_release_monitor": "pass: requested delay1/actual0 rejected",
+    "parent_receipt_sha256": "8a007781ae65a1721714cc96a24e70d4d18e8d67d199a829a4fb8eeea551c8ec",
+    "probe_cases": 16,
+    "production_RTL_changed": false,
+    "protected_inputs_unchanged": true,
+    "status": "pass"
+  },
+  "classification": "Finite actual board/generated transport RTL with modeled PLL/HDMI/M20K/AXI; no physical reset, native ownership or recovery acceptance",
+  "current_baselines": {
+    "board32_and_negative_control": {
+      "cases": 32,
+      "job_seconds": 148.5,
+      "receipt_sha256": "8a007781ae65a1721714cc96a24e70d4d18e8d67d199a829a4fb8eeea551c8ec",
+      "status": "pass"
+    },
+    "startup72": {
+      "cases": 72,
+      "job_seconds": 14.3,
+      "receipt_sha256": "df4d2b3ce6a4f315f95561db8899d3094edd6e6909a2500a9f4f864eb477a219",
+      "status": "pass"
+    }
+  },
+  "fitted_queries": {
+    "complete49_register_query": {
+      "job_seconds": 9.1,
+      "status": "pass"
+    },
+    "controller_epoch_graph": {
+      "job_seconds": 9.5,
+      "status": "pass"
+    },
+    "reverse_consumer_query": {
+      "job_seconds": 9.5,
+      "status": "pass"
+    }
+  },
+  "full_matrix": {
+    "FPGA_producer_revision": "72716153eb7be7b62917ed685d5d7380347a2d7d",
+    "RDC_50003_closed": false,
+    "cases": 131072,
+    "checkpoint_classes": 65,
+    "classification": "Finite twelve-chain 0/1-cycle release matrix, actual board/generated transport with modeled PLL/HDMI/M20K/AXI and checked complete-state checkpoint reuse",
+    "delay_choices_receiving_cycles": [
+      0,
+      1
+    ],
+    "elapsed_seconds": 2193.944,
+    "executable_sha256": "cb75977000874345b543dffa7668de217177d7ed5e009896c401731ec7e05fd8",
+    "global_boot_recovery_acceptance": false,
+    "global_reset_with_external_reads_cases": 65536,
+    "hardware_access": "not-performed",
+    "independent_chains": 12,
+    "independently_validated_classes": 64,
+    "native_ownership_acceptance": false,
+    "phases": [
+      1,
+      17,
+      296,
+      297,
+      399,
+      400,
+      593,
+      799
+    ],
+    "physical_metastability_model": false,
+    "probe_receipt_sha256": "f618e76f7bce2f32c0f07e82aeb8dfcb98144684b75a07c9f9fcd6c59d65696b",
+    "production_RTL_changed": false,
+    "protected_inputs_unchanged": true,
+    "restored_cases": 130943,
+    "status": "pass"
+  },
+  "full_matrix_receipt_sha256": "6bb27957b0e53acc01b13b4af2ee1570c91d7246b11a4bad36837fc30db71044",
+  "hardware_access": "not-performed",
+  "package_timing_admission": false,
+  "production_RTL_changed": false,
+  "retained_failed_attempts": [
+    {
+      "name": "initial_missing_SV_VH_inputs",
+      "returncode": 1,
+      "seconds": 0.2,
+      "state": "failed"
+    },
+    {
+      "name": "changed_private_report_cache_guard",
+      "returncode": 1,
+      "seconds": 0.3,
+      "state": "failed"
+    },
+    {
+      "name": "deliberately_stopped_slow_full_sweep",
+      "returncode": -15,
+      "seconds": 686.6,
+      "state": "failed"
+    },
+    {
+      "cause": "Forward -synch traversal did not provide the requested data edge. Use the independently collected reverse endpoint query; do not infer absence from that empty filtered forward traversal.",
+      "command": [
+        "python3",
+        "out/de25-reset-fencing-7246fac72/analyse.py"
+      ],
+      "error": "AssertionError at assert qualifier_first_lock, line111",
+      "hardware_access": "not-performed",
+      "source_sha256": "281752d2e6aca56340a60eb1803aa1f8d1ac33be7fda657a02ddeaf8ec0d7e1f",
+      "status": "failed"
+    }
+  ],
+  "source_before_record": "7246fac729202c70a1adc255be8d2f57054cca35"
+}

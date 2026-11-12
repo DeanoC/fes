@@ -1,0 +1,7 @@
+{
+  "classification": "off-board candidate structural verification",
+  "hardware_boot": "not-run",
+  "image_sha256": "c1bc63c5cdc420584c320dc01328fd53b8fe70762a0e851e0ebee3a84ccb56ab",
+  "normal_runtime_admission": "closed",
+  "reproducibility": "two identical assemblies"
+}

@@ -1,0 +1,55 @@
+{
+  "classification": "actual init/write/complete functions; injected service and clock",
+  "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "manager": {
+    "before_sha256": "26a525c7138b2dd04735e1cc3b458cec115102a1c00c6c51c4abf4e3ae7b6b44",
+    "after_sha256": "fb8d9aad27bfc618c7919952c2f9aff4a6af5fbb2f2f71e2e6fbb48a3d5c39b9"
+  },
+  "patch_sha256": "e58abfd26c97f6d03490fde48a68a3290b19de9733cc4260e45818ef697227fa",
+  "compiler_command": [
+    "cc",
+    "-std=c11",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "out/de25-retention-lifecycle-proof-v2/retention-test.c",
+    "-o"
+  ],
+  "cases": {
+    "enabled": [
+      "two successful programming cycles release only after completion and join",
+      "init failure 1 retains locks and rejects a fresh caller",
+      "init failure 2 retains locks and rejects a fresh caller",
+      "init failure 3 retains locks and rejects a fresh caller",
+      "data failure retains kernel state and rejects complete/retry",
+      "completion failure 5 retains uncertainty without a clear path",
+      "completion failure 6 retains uncertainty without a clear path",
+      "completion failure 7 retains uncertainty without a clear path",
+      "completion failure 8 retains uncertainty without a clear path",
+      "completion failure 9 retains uncertainty without a clear path",
+      "completion failure 10 retains uncertainty without a clear path",
+      "completion failure 11 retains uncertainty without a clear path",
+      "completion failure 12 retains uncertainty without a clear path",
+      "validation before a request leaves an untouched manager reusable"
+    ],
+    "disabled": [
+      "two successful programming cycles release only after completion and join"
+    ]
+  },
+  "control": "original manager permits retry after failed init; expected assertion",
+  "hardware_access": false,
+  "dma_fence": false,
+  "secure_call_return": "not-established",
+  "sha256": {
+    "enabled.log": "9107ad9ff8318d63636d9789b269ccf05c1190d52199e34b4e9d7128b25db6f2",
+    "retention-disabled": "f9457fa52bb30af3fb37c8517c05893038eb52960eb53bdc1cc4eacb04fc1d6f",
+    "disabled.log": "3501c3df846ab40feeb94d847eb5b9a9318cd21383d370257e2ba08e6137de14",
+    "retention-test.c": "e762a6be8bf9d212319c0ccb4d2c0f61282a06bf1b75be61aa7ebb8d2c785d5e",
+    "retention-functions.c": "90b8af6f1f2ae39203675c8902218c995fcec87c2f315843a25aa3ce6da70447",
+    "retention-control": "b4697978d75063514c6b436ee94d3a38b3f25f06f81898fbcb216973a18ce4b0",
+    "retention-enabled": "e9c698077d7e112e2bf75edd01a11f8d72db072eab2ad77b172fc01d504aa348",
+    "control.log": "40988ecfaa6f3b01a3b617fdea293f9e2633b1cfd82004e5c6f9084b1c020b66"
+  }
+}

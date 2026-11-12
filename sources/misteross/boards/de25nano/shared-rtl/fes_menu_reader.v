@@ -5,7 +5,12 @@ module fes_menu_reader #(
     parameter [31:0] WINDOW_BASE = 32'd0,
     parameter [0:0] DYNAMIC_BASE = 1'b0,
     parameter [7:0] MAX_BURST_BEATS = 8'd128,
+    parameter [8:0] MAX_OUTSTANDING_BEATS = 9'd256,
     parameter [0:0] CHECK_RESPONSE = 1'b0,
+    // DE25's short F2SDRAM bursts need independent requests to hide latency.
+    // Defaults retain the existing single-burst behavior on other platforms.
+    parameter [0:0] READ_AHEAD = 1'b0,
+    parameter integer FIFO_ADDR_BITS = 8,
     parameter [0:0] RESET_ABORTS_TRAFFIC = 1'b0
 ) (
     input wire clk,
@@ -29,7 +34,14 @@ module fes_menu_reader #(
     input wire readdatavalid,
     input wire [1:0] response,
     output wire [1:0] memory_errors,
-    output wire [8:0] outstanding_beats
+    output wire [8:0] outstanding_beats,
+    // Observations for the video's first-underflow record. Accepted credit
+    // deliberately excludes a command still held under waitrequest.
+    output wire [FIFO_ADDR_BITS:0] diagnostic_fifo_count,
+    output wire [8:0] diagnostic_accepted_outstanding,
+    output wire [1:0] diagnostic_lane,
+    output wire [15:0] diagnostic_max_response_gap,
+    output wire [15:0] diagnostic_max_held_command_age
 );
     localparam [17:0] FRAME_BEATS = 18'd230400;
     localparam [19:0] LAST_PIXEL = 20'd921599;
@@ -39,17 +51,18 @@ module fes_menu_reader #(
     reg [1:0] latched_memory_errors = 2'b00;
     reg [17:0] issued = 18'd0;
     reg [8:0] outstanding = 9'd0;
-    reg [8:0] count = 9'd0;
-    reg [7:0] head = 8'd0;
-    reg [7:0] tail = 8'd0;
+    localparam [FIFO_ADDR_BITS:0] FIFO_BEATS = 1 << FIFO_ADDR_BITS;
+    reg [FIFO_ADDR_BITS:0] count = 0;
+    reg [FIFO_ADDR_BITS-1:0] head = 0;
+    reg [FIFO_ADDR_BITS-1:0] tail = 0;
     reg [1:0] lane = 2'd0;
     reg [19:0] index = 20'd0;
     reg [127:0] front = 128'd0;
-    (* ramstyle = "M10K" *) reg [127:0] fifo [0:255];
-    wire [7:0] next_head = head + 8'd1;
+    (* ramstyle = "M10K" *) reg [127:0] fifo [0:(1 << FIFO_ADDR_BITS)-1];
+    wire [FIFO_ADDR_BITS-1:0] next_head = head + 1'b1;
     reg [127:0] fifo_peek;
     reg [127:0] last_write_data;
-    reg [7:0] last_write_address;
+    reg [FIFO_ADDR_BITS-1:0] last_write_address;
     reg last_write_valid = 1'b0;
     wire reset_abort = rst && RESET_ABORTS_TRAFFIC;
     // Keep the RAM read register unconditional for synchronous M10K inference.
@@ -78,22 +91,61 @@ module fes_menu_reader #(
     wire consume = pixel_valid && pixel_ready;
     wire pop = consume && lane == 2'd3;
     wire [17:0] remaining = FRAME_BEATS - issued;
+    // Returning beats move from outstanding to FIFO count without consuming
+    // another reservation. Reserve each entire command before asserting read.
+    wire [FIFO_ADDR_BITS+1:0] reserved_beats = {1'b0, count} +
+        {{(FIFO_ADDR_BITS-7){1'b0}}, outstanding};
     wire [27:0] slot_base = selected_window_base[31:4] + (selected_slot ? 28'h0040000 : 28'd0);
     wire [27:0] next_address = slot_base + {10'd0, issued};
     wire [8:0] page_beats = 9'd256 - {1'b0, next_address[7:0]};
     wire [8:0] burst_limit = page_beats < {1'b0, MAX_BURST_BEATS} ?
                             page_beats : {1'b0, MAX_BURST_BEATS};
     wire [7:0] next_burst = remaining >= {9'd0, burst_limit} ? burst_limit[7:0] : remaining[7:0];
+    wire [FIFO_ADDR_BITS+1:0] next_fifo_reservation = {{(FIFO_ADDR_BITS-6){1'b0}}, next_burst};
+    // Keep crossing/response credit bounded independently of buffered pixels.
+    // Reserve the whole next command within the configured nine-bit bound.
+    wire [9:0] next_response_reservation = {1'b0, outstanding} + {2'b00, next_burst};
     wire [32:0] dynamic_window_end = {1'b0, window_base} + 33'h000800000;
     wire window_valid = DYNAMIC_BASE ? window_base_valid && window_base[4:0] == 5'd0 &&
         dynamic_window_end <= 33'h100000000 : WINDOW_BASE != 32'd0 && WINDOW_BASE[3:0] == 4'd0;
-    assign pixel_valid = active && enable && !rst && !memory_fault && count != 9'd0;
+    assign pixel_valid = active && enable && !rst && !memory_fault && count != 0;
     assign pixel_bgrx = front[{lane, 5'b00000} +: 32];
     assign pixel_index = index;
-    assign idle = !active && !read && outstanding == 9'd0 && count == 9'd0;
+    assign idle = !active && !read && outstanding == 9'd0 && count == 0;
     // Include a command held under waitrequest; zero never means that a
     // stalled request may be withdrawn or its backing allocation released.
     assign outstanding_beats = outstanding + (read ? {1'b0, burstcount} : 9'd0);
+
+    // These observers do not control the reader. Include this edge
+    // in the exported maxima, allowing video to capture the fault edge itself.
+    reg [15:0] diagnostic_response_gap = 16'd0;
+    reg [15:0] diagnostic_held_command_age = 16'd0;
+    reg [15:0] diagnostic_response_max = 16'd0;
+    reg [15:0] diagnostic_command_max = 16'd0;
+    wire [15:0] diagnostic_response_next = outstanding != 9'd0 && !readdatavalid ?
+        (diagnostic_response_gap == 16'hffff ? 16'hffff : diagnostic_response_gap + 16'd1) : 16'd0;
+    wire [15:0] diagnostic_command_next = read && waitrequest ?
+        (diagnostic_held_command_age == 16'hffff ? 16'hffff : diagnostic_held_command_age + 16'd1) : 16'd0;
+    assign diagnostic_fifo_count = count;
+    assign diagnostic_accepted_outstanding = outstanding;
+    assign diagnostic_lane = lane;
+    assign diagnostic_max_response_gap = diagnostic_response_next > diagnostic_response_max ?
+        diagnostic_response_next : diagnostic_response_max;
+    assign diagnostic_max_held_command_age = diagnostic_command_next > diagnostic_command_max ?
+        diagnostic_command_next : diagnostic_command_max;
+    always @(posedge clk) begin
+        if (rst || (start && idle && window_valid)) begin
+            diagnostic_response_gap <= 16'd0;
+            diagnostic_held_command_age <= 16'd0;
+            diagnostic_response_max <= 16'd0;
+            diagnostic_command_max <= 16'd0;
+        end else begin
+            diagnostic_response_gap <= diagnostic_response_next;
+            diagnostic_held_command_age <= diagnostic_command_next;
+            diagnostic_response_max <= diagnostic_max_response_gap;
+            diagnostic_command_max <= diagnostic_max_held_command_age;
+        end
+    end
 
     always @(posedge clk) begin
         if (reset_abort) begin
@@ -103,9 +155,9 @@ module fes_menu_reader #(
             latched_memory_errors <= 2'b00;
             issued <= 18'd0;
             outstanding <= 9'd0;
-            count <= 9'd0;
-            head <= 8'd0;
-            tail <= 8'd0;
+            count <= 0;
+            head <= 0;
+            tail <= 0;
             lane <= 2'd0;
             index <= 20'd0;
             front <= 128'd0;
@@ -129,19 +181,19 @@ module fes_menu_reader #(
 
             if (push) begin
                 fifo[tail] <= readdata;
-                tail <= tail + 8'd1;
-                if (count == 9'd0 || (count == 9'd1 && pop))
+                tail <= tail + 1'b1;
+                if (count == 0 || (count == 1 && pop))
                     front <= readdata;
             end
             if (pop) begin
-                head <= head + 8'd1;
-                if (count > 9'd1)
+                head <= head + 1'b1;
+                if (count > 1)
                     front <= last_write_valid && last_write_address == next_head ?
                         last_write_data : fifo_peek;
             end
             case ({push, pop})
-                2'b10: count <= count + 9'd1;
-                2'b01: count <= count - 9'd1;
+                2'b10: count <= count + 1'b1;
+                2'b01: count <= count - 1'b1;
                 default: begin end
             endcase
             if (consume) begin
@@ -154,9 +206,9 @@ module fes_menu_reader #(
             end
             if (!enable || rst || memory_fault) begin
                 active <= 1'b0;
-                count <= 9'd0;
-                head <= 8'd0;
-                tail <= 8'd0;
+                count <= 0;
+                head <= 0;
+                tail <= 0;
                 lane <= 2'd0;
             end else if (start && idle && window_valid) begin
                 active <= 1'b1;
@@ -166,10 +218,13 @@ module fes_menu_reader #(
                 index <= 20'd0;
                 lane <= 2'd0;
             end
-            // Reserve FIFO space for the entire next burst. One burst is in flight.
-            if (active && enable && !rst && !memory_fault && !read && outstanding == 9'd0 &&
+            // A held command cannot be replaced. In read-ahead mode all
+            // accepted commands plus this command still fit in the FIFO,
+            // including cancellation while responses remain in flight.
+            if (active && enable && !rst && !memory_fault && !read && (READ_AHEAD || outstanding == 9'd0) &&
                 issued < FRAME_BEATS && next_burst != 8'd0 && MAX_BURST_BEATS <= 8'd128 &&
-                count <= 9'd256 - {1'b0, next_burst}) begin
+                reserved_beats <= {1'b0, FIFO_BEATS} - next_fifo_reservation &&
+                next_response_reservation <= {1'b0, MAX_OUTSTANDING_BEATS}) begin
                 read <= 1'b1;
                 address <= next_address;
                 burstcount <= next_burst;

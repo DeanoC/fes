@@ -1,0 +1,16 @@
+{
+  "classification": "actual capture/arm RTL control cone, shared arbitrary pending cutpoint overapproximates ownership feedback; two-state inputs, async2sync reset model, single system-clock step. No pixel/raster/physical reset equivalence claim",
+  "source_revision": "9bab7606c732edda84358679cbe74b673bcd892a",
+  "original_sha256": "2e48ac6620e7e5c319274dfc4b67b7afaf74c2dd6ffb820d567b7a1aa4df0dc2",
+  "candidate_sha256": "21f8abf7f56b82629a0b190bd9229c2ca127152b4f26529b923e60346f2c7459",
+  "compared_bits": 2,
+  "signals": {
+    "capturing": 1,
+    "armed": 1
+  },
+  "proof": "read_verilog -formal -sv gold.v gate.v miter.v; prep -top miter -flatten; opt; async2sync; opt; sat -verify -prove equal 1 -tempinduct -seq 4 -maxsteps 8 -timeout 60 -show-inputs -show-outputs",
+  "returncode": 0,
+  "hardware_access": "not-performed",
+  "yosys_sha256": "88c0a12bb814a1a8716b1ae10b482e35d3005ed558e1f5f626b3dc983ea3abd0",
+  "previous_attempts": "Tool undef assertion and full multiclock induction refusals retained. No design counterexample produced in initialized base cases."
+}

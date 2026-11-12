@@ -53,7 +53,8 @@ func TestReadyListsFamiliesAndPublishesFinishAndBack(t *testing.T) {
 		machineEntry("zx81", "fes.zx81", ""), titleEntry("zx81-a", "fes.zx81"),
 		machineEntry("c64", "fes.c64", "rom"),
 	}}}
-	r := newRoom(t, examplePack(t, "example.setup-ready"), Options{Services: svc, ReleaseOnly: true, Setup: Setup{Step: 2, Steps: 2, Skipped: []string{"folders"}}})
+	svc.computers = []hostclient.ShelfComputer{computerEntry("zx81", "fes.zx81", "")}
+	r := newRoom(t, examplePack(t, "example.setup-ready"), Options{Services: svc, Local: &fakeLocalCores{cores: []localcores.Core{{CoreID: "fes.c64", Needs: "firmware"}}}, ReleaseOnly: true, Setup: Setup{Step: 2, Steps: 2, Skipped: []string{"folders"}}})
 	if err := r.Load(); err != nil {
 		t.Fatal(err)
 	}

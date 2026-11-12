@@ -1,0 +1,76 @@
+{
+  "menu": {
+    "path_count": 208,
+    "loads": [
+      "fes_video_inst|HDMI_TX_DE",
+      "fes_video_inst|HDMI_TX_D[0]",
+      "fes_video_inst|HDMI_TX_D[10]",
+      "fes_video_inst|HDMI_TX_D[11]",
+      "fes_video_inst|HDMI_TX_D[12]",
+      "fes_video_inst|HDMI_TX_D[13]",
+      "fes_video_inst|HDMI_TX_D[14]",
+      "fes_video_inst|HDMI_TX_D[15]",
+      "fes_video_inst|HDMI_TX_D[16]",
+      "fes_video_inst|HDMI_TX_D[17]",
+      "fes_video_inst|HDMI_TX_D[18]",
+      "fes_video_inst|HDMI_TX_D[19]",
+      "fes_video_inst|HDMI_TX_D[1]",
+      "fes_video_inst|HDMI_TX_D[20]",
+      "fes_video_inst|HDMI_TX_D[21]",
+      "fes_video_inst|HDMI_TX_D[22]",
+      "fes_video_inst|HDMI_TX_D[23]",
+      "fes_video_inst|HDMI_TX_D[2]",
+      "fes_video_inst|HDMI_TX_D[3]",
+      "fes_video_inst|HDMI_TX_D[4]",
+      "fes_video_inst|HDMI_TX_D[5]",
+      "fes_video_inst|HDMI_TX_D[6]",
+      "fes_video_inst|HDMI_TX_D[7]",
+      "fes_video_inst|HDMI_TX_D[8]",
+      "fes_video_inst|HDMI_TX_D[9]",
+      "fes_video_inst|hdmi_active"
+    ],
+    "minimum_recovery_ns": "11.910",
+    "minimum_removal_ns": "0.224",
+    "reports_sha256": {
+      "reset-paths.tsv": "21e17fcb98f601b387df83d9b74089415c2217eef609a83af0bbfa0c23f473eb",
+      "reset-inventory.tsv": "da7efecb85c6db0354645a9405879035a8f48375fbf1cdeea84537cabcba81ec"
+    }
+  },
+  "zx81": {
+    "path_count": 208,
+    "loads": [
+      "fes_video_inst|HDMI_TX_DE",
+      "fes_video_inst|HDMI_TX_D[0]",
+      "fes_video_inst|HDMI_TX_D[10]",
+      "fes_video_inst|HDMI_TX_D[11]",
+      "fes_video_inst|HDMI_TX_D[12]",
+      "fes_video_inst|HDMI_TX_D[13]",
+      "fes_video_inst|HDMI_TX_D[14]",
+      "fes_video_inst|HDMI_TX_D[15]",
+      "fes_video_inst|HDMI_TX_D[16]",
+      "fes_video_inst|HDMI_TX_D[17]",
+      "fes_video_inst|HDMI_TX_D[18]",
+      "fes_video_inst|HDMI_TX_D[19]",
+      "fes_video_inst|HDMI_TX_D[1]",
+      "fes_video_inst|HDMI_TX_D[20]",
+      "fes_video_inst|HDMI_TX_D[21]",
+      "fes_video_inst|HDMI_TX_D[22]",
+      "fes_video_inst|HDMI_TX_D[23]",
+      "fes_video_inst|HDMI_TX_D[2]",
+      "fes_video_inst|HDMI_TX_D[3]",
+      "fes_video_inst|HDMI_TX_D[4]",
+      "fes_video_inst|HDMI_TX_D[5]",
+      "fes_video_inst|HDMI_TX_D[6]",
+      "fes_video_inst|HDMI_TX_D[7]",
+      "fes_video_inst|HDMI_TX_D[8]",
+      "fes_video_inst|HDMI_TX_D[9]",
+      "fes_video_inst|hdmi_active"
+    ],
+    "minimum_recovery_ns": "11.722",
+    "minimum_removal_ns": "0.245",
+    "reports_sha256": {
+      "reset-paths.tsv": "de7df2cf530279bbf6a0d52f9bece37facd64146308d7edf9441c8293bdf23b3",
+      "reset-inventory.tsv": "da7efecb85c6db0354645a9405879035a8f48375fbf1cdeea84537cabcba81ec"
+    }
+  }
+}

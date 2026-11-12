@@ -262,6 +262,10 @@ cover. Handles expose `ready`, `w`, `h`, `err`. Draw nothing until `ready`.
 | `library.collections(fn(collections, err))` | `{id, name}` |
 | `library.game(id, fn(game, err))` | one game. A cached list row is returned immediately. When `variant_count` is greater than one and that row has no `variants`, the call loads the detail row so grouped editions are present. |
 
+Home-family response conversion runs in batches; the callback still receives
+one complete result. Home and setup reduce its title counts across bounded
+updates, while machine readiness comes from `hardware.computers` independently.
+
 Game tables: `id, title, system, core_id, package_id, media_id, media_role, genre, year, region, state, series,
 launchable, launch_block, favorite, play_count, last_played_at,
 played, completed, collections, variant_count, expansion_id, expansion_ready,

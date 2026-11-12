@@ -1,0 +1,77 @@
+{
+  "base": "e0fa19cee49558910a4da16cc0dd976cee8e58b2",
+  "commands": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    }
+  ],
+  "elapsed_seconds": 302.4,
+  "hardware_access": false,
+  "log_sha256": "d7ef2e2e2dd91741459230dbd537453d44c5f6dcbf651daffb900487aa416b17",
+  "source_revision": "e06d5e3a1f32170cf6458c172288259baf04aae0",
+  "status": "passed",
+  "unittest_summaries": [
+    {
+      "outcome": "OK",
+      "seconds": 0.317,
+      "tests": 30
+    },
+    {
+      "outcome": "OK",
+      "seconds": 0.895,
+      "tests": 32
+    },
+    {
+      "outcome": "OK",
+      "seconds": 3.212,
+      "tests": 3
+    },
+    {
+      "outcome": "OK",
+      "seconds": 22.547,
+      "tests": 3
+    },
+    {
+      "outcome": "OK",
+      "seconds": 48.152,
+      "tests": 33
+    },
+    {
+      "outcome": "OK",
+      "seconds": 0.0,
+      "tests": 1
+    },
+    {
+      "outcome": "OK (skipped=41)",
+      "seconds": 294.878,
+      "tests": 1280
+    }
+  ]
+}

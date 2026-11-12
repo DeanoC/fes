@@ -1,0 +1,2 @@
+owner-scanout: POLL identity or hardware fault (errno=5); no retry or owner REAP after uncertainty
+CACHED_FAILURE_INFO result=0 generation=2 state=14 status=25 errors=4 underflows=0 outstanding=0 accepted=1 displayed=0 pending=1

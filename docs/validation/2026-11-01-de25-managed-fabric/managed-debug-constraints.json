@@ -1,0 +1,9 @@
+{
+  "derived_file": "project/ghrd_timing.sdc",
+  "derived_sha256": "abf34be146818993465c0757c799689afc1d87f1eccd43ca5918be613b12ac80",
+  "original_file": "managed-constraints-originals/ghrd_timing.sdc",
+  "original_sha256": "743b02b7fa6e3f6397890702f626ff7b27a5c7ab6aa9d1721c22d286900c7247",
+  "policy": "managed-scanout-initiators-v3",
+  "retained_jtag_sdc_sha256": "02d78bf9bc14eea02092569a0639f6bd4f4b11e161e4fc6349c30128d640e17a",
+  "retired_source": "source ./jtag.sdc"
+}

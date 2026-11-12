@@ -1,0 +1,39 @@
+{
+  "source_revision": "fdbbab3547c96886135e071b728bfbc8cbe86eb8",
+  "status": "passed",
+  "classification": "Actual statically compiled AArch64 Linux programmer unit suite under Cortex-A76 QEMU",
+  "compiler": "aarch64-buildroot-linux-gnu-g++.br_real (Buildroot 2021.02.4) 9.4.0",
+  "binary_sha256": "0a9f4d4b99b28fad03db498b40548539415dadb9df7629c104da6e3502e0de9d",
+  "four_FDT_outputs_byte_identical_to_native": true,
+  "native_kernel_fixture_equivalence_receipt_sha256": "884e7c2733331b9c9fb76b97e0bd5d315ec636e37ead59948b62a62bde56be04",
+  "compiler_and_QEMU_unchanged": true,
+  "files": {
+    "static-persona.dtbo": "8e26d409e02a0b0e592a36877ef8d5ff9fe45bccecb93ae679dd995d0b22d667",
+    "firmware.dtbo": "70b9d187c14899aed670d54d1f168a8f3490bb662bf825bbb6e53770bf27d445",
+    "static-base.dtbo": "6a94729f8be47b6d02ac0efbad1018e37dc36dc18c8ef9fdbf0361016b8f2423",
+    "job.json": "17bb03396ccc6be6f3962045f66ff49b948110cb1cfb49f84846c0c2da37d79d",
+    "qemu-sha256.txt": "2bae4008a16c37548a20757c8810dddcc922dd945d4d5b3ac884db648f33bfcc",
+    "allocated.dtbo": "6f23fc46db9ecaf90a78cf6a6d07b071c21e2ad51053ad524eee65b65c05a59d",
+    "compiler-before.txt": "138ae1cd4318eb8e3ca8a2e809c5e754be59dea080398a41554a78d64dceb8df",
+    "qemu-version.txt": "887affce88d570c1af7eb3c2dab741630634109787e36debcfa65e78de46011e",
+    "spec.json": "b1a85b9c6139a96036a3dfecd251f593ac8196b5b9891f7e3ea92b19ad270ef9",
+    "run.sh": "39898ba038252cae491bac30d0c32454ae292f7d79f896634a74f7ff40bcf220",
+    "compiler-after.txt": "138ae1cd4318eb8e3ca8a2e809c5e754be59dea080398a41554a78d64dceb8df",
+    "compiler-version.txt": "64eedb9a55b366332351380612894b61d98e14432d9551b2f02ff3de024a6a10",
+    "output.log": "96c19a58e16d1f710443cae20079709d4c03730275e41fe11464e0649e992888",
+    "run.py": "8bfef4eb984e2dc56d56bb6cdf9909306c285eaece1b2719398a785985be5207"
+  },
+  "physical_FPGA_or_native_kit_CPU": false,
+  "package_admission": false,
+  "original_receipt_sha256": "db568757683ac2f8440e20eac5e319fc2f3ee03abcb385a9e078c6f8a94586b9",
+  "original_precompletion_metadata_changed": [
+    "job.json",
+    "output.log"
+  ],
+  "finalized_utc": "2026-11-05T12:33:21.501220+00:00",
+  "supervisor": {
+    "state": "passed",
+    "elapsed_seconds": 27.026
+  },
+  "finalization_scope": "Original runner receipt retained. Verify immutable files unchanged, then refresh only job/output metadata hashes after supervisor is terminal."
+}

@@ -1,0 +1,39 @@
+{
+  "aarch64_cpu": "Cortex-A76 under QEMU user mode",
+  "checks": [
+    "de25_menu_test: kernel-only session publication, odd-frame close/reopen, fresh slot1, logical sequence continuity, peer references, uncertain quiescence, late publication rejection",
+    "native_hardware_test --session-display: allocated MENU and retained/fresh-slot session lifecycle, frame mapping negotiation, focus and failure behavior",
+    "make check: 41 generated consumers and 42 fixture copies match"
+  ],
+  "classification": "injected allocation and GP-control software tests; not hardware acceptance",
+  "elapsed_seconds": 76.764,
+  "emulator_filesystem": "Explicit target dynamic loader with SDK library paths; no filesystem-prefix redirection",
+  "known_incomplete": [
+    "Normal standard-core production factory/profile and package admission",
+    "Final output/reference timing checks and sealed canonical artifacts",
+    "Exact-artifact managed hardware acceptance",
+    "Earlier broad software run still requires a real combined native/AArch64 proof receipt refresh"
+  ],
+  "physical_board_changed": false,
+  "platforms": {
+    "aarch64": {
+      "result": "passed",
+      "seconds": 36.694
+    },
+    "native": {
+      "result": "passed",
+      "seconds": 34.183
+    }
+  },
+  "production_standard_profile_admitted": false,
+  "sdk_archive_sha256": "d5bac20323fe6225b984e5a0f35ac087bfb4379dca2b40245e4eab97bd019bf7",
+  "source_revision": "ec3549d5b246e4f70bca7bd6ac02c998b46a1c0c",
+  "sources_sha256": {
+    "sources/libmister-runtime/src/native/hardware.cpp": "601f7bef206b14558cc03ea0d8760001551758ca5dae3478860292cf672c8658",
+    "sources/libmister-runtime/src/native/linux/de25_menu.cpp": "3c033666d70ba9d1fad0b364bf34b832df34af113694c89461266b2deff868e5",
+    "sources/libmister-runtime/src/native/linux/de25_menu.hpp": "f14d61bb4b6a526a4da4556c0818a8c288aeddad0ca1d1bd5c961ef7e80c1868",
+    "sources/libmister-runtime/src/native/linux/menu_window.hpp": "a4cebca122783f131100a4bc97ecbbbf63c0781c67d211b969a774f085697b2f",
+    "sources/libmister-runtime/tests/unit/de25_menu_test.cpp": "ae7253761435720e5e1f9006855bac357754adcafc0cbf5a79aadcfb6310fddc",
+    "sources/libmister-runtime/tests/unit/native_hardware_test.cpp": "012cd8c55afe50d51240433cd3abbbc88aedc228c051985eb0dc0fc289f4a1ed"
+  }
+}

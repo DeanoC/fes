@@ -1,0 +1,11 @@
+board = "de25-nano"
+host_os = "linux"
+host_arch = "amd64"
+image_variant = "de25-managed"
+version = "0.1.0"
+native_image_mode = "package-only"
+check_packages = true
+
+# MENU is required display firmware. Playable cores come from the catalog.
+[[fpga_packages]]
+core_id = "fes.menu"

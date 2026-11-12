@@ -205,6 +205,27 @@ def require_zero(stream, start, length, label):
         length -= len(block)
 
 
+def normalize_fat_label(image, offset):
+    """Normalize mkfs.fat's label timestamp using the actual FAT32 geometry."""
+    stamp = datetime.datetime.fromtimestamp(SOURCE_DATE_EPOCH, datetime.timezone.utc)
+    date = ((stamp.year - 1980) << 9) | (stamp.month << 5) | stamp.day
+    time = (stamp.hour << 11) | (stamp.minute << 5) | (stamp.second // 2)
+    with image.open('r+b') as stream:
+        stream.seek(offset)
+        bpb = stream.read(512)
+        reserved = struct.unpack_from('<H', bpb, 14)[0]
+        fats, cluster_size = bpb[16], bpb[13]
+        fat_sectors = struct.unpack_from('<I', bpb, 36)[0]
+        root = struct.unpack_from('<I', bpb, 44)[0]
+        if bpb[82:90] != b'FAT32   ' or not reserved or not fats or not cluster_size or root < 2:
+            raise ValueError('cannot normalize an invalid FAT32 label')
+        label_offset = offset + (reserved + fats * fat_sectors + (root - 2) * cluster_size) * 512
+        stream.seek(label_offset + 13)
+        stream.write(struct.pack('<BHHH', 0, time, date, date))
+        stream.seek(label_offset + 22)
+        stream.write(struct.pack('<HH', time, date))
+
+
 def _assemble_once(image, inputs, lock, scratch):
     # Callers validate their layout; the original media lock retains its exact
     # geometry. Appliance media derives a larger FAT with identical boot bytes.
@@ -228,18 +249,7 @@ def _assemble_once(image, inputs, lock, scratch):
     device = f"{image}@@{part1_offset}"
     # mkfs invariant mode uses its own label date. Normalize that one record;
     # mtools honors SOURCE_DATE_EPOCH for every subsequently created entry.
-    stamp = datetime.datetime.fromtimestamp(SOURCE_DATE_EPOCH, datetime.timezone.utc)
-    date = ((stamp.year - 1980) << 9) | (stamp.month << 5) | stamp.day
-    time = (stamp.hour << 11) | (stamp.minute << 5) | (stamp.second // 2)
-    with image.open("r+b") as stream:
-        stream.seek(part1_offset)
-        bpb = stream.read(512)
-        fat_sectors = struct.unpack_from("<I", bpb, 36)[0]
-        label_offset = part1_offset + (32 + 2 * fat_sectors) * 512
-        stream.seek(label_offset + 13)
-        stream.write(struct.pack("<BHHH", 0, time, date, date))
-        stream.seek(label_offset + 22)
-        stream.write(struct.pack("<HH", time, date))
+    normalize_fat_label(image, part1_offset)
     staged = scratch / "payloads"
     staged.mkdir()
     for name, source in (("idle.rbf", inputs.splash_payload()), ("zImage_dtb", inputs.kernel), ("linux.img", inputs.rootfs)):

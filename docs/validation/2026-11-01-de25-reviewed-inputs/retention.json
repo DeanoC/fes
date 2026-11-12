@@ -1,0 +1,383 @@
+{
+  "source_revision": "fd98d8f6c9d0d947cec351faf11df918e4a7102c",
+  "state": "complete compiler, fitted-input, model, affected software and source/helper/reset-diagnostic evidence independently retained",
+  "archive_payload_hashes_verified": true,
+  "full_source_bundle_restored": true,
+  "prior_hdmi_protocol_retention": "out/artifacts/de25-hdmi-inputs/d8b23267c/retention.json",
+  "failed_predecessor_retention": "out/artifacts/de25-reviewed-async-inputs/8a804e053/retention.json",
+  "hardware_access": "not-performed",
+  "package_exported": false,
+  "files": {
+    "append-completed-software.py": {
+      "bytes": 2086,
+      "sha256": "9e026fa6475ac7f1e6c26b4158d5035cf204428ac09a6db2b5a3f068f86b115e"
+    },
+    "build-data-helper.py": {
+      "bytes": 3630,
+      "sha256": "d1765106f43deb50a18c9a04254ef137ba71be710214c14fb55edfcfa4d66d88"
+    },
+    "compiler-retention-job/job.json": {
+      "bytes": 485,
+      "sha256": "9a1760a7de83a58a1e68156f358a40bb66b5a7bc27ba4ad3f3b00177bfb79b87"
+    },
+    "compiler-retention-job/stdout.log": {
+      "bytes": 648,
+      "sha256": "65f450dfac9f520f30a05e22268967a9ccdedf68e49bd4bac4ff968495af6806"
+    },
+    "compiler-retention-launch.json": {
+      "bytes": 329,
+      "sha256": "c4f9aa570b5ee1dcb17549230c5833468a9d787337268cc8b37b0f996f9d647a"
+    },
+    "compiler-retention-supervisor.log": {
+      "bytes": 881,
+      "sha256": "fdaf3d7a012a896b56486ff272d9aa22a558b1444a28004f830c09233483f3fb"
+    },
+    "data-helper-launch.json": {
+      "bytes": 644,
+      "sha256": "0c1b8be573b972208b106861a764017e53a13dbd2321c987d56b5c01d3461ff8"
+    },
+    "data-helper-supervisor.log": {
+      "bytes": 1371,
+      "sha256": "ef3519e78b6043e4bae27a4ff449ab88dc2f54c0e0f7d8728da5aafa16da00ff"
+    },
+    "final-jobs/compiler-finish-retention-job/job.json": {
+      "bytes": 553,
+      "sha256": "2c525254849469dcf75f1c1690a1bdbcc1f9893bceabb4c7f5f0832a8f515ae8"
+    },
+    "final-jobs/compiler-finish-retention-job/stdout.log": {
+      "bytes": 157,
+      "sha256": "73a4e468e13874cfad291e84cb129d96a41f935abca2aa77b6aa683f4450ecd4"
+    },
+    "final-jobs/compiler-finish-retention-launch.json": {
+      "bytes": 473,
+      "sha256": "2b227d4fb85198761dc2aa528c245d7adc1cd2664ee671d8cf6ab9d76712fc08"
+    },
+    "final-jobs/compiler-finish-retention-supervisor.log": {
+      "bytes": 1018,
+      "sha256": "61272f2f8ef47a79ece5cc59d6faaf8eaec3330d98658bb31ecdb640fa3da8dd"
+    },
+    "final-jobs/finish-retention.py": {
+      "bytes": 2758,
+      "sha256": "9930c627047eb05d503f52e9bb4357574e19271358929b4e4e2ad1176102d33d"
+    },
+    "final-jobs/retain-source.py": {
+      "bytes": 1239,
+      "sha256": "a27b9006bea6c34206e1d6a36987253c4f13bf44ca25ec57f02317f2322fb2d7"
+    },
+    "final-jobs/software-job/job.json": {
+      "bytes": 959,
+      "sha256": "3d102420c83e86d5915bf55e764c03db8fd57f97ee44a51e4df649e9375d1d7e"
+    },
+    "final-jobs/software-job/stdout.log": {
+      "bytes": 600549,
+      "sha256": "5c4df6a2beba63115cad9a01f6c9d6f153979bb659c8c1435a415e29ef52d049"
+    },
+    "final-jobs/software-launch.json": {
+      "bytes": 1025,
+      "sha256": "519b8f8d4f7fbee9c45406db82a4323bfe4f02f59c7ced3043556f77ad1e2112"
+    },
+    "final-jobs/software-supervisor.log": {
+      "bytes": 53338,
+      "sha256": "f5872ac1a2426b5e857333778bd752f12adeac9c2259b46502265d882270764a"
+    },
+    "final-jobs/source-retention-job/job.json": {
+      "bytes": 550,
+      "sha256": "bcb4bd7136dfbdb77ba61d56177b9ca89be9fb0e8b61672254edfa788adf5f08"
+    },
+    "final-jobs/source-retention-job/stdout.log": {
+      "bytes": 260,
+      "sha256": "c1941ca2f9b62acec10bfe7e9cf960a50ddea62395b5bf54967e08a116d7bdbc"
+    },
+    "final-jobs/source-retention-launch.json": {
+      "bytes": 461,
+      "sha256": "e35512b51dc0a1284ca454e34827305cad543780ff08bf78c1b86fa311e8c246"
+    },
+    "final-jobs/source-retention-supervisor.log": {
+      "bytes": 1012,
+      "sha256": "c18f2c3b6bf0c9898bdafde22fb1b6dc7c9eba14eaf0813748288352403c1de4"
+    },
+    "final-retention-job/job.json": {
+      "bytes": 562,
+      "sha256": "68b9a062820738cdc4531f9964e1ba376bd8a8c0c2d87b9740d88cfed557e0e0"
+    },
+    "final-retention-job/stdout.log": {
+      "bytes": 151,
+      "sha256": "49ced4a6333aa0d38bf51cd9695f381ae25f17236875161d9e93a9922b6c87a2"
+    },
+    "final-retention-launch.json": {
+      "bytes": 472,
+      "sha256": "25821d4070211cf0e4c8c81d9c1bfe78ac6164449cdd205d814b87a38617c80e"
+    },
+    "final-retention-supervisor.log": {
+      "bytes": 1036,
+      "sha256": "19547f44313cc47b635986bb8caded04ff15cc6d1444189169824ce48754b55a"
+    },
+    "original-copy-retention-job/job.json": {
+      "bytes": 563,
+      "sha256": "5a62fc5db6f0a0299cb46fec163ab8c7db5234266dfe3a5029cba801226a14e2"
+    },
+    "original-copy-retention-job/stdout.log": {
+      "bytes": 525,
+      "sha256": "67a66b533cb58ef4be37953b9b311783664fc0947ddbb8f9f4810edd6c8294c3"
+    },
+    "original-copy-retention.py": {
+      "bytes": 2980,
+      "sha256": "d389c1e3e65bf76c26e36c348e29991e1ee9e13cbe1f7195264490d4fca6d88c"
+    },
+    "parent-check-job/job.json": {
+      "bytes": 463,
+      "sha256": "a615042ab68b716e229e0ee3baab88077e1462112a84ba3f0615207657faf51b"
+    },
+    "parent-check-job/stdout.log": {
+      "bytes": 137,
+      "sha256": "8015336a883d42c83467aca55d2eaf22bdd1c0805c526f1b247c09f3f4571885"
+    },
+    "reset-diagnostic-d8b23267c/help-job/job.json": {
+      "bytes": 528,
+      "sha256": "77586d3cd72f4c3ed69ce1d8630ae6a5b4fb7448bc4ce80b7ca6a96196a79da9"
+    },
+    "reset-diagnostic-d8b23267c/help-job/stdout.log": {
+      "bytes": 2797,
+      "sha256": "500fe42f6024f00a20d0eb908c4bf23aefd97c2986e176adc78c36b7b86c2a2e"
+    },
+    "reset-diagnostic-d8b23267c/help-launch.json": {
+      "bytes": 366,
+      "sha256": "3c579bc00b71cab823d0d15bbd75b5e865854c72bee2b987ec16eb51e2f49890"
+    },
+    "reset-diagnostic-d8b23267c/help-packages-job/job.json": {
+      "bytes": 537,
+      "sha256": "e3d2f5b51418554012f3108d6c754c95f01ba7567be06d50c49839d690d66216"
+    },
+    "reset-diagnostic-d8b23267c/help-packages-job/stdout.log": {
+      "bytes": 17019,
+      "sha256": "58794249bbc9b932f77a9851b3589799172abe5569150aaecf26ceb76663dc1f"
+    },
+    "reset-diagnostic-d8b23267c/help-packages-launch.json": {
+      "bytes": 384,
+      "sha256": "33bfd11034475b652f5f8faac500f022cfc5d4d33ec665789447d496c691e0bd"
+    },
+    "reset-diagnostic-d8b23267c/help-packages.tcl": {
+      "bytes": 329,
+      "sha256": "0df0235e542eaaa9737110f0b5ed83d952bf6c86be9b3b9a47a804cd63a1dfd9"
+    },
+    "reset-diagnostic-d8b23267c/help.tcl": {
+      "bytes": 112,
+      "sha256": "e2bb6fe9f4ee345d98866a163b024baa62bfdd22e17204c85c18e46ccce592fd"
+    },
+    "reset-diagnostic-d8b23267c/query-job/job.json": {
+      "bytes": 485,
+      "sha256": "8e288b46854e92f9bc8d7a45bd2b9c0a04d87a49a1feaca2ef4267f0f16ae8cd"
+    },
+    "reset-diagnostic-d8b23267c/query-job/stdout.log": {
+      "bytes": 21970,
+      "sha256": "25ac07825edbcfabed976f800a481b96cf2c1e58214507813f2d5475d347fa99"
+    },
+    "reset-diagnostic-d8b23267c/query-launch.json": {
+      "bytes": 324,
+      "sha256": "6892db5a0b7665d79777025e0187e4ea58f0b0ba3ce81f905292da173e621976"
+    },
+    "reset-diagnostic-d8b23267c/query-result.json": {
+      "bytes": 371,
+      "sha256": "17afc4ef44fc8d1f842c9ed2907e49a1187f664eaa5c35dfc2ee26e7ee501277"
+    },
+    "reset-diagnostic-d8b23267c/query.tcl": {
+      "bytes": 980,
+      "sha256": "63febbec4e0e1f7d75e3e97c3406da1746266ce3f8c66a91071c9e138eb62889"
+    },
+    "reset-diagnostic-d8b23267c/reports/reset-1.rpt": {
+      "bytes": 23197,
+      "sha256": "e1e05eb1716f5a8482d02bcfb4db82cd25f474c895d4266d7e1d93af078752f6"
+    },
+    "reset-diagnostic-d8b23267c/reports/reset-2.rpt": {
+      "bytes": 32725,
+      "sha256": "32ff822c6779184a9e27847b2cd324e9f8b64eca21359e1d36a20e17e1ffa610"
+    },
+    "reset-diagnostic-d8b23267c/reports/reset-3.rpt": {
+      "bytes": 22791,
+      "sha256": "3c38654fb0237a55dba46a2bd7e4eb13aaab14eaa5ac3732a283a914f7e4b1aa"
+    },
+    "reset-diagnostic-d8b23267c/run-query.py": {
+      "bytes": 924,
+      "sha256": "9a4f19ccce2f34dc62e9e5ee569bf1f9cc0ed100329173ba15eebf7cc44b0612"
+    },
+    "reset-diagnostic-d8b23267c/strengthen-and-analyze.py": {
+      "bytes": 2515,
+      "sha256": "59ef4ce237b8c2d35c43554d834841eae9f805deb6fb5a1ddca47ee35ba99a9a"
+    },
+    "reset-diagnostic-d8b23267c/strengthen-flow.tcl": {
+      "bytes": 81,
+      "sha256": "2042012c4fea676f905661b276db20e37629c86017ead797dbba5eab3091b2fe"
+    },
+    "reset-diagnostic-d8b23267c/strengthened-export/fes_mailbox/clocks.sdc": {
+      "bytes": 5875,
+      "sha256": "8fe73ee828a23aace5c6dca2e2ef01959d2ceebdd9f6ab72be4f5a640c32c591"
+    },
+    "reset-diagnostic-d8b23267c/strengthened-export/files.json": {
+      "bytes": 1977,
+      "sha256": "cc654bc01b77fc328f2ce7f4fd6f871eb685e7ae6cfe636ce547826cb6fa3bda"
+    },
+    "reset-diagnostic-d8b23267c/strengthened-export/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "bytes": 2785,
+      "sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "reset-diagnostic-d8b23267c/strengthened-export/jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "bytes": 2785,
+      "sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "reset-diagnostic-d8b23267c/strengthened-export/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "bytes": 2785,
+      "sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "reset-diagnostic-d8b23267c/strengthened-export/jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "bytes": 2785,
+      "sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "reset-diagnostic-d8b23267c/strengthened-export/output_files/golden_top.sta.rpt": {
+      "bytes": 3664591,
+      "sha256": "97af41b382800824a194c4b475f1e51ac90400c5cf9e58fe726b7b709bf214d7"
+    },
+    "reset-diagnostic-d8b23267c/strengthened-export/output_files/golden_top.sta.summary": {
+      "bytes": 7467,
+      "sha256": "3086a7c5522f9fc570d9881672cf5b168be213e1ca6ea0b6af87ba2ec03f98ea"
+    },
+    "reset-diagnostic-d8b23267c/strengthened-export/output_files/golden_top.tq.drc.signoff.rpt": {
+      "bytes": 76555,
+      "sha256": "132b7bea6bc38e7f3ca1d9497314b2dfe31018f9bca8d6c8e11a91b0710e02b6"
+    },
+    "reset-diagnostic-d8b23267c/strengthened-export/peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "bytes": 2785,
+      "sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "reset-diagnostic-d8b23267c/strengthened-export/qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "bytes": 2785,
+      "sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "reset-diagnostic-d8b23267c/strengthened-job/job.json": {
+      "bytes": 499,
+      "sha256": "5dcd24808fcae2c6cf2831646b984aca6db6c19870de5509200b92e045a46269"
+    },
+    "reset-diagnostic-d8b23267c/strengthened-job/stdout.log": {
+      "bytes": 33544,
+      "sha256": "9c40db18f26bc856338fa14b21a47cf82a3ec55c59d0e1404558a9237981bc49"
+    },
+    "reset-diagnostic-d8b23267c/strengthened-launch.json": {
+      "bytes": 344,
+      "sha256": "15a3bdb1f05ed4069cbc8576ba7686fa91dc203c08164459caee39e24026a6e0"
+    },
+    "reset-diagnostic-d8b23267c/strengthened-result.json": {
+      "bytes": 2698,
+      "sha256": "a90ca0e744a00fa0c47bc75c3fd88d8fcd9df0a77a804d7b560b1df5b5a4936c"
+    },
+    "retain-compiler.py": {
+      "bytes": 2043,
+      "sha256": "a485360c64ae9839ba13486c3933411fd479e8e03defeca01db5de96ef047a4e"
+    },
+    "retained-build.json": {
+      "bytes": 670,
+      "sha256": "c0cfe56248511cd1d22c971e107b470f5ccd131fc7a18d39374eb6a8ab2b6d0b"
+    },
+    "retained-build.tar.gz": {
+      "bytes": 607866044,
+      "sha256": "7c5962f129393fa9f8accfbc8fe2c99278497f8cbfc90a6ff9bf4ae4072898df"
+    },
+    "source.bundle": {
+      "bytes": 285172627,
+      "sha256": "f81a12d83f0192f98c029e508b31850b7b7094b2aa2fa4749334eb49129732b8"
+    },
+    "source.json": {
+      "bytes": 274,
+      "sha256": "c19d6fa1764e998ea81a646eb7852da74e0c99ab242ff80bfbb9ff00dcd1210e"
+    },
+    "storage-helper-8a804e053/argument-refusal.log": {
+      "bytes": 40,
+      "sha256": "24cb4d071368ebc296b01d15e5eabd024af350cf4a594291c0c34eb47f2879ce"
+    },
+    "storage-helper-8a804e053/build-info.txt": {
+      "bytes": 771,
+      "sha256": "043148144c481861fa7487591cba95c7f595e0e1c109ab73e8a1b6cd9320d39f"
+    },
+    "storage-helper-8a804e053/fes-kit-data-linux-aarch64": {
+      "bytes": 4259966,
+      "sha256": "0da9c63cfb83a1a0c310654a683c265ec2f60dd92db350acbbd943da4470cd53"
+    },
+    "storage-helper-8a804e053/receipt.json": {
+      "bytes": 1420,
+      "sha256": "f09edb3ef4c77ba41a194ae6d322e5caebc13502b9c1b86c735bb93081fb6b86"
+    },
+    "storage-helper-8a804e053-job/job.json": {
+      "bytes": 738,
+      "sha256": "3e870847c2c147681981d78613f1f6aa7c0081d13bbe1573bbe46be09d8bef58"
+    },
+    "storage-helper-8a804e053-job/stdout.log": {
+      "bytes": 1294,
+      "sha256": "d7d5e01073c34a2e653c59ded92b579aaff4019f2bb72d5943a94006bbc40a6a"
+    }
+  },
+  "updated_utc": "2026-11-01T16:40:46.974443+00:00",
+  "affected_software": {
+    "source_revision": "fd98d8f6c9d0d947cec351faf11df918e4a7102c",
+    "command": [
+      "env",
+      "-u",
+      "PYTHON",
+      "-u",
+      "MAKEFLAGS",
+      "-u",
+      "MAKEOVERRIDES",
+      "-u",
+      "MFLAGS",
+      "-u",
+      "MAKELEVEL",
+      "-u",
+      "GNUMAKEFLAGS",
+      "PATH=/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin:/home/deano/.local/bin:/home/deano/.cargo/bin:/home/deano/.local/bin:/home/deano/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games",
+      "make",
+      "test-changed",
+      "TEST_CHANGED_ARGS=--base 51d872c220a6635188c351004b68e94a96ca1986"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-reviewed-async-fd98d8f6c",
+    "started_utc": "2026-11-01T16:09:43.087091+00:00",
+    "time_cap_seconds": 2400,
+    "hardware_access": "not-performed",
+    "pid": 2850666,
+    "state": "passed",
+    "elapsed_seconds": 1836.1,
+    "heartbeat_utc": "2026-11-01T16:40:19.149289+00:00",
+    "returncode": 0
+  },
+  "unittest_summaries": [
+    [
+      "30",
+      "0.179"
+    ],
+    [
+      "32",
+      "0.863"
+    ],
+    [
+      "1114",
+      "726.179"
+    ],
+    [
+      "1733",
+      "1102.764"
+    ]
+  ],
+  "original_copy_verifier_failure": "Expected one canonical record but archive correctly has original and review-copy records; continuation verified both identical copies. Original failed job retained.",
+  "final_retention_job": {
+    "source_revision": "fd98d8f6c9d0d947cec351faf11df918e4a7102c",
+    "command": [
+      "python3",
+      "/home/deano/fes/out/dev/de25-managed-image/out/de25-reviewed-async-final/append-completed-software.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-reviewed-async-fd98d8f6c",
+    "started_utc": "2026-11-01T16:40:46.636943+00:00",
+    "time_cap_seconds": 180,
+    "hardware_access": "not-performed",
+    "pid": 3140771,
+    "state": "passed",
+    "elapsed_seconds": 0.6,
+    "heartbeat_utc": "2026-11-01T16:40:47.273802+00:00",
+    "returncode": 0
+  }
+}

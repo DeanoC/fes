@@ -1,0 +1,18 @@
+{
+  "source_revision": "14ea3760b016825d96aeacc3aeca8f22dc04000d",
+  "command": [
+    "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+    "scripts/test_changed.py",
+    "--base",
+    "08da0d23f4638741550364b268db28b0f8cc985c"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T19:34:43.863580+00:00",
+  "time_cap_seconds": 1800,
+  "hardware_access": "not-performed",
+  "pid": 1595857,
+  "state": "failed",
+  "elapsed_seconds": 750.4,
+  "heartbeat_utc": "2026-10-31T19:47:14.229422+00:00",
+  "returncode": 1
+}

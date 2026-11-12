@@ -1,0 +1,53 @@
+{
+  "accounted_passes": 1709,
+  "accounted_skips": 76,
+  "added_cases": [
+    "test_build_de25_menu_package.DE25MenuPackageTests.test_setup_data_delay_is_checked_when_present_without_replacing_required_families"
+  ],
+  "classification": "Exact source-checked test inventory union with isolated replacements and final parser delta; original aggregate remains failed",
+  "combined_client_proof": {
+    "cases": 14,
+    "native_and_emulated_AArch64": true,
+    "seconds": 1694.9
+  },
+  "current_inventory_cases": 1785,
+  "final_parser_cases": 16,
+  "hardware_access": "not-performed",
+  "internal_client_proof": {
+    "cases": 20,
+    "native_and_emulated_AArch64": true,
+    "seconds": 1321.6
+  },
+  "old_source": "775e057628353b3184964242294facde92fee4c7",
+  "original_full_suite": {
+    "cases": 1784,
+    "errors": 1,
+    "failures": 1,
+    "log_sha256": "9d3c6ecbca15b173de46b07e2e225d1d89fb16b253743844010a4e9fa883792c",
+    "seconds": 1598.3,
+    "skips": 76,
+    "state": "failed; retained"
+  },
+  "original_long_proofs": "Both Powerboat suites failed1800s session wall limit; complete failures retained, no limit changes",
+  "original_ordered_inventory_matches_full_log": true,
+  "parent": {
+    "fixture_copies": 42,
+    "generated_consumers": 40,
+    "make_check_seconds": 13.815,
+    "planner_cases": 62,
+    "seconds": 1459.416,
+    "skips": 8,
+    "source": "775e057628353b3184964242294facde92fee4c7",
+    "tests": 1385
+  },
+  "producer_source": "6008eb094e53c0275cbff6b850c7826d0d35b152",
+  "replacement_results": {
+    "de25_link_recipe_tests.RecipeTests.test_combined_client_proof_receipt_matches_captured_sources": "PASS actual current guard after fresh14-case proof; combined-live-guard.log",
+    "test_de25nano_zx81_hps.ComputerSimulationTests.test_keyboard_tape_and_transport_faults_on_real_machine": "PASS498.4s isolated actual test, original600s bound,106 captured inputs identical; standalone-replay result.json"
+  },
+  "source_differences_775_to_600": [
+    "sources/misteross/docs/architecture.md",
+    "sources/misteross/scripts/build_de25_menu_package.py",
+    "sources/misteross/tests/test_build_de25_menu_package.py"
+  ]
+}

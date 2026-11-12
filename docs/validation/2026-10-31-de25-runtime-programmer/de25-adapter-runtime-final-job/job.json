@@ -1,0 +1,19 @@
+{
+  "source_revision": "1a3e2b86086733d39b0a5311600b1f3ec9c6e098",
+  "command": [
+    "make",
+    "-C",
+    "sources/libmister-runtime",
+    "-j2",
+    "test"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T19:51:53.331181+00:00",
+  "time_cap_seconds": 1200,
+  "hardware_access": "not-performed",
+  "pid": 1976968,
+  "state": "failed",
+  "elapsed_seconds": 188.5,
+  "heartbeat_utc": "2026-10-31T19:55:01.794400+00:00",
+  "returncode": 2
+}

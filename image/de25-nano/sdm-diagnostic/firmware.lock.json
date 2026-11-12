@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "board": "de25-nano",
+  "classification": "unqualified-sdm-error-diagnostic",
+  "production_admission": false,
+  "terasic_revision": "580dcb5c4e10aa7daff2bf69d493c076a6d3e665",
+  "source_before_sha256": "c9e8500dc5220bb6028bfccb5a19f1b257635edd8c7cf84c7a530c2345653da9",
+  "source_after_sha256": "4c6c69675544682567b783f046ed575d9d78d55fb5264bc7b63e17018b49baa0",
+  "patch_sha256": "8d39076c1df2886233dd7d187cf1489e69ab778188f61d75a22acae68a176781",
+  "build_string": "fes-de25-sdm-remapper-580dcb5c4e10",
+  "bl31_sha256": "02e6e3f68a12155881b90b2f24ead01826d3ae81e0ee8a0544fc325f8f8d6cfd",
+  "bl31_elf_sha256": "48d933d2c2d84b500f0ebd2f8a906709c963fdf05fdf470540f523ce18056159",
+  "stock_bl31_sha256": "0d29d7f1ff43afa267f63c1599657eea6d7fcdc8fd53addf8beb2d4f7089fb3c",
+  "stock_fit_sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+  "stock_fit_bytes": 1013832,
+  "atf_offset": 929560,
+  "atf_source_bytes": 61501,
+  "atf_size_field": 404,
+  "atf_crc32_field": 616,
+  "source_date_epoch": "1749631343",
+  "cross_tools_sha256": {
+    "gcc": "fb743ca27a77466c91da66047eec879a615993feaabd860aaf3750e7b222b131",
+    "as": "4e623869baaf4e0e165573b095f0aedaf47fe26f000ea8f3288e1c1a582cc644",
+    "ld": "bdb57a3334f460af5921b65de134f128642325a2087ff716dafd0adbfcc0778a",
+    "ar": "16b0d0f1dab8223859aa4b16ca3fc63b962d9c3494f6bc7f240ab168440eecdf",
+    "objcopy": "80f9027f7aa9c6b85515a049a25d99845cad74d13f18d4b4da8ca9523891c157",
+    "cc1": "2161f3a2c38a7e7153796895aa2d17d47975f9da3fccad8507808f1773430a4e",
+    "libgcc": "60dbf748e1c310aa50300a33f30bf4ee070061071aee74a52cf115a7b8765e50"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "classification": "actual parent board-selected API on materialized committed snapshot",
+  "rows": [
+    {
+      "core": "fes.zx81",
+      "status": "passed",
+      "source_revision": "7656e1954f7e27d0dc3634f60e869f97cf14301d",
+      "source_inputs": 577,
+      "normal_api_record_sha256": "a860aabc708a08c7b9873060adaab8ac3a606c8862777a7ac527ecf8531ed195",
+      "actual_producer_record_sha256": "a860aabc708a08c7b9873060adaab8ac3a606c8862777a7ac527ecf8531ed195",
+      "seconds": 62.272
+    },
+    {
+      "core": "fes.menu",
+      "status": "passed",
+      "source_revision": "7656e1954f7e27d0dc3634f60e869f97cf14301d",
+      "source_inputs": 377,
+      "normal_api_record_sha256": "12630cc6a561b7c450bee230cbf13c1918945b46686fda16ff1ef39853caf931",
+      "actual_producer_record_sha256": "12630cc6a561b7c450bee230cbf13c1918945b46686fda16ff1ef39853caf931",
+      "seconds": 61.964
+    }
+  ],
+  "hardware_access": "not-performed"
+}

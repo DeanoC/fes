@@ -54,8 +54,23 @@ func TestKitHostAPIRecoversAgentLeaseAndStopsAfterHostRestart(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	agentState := &restartAgent{status: routingActivePackageStatus(strings.Repeat("a", 64))}
-	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	releaseCleanup := make(chan struct{})
+	var releaseOnce sync.Once
+	finishRelease := func() { releaseOnce.Do(func() { close(releaseCleanup) }) }
+	var cleanups atomic.Int32
+	manager := kitlease.New(time.Minute, func(ctx context.Context) error {
+		if cleanups.Add(1) == 1 {
+			return nil // Startup reconciliation.
+		}
+		select {
+		case <-releaseCleanup:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	})
 	defer manager.Close()
+	defer finishRelease()
 	if _, err := manager.Settled(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -159,8 +174,17 @@ target_id = %q
 	if stops != 1 {
 		t.Fatalf("stop count %d", stops)
 	}
-	if manager.Status().State != "free" {
-		t.Fatalf("grant not released: %+v", manager.Status())
+	// Release acknowledges revocation before the target's cleanup finishes.
+	// Hold that cleanup so HTTP success cannot accidentally imply a free grant.
+	if status := manager.Status(); status.State != "revoking" {
+		t.Fatalf("release did not wait for cleanup: %+v", status)
+	}
+	if second.KitLease().CurrentToken() != "" {
+		t.Fatal("successful release kept the host grant")
+	}
+	finishRelease()
+	if status, err := manager.Settled(ctx); err != nil || status.State != "free" {
+		t.Fatalf("grant not released after cleanup: %+v, %v", status, err)
 	}
 }
 
@@ -222,7 +246,7 @@ target_id = %q
 	if got := localManager.Status().State; got != "held" {
 		t.Fatalf("local grant state=%s", got)
 	}
-	if got := remoteManager.Status().State; got != "free" {
-		t.Fatalf("sibling grant state=%s", got)
+	if status, err := remoteManager.Settled(ctx); err != nil || status.State != "free" {
+		t.Fatalf("sibling grant after cleanup=%+v, %v", status, err)
 	}
 }

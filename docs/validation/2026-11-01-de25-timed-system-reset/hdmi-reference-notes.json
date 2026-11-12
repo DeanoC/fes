@@ -1,0 +1,29 @@
+{
+  "classification": "primary-reference research only; no changed production clock, IO delay, requirement or exception",
+  "source_revision": "34c3a6cb4d2858c273e2f95a0a94fcb46f8b416b",
+  "programming_guide": {
+    "url": "https://www.analog.com/media/en/technical-documentation/user-guides/adv7513_programming_guide.pdf",
+    "section": "Table22, page35; register map page162",
+    "finding": "0xBA[7:5] controls capture-clock delay. The retained LUT requests0x60, selecting011/no delay; no physical readback is claimed."
+  },
+  "datasheet": {
+    "url": "https://www.analog.com/media/en/technical-documentation/data-sheets/ADV7513.pdf",
+    "retained_requirement_ns": {
+      "video_setup": "1.8",
+      "video_hold": "1.3"
+    },
+    "changed": false
+  },
+  "older_hardware_guide": {
+    "url": "https://www.analog.com/media/en/technical-documentation/user-guides/adv7513_hardware_user_guide.pdf",
+    "finding": "Its older video timing numbers do not justify reducing the retained datasheet requirements."
+  },
+  "vendor_clarification": {
+    "url": "https://ez.analog.com/video/f/q-a/10535/adv7513-input-video-data-timings",
+    "finding": "ADI identifies the older hardware-guide values as measured with clock-delay000. This is not a PCB-delay specification for our board."
+  },
+  "user_has_additional_pcb_files": false,
+  "macnica_review": "../de25-public-reference-20261101/review.json",
+  "hardware_access": "not-performed",
+  "timing_acceptance": false
+}

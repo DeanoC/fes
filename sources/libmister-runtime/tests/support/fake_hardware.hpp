@@ -24,6 +24,7 @@ public:
 	void SetFaultSink(mister::HardwareFaultSink*) override;
 	mister::HardwareResult LoadIdle() override;
  mister::HardwareResult ConfigureMenuPackage(const std::string&,const std::string& id) override {
+  ++menu_configure_calls;if(!menu_configure_result.error.ok())return menu_configure_result;
   menu_status.session=false;menu_status.core_generation=0;
   menu_configured=true;menu_status.available=true;menu_status.package_id=id;
   menu_status.geometry={1280,720,5120,3686400,4194304};return {{},true,"fes.menu"};
@@ -57,6 +58,8 @@ public:
  std::vector<mister::MenuDraw> menu_present_draws;
  unsigned menu_share_calls=0;
  bool menu_configured=false;
+ unsigned menu_configure_calls=0;
+ mister::HardwareResult menu_configure_result;
  mister::MenuDisplayStatus menu_status;
  unsigned menu_present_calls=0;
  mister::Error menu_present_result;
@@ -127,6 +130,18 @@ public:
 		if (on_insert_media) on_insert_media();
 		return insert_media_result;
 	}
+	mister::Error CaptureZx81Tape(const std::string& path) override {
+		++capture_tape_calls;
+		return on_capture_tape ? on_capture_tape() : Hardware::CaptureZx81Tape(path);
+	}
+	mister::Error AcknowledgeZx81Tape() override {
+		++acknowledge_tape_calls;
+		return on_acknowledge_tape ? on_acknowledge_tape() : Hardware::AcknowledgeZx81Tape();
+	}
+	int capture_tape_calls = 0;
+	int acknowledge_tape_calls = 0;
+	std::function<mister::Error()> on_capture_tape;
+	std::function<mister::Error()> on_acknowledge_tape;
 	mister::Error EjectComputerMedia(std::uint8_t unit) override
 	{
 		++eject_media_calls;

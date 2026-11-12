@@ -1,0 +1,22 @@
+{
+  "source_revision": "bd856e1cdde8a113f35c0b9bad0c7bdcc5d9f58c",
+  "command": [
+    "python3",
+    "scripts/de25_runtime.py",
+    "--image-output",
+    "/home/deano/fes/out/dev/de25-archive-completion/out/stable-mac-base",
+    "--output",
+    "out/frame-mapping-aarch64",
+    "--jobs",
+    "2"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-frame-client",
+  "started_utc": "2026-11-01T11:41:06.782464+00:00",
+  "time_cap_seconds": 1200,
+  "hardware_access": "not-performed",
+  "pid": 3387883,
+  "state": "passed",
+  "elapsed_seconds": 309.3,
+  "heartbeat_utc": "2026-11-01T11:46:16.117084+00:00",
+  "returncode": 0
+}

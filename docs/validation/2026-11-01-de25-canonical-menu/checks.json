@@ -1,0 +1,23 @@
+{
+  "producer_revision": "262ee72db716f44b34018f43375672006c45d713",
+  "build_id": "6f64324f9f29e219d6bd6806228afec2",
+  "canonical_source_files_verified": 365,
+  "compiled_model_sources_matched": 175,
+  "compiled_model_qips_matched": 17,
+  "model_cases": 10,
+  "rbf_sha256": "b16d1f080bbbac00cbc1be684f07a8da04a279c59ae1b5d78ae8b52ee93ff684",
+  "rbf_size": 1740800,
+  "canonical_record_sha256": "8e3e2046adb30f6f47fc9d3c8bbcbfc17e72048728b9958de91a4cf6c786c9e1",
+  "execution_sha256": "f6e3d8789e9b0377286b8b7ea8d44c96326ebe7038a49fc4d0046ed53e5e7e6b",
+  "build_inputs_sha256": "dcc68892f4173562b18d18e90308747fbd5a6b4614ef7d57cab5ecb6fc99e0c6",
+  "generation_sha256": "aeac8b87b0da59c8745edc62313ba02786bdbd8aa91f92659015c893770c6fb3",
+  "all_reported_timing_pass": true,
+  "timing_checks": 74,
+  "signoff_rules": 85,
+  "failed_rules": 4,
+  "generic_export_provenance_gate": "pass-in-memory-validation-only",
+  "package_exported": false,
+  "hardware_access": "not-performed",
+  "hardware_acceptance": false,
+  "normal_kit_acceptance": false
+}

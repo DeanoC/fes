@@ -1,0 +1,210 @@
+{
+  "base": "e0999eeac3256504fd2fbe3fb5b97f37077b1ec3",
+  "checkout_head": "603e1ac17f8d849b17ca608a4fe08e9b5c140ba9",
+  "commands": [
+    {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "files": [
+        "tests/test_affected.py"
+      ],
+      "label": "test_affected.py",
+      "lane": "always",
+      "tools": [
+        "/usr/bin/python3"
+      ]
+    },
+    {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "files": [
+        "tests/test_test_changed.py"
+      ],
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "tools": [
+        "/usr/bin/python3"
+      ]
+    },
+    {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "e0999eeac3256504fd2fbe3fb5b97f37077b1ec3",
+        "--head",
+        "603e1ac17f8d849b17ca608a4fe08e9b5c140ba9"
+      ],
+      "cwd": ".",
+      "files": [],
+      "label": "committed whitespace",
+      "lane": "always",
+      "tools": [
+        "/usr/bin/python3"
+      ]
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": ".",
+      "files": [],
+      "label": "working whitespace",
+      "lane": "always",
+      "tools": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "true",
+        "--paths-json",
+        "[\"docs/bootable-media.md\", \"docs/design/de25-linux-platform.md\", \"scripts/media.py\", \"tests/test_launcher_provision.py\"]"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ],
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "tools": [
+        "/usr/bin/python3",
+        "docker",
+        "sh"
+      ]
+    },
+    {
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/consistency.py"
+      ],
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ]
+    }
+  ],
+  "format": 1,
+  "head": "603e1ac17f8d849b17ca608a4fe08e9b5c140ba9",
+  "impact": {
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "cores": [],
+    "lanes": {
+      "contracts": false,
+      "fpga": false,
+      "host": false,
+      "parent": true,
+      "runtime": false
+    },
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ],
+    "paths": [
+      "docs/bootable-media.md",
+      "docs/design/de25-linux-platform.md",
+      "scripts/media.py",
+      "tests/test_launcher_provision.py"
+    ],
+    "reasons": [
+      "scripts/media.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_launcher_provision.py: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "skipped": [
+      "host",
+      "runtime",
+      "contracts",
+      "fpga"
+    ],
+    "test_modes": {
+      "full_race": false,
+      "media": true,
+      "video": false
+    }
+  },
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "local_paths": [],
+  "merge_base": "e0999eeac3256504fd2fbe3fb5b97f37077b1ec3",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    }
+  ],
+  "root": "/home/deano/fes/out/dev/de25-linux-platform/out/work/de25-linux-603e1ac17f8d849b17ca608a4fe08e9b5c140ba9",
+  "status": "passed"
+}

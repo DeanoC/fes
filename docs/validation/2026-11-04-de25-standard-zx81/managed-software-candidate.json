@@ -1,0 +1,91 @@
+{
+  "architecture": "aarch64",
+  "artifacts": {
+    "bundle.tar": {
+      "sha256": "aa0012724f7570d508140c88ba6019aef06a0d7ddd65d78752473e2853248d02",
+      "size": 36834816
+    }
+  },
+  "base_contract": "fes-kit-base-v1-4d08af30f26132bab500672c0bd227576cdaf11e108617966690620b22f494a9",
+  "base_factory_manifest_sha256": "deab10b632d10765de99942a7f2aae6efed9c1076ad7dc6565c6b6131c91d7c5",
+  "base_image_sha256": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+  "board": "de25-nano",
+  "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+  "bundle": {
+    "id": "7b82f9033e63ba9dd000010cef9e77033286182b00f0ac3fa5267c4be8ab4645",
+    "manifest": {
+      "architecture": "aarch64",
+      "base_contract": "fes-kit-base-v1-4d08af30f26132bab500672c0bd227576cdaf11e108617966690620b22f494a9",
+      "board": "de25-nano",
+      "files": [
+        {
+          "mode": 365,
+          "path": "bin/fogcast-kit",
+          "sha256": "722143c9957cdb47d1ab33d0eb2530a87cb4caee5bbb9045393ebadac4710ef2",
+          "size": 1573026
+        },
+        {
+          "mode": 365,
+          "path": "bin/fogcast-tenfoot",
+          "sha256": "1f766dc772fc9e06df3183024c192052b90e1cc4c79b33bb098cb728ca53d6d7",
+          "size": 23330978
+        },
+        {
+          "mode": 365,
+          "path": "bin/mister-agent",
+          "sha256": "a230e2c8b9231b0b26decf9bff277c08b586365b7b7c9a8f629729791c98124a",
+          "size": 10223778
+        },
+        {
+          "mode": 365,
+          "path": "bin/mister-runtime",
+          "sha256": "b369ed000ef1dc6f6edea23315f539d947cca3375eb6615db949d50af43fe3f9",
+          "size": 1699632
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/config.toml",
+          "sha256": "c8dae986367e7a4562446512d6133e6d687786b732b1bafc60420ef936323dbc",
+          "size": 432
+        }
+      ],
+      "format": 1,
+      "interfaces": {
+        "maintenance": "fes-kit-maintenance-v1",
+        "menu.fes.fabric.de25-scanout": "1.1",
+        "menu.fes.memory.hps-ddr": "1.0",
+        "menu.fes.video.fixed-720p60": "1.0",
+        "menu.fes.video.menu-blitter": "1.1",
+        "menu.fes.video.menu-display": "1.0",
+        "runtime-protocol": "2",
+        "software-admission": "fes-kit-software-v1"
+      },
+      "provenance": {
+        "fogcast": "e26c65606430d253cc01fdc6aa494afa914a0546",
+        "runtime": "e26c65606430d253cc01fdc6aa494afa914a0546"
+      },
+      "version": "0.2.0-de25.e26c65606.standard1"
+    }
+  },
+  "classification": "complete immutable managed software candidate; off-board only",
+  "deployed": false,
+  "full_receipt_sha256": "d97bd98afba5862ce61bd52e6cbe7ed9ed996a6358fb5af26564f59ff2df7d6d",
+  "hardware_acceptance": false,
+  "host": {
+    "architecture": "linux/amd64",
+    "expected_help_exit": 2,
+    "scope": "argument parser exits before opening service/configuration/profiles",
+    "sha256": "b4f40409d0d11c2a23ffafbbf16cdfee51018489959b44b0d5a2be6cc4ba15c3",
+    "source_binding": "clean pinned build job and exact logged linker arguments; recipe uses buildvcs=false",
+    "source_revision": "e26c65606430d253cc01fdc6aa494afa914a0546"
+  },
+  "producer_seconds": 54.446,
+  "sdk_archive_sha256": "ad6479d06d506ed7406a289da1daa2712582ccc351e94e4db43498b01f0968e1",
+  "sdk_profile": "managed-factory",
+  "source_commit": "e26c65606430d253cc01fdc6aa494afa914a0546",
+  "source_trees": {
+    "image": "ca1a6df8c42897182bea34cc870aee1b0faa0b30",
+    "sources/FogCast": "bb7ec5b4b292c5dfcc25877b1e12e0753207fc70",
+    "sources/libmister-runtime": "6f1c4ef63ec057d6ad2073974d1948c54f42625c"
+  }
+}

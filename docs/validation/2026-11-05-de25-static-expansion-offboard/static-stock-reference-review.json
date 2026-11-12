@@ -1,0 +1,317 @@
+{
+  "passed": true,
+  "source_revision": "8af614f4d95e71a00e63974c73e3d8f80e1a681a",
+  "records": [
+    {
+      "fit": "primary-job",
+      "revision": "base",
+      "original_descriptor_sha256": "93ba6c6eebdc819cd76666abb226292ceaa116c400fe18bef9fbf93e67226d7d",
+      "path_aliases": {
+        "golden_top.qsf": "base.qsf",
+        "output_files/golden_top.pin": "output_files/base.pin",
+        "fes_combined/sys_pll.ip": "fes_combined/sys_pll.ip",
+        "fes_mailbox/fes_de25_scanout_board.v": "fes_mailbox/fes_de25_scanout_board.v",
+        "fes_mailbox/av_pll.ip": "fes_mailbox/av_pll.ip",
+        "fes_mailbox/fes_de25_scanout_hdmi_config.v": "fes_mailbox/fes_de25_scanout_hdmi_config.v",
+        "fes_mailbox/fes_de25_scanout_i2c_controller.v": "fes_mailbox/fes_de25_scanout_i2c_controller.v"
+      },
+      "actual_fitted_inputs_sha256": {
+        "base.qsf": "fdd84685efe0b30f1b668bca0bb5511068291069569c47dbf0eea14077ff12f4",
+        "output_files/base.pin": "a983c6ad5564f7675070abc175403c775e3b7100c18a6b7f263f8f02873da9dc",
+        "fes_combined/sys_pll.ip": "115dfc74af00f4f6ed769073b7611de878b696bda4c0ea74a2486bdaa8f1f2e0",
+        "fes_mailbox/fes_de25_scanout_board.v": "ba3b2894d21f5742eae1c49a5678e9507c8619929b305657b39e0e0a07346e9b",
+        "fes_mailbox/av_pll.ip": "cb8aa1bb3910b7b50d86c25c4980a8be7267715c9505e727648056b6b0f28179",
+        "fes_mailbox/fes_de25_scanout_hdmi_config.v": "858b243ff0edbc5245a8149defedfae70efa5a21a65302f5686b9064dd3754be",
+        "fes_mailbox/fes_de25_scanout_i2c_controller.v": "57dd988f8a8989008a33be7bbac04ea8ee77f579b66294502414f315bd35fd2a"
+      },
+      "stock_audio": {
+        "pins": {
+          "HDMI_LRCLK": {
+            "pin": "BR6",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_SCLK": {
+            "pin": "BW1",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_I2S": {
+            "pin": "CB2",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_MCLK": {
+            "pin": "CF1",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "CLOCK1_50": {
+            "pin": "V16",
+            "io_standard": "3.3-V LVCMOS"
+          }
+        },
+        "vendor_archive_sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66",
+        "derived_pll_sha256": "cb8aa1bb3910b7b50d86c25c4980a8be7267715c9505e727648056b6b0f28179"
+      },
+      "checked_video_pin_count": 37,
+      "transmitter_registers": 33
+    },
+    {
+      "fit": "primary-job",
+      "revision": "persona_a",
+      "original_descriptor_sha256": "93ba6c6eebdc819cd76666abb226292ceaa116c400fe18bef9fbf93e67226d7d",
+      "path_aliases": {
+        "golden_top.qsf": "persona_a.qsf",
+        "output_files/golden_top.pin": "output_files/persona_a.pin",
+        "fes_combined/sys_pll.ip": "fes_combined/sys_pll.ip",
+        "fes_mailbox/fes_de25_scanout_board.v": "fes_mailbox/fes_de25_scanout_board.v",
+        "fes_mailbox/av_pll.ip": "fes_mailbox/av_pll.ip",
+        "fes_mailbox/fes_de25_scanout_hdmi_config.v": "fes_mailbox/fes_de25_scanout_hdmi_config.v",
+        "fes_mailbox/fes_de25_scanout_i2c_controller.v": "fes_mailbox/fes_de25_scanout_i2c_controller.v"
+      },
+      "actual_fitted_inputs_sha256": {
+        "persona_a.qsf": "bbce1c54f1a3bbd2cbec1183834b7cb15889712faed2e02f184a70a50df9afb9",
+        "output_files/persona_a.pin": "6050fd9e5d97bfe962857bbaa9067cf98987fca96b52689cdf6777707e57deb8",
+        "fes_combined/sys_pll.ip": "115dfc74af00f4f6ed769073b7611de878b696bda4c0ea74a2486bdaa8f1f2e0",
+        "fes_mailbox/fes_de25_scanout_board.v": "ba3b2894d21f5742eae1c49a5678e9507c8619929b305657b39e0e0a07346e9b",
+        "fes_mailbox/av_pll.ip": "cb8aa1bb3910b7b50d86c25c4980a8be7267715c9505e727648056b6b0f28179",
+        "fes_mailbox/fes_de25_scanout_hdmi_config.v": "858b243ff0edbc5245a8149defedfae70efa5a21a65302f5686b9064dd3754be",
+        "fes_mailbox/fes_de25_scanout_i2c_controller.v": "57dd988f8a8989008a33be7bbac04ea8ee77f579b66294502414f315bd35fd2a"
+      },
+      "stock_audio": {
+        "pins": {
+          "HDMI_LRCLK": {
+            "pin": "BR6",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_SCLK": {
+            "pin": "BW1",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_I2S": {
+            "pin": "CB2",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_MCLK": {
+            "pin": "CF1",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "CLOCK1_50": {
+            "pin": "V16",
+            "io_standard": "3.3-V LVCMOS"
+          }
+        },
+        "vendor_archive_sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66",
+        "derived_pll_sha256": "cb8aa1bb3910b7b50d86c25c4980a8be7267715c9505e727648056b6b0f28179"
+      },
+      "checked_video_pin_count": 37,
+      "transmitter_registers": 33
+    },
+    {
+      "fit": "primary-job",
+      "revision": "persona_b",
+      "original_descriptor_sha256": "93ba6c6eebdc819cd76666abb226292ceaa116c400fe18bef9fbf93e67226d7d",
+      "path_aliases": {
+        "golden_top.qsf": "persona_b.qsf",
+        "output_files/golden_top.pin": "output_files/persona_b.pin",
+        "fes_combined/sys_pll.ip": "fes_combined/sys_pll.ip",
+        "fes_mailbox/fes_de25_scanout_board.v": "fes_mailbox/fes_de25_scanout_board.v",
+        "fes_mailbox/av_pll.ip": "fes_mailbox/av_pll.ip",
+        "fes_mailbox/fes_de25_scanout_hdmi_config.v": "fes_mailbox/fes_de25_scanout_hdmi_config.v",
+        "fes_mailbox/fes_de25_scanout_i2c_controller.v": "fes_mailbox/fes_de25_scanout_i2c_controller.v"
+      },
+      "actual_fitted_inputs_sha256": {
+        "persona_b.qsf": "d5d37284bb681cf6d769d711675a656224ec208ed2445f305476072967bc5d06",
+        "output_files/persona_b.pin": "8397783953d5991521c0231832799dbd763a4ac2217ccb7d3b621b677077d0c5",
+        "fes_combined/sys_pll.ip": "115dfc74af00f4f6ed769073b7611de878b696bda4c0ea74a2486bdaa8f1f2e0",
+        "fes_mailbox/fes_de25_scanout_board.v": "ba3b2894d21f5742eae1c49a5678e9507c8619929b305657b39e0e0a07346e9b",
+        "fes_mailbox/av_pll.ip": "cb8aa1bb3910b7b50d86c25c4980a8be7267715c9505e727648056b6b0f28179",
+        "fes_mailbox/fes_de25_scanout_hdmi_config.v": "858b243ff0edbc5245a8149defedfae70efa5a21a65302f5686b9064dd3754be",
+        "fes_mailbox/fes_de25_scanout_i2c_controller.v": "57dd988f8a8989008a33be7bbac04ea8ee77f579b66294502414f315bd35fd2a"
+      },
+      "stock_audio": {
+        "pins": {
+          "HDMI_LRCLK": {
+            "pin": "BR6",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_SCLK": {
+            "pin": "BW1",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_I2S": {
+            "pin": "CB2",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_MCLK": {
+            "pin": "CF1",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "CLOCK1_50": {
+            "pin": "V16",
+            "io_standard": "3.3-V LVCMOS"
+          }
+        },
+        "vendor_archive_sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66",
+        "derived_pll_sha256": "cb8aa1bb3910b7b50d86c25c4980a8be7267715c9505e727648056b6b0f28179"
+      },
+      "checked_video_pin_count": 37,
+      "transmitter_registers": 33
+    },
+    {
+      "fit": "independent-job",
+      "revision": "base",
+      "original_descriptor_sha256": "b64a319a98b3b475a810dab3a63ac1d20ba8f5879a00b45fd295bc1d71b70011",
+      "path_aliases": {
+        "golden_top.qsf": "base.qsf",
+        "output_files/golden_top.pin": "output_files/base.pin",
+        "fes_combined/sys_pll.ip": "fes_combined/sys_pll.ip",
+        "fes_mailbox/fes_de25_scanout_board.v": "fes_mailbox/fes_de25_scanout_board.v",
+        "fes_mailbox/av_pll.ip": "fes_mailbox/av_pll.ip",
+        "fes_mailbox/fes_de25_scanout_hdmi_config.v": "fes_mailbox/fes_de25_scanout_hdmi_config.v",
+        "fes_mailbox/fes_de25_scanout_i2c_controller.v": "fes_mailbox/fes_de25_scanout_i2c_controller.v"
+      },
+      "actual_fitted_inputs_sha256": {
+        "base.qsf": "fdd84685efe0b30f1b668bca0bb5511068291069569c47dbf0eea14077ff12f4",
+        "output_files/base.pin": "a983c6ad5564f7675070abc175403c775e3b7100c18a6b7f263f8f02873da9dc",
+        "fes_combined/sys_pll.ip": "115dfc74af00f4f6ed769073b7611de878b696bda4c0ea74a2486bdaa8f1f2e0",
+        "fes_mailbox/fes_de25_scanout_board.v": "ba3b2894d21f5742eae1c49a5678e9507c8619929b305657b39e0e0a07346e9b",
+        "fes_mailbox/av_pll.ip": "cb8aa1bb3910b7b50d86c25c4980a8be7267715c9505e727648056b6b0f28179",
+        "fes_mailbox/fes_de25_scanout_hdmi_config.v": "858b243ff0edbc5245a8149defedfae70efa5a21a65302f5686b9064dd3754be",
+        "fes_mailbox/fes_de25_scanout_i2c_controller.v": "57dd988f8a8989008a33be7bbac04ea8ee77f579b66294502414f315bd35fd2a"
+      },
+      "stock_audio": {
+        "pins": {
+          "HDMI_LRCLK": {
+            "pin": "BR6",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_SCLK": {
+            "pin": "BW1",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_I2S": {
+            "pin": "CB2",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_MCLK": {
+            "pin": "CF1",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "CLOCK1_50": {
+            "pin": "V16",
+            "io_standard": "3.3-V LVCMOS"
+          }
+        },
+        "vendor_archive_sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66",
+        "derived_pll_sha256": "cb8aa1bb3910b7b50d86c25c4980a8be7267715c9505e727648056b6b0f28179"
+      },
+      "checked_video_pin_count": 37,
+      "transmitter_registers": 33
+    },
+    {
+      "fit": "independent-job",
+      "revision": "persona_a",
+      "original_descriptor_sha256": "b64a319a98b3b475a810dab3a63ac1d20ba8f5879a00b45fd295bc1d71b70011",
+      "path_aliases": {
+        "golden_top.qsf": "persona_a.qsf",
+        "output_files/golden_top.pin": "output_files/persona_a.pin",
+        "fes_combined/sys_pll.ip": "fes_combined/sys_pll.ip",
+        "fes_mailbox/fes_de25_scanout_board.v": "fes_mailbox/fes_de25_scanout_board.v",
+        "fes_mailbox/av_pll.ip": "fes_mailbox/av_pll.ip",
+        "fes_mailbox/fes_de25_scanout_hdmi_config.v": "fes_mailbox/fes_de25_scanout_hdmi_config.v",
+        "fes_mailbox/fes_de25_scanout_i2c_controller.v": "fes_mailbox/fes_de25_scanout_i2c_controller.v"
+      },
+      "actual_fitted_inputs_sha256": {
+        "persona_a.qsf": "bbce1c54f1a3bbd2cbec1183834b7cb15889712faed2e02f184a70a50df9afb9",
+        "output_files/persona_a.pin": "6050fd9e5d97bfe962857bbaa9067cf98987fca96b52689cdf6777707e57deb8",
+        "fes_combined/sys_pll.ip": "115dfc74af00f4f6ed769073b7611de878b696bda4c0ea74a2486bdaa8f1f2e0",
+        "fes_mailbox/fes_de25_scanout_board.v": "ba3b2894d21f5742eae1c49a5678e9507c8619929b305657b39e0e0a07346e9b",
+        "fes_mailbox/av_pll.ip": "cb8aa1bb3910b7b50d86c25c4980a8be7267715c9505e727648056b6b0f28179",
+        "fes_mailbox/fes_de25_scanout_hdmi_config.v": "858b243ff0edbc5245a8149defedfae70efa5a21a65302f5686b9064dd3754be",
+        "fes_mailbox/fes_de25_scanout_i2c_controller.v": "57dd988f8a8989008a33be7bbac04ea8ee77f579b66294502414f315bd35fd2a"
+      },
+      "stock_audio": {
+        "pins": {
+          "HDMI_LRCLK": {
+            "pin": "BR6",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_SCLK": {
+            "pin": "BW1",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_I2S": {
+            "pin": "CB2",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_MCLK": {
+            "pin": "CF1",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "CLOCK1_50": {
+            "pin": "V16",
+            "io_standard": "3.3-V LVCMOS"
+          }
+        },
+        "vendor_archive_sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66",
+        "derived_pll_sha256": "cb8aa1bb3910b7b50d86c25c4980a8be7267715c9505e727648056b6b0f28179"
+      },
+      "checked_video_pin_count": 37,
+      "transmitter_registers": 33
+    },
+    {
+      "fit": "independent-job",
+      "revision": "persona_b",
+      "original_descriptor_sha256": "b64a319a98b3b475a810dab3a63ac1d20ba8f5879a00b45fd295bc1d71b70011",
+      "path_aliases": {
+        "golden_top.qsf": "persona_b.qsf",
+        "output_files/golden_top.pin": "output_files/persona_b.pin",
+        "fes_combined/sys_pll.ip": "fes_combined/sys_pll.ip",
+        "fes_mailbox/fes_de25_scanout_board.v": "fes_mailbox/fes_de25_scanout_board.v",
+        "fes_mailbox/av_pll.ip": "fes_mailbox/av_pll.ip",
+        "fes_mailbox/fes_de25_scanout_hdmi_config.v": "fes_mailbox/fes_de25_scanout_hdmi_config.v",
+        "fes_mailbox/fes_de25_scanout_i2c_controller.v": "fes_mailbox/fes_de25_scanout_i2c_controller.v"
+      },
+      "actual_fitted_inputs_sha256": {
+        "persona_b.qsf": "d5d37284bb681cf6d769d711675a656224ec208ed2445f305476072967bc5d06",
+        "output_files/persona_b.pin": "8397783953d5991521c0231832799dbd763a4ac2217ccb7d3b621b677077d0c5",
+        "fes_combined/sys_pll.ip": "115dfc74af00f4f6ed769073b7611de878b696bda4c0ea74a2486bdaa8f1f2e0",
+        "fes_mailbox/fes_de25_scanout_board.v": "ba3b2894d21f5742eae1c49a5678e9507c8619929b305657b39e0e0a07346e9b",
+        "fes_mailbox/av_pll.ip": "cb8aa1bb3910b7b50d86c25c4980a8be7267715c9505e727648056b6b0f28179",
+        "fes_mailbox/fes_de25_scanout_hdmi_config.v": "858b243ff0edbc5245a8149defedfae70efa5a21a65302f5686b9064dd3754be",
+        "fes_mailbox/fes_de25_scanout_i2c_controller.v": "57dd988f8a8989008a33be7bbac04ea8ee77f579b66294502414f315bd35fd2a"
+      },
+      "stock_audio": {
+        "pins": {
+          "HDMI_LRCLK": {
+            "pin": "BR6",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_SCLK": {
+            "pin": "BW1",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_I2S": {
+            "pin": "CB2",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "HDMI_MCLK": {
+            "pin": "CF1",
+            "io_standard": "3.3-V LVCMOS"
+          },
+          "CLOCK1_50": {
+            "pin": "V16",
+            "io_standard": "3.3-V LVCMOS"
+          }
+        },
+        "vendor_archive_sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66",
+        "derived_pll_sha256": "cb8aa1bb3910b7b50d86c25c4980a8be7267715c9505e727648056b6b0f28179"
+      },
+      "checked_video_pin_count": 37,
+      "transmitter_registers": 33
+    }
+  ],
+  "scope": "Exact unmodified stock video/audio settings checkers against each static revision QSF and final pin report. Read-only file views alias only revision filenames to canonical helper names; actual QSF/pin bytes unchanged. No policy eligibility/admission changed.",
+  "raw_receipt_sha256": "f9a16258acffe6b7b5941ee81c7e6ef8c8504b05062e24b6e5fd33fdd46949b4",
+  "independent_pcb_timing_qualified": false,
+  "package_admission": false,
+  "hardware_acceptance": false
+}

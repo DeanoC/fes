@@ -1,0 +1,29 @@
+FIRMWARE_DIRECTORY_ABSENT_FRESH_IMAGE
+TRACEFS_MOUNTED_BY_TEST
+name: map
+ID: 885
+format:
+	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
+	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
+	field:unsigned char common_preempt_count;	offset:3;	size:1;	signed:0;
+	field:int common_pid;	offset:4;	size:4;	signed:1;
+
+	field:u64 iova;	offset:8;	size:8;	signed:0;
+	field:u64 paddr;	offset:16;	size:8;	signed:0;
+	field:size_t size;	offset:24;	size:8;	signed:0;
+
+print fmt: "IOMMU: iova=0x%016llx - 0x%016llx paddr=0x%016llx size=%zu", REC->iova, REC->iova + REC->size, REC->paddr, REC->size
+name: unmap
+ID: 884
+format:
+	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
+	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
+	field:unsigned char common_preempt_count;	offset:3;	size:1;	signed:0;
+	field:int common_pid;	offset:4;	size:4;	signed:1;
+
+	field:u64 iova;	offset:8;	size:8;	signed:0;
+	field:size_t size;	offset:16;	size:8;	signed:0;
+	field:size_t unmapped_size;	offset:24;	size:8;	signed:0;
+
+print fmt: "IOMMU: iova=0x%016llx - 0x%016llx size=%zu unmapped_size=%zu", REC->iova, REC->iova + REC->size, REC->size, REC->unmapped_size
+TRACE_CANDIDATE_FIRST_BOOT_PASS

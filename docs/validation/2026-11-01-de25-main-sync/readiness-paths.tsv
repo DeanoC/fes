@@ -1,0 +1,17 @@
+corner	group	check	from	to	slack
+Slow fix4 100C Model	hdmi	setup	fes_video_inst|hdmi_ready_sync[0]	fes_video_inst|hdmi_ready_sync[1]	13.059
+Slow fix4 100C Model	hdmi	hold	fes_video_inst|hdmi_ready_sync[0]	fes_video_inst|hdmi_ready_sync[1]	0.193
+Slow fix4 100C Model	control	setup	soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[0]	soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[1]	9.617
+Slow fix4 100C Model	control	hold	soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[0]	soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[1]	0.193
+Slow fix4 0C Model	hdmi	setup	fes_video_inst|hdmi_ready_sync[0]	fes_video_inst|hdmi_ready_sync[1]	13.007
+Slow fix4 0C Model	hdmi	hold	fes_video_inst|hdmi_ready_sync[0]	fes_video_inst|hdmi_ready_sync[1]	0.218
+Slow fix4 0C Model	control	setup	soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[0]	soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[1]	9.567
+Slow fix4 0C Model	control	hold	soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[0]	soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[1]	0.217
+Slow fix4a 0C Model	hdmi	setup	fes_video_inst|hdmi_ready_sync[0]	fes_video_inst|hdmi_ready_sync[1]	13.007
+Slow fix4a 0C Model	hdmi	hold	fes_video_inst|hdmi_ready_sync[0]	fes_video_inst|hdmi_ready_sync[1]	0.219
+Slow fix4a 0C Model	control	setup	soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[0]	soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[1]	9.566
+Slow fix4a 0C Model	control	hold	soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[0]	soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[1]	0.217
+Fast fix4 0C Model	hdmi	setup	fes_video_inst|hdmi_ready_sync[0]	fes_video_inst|hdmi_ready_sync[1]	13.199
+Fast fix4 0C Model	hdmi	hold	fes_video_inst|hdmi_ready_sync[0]	fes_video_inst|hdmi_ready_sync[1]	0.109
+Fast fix4 0C Model	control	setup	soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[0]	soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[1]	9.759
+Fast fix4 0C Model	control	hold	soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[0]	soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[1]	0.109

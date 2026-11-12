@@ -34,6 +34,20 @@ def digest(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def _de25_license_arguments(env, recipe):
+    if recipe.board != 'de25-nano' or recipe.toolchain != 'quartus':
+        return []
+    selected = (os.environ if env is None else env).get('FES_DE25_QUARTUS_LICENSE_FILE')
+    if not selected:
+        return []
+    path = Path(selected)
+    if not path.is_absolute():
+        raise ValueError('FES_DE25_QUARTUS_LICENSE_FILE must be absolute')
+    # The producer snapshots and validates this local file. Use the same
+    # selection for canonical execution capture and the actual compiler run.
+    return ['--license-file', str(path)]
+
+
 def authenticate_misteross_origin(source):
     """Validate snapshot provenance without modifying its repository config."""
     source = Path(source).resolve()
@@ -64,6 +78,7 @@ def authenticate_misteross_origin(source):
 def canonical_package_record(source, env=None, recipe=None):
     """Derive the selected producer's canonical pre-synthesis record in isolation."""
     recipe = recipe_for("fes.pong") if recipe is None else recipe
+    license_arguments = _de25_license_arguments(env, recipe)
     source = Path(source).resolve()
     authenticate_misteross_origin(source)
     program = r'''
@@ -85,7 +100,11 @@ import tempfile
 from scripts.functional_execution import execution_environment, execution_inputs
 with tempfile.TemporaryDirectory(prefix="fes-canonical-home-") as home:
     paths = {name: tool.path for name, tool in tools.items()}
-    environment = execution_environment(Path(home), paths)
+    if "--license-file" in sys.argv:
+        license_file = Path(sys.argv[sys.argv.index("--license-file") + 1])
+        environment = producer.execution_environment(Path(home), paths, license_file=license_file)
+    else:
+        environment = execution_environment(Path(home), paths)
     options["execution"] = (producer.execution_inputs(paths, environment, 0)
                             if hasattr(producer, "execution_inputs")
                             else execution_inputs(paths, environment, 0))
@@ -94,7 +113,8 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
     cache_root = str(recipe.cache_root)
     command = [sys.executable, "-c", program, recipe.producer_module, recipe.authenticate,
                json.dumps(dict(recipe.producer_options), sort_keys=True),
-               "--cache-root", cache_root, "--identity-version", str(recipe.identity_version)]
+               "--cache-root", cache_root, "--identity-version", str(recipe.identity_version),
+               *license_arguments]
     try:
         record = subprocess.check_output(
             command, cwd=source, env=package_build_environment(env, recipe=recipe))
@@ -102,6 +122,8 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
     except (OSError, subprocess.CalledProcessError, UnicodeDecodeError,
             json.JSONDecodeError) as error:
         if recipe.toolchain == "quartus":
+            if recipe.board == "de25-nano":
+                raise ValueError(f"cannot authenticate {recipe.core_id} DE25 Quartus inputs; set QUARTUS_ROOTDIR to the pinned Pro installation") from error
             raise ValueError(f"cannot authenticate {recipe.core_id} Quartus inputs; set QUARTUS_ROOTDIR and FES_PCXT_YOSYS to the pinned installations") from error
         raise ValueError(
             f"cannot derive authenticated {recipe.core_id} build inputs in {source}; "
@@ -160,8 +182,13 @@ import json
 import sys
 from pathlib import Path
 import importlib
-from scripts.core_package import read_package
-from scripts.export_core_package import build_identity, _decode_build_record
+board = sys.argv[4]
+if board not in ('de10-nano', 'de25-nano'):
+    raise ValueError('unsupported independently selected board')
+namespace = 'boards.de25nano.package' if board == 'de25-nano' else 'scripts'
+read_package = importlib.import_module(namespace + '.core_package').read_package
+exporter = importlib.import_module(namespace + '.export_core_package')
+build_identity, _decode_build_record = exporter.build_identity, exporter._decode_build_record
 producer = importlib.import_module(sys.argv[3])
 root = Path.cwd().resolve()
 package_path = Path(sys.argv[1]).resolve()
@@ -170,10 +197,11 @@ record = record_path.read_bytes()
 record_fields = _decode_build_record(record)
 package = read_package(package_path)
 manifest = package.fields
+if manifest.get("target", {}).get("platform") != sys.argv[4].replace("-", "_"):
+    raise ValueError("cached package target differs from independently selected board")
 if record_fields["format"] != 2:
     raise ValueError("normal FES packages require functional build record 2")
-from scripts.export_core_package import verify_record_source_at_revision
-verify_record_source_at_revision(root, record)
+exporter.verify_record_source_at_revision(root, record)
 build = manifest["build"]
 toolchain = "; ".join(f"{name} {record_fields['tools'][name]}" for name in sorted(record_fields["tools"]))
 if package_path.name != package.package_id:
@@ -193,7 +221,7 @@ print(json.dumps(inspected, sort_keys=True))
 '''
     try:
         result = subprocess.run(
-            [sys.executable, "-c", program, str(package), str(record_path), recipe.producer_module],
+            [sys.executable, "-c", program, str(package), str(record_path), recipe.producer_module, recipe.board],
             cwd=source, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
         inspected = json.loads(result.stdout)
     except (OSError, subprocess.CalledProcessError, json.JSONDecodeError) as error:
@@ -227,7 +255,8 @@ def _build_package(source, recipe=None, env=None):
             [sys.executable, recipe.producer_script, "--root", str(source),
              "--package-output", str(Path(source) / "build/packages"),
              "--cache-root", str(recipe.cache_root),
-             "--identity-version", "2", *recipe.producer_arguments],
+             "--identity-version", "2", *recipe.producer_arguments,
+             *_de25_license_arguments(env, recipe)],
             cwd=source, check=True, env=package_build_environment(env, recipe=recipe))
     except (OSError, subprocess.CalledProcessError) as error:
         report = optional_cores.read_producer_report(report_path)

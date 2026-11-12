@@ -1,0 +1,20 @@
+{
+  "source_revision": "21f50a8e2bb055560866ba86c0c4308276f2a453",
+  "command": [
+    "python3",
+    "sources/misteross/boards/de25nano/scanout/interconnect_sim.py",
+    "--project",
+    "/data/fes-de25-consolidation-platform-21f50a8e2/output/combined/hps/project",
+    "--output",
+    "/data/fes-de25-consolidation-platform-21f50a8e2/transport-sim"
+  ],
+  "cwd": "/data/fes-de25-consolidation-platform-21f50a8e2/source",
+  "started_utc": "2026-10-31T13:53:08.611185+00:00",
+  "time_cap_seconds": 1800,
+  "hardware_access": "not-performed",
+  "pid": 1754742,
+  "state": "passed",
+  "elapsed_seconds": 25.8,
+  "heartbeat_utc": "2026-10-31T13:53:34.440454+00:00",
+  "returncode": 0
+}

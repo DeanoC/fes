@@ -1,0 +1,20 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "runtime_base_commit": "9c3635b270a5171bc7b8bbe2217fa0ab56983dfc",
+    "note": "Reviewed scanout1.3 contract and generated runtime consumer in the same FES change; base identifies preceding runtime. No physical acceptance.",
+    "header_sha256": "0dae1667dc5dae2c097bb06ec57ba310340f957d07c7bcfb065dcb6d1ff108e9"
+  },
+  "fabric_major": 1,
+  "fabric_minor": 3,
+  "constants": {
+    "FesDe25ScanoutVersion": 65539,
+    "FesDe25ScanoutSpan": 128,
+    "FesDe25ScanoutStatusDisplayReady": 64,
+    "FesDe25ScanoutErrorDisplay": 128,
+    "FesDe25ScanoutFirstFaultStateOffset": 116,
+    "FesDe25ScanoutFirstFaultOccupancyOffset": 120,
+    "FesDe25ScanoutFirstFaultGapsOffset": 124
+  },
+  "hardware_acceptance": "not-run"
+}

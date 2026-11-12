@@ -1702,6 +1702,22 @@ class InputDiagnosticAcceptanceTests(unittest.TestCase):
             for action in (1, 0)])
         self.assertEqual(state["stops"], 1)
 
+    def test_hid_recipe_preserves_codes_and_requires_exact_active_interface(self):
+        value = json.loads((ROOT / 'examples/input/zx81-keyboard.json').read_text())
+        for active in ('fes.keyboard.hid', 'fes.keyboard'):
+            state = _state()
+            state['diagnostic_interfaces'] = [dict(value['interface'], id=active)]
+            result, record = self.run_input(state, value=value)
+            with self.subTest(active=active):
+                if active == 'fes.keyboard.hid':
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(record['diagnostics'][0]['interface'], value['interface'])
+                    self.assertEqual(state['input_events'], [{'event': event} for event in value['events']])
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(state.get('input_events', []), [])
+                self.assertEqual(state['stops'], 1)
+
     def test_endpoint_fixture_rejects_bare_or_malformed_event_without_delivery(self):
         event = {"device": 1, "kind": 1, "action": 1, "code": 100, "value": 0}
         state = _state()

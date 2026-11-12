@@ -1,0 +1,66 @@
+applied
+63eebb5f53f4254a4beaab3bfe1a3d695d3da20d71e4f8f445bab816e28fa5db  /lib/firmware/fes-runtime-core.rbf
+be78380775fe921a08e9b5f1ab312df073338290fe0ebe06777a21b075462b9b  /sys/kernel/notes
+8baeadd914a41067d9210719280994278d42f27548a54d850d366f7dfabf2370  /usr/share/fes/kernel-modules.json
+crw-------    1 0        0          10, 124 Jan  1 00:00 /dev/fes-de25-scanout
+/usr/bin/flock
+[    1.906027] Intel Service Layer Driver Initialized
+[    1.926284] soc64-hwmon firmware:svc:hwmon: Initialized 4 temperature and 6 voltage channels
+[    1.935057] stratix10-svc firmware:svc: Common async channel allocated with id 0
+[    1.946098] fpga_manager fpga0: Stratix10 SOC FPGA Manager registered
+[    1.964006] of-fpga-region fpga-region: FPGA Region probed
+[    1.971300] of_cfs_init
+[    1.973800] of_cfs_init: OK
+[    1.976693] clk: Disabling unused clocks
+[    1.980647] PM: genpd: Disabling unused power domains
+[    1.985685] ALSA device list:
+[    1.988640]   No soundcards found.
+[    1.992226] dw-apb-uart 10c02100.serial: forbid DMA for kernel console
+[    2.001641] usb 1-1: new high-speed USB device number 2 using dwc2
+[    2.005933] EXT4-fs (mmcblk0p2): mounted filesystem dc1b5512-2da9-40ce-ae48-5c62b7e4f0c0 r/w with ordered data mode. Quota mode: none.
+[    2.019879] VFS: Mounted root (ext4 filesystem) on device 179:2.
+[    2.026849] devtmpfs: mounted
+[    2.035013] Freeing unused kernel memory: 10496K
+[    2.039728] Run /sbin/init as init process
+[    2.043821]   with arguments:
+[    2.043824]     /sbin/init
+[    2.043827]   with environment:
+[    2.043830]     HOME=/
+[    2.043833]     TERM=linux
+[    2.185714] EXT4-fs (mmcblk0p2): re-mounted dc1b5512-2da9-40ce-ae48-5c62b7e4f0c0 r/w. Quota mode: none.
+[    2.198643] hub 1-1:1.0: USB hub found
+[    2.202512] hub 1-1:1.0: 4 ports detected
+[    2.489709] usb 1-1.3: new full-speed USB device number 3 using dwc2
+[    3.277668] random: crng init done
+[    3.322626] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-0
+[    3.331100] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-1
+[    3.339739] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-2
+[    3.348269] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-3
+[    3.356917] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-4
+[    3.365473] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-5
+[    3.374053] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-6
+[    3.382700] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-7
+[    3.455889] socfpga-dwmac 10810000.ethernet eth0: PHY [stmmac-0:01] driver [Micrel KSZ9031 Gigabit PHY] (irq=POLL)
+[    3.466264] socfpga-dwmac 10810000.ethernet eth0: No Safety Features support found
+[    3.473825] socfpga-dwmac 10810000.ethernet eth0: IEEE 1588-2008 Advanced Timestamp supported
+[    3.482704] socfpga-dwmac 10810000.ethernet eth0: registered PTP clock
+[    3.489256] socfpga-dwmac 10810000.ethernet eth0: configuring for phy/rgmii link mode
+[    6.562548] socfpga-dwmac 10810000.ethernet eth0: Link is Up - 1Gbps/Full - flow control rx/tx
+[ 1871.056649] fpga_manager fpga0: writing fes-runtime-core.rbf to Stratix10 SOC FPGA Manager
+[ 1873.161790] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[ 1873.172069] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us
+[ 1873.484836] fpga_manager fpga0: writing fes-runtime-core.rbf to Stratix10 SOC FPGA Manager
+[ 1875.589762] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[ 1875.600040] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us
+[ 2552.582379] fpga_manager fpga0: writing fes-runtime-core.rbf to Stratix10 SOC FPGA Manager
+[ 2554.687619] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[ 2554.697894] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us
+[ 2554.894286] fpga_manager fpga0: writing fes-runtime-core.rbf to Stratix10 SOC FPGA Manager
+[ 2556.999759] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[ 2557.010022] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us
+[11448.399361] fpga_manager fpga0: writing fes-runtime-core.rbf to Stratix10 SOC FPGA Manager
+[11450.503834] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[11450.514099] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us
+[11463.196058] fpga_manager fpga0: writing fes-runtime-core.rbf to Stratix10 SOC FPGA Manager
+[11465.300089] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[11465.310355] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us

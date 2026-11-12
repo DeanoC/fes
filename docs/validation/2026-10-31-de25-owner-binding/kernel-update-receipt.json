@@ -1,0 +1,22 @@
+{
+  "started_utc": "2026-10-31T17:41:53.875286+00:00",
+  "board": "TRWU8J8G",
+  "boot_id": "b989f017-f9f3-45dd-811b-0482b1b65421",
+  "bundle_sha256": "88ceff69751927208572bac433f14208ef5b57ba66db24b9289efe1c67e2ac12",
+  "installer_sha256": "2fbcaafcb1741518341ec36ce408b16214e90fc833f961084e6f88476aec9140",
+  "phases": [
+    {
+      "phase": "upload",
+      "returncode": 0,
+      "elapsed_seconds": 1.7
+    },
+    {
+      "phase": "install",
+      "returncode": 0,
+      "elapsed_seconds": 18.5
+    }
+  ],
+  "reboot": "software-request-issued; subsequent serial/boot observation required",
+  "state": "staged-and-verified",
+  "reboot_ssh_returncode": 0
+}

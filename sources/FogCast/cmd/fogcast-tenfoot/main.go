@@ -19,7 +19,7 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/kitmemory"
-	"github.com/DeanoC/FogCast/ui/launcherconfig"
+	"github.com/DeanoC/FogCast/launcherconfig"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 

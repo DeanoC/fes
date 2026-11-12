@@ -1,0 +1,19 @@
+restart abandons only admitted allocated images after independent owner drain; uncertainty is retained
+success applies on close, reprograms in context, and preserves state at destruction
+explicit verified release leaves no inherited configuration for a fresh manager
+release refuses inheritance, changed bytes/overlay/search, expiry and uncertain removal
+profile-selected marker, MENU-computer-MENU switching, exact outgoing identity and uncertainty retention pass
+static startup base and initial partial persona have distinct exact closed FDT shapes
+static A/B/A launches load a fresh full base each time; MENU replacement removes child before base
+static payload/selection/fallback/ownership/kernel/deadline checks refuse before programming
+non-cold or wrong static control identity poisons context before partial submission
+partial create/write/close/status/deadline/search/identity failures retain both images, never retry or resume after ambiguity
+retained-input copy races and staged base/persona changes are rejected before the next image submission
+static release verifies both payloads/overlays before effects; removal failure and inheritance stay closed
+partial/failed/late close and unapplied status retain state and refuse replay
+preflight/staging failures make no programming call and clean only new resources
+private writable staging, exclusive search ownership, restoration and retained uncertain lookup pass
+default search fallbacks refuse stale images; immutable firmware directory remains untouched
+failed removal poisons without another image submission
+foreign profiles and replaced lease inode refuse before filesystem mutation
+de25_fpga_manager_test: passed

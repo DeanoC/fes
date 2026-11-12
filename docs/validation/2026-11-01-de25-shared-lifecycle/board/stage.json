@@ -1,0 +1,8 @@
+{
+  "host": "192.168.10.28",
+  "boot_id": "15e107d8-0ed1-4e5e-83d8-b27c8a49d853",
+  "command": "set -eu\n[ \"$(cat /proc/sys/kernel/random/boot_id)\" = 15e107d8-0ed1-4e5e-83d8-b27c8a49d853 ]\n[ \"$(cat /sys/block/mmcblk0/device/cid)\" = 275048534436344760702d33e0017c00 ]\n[ ! -e /tmp/fes-de25-shared-lifecycle-1cf ]\n[ ! -d /sys/kernel/config/device-tree/overlays/fes-runtime ]\numask 077\nmkdir /tmp/fes-de25-shared-lifecycle-1cf\ntar -xf - -C /tmp/fes-de25-shared-lifecycle-1cf\ncd /tmp/fes-de25-shared-lifecycle-1cf\nsha256sum lifecycle package/core.rbf seven.p\n",
+  "returncode": 0,
+  "elapsed_seconds": 0.39,
+  "stdin_sha256": "0ea618c21b42bba8503c44cce18404f848de712e49f1d590e8aa18b40cfd786e"
+}

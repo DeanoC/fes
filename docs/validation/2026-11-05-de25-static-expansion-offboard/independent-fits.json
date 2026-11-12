@@ -1,0 +1,348 @@
+{
+  "format": 1,
+  "classification": "Fresh standard OpenROM PR primary/independent fit comparison, not board qualification",
+  "source_revision": "aaf5155eed2f77683742f96d1a95ee83dfd4b235",
+  "utc": "2026-11-05T12:21:40.508912+00:00",
+  "records": [
+    {
+      "job": "primary-job",
+      "elapsed_seconds": 1449.55,
+      "artifacts_sha256": "4149fc8635c9ac21fe691a3aac6081e7c9caebca6b57b25b318fcbde67b7584b",
+      "source_closure_sha256": "b84e69c69be380fe326aa7a1daef115b1eace5aa8f1b614f7aff5032a3509563",
+      "root_qdb": {
+        "path": "root_partition.qdb",
+        "sha256": "88659746905a5c46bc375b40c03eeb2020e09872a73adc117497328efed8a2d0",
+        "size": 14612991
+      },
+      "control_build_id": "51176af827aabe42d8ddb8c1d25a8131",
+      "shell_id": "4cb8adcfca48ca1bebef0eca071a10fd57123ae07cd50ba30d1a8be11469882a",
+      "payloads": [
+        {
+          "path": "artifacts/base.rbf",
+          "sha256": "1136092a54019a861dfb64fdbe976d0bb036450aca8c2c1aae45e6fb32e495bf",
+          "size": 1773568
+        },
+        {
+          "path": "artifacts/zx81_empty.rbf",
+          "sha256": "6470ca14d543d2367332e62a925787799ba45ec22b31f43a381e499579792f79",
+          "size": 483328
+        },
+        {
+          "path": "artifacts/zx81_ram16k.rbf",
+          "sha256": "924c25b98c191f406ae668353540b0cb082eb1f00d55cb89097d5648001812fe",
+          "size": 532480
+        }
+      ],
+      "timing": {
+        "base": {
+          "row_count": 49,
+          "minimum_slack_ns": "0.000",
+          "unwaived_findings": [
+            {
+              "rule": "TMC-20012 - Missing Output Delay Constraint",
+              "severity": "High",
+              "violations": 33
+            },
+            {
+              "rule": "TMC-20011 - Missing Input Delay Constraint",
+              "severity": "High",
+              "violations": 2
+            },
+            {
+              "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+              "severity": "Low",
+              "violations": 1
+            },
+            {
+              "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+              "severity": "Low",
+              "violations": 1
+            }
+          ],
+          "MTBF": {
+            "excluded_counts": [
+              17
+            ],
+            "found_counts": [
+              72
+            ],
+            "status": "Pass"
+          },
+          "partition_reuse": {
+            "root_preserved_core_logic_excluding_pr_subblocks": "0.00%",
+            "status": "not-applicable-base"
+          }
+        },
+        "persona_a": {
+          "row_count": 49,
+          "minimum_slack_ns": "0.000",
+          "unwaived_findings": [
+            {
+              "rule": "TMC-20012 - Missing Output Delay Constraint",
+              "severity": "High",
+              "violations": 33
+            },
+            {
+              "rule": "TMC-20011 - Missing Input Delay Constraint",
+              "severity": "High",
+              "violations": 2
+            },
+            {
+              "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+              "severity": "Low",
+              "violations": 1
+            },
+            {
+              "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+              "severity": "Low",
+              "violations": 1
+            }
+          ],
+          "MTBF": {
+            "excluded_counts": [
+              17
+            ],
+            "found_counts": [
+              72
+            ],
+            "status": "Pass"
+          },
+          "partition_reuse": {
+            "root_preserved_core_logic_excluding_pr_subblocks": "100.00%",
+            "status": "passed"
+          }
+        },
+        "persona_b": {
+          "row_count": 49,
+          "minimum_slack_ns": "0.000",
+          "unwaived_findings": [
+            {
+              "rule": "TMC-20012 - Missing Output Delay Constraint",
+              "severity": "High",
+              "violations": 33
+            },
+            {
+              "rule": "TMC-20011 - Missing Input Delay Constraint",
+              "severity": "High",
+              "violations": 2
+            },
+            {
+              "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+              "severity": "Low",
+              "violations": 1
+            },
+            {
+              "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+              "severity": "Low",
+              "violations": 1
+            }
+          ],
+          "MTBF": {
+            "excluded_counts": [
+              17
+            ],
+            "found_counts": [
+              72
+            ],
+            "status": "Pass"
+          },
+          "partition_reuse": {
+            "root_preserved_core_logic_excluding_pr_subblocks": "100.00%",
+            "status": "passed"
+          }
+        }
+      },
+      "build_sha256": "4847cd26d6df8d32fec3eddacf4c02304835f7c9a229e4e917ca66e3f688a4d9"
+    },
+    {
+      "job": "independent-job",
+      "elapsed_seconds": 1465.99,
+      "artifacts_sha256": "db68b230e2367dd20bed801f13424f1b2047118349737a5a2c623e5888691d44",
+      "source_closure_sha256": "7c3aeb91a5cdf04c4809ca58d5de452dfd84e01cbac24c3fe11bdb6f15c68b5d",
+      "root_qdb": {
+        "path": "root_partition.qdb",
+        "sha256": "3f8a30a16e8f89c2cc74bdc92c62b0c4c5223188ced87d1cf9624c49181ab08f",
+        "size": 14637063
+      },
+      "control_build_id": "51176af827aabe42d8ddb8c1d25a8131",
+      "shell_id": "49b1a4b58f4197d643eb8eea8955cc4ab75f433ae7617e3e048daf8e374e6061",
+      "payloads": [
+        {
+          "path": "artifacts/base.rbf",
+          "sha256": "1136092a54019a861dfb64fdbe976d0bb036450aca8c2c1aae45e6fb32e495bf",
+          "size": 1773568
+        },
+        {
+          "path": "artifacts/zx81_empty.rbf",
+          "sha256": "6470ca14d543d2367332e62a925787799ba45ec22b31f43a381e499579792f79",
+          "size": 483328
+        },
+        {
+          "path": "artifacts/zx81_ram16k.rbf",
+          "sha256": "924c25b98c191f406ae668353540b0cb082eb1f00d55cb89097d5648001812fe",
+          "size": 532480
+        }
+      ],
+      "timing": {
+        "base": {
+          "row_count": 49,
+          "minimum_slack_ns": "0.000",
+          "unwaived_findings": [
+            {
+              "rule": "TMC-20012 - Missing Output Delay Constraint",
+              "severity": "High",
+              "violations": 33
+            },
+            {
+              "rule": "TMC-20011 - Missing Input Delay Constraint",
+              "severity": "High",
+              "violations": 2
+            },
+            {
+              "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+              "severity": "Low",
+              "violations": 1
+            },
+            {
+              "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+              "severity": "Low",
+              "violations": 1
+            }
+          ],
+          "MTBF": {
+            "excluded_counts": [
+              17
+            ],
+            "found_counts": [
+              72
+            ],
+            "status": "Pass"
+          },
+          "partition_reuse": {
+            "root_preserved_core_logic_excluding_pr_subblocks": "0.00%",
+            "status": "not-applicable-base"
+          }
+        },
+        "persona_a": {
+          "row_count": 49,
+          "minimum_slack_ns": "0.000",
+          "unwaived_findings": [
+            {
+              "rule": "TMC-20012 - Missing Output Delay Constraint",
+              "severity": "High",
+              "violations": 33
+            },
+            {
+              "rule": "TMC-20011 - Missing Input Delay Constraint",
+              "severity": "High",
+              "violations": 2
+            },
+            {
+              "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+              "severity": "Low",
+              "violations": 1
+            },
+            {
+              "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+              "severity": "Low",
+              "violations": 1
+            }
+          ],
+          "MTBF": {
+            "excluded_counts": [
+              17
+            ],
+            "found_counts": [
+              72
+            ],
+            "status": "Pass"
+          },
+          "partition_reuse": {
+            "root_preserved_core_logic_excluding_pr_subblocks": "100.00%",
+            "status": "passed"
+          }
+        },
+        "persona_b": {
+          "row_count": 49,
+          "minimum_slack_ns": "0.000",
+          "unwaived_findings": [
+            {
+              "rule": "TMC-20012 - Missing Output Delay Constraint",
+              "severity": "High",
+              "violations": 33
+            },
+            {
+              "rule": "TMC-20011 - Missing Input Delay Constraint",
+              "severity": "High",
+              "violations": 2
+            },
+            {
+              "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+              "severity": "Low",
+              "violations": 1
+            },
+            {
+              "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+              "severity": "Low",
+              "violations": 1
+            }
+          ],
+          "MTBF": {
+            "excluded_counts": [
+              17
+            ],
+            "found_counts": [
+              72
+            ],
+            "status": "Pass"
+          },
+          "partition_reuse": {
+            "root_preserved_core_logic_excluding_pr_subblocks": "100.00%",
+            "status": "passed"
+          }
+        }
+      },
+      "build_sha256": "1d2a08ffe90ea8851d9b6bb63072bf20ec70a3368b795e8d7528bcc4135b7546"
+    }
+  ],
+  "matches": {
+    "artifacts_sha256": false,
+    "source_closure_sha256": false,
+    "root_qdb": false,
+    "control_build_id": true,
+    "shell_id": false,
+    "payloads": true,
+    "timing": true
+  },
+  "design_closure": "failed, raw unwaived findings retained",
+  "hardware_acceptance": false,
+  "package_admission": false,
+  "matches_complete": false,
+  "input_difference_audit": {
+    "changed_project_inputs": {
+      "fes_mailbox/__pycache__/linux_dma.cpython-312.pyc": [
+        "576e00db614637d0a1ca83f1028f258a027da9dbf97ae7d647b353492f19ec5a",
+        "25286c2a36cd0b3cbb5fea8d8092036170fbacbccae2c5d01a33c7cd0e0065fb"
+      ],
+      "integrate-mailbox.tcl": [
+        "4108766731073c3f262bd4e76fa8b3fd4e34024ebad8f28c8f7ed9c1e6c8fe44",
+        "ab378e1b278cc78a3fc4e243306c4ffde791f21d82cc108063403fc076f88932"
+      ],
+      "fes_link/standard-base-inputs.json": [
+        "a2c8a382cc3ba3fb055e94185c90548ad159bb5c489a895745565eb7de71b517",
+        "daf824c1bba7017b97f4c6da17ccca0486f0b1ebded55d3992a1778ed0f46131"
+      ]
+    },
+    "integration_tcl": "Exact bytes match after replacing only the respective full project path",
+    "base_receipt": "Exact JSON matches after binding only its verified rendered-integration SHA to the corresponding original Tcl",
+    "Python_bytecode": "All code attributes/constants/line tables match after replacing only the respective full project prefix in co_filename; raw headers retained",
+    "pyc_headers_hex": [
+      "cb0d0d0a000000004269ec6a33530000",
+      "cb0d0d0a00000000fe6eec6a33530000"
+    ],
+    "opaque_QDB_hashes_equal": false,
+    "raw_manifest_identities_equal": false,
+    "hardware_payloads_byte_identical": true,
+    "scope": "Narrow observation, no source seal rewritten or opaque QDB difference waived; all raw identities remain distinct. No package admission or hardware qualification."
+  }
+}

@@ -6,22 +6,44 @@ description: >-
   A submit captures an immutable DMA bus grant and generation; acceptance
   is separate from successful full-frame display completion. Snapshot
   registers freeze one pixel-domain observation across the control bridge.
-  This contract assigns no Linux device, translation, firewall, boot or
-  runtime admission. See docs/de25-scanout.md.
+  The explicit Linux DMA build selects the generated SMMU stream/layout.
+  This contract assigns no Linux device, firewall, boot or runtime admission. See docs/de25-scanout.md.
 major: 1
-minor: 0
+minor: 3
 constants:
   - {name: FesDe25ScanoutIdentity, value: 0x44325343}
-  - {name: FesDe25ScanoutVersion, value: 0x00010000}
+  - {name: FesDe25ScanoutVersion, value: 0x00010003}
   - {name: FesDe25ScanoutArchitecturalLwBase, value: 0x20000000}
   - {name: FesDe25ScanoutArchitecturalLwSpan, value: 0x20000000}
   - {name: FesDe25ScanoutPeripheralOffset, value: 0x00010200}
   - {name: FesDe25ScanoutSpan, value: 128}
   - {name: FesDe25ScanoutAddressBits, value: 7}
   - {name: FesDe25ScanoutDmaAddressBits, value: 32}
+  - {name: FesDe25ScanoutControlSpan, value: 256}
+  - {name: FesDe25ScanoutGuardIdentity, value: 1144145732}
+  - {name: FesDe25ScanoutGuardVersion, value: 65536}
+  - {name: FesDe25ScanoutGuardIdOffset, value: 128}
+  - {name: FesDe25ScanoutGuardVersionOffset, value: 132}
+  - {name: FesDe25ScanoutGuardStatusOffset, value: 136}
+  - {name: FesDe25ScanoutGuardFaultOffset, value: 140}
+  - {name: FesDe25ScanoutGuardEpochOffset, value: 144}
+  - {name: FesDe25ScanoutGuardTimeoutOffset, value: 148}
+  - {name: FesDe25ScanoutGuardTimeoutCycles, value: 100000}
+  - {name: FesDe25ScanoutGuardStatusPoisoned, value: 1}
+  - {name: FesDe25ScanoutGuardStatusPending, value: 2}
+  - {name: FesDe25ScanoutGuardStatusAccepted, value: 4}
+  - {name: FesDe25ScanoutGuardStatusEpochSet, value: 8}
+  - {name: FesDe25ScanoutGuardFaultTimeout, value: 1}
+  - {name: FesDe25ScanoutGuardFaultResponse, value: 2}
+  - {name: FesDe25ScanoutGuardFaultUnexpectedResponse, value: 4}
+  - {name: FesDe25ScanoutGuardFaultAccess, value: 8}
+  - {name: FesDe25ScanoutSmmuStreamId, value: 13}
+  - {name: FesDe25ScanoutSmmuSidShift, value: 9}
+  - {name: FesDe25ScanoutSmmuSecureBit, value: 8}
+  - {name: FesDe25ScanoutSmmuUserBits, value: 25}
   - {name: FesDe25ScanoutBeatBytes, value: 16}
   - {name: FesDe25ScanoutGrantAlignment, value: 32}
-  - {name: FesDe25ScanoutMaxBurstBeats, value: 16}
+  - {name: FesDe25ScanoutMaxBurstBeats, value: 64}
   - {name: FesDe25ScanoutBoundaryBytes, value: 4096}
   - {name: FesDe25ScanoutFrameWidth, value: 1280}
   - {name: FesDe25ScanoutFrameHeight, value: 720}
@@ -55,6 +77,43 @@ constants:
   - {name: FesDe25ScanoutSnapshotGrantLoOffset, value: 0x58}
   - {name: FesDe25ScanoutSnapshotGrantHiOffset, value: 0x5c}
   - {name: FesDe25ScanoutSnapshotGrantSpanOffset, value: 0x60}
+  - {name: FesDe25ScanoutBuildId0Offset, value: 0x64}
+  - {name: FesDe25ScanoutBuildId1Offset, value: 0x68}
+  - {name: FesDe25ScanoutBuildId2Offset, value: 0x6c}
+  - {name: FesDe25ScanoutBuildId3Offset, value: 0x70}
+  - {name: FesDe25ScanoutFirstFaultStateOffset, value: 0x74}
+  - {name: FesDe25ScanoutFirstFaultOccupancyOffset, value: 0x78}
+  - {name: FesDe25ScanoutFirstFaultGapsOffset, value: 0x7c}
+  - {name: FesDe25ScanoutFirstFaultValidMask, value: 0x80000000}
+  - {name: FesDe25ScanoutFirstFaultHorizontalShift, value: 20}
+  - {name: FesDe25ScanoutFirstFaultHorizontalMask, value: 0x7ff}
+  - {name: FesDe25ScanoutFirstFaultVerticalShift, value: 10}
+  - {name: FesDe25ScanoutFirstFaultVerticalMask, value: 0x3ff}
+  - {name: FesDe25ScanoutFirstFaultVideoStateShift, value: 8}
+  - {name: FesDe25ScanoutFirstFaultVideoStateMask, value: 3}
+  - {name: FesDe25ScanoutFirstFaultVideoStateDrain, value: 0}
+  - {name: FesDe25ScanoutFirstFaultVideoStateStart, value: 1}
+  - {name: FesDe25ScanoutFirstFaultVideoStateFetch, value: 2}
+  - {name: FesDe25ScanoutFirstFaultVideoStateDisplay, value: 3}
+  - {name: FesDe25ScanoutFirstFaultPixelValidMask, value: 0x80}
+  - {name: FesDe25ScanoutFirstFaultIndexRelationShift, value: 5}
+  - {name: FesDe25ScanoutFirstFaultIndexRelationMask, value: 3}
+  - {name: FesDe25ScanoutFirstFaultIndexRelationLess, value: 0}
+  - {name: FesDe25ScanoutFirstFaultIndexRelationEqual, value: 1}
+  - {name: FesDe25ScanoutFirstFaultIndexRelationGreater, value: 2}
+  - {name: FesDe25ScanoutFirstFaultReadMask, value: 0x10}
+  - {name: FesDe25ScanoutFirstFaultWaitrequestMask, value: 8}
+  - {name: FesDe25ScanoutFirstFaultReaddatavalidMask, value: 4}
+  - {name: FesDe25ScanoutFirstFaultResponseMask, value: 3}
+  - {name: FesDe25ScanoutFirstFaultFifoCountMask, value: 0xfff}
+  - {name: FesDe25ScanoutFirstFaultOutstandingShift, value: 12}
+  - {name: FesDe25ScanoutFirstFaultOutstandingMask, value: 0x1ff}
+  - {name: FesDe25ScanoutFirstFaultLaneShift, value: 21}
+  - {name: FesDe25ScanoutFirstFaultLaneMask, value: 3}
+  - {name: FesDe25ScanoutFirstFaultOccupancyMask, value: 0x007fffff}
+  - {name: FesDe25ScanoutFirstFaultResponseGapMask, value: 0xffff}
+  - {name: FesDe25ScanoutFirstFaultHeldCommandAgeShift, value: 16}
+  - {name: FesDe25ScanoutFirstFaultHeldCommandAgeMask, value: 0xffff}
   - {name: FesDe25ScanoutCurrentSlotShift, value: 0}
   - {name: FesDe25ScanoutDisplayedSlotShift, value: 8}
   - {name: FesDe25ScanoutPendingSlotShift, value: 16}
@@ -70,7 +129,8 @@ constants:
   - {name: FesDe25ScanoutStatusDrained, value: 8}
   - {name: FesDe25ScanoutStatusFault, value: 16}
   - {name: FesDe25ScanoutStatusClockFault, value: 32}
-  - {name: FesDe25ScanoutStatusMask, value: 63}
+  - {name: FesDe25ScanoutStatusDisplayReady, value: 64}
+  - {name: FesDe25ScanoutStatusMask, value: 127}
   - {name: FesDe25ScanoutErrorDescriptor, value: 1}
   - {name: FesDe25ScanoutErrorCommand, value: 2}
   - {name: FesDe25ScanoutErrorResponse, value: 4}
@@ -78,4 +138,5 @@ constants:
   - {name: FesDe25ScanoutErrorClock, value: 16}
   - {name: FesDe25ScanoutErrorSequence, value: 32}
   - {name: FesDe25ScanoutErrorUnexpectedResponse, value: 64}
-  - {name: FesDe25ScanoutErrorMask, value: 127}
+  - {name: FesDe25ScanoutErrorDisplay, value: 128}
+  - {name: FesDe25ScanoutErrorMask, value: 255}

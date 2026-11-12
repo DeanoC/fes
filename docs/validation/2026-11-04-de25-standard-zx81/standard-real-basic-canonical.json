@@ -1,0 +1,47 @@
+{
+  "passed": true,
+  "source_revision": "0b990554fd419c739c4fe4713139d41fcc6e98b4",
+  "source_frozen_throughout": true,
+  "base": "415b325ba56840f5c323e7a770350c47e60f7e59",
+  "commands": 7,
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "seconds": 1024.795,
+  "output_sha256": "7908cefab5d0887439037f3fa4c47044c4c3fee0e0792ce8e2afa544f254ff0e",
+  "scope": "Complete unmodified affected plan for actual standard real-ROM BASIC and refreshed old14 compatibility fixture; no hardware acceptance."
+}

@@ -15,13 +15,16 @@ namespace mister {
 Error CreateProductionHardware(LogSink& log,
 	std::unique_ptr<Hardware>* hardware);
 std::unique_ptr<Hardware> CreateUnavailableHardware(const Error& reason);
+bool RequiresProductionShutdown(const Hardware&);
+Error ShutdownProductionHardware(Hardware&);
 
 #if defined(MISTER_RUNTIME_TESTING)
 // Exercise the same guarded construction path without reading host identity or
 // loading a kernel module. This overload is absent from production artifacts.
 Error CreateProductionHardware(LogSink& log, std::unique_ptr<Hardware>* hardware,
 	const std::string& architecture, const std::string& model,
-	const std::string& compatible, const std::function<Error()>& load_window_driver);
+	const std::string& compatible, const std::function<Error()>& load_window_driver,
+	const std::function<Error(std::unique_ptr<Hardware>*)>& construct_de25 = {});
 #endif
 
 } // namespace mister

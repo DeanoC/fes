@@ -2,9 +2,11 @@
 
 Status: accepted policy (issue #1163, Deano, 27 October 2026), including the
 15% threshold under [What "significantly" means](#what-significantly-means).
-The documentation updates are rollout step 1. Product support exists only for
-PC/XT: `fes.pcxt` and `fes.pcxt-dos` are registered Quartus recipes. Every other
-registered recipe is HIP/nextpnr, and `FES_OSS_ONLY` is not a live control.
+Registered recipes support a single OSS or Quartus producer for each core ID
+and board. PC/XT selects its Quartus diagnostic producer; explicit DE25 MENU
+selection uses Quartus Pro through the same package resolver. General
+same-board dual-variant catalog selection and `FES_OSS_ONLY` are not
+implemented. The remaining [rollout](#rollout) describes that broader policy.
 `AGENTS.md` (Toolchains) makes Quartus primary for DE25, pc386 and PC/XT; the
 "oracle" wording below predates that ([RTL front-end lanes](rtl-frontend-lanes.md), S6a).
 
@@ -24,11 +26,13 @@ Two reasons:
   The [i386 Quartus oracle](../../sources/misteross/docs/validation/2026-10-25-i386-quartus-oracle.md)
   (#1112) put most of that gap in place and route. #264 records the same split
   for `fes.ramtest` at 130 MHz.
-- **DE25-Nano.** Two Terasic DE25-Nano boards are on order for FES bring-up.
-  The board has an Agilex 5 FPGA, which the OSS flow does not target. Quartus
-  Pro 24.1 or later supports Agilex 5. This text listed the Pro entitlement as
-  open; `AGENTS.md` (Toolchains, Machines) now records Pro 26.3 on both build
-  hosts. [RTL front-end lanes](rtl-frontend-lanes.md) S1b and S6b settle it.
+- **DE25-Nano.** Two Terasic DE25-Nano boards are available for FES bring-up.
+  The board has an Agilex 5 FPGA, which the OSS flow does not target. The
+  installed Quartus Pro 26.3 tool identities are authenticated by its producer.
+  Normal-kit qualification is tracked in the
+  [DE25 development-kit design](de25-linux-platform.md).
+  `AGENTS.md` (Toolchains, Machines) records Pro 26.3 on both build hosts;
+  [RTL front-end lanes](rtl-frontend-lanes.md) S1b and S6b settle the entitlement.
 
 PC/XT now selects a single Quartus diagnostic producer through the normal
 package-preparation path. Its lane-specific recipe omits GPU/nextpnr settings;
@@ -105,10 +109,17 @@ note](../../sources/misteross/docs/validation/2026-10-25-i386-quartus-oracle.md)
 
 ### Recipe
 
-`config/core-recipes.toml` has one `[[recipes]]` row per `core_id`, with the
-OSS `[recipes.pnr]` table. This design keeps one row per core and adds the
-Quartus lane to it, because a variant is the same core made by a second
-toolchain. Sketch (names to settle in the implementation PR):
+`config/core-recipes.toml` has one `[[recipes]]` row per `core_id` and board.
+Omitting `board` selects `de10-nano`; explicit `de25-nano` rows require Quartus.
+OSS rows carry `[recipes.pnr]`; single-producer Quartus rows carry
+`[recipes.quartus]`. Lookup validates the whole registry and refuses an absent
+core on the selected board. This is implemented board selection, documented in
+the [executed record](../validation/2026-11-02-de25-board-recipes/README.md).
+
+The proposed same-board dual-toolchain extension would keep one row per core
+and board and add both lanes to it, because a variant is the same core made by
+a second toolchain. The following sketch is not implemented (names to settle
+in the implementation PR):
 
 ```toml
 [[recipes]]

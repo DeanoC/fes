@@ -1,0 +1,25 @@
+{
+  "source_revision": "b150127849de1761f17bc142de99374eb70a9938",
+  "command": [
+    "python3",
+    "scripts/de25_kernel_test.py",
+    "run",
+    "--cache",
+    "/home/deano/fes/out/cache/de25-linux-kernel.git",
+    "--image-output",
+    "/home/deano/fes/out/dev/de25-archive-completion/out/stable-mac-base",
+    "--output",
+    "out/owner-idle-kunit",
+    "--jobs",
+    "4"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-menu-owner",
+  "started_utc": "2026-11-01T10:26:28.207727+00:00",
+  "time_cap_seconds": 1800,
+  "hardware_access": "not-performed",
+  "pid": 2666716,
+  "state": "failed",
+  "elapsed_seconds": 2.3,
+  "heartbeat_utc": "2026-11-01T10:26:30.520376+00:00",
+  "returncode": 1
+}

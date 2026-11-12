@@ -1,0 +1,80 @@
+{
+  "canonical_menu_source_inputs_verified": 374,
+  "classification": "Unchanged component/runner identities retain prior software evidence; real source/host builders and full current parent checks are separate. Not a current ten-command aggregate or hardware pass",
+  "combined_compiler_inputs_verified": 59,
+  "effective_managed_recipe_changed_with_parent_builder_API": true,
+  "fpga_software_reused_from": {
+    "cases": 1762,
+    "elapsed_seconds": 961.6,
+    "retention_path": "/home/deano/fes/out/artifacts/de25-board-recipes/08c9bd510/retention.json",
+    "retention_sha256": "d4a3e031c215d64d2be54c287d016e3867eb773a35d69451092103a5ea82dc59",
+    "skips": 76,
+    "source_revision": "6909f1afdd6bcb72943e0f2f247d44740c2212f9",
+    "status": "passed"
+  },
+  "hardware_access": "not-performed",
+  "host_runtime_contracts_reused_from": {
+    "completed_lanes": [
+      [
+        "host",
+        "host Go and UI tests"
+      ],
+      [
+        "runtime",
+        "runtime software tests"
+      ],
+      [
+        "contracts",
+        "contract schemas and generated fixtures"
+      ]
+    ],
+    "evidence": "completed9-command prefix of preserved1800-second timeout, includes host/UI, runtime and contracts",
+    "retention_path": "/home/deano/fes/out/artifacts/de25-appliance-workflow/c68b96d12/retention.json",
+    "retention_sha256": "4fb5ae368858fc2054e92fad933e3dbc479c2761a65f7228e557fde43ca404c7",
+    "source_revision": "de56b0c4a6aaede4187aace1a8da6bd63afe6454"
+  },
+  "new_managed_base_or_factory_built": false,
+  "parent_routine_and_room_plans": {
+    "room": {
+      "cases": 663,
+      "groups": [
+        "build",
+        "policy"
+      ]
+    },
+    "routine": {
+      "cases": 1334,
+      "groups": "all"
+    }
+  },
+  "runtime_test_inputs_verified": 58,
+  "source_revision": "0c77fe27ffcba21202c5308e9642088704a49467",
+  "test_class_moved_without_AST_change": {
+    "class": "DE25SourceWorkflowTests",
+    "class_AST_unchanged": true,
+    "classification": "Move unchanged DE25 SDK/kernel/factory integration cases into their media ownership; preserve strict below-half room gate and all cases",
+    "existing_native_class_AST_unchanged": true,
+    "from_revision": "45a083f7bfa537602421947536ea016d66fdea83",
+    "methods": [
+      "test_missing_menu_stops_before_sdk_target_sources_and_compilers",
+      "test_source_build_and_hit_revalidate_without_recompiling",
+      "test_new_source_keeps_previous_generation_and_failed_build_keeps_receipt",
+      "test_rebuild_preserves_both_generations_and_hit_uses_the_recorded_one",
+      "test_resealed_flat_image_still_must_match_verified_factory",
+      "test_kernel_mismatch_and_busy_workspace_stop_before_build",
+      "test_low_disk_stops_before_package_or_source_work"
+    ],
+    "new_module": "test_de25_source_workflow",
+    "old_module": "test_native_dev",
+    "test_count": 7
+  },
+  "unchanged_git_objects": {
+    "scripts/environment.py": "92f72b5e57483d8a4f2b912772219665cfd18d15",
+    "scripts/host_affected.py": "916feed79ad2b2f0649f0437c58c40168b3167eb",
+    "scripts/host_tests.py": "87995bbc0587433b44ac7e7b4e108f90f1a2907a",
+    "sources/FogCast": "0c5998dbc62380b4a885c268f48af2c079c91588",
+    "sources/libmister-runtime": "76fd790345deed71592c70bc373e76346c664707",
+    "sources/mister-packages": "ef006ed0adb1b60b596bf05fc8c5096252b65754",
+    "sources/misteross": "2459d52948b46c814c5e4ddb8d5d553c6febbab8"
+  }
+}

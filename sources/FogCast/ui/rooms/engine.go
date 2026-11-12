@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	lua "github.com/yuin/gopher-lua"
@@ -169,6 +170,8 @@ type Instance struct {
 	// actions: a workbench repeats it on every load.
 	firmwareInfo *Action
 	games        map[string]hostclient.Game
+	gameVersion  map[string]uint64
+	gameEpoch    uint64
 	images       map[string]*Image
 	store        *store
 	logs         []string
@@ -204,6 +207,15 @@ type asyncResult struct {
 	transient    bool
 	more         bool
 	games        []hostclient.Game
+	homeFamily   bool
+	cancelled    *atomic.Bool
+	gameTable    *lua.LTable
+	gameIndex    int
+	partialGame  *lua.LTable
+	partialList  *lua.LTable
+	variantIndex int
+	queryEpoch   uint64
+	variants     []hostclient.Game
 	platforms    []hostclient.Platform
 	collections  []hostclient.Collection
 	game         *hostclient.Game
@@ -751,6 +763,20 @@ func (r *Instance) CachedGame(id string) (hostclient.Game, bool) {
 	return g, ok
 }
 
+// Record cache writes so an older query being converted across frames cannot
+// replace a newer refresh or detail result for the same entry.
+func (r *Instance) cacheGame(id string, game hostclient.Game) {
+	if r.games == nil {
+		r.games = make(map[string]hostclient.Game)
+	}
+	if r.gameVersion == nil {
+		r.gameVersion = make(map[string]uint64)
+	}
+	r.gameEpoch++
+	r.games[id] = game
+	r.gameVersion[id] = r.gameEpoch
+}
+
 // RefreshCachedGames updates host catalog rows the script already saw and
 // reclassifies the published destination from its retained candidate set.
 // A blocked sibling stays in that set, so a row that becomes viable is
@@ -767,7 +793,7 @@ func (r *Instance) RefreshCachedGames(games []hostclient.Game) {
 		if id == "" {
 			continue
 		}
-		r.games[id] = g
+		r.cacheGame(id, g)
 	}
 	if r.dest.Kind != KindGame {
 		return
@@ -926,10 +952,83 @@ func (r *Instance) drainResults() {
 	queued := r.pending
 	r.pending = nil
 	r.pendingMu.Unlock()
+	// Conversion runs on the Lua/UI thread. A full Home family response may
+	// contain 2,000 rows, so convert at most one batch per Step even when
+	// several family responses arrive together. Other results may still run.
+	converted := false
+	var deferred []asyncResult
 	for _, res := range queued {
+		if res.homeFamily && res.err == nil && res.games != nil {
+			if res.cancelled != nil && res.cancelled.Load() {
+				continue
+			}
+			if converted {
+				deferred = append(deferred, res)
+				continue
+			}
+			converted = true
+			if res.gameTable == nil {
+				res.gameTable = r.L.NewTable()
+			}
+			r.convertFamilyBatch(&res)
+			if res.gameIndex < len(res.games) {
+				deferred = append(deferred, res)
+				continue
+			}
+			// A cancelled partial answer never changes the shared game cache.
+			accepted := make(map[string]bool)
+			for _, g := range res.games {
+				if accepted[g.ID] || r.gameVersion[g.ID] <= res.queryEpoch {
+					r.cacheGame(g.ID, g)
+					accepted[g.ID] = true
+				}
+			}
+		}
 		r.applyResult(res)
 		if r.fatal != nil {
 			return
+		}
+	}
+	if len(deferred) != 0 {
+		r.pendingMu.Lock()
+		r.pending = append(deferred, r.pending...)
+		r.pendingMu.Unlock()
+	}
+}
+
+const familyResultBatch = 128
+
+// Build at most familyResultBatch rows or nested editions per Step. Keep the
+// partially built table private until every row is ready for the callback.
+func (r *Instance) convertFamilyBatch(res *asyncResult) {
+	for work := 0; work < familyResultBatch && res.gameIndex < len(res.games); work++ {
+		game := res.games[res.gameIndex]
+		if res.partialGame == nil {
+			variants := game.Variants
+			if len(variants) == 0 {
+				variants = game.Editions
+			}
+			row := r.gameRow(game, false)
+			if len(variants) == 0 {
+				res.gameTable.Append(row)
+				res.gameIndex++
+				continue
+			}
+			res.partialGame = row
+			res.partialList = r.L.NewTable()
+			res.variants = variants
+			row.RawSetString("variants", res.partialList)
+			res.variantIndex = 0
+			continue
+		}
+		res.partialList.Append(r.gameRow(res.variants[res.variantIndex], false))
+		res.variantIndex++
+		if res.variantIndex == len(res.variants) {
+			res.gameTable.Append(res.partialGame)
+			res.partialGame = nil
+			res.partialList = nil
+			res.variants = nil
+			res.gameIndex++
 		}
 	}
 }
@@ -959,13 +1058,17 @@ func (r *Instance) applyResult(res asyncResult) {
 		t.RawSetString("expansion_id", lua.LString(res.selection.ExpansionID))
 		payload = t
 	case res.games != nil:
-		payload = r.gamesTable(res.games)
+		if res.gameTable != nil {
+			payload = res.gameTable
+		} else {
+			payload = r.gamesTable(res.games)
+		}
 	case res.platforms != nil:
 		payload = r.platformsTable(res.platforms)
 	case res.collections != nil:
 		payload = r.collectionsTable(res.collections)
 	case res.game != nil:
-		r.games[res.game.ID] = *res.game
+		r.cacheGame(res.game.ID, *res.game)
 		payload = r.gameTable(*res.game)
 	case res.cores != nil:
 		payload = r.coresTable(res.cores)

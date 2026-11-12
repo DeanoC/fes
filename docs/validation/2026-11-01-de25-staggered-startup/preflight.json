@@ -1,0 +1,72 @@
+{
+  "classification": "focused checks before freezing6fa; final affected suite running separately",
+  "checks": [
+    {
+      "command": [
+        "python3",
+        "sources/misteross/boards/de25nano/scanout/test_build.py"
+      ],
+      "returncode": 0,
+      "tests": 27,
+      "elapsed_seconds": 1.026
+    },
+    {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "sources/misteross/tests",
+        "-p",
+        "test_build_de25_menu_package.py"
+      ],
+      "cwd": "FES root",
+      "returncode": 1,
+      "failure": "ImportError cannot import build_de25_menu_package from scripts; incorrect invocation directory, not reclassified as pass"
+    },
+    {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_build_de25_menu_package.py"
+      ],
+      "cwd": "sources/misteross",
+      "returncode": 0,
+      "tests": 12,
+      "elapsed_seconds": 0.529
+    },
+    {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_de25nano_scanout_startup.py"
+      ],
+      "cwd": "sources/misteross",
+      "returncode": 0,
+      "tests": 6,
+      "elapsed_seconds": 0.018
+    },
+    {
+      "command": [
+        "make",
+        "check"
+      ],
+      "cwd": "frozen6fa source",
+      "returncode": 0,
+      "generated_consumers": 40,
+      "fixture_copies": 42
+    }
+  ],
+  "hardware_access": "not-performed"
+}

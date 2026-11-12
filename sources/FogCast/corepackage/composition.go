@@ -158,6 +158,9 @@ func StageCompositionBytes(ctx context.Context, root string, data []byte) (Stage
 	if len(data) < 1 || len(data) > MaxCompositionArchiveSize {
 		return Staged{}, errors.New("invalid composition size")
 	}
+	if IsStaticCompositionBundle(data) {
+		return StageStaticCompositionBytes(ctx, root, data)
+	}
 	if IsSlotCompositionBundle(data) {
 		slots, err := ReadSlotCompositionBundle(ctx, data)
 		if err != nil {

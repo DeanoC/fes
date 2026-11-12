@@ -645,7 +645,7 @@ function draw()
   end
   local h = room.hero
   -- Build an initial or data-changed picture across callbacks. Each extension copies the
-  -- presented prefix, so no callback needs to draw all four family marks.
+  -- presented prefix, so one callback draws at most one family mark.
   -- Restart when an async answer, input or resize changes that prefix.
   if h and (not painted or painted.generation ~= generation) then
     if not room.presented or not same_scene(opening_scene, now) then opening = 0 end
@@ -658,13 +658,12 @@ function draw()
     else
       if opening == 1 then draw_shelf(h, -1)
       else
-        draw_shelf(h, (opening - 2) * 2)
-        draw_shelf(h, (opening - 2) * 2 + 1)
+        draw_shelf(h, opening - 2)
       end
       gfx.extend({})
     end
     opening = opening + 1
-    if opening == 4 then painted = now end
+    if opening == 6 then painted = now end
     return
   end
   if h then

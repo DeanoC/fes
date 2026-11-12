@@ -130,6 +130,23 @@ def fpga_cores(path):
     relative = Path(path).relative_to(MODULE_ROOTS['fpga'])
     parts = relative.parts
     if len(parts) >= 3 and parts[:2] == ('boards', 'de25nano') and '..' not in parts:
+        if len(parts) >= 4 and parts[2] == 'producers':
+            name = parts[3]
+            if name in ('build_menu_package.py', 'core_package.py', 'export_core_package.py'):
+                return ('menu', 'zx81'), 'DE25 package producer and format implementation'
+            if name in ('build_zx81_package.py', 'build_zx81_static_package.py',
+                        'export_static_persona.py', 'review_audio_clocks.py'):
+                return ('zx81',), 'DE25 ZX81 package producer and qualified review'
+        if len(parts) >= 4 and parts[2] == 'package':
+            return ('menu', 'zx81'), 'DE25 package format implementation'
+        if len(parts) >= 4 and parts[2] == 'shared-rtl':
+            name = parts[3]
+            if name in ('fes_menu_reader.v', 'fes_menu_video.v', 'fes_menu_control.v'):
+                return ('menu', 'zx81'), 'DE25 local display and menu consumers'
+            if name in ('fes_computer_mailbox.v', 'fes_display_plane.v',
+                        'fes_zx81_core.v', 'zx81_machine.sv', 'zx81_machine_clock.v',
+                        'zx81_top.v'):
+                return ('zx81',), 'DE25 local ZX81 computer consumer'
         return (), 'standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer'
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
         return ('pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
@@ -260,6 +277,25 @@ def runtime_test_source(path):
                 for area in ('unit', 'integration', 'support')))
 
 
+def contract_package_software(path):
+    """Closed package schemas/fixtures have no generated or simulated RTL input."""
+    prefix = MODULE_ROOTS['contracts'] + '/'
+    if not path.startswith(prefix):
+        return False
+    relative = path[len(prefix):]
+    versions = ('2', '3', '4', '5')
+    files = {'Makefile', 'scripts/core_bundle_fixtures.py',
+             'tests/test_core_bundle_fixtures.py'}
+    for version in versions:
+        files.add('schema/core-bundle-v' + version + '.json')
+        files.add('scripts/core_bundle_v' + version + '_fixtures.py')
+        files.add('tests/test_core_bundle_v' + version + '_fixtures.py')
+        root = 'testdata/core-bundle-v' + version
+        if relative == root or relative.startswith(root + '/'):
+            return True
+    return relative in files
+
+
 @lru_cache(maxsize=1)
 def embedded_patterns():
     # CI must check the generated inventory even when the only changed file
@@ -355,6 +391,9 @@ def plan(paths):
         elif path in (DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION):
             selected.update(('parent', 'contracts', 'fpga'))
             reasons.append(f'{path}: standalone DE25 diagnostic consumers; no existing core consumer')
+        elif contract_package_software(path):
+            selected.update(LANES)
+            reasons.append(f'{path}: package schema/fixture or software test entrypoint; no RTL consumer')
         elif owner == 'contracts' and path.endswith(('.go', '/go.mod', '/go.sum')):
             selected.update(LANES)
             reasons.append(f'{path}: contract tooling software; generated RTL unchanged')

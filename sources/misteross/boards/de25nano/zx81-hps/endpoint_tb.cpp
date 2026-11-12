@@ -24,15 +24,19 @@ struct Board {
     bool toggle = false;
     bool pixel_running = true;
 
-    Board() {
-        t.clk = 0; t.pixel_clk = 0; t.reset_n = 0;
+    explicit Board(bool arm = true) {
+        t.clk = 0; t.pixel_clk = 0; t.reset_n = 0; t.video_ready = 1;
         t.address = 0; t.read = 0; t.write = 0; t.byteenable = 15; t.writedata = 0;
         t.eval();
         cycles(3);
         check(t.waitrequest, "cold reset accepted an Avalon transaction");
-        t.reset_n = 1; t.eval();
-        cycles(2);
-        check(!t.waitrequest, "first release did not open the bus");
+        if (arm) {
+            t.reset_n = 1; t.eval();
+            cycle();
+            check(t.waitrequest, "unqualified release opened the bus");
+            cycle();
+            check(!t.waitrequest, "qualified release did not open the bus");
+        }
     }
     void cycle() {
         t.clk = 0;
@@ -107,6 +111,55 @@ struct Board {
         check(read_word(FesDe25ComputerGpoOffset) == retained_gpo, "fault permitted a later GPO update");
     }
 };
+
+static void startup_qualification() {
+    for (bool write : {false, true}) {
+        for (unsigned stopped_level : {0u, 1u}) {
+            Board b(false); auto& t = b.t;
+            const uint32_t command = b.command_word(FesComputerOpcodeIdentity);
+            t.address = write ? FesDe25ComputerGpoOffset : FesDe25ComputerIdOffset;
+            t.writedata = command; t.read = !write; t.write = write;
+            b.cycles(2);
+            check(t.waitrequest && !t.readdatavalid && !t.writeresponsevalid && S(gpo) == 0,
+                  "cold reset accepted a held request");
+            t.reset_n = 1; t.eval(); b.cycle();
+            check(t.waitrequest && !t.readdatavalid && !t.writeresponsevalid && S(gpo) == 0,
+                  "first qualification edge accepted a request");
+            // No request was admitted before this stopped-clock reset.
+            t.clk = stopped_level; t.eval(); t.reset_n = 0; t.eval();
+            check(t.waitrequest && !S(transport_ready) && S(gpo) == 0,
+                  "pre-admission reset exposed GP state");
+            t.reset_n = 1; t.eval(); b.system_edge();
+            check(t.waitrequest && !t.readdatavalid && !t.writeresponsevalid && S(gpo) == 0,
+                  "interrupted release did not requalify");
+            b.system_edge();
+            check(!t.waitrequest && S(transport_ready) && !t.readdatavalid && !t.writeresponsevalid && S(gpo) == 0,
+                  "arming edge consumed an unaccepted request");
+            b.system_edge();
+            check(t.response == 0, "first accepted request faulted");
+            check(write ? (t.writeresponsevalid && !t.readdatavalid && S(gpo) == command) :
+                          (t.readdatavalid && !t.writeresponsevalid &&
+                           t.readdata == FesDe25ComputerIdentity && S(gpo) == 0),
+                  "first accepted edge lost or duplicated its held request");
+            t.read = t.write = 0; b.cycles(8);
+            check(!t.readdatavalid && !t.writeresponsevalid, "first completion repeated");
+            const uint32_t held = b.read_word(FesDe25ComputerGpoOffset);
+            t.clk = stopped_level; t.eval(); t.reset_n = 0; t.eval();
+            check(!S(transport_ready) && S(machine_reset), "armed stopped-clock reset did not contain execution");
+            t.reset_n = 1; t.eval(); b.cycles(8);
+            b.check_fault(FesDe25ComputerFaultReset, held);
+        }
+    }
+    // Arming itself is the boundary, even before the first bus request.
+    Board b; auto& t = b.t;
+    t.video_ready = 0; t.reset_n = 0; t.eval(); t.reset_n = 1; t.eval();
+    b.cycles(8); b.check_fault(FesDe25ComputerFaultReset, 0);
+    Board dark(false); dark.t.video_ready = 0; dark.t.reset_n = 1; dark.t.eval();
+    dark.cycles(2);
+    check(dark.read_word(FesDe25ComputerStatusOffset) & FesDe25ComputerStatusReady,
+          "initial MMIO qualification depends on HDMI readiness");
+    std::puts("PASS DE25 computer: two-edge qualification, held first read/write, reset-window isolation and permanent armed reset");
+}
 
 static uint32_t crc32(const std::array<uint8_t, 5>& bytes) {
     uint32_t crc = 0xffffffffu;
@@ -285,7 +338,7 @@ static void malformed_accesses() {
         b.write_word(address, 0x81000000, 2);
         b.check_fault(FesDe25ComputerFaultAddress, 0);
     }
-    for (uint8_t address : {uint8_t(1), uint8_t(24), uint8_t(31)}) {
+    for (uint8_t address : {uint8_t(1), uint8_t(28), uint8_t(31)}) {
         Board b;
         check(b.read_word(address, 2) == 0, "invalid read returned data");
         b.check_fault(FesDe25ComputerFaultAddress, 0);
@@ -353,11 +406,32 @@ static void reset_faults_and_late_media() {
     std::puts("PASS DE25 computer: stopped-high/low reset, retained epoch, suppressed late tape writes");
 }
 
+static void board_video_ready_crossing() {
+    Board b; auto& t = b.t;
+    check(b.read_word(FesDe25ComputerVideoStatusOffset) == FesDe25ComputerVideoReady,
+          "configured board status was not readable");
+    b.t.video_ready = 0; b.t.eval();
+    b.system_edge();
+    check((S(transport__DOT__video_ready_sync) & 2) != 0, "readiness loss bypassed its first synchronizer");
+    b.system_edge();
+    check(b.read_word(FesDe25ComputerVideoStatusOffset) == 0, "readiness loss was not observed");
+    b.t.video_ready = 1; b.t.eval();
+    b.system_edge();
+    check((S(transport__DOT__video_ready_sync) & 2) == 0, "readiness assertion bypassed its first synchronizer");
+    b.system_edge();
+    check(b.read_word(FesDe25ComputerVideoStatusOffset) == FesDe25ComputerVideoReady,
+          "readiness assertion was not observed");
+    check(b.read_word(FesDe25ComputerFaultOffset) == 0, "read-only readiness probing faulted the transport");
+    std::puts("PASS DE25 computer: board video readiness crosses two MMIO clocks without GP mutation");
+}
+
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
     auto* rom = std::fopen("zx8x.hex", "rb");
     check(rom != nullptr, "selected ROM missing from native output directory");
     std::fclose(rom);
+    startup_qualification();
+    board_video_ready_crossing();
     tape_size_limits();
     pixel_ready_crossing();
     identity_keyboard_media();

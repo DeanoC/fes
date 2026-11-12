@@ -1,0 +1,12 @@
+{
+  "HDMI_output_board_delays": "unavailable; user has no additional PCB files; do not invent numerical delay",
+  "design_assistant_gate": "RDC-50003 remains unreviewed and blocks package export; no new waiver or accepted exception",
+  "finding": "SYNC_RESET changes the functional register reset style; both FIFO read/write synchronizers remain unconditional ASYNC_RESET=1 DEPTH=4. No supported bypass of those chains found in this actual implementation.",
+  "hardware_access": "not-performed",
+  "official_guidance": "https://resources.altera.com/quartushelp/current/da_rules/rdc_50003.htm",
+  "official_rule_scope": "more than one asynchronous reset synchronizer in a clock domain can release on different cycles and permit active/reset data convergence",
+  "reviewed_utc": "2026-11-01T20:17:00Z",
+  "scope": "eight FIFO chains out of six system plus six pixel chains reported by the fitted checker. Top reset, pixel-lock qualifier and visibility release are not modeled by this diagnostic.",
+  "sdk_query_sha256": "b7f40c7d638140cd059aa4de9f83f51492fc0ad6b0304642b046f596f52b48d0",
+  "vendor_sdk_query": "../de25-reset-skew-263a19e06/sdk-reset-query.json"
+}

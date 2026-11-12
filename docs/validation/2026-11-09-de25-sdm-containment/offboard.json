@@ -1,0 +1,131 @@
+{
+  "format": 1,
+  "classification": "off-board source-bound containment candidate; no physical fence",
+  "fes_base": "c95aed6291143d92b76bc912eb96bae2de56a30d",
+  "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "supplier_profile": {
+    "format": 1,
+    "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+    "files": {
+      "drivers/bus/simple-pm-bus.c": {
+        "before_sha256": "abb3f9ff229edbcbf1fe76f661d774a88f4f5d92a401414e9429cd5b226116f2",
+        "after_sha256": "240a9828c2818fbdc33761d5e0aeea50d5d538ee5d8b2e9218f48bc4ff1e288c"
+      },
+      "drivers/firmware/stratix10-svc.c": {
+        "before_sha256": "493301f526657473b05700ba54bea38d1b63d43a99a341e78c338e0908ca9f4a",
+        "after_sha256": "e16644f2fcfd39ce9e31b8a681cfbf756d30bda4e5443f6424bf4e7bc670410a"
+      },
+      "drivers/fpga/of-fpga-region.c": {
+        "before_sha256": "5dbc8e9bf7a2eb30fdd9db3491455cdbf4ec95a93feec4ca73665e8dc702da52",
+        "after_sha256": "275642d50ee9e8392c74f5abbb281db8a68731c566eca1ea22c1e37b22332e97"
+      },
+      "drivers/fpga/stratix10-soc.c": {
+        "before_sha256": "26a525c7138b2dd04735e1cc3b458cec115102a1c00c6c51c4abf4e3ae7b6b44",
+        "after_sha256": "26d10dc16351fe6fa5dc3ea2525485548f940768fafa6414c716e842bf1938cb"
+      },
+      "drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c": {
+        "before_sha256": "98d64761da20ab9d4e6b8fac163fb4de11402c6ccdea26a84f59257dbd83323a",
+        "after_sha256": "ba1540dfcaf45159edc439d6e9e79b567764f69d7afd30bd22b6deb6bc0681d1"
+      },
+      "drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.h": {
+        "before_sha256": "032a441905aa8694fdd9d331c3b9a0ca700268e4d376516abd0490aa15d2caa1",
+        "after_sha256": "a219868214ae90835e9af4ecac445f205e97aa129364efaeed9f4ba8e5cd8e81"
+      },
+      "include/linux/fes-de25-sdm.h": {
+        "before_sha256": null,
+        "after_sha256": "ad606c101e3c2d6392c4fd31934f042fded23ae0cde908c436e067bb9c746874"
+      },
+      "include/linux/firmware/intel/stratix10-svc-client.h": {
+        "before_sha256": "577d7c26e106436b56e1db26a4a73c92dd31e4cd8798d015b910afc225ce04ed",
+        "after_sha256": "942f2d64f85e51a07f35125d799aeade06a25df8b8d6a64b5b2e3f596fb7c9a5"
+      }
+    },
+    "patch_sha256": "9b3fb15cd1727a0735648570f1af5f13b0a66aadbb82fb846e73581147e99af8",
+    "unchanged_supplier_sources": {
+      "drivers/clk/socfpga/clk-agilex5.c": "65b805f28a29d342eb9076415f3f0ab4668ddd88cb0686139161cb4e9d7aeb41"
+    }
+  },
+  "CPU_models": {
+    "native": true,
+    "AArch64_QEMU": true,
+    "SMMU_cases_each": 23,
+    "controller_concurrent_pairs_each": 25,
+    "write_and_lifecycle": {
+      "block_success": true,
+      "block_timeout": true,
+      "containment_disabled": true,
+      "platform_disabled_positive": true
+    },
+    "original_hanging_and_retry_controls": "retained"
+  },
+  "whole_kernels": {
+    "default": {
+      "sdm_containment_enabled": false,
+      "static_expansion_enabled": true,
+      "files": {
+        "Image": {
+          "sha256": "951e2373136b4e1de8893d4d7a3e80e59f59de3b5c71f9a4842b9d44fbc29704",
+          "size": 55044608
+        },
+        "notes.bin": {
+          "sha256": "babb8e6ea5688d27056fa9211be82774f18e79ebc80faa28168716adcfde3191",
+          "size": 84
+        },
+        "de25-owner.dtb": {
+          "sha256": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7",
+          "size": 28907
+        },
+        "kernel.config": {
+          "sha256": "1b02c85ccfbe6351d3c3122634371e251c6aa7c7d7caeff599a6635f27f56d82",
+          "size": 303599
+        }
+      },
+      "embedded_config_and_linked_notes_verified": true
+    },
+    "enabled": {
+      "sdm_containment_enabled": true,
+      "static_expansion_enabled": true,
+      "files": {
+        "Image": {
+          "sha256": "688d68b2b6132446a9f98649c35dad437b0db02e7aef57da8e05efdc50778ad1",
+          "size": 55044608
+        },
+        "notes.bin": {
+          "sha256": "ca944d28e7fa64a4e0a1f62fa835ba3648bb41b01b7028342c76a3eae7ed1313",
+          "size": 84
+        },
+        "de25-owner.dtb": {
+          "sha256": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7",
+          "size": 28907
+        },
+        "kernel.config": {
+          "sha256": "b9fc5c1eb47982f6536852521382de8a0140b345fd03dac590bea8a81e0bc4c5",
+          "size": 303588
+        }
+      },
+      "embedded_config_and_linked_notes_verified": true
+    }
+  },
+  "build_basis": "incremental private copy of authenticated9cec source/config/SDK; production producer configuration verification; not a clean committed-snapshot build",
+  "builder_config": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+  "hardware_boot": false,
+  "physical_DMA_retirement": false,
+  "runtime_recovery_policy_changed": false,
+  "normal_admission_changed": false,
+  "powerboat_evidence": "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/smmu-producer-integration-20261109",
+  "patch_context_reencoding_preserves_all_supplier_and_executed_model_bytes": true,
+  "source_commit": "a0c127a260714d528c23b5eb87b880e6388c7156",
+  "parent_checks": {
+    "scope_base": "c95aed6291143d92b76bc912eb96bae2de56a30d",
+    "always_run_planner_cases": 64,
+    "parent_run_cases": 1690,
+    "parent_skips": 45,
+    "precommit_errors": 1,
+    "retained_failure": "test_factory_sdk_uses_original_git_producer_and_current_factory_verifier refused changed uncommitted recipe vs HEAD",
+    "after_commit_failed_case_passed": true,
+    "remaining_planned_consistency_passed": true,
+    "make_check": "41 consumers/45 fixtures match",
+    "full_test_changed_rerun_after_commit": false,
+    "new_head_CI": "pending"
+  }
+}

@@ -1,0 +1,227 @@
+{
+  "schema": 1,
+  "evidence_class": "physical DE10 native image and existing sealed ZX81 acceptance; no DE25 hardware acceptance",
+  "source_revision": "4acdbf15d13344f059c77da313775d7c26073722",
+  "userspace_revision": "e3f40059de3f66bf28d5875ee06852173f01e251",
+  "image": "744789c985c686e3a9cc0e3fe2efc529d1f01fd099697a9754744fe8bb7a852a",
+  "bundle": "e203f49222aa77a2779ec47b85cac5ab0e1c4355abe01e71a3c421897ed81f6e",
+  "kernel_sha256": "a6c7b1be0da9ba24a91bc1816737915d6a6cfba27c6c3025caded95167dc8dae",
+  "architecture": "armv7l",
+  "kernel": "5.15.1-MiSTer",
+  "four_running_role_hashes": {
+    "fogcast-kit": "0de4f258b8cc2cd7271d5b7e32e51cb260399670bb6a271b0fd1a95471ad1fe6",
+    "fogcast-tenfoot": "4983577108c3a06cc5a54463a0dd360c58be4c7b089a6e1db5707901c375374a",
+    "mister-agent": "43e063a7c10e06672f3d18ead258a8180a061bcaa0f3127e89a42e921ca7e872",
+    "mister-runtime": "fbcd2e2b3f1f4693f1b9812f0b1b07182d2fc8cdce9a248ecf73330b1cd8d3c9"
+  },
+  "native_checks": {
+    "ethernet_dhcp_address_and_default_route": true,
+    "ssh": true,
+    "loopback_127_8_up": true,
+    "configured_hostname_matches": true,
+    "dbus_directory_link": "../../run/dbus",
+    "dbus_machine_id_and_system_bus": true,
+    "running_kernel_bluetooth_module_path": true,
+    "read_only_root": true,
+    "run_tmp_var_log_tmpfs": true,
+    "foreground_persistent_udhcpc_no_quit_flag": true,
+    "timed_dhcp_renewal": "not observed"
+  },
+  "zx81": {
+    "package_id": "436a64a6d1e392a889875c968a15a1c1723a7c46fe36bc840a03d09b780c3f82",
+    "build_id": "9ca273431062a0bbcb6a8f2c95ca62de",
+    "rbf_sha256": "481986c10e7d967581d169ba18c0a7c6ba0603047e669c31cca4f351f27a98dd",
+    "rom_sha256": "eab6a0f18eef54f31a245b9fe05519ef0cd76904324e1d5fac35b03a5fbf47ac",
+    "rom_size": 8192
+  },
+  "zx81_result": {
+    "normal_import_compatibility_launch": true,
+    "live_package_build_target_and_existing_rom_bound": true,
+    "visible_black_K_prompt_on_white": true,
+    "owned_stop_to_menu": true,
+    "input_and_BASIC": "not repeated in this image trial; earlier separate userspace evidence only"
+  },
+  "idle_software_reboot": {
+    "generation": 158,
+    "selected": "e203f49222aa77a2779ec47b85cac5ab0e1c4355abe01e71a3c421897ed81f6e",
+    "active_bundle": "e203f49222aa77a2779ec47b85cac5ab0e1c4355abe01e71a3c421897ed81f6e",
+    "base_identity": "744789c985c686e3a9cc0e3fe2efc529d1f01fd099697a9754744fe8bb7a852a",
+    "boot_id": "afd36607-7240-4294-8f7d-143c9d6661c0",
+    "source": "e3f40059de3f66bf28d5875ee06852173f01e251",
+    "after_boot_id": "f0266c63-a56b-45c0-9394-f84dc6d570fe",
+    "ready": true,
+    "ready_seconds": 129.67316393111832,
+    "within_120_seconds": false,
+    "lease": "free",
+    "idle": true
+  },
+  "restoration": {
+    "baseline_bundle": "a2756499ab07627e1b1fb7f00f3ebe334b6b564099c1b086d9c4f74eaf9aeb1e",
+    "image": "179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018",
+    "generation": 160,
+    "boot_id": "19542670-8815-45b1-8bfd-8a76d8b837c0",
+    "ready": true,
+    "idle": true,
+    "lease": "free",
+    "catalog_listing_identical": true,
+    "all_protected_sql_rows_and_media_chunks_identical": {
+      "core_media": 6,
+      "core_media_chunks": 7,
+      "core_entries": 0,
+      "core_entry_roms": 0,
+      "core_firmware": 0,
+      "games": 4,
+      "kit_host_entries": 0
+    },
+    "protected_paths_identical": true,
+    "idle_launcher_kernel_identical": true,
+    "four_baseline_role_hashes": {
+      "fogcast-kit": "2d6e2b71b2c2a09db8ed617599448d9704c9205afe57dd7e9a47579b849ba3dd",
+      "fogcast-tenfoot": "2f7652736cd1a4eecb6151de4e1d49ccb9d6b6f4fc33a2a3e9949a97f088c5e8",
+      "mister-agent": "1a7583f3011d0ab9db64e66a53ffd22424d38691e76bfa483124428c0b4310f7",
+      "mister-runtime": "d6cf73d4e643f41d7cf12e5bd460c728b238c06275b51af0f8543f7214efd94f"
+    },
+    "owned_private_host_and_credential_retired": true
+  },
+  "claim_released": true,
+  "receipts": {
+    "de10-native-image-update": {
+      "sha256": "6eb2a676a5c07606f8eca6b5423b39d5f151951e1451514fbcffc495037e1927",
+      "argv": [
+        "/data/fes-de25-qualification-20261111/de10-native-image-trial/fes-update",
+        "--target",
+        "dev",
+        "--board",
+        "de10-nano",
+        "--action",
+        "update",
+        "--release",
+        "/data/fes-de25-qualification-20261111/de10-release-4ac"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 0,
+      "seconds": 195.26631768909283
+    },
+    "de10-native-linux-checks-corrected": {
+      "sha256": "af0481daeef0393bc42dddc91abcd89c40662e486d3d6006371892fc1b0c14fe",
+      "argv": [
+        "python3",
+        "/data/fes-de25-qualification-20261111/de10-native-image-trial/verify_linux_corrected.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 0,
+      "seconds": 8.286832910962403
+    },
+    "de10-native-zx81-control": {
+      "sha256": "e4a0ae3c11fc19ec01e4caaee7cb99f0550d39db46c2fa7a8afdf9abf232401f",
+      "argv": [
+        "python3",
+        "/data/fes-de25-qualification-20261111/de10-native-image-trial/zx81-host/run.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 0,
+      "seconds": 23.837228995980695
+    },
+    "de10-native-idle-reboot": {
+      "sha256": "07101d7ee8cdece3e07dd13cbe5ebeac6c02ab2e37f267346c6f0a98ceecbca8",
+      "argv": [
+        "python3",
+        "/data/fes-de25-qualification-20261111/de10-native-image-trial/idle_reboot.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 0,
+      "seconds": 129.87095316220075
+    },
+    "de10-native-after-reboot-checks": {
+      "sha256": "9c5c7b76841a1e65a93d4bc702da3923b10c6f5fba4c5b6fb6f43758d2337010",
+      "argv": [
+        "python3",
+        "/data/fes-de25-qualification-20261111/de10-native-image-trial/verify_after_reboot.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 0,
+      "seconds": 8.86969760293141
+    },
+    "de10-native-baseline-on-trial-verified": {
+      "sha256": "c4f309dfb3289b9d16a79842125272da69f3e23a747a8368e2c08f54f5ed85fd",
+      "argv": [
+        "python3",
+        "/data/fes-de25-qualification-20261111/de10-native-image-trial/verify_baseline_on_trial.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 0,
+      "seconds": 72.16192280105315
+    },
+    "de10-native-image-rollback": {
+      "sha256": "26dd5a47d1290a3b3bc6f200a4d82e6f4eb8b00f2698bf348e507c9d1243d1b4",
+      "argv": [
+        "/data/fes-de25-qualification-20261111/de10-native-image-trial/fes-update",
+        "--target",
+        "dev",
+        "--action",
+        "rollback"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 0,
+      "seconds": 118.91378411697224
+    },
+    "de10-native-restoration": {
+      "sha256": "3cf6e4c5925af2a7add5c50000a2a50babfff682f30708d5f3a28071bdd209d0",
+      "argv": [
+        "python3",
+        "/data/fes-de25-qualification-20261111/de10-native-image-trial/verify_restoration.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 0,
+      "seconds": 33.89741646195762
+    },
+    "de10-native-restored-home": {
+      "sha256": "2761db70e9e536db59be36b27bf9f98987fcc6fb811d7a96009b76a8b41b6eb1",
+      "argv": [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "v4l2",
+        "-i",
+        "/dev/v4l/by-id/fes-shadowcast-hil",
+        "-vf",
+        "select=gte(t\\,2)",
+        "-frames:v",
+        "1",
+        "/data/fes-de25-qualification-20261111/de10-native-image-trial/restored-home.png"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 0,
+      "seconds": 2.1389450940769166
+    }
+  },
+  "private_evidence": {
+    "root": "/data/fes-de25-qualification-20261111/de10-native-image-trial",
+    "files": {
+      "trial-plan.json": "acf85daf17310bbc687c844c1deaef92b26aa2d8b4877bafa557577cd064ff02",
+      "approval.json": "d21d18b5dc69c4e35baa42fd9513cc0e8baf3353687f99443d960921ce096b76",
+      "baseline.json": "35acafda77cb737b73057dbea23576b79562ed9414d111eb1379a184533a3dff",
+      "candidate-software.json": "1636b5a704157ae57b38779590757b961423992000cae2c103b9245e0eb2f06b",
+      "native-linux.json": "ad70eabb57611db3bba569383dc233cadb28e9566cc319d9cffa98d5dda6ba52",
+      "after-idle-reboot-linux.json": "613963613699d54b57d3d54bddd608c76cfc8471eb64083fb81e4a982e2de465",
+      "existing-zx81-inputs.json": "b8b2956edf4c97d9a17142495d7a1d3875ff1cb2c61fe611c087b40e0fdc1f03",
+      "zx81-host/acceptance.json": "d40abe47b7a82ff067b275f6f1555629233d493bc8fc5777eb1c22d44609ef9c",
+      "zx81-host/active-session.json": "9223010b600251d19a1fdf662690540a4f88bb1923b9cc9225136610ff90e41d",
+      "idle-reboot-result.json": "384d33b150da9f492e8f218c0507816e2d56115113291fa32fd0fa7aaf54861b",
+      "restoration.json": "58a6044b3f8a5488ac4f0ba9219a0f9c91ab10d04b66ca01d5eb54b23ea416d3",
+      "kita-claim.json": "284eec881f8b824c63572652491d7d89a3c0cadbbbf7b0c8f5311b5002796bc6",
+      "native-menu.png": "1eed405f6d4a2f71ac9702f0d9a45ba3e788432e41062c3b0718cfcb5cc0659f",
+      "native-zx81.png": "fa34b64ae644dd6b49bc6b4415b79cce12eb34c913d82d5fc08e3e9d55824c41",
+      "after-stop-menu.png": "1eed405f6d4a2f71ac9702f0d9a45ba3e788432e41062c3b0718cfcb5cc0659f",
+      "restored-home.png": "1eed405f6d4a2f71ac9702f0d9a45ba3e788432e41062c3b0718cfcb5cc0659f"
+    }
+  },
+  "limits": [
+    "120-second readiness requirement remains failed (129.673s); unchanged main baseline control also missed at133.672s.",
+    "No card swap, physical power cycle, kernel/U-Boot/QSPI/JTAG or shared service change.",
+    "Normal update history now retains image744 as previous after restoring image179; original data/catalog and all active baseline identities match.",
+    "No new DE25 physical acceptance, expansion, gamepad, BASIC or endurance proof."
+  ]
+}

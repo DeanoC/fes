@@ -27,11 +27,14 @@ historic_pattern="stage[-_ ]?c0|$poc_pattern|fogcast-runtime|native[-_ ]personal
 # Exempt only their exact generated preprocessor lines; other v2 names still fail.
 # The shared multi-slot composition identity domain is likewise exempt only as
 # the one literal that seeds its canonical hash in core_composition.cpp.
+# The current opaque expansion-asset domain is allowed only in its two exact
+# admission/recheck expressions; it introduces no alternate runtime lifecycle.
 if grep -ERni --include='*.[ch]' --include='*.cpp' --include='*.hpp' \
 	--include='Makefile' "$historic_pattern" \
 	"$root/include" "$root/src" "$root/Makefile" |
 	grep -Ev '/src/native/generated/[^/:]+\.hpp:[0-9]+:(#(ifndef|define) MISTER_PACKAGES_GENERATED_SYSTEM_TYPES_V2|#endif // MISTER_PACKAGES_GENERATED_SYSTEM_TYPES_V2)$' |
-	grep -Ev '/src/native/core_composition\.cpp:[0-9]+:[[:space:]]*std::string canonical\("fes-composition-v2\\0",19\);$' \
+	grep -Ev '/src/native/core_composition\.cpp:[0-9]+:[[:space:]]*std::string canonical\("fes-composition-v2\\0",19\);$' |
+	grep -Ev "/src/native/core_composition\.cpp:[0-9]+:[[:space:]]*(info->expansion_id=Hash\(std::string\(\"fes-expansion-v2\"\)\+std::string\(1,'\\\\0'\)\+asset\.manifest_bytes\);|Hash\(std::string\(\"fes-expansion-v2\"\)\+std::string\(1,'\\\\0'\)\+bytes\)!=info\.expansion_id\))$" \
 	>"$temporary/source-names.log"; then
 	echo "historic compatibility term remains in the active tree" >&2
 	cat "$temporary/source-names.log" >&2
@@ -61,9 +64,14 @@ built_name_pattern="fogcast[-_ ]runtime|personality|stage[-_ ]?[a-z0-9]*|$poc_pa
 # The generated ProgressTag constant's C++ mangling ends in "sTagE".
 # Exclude only that exact generated symbol, retaining the historic-name guard.
 # The exact shared composition identity domain string is likewise excluded.
+# A compiler may coalesce the asset domain with other constant data in one
+# strings record. Remove only that domain token and still check the rest of
+# the record; a longer domain or an obsolete name beside it remains invalid.
 for output in "$archive" "$daemon"; do
 	strings "$output" >"$temporary/$(basename "$output").strings"
-	grep -Fxv -e 'fes-composition-v2' "$temporary/$(basename "$output").strings" |
+	sed -E 's/fes-expansion-v2([^[:alnum:]_-]|$)/fes-expansion-schema\1/g' \
+		"$temporary/$(basename "$output").strings" |
+	grep -Fxv -e 'fes-composition-v2' |
 	grep -Fv -e '__gxx_personality_v0' \
 		-e '_ZN6mister6native9generatedL20FesGpPongProgressTagE' \
 		>"$temporary/$(basename "$output").project-strings" || true
@@ -82,12 +90,18 @@ core_composition.o
 core_data.o
 core_driver.o
 core_package.o
+de25_computer.o
+de25_core_driver.o
+de25_fpga_manager.o
+de25_menu.o
+de25_pr_control.o
 diagnostic.o
 fes_gp.o
 fpga_manager.o
 hardware.o
 i2c.o
 input.o
+json.o
 linux_input.o
 media_data.o
 menu_display.o

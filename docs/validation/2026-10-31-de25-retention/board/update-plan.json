@@ -1,0 +1,17 @@
+{
+  "old_Image": "01357da8a2f9971cb3bf9e7f99bd176bea46a893554d7b1c5364339310fe9b9b",
+  "new_Image": "a4604214a70855ec824ffbf70c45abbd82983dcbefd68bb9f51de7b7089ab478",
+  "old_manifest": "2c158c2c6135f93d2194384cdcb2b73235bf0830ac2b7d2cfc4b23a53445b7c0",
+  "new_manifest": "65924051b1381476129add83244af33cbe3f1afb0503f3e845347697f7fd073c",
+  "unchanged_root_files": [
+    "etc/fes-kernel-release",
+    "etc/init.d/S15fpga",
+    "etc/mdev.conf"
+  ],
+  "dtb_unchanged": true,
+  "kernel_config_unchanged": true,
+  "backup": "FAT fes-owner-before-retention/Image and manifest; original full baseline backup retained",
+  "delivery": "file-level maintenance update; not whole SD attestation",
+  "boot": "9191e320-2d97-41a2-8e28-735ab8695f7c",
+  "cid": "275048534436344760702d33e0017c00"
+}

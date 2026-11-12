@@ -151,7 +151,10 @@ def main():
     repo = args.repo.resolve()
     profile = tomllib.loads((repo / 'profiles/native-integration-dev.toml').read_text())
     recipes = tomllib.loads((repo / 'config/core-recipes.toml').read_text())['recipes']
-    modules = {item['core_id']: item['producer_module'].removeprefix('scripts.') for item in recipes}
+    # This nightly uses the native-integration-dev DE10 profile. Another
+    # board's same logical core must not overwrite its producer by row order.
+    modules = {item['core_id']: item['producer_module'].removeprefix('scripts.') for item in recipes
+               if item.get('board', 'de10-nano') == 'de10-nano'}
     selected = [item['core_id'] for item in profile['fpga_packages']]
     requested = selected if args.cores is None else args.cores
     if any(core not in selected for core in requested):

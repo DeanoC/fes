@@ -1,0 +1,255 @@
+{
+  "format": 1,
+  "source": "5109333149cbb74d5ae4534e02a70866da94a058",
+  "classification": "native diagnostic reporting deployed; original failure unreproduced and unresolved",
+  "root_cause_fixed": false,
+  "goal_complete": false,
+  "previous_failure_source": "a35f3207a668e87ac16a4edb6028ef554a2f8140",
+  "previous_failure_receipt": "docs/validation/2026-11-04-de25-standard-zx81/reset-export-native.json",
+  "evidence_root": "/home/deano/fes/out/artifacts/de25-vendor-reference/2ba9334c3",
+  "receipts": {
+    "focused_regressions": {
+      "passed": true,
+      "seconds": 127.833,
+      "source_inputs": {
+        "sources/libmister-runtime/src/runtime.cpp": "22250e2e73ae9e254b9d971c5c7b04c369def5c85bd879228f7d59c6051d2459",
+        "sources/libmister-runtime/src/native/hardware.cpp": "23fecf3d8c22a3ddb310a703a94dcf53b47fe4c888e3980ad2e6adc15dfebe0b",
+        "sources/libmister-runtime/src/native/linux/de25_menu.cpp": "9aed3fa43c819670b48a7e5c8f1aa226e69b8379c231b387c180e17995ee7ac6",
+        "sources/libmister-runtime/tests/unit/runtime_test.cpp": "ae14c7d383425a96800f5c27c364c2a91c5a29e3f73f385a97639558ad0211b2",
+        "sources/libmister-runtime/tests/unit/native_hardware_test.cpp": "1d6b5327aa457741e46478741e86a3df357f3dcff1760ef6fb03a24b9a34c1e1",
+        "sources/libmister-runtime/tests/unit/de25_menu_test.cpp": "5850b4be40f76940bc6007bfbfb75c3e39cd47c37f5fe0c7656087942ff90d7f"
+      },
+      "before_fix_seconds": 14.449,
+      "before_fix_failure": "runtime_test: close_failure&&open_failure",
+      "scope": "Full shared runtime(56 reported cases), native hardware and DE25 allocation suites; first-failure event order and counter reporting. No new hardware acceptance."
+    },
+    "normal_aarch64_bundle": {
+      "passed": true,
+      "source": "5109333149cbb74d5ae4534e02a70866da94a058",
+      "bundle": "4ecf08d8e0ff607b880c38da29271e8465f97ae3a1e3716336c3744c89962c3b",
+      "archive_sha256": "381b0596d3660506c449bbc85e5adba31398265fc4f6f97d3408f217c3f2213d",
+      "base_image_sha256": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+      "seconds": 54.402,
+      "all_manifest_payload_hashes_verified": true,
+      "provenance_exact_head": true,
+      "files": {
+        "bin/fogcast-kit": "38c899f065b1705844389b148a8e26fd06d25505cb78156f071a743891226e91",
+        "bin/fogcast-tenfoot": "c46858263445cda97f1557d7172cca3c7320d6841442370e53838a3fa24ffb8a",
+        "bin/mister-agent": "1df9ad340fb04995dd781fbe038a96be95bb306631f009dca2f3a1286f3edd41",
+        "bin/mister-runtime": "343288f47728a32a1e529a985307ce8471a186bf2df9c4eacad68105658b6231",
+        "share/fogcast/config.toml": "c8dae986367e7a4562446512d6133e6d687786b732b1bafc60420ef936323dbc"
+      },
+      "native_acceptance": "pending"
+    },
+    "first_session_save": {
+      "passed": true,
+      "source": "5109333149cbb74d5ae4534e02a70866da94a058",
+      "core_source": "a35f3207a668e87ac16a4edb6028ef554a2f8140",
+      "seconds": 55.171,
+      "boot_id": "5c6295d4-704a-432f-9a98-a07a4c479729",
+      "new_reboot": false,
+      "first_runtime_generation": 1,
+      "visually_checked_all7": true,
+      "images_sha256": {
+        "06-current-SAVE-reloaded9.png": "925590b0ca4ee198fc04d6ac03a2d3769518343e55b944967a1b5d81275f1418",
+        "07-returned-MENU.png": "7e189a2c42345f0c51413ae6816eb504365bfd5f45b2699a79d970e9ef3206f2",
+        "03-current-SAVE-insert.png": "9c0988ed58f9c1fdb44eef1b3ba5725f8c2de9ef8c27f577ded087000b88deea",
+        "04-current-SAVE-loaded9.png": "925590b0ca4ee198fc04d6ac03a2d3769518343e55b944967a1b5d81275f1418",
+        "01-fresh-machine.png": "9c0988ed58f9c1fdb44eef1b3ba5725f8c2de9ef8c27f577ded087000b88deea",
+        "05-current-SAVE-edited7.png": "c79037e1ce8dac0ed1d6bc7421f7f41b2c56420fb3023f5be5917b5b66adf3ef",
+        "02-current-SAVE-C-highlight.png": "6750f3232b319aeaf1c0e8bc34a28e16ef3385923be08db99b4b284a90381e48"
+      },
+      "observed": [
+        "FreshK",
+        "Actual22:33SAVE selected",
+        "InsertedK",
+        "RUN9",
+        "EditedRUN7",
+        "ReloadRUN9",
+        "Home ReadyToPlay"
+      ],
+      "scope": "First session after normal candidate activation. Surrounded focus changes; no forced allocation close. No physicalUSB/audio/PR or postboot repair claim."
+    },
+    "genuine_close_reopen_partial": {
+      "passed": false,
+      "classification": "partial native evidence; BASIC execution visual requirement not met",
+      "source": "5109333149cbb74d5ae4534e02a70866da94a058",
+      "seconds": 59.028,
+      "allocation_close_reopen_passed": true,
+      "cycles": 3,
+      "display_generations": [
+        4,
+        5,
+        6
+      ],
+      "all10_images_visually_evaluated": true,
+      "image_groups_sha256": {
+        "5463998e224ee4dcf8e5ec61ea35eaa7945746a0c6e3e203474bc715d3921445": [
+          "01-settings-surround-off.png"
+        ],
+        "34a034f78e582fa9f64a7d256e20dd26a337920d8643a6c1353f03bd693dbd6d": [
+          "02-bare-machine-RUN9.png",
+          "04-closed-machine9-0.png",
+          "04-closed-machine9-1.png",
+          "04-closed-machine9-2.png"
+        ],
+        "3ab109474957378fd2f5aa67a91feda6164efd27da8ab010b99ba19804519006": [
+          "03-open-picker-0.png",
+          "03-open-picker-1.png",
+          "03-open-picker-2.png"
+        ],
+        "1ca181deba33085a331da21022347d3863a43a5bb0c14f60fc3eced496959d0c": [
+          "05-after-three-closes-RUN7.png"
+        ],
+        "35f431d1244dedf7cf4a80589f272e027e85d8cf8195707f56139832a244689e": [
+          "06-settings-surround-restored-on.png"
+        ]
+      },
+      "observed": [
+        "TVsurroundOff",
+        "Edited listing1PRINT9 before and after all3 closes, bytes identical",
+        "All3 actual pickers bytes identical",
+        "Edited listing1PRINT7 after all3 closes",
+        "TVsurroundOn restored"
+      ],
+      "basic_run_visual": false,
+      "reason": "New fixture sent RUN immediately after line-entry. Capture shows program listing rather than executed output; no post-line settle wait. Do not treat this as a RUN proof. Established picker/SAVE proof independently passes actual9/7/9 output.",
+      "preferences_original_absence_restored": true,
+      "reboot": false
+    },
+    "ordinary_active_reboot": {
+      "passed": true,
+      "source": "5109333149cbb74d5ae4534e02a70866da94a058",
+      "seconds": 71.241,
+      "new_boot_id": "e8d10b71-cb1e-4061-bc93-81e4dc51754b",
+      "reboot_seconds": 47.692,
+      "preboot_picture": {
+        "sha256": "e92432ff5cd517aae6214042ecdf3dae155890dc8fbd9304bee0c7a30408fc6a",
+        "observation": "StandardZX81 gameplay shows executed7 and0/1"
+      },
+      "software_generation": 29,
+      "stable_seconds": 10,
+      "scope": "One ordinary active-core software reboot and authenticated healthynewboot; no power/JTAG/card/kernel/image change. Fresh postboot userflow acceptance remains separate."
+    },
+    "first_postboot_save": {
+      "passed": true,
+      "source": "5109333149cbb74d5ae4534e02a70866da94a058",
+      "core_source": "a35f3207a668e87ac16a4edb6028ef554a2f8140",
+      "seconds": 48.503,
+      "boot_id": "e8d10b71-cb1e-4061-bc93-81e4dc51754b",
+      "software_generation": 29,
+      "actual_first_session_after_reboot": true,
+      "first_runtime_generation": 1,
+      "all7_visuals_checked": true,
+      "images_sha256": {
+        "06-current-SAVE-reloaded9.png": "76a8e9e45303644e46e2d1f7d661fbc3296b6a5284b1b6820b4eca98f5b4515f",
+        "07-returned-MENU.png": "8331395beeb2cf0dc3fbff78de84dd956b99987d5a3d4f76ba74cf810a485efb",
+        "03-current-SAVE-insert.png": "dfb9d261126e3b994f7fc2cf144e3737709cf6e4ad0e918460a26b3c12fbc37a",
+        "04-current-SAVE-loaded9.png": "76a8e9e45303644e46e2d1f7d661fbc3296b6a5284b1b6820b4eca98f5b4515f",
+        "01-fresh-machine.png": "dfb9d261126e3b994f7fc2cf144e3737709cf6e4ad0e918460a26b3c12fbc37a",
+        "05-current-SAVE-edited7.png": "8ea2efef2dd5e146f3a97c78e6ee899d1b6f0e73c8f836717a148c2d7438db90",
+        "02-current-SAVE-C-highlight.png": "6750f3232b319aeaf1c0e8bc34a28e16ef3385923be08db99b4b284a90381e48"
+      },
+      "picker_byte_identical_to_viewed_first_case": true,
+      "observed": [
+        "FreshK",
+        "Actual22:33SAVE highlighted",
+        "InsertedK",
+        "Executed9",
+        "Editedexecuted7",
+        "Reloadexecuted9",
+        "HomeReadyToPlay"
+      ],
+      "hardware_underflows": 0,
+      "root_cause_fixed": false,
+      "scope": "One exact postboot first-session source510/4ec29 proof. Earlier sourcea35 failure did not reproduce; reporting-only change supplies no root-cause repair. No physicalUSB/audio/PR proof."
+    },
+    "baseline_restoration": {
+      "success": true,
+      "utc": "2026-11-04T23:18:17.635231+00:00",
+      "board": "TRWU8J8G",
+      "claim": "released",
+      "boot_id": "e8d10b71-cb1e-4061-bc93-81e4dc51754b",
+      "base_image": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+      "baseline_bundle": "a14a53cd33e2c51d7639701363bf95cc7781f62b8207c0e2bab1653276504700",
+      "software_generation": 30,
+      "runtime": "idle",
+      "execution_lease": "free",
+      "maintenance": "none",
+      "host_restored": true,
+      "main_baseline_promoted": false,
+      "source_revision": "5109333149cbb74d5ae4534e02a70866da94a058",
+      "diagnostic_case_success": true,
+      "hardware_acceptance": "partial; reporting-only candidate does not establish a postboot repair",
+      "postboot_case_success": true,
+      "genuine_close_cycles": "all3 passed; BASIC execution visual partial, retained separately"
+    },
+    "restore_scope_erratum": {
+      "field": "spec.scope, copied into job.scope",
+      "stale_text": "exactsame5c62boot",
+      "actual_boot_id": "e8d10b71-cb1e-4061-bc93-81e4dc51754b",
+      "executed_script_sha256": "6694803039c9fcca9aaddd617dad97cc1dcc35b9d9f915c87545d89c9aa7bb56",
+      "execution": "run.py and its separate SSH helper were pinned to authenticated e8d10 before execution; result.json and final-independent-observation.json retain actual boot. The old descriptive scope text is retained unchanged."
+    },
+    "canonical_checks": {
+      "passed": true,
+      "source": "5109333149cbb74d5ae4534e02a70866da94a058",
+      "base": "0ee165c898da0439294ed8738e80c5367c28acc7",
+      "commands": 8,
+      "seconds": 1079.611,
+      "output_sha256": "2b3b3ad78051251c543843bdf93e4826777bf5431627e59bd22ff8b95c5ef866",
+      "scope": "Complete unmodified canonical affected plan; clean source frozen for full run, no skipped command/private timeout override."
+    }
+  },
+  "files": {
+    "de25-first-display-fault-focused-job/verified.json": {
+      "sha256": "b6dd322e3ba1db101fb5022551cc72e7abc34116598eba875b6d3053b5f688c1",
+      "bytes": 1115
+    },
+    "de25-first-display-fault-software-job/verified.json": {
+      "sha256": "38242bebc6a9d2fce21fadf9b1fcf2d6994d95e017aafa3daebdd6a68fa3f87e",
+      "bytes": 962
+    },
+    "de25-first-display-fault-picker-native-job/verified.json": {
+      "sha256": "8001f92a0ad5608f39abc70e09579ad8b2e9c8f50476bfb19b1cb80d1c267a91",
+      "bytes": 1360
+    },
+    "de25-first-display-fault-close-native-job/verified.json": {
+      "sha256": "32e1f67a3b860c37ed9f38f4be61455aaecc69207e6ed9369a1afefb16ab6d44",
+      "bytes": 1711
+    },
+    "de25-first-display-fault-active-reboot-native-job/verified.json": {
+      "sha256": "8018b56019c7a2ec2459e38d6dc7898910b0f1e22145f60465bc286341c3cc70",
+      "bytes": 594
+    },
+    "de25-first-display-fault-postboot-picker-native-job/verified.json": {
+      "sha256": "174a6889e9f39a447c73042cc550ca424a382b907acd8c6cd5ce212a1cb982c1",
+      "bytes": 1570
+    },
+    "de25-first-display-fault-baseline-restore-job/released.json": {
+      "sha256": "7430db26c0330b5f1e87a3131d5d3179a5fbefb07325f692b3af0adeb3267ecc",
+      "bytes": 829
+    },
+    "de25-first-display-fault-baseline-restore-job/metadata-erratum.json": {
+      "sha256": "40875e17e55851979f8fd0e6e53482649a02c639279bcc464b43050fe424d5eb",
+      "bytes": 475
+    },
+    "de25-first-display-fault-picker-native-job/native-supervisor.log": {
+      "sha256": "fae47c52f252004f36c8550f4c6d707983bc2290d81fc6ab85405f13421d2afe",
+      "bytes": 14598
+    },
+    "de25-first-display-fault-close-native-job/native-supervisor.log": {
+      "sha256": "0587bdd786c0eeefa440ca171dd3f61b3abcda7dac69eba90de31cb823b6e802",
+      "bytes": 20171
+    },
+    "de25-first-display-fault-postboot-picker-native-job/native-supervisor.log": {
+      "sha256": "c0d1c419fefccf4a14aa198868db01df73ef8db264d058dd23b9b0b1f7629e8d",
+      "bytes": 5605
+    },
+    "de25-first-display-fault-affected-job/verified.json": {
+      "sha256": "a044c8c68e11685643cbb28841b4d54662cd17795e94bca4e3dd05885e4eaf9e",
+      "bytes": 396
+    }
+  },
+  "first_failure_log_path_exercised_on_hardware": false
+}

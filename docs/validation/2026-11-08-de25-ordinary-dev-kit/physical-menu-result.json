@@ -1,0 +1,31 @@
+{
+  "success": true,
+  "boot_id": "bd1544c0-9143-48a3-b43d-fc47860824a6",
+  "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+  "package_id": "3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776",
+  "session_id": "39d1c1d1-65a6-47b0-91bf-3e295765107b",
+  "flight_id": "428e41fb-388c-4200-a22f-fcdb37076d1e",
+  "package_generation": 2,
+  "physical_keys": [
+    "P",
+    "F12",
+    "Escape"
+  ],
+  "synthetic_events_sent": 0,
+  "observed": [
+    "PRINT with L cursor",
+    "Change media chooser",
+    "PRINT with L cursor restored"
+  ],
+  "same_session_package_flight": true,
+  "no_media_selection_or_ejection": true,
+  "one_open_close_cycle_only": true,
+  "captures": {
+    "before-P.png": "8c27e1bd829b9da3264114851a40808a75e496174ef430f4c9fd9253cc786107",
+    "after-P.png": "6a56f2bd01b247469a8809ad4be0a3e3cb2ef9d3c6febcba1dd3a439d59716f2",
+    "after-F12.png": "b24f634bcfbc6cf8af78fecb63d2b3ef72f0282fad7900d277606d98d99c8a4e",
+    "after-Esc.png": "6a56f2bd01b247469a8809ad4be0a3e3cb2ef9d3c6febcba1dd3a439d59716f2"
+  },
+  "visual_evaluation": "All four images inspected; expected content observed",
+  "stress_or_arbitrary_crash_not_accepted": true
+}

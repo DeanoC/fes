@@ -1,11 +1,35 @@
 import copy
 import gzip
 import unittest
+from unittest import mock
 
 from scripts import de25_kernel_test as kernel
 
 
 class KernelEvidenceTests(unittest.TestCase):
+    def test_sdk_builder_uses_immutable_lock_and_refuses_missing_or_wrong_image(self):
+        lock = kernel.selected_lock()
+        expected = lock["builder_image"]
+        with mock.patch.object(kernel.de25_builder, "resolve", return_value=expected) as resolve, \
+                mock.patch.object(kernel, "checked") as checked:
+            self.assertEqual(kernel.locked_builder("docker", lock, "private-build-volume"), expected)
+            resolve.assert_called_once_with("docker", expected)
+            self.assertEqual(checked.call_count, 2)
+            self.assertEqual(checked.call_args_list[0], mock.call(
+                kernel.de25_builder.workspace_command('docker', expected, 'private-build-volume')))
+            checked.assert_called_with([
+                "docker", "run", "--rm", "--network", "none", "--platform", "linux/amd64",
+                "--user", f"{kernel.os.getuid()}:{kernel.os.getgid()}", "--mount",
+                "type=volume,src=private-build-volume,dst=/target-image-output,volume-nocopy",
+                expected, "test", "-w", "/target-image-output"])
+        for error in ('builder missing', 'builder content differs'):
+            with self.subTest(error=error), mock.patch.object(
+                    kernel.de25_builder, "resolve", side_effect=ValueError(error)), \
+                    mock.patch.object(kernel, "checked") as checked:
+                with self.assertRaises(ValueError):
+                    kernel.locked_builder("docker", lock, "private-build-volume")
+                checked.assert_not_called()
+
     def test_passing_kunit_does_not_hide_kernel_warnings(self):
         kernel.check_kernel_log("Booting Linux\n# fes-de25-dma: pass:8 fail:0\n")
         for message in ("WARNING: CPU: 0", "BUG: bad access", "Oops: abort",
@@ -26,6 +50,7 @@ class KernelEvidenceTests(unittest.TestCase):
             kernel.config_from_image(oversized)
 
     def test_all_lifetime_and_revocation_cases_must_run_and_pass(self):
+        self.assertIn("owner_idle_waits_for_last_client_mapping", kernel.REQUIRED_CASES)
         cases = [{"name": name, "status": "PASS"} for name in sorted(kernel.REQUIRED_CASES)]
         good = {"sub_groups": [{"name": "fes-de25-dma", "test_cases": cases}]}
         self.assertEqual(set(kernel.passing_cases(good)), kernel.REQUIRED_CASES)
@@ -36,6 +61,20 @@ class KernelEvidenceTests(unittest.TestCase):
                 kernel.passing_cases(changed)
         for changed in ({}, {"sub_groups": good["sub_groups"] * 2},
                         {"sub_groups": [{"name": "fes-de25-dma", "test_cases": cases[:-1]}]},
+                        {"sub_groups": [{"name": "fes-de25-dma", "test_cases": [
+                            case for case in cases if case["name"] != "owner_idle_waits_for_last_client_mapping"]}]},
                         {"sub_groups": [{"name": "fes-de25-dma", "test_cases": cases + cases[:1]}]}):
             with self.assertRaises(ValueError):
                 kernel.passing_cases(changed)
+
+    def test_static_suite_requires_selected_lifecycle_cases_and_no_disabled_substitute(self):
+        expected = (kernel.REQUIRED_CASES - {kernel.DISABLED_CASE}) | kernel.STATIC_CASES
+        report = {"sub_groups": [{"name": "fes-de25-dma", "test_cases": [
+            {"name": name, "status": "PASS"} for name in sorted(expected)]}]}
+        self.assertEqual(set(kernel.passing_cases(report, static_expansion=True)), expected)
+        with self.assertRaises(ValueError):
+            kernel.passing_cases(report)
+        report["sub_groups"][0]["test_cases"] = [
+            {"name": name, "status": "PASS"} for name in sorted(kernel.REQUIRED_CASES)]
+        with self.assertRaises(ValueError):
+            kernel.passing_cases(report, static_expansion=True)

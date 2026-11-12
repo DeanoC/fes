@@ -1,0 +1,55 @@
+{
+  "base_image_sha256": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+  "base_loader_sha256": "989c391ca02eb6e13de01955ec76e38bc7aad9e9a1d30ba09b6f71bd84eb58dd",
+  "bundle_id": "7ebf54a03f069dbf3eadc9850f1bc44aaffc8ada7136093e70ce9900a3d8590c",
+  "bundle_sha256": "c4e9bc33dc3d2fa40a981735eb841bb80fb642ad796f1400d7a7a05f78b745e3",
+  "classification": "packaged artifact integrity, architecture and early argument-entry probes only",
+  "deployed": false,
+  "hardware_acceptance": false,
+  "host": {
+    "architecture": "linux/amd64",
+    "expected_help_exit": 2,
+    "scope": "argument parser exits before opening service/configuration/profiles",
+    "sha256": "98442587c43109a20209dc0e6ce740f2cf2981afe03fdac1d5950e4b14bb4929",
+    "source_binding": "clean pinned build job and exact logged linker arguments; recipe uses buildvcs=false",
+    "source_revision": "5bf7346481ca2fad27c096da42962086c336177f"
+  },
+  "loader_source": "actual reviewed working base6de libraries",
+  "qemu_sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350",
+  "runtime_menu_interfaces_sha256": "86a1dfe5c54f66bd155cdb49855e2bd9eebc5ae7c7621df939fea409ce7b6a79",
+  "runtime_probe": {
+    "cpu": "cortex-a76",
+    "event": "daemon_arguments",
+    "expected_exit": 2,
+    "scope": "actual packaged runtime executes loader/argument validation; no hardware constructed"
+  },
+  "sdk_archive_sha256": "2574bae19a900384e173274a0a85567385df06ada698b60fe27a26a6cf444d89",
+  "source_revision": "5bf7346481ca2fad27c096da42962086c336177f",
+  "status": "passed",
+  "target_executables": {
+    "fogcast-kit": {
+      "bytes": 18153634,
+      "elf_class": "ELF64",
+      "machine": "AArch64",
+      "sha256": "ed61450017b85c80e1ce177d8ddf83917e3234b5edc7a447442e11657150ff72"
+    },
+    "fogcast-tenfoot": {
+      "bytes": 23724194,
+      "elf_class": "ELF64",
+      "machine": "AArch64",
+      "sha256": "9702b8adb44045c8d1aa969b6da5521d147708842cf2faf472e09e6050a67616"
+    },
+    "mister-agent": {
+      "bytes": 10289314,
+      "elf_class": "ELF64",
+      "machine": "AArch64",
+      "sha256": "a6efb5e80ff9c55c5d1211e1686e12997b6fe4ce85d4efd1e7d3e8198dec8d7b"
+    },
+    "mister-runtime": {
+      "bytes": 1736504,
+      "elf_class": "ELF64",
+      "machine": "AArch64",
+      "sha256": "bc2b751968bc96b4a21aeb133ade5edf432ff95504502c7e7461e1588d4c8a2c"
+    }
+  }
+}

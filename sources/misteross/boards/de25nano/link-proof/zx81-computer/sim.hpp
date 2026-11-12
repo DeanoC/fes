@@ -52,7 +52,8 @@ struct Computer {
         return n;
     }
     void pixel_sample() {
-        if(!t.reset_n||C(faults)){frame_started=false;previous_vs=true;return;}
+        // The same sticky fault word now belongs to the shared transport.
+        if(!t.reset_n||C(transport__DOT__faults)){frame_started=false;previous_vs=true;return;}
         if(t.video_vs&&!previous_vs){
             if(frame_started){
                 wire::need(frame_pixels==1650u*750u&&active==1280u*720u&&hs==40u*750u&&vs==5u*1650u,"complete 720p raster geometry changed");

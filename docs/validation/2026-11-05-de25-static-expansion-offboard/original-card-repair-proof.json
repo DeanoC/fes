@@ -1,0 +1,91 @@
+{
+  "status": "prepared",
+  "repair_scope": "Only reserved/FAT-allocation bookkeeping; all file/directory paths and file bytes unchanged",
+  "tool_image": "sha256:4ea53795a470bbe09b28475de79eb55212fb687fcd939ebe531064174ab557e4",
+  "old_fat_sha256": "405a0b37e1b9f36c615360c7fcc8908096b8e13144ec758a1ee6b5b891f0f62a",
+  "repaired_fat_sha256": "a6b172a519a416c89d1d0f97af026d2a0218ea54712d0da5614c7165a5f54f80",
+  "filesystem_check": "fsck.fat -n clean after controlled offline repair",
+  "files_unchanged": true,
+  "file_count": 23,
+  "directory_count": 40,
+  "changed_sectors": 4,
+  "changed_bytes": 10,
+  "changes": [
+    {
+      "offset": 0,
+      "old_sha256": "7fc0969f1e223e0951e8e47851f77de36b9f8d4a58ff91c43ae2fca5a17f1876",
+      "new_sha256": "61e1321e9d1a890c51fe783239811424b5c6800065ce01f38bc8c86b53b7b4f6",
+      "changed_byte_offsets": [
+        65
+      ]
+    },
+    {
+      "offset": 512,
+      "old_sha256": "7a0d162733a2c7fa8470a5f9477ff26fb00a0159f3dd3b76b4af263dee1a1885",
+      "new_sha256": "a6114174f67f5ff24531d3d1b07ff466fff8951ab0a7b49d3bbe14aa1c19e63e",
+      "changed_byte_offsets": [
+        1000
+      ]
+    },
+    {
+      "offset": 1121792,
+      "old_sha256": "b83fa857f86d43fcb44e8eec11be2a4f84a05fc47d1974c828b2ce8c4229dbe2",
+      "new_sha256": "70e4e2facbf40b4bece93f35e153d6b108fb318f7e9f0db708cf5b28e6cc1483",
+      "changed_byte_offsets": [
+        1122248,
+        1122249,
+        1122250,
+        1122251
+      ]
+    },
+    {
+      "offset": 3214848,
+      "old_sha256": "b83fa857f86d43fcb44e8eec11be2a4f84a05fc47d1974c828b2ce8c4229dbe2",
+      "new_sha256": "70e4e2facbf40b4bece93f35e153d6b108fb318f7e9f0db708cf5b28e6cc1483",
+      "changed_byte_offsets": [
+        3215304,
+        3215305,
+        3215306,
+        3215307
+      ]
+    }
+  ],
+  "fat_metadata_end": 4202496,
+  "repair_choices": [
+    "leave original/backup comparison alone",
+    "free one unreferenced cluster without adding recovered file",
+    "remove dirty bit",
+    "correct free-cluster summary",
+    "write only private copy"
+  ],
+  "first_candidate_retained": "Automatic fsck -a added a recovered file; strict inventory rejected it before original-device write. Controlled repair candidate retains exact original inventory.",
+  "original_device_written": false,
+  "bootstrap_and_data_untouched": true,
+  "copy_snapshot": {
+    "status": "passed",
+    "reader": {
+      "by_id": "/dev/disk/by-id/usb-Generic_STORAGE_DEVICE-0:0",
+      "resolved_path": "/dev/sda",
+      "size_bytes": 31267487744,
+      "diskseq": 59,
+      "device": 2048
+    },
+    "copies": {
+      "fat-original.img": {
+        "bytes": 2147483648,
+        "sha256": "405a0b37e1b9f36c615360c7fcc8908096b8e13144ec758a1ee6b5b891f0f62a",
+        "seconds": 96.887
+      },
+      "bootstrap-original.img": {
+        "bytes": 33554432,
+        "sha256": "0067b6022f0b491b4a026d1789b066cfb2c07801cb7b47c19600324b6577d05a",
+        "seconds": 1.521
+      }
+    },
+    "source": "Original card exclusively O_RDONLY; no write, mount or repair performed",
+    "bottom_board": "off",
+    "trial_card": "aside"
+  },
+  "original_boot_failure": "Original card came back from rollback with FAT beyond-EOF error/remountedreadonly; cause unestablished",
+  "native_recovery": "pending"
+}

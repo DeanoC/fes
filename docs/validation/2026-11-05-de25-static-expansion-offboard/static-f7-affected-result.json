@@ -1,0 +1,339 @@
+{
+  "format": 1,
+  "root": "/home/deano/fes/out/dev/de25-static-expansion-kernel",
+  "base": "aaf5155eed2f77683742f96d1a95ee83dfd4b235",
+  "head": "f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b",
+  "checkout_head": "f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b",
+  "merge_base": "aaf5155eed2f77683742f96d1a95ee83dfd4b235",
+  "local_paths": [],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": true,
+      "runtime": true,
+      "contracts": false,
+      "fpga": false
+    },
+    "skipped": [
+      "contracts",
+      "fpga"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/README.md",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/composition-proof.json",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/disabled-checks.json",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/disabled-inputs.json",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/disabled-kunit-raw.log",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/disabled-kunit-run.log",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/enabled-checks.json",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/enabled-inputs.json",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/enabled-kunit-raw.log",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/enabled-kunit-run.log",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/independent-fits.json",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-aarch64-de25_fpga_manager_test.log",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-aarch64-de25_pr_control_test.log",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-aarch64.json",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-native-de25_fpga_manager_test.log",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-native-de25_pr_control_test.log",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-native.json",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/runtime-overlay-aarch64.json",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/runtime-overlay-native.json",
+      "docs/validation/2026-11-05-de25-static-expansion-offboard/validation.json",
+      "image/de25-nano/managed_base.py",
+      "image/kernel/de25-dma/Kconfig",
+      "image/kernel/de25-dma/Makefile",
+      "image/kernel/de25-dma/README.md",
+      "image/kernel/de25-dma/de25_dma_owner.c",
+      "image/kernel/de25-dma/de25_dma_static.h",
+      "image/kernel/de25-dma/de25_dma_test.c",
+      "image/kernel/de25-dma/fes_de25_owner_persona.dtso",
+      "image/kernel/de25-dma/fes_de25_owner_static.dtso",
+      "image/kernel/de25-platform/README.md",
+      "scripts/de25_kernel_platform.py",
+      "scripts/de25_kernel_test.py",
+      "scripts/de25_owner_image.py",
+      "sources/libmister-runtime/ARCHITECTURE.md",
+      "sources/libmister-runtime/Makefile",
+      "sources/libmister-runtime/README.md",
+      "sources/libmister-runtime/docs/support-matrix.md",
+      "sources/libmister-runtime/src/native/linux/de25_fpga_manager.cpp",
+      "sources/libmister-runtime/src/native/linux/de25_fpga_manager.hpp",
+      "sources/libmister-runtime/src/native/linux/de25_pr_mmio.hpp",
+      "sources/libmister-runtime/tests/support/de25_pr_endpoint.hpp",
+      "sources/libmister-runtime/tests/unit/de25_fpga_manager_test.cpp",
+      "sources/libmister-runtime/tests/unit/de25_pr_control_test.cpp",
+      "sources/libmister-runtime/tests/unit/mmio_test.cpp",
+      "tests/test_de25_kernel_platform.py",
+      "tests/test_de25_kernel_test.py",
+      "tests/test_de25_owner_image.py"
+    ],
+    "reasons": [
+      "image/de25-nano/managed_base.py: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/Kconfig: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/Makefile: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/de25_dma_owner.c: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/de25_dma_static.h: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/de25_dma_test.c: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/fes_de25_owner_persona.dtso: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/fes_de25_owner_static.dtso: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/de25_kernel_platform.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/de25_kernel_test.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/de25_owner_image.py: parent orchestration/tests/assembly; component sources unchanged",
+      "sources/libmister-runtime/Makefile: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/linux/de25_fpga_manager.cpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/linux/de25_fpga_manager.hpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/linux/de25_pr_mmio.hpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/tests/support/de25_pr_endpoint.hpp: native runtime tests and parent integration; host inputs unchanged",
+      "sources/libmister-runtime/tests/unit/de25_fpga_manager_test.cpp: native runtime tests and parent integration; host inputs unchanged",
+      "sources/libmister-runtime/tests/unit/de25_pr_control_test.cpp: native runtime tests and parent integration; host inputs unchanged",
+      "sources/libmister-runtime/tests/unit/mmio_test.cpp: native runtime tests and parent integration; host inputs unchanged",
+      "tests/test_de25_kernel_platform.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_de25_kernel_test.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_de25_owner_image.py: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python",
+        "scripts/check_diff.py",
+        "--base",
+        "aaf5155eed2f77683742f96d1a95ee83dfd4b235",
+        "--head",
+        "f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b"
+      ],
+      "tools": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"docs/validation/2026-11-05-de25-static-expansion-offboard/README.md\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/composition-proof.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/disabled-checks.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/disabled-inputs.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/disabled-kunit-raw.log\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/disabled-kunit-run.log\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/enabled-checks.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/enabled-inputs.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/enabled-kunit-raw.log\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/enabled-kunit-run.log\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/independent-fits.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-aarch64-de25_fpga_manager_test.log\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-aarch64-de25_pr_control_test.log\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-aarch64.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-native-de25_fpga_manager_test.log\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-native-de25_pr_control_test.log\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-native.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/runtime-overlay-aarch64.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/runtime-overlay-native.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/validation.json\", \"image/de25-nano/managed_base.py\", \"image/kernel/de25-dma/Kconfig\", \"image/kernel/de25-dma/Makefile\", \"image/kernel/de25-dma/README.md\", \"image/kernel/de25-dma/de25_dma_owner.c\", \"image/kernel/de25-dma/de25_dma_static.h\", \"image/kernel/de25-dma/de25_dma_test.c\", \"image/kernel/de25-dma/fes_de25_owner_persona.dtso\", \"image/kernel/de25-dma/fes_de25_owner_static.dtso\", \"image/kernel/de25-platform/README.md\", \"scripts/de25_kernel_platform.py\", \"scripts/de25_kernel_test.py\", \"scripts/de25_owner_image.py\", \"sources/libmister-runtime/ARCHITECTURE.md\", \"sources/libmister-runtime/Makefile\", \"sources/libmister-runtime/README.md\", \"sources/libmister-runtime/docs/support-matrix.md\", \"sources/libmister-runtime/src/native/linux/de25_fpga_manager.cpp\", \"sources/libmister-runtime/src/native/linux/de25_fpga_manager.hpp\", \"sources/libmister-runtime/src/native/linux/de25_pr_mmio.hpp\", \"sources/libmister-runtime/tests/support/de25_pr_endpoint.hpp\", \"sources/libmister-runtime/tests/unit/de25_fpga_manager_test.cpp\", \"sources/libmister-runtime/tests/unit/de25_pr_control_test.cpp\", \"sources/libmister-runtime/tests/unit/mmio_test.cpp\", \"tests/test_de25_kernel_platform.py\", \"tests/test_de25_kernel_test.py\", \"tests/test_de25_owner_image.py\"]"
+      ],
+      "tools": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    },
+    {
+      "lane": "host",
+      "label": "host Go and UI tests",
+      "cwd": ".",
+      "argv": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python",
+        "scripts/host_tests.py",
+        "--ui-if-needed",
+        "--paths-json",
+        "[\"docs/validation/2026-11-05-de25-static-expansion-offboard/README.md\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/composition-proof.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/disabled-checks.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/disabled-inputs.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/disabled-kunit-raw.log\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/disabled-kunit-run.log\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/enabled-checks.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/enabled-inputs.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/enabled-kunit-raw.log\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/enabled-kunit-run.log\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/independent-fits.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-aarch64-de25_fpga_manager_test.log\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-aarch64-de25_pr_control_test.log\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-aarch64.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-native-de25_fpga_manager_test.log\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-native-de25_pr_control_test.log\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/lifecycle-native.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/runtime-overlay-aarch64.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/runtime-overlay-native.json\", \"docs/validation/2026-11-05-de25-static-expansion-offboard/validation.json\", \"image/de25-nano/managed_base.py\", \"image/kernel/de25-dma/Kconfig\", \"image/kernel/de25-dma/Makefile\", \"image/kernel/de25-dma/README.md\", \"image/kernel/de25-dma/de25_dma_owner.c\", \"image/kernel/de25-dma/de25_dma_static.h\", \"image/kernel/de25-dma/de25_dma_test.c\", \"image/kernel/de25-dma/fes_de25_owner_persona.dtso\", \"image/kernel/de25-dma/fes_de25_owner_static.dtso\", \"image/kernel/de25-platform/README.md\", \"scripts/de25_kernel_platform.py\", \"scripts/de25_kernel_test.py\", \"scripts/de25_owner_image.py\", \"sources/libmister-runtime/ARCHITECTURE.md\", \"sources/libmister-runtime/Makefile\", \"sources/libmister-runtime/README.md\", \"sources/libmister-runtime/docs/support-matrix.md\", \"sources/libmister-runtime/src/native/linux/de25_fpga_manager.cpp\", \"sources/libmister-runtime/src/native/linux/de25_fpga_manager.hpp\", \"sources/libmister-runtime/src/native/linux/de25_pr_mmio.hpp\", \"sources/libmister-runtime/tests/support/de25_pr_endpoint.hpp\", \"sources/libmister-runtime/tests/unit/de25_fpga_manager_test.cpp\", \"sources/libmister-runtime/tests/unit/de25_pr_control_test.cpp\", \"sources/libmister-runtime/tests/unit/mmio_test.cpp\", \"tests/test_de25_kernel_platform.py\", \"tests/test_de25_kernel_test.py\", \"tests/test_de25_owner_image.py\"]"
+      ],
+      "tools": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python",
+        "cc",
+        "go",
+        "make",
+        "node",
+        "rg",
+        "sh"
+      ],
+      "files": [
+        "scripts/host_tests.py",
+        "sources/FogCast/Makefile",
+        "sources/FogCast/go.mod",
+        "sources/FogCast/appliance/go.mod",
+        "sources/misteross/expansion/go.mod"
+      ],
+      "host_ui": {
+        "required": true,
+        "scheduled": true,
+        "boundary_scheduled": false,
+        "command_scheduled": true,
+        "target": "test-ui",
+        "reason": "UI/API, production/full or uncertain inputs"
+      }
+    },
+    {
+      "lane": "runtime",
+      "label": "runtime software tests",
+      "cwd": "sources/libmister-runtime",
+      "argv": [
+        "make",
+        "-j2",
+        "test"
+      ],
+      "tools": [
+        "ar",
+        "c++",
+        "c++filt",
+        "make",
+        "nm",
+        "rg",
+        "sh"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "failed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "host Go and UI tests",
+      "lane": "host",
+      "returncode": 0
+    },
+    {
+      "label": "runtime software tests",
+      "lane": "runtime",
+      "returncode": 2
+    }
+  ],
+  "not_started": []
+}

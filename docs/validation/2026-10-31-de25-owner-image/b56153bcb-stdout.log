@@ -1,0 +1,9 @@
++ git worktree add --detach /home/deano/fes/out/dev/de25-linux-platform/out/work/de25-linux-b56153bcb6e5ef7ee49650b635ef9fe2bcf88179 b56153bcb6e5ef7ee49650b635ef9fe2bcf88179
+Preparing worktree (detached HEAD b56153bcb)
+HEAD is now at b56153bcb Handle new candidate output parents before disk checks
+{"state": "running", "container": "fes-de25-owner-image-2f47704e089ed121", "pid": 3814069, "time_cap_seconds": 1800, "elapsed_seconds": 0.0, "heartbeat_utc": "2026-10-31T16:50:08.273097+00:00", "returncode": null}
++ e2fsck -fn /base/rootfs.ext4
+e2fsck 1.47.0 (5-Feb-2023)
+de25-owner-image: unsupported archive path: usr/bin/[
+{"state": "failed", "container": "fes-de25-owner-image-2f47704e089ed121", "pid": 3814069, "time_cap_seconds": 1800, "elapsed_seconds": 3.0, "heartbeat_utc": "2026-10-31T16:50:11.294702+00:00", "returncode": 1}
+de25-owner-image: candidate kernel build failed

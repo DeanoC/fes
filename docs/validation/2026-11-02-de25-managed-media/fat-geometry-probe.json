@@ -1,0 +1,33 @@
+{
+  "command": [
+    "mkfs.fat",
+    "--invariant",
+    "-F",
+    "32",
+    "-S",
+    "512",
+    "-s",
+    "8",
+    "-g",
+    "255/63",
+    "-h",
+    "2048",
+    "-i",
+    "de250001",
+    "-n",
+    "FESDATA",
+    "--offset=2048",
+    "/export/probe.img",
+    "2097152"
+  ],
+  "stdout": "mkfs.fat 4.2 (2021-01-31)\n",
+  "stderr": "Warning: block count mismatch: found 2129920 but assuming 2097152.\n",
+  "sector_size": 512,
+  "cluster_sectors": 8,
+  "hidden_sectors": 2048,
+  "total_sectors": 4194288,
+  "serial": "0xde250001",
+  "label": "FESDATA    ",
+  "type": "FAT32   ",
+  "partition_sectors": 4194304
+}

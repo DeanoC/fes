@@ -1,0 +1,16 @@
+{
+  "source_revision": "7656e1954f7e27d0dc3634f60e869f97cf14301d",
+  "command": [
+    "python3",
+    "/home/deano/fes/out/artifacts/de25-board-visibility/1a511f589/committed-focused.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image",
+  "started_utc": "2026-11-02T20:40:21.562289+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 3346844,
+  "state": "passed",
+  "elapsed_seconds": 9.6,
+  "heartbeat_utc": "2026-11-02T20:40:31.182447+00:00",
+  "returncode": 0
+}
