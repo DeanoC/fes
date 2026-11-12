@@ -24,11 +24,10 @@ Refs [#1708](https://github.com/DeanoC/fes/issues/1708).
   8.4–9.4 s for 2.0.0 and 5.2–8.3 s for 1.2.13 and 0.99.15.
 - **No core bug was found.** The only difference from the sim is the
   BogoMIPS value, which follows the clock (see below). No issue was filed.
-- **Main's RTL runs 1.2.13 and 2.0.0 exactly as the oracle does.** On
-  main's RTL in simulation, both reach `login:` and run the oracle runs'
-  commands with 0 oracle steps and no stop. Each 42 s frame is
-  byte-identical to the oracle's. The 0.99.15 run is still in progress, and
-  this record will be updated with it.
+- **Main's RTL runs all three kernels to `login:` and through the tested
+  commands.** Each runs for 42 simulated seconds with no stop or oracle step.
+  Frame equality is partial: 0.99.15 matches 39 of 42 frames, with differences
+  at 6–8 s; the other kernels' counts are in the table below.
 
 ## Package
 
@@ -134,8 +133,8 @@ loop, including the `not found` messages and loop output.
 
 ## Main's RTL in simulation
 
-1.2.13 and 2.0.0 ran on main's RTL for 42 simulated seconds, and 0.99.15
-is running the same way, with #1709's oracle keys: `root` at 24 s, then `uname -a`, `cat /proc/meminfo`, `ps` and
+Each kernel ran on main's RTL for 42 simulated seconds with #1709's oracle
+keys: `root` at 24 s, then `uname -a`, `cat /proc/meminfo`, `ps` and
 `ls /bin` 3, 6, 9 and 12 s later. That way each frame compares with the
 oracle run's frame at the same second (`machine_tb --cpu rtl --rtl-from 3`;
 the oracle boots FreeDOS and the RTL takes over at 3.0 s, before LOADLIN).
@@ -146,21 +145,26 @@ are the seal's (`162e92ca…`, `8522568e…`).
 
 | Kernel | Result on main's RTL | Retired | Oracle steps | Frames equal to the oracle's |
 | --- | --- | --- | --- | --- |
-| 0.99.15 | Running (past 32 s with no stop when this was written) | — | — | — |
+| 0.99.15 | `darkstar login:` by 8 s; logs in, runs all four commands; runs to the 42 s limit | 830,419,333 | 0 | 39 of 42, the 42 s frame included |
 | 1.2.13 | `slackware login:` by 10 s; logs in, runs all four commands; runs to the 42 s limit | 340,595,005 | 0 | 37 of 42, the 42 s frame included |
 | 2.0.0 | `slackware login:` by 10 s; logs in, runs all four commands; runs to the 42 s limit | 108,540,480 | 0 | 34 of 42, the 42 s frame included |
 
-- **No stop and no oracle step** in either run: the logs have no `STOP` or
+- **No stop and no oracle step** in any run: the logs have no `STOP` or
   `GAP` line, and `oracle_steps=0`.
 - **2.0.0 retires exactly as #1709's slice-4 keyed run did** (108,540,480
   instructions, at `46995175a`), so #1684's merge as `b080fa896` changed
   nothing Linux sees.
+- **0.99.15 was #1709's missing slice-4 run.** On main before #1684 it
+  stopped at its first `switch_to` at 6.0 s and the oracle ran 845.9M steps
+  to the end. Now the RTL runs it all: its idle task's `INT 80h` loop at
+  CPL 3 retires 830.4M instructions in 39 s with no oracle step.
 - **The frames that differ** come during the boot (5–9 s for 2.0.0,
-  7–9 s for 1.2.13), where the RTL and the Bochs oracle run at different
+  7–9 s for 1.2.13, 6–8 s for 0.99.15), where the RTL and the Bochs oracle run at different
   instruction rates (99.74 against 24.93 BogoMIPS), so messages land on
   different seconds. The rest are single frames where the blinking cursor
-  differs (13, 34 and 38 s for 2.0.0; 13 and 38 s for 1.2.13). Apart from
-  those, every frame from 10 s on is byte-identical to the oracle's.
+  differs (13, 34 and 38 s for 2.0.0; 13 and 38 s for 1.2.13; none for
+  0.99.15). Apart from those, every frame from 10 s on is byte-identical to
+  the oracle's.
 - `machine_tb` exits 1 at the time limit, as in #1709's runs: the
   runs give no `--expect` text, so the end reason is `limit`.
 
