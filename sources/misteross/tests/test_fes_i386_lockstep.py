@@ -61,17 +61,29 @@ class ScopeTest(unittest.TestCase):
     def test_unbuilt_encodings_cover_what_scope_leaves_out(self):
         lines = lockstep.unbuilt_encodings()
         self.assertEqual(len(lines), len(set(lines)))
-        for encoding in ('0f0700', '0f0b00', '0fbac0', '0fba18'):
+        kinds = dict(line.split() for line in lines)
+        self.assertEqual(len(kinds), len(lines))
+        # What the 386 rejects is #UD (#1701): in lockstep with the oracle, or
+        # on the RTL alone where Bochs cannot step it (0F 38, 0F 3A) or runs
+        # it (0F 0D, 0F 01 /7 by memory). What it defines but this build
+        # does not run stops.
+        for encoding, kind in (('0f0b00', 'ud'), ('0fbac0', 'ud'), ('0fba18', 'ud'), ('0fa6c0', 'ud'),
+                               ('0fa700', 'ud'), ('0fff00', 'ud'), ('0f2400', 'ud'), ('0f01f8', 'ud'),
+                               ('62c0', 'ud'), ('fed0', 'ud'), ('fff8', 'ud'), ('8fc8', 'ud'), ('0f3800', 'ud-rtl'),
+                               ('0f3a10', 'ud-rtl'), ('0f0d00', 'ud-rtl-runs'), ('0f0138', 'ud-rtl-runs'),
+                               ('0f0700', 'stop'), ('0f1000', 'stop'), ('0f2420', 'ud'), ('0f2668', 'ud'),
+                               ('0f24e0', 'stop'), ('0f26f8', 'stop'), ('f100', 'stop'),
+                               ('f00f0700', 'ud'), ('f00f24e0', 'ud'), ('f0f100', 'ud')):
             with self.subTest(encoding=encoding):
-                self.assertIn(encoding, lines)
+                self.assertEqual(kinds.get(encoding), kind)
         for encoding in ('00c0', '0000', '04ff', '8d00', '0fa4c0', '0fa400', 'f4c0', '06c0', 'ff20', '0fa1c0',
                          'c400', 'ea00', 'ff18', 'ff28', '0fb500', 'ff30', 'a000', 'ff10', '8f00', '9200',
                          'f6e0', 'f7f8', '0fafc0', '69c0', '6b00', 'd40a', 'd500', 'a400', 'afff', 'c800',
                          'e4c0', 'ef00', '6c00', '6fff', '0fbae0', '0fba20', '0fbcc0', '0fbd00', '0fa3c0', '0fbb00',
-                         '0fabc0', '0fb3c0', '0fbbc0', '27c0', '2f00', '37ff', '3f90', '6200', '62c0',
-                         '0f0600', '9bc0', '9bff', '9b90', '0f0110', '0f01e0', '0f01f8', '0f20c0', '0f22d8'):
+                         '0fabc0', '0fb3c0', '0fbbc0', '27c0', '2f00', '37ff', '3f90', '6200',
+                         '0f0600', '9bc0', '9bff', '9b90', '0f0110', '0f01e0', '0f20c0', '0f22d8', 'd6c0', 'fe08'):
             with self.subTest(encoding=encoding):
-                self.assertNotIn(encoding, lines)
+                self.assertNotIn(encoding, kinds)
 
     def test_scope_names_corpus_stems(self):
         for stem in lockstep.SCOPE:

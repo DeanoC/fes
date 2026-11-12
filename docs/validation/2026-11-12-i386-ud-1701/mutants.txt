@@ -1,0 +1,25 @@
+One-line mutants of #1701's decode (fes_i386_decode.sv), each built from a
+scratch copy of the RTL at fb20aa113 and run through the unbuilt sweep
+(FES_I386_MODE=unbuilt, all 52,496 encodings), FES_I386_MODE=pmode (560
+cases) and FES_I386_MODE=paging (135 cases). The unmutated RTL passes all
+of them.
+
+m1-0f-default-unbuilt  0Fh map default: undefined = 1 -> known = 0 (everything undefined stops as not built)
+                       sweep 47,360 fail (every ud line stops as not built); pmode 74 fail; paging 19 fail
+m2-fe-ff-run           FE/FF: undefined = reg[2:1] != 0 -> 0 (FE /2-/7, FF /7 run as INC/DEC)
+                       sweep 224 fail; pmode 20 fail (fe2, fe7-mem, ff7, lock-fe2-mem in all five modes);
+                       paging 8 fail (pg-ud-r0/r3-fe2, -lock-fe2, pg-ud-v86-fe2, -fe7-mem, -ff7, -lock-fe2-mem)
+m3-0fba-run            0F BA: undefined = !reg[2] -> 0 (/0-/3 run as BT-BTC)
+                       sweep 128 fail; pmode 10 fail (bt0, bt3-mem in all five modes);
+                       paging 4 fail (pg-ud-r0-bt0, pg-ud-r3-bt0, pg-ud-v86-bt0, pg-ud-v86-bt3-mem)
+m4-tr47-ud             0F 24/26: known = !reg[2] -> 1 (TR4-TR7 #UD instead of stopping)
+                       sweep 256 fail (the stop lines 0F 24/26 reg 4-7); pmode, paging pass
+m5-tr02-run            0F 24/26: undefined = 1 -> reg[0] (TR0, TR2 decode as a NOP-like MOV)
+                       sweep 128 fail; pmode 5 fail (mov-tr0 in all five modes); paging 1 fail (pg-ud-v86-mov-tr0)
+m6-umov-ud             0F 07, 10-13 known = 0 -> 0F 07 only (UMOV #UD instead of stopping)
+                       sweep 1024 fail (the stop lines 0F 10-13); pmode, paging pass
+m7-icebp-ud            one-byte default: known = 0 -> undefined = 1 (ICEBP #UD instead of stopping)
+                       sweep 256 fail (the stop lines F1); pmode, paging pass
+
+Every mutant fails. The sweep catches all seven; the directed cases catch
+the ones that make a rejected encoding run (m2, m3, m5).
