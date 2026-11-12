@@ -45,19 +45,19 @@ func (r *Instance) kitCores(L *lua.LState) int {
 	cb := L.CheckFunction(1)
 	client := r.opts.Local
 	if client == nil {
-		r.deliver(asyncResult{cb: cb, err: ErrNoLocalCores})
+		r.deliver(asyncResult{api: "kit.cores", cb: cb, err: ErrNoLocalCores})
 		return 0
 	}
 	go func() {
 		cores, err := listLocalCores(r.ctx, client, localCoresStartupRetry)
 		if err != nil {
-			r.deliver(asyncResult{cb: cb, err: err})
+			r.deliver(asyncResult{api: "kit.cores", cb: cb, err: err})
 			return
 		}
 		if cores == nil {
 			cores = []localcores.Core{}
 		}
-		r.deliver(asyncResult{cb: cb, cores: cores})
+		r.deliver(asyncResult{api: "kit.cores", cb: cb, cores: cores})
 	}()
 	return 0
 }

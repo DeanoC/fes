@@ -613,7 +613,11 @@ bin/fogcast-tenfoot -api http://127.0.0.1:8787 -home rooms
 | games per `library.query` | 2000 |
 
 Exceeding a deadline or the op cap fails the room with a message naming the
-budget. Budgets are `rooms.Budget` in Go and can be tuned by the launcher.
+budget and the callback that missed it, such as `draw callback`,
+`on_input callback` or `async library.query callback` (the API whose result
+was being delivered). On Linux a hard deadline miss also lists the load
+average, how busy the CPUs were and the three busiest processes over the
+second or so before the miss; the launcher log has a longer list. Budgets are `rooms.Budget` in Go and can be tuned by the launcher.
 
 ## Testing rooms without a display
 
