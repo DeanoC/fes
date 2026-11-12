@@ -1,8 +1,8 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "0a7927bf126eb3d868c50b3bb5e11b69ff656ea9"
+commit = "e240a4653bb6578e0b267f730128f8a5dac28483"
 order = 10
-rationale = "DeanoC/yosys main commit 0a7927bf, the same pin as cores/fes-pc386/toolchain.lock, so one Yosys reads the CPU for lockstep, the Quartus spikes and the pc386 seal (#1581, D2). Since 238eac9a49, the previous pin, it adds #54 (opt_merge keeps replicated logic on nomerge wires), #57 (proc_dlatch carries nomerge through latch inference), #60 (wreduce revisits readers when a shared Y is trimmed) and #68 (the hardware thread count is read once). The i386 RTL has no nomerge attribute and the lockstep netlist script runs no wreduce, so its netlist is byte-identical to 238eac9a's apart from the version comment, and the RTL and netlist lockstep reports agree in every trace hash (docs/validation/2026-11-10-1581-d2-yosys-lock). The shared toolchain.lock stays at 3a5accbd, since a pin bump there must rebuild every core it touches. The i386 RTL still avoids assignment patterns and keeps its workaround for #51, still open. Pair with nextpnr bd7a1c0d and Mistral 8fcc4cb4. Previous pin 238eac9a49."
+rationale = "DeanoC/yosys main commit e240a465, the same pin as cores/fes-pc386/toolchain.lock, so one Yosys reads the CPU for lockstep, the Quartus spikes and the pc386 seal (#1581, D2). Since 0a7927bf, the previous pin, it adds #70 (AGENTS.md only) and #76 (rename -unescape gives names unique within one run, never spells a keyword, and renames memories), which the seal's netlist program needs (#1581 S4). The shared toolchain.lock stays at 3a5accbd, since a pin bump there must rebuild every core it touches. The i386 RTL still avoids assignment patterns and keeps its workaround for #51, still open. Pair with nextpnr bd7a1c0d and Mistral 8fcc4cb4. Previous pin 0a7927bf."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
