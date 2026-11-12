@@ -648,6 +648,123 @@ func TestHomeFamilyCapKeepsMachineAndReportsOnlyActualOverflow(t *testing.T) {
 	}
 }
 
+func TestHomeFamilyBatchesDiscardUnfinishedReadOnReload(t *testing.T) {
+	games := []hostclient.Game{machineEntry("old-machine", "fes.zx81", "")}
+	for i := 0; i < 512; i++ {
+		games = append(games, titleEntry(fmt.Sprintf("old-%04d", i), "fes.zx81"))
+	}
+	svc := &homeServices{fakeServices: fakeServices{games: games}}
+	r := loadHome(t, Options{Services: svc, ReleaseOnly: true, Budget: DefaultBudget()})
+	deadline := time.Now().Add(testwait.Timeout)
+	for {
+		r.pendingMu.Lock()
+		ready := false
+		for _, result := range r.pending {
+			if len(result.games) == len(games) {
+				ready = true
+				break
+			}
+		}
+		queued := len(r.pending)
+		r.pendingMu.Unlock()
+		// Four family queries and recents are queued. With
+		// every input present, Checking after one Step can only be the large
+		// answer still being processed, not a missing asynchronous reply.
+		if ready && queued >= 5 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("large family response was not delivered")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	r.Step(time.Now())
+	if d := r.Destination(); d.Availability != AvailChecking || d.GameID == "old-machine" {
+		t.Fatalf("partial family answer published: %+v", d)
+	}
+	svc.mu.Lock()
+	svc.games = []hostclient.Game{machineEntry("new-machine", "fes.zx81", ""), titleEntry("new-title", "fes.zx81")}
+	svc.mu.Unlock()
+	r.Resume()
+	stepUntil(t, r, func(Frame) bool {
+		d := r.Destination()
+		return homeSettled(r) && d.GameID == "new-machine" && d.Status == "1 game"
+	})
+	for i := 0; i < 20; i++ {
+		r.Step(time.Now())
+	}
+	if d := r.Destination(); d.GameID != "new-machine" || d.Status != "1 game" {
+		t.Fatalf("unfinished old answer replaced refreshed data: %+v", d)
+	}
+}
+
+func TestHomeFamilyBatchesIncludeLateMachineEditions(t *testing.T) {
+	group := machineEntry("blocked", "fes.zx81", "offline")
+	for i := 0; i < 600; i++ {
+		group.Variants = append(group.Variants, machineEntry(fmt.Sprintf("blocked-%03d", i), "fes.zx81", "offline"))
+	}
+	group.Variants = append(group.Variants, machineEntry("ready-edition", "fes.zx81", ""))
+	group.VariantCount = len(group.Variants)
+	svc := &homeServices{fakeServices: fakeServices{games: []hostclient.Game{group, titleEntry("game", "fes.zx81")}}}
+	r := loadHome(t, Options{Services: svc, ReleaseOnly: true, Budget: DefaultBudget()})
+	stepUntil(t, r, func(Frame) bool {
+		d := r.Destination()
+		return homeSettled(r) && d.GameID == "ready-edition" && d.Status == "1 game"
+	})
+}
+
+func TestHomeFamilyFullPagesSettleAcrossBoundedFrames(t *testing.T) {
+	cores := []string{"fes.zx81", "fes.spectrum", "fes.atari-st", "fes.c64"}
+	games := make([]hostclient.Game, 0, len(cores)*2000)
+	for _, core := range cores {
+		games = append(games, machineEntry(core+"-machine", core, ""))
+		for i := 0; i < 1999; i++ {
+			games = append(games, titleEntry(fmt.Sprintf("%s-%04d", core, i), core))
+		}
+	}
+	svc := &homeServices{fakeServices: fakeServices{games: games}}
+	r := loadHome(t, Options{Services: svc, ReleaseOnly: true, Budget: DefaultBudget()})
+	deadline := time.Now().Add(testwait.Timeout)
+	for {
+		r.pendingMu.Lock()
+		queued := len(r.pending)
+		r.pendingMu.Unlock()
+		if queued >= len(cores)+1 { // families and recents; no kit is configured
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("full family answers were not delivered")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	steps := 0
+	now := time.Now()
+	var first StepTiming
+	for steps < 40 && !homeSettled(r) {
+		steps++
+		now = now.Add(16 * time.Millisecond)
+		r.Step(now)
+		if steps == 1 {
+			first = r.LastStep()
+		}
+		if r.Err() != nil {
+			t.Fatalf("room failed: %v", r.Err())
+		}
+	}
+	if steps <= 1 || !homeSettled(r) {
+		t.Fatalf("full pages settled after %d frames, destination %+v", steps, r.Destination())
+	}
+	t.Logf("four full family pages settled in %d update frames (first async %s, update %s)", steps, first.Async, first.Update)
+	for i, core := range cores {
+		if i > 0 {
+			r.Input("right")
+		}
+		if d := r.Destination(); d.GameID != core+"-machine" || d.Status != "1999 games" {
+			t.Fatalf("family %s lost or reordered results: %+v", core, d)
+		}
+	}
+}
+
 func TestHomeFamilyMachineOverflowFailsClosed(t *testing.T) {
 	games := make([]hostclient.Game, 0, 2001)
 	for i := 0; i < 2001; i++ {

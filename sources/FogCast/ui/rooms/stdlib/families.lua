@@ -147,6 +147,9 @@ function M.state(f)
 end
 
 local LIBRARY_LIMIT = 2000
+-- A query may return 2,000 rows. Process a bounded number of rows or
+-- editions per frame so one answer cannot exhaust the room callback budget.
+local FAMILY_BATCH = 256
 
 local function count_line(n, more)
   if n == 0 and more then return "1+ games" end
@@ -362,31 +365,65 @@ local function query_family(req, gen)
   req.cancel = library.query({ platform = "fpga", core_ids = req.ids, limit = LIBRARY_LIMIT, home_family = true }, function(games, err, transient, more)
     if gen ~= library_generation then return end
     req.cancel = nil
-    req.answered, req.err = true, err
+    req.err = err
     req.overfull = err and more or nil
     if err and transient and retry_enabled and req.retries < #RETRY_DELAYS then
+      req.answered = true
       req.retries = req.retries + 1
       req.due = room.time + RETRY_DELAYS[req.retries]
-    elseif not err then
-      local machines_for_family, n = {}, 0
-      local function machine(g)
-        if g.core_id and systems.family_by_core[g.core_id] and (g.media_id or "") == "" then add_machine(machines_for_family, g) end
-      end
-      for _, g in ipairs(games or {}) do
-        local family = systems.family_by_core[g.core_id or ""]
-        if g.core_entry_kind == "title" and family and family.id == req.family.id then
-          n = n + 1
-        elseif g.core_entry_kind == "machine" then
-          machine(g)
-          for _, v in ipairs(g.variants or {}) do machine(v) end
-        end
-      end
-      req.machines, req.count = machines_for_family, n
+    elseif err then
+      req.answered = true
+    else
+      req.answered = false
+      req.pending, req.index = games or {}, 1
+      req.machines, req.count = {}, 0
       req.more = more or nil
     end
     schedule_next_retry()
     publish_library(gen)
   end)
+end
+
+-- Continue one family's answer across updates. Keep it unpublished until
+-- every row (including machine editions) has been examined. Reload replaces
+-- the request list, so it also discards a partially processed answer.
+local function process_family(req)
+  local function machine(g)
+    if g.core_id and systems.family_by_core[g.core_id] and (g.media_id or "") == "" then add_machine(req.machines, g) end
+  end
+  local work = 0
+  while work < FAMILY_BATCH do
+    local g = req.pending[req.index]
+    if not g then
+      req.pending = nil
+      req.answered = true
+      publish_library(library_generation)
+      return
+    end
+    if req.variant_index then
+      local variant = (g.variants or {})[req.variant_index]
+      if variant then
+        machine(variant)
+        req.variant_index = req.variant_index + 1
+        work = work + 1
+      else
+        req.variant_index = nil
+        req.index = req.index + 1
+      end
+    else
+      local family = systems.family_by_core[g.core_id or ""]
+      if g.core_entry_kind == "title" and family and family.id == req.family.id then
+        req.count = req.count + 1
+        req.index = req.index + 1
+      elseif g.core_entry_kind == "machine" then
+        machine(g)
+        req.variant_index = 1
+      else
+        req.index = req.index + 1
+      end
+      work = work + 1
+    end
+  end
 end
 
 function M.reload()
@@ -413,6 +450,12 @@ end
 -- Called only by Home while it is active; no timer or retry worker survives
 -- a closed or suspended room. A reload discards the previous schedule.
 function M.update()
+  for _, req in ipairs(requests) do
+    if req.pending then
+      process_family(req)
+      break
+    end
+  end
   if not next_retry or room.time < next_retry then return end
   for _, req in ipairs(requests) do
     if req.due and room.time >= req.due then
