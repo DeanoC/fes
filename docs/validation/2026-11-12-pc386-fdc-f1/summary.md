@@ -16,7 +16,7 @@ This record covers slice F1 of the
   - 20 match line for line.
   - The 11 that [`fdc_divergences.toml`](../../../sources/misteross/cores/fes-pc386/sim/fdc_divergences.toml) lists differ as listed.
   - The 2 RTL-only cases (non-DMA, timing) pass their checks, and so does every case's own RTL check.
-- **Existing suites.** `devices`, `boot` (oracle), `storage` and `benches` pass. `boot --cpu rtl` and `system`: see [below](#suites).
+- **Existing suites.** `devices`, `boot` (oracle and `--cpu rtl`), `storage`, `system` and `benches` pass ([below](#suites)).
 - **Seal.** Quartus 17.0.2, seed 1, CUDA slot on chip-30x0-ai-dev, from a clean checkout of `191a71d8c`, meets every analysis: setup +0.780 ns, hold +0.095 ns.
   - It uses 37,144 ALMs and 271 RAM blocks, against main `2f6829c2c` sealed on the same host the same way: 36,731 ALMs, 269 RAM blocks, setup +0.514 ns, hold +0.074 ns.
   - That is +413 ALMs, +2 M10K and +1 DSP, at 88.6% of the device.
@@ -84,9 +84,9 @@ The list also records five deviations or cases the replay does not compare:
 | `fdc` (new) | PASS |
 | `devices` | PASS |
 | `boot` (oracle) | PASS |
-| `boot --cpu rtl` | PENDING |
+| `boot --cpu rtl` | PASS: FreeDOS to the prompt in 3.5 simulated s, 138,961,848 retired, 0 oracle steps, no stops |
 | `storage` | PASS |
-| `system` | PENDING |
+| `system` | PASS: holds cut a port 2 write burst in 4 of 186 trials, with port 2 writes after each release; status ring 2,783 records |
 | `benches` | PASS |
 | `tests.test_pc386_machine` (`FdcReplayTest`, port 2 harness), `tests.test_build_fes_pc386_quartus` | PASS |
 
