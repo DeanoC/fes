@@ -141,8 +141,11 @@ class Input:
                         body={'session': self.session, 'token': self.proof.hex(), 'core': CORE})
         if not attached.get('ready'):
             raise AcceptanceError('input attach was not ready')
-        self.sock = socket.create_connection((client.url.hostname, client.url.port), timeout=10)
-        self.sock.sendall((f'CONNECT /v1/input/stream HTTP/1.1\r\nHost: {client.url.hostname}:{client.url.port}\r\n'
+        if client.url.scheme != 'http':
+            raise AcceptanceError('the input stream needs an http target')
+        port = client.url.port or 80
+        self.sock = socket.create_connection((client.url.hostname, port), timeout=10)
+        self.sock.sendall((f'CONNECT /v1/input/stream HTTP/1.1\r\nHost: {client.url.hostname}:{port}\r\n'
                            f'Authorization: Bearer {client.bearer}\r\nX-FogCast-Input-Session: {self.session}\r\n'
                            f'{kitlib.HEADER}: {lease}\r\n\r\n').encode())
         self.reader = self.sock.makefile('rb')

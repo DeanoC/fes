@@ -1756,10 +1756,13 @@ def wfw_suite(args) -> str:
 def wfw_drive(args) -> tuple[Path, dict, dict] | str:
     """The WfW drive and its title, or why the suite skips: the drive is
     user-supplied, so a host without it (CI) skips rather than fails."""
+    if not args.drive and not (drives.configured_store() / 'by-name' / f'{WFW_DRIVE}.img').exists():
+        return f'no WfW drive: {WFW_DRIVE} is not in {drives.STORE}/by-name (docs/pc386-windows-corpus.md)'
+    # A present drive that fails its checks, or a named one that does not resolve, fails.
     try:
         image, record = drives.resolve(args.drive or WFW_DRIVE)
     except drives.DriveError as error:
-        return f'no WfW drive: {error} (docs/pc386-windows-corpus.md)'
+        raise SimError(str(error)) from None
     try:
         return image, record, drives.title_of(record, WFW_TITLE)
     except drives.DriveError as error:

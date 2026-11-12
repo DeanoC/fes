@@ -137,10 +137,26 @@ class SuiteTest(unittest.TestCase):
             self.assertEqual([result['program_manager'] for result in watch.results], [True, False, True, True])
 
     def test_the_suite_skips_without_the_drive(self):
-        with tempfile.TemporaryDirectory() as directory, mock.patch.object(drives, 'STORE', Path(directory)):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(drives, 'STORE', Path(directory)), \
+                mock.patch.dict('os.environ', {'FES_PC386_DRIVES': directory}):
             reason = sim.wfw_drive(mock.Mock(drive=None))
         self.assertIsInstance(reason, str)
         self.assertIn('no WfW drive', reason)
+
+    def test_a_present_drive_that_fails_its_checks_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = Path(directory)
+            (store / 'by-name').mkdir()
+            image = store / ('0' * 64 + '.img')
+            image.write_bytes(b'x' * 512)
+            image.with_suffix('.json').write_text('{"sha256": "%s"}' % ('1' * 64))
+            (store / 'by-name/wfw-msdos.img').symlink_to(image)
+            with mock.patch.object(drives, 'STORE', store), \
+                    mock.patch.dict('os.environ', {'FES_PC386_DRIVES': str(store)}), self.assertRaises(sim.SimError):
+                sim.wfw_drive(mock.Mock(drive=None))
+            with mock.patch.object(drives, 'STORE', store), \
+                    mock.patch.dict('os.environ', {'FES_PC386_DRIVES': str(store)}), self.assertRaises(sim.SimError):
+                sim.wfw_drive(mock.Mock(drive='nothing'))
 
     def report(self, end='stop-file', found=True, counters=None):
         return {'failures': [], 'end': {'reason': end, 'seconds': 5.0}, 'game_launch': {'seconds': 3.3},
