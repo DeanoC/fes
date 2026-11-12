@@ -110,7 +110,11 @@ packages, idle and splash RBFs, and the native runtime input lock are not
 inputs. The image path still checks those before it calls the same publisher.
 With `FES_TARGET_IMAGE_SHARED_CACHE` set, the archive lands in
 `toolchains/<key>/` under that directory. `TOOLCHAIN_REBUILD=1 make kit-sdk`
-rebuilds it.
+rebuilds it. Image and kit SDK builds serialize a cache miss, build, publication
+and validation with a per-key host lock under `toolchains/.build-locks/`; a
+waiting build rechecks the cache after acquiring the lock. Forced rebuilds still
+rebuild, and different keys can build independently. Each worktree continues to
+verify or fetch the sources it needs.
 
 Both image passes extract the checked archive into a fresh
 `/target-image-output/external-toolchain/host`, run the SDK relocation script,
