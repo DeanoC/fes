@@ -349,7 +349,9 @@ package fes_i386_pkg;
     // address the uop carries (pipe_t pf_err, pf_lin), from the walker
     // (fes_i386_l1d). DB is a debug exception (vector 1), a fault: a MOV
     // to or from DRn while DR7.GD is set, which sets DR6.BD and clears GD as
-    // it is taken.
+    // it is taken. DBI is the fault of an instruction breakpoint (vector 1),
+    // which EX gives an instruction's first uop when AG matched its address
+    // (pipe_t ibp) and RF is clear; it sets DR6's B bits and clears GD.
     typedef enum logic [4:0] {
         FAULT_NONE          = 5'd0,
         FAULT_UD            = 5'd1,
@@ -368,7 +370,8 @@ package fes_i386_pkg;
         FAULT_TS_SEL        = 5'd14,
         FAULT_TS_TR         = 5'd15,
         FAULT_PF            = 5'd16,
-        FAULT_DB            = 5'd17
+        FAULT_DB            = 5'd17,
+        FAULT_DBI           = 5'd18
     } fault_e;
 
     // Why an instruction stops as not built (FAULT_UNIMPLEMENTED), kept
@@ -1135,6 +1138,19 @@ package fes_i386_pkg;
         // ones: D, a load of a 286 TSS's word into a GPR, whose high half
         // reads as ones (fes_i386_cpu, "Task switches").
         logic           ones;
+        // Breakpoints (fes_i386_cpu, "Breakpoints"). ibp: AG, DR0-DR3's
+        // instruction breakpoints the instruction's first uop matches (every
+        // one, enabled or not, once any is enabled); ibp_en: ... an enabled
+        // one among them. dbp, dbp_en: M1, the same for the uop's data
+        // accesses, which WB gathers for the trap after the instruction.
+        logic [3:0]     ibp;
+        logic           ibp_en;
+        logic [3:0]     dbp;
+        logic           dbp_en;
+        // iret0: D, the uop is an IRET's first (a real-mode, V86 or
+        // protected-mode IRET's, or a return from a nested task's), which
+        // clears the NMI block as it reaches WB (fes_i386_cpu, "Interrupts").
+        logic           iret0;
     } pipe_t;
 
 endpackage

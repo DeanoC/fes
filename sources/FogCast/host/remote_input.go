@@ -136,6 +136,7 @@ type RemoteInput struct {
 	bridge           BridgeHandle
 	conn             net.Conn
 	reader           *bufio.Reader
+	receiptReady     bool
 	heartbeatCancel  context.CancelFunc
 	session          uint64
 	token            []byte
@@ -342,19 +343,22 @@ func (r *RemoteInput) SendEvent(ctx context.Context, event remoteinput.Event, ca
 	return r.sendDesktopEventLocked(ctx, event, capturedAt, true)
 }
 
-// SendEventConfirmed waits until the bridge has processed the event's stream
-// prefix. This is not an acknowledgment that the sink accepted the event or
-// that the guest consumed it. It is used by the single-event HTTP API; the
-// launcher stream and the timed key tap keep their existing behavior.
+// SendEventConfirmed waits for the bridge sink to accept the emitted frames.
+// A valid mapping can emit no frames; a receipt does not prove guest consumption.
 func (r *RemoteInput) SendEventConfirmed(ctx context.Context, event remoteinput.Event, capturedAt time.Time) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	err := r.sendDesktopEventLocked(ctx, event, capturedAt, false)
+	return r.confirmEventLocked(ctx, r.sendDesktopEventLocked(ctx, event, capturedAt, false))
+}
+
+// confirmEventLocked closes the attachment on uncertain delivery so no held
+// state or relative motion is replayed into a replacement connection.
+func (r *RemoteInput) confirmEventLocked(ctx context.Context, err error) error {
 	if err == nil {
-		err = r.confirmStreamPrefixLocked(ctx)
+		err = r.confirmSinkLocked(ctx)
 		if err != nil {
 			err = ErrRemoteInputUnconfirmed
 		}
@@ -389,12 +393,13 @@ func (r *RemoteInput) sendDesktopEventLocked(ctx context.Context, event remotein
 	if r.state != RemoteInputAttached && r.state != RemoteInputReconnecting {
 		return ErrRemoteInputNoStream
 	}
+	newClaim := r.source == ""
 	r.source = "desktop"
-	return r.sendEventModeLocked(ctx, event, capturedAt, reconnect)
-}
-
-func (r *RemoteInput) sendEventLocked(ctx context.Context, event remoteinput.Event, capturedAt time.Time) error {
-	return r.sendEventModeLocked(ctx, event, capturedAt, true)
+	err := r.sendEventModeLocked(ctx, event, capturedAt, reconnect)
+	if err != nil && newClaim && !reconnect && !r.receiptReady {
+		r.source = ""
+	}
+	return err
 }
 
 func (r *RemoteInput) sendEventModeLocked(ctx context.Context, event remoteinput.Event, capturedAt time.Time, reconnect bool) error {
@@ -417,6 +422,21 @@ func (r *RemoteInput) sendEventModeLocked(ctx context.Context, event remoteinput
 	// is sent, the confirmed path must not reconnect or replay it.
 	if err := r.ensureLiveStreamLocked(ctx); err != nil {
 		return err
+	}
+	if !reconnect && !r.receiptReady {
+		// Probe the bridge before mutating local state or emitting this event.
+		// Older bridges close on the unknown receipt request. Ordinary attach
+		// remains usable, but confirmed input fails closed before dispatch.
+		if err := r.confirmSinkLocked(ctx); err != nil {
+			r.closeConnLocked()
+			r.state = RemoteInputReconnecting
+			r.ready = false
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			return ErrRemoteInputNoStream
+		}
+		r.receiptReady = true
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -954,6 +974,7 @@ func (r *RemoteInput) writeFrameLocked(ctx context.Context, frame protocol.Input
 }
 
 func (r *RemoteInput) closeConnLocked() {
+	r.receiptReady = false
 	if r.conn != nil {
 		_ = r.conn.Close()
 		r.conn = nil
@@ -987,7 +1008,7 @@ func (r *RemoteInput) nextPingLocked() uint64 {
 	return nonce
 }
 
-func (r *RemoteInput) confirmStreamPrefixLocked(ctx context.Context) error {
+func (r *RemoteInput) confirmSinkLocked(ctx context.Context) error {
 	if r.conn == nil || r.reader == nil {
 		return ErrRemoteInputNoStream
 	}
@@ -998,7 +1019,7 @@ func (r *RemoteInput) confirmStreamPrefixLocked(ctx context.Context) error {
 	// PING is not tracked as an input frame by the bridge. Reuse the last
 	// input sequence so the next event does not report a spurious gap.
 	ping := protocol.InputFrame{
-		Header: protocol.InputHeader{Type: protocol.InputTypePing, Session: r.session},
+		Header: protocol.InputHeader{Type: protocol.InputTypePing, Flags: protocol.InputFlagReceiptRequested, Session: r.session},
 		Seq:    r.sequence, ClientMonoNS: nonce,
 	}
 	if err := r.writeFrameLocked(ctx, ping, time.Time{}); err != nil {
@@ -1024,19 +1045,22 @@ func (r *RemoteInput) confirmStreamPrefixLocked(ctx context.Context) error {
 		_ = conn.SetReadDeadline(time.Time{})
 	}()
 	// A delayed heartbeat may already be buffered. Ignore only older PONGs
-	// from this session and require the exact ping response for success.
+	// from this session and require the exact receipt for success.
 	for stale := 0; stale < 8; stale++ {
 		pong, err := protocol.DecodeInputFrame(r.reader, 4096)
 		if err != nil {
 			return err
 		}
-		if pong.Header.Type != protocol.InputTypePong || pong.Header.Session != r.session {
+		if pong.Header.Session != r.session {
 			return ErrRemoteInputUnconfirmed
 		}
-		if pong.Seq == ping.Seq && pong.ClientMonoNS == nonce {
+		if pong.Header.Type == protocol.InputTypeReceipt && pong.Seq == ping.Seq && pong.ClientMonoNS == nonce {
+			if pong.Header.Flags != 0 {
+				return ErrRemoteInputUnconfirmed
+			}
 			return ctx.Err()
 		}
-		if pong.ClientMonoNS >= nonce {
+		if pong.Header.Type != protocol.InputTypePong || pong.ClientMonoNS >= nonce {
 			return ErrRemoteInputUnconfirmed
 		}
 	}
@@ -1367,7 +1391,7 @@ func (s *RemoteInputSource) SendEvent(ctx context.Context, event remoteinput.Eve
 	if !s.validLocked() {
 		return ErrRemoteInputInvalid
 	}
-	return r.sendEventLocked(ctx, event, capturedAt)
+	return r.confirmEventLocked(ctx, r.sendEventModeLocked(ctx, event, capturedAt, false))
 }
 
 // Close drops the authenticated bridge transport: the bridge releases every

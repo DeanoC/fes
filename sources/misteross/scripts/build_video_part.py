@@ -173,6 +173,7 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
              "--fes-cram-region", ",".join(map(str, layout.CRAM)), "--no-pack",
              "--seed", str(layout.PLACER_SEED), "--router", "gpu", "--gpu-device", str(gpu),
              "--placer-heap-timingweight", "300",
+             *(("--placer-heap-critexp", "2") if native else ()),
              "--rbf", str(output / "cart.rbf"), "--compress-rbf",
              "--write", str(output / "cart-routed.json"), "--report", str(output / "timing.json")),
         )

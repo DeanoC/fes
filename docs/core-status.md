@@ -54,7 +54,9 @@ out.
 The image selector supports ten IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st`.
 `fes.riscv`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.zx80`, `fes.ts1000` and `fes.ts1500` are registered for `make core-dev` only.
-SMS, SG-1000, Spectrum and Atari ST have sealed packages for independent installation. C64 remains registered and package-only. Its shared-pin retirement
+SMS and SG-1000 retain development recipes but are outside the first-party
+catalog. Spectrum and Atari ST have sealed packages for independent installation.
+C64 remains registered and package-only. Its shared-pin retirement
 is complete on the recorded CUDA seal, package `1d599353eaef5502…` (build
 `6f865fddebe62184…`). The current 0.5.0 native-drive core is sealed as HIP
 package `668a640d25bfdf7b…` and has exact-artifact game acceptance on Kit B

@@ -761,6 +761,7 @@ func (a *applicationHandler) selectedTargetID() string {
 }
 
 func (a *applicationHandler) launcherInput(w http.ResponseWriter, r *http.Request, targetID string) {
+	receipts := r.URL.Query().Get("receipts") == "1"
 	a.targetMu.Lock()
 	if _, ok := a.kitTarget(targetID); !ok {
 		a.targetMu.Unlock()
@@ -799,7 +800,11 @@ func (a *applicationHandler) launcherInput(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Type", "application/x-ndjson")
 	w.Header().Set("Connection", "close")
 	_ = control.SetWriteDeadline(time.Now().Add(time.Second))
-	if err = json.NewEncoder(w).Encode(map[string]any{"ready": true, "session_id": r.URL.Query().Get("session_id")}); err != nil {
+	ready := map[string]any{"ready": true, "session_id": r.URL.Query().Get("session_id")}
+	if receipts {
+		ready["receipts"] = true
+	}
+	if err = json.NewEncoder(w).Encode(ready); err != nil {
 		return
 	}
 	if err = control.Flush(); err != nil {
@@ -810,6 +815,7 @@ func (a *applicationHandler) launcherInput(w http.ResponseWriter, r *http.Reques
 	// Streaming requests are never reused. Bound any body drain after an
 	// invalid packet or timeout instead of clearing its read deadline.
 	defer func() { _ = control.SetReadDeadline(time.Now()) }()
+	var lastSequence uint64
 	for {
 		if err = control.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 			return
@@ -818,11 +824,17 @@ func (a *applicationHandler) launcherInput(w http.ResponseWriter, r *http.Reques
 		if readErr != nil {
 			return
 		}
+		// A receipt can take longer than the idle-body timeout. Do not leave
+		// that deadline armed while dispatching a complete event.
+		if err = control.SetReadDeadline(time.Time{}); err != nil {
+			return
+		}
 		if source.Check() != nil {
 			return
 		}
 		var packet struct {
-			Event *remoteinput.Event `json:"event,omitempty"`
+			Event    *remoteinput.Event `json:"event,omitempty"`
+			Sequence *uint64            `json:"sequence,omitempty"`
 		}
 		decoder := json.NewDecoder(bytes.NewReader(line))
 		decoder.DisallowUnknownFields()
@@ -834,12 +846,34 @@ func (a *applicationHandler) launcherInput(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		if packet.Event != nil {
+			if receipts {
+				if packet.Sequence == nil || *packet.Sequence <= lastSequence {
+					return
+				}
+				lastSequence = *packet.Sequence
+			} else if packet.Sequence != nil {
+				return
+			}
 			if !launcherPlayHIDEvent(*packet.Event) {
 				return
 			}
-			if source.SendEvent(r.Context(), *packet.Event, time.Now()) != nil {
+			err = source.SendEvent(r.Context(), *packet.Event, time.Now())
+			if receipts {
+				status := "accepted"
+				if err != nil {
+					status = "unconfirmed"
+				}
+				_ = control.SetWriteDeadline(time.Now().Add(time.Second))
+				if json.NewEncoder(w).Encode(map[string]any{"sequence": *packet.Sequence, "status": status}) != nil || control.Flush() != nil {
+					return
+				}
+				_ = control.SetWriteDeadline(time.Time{})
+			}
+			if err != nil {
 				return
 			}
+		} else if packet.Sequence != nil {
+			return
 		}
 	}
 }

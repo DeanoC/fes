@@ -6,7 +6,7 @@ import tempfile
 import tomllib
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from scripts import build_fes_coleco_socket_v2 as shell
 from scripts import build_video_part as part
@@ -15,6 +15,75 @@ from scripts.cyclonev_rbf import SX120F, CramRect, LoadedRbf, classify_cram_diff
 
 
 class NativeVideoProducerTest(unittest.TestCase):
+    def test_video_route_argv_sets_critexp_only_for_native_layouts(self):
+        class ReachedRoute(Exception):
+            pass
+
+        cases = ((native, "direct", True), (native, "scanlines", True),
+                 (raster, "direct", False))
+        for layout, variant, expect_critexp in cases:
+            with self.subTest(layout=layout.__name__, variant=variant), \
+                    tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary) / "repo"
+                shell_root = Path(temporary) / "shell"
+                root.mkdir()
+                shell_root.mkdir()
+                (shell_root / "manifest.toml").write_bytes(b"manifest")
+                (shell_root / "core.rbf").write_bytes(b"core-rbf")
+                (shell_root / "routed.json").write_bytes(b"routed")
+                (shell_root / "socket.qsf").write_text(
+                    f'FES_RESERVED_RECT "{layout.PLACEMENT}"\n')
+                package = SimpleNamespace(
+                    fields={"format": 4, "interfaces": [{"id": layout.INTERFACE,
+                        "major": 1, "minor": 0, "required": False}]},
+                    manifest_bytes=b"manifest", payload_bytes=b"core-rbf", package_id="fixture")
+                tools = {name: SimpleNamespace(path=Path("/tool") / name, identity="fixture")
+                         for name in ("yosys", "nextpnr-mistral")}
+                invocation = SimpleNamespace(inputs={}, env={}, verify=Mock(), close=Mock())
+                all_inputs = (*part.INPUTS, *part.NATIVE_INPUTS)
+                commands = []
+
+                def prepare_output(build_root, *, relative, build_outputs):
+                    (build_root / relative).mkdir(parents=True, exist_ok=True)
+
+                def prepare_scaffold(source, destination, *, layout):
+                    destination.write_bytes(b"scaffold")
+                    return b"scaffold"
+
+                def run_tool(command, build_root, log_path, **kwargs):
+                    commands.append(command)
+                    if log_path.name == "synthesis.log":
+                        log_path.write_text("")
+                        (log_path.parent / "cart.json").write_bytes(b"{}")
+                        return
+                    raise ReachedRoute
+
+                with patch.object(part, "read_package", return_value=package), \
+                        patch.object(part, "_require_clean_source", return_value=(None, "revision")), \
+                        patch.object(part, "source_roots_for_inputs", return_value=()), \
+                        patch.object(part, "source_input_closure",
+                                     return_value={name: "fixture" for name in all_inputs}), \
+                        patch.object(part, "_prepare_output", side_effect=prepare_output), \
+                        patch.object(part, "prepare_scaffold", side_effect=prepare_scaffold), \
+                        patch.object(part, "_run_tool", side_effect=run_tool), \
+                        patch.object(part.shell_recipe, "authenticate_tools", return_value=tools), \
+                        patch.object(part.sgm, "cart_clock_constraints", return_value=b"constraints"), \
+                        patch.object(part, "FunctionalInvocation", return_value=invocation), \
+                        patch.object(part.native_video_clock, "prepare_native_clock",
+                                     return_value={"fixture": True}):
+                    with self.assertRaises(ReachedRoute):
+                        part.build(root, shell_root, Path(temporary) / "package.tar", variant)
+
+                self.assertEqual(len(commands), 2)
+                route_argv = commands[1]
+                if expect_critexp:
+                    self.assertIn("--placer-heap-critexp", route_argv)
+                    self.assertEqual(route_argv[route_argv.index("--placer-heap-critexp") + 1], "2")
+                else:
+                    self.assertNotIn("--placer-heap-critexp", route_argv)
+                invocation.verify.assert_not_called()
+                invocation.close.assert_called_once_with()
+
     def test_record_binds_native_fallback_and_actual_router_policy(self):
         for flags, expected_weights in (({}, (2000,)),
                 ({"video_socket": True}, (2000,)),

@@ -1,0 +1,44 @@
+i386 Phase 5 slice 5 (breakpoints and single step): one-line mutants of the new RTL
+==================================================================================
+
+Each mutant changes one line (or one expression) of fes_i386_cpu.sv or
+fes_i386_ex.sv, builds the lockstep testbench (the lock's Verilator 5.054)
+and runs the pmode directed cases and 60 debug programs of seed 5001
+against Bochs. "pmode" counts the directed cases that fail, named after it;
+"debug" the debug programs that fail. Mutants run first on the testbench of
+92d08101b; those whose first run failed no directed case were run again
+(marked "rerun") on 68a1eb3d2's, with the cases added for them. 68a1eb3d2
+matches a descriptor's access with a data breakpoint, so "system-matches"
+(the first run) became "system-ignored" (the rerun's opposite mutant).
+
+mutant               change                                                    pmode  debug  failing directed cases
+rf-ignored           EX's #DB ignores RF                                       2      0      db-ibp-rf db-ibp-rf-replay
+movss-ignored        EX's #DB ignores a MOV SS shadow (rerun)                  1      5      db-ibp-movss
+sup-committed-only   the shadow taken only from committed state (rerun)        1      5      db-ibp-movss
+dr6-b-cleared        a trap's #DB replaces B0-B3 (Bochs's)                     1      20     db-dbp-twice
+gd-clears-b          GD's #DB clears B0-B3 and BS (Bochs's)                    1      0      db-gd-sticky
+dbi-b-ignored        an instruction breakpoint's #DB sets no B bit             10     19     db-ibp db-ibp-g0-sticky db-real-ibp db-ibp-len2 db-ibp-ud db-ibp-gp db-ibp-rf db-ibp-rf-replay db-v86-ibp ts-g0-kept
+rw01-ignored         R/W 01 matches no write                                   11     12     db-dbp-write-word db-dbp-read-not-w db-dbp-len8 db-dbp-rmw db-dbp-push db-dbp-rep-stos db-dbp-rep-movs-dst db-real-dbp-rep db-dbp-twice db-tf-dbp db-tf-dbp-disabled
+next-block-ignored   an access's second 8-byte block never compared            2      3      db-dbp-write-word db-dbp-straddle
+ibp-len-ignored      an instruction breakpoint ignores LEN                     1      0      db-ibp-len2
+dbp-len-ignored      a data breakpoint's field always one byte                 2      9      db-dbp-rw-read db-dbp-len8
+system-ignored       a descriptor's access matches no data breakpoint (rerun)  1      0      db-dbp-gdt
+int-keeps-step       an INT's delivery keeps the pending single step           1      15     db-tf-int
+int-keeps-carried    an INT keeps a MOV SS shadow's data hit (rerun)           1      0      db-dbp-movss-int
+shadow-ignored       MOV SS's shadow does not hold a trap                      3      16     db-tf-movss db-tf-popss db-tf-int
+shadow-drops         the shadow drops the trap it holds (rerun)                1      0      db-dbp-movss
+tbit-ignored         the T bit arms nothing                                    4      0      ts-tbit-jmp ts-tbit-call ts-tbit-iret ts-tbit-int-gate
+merge-off            a trap reports no next-instruction breakpoint             1      2      db-tf-ibp
+rep-cbp              the next-instruction check between REP elements (rerun)   1      0      db-dbp-rep-own
+db-frame-rf-clear    a #DB fault's image has RF clear (Bochs's)                1      0      dr-gd-rf
+skip-never           a suppressed breakpoint's replay never skips it           2      5      db-ibp-rf db-ibp-rf-replay
+m1-touches           a matched uop reads and walks from M1 on                  1      0      db-ibp-rf-replay
+edge-cbp-off         no next-instruction breakpoint at an interrupt's edge     0      2      (none: the directed cases raise no INTR; the
+                     (rerun)                                                                  debug programs' injected INTR and NMI catch it)
+rf-per-uop           RF cleared by every uop, not at an instruction's end     0      0      unreachable: the replay a suppressed breakpoint
+                                                                                              makes issues its instruction one uop at a time
+                                                                                              (fes_i386_cpu serial), so no later uop of it
+                                                                                              replays with RF already cleared
+
+23 mutants: 21 fail directed cases, 1 (edge-cbp-off) fails the random debug
+programs only, 1 (rf-per-uop) is unreachable.

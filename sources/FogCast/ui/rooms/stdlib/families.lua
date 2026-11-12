@@ -89,10 +89,12 @@ M.list = list
 
 -- Data. A table per source; nil while it is still loading.
 local kit_rows = nil   -- core_id -> kit.cores row
+local kit_error = false
 local machines = nil   -- core_id -> library machine entry
 local titles = nil     -- family id -> number of titles
 local capped = {}      -- family id -> true when its query hit the row limit
 local known = {}       -- family id -> true when its library read succeeded
+local overfull = {}    -- family id -> machine entries exceeded the query budget
 local library_err = nil
 local on_change = function() end
 
@@ -114,8 +116,11 @@ local function model_state(core_id)
     if kit_row.needs == "unavailable" then return "missing" end
     return "blocked", kit_row.block ~= "" and kit_row.block or nil
   end
+  if kit_error then return "blocked", "Can't check this kit" end
   return "missing"
 end
+
+function M.count_known() return not kit_error and next(overfull) == nil end
 
 -- Families wait for the library and the kit's list (it says which models
 -- are installed when the library has no row for them).
@@ -127,6 +132,7 @@ end
 -- with the reason for "blocked" and the model Open starts on.
 function M.state(f)
   if not M.settled() then return "checking", nil, f.variants[1].id end
+  if overfull[f.id] then return "blocked", "Too many systems to check", f.variants[1].id end
   local firmware, blocked, reason, any = nil, nil, nil, nil
   for _, v in ipairs(f.variants) do
     local state, why = model_state(v.id)
@@ -143,6 +149,7 @@ end
 local LIBRARY_LIMIT = 2000
 
 local function count_line(n, more)
+  if n == 0 and more then return "1+ games" end
   if more then return n .. "+ games" end
   if n == 1 then return "1 game" end
   return n .. " games"
@@ -152,7 +159,7 @@ end
 function M.games(f)
   if not titles or not known[f.id] then return nil end
   local n = titles[f.id] or 0
-  if n == 0 then return "No games yet" end
+  if n == 0 and not capped[f.id] then return "No games yet" end
   return count_line(n, capped[f.id])
 end
 
@@ -178,6 +185,7 @@ function M.details(f)
   for _, v in ipairs(f.variants) do
     local state, why = model_state(v.id)
     if not M.settled() then state, why = "checking", nil end
+    if overfull[f.id] then state, why = "blocked", "Too many systems to check" end
     local word = why or STATE_WORDS[state] or "Can't start here"
     if not models[word] then
       models[word] = {}
@@ -265,12 +273,15 @@ local kit_generation = 0
 local function load_kit()
   kit_generation = kit_generation + 1
   local gen = kit_generation
+  kit_rows = nil
+  kit_error = false
   if kit == nil or kit.cores == nil then
     kit_rows = {}
     return
   end
   kit.cores(function(rows, err)
     if gen ~= kit_generation then return end
+    kit_error = err ~= nil
     kit_rows = {}
     if not err then
       for _, r in ipairs(rows or {}) do
@@ -322,11 +333,12 @@ end
 -- A failed family uses the kit fallback, without claiming zero games.
 local function publish_library(gen)
   if gen ~= library_generation then return end
-  local m, counts, more, answered, failed = {}, {}, {}, {}, nil
+  local m, counts, more, answered, oversized, failed = {}, {}, {}, {}, {}, nil
   for _, req in ipairs(requests) do
     if not req.answered then return end
     if req.err then
       failed = failed or req.err
+      if req.overfull then oversized[req.family.id] = true end
     else
       answered[req.family.id] = true
       for id, machine in pairs(req.machines or {}) do
@@ -336,6 +348,7 @@ local function publish_library(gen)
       more[req.family.id] = req.more
     end
   end
+  overfull = oversized
   if failed and not retry_enabled then
     machines, titles, capped, known, library_err = nil, nil, {}, {}, failed
   else
@@ -346,10 +359,11 @@ end
 
 local function query_family(req, gen)
   req.due = nil
-  req.cancel = library.query({ platform = "fpga", core_ids = req.ids, limit = LIBRARY_LIMIT }, function(games, err, transient)
+  req.cancel = library.query({ platform = "fpga", core_ids = req.ids, limit = LIBRARY_LIMIT, home_family = true }, function(games, err, transient, more)
     if gen ~= library_generation then return end
     req.cancel = nil
     req.answered, req.err = true, err
+    req.overfull = err and more or nil
     if err and transient and retry_enabled and req.retries < #RETRY_DELAYS then
       req.retries = req.retries + 1
       req.due = room.time + RETRY_DELAYS[req.retries]
@@ -360,12 +374,15 @@ local function query_family(req, gen)
       end
       for _, g in ipairs(games or {}) do
         local family = systems.family_by_core[g.core_id or ""]
-        if (g.media_id or "") ~= "" and family and family.id == req.family.id then n = n + 1 end
-        machine(g)
-        for _, v in ipairs(g.variants or {}) do machine(v) end
+        if g.core_entry_kind == "title" and family and family.id == req.family.id then
+          n = n + 1
+        elseif g.core_entry_kind == "machine" then
+          machine(g)
+          for _, v in ipairs(g.variants or {}) do machine(v) end
+        end
       end
       req.machines, req.count = machines_for_family, n
-      req.more = #(games or {}) >= LIBRARY_LIMIT or nil
+      req.more = more or nil
     end
     schedule_next_retry()
     publish_library(gen)
@@ -376,7 +393,9 @@ function M.reload()
   for _, req in ipairs(requests) do
     if req.cancel then req.cancel() end
   end
+  machines, titles, capped, known, overfull, library_err = nil, nil, {}, {}, {}, nil
   load_kit()
+  on_change()
   library_generation = library_generation + 1
   local gen = library_generation
   requests = {}

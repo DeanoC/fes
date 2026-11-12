@@ -16,7 +16,8 @@ The recipe registry supports the described `fes.pong`, `fes.zx81`,
 `fes.riscv`, `fes.ramtest` and `fes.atari-st` HIP/nextpnr
 producers, and `fes.pcxt` through its Quartus diagnostic producer. The default target-image selector installs the closed package set
 containing only `fes.menu` display firmware. All playable systems are installed
-independently through the core catalog. Coleco and Atari ST installations need
+independently. The first-party catalog excludes SMS and SG-1000; their recipes
+remain available for development. Coleco and Atari ST installations need
 their matching Direct/Scanlines video parts; firmware remains user-supplied.
 Their package builds and timing results no longer gate the default OS image.
 PC/XT is an installable Quartus diagnostic package. Its producer gates reported
@@ -434,8 +435,9 @@ and exact-image hardware acceptance.
 
 ## Operator publication
 
-`config/core-library.toml` curates labels, systems and standing for registered
-recipes. `make core-catalog` publishes only supplied verified core-dev receipts;
+`config/core-library.toml` selects first-party catalog entries and curates their
+labels, systems and standing from the registered recipes. `make core-catalog`
+publishes only supplied verified core-dev receipts;
 metadata alone cannot make a core installable. Its version-1 `catalog.json`
 contains a stable source namespace and a SHA-256 of the compact sorted-key UTF-8
 JSON body excluding `catalog_sha256`. Artifacts carry separate canonical package

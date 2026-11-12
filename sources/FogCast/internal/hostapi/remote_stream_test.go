@@ -22,11 +22,21 @@ import (
 )
 
 type streamSink struct {
-	mu     sync.Mutex
-	events []protocol.InputFrame
+	mu      sync.Mutex
+	events  []protocol.InputFrame
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+	reject  bool
 }
 
 func (s *streamSink) Apply(frame protocol.InputFrame) error {
+	if s.started != nil {
+		s.once.Do(func() { close(s.started); <-s.release })
+	}
+	if s.reject {
+		return bridge.RejectInput("test sink refused input")
+	}
 	s.mu.Lock()
 	s.events = append(s.events, frame)
 	s.mu.Unlock()
@@ -57,6 +67,10 @@ func newStreamRig(t *testing.T) *streamRig {
 }
 
 func newStreamRigWithHeartbeat(t *testing.T, heartbeat time.Duration) *streamRig {
+	return newStreamRigWithTiming(t, heartbeat, 40*time.Millisecond)
+}
+
+func newStreamRigWithTiming(t *testing.T, heartbeat, dial time.Duration) *streamRig {
 	t.Helper()
 	rig := &streamRig{sink: &streamSink{}}
 	starter := host.BridgeStarterFunc(func(ctx context.Context, spec host.BridgeSpec) (host.BridgeHandle, error) {
@@ -74,7 +88,7 @@ func newStreamRigWithHeartbeat(t *testing.T, heartbeat time.Duration) *streamRig
 		Starter:           starter,
 		ReconnectGrace:    40 * time.Millisecond,
 		HeartbeatInterval: heartbeat,
-		DialTimeout:       40 * time.Millisecond,
+		DialTimeout:       dial,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -152,6 +166,125 @@ func TestLauncherInputDeliversToLiveStream(t *testing.T) {
 	defer rig.sink.mu.Unlock()
 	if len(rig.sink.events) != 1 || rig.sink.events[0].Code != uint16(remoteinput.ButtonA) {
 		t.Fatalf("delivered %+v", rig.sink.events)
+	}
+}
+
+func TestLauncherInputReceiptsConfirmSinkAndStopOnDisconnect(t *testing.T) {
+	rig := newStreamRig(t)
+	sessionID := rig.attach(t)
+	server := httptest.NewServer(launcherHandler(t, rig.input))
+	defer server.Close()
+	reader, writer := io.Pipe()
+	defer writer.Close()
+	response, err := server.Client().Do(launcherRequest("POST", server.URL+"/api/v1/launcher/input?session_id="+sessionID+"&receipts=1", reader))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	decoder := json.NewDecoder(response.Body)
+	var ready struct {
+		Ready    bool `json:"ready"`
+		Receipts bool `json:"receipts"`
+	}
+	if err = decoder.Decode(&ready); err != nil || !ready.Ready || !ready.Receipts {
+		t.Fatalf("receipt stream ready=%+v err=%v", ready, err)
+	}
+	if _, err = io.WriteString(writer, `{"sequence":1,"event":{"Device":1,"Kind":1,"Action":1,"Code":104,"Value":0}}`+"\n"); err != nil {
+		t.Fatal(err)
+	}
+	var receipt struct {
+		Sequence uint64 `json:"sequence"`
+		Status   string `json:"status"`
+	}
+	if err = decoder.Decode(&receipt); err != nil || receipt.Sequence != 1 || receipt.Status != "accepted" {
+		t.Fatalf("receipt=%+v err=%v", receipt, err)
+	}
+	if got := rig.sink.count(); got != 1 {
+		t.Fatalf("receipt before sink acceptance: %d events", got)
+	}
+	if err = rig.server.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = io.WriteString(writer, `{"sequence":2,"event":{"Device":1,"Kind":1,"Action":0,"Code":104,"Value":0}}`+"\n"); err != nil {
+		t.Fatal(err)
+	}
+	err = decoder.Decode(&receipt)
+	if err == nil && (receipt.Sequence != 2 || receipt.Status != "unconfirmed") {
+		t.Fatalf("disconnected stream falsely confirmed input: %+v", receipt)
+	}
+}
+
+func TestLauncherInputSlowReceiptDoesNotExpireBody(t *testing.T) {
+	rig := newStreamRigWithTiming(t, time.Hour, 2*time.Second)
+	rig.sink.started = make(chan struct{})
+	rig.sink.release = make(chan struct{})
+	sessionID := rig.attach(t)
+	server := httptest.NewServer(launcherHandler(t, rig.input))
+	defer server.Close()
+	reader, writer := io.Pipe()
+	defer writer.Close()
+	response, err := server.Client().Do(launcherRequest("POST", server.URL+"/api/v1/launcher/input?session_id="+sessionID+"&receipts=1", reader))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	decoder := json.NewDecoder(response.Body)
+	var ready map[string]any
+	if err := decoder.Decode(&ready); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.WriteString(writer, `{"sequence":1,"event":{"Device":1,"Kind":1,"Action":1,"Code":104}}`+"\n"); err != nil {
+		t.Fatal(err)
+	}
+	<-rig.sink.started
+	time.Sleep(1100 * time.Millisecond)
+	close(rig.sink.release)
+	for sequence := uint64(1); sequence <= 2; sequence++ {
+		if sequence == 2 {
+			if _, err := io.WriteString(writer, `{"sequence":2,"event":{"Device":1,"Kind":1,"Action":0,"Code":104}}`+"\n"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var receipt struct {
+			Sequence uint64 `json:"sequence"`
+			Status   string `json:"status"`
+		}
+		if err := decoder.Decode(&receipt); err != nil || receipt.Sequence != sequence || receipt.Status != "accepted" {
+			t.Fatalf("receipt %d = %+v, err=%v", sequence, receipt, err)
+		}
+	}
+}
+
+func TestLauncherInputRejectedSinkReturnsUnconfirmed(t *testing.T) {
+	rig := newStreamRig(t)
+	rig.sink.reject = true
+	sessionID := rig.attach(t)
+	server := httptest.NewServer(launcherHandler(t, rig.input))
+	defer server.Close()
+	reader, writer := io.Pipe()
+	defer writer.Close()
+	response, err := server.Client().Do(launcherRequest("POST", server.URL+"/api/v1/launcher/input?session_id="+sessionID+"&receipts=1", reader))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	decoder := json.NewDecoder(response.Body)
+	var ready map[string]any
+	if err := decoder.Decode(&ready); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.WriteString(writer, `{"sequence":1,"event":{"Device":1,"Kind":1,"Action":1,"Code":104}}`+"\n"); err != nil {
+		t.Fatal(err)
+	}
+	var receipt struct {
+		Sequence uint64 `json:"sequence"`
+		Status   string `json:"status"`
+	}
+	if err := decoder.Decode(&receipt); err != nil || receipt.Sequence != 1 || receipt.Status != "unconfirmed" {
+		t.Fatalf("rejected receipt = %+v, err=%v", receipt, err)
+	}
+	if err := decoder.Decode(&receipt); err != io.EOF {
+		t.Fatalf("rejected stream continued: %v", err)
 	}
 }
 

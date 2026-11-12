@@ -52,6 +52,13 @@ def cache_dir(image=IMAGE):
     return (shared / "toolchains" if shared else image / "build/cache/target-image/toolchains") / key(image)
 
 
+def build_lock_path(image=IMAGE):
+    # This lock is separate from the entry-directory publication lock: the
+    # builder invokes package/status, which acquire that lock themselves.
+    directory = cache_dir(image)
+    return directory.parent / ".build-locks" / (directory.name + ".lock")
+
+
 def shared_root(image=IMAGE):
     value = os.environ.get("FES_TARGET_IMAGE_SHARED_CACHE", "")
     if not value:
@@ -245,6 +252,8 @@ def main(argv):
         value = shared_root()
         if value is not None:
             print(value)
+    elif command == "build-lock":
+        print(build_lock_path())
     elif command == "status":
         value = validated_sha(cache_dir(), key())
         if value is None:

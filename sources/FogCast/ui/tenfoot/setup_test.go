@@ -362,6 +362,31 @@ func TestSetupBlockedStatusClearsWhenSessionStops(t *testing.T) {
 	}
 }
 
+func TestSetupWaitsForRunningOrStartingSessionPreservesLibraryStatus(t *testing.T) {
+	app := NewApp(nil, 1280, 720, 50)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.SetRooms(rooms.NewIndex(rooms.Examples()), t.TempDir())
+	app.mu.Lock()
+	if !app.openSetupStepLocked(0) {
+		app.mu.Unlock()
+		t.Fatal("could not open setup room")
+	}
+	app.session.State = "active"
+	app.runSetupActionLocked("setup_continue")
+	app.setLibraryStatusLocked("Can't reach the library right now.")
+	app.mu.Unlock()
+
+	if got := renderRoomLabelSource(t, app.Snapshot(), "nopanel-status"); got != setupBlockedStatus {
+		t.Fatalf("setup footer during refresh = %q, want %q", got, setupBlockedStatus)
+	}
+	app.mu.Lock()
+	app.session.State = "idle"
+	app.mu.Unlock()
+	if got := app.Snapshot().Status; got != "Can't reach the library right now." {
+		t.Fatalf("library status after session stops = %q", got)
+	}
+}
+
 func TestFirstRunMaximumSafeAreaRender(t *testing.T) {
 	dir := t.TempDir()
 	app := startFirstRun(t, dir, 1280, 720)
