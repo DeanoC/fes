@@ -1578,7 +1578,7 @@ below are the plan for the complete CPU and machine.
    length decoders through L1 and L2 exhaustively against Bochs `decode()`, for
    every accumulator variant. It samples the whole front end and checks D and
    AG cycle by cycle over every memory ModRM, SIB and address size. Every check
-   also runs on Yosys's netlist with `--yosys`. They do not constitute whole-CPU
+   also runs on the seal's Yosys netlist with `--netlist`. They do not constitute whole-CPU
    instruction lockstep; coverage and results are in the
    [simulation README](../cores/fes-common/sim/i386/README.md).
 4. **Routed diagnostics (implemented for isolated blocks and the current

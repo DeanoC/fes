@@ -14,6 +14,7 @@ from unittest import mock
 
 from scripts import build_fes_pc386_quartus as quartus
 from scripts import fes_build_common as board
+from scripts import yosys_netlist
 from scripts.export_core_package import build_identity
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -80,7 +81,8 @@ class SourcesTest(unittest.TestCase):
             self.assertRegex(program, rf"-chparam {name} {value}[ ;]")
         self.assertIn(f"hierarchy -top {quartus.MACHINE_TOP} ", program)
         self.assertIn("memory_map t:$mem_v2 r:WR_PORTS>1 %i a:ramstyle %d;", program)
-        self.assertTrue(program.endswith("write_verilog out/pc386_system.v"))
+        # Flattened names become plain in the same run, with the attributes kept (#1581 S4).
+        self.assertTrue(program.endswith("attrmap -remove hdlname; rename -unescape; write_verilog out/pc386_system.v"))
         for source in quartus.SHELL_SOURCES:
             self.assertNotIn(source, program)
 
@@ -103,29 +105,19 @@ class RatesTest(unittest.TestCase):
             self.assertRegex(top, rf"\b{name} = {value}\b")
 
 
-class IdentifiersTest(unittest.TestCase):
-    def test_hierarchy_and_index_names_become_plain_and_unique(self):
-        netlist = (
-            "  wire a_b_0_ ;\n"
-            "  reg [7:0] \\a.b[0] ;\n"
-            "  reg [7:0] \\machine.vga.palette [15:0];\n"
-            '  (* enum_value_0001 = "\\\\ATTACK" *)\n'
-            "  (* \\always_ff  = 32'd1 *)\n"
-            "  assign x = \\a.b[0] [3] ^ \\machine.vga.palette [1][0];\n"
-        )
-        plain = quartus.plain_identifiers(netlist)
-        self.assertIn("  reg [7:0] a_b_0__1 ;\n", plain)
-        self.assertIn("  reg [7:0] machine_vga_palette [15:0];\n", plain)
-        self.assertIn("assign x = a_b_0__1 [3] ^ machine_vga_palette [1][0];", plain)
-        self.assertIn('"\\\\ATTACK"', plain)
-        self.assertIn("(* \\always_ff  = 32'd1 *)", plain)
-
-    def test_a_rewritten_name_never_spells_a_keyword(self):
-        self.assertEqual(quartus.plain_identifiers("wire \\always.ff ;"), "wire always_ff_1 ;")
-        self.assertEqual(quartus.plain_identifiers("wire \\join.any ;"), "wire join_any_1 ;")
-
-    def test_a_rewritten_name_never_takes_a_kept_escaped_name(self):
-        self.assertEqual(quartus.plain_identifiers("wire \\a_b ;\nwire \\a.b ;"), "wire \\a_b ;\nwire a_b_1 ;")
+class SealProgramTest(unittest.TestCase):
+    def test_the_machine_is_the_seal_recipe_at_its_top(self):
+        program = quartus.machine_program(Path("out/pc386_system.v"))
+        cpu = yosys_netlist.program(yosys_netlist.SEAL, top=yosys_netlist.CPU_TOP, sources=yosys_netlist.CPU_SOURCES,
+                                    includes=yosys_netlist.PC386_INCLUDES, netlist="out/pc386_system.v")
+        # Only the top, the sources and the parameters differ from the lockstep's CPU program.
+        def passes(text):
+            return text.split("; hierarchy -top ", 1)[1].split("; ", 1)[1]
+        self.assertEqual(passes(program), passes(cpu))
+        self.assertTrue(program.startswith("read_verilog -sv -I cores/fes-common/generated "))
+        self.assertEqual(quartus.MACHINE_SOURCES[:len(yosys_netlist.CPU_SOURCES)], yosys_netlist.CPU_SOURCES)
+        self.assertEqual(quartus.INCLUDE_DIRS, yosys_netlist.PC386_INCLUDES)
+        self.assertIn("scripts/yosys_netlist.py", quartus.PINNED_INPUTS)
 
 
 class ProjectTest(unittest.TestCase):
@@ -285,7 +277,7 @@ class GpuRouterTest(unittest.TestCase):
                          ("CUDA", "unused", {"nextpnr": "cuda-lane"}, Path("/cache"), ROOT / quartus.LOCK))
 
     def test_build_keeps_the_router_through_the_final_checks(self):
-        tools = {"yosys": mock.Mock(path=Path("yosys")), "quartus_sh": Path("quartus_sh"),
+        tools = {"yosys": mock.Mock(path=Path("yosys"), identity=IDENTITIES["yosys"]), "quartus_sh": Path("quartus_sh"),
                  "quartus_root": Path("q"), "quartus_version": "v", "identities": dict(IDENTITIES)}
         evidence = {"rbf": {"sha256": "0" * 64, "size": 1}}
         with tempfile.TemporaryDirectory() as temporary, \
@@ -308,6 +300,10 @@ class GpuRouterTest(unittest.TestCase):
         summary = next(json.loads(call.args[1]) for call in write.call_args_list
                        if call.args[0].name == "build-summary.json")
         self.assertEqual(summary["gpu_backend"], "cuda")
+        self.assertEqual(summary["netlist"]["program_sha256"], yosys_netlist.program_sha256(yosys_netlist.SEAL))
+        self.assertEqual(summary["netlist"]["cpu_source_sha256"], yosys_netlist.cpu_source_sha256(ROOT))
+        self.assertEqual(summary["netlist"]["yosys"]["tool"], IDENTITIES["yosys"])
+        self.assertEqual(summary["netlist"]["yosys"]["gpu_router"], "CUDA")
 
     def test_the_command_line_passes_the_router(self):
         for argv, router in (([], "HIP"), (["--gpu-router", "CUDA"], "CUDA")):

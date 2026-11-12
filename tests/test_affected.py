@@ -422,6 +422,7 @@ class AffectedTests(unittest.TestCase):
             'scripts/build_pc386_firmware.py': {'pc386'},
             'scripts/build_pc386_freedos_image.py': {'pc386'},
             'scripts/build_fes_pc386_quartus.py': {'pc386'},
+            'scripts/yosys_netlist.py': {'pc386'},
             'cores/fes-common/sim/riscv/rv32_model.h': {'riscv'},
             'cores/fes-riscv/firmware/firmware.S': {'riscv'},
             'scripts/sim_fes_riscv.py': {'riscv'},

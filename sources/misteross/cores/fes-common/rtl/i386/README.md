@@ -1656,14 +1656,14 @@ lockstep under a preset and fails on any architectural difference from max.
 ## Synthesis notes
 
 The i386 RTL has its own toolchain lock, [`toolchain.lock`](toolchain.lock)
-here: the DeanoC Yosys fork's main at `0a7927bf`, with nextpnr `bd7a1c0d`
+here: the DeanoC Yosys fork's main at `e240a465`, with nextpnr `bd7a1c0d`
 and Mistral `8fcc4cb4`. It is the pc386 lock's Yosys pin, so lockstep, the
-Quartus spikes and the pc386 seal read the CPU with one Yosys (#1581 D2,
+Quartus spikes and the pc386 seal read the CPU with one Yosys (#1581 D2, S4,
 [record](../../../../../../docs/validation/2026-11-10-1581-d2-yosys-lock/README.md)).
 The timing spikes default to it. The repository's
 shared lock stays at Yosys `3a5accbd`, which reads this RTL wrongly, so check
 and route the i386 RTL with this lock's Yosys. Each later Yosys fix is a
-small bump of this lock, the removal of its one workaround, the `--yosys`
+small bump of this lock, the removal of its one workaround, the `--netlist`
 check and a re-measure.
 
 Synthesis runs `proc -norom` first, by choice: it keeps case tables in
@@ -1706,9 +1706,11 @@ what it reads correctly:
 it as a signal name, so the forwarding modules spell the distance `dist_a` or
 `ahead`.
 
-`scripts/test_fes_i386_frontend.py --yosys <yosys>` and
-`scripts/test_fes_i386_lockstep.py --yosys <yosys>` run every check on the
-netlist Yosys writes from this RTL, which is what the spikes route. Run them
+`scripts/test_fes_i386_frontend.py --netlist` and
+`scripts/test_fes_i386_lockstep.py --netlist` run every check on the netlist
+the pc386 seal's Yosys program writes from this RTL
+(`scripts/yosys_netlist.py`), with the pc386 lock's Yosys: the netlist the seal
+and the spikes are built from. Run them
 after any RTL change. The front-end runner also synthesizes Q's aligner on its
 own and fails if any multiplier or carry cell appears there: Q has no wide sum,
 and the front-end spike does not show #59's multiplier.

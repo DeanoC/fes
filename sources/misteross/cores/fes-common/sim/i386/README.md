@@ -367,7 +367,7 @@ unit tests below read the same variable. Each report records the Verilator
 commit, digest and version under `verilator`.
 
 The RTL builds run with `-Wall -Wno-UNUSEDSIGNAL` and fail on any other
-warning. Builds of a Yosys netlist (`--yosys`) also waive the lint classes
+warning. Builds of a Yosys netlist (`--netlist`) also waive the lint classes
 that Yosys's flat output raises by construction: `CASEOVERLAP`, `UNDRIVEN`,
 `UNOPTFLAT`, `WIDTHEXPAND` and `WIDTHTRUNC`. They also pass `--no-assert-case`.
 Yosys marks every `$pmux` `parallel_case`. Verilator 5.054 checks that by
@@ -440,14 +440,16 @@ the test verifies that it does not issue until block 2 arrives.
 ```sh
 python3 scripts/test_fes_i386_frontend.py --download
 python3 scripts/test_fes_i386_frontend.py --bench frontend --instructions 50000 --seed 7
-python3 scripts/test_fes_i386_frontend.py --yosys /abs/path/to/i386-locked/yosys
+python3 scripts/test_fes_i386_frontend.py --netlist
 ```
 
-`--yosys` runs every check on the netlist that Yosys writes from the RTL
-instead of the RTL itself. The spikes are built from Yosys's reading of the
-SystemVerilog, and Yosys has misread constructs without an error. Use the
-Yosys of the i386 lock ([`rtl/i386/toolchain.lock`](../../rtl/i386/toolchain.lock));
-the repository lock's older Yosys misreads the RTL's per-byte records.
+`--netlist` runs every check on the netlist the seal's Yosys program
+(`scripts/yosys_netlist.py`) writes from the RTL, with the pc386 lock's Yosys
+from the `--cache-root` slot, instead of the RTL itself. The seal and the spikes
+are built from Yosys's reading of the SystemVerilog, and Yosys has misread
+constructs without an error. The pc386 and i386 locks pin the same Yosys
+(#1581 D2); the repository lock's older Yosys misreads the RTL's per-byte
+records.
 
 ## Whole-CPU lockstep
 
@@ -661,11 +663,14 @@ and the divergence handling stay.
 ```sh
 python3 scripts/test_fes_i386_lockstep.py --download
 python3 scripts/test_fes_i386_lockstep.py --opcode 00 --opcode D3.4 --random-programs 0
-python3 scripts/test_fes_i386_lockstep.py --yosys /abs/path/to/i386-locked/yosys
+python3 scripts/test_fes_i386_lockstep.py --netlist
 ```
 
-`--yosys` simulates the netlist the i386 lock's Yosys writes from the CPU
-(after `proc -norom; flatten; opt -purge`) instead of the RTL.
+`--netlist` simulates the netlist the pc386 seal's Yosys program writes from
+the CPU (`scripts/yosys_netlist.py`, top `fes_i386_cpu`), with the pc386
+lock's Yosys from the `--cache-root` slot, instead of the RTL. The report's
+`netlist` records the same program, CPU source and Yosys identity as the seal
+summary.
 
 `--preset N` runs every mode under that governor preset
 ([speed governor](../../rtl/i386/README.md#speed-governor)), which only holds
@@ -760,9 +765,9 @@ already in `build/`. `tests/test_fes_i386_frontend.py` covers the runner and
 the spike harness's report reading; it lints the spikes and runs the D and AG
 check when `FES_TOOLCHAIN_CACHE_ROOT` names a cache holding the
 [locked Verilator](#verilator), runs the oracle-backed front-end checks when
-the pinned Bochs checkout is present too, and runs the D and AG check on
-Yosys's netlist when `FES_I386_YOSYS` names a Yosys.
+the pinned Bochs checkout is present too, and runs the D and AG check on the
+seal's netlist when the same cache holds the pc386 lock's slot.
 `tests/test_fes_i386_lockstep.py` covers the lockstep runner's scope,
 divergence and output handling, and runs a short lockstep when the locked Verilator, the
-pinned Bochs checkout and the pinned corpus are present (and on Yosys's
-netlist when `FES_I386_YOSYS` names a Yosys).
+pinned Bochs checkout and the pinned corpus are present (and on the seal's
+netlist when the same cache holds the pc386 lock's slot).
