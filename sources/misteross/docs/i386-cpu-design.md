@@ -1506,22 +1506,44 @@ slows the CPU without changing any result.
 
 ## x87
 
-A later milestone adds a 387-compatible unit and an `i386dx+387` identity:
+A later milestone adds a 387-compatible unit and an `i386dx+387` identity.
+The [x87 plan](../../../docs/validation/2026-11-12-i386-x87-plan/summary.md)
+measures which titles use a 387 and how, on the oracle with a 387 fitted,
+and orders the work into slices. From it:
 
-- Eight 80-bit registers in flip-flops, and the tag, status and control words.
-  Exceptions report through FERR to the machine's IRQ13, with IGNNE, as on an
-  AT.
-- A 68-bit adder and normaliser, a 64-bit mantissa multiplier tiled on DSP
-  blocks, radix-4 SRT divide and square root, and transcendental functions in
-  microcode. Alignment and normalisation shifts run as DSP multiplies by a
-  power of two wherever that beats a LUT shifter on area or timing.
-- Add, subtract, multiply, divide, square root and conversions are bit-exact
-  IEEE under x87 precision and rounding control. The 387's transcendental
-  results are not correctly rounded and its algorithms are not public, so
-  transcendentals are within one ulp of a reference implementation rather
-  than bit-exact.
+- Quake and Screamer need a 387; Chris's 3D Benchmark, SpeedSys and
+  Terminal Velocity use one when present; DOOM, Rise of the Triad, Descent,
+  Duke Nukem 3D, One Must Fall 2097, U.S. Navy Fighters, Frontier and Falcon
+  3.0 only probe for one in their runs. In the four that compute in volume,
+  loads, stores, FXCH, add, multiply and compare are 86–96% of x87
+  instructions, divide at most 1.8%, transcendentals under 1%; Quake
+  computes at 24-bit precision, Screamer and Terminal Velocity at 53.
+- The unit is integrated, not a coprocessor bus, but keeps what software sees
+  of a 387 on an AT board: an unmasked exception sets ES and raises IRQ 13
+  through a latch that holds BUSY until a write to port F0h; F1h resets the
+  unit; every ESC but FNINIT and FNCLEX waits for BUSY, and the no-wait
+  forms (FNSTSW, FNSTCW, FNSTENV, FNSAVE) skip only the pending-error check;
+  exception 9 for an operand's middle part; ET and CMOS 14h bit 1 follow the identity. Exception 16 is not used,
+  as on an AT.
+- Eight 80-bit registers, and the tag, status and control words. A fast path
+  for loads, stores, FXCH, add and multiply (the multiplier on DSP blocks);
+  divide, square root, remainder and transcendentals in microcode on the same
+  datapath, divide and square root stopping early at 24 or 53 bits.
+- Add, subtract, multiply, divide and square root are bit-exact IEEE under
+  x87 precision and rounding control. Integer and BCD stores, FRNDINT, and
+  stores to a 32- or 64-bit real round under rounding control only and
+  ignore precision control; loads are exact. FPREM1 is the IEEE
+  remainder; FPREM truncates its quotient as the 8087 and 287 do; both are
+  exact, ignore rounding and precision control, and may return a partial
+  remainder with C2 set. The 387's
+  transcendentals use a modified CORDIC whose details are not public, so
+  they cannot be bit-exact to a 387; whether they match Bochs's algorithm or
+  follow the 387's method within a bound is open (below).
 - Integer uops keep issuing while an x87 operation runs. WAIT and integer reads
   of x87 state synchronise.
+- The budget row below (7,000 ALMs) is more than the device has left; the
+  plan estimates a lean unit at about 2,400 ALMs, still above the area
+  audit's 92% working ceiling, and makes a fit spike its first RTL slice.
 
 ## Budgets
 
@@ -2482,7 +2504,7 @@ Wolfenstein 3D runs with EMS under JEMM386.
 | Phase 3 | First playable: the CPU in `fes.pc386` with the scope the acceptance games set, L2 on DDR, the open BIOS, the governor | FreeDOS boots in simulation; first sealed package; Wolfenstein 3D, Ultima VI, DOOM and both Ultima VII games play on a kit, with the two presets recorded |
 | Phase 4 | Speed: BTB, return stack, early ALU, real-mode far-branch prediction; the [plan](#phase-4-speed) adds the store-to-load wait and orders the slices by the measured profile | Each feature with its microbenchmark and period-benchmark change, DOOM's `-timedemo demo3` frame rate on the kit before and after, and Wolfenstein 3D's page flips a second on the bench (the kit's capture holds it at 30 fps, so the kit run checks for regressions) |
 | Phase 5 | V86, paging and task switches, and the debug registers; the [plan](#phase-5-v86-paging-and-task-switches) orders five slices by the titles each unlocks: paging, the debug register file, V86, task switches, breakpoints ([#1535](https://github.com/DeanoC/fes/issues/1535)'s ring 3 first) | test386.asm passes completely; JEMM386 boots; Wolfenstein 3D runs with EMS under it |
-| Phase 6 | x87 | An x87 corpus (to choose) and FPU-using games |
+| Phase 6 | x87: the [plan](../../../docs/validation/2026-11-12-i386-x87-plan/summary.md)'s slices: the oracle's AT error path and census, a fit spike, then the unit's interface and state, add and multiply, divide and square root, transcendentals, and the governor's 387 timing | Quake's timedemo and Screamer run on a kit; TestFloat's extF80 vectors and random x87 lockstep pass; Linux 2.0.0 boots with its 387 |
 | Phase 7 | Options: `i486-isa`, second-level TLB, line-wide strings, gshare, descriptor lookaside, LOADALL (0F07) | Only with a measured need |
 
 ## Decisions
@@ -2575,7 +2597,10 @@ Settled on 2026-11-08 ([Phase 5](#phase-5-v86-paging-and-task-switches)):
   then breakpoints. Paging alone unlocks no blocked title, and a switch
   into V86 needs V86 first.
 
-No decision is open.
+Open for the x87 phase (the [plan](../../../docs/validation/2026-11-12-i386-x87-plan/summary.md#open-questions-for-deano)):
+all-fabric or the HPS for the slow operations; what to give up if the unit
+does not fit under 92%; whether transcendentals match Bochs or follow the
+387's method; real-387 measurements; and the identity's default.
 
 ## Location
 
