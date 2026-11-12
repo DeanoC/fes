@@ -448,14 +448,15 @@ builds of pc386 are parked with [#1235](https://github.com/DeanoC/fes/issues/123
 - Every analysis must pass on every clock, and TimeQuest must analyse every
   clock, or the build publishes nothing. The build summary records the fit's
   ALMs, registers, RAM and DSP blocks.
-- The build authenticates the whole slot of the core's `toolchain.lock`,
-  whose nextpnr links a GPU runtime. For CUDA, pass `GPU_ROUTER=CUDA` to both
-  `make toolchain-fes-pc386` and `make build-fes-pc386-quartus`, or pass
-  `--gpu-router CUDA` directly to the build script. This selects the CUDA
-  slot, so a host with CUDA and no ROCm can seal; HIP remains the default when
-  `GPU_ROUTER` is unset or empty. Nothing routes on a GPU. The record's
-  `gpu_backend` and `toolchain_configuration` name the slot, so HIP and CUDA
-  seals of one commit have distinct BUILD_IDs.
+- The build authenticates every tool install the core's `toolchain.lock`
+  resolves to, and that lock's nextpnr links a GPU runtime. For CUDA, pass
+  `GPU_ROUTER=CUDA` to both `make toolchain-fes-pc386` and
+  `make build-fes-pc386-quartus`, or pass `--gpu-router CUDA` directly to the
+  build script. This selects the CUDA nextpnr install, so a host with CUDA and
+  no ROCm can seal; HIP remains the default when `GPU_ROUTER` is unset or
+  empty. Nothing routes on a GPU. The record's `gpu_backend` and
+  `toolchain_configuration` name the lane, so HIP and CUDA seals of one commit
+  have distinct BUILD_IDs.
 
 **M4.** The diagnostic package `fes.pc386-diag`, the machine with a bus master
 running commands from a DDR ring in the CPU's place, passed every program on

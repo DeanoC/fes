@@ -295,17 +295,19 @@ class SharedEntrypointTests(unittest.TestCase):
         digest = hashlib.sha256(binary.read_bytes()).hexdigest()
         pin = doctor._load_pins()["verilator"]
         manifest = SimpleNamespace(
-            key="shared-key",
-            install=install,
-            evidence=self.fixture / "evidence",
             tools={
-                "verilator": {
-                    "binary": "bin/verilator",
-                    "path": "install/bin/verilator",
-                    "commit": pin.commit,
-                    "identity": "verilator shared fixture",
-                    "sha256": digest,
-                }
+                "verilator": SimpleNamespace(
+                    key="shared-key",
+                    install=install,
+                    evidence=self.fixture / "evidence",
+                    record={
+                        "binary": "bin/verilator",
+                        "path": "install/bin/verilator",
+                        "commit": pin.commit,
+                        "identity": "verilator shared fixture",
+                        "sha256": digest,
+                    },
+                )
             },
         )
         decoy = self.fixture / "decoy-verilator"

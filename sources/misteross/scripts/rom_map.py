@@ -36,6 +36,15 @@ def lane_locations(lanes: tuple[int | tuple[int, int], ...]) -> tuple[tuple[int,
     return locations
 
 
+def database_root(mistral: Path) -> Path:
+    """The database source an authenticated mistral-cv's install carries.
+
+    bootstrap.sh installs DATABASE_FILES under share/mistral/source beside
+    bin/mistral-cv, so the pinned bytes come from the authenticated install.
+    """
+    return Path(mistral).parents[1] / 'share/mistral/source'
+
+
 def read_database(root: Path, pins: dict[str, str] | None = None) -> dict[str, bytes]:
     """Read a snapshot, rejecting linked paths and (for production) unpinned bytes."""
     result = {}

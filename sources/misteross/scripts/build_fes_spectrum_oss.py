@@ -671,7 +671,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         core_id=machine.core_id)
     pnr = pnr_for(machine)
     identities = {name: tool.identity for name, tool in authenticated.items()}
-    database_root = authenticated["mistral"].path.parents[2] / "src/mistral"
+    database_root = rom_map.database_root(authenticated["mistral"].path)
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
     extra_env = {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"} if gpu_router == "CUDA" else None
     invocation = FunctionalInvocation(authenticated, gpu_device, extra_env=extra_env)

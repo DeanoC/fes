@@ -220,7 +220,7 @@ $(error misteross: shared toolchain cache is unsupported for Make simulation tar
 endif
 endif
 
-.PHONY: toolchain toolchain-fes toolchain-fes-menu toolchain-fes-pong toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-fes-apple2 toolchain-fes-c64 toolchain-fes-spectrum toolchain-fes-riscv toolchain-fes-pc386 toolchain-fes-i386 toolchain-fes-ramtest toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-c64 c64-diagnostic sim-fes-spectrum spectrum-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong build-fes-c64 build-fes-spectrum oss export-core-package program clean
+.PHONY: toolchain toolchain-fes toolchain-fes-menu toolchain-fes-pong toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-fes-apple2 toolchain-fes-c64 toolchain-fes-spectrum toolchain-fes-riscv toolchain-fes-pc386 toolchain-fes-i386 toolchain-fes-ramtest toolchain-prune toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-c64 c64-diagnostic sim-fes-spectrum spectrum-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong build-fes-c64 build-fes-spectrum oss export-core-package program clean
 
 sim-pong:
 	$(require_local_sim)
@@ -2026,7 +2026,8 @@ toolchain-fes-pc386:
 	FES_TOOLCHAIN_GPU_ROUTER=$(if $(strip $(GPU_ROUTER)),$(GPU_ROUTER),HIP) \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
-# The i386 sims (scripts/i386_verilator.py) take Verilator from this slot only.
+# The i386 sims (scripts/i386_verilator.py) take Verilator from the install
+# this lock pins.
 toolchain-fes-i386:
 	@test -n "$(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE))" || { echo 'toolchain-fes-i386 needs CACHE_ROOT (the shared toolchain cache)' >&2; exit 2; }
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-common/rtl/i386/toolchain.lock" \
@@ -2034,6 +2035,15 @@ toolchain-fes-i386:
 
 toolchain-check:
 	@$(SHARED_MAKE_ENV)scripts/bootstrap.sh --check-prereqs
+
+# Report the shared tool installs no toolchain.lock on origin/main pins and
+# nobody used in KEEP_DAYS (default 14). APPLY=1 removes them; LEGACY_SLOTS=1
+# also considers the per-lock slots/ of the old cache layout. Installs whose
+# lock a running build or consumer holds are never removed.
+toolchain-prune:
+	@test -n "$(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE))" || { echo 'toolchain-prune needs CACHE_ROOT (the shared toolchain cache)' >&2; exit 2; }
+	@"$(PYTHON)" scripts/toolchain_cache.py prune --root "$(CURDIR)" --cache "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)" \
+	$(if $(strip $(KEEP_DAYS)),--keep-days "$(KEEP_DAYS)",) $(if $(filter 1,$(APPLY)),--apply,) $(if $(filter 1,$(LEGACY_SLOTS)),--legacy-slots,)
 
 doctor:
 	@if [ -n "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)" ]; then \

@@ -283,16 +283,15 @@ path.
 
 Each registered package authenticates the lock named by its `lock_path` in
 `config/core-recipes.toml`. A lock can move to another nextpnr that
-`scripts/pnr_recipe.py` classifies; that core then gets its own slot. Pong's
+`scripts/pnr_recipe.py` classifies; the shared cache then adds that nextpnr's
+install and keeps sharing the other tools. Pong's
 lock pins nextpnr `552ba246`, Menu's and ZX81's pin `1eecf877` (Menu moved
 when its blitter took DSP multipliers), RISC-V's pins `8f453ebc`, and
-Coleco's pins Yosys `5391eeb1` with nextpnr `bec82e36`; each has its own slot.
-Apple II and C64 pin nextpnr `5fe55f3d` for its F0/F1 boundary `$ROUTETHRU`
-map (#1007); their locks are identical and share one slot. Atari ST pins
-`5fe55f3d` (#910) in its own slot, and Spectrum pins nextpnr main `bd7a1c0d`
-(#1001, which contains #276 as merged) in its own slot. The other three
-per-core lock files still contain the same bytes as `toolchain.lock` and
-therefore share one cached compiler slot. Use the
+Coleco's pins Yosys `5391eeb1` with nextpnr `bec82e36`.
+Apple II, C64 (#1007) and Atari ST (#910) pin nextpnr `5fe55f3d` for its
+F0/F1 boundary `$ROUTETHRU` map, and Spectrum pins nextpnr main `bd7a1c0d`
+(#1001, which contains #276 as merged). The cache holds one install per tool
+and commit, so every lock pinning Yosys `3a5accbd` uses the same Yosys. Use the
 matching `make toolchain-fes-<core>` target to provision a local toolchain.
 The splash continues to select the repository-level `toolchain.lock`.
 
@@ -333,7 +332,7 @@ mailbox uses.
 The Atari ST producer selects `cores/fes-atari-st/toolchain.lock`
 (Yosys `3a5accbd`, nextpnr `5fe55f3d`). The factory recipe stays HIP.
 A CUDA route is a separate package. RAM Tester uses the repository-level
-slot, while menu selects its own slot on nextpnr `1eecf877`. The
+lock's pins, while menu's lock pins nextpnr `1eecf877`. The
 130 MHz timing comparison uses the RAM Tester lock.
 The [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
 qualifies the earlier private pin and its read-only shell; it does not

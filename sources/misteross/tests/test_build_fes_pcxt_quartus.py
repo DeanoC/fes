@@ -395,7 +395,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
             candidates.append(producer.ROOT / 'build/toolchain/fes-pcxt/bin/yosys')
             cache_root = os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT')
             if cache_root:
-                candidates.extend(sorted(Path(cache_root).glob('slots/*/install/bin/yosys')))
+                candidates.extend(sorted(Path(cache_root).glob('tools/yosys/*/install/bin/yosys')))
             system_yosys = shutil.which('yosys')
             if system_yosys:
                 candidates.append(Path(system_yosys))

@@ -410,7 +410,7 @@ def build(root: Path=ROOT, package_store: Path | None=None, *, cache_root: Path 
     backend, architectures, _configuration = gpu_choice(gpu_router)
     authenticated = _authenticate_tools(root, cache_root=cache_root, gpu_router=gpu_router, toolchain_root=toolchain_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
-    database_root = authenticated['mistral'].path.parents[2] / 'src/mistral'
+    database_root = rom_map.database_root(authenticated['mistral'].path)
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
     if len(gpu_devices) > 1:
         raise BuildError('functional identity requires one GPU device')

@@ -91,7 +91,7 @@ def authenticate_tools(root, *, cache_root=None, core_id='fes.pcxt'):
     if selected_recipe(root, core_id)['quartus']['version'] != version:
         raise BuildError('Quartus version differs from the PC/XT lock/recipe')
     candidates = ([Path(os.environ['FES_PCXT_YOSYS'])] if os.environ.get('FES_PCXT_YOSYS') else
-                  sorted(Path(cache_root).glob('slots/*/install/bin/yosys')) if cache_root else [])
+                  sorted(Path(cache_root).glob('tools/yosys/*/install/bin/yosys')) if cache_root else [])
     yosys = next((p for p in candidates if p.is_file() and not p.is_symlink()
                   and sha(p) == lock.yosys_sha256), None)
     if yosys is None:

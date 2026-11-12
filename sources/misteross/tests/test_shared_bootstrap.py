@@ -60,6 +60,12 @@ case "$1" in
         target=
         for arg in "$@"; do target=$arg; done
         mkdir -p "$target/.git"
+        if [ "$(basename "$target")" = mistral ]; then
+            mkdir -p "$target/data" "$target/libmistral"
+            for file in data/m10k-mux.txt libmistral/cvd-sx120f.cc libmistral/cyclonev.h; do
+                printf 'database %s\n' "$file" >"$target/$file"
+            done
+        fi
         if [ "$(basename "$target")" = verilator ]; then
             cat >"$target/configure" <<'EOF'
 #!/bin/sh
@@ -262,6 +268,27 @@ def _set_yosys_commit(lock: Path, commit: str) -> None:
     raise AssertionError(f"no yosys commit in {lock}")
 
 
+def _ready_installs(cache: Path) -> dict[str, list[Path]]:
+    installs: dict[str, list[Path]] = {}
+    for ready in sorted((cache / "tools").glob("*/*/ready.json")):
+        installs.setdefault(ready.parent.parent.name, []).append(ready)
+    return installs
+
+
+def _plan(root: Path, lock: Path, cache: Path, environment: dict, *arguments: str) -> dict:
+    result = subprocess.run(
+        [sys.executable, str(root / "scripts" / "toolchain_cache.py"), "--root", str(root),
+         "--lock", str(lock), "--cache", str(cache), *arguments, "plan"],
+        cwd=root, env=environment, text=True, capture_output=True,
+    )
+    if result.returncode:
+        raise AssertionError(result.stderr)
+    return {tool: value["key"] for tool, value in json.loads(result.stdout).items()}
+
+
+TOOLS = ("yosys", "mistral", "nextpnr", "verilator", "openfpgaloader")
+
+
 class SharedBootstrapEnvironmentTests(unittest.TestCase):
     def test_shared_check_prereqs_reports_missing_capabilities_before_cache_planning(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -317,10 +344,19 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
                 capture_output=True,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            ready = list((cache / "slots").glob("*/ready.json"))
-            self.assertEqual(len(ready), 1, result.stdout + result.stderr)
-            slot = ready[0].parent
-            self.assertTrue((slot / "install" / "bin" / "yosys").is_file())
+            installs = _ready_installs(cache)
+            self.assertEqual(sorted(installs), sorted(TOOLS), result.stdout + result.stderr)
+            self.assertTrue(all(len(ready) == 1 for ready in installs.values()), installs)
+            yosys = installs["yosys"][0].parent
+            self.assertTrue((yosys / "install" / "bin" / "yosys").is_file())
+            mistral = installs["mistral"][0].parent
+            self.assertTrue((mistral / "install/share/mistral/source/libmistral/cyclonev.h").is_file())
+            for ready in (path for paths in installs.values() for path in paths):
+                # A verified install keeps install/ and evidence/ only.
+                self.assertEqual(
+                    sorted(entry.name for entry in ready.parent.iterdir()),
+                    ["evidence", "install", "ready.json"],
+                )
             verified = subprocess.run(
                 [
                     sys.executable,
@@ -332,8 +368,6 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
                     "--cache",
                     str(cache),
                     "verify",
-                    "--format",
-                    "lines",
                 ],
                 cwd=root,
                 env=environment,
@@ -341,21 +375,20 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
                 capture_output=True,
             )
             self.assertEqual(verified.returncode, 0, verified.stderr)
-            self.assertIn(f"install\t{slot / 'install'}", verified.stdout)
-            self.assertIn(f"evidence\t{slot / 'evidence'}", verified.stdout)
-            self.assertIn("tools\t", verified.stdout)
-            all_snapshots = log.read_text(encoding="utf-8").split("kind=")
-            self.assertTrue(all("FAKE_COMPILER_SETTING=caller-secret" not in snapshot for snapshot in all_snapshots))
-            snapshots = [
-                snapshot
-                for snapshot in log.read_text(encoding="utf-8").split("kind=build\n")[1:]
-                if "LD_LIBRARY_PATH=" in snapshot
-            ]
+            records = json.loads(verified.stdout)
+            self.assertEqual(sorted(records), sorted(TOOLS))
+            self.assertEqual(records["yosys"]["executable"], str(yosys / "install" / "bin" / "yosys"))
+            self.assertEqual(records["yosys"]["binary"], "bin/yosys")
+            snapshots = log.read_text(encoding="utf-8").split("kind=")
             self.assertTrue(snapshots, log.read_text(encoding="utf-8"))
             self.assertTrue(all("FAKE_COMPILER_SETTING=caller-secret" not in snapshot for snapshot in snapshots))
-            self.assertTrue(any(f"LD_LIBRARY_PATH={slot / 'install' / 'lib'}" in snapshot for snapshot in snapshots))
+            builds = log.read_text(encoding="utf-8").split("kind=build\n")[1:]
+            self.assertTrue(builds)
+            # No tool links against another's install, so builds get no
+            # library search path.
+            self.assertTrue(all("LD_LIBRARY_PATH=" not in snapshot for snapshot in builds))
 
-    def test_fresh_per_core_slot_provisions_when_repo_is_exported(self):
+    def test_fresh_per_core_installs_provision_when_repo_is_exported(self):
         coleco_commit = "5391eeb1e91b38a3d0e96d04f24cf921743c9c78"
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
@@ -393,38 +426,19 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
                 "FAKE_COMPILER_SETTING": "caller-secret",
             }
 
-            def plan_key(lock: Path) -> str:
-                result = subprocess.run(
-                    [
-                        sys.executable,
-                        str(root / "scripts" / "toolchain_cache.py"),
-                        "--root",
-                        str(root),
-                        "--lock",
-                        str(lock),
-                        "--cache",
-                        str(cache),
-                        "--gpu-router",
-                        "HIP",
-                        "--hip-architectures",
-                        "gfx1100;gfx1201",
-                        "plan",
-                        "--field",
-                        "key",
-                    ],
-                    cwd=root,
-                    env=environment,
-                    text=True,
-                    capture_output=True,
-                )
-                self.assertEqual(result.returncode, 0, result.stderr)
-                return result.stdout.strip()
+            def plan_keys(lock: Path) -> dict:
+                return _plan(root, lock, cache, environment,
+                             "--gpu-router", "HIP", "--hip-architectures", "gfx1100;gfx1201")
 
-            coleco_key = plan_key(core_lock)
-            shared_key = plan_key(root / "toolchain.lock")
-            sibling_key = plan_key(sibling_lock)
-            self.assertNotEqual(coleco_key, shared_key)
-            self.assertEqual(shared_key, sibling_key)
+            coleco_keys = plan_keys(core_lock)
+            shared_keys = plan_keys(root / "toolchain.lock")
+            sibling_keys = plan_keys(sibling_lock)
+            self.assertNotEqual(coleco_keys["yosys"], shared_keys["yosys"])
+            self.assertNotEqual(coleco_keys["nextpnr"], shared_keys["nextpnr"])
+            # Coleco pins the same Mistral, Verilator and openFPGALoader.
+            for tool in ("mistral", "verilator", "openfpgaloader"):
+                self.assertEqual(coleco_keys[tool], shared_keys[tool])
+            self.assertEqual(shared_keys, sibling_keys)
 
             built = subprocess.run(
                 [str(root / "scripts" / "bootstrap.sh")],
@@ -436,16 +450,18 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
             self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
             self.assertNotIn("unbound variable", built.stderr)
             self.assertIn(coleco_commit, built.stdout)
-            ready_files = list((cache / "slots").glob("*/ready.json"))
-            self.assertEqual(len(ready_files), 1, built.stdout + built.stderr)
-            ready = json.loads(ready_files[0].read_text(encoding="utf-8"))
-            self.assertEqual(ready["key"], coleco_key)
-            self.assertEqual(ready["tools"]["yosys"]["commit"], coleco_commit)
-            self.assertEqual(ready_files[0].parent.name, coleco_key)
-            self.assertEqual(
-                ready["lock"]["sha256"],
-                hashlib.sha256(core_lock.read_bytes()).hexdigest(),
-            )
+            installs = _ready_installs(cache)
+            self.assertEqual(sorted(installs), sorted(TOOLS), built.stdout + built.stderr)
+            for tool in TOOLS:
+                self.assertEqual(len(installs[tool]), 1)
+                ready = json.loads(installs[tool][0].read_text(encoding="utf-8"))
+                self.assertEqual(ready["key"], coleco_keys[tool])
+                self.assertEqual(installs[tool][0].parent.name, coleco_keys[tool])
+            ready = json.loads(installs["yosys"][0].read_text(encoding="utf-8"))
+            self.assertEqual(ready["record"]["commit"], coleco_commit)
+            # Only the pin keys an install, never the lock's bytes.
+            self.assertEqual(set(ready["build"]["pin"]), {"repo", "commit"})
+            self.assertNotIn(hashlib.sha256(core_lock.read_bytes()).hexdigest(), installs["yosys"][0].read_text())
             snapshots = log.read_text(encoding="utf-8").split("kind=")
             self.assertTrue(snapshots)
             for snapshot in snapshots:
@@ -514,8 +530,6 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
                     "--hip-architectures",
                     "gfx1100;gfx1201",
                     "plan",
-                    "--field",
-                    "key",
                 ],
                 cwd=root,
                 env=environment,
@@ -523,6 +537,7 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
                 capture_output=True,
                 check=True,
             ).stdout.strip()
+            plan = {tool: value["key"] for tool, value in json.loads(plan).items()}
             built = subprocess.run(
                 [str(root / "scripts" / "bootstrap.sh")],
                 cwd=root,
@@ -531,9 +546,11 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
                 capture_output=True,
             )
             self.assertEqual(built.returncode, 0, built.stderr)
-            ready = list((cache / "slots").glob("*/ready.json"))
-            self.assertEqual(len(ready), 1)
-            self.assertEqual(json.loads(ready[0].read_text(encoding="utf-8"))["key"], plan)
+            installs = _ready_installs(cache)
+            self.assertEqual(
+                {tool: json.loads(paths[0].read_text(encoding="utf-8"))["key"] for tool, paths in installs.items()},
+                plan,
+            )
 
     def test_shared_build_serializes_same_key(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -565,8 +582,9 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
             results = [process.communicate(timeout=60) for process in processes]
             self.assertTrue(all(process.returncode == 0 for process in processes), results)
             output = "\n".join(stdout for stdout, _ in results)
-            self.assertEqual(output.count("shared toolchain cache published"), 1, output)
-            self.assertEqual(output.count("shared toolchain cache hit"), 1, output)
+            for tool in TOOLS:
+                self.assertEqual(output.count(f"shared {tool} install published"), 1, output)
+                self.assertEqual(output.count(f"shared {tool} install hit"), 1, output)
 
     def test_shared_cache_hit_is_reusable_from_another_worktree(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -606,10 +624,11 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
                 capture_output=True,
             )
             self.assertEqual(second.returncode, 0, second.stderr)
-            self.assertIn("shared toolchain cache hit", second.stdout)
-            self.assertEqual(len(list((cache / "slots").glob("*/ready.json"))), 1)
+            for tool in TOOLS:
+                self.assertIn(f"shared {tool} install hit", second.stdout)
+            self.assertEqual(sum(len(paths) for paths in _ready_installs(cache).values()), len(TOOLS))
 
-    def test_failed_shared_build_preserves_partial_slot_and_refuses_retry(self):
+    def test_failed_shared_build_is_rebuilt_from_scratch(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             root = base / "checkout"
@@ -633,9 +652,12 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
                 capture_output=True,
             )
             self.assertNotEqual(first.returncode, 0)
-            slots = list((cache / "slots").glob("*/build"))
-            self.assertEqual(len(slots), 1)
-            self.assertFalse((slots[0].parent / "ready.json").exists())
+            partial = list((cache / "tools").glob("*/*/build"))
+            self.assertEqual(len(partial), 1)
+            self.assertFalse((partial[0].parent / "ready.json").exists())
+            # Under the install's exclusive lock a directory without
+            # ready.json can only be a failed build; it is removed and rebuilt.
+            (fake_bin / "fail-build").unlink()
             second = subprocess.run(
                 [str(root / "scripts" / "bootstrap.sh")],
                 cwd=root,
@@ -643,8 +665,10 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
                 text=True,
                 capture_output=True,
             )
-            self.assertNotEqual(second.returncode, 0)
-            self.assertIn("partial or failed", second.stderr)
+            self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+            self.assertIn("removing failed", second.stdout)
+            self.assertTrue((partial[0].parent / "ready.json").is_file())
+            self.assertFalse(partial[0].exists())
 
     def test_unlocked_publish_cli_is_denied(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -679,6 +703,8 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
                     str(root / "toolchain.lock"),
                     "--cache",
                     str(cache),
+                    "--tool",
+                    "yosys",
                     "publish",
                 ],
                 cwd=root,
@@ -687,4 +713,4 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
                 capture_output=True,
             )
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("per-key build lock", result.stderr)
+            self.assertIn("per-install build lock", result.stderr)

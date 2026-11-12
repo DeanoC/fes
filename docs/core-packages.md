@@ -180,10 +180,10 @@ The parent default path opts all selected FES package producers into the
 shared compiler cache at the primary FES checkout's
 `out/cache/misteross-toolchains`, or under the configured `FES_CACHE_ROOT`.
 Shared mode verifies the selected misteross checkout and lock pins, then
-authenticates Yosys, nextpnr-mistral and Mistral from the matching published
-cache slot rather than from `build/toolchain` in that checkout. An old package
-record still cannot prove which tools are selected now. A new checkout can
-prepare and check the shared slot with:
+authenticates Yosys, nextpnr-mistral and Mistral from the published cache
+installs the lock's pins select rather than from `build/toolchain` in that
+checkout. An old package record still cannot prove which tools are selected
+now. A new checkout can prepare and check the shared installs with:
 
 ```sh
 make dev
@@ -221,12 +221,13 @@ is not a substitute for it. The generic `toolchain-fes` target selects the
 repository-level lock; registered package builds use their corresponding
 `toolchain-fes-<core>` target. The image build authenticates every selected
 core against its own lock's slot, and its error names the lock whose slot is
-missing. Cores whose locks have the same bytes share one slot, so after a
-core's lock moves, provision that core's target as well. The ZX81 and Coleco examples above compile the
-authenticated HIP/nextpnr tools into their per-core slots. `make toolchain` may compile the pinned tools into
-that shared slot and is intentionally separate from ordinary parent tests.
+missing. The cache holds one install per tool and commit, so after a core's
+lock moves, provision that core's target to build the newly pinned tool. The
+ZX81 and Coleco examples above compile the authenticated HIP nextpnr their
+locks pin. `make toolchain` may compile the pinned tools into the shared
+installs and is intentionally separate from ordinary parent tests.
 `make host` remains independent of package and FPGA tool authentication.
-CUDA slots (`FES_TOOLCHAIN_GPU_ROUTER=CUDA`) also key on
+CUDA nextpnr installs (`FES_TOOLCHAIN_GPU_ROUTER=CUDA`) also key on
 `FES_TOOLCHAIN_CUDA_ARCHITECTURES` (default `86`, native sm_86 code that needs
 no PTX JIT); see `sources/misteross/docs/architecture.md`.
 `make check` validates

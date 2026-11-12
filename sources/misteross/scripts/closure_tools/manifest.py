@@ -44,7 +44,7 @@ def required(name, root=ROOT):
             inputs.add(value)
     result = inputs | imports(name, root)
     if 'scripts/toolchain_cache.py' in result:
-        # Tool authentication hashes the toolchain recipe into the cache key.
+        # Tool authentication reads the toolchain recipe to key each install.
         result.update(TOOLCHAIN_RECIPE_FILES)
     return result
 
