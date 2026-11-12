@@ -1853,7 +1853,9 @@ module fes_i386_decode (
 
     // ---- Faults and the uop ---------------------------------------------------
     // LOCK is checked before the 15-byte limit (Phase 0 divergence
-    // lock-ud-before-length-gp).
+    // lock-ud-before-length-gp), and before what is not built: a LOCK on
+    // an instruction it cannot lock is #UD whatever the instruction, ICEBP,
+    // LOADALL, UMOV and MOV TRn included (#1701).
     // Privilege, in protected mode: the instructions only CPL 0 runs (HLT,
     // CLTS, MOV to or from CRn and DRn, LGDT, LIDT, LMSW, LLDT, LTR) raise
     // #GP(0) at another CPL, and CLI and STI at a CPL above IOPL, each
@@ -1881,8 +1883,9 @@ module fes_i386_decode (
     assign cpl_gp = pe && (cpl != 2'd0 && priv_op || cpl > iopl && !two && b0[7:1] == 7'b1111101) || v86_gp;
     assign gd_db = dr_gd && two && op2[7:2] == 6'b001000 && op2[0];
     assign lock_ok = lockable && mkind == 2'd3 || lock_any;
-    assign fault = !known && !cpl_gp ? 5'(fes_i386_pkg::FAULT_UNIMPLEMENTED)
-                 : undefined || (q.prefixes.lock && !lock_ok) ? 5'(fes_i386_pkg::FAULT_UD)
+    assign fault = q.prefixes.lock && !lock_ok ? 5'(fes_i386_pkg::FAULT_UD)
+                 : !known && !cpl_gp ? 5'(fes_i386_pkg::FAULT_UNIMPLEMENTED)
+                 : undefined ? 5'(fes_i386_pkg::FAULT_UD)
                  : q.too_long ? 5'(fes_i386_pkg::FAULT_GP0)
                  : gd_db ? 5'(fes_i386_pkg::FAULT_DB)
                  : cpl_gp ? 5'(fes_i386_pkg::FAULT_GP0)

@@ -71,7 +71,8 @@ class ScopeTest(unittest.TestCase):
                                ('0fa700', 'ud'), ('0fff00', 'ud'), ('0f2400', 'ud'), ('0f01f8', 'ud'),
                                ('62c0', 'ud'), ('fed0', 'ud'), ('fff8', 'ud'), ('8fc8', 'ud'), ('0f3800', 'ud-rtl'),
                                ('0f3a10', 'ud-rtl'), ('0f0d00', 'ud-rtl-runs'), ('0f0138', 'ud-rtl-runs'),
-                               ('0f0700', 'stop'), ('0f1000', 'stop'), ('0f24e0', 'stop'), ('f100', 'stop')):
+                               ('0f0700', 'stop'), ('0f1000', 'stop'), ('0f24e0', 'stop'), ('f100', 'stop'),
+                               ('f00f0700', 'ud'), ('f00f24e0', 'ud'), ('f0f100', 'ud')):
             with self.subTest(encoding=encoding):
                 self.assertEqual(kinds.get(encoding), kind)
         for encoding in ('00c0', '0000', '04ff', '8d00', '0fa4c0', '0fa400', 'f4c0', '06c0', 'ff20', '0fa1c0',

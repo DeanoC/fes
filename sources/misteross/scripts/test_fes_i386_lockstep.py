@@ -285,6 +285,10 @@ def unbuilt_encodings() -> list[str]:
                             matched.add(spec)
                 if kind != 'defined':
                     lines.append(f'{code.hex()} {kind}')
+                # A LOCK on what this build does not run is #UD all the same:
+                # LOCK is valid only on the read-modify-write forms.
+                if kind == 'stop':
+                    lines.append(f'f0{code.hex()} ud')
     if set(runs) - matched:
         raise LockstepError(f'[[lockstep]] ud_rtl encodings the 386 does not reject: {sorted(set(runs) - matched)}')
     return lines

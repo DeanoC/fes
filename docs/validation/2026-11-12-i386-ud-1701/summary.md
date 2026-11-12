@@ -28,7 +28,8 @@ raises #UD (vector 6, a fault with no error code) for both.
   [lockstep-without-1705.json](lockstep-without-1705.json); a scratch merge
   with #1705 then passed too.
 - **New checks.**
-  - An exhaustive sweep of every opcode and following byte: 52,496 encodings.
+  - An exhaustive sweep of every opcode and following byte: 54,288 encodings,
+    LOCK on what is not built included.
   - 210 directed protected-mode cases and 58 paging cases.
   - 4,000 random programs with undefined encodings in every mode, 232 of
     them ending in a #UD compared against Bochs.
@@ -149,12 +150,12 @@ by the ROM tables above (`i386_class`):
 
 | Kind | Encodings | Check |
 | --- | --- | --- |
-| `ud` | 49,912 | #UD in lockstep with Bochs in real mode from 1000:0100: the delivery, the pushed IP and SP, the handler's HLT |
+| `ud` | 51,704 | #UD in lockstep with Bochs in real mode from 1000:0100: the delivery, the pushed IP and SP, the handler's HLT. Includes each `stop` encoding with a LOCK prefix (1,792): an invalid LOCK is #UD whatever the instruction |
 | `ud-rtl` | 512 (0F 38, 0F 3A) | #UD on the RTL alone, first event, nothing retired |
 | `ud-rtl-runs` | 280 (0F 0D, 0F 01 /7 by memory) | as `ud-rtl`, and Bochs's decode must still run them |
 | `stop` | 1,792 (F1, 0F 07, 0F 10-13, 0F 24/26 reg 4-7) | FAULT_UNIMPLEMENTED before anything retires |
 
-All 52,496 pass. The real-mode-only #UDs of group 6, LAR, LSL and ARPL are
+All 54,288 pass. The real-mode-only #UDs of group 6, LAR, LSL and ARPL are
 classed `ud` too. The runner fails if the 386 defines an encoding that SCOPE
 leaves out and the list does not name.
 

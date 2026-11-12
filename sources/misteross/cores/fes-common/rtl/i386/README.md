@@ -204,7 +204,7 @@ instructions and the undefined ModRM reg fields included, and XBTS and IBTS
 The 386's instructions this build does not run, ICEBP (F1h), LOADALL
 (0F 07), UMOV (0F 10-0F 13) and MOV to and from TR4-TR7 (0F 24, 0F 26),
 decode as `FAULT_UNIMPLEMENTED`, which stops the CPU at WB, so no check can
-pass over one. An immediate after a ModRM's operand bytes is the instruction's last
+pass over one; with a LOCK they raise #UD, as any invalid LOCK does. An immediate after a ModRM's operand bytes is the instruction's last
 bytes, so DC takes it from the length, beside the decode. DC also registers
 the address registers and scale a memory ModRM names (`fes_i386_amode`), or
 ESP (EBP for LEAVE) for a stack operation.
