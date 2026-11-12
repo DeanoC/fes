@@ -1599,7 +1599,13 @@ bool rep_writes_own_instruction(const Code *own, const uint8_t *code, bool code3
         return false;
     const auto decoded = oracle.decode(code, 16, code32);
     if (!decoded.complete || decoded.undefined || !decoded.length) return false;
-    const uint32_t linear = before.seg[fes_i386::SEG_CS].base + before.eip;
+    const auto &cs = before.seg[fes_i386::SEG_CS];
+    const uint64_t last_offset = uint64_t(before.eip) + decoded.length - 1;
+    // Do not infer a contiguous instruction across IP, CS-limit or linear
+    // address wrap. Such a fetch remains under the normal comparison.
+    if (last_offset > (code32 ? UINT32_MAX : UINT16_MAX) || last_offset > cs.limit
+        || uint64_t(cs.base) + last_offset > UINT32_MAX) return false;
+    const uint32_t linear = cs.base + before.eip;
     for (const auto &w : result.writes)
         for (unsigned i = 0; i < w.length; ++i) {
             const uint32_t written = w.linear + i;
@@ -3149,6 +3155,27 @@ void run_rep_self_store_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl
         }
         oracle.invalidate(base, code.size());
         rtl.written.clear();
+    }
+    // These synthetic oracle writes resemble self-overlap only if the
+    // instruction's bytes are incorrectly treated as a contiguous range.
+    // Reject 16-bit IP wrap and 32-bit linear-address overflow separately.
+    for (int boundary = 0; boundary < 2; ++boundary) {
+        State state;
+        state.seg[fes_i386::SEG_CS] = fes_i386::real_mode_segment(0);
+        state.gpr[fes_i386::REG_ECX] = 8;
+        state.eip = boundary ? 0x10 : 0xffff;
+        state.seg[fes_i386::SEG_CS].base = boundary ? 0xfffffff0u : 0x1000u;
+        const uint32_t written = boundary ? 0 : 0x11000;
+        const uint8_t bytes[16] = {0x2e, 0xf3, 0xa4};
+        const Code own{written, written + 8, {}};
+        fes_i386::StepResult result;
+        result.writes.push_back({written, written, 1});
+        ++summary.runs;
+        if (!rep_writes_own_instruction(&own, bytes, false, state, result, oracle)) ++summary.passed;
+        else {
+            ++summary.failed;
+            std::cout << "FAIL directed:rep-" << (boundary ? "linear-overflow" : "ip-wrap") << '\n';
+        }
     }
 }
 

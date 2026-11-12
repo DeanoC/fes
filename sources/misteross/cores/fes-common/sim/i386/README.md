@@ -630,9 +630,10 @@ mapped instruction, the runner stops that run as a code store before comparing
 the two different partial steps. It still compares earlier instructions and
 does not take this exit on exceptions, interrupts, planned rewrites or stores
 that do not overlap the active instruction. Paged or physically aliased cases
-are not covered by this early-stop rule. Five directed cases exercise the
+are not covered by this early-stop rule, nor are fetches crossing a 16-bit IP,
+CS-limit or linear-address boundary. Seven directed cases exercise the
 self-write, adjacent-code and ordinary-data paths, a prior mismatch, and a
-planned rewrite.
+planned rewrite, plus IP-wrap and linear-overflow guards.
 
 The latency-free reruns also give the cycles between retirements: in
 sequence, after an instruction with more than one prefix, after a taken
