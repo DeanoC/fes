@@ -19,12 +19,14 @@ raises #UD (vector 6, a fault with no error code) for both.
 - **Still not built.** The 386 defines four encodings this build does not run:
   ICEBP (F1h), LOADALL (0F 07), UMOV (0F 10-0F 13) and MOV to and from
   TR4-TR7. They still stop as not built (below).
-- **Lockstep.** The RTL and the netlist from the i386 lock's Yosys pass with
-  identical trace hashes. This run has #1705 merged in:
+- **Lockstep.** At `c6e8d95f8` (this branch with main merged, so with
+  slice 5 and the #1704 NMI fix), the RTL and the netlist from the i386
+  lock's Yosys pass everything with identical trace hashes:
   [lockstep-report.json](lockstep-report.json),
-  [lockstep-netlist-report.json](lockstep-netlist-report.json). Without it,
-  random programs fail only at #1704 (main's open NMI-after-IRET bug); see
-  [lockstep-without-1705.json](lockstep-without-1705.json).
+  [lockstep-netlist-report.json](lockstep-netlist-report.json). Before main
+  had the NMI fix, the random sets failed only at #1704. See
+  [lockstep-without-1705.json](lockstep-without-1705.json); a scratch merge
+  with #1705 then passed too.
 - **New checks.**
   - An exhaustive sweep of every opcode and following byte: 52,496 encodings.
   - 210 directed protected-mode cases and 58 paging cases.
@@ -35,17 +37,34 @@ raises #UD (vector 6, a fault with no error code) for both.
 - **test386** on the RTL passes every POST to FFh (79,640,765 retirements,
   as on main): [test386-rtl-report.json](test386-rtl-report.json).
 - **Seal.** Quartus 17.0.2, seed 1, on chip-30x0-ai-dev with `--gpu-router
-  CUDA`, at `27decb7ad`: every analysis met, setup +0.519 ns, hold
-  +0.101 ns, 36,216 ALMs, 269 M10K ([seal-summary.json](seal-summary.json)).
-  Main `78b7ee4b7` on the same host: setup +0.268 ns, hold +0.100 ns, 36,350
-  ALMs, 269 M10K ([seal-summary-main.json](seal-summary-main.json)).
-- **Kit.** Kit B at max: DOOM v1.9 `-timedemo demo3` timed 3863 gametics in
-  3376 realtics (40.05 fps) on this branch's package, twice; main's, run the
-  same way right after, 3373 (40.08 fps), twice. −0.09%, within the spread
-  between packages slice 5 saw on this kit (40.06 and 40.07)
-  ([kit.json](kit.json)).
-- **Windows.** Pending: the `wfw-rtl` run (WfW 3.11 on the RTL from the DOS
-  prompt) is still running; its result will replace this line.
+  CUDA`, at `c6e8d95f8`: every analysis met, setup +0.737 ns, hold
+  +0.088 ns, 36,716 ALMs, 269 M10K ([seal-summary.json](seal-summary.json)).
+  Main `b9716fb05` on the same host: setup +0.718 ns, hold +0.087 ns, 36,699
+  ALMs, 269 M10K ([seal-summary-main.json](seal-summary-main.json)). Before
+  the merge, `27decb7ad` gave +0.519 ns and 36,216 ALMs against main
+  `78b7ee4b7`'s +0.268 ns and 36,350.
+- **Kit.** Kit B at max: DOOM v1.9 `-timedemo demo3`, 3863 gametics, twice
+  per package ([kit.json](kit.json)).
+  - At the merge, this branch took 3374 and 3374 realtics (40.07 fps); main
+    `b9716fb05` took 3374 and 3373.
+  - Before the merge, `27decb7ad` took 3376 (40.05 fps) against main
+    `78b7ee4b7`'s 3373 (40.08 fps).
+- **Windows.** WfW 3.11 gets past both stops and reaches Program Manager on
+  the RTL alone. The method is the plan record's `wfw-rtl`: `win` on the
+  `win-msdos` drive, with `--cpu rtl --rtl-at-prompt 1`, so Bochs boots DOS
+  and the RTL takes over at the prompt.
+
+  | Run | RTL | Simulated | STOPs | RTL retired (PE set) | Oracle steps | Screen at the end |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | main's `wfw-rtl` (#1703) | main `bb5f1bfc1` | 14 s | `0F A6` at `0d83:0e46` (cycle 314,720,489), `0F FF` at `0117:af69` (cycle 382,624,455) | 39,002,616 (11,262,523) | 225,610,962 | - |
+  | `w3` | `c6e8d95f8` (merge) | 4.5 s | none | 47,279,568 (19,537,747) | 0 | WfW splash |
+  | `w2` | `fb20aa113` | 4.5 s | none | 47,280,447 (19,540,353) | 0 | WfW splash |
+  | `w1` | `fb20aa113` | 14 s | none | 121,725,183 (93,985,089) | 0 | Program Manager |
+
+  On main the RTL stopped at both encodings and handed the rest to Bochs.
+  Here the RTL raised #UD for them and ran all of Windows from the DOS
+  prompt itself. Each run ended at its time limit (the bench then exits
+  with status 1). No Windows bytes, frames or files are stored here.
 
 ## Which encodings the 386 rejects
 
@@ -166,23 +185,28 @@ V86 mode, alongside the programs' own faults.
 
 ## Runs
 
-- **Commits.** Branch `deano/i386-ud-1701`: `6269cb133`, `fb20aa113`,
-  `27decb7ad`.
+- **Commits.** Branch `deano/i386-ud-1701`: `6269cb133`, `fb20aa113` and
+  `27decb7ad`, main merged in at `c6e8d95f8`, test fixes at `34342334`.
 - **Lockstep.**
-  - RTL and netlist at the scratch merge `35b2cc488`: this branch plus
-    #1705's `95506e54d`. Only `PMODE_CASES` needed a hand merge (352 + 210).
-    The scratch merge is not pushed.
-  - Without #1705 (`fb20aa113`): corpus, directed cases and sweep pass; the
-    random sets fail only at #1704.
-- **test386** at `fb20aa113`.
+  - RTL and netlist at `c6e8d95f8`, this branch with main `b9716fb05`
+    merged: the protected-mode case count merges as 405 + 210.
+  - Earlier, without #1705 (`fb20aa113`): the corpus, the directed cases and
+    the sweep pass; the random sets fail only at #1704.
+  - Earlier, at a scratch merge with #1705 (`35b2cc488`, not pushed):
+    everything passes.
+- **test386** at `c6e8d95f8` (and earlier at `fb20aa113`, the same).
 - **Mutants** of `fb20aa113`'s decode.
-- **Seals** on chip-30x0-ai-dev with `--gpu-router CUDA`, seed 1:
-  - this branch at `27decb7ad`;
-  - main at `78b7ee4b7`, the comparison.
+- **Seals** on chip-30x0-ai-dev with `--gpu-router CUDA`, seed 1: this
+  branch at `c6e8d95f8` against main `b9716fb05`, and before the merge
+  `27decb7ad` against main `78b7ee4b7`.
 - **Kit B, at max** (core-only on baseline software 7ddb0bfb, restored and
   released). The Phase 4 bench disk's DOOM v1.9 `-timedemo demo3` runs twice
-  per package: run `u1` this branch, run `m1` main.
+  per package: runs `u2` (this branch) and `m2` (main) at the merge, `u1` and
+  `m1` before it.
 - **Windows.** The `wfw-386` launch on the `win-msdos` drive. The machine
-  bench was built on Powerboat and run on chip-30x0-ai-dev, with
-  `--cpu rtl --rtl-at-prompt 1`, as the plan record's `wfw-rtl`. No Windows
-  bytes, frames or files are stored here.
+  bench (`sim_fes_pc386.py`'s machine testbench) was built on Powerboat and
+  run on chip-30x0-ai-dev, with `--cpu rtl --rtl-at-prompt 1`, as the plan
+  record's `wfw-rtl`; `w1` and `w2` from `fb20aa113`'s tree:
+  - `w2` to 4.5 s, a frame every 0.25 s, kept off the repository;
+  - `w1` to 14 s;
+  - `w3`, built from `34342334` (the RTL of `c6e8d95f8`), to 4.5 s.
