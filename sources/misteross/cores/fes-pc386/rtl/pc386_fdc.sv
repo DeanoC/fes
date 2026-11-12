@@ -234,10 +234,12 @@ module pc386_fdc #(
     assign aux_writedata = store_data;
     assign aux_byteenable = 8'hff;
     assign busy = fetching || storing || owed != 8'd0;
-    // A write the controller holds: a sector or ID started, or one waiting
-    // for its store.
+    // A write the controller holds: a byte offered (its DACK may already be
+    // on its way, so the offer stands), a sector or ID started, or one
+    // waiting for its store.
     wire holding = phase == P_EXEC && writing &&
-                   (ex == X_STORE || ex == X_STORE_GO || (formatting ? id_byte != 2'd0 : index != 9'd0));
+                   (ex == X_BYTE || ex == X_STORE || ex == X_STORE_GO ||
+                    (formatting ? id_byte != 2'd0 : index != 9'd0));
     assign fenced = frozen && !busy && !holding;
     // A write's next sector, or a format's next ID, waits at the fence.
     wire fence_closed = frozen && writing && (formatting ? id_byte == 2'd0 : index == 9'd0);

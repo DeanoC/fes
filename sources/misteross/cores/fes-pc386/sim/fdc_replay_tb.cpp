@@ -754,6 +754,11 @@ std::vector<Case> cases() {
         std::vector<uint8_t> data(3 * 512);
         for (size_t i = 0; i < data.size(); ++i) data[i] = uint8_t(i * 7 + 3);
         g.command(rw(0xc5, 0, 4, 0, 1, 18));
+        // Freeze with the first byte offered: the offer stands, so not fenced.
+        g.wait([&] { return g.f.drq(); }, 2000000, "first drq");
+        rtl.set_frozen(true);
+        g.check(!rtl.fenced(), "not fenced while a write's first byte is offered");
+        rtl.set_frozen(false);
         // Freeze inside the first sector: it runs to its end and is stored.
         g.dma_out(std::vector<uint8_t>(data.begin(), data.begin() + 100));
         rtl.set_frozen(true);
