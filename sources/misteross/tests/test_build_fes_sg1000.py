@@ -323,10 +323,11 @@ class BuildFesSg1000Tests(unittest.TestCase):
         }
         manifest = tomllib.loads(_oss_manifest(record, evidence, "https://example.invalid", "a" * 40, {"yosys": "test"}).decode())
         self.assertEqual(manifest["format"], 3)
-        self.assertEqual(manifest["core"]["version"], "1.3.0")
+        self.assertEqual(manifest["core"]["version"], "1.4.0")
+        self.assertEqual(manifest["abi"], {"id": "fes.application", "major": 1, "minor": 0})
         self.assertEqual(manifest["rom"]["source_size"], 16384)
         self.assertEqual({item["id"] for item in manifest["interfaces"]},
-                         {"fes.keyboard", "fes.video.fixed-720p60", "fes.audio.pcm-s16-stereo-48k"})
+                         {"fes.gamepad.ports", "fes.video.fixed-720p60", "fes.audio.pcm-s16-stereo-48k"})
 
     def test_both_sg1000_recipes_include_audio_sources_and_pins(self) -> None:
         for source in ("fes_sn76489.sv", "coleco_system_pll.v", "fes_audio_output.v", "fes_audio_i2s.v"):
@@ -382,7 +383,9 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertNotIn("tv80", qsf)
         self.assertNotIn("t80pa", qsf)
         self.assertIn("cores/fes-common/rtl/coleco_vdp.sv", qsf)
-        self.assertIn("cores/fes-common/rtl/fes_computer_gp.v", qsf)
+        self.assertIn("cores/fes-common/rtl/fes_application_gp.v", qsf)
+        self.assertIn("cores/fes-sg1000/rtl/sg1000_application_gp.v", qsf)
+        self.assertNotIn("cores/fes-common/rtl/fes_computer_gp.v", qsf)
         self.assertNotIn("VHDL_FILE", qsf)
         self.assertNotIn("coleco_reset_rom", qsf)
         self.assertNotIn("coleco_machine.sv", qsf)
@@ -418,7 +421,12 @@ class BuildFesSg1000Tests(unittest.TestCase):
         )
         self.assertIn(b'id = "fes.sg1000"', manifest)
         self.assertIn(b"FES SG-1000", manifest)
-        self.assertIn(b"fes.simple-computer", manifest)
+        parsed = tomllib.loads(manifest.decode())
+        self.assertEqual(parsed["core"]["version"], "1.4.0")
+        self.assertEqual(parsed["abi"], {"id": "fes.application", "major": 1, "minor": 0})
+        self.assertEqual({item["id"] for item in parsed["interfaces"]},
+                         {"fes.gamepad.ports", "fes.video.fixed-720p60", "fes.media.blob",
+                          "fes.audio.pcm-s16-stereo-48k"})
         self.assertNotIn(b"fes.coleco", manifest)
         self.assertNotIn(b"recipe = ", manifest)
 
@@ -432,15 +440,14 @@ class BuildFesSg1000Tests(unittest.TestCase):
             self.assertIn("build-fes-sg1000-quartus", text)
             self.assertIn("build-fes-sg1000", text)
             self.assertIn("sim-fes-sg1000-oss", text)
-            self.assertIn("fes.simple-computer", text)
+        self.assertIn("fes.application", readme)
         self.assertNotIn("/home/deano/", readme)
         self.assertIn("Quartus", readme)
         self.assertIn("FES_COLECO_OSS", readme)
         self.assertIn("5391eeb1", readme)
         self.assertIn("package-only", readme.lower())
         self.assertIn("sim-fes-sg1000-rom-link", readme)
-        self.assertIn("in the factory image", readme.lower())
-        self.assertNotIn("not in the factory image", readme.lower())
+        self.assertIn("outside the first-party catalog", readme.lower())
         self.assertNotIn("remain later jobs", readme.lower())
 
     def test_diagnostic_is_reproducible_and_enters_at_reset(self) -> None:
@@ -570,7 +577,7 @@ class Sg1000YosysM10kTests(unittest.TestCase):
         sources = " ".join(build_fes_sg1000_oss.RTL_SOURCES)
         program = (
             "read_verilog -sv -DFES_SG1000_OSS=1 -DFES_SG1000_ROM_LINK=1 -DFES_COLECO_OSS=1 "
-            "-I cores/fes-sg1000/generated "
+            "-I cores/fes-common/generated "
             f"{sources}; "
             "chparam -set BUILD_ID 128'h" + "0" * 32 + " top; "
             "synth_intel_alm -nolutram -nodsp -top top -run :map_luts; "

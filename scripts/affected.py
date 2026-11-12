@@ -1,8 +1,14 @@
 """Plan software CI from a merge-base diff; never claim FPGA builds or kit acceptance."""
 import argparse
+from functools import lru_cache
 import json
 from pathlib import Path
 import subprocess
+
+try:
+    from scripts.hil_plan import GO_SOURCE_SUFFIXES
+except ImportError:
+    from hil_plan import GO_SOURCE_SUFFIXES
 
 try:
     from scripts.test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, DE25_PR_CONTROL_DEFINITION, select_test_modes, validate_test_modes
@@ -81,7 +87,7 @@ SHARED_RTL = {
     'coleco_video_dpram.v': (*COLECO_CONSUMERS, 'pcxt'),
     'coleco_video_720p.v': COLECO_CONSUMERS,
     'fes_computer_gp.v': COLECO_CONSUMERS,
-    'fes_application_gp.v': ('application', 'coleco', 'menu', 'ramtest', 'riscv'),
+    'fes_application_gp.v': ('application', 'coleco', 'sg1000', 'menu', 'ramtest', 'riscv'),
     'fes_video_720p.v': ('pong', 'ramtest', 'riscv'),
     'fes_audio_i2s.v': ('application', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st', 'pc386', 'pcxt'),
     'fes_audio_pll.v': ('pcxt',),
@@ -102,10 +108,10 @@ C64_SCRIPTS = frozenset({'c64_slots.py', 'build_c64_slot_card.py'})
 SPECTRUM_SCRIPTS = frozenset({'spectrum_slots.py'})
 ATARI_ST_SCRIPTS = frozenset({'atari_st_slot.py', 'build_atari_st_slot_card.py',
                              'fetch_atari_st_emutos.py'})
-# These i386 oracle, corpus, RTL-check and timing helpers use the existing FPGA
-# software classification. The pc386 CPU profile reporter is classified
-# separately below because its machine simulation consumes the report.
-I386_SCRIPTS = frozenset({'fes_i386_oracle.py', 'test_fes_i386_vectors.py', 'test_fes_i386_test386.py',
+# These i386 audit, oracle, corpus, RTL-check and timing helpers use the
+# existing FPGA software classification. The pc386 CPU profile reporter is
+# classified separately below because its machine simulation consumes the report.
+I386_SCRIPTS = frozenset({'audit_fes_i386_case.py', 'fes_i386_oracle.py', 'test_fes_i386_vectors.py', 'test_fes_i386_test386.py',
                           'test_fes_i386_frontend.py', 'test_fes_i386_lockstep.py', 'test_fes_i386_governor.py',
                           'test_fes_i386_latency.py', 'benchmark_fes_i386.py', 'quartus_fes_i386.py',
                           'fes_i386_ucode.py', 'i386_verilator.py'})
@@ -226,7 +232,7 @@ def fpga_cores(path):
         if parts[1] == 'pc386_cpu_profile.py':
             return ('pc386',), 'pc386 CPU profiling is consumed by its cpu-profile simulation'
         if parts[1] in I386_SCRIPTS:
-            return (), 'i386 oracle, corpus runners, RTL checks and timing harness; FPGA software classification'
+            return (), 'i386 audit, oracle, corpus runners, RTL checks and timing harness; FPGA software classification'
     if parts and parts[0] == 'tests':
         # No simulation recipe reads misteross tests or their fixtures.
         return (), 'FPGA producer/package software tests; RTL unchanged'
@@ -250,9 +256,39 @@ def runtime_test_source(path):
                 for area in ('unit', 'integration', 'support')))
 
 
+@lru_cache(maxsize=1)
+def embedded_patterns():
+    # CI must check the generated inventory even when the only changed file
+    # is an embedded README. A broken inventory selects the lane, not a skip.
+    try:
+        try:
+            from scripts.hil_plan import read_go_inventory
+        except ImportError:
+            from hil_plan import read_go_inventory
+        return read_go_inventory()
+    except (OSError, ValueError):
+        return None
+
+
 def documentation(path):
     parts = Path(path).parts
-    return 'docs' in parts or path.endswith('.md')
+    if (path.startswith(('sources/FogCast/', 'sources/misteross/expansion/')) and
+            path.endswith(GO_SOURCE_SUFFIXES) and
+            not path.endswith('_test.go')):
+        return False
+    if 'docs' not in parts and not path.endswith('.md'):
+        return False
+    if path.startswith(('sources/FogCast/', 'sources/misteross/expansion/')):
+        inventory = embedded_patterns()
+        if inventory is None:
+            return False
+        try:
+            from scripts.hil_plan import matches_embed
+        except ImportError:
+            from hil_plan import matches_embed
+        if any(matches_embed(path, group) for entry in inventory.values() for group in entry['graphs']):
+            return False
+    return True
 
 
 def plan(paths):
@@ -282,6 +318,10 @@ def plan(paths):
         if path == 'config/core-recipes.toml':
             selected.update(('parent', 'fpga'))
             reasons.append(f'{path}: core recipe and producer tests; RTL unchanged')
+            continue
+        if path == 'config/hil-go-consumers.json':
+            selected.add('parent')
+            reasons.append(f'{path}: generated HIL planner inventory; component sources unchanged')
             continue
         if path == 'config/core-library.toml':
             selected.add('parent')

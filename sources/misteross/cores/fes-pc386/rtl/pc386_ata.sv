@@ -218,7 +218,8 @@ module pc386_ata #(
         endcase
     endfunction
 
-    // Task file address of the sector after the current one.
+    // Task file address of the sector after the current one. A transfer
+    // advances it between sectors and leaves it at its last sector.
     task automatic advance_address;
         if (lba_mode) {drive_head[3:0], cylinder_high, cylinder_low, number} <=
                       {drive_head[3:0], cylinder_high, cylinder_low, number} + 1'b1;
@@ -374,7 +375,9 @@ module pc386_ata #(
                         left <= left - 1'b1;
                         block_left <= block_left - 1'b1;
                         count <= count - 1'b1;
-                        advance_address();
+                        // The task file ends at the last sector read, as an
+                        // ATA drive leaves it (WDCTRL checks it).
+                        if (left != 1) advance_address();
                         if (left == 1) begin drq <= 0; phase <= IDLE; end
                         else if (block_left == 1 || !loaded[!half]) begin
                             // Next block, or a sector not fetched yet: BSY until it is.
@@ -399,7 +402,8 @@ module pc386_ata #(
                     left <= left - 1'b1;
                     block_left <= block_left - 1'b1;
                     count <= count - 1'b1;
-                    advance_address();
+                    // And at the last sector written.
+                    if (left != 1) advance_address();
                     if (left == 1) begin
                         drq <= 0; phase <= IDLE; pending_interrupt <= 1;
                     end else if (block_left == 1 || queued[!half]) begin

@@ -5965,7 +5965,12 @@ int13_harddisk(DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS)
       nlspt = read_word_DS(&EbdaData->ata.devices[device].lchs.spt);
       count = read_byte_DS(&EbdaData->ata.hdcount);
 
-      nlc = nlc - 1; /* 0 based */
+      // FES 2026-11-12: the highest cylinder below the AT's diagnostic
+      // cylinder, as the IBM PC/AT BIOS reports it: the table's count less
+      // two. AH=15h leaves that cylinder out of the size too, and Windows'
+      // WDCTRL checks the count against INT 41h's table and fails at phase 3
+      // when only one is taken off. A one-cylinder disk reserves none.
+      nlc = (nlc > 1) ? nlc - 2 : 0;
       SET_AL(0);
       SET_CH(nlc & 0xff);
       SET_CL(((nlc >> 2) & 0xc0) | (nlspt & 0x3f));
@@ -5999,7 +6004,10 @@ int13_harddisk(DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS)
       nlspt = read_word_DS(&EbdaData->ata.devices[device].lchs.spt);
 
       // Compute sector count seen by int13
-      lba_low = (Bit32u)(nlc - 1) * (Bit32u)nlh * (Bit32u)nlspt;
+      // FES 2026-11-12: less the diagnostic cylinder, as AH=08h reports it;
+      // a one-cylinder disk reserves none.
+      if (nlc > 1) nlc = nlc - 1;
+      lba_low = (Bit32u)nlc * (Bit32u)nlh * (Bit32u)nlspt;
       CX = HIWORD(lba_low);
       DX = LOWORD(lba_low);
 

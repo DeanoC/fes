@@ -510,6 +510,16 @@ follow = "corpus"
 # of a test386 TEST_UNDEF case, the two agree.
 
 [[lockstep]]
+id = "arpl-page-read"
+title = "ARPL's memory load translates as a read"
+rule = "arpl_page_rtl"
+cases = ["pg-arpl-np-read", "pg-arpl-no-adjust", "pg-arpl-r3-ro-no-adjust", "pg-arpl-r3-ro-adjust", "pg-arpl-adjust", "pg-arpl-r3-adjust"]
+oracle = "Bochs reads ARPL's memory operand with read_RMW_virtual_word, translating the initial access as a write even if ARPL does not change the RPL."
+i386 = "The 386 microcode reads with RD_W and performs a separate WR_R only when it raises the RPL. The directed paging cases run the RTL alone and check the #PF error code, A/D bits and result, because Bochs differs."
+source = "reenigne/x86_microcode 80386/microcode_notes.txt ARPL mw entry 16AAh: RD_W at 6AA, WR_R at 6B0 and ARPL_FAILED at 6B3; see also test386 arpl-no-write-no-fault."
+follow = "386"
+
+[[lockstep]]
 id = "dr6-sticky"
 title = "A #DB leaves DR6's bits set"
 rule = "dr6_rule"
@@ -527,4 +537,23 @@ cases = ["dr-gd-rf"]
 oracle = "Bochs clears RF before an instruction runs, so GD's #DB from the instruction after an IRETD that set RF pushes RF clear."
 i386 = "The 386 clears RF only as an instruction completes, and its #DB (BREAKPOINT_CMN to INTERRUPT_X) skips FAULT's setting of RF, so it pushes EFLAGS as it is: RF set."
 source = "80386 Programmer's Reference Manual 12.3.1.1 (RF cleared at the successful completion of an instruction); reenigne/x86_microcode 80386/microcode_notes.txt 890-899 (FAULT sets RF), 943-94E (BREAKPOINT_CMN goes to INTERRUPT_X)."
+
+[[lockstep]]
+id = "ud-0f0d"
+title = "0F 0D is #UD"
+rule = "ud_rtl"
+encodings = ["0F0D"]
+oracle = "Bochs at CPU level 3 decodes 0F 0D as NOP Ev (a later CPU's prefetch hint) and runs it."
+i386 = "The 386's decoder sends 0F 0C-0F 0F to its #UD entry whatever follows."
+source = "reenigne/x86_microcode 80386/decoder23.txt (?000011????11 illegal), microcode_notes.txt 82B (#UD: goto FAULT)."
+follow = "386"
+
+[[lockstep]]
+id = "ud-invlpg"
+title = "0F 01 /7 is #UD (INVLPG is the 486's)"
+rule = "ud_rtl"
+encodings = ["0F01.7 memory"]
+oracle = "Bochs at CPU level 3 runs 0F 01 /7 with a memory operand as INVLPG."
+i386 = "The 386's group 7 has no /7: its decoder sends it to the #UD entry with either operand."
+source = "reenigne/x86_microcode 80386/decoder23.txt (0F 01 reg 7, register and memory: illegal), microcode_notes.txt 82B; 80386 Programmer's Reference Manual, group 7 (SGDT-LMSW only); INVLPG is new in the i486."
 follow = "386"

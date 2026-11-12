@@ -11,6 +11,26 @@ from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
 
 
 class AffectedTests(unittest.TestCase):
+    def test_hil_inventory_selects_only_parent(self):
+        result = plan(['config/hil-go-consumers.json'])
+        self.assertEqual({name for name, enabled in result['lanes'].items() if enabled}, {'parent'})
+        self.assertEqual(result['cores'], [])
+
+    def test_go_source_under_docs_selects_host_and_inventory(self):
+        for name in ('execute.go', 'execute.s', 'execute.sx', 'execute.c', 'execute.hpp', 'execute.swigcxx', 'execute.syso'):
+            with self.subTest(name=name):
+                result = plan(['sources/FogCast/internal/session/docs/' + name])
+                self.assertTrue(result['lanes']['parent'])
+                self.assertTrue(result['lanes']['host'])
+
+    def test_embedded_readme_runs_inventory_and_host_checks(self):
+        embedded = 'sources/FogCast/ui/rooms/examples/hardware/assets/README.md'
+        result = plan([embedded])
+        self.assertTrue(result['lanes']['parent'])
+        self.assertTrue(result['lanes']['host'])
+        ordinary = plan(['sources/FogCast/README.md'])
+        self.assertFalse(any(ordinary['lanes'].values()))
+
     def test_de25_pr_control_tracks_generated_rtl_and_native_controller(self):
         definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml'
         result = plan([definition])
@@ -318,7 +338,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-common/rtl/tv80/tv80_core.v': {'coleco', 'sms'},
             'cores/fes-coleco/rtl/coleco_machine.sv': {'coleco', 'sg1000', 'sms'},
             'cores/fes-coleco/generated/fes_simple_computer.vh': {'coleco', 'sg1000', 'sms'},
-            'cores/fes-common/rtl/fes_application_gp.v': {'application', 'coleco', 'menu', 'ramtest', 'riscv'},
+            'cores/fes-common/rtl/fes_application_gp.v': {'application', 'coleco', 'sg1000', 'menu', 'ramtest', 'riscv'},
             'cores/fes-common/rtl/fes_video_720p.v': {'pong', 'ramtest', 'riscv'},
             'cores/fes-common/rtl/fes_audio_i2s.v': {'application', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st',
                                                  'pc386', 'pcxt'},
@@ -442,7 +462,7 @@ class AffectedTests(unittest.TestCase):
                      'cores/fes-common/sim/i386/bochs/instrument.h', 'cores/fes-common/sim/i386/frontend_tb.cpp',
                      'cores/fes-common/sim/i386/spike/spike_ag.sv', 'cores/fes-common/sim/i386/lockstep_tb.cpp',
                      'cores/fes-common/rtl/i386/toolchain.lock',
-                     'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
+                     'scripts/audit_fes_i386_case.py', 'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
                      'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
                      'scripts/test_fes_i386_lockstep.py', 'scripts/test_fes_i386_latency.py',
                      'scripts/quartus_fes_i386.py',

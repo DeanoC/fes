@@ -37,7 +37,7 @@ nothing by itself.
 | `fes.ts1500` | `cores/fes-zx81` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-zx81/toolchain.lock` | `make build-fes-ts1500` | experimental; NTSC, 8 KiB ROM, 16 KiB RAM |
 | `fes.coleco` | `cores/fes-coleco` | `fes.application` with session display and HPS DDR | `cores/fes-coleco/toolchain.lock` | `make build-fes-coleco-native-video` (FES selects the native variant) | supported; optional Coleco bus 2.0 and mandatory linked native video; Direct and Scanlines parts ship alongside |
 | `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `cores/fes-sms/toolchain.lock` | `make build-fes-sms` | outside first-party catalog |
-| `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `cores/fes-sg1000/toolchain.lock` | `make build-fes-sg1000` | outside first-party catalog |
+| `fes.sg1000` | `cores/fes-sg1000` | `fes.application` | `cores/fes-sg1000/toolchain.lock` | `make build-fes-sg1000` | outside first-party catalog |
 | `fes.apple2` | `cores/fes-apple2` | `fes.computer` | `cores/fes-apple2/toolchain.lock` | `make build-fes-apple2` (HIP default; shared-pin seal still open) | experimental; per-slot cards via `scripts/build_apple2_slot_card.py` |
 | `fes.c64` | `cores/fes-c64` | `fes.computer` with session display and HPS DDR | `cores/fes-c64/toolchain.lock` | `make build-fes-c64` (shared-pin CUDA seal recorded) | experimental; cartridge cards via `scripts/build_c64_slot_card.py` |
 | `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum` | experimental; four edge sockets |
@@ -70,6 +70,8 @@ not permission to add another lock.
 Quartus recipes (`make build-fes-zx81-quartus`, `build-fes-coleco-quartus`,
 `build-fes-sg1000-quartus`, `build-fes-sms-quartus`) are bring-up oracles.
 A failed HIP route does not fall back to Quartus. Quartus never programs a kit.
+The ZX81 oracle emits a format-2 `fes.computer` package with its ROM embedded;
+unlike the standard format-3 package, it has no expansion socket or ROM map.
 `--compile-only`, where the recipe has it, writes an RBF and timing evidence
 without sealing. `--synth-only` on the OSS producers is a dirty-tree Yosys
 probe and does not seal.

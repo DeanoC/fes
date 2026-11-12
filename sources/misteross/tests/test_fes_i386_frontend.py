@@ -11,6 +11,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 
 from scripts import benchmark_fes_i386 as benchmark
@@ -221,6 +222,23 @@ class SynthesisTest(unittest.TestCase):
     def test_q_synthesizes_without_multipliers_or_carry_cells(self):
         synthesis = frontend.qalign_synthesis(YOSYS)
         self.assertEqual((synthesis['multipliers'], synthesis['carry_cells']), (0, 0), synthesis)
+
+    def test_frontend_spike_yosys_elaborates_and_observes_every_field(self):
+        # Exercise the same source closure as the benchmark, then inspect the
+        # elaborated signature input. A parse-only test would miss truncation.
+        files = ' '.join(str(path) for path in benchmark.sources('frontend'))
+        with tempfile.TemporaryDirectory() as tmp:
+            netlist = Path(tmp) / 'spike.json'
+            script = (f'read_verilog -sv {files}; hierarchy -check -top spike_frontend; '
+                      f'proc; memory_collect; write_json {netlist}')
+            result = subprocess.run([YOSYS, '-Q', '-q', '-p', script], cwd=benchmark.ROOT,
+                                    capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            module = json.loads(netlist.read_text())['modules']['spike_frontend']
+        signals = module['netnames']
+        bits = [bit for name in ('q', 'q_valid', 'held_pp', 'held_pk') for bit in signals[name]['bits']]
+        padding = (-len(bits)) % 32
+        self.assertEqual(signals['observed']['bits'], bits + ['0'] * padding)
 
 
 @unittest.skipUnless(VERILATOR, VERILATOR_ABSENT)

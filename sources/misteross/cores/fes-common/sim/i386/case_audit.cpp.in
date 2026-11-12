@@ -1,0 +1,50 @@
+// SPDX-License-Identifier: MIT
+// Diagnostic-only Verilator stop handler; generated header supplies site lines.
+#include "case_audit.h"
+#include <algorithm>
+#include <array>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <unistd.h>
+namespace {
+constexpr int N = @CASE_COUNT@;
+constexpr std::array<int, N> lines = {@CASE_LINES@};
+std::array<unsigned long long, N> events{}, transient{}, stable{};
+std::array<bool, N> touched{};
+std::vector<int> active;
+unsigned long long evals=0;
+struct Reporter {
+ ~Reporter() {
+   const char* dir=std::getenv("FES_CASE_AUDIT_DIR");
+   if (!dir) { std::fputs("FES_CASE_AUDIT_DIR missing\n",stderr); std::abort(); }
+   std::ofstream out(std::string(dir)+"/case-"+std::to_string(getpid())+".json");
+   if (!out) { std::fputs("cannot create case report\n",stderr); std::abort(); }
+   out << "{\"evals\":" << evals << ",\"sites\":[";
+   bool first=true;
+   for (int i=0;i<N;i++) if(events[i]) {
+    if(!first) out << ','; first=false;
+    out << "{\"index\":"<<i<<",\"line\":"<<lines[i]<<",\"events\":"<<events[i]<<",\"transient_evals\":"<<transient[i]<<",\"settled_evals\":"<<stable[i]<<"}";
+   }
+   out << "]}\n";
+ }
+} reporter;
+}
+void vl_stop(const char* file, int line, const char*) {
+ if (!file || !std::strstr(file, "fes_i386_cpu.netlist.v")) { std::fprintf(stderr,"unexpected stop %s:%d\n",file?file:"?",line); std::abort(); }
+ auto it=std::lower_bound(lines.begin(),lines.end(),line);
+ if(it==lines.end() || *it != line) { std::fprintf(stderr,"unknown case line %d\n",line); std::abort(); }
+ int i=int(it-lines.begin()); ++events[i];
+ if(!touched[i]) { touched[i]=true; active.push_back(i); }
+}
+void case_audit_before() {
+ if (!active.empty()) { std::fputs("nested audit eval\n",stderr); std::abort(); }
+}
+void case_audit_after(const Vfes_i386_cpu& cpu) {
+ ++evals;
+ for(int i:active) { if ((cpu.audit_bad[i/32] >> (i%32)) & 1U) ++stable[i]; else ++transient[i]; touched[i]=false; }
+ active.clear();
+}

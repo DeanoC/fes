@@ -3,7 +3,9 @@
 
 import argparse
 import ast
+import fnmatch
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -23,7 +25,8 @@ RULES = [
         'scripts/check_doc_links.py', 'scripts/coordination.py', 'scripts/de25_runtime.py',
         'scripts/de25_boot_contract.py', 'scripts/de25_first_boot.py',
         'scripts/de25_dma_descriptor.py', 'scripts/de25_kernel_test.py',
-        'scripts/hil_plan.py', 'scripts/consistency.py', 'scripts/generate.py',
+        'scripts/hil_plan.py', 'scripts/hil_go_inventory.py', 'scripts/hil_go_imports.go',
+        'scripts/consistency.py', 'scripts/generate.py',
         'scripts/host_affected.py',
     )],
     # This driver is exercised only in a private QEMU kernel. No appliance,
@@ -37,6 +40,8 @@ RULES = [
     # Display metadata for the separately published host catalog; it is not
     # embedded in the image, kit software bundle or core package.
     ('config/core-library.toml', 'none', None),
+    # Checked-in development inventory; it is not a deployed image input.
+    ('config/hil-go-consumers.json', 'none', None),
     ('config/**', 'full', 'config'), ('Makefile', 'full', 'build-system'),
     ('scripts/build.py', 'full', 'build-system'),
     ('scripts/environment.py', 'full', 'build-system'),
@@ -75,6 +80,14 @@ RULES = [
     # name (#863 slice 5), so a change ships in both the bundle and the host.
     ('sources/FogCast/cmd/fogcast-api/**', 'overlay', 'kit-go+host'),
     ('sources/FogCast/cmd/fogcast/**', 'overlay', 'host:fogcast'),
+    # These operator clients run on the host and are not installed in an image.
+    ('sources/FogCast/cmd/fes-update/**', 'overlay', 'host:fes-update'),
+    ('sources/FogCast/cmd/fes-software/**', 'overlay', 'host:fes-software'),
+    ('sources/FogCast/cmd/fes-kit-bundle/**', 'overlay', 'host:fes-kit-bundle'),
+    ('sources/FogCast/cmd/target-image-lock/**', 'overlay', 'host:target-image-lock'),
+    # Built on request but not installed by the kit image or software bundle.
+    ('sources/FogCast/cmd/mister-bridge/**', 'none', None),
+    ('sources/FogCast/cmd/fes-parts/**', 'none', None),
     # The Spectrum simulations' restore-stream and disk-image writers; no
     # image, bundle or package ships them, and the host converts snapshots and
     # disks in fogcast-api.
@@ -84,10 +97,10 @@ RULES = [
     # ui/** is compiled into fogcast-kit, fogcast-tenfoot and fogcast-api, so it
     # falls through to kit-go+host below.
     # Imported only by cmd/target-image-lock, which no overlay artifact runs.
-    ('sources/FogCast/internal/targetimage/**', 'full', 'image-selector'),
+    ('sources/FogCast/internal/targetimage/**', 'overlay', 'host:target-image-lock'),
     # Imported only by cmd/fes-update, the host appliance update client, to read
     # a release image's software base record. No overlay artifact runs it.
-    ('sources/FogCast/internal/ext4image/**', 'full', 'fogcast-unmapped-command'),
+    ('sources/FogCast/internal/ext4image/**', 'overlay', 'host:fes-update'),
     # The immutable bundle producer and stable base supervisor share this code;
     # replacing the Go kit services cannot validate or replace those consumers.
     ('sources/FogCast/appliance/software/**', 'full', 'kit-software'),
@@ -501,7 +514,207 @@ def expand(row, consumers):
         row['consumers'] = sorted({item['component'] for item in consumers} - {row['component']})
 
 
-def plan(paths, texts=None):
+GO_INVENTORY = 'config/hil-go-consumers.json'
+GO_ROOTS = ('sources/FogCast/', 'sources/misteross/expansion/')
+# Go 1.26 go/build.fileListForExt, plus Go source.
+GO_SOURCE_SUFFIXES = ('.go', '.c', '.cc', '.cpp', '.cxx', '.m', '.h', '.hh',
+                      '.hpp', '.hxx', '.f', '.F', '.for', '.f90', '.s', '.S',
+                      '.sx', '.swig', '.swigcxx', '.syso')
+GO_TARGETS = {'linux-amd64', 'linux-amd64-sdl3', 'linux-arm64', 'linux-arm64-sdl3',
+              'linux-armv7', 'darwin-arm64', 'darwin-arm64-cgo', 'darwin-arm64-sdl3'}
+GO_ROLES = {'kit', 'kit-and-host', 'host', 'image', 'host-tool', 'builder',
+            'standalone', 'simulation'}
+REQUIRED_GO_ROLES = {
+    'fes-kit-data': 'image', 'fes-update': 'host-tool', 'fes-software': 'host-tool',
+    'fes-kit-bundle': 'builder', 'target-image-lock': 'builder',
+    'mister-bridge': 'standalone', 'fes-parts': 'standalone',
+    'mister-agent': 'kit', 'fogcast-api': 'kit-and-host',
+    'fogcast-tenfoot': 'kit-and-host', 'fogcast': 'host',
+    'fes-spectrum-disk': 'simulation', 'fes-spectrum-restore': 'simulation',
+    'fes-boot': 'image', 'fes-kit-software': 'image', 'fes-bluetooth': 'image',
+}
+PLATFORM_GO_COMMANDS = {'fes-boot', 'fes-kit-software', 'fes-bluetooth'}
+
+
+def read_go_inventory(repo=None, revision=None):
+    """Read the inventory from the requested source, never an unrelated checkout."""
+    if repo is None:
+        text = (Path(__file__).resolve().parents[1] / GO_INVENTORY).read_text()
+    else:
+        revision = git_commit(repo, revision)
+        result = subprocess.run(['git', '-C', str(repo), 'show', revision + ':' + GO_INVENTORY],
+                                text=True, capture_output=True)
+        if result.returncode:
+            raise ValueError(f'Go command inventory missing at {revision}; cannot classify safely')
+        text = result.stdout
+    try:
+        data = json.loads(text)
+        commands = data['commands']
+        if data['version'] != 1 or not isinstance(commands, dict):
+            raise ValueError('unsupported inventory format')
+        for name, expected in REQUIRED_GO_ROLES.items():
+            if commands[name]['role'] != expected:
+                raise ValueError(f'{name} has wrong role')
+        for name, entry in commands.items():
+            if not re.fullmatch(r'[a-z0-9-]+', name) or entry['role'] not in GO_ROLES:
+                raise ValueError(f'invalid command role: {name}')
+            targets = []
+            if not isinstance(entry['graphs'], list) or not entry['graphs']:
+                raise ValueError(f'missing graphs for {name}')
+            for group in entry['graphs']:
+                if any(not isinstance(group[key], list) for key in ('targets', 'packages', 'embedded', 'embed_patterns')):
+                    raise ValueError(f'invalid graph for {name}')
+                targets.extend(group['targets'])
+                for package in (*group['packages'], *group['embedded'], *group['embed_patterns']):
+                    if not isinstance(package, str) or not any(
+                            package == root.rstrip('/') or package.startswith(root)
+                            for root in (*GO_ROOTS, 'platform/')) or '..' in Path(package).parts:
+                        raise ValueError(f'invalid package path for {name}')
+            expected_targets = {'linux-armv7'} if name in PLATFORM_GO_COMMANDS else GO_TARGETS
+            if len(targets) != len(expected_targets) or set(targets) != expected_targets:
+                raise ValueError(f'incomplete targets for {name}')
+    except (KeyError, TypeError, json.JSONDecodeError, ValueError) as error:
+        raise ValueError(f'invalid Go command inventory: {error}') from error
+    return commands
+
+
+def go_input(row):
+    """Exclude docs/tests, but include source and embedded assets in Go modules."""
+    path = row['path']
+    source = path.endswith(GO_SOURCE_SUFFIXES) and not path.endswith('_test.go')
+    return path.startswith(GO_ROOTS) and (row['class'] != 'none' or source)
+
+
+
+def matches_embed(path, group):
+    if path in group['embedded']:
+        return True
+    # A pattern may name a directory, in which case Go embeds its descendants.
+    # Conservatively include hidden files and broad wildcard matches; the graph
+    # guard resolves the actual head's EmbedFiles before any evidence is accepted.
+    parts = path.split('/')
+    return any(fnmatch.fnmatchcase('/'.join(parts[:end]), pattern)
+               for pattern in group['embed_patterns']
+               for end in range(1, len(parts) + 1))
+
+
+def go_commands(rows, inventories):
+    """Identify candidate consumers; import reachability is not byte proof."""
+    found = {}
+    unknown = []
+    for row in rows:
+        path = row['path']
+        if not path.startswith(GO_ROOTS):
+            continue
+        fogcast_module = path in ('sources/FogCast/go.mod', 'sources/FogCast/go.sum')
+        expansion_module = path in ('sources/misteross/expansion/go.mod',
+                                    'sources/misteross/expansion/go.sum')
+        appliance_module = path in ('sources/FogCast/appliance/go.mod', 'sources/FogCast/appliance/go.sum')
+        matched = False
+        for inventory in inventories:
+            for command, entry in inventory.items():
+                embedded_targets = {target for group in entry['graphs'] if matches_embed(path, group)
+                                    for target in group['targets']}
+                if not go_input(row) and not embedded_targets:
+                    continue
+                if fogcast_module:
+                    targets = {target for group in entry['graphs']
+                               if any(package.startswith('sources/FogCast/') and
+                                      not (package == 'sources/FogCast/appliance' or
+                                           package.startswith('sources/FogCast/appliance/'))
+                                      for package in group['packages']) for target in group['targets']}
+                elif expansion_module:
+                    targets = {target for group in entry['graphs']
+                               if any(package == 'sources/misteross/expansion' or
+                                      package.startswith('sources/misteross/expansion/')
+                                      for package in group['packages']) for target in group['targets']}
+                elif appliance_module:
+                    targets = {target for group in entry['graphs']
+                               if any(package == 'sources/FogCast/appliance' or
+                                      package.startswith('sources/FogCast/appliance/')
+                                      for package in group['packages']) for target in group['targets']}
+                else:
+                    directory = path.rsplit('/', 1)[0]
+                    targets = {target for group in entry['graphs']
+                               if any(directory == package if path.endswith(GO_SOURCE_SUFFIXES)
+                                      else path.startswith(package + '/')
+                                      for package in group['packages'])
+                               for target in group['targets']}
+                targets |= embedded_targets
+                if not targets:
+                    continue
+                matched = True
+                item = found.setdefault(command, {'command': command, 'role': entry['role'],
+                                                   'paths': set(), 'targets': set(), 'embedded_paths': set()})
+                if item['role'] != entry['role']:
+                    raise ValueError(f'command role changed across revisions: {command}')
+                item['paths'].add(path)
+                item['targets'].update(targets)
+                if embedded_targets:
+                    item['embedded_paths'].add(path)
+        if go_input(row) and path.endswith(GO_SOURCE_SUFFIXES) and not matched:
+            unknown.append(path)
+    return ([{'command': item['command'], 'role': item['role'],
+              'paths': sorted(item['paths']), 'targets': sorted(item['targets'])}
+             | {'embedded_paths': sorted(item['embedded_paths'])}
+             for item in sorted(found.values(), key=lambda x: x['command'])], sorted(unknown))
+
+
+def go_import_changes(repo, base, head, paths):
+    """Compare package/import/build-tag headers at both exact revisions."""
+    pairs = []
+    for path in paths:
+        if not path.endswith('.go'):
+            continue
+        values = []
+        for revision in (base, head):
+            result = subprocess.run(['git', '-C', str(repo), 'show', revision + ':' + path],
+                                    text=True, capture_output=True)
+            values.append(result.stdout if result.returncode == 0 else None)
+        pairs.append({'path': path, 'before': values[0], 'after': values[1]})
+    if not pairs:
+        return []
+    env = os.environ.copy()
+    env.update(GOENV='off', GOWORK='off', GO111MODULE='off', GOPROXY='off',
+               GOTOOLCHAIN='local', GOFLAGS='')
+    helper = Path(__file__).resolve().with_name('hil_go_imports.go')
+    try:
+        result = subprocess.run(['go', 'run', str(helper)], input=json.dumps(pairs),
+                                text=True, capture_output=True, env=env, timeout=60, check=True)
+        changed = json.loads(result.stdout)
+        if not isinstance(changed, list) or any(path not in paths for path in changed):
+            raise ValueError('invalid Go import comparison output')
+        return changed
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
+        detail = (getattr(error, 'stderr', '') or '').strip()
+        raise ValueError(f'Go import graph comparison failed: {error}' +
+                         (f'\n{detail}' if detail else '')) from error
+
+
+def go_embed_changes(repo, base, head, paths, inventories):
+    """Detect additions/removals or stale EmbedFiles at either exact revision."""
+    changed = []
+    for path in paths:
+        memberships = []
+        uncertain = False
+        for revision, inventory in zip((base, head), inventories):
+            exact = {name for name, entry in inventory.items()
+                     if any(path in group['embedded'] for group in entry['graphs'])}
+            potential = any(matches_embed(path, group) for entry in inventory.values()
+                            for group in entry['graphs'])
+            exists = subprocess.run(['git', '-C', str(repo), 'cat-file', '-e', revision + ':' + path],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+            # A present new file matching a pattern but omitted from EmbedFiles
+            # means the inventory may predate it. Deleted paths need no head entry.
+            if potential and exists and not exact:
+                uncertain = True
+            memberships.append(exact)
+        if uncertain or memberships[0] != memberships[1]:
+            changed.append(path)
+    return changed
+
+
+def plan(paths, texts=None, go_inventories=None, go_graph_changes=None, inventory_errors=None):
     rows = [classify_path(path) for path in paths if path.strip()]
     for row in rows:
         if row['class'] == 'overlay' and row['rule'] in CORE_RULES:
@@ -517,6 +730,25 @@ def plan(paths, texts=None):
             if texts is None:
                 texts = script_texts()
             expand(row, script_importers(row['path'], texts))
+    possible = [row for row in rows if row['path'].startswith(GO_ROOTS)]
+    commands, unknown = [], []
+    if possible:
+        inventories = go_inventories if go_inventories is not None else [read_go_inventory()]
+        commands, unknown = go_commands(possible, inventories)
+        # Embedded files are deployed even when their extension (e.g. README.md)
+        # would ordinarily select the documentation-only shortcut.
+        for row in possible:
+            if row['class'] != 'none':
+                continue
+            consumers = [command for command in commands
+                         if row['path'] in command['embedded_paths'] or
+                         (go_input(row) and row['path'].endswith(GO_SOURCE_SUFFIXES) and row['path'] in command['paths'])]
+            if any(command['role'] in ('kit', 'kit-and-host') for command in consumers):
+                row.update({'class': 'overlay', 'component': 'kit-go+host',
+                            'rule': row['rule'] + ' <- Go source or embedded asset'})
+            elif any(command['role'] == 'host' for command in consumers):
+                row.update({'class': 'overlay', 'component': 'host:fogcast',
+                            'rule': row['rule'] + ' <- Go source or embedded asset'})
     worst = max((row['class'] for row in rows), key=lambda item: RANK[item], default='none')
     components = sorted({component for row in rows
                          if row['class'] == 'overlay' and row['component']
@@ -527,8 +759,31 @@ def plan(paths, texts=None):
         decision = 'OVERLAY ' + ' '.join(components)
     else:
         decision = 'NO_DEPLOY_CHANGE'
-    return {'rows': rows, 'class': worst, 'components': components,
-            'decision': decision}
+    result = {'rows': rows, 'class': worst, 'components': components,
+              'decision': decision}
+    relevant = [row for row in rows if go_input(row)]
+    if relevant or commands or inventory_errors:
+        required = [command for command in commands
+                    if command['role'] in ('image', 'host-tool', 'builder')]
+        advisory = [command for command in commands
+                    if command['role'] in ('standalone', 'simulation')]
+        # Path-only callers cannot compare source headers. A missing/new Go
+        # package or changed import/build constraints needs the CI graph guard.
+        unverified = ([row['path'] for row in relevant if row['path'].endswith('.go')] +
+                      [path for command in commands if command['role'] not in ('standalone', 'simulation')
+                       for path in command['embedded_paths']]
+                      if go_graph_changes is None else go_graph_changes)
+        unverified = sorted(set(unverified + unknown + (inventory_errors or []) +
+                            [row['path'] for row in relevant if row['path'].endswith(('/go.mod', '/go.sum'))]))
+        result['command_evidence'] = required
+        result['advisory_commands'] = advisory
+        result['go_graph_unverified'] = unverified
+        if required or unverified:
+            result['deployment_class'] = worst
+            result['deployment_decision'] = decision
+            result['class'] = 'analysis'
+            result['decision'] = 'COMMAND_EVIDENCE_REQUIRED'
+    return result
 
 
 def full_sha(value, label):
@@ -638,6 +893,16 @@ def show(plan_data, as_json=False):
     for row in plan_data['rows']:
         print(f"{row['class']:7} {row['component'] or '-':22} "
               f"{row['path']} [{row['rule']}]")
+    if plan_data.get('deployment_decision'):
+        print('DEPLOYMENT: ' + plan_data['deployment_decision'])
+    for command in plan_data.get('command_evidence', []):
+        print(f"REQUIRE: {command['command']} ({command['role']}) "
+              f"targets={','.join(command['targets'])}")
+    for command in plan_data.get('advisory_commands', []):
+        print(f"OPTIONAL: {command['command']} ({command['role']}) "
+              f"targets={','.join(command['targets'])}")
+    for path in plan_data.get('go_graph_unverified', []):
+        print('VERIFY GO GRAPH: ' + path)
     print('DECISION: ' + plan_data['decision'])
 
 
@@ -676,11 +941,27 @@ def main(argv=None):
             texts = script_texts(args.repo, head)
         else:
             raise ValueError('provide --paths-file or all of --repo, --base-image-commit, --head')
-        data = plan(paths, texts)
+        inventories = None
+        graph_changes = None
+        rows = [classify_path(path) for path in paths if path.strip()]
+        possible = [row['path'] for row in rows if row['path'].startswith(GO_ROOTS)]
+        relevant = [row['path'] for row in rows if go_input(row)]
+        inventory_errors = []
+        if possible and args.repo and args.base_image_commit and args.head and not args.paths_file:
+            inventories = []
+            for revision in (base, head):
+                try:
+                    inventories.append(read_go_inventory(args.repo, revision))
+                except ValueError as error:
+                    inventory_errors.append(str(error))
+            graph_changes = go_import_changes(args.repo, base, head, relevant)
+            if len(inventories) == 2:
+                graph_changes += go_embed_changes(args.repo, base, head, possible, inventories)
+        data = plan(paths, texts, inventories, graph_changes, inventory_errors)
         if gap:
             data['image_gap'] = gap
         show(data, args.json)
-        return 0
+        return 3 if data['decision'] == 'COMMAND_EVIDENCE_REQUIRED' else 0
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         print(str(error), file=sys.stderr)
         return 2

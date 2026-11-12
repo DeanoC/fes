@@ -45,7 +45,7 @@ def main() -> None:
             "-g2012",
             "-DQUARTUS=1",
             "-I",
-            str(root / "cores/fes-sg1000/generated"),
+            str(root / "cores/fes-common/generated"),
             "-s",
             test,
             "-o",
