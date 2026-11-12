@@ -1,0 +1,66 @@
+CASE registers MATCH
+CASE soft_reset_lock DIFFER LISTED
+DIFF soft_reset_lock 5 rtl=[RES 00 00 00 00 00 00 00 00 00 00] bochs=[RES 00 00 00 00 00 00 00 80 00 00]
+CASE invalid MATCH
+CASE seek MATCH
+CASE seek_below_zero MATCH
+CASE recalibrate_no_drive MATCH
+CASE read_track MATCH
+CASE read_eot_no_tc MATCH
+CASE read_tc_mid_sector MATCH
+CASE write_read MATCH
+CASE read_id MATCH
+CASE errors MATCH
+CASE format MATCH
+CASE disk_change MATCH
+CASE media_360_in_12 MATCH
+CASE media_720_in_144 MATCH
+CASE media_dmf MATCH
+CASE media_288 MATCH
+CASE no_media MATCH
+CASE dsr_reset MATCH
+CASE status_registers DIFFER LISTED
+DIFF status_registers 0 rtl=[IN 3f0 ff] bochs=[IN 3f0 00]
+DIFF status_registers 1 rtl=[IN 3f1 ff] bochs=[IN 3f1 00]
+DIFF status_registers 2 rtl=[IN 3f3 ff] bochs=[IN 3f3 20]
+CASE fm_read DIFFER LISTED
+DIFF fm_read 7 rtl=[RES 40 01 00 00 00 01 02] bochs=[TIMEOUT command byte]
+DIFF fm_read 8 rtl=[RES 40 01 00 00 00 01 02] bochs=[RES 80]
+DIFF fm_read 9 rtl=[RES 40 01 00 00 00 00 00] bochs=[TIMEOUT command byte]
+DIFF fm_read 10 rtl=[IMAGE 0 906c0e3f] bochs=[RES 80]
+DIFF fm_read 11 rtl=[-] bochs=[TIMEOUT command byte]
+DIFF fm_read 12 rtl=[-] bochs=[RES 80]
+CASE read_deleted DIFFER LISTED
+DIFF read_deleted 8 rtl=[RES 00 00 40 00 00 03 02] bochs=[RES 00 00 00 00 00 03 02]
+CASE write_deleted DIFFER LISTED
+DIFF write_deleted 7 rtl=[DMA-OUT 512] bochs=[TIMEOUT command byte]
+DIFF write_deleted 8 rtl=[RES 00 00 00 00 00 05 02] bochs=[TIMEOUT drq]
+DIFF write_deleted 9 rtl=[IRQ] bochs=[DMA-OUT 0]
+DIFF write_deleted 10 rtl=[RES 20 00] bochs=[RES 80]
+DIFF write_deleted 11 rtl=[DMA-IN 512 c906d311] bochs=[IRQ]
+DIFF write_deleted 12 rtl=[RES 00 00 00 00 00 05 02] bochs=[RES 20 00]
+CASE write_eot MATCH
+CASE write_tc_mid_sector DIFFER LISTED
+DIFF write_tc_mid_sector 15 rtl=[DMA-IN 512 b0bbc458] bochs=[DMA-IN 512 b6177bf6]
+DIFF write_tc_mid_sector 17 rtl=[IMAGE 0 4953326f] bochs=[IMAGE 0 73a383e2]
+CASE write_protected DIFFER LISTED
+DIFF write_protected 7 rtl=[RES 40 02 00 00 00 01 02] bochs=[RES 40 27 31 00 00 01 02]
+CASE unsupported DIFFER LISTED
+DIFF unsupported 7 rtl=[TIMEOUT command byte] bochs=[RES 00 00 00 01 00 01 02]
+DIFF unsupported 8 rtl=[RES 80] bochs=[TIMEOUT result]
+DIFF unsupported 10 rtl=[RES 80] bochs=[TIMEOUT result]
+DIFF unsupported 12 rtl=[RES 80] bochs=[TIMEOUT result]
+DIFF unsupported 14 rtl=[RES 80] bochs=[TIMEOUT result]
+DIFF unsupported 15 rtl=[TIMEOUT command byte] bochs=[IMAGE 0 906c0e3f]
+CASE format_bad_id DIFFER LISTED
+DIFF format_bad_id 9 rtl=[TIMEOUT drq] bochs=[DMA-OUT 60]
+DIFF format_bad_id 10 rtl=[DMA-OUT 16] bochs=[RES 01 00 00 00 00 00 00]
+DIFF format_bad_id 11 rtl=[RES 41 04 00 00 00 00 00] bochs=[IMAGE 1 8de09587]
+DIFF format_bad_id 12 rtl=[IMAGE 1 100614c2] bochs=[-]
+CASE insert_into_empty DIFFER LISTED
+DIFF insert_into_empty 8 rtl=[IN 3f7 ff] bochs=[IN 3f7 7f]
+CASE dma_gate DIFFER LISTED
+DIFF dma_gate 9 rtl=[INT low] bochs=[INT high]
+CASE pio_read_write RTL-ONLY
+CASE timing RTL-ONLY
+SUMMARY matched=20 differed=11 rtl_only=2 failures=0
