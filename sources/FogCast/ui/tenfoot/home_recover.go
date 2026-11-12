@@ -130,12 +130,30 @@ func (a *App) recoverHomeLocked(now time.Time) {
 	a.reopenHomeLocked()
 }
 
-// reopenHomeLocked replaces a failed root Home with a fresh instance, or
-// opens the picker when Home cannot be opened.
+// reopenHomeLocked replaces a failed root Home with a fresh instance of the
+// selected Home pack, or opens the picker when Home cannot be opened.
+//
+// This is not an update, so it skips the trial and rollback that
+// openInstalledRoomLocked applies to an installed pack: a fresh instance that
+// misses its deadline in the same CPU burst must not roll back or delete the
+// installed Home selection. A fresh instance that fails stays up with its
+// error panel, and recovery handles it like any other failure.
 func (a *App) reopenHomeLocked() {
 	a.closeRoomOverlaysLocked()
-	if !a.openHomeRoomAsRootLocked() {
-		a.closeRoomLocked()
-		a.openRoomPickerLocked()
+	id := strings.TrimSpace(a.homeRoom)
+	if !a.sessionStopOfferedLocked() && a.refreshInstalledRoomsLocked() {
+		pack, reason, ok := a.resolveHomeRoomLocked(id)
+		if ok {
+			a.closeAllRoomsLocked()
+			a.roomPickerOpen = false
+			if a.openValidRoomLocked(pack, "") {
+				return
+			}
+			a.roomErr = ""
+			reason = "open failed"
+		}
+		a.noteHomeRoomFallbackLocked(id, reason)
 	}
+	a.closeRoomLocked()
+	a.openRoomPickerLocked()
 }

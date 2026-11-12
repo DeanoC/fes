@@ -99,7 +99,8 @@ missing or invalid, or the room cannot be created, the Home picker is
 shown. The id and reason are written to stderr and posted once per
 start or Home attempt as `ui.home_room_fallback` (`room`, `reason`).
 They are not shown on the TV. Back inside a nested room pops as usual.
-Back at the home-room root opens Menu. While a session is
+Back at the home-room root opens Menu, except on a failed root Home,
+where Back or Confirm reopens a fresh Home (see Budgets). While a session is
 active, Home keeps the playing-view path and does not substitute
 `home_room`.
 

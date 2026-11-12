@@ -1469,7 +1469,9 @@ Home instance has run for 10 minutes without failing, so a Home that keeps
 failing stops at the panel instead of looping. A reopen waits while the room
 picker or Settings is open. Script, load and API errors are never reopened
 automatically. Back or Confirm on a failed root Home reopens Home, at any time
-and without using an automatic reopen; on any other failed room Back returns to
+and without using an automatic reopen. A reopen, automatic or by hand, opens
+the selected Home pack directly: it is not an update, so it never trials the
+pack or rolls back or deletes an installed Home selection; on any other failed room Back returns to
 the parent room or, at the root, opens the picker. A library or recents read that fails in the network
 stack shows the temporary unreachable copy and retries with the presentation
 backoff, from 400 ms up to 8 s, until the host answers or the load is replaced.

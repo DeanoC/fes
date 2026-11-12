@@ -207,6 +207,58 @@ func TestBackOnFailedRootHomeReopensHome(t *testing.T) {
 	}
 }
 
+// An installed Home that misses its deadline again right after a reopen must
+// keep its selection: reopening is not an update, so it never rolls back.
+func TestReopenKeepsInstalledHomeSelection(t *testing.T) {
+	root := t.TempDir()
+	installedTestRoom(t, root, "main-menu", "Previous", spinningRoomScript)
+	selected := installedTestRoom(t, root, "main-menu", "Selected", spinningRoomScript)
+	h := newRoomHost(t)
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{selected}), root)
+	app.SetHomeRooms(true)
+	app.SetHomeRoom("main-menu")
+	t.Cleanup(func() { app.mu.Lock(); defer app.mu.Unlock(); app.closeAllRoomsLocked() })
+	f := &homeRecoverFixture{t: t, app: app, now: time.Now()}
+	app.mu.Lock()
+	app.openValidRoomLocked(selected, "")
+	app.mu.Unlock()
+
+	wantSelected := func(what string) {
+		t.Helper()
+		packs, err := rooms.LoadDir(root)
+		if err != nil || len(packs) != 1 || packs[0].Revision != selected.Revision {
+			t.Fatalf("%s: installed Home selection changed: %v %v", what, packs, err)
+		}
+		inst := f.room()
+		if inst == nil || inst.ID() != "main-menu" || inst.Revision() != selected.Revision {
+			t.Fatalf("%s: want the selected Home open, got %v", what, inst)
+		}
+	}
+	failNow := func(what string) *rooms.Instance {
+		t.Helper()
+		f.tick(0)
+		inst := f.room()
+		if inst == nil || !errors.Is(inst.Err(), rooms.ErrBudget) {
+			t.Fatalf("%s: home did not fail on budget: %v", what, inst)
+		}
+		return inst
+	}
+
+	failed := failNow("first failure")
+	f.tick(homeReopenBackoff[0])
+	f.wantFresh(failed, "automatic reopen")
+	wantSelected("automatic reopen")
+
+	failed = failNow("after automatic reopen")
+	app.HandleCommand(CmdBack, f.now)
+	f.wantFresh(failed, "back")
+	wantSelected("back")
+	failNow("after back")
+	wantSelected("failed again")
+}
+
 func TestFailedNonRootRoomsAreNotRecovered(t *testing.T) {
 	t.Run("nested", func(t *testing.T) {
 		f := newHomeRecoverFixture(t, "")
