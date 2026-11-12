@@ -95,6 +95,12 @@ public:
     void out(uint16_t port, uint8_t value) override {
         if (!decoded(port)) return;
         top->access = 1; top->write = 1; top->address = port & 7; top->wdata = value;
+        if (eject_with_write >= 0) {
+            // The disk leaves in the same clock as this write.
+            present[eject_with_write] = false;
+            apply_drives();
+            eject_with_write = -1;
+        }
         cycle();
         top->access = 0; top->write = 0;
     }
@@ -134,6 +140,7 @@ public:
     bool busy() const { return top->busy; }
     bool fenced() const { return top->fenced; }
     void set_frozen(bool frozen) { top->frozen = frozen; cycle(); }
+    int eject_with_write = -1;            // a drive whose disk leaves with the next port write
 
 private:
     static bool decoded(uint16_t port) { return port == 0x3f2 || port == 0x3f4 || port == 0x3f5 || port == 0x3f7; }
@@ -795,6 +802,16 @@ std::vector<Case> cases() {
         r = g.results(1000000);
         g.check(r.size() == 7 && r[0] == 0x48, "a disk that left during spin-up ends the write: ST0 IC=01 NR");
         g.check(!g.f.drq(), "and it asks the new disk for nothing");
+        // A disk swapped in the clock its read's last command byte arrives.
+        g.controller_reset(0x1c);
+        auto bytes = rw(0xe6, 0, 8, 0, 1, 18);
+        g.command(std::vector<uint8_t>(bytes.begin(), bytes.end() - 1));
+        g.rqm(0xc0, 0x80, 1000, "last command byte");
+        rtl.eject_with_write = 0;
+        g.out(0x3f5, bytes.back());
+        g.insert(0, Disk{G144, 11});
+        r = g.results(1000000);
+        g.check(r.size() == 7 && r[0] == 0x48, "a disk that left with the last command byte ends the read: NR");
     }});
     list.push_back({"timing", 4, 2, true, [](Guest &g) {
         g.boot(&A144);

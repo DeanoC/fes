@@ -147,7 +147,11 @@ module pc386_fdc #(
     reg [7:0] format_cyl, format_left;
     reg [1:0] id_byte;
     reg format_cyl_set, format_bad;
-    reg disk_left;                                 // the command's disk left its drive
+    // Per drive: a disk left it since the current command's first byte.
+    // Any eject sets it, the next command's first byte clears it, and an
+    // eject in that same clock wins.
+    reg [1:0] left;
+    wire disk_left = left[d];
     reg [8:0] index;                               // byte within the sector
 
     wire d = dor[0];                               // the selected drive
@@ -424,7 +428,7 @@ module pc386_fdc #(
             changed <= 0; present_q <= present;
             st0 <= 0; st1 <= 0; st2 <= 0; st3 <= 0; last_result <= 0;
             pending_irq <= 0; pio_irq <= 0; reset_sensei <= 0;
-            phase <= P_COMMAND; result_kind <= R_ST0; ex <= X_DISPATCH; disk_left <= 0;
+            phase <= P_COMMAND; result_kind <= R_ST0; ex <= X_DISPATCH; left <= 0;
             command <= 0; command_index <= 0; command_size_r <= 0; result_index <= 0; result_size <= 0;
             wait_us <= 0; recalibrating <= 0; moved <= 0; writing <= 0; tc_seen <= 0; drq_r <= 0;
             steps <= 0; format_cyl <= 0; format_left <= 0; id_byte <= 0; format_cyl_set <= 0; format_bad <= 0;
@@ -437,7 +441,6 @@ module pc386_fdc #(
             // A disk leaving or arriving sets its drive's change latch.
             present_q <= present;
             for (k = 0; k < 2; k = k + 1) if (present[k] != present_q[k]) changed[k] <= 1;
-            if (phase == P_EXEC && present_q[d] && !present[d]) disk_left <= 1;
 
             // ---- The store engine and the fetch burst
             if (storing) begin
@@ -483,6 +486,7 @@ module pc386_fdc #(
                 3'd5: if (phase == P_COMMAND) begin
                     command[command_index] <= wdata;
                     if (command_index == 4'd0) begin
+                        left <= 2'b00;
                         msr <= {4'b1001, msr[3:0]};
                         if (command_size(wdata) == 4'd0) begin
                             st0 <= 8'h80;
@@ -499,6 +503,8 @@ module pc386_fdc #(
                 end
                 default: ;
             endcase
+
+            for (k = 0; k < 2; k = k + 1) if (present_q[k] && !present[k]) left[k] <= 1;
 
             // ---- Result reads
             if (access && !write && address == 3'd5 && !pio_take) begin
@@ -524,7 +530,7 @@ module pc386_fdc #(
             // ---- Execution
             if (phase == P_EXEC && !reset_write) case (ex)
                 X_DISPATCH: begin
-                    writing <= 0; tc_seen <= 0; index <= 0; disk_left <= 0;
+                    writing <= 0; tc_seen <= 0; index <= 0;
                     case (op)
                         8'h03: begin
                             srt <= command[1][7:4]; hut <= command[1][3:0];
