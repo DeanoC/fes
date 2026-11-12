@@ -44,6 +44,9 @@ func (p *procReader) read() (contentionSnapshot, bool) {
 	}
 	fields := bytes.Fields(load)
 	snap := contentionSnapshot{at: at, loadavg: string(bytes.Join(fields[:min(4, len(fields))], []byte(" ")))}
+	if up, err := p.file("uptime"); err == nil {
+		snap.uptime, snap.haveUptime = parseUptime(up)
+	}
 	p.scan(&snap)
 	snap.done = p.clock()
 	return snap, true
@@ -70,11 +73,11 @@ func (p *procReader) scan(snap *contentionSnapshot) {
 		if err != nil {
 			continue
 		}
-		comm, ticks, ok := parsePidStat(data)
+		comm, ticks, start, ok := parsePidStat(data)
 		if !ok {
 			continue
 		}
-		snap.procs[pid] = procTicks{comm: string(comm), ticks: ticks}
+		snap.procs[pid] = procTicks{comm: string(comm), ticks: ticks, start: start}
 	}
 }
 
@@ -135,34 +138,64 @@ func parseProcStat(data []byte) (total, idle uint64, cpus int, ok bool) {
 	return total, idle, cpus, ok
 }
 
-// parsePidStat reads comm and utime+stime from /proc/<pid>/stat. comm may
-// contain spaces and parentheses, so the fields start after the last ')'.
-func parsePidStat(data []byte) (comm []byte, ticks uint64, ok bool) {
+// parsePidStat reads comm, utime+stime and starttime from /proc/<pid>/stat.
+// comm may contain spaces and parentheses, so the fields start after the last
+// ')'.
+func parsePidStat(data []byte) (comm []byte, ticks, start uint64, ok bool) {
 	open, end := bytes.IndexByte(data, '('), bytes.LastIndexByte(data, ')')
 	if open < 0 || end < open {
-		return nil, 0, false
+		return nil, 0, 0, false
 	}
-	// After comm come state (field 3) ... utime (14) and stime (15).
+	// After comm come state (field 3) ... utime (14), stime (15) and
+	// starttime (22).
 	rest := data[end+1:]
-	for field := 0; field <= 12; field++ {
+	for field := 0; field <= 19; field++ {
 		rest = bytes.TrimLeft(rest, " ")
 		i := bytes.IndexByte(rest, ' ')
 		if i < 0 {
 			i = len(rest)
 		}
 		if i == 0 {
-			return nil, 0, false
+			return nil, 0, 0, false
 		}
-		if field >= 11 {
+		if field == 11 || field == 12 || field == 19 {
 			n, ok := parseUint(bytes.TrimRight(rest[:i], "\n"))
 			if !ok {
-				return nil, 0, false
+				return nil, 0, 0, false
 			}
-			ticks += n
+			if field == 19 {
+				start = n
+			} else {
+				ticks += n
+			}
 		}
 		rest = rest[i:]
 	}
-	return data[open+1 : end], ticks, true
+	return data[open+1 : end], ticks, start, true
+}
+
+// parseUptime reads the first field of /proc/uptime, seconds since boot with
+// a fraction.
+func parseUptime(data []byte) (time.Duration, bool) {
+	f := bytes.Fields(data)
+	if len(f) == 0 {
+		return 0, false
+	}
+	whole, frac, _ := bytes.Cut(f[0], []byte("."))
+	secs, ok := parseUint(whole)
+	if !ok {
+		return 0, false
+	}
+	up := time.Duration(secs) * time.Second
+	scale := time.Second
+	for _, c := range frac {
+		if c < '0' || c > '9' {
+			return 0, false
+		}
+		scale /= 10
+		up += time.Duration(c-'0') * scale
+	}
+	return up, true
 }
 
 func parseUint(b []byte) (uint64, bool) {

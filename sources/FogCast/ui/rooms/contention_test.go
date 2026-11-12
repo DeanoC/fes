@@ -10,27 +10,33 @@ import (
 
 func contentionPair() (base, now contentionSnapshot) {
 	t0 := time.Unix(1000, 0)
+	// Uptime 100s is 10000 ticks: processes in the baseline started at 100.
 	base = contentionSnapshot{at: t0, loadavg: "0.50 0.40 0.30 1/80",
 		cpuTotal: 1000, cpuIdle: 800, haveCPU: true, cpus: 2,
+		uptime: 100 * time.Second, haveUptime: true,
 		procs: map[int]procTicks{
-			1:   {comm: "init", ticks: 5},
-			40:  {comm: "fogcast-api", ticks: 300},
-			41:  {comm: "mister-runtime", ticks: 50},
-			42:  {comm: "fogcast-tenfoot", ticks: 70},
-			43:  {comm: "old-name", ticks: 900},
-			44:  {comm: "idle-daemon", ticks: 12},
-			400: {comm: "exited", ticks: 99},
+			1:   {comm: "init", ticks: 5, start: 1},
+			40:  {comm: "fogcast-api", ticks: 300, start: 100},
+			41:  {comm: "mister-runtime", ticks: 50, start: 100},
+			42:  {comm: "fogcast-tenfoot", ticks: 70, start: 100},
+			43:  {comm: "old-name", ticks: 900, start: 100},
+			44:  {comm: "idle-daemon", ticks: 12, start: 100},
+			45:  {comm: "kworker/0:1-events", ticks: 160, start: 2},
+			400: {comm: "exited", ticks: 99, start: 100},
 		}}
 	now = contentionSnapshot{at: t0.Add(1250 * time.Millisecond), loadavg: "3.52 2.10 0.95 6/83",
 		cpuTotal: 1250, cpuIdle: 810, haveCPU: true, cpus: 2,
+		uptime: 101250 * time.Millisecond, haveUptime: true,
 		procs: map[int]procTicks{
-			1:  {comm: "init", ticks: 5},
-			40: {comm: "fogcast-api", ticks: 400},    // 1s
-			41: {comm: "mister-runtime", ticks: 90},  // 400ms
-			42: {comm: "fogcast-tenfoot", ticks: 95}, // 250ms
-			43: {comm: "fogcast-kit", ticks: 20},     // pid reused: all 200ms
-			44: {comm: "idle-daemon", ticks: 12},
-			50: {comm: "fes-scan", ticks: 10}, // new: all 100ms
+			1:  {comm: "init", ticks: 5, start: 1},
+			40: {comm: "fogcast-api", ticks: 400, start: 100},            // 1s
+			41: {comm: "mister-runtime", ticks: 90, start: 100},          // 400ms
+			42: {comm: "fogcast-tenfoot", ticks: 95, start: 100},         // 250ms
+			43: {comm: "fogcast-kit", ticks: 20, start: 10050},           // pid reused in the window: all 200ms
+			44: {comm: "idle-daemon", ticks: 12, start: 100},             // idle
+			45: {comm: "kworker/0:1-mm_percpu_wq", ticks: 163, start: 2}, // renamed: 30ms
+			50: {comm: "fes-scan", ticks: 10, start: 10100},              // new: all 100ms
+			51: {comm: "unlisted", ticks: 164, start: 3},                 // missed by the baseline: skipped
 		}}
 	return base, now
 }
@@ -44,7 +50,7 @@ func TestContentionTextFormats(t *testing.T) {
 	}
 	if got, want := contentionText(now, &base, tick, contentionLogTop),
 		"load 3.52 2.10 0.95 6/83; over 1.25s cpu 96% busy of 2; top fogcast-api 80% (pid 40, 1s), mister-runtime 32% (pid 41, 400ms), "+
-			"fogcast-tenfoot 20% (pid 42, 250ms), fogcast-kit 16% (pid 43, 200ms), fes-scan 8% (pid 50, 100ms)"; got != want {
+			"fogcast-tenfoot 20% (pid 42, 250ms), fogcast-kit 16% (pid 43, 200ms), fes-scan 8% (pid 50, 100ms), kworker/0:1-mm_percpu_wq 2% (pid 45, 30ms)"; got != want {
 		t.Fatalf("log text\n got %q\nwant %q", got, want)
 	}
 	if got, want := contentionText(now, nil, tick, contentionPanelTop), "load 3.52 2.10 0.95 6/83; no cpu baseline"; got != want {

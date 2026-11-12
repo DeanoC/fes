@@ -36,10 +36,14 @@ const (
 	contentionLogTop   = 8
 )
 
-// procTicks is one process's cumulative user+system CPU in clock ticks.
+// procTicks is one process's cumulative user+system CPU and its start time
+// since boot, both in clock ticks. A process is its pid and start together:
+// comm is only a label, since a kernel worker renames itself for each
+// workqueue it runs, and a pid can be reused by a later process.
 type procTicks struct {
 	comm  string
 	ticks uint64
+	start uint64
 }
 
 // contentionSnapshot is the system's load and per-process CPU, read between
@@ -54,7 +58,12 @@ type contentionSnapshot struct {
 	cpuTotal, cpuIdle uint64
 	haveCPU           bool
 	cpus              int
-	procs             map[int]procTicks
+	// uptime is /proc/uptime, read when the snapshot started, so a process
+	// that started after it is new in a later window. haveUptime is false
+	// when it was unreadable.
+	uptime     time.Duration
+	haveUptime bool
+	procs      map[int]procTicks
 }
 
 // end is when the read finished.
@@ -210,13 +219,18 @@ func contentionText(now contentionSnapshot, base *contentionSnapshot, tick time.
 }
 
 // topProcs lists processes that used CPU since base, busiest first. A
-// process that started after base counts all its CPU.
+// process in base, the same pid with the same start time, counts the CPU it
+// used since. A process not in base counts all its CPU only if it started
+// after base was read; otherwise base missed it (a scan race) and its
+// lifetime CPU would be charged to the window, so it is skipped.
 func topProcs(now, base contentionSnapshot, tick time.Duration) []procUsage {
 	var used []procUsage
 	for pid, p := range now.procs {
 		ticks := p.ticks
-		if old, ok := base.procs[pid]; ok && old.comm == p.comm && old.ticks <= ticks {
-			ticks -= old.ticks
+		if old, ok := base.procs[pid]; ok && old.start == p.start {
+			ticks -= min(old.ticks, ticks)
+		} else if !base.haveUptime || time.Duration(p.start)*tick < base.uptime {
+			continue
 		}
 		if ticks == 0 {
 			continue
