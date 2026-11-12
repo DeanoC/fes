@@ -1872,14 +1872,13 @@ module fes_i386_cpu #(
         // (nx: all but a probe of a slot to be pushed and ENTER's last check,
         // Bochs's tickle_write_virtual, each a write's: wx). A probe so
         // faults as the push it stands for, in the pushes' order, as Bochs
-        // pushes and faults. XCHG's and ARPL's load of their memory
-        // operand translates as a write too (wx), as Bochs reads it for a
-        // read-modify-write (W/R set in a #PF's error code, D set).
+        // pushes and faults. XCHG's load translates as a write (wx).
+        // ARPL's initial load is a read; only an RPL adjustment writes,
+        // so that separate store performs the write translation (#1665).
         d_out.ipp0 = dc.pp0;
         d_out.ipp1 = dc.pp1;
         d_out.nx = d_out.nodata && !dc.str_fin && dc.stk != fes_i386_pkg::STK_PROBE;
-        d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE
-                || xchg_ld || mkind == fes_i386_pkg::MEM_LOAD && !dc.gov.two && dc.gov.op == 8'h63;
+        d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE || xchg_ld;
         d_out.ones = tsf_any && !tsf_32 && u.dst.valid && u.dst.space == fes_i386_pkg::RS_GPR;
         d_out.iret0 = d_first && dc.fetched && !d_ifw && !cs_gp
                    && u.ctl.fault == fes_i386_pkg::FAULT_NONE && dc.seq == fes_i386_pkg::SEQ_UCODE

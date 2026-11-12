@@ -412,7 +412,8 @@ def run_paging(testbench: str, env: dict) -> dict:
     switches under paging: #PF through a task gate and back by IRET, a new
     CR3 that maps the GDT elsewhere, a new TSS on a page not present; #UD
     for what the 386 rejects at CPL 0 and 3 and in V86 mode, before a
-    memory operand on a page not present (#1701)."""
+    memory operand on a page not present (#1701); ARPL paging read/write
+    semantics, checked on the RTL alone where Bochs differs (#1665)."""
     env = dict(env, FES_I386_MODE='paging', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -424,8 +425,8 @@ def run_paging(testbench: str, env: dict) -> dict:
 
 
 # 77, and #1701's #UD at CPL 0 and 3 before a memory operand on a page not
-# present (8 each) and its 42 probes in V86 mode.
-PAGING_CASES = 77 + 2 * 8 + 42
+# present (8 each), its 42 probes in V86 mode, and 6 ARPL paging cases.
+PAGING_CASES = 77 + 2 * 8 + 42 + 6
 
 
 def run_no387(testbench: str, env: dict) -> dict:
