@@ -70,6 +70,8 @@ not permission to add another lock.
 Quartus recipes (`make build-fes-zx81-quartus`, `build-fes-coleco-quartus`,
 `build-fes-sg1000-quartus`, `build-fes-sms-quartus`) are bring-up oracles.
 A failed HIP route does not fall back to Quartus. Quartus never programs a kit.
+The ZX81 oracle emits a format-2 `fes.computer` package with its ROM embedded;
+unlike the standard format-3 package, it has no expansion socket or ROM map.
 `--compile-only`, where the recipe has it, writes an RBF and timing evidence
 without sealing. `--synth-only` on the OSS producers is a dirty-tree Yosys
 probe and does not seal.
