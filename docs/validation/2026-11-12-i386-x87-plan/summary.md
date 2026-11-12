@@ -426,8 +426,8 @@ order.
   follow the 387's method within its error bound, but not both. Lockstep
   compares transcendental results within a bound in ulps and their flags
   exactly. Measured 387 results, from a real 386+387, would set that bound.
-- **Precision control** reduces add, multiply, divide and square root
-  results to 24 or 53 bits; the census below shows which titles run at
+- **Precision control** reduces add, subtract, multiply, divide and square
+  root results to 24 or 53 bits; the census above shows which titles run at
   which precision.
 
 ## Area and timing budget
@@ -542,10 +542,13 @@ with:
 - a kit run on that seal: the titles it unlocks, and DOOM's
   `-timedemo demo3` and the acceptance games rechecked.
 
-A timing miss stops the slice; it never relaxes a check. Until slice 4
-lands, the `i386dx+387` identity stays off in every package: with it on,
-titles that probe would find a 387 that cannot yet compute, and take their
-FPU paths.
+A timing miss stops the slice; it never relaxes a check. The
+`i386dx+387` identity is a machine setting, and it defaults off in every
+package until slice 5 lands: with it on, titles that probe would find a 387
+that cannot yet compute everything they use. Quake, Screamer, Terminal
+Velocity and Chris's benchmark all run FSIN and FCOS, and Screamer and
+Chris's benchmark also F2XM1 and FYL2X (x^y); Screamer runs FPATAN too. A slice's own kit run
+switches the identity on for its checks only.
 
 0. **Census and oracle.** Land this record's census keys in
    `machine_tb --census`. Give the oracle adapter the AT's error path:
@@ -583,8 +586,8 @@ FPU paths.
    directed FPREM and FPREM1 cases over large exponent differences, checking
    each partial step's C2 and the final C0, C3 and C1 quotient bits; QEMU's
    fprem test.
-   With slices 2–4, the identity can be switched on (Deano's call): the
-   census says which titles then run.
+   The identity stays off by default: every title the census found computing,
+   except SpeedSys's FPU test, also runs a transcendental.
 5. **Transcendentals.** FSIN, FCOS, FSINCOS, FPTAN, FPATAN, F2XM1, FYL2X,
    FYL2XP1, FBLD and FBSTP, in microcode on the slice 3–4 datapath or on the
    HPS (option D). **Gate:** results within the agreed ulp bound of the
@@ -593,7 +596,8 @@ FPU paths.
 6. **Timing and acceptance.** The governor's ESC classes with the 387's
    clocks and the overlap for the presets; Quake's timedemo, the FPU titles
    and benchmarks on the kit, Linux 2.0.0 with its 387, WfW 3.11; the
-   census rerun on the RTL with the identity on.
+   census rerun on the RTL with the identity on. From here the identity's
+   default is Deano's call.
 
 ## Open questions for Deano
 
@@ -612,7 +616,7 @@ These are Deano's decisions; the plan does not settle them.
    tested 386DX-33. If that machine, or any 386 with a 387, can run a
    capture program, it settles FNSTCW's wait behaviour, transcendental
    results, and the ulp bound.
-5. **The identity's default** once slices 2–4 land: on for every title, or
+5. **The identity's default** once slice 5 lands: on for every title, or
    per title, as the presets are.
 
 ## Sources
