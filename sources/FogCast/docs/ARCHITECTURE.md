@@ -4483,3 +4483,12 @@ archive on the launcher's machine:
 fogcast-tenfoot room-export --output my-room.room.zip /path/to/my-room
 fogcast-tenfoot room-install --rooms /path/to/rooms my-room.room.zip
 ```
+
+
+Cold opening the durable kit package store validates each intact archive/member
+pair once. Selected packages are validated before recovery and their exact
+size/mtime/ctime/device/inode/mode/member fingerprints may be reused within that
+open. An incomplete archive/member inventory takes the existing interrupted
+installation recovery path; selected missing or corrupt data is never repaired
+silently. Launch still performs fresh payload inspection. This avoids duplicate
+cold-start hashing before the agent can serve its health endpoint.

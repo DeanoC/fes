@@ -241,6 +241,18 @@ func (s *Store) recover(ctx context.Context, r *os.Root) error {
 	if _, err := s.selections(ctx, r); err != nil {
 		return err
 	}
+	// A complete publication needs one archive/member verification per package.
+	// selections has already verified selected packages in this process; reuse
+	// those exact stat-bound results instead of hashing them again. A missing
+	// publication still takes the archive recovery path below.
+	if ids, err := installedIDs(r); err == nil {
+		for _, id := range ids {
+			if _, err := s.listingInspection(ctx, r, id); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	list, err := s.archives.List(ctx)
 	if err != nil {
 		return err
