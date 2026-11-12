@@ -480,22 +480,78 @@ function M.outline(x, y, w, h, t, color)
   gfx.rect(x + w - t, y, t, h, color)
 end
 
-function M.keyboard(x, y, w, h, key, ground)
+-- gfx.measure, remembered: the same few labels are measured on every
+-- redraw. Dropped when it grows, so changing titles cannot fill it.
+local measured, measured_n = {}, 0
+function M.measure(text, size, bold)
+  local by_size = measured[bold and size or -size]
+  local m = by_size and by_size[text]
+  if m then return m[1], m[2] end
+  if measured_n >= 256 then measured, measured_n = {}, 0 end
+  local w, h = gfx.measure(text, size, bold)
+  by_size = measured[bold and size or -size]
+  if not by_size then
+    by_size = {}
+    measured[bold and size or -size] = by_size
+  end
+  by_size[text] = { w, h }
+  measured_n = measured_n + 1
+  return w, h
+end
+
+-- gfx.text with one reused options table: gfx.text reads it during the call.
+local text_opts = {}
+function M.text(str, x, y, size, bold, color, max_w, align)
+  local o = text_opts
+  o.size, o.bold, o.color, o.max_w, o.align = size, bold, color, max_w, align
+  gfx.text(str, x, y, o)
+end
+
+-- A keyboard's keys as one gfx.rects list and its space bar, kept for each
+-- exact x, y, w and h a keyboard was drawn at: marks are redrawn in the same
+-- few places, so their keys are computed once per place. Each width keeps
+-- an array of places, so a new place allocates no hash table.
+local keyboards, keyboards_n = {}, 0   -- w -> { {x, y, h, keys, bar}, ... }
+local function keyboard_keys(x, y, w, h)
+  local placed = keyboards[w]
+  if placed then
+    for i = 1, #placed do
+      local e = placed[i]
+      if e[1] == x and e[2] == y and e[3] == h then return e[4], e[5] end
+    end
+  end
+  -- New places come with a new room size: past 128, start again.
+  if keyboards_n >= 128 then keyboards, keyboards_n, placed = {}, 0, nil end
+  if not placed then
+    placed = {}
+    keyboards[w] = placed
+  end
+  keyboards_n = keyboards_n + 1
+  local keys, n = {}, 0
   local rows, cols = 4, 10
   local gap = math.max(2, math.floor(w / 80))
   local kw = (w - gap * (cols + 1)) / cols
   local kh = (h - gap * (rows + 1)) / rows
-  gfx.rect(x, y, w, h, C.dark)
   for r = 0, rows - 1 do
     local inset = (r % 2) * kw / 3
     for c = 0, cols - 1 do
       local kx = x + gap + c * (kw + gap) + inset
       if kx + kw <= x + w - gap then
-        gfx.rect(kx, y + gap + r * (kh + gap), kw, kh, key)
+        keys[n + 1], keys[n + 2], keys[n + 3], keys[n + 4] = kx, y + gap + r * (kh + gap), kw, kh
+        n = n + 4
       end
     end
   end
-  gfx.rect(x + w * 0.25, y + h - gap - kh, w * 0.5, kh, ground)
+  local bar = { x + w * 0.25, y + h - gap - kh, w * 0.5, kh }
+  placed[#placed + 1] = { x, y, h, keys, bar }
+  return keys, bar
+end
+
+function M.keyboard(x, y, w, h, key, ground)
+  local keys, bar = keyboard_keys(x, y, w, h)
+  gfx.rect(x, y, w, h, C.dark)
+  gfx.rects(keys, key)
+  gfx.rect(bar[1], bar[2], bar[3], bar[4], ground)
 end
 
 -- A family's placeholder mark: its ground, its short mark and a keyboard.
@@ -504,9 +560,9 @@ function M.mark(f, x, y, w, h)
   local art = f.art
   gfx.rect(x, y, w, h, art.ground)
   local size = math.max(14, math.min(math.floor(h * 0.30), math.floor(w / (#art.mark * 0.62 + 0.5))))
-  local tw, th = gfx.measure(art.mark, size, true)
+  local tw, th = M.measure(art.mark, size, true)
   local ty = y + h * 0.06
-  gfx.text(art.mark, x + (w - tw) / 2, ty, { size = size, bold = true, color = C.on_accent })
+  M.text(art.mark, x + (w - tw) / 2, ty, size, true, C.on_accent)
   local ky = ty + th + h * 0.06
   local kh = math.min(h * 0.32, y + h - ky - h * 0.08)
   if kh < 8 then return end
@@ -517,19 +573,19 @@ end
 -- The shared state chip: Ready filled, Unavailable a raised plate with a
 -- leading bar, Checking outlined.
 function M.chip(label, x, y, size)
-  local tw, th = gfx.measure(label, size, true)
+  local tw, th = M.measure(label, size, true)
   local pad = math.floor(size * 0.55)
   local h = th + math.floor(size * 0.5)
   if label == "Ready" then
     gfx.rect(x, y, tw + pad * 2, h, C.accent)
-    gfx.text(label, x + pad, y + (h - th) / 2, { size = size, bold = true, color = C.on_accent })
+    M.text(label, x + pad, y + (h - th) / 2, size, true, C.on_accent)
   elseif label == "Unavailable" then
     gfx.rect(x, y, tw + pad * 2 + 5, h, C.raised)
     gfx.rect(x, y, 5, h, C.dark)
-    gfx.text(label, x + 5 + pad, y + (h - th) / 2, { size = size, bold = true, color = C.text })
+    M.text(label, x + 5 + pad, y + (h - th) / 2, size, true, C.text)
   else
     M.outline(x, y, tw + pad * 2, h, 2, C.secondary)
-    gfx.text(label, x + pad, y + (h - th) / 2, { size = size, bold = true, color = C.text })
+    M.text(label, x + pad, y + (h - th) / 2, size, true, C.text)
   end
 end
 
@@ -542,12 +598,12 @@ function M.header(m, hh, title)
   gfx.rect(m, my, bar * 3, bar, C.accent)
   gfx.rect(m, my + bar * 1.5, bar * 3, bar, C.accent)
   gfx.rect(m, my + bar * 3, bar * 1.6, bar, C.accent)
-  local fw, th = gfx.measure("FES", 28, true)
-  gfx.text("FES", m + bar * 3 + 12, (hh - th) / 2, { size = 28, bold = true, color = C.text })
+  local fw, th = M.measure("FES", 28, true)
+  M.text("FES", m + bar * 3 + 12, (hh - th) / 2, 28, true, C.text)
   local fx = m + bar * 3 + 12 + fw + 18
   gfx.rect(fx, hh * 0.3, 2, hh * 0.4, C.divider)
-  local _, rh = gfx.measure(title, 22)
-  gfx.text(title, fx + 18, (hh - rh) / 2, { size = 22, color = C.text })
+  local _, rh = M.measure(title, 22)
+  M.text(title, fx + 18, (hh - rh) / 2, 22, nil, C.text)
 end
 
 return M

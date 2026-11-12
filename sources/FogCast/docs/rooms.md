@@ -232,6 +232,7 @@ plane that is what lets the running machine show through.
 | --- | --- |
 | `gfx.clear(color)` | background for this frame |
 | `gfx.rect(x, y, w, h, color)` | filled rectangle |
+| `gfx.rects(list, color)` | one filled rectangle in `color` for each `x, y, w, h` in the flat `list` `{x1, y1, w1, h1, x2, ...}`: the ops of a `gfx.rect` call per rectangle, in one call |
 | `gfx.image(img, x, y[, w, h[, sx, sy, sw, sh]])` | blit an `image` handle (skipped until `img.ready`) |
 | `gfx.text(str, x, y[, {size=18, bold=false, color=, max_w=0, align="left"}])` | text in the embedded UI face; `align` is `left`, `center` or `right` (relative to `x`, or within `max_w` when set) |
 | `gfx.measure(str, size[, bold]) -> w, h` | text metrics |
@@ -241,8 +242,23 @@ plane that is what lets the running machine show through.
 | `gfx.paint(commands)` | record a whole frame in one call. Each command is `{"c", color}`, `{"r", x, y, w, h, color}`, `{"t", text, x, y, size, color, max_w, bold, align}`, `{"i", image, x, y, w, h}` or `{"h", id, x, y, w, h}` |
 | `gfx.extend(commands)` | append those commands to the frame already presented, after any drawing recorded earlier in this draw. A clear already recorded in this draw replaces the presented clear |
 | `gfx.reuse()` | keep the frame already presented and return true. Returns false until one has been presented. Call it before other drawing |
+| `gfx.segment(key, fn, ...)` | draw `fn(...)` as a run named `key`, or copy the run the presented frame drew under `key` without calling `fn`. Returns true when it copied |
 
 `gfx.paint` records the frame in one call. Include a clear command (`{"c", color}`). `gfx.extend` copies the presented frame, keeps ops and hits already recorded in this draw after that copy, then appends its commands. A clear recorded before the call replaces the presented clear, and a clear inside the commands replaces that. A second `gfx.extend` in the same draw appends more commands and does not copy the presented frame again, so a picture can be filled in over several draws. A finished paint or extend that misses only the soft budget is still presented, and `room.presented` becomes true, so the next unchanged draw can call `gfx.reuse` and return. Eight consecutive slow paints still retire the room. A draw that does not paint, and misses the soft budget, keeps the previous frame and sets `room.presented` false. The 4× hard deadline still retires the room on that callback.
+
+`gfx.segment` lets a draw redraw only the parts of a picture that changed.
+The run is every op and hit region `fn` records, in order; a copy puts them
+at the same place in the new frame, so hit order is what `fn` would give.
+The key must name everything the run's pixels depend on apart from the room
+size, such as focus and a data generation: Lua is not run to check. A run
+is copied only from the frame on screen and only when the clip rectangles
+and blend mode before it are the same. A resize, a frame that is not
+presented (`room.presented` false) and a new room instance drop every run.
+`gfx.reuse` keeps them, and `gfx.extend` keeps the presented frame's runs
+and moves runs drawn earlier in that draw behind the copy. A run that
+skipped an image still loading is not kept. A key may be drawn once per
+frame, and runs do not nest. Inside `fn`, `gfx.clear`, `gfx.paint`,
+`gfx.extend` and `gfx.reuse` raise an error: a copy holds only ops and hits.
 
 There are no lines, circles or rotation: the device has none. Draw paths as
 chains of small rects (see `widgets.nodemap`).

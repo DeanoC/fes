@@ -165,7 +165,9 @@ type Instance struct {
 	// extendCopied is set once gfx.extend has copied the presented frame
 	// into this draw. A later extend appends without copying it again.
 	extendCopied bool
-	actions      []Action
+	// seg holds gfx.segment runs of the presented and the building frame.
+	seg     segments
+	actions []Action
 	// firmwareInfo is the latest first-use firmware request, kept apart from
 	// actions: a workbench repeats it on every load.
 	firmwareInfo *Action
@@ -187,6 +189,9 @@ type Instance struct {
 	// threadSample, when set, replaces the OS read of the callback thread's
 	// CPU time and switches. Tests use it. Production leaves it nil.
 	threadSample func() (threadUsage, bool)
+	// work, when set, counts each callback's Lua instructions and draw
+	// ops. Tests use it. Production leaves it nil.
+	work *workMeter
 	// frameStreak and inputStreak describe the current run of consecutive
 	// soft overruns, reported when that run retires the room.
 	frameStreak     overrunStreak
@@ -360,6 +365,7 @@ func (r *Instance) Load() error {
 	}
 	r.started = r.opts.Now()
 	r.last = r.started
+	r.workKind("main")
 	if _, err := r.call(fn, r.budget.Load, 0); err != nil {
 		return r.fail(err)
 	}
@@ -389,6 +395,7 @@ func (r *Instance) Step(now time.Time) Frame {
 	r.roomTable.RawSetString("time", lua.LNumber(r.elapsed))
 	r.lastStep = StepTiming{}
 	asyncStart := time.Now()
+	r.workKind("async")
 	r.drainResults()
 	updateStart := time.Now()
 	r.lastStep.Async = updateStart.Sub(asyncStart)
@@ -411,12 +418,16 @@ func (r *Instance) Step(now time.Time) Frame {
 	r.reuseFrame = false
 	r.keepSlowFrame = false
 	r.extendCopied = false
+	r.seg.begin()
 	drawStart := time.Now()
 	err = r.callGlobalSoft("draw", r.budget.Frame)
 	r.lastStep.Draw = time.Since(drawStart)
 	r.inDraw = false
 	built := r.building
 	r.building = nil
+	if r.work != nil {
+		r.work.drew(built, r.seg.copied, r.seg.replayed)
+	}
 	// gfx.reuse() asks to keep the frame already presented. A slow check
 	// still counts, and the next unchanged draw can try again.
 	if r.reuseFrame {
@@ -441,6 +452,7 @@ func (r *Instance) Step(now time.Time) Frame {
 		r.keepSlowFrame = false
 		r.frame = *built
 		r.frameReady = true
+		r.seg.present()
 		r.presentFrame(true)
 		r.recordFrameOverrun(err)
 		if r.fatal != nil {
@@ -461,12 +473,18 @@ func (r *Instance) Step(now time.Time) Frame {
 	r.frame = frame
 	r.frameReady = true
 	r.frameOverruns = 0
+	r.seg.present()
 	r.presentFrame(true)
 	r.store.maybeFlush(now)
 	return frame
 }
 
+// presentFrame tells the script whether its last draw is on screen. A draw
+// that is not presented drops every gfx.segment run.
 func (r *Instance) presentFrame(ok bool) {
+	if !ok {
+		r.seg.drop()
+	}
 	if r.roomTable != nil {
 		r.roomTable.RawSetString("presented", lua.LBool(ok))
 	}
@@ -497,6 +515,7 @@ func (r *Instance) Input(cmd string) bool {
 		return false
 	}
 	r.noteInputBaseline()
+	r.workKind("on_input")
 	handled, err := r.callRetSoft(fn, r.budget.Input, lua.LString(cmd))
 	if err != nil {
 		if errors.Is(err, errSoftOverrun) {
@@ -570,6 +589,7 @@ func (r *Instance) callGlobalSoft(name string, budget time.Duration, args ...lua
 		return nil
 	}
 	r.noteFrameBaseline()
+	r.workKind(name)
 	if err := r.callSoft(fn, budget, 0, args...); err != nil {
 		return fmt.Errorf("%s callback: %w", name, err)
 	}
@@ -617,6 +637,7 @@ func (r *Instance) callOptionalInput(name string, args ...lua.LValue) {
 		return
 	}
 	r.noteInputBaseline()
+	r.workKind(name)
 	if err := r.callSoft(fn, r.budget.Input, 0, args...); err != nil {
 		r.handleInputCallbackError(err)
 		return
@@ -659,6 +680,7 @@ func (r *Instance) Resize(width, height int) {
 		return
 	}
 	r.opts.Width, r.opts.Height = width, height
+	r.seg.drop()
 	r.roomTable.RawSetString("width", lua.LNumber(width))
 	r.roomTable.RawSetString("height", lua.LNumber(height))
 	r.setHeroTable()
@@ -738,6 +760,7 @@ func (r *Instance) CheckGlobal(expr string) error {
 	if err != nil {
 		return err
 	}
+	r.workKind("check")
 	v, err := r.callRet(fn, r.budget.Input)
 	if err != nil {
 		return err
@@ -849,6 +872,7 @@ func (r *Instance) callGlobal(name string, budget time.Duration, args ...lua.LVa
 	if !ok {
 		return nil
 	}
+	r.workKind(name)
 	if _, err := r.call(fn, budget, 0, args...); err != nil {
 		return fmt.Errorf("%s callback: %w", name, err)
 	}
@@ -926,7 +950,12 @@ func (r *Instance) runPinned(fn *lua.LFunction, deadline time.Time, nret int, ar
 	top := L.GetTop()
 	ctx, cancel := context.WithDeadline(r.ctx, deadline)
 	defer cancel()
-	L.SetContext(ctx)
+	if r.work != nil {
+		L.SetContext(r.work.count(ctx))
+		defer r.work.finish()
+	} else {
+		L.SetContext(ctx)
+	}
 	defer L.RemoveContext()
 	L.Push(fn)
 	for _, a := range args {
