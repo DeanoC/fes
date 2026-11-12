@@ -43,11 +43,14 @@ Tracker: [#1768](https://github.com/DeanoC/fes/issues/1768).
   control-word and status-word forms are next: FLDCW, FNSTCW and FNSTSW AX
   are 10% of Chris's benchmark and 9% of Screamer. That decides where area
   goes: [Datapath options](#datapath-options).
-- **No run raises an unmasked exception or touches F0h/F1h.** Every run
-  computes with all six exceptions masked (control word low byte 3Fh),
-  except 139 of Quake's instructions, which run with invalid and
-  divide-by-zero unmasked (3Ah) and raise neither. No run sets ES, and none
-  writes ports F0h or F1h. CWSDPMI (Quake, Chris's benchmark) and WIN386
+- **Real titles run with exceptions unmasked, though none fires.** Chris's
+  benchmark runs 15,236,298 of its 15.2M x87 instructions with invalid and
+  divide-by-zero unmasked (control word low byte 3Ah), Quake 139 and
+  Norton SI 8 one (30h); every other instruction in every run has all six
+  masked (3Fh). No run raises an unmasked exception or sets ES, and none
+  writes ports F0h or F1h. So the AT error path is live state for real
+  titles, not only for Linux's boot check: an invalid operand or a zero
+  divisor in Chris's benchmark would take IRQ 13. CWSDPMI (Quake, Chris's benchmark) and WIN386
   switch x87 context lazily, setting TS and taking #NM: 558, 164 and 1 of
   them.
 - **The oracle hangs on an unmasked x87 exception,** and Linux 2.0.0 booted
@@ -506,7 +509,8 @@ best settings, with DSP inference on. No nextpnr routes (#1235).
   precision and rounding control, every operand class (zero, denormal,
   pseudo-denormal, unnormal, infinity, quiet and signalling NaN), masked
   and unmasked exceptions with an IRQ 13 handler, and stack overflow and
-  underflow.
+  underflow. Unmasked runs weight invalid and divide-by-zero, the two that
+  Chris's benchmark runs with unmasked.
 - **TestFloat.** Berkeley TestFloat 3e (BSD-3-Clause) generates extF80
   vectors with `-precision32`, `-precision64` and `-precision80` for add,
   subtract, multiply, divide, square root, remainder (FPREM1's, not
