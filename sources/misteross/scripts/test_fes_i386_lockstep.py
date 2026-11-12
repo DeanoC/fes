@@ -220,7 +220,7 @@ def i386_class(code: bytes) -> str:
     if op in I386_UNBUILT_0F:
         return 'stop'
     if op in (0x24, 0x26):
-        return 'stop' if reg > 3 else 'ud'
+        return 'stop' if reg > 3 and register else 'ud'
     ud = (op in I386_UD_0F or op in (0x00, 0x02, 0x03)
           or op == 0x01 and (reg in (5, 7) or reg < 4 and register)
           or op in (0x20, 0x22) and reg not in (0, 2, 3)

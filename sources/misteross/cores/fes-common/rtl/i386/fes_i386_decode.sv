@@ -71,14 +71,15 @@
 // LGS, BOUND, far CALL and JMP r/m and SGDT to LIDT with a register
 // operand; C6h/C7h and 8Fh with reg != 0; FEh /2-/7, FFh /7, 0F 00 /6 and
 // /7, 0F 01 /5 and /7, 0F BA /0-/3; MOV to or from CR1 and CR4-CR7, TR0-
-// TR3; and every 0Fh opcode the 386 does not define, XBTS and IBTS (0F A6,
-// 0F A7) included, which only the B-step 386 ran.
+// TR3, or TR4-TR7 with a memory ModRM; and every 0Fh opcode the 386 does
+// not define, XBTS and IBTS (0F A6, 0F A7) included, which only the B-step
+// 386 ran.
 // An instruction over 15 bytes raises #GP(0). The 386's other instructions
 // that this build does not run, ICEBP (F1h), LOADALL (0F 07), UMOV (0F 10-
-// 0F 13) and MOV to and from TR4-TR7, decode as FAULT_UNIMPLEMENTED. An
-// instruction that runs past CS's limit raises #GP(0) ahead of all of these,
-// but D applies that, since only D knows the instruction's EIP
-// (fes_i386_cpu, cs_gp).
+// 0F 13) and MOV to and from TR4-TR7 with a register ModRM, decode as
+// FAULT_UNIMPLEMENTED. An instruction that runs past CS's limit raises
+// #GP(0) ahead of all of these, but D applies that, since only D knows the
+// instruction's EIP (fes_i386_cpu, cs_gp).
 //
 // src1 is always the destination's register: a byte or word result merges
 // into its old value. A LOOP or JCXZ counts in CX or ECX by address size, which
@@ -1734,16 +1735,17 @@ module fes_i386_decode (
                     d_idx = reg_f;
                 end
                 // The 386 defines LOADALL (07h), UMOV (10h-13h) and MOV to
-                // and from TR4-TR7 (24h, 26h), which are not built: they
-                // stop as FAULT_UNIMPLEMENTED. TR0-TR3 and every other
-                // encoding here are #UD, XBTS and IBTS (A6h, A7h) included:
+                // and from TR4-TR7 (24h, 26h) with a register ModRM, which
+                // are not built: they stop as FAULT_UNIMPLEMENTED. TR0-TR3,
+                // memory ModRM forms of 24h/26h and every other encoding
+                // here are #UD, XBTS and IBTS (A6h, A7h) included:
                 // the 386's decoder sends them to its #UD entry
                 // (reenigne/x86_microcode 80386 decoder23.txt, decode2.txt;
                 // microcode_notes.txt 82B).
                 8'h07, 8'b000100??: known = 1'b0;
                 8'h24, 8'h26: begin
-                    known = !reg_f[2];
-                    undefined = !reg_f[2];
+                    known = !reg_f[2] || !reg_form;
+                    undefined = !reg_f[2] || !reg_form;
                 end
                 default: undefined = 1'b1;
             endcase
