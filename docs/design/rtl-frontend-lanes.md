@@ -734,7 +734,7 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
   - the pc386 `pc386_system.v` is identical apart from identifier spelling and Yosys's auto-numbered names, and the reseal shows unchanged resources and timing;
   - lockstep on the new CPU netlist gives the RTL's trace hashes;
   - the lockstep report and the seal summary record the same Yosys program, lock and CPU source digests, and the recorded netlist digest reproduces from them (`yosys_netlist.py cpu`).
-- **Dependencies:** D2 (which Yosys lock the CPU uses) and DeanoC/yosys#75. **Kit:** PC/XT bundle smoke on a claimed free kit. pc386 is N/A.
+- **Dependencies:** D2 (which Yosys lock the CPU uses) and DeanoC/yosys#75. **Kit:** none. PC/XT's change is closure-only, so D12 replaces its bundle smoke; pc386 is N/A ([record](../validation/2026-11-12-1581-s4-netlist-helper/README.md)).
 
 ### S5. pc386 lockstep producer gate
 
