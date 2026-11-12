@@ -126,6 +126,7 @@ module top #(
     wire scan_start, scan_write, scan_pass, scan_fail, scan_stopped;
     // Latency monitor handshakes, per target: P0, P1, P2, SDRAM.
     wire [3:0] lat_start, lat_ready, lat_sample;
+    wire [2:0] ddr_lat_drained;
     wire [55:0] lat_first, lat_last;
     wire [25:0] scan_addr;
     wire [15:0] scan_wdata;
@@ -508,7 +509,7 @@ module top #(
         .fault_phase(ddr0_status[165:163]), .bad(ddr0_status[162:35]),
         .done(ddr0_done), .nack(ddr0_nack), .stopped(ddr0_stopped),
         .write_cycles(ddr_cycles[31:0]), .read_cycles(ddr_cycles[63:32]),
-        .lat_start(lat_start[0]), .lat_ready(lat_ready[0]), .lat_sample(lat_sample[0]),
+        .lat_start(lat_start[0]), .lat_ready(lat_ready[0]), .lat_drained(ddr_lat_drained[0]), .lat_sample(lat_sample[0]),
         .lat_first(lat_first[13:0]), .lat_last(lat_last[13:0])
     );
     ddr_channel #(.DATA_W(64), .ADDR_W(29), .BASE(DDR1_BASE),
@@ -523,7 +524,7 @@ module top #(
         .fault_phase(ddr1_status[165:163]), .bad(ddr1_status[98:35]),
         .done(ddr1_done), .nack(ddr1_nack), .stopped(ddr1_stopped),
         .write_cycles(ddr_cycles[95:64]), .read_cycles(ddr_cycles[127:96]),
-        .lat_start(lat_start[1]), .lat_ready(lat_ready[1]), .lat_sample(lat_sample[1]),
+        .lat_start(lat_start[1]), .lat_ready(lat_ready[1]), .lat_drained(ddr_lat_drained[1]), .lat_sample(lat_sample[1]),
         .lat_first(lat_first[27:14]), .lat_last(lat_last[27:14])
     );
     ddr_channel #(.DATA_W(64), .ADDR_W(29), .BASE(DDR2_BASE),
@@ -538,7 +539,7 @@ module top #(
         .fault_phase(ddr2_status[165:163]), .bad(ddr2_status[98:35]),
         .done(ddr2_done), .nack(ddr2_nack), .stopped(ddr2_stopped),
         .write_cycles(ddr_cycles[159:128]), .read_cycles(ddr_cycles[191:160]),
-        .lat_start(lat_start[2]), .lat_ready(lat_ready[2]), .lat_sample(lat_sample[2]),
+        .lat_start(lat_start[2]), .lat_ready(lat_ready[2]), .lat_drained(ddr_lat_drained[2]), .lat_sample(lat_sample[2]),
         .lat_first(lat_first[41:28]), .lat_last(lat_last[41:28])
     );
     ddr_rates #(.WIDE_NUMERATOR({8'd0, DDR_WIDE_BYTES} * DDR_MHZ),
@@ -568,8 +569,12 @@ module top #(
         .clk(mem_clk), .reset(mem_reset_sync[1]),
         .enable(scans_ended), .stop(stop_sync[1]),
         .ready(lat_ready),
-        .dead({sdram_fail | sdram_stopped, ddr2_nack | ddr2_stopped,
-               ddr1_nack | ddr1_stopped, ddr0_nack | ddr0_stopped}),
+        // Wait for a failed latency read to drain before moving to the next
+        // target; lat_drained remains high even when stop prevents lat_ready.
+        .dead({sdram_fail | sdram_stopped,
+               ddr2_nack | ddr2_stopped | (ddr_lat_drained[2] && ddr2_errors != 32'd0),
+               ddr1_nack | ddr1_stopped | (ddr_lat_drained[1] && ddr1_errors != 32'd0),
+               ddr0_nack | ddr0_stopped | (ddr_lat_drained[0] && ddr0_errors != 32'd0)}),
         .start(lat_start), .sample(lat_sample),
         .first(lat_first), .last(lat_last), .results(lat_results)
     );

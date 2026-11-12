@@ -27,8 +27,9 @@ scans end, it measures one memory at a time, in turn: DDR port 0, port 1,
 port 2, then the SDRAM addon.
 
 - **Window:** 32768 single reads of one 32-byte line at pseudo-random,
-  line-aligned addresses in that memory's span. One read is in flight, and
-  nothing else touches DDR during a DDR window.
+  line-aligned addresses in that memory's span. The tester has one read in
+  flight and makes no other DDR-port requests during a DDR window. Linux and
+  other HPS masters can still contend for the shared DDR controller.
 - **Line read, by memory:**
   - Port 0: a burst of two 128-bit beats.
   - Ports 1 and 2: a burst of four 64-bit beats.

@@ -163,6 +163,9 @@ static void negative_byte_cases() {
     for (unsigned fault = 1; fault <= 5; ++fault) {
         Vbench top;
         top.mask_fault = fault;
+        top.ddr_fault = 0;
+        top.ddr_last_only = 0;
+        top.ddr_pause = 0;
         top.FPGA_CLK1_50 = 0;
         top.peek_slot = 0;
         top.eval();
@@ -193,12 +196,117 @@ static void negative_byte_cases() {
     }
 }
 
+static uint32_t ddr_errors(Vbench& top, unsigned port) {
+    auto* dut = top.bench->dut;
+    return port == 0 ? dut->ddr0_errors : port == 1 ? dut->ddr1_errors : dut->ddr2_errors;
+}
+
+// Faults on a scan and on the final beat of a latency window must never
+// produce latency digits for that port. The other ports must keep running.
+static void negative_ddr_latency_cases() {
+    for (unsigned port = 0; port < 3; ++port) {
+        for (bool scan_fault : {true, false}) {
+            Vbench top;
+            top.FPGA_CLK1_50 = 0;
+            top.CAP_CLK = 0;
+            top.mask_fault = 0;
+            top.peek_slot = 0;
+            top.ddr_fault = scan_fault ? (1u << port) : 0;
+            top.ddr_last_only = scan_fault ? 0 : (1u << port);
+            top.ddr_pause = 0;
+            top.eval();
+            bool toggle = false;
+            command(top, toggle, 2, 0, 1);
+            for (int i = 0; i < 30000000 && !(ddr_done(top) && top.bench->dut->sdram_pass); ++i)
+                tick(top);
+            require(ddr_done(top) && top.bench->dut->sdram_pass, "fault test scans did not finish");
+
+            if (!scan_fault) {
+                require(ddr_clean(top), "fault test expected clean scans");
+                for (int i = 0; i < 3000000 && top.lat_checked[port] < 255u; ++i)
+                    tick(top);
+                require(top.lat_checked[port] == 255u, "did not reach the final latency read");
+                // Only the last beat is corrupt: the compare pipeline must
+                // finish before the monitor accepts the final sample.
+                top.ddr_fault = 1u << port;
+            }
+            const unsigned other = (port + 1) % 3;
+            for (int i = 0; i < 3000000 &&
+                 (!ddr_errors(top, port) || top.lat_checked[other] < 256u || latency_value(top, other, 3) <= 0 ||
+                  (!scan_fault && top.lat_checked[port] < 256u)); ++i)
+                tick(top);
+            require(ddr_errors(top, port) != 0, "injected DDR fault was not counted");
+            require(ddr_errors(top, other) == 0, "DDR fault contaminated another port");
+            require(top.lat_checked[other] >= 256u && latency_value(top, other, 3) > 0,
+                    "healthy DDR port did not publish latency");
+            for (int i = 0; i < 1000; ++i) tick(top);
+            require(latency_value(top, port, 3) == 0, "failed DDR port published latency");
+            if (scan_fault)
+                require(top.lat_checked[port] == 0, "failed scan still started latency reads");
+            std::cout << "PASS: DDR" << port << (scan_fault ? " scan fault" : " last-beat fault")
+                      << " prevents its latency window\n";
+        }
+    }
+}
+
+// Hold the last latency read in the model, request Stop, then let it drain.
+// A bad last beat must be discarded even though Stop masks lat_ready. A clean
+// final sample retains the completed window and no new read may start.
+static void ddr_latency_stop_cases() {
+    for (unsigned port = 0; port < 3; ++port) {
+        for (bool corrupt : {true, false}) {
+            Vbench top;
+            top.FPGA_CLK1_50 = 0;
+            top.CAP_CLK = 0;
+            top.mask_fault = 0;
+            top.peek_slot = 0;
+            top.ddr_fault = 0;
+            top.ddr_last_only = 1u << port;
+            top.ddr_pause = 0;
+            top.eval();
+            bool toggle = false;
+            command(top, toggle, 2, 0, 1);
+            for (int i = 0; i < 30000000 && !(ddr_done(top) && top.bench->dut->sdram_pass); ++i)
+                tick(top);
+            require(ddr_done(top) && top.bench->dut->sdram_pass && ddr_clean(top), "stop case scans did not pass");
+            for (int i = 0; i < 3000000 && top.lat_checked[port] < 255u; ++i)
+                tick(top);
+            require(top.lat_checked[port] == 255u, "stop case did not reach final latency read");
+            top.ddr_pause = 1u << port;
+            top.ddr_fault = corrupt ? (1u << port) : 0;
+            for (int i = 0; i < 10000 && !(top.ddr_pending & (1u << port)); ++i)
+                tick(top);
+            require(top.ddr_pending & (1u << port), "final latency read did not reach model");
+            require(command(top, toggle, 3, 0, 0x10) == 0, "stop case gamepad command failed");
+            for (int i = 0; i < 100 && !top.core_stopping; ++i) tick(top);
+            require(top.core_stopping && (top.ddr_pending & (1u << port)), "stop did not precede read drain");
+            top.ddr_pause = 0;
+            for (int i = 0; i < 10000 && (top.lat_checked[port] < 256u || top.ddr_pending); ++i)
+                tick(top);
+            require(top.lat_checked[port] == 256u && !top.ddr_pending, "stopped read did not drain");
+            for (int i = 0; i < 1000; ++i) tick(top);
+            require((ddr_errors(top, port) != 0) == corrupt, "stop case mismatch accounting failed");
+            if (corrupt)
+                require(latency_value(top, port, 3) == 0, "stop published a failed latency window");
+            else
+                require(latency_value(top, port, 3) > 0, "stop discarded a clean completed window");
+            for (int i = 0; i < 10000; ++i) tick(top);
+            require(top.lat_checked[port] == 256u && !top.ddr_pending, "read restarted after stop");
+            std::cout << "PASS: DDR" << port << (corrupt ? " bad" : " clean")
+                      << " final latency read drains under stop\n";
+        }
+    }
+}
+
 int main() {
     Vbench top;
     top.FPGA_CLK1_50 = 0;
     top.CAP_CLK = 0;
     top.peek_slot = 0;
     top.mask_fault = 0;
+    top.ddr_fault = 0;
+    top.ddr_last_only = 0;
+    top.ddr_pause = 0;
     top.eval();
     bool toggle = false;
     require(command(top, toggle, 1, 0, 0) == 0x4546, "fes.application magic mismatch");
@@ -308,5 +416,7 @@ int main() {
     require(stopped, "button did not stop the scan");
     std::cout << "PASS: SDRAM and three HPS DDR port scans, signatures, latency windows, holds, status text, button stop\n";
     negative_byte_cases();
+    negative_ddr_latency_cases();
+    ddr_latency_stop_cases();
     return 0;
 }

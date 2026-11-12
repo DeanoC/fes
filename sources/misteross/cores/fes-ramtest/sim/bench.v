@@ -8,6 +8,9 @@ module bench (
     input wire FPGA_CLK1_50,
     input wire CAP_CLK,
     input wire [2:0] mask_fault,
+    input wire [2:0] ddr_fault,
+    input wire [2:0] ddr_last_only,
+    input wire [2:0] ddr_pause,
     output wire [106:0] byte_status,
     output wire [11:0] byte_coverage,
     output wire [1:0] byte_high_rows,
@@ -21,6 +24,8 @@ module bench (
     output wire ddr_open,
     output wire ddr_finishing,
     output wire ddr_draining_reads,
+    output wire [2:0] ddr_pending,
+    output wire core_stopping,
     output wire [3:0] lat_mismatch,
     output wire [127:0] lat_checked
 );
@@ -41,6 +46,13 @@ module bench (
     assign ddr_violation = dut.hps_ddr.f2sdram.violation;
     assign ddr_open = dut.hps_ddr.f2sdram.owed[0] != 8'd0 ||
         dut.hps_ddr.f2sdram.owed[1] != 8'd0 || dut.hps_ddr.f2sdram.owed[2] != 8'd0;
+    assign dut.hps_ddr.f2sdram.inject_read_fault = ddr_fault;
+    assign dut.hps_ddr.f2sdram.inject_last_only = ddr_last_only;
+    assign dut.hps_ddr.f2sdram.inject_read_pause = ddr_pause;
+    assign ddr_pending = {dut.hps_ddr.f2sdram.queue_count[2] != 0,
+                          dut.hps_ddr.f2sdram.queue_count[1] != 0,
+                          dut.hps_ddr.f2sdram.queue_count[0] != 0};
+    assign core_stopping = dut.stop_sync[1];
     wire sdram_clk, sdram_cke, sdram_ncs, sdram_nras, sdram_ncas, sdram_nwe;
     wire sdram_dqml, sdram_dqmh;
     wire [1:0] sdram_ba;
