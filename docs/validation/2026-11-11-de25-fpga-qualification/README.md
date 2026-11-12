@@ -130,8 +130,9 @@ The rootfs is byte-identical to the earlier image; the parser was the repaired
 input. `de10-image-preparation.json` records hashes and terminal results.
 The release was subsequently tested natively under the exact user-approved plan below. All80/61
 combined-proof inputs,74/143 DE25 package inputs and43 RISC-V inputs remain
-unchanged; their original producer revisions are preserved. The newly qualified
-DE25 packages still have no fresh physical acceptance.
+unchanged; their original producer revisions are preserved. At that point, the newly qualified
+DE25 packages had no fresh physical acceptance; the Nov12 trial below supplies
+bounded native acceptance with the repaired userspace.
 
 
 The approved network-only image744/e203 trial on KitA is complete. Actual ARMv7
@@ -176,5 +177,80 @@ completed cases. Its device error was induced by that stop. The94 affected
 producer/codec/closure checks then completed separately. No full-suite or
 full39-command test plan pass is claimed, and no internal assertion or timing
 limit was relaxed. `mainmerge-software-checks.json` retains all terminal results
-and interruption context. The new bundle still needs hardware revalidation;
-current-head CI and a clean review remain required.
+and interruption context. The merged bundle subsequently passed the paired native-host hardware checks
+below. A clean eventual-head review remains unestablished, and CI must be
+checked again on any publication head.
+
+
+### Nov 12 merged-software and managed DE25 physical checks
+
+Consumer source `19cca55559e39f68e3fbc9b8ec6b8f86504134b1` passes the
+merged-software paired on-kit DE10 host control: normal import, named user-ROM
+selection, exact live package/build/session identity, P→PRINT, F12→Change media,
+Escape→same ZX81 session and owned Stop→MENU. This uses bundle `ebb67b7d`
+produced at 7dc; FogCast and runtime source trees match 19cca exactly. The
+external private-host context produced black input frames on both candidate
+and unchanged baseline; those failures remain, with no wider root cause claimed.
+The normal on-kit host 8787 passes. All original catalog rows/media chunks and
+protected paths, image 179/bundle a275, all four running hashes, idle/launcher/
+kernel and boot were restored. KitA was released at generation 190. The initial
+claim keeper ended early; locks were reacquired before paired HIL and final
+restoration, with no intervening status owner.
+`merged-software-de10-hardware.json` binds those receipts. This bundle trial
+did not repeat BASIC or reboot, and the earlier DE10 120s misses remain open.
+
+The separately approved bottom-DE25 managed trial completed one same-card
+reader round trip. A 746,581,142-byte compressed full-card backup was independently
+decompressed and hashed before writing. Normal source 19cca factory assembly,
+verification/export, two-pass card reconstruction, direct physical prefix
+readback and independent FESDATA3 verification pass. The reader-specific private
+data-helper adaptation retained its original geometry/mount/protected-byte and
+readback gates; shared reader admission and 40 guard tests pass.
+`merged-de25-image-preparation.json` records producer identities and preparation;
+`merged-de25-hardware.json` records the subsequent native acceptance.
+
+Native AArch64 boots root `8e4b57d1`/factory bundle `cbf46803`, with the existing
+owner kernel e431 and stock Terasic SD FIT bb6a. The four running software hashes
+match 19cca; Ethernet/strictly UART-pinned SSH, system D-Bus, read-only root,
+owner character device and persistent writable FESDATA3 pass. The qualified
+ordinary ZX81 package e873 (BUILD 487f, RBF 8d0a) passes normal import/compatibility,
+exact live identity, RAMTOP 128, BASIC LOAD/run 7→edit/run 9→reload/run 7, F12
+Change media, Escape to the same session and Stop to MENU. Input here is Linux
+uinput; no fresh human physical-USB input acceptance is implied. Format 2 embeds
+its ROM, so this DE25 run does not test external named-ROM selection. The normal
+hardware catalog reports the persistent ZX81 entry ready after reboot.
+
+One 60s HDMI switch-away/back per role returned ZX81's7 and FES MENU, confirmed
+by Deano and inspected captures. Healthy idle and active-ZX81 software reboots
+became ready in 37.725s and 40.496s, each within the unchanged 120s requirement.
+Each new boot reverified image/bundle, all four running roles, kernel/FIT, data,
+Ethernet/SSH/D-Bus and ready/idle/free. The final clear Welcome screen and
+unchanged first-run setup are retained. The approved healthy development image
+remains installed; this is not a main-baseline promotion. Own input helper and
+UART recorder stopped and the claim released. QSPI and JTAG stayed unchanged;
+no further card swap or physical power cycle was needed for the two reboots.
+
+![BASIC reload returned 7](merged-de25-basic7.png)
+![Final FES MENU after active ZX81 reboot](merged-de25-final-menu.png)
+
+The first 900s manual observation expired while input helpers were being
+prepared; its failed receipt and successful owned cleanup remain. The final
+prepared run completed in 515.886s without extending the inner 900s limit.
+A wrong external-ROM selection, absent target timeout utility and initial
+idle-only active-reboot guard were refused before their respective hardware
+actions; corrected controls are recorded separately. Overlong per-edge SSH
+guards caused an earlier BASIC 2/0 and were replaced by short guarded gestures.
+A late black F12 frame and transient SSH banner timeout remain retained, so
+continuous display/popup endurance is not established. Later same-session
+Escape restored 7. Bluetooth HCI warnings are retained without Bluetooth
+acceptance. No fresh gamepad/audio proof or failed-load/reset safety is claimed.
+#1642 retains broader display/endurance; #1298 retains development-only waived
+failed-programming recovery and the full-power-removal requirement. Personas
+remain disabled under #1568.
+
+CI run 43113130575 passed consumer 19cca. This publication adds evidence only;
+new publication-head CI is checked separately. A clean eventual-head review is
+not established after the two consumed review rounds. The remaining broad
+regression campaigns and DE10 image-trial 120s reboot misses remain open.
+The user-approved Terasic diagnostic reply was sent in the existing thread
+without attachments; no vendor recovery guarantee has been received.

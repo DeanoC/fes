@@ -1,0 +1,81 @@
+{
+  "source_commit": "19cca55559e39f68e3fbc9b8ec6b8f86504134b1",
+  "bundle_producer": "7dc116032fca35b26997519baa93b9bd1c1ae6f9",
+  "software_trees_equal": {
+    "sources/FogCast": "5ef25d4d5506a5b6ee402c999c36e3a92e1669df",
+    "sources/libmister-runtime": "62e379488835de14c662cf0bd3a7204be06b33d9"
+  },
+  "bundle_id": "ebb67b7d32a18c5f6ba837913e2b4d8ad6ceba04ad40ee102b0733943d440e4a",
+  "board": "de10-nano Kit A",
+  "base_image": "179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018",
+  "base_bundle": "a2756499ab07627e1b1fb7f00f3ebe334b6b564099c1b086d9c4f74eaf9aeb1e",
+  "existing_sealed_ZX81": {
+    "package": "436a64a6d1e392a889875c968a15a1c1723a7c46fe36bc840a03d09b780c3f82",
+    "build_id": "9ca273431062a0bbcb6a8f2c95ca62de",
+    "rbf_sha256": "481986c10e7d967581d169ba18c0a7c6ba0603047e669c31cca4f351f27a98dd",
+    "existing_user_ROM_sha256": "eab6a0f18eef54f31a245b9fe05519ef0cd76904324e1d5fac35b03a5fbf47ac"
+  },
+  "paired_on_kit_host_HIL": {
+    "normal_import_and_compatibility": "pass",
+    "per_title_named_ROM_binding": "pass",
+    "live_session_package_build_ROM_identity": "pass",
+    "P_PRINT": "pass, HDMI inspected",
+    "F12_Change_media": "pass, HDMI inspected",
+    "Escape_same_session": "pass, HDMI inspected",
+    "owned_Stop_MENU": "pass",
+    "input_mode": "Linux uinput keyboard; no fresh human physical-keyboard test",
+    "BASIC_load_run_reload": "not repeated in this DE10 bundle trial",
+    "software_reboot": "not repeated; earlier unchanged120s bounded failures retained"
+  },
+  "full_restoration": {
+    "baseline_bundle": "a2756499ab07627e1b1fb7f00f3ebe334b6b564099c1b086d9c4f74eaf9aeb1e",
+    "image": "179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018",
+    "generation": 190,
+    "boot_id": "19542670-8815-45b1-8bfd-8a76d8b837c0",
+    "ready": true,
+    "idle": true,
+    "lease": "free",
+    "catalog_listing_identical": true,
+    "all_protected_sql_rows_and_media_chunks_identical": {
+      "core_media": 6,
+      "core_media_chunks": 7,
+      "core_entries": 0,
+      "core_entry_roms": 0,
+      "core_firmware": 0,
+      "games": 6,
+      "kit_host_entries": 0
+    },
+    "protected_paths_identical": true,
+    "idle_launcher_kernel_identical": true,
+    "four_baseline_role_hashes": {
+      "fogcast-kit": "2d6e2b71b2c2a09db8ed617599448d9704c9205afe57dd7e9a47579b849ba3dd",
+      "fogcast-tenfoot": "2f7652736cd1a4eecb6151de4e1d49ccb9d6b6f4fc33a2a3e9949a97f088c5e8",
+      "mister-agent": "1a7583f3011d0ab9db64e66a53ffd22424d38691e76bfa483124428c0b4310f7",
+      "mister-runtime": "d6cf73d4e643f41d7cf12e5bd460c728b238c06275b51af0f8543f7214efd94f"
+    },
+    "owned_private_host_and_credential_retired": true
+  },
+  "ownership": {
+    "initial_tool_keeper_ended_early": true,
+    "no_intervening_status_owner": true,
+    "all_three_locks_reacquired_before_paired_HIL": true,
+    "paired_HIL_and_final_restoration_held_locks": true,
+    "released": true
+  },
+  "external_private_host_control": {
+    "candidate_P_F12_black_frames": "retained",
+    "unchanged_baseline_same_host": "reproduces",
+    "normal_native_host": "passes",
+    "root_cause": "not established beyond observed host context difference; no external-host input acceptance"
+  },
+  "private_terminal_receipts_root": "/data/fes-de25-pr1312-hil-19cca-20261112",
+  "receipt_sha256": {
+    "A/host/acceptance-paired-native.json": "8f14d4df9ddbe7ab9cc41f8c639280b85be2fb632c26b04f15bde933be9c8e29",
+    "A/paired-input-display.json": "00bc5f8b093767afe56bf77551f444cb778306117c7b53267c8a5af2e579dc9c",
+    "A/paired-catalog-restoration.json": "37b0d4b643a5e8d0b8b2e267e0bd7c8d4fec19ba9733b4fd8fe9fac4a6bc8710",
+    "A/restoration.json": "5cfd461edec728aa59adafe0863fa478b0c728cd65b95fb31ad4fae9af35888a",
+    "A/paired-restored-home.png": "1eed405f6d4a2f71ac9702f0d9a45ba3e788432e41062c3b0718cfcb5cc0659f",
+    "A-claim.json": "5a3b1e8e1ab1d80b94dfbd77ab54ee9cf9d3b40342aff57def5f508f42a8f2e7"
+  },
+  "scope": "merged software physical lifecycle/input/display regression on unchanged DE10 OS; not new DE25 acceptance"
+}
