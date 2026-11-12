@@ -1137,6 +1137,23 @@ void ata(Bench &b) {
     uint16_t first = b.inw(0x1f0);
     for (int n = 1; n < 256; ++n) b.inw(0x1f0);
     check("CHS addressing through the IDENTIFY geometry", (first & 0xff) == 0x77, hex(first));
+    // An ATA drive ends a transfer with the task file at its last sector,
+    // which Windows' WDCTRL checks after an INT 13h read.
+    b.wait([&] { return (b.in(0x1f7) & 0x80) == 0; }, 1000);
+    check("READ SECTORS leaves the task file at the last sector read",
+          b.in(0x1f2) == 0 && b.in(0x1f3) == 3 && b.in(0x1f4) == 1 && b.in(0x1f5) == 0 && b.in(0x1f6) == 0xa2,
+          hex(b.in(0x1f6)) + " " + hex(b.in(0x1f4)) + " " + hex(b.in(0x1f3)) + " " + hex(b.in(0x1f2)));
+    b.out(0x1f2, 2); b.out(0x1f3, SPT); b.out(0x1f4, 1); b.out(0x1f5, 0); b.out(0x1f6, 0xa2);
+    b.out(0x1f7, 0x20);  // cylinder 1, head 2, sector 17, then head 3, sector 1
+    bool both = true;
+    for (int sector = 0; sector < 2; ++sector) {
+        both = both && b.wait([&] { return (b.in(0x1f7) & 0x88) == 0x08; }, 10000);
+        for (int n = 0; n < 256; ++n) b.inw(0x1f0);
+    }
+    both = both && b.wait([&] { return (b.in(0x1f7) & 0x80) == 0; }, 1000);
+    check("a CHS read across a track ends the task file on the next head's first sector",
+          both && b.in(0x1f2) == 0 && b.in(0x1f3) == 1 && b.in(0x1f4) == 1 && b.in(0x1f6) == 0xa3,
+          hex(b.in(0x1f6)) + " " + hex(b.in(0x1f4)) + " " + hex(b.in(0x1f3)));
 
     b.out(0x1f2, 2); b.out(0x1f3, SPT); b.out(0x1f4, 1); b.out(0x1f5, 0); b.out(0x1f6, 0xa2);
     b.out(0x1f7, 0x40);  // READ VERIFY from cylinder 1, head 2, sector 17
@@ -1290,6 +1307,9 @@ void disk_and_record(Bench &b) {
         for (int n = 0; n < 256; ++n) b.outw(0x1f0, uint16_t(0x4000 + sector * 0x100 + n));
     b.wait([&] { return !b.top.disk_writer_busy; }, 5000);
     check("Resume opens the next block", b.image[407 * 512 + 1] == 0x47 && (b.in(0x1f7) & 0xc9) == 0x40);
+    check("WRITE MULTIPLE leaves the task file at the last sector written",
+          b.in(0x1f2) == 0 && b.in(0x1f3) == 0x97 && b.in(0x1f4) == 1 && b.in(0x1f6) == 0xe0,
+          hex(b.in(0x1f6)) + " " + hex(b.in(0x1f4)) + " " + hex(b.in(0x1f3)) + " " + hex(b.in(0x1f2)));
 }
 
 }  // namespace

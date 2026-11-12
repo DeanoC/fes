@@ -22,7 +22,7 @@
     "bios": {
       "file": "pc386-bios.bin",
       "bytes": 65536,
-      "sha256": "162e92cac39c3bd47f7a344fd3da715a4d169c765b5db6807231237c0ef154e1"
+      "sha256": "37a1b6bad19df66abffd7d24a16e5c6ddf824b9e29a2a3bc3e7afb2ea9674bc6"
     },
     "vgabios": {
       "file": "pc386-vgabios.bin",
