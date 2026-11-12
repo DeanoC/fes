@@ -248,10 +248,10 @@ func (s *Store) recover(ctx context.Context, r *os.Root) error {
 	// publication still takes the archive recovery path below.
 	if ids, err := installedIDs(r); err == nil {
 		// Two workers overlap archive I/O without retaining an unbounded
-		// number of payload buffers. On a kit the supervisor runs the agent
-		// and the host with GOMAXPROCS=1, so this hashing shares one CPU and
-		// leaves the other to the launcher. Wait for all checks before
-		// publishing the store.
+		// number of payload buffers. On a kit the agent and the host lower
+		// themselves to GOMAXPROCS=1 (internal/kitpriority), so this hashing
+		// shares one CPU and leaves the other to the launcher. Wait for all
+		// checks before publishing the store.
 		checks, checkContext := errgroup.WithContext(ctx)
 		checks.SetLimit(2)
 		for _, id := range ids {

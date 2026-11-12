@@ -246,13 +246,17 @@ The host and the agent run at nice 10 with `GOMAXPROCS=1`; the runtime and
 the launcher keep the supervisor's priority and Go's default. On a two-core
 DE10-Nano the launcher's room callbacks run against a wall-clock budget, so
 background services must not take both CPUs from them while the group starts.
-Linux keeps nice per thread and a child copies its forking thread's value, so
-the supervisor starts the host and the agent from one OS thread that it keeps
-locked at nice 10 for its whole life. Every thread of those services starts at
-that nice; nothing renices a running process. The thread never exits, because
-the children's parent-death signal follows the thread that forked them. Raising
-nice needs no privilege; if it still fails, the supervisor logs it and those
-services keep its own priority.
+The services apply this policy to themselves (`internal/kitpriority` in
+FogCast), first thing in `mister-agent` and `fogcast-kit host`, and only when
+`FES_SOFTWARE_MANAGED=1` shows the kit software supervisor started them; the
+shared host and dev hosts keep their priority. It lives in the bundle because
+the supervisor, `/usr/sbin/fes-kit-software`, ships in the base image, which a
+bundle install does not change. Linux keeps nice per thread and a new thread
+copies the nice of the thread that created it, so the service lowers every
+thread in `/proc/self/task` and repeats until a pass finds none left to lower;
+threads the Go runtime starts afterwards inherit nice 10. It only lowers, never
+raises, and needs no privilege. A failure is logged once and the service keeps
+its priority.
 
 The policy lasts for each process's whole life, not just startup. During play
 the agent forwards kit-local pad and keyboard frames from tenfoot's

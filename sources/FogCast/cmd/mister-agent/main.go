@@ -23,6 +23,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
 	"github.com/DeanoC/FogCast/internal/buildinputs"
 	"github.com/DeanoC/FogCast/internal/kitmemory"
+	"github.com/DeanoC/FogCast/internal/kitpriority"
 
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/flightdiag"
@@ -630,6 +631,7 @@ func main() {
 		_, _ = fmt.Fprintln(os.Stdout, maintenanceContract)
 		return
 	}
+	kitpriority.Background()
 	kitmemory.SetLimit(kitmemory.Agent)
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

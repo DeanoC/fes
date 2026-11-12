@@ -352,13 +352,10 @@ func (c *ProcessController) start(path string, args []string, env []string, role
 }
 
 // spawn starts one supervised process in its own process group. start adds
-// it to the service group; the host is kept apart from that group. The
-// role's spawnPolicy sets its priority and adds its environment; child.env
-// keeps the caller's env, so a restart applies the policy again.
+// it to the service group; the host is kept apart from that group.
 func (c *ProcessController) spawn(path string, args []string, env []string, role string) (*child, error) {
-	policy := roleSpawnPolicy(role)
 	cmd := exec.Command(path, args...)
-	cmd.Env = overlayEnv(os.Environ(), append(append([]string(nil), env...), policy.env...)...)
+	cmd.Env = overlayEnv(os.Environ(), env...)
 	output := c.Output
 	if output == nil {
 		output = os.Stdout
@@ -366,13 +363,7 @@ func (c *ProcessController) spawn(path string, args []string, env []string, role
 	cmd.Stdout = output
 	cmd.Stderr = output
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
-	var err error
-	if policy.background {
-		backgroundForker.run(func() { err = cmd.Start() })
-	} else {
-		err = cmd.Start()
-	}
-	if err != nil {
+	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 	p := &child{

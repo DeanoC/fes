@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/DeanoC/FogCast/internal/kitmemory"
+	"github.com/DeanoC/FogCast/internal/kitpriority"
 )
 
 // kitBinaryName is the kit bundle's name for this binary. The bundle builds
@@ -20,6 +21,7 @@ func kitMain(ctx context.Context, args []string, stdout, stderr io.Writer, open 
 		return catalogMain(ctx, args[1:], stdout, stderr)
 	}
 	if len(args) > 0 && args[0] == "host" {
+		kitpriority.Background()
 		kitmemory.SetLimit(kitmemory.Host)
 		return run(ctx, append([]string{"-kit", "-headless"}, args[1:]...), stdout, stderr, open)
 	}
