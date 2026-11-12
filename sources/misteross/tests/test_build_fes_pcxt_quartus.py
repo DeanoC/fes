@@ -147,6 +147,40 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         locate.assert_called_once_with('/quartus', producer.ROOT, lock)
         return tools, quartus_sh, yosys
 
+    def test_cache_yosys_is_the_held_install_of_the_pcxt_toolchain_lock(self):
+        from types import SimpleNamespace
+        from scripts import toolchain_cache
+        from scripts.lockfile import load_lock
+        lock = load_quartus_lock(producer.ROOT, producer.LOCK)
+        # The Quartus lock pins the binary of the Yosys toolchain.lock pins.
+        self.assertEqual(load_lock(producer.ROOT / producer.TOOLCHAIN_LOCK)['yosys'].commit, lock.yosys_commit)
+        line = 'Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition'
+        with tempfile.TemporaryDirectory() as directory:
+            yosys = Path(directory) / 'yosys'
+            yosys.write_text('locked yosys')
+            quartus_sh = Path(directory) / 'quartus_sh'
+            quartus_sh.write_text('locked quartus')
+            hashes = {yosys.resolve(): lock.yosys_sha256, quartus_sh.resolve(): 'q' * 64}
+            environment = {name: value for name, value in os.environ.items() if name != 'FES_PCXT_YOSYS'}
+            environment['QUARTUS_ROOTDIR'] = '/quartus'
+            with mock.patch.dict(os.environ, environment, clear=True), \
+                    mock.patch.object(producer, 'locate_quartus', return_value=(Path('/quartus'), quartus_sh, line)), \
+                    mock.patch.object(producer, 'selected_recipe', return_value={'quartus': {'version': line}}), \
+                    mock.patch.object(producer, 'sha', side_effect=lambda p: hashes[Path(p).resolve()]), \
+                    mock.patch.object(producer.subprocess, 'check_output',
+                                      return_value=f'Yosys 0.47 (git sha1 {lock.yosys_commit[:9]}, clang)\n'), \
+                    mock.patch.object(toolchain_cache, 'request_from_environment', return_value='request') as request, \
+                    mock.patch.object(toolchain_cache, 'resolve_install',
+                                      return_value=SimpleNamespace(binary=yosys)) as resolve:
+                tools = producer.authenticate_tools(producer.ROOT, cache_root=Path(directory) / 'cache')
+                self.assertEqual(tools['yosys'].path, yosys.resolve())
+                request.assert_called_once_with(producer.ROOT, producer.ROOT / producer.TOOLCHAIN_LOCK,
+                                                cache_root=Path(directory) / 'cache', gpu_router='OFF')
+                resolve.assert_called_once_with('request', 'yosys')
+                resolve.side_effect = toolchain_cache.CacheError('yosys install is not ready')
+                with self.assertRaisesRegex(producer.BuildError, 'PC/XT Yosys install is not ready'):
+                    producer.authenticate_tools(producer.ROOT, cache_root=Path(directory) / 'cache')
+
     def test_locked_tool_identities_and_labels_match_the_lite_baseline(self):
         lock = load_quartus_lock(producer.ROOT, producer.LOCK)
         self.assertEqual((lock.release, lock.series, lock.qsf_version, lock.compiler, lock.product),
