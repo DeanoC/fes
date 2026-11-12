@@ -1176,10 +1176,10 @@ separately licensed programs, so FogCast's own licence is unaffected.
 
 **Windows 3.x in 386 enhanced mode does not run on this FreeDOS.** Kernel
 2043 does not answer WIN386's INT 2Fh AX=1605h and AX=1607h BX=0015h DOS
-callouts, so WIN386 quits with "Unsupported MS-DOS version". Kernel 2046
-answers them but WfW 3.11 still stops before Program Manager. This is a
-FreeDOS kernel limitation, tracked upstream as FDOS/kernel#50 and #151; pc386
-does not patch FreeDOS, and Windows needs a DOS the user supplies
+callouts, so WIN386 quits with "Unsupported MS-DOS version". On the oracle,
+WfW 3.11 reaches Program Manager on kernel 2046's 386 FAT16 build with
+FreeDOS's SHARE loaded, `InDOSPolling=TRUE` and WfW's 32-bit file access off.
+Moving the lock to that kernel and shipping SHARE is a separate fixture change
 ([record](../../../docs/validation/2026-11-12-pc386-freedos-win386/summary.md),
 [#1725](https://github.com/DeanoC/fes/issues/1725)).
 
