@@ -24,10 +24,10 @@ Refs [#1708](https://github.com/DeanoC/fes/issues/1708).
   8.4–9.4 s for 2.0.0 and 5.2–8.3 s for 1.2.13 and 0.99.15.
 - **No core bug was found.** The only difference from the sim is the
   BogoMIPS value, which follows the clock (see below). No issue was filed.
-- **Main's RTL runs all three kernels exactly as the oracle does.** On
-  main's RTL in simulation, each reaches `login:` and runs the oracle runs'
-  commands with 0 oracle steps and no stop. Each 42 s frame is
-  byte-identical to the oracle's.
+- **Main's RTL runs all three kernels to `login:` and through the tested
+  commands.** Each runs for 42 simulated seconds with no stop or oracle step.
+  Frame equality is partial: 0.99.15 matches 39 of 42 frames, with differences
+  at 6–8 s; the other kernels' counts are in the table below.
 
 ## Package
 
