@@ -57,8 +57,8 @@ build and simulation directories, so every result was discarded and the runs rep
   ([`reports/lockstep-rtl.json`](reports/lockstep-rtl.json),
   [`reports/lockstep-netlist.json`](reports/lockstep-netlist.json)). Both pass.
 - **Comparison:** `python3 compare_reports.py reports/lockstep-rtl.json reports/lockstep-netlist.json`
-  (D2's copy of S3's comparison, skipping only `verilator` and `yosys`) finds all 13 hash fields
-  equal. The only other difference is the netlist run's `netlist` record.
+  (D2's copy of S3's comparison, skipping only the tool fields `verilator`, `yosys` and `netlist`)
+  finds all 13 hash fields equal and no other difference, and exits 0.
 - **The netlist run's record:**
   - `program_sha256`: `23ce90ec…`, the digest of the seal recipe's canonical form;
   - `cpu_source_sha256`: `ba402cb7…`, over the CPU's 30 sources in read order;
@@ -185,5 +185,6 @@ on it.
 - `reports/pcxt/{main,branch}-build-summary.json` and `reports/pcxt/control-main-build-id-summary.json`:
   the PC/XT producer summaries and the control fit's.
 - `compare_reports.py`: the lockstep comparison, from
-  [`2026-11-10-1581-d2-yosys-lock`](../2026-11-10-1581-d2-yosys-lock/README.md).
+  [`2026-11-10-1581-d2-yosys-lock`](../2026-11-10-1581-d2-yosys-lock/README.md), with the
+  `netlist` record skipped as a tool field.
 - `netlist_shape.py`: the structural netlist comparison.

@@ -1,8 +1,10 @@
-"""Compare two lockstep report.json files, leaving out only the tool fields."""
+"""Compare two lockstep report.json files, leaving out only the tool fields:
+verilator, the old yosys path, and netlist (the --netlist run's record of the
+Yosys program, sources, netlist digest and identity, which an RTL run lacks)."""
 import json
 import sys
 
-SKIP = {'verilator', 'yosys'}
+SKIP = {'verilator', 'yosys', 'netlist'}
 
 
 def walk(a, b, path, out):
