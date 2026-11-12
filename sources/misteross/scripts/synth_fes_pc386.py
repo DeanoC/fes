@@ -10,7 +10,7 @@ so the figures are the device cells and ALMs the block needs on its own:
 
   machine    pc386_machine: everything but the CPU (AT core, VGA, presenter,
              port 2 arbiter, plane bridge, display plane)
-  at-core    pc386_at_core: PICs, PIT, DMA, 61h/92h/80h, 8042, RTC, ATA, I/O decoder
+  at-core    pc386_at_core: PICs, PIT, DMA, 61h/92h/80h, 8042, RTC, ATA, floppy, I/O decoder
   vga        pc386_vga: registers, FIFO, planar logic, coalescer, scanout, DAC, capture
   presenter  pc386_presenter
   port2      pc386_port2 and pc386_plane_bridge
