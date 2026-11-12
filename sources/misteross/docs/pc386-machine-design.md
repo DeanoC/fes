@@ -1153,6 +1153,11 @@ with "Unsupported MS-DOS version". Kernels from 2044 build in the Windows 3.x
 support; the FAT16 build reports DOS 6.22, where the FAT32 build (the
 FreeDOS package's `KERNL386.SYS`) reports 7.10, which Windows 3.x refuses.
 The builder's volumes are FAT16 of at most 128 MiB, so FAT32 is not needed.
+Windows also needs `InDOSPolling=TRUE` and no `device=ifsmgr.386`,
+`vcache.386` or `vshare.386` lines in its own `SYSTEM.INI`; those are the
+user's install, not the builder's
+([WIN386 record](../../../docs/validation/2026-11-12-pc386-freedos-win386/summary.md),
+[2046 record](../../../docs/validation/2026-11-12-pc386-freedos-2046/summary.md)).
 
 **Components that ship:**
 
@@ -1185,15 +1190,6 @@ unmodified. If a component ever needs a patch, the source that ships is the
 patched source with the changes marked. Adding a component means adding a row
 here and to the lock, with its licence. The image is an aggregate of
 separately licensed programs, so FogCast's own licence is unaffected.
-
-**Windows 3.x in 386 enhanced mode does not run on this FreeDOS.** Kernel
-2043 does not answer WIN386's INT 2Fh AX=1605h and AX=1607h BX=0015h DOS
-callouts, so WIN386 quits with "Unsupported MS-DOS version". On the oracle,
-WfW 3.11 reaches Program Manager on kernel 2046's 386 FAT16 build with
-FreeDOS's SHARE loaded, `InDOSPolling=TRUE` and WfW's 32-bit file access off.
-Moving the lock to that kernel and shipping SHARE is a separate fixture change,
-[#1729](https://github.com/DeanoC/fes/issues/1729)
-([record](../../../docs/validation/2026-11-12-pc386-freedos-win386/summary.md)).
 
 **Corresponding source.** Every image the builder writes carries the complete
 source with it, which GPL v2 §3(a) allows and which needs no written offer:

@@ -165,8 +165,8 @@ The scratch drive is the new games image on 260 cylinders plus WfW 3.11's
 This record does not describe that change as turning 32-bit file access
 off. The Windows-kit session (PR #1760) found that Control Panel's dialog
 on these drives already shows "16-Bit", with the 32-bit box unchecked,
-while the lines are present. #1727's description of the lines as 32-bit
-file access is inaccurate in the same way. Its `FDCONFIG.SYS` and `AUTOEXEC.BAT` are the fixture's, and
+while the lines are present. This PR corrects the same wording in #1727's
+record and in the design doc. Its `FDCONFIG.SYS` and `AUTOEXEC.BAT` are the fixture's, and
 it has no `VERSION=` line. The drive is commercial and stays in scratch.
 
 - **Oracle, entry 4:** `win /3` reaches Program Manager by 14 s simulated.
