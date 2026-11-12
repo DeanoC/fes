@@ -275,8 +275,13 @@ The kit stops at the same site as in #1533:
 - CR0 shows PE:1 PG:0 EM:1.
 
 This census's 20 s oracle run did not get that far: it ended at "Including
-USER.CON". The 486-instruction cause rests on #1533's 386-level oracle run
-and on a longer oracle run made for this record (DUKE_ORACLE_PENDING).
+USER.CON". A second oracle run, with a 50 s limit, reached the fault at 21.45
+simulated seconds. Bochs, configured as a 386, raised exception 6 at
+0180:00222BE2 and printed the same DOS/4GW dump as the kit, with the same
+registers and the same unrelocated address. So the 386-level oracle and the
+RTL agree, and this is the title needing a 486, not a CPU divergence. The
+oracle's census does not record the faulting opcode; the instruction just
+before it is a `ROR r/m32, CL` (`D3 /1`) at 0180:00222BDE.
 
 ## Incidents
 
