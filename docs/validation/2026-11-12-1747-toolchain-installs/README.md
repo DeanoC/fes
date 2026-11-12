@@ -1,6 +1,8 @@
-# Per-tool toolchain installs (#1747): D12 for fes.coleco
+# Per-tool toolchain installs (#1747): fes.coleco against main
 
-On Powerboat, 12 Nov 2026. This record applies AGENTS.md D12 to fes.coleco, the registered native-video shell. That is the only core whose main tool slot (`slots/9c81e35d…`, Coleco lock, HIP) still exists and still authenticates with main's code.
+On Powerboat, 12 Nov 2026. This record compares fes.coleco, the registered native-video shell, with main. Coleco is the only core whose main tool slot (`slots/9c81e35d…`, Coleco lock, HIP) still exists and still authenticates with main's code.
+
+**This does not meet AGENTS.md D12, so Coleco stays on the reseal list.** D12 requires the netlist to be byte-identical to main's apart from the BUILD_ID constant. Here the netlist differs in one more place: Yosys records its own techlib file paths in `src` attributes, and those paths name the tool's install directory. Every relocation of the tools changes them. The record stays as evidence that the relocation changes nothing else.
 
 ## Builds
 
@@ -19,12 +21,14 @@ The PR's tools are the same commits as main's: Yosys `5391eeb1`, nextpnr `bec82e
 | Yosys | `1ee1a387…` | `4e32a016…` |
 | nextpnr | `b8aaf1c7…` | `39d55335…` |
 
-## D12 conditions
+## Against the D12 conditions
 
-1. **Netlist.**
-   - With main's BUILD_ID, the PR's `synth.json` is byte-identical to main's. The only exception is the path of Yosys's own techlib files (`…/install/bin/../share/yosys/abc9_model.v`) in `src` attributes, which now name the per-tool install instead of the slot. Normalized for the checkout and that install path, both are `bb7fd232…`.
+1. **Netlist (not met).**
+   - **Not met.** With main's BUILD_ID, the PR's `synth.json` (`ce6b7aef…`) is not byte-identical to main's (`eb970f1f…`).
+   - The only differences are the checkout path and the path of Yosys's own techlib files (`…/install/bin/../share/yosys/abc9_model.v`) in `src` attributes. Those paths now name the per-tool install instead of the slot.
+   - With both paths normalized, both files are `bb7fd232…`.
    - The own build's netlist differs from main's only through its BUILD_ID constant: the parameter itself, and the bits and nets that constant drives.
 2. **RBF.** The forced build's `core.rbf` is byte-identical to main's: `fbc2b284a93f021696621e3b3d8a333871cc026425986cd37d133b89695a7a87`.
 3. **Timing and seal.** The own build passes all three clocks. The producer's own route, timing, ROM-map, source and tool-identity checks pass, and it exported its package. The system clock met 52.225 MHz against a 52.2248 MHz constraint. The producer's placer QoR search chose seed 5 for this BUILD_ID; main's chose seed 3.
 
-Every other registered OSS producer has no surviving main tool slot, so this record does not cover them (see the PR's reseal list).
+Every other registered OSS producer has no surviving main tool slot, so no such comparison exists for them (see the PR's reseal list).
