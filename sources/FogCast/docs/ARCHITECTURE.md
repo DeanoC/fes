@@ -2661,6 +2661,23 @@ by the removed grid launcher. The bundle's `bin/fogcast-kit` is
 FogCast host ([kit mode](#kit-mode)), and `--print-kit-ui` still prints
 `tenfoot` for bases whose supervisor probes it before starting the launcher.
 
+The DE10-Nano has two CPUs, and room callbacks run against a wall-clock
+budget, so the agent and the kit host step back from the launcher. When the
+supervisor starts either one it sets `FES_SOFTWARE_MANAGED=1`, and the first
+call in `cmd/mister-agent` and in `fogcast-kit host` is
+`kitpriority.Background()` (`internal/kitpriority`). It sets `GOMAXPROCS(1)`
+and raises every existing thread of the process to nice +10, repeating until a
+pass after a short settle wait changes no thread, so threads the Go runtime
+starts later inherit that nice. A thread whose creation outlasts the wait can
+keep nice 0, so this is best effort. A failure is logged and the process keeps
+its priority. Without `FES_SOFTWARE_MANAGED=1` (the shared host, dev hosts)
+the call does nothing. The launcher and the native runtime never call it and
+keep their priority. While a room is open the launcher also stops library grid
+cover work: the hidden grid queues no new cover requests, and opening a room
+drops grid cover jobs still queued, so they are requested again when the grid
+returns. Decodes a worker already started finish and are kept. Room covers use
+their own workers and are unaffected.
+
 `POST /v1/launcher/pairing` updates the fixed
 `/media/fat/fogcast/launcher.json` through the authenticated target agent. It
 requires the current kit lease, software and image admission, a ready idle
