@@ -7,10 +7,12 @@ Usage, from sources/misteross of a clean checkout at the PR commit:
 
 It runs the registered producer's build() (native-video shell, HIP) unchanged
 except that build_identity returns main's BUILD_ID in place of the one the
-PR's build record gives. The producer still authenticates its tools from the
-PR's per-tool installs and runs its own synthesis, placement search, route,
-timing and seal checks. Compare build/fes-coleco-native-video/core.rbf and
-synth.json with main's.
+PR's build record gives, and the final package export (which rightly refuses
+a manifest whose build.id differs from the record) is skipped. The producer
+still authenticates its tools from the PR's per-tool installs and runs its own
+synthesis, placement search, route, timing, ROM-map, source and identity
+checks. Compare build/fes-coleco-native-video/core.rbf and synth.json with
+main's.
 """
 import json
 import sys
@@ -22,5 +24,6 @@ from scripts import build_fes_coleco_socket_v2 as producer  # noqa: E402
 
 main_id = json.loads(Path(sys.argv[1]).read_text())["build_id"]
 producer.build_identity = lambda record: main_id
+producer.export_package = lambda encoded, rbf, store, rom_map: rbf
 print("forced build_id", main_id, flush=True)
 print(producer.build(root, cache_root=Path(sys.argv[2]), native_video=True), flush=True)
