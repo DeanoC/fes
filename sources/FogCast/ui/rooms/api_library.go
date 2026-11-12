@@ -22,12 +22,38 @@ func (r *Instance) installLibrary() *lua.LTable {
 	L := r.L
 	t := L.NewTable()
 	L.SetFuncs(t, map[string]lua.LGFunction{
-		"query":       r.libraryQuery,
-		"platforms":   r.libraryPlatforms,
-		"collections": r.libraryCollections,
-		"game":        r.libraryGame,
+		"query":                  r.libraryQuery,
+		"_family_cache_epoch":    r.libraryCacheEpoch,
+		"_family_cached_machine": r.libraryCachedMachine,
+		"platforms":              r.libraryPlatforms,
+		"collections":            r.libraryCollections,
+		"game":                   r.libraryGame,
 	})
 	return t
+}
+
+// These lightweight cache views let Home finish a delayed family reduction
+// against the latest readiness without converting entire game records again.
+func (r *Instance) libraryCacheEpoch(L *lua.LState) int {
+	L.Push(lua.LNumber(r.refreshEpoch))
+	return 1
+}
+
+func (r *Instance) libraryCachedMachine(L *lua.LState) int {
+	id := L.CheckString(1)
+	queryEpoch := uint64(L.CheckNumber(2))
+	game, ok := r.games[id]
+	if !ok || r.gameVersion[id] <= queryEpoch {
+		L.Push(lua.LNil)
+		return 1
+	}
+	row := L.NewTable()
+	row.RawSetString("id", lua.LString(game.ID))
+	row.RawSetString("core_id", lua.LString(strings.TrimSpace(game.CoreID)))
+	row.RawSetString("media_id", lua.LString(strings.TrimSpace(game.MediaID)))
+	row.RawSetString("launch_block", lua.LString(game.LaunchBlock()))
+	L.Push(row)
+	return 1
 }
 
 func optString(t *lua.LTable, key string) string {
@@ -97,6 +123,7 @@ func (r *Instance) libraryQuery(L *lua.LState) int {
 		return 1
 	}
 	ctx, cancel := context.WithCancel(r.ctx)
+	queryEpoch := r.gameEpoch
 	cancelled := new(atomic.Bool)
 	L.Push(L.NewFunction(func(*lua.LState) int { cancelled.Store(true); cancel(); return 0 }))
 	go func() {
@@ -106,7 +133,7 @@ func (r *Instance) libraryQuery(L *lua.LState) int {
 			games = []hostclient.Game{}
 		}
 		r.deliver(asyncResult{cb: cb, games: games, err: err, libraryQuery: true, homeFamily: q.HomeFamily,
-			cancelled: cancelled, transient: transientLibraryError(err), more: more})
+			cancelled: cancelled, queryEpoch: queryEpoch, transient: transientLibraryError(err), more: more})
 	}()
 	return 1
 }
@@ -225,7 +252,7 @@ func (r *Instance) libraryGame(L *lua.LState) int {
 func (r *Instance) gamesTable(games []hostclient.Game) *lua.LTable {
 	t := r.L.NewTable()
 	for _, g := range games {
-		r.games[g.ID] = g
+		r.cacheGame(g.ID, g)
 		t.Append(r.gameTable(g))
 	}
 	return t

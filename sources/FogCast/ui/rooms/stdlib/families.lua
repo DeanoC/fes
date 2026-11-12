@@ -336,9 +336,22 @@ end
 -- A failed family uses the kit fallback, without claiming zero games.
 local function publish_library(gen)
   if gen ~= library_generation then return end
-  local m, counts, more, answered, oversized, failed = {}, {}, {}, {}, {}, nil
+  -- All answers must be complete before comparing epochs: another family
+  -- still converting its response will update the cache when it finishes.
   for _, req in ipairs(requests) do
     if not req.answered then return end
+  end
+  local epoch, stale = library._family_cache_epoch(), false
+  for _, req in ipairs(requests) do
+    if req.data and req.cache_epoch ~= epoch then
+      req.pending, req.index = req.data, 1
+      req.machines, req.count, req.variant_index = {}, 0, nil
+      req.cache_epoch, req.answered, stale = epoch, false, true
+    end
+  end
+  if stale then return end
+  local m, counts, more, answered, oversized, failed = {}, {}, {}, {}, {}, nil
+  for _, req in ipairs(requests) do
     if req.err then
       failed = failed or req.err
       if req.overfull then oversized[req.family.id] = true end
@@ -350,6 +363,9 @@ local function publish_library(gen)
       counts[req.family.id] = req.count
       more[req.family.id] = req.more
     end
+    -- The published summaries are small; release the converted page so a
+    -- settled Home does not retain thousands of Lua rows.
+    req.data = nil
   end
   overfull = oversized
   if failed and not retry_enabled then
@@ -362,7 +378,7 @@ end
 
 local function query_family(req, gen)
   req.due = nil
-  req.cancel = library.query({ platform = "fpga", core_ids = req.ids, limit = LIBRARY_LIMIT, home_family = true }, function(games, err, transient, more)
+  req.cancel = library.query({ platform = "fpga", core_ids = req.ids, limit = LIBRARY_LIMIT, home_family = true }, function(games, err, transient, more, query_epoch)
     if gen ~= library_generation then return end
     req.cancel = nil
     req.err = err
@@ -375,7 +391,9 @@ local function query_family(req, gen)
       req.answered = true
     else
       req.answered = false
-      req.pending, req.index = games or {}, 1
+      req.data, req.index = games or {}, 1
+      req.pending, req.cache_epoch = req.data, library._family_cache_epoch()
+      req.query_epoch = query_epoch
       req.machines, req.count = {}, 0
       req.more = more or nil
     end
@@ -389,6 +407,7 @@ end
 -- the request list, so it also discards a partially processed answer.
 local function process_family(req)
   local function machine(g)
+    if g.id then g = library._family_cached_machine(g.id, req.query_epoch) or g end
     if g.core_id and systems.family_by_core[g.core_id] and (g.media_id or "") == "" then add_machine(req.machines, g) end
   end
   local work = 0

@@ -262,6 +262,13 @@ cover. Handles expose `ready`, `w`, `h`, `err`. Draw nothing until `ready`.
 | `library.collections(fn(collections, err))` | `{id, name}` |
 | `library.game(id, fn(game, err))` | one game. A cached list row is returned immediately. When `variant_count` is greater than one and that row has no `variants`, the call loads the detail row so grouped editions are present. |
 
+The bundled `families` module uses an internal fifth query callback value as
+an opaque cache epoch and the private `_family_cache_epoch` and
+`_family_cached_machine` helpers to detect and apply readiness refreshes while
+reducing a family response. These helpers are implementation details, not a
+supported API for other rooms. Home-family response conversion and reduction
+run in batches; the callback still receives the complete result once.
+
 Game tables: `id, title, system, core_id, package_id, media_id, media_role, genre, year, region, state, series,
 launchable, launch_block, favorite, play_count, last_played_at,
 played, completed, collections, variant_count, expansion_id, expansion_ready,

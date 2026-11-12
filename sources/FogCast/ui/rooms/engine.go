@@ -170,6 +170,9 @@ type Instance struct {
 	// actions: a workbench repeats it on every load.
 	firmwareInfo *Action
 	games        map[string]hostclient.Game
+	gameVersion  map[string]uint64
+	gameEpoch    uint64
+	refreshEpoch uint64
 	images       map[string]*Image
 	store        *store
 	logs         []string
@@ -212,6 +215,8 @@ type asyncResult struct {
 	partialGame  *lua.LTable
 	partialList  *lua.LTable
 	variantIndex int
+	queryEpoch   uint64
+	variants     []hostclient.Game
 	platforms    []hostclient.Platform
 	collections  []hostclient.Collection
 	game         *hostclient.Game
@@ -759,6 +764,27 @@ func (r *Instance) CachedGame(id string) (hostclient.Game, bool) {
 	return g, ok
 }
 
+// Record cache writes so an older query being converted across frames cannot
+// replace a newer refresh or detail result for the same entry.
+func (r *Instance) cacheGame(id string, game hostclient.Game) {
+	r.refreshEpoch++
+	r.cacheFamilyGame(id, game)
+}
+
+// A family result populates the cache without invalidating other independent
+// family reductions. External refreshes and details use cacheGame instead.
+func (r *Instance) cacheFamilyGame(id string, game hostclient.Game) {
+	if r.games == nil {
+		r.games = make(map[string]hostclient.Game)
+	}
+	if r.gameVersion == nil {
+		r.gameVersion = make(map[string]uint64)
+	}
+	r.gameEpoch++
+	r.games[id] = game
+	r.gameVersion[id] = r.gameEpoch
+}
+
 // RefreshCachedGames updates host catalog rows the script already saw and
 // reclassifies the published destination from its retained candidate set.
 // A blocked sibling stays in that set, so a row that becomes viable is
@@ -775,7 +801,7 @@ func (r *Instance) RefreshCachedGames(games []hostclient.Game) {
 		if id == "" {
 			continue
 		}
-		r.games[id] = g
+		r.cacheGame(id, g)
 	}
 	if r.dest.Kind != KindGame {
 		return
@@ -958,8 +984,12 @@ func (r *Instance) drainResults() {
 				continue
 			}
 			// A cancelled partial answer never changes the shared game cache.
+			accepted := make(map[string]bool)
 			for _, g := range res.games {
-				r.games[g.ID] = g
+				if accepted[g.ID] || r.gameVersion[g.ID] <= res.queryEpoch {
+					r.cacheFamilyGame(g.ID, g)
+					accepted[g.ID] = true
+				}
 			}
 		}
 		r.applyResult(res)
@@ -981,11 +1011,11 @@ const familyResultBatch = 128
 func (r *Instance) convertFamilyBatch(res *asyncResult) {
 	for work := 0; work < familyResultBatch && res.gameIndex < len(res.games); work++ {
 		game := res.games[res.gameIndex]
-		variants := game.Variants
-		if len(variants) == 0 {
-			variants = game.Editions
-		}
 		if res.partialGame == nil {
+			variants := game.Variants
+			if len(variants) == 0 {
+				variants = game.Editions
+			}
 			row := r.gameRow(game, false)
 			if len(variants) == 0 {
 				res.gameTable.Append(row)
@@ -994,16 +1024,18 @@ func (r *Instance) convertFamilyBatch(res *asyncResult) {
 			}
 			res.partialGame = row
 			res.partialList = r.L.NewTable()
+			res.variants = variants
 			row.RawSetString("variants", res.partialList)
 			res.variantIndex = 0
 			continue
 		}
-		res.partialList.Append(r.gameRow(variants[res.variantIndex], false))
+		res.partialList.Append(r.gameRow(res.variants[res.variantIndex], false))
 		res.variantIndex++
-		if res.variantIndex == len(variants) {
+		if res.variantIndex == len(res.variants) {
 			res.gameTable.Append(res.partialGame)
 			res.partialGame = nil
 			res.partialList = nil
+			res.variants = nil
 			res.gameIndex++
 		}
 	}
@@ -1044,7 +1076,7 @@ func (r *Instance) applyResult(res asyncResult) {
 	case res.collections != nil:
 		payload = r.collectionsTable(res.collections)
 	case res.game != nil:
-		r.games[res.game.ID] = *res.game
+		r.cacheGame(res.game.ID, *res.game)
 		payload = r.gameTable(*res.game)
 	case res.cores != nil:
 		payload = r.coresTable(res.cores)
@@ -1058,6 +1090,7 @@ func (r *Instance) applyResult(res asyncResult) {
 	if res.libraryQuery {
 		args = append(args, lua.LBool(res.transient))
 		args = append(args, lua.LBool(res.more))
+		args = append(args, lua.LNumber(res.queryEpoch))
 	}
 	if err := r.callSoft(res.cb, r.budget.Frame, 0, args...); err != nil {
 		err = fmt.Errorf("async callback: %w", err)

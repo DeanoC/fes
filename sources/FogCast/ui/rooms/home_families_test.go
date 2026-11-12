@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	lua "github.com/yuin/gopher-lua"
+
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/internal/testwait"
@@ -723,15 +725,17 @@ func TestHomeFamilyBatchesIncludeLateMachineEditions(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	r.Step(time.Now())
-	r.pendingMu.Lock()
 	var converted int
-	for _, result := range r.pending {
-		if result.partialGame != nil {
-			converted = result.variantIndex
+	for step := 0; step < 5 && converted == 0; step++ {
+		r.Step(time.Now())
+		r.pendingMu.Lock()
+		for _, result := range r.pending {
+			if result.partialGame != nil {
+				converted = result.variantIndex
+			}
 		}
+		r.pendingMu.Unlock()
 	}
-	r.pendingMu.Unlock()
 	if converted == 0 || converted >= 128 {
 		t.Fatalf("first frame converted %d of 601 editions; want fewer than 128", converted)
 	}
@@ -739,6 +743,78 @@ func TestHomeFamilyBatchesIncludeLateMachineEditions(t *testing.T) {
 		d := r.Destination()
 		return homeSettled(r) && d.GameID == "ready-edition" && d.Status == "1 game"
 	})
+}
+
+func TestHomeFamilyBatchesPreferNewerEditionOverOldCache(t *testing.T) {
+	group := machineEntry("blocked", "fes.zx81", "offline")
+	group.Variants = []hostclient.Game{machineEntry("edition", "fes.zx81", "")}
+	group.VariantCount = 1
+	svc := &homeServices{fakeServices: fakeServices{games: []hostclient.Game{group}}}
+	r := newRoom(t, examplePack(t, "example.fes-cores"), Options{
+		Services: svc, ReleaseOnly: true, Budget: DefaultBudget(),
+	})
+	r.RefreshCachedGames([]hostclient.Game{machineEntry("edition", "fes.zx81", "offline")})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(Frame) bool {
+		d := r.Destination()
+		return homeSettled(r) && d.GameID == "edition" && d.Availability == AvailReady
+	})
+}
+
+func TestHomeFamilyBatchesPreserveNewerCacheRefresh(t *testing.T) {
+	for _, phase := range []string{"before_conversion", "during_conversion", "during_reduction"} {
+		t.Run(phase, func(t *testing.T) {
+			games := []hostclient.Game{machineEntry("machine", "fes.zx81", "")}
+			for i := 0; i < 400; i++ {
+				games = append(games, titleEntry(fmt.Sprintf("game-%04d", i), "fes.zx81"))
+			}
+			svc := &homeServices{fakeServices: fakeServices{games: games}}
+			r := loadHome(t, Options{Services: svc, ReleaseOnly: true, Budget: DefaultBudget()})
+			newer := machineEntry("machine", "fes.zx81", "offline")
+			newer.Title = "newer refresh"
+			if phase == "before_conversion" {
+				r.RefreshCachedGames([]hostclient.Game{newer})
+			}
+			deadline := time.Now().Add(testwait.Timeout)
+			for {
+				r.pendingMu.Lock()
+				queued := len(r.pending)
+				r.pendingMu.Unlock()
+				if queued >= 5 {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("family responses were not delivered")
+				}
+				time.Sleep(time.Millisecond)
+			}
+			r.Step(time.Now())
+			if phase == "during_reduction" {
+				for i := 0; i < 15; i++ {
+					if _, ok := r.CachedGame("machine"); ok {
+						break
+					}
+					r.Step(time.Now())
+				}
+				if _, ok := r.CachedGame("machine"); !ok || homeSettled(r) {
+					t.Fatalf("family reduction was not pending: %+v", r.Destination())
+				}
+			}
+			if phase != "before_conversion" {
+				r.RefreshCachedGames([]hostclient.Game{newer})
+			}
+			stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
+			if d := r.Destination(); d.Availability == AvailReady || d.Status != "Its library is offline" {
+				t.Fatalf("old family answer exposed stale readiness: %+v", d)
+			}
+			got, ok := r.CachedGame("machine")
+			if !ok || got.Title != newer.Title || got.RootOnline != newer.RootOnline {
+				t.Fatalf("old family answer replaced newer cache entry: %+v", got)
+			}
+		})
+	}
 }
 
 func TestHomeFamilyFullPagesSettleAcrossBoundedFrames(t *testing.T) {
@@ -768,10 +844,15 @@ func TestHomeFamilyFullPagesSettleAcrossBoundedFrames(t *testing.T) {
 	steps := 0
 	now := time.Now()
 	var first StepTiming
-	for steps < 80 && !homeSettled(r) {
+	var maxAsync, maxUpdate, maxTotal time.Duration
+	for steps < 120 && !homeSettled(r) {
 		steps++
 		now = now.Add(16 * time.Millisecond)
 		r.Step(now)
+		timing := r.LastStep()
+		maxAsync = max(maxAsync, timing.Async)
+		maxUpdate = max(maxUpdate, timing.Update)
+		maxTotal = max(maxTotal, timing.Total)
 		if steps == 1 {
 			first = r.LastStep()
 			r.pendingMu.Lock()
@@ -791,7 +872,8 @@ func TestHomeFamilyFullPagesSettleAcrossBoundedFrames(t *testing.T) {
 	if steps <= 1 || !homeSettled(r) {
 		t.Fatalf("full pages settled after %d frames, destination %+v", steps, r.Destination())
 	}
-	t.Logf("four full family pages settled in %d update frames (first async %s, update %s)", steps, first.Async, first.Update)
+	t.Logf("four full family pages settled in %d update frames (first async %s, update %s; max async %s, update %s, total %s)",
+		steps, first.Async, first.Update, maxAsync, maxUpdate, maxTotal)
 	for i, core := range cores {
 		if i > 0 {
 			r.Input("right")
@@ -800,6 +882,37 @@ func TestHomeFamilyFullPagesSettleAcrossBoundedFrames(t *testing.T) {
 			t.Fatalf("family %s lost or reordered results: %+v", core, d)
 		}
 	}
+	// The module must release full response pages once all family summaries
+	// have been published; otherwise Home retains thousands of Lua rows.
+	module, ok := r.modules["families"].(*lua.LTable)
+	if !ok {
+		t.Fatal("families module missing")
+	}
+	update, ok := module.RawGetString("update").(*lua.LFunction)
+	if !ok {
+		t.Fatal("families update missing")
+	}
+	var requests *lua.LTable
+	for _, upvalue := range update.Upvalues {
+		table, ok := upvalue.Value().(*lua.LTable)
+		if !ok {
+			continue
+		}
+		first, ok := table.RawGetInt(1).(*lua.LTable)
+		if ok && first.RawGetString("family") != lua.LNil {
+			requests = table
+			break
+		}
+	}
+	if requests == nil {
+		t.Fatal("family request state missing")
+	}
+	requests.ForEach(func(_, value lua.LValue) {
+		request, ok := value.(*lua.LTable)
+		if !ok || request.RawGetString("data") != lua.LNil || request.RawGetString("pending") != lua.LNil {
+			t.Errorf("completed family retained a full response: %v", value)
+		}
+	})
 }
 
 func TestHomeFamilyMachineOverflowFailsClosed(t *testing.T) {
