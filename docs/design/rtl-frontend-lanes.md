@@ -738,7 +738,7 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
 
 ### S5. pc386 lockstep producer gate
 
-- **Files:** `build_fes_pc386_quartus.py` (`--lockstep-report`, input-identity matching, CPU-top netlist regeneration) and its tests.
+- **Files:** `build_fes_pc386_quartus.py` (`--lockstep-report`, input-identity matching, CPU-top netlist regeneration, the summary's `lockstep` object), `test_fes_i386_lockstep.py` (the report's `run` record: passed, and whether it was the default suite), the `build-fes-pc386-quartus` target's `LOCKSTEP_REPORT`, and their tests.
 - **Acceptance:** the sealer refuses a missing or mismatched report, and seals with a matching one.
 - **Dependencies:** S3, S4. **Kit:** no.
 

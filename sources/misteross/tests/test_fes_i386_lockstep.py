@@ -54,6 +54,16 @@ def moo_test(instruction: bytes, index: int = 0) -> vectors.MooTest:
     return vectors.MooTest(index, 'test', instruction, [0] * len(vectors.REGISTERS), [], 0, {}, [], None, '0' * 40)
 
 
+class RunRecordTest(unittest.TestCase):
+    def test_every_suite_argument_is_an_option(self):
+        # report["run"]["default_suite"] compares these with the parser's defaults (#1581 S5).
+        text = Path(lockstep.__file__).read_text()
+        for name in lockstep.SUITE_ARGUMENTS:
+            self.assertIn(f"parser.add_argument('--{name.replace('_', '-')}'", text)
+        self.assertNotIn('jobs', lockstep.SUITE_ARGUMENTS)
+        self.assertNotIn('netlist', lockstep.SUITE_ARGUMENTS)
+
+
 class ScopeTest(unittest.TestCase):
     def test_scope_takes_every_form_of_a_stem(self):
         for stem in ('00', '6601', '0FA4', '8D', '04', '8E', 'F6.3', 'FF.1', '0F95', '6650', '0FA9', 'C2', 'FF.4',
