@@ -52,6 +52,49 @@ struct StepContext {
 StepContext context;
 std::function<void(unsigned)> iteration_hook;
 
+// The AT coupling of a fitted 387 (Oracle::set_at_coprocessor). The 386's
+// ERROR# input is tied inactive; the 387's ERROR# drives IRQ 13 and, going
+// active, clocks a flip-flop that holds BUSY# active until a write to port
+// F0h (80387 Programmer's Reference Manual 231917-001, Appendix F; IBM PC AT
+// Technical Reference 6183355, "NMI and Coprocessor Controls").
+struct AtCoprocessor {
+    bool fitted = false;
+    bool busy = false;   // the board's BUSY# latch
+    bool error = false;  // the 387's ERROR# after the last step or port write
+};
+AtCoprocessor at387;
+
+// The 387 drives ERROR# while its status word's ES bit is set.
+bool x87_error() { return bx_cpu.the_i387.swd & FPU_SW_Summary; }
+
+// Bochs's IGNNE# input stands for the AT's wiring: with the 387 fitted, a
+// waiting ESC whose pending error Bochs would report runs on, as on a board
+// whose CPU ERROR# is tied inactive, except while the latch holds BUSY#.
+// Bochs's own wait for IGNNE# (FPU_check_pending_exceptions) is then never
+// reached, since a waiting ESC holds before it runs (fes_bx_before_execution).
+void update_ignne() { bx_pc_system.IGNNE = at387.fitted && !at387.busy; }
+
+// ERROR# going active latches BUSY#.
+void sample_error() {
+    const bool now = x87_error();
+    if (at387.fitted && now && !at387.error) at387.busy = true;
+    at387.error = now;
+    update_ignne();
+}
+
+// Whether the instruction about to run waits for BUSY#: every ESC but FNINIT
+// and FNCLEX, and WAIT (80386 Hardware Reference Manual, 5.1: "When the 80386
+// encounters any coprocessor instruction except FNINIT and FNCLEX, the BUSY#
+// input must be inactive"), unless #NM or #UD comes first: EM or TS for an
+// ESC, MP and TS for WAIT, LOCK for an ESC.
+bool waits_for_busy(const bxInstruction_c *i) {
+    const unsigned op = i->getIaOpcode();
+    const Bit32u cr0 = bx_cpu.cr0.get32();
+    if (op == BX_IA_FWAIT) return (cr0 & 0xa) != 0xa;
+    if (!(BxOpcodesTable[op].opflags & BX_PREPARE_FPU) || op == BX_IA_FNINIT || op == BX_IA_FNCLEX) return false;
+    return !(cr0 & 0xc) && !i->getLock();
+}
+
 bool is_prefix(uint8_t b) {
     switch (b) {
     case 0x26: case 0x2e: case 0x36: case 0x3e: case 0x64: case 0x65:
@@ -207,7 +250,33 @@ void bx_devices_c::init_stubs() {
 }
 bx_devices_c::~bx_devices_c() {}
 Bit32u bx_devices_c::inp(Bit16u port, unsigned len) { return bus->in(port, len); }
-void bx_devices_c::outp(Bit16u port, Bit32u value, unsigned len) { bus->out(port, len, value); }
+void bx_devices_c::outp(Bit16u port, Bit32u value, unsigned len) {
+    // The AT's coprocessor controls, by byte: F0h clears the BUSY# latch,
+    // F1h resets the 387. The machine sees the write as any other.
+    for (unsigned n = 0; at387.fitted && n < len; ++n) {
+        const unsigned at = port + n;
+        if (at == 0xf0) at387.busy = false;
+        if (at == 0xf1) {
+            // A 387's RESET: FNINIT's state but for the invalid-operation
+            // mask clear and IE and ES set, so ERROR# is active (387 PRM 4.8.1
+            // and Appendix C.1). The 387 is not busy, so the latch stays as
+            // it is. The x87 pointers are the CPU's and stay.
+            i387_t &x87 = bx_cpu.the_i387;
+            const i387_t kept = x87;
+            x87.init();
+            x87.cwd = 0x037e;
+            x87.swd = 0x0081;
+            x87.fip = kept.fip;
+            x87.fdp = kept.fdp;
+            x87.fcs = kept.fcs;
+            x87.fds = kept.fds;
+            x87.foo = kept.foo;
+            at387.error = true;
+        }
+    }
+    update_ignne();
+    bus->out(port, len, value);
+}
 
 // ---- Instrumentation -------------------------------------------------------
 
@@ -219,6 +288,14 @@ void fes_bx_before_execution(bxInstruction_c *i) {
         longjmp(bx_cpu.jmp_buf_env, 1);
     }
     context.result->eip_before = Bit32u(bx_cpu.prev_rip);
+    if (at387.fitted && at387.busy && waits_for_busy(i)) {
+        // Held on BUSY# before the instruction starts: RIP is still its
+        // first byte's, and the step ends with the CPU waiting.
+        bx_cpu.activity_state = BX_CPU_C::BX_ACTIVITY_WAIT_FOR_X87;
+        context.result->x87_held = true;
+        stop_at_next_boundary();
+        longjmp(bx_cpu.jmp_buf_env, 1);
+    }
     // Read before execution: a store to this page can invalidate *i.
     context.rep_string = i->lockRepUsedValue() >= 2 && std::strncmp(i->getIaOpcodeNameShort(), "REP_", 4) == 0;
 }
@@ -335,6 +412,9 @@ public:
     void reset() override {
         bx_cpu.reset(BX_RESET_HARDWARE);
         context = StepContext{};
+        at387.busy = false;
+        at387.error = x87_error();
+        update_ignne();
     }
 
     State get_state() const override {
@@ -413,6 +493,7 @@ public:
         }
         context.result = nullptr;
         finish(result);
+        sample_error();
         return result;
     }
 
@@ -454,6 +535,32 @@ public:
         x87.fds = pointers.ds;
     }
 
+    X87State x87_state() const override {
+        const i387_t &x87 = bx_cpu.the_i387;
+        X87State state;
+        state.control = x87.cwd;
+        state.status = x87.get_status_word();
+        state.opcode = x87.foo;
+        state.pointers = x87_pointers();
+        for (unsigned n = 0; n < 8; ++n) {
+            const floatx80 &reg = x87.st_space[n];
+            state.r[n] = {reg.signif, reg.signExp};
+            // FNSTENV's tag: empty stays empty, any other from the value.
+            const unsigned tag = (x87.twd >> (2 * n)) & 3;
+            state.tag |= uint16_t((tag == FPU_Tag_Empty ? tag : unsigned(FPU_tagof(reg)) & 3) << (2 * n));
+        }
+        return state;
+    }
+
+    void set_at_coprocessor(bool fitted) override {
+        at387 = AtCoprocessor{fitted, false, x87_error()};
+        update_ignne();
+    }
+
+    bool x87_irq13() const override { return at387.fitted && x87_error(); }
+
+    bool x87_busy_latched() const override { return at387.busy; }
+
     // Bochs models a 387. Its words as the empty socket's data bus reads
     // them, with TOP 7 so the status word's image is all ones too.
     void empty_socket(bool status) override {
@@ -472,12 +579,14 @@ public:
 private:
     static bool wake_pending() {
         return (bx_cpu.is_pending(BX_EVENT_PENDING_INTR) && bx_cpu.get_IF())
-            || bx_cpu.is_unmasked_event_pending(BX_EVENT_NMI);
+            || bx_cpu.is_unmasked_event_pending(BX_EVENT_NMI)
+            || (bx_cpu.activity_state == BX_CPU_C::BX_ACTIVITY_WAIT_FOR_X87 && bx_pc_system.IGNNE);
     }
 
     static void finish(StepResult &result) {
         result.halted = bx_cpu.activity_state == BX_CPU_C::BX_ACTIVITY_STATE_HLT;
         result.shutdown = bx_cpu.activity_state == BX_CPU_C::BX_ACTIVITY_STATE_SHUTDOWN;
+        result.x87_held = bx_cpu.activity_state == BX_CPU_C::BX_ACTIVITY_WAIT_FOR_X87;
     }
 };
 

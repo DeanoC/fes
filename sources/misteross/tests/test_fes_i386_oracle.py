@@ -338,6 +338,13 @@ class OracleSmokeTest(unittest.TestCase):
         self.assertEqual(result.stdout.splitlines()[-1], 'SUMMARY 2 1')
         self.assertIn('FAIL 01#1 eax 1336 1335', result.stdout)
 
+    def test_x87_at_coupling_cases_pass(self):
+        # The AT coprocessor coupling and the x87 accessor (x87_tb.cpp).
+        testbench = oracle.build_testbench('i386-x87', oracle.SIM / 'x87_tb.cpp')
+        result = subprocess.run([str(testbench)], capture_output=True, text=True, timeout=120)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(result.stdout.splitlines()[-1], 'SUMMARY 10 0')
+
 
 class OracleFetchTest(unittest.TestCase):
     def test_no_download_without_permission(self):

@@ -291,6 +291,7 @@ public:
     uint8_t heads = 0, spt = 0;
     uint64_t cycles = 0;
     bool cpu_reset_seen = false;
+    bool irq13 = false;  // the oracle's 387 ERROR#, after its last step
     std::map<std::tuple<std::string, unsigned, uint64_t>, uint64_t> io_times, io_waits;
     bool vga_write_open = false;  // the I/O access in flight is a VGA port write
     uint64_t vga_waits = 0;       // its clocks waiting for VGA FIFO space
@@ -392,6 +393,9 @@ public:
             pixel_edge_ps += PIXEL_HALF_PS;
         }
         link.carry(cycles);
+        // IRQ 13 from the 387's ERROR# (Oracle::x87_irq13), on the AT core's
+        // device IRQs beside the sound card's.
+        if (irq13) top.device_irq |= 1u << 13;
         // A VGA port write's byte waits while the VGA's front FIFO is full.
         if (vga_write_open && top.rootp->pc386_machine__DOT__vga__DOT__io_new &&
             top.rootp->pc386_machine__DOT__vga__DOT__fifo_full)
@@ -1424,6 +1428,9 @@ int main(int argc, char **argv) {
             std::fprintf(machine.trace, "# pc386 VGA trace: cycles from machine reset\n");
         }
         auto oracle = fes_i386::make_oracle(machine);
+        // Bochs's 387 is the oracle's coprocessor, wired as on an AT board:
+        // its ERROR# on IRQ 13, the BUSY# latch and ports F0h and F1h.
+        oracle->set_at_coprocessor(true);
         oracle->reset();
         // --cpu rtl: the RTL runs, and the oracle only between its stops and
         // their restarts (on_oracle).
@@ -1585,16 +1592,30 @@ int main(int argc, char **argv) {
                 if (profiling || !options.census.empty()) before = oracle->get_state();
                 // The census (census.h): the stem at CS:EIP before the step,
                 // what the step did after it.
-                if (!options.census.empty()) census.begin(before, site(before));
+                fes_i386::X87State x87_before;
+                if (!options.census.empty()) {
+                    census.begin(before, site(before));
+                    x87_before = oracle->x87_state();
+                }
                 fes_i386::StepResult result = oracle->step();
-                if (!options.census.empty()) census.end(before, oracle->get_state(), result);
+                if (!options.census.empty()) {
+                    const fes_i386::State after = oracle->get_state();
+                    census.end(before, after, result);
+                    census.x87(before, after, result, x87_before, oracle->x87_state());
+                }
+                machine.irq13 = oracle->x87_irq13();
                 ++steps;
                 for (unsigned n = 0; n < options.cycles_per_instruction; ++n) machine.clock();
                 if (machine.cycles >= pixel_from) machine.start_pixel_clock();
                 if (result.shutdown) machine.top.cpu_shutdown = 1;
-                if (result.halted) {
+                if (result.halted || result.x87_held) {
+                    // Halted, or held at an ESC or WAIT by the BUSY# latch:
+                    // either waits for an interrupt.
                     fes_i386::State state = oracle->get_state();
-                    if (!(state.eflags & 0x200)) { reason = "halt-with-interrupts-off"; break; }
+                    if (!(state.eflags & 0x200)) {
+                        reason = result.halted ? "halt-with-interrupts-off" : "x87-held-with-interrupts-off";
+                        break;
+                    }
                     while (!machine.top.intr && machine.cycles < limit && !machine.cpu_reset_seen &&
                            !(keys.size() && machine.cycles >= next_key) && !mouse_pending && !mouse_due())
                         machine.clock();
@@ -1604,6 +1625,7 @@ int main(int argc, char **argv) {
                     machine.top.cpu_shutdown = 0;
                     std::printf("CPU-RESET %llu\n", (unsigned long long)machine.cycles);
                     oracle->reset();
+                    machine.irq13 = oracle->x87_irq13();
                 }
                 if (profiling) profile.step(before, oracle->get_state(), result, machine.cycles - step_from, guest_byte);
                 if (bool(machine.top.intr) != intr) { intr = machine.top.intr; oracle->set_intr(intr); }
@@ -1646,6 +1668,8 @@ int main(int argc, char **argv) {
                     }
                 }
             } else {
+                // The RTL is a 386 with an empty socket: no ERROR#.
+                machine.irq13 = false;
                 RtlCpu::Event event = rtl->run(64);
                 if (machine.cycles >= pixel_from) machine.start_pixel_clock();
                 if (event == RtlCpu::Event::Shutdown) {
