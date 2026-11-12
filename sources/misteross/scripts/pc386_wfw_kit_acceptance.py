@@ -518,7 +518,9 @@ class Run:
         media = [path for path in created if '/core-data/media/' in path]
         found = None
         for directory in media:
-            record = self.ssh(f"cat '{directory}/record.bin'", binary=True)
+            # The scrub's media directory may hold no record: it saved nothing.
+            record = self.ssh(f"if [ -f '{directory}/record.bin' ]; then cat '{directory}/record.bin'; fi",
+                              binary=True)
             if len(record) >= 124 + 32 and record[72:104].hex() == self.record['sha256']:
                 found = (directory, record)
         if found is None:
