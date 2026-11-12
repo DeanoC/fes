@@ -19,8 +19,8 @@ raises #UD (vector 6, a fault with no error code) for both.
 - **Still not built.** The 386 defines four encodings this build does not run:
   ICEBP (F1h), LOADALL (0F 07), UMOV (0F 10-0F 13) and MOV to and from
   TR4-TR7. They still stop as not built (below).
-- **Lockstep.** At `c6e8d95f8` (this branch with main merged, so with
-  slice 5 and the #1704 NMI fix), the RTL and the netlist from the i386
+- **Lockstep.** At `105a73942` (this branch with main `df88b3ca8` merged:
+  slice 5 and #1705's NMI fix), the RTL and the netlist from the i386
   lock's Yosys pass everything with identical trace hashes:
   [lockstep-report.json](lockstep-report.json),
   [lockstep-netlist-report.json](lockstep-netlist-report.json). Before main
@@ -38,14 +38,16 @@ raises #UD (vector 6, a fault with no error code) for both.
 - **test386** on the RTL passes every POST to FFh (79,640,765 retirements,
   as on main): [test386-rtl-report.json](test386-rtl-report.json).
 - **Seal.** Quartus 17.0.2, seed 1, on chip-30x0-ai-dev with `--gpu-router
-  CUDA`, at `c6e8d95f8`: every analysis met, setup +0.737 ns, hold
-  +0.088 ns, 36,716 ALMs, 269 M10K ([seal-summary.json](seal-summary.json)).
-  Main `b9716fb05` on the same host: setup +0.718 ns, hold +0.087 ns, 36,699
-  ALMs, 269 M10K ([seal-summary-main.json](seal-summary-main.json)). Before
-  the merge, `27decb7ad` gave +0.519 ns and 36,216 ALMs against main
+  CUDA`, at `105a73942`: every analysis met, setup +0.772 ns, hold
+  +0.051 ns, 36,803 ALMs, 269 M10K ([seal-summary.json](seal-summary.json)).
+  Main `df88b3ca8` on the same host: setup +0.891 ns, hold +0.104 ns, 36,809
+  ALMs, 269 M10K ([seal-summary-main.json](seal-summary-main.json)). Earlier
+  pairs: `c6e8d95f8` +0.737 ns and 36,716 ALMs against main `b9716fb05`'s
+  +0.718 ns and 36,699; `27decb7ad` +0.519 ns and 36,216 against main
   `78b7ee4b7`'s +0.268 ns and 36,350.
 - **Kit.** Kit B at max: DOOM v1.9 `-timedemo demo3`, 3863 gametics, twice
-  per package ([kit.json](kit.json)).
+  per package ([kit.json](kit.json)). The kit pairs predate the last merge
+  and the LOCK-order fix.
   - At the merge, this branch took 3374 and 3374 realtics (40.07 fps); main
     `b9716fb05` took 3374 and 3373.
   - Before the merge, `27decb7ad` took 3376 (40.05 fps) against main
@@ -162,7 +164,7 @@ leaves out and the list does not name.
 ### Directed cases
 
 - **Protected-mode cases.** 42 probes, each run in real mode, at CPL 0, at
-  CPL 3, and in V86 mode at IOPL 0 and at IOPL 3 (210 cases; 350 → 560):
+  CPL 3, and in V86 mode at IOPL 0 and at IOPL 3 (210 cases; on main at `df88b3ca8` 407 → 617):
   - undefined 0Fh opcodes, XBTS and IBTS by register and memory;
   - FE /2 and /7 by memory, FF /3, /5 and /7 by register;
   - LES, LDS, LEA, BOUND, LSS and LFS of a register;
@@ -187,19 +189,22 @@ V86 mode, alongside the programs' own faults.
 ## Runs
 
 - **Commits.** Branch `deano/i386-ud-1701`: `6269cb133`, `fb20aa113` and
-  `27decb7ad`, main merged in at `c6e8d95f8`, test fixes at `34342334`.
+  `27decb7ad`; main merged in at `c6e8d95f8` and `7f8620de8`; test fixes at
+  `34342334`; Codex fixes at `f35672bce` (MOV TR4-TR7 not undefined) and
+  `105a73942` (an invalid LOCK is #UD before what is not built).
 - **Lockstep.**
-  - RTL and netlist at `c6e8d95f8`, this branch with main `b9716fb05`
-    merged: the protected-mode case count merges as 405 + 210.
+  - RTL and netlist at `105a73942`, with main `df88b3ca8` merged: the
+    protected-mode case count merges as 407 + 210. Earlier at `c6e8d95f8`
+    (main `b9716fb05`), everything passed too.
   - Earlier, without #1705 (`fb20aa113`): the corpus, the directed cases and
     the sweep pass; the random sets fail only at #1704.
   - Earlier, at a scratch merge with #1705 (`35b2cc488`, not pushed):
     everything passes.
-- **test386** at `c6e8d95f8` (and earlier at `fb20aa113`, the same).
+- **test386** at `105a73942` (and earlier at `c6e8d95f8` and `fb20aa113`, the same).
 - **Mutants** of `fb20aa113`'s decode.
 - **Seals** on chip-30x0-ai-dev with `--gpu-router CUDA`, seed 1: this
-  branch at `c6e8d95f8` against main `b9716fb05`, and before the merge
-  `27decb7ad` against main `78b7ee4b7`.
+  branch at `105a73942` against main `df88b3ca8`; earlier `c6e8d95f8`
+  against `b9716fb05` and `27decb7ad` against `78b7ee4b7`.
 - **Kit B, at max** (core-only on baseline software 7ddb0bfb, restored and
   released). The Phase 4 bench disk's DOOM v1.9 `-timedemo demo3` runs twice
   per package: runs `u2` (this branch) and `m2` (main) at the merge, `u1` and
