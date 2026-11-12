@@ -1483,12 +1483,18 @@ def run_storage(args) -> dict:
 def fdc_reference_objects(args) -> list[Path]:
     """Bochs's floppy controller from the oracle's configured checkout, and the adapter."""
     bochs = oracle.build_bochs(oracle.bochs_source(args.download), args.jobs)
-    output = OUTPUT / 'fdc-reference'
+    # Keyed on the Bochs build: its tree's name carries the oracle's input
+    # key (revision, configuration, compiler), so a new build compiles anew.
+    output = OUTPUT / 'fdc-reference' / bochs.name
+    if output.parent.is_dir():
+        for stale in output.parent.iterdir():
+            if stale != output:
+                shutil.rmtree(stale) if stale.is_dir() else stale.unlink()
     output.mkdir(parents=True, exist_ok=True)
     flags = ['-std=c++17', '-O2', f'-I{bochs}', f'-I{bochs}/instrument/fes', f'-I{bochs}/gui', f'-I{bochs}/iodev',
              f'-I{CORE / "sim"}']
     sources = {'floppy.o': bochs / 'iodev/floppy.cc', 'fdc_reference.o': CORE / 'sim/fdc_reference.cpp'}
-    inputs = [CORE / 'sim/fdc_reference.h']
+    inputs = [CORE / 'sim/fdc_reference.h', bochs / 'iodev/floppy.h', bochs / 'config.h']
     objects = []
     for name, source in sources.items():
         target = output / name

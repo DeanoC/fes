@@ -49,8 +49,15 @@
 // bytes after a TC as 00h, so a torn sector never reaches the image. A store
 // runs to its end whatever the controller does meanwhile, a software reset
 // included; busy covers it and every read beat still owed, and the shell
-// resets the machine only while busy is low. frozen holds back the next
-// sector store.
+// resets the machine only while busy is low.
+//
+// The fence (fes.media.ata-disk's, for the floppy units of slice F3): frozen
+// holds back the next sector a write would start, and the next ID of a
+// format; a sector or ID the guest has started runs to its end and is
+// stored. fenced reports that the fence is up and that the controller holds
+// no write: none is being collected, waiting or on its way to the image. A
+// disk that leaves its drive during a command ends it at its next sector
+// with ST0 IC=01 and NR, so a write never lands on the disk that replaced it.
 //
 // Times count microseconds from a rational enable of clk (US_N/US_D, the AT
 // core's 1 MHz), so the governor's presets leave floppy speed alone.
@@ -87,7 +94,7 @@ module pc386_fdc #(
     input wire aux_waitrequest, aux_readdatavalid,
     input wire [63:0] aux_readdata,
     input wire frozen,
-    output wire busy
+    output wire busy, fenced
 );
     localparam [31:0] IMAGE0 = `FES_APPLICATION_HPS_DDR_WINDOW_BASE + 32'h01800000;
     localparam [28:0] IMAGE0_WORD = IMAGE0[31:3];
@@ -139,6 +146,7 @@ module pc386_fdc #(
     reg [7:0] format_cyl, format_left;
     reg [1:0] id_byte;
     reg format_cyl_set, format_bad;
+    reg disk_left;                                 // the command's disk left its drive
     reg [8:0] index;                               // byte within the sector
 
     wire d = dor[0];                               // the selected drive
@@ -226,6 +234,13 @@ module pc386_fdc #(
     assign aux_writedata = store_data;
     assign aux_byteenable = 8'hff;
     assign busy = fetching || storing || owed != 8'd0;
+    // A write the controller holds: a sector or ID started, or one waiting
+    // for its store.
+    wire holding = phase == P_EXEC && writing &&
+                   (ex == X_STORE || ex == X_STORE_GO || (formatting ? id_byte != 2'd0 : index != 9'd0));
+    assign fenced = frozen && !busy && !holding;
+    // A write's next sector, or a format's next ID, waits at the fence.
+    wire fence_closed = frozen && writing && (formatting ? id_byte == 2'd0 : index == 9'd0);
     // The store engine reads its word, and the next once the port takes it;
     // otherwise the guest's byte.
     always @* buffer_raddress = !storing ? index[8:3] : store_word + {5'd0, store_loaded && !aux_waitrequest};
@@ -347,6 +362,14 @@ module pc386_fdc #(
         end
     endtask
 
+    // The command's disk left: abnormal termination, not ready.
+    task automatic not_ready;
+        begin
+            st0 <= {5'b01001, head[d], 1'b0, d}; st1 <= 0; st2 <= 0;
+            enter_result(formatting ? R_FORMAT : R_RW);
+        end
+    endtask
+
     task automatic fail(input [2:0] kind, input h, input [7:0] status1);
         begin
             st0 <= {5'b01000, h, 1'b0, d}; st1 <= status1; st2 <= 0;
@@ -394,7 +417,7 @@ module pc386_fdc #(
             changed <= 0; present_q <= present;
             st0 <= 0; st1 <= 0; st2 <= 0; st3 <= 0; last_result <= 0;
             pending_irq <= 0; pio_irq <= 0; reset_sensei <= 0;
-            phase <= P_COMMAND; result_kind <= R_ST0; ex <= X_DISPATCH;
+            phase <= P_COMMAND; result_kind <= R_ST0; ex <= X_DISPATCH; disk_left <= 0;
             command <= 0; command_index <= 0; command_size_r <= 0; result_index <= 0; result_size <= 0;
             wait_us <= 0; recalibrating <= 0; moved <= 0; writing <= 0; tc_seen <= 0; drq_r <= 0;
             steps <= 0; format_cyl <= 0; format_left <= 0; id_byte <= 0; format_cyl_set <= 0; format_bad <= 0;
@@ -407,6 +430,7 @@ module pc386_fdc #(
             // A disk leaving or arriving sets its drive's change latch.
             present_q <= present;
             for (k = 0; k < 2; k = k + 1) if (present[k] != present_q[k]) changed[k] <= 1;
+            if (phase == P_EXEC && present_q[d] && !present[d]) disk_left <= 1;
 
             // ---- The store engine and the fetch burst
             if (storing) begin
@@ -493,7 +517,7 @@ module pc386_fdc #(
             // ---- Execution
             if (phase == P_EXEC && !reset_write) case (ex)
                 X_DISPATCH: begin
-                    writing <= 0; tc_seen <= 0; index <= 0;
+                    writing <= 0; tc_seen <= 0; index <= 0; disk_left <= 0;
                     case (op)
                         8'h03: begin
                             srt <= command[1][7:4]; hut <= command[1][3:0];
@@ -502,6 +526,8 @@ module pc386_fdc #(
                         end
                         8'h04: begin
                             head[command_drive] <= command[1][2];
+                            // ST3 bits 5 and 3 always read 1 on the 82077AA
+                            // (it has no RDY or two-side input), as in Bochs.
                             st3 <= {1'b0, present[command_drive] && write_protect[command_drive], 1'b1,
                                     drive_type[command_drive] != 3'd0 && from_cyl == 8'd0, 1'b1,
                                     command[1][2], 1'b0, command_drive};
@@ -615,7 +641,8 @@ module pc386_fdc #(
                 end
                 X_READ_ID: if (waited) enter_result(R_RW);
                 // A read's next sector from the image.
-                X_FETCH: if (ready && owed == 8'd0 && !storing) begin
+                X_FETCH: if (disk_left) not_ready();
+                else if (ready && owed == 8'd0 && !storing) begin
                     if (cyl[d] >= tracks || sector[d] > sectors_per_track || head[d] && !two_sided[d])
                         fail(R_RW, head[d], 8'h04);
                     else begin
@@ -630,7 +657,8 @@ module pc386_fdc #(
                     ex <= X_BYTE_WAIT;
                 end
                 // A byte, offered once its byte time has passed.
-                X_BYTE_WAIT: if (waited && !storing) begin
+                X_BYTE_WAIT: if (disk_left) not_ready();
+                else if (waited && !storing && !fence_closed) begin
                     ex <= X_BYTE;
                     if (pio) begin
                         msr <= writing ? 8'hb0 : 8'hf0;
@@ -691,8 +719,9 @@ module pc386_fdc #(
                         end
                     end
                 end
-                // Write and format: store the sector once the fence allows.
-                X_STORE: if (!storing && !frozen && ready) begin
+                // Write and format: store the sector the guest has given.
+                X_STORE: if (disk_left) not_ready();
+                else if (!storing && ready) begin
                     target_lba <= lba; target_drive <= d;
                     ex <= X_STORE_GO;
                 end

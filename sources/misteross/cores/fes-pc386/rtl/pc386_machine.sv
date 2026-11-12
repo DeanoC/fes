@@ -110,7 +110,7 @@ module pc386_machine #(
     input wire [1:0][6:0] floppy_cylinders,
     input wire [1:0][5:0] floppy_spt,
     input wire fdc_frozen,
-    output wire fdc_busy,
+    output wire fdc_busy, fdc_fenced,
     output wire record_write,
     output wire [6:0] record_index,
     output wire [7:0] record_byte,
@@ -226,7 +226,7 @@ module pc386_machine #(
         .fdc_address(fdc_address), .fdc_burstcount(fdc_burstcount), .fdc_read(fdc_read), .fdc_write(fdc_write),
         .fdc_writedata(fdc_writedata), .fdc_byteenable(fdc_byteenable), .fdc_waitrequest(fdc_waitrequest),
         .fdc_readdatavalid(fdc_readdatavalid), .fdc_readdata(p2_readdata), .fdc_frozen(fdc_frozen),
-        .fdc_busy(fdc_busy),
+        .fdc_busy(fdc_busy), .fdc_fenced(fdc_fenced),
         .record_write(record_write), .record_index(record_index), .record_byte(record_byte),
         .record_load(record_load), .record_pair(record_pair), .record_word(record_word),
         .record_clock_index(record_clock_index), .record_clock_pair(record_clock_pair)

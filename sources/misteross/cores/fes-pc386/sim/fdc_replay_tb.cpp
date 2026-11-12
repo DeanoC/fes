@@ -132,6 +132,8 @@ public:
     }
     uint64_t clocks = 0;
     bool busy() const { return top->busy; }
+    bool fenced() const { return top->fenced; }
+    void set_frozen(bool frozen) { top->frozen = frozen; cycle(); }
 
 private:
     static bool decoded(uint16_t port) { return port == 0x3f2 || port == 0x3f4 || port == 0x3f5 || port == 0x3f7; }
@@ -743,6 +745,41 @@ std::vector<Case> cases() {
         g.command({0x0e});
         auto dump = g.results();
         g.check(dump.size() == 10 && (dump[5] & 1), "Dumpreg shows ND");
+    }});
+    list.push_back({"fence_and_swap", 4, 2, true, [](Guest &g) {
+        auto &rtl = dynamic_cast<Rtl &>(g.f);
+        { const Disk boot_disk = A144; g.boot(&boot_disk); }
+        start(g);
+        seek(g, 0, 0, 4);
+        std::vector<uint8_t> data(3 * 512);
+        for (size_t i = 0; i < data.size(); ++i) data[i] = uint8_t(i * 7 + 3);
+        g.command(rw(0xc5, 0, 4, 0, 1, 18));
+        // Freeze inside the first sector: it runs to its end and is stored.
+        g.dma_out(std::vector<uint8_t>(data.begin(), data.begin() + 100));
+        rtl.set_frozen(true);
+        g.check(!rtl.fenced(), "not fenced while a sector is being collected");
+        g.dma_out(std::vector<uint8_t>(data.begin() + 100, data.begin() + 512));
+        g.check(g.wait([&] { return rtl.fenced(); }, 10000, "fenced"), "fenced once the started sector is stored");
+        g.tick(5000);
+        g.check(!g.f.drq(), "the next sector waits at the fence");
+        g.check(rtl.fenced(), "still fenced");
+        rtl.set_frozen(false);
+        g.dma_out(std::vector<uint8_t>(data.begin() + 512, data.end()), 1023);
+        auto r = g.results();
+        g.check(r == std::vector<uint8_t>{0x00, 0, 0, 4, 0, 4, 2}, "the write finishes after the fence");
+        read_back(g, 0, 4, 0, 1, 3, 18, data, "fenced write");
+        // A disk swapped in the middle of a write: the command ends, not ready,
+        // and the new disk is untouched.
+        seek(g, 0, 0, 8);
+        g.command(rw(0xc5, 0, 8, 0, 1, 18));
+        g.dma_out(std::vector<uint8_t>(300, 0xee));
+        const Disk other{G144, 9};
+        g.f.eject(0); g.tick();
+        g.insert(0, other);
+        g.dma_out(std::vector<uint8_t>(724, 0xee), 723, 200000);
+        r = g.results();
+        g.check(r.size() == 7 && r[0] == 0x48, "a disk that left ends the write: ST0 IC=01 NR");
+        read_back(g, 0, 8, 0, 1, 2, 18, Guest::original(other, 8, 0, 1, 2), "the disk that replaced it");
     }});
     list.push_back({"timing", 4, 2, true, [](Guest &g) {
         g.boot(&A144);

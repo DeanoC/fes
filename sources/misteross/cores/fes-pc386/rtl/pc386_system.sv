@@ -209,7 +209,7 @@ module pc386_system #(
     // The floppy drives (docs/design/pc386-removable-media.md, slice F1): the
     // controller is fitted but no drive is, and CMOS reports none, until the
     // storage endpoint's units 1 and 2 (slice F3) commit disks.
-    wire fdc_busy;
+    wire fdc_busy, fdc_fenced;
 
     // ---- Hold and the machine reset
     wire cpu_mem_idle, rom_idle;
@@ -329,7 +329,7 @@ module pc386_system #(
         .disk_writer_busy(disk_writer_busy), .disk_fenced(disk_fenced), .disk_written(disk_written),
         .floppy_type({3'd0, 3'd0}), .floppy_present(2'b00), .floppy_write_protect(2'b00),
         .floppy_two_sided(2'b00), .floppy_cylinders({7'd0, 7'd0}), .floppy_spt({6'd0, 6'd0}),
-        .fdc_frozen(1'b0), .fdc_busy(fdc_busy),
+        .fdc_frozen(1'b0), .fdc_busy(fdc_busy), .fdc_fenced(fdc_fenced),
         .record_write(record_write), .record_index(record_index), .record_byte(record_byte),
         .record_load(record_load), .record_pair(record_pair), .record_word(record_word),
         .record_clock_index(record_clock_index), .record_clock_pair(record_clock_pair),
@@ -563,7 +563,7 @@ module pc386_system #(
         .m_readdatavalid(aux_readdatavalid)
     );
 
-    wire unused = ^{dma_ack_tc, mouse_dx[15:8], mouse_dy[15:8], start_latched, frame_start, frame_done, presenter_video, debug_port, opl2_sample,
+    wire unused = ^{fdc_fenced, dma_ack_tc, mouse_dx[15:8], mouse_dy[15:8], start_latched, frame_start, frame_done, presenter_video, debug_port, opl2_sample,
                     dsp_dac, frame_count, frame_buffer, frame_width, frame_height,
                     nmi_mask, cpu_mmio_address[fes_i386_pkg::PA-3:15], cpu_sel[5:2], cpu_sel[0],
                     settings[15:3], settings[31:26], settings[63:49], settings[127:104], settings[47:33], settings[79:76],

@@ -116,7 +116,7 @@ module pc386_at_core #(
     input wire fdc_waitrequest, fdc_readdatavalid,
     input wire [63:0] fdc_readdata,
     input wire fdc_frozen,
-    output wire fdc_busy,
+    output wire fdc_busy, fdc_fenced,
     // fes.media.ata-disk's fence, map clear and writer (pc386_ata)
     input wire disk_frozen,
     input wire disk_dirty_clear,
@@ -391,7 +391,7 @@ module pc386_at_core #(
         .aux_address(fdc_address), .aux_burstcount(fdc_burstcount), .aux_read(fdc_read), .aux_write(fdc_write),
         .aux_writedata(fdc_writedata), .aux_byteenable(fdc_byteenable), .aux_waitrequest(fdc_waitrequest),
         .aux_readdatavalid(fdc_readdatavalid), .aux_readdata(fdc_readdata),
-        .frozen(fdc_frozen), .busy(fdc_busy)
+        .frozen(fdc_frozen), .busy(fdc_busy), .fenced(fdc_fenced)
     );
 
     // ---- Read data ----------------------------------------------------------
