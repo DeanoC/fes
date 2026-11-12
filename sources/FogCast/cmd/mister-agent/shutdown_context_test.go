@@ -55,6 +55,28 @@ func TestRunRetainsBoundedOwnedStopUntilLeaseShutdownFinishes(t *testing.T) {
 		},
 		newRuntime: func(agentconfig.Config) agent.Runtime { return runtime },
 		serve: func(server *http.Server) error {
+			// Startup reconciliation runs asynchronously and must finish before
+			// the first lease can be claimed.
+			deadline := time.Now().Add(3 * time.Second)
+			for {
+				request := httptest.NewRequest(http.MethodGet, "/v1/kit/lease", nil)
+				request.Header.Set("Authorization", "Bearer test-token")
+				response := httptest.NewRecorder()
+				server.Handler.ServeHTTP(response, request)
+				var status struct {
+					State string `json:"state"`
+				}
+				if err := json.Unmarshal(response.Body.Bytes(), &status); err != nil || response.Code != http.StatusOK {
+					t.Fatalf("lease status: %d %s", response.Code, response.Body.String())
+				}
+				if status.State == "free" {
+					break
+				}
+				if status.State != "revoking" || time.Now().After(deadline) {
+					t.Fatalf("lease did not become free: %s", response.Body.String())
+				}
+				time.Sleep(time.Millisecond)
+			}
 			request := httptest.NewRequest(http.MethodPost, "/v1/kit/claim", strings.NewReader(`{"request_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","owner":"shutdown-test","purpose":"owned active cleanup"}`))
 			request.Header.Set("Authorization", "Bearer test-token")
 			response := httptest.NewRecorder()
