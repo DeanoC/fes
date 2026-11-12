@@ -15,9 +15,12 @@ bare DEC BP and JNZ loop's iteration (jcc_loop) out of the iteration and
 divides by the eight cases it runs; the loops' set-up moves are left in.
 
   python3 scripts/test_fes_i386_latency.py
-  python3 scripts/test_fes_i386_latency.py --yosys /abs/path/to/pc386-locked/yosys
+  python3 scripts/test_fes_i386_latency.py --netlist
 
-Writes build/sim/fes-i386-latency/report.json (report-netlist.json with --yosys).
+With --netlist the CPU is the seal's netlist of it (scripts/yosys_netlist.py,
+the pc386 lock's Yosys from its --cache-root slot), with the sealed GOV rates.
+
+Writes build/sim/fes-i386-latency/report.json (report-netlist.json with --netlist).
 """
 from __future__ import annotations
 
@@ -25,7 +28,6 @@ import argparse
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 
@@ -37,6 +39,7 @@ from scripts import fes_i386_oracle as oracle
 from scripts import i386_verilator
 from scripts import test_fes_i386_governor as governor_bench
 from scripts import test_fes_i386_lockstep as lockstep
+from scripts import yosys_netlist
 from scripts import test_fes_i386_test386 as test386
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -154,7 +157,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--download', action='store_true', help='fetch the pinned oracle and NASM if missing')
     i386_verilator.add_argument(parser)
-    parser.add_argument('--yosys', help="simulate this Yosys's netlist of the CPU instead of the RTL")
+    yosys_netlist.add_arguments(parser)
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 8))
     args = parser.parse_args()
     try:
@@ -162,10 +165,12 @@ def main() -> int:
     except i386_verilator.VerilatorError as error:
         print('i386 Verilator:', error, file=sys.stderr)
         return 2
-    yosys = shutil.which(args.yosys) if args.yosys else None
-    if args.yosys and yosys is None:
-        print(f'selected Yosys not found: {args.yosys}', file=sys.stderr)
+    try:
+        tool = yosys_netlist.locate(args)
+    except yosys_netlist.NetlistError as error:
+        print('i386 latency bench error:', error, file=sys.stderr)
         return 2
+    yosys = tool.path if tool else None
     OUTPUT.mkdir(parents=True, exist_ok=True)
     try:
         nasm = test386.nasm(args.download, args.jobs)
@@ -174,18 +179,19 @@ def main() -> int:
                                    capture_output=True, text=True)
         if assembled.returncode:
             raise LatencyBenchError('nasm failed on latency_bench.asm\n' + assembled.stderr)
-        rates = producer.guest_rates(100_000_000 if yosys else producer.SYSTEM_CLOCK_HZ)
+        rates = producer.guest_rates(producer.SYSTEM_CLOCK_HZ)
         testbench = lockstep.verilate(verilator, oracle.link_inputs(args.jobs, args.download), args.jobs, yosys,
-                                      None if yosys else {'GOV_N': rates['GOV_N'], 'GOV_D': rates['GOV_D']})
+                                      {'GOV_N': rates['GOV_N'], 'GOV_D': rates['GOV_D']})
         result = governor_bench.run(testbench, program, 0, 0)
         cycles = spans(result)
-    except (OSError, oracle.OracleError, test386.Test386Error, lockstep.LockstepError,
+    except (OSError, oracle.OracleError, test386.Test386Error, lockstep.LockstepError, yosys_netlist.NetlistError,
             governor_bench.GovernorBenchError, LatencyBenchError, subprocess.TimeoutExpired) as error:
         print('i386 latency bench error:', error, file=sys.stderr)
         return 2
     rows = measure(cycles)
     found = failures(rows, EXPECTED)
-    report = {'verilator': verilator.record(), 'yosys': yosys, 'loops': rows, 'run': result['run'], 'failures': found}
+    report = {'verilator': verilator.record(),
+              'netlist': yosys_netlist.lock_record(lockstep.ROOT, tool, args.gpu_router) if tool else None, 'loops': rows, 'run': result['run'], 'failures': found}
     path = OUTPUT / ('report-netlist.json' if yosys else 'report.json')
     path.write_text(json.dumps(report, indent=2) + '\n')
     print(f'{"loop":18} {"cycles":>8} {"per iteration":>14} {"per case":>9}')

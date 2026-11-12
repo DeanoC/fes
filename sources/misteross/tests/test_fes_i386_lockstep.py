@@ -3,11 +3,10 @@
 and (when the tools are present) a short lockstep run of the RTL. No network
 access. The run needs the i386 lock's Verilator slot (FES_TOOLCHAIN_CACHE_ROOT
 names its cache), the pinned Bochs checkout and the pinned
-SingleStepTests corpus already in build/; the netlist run also needs a Yosys
-named by FES_I386_YOSYS."""
+SingleStepTests corpus already in build/; the netlist run also needs the pc386
+lock's slot in the same cache (its Yosys writes the netlist)."""
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -16,6 +15,7 @@ from pathlib import Path
 
 from scripts import fes_i386_oracle as oracle
 from scripts import i386_verilator
+from scripts import yosys_netlist
 from scripts import test_fes_i386_lockstep as lockstep
 from scripts import test_fes_i386_vectors as vectors
 
@@ -32,8 +32,20 @@ def _locked_verilator():
         return None, str(error)
 
 
+def _seal_yosys():
+    """The pc386 lock's Yosys from FES_TOOLCHAIN_CACHE_ROOT (its HIP slot),
+    which --netlist reads, else None."""
+    cache = os.environ.get(i386_verilator.CACHE_ENVIRONMENT)
+    if not cache:
+        return None
+    try:
+        return yosys_netlist.authenticate(cache_root=Path(cache))
+    except yosys_netlist.NetlistError:
+        return None
+
+
 VERILATOR, VERILATOR_ABSENT = _locked_verilator()
-YOSYS = shutil.which(os.environ.get('FES_I386_YOSYS', '')) if os.environ.get('FES_I386_YOSYS') else None
+SEAL_YOSYS = _seal_yosys()
 BOCHS = (oracle.BUILD / ('bochs-' + oracle.BOCHS_REVISION) / '.git').is_dir()
 CORPUS = (vectors.OUTPUT / 'corpus' / vectors.REVISION / '00.MOO.gz').is_file()
 
@@ -179,9 +191,9 @@ class LockstepRunTest(unittest.TestCase):
     def test_rtl_retires_in_lockstep(self):
         self.assertIn('corpus: 5 files, 5 opcodes', self.run_lockstep())
 
-    @unittest.skipUnless(YOSYS, 'FES_I386_YOSYS names no Yosys')
+    @unittest.skipUnless(SEAL_YOSYS, "no pc386 lock slot under FES_TOOLCHAIN_CACHE_ROOT")
     def test_yosys_netlist_retires_in_lockstep(self):
-        self.run_lockstep('--yosys', YOSYS)
+        self.run_lockstep('--netlist')
 
 
 if __name__ == '__main__':

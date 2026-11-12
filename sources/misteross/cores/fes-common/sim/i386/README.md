@@ -349,11 +349,12 @@ the test verifies that it does not issue until block 2 arrives.
 ```sh
 python3 scripts/test_fes_i386_frontend.py --download
 python3 scripts/test_fes_i386_frontend.py --bench frontend --instructions 50000 --seed 7
-python3 scripts/test_fes_i386_frontend.py --yosys /abs/path/to/i386-locked/yosys
+python3 scripts/test_fes_i386_frontend.py --netlist
 ```
 
-`--yosys` runs every check on the netlist that Yosys writes from the RTL
-instead of the RTL itself. The spikes are built from Yosys's reading of the
+`--netlist` runs every check on the netlist the seal's Yosys program
+(`scripts/yosys_netlist.py`) writes from the RTL, with the pc386 lock's Yosys
+from the `--cache-root` slot, instead of the RTL itself. The spikes are built from Yosys's reading of the
 SystemVerilog, and Yosys has misread constructs without an error. Use the
 Yosys of the i386 lock ([`rtl/i386/toolchain.lock`](../../rtl/i386/toolchain.lock));
 the repository lock's older Yosys misreads the RTL's per-byte records.
@@ -565,11 +566,14 @@ and the divergence handling stay.
 ```sh
 python3 scripts/test_fes_i386_lockstep.py --download
 python3 scripts/test_fes_i386_lockstep.py --opcode 00 --opcode D3.4 --random-programs 0
-python3 scripts/test_fes_i386_lockstep.py --yosys /abs/path/to/i386-locked/yosys
+python3 scripts/test_fes_i386_lockstep.py --netlist
 ```
 
-`--yosys` simulates the netlist the i386 lock's Yosys writes from the CPU
-(after `proc -norom; flatten; opt -purge`) instead of the RTL.
+`--netlist` simulates the netlist the pc386 seal's Yosys program writes from
+the CPU (`scripts/yosys_netlist.py`, top `fes_i386_cpu`), with the pc386
+lock's Yosys from the `--cache-root` slot, instead of the RTL. The report's
+`netlist` records the same program, CPU source and Yosys identity as the seal
+summary.
 
 `--preset N` runs every mode under that governor preset
 ([speed governor](../../rtl/i386/README.md#speed-governor)), which only holds

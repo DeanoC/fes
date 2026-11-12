@@ -13,11 +13,13 @@ line against that lock.
 The locked Quartus's SystemVerilog front end rejects the i386 RTL (generate loops
 must declare their genvar outside the loop and sit in generate/endgenerate,
 and it misreads a variable index into a packed struct member that shares a
-name with a module signal). So Quartus reads the netlist the i386 lock's
-Yosys elaborates from the RTL: `read_verilog -sv; hierarchy; proc -norom;
-flatten; opt -purge; write_verilog`. That is the netlist the lockstep checks
-with --yosys, it is not technology-mapped, and Quartus does all synthesis
-(LUT mapping, carry chains) and all placement and routing.
+name with a module signal). So Quartus reads the netlist the seal's Yosys
+program writes (scripts/yosys_netlist.py, SEAL) with the spike's top, by the
+pc386 lock's Yosys from its --cache-root slot: the passes the pc386 seal and
+the lockstep --netlist runs use. It is not technology-mapped, and Quartus does
+all synthesis (LUT mapping, carry chains) and all placement and routing. The
+stage labels read the flattened names (dut.align.q) that rename -unescape
+turns into plain ones, through the netlist's JSON before and after the rename.
 
 The elaborated netlist still spells packed-array strides as constant
 multiplies (start*42 for dec[start]). Quartus maps the widest to a DSP block;
@@ -36,7 +38,7 @@ register: Quartus's synthesis-only depth, to set beside Yosys's.
 
 Example:
   QUARTUS_ROOTDIR=/abs/<the Quartus install quartus.lock names>/quartus \\
-    python3 scripts/quartus_fes_i386.py --yosys /abs/path/to/i386-locked/yosys
+    python3 scripts/quartus_fes_i386.py --cache-root /abs/out/cache/misteross-toolchains
 
 Writes build/quartus/fes-i386/<fingerprint>/summary.json.
 """
@@ -44,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import dataclasses
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import hashlib
@@ -59,12 +62,14 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import benchmark_fes_i386 as benchmark
+from scripts import yosys_netlist
 from scripts.quartus_tools import load_quartus_lock, locate_quartus
 
 ROOT = Path(__file__).resolve().parents[1]
 QUARTUS_LOCK = 'cores/fes-pc386/quartus.lock'  # the lane that seals the CPU
 DEVICE = '5CSEBA6U23I7'
-NETLIST = 'read_verilog -sv {files}; hierarchy -top {top}; proc -norom; flatten; opt -purge; write_verilog -noattr {out}'
+# The seal's passes, with the netlist's JSON before and after the rename for the labels.
+RECIPE = dataclasses.replace(yosys_netlist.SEAL, names_json=('before-names.json', 'after-names.json'))
 PATHS = 20000  # endpoints TimeQuest reports, one worst path each
 
 # One worst path per register endpoint, plus the top paths in full. Fields
@@ -220,7 +225,10 @@ def run(command: list[str], cwd: Path, log: Path, env: dict) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--yosys', required=True, help="the i386 lock's Yosys, which elaborates the netlist")
+    parser.add_argument('--cache-root', type=Path, default=os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or None,
+                        help="the shared toolchain cache (absolute) holding the pc386 lock's slot")
+    parser.add_argument('--gpu-router', choices=yosys_netlist.GPU_ROUTERS, default='HIP',
+                        help='the pc386 lock slot whose Yosys writes the netlist (nothing runs on a GPU)')
     parser.add_argument('--spike', choices=tuple(benchmark.SPIKES), default='cpu')
     parser.add_argument('--seed', type=int, action='append', help='fitter seed; repeat (default 1-4)')
     parser.add_argument('--target-mhz', type=float, default=100.0)
@@ -232,6 +240,9 @@ def main() -> int:
     args = parser.parse_args()
     seeds = args.seed or [1, 2, 3, 4]
     try:
+        if args.cache_root is None or not args.cache_root.is_absolute():
+            raise ValueError('--cache-root must be absolute (or set FES_TOOLCHAIN_CACHE_ROOT)')
+        yosys = yosys_netlist.authenticate(ROOT, cache_root=args.cache_root, gpu_router=args.gpu_router)
         lock = load_quartus_lock(ROOT, QUARTUS_LOCK)
         quartus_root, quartus_sh, version = locate_quartus(os.environ.get('QUARTUS_ROOTDIR', ''), ROOT, lock)
         bin_dir = quartus_sh.parent
@@ -241,7 +252,8 @@ def main() -> int:
         digest = hashlib.sha256()
         for path in sources:
             digest.update(path.read_bytes())
-        digest.update(Path(args.yosys).read_bytes())
+        digest.update(yosys.identity.encode())
+        digest.update(yosys_netlist.canonical(RECIPE).encode())
         digest.update(fingerprint_tail(args.spike, args.target_mhz, version, args.dsp_in_logic))
         output = (args.output or ROOT / 'build/quartus/fes-i386' / digest.hexdigest()[:12]).resolve()
         base = output / 'synthesis'
@@ -254,8 +266,9 @@ def main() -> int:
         # The netlist Yosys elaborates, then Quartus synthesis once.
         netlist = base / f'{TOP}.v'
         if not reuse:
-            run([args.yosys, '-q', '-p', NETLIST.format(files=' '.join(map(str, sources)), top=TOP, out=netlist)], base,
-                base / 'yosys.log', env)
+            yosys_netlist.run(yosys.path, yosys_netlist.program(
+                RECIPE, top=TOP, sources=sources, includes=yosys_netlist.PC386_INCLUDES, netlist=netlist.name),
+                cwd=base, program_file=base / f'{TOP}.ys', log=base / 'yosys.log')
         pins = (ROOT / benchmark.SPIKE / 'spike.qsf').read_text()
         (base / f'{TOP}.qpf').write_text(f'PROJECT_REVISION = "{TOP}"\n')
         (base / f'{TOP}.qsf').write_text(
@@ -274,6 +287,10 @@ def main() -> int:
         (base / 'sta.tcl').write_text(STA_TCL.format(top=TOP, post_map='-post_map', out='sta.tsv', paths=PATHS))
         run([str(bin_dir / 'quartus_sta'), '-t', 'sta.tcl'], base, base / 'sta.log', env)
         names = register_names(netlist.read_text())
+        # The plain names rename -unescape gave, read as the flattened ones the labels match.
+        flat = yosys_netlist.flattened_names(base / RECIPE.names_json[0], base / RECIPE.names_json[1], TOP)
+        names = {key: flat.get(value, value) for key, value in names.items()}
+        names.update({(name, -1): flattened for name, flattened in flat.items() if (name, -1) not in names})
         post_map = parse_sta((base / 'sta.tsv').read_text(), args.target_mhz, stages, names)
 
         def fit(seed: int) -> dict:
@@ -296,8 +313,9 @@ def main() -> int:
             runs = list(executor.map(fit, seeds))
         summary = {'classification': 'i386 Quartus oracle: diagnostic only, not a sealed labelled package',
                    'created_utc': datetime.now(timezone.utc).isoformat(), 'quartus': version,
-                   'spike': args.spike, 'yosys': args.yosys,
-                   'netlist': NETLIST.format(files='<spike sources>', top=TOP, out=f'{TOP}.v'),
+                   'spike': args.spike,
+                   'yosys': yosys_netlist.lock_record(ROOT, yosys, args.gpu_router),
+                   'netlist': yosys_netlist.canonical(RECIPE),
                    'dsp_in_logic': args.dsp_in_logic, 'device': DEVICE, 'target_mhz': args.target_mhz,
                    'corner': 'slow 1100mV 100C (TimeQuest default)',
                    'sources': {path.relative_to(ROOT).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()

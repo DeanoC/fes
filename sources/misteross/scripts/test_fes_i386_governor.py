@@ -34,14 +34,14 @@ preset every latency, in reference clocks, must stay within the window, the
 largest instruction or element charge the loop makes, and the delivery's own
 charge. Every run must halt with the same registers as max's.
 
-With --yosys the CPU is first run through that Yosys (read, proc -norom,
-flatten, opt), as test_fes_i386_lockstep.py --yosys does, and the netlist is
-simulated instead, at the CPU's default GOV_N/GOV_D (a 100 MHz clock), since
-Yosys has elaborated the parameters away.
+With --netlist the CPU is first run through the seal's Yosys program
+(scripts/yosys_netlist.py, the pc386 lock's Yosys from its --cache-root slot),
+as test_fes_i386_lockstep.py --netlist does, and that netlist is simulated
+instead, with the sealed GOV_N/GOV_D set as the seal sets them (-chparam).
 
   python3 scripts/test_fes_i386_governor.py
   python3 scripts/test_fes_i386_governor.py --preset 1 --preset 3
-  python3 scripts/test_fes_i386_governor.py --yosys /abs/path/to/pc386-locked/yosys
+  python3 scripts/test_fes_i386_governor.py --netlist
 
 Writes build/sim/fes-i386-governor/report.json.
 """
@@ -53,7 +53,6 @@ from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 
@@ -65,6 +64,7 @@ from scripts import fes_i386_governor as governor
 from scripts import fes_i386_oracle as oracle
 from scripts import i386_verilator
 from scripts import test_fes_i386_lockstep as lockstep
+from scripts import yosys_netlist
 from scripts import test_fes_i386_test386 as test386
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -262,7 +262,7 @@ def main() -> int:
                         help='cycles from one handler to the next INTR (default 20000)')
     parser.add_argument('--download', action='store_true', help='fetch the pinned oracle and NASM if missing')
     i386_verilator.add_argument(parser)
-    parser.add_argument('--yosys', help="simulate this Yosys's netlist of the CPU instead of the RTL")
+    yosys_netlist.add_arguments(parser)
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 8))
     args = parser.parse_args()
     try:
@@ -270,11 +270,13 @@ def main() -> int:
     except i386_verilator.VerilatorError as error:
         print('i386 Verilator:', error, file=sys.stderr)
         return 2
-    yosys = shutil.which(args.yosys) if args.yosys else None
-    if args.yosys and yosys is None:
-        print(f'selected Yosys not found: {args.yosys}', file=sys.stderr)
+    try:
+        tool = yosys_netlist.locate(args)
+    except yosys_netlist.NetlistError as error:
+        print('i386 governor bench error:', error, file=sys.stderr)
         return 2
-    clock_hz = 100_000_000 if yosys else CLOCK_HZ
+    yosys = tool.path if tool else None
+    clock_hz = CLOCK_HZ
     OUTPUT.mkdir(parents=True, exist_ok=True)
     table = governor.load()
     presets = {p.id: p for p in table.presets}
@@ -288,7 +290,7 @@ def main() -> int:
             raise GovernorBenchError('nasm failed on governor_bench.asm\n' + assembled.stderr)
         rates = producer.guest_rates(clock_hz)
         testbench = lockstep.verilate(verilator, oracle.link_inputs(args.jobs, args.download), args.jobs, yosys,
-                                      None if yosys else {'GOV_N': rates['GOV_N'], 'GOV_D': rates['GOV_D']})
+                                      {'GOV_N': rates['GOV_N'], 'GOV_D': rates['GOV_D']})
         with ThreadPoolExecutor(max_workers=args.jobs) as executor:
             futures = {preset: executor.submit(run, testbench, program, preset, args.irq_period)
                        for preset in [0, *chosen]}
@@ -296,13 +298,14 @@ def main() -> int:
             turbo = executor.submit(run, testbench, program, OVERRIDE[0], args.irq_period, 0, 1)
             results = {preset: future.result() for preset, future in futures.items()}
             override, turbo = override.result(), turbo.result()
-    except (OSError, oracle.OracleError, test386.Test386Error, lockstep.LockstepError, GovernorBenchError,
+    except (OSError, oracle.OracleError, test386.Test386Error, lockstep.LockstepError, yosys_netlist.NetlistError, GovernorBenchError,
             subprocess.TimeoutExpired) as error:
         print('i386 governor bench error:', error, file=sys.stderr)
         return 2
 
     failures = []
-    report = {'verilator': verilator.record(), 'clock_hz': clock_hz, 'yosys': yosys, 'window': WINDOW, 'budget': BUDGET, 'accepted': list(ACCEPTED), 'presets': {}}
+    report = {'verilator': verilator.record(), 'clock_hz': clock_hz,
+              'netlist': yosys_netlist.lock_record(lockstep.ROOT, tool, args.gpu_router) if tool else None, 'window': WINDOW, 'budget': BUDGET, 'accepted': list(ACCEPTED), 'presets': {}}
     base = spans(results[0])
     for span in base:
         if span['charged']:

@@ -1612,9 +1612,11 @@ what it reads correctly:
 it as a signal name, so the forwarding modules spell the distance `dist_a` or
 `ahead`.
 
-`scripts/test_fes_i386_frontend.py --yosys <yosys>` and
-`scripts/test_fes_i386_lockstep.py --yosys <yosys>` run every check on the
-netlist Yosys writes from this RTL, which is what the spikes route. Run them
+`scripts/test_fes_i386_frontend.py --netlist` and
+`scripts/test_fes_i386_lockstep.py --netlist` run every check on the netlist
+the pc386 seal's Yosys program writes from this RTL
+(`scripts/yosys_netlist.py`), with the pc386 lock's Yosys: the netlist the seal
+and the spikes are built from. Run them
 after any RTL change. The front-end runner also synthesizes Q's aligner on its
 own and fails if any multiplier or carry cell appears there: Q has no wide sum,
 and the front-end spike does not show #59's multiplier.
