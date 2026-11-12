@@ -41,6 +41,10 @@
 `timescale 1ns / 1ps
 `default_nettype none
 
+// The power-on value and the clocked shift intentionally write the same register.
+`ifdef FES_PC386_VERILATOR_5054
+/* verilator lint_off MULTIDRIVEN */
+`endif
 module pipeline_sr #(
     parameter DATA_WIDTH = 1,
     parameter STARTING_CYCLE = 1,
@@ -57,4 +61,7 @@ module pipeline_sr #(
         out[STARTING_CYCLE] <= in;
     end
 endmodule
+`ifdef FES_PC386_VERILATOR_5054
+/* verilator lint_on MULTIDRIVEN */
+`endif
 `default_nettype wire
