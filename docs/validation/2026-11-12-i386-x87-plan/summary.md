@@ -395,8 +395,9 @@ order.
 
 - **Basic operations are exact.** Add, subtract, multiply, divide and
   square root round as IEEE 754 under x87 precision and rounding control;
-  FRNDINT and the integer and BCD stores round under rounding control only;
-  loads, compares and FXTRACT are exact. The 387 implements these correctly
+  FRNDINT, the integer and BCD stores, and stores to a 32- or 64-bit real
+  round under rounding control only, ignoring precision control; loads,
+  compares and FXTRACT are exact. The 387 implements these correctly
   rounded, and Bochs uses Berkeley SoftFloat 3e (BSD-3-Clause) for them.
   Lockstep compares them bit for bit, flags included.
 - **FPREM is not the IEEE remainder.** FPREM1 is: its quotient rounds to

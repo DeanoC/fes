@@ -1522,8 +1522,10 @@ and orders the work into slices. From it:
   for loads, stores, FXCH, add and multiply (the multiplier on DSP blocks);
   divide, square root, remainder and transcendentals in microcode on the same
   datapath, divide and square root stopping early at 24 or 53 bits.
-- Add, subtract, multiply, divide, square root and conversions are bit-exact
-  IEEE under x87 precision and rounding control. FPREM1 is the IEEE
+- Add, subtract, multiply, divide and square root are bit-exact IEEE under
+  x87 precision and rounding control. Integer and BCD stores, FRNDINT, and
+  stores to a 32- or 64-bit real round under rounding control only and
+  ignore precision control; loads are exact. FPREM1 is the IEEE
   remainder; FPREM truncates its quotient as the 8087 and 287 do; both are
   exact, ignore rounding and precision control, and may return a partial
   remainder with C2 set. The 387's
