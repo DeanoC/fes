@@ -1,0 +1,75 @@
+{
+ "kit": "A",
+ "package": "27f478e09e8fe94e4c6ba84a6eab10d65712f23629bee51977c2bf887354b5b3.fcore",
+ "drive": "wfw-msdos",
+ "drive_sha256": "a2afd3c7689526eba919cfbfe77810f4751525dea1827d0c196dd81e0c8d0c6c",
+ "library_game": "wfw-acceptance-wjr00m435ked",
+ "nonce": "WJR00M435KED",
+ "goals": {
+  "program-manager": {
+   "pass": true,
+   "seconds_to_detect": 5.2,
+   "frame": "frames/program-manager.png"
+  },
+  "mouse": {
+   "pass": true,
+   "counts_per_pixel": [
+    0.25,
+    0.248
+   ],
+   "pointer": [
+    208,
+    65
+   ],
+   "target": [
+    203,
+    61
+   ],
+   "on_caption": true,
+   "frame": "frames/mouse-maximized.png"
+  },
+  "dos-window": {
+   "pass": true,
+   "opened_seconds": 3.2,
+   "returned_seconds": 2.9,
+   "frames": [
+    "frames/dos-window.png",
+    "frames/dos-window-exit.png"
+   ],
+   "readback": "FESWFW DOS WJR00M435KED"
+  },
+  "notepad": {
+   "pass": true,
+   "returned_seconds": 2.7,
+   "readback": "FESWFW NOTE WJR00M435KED",
+   "frames": [
+    "frames/notepad-saved.png",
+    "frames/notepad-exit.png"
+   ]
+  }
+ },
+ "kit_created": [
+  "/media/fat/fogcast/core-data/games/33c94d5be44752f7e1f858eca0d70857b831ef891d3522b649d7b1b9b29dfedb",
+  "/media/fat/fogcast/core-data/games/d39c56e5a028411ae626e538274fa10f659aac14453a09ad0b9048b1303775af",
+  "/media/fat/fogcast/core-data/media/70e333f12d5709bbe45ef8102b9ca73b8fdf4959eab982179fe898a80d25cb50",
+  "/media/fat/fogcast/core-data/media/b09f88ad49f8079800721d164b8b3e7774fcf4b1e67e537c68c24d2d4562758a",
+  "/media/fat/fogcast/disk-images/a2afd3c7689526eba919cfbfe77810f4751525dea1827d0c196dd81e0c8d0c6c.img"
+ ],
+ "readback": {
+  "delta_chunks": 10,
+  "files": {
+   "WFWDOS.TXT": "FESWFW DOS WJR00M435KED",
+   "WFWNOTE.TXT": "FESWFW NOTE WJR00M435KED"
+  },
+  "dos": true,
+  "notepad": true
+ },
+ "after": {
+  "agent": "idle",
+  "lease": "free",
+  "rebooted": false,
+  "left": []
+ },
+ "failure": null,
+ "pass": true
+}

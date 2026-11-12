@@ -24,6 +24,11 @@
 #
 # Sound setups follow eXoDOS's Sound Blaster choice (its sb16 folder). The
 # machine's card is a Sound Blaster 2.0 at the factory 220h, IRQ 7, DMA 1.
+#
+# A drive with kind = "image" is not built from the games image: it is a
+# user-supplied installed system pinned by its own sha256, made by the recipe
+# in docs/pc386-windows-corpus.md and put in the store with --import. Its
+# titles need only id, title, bucket, launch, keys and limit.
 
 [sources.exodos]
 kind = "zip"
@@ -821,3 +826,26 @@ notes = "DJGPP, CWSDPMI, x87"
 copy = [
   { from = "", to = "MARKS\\QUAKES" },
 ]
+
+# Windows for Workgroups 3.11, the standing Windows check of the corpus
+# (docs/pc386-windows-corpus.md; sim_fes_pc386.py --suite wfw and
+# pc386_wfw_kit_acceptance.py). MS-DOS 6.22 and WfW 3.11 as their SETUPs left
+# them, plus 32-bit disk access (WDCTRL) and a 20 MiB permanent swap file
+# made with Windows' own Virtual Memory dialog.
+#
+# The FreeDOS variant waits for #1729 (FreeDOS kernel 2046 with SHARE): it
+# will be a FreeDOS games-image drive whose title copies an extracted
+# C:\WINDOWS tree, pinned as a tree source (the docs page's "FreeDOS variant").
+[drives.wfw-msdos]
+kind = "image"
+cylinders = 260
+sha256 = "a2afd3c7689526eba919cfbfe77810f4751525dea1827d0c196dd81e0c8d0c6c"
+description = "MS-DOS 6.22 + WfW 3.11, 386 enhanced mode, 32-bit disk access and a permanent swap file"
+
+[[drives.wfw-msdos.titles]]
+id = "wfw"
+title = "Windows for Workgroups 3.11, WIN to Program Manager (386 enhanced, WDCTRL, permanent swap)"
+bucket = "program"
+launch = "win|"
+keys = []
+limit = 12.0

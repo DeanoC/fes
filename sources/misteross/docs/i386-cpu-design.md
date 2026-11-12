@@ -127,6 +127,13 @@ by configuration (524,000 bytes without sound, or 561,144 bytes with sound and
 speech); acceptance uses the named DOS editions from The Ultima Collection
 and that edition's separate memory figures above.
 
+Windows for Workgroups 3.11 is a standing check beside the games (from
+12 November 2026). It needs more than they do: 386 enhanced mode runs paging,
+V86 machines at CPL 3 and WDCTRL's own disk access. A CPU slice or machine
+change reruns its kit acceptance on the change's seal with the games, and its
+RTL simulation runs periodically
+([Windows corpus](pc386-windows-corpus.md)).
+
 What the set decides:
 
 - **CPU modes.** Real mode, plus the protected-mode entry and segment loads that
@@ -2258,9 +2265,10 @@ Each slice is its own PR. Before it can merge, it needs:
 - test386.asm on the RTL to the POST the slice reaches;
 - a Quartus 17.0.2 seal with every analysis met;
 - a kit run on that seal: the titles it unlocks, and DOOM's `-timedemo
-  demo3` and the acceptance games rechecked, since paging off must keep
-  today's speed. This is the slice's own evidence, as in Phase 4; the merge
-  gate's HIL stays N/A for pc386.
+  demo3`, the acceptance games and the WfW 3.11 kit acceptance
+  ([Windows corpus](pc386-windows-corpus.md)) rechecked, since paging off
+  must keep today's speed. This is the slice's own evidence, as in Phase 4;
+  the merge gate's HIL stays N/A for pc386.
 
 A timing miss stops the slice; it never relaxes a check. Titles that need
 #1535 count as unlocked once both have landed.

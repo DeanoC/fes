@@ -248,6 +248,10 @@ def fpga_cores(path):
             return (), 'pc386 machine synthesis recipe; no simulation reads it'
         if parts[1] == 'pc386_cpu_profile.py':
             return ('pc386',), 'pc386 CPU profiling is consumed by its cpu-profile simulation'
+        if parts[1] == 'pc386_wfw.py':
+            return ('pc386',), "pc386 Windows screen checks are consumed by its wfw simulation"
+        if parts[1] == 'pc386_wfw_kit_acceptance.py':
+            return (), 'pc386 Windows kit acceptance runner; no simulation reads it'
         if parts[1] in I386_SCRIPTS:
             return (), 'i386 audit, oracle, corpus runners, RTL checks and timing harness; FPGA software classification'
     if parts and parts[0] == 'tests':
