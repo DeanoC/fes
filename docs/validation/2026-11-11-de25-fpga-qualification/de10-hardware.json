@@ -1,0 +1,115 @@
+{
+  "source_revision": "e3f40059de3f66bf28d5875ee06852173f01e251",
+  "kind": "DE10 candidate userspace on existing immutable image",
+  "kit": "A",
+  "candidate_bundle": "e203f49222aa77a2779ec47b85cac5ab0e1c4355abe01e71a3c421897ed81f6e",
+  "sealed_zx81_package": "436a64a6d1e392a889875c968a15a1c1723a7c46fe36bc840a03d09b780c3f82",
+  "passed": [
+    "candidate activation generation139",
+    "all four running executable hashes",
+    "normal sealed ZX81 launch with existing per-title 8192-byte ROM",
+    "injected evdev P -> PRINT",
+    "F12 -> Change media, same session",
+    "Escape -> same ZX81",
+    "expected-session Stop -> idle",
+    "normal Linux reboot returned same candidate and immutable image",
+    "baseline restoration generation140: all four roles, idle RBF, launcher, idle/free lease, FES Home"
+  ],
+  "limitations": [
+    "The reboot missed the harness 120s ready deadline; agent later became ready after reading the immutable image. No second reboot or power cycle. Do not call bounded reboot PASS.",
+    "These are injected keyboard checks, not a physical keyboard test.",
+    "No newly built DE10 core or new OS image was deployed. This validates e3 userspace with the named existing sealed core.",
+    "Catalog listing matches baseline except the one owned hidden retained-core parent left by the supported title deletion API. Existing media and protected file listings match."
+  ],
+  "restoration": {
+    "baseline_bundle": "a2756499ab07627e1b1fb7f00f3ebe334b6b564099c1b086d9c4f74eaf9aeb1e",
+    "generation": 140,
+    "image": "179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018",
+    "ready": true,
+    "idle": true,
+    "lease": "free",
+    "process_hashes": {
+      "fogcast-kit": "2d6e2b71b2c2a09db8ed617599448d9704c9205afe57dd7e9a47579b849ba3dd",
+      "fogcast-tenfoot": "2f7652736cd1a4eecb6151de4e1d49ccb9d6b6f4fc33a2a3e9949a97f088c5e8",
+      "mister-agent": "1a7583f3011d0ab9db64e66a53ffd22424d38691e76bfa483124428c0b4310f7",
+      "mister-runtime": "d6cf73d4e643f41d7cf12e5bd460c728b238c06275b51af0f8543f7214efd94f"
+    },
+    "catalog_listing_identical_except_owned_retained_title": true,
+    "protected_file_listing_identical": true,
+    "boot_id": "76b5db1a-8861-4746-964a-c90f73acce6a"
+  },
+  "evidence_directory": "/data/fes-de25-qualification-20261111",
+  "receipts": {
+    "de10-software-build-cached.json": {
+      "sha256": "e32835dd98ad2651abb6b2dff74dafb3ce3f272405d035e16559eac6a03a66cb",
+      "size": 493
+    },
+    "de10-bundle-install.json": {
+      "sha256": "b873d552de1c40d95a8fb121fdc740b497343bb294c865b9f521f7a0b5c2ae2d",
+      "size": 323
+    },
+    "de10-bundle-activate.json": {
+      "sha256": "8039028b51592b79b8b00f0ab3e66b79c3ad56053df3ef186a1f30aced875ab8",
+      "size": 412
+    },
+    "de10-system-reboot.json": {
+      "sha256": "85fee3f63389eafe0be0d26738dace2fef894ea784388a108d267cab85b03ffd",
+      "size": 202
+    },
+    "late-reboot-health.json": {
+      "sha256": "2176b0d428746f2c7014030ee4553e11ba7147232350c725372358ad0d6402e5",
+      "size": 1099
+    },
+    "de10-restored-catalog-audit.json": {
+      "sha256": "e822d6189c344f30d3add7aae35139374346b57660e58d836815ba1f7c2dcc77",
+      "size": 194
+    },
+    "expected-stop.json": {
+      "sha256": "66c24d0bff683aded1a21ba1cad3bd444e9a7b09a488c859c26473b7973cec3f",
+      "size": 300
+    },
+    "kita-release.json": {
+      "sha256": "1ce036c8203504cc3eb4274d39e006b56b7a9e09463ee687ff9b68beff2fe180",
+      "size": 616
+    },
+    "kita-candidate-home.png": {
+      "sha256": "4a6d3ccb536e2628d0dcf24fff9c354812d28c52f4bf681d2f030f2e1531e634",
+      "size": 298635
+    },
+    "kita-zx81.png": {
+      "sha256": "afaae2ba3c8fbfe4fc3e2d7a0ad7f66073ede901350b07ba263cd8aaab020ef6",
+      "size": 38283
+    },
+    "kita-print.png": {
+      "sha256": "a1edb72004b4d80dca58d897151a49fd092642d403f1a32daa54f23bc1d2eb82",
+      "size": 38730
+    },
+    "kita-f12-settled.png": {
+      "sha256": "0d7322f803657dac384fa6de92226723dace400b2491b7ecce00e4173e0f63ec",
+      "size": 135902
+    },
+    "kita-escape.png": {
+      "sha256": "dfe22a1f589d57fa81ed7e6a119760200264f0cedf540ae32b8f9fcb21af261b",
+      "size": 38446
+    },
+    "kita-restored-home.png": {
+      "sha256": "1eed405f6d4a2f71ac9702f0d9a45ba3e788432e41062c3b0718cfcb5cc0659f",
+      "size": 297991
+    }
+  },
+  "main_baseline_reboot_control": {
+    "generation": 142,
+    "selected": "a2756499ab07627e1b1fb7f00f3ebe334b6b564099c1b086d9c4f74eaf9aeb1e",
+    "active_bundle": "a2756499ab07627e1b1fb7f00f3ebe334b6b564099c1b086d9c4f74eaf9aeb1e",
+    "base_identity": "179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018",
+    "boot_id": "76b5db1a-8861-4746-964a-c90f73acce6a",
+    "source": "2320f64da7281468ee4dc2bfd4fda9268af6bb6b",
+    "after_boot_id": "797c95b4-f20b-47cb-b41b-cbe92e78a289",
+    "ready": true,
+    "ready_seconds": 133.67245217808522,
+    "within_120_seconds": false,
+    "lease": "free",
+    "idle": true,
+    "interpretation": "The120s miss reproduces on the main baseline; it is not unique evidence of a PR regression. The bound remains failed, not waived. This still boots the existing OS, not changed shared init bytes."
+  }
+}

@@ -1,0 +1,253 @@
+{
+  "base": "11999b8969a00281f562616a1df05588bb3373c8",
+  "checkout_head": "e7d7d4d64ffe052e463a77b35e5a793ad3452342",
+  "commands": [
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "files": [
+        "tests/test_affected.py"
+      ],
+      "label": "test_affected.py",
+      "lane": "always",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3"
+      ]
+    },
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "files": [
+        "tests/test_test_changed.py"
+      ],
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3"
+      ]
+    },
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "11999b8969a00281f562616a1df05588bb3373c8",
+        "--head",
+        "e7d7d4d64ffe052e463a77b35e5a793ad3452342"
+      ],
+      "cwd": ".",
+      "files": [],
+      "label": "committed whitespace",
+      "lane": "always",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3"
+      ]
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": ".",
+      "files": [],
+      "label": "working whitespace",
+      "lane": "always",
+      "tools": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "true",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"sources/misteross/boards/de25nano/hps/build.py\", \"sources/misteross/boards/de25nano/hps/test_build.py\", \"sources/misteross/boards/de25nano/scanout/README.md\", \"sources/misteross/boards/de25nano/scanout/build.py\", \"sources/misteross/boards/de25nano/scanout/linux_dma.py\", \"sources/misteross/boards/de25nano/scanout/test_build.py\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/scripts/build_de25_menu_package.py\", \"sources/misteross/tests/fixtures/de25_managed_fabric.json.gz\", \"sources/misteross/tests/fixtures/de25_managed_fabric_floating.json.gz\", \"sources/misteross/tests/test_build_de25_menu_package.py\", \"sources/misteross/tests/test_de25nano_managed_fabric.py\"]"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ],
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "sh"
+      ]
+    },
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/consistency.py"
+      ],
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "go"
+      ]
+    },
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "sources/misteross",
+      "files": [
+        "tests/test_*.py"
+      ],
+      "label": "test_*.py",
+      "lane": "fpga",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "strace"
+      ]
+    }
+  ],
+  "format": 1,
+  "head": "e7d7d4d64ffe052e463a77b35e5a793ad3452342",
+  "impact": {
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "cores": [],
+    "lanes": {
+      "contracts": false,
+      "fpga": true,
+      "host": false,
+      "parent": true,
+      "runtime": false
+    },
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ],
+    "paths": [
+      "sources/misteross/boards/de25nano/hps/build.py",
+      "sources/misteross/boards/de25nano/hps/test_build.py",
+      "sources/misteross/boards/de25nano/scanout/README.md",
+      "sources/misteross/boards/de25nano/scanout/build.py",
+      "sources/misteross/boards/de25nano/scanout/linux_dma.py",
+      "sources/misteross/boards/de25nano/scanout/test_build.py",
+      "sources/misteross/docs/architecture.md",
+      "sources/misteross/scripts/build_de25_menu_package.py",
+      "sources/misteross/tests/fixtures/de25_managed_fabric.json.gz",
+      "sources/misteross/tests/fixtures/de25_managed_fabric_floating.json.gz",
+      "sources/misteross/tests/test_build_de25_menu_package.py",
+      "sources/misteross/tests/test_de25nano_managed_fabric.py"
+    ],
+    "reasons": [
+      "sources/misteross/boards/de25nano/hps/build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/test_build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/linux_dma.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/test_build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/scripts/build_de25_menu_package.py: FPGA producer/package software tests; RTL unchanged",
+      "sources/misteross/tests/fixtures/de25_managed_fabric.json.gz: FPGA producer/package software tests; RTL unchanged",
+      "sources/misteross/tests/fixtures/de25_managed_fabric_floating.json.gz: FPGA producer/package software tests; RTL unchanged",
+      "sources/misteross/tests/test_build_de25_menu_package.py: FPGA producer/package software tests; RTL unchanged",
+      "sources/misteross/tests/test_de25nano_managed_fabric.py: FPGA producer/package software tests; RTL unchanged"
+    ],
+    "skipped": [
+      "host",
+      "runtime",
+      "contracts"
+    ],
+    "test_modes": {
+      "full_race": false,
+      "media": false,
+      "video": true
+    }
+  },
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "local_paths": [],
+  "merge_base": "11999b8969a00281f562616a1df05588bb3373c8",
+  "not_started": [],
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 1
+    }
+  ],
+  "root": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-managed-fabric-e7d7d4d64",
+  "status": "failed"
+}

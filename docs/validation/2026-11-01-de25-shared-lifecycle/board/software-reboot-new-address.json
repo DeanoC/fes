@@ -1,0 +1,8 @@
+{
+  "host": "192.168.10.153",
+  "boot_id": "15e107d8-0ed1-4e5e-83d8-b27c8a49d853",
+  "command": "set -eu\nboot=$(cat /proc/sys/kernel/random/boot_id)\n[ \"$boot\" != 15e107d8-0ed1-4e5e-83d8-b27c8a49d853 ]\n[ \"$(cat /sys/block/mmcblk0/device/cid)\" = 275048534436344760702d33e0017c00 ]\n[ \"$(uname -r)\" = 6.12.11-fes-de25-owner ]\necho \"$boot\"\nsha256sum /sys/kernel/notes /usr/share/fes/kernel-modules.json\nls -ln /dev/fes-de25-scanout\n[ ! -e /tmp/fes-de25-shared-lifecycle-1cf ]\n[ ! -e /lib/firmware/fes-runtime-core.rbf ]\n[ ! -d /sys/kernel/config/device-tree/overlays/fes-runtime ]\ncat /sys/class/net/eth0/addr_assign_type\ncat /sys/class/net/eth0/address\ncat /etc/network/interfaces\necho SHARED_LIFECYCLE_SOFTWARE_REBOOT_RETURNED\n",
+  "returncode": 0,
+  "elapsed_seconds": 0.16,
+  "stdin_sha256": null
+}

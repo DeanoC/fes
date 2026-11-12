@@ -1,0 +1,21 @@
+test_captured_input_mutation_is_rejected (build_test.RecipeTests.test_captured_input_mutation_is_rejected) ... ok
+test_combined_client_proof_receipt_matches_captured_sources (build_test.RecipeTests.test_combined_client_proof_receipt_matches_captured_sources) ... ok
+test_design_closure_failure_is_not_reported_as_internal_timing_failure (build_test.RecipeTests.test_design_closure_failure_is_not_reported_as_internal_timing_failure) ... ok
+test_fitted_region_checks_import_label_and_exact_coordinates (build_test.RecipeTests.test_fitted_region_checks_import_label_and_exact_coordinates) ... ok
+test_hps_archive_is_required_before_output_creation (build_test.RecipeTests.test_hps_archive_is_required_before_output_creation) ... ok
+test_hps_packaging_binds_vendor_bootloader_and_recipe (build_test.RecipeTests.test_hps_packaging_binds_vendor_bootloader_and_recipe) ... ok
+test_negative_timing_is_rejected (build_test.RecipeTests.test_negative_timing_is_rejected) ... ok
+test_only_exact_duplicate_emif_clock_is_removed (build_test.RecipeTests.test_only_exact_duplicate_emif_clock_is_removed) ... ok
+test_persona_partition_reuse_requires_full_root_preservation (build_test.RecipeTests.test_persona_partition_reuse_requires_full_root_preservation) ... ok
+test_pfg_integrity_requires_explicit_success (build_test.RecipeTests.test_pfg_integrity_requires_explicit_success) ... ok
+test_pfg_zero_exit_text_must_not_hide_errors (build_test.RecipeTests.test_pfg_zero_exit_text_must_not_hide_errors) ... ok
+test_real_preparation_declares_both_personas_reconfigurable (build_test.RecipeTests.test_real_preparation_declares_both_personas_reconfigurable) ... ok
+test_region_command_injection_rejected_before_output (build_test.RecipeTests.test_region_command_injection_rejected_before_output) ... ok
+test_source_closure_seal_recomputes_final_inputs (build_test.RecipeTests.test_source_closure_seal_recomputes_final_inputs) ... ok
+test_tool_qpf_metadata_may_change_but_revision_selection_may_not (build_test.RecipeTests.test_tool_qpf_metadata_may_change_but_revision_selection_may_not) ... ok
+test_vendor_decoded_pof_device_and_uniqueness (build_test.RecipeTests.test_vendor_decoded_pof_device_and_uniqueness) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.336s
+
+OK

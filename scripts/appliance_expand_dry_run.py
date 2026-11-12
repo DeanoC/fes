@@ -830,15 +830,27 @@ def main(argv=None):
                         help='regular dry-run file or the exact admitted USB by-id')
     parser.add_argument('--output', type=Path, help='new synthetic sparse image path')
     parser.add_argument('--base-image', type=Path,
-                        help='fixed de10-nano-appliance-1g-v1 card.img for write-base/apply')
+                        help='verified fixed-layout card.img reference')
     parser.add_argument('--base-sha256', help='optional SHA-256 required for the base image')
     parser.add_argument('--lock', type=Path, default=default_lock_path())
     parser.add_argument('--mode', choices=('extra-partition', 'grow-fat'), default='extra-partition')
+    parser.add_argument('--board', choices=('de10-nano', 'de25-nano'), default='de10-nano')
+    parser.add_argument('--data-receipt', type=Path,
+                        help='DE25 apply receipt for read-only verification')
     parser.add_argument('--card-bytes', type=int, default=None,
                         help='card size; regular files default to the 28.8 GiB model, the admitted '
                              'USB uses its reported size and refuses a different value')
     args = parser.parse_args(argv)
     try:
+        if args.board == 'de25-nano':
+            try:
+                from . import de25_card_data
+            except ImportError:
+                import de25_card_data
+            print(json.dumps(de25_card_data.execute(args), sort_keys=True, indent=2))
+            return
+        if args.data_receipt is not None:
+            raise ExpandError('--data-receipt requires --board de25-nano')
         layout = load_layout(args.lock)
         modeled_card_bytes = SYNTHETIC_CARD_BYTES if args.card_bytes is None else args.card_bytes
         if args.command == 'synthesize':

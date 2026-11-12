@@ -19,6 +19,7 @@ stop_service() {
 
 case "${1:-start}" in
   start)
+    /sbin/ip link set lo up
     wait_seconds=10
     while [ ! -e /sys/class/net/eth0 ] && [ "$wait_seconds" -gt 0 ]; do
       /bin/sleep 1
@@ -29,7 +30,10 @@ case "${1:-start}" in
       exit 1
     fi
     /sbin/ip link set eth0 up
-    /sbin/udhcpc -f -q -t 5 -T 2 -i eth0 -x hostname:mister -s /usr/share/udhcpc/default.script &
+    # Keep the foreground client supervised after the first lease so it renews
+    # that lease and retries if the PHY/switch is still settling at startup.
+    hostname=$(/bin/hostname)
+    /sbin/udhcpc -f -p "$pid_file" -t 5 -T 2 -i eth0 -x "hostname:$hostname" -s /usr/share/udhcpc/default.script &
     printf '%s\n' "$!" > "$pid_file"
     ;;
   stop)

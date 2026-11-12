@@ -1,0 +1,14 @@
+{
+  "status": "passed",
+  "source_revision": "7656e1954f7e27d0dc3634f60e869f97cf14301d",
+  "positive_job": "committed-focused-job/job.json",
+  "original_source_sha256": "e076d774e74222722620f0f605f6bd1f8456e69c8a944dfd5e180004e62dfb2d",
+  "test_source_sha256": "8c256a8128a8da0cb95a18db9171e65ff4ce8baab73faba864f6b4efa3655c1c",
+  "mutation": "Remove only the outstanding-token guard: advance epoch on every reference edge during fault.",
+  "mutation_compile": "passed",
+  "mutant_returncode": 1,
+  "mutant_stderr": "FAIL: visibility/readiness did not recover with both clocks running\n",
+  "classification": "Actual committed board bench rejects deliberate handshake aliasing; digital model only",
+  "hardware_access": "not-performed",
+  "seconds": 2.257
+}

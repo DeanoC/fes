@@ -1,0 +1,139 @@
+{
+  "candidate_receipt_sha256": "6f6a4bf2f1c7eb4354607e6346c895152f86ed1832e77589b02c1de784145c0b",
+  "candidate_source_revision": "5d839c7f62df4040b9f5a89d7bb41fa53bc9f08f",
+  "classification": "unbooted native owner test-image preparation",
+  "diagnostic": {
+    "binary_sha256": "deecc4693f2046bec5b1e33d79bc278ff41a31e66b6f1624618ece1896c8e672",
+    "binary_size": 835312,
+    "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+    "classification": "Static AArch64 diagnostic cross-compilation and ELF inspection; no native execution",
+    "hardware_access": "not-performed",
+    "required_owner_ABI": 3,
+    "sdk_sha256": "7912076c08d93c8d8c28c0ef81bd406abf6b1acb9e01ccac37d44307e39759a7",
+    "seconds": 5.179,
+    "source_revision": "5d839c7f62df4040b9f5a89d7bb41fa53bc9f08f",
+    "source_sha256": {
+      "image/kernel/de25-dma/de25_dma.h": "ac193a83a64c3c2b636ae0892114ac04e0e901a243c6036b527b08aeb4c23a11",
+      "image/kernel/de25-platform/owner_unconfigured.c": "8223465c90f770733b73b0cf7072532772268a6a01bdd533d46de618d9423df5"
+    },
+    "static_AArch64_ELF": true,
+    "status": "passed",
+    "tools": {
+      "compiler_sha256": {
+        "aarch64-buildroot-linux-gnu-gcc": "e82814dae98497c53ce9488ee7ca92491020acfc8b1f2fa53853e4548b2261e0",
+        "aarch64-buildroot-linux-gnu-gcc.br_real": "5b5514d1685f646fda7898a34f867710bf59a4ec26a62084ca0a0d53c9b326aa"
+      },
+      "compiler_version": "aarch64-buildroot-linux-gnu-gcc.br_real (Buildroot 2021.02.4) 9.4.0\nCopyright (C) 2019 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+      "flags": [
+        "-std=c11",
+        "-O2",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-static"
+      ],
+      "relocated_sdk_script_sha256": "591fe41818e1bafddf6bc64969a7ee54210af0737c916c0c3c0f7e4673d8ffba"
+    }
+  },
+  "earlier_launch_failure": {
+    "hardware_access": "not-performed",
+    "reason": "Source snapshot checkout still running. Both run_job clean-source guards refused before writing job.json or launching child commands, after creating empty output directories. Snapshot session61453 subsequently completed; HEAD and clean source were verified. An extra preflight expecting absent directories also refused because those empty directories existed; final launches used the same clean committed snapshot.",
+    "status": "failed-before-child-launch"
+  },
+  "first_boot_expectation_sha256": "dad36296b11cc496c2406ddf478986f6a271a840900b4731bb14d665a99dca20",
+  "hardware_access": "not-performed",
+  "headless_receipt_sha256": "f4a380d1a90614d7605ed4957cc484a495c84e1ca32e7d53aa324f10134db41a",
+  "headless_rootfs_tar_sha256": "bdb46979d31a578a7c30b210b3bc88af650e2169167e382fb37f54d1050ade92",
+  "headless_source_revision": "9803d7edb4a757cc7dbb492e0a0f01948fe090cb",
+  "independent_verification": {
+    "classification": "off-board candidate structural verification",
+    "hardware_access": "not-performed",
+    "hardware_boot": "not-run",
+    "image_sha256": "429a787525751594f8989ec96c861b27ef46505672cd831e17aa300133ece056",
+    "media_tools": "sha256:44b7b0c76728be2a697e5cd7150a1ef7ddfda6c880212d11f9fef43d950a2af6",
+    "normal_runtime_admission": "closed",
+    "reproducibility": "two identical assemblies",
+    "seconds": 5.252,
+    "source_revision": "5d839c7f62df4040b9f5a89d7bb41fa53bc9f08f",
+    "status": "passed"
+  },
+  "jobs": {
+    "diagnostic-build-job": {
+      "elapsed_seconds": 5.2,
+      "returncode": 0,
+      "source_revision": "5d839c7f62df4040b9f5a89d7bb41fa53bc9f08f",
+      "state": "passed",
+      "stdout_sha256": "053942dd12f4f88a3014654bc06d752db29fb36759ad4d0b74272a1ad73ee921",
+      "time_cap_seconds": 600
+    },
+    "diagnostic-software-job": {
+      "elapsed_seconds": 325.9,
+      "returncode": 0,
+      "source_revision": "5d839c7f62df4040b9f5a89d7bb41fa53bc9f08f",
+      "state": "passed",
+      "stdout_sha256": "f21debb66d874357864cf81c835eff094c6443e570fafb8b9189d09723533bf8",
+      "time_cap_seconds": 2400
+    },
+    "headless-job": {
+      "elapsed_seconds": 716.5,
+      "returncode": 0,
+      "source_revision": "9803d7edb4a757cc7dbb492e0a0f01948fe090cb",
+      "state": "passed",
+      "stdout_sha256": "f06ae7fb3b06a56973d2da41b3dbfab002bb45054007099ba6cf0e4cef4eefd0",
+      "time_cap_seconds": 3000
+    },
+    "owner-image-job": {
+      "elapsed_seconds": 23.6,
+      "returncode": 0,
+      "source_revision": "5d839c7f62df4040b9f5a89d7bb41fa53bc9f08f",
+      "state": "passed",
+      "stdout_sha256": "a4027142286c189ac6a8369f212fd42aeb4f2e1017fe7ef9ce4d6789d3edceac",
+      "time_cap_seconds": 2400
+    },
+    "owner-independent-verify-job": {
+      "elapsed_seconds": 5.4,
+      "returncode": 0,
+      "source_revision": "5d839c7f62df4040b9f5a89d7bb41fa53bc9f08f",
+      "state": "passed",
+      "stdout_sha256": "e77a175bc33eb11a0737c2157dbca02a901a08ad0dc537031ebff240ea0cb1c3",
+      "time_cap_seconds": 600
+    }
+  },
+  "kernel_source_revision": "59d3b43997b5827dda55125f0f651248a51e6ebf",
+  "native_boot": "not-run",
+  "normal_runtime_admission": "closed",
+  "prior_ext4_and_SDK_byte_identity_claimed": false,
+  "prior_headless_rootfs_tar_byte_identical": {
+    "matched": true,
+    "producer": "b97a211878c2d76e6499cfe0f45ece3a34bfc5af"
+  },
+  "software": {
+    "commands": [
+      {
+        "command": [
+          "make",
+          "test-changed",
+          "TEST_CHANGED_ARGS=--base 9803d7edb4a757cc7dbb492e0a0f01948fe090cb"
+        ],
+        "returncode": 0,
+        "seconds": 319.436
+      },
+      {
+        "command": [
+          "make",
+          "check"
+        ],
+        "returncode": 0,
+        "seconds": 6.376
+      }
+    ],
+    "copied_pins": 0,
+    "fixture_copies": 42,
+    "generated_consumers": 40,
+    "parent_cases": 1394,
+    "parent_seconds": 312.048,
+    "parent_skipped": 45,
+    "planner_cases": 62,
+    "status": "passed"
+  }
+}

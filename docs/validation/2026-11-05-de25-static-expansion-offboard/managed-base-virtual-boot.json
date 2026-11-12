@@ -1,0 +1,61 @@
+{
+  "argv": [
+    "qemu-system-aarch64",
+    "-machine",
+    "virt,gic-version=2",
+    "-accel",
+    "tcg,thread=single",
+    "-cpu",
+    "cortex-a53",
+    "-m",
+    "512M",
+    "-nographic",
+    "-no-reboot",
+    "-nic",
+    "none",
+    "-monitor",
+    "none",
+    "-kernel",
+    "/inputs/kernel/Image",
+    "-drive",
+    "file=/export/.boot-smoke-fp9_xspe/rootfs.img,if=none,id=root,format=raw",
+    "-device",
+    "virtio-blk-device,drive=root",
+    "-append",
+    "root=/dev/vda ro rootwait console=ttyAMA0,115200 init=/sbin/init fogcast_target_smoke=1"
+  ],
+  "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+  "checks": {
+    "dbus_ready": true,
+    "init_smoke_ready": true,
+    "readonly_root": true,
+    "volatile_tmpfs": true
+  },
+  "classification": "aarch64-image-packaging-boot",
+  "format": 1,
+  "hardware_acceptance": "not-run",
+  "image": {
+    "architecture": "aarch64",
+    "board": "de25-nano",
+    "classification": "managed-base-intermediate",
+    "fes_revision": "f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b",
+    "inputs_sha256": "b36b295d8d275d7efb5cf5245ca6c4f26856218be59ffa3aac9b8d5ff06cbec9",
+    "kernel_sha256": "9ac6c330019fb77d853be835f82f7b9fe8e2e0187ce5610a7b4bae82cf2df91f",
+    "profile": "managed-base",
+    "recipe_sha256": "1389a9f491b64d3957f7006bbdfaed76b47dd2d3447f999a753e23b4f0d33bc8",
+    "rootfs_sha256": "4c9d8725c2c440919a2024196f3ecf8116bd2da4559e49f183cd268a913f2c04"
+  },
+  "normal_runtime_admission": "closed",
+  "observation_seconds": 45,
+  "producer_revision": "8aa493a80c35342dd222d5215bf1395fda71d84f",
+  "qemu": {
+    "executable_sha256": "7148d1e6c8587f9b017dbcd2ab6d18eb9b84d20ef5284e0c4915b614c8a61b31",
+    "version": "QEMU emulator version 7.2.22 (Debian 1:7.2+dfsg-7+deb12u18+b3)"
+  },
+  "qemu_log_sha256": "806149d2a7f1e352482cdaff40d59f18f8b3f00a030470759111842fcc67b445",
+  "recipe_sha256": "0e467102cf68a9ccf562f53b004ad0d3a2d54aed6aa84e77db0ec436ce994a12",
+  "termination": {
+    "reason": "observation-complete",
+    "returncode": 0
+  }
+}

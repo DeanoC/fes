@@ -1,0 +1,38 @@
+{
+  "directory": "/home/deano/fes/out/artifacts/de25-owner-userspace/d64ced1eabf3e514626cd8563e6cb68dba68e3d0",
+  "source_revision": "d64ced1eabf3e514626cd8563e6cb68dba68e3d0",
+  "files": {
+    "owner_unconfigured.aarch64": {
+      "size": 835304,
+      "sha256": "b5db0fc187290073086714b94ccbdd6729011cd20c781e4e7730028f931d0032"
+    },
+    "inside.py": {
+      "size": 2056,
+      "sha256": "99565bea1e4f457a34f5065299631c3986fa54063644e7b2b05b898c6c11cd16"
+    },
+    "run.py": {
+      "size": 786,
+      "sha256": "60d7bfb7916fb673277bd74c8f137a952676d723785332f9ad909db2724f8aee"
+    },
+    "result.json": {
+      "size": 1194,
+      "sha256": "731d7064857f2f92676a85539f86c24e595883f00aa4c14b92d3e691c13ea5d0"
+    },
+    "readelf.txt": {
+      "size": 2417,
+      "sha256": "b812944a1cd3b9829277a0d9cf08cb8edd3055423ea31430ac6352663c2f3497"
+    },
+    "job.json": {
+      "size": 465,
+      "sha256": "9a0fb20e10538851d4562c217334c58cc64edc59477e7fc23e69a3616e89fbcc"
+    },
+    "build-job.json": {
+      "size": 227,
+      "sha256": "ca4c3e86a2be370b9efcf4778d9625d5cd8cc7b061e878cafcb9eabc574e9ff6"
+    },
+    "stdout.log": {
+      "size": 1581,
+      "sha256": "59682f1b226c0bffb7c05530c7a9526c088c1c00adef7579d52e52d7db89b79b"
+    }
+  }
+}

@@ -2,7 +2,8 @@ package menudisplay
 
 // Timing splits one Present for frame-time diagnostics. Begin, Stage and
 // Commit are measured by this client; the Runtime fields come from the
-// runtime's menu_frame.timing reply.
+// runtime's menu_frame.timing reply. A refused commit retains measured client
+// phases and staged counts, with no displayed identity or runtime timings.
 type Timing struct {
 	// BeginUS covers mapping a new generation's grant, dialling the runtime
 	// socket and the menu_frame_begin round trip.

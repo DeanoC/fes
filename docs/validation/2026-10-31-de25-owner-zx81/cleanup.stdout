@@ -1,0 +1,27 @@
+DE25_OWNER_UNCONFIGURED_USERSPACE_PASS
+[    2.200828] hub 1-1:1.0: USB hub found
+[    2.204692] hub 1-1:1.0: 4 ports detected
+[    2.211958] EXT4-fs (mmcblk0p2): re-mounted dc1b5512-2da9-40ce-ae48-5c62b7e4f0c0 r/w. Quota mode: none.
+[    2.487907] usb 1-1.3: new full-speed USB device number 3 using dwc2
+[    3.611845] random: crng init done
+[    3.665205] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-0
+[    3.673763] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-1
+[    3.682289] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-2
+[    3.690883] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-3
+[    3.699332] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-4
+[    3.707939] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-5
+[    3.716438] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-6
+[    3.725076] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-7
+[    3.798106] socfpga-dwmac 10810000.ethernet eth0: PHY [stmmac-0:01] driver [Micrel KSZ9031 Gigabit PHY] (irq=POLL)
+[    3.808481] socfpga-dwmac 10810000.ethernet eth0: No Safety Features support found
+[    3.816043] socfpga-dwmac 10810000.ethernet eth0: IEEE 1588-2008 Advanced Timestamp supported
+[    3.824817] socfpga-dwmac 10810000.ethernet eth0: registered PTP clock
+[    3.831371] socfpga-dwmac 10810000.ethernet eth0: configuring for phy/rgmii link mode
+[    6.916776] socfpga-dwmac 10810000.ethernet eth0: Link is Up - 1Gbps/Full - flow control rx/tx
+[ 1350.368890] fpga_manager fpga0: writing fes-owner-zx81-71303759.rbf to Stratix10 SOC FPGA Manager
+[ 1352.486224] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[ 1352.496493] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us
+[ 1767.674203] fpga_manager fpga0: writing fes-owner-zx81-71303759.rbf to Stratix10 SOC FPGA Manager
+[ 1769.789342] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[ 1769.799674] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us
+FES_OWNER_ZX81_CLEANUP_PASS

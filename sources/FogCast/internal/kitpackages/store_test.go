@@ -819,3 +819,49 @@ func TestSelectedPackagesReturnsAuthenticatedIdentityAndLocalPath(t *testing.T) 
 		t.Fatalf("local path leaked into JSON=%s,%v", wire, err)
 	}
 }
+
+func TestColdOpenVerifiesEachInstalledPackageOnce(t *testing.T) {
+	s := newStore(t)
+	first, selected := fixture(t, "0.1.0", "fes.pong")
+	second, _ := fixture(t, "0.2.0", "fes.pong")
+	install(t, s, first)
+	install(t, s, second)
+	if _, err := s.Select(context.Background(), "fes.pong", "", selected.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	fullVerificationReads.Store(0)
+	reopened, err := New(s.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fullVerificationReads.Load(); got != 2 {
+		t.Fatalf("cold open verified payloads %d times for two intact packages; want once each", got)
+	}
+	if _, err := reopened.SelectedPackages(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reopened.List(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := fullVerificationReads.Load(); got != 2 {
+		t.Fatalf("post-open inventory repeated verification: %d", got)
+	}
+}
+
+func TestColdOpenRejectsUnselectedCorruptPublication(t *testing.T) {
+	for _, member := range []string{"archive", "members"} {
+		t.Run(member, func(t *testing.T) {
+			s := newStore(t)
+			archive, info := fixture(t, "0.1.0", "fes.pong")
+			install(t, s, archive)
+			path := filepath.Join(s.root, "archives", info.PackageID+".fcore")
+			if member == "members" {
+				path = filepath.Join(s.root, "packages", info.PackageID, "core.rbf")
+			}
+			rewriteSameSizeRestoreMtime(t, path)
+			if _, err := New(s.root); err == nil {
+				t.Fatal("cold open accepted unselected corrupt " + member)
+			}
+		})
+	}
+}

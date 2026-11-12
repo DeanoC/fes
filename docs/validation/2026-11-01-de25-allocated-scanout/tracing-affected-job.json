@@ -1,0 +1,18 @@
+{
+  "source_revision": "3dab0b06b3ba191444eec36c992b4d54f64301f8",
+  "command": [
+    "python3",
+    "scripts/test_changed.py",
+    "--base",
+    "159bcf52cc3e92909ea463ed3add05734f35255f"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-archive-completion",
+  "started_utc": "2026-11-01T00:12:15.661632+00:00",
+  "time_cap_seconds": 900,
+  "hardware_access": "not-performed",
+  "pid": 3954139,
+  "state": "passed",
+  "elapsed_seconds": 196.3,
+  "heartbeat_utc": "2026-11-01T00:15:31.936319+00:00",
+  "returncode": 0
+}

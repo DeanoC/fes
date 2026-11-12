@@ -95,6 +95,21 @@ void TestBlitterGrantCoversListsAndHeap()
  assert(window.Activate(false,false).ok()&&window.CleanBlit(0,1,{}).code==mister::ErrorCode::io_failed);
 }
 
+void TestRevokeFailureIsStickyAcrossActivation()
+{
+ Operations operations;mister::native::MenuWindow window(operations);
+ assert(window.Activate(false,false).ok());operations.calls.clear();
+ operations.fail_revoke=true;
+ assert(!window.Revoke().ok());
+ assert((operations.calls==Calls{"revoke 10","close 10"}));
+ operations.calls.clear();operations.fail_revoke=false;
+ assert(!window.Revoke().ok());
+ assert(!window.Activate(false,false).ok());
+ assert(!window.Activate(true,true).ok());
+ int shared=-1;assert(!window.Share(&shared).ok());
+ assert(operations.calls.empty());
+}
+
 void TestFailedActivationLeavesNoGrant()
 {
  Operations operations;operations.fail_revoke=true;
@@ -111,6 +126,7 @@ int main()
  TestActivationGrantsClearsAndCleansBothSlots();
  TestBlitterGrantCoversListsAndHeap();
  TestFailedActivationLeavesNoGrant();
+ TestRevokeFailureIsStickyAcrossActivation();
  puts("menu window grant/clear/clean/revoke/share tests passed");
  return 0;
 }

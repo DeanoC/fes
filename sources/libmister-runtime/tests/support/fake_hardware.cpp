@@ -15,6 +15,8 @@ public:
 		: AdmittedCorePackage(std::move(info)) {}
 	mister::CoreComposition composition() const override { return composition_; }
 	mister::CoreComposition composition_;
+	mister::CoreStaticComposition static_composition_;
+	mister::CoreStaticComposition static_composition() const override { return static_composition_; }
 };
 }
 
@@ -72,7 +74,11 @@ mister::Error FakeHardware::AdmitCoreComposition(const std::string& directory,
 	std::unique_ptr<mister::AdmittedCorePackage>* output)
 {
 	auto error = AdmitCorePackage(directory, id, output);
-	if (error.ok()) static_cast<FakeAdmittedCore*>(output->get())->composition_ = request.composition;
+	if (error.ok()) {
+        auto* admitted=static_cast<FakeAdmittedCore*>(output->get());
+        admitted->composition_=request.composition;
+        if (request.has_static_selection) admitted->static_composition_=request.static_selection.composition;
+    }
 	return error;
 }
 

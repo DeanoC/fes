@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "classification": "failed physical frame acceptance with successful guarded recovery",
+  "fpga_producer": "d4c6544e3a6f83ba4ea72fbe7d8b7c0c13828223",
+  "programmer_producer": "3d9410e757a4d0603dcc9c96e09cb999f850ed5a",
+  "instrumented_client_producer": "8b4d66cf11b4b3daf924ac275f9a0815d76f7edc",
+  "rbf_sha256": "bc4290c152a280afa7c5202726051cbc769708d59bbb8a2721e121410a644e68",
+  "frame_attempts": 2,
+  "frame_result": "failed both; stop further retries on this image",
+  "cached_failure": {
+    "generation": 2,
+    "state": 14,
+    "status": 25,
+    "errors": 4,
+    "underflows": 0,
+    "outstanding": 0,
+    "accepted": 1,
+    "displayed": 0,
+    "pending": 1
+  },
+  "error_definition": "FES_DE25_SCANOUT_ERROR_RESPONSE=4",
+  "load": "two actual explicit ownership-marker loads succeeded",
+  "allocation": "8MiB CLOEXEC grant allocated and mapped; first PUBLISH accepted",
+  "display": "no complete-frame acknowledgement; no physical image acceptance",
+  "kernel_recovery": "both client closes produced stopped/drained/cleared snapshots; one guarded owner reap and owned cleanup after each, without power cycle/reboot",
+  "second_snapshot_serial": 6,
+  "guard_epoch": 2,
+  "guard_status": 8,
+  "guard_fault": 0,
+  "smmu_cr0_ack": 29,
+  "smmu_evtq_producer_consumer": [
+    0,
+    0
+  ],
+  "smmu_gerror_gerrorn": [
+    0,
+    0
+  ],
+  "bridge_reset_register": 0,
+  "firewall_enabled_region": {
+    "base": "0x80100000",
+    "limit": "0xbfffffff"
+  },
+  "root_cause": "not established; AXI response error, not underflow; no SMMU event recorded",
+  "current_boot": "2b179a1a-cf78-45e4-b188-f5e5643c0762",
+  "current_state": "owned allocation/overlay/firmware/configfs/tmp removed; claim retained, not baseline promotion/release",
+  "kernel_sd_qspi_bundle_install": "not performed",
+  "normal_runtime_admission": "closed",
+  "retention": "/home/deano/fes/out/artifacts/de25-allocated-scanout/d4c6544e3-second-failure"
+}

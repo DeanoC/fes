@@ -1,0 +1,8 @@
+{
+  "host": "192.168.10.69",
+  "boot_id": "9191e320-2d97-41a2-8e28-735ab8695f7c",
+  "command": "umask 077; test ! -e /tmp/fes-owner-retention && mkdir /tmp/fes-owner-retention && tar -xf - -C /tmp/fes-owner-retention",
+  "returncode": 0,
+  "elapsed_seconds": 2.44,
+  "stdin_sha256": "79a471053769edf4f480eecf72e5cdb351e52c3aa51e6c313efd6de806a65458"
+}

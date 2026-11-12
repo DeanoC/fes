@@ -1,0 +1,284 @@
+{
+  "format": 1,
+  "source": "a35f3207a668e87ac16a4edb6028ef554a2f8140",
+  "classification": "partial hardware acceptance; postboot picker failure remains open",
+  "overall_goal_complete": false,
+  "evidence_root": "/home/deano/fes/out/artifacts/de25-vendor-reference/2ba9334c3",
+  "receipts": {
+    "package": {
+      "passed": true,
+      "source": "a35f3207a668e87ac16a4edb6028ef554a2f8140",
+      "package_id": "138ab5cbda9b923b19a8d8f61c0dbc22670a2b6cd7d4272015f5973b009374bc",
+      "archive": "/home/deano/fes/out/artifacts/de25-vendor-reference/2ba9334c3/de25-reset-export-audio-reviewed-package-preparation/138ab5cbda9b923b19a8d8f61c0dbc22670a2b6cd7d4272015f5973b009374bc.fcore",
+      "archive_sha256": "a393b373c73982d85fb5d3e9a77d20665022b44e1f303b7e23edbaaf1df2e37e",
+      "rbf_sha256": "02c2d5e4a87912e2b4b2316212a17e85a688782cf333ab5980fd171725c7bd8e",
+      "build_id": "e1644cc46c58daaab1e5bdb151d78e1a",
+      "package_timing_admission": true,
+      "independent_matching_rbf": true,
+      "timing_checks": [
+        92,
+        92
+      ],
+      "unreviewed_failed_rules": [
+        0,
+        0
+      ],
+      "producer_seconds": 1193.332,
+      "all_482_current_source_inputs_match": true,
+      "raw_report_archive_sha256": "a84e88b65bdc78b1b9b7aeea15bd050f352ef1b9d576276f856d6567603c47aa",
+      "hardware_acceptance": false
+    },
+    "canonical_checks": {
+      "passed": true,
+      "source": "a35f3207a668e87ac16a4edb6028ef554a2f8140",
+      "base": "d722ce2e71472cc29239a9e61b30ed4ba2e2beac",
+      "commands": 7,
+      "seconds": 1611.057,
+      "output_sha256": "790186ba900a76c5d7d787f95914eacba21509dd848478385f03ab616ed8a7e4",
+      "scope": "Complete unmodified canonical affected delta; no skipped command or private timeout override."
+    },
+    "software": {
+      "passed": true,
+      "source": "a35f3207a668e87ac16a4edb6028ef554a2f8140",
+      "bundle": "bcecd49fdcc9d0ce8b39755543a13c9f60f9a5da5aae484a58665708ac17979d",
+      "archive_sha256": "506e593dc26bb7cc942b139f4f02ecf8acc12501fc5c32afd9a511e03e6b01bb",
+      "base_image_sha256": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+      "seconds": 52.411,
+      "all_manifest_payload_hashes_verified": true,
+      "provenance_exact_head": true,
+      "files": {
+        "bin/fogcast-kit": "2523222519fa11a8800fed90a43a6329f57d632df82e28198a1b27e766db54fc",
+        "bin/fogcast-tenfoot": "9efec47f86a222bf7c40cf0f15488b61238e893384357f30539ded9d8ad243de",
+        "bin/mister-agent": "0d624972b0c8decd09b1388aea812018bcb432b9c0a98676d625704897e4041f",
+        "bin/mister-runtime": "3857f78e10406103912d2a30539bb67a8910c51ef9c1e46e54f4e425977c2c5d",
+        "share/fogcast/config.toml": "c8dae986367e7a4562446512d6133e6d687786b732b1bafc60420ef936323dbc"
+      },
+      "native_acceptance": "pending"
+    },
+    "ui_save": {
+      "passed": true,
+      "source": "a35f3207a668e87ac16a4edb6028ef554a2f8140",
+      "seconds": 88.603,
+      "visually_checked_all_13_captures": true,
+      "images_sha256": {
+        "04-loaded-old7.png": "c79037e1ce8dac0ed1d6bc7421f7f41b2c56420fb3023f5be5917b5b66adf3ef",
+        "08-loaded-saved9.png": "925590b0ca4ee198fc04d6ac03a2d3769518343e55b944967a1b5d81275f1418",
+        "08b-reloaded-original9.png": "925590b0ca4ee198fc04d6ac03a2d3769518343e55b944967a1b5d81275f1418",
+        "08a-edited-RUN7.png": "c79037e1ce8dac0ed1d6bc7421f7f41b2c56420fb3023f5be5917b5b66adf3ef",
+        "01-print9-before-picker.png": "925590b0ca4ee198fc04d6ac03a2d3769518343e55b944967a1b5d81275f1418",
+        "06-saved9-highlight.png": "aa972b63bb0fe78fcb6e8a0e7dade9fe79781afb50accfbf170019d2cbf68d0a",
+        "05-eject-preserves7.png": "c79037e1ce8dac0ed1d6bc7421f7f41b2c56420fb3023f5be5917b5b66adf3ef",
+        "03-insert-old7-preserves9.png": "925590b0ca4ee198fc04d6ac03a2d3769518343e55b944967a1b5d81275f1418",
+        "12-returned-MENU.png": "7e189a2c42345f0c51413ae6816eb504365bfd5f45b2699a79d970e9ef3206f2",
+        "07-insert-saved9-preserves7.png": "c79037e1ce8dac0ed1d6bc7421f7f41b2c56420fb3023f5be5917b5b66adf3ef",
+        "09-ROM-save-C.png": "062acbec39cd07ed25be989587fc8915cacf4c8abaeee310a1c1aa7e987320da",
+        "02-old7-highlight.png": "b97562229d0f1f238da9abc00280ef746d8a59214fc8d3bba90c43e2bfcb52f9",
+        "00-before-MENU.png": "7e189a2c42345f0c51413ae6816eb504365bfd5f45b2699a79d970e9ef3206f2"
+      },
+      "observed": [
+        "FES Home ready before/after",
+        "PRINT9",
+        "real saved7/saved9 picker highlights",
+        "insertion preserves9",
+        "LOAD/RUN7",
+        "ejection preserves7",
+        "insertion preserves7",
+        "LOAD/RUN9",
+        "edit RUN7",
+        "reload removes edit and RUN9",
+        "ROM SAVE returns0/0"
+      ],
+      "same_session_core_generation_through_media_and_reload": true,
+      "hardware_underflows": 0,
+      "new_saved_media": "9838526c225a022cf4ce586fde20d5224ead31be376b504d0429e1c65b60f55a",
+      "native_capture_and_ack_log_http200": true,
+      "physical_usb": false,
+      "reboot": false,
+      "physical_PR": false
+    },
+    "current_save_roundtrip": {
+      "passed": true,
+      "source": "a35f3207a668e87ac16a4edb6028ef554a2f8140",
+      "seconds": 48.808,
+      "save_media_id": "9838526c225a022cf4ce586fde20d5224ead31be376b504d0429e1c65b60f55a",
+      "visually_checked_all7": true,
+      "images_sha256": {
+        "06-current-SAVE-reloaded9.png": "925590b0ca4ee198fc04d6ac03a2d3769518343e55b944967a1b5d81275f1418",
+        "07-returned-MENU.png": "7e189a2c42345f0c51413ae6816eb504365bfd5f45b2699a79d970e9ef3206f2",
+        "03-current-SAVE-insert.png": "9c0988ed58f9c1fdb44eef1b3ba5725f8c2de9ef8c27f577ded087000b88deea",
+        "04-current-SAVE-loaded9.png": "925590b0ca4ee198fc04d6ac03a2d3769518343e55b944967a1b5d81275f1418",
+        "01-fresh-machine.png": "9c0988ed58f9c1fdb44eef1b3ba5725f8c2de9ef8c27f577ded087000b88deea",
+        "05-current-SAVE-edited7.png": "c79037e1ce8dac0ed1d6bc7421f7f41b2c56420fb3023f5be5917b5b66adf3ef",
+        "02-current-SAVE-C-highlight.png": "6750f3232b319aeaf1c0e8bc34a28e16ef3385923be08db99b4b284a90381e48"
+      },
+      "observed": [
+        "fresh K prompt",
+        "current22:33 SAVE selected in real picker",
+        "LOAD/RUN9",
+        "edit RUN7",
+        "reload restores9",
+        "FES Home ready after Stop"
+      ],
+      "same_session_and_generation": true,
+      "hardware_underflows": 0,
+      "physical_usb": false,
+      "reboot": false
+    },
+    "active_runtime_recovery": {
+      "passed": true,
+      "source": "a35f3207a668e87ac16a4edb6028ef554a2f8140",
+      "seconds": 83.376,
+      "group_recovery_seconds": 31.844,
+      "stable_seconds": 10,
+      "single_pidfd_crash": true,
+      "same_boot_and_software_generation": true,
+      "images_sha256": {
+        "02-fresh-relaunch7.png": "8ea2efef2dd5e146f3a97c78e6ee899d1b6f0e73c8f836717a148c2d7438db90",
+        "05-returned-MENU.png": "8331395beeb2cf0dc3fbff78de84dd956b99987d5a3d4f76ba74cf810a485efb",
+        "01-running7-before-crash.png": "e92432ff5cd517aae6214042ecdf3dae155890dc8fbd9304bee0c7a30408fc6a",
+        "04-new-group-edit-run9.png": "76a8e9e45303644e46e2d1f7d661fbc3296b6a5284b1b6820b4eca98f5b4515f",
+        "03-new-group-picker.png": "3ab109474957378fd2f5aa67a91feda6164efd27da8ab010b99ba19804519006"
+      },
+      "all5_visually_checked": true,
+      "observed": [
+        "7 before crash",
+        "fresh session7 after new group",
+        "F12 picker",
+        "focus returns/editRUN9",
+        "FES Home ready after Stop"
+      ],
+      "old_session_discarded_no_old_generation_stop": true,
+      "reboot": false,
+      "hardware_usb": false,
+      "audio": false,
+      "personas": false
+    },
+    "active_core_reboot": {
+      "passed": true,
+      "source": "a35f3207a668e87ac16a4edb6028ef554a2f8140",
+      "new_boot_id": "5c6295d4-704a-432f-9a98-a07a4c479729",
+      "reboot_seconds": 47.946,
+      "visually_evaluated": {
+        "path": "/home/deano/fes/out/artifacts/de25-vendor-reference/2ba9334c3/de25-reset-export-active-reboot-native-job/01-running-before-reboot.png",
+        "sha256": "c01ea574a96ae4a5a919e29c76bde9d4dbc2a575d21273d6763d6533c0e82ab9",
+        "observation": "Normal FES standard ZX81 gameplay showing BASIC 7 before ordinary OS reboot"
+      },
+      "hardware_scope": "One active-core OS reboot with authenticated new boot, same image/card/kernel/bundle gen27 and stable10s Ready/MENU/idle/free; no power cycle."
+    },
+    "postboot_picker_failed": {
+      "success": false,
+      "source_revision": "a35f3207a668e87ac16a4edb6028ef554a2f8140",
+      "core_source_revision": "a35f3207a668e87ac16a4edb6028ef554a2f8140",
+      "scope": "Normal catalog/HID/BASIC/HDMI/SAVE and owned Stop on sealed standard core; images require visual evaluation",
+      "steps": [
+        "tapes-before",
+        "launch",
+        "active",
+        "keyboard-ready",
+        "01-fresh-machine",
+        "02-current-SAVE-C-highlight",
+        "02-current-SAVE-C-identity",
+        "raw-02-current-SAVE-C",
+        "failure",
+        "keyboard-closed",
+        "cleanup"
+      ],
+      "error": "AssertionError: "
+    },
+    "baseline_restored": {
+      "success": true,
+      "utc": "2026-11-04T22:54:16.796761+00:00",
+      "board": "TRWU8J8G",
+      "claim": "released",
+      "boot_id": "5c6295d4-704a-432f-9a98-a07a4c479729",
+      "base_image": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+      "baseline_bundle": "a14a53cd33e2c51d7639701363bf95cc7781f62b8207c0e2bab1653276504700",
+      "software_generation": 28,
+      "runtime": "idle",
+      "execution_lease": "free",
+      "maintenance": "none",
+      "host_restored": true,
+      "main_baseline_promoted": false,
+      "source_revision": "a35f3207a668e87ac16a4edb6028ef554a2f8140",
+      "native_acceptance": "partial: UI/SAVE/currentSAVE/crash/reboot pass; fresh postboot picker FAIL"
+    }
+  },
+  "evidence_files": {
+    "de25-reset-export-audio-reviewed-package-preparation/package-verified.json": {
+      "sha256": "1a8e4a5288e79724358fc1a063d59ccf282817ef236f4b4aa588a5c875999846",
+      "bytes": 957
+    },
+    "de25-reset-export-audio-reviewed-affected-job/verified.json": {
+      "sha256": "5b8546100edc4c0c8d395dbfe6947a503ec60654278320667ae18008db6fd453",
+      "bytes": 366
+    },
+    "de25-reset-export-audio-reviewed-software-job/verified.json": {
+      "sha256": "7161920aa2cff22944bb51b0c8a1d6a4c9b4faa7b82e9dca6a80f7128bc18242",
+      "bytes": 962
+    },
+    "de25-reset-export-ui-native-job/verified.json": {
+      "sha256": "9d9e99c2d4d710cc1e9b3ced90d32c6f3f409f5f3006135920aaaeb205dd39f1",
+      "bytes": 2053
+    },
+    "de25-reset-export-save-roundtrip-native-job/verified.json": {
+      "sha256": "e32e4163896e697cf0bb3462f8db682cace303f40a2bb03fd3faf22e18339e31",
+      "bytes": 1248
+    },
+    "de25-reset-export-recovery-native-job/active-runtime/verified.json": {
+      "sha256": "e5b8e787c7b9d872474c5394cbbcb7acf5072b892fc9a9187cc0217195491e2c",
+      "bytes": 1090
+    },
+    "de25-reset-export-active-reboot-native-job/verified.json": {
+      "sha256": "c03fe631103794a857359945f35f3ba47d0061ae0521a1ba99ea135614ee8ddd",
+      "bytes": 687
+    },
+    "de25-reset-export-postboot-save-native-job/result.json": {
+      "sha256": "6aef3ef3ebd5253d161912488f8216689747cc43e78743be7812ef437e983fd6",
+      "bytes": 573
+    },
+    "de25-reset-export-baseline-restore-v2-job/released.json": {
+      "sha256": "70ec10a9ec12eb9ac9271fe0de80e8660c4941ab1300c8ebdbb83ebdadcffe83",
+      "bytes": 669
+    },
+    "de25-reset-export-postboot-save-native-job/01-fresh-machine.png": {
+      "sha256": "dfb9d261126e3b994f7fc2cf144e3737709cf6e4ad0e918460a26b3c12fbc37a",
+      "bytes": 57097
+    },
+    "de25-reset-export-postboot-save-native-job/02-current-SAVE-C-highlight.png": {
+      "sha256": "3edbbc6d2015d75d8a312d746df33ec38ee5bb822ba88c8a15147ecd58fa41af",
+      "bytes": 10938
+    },
+    "de25-reset-export-postboot-save-native-job/native-failure-trace.log": {
+      "sha256": "aa396f0e639ea2e71c5311626c7c63e4dd7e3bd398b5b3abcd89c68891671bd1",
+      "bytes": 13484
+    },
+    "de25-reset-export-postboot-save-native-job/raw-02-current-SAVE-C.json": {
+      "sha256": "0f8200419c87d9ea6c9d65d69147e587adac536e5eb0a210b1677e8d9e1e1718",
+      "bytes": 7113
+    },
+    "de25-reset-export-postboot-save-native-job/cleanup.json": {
+      "sha256": "65062d26e4ce88cba9622a0f41f4981edb0f36c5795a5014716720b01c3fcf53",
+      "bytes": 1481
+    },
+    "de25-reset-export-postboot-save-native-job/job.json": {
+      "sha256": "6631f5552bbfffa3a5ee0d2a0577c232084b81be78367c1ada20b5a016ec6180",
+      "bytes": 659
+    }
+  },
+  "failure": {
+    "job_seconds": 23.972,
+    "failed_stage": "02-current-SAVE-C",
+    "available": false,
+    "focus": "launcher",
+    "underflows": 0,
+    "message": "DE25 session reopen requires a successfully retired allocation; session display quiesce failed: DE25 retired session counter was not cleared or publication was unconfirmed",
+    "owned_stop_confirmed_idle": true,
+    "actual_hil_failures_on_source": 1,
+    "repeat_trial_performed": false,
+    "diagnosis": "Root cause unproven. Reopen refusal and subsequent quiesce-counter error are observed; follow-on status does not identify the earliest failing invariant.",
+    "visual_observations": {
+      "01-fresh-machine.png": "FES surround and ZX81 K prompt",
+      "02-current-SAVE-C-highlight.png": "ZX81 K prompt with surround absent; no media picker visible. This is a failure capture, not successful selection."
+    }
+  }
+}

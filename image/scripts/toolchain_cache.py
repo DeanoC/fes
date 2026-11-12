@@ -157,6 +157,41 @@ def package(host, directory, expected_key, epoch=EPOCH):
             temporary.unlink(missing_ok=True)
 
 
+def import_archive(source, directory, expected_key, expected_sha):
+    """Store an already authenticated SDK without changing its archive bytes."""
+    source, directory = Path(source), Path(directory)
+    if source.is_symlink() or not source.is_file():
+        raise ValueError('SDK archive must be a regular file')
+    directory.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=directory, delete=False) as stream:
+            temporary = Path(stream.name)
+            with source.open('rb') as original:
+                shutil.copyfileobj(original, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if file_sha(temporary) != expected_sha:
+            raise ValueError('SDK archive changed while copying to cache')
+        return _publish(directory, temporary, expected_sha, expected_key)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def copy_archive(directory, expected_key, destination):
+    """Keep the reader lock from cache validation through private copying."""
+    directory, destination = Path(directory), Path(destination)
+    with _cache_lock(directory, fcntl.LOCK_SH):
+        archive_sha = _validated_sha_unlocked(directory, expected_key)
+        if archive_sha is None:
+            raise ValueError('cached SDK key or sha256 mismatch')
+        shutil.copyfile(directory / 'host.tar', destination)
+        if file_sha(destination) != archive_sha:
+            raise ValueError('cached SDK changed while copying')
+        return archive_sha
+
+
 def extract(directory, expected_key, destination):
     directory, destination = Path(directory), Path(destination)
     with _cache_lock(directory, fcntl.LOCK_SH):

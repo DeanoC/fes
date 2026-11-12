@@ -1,0 +1,6 @@
+success applies on close, reprograms in context, and preserves state at destruction
+partial/failed/late close and unapplied status retain state and refuse replay
+preflight/staging failures make no programming call and clean only new resources
+failed removal poisons without another image submission
+foreign profiles and replaced lease inode refuse before filesystem mutation
+de25_fpga_manager_test: passed

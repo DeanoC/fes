@@ -1,0 +1,37 @@
+{
+  "status": "source-equivalence audit passes; fix-only review and fresh independent fit remain required",
+  "control_revision": "e72dcbe7d7562424d2c5c4605f84cccff9fe525c",
+  "current_builder_sha256": "0a3ad7bee409e656c6206115e12c4ec81e4a45d9274151308fac13e44681bb97",
+  "reviewed_audio_source_sha256": {
+    "boards/de25nano/zx81-hps/fes_de25_audio.v": "9f2d1436b75ef1fe489a55ea4139b2f5dcd922072528b6f68d344d851cca6f33",
+    "cores/fes-common/rtl/fes_audio_output.v": "e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd",
+    "cores/fes-common/rtl/fes_audio_i2s.v": "14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4",
+    "boards/de25nano/shared-rtl/fes_zx81_core.v": "79c070b837a6b455a4a4a64fcbef4d76ac3ca7c467ab692a16af7610bed42970",
+    "boards/de25nano/zx81-hps/fes_de25_zx81_standard.v": "66600e79818b75ae50d11fa003fe93537153869c3b4e68f11488f9177d7bceab",
+    "boards/de25nano/zx81-hps/fes_de25_zx81_standard_hw.tcl": "571eda4cd7e291e70c3604251c175e87c2023b66dc2dfb86410fe31f70ce4e23",
+    "boards/de25nano/zx81-hps/standard-clocks.sdc": "b7a528ac1a1bf0b147c269e83078a405b523698cfd16c1fe62cf028858b431d0"
+  },
+  "unchanged_audio_implementation_files": 7,
+  "identical_integration_AST_after_path_relocation": [
+    "standard_audio_paths",
+    "capture_standard_board",
+    "standard_staged_sources",
+    "prepare_standard_board",
+    "generate_standard_board",
+    "verify_standard_board"
+  ],
+  "source_path_relocations": {
+    "cores/fes-zx81/rtl/fes_zx81_core.v": "boards/de25nano/shared-rtl/fes_zx81_core.v",
+    "cores/fes-zx81/rtl/zx81_machine.sv": "boards/de25nano/shared-rtl/zx81_machine.sv",
+    "cores/fes-zx81/rtl/zx81_machine_clock.v": "boards/de25nano/shared-rtl/zx81_machine_clock.v",
+    "cores/fes-common/rtl/fes_display_plane.v": "boards/de25nano/shared-rtl/fes_display_plane.v",
+    "cores/fes-common/rtl/fes_computer_mailbox.v": "boards/de25nano/shared-rtl/fes_computer_mailbox.v"
+  },
+  "original_policy_and_fitted_records": [
+    "docs/validation/2026-11-04-de25-standard-zx81/audio-clock-reference-proposal.md",
+    "docs/validation/2026-11-04-de25-standard-zx81/audio-clock-fitted-review.json"
+  ],
+  "historical_openrom_review_sha256": "90085cd05e3ca01eef8d266aeae32652f331aaee5a13f69a2e221e271bfbc8cc",
+  "timing_or_exception_scope_changed": false,
+  "physical_acceptance": false
+}

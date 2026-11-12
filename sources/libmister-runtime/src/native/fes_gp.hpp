@@ -18,6 +18,8 @@ class Clock;
 class Mmio;
 class ComputerMediaSnapshot;
 
+enum class FesGpTransport { de10_gp, de25_computer };
+
 // A kit whose clock never synced counts from 1970. Any kit time before
 // 2026-01-01 is taken as unsynced, and the clock then starts at noon that
 // day, a Thursday: MS-DOS 6.22 boots 224 bytes smaller when the clock reads
@@ -36,9 +38,10 @@ struct MediaStreamInfo {
 
 class FesGp final {
 public:
-	FesGp(Mmio&, Clock&);
+	FesGp(Mmio&, Clock&, FesGpTransport = FesGpTransport::de10_gp);
 	void BeginSession();
 	bool Poisoned();
+ Error WaitVideoReady(std::uint64_t deadline);
 	// Sample a stable ACK, align the host toggle to it, and drop poison.
 	// Does not issue a command. Failure leaves the mailbox poisoned.
 	Error Realign(std::uint64_t absolute_deadline_ms);
@@ -58,8 +61,12 @@ private:
 	// Caller holds mutex_. Read only; never reissues the outstanding request.
 	Error ReadSettledResponse(bool acknowledged, std::uint64_t deadline,
 		std::uint32_t* response);
+	Error ExchangeDe25(std::uint32_t fields, std::uint64_t deadline,
+		std::uint16_t* response);
 	Mmio& mmio_;
 	Clock& clock_;
+	const FesGpTransport transport_;
+	const std::uint32_t command_address_, response_address_;
 	std::mutex mutex_;
 	bool request_toggle_ = false;
 	bool poisoned_ = false;
@@ -68,6 +75,8 @@ private:
 class FesGpCoreDriver final : public CoreDriver {
 public:
 	explicit FesGpCoreDriver(FesGp&);
+ Error WaitVideoReady(std::uint64_t deadline) override;
+ bool OwnsAudio() const override;
 	void BeginSession() override;
 	Error CaptureData(
 		const CoreDriverContext&, std::uint64_t, std::vector<std::uint16_t>*) override;
@@ -84,9 +93,9 @@ public:
 	Error SetController(std::uint8_t port, std::uint16_t buttons,
 		std::uint16_t keypad, std::uint64_t deadline);
 	// Launch-time primary bind: Quiesce (hold reset) → begin/data/commit → release.
-	Error LoadMedia(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
+	Error LoadMedia(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline) override;
 	// Mid-session replace: begin/data/commit while execution stays released.
-	Error LoadMediaLive(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
+	Error LoadMediaLive(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline) override;
 	// Mid-session eject: media begin with eject index and argument 0.
 	// A core that rejects that index (error 2) is retried with control-index
 	// begin and argument 0. Error 3 on that command is invalid argument:
@@ -96,7 +105,7 @@ public:
 	// A repeated millisecond is not a stall. If the clock stays flat or the
 	// wait does not fit in the deadline, the mailbox is left unchanged and
 	// the result is busy. Execution stays released: reset would restart BASIC.
-	Error ClearMedia(std::uint64_t deadline);
+	Error ClearMedia(std::uint64_t deadline) override;
 	Error LoadFirmware(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
 	Error StreamInfo(MediaStreamInfo*) const;
 	Error LoadMediaStream(const ComputerMediaSnapshot&, Clock&, std::uint64_t deadline);
@@ -106,13 +115,16 @@ public:
 
 	// fes.computer. Rows that equal the last acknowledged state are not
 	// written; after Start every row is written once, in ascending order.
-	Error SetKeyboardHid(const KeyboardHidRows& rows, std::uint64_t deadline);
+	Error SetKeyboardHid(const KeyboardHidRows& rows, std::uint64_t deadline) override;
 	Error SendMouseRelative(std::int16_t dx, std::int16_t dy, std::uint8_t buttons,
 		std::uint64_t deadline);
 	Error CaptureMedia(std::uint8_t unit, Clock&, std::uint64_t deadline, std::vector<unsigned char>*);
 	Error CaptureZx81Tape(Clock&, std::uint64_t deadline, std::vector<unsigned char>*);
 	Error AcknowledgeZx81Tape(std::uint64_t deadline);
 	Error EnsureZx81TapeSaved(std::uint64_t deadline);
+	// Verify a lost ZX81 image before abandonment, without fresh-media
+	// discovery, adopting its session or acknowledging an unsaved snapshot.
+	Error EnsureRetainedZx81TapeSaved(const CoreDescriptor&, std::uint64_t deadline);
 	Error ResumeMedia(std::uint8_t unit, std::uint64_t deadline);
 	Error RefreshMediaState(std::uint8_t unit, std::uint64_t deadline);
 	Error MarkMediaSaved(std::uint8_t unit, std::uint64_t deadline);
@@ -143,16 +155,17 @@ public:
 	// fes.pc386.machine 1.0: the runtime zeroes the guest's memory at launch.
 	bool Pc386MachineCapable() const { return pc386_machine_; }
 	// Units of declared media interfaces with their last live MediaInfo state.
-	const std::vector<MediaUnitCapability>& media_units() const { return media_units_; }
+	const std::vector<MediaUnitCapability>& media_units() const override { return media_units_; }
 	// Live transfer while execution stays released: MediaInfo, Begin, 512-byte
 	// Chunk/Data, Commit, then MediaInfo must report ready. Any failure after the
 	// first mailbox exchange ejects the unit once within `cleanup_ms`; an
 	// ambiguous mutation is never repeated.
 	Error InsertMedia(std::uint8_t unit, const ComputerMediaSnapshot&, Clock&,
-		std::uint64_t deadline, std::uint32_t cleanup_ms);
-	Error EjectMedia(std::uint8_t unit, std::uint64_t deadline);
+		std::uint64_t deadline, std::uint32_t cleanup_ms) override;
+	Error EjectMedia(std::uint8_t unit, std::uint64_t deadline) override;
 
 private:
+ bool fpga_video_=false;
 	CoreDriverResult Gameplay(std::uint16_t, std::uint64_t);
 	CoreDriverResult NeutralizeKeyboard(std::uint64_t deadline);
 	Error NeutralizeControllers(std::uint64_t deadline);
@@ -184,6 +197,7 @@ private:
 	Error ReadMediaInfo(std::uint8_t unit, std::uint64_t deadline, LiveMediaInfo*);
 	Error ReadMediaState(std::uint8_t unit, std::uint64_t deadline, std::uint16_t* state);
 	Error RecoverComputerMailbox(std::uint64_t deadline);
+	Error CheckZx81SnapshotSaved(std::uint64_t deadline);
 	Error TransferMediaUnit(MediaUnitCapability&, const ComputerMediaSnapshot&, Clock&,
 		std::uint64_t deadline, bool* mutation_started);
 	Error AbandonMediaUnit(MediaUnitCapability&, std::uint64_t deadline);

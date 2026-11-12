@@ -17,7 +17,424 @@ mechanisms in the tree.
 Network deployment and target lifecycle are outside this module. FogCast owns
 selection and transfer. libmister-runtime programs the FPGA.
 
+The shared Go expansion library also reads format2 DE25 partial assets. Their
+canonical metadata binds one opaque vendor image to the exact format5 package,
+base hash, guest build and frozen controller/root/interface/clock-reset/POF0
+identities. `ComposeStatic` selects the sealed default empty persona or one
+matching asset, returning the identities and sizes of two unchanged images.
+`StaticCompositionID` validates and hashes the same receipt without payload
+admission, so request/status consumers use the same domain and bounds.
+It opens no device and performs no bit editing. The format1 CRAM linker refuses
+these assets. Format1 identities and framing remain covered by the existing
+full expansion suite. This preparation grants no normal package seal, runtime
+programming profile, physical PR or timing acceptance.
+
 ## DE25-Nano board diagnostic
+
+The standard ZX81 machine/control/capture is `cores/fes-zx81/rtl/fes_zx81_core.v`.
+The DE10 `top.v` supplies its clocks, HPS GP transport, HDMI, audio serializer,
+registered expansion placement and session-plane memory adapter. The shared
+module retains the standard HID, controller/audio capabilities, cassette SAVE,
+machine models and display-control request/reply path. Its guest clock fraction
+is parameterized independently of the board clock. The registered
+`expansion.socket` instance and `plug_addr` aliases remain at the DE10 top level.
+The session simulation runs the legacy simple-computer harness and this actual
+standard computer core at a 100 MHz system clock with unrelated 74.25 MHz pixels.
+The latter uses a modeled DE10 DDR adapter to exercise the shared display plane;
+it does not qualify the DE25 allocation/transport adapters or a DE25 RBF.
+
+`boards/de25nano/zx81-hps/fes_de25_zx81_standard.v` connects that shared core
+to the extracted atomic `fes_de25_computer_transport` and allocated session
+adapter. It selects the 100 MHz guest fraction and disables the DE10 reserved
+window. System and pixel reset releases are separate board-owned inputs; HDMI
+readiness must be pixel-qualified. PCM samples and the standard expansion bus
+remain explicit board outputs. The expansion conduit explicitly associates with
+the system clock and system reset and exports `bus_reset` in that domain, using the same hold term supplied to the shared core
+plus its execution reset. It therefore includes transport failure and expansion
+freeze, independently of the software HOLD bit. The expansion simulation uses
+this public reset to fence its registered bus and checks equivalence to the
+actual private machine reset on every evaluation. Transport faults hold the machine and stop the
+allocated scanout through its sticky clock-fault path. The reduced wrapper uses
+the same extracted transport; its readiness CDC timing endpoints include the
+new instance hierarchy, with the same two-stage chain and first-stage-only cut.
+
+`zx81-hps/sim.py --bench standard` combines the actual standard core, atomic
+register path and allocated display RTL. Its diagnostic ROM/internal16K model
+checks real CPU writes and retained RAM across kernel-only display publication,
+drain, new grant bases and sequence restart. It reuses the allocated frame bench;
+`--bench all` includes it. These simulations do not qualify a package. The
+canonical `boards/de25nano/producers/build_zx81_package.py` selects the internal-16K board,
+and the explicit runtime profile uses the shared computer driver. The
+[dated native evidence](../../../docs/validation/2026-11-04-de25-standard-zx81/README.md#native-lost-process-recovery)
+identifies its exact older sealed core; a rebuild with the new reset export
+needs its own fit and hardware evidence. Physical PR and ROM/persona composition
+remain open. The expansion simulation runs the actual `FesGpCoreDriver` over
+its DE25 atomic transport and the actual `De25PrControl` against the standard
+core, PR shell and empty/16K RAM personas. Its MMIO adapter only drives Avalon
+pins; shared clients own identification, Start/Quiesce and freeze/configure/resume.
+The captured runtime sources compile alongside the retained RTL. This diagnostic
+ROM test is not a BASIC or physical RAM-pack proof.
+
+`prepare_standard_component(output, revision)` in the existing ZX81-HPS builder
+stages a source-captured Qsys component. Its two Avalon slaves retain separate
+100 MHz computer and pixel-clock scanout interfaces, with independent reset
+releases, the read-only allocated memory master, video/PCM and expansion conduits.
+The expansion conduit carries the full machine reset as well as bus signals.
+Source and derived-file hashes accompany the component. Existing guarded M20K
+adaptations handle machine/tape/video RAM and the allocated reader; helpers run
+from the retained source tree. This prepares component files only. The canonical
+board recipe consumes it with the expansion socket disabled; exposing the reset
+does not select a PR partition or enable dynamic persona loading.
+
+The explicit experimental `link-proof` profile `zx81-standard` selects that same
+managed standard board with `expansion_socket=True`. Its default-off selection
+reuses the existing PR compiler and the canonical board's Linux DMA/display,
+HPS/EMIF/boot preservation and reset verifiers. The canonical package's default
+verifier still requires the socket disabled. An expected mode is supplied by the
+selected recipe, never inferred from a mutable preparation receipt.
+
+`link-proof/zx81-standard/bus.v` is the shared static registered boundary in the
+project and expansion simulation. It fences the whole packed bus with the
+public machine reset and captures persona responses. The project ties peek
+address bits to zero; the model drives them for read-only RAM observations.
+Every boundary FF, including constants, remains subject to existing synthesis
+and paired all-corner timing checks. The PR parent has its own exact generated
+source pin; the ten bridge/FIFO inputs retain their original pins. Only this PR
+profile permits the five exact Pro26.3 HPS defaults found in byte-identical IP
+from an independent internal16K generation control. Original HPS parameter
+deltas still require the existing closed managed-Linux policy. The generated
+PR-control aperture stays at
+peripheral offset `0x10700` and adds no DMA initiator. This new profile is
+unqualified: normal runtime builds keep physical PR dispatch disabled, and
+standalone composition does not provide normal FES admission. Independent fits,
+whole-board timing and physical acceptance remain required; internal16K audio
+clock exceptions do not apply to this profile.
+
+The standard PR base selects the same shared HPS-first split conversion as the
+normal Linux package producer. Its payload is the fabric `linux-boot.core.rbf`,
+with vendor-decoded POF0 identity and integrity checked against the compiled
+base and personas. HPS boot artifacts remain separate, unprogrammed candidates;
+the direct SOF-to-RBF boot phase is never selected as the Linux fabric payload.
+
+The PR profile registers its combined system-domain execution/fault mute
+before the audio synchronizer; the audit checks both incoming paths as well
+as the two synchronizer stages. The default internal16K wrapper is unchanged.
+The PR profile derives its shell SDC by replacing only the internal16K
+constant-PCM assertion with `pcm-clocks.sdc`. The default source remains
+unchanged. The mapped standard PCM is mono eight-bit data in bits14:7, with
+merged stereo register aliases. The PR constraints enumerate every physical
+payload register and all eight semantic bits, cut only the three control
+synchronizers' first-D inputs, and retain 10 ns net/data/skew/min-max bundle
+bounds. Its timing audit appends paired all-corner payload and interstage
+coverage to the existing boundary report. This supplies internal crossing
+checks; fitted numerical results and HDMI data-output timing remain required.
+
+The PR profile opts into retiring the exact ignored manual EMIF reference-clock
+declaration after the canonical managed-constraint source audit. The shared
+auditor derives and checks the complete file from the locked original and binds
+the generated-clock ownership in its receipt. The generated 6.000 ns clock
+continues to be required by both PR clock constraints and the fitted boundary
+audit. The ordinary internal16K constraint derivation stays unchanged; no
+timing exception or warning exemption is introduced.
+
+`fes_de25_audio.v` connects the standard coherent stereo PCM/I2S path to
+Terasic HDMI_ASx4's separate `av_pll`, using `CLOCK1_50`. The resource PLL
+requests 12.288 MHz from 50 MHz; its supplied integer dividers produce about
+12.2881356 MHz (nominal48k samples). Device-only R1-to-SCS retargeting preserves
+all clock parameters. Guest HOLD mutes samples without resetting the PLL or
+transfer handshake. The standard-board integration below includes this wrapper;
+audio pin/timing, transmitter integration and native capture remain unqualified.
+
+`zx81-hps/build.py --standard-core` extends the managed allocated-display GHRD
+with the standard ZX81 component at computer offset `0x10300`, preserving the
+scanout guard at `0x10200`, its read-only memory master, SID and crossing FIFOs.
+It captures the complete combined source closure before choosing the integration
+identity, exports PCM to the stock audio PLL and selects internal 16K RAM, as the
+standard DE10 base does without an expansion socket. The expansion bus is tied
+inactive until a persona is linked. `project` permits inspection; `generate`
+requires committed sources and checks the actual whole-GHRD handoff, slaves,
+clocks, resets, credits and managed initiator inventory. The canonical package
+producer separately requires complete timing and input-review evidence plus an
+independent matching RBF. A generated component or diagnostic build alone cannot
+admit a package. Existing scanout-only evidence cannot qualify machine, session
+display, audio or PR crossings added by another configuration.
+
+The standard board now selects `standard-clocks.sdc`, sourcing the same common
+board/fabric constraints with the standard memory-fault endpoints. A system
+register launches the sticky fault, and a pixel register launches drain
+completion before the two-stage return synchronizer. Five additional first-D
+crossings leave interstage and consumer paths timed. Display command/reply
+bundles keep 10 ns net/data/skew and min/max path bounds during their toggle
+round trips. The internal-16K base asserts that its unused PCM crossing is
+optimized away; a live sound persona cannot inherit this timing selection.
+Mapped and fitted validation, external timing admission and runtime acceptance
+remain separate requirements.
+
+The standard wrapper also registers pixel visibility before transport readiness
+crosses into the system clock. Its I2S outputs are generated clocks at MCLK/4
+and MCLK/256 from the serializer counter. Only this integration selects MLAB
+for generated bridge FIFOs of depth four or less; all clock/port/depth/latency
+parameters and the larger M20K response storage remain unchanged. The exact
+guarded derivation and fitted signoff are required; resource warnings are not
+waived by changing their thresholds.
+
+The standard core's `HPS_DDR_WINDOW` parameter defaults to one for DE10. Setting
+it to zero leaves the session-display capability intact and clears only the
+reserved-window capability. The shared mailbox exposes the same independent
+`ENABLE_HPS_DDR_WINDOW` selection. This is identity plumbing for a board-owned
+memory backend; it allocates no memory and enables no new runtime or package
+profile. The identity regression exercises the real mailbox and standard core,
+including unchanged default/windowed identities. DE25 runtime admission remains
+restricted until its complete standard-core adapter exists.
+
+The shared display plane exposes its reader burst limit, FIFO size and read-ahead
+selection as integration parameters, with unchanged DE10 defaults. The standard
+ZX81 session test also runs a sixteen-beat/read-ahead case and observes the actual
+guard-side request size while checking full-frame completion, guest state and
+fault drain. Its memory remains the modeled window, not a DE25 allocation.
+
+DE25 currently uses the separate bring-up wrapper described below. Porting the
+standard core's board adapters replaces that reduced wrapper; adding more
+guest features to the bring-up implementation is not the standard-core path.
+
+`boards/de25nano/producers/build_zx81_package.py` provides the canonical format-2 BRAM ZX81
+recipe for explicit `fes.zx81`/`de25-nano` lookup. It binds captured machine,
+transport, ROM, board, producer and actual installed Quartus execution inputs
+before Qsys generation and uses that BUILD_ID in both the HDL parameter and
+the project macro. Its managed profile removes the DDR probe, external/JTAG
+masters, ACE5-Lite translator and unused F2SDRAM adapter. Supported
+`f2s_data_width=0` and `f2sdram_data_width=0` settings disable both fabric memory
+interfaces; `Rst_hps_warm_en=true` preserves the warm-reset conduit. Only those
+three original HPS parameters may change. HPS lightweight computer/mailbox
+control and HPS-to-OCM remain; the complete generated graph permits only those
+three CPU/relay initiators, no fabric ingress into HPS and no disabled parent
+ports. Preparation retains its raw QSF; generation may retire only the exact
+duplicate vendor version line and add the three declared mailbox/computer IP
+references. The resulting bytes are checked throughout compilation. The
+captured verifier and staged sources are checked before and after
+compilation. The existing firmware-only programming profile leaves the
+permanent Linux owner unavailable for DMA while retaining its programming
+exclusion; this BRAM package advertises no DDR or allocated scanout interface.
+The current reviewed two-input HDMI derivation and fitted review apply. The
+board output policy uses the user-selected Terasic stock Linux/resources
+reference rather than inventing PCB delay values. It checks the locked rev-B
+HDMI_ASx4 example and SCS Golden_top against the actual 37 fitted pins, complete
+pixel PLL parameters, forwarded-clock source and all33 transmitter values.
+The scanout1.3 hotplug derivation checks one explicit clear-first ordering
+correction and every derived byte, without changing pins, PLL or raw finding
+scope. Exact1.3 admission requires matching generated consumers and kernel.
+The complete derived controller/configuration bytes remain checked. Normal
+MENU/ordinary ZX81 records select `de25-hdmi-video-output-timing-v1`: all27
+video outputs must have finite nonnegative setup and hold in each of the four
+fitted models, with exact endpoints/clocks and no path exception. This shrinks
+the stock-reference missing-output-delay set to I2C/status outputs; ZX81 keeps
+its separately approved two audio-clock findings. The source-bound collector
+reads a private final database and retains all216 reports. Historical/static
+profiles retain their original finding set and cannot inherit this proof.
+The registered video outputs use a two-register pixel-domain reset release;
+only its raw clear ingress is cut, while local recovery/removal stays timed.
+The approved terminal-output reset review covers only the single RDC-50003
+finding for that chain and the cold-only DMA reset receiver. Exact chain heads,
+three reset sources, one pixel domain and26 terminal output/readiness consumers
+must match each fit, with208 nonnegative recovery/removal paths. It permits no
+additional reset consumer or warning. The forwarded HDMI clock explicitly
+derives from the pixel PLL output; its phase/rate and pin budget stay the same.
+Raw findings remain visible; the ADV7513 pin budget assumes zero board flight
+time, so independently derived PCB timing is not claimed. All85 signoff rules, every internal timing
+family, zero Quartus waivers and an independent identical RBF remain required;
+other output, reset or clock-crossing findings still block export. The shared report reader
+also checks Quartus's conditional Setup Data Delay rows for completeness,
+duplicates and finite nonnegative slack/TNS; none replace the seven required
+common timing families. Compile-only retains a
+candidate. Firmware pairing, electrical/reset timing and native catalog
+launch/return/relaunch acceptance remain separate; this recipe supplies no
+in-play allocated display capability. The maintenance recipe keeps its
+diagnostic profile and cannot substitute for canonical source production.
+The canonical `timed-bram-system-reset-release-v1` profile removes the clear
+exceptions from the two generated 100 MHz top/peripheral reset receivers and
+the video owner's same-clock system release. Pixel reset ingress keeps its
+asynchronous exceptions. The six generated reset SDCs must match the reviewed
+Quartus 26.3 originals; preparation and generation retain the selected policy,
+original bytes and derived hashes, and compilation rechecks both the generated
+and board constraints before Linux phase conversion. This enables reset
+recovery/removal analysis; other reset findings and physical acceptance remain
+required. The standalone maintenance constraints keep their diagnostic profile.
+The renderer's two-stage pixel release is shared with the computer readiness
+crossing through `pixel_reset_n`. The duplicate release chain in the parent is
+removed, so these two consumers observe one physical reset release. Its raw
+ingress keeps the existing renderer exception; downstream recovery/removal,
+readiness stages and frame-mask paths stay timed. The board qualifies its
+distinct PLL/configuration reset on the existing 50 MHz reference; it has no
+separate asynchronous pixel reset chain. A retained token/reply handshake
+requires the pixel side to observe allow-low and close the visible line before
+the reference controller permits rearming. Repeated lock losses keep the same
+outstanding token. Pixel visibility then resumes only at a later complete HS
+pulse outside VS. All four single-bit data crossings have two stages and
+source-to-first-D exceptions; interstage and downstream paths stay timed.
+HDMI completion and returned pixel activity feed registered reference-domain
+readiness. Lock loss restarts HDMI configuration and immediately blanks data
+and readiness without clipping sync. This does not merge the renderer's reset
+with PLL loss or establish fitted reset coordination or physical acceptance.
+
+`boards/de25nano/producers/build_menu_package.py` prepares the allocated-buffer MENU with a
+canonical format-2 functional record before generating IP. Its record binds the
+captured board inputs, MENU/splash RTL and transitive producer-script closure,
+locked vendor resource archive,
+actual Quartus 26.3 Pro tools, complete selected installation and controlled
+execution. That record supplies the real Qsys BUILD_ID and explicit seed 1;
+the diagnostic source/profile identity remains the default for the standalone
+scanout recipe. `--compile-only` retains a candidate and never exports a package.
+The standard ZX81 producer follows the same closure rule, including its shared
+machine, CPU, generated contracts and audio inputs. Both records bind the fitted
+qualification implementations and Tcl scripts. They use the existing compiler
+Markdown policy, and exclude unrelated board diagnostics, simulations and script
+entrypoints. A builder's capture declaration is itself an input, so selecting
+another board file changes the identity. Export still re-enumerates every root,
+checks captured bytes and verifies the recorded Git revision. The audio-clock
+review helper selects the DE25 ZX81 hardware gate; it is a qualification input.
+Existing sealed artifacts retain their original identities. These producer
+changes require fresh fitting, independent reproduction and native acceptance.
+The same ZX81 producer accepts `--static-expansion` with explicit `--placement`
+and `--routing` regions. It uses the standard PR compiler and separate pre-IP
+computer/package and controller identities: the controller ID is a functional
+record input, while the computer exposes the resulting package build ID.
+Its compile-only candidate retains all three revisions and raw reports. Format5
+export requires every revision's complete numerical and whole-board signoff
+checks plus independently identical base, empty and 16K RBFs. Internal16K review
+receipts are refused for these revisions. Current raw findings still block
+export; partial-asset publication and physical PR acceptance remain open.
+This option never programs hardware and does not enable runtime static dispatch.
+
+The parent recipe registry selects this producer explicitly for
+`recipe_for("fes.menu", board="de25-nano")`; default lookup remains DE10.
+The producer implements the shared clean-source, tool-authentication and
+canonical-record interface, and accepts the shared root/identity CLI options.
+Set `QUARTUS_ROOTDIR` to the selected Pro installation and provide the resource
+ZIP with `--vendor-archive` or `FES_DE25_VENDOR_ARCHIVE`. The shared cache option
+does not select or replace installed Quartus tools. Registration does not close
+timing, seal or native-kit gates, and the ordinary DE25 source-build frontend
+remains separate integration work.
+The canonical `timed-system-reset-release-v3` profile times the three generated
+reset receivers released by the same 100 MHz system clock. It removes their
+clear exceptions from the private board/generated SDC copies, preserving pixel,
+FIFO and debug exceptions. The six generated reset SDC files must match the
+reviewed Quartus 26.3 input bytes. Original and derived bytes are retained and
+rechecked after generation and compilation, before Linux phase conversion;
+the canonical record binds the policy. The standalone diagnostic recipe keeps
+its original reset constraints.
+
+Canonical MENU also selects `shared-fifo-reset-release-v2`. The pinned eleven
+generated bridge files are retained before a checked derivation shares one
+five-register release flag per receiving clock. Every functional FIFO register
+uses its existing local parent as its sole asynchronous reset, followed by a
+synchronous hold of the same reset values while the shared flag remains set.
+The flag itself asserts asynchronously from that same local parent; only the
+peer reset enters its first data stage. Actual parent-controller models prove
+the original five-edge effective release for arbitrary clock stops and phases;
+a four-edge control produces a counterexample. That reset-envelope proof does
+not establish full FIFO, metastability or hardware acceptance.
+
+Command/response polarity and both clock mappings remain checked. Pointer,
+storage, credit and transport equations are unchanged. Canonical preparation
+adds exactly two registered peer-source to first-D exceptions, with unique
+endpoint checks. Local parent release, all later stages and functional fanout
+stay timed. Vendor reset and pointer SDCs remain unchanged. Generation and
+compilation rederive all eleven files from the pinned originals and reject any
+source or receipt change. The captured helper, policy and constraints enter the
+canonical record before generation. Global-reset allocation epochs and native
+recovery remain separate acceptance gates.
+
+Canonical MENU also selects `managed-scanout-initiators-v3` before generation.
+It removes the vendor JTAG Avalon masters and their separate ACE5-Lite F2H
+translator. The normal HPS lightweight control path, HPS-to-OCM access and sole
+SID13 scanout-to-F2SDRAM path remain required. The generator checks the exact
+eight initiator endpoints (including CPU bridges and relay stages), every
+control ingress and the sole fabric-to-HPS route. It also checks the actual
+generated parent RTL: removed instances and unused HPS F2H ports must be absent.
+The supported HPS `f2s_data_width=0` (Unused) setting disables that bridge;
+its child exports and parent clock/reset connections are removed as well.
+Captured verifier bytes and the
+complete generated graph receipt are checked before and after compilation;
+the compiled and Linux-conversion receipts retain this graph. The
+full vendor HPS/EMIF parameter review permits exactly the selected F2SDRAM SMMU
+exposure and F2H disable for canonical MENU. Actual HPS parameters, elaborated
+interfaces and generated parent ports are checked before and after compilation.
+This profile retires only the vendor GHRD's `source ./jtag.sdc` statement for
+the removed fabric JTAG interfaces. The reviewed original GHRD/JTAG SDC hashes
+are required, original and derived GHRD bytes are retained, and the exact
+derivation is rechecked before and after compilation. Other constraints remain
+present. This removes constraints for absent hardware and adds no exception.
+The independent
+maintenance recipe keeps its debug paths, and JTAG FPGA configuration remains
+available. The F2H parameter change has no boot-firmware acceptance yet and
+grants no IO, reset, physical DMA or native acceptance.
+
+The package path requires the complete 85-rule signoff inventory and its detailed
+results, all reported setup/hold/recovery/removal/pulse-width/skew/net-delay checks, zero waived
+findings and an independent identical RBF before using the normal exporter.
+The approved `de25-menu-reviewed-async-inputs-v1` policy accepts only TMC-20011
+for `HDMI_I2C_SDA` and `HDMI_TX_INT`. Each compilation and independent rebuild
+queries a private copy of the final fitted database: raw input and first-stage
+fanout must follow the reviewed two-register chain, with only its intended
+controller consumers (including Quartus copies of ACK1/2/3 and LUT_INDEX0..5
+only after the second stage), passing stage setup/hold timing and no internal SDC
+exception. Both chains must retain 50 MHz, two registers in one tile, included
+MTBF above the tool's one-billion-year cap and the default 6.25 million
+transitions/second assumption. The source record, RBF, compiled database and
+raw reports bind that review; raw failed rules stay visible. This is a modeled
+estimate for those chains, not a physical reliability measurement. Zero
+unreviewed findings remains mandatory; output-delay and reset findings still
+block package publication. These
+checks do not establish whole-board timing, physical reset/CDC acceptance or a
+managed-kit hardware pass. No build action programs hardware.
+`tests/de25_reset_skew.py` adds a separate finite diagnostic to an existing
+passing generated startup simulation. In private model copies it delays each
+of the eight FIFO reset first stages independently by zero or one receiving
+clock cycle. It monitors actual release edges and exercises early control,
+accepted/drained reads and late-release poisoning. The generated producer
+project is unchanged; this does not close RDC-50003 or qualify physical
+metastability, outer clock monitors, live global reset or boot/allocation epochs.
+DE25 package validation accepts formats 2 and 5 for its exact SCS device.
+Format5 keeps `core.rbf` and the default empty `persona.rbf` separate, alongside
+`manifest.toml`. The Python reader and exporter use the shared Go/C++/Python
+conformance corpus, exact three-member identity, restricted-ustar order and
+independent image bounds/hashes. Directory members and export inputs must be
+regular, unlinked files; FIFO sources are refused without blocking.
+
+`export_core_package.py --persona` requires format5, sibling producer outputs
+and a source-closed format-2 Quartus build record. Its parameters bind the exact
+`device`, `programming_profile`, `hps_initialization = "HPS FIRST"`,
+`static_control_build_id` and `static_default_persona_id`. The existing source
+pin/closure checks and atomic, read-only directory/archive/evidence publication
+apply to both images. Frozen QDB/interface/clock-reset/POF0 output identities
+are sealed in the manifest and package identity. They are not functional build
+inputs: hashing post-fit outputs into a build ID embedded in the base is cyclic.
+The producer still owns timing, frozen-partition reuse and independent-build
+gates; this exporter does not qualify a vendor image. A canonical static
+producer and runtime profile activation remain unfinished. No build command
+loads hardware.
+
+The existing format-3/4 ROM-map encoding and destination geometry describe
+Cyclone V M10K storage and are refused for Agilex 5.
+
+The scanout producer derives named HDMI cells from its locked Terasic sources.
+Two 50 MHz stages synchronize external SDA acknowledgements and INT, with
+pin-to-first-D exceptions only. Controller clocked assignments are normalized
+to nonblocking semantics; the initializer waits for busy after GO before
+accepting END, preventing stale completion from skipping the first LUT write.
+The existing divider and register values remain unchanged. Derived source
+hashes and synchronizer bindings are rechecked after generation/compilation.
+The retained-controller protocol proof checks all 33 writes, interrupt restart
+and three NACK positions, and checks synthesized controller equivalence with
+explicit reset modeling. External IO timing, analog/MTBF and asynchronous reset
+qualification remain separate gates.
+The scanout initializer delays the controller's open-drain SDA request by
+eight 50 MHz reference edges. This supplies 160 ns digital hold after the
+controller's SCL falling edge; the receiver requires at least 100 ns. SCL,
+controller state, ACK sampling, the divider and register values stay unchanged.
+The protocol test checks ordinary master data-bit hold independently of its
+explicit slave ACK model. Loading, electrical levels and board propagation
+still require physical qualification.
 
 `boards/de25nano/` is an independent FPGA-only bring-up project for
 `A5EB013BB23BE4SCS` with Quartus Prime Pro 26.3.0. Its 50 MHz input and
@@ -62,8 +479,9 @@ its local pattern responder, and regenerates the pinned Terasic 74.25 MHz
 Agilex PLL/Reset Release IP for SCS. Pins and mixed IO standards are checked
 against the SCS golden board. There is no HPS, DDR, GP, menu blitter or runtime
 upload/control interface, and default DE10 packages/images remain unchanged.
-External ADV7513 timing and the vendor's contradictory clock IO-standard
-documentation remain qualification gates; these SOFs are not boot/BSP artifacts.
+The Terasic pin locations and IO standards remain the bring-up baseline.
+External ADV7513 timing and native acceptance remain qualification gates;
+these SOFs are not boot/BSP artifacts.
 
 [`boards/de25nano/zx81/`](../boards/de25nano/zx81/README.md) combines the real
 ZX81 machine/NMOS Z80 and its existing 720p capture renderer with that board's
@@ -85,7 +503,7 @@ It reuses the current `fes_computer_mailbox`, HID mapper and CRC-checked tape
 store. Control and the machine share 100 MHz, with 13/200 ULA enables; the
 renderer remains at 74.25 MHz. Readiness crosses a two-stage pixel-clock
 synchronizer, and the computer's first-picture mask changes only at the
-renderer frame tick. The board shell blanks RGB/DE on pixel reset or PLL loss,
+renderer frame tick. The board shell blanks RGB/DE on configuration reset or PLL loss,
 then changes HDMI visibility and resumes picture only after a complete HS
 pulse outside VS; active sync is not reset-gated.
 No control CCB is required and stopped PIX
@@ -108,7 +526,10 @@ raster, sync and selected bank keep running until the synchronized frame gate
 closes at a raster boundary; other transport faults hold the machine and close
 the same gate. Whole rows up to 328×270 are captured, excess rows cropped, and
 absent bottom rows displayed as paper. Stopped clocks preserve ownership; HOLD
-aborts partial capture.
+aborts partial capture. Capture arming combines the last sampled vertical blank
+with a sticky source-frame observation, cleared by reset or HOLD. This preserves
+the first complete-frame boundary without independently setting and clearing an
+arm register on vertical blank.
 The local SDC checks exact synchronizer/metadata endpoints and bounds the held
 row-count bus without cutting whole clocks. Digital simulation does not accept
 physical M20K timing, MTBF, clock recovery or HDMI.
@@ -121,6 +542,14 @@ transactions and resets. Simulation controls advance clocks and inspect state;
 they do not generate the client's mailbox commands. The existing board bench
 shares those clock and observation helpers. This remains software/RTL evidence
 with behavioral memory and no physical HPS/MMIO or programming backend.
+
+The endpoint/machine benches in `zx81-hps/sim.py` and the combined RAM-persona
+proof in `link-proof/zx81-computer/proof.py` expose internal RTL state read-only
+through a generated Verilator configuration. Their C++ benches drive top-level
+pins. This preserves internal observations without turning every internal signal
+into an external writer; clock events, assertions and proof time limits are
+unchanged. The separate board bench retains writable access for its modeled PLL
+and HDMI-configuration injections.
 
 [`boards/de25nano/combined/`](../boards/de25nano/combined/README.md) composes
 that local display with the preserved GHRD HPS/LPDDR4, mailbox and read-only
@@ -138,25 +567,71 @@ and completion only after a whole good frame. Explicit Platform Designer
 `mm_ccb` bridges carry control from 100 MHz to 74.25 MHz and memory traffic
 back to the preserved F2SDRAM path. The shared reader/video extensions are
 opt-in; existing consumers retain their default configuration.
+DE25 selects a 2,048-beat (32 KiB) local pixel FIFO, with bursts of at most 64
+128-bit beats and accepted plus held responses capped at 511 beats inside a
+512-beat crossing response FIFO. The nine-bit counter represents that entire
+reservation without wrapping. Each AXI burst has at most 64 transfers on the
+256-bit interface, below its 128-transfer limit; the generated path
+retains its sixteen-transaction limit. Other consumers retain the 256-beat
+reader reservation default. Temporary DDR service gaps are
+modeled with complete-frame pixel checks; physical CPU/scanout contention
+still requires native validation with zero underflows.
+The generated path uses 16-byte narrow transfers on the 256-bit HPS interface.
+The selected HPS component advertises narrow-transfer support; the pinned
+E-series LPDDR4 single-channel configuration has lockstep disabled. Every AXI
+read address remains 32-byte aligned, including clipped 4 KiB-boundary bursts.
+The [EMIF narrow-transfer conditions](https://docs.altera.com/r/docs/817467/26.1.1/external-memory-interfaces-emif-ip-user-guide-agilex-5-fpgas-and-socs/lockstep-configuration?contentId=uO7W9Tgv69Ha2jfNn0z~fA)
+and the [F2SDRAM bridge properties](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/fpga-to-sdram-bridge?contentId=9TkPOzEiGuh5ObqPVceaTg)
+are separate from exact generated-path and physical qualification.
 
-Both crossing bridges share initial configuration reset. Later pixel PLL-lock
-loss latches a fault without resetting live bridge queues; the endpoint stops
-and drains when its clock resumes. The DE25 endpoint keeps its fixed raster and
-raw HS/VS running through stop, fault and reset while pixel data stays blank.
-HDMI data/DE use registered pixel-domain visibility state. A registered
-100 MHz request crosses into a two-stage pixel-clock synchronizer. Reset or
-lock loss clears a pixel-domain reset release at once, which clears that
-synchronizer, while release passes through the pixel domain; the data/DE gate
-blanks immediately and picture resumes only after a complete horizontal sync
-pulse while VS is inactive. The
-producer retains
-generated topology and response checks, native RTL tests and a simulation
-helper for the generated two-clock interconnect with explicitly modeled M20K
-storage. FIFO/controller logic remains generated; primitive equivalence and
-physical CDC remain unproven. It creates no runtime
-profile or production Linux binding. DMA translation/backing, global reset
-fencing, physical CDC, external HDMI timing and exact-artifact board acceptance
-remain separate gates.
+The internal `fes_de25_session_display` adapter reuses that same scanout CSR
+with the machine raster and the shared `fes_display_compositor` blend pipeline.
+It forwards actual pending/completed counters to the shared GP display control.
+Only the kernel CSR publishes buffers: GP frame-submission commands are rejected.
+GP close waits for kernel-proven drain and a hidden plane; CLEAR/reallocation
+resets scanout ownership without resetting the machine or its video timing.
+The standalone Qsys component retains its internal raster and terminates the
+unused session taps. `scanout/sim.py --case session` tests actual endpoint,
+control/CDC and compositor RTL with allocated response storage, complete blended
+frames, a held-response close and a new base/generation/sequence. This is an
+internal adapter selected by the explicit standard ZX81 generated-board variant,
+with production runtime/profile admission still unfinished. Its standard SDC
+binds each added synchronizer's launch and first-stage D separately, bounds the
+held payload paths, and models the I2S divider and forwarded output clocks.
+Numerical routed timing passes do not discharge external output-delay findings;
+the board reference and package acceptance gates remain independent. The model
+is not a physical DMA allocation or native full-machine acceptance.
+
+For explicit `--linux-dma --hps-first`, the recipe exposes the fixed nonsecure
+SMMU stream and removes the DDR probe/control window and external memory-debug
+JTAG master/export/window. Generated topology must have exactly one scanout
+master into the adapter and one adapter route into HPS F2SDRAM, with no extra
+master or nonzero translation. The maintenance profile retains and verifies
+its diagnostic paths. Input, generation, compilation and phase receipts bind
+the selected profile; Linux phases additionally bind input/generation hashes.
+This is a source/topology boundary, not physical SMMU or Linux domain admission.
+
+Both crossing bridges share initial configuration reset. A retained 50 MHz
+fault token records later pixel PLL loss without resetting live FIFO pointers
+or outstanding-read accounting. The running system epoch never acknowledges
+another token, so a short loss remains terminal even when a peer clock stops.
+ClockFault latches within three system edges; DisplayReady closes within three
+pixel edges. Acknowledgements retain their generation across global reset to
+avoid token aliasing. Accepted reads still drain after clocks resume.
+
+HDMI data/DE use reference qualification for immediate blanking and pixel
+visibility state for complete-sync rearming. The reference side waits for
+system/pixel acknowledgements and pixel inactivity before allowing visibility.
+Raw HS/VS remain running and finish their pulses. Eight new CDC entries cut
+only each registered source to stage0 D; later stages and consumers stay timed.
+
+The producer retains generated topology/response checks and native RTL tests.
+The generated-transport helper has finite startup and selected-board modes;
+the latter exercises queued reads through actual FIFO/controller logic while
+modeling PLL/I2C completion and M20K storage boundaries. Primitive equivalence,
+physical CDC/reset, external HDMI output timing, DMA translation/backing,
+global reset/boot allocation fencing and exact-artifact native acceptance
+remain separate gates. No normal runtime profile is admitted by these models.
 
 ## Functional input identity
 
@@ -199,13 +674,15 @@ Both working-tree and historical Git-object validation apply the recorded
 policy. Existing format-1 and format-2 records without that parameter retain
 their original semantics, including documentation in declared roots.
 
-The nine factory producers now select committed per-producer roots from
+Factory producers, including RISC-V, select committed per-producer roots from
 `scripts/source_closures.json`, setting `parameters.source_closure_mode` to
 `audited-v1`. Their source key covers the declared import, HDL, recipe, ABI and
 toolchain-lock closure rather than the entire scripts and shared-core trees.
 Python and traced compiler reads and directory listings enforce these roots;
 an uncovered source access fails the build. Other producers retain the broad
-roots. The operator workflow and nightly broad-rebuild comparison are in the
+roots. RISC-V's closure includes its firmware, CPU, board constraints and tool
+helpers while excluding unrelated DE25 producers; the canonical record retains
+its 64 KiB limit. The operator workflow and nightly broad-rebuild comparison are in the
 FES [core-key guide](../../../docs/core-key-narrowing.md).
 
 The functional producers trace synthesis and each route attempt with
@@ -1488,6 +1965,13 @@ the rational machine clock scheduler at an average
 3.25 MHz. The machine passes WAIT, INT and NMI to that CPU and uses its native
 refresh bus cycle. The Zon X firmware diagnostic uses the same NMOS CPU and
 expansion socket as the machine and expansion simulations.
+
+`make sim-fes-zx81-openrom` builds the generated C++ model and support code
+with `OPT_FAST=-O3 OPT_GLOBAL=-O3`. Verilator's own `-O3` controls model
+generation; the separate Make flags select the C++ optimization. The
+`build/sim/fes-zx81-openrom-cxx-o3-{1,0,ts1000}` directories separate these
+objects from earlier size-optimized builds. The target retains all three full
+machine checks and both starter-tape loads when those tapes are available.
 
 `make sim-fes-zx81` also runs `Vzx81_machine`, which waits until NEW has built
 a display file at `D_FILE` starting with `0x76`, the CPU has HALTed for slow
@@ -3816,3 +4300,72 @@ Quiesce halts the blitter at a row boundary, and its ACK waits for scanout and
 both blitter ports to drain before execution hold. Runtime buffer
 transport/admission and exact-artifact menu acceptance are not established by
 source simulations.
+
+DE25 ZX81-HPS fabric1.1 returns board-owned HDMI readiness at offset24.
+The generated PD component1.1 connects the wrapper completion output back to
+the control endpoint. A pixel-domain qualification and control-domain two-flop
+crossing expose one bit, without extending Linux I2C ownership. Digital board
+and endpoint tests cover this boundary; no new timing or physical acceptance
+is implied by the source change.
+
+The DE25 canonical ZX81 producer selects the standard shared computer core,
+allocated session display and fixed audio under `de25-linux-computer-v1`.
+Its full captured closure feeds functional identity before generation. The board-local
+`producers/` and `package/` Python modules also enter that closure, including the
+common timing/authentication helpers and static producer; helper-only edits change
+the functional identity. Unrelated diagnostic scripts and simulations remain outside
+these roots. The same generated component/topology and staged-source verifier runs before and after
+compilation, retaining reset/FIFO, firmware, clock and endpoint checks.
+Compile-only preserves raw findings without export. Package export needs fresh
+fitted input/output-reference review and an independently identical RBF. The
+stock HDMI reference covers30 outputs. The internal16K profile can also select
+the explicit two-clock stock-reference review for HDMI_SCLK and HDMI_LRCLK;
+fitted checks, independent RBF identity and native acceptance remain required.
+That review does not cover the experimental live-PCM PR profile. Source selection establishes
+neither native hardware nor full normal-kit acceptance. Reduced BRAM RTL remains
+in the separate diagnostic board lane.
+
+The experimental standard ZX81 PR profile retains live PCM. Its recipe
+identifies all six control synchronizer registers before fitting and requests
+100 million transitions per second at each of the three heads. The all-corner
+physical audit checks exclusive interstage connectivity, explicit identification,
+two-stage MTBF inclusion and the actual reported rate; defaults fail the audit.
+This profile remains separate from internal16K package and HDMI exceptions.
+
+Static package export selects the separately approved
+`de25-static-stock-reference-v2` policy. Its fixed implementation and topology
+bindings cover only the standard base with empty/16K personas at the reviewed
+placement/routing regions. Each fresh fit retains all 88 raw rules and numerical
+timing checks, and collects the exact stock video/audio settings, HDMI input
+synchronizers, live I2S paths and paired direct reset/enable coverage. New
+findings, changed sources or consumers, missing endpoints, waivers and negative
+timing refuse export. This accepts a stock-reference engineering basis, not
+independently derived PCB timing or physical partial-reconfiguration acceptance.
+Compile-only keeps its raw failures and cannot borrow these receipts.
+Reset consumer membership uses the reviewed logical registers after recognising
+only Quartus's `~DUPLICATE` register-copy suffix. Every physical copy still needs
+its own paired recovery/removal path at every corner. The original transport
+`first_seen` enable is required; only the existing PR-controller `first_seen`
+is additionally permitted, including fitted copies of either. Every physical
+enable needs full paired setup/hold coverage, and its complete inventory must
+match the raw DA enable quantity exactly. The raw DA reset-load quantity is
+retained separately from the complete physical reset inventory and never
+substitutes for path coverage. Earlier v1 receipts do not admit v2 exports.
+The collector selects physical enable pins by their full names because the
+compatibility query may also return a fitted duplicate. Correct collection
+does not admit any logical consumer beyond the two specifically reviewed names.
+
+`boards/de25nano/producers/export_static_persona.py --producer /absolute/qualified-build
+--package /absolute/package.fcore --output /absolute/expansions` exports the
+selected `zx81_ram16k` persona; `--persona zx81_empty` selects the empty image.
+It requires the completed package producer's signoff and repeat projects,
+rechecks their source/output seals, all three whole-board timing reports and
+independent base/persona RBF equality, then binds the exact format5 package and
+its primary fitted root. Compile-only candidates and raw findings are refused.
+The two-member format2 `.tar` uses the existing expansion reader's canonical
+manifest and immutable payload bytes. Its sidecar retains the exporter source
+closure and both fits' timing evidence. Missing or mismatched static-review
+receipts block publication. This build-host command programs no hardware; target-side
+composition continues through the existing Go reader and two-image plan.
+The format5 package declares optional `fes.expansion.zx81-bus` 2.0 so the host
+can validate and import either persona through the normal expansion API.

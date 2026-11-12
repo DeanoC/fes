@@ -1,0 +1,8 @@
+{
+  "status": "passed",
+  "scope": "post-compile original simulation QIP/HDL hash stability and complete route/clock/reset/guard/SMMU checks; compare JSON values after serialization",
+  "source_files": 181,
+  "qip_files": 18,
+  "generation_sha256": "b4bce06356f14e09d4e0151dad7fd77d9c60618d4811858557cbd38771a76625",
+  "simulation_receipt_sha256": "0bf2347ff18d606629687bd64e1836692cab8a528514d421aa28ba08d139c3eb"
+}

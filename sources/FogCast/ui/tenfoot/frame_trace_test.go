@@ -20,7 +20,11 @@ func TestFrameTraceRingWrapsAndDumpsJSONLines(t *testing.T) {
 	}
 	f.input(CmdSelect, start)
 	f.present(gfx.MenuPresentTrace{Seq: 9, Queued: start, Presented: true, PresentUS: 70000,
-		Timing: menudisplay.Timing{RuntimeCleanUS: 41000, RuntimeScanoutWaitUS: 9000}})
+		Timing:  menudisplay.Timing{RuntimeCleanUS: 41000, RuntimeScanoutWaitUS: 9000},
+		Retried: true, RetryFromError: "menu scanout failed",
+		RetryFromTiming: menudisplay.Timing{BeginUS: 11, StageUS: 12, CommitUS: 13,
+			RuntimeCleanUS: 14, RuntimeBlitUS: 15, RuntimeSubmitUS: 16, RuntimeScanoutWaitUS: 17,
+			StagedPixels: 18, Commands: 19, UploadBytes: 20}})
 	path, err := f.dump(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -31,6 +35,7 @@ func TestFrameTraceRingWrapsAndDumpsJSONLines(t *testing.T) {
 	}
 	defer file.Close()
 	var lines []frameTraceRecord
+	var lastJSON []byte
 	scan := bufio.NewScanner(file)
 	for scan.Scan() {
 		var r frameTraceRecord
@@ -38,6 +43,7 @@ func TestFrameTraceRingWrapsAndDumpsJSONLines(t *testing.T) {
 			t.Fatal(err)
 		}
 		lines = append(lines, r)
+		lastJSON = append(lastJSON[:0], scan.Bytes()...)
 	}
 	if len(lines) != frameTraceCap {
 		t.Fatalf("dumped %d records, want the ring's %d", len(lines), frameTraceCap)
@@ -52,6 +58,48 @@ func TestFrameTraceRingWrapsAndDumpsJSONLines(t *testing.T) {
 	}
 	if last.Kind != "present" || last.Seq != 9 || last.RTCleanUS != 41000 || last.RTWaitUS != 9000 || !last.Presented {
 		t.Fatalf("present record %+v", last)
+	}
+	if !last.Retried || last.RetryFromError != "menu scanout failed" || last.RetryFromTiming == nil || last.Err != "" {
+		t.Fatalf("retry diagnostics %+v", last)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(lastJSON, &raw); err != nil {
+		t.Fatal(err)
+	}
+	var timing map[string]int64
+	if err := json.Unmarshal(raw["retry_from_timing"], &timing); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]int64{
+		"begin_us": 11, "stage_us": 12, "commit_us": 13,
+		"runtime_clean_us": 14, "runtime_blit_us": 15, "runtime_submit_us": 16, "runtime_scanout_wait_us": 17,
+		"staged_pixels": 18, "commands": 19, "upload_bytes": 20,
+	}
+	if len(timing) != len(want) {
+		t.Fatalf("retry timing keys = %v, want %v", timing, want)
+	}
+	for key, value := range want {
+		if timing[key] != value {
+			t.Fatalf("retry timing %s = %d, want %d", key, timing[key], value)
+		}
+	}
+}
+
+func TestFrameTracePresentOmitsUnusedRetryDiagnostics(t *testing.T) {
+	f := newFrameTrace()
+	f.present(gfx.MenuPresentTrace{Seq: 1, Presented: true})
+	data, err := json.Marshal(f.records()[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"retry_from_error", "retry_from_timing"} {
+		if _, present := raw[key]; present {
+			t.Fatalf("unused %s in %s", key, data)
+		}
 	}
 }
 

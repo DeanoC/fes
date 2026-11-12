@@ -1,0 +1,262 @@
+{
+  "scope": "Isolated MENU drawing diagnostic, not full managed kit acceptance",
+  "fpga_source": "e5de0e02ebb55ecd463d174292bfd82d7125f375",
+  "runtime_source": "c6ad9e85a62b4e1614e369a27d6de59aa7200b2a",
+  "runtime_unchanged_at_fpga_source": true,
+  "kernel_notes_sha256": "47b21fcf0a7a63b0ed940efe53c6f39daea8eddd8299539d71ecb731c0adaf34",
+  "known_good_image": "3b985b15dd6bbc1e945ae67dfc892e048719e684a20aea48e96bb5a4fec784aa",
+  "old_menu": {
+    "package": "e489b4ee2e3817074ede4d478a0e265c57aedba1794dec8272a22906333b1e4a",
+    "rbf_sha256": "99e1d564d01734f47aeec965196df2cc60b04061d4c5f39a6e2cde454db74116",
+    "first_draw": "failed: samegeneration cachedhardwareerrors0x8 underflow1/outstanding0"
+  },
+  "new_menu": {
+    "source_revision": "e5de0e02ebb55ecd463d174292bfd82d7125f375",
+    "package": "80689b9c48e849b5645b45bf6216d6af196cce61862e31572b44554481811127",
+    "build_id": "f3852f0b407e0be7c4b06ab6412daf30",
+    "rbf_sha256": "c0738902c4113fb34d480e0f9e729b638d265a67a6dcdcb911a44cb7dcf1078e",
+    "canonical_job": "passed1065.8s; independent exactRBF/timing",
+    "fitted": "passed29.5s; each248board+2984FIFOpairedpaths4corners, min0.098ns, originalprojectsunchanged, zero waived findings",
+    "generated_models": "95passed modeled cases",
+    "local_models": "allshareddefaultMENU+DE25models and50buildtests PASS96.990s",
+    "broader_suite": "Original broad1796test run: exactly1 stale combined-proof receipt,76skips. Actual14case native/AArch64 proof and16focusedrecipe/closuretests pass after exactreceiptrefresh; fullbroad suite notrerun.",
+    "purpose": "One isolated native draw/watchdog diagnostic, not whole managed kit acceptance",
+    "native_deployment": true,
+    "native_result": "PASS57.582s one exact8068package/c073RBF, production daemon+canonicaltenfootclient90fullframes/seq90/0underflows, nativeABI3",
+    "native_recovery": "PASS authenticated newGood3b boot75872687-af6f-4927-89b2-57339a57655f; normal service stop/no processes/overlays, allgatefalse/P3probe persists",
+    "capture": "PASS90USBframes/60colored, meanRGBspans32/47/255 during same run; visual grid inspected, no exact pixel acceptance claim",
+    "normal_kit_acceptance": false
+  },
+  "native_events": [
+    {
+      "boot": "bf6ae6bb-cdc4-449e-9751-bc401e847f66",
+      "event": "bounded-watchdog-start",
+      "timeout_seconds": 30,
+      "utc": "2026-11-03T18:13:36.081468506Z"
+    },
+    {
+      "event": "production-menu-ready",
+      "pid": 4120,
+      "status": {
+        "available": true,
+        "frame_mapping": true,
+        "session": false,
+        "package_id": "80689b9c48e849b5645b45bf6216d6af196cce61862e31572b44554481811127",
+        "core_generation": 0,
+        "generation": 1,
+        "width": 1280,
+        "height": 720,
+        "stride": 5120,
+        "byte_count": 3686400,
+        "slot_bytes": 4194304,
+        "slots": 2,
+        "format": "bgrx8888",
+        "displayed_sequence": 0,
+        "underflows": 0,
+        "picture": null
+      },
+      "utc": "2026-11-03T18:13:38.690329647Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 1,
+      "generation": 1,
+      "sequence": 1,
+      "underflows": 0,
+      "utc": "2026-11-03T18:13:40.753059274Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 11,
+      "generation": 1,
+      "sequence": 11,
+      "underflows": 0,
+      "utc": "2026-11-03T18:13:41.65289587Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 21,
+      "generation": 1,
+      "sequence": 21,
+      "underflows": 0,
+      "utc": "2026-11-03T18:13:42.586199302Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 31,
+      "generation": 1,
+      "sequence": 31,
+      "underflows": 0,
+      "utc": "2026-11-03T18:13:43.486375266Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 41,
+      "generation": 1,
+      "sequence": 41,
+      "underflows": 0,
+      "utc": "2026-11-03T18:13:44.420496068Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 51,
+      "generation": 1,
+      "sequence": 51,
+      "underflows": 0,
+      "utc": "2026-11-03T18:13:45.286122278Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 61,
+      "generation": 1,
+      "sequence": 61,
+      "underflows": 0,
+      "utc": "2026-11-03T18:13:46.169450234Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 71,
+      "generation": 1,
+      "sequence": 71,
+      "underflows": 0,
+      "utc": "2026-11-03T18:13:47.119477225Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 81,
+      "generation": 1,
+      "sequence": 81,
+      "underflows": 0,
+      "utc": "2026-11-03T18:13:48.053385997Z"
+    },
+    {
+      "event": "full-frame-test-complete",
+      "frames": 90,
+      "generation": 1,
+      "sequence": 90,
+      "underflows": 0,
+      "utc": "2026-11-03T18:13:48.937554467Z"
+    },
+    {
+      "daemon_left_owned": true,
+      "error": "<nil>",
+      "event": "watchdog-recovery-armed",
+      "frame_test_passed": true,
+      "software_reboot_calls": 0,
+      "utc": "2026-11-03T18:13:48.938244028Z"
+    }
+  ],
+  "returned_boot": "75872687-af6f-4927-89b2-57339a57655f",
+  "capture_motion": {
+    "capture_state": "passed",
+    "frames": 90,
+    "active_colored_frames": 60,
+    "mean_RGB_channel_span": [
+      32,
+      47,
+      255
+    ],
+    "selected_means": [
+      [
+        1,
+        [
+          2,
+          0,
+          2
+        ]
+      ],
+      [
+        10,
+        [
+          2,
+          0,
+          2
+        ]
+      ],
+      [
+        20,
+        [
+          2,
+          0,
+          2
+        ]
+      ],
+      [
+        30,
+        [
+          2,
+          0,
+          2
+        ]
+      ],
+      [
+        40,
+        [
+          134,
+          156,
+          162
+        ]
+      ],
+      [
+        50,
+        [
+          136,
+          116,
+          255
+        ]
+      ],
+      [
+        60,
+        [
+          136,
+          116,
+          255
+        ]
+      ],
+      [
+        70,
+        [
+          136,
+          116,
+          255
+        ]
+      ],
+      [
+        80,
+        [
+          136,
+          116,
+          255
+        ]
+      ],
+      [
+        90,
+        [
+          136,
+          116,
+          255
+        ]
+      ]
+    ],
+    "start_utc": "2026-11-03T18:13:25.468882+00:00",
+    "end_utc": "2026-11-03T18:14:11.194242+00:00",
+    "scope": "Shared USBcapture changes during same single native draw run; color changes exceed noise, not an exactpixel hardware acceptance test"
+  },
+  "checks": {
+    "parent": "PASS12.558s40consumers42fixtures0copiedsourcepins",
+    "combined_proof": {
+      "source": "e5de0e02ebb55ecd463d174292bfd82d7125f375",
+      "cases": 14,
+      "architectures": [
+        "native",
+        "aarch64-cortex-a76"
+      ],
+      "result": "PASS884.361s actual dual-controller/combinedRTL, not physical partial-reconfiguration acceptance",
+      "fixture": "Exact generated proof.json copied; all16recipe/closuretests PASS0.227s"
+    },
+    "broader_suite_original": "FAIL901.139s:1796Misteross tests, exactly1 stale combined proof closure receipt,76skips; changedcapturedfield only display/build.py. Actual native+AArch64 proof running before fixture refresh; no blind hash update or full CI pass claim.",
+    "parent_after_refresh": "Requires committed source; original dirty-source refusal preserved. Run clean post-commit parent check separately."
+  },
+  "normal_kit_acceptance": false,
+  "pending": "Normal factory exact artifact qualification, safe image confirmation/software handoff, managed MENU/catalog ZX81 acceptance"
+}

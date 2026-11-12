@@ -25,6 +25,7 @@ module fes_de25_combined_sim (
     wire [19:0] a_bus, b_bus;
     fes_de25_computer #(.EXTERNAL_RAM(1)) computer (
         .clk(clk), .reset_n(reset_n), .pixel_clk(pixel_clk),
+        .video_ready(1'b1), // external HDMI completion modeled in this protocol proof
         .address(address), .read(read), .write(write), .byteenable(byteenable), .writedata(writedata),
         .readdata(readdata), .readdatavalid(readdatavalid), .writeresponsevalid(writeresponsevalid),
         .waitrequest(waitrequest), .response(response), .video_rgb(video_rgb),

@@ -1,11 +1,62 @@
 package emitgo
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/DeanoC/mister-packages/internal/pack"
 )
+
+func TestDE25FabricConstantsMatchTheHardwareDefinition(t *testing.T) {
+	fabric, err := pack.LoadFabric("../../packages/fabric/fes_fabric_de25_computer.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := GenerateFabric(fabric)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := parser.ParseFile(token.NewFileSet(), "de25.go", text, parser.AllErrors)
+	if err != nil {
+		t.Fatal(err)
+	}
+	values := map[string]uint64{}
+	ast.Inspect(file, func(node ast.Node) bool {
+		value, ok := node.(*ast.ValueSpec)
+		if !ok {
+			return true
+		}
+		if len(value.Names) != 1 || len(value.Values) != 1 {
+			t.Fatal("fabric constant is not a single typed value")
+		}
+		kind, ok := value.Type.(*ast.Ident)
+		if !ok || kind.Name != "uint32" {
+			t.Fatal("fabric constant lost its unsigned width")
+		}
+		literal, ok := value.Values[0].(*ast.BasicLit)
+		if !ok {
+			t.Fatal("fabric constant is not a literal")
+		}
+		number, err := strconv.ParseUint(literal.Value, 0, 32)
+		if err != nil {
+			t.Fatal(err)
+		}
+		values[value.Names[0].Name] = number
+		return true
+	})
+	if len(values) != len(fabric.Constants) {
+		t.Fatal("fabric Go output added or omitted constants")
+	}
+	for _, constant := range fabric.Constants {
+		if values[constant.Name] != uint64(constant.Value) {
+			t.Fatalf("hardware constant %s changed", constant.Name)
+		}
+	}
+}
 
 func TestGenerateABIFesGpConstants(t *testing.T) {
 	abi, err := pack.LoadABI("../../packages/abi/fes_simple_game.yaml")

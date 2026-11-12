@@ -1,0 +1,16 @@
+{
+  "source_revision": "8cace007e4d1e8a9e23f1e52675279d1e83033bc",
+  "command": [
+    "python3",
+    "sources/misteross/boards/de25nano/scanout/sim.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-menu",
+  "started_utc": "2026-11-01T11:23:55.668620+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 3257501,
+  "state": "passed",
+  "elapsed_seconds": 36.6,
+  "heartbeat_utc": "2026-11-01T11:24:32.278223+00:00",
+  "returncode": 0
+}

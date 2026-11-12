@@ -1,0 +1,8 @@
+{
+  "host": "192.168.10.78",
+  "boot_id": "3678ada3-13a3-42a7-9266-ddfbca4e50b1",
+  "command": "sh -s",
+  "returncode": 0,
+  "elapsed_seconds": 1.07,
+  "stdin_sha256": "3e2f008e7999d7339ba2ba5e3ba39d59ed8b0cd31538c27da7b25d15884562d0"
+}

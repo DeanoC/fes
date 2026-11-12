@@ -1,0 +1,9 @@
+=== RUN   TestMenuPauseReleasesWindowOnlyAfterFrameDrains
+--- PASS: TestMenuPauseReleasesWindowOnlyAfterFrameDrains (0.07s)
+=== RUN   TestMenuPausePropagatesWindowReleaseFailure
+--- PASS: TestMenuPausePropagatesWindowReleaseFailure (0.01s)
+=== RUN   TestCancelledMenuPauseKeepsInflightMapping
+--- PASS: TestCancelledMenuPauseKeepsInflightMapping (0.01s)
+=== RUN   TestResumedMenuPauseCannotReleaseANewFrameMapping
+--- PASS: TestResumedMenuPauseCannotReleaseANewFrameMapping (0.01s)
+PASS

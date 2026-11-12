@@ -1,0 +1,6 @@
+{
+  "before_and_restored_catalog_all_tables_semantically_equal": true,
+  "deltas": [],
+  "audit_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+  "note": "Offline before/restored SQLite snapshots; extends the protected table/chunk verification. No live kit or subsequent owner operation."
+}

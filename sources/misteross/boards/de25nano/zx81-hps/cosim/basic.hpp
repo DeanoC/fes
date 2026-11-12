@@ -22,22 +22,28 @@ struct Result {
     }
 };
 class Session {
-    mister::native::De25Computer& computer;
+    using Keyboard = std::function<mister::Error(const mister::KeyboardHidRows&,uint64_t)>;
+    using Upload = std::function<mister::Error(const std::vector<unsigned char>&,uint64_t,unsigned)>;
+    Keyboard keyboard;
+    Upload upload;
     std::function<wire::Reply(unsigned,unsigned,unsigned)> call;
     std::function<uint64_t()> deadline;
     Result evidence;
     wire::Reply command(unsigned op,unsigned arg=0,unsigned value=0){return call(op,arg,value);}
-    void okay(const mister::Error&e){wire::need(e.ok(),"BASIC client operation failed");}
+    void okay(const mister::Error&e){if(!e.ok())throw std::runtime_error("BASIC client operation failed ["+e.phase+"]: "+e.message);}
 public:
-    Session(mister::native::De25Computer&c,std::function<wire::Reply(unsigned,unsigned,unsigned)>io,std::function<uint64_t()>clock):computer(c),call(io),deadline(clock){}
-    void keys(mister::KeyboardHidRows rows){okay(computer.SetKeyboardHid(rows,deadline()));command(wire::Advance,100100);}
+    Session(Keyboard hid,Upload tape,std::function<wire::Reply(unsigned,unsigned,unsigned)>io,std::function<uint64_t()>clock):keyboard(hid),upload(tape),call(io),deadline(clock){}
+    Session(mister::native::De25Computer&c,std::function<wire::Reply(unsigned,unsigned,unsigned)>io,std::function<uint64_t()>clock):Session(
+        [&c](const mister::KeyboardHidRows& rows,uint64_t d){return c.SetKeyboardHid(rows,d);},
+        [&c](const std::vector<unsigned char>& bytes,uint64_t d,unsigned chunk){return c.LoadTape(bytes,d,chunk);},io,clock){}
+    void keys(mister::KeyboardHidRows rows){okay(keyboard(rows,deadline()));command(wire::Advance,100100);}
     void neutral(){keys({});}
     void editor(){command(wire::WaitEditor,160000000);++evidence.editor_returns;}
     void token(unsigned usage,unsigned expected,unsigned count=1,bool shift=false){
         mister::KeyboardHidRows rows{};rows[usage/16]=1u<<(usage%16);if(shift)rows[8]=2;
         keys(rows);command(wire::WaitToken,expected,count);neutral();editor();
     }
-    void enter(){mister::KeyboardHidRows rows{};rows[2]=1u<<8;okay(computer.SetKeyboardHid(rows,deadline()));}
+    void enter(){mister::KeyboardHidRows rows{};rows[2]=1u<<8;okay(keyboard(rows,deadline()));}
     void submit(){enter();command(WaitNewline);neutral();}
     void load_command(bool complete=true){
         token(0x0d,0xef);token(0x13,0x0b,1,true);token(0x13,0x0b,2,true);
@@ -67,14 +73,14 @@ public:
         editor();
         // Pixel-clock loss cannot block the real CRC/chunked upload or CPU.
         command(wire::PixelClock,0);auto before=command(wire::State,wire::MachineReset).retired;
-        okay(computer.LoadTape(evidence.image,deadline(),127));command(wire::Advance,500000);
+        okay(upload(evidence.image,deadline(),127));command(wire::Advance,500000);
         wire::need(command(wire::State,wire::MachineReset).retired>before,"pixel stop blocked CPU");command(wire::PixelClock,1);
         load();run();
         // Prove post-RUN keyboard input by inserting a second line, then prove
         // a real reload removes it without resetting/reconfiguring the machine.
         token(0x1f,0x1e);token(0x08,0xea);
         submit();editor();wire::need(command(HasLine,2,0xea).value,"ROM did not store the post-RUN edit");
-        okay(computer.LoadTape(evidence.image,deadline(),127));load();
+        okay(upload(evidence.image,deadline(),127));load();
         evidence.reload_removed_edit=!command(HasLine,2,0xea).value;
         wire::need(evidence.reload_removed_edit,"reload retained the post-RUN edit");run();
         return evidence;

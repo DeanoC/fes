@@ -1,0 +1,13 @@
+{"state": "writing-candidate", "writer_pid_live": true, "kernel_sectors_written": 4884384, "kernel_reads_completed": 61014, "sampled_monotonic": 498586.3}
+{"state": "writing-candidate", "writer_pid_live": true, "kernel_sectors_written": 5425912, "kernel_reads_completed": 61014, "sampled_monotonic": 498616.3}
+{"state": "writing-candidate", "writer_pid_live": true, "kernel_sectors_written": 5992640, "kernel_reads_completed": 61014, "sampled_monotonic": 498646.3}
+{"state": "writing-candidate", "writer_pid_live": true, "kernel_sectors_written": 6534936, "kernel_reads_completed": 61014, "sampled_monotonic": 498676.3}
+{"state": "writing-candidate", "writer_pid_live": true, "kernel_sectors_written": 7079640, "kernel_reads_completed": 61014, "sampled_monotonic": 498706.3}
+{"state": "writing-candidate", "writer_pid_live": true, "kernel_sectors_written": 7642104, "kernel_reads_completed": 61014, "sampled_monotonic": 498736.4}
+{"state": "verifying-device-readback", "writer_pid_live": true, "kernel_sectors_written": 7782400, "kernel_reads_completed": 68319, "sampled_monotonic": 498766.4}
+{"state": "verifying-device-readback", "writer_pid_live": true, "kernel_sectors_written": 7782400, "kernel_reads_completed": 78589, "sampled_monotonic": 498796.4}
+{"state": "verifying-device-readback", "writer_pid_live": true, "kernel_sectors_written": 7782400, "kernel_reads_completed": 88843, "sampled_monotonic": 498826.4}
+{"state": "verifying-device-readback", "writer_pid_live": true, "kernel_sectors_written": 7782400, "kernel_reads_completed": 99103, "sampled_monotonic": 498856.4}
+{"state": "verifying-device-readback", "writer_pid_live": true, "kernel_sectors_written": 7782400, "kernel_reads_completed": 109321, "sampled_monotonic": 498886.4}
+{"state": "verifying-device-readback", "writer_pid_live": true, "kernel_sectors_written": 7782400, "kernel_reads_completed": 119613, "sampled_monotonic": 498916.4}
+{"state": "passed", "writer_pid_live": false, "kernel_sectors_written": 7782400, "kernel_reads_completed": 122004, "sampled_monotonic": 498946.4}

@@ -1,0 +1,38 @@
+{
+  "source_revision": "222674ddfbd082ed363a40b2ac51b5d21ca1f3bf",
+  "state": "passed",
+  "elapsed_seconds": 1681.1,
+  "command": [
+    "make",
+    "test-changed",
+    "TEST_CHANGED_ARGS=--base cb21221583ed8773248e38a8471bc6d118399bed"
+  ],
+  "test_groups": [
+    {
+      "tests": 30,
+      "seconds": "0.214",
+      "result": "OK"
+    },
+    {
+      "tests": 32,
+      "seconds": "0.802",
+      "result": "OK"
+    },
+    {
+      "tests": 1,
+      "seconds": "0.000",
+      "result": "OK"
+    },
+    {
+      "tests": 1109,
+      "seconds": "767.618",
+      "result": "OK (skipped=3)"
+    },
+    {
+      "tests": 1727,
+      "seconds": "905.969",
+      "result": "OK (skipped=76)"
+    }
+  ],
+  "scope": "full test-changed command at222; final262 inspector/format guards additionally have focused tests and actual Quartus/model/provenance checks; no exact262 full-command claim"
+}

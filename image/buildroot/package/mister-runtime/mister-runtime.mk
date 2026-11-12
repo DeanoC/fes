@@ -9,11 +9,18 @@ ifneq ($(FES_PREBUILT_RUNTIME_SHA256),)
 MISTER_RUNTIME_SITE = $(FOGCAST_DIR)/bin
 MISTER_RUNTIME_SITE_METHOD = local
 MISTER_RUNTIME_LICENSE = GPL-3.0-or-later
+ifeq ($(BR2_aarch64),y)
+FES_RUNTIME_ARCH = aarch64
+else ifeq ($(BR2_arm),y)
+FES_RUNTIME_ARCH = armv7
+else
+$(error Prebuilt mister-runtime requires an ARMv7 or AArch64 target)
+endif
 
 define MISTER_RUNTIME_INSTALL_TARGET_CMDS
-	printf '%s  %s\n' "$(FES_PREBUILT_RUNTIME_SHA256)" "$(@D)/mister-runtime-linux-armv7" | sha256sum -c -
+	printf '%s  %s\n' "$(FES_PREBUILT_RUNTIME_SHA256)" "$(@D)/mister-runtime-linux-$(FES_RUNTIME_ARCH)" | sha256sum -c -
 	/bin/rm -f $(TARGET_DIR)/usr/sbin/mister-runtime
-	$(INSTALL) -D -m 0755 $(@D)/mister-runtime-linux-armv7 $(TARGET_DIR)/usr/sbin/mister-runtime
+	$(INSTALL) -D -m 0755 $(@D)/mister-runtime-linux-$(FES_RUNTIME_ARCH) $(TARGET_DIR)/usr/sbin/mister-runtime
 endef
 else
 FES_RUNTIME_SOURCE_PATH ?= .

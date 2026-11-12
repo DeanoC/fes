@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "source_head": "a1bdf061aff2c66dc3358d5ee56bee90166f26a9",
+  "working_test_inputs": {
+    "sources/misteross/cores/fes-common/rtl/fes_audio_output.v": "e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd",
+    "sources/misteross/cores/fes-common/rtl/fes_audio_i2s.v": "14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4",
+    "sources/misteross/cores/fes-coleco/sim/audio_output_tb.cpp": "cc4baaee554c223e5251d4ea08ca212c79accc0216c0eeafb5b00db8e8e95311"
+  },
+  "elapsed_seconds": 5.713562378077768,
+  "utc": "2026-11-06T10:32:15.353644+00:00",
+  "clock_phase_cases": 12,
+  "lock_loss_relock_cycles": 36,
+  "scope": "Fresh Verilator models of unmodified full shared PCM/I2S RTL, real serial-pin decoder; clock stops, repeated relock, mute, stale sample refusal. Muted-path bypass negative control refused. No analog/PCB/metastability or native acceptance.",
+  "negative_control": {
+    "change": "serializer .mute(hold_sync) -> .mute(1'b0), private copy only",
+    "expected_failure": "hold must serialize silence",
+    "exit_code": 1,
+    "verified": true
+  }
+}

@@ -116,12 +116,16 @@ public:
 		return offset_>start && (offset_-start==1 || bytes_[start]!='0');
 	}
 	bool End() {return Take("}") && offset_==bytes_.size();}
+	bool Object(const std::string& key) {return Key(key) && Take("{");}
+	bool EndObject() {return Take("}");}
 private:
 	bool Take(const std::string& value) {
 		if (bytes_.compare(offset_,value.size(),value)!=0) return false;
 		offset_+=value.size();return true;
 	}
-	bool Key(const std::string& key) {return Take((offset_==0 ? "{\"" : ",\"")+key+"\":");}
+	bool Key(const std::string& key) {
+		return Take((offset_==0 ? "{\"" : bytes_[offset_-1]=='{' ? "\"" : ",\"")+key+"\":");
+	}
 	const std::string& bytes_;std::size_t offset_=0;
 };
 Error OpenExpansion(const std::vector<std::string>& roots, const std::string& path, OpenedCoreExpansion* out) {
@@ -372,6 +376,7 @@ Error RecheckCoreComposition(const OpenedCoreComposition& opened) {
 Error OpenCoreComposition(const std::vector<std::string>& roots,
 	const OpenedCorePackage& base, const CoreCompositionRequest& request, OpenedCoreComposition* output) {
 	if (!output) return Invalid("missing composition output");
+	if (base.descriptor.format==5) return Invalid("static base requires separate base/persona composition");
 	if (!request.parts.empty() || !request.composition.parts.empty())
 		return OpenPartsComposition(roots,base,request,output);
 	for (const auto& interface : base.descriptor.interfaces)
@@ -439,6 +444,126 @@ Error OpenCoreComposition(const std::vector<std::string>& roots,
 	error=OpenLinkedPayload(roots,request.payload_path,info.payload_size,&opened.payload);
 	if (!error.ok()) return error;
 	error=RecheckCoreComposition(opened);
+	if (!error.ok()) return error;
+	*output=std::move(opened);return {};
+}
+
+namespace {
+std::string StaticCompositionId(const CoreStaticComposition& info) {
+	std::string canonical="fes-de25-static-composition-v1";
+	for (const auto& field : {info.package_id, info.expansion_id, info.base_sha256,
+		std::to_string(info.base_size), info.persona_sha256, std::to_string(info.persona_size),
+		info.control_build_id, std::to_string(info.hardware_id)}) {
+		canonical.push_back('\0');canonical+=field;
+	}
+	return Hash(canonical);
+}
+bool SameStaticComposition(const CoreStaticComposition& a, const CoreStaticComposition& b) {
+	return a.id==b.id && a.package_id==b.package_id && a.expansion_id==b.expansion_id &&
+		a.base_sha256==b.base_sha256 && a.base_size==b.base_size &&
+		a.persona_sha256==b.persona_sha256 && a.persona_size==b.persona_size &&
+		a.control_build_id==b.control_build_id && a.hardware_id==b.hardware_id;
+}
+bool SameStaticRoot(const CoreStaticExpansion& a, const CoreStaticExpansion& b) {
+	return a.control_build_id==b.control_build_id && a.root_qdb_sha256==b.root_qdb_sha256 &&
+		a.interface_sha256==b.interface_sha256 && a.clock_reset_sha256==b.clock_reset_sha256 &&
+		a.pof0_hash==b.pof0_hash;
+}
+CoreStaticComposition DefaultStaticComposition(const OpenedCorePackage& base) {
+	CoreStaticComposition info;
+	const auto& descriptor=base.descriptor;
+	info.package_id=base.package_id;info.base_sha256=descriptor.payload.sha256;
+	info.base_size=base.payload.size();info.persona_sha256=descriptor.static_expansion.sha256;
+	info.persona_size=base.persona.size();info.control_build_id=descriptor.static_expansion.control_build_id;
+	info.hardware_id=descriptor.static_expansion.hardware_id;
+	return info;
+}
+Error ReadStaticManifest(const OpenedCorePackage& base, const OpenedCoreExpansion& asset,
+	CoreStaticComposition* info) {
+	ManifestReader reader(asset.manifest_bytes);
+	CoreStaticExpansion partial;
+	std::string device,map,recipe,revision,build,package,shell,slot,cart_hash;
+	std::uint64_t size=0,format=0,major=0,minor=0,hardware_id=0;
+	if (!reader.Object("partial") || !reader.Text("control_build_id",&partial.control_build_id) ||
+		!reader.Number("hardware_id",&hardware_id) ||
+		!reader.Text("root_qdb_sha256",&partial.root_qdb_sha256) ||
+		!reader.Text("interface_sha256",&partial.interface_sha256) ||
+		!reader.Text("clock_reset_sha256",&partial.clock_reset_sha256) ||
+		!reader.Text("pof0_hash",&partial.pof0_hash) || !reader.EndObject() ||
+		!reader.Text("cart_sha256",&cart_hash) || !reader.Number("cart_size",&size) ||
+		!reader.Text("device",&device) || !reader.Number("format",&format) ||
+		!reader.Text("map",&map) || !reader.Text("recipe_sha256",&recipe) ||
+		!reader.Text("revision",&revision) || !reader.Text("shell_build_id",&build) ||
+		!reader.Text("shell_package_id",&package) || !reader.Text("shell_sha256",&shell) ||
+		!reader.Text("slot",&slot) || !reader.Number("slot_major",&major) ||
+		!reader.Number("slot_minor",&minor) || !reader.End())
+		return Invalid("partial manifest must use canonical JSON");
+	const auto& descriptor=base.descriptor;
+	if (format!=2 || device!="A5EB013BB23BE4SCS" || map!="fes.de25-zx81-bus.partial/1" ||
+		slot!="fes.expansion.zx81-bus" || major!=2 || minor!=0 ||
+		!Hex(recipe,64) || !Hex(revision,40) || !Hex(cart_hash,64) ||
+		size<1 || size>MaximumPayload || size!=asset.cart.size() ||
+		package!=base.package_id || build!=descriptor.build.id || shell!=descriptor.payload.sha256 ||
+		(hardware_id!=0xc001a001u && hardware_id!=0xc002b002u) ||
+		!SameStaticRoot(partial,descriptor.static_expansion))
+		return Invalid("partial does not match the static package and frozen root");
+	info->expansion_id=Hash(std::string("fes-expansion-v2")+std::string(1,'\0')+asset.manifest_bytes);
+	info->persona_sha256=cart_hash;info->persona_size=size;
+	info->hardware_id=static_cast<std::uint32_t>(hardware_id);
+	return {};
+}
+} // namespace
+
+Error RecheckCoreStaticComposition(const OpenedCorePackage& base,
+	const OpenedCoreStaticComposition& opened) {
+	Error error=RecheckCorePackage(base);
+	if (!error.ok()) return error;
+	const auto& info=opened.info;
+	if (base.descriptor.format!=5) return Invalid("static selection requires format5");
+	auto expected=DefaultStaticComposition(base);
+	if (!info.expansion_id.empty()) {
+		std::string bytes,digest;
+		error=Read(opened.expansion.manifest,&bytes,nullptr);
+		if (!error.ok()) return error;
+		if (bytes!=opened.expansion.manifest_bytes ||
+			Hash(std::string("fes-expansion-v2")+std::string(1,'\0')+bytes)!=info.expansion_id)
+			return Invalid("partial manifest changed after admission");
+		error=Read(opened.expansion.cart,nullptr,&digest);
+		if (!error.ok()) return error;
+		if (digest!=info.persona_sha256 || opened.expansion.cart.size()!=info.persona_size)
+			return Invalid("partial image changed after admission");
+		error=ReadStaticManifest(base,opened.expansion,&expected);
+		if (!error.ok()) return error;
+	}
+	expected.id=StaticCompositionId(expected);
+	if (!SameStaticComposition(expected,info))
+		return Invalid("static composition receipt differs from retained inputs");
+	return {};
+}
+
+Error OpenCoreStaticComposition(const std::vector<std::string>& roots,
+	const OpenedCorePackage& base, const CoreStaticCompositionRequest& request,
+	OpenedCoreStaticComposition* output) {
+	if (!output) return Invalid("missing static composition output");
+	const auto& descriptor=base.descriptor;
+	if (descriptor.format!=5 || descriptor.target.platform!="de25_nano" ||
+		descriptor.target.device!="A5EB013BB23BE4SCS" ||
+		descriptor.target.programming_profile!="de25-linux-static-computer-v1")
+		return Invalid("static composition requires an explicit format5 DE25 package");
+	Error error=RecheckCorePackage(base);
+	if (!error.ok()) return error;
+	OpenedCoreStaticComposition opened;
+	auto& info=opened.info;
+	info=DefaultStaticComposition(base);
+	if (!request.expansion_path.empty()) {
+		error=OpenExpansion(roots,request.expansion_path,&opened.expansion);
+		if (error.ok()) error=ReadStaticManifest(base,opened.expansion,&info);
+		if (!error.ok()) return error;
+	}
+	info.id=StaticCompositionId(info);
+	if (!SameStaticComposition(info,request.composition))
+		return Invalid("static composition receipt differs from retained inputs");
+	error=RecheckCoreStaticComposition(base,opened);
 	if (!error.ok()) return error;
 	*output=std::move(opened);return {};
 }

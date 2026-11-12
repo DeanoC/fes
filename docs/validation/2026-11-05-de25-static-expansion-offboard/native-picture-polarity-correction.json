@@ -1,0 +1,466 @@
+{
+  "passed": true,
+  "utc": "2026-11-06T10:11:04.968673+00:00",
+  "classification": "Reassessment of original native captures; no new hardware run",
+  "source": "a1bdf061aff2c66dc3358d5ee56bee90166f26a9",
+  "records": [
+    {
+      "path": "polarity-audit/new-image-02-load-run7.png",
+      "original_capture_sha256": "a38e84476017801cfe6a5fabcb001342e457de44e051e8a57f8aa7aa48a9ecb1",
+      "expected_BASIC_value": 7,
+      "decoded_rgb_sha256": "4500b8204405fad66526751156f6e099cc166ebd62840393f4141b8752254895",
+      "independent_PNG_CRC_and_unfilter_matches_FFmpeg": true,
+      "png_filters": {
+        "0": 1080
+      },
+      "interior_roi": [
+        500,
+        200,
+        900,
+        700
+      ],
+      "pixels": 630000,
+      "white_pixels": 629210,
+      "black_ink_pixels": 464,
+      "white_fraction": 0.9987460317460317,
+      "paper_points": {
+        "500,200": [
+          255,
+          255,
+          255
+        ],
+        "800,500": [
+          255,
+          255,
+          255
+        ],
+        "1200,800": [
+          255,
+          255,
+          255
+        ],
+        "600,850": [
+          255,
+          255,
+          255
+        ],
+        "1000,600": [
+          255,
+          255,
+          255
+        ]
+      },
+      "in_memory_inversion_negative_control_white_fraction": 0.0007396825396825397,
+      "polarity": "white paper with black ink",
+      "hardware_replayed": false
+    },
+    {
+      "path": "polarity-audit/new-image-03-edit-run9.png",
+      "original_capture_sha256": "3decc85ee2c9ac571e9e98d6c5cc5fb5e3fc16d3d69ecf0313c0ff2567d0b97f",
+      "expected_BASIC_value": 9,
+      "decoded_rgb_sha256": "18a5e71dbd38f284f34123dd9aa5707bff024fbea871e535be1c29f64486baba",
+      "independent_PNG_CRC_and_unfilter_matches_FFmpeg": true,
+      "png_filters": {
+        "0": 1080
+      },
+      "interior_roi": [
+        500,
+        200,
+        900,
+        700
+      ],
+      "pixels": 630000,
+      "white_pixels": 629133,
+      "black_ink_pixels": 511,
+      "white_fraction": 0.9986238095238095,
+      "paper_points": {
+        "500,200": [
+          255,
+          255,
+          255
+        ],
+        "800,500": [
+          255,
+          255,
+          255
+        ],
+        "1200,800": [
+          255,
+          255,
+          255
+        ],
+        "600,850": [
+          255,
+          255,
+          255
+        ],
+        "1000,600": [
+          255,
+          255,
+          255
+        ]
+      },
+      "in_memory_inversion_negative_control_white_fraction": 0.0008142857142857143,
+      "polarity": "white paper with black ink",
+      "hardware_replayed": false
+    },
+    {
+      "path": "polarity-audit/new-image-04-reload-run7.png",
+      "original_capture_sha256": "a38e84476017801cfe6a5fabcb001342e457de44e051e8a57f8aa7aa48a9ecb1",
+      "expected_BASIC_value": 7,
+      "decoded_rgb_sha256": "4500b8204405fad66526751156f6e099cc166ebd62840393f4141b8752254895",
+      "independent_PNG_CRC_and_unfilter_matches_FFmpeg": true,
+      "png_filters": {
+        "0": 1080
+      },
+      "interior_roi": [
+        500,
+        200,
+        900,
+        700
+      ],
+      "pixels": 630000,
+      "white_pixels": 629210,
+      "black_ink_pixels": 464,
+      "white_fraction": 0.9987460317460317,
+      "paper_points": {
+        "500,200": [
+          255,
+          255,
+          255
+        ],
+        "800,500": [
+          255,
+          255,
+          255
+        ],
+        "1200,800": [
+          255,
+          255,
+          255
+        ],
+        "600,850": [
+          255,
+          255,
+          255
+        ],
+        "1000,600": [
+          255,
+          255,
+          255
+        ]
+      },
+      "in_memory_inversion_negative_control_white_fraction": 0.0007396825396825397,
+      "polarity": "white paper with black ink",
+      "hardware_replayed": false
+    },
+    {
+      "path": "polarity-audit/new-image-postreboot-02-load-run7.png",
+      "original_capture_sha256": "1fe0e474802e9e9a4ec47f8ec8788beb1bc17da9131049d352984dd9f214e265",
+      "expected_BASIC_value": 7,
+      "decoded_rgb_sha256": "e62cc5970a6c8b916e7822ce2e5f0deea9133e140696cfb5d5a03871b2fe2f9b",
+      "independent_PNG_CRC_and_unfilter_matches_FFmpeg": true,
+      "png_filters": {
+        "0": 1080
+      },
+      "interior_roi": [
+        500,
+        200,
+        900,
+        700
+      ],
+      "pixels": 630000,
+      "white_pixels": 629210,
+      "black_ink_pixels": 464,
+      "white_fraction": 0.9987460317460317,
+      "paper_points": {
+        "500,200": [
+          255,
+          255,
+          255
+        ],
+        "800,500": [
+          255,
+          255,
+          255
+        ],
+        "1200,800": [
+          255,
+          255,
+          255
+        ],
+        "600,850": [
+          255,
+          255,
+          255
+        ],
+        "1000,600": [
+          255,
+          255,
+          255
+        ]
+      },
+      "in_memory_inversion_negative_control_white_fraction": 0.0007396825396825397,
+      "polarity": "white paper with black ink",
+      "hardware_replayed": false
+    },
+    {
+      "path": "polarity-audit/new-image-postreboot-03-edit-run9.png",
+      "original_capture_sha256": "d957153fafbdf42133b51fb285447e0fa19a5897f1627531f114980626f70fcf",
+      "expected_BASIC_value": 9,
+      "decoded_rgb_sha256": "405c21de2dc74df5a143dbb46ad3943cfdc942519a1cdbb3a0af259a1ee7f6e1",
+      "independent_PNG_CRC_and_unfilter_matches_FFmpeg": true,
+      "png_filters": {
+        "0": 1080
+      },
+      "interior_roi": [
+        500,
+        200,
+        900,
+        700
+      ],
+      "pixels": 630000,
+      "white_pixels": 629133,
+      "black_ink_pixels": 511,
+      "white_fraction": 0.9986238095238095,
+      "paper_points": {
+        "500,200": [
+          255,
+          255,
+          255
+        ],
+        "800,500": [
+          255,
+          255,
+          255
+        ],
+        "1200,800": [
+          255,
+          255,
+          255
+        ],
+        "600,850": [
+          255,
+          255,
+          255
+        ],
+        "1000,600": [
+          255,
+          255,
+          255
+        ]
+      },
+      "in_memory_inversion_negative_control_white_fraction": 0.0008142857142857143,
+      "polarity": "white paper with black ink",
+      "hardware_replayed": false
+    },
+    {
+      "path": "polarity-audit/new-image-postreboot-04-reload-run7.png",
+      "original_capture_sha256": "1fe0e474802e9e9a4ec47f8ec8788beb1bc17da9131049d352984dd9f214e265",
+      "expected_BASIC_value": 7,
+      "decoded_rgb_sha256": "e62cc5970a6c8b916e7822ce2e5f0deea9133e140696cfb5d5a03871b2fe2f9b",
+      "independent_PNG_CRC_and_unfilter_matches_FFmpeg": true,
+      "png_filters": {
+        "0": 1080
+      },
+      "interior_roi": [
+        500,
+        200,
+        900,
+        700
+      ],
+      "pixels": 630000,
+      "white_pixels": 629210,
+      "black_ink_pixels": 464,
+      "white_fraction": 0.9987460317460317,
+      "paper_points": {
+        "500,200": [
+          255,
+          255,
+          255
+        ],
+        "800,500": [
+          255,
+          255,
+          255
+        ],
+        "1200,800": [
+          255,
+          255,
+          255
+        ],
+        "600,850": [
+          255,
+          255,
+          255
+        ],
+        "1000,600": [
+          255,
+          255,
+          255
+        ]
+      },
+      "in_memory_inversion_negative_control_white_fraction": 0.0007396825396825397,
+      "polarity": "white paper with black ink",
+      "hardware_replayed": false
+    },
+    {
+      "path": "polarity-audit/original-image-02-load-run7.png",
+      "original_capture_sha256": "3215555c0689fe24a5b897556833509c35b420290c9fb46ae8b9fd0e897b0cf4",
+      "expected_BASIC_value": 7,
+      "decoded_rgb_sha256": "ffa2d80c7ce06b0c242d570ffa58d670086ef1f42d5bc76c49ddf49812eda066",
+      "independent_PNG_CRC_and_unfilter_matches_FFmpeg": true,
+      "png_filters": {
+        "0": 1080
+      },
+      "interior_roi": [
+        500,
+        200,
+        900,
+        700
+      ],
+      "pixels": 630000,
+      "white_pixels": 629210,
+      "black_ink_pixels": 464,
+      "white_fraction": 0.9987460317460317,
+      "paper_points": {
+        "500,200": [
+          255,
+          255,
+          255
+        ],
+        "800,500": [
+          255,
+          255,
+          255
+        ],
+        "1200,800": [
+          255,
+          255,
+          255
+        ],
+        "600,850": [
+          255,
+          255,
+          255
+        ],
+        "1000,600": [
+          255,
+          255,
+          255
+        ]
+      },
+      "in_memory_inversion_negative_control_white_fraction": 0.0007396825396825397,
+      "polarity": "white paper with black ink",
+      "hardware_replayed": false
+    },
+    {
+      "path": "polarity-audit/original-image-03-edit-run9.png",
+      "original_capture_sha256": "4049bc2825fa5e96916d0651110ad2118a345418e9af157b6689f3588d5a48b4",
+      "expected_BASIC_value": 9,
+      "decoded_rgb_sha256": "f2fafdd98fbe965163c4dd5b586222a1447f2a056b02ad8068e78923db6b47ad",
+      "independent_PNG_CRC_and_unfilter_matches_FFmpeg": true,
+      "png_filters": {
+        "0": 1080
+      },
+      "interior_roi": [
+        500,
+        200,
+        900,
+        700
+      ],
+      "pixels": 630000,
+      "white_pixels": 629133,
+      "black_ink_pixels": 511,
+      "white_fraction": 0.9986238095238095,
+      "paper_points": {
+        "500,200": [
+          255,
+          255,
+          255
+        ],
+        "800,500": [
+          255,
+          255,
+          255
+        ],
+        "1200,800": [
+          255,
+          255,
+          255
+        ],
+        "600,850": [
+          255,
+          255,
+          255
+        ],
+        "1000,600": [
+          255,
+          255,
+          255
+        ]
+      },
+      "in_memory_inversion_negative_control_white_fraction": 0.0008142857142857143,
+      "polarity": "white paper with black ink",
+      "hardware_replayed": false
+    },
+    {
+      "path": "polarity-audit/original-image-04-reload-run7.png",
+      "original_capture_sha256": "3215555c0689fe24a5b897556833509c35b420290c9fb46ae8b9fd0e897b0cf4",
+      "expected_BASIC_value": 7,
+      "decoded_rgb_sha256": "ffa2d80c7ce06b0c242d570ffa58d670086ef1f42d5bc76c49ddf49812eda066",
+      "independent_PNG_CRC_and_unfilter_matches_FFmpeg": true,
+      "png_filters": {
+        "0": 1080
+      },
+      "interior_roi": [
+        500,
+        200,
+        900,
+        700
+      ],
+      "pixels": 630000,
+      "white_pixels": 629210,
+      "black_ink_pixels": 464,
+      "white_fraction": 0.9987460317460317,
+      "paper_points": {
+        "500,200": [
+          255,
+          255,
+          255
+        ],
+        "800,500": [
+          255,
+          255,
+          255
+        ],
+        "1200,800": [
+          255,
+          255,
+          255
+        ],
+        "600,850": [
+          255,
+          255,
+          255
+        ],
+        "1000,600": [
+          255,
+          255,
+          255
+        ]
+      },
+      "in_memory_inversion_negative_control_white_fraction": 0.0007396825396825397,
+      "polarity": "white paper with black ink",
+      "hardware_replayed": false
+    }
+  ],
+  "all_3_sequences_white_paper_black_ink": true,
+  "capture_updates_7_9_7_and_reload_returns_exact_frame": true,
+  "earlier_picture_failure_classification": "WITHDRAWN: preview misinterpretation contradicted by two independent decoders and original capture hashes",
+  "observer_trial_failures": "Retained as real diagnostic refusals; neither collected ZX81 pixels or ran BASIC",
+  "root_cause_of_reported_polarity_failure": "The reported failure is not present in the saved native captures; no hardware display fault established by this evidence",
+  "no_production_fix_required_by_this_finding": true,
+  "hardware_access": false,
+  "elapsed_seconds": 2.0239342430140823
+}

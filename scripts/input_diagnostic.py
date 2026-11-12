@@ -69,10 +69,13 @@ def load_diagnostic(path, expected_sha256):
         raise ValueError("unsupported input diagnostic format")
     interface = data["interface"]
     _object(interface, ("id", "major", "minor"))
-    if (interface["id"] not in ("fes.keyboard", "fes.gamepad")
+    if (interface["id"] not in ("fes.keyboard", "fes.gamepad", "fes.keyboard.hid")
             or not _integer(interface["major"], 1, 65535)
             or not _integer(interface["minor"], 0, 65535)):
         raise ValueError("invalid input interface")
+    hid = interface["id"] == "fes.keyboard.hid"
+    if hid and (interface["major"], interface["minor"]) != (1, 0):
+        raise ValueError("unsupported HID keyboard interface")
     events = data["events"]
     if not isinstance(events, list) or not 1 <= len(events) <= MAX_EVENTS:
         raise ValueError("input diagnostic requires 1..64 events")
@@ -82,12 +85,18 @@ def load_diagnostic(path, expected_sha256):
         device, kind, action, code, value = (event[k] for k in ("device", "kind", "action", "code", "value"))
         if not all(type(v) is int for v in (device, kind, action, code, value)):
             raise ValueError("input event fields must be integers")
+        if hid:
+            # FogCast internal/hidkeys: page-07 usages 04..7f and e0..e7,
+            # carried as Base(0x1000)+usage, without a core-specific mapping.
+            if not (device == 0 and kind == 0 and
+                    (0x1004 <= code <= 0x107f or 0x10e0 <= code <= 0x10e7)):
+                raise ValueError("invalid HID keyboard event")
         if kind == 2:
             if device != 1 or code not in (200, 201) or action != 2 or not -32768 <= value <= 32767:
                 raise ValueError("invalid absolute axis event")
             axes[code] = value
         else:
-            keyboard = device == 0 and kind == 0 and 256 <= code <= 295
+            keyboard = hid or device == 0 and kind == 0 and 256 <= code <= 295
             button = device == 1 and kind == 1 and 100 <= code <= 112
             if not (keyboard or button) or action not in (0, 1) or value != 0:
                 raise ValueError("invalid key/button event")

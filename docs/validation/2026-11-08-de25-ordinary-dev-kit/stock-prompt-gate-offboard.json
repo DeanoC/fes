@@ -1,0 +1,119 @@
+{
+  "passed": true,
+  "cases": 6,
+  "helper_sha256": "ccb886b71dd56c421e2344c299f2b6612687a5e97499420ea2365bc3baee0a9d",
+  "results": [
+    {
+      "label": "actual-empty-K",
+      "path": "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-dev-reboot-acceptance/physical-keyboard/before-P.png",
+      "expected": true,
+      "observed": {
+        "ready": true,
+        "inverse_K_candidates": [
+          [
+            577,
+            836
+          ],
+          [
+            578,
+            836
+          ],
+          [
+            577,
+            837
+          ],
+          [
+            578,
+            837
+          ]
+        ],
+        "body_ink_samples": 0,
+        "body_paper_fraction": 1.0,
+        "font_sha256": "46cbee620d56e93edb4517fb0759f8e992d8d8428e4cc5007f17386575090df5",
+        "capture_sha256": "8c27e1bd829b9da3264114851a40808a75e496174ef430f4c9fd9253cc786107",
+        "hardware_access": false,
+        "scope": "Off-board capture classification only; not a board readiness or runtime repair proof"
+      }
+    },
+    {
+      "label": "actual-PRINT-L",
+      "path": "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-dev-reboot-acceptance/physical-keyboard/after-P.png",
+      "expected": false,
+      "observed": {
+        "ready": false,
+        "inverse_K_candidates": [],
+        "body_ink_samples": 0,
+        "body_paper_fraction": 1.0,
+        "font_sha256": "46cbee620d56e93edb4517fb0759f8e992d8d8428e4cc5007f17386575090df5",
+        "capture_sha256": "6a56f2bd01b247469a8809ad4be0a3e3cb2ef9d3c6febcba1dd3a439d59716f2",
+        "hardware_access": false,
+        "scope": "Off-board capture classification only; not a board readiness or runtime repair proof"
+      }
+    },
+    {
+      "label": "actual-chooser",
+      "path": "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-dev-reboot-acceptance/physical-keyboard/after-F12.png",
+      "expected": false,
+      "observed": {
+        "ready": false,
+        "inverse_K_candidates": [],
+        "body_ink_samples": 320,
+        "body_paper_fraction": 0.9636481195445239,
+        "font_sha256": "46cbee620d56e93edb4517fb0759f8e992d8d8428e4cc5007f17386575090df5",
+        "capture_sha256": "b24f634bcfbc6cf8af78fecb63d2b3ef72f0282fad7900d277606d98d99c8a4e",
+        "hardware_access": false,
+        "scope": "Off-board capture classification only; not a board readiness or runtime repair proof"
+      }
+    },
+    {
+      "label": "actual-BASIC7",
+      "path": "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/stock-save-persistence/save-source-basic/basic7.png",
+      "expected": false,
+      "observed": {
+        "ready": false,
+        "inverse_K_candidates": [],
+        "body_ink_samples": 10,
+        "body_paper_fraction": 0.9996048708646144,
+        "font_sha256": "46cbee620d56e93edb4517fb0759f8e992d8d8428e4cc5007f17386575090df5",
+        "capture_sha256": "85192f6efd1cb54f76dc2c16aa8ca1f3b6dbb349b87763adefe44f255de37d2f",
+        "hardware_access": false,
+        "scope": "Off-board capture classification only; not a board readiness or runtime repair proof"
+      }
+    },
+    {
+      "label": "actual-BASIC9",
+      "path": "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/stock-save-persistence/save-source-basic/basic9.png",
+      "expected": false,
+      "observed": {
+        "ready": false,
+        "inverse_K_candidates": [],
+        "body_ink_samples": 15,
+        "body_paper_fraction": 0.9994432271274112,
+        "font_sha256": "46cbee620d56e93edb4517fb0759f8e992d8d8428e4cc5007f17386575090df5",
+        "capture_sha256": "5b9937d4b36a874b495bccc2f3be6c4dc0a8d896c8626fe695860e5c566a84d3",
+        "hardware_access": false,
+        "scope": "Off-board capture classification only; not a board readiness or runtime repair proof"
+      }
+    },
+    {
+      "label": "failed-rollback-0-0",
+      "path": "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/stock-software-rollback/rollback-control/basic/basic7.png",
+      "expected": false,
+      "observed": {
+        "ready": false,
+        "inverse_K_candidates": [],
+        "body_ink_samples": 0,
+        "body_paper_fraction": 1.0,
+        "font_sha256": "46cbee620d56e93edb4517fb0759f8e992d8d8428e4cc5007f17386575090df5",
+        "capture_sha256": "46226742c3663ba2eb31780ae8a847504f576aad47648ef73e22da4322f6bf75",
+        "hardware_access": false,
+        "scope": "Off-board capture classification only; not a board readiness or runtime repair proof"
+      }
+    }
+  ],
+  "source_head": "2eb2873c1efdb06586820e21d746b40f238a3c5b",
+  "no_board_access": true,
+  "no_fault_retry": true,
+  "root_cause_of_original_failure_proven": false,
+  "observation": "Original failed control waited for input attachment, not an observed empty ROM K cursor. Earlier retained successful factory/stock recipes used startup delay or RAMTOP before LOAD. New capture gate is tested off-board and remains untested on live board."
+}

@@ -1,0 +1,29 @@
+{
+  "source_revision": "cdb453111dc23389b5e028f592ae7c61e93059e8",
+  "completed_fixes": {
+    "M1": "Compile against main after kit-local API retirement.",
+    "M2": "DE25-local RTL and producer/package helpers; shared DE10 source maps match main, with documented RISC-V broad-board metadata exception.",
+    "C1": "DE10 selected-MENU failure tries board splash fallback; unsupported/failed fallback remains reboot_required.",
+    "K1": "Recover exactly authenticated retained firmware search override only after allocation retirement.",
+    "K2": "Kernel retirement arbitrates inherited peer grants; do not reject before REAP.",
+    "K3": "Owner-idle preflight refuses nonmutating EBUSY without poisoning healthy overlay.",
+    "G3": "Non-ZX81 readiness early return restricted to DE25/format5.",
+    "G4/G5": "Shared watchdog backstop and retained-error success semantics documented.",
+    "S1": "Shared DE10 OS initialization changes documented and rootfs contracts added; native boot gate remains.",
+    "S2": "Explicit firmware verifier checks and refusal under optimized Python.",
+    "S3": "Stable card identity and protected bytes compared; diskseq/st_rdev informational.",
+    "R1": "Shared Quartus lock/locator, exact SC Pro version, corrected authenticated bin launcher hash and recipe lock paths.",
+    "R6": "Actual audio reference locations and source/AST relocation evidence.",
+    "Astra P2": "Complete board-local production helper/codec roots; actual ordinary/static helper edits alter functional identity.",
+    "Integration": "Preserve main board-aware capacity preflight; combine parent registered HDMI outputs with child stopped-clock readiness handshake; correct relocated simulation source names and manifest outer binding without reapproving hardware. Production scanout preserves aligned registered ADV7513 pins and the exact output-stage/retained-state verifier; no clock-cut or internal timeout relaxation."
+  },
+  "remaining_gates": [
+    "Clean review on eventual published head is not established. The authorized Astra review at 62e1 was NOT CLEAN; one P2 subsequently fixed. Two review rounds consumed.",
+    "Fresh independent DE25 builds, normal timing/seal/reference package qualification and relevant board acceptance for changed artifacts.",
+    "DE10 exact-bundle runtime/agent/UI and private-host acceptance; DE10 image QEMU smoke and kit boot for changed shared init.",
+    "Existing recovery/persona limitations #1298 and #1568 remain; no deliberate programming fault trial performed."
+  ],
+  "p3_followups": "https://github.com/DeanoC/fes/issues/1697",
+  "kit_or_image_operation_performed": false,
+  "status": "Bounded repairs implemented and checked; PR remains draft with qualification gates open."
+}

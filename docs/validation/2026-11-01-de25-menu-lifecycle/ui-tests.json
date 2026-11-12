@@ -1,0 +1,21 @@
+{
+  "source_revision": "da40738f75ec1fafdcac074a356b18aed76df32f",
+  "command": [
+    "go",
+    "-C",
+    "sources/FogCast",
+    "test",
+    "./ui/gfx",
+    "./ui/menudisplay",
+    "./ui/tenfoot"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-menu-client-release",
+  "started_utc": "2026-11-01T10:30:14.501395+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 2725708,
+  "state": "passed",
+  "elapsed_seconds": 88.0,
+  "heartbeat_utc": "2026-11-01T10:31:42.473505+00:00",
+  "returncode": 0
+}

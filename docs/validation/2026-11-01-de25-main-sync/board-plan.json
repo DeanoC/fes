@@ -1,0 +1,199 @@
+{
+  "source_revision": "d4c6544e3a6f83ba4ea72fbe7d8b7c0c13828223",
+  "package_id": "49e912832948478f534172a138e21ce4de205305b3d4988b38e5037f605f4f59",
+  "rbf_sha256": "24da8dcbe298436ce4f6be1ac027dcdf9fdde93d39fdadfb0c4d18aad757d406",
+  "build_id": "e933ea452f58bcd3a788a4225e88742d",
+  "manifest_sha256": "5ad1c3ff6b2240a4561af6f4e7aa727e279234c27cbe15d770506780b95d7737",
+  "reported_timing_rows": [
+    [
+      "Setup 'pll_inst|iopll_0_outclk0'",
+      1.833
+    ],
+    [
+      "Setup 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      3.24
+    ],
+    [
+      "Setup 'altera_reserved_tck'",
+      12.809
+    ],
+    [
+      "Setup 'adv7513_config'",
+      16.56
+    ],
+    [
+      "Setup 'fes_video_inst|video_clock|iopll_0_refclk'",
+      16.65
+    ],
+    [
+      "Hold 'pll_inst|iopll_0_outclk0'",
+      0.0
+    ],
+    [
+      "Hold 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      0.049
+    ],
+    [
+      "Hold 'altera_reserved_tck'",
+      0.096
+    ],
+    [
+      "Hold 'adv7513_config'",
+      0.098
+    ],
+    [
+      "Hold 'fes_video_inst|video_clock|iopll_0_refclk'",
+      0.108
+    ],
+    [
+      "Hold 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'",
+      0.376
+    ],
+    [
+      "Recovery 'pll_inst|iopll_0_outclk0'",
+      7.204
+    ],
+    [
+      "Recovery 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      12.256
+    ],
+    [
+      "Recovery 'adv7513_config'",
+      18.121
+    ],
+    [
+      "Recovery 'fes_video_inst|video_clock|iopll_0_refclk'",
+      18.268
+    ],
+    [
+      "Recovery 'altera_reserved_tck'",
+      61.251
+    ],
+    [
+      "Removal 'altera_reserved_tck'",
+      0.159
+    ],
+    [
+      "Removal 'adv7513_config'",
+      0.169
+    ],
+    [
+      "Removal 'fes_video_inst|video_clock|iopll_0_refclk'",
+      0.193
+    ],
+    [
+      "Removal 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      0.199
+    ],
+    [
+      "Removal 'pll_inst|iopll_0_outclk0'",
+      0.201
+    ],
+    [
+      "Setup Data Delay 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      5.682
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0'",
+      0.22
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0'",
+      0.272
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'",
+      0.419
+    ],
+    [
+      "Minimum Pulse Width 'EMIF_REF_CLOCK'",
+      2.22
+    ],
+    [
+      "Minimum Pulse Width 'pll_inst|iopll_0_outclk0'",
+      4.385
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated'",
+      4.905
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated'",
+      4.905
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated'",
+      4.905
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated'",
+      4.905
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated'",
+      4.905
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated'",
+      4.905
+    ],
+    [
+      "Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      5.861
+    ],
+    [
+      "Minimum Pulse Width 'pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0'",
+      8.313
+    ],
+    [
+      "Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0'",
+      8.583
+    ],
+    [
+      "Minimum Pulse Width 'pll_inst|iopll_0_refclk'",
+      9.231
+    ],
+    [
+      "Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0_refclk'",
+      9.591
+    ],
+    [
+      "Minimum Pulse Width 'altera_reserved_tck'",
+      28.581
+    ],
+    [
+      "Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0_n_cnt_clk'",
+      49.563
+    ],
+    [
+      "Minimum Pulse Width 'adv7513_config'",
+      50018.652
+    ],
+    [
+      "Slow fix4 100C Model Max Skew 'set_max_skew'",
+      8.72
+    ],
+    [
+      "Slow fix4 0C Model Max Skew 'set_max_skew'",
+      8.341
+    ],
+    [
+      "Slow fix4a 0C Model Max Skew 'set_max_skew'",
+      8.341
+    ],
+    [
+      "Fast fix4 0C Model Max Skew 'set_max_skew'",
+      9.097
+    ],
+    [
+      "Net Delay 'set_net_delay'",
+      5.682
+    ]
+  ],
+  "classification": "unadmitted shared-lifecycle diagnostic; timing and hardware not qualified",
+  "harness_producer": "16838e82c8124f1a21910a6739ae6653dad3429a",
+  "runtime_bytes_equal_to": "d4c6544e3a6f83ba4ea72fbe7d8b7c0c13828223",
+  "harness_sha256": "13e09bbb80fdcd88c94c85d39310e3db1592ce79949011a5c7480a7630ee161b",
+  "bundle_sha256": "3d4b1be6e7acd9e8fc38474840fdc0d62e48666f0eb3eb5bb05e07617b283386",
+  "hardware": "not-run"
+}

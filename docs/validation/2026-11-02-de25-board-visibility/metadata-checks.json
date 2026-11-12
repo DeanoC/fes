@@ -1,0 +1,42 @@
+{
+  "status": "passed",
+  "source_revision": "96116fb8de6d36809ec25898b5ce3254b50fe79d",
+  "checks": [
+    {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "sources/misteross/boards/de25nano/link-proof",
+        "-p",
+        "build_test.py",
+        "-k",
+        "test_combined_client_proof_receipt_matches_captured_sources",
+        "-v"
+      ],
+      "status": "passed",
+      "seconds": 0.302
+    },
+    {
+      "command": [
+        "python3",
+        "scripts/check_doc_links.py"
+      ],
+      "status": "passed",
+      "seconds": 0.297
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "status": "passed",
+      "seconds": 0.008
+    }
+  ],
+  "seconds": 0.61,
+  "hardware_access": "not-performed"
+}

@@ -1,0 +1,341 @@
+{
+  "classification": "Complete current routine affected plan, actual Buildroot package/cache proof and source/package checks; no image or native qualification",
+  "current_parent_and_components": {
+    "classification": "Complete current six-command affected plan, routine parent selection and make check; no extended video/media or hardware qualification",
+    "current_parent_status": "passed",
+    "current_plan": {
+      "base": "d05041c5d79b0034692abe98029962f5911967d1",
+      "checkout_head": "35a29f752c6f0402f341350da56dd9742dc84cf5",
+      "commands": [
+        {
+          "argv": [
+            "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests",
+            "-p",
+            "test_affected.py",
+            "-v"
+          ],
+          "cwd": ".",
+          "files": [
+            "tests/test_affected.py"
+          ],
+          "label": "test_affected.py",
+          "lane": "always",
+          "tools": [
+            "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3"
+          ]
+        },
+        {
+          "argv": [
+            "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests",
+            "-p",
+            "test_test_changed.py",
+            "-v"
+          ],
+          "cwd": ".",
+          "files": [
+            "tests/test_test_changed.py"
+          ],
+          "label": "test_test_changed.py",
+          "lane": "always",
+          "tools": [
+            "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3"
+          ]
+        },
+        {
+          "argv": [
+            "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+            "scripts/check_diff.py",
+            "--base",
+            "d05041c5d79b0034692abe98029962f5911967d1",
+            "--head",
+            "35a29f752c6f0402f341350da56dd9742dc84cf5"
+          ],
+          "cwd": ".",
+          "files": [],
+          "label": "committed whitespace",
+          "lane": "always",
+          "tools": [
+            "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3"
+          ]
+        },
+        {
+          "argv": [
+            "git",
+            "diff",
+            "--check",
+            "HEAD",
+            "--"
+          ],
+          "cwd": ".",
+          "files": [],
+          "label": "working whitespace",
+          "lane": "always",
+          "tools": [
+            "git"
+          ]
+        },
+        {
+          "argv": [
+            "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+            "scripts/parent_tests.py",
+            "--video",
+            "false",
+            "--media",
+            "false",
+            "--paths-json",
+            "[\"image/de25-nano/managed_factory.py\", \"tests/test_de25_managed_factory.py\"]"
+          ],
+          "cwd": ".",
+          "files": [
+            "scripts/parent_tests.py",
+            "tests"
+          ],
+          "label": "parent Python regressions",
+          "lane": "parent",
+          "tools": [
+            "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+            "sh"
+          ]
+        },
+        {
+          "argv": [
+            "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+            "-c",
+            "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+          ],
+          "cwd": ".",
+          "files": [
+            "scripts/consistency.py"
+          ],
+          "label": "working-tree generated consumer consistency",
+          "lane": "parent",
+          "tools": [
+            "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+            "go"
+          ]
+        }
+      ],
+      "format": 1,
+      "head": "35a29f752c6f0402f341350da56dd9742dc84cf5",
+      "impact": {
+        "always": [
+          "planner tests",
+          "diff whitespace checks"
+        ],
+        "cores": [],
+        "lanes": {
+          "contracts": false,
+          "fpga": false,
+          "host": false,
+          "parent": true,
+          "runtime": false
+        },
+        "not_run": [
+          "FPGA synthesis/place-and-route",
+          "cold image builds",
+          "hardware acceptance"
+        ],
+        "paths": [
+          "image/de25-nano/managed_factory.py",
+          "tests/test_de25_managed_factory.py"
+        ],
+        "reasons": [
+          "image/de25-nano/managed_factory.py: parent orchestration/tests/assembly; component sources unchanged",
+          "tests/test_de25_managed_factory.py: parent orchestration/tests/assembly; component sources unchanged"
+        ],
+        "skipped": [
+          "host",
+          "runtime",
+          "contracts",
+          "fpga"
+        ],
+        "test_modes": {
+          "full_race": false,
+          "media": false,
+          "video": false
+        }
+      },
+      "limits": [
+        "FPGA synthesis/place-and-route",
+        "cold image builds",
+        "hardware acceptance",
+        "platform/image packaging suite",
+        "required browser integration suite",
+        "committed-source/release validation (make check remains separate)"
+      ],
+      "local_paths": [],
+      "merge_base": "d05041c5d79b0034692abe98029962f5911967d1",
+      "results": [
+        {
+          "label": "test_affected.py",
+          "lane": "always",
+          "returncode": 0
+        },
+        {
+          "label": "test_test_changed.py",
+          "lane": "always",
+          "returncode": 0
+        },
+        {
+          "label": "committed whitespace",
+          "lane": "always",
+          "returncode": 0
+        },
+        {
+          "label": "working whitespace",
+          "lane": "always",
+          "returncode": 0
+        },
+        {
+          "label": "parent Python regressions",
+          "lane": "parent",
+          "returncode": 0
+        },
+        {
+          "label": "working-tree generated consumer consistency",
+          "lane": "parent",
+          "returncode": 0
+        }
+      ],
+      "root": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-factory-incremental",
+      "status": "passed"
+    },
+    "hardware_access": "not-performed",
+    "previous_retained_publication": "/home/deano/fes/out/artifacts/de25-sdk-workflow/publication-d05041c5d/retention.json",
+    "previous_retained_publication_sha256": "53a601874aca148e73ae83a94a9fef1256b682dc5554dc5e20026e7c74b924df",
+    "source_revision": "35a29f752c6f0402f341350da56dd9742dc84cf5",
+    "unchanged_production_components": {
+      "boot-media.lock.toml": "23c6d1b428956d10e742f36825cecb0d3595439b",
+      "config": "c642a25ca5ba6968df98522217769ee16aca59a9",
+      "image/buildroot": "40caf6a85b4f96ac5ab59e25b52f4839e7f14fef",
+      "image/containers": "5d36384a5d69d4de4b5849954c538d2c6d58ba25",
+      "image/kernel": "26dbf77c6867746334a7cf15ceb6cce510d8aefe",
+      "platform": "b2582a7f5f1e246b2a508503e867b4aee0cbc430",
+      "profiles": "77c6d028aeaa59d3d2d8757bdcb397ff527428ce",
+      "scripts/build.py": "39cded6d8fd924ae97bbe8242831a3d8e3fac13f",
+      "scripts/kit_sdk.py": "d27e16d7ed554afaf1fad7aad882f6961e7ba981",
+      "scripts/kit_software.py": "eac63e98d4455ab44435245152db440a058199c6",
+      "sources": "42b3939aa638ecb660035edcf5a592b3fe1c13b3"
+    },
+    "whole_current_plan_executed": true
+  },
+  "hardware_access": "not-performed",
+  "jobs": {
+    "focused-job": {
+      "command": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "tests.test_de25_managed_factory",
+        "tests.test_de25_appliance_workflow",
+        "tests.test_kit_software",
+        "tests.test_kit_sdk",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-factory-incremental",
+      "elapsed_seconds": 0.9,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T02:50:39.508817+00:00",
+      "pid": 2662032,
+      "returncode": 0,
+      "source_revision": "35a29f752c6f0402f341350da56dd9742dc84cf5",
+      "started_utc": "2026-11-02T02:50:38.603035+00:00",
+      "state": "passed",
+      "time_cap_seconds": 300
+    },
+    "parent-job": {
+      "command": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-factory-incremental/run-parent.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-factory-incremental",
+      "elapsed_seconds": 209.7,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T02:55:07.447551+00:00",
+      "pid": 2663793,
+      "returncode": 0,
+      "source_revision": "35a29f752c6f0402f341350da56dd9742dc84cf5",
+      "started_utc": "2026-11-02T02:51:37.759952+00:00",
+      "state": "passed",
+      "time_cap_seconds": 600
+    },
+    "retention-job": {
+      "command": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-factory-incremental/retain-source.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-factory-incremental",
+      "elapsed_seconds": 1.8,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T02:56:46.442166+00:00",
+      "pid": 2710989,
+      "returncode": 0,
+      "source_revision": "35a29f752c6f0402f341350da56dd9742dc84cf5",
+      "started_utc": "2026-11-02T02:56:44.637058+00:00",
+      "state": "passed",
+      "time_cap_seconds": 180
+    },
+    "source-scope-job": {
+      "command": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-factory-incremental/source-scope.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-factory-incremental",
+      "elapsed_seconds": 0.1,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T02:53:28.670105+00:00",
+      "pid": 2685822,
+      "returncode": 1,
+      "source_revision": "35a29f752c6f0402f341350da56dd9742dc84cf5",
+      "started_utc": "2026-11-02T02:53:28.572130+00:00",
+      "state": "failed",
+      "time_cap_seconds": 180
+    },
+    "source-scope-retry-job": {
+      "command": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-factory-incremental/source-scope-retry.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-factory-incremental",
+      "elapsed_seconds": 0.1,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T02:54:06.432604+00:00",
+      "pid": 2687741,
+      "returncode": 0,
+      "source_revision": "35a29f752c6f0402f341350da56dd9742dc84cf5",
+      "started_utc": "2026-11-02T02:54:06.348392+00:00",
+      "state": "passed",
+      "time_cap_seconds": 180
+    },
+    "warm-package-job": {
+      "command": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-factory-incremental/warm-package.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-factory-incremental",
+      "elapsed_seconds": 26.7,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T02:53:07.824532+00:00",
+      "pid": 2669467,
+      "returncode": 0,
+      "source_revision": "35a29f752c6f0402f341350da56dd9742dc84cf5",
+      "started_utc": "2026-11-02T02:52:41.166465+00:00",
+      "state": "passed",
+      "time_cap_seconds": 600
+    }
+  },
+  "normal_kit_goal": "active; incomplete",
+  "source_retention_path": "/home/deano/fes/out/artifacts/de25-factory-incremental/35a29f752/retention.json",
+  "source_retention_sha256": "d030e9dc61cdf55c5eefa0a633a3b73df87d4a5800c5969de34a9f4e88050340",
+  "source_revision": "35a29f752c6f0402f341350da56dd9742dc84cf5"
+}

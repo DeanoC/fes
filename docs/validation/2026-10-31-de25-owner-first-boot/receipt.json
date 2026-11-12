@@ -1,0 +1,62 @@
+{
+  "authentication": "password",
+  "board_id": "TRWU8J8G",
+  "classification": "read-only-board-observation",
+  "collected_utc": "2026-10-31T17:28:27.599546+00:00",
+  "collector_sha256": "e08dcb9f78304db9aad77ba6f41f1abec59da49677d018b422ec093044019de7",
+  "files": {
+    "expectation.json": "277a4a30246c24bc31ce3808c7c9ef3b94215a523d49618b60ec125ef91c34ab",
+    "known_hosts": "90cf01d453620cbfe3dbcf86c760762453caea8b7ebe86cd81b7dde5f9f62422",
+    "read-only.sh": "3bb8f05277eca960e880a4f51f0f276e29eaf9d10ace40289e81cf187676a838",
+    "serial.log": "77cb742079c1ca06904dfc940fa5553b45c53a6106ea903cbbfff8c72118b83b",
+    "ssh.stderr": "27b111245bc049f71bb21f25060f08fc49f9ac9827992ca38da57014e17000fd",
+    "ssh.stdout": "53a89316f9d34eadc2c5fe9535596727bce62455ebb2ab4fcec98cb3e87ca265"
+  },
+  "format": 1,
+  "host": "192.168.10.165",
+  "kind": "de25-first-boot-observation",
+  "observed": {
+    "architecture": "aarch64",
+    "boot_id": "b989f017-f9f3-45dd-811b-0482b1b65421",
+    "dhcp_lease": "not established by address observation",
+    "image_identity_scope": "selected diagnostic files match; whole SD image not attested",
+    "installed_file_sha256": {
+      "/bin/busybox": "afd28893ac9137d9c2c81c21d6f7a1b2f1375020fc01adb29311af2e1f66f3d8",
+      "/etc/fes-board": "3df9323bc037f67730dca626ba4e97e4266f6c56df03e866c0607dcbb939d975",
+      "/etc/hostname": "dc40a58415cc7a479340b1d667023d67e477044b863717d901e14204a9ef6738",
+      "/etc/init.d/S50dropbear": "248140e763de8f99369510a87f25c65a500fb8a7f8c6c6724e27d19faf1292db",
+      "/etc/inittab": "d616d80df596f8c0a28d4ab8ed53fdad077353fc0abebc0c2787a168d96ec8bf",
+      "/etc/network/interfaces": "de1b394b564e12b5ae0c2ce2c5cb489a045474e8eb47708fa609906e5691e5b1",
+      "/usr/sbin/dropbear": "54c283e4c9b275bce7f80b36aba95d9283f0a3283c4965eb9fad06f6aed2f78d"
+    },
+    "ipv4": [
+      "192.168.10.165"
+    ],
+    "kernel_release": "6.12.11-fes-de25-owner",
+    "mac": "1e:aa:42:c3:8a:5f",
+    "meminfo": "MemTotal:         957360 kB\nMemFree:          852380 kB\nMemAvailable:     829552 kB\nBuffers:             200 kB\nCached:             2804 kB\nSwapCached:            0 kB\nActive:             1576 kB\nInactive:           2700 kB\nActive(anon):         68 kB\nInactive(anon):     1296 kB\nActive(file):       1508 kB\nInactive(file):     1404 kB\nUnevictable:           0 kB\nMlocked:               0 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nDirty:                 0 kB\nWriteback:             0 kB\nAnonPages:          1240 kB\nMapped:             2080 kB\nShmem:                72 kB\nKReclaimable:      19016 kB\nSlab:              30736 kB\nSReclaimable:      19016 kB\nSUnreclaim:        11720 kB\nKernelStack:        1400 kB\nPageTables:          484 kB\nSecPageTables:       136 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:      478680 kB\nCommitted_AS:       4460 kB\nVmallocTotal:   135288315904 kB\nVmallocUsed:        5956 kB\nVmallocChunk:          0 kB\nPercpu:              448 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:          32768 kB\nCmaFree:           29808 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB",
+    "model": "SoCFPGA Agilex5 Terasic DE25-Nano",
+    "root_device_number": "179:2",
+    "root_mount_source": "/dev/root",
+    "routes": "default via 192.168.10.1 dev eth0 \n192.168.10.0/24 dev eth0 scope link  src 192.168.10.165",
+    "ssh_connection": [
+      "192.168.10.202",
+      "34314",
+      "192.168.10.165",
+      "22"
+    ],
+    "whole_image_observed_sha256": null
+  },
+  "port": 22,
+  "serial": {
+    "binding": "caller-supplied log; same-boot correlation not independently established",
+    "kernel_banners": 1,
+    "sha256": "77cb742079c1ca06904dfc940fa5553b45c53a6106ea903cbbfff8c72118b83b"
+  },
+  "ssh_host_key": {
+    "algorithm": "ssh-ed25519",
+    "fingerprint": "SHA256:Sk8FN3WTjBe0Fb3dtheZFy0hMCMn95lvGK8P1B/iq1g",
+    "public_key": "AAAAC3NzaC1lZDI1NTE5AAAAIBN3b8AOr8MfwpqR7klS6g6pYEw2/ErY+LPjDstQpMm3"
+  },
+  "user": "root"
+}

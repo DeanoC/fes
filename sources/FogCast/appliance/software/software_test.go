@@ -854,3 +854,54 @@ func TestListCanceledDuringLastManifestRead(t *testing.T) {
 		t.Fatalf("List error = %v, want context.Canceled", err)
 	}
 }
+
+// Exact scanout admission is independent of the additive DE10 MENU contracts.
+// The new base identity also fences old immutable supervisors, whose existing
+// Compatible path rejects a different BaseContract before checking Requires.
+func TestDE25ScanoutExactMinorAndBaseCohort(t *testing.T) {
+	const key = "menu.fes.fabric.de25-scanout"
+	m, _ := fixtureWith(t, map[string]string{"runtime": "2", key: "1.3", "menu.fes.video.menu-display": "1.3"})
+	if err := m.Accepts(map[string]string{key: "1.3", "menu.fes.video.menu-display": "1.2"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, pair := range [][2]string{{"1.3", "1.2"}, {"1.2", "1.3"}, {"1.4", "1.3"}} {
+		m.Interfaces[key] = pair[0]
+		if !errors.Is(m.Accepts(map[string]string{key: pair[1]}), ErrIncompatible) {
+			t.Fatalf("scanout %s admitted %s", pair[0], pair[1])
+		}
+	}
+	m.Interfaces[key] = "1.3"
+	m.Board = "de25-nano"
+	m.Architecture = "aarch64"
+	m.BaseContract = "fes-kit-base-v2-scanout13"
+	base := Compatibility{Board: m.Board, Architecture: m.Architecture, BaseContract: m.BaseContract, Interfaces: map[string]string{"runtime": "2"}, Requires: map[string]string{key: "1.3"}}
+	if err := m.Compatible(base); err != nil {
+		t.Fatal(err)
+	}
+	old := base
+	old.BaseContract = "fes-kit-base-v2-pre-scanout13"
+	old.Requires = map[string]string{key: "1.2"}
+	if err := m.Compatible(old); !errors.Is(err, ErrIncompatible) || !strings.Contains(err.Error(), "base contract") {
+		t.Fatal("new cohort admitted on old base", err)
+	}
+	// Actual store admission and resolver path require the same new cohort.
+	files := fstest.MapFS{}
+	for _, f := range m.Files {
+		files[f.Path] = &fstest.MapFile{Data: []byte(f.Path), Mode: 0755}
+	}
+	var archive bytes.Buffer
+	if err := WriteBundle(&archive, m, files); err != nil {
+		t.Fatal(err)
+	}
+	store, err := New(privateRoot(t), base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	release, _, err := store.Install(context.Background(), bytes.NewReader(archive.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.Path(context.Background(), release.ID); err != nil {
+		t.Fatal(err)
+	}
+}

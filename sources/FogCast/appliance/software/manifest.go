@@ -31,6 +31,7 @@ var ErrIncompatible = errors.New("incompatible software")
 var hashPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var namePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._+-]{0,127}$`)
 var versionPattern = regexp.MustCompile(`^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$`)
+
 // Update bundles still carry bin/fogcast-kit for bases whose supervisor
 // probes it before starting tenfoot (#728); this base does not require it.
 var RequiredExecutables = []string{"bin/fogcast-tenfoot", "bin/mister-agent", "bin/mister-runtime"}
@@ -57,7 +58,8 @@ type Manifest struct {
 // lists the interfaces the image's sealed menu package declares, as
 // "menu.<interface>" keys with "major.minor" values. A release accepts one when
 // its manifest interfaces carry the same key at the same major and at least
-// that minor. Those keys sit beside the base interfaces, where supervisors
+// that minor, except DE25 scanout which requires exact minor equality.
+// Those keys sit beside the base interfaces, where supervisors
 // that predate Requires ignore them.
 type Compatibility struct {
 	Board        string            `json:"board"`
@@ -163,6 +165,7 @@ func (m Manifest) Compatible(c Compatibility) error {
 
 // Accepts reports the first required interface, in key order, that the
 // release does not accept at the same major and at least the required minor.
+// DE25 scanout is an exact hardware/kernel cohort and requires equal minors.
 func (m Manifest) Accepts(requires map[string]string) error {
 	keys := make([]string, 0, len(requires))
 	for k := range requires {
@@ -171,7 +174,8 @@ func (m Manifest) Accepts(requires map[string]string) error {
 	sort.Strings(keys)
 	for _, k := range keys {
 		provided, required := versionPattern.FindStringSubmatch(m.Interfaces[k]), versionPattern.FindStringSubmatch(requires[k])
-		if provided == nil || required == nil || provided[1] != required[1] || versionNumber(provided[2]) < versionNumber(required[2]) {
+		if provided == nil || required == nil || provided[1] != required[1] || versionNumber(provided[2]) < versionNumber(required[2]) ||
+			(k == "menu.fes.fabric.de25-scanout" && provided[2] != required[2]) {
 			return fmt.Errorf("%w: release does not accept required interface %s %s", ErrIncompatible, k, requires[k])
 		}
 	}

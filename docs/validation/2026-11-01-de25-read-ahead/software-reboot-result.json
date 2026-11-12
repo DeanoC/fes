@@ -1,0 +1,20 @@
+{
+  "classification": "physical software reboot after successful DMA scanout and cleanup",
+  "result": "passed",
+  "previous_boot_id": "e5e896ba-e01e-4ab4-9b2f-a236045b7d39",
+  "new_boot_id": "469d5abb-2fab-425d-93bc-aa92aac8c32b",
+  "kernel_producer": "3dab0b06b3ba191444eec36c992b4d54f64301f8",
+  "same_fields": [
+    "CID",
+    "kernel notes",
+    "root receipt",
+    "MAC",
+    "IP",
+    "pinned SSH host key",
+    "owner0600 and group0DMA"
+  ],
+  "physical_power_cycle": false,
+  "configuration_update": false,
+  "fpga_after_reboot": "not freshly attested; reboot is not factory restoration",
+  "limits": "Reboot after known STOP/drain/full unmap only. No active-DMA/global-reset/failure bound proof or baseline promotion/release."
+}

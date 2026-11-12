@@ -54,7 +54,7 @@ def execute(args):
         dest.write_bytes(frozen["files"][comp.core_source_path(name)])
     for name in ("fes_z80_alu", "fes_z80_engine", "fes_z80_bus", "fes_z80_nmos"):
         (mailbox / (name + ".sv")).write_bytes(frozen["files"]["sources/misteross/cores/fes-common/rtl/z80/" + name + ".sv"])
-    (mailbox / "fes_computer_mailbox.v").write_bytes(frozen["files"]["sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v"])
+    (mailbox / "fes_computer_mailbox.v").write_bytes(frozen["files"]["sources/misteross/boards/de25nano/shared-rtl/fes_computer_mailbox.v"])
     (mailbox / "zx81_dpram_de25.v").write_bytes((local / "zx81_dpram.v").read_bytes())
     (mailbox / "zx81_tape_store_de25.v").write_bytes(comp.retarget_tape((mailbox / "zx81_tape_store.v").read_bytes(), (mailbox / "tape_store.v").read_bytes())[0])
     inputs = {"source_revision": frozen["revision"], "source_committed": frozen["committed"],
@@ -82,7 +82,10 @@ def execute(args):
     rtl = [local / n for n in ("shell.v", "personas.v", "zx81_ram_pack.v")]
     rtl += [mailbox / n for n in ("fes_de25_computer.v", "fes_computer_mailbox.v", "zx81_machine.sv", "zx81_machine_clock.v", "zx81_keyboard.v", "zx81_dpram_de25.v", "zx81_tape_store_de25.v", "video.v", "fes_z80_alu.sv", "fes_z80_engine.sv", "fes_z80_bus.sv", "fes_z80_nmos.sv")]
     obj = output / "obj"
-    helpers.run([args.verilator,"--cc","--exe","--build","-j","2","--public-flat-rw","--x-initial","unique",
+    # The server drives top-level pins; internal state is observation-only.
+    observers = output / "read-only-observers.vlt"
+    observers.write_text('`verilator_config\npublic_flat_rd -module "*" -var "*"\n')
+    helpers.run([args.verilator,"--cc","--exe","--build","-j","2",str(observers),"--x-initial","unique",
         "-O3","--top-module","fes_de25_combined_sim","-Wno-fatal", "-I"+str(mailbox),"-I"+str(mailbox/"generated"),"-I"+str(local),
         "-DFES_DE25_PR_BUILD_ID=128'h"+args.build_id,"-DFES_DE25_COMPUTER_BUILD_ID=128'h"+args.build_id,
         "-CFLAGS","-O3 -I"+str(bench)+" -I"+str(local),"-MAKEFLAGS","OPT_FAST=-O3","--Mdir",str(obj),*map(str,rtl),str(bench/"sim_top.v"),str(bench/"server.cpp")],logs/"rtl-build.log",cwd=project,timeout=300)

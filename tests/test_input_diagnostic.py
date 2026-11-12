@@ -73,6 +73,48 @@ class LoaderTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.load(raw=b'{"format":1,"format":1}')
 
+    def test_hid_keyboard_contract_and_rejected_usage_ranges(self):
+        value = document()
+        value['interface']['id'] = 'fes.keyboard.hid'
+        for event in value['events']:
+            event.update(device=0, kind=0)
+        for usage in range(256):
+            for event in value['events']:
+                event['code'] = 0x1000 + usage
+            with self.subTest(usage=usage):
+                if 0x04 <= usage <= 0x7f or 0xe0 <= usage <= 0xe7:
+                    self.load(value)
+                else:
+                    with self.assertRaises(ValueError):
+                        self.load(value)
+        for mutation in (
+                lambda v: v['interface'].update(major=2),
+                lambda v: v['interface'].update(minor=1),
+                lambda v: v['events'][0].update(code=256),
+                lambda v: v['events'][0].update(device=1, kind=1, code=100),
+                lambda v: v['events'][0].update(device=1, kind=2, action=2, code=200),
+                lambda v: v['events'][0].update(action=2),
+                lambda v: v['events'][0].update(value=1)):
+            candidate = copy.deepcopy(value)
+            for event in candidate['events']:
+                event['code'] = 0x10e1
+            mutation(candidate)
+            with self.subTest(candidate=candidate), self.assertRaises(ValueError):
+                self.load(candidate)
+        # HID events must not silently enter a legacy keyboard/gamepad recipe.
+        for name in ('fes.keyboard', 'fes.gamepad'):
+            value['interface']['id'] = name
+            for event in value['events']:
+                event['code'] = 0x10e1
+            with self.subTest(interface=name), self.assertRaises(ValueError):
+                self.load(value)
+
+    def test_committed_zx81_recipe_selects_exact_hid_shift(self):
+        path = Path(__file__).resolve().parents[1] / 'examples/input/zx81-keyboard.json'
+        diagnostic = load_diagnostic(path, hashlib.sha256(path.read_bytes()).hexdigest())
+        self.assertEqual(diagnostic.interface, {'id': 'fes.keyboard.hid', 'major': 1, 'minor': 0})
+        self.assertEqual([event['code'] for event in diagnostic.events], [0x10e1, 0x10e1])
+
     def test_axis_bounds_and_neutral_end(self):
         for position in (32768, -32769, 1):
             value = document()

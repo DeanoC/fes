@@ -1,0 +1,49 @@
+{
+  "BASIC_firmware": "not-tested",
+  "binary_sha256": "de7a2617cc9c53e65e3f6fde71b9edcde87892888f9d394b88bc45c7f863792b",
+  "classification": "actual standard core and RAM personas; diagnostic ROM",
+  "derived_source_sha256": {
+    "fes_menu_reader_de25.v": "4347b874d4df4a1837992c28c664d7f6cae317f013ca18f506523b2397b3fa86",
+    "standard-expansion-rom.hex": "33eae45fc82a3cb6d9eb0b629645cd640a4074211c788583ca0e02d0a03305fc",
+    "zx81_dpram.v": "c8b6b1e922633255c43e099eb6047bd3d84b57eafba7fdcb53c0836f03e11ea2",
+    "zx81_tape_store.v": "f8f9c1b7635d33853cca4f69a41b0a1f7d5afcec32ea00c1c7dfa7a5ad08361f"
+  },
+  "existing_board_tests": 50,
+  "existing_source_fixture_gate": "passed",
+  "firmware_sha256": "33eae45fc82a3cb6d9eb0b629645cd640a4074211c788583ca0e02d0a03305fc",
+  "full_receipt_sha256": "d5ea78d84490a41df80fc26e83b06954e102e27202be8674278ef41095fded15",
+  "generated_consistency": "41 consumers,42 fixtures,0 copied source pins",
+  "hardware_acceptance": false,
+  "key_source_sha256": {
+    "sources/misteross/boards/de25nano/link-proof/fpga/shell.v": "147c77e626cad3bf0d1a4f12bed6d9bfb7eeab9b54c873b2c913754f4bfc9c0d",
+    "sources/misteross/boards/de25nano/link-proof/zx81-ram/personas.v": "6fd38c3e6be7d0068383452bba6c179dd03ccce036091275146db4e82c0d2524",
+    "sources/misteross/boards/de25nano/zx81-hps/fes_de25_zx81_standard.v": "4b4f2704437b5106e9ac36e735e507dd60c0ee3373500847c7dcc1b27a691e78",
+    "sources/misteross/boards/de25nano/zx81-hps/standard_expansion_harness.v": "11f9cdda20bf6007f0b05df14f9862b1bb8957680ae006d586bf8e0edfe86bc7",
+    "sources/misteross/boards/de25nano/zx81-hps/standard_expansion_sim.py": "f0a33977ace5ccc09b9d1d5ba785a4c291b25a5ee73aea3d59f04eb998fd397d",
+    "sources/misteross/boards/de25nano/zx81-hps/standard_expansion_tb.cpp": "69a62f89070794b71844de01a65fc395c6a8e375c042ac4ba4e77510ed04045b",
+    "sources/misteross/cores/fes-zx81/rtl/fes_zx81_core.v": "79c070b837a6b455a4a4a64fcbef4d76ac3ca7c467ab692a16af7610bed42970"
+  },
+  "physical_PR": "selection-mux-model-only",
+  "primitive_memory": "behavioral",
+  "production_Qsys_reset_boundary": "not-qualified; harness observes actual core reset",
+  "random_memory_seeds": [
+    17,
+    53
+  ],
+  "scenarios": [
+    "vacant1K mirrors4000/4400",
+    "RAM16K distinguishes4000/4400",
+    "empty/RAM/empty reselection resets actual machine",
+    "six live-write freeze phases retain zero post-Frozen writes and stable response",
+    "poisoned GP bridge holds actual standard machine while PR controller remains Running",
+    "cold unallocated display issues no DMA"
+  ],
+  "simulation_log_sha256": "8bfc5c94d985f86c0acea86253a8dafd78ae92756ae2493aa0e603eff57cc53f",
+  "source_committed": true,
+  "source_inventory_count": 87,
+  "source_inventory_sha256": "2361db841027abd6da0c2c35208eb31c48f4e7d5e765ee05dd054472b39c90be",
+  "source_revision": "0673c3d598141d427060e3986b83082707b4d9f4",
+  "status": "passed",
+  "total_validation_seconds": 9.394,
+  "verilator_version": "Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)"
+}

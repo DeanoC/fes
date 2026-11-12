@@ -21,17 +21,25 @@ RULES = [
         'scripts/affected.py', 'scripts/test_changed.py', 'scripts/ci_gate.py',
         'scripts/ci_simulations.py', 'scripts/ci_verilator.sh',
         'scripts/test_policy.py', 'scripts/parent_tests.py', 'scripts/host_tests.py',
-        'scripts/check_deadcode.py', 'scripts/check_diff.py',
+        'scripts/check_deadcode.py', 'scripts/check_diff.py', 'scripts/changed_paths.py',
         'scripts/check_doc_links.py', 'scripts/coordination.py', 'scripts/de25_runtime.py',
-        'scripts/de25_boot_contract.py', 'scripts/de25_first_boot.py',
-        'scripts/de25_dma_descriptor.py', 'scripts/de25_kernel_test.py',
+        'scripts/de25_dma_descriptor.py',
         'scripts/hil_plan.py', 'scripts/hil_go_inventory.py', 'scripts/hil_go_imports.go',
         'scripts/consistency.py', 'scripts/generate.py',
-        'scripts/host_affected.py',
+        'scripts/host_affected.py', 'scripts/runtime_tests.py', 'scripts/input_diagnostic.py',
     )],
-    # This driver is exercised only in a private QEMU kernel. No appliance,
-    # image or software bundle installs or enables it.
-    ('image/kernel/de25-dma/**', 'none', None),
+    # The native permanent-owner kernel now compiles this same DMA driver.
+    # Only its disabled KUnit translation unit remains software-test-only.
+    ('image/kernel/de25-dma/de25_dma_test.c', 'none', None),
+    ('image/kernel/de25-dma/*.md', 'none', None),
+    ('image/kernel/de25-dma/**', 'full', 'de25-nano-linux'),
+    # These helpers are inputs of the native owner-image/kernel recipe too,
+    # despite their original off-board/test-oriented names.
+    *[(path, 'full', 'de25-nano-linux') for path in (
+        'scripts/de25_kernel_test.py', 'scripts/de25_kernel_platform.py',
+        'scripts/de25_owner_image.py', 'scripts/de25_boot_contract.py',
+        'scripts/de25_first_boot.py',
+    )],
     # This separate headless image needs a DE25 serial/SSH boot check. It is
     # never installed as a DE10 kit software bundle or native-integration image.
     ('image/de25-nano/**', 'full', 'de25-nano-linux'),
@@ -57,15 +65,35 @@ RULES = [
     ('sources/misteross/cores/*/sim/**', 'none', None),
     ('sources/libmister-runtime/tests/**', 'none', None),
     ('sources/misteross/scripts/sim_*', 'none', None),
-    # Standalone DE25-Nano bring-up has no image, bundle or package consumer.
-    # Its manual DE25 JTAG smoke check is separate from deployed DE10 kit HIL.
+    # Definitions are checked through their generated deployed consumers below.
     ('sources/mister-packages/packages/board/de25_nano.yaml', 'none', None),
     ('sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'none', None),
     ('sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml', 'none', None),
     ('sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml', 'none', None),
     ('sources/mister-packages/packages/fabric/fes_fabric_de25_ramtest.yaml', 'none', None),
     ('sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml', 'none', None),
-    ('sources/misteross/boards/de25nano/**', 'none', None),
+    # DE25 now has deployed MENU and ZX81 packages. Keep board-qualified names:
+    # a DE10 package/HIL run cannot satisfy these consumers. Shared board code
+    # conservatively selects both DE25 packages; it does not require an OS image.
+    ('sources/misteross/boards/de25nano/producers/build_menu_package.py', 'overlay', 'core:de25-menu'),
+    ('sources/misteross/boards/de25nano/producers/build_zx81_package.py', 'overlay', 'core:de25-zx81'),
+    ('sources/misteross/boards/de25nano/producers/review_audio_clocks.py', 'overlay', 'core:de25-zx81'),
+    ('sources/misteross/boards/de25nano/**/test_*.py', 'none', None),
+    ('sources/misteross/boards/de25nano/**/*_tb.cpp', 'none', None),
+    ('sources/misteross/boards/de25nano/**/*_harness.v', 'none', None),
+    ('sources/misteross/boards/de25nano/**/sim.py', 'none', None),
+    ('sources/misteross/boards/de25nano/**/*_sim.py', 'none', None),
+    ('sources/misteross/boards/de25nano/zx81-hps/**', 'overlay', 'core:de25-zx81'),
+    # This helper is also imported by the canonical computer producer.
+    ('sources/misteross/boards/de25nano/zx81/build.py', 'overlay', 'core:de25-zx81'),
+    ('sources/misteross/boards/de25nano/zx81/firmware.py', 'overlay', 'core:de25-zx81'),
+    # These remaining diagnostics have no deployed package consumer.
+    *[('sources/misteross/boards/de25nano/' + path, 'none', None) for path in (
+        'blinky.v', 'blinky.sv', 'blinky_tb.cpp', 'pins.qsf', 'clocks.sdc',
+        'Makefile', 'test_build.py', 'test_de25nano.py', 'sim/**',
+        'ramtest/**', 'link-proof/**', 'zx81/**',
+    )],
+    ('sources/misteross/boards/de25nano/**', 'overlay', 'core:de25-ALL'),
     # These exact validation/generation tools have no deployed binary consumer.
     # A changed emitted artifact is classified through its actual consumer path.
     ('sources/mister-packages/cmd/mister-packages/main.go', 'none', None),
@@ -190,6 +218,45 @@ def glob_matches(path, pattern):
 
 def classify_path(path):
     path = path.replace('\\', '/')
+    # DE25 package inputs live under the board namespace so edits cannot alter
+    # DE10 source closures. Keep their deployed package consumers explicit.
+    de25 = {
+        'sources/misteross/boards/de25nano/producers/build_menu_package.py':
+            ('core:de25-menu', ('core:de25-zx81',)),
+        'sources/misteross/boards/de25nano/producers/build_zx81_package.py':
+            ('core:de25-zx81', ()),
+        'sources/misteross/boards/de25nano/producers/build_zx81_static_package.py':
+            ('core:de25-zx81', ()),
+        'sources/misteross/boards/de25nano/producers/export_static_persona.py':
+            ('core:de25-zx81', ()),
+        'sources/misteross/boards/de25nano/producers/review_audio_clocks.py':
+            ('core:de25-zx81', ()),
+        'sources/misteross/boards/de25nano/package/core_package.py':
+            ('core:de25-menu', ('core:de25-zx81',)),
+        'sources/misteross/boards/de25nano/package/export_core_package.py':
+            ('core:de25-menu', ('core:de25-zx81',)),
+        'sources/misteross/boards/de25nano/shared-rtl/fes_menu_reader.v':
+            ('core:de25-menu', ('core:de25-zx81',)),
+        'sources/misteross/boards/de25nano/shared-rtl/fes_menu_video.v':
+            ('core:de25-menu', ('core:de25-zx81',)),
+    }
+    local = de25.get(path)
+    if local is None and path.startswith('sources/misteross/boards/de25nano/shared-rtl/'):
+        name = Path(path).name
+        if name in ('fes_menu_control.v', 'fes_menu_ddr.v',
+                    'fes_menu_endpoint.v', 'fes_menu_top.v'):
+            local = ('core:de25-menu', ())
+        elif name in ('fes_computer_mailbox.v', 'fes_display_plane.v',
+                      'fes_zx81_core.v', 'zx81_top.v', 'zx81_machine.sv',
+                      'zx81_machine_clock.v'):
+            local = ('core:de25-zx81', ())
+    if local is not None:
+        component, consumers = local
+        row = {'path': path, 'class': 'overlay', 'component': component,
+               'rule': 'DE25 board-local package input'}
+        if consumers:
+            row['consumers'] = list(consumers)
+        return row
     for pattern, category, component in RULES:
         if glob_matches(path, pattern):
             if component and '{' in component:
@@ -431,7 +498,7 @@ def core_consumers(path, texts):
     cannot be resolved to a misteross script fails closed as a full image."""
     relative = path.removeprefix(MISTEROSS)
     parts = relative.split('/')
-    candidates = {'/'.join(parts[:index]) for index in range(3, len(parts) + 1)}
+    candidates = {'/'.join(parts[:index]) for index in range(2, len(parts) + 1)}
     modules = script_modules(texts)
     found = []
     for stem, module in sorted(modules.items()):

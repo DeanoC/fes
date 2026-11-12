@@ -27,6 +27,14 @@ def arm_elf():
     return data
 
 
+def aarch64_elf():
+    data = bytearray(256)
+    data[:16] = b'\x7fELF\x02\x01\x01' + bytes(9)
+    struct.pack_into('<HHIQQQIHHHHHH', data, 16, 2, 183, 1, 0x400080, 64, 0, 0, 64, 56, 1, 0, 0, 0)
+    struct.pack_into('<IIQQQQQQ', data, 64, 1, 5, 0, 0x400000, 0x400000, len(data), len(data), 4096)
+    return data
+
+
 def provenance(rootfs, kernel):
     return appliance.ReleaseProvenance('a'*40, 'b'*40, 'c'*40, appliance.digest(rootfs), appliance.digest(kernel), 'd'*64, 'e'*64, 'f'*64)
 
@@ -56,6 +64,48 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(result.image.stat().st_ino, inode)
         with self.assertRaises(ValueError):
             appliance.export_release(self.root/'release', self.rootfs, self.kernel, version='v2', provenance=provenance(self.rootfs, self.kernel))
+
+    def test_de25_export_requires_explicit_board_and_preserves_immutable_default(self):
+        result = appliance.export_release(self.root/'de25', self.rootfs, self.kernel,
+                                          version='v1', provenance=provenance(self.rootfs, self.kernel), board='de25-nano')
+        manifest = appliance.load_manifest(result.manifest, board='de25-nano')
+        self.assertEqual(manifest['board'], 'de25-nano')
+        self.assertEqual(result.image.read_bytes(), self.rootfs.read_bytes())
+        with self.assertRaisesRegex(ValueError, 'board'):
+            appliance.load_manifest(result.manifest)
+        original = result.manifest.read_bytes()
+        with self.assertRaisesRegex(ValueError, 'immutable release'):
+            appliance.export_release(result.directory, self.rootfs, self.kernel,
+                                     version='v1', provenance=provenance(self.rootfs, self.kernel))
+        self.assertEqual(result.manifest.read_bytes(), original)
+        default = appliance.export_release(self.root/'de10', self.rootfs, self.kernel,
+                                           version='v1', provenance=provenance(self.rootfs, self.kernel))
+        self.assertEqual(appliance.load_manifest(default.manifest)['board'], 'de10-nano')
+        with self.assertRaisesRegex(ValueError, 'board'):
+            appliance.load_manifest(default.manifest, board='de25-nano')
+
+    def test_unknown_release_board_is_refused_before_input_or_output_access(self):
+        for board in ('', 'de25_nano', 'de25-nano\n', 'other', True):
+            with self.subTest(board=board):
+                output = self.root/'unknown'
+                with self.assertRaisesRegex(ValueError, 'selected release board'):
+                    appliance.export_release(output, self.root/'missing-rootfs', self.root/'missing-kernel',
+                                             version='v1', provenance=provenance(self.rootfs, self.kernel), board=board)
+                self.assertFalse(output.exists())
+                with self.assertRaisesRegex(ValueError, 'selected release board'):
+                    appliance.load_manifest(self.root/'missing-manifest', board=board)
+
+    def test_selected_de25_release_retains_closed_fields_and_kernel_checks(self):
+        valid = appliance.release_manifest(self.rootfs, version='v1', provenance=provenance(self.rootfs, self.kernel), board='de25-nano')
+        for changed in (dict(valid, board='de10-nano'), dict(valid, boot_abi='other'),
+                        dict(valid, extra=True), dict(valid, kernel_sha256='bad')):
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                appliance.validate_manifest(changed, board='de25-nano')
+        p = dataclasses.replace(provenance(self.rootfs, self.kernel), kernel_sha256='f'*64)
+        with self.assertRaisesRegex(ValueError, 'kernel differs'):
+            appliance.export_release(self.root/'wrong-kernel-de25', self.rootfs, self.kernel,
+                                     version='v1', provenance=p, board='de25-nano')
+        self.assertFalse((self.root/'wrong-kernel-de25').exists())
 
     def test_single_pass_release_records_pass_count_without_special_version(self):
         p=dataclasses.replace(provenance(self.rootfs,self.kernel),image_passes=1)
@@ -194,6 +244,20 @@ class ReleaseTests(unittest.TestCase):
             data=arm_elf();struct.pack_into('<H' if offset==18 else '<I',data,offset,value);binary.write_bytes(data)
             with self.assertRaises(ValueError):appliance.validate_static_arm(binary)
 
+    def test_aarch64_static_validation_requires_explicit_target_and_closed_segments(self):
+        binary = self.root / 'helper'; binary.write_bytes(aarch64_elf())
+        self.assertEqual(appliance.validate_static_arm(binary, 'aarch64'), appliance.digest(binary))
+        with self.assertRaises(ValueError):
+            appliance.validate_static_arm(binary)
+        for offset, layout, value in [(18, '<H', 62), (64, '<I', 2), (64, '<I', 3),
+                                       (24, '<Q', 0x500000), (96, '<Q', 1024), (48, '<I', 1)]:
+            data = aarch64_elf(); struct.pack_into(layout, data, offset, value); binary.write_bytes(data)
+            with self.subTest(offset=offset, value=value), self.assertRaises(ValueError):
+                appliance.validate_static_arm(binary, 'aarch64')
+        binary.write_bytes(arm_elf())
+        with self.assertRaises(ValueError):
+            appliance.validate_static_arm(binary, 'aarch64')
+
     def test_bootstrap_source_may_differ_from_packaged_software_revision(self):
         software=provenance(self.rootfs,self.kernel)
         factory_software=dataclasses.replace(software,fogcast_revision='f'*40)
@@ -227,6 +291,30 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotEqual(factory_software.fogcast_revision,platform_build['fogcast_revision'])
         self.assertEqual(evidence['binary_source_revision'],platform_build['fogcast_revision'])
         self.assertEqual(evidence['platform_build']['fogcast_revision'],platform_build['fogcast_revision'])
+
+    def test_de25_bootstrap_requires_matched_board_elf_and_build_environment(self):
+        factory = self.root / 'de25-factory.json'
+        factory.write_bytes(appliance.canonical(appliance.release_manifest(
+            self.rootfs, version='v1', provenance=provenance(self.rootfs, self.kernel), board='de25-nano')))
+        binary = self.root / 'fes-boot'; binary.write_bytes(aarch64_elf())
+        class NeverRun:
+            def disk(self, command):
+                raise AssertionError('invalid bootstrap reached construction')
+        with self.assertRaises(ValueError):
+            appliance.assemble_bootstrap(self.root / 'wrong-default', binary, factory, self.kernel, runner=NeverRun())
+        binary.write_bytes(arm_elf())
+        with self.assertRaises(ValueError):
+            appliance_inside.assemble(self.root / 'wrong-elf', binary, factory, board='de25-nano')
+        binary.write_bytes(aarch64_elf())
+        wrong = fes_platform.platform_build_record('1'*64,'2'*64,'3'*40,'go1.26.5','4'*64)
+        with self.assertRaisesRegex(ValueError, 'environment'):
+            appliance.assemble_bootstrap(self.root / 'wrong-env', binary, factory, self.kernel,
+                                        runner=NeverRun(), board='de25-nano', platform_build=wrong)
+        for name in ('wrong-default', 'wrong-elf', 'wrong-env'):
+            self.assertFalse((self.root / name).exists())
+        with self.assertRaisesRegex(ValueError, 'selected bootstrap board'):
+            appliance.bootstrap_identity('1'*64, {'board':'de10-nano'}, 'sha256:'+'2'*64,
+                                         '3'*40, {}, board='de25-nano')
 
     def test_reject_existing_unsealed_or_open_ended_bundle(self):
         for mutation in ('directory','file','extra'):
@@ -320,6 +408,52 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotEqual(identity,appliance.bootstrap_identity('2'*64,factory,'sha256:'+'3'*64,'4'*40,recipe,platform_build))
 
 
+class BootstrapFirmwareTests(unittest.TestCase):
+    def test_board_specific_recipe_binds_firmware_and_licence(self):
+        common = appliance.bootstrap_recipe(ROOT)
+        selected = appliance.bootstrap_recipe(ROOT, board='de25-nano')
+        firmware = appliance.bootstrap_firmware(ROOT, board='de25-nano')
+        self.assertEqual(set(selected)-set(common), set(firmware))
+        self.assertEqual(len(firmware), 6)
+        self.assertIn('image/firmware/rtl_bt/LICENCE.rtlwifi_firmware.txt', firmware)
+        self.assertFalse(appliance.bootstrap_firmware(Path('/nonexistent')))
+        with self.assertRaisesRegex(ValueError, 'unsupported'):
+            appliance.bootstrap_firmware(ROOT, board='unknown')
+
+    def test_missing_corrupt_and_unexpected_inputs_fail_before_image_creation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = root/appliance.BOOTSTRAP_FIRMWARE_DIRECTORY
+            shutil.copytree(ROOT/appliance.BOOTSTRAP_FIRMWARE_DIRECTORY, directory)
+            original = (directory/'SHA256SUMS').read_bytes()
+            firmware = directory/'rtl8761bu_fw.bin'
+            firmware_bytes = firmware.read_bytes()
+            binary = root/'fes-boot'; binary.write_bytes(aarch64_elf())
+            factory = root/'factory.json'
+            manifest = {'format':1,'board':'de25-nano','boot_abi':'fes-bootstrap-v1','version':'v1',
+                        'kernel_sha256':'a'*64,'image_sha256':'b'*64,'image_size':4096,
+                        'fes_revision':'c'*40,'fogcast_revision':'d'*40,'runtime_revision':'e'*40}
+            factory.write_bytes(appliance.canonical(manifest))
+            script = root/'scripts/appliance_inside.py'
+            with mock.patch.object(appliance_inside, '__file__', str(script)):
+                for case in ('missing', 'corrupt', 'symlink', 'duplicate', 'extra'):
+                    with self.subTest(case=case):
+                        firmware.unlink(missing_ok=True); firmware.write_bytes(firmware_bytes)
+                        (directory/'SHA256SUMS').write_bytes(original)
+                        if case == 'missing': firmware.unlink()
+                        elif case == 'corrupt': firmware.write_bytes(b'broken firmware')
+                        elif case == 'symlink':
+                            firmware.unlink(); firmware.symlink_to(ROOT/appliance.BOOTSTRAP_FIRMWARE_DIRECTORY/firmware.name)
+                        elif case == 'duplicate':
+                            (directory/'SHA256SUMS').write_bytes(original+original.splitlines(keepends=True)[0])
+                        else:
+                            (directory/'SHA256SUMS').write_bytes(original+b'0'*64+b'  unexpected.bin\n')
+                        output = root/case/'bootstrap.img'
+                        with self.assertRaises((ValueError, OSError)):
+                            appliance_inside.assemble(output, binary, factory, board='de25-nano')
+                        self.assertFalse(output.parent.exists())
+
+
 @unittest.skipIf(INSIDE,'host container driver')
 class ContainerTests(unittest.TestCase):
     def test_real_pinned_bootstrap_suite(self):
@@ -332,12 +466,46 @@ class ContainerTests(unittest.TestCase):
 
 @unittest.skipUnless(INSIDE,'executed in pinned media container')
 class RealBootstrapTests(unittest.TestCase):
+    def test_de25_two_pass_image_contains_selected_board_and_aarch64_init(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); binary = root/'fes-boot'; binary.write_bytes(aarch64_elf())
+            factory = root/'factory.json'
+            manifest = {'format':1,'board':'de25-nano','boot_abi':'fes-bootstrap-v1','version':'v1',
+                        'kernel_sha256':'a'*64,'image_sha256':'b'*64,'image_size':4096,
+                        'fes_revision':'c'*40,'fogcast_revision':'d'*40,'runtime_revision':'e'*40}
+            factory.write_bytes(appliance.canonical(manifest))
+            first = appliance_inside.assemble(root/'first.img', binary, factory, board='de25-nano')
+            second = appliance_inside.assemble(root/'second.img', binary, factory, board='de25-nano')
+            self.assertEqual(first, second)
+            firmware = appliance.bootstrap_firmware(ROOT, board='de25-nano')
+            self.assertEqual(first['early_firmware'], firmware)
+            for name, expected in (('/sbin/init', binary.read_bytes()),
+                                   ('/etc/fes-board', b'de25-nano\n'),
+                                   ('/etc/fes/factory.json', appliance.canonical(manifest))):
+                extracted = root/'extracted'
+                extracted.unlink(missing_ok=True)
+                appliance_inside.debugfs(root/'first.img', f'dump {name} {extracted}')
+                self.assertEqual(extracted.read_bytes(), expected)
+            self.assertIn('Mode:  0444', appliance_inside.debugfs(root/'first.img', 'stat /etc/fes-board'))
+            for name, expected in firmware.items():
+                path = '/lib/firmware/rtl_bt/'+Path(name).name
+                extracted = root/'extracted'; extracted.unlink(missing_ok=True)
+                appliance_inside.debugfs(root/'first.img', f'dump {path} {extracted}')
+                self.assertEqual(appliance.digest(extracted), expected)
+                record = appliance_inside.debugfs(root/'first.img', 'stat '+path)
+                self.assertIn('Mode:  0444', record)
+                self.assertIn('User:     0', record)
+                for field in ('atime', 'mtime', 'ctime', 'crtime'):
+                    self.assertRegex(record, rf'{field}: 0x{appliance_inside.EPOCH:08x}:00000000')
+
     def test_two_pass_contents_devices_timestamps_and_features(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);binary=root/'fes-boot';binary.write_bytes(arm_elf())
             factory=root/'factory.json'
             factory.write_text(json.dumps({'format':1,'board':'de10-nano','boot_abi':'fes-bootstrap-v1','version':'v1','kernel_sha256':'a'*64,'image_sha256':'b'*64,'image_size':4096,'fes_revision':'c'*40,'fogcast_revision':'d'*40,'runtime_revision':'e'*40}))
             first=appliance_inside.assemble(root/'first.img',binary,factory)
+            self.assertNotIn('early_firmware', first)
+            self.assertNotIn('Inode:', appliance_inside.debugfs(root/'first.img','stat /lib/firmware'))
             # Delay source inode ctime to catch unpatched mkfs -d copying it.
             import time
             time.sleep(1.1)

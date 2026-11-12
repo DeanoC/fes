@@ -1,0 +1,15 @@
+{
+  "actual_cli_returncode": 1,
+  "boot_report_published": false,
+  "classification": "expected rejection of the unchanged old base under the new D-Bus boot gate; NOT a boot pass",
+  "failure": "QEMU did not prove read-only root, volatile mounts and D-Bus readiness",
+  "hardware_access": "not-performed",
+  "inputs": {
+    "base.json": "9eb0231578a501c4e0c49818346dcf0454562dc436069dec594db010d5d34dff",
+    "kernel/Image": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b",
+    "rootfs.ext4": "588421ad2ca56d9b4dae256772f46260068d680f0cdb5387faf3e1754206a9aa"
+  },
+  "original_inputs_unchanged": true,
+  "qemu_log_sha256": "a6cf1b9c4b5cdce494168a5d33279f05a3bff010a7e590f3697d28793a5b4817",
+  "source_revision": "dfaffa8696fb164bf30576a6f7a1d7cd1844dd48"
+}

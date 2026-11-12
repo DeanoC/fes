@@ -49,7 +49,7 @@ def capture(revision=None):
     names=ast.literal_eval(declarations[0])
     if not isinstance(names,tuple) or any(not isinstance(n,str) or Path(n).is_absolute() or '..' in Path(n).parts for n in names):
         raise ValueError('unsafe HPS source closure')
-    paths={BOARD+'hps/'+n for n in names}|{BOARD+'build.py'}|{BOARD+'ramtest/'+n for n in LOCAL}
+    paths={BOARD+'hps/'+n for n in names}|{BOARD+'build.py',BOARD+'quartus.lock'}|{BOARD+'ramtest/'+n for n in LOCAL}
     return {p:read(p) for p in sorted(paths)}
 
 def replace_once(source,before,after):

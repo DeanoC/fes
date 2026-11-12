@@ -159,11 +159,12 @@ type RuntimeInterface struct {
 const ExpansionSocketEmpty = "empty"
 
 type CorePackageStatus struct {
-	PartsComposition *expansion.PartsComposition   `json:"parts_composition,omitempty"`
-	ROMLink          *corepackage.ROMLinkIdentity  `json:"rom_link,omitempty"`
-	ROMLinks         *corepackage.ROMLinksIdentity `json:"rom_links,omitempty"`
-	Composition      *expansion.Composition        `json:"composition,omitempty"`
-	SlotComposition  *expansion.SlotComposition    `json:"slot_composition,omitempty"`
+	StaticComposition *expansion.StaticComposition  `json:"static_composition,omitempty"`
+	PartsComposition  *expansion.PartsComposition   `json:"parts_composition,omitempty"`
+	ROMLink           *corepackage.ROMLinkIdentity  `json:"rom_link,omitempty"`
+	ROMLinks          *corepackage.ROMLinksIdentity `json:"rom_links,omitempty"`
+	Composition       *expansion.Composition        `json:"composition,omitempty"`
+	SlotComposition   *expansion.SlotComposition    `json:"slot_composition,omitempty"`
 	// ExpansionSocket is ExpansionSocketEmpty when the loaded package has an
 	// optional rear expansion socket and this load staged and echoed no
 	// composition for it. It is omitted otherwise, including by agents that predate it, so

@@ -1,0 +1,10 @@
+{
+  "canonical_menu_inputs_verified": 374,
+  "combined_compiler_inputs_verified": 59,
+  "hardware_access": "not-performed",
+  "new_SDK_kernel_base_image_full_combined_CPU_or_Quartus_run": false,
+  "original_scope_guard": "Original expected seven stages; actual six-stage script and logs preserved. Only guard expectation corrected.",
+  "runtime_test_inputs_verified": 58,
+  "source_revision": "35a29f752c6f0402f341350da56dd9742dc84cf5",
+  "warm_package_receipt_sha256": "e2a7042a624753d00117c1fcda2f5a8cac6860541efca7684733725a8ec7a6fc"
+}

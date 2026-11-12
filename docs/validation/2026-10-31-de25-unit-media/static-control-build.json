@@ -1,0 +1,5 @@
+{
+  "classification": "static-link CPU-only diagnostic, not hardware MMIO",
+  "source_revision": "9bcf1a7a78c647c535db2a4ec1a6d474244ac618",
+  "sha256": "2ec16ee8f74281b9f92eb8159c44e3188496a76747a746b132ace0a97086a3d9"
+}

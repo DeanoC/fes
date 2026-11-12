@@ -1,0 +1,163 @@
+{
+  "approved_outputs": [
+    "HDMI_LRCLK",
+    "HDMI_SCLK"
+  ],
+  "audio_sources": {
+    "boards/de25nano/zx81-hps/build.py": {
+      "base_sha256": "32046be42877ee08d87e46d97aba13d30eda50296c6a6054d2a63914a5f1fcd6",
+      "candidate_sha256": "08743202143b032ed9b4e0c2e9e5f753b4f62e5f9562310bdab7cf017fabb7ea",
+      "changed": true,
+      "reviewed_sha256": "32046be42877ee08d87e46d97aba13d30eda50296c6a6054d2a63914a5f1fcd6"
+    },
+    "boards/de25nano/zx81-hps/fes_de25_audio.v": {
+      "base_sha256": "9f2d1436b75ef1fe489a55ea4139b2f5dcd922072528b6f68d344d851cca6f33",
+      "candidate_sha256": "9f2d1436b75ef1fe489a55ea4139b2f5dcd922072528b6f68d344d851cca6f33",
+      "changed": false,
+      "reviewed_sha256": "9f2d1436b75ef1fe489a55ea4139b2f5dcd922072528b6f68d344d851cca6f33"
+    },
+    "boards/de25nano/zx81-hps/fes_de25_zx81_standard.v": {
+      "base_sha256": "c6ac81675d1dd07a50bbc2660049ba62e0e79e34fb75a5aac0532340adfe1c97",
+      "candidate_sha256": "8d2fb7121c633fbe50f8ced7a359faaf26f74f4bf7a3bc0cd685c2a721ecc870",
+      "changed": true,
+      "reviewed_sha256": "c6ac81675d1dd07a50bbc2660049ba62e0e79e34fb75a5aac0532340adfe1c97"
+    },
+    "boards/de25nano/zx81-hps/fes_de25_zx81_standard_hw.tcl": {
+      "base_sha256": "c08fc345f9196b85e9bb1c310759cebc79d85395631c8428717d95dbad0415a9",
+      "candidate_sha256": "fd91780afe9892738c21bb76e83ab518275fecf0fb6502df7a2a0ef2ec724f8a",
+      "changed": true,
+      "reviewed_sha256": "c08fc345f9196b85e9bb1c310759cebc79d85395631c8428717d95dbad0415a9"
+    },
+    "boards/de25nano/zx81-hps/standard-clocks.sdc": {
+      "base_sha256": "b7a528ac1a1bf0b147c269e83078a405b523698cfd16c1fe62cf028858b431d0",
+      "candidate_sha256": "b7a528ac1a1bf0b147c269e83078a405b523698cfd16c1fe62cf028858b431d0",
+      "changed": false,
+      "reviewed_sha256": "b7a528ac1a1bf0b147c269e83078a405b523698cfd16c1fe62cf028858b431d0"
+    },
+    "cores/fes-common/rtl/fes_audio_i2s.v": {
+      "base_sha256": "14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4",
+      "candidate_sha256": "14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4",
+      "changed": false,
+      "reviewed_sha256": "14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4"
+    },
+    "cores/fes-common/rtl/fes_audio_output.v": {
+      "base_sha256": "e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd",
+      "candidate_sha256": "e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd",
+      "changed": false,
+      "reviewed_sha256": "e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd"
+    },
+    "cores/fes-zx81/rtl/fes_zx81_core.v": {
+      "base_sha256": "79c070b837a6b455a4a4a64fcbef4d76ac3ca7c467ab692a16af7610bed42970",
+      "candidate_sha256": "79c070b837a6b455a4a4a64fcbef4d76ac3ca7c467ab692a16af7610bed42970",
+      "changed": false,
+      "reviewed_sha256": "79c070b837a6b455a4a4a64fcbef4d76ac3ca7c467ab692a16af7610bed42970"
+    }
+  },
+  "candidate_source_revision": "88cbcf79c480745d37aeecf744f0156367623cf8",
+  "changed_source_inputs": [
+    "boards/de25nano/zx81-hps/fes_de25_zx81_standard.v",
+    "boards/de25nano/zx81-hps/fes_de25_zx81_standard_hw.tcl",
+    "boards/de25nano/zx81-hps/build.py"
+  ],
+  "eligibility_and_verification_AST_unchanged_except_SOURCES": true,
+  "fitted_observations": {
+    "artifacts_sha256": {
+      "generation.json": "8b6b6cb214fdee9a2168ede94a97ed9a0805dbd0fbde0a14763c4452dd00398e",
+      "inputs.json": "ecaa63dcf0b2522b941e16ccd0ca0dd3de7066605922d49d5724d98afe5256f6",
+      "linux-boot.core.rbf": "33edd604fa66e091d769c6603c6fa3e4cf6bc8baad36acd312561905d43f0f64",
+      "project/golden_top.qsf": "9de57791674c7acaa89db5b21af8990fbe19a6e64285e1c1eceb49b049972dce",
+      "project/output_files/golden_top.sta.summary": "9babff90071a71413164c7c15e3b5d62159f94ef7a5e832508e20b9cabe6fbcb",
+      "project/output_files/golden_top.tq.drc.signoff.rpt": "653c4a279e1697c1fa4d71e4aaa424c89041372ab1268216013deb8d0177d9f5"
+    },
+    "budget_excludes": [
+      "PCB differential trace delay",
+      "unaccounted master-clock jitter and uncertainty",
+      "signal-integrity behavior"
+    ],
+    "build_record_sha256": "4b4c2dc071d622e47ba4408fc0e54ee52fe105069dca298cc1375d91524cfab1",
+    "compiled_database_inventory_sha256": "8a316a71dc517bca8502fcac8cb6487b00dc3019742e5ca220e1559c80988923",
+    "conditional_pin_budgets": [
+      {
+        "corner": "Fast fix4 0C Model",
+        "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.759",
+        "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.722"
+      },
+      {
+        "corner": "Slow fix4 0C Model",
+        "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.497",
+        "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.193"
+      },
+      {
+        "corner": "Slow fix4 100C Model",
+        "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.507",
+        "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.299"
+      },
+      {
+        "corner": "Slow fix4a 0C Model",
+        "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.552",
+        "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.297"
+      }
+    ],
+    "fitted_corner_count": 4,
+    "fitted_path_count": 32,
+    "receipt_sha256": "2ef9f441c79b8d82dc9c4763f157513c6dd8a6c3ca2f91a8c86bdeacd89d2638",
+    "reports_sha256": {
+      "4_slow_fix4_0c_bit_clock_network_max.rpt": "463acb2fef564b204264a7e2978dc18eb46cd8c343063b1187b80ef6420d9bed",
+      "4_slow_fix4_0c_bit_clock_network_min.rpt": "cc253ac75d58d25ef1e265c17936a8a67624fcd600efcc8995a6bacc9fdbc0f1",
+      "4_slow_fix4_0c_bit_clock_output_max.rpt": "cd40d0d78b67117e0ef2ab4a4a255548348cfa03a555b848256736ad2e726120",
+      "4_slow_fix4_0c_bit_clock_output_min.rpt": "c4904b390671c894292c8c50632e770a0a45c55de1605e30bf907a49be03c4cd",
+      "4_slow_fix4_0c_word_clock_network_max.rpt": "1c6abcf08d0998931bc3560d5cc30129e205b10664763e70e9e79bdacb39d9f3",
+      "4_slow_fix4_0c_word_clock_network_min.rpt": "e2a5e2992e74b2e28be5425d2b3996ff530f2b90fb22a7447b7575e6171fffb8",
+      "4_slow_fix4_0c_word_clock_output_max.rpt": "d9f846de98e91a75eede98bf6251b016411ec7ce9054d8c4784c580b9243d43d",
+      "4_slow_fix4_0c_word_clock_output_min.rpt": "1b01bacbed228cc41ee9e62338a4af72750e2bcf473d87a70e9b06c0135266cd",
+      "4_slow_fix4_100c_bit_clock_network_max.rpt": "0e69938bd2fb463375b17539a4ee17516fb8e9435f0afc39e434625967ab17b3",
+      "4_slow_fix4_100c_bit_clock_network_min.rpt": "542259eb926f7b0e501ca41e9735cfc17810ed7dfb1d0144d5053755153fae2f",
+      "4_slow_fix4_100c_bit_clock_output_max.rpt": "83173fcb02b7ae6659179c2eb69a071d66a72cb09e4b06c806dc460db0e19c19",
+      "4_slow_fix4_100c_bit_clock_output_min.rpt": "00814a9901fb27819be0a85bc4d63fb6960f38d018ad52531700c3dbfe134d3c",
+      "4_slow_fix4_100c_word_clock_network_max.rpt": "c91c04300d5dbcceb39a890b8103ec88d81b7a3e7184b8138117f2e99a07f8cc",
+      "4_slow_fix4_100c_word_clock_network_min.rpt": "484c302812047741797e41c23a287aa264e10e974a4992212fabcdc506d00664",
+      "4_slow_fix4_100c_word_clock_output_max.rpt": "100fc14b32a114a5ba29173bb5e494fff6e6b7bbcacfb631b24f77e591861bc8",
+      "4_slow_fix4_100c_word_clock_output_min.rpt": "bb3d7573fa2e10a412df80c3db07a27c6305b6e84417265254f44b3b8f86c4eb",
+      "4_slow_fix4a_0c_bit_clock_network_max.rpt": "7b50cbca1266f0dead0055e544d01bf8e953277a291fead86e5b5656a253a004",
+      "4_slow_fix4a_0c_bit_clock_network_min.rpt": "319ab836ff453cafc8113bb7638c9fb15e54d8466b133f0076d445c6e19e5298",
+      "4_slow_fix4a_0c_bit_clock_output_max.rpt": "f991a6f9689c2c3ccc2c4ff5092467038a4b953771e0f502c8a28bb82578a720",
+      "4_slow_fix4a_0c_bit_clock_output_min.rpt": "4cf5ea8bc94f8ea3896d131eadc22df0be67918ed0ea5330d927e36e3bfcb842",
+      "4_slow_fix4a_0c_word_clock_network_max.rpt": "8cfdb7952fc227e19006a237b71156b800a00dcdb7751b1755e24cee46a6d699",
+      "4_slow_fix4a_0c_word_clock_network_min.rpt": "2bf4cb8ef46617557076703efef99c53df2050a125127f035cebb872cd0d684e",
+      "4_slow_fix4a_0c_word_clock_output_max.rpt": "3ea8906712de2f18aaf847e18a39259dbd648275121359afc5ed0e076f9c5957",
+      "4_slow_fix4a_0c_word_clock_output_min.rpt": "5308365fa6a4e9badd752055bd6112c193cea363c0c339fd98f4f9dda8897664",
+      "MIN_fast_fix4_0c_bit_clock_network_max.rpt": "0d0e0a8975734e0f9694ce30d7d882d5bb96c57164071bf52908e154a37b6495",
+      "MIN_fast_fix4_0c_bit_clock_network_min.rpt": "aa2e2c96766a996ac25ae114b0c28a00688ef7c63bbf2a2a7ab6e8b49a3b0fb4",
+      "MIN_fast_fix4_0c_bit_clock_output_max.rpt": "1ea7453feaeb74b8992b7ca6c8adf8a8e287afc460ec87baf4f57ec70daa4423",
+      "MIN_fast_fix4_0c_bit_clock_output_min.rpt": "be27c0a3fc40977145d49d70974ee9775aeaf56039c8dd7ccf6cb4573d61ec1b",
+      "MIN_fast_fix4_0c_word_clock_network_max.rpt": "cb6f39be3d10095f030a5d7a4d63b080b168d058d12bd1c3ef558b3db58ef2e7",
+      "MIN_fast_fix4_0c_word_clock_network_min.rpt": "cebb5984dc9f11716ac8327acac0d3bbea08894610f9d6cc48b44597e2991c69",
+      "MIN_fast_fix4_0c_word_clock_output_max.rpt": "1c560c4b5035e17233c57dcacbfb6fef354d1a6dbd407ba9da5d80079876ce8a",
+      "MIN_fast_fix4_0c_word_clock_output_min.rpt": "e5f186bb03b7e14bba2593dc09cac4dd2b6b0ba66f90903b59eacd8bb6aad060",
+      "clocks.tsv": "cc47560339e62a533996b7b5d30c918784e86abf2e1ee9852b786497a8a6a196",
+      "paths.tsv": "0de23d3655b14339a5789d324afb254c7d58023c3cb2b51279e7d475356102c1"
+    },
+    "source_revision": "88cbcf79c480745d37aeecf744f0156367623cf8",
+    "tools_sha256": {
+      "audio_clocks.tcl": "8295a64c71cf0b0a10ee71684ce4f74119431dc98e05c8cf6875cba636bbf953",
+      "quartus_sta": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+      "review_de25_audio_clocks.py": "1eb186c2b9965428b608385a3b7c76f75e564349b341257964cc62346c65ad9c"
+    }
+  },
+  "hardware_acceptance": false,
+  "independent_pcb_timing_qualified": false,
+  "original_canonical_candidate": "rejected at audio source eligibility; no repeat or package export",
+  "package_timing_admission": false,
+  "policy": "de25-standard-stock-audio-clocks-v1",
+  "qualification_AST_sha256": "ff026e62e9f91265ff6aceb2003941a2cb6c1a05057e5e5d8dd795d005c98909",
+  "required_next_gate": "Fresh canonical producer with both fits and all numerical/review/source/tool/execution gates before export",
+  "reviewed_source_revision": "5870674ab5766e2e638b5d78916d01d991026327",
+  "scope": "Reviewed source-pin refresh only; no change to approved outputs or qualification predicates",
+  "source_audit_sha256": "97d4543cdaae777f23296e77811f0258fb61970f82b434d9029610f7bbb02b5a",
+  "source_delta": {
+    "builder": "Only verify_standard_board expected AVMburstwidth5to7 and memorycrossingburst16to64/responseFIFO256to512. AllfunctionASTs except verifier unchanged, including prepare_standard_board stockPLL/SDC/audio reset+hold/PCM/expansion tieoffs and sourcecapture.",
+    "hw_tcl": "Only AVM burstcountwidth5to7; allclock/reset/audio/expansion conduits unchanged.",
+    "wrapper": "Only AVMburstcountoutputwidth5to7; everybyteofcore instantiation/audio_sample/clk_sys/pixel_clk/reset/core_reset_hold/transport/expansion wiring unchanged."
+  },
+  "unchanged_builder_function_count": 31
+}

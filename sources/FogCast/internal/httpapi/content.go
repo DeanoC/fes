@@ -36,6 +36,7 @@ type serverOptions struct {
 	corePackages        *kitpackages.Store
 	corePackageInspect  CorePackageInspector
 	kitSoftwareSocket   string
+	launcherPairingPath string
 	targetID            string
 	kitLease            *kitlease.Manager
 	content             ContentController

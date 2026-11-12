@@ -1,0 +1,227 @@
+{
+  "all_archived_files_verified": 22959,
+  "archives": {
+    "client-proofs": {
+      "archive": {
+        "archive_sha256": "e5273fea0ef6ccabd4e0fe7255689f093ec81a6356d8d070fed476df30cf6c7e",
+        "archive_size": 1039057522,
+        "base": "/data/de25-zx81-client-6008eb094",
+        "classification": "Preserved off-board canonical ZX81/MENU files including original failures; no hardware acceptance",
+        "elapsed_seconds": 30.891,
+        "excluded_root_directories": [
+          "source"
+        ],
+        "file_count": 536,
+        "hardware_access": "not-performed"
+      },
+      "independent_restore": {
+        "archive_sha256": "e5273fea0ef6ccabd4e0fe7255689f093ec81a6356d8d070fed476df30cf6c7e",
+        "archive_size": 1039057522,
+        "classification": "Independent complete proof archive restore, public scenario/static-ELF/round-trip readers, every captured source and binary hash, all four SAVE images and exact SDK checks",
+        "combined_cases": 14,
+        "combined_compiler_files": 65,
+        "combined_test_runtime_files": 58,
+        "elapsed_seconds": 48.845,
+        "files_verified": 536,
+        "hardware_access": "not-performed",
+        "internal_captured_source_files": 104,
+        "internal_cases": 20,
+        "saved_images": 4,
+        "source_revision": "6008eb094e53c0275cbff6b850c7826d0d35b152",
+        "status": "pass"
+      }
+    },
+    "current-600": {
+      "archive": {
+        "archive_sha256": "774f1b6f2c73ca25a1f9880262979dbf5d7b5505c37fbc3350a30a5d72b7d95a",
+        "archive_size": 2138874411,
+        "base": "/data/de25-zx81-canonical-6008eb094",
+        "classification": "Preserved off-board canonical ZX81/MENU files including original failures; no hardware acceptance",
+        "elapsed_seconds": 46.086,
+        "excluded_root_directories": [
+          "source"
+        ],
+        "file_count": 13469,
+        "hardware_access": "not-performed"
+      },
+      "independent_restore": {
+        "archive_sha256": "774f1b6f2c73ca25a1f9880262979dbf5d7b5505c37fbc3350a30a5d72b7d95a",
+        "archive_size": 2138874411,
+        "classification": "Independent complete archive restore plus actual public source, timing, graph, identity, PLL and approved-input readers",
+        "cores": {
+          "MENU": {
+            "build_id": "7e71288038fa6c0de4e50ac633bf7a8e",
+            "failed_rules": 3,
+            "independent_candidate_rbf_identical": true,
+            "package_timing_admission": false,
+            "rbf_sha256": "9ad935eb52a7707fc939b73a49b29d4dee9e008a895bfe86bd7094293deee9b3",
+            "signoff_rules": 85,
+            "source_inputs": 377,
+            "timing_checks": 69
+          },
+          "ZX81": {
+            "build_id": "8a7006d64591ac8bbb836f4c1e9bfc56",
+            "failed_rules": 5,
+            "independent_candidate_rbf_identical": true,
+            "package_timing_admission": false,
+            "rbf_sha256": "e75c793d337f5b44f6130a2f6923351b3b31e5ec7f603872d60801d821248c87",
+            "signoff_rules": 85,
+            "source_inputs": 577,
+            "timing_checks": 41
+          }
+        },
+        "elapsed_seconds": 44.235,
+        "files_verified": 13469,
+        "hardware_access": "not-performed",
+        "normal_canonical_API": "all record bytes equal; original raw-clone comparison refusal retained",
+        "startup_cases": 72,
+        "status": "pass",
+        "transport_cases": 10
+      }
+    },
+    "initial-869": {
+      "archive": {
+        "archive_sha256": "bba546c6f61fb92e713e94fa4b996a01e1dfe8bf1edab8179f43f9e737277e59",
+        "archive_size": 546431834,
+        "base": "/data/de25-zx81-canonical-869bca03f",
+        "classification": "Preserved off-board canonical ZX81/MENU files including original failures; no hardware acceptance",
+        "elapsed_seconds": 10.418,
+        "excluded_root_directories": [
+          "source"
+        ],
+        "file_count": 2029,
+        "hardware_access": "not-performed"
+      },
+      "independent_restore": {
+        "archive_sha256": "bba546c6f61fb92e713e94fa4b996a01e1dfe8bf1edab8179f43f9e737277e59",
+        "archive_size": 546431834,
+        "classification": "Independent complete archive restore and every retained file hash checked; no new build or acceptance authority",
+        "elapsed_seconds": 3.294,
+        "files_verified": 2029,
+        "hardware_access": "not-performed",
+        "status": "pass"
+      }
+    },
+    "intermediate-775": {
+      "archive": {
+        "archive_sha256": "348f300dfb704536012a5637e76e7a0f88a083f54acf3ff63f59dfbd29f27c58",
+        "archive_size": 1015784665,
+        "base": "/data/de25-zx81-canonical-775e05762",
+        "classification": "Preserved off-board canonical ZX81/MENU files including original failures; no hardware acceptance",
+        "elapsed_seconds": 21.396,
+        "excluded_root_directories": [
+          "source"
+        ],
+        "file_count": 6263,
+        "hardware_access": "not-performed"
+      },
+      "independent_restore": {
+        "archive_sha256": "348f300dfb704536012a5637e76e7a0f88a083f54acf3ff63f59dfbd29f27c58",
+        "archive_size": 1015784665,
+        "classification": "Independent complete archive restore and every retained file hash checked; no new build or acceptance authority",
+        "elapsed_seconds": 13.44,
+        "files_verified": 6263,
+        "hardware_access": "not-performed",
+        "status": "pass"
+      }
+    },
+    "local-failures": {
+      "archive": {
+        "archive_sha256": "82027249aa0fbd1a5791f590932624520d4ba6bee24517a4871fe94bf45c3c12",
+        "archive_size": 536709139,
+        "base": "/home/deano/fes/out/dev/de25-managed-image/out/de25-zx81-canonical-79a97fe79",
+        "classification": "Preserved off-board canonical ZX81/MENU files including original failures; no hardware acceptance",
+        "elapsed_seconds": 21.774,
+        "excluded_root_directories": [
+          "source"
+        ],
+        "file_count": 505,
+        "hardware_access": "not-performed"
+      },
+      "independent_restore": {
+        "archive_sha256": "82027249aa0fbd1a5791f590932624520d4ba6bee24517a4871fe94bf45c3c12",
+        "archive_size": 536709139,
+        "classification": "Independent complete archive restore and every retained file hash checked; no new build or acceptance authority",
+        "elapsed_seconds": 9.861,
+        "files_verified": 505,
+        "hardware_access": "not-performed",
+        "status": "pass"
+      }
+    },
+    "standalone-replay": {
+      "archive": {
+        "archive_sha256": "6f7b6d8ea028c8d635d93b4011e7a576e8cd6c5fd88860f0c4a6990d97f9d5f0",
+        "archive_size": 50598118,
+        "base": "/data/de25-zx81-replay-6008eb094",
+        "classification": "Preserved off-board canonical ZX81/MENU files including original failures; no hardware acceptance",
+        "elapsed_seconds": 1.976,
+        "excluded_root_directories": [
+          "source"
+        ],
+        "file_count": 157,
+        "hardware_access": "not-performed"
+      },
+      "independent_restore": {
+        "archive_sha256": "6f7b6d8ea028c8d635d93b4011e7a576e8cd6c5fd88860f0c4a6990d97f9d5f0",
+        "archive_size": 50598118,
+        "classification": "Independent complete archive restore and every retained file hash checked; no new build or acceptance authority",
+        "elapsed_seconds": 1.505,
+        "files_verified": 157,
+        "hardware_access": "not-performed",
+        "status": "pass"
+      }
+    }
+  },
+  "classification": "Complete source-bound canonical DE25 ZX81 milestone retention; no package, physical or normal-kit admission",
+  "hardware_access": "not-performed",
+  "package_timing_admission": false,
+  "proofs": {
+    "combined": {
+      "cases": 14,
+      "classification": "Fresh actual dual-client/combined-RTL model proof; all current compiler and test/runtime captured inputs verified",
+      "compiler_inputs": 65,
+      "hardware_access": "not-performed",
+      "physical_PR": "selection mux model only; no SDM programming",
+      "selected_build_id": "00112233445566778899aabbccddeeff",
+      "source_revision": "6008eb094e53c0275cbff6b850c7826d0d35b152",
+      "test_runtime_inputs": 58
+    },
+    "internal": {
+      "architectures": [
+        "aarch64-cortex-a76",
+        "native"
+      ],
+      "cases": 20,
+      "classification": "Actual current client/RTL source audit; native and emulated AArch64, not native kit acceptance",
+      "hardware_access": "not-performed",
+      "model_CXX_OPT_FAST": "-O3 explicitly selected in retained job command and compiler log",
+      "overlap_with_canonical_FPGA_source_closure": 57,
+      "proof_captured_files_verified": 104,
+      "selected_build_id": "8a7006d64591ac8bbb836f4c1e9bfc56",
+      "session_limits_unchanged": true,
+      "source_revision": "6008eb094e53c0275cbff6b850c7826d0d35b152"
+    }
+  },
+  "source_retention": {
+    "canonical_records": {
+      "menu": {
+        "build_id": "7e71288038fa6c0de4e50ac633bf7a8e",
+        "source_inputs_verified": 377
+      },
+      "zx81": {
+        "build_id": "8a7006d64591ac8bbb836f4c1e9bfc56",
+        "source_inputs_verified": 577
+      }
+    },
+    "hardware_access": "not-performed",
+    "restore_seconds": 3.112,
+    "seed_retention_sha256": "a3bad31a99f79eae34944896c9aa6252a70a6bb2c2ff7b50b0abf55e8bdbd1be",
+    "seed_revision": "79a97fe79c24e910aa34b6062a3277a94ea3b790",
+    "source_bundle_sha256": "9ec28f2871c3c17bfba9ecddce03324f61ebe7a9eba49c2aeb21b7f3ed6bb479",
+    "source_bundle_size": 32399,
+    "source_revision": "6008eb094e53c0275cbff6b850c7826d0d35b152",
+    "source_tree": "b1abb3af6e647b1b8ef6bd703694f7fbaa5d0fca",
+    "status": "verified-source-restore"
+  },
+  "source_revision": "6008eb094e53c0275cbff6b850c7826d0d35b152"
+}

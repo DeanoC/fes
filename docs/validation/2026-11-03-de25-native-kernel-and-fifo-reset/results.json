@@ -1,0 +1,119 @@
+{
+  "classification": "native kernel and negative owner diagnostic; off-board RTL/build evidence; normal-kit acceptance incomplete",
+  "source": {
+    "integration_head_before_this_record": "55ca607d29193115ba0ff68547674947403a372b",
+    "fpga_and_combined_proof_producer": "b3adb3a41f147a42873a42894f54e138ea3f5007",
+    "canonical_inputs": 379,
+    "combined_compiler_inputs": 65,
+    "combined_runtime_inputs": 58,
+    "functional_record_sha256": "1380c2c6a5e9a309bce0f3855c06f5d02851460e9272eec3606a4039513a5f7b"
+  },
+  "native": {
+    "board": "TRWU8J8G",
+    "kernel_release": "6.12.11-fes-de25-owner",
+    "kernel_producer": "59d3b43997b5827dda55125f0f651248a51e6ebf",
+    "image_producer": "5d839c7f62df4040b9f5a89d7bb41fa53bc9f08f",
+    "sd_image_sha256": "429a787525751594f8989ec96c861b27ef46505672cd831e17aa300133ece056",
+    "kernel_notes_sha256": "47b21fcf0a7a63b0ed940efe53c6f39daea8eddd8299539d71ecb731c0adaf34",
+    "kernel_config_sha256": "2395baf1c813f4b2c18f5069f8df32bf4ffc38914b9e48fcf68ef5d82a15d467",
+    "installed_manifest_sha256": "8288941d539088500602280db582c1890e606183de89b843cda0321de20bb870",
+    "abi": 3,
+    "negative_checks": 2,
+    "software_reboots": 1,
+    "ethernet_and_authenticated_ssh": "passed on both boots",
+    "positive_allocation_or_dma": false,
+    "fpga_programming": false,
+    "normal_kit_acceptance": false
+  },
+  "software": {
+    "machine_file_cases": 34,
+    "machine_file_seconds": 249.2,
+    "link_file_cases": 27,
+    "link_file_seconds": 8.2,
+    "combined_native_qemu_cases": 14,
+    "combined_seconds": 992.8,
+    "combined_save_bytes": 923,
+    "combined_save_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
+    "benchmark_system_cycles": 10000000,
+    "benchmark_global_rw_seconds": 15.781905456096865,
+    "benchmark_global_rd_seconds": 5.317520141019486,
+    "benchmark_speedup": 2.9679070389136553,
+    "timeouts_unchanged": true,
+    "original_whole_aggregate": "failed; retained as observed",
+    "original_aggregate_fpga_cases": 1788,
+    "original_aggregate_fpga_failures": 9,
+    "original_aggregate_fpga_errors": 1,
+    "original_aggregate_fpga_skips": 19,
+    "resolution": "Original600s machine error and stale combined fixture closed by fresh complete34/27-file reruns and actual14-case proof; exact8 prior CycloneV-only failures remain user-approved N/A. No new exclusions or aggregate relabel."
+  },
+  "fpga": {
+    "build_id": "1084e8d183fd372a77a702fce1aba7d6",
+    "rbf_sha256": "8d9384c1c5807aa00d2d991e86c183ac5e77eef5b6848badaa2c68b8bb04d201",
+    "rbf_bytes": 1425408,
+    "independent_build_seconds": [
+      616.7,
+      616.6
+    ],
+    "bit_identical": true,
+    "generated_cases": {
+      "board": 13,
+      "transport": 10,
+      "startup": 72
+    },
+    "generated_seconds": {
+      "board": 62.8,
+      "transport": 66.8,
+      "startup": 15.7
+    },
+    "reported_timing_checks_per_build": 69,
+    "signoff_rules_per_build": 85,
+    "waivers": 0,
+    "fitted_paths_per_build": {
+      "board": 280,
+      "fifo": 3456
+    },
+    "minimum_fitted_slack_ns": [
+      0.098,
+      0.098
+    ],
+    "remaining_raw_findings": [
+      {
+        "id": "TMC-20012",
+        "severity": "High",
+        "violations": 30,
+        "waived": 0
+      },
+      {
+        "id": "TMC-20011",
+        "severity": "High",
+        "violations": 2,
+        "waived": 0
+      }
+    ],
+    "approved_input_review": "Exactly two previously user-approved HDMI asynchronous inputs, freshly reviewed on each fit. No output exception.",
+    "native_programmed": false,
+    "package_timing_admission": false
+  },
+  "archives": {
+    "native": {
+      "archive_sha256": "6c753ac61e891bacba29b13e2cdec37c247300fba61f70b622c33be6feff0e94",
+      "archive_bytes": 448087,
+      "files": 75
+    },
+    "software": {
+      "archive_sha256": "1610436d79c0bf6367f49a3eb961a552b1302ac5700301bd48855c9af88cc7ed",
+      "archive_bytes": 324148062,
+      "files": 638
+    },
+    "fpga": {
+      "archive_sha256": "12f53a0d2b1d83c34c76494d86f531124fd2c07c9b9e12d747fd16492b6995ab",
+      "archive_bytes": 1339439307,
+      "files": 7232
+    }
+  },
+  "remaining": [
+    "External HDMI output timing/electrical/board-path contract; no additional PCB data available",
+    "Positive native owned allocation, coherent DDR scanout and global reset/recovery",
+    "Admitted native MENU, ZX81 catalog launch/LOAD/RUN/reload/Stop/relaunch lifecycle"
+  ]
+}

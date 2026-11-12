@@ -1,0 +1,30 @@
+{
+  "Linux_load_acceptance": "not-qualified",
+  "artifacts": {
+    "linux-boot.core.rbf": {
+      "role": "Linux-fabric-configuration-candidate",
+      "sha256": "b9d28a8972794dfe4bcbd2c1a604c03422d861a6df64fba39201e748465b2ee4",
+      "size": 1957888
+    },
+    "linux-boot.hps.jic": {
+      "role": "HPS-first-QSPI-candidate-not-programmed",
+      "sha256": "34ea7e64a324c2b528ad4a36a94fb8aa795de95e00d5ded94f697761a1aa15a5",
+      "size": 16777449
+    },
+    "linux-complete.sof": {
+      "role": "volatile-JTAG-recovery-candidate",
+      "sha256": "e76feaa590007cefe1ac9cce1b3f8c21aebd32b8920299e758603dc802367ae3",
+      "size": 1917281
+    }
+  },
+  "boot_compatibility": "not-qualified",
+  "bootloader_sha256": "096f53ea0bb0ba6e7449b2acf012eae734840dbcdd2943b506567bad2f72f823",
+  "classification": "unadmitted-HPS-first-scanout",
+  "compiled_sof_sha256": "5b07b75d013b4355203ef2629a10332c05f84f64f7dd74aa7439b525b6742ffe",
+  "fes_revision": "5756143cbeaf09623a54e33c3b9f592a971dc97f",
+  "format": 1,
+  "hardware_programming": "not-performed",
+  "hps_initialization": "HPS FIRST",
+  "production_admission": false,
+  "scanout_source_sha256": "032e55d09e28ad6a04161531cc4d61fb8bcf40f5087fdad8eb20c5c2d9af9ea0"
+}

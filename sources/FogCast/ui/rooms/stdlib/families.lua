@@ -2,16 +2,15 @@
 --
 -- The families are systems.families: the four v1 families in a fixed order
 -- (ZX81, Spectrum, Atari ST, C64), then, when the launcher shows all cores,
--- every other registered family. A family's state comes from the library's
--- machine entries (platform "fpga" rows without media) for its models, and
--- its game count from that library's titles with media. When the library
--- has no row for a model, kit.cores says whether it is installed and needs
--- firmware.
+-- every other registered family. A family's state comes from the host's
+-- admitted hardware.computers projection for its models, and its game
+-- count from the library's titles with media. A selected cassette does not
+-- remove a machine from Home. kit.cores supplies the independent local shelf.
 --
--- families.load(on_change) starts the kit and library reads; on_change runs
--- after each answer. families.reload() reads the kit and library again. A room
--- that waits for more than this module sets families.waiting to a function that
--- returns true until its own data has answered; every family is Checking
+-- families.load(on_change) starts the kit, hardware and library reads;
+-- on_change runs after each answer. families.reload() refreshes all three.
+-- A room that waits for more than this module sets families.waiting to
+-- return true until its own data has answered; every family is Checking
 -- until then.
 
 local systems = require "systems"
@@ -90,7 +89,8 @@ M.list = list
 -- Data. A table per source; nil while it is still loading.
 local kit_rows = nil   -- core_id -> kit.cores row
 local kit_error = false
-local machines = nil   -- core_id -> library machine entry
+local machines = nil   -- core_id -> admitted host computer
+local hardware_loaded = false
 local titles = nil     -- family id -> number of titles
 local capped = {}      -- family id -> true when its query hit the row limit
 local known = {}       -- family id -> true when its library read succeeded
@@ -105,9 +105,8 @@ M.waiting = function() return false end
 local function model_state(core_id)
   local lib = machines and machines[core_id]
   if lib then
-    if lib.launchable then return "ready" end
-    if lib.firmware then return "firmware" end
-    return "blocked", lib.block
+    if lib.ready then return "ready" end
+    return "blocked", lib.unavailable_reason ~= "" and lib.unavailable_reason or nil
   end
   local kit_row = kit_rows and kit_rows[core_id]
   if kit_row then
@@ -122,10 +121,10 @@ end
 
 function M.count_known() return not kit_error and next(overfull) == nil end
 
--- Families wait for the library and the kit's list (it says which models
--- are installed when the library has no row for them).
+-- Host machine readiness, title counts and the independent kit shelf all
+-- settle before the opening focus is chosen.
 function M.settled()
-  return not M.waiting() and kit_rows ~= nil and (machines ~= nil or library_err ~= nil)
+  return not M.waiting() and kit_rows ~= nil and hardware_loaded and (titles ~= nil or library_err ~= nil)
 end
 
 -- A family's state ("checking", "ready", "firmware", "missing", "blocked"),
@@ -147,6 +146,11 @@ function M.state(f)
 end
 
 local LIBRARY_LIMIT = 2000
+-- A query may return 2,000 rows. Process a bounded number of rows or
+-- editions per frame so one answer cannot exhaust the room callback budget.
+-- A 256-row reduction exceeds 12ms of CPU on the Cortex-A9. Keep each
+-- update below that soft budget without changing the callback deadline.
+local FAMILY_BATCH = 64
 
 local function count_line(n, more)
   if n == 0 and more then return "1+ games" end
@@ -292,30 +296,47 @@ local function load_kit()
   end)
 end
 
--- What a machine entry's launch block means on a family tile. A missing ROM
--- or system firmware is the firmware state; the rest get a short reason.
-local BLOCKS = {
-  source_offline = "Its library is offline",
-  lease_held = "In use on another screen",
-  version_skew = "Needs a software update",
-}
-
--- A machine entry is a model's catalog row without media.
-local function add_machine(out, g)
-  if out[g.core_id] and out[g.core_id].launchable then return end
-  local block = g.launch_block or ""
-  out[g.core_id] = {
-    game_id = g.id,
-    launchable = block == "",
-    firmware = block == "missing_firmware" or block == "missing_rom",
-    block = BLOCKS[block],
-  }
+-- The host already verifies each computer's package, ABI, firmware, media
+-- and composition. Library titles never stand in for this admission result.
+local hardware_generation = 0
+local hardware_reading = false
+local hardware_refresh_pending = false
+local function read_hardware(gen)
+  hardware_reading = true
+  hardware.read(function(value, err)
+    hardware_reading = false
+    -- A resume can supersede an outstanding read. Wait for its callback
+    -- before requesting the newest snapshot: the bridge admits one read.
+    if hardware_refresh_pending then
+      hardware_refresh_pending = false
+      read_hardware(hardware_generation)
+      return
+    end
+    if gen ~= hardware_generation then return end
+    machines, hardware_loaded = {}, true
+    if not err then
+      for _, computer in ipairs(value.computers or {}) do
+        if computer.core_id and computer.core_id ~= "" then
+          machines[computer.core_id] = computer
+        end
+      end
+    end
+    on_change()
+  end)
 end
 
--- One query per family, so a large family's titles never push another
--- family's machine entries past the row limit. A title counts once; its
--- editions are siblings of the same title, so only machine entries are
--- looked for among them.
+local function load_hardware()
+  hardware_loaded = false
+  hardware_generation = hardware_generation + 1
+  if hardware_reading then
+    hardware_refresh_pending = true
+    return
+  end
+  read_hardware(hardware_generation)
+end
+
+-- One query per family keeps a large family's titles from consuming another
+-- family's row limit. A title counts once; its editions never add a count.
 local library_generation = 0
 local retry_enabled = false
 local requests = {}
@@ -330,29 +351,31 @@ local function schedule_next_retry()
 end
 
 -- Retain successful family reads while an unrelated family is unavailable.
--- A failed family uses the kit fallback, without claiming zero games.
+-- A failed title count stays unknown; hardware admission is independent.
 local function publish_library(gen)
   if gen ~= library_generation then return end
-  local m, counts, more, answered, oversized, failed = {}, {}, {}, {}, {}, nil
   for _, req in ipairs(requests) do
     if not req.answered then return end
+  end
+  local counts, more, answered, oversized, failed = {}, {}, {}, {}, nil
+  for _, req in ipairs(requests) do
     if req.err then
       failed = failed or req.err
       if req.overfull then oversized[req.family.id] = true end
     else
       answered[req.family.id] = true
-      for id, machine in pairs(req.machines or {}) do
-        if not m[id] or not m[id].launchable then m[id] = machine end
-      end
       counts[req.family.id] = req.count
       more[req.family.id] = req.more
     end
+    -- The published summaries are small; release the converted page so a
+    -- settled Home does not retain thousands of Lua rows.
+    req.data = nil
   end
   overfull = oversized
   if failed and not retry_enabled then
-    machines, titles, capped, known, library_err = nil, nil, {}, {}, failed
+    titles, capped, known, library_err = nil, {}, {}, failed
   else
-    machines, titles, capped, known, library_err = m, counts, more, answered, failed
+    titles, capped, known, library_err = counts, more, answered, failed
   end
   on_change()
 end
@@ -362,31 +385,43 @@ local function query_family(req, gen)
   req.cancel = library.query({ platform = "fpga", core_ids = req.ids, limit = LIBRARY_LIMIT, home_family = true }, function(games, err, transient, more)
     if gen ~= library_generation then return end
     req.cancel = nil
-    req.answered, req.err = true, err
+    req.err = err
     req.overfull = err and more or nil
     if err and transient and retry_enabled and req.retries < #RETRY_DELAYS then
+      req.answered = true
       req.retries = req.retries + 1
       req.due = room.time + RETRY_DELAYS[req.retries]
-    elseif not err then
-      local machines_for_family, n = {}, 0
-      local function machine(g)
-        if g.core_id and systems.family_by_core[g.core_id] and (g.media_id or "") == "" then add_machine(machines_for_family, g) end
-      end
-      for _, g in ipairs(games or {}) do
-        local family = systems.family_by_core[g.core_id or ""]
-        if g.core_entry_kind == "title" and family and family.id == req.family.id then
-          n = n + 1
-        elseif g.core_entry_kind == "machine" then
-          machine(g)
-          for _, v in ipairs(g.variants or {}) do machine(v) end
-        end
-      end
-      req.machines, req.count = machines_for_family, n
+    elseif err then
+      req.answered = true
+    else
+      req.answered = false
+      req.data, req.index = games or {}, 1
+      req.pending, req.count = req.data, 0
       req.more = more or nil
     end
     schedule_next_retry()
     publish_library(gen)
   end)
+end
+
+-- Count one family's titles across updates. Machine admission comes from
+-- hardware.computers, so neither machine rows nor their editions establish
+-- readiness here. Reload discards any unfinished answer.
+local function process_family(req)
+  for work = 1, FAMILY_BATCH do
+    local g = req.pending[req.index]
+    if not g then
+      req.pending = nil
+      req.answered = true
+      publish_library(library_generation)
+      return
+    end
+    local family = systems.family_by_core[g.core_id or ""]
+    if g.core_entry_kind == "title" and family and family.id == req.family.id then
+      req.count = req.count + 1
+    end
+    req.index = req.index + 1
+  end
 end
 
 function M.reload()
@@ -395,6 +430,7 @@ function M.reload()
   end
   machines, titles, capped, known, overfull, library_err = nil, nil, {}, {}, {}, nil
   load_kit()
+  load_hardware()
   on_change()
   library_generation = library_generation + 1
   local gen = library_generation
@@ -413,6 +449,12 @@ end
 -- Called only by Home while it is active; no timer or retry worker survives
 -- a closed or suspended room. A reload discards the previous schedule.
 function M.update()
+  for _, req in ipairs(requests) do
+    if req.pending then
+      process_family(req)
+      break
+    end
+  end
   if not next_retry or room.time < next_retry then return end
   for _, req in ipairs(requests) do
     if req.due and room.time >= req.due then

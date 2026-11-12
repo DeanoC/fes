@@ -1,0 +1,16 @@
+{
+  "source_revision": "a82521947439e5773a1acee8f618c1bb824b6b95",
+  "binary_sha256": "4d2d7e031cdda897bc287326cd65233d187b630396d55a18597732c3823cbd5d",
+  "harness_sha256": "5b96444eef761b4ca11df3cbd635943fe3d63f25d6f14556dd11721be25ba529",
+  "sdk_before_after": "e82814dae98497c53ce9488ee7ca92491020acfc8b1f2fa53853e4548b2261e0  /build/sdk/bin/aarch64-buildroot-linux-gnu-g++\n226b9f202016f2231b524812cbbb63efbe5a1088bc86f913a22246a7d79cf320  /build/sdk/aarch64-buildroot-linux-gnu/sysroot/lib/ld-linux-aarch64.so.1\n",
+  "selected_rbf_size": 1736704,
+  "selected_rbf_sha256": "774798756c26480c37ea996c832b60343c61e312f4db41bb154e79eea1586f9c",
+  "source_sha256": {
+    "src/native/linux/de25_fpga_manager.cpp": "b2a221c6013114cf9ce79d56b4346542655724b2b12515368a4cecf58839099c",
+    "src/native/artifacts.cpp": "1fd86ac6b1d7d18affd121bf76c48fa67fd04db66183ffd0375c2878d9e2dd17",
+    "src/native/diagnostic.cpp": "ee3bb0f97df1bacd46d0735e9dab473fc7fe981da5c4064ec65bda195f4d943c",
+    "src/native/sha256.cpp": "4be343a9d6295f65f820cc65cb478fa46bb294d4f7fa303bc5670aa9f8484ce8",
+    "src/daemon/json.cpp": "6f8d949657ed3b8bc4842edd4c291e17f69c318b91dbb388eee081e029b3eac6"
+  },
+  "classification": "prepared diagnostic; no physical programming performed"
+}

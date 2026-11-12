@@ -1,0 +1,62 @@
+{
+  "AArch64_aggregate_receipt_sha256": "01448196ba60c598046116c6e42ce1e1a7a5750144e457c5b9032294e11fcd29",
+  "AArch64_executable_sha256": "40000922de753ff4dec011622fe1e7d0be0a93a797089fd2fa4d1892ef019063",
+  "cases": [
+    {
+      "BASIC_roundtrip": {
+        "editor_returns": 24,
+        "loads": 2,
+        "printed_value": 7,
+        "reload_removed_edit": true,
+        "runs": 2,
+        "saved_bytes": 923,
+        "saved_cdflag": 64
+      },
+      "SAVE_sha256": "4137c58140dcd2895961f86d29fda6e7dbce0ea863da1d73f94cea2ba2f1fecc",
+      "log_sha256": "76d5b65ed7a487bfc36330b80b41ba8ea8f4af12ffa23e8d0867501c2a1224b8",
+      "seed": 17
+    },
+    {
+      "BASIC_roundtrip": {
+        "editor_returns": 24,
+        "loads": 2,
+        "printed_value": 7,
+        "reload_removed_edit": true,
+        "runs": 2,
+        "saved_bytes": 923,
+        "saved_cdflag": 64
+      },
+      "SAVE_sha256": "4137c58140dcd2895961f86d29fda6e7dbce0ea863da1d73f94cea2ba2f1fecc",
+      "log_sha256": "76d5b65ed7a487bfc36330b80b41ba8ea8f4af12ffa23e8d0867501c2a1224b8",
+      "seed": 53
+    }
+  ],
+  "classification": "Actual standard RTL-model real-ROM BASIC on native and emulated AArch64, two seeds",
+  "collector_revision": "28f4ae754a341e9aa854beac66da4899652eb620",
+  "current_FPGA_acceptance": false,
+  "hardware_acceptance": false,
+  "native_receipt_sha256": "1479e922795ce57b01a22470a314f5eff01f0c0639bf25695983f94ee9ce257e",
+  "original_failed_attempt": {
+    "cause": "Original complete-matrix emulator wall deadline; preserve failed job, execute only missing seed53 with same immutable static binary.",
+    "elapsed_seconds": 4203.356,
+    "original_full_job_passed": false,
+    "seed17_complete_reused": true,
+    "state": "failed"
+  },
+  "physical_PR": "selection-mux-only",
+  "primitive_memory": "behavioral",
+  "source_comparison": {
+    "all_captured_RTL_firmware_and_Cpp_clients_unchanged": true,
+    "changed_captured_inputs": {
+      "sources/misteross/boards/de25nano/scanout/linux_dma.py": {
+        "current_sha256": "9a5e6579e44f5fffd4aefc1de719acfe93bc1bfb4de0cf5b34ca16fb2a4e3179",
+        "tested_sha256": "bdfaafc90e2fe18f12d7169c959fe0238595e3ebf09c05c1c532fa3378ff2ebc"
+      }
+    },
+    "current_head_full_model_rerun": false,
+    "unchanged_captured_inputs": 142
+  },
+  "source_input_count": 143,
+  "status": "passed",
+  "tested_source_revision": "8e926fe92bbada68fbef40436756722b1e8d3890"
+}

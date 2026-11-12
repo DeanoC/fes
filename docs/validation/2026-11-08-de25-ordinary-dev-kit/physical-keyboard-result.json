@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "scope": "One physical P key from Kinesis USB keyboard through ordinary FES into standard ZX81",
+  "boot_id": "bd1544c0-9143-48a3-b43d-fc47860824a6",
+  "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+  "package": "3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776",
+  "VID_PID": "058f:9410",
+  "native_event_node": "/dev/input/event1",
+  "user_confirmed": "Pressed P on the kit keyboard",
+  "synthetic_events": 0,
+  "before": "K cursor",
+  "after": "PRINT keyword with L cursor",
+  "visually_verified": true,
+  "before_sha256": "8c27e1bd829b9da3264114851a40808a75e496174ef430f4c9fd9253cc786107",
+  "after_sha256": "6a56f2bd01b247469a8809ad4be0a3e3cb2ef9d3c6febcba1dd3a439d59716f2",
+  "complete_keyboard_matrix_not_tested": true
+}

@@ -1,0 +1,1190 @@
+{
+  "overall": {
+    "success": true,
+    "status": "corrected observed-ROM-prompt rollback and restore controls pass; original failed fixture remains failed",
+    "source_head": "965733460ea9c57daa2076ec728e62d8df3d8db4",
+    "normal_kernel_software_producer": "ecaefd4af2bf202b94b558e4f3545249c309712f",
+    "prior_manifest_provenance": {
+      "fogcast": "caef8feace77c2d35a5f0ec4de1be380f3f5a038",
+      "runtime": "7f9b2a0d19a7c03a490775a5ab08820884a424cb"
+    },
+    "ordinary_package_producer": "8af614f4d95e71a00e63974c73e3d8f80e1a681a",
+    "ordinary_package": "3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776",
+    "core_build_id": "490c1ae5f0636db2c0ffdcda713c44c1",
+    "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+    "kernel_sha256": "9cec7e77f4cdb8b02d44acfd5bda5b1ee7b08801569648ab4f5ef12b6302d907",
+    "root_sha256": "0858eef044d2e4f1d3aab4ed8b88e439258075f097815eee942d70ae68222ec3",
+    "FIT_sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+    "initial_bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+    "initial_generation": 3,
+    "rollback_bundle": "77e80dff0587478cf5464742e99cf1d29046b9997a964688949cb2193fa569ed",
+    "rollback_generation": 4,
+    "restored_bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+    "restored_generation": 5,
+    "final_runtime_sha256": "c681f166628ad39f00c89c7698e00d4c6995c97184e749b3504cae9025dd5844",
+    "activation_requests": 2,
+    "rollback_operation_id": "31d82c488a4a0c4ad854c43fc0db04b735ceebc7c623b955b6872b6a7da993dd",
+    "restore_operation_id": "3b1d4794495d648e3334fd91622d5ef6ecc746f7b42d01b4c3ae7bd0718a99e6",
+    "one_exact_durable_accepted_receipt_each": true,
+    "one_ordinary_launch_each": true,
+    "required_two_fresh_empty_K_frames_before_first_key_each": true,
+    "normal_BASIC_LOAD_RUN7_and_Stop_MENU_each": true,
+    "all_selected_file_and_actual_three_process_hashes_verified": true,
+    "full_service_group_replaced_each": true,
+    "stable_MENU_seconds_each": 10,
+    "paired_host_binary_and_PID_retained": true,
+    "host_pid": 1823444,
+    "host_binary_sha256": "0de3179fb68e007f60f0b606d8fee55d77df754a5d53a483e17397db9dd88af2",
+    "host_restart": false,
+    "original_entry_media_retained": "e506e8a76f15734516ef95dabdb0a8c7aa8ac1bb7cadcf70f741eac763446535",
+    "saved_media_id": "0874cf797e6a5336d25c5a4ebb2206dc36249bfd7625e1428de2bb4bbad847c9",
+    "saved_program923bytes_retained": true,
+    "same_board_boot": true,
+    "no_image_kernel_FIT_QSPI_card_power_reboot_or_persona_action": true,
+    "normal_default_off_release_retained": true,
+    "final_MENU_idle_free": true,
+    "claim_released": true,
+    "old_failure_reclassified": false,
+    "old_failure_cause_proven": false,
+    "no_unchanged_failed_fixture_replay": true,
+    "documentation_commit_resets_HIL_fail_count": false,
+    "programming_DMA_timing_or_digit_guards_relaxed": false,
+    "dirty_SAVE_or_failed_upload_recovery_qualified": false,
+    "whole_kit_or_all_peripheral_qualification": false,
+    "main_baseline_promoted": false,
+    "tracked_issue": 1572
+  },
+  "fixture": {
+    "source_head": "965733460ea9c57daa2076ec728e62d8df3d8db4",
+    "source_sha256": {
+      "activate.py": "838ebc5593c4c48cd09b704f6afc4776bc48a434f53192b0e6439f2d63ab547a",
+      "control.py": "ebea3db5d3bb0d9b60c603d5e11e25ee9a4cd1591938661894e3cf8d7f750f05",
+      "rollback_support.py": "95909a49faac81d5f4fb3aab41b3ca4551ac8390697e5a10bc27e1fb0cfd4a1d",
+      "prompt-gate/wait_prompt.py": "038dd8b91c496c53d0daa3146f03e1650f7b67f0d68f1da1d33375db7da0e601",
+      "prompt-gate/openrom_prompt.py": "ccb886b71dd56c421e2344c299f2b6612687a5e97499420ea2365bc3baee0a9d"
+    },
+    "initial_bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+    "initial_generation": 3,
+    "prior_generation": 4,
+    "final_generation": 5,
+    "fixture_repair": {
+      "prepared": true,
+      "classifier_sha256": "ccb886b71dd56c421e2344c299f2b6612687a5e97499420ea2365bc3baee0a9d",
+      "waiter_sha256": "038dd8b91c496c53d0daa3146f03e1650f7b67f0d68f1da1d33375db7da0e601",
+      "offboard_vector_result_sha256": "9eb55a0b76c15c7df508886953c6ea92f92b02ed8548b9f2bfe1656cfc5bef3e",
+      "new_precondition": "two consecutive fresh empty inverse OpenROM K captures in same owned session before LOAD/input",
+      "same_HIL_capture_device": true,
+      "numeric7_assertion_unchanged": true,
+      "no_programming_admission_or_deadline_relaxation": true,
+      "no_live_corrected_trial_performed": true,
+      "prior_failures_retained": true,
+      "documentation_commit_does_not_reset_HIL_fail_count": true
+    },
+    "no_prior_failure_reclassified": true,
+    "documentation_head_does_not_reset_HIL_fail_count": true,
+    "change_is_required_observed_guest_prompt_before_first_key": true,
+    "no_unchanged_failed_fixture_replay": true,
+    "expected_BASIC7_unchanged": true,
+    "one_activation_each_direction": true,
+    "no_card_boot_image_kernel_FIT_QSPI_or_persona_change": true
+  },
+  "visual_review": {
+    "passed": true,
+    "images": {
+      "rollback-control/empty-K/prompt-0.png": "b085e5d7969088903b8c7f1de5516cc5bd7ced84fa315b64950a9d7fa6153e3f",
+      "rollback-control/empty-K/prompt-1.png": "b085e5d7969088903b8c7f1de5516cc5bd7ced84fa315b64950a9d7fa6153e3f",
+      "rollback-control/basic/basic7.png": "85192f6efd1cb54f76dc2c16aa8ca1f3b6dbb349b87763adefe44f255de37d2f",
+      "restore-control/empty-K/prompt-0.png": "b085e5d7969088903b8c7f1de5516cc5bd7ced84fa315b64950a9d7fa6153e3f",
+      "restore-control/empty-K/prompt-1.png": "b085e5d7969088903b8c7f1de5516cc5bd7ced84fa315b64950a9d7fa6153e3f",
+      "restore-control/basic/basic7.png": "85192f6efd1cb54f76dc2c16aa8ca1f3b6dbb349b87763adefe44f255de37d2f"
+    },
+    "human_viewed": [
+      "rollback-control/empty-K/prompt-0.png",
+      "rollback-control/basic/basic7.png",
+      "restore-control/empty-K/prompt-0.png",
+      "restore-control/basic/basic7.png"
+    ],
+    "scope": "Viewed actual inverse K then black-on-white7 in each selected bundle; both consecutive prompt frames per phase also pass the bound font/body classifier."
+  },
+  "phases": {
+    "rollback": {
+      "activation": {
+        "success": true,
+        "phase": "rollback",
+        "source_head": "965733460ea9c57daa2076ec728e62d8df3d8db4",
+        "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+        "from_bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+        "to_bundle": "77e80dff0587478cf5464742e99cf1d29046b9997a964688949cb2193fa569ed",
+        "from_generation": 3,
+        "activation_requests": 1,
+        "to_generation": 4,
+        "operation_id": "31d82c488a4a0c4ad854c43fc0db04b735ceebc7c623b955b6872b6a7da993dd",
+        "receipt": {
+          "id": "31d82c488a4a0c4ad854c43fc0db04b735ceebc7c623b955b6872b6a7da993dd",
+          "candidate": "77e80dff0587478cf5464742e99cf1d29046b9997a964688949cb2193fa569ed",
+          "requester": "Codex #1312 ROM-prompt rollback proof 965733460",
+          "expected_generation": 3,
+          "result": "accepted"
+        },
+        "same_boot": true,
+        "same_kernel_root_FIT_card": true,
+        "full_selected_process_group_replaced": true,
+        "selected_installed_files_and_running_three_process_hashes_verified": true,
+        "stable_MENU_seconds": 10,
+        "private_host_reconnected_without_restart": true,
+        "saved_media_and_entry_unchanged": true,
+        "observed_phases": [
+          "queued",
+          "applying"
+        ],
+        "elapsed_seconds": 33.562,
+        "ordinary_control_pending": true
+      },
+      "control": {
+        "success": true,
+        "phase": "rollback",
+        "bundle": "77e80dff0587478cf5464742e99cf1d29046b9997a964688949cb2193fa569ed",
+        "generation": 4,
+        "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+        "source_head": "965733460ea9c57daa2076ec728e62d8df3d8db4",
+        "ordinary_package": "3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776",
+        "BASIC_load_run7_HDMI": true,
+        "normal_Stop_MENU_idle_free": true,
+        "same_boot": true,
+        "one_ordinary_launch": true,
+        "no_persona": true,
+        "no_image_kernel_root_FIT_card_QSPI_or_power_change": true
+      },
+      "first_input_gate": {
+        "passed": true,
+        "consecutive_fresh_empty_K_captures": 2,
+        "observations": 2,
+        "no_key_before_gate": true,
+        "hardware_access": true
+      },
+      "prompt_observations": [
+        {
+          "before": {
+            "id": "7e2879e4-e736-4433-a732-eadccc29378c",
+            "target": "de25-bottom",
+            "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+            "connection": {
+              "state": "active",
+              "address": "http://192.168.10.119:8182",
+              "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+              "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf"
+            },
+            "state": "active",
+            "game_id": "fpga-zx81-ecf8e4ef20d1",
+            "system": "fpga",
+            "execution": "fpga_native",
+            "input": {
+              "session_id": "f49b7ea8d34b6e49",
+              "state": "attached",
+              "ready": true,
+              "metrics": {
+                "frames_sent": 0,
+                "state_resyncs": 0,
+                "sequence_gaps": 0,
+                "releases": 0,
+                "capture_to_bridge_p95_ms": 0,
+                "bridge_to_uinput_p95_ms": 0,
+                "rtt_ms": 0,
+                "bridge_to_uinput_measurable": false
+              }
+            },
+            "core_package": {
+              "media_units": [
+                {
+                  "unit": 0,
+                  "interface": {
+                    "id": "fes.media.zx81-tape",
+                    "major": 1,
+                    "minor": 0
+                  },
+                  "min_bytes": 1,
+                  "max_bytes": 16384,
+                  "chunk_bytes": 512,
+                  "state": "ready"
+                }
+              ],
+              "persistence_mode": "volatile",
+              "package_id": "3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776",
+              "core_id": "fes.zx81",
+              "generation": 1,
+              "abi": {
+                "id": "fes.computer",
+                "major": 1,
+                "minor": 0
+              },
+              "build_id": "490c1ae5f0636db2c0ffdcda713c44c1",
+              "active_interfaces": [
+                {
+                  "id": "fes.audio.pcm-s16-stereo-48k",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.fabric.de25-scanout",
+                  "major": 1,
+                  "minor": 1
+                },
+                {
+                  "id": "fes.fabric.video.display-plane",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.gamepad.ports",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.keyboard.hid",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.media.zx81-tape",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.media.zx81-tape-write",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.video.fixed-720p60",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.video.session-display",
+                  "major": 1,
+                  "minor": 0
+                }
+              ],
+              "gamepad": true
+            },
+            "flight_id": "150c3901-4937-4b7b-895d-dff4ddb5b7a0"
+          },
+          "after": {
+            "id": "7e2879e4-e736-4433-a732-eadccc29378c",
+            "target": "de25-bottom",
+            "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+            "connection": {
+              "state": "active",
+              "address": "http://192.168.10.119:8182",
+              "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+              "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf"
+            },
+            "state": "active",
+            "game_id": "fpga-zx81-ecf8e4ef20d1",
+            "system": "fpga",
+            "execution": "fpga_native",
+            "input": {
+              "session_id": "f49b7ea8d34b6e49",
+              "state": "attached",
+              "ready": true,
+              "metrics": {
+                "frames_sent": 3,
+                "state_resyncs": 0,
+                "sequence_gaps": 0,
+                "releases": 0,
+                "capture_to_bridge_p95_ms": 0,
+                "bridge_to_uinput_p95_ms": 0,
+                "rtt_ms": 0.512987,
+                "bridge_to_uinput_measurable": false
+              }
+            },
+            "core_package": {
+              "media_units": [
+                {
+                  "unit": 0,
+                  "interface": {
+                    "id": "fes.media.zx81-tape",
+                    "major": 1,
+                    "minor": 0
+                  },
+                  "min_bytes": 1,
+                  "max_bytes": 16384,
+                  "chunk_bytes": 512,
+                  "state": "ready"
+                }
+              ],
+              "persistence_mode": "volatile",
+              "package_id": "3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776",
+              "core_id": "fes.zx81",
+              "generation": 1,
+              "abi": {
+                "id": "fes.computer",
+                "major": 1,
+                "minor": 0
+              },
+              "build_id": "490c1ae5f0636db2c0ffdcda713c44c1",
+              "active_interfaces": [
+                {
+                  "id": "fes.audio.pcm-s16-stereo-48k",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.fabric.de25-scanout",
+                  "major": 1,
+                  "minor": 1
+                },
+                {
+                  "id": "fes.fabric.video.display-plane",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.gamepad.ports",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.keyboard.hid",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.media.zx81-tape",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.media.zx81-tape-write",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.video.fixed-720p60",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.video.session-display",
+                  "major": 1,
+                  "minor": 0
+                }
+              ],
+              "gamepad": true
+            },
+            "flight_id": "150c3901-4937-4b7b-895d-dff4ddb5b7a0"
+          },
+          "result": {
+            "ready": true,
+            "inverse_K_candidates": [
+              [
+                577,
+                836
+              ],
+              [
+                578,
+                836
+              ],
+              [
+                577,
+                837
+              ],
+              [
+                578,
+                837
+              ]
+            ],
+            "body_ink_samples": 0,
+            "body_paper_fraction": 1.0,
+            "font_sha256": "46cbee620d56e93edb4517fb0759f8e992d8d8428e4cc5007f17386575090df5",
+            "capture_sha256": "b085e5d7969088903b8c7f1de5516cc5bd7ced84fa315b64950a9d7fa6153e3f",
+            "hardware_access": false,
+            "scope": "Off-board capture classification only; not a board readiness or runtime repair proof"
+          }
+        },
+        {
+          "before": {
+            "id": "7e2879e4-e736-4433-a732-eadccc29378c",
+            "target": "de25-bottom",
+            "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+            "connection": {
+              "state": "active",
+              "address": "http://192.168.10.119:8182",
+              "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+              "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf"
+            },
+            "state": "active",
+            "game_id": "fpga-zx81-ecf8e4ef20d1",
+            "system": "fpga",
+            "execution": "fpga_native",
+            "input": {
+              "session_id": "f49b7ea8d34b6e49",
+              "state": "attached",
+              "ready": true,
+              "metrics": {
+                "frames_sent": 4,
+                "state_resyncs": 0,
+                "sequence_gaps": 0,
+                "releases": 0,
+                "capture_to_bridge_p95_ms": 0,
+                "bridge_to_uinput_p95_ms": 0,
+                "rtt_ms": 2.751026,
+                "bridge_to_uinput_measurable": false
+              }
+            },
+            "core_package": {
+              "media_units": [
+                {
+                  "unit": 0,
+                  "interface": {
+                    "id": "fes.media.zx81-tape",
+                    "major": 1,
+                    "minor": 0
+                  },
+                  "min_bytes": 1,
+                  "max_bytes": 16384,
+                  "chunk_bytes": 512,
+                  "state": "ready"
+                }
+              ],
+              "persistence_mode": "volatile",
+              "package_id": "3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776",
+              "core_id": "fes.zx81",
+              "generation": 1,
+              "abi": {
+                "id": "fes.computer",
+                "major": 1,
+                "minor": 0
+              },
+              "build_id": "490c1ae5f0636db2c0ffdcda713c44c1",
+              "active_interfaces": [
+                {
+                  "id": "fes.audio.pcm-s16-stereo-48k",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.fabric.de25-scanout",
+                  "major": 1,
+                  "minor": 1
+                },
+                {
+                  "id": "fes.fabric.video.display-plane",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.gamepad.ports",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.keyboard.hid",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.media.zx81-tape",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.media.zx81-tape-write",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.video.fixed-720p60",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.video.session-display",
+                  "major": 1,
+                  "minor": 0
+                }
+              ],
+              "gamepad": true
+            },
+            "flight_id": "150c3901-4937-4b7b-895d-dff4ddb5b7a0"
+          },
+          "after": {
+            "id": "7e2879e4-e736-4433-a732-eadccc29378c",
+            "target": "de25-bottom",
+            "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+            "connection": {
+              "state": "active",
+              "address": "http://192.168.10.119:8182",
+              "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+              "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf"
+            },
+            "state": "active",
+            "game_id": "fpga-zx81-ecf8e4ef20d1",
+            "system": "fpga",
+            "execution": "fpga_native",
+            "input": {
+              "session_id": "f49b7ea8d34b6e49",
+              "state": "attached",
+              "ready": true,
+              "metrics": {
+                "frames_sent": 7,
+                "state_resyncs": 0,
+                "sequence_gaps": 0,
+                "releases": 0,
+                "capture_to_bridge_p95_ms": 0,
+                "bridge_to_uinput_p95_ms": 0,
+                "rtt_ms": 0.751634,
+                "bridge_to_uinput_measurable": false
+              }
+            },
+            "core_package": {
+              "media_units": [
+                {
+                  "unit": 0,
+                  "interface": {
+                    "id": "fes.media.zx81-tape",
+                    "major": 1,
+                    "minor": 0
+                  },
+                  "min_bytes": 1,
+                  "max_bytes": 16384,
+                  "chunk_bytes": 512,
+                  "state": "ready"
+                }
+              ],
+              "persistence_mode": "volatile",
+              "package_id": "3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776",
+              "core_id": "fes.zx81",
+              "generation": 1,
+              "abi": {
+                "id": "fes.computer",
+                "major": 1,
+                "minor": 0
+              },
+              "build_id": "490c1ae5f0636db2c0ffdcda713c44c1",
+              "active_interfaces": [
+                {
+                  "id": "fes.audio.pcm-s16-stereo-48k",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.fabric.de25-scanout",
+                  "major": 1,
+                  "minor": 1
+                },
+                {
+                  "id": "fes.fabric.video.display-plane",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.gamepad.ports",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.keyboard.hid",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.media.zx81-tape",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.media.zx81-tape-write",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.video.fixed-720p60",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.video.session-display",
+                  "major": 1,
+                  "minor": 0
+                }
+              ],
+              "gamepad": true
+            },
+            "flight_id": "150c3901-4937-4b7b-895d-dff4ddb5b7a0"
+          },
+          "result": {
+            "ready": true,
+            "inverse_K_candidates": [
+              [
+                577,
+                836
+              ],
+              [
+                578,
+                836
+              ],
+              [
+                577,
+                837
+              ],
+              [
+                578,
+                837
+              ]
+            ],
+            "body_ink_samples": 0,
+            "body_paper_fraction": 1.0,
+            "font_sha256": "46cbee620d56e93edb4517fb0759f8e992d8d8428e4cc5007f17386575090df5",
+            "capture_sha256": "b085e5d7969088903b8c7f1de5516cc5bd7ced84fa315b64950a9d7fa6153e3f",
+            "hardware_access": false,
+            "scope": "Off-board capture classification only; not a board readiness or runtime repair proof"
+          }
+        }
+      ]
+    },
+    "restore": {
+      "activation": {
+        "success": true,
+        "phase": "restore",
+        "source_head": "965733460ea9c57daa2076ec728e62d8df3d8db4",
+        "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+        "from_bundle": "77e80dff0587478cf5464742e99cf1d29046b9997a964688949cb2193fa569ed",
+        "to_bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+        "from_generation": 4,
+        "activation_requests": 1,
+        "cleanup_after_failed_control": false,
+        "to_generation": 5,
+        "operation_id": "3b1d4794495d648e3334fd91622d5ef6ecc746f7b42d01b4c3ae7bd0718a99e6",
+        "receipt": {
+          "id": "3b1d4794495d648e3334fd91622d5ef6ecc746f7b42d01b4c3ae7bd0718a99e6",
+          "candidate": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+          "requester": "Codex #1312 ROM-prompt rollback proof 965733460",
+          "expected_generation": 4,
+          "result": "accepted"
+        },
+        "same_boot": true,
+        "same_kernel_root_FIT_card": true,
+        "full_selected_process_group_replaced": true,
+        "selected_installed_files_and_running_three_process_hashes_verified": true,
+        "stable_MENU_seconds": 10,
+        "private_host_reconnected_without_restart": true,
+        "saved_media_and_entry_unchanged": true,
+        "observed_phases": [
+          "queued",
+          "applying"
+        ],
+        "elapsed_seconds": 34.966,
+        "ordinary_control_pending": true
+      },
+      "control": {
+        "success": true,
+        "phase": "restore",
+        "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+        "generation": 5,
+        "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+        "source_head": "965733460ea9c57daa2076ec728e62d8df3d8db4",
+        "ordinary_package": "3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776",
+        "BASIC_load_run7_HDMI": true,
+        "normal_Stop_MENU_idle_free": true,
+        "same_boot": true,
+        "one_ordinary_launch": true,
+        "no_persona": true,
+        "no_image_kernel_root_FIT_card_QSPI_or_power_change": true
+      },
+      "first_input_gate": {
+        "passed": true,
+        "consecutive_fresh_empty_K_captures": 2,
+        "observations": 2,
+        "no_key_before_gate": true,
+        "hardware_access": true
+      },
+      "prompt_observations": [
+        {
+          "before": {
+            "id": "7e2879e4-e736-4433-a732-eadccc29378c",
+            "target": "de25-bottom",
+            "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+            "connection": {
+              "state": "active",
+              "address": "http://192.168.10.119:8182",
+              "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+              "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf"
+            },
+            "state": "active",
+            "game_id": "fpga-zx81-ecf8e4ef20d1",
+            "system": "fpga",
+            "execution": "fpga_native",
+            "input": {
+              "session_id": "46ea9273317461f2",
+              "state": "attached",
+              "ready": true,
+              "metrics": {
+                "frames_sent": 0,
+                "state_resyncs": 0,
+                "sequence_gaps": 0,
+                "releases": 0,
+                "capture_to_bridge_p95_ms": 0,
+                "bridge_to_uinput_p95_ms": 0,
+                "rtt_ms": 0,
+                "bridge_to_uinput_measurable": false
+              }
+            },
+            "core_package": {
+              "media_units": [
+                {
+                  "unit": 0,
+                  "interface": {
+                    "id": "fes.media.zx81-tape",
+                    "major": 1,
+                    "minor": 0
+                  },
+                  "min_bytes": 1,
+                  "max_bytes": 16384,
+                  "chunk_bytes": 512,
+                  "state": "ready"
+                }
+              ],
+              "persistence_mode": "volatile",
+              "package_id": "3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776",
+              "core_id": "fes.zx81",
+              "generation": 1,
+              "abi": {
+                "id": "fes.computer",
+                "major": 1,
+                "minor": 0
+              },
+              "build_id": "490c1ae5f0636db2c0ffdcda713c44c1",
+              "active_interfaces": [
+                {
+                  "id": "fes.audio.pcm-s16-stereo-48k",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.fabric.de25-scanout",
+                  "major": 1,
+                  "minor": 1
+                },
+                {
+                  "id": "fes.fabric.video.display-plane",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.gamepad.ports",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.keyboard.hid",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.media.zx81-tape",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.media.zx81-tape-write",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.video.fixed-720p60",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.video.session-display",
+                  "major": 1,
+                  "minor": 0
+                }
+              ],
+              "gamepad": true
+            },
+            "flight_id": "5e4650d7-c427-429b-8262-1727a0529765"
+          },
+          "after": {
+            "id": "7e2879e4-e736-4433-a732-eadccc29378c",
+            "target": "de25-bottom",
+            "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+            "connection": {
+              "state": "active",
+              "address": "http://192.168.10.119:8182",
+              "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+              "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf"
+            },
+            "state": "active",
+            "game_id": "fpga-zx81-ecf8e4ef20d1",
+            "system": "fpga",
+            "execution": "fpga_native",
+            "input": {
+              "session_id": "46ea9273317461f2",
+              "state": "attached",
+              "ready": true,
+              "metrics": {
+                "frames_sent": 3,
+                "state_resyncs": 0,
+                "sequence_gaps": 0,
+                "releases": 0,
+                "capture_to_bridge_p95_ms": 0,
+                "bridge_to_uinput_p95_ms": 0,
+                "rtt_ms": 0.859439,
+                "bridge_to_uinput_measurable": false
+              }
+            },
+            "core_package": {
+              "media_units": [
+                {
+                  "unit": 0,
+                  "interface": {
+                    "id": "fes.media.zx81-tape",
+                    "major": 1,
+                    "minor": 0
+                  },
+                  "min_bytes": 1,
+                  "max_bytes": 16384,
+                  "chunk_bytes": 512,
+                  "state": "ready"
+                }
+              ],
+              "persistence_mode": "volatile",
+              "package_id": "3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776",
+              "core_id": "fes.zx81",
+              "generation": 1,
+              "abi": {
+                "id": "fes.computer",
+                "major": 1,
+                "minor": 0
+              },
+              "build_id": "490c1ae5f0636db2c0ffdcda713c44c1",
+              "active_interfaces": [
+                {
+                  "id": "fes.audio.pcm-s16-stereo-48k",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.fabric.de25-scanout",
+                  "major": 1,
+                  "minor": 1
+                },
+                {
+                  "id": "fes.fabric.video.display-plane",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.gamepad.ports",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.keyboard.hid",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.media.zx81-tape",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.media.zx81-tape-write",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.video.fixed-720p60",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.video.session-display",
+                  "major": 1,
+                  "minor": 0
+                }
+              ],
+              "gamepad": true
+            },
+            "flight_id": "5e4650d7-c427-429b-8262-1727a0529765"
+          },
+          "result": {
+            "ready": true,
+            "inverse_K_candidates": [
+              [
+                577,
+                836
+              ],
+              [
+                578,
+                836
+              ],
+              [
+                577,
+                837
+              ],
+              [
+                578,
+                837
+              ]
+            ],
+            "body_ink_samples": 0,
+            "body_paper_fraction": 1.0,
+            "font_sha256": "46cbee620d56e93edb4517fb0759f8e992d8d8428e4cc5007f17386575090df5",
+            "capture_sha256": "b085e5d7969088903b8c7f1de5516cc5bd7ced84fa315b64950a9d7fa6153e3f",
+            "hardware_access": false,
+            "scope": "Off-board capture classification only; not a board readiness or runtime repair proof"
+          }
+        },
+        {
+          "before": {
+            "id": "7e2879e4-e736-4433-a732-eadccc29378c",
+            "target": "de25-bottom",
+            "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+            "connection": {
+              "state": "active",
+              "address": "http://192.168.10.119:8182",
+              "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+              "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf"
+            },
+            "state": "active",
+            "game_id": "fpga-zx81-ecf8e4ef20d1",
+            "system": "fpga",
+            "execution": "fpga_native",
+            "input": {
+              "session_id": "46ea9273317461f2",
+              "state": "attached",
+              "ready": true,
+              "metrics": {
+                "frames_sent": 3,
+                "state_resyncs": 0,
+                "sequence_gaps": 0,
+                "releases": 0,
+                "capture_to_bridge_p95_ms": 0,
+                "bridge_to_uinput_p95_ms": 0,
+                "rtt_ms": 0.859439,
+                "bridge_to_uinput_measurable": false
+              }
+            },
+            "core_package": {
+              "media_units": [
+                {
+                  "unit": 0,
+                  "interface": {
+                    "id": "fes.media.zx81-tape",
+                    "major": 1,
+                    "minor": 0
+                  },
+                  "min_bytes": 1,
+                  "max_bytes": 16384,
+                  "chunk_bytes": 512,
+                  "state": "ready"
+                }
+              ],
+              "persistence_mode": "volatile",
+              "package_id": "3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776",
+              "core_id": "fes.zx81",
+              "generation": 1,
+              "abi": {
+                "id": "fes.computer",
+                "major": 1,
+                "minor": 0
+              },
+              "build_id": "490c1ae5f0636db2c0ffdcda713c44c1",
+              "active_interfaces": [
+                {
+                  "id": "fes.audio.pcm-s16-stereo-48k",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.fabric.de25-scanout",
+                  "major": 1,
+                  "minor": 1
+                },
+                {
+                  "id": "fes.fabric.video.display-plane",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.gamepad.ports",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.keyboard.hid",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.media.zx81-tape",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.media.zx81-tape-write",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.video.fixed-720p60",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.video.session-display",
+                  "major": 1,
+                  "minor": 0
+                }
+              ],
+              "gamepad": true
+            },
+            "flight_id": "5e4650d7-c427-429b-8262-1727a0529765"
+          },
+          "after": {
+            "id": "7e2879e4-e736-4433-a732-eadccc29378c",
+            "target": "de25-bottom",
+            "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+            "connection": {
+              "state": "active",
+              "address": "http://192.168.10.119:8182",
+              "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+              "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf"
+            },
+            "state": "active",
+            "game_id": "fpga-zx81-ecf8e4ef20d1",
+            "system": "fpga",
+            "execution": "fpga_native",
+            "input": {
+              "session_id": "46ea9273317461f2",
+              "state": "attached",
+              "ready": true,
+              "metrics": {
+                "frames_sent": 6,
+                "state_resyncs": 0,
+                "sequence_gaps": 0,
+                "releases": 0,
+                "capture_to_bridge_p95_ms": 0,
+                "bridge_to_uinput_p95_ms": 0,
+                "rtt_ms": 0.663424,
+                "bridge_to_uinput_measurable": false
+              }
+            },
+            "core_package": {
+              "media_units": [
+                {
+                  "unit": 0,
+                  "interface": {
+                    "id": "fes.media.zx81-tape",
+                    "major": 1,
+                    "minor": 0
+                  },
+                  "min_bytes": 1,
+                  "max_bytes": 16384,
+                  "chunk_bytes": 512,
+                  "state": "ready"
+                }
+              ],
+              "persistence_mode": "volatile",
+              "package_id": "3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776",
+              "core_id": "fes.zx81",
+              "generation": 1,
+              "abi": {
+                "id": "fes.computer",
+                "major": 1,
+                "minor": 0
+              },
+              "build_id": "490c1ae5f0636db2c0ffdcda713c44c1",
+              "active_interfaces": [
+                {
+                  "id": "fes.audio.pcm-s16-stereo-48k",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.fabric.de25-scanout",
+                  "major": 1,
+                  "minor": 1
+                },
+                {
+                  "id": "fes.fabric.video.display-plane",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.gamepad.ports",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.keyboard.hid",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.media.zx81-tape",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.media.zx81-tape-write",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.video.fixed-720p60",
+                  "major": 1,
+                  "minor": 0
+                },
+                {
+                  "id": "fes.video.session-display",
+                  "major": 1,
+                  "minor": 0
+                }
+              ],
+              "gamepad": true
+            },
+            "flight_id": "5e4650d7-c427-429b-8262-1727a0529765"
+          },
+          "result": {
+            "ready": true,
+            "inverse_K_candidates": [
+              [
+                577,
+                836
+              ],
+              [
+                578,
+                836
+              ],
+              [
+                577,
+                837
+              ],
+              [
+                578,
+                837
+              ]
+            ],
+            "body_ink_samples": 0,
+            "body_paper_fraction": 1.0,
+            "font_sha256": "46cbee620d56e93edb4517fb0759f8e992d8d8428e4cc5007f17386575090df5",
+            "capture_sha256": "b085e5d7969088903b8c7f1de5516cc5bd7ced84fa315b64950a9d7fa6153e3f",
+            "hardware_access": false,
+            "scope": "Off-board capture classification only; not a board readiness or runtime repair proof"
+          }
+        }
+      ]
+    }
+  },
+  "published_images": {
+    "stock-rollback-prompt-v2-prompt.png": "b085e5d7969088903b8c7f1de5516cc5bd7ced84fa315b64950a9d7fa6153e3f",
+    "stock-rollback-prompt-v2-basic7.png": "85192f6efd1cb54f76dc2c16aa8ca1f3b6dbb349b87763adefe44f255de37d2f",
+    "stock-restore-prompt-v2-prompt.png": "b085e5d7969088903b8c7f1de5516cc5bd7ced84fa315b64950a9d7fa6153e3f",
+    "stock-restore-prompt-v2-basic7.png": "85192f6efd1cb54f76dc2c16aa8ca1f3b6dbb349b87763adefe44f255de37d2f"
+  }
+}

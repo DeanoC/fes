@@ -1,0 +1,585 @@
+{
+  "actual_protocol_cases": [
+    {
+      "case": "hdmi-inputs-nack-3",
+      "clock_cycles": 11897259,
+      "data_hold_samples": 662,
+      "minimum_master_data_hold_ns": 160,
+      "status": "pass",
+      "writes": 66
+    },
+    {
+      "case": "hdmi-inputs-nack-0",
+      "clock_cycles": 6119949,
+      "data_hold_samples": 339,
+      "minimum_master_data_hold_ns": 160,
+      "status": "pass",
+      "writes": 34
+    },
+    {
+      "case": "hdmi-inputs-nack-1",
+      "clock_cycles": 6119949,
+      "data_hold_samples": 339,
+      "minimum_master_data_hold_ns": 160,
+      "status": "pass",
+      "writes": 34
+    },
+    {
+      "case": "hdmi-inputs-nack-2",
+      "clock_cycles": 6119949,
+      "data_hold_samples": 339,
+      "minimum_master_data_hold_ns": 160,
+      "status": "pass",
+      "writes": 34
+    }
+  ],
+  "build_id": "5952e4a9936363114264247efd5584ee",
+  "canonical_MENU_source_inputs": 374,
+  "changed_canonical_inputs_from_original_fit": [
+    "boards/de25nano/scanout/README.md",
+    "boards/de25nano/scanout/hdmi_inputs.py",
+    "boards/de25nano/scanout/hdmi_io_tb.cpp"
+  ],
+  "classification": "Exact fitted SDA hold chain, 64 timed stage paths and actual protocol/source binding; no external pin or hardware acceptance",
+  "controller_equivalence": {
+    "equiv_cells": 40,
+    "gate_sha256": "91a3a7bcbd2624a7e3102eafa3f7dead6f26c7131f6b3a3ce854c2f53dcc2fdd",
+    "gold_sha256": "0b61cbf5839ed8d18c0c43f5c999c7ea001916afb37113eb76441db336d4e416",
+    "proof": "read_verilog gold.v gate.v; proc; opt; async2sync; opt; equiv_make gold gate equiv; hierarchy -top equiv; equiv_simple; equiv_induct -seq 2; equiv_status -assert",
+    "reset_model": "async2sync",
+    "unproven": 0,
+    "yosys_sha256": "88c0a12bb814a1a8716b1ae10b482e35d3005ed558e1f5f626b3dc983ea3abd0"
+  },
+  "hardware_access": "not-performed",
+  "matched_actual_protocol_inputs": {
+    "/data/de25-hdmi-output-a3a9dd9d5/candidate-hold/signoff/combined/hps/project/fes_mailbox/fes_de25_scanout_board.v": "7bdaefcf9c9ecfa031519b941adb5ed24050121496ab3ee2de0e470a2c7a5e7c",
+    "/data/de25-hdmi-output-a3a9dd9d5/candidate-hold/signoff/combined/hps/project/fes_mailbox/fes_de25_scanout_hdmi_config.v": "858b243ff0edbc5245a8149defedfae70efa5a21a65302f5686b9064dd3754be",
+    "/data/de25-hdmi-output-a3a9dd9d5/candidate-hold/signoff/combined/hps/project/fes_mailbox/fes_de25_scanout_i2c_controller.v": "57dd988f8a8989008a33be7bbac04ea8ee77f579b66294502414f315bd35fd2a",
+    "/data/de25-hdmi-output-a3a9dd9d5/candidate-hold/signoff/combined/hps/project/fes_mailbox/fes_de25_top_reset.v": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a",
+    "/data/de25-hdmi-output-a3a9dd9d5/candidate-hold/signoff/hdmi-vendor-inputs/I2C_Controller.v": "4ac2feae20095dc7287dedec70bdeb8949b086ea6ce3c3a33583063e978003ab",
+    "/data/de25-hdmi-output-a3a9dd9d5/candidate-hold/signoff/hdmi-vendor-inputs/I2C_HDMI_Config.v": "b9b7c477173fee9b6cb5e3d6a6ba1122c7a0b539f205d807b1d61b22048fd391",
+    "/data/de25-hdmi-output-a3a9dd9d5/source-hold/sources/misteross/boards/de25nano/display/sim_models.v": "816d8abfff2b1bd03cd719a264dbbfbd494431e02231024409c0522eec1ef927",
+    "/data/de25-hdmi-output-a3a9dd9d5/source-hold/sources/misteross/boards/de25nano/scanout/hdmi_inputs.py": "8dda1b3bf48654dec48fd4492c0171f04bba78a0b1291c553fc9108e72ba2156",
+    "/data/de25-hdmi-output-a3a9dd9d5/source-hold/sources/misteross/boards/de25nano/scanout/hdmi_io_tb.cpp": "3b7d3afa23b73d9cc7f79b02887db0235c19aaacbb6fc2644c166536cb675c89",
+    "/data/de25-hdmi-output-a3a9dd9d5/source-hold/sources/misteross/boards/de25nano/scanout/hdmi_io_tb.v": "428c81f1e073f420b34f15bae5d1d6d47a5a94dc0d8a6f4330123df688d46a14"
+  },
+  "native_acceptance": false,
+  "original_compiled_inputs_unchanged": true,
+  "package_timing_admission": false,
+  "raw_failed_rules": {
+    "RDC-50003": 2,
+    "TMC-20011": 2,
+    "TMC-20012": 30
+  },
+  "rbf_sha256": "e18324235e32c86b643b24dba18deab344628cd9fe0a41bf9d6a3ea76836fde4",
+  "rbf_size": 1425408,
+  "reported_timing_checks": 69,
+  "retained_stage_count": 8,
+  "signoff_rules": 85,
+  "source_revision": "72716153eb7be7b62917ed685d5d7380347a2d7d",
+  "stage_timing": [
+    {
+      "corner": "Slow fix4 100C Model",
+      "kind": "setup",
+      "report_sha256": "3ce63c65d525efd7ccb96fcb80be7bd09df722f18b2ba1ce2b73a9bf9feb1129",
+      "slack_ns": "17.771",
+      "stage": 0
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "kind": "hold",
+      "report_sha256": "23e83dad1b32ca56e2e024aff04a7b82a41382638b312b67f4b4553de0591e68",
+      "slack_ns": "1.598",
+      "stage": 0
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "kind": "setup",
+      "report_sha256": "de605693424e6c1c17264f3d99b40ce9289edcc8d18f09e76009d391430e1541",
+      "slack_ns": "19.601",
+      "stage": 1
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "kind": "hold",
+      "report_sha256": "b33468657ee936d43362be36b008f5d5a71b679c2b8a1b1f0e198bf9267f6b77",
+      "slack_ns": "0.218",
+      "stage": 1
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "kind": "setup",
+      "report_sha256": "0fae1f311b2f7db41752fd5c0a8ce42824854854b693f4ce3d470c505d0744a7",
+      "slack_ns": "19.530",
+      "stage": 2
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "kind": "hold",
+      "report_sha256": "d76e82fe8600e33eb00916f71dcd198230317f87f5caf688bf8f0c3fd0043625",
+      "slack_ns": "0.276",
+      "stage": 2
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "kind": "setup",
+      "report_sha256": "9420b9d8a71cc1908f46a0a0de87f54c3f1227541c8c34c07afbe1f9d56157de",
+      "slack_ns": "19.638",
+      "stage": 3
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "kind": "hold",
+      "report_sha256": "7158476d0bc83af71fbbda664c931e42914f73e3c0e20e73deb285bc526e8105",
+      "slack_ns": "0.182",
+      "stage": 3
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "kind": "setup",
+      "report_sha256": "e314d9397fdbcab7bb0a8704c2b854f5b33a9c0d79c994489132f80f3f124f4a",
+      "slack_ns": "19.582",
+      "stage": 4
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "kind": "hold",
+      "report_sha256": "ac891b50fbd46eea809ff5e4e343b0e7a76c627d2f831f89356af72f90564544",
+      "slack_ns": "0.224",
+      "stage": 4
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "kind": "setup",
+      "report_sha256": "b0bc32364972bf50466c3ee7709df47650907f035b99e1c4e809a4ec00f1cbc5",
+      "slack_ns": "19.601",
+      "stage": 5
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "kind": "hold",
+      "report_sha256": "798655809d8eeb8a46291d202a5b437ec40b51f4dbb6c0057ad533c45e9aff95",
+      "slack_ns": "0.215",
+      "stage": 5
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "kind": "setup",
+      "report_sha256": "4f1c728635c97b34d8259e5b0502924fa18ed094bfa8c5787cce65a988ee4ffc",
+      "slack_ns": "19.637",
+      "stage": 6
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "kind": "hold",
+      "report_sha256": "db5635f7b5d547ea91867db848808b123fff3f849aab634651712c8cdfe548d6",
+      "slack_ns": "0.176",
+      "stage": 6
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "kind": "setup",
+      "report_sha256": "61c6a1e4b5d9aa32c4d706b781ddb7e46402a42d023cf31b66ac62e81d1642f0",
+      "slack_ns": "19.627",
+      "stage": 7
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "kind": "hold",
+      "report_sha256": "36ad0100c355384d83b82ffe3b3103ce3e9ce25dc56befdd7c6a44019b666819",
+      "slack_ns": "0.192",
+      "stage": 7
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "kind": "setup",
+      "report_sha256": "4146e92381b45c3522f432726ea7720905d87c72ea899cdd410d7d23898c291f",
+      "slack_ns": "17.640",
+      "stage": 0
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "kind": "hold",
+      "report_sha256": "10bfc83f65601c1954adc2c3dc7d39f4d92f531af209ad100ad13e52f0fd1050",
+      "slack_ns": "1.672",
+      "stage": 0
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "kind": "setup",
+      "report_sha256": "398b970b73b530427a407f36ff18390fe610502e98f55dcefc21a3645257a704",
+      "slack_ns": "19.545",
+      "stage": 1
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "kind": "hold",
+      "report_sha256": "ab59e6540e2d829b01046d223ff7119d10a8b224d0b52f00dea12b58d0f181ca",
+      "slack_ns": "0.260",
+      "stage": 1
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "kind": "setup",
+      "report_sha256": "b8d4c0b0dfe0a5848330078dd42eef544add154c62dd213caa455119203d91f5",
+      "slack_ns": "19.465",
+      "stage": 2
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "kind": "hold",
+      "report_sha256": "5d90c6f862054bf5a7ce16c2fd4c1461d134bccb2e17c77cc8faf2ca1bc37747",
+      "slack_ns": "0.319",
+      "stage": 2
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "kind": "setup",
+      "report_sha256": "c0b38d4813ef09965a4577bcb7a94f57473643c5aded72aacc6bb9235f2b69cc",
+      "slack_ns": "19.592",
+      "stage": 3
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "kind": "hold",
+      "report_sha256": "a82e85b76916913f06bfa1291745098d7edfa391aa7497dab056adf6f188bb9c",
+      "slack_ns": "0.209",
+      "stage": 3
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "kind": "setup",
+      "report_sha256": "00272b878c5d757b00b52e0fe459a8dbea8f269c93c7020b7d3f66081abf88ae",
+      "slack_ns": "19.526",
+      "stage": 4
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "kind": "hold",
+      "report_sha256": "0b1d583ae7099bc31f01831fa89774571887ea5f98bd704a7d5b39a45eb974f0",
+      "slack_ns": "0.258",
+      "stage": 4
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "kind": "setup",
+      "report_sha256": "9fe8f25348eeae9000d25038b8ffdb2733fd8b324a5076710f0ae6a323957ec0",
+      "slack_ns": "19.543",
+      "stage": 5
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "kind": "hold",
+      "report_sha256": "9e0c0fb0137d0903d5fc514e19b41ea7b82bc19edb9255bfca97e895bd6053a8",
+      "slack_ns": "0.254",
+      "stage": 5
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "kind": "setup",
+      "report_sha256": "7c89b93f7832434c9c9777f4d2cb01be11bffe721be1c840366e3485733ca5da",
+      "slack_ns": "19.591",
+      "stage": 6
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "kind": "hold",
+      "report_sha256": "8a3d8c6087c82cf6e55826b6678892ac571723e5202cd0c0d2b57380069544b5",
+      "slack_ns": "0.201",
+      "stage": 6
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "kind": "setup",
+      "report_sha256": "42c9ccdd1b06b5b349ae645f2f02ef268b8b0a9f000fee2f0f98cbcfb07e2885",
+      "slack_ns": "19.576",
+      "stage": 7
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "kind": "hold",
+      "report_sha256": "957183ef9051fcf6d68866eb3dc1eafd22ee2f4660ce462fb916f14d08b4a319",
+      "slack_ns": "0.222",
+      "stage": 7
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "kind": "setup",
+      "report_sha256": "c55b84e7085f87615ca4d3ebe7f23faba817410ebd5f18a905826a1c0273ab95",
+      "slack_ns": "17.611",
+      "stage": 0
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "kind": "hold",
+      "report_sha256": "189ecc08593a209492ff57cdcc444409ba0fb7c2370e89ddeb5cbf7172f64197",
+      "slack_ns": "1.698",
+      "stage": 0
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "kind": "setup",
+      "report_sha256": "0a2bd104dd8dd93586fb932749b8029b8f2b3a1c7dbc10c63f4b55063a97f397",
+      "slack_ns": "19.546",
+      "stage": 1
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "kind": "hold",
+      "report_sha256": "c69b080642553fe3837ca4c6cac8ece0f0e6cb5cc179c30bcda89df09cf5a54d",
+      "slack_ns": "0.259",
+      "stage": 1
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "kind": "setup",
+      "report_sha256": "5b3949beeb9eb89a502221c7126fc72e845799ace61ec19521949ae5a53a5f24",
+      "slack_ns": "19.465",
+      "stage": 2
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "kind": "hold",
+      "report_sha256": "1249a660037bdac801125ac1e96c1c5df4a9ecf3e26e64fc6ccd8c810b6255d2",
+      "slack_ns": "0.319",
+      "stage": 2
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "kind": "setup",
+      "report_sha256": "14a15c9ccc6a07fe36a70ccd0840ca0a00240151f8bd20a11188fb4597a94fdf",
+      "slack_ns": "19.592",
+      "stage": 3
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "kind": "hold",
+      "report_sha256": "87be8273f02e59861d353b8d5f921a2a888290eb4d6c7d52a1ae4b73ab4aef75",
+      "slack_ns": "0.208",
+      "stage": 3
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "kind": "setup",
+      "report_sha256": "f54c15a488ff282f09467fbec1d31d32d03158775f1ac2953a16156ff283a781",
+      "slack_ns": "19.525",
+      "stage": 4
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "kind": "hold",
+      "report_sha256": "deb122efb77358e5e3108ab38067fa2e312996be973001900a2ac4f93c5914c2",
+      "slack_ns": "0.257",
+      "stage": 4
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "kind": "setup",
+      "report_sha256": "6e256e535088d7fa606db9f230e81719276e2c1b25262974c89828c91c3baab7",
+      "slack_ns": "19.544",
+      "stage": 5
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "kind": "hold",
+      "report_sha256": "763c956f2b9377af4b67283a7dbb6307961fdf005b746ba2b75f0c98947bceea",
+      "slack_ns": "0.252",
+      "stage": 5
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "kind": "setup",
+      "report_sha256": "71b73a5b1d7fd7db4b5f8f87a8de9d1de1a08dee7e5c3942bfcd033961fea809",
+      "slack_ns": "19.591",
+      "stage": 6
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "kind": "hold",
+      "report_sha256": "5db11a5591770dfa80e03edcd5656bc48394167025082877682b9f8589329ba0",
+      "slack_ns": "0.200",
+      "stage": 6
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "kind": "setup",
+      "report_sha256": "c6141338fe657ea073068655566240912e3eecaad4e8b031c5e830458a32ebca",
+      "slack_ns": "19.575",
+      "stage": 7
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "kind": "hold",
+      "report_sha256": "72cff2f96545355c112f65d98dd16e8a8a72e7eaf6d4bb44cad80a5937414871",
+      "slack_ns": "0.221",
+      "stage": 7
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "kind": "setup",
+      "report_sha256": "f5e948d23696de598f976a109c244e9470a5d22128b127635756d753526fea2f",
+      "slack_ns": "18.629",
+      "stage": 0
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "kind": "hold",
+      "report_sha256": "c3c9446bf003223bb414899d27cee79865047de8369f2e19bc0a677d93f16272",
+      "slack_ns": "0.950",
+      "stage": 0
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "kind": "setup",
+      "report_sha256": "e5b84666d59415707853ad66de43476e6c98e988d2c8dc14ea411565547f4cd8",
+      "slack_ns": "19.753",
+      "stage": 1
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "kind": "hold",
+      "report_sha256": "3a0ae47e68729af3bf52ae0a6537fd3847304a58d78b065c5c7bf4cb004c4ee9",
+      "slack_ns": "0.121",
+      "stage": 1
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "kind": "setup",
+      "report_sha256": "e9df4e6958ef20a7be54cd72dc193b3de143142410f7bebc3a56feee65bc7fae",
+      "slack_ns": "19.711",
+      "stage": 2
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "kind": "hold",
+      "report_sha256": "4dd4f8abf30beb350a722cb510264487eab94f43d4baa52d151bac28c08ee2f1",
+      "slack_ns": "0.152",
+      "stage": 2
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "kind": "setup",
+      "report_sha256": "df814a2830acc47cc7b9b13192cd626b9a5889cc6e0170a4212b05cb5b01355b",
+      "slack_ns": "19.770",
+      "stage": 3
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "kind": "hold",
+      "report_sha256": "afc334760d7ac5dde99e5889a05ae8362716b4922f0fb5d057dba861bada9127",
+      "slack_ns": "0.103",
+      "stage": 3
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "kind": "setup",
+      "report_sha256": "ee4eb4fd0473b47008db5e3078ef3c94c1e92375ae694f3bcceff7424c449a5f",
+      "slack_ns": "19.742",
+      "stage": 4
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "kind": "hold",
+      "report_sha256": "ab0836c39be558eb25ffd5e937724365d5153230af753121d8cf23ff44ffbbaa",
+      "slack_ns": "0.125",
+      "stage": 4
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "kind": "setup",
+      "report_sha256": "f6ce6fadbeeba843d2a93d35e469de696ce6961d0424bb0568e2de17b339aec7",
+      "slack_ns": "19.751",
+      "stage": 5
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "kind": "hold",
+      "report_sha256": "b59f4b6fdf816d58c1f845b1866c4414274307ed5d040a75290ab6df81eaefd0",
+      "slack_ns": "0.120",
+      "stage": 5
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "kind": "setup",
+      "report_sha256": "e9ba9dfa911022d9dc64ae41a045e2f378a06599a5d1e677c607f167e3b54550",
+      "slack_ns": "19.771",
+      "stage": 6
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "kind": "hold",
+      "report_sha256": "097bdee8ac033e9e52bf3fcb80b66683d1a3e419fed343a38fa2b57f3a42e73b",
+      "slack_ns": "0.099",
+      "stage": 6
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "kind": "setup",
+      "report_sha256": "41962ea4f286fbdb44c5d68de267f736aa5091a18528e613b23ebbc740a1f897",
+      "slack_ns": "19.769",
+      "stage": 7
+    },
+    {
+      "corner": "Fast fix4 0C Model",
+      "kind": "hold",
+      "report_sha256": "e23023b930e048278a654b3ffc46c93afa9c58cbba012b0b7a76f93ef18753ea",
+      "slack_ns": "0.105",
+      "stage": 7
+    }
+  ],
+  "stage_topology": [
+    [
+      "0",
+      "fes_video_inst|hdmi_config|sda_hold[0]",
+      "fes_video_inst|hdmi_config|u0|SDO",
+      "fes_video_inst|hdmi_config|sda_hold[1]"
+    ],
+    [
+      "1",
+      "fes_video_inst|hdmi_config|sda_hold[1]",
+      "fes_video_inst|hdmi_config|sda_hold[0]",
+      "fes_video_inst|hdmi_config|sda_hold[2]"
+    ],
+    [
+      "2",
+      "fes_video_inst|hdmi_config|sda_hold[2]",
+      "fes_video_inst|hdmi_config|sda_hold[1]",
+      "fes_video_inst|hdmi_config|sda_hold[3]"
+    ],
+    [
+      "3",
+      "fes_video_inst|hdmi_config|sda_hold[3]",
+      "fes_video_inst|hdmi_config|sda_hold[2]",
+      "fes_video_inst|hdmi_config|sda_hold[4]"
+    ],
+    [
+      "4",
+      "fes_video_inst|hdmi_config|sda_hold[4]",
+      "fes_video_inst|hdmi_config|sda_hold[3]",
+      "fes_video_inst|hdmi_config|sda_hold[5]"
+    ],
+    [
+      "5",
+      "fes_video_inst|hdmi_config|sda_hold[5]",
+      "fes_video_inst|hdmi_config|sda_hold[4]",
+      "fes_video_inst|hdmi_config|sda_hold[6]"
+    ],
+    [
+      "6",
+      "fes_video_inst|hdmi_config|sda_hold[6]",
+      "fes_video_inst|hdmi_config|sda_hold[5]",
+      "fes_video_inst|hdmi_config|sda_hold[7]"
+    ],
+    [
+      "7",
+      "fes_video_inst|hdmi_config|sda_hold[7]",
+      "fes_video_inst|hdmi_config|sda_hold[6]",
+      "HDMI_I2C_SDA"
+    ]
+  ],
+  "unchanged_compiler_inputs": 59,
+  "unchanged_runtime_test_inputs": 58,
+  "worst_stage_hold_ns": "0.099",
+  "worst_stage_setup_ns": "17.611",
+  "zero_waived_findings": true
+}

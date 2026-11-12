@@ -69,8 +69,18 @@ in `rom_links`. Format-3 `rom_link` keeps its one-source behavior. The factory
 Coleco package is also format 4, with an exact 8,192-byte `coleco-bios` at
 source offset 0 and a 16,384-byte `coleco-cart` at offset 8,192. It does not
 keep blob, stream, or firmware mailboxes. The separate development MegaCart
-producer is imported explicitly because `config/core-recipes.toml` has one row
-per core ID.
+producer is imported explicitly because `config/core-recipes.toml` selects one
+producer per core ID and board.
+
+Recipe lookup defaults to `de10-nano`. Explicit `de25-nano` lookup currently
+selects only the Quartus Pro MENU producer; an absent DE25 core is refused.
+Core IDs, selection filenames and package environment names are unique within
+each board. Cached package inspection also checks the independently selected
+board against the package target. The shared resolver authenticates the DE25
+producer's source, installed tools and execution settings before looking for
+an eligible package. This adds board selection, while general same-board
+dual-toolchain selection and `FES_OSS_ONLY` remain unimplemented. See the
+[executed board-selection record](validation/2026-11-02-de25-board-recipes/README.md).
 
 Format-3 packages seal one named ROM requirement and its CRAM map alongside the
 base RBF. Select an exact-size binary for the title using the

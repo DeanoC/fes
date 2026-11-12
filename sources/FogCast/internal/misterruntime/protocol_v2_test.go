@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const fixturePackageID = "b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0"
@@ -33,6 +35,124 @@ func fixtureLines(t *testing.T, name string) []string {
 		t.Fatal(err)
 	}
 	return lines
+}
+
+func TestProtocol2DE25ProducerIdleStatus(t *testing.T) {
+	// Captured from NativeHardware's DE25 MENU fixture with the production C++
+	// serializer, using FES_TEST_DE25_PROTOCOL_STATUS_RECORD. This exercises
+	// the agent's independent decoder rather than constructing Go capabilities.
+	lines := fixtureLines(t, "protocol-v2-de25-idle.jsonl")
+	if len(lines) != 1 {
+		t.Fatalf("producer responses=%d, want one idle response", len(lines))
+	}
+	server := newSequenceSocketFixture(t, []string{lines[0] + "\n"})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	response, err := NewClient(server.path).Protocol2Status(ctx)
+	if err != nil || !validIdle(response) {
+		t.Fatalf("DE25 producer idle was refused: response=%+v error=%v", response, err)
+	}
+	if response.MenuDisplay == nil || !response.MenuDisplay.Available || !response.MenuDisplay.FrameMapping || len(response.Capabilities.ABIs) != 2 {
+		t.Fatalf("not the allocated DE25 MENU producer: %+v", response)
+	}
+	requests := server.wait(t)
+	if len(requests) != 1 || strings.TrimSpace(requests[0]) != `{"protocol":2,"operation":"status"}` {
+		t.Fatalf("status requests=%q", requests)
+	}
+}
+
+func TestProtocol2DE25InspectionRetainsPreviousMenuFault(t *testing.T) {
+	// Native TRWU8J8G, producer edfae407e: generation 3's MENU underflow
+	// was recovered by generation 4 before this successful inspect_core.
+	lines := fixtureLines(t, "protocol-v2-de25-recovered-menu-inspection.jsonl")
+	if len(lines) != 1 {
+		t.Fatal("expected one native inspection reply")
+	}
+	fixture := newSequenceSocketFixture(t, []string{lines[0] + "\n"})
+	response, err := NewClient(fixture.path).InspectCore(context.Background(), "/tmp/package",
+		"3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776")
+	if err != nil || !response.OK || response.InspectedPackage == nil || !response.InspectedPackage.Compatible {
+		t.Fatalf("native inspection result=%+v err=%v", response, err)
+	}
+	if response.Error == nil || response.Error.Code != "io_failed" || response.Error.Phase != "menu" ||
+		response.State != "idle" || response.MenuDisplay == nil || !response.MenuDisplay.Available ||
+		response.MenuDisplay.Generation != 4 || response.MenuDisplay.Underflows != 0 || response.MenuDisplay.Error != nil {
+		t.Fatalf("lost retained fault or recovered MENU state: %+v", response)
+	}
+	fixture.wait(t)
+}
+
+func TestProtocol2DE25ProducerComputerStatus(t *testing.T) {
+	// Actual production daemon response after native catalog loading. The CPU
+	// had started; rejecting its declared profile stranded agent cleanup.
+	lines := fixtureLines(t, "protocol-v2-de25-computer.jsonl")
+	if len(lines) != 1 {
+		t.Fatalf("producer responses=%d, want one active response", len(lines))
+	}
+	server := newSequenceSocketFixture(t, []string{lines[0] + "\n"})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	response, err := NewClient(server.path).Protocol2Status(ctx)
+	if err != nil || response.State != "running_development" || response.ActivePackage == nil {
+		t.Fatalf("DE25 active producer was refused: response=%+v error=%v", response, err)
+	}
+	active := response.ActivePackage
+	if active.Descriptor.Target.ProgrammingProfile != "de25-hps-first-v1" || active.Observed.BuildID == nil || *active.Observed.BuildID != active.Descriptor.Build.ID {
+		t.Fatalf("not the selected DE25 computer: %+v", active)
+	}
+	status := computerMediaStatus(response)
+	binding := protocol.MediaUnitBinding{PackageID: active.PackageID, Generation: *response.Generation, Unit: 0}
+	if !binding.AcceptsSize(status, 16375) || binding.AcceptsSize(status, 16376) {
+		t.Fatalf("native DE25 media limit was lost during agent status conversion: %+v", status)
+	}
+	server.wait(t)
+}
+
+func TestProtocol2DE25StandardComputerProfileAndTapeLimit(t *testing.T) {
+	// Actual C++ production-profile serializer from the injected allocation and
+	// atomic-register lifecycle fixture after standard Start, before opening UI.
+	// This is a software fixture, not a physical standard-core boot.
+	line := fixtureLines(t, "protocol-v2-de25-standard-computer.jsonl")[0]
+	server := newSequenceSocketFixture(t, []string{line + "\n"})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	response, err := NewClient(server.path).Protocol2Status(ctx)
+	if err != nil || response.ActivePackage == nil {
+		t.Fatalf("standard profile refused: %v", err)
+	}
+	active := response.ActivePackage
+	status := computerMediaStatus(response)
+	if response.MenuDisplay == nil || !response.MenuDisplay.Session || !response.MenuDisplay.FrameMapping || response.MenuDisplay.Available {
+		t.Fatalf("allocated session mapping agreement lost: %+v", response.MenuDisplay)
+	}
+	binding := protocol.MediaUnitBinding{PackageID: active.PackageID, Generation: *response.Generation, Unit: 0}
+	if !binding.AcceptsSize(status, 16384) || binding.AcceptsSize(status, 16385) {
+		t.Fatal("standard tape limit differs")
+	}
+	server.wait(t)
+	bad := strings.Replace(line, `"max_bytes":16384`, `"max_bytes":16375`, 1)
+	if _, err := decodeProtocol2Response([]byte(bad)); !errors.Is(err, errInvalidRuntimeResponse) {
+		t.Fatalf("BRAM limit accepted on standard profile: %v", err)
+	}
+}
+
+func TestProtocol2DE25ActiveStatusRefusesChangedIdentity(t *testing.T) {
+	line := fixtureLines(t, "protocol-v2-de25-computer.jsonl")[0]
+	for name, raw := range map[string]string{
+		"foreign profile":        strings.ReplaceAll(line, "de25-hps-first-v1", "unknown-profile"),
+		"crossed board":          strings.ReplaceAll(line, "de25_nano", "de10_nano"),
+		"other board tape limit": strings.Replace(line, `"max_bytes":16375`, `"max_bytes":16384`, 1),
+		"unobserved identity":    strings.Replace(line, `"observed":{"abi":{"id":"fes.computer","major":1,"minor":0},"build_id":"a689d5a85cfe5b44c1c96501958f6516"}`, `"observed":{"abi":null,"build_id":null}`, 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if raw == line {
+				t.Fatal("negative control did not change the producer response")
+			}
+			if _, err := decodeProtocol2Response([]byte(raw)); !errors.Is(err, errInvalidRuntimeResponse) {
+				t.Fatalf("changed DE25 identity was accepted: %v", err)
+			}
+		})
+	}
 }
 
 func TestProtocol2DecoderConsumesFrozenRuntimeFixturesExactly(t *testing.T) {
@@ -263,6 +383,19 @@ func TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle(t *testing.T) {
 	malformed := strings.Replace(withMenu, `"format":"bgrx8888"`, `"format":"bgrx8888","surprise":true`, 1)
 	if _, err := decodeProtocol2Response([]byte(malformed)); !errors.Is(err, errInvalidRuntimeResponse) {
 		t.Fatalf("unknown menu evidence accepted: %v", err)
+	}
+	for _, value := range []string{"true", "false"} {
+		framed := strings.Replace(withMenu, `"available":false`, `"available":false,"frame_mapping":`+value, 1)
+		decoded, err := decodeProtocol2Response([]byte(framed))
+		if err != nil || decoded.MenuDisplay == nil || decoded.MenuDisplay.FrameMapping != (value == "true") {
+			t.Fatalf("mapping lifetime lost: %#v, %v", decoded.MenuDisplay, err)
+		}
+	}
+	for _, value := range []string{`null`, `1`, `"true"`, `{}`} {
+		framed := strings.Replace(withMenu, `"available":false`, `"available":false,"frame_mapping":`+value, 1)
+		if _, err := decodeProtocol2Response([]byte(framed)); !errors.Is(err, errInvalidRuntimeResponse) {
+			t.Fatalf("nonboolean mapping lifetime accepted: %s, %v", value, err)
+		}
 	}
 	// Clients draw into granted slots; the staging format and damage
 	// capability of the copying runtime are no longer status fields.
