@@ -188,9 +188,10 @@ expansion and SAVE simulations or the Quartus oracle. Pull-request CI runs
 `make sim-fes-zx81-smoke`, which boots the open diagnostic firmware and runs the
 ROM-independent model and ZX80 tape-load probes.
 
-`fes.sms` and `fes.sg1000` use the `fes.simple-computer` ABI with sealed, linked
-cartridge ROMs. Diagnostic builds retain the media mailbox; the SMS ROM-link
-OSS package disables its legacy blob commands. Do not use `fes.mastersystem`.
+`fes.sms` uses `fes.simple-computer`; `fes.sg1000` uses `fes.application`
+with two gamepad ports. Both use sealed, linked cartridge ROMs. Their Quartus
+diagnostic builds use a media mailbox; the ROM-link OSS packages disable blob
+commands. Do not use `fes.mastersystem`.
 The SMS OSS producer (`fes-sms`) is a first-pass HIP
 seed/weight search: it starts at seed 3 / HeAP 1000, then the remaining seeds
 and weight 300. Core details are in [Cores](docs/cores.md).

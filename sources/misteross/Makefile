@@ -112,7 +112,7 @@ help:
 		"  build-fes-ts1500  Seal experimental Timex Sinclair 1500 (package-only; same lock as fes.zx81)" \
 		"  build-fes-coleco-quartus  Quartus oracle (quartus.lock) package for FES ColecoVision" \
 		"  build-fes-coleco  Seal FES ColecoVision v2 socket with HIP (CACHE_ROOT=)" \
-		"  sim-fes-sg1000  Test the FES simple-computer SG-1000 machine (Coleco sibling)" \
+		"  sim-fes-sg1000  Test the FES application SG-1000 machine (Coleco sibling)" \
 		"  sim-fes-sg1000-oss  Test OSS-conditional SG-1000 registered media, RAM and VDP" \
 		"  sim-fes-sg1000-rom-link  Test the sealed 16 KiB SG-1000 ROM path" \
 		"  sim-fes-sg1000-quartus  Test SG-1000 RAM/media with supplied Quartus 17 models and Icarus" \
@@ -1705,7 +1705,7 @@ sim-fes-sg1000: sim-fes-z80-timing sg1000-diagnostic
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
-		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated \
+		-Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-machine" \
 		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
@@ -1726,7 +1726,7 @@ sim-fes-sg1000-oss: sim-fes-z80-timing sg1000-diagnostic
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
-		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated \
+		-Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-machine-oss" \
 		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
@@ -1747,7 +1747,7 @@ sim-fes-sg1000-rom-link: sim-fes-z80-timing sg1000-diagnostic
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
-		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated \
+		-Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-rom-link" \
 		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-sg1000/rtl/sg1000_rom_link.v \
 		cores/fes-common/rtl/coleco_vdp.sv \
@@ -1762,14 +1762,29 @@ sim-fes-sg1000-rom-link: sim-fes-z80-timing sg1000-diagnostic
 sim-fes-sg1000-gp-audio:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sg1000-gp-audio
-	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
-		-GENABLE_MEDIA_BLOB=0 -GENABLE_AUDIO=1 \
+	$(VERILATOR) --cc --exe --build --top-module sg1000_application_gp -Wall \
+		-DFES_SG1000_ROM_LINK=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM -Wno-PINCONNECTEMPTY \
-		-Icores/fes-sg1000/generated \
+		-Icores/fes-common/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-gp-audio" \
-		cores/fes-common/rtl/fes_computer_gp.v cores/fes-common/rtl/coleco_dpram.v \
+		cores/fes-sg1000/rtl/sg1000_application_gp.v cores/fes-common/rtl/fes_application_gp.v \
+		cores/fes-common/rtl/coleco_dpram.v \
 		"$(CURDIR)/cores/fes-sg1000/sim/gp_audio_tb.cpp"
-	@build/sim/fes-sg1000-gp-audio/Vfes_computer_gp
+	@build/sim/fes-sg1000-gp-audio/Vsg1000_application_gp
+
+.PHONY: sim-fes-sg1000-gp-media
+sim-fes-sg1000-gp-media:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-sg1000-gp-media
+	$(VERILATOR) --cc --exe --build --top-module sg1000_application_gp -Wall \
+		-DFES_COLECO_OSS=1 \
+		-Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM -Wno-PINCONNECTEMPTY \
+		-Icores/fes-common/generated \
+		--Mdir "$(CURDIR)/build/sim/fes-sg1000-gp-media" \
+		cores/fes-sg1000/rtl/sg1000_application_gp.v cores/fes-common/rtl/fes_application_gp.v \
+		cores/fes-common/rtl/coleco_dpram.v \
+		"$(CURDIR)/cores/fes-sg1000/sim/gp_media_tb.cpp"
+	@build/sim/fes-sg1000-gp-media/Vsg1000_application_gp
 
 .PHONY: sim-fes-sg1000-quartus
 sim-fes-sg1000-quartus:

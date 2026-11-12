@@ -49,7 +49,7 @@ HIGHLIGHTS = {
     'fes.ts1500': 'tape, keys, HDMI',
     'fes.coleco': 'cart, pad, HDMI',
     'fes.sms': 'cart, keys, HDMI',
-    'fes.sg1000': 'cart, keys, HDMI',
+    'fes.sg1000': 'cart, pad, HDMI',
     'fes.apple2': 'disk, keys, HDMI',
     'fes.c64': 'disk, keys, HDMI',
     'fes.spectrum': 'tape, keys, HDMI',

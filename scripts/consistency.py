@@ -36,7 +36,6 @@ GENERATED = (
     ('emit-go', 'packages/abi/fes_simple_computer.yaml', 'FogCast', 'protocol/internal/generated/fes_simple_computer.go'),
     ('emit-verilog', 'packages/abi/fes_simple_computer.yaml', 'misteross', 'cores/fes-zx81/generated/fes_simple_computer.vh'),
     ('emit-verilog', 'packages/abi/fes_simple_computer.yaml', 'misteross', 'cores/fes-coleco/generated/fes_simple_computer.vh'),
-    ('emit-verilog', 'packages/abi/fes_simple_computer.yaml', 'misteross', 'cores/fes-sg1000/generated/fes_simple_computer.vh'),
     ('emit-verilog', 'packages/abi/fes_simple_computer.yaml', 'misteross', 'cores/fes-sms/generated/fes_simple_computer.vh'),
     ('emit-cpp', 'packages/programming/de10_nano.yaml', 'libmister-runtime', 'src/native/generated/de10_nano_programming.hpp'),
     ('emit-cpp', 'packages/abi/fes_computer.yaml', 'libmister-runtime', 'src/native/generated/fes_computer.hpp'),

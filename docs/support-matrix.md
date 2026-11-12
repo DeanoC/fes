@@ -45,7 +45,7 @@ Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That fla
 | ZX81 (ZX81, ZX80, TS1000, TS1500) | Current | OSS | Quartus | tape, keys, HDMI | [cores](../sources/misteross/docs/cores.md) |
 | `fes.coleco` | Aging | OSS | Quartus | cart, pad, HDMI | [README](../sources/misteross/cores/fes-coleco/README.md) |
 | `fes.sms` | Aging | OSS | Quartus | cart, keys, HDMI | [README](../sources/misteross/cores/fes-sms/README.md) |
-| `fes.sg1000` | Aging | OSS | Quartus | cart, keys, HDMI | [README](../sources/misteross/cores/fes-sg1000/README.md) |
+| `fes.sg1000` | Aging | OSS | Quartus | cart, pad, HDMI | [README](../sources/misteross/cores/fes-sg1000/README.md) |
 | `fes.apple2` | Aging | OSS | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-apple2/README.md) |
 | C64 (PAL) | Current | OSS | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
 | C64 (NTSC) | Bring-up (queued) | — | — | — | [README](../sources/misteross/cores/fes-c64/README.md) |

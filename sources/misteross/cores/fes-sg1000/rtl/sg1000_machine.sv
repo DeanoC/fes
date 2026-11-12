@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Reduced SG-1000 machine for the FES simple-computer Quartus bring-up.
+// Reduced SG-1000 machine for the FES application shell.
 //
 // This is a Coleco sibling, not a second console stack: the bounded
 // TMS9918-style VDP, dual-port RAM wrappers and the 16 KiB mailbox blob are
@@ -17,7 +17,7 @@
 module sg1000_machine (
     input  wire        clk_sys,
     input  wire        reset,
-    input  wire [39:0] keyboard,
+    input  wire [15:0] controller_buttons,
     input  wire        media_ready,
     input  wire [14:0] media_size,
     input  wire [7:0]  media_data,
@@ -113,15 +113,16 @@ module sg1000_machine (
     assign vdp_status = {vdp_raster_blank, vdp_status_overflow,
                          vdp_status_collision, vdp_status_fifth_index};
 
-    // SG-1000 / SMS-style 8255 Port A/B. Keyboard bits 0..9 keep the Coleco
-    // first-slice matrix: P1 Up/Right/Down/Left/Fire1, P2 the same. Active-low.
-    assign port_dc = {keyboard[8], keyboard[7], keyboard[5], keyboard[4],
-                      keyboard[1], keyboard[3], keyboard[2], keyboard[0]};
-    assign port_dd = {6'b111111, keyboard[9], keyboard[6]};
-    assign controller1_value = {3'b111, keyboard[4], keyboard[1],
-                                keyboard[3], keyboard[2], keyboard[0]};
-    assign controller2_value = {3'b111, keyboard[9], keyboard[6],
-                                keyboard[8], keyboard[7], keyboard[5]};
+    // Each application controller is active-high Up/Down/Left/Right/A/B/Select/Start.
+    // The SG-1000 ports are active-low and this machine supports one fire button.
+    assign port_dc = ~{controller_buttons[10], controller_buttons[9], controller_buttons[8],
+                       controller_buttons[4], controller_buttons[3], controller_buttons[2],
+                       controller_buttons[1], controller_buttons[0]};
+    assign port_dd = {6'b111111, ~controller_buttons[12], ~controller_buttons[11]};
+    assign controller1_value = {3'b111, ~controller_buttons[4], ~controller_buttons[3],
+                                ~controller_buttons[2], ~controller_buttons[1], ~controller_buttons[0]};
+    assign controller2_value = {3'b111, ~controller_buttons[12], ~controller_buttons[11],
+                                ~controller_buttons[10], ~controller_buttons[9], ~controller_buttons[8]};
 
     initial begin
 `ifndef FES_SG1000_ROM_LINK
