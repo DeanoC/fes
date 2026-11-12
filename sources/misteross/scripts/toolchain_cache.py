@@ -46,6 +46,10 @@ ACCELERATOR_COMMANDS = frozenset({"hipcc", "nvcc"})
 # The Mistral install carries the database source files producers pin
 # (rom_map.DATABASE_FILES), since src/ is deleted after publication.
 MISTRAL_DATABASE = "share/mistral/source"
+# Schema-1 slots/ are judged by access time, which relatime updates at most
+# daily. The --legacy-slots prune is a one-time helper: delete it, and this,
+# once slots/ is empty on every host.
+LEGACY_MIN_KEEP_DAYS = 2
 DEFAULT_GPU_ROUTER = "OFF"
 DEFAULT_HIP_ARCHITECTURES = "gfx1100;gfx1201"
 # Native sm_86 code (RTX 3070/3090) runs without PTX JIT.  JIT fails when the
@@ -1864,6 +1868,10 @@ def prune(
     ensure_cache_root(cache_root)
     if keep_days < 0:
         raise CacheError("keep-days must not be negative")
+    if legacy_slots and keep_days < LEGACY_MIN_KEEP_DAYS:
+        # relatime refreshes an access time at most once a day, so a shorter
+        # window could remove a slot an old checkout is still reading.
+        raise CacheError(f"legacy slots need keep-days of at least {LEGACY_MIN_KEEP_DAYS}")
     now = time.time() if now is None else now
     horizon = now - keep_days * 86400
     references = referenced_pins(root, ref)

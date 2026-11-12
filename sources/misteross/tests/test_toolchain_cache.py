@@ -885,6 +885,8 @@ class ToolchainCachePruneTests(unittest.TestCase):
         report, _ = self.prune(apply=True)
         self.assertTrue(old_slot.exists())
         self.assertEqual(report["removed"], [])
+        with self.assertRaisesRegex(toolchain_cache.CacheError, "at least 2"):
+            self.prune(apply=True, legacy_slots=True, keep_days=1)
         report, _ = self.prune(apply=True, legacy_slots=True)
         self.assertEqual(report["removed"], [f"slots/{'1' * 64}"])
         self.assertFalse(old_slot.exists())
