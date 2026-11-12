@@ -177,7 +177,10 @@ Links are in [Sources](#sources).
   interrupt-16 table leaves FNSTCW out of the forms that cannot raise it;
   the datasheet says only FNINIT, FNCLEX, FNSTENV and FNSAVE clear ERROR#
   (datasheet §3.1.7). The plan follows the 5-14 list and records FNSTCW as a
-  case to settle on real hardware.
+  case to settle on real hardware. "No-wait" means only that the form skips
+  the ERROR# check: FNSTSW, FNSTCW, FNSTENV and FNSAVE still wait for BUSY#
+  like every ESC but FNINIT and FNCLEX, so they never see a computation in
+  flight.
 - Exception 16 is the 386's coprocessor error: "Any 386 DX … system with a
   coprocessor must use interrupt 16" (386 PRM, item 14 of the 386/286
   differences), with the saved CS:EIP at the ESC's prefixes. Exception 9 is
@@ -275,8 +278,10 @@ every visible behaviour of the bus design:
   operands use the existing M-stage uops (today's microcode already loops
   over the 387's FNSAVE and FNSTENV layouts and reads 8- and 10-byte
   operands as dword or word uops).
-- BUSY is a scoreboard: integer uops keep issuing; a waiting ESC, WAIT, or
-  an integer read of x87 state (FNSTSW AX, FNSTENV and so on) waits for it.
+- BUSY is a scoreboard: integer uops keep issuing; every ESC except FNINIT
+  and FNCLEX, and WAIT, waits for it, the no-wait forms included (FNSTSW AX,
+  FNSTENV and so on). Only the pending-error check is skipped by the no-wait
+  forms.
 - ERROR# is not wired to the CPU. An unmasked exception sets ES, raises the
   machine's IRQ 13 through a latch, and holds BUSY until a write to F0h,
   as on an AT. F1h resets the unit. NE does not exist on a 386.

@@ -1512,8 +1512,9 @@ and orders the work into slices. From it:
 - The unit is integrated, not a coprocessor bus, but keeps what software sees
   of a 387 on an AT board: an unmasked exception sets ES and raises IRQ 13
   through a latch that holds BUSY until a write to port F0h; F1h resets the
-  unit; the no-wait forms do not wait; exception 9 for an operand's middle
-  part; ET and CMOS 14h bit 1 follow the identity. Exception 16 is not used,
+  unit; every ESC but FNINIT and FNCLEX waits for BUSY, and the no-wait
+  forms (FNSTSW, FNSTCW, FNSTENV, FNSAVE) skip only the pending-error check;
+  exception 9 for an operand's middle part; ET and CMOS 14h bit 1 follow the identity. Exception 16 is not used,
   as on an AT.
 - Eight 80-bit registers, and the tag, status and control words. A fast path
   for loads, stores, FXCH, add and multiply (the multiplier on DSP blocks);
