@@ -225,6 +225,30 @@ class KitGoalTest(unittest.TestCase):
             self.assertTrue(run.result['after']['recovery_required'])
             self.assertFalse(run.result['pass'])
 
+    def test_a_failed_lease_release_still_cleans_up(self):
+        tree = '/media/fat/fogcast/disk-images/' + '0' * 64 + '.img'
+        with tempfile.TemporaryDirectory() as directory:
+            run = kit.Run.__new__(kit.Run)
+            run.args = mock.Mock(status_file=Path(directory) / 'status', kit='A', owner='Claude')
+            run.out = Path(directory)
+            run.record, run.game, run.remote, run.recovery_required = {'sha256': '0' * 64}, 'g', None, False
+            run.result = {'goals': {}, 'events': []}
+            answers = {'/v1/status': {'state': 'idle'}, '/v1/kit/lease': {'state': 'free'},
+                       '/v1/health': {'boot_id': 'b'}}
+            run.client = mock.Mock(request=lambda path, **_: answers[path])
+            listings = iter([[], [tree], []])
+            run.kit_paths = lambda: next(listings)
+            run.ssh = mock.Mock()
+            session = mock.Mock(needs_stop=False)
+            session.close.side_effect = kit.kitlib.KitError('release failed')
+            run.boot_dos = mock.Mock(side_effect=kit.AcceptanceError('Windows hung'))
+            with mock.patch.object(kit, 'check_claim', return_value='claim'), \
+                    mock.patch.object(kit.kitlib, 'Session', return_value=session), \
+                    mock.patch('sys.stdout'):
+                self.assertEqual(run.main(), 1)
+            run.ssh.assert_called_once_with(f"rm -r -- '{tree}'")
+            self.assertEqual(run.result['after']['left'], [])
+
     def test_the_title_bar_target_is_inside_the_caption(self):
         found = wfw.program_manager(program_manager().frame())
         x, y = kit.caption_target(found)

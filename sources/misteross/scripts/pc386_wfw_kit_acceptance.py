@@ -600,8 +600,12 @@ class Run:
                 self.session.done.set()
                 self.log('lease kept: the kit needs recovery')
             else:
-                self.session.close()
-                self.log('lease released')
+                try:
+                    self.session.close()
+                    self.log('lease released')
+                except (kitlib.KitError, OSError) as error:
+                    failure = failure or f'lease release: {type(error).__name__}: {error}'
+                    self.log('LEASE RELEASE FAILED', error)
         created = [path for path in self.kit_paths() if path not in before]
         self.result['kit_created'] = created
         try:
@@ -616,7 +620,10 @@ class Run:
             failure = f'read-back: {type(error).__name__}: {error}'
         finally:
             for path in created:
-                self.ssh(f"rm -r -- '{path}'")
+                try:
+                    self.ssh(f"rm -r -- '{path}'")
+                except (AcceptanceError, OSError, subprocess.SubprocessError) as error:
+                    failure = failure or f'removing {path}: {error}'  # the check below lists it as left
         left = [path for path in self.kit_paths() if path not in before]
         status, lease = self.client.request('/v1/status'), self.client.request('/v1/kit/lease')
         after = {'agent': status.get('state'), 'lease': lease.get('state'),
