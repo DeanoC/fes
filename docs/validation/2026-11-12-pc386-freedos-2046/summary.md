@@ -78,9 +78,10 @@ new entry. This record adds a new entry:
   memory, and MEM shows the same 622K free as entry 2.
 - **Nothing else changes.** HIMEMX, UMBM, CuteMouse, MOUSEDEF, FESENV,
   `FILES` and `BUFFERS` are as they were, and `MENUDEFAULT=1,3` still takes
-  entry 1 after 3 seconds. The Windows settings `#1725` found
-  (`InDOSPolling=TRUE`, 32-bit file access off) belong to the user's own
-  WfW install, not to the fixture.
+  entry 1 after 3 seconds. The `SYSTEM.INI` changes #1725 found
+  (`InDOSPolling=TRUE`, and no `device=ifsmgr.386`, `vcache.386` or
+  `vshare.386` lines) belong to the user's own WfW install, not to the
+  fixture.
 
 ## Memory
 
@@ -105,12 +106,12 @@ Each fixture-fed suite was rerun:
 | Suite | Oracle | RTL |
 | --- | --- | --- |
 | boot (boot image; VGA replay) | PASS: the banner reads "FreeDOS kernel 2046 … Kernel compatibility 6.22"; replay 0 mismatches | PASS: 0 oracle steps, no stops, 145.6M instructions |
-| boot, games image | (MEM runs above) | PENDING |
+| boot, games image (`mem`, Serpent Isle and Frontier memory check) | PASS: 595,808 bytes | PASS (`dir`): 0 oracle steps, no stops; VGA replay 0 mismatches |
 | a20 | PASS | PENDING |
-| c2xx | PASS | PENDING |
-| ems | PASS | PENDING |
+| c2xx | PASS | PASS |
+| ems | PASS | PASS |
 | wait | PASS | PENDING |
-| speaker | PASS | PENDING |
+| speaker | PASS | PASS |
 | scroll | PASS | PENDING |
 | sound | PASS | — |
 | cpu-profile | PASS | — |
@@ -151,7 +152,7 @@ inspected:
 | Ultima Underworld | 3 | PASS; intro |
 | Darklands | 3 | PASS; main menu |
 | Frontier: Elite 2 | 3 | PASS; its sound setup prompt, as before |
-| Master of Orion | 3 | PASS; stops at "invalid sound driver" as on kernel 2043 (MOO_BASELINE) |
+| Master of Orion | 3 | PASS; back at the prompt at 4.6 s with its "reconfigure hardware options" message, as on kernel 2043 (4.7 s on the old `xms` drive). Its drive still lacks the `CONFIG.MOO` sidecar its own `INSTALL` writes ([EMS board record](../2026-11-08-pc386-ems-board/summary.md)), which is not a kernel matter |
 
 RTL game suite: PENDING.
 
@@ -159,8 +160,13 @@ RTL game suite: PENDING.
 
 The scratch drive is the new games image on 260 cylinders plus WfW 3.11's
 `C:\WINDOWS` from the Windows plan's `win-freedos` drive. Its `SYSTEM.INI`
-`[386Enh]` has `InDOSPolling=TRUE` and no `ifsmgr.386`, `vcache.386` or
-`vshare.386`. Its `FDCONFIG.SYS` and `AUTOEXEC.BAT` are the fixture's, and
+`[386Enh]` gains `InDOSPolling=TRUE` and loses the `device=ifsmgr.386`,
+`device=vcache.386` and `device=vshare.386` lines that WfW's setup wrote.
+This record does not describe that change as turning 32-bit file access
+off. The Windows-kit session (PR #1760) found that Control Panel's dialog
+on these drives already shows "16-Bit", with the 32-bit box unchecked,
+while the lines are present. #1727's description of the lines as 32-bit
+file access is inaccurate in the same way. Its `FDCONFIG.SYS` and `AUTOEXEC.BAT` are the fixture's, and
 it has no `VERSION=` line. The drive is commercial and stays in scratch.
 
 - **Oracle, entry 4:** `win /3` reaches Program Manager by 14 s simulated.

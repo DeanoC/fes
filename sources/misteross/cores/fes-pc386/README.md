@@ -515,8 +515,9 @@ archives in `C:\FDOS\BIN`, pinned in [`sim/freedos.lock`](sim/freedos.lock).
     (`INSTALLHIGH`, 9K of upper memory). WIN386's DOSMGR runs on FreeDOS
     only with a SHARE resident (#1725). MEM shows 622K (637,152 bytes). The
     games' entries leave SHARE out, so their file opens do not pass through
-    its sharing checks. Windows also needs `InDOSPolling=TRUE` and its 32-bit
-    file access off in the user's own `SYSTEM.INI`
+    its sharing checks. Windows also needs `InDOSPolling=TRUE`, and no
+    `device=ifsmgr.386`, `vcache.386` or `vshare.386` lines, in `[386Enh]`
+    of the user's own `SYSTEM.INI`
     ([record](../../../../docs/validation/2026-11-12-pc386-freedos-2046/summary.md)).
 - HIMEMX picks its A20 method by itself. POST hands DOS a machine with A20
   off ([A20 and CPU reset](../../docs/pc386-machine-design.md#a20-and-cpu-reset)),
