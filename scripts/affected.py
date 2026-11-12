@@ -108,10 +108,10 @@ C64_SCRIPTS = frozenset({'c64_slots.py', 'build_c64_slot_card.py'})
 SPECTRUM_SCRIPTS = frozenset({'spectrum_slots.py'})
 ATARI_ST_SCRIPTS = frozenset({'atari_st_slot.py', 'build_atari_st_slot_card.py',
                              'fetch_atari_st_emutos.py'})
-# These i386 oracle, corpus, RTL-check and timing helpers use the existing FPGA
-# software classification. The pc386 CPU profile reporter is classified
-# separately below because its machine simulation consumes the report.
-I386_SCRIPTS = frozenset({'fes_i386_oracle.py', 'test_fes_i386_vectors.py', 'test_fes_i386_test386.py',
+# These i386 audit, oracle, corpus, RTL-check and timing helpers use the
+# existing FPGA software classification. The pc386 CPU profile reporter is
+# classified separately below because its machine simulation consumes the report.
+I386_SCRIPTS = frozenset({'audit_fes_i386_case.py', 'fes_i386_oracle.py', 'test_fes_i386_vectors.py', 'test_fes_i386_test386.py',
                           'test_fes_i386_frontend.py', 'test_fes_i386_lockstep.py', 'test_fes_i386_governor.py',
                           'test_fes_i386_latency.py', 'benchmark_fes_i386.py', 'quartus_fes_i386.py',
                           'fes_i386_ucode.py', 'i386_verilator.py'})
@@ -232,7 +232,7 @@ def fpga_cores(path):
         if parts[1] == 'pc386_cpu_profile.py':
             return ('pc386',), 'pc386 CPU profiling is consumed by its cpu-profile simulation'
         if parts[1] in I386_SCRIPTS:
-            return (), 'i386 oracle, corpus runners, RTL checks and timing harness; FPGA software classification'
+            return (), 'i386 audit, oracle, corpus runners, RTL checks and timing harness; FPGA software classification'
     if parts and parts[0] == 'tests':
         # No simulation recipe reads misteross tests or their fixtures.
         return (), 'FPGA producer/package software tests; RTL unchanged'
