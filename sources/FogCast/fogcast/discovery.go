@@ -14,6 +14,7 @@ import (
 )
 
 const meshInventoryWindow = time.Second
+const meshInventoryInterval = 10 * time.Second
 
 // MeshNode is one discovered node advertisement. It is not a lease and it
 // does not make a title Ready.
@@ -368,26 +369,37 @@ func (s *Service) startTargetMonitor() {
 		defer close(s.monitorDone)
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
+		var nextInventory time.Time
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-
-				request, cancel := context.WithTimeout(ctx, 4*time.Second)
-				_, _ = s.Health(request)
-				cancel()
-				if ctx.Err() != nil {
-					return
-				}
-				// Inventory browsing is independent of the selected target's
-				// Phase 0 bind. Admission still checks discoveryEnabled.
-				observe, observeCancel := context.WithTimeout(ctx, meshInventoryWindow)
-				_, _ = s.ObserveMesh(observe)
-				observeCancel()
+				s.monitorTargetTick(ctx, &nextInventory, time.Now)
 			}
 		}
 	}()
+}
+
+// monitorTargetTick keeps the health retry tick separate from inventory's
+// slower browse cadence. The first tick also starts an inventory scan.
+func (s *Service) monitorTargetTick(ctx context.Context, nextInventory *time.Time, now func() time.Time) {
+	request, cancel := context.WithTimeout(ctx, 4*time.Second)
+	_, _ = s.Health(request)
+	cancel()
+	if ctx.Err() != nil {
+		return
+	}
+	current := now()
+	if current.Before(*nextInventory) {
+		return
+	}
+	*nextInventory = current.Add(meshInventoryInterval)
+	// Inventory browsing is independent of the selected target's Phase 0 bind.
+	// Admission still checks discoveryEnabled.
+	observe, observeCancel := context.WithTimeout(ctx, meshInventoryWindow)
+	_, _ = s.ObserveMesh(observe)
+	observeCancel()
 }
 
 func (s *Service) discoveryEnabled() bool {

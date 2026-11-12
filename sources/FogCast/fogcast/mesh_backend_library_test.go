@@ -825,15 +825,49 @@ func TestMeshInventoryObservesWithoutBoundTarget(t *testing.T) {
 	}
 	s.startTargetMonitor()
 	t.Cleanup(func() { s.monitorCancel(); <-s.monitorDone })
-	// The monitor tick is intentionally the same path production uses.
-	for i := 0; i < 30; i++ {
+	// Exercise the production monitor but allow for a delayed health tick on
+	// a busy host before asserting that its observation was published.
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
 		if len(s.MeshNodes()) == 1 {
 			return
 		}
 		// A bounded wait avoids depending on DNS-SD or a real target.
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatal("observer-only monitor did not populate inventory")
+}
+
+func TestMeshMonitorBoundsBrowseWithoutSlowingHealth(t *testing.T) {
+	client := &fakeServiceClient{healthErr: fmt.Errorf("target unavailable")}
+	s := newService(Config{}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	if s.discoveryEnabled() {
+		t.Fatal("fixture unexpectedly has a Phase 0 bind")
+	}
+	id := "01234567-89ab-cdef-0123-456789abcdef"
+	browses := 0
+	s.collectNodes = func(context.Context) ([]discovery.ObservedNode, error) {
+		browses++
+		if browses%2 == 0 {
+			return nil, nil
+		}
+		return []discovery.ObservedNode{{NodeID: id, TargetID: id}}, nil
+	}
+	var next time.Time
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for second := 0; second <= 20; second++ {
+		now := start.Add(time.Duration(second) * time.Second)
+		s.monitorTargetTick(context.Background(), &next, func() time.Time { return now })
+		if want := second/10 + 1; browses != want {
+			t.Fatalf("second %d: browses = %d, want %d", second, browses, want)
+		}
+		if client.healthCalls != second+1 {
+			t.Fatalf("second %d: health calls = %d, want %d", second, client.healthCalls, second+1)
+		}
+		if want := browses % 2; len(s.MeshNodes()) != want {
+			t.Fatalf("second %d: inventory = %+v, want %d rows", second, s.MeshNodes(), want)
+		}
+	}
 }
 
 // Same-id host and sourced options must retain their distinct availability.
