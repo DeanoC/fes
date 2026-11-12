@@ -4494,3 +4494,8 @@ open. An incomplete archive/member inventory takes the existing interrupted
 installation recovery path; selected missing or corrupt data is never repaired
 silently. Launch still performs fresh payload inspection. This avoids duplicate
 cold-start hashing before the agent can serve its health endpoint.
+
+The agent overlaps that recovery with independent boot-image byte verification.
+It joins recovery before exposing HTTP admission or serving any request, and
+joins it on every early startup failure as well. This uses the same integrity
+checks and does not advertise readiness ahead of verification.

@@ -349,20 +349,29 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	}
 	var packages *kitpackages.Store
 	var coreLibraryError error
+	type packageOpenResult struct {
+		store *kitpackages.Store
+		err   error
+	}
+	var packageReady chan packageOpenResult
 	if err := dependencies.prepareDataPartition(); err != nil {
 		logger.Error("appliance data partition bind failed", "error", err)
-		// Absent FESDATA3 is an unavailable store, the same as a failed open.
-		// Kit-local inventory then returns an empty list and does not scan
-		// factory packages.
+		// An absent or blocked FESDATA3 never opens the package store.
 		coreLibraryError = err
 	} else if dependencies.openCorePackages != nil {
-		packages, err = dependencies.openCorePackages()
-		if err != nil {
-			logger.Error("durable core packages unavailable", "error", err)
-			packages = nil
-			coreLibraryError = err
-		}
+		packageReady = make(chan packageOpenResult, 1)
+		go func(result chan<- packageOpenResult) {
+			store, err := dependencies.openCorePackages()
+			result <- packageOpenResult{store, err}
+		}(packageReady)
 	}
+	// An early cache/input/boot failure must still join recovery, so no worker
+	// continues changing package publications after startup has returned.
+	defer func() {
+		if packageReady != nil {
+			<-packageReady
+		}
+	}()
 	cache, err := dependencies.openCache(targetcache.Config{
 		Root:         targetCacheRoot,
 		ActiveRecord: targetCacheActiveRecord,
@@ -411,6 +420,52 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	coordinator.Initialize(startup)
 	cancel()
 	options := []httpapi.Option{httpapi.WithContent(content), httpapi.WithDevelopment(coordinator)}
+	if targetID != "" {
+		options = append(options, httpapi.WithTargetID(targetID), httpapi.WithLauncherPairing(launcherConfigPath))
+	}
+	if !dependencies.inputBeforeInitialize && dependencies.newInput != nil {
+		inputController, err = dependencies.newInput(cfg)
+		if err != nil || inputController == nil {
+			return errors.New("remote input controller could not be configured")
+		}
+		defer inputController.Close()
+	}
+	if inputController != nil {
+		options = append(options, httpapi.WithInput(inputController))
+	}
+	cleanupPeripherals := func(cleanup context.Context) error {
+		var cleanupErr error
+		if inputController != nil {
+			if releaser, ok := inputController.(interface{ ReleaseAll(context.Context) error }); ok {
+				cleanupErr = errors.Join(cleanupErr, releaser.ReleaseAll(cleanup))
+			} else {
+				cleanupErr = errors.Join(cleanupErr, errors.New("input controller cannot release kit ownership"))
+			}
+		}
+		return cleanupErr
+	}
+	var localUpdater *applianceupdate.Service
+	if dependencies.newUpdate != nil {
+		updater, updateErr := dependencies.newUpdate(coordinator, cleanupPeripherals)
+		if updateErr != nil {
+			return errors.New("appliance boot identity could not be verified")
+		}
+		if updater != nil {
+			options = append(options, httpapi.WithUpdate(updater))
+		}
+		localUpdater = updater
+	}
+	// Durable package recovery and boot-image byte verification use independent
+	// stores. Both must finish before any HTTP admission or listener is exposed.
+	if packageReady != nil {
+		result := <-packageReady
+		packageReady = nil
+		packages, coreLibraryError = result.store, result.err
+		if coreLibraryError != nil {
+			logger.Error("durable core packages unavailable", "error", coreLibraryError)
+			packages = nil
+		}
+	}
 	options = append(options, httpapi.WithCorePackages(packages, coordinator.InspectCore))
 	if dependencies.meshContentRoot != "" && targetID != "" {
 		// The kit store is served for this node's id. Pull and link are
@@ -447,41 +502,6 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			}
 			options = append(options, httpapi.WithMeshContent(meshStore))
 		}
-	}
-	if targetID != "" {
-		options = append(options, httpapi.WithTargetID(targetID), httpapi.WithLauncherPairing(launcherConfigPath))
-	}
-	if !dependencies.inputBeforeInitialize && dependencies.newInput != nil {
-		inputController, err = dependencies.newInput(cfg)
-		if err != nil || inputController == nil {
-			return errors.New("remote input controller could not be configured")
-		}
-		defer inputController.Close()
-	}
-	if inputController != nil {
-		options = append(options, httpapi.WithInput(inputController))
-	}
-	cleanupPeripherals := func(cleanup context.Context) error {
-		var cleanupErr error
-		if inputController != nil {
-			if releaser, ok := inputController.(interface{ ReleaseAll(context.Context) error }); ok {
-				cleanupErr = errors.Join(cleanupErr, releaser.ReleaseAll(cleanup))
-			} else {
-				cleanupErr = errors.Join(cleanupErr, errors.New("input controller cannot release kit ownership"))
-			}
-		}
-		return cleanupErr
-	}
-	var localUpdater *applianceupdate.Service
-	if dependencies.newUpdate != nil {
-		updater, updateErr := dependencies.newUpdate(coordinator, cleanupPeripherals)
-		if updateErr != nil {
-			return errors.New("appliance boot identity could not be verified")
-		}
-		if updater != nil {
-			options = append(options, httpapi.WithUpdate(updater))
-		}
-		localUpdater = updater
 	}
 	leaseOptions, err := maintenanceLeaseOptions(dependencies)
 	if err != nil {

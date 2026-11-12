@@ -20,6 +20,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/agentconfig"
 	"github.com/DeanoC/FogCast/internal/appliancedata"
+	"github.com/DeanoC/FogCast/internal/applianceupdate"
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/input"
@@ -775,5 +776,64 @@ func TestRunDurableLibraryAvailability(t *testing.T) {
 				t.Fatalf("opened %d", opened)
 			}
 		})
+	}
+}
+
+func TestStartupOverlapsPackageRecoveryWithBootVerification(t *testing.T) {
+	verificationStarted := make(chan struct{})
+	overlapped := make(chan bool, 1)
+	deps := runDependencies{
+		prepareDataPartition: func() error { return nil },
+		openCorePackages: func() (*kitpackages.Store, error) {
+			select {
+			case <-verificationStarted:
+				overlapped <- true
+			case <-time.After(time.Second):
+				overlapped <- false
+			}
+			return nil, errors.New("test unavailable package store")
+		},
+		openCache: func(targetcache.Config, ...targetcache.Option) (agent.ContentStore, error) {
+			return &compositionStore{}, nil
+		},
+		newRuntime: func(agentconfig.Config) agent.Runtime { return &compositionRuntime{} },
+		newUpdate: func(*agent.Coordinator, func(context.Context) error) (*applianceupdate.Service, error) {
+			close(verificationStarted)
+			return nil, errors.New("test boot verification failed")
+		},
+		serve: func(*http.Server) error { t.Fatal("served before boot verification passed"); return nil },
+	}
+	err := runWithDependencies(context.Background(), writeCompositionConfig(t, ""), slog.New(slog.NewJSONHandler(io.Discard, nil)), deps)
+	if err == nil || !strings.Contains(err.Error(), "boot identity") {
+		t.Fatalf("boot verification failure: %v", err)
+	}
+	if !<-overlapped {
+		t.Fatal("package recovery serialized before independent boot verification")
+	}
+}
+
+func TestStartupJoinsPackageRecoveryOnCacheFailure(t *testing.T) {
+	release := make(chan struct{})
+	finished := make(chan struct{})
+	deps := runDependencies{
+		prepareDataPartition: func() error { return nil },
+		openCorePackages: func() (*kitpackages.Store, error) {
+			<-release
+			defer close(finished)
+			return nil, errors.New("test package open finished")
+		},
+		openCache: func(targetcache.Config, ...targetcache.Option) (agent.ContentStore, error) {
+			close(release)
+			return nil, errors.New("test cache failed")
+		},
+	}
+	err := runWithDependencies(context.Background(), writeCompositionConfig(t, ""), slog.New(slog.NewJSONHandler(io.Discard, nil)), deps)
+	if err == nil || !strings.Contains(err.Error(), "target cache") {
+		t.Fatalf("cache failure: %v", err)
+	}
+	select {
+	case <-finished:
+	default:
+		t.Fatal("startup returned while package recovery remained active")
 	}
 }
