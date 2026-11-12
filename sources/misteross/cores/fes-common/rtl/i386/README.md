@@ -1637,14 +1637,14 @@ lockstep under a preset and fails on any architectural difference from max.
 ## Synthesis notes
 
 The i386 RTL has its own toolchain lock, [`toolchain.lock`](toolchain.lock)
-here: the DeanoC Yosys fork's main at `0a7927bf`, with nextpnr `bd7a1c0d`
+here: the DeanoC Yosys fork's main at `e240a465`, with nextpnr `bd7a1c0d`
 and Mistral `8fcc4cb4`. It is the pc386 lock's Yosys pin, so lockstep, the
-Quartus spikes and the pc386 seal read the CPU with one Yosys (#1581 D2,
+Quartus spikes and the pc386 seal read the CPU with one Yosys (#1581 D2, S4,
 [record](../../../../../../docs/validation/2026-11-10-1581-d2-yosys-lock/README.md)).
 The timing spikes default to it. The repository's
 shared lock stays at Yosys `3a5accbd`, which reads this RTL wrongly, so check
 and route the i386 RTL with this lock's Yosys. Each later Yosys fix is a
-small bump of this lock, the removal of its one workaround, the `--yosys`
+small bump of this lock, the removal of its one workaround, the `--netlist`
 check and a re-measure.
 
 Synthesis runs `proc -norom` first, by choice: it keeps case tables in
