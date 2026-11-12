@@ -416,7 +416,12 @@ int main() {
     require(stopped, "button did not stop the scan");
     std::cout << "PASS: SDRAM and three HPS DDR port scans, signatures, latency windows, holds, status text, button stop\n";
     negative_byte_cases();
-    negative_ddr_latency_cases();
-    ddr_latency_stop_cases();
+    // The runner selects the shipped OSS-100 configuration for the DDR
+    // fault matrix. Its HPS path is shared by the other SDRAM configurations.
+    if (std::getenv("RAMTEST_DDR_FAULT_CASES")) {
+        negative_ddr_latency_cases();
+        ddr_latency_stop_cases();
+        std::cout << "PASS: twelve DDR latency fault and stop cases\n";
+    }
     return 0;
 }
