@@ -429,9 +429,14 @@ public:
         window = on;
     }
     bool window = false;
+    // TR4-TR7 as the RTL keeps them (#1730), which Bochs at CPU level 3 has
+    // not: what MOV TRn writes, read back by MOV r32, TRn (lockstep's
+    // tr_rule). Reset clears them, as it clears the RTL's.
+    std::array<uint32_t, 4> trn{};
 
     // Reset with this architectural state.
     void start(const State &s) {
+        trn = {};
         for (int n = 0; n < 8; ++n) top.init_gpr[n] = s.gpr[n];
         top.init_eflags = s.eflags;
         top.init_eip = s.eip;
@@ -1945,8 +1950,60 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             for (; k < 15 && is_prefix(code[k]); ++k) lock = lock || code[k] == 0xf0;
             if (k < 15 && (lock || code[k] == 0x9d) && !oracle.decode(code, 16, code32).undefined) v86_gp = k + 1;
         }
+        // #1730's rules, where the 386 runs what Bochs at CPU level 3 rejects
+        // as #UD (divergences.toml umov, mov-tr). umov: UMOV (0F 10-13) is the
+        // 386's MOV (88h-8Bh), so the oracle steps that MOV with a REP prefix
+        // in the 0Fh's place, the same length, which neither CPU heeds on a
+        // MOV. tr: MOV to and from TR4-TR7. Above CPL 0 (V86 mode included)
+        // the oracle steps MOV r32, CR0 with the same r/m (0F 20 /r), whose
+        // #GP(0) Bochs raises before any operand as the 386 raises MOV
+        // TRn's (microcode_notes.txt 391, 3B6). At CPL 0 it steps MOV of the
+        // r/m register to itself (F3 89 /r), and the testbench's TR4-TR7
+        // (rtl.trn) give a read's result, set on the oracle after the step,
+        // or take a write's value. A LOCK is #UD on both sides as written.
+        std::vector<std::pair<unsigned, uint8_t>> undoc;
+        int tr_read = -1, tr_write = -1;  // the TR4-TR7 index a CPL-0 MOV TRn reads or writes
+        unsigned tr_rm = 0;
+        {
+            unsigned k = 0;
+            bool lock = false;
+            for (; k < 13 && is_prefix(code[k]); ++k) lock = lock || code[k] == 0xf0;
+            const unsigned reg = (code[k + 2] >> 3) & 7;
+            if (!lock && !v86_gp && code[k] == 0x0f && (code[k + 1] & 0xfc) == 0x10) {
+                undoc = {{k, 0xf3}, {k + 1, uint8_t(0x88 | (code[k + 1] & 3))}};
+                ++summary.divergences["umov"];
+            } else if (!lock && !v86_gp && code[k] == 0x0f && (code[k + 1] == 0x24 || code[k + 1] == 0x26) && reg >= 4) {
+                tr_rm = code[k + 2] & 7;
+                if ((before.cr0 & 1) && (before.cpl != 0 || (before.eflags & 0x20000))) {
+                    undoc = {{k + 1, 0x20}, {k + 2, uint8_t(0xc0 | tr_rm)}};
+                } else {
+                    undoc = {{k, 0xf3}, {k + 1, 0x89}, {k + 2, uint8_t(0xc0 | tr_rm << 3 | tr_rm)}};
+                    (code[k + 1] == 0x24 ? tr_read : tr_write) = int(reg - 4);
+                }
+                ++summary.divergences["mov-tr"];
+            }
+        }
         fes_i386::StepResult result;
-        if (v86_gp) {
+        if (!undoc.empty()) {
+            uint8_t was[3];
+            for (size_t i = 0; i < undoc.size(); ++i) {
+                was[i] = bus.ram[linear + undoc[i].first];
+                bus.ram[linear + undoc[i].first] = undoc[i].second;
+                oracle.invalidate(linear + undoc[i].first, 1);
+            }
+            result = oracle.step();
+            for (size_t i = 0; i < undoc.size(); ++i) {
+                bus.ram[linear + undoc[i].first] = was[i];
+                oracle.invalidate(linear + undoc[i].first, 1);
+            }
+            const bool done = result.retired && (result.events.empty() || result.events[0].kind != fes_i386::EventKind::Exception);
+            if (done && tr_write >= 0) rtl.trn[size_t(tr_write)] = before.gpr[tr_rm];
+            if (done && tr_read >= 0) {
+                State after = oracle.get_state();
+                after.gpr[tr_rm] = rtl.trn[size_t(tr_read)];
+                oracle.set_state(after);
+            }
+        } else if (v86_gp) {
             uint8_t was[15];
             for (unsigned i = 0; i < v86_gp; ++i) {
                 was[i] = bus.ram[linear + i];
@@ -1997,6 +2054,22 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             if (esc.esc) oracle.empty_socket(false);
         }
         if (esc.esc) ++summary.no387_rule;
+        // The ICEBP rule (#1730; divergences.toml icebp-gd): the 386's ICEBP
+        // clears DR7.GD (microcode_notes.txt 94C) before its delivery reads
+        // the gate, as the RTL does; Bochs's INT1 leaves it. When the
+        // oracle's step started ICEBP's delivery (its first event INT 1's),
+        // GD is cleared on the oracle too.
+        if ((before.dr7 & 0x2000) && !result.events.empty()
+            && result.events[0].kind == fes_i386::EventKind::SoftwareInterrupt && result.events[0].vector == 1) {
+            unsigned k = 0;
+            while (k < 15 && is_prefix(code[k])) ++k;
+            if (k < 15 && code[k] == 0xf1) {
+                State after = oracle.get_state();
+                after.dr7 &= ~0x2000u;
+                oracle.set_state(after);
+                ++summary.divergences["icebp-gd"];
+            }
+        }
         if (irq) {
             oracle.set_iteration_hook({});
             irq->intr_next = irq->intr_at >= 0;
@@ -6869,6 +6942,8 @@ std::vector<std::pair<std::string, std::vector<uint8_t>>> ud_probes16() {
         {"pop-8f1", {0x8f, 0xc8}}, {"mov-c6-1", {0xc6, 0xc8, 0x00}}, {"mov-c7-7-mem", {0xc7, 0x3f, 0x00, 0x00}},
         {"mov-sreg6", {0x8c, 0xf0}}, {"lock-0fff", {0xf0, 0x0f, 0xff, 0x00}}, {"lock-fe2-mem", {0xf0, 0xfe, 0x17}},
         {"prefixed-xbts", {0x26, 0x66, 0x67, 0x0f, 0xa6, 0x00}}, {"rep-0f0b", {0xf3, 0x0f, 0x0b}},
+        // #1730: LOCK on ICEBP, UMOV and MOV TRn.
+        {"lock-icebp", {0xf0, 0xf1}}, {"lock-umov-mem", {0xf0, 0x0f, 0x11, 0x07}}, {"lock-tr6", {0xf0, 0x0f, 0x24, 0xf0}},
     };
 }
 
@@ -7642,6 +7717,97 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
             v86(labels.emplace_back("ud-v86-iopl0-" + name).c_str(), body, 6, -1, 0);
             v86(labels.emplace_back("ud-v86-iopl3-" + name).c_str(), body, 6, -1, 3);
         }
+    }
+    // #1730: the 386's undocumented instructions. ICEBP (F1h) is INT 1
+    // through the gate as an exception's delivery: from CPL 3 and V86 mode
+    // at any IOPL through gate 1's DPL 0 (the default gate, to the HLT at
+    // 08h:1800h), EXT in a fault's error code (#NP(0Bh) for gate 1 not
+    // present, against INT 1's 0Ah), DR7.GD cleared (icebp-gd), no DR6 bit,
+    // and TF in its frame with no single-step trap after it. UMOV is MOV
+    // (umov), its memory forms' faults included. MOV to and from TR4-TR7
+    // keeps what it writes at CPL 0 and is #GP(0) above it, with either
+    // ModRM form and with GD set (mov-tr).
+    {
+        static std::deque<std::string> labels;
+        auto five = [&](const std::string &name, std::function<void(Asm &)> body, int ending, int error, int soft,
+                        bool cpl0_only_ending) {
+            // cpl0_only_ending: the ending holds at CPL 0 and in real mode;
+            // above CPL 0 the case's HLT (or a MOV TRn) is #GP(0).
+            cases.push_back(Case{labels.emplace_back("u-real-" + name).c_str(), body, ending, ending == 13 ? -1 : error,
+                                 {}, true, soft});
+            cases.push_back(Case{labels.emplace_back("u-pm-" + name).c_str(), body, ending, error, {}, false, soft});
+            const int up = cpl0_only_ending ? 13 : ending, up_error = cpl0_only_ending ? 0 : error,
+                      up_soft = cpl0_only_ending ? -1 : soft;
+            r3(labels.emplace_back("u-r3-" + name).c_str(), body, up, up_error, up_soft);
+            v86(labels.emplace_back("u-v86-iopl0-" + name).c_str(), body, up, up_error, 0, up_soft);
+            v86(labels.emplace_back("u-v86-iopl3-" + name).c_str(), body, up, up_error, 3, up_soft);
+        };
+        // ICEBP: the handler's HLT at CPL 0 ends every mode.
+        five("icebp", [](Asm &a) { a.op({0xf1}); }, -1, -1, 1, false);
+        five("icebp-prefixed", [](Asm &a) { a.op({0x26, 0x66, 0xf1}); }, -1, -1, 1, false);
+        {
+            // PUSHF; POP AX; OR AH, 1; PUSH AX; POPF; ICEBP (not in V86 mode
+            // below IOPL 3, where PUSHF is #GP(0)).
+            const auto tf = [](Asm &a) { a.op({0x9c, 0x58, 0x80, 0xcc, 0x01, 0x50, 0x9d, 0xf1}); };
+            cases.push_back(Case{"u-real-icebp-tf", tf, -1, -1, {}, true, 1});
+            cases.push_back(Case{"u-pm-icebp-tf", tf, -1, -1, {}, false, 1});
+            r3("u-r3-icebp-tf", tf, -1, -1, 1);
+            v86("u-v86-iopl3-icebp-tf", tf, -1, -1, 3, 1);
+        }
+        five("icebp-movss", [](Asm &a) { a.op({0x8c, 0xd0, 0x8e, 0xd0, 0xf1}); }, -1, -1, 1, false);  // MOV AX, SS; MOV SS, AX
+        cases.push_back(Case{"u-pm-icebp-np", [](Asm &a) { a.op({0xf1}); }, 11, 1 * 8 + 3, {{1, absent}}, false});
+        cases.push_back(Case{"u-pm-int1-np", [](Asm &a) { a.op({0xcd, 0x01}); }, 11, 1 * 8 + 2, {{1, absent}}, false});
+        cases.push_back(Case{"u-pm-icebp-gp-type", [](Asm &a) { a.op({0xf1}); }, 13, 1 * 8 + 3,
+                             {{1, desc(0, 0xffff, 0x93, false, false)}}, false});
+        r3("u-r3-icebp-np", [](Asm &a) { a.op({0xf1}); }, 11, 1 * 8 + 3);
+        cases.back().gates = {{1, absent}};
+        // GD set, then ICEBP: GD clear in the handler.
+        const auto gd = [](Asm &a) {
+            a.op({0x66, 0xb8}); a.d(0x2400); a.op({0x0f, 0x23, 0xf8});  // MOV EAX, 2400h; MOV DR7, EAX
+        };
+        cases.push_back(Case{"u-real-icebp-gd", [=](Asm &a) { gd(a); a.op({0xf1}); }, -1, -1, {}, true, 1});
+        cases.push_back(Case{"u-pm-icebp-gd", [=](Asm &a) { gd(a); a.op({0xf1}); }, -1, -1, {}, false, 1});
+        cases.push_back(Case{"u-pm-icebp-gd-np", [=](Asm &a) { gd(a); a.op({0xf1}); }, 11, 1 * 8 + 3, {{1, absent}}, false});
+        // UMOV, each form, then HLT.
+        const auto ax = [](Asm &a) { a.op({0x66, 0xb8}); a.d(0x89abcdefu); a.op({0x66, 0xbb}); a.d(0x01234567u); };
+        five("umov-rm8-r8", [=](Asm &a) { ax(a); a.op({0x0f, 0x10, 0xe3}); }, -1, -1, -1, true);          // UMOV BL, AH
+        five("umov-rm16-r16", [=](Asm &a) { ax(a); a.op({0x0f, 0x11, 0xc3}); }, -1, -1, -1, true);        // UMOV BX, AX
+        five("umov-rm32-r32", [=](Asm &a) { ax(a); a.op({0x66, 0x0f, 0x11, 0xc3}); }, -1, -1, -1, true);  // UMOV EBX, EAX
+        five("umov-r8-rm8", [=](Asm &a) { ax(a); a.op({0x0f, 0x12, 0xc7}); }, -1, -1, -1, true);          // UMOV AL, BH
+        five("umov-r16-rm16", [=](Asm &a) { ax(a); a.op({0x0f, 0x13, 0xd8}); }, -1, -1, -1, true);        // UMOV BX, AX
+        five("umov-mem-store", [=](Asm &a) {                                                                // UMOV [0E00h], AX; [0E02h], EAX; [0E07h], AH
+            ax(a); a.op({0x0f, 0x11, 0x06, 0x00, 0x0e, 0x66, 0x0f, 0x11, 0x06, 0x02, 0x0e, 0x0f, 0x10, 0x26, 0x07, 0x0e});
+        }, -1, -1, -1, true);
+        five("umov-mem-load", [=](Asm &a) {                                                                 // UMOV [0E00h], EAX; UMOV CX, [0E01h]; UMOV DL, [0E03h]
+            ax(a); a.op({0x66, 0x0f, 0x11, 0x06, 0x00, 0x0e, 0x0f, 0x13, 0x0e, 0x01, 0x0e, 0x0f, 0x12, 0x16, 0x03, 0x0e});
+        }, -1, -1, -1, true);
+        five("umov-prefixed", [=](Asm &a) {                                                                 // MOV BX, 0E00h; ES: A32 UMOV [EBX], EAX; REP UMOV SI, [BX]
+            ax(a); a.op({0xbb, 0x00, 0x0e, 0x66, 0x81, 0xe3}); a.d(0xffff);
+            a.op({0x26, 0x66, 0x67, 0x0f, 0x11, 0x03, 0xf3, 0x0f, 0x13, 0x37});
+        }, -1, -1, -1, true);
+        cases.push_back(Case{"u-pm-umov-gp", [](Asm &a) { a.op({0x0f, 0x13, 0x06, 0xff, 0xff}); }, 13, 0, {}, false});  // UMOV AX, [FFFFh]
+        cases.push_back(Case{"u-pm-umov-ss", [](Asm &a) {                                                   // UMOV SS:[FFFFh], AX
+            a.op({0xbb, 0xff, 0xff, 0x36, 0x0f, 0x11, 0x07}); }, 12, 0, {}, false});
+        r3("u-r3-umov-gp", [](Asm &a) { a.op({0x0f, 0x11, 0x06, 0xff, 0xff}); }, 13, 0);
+        // MOV TRn: TR4-TR7 written, then read back into EBX, ECX, EDX and
+        // ESI; the memory ModRM forms as registers; with GD set, no #DB.
+        const auto tr_all = [](Asm &a) {
+            for (unsigned n = 4; n < 8; ++n) {
+                a.op({0x66, 0xb8}); a.d(0x10203040u * n + 0x0b0c0d0e);   // MOV EAX, v
+                a.op({0x0f, 0x26, uint8_t(0xc0 | n << 3)});              // MOV TRn, EAX
+            }
+            a.op({0x0f, 0x24, 0xe3, 0x0f, 0x24, 0xe9, 0x0f, 0x24, 0xf2, 0x0f, 0x24, 0xfe});  // MOV EBX, TR4; ECX, TR5; EDX, TR6; ESI, TR7
+        };
+        five("tr-all", tr_all, -1, -1, -1, true);
+        five("tr-read", [](Asm &a) { a.op({0x0f, 0x24, 0xf3}); }, -1, -1, -1, true);                       // MOV EBX, TR6 (reset value)
+        five("tr-mem-modrm", [](Asm &a) {                                                                  // MOV EAX, v; MOV TR7, EAX (mod 0); MOV ESI, TR7 (mod 2)
+            a.op({0x66, 0xb8}); a.d(0xfeedf00du); a.op({0x0f, 0x26, 0x38, 0x0f, 0x24, 0xbe});
+        }, -1, -1, -1, true);
+        five("tr-prefixed", [](Asm &a) {                                                                   // O16 MOV TR6, EAX; REP MOV EDI, TR6
+            a.op({0x66, 0xb8}); a.d(0x00c0ffeeu); a.op({0x66, 0x0f, 0x26, 0xf0, 0xf3, 0x0f, 0x24, 0xf7});
+        }, -1, -1, -1, true);
+        cases.push_back(Case{"u-real-tr-gd", [=](Asm &a) { gd(a); tr_all(a); }, -1, -1, {}, true});
+        cases.push_back(Case{"u-pm-tr-gd", [=](Asm &a) { gd(a); tr_all(a); }, -1, -1, {}, false});
     }
     // The I/O permission bitmap, which V86 mode always reads, at IOPL 3 too:
     // TSS 38h's limit FFh and the bitmap at 68h, port 61h's and 68h's bits
@@ -8917,6 +9083,18 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
                                      to_v86(a);
                                      a.b.insert(a.b.end(), bytes.begin(), bytes.end());
                                  }, 6, -1, -1, {}});
+    }
+    // #1730: UMOV is MOV under paging too, so its operand's page not present
+    // is #PF with MOV's error code (W/R for the store, U/S at CPL 3) and
+    // CR2, at CPL 0 and 3.
+    for (bool r3 : {false, true}) {
+        const int user = r3 ? int(U) : 0;
+        cases.push_back(Case{r3 ? "pg-umov-r3-store" : "pg-umov-r0-store", [](Asm &a, uint32_t) {
+                                 a.op({0x0f, 0x11, 0x05}); a.d(0x10004);                 // UMOV [10004h], EAX
+                             }, 14, W | user, 0x10004, {{0x10, 0x20000 | W | U}}, {}, {}, r3});
+        cases.push_back(Case{r3 ? "pg-umov-r3-load" : "pg-umov-r0-load", [](Asm &a, uint32_t) {
+                                 a.op({0x0f, 0x12, 0x0d}); a.d(0x10005);                 // UMOV CL, [10005h]
+                             }, 14, user, 0x10005, {{0x10, 0x20000 | W | U}}, {}, {}, r3});
     }
     // Task switches under paging (Phase 5's fourth slice). GDT 60h: a 386
     // TSS (task A) at 2600h; 70h: a #PF handler's task H at 2680h, through

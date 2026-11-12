@@ -277,12 +277,13 @@ package fes_i386_pkg;
     // adjusted selector (from T1 and T2). LAR, LSL, VERR and VERW name
     // their result here; M1 puts it in from the staged descriptor. Those
     // from FIP on are read in D behind the uops that write them (t_rd).
-    // MOV r32, DRn reads DR0-DR3, DR6 (DR4 too) and DR7 (DR5 too).
+    // MOV r32, DRn reads DR0-DR3, DR6 (DR4 too) and DR7 (DR5 too); MOV r32,
+    // TRn TR4-TR7 (#1730).
     typedef enum logic [4:0] {
         SYS_RD_CR0, SYS_RD_CR2, SYS_RD_CR3, SYS_RD_GDTL, SYS_RD_GDTB, SYS_RD_IDTL, SYS_RD_IDTB, SYS_RD_LDTR,
         SYS_RD_TR, SYS_RD_ERR, SYS_RD_ONES, SYS_RD_FIP, SYS_RD_FCS, SYS_RD_FDP, SYS_RD_FDS, SYS_RD_ARPL,
         SYS_RD_LAR, SYS_RD_LSL, SYS_RD_VERR, SYS_RD_VERW, SYS_RD_DR0, SYS_RD_DR1, SYS_RD_DR2, SYS_RD_DR3,
-        SYS_RD_DR6, SYS_RD_DR7
+        SYS_RD_DR6, SYS_RD_DR7, SYS_RD_TR4, SYS_RD_TR5, SYS_RD_TR6, SYS_RD_TR7
     } sys_rd_e;
 
     // The x87 pointers an ESC instruction's last uop writes as it retires
@@ -450,7 +451,11 @@ package fes_i386_pkg;
     // a far jump to the new task's EIP after which its descriptors load;
     // tscpl, the uop that loads the new task's SS, after which the CPL is
     // CS's RPL.
+    // ice: a uop of ICEBP's delivery (F1h, #1730), which goes through the
+    // INT routines as an exception's does: its gate is not checked against
+    // CPL, and a fault in it has EXT set (fes_i386_cpu, "ICEBP").
     typedef struct packed {
+        logic        ice;
         logic        ntset;
         logic        tcom;
         logic        tscpl;
@@ -1151,6 +1156,9 @@ package fes_i386_pkg;
         // protected-mode IRET's, or a return from a nested task's), which
         // clears the NMI block as it reaches WB (fes_i386_cpu, "Interrupts").
         logic           iret0;
+        // ice0: D, the uop is ICEBP's first, which clears DR7.GD as it
+        // reaches WB (fes_i386_cpu, "ICEBP").
+        logic           ice0;
     } pipe_t;
 
 endpackage

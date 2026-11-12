@@ -191,9 +191,16 @@ Programmer's Reference Manual (1986):
   and shutdown on triple fault;
 - DR0–DR3, DR6 and DR7 with instruction and data breakpoints, RF and single
   step. MOV to or from DR4 and DR5 follows the reference results.
-- TR6 and TR7 accept MOV without #UD. The TLB test function is not
-  implemented. This is a recorded deviation; no target software is known to
-  use it.
+- TR4-TR7 accept MOV without #UD, with a register or a memory ModRM, as
+  the 386's decoder routes them (TR0-TR3 are #UD); each keeps what is
+  written. The TLB test function of TR6 and TR7 is not implemented, and
+  what the 386's TR4 and TR5 hold is not known. This is a recorded
+  deviation; no target software is known to use it (#1730).
+- The 386's other undocumented instructions follow its decoder ROM and
+  microcode (#1730): ICEBP (F1h) is INT 1 delivered as an exception (no
+  IOPL or gate-DPL check, EXT set, DR7.GD cleared, no DR6 bit; DR7 bit 12's
+  break to an ICE is ignored), and UMOV (0F 10-0F 13) is MOV. LOADALL
+  (0F 07) stops the CPU as not built (Phase 7).
 
 The segment-cache contract for the completed CPU follows the 386:
 

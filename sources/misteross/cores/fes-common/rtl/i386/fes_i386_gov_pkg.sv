@@ -43,13 +43,15 @@ package fes_i386_gov_pkg;
             15'b0_10111000_???_?_?_?, 15'b0_10111001_???_?_?_?, 15'b0_10111010_???_?_?_?,
             15'b0_10111011_???_?_?_?, 15'b0_10111100_???_?_?_?, 15'b0_10111101_???_?_?_?,
             15'b0_10111110_???_?_?_?, 15'b0_10111111_???_?_?_?, 15'b0_11000110_???_1_?_?,
-            15'b0_11000111_???_1_?_?:
+            15'b0_11000111_???_1_?_?, 15'b1_00010000_???_1_?_?, 15'b1_00010001_???_1_?_?,
+            15'b1_00010010_???_1_?_?, 15'b1_00010011_???_1_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd0};  // mov_r
             15'b0_10001010_???_0_?_?, 15'b0_10001011_???_0_?_?, 15'b0_10100000_???_?_?_?,
-            15'b0_10100001_???_?_?_?:
+            15'b0_10100001_???_?_?_?, 15'b1_00010010_???_0_?_?, 15'b1_00010011_???_0_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd1};  // mov_load
             15'b0_10001000_???_0_?_?, 15'b0_10001001_???_0_?_?, 15'b0_11000110_???_0_?_?,
-            15'b0_11000111_???_0_?_?, 15'b0_10100010_???_?_?_?, 15'b0_10100011_???_?_?_?:
+            15'b0_11000111_???_0_?_?, 15'b0_10100010_???_?_?_?, 15'b0_10100011_???_?_?_?,
+            15'b1_00010000_???_0_?_?, 15'b1_00010001_???_0_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd2};  // mov_store
             15'b0_10001110_???_1_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd3};  // mov_sreg_r
@@ -351,7 +353,7 @@ package fes_i386_gov_pkg;
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd78};  // retf_imm
             15'b0_11001101_???_?_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd79};  // int
-            15'b0_11001100_???_?_?_?:
+            15'b0_11001100_???_?_?_?, 15'b0_11110001_???_?_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd80};  // int3
             15'b0_11001110_???_?_?_?:
                 classify = '{elem: 1'b0, branch: 1'b1, memory: 1'b0, cls: 8'd81};  // into
@@ -482,6 +484,8 @@ package fes_i386_gov_pkg;
             15'b1_00100011_100_?_?_?, 15'b1_00100011_101_?_?_?, 15'b1_00100011_110_?_?_?,
             15'b1_00100011_111_?_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd133};  // mov_to_dr67
+            15'b1_00100100_???_?_?_?, 15'b1_00100110_???_?_?_?:
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd134};  // mov_tr
             15'b1_00000000_000_1_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd101};  // sldt_r
             15'b1_00000000_000_0_?_?:
@@ -491,35 +495,35 @@ package fes_i386_gov_pkg;
             15'b1_00000000_001_0_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd5};  // str_m
             15'b1_00000000_010_1_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd134};  // lldt_r
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd135};  // lldt_r
             15'b1_00000000_010_0_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd135};  // lldt_m
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd136};  // lldt_m
             15'b1_00000000_011_1_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd136};  // ltr_r
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd137};  // ltr_r
             15'b1_00000000_011_0_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd137};  // ltr_m
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd138};  // ltr_m
             15'b1_00000000_100_1_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd138};  // verr_r
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd139};  // verr_r
             15'b1_00000000_100_0_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd139};  // verr_m
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd140};  // verr_m
             15'b1_00000000_101_1_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd140};  // verw_r
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd141};  // verw_r
             15'b1_00000000_101_0_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd141};  // verw_m
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd142};  // verw_m
             15'b1_00000000_110_?_?_?, 15'b1_00000000_111_?_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd0};  // group6_ud
             15'b1_00000010_???_1_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd140};  // lar_r
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd141};  // lar_r
             15'b1_00000010_???_0_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd141};  // lar_m
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd142};  // lar_m
             15'b1_00000011_???_1_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd142};  // lsl_r
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd143};  // lsl_r
             15'b1_00000011_???_0_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd143};  // lsl_m
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd144};  // lsl_m
             15'b0_01100011_???_1_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd144};  // arpl_r
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd145};  // arpl_r
             15'b0_01100011_???_0_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd145};  // arpl_m
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd146};  // arpl_m
             15'b0_11010110_???_?_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd0};  // salc
             default: ;
