@@ -18,8 +18,8 @@ compatibility. The Quartus 17.0.2 recipe is the compiler/oracle lane.
 `make build-fes-sg1000` is the OSS Yosys/nextpnr-mistral producer using
 `cores/fes-sg1000/toolchain.lock` (Yosys `3a5accbd`, replacing previous Yosys pin `5391eeb1`, nextpnr `9128800f`, Mistral
 `8fcc4cb4`). It seals a
-format-3 package from a clean tree. The parent image route is package-only,
-and `fes.sg1000` is in the factory image.
+format-3 package from a clean tree. The parent image route is package-only;
+`fes.sg1000` is outside the first-party catalog.
 
 ## Implemented first slice
 
@@ -204,5 +204,5 @@ It copies Coleco `constraints-oss.qsf` and `clocks-oss.sdc`, and selects
 `FES_SG1000_OSS=1`, `FES_SG1000_ROM_LINK=1`, and
 `FES_COLECO_OSS=1`. `--synth-only` runs Yosys on a dirty tree and does not
 seal. A prior synth-only gap ladder is not sealed-bitstream or hardware
-acceptance. `fes.sg1000` is in the factory image; selecting these CPU sources
-requires a fresh sealed package rather than relabeling an existing artifact.
+acceptance. `fes.sg1000` is outside the first-party catalog. Selecting these
+CPU sources requires a fresh sealed package rather than relabeling an existing artifact.

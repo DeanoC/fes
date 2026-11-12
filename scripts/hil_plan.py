@@ -34,6 +34,9 @@ RULES = [
     ('image/de25-nano/**', 'full', 'de25-nano-linux'),
     ('image/**', 'full', 'image'), ('boot-media.lock.toml', 'full', 'boot-media'),
     ('containers/**', 'full', 'boot-media'), ('profiles/**', 'full', 'profile'),
+    # Display metadata for the separately published host catalog; it is not
+    # embedded in the image, kit software bundle or core package.
+    ('config/core-library.toml', 'none', None),
     ('config/**', 'full', 'config'), ('Makefile', 'full', 'build-system'),
     ('scripts/build.py', 'full', 'build-system'),
     ('scripts/environment.py', 'full', 'build-system'),
