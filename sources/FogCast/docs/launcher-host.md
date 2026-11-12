@@ -173,19 +173,23 @@ observed that this stream is unavailable and cannot reconnect, a new
 503 `INPUT_UNAVAILABLE` with `no live input stream`. An already-open launcher
 stream ends when a subsequent event encounters the loss or its read timeout
 expires; its initial ready response does not acknowledge individual events.
-For launcher streaming, an event accepted by the host transport can still be
-lost if a disconnect occurs before the host observes it; HTTP acceptance does
-not establish delivery to the target or guest.
+The ready response does not acknowledge individual events. Clients that need
+receipts request `receipts=1` as described below.
 
-A single-event `POST /api/v1/session/input/event` waits for a correlated PONG
-after its stream prefix. PONG confirms bridge processing of those preceding
-stream bytes, not sink acceptance or guest consumption. An uncertain write or
-missing PONG returns 503 `INPUT_UNCONFIRMED`: the event may have applied. The
-host closes its connection without replay, clears its held-input snapshot and
-attempts to stop the bridge; the error does not confirm remote release. This
-adds a bridge round trip to each single-event POST. It does not change launcher
-streaming or the timed key tap. The kit does not fall back to the host route
-when its local socket is down.
+A single-event `POST /api/v1/session/input/event` and each launcher event wait
+for a correlated bridge receipt. It confirms that the bridge sink accepted the
+emitted frames under its current focus policy; some mappings emit no frames and
+some accepted events are intentional no-ops. The receipt does not establish
+guest consumption. An uncertain write,
+sink rejection or missing receipt returns 503 `INPUT_UNCONFIRMED` for the
+single-event route: the event may have applied. The host closes its connection
+without replay, clears its held-input snapshot and attempts to stop the bridge;
+the error does not confirm remote release. Waiting adds a bridge round trip to
+each event. The timed key tap retains its previous transport semantics. Against
+an older kit bridge, ordinary session attachment still succeeds, but the first
+confirmed remote event fails closed before dispatch; install compatible kit
+software for remote play. The kit does not
+fall back to the host route when its local socket is down.
 
 An attached input status contains `session_id`, a non-secret hexadecimal
 attachment identifier, and optionally `source` (`launcher` or `desktop`). The
@@ -213,6 +217,21 @@ The first example presses gamepad A; `{}` is a heartbeat. Send a heartbeat at
 least every 250 ms while attached. The host permits only known gamepad buttons
 and axes, bounds each line to 4096 bytes, and ends the stream after one second
 without a complete line. Keyboard injection is not part of this endpoint.
+
+For event receipts, add `&receipts=1` to the POST URL and require the ready
+response to include `"receipts":true`. Give each event a strictly increasing,
+nonzero integer `sequence` in the request, and read the matching response line:
+
+```json
+{"sequence":1,"event":{"Device":1,"Kind":1,"Action":1,"Code":104,"Value":0}}
+{"sequence":1,"status":"accepted"}
+```
+
+`accepted` means sink acceptance as described above. `unconfirmed`, an absent
+receipt, or a closed stream means the event may have applied; do not replay it.
+The host closes the stream after an unconfirmed event. Clients using the original
+stream get no individual responses and must not infer delivery from a successful
+request-body write or the initial ready response.
 
 A source is exclusive. Another stream, or a desktop producer that already sent
 input, causes 409; a second client does not detach or take over that source. While
