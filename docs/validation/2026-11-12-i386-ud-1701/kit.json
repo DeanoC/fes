@@ -1,0 +1,13 @@
+{
+  "kit": "B",
+  "baseline_software": "7ddb0bfb",
+  "preset": "max (0)",
+  "title": "DOOM v1.9 -timedemo demo3, Phase 4 bench disk, twice per package after a memory scrub",
+  "runs": {
+    "u1": {"package": "bcd0dcd09e155229f2d28c782b5b394f79e859f1a77779c9276456715e79720f", "seal": "deano/i386-ud-1701 27decb7ad, chip CUDA seed 1",
+           "demo3": ["3863 gametics in 3376 realtics", "3863 gametics in 3376 realtics"], "fps": 40.05},
+    "m1": {"package": "9174009c32e3efe5c0aabbf5eb048ed40f4b67f0dc4c18ea0ecdc71eb0bd57ee", "seal": "main 78b7ee4b7, chip CUDA seed 1",
+           "demo3": ["3863 gametics in 3373 realtics", "3863 gametics in 3373 realtics"], "fps": 40.08}
+  },
+  "kit_state": "both runs core-only (no install, image or host change); baseline verified after each; their FogCast data trees removed after (u1-clean, m1-clean); kit B FREE"
+}
