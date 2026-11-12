@@ -656,7 +656,8 @@ module pc386_fdc #(
                         end else ex <= X_FETCH;
                     end
                 end
-                X_READ_ID: if (waited) enter_result(R_RW);
+                X_READ_ID: if (disk_left) not_ready();
+                else if (waited) enter_result(R_RW);
                 // A read's next sector from the image.
                 X_FETCH: if (disk_left) not_ready();
                 else if (ready && owed == 8'd0 && !storing) begin

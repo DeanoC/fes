@@ -812,6 +812,15 @@ std::vector<Case> cases() {
         g.insert(0, Disk{G144, 11});
         r = g.results(1000000);
         g.check(r.size() == 7 && r[0] == 0x48, "a disk that left with the last command byte ends the read: NR");
+        // A disk swapped while Read ID waits out its sector time (the drive
+        // has spun up, so Read ID is past its ready wait).
+        g.tick(600000);
+        g.command({0x4a, 0x00});
+        g.tick(100);
+        g.f.eject(0); g.tick();
+        g.insert(0, Disk{G144, 12});
+        r = g.results(1000000);
+        g.check(r.size() == 7 && r[0] == 0x48, "a disk that left during Read ID ends it: NR");
     }});
     list.push_back({"timing", 4, 2, true, [](Guest &g) {
         g.boot(&A144);
