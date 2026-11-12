@@ -119,6 +119,8 @@ def instrument_bench(text: str) -> str:
     include = '#include "Vfes_i386_cpu.h"'
     if text.count(include) != 1:
         raise AuditError('CPU testbench include changed')
+    if len(re.findall(r'\beval\s*\(', text)) != 5:
+        raise AuditError('testbench eval calls changed; audit every call before proceeding')
     text = text.replace(include, include + '\n#include "case_audit.h"')
     text, count = re.subn(r'\b((?:rtl\.)?top)\.eval\(\);',
                           r'case_audit_before(); \1.eval(); case_audit_after(\1);', text)
