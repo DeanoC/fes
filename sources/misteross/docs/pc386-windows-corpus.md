@@ -11,7 +11,7 @@ against it, in two parts:
 | Check | What | Where | Cost |
 | --- | --- | --- | --- |
 | [Kit acceptance](#kit-acceptance) | Program Manager, a mouse click, a DOS window, a Notepad save read back from the disk | a kit, on the change's seal | about 5 minutes on the kit |
-| [Simulation](#simulation) | `win` to Program Manager on the RTL alone, from the DOS prompt | `sim_fes_pc386.py --suite wfw --cpu rtl`, on a host with the drive | about an hour; a periodic check, not a per-PR gate |
+| [Simulation](#simulation) | `win` to Program Manager on the RTL alone, from the DOS prompt | `sim_fes_pc386.py --suite wfw --cpu rtl`, on a host with the drive | 1–2 hours; a periodic check, not a per-PR gate |
 
 The kit check is part of a CPU slice's or machine change's own kit evidence,
 next to DOOM's `-timedemo demo3` and the acceptance games. The merge gate's
@@ -124,7 +124,12 @@ menu bar, an open group window's title bar inside it, and the grey desktop.
 The WfW logo, the hourglass desktop, a dialog, Notepad, Control Panel and text
 screens all fail it.
 
-**Cost.** The first run's timing is in the [corpus record](../../../docs/validation/2026-11-12-pc386-windows-corpus/summary.md). Run it on a host with spare cores (chip-30x0-ai-dev under
+**Cost.** On main in November 2026, Program Manager came 1.45 simulated
+seconds after `win`, with no stop and no oracle step. The run took 2 h 13 min
+on chip-30x0-ai-dev at a load average of 35–50: about 15 minutes for the
+oracle's DOS boot, then about 10–12 minutes per quarter simulated second on
+the RTL ([corpus record](../../../docs/validation/2026-11-12-pc386-windows-corpus/summary.md)).
+An idle host takes well under that. Run it on a host with spare cores (chip-30x0-ai-dev under
 `/data`), in the background.
 
 ## Kit acceptance

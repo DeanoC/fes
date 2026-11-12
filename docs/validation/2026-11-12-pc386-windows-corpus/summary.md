@@ -83,4 +83,29 @@ taking about a second). They are not a measure of Windows' start-up: the
 
 ## Simulation
 
-Pending: `sim_fes_pc386.py --suite wfw --cpu rtl` on main `7b33b38bf` with this branch's sim changes, running on chip-30x0-ai-dev.
+`sim_fes_pc386.py --suite wfw --cpu rtl --limit-seconds 16` on chip-30x0-ai-dev,
+on main `7b33b38bf` with this branch's simulation changes at `cd80e3001`.
+Verilator 5.032; the drive came from a 0700 store under `/data`.
+
+**PASS.**
+- The oracle booted MS-DOS 6.22, and the RTL took over at the prompt
+  (`RTL-BEGIN` at cycle 230,000,092). `win` was typed at 3.3 simulated
+  seconds.
+- Frames from 3.25 s to 4.50 s show the black screen of mode switching and
+  WIN386's start-up, with the logo between frames. 4.75 s and 5.00 s show
+  Program Manager with its Main group window, and the run ended at 5.25 s
+  as `END stop-file`.
+- Program Manager came 1.45 simulated seconds after `win`, at the bench's
+  100 MHz clock. The kit's 2.0–2.5 s at 61.44 MHz is the real time.
+- The RTL retired 55,671,621 instructions, 20,514,235 of them with PE set.
+  There were no stops, no gaps, 0 oracle steps and 0 protected steps,
+  `smc_executed` 0 and `store_page_mismatches` 0.
+- **Wall time:** 2 h 13 min, with the host's load average at 35–50 on 16
+  cores (sibling census, x87 and seal jobs). The oracle's DOS boot to the
+  prompt took about 15 minutes. The RTL's 2 simulated seconds took the rest,
+  about 10–12 minutes per 0.25 s under that load.
+
+The run predates this branch's detector fixes (the band rule) and its Codex
+fix to the suite's skip. Its frames 3.00–5.00 s, judged again by this
+branch's final `ProgramManagerWatch`, give the same verdicts: not Program
+Manager through 4.50 s, then Program Manager at 4.75 s and 5.00 s.

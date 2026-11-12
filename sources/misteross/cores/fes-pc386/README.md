@@ -110,7 +110,7 @@ python3 scripts/sim_fes_pc386.py --suite speaker --download  # SPKTEST.COM: PIT 
 python3 scripts/sim_fes_pc386.py --suite cpu-profile --download  # CPUPROF.COM on the oracle, then a 20 ms machine_tb --cpu-profile window on the RTL
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
-python3 scripts/sim_fes_pc386.py --suite wfw --cpu rtl    # WfW 3.11 from the DOS prompt to Program Manager on the RTL; about an hour, periodic (skips without the drive)
+python3 scripts/sim_fes_pc386.py --suite wfw --cpu rtl    # WfW 3.11 from the DOS prompt to Program Manager on the RTL; 1-2 hours, periodic (skips without the drive)
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
 python3 scripts/sim_fes_pc386.py --suite system         # M5: FreeDOS to the prompt on pc386_system, about an hour
 make toolchain-fes-pc386 CACHE_ROOT=/abs/out/cache/misteross-toolchains GPU_ROUTER=HIP  # once per lock

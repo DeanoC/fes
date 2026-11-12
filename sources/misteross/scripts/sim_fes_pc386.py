@@ -111,7 +111,7 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            passes only then, with the RTL retiring all of Windows itself: no
            stop and no oracle step after the handover. --cpu oracle runs it all
            on Bochs. Without the drive in the store it prints SKIP and passes,
-           as CI does. About an hour on a loaded host: a periodic check, not a
+           as CI does. One to two hours of wall time: a periodic check, not a
            per-PR gate. Writes wfw[-rtl]/.
   system   boots FreeDOS on pc386_system (everything below top.sv) at the
            sealed clock, with a host that does the runtime's launch and Stop
