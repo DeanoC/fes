@@ -493,7 +493,7 @@ These are owned as `core-media-evolution.md:113-128` says.
 - **Unit-indexed Disk operations.** DiskInfo (`unit*8+field`) and DiskControl (`unit`) already carry a unit and today refuse any but 0 (`MP/docs/computer-io.md:117-118`, `:444-453`); they accept units 1–3. DiskCommit becomes `unit*8+word`, which fits the 8-bit index for all eight units. **DiskDirty stays unit 0 only:** its index is already the ATA map's word 0–127 (`:121`, `:493`), so a unit field would not fit, and neither new interface has a chunk map (a floppy's dirty state is one DiskInfo flag; a CD has none). Per-interface semantics:
   - `ata-disk` keeps its "held execution only" rules;
   - `pc-floppy` allows them while running, as above;
-  - `atapi-cd` has Prepare, Commit (no CRC: the track table is the runtime's) and Eject, and no dirty map.
+  - `atapi-cd` allows Prepare, Commit and Eject while execution runs, as `pc-floppy` does. Prepare and Eject use the generation-safe disc-release sequence below before changing the bound disc; Commit binds the disc, so the guest's next command sees UNIT ATTENTION. Commit has no CRC because the track table is the runtime's, and the interface has no dirty map.
 
   This is a minor ABI bump, 1.1 to 1.2. Old shells declare no new interfaces and keep working on the new runtime. Old runtimes do **not** accept the new pc386: they admit only minors 0 and 1, and they reject unknown required declarations (`RT/docs/computer-io.md:29-31`, `:47-48`). These media interfaces are required, so a 1.2 pc386 package ships only with a runtime that implements 1.2.
 - **New layouts.** `fes.pc386-floppy.image` 1.0 in `media-data.md`. The CD control-page layout is a published constant table, so the core, runtime and `machine_tb` share one definition. It is published in C1, with its first consumers (the RTL and `machine_tb`); C2 adds the runtime as a consumer of the same table.
@@ -594,7 +594,7 @@ New `sim_fes_pc386.py` suites:
 | --- | --- |
 | `floppy` | FLOPTEST.COM (new, MIT, in `sim/`): INT 13h read, write, verify and format on A: at 1.44M and B: at 1.2M and 360K; a swap mid-run with AH=16h seeing it; DMA across a 64 KiB boundary error; DOS `DISKCOMP` of a written disk |
 | `floppy-boot` | Boot FreeDOS from a 1.44 MB FreeDOS floppy built by the repository's FreeDOS tooling (not the LAN set) to the prompt |
-| `cdrom` | CDTEST.COM: UDVD2 + SHSUCDX on the games image, `DIR D:` of a generated test ISO (built by `genisoimage`/`xorriso` from repository files), file read CRCs, READ TOC and play/sub-channel through MSCDEX's IOCTL on a generated cue/bin with two short synthetic audio tracks |
+| `cdrom` | CDTEST.COM: UDVD2 + SHSUCDX on the C4-built games image, `DIR D:` of a generated test ISO (built by `genisoimage`/`xorriso` from repository files), file read CRCs, READ TOC and play/sub-channel through MSCDEX's IOCTL on a generated cue/bin with two short synthetic audio tracks |
 | `cd-boot` | El Torito: a generated no-emulation ISO with a tiny boot program that prints to the debug port, and a floppy-emulation ISO around the FreeDOS boot floppy |
 
 Each runs on the oracle CPU first, then with `--cpu rtl`. Every suite above ends with `--cpu rtl`.
@@ -616,11 +616,11 @@ These run under a kit lease and the [shared kit rules](../../AGENTS.md#shared-ki
    - Write files to A: and swap to B: and back, with DIR showing the change.
    - Stop, relaunch, and check the written file is there.
    - Check the record names the base SHA.
-2. **C2 smoke.**
+2. **C2 smoke (after C4).**
    - UDVD2 + SHSUCDX, then `DIR D:` on the generated ISO.
    - Measure the command latency distribution and the service thread's CPU share.
    - Swap discs and see UNIT ATTENTION.
-3. **C3 audio.** Play the generated audio tracks, then a game's CD-DA (Screamer). Capture HDMI audio and check pitch against 44.1 kHz and that the track changes.
+3. **C3 audio (after C4).** Play the generated audio tracks, then a game's CD-DA (Screamer). Capture HDMI audio and check pitch against 44.1 kHz and that the track changes.
 4. **Acceptance** ([titles](#acceptance-candidates)). Each title runs with its pass criterion recorded, under `docs/validation/`.
 
 ### Acceptance candidates
@@ -712,7 +712,7 @@ The floppy titles above, on Kit A or B. The records go under `docs/validation/`.
 - **Builds:** the CD control-page layout, published in mister-packages' generated definitions with its consumers regenerated in this PR (`AGENTS.md:182-183`); the secondary channel; the 170h split; the control-page client and PIO streamer; the MMC library with unit tests; `machine_tb`'s CD unit; `atapi_reference`; the `cdrom` and `cd-boot` suites.
 - **Out:** the CMOS boot order stays hard-disk-first, and CD boot is a suite option.
 - **Gates:**
-  - the suites on the oracle and `--cpu rtl`;
+  - `cd-boot` on the oracle and `--cpu rtl`; build `cdrom` here and run it on both after C4 supplies the games image and C3 adds CD-DA;
   - library unit tests;
   - seal.
 - **Estimate:** +700 ALMs, +2 M10K.
@@ -727,7 +727,7 @@ The floppy titles above, on Kit A or B. The records go under `docs/validation/`.
   - the CD drive in the live-media API and tenfoot.
 - **Gates:**
   - the tests in each repository;
-  - Kit smoke 2, which records latency and ARM load;
+  - Kit smoke 2 after C4, against its driver-bearing games image, recording latency and ARM load;
   - the poll interval set from that measurement.
 - **Gate from D6:** the record states the kit storage free space and the largest disc it staged; staging refuses a disc that would not fit, with a clear message.
 
@@ -736,22 +736,22 @@ The floppy titles above, on Kit A or B. The records go under `docs/validation/`.
 - **Builds:** `pc386_cdda`; the audio ring and sub-channel from the play position; volume; the mixer input; the AUX arbiter bench with all four clients.
 - **Gates:**
   - `cdda_tb`;
-  - the `cdrom` suite's audio cases;
+  - the `cdrom` suite's audio cases, gated against the C4-built games image;
   - seal;
-  - Kit smoke 3 with an HDMI audio capture.
+  - Kit smoke 3 after C4 with an HDMI audio capture.
 - **Estimate:** +300 ALMs, +4 M10K, +2 DSP.
 
 ### C4. CD drivers on the games image (builder)
 
 - **Builds:** UDVD2 and SHSUCDX (or the fallback) in the FreeDOS lock with licence rows; the boot-menu entry; the census manifest's media-set field.
-- **Gates:** the builder's licence checks and the `cdrom` suite on the built image.
+- **Gates:** the builder's licence checks and, after the image is built, the full `cdrom` suite on the oracle and `--cpu rtl` (the deferred C1/C3 suite gate). This supplies the driver-bearing image for the C2/C3 kit smokes.
 - **Depends on:** the SHSUCDX licence being settled.
 
 ### C5. CD acceptance (records)
 
 The CD titles above. Windows 98 SE setup belongs to the early-Windows plan's milestones; C5 records only that the El Torito boot reaches its setup menu.
 
-**Order:** F1 → F2 → F3 → F4, and C1 → C2 → C3 → C4 → C5. C1 can start in parallel with F2 once F1's AUX arbiter shape is merged, since both touch `pc386_port2.sv`'s `AUX` client. C2 depends on F3's unit-indexed operations.
+**Order:** F1 → F2 → F3 → F4, and C1 → C2 → C3 → C4 → C5. C4 builds the driver image, then runs the deferred C1/C3 `cdrom` gate; run the C2/C3 kit smokes after C4 and before C5 acceptance. C1 can start in parallel with F2 once F1's AUX arbiter shape is merged, since both touch `pc386_port2.sv`'s `AUX` client. C2 depends on F3's unit-indexed operations.
 
 ## Decisions
 
