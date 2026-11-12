@@ -106,8 +106,9 @@ start: a select, with no add. Measured in simulation, with D always ready:
 
 Lengths follow the oracle's decoder for every encoding it defines. The i386
 raises #UD for the rest, so their length is not architectural, and D decides
-#UD. MOV to and from TR6 and TR7 (0F 24, 0F 26), which the design accepts and
-the oracle does not, take the CR/DR rule: ModRM is always a register form.
+#UD. MOV to and from TR4-TR7 (0F 24, 0F 26), which the 386 runs and the
+oracle does not, take the CR/DR rule: ModRM is always a register form. UMOV
+(0F 10-0F 13) takes MOV's ModRM length (#1730).
 
 ## D's address operands and AG
 
@@ -201,10 +202,17 @@ its #UD entry (reenigne/x86_microcode `80386/decoder23.txt` and
 `decode2.txt`, entry 82B), the register forms of the memory-only
 instructions and the undefined ModRM reg fields included, and XBTS and IBTS
 (0F A6, 0F A7), which only the B-step 386 ran. Over 15 bytes raises #GP(0).
-The 386's instructions this build does not run, ICEBP (F1h), LOADALL
-(0F 07), UMOV (0F 10-0F 13) and MOV to and from TR4-TR7 (0F 24, 0F 26),
-decode as `FAULT_UNIMPLEMENTED`, which stops the CPU at WB, so no check can
-pass over one; with a LOCK they raise #UD, as any invalid LOCK does. An immediate after a ModRM's operand bytes is the instruction's last
+The 386's undocumented instructions (#1730) follow its decoder ROM and
+microcode: ICEBP (F1h) is INT 1 through INT n's routines as an exception's
+delivery (no IOPL check in V86 mode, the gate not checked against CPL, EXT
+in a fault's error code, DR7.GD cleared as its first uop reaches WB, no
+DR6 bit); UMOV (0F 10-0F 13) decodes as MOV (88h-8Bh); MOV to and from
+TR4-TR7 (0F 24, 0F 26, either ModRM form) reads and writes four registers
+that keep what is written, #GP(0) above CPL 0, with no GD check (TR6's TLB
+test is not built). LOADALL (0F 07), the one instruction of the 386 this
+build does not run, decodes as `FAULT_UNIMPLEMENTED`, which stops the CPU
+at WB, so no check can pass over it. A LOCK on any of these raises #UD, as
+any invalid LOCK does. An immediate after a ModRM's operand bytes is the instruction's last
 bytes, so DC takes it from the length, beside the decode. DC also registers
 the address registers and scale a memory ModRM names (`fes_i386_amode`), or
 ESP (EBP for LEAVE) for a stack operation.

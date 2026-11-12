@@ -206,6 +206,10 @@ I386_UD_0F = frozenset([
 I386_UNBUILT_0F = frozenset([0x07])
 
 
+# The [[lockstep]] rules of divergences.toml where the RTL runs what Bochs
+# rejects or leaves (#1730), each counted by the directed cases.
+UNDOCUMENTED_RULES = ('umov', 'mov-tr', 'icebp-gd')
+
 # The 386's undocumented instructions this build runs (#1730), by their
 # opcode bytes: ICEBP, UMOV, MOV to and from TR4-TR7 (with TR0-TR3's #UD).
 UNDOCUMENTED = frozenset([
@@ -393,7 +397,10 @@ def run_pmode(testbench: str, env: dict) -> dict:
     IRETD's image, the traps an edge merges, V86 mode and real mode, the
     TSS's T bit and DR7's enables across a switch; and #UD for what the 386's decoder
     rejects, in real mode, at CPL 0 and 3 and in V86 mode at IOPL 0 and 3
-    (#1701)."""
+    (#1701); and the 386's undocumented instructions in those five modes
+    (#1730): ICEBP through gate 1 from every CPL, its EXT, GD and TF, UMOV's
+    forms and faults, MOV to and from TR4-TR7 by either ModRM form and its
+    #GP(0) above CPL 0."""
     env = dict(env, FES_I386_MODE='pmode', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -837,6 +844,13 @@ def main() -> int:
     reset_store_failures = reset_store['failures']
     directed_failures = (directed['failures'] + unreal['failures'] + pmode_cases['failures'] + paging_cases['failures']
                          + no387['failures'])
+    # #1730's [[lockstep]] rules (divergences.toml umov, mov-tr, icebp-gd):
+    # each must still be taken by its directed cases, or its entry no longer
+    # matches.
+    undocumented = Counter(pmode_cases['summary']['divergence_retirements']) \
+        + Counter(paging_cases['summary']['divergence_retirements'])
+    directed_failures += [f'FAIL lockstep rule {rule}: no directed case took it'
+                          for rule in UNDOCUMENTED_RULES if not undocumented[rule]]
     memory_failures = memory['failures']
     if (biu_dma_failures or corpus_failures or random_failures or hash_mismatches or unbuilt_failures or reset_store_failures
             or directed_failures or memory_failures):
@@ -967,7 +981,9 @@ def main() -> int:
     print(f"unreal-mode cases: {unreal['summary']['passed']} pass, {unreal['summary']['failed']} fail "
           f"({unreal['summary']['cs_rule']} real-mode CS loads under the 386 rule)")
     print(f"protected-mode cases: {pmode_cases['summary']['passed']} pass, {pmode_cases['summary']['failed']} fail "
-          f"({pmode_cases['summary']['nested']} faults in a delivery delivered)")
+          f"({pmode_cases['summary']['nested']} faults in a delivery delivered; #1730's rules with paging's: "
+          f"UMOV stepped as MOV {undocumented['umov']}, MOV TRn {undocumented['mov-tr']}, "
+          f"ICEBP's GD {undocumented['icebp-gd']})")
     print(f"paging cases: {paging_cases['summary']['passed']} pass, {paging_cases['summary']['failed']} fail "
           f"({paging_cases['summary']['nested']} faults in a delivery delivered)")
     print(f"no-387 cases: {no387['summary']['passed']} pass, {no387['summary']['failed']} fail "
