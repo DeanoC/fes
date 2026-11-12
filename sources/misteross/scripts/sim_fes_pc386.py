@@ -9,6 +9,13 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            DMA registers, pages and a transfer, 8042 commands, A20 and reset,
            RTC update and interrupts, the ATA command set, and the I/O timing
            classes. Needs only Verilator.
+  fdc      cores/fes-pc386/sim/fdc_replay_tb.cpp replays a guest's floppy
+           scripts on pc386_fdc and on Bochs's floppy controller
+           (iodev/floppy.cc, from the oracle's Bochs build) and compares what
+           each guest reads; the cases sim/fdc_divergences.toml lists must
+           differ, every other case must match, and the RTL meets each case's
+           own checks, including the non-DMA and timing cases Bochs does not
+           model. Needs Verilator and the oracle's Bochs (--download).
   audio    cores/fes-pc386/sim/audio_tb.cpp checks the speaker, Sound Blaster
            DSP commands and DMA, OPL2 timers and the 48 kHz mixer.
   opl2     cores/fes-pc386/sim/opl2_tb.cpp compares the OPL2 sample for sample
@@ -129,6 +136,7 @@ that governor preset; each report uses `<suite>-preset<n>`, with
 
 Examples:
   python3 scripts/sim_fes_pc386.py --suite devices
+  python3 scripts/sim_fes_pc386.py --suite fdc --download
   python3 scripts/sim_fes_pc386.py --suite opl2
   python3 scripts/sim_fes_pc386.py --suite boot --download
   python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl
@@ -160,6 +168,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import tomllib
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -198,6 +207,7 @@ AT_RTL = (
     CORE / 'rtl/pc386_rtc.sv',
     CORE / 'rtl/pc386_ram.sv',
     CORE / 'rtl/pc386_ata.sv',
+    CORE / 'rtl/pc386_fdc.sv',
     CORE / 'rtl/pc386_at_core.sv',
 )
 OPL2_RTL = (
@@ -256,6 +266,10 @@ EXPECTED_IO = {
 VGA_READ_MINIMUM = {1: 6, 2: 11, 4: 21}
 VGA_READ_BOUND = 200
 EXPECTED_INTA = 2 * ISA8 + OVERHEAD
+# The floppy controller alone, for its replay (US_D=4: a microsecond is four
+# clocks, so the bench's drive times stay short).
+FDC_RTL = (CORE / 'rtl/pc386_rate.sv', CORE / 'rtl/pc386_ram.sv', CORE / 'rtl/pc386_fdc.sv')
+FDC_DIVERGENCES = CORE / 'sim/fdc_divergences.toml'
 VGA_RTL = (
     CORE / 'rtl/pc386_rate.sv',
     CORE / 'rtl/pc386_io.sv',
@@ -1466,6 +1480,77 @@ def run_storage(args) -> dict:
     return {'checks': checks, 'failures': failures}
 
 
+def fdc_reference_objects(args) -> list[Path]:
+    """Bochs's floppy controller from the oracle's configured checkout, and the adapter."""
+    bochs = oracle.build_bochs(oracle.bochs_source(args.download), args.jobs)
+    output = OUTPUT / 'fdc-reference'
+    output.mkdir(parents=True, exist_ok=True)
+    flags = ['-std=c++17', '-O2', f'-I{bochs}', f'-I{bochs}/instrument/fes', f'-I{bochs}/gui', f'-I{bochs}/iodev',
+             f'-I{CORE / "sim"}']
+    sources = {'floppy.o': bochs / 'iodev/floppy.cc', 'fdc_reference.o': CORE / 'sim/fdc_reference.cpp'}
+    inputs = [CORE / 'sim/fdc_reference.h']
+    objects = []
+    for name, source in sources.items():
+        target = output / name
+        newest = max(path.stat().st_mtime for path in (source, *inputs))
+        if not target.is_file() or target.stat().st_mtime < newest:
+            log = output / (name + '.log')
+            with log.open('w') as stream:
+                result = subprocess.run([oracle._compiler(), *flags, '-c', str(source), '-o', str(target)],
+                                        cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
+            if result.returncode:
+                raise SimError(f'compiling {source.name} failed; see {log}')
+        objects.append(target)
+    return objects + [bochs / 'fes-paramtree.o']
+
+
+def fdc_divergent_cases() -> list[str]:
+    """The replay cases fdc_divergences.toml lists as differing from Bochs."""
+    entries = tomllib.loads(FDC_DIVERGENCES.read_text())['divergence']
+    return sorted({case for entry in entries for case in entry['cases']})
+
+
+def parse_fdc(stdout: str, listed: list[str]) -> dict:
+    report = {'cases': {}, 'checks': [], 'diffs': [], 'summary': None, 'failures': []}
+    for line in stdout.splitlines():
+        kind, _, rest = line.partition(' ')
+        if kind == 'CASE':
+            name, verdict, *_ = rest.split()
+            report['cases'][name] = verdict
+            report['checks'].append(f'CASE {rest}')
+        elif kind == 'CHECK':
+            report['failures'].append(rest)
+        elif kind == 'DIFF':
+            report['diffs'].append(rest)
+        elif kind == 'SUMMARY':
+            report['summary'] = rest
+    for name in listed:
+        if name not in report['cases']:
+            report['failures'].append(f'fdc_divergences.toml lists {name}, which the replay has no case for')
+    if not report['cases']:
+        report['failures'].append('the floppy replay ran no case')
+    return report
+
+
+def run_fdc(args) -> dict:
+    testbench = verilate(args.verilator, 'fdc-replay', 'pc386_fdc', FDC_RTL, CORE / 'sim/fdc_replay_tb.cpp',
+                         fdc_reference_objects(args), args.jobs, {'US_N': 1, 'US_D': 4},
+                         defines=('PC386_RAM_COLLISION',))
+    listed = fdc_divergent_cases()
+    directory = OUTPUT / 'fdc'
+    shutil.rmtree(directory / 'cases', ignore_errors=True)
+    directory.mkdir(parents=True, exist_ok=True)
+    print('Replaying the floppy cases on pc386_fdc and Bochs\'s controller', flush=True)
+    result = subprocess.run([str(testbench), '--dir', str(directory / 'cases'), '--divergent', ','.join(listed)],
+                            cwd=directory, capture_output=True, text=True)
+    (directory / 'replay.log').write_text(result.stdout + result.stderr)
+    report = parse_fdc(result.stdout, listed)
+    report['exit'] = result.returncode
+    if result.returncode and not report['failures']:
+        report['failures'].append(f'fdc_replay_tb exited {result.returncode}: {result.stderr.strip()}')
+    return report
+
+
 def run_devices(args) -> dict:
     # A fast RTC (one guest second is 2^19 clocks) keeps the update test short.
     # The RAMs poison a read of the word being written, as M10K leaves it.
@@ -1675,7 +1760,7 @@ def game_suite(args) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--suite', choices=('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
+    parser.add_argument('--suite', choices=('devices', 'fdc', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
                                             'a20', 'c2xx', 'ems', 'wait', 'speaker', 'scroll', 'cpu-profile',
                                             'sound', 'game', 'vga', 'system', 'governor', 'all'),
                         default='all',
@@ -1739,7 +1824,8 @@ def main() -> int:
         return 2
     failed = False
     try:
-        suites = ('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'vga', 'sound') if args.suite == 'all' \
+        suites = ('devices', 'fdc', 'storage', 'audio', 'opl2', 'benches', 'boot', 'vga', 'sound') \
+            if args.suite == 'all' \
             else (args.suite,)
         for suite in suites:
             args.limit_seconds = limit_seconds or default_limit_seconds(suite)
@@ -1747,6 +1833,8 @@ def main() -> int:
             args.expect = expect or ('SOUND DONE' if suite == 'sound' else 'bytes free')
             if suite == 'devices':
                 report = run_devices(args)
+            elif suite == 'fdc':
+                report = run_fdc(args)
             elif suite == 'storage':
                 report = run_storage(args)
             elif suite == 'audio':

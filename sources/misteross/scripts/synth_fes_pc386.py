@@ -73,6 +73,9 @@ PAIR = '''module pc386_port2_pair (
     input wire [28:0] aux_address, input wire [7:0] aux_burstcount,
     input wire aux_read, aux_write, input wire [63:0] aux_writedata,
     input wire [7:0] aux_byteenable, output wire aux_waitrequest, aux_readdatavalid,
+    input wire [28:0] fdc_address, input wire [7:0] fdc_burstcount,
+    input wire fdc_read, fdc_write, input wire [63:0] fdc_writedata,
+    input wire [7:0] fdc_byteenable, output wire fdc_waitrequest, fdc_readdatavalid,
     output wire [28:0] address, output wire [7:0] burstcount, output wire read, write,
     output wire [63:0] writedata, output wire [7:0] byteenable,
     input wire waitrequest, input wire [63:0] readdata, input wire readdatavalid
@@ -99,6 +102,9 @@ PAIR = '''module pc386_port2_pair (
         .aux_address(aux_address), .aux_burstcount(aux_burstcount), .aux_read(aux_read), .aux_write(aux_write),
         .aux_writedata(aux_writedata),
         .aux_byteenable(aux_byteenable), .aux_waitrequest(aux_waitrequest), .aux_readdatavalid(aux_readdatavalid),
+        .fdc_address(fdc_address), .fdc_burstcount(fdc_burstcount), .fdc_read(fdc_read), .fdc_write(fdc_write),
+        .fdc_writedata(fdc_writedata), .fdc_byteenable(fdc_byteenable), .fdc_waitrequest(fdc_waitrequest),
+        .fdc_readdatavalid(fdc_readdatavalid),
         .address(address), .burstcount(burstcount), .read(read), .write(write), .writedata(writedata),
         .byteenable(byteenable), .waitrequest(waitrequest), .readdatavalid(readdatavalid));
 endmodule

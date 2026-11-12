@@ -1,0 +1,161 @@
+# Divergence list for the pc386 floppy controller replay (sim/fdc_replay_tb.cpp)
+# against Bochs's floppy controller (iodev/floppy.cc at the oracle's pinned
+# revision, built as an 82077AA). Every place the two disagree has an entry
+# naming the case that decides it; the RTL follows `follow`.
+#
+#   cases      replay cases that show the difference. The replay fails if one
+#              of them matches Bochs, or if a case that is not listed here
+#              differs. An entry with no cases is a recorded deviation both
+#              models share, or one the replay does not compare (Bochs
+#              panics, hangs or does not model it); its RTL behaviour is
+#              checked by the case named in `checked`, if any.
+#   deciding   the reference that decides the behaviour.
+#   reference / rtl  what each side does.
+
+[[divergence]]
+id = "soft-reset-lock"
+title = "LOCK after a software reset"
+cases = ["soft_reset_lock"]
+reference = "reset(BX_RESET_SOFTWARE) sets lock to 1 (\"the lock bit is set by default\"); only a hardware reset clears it. So Configure's FIFO settings always survive a software reset, and Dumpreg byte 8 shows LOCK."
+rtl = "LOCK is cleared by a hardware reset and changed only by the Lock command; a software reset clears Configure and the precompensation track unless the guest locked them."
+deciding = "82077AA datasheet, LOCK command: it exists so that the FIFO settings survive a software reset; Linux floppy.c issues it for that reason. The design's Lock entry."
+follow = "rtl"
+
+[[divergence]]
+id = "status-registers"
+title = "3F0h, 3F1h and 3F3h"
+cases = ["status_registers"]
+reference = "The 82077AA build answers status register A and B (00h) at 3F0h and 3F1h, and a media-type code (20h with no disk) at 3F3h."
+rtl = "The AT core does not decode them: they read FFh, as an AT's do."
+deciding = "docs/design/pc386-removable-media.md, Controller: 3F0h and 3F1h (PS/2 status A and B) read FFh, as an AT's do. The 82077AA has SRA and SRB in PS/2 mode only."
+follow = "rtl"
+
+[[divergence]]
+id = "fm-commands"
+title = "Read, write and format with MFM clear"
+cases = ["fm_read"]
+reference = "Only the MFM forms of Read Data, Write Data and Format Track are in its command table: 06h, 05h and 0Dh are invalid (80h), and the bytes after the opcode wait for a new command."
+rtl = "Accepted with their full command bytes. Every image is MFM, so each finds no address mark: ST0 IC=01, ST1 MA, and a format leaves the image unchanged. Read ID with MFM clear does the same, as in Bochs."
+deciding = "docs/design/pc386-removable-media.md, Modifier bits: MFM clear (FM) is accepted and ends as an FM controller would against an MFM disk."
+follow = "rtl"
+
+[[divergence]]
+id = "read-deleted-cm"
+title = "Read Deleted Data without SK"
+cases = ["read_deleted"]
+reference = "Read Deleted Data is Read Data: ST2 is 00h."
+rtl = "The data is read as Read Data does (images carry no deleted marks), and without SK the result reports ST2 CM (40h): the sectors it read were not deleted ones. With SK the result is Bochs's."
+deciding = "docs/design/pc386-removable-media.md, Commands: Read Deleted Data reads as data with the CM bit; with SK it follows floppy.cc."
+follow = "rtl"
+
+[[divergence]]
+id = "write-deleted"
+title = "Write Deleted Data"
+cases = ["write_deleted"]
+reference = "09h is not in its command table: invalid (80h)."
+rtl = "Written as Write Data (images carry no deleted marks)."
+deciding = "docs/design/pc386-removable-media.md, Commands: Write Deleted Data writes as data."
+follow = "rtl"
+
+[[divergence]]
+id = "write-protect-status"
+title = "Writing a write-protected disk"
+cases = ["write_protected"]
+reference = "ST0 IC=01 with ST1 27h and ST2 31h (MA, ND, NW, DE; MD, BC, DD)."
+rtl = "ST0 IC=01, ST1 NW (02h), ST2 00h: the drive's WP stops the write before any ID is read. Format Track does the same."
+deciding = "82077AA datasheet, status register 1: NW is set when WP is active during a write or format; the design (Persistence): writes end with ST1 NW."
+follow = "rtl"
+
+[[divergence]]
+id = "unsupported-commands"
+title = "Verify, Read Track, Scan and Bochs's own commands"
+cases = ["unsupported"]
+reference = "Verify (16h), Read Track (02h) and the Scan commands are in its 82077AA table and run; 0Bh (its motor on/off) and 36h (its hardware reset, which also matches Verify with SK in the table) run too."
+rtl = "Invalid (80h): the controller takes only the commands the design's table lists, and decodes on the whole byte."
+deciding = "docs/design/pc386-removable-media.md, Commands: the PC/XT set and the AT additions that DOS, the BIOS, Windows 9x and Linux use; anything else is invalid (ST0 80h)."
+follow = "rtl"
+
+[[divergence]]
+id = "format-ids"
+title = "Format Track IDs that do not match the disk"
+cases = ["format_bad_id"]
+reference = "Only a cylinder past the disk ends the format. A wrong head, sector or size is logged; sectors 1 to the count are formatted in order whatever their IDs say."
+rtl = "Each ID must name the drive's head, the first ID's cylinder, a sector of the track and size 2. A cylinder past the disk ends the command at once (as in Bochs); any other mismatch ends it at that ID's last byte with ST0 IC=01 and ST1 ND. A good ID fills the sector it names."
+deciding = "docs/design/pc386-removable-media.md, Commands: the guest's ID bytes must match the image geometry, or it ends with an error."
+follow = "rtl"
+
+[[divergence]]
+id = "change-on-insert"
+title = "Disk change when a disk arrives in an empty drive"
+cases = ["insert_into_empty"]
+reference = "Only an eject sets the change bit (set_media_status); a disk put in a drive that was empty since reset leaves it clear."
+rtl = "A disk leaving or arriving sets the drive's latch; a step with a disk present clears it."
+deciding = "docs/design/pc386-removable-media.md, Drives: a disk-change latch, set by eject and insert and cleared by a step pulse with a disk present, as on a real drive (DSKCHG is active while the door is open)."
+follow = "rtl"
+
+[[divergence]]
+id = "dma-gate"
+title = "DOR bit 3 and INT"
+cases = ["dma_gate"]
+reference = "The interrupt is raised whatever DOR bit 3 says (and a read or write with the bit clear panics)."
+rtl = "INT and DRQ are gated by DOR bit 3; a pending interrupt shows again once the bit is set."
+deciding = "82077AA datasheet, PC-AT mode: DMAGATE low tristates INT and DRQ."
+follow = "rtl"
+
+# ---- Shared deviations and cases the replay does not compare
+
+[[divergence]]
+id = "data-rate"
+title = "Data rate against the medium"
+cases = []
+reference = "DSR and CCR set the rate, which only the step time uses; a read at the wrong rate succeeds."
+rtl = "The same. The byte time follows the medium, not the programmed rate."
+deciding = "docs/design/pc386-removable-media.md, Data rate: a recorded deviation, as Bochs's is. The locked BIOS never writes CCR."
+follow = "both"
+
+[[divergence]]
+id = "double-step"
+title = "40-track disks in an 80-track drive"
+cases = []
+reference = "The command's cylinder is the image's."
+rtl = "The same: no double-stepping."
+deciding = "docs/design/pc386-removable-media.md, 40-track media: the locked BIOS never double-steps; a recorded deviation."
+follow = "both"
+
+[[divergence]]
+id = "timing"
+title = "Time"
+cases = []
+checked = "timing"
+reference = "A seek, recalibrate or sector completes after FDC_TIMER_VAL / sectors-per-track ms (0 for 11 sectors or more, which its timer turns into the 250 us period); no spin-up, head settle or byte pacing; a whole sector moves per DMA callback."
+rtl = "Steps take Specify's SRT at the data rate, a seek that moves settles for 15 ms, a drive spins up for 400 ms (5.25\") or 500 ms (3.5\") after its motor bit, and bytes come one per byte time of the medium."
+deciding = "docs/design/pc386-removable-media.md, Timing and Drives. The replay compares the order of what a guest sees, not its time; the RTL-only `timing` case checks the times."
+follow = "rtl"
+
+[[divergence]]
+id = "non-dma"
+title = "Non-DMA transfers"
+cases = []
+checked = "pio_read_write"
+reference = "Logged as not fully implemented: a non-DMA read ends in the idle phase without its result bytes, and the MSR's NDM bit stays set from Specify on."
+rtl = "With Specify's ND, each byte of the execution phase sets RQM (and DIO for a read) with NDM, and raises INT until 3F5h takes it. There is no TC (the AT's comes from the 8237), so a non-DMA transfer ends at EOT with ST0 IC=01 and ST1 EN. NDM is set only in that execution phase."
+deciding = "82077AA datasheet, non-DMA mode; the design: PIO works too, for Linux's floppy=nodma."
+follow = "rtl"
+
+[[divergence]]
+id = "undefined-in-reference"
+title = "Cases Bochs panics or hangs on"
+cases = []
+reference = "A read or write with the motor off, the DMA gate off or a sector size other than 2, and a format with the motor off or no drive, panic. A read, write, format or Read ID with no disk hangs the controller."
+rtl = "A command that touches the disk waits until the drive is ready (fitted, motor on, spun up, a disk present), as a drive with no index pulse does; a reset frees it. A size other than 2, sector 0 or head 1 of a one-sided disk ends with ST0 IC=01 and ST1 ND."
+deciding = "82077AA datasheet: the controller waits for index pulses; a sector whose ID it does not find ends with ND. The `no_media` case checks the hang and its reset against Bochs."
+follow = "rtl"
+
+[[divergence]]
+id = "result-after-timer"
+title = "Bochs's second result after a write's last sector"
+cases = []
+reference = "A DMA write whose TC lands on the last sector of the track enters the result phase, then increments the sector again and re-enters it when its timer fires (250 us later), with R one further on."
+rtl = "One result phase, at the sector after the last one written. The replay's guest reads the result before Bochs's timer fires, so `write_eot` matches."
+deciding = "82077AA datasheet: one result phase per command."
+follow = "rtl"
