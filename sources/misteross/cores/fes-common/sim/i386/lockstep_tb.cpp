@@ -1528,6 +1528,7 @@ struct Outcome {
     bool vector_moved = false;  // stopped at an injected interrupt whose vector entry or handler the program rewrote
     bool window_code = false;   // stopped at code in the MMIO window, which neither side fetches
     bool code_store = false;    // stopped at a store into its code that it did not plan
+    bool rep_self_store = false;  // the oracle stopped inside REP after overwriting its own bytes
     // With mixed memory, stopped at code outside the program (own) and the
     // injected interrupts' handlers (the real-mode one and the protected-mode
     // IDT's), at code other than the 16 bytes from the
@@ -1586,6 +1587,29 @@ struct Code {
     uint32_t lo = 0, hi = 0;
     std::set<uint32_t> rewritten;
 };
+
+// Bochs can end a REP step after its first element when that element
+// overwrites the executing instruction. The 386 may already have the bytes in
+// its queue and complete the REP. Only stop early for an unplanned store to
+// those exact bytes; ordinary code stores still get their full comparison.
+bool rep_writes_own_instruction(const Code *own, const uint8_t *code, bool code32, const State &before,
+                                const fes_i386::StepResult &result, const fes_i386::Oracle &oracle) {
+    if (!own || result.writes.empty() || !result.events.empty() || (before.cr0 & 0x80000000u)
+        || rep_count(code, code32, before) < 2)
+        return false;
+    const auto decoded = oracle.decode(code, 16, code32);
+    if (!decoded.complete || decoded.undefined || !decoded.length) return false;
+    const uint32_t linear = before.seg[fes_i386::SEG_CS].base + before.eip;
+    for (const auto &w : result.writes)
+        for (unsigned i = 0; i < w.length; ++i) {
+            const uint32_t written = w.linear + i;
+            const uint32_t physical = write_key(w.physical + i);
+            if (written - linear < decoded.length && physical == write_key(written)
+                && physical >= own->lo && physical < own->hi && !own->rewritten.count(physical))
+                return true;
+        }
+    return false;
+}
 
 // An ESC instruction's memory operand: its offset, wrapped by address size,
 // and its segment (fes_i386::SEG_*), from the bytes at code and the state.
@@ -2088,6 +2112,15 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // Under queue16 an instruction may run bytes from before a store.
         if (rtl.stale && !rtl.top.queue16) out.add(at + "stale-fetch." + hex(*rtl.stale), 0, 1);
         rtl.stale.reset();
+
+        // Do not compare the oracle's partial REP step with the RTL's
+        // completed one. Existing mismatches and RTL exceptions still fail.
+        if (event == Rtl::Event::Retired && !rtl.top.trace_exception && !rtl.top.trace_unimplemented
+            && rep_writes_own_instruction(own, code, code32, before, result, oracle)) {
+            outcome.code_store = true;
+            outcome.rep_self_store = true;
+            return outcome;
+        }
 
         // The oracle's first exception, and the vector the step takes: that,
         // or a software interrupt's. external: an INTR's or NMI's, which the
@@ -3046,6 +3079,77 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, c
     rep_zero_es.seg[fes_i386::SEG_ES].ar = 0x96;
     rep_zero_es.seg[fes_i386::SEG_ES].limit = 0x0f;
     run_nop_case(oracle, bus, rtl, entries, summary, "rep-movs-zero-expand-down-es", {0xf3, 0xa4}, rep_zero_es);
+}
+
+// A random program ends at an unplanned store into its code. A REP MOVSB
+// that overwrites its own encoding makes Bochs stop mid-REP; compare only
+// the completed earlier instructions, not the two different partial steps.
+void run_rep_self_store_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl,
+                              const std::vector<Entry> &entries, Summary &summary) {
+    struct Case { const char *label; uint16_t destination, count; bool mismatch, planned, stop, halt; };
+    const Case cases[] = {
+        {"rep-self", 1, 8, false, false, true, false},
+        {"rep-next", 4, 1, false, false, true, false},
+        {"rep-data", 0x0200, 2, false, false, false, true},
+        {"rep-prior-mismatch", 1, 8, true, false, false, false},
+        {"rep-planned", 1, 8, false, true, false, false},
+    };
+    const uint32_t base = 0x1000, source = 0x3000;
+    // NOP first so the negative control can detect an earlier state mismatch.
+    const std::vector<uint8_t> code{0x90, 0x2e, 0xf3, 0xa4, 0xf4};
+    for (const auto &c : cases) {
+        State state;
+        for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
+        state.seg[fes_i386::SEG_CS] = fes_i386::real_mode_segment(0x100);
+        state.seg[fes_i386::SEG_ES] = fes_i386::real_mode_segment(0x100);
+        state.gpr[fes_i386::REG_ESP] = 0x8000;
+        state.eflags |= 0x400;  // DF, matching #1425's backwards copy.
+        state.gpr[fes_i386::REG_ESI] = source - base;  // CS override
+        state.gpr[fes_i386::REG_EDI] = c.destination;
+        state.gpr[fes_i386::REG_ECX] = c.count;
+        for (unsigned i = 0; i < code.size(); ++i) bus.ram[base + i] = rtl.poke(base + i, code[i]);
+        for (unsigned i = 0; i < 8; ++i) bus.ram[source + i] = rtl.poke(source + i, uint8_t(0x90 + i));
+        oracle.invalidate(base, code.size());
+        oracle.set_state(state);
+        State actual = state;
+        if (c.mismatch) actual.gpr[fes_i386::REG_EAX] = 1;
+        rtl.start(actual);
+        Mismatches out;
+        Outcome outcome;
+        const Code own{base, base + uint32_t(code.size()), c.planned ? std::set<uint32_t>{base, base + 1, base + 2, base + 3, base + 4} : std::set<uint32_t>{}};
+        try {
+            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 64, false, summary, out,
+                               base + uint32_t(code.size()), nullptr, &own);
+        } catch (const std::exception &error) {
+            out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
+            oracle.reset();
+        }
+        Mismatches memory;
+        end_run(bus, rtl, outcome.halted, memory);
+        const bool expected_mismatch = c.mismatch || c.planned;
+        const bool ok = outcome.code_store == c.stop && outcome.halted == c.halt
+                     && outcome.rep_self_store == (!c.mismatch && !c.planned && c.destination == 1)
+                     && memory.items.empty() && (expected_mismatch ? !out.items.empty() : out.items.empty());
+        ++summary.runs;
+        if (ok) ++summary.passed;
+        else {
+            ++summary.failed;
+            std::cout << "FAIL directed:" << c.label << " stop " << outcome.code_store << " halt " << outcome.halted;
+            for (const auto &item : out.items) std::cout << ' ' << item;
+            for (const auto &item : memory.items) std::cout << ' ' << item;
+            std::cout << '\n';
+        }
+        summary.cycles += rtl.cycles;
+        rtl.cycles = 0;
+        for (unsigned i = 0; i < code.size(); ++i) bus.ram[base + i] = rtl.poke(base + i, 0);
+        for (unsigned i = 0; i < 8; ++i) bus.ram[source + i] = rtl.poke(source + i, 0);
+        for (uint32_t address : rtl.written) {
+            if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        oracle.invalidate(base, code.size());
+        rtl.written.clear();
+    }
 }
 
 // Self-modifying code, from CS:0 at linear 1000h. The coherent cases run in
@@ -10745,8 +10849,11 @@ int main(int argc, char **argv) {
             ++summary.failed;
             std::cout << "FAIL reset-store reset-edge-write 0 1\n";
         }
+    } else if (mode == "self-store") {
+        run_rep_self_store_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "directed") {
         run_fault_regressions(*oracle, bus, rtl, entries, summary);
+        run_rep_self_store_cases(*oracle, bus, rtl, entries, summary);
         run_smc_cases(*oracle, bus, rtl, entries, summary);
         run_btb_cases(*oracle, bus, rtl, entries, summary);
         run_ras_cases(*oracle, bus, rtl, entries, summary);
