@@ -70,6 +70,20 @@ build and simulation directories, so every result was discarded and the runs rep
   ([`reports/frontend-netlist.json`](reports/frontend-netlist.json)). Q's aligner synthesizes to 5,037
   cells, with 0 multipliers and 0 carry cells.
 
+**After merging main again.** The branch then merged main `2d895034c`, which changes the i386
+RTL (#1701's undefined-flag modes) and the lockstep testbench. On that merged head, `7cabf1bf1`,
+the same RTL and `--netlist` runs both pass
+([`reports/lockstep-merged-rtl.json`](reports/lockstep-merged-rtl.json),
+[`reports/lockstep-merged-netlist.json`](reports/lockstep-merged-netlist.json)):
+
+- all 14 hash fields are equal, including main's new `undefined` mode;
+- the CPU netlist digest is `67b39bbc…` and the CPU source digest `fdf0871e…`, both new because the
+  RTL changed;
+- the program digest is unchanged, `23ce90ec…`;
+- the front end passes with `--netlist` ([`reports/frontend-merged-netlist.json`](reports/frontend-merged-netlist.json)).
+
+The pc386 and PC/XT builds below are on the first trees.
+
 ### 2. The seal and the lockstep record the same inputs
 
 The branch seal's `build-summary.json` has a new `netlist` record
@@ -164,7 +178,9 @@ on it.
 
 ## Files
 
-- `reports/lockstep-{rtl,netlist}.json`, `reports/frontend-netlist.json`: the check reports.
+- `reports/lockstep-{rtl,netlist}.json`, `reports/frontend-netlist.json`: the check reports on
+  `91ead94bc`; `reports/lockstep-merged-{rtl,netlist}.json` and `reports/frontend-merged-netlist.json`
+  on `7cabf1bf1`.
 - `reports/pc386/{main,branch}-seed{1,2,3}.json`: the producer's `build-summary.json` for each build.
 - `reports/pcxt/{main,branch}-build-summary.json` and `reports/pcxt/control-main-build-id-summary.json`:
   the PC/XT producer summaries and the control fit's.
