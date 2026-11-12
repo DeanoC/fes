@@ -241,7 +241,7 @@ class KitGoalTest(unittest.TestCase):
             run.ssh = mock.Mock()
             session = mock.Mock(needs_stop=False)
             session.close.side_effect = kit.kitlib.KitError('release failed')
-            run.boot_dos = mock.Mock(side_effect=kit.AcceptanceError('Windows hung'))
+            run.boot_dos = mock.Mock(side_effect=ValueError('malformed hello'))  # not an AcceptanceError
             with mock.patch.object(kit, 'check_claim', return_value='claim'), \
                     mock.patch.object(kit.kitlib, 'Session', return_value=session), \
                     mock.patch('sys.stdout'):

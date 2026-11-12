@@ -580,7 +580,7 @@ class Run:
             self.dos_window()
             self.notepad()
             self.exit_windows()
-        except (AcceptanceError, kitlib.KitError, OSError, subprocess.SubprocessError) as error:
+        except Exception as error:  # noqa: BLE001 - any failure still reaches the cleanup below
             failure = f'{type(error).__name__}: {error}'
             self.log('FAILED', failure)
         finally:
@@ -606,7 +606,10 @@ class Run:
                 except (kitlib.KitError, OSError) as error:
                     failure = failure or f'lease release: {type(error).__name__}: {error}'
                     self.log('LEASE RELEASE FAILED', error)
-        created = [path for path in self.kit_paths() if path not in before]
+        try:
+            created = [path for path in self.kit_paths() if path not in before]
+        except (AcceptanceError, OSError, subprocess.SubprocessError) as error:
+            failure, created = failure or f'listing the kit after the run: {error}', []
         self.result['kit_created'] = created
         try:
             if failure is None:
@@ -624,7 +627,10 @@ class Run:
                     self.ssh(f"rm -r -- '{path}'")
                 except (AcceptanceError, OSError, subprocess.SubprocessError) as error:
                     failure = failure or f'removing {path}: {error}'  # the check below lists it as left
-        left = [path for path in self.kit_paths() if path not in before]
+        try:
+            left = [path for path in self.kit_paths() if path not in before]
+        except (AcceptanceError, OSError, subprocess.SubprocessError) as error:
+            failure, left = failure or f'listing the kit after the cleanup: {error}', ['unknown: listing failed']
         status, lease = self.client.request('/v1/status'), self.client.request('/v1/kit/lease')
         after = {'agent': status.get('state'), 'lease': lease.get('state'),
                  'rebooted': self.client.request('/v1/health').get('boot_id') != boot_id, 'left': left,
