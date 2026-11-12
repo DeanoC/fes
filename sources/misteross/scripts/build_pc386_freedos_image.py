@@ -6,8 +6,7 @@ The images are test fixtures only. They are written into the ignored build
 directory and are never distributed, packaged or committed. Distributing
 FreeDOS images, with the GPL source obligations that brings, is the FogCast
 disk builder's job (docs/pc386-machine-design.md, "FreeDOS in the FogCast disk
-builder"); this tool uses the same pinned FreeDOS 1.4 package archives so the
-two agree.
+builder"); this tool uses the same pinned FreeDOS archives so the two agree.
 
 Two profiles:
 
@@ -19,7 +18,7 @@ Two profiles:
          frame (C800h-DFFFh) to DOS as upper memory blocks (DOS=UMB), then
          HIMEMX high with all extended memory as XMS. POST leaves A20 off,
          so HIMEMX picks a real A20 method by itself. A boot menu offers
-         three setups and takes the first after 3 seconds, so runs that
+         four setups and takes the first after 3 seconds, so runs that
          press nothing get it:
            1  the kernel stays low (no DOS=HIGH), so Ultima VII's Voodoo
               memory manager can turn A20 off again on exit; the kernel's
@@ -32,23 +31,33 @@ Two profiles:
               (cores/fes-pc386/sim/fesems.asm) high, for the titles that need
               expanded memory; not for Ultima VII, whose menu refuses to run
               while any expanded memory manager is resident
+           4  entry 2 with FreeDOS's SHARE high, for Windows 3.x in 386
+              enhanced mode, whose DOSMGR needs a SHARE to run several
+              virtual machines over one DOS; SHARE stays off the games'
+              entries, so their file opens do not pass through it
          AUTOEXEC.BAT sets BLASTER from CMOS 60h-62h with FESENV.COM
          (cores/fes-pc386/sim/fesenv.asm), loads CuteMouse high and gives it
          a non-null default event handler with MOUSEDEF.COM
          (cores/fes-pc386/sim/mousedef.asm). MEM is in C:\\FDOS\\BIN with them.
 
 No network access occurs unless --download is given. The packages are fetched
-at the commits in cores/fes-pc386/sim/freedos.lock (each package repository's
-FreeDOS-v1.4 tag) and every file used is checked against its pinned SHA-256:
+as cores/fes-pc386/sim/freedos.lock pins them: the kernel as FDOS/kernel's
+ke2046 release archives, each checked against its SHA-256, and the rest at
+their package repositories' FreeDOS-v1.4 commits. Every file used is checked
+against its pinned SHA-256:
 
-  kernel   KERNL386.SYS, installed as KERNEL.SYS, and boot/boot.asm, the FAT16
-           boot sector, assembled with the test386 runner's pinned NASM
+  kernel   kernel 2046's 386 FAT12/FAT16 build (ke2046_386f16.zip), installed
+           as KERNEL.SYS, and boot/boot.asm from its source archive
+           (ke2046s.zip), the FAT16 boot sector, assembled with the test386
+           runner's pinned NASM. Its FAT32 build reports DOS 7.10 and is not
+           what Windows 3.x runs on (docs/pc386-machine-design.md)
   freecom  COMMAND.COM
   fdisk    bootnorm.c, the bytes of Free FDISK's master boot record
   himemx   HIMEMX.EXE (games)
   jemm     UMBM.EXE (games)
   ctmouse  CTMOUSE.EXE (games)
   mem      MEM.EXE (games)
+  share    SHARE.COM (games)
 
 The disk is 65 cylinders of 16 heads and 63 sectors (32.0 MiB). One active
 FAT16 partition (type 06h) starts at cylinder 0, head 1; mtools formats it with
@@ -72,6 +81,8 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.request
+import zipfile
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -113,22 +124,25 @@ PROFILES = {
     },
     'games': {
         'image': ROOT / 'build/sim/fes-pc386/freedos-games.img',
-        'packages': ('kernel', 'freecom', 'fdisk', 'himemx', 'jemm', 'ctmouse', 'mem'),
+        'packages': ('kernel', 'freecom', 'fdisk', 'himemx', 'jemm', 'ctmouse', 'mem', 'share'),
         'fdconfig': ('MENUDEFAULT=1,3\r\n'
                      'MENU 1 - Games: DOS in conventional memory (default; Ultima VII needs this)\r\n'
                      'MENU 2 - More memory: DOS=HIGH, not for Ultima VII\r\n'
                      'MENU 3 - EMS: as 1 with the EMS board driver, not for Ultima VII\r\n'
-                     '13?DOS=UMB\r\n13?DOSDATA=UMB\r\n2?DOS=HIGH,UMB\r\n'
+                     'MENU 4 - Windows 3.x: as 2 with SHARE, not for Ultima VII\r\n'
+                     '13?DOS=UMB\r\n13?DOSDATA=UMB\r\n24?DOS=HIGH,UMB\r\n'
                      'DEVICE=C:\\FDOS\\BIN\\UMBM.EXE /I=C800-DFFF\r\n'
                      'DEVICEHIGH=C:\\FDOS\\BIN\\HIMEMX.EXE /VERBOSE\r\n'
                      '3?DEVICEHIGH=C:\\FDOS\\BIN\\FESEMS.SYS\r\n'
-                     '13?FILESHIGH=30\r\n13?BUFFERSHIGH=16\r\n2?FILES=30\r\n2?BUFFERS=16\r\n'
-                     '13?' + SHELL.replace('SHELL=', 'SHELLHIGH=') + '2?' + SHELL),
+                     '13?FILESHIGH=30\r\n13?BUFFERSHIGH=16\r\n24?FILES=30\r\n24?BUFFERS=16\r\n'
+                     '4?INSTALLHIGH=C:\\FDOS\\BIN\\SHARE.COM\r\n'
+                     '13?' + SHELL.replace('SHELL=', 'SHELLHIGH=') + '24?' + SHELL),
         'autoexec': ('@ECHO OFF\r\nPROMPT $P$G\r\nPATH C:\\FDOS\\BIN;C:\\\r\n'
                      'FESENV > C:\\FDOS\\FESENV.BAT\r\nCALL C:\\FDOS\\FESENV.BAT\r\nLH CTMOUSE\r\nMOUSEDEF\r\n'
                      'VER\r\n'),
         'bin': {'HIMEMX.EXE': ('himemx', 'BIN/HimemX.exe'), 'UMBM.EXE': ('jemm', 'BIN/UMBM.EXE'),
                 'CTMOUSE.EXE': ('ctmouse', 'BIN/CTMOUSE.EXE'), 'MEM.EXE': ('mem', 'BIN/MEM.EXE'),
+                'SHARE.COM': ('share', 'BIN/SHARE.COM'),
                 'FESENV.COM': FESENV, 'MOUSEDEF.COM': MOUSEDEF, 'FESEMS.SYS': FESEMS},
     },
 }
@@ -176,7 +190,12 @@ def work_directory(profile: str) -> Path:
 
 
 def package(name: str, spec: dict, download: bool) -> Path:
-    """Return the pinned checkout of one FreeDOS package, its files verified."""
+    """Return one FreeDOS package's pinned files, each verified: a package
+    repository's checkout at its commit, or the named members of release
+    archives, each archive checked against its SHA-256 (files under
+    <archive>/<member>)."""
+    if 'archives' in spec:
+        return release_package(name, spec, download)
     tree = BUILD / f'{name}-{spec["commit"]}'
     if not (tree / '.git').is_dir():
         if not download:
@@ -192,9 +211,51 @@ def package(name: str, spec: dict, download: bool) -> Path:
     head = subprocess.check_output(['git', '-C', str(tree), 'rev-parse', 'HEAD'], text=True).strip()
     if head != spec['commit']:
         raise ImageError(f'{tree} is not at the pinned commit')
+    verify(name, tree, spec)
+    return tree
+
+
+def source(pins: dict) -> str:
+    """Where a locked package came from: its commit, or its release's page."""
+    return pins['commit'] if 'commit' in pins else pins['release']
+
+
+def verify(name: str, tree: Path, spec: dict) -> None:
     for path, digest in spec['files'].items():
         if hashlib.sha256((tree / path).read_bytes()).hexdigest() != digest:
             raise ImageError(f'FreeDOS {name}/{path} does not match freedos.lock')
+
+
+def release_package(name: str, spec: dict, download: bool) -> Path:
+    """Unpack the lock's files from a package's release archives."""
+    pins = {'archives': spec['archives'], 'files': spec['files']}
+    identity = hashlib.sha256(json.dumps(pins, sort_keys=True).encode()).hexdigest()[:16]
+    tree = BUILD / f'{name}-{identity}'
+    if not tree.is_dir():
+        partial = tree.with_name(tree.name + '.partial')
+        shutil.rmtree(partial, ignore_errors=True)
+        for archive, pin in spec['archives'].items():
+            stored = BUILD / 'archives' / f'{pin["sha256"]}.zip'
+            if not stored.is_file():
+                if not download:
+                    raise ImageError(f'FreeDOS {name} archive {archive} is not in {stored.parent}; pass --download')
+                print(f'Fetching FreeDOS {name} {archive} ({spec["license"]})', flush=True)
+                stored.parent.mkdir(parents=True, exist_ok=True)
+                fetched = stored.with_name(stored.name + '.partial')
+                with urllib.request.urlopen(pin['url'], timeout=120) as response:
+                    fetched.write_bytes(response.read())
+                fetched.rename(stored)
+            if hashlib.sha256(stored.read_bytes()).hexdigest() != pin['sha256']:
+                raise ImageError(f'FreeDOS {name} archive {stored} does not match freedos.lock')
+            with zipfile.ZipFile(stored) as members:
+                for path in spec['files']:
+                    prefix, _, member = path.partition('/')
+                    if prefix == archive:
+                        target = partial / path
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        target.write_bytes(members.read(member))
+        partial.rename(tree)
+    verify(name, tree, spec)
     return tree
 
 
@@ -224,8 +285,9 @@ def assemble(nasm: Path, source: Path, output: Path, *options: str) -> bytes:
     return output.read_bytes()
 
 
-def boot_sector(kernel: Path, nasm: Path, work: Path) -> bytes:
-    data = assemble(nasm, kernel / 'SOURCE/KERNEL/boot/boot.asm', work / 'fat16com.bin', '-dISFAT16')
+def boot_sector(boot_asm: Path, nasm: Path, work: Path) -> bytes:
+    # boot.asm includes magic.mac from its own directory.
+    data = assemble(nasm, boot_asm, work / 'fat16com.bin', '-dISFAT16', f'-I{boot_asm.parent}/')
     if len(data) != 512 or data[510:] != b'\x55\xaa':
         raise ImageError('boot.asm did not assemble to a boot sector')
     return data
@@ -272,7 +334,7 @@ def system_disk(profile: str, cylinders: int, work: Path, download: bool = False
     data = bytearray(disk.read_bytes())
     offset = PARTITION_START * 512
     bpb = data[offset + 0x0b:offset + 0x3e]
-    sector = bytearray(boot_sector(trees['kernel'], nasm, work))
+    sector = bytearray(boot_sector(trees['kernel'] / packages['kernel']['boot_asm'], nasm, work))
     sector[0x0b:0x3e] = bpb
     sector[0x24] = 0x80                     # BIOS drive number: the first hard disk
     if bytes(sector[0x36:0x3e]).rstrip() != b'FAT16' or sector[0x0d] != CLUSTER_SECTORS:
@@ -281,7 +343,7 @@ def system_disk(profile: str, cylinders: int, work: Path, download: bool = False
     disk.write_bytes(data)
 
     files = {
-        'KERNEL.SYS': trees['kernel'] / 'BIN/KERNL386.SYS',
+        'KERNEL.SYS': trees['kernel'] / packages['kernel']['kernel_sys'],
         'COMMAND.COM': trees['freecom'] / 'BIN/COMMAND.COM',
     }
     staged = work / 'files'
@@ -317,7 +379,7 @@ def build(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
         'profile': profile,
         'sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
         'geometry': {'cylinders': CYLINDERS, 'heads': HEADS, 'sectors_per_track': SPT},
-        'packages': {name: {'commit': pins['commit'], 'version': pins['version'], 'license': pins['license']}
+        'packages': {name: {'source': source(pins), 'version': pins['version'], 'license': pins['license']}
                      for name, pins in packages.items()},
         'distribution': 'test fixture only; never distributed',
         'inputs': inputs_key(profile),

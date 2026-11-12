@@ -1143,16 +1143,28 @@ at each package's `FreeDOS-v1.4` tag. Each package archive holds `BIN`, `DOC`,
 `SOURCE`, `APPINFO` and, for most, a `LICENSE`. FogCast's builder lock records
 every archive's SHA-256. A later FreeDOS release is a deliberate lock change.
 
+The kernel is the one exception: it is kernel 2046's 386 FAT12/FAT16 build
+from the [FDOS/kernel ke2046 release](https://github.com/FDOS/kernel/releases/tag/ke2046)
+(`ke2046_386f16.zip`), with that release's source archive (`ke2046s.zip`),
+both pinned by SHA-256 ([#1729](https://github.com/DeanoC/fes/issues/1729)).
+FreeDOS 1.4's kernel 2043 does not answer WIN386's INT 2Fh AX=1605h and
+AX=1607h BX=0015h DOS callouts, so Windows 3.x in 386 enhanced mode quits
+with "Unsupported MS-DOS version". Kernels from 2044 build in the Windows 3.x
+support; the FAT16 build reports DOS 6.22, where the FAT32 build (the
+FreeDOS package's `KERNL386.SYS`) reports 7.10, which Windows 3.x refuses.
+The builder's volumes are FAT16 of at most 128 MiB, so FAT32 is not needed.
+
 **Components that ship:**
 
-| Component | FreeDOS 1.4 version | Licence (package `APPINFO` record) | Why it ships |
+| Component | Version | Licence (package `APPINFO` record) | Why it ships |
 | --- | --- | --- | --- |
-| Kernel: `KERNEL.SYS` and the FAT16 boot sector from its `SYS` | 2043 | GPL v2 (upstream: v2 or later) | DOS and the volume boot record |
+| Kernel: `KERNEL.SYS` and the FAT16 boot sector from its `SYS` | 2046, 386 FAT12/FAT16 build (FDOS/kernel release) | GPL v2 (upstream: v2 or later; the source archive's `COPYING`) | DOS and the volume boot record |
 | FreeCOM: `COMMAND.COM` | 0.86a | GPL v2 | Shell |
 | HimemX | 3.38 | GPL, Artistic and public domain: Japheth's changes are public domain, the FD Himem code it derives from is GPL and/or Artistic | XMS and A20 for HIMEM-using games |
 | Jemm: `UMBM.EXE` now, `JEMM386.EXE` from CPU Phase 5 | 5.85 | JEMM386 and JEMMEX partly Artistic License (from FreeDOS EMM386); UMBM public domain | Upper memory without V86; EMS for the Phase 5 checks |
 | CuteMouse: `CTMOUSE.EXE` | 2.1b4 | GPL v2 | INT 33h mouse driver over the PS/2 BIOS services |
 | MEM | 1.12 | GPL v2 | The free-memory acceptance check |
+| SHARE: `SHARE.COM` | 08/2006a | GPL v2 | File sharing and locking, which Windows 3.x in 386 enhanced mode needs on FreeDOS; loaded only by the games image's Windows boot entry |
 | Free FDISK: its master boot record code | 1.4.3 | GPL v2 | The MBR the builder writes |
 
 The builder writes `FDCONFIG.SYS`, `AUTOEXEC.BAT` and the partition table

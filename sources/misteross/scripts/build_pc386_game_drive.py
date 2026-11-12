@@ -345,7 +345,7 @@ def build(name: str, data: dict, download: bool = False, jobs: int = 4) -> Path:
             'sha256': digest,
             'bytes': image.stat().st_size,
             'geometry': {'cylinders': drive['cylinders'], 'heads': freedos.HEADS, 'sectors_per_track': freedos.SPT},
-            'base': {'profile': PROFILE, 'packages': {package: pins['commit'] for package, pins in packages.items()},
+            'base': {'profile': PROFILE, 'packages': {package: freedos.source(pins) for package, pins in packages.items()},
                      'freedos_inputs': freedos.inputs_key(PROFILE)},
             'inputs': drive_inputs(data, name),
             'description': drive.get('description', ''),
