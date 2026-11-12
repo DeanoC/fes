@@ -48,7 +48,8 @@
 // collects the sector in the buffer, then stores it in 64 single beats, the
 // bytes after a TC as 00h, so a torn sector never reaches the image. A store
 // runs to its end whatever the controller does meanwhile, a software reset
-// included; busy covers it and every read beat still owed, and the shell
+// included; busy covers it, every read beat still owed, a DACK in flight and
+// a sector the guest has finished but the store has not begun, and the shell
 // resets the machine only while busy is low.
 //
 // The fence (fes.media.ata-disk's, for the floppy units of slice F3): frozen
@@ -233,7 +234,11 @@ module pc386_fdc #(
     assign aux_write = storing && store_loaded;
     assign aux_writedata = store_data;
     assign aux_byteenable = 8'hff;
-    assign busy = fetching || storing || owed != 8'd0;
+    // busy: port 2 traffic in flight, a DACK in flight (it may give a
+    // write's last byte), or a sector that will be stored without the guest
+    // (its drive is ready). The shell resets the machine only while it is low.
+    assign busy = fetching || storing || owed != 8'd0 || dack_valid ||
+                  phase == P_EXEC && (ex == X_STORE && ready || ex == X_STORE_GO);
     // A write the controller holds: a byte offered (its DACK may already be
     // on its way, so the offer stands), a sector or ID started, or one
     // waiting for its store.
