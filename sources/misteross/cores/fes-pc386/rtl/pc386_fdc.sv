@@ -608,7 +608,11 @@ module pc386_fdc #(
                     pending_irq <= 1; reset_sensei <= 0;
                     enter_idle();
                 end
-                X_READY: if (ready) begin
+                // A command that touches the disk waits for its drive; if
+                // the disk it started with leaves (during spin-up, say), it
+                // ends rather than carry on with another.
+                X_READY: if (disk_left) not_ready();
+                else if (ready) begin
                     if (base == C_READ_ID) begin
                         if (!mfm || head[d] && !two_sided[d] || cyl[d] >= tracks) begin
                             st0 <= {5'b01000, head[d], 1'b0, d}; st1 <= 8'h01;

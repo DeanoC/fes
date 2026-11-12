@@ -785,6 +785,16 @@ std::vector<Case> cases() {
         r = g.results();
         g.check(r.size() == 7 && r[0] == 0x48, "a disk that left ends the write: ST0 IC=01 NR");
         read_back(g, 0, 8, 0, 1, 2, 18, Guest::original(other, 8, 0, 1, 2), "the disk that replaced it");
+        // A disk swapped while a write waits for spin-up: the write ends.
+        g.out(0x3f2, 0x0c);
+        g.out(0x3f2, 0x1c);
+        g.command(rw(0xc5, 0, 8, 0, 1, 18));
+        g.tick(1000);
+        g.f.eject(0); g.tick();
+        g.insert(0, Disk{G144, 10});
+        r = g.results(1000000);
+        g.check(r.size() == 7 && r[0] == 0x48, "a disk that left during spin-up ends the write: ST0 IC=01 NR");
+        g.check(!g.f.drq(), "and it asks the new disk for nothing");
     }});
     list.push_back({"timing", 4, 2, true, [](Guest &g) {
         g.boot(&A144);
