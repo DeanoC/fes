@@ -84,6 +84,29 @@ The summary's `lockstep` object:
 The summary's `netlist.machine_netlist_sha256` (`b5270e03…`) is the whole-machine netlist that
 Quartus fit. As the design doc's "Binding to the seal" rule says, the gate never compares against it.
 
+## Review fix: the full corpus
+
+A review found that `default_suite` was computed from the suite arguments alone. A run over a
+partial corpus directory, left by an `--opcode` download or named by `--corpus`, could pass the gate.
+`8dd44146d` changes this. `default_suite` now also needs both of these:
+
+- `run.complete_corpus`: the corpus directory's receipt is a full download of the pinned revision.
+  `FULL_CORPUS_SHA256` in `test_fes_i386_vectors.py` is the digest of that receipt's files. It was
+  checked against GitHub's tree for `459d49fb`: 941 MOO files and the three metadata files.
+- The run read every in-scope file in that receipt. All 941 are in scope today.
+
+`8dd44146d` changes only the lockstep runner and its corpus helper. The sealer's check is unchanged,
+so the seal above stands. On `8dd44146d`, `test_fes_i386_lockstep.py --jobs 10 --netlist` passed in
+980 s ([`reports/lockstep-netlist-full-corpus.json`](reports/lockstep-netlist-full-corpus.json)):
+
+- its `run` is `{"passed": true, "default_suite": true, "complete_corpus": true}`;
+- its `netlist` record and corpus trace hashes equal the sealed report's.
+
+`check_lockstep_report` accepted it in 25 s, without Quartus, regenerating netlist `2fa5c771…`.
+
+The fix also makes `scripts/affected.py` select pc386 for `cores/fes-common/rtl/i386/toolchain.lock`.
+The sealer now pins that lock.
+
 ## What this does not cover
 
 - No kit run. S5 changes the producer, not the RTL, and this seal is the gate's acceptance run.
