@@ -369,7 +369,7 @@ The read-only `fes.media.pcxt-floppy` requires 1.1 and uses capability bit 20.
 
 The optional registry extension `fes.media.blob-stream` 1.0 uses capability
 bit 3 and opcodes 7..12. See [the stream wire contract](media-stream.md).
-The factory `fes.sms` package is format 3 from the OSS producer
+The development `fes.sms` package is format 3 from the OSS producer
 `sources/misteross/scripts/build_fes_sms_oss.py`: keyboard, fixed 720p, and
 PCM audio only. It does not declare blob or blob-stream. The SMS Quartus
 oracle (`sources/misteross/scripts/build_fes_sms.py`) is a format-2 diagnostic

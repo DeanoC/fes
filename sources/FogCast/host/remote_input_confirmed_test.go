@@ -2,8 +2,10 @@ package host
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -18,7 +20,44 @@ func confirmedRig(t *testing.T, timeout time.Duration) (*RemoteInput, net.Conn) 
 	client, peer := net.Pipe()
 	t.Cleanup(func() { _ = client.Close(); _ = peer.Close() })
 	return &RemoteInput{conn: client, reader: bufio.NewReader(client), state: RemoteInputAttached,
-		ready: true, session: 7, now: time.Now, dial: timeout, mouse: true}, peer
+		ready: true, receiptReady: true, session: 7, now: time.Now, dial: timeout, mouse: true}, peer
+}
+
+func TestLegacyBridgeAttachesButRejectsConfirmedInputBeforeDispatch(t *testing.T) {
+	client, peer := net.Pipe()
+	defer client.Close()
+	defer peer.Close()
+	r := &RemoteInput{conn: client, state: RemoteInputAttached, ready: true, session: 7, token: []byte("0123456789abcdef"), core: "Pong", now: time.Now, dial: time.Second}
+	done := make(chan error, 1)
+	go func() {
+		if err := r.handshakeLocked(client); err != nil {
+			done <- err
+			return
+		}
+		done <- r.SendEventConfirmed(context.Background(), tapA, time.Now())
+	}()
+	reader := bufio.NewReader(peer)
+	line, err := reader.ReadBytes('\n')
+	if err != nil || bytes.Contains(line, []byte(`"receipts"`)) {
+		t.Fatalf("legacy-compatible handshake = %q, %v", line, err)
+	}
+	if _, err := io.WriteString(peer, "{\"ok\":true}\n"); err != nil {
+		t.Fatal(err)
+	}
+	probe, err := protocol.DecodeInputFrame(reader, 4096)
+	if err != nil || probe.Header.Type != protocol.InputTypePing || probe.Header.Flags != protocol.InputFlagReceiptRequested {
+		t.Fatalf("first post-handshake frame is not a receipt probe: %+v, %v", probe, err)
+	}
+	_ = peer.Close() // The legacy bridge rejects the unknown control flag.
+	if err := <-done; !errors.Is(err, ErrRemoteInputNoStream) {
+		t.Fatalf("legacy confirmed input = %v", err)
+	}
+	if r.inputState.Pressed(tapA.Code) {
+		t.Fatal("unsupported receipt probe mutated input state")
+	}
+	if r.source != "" {
+		t.Fatalf("failed probe retained desktop ownership: %q", r.source)
+	}
 }
 
 func readConfirmedFrame(t *testing.T, peer net.Conn) protocol.InputFrame {
@@ -34,7 +73,8 @@ func readConfirmedFrame(t *testing.T, peer net.Conn) protocol.InputFrame {
 
 func replyConfirmed(t *testing.T, peer net.Conn, ping protocol.InputFrame) {
 	t.Helper()
-	ping.Header.Type = protocol.InputTypePong
+	ping.Header.Type = protocol.InputTypeReceipt
+	ping.Header.Flags = 0
 	ping.ServerMonoNS = 1
 	wire, err := protocol.EncodeInputFrame(ping)
 	if err != nil {
@@ -47,7 +87,7 @@ func replyConfirmed(t *testing.T, peer net.Conn, ping protocol.InputFrame) {
 	_ = peer.SetWriteDeadline(time.Time{})
 }
 
-func TestConfirmedInputWaitsForCorrelatedPongAndIgnoresStale(t *testing.T) {
+func TestConfirmedInputWaitsForCorrelatedReceiptAndIgnoresStalePong(t *testing.T) {
 	r, peer := confirmedRig(t, time.Second)
 	done := make(chan error, 1)
 	go func() { done <- r.SendEventConfirmed(context.Background(), tapA, time.Now()) }()
@@ -58,7 +98,16 @@ func TestConfirmedInputWaitsForCorrelatedPongAndIgnoresStale(t *testing.T) {
 	}
 	stale := ping
 	stale.ClientMonoNS--
-	replyConfirmed(t, peer, stale)
+	stale.Header.Type = protocol.InputTypePong
+	stale.Header.Flags = 0
+	stale.ServerMonoNS = 1
+	wire, err := protocol.EncodeInputFrame(stale)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = peer.Write(wire); err != nil {
+		t.Fatal(err)
+	}
 	select {
 	case err := <-done:
 		t.Fatalf("stale pong completed input: %v", err)
@@ -250,7 +299,7 @@ func (h *confirmedBridgeHandle) Ready() <-chan struct{}     { return h.server.Re
 func (h *confirmedBridgeHandle) Endpoint() string           { return h.server.Addr().String() }
 func (h *confirmedBridgeHandle) Stop(context.Context) error { return h.server.Close() }
 
-func TestConfirmedPongDoesNotProveSinkAcceptedInput(t *testing.T) {
+func TestConfirmedInputRejectsSinkRefusal(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var server *bridge.Server
@@ -271,13 +320,11 @@ func TestConfirmedPongDoesNotProveSinkAcceptedInput(t *testing.T) {
 	if err := r.Attach(ctx, "Pong"); err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 2; i++ {
-		if err := r.SendEventConfirmed(ctx, tapA, time.Now()); err != nil {
-			t.Fatalf("stream barrier: %v", err)
-		}
+	if err := r.SendEventConfirmed(ctx, tapA, time.Now()); !errors.Is(err, ErrRemoteInputUnconfirmed) {
+		t.Fatalf("sink refusal = %v", err)
 	}
 	metrics := server.Metrics().Snapshot()
-	if metrics["rejected"] != 2 || metrics["applied"] != 0 || metrics["sequence_gaps"] != 0 {
+	if metrics["rejected"] != 1 || metrics["applied"] != 0 || metrics["sequence_gaps"] != 0 {
 		t.Fatalf("bridge metrics = %#v", metrics)
 	}
 }

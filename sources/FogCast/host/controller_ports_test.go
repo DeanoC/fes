@@ -55,7 +55,7 @@ func TestControllerReplayPreservesBothPlayersAndRelease(t *testing.T) {
 func TestControllerPlayerAdmissionBeforeStateMutation(t *testing.T) {
 	r := &RemoteInput{state: RemoteInputAttached}
 	e := remoteinput.Event{Player: 1, Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: remoteinput.ActionPress, Code: remoteinput.ButtonA}
-	if err := r.sendEventLocked(context.Background(), e, time.Time{}); err != ErrRemoteInputInvalid {
+	if err := r.sendEventModeLocked(context.Background(), e, time.Time{}, true); err != ErrRemoteInputInvalid {
 		t.Fatalf("legacy player2: %v", err)
 	}
 	if len(r.inputState.SnapshotForPlayer(1).Pressed) != 0 {
@@ -64,7 +64,7 @@ func TestControllerPlayerAdmissionBeforeStateMutation(t *testing.T) {
 	r.controllerPorts = true
 	e.Player = 0
 	e.Code = remoteinput.Keypad0
-	if err := r.sendEventLocked(context.Background(), e, time.Time{}); err != ErrRemoteInputInvalid {
+	if err := r.sendEventModeLocked(context.Background(), e, time.Time{}, true); err != ErrRemoteInputInvalid {
 		t.Fatalf("missing keypad capability: %v", err)
 	}
 }

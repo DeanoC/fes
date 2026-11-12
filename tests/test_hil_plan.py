@@ -28,6 +28,21 @@ def run(*args, cwd=None):
 
 
 class HilPlanTest(unittest.TestCase):
+    def test_catalog_metadata_does_not_require_deployment(self):
+        planner = hil_module()
+        catalog = 'config/core-library.toml'
+        result = planner.plan([catalog], texts={})
+        self.assertEqual(result['decision'], 'NO_DEPLOY_CHANGE')
+        self.assertEqual(result['rows'][0]['class'], 'none')
+        # The exception is exact and must not mask deployed or unknown inputs.
+        for path, decision in (('config/core-recipes.toml', 'FULL_IMAGE'),
+                               ('config/other.toml', 'FULL_IMAGE'),
+                               ('sources/FogCast/cmd/mister-agent/main.go',
+                                'OVERLAY mister-agent')):
+            with self.subTest(path=path):
+                mixed = planner.plan([catalog, path], texts={})
+                self.assertEqual(mixed['decision'], decision)
+
     def test_de25_linux_requires_its_own_full_image_boot_check(self):
         planner = hil_module()
         paths = ['image/de25-nano/build.py', 'image/de25-nano/boot.py',

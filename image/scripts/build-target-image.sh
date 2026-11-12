@@ -400,6 +400,12 @@ build_kit_sdk() {
 }
 
 rebuild_toolchain_unless_cached() {
+  # Hold a distinct host-side per-key lock across the cache recheck, build,
+  # publication and validation. package/status take their own entry lock.
+  build_lock=$(python3 "$repo/scripts/toolchain_cache.py" build-lock)
+  mkdir -p "$(dirname "$build_lock")"
+  exec 9>"$build_lock"
+  flock -x 9
   toolchain_sha=$(python3 "$repo/scripts/toolchain_cache.py" status) || toolchain_sha=
   if [ "${TOOLCHAIN_REBUILD:-0}" = 1 ] || [ -z "$toolchain_sha" ]; then
     if [ -n "${TARGET_IMAGE_BUILD_ONCE:-}" ]; then
@@ -414,6 +420,8 @@ rebuild_toolchain_unless_cached() {
       printf '%s\n' 'build-target-image: toolchain cache failed validation' >&2; exit 1;
     }
   fi
+  flock -u 9
+  exec 9>&-
 }
 
 ensure_toolchain() {

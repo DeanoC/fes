@@ -1570,6 +1570,7 @@ struct Irq {
     size_t directed_nmi_next = 0;
     uint64_t pm_nmi_alt_gate = 0;
     bool pm_nmi_alt_gate_valid = false;
+    std::vector<uint8_t> pm_nmi_handler_bytes;
 };
 
 // Run from the state both sides hold now. label_corpus and label_oracle hold
@@ -1778,7 +1779,8 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 outcome.window_code = true;
                 return outcome;
             }
-            const bool handler = irq && (at - irq->handler < 2 || at - irq->pm_h32 < 2 || at - irq->pm_h16 < 2
+            const size_t pm_h16_bytes = irq && !irq->pm_nmi_handler_bytes.empty() ? irq->pm_nmi_handler_bytes.size() : 2;
+            const bool handler = irq && (at - irq->handler < 2 || at - irq->pm_h32 < 2 || at - irq->pm_h16 < pm_h16_bytes
                                          || debug_programs && at - DB_HANDLER < DB_HANDLER_BYTES);
             if (mixed && own && (!(at >= own->lo && at < own->hi) && !handler || (now.eflags & 0x100) && !debug_programs
                                  || bus.mixed_read && at - mixed_from >= 16 && !handler)) {
@@ -1819,6 +1821,14 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // the handler, which is still there.
         // In protected mode, through the program's IDT, a gate as written and
         // its handler as written.
+        auto handler_intact = [&](unsigned v, uint32_t h) {
+            if (v == 2 && !irq->pm_nmi_handler_bytes.empty()) {
+                for (size_t i = 0; i < irq->pm_nmi_handler_bytes.size(); ++i)
+                    if (bus.ram[h + uint32_t(i)] != irq->pm_nmi_handler_bytes[i]) return false;
+                return true;
+            }
+            return bus.ram[h] == 0x90 && bus.ram[h + 1] == 0xcf;
+        };
         auto intact = [&](unsigned v) {
             if (!irq) return false;
             if (before.cr0 & 1) {
@@ -1832,7 +1842,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                     && !(irq->pm_nmi_alt_gate_valid && v == 2 && actual == irq->pm_nmi_alt_gate)) return false;
                 if ((actual >> 40 & 0x1f) == 5) return true;  // task gate
                 const uint32_t h = (actual >> 43 & 1) ? irq->pm_h32 : irq->pm_h16;
-                return bus.ram[h] == 0x90 && bus.ram[h + 1] == 0xcf;
+                return handler_intact(v, h);
             }
             if (bus.ram[irq->handler] != 0x90 || bus.ram[irq->handler + 1] != 0xcf) return false;
             for (unsigned i = 0; i < 4; ++i)
@@ -2664,7 +2674,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // ... or one whose frame wrote over the handler.
         const uint32_t handler = !irq ? 0 : !(before.cr0 & 1) ? irq->handler
                                : (irq->pm_gates[unsigned(external) % irq->pm_gates.size()] >> 43 & 1) ? irq->pm_h32 : irq->pm_h16;
-        if (interrupted && irq && (bus.ram[handler] != 0x90 || bus.ram[handler + 1] != 0xcf)) {
+        if (interrupted && irq && !handler_intact(unsigned(external), handler)) {
             outcome.vector_moved = true;
             return outcome;
         }
@@ -6910,6 +6920,7 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
                   std::vector<std::pair<uint32_t, std::vector<uint8_t>>> places = {};
                   std::vector<uint64_t> more_gdt = {}; bool alone_frame = true;
                   std::vector<uint32_t> nmi_pulses = {}; uint64_t nmi_gate_alt = 0;
+                  std::vector<uint8_t> nmi_handler_bytes = {};
                   bool stop_at_exception = true, expect_halt = false; int expected_nmis = -1;
                   // past_db: the run goes on past each #DB (debug_programs).
                   bool past_db = false; };
@@ -7902,6 +7913,35 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         c.expected_nmis = 2;
         cases.push_back(c);
     }
+    // The same handler in a code segment (98h) whose limit, 1B10h, ends at
+    // its NOP: the IRET's fetch is #GP(0) before the IRET starts, so the
+    // NMI block stays and the second NMI waits through the #GP handler.
+    {
+        Case c{"nmi-iret-fetch-gp", [](Asm &a) { a.op({0x90, 0x90, 0x90, 0x40}); }, 13, 0,
+               {{2, gate(0x98, 0x1b10, 0x86)}}, false};
+        c.more_gdt = {desc(0, 0x1b10, 0x9b, false, false)};
+        c.places = {{0x1b10, {0x90, 0xcf}}};
+        c.nmi_pulses = {CODE + 44, 0x1b10};
+        c.stop_at_exception = false;
+        c.expect_halt = true;
+        c.expected_nmis = 1;
+        cases.push_back(c);
+    }
+    // LOCK IRET is #UD before IRET microcode starts. With another NMI
+    // pending inside its handler, #UD advances past the faulting instruction
+    // and its valid IRET starts before that NMI can be taken.
+    {
+        Case c{"nmi-iret-lock-ud", [](Asm &a) { a.op({0x90, 0x90, 0x90, 0x40}); }, 6, -1,
+               {{2, gate(0x08, 0x1b10, 0x86)}, {6, gate(0x08, 0x1b20, 0x86)}}, false};
+        c.places = {{0x1b10, {0x90, 0xf0, 0xcf, 0xcf}},
+                    {0x1b20, {0x55, 0x89, 0xe5, 0x83, 0x46, 0x02, 0x02, 0x5d, 0xcf}}};
+        c.nmi_handler_bytes = {0x90, 0xf0, 0xcf, 0xcf};
+        c.nmi_pulses = {CODE + 44, 0x1b10};
+        c.stop_at_exception = false;
+        c.expect_halt = true;
+        c.expected_nmis = 2;
+        cases.push_back(c);
+    }
     // After the commit: each of the new task's descriptors faults in the
     // new task (its EIP, its stack). The LDT: TI=1, not an LDT, not
     // present; SS: null, read-only, RPL and DPL not CS's RPL, not present;
@@ -8375,6 +8415,7 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
                     directed_irq.pm_h32 = directed_irq.pm_h16 = 0x1b10;
                     directed_irq.pm_nmi_alt_gate = c.nmi_gate_alt;
                     directed_irq.pm_nmi_alt_gate_valid = c.nmi_gate_alt != 0;
+                    directed_irq.pm_nmi_handler_bytes = c.nmi_handler_bytes;
                     irq = &directed_irq;
                 }
                 debug_programs = c.past_db;
