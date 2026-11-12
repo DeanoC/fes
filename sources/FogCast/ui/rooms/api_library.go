@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync/atomic"
 	"syscall"
 
 	lua "github.com/yuin/gopher-lua"
@@ -96,14 +97,16 @@ func (r *Instance) libraryQuery(L *lua.LState) int {
 		return 1
 	}
 	ctx, cancel := context.WithCancel(r.ctx)
-	L.Push(L.NewFunction(func(*lua.LState) int { cancel(); return 0 }))
+	cancelled := new(atomic.Bool)
+	L.Push(L.NewFunction(func(*lua.LState) int { cancelled.Store(true); cancel(); return 0 }))
 	go func() {
 		defer cancel()
 		games, more, err := r.opts.Services.QueryGames(ctx, q, max)
 		if games == nil && err == nil {
 			games = []hostclient.Game{}
 		}
-		r.deliver(asyncResult{cb: cb, games: games, err: err, libraryQuery: true, transient: transientLibraryError(err), more: more})
+		r.deliver(asyncResult{cb: cb, games: games, err: err, libraryQuery: true, homeFamily: q.HomeFamily,
+			cancelled: cancelled, transient: transientLibraryError(err), more: more})
 	}()
 	return 1
 }

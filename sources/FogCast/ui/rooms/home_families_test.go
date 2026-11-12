@@ -696,6 +696,9 @@ func TestHomeFamilyBatchesDiscardUnfinishedReadOnReload(t *testing.T) {
 	if d := r.Destination(); d.GameID != "new-machine" || d.Status != "1 game" {
 		t.Fatalf("unfinished old answer replaced refreshed data: %+v", d)
 	}
+	if _, ok := r.games["old-machine"]; ok {
+		t.Fatal("cancelled partial answer entered the game cache")
+	}
 }
 
 func TestHomeFamilyBatchesIncludeLateMachineEditions(t *testing.T) {
@@ -707,6 +710,31 @@ func TestHomeFamilyBatchesIncludeLateMachineEditions(t *testing.T) {
 	group.VariantCount = len(group.Variants)
 	svc := &homeServices{fakeServices: fakeServices{games: []hostclient.Game{group, titleEntry("game", "fes.zx81")}}}
 	r := loadHome(t, Options{Services: svc, ReleaseOnly: true, Budget: DefaultBudget()})
+	deadline := time.Now().Add(testwait.Timeout)
+	for {
+		r.pendingMu.Lock()
+		queued := len(r.pending)
+		r.pendingMu.Unlock()
+		if queued >= 5 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("machine editions were not delivered")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	r.Step(time.Now())
+	r.pendingMu.Lock()
+	var converted int
+	for _, result := range r.pending {
+		if result.partialGame != nil {
+			converted = result.variantIndex
+		}
+	}
+	r.pendingMu.Unlock()
+	if converted == 0 || converted >= 128 {
+		t.Fatalf("first frame converted %d of 601 editions; want fewer than 128", converted)
+	}
 	stepUntil(t, r, func(Frame) bool {
 		d := r.Destination()
 		return homeSettled(r) && d.GameID == "ready-edition" && d.Status == "1 game"
@@ -740,12 +768,21 @@ func TestHomeFamilyFullPagesSettleAcrossBoundedFrames(t *testing.T) {
 	steps := 0
 	now := time.Now()
 	var first StepTiming
-	for steps < 40 && !homeSettled(r) {
+	for steps < 80 && !homeSettled(r) {
 		steps++
 		now = now.Add(16 * time.Millisecond)
 		r.Step(now)
 		if steps == 1 {
 			first = r.LastStep()
+			r.pendingMu.Lock()
+			converted := 0
+			for _, result := range r.pending {
+				converted += result.gameIndex
+			}
+			r.pendingMu.Unlock()
+			if converted == 0 || converted > 128 {
+				t.Fatalf("one frame converted %d rows, want 1..128", converted)
+			}
 		}
 		if r.Err() != nil {
 			t.Fatalf("room failed: %v", r.Err())

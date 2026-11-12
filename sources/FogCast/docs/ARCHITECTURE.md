@@ -3022,9 +3022,11 @@ actual next cursor to show `+` only when additional titles remain. The filtered
 page resolves only its returned entry IDs in one bounded batch; a missing
 identity fails the read instead of guessing. If machine entries alone exceed
 the budget, Home blocks that family instead of choosing an incomplete machine
-list as its readiness source. Home and setup process each answer in bounded
-batches across frames, publishing it only when every row and machine edition
-has been checked. A refresh discards unfinished batches from the prior read.
+list as its readiness source. The launcher converts family rows and editions
+to Lua in bounded batches, then Home and setup process them in bounded batches
+across frames. A family answer is published only when all its rows and machine
+editions have been checked. A refresh discards unfinished batches from the
+prior read.
 On refresh, prior library and kit results give way
 to Checking until fresh reads finish. A failed kit inventory says it cannot be
 checked rather than claiming a model is not installed, and hides the installed
