@@ -1881,7 +1881,8 @@ module fes_i386_cpu #(
         d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE
                 || xchg_ld || mkind == fes_i386_pkg::MEM_LOAD && !dc.gov.two && dc.gov.op == 8'h63;
         d_out.ones = tsf_any && !tsf_32 && u.dst.valid && u.dst.space == fes_i386_pkg::RS_GPR;
-        d_out.iret0 = d_first && dc.fetched && dc.seq == fes_i386_pkg::SEQ_UCODE
+        d_out.iret0 = d_first && dc.fetched && !d_ifw && !cs_gp
+                   && u.ctl.fault == fes_i386_pkg::FAULT_NONE && dc.seq == fes_i386_pkg::SEQ_UCODE
                    && (dc.upc == fes_i386_ucode_pkg::UC_IRET || dc.upc == fes_i386_ucode_pkg::UC_VIRET
                     || dc.upc == fes_i386_ucode_pkg::UC_PIRET || dc.upc == fes_i386_ucode_pkg::UC_TSSAVE);
         if (d_ifw) begin
@@ -2899,6 +2900,9 @@ module fes_i386_cpu #(
     assign nmi_edge = nmi && !nmi_q;
     // IRET starts when its first uop reaches WB as the oldest (iret0),
     // whether it commits or faults there; one that replays starts again.
+    // A fetch fault in its place (the walk of its page, or CS's limit) is
+    // not the IRET: D leaves iret0 clear on those, as the 386 faults the
+    // fetch before IRET's microcode, and its CLRNMI, runs.
     // Every instruction before it has completed then, as on the 386, whose
     // CLRNMI (674) runs once the IRET starts.
     assign iret_start = wb_s.valid && wb_s.iret0 && !halted && !freeze && !int_take
