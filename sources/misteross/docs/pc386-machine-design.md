@@ -1174,6 +1174,15 @@ patched source with the changes marked. Adding a component means adding a row
 here and to the lock, with its licence. The image is an aggregate of
 separately licensed programs, so FogCast's own licence is unaffected.
 
+**Windows 3.x in 386 enhanced mode does not run on this FreeDOS.** Kernel
+2043 does not answer WIN386's INT 2Fh AX=1605h and AX=1607h BX=0015h DOS
+callouts, so WIN386 quits with "Unsupported MS-DOS version". On the oracle,
+WfW 3.11 reaches Program Manager on kernel 2046's 386 FAT16 build with
+FreeDOS's SHARE loaded, `InDOSPolling=TRUE` and WfW's 32-bit file access off.
+Moving the lock to that kernel and shipping SHARE is a separate fixture change,
+[#1729](https://github.com/DeanoC/fes/issues/1729)
+([record](../../../docs/validation/2026-11-12-pc386-freedos-win386/summary.md)).
+
 **Corresponding source.** Every image the builder writes carries the complete
 source with it, which GPL v2 §3(a) allows and which needs no written offer:
 
