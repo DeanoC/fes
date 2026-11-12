@@ -905,7 +905,12 @@ func TestHomeFamilyFullPagesSettleAcrossBoundedFrames(t *testing.T) {
 	now := time.Now()
 	var first StepTiming
 	var maxAsync, maxUpdate, maxTotal time.Duration
-	for steps < 120 && !homeSettled(r) {
+	// Conversion and reduction have independent per-frame work bounds. The
+	// smaller Cortex-A9 reduction batch needs more frames, not a larger
+	// callback deadline; retain a finite bound derived from the work volume.
+	const countBatch = 64
+	maxSteps := len(cores) * (2000/familyResultBatch + 2000/countBatch + 4)
+	for steps < maxSteps && !homeSettled(r) {
 		steps++
 		now = now.Add(16 * time.Millisecond)
 		r.Step(now)

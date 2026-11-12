@@ -148,7 +148,9 @@ end
 local LIBRARY_LIMIT = 2000
 -- A query may return 2,000 rows. Process a bounded number of rows or
 -- editions per frame so one answer cannot exhaust the room callback budget.
-local FAMILY_BATCH = 256
+-- A 256-row reduction exceeds 12ms of CPU on the Cortex-A9. Keep each
+-- update below that soft budget without changing the callback deadline.
+local FAMILY_BATCH = 64
 
 local function count_line(n, more)
   if n == 0 and more then return "1+ games" end

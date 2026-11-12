@@ -3167,8 +3167,9 @@ page resolves only its returned entry IDs in one bounded batch; a missing
 identity fails the read instead of guessing. If machine entries alone exceed
 the budget, Home blocks that family instead of choosing an incomplete machine
 list while reporting its machine-admission state. The launcher converts family
-rows and editions to Lua in bounded batches. Home and setup count the title
-rows in bounded batches across frames and publish only completed counts.
+rows and editions to Lua in batches of at most 128 items per Step. Home and
+setup count at most 64 title rows per update and publish only completed counts.
+Initial and data-changed Home pictures add one family tile per draw callback.
 Machine admission remains independent in `hardware.computers`; catalog rows,
 cache refreshes and editions never establish that readiness. A refresh discards
 unfinished batches from the prior read. On refresh, prior library and kit results give way
