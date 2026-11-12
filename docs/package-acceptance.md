@@ -300,6 +300,13 @@ containers are cleaned up on handled failures too; cleanup errors remain failure
 If removal fails, cleanup makes one bounded forced-removal retry without
 replaying Stop. The run still fails; inspect `failure.json` for residual
 containers or credential-cleanup errors before reusing the target.
+When a host health response was observed, `failure.json` includes a bounded
+`readiness_observation`: readiness booleans, a connection-state category and
+the last recognized admission category. The wrapper records only allowlisted
+categories, never raw connection messages, addresses, ownership or credentials.
+`unknown` means the host did not expose a recognizable cause; discovery can
+combine identity, authentication and protocol failures in one category. This
+observation is diagnostic context, not proof of a successful kit test.
 The private catalog/package store is retained for inspection. Do not publish
 the evidence directory indiscriminately: treat any interrupted run as private
 until credential cleanup has been confirmed. SIGKILL or machine failure cannot
