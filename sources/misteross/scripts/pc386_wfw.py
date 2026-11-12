@@ -168,12 +168,15 @@ def longest_run(frame: Frame, y: int, test, gap: int = 0) -> tuple[int, int]:
 def caption_bands(frame: Frame, minimum: int = 120) -> list[dict]:
     """Title bars: runs of rows whose longest dark blue run (caption text
     bridged) is at least minimum pixels and starts and ends within 3 pixels
-    of the band's first row."""
+    of the band's first row, or keeps one end inside it."""
     bands, current = [], None
     for y in range(frame.height):
         x0, x1 = longest_run(frame, y, navy, gap=16)
         wide = x1 - x0 + 1 >= minimum
-        if wide and current and abs(x0 - current['x0']) <= 3 and abs(x1 - current['x1']) <= 3:
+        # A row continues the band when its run lies inside the band and keeps
+        # one of its ends: scaled caption text can still split a row's run.
+        if wide and current and x0 >= current['x0'] - 3 and x1 <= current['x1'] + 3 and \
+                (abs(x0 - current['x0']) <= 3 or abs(x1 - current['x1']) <= 3):
             current['y1'] = y
             continue
         if current:
@@ -233,7 +236,9 @@ def program_manager(frame: Frame) -> dict:
 
 
 def text_screen(frame: Frame) -> dict:
-    """Whether the frame is a text-mode screen: mostly black, no desktop or title bars."""
+    """Whether the frame is a text-mode screen: mostly black, no desktop or
+    title bars. It takes the whole frame, not picture(): a near-empty prompt
+    has no picture edges to cut out."""
     black_share = fraction(frame, black)
     grey_share = fraction(frame, desktop)
     blue_share = fraction(frame, navy)

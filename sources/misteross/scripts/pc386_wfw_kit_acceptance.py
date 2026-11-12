@@ -339,7 +339,7 @@ class Run:
                        '-vf', 'select=gte(n\\,5)', '-frames:v', '1', str(dest)]
             if subprocess.run(command, capture_output=True).returncode == 0 and dest.is_file() \
                     and dest.stat().st_size > 2000:
-                return wfw.picture(wfw.load(dest))
+                return wfw.load(dest)
             time.sleep(1)
         raise AcceptanceError(f'HDMI grab {name} failed')
 
@@ -379,9 +379,12 @@ class Run:
 
     def load(self, game, image, record):
         self.stage(image, record['sha256'])
+        # A drive without a record (the scrub disk) has 16 heads and 63 sectors per track.
+        geometry = drives.geometry(record) if 'geometry' in record else \
+            f'{image.stat().st_size // (16 * 63 * 512)}/16/63'
         post(self.client, '/v1/library/core/load', {
             'X-FogCast-Package-ID': self.args.package.stem, 'X-FogCast-Library-Game': game,
-            'X-FogCast-Disk-Image': record['sha256'], 'X-FogCast-Disk-Geometry': drives.geometry(record),
+            'X-FogCast-Disk-Image': record['sha256'], 'X-FogCast-Disk-Geometry': geometry,
         }, token=self.session.token, body_path=self.args.package, timeout=360)
         self.session.needs_stop = True
 
@@ -418,10 +421,10 @@ class Run:
         remote = self.input()
         remote.mouse(-20, -20, count=PARK)
         time.sleep(1)
-        parked = self.grab('mouse-parked')
+        parked = wfw.picture(self.grab('mouse-parked'))
         remote.mouse(STEP, STEP, count=CALIBRATE)
         time.sleep(1)
-        moved = self.grab('mouse-moved')
+        moved = wfw.picture(self.grab('mouse-moved'))
         tip = cursor_tip(parked, moved, (0, 0))
         if tip is None or tip[0] <= 0 or tip[1] <= 0:
             self.goal('mouse', False, reason=f'the pointer did not move visibly ({tip})')
@@ -433,7 +436,7 @@ class Run:
             for _ in range(abs(counts) // STEP):
                 remote.mouse(step if axis == 'x' else 0, step if axis == 'y' else 0)
         time.sleep(1)
-        aimed = self.grab('mouse-aimed')
+        aimed = wfw.picture(self.grab('mouse-aimed'))
         landed = cursor_tip(moved, aimed, tip)
         caption = self.manager['caption']
         on_caption = landed is not None and caption['x0'] < landed[0] < caption['x1'] \
@@ -583,18 +586,19 @@ class Run:
                 self.log('lease released')
         created = [path for path in self.kit_paths() if path not in before]
         self.result['kit_created'] = created
-        if failure is None:
-            try:
+        try:
+            if failure is None:
                 readback = self.read_back(created)
                 self.result['readback'] = readback
                 self.goal('dos-window', readback['dos'] and self.result['goals']['dos-window']['pass'],
                           **{**self.result['goals']['dos-window'], 'readback': readback['files']['WFWDOS.TXT']})
                 self.goal('notepad', readback['notepad'] and self.result['goals']['notepad']['pass'],
                           **{**self.result['goals']['notepad'], 'readback': readback['files']['WFWNOTE.TXT']})
-            except AcceptanceError as error:
-                failure = str(error)
-        for path in created:
-            self.ssh(f"rm -r -- '{path}'")
+        except Exception as error:  # noqa: BLE001 - the kit is cleaned up whatever the read-back raised
+            failure = f'read-back: {type(error).__name__}: {error}'
+        finally:
+            for path in created:
+                self.ssh(f"rm -r -- '{path}'")
         left = [path for path in self.kit_paths() if path not in before]
         status, lease = self.client.request('/v1/status'), self.client.request('/v1/kit/lease')
         after = {'agent': status.get('state'), 'lease': lease.get('state'),
