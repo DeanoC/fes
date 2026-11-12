@@ -393,9 +393,9 @@ def run_pmode(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-# 407, and #1701's 42 #UD probes in real mode, at CPL 0 and 3 and in V86 mode
-# at IOPL 0 and 3.
-PMODE_CASES = 407 + 42 * 5
+# 407, #1701's 42 #UD probes in real mode, at CPL 0 and 3 and in V86 mode
+# at IOPL 0 and 3, and 3 NMI-after-faulting-IRET cases.
+PMODE_CASES = 407 + 42 * 5 + 3
 
 
 def run_paging(testbench: str, env: dict) -> dict:
