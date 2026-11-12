@@ -133,8 +133,8 @@ last command).
 
 ## Main's RTL in simulation
 
-Each kernel ran on main's RTL for 42 simulated seconds with #1709's oracle
-keys: `root` at 24 s, then `uname -a`, `cat /proc/meminfo`, `ps` and
+1.2.13 and 2.0.0 ran on main's RTL for 42 simulated seconds, and 0.99.15
+is running the same way, with #1709's oracle keys: `root` at 24 s, then `uname -a`, `cat /proc/meminfo`, `ps` and
 `ls /bin` 3, 6, 9 and 12 s later. That way each frame compares with the
 oracle run's frame at the same second (`machine_tb --cpu rtl --rtl-from 3`;
 the oracle boots FreeDOS and the RTL takes over at 3.0 s, before LOADLIN).
