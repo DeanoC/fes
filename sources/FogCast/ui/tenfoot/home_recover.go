@@ -15,7 +15,9 @@ import (
 // reopened as a fresh instance after a backoff. On the kit this happens when
 // the Lua thread waits for a CPU during the boot burst; the checks themselves
 // are unchanged, the launcher only gives Home another go once the burst has
-// passed. Script errors are never retried.
+// passed. A budget failure in the initial installed-Home trial is retained as
+// a failed root room so it follows the same retry policy. Other script errors
+// are never retried.
 //
 // The cap counts automatic reopens per launcher process. The launcher process
 // lives for one kit boot unless the supervisor restarts it, and a restart is
@@ -30,6 +32,31 @@ const (
 
 // homeReopenBackoff is the wait before automatic reopen n (0-based).
 var homeReopenBackoff = [homeAutoReopenMax]time.Duration{2 * time.Second, 10 * time.Second, 30 * time.Second}
+
+// retainFailedStartupHomeLocked keeps an initial installed root Home whose
+// trial failed on its time budget. With no working room to protect, keeping
+// the selected snapshot lets normal root-Home recovery retry a fresh instance
+// instead of rolling the selection back.
+func (a *App) retainFailedStartupHomeLocked(root bool, pack rooms.Pack, candidate *rooms.Instance, err error) bool {
+	if !root || candidate == nil || !errors.Is(err, rooms.ErrBudget) ||
+		a.room != nil || len(a.roomStack) != 0 || a.roomDuringPlay || !a.homeRooms ||
+		pack.ID != strings.TrimSpace(a.homeRoom) {
+		return false
+	}
+	a.discardLibraryOriginLocked()
+	a.closeRoomOverlaysLocked()
+	a.closeFiltersLocked()
+	a.closeCollectionOverlaysLocked()
+	a.searchOpen = false
+	a.roomPickerOpen = false
+	a.room = candidate
+	a.roomErr = err.Error()
+	a.roomWasParked = a.gpuParked
+	a.roomFrame = candidate.Frame()
+	a.postUIEventLocked("ui.nav", map[string]string{"reason": "room", "view": "room:" + pack.ID})
+	a.status = "room failed: " + err.Error()
+	return true
+}
 
 type homeRecovery struct {
 	// reopens is the automatic reopens used since the last healthy reset.

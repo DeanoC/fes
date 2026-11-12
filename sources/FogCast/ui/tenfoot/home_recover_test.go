@@ -259,6 +259,49 @@ func TestReopenKeepsInstalledHomeSelection(t *testing.T) {
 	wantSelected("failed again")
 }
 
+func TestInstalledHomeStartupBudgetFailureReopensSelectedSnapshot(t *testing.T) {
+	root := t.TempDir()
+	installedTestRoom(t, root, "main-menu", "Previous", "function draw() end")
+	selected := installedTestRoom(t, root, "main-menu", "Selected", spinningRoomScript)
+	h := newRoomHost(t)
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{selected}), root)
+	app.SetHomeRooms(true)
+	app.SetHomeRoom("main-menu")
+	t.Cleanup(func() { app.mu.Lock(); defer app.mu.Unlock(); app.closeAllRoomsLocked() })
+
+	app.mu.Lock()
+	app.showHomeLocked()
+	failed := app.room
+	app.mu.Unlock()
+	if failed == nil || failed.Revision() != selected.Revision || !errors.Is(failed.Err(), rooms.ErrBudget) {
+		t.Fatalf("startup trial did not retain the selected failed Home: %v", failed)
+	}
+	wantSelected := func(what string) {
+		t.Helper()
+		packs, err := rooms.LoadDir(root)
+		if err != nil || len(packs) != 1 || packs[0].Revision != selected.Revision {
+			t.Fatalf("%s: installed Home selection changed: %v %v", what, packs, err)
+		}
+	}
+	wantSelected("after startup trial")
+
+	f := &homeRecoverFixture{t: t, app: app, now: time.Now()}
+	f.tick(0)
+	if snap := app.Snapshot(); !snap.Room.ErrHome || snap.Room.HomeRetry != 1 {
+		t.Fatalf("startup failure did not enter Home recovery: errHome=%v retry=%d", snap.Room.ErrHome, snap.Room.HomeRetry)
+	}
+	f.tick(homeReopenBackoff[0] - time.Millisecond)
+	f.wantSame(failed, "before startup retry")
+	f.tick(time.Millisecond)
+	reopened := f.wantFresh(failed, "startup retry")
+	if reopened.Revision() != selected.Revision {
+		t.Fatalf("startup retry opened revision %q, want selected %q", reopened.Revision(), selected.Revision)
+	}
+	wantSelected("after startup retry")
+}
+
 func TestFailedNonRootRoomsAreNotRecovered(t *testing.T) {
 	t.Run("nested", func(t *testing.T) {
 		f := newHomeRecoverFixture(t, "")
