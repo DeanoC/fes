@@ -462,7 +462,7 @@ class AffectedTests(unittest.TestCase):
                      'cores/fes-common/sim/i386/bochs/instrument.h', 'cores/fes-common/sim/i386/frontend_tb.cpp',
                      'cores/fes-common/sim/i386/spike/spike_ag.sv', 'cores/fes-common/sim/i386/lockstep_tb.cpp',
                      'cores/fes-common/rtl/i386/toolchain.lock',
-                     'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
+                     'scripts/audit_fes_i386_case.py', 'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
                      'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
                      'scripts/test_fes_i386_lockstep.py', 'scripts/test_fes_i386_latency.py',
                      'scripts/quartus_fes_i386.py',

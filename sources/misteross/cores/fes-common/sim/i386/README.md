@@ -360,9 +360,42 @@ warning. Builds of a Yosys netlist (`--yosys`) also waive the lint classes
 that Yosys's flat output raises by construction: `CASEOVERLAP`, `UNDRIVEN`,
 `UNOPTFLAT`, `WIDTHEXPAND` and `WIDTHTRUNC`. They also pass `--no-assert-case`.
 Yosys marks every `$pmux` `parallel_case`. Verilator 5.054 checks that by
-default, and the 5.032 runs before it never did. The one site that fired has
-selects that are equalities on the same field
+default, and the 5.032 runs before it never did. The first site observed in
+the original run had selects that were equalities on the same field
 ([S3 record](../../../../../../docs/validation/2026-11-10-1581-verilator-lock/README.md#warnings)).
+
+`scripts/audit_fes_i386_case.py` builds a **diagnostic-only** CPU netlist with
+the locked Yosys and Verilator and case assertions enabled. It adds probes for
+the exact one-hot selectors, counts each assertion non-fatally, and compares
+the selector after the same testbench evaluation returns. The ordinary
+`--yosys` lockstep flags and CPU RTL do not change. The report lists all fired
+sites, their assertion-event counts and their transient/settled evaluation
+counts, as well as unobserved sites and the modes exercised. A selector still
+multi-hot at the sampled boundary fails the audit. This is sampled simulation,
+not proof about unseen inputs; the added probes can affect simulator scheduling.
+Before simulation, a separate two-state SAT check cuts every generated pmux
+output to an unconstrained value, leaves register and memory outputs free, and
+proves the selectors one-hot-or-zero over that combinational overapproximation.
+It also requires the unmodified model to be satisfiable, an injected multi-hot
+selector to refute the proof, and free-register and free-memory controls to
+produce counterexamples. This proof covers the generated netlist and toolchain
+in the report, not a later source, four-state behavior or hardware.
+
+```sh
+timeout 1800s python3 scripts/audit_fes_i386_case.py \
+  --cache-root /abs/out/cache/misteross-toolchains --output /abs/new-audit --jobs 4
+```
+
+The audit runs the reset, directed, unreal, protected, paging, no-387 and
+memory modes and 100 programs for each listed random variant. Add `--unbuilt`
+for the exhaustive unbuilt-encoding sweep and `--corpus /abs/pinned-corpus`
+for every in-scope MOO file in a receipt-backed pinned corpus. Without these
+options those inputs are not exercised; `--limit-per-file` further bounds
+the corpus and is recorded in the report.
+`--negative-control SITE` forces that pmux selector multi-hot and runs the
+reset-store diagnostic; it succeeds only if the sampled selector remains
+multi-hot. Both the output directory and Bochs build must be task-private;
+`--download` fetches the pinned Bochs if absent.
 
 ## Front-end and address checks
 
