@@ -385,8 +385,7 @@ class BuildFesSmsTests(unittest.TestCase):
             self.assertIn("HeAP 1000", text)
         self.assertIn("5391eeb1", readme)
         self.assertIn("package-only", readme.lower())
-        self.assertIn("in the factory image", readme.lower())
-        self.assertNotIn("not in the factory image", readme.lower())
+        self.assertIn("outside the first-party catalog", readme.lower())
         self.assertNotIn("remain later jobs", readme.lower())
         sms_architecture = architecture[
             architecture.index("## FES Master System"):architecture.index("## Standalone Pong")
