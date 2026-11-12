@@ -512,7 +512,8 @@ class AffectedTests(unittest.TestCase):
                      'scripts/audit_fes_i386_case.py', 'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
                      'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
                      'scripts/test_fes_i386_lockstep.py', 'scripts/test_fes_i386_latency.py',
-                     'scripts/quartus_fes_i386.py',
+                     'scripts/quartus_fes_i386.py', 'scripts/quartus_x87_spike.py',
+                     'cores/fes-common/sim/i386/spike/spike_x87.sv',
                      'scripts/benchmark_fes_i386.py', 'scripts/fes_i386_ucode.py', 'scripts/i386_verilator.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])

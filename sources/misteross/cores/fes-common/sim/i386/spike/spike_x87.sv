@@ -370,7 +370,7 @@ module x87s_unit #(
     end
 
     // ---- Operands. ----
-    logic [85:0] x, y, z, ua, ub, ld, ext;
+    logic [85:0] x, y, z, ua, ub, ld, ld_c, ext;
     logic [5:0]  ca, cb;
     logic [2:0]  fmt_q;
     logic [79:0] data_q;
@@ -384,12 +384,12 @@ module x87s_unit #(
         iv = fmt_q == 3'd3 ? {{48{data_q[15]}}, data_q[15:0]}
            : fmt_q == 3'd4 ? {{32{data_q[31]}}, data_q[31:0]} : data_q[63:0];
         case (fmt_q)
-            3'd0: ld = {data_q[31], &e8 ? 17'h07fff : e8 == 8'd0 ? 17'd16257 : {9'd0, e8} + 17'd16256,
+            3'd0: ld_c = {data_q[31], &e8 ? 17'h07fff : e8 == 8'd0 ? 17'd16257 : {9'd0, e8} + 17'd16256,
                         e8 != 8'd0, data_q[22:0], 44'd0};
-            3'd1: ld = {data_q[63], &e11 ? 17'h07fff : e11 == 11'd0 ? 17'd15361 : {6'd0, e11} + 17'd15360,
+            3'd1: ld_c = {data_q[63], &e11 ? 17'h07fff : e11 == 11'd0 ? 17'd15361 : {6'd0, e11} + 17'd15360,
                         e11 != 11'd0, data_q[51:0], 15'd0};
-            3'd3, 3'd4, 3'd5: ld = {iv[63], BIAS + 17'd63, iv[63] ? -iv : iv, 4'd0};
-            default: ld = unpack(data_q);
+            3'd3, 3'd4, 3'd5: ld_c = {iv[63], BIAS + 17'd63, iv[63] ? -iv : iv, 4'd0};
+            default: ld_c = unpack(data_q);
         endcase
     end
     function automatic logic [85:0] source(input logic [2:0] sel);
@@ -404,8 +404,17 @@ module x87s_unit #(
             default: source = ext;
         endcase
     endfunction
-    assign ua = source(w[19:17]);
-    assign ub = source(w[22:20]);
+    // The operands and the word that uses them, a clock after the word
+    // selects them: the datapath runs a stage behind the sequencer.
+    logic [63:0] e;
+    logic        e_v;
+    always_ff @(posedge clk) begin
+        ua <= source(w[19:17]);
+        ub <= source(w[22:20]);
+        e <= w;
+        e_v <= running && !reset;
+        ld <= ld_c;
+    end
     assign ca = classify(pack(ua));
     assign cb = classify(pack(ub));
 
@@ -415,11 +424,11 @@ module x87s_unit #(
     logic        swap, kbig;
     always_comb begin
         swap = ua[84:68] < ub[84:68];
-        case (w[52:51])
+        case (e[52:51])
             2'd0: kdiff = ua[84:68] - ub[84:68];          // align B to A
             2'd1: kdiff = BIAS + 17'd63 - ub[84:68];      // B to an integer
             2'd2: kdiff = 17'd1 - ub[84:68];              // denormalise B
-            default: kdiff = {9'd0, w[48:41]};            // a fixed shift
+            default: kdiff = {9'd0, e[48:41]};            // a fixed shift
         endcase
         kbig = kdiff[16] ? 1'b0 : kdiff > 17'd67;
         k = kdiff[16] ? 7'd0 : kbig ? 7'd68 : kdiff[6:0];
@@ -446,32 +455,30 @@ module x87s_unit #(
     logic [16:0] re;
     logic [67:0] rm;
     logic        r_inexact, r_up, r_over, r_tiny;
-    assign prec = w[34:33] == 2'd0 ? cw[9:8] : w[34:33] == 2'd1 ? 2'd0 : w[34:33] == 2'd2 ? 2'd2 : 2'd3;
-    assign rc = w[36:35] == 2'd0 ? cw[11:10] : w[36:35] == 2'd1 ? 2'd0 : w[36:35] == 2'd2 ? 2'd3 : 2'd1;
+    assign prec = e[34:33] == 2'd0 ? cw[9:8] : e[34:33] == 2'd1 ? 2'd0 : e[34:33] == 2'd2 ? 2'd2 : 2'd3;
+    assign rc = e[36:35] == 2'd0 ? cw[11:10] : e[36:35] == 2'd1 ? 2'd0 : e[36:35] == 2'd2 ? 2'd3 : 2'd1;
     x87s_round rounder (.s(ua[85]), .e(ua[84:68]), .m(ua[67:0]), .prec, .rc, .e_out(re), .m_out(rm),
                         .inexact(r_inexact), .rounded_up(r_up), .overflow(r_over), .tiny(r_tiny));
     always_comb begin
         logic [68:0] sum;
         logic [67:0] mag_hi, mag_lo;
         logic        sub;
-        logic [6:0]  slz;
         logic [135:0] wide;
         res = ua;
         rflags = 6'd0;
         rc1 = c1;
-        sub = ua[85] ^ ub[85] ^ (w[26:23] == 4'd3);
+        sub = ua[85] ^ ub[85] ^ (e[26:23] == 4'd3);
         mag_hi = ua[67:0] >= ub[67:0] ? ua[67:0] : ub[67:0];
         mag_lo = ua[67:0] >= ub[67:0] ? ub[67:0] : ua[67:0];
         sum = sub ? {1'b0, mag_hi} - {1'b0, mag_lo} : {1'b0, ua[67:0]} + {1'b0, ub[67:0]};
-        slz = lzc(sum[67:0]);
         wide = {ub[67:0], 68'd0} >> k;
         cmp_un = ca[3] || cb[3];
         cmp_eq = ca[0] && cb[0] || ua == ub;
         cmp_lt = ua[85] != ub[85] ? ua[85] && !(ca[0] && cb[0])
                : ua[85] ^ ({ua[84:68], ua[67:0]} < {ub[84:68], ub[67:0]});
-        case (w[26:23])
+        case (e[26:23])
             4'd2, 4'd3: begin  // add, subtract (B aligned to A by an earlier step)
-                res[85] = sub && ua[67:0] < ub[67:0] ? ub[85] ^ (w[26:23] == 4'd3) : ua[85];
+                res[85] = sub && ua[67:0] < ub[67:0] ? ub[85] ^ (e[26:23] == 4'd3) : ua[85];
                 res[84:68] = ua[84:68] + {16'd0, sum[68]};
                 res[67:0] = sum[68] ? {sum[68:2], sum[1] | sum[0]} : sum[67:0];
             end
@@ -489,13 +496,13 @@ module x87s_unit #(
             4'd8: begin  // compare: invalid on a signalling NaN or an unsupported format
                 rflags = {5'd0, ca[4] || cb[4] || ca[5] || cb[5]};
             end
-            4'd9: res = {ub[85], 17'd0, slz, 61'd0};          // leading zeros of a sum, for FPREM
+            4'd9: res = {ub[85], 17'd0, lz, 61'd0};           // leading zeros, for FPREM's quotient bits
             4'd10: res = {ua[85] ^ ub[85], ua[84:68] - ub[84:68] + BIAS, ua[67:0]};  // the quotient's sign and exponent
             4'd11: res = {ua[85], ua[84:68] + {{1{ub[67]}}, ub[67:52]}, ua[67:0]};    // FSCALE
             4'd12: res = {ua[85], ua[84:68], ~ua[67:0] + 68'd1};                     // two's complement
             default: ;
         endcase
-        case (w[50:49])
+        case (e[50:49])
             2'd1: res[85] = !res[85];
             2'd2: res[85] = 1'b0;
             2'd3: res[85] = ua[85] ^ ub[85];
@@ -519,7 +526,7 @@ module x87s_unit #(
             sr <= recip[ub[66:59]];
             sq <= rsqrt[{ub[68], ub[66:60]}];
         end
-        assign seed_q = {1'b0, 15'(BIAS - 17'd1), 1'b1, w[24] ? sq : sr, 53'd0};
+        assign seed_q = {1'b0, 15'(BIAS - 17'd1), 1'b1, e[24] ? sq : sr, 53'd0};
     end else begin : g_noseed
         assign seed_q = 80'd0;
     end
@@ -527,7 +534,7 @@ module x87s_unit #(
         logic        dq_done, dq_st;
         logic [67:0] dq;
         logic [85:0] dq_hold;
-        x87s_divsqrt divsqrt (.clk, .reset, .start(slow_start && w[48:41] != 8'd0), .sqrt(w[41]), .prec,
+        x87s_divsqrt divsqrt (.clk, .reset, .start(slow_start && e[48:41] != 8'd0), .sqrt(e[41]), .prec,
                               .a(ua[67:0]), .b(ub[67:0]), .done(dq_done), .q(dq), .sticky(dq_st));
         always_ff @(posedge clk) if (slow_start) dq_hold <= res;
         assign slow_done = dq_done || mb_ack;
@@ -540,9 +547,9 @@ module x87s_unit #(
         always_ff @(posedge clk) begin
             if (reset) begin
                 mb_req <= 1'b0;
-            end else if (slow_start && !(DIVSQRT == 2 && w[48:41] != 8'd0)) begin
+            end else if (slow_start && !(DIVSQRT == 2 && e[48:41] != 8'd0)) begin
                 mb_req <= 1'b1;
-                mb_op <= w[48:41];
+                mb_op <= e[48:41];
                 mb_a <= pack(ua);
                 mb_b <= pack(ub);
             end else if (mb_ack) begin
@@ -658,29 +665,37 @@ module x87s_unit #(
                 // The register file's read and write addresses for the next word.
                 ra_idx <= w[54] ? 3'd1 : 3'd0;
                 rb_idx <= w[55] ? fop[2:0] : 3'd0;
+                if (w[53]) counter <= w[46:41];
+                else if (w[13:10] == 4'd15 && counter != 6'd0) counter <= counter - 6'd1;
+                if (w[16]) begin
+                    running <= 1'b0;
+                    busy <= 1'b0;
+                end
+            end
+            if (e_v) begin
                 // The operation's result, or a multiply, shift or slow operation started.
-                if (w[26:23] == 4'd4 || w[26:23] == 4'd5 && SHIFT == 0 || w[26:23] == 4'd6 && SHIFT == 0) begin
+                if (e[26:23] == 4'd4 || e[26:23] == 4'd5 && SHIFT == 0 || e[26:23] == 4'd6 && SHIFT == 0) begin
                     mul_start <= 1'b1;
-                    mul_dst <= w[28:27];
-                    mul_mode_q <= w[26:23] == 4'd4 ? 2'd0 : w[26:23] == 4'd5 ? 2'd1 : 2'd2;
-                    mul_u <= w[26:23] == 4'd4 ? {ua[85] ^ ub[85], ua[84:68] + ub[84:68] - BIAS + 17'd1, 68'd0}
-                           : w[26:23] == 4'd5 ? ub : ua;
-                    mul_k <= w[26:23] == 4'd5 ? k : lz;
-                    mul_a <= w[26:23] == 4'd4 ? ua[67:4] : w[26:23] == 4'd5 ? ub[67:4] : ua[67:4];
-                    mul_b <= w[26:23] == 4'd4 ? ub[67:4] : w[26:23] == 4'd5 ? 64'd1 << (7'd63 - (k > 7'd63 ? 7'd63 : k))
+                    mul_dst <= e[28:27];
+                    mul_mode_q <= e[26:23] == 4'd4 ? 2'd0 : e[26:23] == 4'd5 ? 2'd1 : 2'd2;
+                    mul_u <= e[26:23] == 4'd4 ? {ua[85] ^ ub[85], ua[84:68] + ub[84:68] - BIAS + 17'd1, 68'd0}
+                           : e[26:23] == 4'd5 ? ub : ua;
+                    mul_k <= e[26:23] == 4'd5 ? k : lz;
+                    mul_a <= e[26:23] == 4'd4 ? ua[67:4] : e[26:23] == 4'd5 ? ub[67:4] : ua[67:4];
+                    mul_b <= e[26:23] == 4'd4 ? ub[67:4] : e[26:23] == 4'd5 ? 64'd1 << (7'd63 - (k > 7'd63 ? 7'd63 : k))
                            : 64'd1 << (lz > 7'd63 ? 7'd63 : lz);
-                end else if (w[26:23] == 4'd13 && (DIVSQRT != 1 || MAILBOX)) begin
+                end else if (e[26:23] == 4'd13 && (DIVSQRT != 1 || MAILBOX)) begin
                     slow_start <= 1'b1;
                     slow_seen <= 1'b0;
-                end else if (w[26:23] == 4'd14 && DIVSQRT == 1) begin
-                    case (w[28:27])
+                end else if (e[26:23] == 4'd14 && DIVSQRT == 1) begin
+                    case (e[28:27])
                         2'd0: x <= unpack(seed_q);
                         2'd1: y <= unpack(seed_q);
                         2'd2: z <= unpack(seed_q);
                         default: ;
                     endcase
                 end else begin
-                    case (w[28:27])
+                    case (e[28:27])
                         2'd0: x <= res;
                         2'd1: y <= res;
                         2'd2: z <= res;
@@ -692,36 +707,34 @@ module x87s_unit #(
                     ext <= slow_q;
                     if (MAILBOX) flags <= flags | mb_flags[5:0];
                 end
-                if (w[53]) counter <= w[46:41];
-                else if (w[13:10] == 4'd15 && counter != 6'd0) counter <= counter - 6'd1;
                 // The register stack.
-                if (w[29]) begin
+                if (e[29]) begin
                     we <= 1'b1;
-                    wr_idx <= w[58:56];
+                    wr_idx <= e[58:56];
                     wdata <= pack(x);
-                    tag[phys[top + w[58:56]]] <= x[67:0] == 68'd0 ? 2'd1 : &x[82:68] || !x[67] ? 2'd2 : 2'd0;
+                    tag[phys[top + e[58:56]]] <= x[67:0] == 68'd0 ? 2'd1 : &x[82:68] || !x[67] ? 2'd2 : 2'd0;
                 end
-                if (w[30]) begin
+                if (e[30]) begin
                     top <= top - 3'd1;
                     if (tag[phys[top - 3'd1]] != 2'd3) begin
                         flags[0] <= 1'b1;
                         sf <= 1'b1;
                         c1 <= 1'b1;
                     end
-                end else if (w[31] || w[32]) begin
+                end else if (e[31] || e[32]) begin
                     tag[phys[top]] <= 2'd3;
-                    if (w[32]) tag[phys[top + 3'd1]] <= 2'd3;
-                    top <= top + (w[32] ? 3'd2 : 3'd1);
+                    if (e[32]) tag[phys[top + 3'd1]] <= 2'd3;
+                    top <= top + (e[32] ? 3'd2 : 3'd1);
                 end
-                if (w[37]) flags <= flags | rflags | {1'b0, w[63:59]};
-                case (w[40:39])
+                if (e[37]) flags <= flags | rflags | {1'b0, e[63:59]};
+                case (e[40:39])
                     2'd1: {c3, c2, c0} <= cmp_un ? 3'b111 : {cmp_eq, 1'b0, cmp_lt};
                     2'd2: {c3, c2, c1, c0} <= {ca[0] || ca[1], !ca[0] && !ca[3], ua[85], ca[3] || ca[2]};
                     2'd3: {c0, c3, c1} <= {x[6], x[5], x[4]};
-                    default: if (w[26:23] == 4'd7) c1 <= rc1;
+                    default: if (e[26:23] == 4'd7) c1 <= rc1;
                 endcase
                 // A store, converted to its memory format.
-                if (w[38]) begin
+                if (e[38]) begin
                     st_valid <= 1'b1;
                     case (fmt_q)
                         3'd0: st_data <= {48'd0, x[85], x[75:68] + 8'd129, x[66:44]};
@@ -731,10 +744,6 @@ module x87s_unit #(
                         3'd5: st_data <= {16'd0, x[85] ? -x[67:4] : x[67:4]};
                         default: st_data <= pack(x);
                     endcase
-                end
-                if (w[16]) begin
-                    running <= 1'b0;
-                    busy <= 1'b0;
                 end
             end
             // A multiply's product, or a shift's result, lands in its destination.

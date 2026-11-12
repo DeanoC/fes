@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: MIT
+"""The x87 fit spike runner's overlay and report parsing. No Quartus or Yosys needed."""
+import unittest
+
+from scripts import quartus_x87_spike as spike
+
+STA = '''
++-------------------------------------------------------------------------------------+
+; Multicorner Timing Analysis Summary                                                                                     ;
++-------------------------------------------------------------+--------+-------+----------+---------+---------------------+
+; Clock                                                       ; Setup  ; Hold  ; Recovery ; Removal ; Minimum Pulse Width ;
++-------------------------------------------------------------+--------+-------+----------+---------+---------------------+
+; Worst-case Slack                                            ; 1.306  ; 0.094 ; 6.569    ; 0.403   ; 1.122               ;
+;  FPGA_CLK1_50                                               ; N/A    ; N/A   ; N/A      ; N/A     ; 9.274               ;
+;  system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk ; 2.533  ; 0.111 ; 6.569    ; 2.509   ; 6.680               ;
+; Design-wide TNS                                             ; 0.0    ; 0.0   ; 0.0      ; 0.0     ; 0.0                 ;
+;  system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk ; 0.000  ; 0.000 ; 0.000    ; 0.000   ; 0.000               ;
++-------------------------------------------------------------+--------+-------+----------+---------+---------------------+
+'''
+
+FIT = '''
+; Fitter Resource Utilization by Entity ;
++------+------+
+; Compilation Hierarchy Node ; ALMs needed [=A-B+C] ; Dedicated Logic Registers ; M10Ks ; DSP Blocks ; Full Hierarchy Name ;
++------+------+
+; |spike_x87                 ; 2400.5 (10.0)        ; 3000 (20)                 ; 12    ; 9          ; |spike_x87 ;
+;    |x87s_unit:dut|         ; 2300.0 (1500.0)      ; 2900 (2000)               ; 12    ; 9          ; |spike_x87|x87s_unit:dut ;
+;       |x87s_mul:mul|       ; 400.0 (400.0)        ; 700 (700)                 ; 0     ; 9          ; |spike_x87|x87s_unit:dut|x87s_mul:mul ;
+;       |other:deep|         ; 1.0 (1.0)            ; 1 (1)                     ; 0     ; 0          ; |spike_x87|x87s_unit:dut|other:deep ;
++------+------+
+'''
+
+
+class OverlayTest(unittest.TestCase):
+    def test_overlay_wires_the_port_once_into_the_io_path(self):
+        text = (spike.ROOT / spike.SYSTEM).read_text()
+        overlaid = spike.overlay_system(text, spike.VARIANTS['d-hps'])
+        self.assertEqual(overlaid.count('x87s_port #(.MUL(0), .SHIFT(0), .DIVSQRT(0), .TRANS(0)) x87 ('), 1)
+        self.assertIn("{24'd0, x87_io_rdata[7:0]}", overlaid)
+        # Declared before the IN data uses it.
+        self.assertLess(overlaid.index('wire [31:0] x87_io_rdata'), overlaid.index('io_result <= cpu_io_size'))
+        self.assertNotIn('x87', text)
+
+    def test_overlay_refuses_a_moved_anchor(self):
+        with self.assertRaises(spike.SpikeError):
+            spike.overlay_system('module pc386_system; endmodule', spike.VARIANTS['a'])
+
+    def test_hierarchy_drops_only_flatten(self):
+        program = 'proc -norom; flatten; opt -purge; '
+        self.assertEqual(spike.flatten(program, False), program)
+        self.assertEqual(spike.flatten(program, True), 'proc -norom; opt -purge; ')
+
+
+class ReportTest(unittest.TestCase):
+    def test_multicorner_reads_each_clock(self):
+        clocks = spike.multicorner(STA)
+        self.assertEqual(clocks['worst'], {'setup_ns': 1.306, 'hold_ns': 0.094})
+        self.assertEqual(clocks[spike.SYSTEM_CLOCK], {'setup_ns': 2.533, 'hold_ns': 0.111})
+        self.assertEqual(clocks['FPGA_CLK1_50'], {'setup_ns': None, 'hold_ns': None})
+
+    def test_entities_keep_x87_rows_below_the_depth(self):
+        rows = spike.entities(FIT, depth=2)
+        self.assertEqual([row['entity'] for row in rows], ['|spike_x87', '|x87s_unit:dut|', '|x87s_mul:mul|'])
+        self.assertEqual(rows[2], {'entity': '|x87s_mul:mul|', 'level': 2, 'alms': 400.0, 'own_alms': 400.0,
+                                   'registers': 700.0, 'm10k': 0.0, 'dsp': 9.0})
+
+    def test_paths_collect_cells(self):
+        text = ('path\tworst\t1\t0.5\t7\t15.2\ta\tb\n'
+                'point\tworst\t1\tic\t0.3\tn1\n'
+                'point\tworst\t1\tcell\t0.2\tn2\n')
+        self.assertEqual(spike.paths(text)['worst'][0]['cells'], ['n2'])
+
+
+if __name__ == '__main__':
+    unittest.main()
