@@ -12,22 +12,22 @@ This record covers slice F1 of the
   - The sector path to the window at `0x01800000` (A:) and `0x01C00000` (B:): 64-beat sector reads and whole-sector stores as a new storage client of port 2. Port 2's aux master and the FDC take turns.
   - Non-DMA (ND) transfers.
 - **Out, as the slice says.** CMOS still reports no floppy drives, and the storage endpoint is not connected: `pc386_system` ties both drives off until F3 commits disks. No BIOS patch, `machine_tb` units or suites (F2).
-- **Replay** (`sim_fes_pc386.py --suite fdc` at `cb9f41722`, [log](fdc-replay.log)). 34 cases, each a guest's script run on `pc386_fdc` and on Bochs's `iodev/floppy.cc`:
+- **Replay** (`sim_fes_pc386.py --suite fdc` at `eceba46e1`, [log](fdc-replay.log)). 34 cases, each a guest's script run on `pc386_fdc` and on Bochs's `iodev/floppy.cc`:
   - 20 match line for line.
   - The 11 that [`fdc_divergences.toml`](../../../sources/misteross/cores/fes-pc386/sim/fdc_divergences.toml) lists differ as listed.
   - The 3 RTL-only cases (non-DMA, the store fence and a disk swapped mid-write, timing) pass their checks, and so does every case's own RTL check.
 - **Existing suites.** `devices`, `boot` (oracle and `--cpu rtl`), `storage`, `system` and `benches` pass ([below](#suites)).
-- **Seal.** Quartus 17.0.2, seed 1, CUDA slot on chip-30x0-ai-dev, from a clean checkout of `cb9f41722` (this PR's RTL head), meets every analysis: setup +0.421 ns, hold +0.088 ns.
-  - It uses 37,161 ALMs and 271 RAM blocks, against main `2f6829c2c` sealed on the same host the same way: 36,731 ALMs, 269 RAM blocks, setup +0.514 ns, hold +0.074 ns.
-  - That is +430 ALMs, +2 M10K and +1 DSP, at 88.7% of the device.
-  - Earlier seals of this branch, all passing: `149e6436f` (36,918 ALMs, 277 RAM blocks, setup +0.503 ns), `191a71d8c` (37,144 ALMs, 271 RAM blocks, setup +0.780 ns) and `9cb6c331b` (37,242 ALMs, 271 RAM blocks, setup +0.564 ns), before review fixes to the fence and `busy`.
+- **Seal.** Quartus 17.0.2, seed 1, CUDA slot on chip-30x0-ai-dev, from a clean checkout of `eceba46e1` (this PR's RTL head), meets every analysis: setup +0.693 ns, hold +0.073 ns.
+  - It uses 37,119 ALMs and 271 RAM blocks, against main `2f6829c2c` sealed on the same host the same way: 36,731 ALMs, 269 RAM blocks, setup +0.514 ns, hold +0.074 ns.
+  - That is +388 ALMs, +2 M10K and +1 DSP, at 88.6% of the device.
+  - Earlier seals of this branch, all passing: `149e6436f` (36,918 ALMs, 277 RAM blocks, setup +0.503 ns), `191a71d8c` (37,144 ALMs, 271 RAM blocks, setup +0.780 ns) `9cb6c331b` (37,242 ALMs, 271 RAM blocks, setup +0.564 ns) and `cb9f41722` (37,161 ALMs, 271 RAM blocks, setup +0.421 ns), before later review fixes to the fence, `busy` and a disk leaving during spin-up.
 
 ## Area
 
 | Build | ALMs | RAM blocks | DSP | Registers | Setup | Hold |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | main `2f6829c2c` ([summary](main-build-summary.json)) | 36,731 | 269 | 38 | 32,636 | +0.514 | +0.074 |
-| F1 seal `cb9f41722` ([summary](seal-build-summary.json)) | 37,161 | 271 | 39 | 33,126 | +0.421 | +0.088 |
+| F1 seal `eceba46e1` ([summary](seal-build-summary.json)) | 37,119 | 271 | 39 | 33,060 | +0.693 | +0.073 |
 | Area experiment on `191a71d8c` ([summary](area-experiment-build-summary.json)) | 37,431 | 271 | 40 | 33,265 | +0.494 | +0.083 |
 | Doc's F1 estimate | +1,000 | +1 | 0 | | | |
 
@@ -80,7 +80,7 @@ The list also records five deviations or cases the replay does not compare:
 
 ## Suites
 
-Every suite ran at `cb9f41722`, the RTL head.
+Every suite ran at `eceba46e1`, the RTL head.
 
 | Suite | Result |
 | --- | --- |
