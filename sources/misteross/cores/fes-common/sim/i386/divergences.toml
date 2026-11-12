@@ -510,6 +510,16 @@ follow = "corpus"
 # of a test386 TEST_UNDEF case, the two agree.
 
 [[lockstep]]
+id = "arpl-page-read"
+title = "ARPL's memory load translates as a read"
+rule = "arpl_page_rtl"
+cases = ["pg-arpl-np-read", "pg-arpl-no-adjust", "pg-arpl-r3-ro-no-adjust", "pg-arpl-r3-ro-adjust", "pg-arpl-adjust", "pg-arpl-r3-adjust"]
+oracle = "Bochs reads ARPL's memory operand with read_RMW_virtual_word, translating the initial access as a write even if ARPL does not change the RPL."
+i386 = "The 386 microcode reads with RD_W and performs a separate WR_R only when it raises the RPL. The directed paging cases run the RTL alone and check the #PF error code, A/D bits and result, because Bochs differs."
+source = "reenigne/x86_microcode 80386/microcode_notes.txt ARPL mw entry 16AAh: RD_W at 6AA, WR_R at 6B0 and ARPL_FAILED at 6B3; see also test386 arpl-no-write-no-fault."
+follow = "386"
+
+[[lockstep]]
 id = "dr6-sticky"
 title = "A #DB leaves DR6's bits set"
 rule = "dr6_rule"

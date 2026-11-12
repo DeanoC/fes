@@ -8597,7 +8597,10 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
                   std::vector<std::pair<uint32_t, std::vector<uint8_t>>> mem = {}; bool r3 = false; int soft = -1;
                   bool together = false; std::vector<std::pair<unsigned, uint64_t>> gates = {}; bool a20m = false;
                   // through: the run goes on past exceptions, to its HLT.
-                  bool through = false; };
+                  bool through = false;
+                  // Bochs uses a write translation for ARPL's initial read;
+                  // the 386 uses a read. Run those distinguishing cases alone.
+                  bool rtl_alone = false; int pte_ad = -1; int word = -1; int zf = -1; };
     const uint32_t P = 0x01, W = 0x02, U = 0x04, A = 0x20, D = 0x40;
     auto pte = [](uint32_t page) { return PT0 + 4 * page; };
     // V86 mode under paging (Phase 5's slice 3): from CPL 0, LTR 38h and an
@@ -8999,6 +9002,34 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
                                   {0x1b40, {0xa1, 0x4c, 0x90, 0x00, 0x00, 0xf4}},  // MOV EAX, [904Ch] (13000h's PTE); HLT
                                   {0x12ffc, {0x02, 0x40, 0x00, 0x00}}}});
     }
+    {
+        auto arpl = [](Asm &a, uint32_t) {
+            a.op({0x66, 0xbb, 0x01, 0x00, 0x63, 0x1d}); a.d(0x10000); // MOV BX,1; ARPL [10000h],BX
+        };
+        Case np{"pg-arpl-np-read", arpl, 14, 0, 0x10000, {{0x10, 0x20000 | W | U}}};
+        np.rtl_alone = true;
+        cases.push_back(np);
+        Case no_write{"pg-arpl-no-adjust", arpl, -1, -1, -1, {{0x10, 0x20000 | P | W | U}}, {},
+                      {{0x20000, {0x03, 0x00}}}};
+        no_write.rtl_alone = true; no_write.pte_ad = A; no_write.word = 3; no_write.zf = 0;
+        cases.push_back(no_write);
+        Case ro{"pg-arpl-r3-ro-no-adjust", [=](Asm &a, uint32_t b) { arpl(a, b); a.op({0xcd, 0x2b}); },
+                -1, -1, -1, {{0x10, 0x20000 | P | U}}, {}, {{0x20000, {0x03, 0x00}}}, true, 0x2b};
+        ro.rtl_alone = true; ro.pte_ad = A; ro.word = 3; ro.zf = 0;
+        cases.push_back(ro);
+        Case write_fault{"pg-arpl-r3-ro-adjust", arpl, 14, 7, 0x10000, {{0x10, 0x20000 | P | U}}, {},
+                         {{0x20000, {0x00, 0x00}}}, true};
+        write_fault.rtl_alone = true; write_fault.pte_ad = A; write_fault.word = 0;
+        cases.push_back(write_fault);
+        Case write{"pg-arpl-adjust", arpl, -1, -1, -1, {{0x10, 0x20000 | P | W | U}}, {},
+                   {{0x20000, {0x00, 0x00}}}};
+        write.rtl_alone = true; write.pte_ad = A | D; write.word = 1; write.zf = 1;
+        cases.push_back(write);
+        Case user_write{"pg-arpl-r3-adjust", [=](Asm &a, uint32_t b) { arpl(a, b); a.op({0xcd, 0x2b}); },
+                        -1, -1, -1, {{0x10, 0x20000 | P | W | U}}, {}, {{0x20000, {0x00, 0x00}}}, true, 0x2b};
+        user_write.rtl_alone = true; user_write.pte_ad = A | D; user_write.word = 1; user_write.zf = 1;
+        cases.push_back(user_write);
+    }
     const char *only = std::getenv("FES_I386_CASE");
     for (const Case &c : cases) {
         if (only && std::string(only) != c.label) continue;
@@ -9075,14 +9106,50 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         rtl.start(state);
         Mismatches out;
         Outcome outcome;
-        try {
-            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 96, !c.through, summary, out, 0);
-        } catch (const std::exception &error) {
-            out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
-            oracle.reset();
+        if (c.rtl_alone) {
+            for (int n = 0; n < 128 && !rtl.stopped(); ++n) {
+                if (rtl.next() != Rtl::Event::Retired) {
+                    out.add(std::string(c.label) + ".event", 0, 1);
+                    break;
+                }
+                if (rtl.top.trace_exception) {
+                    if (rtl.top.trace_vector == c.soft) outcome.interrupt = c.soft;
+                    else { outcome.exception = int(rtl.top.trace_vector); break; }
+                }
+            }
+            outcome.halted = rtl.stopped();
+        } else {
+            try {
+                outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 96, !c.through, summary, out, 0);
+            } catch (const std::exception &error) {
+                out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
+                oracle.reset();
+            }
         }
         const State s = rtl.state();
         const std::string label = c.label;
+        if (c.rtl_alone && c.soft >= 0 && outcome.halted && outcome.interrupt < 0) {
+            // The software INT's delivery is not traced as an exception.
+            // Its 386 gate must leave the return CS:EIP on the ring-0 stack
+            // and reach the handler's HLT; no other path reaches that frame.
+            const uint32_t at = s.seg[fes_i386::SEG_SS].base + s.gpr[fes_i386::REG_ESP];
+            const auto dword = [&](uint32_t p) {
+                return uint32_t(rtl.ram[p]) | uint32_t(rtl.ram[p + 1]) << 8
+                     | uint32_t(rtl.ram[p + 2]) << 16 | uint32_t(rtl.ram[p + 3]) << 24;
+            };
+            if (at + 7 < RAM_BYTES && s.seg[fes_i386::SEG_CS].selector == 0x08
+                && dword(at) == CODE + uint32_t(a.b.size()) - 1 && (dword(at + 4) & 0xffff) == 0x7b)
+                outcome.interrupt = c.soft;
+        }
+        if (c.pte_ad >= 0) {
+            const unsigned got = rtl.ram[pte(0x10)] & (A | D);
+            if (got != unsigned(c.pte_ad)) out.add(label + ".pte-ad", unsigned(c.pte_ad), got);
+        }
+        if (c.word >= 0) {
+            const unsigned got = rtl.ram[0x20000] | unsigned(rtl.ram[0x20001]) << 8;
+            if (got != unsigned(c.word)) out.add(label + ".word", unsigned(c.word), got);
+        }
+        if (c.zf >= 0 && bool(s.eflags & 0x40) != bool(c.zf)) out.add(label + ".zf", c.zf, bool(s.eflags & 0x40));
         if (c.ending == -1) {
             if (!outcome.halted) out.add(label + ".halt", 1, 0);
             if (outcome.exception >= 0 && !c.through) out.add(label + ".exception", 0xff, uint32_t(outcome.exception));
