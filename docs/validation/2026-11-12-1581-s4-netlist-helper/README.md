@@ -82,7 +82,8 @@ the same RTL and `--netlist` runs both pass
 - the program digest is unchanged, `23ce90ec…`;
 - the front end passes with `--netlist` ([`reports/frontend-merged-netlist.json`](reports/frontend-merged-netlist.json)).
 
-The pc386 and PC/XT builds below are on the first trees.
+The three-seed PC386 comparison and the PC/XT builds below are on the first trees. A current-head
+PC386 timing and seal run is recorded after the historical comparison.
 
 ### 2. The seal and the lockstep record the same inputs
 
@@ -132,6 +133,31 @@ The clocks are 61.44, 74.27 and 12.29 MHz in every build.
     of margin in every fit;
   - its removal slack is at main's lowest seed on every seed;
   - ALMs and registers move by under 0.2%, and RAM and DSP counts don't change.
+
+**Current PR head.** From `sources/misteross/`, the normal producer command passed on
+`7ff72dc0583fbbf9cb889e8378a15fb987e167a5`:
+
+```sh
+make build-fes-pc386-quartus CACHE_ROOT=/home/deano/fes/out/cache/misteross-toolchains SEED=1
+```
+
+The [`build-summary.json`](reports/pc386/pr-head-seed1.json) and
+[`build-inputs.json`](reports/pc386/pr-head-seed1-inputs.json) are recorded. This refresh uses the
+merged CPU source digest `fdf0871e…`, the seal recipe digest `23ce90ec…`, and locked Yosys `e240a465`
+(`be9f3be5…`); those source, program and Yosys fields match the merged lockstep report. Quartus 17.0.2
+passed all five timing analyses with TNS 0 on the 61.44, 74.27 and 12.29 MHz clocks. The build ID is
+`b6b327f8c987d6afc3d4b9d37e0e6e39`, and its RBF SHA256 is `460a688e…`.
+
+| Analysis | Worst slack (ns) | TNS (ns) |
+| --- | ---: | ---: |
+| Setup | 0.676 | 0.000 |
+| Hold | 0.069 | 0.000 |
+| Recovery | 6.179 | 0.000 |
+| Removal | 0.553 | 0.000 |
+| Minimum pulse width | 1.122 | 0.000 |
+
+The fit uses 36,769 ALMs, 32,628 registers, 269 RAM blocks and 38 DSP blocks. This current-head
+refresh covers seed 1; the three-seed table above remains the historical comparison.
 - **No HIL:** pc386 has none (`AGENTS.md`). The seals stay development builds.
 
 ### 4. PC/XT (D12)
@@ -182,6 +208,7 @@ on it.
   `91ead94bc`; `reports/lockstep-merged-{rtl,netlist}.json` and `reports/frontend-merged-netlist.json`
   on `7cabf1bf1`.
 - `reports/pc386/{main,branch}-seed{1,2,3}.json`: the producer's `build-summary.json` for each build.
+- `reports/pc386/pr-head-seed1{,-inputs}.json`: the current-head producer summary and its input record.
 - `reports/pcxt/{main,branch}-build-summary.json` and `reports/pcxt/control-main-build-id-summary.json`:
   the PC/XT producer summaries and the control fit's.
 - `compare_reports.py`: the lockstep comparison, from
