@@ -2175,8 +2175,9 @@ seen on two host interfaces) are one row; when the browse window's
 instances of a node id name more than one address, the row carries
 `address_conflict: true` and no `address`, and uniqueness is checked on
 every instance before the rows are collapsed. The monitor observes these
-advertisements even when the selected target has no Phase 0 binding. A
-browse error keeps the previous rows. The inventory does
+advertisements even when the selected target has no Phase 0 binding. It scans
+on the first health tick and then at most once every 10 seconds, independently
+of the one-second health retry cadence. A browse error keeps the previous rows. The inventory does
 not adopt an endpoint, claim a lease, or make a title Ready. A later browse
 that no longer sees a node, including a node that omitted `ttl`, drops that
 row only. A mesh major other than 1 does not remove that direct bind; a
