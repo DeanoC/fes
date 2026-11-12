@@ -1759,7 +1759,7 @@ sim-fes-sg1000-rom-link: sim-fes-z80-timing sg1000-diagnostic
 		build/diagnostics/fes-sg1000/graphics-i-16k.rom
 
 .PHONY: sim-fes-sg1000-gp-audio
-sim-fes-sg1000-gp-audio:
+sim-fes-sg1000-gp-audio: sim-fes-sg1000-gp-media
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sg1000-gp-audio
 	$(VERILATOR) --cc --exe --build --top-module sg1000_application_gp -Wall \
