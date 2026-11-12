@@ -1,9 +1,10 @@
 # i386 generated case assertions, 12 November 2026
 
 This is host-only evidence for the i386 CPU source and diagnostic at commit
-`5ca9ba943e16997c8abc3be6f888e145358916da` (CPU base `9886d43d`). It does
-not qualify a later netlist, four-state behavior or physical hardware. The
-normal netlist simulator retains its `--no-assert-case` waiver.
+`60f92add3740eef158f7065379dfbca446d6c24c` (CPU base `7e08be726`, after
+merging #1749 / main). It does not qualify a later netlist, four-state
+behavior or physical hardware. The normal netlist simulator retains its
+`--no-assert-case` waiver.
 
 The authenticated OFF slot `ddc23ba25a44cf71e5cd8cf87da51a7c9cbd73b26826e25caa1453c082b632f5`
 used Yosys `0a7927bf126eb3d868c50b3bb5e11b69ff656ea9` and Verilator
@@ -40,8 +41,8 @@ claim follows from this result.
 
 The private Verilator model enabled the generated case assertions and counted
 stops nonfatally. Selector probes were sampled after the same testbench `eval`
-returned; these extra outputs can change simulator scheduling. Across 383,495,489
-sampled evaluations, 75 of the 320 sites fired 152,414 times; none of the
+returned; these extra outputs can change simulator scheduling. Across 383,508,799
+sampled evaluations, 75 of the 320 sites fired 152,456 times; none of the
 observed firing evaluations remained multi-hot at that sampled boundary. The
 other 245 sites did not fire in this run. The per-site counts, selector mappings
 and unobserved indexes are in `summary.json`.
@@ -59,7 +60,7 @@ A separately built diagnostic control forced one actual selector multi-hot. On
 the same committed source and locked toolchain, the stop handler counted that
 site and the settled probe recorded one multi-hot evaluation; the test process
 continued. The normal and control full JSON reports and SAT logs remain under
-`/var/tmp/fes1654-full-5ca9ba943` and `/var/tmp/fes1654-neg-5ca9ba943` on
+`/home/deano/fes-hil/k1751-update/full` and `/home/deano/fes-hil/k1751-update/neg` on
 Powerboat. Their hashes are in `summary.json`. To reproduce, use the diagnostic
 command in the [i386 simulation guide](../../../sources/misteross/cores/fes-common/sim/i386/README.md#verilator)
 with `--unbuilt --corpus /abs/pinned-corpus`; use `--negative-control 316` for
