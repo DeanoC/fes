@@ -16,7 +16,8 @@ Refs [#1702](https://github.com/DeanoC/fes/issues/1702).
 **Result.**
 - **WfW 3.11 runs on Kit B with main's core.** MS-DOS 6.22 boots from reset
   on `fes_i386_cpu`. `win` reaches Program Manager in 386 enhanced mode, and
-  every task passed with 32-bit disk access off and on:
+  every task passed on both drives, with 32-bit disk access off and with
+  WDCTRL configured on (shown in use only in `w3`, below):
   - a full-screen MS-DOS Prompt opens, runs `ver` and `mem`, and `exit`
     returns to Program Manager;
   - Minesweeper opens and uncovers cells on mouse clicks, and its timer runs;
@@ -26,8 +27,10 @@ Refs [#1702](https://github.com/DeanoC/fes/issues/1702).
   measured frame by frame from a 60 fps HDMI capture (table below).
 - **32-bit disk access works on the kit.** With WDCTRL on and a permanent
   swap file, Control Panel reports "Disk Access: Using 32-bit Disk Access".
-  The DOS window and the Notepad save work in that state, and `chkdsk`
-  afterwards reports no errors.
+  The DOS window and the Notepad save work in that state (`w3`), and
+  `chkdsk` afterwards reports no errors. In `w2`, with the temporary swap
+  file, the same dialog read "Using MS-DOS"; the record does not establish
+  whether WDCTRL handled `w2`'s disk traffic.
 - **No core bug was found**, so no issue was filed. Nothing the kit did
   contradicts the sim. The kit opened three things the sim never ran: the
   Control Panel, the swap-file setting and Windows' own restart. What they
@@ -97,7 +100,7 @@ Refs [#1702](https://github.com/DeanoC/fes/issues/1702).
   - `w1`, `win-msdos`: DOS boot, `ver`, `mem`; timed `win`; MS-DOS Prompt;
     Minesweeper with the mouse; Notepad save; exit and `type` the file; a
     second timed `win`; Control Panel, 386 Enhanced, Virtual Memory.
-  - `w2`, `win-msdos-32bit`: the same tasks with 32-bit disk access on, plus
+  - `w2`, `win-msdos-32bit`: the same tasks with WDCTRL configured on, plus
     SYSTEM.INI's WDCTRL lines checked with `find` at DOS.
   - `w3`, `win-msdos-32bit`: made a 20 MB permanent swap file through
     Control Panel (Virtual Memory, Change, OK), and let Windows restart
@@ -109,7 +112,7 @@ Refs [#1702](https://github.com/DeanoC/fes/issues/1702).
 
 ## What the kit shows
 
-| Task | 32-bit disk access off (`w1`) | 32-bit disk access on (`w2`, `w3`) |
+| Task | 32-bit disk access off (`w1`) | WDCTRL configured on (`w2`; `w3` in use per the dialog) |
 | --- | --- | --- |
 | MS-DOS 6.22 from reset | BIOS, `Starting MS-DOS...`, SMARTDRV, `C:\>`; `ver` 6.22; `mem`: 639K conventional, 15,360K XMS, DOS in the HMA | the same |
 | `win` to Program Manager | 2.33 s, then 2.00 s | 2.48 s and 2.28 s (temporary swap), 2.35 s (permanent swap) |
@@ -167,20 +170,20 @@ Frames (640×480, cut from the 1080p capture, 64 colours):
   - The kit runs the whole machine on the RTL from reset, MS-DOS 6.22's boot
     included, which the sims handed to Bochs. It reached every screen the
     sims reached.
-- **"Using MS-DOS" with WDCTRL on is the swap file, not the driver.** With
-  32-bit disk access on and the temporary swap file that SETUP set up, the
-  Virtual Memory dialog says "Disk Access: Using MS-DOS". This looked like
-  WDCTRL failing. Three things show it was not:
-  - no WDCTRL validation message appeared between `win` and the logo (the
-    capture has no text screen there);
-  - the change dialog had "Use 32-Bit Disk Access" checked;
-  - after the swap file was made permanent, the dialog said "Using 32-bit
-    Disk Access".
-
-  Observed: both drives read "Using MS-DOS" with the temporary swap file
-  that SETUP set up. The 32-bit drive read "Using 32-bit Disk Access" once
-  the swap file was permanent. No run had a permanent swap file with 32-bit
-  disk access off. The sims never opened this dialog.
+- **The Virtual Memory dialog's disk status.** Observed: with WDCTRL
+  configured and the temporary swap file that SETUP set up, the dialog read
+  "Disk Access: Using MS-DOS", with "Use 32-Bit Disk Access" checked (`w2`,
+  and `w3` before the change). After the swap file was made permanent, it
+  read "Using 32-bit Disk Access" (`w3`).
+  - No WDCTRL validation message appeared between `win` and the logo (the
+    captures have no text screen there). #1726's failure message waited for
+    a key, so validation did not fail visibly.
+  - This record does not show why the temporary-swap state reads "Using
+    MS-DOS": no run had a permanent swap file with 32-bit disk access off,
+    and nothing here traced which driver served `w2`'s disk traffic. So
+    `w2` counts as "WDCTRL configured", and only `w3` as "32-bit disk
+    access in use".
+  - The sims never opened this dialog.
 - **32-bit file access is off on both drives.** The Virtual Memory dialog
   shows "File Access: Drive C: 16-Bit", and its "Use 32-Bit File Access" box
   is unchecked. The plan record says WfW's SETUP turned 32-bit file access
