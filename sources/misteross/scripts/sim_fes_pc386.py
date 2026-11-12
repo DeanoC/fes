@@ -295,16 +295,22 @@ class SimError(RuntimeError):
 
 
 @functools.lru_cache(maxsize=None)
-def verilator_uses_5054_waivers(verilator: str) -> bool:
-    """Older Verilator versions do not recognize the new PROCASSINIT rule."""
+def verilator_supports_procassinit(verilator: str) -> bool:
+    """Whether this Verilator recognizes PROCASSINIT lint controls."""
     try:
-        result = subprocess.run([verilator, '--version'], capture_output=True, text=True, timeout=30, check=False)
+        version = subprocess.run([verilator, '--version'], capture_output=True,
+                                 text=True, timeout=30, check=False)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise SimError(f'cannot determine Verilator version: {error}') from error
-    match = re.search(r'\bVerilator\s+(\d+)\.(\d+)', result.stdout)
-    if result.returncode or not match:
+    if version.returncode or not re.search(r'\bVerilator\s+\d+\.\d+', version.stdout):
         raise SimError('cannot determine Verilator version')
-    return (int(match.group(1)), int(match.group(2))) >= (5, 54)
+    try:
+        result = subprocess.run([verilator, '-Wno-PROCASSINIT', '--version'],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                timeout=30, check=False)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise SimError(f'cannot probe Verilator PROCASSINIT support: {error}') from error
+    return result.returncode == 0
 
 
 def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testbench: Path | None,
@@ -313,11 +319,12 @@ def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testben
     output = OUTPUT / name / ('obj' if testbench else f'obj-{top}')
     output.mkdir(parents=True, exist_ok=True)
     includes = ' '.join(f'-I{path}' for path in (COMMON / 'sim/i386', CORE / 'sim', NUKED, *include))
-    new_lints = verilator_uses_5054_waivers(verilator)
+    procassinit_supported = verilator_supports_procassinit(verilator)
     command = [verilator, '--cc', *(['--exe'] if testbench else []), '--build', '-j', str(jobs), '-O3', '--top-module', top,
                '-Wall', '-Wno-UNUSEDSIGNAL', '-Wno-DECLFILENAME', *flags,
                *(str(CORE / 'sim' / name) for name in ('pc386.vlt', 'pc386_audio.vlt', 'pc386_vga.vlt')),
-               *(['-DFES_PC386_VERILATOR_5054', str(CORE / 'sim/pc386_verilator_5054.vlt')] if new_lints else []),
+               *(['-DFES_PC386_VERILATOR_5054', str(CORE / 'sim/pc386_verilator_5054.vlt')]
+                 if procassinit_supported else []),
                f'-I{COMMON / "vendor/kf8259"}', f'-I{COMMON / "vendor/kf8253"}', f'-I{COMMON / "generated"}',
                *(f'-G{key}={value}' for key, value in (parameters or {}).items()), *(f'-D{name}' for name in defines),
                '--Mdir', str(output), '-MAKEFLAGS', 'OPT_FAST=-O3',

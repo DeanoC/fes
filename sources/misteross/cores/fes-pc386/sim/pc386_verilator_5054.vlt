@@ -1,4 +1,6 @@
 `verilator_config
+// Load this file whenever the selected Verilator recognizes PROCASSINIT,
+// including versions before 5.054 that enable it under -Wall.
 // These specific power-on initializations and OPL2 vendor constructs keep
 // their established behavior; all other pc386 RTL remains under fatal lint.
 lint_off -rule PROCASSINIT -file "*/rtl/pc386_ata.sv" -match "*'clearing'*"
