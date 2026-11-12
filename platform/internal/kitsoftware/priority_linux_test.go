@@ -60,6 +60,7 @@ func TestSpawnRunsEveryHostAndAgentThreadAtBackgroundNice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startedBackground := false
 	for _, tc := range []struct {
 		role       string
 		nice       int
@@ -80,6 +81,9 @@ func TestSpawnRunsEveryHostAndAgentThreadAtBackgroundNice(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer func() { _ = p.cmd.Process.Kill(); <-p.done }()
+			if tc.nice == backgroundNice {
+				startedBackground = true
+			}
 			if strings.Contains(strings.Join(p.env, " "), "GOMAXPROCS") {
 				t.Fatalf("restart env carries the role policy: %q", p.env)
 			}
@@ -106,7 +110,12 @@ func TestSpawnRunsEveryHostAndAgentThreadAtBackgroundNice(t *testing.T) {
 			}
 		})
 	}
-	// Only the forker's own thread in the supervisor is lowered.
+	// Only the forker's own thread in the supervisor is lowered. The forker
+	// starts with the first background spawn, so a run filtered to the
+	// launcher or runtime has nothing to count.
+	if !startedBackground {
+		return
+	}
 	lowered := 0
 	for _, nice := range threadNices(t, os.Getpid()) {
 		if nice == backgroundNice {

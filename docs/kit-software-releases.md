@@ -254,6 +254,15 @@ the children's parent-death signal follows the thread that forked them. Raising
 nice needs no privilege; if it still fails, the supervisor logs it and those
 services keep its own priority.
 
+The policy lasts for each process's whole life, not just startup. During play
+the agent forwards kit-local pad and keyboard frames from tenfoot's
+`/run/fogcast/local-input.sock` to the core, still at nice 10 with one P. When
+both A9 cores are busy, a woken nice-10 task waits longer to preempt a nice-0
+task, so that forwarding can be delayed. Kit validation of this policy measures
+pad-event-to-core latency with the runtime and launcher busy, alongside the
+launcher's involuntary context switches during group start. If that latency
+shows up, narrowing the policy to the host is a separate change.
+
 An accepted launcher that exits is restarted
 without stopping the runtime or agent, so a menu crash does not leave a frozen
 frame or drop an execution lease. An accepted agent or runtime exit restarts
