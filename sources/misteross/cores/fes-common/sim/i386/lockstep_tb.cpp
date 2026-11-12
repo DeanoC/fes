@@ -116,6 +116,9 @@
 //             (run_no387_cases): every form in real and protected mode,
 //             their faults, #NM, FNSTENV's and FNSAVE's layouts and FPU
 //             detection routines, under the no-387 rule (EscStep).
+// FES_I386_X87=387 fits the oracle's 387 as on an AT (x87_fitted): the no-387
+// rule is off and a run stops as not built (unbuilt 387) at its first ESC or
+// WAIT. Unset or "none", the CPU has an empty socket.
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
 #include "Vfes_i386_cpu.h"
@@ -170,6 +173,14 @@ constexpr uint32_t DB_HANDLER = 0x10ffd4, DB_HANDLER_BYTES = 17;
 constexpr uint8_t DB_HANDLER_CODE[DB_HANDLER_BYTES] = {0x66, 0x50, 0x0f, 0x21, 0xf8, 0x66, 0x25, 0x00, 0xff,
                                                         0xff, 0xff, 0x0f, 0x23, 0xf8, 0x66, 0x58, 0xcf};
 bool debug_programs = false;
+// The 387-present rule (FES_I386_X87=387, the i386dx+387 identity): the
+// oracle's 387 is fitted as on an AT board (Oracle::set_at_coprocessor) and
+// the no-387 rule (EscStep) is off. This build's RTL has no 387, so a run
+// stops, as not built (UNBUILT_X87), at its first ESC or WAIT, which neither
+// side steps; the comparison of X87State at each retirement (x87_differences)
+// joins the rule with the RTL's 387. Without it the lockstep is as before.
+bool x87_fitted = false;
+constexpr int UNBUILT_X87 = 387;
 // The random programs' page directory and its four tables (Generator::pg_tables).
 constexpr uint32_t PG_PD = 0xf00000, PG_END = PG_PD + 0x5000, PG_ARENA = 0x200000;
 bool mixed = false;
@@ -1733,6 +1744,7 @@ struct EscStep {
 };
 EscStep esc_step(const uint8_t *code, bool code32, const State &state, const fes_i386::Oracle &oracle) {
     EscStep e;
+    if (x87_fitted) return e;
     unsigned i = 0;
     bool lock = false;
     for (; i < 15 && is_prefix(code[i]); ++i) lock = lock || code[i] == 0xf0;
@@ -1846,6 +1858,15 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                          before.eip, outcome.code.c_str(), before.gpr[fes_i386::REG_ESP], before.gpr[fes_i386::REG_EBP],
                          before.seg[fes_i386::SEG_SS].base, before.cr0, before.gdtr.base, before.gdtr.limit);
         const bool code32 = before.seg[fes_i386::SEG_CS].ar & 0x4000;
+        if (x87_fitted) {
+            unsigned k = 0;
+            while (k < 15 && is_prefix(code[k])) ++k;
+            if (k < 15 && ((code[k] & 0xf8) == 0xd8 || code[k] == 0x9b)) {
+                ++summary.unbuilt[UNBUILT_X87];
+                outcome.unbuilt = UNBUILT_X87;
+                return outcome;
+            }
+        }
         if (const char *dump = std::getenv("FES_I386_DUMP")) {
             const uint32_t a = uint32_t(std::strtoul(dump, nullptr, 16));
             std::fprintf(stderr, "  dump %x:", a);
@@ -10878,6 +10899,12 @@ int main(int argc, char **argv) {
 
     OracleBus bus;
     std::unique_ptr<fes_i386::Oracle> oracle = fes_i386::make_oracle(bus);
+    if (const char *x87 = std::getenv("FES_I386_X87")) {
+        if (std::string(x87) != "387" && std::string(x87) != "none")
+            throw std::runtime_error("FES_I386_X87 is 387 or none");
+        x87_fitted = std::string(x87) == "387";
+    }
+    oracle->set_at_coprocessor(x87_fitted);
     VerilatedContext context;
     Rtl rtl(context);
     // The governor's settings, which every reset samples: the preset, its

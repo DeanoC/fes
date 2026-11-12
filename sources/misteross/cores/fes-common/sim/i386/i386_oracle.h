@@ -162,6 +162,23 @@ struct X87State {
     X87Register r[8];
 };
 
+// The fields in which two X87States differ: control, status, tag, opcode,
+// fip, fcs, fdp, fds and r0-r7 (physical registers).
+inline std::vector<std::string> x87_differences(const X87State &a, const X87State &b) {
+    std::vector<std::string> out;
+    if (a.control != b.control) out.push_back("control");
+    if (a.status != b.status) out.push_back("status");
+    if (a.tag != b.tag) out.push_back("tag");
+    if (a.opcode != b.opcode) out.push_back("opcode");
+    if (a.pointers.ip != b.pointers.ip) out.push_back("fip");
+    if (a.pointers.cs != b.pointers.cs) out.push_back("fcs");
+    if (a.pointers.dp != b.pointers.dp) out.push_back("fdp");
+    if (a.pointers.ds != b.pointers.ds) out.push_back("fds");
+    for (int n = 0; n < 8; ++n)
+        if (!(a.r[n] == b.r[n])) out.push_back("r" + std::to_string(n));
+    return out;
+}
+
 // The oracle's decode of one instruction, without executing it.
 struct Decoded {
     bool complete = false;   // the instruction ends within min(available, 15) bytes

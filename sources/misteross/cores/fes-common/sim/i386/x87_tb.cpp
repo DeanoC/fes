@@ -25,8 +25,9 @@
 //   f1-reset    OUT F1h resets the 387: control 037Eh, status 0081h, every
 //               tag empty, IRQ 13 high, the latch unchanged.
 //   accessor    x87_state() after FLD1, FLDPI, FLDZ and a denormal FLD m80
-//               equals the FNSAVE image that follows, word for word and
-//               register for register, with the tags 00, 01, 10 and 11.
+//               has the tags 00, 01, 10 and 11, FLD m80's pointers and
+//               opcode, and no x87_differences from the FNSAVE image that
+//               follows.
 //   off         without the coupling, IRQ 13 stays low and nothing latches.
 // Output: one "PASS <case>" or "FAIL <case> <what>" line per case, then
 // "SUMMARY <passed> <failed>". Exit status 1 on any failure.
@@ -300,7 +301,7 @@ void cases(Bench &b) {
         c.op({0xd9, 0xe8});                     // FLD1
         c.op({0xd9, 0xeb});                     // FLDPI
         c.op({0xd9, 0xee});                     // FLDZ
-        c.op({0xdb, 0x2e, 0x20, 0x05});         // FLD TBYTE [0520h]: a denormal
+        const uint16_t fld80 = c.op({0xdb, 0x2e, 0x20, 0x05});  // FLD TBYTE [0520h]: a denormal
         c.op({0xf4});
         b.run(c);
         const fes_i386::X87State s = b.oracle->x87_state();
@@ -312,16 +313,29 @@ void cases(Bench &b) {
         b.oracle->set_state(next);
         for (int n = 0; n < 4 && !b.oracle->step().halted; ++n) {}
         b.check(s.tag == 0x06ff, "tag " + std::to_string(s.tag));
-        b.check(b.bus.word(0x700) == s.control && b.bus.word(0x702) == s.status && b.bus.word(0x704) == s.tag,
-                "FNSAVE words differ from the accessor");
-        const unsigned top = (s.status >> 11) & 7;
+        b.check(s.pointers.ip == fld80 && s.pointers.dp == 0x520 && s.opcode == 0x32e,
+                "pointers " + std::to_string(s.pointers.ip) + " " + std::to_string(s.pointers.dp) + " opcode " +
+                    std::to_string(s.opcode));
+        // The 16-bit real-mode image (387 PRM, Figure 4-14): CS and DS are 0,
+        // so its 20-bit addresses are the offsets; it stores no selectors.
+        fes_i386::X87State image;
+        image.control = b.bus.word(0x700);
+        image.status = b.bus.word(0x702);
+        image.tag = b.bus.word(0x704);
+        image.pointers.ip = b.bus.word(0x706) | uint32_t(b.bus.word(0x708) & 0xf000) << 4;
+        image.opcode = b.bus.word(0x708) & 0x7ff;
+        image.pointers.dp = b.bus.word(0x70a) | uint32_t(b.bus.word(0x70c) & 0xf000) << 4;
+        image.pointers.cs = s.pointers.cs;
+        image.pointers.ds = s.pointers.ds;
+        const unsigned top = (image.status >> 11) & 7;
         for (unsigned i = 0; i < 8; ++i) {
-            const fes_i386::X87Register &r = s.r[(top + i) & 7];
-            uint64_t significand = 0;
-            for (unsigned k = 0; k < 8; ++k) significand |= uint64_t(b.bus.ram_byte(0x70e + 10 * i + k)) << (8 * k);
-            const uint16_t exponent = b.bus.word(0x70e + 10 * i + 8);
-            b.check(significand == r.significand && exponent == r.sign_exponent, "ST(" + std::to_string(i) + ")");
+            fes_i386::X87Register &r = image.r[(top + i) & 7];
+            for (unsigned k = 0; k < 8; ++k) r.significand |= uint64_t(b.bus.ram_byte(0x70e + 10 * i + k)) << (8 * k);
+            r.sign_exponent = b.bus.word(0x70e + 10 * i + 8);
         }
+        std::string differ;
+        for (const std::string &field : fes_i386::x87_differences(s, image)) differ += " " + field;
+        b.check(differ.empty(), "FNSAVE image differs:" + differ);
         b.done("accessor");
     }
     {

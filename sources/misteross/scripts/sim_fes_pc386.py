@@ -68,6 +68,13 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            with the gate held. Every check must print ok. With --cpu rtl,
            the RTL must run it without an oracle step or a stop; writes
            speaker-rtl/.
+  x87      runs cores/fes-pc386/sim/x87_test.asm (X87TEST.COM) at the FreeDOS
+           prompt on the oracle, whose 387 is wired as on an AT (#1768): an
+           unmasked divide by zero must reach the BIOS's INT 75h and INT 02h,
+           this program's own INT 75h with a frame that returns to the next
+           ESC, and, with IRQ 13 masked, hold that ESC until the timer's
+           handler writes port F0h; OUT F1h must leave a 387's RESET state.
+           Every check must print ok. Oracle only.
   scroll   runs cores/fes-pc386/sim/scroll_test.asm (SCROLLT.COM) at the
            FreeDOS prompt. INT 10h AH=00h for modes 13h, 93h and 03h must keep
            BX, CX, DX, SI, DI, BP, DS and ES, and AH=0Fh must return the mode
@@ -927,7 +934,7 @@ def default_limit_seconds(suite: str) -> int:
     """Return the suite's default simulated-time hang guard."""
     if suite == 'sound':
         return 14
-    if suite in ('boot', 'governor', 'wait', 'speaker', 'scroll', 'cpu-profile'):
+    if suite in ('boot', 'governor', 'wait', 'speaker', 'x87', 'scroll', 'cpu-profile'):
         return 8
     if suite == 'rtl-stops':
         return 2
@@ -979,6 +986,28 @@ def run_speaker(args, linked: list[Path]) -> dict:
         failures.append(f'SPKTEST.COM ran {names}, expected {list(SPEAKER_CHECKS)}')
     if args.cpu == 'rtl':
         failures += rtl_failures(run, 'speaker run')
+    return {'run': run, 'checks': lines, 'failures': failures}
+
+
+# X87TEST.COM's checks, in the order it runs them.
+X87_CHECKS = ('bios', 'bios-sw', 'raw', 'raw-ip', 'raw-sw', 'held', 'f1-cw', 'f1-sw', 'DONE')
+
+
+def run_x87(args, linked: list[Path]) -> dict:
+    """X87TEST.COM at the FreeDOS prompt: the AT error path of the oracle's 387 (IRQ 13, ports F0h and F1h)."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    disk = fixture_with(args, 'x87', 'x87_test.asm', 'X87TEST.COM')
+    print('Running X87TEST.COM on the oracle CPU', flush=True)
+    run = run_machine(testbench, 'x87', ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                        '--type', 'x87test|', '--expect', 'X87 DONE ok', '--cpu', 'oracle'],
+                      images)
+    lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
+    run['lines'] = lines
+    failures = run['failures'] + [line for line in lines if not line.endswith(' ok')]
+    names = [line.split()[1] for line in lines if line.startswith('X87 ')]
+    if names != list(X87_CHECKS):
+        failures.append(f'X87TEST.COM ran {names}, expected {list(X87_CHECKS)}')
     return {'run': run, 'checks': lines, 'failures': failures}
 
 
@@ -1712,7 +1741,7 @@ def game_suite(args) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
-                                            'a20', 'c2xx', 'ems', 'wait', 'speaker', 'scroll', 'cpu-profile',
+                                            'a20', 'c2xx', 'ems', 'wait', 'speaker', 'x87', 'scroll', 'cpu-profile',
                                             'sound', 'game', 'vga', 'system', 'governor', 'all'),
                         default='all',
                         help='simulation suite to run')
@@ -1811,6 +1840,8 @@ def main() -> int:
                 report = run_wait(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'speaker':
                 report = run_speaker(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'x87':
+                report = run_x87(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'scroll':
                 report = run_scroll(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'cpu-profile':
