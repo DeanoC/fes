@@ -92,6 +92,9 @@ MEMORY_POLICIES = {
 # source locations; PC/XT writes none.
 ATTRIBUTE_MODES = {
     'keep': ('attrmap -remove src; attrmap -remove hdlname; ', ''),
+    # As keep, with flatten's hdlname kept: a diagnostic netlist whose labels
+    # read the flattened hierarchy (scripts/quartus_fes_i386.py).
+    'hdlname': ('attrmap -remove src; ', ''),
     'none': ('', '-noattr '),
 }
 PLACEHOLDERS = {'top': '$TOP', 'sources': '$SOURCES', 'includes': '$INCLUDES', 'parameters': '$PARAMETERS',
@@ -179,6 +182,10 @@ def program(recipe: Recipe, *, top: str, sources: list[str] | tuple[str, ...], n
     recipe (PC/XT's absolute capture paths) and written bare otherwise."""
     if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', top):
         raise NetlistError(f'bad top {top!r}')
+    if recipe.library is None:
+        for path in sources:
+            if any(c.isspace() or c in '";' for c in str(path)):
+                raise NetlistError(f'source paths must not contain whitespace, quotes or semicolons: {path}')
     files = ' '.join(_quote(str(p)) if recipe.library is not None else str(p) for p in sources)
     return _render(recipe, top, files, ''.join(f'-I {_check_include(str(p))} ' for p in includes),
                    _parameters(recipe, dict(parameters or {})), str(netlist))
@@ -221,44 +228,27 @@ def run(yosys: Path | str, script: str, *, cwd: Path, program_file: Path, log: P
         raise NetlistError(f'Yosys failed (exit {result.returncode}); see {log}\n{tail}')
 
 
-def plain(name: str) -> str:
-    """rename -unescape's spelling of a flattened name, before any _N suffix."""
-    text = re.sub(r'[^A-Za-z0-9_]', '_', name)
-    return '_' + text if text[:1].isdigit() else text
+_HDLNAME = re.compile(r'\(\*.*\bhdlname = "([^"]*)".*\*\)')
+_DECLARED = re.compile(r'^\s*(?:wire|reg|input|output|inout)\b(?:\s+signed)?(?:\s+\[[^\]]*\])?\s+(\\\S+|\w+)')
 
 
-def flattened_names(before: Path, after: Path, top: str) -> dict[str, str]:
-    """Each name rename -unescape gave in top, mapped to the flattened name it
-    replaced: nets matched by their bits in the JSON written before and after
-    the rename, memories and cells by name. Labels that read hierarchy (a.b.c)
-    read the netlist through this."""
-    old = json.loads(before.read_text())['modules'][top]
-    new = json.loads(after.read_text())['modules'][top]
-    by_bits: dict[tuple, list[str]] = {}
-    for name, info in old['netnames'].items():
-        if name not in new['netnames']:
-            by_bits.setdefault(tuple(map(str, info['bits'])), []).append(name)
+def flattened_names(verilog: str) -> dict[str, str]:
+    """Each declared name in a netlist written with the hdlname mode, mapped to
+    the flattened name it had before rename -unescape (a.b.c, from flatten's
+    hdlname). Labels that read hierarchy read the netlist through this."""
     names: dict[str, str] = {}
-
-    def claim(renamed: str, candidates: list[str]) -> None:
-        for candidate in candidates:
-            base = plain(candidate)
-            if renamed == base or re.fullmatch(re.escape(base) + r'_\d+', renamed):
-                names[renamed] = candidate
-                return
-
-    for name, info in new['netnames'].items():
-        if name not in old['netnames']:
-            claim(name, by_bits.get(tuple(map(str, info['bits'])), []))
-    gone = [name for name in old['cells'] if name not in new['cells']]
-    for name in new['cells']:
-        if name not in old['cells']:
-            claim(name, gone)
-    for cell in new['cells'].values():
-        memid = cell.get('parameters', {}).get('MEMID')
-        if isinstance(memid, str) and memid.startswith('\\') and memid[1:] not in names:
-            claim(memid[1:], [c['parameters']['MEMID'][1:] for c in old['cells'].values()
-                              if isinstance(c.get('parameters', {}).get('MEMID'), str)])
+    pending = None
+    for line in verilog.splitlines():
+        attribute = _HDLNAME.search(line)
+        if attribute:
+            pending = attribute.group(1)
+            continue
+        if line.lstrip().startswith('(*'):
+            continue
+        declared = _DECLARED.match(line)
+        if declared and pending:
+            names[declared.group(1).lstrip('\\')] = '.'.join(pending.split())
+        pending = None
     return names
 
 
@@ -292,8 +282,8 @@ def authenticate(root: Path = ROOT, *, cache_root: Path | None = None, gpu_route
     slot is authenticated, as the seal does; nothing runs on a GPU. Slot builds
     are not bit-reproducible, so the seal's Yosys identity is the slot's."""
     from scripts import fes_build_common as board
-    architectures, configuration = gpu_choice(gpu_router)
     try:
+        architectures, configuration = gpu_choice(gpu_router)
         return board._authenticate_tools(root, lock_path=root / lock, toolchain_root=root / TOOLCHAIN_ROOT,
                                          expected_configuration={'nextpnr': configuration},
                                          gpu_router=gpu_router, hip_architectures=architectures,
@@ -315,7 +305,8 @@ def seal_netlist(yosys: Path | str, output: Path, root: Path = ROOT, *,
     sets the machine's."""
     output.mkdir(parents=True, exist_ok=True)
     netlist = output / f'{top}.netlist.v'
-    run(yosys, program(SEAL, top=top, sources=[str(root / p) for p in sources], includes=PC386_INCLUDES,
+    run(yosys, program(SEAL, top=top, sources=[str(root / p) for p in sources],
+                       includes=[str(root / p) for p in PC386_INCLUDES],
                        parameters=parameters, netlist=netlist.name),
         cwd=output, program_file=output / f'{top}.ys', log=output / 'yosys.log')
     return netlist

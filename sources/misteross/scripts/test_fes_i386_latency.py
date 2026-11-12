@@ -191,7 +191,9 @@ def main() -> int:
     rows = measure(cycles)
     found = failures(rows, EXPECTED)
     report = {'verilator': verilator.record(),
-              'netlist': yosys_netlist.lock_record(lockstep.ROOT, tool, args.gpu_router) if tool else None, 'loops': rows, 'run': result['run'], 'failures': found}
+              'netlist': (yosys_netlist.report_record(lockstep.ROOT, tool, args.gpu_router,
+                                                     Path(testbench).parent / f'{lockstep.TOP}.netlist.v')
+                          if tool else None), 'loops': rows, 'run': result['run'], 'failures': found}
     path = OUTPUT / ('report-netlist.json' if yosys else 'report.json')
     path.write_text(json.dumps(report, indent=2) + '\n')
     print(f'{"loop":18} {"cycles":>8} {"per iteration":>14} {"per case":>9}')

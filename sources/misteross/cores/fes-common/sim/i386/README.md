@@ -309,7 +309,7 @@ unit tests below read the same variable. Each report records the Verilator
 commit, digest and version under `verilator`.
 
 The RTL builds run with `-Wall -Wno-UNUSEDSIGNAL` and fail on any other
-warning. Builds of a Yosys netlist (`--yosys`) also waive the lint classes
+warning. Builds of a Yosys netlist (`--netlist`) also waive the lint classes
 that Yosys's flat output raises by construction: `CASEOVERLAP`, `UNDRIVEN`,
 `UNOPTFLAT`, `WIDTHEXPAND` and `WIDTHTRUNC`. They also pass `--no-assert-case`.
 Yosys marks every `$pmux` `parallel_case`. Verilator 5.054 checks that by
@@ -668,9 +668,9 @@ already in `build/`. `tests/test_fes_i386_frontend.py` covers the runner and
 the spike harness's report reading; it lints the spikes and runs the D and AG
 check when `FES_TOOLCHAIN_CACHE_ROOT` names a cache holding the
 [locked Verilator](#verilator), runs the oracle-backed front-end checks when
-the pinned Bochs checkout is present too, and runs the D and AG check on
-Yosys's netlist when `FES_I386_YOSYS` names a Yosys.
+the pinned Bochs checkout is present too, and runs the D and AG check on the
+seal's netlist when the same cache holds the pc386 lock's slot.
 `tests/test_fes_i386_lockstep.py` covers the lockstep runner's scope,
 divergence and output handling, and runs a short lockstep when the locked Verilator, the
-pinned Bochs checkout and the pinned corpus are present (and on Yosys's
-netlist when `FES_I386_YOSYS` names a Yosys).
+pinned Bochs checkout and the pinned corpus are present (and on the seal's
+netlist when the same cache holds the pc386 lock's slot).

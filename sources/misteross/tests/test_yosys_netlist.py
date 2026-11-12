@@ -77,18 +77,25 @@ class ProgramTest(unittest.TestCase):
         text = (ROOT / 'scripts/yosys_netlist.py').read_text()
         self.assertNotIn('\nfrom scripts import fes_build_common', text)
 
-    def test_flattened_names_follow_the_bits(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            before, after = Path(temporary) / 'before.json', Path(temporary) / 'after.json'
-            mem = {'type': '$mem_v2', 'parameters': {'MEMID': '\\u0.pal'}}
-            before.write_text(json.dumps({'modules': {'t': {
-                'netnames': {'cpu.ex_out': {'bits': [2, 3]}, 'cpu.ex.out': {'bits': [4]}, 'clk': {'bits': [5]}},
-                'cells': {'u0.pal': mem}}}}))
-            after.write_text(json.dumps({'modules': {'t': {
-                'netnames': {'cpu_ex_out': {'bits': [2, 3]}, 'cpu_ex_out_1': {'bits': [4]}, 'clk': {'bits': [5]}},
-                'cells': {'u0_pal': {**mem, 'parameters': {'MEMID': '\\u0_pal'}}}}}}))
-            self.assertEqual(yosys_netlist.flattened_names(before, after, 't'),
-                             {'cpu_ex_out': 'cpu.ex_out', 'cpu_ex_out_1': 'cpu.ex.out', 'u0_pal': 'u0.pal'})
+    def test_flattened_names_read_hdlname(self):
+        netlist = ('  (* hdlname = "cpu ex_out" *)\n'
+                   '  wire [1:0] cpu_ex_out;\n'
+                   '  (* hdlname = "cpu ex out" *)\n'
+                   '  (* keep = 32\'d1 *)\n'
+                   '  wire cpu_ex_out_1;\n'
+                   '  (* hdlname = "u0 pal" *)\n'
+                   '  reg [7:0] u0_pal [3:0];\n'
+                   '  wire clk;\n'
+                   '  (* hdlname = "dangling" *)\n'
+                   '  assign clk = 1\'b0;\n'
+                   '  wire later;\n')
+        self.assertEqual(yosys_netlist.flattened_names(netlist),
+                         {'cpu_ex_out': 'cpu.ex_out', 'cpu_ex_out_1': 'cpu.ex.out', 'u0_pal': 'u0.pal'})
+
+    def test_the_oracle_keeps_hdlname_and_nothing_else_differs(self):
+        from scripts import quartus_fes_i386 as oracle
+        self.assertEqual(yosys_netlist.canonical(oracle.RECIPE),
+                         yosys_netlist.canonical(yosys_netlist.SEAL).replace('attrmap -remove hdlname; ', ''))
 
 
 @unittest.skipUnless(YOSYS, 'set FES_YOSYS to a Yosys with DeanoC/yosys#75')
@@ -118,7 +125,8 @@ class YosysTest(unittest.TestCase):
             self.assertRegex(text, r'reg \[7:0\] cpu_pal \[3:0\];')
             self.assertNotIn('\\cpu.', text)
             self.assertEqual((work / 'out/top.ys').read_text().strip(), yosys_netlist.program(
-                yosys_netlist.SEAL, top='top', sources=[str(work / 'top.sv')], includes=yosys_netlist.PC386_INCLUDES,
+                yosys_netlist.SEAL, top='top', sources=[str(work / 'top.sv')],
+                includes=[str(work / p) for p in yosys_netlist.PC386_INCLUDES],
                 netlist='top.netlist.v'))
 
 

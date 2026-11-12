@@ -164,7 +164,6 @@ RESOURCES = {
     "block_memory_bits": "Total block memory bits", "dsp_blocks": "Total DSP Blocks",
 }
 SEED_LIMIT = 0x7fffffff
-# Keywords a rewritten name could spell, since only "_" replaces characters.
 CORE = {"id": "fes.pc386", "name": "FES pc386", "version": "0.1.0",
         "description": "A 386 AT: fes_i386_cpu, the Bochs BIOS and LGPL VGABios, VGA at 720p, OPL2 and Sound "
                        "Blaster 2.0, a PS/2 keyboard and mouse, and a hard disk of up to 128 MiB with its saves. "

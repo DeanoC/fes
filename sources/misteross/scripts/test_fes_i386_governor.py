@@ -305,7 +305,9 @@ def main() -> int:
 
     failures = []
     report = {'verilator': verilator.record(), 'clock_hz': clock_hz,
-              'netlist': yosys_netlist.lock_record(lockstep.ROOT, tool, args.gpu_router) if tool else None, 'window': WINDOW, 'budget': BUDGET, 'accepted': list(ACCEPTED), 'presets': {}}
+              'netlist': (yosys_netlist.report_record(lockstep.ROOT, tool, args.gpu_router,
+                                                     Path(testbench).parent / f'{lockstep.TOP}.netlist.v')
+                          if tool else None), 'window': WINDOW, 'budget': BUDGET, 'accepted': list(ACCEPTED), 'presets': {}}
     base = spans(results[0])
     for span in base:
         if span['charged']:

@@ -16,10 +16,11 @@ and it misreads a variable index into a packed struct member that shares a
 name with a module signal). So Quartus reads the netlist the seal's Yosys
 program writes (scripts/yosys_netlist.py, SEAL) with the spike's top, by the
 pc386 lock's Yosys from its --cache-root slot: the passes the pc386 seal and
-the lockstep --netlist runs use. It is not technology-mapped, and Quartus does
-all synthesis (LUT mapping, carry chains) and all placement and routing. The
-stage labels read the flattened names (dut.align.q) that rename -unescape
-turns into plain ones, through the netlist's JSON before and after the rename.
+the lockstep --netlist runs use, with flatten's hdlname attributes kept. It is
+not technology-mapped, and Quartus does all synthesis (LUT mapping, carry
+chains) and all placement and routing. The stage labels read the flattened
+names (dut.align.q) that rename -unescape turns into plain ones through those
+hdlname attributes.
 
 The elaborated netlist still spells packed-array strides as constant
 multiplies (start*42 for dec[start]). Quartus maps the widest to a DSP block;
@@ -68,8 +69,8 @@ from scripts.quartus_tools import load_quartus_lock, locate_quartus
 ROOT = Path(__file__).resolve().parents[1]
 QUARTUS_LOCK = 'cores/fes-pc386/quartus.lock'  # the lane that seals the CPU
 DEVICE = '5CSEBA6U23I7'
-# The seal's passes, with the netlist's JSON before and after the rename for the labels.
-RECIPE = dataclasses.replace(yosys_netlist.SEAL, names_json=('before-names.json', 'after-names.json'))
+# The seal's passes, keeping flatten's hdlname so the labels can read the hierarchy.
+RECIPE = dataclasses.replace(yosys_netlist.SEAL, attributes='hdlname')
 PATHS = 20000  # endpoints TimeQuest reports, one worst path each
 
 # One worst path per register endpoint, plus the top paths in full. Fields
@@ -119,15 +120,17 @@ _ASSIGN = re.compile(r'^\s*assign\s+(?:\{(.*)\}|(\S+(?:\s*\[[^\]]*\])?))\s*=\s*(
 _PART = re.compile(r'(\\\S+|\w+)(?:\s*\[(\d+)(?::(\d+))?\])?')
 
 
-def register_names(netlist: str) -> dict[tuple[str, int], str]:
+def register_names(netlist: str, flat: dict[str, str] | None = None) -> dict[tuple[str, int], str]:
     """Yosys's write_verilog names a register that drives slices of several
-    signals _NNNN_ and assigns it to them; map each of its bits to a signal."""
+    signals _NNNN_ and assigns it to them; map each of its bits to a signal,
+    by its flattened name where flat (plain to flattened) has one."""
+    flat = flat or {}
     widths, names = {}, {}
     for line in netlist.splitlines():
         match = _DECLARATION.match(line)
         if match:
             hi, lo, name = match.groups()
-            widths[name.lstrip('\\')] = int(hi) - int(lo) + 1 if hi is not None else 1
+            widths[flat.get(name.lstrip('\\'), name.lstrip('\\'))] = int(hi) - int(lo) + 1 if hi is not None else 1
     for line in netlist.splitlines():
         match = _ASSIGN.match(line)
         if not match:
@@ -139,6 +142,7 @@ def register_names(netlist: str) -> dict[tuple[str, int], str]:
             if not found:
                 break
             name, hi, lo = found.group(1).lstrip('\\'), found.group(2), found.group(3)
+            name = flat.get(name, name)
             width = 1 if hi is not None and lo is None else int(hi) - int(lo) + 1 if hi is not None else widths.get(name, 1)
             for _ in range(width):
                 names[(match.group(3), bit)] = name
@@ -286,10 +290,10 @@ def main() -> int:
             run([str(bin_dir / 'quartus_map'), TOP], base, base / 'map.log', env)
         (base / 'sta.tcl').write_text(STA_TCL.format(top=TOP, post_map='-post_map', out='sta.tsv', paths=PATHS))
         run([str(bin_dir / 'quartus_sta'), '-t', 'sta.tcl'], base, base / 'sta.log', env)
-        names = register_names(netlist.read_text())
         # The plain names rename -unescape gave, read as the flattened ones the labels match.
-        flat = yosys_netlist.flattened_names(base / RECIPE.names_json[0], base / RECIPE.names_json[1], TOP)
-        names = {key: flat.get(value, value) for key, value in names.items()}
+        text = netlist.read_text()
+        flat = yosys_netlist.flattened_names(text)
+        names = register_names(text, flat)
         names.update({(name, -1): flattened for name, flattened in flat.items() if (name, -1) not in names})
         post_map = parse_sta((base / 'sta.tsv').read_text(), args.target_mhz, stages, names)
 
