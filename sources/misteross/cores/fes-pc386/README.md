@@ -49,7 +49,7 @@ Quartus 17.0.2.
 | [`firmware/`](firmware/) | Bochs ROM BIOS and LGPL VGABios sources, `source.json` manifests, `firmware.lock` |
 | [`sim/machine_tb.cpp`](sim/machine_tb.cpp) | `pc386_machine` with the Bochs oracle as CPU, guest memory and DDR models; records VGA traces and frames. `--cpu rtl` runs `fes_i386_cpu` instead |
 | [`sim/system_tb.cpp`](sim/system_tb.cpp) | `pc386_system` with all three DDR ports on one window model, and a host that launches and stops it as libmister-runtime does, through the mailbox and the window |
-| [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk: SMSW and MOV CR0 stops, LMSW, and the protected-mode oracle stretch for `--cpu rtl` |
+| [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk for `--cpu rtl`: what the RTL still stops on (LOADALL in real mode, far JMP through a call gate in protected mode and under paging from an aliased linear address) and the oracle's protected-mode stretches |
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
 | [`sim/ems_tb.cpp`](sim/ems_tb.cpp) | The EMS board alone on the port 2 model: directed cases, DMA cycles and a random run against a reference board (`benches` suite) |
 | [`sim/fesems.asm`](sim/fesems.asm) | FESEMS.SYS, the EMS board's LIM 4.0 driver ([EMS driver](#ems-driver)) |
@@ -79,6 +79,12 @@ The 8254 is the shared KF8253 with `READ_BACK = 1`; the DMA controllers are the
 shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
 
 ## Running
+
+The simulation accepts the system Verilator or an explicitly selected binary
+through `--verilator` (or `VERILATOR`). Verilator 5.054 and newer use the
+pc386-specific lint controls for intentional FPGA power-on initializers and
+the imported OPL2; the controls are not passed to older tools that do not
+recognize `PROCASSINIT`. The runner does not select the toolchain lock itself.
 
 ```sh
 python3 scripts/build_pc386_firmware.py --download     # dev86, then both ROMs, checked against the lock

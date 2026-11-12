@@ -39,6 +39,8 @@ end
 
 function on_resume() F.reload() end
 
+function update() F.update() end
+
 function on_input(cmd)
   if cmd == "left" or cmd == "up" then
     focus = 1

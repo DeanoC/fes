@@ -1,0 +1,20 @@
+{
+  "command": [
+    "ffmpeg",
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-f",
+    "v4l2",
+    "-i",
+    "/dev/v4l/by-id/fes-ms2109-hil",
+    "-vf",
+    "fps=2",
+    "-frames:v",
+    "110",
+    "out/shared-lifecycle-package/capture/frame-%03d.png"
+  ],
+  "returncode": 0,
+  "seconds": 54.861,
+  "scope": "read-only shared HDMI fanout; producer and other viewers untouched"
+}

@@ -95,6 +95,34 @@ class AffectedTests(unittest.TestCase):
             with self.subTest(pattern=pattern):
                 self.assertTrue(list(root.glob(pattern)), pattern)
 
+    def test_package_contract_software_keeps_every_software_lane_without_rtl(self):
+        root = 'sources/mister-packages/'
+        for relative in ('Makefile', 'schema/core-bundle-v5.json',
+                         'scripts/core_bundle_v5_fixtures.py',
+                         'tests/test_core_bundle_v5_fixtures.py',
+                         'testdata/core-bundle-v5',
+                         'testdata/core-bundle-v5/manifests/valid-basic.toml',
+                         'testdata/core-bundle-v5/payloads/persona.rbf',
+                         'schema/core-bundle-v2.json',
+                         'scripts/core_bundle_fixtures.py'):
+            with self.subTest(path=relative):
+                result = plan([root + relative])
+                self.assertTrue(all(result['lanes'].values()))
+                self.assertEqual(result['cores'], [])
+        for relative in ('schema/core-bundle-v5.json-other',
+                         'schema/core-bundle-v50.json',
+                         'testdata/core-bundle-v5-other/fixture.rbf',
+                         'packages/abi/fes_computer.yaml',
+                         'packages/fabric/new.yaml'):
+            with self.subTest(unknown=relative):
+                self.assertEqual(set(plan([root + relative])['cores']), set(CORES))
+        mixed = plan([root + 'schema/core-bundle-v5.json',
+                      'sources/misteross/cores/fes-zx81/new.v'])
+        self.assertEqual(mixed['cores'], ['zx81'])
+        broad = plan([root + 'schema/core-bundle-v5.json',
+                      root + 'packages/abi/fes_computer.yaml'])
+        self.assertEqual(set(broad['cores']), set(CORES))
+
     def test_contracts_and_unknown_changes_close_over_every_lane(self):
         for path in ('sources/mister-packages', 'sources/mister-packages/packages/abi/new.yaml',
                      'unknown/new.bin'):
@@ -186,6 +214,7 @@ class AffectedTests(unittest.TestCase):
             ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'),
             ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.h'),
             ('FES', 'image/kernel/de25-dma/generated/fes_de25_scanout.h'),
+            ('libmister-runtime', 'src/native/generated/fes_de25_scanout.hpp'),
         })
         result = plan([definition])
         self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
@@ -338,7 +367,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-common/rtl/tv80/tv80_core.v': {'coleco', 'sms'},
             'cores/fes-coleco/rtl/coleco_machine.sv': {'coleco', 'sg1000', 'sms'},
             'cores/fes-coleco/generated/fes_simple_computer.vh': {'coleco', 'sg1000', 'sms'},
-            'cores/fes-common/rtl/fes_application_gp.v': {'application', 'coleco', 'menu', 'ramtest', 'riscv'},
+            'cores/fes-common/rtl/fes_application_gp.v': {'application', 'coleco', 'sg1000', 'menu', 'ramtest', 'riscv'},
             'cores/fes-common/rtl/fes_video_720p.v': {'pong', 'ramtest', 'riscv'},
             'cores/fes-common/rtl/fes_audio_i2s.v': {'application', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st',
                                                  'pc386', 'pcxt'},
@@ -422,6 +451,7 @@ class AffectedTests(unittest.TestCase):
             'scripts/build_pc386_firmware.py': {'pc386'},
             'scripts/build_pc386_freedos_image.py': {'pc386'},
             'scripts/build_fes_pc386_quartus.py': {'pc386'},
+            'scripts/yosys_netlist.py': {'pc386'},
             'cores/fes-common/sim/riscv/rv32_model.h': {'riscv'},
             'cores/fes-riscv/firmware/firmware.S': {'riscv'},
             'scripts/sim_fes_riscv.py': {'riscv'},
@@ -457,12 +487,29 @@ class AffectedTests(unittest.TestCase):
                 self.assertTrue(result['lanes']['parent'])
                 self.assertEqual(result['cores'], [])
 
+    def test_de25_local_producers_select_only_their_package_consumers(self):
+        cases = {
+            'boards/de25nano/producers/build_menu_package.py': {'menu', 'zx81'},
+            'boards/de25nano/producers/build_zx81_package.py': {'zx81'},
+            'boards/de25nano/producers/build_zx81_static_package.py': {'zx81'},
+            'boards/de25nano/producers/export_static_persona.py': {'zx81'},
+            'boards/de25nano/producers/review_audio_clocks.py': {'zx81'},
+            'boards/de25nano/package/core_package.py': {'menu', 'zx81'},
+            'boards/de25nano/package/export_core_package.py': {'menu', 'zx81'},
+        }
+        for path, consumers in cases.items():
+            with self.subTest(path=path):
+                result = plan(['sources/misteross/' + path])
+                self.assertEqual(set(result['cores']), consumers)
+                self.assertTrue(result['lanes']['fpga'])
+                self.assertTrue(result['lanes']['parent'])
+
     def test_i386_software_inputs_do_not_select_core_simulations(self):
         for path in ('cores/fes-common/sim/i386/bochs_oracle.cpp', 'cores/fes-common/sim/i386/divergences.toml',
                      'cores/fes-common/sim/i386/bochs/instrument.h', 'cores/fes-common/sim/i386/frontend_tb.cpp',
                      'cores/fes-common/sim/i386/spike/spike_ag.sv', 'cores/fes-common/sim/i386/lockstep_tb.cpp',
                      'cores/fes-common/rtl/i386/toolchain.lock',
-                     'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
+                     'scripts/audit_fes_i386_case.py', 'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
                      'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
                      'scripts/test_fes_i386_lockstep.py', 'scripts/test_fes_i386_latency.py',
                      'scripts/quartus_fes_i386.py',

@@ -1,6 +1,6 @@
 package require -exact qsys 20.1
 set_module_property NAME fes_de25_computer
-set_module_property VERSION 1.0
+set_module_property VERSION 1.1
 set_module_property DISPLAY_NAME "FES DE25 ZX81 keyboard and tape diagnostic"
 set_module_property GROUP "FES/Diagnostics"
 set_module_property AUTHOR "FES"
@@ -61,6 +61,7 @@ add_interface_port avs waitrequest waitrequest Output 1
 add_interface_port avs writeresponsevalid writeresponsevalid Output 1
 add_interface_port avs response response Output 2
 add_interface video conduit end
+add_interface_port video video_ready ready Input 1
 add_interface_port video video_rgb rgb Output 24
 add_interface_port video video_de de Output 1
 add_interface_port video video_hs hs Output 1

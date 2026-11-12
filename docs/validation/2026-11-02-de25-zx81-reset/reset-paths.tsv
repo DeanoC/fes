@@ -1,0 +1,25 @@
+corner	group	check	from	to	slack
+Slow fix4 100C Model	system_top	recovery	fes_top_reset_inst|sync_regs[1]	soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]	8.428
+Slow fix4 100C Model	system_top	removal	fes_top_reset_inst|sync_regs[1]	soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]	0.975
+Slow fix4 100C Model	system_peripheral	recovery	fes_top_reset_inst|sync_regs[1]	soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]	8.519
+Slow fix4 100C Model	system_peripheral	removal	fes_top_reset_inst|sync_regs[1]	soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]	0.884
+Slow fix4 100C Model	video_owner	recovery	soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out	soc_inst|subsys_periph|fes_computer|fes_computer|video|sys_release[0]	8.267
+Slow fix4 100C Model	video_owner	removal	soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out	soc_inst|subsys_periph|fes_computer|fes_computer|video|sys_release[0]	1.075
+Slow fix4 0C Model	system_top	recovery	fes_top_reset_inst|sync_regs[1]	soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]	8.294
+Slow fix4 0C Model	system_top	removal	fes_top_reset_inst|sync_regs[1]	soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]	1.053
+Slow fix4 0C Model	system_peripheral	recovery	fes_top_reset_inst|sync_regs[1]	soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]	8.335
+Slow fix4 0C Model	system_peripheral	removal	fes_top_reset_inst|sync_regs[1]	soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]	1.001
+Slow fix4 0C Model	video_owner	recovery	soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out	soc_inst|subsys_periph|fes_computer|fes_computer|video|sys_release[0]	8.064
+Slow fix4 0C Model	video_owner	removal	soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out	soc_inst|subsys_periph|fes_computer|fes_computer|video|sys_release[0]	1.207
+Slow fix4a 0C Model	system_top	recovery	fes_top_reset_inst|sync_regs[1]	soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]	8.279
+Slow fix4a 0C Model	system_top	removal	fes_top_reset_inst|sync_regs[1]	soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]	1.064
+Slow fix4a 0C Model	system_peripheral	recovery	fes_top_reset_inst|sync_regs[1]	soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]	8.335
+Slow fix4a 0C Model	system_peripheral	removal	fes_top_reset_inst|sync_regs[1]	soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]	1.003
+Slow fix4a 0C Model	video_owner	recovery	soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out	soc_inst|subsys_periph|fes_computer|fes_computer|video|sys_release[0]	8.073
+Slow fix4a 0C Model	video_owner	removal	soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out	soc_inst|subsys_periph|fes_computer|fes_computer|video|sys_release[0]	1.201
+Fast fix4 0C Model	system_top	recovery	fes_top_reset_inst|sync_regs[1]	soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]	8.985
+Fast fix4 0C Model	system_top	removal	fes_top_reset_inst|sync_regs[1]	soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]	0.598
+Fast fix4 0C Model	system_peripheral	recovery	fes_top_reset_inst|sync_regs[1]	soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]	9.056
+Fast fix4 0C Model	system_peripheral	removal	fes_top_reset_inst|sync_regs[1]	soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]	0.534
+Fast fix4 0C Model	video_owner	recovery	soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out	soc_inst|subsys_periph|fes_computer|fes_computer|video|sys_release[0]	8.892
+Fast fix4 0C Model	video_owner	removal	soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out	soc_inst|subsys_periph|fes_computer|fes_computer|video|sys_release[0]	0.655

@@ -1,0 +1,16 @@
+{
+  "source_revision": "c083e44e4b7d611c127b5f6ca3d2b71efc8bb4a1",
+  "command": [
+    "/usr/bin/python3",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-image-boot/preflight.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-qemu-preflight-c083e44e4",
+  "started_utc": "2026-11-01T23:58:36.660824+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 773670,
+  "state": "passed",
+  "elapsed_seconds": 49.4,
+  "heartbeat_utc": "2026-11-01T23:59:26.081911+00:00",
+  "returncode": 0
+}

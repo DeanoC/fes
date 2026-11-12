@@ -1,0 +1,7 @@
+{
+  "boot_id": "9191e320-2d97-41a2-8e28-735ab8695f7c",
+  "host": "192.168.10.69",
+  "binary_sha256": "b5db0fc187290073086714b94ccbdd6729011cd20c781e4e7730028f931d0032",
+  "actual_userspace_syscalls": "passed after ZX81 load, cleanup and software reboot",
+  "physical_dma": "not-run"
+}

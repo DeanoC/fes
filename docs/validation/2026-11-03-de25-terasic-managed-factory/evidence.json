@@ -1,0 +1,235 @@
+{
+  "format": 1,
+  "classification": "de25-terasic-reference-managed-factory-card-proof",
+  "recorded_utc": "2026-11-03T12:16:53.793616+00:00",
+  "producer_revision": "a95b51c493793b4af8bf4994e68b5d3907810a5a",
+  "following_test_only_revision": "40f2953b9ebc1d130fe6d110907e3728b8750992",
+  "native_managed_kit_acceptance": "not-run",
+  "vendor_reference": {
+    "archive": "DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+    "sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66",
+    "reviewed_raw_findings": {
+      "approved_asynchronous_inputs": 2,
+      "vendor_reference_output_findings": 30
+    },
+    "quartus_rule_waivers": 0,
+    "independent_pcb_timing_qualified": false
+  },
+  "kernel": {
+    "repository": "https://github.com/terasic/linux-socfpga.git",
+    "revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+    "release": "6.12.11-fes-de25-owner",
+    "Image": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b",
+    "owner_dtb": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7",
+    "scope": "Terasic baseline plus existing FES owner/DMA changes"
+  },
+  "menu": {
+    "state": "passed",
+    "producer_revision": "7c9e1d6d3a9e5a9c639f571ca112ccb771e397e7",
+    "build_id": "93eb139a58a2516b4776de5d4a08d208",
+    "package_id": "e489b4ee2e3817074ede4d478a0e265c57aedba1794dec8272a22906333b1e4a",
+    "rbf_sha256": "99e1d564d01734f47aeec965196df2cc60b04061d4c5f39a6e2cde454db74116",
+    "seconds": 509.12,
+    "reports": {
+      "generated-models.json": "ca96cfb7e47f1a0da1df42d7794196f59a9f33e96e91ec8a5c3e05b9d82909c2",
+      "fitted-result.json": "394cb4798ba7d51898f0f4cdc218f4cbd431b8c79275508d846ee7dc5ee884a4"
+    },
+    "hardware_access": "not-performed"
+  },
+  "models": [
+    {
+      "name": "board",
+      "cases": 13,
+      "status": "pass",
+      "scope": "selected-board-generated-reset-transport-composition-with-modeled-m20k-storage"
+    },
+    {
+      "name": "transport",
+      "cases": 10,
+      "status": "pass",
+      "scope": "generated-scanout-cdc-transport-simulation-with-modeled-m20k-storage"
+    },
+    {
+      "name": "startup",
+      "cases": 72,
+      "status": "pass",
+      "scope": "finite-generated-reset-startup-control-transport-with-modeled-m20k-storage"
+    }
+  ],
+  "fits": [
+    {
+      "label": "signoff",
+      "board_paths": 280,
+      "fifo_paths": 3096,
+      "minimum_slack_ns": 0.102,
+      "original_project_unchanged": true
+    },
+    {
+      "label": "repeat",
+      "board_paths": 280,
+      "fifo_paths": 3096,
+      "minimum_slack_ns": 0.102,
+      "original_project_unchanged": true
+    }
+  ],
+  "factory": {
+    "rootfs_sha256": "3b985b15dd6bbc1e945ae67dfc892e048719e684a20aea48e96bb5a4fec784aa",
+    "receipt_sha256": "642ef9cc6388d888d42f9b76df39eaa0a15e44dfe02a80e3023ff2635f55b3b8",
+    "verification": {
+      "base_contract": {
+        "architecture": "aarch64",
+        "base_contract": "fes-kit-base-v1-4d08af30f26132bab500672c0bd227576cdaf11e108617966690620b22f494a9",
+        "board": "de25-nano",
+        "interfaces": {
+          "maintenance": "fes-kit-maintenance-v1",
+          "runtime-protocol": "2",
+          "software-admission": "fes-kit-software-v1"
+        }
+      },
+      "board": "de25-nano",
+      "checked_tar_ext4_files": 37,
+      "classification": "managed-factory-candidate",
+      "hardware_acceptance": "not-run",
+      "normal_runtime_admission": "closed"
+    },
+    "image_passes": 1,
+    "image_boot_report_sha256": "d76d19e7c7dd364e2c31dfd2667349ef35160365d65dfbddd5b54f649a04ab24",
+    "image_boot_log_sha256": "95e4e64bd27f5695022eb5842a370224102de2dcce845cb4077d52383666d043",
+    "image_boot_observation_seconds": 45,
+    "runtime_sha256": "430f19e31df0d69d706bcd66899118f267f9840170b3a3cc9d31e9a699a35a1d"
+  },
+  "runtime_normalization": {
+    "comparison_state": "passed",
+    "byte_identities": {
+      "selected": {
+        "size": 1646344,
+        "sha256": "1f16e5aa829543c7ca1c601d2d75a027e3d436767aedbdb2ab549a6936110634"
+      },
+      "normalized": {
+        "size": 1646240,
+        "sha256": "f6690788eb6c1472e98b4d206aac07b842ec78fc037338ce03109fe6a0891112"
+      },
+      "installed": {
+        "size": 1646240,
+        "sha256": "f6690788eb6c1472e98b4d206aac07b842ec78fc037338ce03109fe6a0891112"
+      }
+    },
+    "policy": "Existing authenticated compiler strip --remove-section=.comment --remove-section=.note before artifact sealing. Image verifier unchanged."
+  },
+  "card": {
+    "size": 2182086656,
+    "sha256": "9da800832309e2359357bca56d9eaf317775b8747dfefe2919b54c165a2b5fbc",
+    "assembly_sha256": [
+      "9da800832309e2359357bca56d9eaf317775b8747dfefe2919b54c165a2b5fbc",
+      "9da800832309e2359357bca56d9eaf317775b8747dfefe2919b54c165a2b5fbc"
+    ],
+    "checks": {
+      "structural": "pass",
+      "two_pass_reproducibility": "pass"
+    },
+    "layout_id": "de25-nano-appliance-2g-v1",
+    "hardware_acceptance": "not-run",
+    "privacy": "Provisioned card/configs contain private credentials and are retained locally, never included in this evidence."
+  },
+  "checks": {
+    "catalog-target-affected": {
+      "source_revision": "5b63b27b52c587a45a26327243a2c25b4239f6e1",
+      "state": "passed",
+      "elapsed_seconds": 2166.6,
+      "returncode": 0,
+      "log_sha256": "a483b5bb734d4e3d31406236327e5568cef273d2bcca5d22296713378a9d1989",
+      "known_failed_tests": []
+    },
+    "source-helper-affected": {
+      "source_revision": "127c2bf4e360eb1173ece94e90fda7eec7b14f38",
+      "state": "passed",
+      "elapsed_seconds": 1825.5,
+      "returncode": 0,
+      "log_sha256": "e492807d38db96bf59f4f1c61ea74bb4a71050cda15d55058f3039229e5ea3d7",
+      "known_failed_tests": []
+    },
+    "source-lock-affected": {
+      "source_revision": "3f3a7567becfb3bc327e18764d9bb44aae075f9a",
+      "state": "failed",
+      "elapsed_seconds": 1825.9,
+      "returncode": 2,
+      "log_sha256": "af9650597853fd7847fcbde1cb5f9088bf449af2e889cb1779d40afcb4240912",
+      "known_failed_tests": [
+        "test_image_routes_to_existing_factory_producer_and_shared_lease (test_image_artifacts.DE25ImageCommandTests.test_image_routes_to_existing_factory_producer_and_shared_lease)"
+      ],
+      "resolution": "Test-only40f replaces obsolete single-load expectation with exact before/inside-lease admission and producer ordering;32 artifact tests and routine affected checks pass."
+    },
+    "source-strip-affected": {
+      "source_revision": "a95b51c493793b4af8bf4994e68b5d3907810a5a",
+      "state": "failed",
+      "elapsed_seconds": 1786.2,
+      "returncode": 2,
+      "log_sha256": "25d32decfa0f7f08b11aeb326f84b7c3f884bfe2fe96addbc24686e23a7204ba",
+      "known_failed_tests": [
+        "test_image_routes_to_existing_factory_producer_and_shared_lease (test_image_artifacts.DE25ImageCommandTests.test_image_routes_to_existing_factory_producer_and_shared_lease)"
+      ],
+      "resolution": "Test-only40f replaces obsolete single-load expectation with exact before/inside-lease admission and producer ordering;32 artifact tests and routine affected checks pass."
+    },
+    "image-admission-fixture-affected": {
+      "source_revision": "40f2953b9ebc1d130fe6d110907e3728b8750992",
+      "state": "passed",
+      "elapsed_seconds": 152.6,
+      "returncode": 0,
+      "log_sha256": "b07cf708b652a8b5bd052e2a38ed67a89118dc94a9e6794f13883c5919e82de8",
+      "known_failed_tests": []
+    },
+    "normal-source-build-v6": {
+      "source_revision": "a95b51c493793b4af8bf4994e68b5d3907810a5a",
+      "state": "passed",
+      "elapsed_seconds": 453.6,
+      "returncode": 0,
+      "log_sha256": "ed96e3120dc2af0af9751c0c5660c612354d6a47e83e34cad7c3989becfaa2d3",
+      "known_failed_tests": []
+    },
+    "managed-release": {
+      "source_revision": "a95b51c493793b4af8bf4994e68b5d3907810a5a",
+      "state": "passed",
+      "elapsed_seconds": 9.9,
+      "returncode": 0,
+      "log_sha256": "6a2c84e9e9093f453f5ce98af01920116c7508e349552fca6174a7bcf147a50c",
+      "known_failed_tests": []
+    },
+    "managed-bootstrap": {
+      "source_revision": "a95b51c493793b4af8bf4994e68b5d3907810a5a",
+      "state": "passed",
+      "elapsed_seconds": 12.7,
+      "returncode": 0,
+      "log_sha256": "bdc6574748d4cbb04868152309a87777ca178125cde33b4633f8bdc2bd706ea7",
+      "known_failed_tests": []
+    },
+    "managed-card": {
+      "source_revision": "a95b51c493793b4af8bf4994e68b5d3907810a5a",
+      "state": "passed",
+      "elapsed_seconds": 49.3,
+      "returncode": 0,
+      "log_sha256": "6c2dcc9e647a23673e952789c50aab6af6850312d60f2e925e5b95a2d45d3adb",
+      "known_failed_tests": []
+    }
+  },
+  "remaining": [
+    "physical managed boot and target/runtime identity",
+    "captured MENU from the managed runtime",
+    "normal catalog ZX81 keyboard/media/BASIC load-run-reload-persistence",
+    "stop to MENU and relaunch",
+    "managed software activation and baseline restore",
+    "native update/recovery and lease/idle acceptance"
+  ],
+  "runtime_loader": {
+    "source_revision": "a95b51c493793b4af8bf4994e68b5d3907810a5a",
+    "runtime_sha256": "430f19e31df0d69d706bcd66899118f267f9840170b3a3cc9d31e9a699a35a1d",
+    "cpu_models": [
+      "cortex-a53",
+      "cortex-a76"
+    ],
+    "returncodes": [
+      2,
+      2
+    ],
+    "scope": "Actual factory runtime with actual factory loader/libraries reaches its intentional invalid-argument guard before hardware construction; not a daemon, board or FPGA test."
+  }
+}

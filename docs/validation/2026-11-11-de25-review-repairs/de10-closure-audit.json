@@ -1,0 +1,459 @@
+{
+  "candidate": "cdb453111dc23389b5e028f592ae7c61e93059e8",
+  "current_main": "bb5f1bfc14026b55113202fbc88b730241da9ee1",
+  "method": "actual repository source_input_closure and per-producer declared roots; explicit PINNED_INPUTS for legacy Quartus producers",
+  "profiles": {
+    "build_fes_apple2_oss": {
+      "sources": {
+        "main_count": 51,
+        "candidate_count": 51,
+        "main_sha256": "2e73303fe8e2b75e9a20688bfd419042640f49fc4aee9ee53b45468a1ed7c08f",
+        "candidate_sha256": "2e73303fe8e2b75e9a20688bfd419042640f49fc4aee9ee53b45468a1ed7c08f",
+        "equal": true,
+        "changed_paths": []
+      }
+    },
+    "build_fes_atari_st_oss": {
+      "sources": {
+        "main_count": 71,
+        "candidate_count": 71,
+        "main_sha256": "415dbf5ee20feab5988dfb625bb93577bfff5cf798cfdfaaa6ac1521c4f256da",
+        "candidate_sha256": "415dbf5ee20feab5988dfb625bb93577bfff5cf798cfdfaaa6ac1521c4f256da",
+        "equal": true,
+        "changed_paths": []
+      }
+    },
+    "build_fes_c64_oss": {
+      "sources": {
+        "main_count": 103,
+        "candidate_count": 103,
+        "main_sha256": "e8128219138354b55103ccaf072a6d9c4348d52f8d933c788aa15a7f42cbca95",
+        "candidate_sha256": "e8128219138354b55103ccaf072a6d9c4348d52f8d933c788aa15a7f42cbca95",
+        "equal": true,
+        "changed_paths": []
+      }
+    },
+    "build_fes_coleco_socket_v2": {
+      "sources": {
+        "main_count": 81,
+        "candidate_count": 81,
+        "main_sha256": "b48ecc0f33c080e6aefbf8c0667fb09be545524feedd8702e049b2e8c0d9d36f",
+        "candidate_sha256": "b48ecc0f33c080e6aefbf8c0667fb09be545524feedd8702e049b2e8c0d9d36f",
+        "equal": true,
+        "changed_paths": []
+      }
+    },
+    "build_fes_menu_package": {
+      "sources": {
+        "main_count": 45,
+        "candidate_count": 45,
+        "main_sha256": "3762e4be2c3787ef75f19d67017328307fe42826e118467d69e72e8d477e8847",
+        "candidate_sha256": "3762e4be2c3787ef75f19d67017328307fe42826e118467d69e72e8d477e8847",
+        "equal": true,
+        "changed_paths": []
+      }
+    },
+    "build_fes_pc386_quartus": {
+      "pinned_sources": {
+        "main_count": 115,
+        "candidate_count": 115,
+        "main_sha256": "68dde2e0c6769fa3eba3a083a0f0ddb103c718ee836230b8e7383932cd400a4c",
+        "candidate_sha256": "68dde2e0c6769fa3eba3a083a0f0ddb103c718ee836230b8e7383932cd400a4c",
+        "equal": true,
+        "changed_paths": []
+      }
+    },
+    "build_fes_pcxt_quartus": {
+      "sources": {
+        "main_count": 176,
+        "candidate_count": 176,
+        "main_sha256": "6e13e073527ac90b0f4a93c3e45ba2289441a00041b505d0d5940f5510038f41",
+        "candidate_sha256": "6e13e073527ac90b0f4a93c3e45ba2289441a00041b505d0d5940f5510038f41",
+        "equal": true,
+        "changed_paths": []
+      }
+    },
+    "build_fes_pong": {
+      "sources": {
+        "main_count": 28,
+        "candidate_count": 28,
+        "main_sha256": "ad5e1b63eb75f55457c8281874d02ec8eeea44edaf05acd3c61a63c36c5261a3",
+        "candidate_sha256": "ad5e1b63eb75f55457c8281874d02ec8eeea44edaf05acd3c61a63c36c5261a3",
+        "equal": true,
+        "changed_paths": []
+      }
+    },
+    "build_fes_ramtest": {
+      "sources": {
+        "main_count": 44,
+        "candidate_count": 44,
+        "main_sha256": "cc0f269efd0c887c3b3e782e3e12fea19b56323868f33913672e5bebfd4bde0a",
+        "candidate_sha256": "cc0f269efd0c887c3b3e782e3e12fea19b56323868f33913672e5bebfd4bde0a",
+        "equal": true,
+        "changed_paths": []
+      }
+    },
+    "build_fes_riscv": {
+      "sources": {
+        "main_count": 418,
+        "candidate_count": 611,
+        "main_sha256": "72bdc05a8e44a7dcd13ed449a46746fbd6193c9bb6305eb72a9d8b2e7cf00359",
+        "candidate_sha256": "cc59e2671fa69ba288d6297f2b1a15f5d995d6f5a6b1acc46134bbe103f12f34",
+        "equal": false,
+        "changed_paths": [
+          "boards/de25nano/build.py",
+          "boards/de25nano/combined/build.py",
+          "boards/de25nano/combined/sim.py",
+          "boards/de25nano/display/build.py",
+          "boards/de25nano/display/sim.py",
+          "boards/de25nano/display/sim_models.v",
+          "boards/de25nano/display/test_build.py",
+          "boards/de25nano/display/top.v",
+          "boards/de25nano/hps/build.py",
+          "boards/de25nano/hps/test_build.py",
+          "boards/de25nano/link-proof/Makefile",
+          "boards/de25nano/link-proof/build.py",
+          "boards/de25nano/link-proof/build_test.py",
+          "boards/de25nano/link-proof/build_timing.tcl",
+          "boards/de25nano/link-proof/clocks.sdc",
+          "boards/de25nano/link-proof/control_proof.py",
+          "boards/de25nano/link-proof/cosim/client.cpp",
+          "boards/de25nano/link-proof/cosim/server.cpp",
+          "boards/de25nano/link-proof/fpga/fes_de25_pr_control_hw.tcl",
+          "boards/de25nano/link-proof/fpga/persona_a.hex",
+          "boards/de25nano/link-proof/fpga/persona_b.hex",
+          "boards/de25nano/link-proof/fpga/personas.v",
+          "boards/de25nano/link-proof/fpga/shell.v",
+          "boards/de25nano/link-proof/fpga/sim_top.v",
+          "boards/de25nano/link-proof/fpga/tb.cpp",
+          "boards/de25nano/link-proof/generated/fes_de25_pr_control.hpp",
+          "boards/de25nano/link-proof/generated/fes_de25_pr_control.vh",
+          "boards/de25nano/link-proof/proof.py",
+          "boards/de25nano/link-proof/target/go.mod",
+          "boards/de25nano/link-proof/target/main.go",
+          "boards/de25nano/link-proof/target/main_test.go",
+          "boards/de25nano/link-proof/target/manifest.go",
+          "boards/de25nano/link-proof/zx81-computer/client.cpp",
+          "boards/de25nano/link-proof/zx81-computer/profile.py",
+          "boards/de25nano/link-proof/zx81-computer/proof.py",
+          "boards/de25nano/link-proof/zx81-computer/server.cpp",
+          "boards/de25nano/link-proof/zx81-computer/sim.hpp",
+          "boards/de25nano/link-proof/zx81-computer/sim_top.v",
+          "boards/de25nano/link-proof/zx81-computer/timing.tcl",
+          "boards/de25nano/link-proof/zx81-computer/wire.hpp",
+          "boards/de25nano/link-proof/zx81-ram/audit.py",
+          "boards/de25nano/link-proof/zx81-ram/personas.v",
+          "boards/de25nano/link-proof/zx81-ram/profile.py",
+          "boards/de25nano/link-proof/zx81-ram/profile_test.py",
+          "boards/de25nano/link-proof/zx81-ram/sim.py",
+          "boards/de25nano/link-proof/zx81-ram/sim_top.v",
+          "boards/de25nano/link-proof/zx81-ram/static.v",
+          "boards/de25nano/link-proof/zx81-ram/tb.cpp",
+          "boards/de25nano/link-proof/zx81-ram/timing.tcl",
+          "boards/de25nano/link-proof/zx81-standard/bus.v",
+          "boards/de25nano/link-proof/zx81-standard/pcm-clocks.sdc",
+          "boards/de25nano/link-proof/zx81-standard/pcm-timing.tcl",
+          "boards/de25nano/link-proof/zx81-standard/profile.py",
+          "boards/de25nano/link-proof/zx81-standard/review-audio.tcl",
+          "boards/de25nano/link-proof/zx81-standard/review-reset-direct.tcl",
+          "boards/de25nano/link-proof/zx81-standard/review-reset-paths.tcl",
+          "boards/de25nano/link-proof/zx81-standard/reviewed-inputs.json",
+          "boards/de25nano/link-proof/zx81-standard/reviewed-topology.json",
+          "boards/de25nano/link-proof/zx81-standard/static_reference.py",
+          "boards/de25nano/link-proof/zx81-standard/timing.tcl",
+          "boards/de25nano/package/__init__.py",
+          "boards/de25nano/package/core_package.py",
+          "boards/de25nano/package/export_core_package.py",
+          "boards/de25nano/producers/__init__.py",
+          "boards/de25nano/producers/build_menu_package.py",
+          "boards/de25nano/producers/build_zx81_package.py",
+          "boards/de25nano/producers/build_zx81_static_package.py",
+          "boards/de25nano/producers/export_static_persona.py",
+          "boards/de25nano/producers/review_audio_clocks.py",
+          "boards/de25nano/quartus.lock",
+          "boards/de25nano/ramtest/Makefile",
+          "boards/de25nano/ramtest/build.py",
+          "boards/de25nano/ramtest/clocks.sdc",
+          "boards/de25nano/ramtest/emif-b.tcl",
+          "boards/de25nano/ramtest/endpoint.v",
+          "boards/de25nano/ramtest/endpoint_tb.cpp",
+          "boards/de25nano/ramtest/fes_de25_ramtest_hw.tcl",
+          "boards/de25nano/ramtest/fes_de25_sdram_ramtest_hw.tcl",
+          "boards/de25nano/ramtest/generated/fes_de25_ramtest.hpp",
+          "boards/de25nano/ramtest/generated/fes_de25_ramtest.vh",
+          "boards/de25nano/ramtest/integrate.tcl",
+          "boards/de25nano/ramtest/interconnect_sim.py",
+          "boards/de25nano/ramtest/interconnect_tb.cpp",
+          "boards/de25nano/ramtest/jtag.tcl",
+          "boards/de25nano/ramtest/scan.v",
+          "boards/de25nano/ramtest/scan_tb.cpp",
+          "boards/de25nano/ramtest/sdram.v",
+          "boards/de25nano/ramtest/sdram_endpoint.v",
+          "boards/de25nano/ramtest/sdram_tb.cpp",
+          "boards/de25nano/ramtest/sim.py",
+          "boards/de25nano/ramtest/test_build.py",
+          "boards/de25nano/ramtest/test_interconnect.py",
+          "boards/de25nano/ramtest/test_jtag.py",
+          "boards/de25nano/scanout/Makefile",
+          "boards/de25nano/scanout/async_inputs.py",
+          "boards/de25nano/scanout/async_inputs.tcl",
+          "boards/de25nano/scanout/audio_clocks.tcl",
+          "boards/de25nano/scanout/audio_reference.py",
+          "boards/de25nano/scanout/board_composition.py",
+          "boards/de25nano/scanout/board_interconnect_tb.cpp",
+          "boards/de25nano/scanout/board_sim_models.v",
+          "boards/de25nano/scanout/board_tb.cpp",
+          "boards/de25nano/scanout/build.py",
+          "boards/de25nano/scanout/clocks.sdc",
+          "boards/de25nano/scanout/endpoint_tb.cpp",
+          "boards/de25nano/scanout/fes_de25_scanout.v",
+          "boards/de25nano/scanout/fes_de25_scanout_board.v",
+          "boards/de25nano/scanout/fes_de25_scanout_guard.v",
+          "boards/de25nano/scanout/fes_de25_scanout_guard_hw.tcl",
+          "boards/de25nano/scanout/fes_de25_scanout_hw.tcl",
+          "boards/de25nano/scanout/fes_de25_session_display.v",
+          "boards/de25nano/scanout/frame_ack_tb.cpp",
+          "boards/de25nano/scanout/generated/fes_de25_scanout.h",
+          "boards/de25nano/scanout/generated/fes_de25_scanout.vh",
+          "boards/de25nano/scanout/guard_tb.cpp",
+          "boards/de25nano/scanout/hdmi_inputs.py",
+          "boards/de25nano/scanout/hdmi_io_sim.py",
+          "boards/de25nano/scanout/hdmi_io_tb.cpp",
+          "boards/de25nano/scanout/hdmi_io_tb.v",
+          "boards/de25nano/scanout/integrate.tcl",
+          "boards/de25nano/scanout/interconnect_sim.py",
+          "boards/de25nano/scanout/interconnect_tb.cpp",
+          "boards/de25nano/scanout/linux_dma.py",
+          "boards/de25nano/scanout/session_tb.cpp",
+          "boards/de25nano/scanout/shared_resets.py",
+          "boards/de25nano/scanout/sim.py",
+          "boards/de25nano/scanout/startup.py",
+          "boards/de25nano/scanout/startup_tb.cpp",
+          "boards/de25nano/scanout/test_build.py",
+          "boards/de25nano/scanout/vendor_reference.py",
+          "boards/de25nano/shared-rtl/fes_computer_mailbox.v",
+          "boards/de25nano/shared-rtl/fes_display_plane.v",
+          "boards/de25nano/shared-rtl/fes_menu_control.v",
+          "boards/de25nano/shared-rtl/fes_menu_ddr.v",
+          "boards/de25nano/shared-rtl/fes_menu_endpoint.v",
+          "boards/de25nano/shared-rtl/fes_menu_reader.v",
+          "boards/de25nano/shared-rtl/fes_menu_top.v",
+          "boards/de25nano/shared-rtl/fes_menu_video.v",
+          "boards/de25nano/shared-rtl/fes_zx81_core.v",
+          "boards/de25nano/shared-rtl/zx81_machine.sv",
+          "boards/de25nano/shared-rtl/zx81_machine_clock.v",
+          "boards/de25nano/shared-rtl/zx81_top.v",
+          "boards/de25nano/sim/computer_memory_tb.cpp",
+          "boards/de25nano/sim/computer_memory_top.v",
+          "boards/de25nano/sim/menu.py",
+          "boards/de25nano/sim/reader_credit_tb.cpp",
+          "boards/de25nano/sim/reader_tb.cpp",
+          "boards/de25nano/sim/session_harness.v",
+          "boards/de25nano/sim/session_tb.cpp",
+          "boards/de25nano/sim/zx81_session.py",
+          "boards/de25nano/test_build.py",
+          "boards/de25nano/zx81-hps/Makefile",
+          "boards/de25nano/zx81-hps/audio_clocks_tb.cpp",
+          "boards/de25nano/zx81-hps/board.v",
+          "boards/de25nano/zx81-hps/board_tb.cpp",
+          "boards/de25nano/zx81-hps/build.py",
+          "boards/de25nano/zx81-hps/client.py",
+          "boards/de25nano/zx81-hps/client_proof.py",
+          "boards/de25nano/zx81-hps/clocks.sdc",
+          "boards/de25nano/zx81-hps/computer_sim.hpp",
+          "boards/de25nano/zx81-hps/computer_tb.cpp",
+          "boards/de25nano/zx81-hps/cosim/basic.hpp",
+          "boards/de25nano/zx81-hps/cosim/basic_observer.hpp",
+          "boards/de25nano/zx81-hps/cosim/client.cpp",
+          "boards/de25nano/zx81-hps/cosim/server.cpp",
+          "boards/de25nano/zx81-hps/cosim/wire.hpp",
+          "boards/de25nano/zx81-hps/endpoint_tb.cpp",
+          "boards/de25nano/zx81-hps/fes_de25_audio.v",
+          "boards/de25nano/zx81-hps/fes_de25_computer.v",
+          "boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl",
+          "boards/de25nano/zx81-hps/fes_de25_zx81_standard.v",
+          "boards/de25nano/zx81-hps/fes_de25_zx81_standard_hw.tcl",
+          "boards/de25nano/zx81-hps/generated/fes_computer.vh",
+          "boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp",
+          "boards/de25nano/zx81-hps/generated/fes_de25_computer.vh",
+          "boards/de25nano/zx81-hps/integrate.tcl",
+          "boards/de25nano/zx81-hps/managed_bram.py",
+          "boards/de25nano/zx81-hps/sim.py",
+          "boards/de25nano/zx81-hps/standard-clocks.sdc",
+          "boards/de25nano/zx81-hps/standard_expansion_harness.v",
+          "boards/de25nano/zx81-hps/standard_expansion_sim.py",
+          "boards/de25nano/zx81-hps/standard_expansion_tb.cpp",
+          "boards/de25nano/zx81-hps/standard_session_harness.v",
+          "boards/de25nano/zx81-hps/tape_store.v",
+          "boards/de25nano/zx81-hps/tape_store_tb.sv",
+          "boards/de25nano/zx81-hps/test_audio_clocks.py",
+          "boards/de25nano/zx81-hps/test_build.py",
+          "boards/de25nano/zx81-hps/test_client.py",
+          "boards/de25nano/zx81-hps/test_client_proof.py",
+          "boards/de25nano/zx81-hps/test_tape_store.py",
+          "boards/de25nano/zx81-hps/video.v",
+          "boards/de25nano/zx81-hps/video_sim.py",
+          "boards/de25nano/zx81-hps/video_tb.cpp",
+          "boards/de25nano/zx81/Makefile",
+          "boards/de25nano/zx81/board_tb.cpp",
+          "boards/de25nano/zx81/build.py",
+          "boards/de25nano/zx81/clocks.sdc",
+          "boards/de25nano/zx81/firmware.py",
+          "boards/de25nano/zx81/keyboard.v",
+          "boards/de25nano/zx81/sim.py",
+          "boards/de25nano/zx81/sim_models.v",
+          "boards/de25nano/zx81/test_build.py",
+          "boards/de25nano/zx81/test_firmware.py",
+          "boards/de25nano/zx81/top.v"
+        ]
+      },
+      "pinned_sources": {
+        "main_count": 28,
+        "candidate_count": 28,
+        "main_sha256": "0df6b3b8ad8685ab6be6368d3bed059da3d7153e311450324a4e854ad9068d7c",
+        "candidate_sha256": "0df6b3b8ad8685ab6be6368d3bed059da3d7153e311450324a4e854ad9068d7c",
+        "equal": true,
+        "changed_paths": []
+      }
+    },
+    "build_fes_sg1000_oss": {
+      "sources": {
+        "main_count": 73,
+        "candidate_count": 73,
+        "main_sha256": "f52b7a350e9dd1b31835f1de659349dbbc3605152c4a068d769d8eaae1e59e8c",
+        "candidate_sha256": "f52b7a350e9dd1b31835f1de659349dbbc3605152c4a068d769d8eaae1e59e8c",
+        "equal": true,
+        "changed_paths": []
+      }
+    },
+    "build_fes_sms_oss": {
+      "sources": {
+        "main_count": 76,
+        "candidate_count": 76,
+        "main_sha256": "a934adda7fd62ef53a9b143b7302f33a542348e06dbe6ea6a2404b93f7f1ea0e",
+        "candidate_sha256": "a934adda7fd62ef53a9b143b7302f33a542348e06dbe6ea6a2404b93f7f1ea0e",
+        "equal": true,
+        "changed_paths": []
+      }
+    },
+    "build_fes_spectrum_oss": {
+      "sources": {
+        "main_count": 64,
+        "candidate_count": 64,
+        "main_sha256": "a773ab024ee7b7602d0c5102570429573b4ad803ee51e2aaacda4c587fed2ff2",
+        "candidate_sha256": "a773ab024ee7b7602d0c5102570429573b4ad803ee51e2aaacda4c587fed2ff2",
+        "equal": true,
+        "changed_paths": []
+      }
+    },
+    "build_fes_zx81": {
+      "pinned_sources": {
+        "main_count": 38,
+        "candidate_count": 38,
+        "main_sha256": "330ab29aac632fccfd3408d08e8cc6404e6a033973a0dcccbfbdcd3568285162",
+        "candidate_sha256": "330ab29aac632fccfd3408d08e8cc6404e6a033973a0dcccbfbdcd3568285162",
+        "equal": true,
+        "changed_paths": []
+      }
+    },
+    "build_fes_zx81_oss": {
+      "sources": {
+        "main_count": 70,
+        "candidate_count": 70,
+        "main_sha256": "294ab5a54d8273a886ea95dc12d61e09200ecca9cf0687d661e49d40e5263fb9",
+        "candidate_sha256": "294ab5a54d8273a886ea95dc12d61e09200ecca9cf0687d661e49d40e5263fb9",
+        "equal": true,
+        "changed_paths": []
+      }
+    }
+  },
+  "recipes": [
+    {
+      "core_id": "fes.menu",
+      "producer": "build_fes_menu_package"
+    },
+    {
+      "core_id": "fes.pong",
+      "producer": "build_fes_pong"
+    },
+    {
+      "core_id": "fes.zx81",
+      "producer": "build_fes_zx81_oss"
+    },
+    {
+      "core_id": "fes.zx80",
+      "producer": "build_fes_zx81_oss"
+    },
+    {
+      "core_id": "fes.ts1000",
+      "producer": "build_fes_zx81_oss"
+    },
+    {
+      "core_id": "fes.ts1500",
+      "producer": "build_fes_zx81_oss"
+    },
+    {
+      "core_id": "fes.coleco",
+      "producer": "build_fes_coleco_socket_v2"
+    },
+    {
+      "core_id": "fes.sms",
+      "producer": "build_fes_sms_oss"
+    },
+    {
+      "core_id": "fes.sg1000",
+      "producer": "build_fes_sg1000_oss"
+    },
+    {
+      "core_id": "fes.apple2",
+      "producer": "build_fes_apple2_oss"
+    },
+    {
+      "core_id": "fes.c64",
+      "producer": "build_fes_c64_oss"
+    },
+    {
+      "core_id": "fes.spectrum",
+      "producer": "build_fes_spectrum_oss"
+    },
+    {
+      "core_id": "fes.spectrum128",
+      "producer": "build_fes_spectrum_oss"
+    },
+    {
+      "core_id": "fes.spectrum-plus3",
+      "producer": "build_fes_spectrum_oss"
+    },
+    {
+      "core_id": "fes.pentagon",
+      "producer": "build_fes_spectrum_oss"
+    },
+    {
+      "core_id": "fes.riscv",
+      "producer": "build_fes_riscv"
+    },
+    {
+      "core_id": "fes.pcxt",
+      "producer": "build_fes_pcxt_quartus"
+    },
+    {
+      "core_id": "fes.pcxt-dos",
+      "producer": "build_fes_pcxt_quartus"
+    },
+    {
+      "core_id": "fes.ramtest",
+      "producer": "build_fes_ramtest"
+    },
+    {
+      "core_id": "fes.atari-st",
+      "producer": "build_fes_atari_st_oss"
+    }
+  ],
+  "all_11_audited_and_pcxt_custom_maps_equal": true,
+  "legacy_pc386_and_quartus_zx81_pins_equal": true,
+  "riscv_pinned_28_equal": true,
+  "riscv_broad_board_source_identity_changes": true,
+  "full_functional_BUILD_IDs_computed": false,
+  "full_ID_limit": "Complete IDs include authenticated tool/execution/recipe inputs; this audit proves source maps, not synthesis, timing, RBF equality or actual numeric BUILD_IDs. The RISC-V broad boards closure changes as recorded, never called unchanged.",
+  "only_shared_cores_scripts_diff": "cores/fes-coleco/sim/audio_output_tb.cpp (test-only outside producer roots)"
+}

@@ -52,8 +52,10 @@ var hex32 = regexp.MustCompile(`^[0-9a-f]{32}$`)
 var hex40 = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 // Manifest binds one separately built cart to one sealed frozen shell. The
-// payload is the placed cart's complete RBF, never an unbounded patch recipe.
+// format1 payload is a complete placed cart RBF; format2 carries an opaque
+// vendor partial image. Neither is an unbounded patch recipe.
 type Manifest struct {
+	Partial        *StaticPersona `json:"partial,omitempty"`
 	BoundaryPatch  *BoundaryPatch `json:"boundary_patch,omitempty"`
 	CartSHA256     string         `json:"cart_sha256"`
 	CartSize       int64          `json:"cart_size"`
@@ -88,6 +90,12 @@ type CRAMPatchBit struct {
 func hash(data []byte) string { sum := sha256.Sum256(data); return hex.EncodeToString(sum[:]) }
 
 func (m Manifest) validate() error {
+	if m.Format == 2 {
+		return m.validateStaticPersona()
+	}
+	if m.Partial != nil {
+		return errors.New("partial persona metadata requires expansion format 2")
+	}
 	if m.Format != 1 || m.Device != Device || m.SlotMinor != 0 ||
 		!(supportedSocketVersion(m.Slot, m.Map, m.SlotMajor) || supportedVideoPart(m)) {
 		return errors.New("unsupported expansion target, socket or version")
@@ -150,19 +158,23 @@ func (a Asset) Validate() error {
 	if int64(len(a.Cart)) != a.Manifest.CartSize || hash(a.Cart) != a.Manifest.CartSHA256 {
 		return errors.New("expansion payload does not match manifest")
 	}
-	if a.ID != hash(append([]byte("fes-expansion-v1\x00"), canonical...)) {
+	if a.ID != assetIdentity(a.Manifest.Format, canonical) {
 		return errors.New("expansion ID does not match manifest")
 	}
 	return nil
 }
 
 func NewAsset(manifest Manifest, cart []byte) (Asset, error) {
+	if manifest.Partial != nil {
+		owned := *manifest.Partial
+		manifest.Partial = &owned
+	}
 	canonical, err := manifest.canonical()
 	if err != nil {
 		return Asset{}, err
 	}
 	result := Asset{Manifest: manifest, ManifestBytes: canonical, Cart: bytes.Clone(cart),
-		ID: hash(append([]byte("fes-expansion-v1\x00"), canonical...))}
+		ID: assetIdentity(manifest.Format, canonical)}
 	return result, result.Validate()
 }
 
@@ -285,6 +297,9 @@ func CompositionID(packageID, expansionID, payloadSHA256 string) (string, error)
 // Admit rejects incompatible or changed inputs without running the linker.
 // Multi-socket cards are admitted with AdmitSlots.
 func Admit(shell Shell, asset Asset) error {
+	if asset.Manifest.Format != 1 {
+		return errors.New("partial persona requires static base/persona composition")
+	}
 	if err := asset.Validate(); err != nil {
 		return err
 	}

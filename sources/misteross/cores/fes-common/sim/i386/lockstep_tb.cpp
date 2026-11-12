@@ -84,9 +84,11 @@
 //           is. What is not built stops the RTL and ends the run, with its
 //           reason (trace_unbuilt); the oracle's step must show the like
 //           (below).
-//   unbuilt encodings this build does not execute, one per line on stdin as
-//           hex bytes: each must stop the RTL with FAULT_UNIMPLEMENTED before
-//           anything retires. The RTL runs alone; the oracle is not stepped.
+//   unbuilt the encodings outside SCOPE, one per line on stdin as hex bytes
+//           and a kind (run_unbuilt): those the 386 rejects must raise #UD
+//           in lockstep with the oracle; those it defines but this build
+//           does not execute must stop the RTL with FAULT_UNIMPLEMENTED
+//           before anything retires, the RTL alone.
 //   reset-store a store waiting in WB must not write memory on a reset edge.
 //   memory    DMA and FLUSH against the caches and the write buffer
 //             (run_memory_cases).
@@ -395,6 +397,7 @@ public:
     uint64_t last_mem_wait = 0;      // the cycle of the last memory wait
     uint64_t last_fe_wait = 0;       // the last cycle D had no instruction from the front end
     std::set<uint32_t> step_writes;  // bytes written since the last next()
+    std::map<uint32_t, uint8_t> step_first_write_values;  // first value written to each byte this step
     std::set<uint32_t> written;      // bytes either side wrote since the run began, to clear after it
     uint64_t io_unstable = 0;        // I/O requests whose port, size or data changed before their ack
     // Self-modifying code: the bytes a retired store wrote into the blocks
@@ -427,9 +430,14 @@ public:
         window = on;
     }
     bool window = false;
+    // TR4-TR7 as the RTL keeps them (#1730), which Bochs at CPU level 3 has
+    // not: what MOV TRn writes, read back by MOV r32, TRn (lockstep's
+    // tr_rule). Reset clears them, as it clears the RTL's.
+    std::array<uint32_t, 4> trn{};
 
     // Reset with this architectural state.
     void start(const State &s) {
+        trn = {};
         for (int n = 0; n < 8; ++n) top.init_gpr[n] = s.gpr[n];
         top.init_eflags = s.eflags;
         top.init_eip = s.eip;
@@ -465,6 +473,7 @@ public:
         top.inta_ack = 0;
         top.io_ack = 0;
         step_writes.clear();
+        step_first_write_values.clear();
         io.log.clear();
         mmio_log.clear();
         mmio_stores.clear();
@@ -656,6 +665,7 @@ public:
                 if (window && in_window(at)) mmio_stores.push_back({true, at, uint8_t(wdata >> (8 * i)), step});
                 if (at < RAM_BYTES && !(window && (in_rom(at) || in_hole(at)))) ram[at] = uint8_t(wdata >> (8 * i));
                 step_writes.insert(at);
+                step_first_write_values.emplace(at, uint8_t(wdata >> (8 * i)));
                 written.insert(at);
             }
         }
@@ -686,6 +696,7 @@ public:
     // runs before each cycle.
     Event next(const std::function<void()> &tick = {}) {
         step_writes.clear();
+        step_first_write_values.clear();
         io.log.clear();
         const uint64_t acks = pic.acks;
         for (int n = 0; n < event_cycles; ++n) {
@@ -1521,6 +1532,7 @@ struct Outcome {
     bool vector_moved = false;  // stopped at an injected interrupt whose vector entry or handler the program rewrote
     bool window_code = false;   // stopped at code in the MMIO window, which neither side fetches
     bool code_store = false;    // stopped at a store into its code that it did not plan
+    bool rep_self_store = false;  // the oracle stopped inside REP after overwriting its own bytes
     // With mixed memory, stopped at code outside the program (own) and the
     // injected interrupts' handlers (the real-mode one and the protected-mode
     // IDT's), at code other than the 16 bytes from the
@@ -1579,6 +1591,41 @@ struct Code {
     uint32_t lo = 0, hi = 0;
     std::set<uint32_t> rewritten;
 };
+
+// Bochs can end a REP step after its first element when that element
+// overwrites the executing instruction. The 386 may already have the bytes in
+// its queue and complete the REP. Only stop early for an unplanned store to
+// those exact bytes; ordinary code stores still get their full comparison.
+std::set<uint32_t> rep_self_store_writes(const Code *own, const uint8_t *code, bool code32, const State &before,
+                                         const fes_i386::StepResult &result, const fes_i386::Oracle &oracle) {
+    std::set<uint32_t> overlaps;
+    if (!own || result.writes.empty() || !result.events.empty() || (before.cr0 & 0x80000000u)
+        || rep_count(code, code32, before) < 2)
+        return overlaps;
+    const auto decoded = oracle.decode(code, 16, code32);
+    if (!decoded.complete || decoded.undefined || !decoded.length) return overlaps;
+    const auto &cs = before.seg[fes_i386::SEG_CS];
+    const uint64_t last_offset = uint64_t(before.eip) + decoded.length - 1;
+    // Do not infer a contiguous instruction across IP, CS-limit or linear
+    // address wrap. Such a fetch remains under the normal comparison.
+    if (last_offset > (code32 ? UINT32_MAX : UINT16_MAX) || last_offset > cs.limit
+        || uint64_t(cs.base) + last_offset > UINT32_MAX) return overlaps;
+    const uint32_t linear = cs.base + before.eip;
+    for (const auto &w : result.writes)
+        for (unsigned i = 0; i < w.length; ++i) {
+            const uint32_t written = w.linear + i;
+            const uint32_t physical = write_key(w.physical + i);
+            if (written - linear < decoded.length && physical == write_key(written)
+                && physical >= own->lo && physical < own->hi && !own->rewritten.count(physical))
+                overlaps.insert(physical);
+        }
+    return overlaps;
+}
+
+bool rep_writes_own_instruction(const Code *own, const uint8_t *code, bool code32, const State &before,
+                                const fes_i386::StepResult &result, const fes_i386::Oracle &oracle) {
+    return !rep_self_store_writes(own, code, code32, before, result, oracle).empty();
+}
 
 // An ESC instruction's memory operand: its offset, wrapped by address size,
 // and its segment (fes_i386::SEG_*), from the bytes at code and the state.
@@ -1943,8 +1990,60 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             for (; k < 15 && is_prefix(code[k]); ++k) lock = lock || code[k] == 0xf0;
             if (k < 15 && (lock || code[k] == 0x9d) && !oracle.decode(code, 16, code32).undefined) v86_gp = k + 1;
         }
+        // #1730's rules, where the 386 runs what Bochs at CPU level 3 rejects
+        // as #UD (divergences.toml umov, mov-tr). umov: UMOV (0F 10-13) is the
+        // 386's MOV (88h-8Bh), so the oracle steps that MOV with a REP prefix
+        // in the 0Fh's place, the same length, which neither CPU heeds on a
+        // MOV. tr: MOV to and from TR4-TR7. Above CPL 0 (V86 mode included)
+        // the oracle steps MOV r32, CR0 with the same r/m (0F 20 /r), whose
+        // #GP(0) Bochs raises before any operand as the 386 raises MOV
+        // TRn's (microcode_notes.txt 391, 3B6). At CPL 0 it steps MOV of the
+        // r/m register to itself (F3 89 /r), and the testbench's TR4-TR7
+        // (rtl.trn) give a read's result, set on the oracle after the step,
+        // or take a write's value. A LOCK is #UD on both sides as written.
+        std::vector<std::pair<unsigned, uint8_t>> undoc;
+        int tr_read = -1, tr_write = -1;  // the TR4-TR7 index a CPL-0 MOV TRn reads or writes
+        unsigned tr_rm = 0;
+        {
+            unsigned k = 0;
+            bool lock = false;
+            for (; k < 13 && is_prefix(code[k]); ++k) lock = lock || code[k] == 0xf0;
+            const unsigned reg = (code[k + 2] >> 3) & 7;
+            if (!lock && !v86_gp && code[k] == 0x0f && (code[k + 1] & 0xfc) == 0x10) {
+                undoc = {{k, 0xf3}, {k + 1, uint8_t(0x88 | (code[k + 1] & 3))}};
+                ++summary.divergences["umov"];
+            } else if (!lock && !v86_gp && code[k] == 0x0f && (code[k + 1] == 0x24 || code[k + 1] == 0x26) && reg >= 4) {
+                tr_rm = code[k + 2] & 7;
+                if ((before.cr0 & 1) && (before.cpl != 0 || (before.eflags & 0x20000))) {
+                    undoc = {{k + 1, 0x20}, {k + 2, uint8_t(0xc0 | tr_rm)}};
+                } else {
+                    undoc = {{k, 0xf3}, {k + 1, 0x89}, {k + 2, uint8_t(0xc0 | tr_rm << 3 | tr_rm)}};
+                    (code[k + 1] == 0x24 ? tr_read : tr_write) = int(reg - 4);
+                }
+                ++summary.divergences["mov-tr"];
+            }
+        }
         fes_i386::StepResult result;
-        if (v86_gp) {
+        if (!undoc.empty()) {
+            uint8_t was[3];
+            for (size_t i = 0; i < undoc.size(); ++i) {
+                was[i] = bus.ram[linear + undoc[i].first];
+                bus.ram[linear + undoc[i].first] = undoc[i].second;
+                oracle.invalidate(linear + undoc[i].first, 1);
+            }
+            result = oracle.step();
+            for (size_t i = 0; i < undoc.size(); ++i) {
+                bus.ram[linear + undoc[i].first] = was[i];
+                oracle.invalidate(linear + undoc[i].first, 1);
+            }
+            const bool done = result.retired && (result.events.empty() || result.events[0].kind != fes_i386::EventKind::Exception);
+            if (done && tr_write >= 0) rtl.trn[size_t(tr_write)] = before.gpr[tr_rm];
+            if (done && tr_read >= 0) {
+                State after = oracle.get_state();
+                after.gpr[tr_rm] = rtl.trn[size_t(tr_read)];
+                oracle.set_state(after);
+            }
+        } else if (v86_gp) {
             uint8_t was[15];
             for (unsigned i = 0; i < v86_gp; ++i) {
                 was[i] = bus.ram[linear + i];
@@ -1995,6 +2094,22 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             if (esc.esc) oracle.empty_socket(false);
         }
         if (esc.esc) ++summary.no387_rule;
+        // The ICEBP rule (#1730; divergences.toml icebp-gd): the 386's ICEBP
+        // clears DR7.GD (microcode_notes.txt 94C) before its delivery reads
+        // the gate, as the RTL does; Bochs's INT1 leaves it. When the
+        // oracle's step started ICEBP's delivery (its first event INT 1's),
+        // GD is cleared on the oracle too.
+        if ((before.dr7 & 0x2000) && !result.events.empty()
+            && result.events[0].kind == fes_i386::EventKind::SoftwareInterrupt && result.events[0].vector == 1) {
+            unsigned k = 0;
+            while (k < 15 && is_prefix(code[k])) ++k;
+            if (k < 15 && code[k] == 0xf1) {
+                State after = oracle.get_state();
+                after.dr7 &= ~0x2000u;
+                oracle.set_state(after);
+                ++summary.divergences["icebp-gd"];
+            }
+        }
         if (irq) {
             oracle.set_iteration_hook({});
             irq->intr_next = irq->intr_at >= 0;
@@ -2013,6 +2128,36 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // Under queue16 an instruction may run bytes from before a store.
         if (rtl.stale && !rtl.top.queue16) out.add(at + "stale-fetch." + hex(*rtl.stale), 0, 1);
         rtl.stale.reset();
+
+        // Do not compare the oracle's partial REP step with the RTL's
+        // completed one. Check each overlapping byte that made Bochs stop
+        // before ending the run, so a missing, misaddressed or wrong-valued
+        // RTL self-store still fails.
+        const std::set<uint32_t> rep_self_writes =
+            event == Rtl::Event::Retired && !rtl.top.trace_exception && !rtl.top.trace_unimplemented
+                ? rep_self_store_writes(own, code, code32, before, result, oracle)
+                : std::set<uint32_t>{};
+        if (!rep_self_writes.empty()) {
+            outcome.code_store = true;
+            outcome.rep_self_store = true;
+            for (uint32_t address : rep_self_writes) {
+                if (!rtl.step_writes.count(address)) {
+                    out.add(at + "rep-self-write-address." + hex(address), 1, 0);
+                    continue;
+                }
+                if (address >= RAM_BYTES) {
+                    out.add(at + "rep-self-write-value." + hex(address), 1, 0);
+                    continue;
+                }
+                const auto write = rtl.step_first_write_values.find(address);
+                if (write == rtl.step_first_write_values.end()) {
+                    out.add(at + "rep-self-write-value." + hex(address), bus.ram[address], 0);
+                } else if (write->second != bus.ram[address]) {
+                    out.add(at + "rep-self-write-value." + hex(address), bus.ram[address], write->second);
+                }
+            }
+            return outcome;
+        }
 
         // The oracle's first exception, and the vector the step takes: that,
         // or a software interrupt's. external: an INTR's or NMI's, which the
@@ -2973,6 +3118,98 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, c
     run_nop_case(oracle, bus, rtl, entries, summary, "rep-movs-zero-expand-down-es", {0xf3, 0xa4}, rep_zero_es);
 }
 
+// A random program ends at an unplanned store into its code. A REP MOVSB
+// that overwrites its own encoding makes Bochs stop mid-REP; compare only
+// the completed earlier instructions, not the two different partial steps.
+void run_rep_self_store_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl,
+                              const std::vector<Entry> &entries, Summary &summary) {
+    struct Case { const char *label; uint16_t destination, count; bool mismatch, planned, stop, halt; };
+    const Case cases[] = {
+        {"rep-self", 1, 8, false, false, true, false},
+        {"rep-next", 4, 1, false, false, true, false},
+        {"rep-data", 0x0200, 2, false, false, false, true},
+        {"rep-prior-mismatch", 1, 8, true, false, false, false},
+        {"rep-planned", 1, 8, false, true, false, false},
+    };
+    const uint32_t base = 0x1000, source = 0x3000;
+    // NOP first so the negative control can detect an earlier state mismatch.
+    const std::vector<uint8_t> code{0x90, 0x2e, 0xf3, 0xa4, 0xf4};
+    for (const auto &c : cases) {
+        State state;
+        for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
+        state.seg[fes_i386::SEG_CS] = fes_i386::real_mode_segment(0x100);
+        state.seg[fes_i386::SEG_ES] = fes_i386::real_mode_segment(0x100);
+        state.gpr[fes_i386::REG_ESP] = 0x8000;
+        state.eflags |= 0x400;  // DF, matching #1425's backwards copy.
+        state.gpr[fes_i386::REG_ESI] = source - base;  // CS override
+        state.gpr[fes_i386::REG_EDI] = c.destination;
+        state.gpr[fes_i386::REG_ECX] = c.count;
+        for (unsigned i = 0; i < code.size(); ++i) bus.ram[base + i] = rtl.poke(base + i, code[i]);
+        for (unsigned i = 0; i < 8; ++i) bus.ram[source + i] = rtl.poke(source + i, uint8_t(0x90 + i));
+        oracle.invalidate(base, code.size());
+        oracle.set_state(state);
+        State actual = state;
+        if (c.mismatch) actual.gpr[fes_i386::REG_EAX] = 1;
+        rtl.start(actual);
+        Mismatches out;
+        Outcome outcome;
+        const Code own{base, base + uint32_t(code.size()), c.planned ? std::set<uint32_t>{base, base + 1, base + 2, base + 3, base + 4} : std::set<uint32_t>{}};
+        try {
+            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 64, false, summary, out,
+                               base + uint32_t(code.size()), nullptr, &own);
+        } catch (const std::exception &error) {
+            out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
+            oracle.reset();
+        }
+        Mismatches memory;
+        end_run(bus, rtl, outcome.halted, memory);
+        const bool expected_mismatch = c.mismatch || c.planned;
+        const bool ok = outcome.code_store == c.stop && outcome.halted == c.halt
+                     && outcome.rep_self_store == (!c.mismatch && !c.planned && c.destination == 1)
+                     && memory.items.empty() && (expected_mismatch ? !out.items.empty() : out.items.empty());
+        ++summary.runs;
+        if (ok) ++summary.passed;
+        else {
+            ++summary.failed;
+            std::cout << "FAIL directed:" << c.label << " stop " << outcome.code_store << " halt " << outcome.halted;
+            for (const auto &item : out.items) std::cout << ' ' << item;
+            for (const auto &item : memory.items) std::cout << ' ' << item;
+            std::cout << '\n';
+        }
+        summary.cycles += rtl.cycles;
+        rtl.cycles = 0;
+        for (unsigned i = 0; i < code.size(); ++i) bus.ram[base + i] = rtl.poke(base + i, 0);
+        for (unsigned i = 0; i < 8; ++i) bus.ram[source + i] = rtl.poke(source + i, 0);
+        for (uint32_t address : rtl.written) {
+            if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        oracle.invalidate(base, code.size());
+        rtl.written.clear();
+    }
+    // These synthetic oracle writes resemble self-overlap only if the
+    // instruction's bytes are incorrectly treated as a contiguous range.
+    // Reject 16-bit IP wrap and 32-bit linear-address overflow separately.
+    for (int boundary = 0; boundary < 2; ++boundary) {
+        State state;
+        state.seg[fes_i386::SEG_CS] = fes_i386::real_mode_segment(0);
+        state.gpr[fes_i386::REG_ECX] = 8;
+        state.eip = boundary ? 0x10 : 0xffff;
+        state.seg[fes_i386::SEG_CS].base = boundary ? 0xfffffff0u : 0x1000u;
+        const uint32_t written = boundary ? 0 : 0x11000;
+        const uint8_t bytes[16] = {0x2e, 0xf3, 0xa4};
+        const Code own{written, written + 8, {}};
+        fes_i386::StepResult result;
+        result.writes.push_back({written, written, 1});
+        ++summary.runs;
+        if (!rep_writes_own_instruction(&own, bytes, false, state, result, oracle)) ++summary.passed;
+        else {
+            ++summary.failed;
+            std::cout << "FAIL directed:rep-" << (boundary ? "linear-overflow" : "ip-wrap") << '\n';
+        }
+    }
+}
+
 // Self-modifying code, from CS:0 at linear 1000h. The coherent cases run in
 // lockstep with the oracle, which follows that profile: each stores into
 // bytes the front end has fetched, and the instruction there must run the
@@ -3854,6 +4091,11 @@ public:
     // debug: the debug programs (FES_I386_DEBUG; Phase 5's fifth slice),
     // whose debug_block items are drawn from side.
     bool debug = false;
+    // undefined: now and then an encoding the 386 rejects in place of an
+    // instruction (FES_I386_UNDEFINED; #1701), wherever the program runs:
+    // real mode, protected mode at CPL 0 and 3, V86 mode. Its #UD ends the
+    // program. Off, a seed's programs are as they were.
+    bool undefined = false;
     std::vector<std::pair<uint32_t, uint8_t>> image;
 
     // base: the program's linear address, which far targets need; eip: its
@@ -3928,7 +4170,67 @@ private:
     // One non-branch instruction; keep_ecx avoids writing ECX (a loop body),
     // keep_stack writing ESP, SS or memory (a subroutine's body, which must
     // leave its return address where RET finds it).
+    // An encoding the 386's decoder rejects (reenigne/x86_microcode 80386
+    // decoder23.txt), with prefixes and now and then LOCK, and the operand
+    // bytes its ModRM names (as a 16-bit or 32-bit address, at random). Not
+    // 0F 0D or 0F 01 /7 with memory, which Bochs runs (divergences.toml
+    // ud-0f0d, ud-invlpg), nor 0F 38 and 0F 3A, which it cannot step.
+    std::vector<uint8_t> undefined_encoding() {
+        static const uint8_t ud_0f[] = {
+            0x04, 0x05, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0e, 0x0f, 0x14, 0x18, 0x1f, 0x25, 0x27, 0x28, 0x30,
+            0x31, 0x32, 0x37, 0x40, 0x4f, 0x60, 0x6f, 0x77, 0x7f, 0xa2, 0xa6, 0xa7, 0xaa, 0xae, 0xb0, 0xb1,
+            0xb8, 0xb9, 0xc0, 0xc1, 0xc7, 0xc8, 0xcf, 0xd0, 0xe7, 0xf0, 0xff};
+        std::vector<uint8_t> out;
+        for (int n = 0; n < 2 && side() % 3 == 0; ++n) out.push_back(uint8_t(0x26 + 8 * (side() % 4)));
+        if (side() % 3 == 0) out.push_back(0x66);
+        if (side() % 3 == 0) out.push_back(0x67);
+        if (side() % 6 == 0) out.push_back(0xf0);
+        uint8_t modrm = uint8_t(side());
+        auto reg = [&](unsigned r) { modrm = uint8_t((modrm & 0xc7) | r << 3); };
+        auto regform = [&]() { modrm |= 0xc0; };
+        switch (side() % 12) {
+        case 0: case 1: case 2: case 3: out.insert(out.end(), {0x0f, ud_0f[side() % sizeof ud_0f]}); break;
+        case 4: out.push_back(0xfe); reg(2 + unsigned(side() % 6)); break;
+        case 5: out.push_back(0xff); reg(7); break;
+        case 6: out.insert(out.end(), {0x0f, 0xba}); reg(unsigned(side() % 4)); break;
+        case 7: {
+            static const uint8_t ops[] = {0x8f, 0xc6, 0xc7};
+            out.push_back(ops[side() % 3]);
+            reg(1 + unsigned(side() % 7));
+            break;
+        }
+        case 8: {  // a memory-only instruction with a register operand
+            static const uint8_t ops[] = {0x8d, 0xc4, 0xc5, 0x62};
+            if (side() % 4 == 0) out.insert(out.end(), {0x0f, uint8_t(side() % 2 ? 0xb2 : 0xb4 + side() % 2)});
+            else out.push_back(ops[side() % 4]);
+            regform();
+            break;
+        }
+        case 9:  // group 7 /5, /7 by register, /0-/3 by register
+            out.insert(out.end(), {0x0f, 0x01});
+            if (side() % 2) reg(5);
+            else { reg(side() % 2 ? 7 : unsigned(side() % 4)); regform(); }
+            break;
+        case 10: {  // CR1, CR4-CR7, TR0-TR3
+            static const uint8_t ops[] = {0x20, 0x22, 0x24, 0x26};
+            const uint8_t op = ops[side() % 4];
+            out.insert(out.end(), {0x0f, op});
+            if (op < 0x24) reg(side() % 2 ? 1 : 4 + unsigned(side() % 4));
+            else reg(unsigned(side() % 4));
+            break;
+        }
+        default:  // MOV Sreg 6, 7 and to CS; group 6 /6, /7
+            if (side() % 2) { out.push_back(side() % 2 ? 0x8c : 0x8e); reg(side() % 3 == 0 && out.back() == 0x8e ? 1 : 6 + unsigned(side() % 2)); }
+            else { out.insert(out.end(), {0x0f, 0x00}); reg(6 + unsigned(side() % 2)); }
+            break;
+        }
+        out.push_back(modrm);
+        for (unsigned n = unsigned(side() % 5); n; --n) out.push_back(uint8_t(side()));  // SIB, displacement, immediate
+        return out;
+    }
+
     std::vector<uint8_t> instruction(bool keep_ecx, bool keep_stack = false) {
+        if (undefined && side() % 48 == 0) return undefined_encoding();
         for (;;) {
             std::vector<uint8_t> out;
             bool os32;
@@ -6542,6 +6844,7 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
     if (const char *weight = std::getenv("FES_I386_PM")) generator.pm_weight = unsigned(std::strtoul(weight, nullptr, 0));
     generator.tasks = std::getenv("FES_I386_TASKS") != nullptr;
     generator.debug = debug_programs = std::getenv("FES_I386_DEBUG") != nullptr;
+    generator.undefined = std::getenv("FES_I386_UNDEFINED") != nullptr;
     for (uint64_t n = 0; n < programs; ++n) {
         State state;
         for (auto &r : state.gpr) r = uint32_t(random());
@@ -6779,6 +7082,33 @@ int run_test386(fes_i386::Oracle &oracle, Rtl &rtl) {
 // so CS keeps that limit: the vector table's #GP entry is 0180:0000 (the
 // HLT at 1800h, under the limit), INT 60h's is 0000:3000h (past it) and
 // INT 61h's 0180:0004 (a HLT at 1804h).
+// #1701's probes of what the 386's decoder rejects (reenigne/x86_microcode
+// 80386 decoder23.txt), for 16-bit code: undefined 0Fh opcodes, XBTS and
+// IBTS, the undefined ModRM reg fields, register forms of the memory-only
+// instructions, MOV of CR1 and TR0; with prefixes, LOCK, and memory
+// operands, which must not be read. 0F 0D and INVLPG are not here: Bochs
+// runs them (divergences.toml ud-0f0d, ud-invlpg), and the unbuilt sweep
+// checks the RTL's #UD alone.
+std::vector<std::pair<std::string, std::vector<uint8_t>>> ud_probes16() {
+    return {
+        {"xbts", {0x0f, 0xa6, 0xc0}}, {"ibts", {0x0f, 0xa7, 0xc8}}, {"xbts-mem", {0x0f, 0xa6, 0x07}},
+        {"0fff", {0x0f, 0xff, 0x00}}, {"ud2", {0x0f, 0x0b}}, {"0f05", {0x0f, 0x05}}, {"cpuid", {0x0f, 0xa2}},
+        {"invd", {0x0f, 0x08}}, {"rdtsc", {0x0f, 0x31}}, {"cmpxchg", {0x0f, 0xb1, 0xc8}}, {"bswap", {0x0f, 0xc8}},
+        {"0fc7", {0x0f, 0xc7, 0x08}}, {"fe2", {0xfe, 0xd0}}, {"fe7-mem", {0xfe, 0x3f}}, {"ff7", {0xff, 0xf8}},
+        {"ff3-reg", {0xff, 0xd8}}, {"ff5-reg", {0xff, 0xe8}}, {"les-reg", {0xc4, 0xc0}}, {"lds-reg", {0xc5, 0xc0}},
+        {"lea-reg", {0x8d, 0xc0}}, {"bound-reg", {0x62, 0xc0}}, {"lss-reg", {0x0f, 0xb2, 0xc0}},
+        {"lfs-reg", {0x0f, 0xb4, 0xc0}}, {"grp7-5", {0x0f, 0x01, 0xe8}}, {"grp7-7-reg", {0x0f, 0x01, 0xf8}},
+        {"sgdt-reg", {0x0f, 0x01, 0xc0}}, {"lidt-reg", {0x0f, 0x01, 0xd8}}, {"grp6-6", {0x0f, 0x00, 0xf0}},
+        {"bt0", {0x0f, 0xba, 0xc0, 0x01}}, {"bt3-mem", {0x0f, 0xba, 0x1f, 0x01}}, {"mov-cr1", {0x0f, 0x20, 0xc8}},
+        {"mov-cr4", {0x0f, 0x22, 0xe0}}, {"mov-tr0", {0x0f, 0x24, 0xc0}}, {"mov-tr3", {0x0f, 0x26, 0xd8}},
+        {"pop-8f1", {0x8f, 0xc8}}, {"mov-c6-1", {0xc6, 0xc8, 0x00}}, {"mov-c7-7-mem", {0xc7, 0x3f, 0x00, 0x00}},
+        {"mov-sreg6", {0x8c, 0xf0}}, {"lock-0fff", {0xf0, 0x0f, 0xff, 0x00}}, {"lock-fe2-mem", {0xf0, 0xfe, 0x17}},
+        {"prefixed-xbts", {0x26, 0x66, 0x67, 0x0f, 0xa6, 0x00}}, {"rep-0f0b", {0xf3, 0x0f, 0x0b}},
+        // #1730: LOCK on ICEBP, UMOV and MOV TRn.
+        {"lock-icebp", {0xf0, 0xf1}}, {"lock-umov-mem", {0xf0, 0x0f, 0x11, 0x07}}, {"lock-tr6", {0xf0, 0x0f, 0x24, 0xf0}},
+    };
+}
+
 int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                     Summary &summary) {
     struct Asm {
@@ -6830,7 +7160,7 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
                   std::vector<uint8_t> nmi_handler_bytes = {};
                   bool stop_at_exception = true, expect_halt = false; int expected_nmis = -1;
                   // past_db: the run goes on past each #DB (debug_programs).
-                  bool past_db = false; };
+                  bool past_db = false; int64_t expected_cr2 = -1; };
     const uint64_t absent = gate(0x08, 0x1800, 0x0e);  // a 386 interrupt gate, not present
     const uint64_t window_ss = desc(MMIO_LO, 0xffff, 0x93, false, false);  // 28h: a 16-bit stack in the window
     std::vector<Case> cases = {
@@ -7535,6 +7865,112 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     // slot (0FFCh) is past it, #SS; #SS's 286 gate's ten words fit.
     v86("v86-ud-nested-ss", [](Asm &a) { a.op({0x63, 0xc0}); }, 12, -1, 3, -1, {{12, gate(0x08, 0x1800, 0x86)}},
         {{0x2504, {0x20, 0x10, 0x00, 0x00, 0x48, 0x00}}}, {{9, desc(0, 0x0fff, 0x97, false, false)}});
+    // #1701: what the 386's decoder rejects raises #UD (vector 6, no error
+    // code) in real mode, at CPL 0 and 3, and in V86 mode below IOPL 3 and at
+    // it, before any operand and before a LOCK's or IOPL's check: one probe
+    // of each kind, with prefixes, LOCK and memory operands.
+    {
+        static std::deque<std::string> labels;
+        for (const auto &[name, bytes] : ud_probes16()) {
+            auto body = [bytes = bytes](Asm &a) { a.b.insert(a.b.end(), bytes.begin(), bytes.end()); };
+            cases.push_back(Case{labels.emplace_back("ud-real-" + name).c_str(), body, 6, -1, {}, true});
+            cases.push_back(Case{labels.emplace_back("ud-pm-" + name).c_str(), body, 6, -1, {}, false});
+            r3(labels.emplace_back("ud-r3-" + name).c_str(), body, 6, -1);
+            v86(labels.emplace_back("ud-v86-iopl0-" + name).c_str(), body, 6, -1, 0);
+            v86(labels.emplace_back("ud-v86-iopl3-" + name).c_str(), body, 6, -1, 3);
+        }
+    }
+    // #1730: the 386's undocumented instructions. ICEBP (F1h) is INT 1
+    // through the gate as an exception's delivery: from CPL 3 and V86 mode
+    // at any IOPL through gate 1's DPL 0 (the default gate, to the HLT at
+    // 08h:1800h), EXT in a fault's error code (#NP(0Bh) for gate 1 not
+    // present, against INT 1's 0Ah), DR7.GD cleared (icebp-gd), no DR6 bit,
+    // and TF in its frame with no single-step trap after it. UMOV is MOV
+    // (umov), its memory forms' faults included. MOV to and from TR4-TR7
+    // keeps what it writes at CPL 0 and is #GP(0) above it, with either
+    // ModRM form and with GD set (mov-tr).
+    {
+        static std::deque<std::string> labels;
+        auto five = [&](const std::string &name, std::function<void(Asm &)> body, int ending, int error, int soft,
+                        bool cpl0_only_ending) {
+            // cpl0_only_ending: the ending holds at CPL 0 and in real mode;
+            // above CPL 0 the case's HLT (or a MOV TRn) is #GP(0).
+            cases.push_back(Case{labels.emplace_back("u-real-" + name).c_str(), body, ending, ending == 13 ? -1 : error,
+                                 {}, true, soft});
+            cases.push_back(Case{labels.emplace_back("u-pm-" + name).c_str(), body, ending, error, {}, false, soft});
+            const int up = cpl0_only_ending ? 13 : ending, up_error = cpl0_only_ending ? 0 : error,
+                      up_soft = cpl0_only_ending ? -1 : soft;
+            r3(labels.emplace_back("u-r3-" + name).c_str(), body, up, up_error, up_soft);
+            v86(labels.emplace_back("u-v86-iopl0-" + name).c_str(), body, up, up_error, 0, up_soft);
+            v86(labels.emplace_back("u-v86-iopl3-" + name).c_str(), body, up, up_error, 3, up_soft);
+        };
+        // ICEBP: the handler's HLT at CPL 0 ends every mode.
+        five("icebp", [](Asm &a) { a.op({0xf1}); }, -1, -1, 1, false);
+        five("icebp-prefixed", [](Asm &a) { a.op({0x26, 0x66, 0xf1}); }, -1, -1, 1, false);
+        {
+            // PUSHF; POP AX; OR AH, 1; PUSH AX; POPF; ICEBP (not in V86 mode
+            // below IOPL 3, where PUSHF is #GP(0)).
+            const auto tf = [](Asm &a) { a.op({0x9c, 0x58, 0x80, 0xcc, 0x01, 0x50, 0x9d, 0xf1}); };
+            cases.push_back(Case{"u-real-icebp-tf", tf, -1, -1, {}, true, 1});
+            cases.push_back(Case{"u-pm-icebp-tf", tf, -1, -1, {}, false, 1});
+            r3("u-r3-icebp-tf", tf, -1, -1, 1);
+            v86("u-v86-iopl3-icebp-tf", tf, -1, -1, 3, 1);
+        }
+        five("icebp-movss", [](Asm &a) { a.op({0x8c, 0xd0, 0x8e, 0xd0, 0xf1}); }, -1, -1, 1, false);  // MOV AX, SS; MOV SS, AX
+        cases.push_back(Case{"u-pm-icebp-np", [](Asm &a) { a.op({0xf1}); }, 11, 1 * 8 + 3, {{1, absent}}, false});
+        cases.push_back(Case{"u-pm-int1-np", [](Asm &a) { a.op({0xcd, 0x01}); }, 11, 1 * 8 + 2, {{1, absent}}, false});
+        cases.push_back(Case{"u-pm-icebp-gp-type", [](Asm &a) { a.op({0xf1}); }, 13, 1 * 8 + 3,
+                             {{1, desc(0, 0xffff, 0x93, false, false)}}, false});
+        r3("u-r3-icebp-np", [](Asm &a) { a.op({0xf1}); }, 11, 1 * 8 + 3);
+        cases.back().gates = {{1, absent}};
+        // GD set, then ICEBP: GD clear in the handler.
+        const auto gd = [](Asm &a) {
+            a.op({0x66, 0xb8}); a.d(0x2400); a.op({0x0f, 0x23, 0xf8});  // MOV EAX, 2400h; MOV DR7, EAX
+        };
+        cases.push_back(Case{"u-real-icebp-gd", [=](Asm &a) { gd(a); a.op({0xf1}); }, -1, -1, {}, true, 1});
+        cases.push_back(Case{"u-pm-icebp-gd", [=](Asm &a) { gd(a); a.op({0xf1}); }, -1, -1, {}, false, 1});
+        cases.push_back(Case{"u-pm-icebp-gd-np", [=](Asm &a) { gd(a); a.op({0xf1}); }, 11, 1 * 8 + 3, {{1, absent}}, false});
+        // UMOV, each form, then HLT.
+        const auto ax = [](Asm &a) { a.op({0x66, 0xb8}); a.d(0x89abcdefu); a.op({0x66, 0xbb}); a.d(0x01234567u); };
+        five("umov-rm8-r8", [=](Asm &a) { ax(a); a.op({0x0f, 0x10, 0xe3}); }, -1, -1, -1, true);          // UMOV BL, AH
+        five("umov-rm16-r16", [=](Asm &a) { ax(a); a.op({0x0f, 0x11, 0xc3}); }, -1, -1, -1, true);        // UMOV BX, AX
+        five("umov-rm32-r32", [=](Asm &a) { ax(a); a.op({0x66, 0x0f, 0x11, 0xc3}); }, -1, -1, -1, true);  // UMOV EBX, EAX
+        five("umov-r8-rm8", [=](Asm &a) { ax(a); a.op({0x0f, 0x12, 0xc7}); }, -1, -1, -1, true);          // UMOV AL, BH
+        five("umov-r16-rm16", [=](Asm &a) { ax(a); a.op({0x0f, 0x13, 0xd8}); }, -1, -1, -1, true);        // UMOV BX, AX
+        five("umov-mem-store", [=](Asm &a) {                                                                // UMOV [0E00h], AX; [0E02h], EAX; [0E07h], AH
+            ax(a); a.op({0x0f, 0x11, 0x06, 0x00, 0x0e, 0x66, 0x0f, 0x11, 0x06, 0x02, 0x0e, 0x0f, 0x10, 0x26, 0x07, 0x0e});
+        }, -1, -1, -1, true);
+        five("umov-mem-load", [=](Asm &a) {                                                                 // UMOV [0E00h], EAX; UMOV CX, [0E01h]; UMOV DL, [0E03h]
+            ax(a); a.op({0x66, 0x0f, 0x11, 0x06, 0x00, 0x0e, 0x0f, 0x13, 0x0e, 0x01, 0x0e, 0x0f, 0x12, 0x16, 0x03, 0x0e});
+        }, -1, -1, -1, true);
+        five("umov-prefixed", [=](Asm &a) {                                                                 // MOV BX, 0E00h; ES: A32 UMOV [EBX], EAX; REP UMOV SI, [BX]
+            ax(a); a.op({0xbb, 0x00, 0x0e, 0x66, 0x81, 0xe3}); a.d(0xffff);
+            a.op({0x26, 0x66, 0x67, 0x0f, 0x11, 0x03, 0xf3, 0x0f, 0x13, 0x37});
+        }, -1, -1, -1, true);
+        cases.push_back(Case{"u-pm-umov-gp", [](Asm &a) { a.op({0x0f, 0x13, 0x06, 0xff, 0xff}); }, 13, 0, {}, false});  // UMOV AX, [FFFFh]
+        cases.push_back(Case{"u-pm-umov-ss", [](Asm &a) {                                                   // UMOV SS:[FFFFh], AX
+            a.op({0xbb, 0xff, 0xff, 0x36, 0x0f, 0x11, 0x07}); }, 12, 0, {}, false});
+        r3("u-r3-umov-gp", [](Asm &a) { a.op({0x0f, 0x11, 0x06, 0xff, 0xff}); }, 13, 0);
+        // MOV TRn: TR4-TR7 written, then read back into EBX, ECX, EDX and
+        // ESI; the memory ModRM forms as registers; with GD set, no #DB.
+        const auto tr_all = [](Asm &a) {
+            for (unsigned n = 4; n < 8; ++n) {
+                a.op({0x66, 0xb8}); a.d(0x10203040u * n + 0x0b0c0d0e);   // MOV EAX, v
+                a.op({0x0f, 0x26, uint8_t(0xc0 | n << 3)});              // MOV TRn, EAX
+            }
+            a.op({0x0f, 0x24, 0xe3, 0x0f, 0x24, 0xe9, 0x0f, 0x24, 0xf2, 0x0f, 0x24, 0xfe});  // MOV EBX, TR4; ECX, TR5; EDX, TR6; ESI, TR7
+        };
+        five("tr-all", tr_all, -1, -1, -1, true);
+        five("tr-read", [](Asm &a) { a.op({0x0f, 0x24, 0xf3}); }, -1, -1, -1, true);                       // MOV EBX, TR6 (reset value)
+        five("tr-mem-modrm", [](Asm &a) {                                                                  // MOV EAX, v; MOV TR7, EAX (mod 0); MOV ESI, TR7 (mod 2)
+            a.op({0x66, 0xb8}); a.d(0xfeedf00du); a.op({0x0f, 0x26, 0x38, 0x0f, 0x24, 0xbe});
+        }, -1, -1, -1, true);
+        five("tr-prefixed", [](Asm &a) {                                                                   // O16 MOV TR6, EAX; REP MOV EDI, TR6
+            a.op({0x66, 0xb8}); a.d(0x00c0ffeeu); a.op({0x66, 0x0f, 0x26, 0xf0, 0xf3, 0x0f, 0x24, 0xf7});
+        }, -1, -1, -1, true);
+        cases.push_back(Case{"u-real-tr-gd", [=](Asm &a) { gd(a); tr_all(a); }, -1, -1, {}, true});
+        cases.push_back(Case{"u-pm-tr-gd", [=](Asm &a) { gd(a); tr_all(a); }, -1, -1, {}, false});
+    }
     // The I/O permission bitmap, which V86 mode always reads, at IOPL 3 too:
     // TSS 38h's limit FFh and the bitmap at 68h, port 61h's and 68h's bits
     // set (as the ring-3 cases).
@@ -7804,6 +8240,63 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         c.nmi_pulses = {CODE + 44, 0x1b10};
         c.expected_nmis = 2;
         cases.push_back(c);
+    }
+    // Raise a second NMI in the handler, then make its ordinary IRET fault.
+    // The first entry corrupts the IRET frame or stack; the second entry
+    // returns normally. Both NMIs must be delivered before the fault handler
+    // halts: IRET has started even though it never completed.
+    {
+        auto nmi_fault = [&](const char *label, std::vector<uint8_t> fault, int vector,
+                             std::vector<std::pair<unsigned, uint64_t>> descs, bool paging = false) {
+            std::vector<uint8_t> handler = {
+                0x90,                          // NOP: queue second NMI
+                0xff, 0x06, 0x00, 0x22,       // INC word [2200h]
+                0x83, 0x3e, 0x00, 0x22, 0x01, // CMP word [2200h], 1
+                0x75, uint8_t(fault.size())};  // JNE normal IRET
+            handler.insert(handler.end(), fault.begin(), fault.end());
+            handler.push_back(0xcf);           // second NMI: IRET
+            Case c{label, [paging](Asm &a) {
+                       if (paging) {
+                           a.op({0x66, 0xb8}); a.d(0x6000);         // MOV EAX, page directory
+                           a.op({0x0f, 0x22, 0xd8});                // MOV CR3,EAX
+                           a.op({0x0f, 0x20, 0xc0});                // MOV EAX,CR0
+                           a.op({0x66, 0x0d}); a.d(0x80000000);     // OR EAX,PG
+                           a.op({0x0f, 0x22, 0xc0});                // MOV CR0,EAX
+                       }
+                       a.op({0x90, 0x90, 0x90, 0x40});
+                   }, vector, 0,
+                   {{2, gate(0x08, 0x1b10, 0x86)}}, false};
+            c.descs = std::move(descs);
+            c.places = {{0x1b10, handler}, {0x2200, {0, 0}}};
+            if (paging) {
+                // Identity-map pages 0..8; the next page is not present.
+                // A return frame crossing 8FFFh faults, while the #PF and
+                // second NMI frames can be pushed into mapped page 8.
+                std::vector<uint8_t> directory(4096), table(4096);
+                const auto put32 = [](std::vector<uint8_t> &bytes, unsigned at, uint32_t value) {
+                    for (unsigned i = 0; i < 4; ++i) bytes[at + i] = uint8_t(value >> (8 * i));
+                };
+                put32(directory, 0, 0x7003);
+                for (unsigned i = 0; i <= 8; ++i) put32(table, 4 * i, i * 4096 | 3);
+                c.places.emplace_back(0x6000, std::move(directory));
+                c.places.emplace_back(0x7000, std::move(table));
+                c.expected_cr2 = 0x9000;
+            }
+            c.nmi_handler_bytes = handler;
+            c.nmi_pulses = {CODE + 44 + (paging ? 21u : 0u), 0x1b10};
+            c.stop_at_exception = false;
+            c.expect_halt = true;
+            c.expected_nmis = 2;
+            cases.push_back(std::move(c));
+        };
+        // MOV AX,28h; MOV SS,AX; MOV SP,0FFCh; IRET. The EFLAGS slot
+        // crosses the 0FFFh limit, but exception delivery can push below it.
+        nmi_fault("nmi-iret-stack-ss", {0xb8, 0x28, 0, 0x8e, 0xd0, 0xbc, 0xfc, 0x0f, 0xcf},
+                  12, {{5, desc(0, 0x0fff, 0x93, false, false)}});
+        // MOV BP,SP; MOV word [BP+2],0; IRET: a null CS is #GP(0).
+        nmi_fault("nmi-iret-cs-gp", {0x89, 0xe5, 0xc7, 0x46, 0x02, 0, 0, 0xcf}, 13, {});
+        // MOV SP,8FFCh; IRET reads the next, not-present page: #PF(0).
+        nmi_fault("nmi-iret-stack-pf", {0xbc, 0xfc, 0x8f, 0xcf}, 14, {}, true);
     }
     // The same handler in a code segment (98h) whose limit, 1B10h, ends at
     // its NOP: the IRET's fetch is #GP(0) before the IRET starts, so the
@@ -8320,6 +8813,8 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
             }
         }
         const State s = rtl.state();
+        if (c.expected_cr2 >= 0 && s.cr2 != uint32_t(c.expected_cr2))
+            out.add(label + ".cr2", uint32_t(c.expected_cr2), s.cr2);
         if (c.ending == -1) {
             if (!outcome.halted) out.add(label + ".halt", 1, 0);
             if (outcome.exception >= 0) out.add(label + ".exception", 0xff, uint32_t(outcome.exception));
@@ -8430,7 +8925,10 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
                   std::vector<std::pair<uint32_t, std::vector<uint8_t>>> mem = {}; bool r3 = false; int soft = -1;
                   bool together = false; std::vector<std::pair<unsigned, uint64_t>> gates = {}; bool a20m = false;
                   // through: the run goes on past exceptions, to its HLT.
-                  bool through = false; };
+                  bool through = false;
+                  // Bochs uses a write translation for ARPL's initial read;
+                  // the 386 uses a read. Run those distinguishing cases alone.
+                  bool rtl_alone = false; int pte_ad = -1; int word = -1; int zf = -1; };
     const uint32_t P = 0x01, W = 0x02, U = 0x04, A = 0x20, D = 0x40;
     auto pte = [](uint32_t page) { return PT0 + 4 * page; };
     // V86 mode under paging (Phase 5's slice 3): from CPL 0, LTR 38h and an
@@ -8722,6 +9220,44 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
              a.op({0x8a, 0x1d}); a.d(0x10000);                                          // MOV BL, [10000h]
          }, -1, -1, -1, {{0x10, 0x21000 | P | W | U}}, {}, {{0x20000, {0x31}}, {0x21000, {0x32}}}},
     };
+    // #1701 under paging: what the 386 rejects is #UD at CPL 0 and 3 in
+    // 32-bit code, and in V86 mode, before its memory operand on a page not
+    // present (no walk, no #PF); then the 16-bit probes in V86 mode.
+    {
+        static std::deque<std::string> labels;
+        const std::vector<std::pair<std::string, std::vector<uint8_t>>> mem32 = {
+            {"fe2", {0xfe, 0x15}}, {"xbts", {0x0f, 0xa6, 0x05}}, {"0fff", {0x0f, 0xff, 0x05}},
+            {"lock-fe2", {0xf0, 0xfe, 0x15}}, {"bt0", {0x0f, 0xba, 0x05}}, {"lea-reg", {0x8d, 0xc0}},
+            {"grp7-5", {0x0f, 0x01, 0x2d}}, {"pop-8f7", {0x8f, 0x3d}},
+        };
+        for (bool r3 : {false, true})
+            for (const auto &[name, bytes] : mem32) {
+                const bool modrm_mem = (bytes.back() & 0xc7) == 0x05;
+                cases.push_back(Case{labels.emplace_back(std::string(r3 ? "pg-ud-r3-" : "pg-ud-r0-") + name).c_str(),
+                                     [=, bytes = bytes](Asm &a, uint32_t) {
+                                         a.b.insert(a.b.end(), bytes.begin(), bytes.end());
+                                         if (modrm_mem) a.d(0x10004);
+                                         if (name == "bt0") a.op({0x01});
+                                     }, 6, -1, -1, {{0x10, 0x20000 | W | U}}, {}, {}, r3});
+            }
+        for (const auto &[name, bytes] : ud_probes16())
+            cases.push_back(Case{labels.emplace_back("pg-ud-v86-" + name).c_str(), [=, bytes = bytes](Asm &a, uint32_t) {
+                                     to_v86(a);
+                                     a.b.insert(a.b.end(), bytes.begin(), bytes.end());
+                                 }, 6, -1, -1, {}});
+    }
+    // #1730: UMOV is MOV under paging too, so its operand's page not present
+    // is #PF with MOV's error code (W/R for the store, U/S at CPL 3) and
+    // CR2, at CPL 0 and 3.
+    for (bool r3 : {false, true}) {
+        const int user = r3 ? int(U) : 0;
+        cases.push_back(Case{r3 ? "pg-umov-r3-store" : "pg-umov-r0-store", [](Asm &a, uint32_t) {
+                                 a.op({0x0f, 0x11, 0x05}); a.d(0x10004);                 // UMOV [10004h], EAX
+                             }, 14, W | user, 0x10004, {{0x10, 0x20000 | W | U}}, {}, {}, r3});
+        cases.push_back(Case{r3 ? "pg-umov-r3-load" : "pg-umov-r0-load", [](Asm &a, uint32_t) {
+                                 a.op({0x0f, 0x12, 0x0d}); a.d(0x10005);                 // UMOV CL, [10005h]
+                             }, 14, user, 0x10005, {{0x10, 0x20000 | W | U}}, {}, {}, r3});
+    }
     // Task switches under paging (Phase 5's fourth slice). GDT 60h: a 386
     // TSS (task A) at 2600h; 70h: a #PF handler's task H at 2680h, through
     // IDT 14, a task gate (DOS/4GW Professional's, as Descent runs it). Each
@@ -8806,6 +9342,34 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
                                   {0x1b40, {0xa1, 0x4c, 0x90, 0x00, 0x00, 0xf4}},  // MOV EAX, [904Ch] (13000h's PTE); HLT
                                   {0x12ffc, {0x02, 0x40, 0x00, 0x00}}}});
     }
+    {
+        auto arpl = [](Asm &a, uint32_t) {
+            a.op({0x66, 0xbb, 0x01, 0x00, 0x63, 0x1d}); a.d(0x10000); // MOV BX,1; ARPL [10000h],BX
+        };
+        Case np{"pg-arpl-np-read", arpl, 14, 0, 0x10000, {{0x10, 0x20000 | W | U}}};
+        np.rtl_alone = true;
+        cases.push_back(np);
+        Case no_write{"pg-arpl-no-adjust", arpl, -1, -1, -1, {{0x10, 0x20000 | P | W | U}}, {},
+                      {{0x20000, {0x03, 0x00}}}};
+        no_write.rtl_alone = true; no_write.pte_ad = A; no_write.word = 3; no_write.zf = 0;
+        cases.push_back(no_write);
+        Case ro{"pg-arpl-r3-ro-no-adjust", [=](Asm &a, uint32_t b) { arpl(a, b); a.op({0xcd, 0x2b}); },
+                -1, -1, -1, {{0x10, 0x20000 | P | U}}, {}, {{0x20000, {0x03, 0x00}}}, true, 0x2b};
+        ro.rtl_alone = true; ro.pte_ad = A; ro.word = 3; ro.zf = 0;
+        cases.push_back(ro);
+        Case write_fault{"pg-arpl-r3-ro-adjust", arpl, 14, 7, 0x10000, {{0x10, 0x20000 | P | U}}, {},
+                         {{0x20000, {0x00, 0x00}}}, true};
+        write_fault.rtl_alone = true; write_fault.pte_ad = A; write_fault.word = 0;
+        cases.push_back(write_fault);
+        Case write{"pg-arpl-adjust", arpl, -1, -1, -1, {{0x10, 0x20000 | P | W | U}}, {},
+                   {{0x20000, {0x00, 0x00}}}};
+        write.rtl_alone = true; write.pte_ad = A | D; write.word = 1; write.zf = 1;
+        cases.push_back(write);
+        Case user_write{"pg-arpl-r3-adjust", [=](Asm &a, uint32_t b) { arpl(a, b); a.op({0xcd, 0x2b}); },
+                        -1, -1, -1, {{0x10, 0x20000 | P | W | U}}, {}, {{0x20000, {0x00, 0x00}}}, true, 0x2b};
+        user_write.rtl_alone = true; user_write.pte_ad = A | D; user_write.word = 1; user_write.zf = 1;
+        cases.push_back(user_write);
+    }
     const char *only = std::getenv("FES_I386_CASE");
     for (const Case &c : cases) {
         if (only && std::string(only) != c.label) continue;
@@ -8882,14 +9446,50 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         rtl.start(state);
         Mismatches out;
         Outcome outcome;
-        try {
-            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 96, !c.through, summary, out, 0);
-        } catch (const std::exception &error) {
-            out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
-            oracle.reset();
+        if (c.rtl_alone) {
+            for (int n = 0; n < 128 && !rtl.stopped(); ++n) {
+                if (rtl.next() != Rtl::Event::Retired) {
+                    out.add(std::string(c.label) + ".event", 0, 1);
+                    break;
+                }
+                if (rtl.top.trace_exception) {
+                    if (rtl.top.trace_vector == c.soft) outcome.interrupt = c.soft;
+                    else { outcome.exception = int(rtl.top.trace_vector); break; }
+                }
+            }
+            outcome.halted = rtl.stopped();
+        } else {
+            try {
+                outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 96, !c.through, summary, out, 0);
+            } catch (const std::exception &error) {
+                out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
+                oracle.reset();
+            }
         }
         const State s = rtl.state();
         const std::string label = c.label;
+        if (c.rtl_alone && c.soft >= 0 && outcome.halted && outcome.interrupt < 0) {
+            // The software INT's delivery is not traced as an exception.
+            // Its 386 gate must leave the return CS:EIP on the ring-0 stack
+            // and reach the handler's HLT; no other path reaches that frame.
+            const uint32_t at = s.seg[fes_i386::SEG_SS].base + s.gpr[fes_i386::REG_ESP];
+            const auto dword = [&](uint32_t p) {
+                return uint32_t(rtl.ram[p]) | uint32_t(rtl.ram[p + 1]) << 8
+                     | uint32_t(rtl.ram[p + 2]) << 16 | uint32_t(rtl.ram[p + 3]) << 24;
+            };
+            if (at + 7 < RAM_BYTES && s.seg[fes_i386::SEG_CS].selector == 0x08
+                && dword(at) == CODE + uint32_t(a.b.size()) - 1 && (dword(at + 4) & 0xffff) == 0x7b)
+                outcome.interrupt = c.soft;
+        }
+        if (c.pte_ad >= 0) {
+            const unsigned got = rtl.ram[pte(0x10)] & (A | D);
+            if (got != unsigned(c.pte_ad)) out.add(label + ".pte-ad", unsigned(c.pte_ad), got);
+        }
+        if (c.word >= 0) {
+            const unsigned got = rtl.ram[0x20000] | unsigned(rtl.ram[0x20001]) << 8;
+            if (got != unsigned(c.word)) out.add(label + ".word", unsigned(c.word), got);
+        }
+        if (c.zf >= 0 && bool(s.eflags & 0x40) != bool(c.zf)) out.add(label + ".zf", c.zf, bool(s.eflags & 0x40));
         if (c.ending == -1) {
             if (!outcome.halted) out.add(label + ".halt", 1, 0);
             if (outcome.exception >= 0 && !c.through) out.add(label + ".exception", 0xff, uint32_t(outcome.exception));
@@ -10055,20 +10655,101 @@ int run_memory_cases(Rtl &rtl, Summary &summary) {
     return run_dma_sweeps(rtl, summary);
 }
 
-// Every encoding the runner lists as outside the build must stop the CPU
-// before it retires, so no check passes over an unbuilt instruction.
-int run_unbuilt(Rtl &rtl, Summary &summary) {
+// An encoding the 386 rejects that the oracle cannot step: the RTL alone
+// must raise #UD from state, deliver it through the vector table with the
+// instruction's IP pushed and halt in the handler, with nothing of it
+// retired. oracle_runs: Bochs at CPU level 3 runs it (a [[lockstep]]
+// divergence in divergences.toml), so its decode must not call it #UD, or
+// the entry no longer matches. Else Bochs's step cannot run it at all (0F 38
+// and 0F 3A, whose three-byte tables it lacks below CPU level 6).
+void run_ud_alone(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, Summary &summary, const std::string &hex_bytes,
+                  const std::vector<uint8_t> &code, const State &state, bool oracle_runs) {
+    const std::string label = "ud-rtl:" + hex_bytes;
+    Mismatches out;
+    const fes_i386::Decoded decoded = oracle.decode(code.data(), unsigned(code.size()), false);
+    if (oracle_runs && (!decoded.complete || decoded.undefined)) out.add(label + ".oracle-runs", 1, 0);
+    const uint32_t code_base = state.seg[fes_i386::SEG_CS].base + state.eip;
+    std::vector<std::pair<uint32_t, uint8_t>> image;
+    for (size_t i = 0; i < code.size(); ++i) image.emplace_back(code_base + uint32_t(i), code[i]);
+    image.emplace_back(HANDLER, 0xf4);
+    image.emplace_back(6 * 4, uint8_t(HANDLER));
+    image.emplace_back(6 * 4 + 1, uint8_t(HANDLER >> 8));
+    for (auto [address, value] : image) {
+        bus.ram[address] = rtl.poke(address, value);
+        oracle.invalidate(address, 1);
+    }
+    rtl.start(state);
+    Rtl::Event event = rtl.next();
+    if (event != Rtl::Event::Retired || !rtl.top.trace_exception || rtl.top.trace_vector != 6)
+        out.add(label + ".first-event", 6,
+                event != Rtl::Event::Retired ? 0x100u + unsigned(event) : rtl.top.trace_exception ? rtl.top.trace_vector : 0xffu);
+    for (int n = 0; n < 4 && !rtl.stopped() && event == Rtl::Event::Retired; ++n) event = rtl.next();
+    if (!rtl.stopped() || !rtl.top.trace_halt) out.add(label + ".halt", 1, 0);
+    const uint32_t sp = (state.gpr[fes_i386::REG_ESP] - 6) & 0xffff;
+    const uint32_t frame = state.seg[fes_i386::SEG_SS].base + sp;
+    const uint32_t ip = rtl.ram[frame] | uint32_t(rtl.ram[frame + 1]) << 8;
+    if (ip != (state.eip & 0xffff)) out.add(label + ".pushed-ip", state.eip & 0xffff, ip);
+    if ((rtl.state().gpr[fes_i386::REG_ESP] & 0xffff) != sp) out.add(label + ".esp", sp, rtl.state().gpr[fes_i386::REG_ESP] & 0xffff);
+    end_run(bus, rtl, true, out);
+    summary.cycles += rtl.cycles;
+    rtl.cycles = 0;
+    for (auto [address, value] : image) {
+        bus.ram[address] = rtl.poke(address, 0);
+        oracle.invalidate(address, 1);
+    }
+    for (uint32_t address : rtl.written) {
+        if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+        oracle.invalidate(address, 1);
+    }
+    rtl.written.clear();
+    ++summary.runs;
+    if (out.items.empty()) {
+        ++summary.passed;
+    } else {
+        ++summary.failed;
+        std::cout << "FAIL " << label;
+        for (const auto &item : out.items) std::cout << ' ' << item;
+        std::cout << '\n';
+    }
+}
+
+// The encodings the runner lists outside SCOPE, one per line as hex bytes
+// and what the 386 does with them (#1701). "ud": the 386's decoder rejects
+// the encoding, so it must raise #UD in lockstep with the oracle, in real
+// mode from 1000:0100, with nothing of it retired, and its delivery through
+// the vector table must push its IP; "ud-rtl" and "ud-rtl-runs" the same,
+// the RTL alone, where the oracle cannot step it or runs it (run_ud_alone).
+// "stop": the 386 defines it but this
+// build does not run it, so it must stop the CPU with FAULT_UNIMPLEMENTED
+// before anything retires (the RTL alone), and no check passes over it.
+int run_unbuilt(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                Summary &summary) {
     State state;
     for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0x1000);
     state.eip = 0x100;
+    state.gpr[fes_i386::REG_ESP] = 0x0f00;
     const uint32_t base = state.seg[fes_i386::SEG_CS].base + state.eip;
     std::string line;
     while (std::getline(std::cin, line)) {
         if (line.empty()) continue;
+        std::istringstream fields(line);
+        std::string hex_bytes, kind;
+        fields >> hex_bytes >> kind;
         std::vector<uint8_t> code;
-        for (size_t i = 0; i + 1 < line.size(); i += 2) code.push_back(uint8_t(std::stoul(line.substr(i, 2), nullptr, 16)));
+        for (size_t i = 0; i + 1 < hex_bytes.size(); i += 2)
+            code.push_back(uint8_t(std::stoul(hex_bytes.substr(i, 2), nullptr, 16)));
         code.resize(16, 0);
         code.push_back(0xf4);
+        if (kind == "ud") {
+            run_fault_case(oracle, bus, rtl, entries, summary, "ud:" + hex_bytes, code, state, false, 0, nullptr, 6,
+                           false, UINT32_MAX, UINT32_MAX, -1, 4);
+            continue;
+        }
+        if (kind == "ud-rtl" || kind == "ud-rtl-runs") {
+            run_ud_alone(oracle, bus, rtl, summary, hex_bytes, code, state, kind == "ud-rtl-runs");
+            continue;
+        }
+        if (kind != "stop") throw std::runtime_error("unbuilt: unknown kind " + kind);
         for (size_t i = 0; i < code.size(); ++i) rtl.poke(base + i, code[i]);
         rtl.start(state);
         const Rtl::Event event = rtl.next();
@@ -10079,7 +10760,7 @@ int run_unbuilt(Rtl &rtl, Summary &summary) {
             ++summary.passed;
         } else {
             ++summary.failed;
-            std::cout << "FAIL unbuilt:" << line << ' '
+            std::cout << "FAIL unbuilt:" << hex_bytes << ' '
                       << (event != Rtl::Event::Retired ? "timeout" : rtl.top.trace_exception ? "exception" : "retired")
                       << " 1 0\n";
         }
@@ -10226,8 +10907,11 @@ int main(int argc, char **argv) {
             ++summary.failed;
             std::cout << "FAIL reset-store reset-edge-write 0 1\n";
         }
+    } else if (mode == "self-store") {
+        run_rep_self_store_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "directed") {
         run_fault_regressions(*oracle, bus, rtl, entries, summary);
+        run_rep_self_store_cases(*oracle, bus, rtl, entries, summary);
         run_smc_cases(*oracle, bus, rtl, entries, summary);
         run_btb_cases(*oracle, bus, rtl, entries, summary);
         run_ras_cases(*oracle, bus, rtl, entries, summary);
@@ -10246,7 +10930,7 @@ int main(int argc, char **argv) {
     } else if (mode == "test386") {
         return run_test386(*oracle, rtl);
     } else if (mode == "unbuilt") {
-        run_unbuilt(rtl, summary);
+        run_unbuilt(*oracle, bus, rtl, entries, summary);
     } else if (mode == "memory") {
         run_memory_cases(rtl, summary);
     } else if (mode == "governor") {

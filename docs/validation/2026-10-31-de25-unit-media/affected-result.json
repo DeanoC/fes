@@ -1,0 +1,296 @@
+{
+  "format": 1,
+  "root": "/home/deano/fes/out/dev/de25-linux-platform",
+  "base": "771bd52975005f96b6bb655519a1c23a9f14f5f1",
+  "head": "9bcf1a7a78c647c535db2a4ec1a6d474244ac618",
+  "checkout_head": "9bcf1a7a78c647c535db2a4ec1a6d474244ac618",
+  "merge_base": "771bd52975005f96b6bb655519a1c23a9f14f5f1",
+  "local_paths": [],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": true,
+      "runtime": true,
+      "contracts": false,
+      "fpga": false
+    },
+    "skipped": [
+      "contracts",
+      "fpga"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "sources/libmister-runtime/ARCHITECTURE.md",
+      "sources/libmister-runtime/Makefile",
+      "sources/libmister-runtime/README.md",
+      "sources/libmister-runtime/docs/support-matrix.md",
+      "sources/libmister-runtime/scripts/check-active-tree.sh",
+      "sources/libmister-runtime/src/native/core_driver.hpp",
+      "sources/libmister-runtime/src/native/de25_computer.cpp",
+      "sources/libmister-runtime/src/native/de25_computer.hpp",
+      "sources/libmister-runtime/src/native/de25_core_driver.cpp",
+      "sources/libmister-runtime/src/native/de25_core_driver.hpp",
+      "sources/libmister-runtime/src/native/fes_gp.hpp",
+      "sources/libmister-runtime/src/native/hardware.cpp",
+      "sources/libmister-runtime/tests/active_tree_test.sh",
+      "sources/libmister-runtime/tests/unit/de25_computer_test.cpp",
+      "sources/libmister-runtime/tests/unit/native_hardware_test.cpp"
+    ],
+    "reasons": [
+      "sources/libmister-runtime/Makefile: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/scripts/check-active-tree.sh: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/core_driver.hpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/de25_computer.cpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/de25_computer.hpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/de25_core_driver.cpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/de25_core_driver.hpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/fes_gp.hpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/hardware.cpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/tests/active_tree_test.sh: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/tests/unit/de25_computer_test.cpp: native runtime tests and parent integration; host inputs unchanged",
+      "sources/libmister-runtime/tests/unit/native_hardware_test.cpp: native runtime tests and parent integration; host inputs unchanged"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "771bd52975005f96b6bb655519a1c23a9f14f5f1",
+        "--head",
+        "9bcf1a7a78c647c535db2a4ec1a6d474244ac618"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"sources/libmister-runtime/ARCHITECTURE.md\", \"sources/libmister-runtime/Makefile\", \"sources/libmister-runtime/README.md\", \"sources/libmister-runtime/docs/support-matrix.md\", \"sources/libmister-runtime/scripts/check-active-tree.sh\", \"sources/libmister-runtime/src/native/core_driver.hpp\", \"sources/libmister-runtime/src/native/de25_computer.cpp\", \"sources/libmister-runtime/src/native/de25_computer.hpp\", \"sources/libmister-runtime/src/native/de25_core_driver.cpp\", \"sources/libmister-runtime/src/native/de25_core_driver.hpp\", \"sources/libmister-runtime/src/native/fes_gp.hpp\", \"sources/libmister-runtime/src/native/hardware.cpp\", \"sources/libmister-runtime/tests/active_tree_test.sh\", \"sources/libmister-runtime/tests/unit/de25_computer_test.cpp\", \"sources/libmister-runtime/tests/unit/native_hardware_test.cpp\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    },
+    {
+      "lane": "host",
+      "label": "host Go and UI tests",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/host_tests.py",
+        "--ui-if-needed",
+        "--paths-json",
+        "[\"sources/libmister-runtime/ARCHITECTURE.md\", \"sources/libmister-runtime/Makefile\", \"sources/libmister-runtime/README.md\", \"sources/libmister-runtime/docs/support-matrix.md\", \"sources/libmister-runtime/scripts/check-active-tree.sh\", \"sources/libmister-runtime/src/native/core_driver.hpp\", \"sources/libmister-runtime/src/native/de25_computer.cpp\", \"sources/libmister-runtime/src/native/de25_computer.hpp\", \"sources/libmister-runtime/src/native/de25_core_driver.cpp\", \"sources/libmister-runtime/src/native/de25_core_driver.hpp\", \"sources/libmister-runtime/src/native/fes_gp.hpp\", \"sources/libmister-runtime/src/native/hardware.cpp\", \"sources/libmister-runtime/tests/active_tree_test.sh\", \"sources/libmister-runtime/tests/unit/de25_computer_test.cpp\", \"sources/libmister-runtime/tests/unit/native_hardware_test.cpp\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "cc",
+        "go",
+        "make",
+        "node",
+        "rg",
+        "sh"
+      ],
+      "files": [
+        "scripts/host_tests.py",
+        "sources/FogCast/Makefile",
+        "sources/FogCast/go.mod",
+        "sources/FogCast/appliance/go.mod",
+        "sources/misteross/expansion/go.mod"
+      ],
+      "host_ui": {
+        "required": true,
+        "scheduled": true,
+        "boundary_scheduled": false,
+        "command_scheduled": true,
+        "target": "test-ui",
+        "reason": "UI/API, production/full or uncertain inputs"
+      }
+    },
+    {
+      "lane": "runtime",
+      "label": "runtime software tests",
+      "cwd": "sources/libmister-runtime",
+      "argv": [
+        "make",
+        "-j2",
+        "test"
+      ],
+      "tools": [
+        "ar",
+        "c++",
+        "c++filt",
+        "make",
+        "nm",
+        "rg",
+        "sh"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "passed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "host Go and UI tests",
+      "lane": "host",
+      "returncode": 0
+    },
+    {
+      "label": "runtime software tests",
+      "lane": "runtime",
+      "returncode": 0
+    }
+  ]
+}

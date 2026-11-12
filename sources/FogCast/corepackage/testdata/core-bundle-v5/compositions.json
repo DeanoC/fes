@@ -1,0 +1,29 @@
+[
+  {
+    "name": "empty",
+    "composition": {
+      "composition_id": "8d943c38788901bfe377281785ed3e62e0a6935f16d784a7ea623fdc1ff699af",
+      "package_id": "1ad97e43e69bdf5c70da5d3ec01dd8b86289fa6cfc920c3b83831638aacd7bb1",
+      "base_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+      "base_size": 12,
+      "persona_sha256": "0542bda2022d1458201acdfcfedc92e542c003ec81a5e83eb8e2f941ea67def8",
+      "persona_size": 26,
+      "control_build_id": "11111111111111111111111111111111",
+      "hardware_id": 3221331969
+    }
+  },
+  {
+    "name": "ram16k",
+    "composition": {
+      "composition_id": "5e9815be35282adde261516f020195e3f8fa841e0a33f845f62f39ef38f23965",
+      "package_id": "1ad97e43e69bdf5c70da5d3ec01dd8b86289fa6cfc920c3b83831638aacd7bb1",
+      "expansion_id": "7644abd7da2ae398223c9876aef4b57f09c9265ec46e32ea9927e39171506a10",
+      "base_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+      "base_size": 12,
+      "persona_sha256": "ff1019111545d2fbae2f45eb389bc55cc7fa3daef9db5185e0c4bb4ea81fcea0",
+      "persona_size": 25,
+      "control_build_id": "11111111111111111111111111111111",
+      "hardware_id": 3221401602
+    }
+  }
+]

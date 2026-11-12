@@ -1,0 +1,86 @@
+{
+  "source_revision": "c2920cdf250130d85dbf8b31d318912acb59bbfc",
+  "artifact": "/home/deano/fes/out/dev/de25-bluetooth-bootstrap/out/de25-bluetooth-bootstrap/c2920cdf250130d85dbf8b31d318912acb59bbfc/bootstrap",
+  "bootstrap_sha256": "fa236fa35525a5781dc592f17973d47b98f3ca9e9a5d7d12ec3e69ea8cd7ae8b",
+  "bootstrap_bytes": 33554432,
+  "binary_sha256": "ff6b17f6a2242f53ff01f2c9a6f60df5dc77cd2dd2bc2b2d041d4bd5cedea0e5",
+  "boot_selector_executable_unchanged": true,
+  "factory_manifest_unchanged": true,
+  "kernel_unchanged": true,
+  "retained_factory_producer_verified": {
+    "board": "de25-nano",
+    "architecture": "aarch64",
+    "profile": "managed-factory",
+    "classification": "managed-factory-candidate",
+    "fes_revision": "022eeb3457e6a812571dcbb279e2b342c15c6763",
+    "recipe_sha256": "14ed856083b6fbdfed9e263bb9602502bdb87a4b3f6f45ddf5fe873b7ce9fb57",
+    "inputs_sha256": "49eee29bc9e4faf1d1694adfe54920f032e06b6bc0ca1c53c08facc1083eb28f",
+    "rootfs_sha256": "72160dff0d22df2098043c46430a9303212b4fe417b4683847b8f9bbd6614fcc",
+    "kernel_sha256": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b"
+  },
+  "two_pass_reproducibility": "pass",
+  "firmware_files": {
+    "image/firmware/rtl_bt/LICENCE.rtlwifi_firmware.txt": "c8d3870823de536995c1bc5830df464c00d9245ad5450d89e9feddc9418b269a",
+    "image/firmware/rtl_bt/SHA256SUMS": "0dd4918d125948a356f5f82463171f07f9c7d5a3d96c6820db13c06a4f6cd070",
+    "image/firmware/rtl_bt/rtl8761bu_config.bin": "6c28a3f07c6a30ed208c4b64862a23f02b7d93543ea980edd24df16bab45095f",
+    "image/firmware/rtl_bt/rtl8761bu_fw.bin": "1d7a9597349ad89344fa16c1913d3e39e9a12e966e417ca16871bc79bbe59edb",
+    "image/firmware/rtl_bt/rtl8821c_config.bin": "292717b0610ce920f66b734c299d349ea59a4c4400044078d8fc65625f17e382",
+    "image/firmware/rtl_bt/rtl8821c_fw.bin": "dfe7ef772d078ec09490c02190a32fcd40b3eaf3b040049d8930eb80e6d5743c"
+  },
+  "current_factory_readmission": "not claimed; ordinary full-factory command rejected retained factory as stale",
+  "deployment": "not-run",
+  "native_Bluetooth_acceptance": "pending",
+  "canonical": {
+    "passed": true,
+    "source_revision": "c2920cdf250130d85dbf8b31d318912acb59bbfc",
+    "source_frozen_throughout": true,
+    "base": "0b990554fd419c739c4fe4713139d41fcc6e98b4",
+    "commands": 6,
+    "results": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      }
+    ],
+    "seconds": 154.677,
+    "output_sha256": "855d4ed715625ee406aa335856283ae9bb06b19fdbaf3ac293f4e55ae8853d22",
+    "scope": "Complete unmodified affected plan for early DE25 firmware bootstrap packaging. Real pinned-tools/card and firmware tests separately passed17.556s; no native acceptance."
+  },
+  "focused_checks": {
+    "passed": true,
+    "seconds": 17.556,
+    "scope": "43 host cases including real pinned-container bootstrap/card suites, DE25 two-pass firmware readback, DE10 control; not native Bluetooth"
+  },
+  "passive_observation": {
+    "USB_radio": "0bda:a728",
+    "built_in_driver_initial_firmware_result": "ENOENT before managed root mount",
+    "BlueZ_adapter_objects": 0,
+    "physical_input_events_tested": false
+  }
+}

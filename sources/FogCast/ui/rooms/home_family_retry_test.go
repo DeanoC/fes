@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -123,7 +124,8 @@ func stepHomeRetryFor(t *testing.T, r *Instance, n int) {
 func retryHome(t *testing.T, failures ...error) (*Instance, *retryHomeServices) {
 	t.Helper()
 	s := &retryHomeServices{coreID: "fes.zx81", failures: failures}
-	s.games = []hostclient.Game{machineEntry("zx81-machine", "fes.zx81", ""), titleEntry("zx81-game", "fes.zx81")}
+	s.games = []hostclient.Game{machineEntry("catalog-machine", "fes.zx81", ""), titleEntry("zx81-game", "fes.zx81")}
+	s.computers = []hostclient.ShelfComputer{computerEntry("zx81-machine", "fes.zx81", "")}
 	local := &fakeLocalCores{cores: []localcores.Core{{
 		PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "none", Launchable: true,
 	}}}
@@ -247,7 +249,8 @@ func (s *mixedRetryHomeServices) counts() (int, int) {
 
 func TestHomeRetriesOnlyFailedTransientFamily(t *testing.T) {
 	s := &mixedRetryHomeServices{}
-	s.games = []hostclient.Game{machineEntry("zx81-machine", "fes.zx81", ""), titleEntry("zx81-game", "fes.zx81")}
+	s.games = []hostclient.Game{machineEntry("catalog-machine", "fes.zx81", ""), titleEntry("zx81-game", "fes.zx81")}
+	s.computers = []hostclient.ShelfComputer{computerEntry("zx81-machine", "fes.zx81", "")}
 	r := loadHome(t, Options{Services: s, ReleaseOnly: true})
 	stepHomeRetryUntil(t, r, func() bool {
 		zx, c64 := s.counts()
@@ -309,7 +312,8 @@ func TestHomeReloadDiscardsScheduledRetry(t *testing.T) {
 func TestHomeReloadCancelsInFlightRetry(t *testing.T) {
 	s := &retryHomeServices{coreID: "fes.zx81", failures: []error{context.DeadlineExceeded},
 		blockCall: 2, entered: make(chan struct{}), canceled: make(chan struct{})}
-	s.games = []hostclient.Game{machineEntry("zx81-machine", "fes.zx81", "")}
+	s.games = []hostclient.Game{machineEntry("catalog-machine", "fes.zx81", "")}
+	s.computers = []hostclient.ShelfComputer{computerEntry("zx81-machine", "fes.zx81", "")}
 	r := loadHome(t, Options{Services: s, ReleaseOnly: true})
 	stepHomeRetryUntil(t, r, func() bool {
 		select {
@@ -364,7 +368,8 @@ func (s *staleRetryHomeServices) QueryGames(ctx context.Context, q hostclient.Ga
 		close(s.entered)
 		<-s.release // Deliberately ignore ctx to model a late completed response.
 		defer close(s.returned)
-		return []hostclient.Game{machineEntry("stale-machine", "fes.zx81", "")}, false, nil
+		return []hostclient.Game{machineEntry("stale-machine", "fes.zx81", ""),
+			titleEntry("stale-title-1", "fes.zx81"), titleEntry("stale-title-2", "fes.zx81")}, false, nil
 	}
 	return s.homeServices.QueryGames(ctx, q, max)
 }
@@ -373,7 +378,8 @@ func (s *staleRetryHomeServices) unblock() { s.once.Do(func() { close(s.release)
 
 func TestHomeReloadIgnoresLateOldRetryResult(t *testing.T) {
 	s := &staleRetryHomeServices{entered: make(chan struct{}), release: make(chan struct{}), returned: make(chan struct{})}
-	s.games = []hostclient.Game{machineEntry("new-machine", "fes.zx81", "")}
+	s.games = []hostclient.Game{machineEntry("catalog-machine", "fes.zx81", ""), titleEntry("new-title", "fes.zx81")}
+	s.computers = []hostclient.ShelfComputer{computerEntry("new-machine", "fes.zx81", "")}
 	defer s.unblock()
 	r := loadHome(t, Options{Services: s, ReleaseOnly: true})
 	stepHomeRetryUntil(t, r, func() bool {
@@ -385,7 +391,9 @@ func TestHomeReloadIgnoresLateOldRetryResult(t *testing.T) {
 		}
 	})
 	r.Resume()
-	stepHomeRetryUntil(t, r, func() bool { return r.Destination().GameID == "new-machine" })
+	stepHomeRetryUntil(t, r, func() bool {
+		return homeSettled(r) && r.Destination().GameID == "new-machine" && r.Destination().Status == "1 game"
+	})
 	s.unblock()
 	select {
 	case <-s.returned:
@@ -393,7 +401,49 @@ func TestHomeReloadIgnoresLateOldRetryResult(t *testing.T) {
 		t.Fatal("old retry did not return")
 	}
 	stepHomeRetryFor(t, r, 50)
-	if d := r.Destination(); d.GameID != "new-machine" {
+	if d := r.Destination(); d.GameID != "new-machine" || d.Status != "1 game" {
 		t.Fatalf("old retry overwrote the newer family: %+v", d)
+	}
+}
+
+// Library retry results update counts, never the host's admitted machine or
+// its launch block, even when a selected cassette makes it a title as well.
+func TestHomeFamilyRetryPreservesHardwareAdmission(t *testing.T) {
+	for _, reason := range []string{"", "Needs a software update"} {
+		t.Run(reason, func(t *testing.T) {
+			s := &retryHomeServices{coreID: "fes.zx81", failures: []error{context.DeadlineExceeded}}
+			s.computers = []hostclient.ShelfComputer{computerEntry("admitted-machine", "fes.zx81", reason)}
+			s.games = []hostclient.Game{machineEntry("catalog-machine", "fes.zx81", ""),
+				titleEntry("admitted-machine", "fes.zx81"), titleEntry("game", "fes.zx81")}
+			local := &fakeLocalCores{cores: []localcores.Core{{CoreID: "fes.zx81", Needs: "none", Launchable: true}}}
+			r := loadHome(t, Options{Services: s, Local: local, ReleaseOnly: true})
+			deadline := time.Now().Add(testwait.Timeout)
+			for !homeSettled(r) && time.Now().Before(deadline) {
+				r.Step(r.last)
+				if err := r.Err(); err != nil {
+					t.Fatal(err)
+				}
+				time.Sleep(time.Millisecond)
+			}
+			check := func() {
+				t.Helper()
+				d := r.Destination()
+				want := AvailReady
+				if reason != "" {
+					want = AvailUnavailable
+				}
+				if !homeSettled(r) || d.GameID != "admitted-machine" || d.Availability != want || reason != "" && d.Status != reason {
+					t.Fatalf("library replaced hardware admission: %+v", d)
+				}
+			}
+			check()
+			if s.count() != 1 {
+				t.Fatalf("initial failure already retried: %d", s.count())
+			}
+			stepHomeRetryUntil(t, r, func() bool {
+				return s.count() == 2 && homeSettled(r) && strings.Contains(strings.Join(r.Destination().Details, "\n"), "In your library: 2 games")
+			})
+			check()
+		})
 	}
 }

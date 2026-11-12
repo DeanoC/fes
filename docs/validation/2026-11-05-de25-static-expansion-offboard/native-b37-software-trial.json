@@ -1,0 +1,96 @@
+{
+  "evidence_class": "source-bound native managed software and ordinary standard ZX81 acceptance",
+  "software_source": "b37a428f3c6f5f2df5b8722b78157cd6f3a97660",
+  "bundle_id": "51fadfc3c0daa0e7d64e6f6e342e1fed08e8e91d6ed8494d6abf2bbcf254eea4",
+  "base_image": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+  "boot_id": "35d95481-a33d-4d4b-a042-28e9163b3cc4",
+  "target_usb_serial": "TRWU8J8G",
+  "kernel": "6.12.11-fes-de25-owner",
+  "kernel_notes_sha256": "47b21fcf0a7a63b0ed940efe53c6f39daea8eddd8299539d71ecb731c0adaf34",
+  "native_CPU": {
+    "passed": true,
+    "architecture": "physical native AArch64 kit CPU; no QEMU",
+    "host_library_source": "b37a428f3c6f5f2df5b8722b78157cd6f3a97660",
+    "other_CPP_and_Go_source": "ddf2ca7a451e0eb25a69b0773361b03fcf72ce63",
+    "cpus": [
+      0,
+      1
+    ],
+    "binary_suites": 9,
+    "temporary_files_removed": true
+  },
+  "native_CPU_scope": "Three C++ package/composition/protocol suites and six Go corepackage/expansion/runtime-adapter/agent/targetclient/normal-library suites in eight supervisor units; two CPUs, 45 seconds per unit and 90 seconds overall. Synthetic opaque assets and target peers; no MMIO/device/FPGA access.",
+  "managed_software": {
+    "success": true,
+    "generation": 39,
+    "selected": "51fadfc3c0daa0e7d64e6f6e342e1fed08e8e91d6ed8494d6abf2bbcf254eea4",
+    "stages": {
+      "activation": "passed",
+      "competing_client": "passed",
+      "core_inventory": "passed",
+      "hdmi": "skipped",
+      "held_install": "passed",
+      "input": "skipped",
+      "local_busy": "skipped",
+      "queue_cancel": "passed",
+      "reboot": "skipped",
+      "recovery": "skipped",
+      "requester_exit": "passed",
+      "retained_stop": "passed"
+    },
+    "active_four_executable_hashes_verified": true
+  },
+  "ordinary_standard_core": {
+    "package_id": "2be47146475d6b60d2b5f1e2e8975b19dd01f35d9466b5cfd253a70945e36900",
+    "package_archive_sha256": "593a40293950c7a6dc1d563d629e8a5d6154ab9172d7a0c3636f625806ce483c",
+    "BASIC_tape_sha256": "e506e8a76f15734516ef95dabdb0a8c7aa8ac1bb7cadcf70f741eac763446535",
+    "catalog_package_media_launch_Stop": true,
+    "real_host_HID_input": true,
+    "visual_outputs": [
+      7,
+      9,
+      7
+    ],
+    "captures": [
+      {
+        "path": "native-b37-02-load-run7.png",
+        "sha256": "93e92ea2df3ceacebf283912b8365aa6cf184680017f3197844d9772e3ffd246"
+      },
+      {
+        "path": "native-b37-03-edit-run9.png",
+        "sha256": "af64086312b5e5edf1825976781fb88e8fbd2a89bf81bae9614af7ffb157d19a"
+      },
+      {
+        "path": "native-b37-04-reload-run7.png",
+        "sha256": "93e92ea2df3ceacebf283912b8365aa6cf184680017f3197844d9772e3ffd246"
+      }
+    ],
+    "capture_path": "/dev/v4l/by-id/fes-ms2109-hil"
+  },
+  "restoration": {
+    "baseline_verified": true,
+    "baseline_bundle": "a14a53cd33e2c51d7639701363bf95cc7781f62b8207c0e2bab1653276504700",
+    "software_generation": 40,
+    "ready_idle_free": true,
+    "original_dedicated_host_restored": true,
+    "host_sha256": "8fcf05fc6f1b2c5c0a702d331a32eac58aae5d1bdc2d73317a234d8b9aa27730",
+    "original_unit_config_launcher_unchanged": true,
+    "original_catalog_untouched": true,
+    "general_operator_host_untouched": true,
+    "owned_private_host_stopped": true,
+    "native_failures": 0,
+    "collector_filename_failure_retained": true,
+    "no_activation_replay": true,
+    "image_kernel_SD_boot_or_PR_change": false,
+    "reboot_or_power_cycle": false
+  },
+  "observation_failure": "The successful activation helper returned zero and wrote numbered 038-result.json. Its outer collector expected result.json and failed. Numbered result and independent authenticated observation verified the same transaction; activation was not replayed.",
+  "not_accepted": [
+    "physical static/default or RAM16K persona programming",
+    "physical USB keyboard input",
+    "audio",
+    "new image/kernel/boot/reboot trial",
+    "full DE10-equivalent kit parity"
+  ],
+  "source_boundary": "The b37 userspace artifact was deployed and restored. Later launcher projection edits are separate software checks and inherit no new native acceptance."
+}

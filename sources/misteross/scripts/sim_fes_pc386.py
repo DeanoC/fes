@@ -28,9 +28,13 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            BLASTER; build_pc386_freedos_image.py) and writes boot-games/.
   rtl-stops
            boots cores/fes-pc386/sim/rtl_stop_test.asm on the oracle and on
-           the RTL: SMSW at two sites and a protected-mode stretch from LMSW
-           to MOV CR0, all unbuilt in the RTL. The RTL run must stop on
-           each, record the stretch, and write what the oracle run writes.
+           the RTL: what the RTL still stops on as not built (#1721), LOADALL
+           in real mode and a far JMP through a call gate in protected mode,
+           then that JMP under paging from an aliased linear address, whose
+           bytes the bench reads through the page tables and after which the
+           oracle runs until paging is off. The RTL run must stop on each,
+           record the two protected-mode stretches, and write what the
+           oracle run writes.
   a20      runs cores/fes-pc386/sim/a20_test.asm (A20TEST.COM) at the FreeDOS
            prompt (#1386). On the boot image, which has no XMS driver, A20
            must be off at the prompt, INT 15h AH=24h and 87h must turn it on,
@@ -151,6 +155,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import functools
 import json
 import math
 import os
@@ -293,15 +298,37 @@ class SimError(RuntimeError):
     pass
 
 
+@functools.lru_cache(maxsize=None)
+def verilator_supports_procassinit(verilator: str) -> bool:
+    """Whether this Verilator recognizes PROCASSINIT lint controls."""
+    try:
+        version = subprocess.run([verilator, '--version'], capture_output=True,
+                                 text=True, timeout=30, check=False)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise SimError(f'cannot determine Verilator version: {error}') from error
+    if version.returncode or not re.search(r'\bVerilator\s+\d+\.\d+', version.stdout):
+        raise SimError('cannot determine Verilator version')
+    try:
+        result = subprocess.run([verilator, '-Wno-PROCASSINIT', '--version'],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                timeout=30, check=False)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise SimError(f'cannot probe Verilator PROCASSINIT support: {error}') from error
+    return result.returncode == 0
+
+
 def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testbench: Path | None,
              linked: list[Path], jobs: int, parameters: dict[str, int] | None = None,
              include: tuple[Path, ...] = (), flags: tuple[str, ...] = (), defines: tuple[str, ...] = ()) -> Path:
     output = OUTPUT / name / ('obj' if testbench else f'obj-{top}')
     output.mkdir(parents=True, exist_ok=True)
     includes = ' '.join(f'-I{path}' for path in (COMMON / 'sim/i386', CORE / 'sim', NUKED, *include))
+    procassinit_supported = verilator_supports_procassinit(verilator)
     command = [verilator, '--cc', *(['--exe'] if testbench else []), '--build', '-j', str(jobs), '-O3', '--top-module', top,
                '-Wall', '-Wno-UNUSEDSIGNAL', '-Wno-DECLFILENAME', *flags,
                *(str(CORE / 'sim' / name) for name in ('pc386.vlt', 'pc386_audio.vlt', 'pc386_vga.vlt')),
+               *(['-DFES_PC386_VERILATOR_5054', str(CORE / 'sim/pc386_verilator_5054.vlt')]
+                 if procassinit_supported else []),
                f'-I{COMMON / "vendor/kf8259"}', f'-I{COMMON / "vendor/kf8253"}', f'-I{COMMON / "generated"}',
                *(f'-G{key}={value}' for key, value in (parameters or {}).items()), *(f'-D{name}' for name in defines),
                '--Mdir', str(output), '-MAKEFLAGS', 'OPT_FAST=-O3',
@@ -719,12 +746,21 @@ def vga_test_disk(args) -> Path:
     return disk
 
 
-# What the RTL must stop on in rtl_stop_test.asm: stem -> (stops, sites).
-RTL_STOPS = {'0F22': (1, 1), '0F01.4': (2, 2), '0F01.6': (1, 1)}
+# What the RTL must stop on in rtl_stop_test.asm, in order: (stem, CS, the
+# instruction's first bytes). LOADALL in real mode, which the oracle runs as
+# #UD (Bochs at CPU level 3); far JMP through call gate 18h at CPL 0; through
+# gate 28h under paging, from CS 20h, whose base maps to the sector through
+# a second page table.
+RTL_STOPS = (('0F07', '0000', '0f07'), ('EA', '0008', 'ea00001800'), ('EA', '0020', 'ea00002800'))
+# The lines both runs write to port E9h.
+RTL_STOP_LINES = ['U', 'G', 'P', 'DONE']
+# The stretches the oracle runs with PE set: the JMP through gate 18h alone,
+# then from the JMP through gate 28h until paging is off.
+RTL_STOP_STRETCHES = (1, 10)
 
 
 def run_rtl_stops(args, linked: list[Path]) -> dict:
-    """The stop path of --cpu rtl, on a boot sector of instructions the RTL has not built."""
+    """The stop path of --cpu rtl, on a boot sector of what the RTL still does not build."""
     nasm = test386.nasm(args.download, args.jobs)
     directory = OUTPUT / 'rtl-stops'
     directory.mkdir(parents=True, exist_ok=True)
@@ -745,22 +781,22 @@ def run_rtl_stops(args, linked: list[Path]) -> dict:
                                                                 '--cpu', cpu], images)
     lines = {cpu: [entry['text'] for entry in run['debug'] if entry['port'] == '0e9'] for cpu, run in runs.items()}
     failures = [f'{cpu}: {failure}' for cpu, run in runs.items() for failure in run['failures']]
-    if not lines['oracle'] or lines['oracle'][-1] != 'DONE':
-        failures.append(f'the oracle run did not finish: {lines["oracle"]}')
-    if 'C fff0' not in lines['oracle'] or 'C fff0' not in lines['rtl']:
-        failures.append(f'SMSW after MOV CR0 should report CR0 fff0: oracle {lines["oracle"]}, RTL {lines["rtl"]}')
-    if lines['rtl'] != lines['oracle']:
-        failures.append(f'the RTL run wrote {lines["rtl"]}, the oracle run {lines["oracle"]}')
-    rtl = runs['rtl'].get('rtl') or {'gaps': [], 'pmode': []}
-    gaps = {gap['stem']: gap for gap in rtl['gaps']}
-    for stem, (stops, sites) in RTL_STOPS.items():
-        gap = gaps.get(stem)
-        if not gap or (gap['stops'], gap['sites'], gap['executed']) != (stops, sites, stops):
-            failures.append(f'stem {stem}: expected {stops} stops at {sites} sites, each run on the oracle: {gap}')
-    if set(gaps) != set(RTL_STOPS):
-        failures.append(f'the RTL stopped on {sorted(gaps)}, expected {sorted(RTL_STOPS)}')
-    if len(rtl['pmode']) != 1 or rtl['pmode'][0]['steps'] != 3:
-        failures.append(f'expected one protected-mode stretch of 3 steps: {rtl["pmode"]}')
+    for cpu in runs:
+        if lines[cpu] != RTL_STOP_LINES:
+            failures.append(f'the {cpu} run wrote {lines[cpu]}, expected {RTL_STOP_LINES}')
+    rtl = runs['rtl'].get('rtl') or {'stops': [], 'gaps': [], 'pmode': []}
+    stops = [(stop['stem'], stop['site'].partition(':')[0], (stop['bytes'] or '')[:len(want)])
+             for stop, (_, _, want) in zip(rtl['stops'], RTL_STOPS)]
+    if len(rtl['stops']) != len(RTL_STOPS) or stops != list(RTL_STOPS):
+        failures.append(f'the RTL stopped at {[(s["stem"], s["site"], s["bytes"]) for s in rtl["stops"]]}, '
+                        f'expected {list(RTL_STOPS)}')
+    # Each stop's instruction runs on the oracle; LOADALL raises #UD there,
+    # so it does not retire.
+    gaps = {gap['stem']: (gap['stops'], gap['sites'], gap['executed']) for gap in rtl['gaps']}
+    if gaps != {'0F07': (1, 1, 0), 'EA': (2, 2, 2)}:
+        failures.append(f'expected LOADALL once (not retired on the oracle) and EA twice, each at its own site: {gaps}')
+    if tuple(stretch['steps'] for stretch in rtl['pmode']) != RTL_STOP_STRETCHES:
+        failures.append(f'expected protected-mode stretches of {RTL_STOP_STRETCHES} steps: {rtl["pmode"]}')
     return {'lines': lines, 'runs': runs, 'failures': failures,
             'checks': [f'{cpu}: {" | ".join(lines[cpu])}' for cpu in runs] + [f'RTL {gap}' for gap in rtl['gaps']]}
 

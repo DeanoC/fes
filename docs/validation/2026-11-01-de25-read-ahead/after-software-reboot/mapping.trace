@@ -1,0 +1,14 @@
+# tracer: nop
+#
+# entries-in-buffer/entries-written: 2/2   #P:4
+#
+#                                _-----=> irqs-off/BH-disabled
+#                               / _----=> need-resched
+#                              | / _---=> hardirq/softirq
+#                              || / _--=> preempt-depth
+#                              ||| / _-=> migrate-disable
+#                              |||| /     delay
+#           TASK-PID     CPU#  |||||  TIMESTAMP  FUNCTION
+#              | |         |   |||||     |         |
+   owner-scanout-265     [002] .....   473.625332: map: IOMMU: iova=0x00000000ff800000 - 0x0000000100000000 paddr=0x00000000bcd00000 size=8388608
+   owner-scanout-265     [002] .....   479.720779: unmap: IOMMU: iova=0x00000000ff800000 - 0x0000000100000000 size=8388608 unmapped_size=8388608

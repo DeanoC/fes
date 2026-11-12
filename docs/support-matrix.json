@@ -722,8 +722,8 @@
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-sg1000-quartus` is the Quartus 17.0.2 oracle, not the installed package.",
-      "features": "Media: format-3 exact 16 KiB `cartridge-rom`. No startup media blob on the OSS producer. Input: `fes.keyboard`. HDMI: fixed 720p60 shell raster. Display plane is Planned in `docs/display-pipeline.md`. Audio: SN76489 into HDMI I2S. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Outside the first-party catalog and bootstrap image. The 1.2.0 kit audio note does not qualify 1.3.0.",
+      "features": "Media: format-3 exact 16 KiB `cartridge-rom`. No startup media blob on the OSS producer. Input: `fes.gamepad.ports`. HDMI: fixed 720p60 shell raster. Display plane is Planned in `docs/display-pipeline.md`. Audio: SN76489 into HDMI I2S. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Outside the first-party catalog and bootstrap image. The earlier 1.2.0 and 1.3.0 kit diagnostics do not qualify the 1.4.0 application-ABI package.",
       "evidence": [
         "config/core-recipes.toml",
         "profiles/native-integration-dev.toml",
@@ -1625,7 +1625,7 @@
       "in_bootstrap_image": false,
       "oss_lock": {
         "path": "sources/misteross/cores/fes-pc386/toolchain.lock",
-        "yosys": "0a7927bf",
+        "yosys": "e240a465",
         "mistral": "8fcc4cb4",
         "nextpnr": "bd7a1c0d"
       },
@@ -1684,7 +1684,7 @@
       "in_bootstrap_image": false,
       "oss_lock": {
         "path": "sources/misteross/cores/fes-common/rtl/i386/toolchain.lock",
-        "yosys": "0a7927bf",
+        "yosys": "e240a465",
         "mistral": "8fcc4cb4",
         "nextpnr": "bd7a1c0d"
       },
@@ -1693,7 +1693,7 @@
       "router": "CPU timing spikes use this lock with the GPU router. Not a package producer and not a recipe row.",
       "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker. Quartus 17.0.2 fits the same Yosys netlist (`scripts/quartus_fes_i386.py`). The far-transfer record is about 69\u201374 MHz nextpnr and about 98\u2013104 MHz Quartus. A nextpnr-only gap is filed on the flow (DeanoC/nextpnr#300, `docs/i386-cpu-design.md`). Recipe and package selection for a labelled variant are not implemented.",
       "features": "Not a system package. No media, HDMI, Bluetooth or mesh of its own. Phase 1 real-mode pipeline is in progress in the CPU design doc. The pc386 machine is its consumer: the development package `fes.pc386` (pc386 M5) seals it with Quartus 17.0.2.",
-      "notes": "Shared CPU RTL. Device `5CSEBA6U23I7` in the spike harness. Yosys pin `0a7927bf` is newer than the repository lock's `3a5accbd`; it is the pc386 lock's pin, so one Yosys reads the CPU (#1581 D2).",
+      "notes": "Shared CPU RTL. Device `5CSEBA6U23I7` in the spike harness. Yosys pin `e240a465` is newer than the repository lock's `3a5accbd`; it is the pc386 lock's pin, so one Yosys reads the CPU (#1581 D2, S4).",
       "evidence": [
         "sources/misteross/docs/i386-cpu-design.md",
         "sources/misteross/cores/fes-common/rtl/i386/toolchain.lock",

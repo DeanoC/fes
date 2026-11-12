@@ -1,0 +1,12 @@
+{
+  "classification": "derived working-copy candidate tested by unchanged actual complete-frame video bench; no canonical artifact or hardware acceptance",
+  "source_revision": "9bab7606c732edda84358679cbe74b673bcd892a",
+  "source_sha256": {
+    "video.v": "21f8abf7f56b82629a0b190bd9229c2ca127152b4f26529b923e60346f2c7459",
+    "video_sim.py": "746f9d93acf0957655899401eca69441d7bada4c3f19b1372c145111fd379cad",
+    "video_tb.cpp": "dc4c0d875b45ee42b59c9c58b6b453eeeb9ea2ddf83f8794f7c9d951451cc909"
+  },
+  "seconds": 22.002,
+  "returncode": 0,
+  "hardware_access": "not-performed"
+}

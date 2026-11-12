@@ -1,0 +1,297 @@
+{
+  "affected": {
+    "Go_package_pass_runs": 136,
+    "base": "a0e5a70865987ea6fea38308bf42d33ad58251c8",
+    "commands": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "host Go and UI tests",
+        "lane": "host",
+        "returncode": 0
+      }
+    ],
+    "elapsed_seconds": 763.6,
+    "fixture_copies": 42,
+    "generated_consumers": 40,
+    "hardware_access": "not-performed",
+    "log_sha256": "901854460d4ee39fb4341a7d8056ef9bf6f2d2f43a69bf25ca943bb9f13de93a",
+    "parent_unittest_summaries": [
+      {
+        "outcome": "OK",
+        "seconds": 0.264,
+        "tests": 30
+      },
+      {
+        "outcome": "OK",
+        "seconds": 1.263,
+        "tests": 32
+      },
+      {
+        "outcome": "OK",
+        "seconds": 2.624,
+        "tests": 2
+      },
+      {
+        "outcome": "OK",
+        "seconds": 17.117,
+        "tests": 3
+      },
+      {
+        "outcome": "OK",
+        "seconds": 54.016,
+        "tests": 33
+      },
+      {
+        "outcome": "OK",
+        "seconds": 0.0,
+        "tests": 1
+      },
+      {
+        "outcome": "OK (skipped=40)",
+        "seconds": 293.787,
+        "tests": 1276
+      }
+    ],
+    "source_revision": "83e1c16b6a4b4cd19b92fe93e42a0902d52e1c3b",
+    "status": "passed",
+    "unittest_parent_skipped": 40,
+    "unittest_parent_tests": 1276
+  },
+  "all_completed_own_pids_pgids": [
+    1985356,
+    1985391,
+    1987055,
+    1987082,
+    2064373,
+    2064394,
+    2092589,
+    2092610,
+    2116552,
+    2116575,
+    2132537,
+    2132560,
+    2167250,
+    2167274
+  ],
+  "archive_sha256": "dcc5def1aa38d1241df3f25e8d126360023ff3b8fd664b37c240321dee0d4fc5",
+  "archive_size": 41268394,
+  "archived_regular_files_verified": 95,
+  "classification": "completed CPU/API/helper plus full affected parent/host/UI integration; all original failed attempts retained; no hardware acceptance",
+  "completed_own_pids_pgids": [
+    1985356,
+    1985391,
+    1987055,
+    1987082,
+    2064373,
+    2064394,
+    2092589,
+    2092610,
+    2116552,
+    2116575
+  ],
+  "completed_proof_jobs": [
+    {
+      "command": [
+        "python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-release-board/actual-proof.py",
+        "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-release-board-cf4d4e92d",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-release-board/actual"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-release-board-cf4d4e92d",
+      "elapsed_seconds": 0.2,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-01T20:36:02.414689+00:00",
+      "pid": 1985391,
+      "returncode": 1,
+      "source_revision": "cf4d4e92de425abb6a80dd6c259015e052246801",
+      "started_utc": "2026-11-01T20:36:02.242583+00:00",
+      "state": "failed",
+      "time_cap_seconds": 900
+    },
+    {
+      "command": [
+        "python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-release-board/actual-proof.py",
+        "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-release-board-cf4d4e92d",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-release-board/actual-v2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-release-board-cf4d4e92d",
+      "elapsed_seconds": 24.0,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-01T20:37:16.622222+00:00",
+      "pid": 1987082,
+      "returncode": 0,
+      "source_revision": "cf4d4e92de425abb6a80dd6c259015e052246801",
+      "started_utc": "2026-11-01T20:36:52.576640+00:00",
+      "state": "passed",
+      "time_cap_seconds": 900
+    },
+    {
+      "command": [
+        "python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-release-consumers/actual-proof.py",
+        "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-release-consumers-079642e0e",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-release-consumers/actual"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-release-consumers-079642e0e",
+      "elapsed_seconds": 17.9,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-01T20:44:57.723972+00:00",
+      "pid": 2064394,
+      "returncode": 1,
+      "source_revision": "079642e0e89c45562ed2d433bee6d097d0ef8058",
+      "started_utc": "2026-11-01T20:44:39.847255+00:00",
+      "state": "failed",
+      "time_cap_seconds": 1800
+    },
+    {
+      "command": [
+        "python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-release-consumers-83e1c16b6/actual-proof.py",
+        "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-release-consumers-83e1c16b6",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-release-consumers-83e1c16b6/actual"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-release-consumers-83e1c16b6",
+      "elapsed_seconds": 41.1,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-01T20:47:57.548545+00:00",
+      "pid": 2092610,
+      "returncode": 1,
+      "source_revision": "83e1c16b6a4b4cd19b92fe93e42a0902d52e1c3b",
+      "started_utc": "2026-11-01T20:47:16.473103+00:00",
+      "state": "failed",
+      "time_cap_seconds": 1800
+    },
+    {
+      "command": [
+        "python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-release-consumers-83e1c16b6/finish-proof.py",
+        "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-release-consumers-83e1c16b6",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-release-consumers-83e1c16b6/actual-finish"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-release-consumers-83e1c16b6",
+      "elapsed_seconds": 7.0,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-01T20:50:28.266703+00:00",
+      "pid": 2116575,
+      "returncode": 0,
+      "source_revision": "83e1c16b6a4b4cd19b92fe93e42a0902d52e1c3b",
+      "started_utc": "2026-11-01T20:50:21.218787+00:00",
+      "state": "passed",
+      "time_cap_seconds": 900
+    }
+  ],
+  "files": {
+    "archive-members.json": {
+      "sha256": "ad3ee0607cac2aced352f6f643656aebfa83d3e07939055e14ba39ebd51f1f6c",
+      "size": 17517
+    },
+    "cpu-proofs.tar.gz": {
+      "sha256": "dcc5def1aa38d1241df3f25e8d126360023ff3b8fd664b37c240321dee0d4fc5",
+      "size": 41268394
+    },
+    "integration/affected-job/job.json": {
+      "sha256": "571870505efc6bae3e92f5ef9f5951819623fe5d03ce71cbc8636febd743d886",
+      "size": 549
+    },
+    "integration/affected-job/stdout.log": {
+      "sha256": "901854460d4ee39fb4341a7d8056ef9bf6f2d2f43a69bf25ca943bb9f13de93a",
+      "size": 1371168
+    },
+    "integration/affected-launch.json": {
+      "sha256": "3a85335fee1c85ff136b4a489174994e13f28729eb946f25d930bcc84e7e00f0",
+      "size": 770
+    },
+    "integration/affected-plan.json": {
+      "sha256": "9a343ae49a1444d9e33ed21bb9eee2269e74aaffe39a27d15d40bf0b4d81a7e2",
+      "size": 11172
+    },
+    "integration/affected-summary.json": {
+      "sha256": "7ee111f69e17ef37667f88b420c9be00994a01da954c66a67764fa6a7b085b0c",
+      "size": 1767
+    },
+    "integration/affected-supervisor.log": {
+      "sha256": "bc5c3e2a1b058cd97aa8e89fd79f49001f246153057d4299a1e1b2676bc0b521",
+      "size": 13322
+    },
+    "integration/boot-media-inspection.json": {
+      "sha256": "79c7c84cc65096acb261db896ea0f1868d055e708ff6539ae6a7b9e2bb5cde3e",
+      "size": 1074
+    },
+    "integration/retention-job/job.json": {
+      "sha256": "7e0ef001aad86badf4dab6dff362e3ebd8f614949525b197b842cc800e1420f2",
+      "size": 518
+    },
+    "integration/retention-job/stdout.log": {
+      "sha256": "3babbe6386725b792df9fa2389d4a072b4d91d0c53a101b691ce32864d4664d5",
+      "size": 1759
+    },
+    "integration/retention-supervisor.log": {
+      "sha256": "e2467f8a15f940fa26729093850d51d451db9f2f9699df16cbb79be0b9816e56",
+      "size": 947
+    },
+    "retain-proof.py": {
+      "sha256": "ed3b794f8b2992d0b9a6d838d6754c14762fa48aba40167759561e2060228d5b",
+      "size": 5300
+    },
+    "source-a0e.bundle": {
+      "sha256": "4410a655efad665a1a81ef1402daab0212e567e29ef4e8121163c1045ec1c33c",
+      "size": 15746
+    },
+    "source-base.bundle": {
+      "sha256": "b85c94328886fc06979e1225cbbad6f3fc2d180ebf32c7993b85597271d4a7f3",
+      "size": 286062917
+    },
+    "source-incremental.bundle": {
+      "sha256": "d8251c612c1ea54b8567e01f52c4037ae3ed6e51094a164fd30b21cff0dd9356",
+      "size": 17427
+    },
+    "source-scope.json": {
+      "sha256": "c2c3d09d54a7f027bce687d5868606dc35ae58b190dc8acc1b923f202581dad7",
+      "size": 460
+    }
+  },
+  "hardware_access": "not-performed",
+  "live_all_completed_processes": [],
+  "live_completed_processes": [],
+  "source_revision": "83e1c16b6a4b4cd19b92fe93e42a0902d52e1c3b",
+  "source_scope": {
+    "appliance_tree": "f7c16542236c4690875ea5b28ad74eb26b376d3683da626c71aa739580c06a30",
+    "canonical_menu_inputs_verified": 374,
+    "compiler_source_sha256_verified": 59,
+    "platform_tree": "a987e2d7cb5cb709e569503854ce7b0bd44f00dc1758616fc752b256dff37b30",
+    "restored_tree": "effcfc027965c37a444deb259521034ce9d19eb5",
+    "source_restored": true,
+    "source_revision": "83e1c16b6a4b4cd19b92fe93e42a0902d52e1c3b",
+    "test_runtime_source_sha256_verified": 58
+  }
+}

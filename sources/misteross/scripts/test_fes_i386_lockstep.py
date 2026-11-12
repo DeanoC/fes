@@ -30,12 +30,21 @@ stops the RTL as not built (double fault and shutdown); the oracle must
 fault twice or shut down there.
 
 Beside the lockstep, every one-byte and 0Fh opcode followed by every second
-byte that SCOPE leaves out must stop the RTL with FAULT_UNIMPLEMENTED before
-anything retires (the testbench's unbuilt mode), so the lockstep, which only
-runs what SCOPE names, cannot pass over an unbuilt instruction.
+byte is classed by what the 386 does with it (i386_class, from its decoder
+ROMs; #1701), in the testbench's unbuilt mode: what the 386 rejects must raise
+#UD in lockstep with the oracle in real mode (the RTL alone where Bochs cannot
+step it or runs it, the [[lockstep]] ud_rtl entries of divergences.toml), and
+what it defines but SCOPE leaves out must stop the RTL with
+FAULT_UNIMPLEMENTED before anything retires, so the lockstep, which only runs
+what SCOPE names, cannot pass over an unbuilt instruction. Programs from
+seeds of their own put encodings the 386 rejects in real mode, protected mode
+at CPL 0 and 3, and V86 mode (--undefined-programs).
 
-With --yosys the CPU is first run through that Yosys (read, proc -norom,
-flatten, opt) and the netlist it writes is simulated instead of the RTL.
+With --netlist the CPU is first run through the seal's Yosys program
+(scripts/yosys_netlist.py, top fes_i386_cpu) by the pc386 lock's Yosys from
+its --cache-root slot, and that netlist is simulated instead of the RTL. The
+report's "netlist" records the program, CPU source and netlist digests and the
+Yosys identity, which the pc386 seal summary records too.
 
 With --preset the speed governor (fes_i386_governor) runs at that preset in
 every mode. It only holds D, so every result must be what max gives:
@@ -51,7 +60,7 @@ pass --cache-root or set FES_TOOLCHAIN_CACHE_ROOT. The report records it.
 Example:
   python3 scripts/test_fes_i386_lockstep.py --download
   python3 scripts/test_fes_i386_lockstep.py --opcode 00 --opcode D3.4 --random-programs 0
-  python3 scripts/test_fes_i386_lockstep.py --yosys /abs/path/to/i386-locked/yosys
+  python3 scripts/test_fes_i386_lockstep.py --netlist
   python3 scripts/test_fes_i386_lockstep.py --preset 1 --same-as /abs/path/to/max/report.json
 
 Writes build/sim/fes-i386-lockstep/report.json.
@@ -65,7 +74,6 @@ import gzip
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 
@@ -76,19 +84,15 @@ from scripts import fes_i386_oracle as oracle
 from scripts import i386_verilator
 from scripts import test_fes_i386_frontend as frontend
 from scripts import test_fes_i386_vectors as vectors
+from scripts import yosys_netlist
 
 ROOT = Path(__file__).resolve().parents[1]
 RTL = ROOT / 'cores/fes-common/rtl/i386'
 SIM = ROOT / 'cores/fes-common/sim/i386'
 DDR_MODEL = ROOT / 'cores/fes-pc386/sim'  # pc386_ddr_model.h: HPS DDR port 0
 OUTPUT = ROOT / 'build/sim/fes-i386-lockstep'
-CPU_RTL = ('fes_i386_pkg.sv', 'fes_i386_gov_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_lstage.sv',
-           'fes_i386_btb.sv', 'fes_i386_ras.sv', 'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv', 'fes_i386_amode.sv',
-           'fes_i386_dfwd.sv', 'fes_i386_agu.sv', 'fes_i386_ucode_pkg.sv', 'fes_i386_ucode_rom.sv', 'fes_i386_decode.sv', 'fes_i386_seq.sv', 'fes_i386_dops.sv',
-           'fes_i386_shift.sv', 'fes_i386_shflags.sv', 'fes_i386_exctl.sv', 'fes_i386_muldiv.sv', 'fes_i386_ex.sv',
-           'fes_i386_tlb.sv', 'fes_i386_l1i.sv', 'fes_i386_l1d.sv', 'fes_i386_biu.sv', 'fes_i386_gov_rom.sv', 'fes_i386_governor.sv',
-           'fes_i386_cpu.sv')
-TOP = 'fes_i386_cpu'
+CPU_RTL = tuple(Path(path).name for path in yosys_netlist.CPU_SOURCES)
+TOP = yosys_netlist.CPU_TOP
 
 # What the CPU executes, by MOO stem without 66h/67h prefixes: every form of
 # each, memory forms included. Each later slice adds its stems here.
@@ -147,6 +151,10 @@ SCOPE: frozenset[str] = frozenset([
     # The ESC instructions with no 387. The corpus has none; the directed
     # no-387 cases run every form.
     *(f'{opcode:02X}' for opcode in range(0xD8, 0xE0)),
+    # The 386's undocumented instructions (#1730): ICEBP, UMOV and MOV to
+    # and from TR4-TR7. The corpus has none; the directed #1730 cases and
+    # the unbuilt sweep run them.
+    'F1', '0F10', '0F11', '0F12', '0F13', '0F24', '0F26',
 ])
 
 
@@ -174,12 +182,95 @@ TASK_SEED = 3000
 # #DB handler (lockstep_tb.cpp's debug_block, FES_I386_DEBUG), from seeds of
 # their own.
 DEBUG_SEED = 5000
+# The programs with undefined encodings (#1701): protected-mode programs as
+# PM_SEED's, now and then an encoding the 386 rejects in place of an
+# instruction (FES_I386_UNDEFINED), from seeds of their own. Each ends at
+# its first #UD.
+UNDEFINED_SEED = 7000
 
 GROUPED_ONE = frozenset([0x80, 0x81, 0x82, 0x83, 0xC0, 0xC1, 0xD0, 0xD1, 0xD2, 0xD3, 0xF6, 0xF7, 0xFE, 0xFF])
 
 
+# What the 386 does with each encoding, from its decoder ROMs
+# (reenigne/x86_microcode 80386/decoder23.txt and decode2.txt; #1701): the
+# 0Fh opcodes it rejects whatever follows, which its decoder sends to the #UD
+# entry (microcode_notes.txt 82B). XBTS and IBTS (0F A6, 0F A7), which only
+# the B-step 386 ran, reach it through every ModRM reg.
+I386_UD_0F = frozenset([
+    0x04, 0x05, *range(0x08, 0x10), *range(0x14, 0x20), 0x25, *range(0x27, 0x80),
+    0xA2, 0xA6, 0xA7, 0xAA, 0xAE, 0xB0, 0xB1, 0xB8, 0xB9, *range(0xC0, 0x100),
+])
+# The 0Fh opcodes the 386 defines but this build does not run: LOADALL (07h).
+I386_UNBUILT_0F = frozenset([0x07])
+
+
+# The [[lockstep]] rules of divergences.toml where the RTL runs what Bochs
+# rejects or leaves (#1730), each counted by the directed cases.
+UNDOCUMENTED_RULES = ('umov', 'mov-tr', 'icebp-gd')
+
+# The 386's undocumented instructions this build runs (#1730), by their
+# opcode bytes: ICEBP, UMOV, MOV to and from TR4-TR7 (with TR0-TR3's #UD).
+UNDOCUMENTED = frozenset([
+    *(bytes([0xF1, following]) for following in range(256)),
+    *(bytes([0x0F, opcode]) for opcode in (0x10, 0x11, 0x12, 0x13, 0x24, 0x26)),
+])
+
+
+def i386_class(code: bytes) -> str:
+    """'ud', 'stop' or 'defined': what the 386 does with this opcode and the
+    byte after it, in real mode (where group 6, LAR, LSL and ARPL are #UD)."""
+    two = code[0] == 0x0F
+    op, modrm = (code[1], code[2]) if two else (code[0], code[1])
+    reg, register = (modrm >> 3) & 7, modrm >> 6 == 3
+    if not two:
+        ud = (op == 0x8C and reg > 5 or op == 0x8E and (reg == 1 or reg > 5) or op == 0x8F and reg != 0
+              or op in (0xC6, 0xC7) and reg != 0 or op == 0xFE and reg > 1 or op == 0xFF and reg == 7
+              or op == 0xFF and reg in (3, 5) and register or op in (0x8D, 0xC4, 0xC5, 0x62) and register
+              or op == 0x63)
+        return 'ud' if ud else 'defined'
+    if op in I386_UNBUILT_0F:
+        return 'stop'
+    if op in (0x24, 0x26):
+        # TR4-TR7 with either ModRM form (decode2.txt 49, 4B, 5D, 5F).
+        return 'defined' if reg > 3 else 'ud'
+    ud = (op in I386_UD_0F or op in (0x00, 0x02, 0x03)
+          or op == 0x01 and (reg in (5, 7) or reg < 4 and register)
+          or op in (0x20, 0x22) and reg not in (0, 2, 3)
+          or op == 0xBA and reg < 4 or op in (0xB2, 0xB4, 0xB5) and register)
+    return 'ud' if ud else 'defined'
+
+
+# Bochs below CPU level 6 has no tables for the 0F 38 and 0F 3A three-byte
+# escapes: its step dereferences null on them (its adapter's decode reports
+# #UD), so the RTL raises their #UD alone.
+ORACLE_CANNOT_STEP_0F = frozenset([0x38, 0x3A])
+
+
+def ud_rtl_encodings(path: Path = SIM / 'divergences.toml') -> list[tuple[int, int | None, bool | None]]:
+    """The [[lockstep]] ud_rtl entries' encodings, which Bochs runs and the
+    386 rejects: (0Fh opcode, ModRM reg or None, memory operand or None)."""
+    import tomllib
+    found = []
+    for entry in tomllib.loads(path.read_text()).get('lockstep', []):
+        if entry.get('rule') != 'ud_rtl':
+            continue
+        for text in entry['encodings']:
+            stem, _, form = text.partition(' ')
+            opcode, _, reg = stem.partition('.')
+            if not opcode.startswith('0F') or len(opcode) != 4 or form not in ('', 'memory', 'register'):
+                raise LockstepError(f'{entry["id"]}: malformed encoding {text!r}')
+            found.append((int(opcode[2:], 16), int(reg) if reg else None, {'': None, 'memory': True,
+                                                                             'register': False}[form]))
+    return found
+
+
 def unbuilt_encodings() -> list[str]:
-    """Every opcode (one-byte, then 0Fh) and following byte SCOPE leaves out."""
+    """Every opcode (one-byte, then 0Fh) and following byte that the 386
+    rejects ('ud', or 'ud-rtl' and 'ud-rtl-runs' where the RTL runs alone) or
+    that it defines and SCOPE leaves out ('stop'), with that kind; SCOPE must
+    cover everything else."""
+    runs = ud_rtl_encodings()
+    matched = set()
     lines = []
     for two_byte in (False, True):
         for opcode in range(256):
@@ -190,10 +281,29 @@ def unbuilt_encodings() -> list[str]:
                 stem = ('0F' if two_byte else '') + f'{opcode:02X}'
                 if not two_byte and opcode in GROUPED_ONE or two_byte and opcode == 0xBA:
                     stem += f'.{(following >> 3) & 7}'
+                kind = i386_class(code)
+                if kind == 'defined' and not in_scope(stem):
+                    raise LockstepError(f'{code.hex()}: the 386 defines {stem}, which SCOPE leaves out and '
+                                        'the unbuilt list does not name')
                 # Every following byte, ModRM or not: a decoder that misreads
-                # one as ModRM must still stop.
-                if not in_scope(stem):
-                    lines.append(code.hex())
+                # one as ModRM must still stop or raise #UD.
+                if kind == 'ud' and two_byte:
+                    if opcode in ORACLE_CANNOT_STEP_0F:
+                        kind = 'ud-rtl'
+                    for spec in runs:
+                        if spec[0] == opcode and spec[1] in (None, (following >> 3) & 7) \
+                                and spec[2] in (None, following >> 6 != 3):
+                            kind = 'ud-rtl-runs'
+                            matched.add(spec)
+                if kind != 'defined':
+                    lines.append(f'{code.hex()} {kind}')
+                # A LOCK on what this build does not run, or on the 386's
+                # undocumented instructions (#1730), is #UD all the same:
+                # LOCK is valid only on the read-modify-write forms.
+                if kind == 'stop' or code[:2] in UNDOCUMENTED:
+                    lines.append(f'f0{code.hex()} ud')
+    if set(runs) - matched:
+        raise LockstepError(f'[[lockstep]] ud_rtl encodings the 386 does not reject: {sorted(set(runs) - matched)}')
     return lines
 
 
@@ -240,8 +350,8 @@ def run_directed(testbench: str, env: dict) -> dict:
     if result.returncode not in (0, 1):
         raise LockstepError(f'directed cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary["runs"] != 77:
-        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 77 cases')
+    if summary["runs"] != 84:
+        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 84 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -283,7 +393,12 @@ def run_pmode(testbench: str, env: dict) -> dict:
     IRETD and through a replay, data breakpoints by R/W and LEN and inside
     REP strings, TF over MOV SS, POP SS, INT n, a fault, a REP string and
     IRETD's image, the traps an edge merges, V86 mode and real mode, the
-    TSS's T bit and DR7's enables across a switch."""
+    TSS's T bit and DR7's enables across a switch; and #UD for what the 386's decoder
+    rejects, in real mode, at CPL 0 and 3 and in V86 mode at IOPL 0 and 3
+    (#1701); and the 386's undocumented instructions in those five modes
+    (#1730): ICEBP through gate 1 from every CPL, its EXT, GD and TF, UMOV's
+    forms and faults, MOV to and from TR4-TR7 by either ModRM form and its
+    #GP(0) above CPL 0."""
     env = dict(env, FES_I386_MODE='pmode', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -294,7 +409,11 @@ def run_pmode(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PMODE_CASES = 407
+# 407, #1701's 42 #UD probes in real mode, at CPL 0 and 3 and in V86 mode
+# at IOPL 0 and 3 with #1730's 3 (LOCK on ICEBP, UMOV and MOV TRn), 3
+# NMI-after-faulting-IRET cases, and #1730's 91: 15 bodies in the five
+# modes, ICEBP with TF in four, and 12 others.
+PMODE_CASES = 407 + 45 * 5 + 3 + 15 * 5 + 4 + 12
 
 
 def run_paging(testbench: str, env: dict) -> dict:
@@ -309,7 +428,10 @@ def run_paging(testbench: str, env: dict) -> dict:
     shadow, a #PF's double fault and shutdown, a MOV CR0 that sets PE and PG
     together, paging toggled around a far jump, #PF from V86 mode, and task
     switches under paging: #PF through a task gate and back by IRET, a new
-    CR3 that maps the GDT elsewhere, a new TSS on a page not present."""
+    CR3 that maps the GDT elsewhere, a new TSS on a page not present; #UD
+    for what the 386 rejects at CPL 0 and 3 and in V86 mode, before a
+    memory operand on a page not present (#1701); ARPL paging read/write
+    semantics, checked on the RTL alone where Bochs differs (#1665)."""
     env = dict(env, FES_I386_MODE='paging', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -320,7 +442,10 @@ def run_paging(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PAGING_CASES = 77
+# 77, and #1701's #UD at CPL 0 and 3 before a memory operand on a page not
+# present (8 each), its 45 probes in V86 mode, 6 ARPL paging cases, and
+# #1730's UMOV #PF at CPL 0 and 3 (2 each).
+PAGING_CASES = 77 + 2 * 8 + 45 + 6 + 2 * 2
 
 
 def run_no387(testbench: str, env: dict) -> dict:
@@ -368,21 +493,22 @@ def label_fields(entries: list[dict], stem: str, test: vectors.MooTest) -> tuple
     return corpus, oracle_side
 
 
-def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs: int, yosys: str | None,
+def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs: int, yosys: Path | None,
              parameters: dict[str, int] | None = None) -> Path:
-    """The testbench, with the CPU's parameters (-G) if any."""
+    """The testbench, with the CPU's parameters if any: -G on the RTL, and on
+    the netlist the seal's hierarchy -chparam, since a netlist has none left."""
     output = OUTPUT / (('netlist' if yosys else 'rtl')
                        + ''.join(f'-{name}{value}' for name, value in sorted((parameters or {}).items())))
     output.mkdir(parents=True, exist_ok=True)
     if yosys:
-        design = [frontend.synthesize_netlist(yosys, [RTL / path for path in CPU_RTL], TOP, output)]
+        design = [yosys_netlist.seal_netlist(yosys, output, ROOT, parameters=parameters)]
         warnings = frontend.NETLIST_WARNINGS
     else:
         design = [RTL / path for path in CPU_RTL]
         warnings = []
     command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', TOP,
                '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, '--Mdir', str(output),
-               *(f'-G{name}={value}' for name, value in sorted((parameters or {}).items())),
+               *(f'-G{name}={value}' for name, value in sorted((parameters or {}).items()) if not yosys),
                '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{DDR_MODEL}', '-LDFLAGS', '-pthread',
                *map(str, design), str(SIM / 'lockstep_tb.cpp'), *map(str, linked)]
     log = output / 'build.log'
@@ -456,6 +582,11 @@ def same_as(report: dict, other: dict) -> list[str]:
         for key in SAME_MODE:
             compare(f'{mode} {key}', report[mode]['summary'].get(key), other[mode]['summary'].get(key))
     compare('unbuilt encodings', report['unbuilt']['encodings'], other['unbuilt']['encodings'])
+    mine, theirs = report.get('undefined', {}), other.get('undefined', {})
+    for key in SAME_RANDOM:
+        compare(f'undefined {key}', mine.get('totals', {}).get(key), theirs.get('totals', {}).get(key))
+    for key in ('seeds', 'programs_per_seed', 'trace_hashes', 'fault_vectors', 'pm_kinds'):
+        compare(f'undefined {key}', mine.get(key), theirs.get(key))
     return differences
 
 
@@ -514,16 +645,18 @@ def run_file(path: str, testbench: str, env: dict, revoked: frozenset[str], entr
 
 
 def run_random(testbench: str, env: dict, seed: int, programs: int, latency: bool, pm_weight: int = 2,
-               tasks: bool = False, debug: bool = False) -> dict:
+               tasks: bool = False, debug: bool = False, undefined: bool = False) -> dict:
     """Random programs of one seed. pm_weight: protected-mode blocks per hundred
     items (lockstep_tb.cpp's pm_block); tasks: the task-switch programs; debug:
-    the debug programs."""
+    the debug programs; undefined: the programs with undefined encodings."""
     env = dict(env, FES_I386_MODE='random', FES_I386_SEED=str(seed), FES_I386_PROGRAMS=str(programs),
                FES_I386_LATENCY='1' if latency else '0', FES_I386_PM=str(pm_weight))
     if tasks:
         env['FES_I386_TASKS'] = '1'
     if debug:
         env['FES_I386_DEBUG'] = '1'
+    if undefined:
+        env['FES_I386_UNDEFINED'] = '1'
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
         raise LockstepError(f'random seed {seed}: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
@@ -547,9 +680,11 @@ def main() -> int:
                         help='task-switch programs per seed (default 250)')
     parser.add_argument('--debug-programs', type=int, default=250,
                         help='breakpoint and single-step programs per seed (default 250)')
+    parser.add_argument('--undefined-programs', type=int, default=250,
+                        help='programs with undefined encodings per seed (default 250)')
     parser.add_argument('--no-latency', action='store_true', help='no fetch latency in the corpus run')
     i386_verilator.add_argument(parser)
-    parser.add_argument('--yosys', help="simulate this Yosys's netlist of the CPU instead of the RTL")
+    yosys_netlist.add_arguments(parser)
     parser.add_argument('--preset', type=int, default=0, choices=range(8),
                         help="the governor's preset, fes.pc386.machine word 0 (default 0, max)")
     parser.add_argument('--same-as', type=Path, help="max's report.json (absolute), which a governed run must match")
@@ -561,7 +696,8 @@ def main() -> int:
         parser.error('--corpus must be absolute')
     if args.same_as is not None and not args.same_as.is_absolute():
         parser.error('--same-as must be absolute')
-    if args.random_programs < 0 or args.pm_programs < 0 or args.task_programs < 0 or args.debug_programs < 0 or args.random_seeds < 1 or args.seed < 0:
+    if (args.random_programs < 0 or args.pm_programs < 0 or args.task_programs < 0 or args.debug_programs < 0
+            or args.undefined_programs < 0 or args.random_seeds < 1 or args.seed < 0):
         parser.error('--random-programs must be nonnegative, --random-seeds positive, --seed nonnegative')
     try:
         verilator = i386_verilator.locate(args.cache_root)
@@ -574,14 +710,12 @@ def main() -> int:
         entries = vectors.load_divergences()
         table = OUTPUT / 'divergences.txt'
         divergence_table(entries, table)
-        yosys = None
-        if args.yosys:
-            yosys = shutil.which(args.yosys)
-            if yosys is None:
-                raise LockstepError(f'selected Yosys not found: {args.yosys}')
-            report['yosys'] = yosys
+        yosys = yosys_netlist.locate(args)
         linked = oracle.link_inputs(args.jobs, args.download)
-        testbench = str(verilate(verilator, linked, args.jobs, yosys))
+        testbench = str(verilate(verilator, linked, args.jobs, yosys.path if yosys else None))
+        if yosys:
+            report['netlist'] = yosys_netlist.report_record(
+                ROOT, yosys, args.gpu_router, Path(testbench).parent / f'{TOP}.netlist.v')
         biu_dma = run_biu_dma_test(verilator, args.jobs)
         env = dict(os.environ, FES_I386_DIVERGENCES=str(table), FES_I386_LATENCY='0' if args.no_latency else '1',
                    FES_I386_PRESET=str(args.preset))
@@ -624,6 +758,9 @@ def main() -> int:
             debugs = [executor.submit(run_random, testbench, env, DEBUG_SEED + args.seed + n, args.debug_programs, True,
                                       2, False, True)
                       for n in range(args.random_seeds if args.debug_programs else 0)]
+            undefined = [executor.submit(run_random, testbench, env, UNDEFINED_SEED + args.seed + n,
+                                         args.undefined_programs, True, PM_WEIGHT, undefined=True)
+                         for n in range(args.random_seeds if args.undefined_programs else 0)]
             unbuilt_lines = unbuilt_encodings()
             unbuilt_chunks = [unbuilt_lines[n::args.jobs] for n in range(args.jobs)]
             unbuilt = [executor.submit(run_unbuilt, testbench, env, chunk) for chunk in unbuilt_chunks if chunk]
@@ -634,7 +771,8 @@ def main() -> int:
             pmode_results = [future.result() for future in pmode]
             task_results = [future.result() for future in tasks]
             debug_results = [future.result() for future in debugs]
-    except (OSError, oracle.OracleError, frontend.FrontendError, vectors.CorpusError, LockstepError,
+            undefined_results = [future.result() for future in undefined]
+    except (OSError, oracle.OracleError, frontend.FrontendError, yosys_netlist.NetlistError, vectors.CorpusError, LockstepError,
             json.JSONDecodeError, KeyError) as error:
         print('i386 lockstep error:', error, file=sys.stderr)
         return 2
@@ -673,6 +811,9 @@ def main() -> int:
     task_kinds = sum((Counter(result['summary']['pm_kinds']) for result in task_results), Counter())
     debug_totals = random_sum(debug_results)
     debug_kinds = sum((Counter(result['summary']['debug_kinds']) for result in debug_results), Counter())
+    undefined_totals = random_sum(undefined_results)
+    undefined_kinds = sum((Counter(result['summary']['pm_kinds']) for result in undefined_results), Counter())
+    undefined_vectors = sum((Counter(result['summary']['fault_vectors']) for result in undefined_results), Counter())
     pm_deliveries = sum((Counter(result['summary']['pm_deliveries']) for result in random_results + pmode_results),
                         Counter())
     unbuilt_stops = sum((Counter(result['summary']['unbuilt_stops']) for result in random_results + pmode_results),
@@ -680,7 +821,7 @@ def main() -> int:
     pm_kinds = sum((Counter(result['summary']['pm_kinds']) for result in random_results + pmode_results), Counter())
     cs_limit = sum((Counter(result['summary']['cs_limit']) for result in random_results + pmode_results), Counter())
     random_failures = [line for result in random_results + steady_results + pmode_results + task_results + debug_results
-                       for line in result['failures']]
+                       + undefined_results for line in result['failures']]
     hash_mismatches = [result['seed'] for result in steady_results
                        if result['summary']['trace_hash'] != next(
                            other['summary']['trace_hash'] for other in random_results if other['seed'] == result['seed'])]
@@ -700,6 +841,13 @@ def main() -> int:
     reset_store_failures = reset_store['failures']
     directed_failures = (directed['failures'] + unreal['failures'] + pmode_cases['failures'] + paging_cases['failures']
                          + no387['failures'])
+    # #1730's [[lockstep]] rules (divergences.toml umov, mov-tr, icebp-gd):
+    # each must still be taken by its directed cases, or its entry no longer
+    # matches.
+    undocumented = Counter(pmode_cases['summary']['divergence_retirements']) \
+        + Counter(paging_cases['summary']['divergence_retirements'])
+    directed_failures += [f'FAIL lockstep rule {rule}: no directed case took it'
+                          for rule in UNDOCUMENTED_RULES if not undocumented[rule]]
     memory_failures = memory['failures']
     if (biu_dma_failures or corpus_failures or random_failures or hash_mismatches or unbuilt_failures or reset_store_failures
             or directed_failures or memory_failures):
@@ -736,6 +884,12 @@ def main() -> int:
         'debug': {'seeds': [result['seed'] for result in debug_results], 'programs_per_seed': args.debug_programs,
                   'totals': dict(debug_totals), 'debug_kinds': dict(sorted(debug_kinds.items())),
                   'trace_hashes': {str(result['seed']): result['summary']['trace_hash'] for result in debug_results}},
+        'undefined': {'seeds': [result['seed'] for result in undefined_results],
+                      'programs_per_seed': args.undefined_programs, 'pm_weight': PM_WEIGHT,
+                      'totals': dict(undefined_totals), 'fault_vectors': dict(sorted(undefined_vectors.items())),
+                      'pm_kinds': dict(sorted(undefined_kinds.items())),
+                      'trace_hashes': {str(result['seed']): result['summary']['trace_hash']
+                                       for result in undefined_results}},
     })
     if args.same_as is not None:
         differences = same_as(report, json.loads(args.same_as.read_text()))
@@ -793,6 +947,12 @@ def main() -> int:
                   f"{debug_totals['failed']} fail; #DB deliveries by kind {dict(sorted(debug_kinds.items()))}; "
                   f"DR6 kept past a #DB (dr6_rule) {debug_totals['dr6_rule']}, "
                   f"#DB frames with RF set (db_rf_rule) {debug_totals['db_rf_rule']}")
+        if undefined_results:
+            print(f"undefined encodings: {len(undefined_results)} seeds x {args.undefined_programs} programs, "
+                  f"{undefined_totals['retirements']} retirements: {undefined_totals['passed']} pass, "
+                  f"{undefined_totals['failed']} fail; exceptions delivered by vector "
+                  f"{dict(sorted(undefined_vectors.items(), key=lambda item: int(item[0])))}; retired with PE set "
+                  f"{dict(sorted(undefined_kinds.items()))}")
         def share(histogram: dict, cycles: int) -> str:
             total = sum(histogram.values())
             return f'{100 * histogram.get(cycles, 0) / total:.1f}%' if total else '-'
@@ -810,14 +970,17 @@ def main() -> int:
               f"{sum(gaps['store_other'].values())} other memory reads after a store, "
               f"{share(gaps['store_other'], 1)} one cycle apart; "
               f"{sum(gaps['after_store'].values())} others after a store, {share(gaps['after_store'], 1)} one cycle apart")
-    print(f"unbuilt encodings: {unbuilt_runs} outside SCOPE, {len(unbuilt_failures)} not stopped as unimplemented")
+    print(f"unbuilt encodings: {unbuilt_runs} the 386 rejects or this build does not run, "
+          f"{len(unbuilt_failures)} not raising #UD or stopped as unimplemented")
     print(f"BIU DMA/store: {biu_dma['output'] or 'FAIL'}")
     print(f"reset-store-on-reset: {reset_store['summary']['passed']} pass, {reset_store['summary']['failed']} fail")
     print(f"directed cases: {directed['summary']['passed']} pass, {directed['summary']['failed']} fail")
     print(f"unreal-mode cases: {unreal['summary']['passed']} pass, {unreal['summary']['failed']} fail "
           f"({unreal['summary']['cs_rule']} real-mode CS loads under the 386 rule)")
     print(f"protected-mode cases: {pmode_cases['summary']['passed']} pass, {pmode_cases['summary']['failed']} fail "
-          f"({pmode_cases['summary']['nested']} faults in a delivery delivered)")
+          f"({pmode_cases['summary']['nested']} faults in a delivery delivered; #1730's rules with paging's: "
+          f"UMOV stepped as MOV {undocumented['umov']}, MOV TRn {undocumented['mov-tr']}, "
+          f"ICEBP's GD {undocumented['icebp-gd']})")
     print(f"paging cases: {paging_cases['summary']['passed']} pass, {paging_cases['summary']['failed']} fail "
           f"({paging_cases['summary']['nested']} faults in a delivery delivered)")
     print(f"no-387 cases: {no387['summary']['passed']} pass, {no387['summary']['failed']} fail "

@@ -369,7 +369,7 @@ func (r *Instance) gamesFromLua(v lua.LValue) []hostclient.Game {
 		}
 		if id != "" || g.Title != "" {
 			if id != "" {
-				r.games[id] = g
+				r.cacheGame(id, g)
 			}
 			out = append(out, g)
 		}

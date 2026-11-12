@@ -1,0 +1,47 @@
+{
+  "success": true,
+  "utc": "2026-11-05T05:02:32.179712+00:00",
+  "execution": "native-DE25-AArch64-CPU",
+  "diagnostic_only": true,
+  "compiled_source": "413eba23868bb73b2e5b5f494274fa1231ce0d56",
+  "collector_source": "413eba23868bb73b2e5b5f494274fa1231ce0d56",
+  "boot_id": "e8d10b71-cb1e-4061-bc93-81e4dc51754b",
+  "producer_descriptor_sha256": "fcad3b5bb98cb82e97dee07c649ec5b3de8a6a1bdb254960789cd2b30224b6e3",
+  "arm_executable_sha256": "43c2b76eb456b6c78d6fc41f49370f09e662c676f82cc7a448c5e17486373942",
+  "bundles": {
+    "zx81_empty": {
+      "base_sha256": "e2782b48573f3fd7ca6361d6e472267f6dfedb16d6dbcd53e549abf1ecf8af83",
+      "composition_id": "edc90e49842a7f499df73fca920bd464c008327f5dac6a1f1a0d887d38c9aecb",
+      "persona_sha256": "5f48800ca042f5cf61a854d0ff0a6f4734f60661f8a1480c1b1ee27f4f4510d9",
+      "sha256": "f0b88d636204845bffeed93207f6956b919bb549d659a120b94596a6f7e9483c",
+      "size": 2259968
+    },
+    "zx81_ram16k": {
+      "base_sha256": "e2782b48573f3fd7ca6361d6e472267f6dfedb16d6dbcd53e549abf1ecf8af83",
+      "composition_id": "986341d3e812d6540b105ab01ae5744c2f79b3c26eff268be8d6c400cfa794c0",
+      "persona_sha256": "4edb716cb81e631562f41a2d0539ffd53df8a172aa82fcd95e471f140ab90bc8",
+      "sha256": "b70c2dd3175593c3cc686d4ef82cc5c24f68122b1a4c930347850092dd615ef5",
+      "size": 2309120
+    }
+  },
+  "positive_compositions": 4,
+  "negative_controls": 4,
+  "physical_PR": "not-run",
+  "FPGA_load": "not-run",
+  "BASIC": "not-run",
+  "image_bundle_host_changed": false,
+  "scratch_removed": true,
+  "release": {
+    "utc": "2026-11-05T05:02:32.211357+00:00",
+    "baseline_verified": true,
+    "boot_id": "e8d10b71-cb1e-4061-bc93-81e4dc51754b",
+    "execution_lease": "free",
+    "runtime": "idle",
+    "claim": "released",
+    "software_generation": 30
+  },
+  "native_seconds": 3.122,
+  "host_QEMU_seconds": 1.72,
+  "actual_host_proof_sha256": "f3c5968fc3bf83d07a2286f0fd8a3a7fdeb54a7f6303ff2c2d8fd2f0317ac25a",
+  "actual_target_result_sha256": "3047ae473ccb708c7c46282c35f095b434bdf344b96b829665460cdd825c8f1f"
+}

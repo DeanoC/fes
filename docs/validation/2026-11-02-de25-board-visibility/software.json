@@ -1,0 +1,72 @@
+{
+  "status": "passed",
+  "classification": "DE25-applicable affected software coverage; complete generic aggregate remains failed on exactly eight previously user-excluded CycloneV tests",
+  "source_revision": "96116fb8de6d36809ec25898b5ce3254b50fe79d",
+  "producer_revision": "7656e1954f7e27d0dc3634f60e869f97cf14301d",
+  "generic_total": 1787,
+  "generic_result": "failed",
+  "generic_counts": {
+    "failures": 8,
+    "skipped": 19
+  },
+  "applicable_cases": 1779,
+  "passed_applicable": 1760,
+  "skipped_applicable": 19,
+  "expected_failures_applicable": 0,
+  "not_applicable_cases": [
+    "test_build_fes_apple2.Apple2YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+    "test_build_fes_c64.C64YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+    "test_build_fes_c64.C64YosysM10kTests.test_full_synth_has_live_memory_clocks",
+    "test_build_fes_sg1000.Sg1000YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+    "test_build_fes_sms.SmsYosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+    "test_build_fes_zx81_oss.Zx81YosysM10kTests.test_mapped_shell_has_no_async_m10k",
+    "test_coleco_megacart_build.ColecoMegacartYosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+    "test_pcxt_quartus.QuartusElaborationTests.test_headers_byte_write_memory_and_signed_pll_parameters_survive"
+  ],
+  "reason": "User-directed DE25 software scope excludes eight DE10-only Cyclone V cases: seven M10K mappings and one PC/XT-specific legacy elaborator. All other cases remain required. No timing/signoff exception is added.",
+  "all_other_executed_cases_accounted": true,
+  "unittest_seconds": 1276.454,
+  "all_unittest_summaries": [
+    [
+      "30",
+      "0.153"
+    ],
+    [
+      "32",
+      "0.837"
+    ],
+    [
+      "4",
+      "20.407"
+    ],
+    [
+      "1154",
+      "232.700"
+    ],
+    [
+      "1787",
+      "1276.454"
+    ]
+  ],
+  "affected_and_check_commands": [
+    {
+      "command": [
+        "make",
+        "test-changed",
+        "TEST_CHANGED_ARGS=--base 1a511f58937a89f0451d4bf849463e2d2f365d82"
+      ],
+      "returncode": 2,
+      "seconds": 1517.47
+    },
+    {
+      "command": [
+        "make",
+        "check"
+      ],
+      "returncode": 0,
+      "seconds": 6.82
+    }
+  ],
+  "seconds": 0.58,
+  "hardware_access": "not-performed"
+}

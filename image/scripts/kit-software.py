@@ -157,29 +157,39 @@ def base_contract(target, executables, board='de10-nano'):
     # supervisor passes -catalog-config; this one uses the local-host options.
     abi = {'format': 2, 'architecture': abi_name, 'libraries': inventory,
            'launcher_supervisor': 'local-host-v1'}
+    # DE25's exact scanout/kernel cohort is a base ABI, not a userspace-only
+    # upgrade. Older immutable supervisors must reject this new runtime before
+    # their historical minor>= MENU coverage rule could start it on scanout1.2.
+    if board == 'de25-nano':
+        abi['de25_scanout'] = '1.3'
     digest = hashlib.sha256(json.dumps(abi, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     return {'board': board, 'architecture': architecture,
             'base_contract': 'fes-kit-base-v2-' + digest, 'interfaces': INTERFACES}
 
 
-def menu_requirements(target):
+def menu_requirements(target, board='de10-nano'):
     """Interfaces the image's sealed menu package declares, as menu.<id> keys."""
     selection = tomllib.loads((target / MENU_SELECTION).read_text())
     package = selection.get('package_id')
     if not isinstance(package, str) or not re.fullmatch('[0-9a-f]{64}', package):
         raise ValueError('invalid menu package selection')
     return menu_package_requirements(
-        target / 'usr/share/mister-runtime/core-packages' / package / 'manifest.toml')
+        target / 'usr/share/mister-runtime/core-packages' / package / 'manifest.toml', board)
 
 
-def menu_package_requirements(manifest):
+def menu_package_requirements(manifest, board=None):
     """Interfaces a menu package manifest declares, as menu.<id> keys.
 
     The runtime counts every declared interface when it admits the menu, so
     optional declarations are required of the software too. Bootstrap artifact
     selection (scripts/image_artifacts.py) applies the same check.
     """
-    interfaces = tomllib.loads(manifest.read_text()).get('interfaces')
+    fields = tomllib.loads(manifest.read_text())
+    if board is not None:
+        target = fields.get('target')
+        if board not in TARGET_ABIS or not isinstance(target, dict) or target.get('platform') != board.replace('-', '_'):
+            raise ValueError('menu package target differs from the selected software board')
+    interfaces = fields.get('interfaces')
     if not isinstance(interfaces, list) or not interfaces:
         raise ValueError('menu package declares no interfaces')
     requires = {}
@@ -213,24 +223,31 @@ def runtime_menu_interfaces(runtime):
 
 
 def unmet(provides, requires):
-    """Required interfaces not provided at the same major and at least that minor."""
+    """Required interfaces not provided; DE25 scanout requires the exact minor."""
     missing = []
     for key, version in sorted(requires.items()):
         have, need = VERSION.fullmatch(provides.get(key, '')), VERSION.fullmatch(version)
-        if not have or not need or have[1] != need[1] or int(have[2]) < int(need[2]):
+        if not have or not need or have[1] != need[1] or int(have[2]) < int(need[2]) or (
+                key == 'menu.fes.fabric.de25-scanout' and have[2] != need[2]):
             missing.append(f'{key} {version}')
     return missing
 
 
-def assemble(target, fogcast, runtime_revision, window_driver):
+def assemble(target, fogcast, runtime_revision, window_driver=None, board='de10-nano'):
+    if board not in TARGET_ABIS:
+        raise ValueError('unsupported factory software board: ' + str(board))
+    if board == 'de10-nano' and window_driver is None:
+        raise ValueError('DE10 factory software requires its fes-window driver')
+    if board == 'de25-nano' and window_driver is not None:
+        raise ValueError('DE25 uses its built-in DMA owner; a fes-window module is invalid')
     target = target.resolve()
     inputs = [target / 'usr/sbin' / name for name in BINARIES]
     for p in inputs:
         if p.is_symlink() or not p.is_file():
             raise ValueError(f'fresh regular executable required: {p}')
-    contract = base_contract(target, inputs)
     # The image records what its sealed menu needs; its own runtime must admit it.
-    requires = menu_requirements(target)
+    requires = menu_requirements(target, board)
+    contract = base_contract(target, inputs, board)
     provides = runtime_menu_interfaces(target / 'usr/sbin/mister-runtime')
     if missing := unmet(provides, requires):
         raise ValueError('factory runtime does not accept the menu package interfaces: ' + ', '.join(missing))
@@ -253,14 +270,15 @@ def assemble(target, fogcast, runtime_revision, window_driver):
             raise ValueError('fresh factory assets must not be a symlink')
         if assets.exists():
             shutil.copytree(assets, payload / 'share/fogcast', symlinks=True)
-        # The runtime loads the fes-window driver its release carries.
-        window_driver = Path(window_driver)
-        if sorted(p.name for p in window_driver.iterdir()) != ['fes_window.ko', 'version'] or \
-                not re.fullmatch(r'[0-9a-f]{16}', (window_driver / 'version').read_text().strip()):
-            raise ValueError('fes-window driver input must be fes_window.ko and its version')
-        (payload / 'share/fes-window').mkdir(parents=True)
-        for name in ('fes_window.ko', 'version'):
-            shutil.copyfile(window_driver / name, payload / 'share/fes-window' / name)
+        if board == 'de10-nano':
+            # DE10 loads the fes-window driver its release carries.
+            window_driver = Path(window_driver)
+            if sorted(p.name for p in window_driver.iterdir()) != ['fes_window.ko', 'version'] or \
+                    not re.fullmatch(r'[0-9a-f]{16}', (window_driver / 'version').read_text().strip()):
+                raise ValueError('fes-window driver input must be fes_window.ko and its version')
+            (payload / 'share/fes-window').mkdir(parents=True)
+            for name in ('fes_window.ko', 'version'):
+                shutil.copyfile(window_driver / name, payload / 'share/fes-window' / name)
         metadata = {**contract, 'interfaces': {**contract['interfaces'], **provides, **ADVERTISES},
                     'format': 1, 'version': 'factory-' + revision[:12],
                     'provenance': {'fogcast': revision, 'runtime': runtime_revision}}
@@ -336,14 +354,14 @@ def main():
     parser.add_argument('--version', help='software version label (update only)')
     parser.add_argument('--fogcast', type=Path, required=True)
     parser.add_argument('--runtime-revision', required=True)
-    parser.add_argument('--window-driver', type=Path, help='built fes-window driver directory (factory only)')
+    parser.add_argument('--board', choices=tuple(TARGET_ABIS), default='de10-nano',
+                        help='explicit factory target; updates use the authenticated base')
+    parser.add_argument('--window-driver', type=Path, help='built fes-window directory (DE10 factory only)')
     args = parser.parse_args()
     if args.target:
         if args.payload or args.output or args.version:
             parser.error('--payload, --output and --version require --base-root')
-        if not args.window_driver:
-            parser.error('--target requires --window-driver')
-        assemble(args.target, args.fogcast, args.runtime_revision, args.window_driver)
+        assemble(args.target, args.fogcast, args.runtime_revision, args.window_driver, args.board)
     else:
         if not args.payload or not args.output or not args.version:
             parser.error('--base-root requires --payload, --output and --version')

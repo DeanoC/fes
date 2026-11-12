@@ -1,0 +1,16 @@
+{
+  "source_revision": "8cace007e4d1e8a9e23f1e52675279d1e83033bc",
+  "command": [
+    "make",
+    "check"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-menu",
+  "started_utc": "2026-11-01T11:24:45.154620+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 3265682,
+  "state": "passed",
+  "elapsed_seconds": 8.1,
+  "heartbeat_utc": "2026-11-01T11:24:53.257662+00:00",
+  "returncode": 0
+}

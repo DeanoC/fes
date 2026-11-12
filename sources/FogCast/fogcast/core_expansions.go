@@ -152,9 +152,57 @@ func (s *Service) composeSlotEntry(ctx context.Context, entry catalog.CoreEntry,
 }
 
 func validateExpansionSelection(inspection corepackage.Inspection, base []byte, asset expansion.Asset) error {
+	if inspection.Descriptor.Format == 5 {
+		declared := false
+		for _, contract := range inspection.Descriptor.Interfaces {
+			if contract.ID == expansion.Slot {
+				declared = contract.Major == 2 && contract.Minor == 0 && !contract.Required
+			}
+		}
+		if !declared {
+			return errors.New("static partial requires the declared optional ZX81 bus 2.0")
+		}
+		_, err := corepackage.ComposeStaticArchive(base, &asset)
+		return err
+	}
 	if inspection.Descriptor.ROM != nil {
 		return corepackage.ValidateExpansionArchive(base, asset)
 	}
 	_, err := corepackage.ComposeArchive(base, asset)
 	return err
+}
+
+// Empty selection still carries the sealed base and its default persona.
+// Selected personas use the same saved next-launch selection as other rear
+// expansions. No full-chip image or initialized-ROM wrapper is produced.
+func (s *Service) staticCoreLaunchSource(ctx context.Context, entry catalog.CoreEntry, inspection corepackage.Inspection, base []byte) (coreLoadSource, error) {
+	var selected *expansion.Asset
+	if store, ok := s.catalog.(coreExpansionCatalog); ok {
+		selection, err := store.CoreEntryExpansion(ctx, entry.GameID)
+		if err != nil {
+			return coreLoadSource{}, expansionError(err)
+		}
+		if selection.ExpansionID != "" {
+			asset, err := store.ReadCoreExpansion(ctx, selection.ExpansionID)
+			if err != nil {
+				return coreLoadSource{}, expansionError(err)
+			}
+			if err := validateExpansionSelection(inspection, base, asset); err != nil {
+				return coreLoadSource{}, expansionError(catalog.ErrInvalidCoreExpansion)
+			}
+			selected = &asset
+		}
+	}
+	bundle, err := corepackage.ComposeStaticArchive(base, selected)
+	if err != nil {
+		return coreLoadSource{}, expansionError(catalog.ErrInvalidCoreExpansion)
+	}
+	if bundle.Composition.PackageID != entry.PackageID {
+		return coreLoadSource{}, expansionError(catalog.ErrInvalidCoreExpansion)
+	}
+	var transport bytes.Buffer
+	if err := bundle.Write(&transport); err != nil {
+		return coreLoadSource{}, expansionError(catalog.ErrInvalidCoreExpansion)
+	}
+	return coreLoadSource{size: int64(transport.Len()), body: bytes.NewReader(transport.Bytes()), entry: &entry, staticComposition: &bundle.Composition}, nil
 }

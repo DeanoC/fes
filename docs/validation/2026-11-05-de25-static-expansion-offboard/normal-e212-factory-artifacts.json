@@ -1,0 +1,75 @@
+{
+  "status": "passed",
+  "source_revision": "e212fd51c0de96bf660207bf0c96a0e1355eed4d",
+  "inputs": {
+    "mister-agent": {
+      "source_revision": "e212fd51c0de96bf660207bf0c96a0e1355eed4d",
+      "sha256": "0828d54f5d3656161cbc11fc0f61a7534e8112c8c0298df85b05cf943307b5b3",
+      "producer_path": "/data/fes-de25-main-integration-20261105/static-sdk-reuse-runtime-probe-job/payload/bin/mister-agent"
+    },
+    "mister-runtime": {
+      "source_revision": "e212fd51c0de96bf660207bf0c96a0e1355eed4d",
+      "sha256": "23f4a71d3ed8d1f1350e7c06b9e2eb3da09512e8112d4e73d1f99f62209b55b7",
+      "producer_path": "/data/fes-de25-main-integration-20261105/static-sdk-reuse-runtime-probe-job/payload/bin/mister-runtime"
+    },
+    "fogcast-kit": {
+      "source_revision": "e212fd51c0de96bf660207bf0c96a0e1355eed4d",
+      "sha256": "ae44f710b5a668e004ae6011babfb50fd29e8df9d61771fc38d374862b7e6205",
+      "producer_path": "/data/fes-de25-main-integration-20261105/static-sdk-reuse-runtime-probe-job/payload/bin/fogcast-kit"
+    },
+    "fogcast-tenfoot": {
+      "source_revision": "e212fd51c0de96bf660207bf0c96a0e1355eed4d",
+      "sha256": "6ffa3db8b45f2df1203843b959f4ebc2898bc246fb0278a4fe5d319685b61a71",
+      "producer_path": "/data/fes-de25-main-integration-20261105/static-sdk-reuse-runtime-probe-job/payload/bin/fogcast-tenfoot"
+    },
+    "fes-kit-data": {
+      "source_revision": "e212fd51c0de96bf660207bf0c96a0e1355eed4d",
+      "sha256": "7358f01ca8cb017270308e0546f0769e2f0d9bebdb47cf085e36c0b72afa894c",
+      "producer_path": "/home/deano/fes/out/dev/de25-static-expansion-kernel/out/work/de25-linux-e212fd51c0de96bf660207bf0c96a0e1355eed4d/sources/FogCast/bin/fes-kit-data-linux-aarch64"
+    },
+    "fes-kit-software": {
+      "source_revision": "e212fd51c0de96bf660207bf0c96a0e1355eed4d",
+      "sha256": "89a66c80a9d3c3aa03e682cc45d737af5ff2fb666a137036cc0c114a4b2409c6",
+      "producer_path": "/home/deano/fes/out/dev/de25-static-expansion-kernel/out/work/de25-linux-e212fd51c0de96bf660207bf0c96a0e1355eed4d/sources/FogCast/bin/fes-kit-software-linux-aarch64"
+    }
+  },
+  "artifacts": {
+    "format": 1,
+    "board": "de25-nano",
+    "architecture": "aarch64",
+    "provenance": {
+      "fogcast": "e212fd51c0de96bf660207bf0c96a0e1355eed4d",
+      "runtime": "e212fd51c0de96bf660207bf0c96a0e1355eed4d"
+    },
+    "binaries": {
+      "mister-agent": "0828d54f5d3656161cbc11fc0f61a7534e8112c8c0298df85b05cf943307b5b3",
+      "mister-runtime": "23f4a71d3ed8d1f1350e7c06b9e2eb3da09512e8112d4e73d1f99f62209b55b7",
+      "fogcast-kit": "ae44f710b5a668e004ae6011babfb50fd29e8df9d61771fc38d374862b7e6205",
+      "fogcast-tenfoot": "6ffa3db8b45f2df1203843b959f4ebc2898bc246fb0278a4fe5d319685b61a71",
+      "fes-kit-data": "7358f01ca8cb017270308e0546f0769e2f0d9bebdb47cf085e36c0b72afa894c",
+      "fes-kit-software": "89a66c80a9d3c3aa03e682cc45d737af5ff2fb666a137036cc0c114a4b2409c6"
+    },
+    "packages": [
+      {
+        "selection": {
+          "format": 2,
+          "kind": "core-package",
+          "core_id": "fes.menu",
+          "package_id": "d6b146c6de0771a2625abc68a78bfa2f11c06f1c5dcbba83b44a2ef9cadc13d7",
+          "payload_sha256": "64ee7cfca663ad0d2f864488b88a6f78644b1ec97ed0b2ba8e2b5a54a78f5dcc",
+          "misteross_revision": "d611450df1a33c43c41d754a4bbe4bf83556b311",
+          "mister_packages_revision": "d611450df1a33c43c41d754a4bbe4bf83556b311",
+          "install_path": "/usr/share/mister-runtime/core-packages/d6b146c6de0771a2625abc68a78bfa2f11c06f1c5dcbba83b44a2ef9cadc13d7"
+        },
+        "selection_sha256": "4d7e1481e3348ffbf98eb7d9251552f86fbd2f43e2d287fe563fb77d78b5444e",
+        "manifest_sha256": "764b850c331c124370e971e683055eba4a165df24583549b04702a15a301ff47",
+        "core_rbf_sha256": "64ee7cfca663ad0d2f864488b88a6f78644b1ec97ed0b2ba8e2b5a54a78f5dcc"
+      }
+    ]
+  },
+  "artifacts_sha256": "60b735bae9c54a5fc9350910666351c9ec7a5a19ca8ae6f1d63e7b00b093bc26",
+  "menu_original_record_sha256": "dfa06dd17e915b472f6716b2c52ed8be3159c37db94ca55f51b681e905fab89d",
+  "bundle_id": "e88114cf876deea1059d1ff92143d4412509638d220287565297070a5f9cd31b",
+  "hardware_acceptance": false,
+  "normal_static_package_admission": false
+}

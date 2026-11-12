@@ -1,0 +1,25 @@
+{
+  "source_revision": "70f8fee9c6d90c2bc338eef0be38829883f63cf8",
+  "command": [
+    "python3",
+    "sources/misteross/boards/de25nano/scanout/build.py",
+    "build",
+    "--hps-first",
+    "--linux-dma",
+    "--quartus-root",
+    "/data/altera_pro/26.3",
+    "--vendor-archive",
+    "/data/fes-de25-linux-dma-a8c877940/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+    "--output",
+    "/data/fes-de25-consolidation-platform-70f8fee9c/output"
+  ],
+  "cwd": "/data/fes-de25-consolidation-platform-70f8fee9c/source",
+  "started_utc": "2026-10-31T12:43:39.991159+00:00",
+  "time_cap_seconds": 7200,
+  "hardware_access": "not-performed",
+  "pid": 1727703,
+  "state": "passed",
+  "elapsed_seconds": 538.7,
+  "heartbeat_utc": "2026-10-31T12:52:38.731916+00:00",
+  "returncode": 0
+}

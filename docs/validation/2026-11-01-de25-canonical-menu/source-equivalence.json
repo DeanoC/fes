@@ -1,0 +1,13 @@
+{
+  "baseline": "cb21221583ed8773248e38a8471bc6d118399bed",
+  "producer": "262ee72db716f44b34018f43375672006c45d713",
+  "scope": "source equality only; prior runtime/kernel/agent evidence retains its original producer",
+  "unchanged_git_trees": {
+    "image/de25-nano": "b29c87ba65ea38606e6974fe18909e4f8947bf17",
+    "image/kernel": "26dbf77c6867746334a7cf15ceb6cce510d8aefe",
+    "platform": "8a71368192d468d650ca87f0f1eb3d6ed34dd7d0",
+    "sources/FogCast": "43e276b92b099b97d121f58f56694ef550cefc16",
+    "sources/libmister-runtime": "76fd790345deed71592c70bc373e76346c664707",
+    "sources/mister-packages": "ef006ed0adb1b60b596bf05fc8c5096252b65754"
+  }
+}

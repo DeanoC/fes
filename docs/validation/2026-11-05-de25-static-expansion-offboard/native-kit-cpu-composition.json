@@ -1,0 +1,136 @@
+{
+  "status": "passed",
+  "utc": "2026-11-05T14:39:50.970320+00:00",
+  "source_revision": "5bf7346481ca2fad27c096da42962086c336177f",
+  "composer_source": "aaf5155eed2f77683742f96d1a95ee83dfd4b235",
+  "target": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+  "board": "TRWU8J8G",
+  "architecture": "native AArch64 kit CPU; no QEMU",
+  "boot_id": "2ae639a5-0925-4fdf-9a2e-e8c295299130",
+  "base_image": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+  "baseline_bundle": "a14a53cd33e2c51d7639701363bf95cc7781f62b8207c0e2bab1653276504700",
+  "software_generation": 38,
+  "cpus": [
+    0,
+    1
+  ],
+  "input_files": {
+    "bin/de25_fpga_manager_test": "ba936ce18825979dc9f266871d066943703490817fc915cdf95bf94a42f5a708",
+    "bin/de25_pr_control_test": "b3e52b33a102ee45d97de21984defd5290f2cdccbfd9c982664b7a7e62ff8af7",
+    "bin/mmio_test": "401ea1d5fc76604f0ae594f7c413a4606c187b82e1ba7e6a568c3aabe82e5638",
+    "bin/cpu-supervisor": "f9646e6d744e32a9bc1ecd2bb2c69588173524589eb500e6b847f868d439a156",
+    "bin/compose": "43c2b76eb456b6c78d6fc41f49370f09e662c676f82cc7a448c5e17486373942",
+    "input/artifacts.json": "4149fc8635c9ac21fe691a3aac6081e7c9caebca6b57b25b318fcbde67b7584b",
+    "input/artifacts/base.rbf": "1136092a54019a861dfb64fdbe976d0bb036450aca8c2c1aae45e6fb32e495bf",
+    "input/artifacts/zx81_empty.rbf": "6470ca14d543d2367332e62a925787799ba45ec22b31f43a381e499579792f79",
+    "input/artifacts/zx81_ram16k.rbf": "924c25b98c191f406ae668353540b0cb082eb1f00d55cb89097d5648001812fe",
+    "scripts/compose-zx81_empty.sh": "a6e3b730abd7cfdb359bad850849a1820d7865a81b818a3fdd7eb1df0d7d053c",
+    "scripts/compose-zx81_ram16k.sh": "cb244c94ff8524daafa21ce2180694d115903d11c8d1cb0af44acf8dcf84ee03",
+    "scripts/affinity.sh": "087f339b3087b628d67ed6075b22a0e50d2786ee2111607194e441498161c69c",
+    "tests/fixtures/core-bundle-v2/manifests/valid-basic.toml": "c5a45ab474899b87b3c81d89d328eeae493c2fbf334ec38ef56399d464f5141a"
+  },
+  "composition_outputs": {
+    "zx81_empty-0": {
+      "sha256": "8b4dd1492391eb64c00f5b5b902387c7346aa0afa9d519b6dfc55847d8f72f3a",
+      "size": 2264064
+    },
+    "zx81_empty-1": {
+      "sha256": "8b4dd1492391eb64c00f5b5b902387c7346aa0afa9d519b6dfc55847d8f72f3a",
+      "size": 2264064
+    },
+    "zx81_ram16k-0": {
+      "sha256": "82f720558fe80fd3e6b6790bb747eabcdb392cbfab6b3e651607b630a477261b",
+      "size": 2313216
+    },
+    "zx81_ram16k-1": {
+      "sha256": "82f720558fe80fd3e6b6790bb747eabcdb392cbfab6b3e651607b630a477261b",
+      "size": 2313216
+    }
+  },
+  "unit_suites": [
+    "de25_fpga_manager_test",
+    "de25_pr_control_test",
+    "mmio_test"
+  ],
+  "composition_repetitions_each": 2,
+  "negative_controls": [
+    "wrong-base",
+    "wrong-descriptor",
+    "existing-output-preserved"
+  ],
+  "stdout_sha256": "2a6058e63ee78341cff94e4de2b36cf37846ef324aa81aee233ee5125e7db3bd",
+  "supervisor_events": [
+    {
+      "limit_ns": 45000000000,
+      "pid": 29209,
+      "state": "started",
+      "unit": "/tmp/fes-codex-de25-static-cpu-5bf734648-20261105/bin/de25_fpga_manager_test"
+    },
+    {
+      "pid": 29209,
+      "state": "passed",
+      "unit": "/tmp/fes-codex-de25-static-cpu-5bf734648-20261105/bin/de25_fpga_manager_test"
+    },
+    {
+      "limit_ns": 45000000000,
+      "pid": 29338,
+      "state": "started",
+      "unit": "/tmp/fes-codex-de25-static-cpu-5bf734648-20261105/bin/de25_pr_control_test"
+    },
+    {
+      "pid": 29338,
+      "state": "passed",
+      "unit": "/tmp/fes-codex-de25-static-cpu-5bf734648-20261105/bin/de25_pr_control_test"
+    },
+    {
+      "limit_ns": 45000000000,
+      "pid": 29339,
+      "state": "started",
+      "unit": "/tmp/fes-codex-de25-static-cpu-5bf734648-20261105/bin/mmio_test"
+    },
+    {
+      "pid": 29339,
+      "state": "passed",
+      "unit": "/tmp/fes-codex-de25-static-cpu-5bf734648-20261105/bin/mmio_test"
+    },
+    {
+      "limit_ns": 45000000000,
+      "pid": 29340,
+      "state": "started",
+      "unit": "/tmp/fes-codex-de25-static-cpu-5bf734648-20261105/scripts/compose-zx81_empty.sh"
+    },
+    {
+      "pid": 29340,
+      "state": "passed",
+      "unit": "/tmp/fes-codex-de25-static-cpu-5bf734648-20261105/scripts/compose-zx81_empty.sh"
+    },
+    {
+      "limit_ns": 45000000000,
+      "pid": 29358,
+      "state": "started",
+      "unit": "/tmp/fes-codex-de25-static-cpu-5bf734648-20261105/scripts/compose-zx81_ram16k.sh"
+    },
+    {
+      "pid": 29358,
+      "state": "passed",
+      "unit": "/tmp/fes-codex-de25-static-cpu-5bf734648-20261105/scripts/compose-zx81_ram16k.sh"
+    },
+    {
+      "limit_ns": 45000000000,
+      "pid": 29393,
+      "state": "started",
+      "unit": "/tmp/fes-codex-de25-static-cpu-5bf734648-20261105/scripts/affinity.sh"
+    },
+    {
+      "pid": 29393,
+      "state": "passed",
+      "unit": "/tmp/fes-codex-de25-static-cpu-5bf734648-20261105/scripts/affinity.sh"
+    }
+  ],
+  "baseline_verified": true,
+  "temporary_payload_removed": true,
+  "normal_static_package_admission": false,
+  "physical_PR_acceptance": false,
+  "FPGA_or_kernel_operations": "injected fixtures only",
+  "hardware_programming_or_activation": false
+}

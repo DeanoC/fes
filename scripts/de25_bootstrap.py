@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -14,6 +15,23 @@ ARTIFACTS = ('linux-complete.sof', 'linux-boot.hps.jic', 'linux-boot.core.rbf')
 VENDOR = ('golden_top_hps.jic', 'vendor-readme.txt')
 FILES = (*ARTIFACTS, *VENDOR, 'recovery.hps.rbf', 'linux-programming.json',
          'candidate-info.log', 'rollback-info.log', 'recovery-info.log', 'conversion.log')
+PROGRAMMING_IDENTITIES = {
+    'unadmitted-HPS-first-diagnostic': 'computer_build_id',
+    'unadmitted-HPS-first-scanout': 'scanout_build_id',
+}
+
+
+def identity_field(record):
+    """Use the identity of the explicitly classified current producer."""
+    classification = record.get('classification')
+    field = PROGRAMMING_IDENTITIES.get(classification) if isinstance(classification, str) else None
+    if (field is None or
+            {name for name in PROGRAMMING_IDENTITIES.values() if name in record} != {field} or
+            not isinstance(record[field], str) or not re.fullmatch('[0-9a-f]{32}', record[field]) or
+            not isinstance(record.get('fes_revision'), str) or
+            not re.fullmatch('[0-9a-f]{40}', record['fes_revision'])):
+        raise ValueError('invalid or ambiguous HPS-first producer identity')
+    return field
 
 
 def identity(path):
@@ -33,6 +51,7 @@ def check_receipt(directory):
     if (record.get('format') != 1 or record.get('hps_initialization') != 'HPS FIRST'
             or record.get('production_admission') is not False):
         raise ValueError('expected diagnostic HPS-first producer receipt')
+    identity_field(record)
     for name in ARTIFACTS:
         expected = record['artifacts'][name]
         if identity(directory / name) != {k: expected[k] for k in ('size', 'sha256')}:
@@ -75,8 +94,10 @@ def verify(directory):
         if identity(directory / name) != record['files'][name]:
             raise ValueError('bootstrap artifact differs: ' + name)
     source = check_receipt(directory)
+    field = identity_field(source)
     if (record['producer_revision'] != source['fes_revision']
-            or record['computer_build_id'] != source['computer_build_id']):
+            or {name for name in PROGRAMMING_IDENTITIES.values() if name in record} != {field}
+            or record[field] != source[field]):
         raise ValueError('bootstrap source identity differs')
     for name, expected in vendor_lock().items():
         if identity(directory / name) != expected:
@@ -90,6 +111,7 @@ def prepare(source, vendor, output, pfg):
     if output.exists() or output.is_symlink():
         raise ValueError('output already exists')
     record = check_receipt(source)
+    field = identity_field(record)
     for name, expected in vendor_lock().items():
         if identity(vendor / name) != expected:
             raise ValueError('locked vendor rollback differs: ' + name)
@@ -117,7 +139,7 @@ def prepare(source, vendor, output, pfg):
         check_info(staging)
         manifest = {'format': 1, 'kind': 'de25-bootstrap-candidate',
                     'producer_revision': record['fes_revision'],
-                    'computer_build_id': record['computer_build_id'],
+                    field: record[field],
                     'hardware_programming': 'not-performed', 'production_admission': False,
                     'qspi_boot_and_reboot': 'not-qualified',
                     'rollback_scope': 'locked vendor BSP JIC; not a readback of this board flash',

@@ -17,6 +17,124 @@ The deterministic assembly receipts still mark their artifact hardware field
 The [current candidate record](validation/2026-09-08-appliance-release.md) lists
 the exact verified outputs and live acceptance scope.
 
+The CLI defaults and ordinary examples below target DE10. The shared release,
+bootstrap and card commands also accept an explicitly selected `de25-nano`
+with a verified managed factory; see [DE25 selection](#de25-factory-selection).
+Release export and storage support that same explicit board: FES
+`export_release(..., board='de25-nano')` and the Go codec/store `ForBoard`
+entry points. Their defaults remain DE10-only, and neither selects a board
+from an uploaded manifest. A store pins its factory, staged and retained images
+to the selected board and stable kernel. Image assembly must independently
+verify the rootfs payload and ELF target before calling the exporter. This
+does not qualify a DE25 bootstrap, native update/recovery or managed image;
+the [normal-kit requirements](design/de25-linux-platform.md) remain open.
+For a prepared DE25 release, `fes-update --board de25-nano` also requires the
+authenticated target's reported board to match before upload, and the image
+must contain a DE25/AArch64 software-base record. The target independently
+pins its store to its immutable image's `/etc/fes-board` and CPU architecture;
+an upload cannot select that board. Direct-root headless images still provide
+no appliance-update service. The base storage helper's existing build target
+accepts `FES_KIT_DATA_ARCH=aarch64`, retaining ARMv7 as its default.
+
+The FES platform builder also supports
+`build_static_arm(..., architecture='aarch64')`, and the existing bootstrap
+assembler supports `assemble_bootstrap(..., board='de25-nano')`. Both require
+explicit selection: default validation refuses an AArch64 executable or DE25
+factory. Build provenance pins the CPU environment and selected sources. The
+bootstrap writes `/etc/fes-board` into its immutable ext4 root; PID1 checks it
+against the executing CPU before opening board-specific release storage.
+
+Terasic's unchanged boot script supplies a partition-2 ext4 root, unlike DE10's
+kernel-mounted loop root. The DE25 bootstrap admits the exact board/SoC and
+root device, remounts that stable root read-only, then mounts partition 1 at
+`/media/fat` with device, executable and set-ID use disabled. It reuses the
+existing verified release selection and root-switching implementation. The
+prepared kernel has the required loop/ext4/FAT/codepage support built in.
+The [native DE25 watchdog proof](validation/2026-11-03-de25-watchdog/README.md)
+passes stock DW watchdog expiry recovery both before programming and with MENU
+scanout active. The DE25 guard checks the exact AArch64 board, stock watchdog0
+device-tree address/driver and character-device identity, then uses the Linux
+watchdog API. Cyclone V reset-register preparation remains DE10-only. The
+approved SD bootstrap now passes an ordinary native boot and automatic
+unconfirmed-trial fallback. A complete confirmed native update and managed
+runtime readiness remain separate gates; the trial's display/runtime failure
+is retained in that record.
+
+The [bootstrap record](validation/2026-11-01-de25-appliance-bootstrap/README.md)
+retains native/AArch64 CPU checks and a reproducible bootstrap image whose
+manifest uses the existing headless rootfs as a binding fixture. That fixture
+is not a managed factory or a bootable appliance card. Full DE25 factory/card
+assembly and native boot/update/recovery remain open. The Make/CLI default
+continues to select DE10; DE25 requires the explicit factory path below.
+
+The shared disk constructor and two-pass reconstructor now also accept an
+explicit DE25 selection. Its layout reserves a 2 GiB FAT partition for the
+factory, Good, Previous and staged system images, and puts the shared 32 MiB
+bootstrap in partition 2. It preserves the vendor's `u-boot.itb`, boot script,
+reserved boot bytes, partition numbers and serial/root contract, while checking
+the selected owner kernel/DTB and every owned FAT payload. The pinned formatter
+uses 4,194,288 filesystem sectors within the 4,194,304-sector FAT partition;
+verification requires the exact geometry and its 8 KiB zero tail.
+
+This is the lower construction layer, with the
+[disk-construction evidence](validation/2026-11-02-de25-managed-media/README.md).
+The public release/media CLI still needs the actual admitted factory and its
+image-level boot smoke evidence. Construction fixtures do not satisfy those
+gates or establish a bootable normal kit. The existing release exporter has
+not been given fabricated QEMU evidence or a headless-root substitution.
+
+The DE25 builder now provides an
+[actual AArch64 image boot check](validation/2026-11-02-de25-image-boot/README.md).
+It boots the selected rootfs and its real kernel in QEMU, and the factory
+producer binds its boot report/log into the factory receipt. The retained
+managed-base intermediate passes the filesystem smoke. A subsequent
+[D-Bus repair and fresh image boot](validation/2026-11-02-de25-dbus-rootfs/README.md)
+also establishes responsive virtual system-bus startup. These do not supply
+factory acceptance. The high-level release/media adapter now accepts explicit
+DE25 receipt selection, requiring an admitted factory with its own successful
+boot evidence and a freshly recomputed structural/package verification report.
+
+## DE25 factory selection
+
+Use the actual output of the existing DE25 `managed-factory` action. A managed
+base, headless image, construction fixture or saved pass claim is refused.
+The selected factory must retain its sealed MENU, matching owner kernel and
+the original image producer's exact artifact hashes. The shared workflow runs
+`verify-factory` and binds its report and real image boot log into release
+provenance. Current factory receipts honestly record one image-build pass;
+requesting two passes cannot promote that evidence.
+
+```sh
+make release APPLIANCE_BOARD=de25-nano \
+  APPLIANCE_FACTORY=/absolute/managed-factory RELEASE_VERSION=0.2.0-dev.1
+make bootstrap APPLIANCE_BOARD=de25-nano \
+  APPLIANCE_FACTORY=/absolute/managed-factory RELEASE=/absolute/release
+make appliance-media APPLIANCE_BOARD=de25-nano \
+  APPLIANCE_FACTORY=/absolute/managed-factory \
+  APPLIANCE_VENDOR_BOOT=/absolute/prepared-vendor-boot \
+  RELEASE=/absolute/release BOOTSTRAP=/absolute/bootstrap OUTPUT=/absolute/card
+```
+
+Use `verify-appliance-media` with the same inputs to reconstruct and compare an
+existing card file. The Python commands expose `--board de25-nano --factory`;
+the profile is `de25-nano`, and card commands also require `--vendor-boot`.
+Board selection is independent of all uploaded or supplied JSON. The default
+DE10 path rejects DE25 factory arguments. DE25 uses the existing media lease,
+static AArch64 bootstrap builder and two-pass regular-file card constructor,
+preserving Terasic's locked boot dependencies and owner Image/DTB.
+`BOARD=de25-nano` also sets the appliance board default, so it can be shared
+with the [image commands](image-artifacts.md#de25-image-and-export-commands).
+`APPLIANCE_BOARD` remains an explicit override for appliance commands;
+`APPLIANCE_FACTORY` is still required.
+
+The [workflow evidence](validation/2026-11-02-de25-appliance-workflow/README.md)
+distinguishes the initial routing/integrity fixtures from actual public refusals.
+The [Terasic-based factory proof](validation/2026-11-03-de25-terasic-managed-factory/README.md)
+now produces a complete factory, real kernel/rootfs virtual boot, release,
+boot selector and matching independent card constructions. Native
+boot, watchdog, updates, peripherals and MENU/catalog ZX81 remain required.
+These commands do not write a physical device or authorize deployment.
+
 ## Build once from selected inputs
 
 Start with clean selected component checkouts, then run the existing integration
@@ -73,6 +191,14 @@ revision, Go toolchain identity and exact build flags. Retained bootstrap
 verification rejects a stale platform or appliance-module identity. Absolute
 checkout paths are not stored in receipts or manifests.
 
+The DE25 bootstrap also includes the checked-in Realtek USB Bluetooth firmware
+and its licence in `/lib/firmware/rtl_bt`. Its built-in USB driver can probe before
+the managed root is mounted, so firmware in that later root alone is insufficient.
+The assembler verifies the closed checksum inventory before construction and
+reads every file back from both independently constructed bootstrap files.
+Firmware and checksum-manifest hashes enter the bootstrap identity and retained
+source checks. This packaging change still requires native Bluetooth acceptance.
+
 `card.img` is a file, never an automatic block-device write. The directory also
 contains external evidence. Both commands use the existing exclusive media lease;
 verification reconstructs the complete card bytes using the same source-bound
@@ -107,28 +233,94 @@ derived U-Boot programs as `core=idle.rbf`), kernel, agent and launcher
 configuration are included. On first boot no state file is necessary:
 the verified factory is selected, then the native services start normally.
 
-The release store keeps the confirmed current image and one verified fallback
-(the previous confirmed image, or factory when no previous image exists). A
-newly staged image can temporarily add a third release while an update is
-pending or on trial. Once confirmation succeeds, the store removes superseded
+Fresh DE25 appliance cards also need the leftover-capacity data partition before
+managed package installation or software updates. Their fixed layout is
+`de25-nano-appliance-2g-v1`: 2 GiB FAT followed by the 32 MiB ext4 bootstrap.
+The shared expand command selects that geometry explicitly with
+`--board de25-nano`. It requires the retained, verified regular card image and
+its SHA-256. Its physical target is the removable
+`/dev/disk/by-id/usb-Generic_STORAGE_DEVICE-0:0` reader, with no mounted
+partitions. Plan against the exact card capacity reported by the kernel:
+
+```sh
+python3 scripts/appliance_expand_dry_run.py plan --board de25-nano \
+  --base-image /absolute/private/card.img --base-sha256 VERIFIED_CARD_SHA256 \
+  --card-bytes CARD_BYTES
+```
+
+With the trial card in the reader, apply and independently verify before
+putting it in the board:
+
+```sh
+umask 077
+sudo env WRITE_GO=1 python3 scripts/appliance_expand_dry_run.py apply \
+  --board de25-nano --image /dev/disk/by-id/usb-Generic_STORAGE_DEVICE-0:0 \
+  --base-image /absolute/private/card.img --base-sha256 VERIFIED_CARD_SHA256 \
+  --card-bytes CARD_BYTES > /absolute/private/de25-data.json
+sudo python3 scripts/appliance_expand_dry_run.py verify --board de25-nano \
+  --image /dev/disk/by-id/usb-Generic_STORAGE_DEVICE-0:0 \
+  --base-image /absolute/private/card.img --base-sha256 VERIFIED_CARD_SHA256 \
+  --card-bytes CARD_BYTES --data-receipt /absolute/private/de25-data.json
+```
+
+The DE25 operation adds only aligned partition 3, formats it as ext4 labelled
+`FESDATA3`, and leaves the Terasic MBR boot bytes and both existing partition
+descriptors intact. The bootstrap must match the verified reference under the
+`ext4-mount-read-bookkeeping-v1` rule: only mount times/counts, the recorded
+root mountpoint, write statistics and allocated-file access timestamps may
+differ after a boot. The exact FES bootstrap filesystem profile is required;
+file data, permissions, modification/change times, allocation and filesystem
+state remain protected. These field definitions follow the Linux
+[superblock](https://www.kernel.org/doc/html/latest/filesystems/ext4/super.html)
+and [inode](https://www.kernel.org/doc/html/latest/filesystems/ext4/inodes.html)
+formats. The current FAT may contain first-boot identity and SSH state. Both partitions
+are hashed before and after formatting and must remain unchanged. Existing
+third/fourth partitions, a replaced reader, mounted devices, mismatched
+capacity or a different bootstrap are refused. The apply receipt binds the
+reader instance, geometry, protected hashes and new filesystem. Verification
+is for that unmounted reader session, before a boot changes mutable data.
+The board's supplied BusyBox formatter is insufficient for this ext4 setup.
+The reader host needs full ext4 format/check tools and `blockdev`; all are
+checked before any partition-table write, and the new volume passes
+`e2fsck -fn` before success is recorded.
+After startup the normal data helper mounts and prepares the existing volume;
+it does not create missing partitions.
+
+The release store keeps the confirmed current image, one verified fallback
+and the factory image as a final recovery anchor. A newly staged image can
+temporarily add another release while an update is pending or on trial. Once confirmation succeeds, the store removes superseded
 images, while preserving the boot-ticket image and every release image that
 currently backs a loop device. The bootstrap keeps `boot.json` on its stable
 three-field schema for older target agents and writes the fallback hash in an
 adjacent `boot-fallback.json` record bound to the boot ID and image hash. A
 damaged selection-state file can still boot a verified image from FAT.
-The conventional 256 MiB layout is unchanged and is too small for this
-appliance update workflow.
 
-This PR keeps pending and trial image files on FAT. The follow-up PR moves
-previous, pending and trial release files to FESDATA3 and teaches the bootstrap
-to mount p3 read-only for those boots. If that mount is unavailable, the
-bootstrap will use the FAT known-good image. Until that work lands, FESDATA3
-provides the game library and mutable data storage while release images remain
-on FAT.
+When the release volume already has room for the new image, a 1 MiB margin,
+and the splash staged at confirmation (an idle core up to 8 MiB, its sidecar,
+and a temporary copy), staging writes and verifies it there before pruning
+superseded releases.
+When it does not, staging first verifies the upload on a different filesystem
+that is not tmpfs or ramfs and has room for the image plus that margin. On
+the kit that filesystem is the mounted FESDATA3 volume or a FogCast directory
+bind-mounted from it. A truncated or corrupt upload removes only that
+temporary file and leaves every release in place. A spill file left behind
+when that write is interrupted is removed on the next stage, before free
+space is measured. After verification, staging
+deletes unreferenced release images oldest first until the new image, margin
+and splash reserve fit, then copies the verified file into the release store.
+After publication it prunes superseded releases under the retention policy. It
+keeps the factory image, known-good, previous, pending and trial selections,
+the image named by `boot.json`, and every release image in the store that
+currently backs a loop device. Staging does not change the boot selection and
+does not remove bootloader files. If no qualifying filesystem can hold the
+upload, or those retained images still leave too little free space, staging
+fails with insufficient storage and deletes nothing. The conventional 256 MiB
+layout is unchanged and is too small for this appliance update workflow.
 
-The expansion evidence records a 1 GiB FAT p1 and an ext4 FESDATA3 p3 created
-on a 58.2 GiB spare USB card. That spare was not booted after expansion, and
-the dated records do not establish that either kit has a p3 partition.
+Release images remain on FAT. Moving previous, pending and trial release
+files to FESDATA3, with a read-only p3 bootstrap mount and a FAT known-good
+fallback when that mount fails, remains follow-up work. FESDATA3 currently
+provides the game library and mutable data storage.
 
 Writing a physical card still requires exact-device authorization and the kit
 sharing procedure. A new installation of the bootstrap is distinct from an

@@ -17,6 +17,7 @@ import (
 )
 
 type ApplianceStatus struct {
+	Board         string `json:"board,omitempty"`
 	BootID        string `json:"boot_id"`
 	ImageSHA256   string `json:"image_sha256"`
 	Trial         bool   `json:"trial"`
@@ -46,7 +47,11 @@ func (c *Client) ApplianceStatus(ctx context.Context) (ApplianceStatus, error) {
 // ApplianceCapacity reads a point-in-time admission estimate without uploading.
 // Stage remains authoritative; available space can change after this request.
 func (c *Client) ApplianceCapacity(ctx context.Context, m appliance.Manifest) (appliance.Capacity, error) {
-	if err := m.Validate(); err != nil {
+	return c.applianceCapacityForBoard(ctx, m, appliance.Board)
+}
+
+func (c *Client) applianceCapacityForBoard(ctx context.Context, m appliance.Manifest, board string) (appliance.Capacity, error) {
+	if err := m.ValidateForBoard(board); err != nil {
 		return appliance.Capacity{}, err
 	}
 	q := url.Values{"image_sha256": {m.ImageSHA256}, "image_size": {fmt.Sprint(m.ImageSize)}}
@@ -67,7 +72,13 @@ func (c *Client) ApplianceCapacity(ctx context.Context, m appliance.Manifest) (a
 	return capacity, nil
 }
 func (c *Client) StageAppliance(ctx context.Context, m appliance.Manifest, content io.Reader) error {
-	if err := m.Validate(); err != nil {
+	return c.StageApplianceForBoard(ctx, m, content, appliance.Board)
+}
+
+// StageApplianceForBoard requires an independently selected board. The server
+// checks that selection again against its image-pinned store.
+func (c *Client) StageApplianceForBoard(ctx context.Context, m appliance.Manifest, content io.Reader, board string) error {
+	if err := m.ValidateForBoard(board); err != nil {
 		return err
 	}
 	if content == nil {
@@ -182,15 +193,29 @@ func (c *Client) InspectAppliance(ctx context.Context, targetID string, resolve 
 // authenticated boot before obtaining a new lease and confirming that trial.
 // The caller supplies a bounded context and serializes use of this client.
 func (c *Client) UpdateAppliance(ctx context.Context, targetID string, m appliance.Manifest, content io.Reader, resolve ResolveAppliance) (ApplianceStatus, error) {
-	if err := m.Validate(); err != nil {
+	return c.UpdateApplianceForBoard(ctx, targetID, m, content, resolve, appliance.Board)
+}
+
+// UpdateApplianceForBoard also requires the authenticated target's reported
+// board to match before reading or uploading the image. A legacy status with
+// no board identifies only the existing DE10 protocol.
+func (c *Client) UpdateApplianceForBoard(ctx context.Context, targetID string, m appliance.Manifest, content io.Reader, resolve ResolveAppliance, board string) (ApplianceStatus, error) {
+	if err := m.ValidateForBoard(board); err != nil {
 		return ApplianceStatus{}, err
 	}
 	before, err := c.applianceBefore(ctx, targetID, resolve)
 	if err != nil {
 		return before, err
 	}
+	reported := before.Board
+	if reported == "" {
+		reported = appliance.Board
+	}
+	if reported != board {
+		return before, errors.New("target appliance board differs from selected release board")
+	}
 	c.reportProgress("check capacity", fmt.Sprintf("%d bytes", m.ImageSize))
-	capacity, err := c.ApplianceCapacity(ctx, m)
+	capacity, err := c.applianceCapacityForBoard(ctx, m, board)
 	if err != nil {
 		return before, err
 	}
@@ -202,7 +227,7 @@ func (c *Client) UpdateAppliance(ctx context.Context, targetID string, m applian
 		return before, &protocol.APIError{Code: "UPDATE_NO_SPACE", StatusCode: http.StatusInsufficientStorage,
 			Message: detail}
 	}
-	if err = c.StageAppliance(ctx, m, content); err != nil {
+	if err = c.StageApplianceForBoard(ctx, m, content, board); err != nil {
 		return before, err
 	}
 	var accepted ApplianceStatus

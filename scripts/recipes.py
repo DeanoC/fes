@@ -55,6 +55,8 @@ def require_private_audit_cache(env=None):
 
 HIP_ROUTER = "HIP"
 HIP_ARCHITECTURES = "gfx1100;gfx1201"
+DEFAULT_BOARD = "de10-nano"
+BOARDS = (DEFAULT_BOARD, "de25-nano")
 
 _STRIP_NAMES = frozenset({
     "CC", "CXX", "CPPFLAGS", "CFLAGS", "CXXFLAGS", "LDFLAGS",
@@ -97,12 +99,13 @@ class Format2Recipe:
     quartus: dict | None = None
     hil_check: str | None = None
     hil_kits: tuple[str, ...] = ()
+    board: str = DEFAULT_BOARD
 
 
 REGISTRY_PATH = Path(__file__).resolve().parents[1] / "config/core-recipes.toml"
 _OPTIONAL_RECIPE_FIELDS = frozenset({
     "producer_arguments", "producer_options", "video_profiles", "optional", "toolchain", "quartus",
-    "hil_check", "hil_kits"})
+    "hil_check", "hil_kits", "board"})
 _VIDEO_ARGUMENT = {
     "--native-video-socket": ("native_video", True),
     "--video-socket": ("video_socket", True),
@@ -141,8 +144,10 @@ def _relative_path(value):
                and part not in (".", "..") for part in value.split("/"))
 
 
-def load_recipes(path=REGISTRY_PATH):
+def load_recipes(path=REGISTRY_PATH, *, board=DEFAULT_BOARD):
     """Load the closed version-1 data schema; never import or execute producers."""
+    if board not in BOARDS:
+        raise ValueError("unknown recipe board: " + str(board))
     with Path(path).open("rb") as source:
         document = tomllib.load(source)
     if set(document) != {"version", "recipes"}:
@@ -152,11 +157,18 @@ def load_recipes(path=REGISTRY_PATH):
     entries = document["recipes"]
     if not isinstance(entries, list) or not entries:
         raise ValueError("recipes must be a nonempty array of tables")
-    result, selections, environment_names = {}, set(), set()
+    result = {name: {} for name in BOARDS}
+    selections = {name: set() for name in BOARDS}
+    environment_names = {name: set() for name in BOARDS}
     for entry in entries:
+        selected_board = entry.get("board", DEFAULT_BOARD) if isinstance(entry, dict) else None
+        if selected_board not in BOARDS:
+            raise ValueError("unknown recipe board: " + str(selected_board))
         lane = entry.get("toolchain", "oss") if isinstance(entry, dict) else None
         if lane not in ("oss", "quartus"):
             raise ValueError("unknown recipe toolchain")
+        if selected_board == "de25-nano" and lane != "quartus":
+            raise ValueError("DE25 recipes require the Quartus toolchain")
         required = _RECIPE_FIELDS - ({"gpu_router", "hip_architectures", "pnr"} if lane == "quartus" else set())
         if (not isinstance(entry, dict) or not required <= set(entry)
                 or set(entry) - required - _OPTIONAL_RECIPE_FIELDS):
@@ -271,8 +283,10 @@ def load_recipes(path=REGISTRY_PATH):
             if not _relative_path(entry[field]):
                 raise ValueError(f"invalid relative {field}")
         module = entry["producer_module"]
+        board_local = module.startswith("boards.de25nano.producers.")
         if (not all(re.fullmatch(_IDENTIFIER, part) and not keyword.iskeyword(part)
                     for part in module.split("."))
+                or not (module.startswith("scripts.") or board_local)
                 or entry["producer_script"] != module.replace(".", "/") + ".py"):
             raise ValueError("invalid producer_module or producer_script mismatch")
         auth = entry["authenticate"]
@@ -293,28 +307,32 @@ def load_recipes(path=REGISTRY_PATH):
             raise ValueError("invalid package environment variable")
         if not names[0].endswith("_DIR") or not names[1].endswith("_SELECTION"):
             raise ValueError("package environment variable role mismatch")
-        if core_id in result or selection in selections or any(
-                name in environment_names for name in names) or names[0] == names[1]:
+        if core_id in result[selected_board] or selection in selections[selected_board] or any(
+                name in environment_names[selected_board] for name in names) or names[0] == names[1]:
             raise ValueError("duplicate core ID, selection filename or environment variable")
         if "optional" in entry and type(entry["optional"]) is not bool:
             raise ValueError("optional must be a boolean")
-        result[core_id] = Format2Recipe(**entry)
-        selections.add(selection)
-        environment_names.update(names)
-    return result
+        result[selected_board][core_id] = Format2Recipe(**entry)
+        selections[selected_board].add(selection)
+        environment_names[selected_board].update(names)
+    return result[board]
 
 
 FORMAT2_RECIPES = load_recipes()
+BOARD_FORMAT2_RECIPES = {name: load_recipes(board=name) for name in BOARDS if name != DEFAULT_BOARD}
 
 
-def recipe_for(core_id):
+def recipe_for(core_id, *, board=DEFAULT_BOARD):
     """Return the immutable descriptor for a supported format-2 core ID."""
+    if board not in BOARDS:
+        raise ValueError("unknown recipe board: " + str(board))
+    selected = FORMAT2_RECIPES if board == DEFAULT_BOARD else BOARD_FORMAT2_RECIPES[board]
     try:
-        return FORMAT2_RECIPES[core_id]
+        return selected[core_id]
     except KeyError as error:
-        supported = ", ".join(FORMAT2_RECIPES)
+        supported = ", ".join(selected)
         raise ValueError(
-            f"unknown format-2 recipe {core_id!r}; supported: {supported}"
+            f"unknown format-2 recipe {core_id!r} for {board}; supported: {supported}"
         ) from error
 
 

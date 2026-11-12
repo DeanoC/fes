@@ -19,6 +19,11 @@ PACKAGE_QUERY = "import hashlib,subprocess; data=subprocess.check_output(['dpkg-
 def ensure_media_container(root: Path, runtime: str, lock: MediaLock) -> str:
     if lock.layout != "de10-nano-mister-v1":
         raise ValueError("unsupported media layout")
+    return ensure_media_tools(root, runtime)
+
+
+def ensure_media_tools(root: Path, runtime: str) -> str:
+    """Authenticate the shared tools independently of a board's disk layout."""
     uid, gid = os.getuid(), os.getgid()
     if not uid or not gid:
         raise ValueError("boot-media container requires a non-root caller")

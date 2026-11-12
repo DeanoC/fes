@@ -1,0 +1,26 @@
+{
+  "owner": "deano/codex/de25-linux-platform",
+  "source_revision": "68e325201d22952f0eecef65bf335a59f069c560",
+  "command": [
+    "python3",
+    "/data/fes-de25-isolated-68e325201/source/sources/misteross/boards/de25nano/scanout/build.py",
+    "build",
+    "--hps-first",
+    "--linux-dma",
+    "--quartus-root",
+    "/data/altera_pro/26.3",
+    "--vendor-archive",
+    "/data/fes-de25-linux-dma-a8c877940/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+    "--output",
+    "/data/fes-de25-isolated-68e325201/output"
+  ],
+  "started_utc": "2026-10-31T12:13:10.585819+00:00",
+  "time_cap_seconds": 7200,
+  "heartbeat_seconds": 30,
+  "hardware_programming": "not-performed",
+  "pid": 1713584,
+  "state": "passed",
+  "heartbeat_utc": "2026-10-31T12:21:25.441864+00:00",
+  "elapsed_seconds": 494.9,
+  "returncode": 0
+}

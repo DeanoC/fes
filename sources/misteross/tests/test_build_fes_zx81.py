@@ -3,11 +3,12 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts import build_fes_zx81
+from scripts import build_fes_zx81, build_fes_zx81_oss
 from scripts.build_fes_zx81 import (
     BuildError,
     compile_command,
@@ -25,6 +26,50 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BuildFesZx81Tests(unittest.TestCase):
+    def test_quartus_manifest_describes_the_computer_mailbox_interfaces(self) -> None:
+        record = create_build_record(
+            ROOT, "https://github.com/DeanoC/misteross.git", "0" * 40, {"quartus_sh": "fixture"}
+        )
+        manifest = tomllib.loads(build_fes_zx81._manifest(
+            record, {"rbf": {"size": 16, "sha256": "a" * 64}},
+            "https://github.com/DeanoC/misteross.git", "0" * 40, "Quartus fixture",
+        ).decode())
+        self.assertEqual(manifest["format"], 2)
+        self.assertEqual(manifest["abi"], {"id": "fes.computer", "major": 1, "minor": 0})
+        expected = {
+            "fes.video.fixed-720p60", "fes.keyboard.hid", "fes.gamepad.ports",
+            "fes.audio.pcm-s16-stereo-48k", "fes.media.zx81-tape",
+            "fes.media.zx81-tape-write", "fes.memory.hps-ddr",
+            "fes.video.session-display", "fes.fabric.video.display-plane",
+        }
+        self.assertEqual(len(manifest["interfaces"]), len(expected))
+        self.assertEqual({entry["id"] for entry in manifest["interfaces"]}, expected)
+        for entry in manifest["interfaces"]:
+            with self.subTest(interface=entry["id"]):
+                self.assertEqual((entry["major"], entry["minor"], entry["required"]), (1, 0, True))
+
+    def test_quartus_and_oss_share_the_non_socket_rtl_sources(self) -> None:
+        # The OSS producer adds ROM linking and the optional expansion socket;
+        # Quartus embeds its supplied ROM and does not build the socket.
+        oss_only = {
+            "cores/fes-zx81/rtl/zx81_rom_link.v",
+            "cores/fes-zx81/rtl/zx81_expansion_socket.v",
+            "cores/fes-zx81/rtl/zx81_bus_pack.vh",
+        }
+        oss_sources = set(build_fes_zx81_oss.RTL_SOURCES)
+        quartus_sources = set(build_fes_zx81.VERILOG_SOURCES) | set(build_fes_zx81.SYSTEMVERILOG_SOURCES)
+        self.assertTrue(oss_only <= oss_sources)
+        self.assertEqual(quartus_sources, oss_sources - oss_only)
+
+    def test_tape_store_keeps_quartus_m10k_no_rw_check(self) -> None:
+        rtl = (ROOT / "cores/fes-zx81/rtl/zx81_tape_store.v").read_text(encoding="utf-8")
+        self.assertRegex(
+            rtl,
+            r'(?s)`ifdef\s+QUARTUS\s*\(\*\s*ramstyle\s*=\s*"M10K, no_rw_check"\s*\*\)'
+            r'\s*`else(?:(?!`endif).)*'
+            r'\s*`endif\s*reg\s+\[7:0\]\s+image\s*\[0:16383\]\s*;',
+        )
+
     def test_quartus_version_text_is_main_text_derived_from_the_core_lock(self) -> None:
         import hashlib
         import json

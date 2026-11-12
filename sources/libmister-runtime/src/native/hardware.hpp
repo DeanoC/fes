@@ -22,12 +22,12 @@ namespace native {
 class Artifact;
 class CoreDataFile;
 class ArtifactOpener;
-class FixedVideoBringup;
+class CoreVideoBringup;
 class InputSession;
 struct InputDeviceIdentity;
 class VideoBringup;
-class MenuDisplayDriver;
-class MenuWindow;
+class MenuDisplay;
+class MenuMemory;
 class DiskWindow;
 class FesGpCoreDriver;
 
@@ -55,10 +55,18 @@ struct NativeResult {
 class FpgaManager {
 public:
 	virtual ~FpgaManager() {}
-	// Every program leaves the SDR FPGA ports in reset.
+	// Cyclone V profiles leave the SDR FPGA ports in reset. The DE25
+	// profile uses its permanent kernel owner and never this port recipe.
 	virtual NativeResult Program(const Artifact&,
 		ProgrammingProfile,
 		std::uint64_t absolute_deadline_ms) = 0;
+	virtual bool SupportsStaticComposition() const { return false; }
+	// A cold two-image launch, never an in-place persona replacement.
+	virtual NativeResult ProgramStatic(const Artifact&, const Artifact&,
+		const CoreStaticComposition&, std::uint64_t)
+	{
+		return {{ErrorCode::unsupported_programming_profile, "static startup unavailable", "admission"}, false};
+	}
 	// fes.memory.hps-ddr: releases the SDR FPGA ports only when the loaded
 	// core's fpga2sdram mirrors equal the shared layout. A mismatch is
 	// core_mismatch; any failure leaves the ports in reset.
@@ -68,18 +76,27 @@ public:
 	// loaded; it never changes afterwards. Without it every DDR command is
 	// refused, so the interface is neither advertised nor admitted.
 	virtual bool BootHpsDdrLayout() = 0;
+	// Explicit process handoff, after the caller proves memory retirement.
+	// Destruction and process death never imply this boundary.
+	virtual NativeResult ReleaseConfiguration(std::uint64_t)
+	{
+		return {{ErrorCode::unsupported_interface, "configuration release is unavailable"}, false};
+	}
 };
 
 class NativeHardware final : public Hardware {
 public:
 	NativeHardware(ArtifactOpener&, FpgaManager&, VideoBringup&,
-		FixedVideoBringup&, InputSession&, const InputDeviceIdentity&, Clock&,
+		CoreVideoBringup&, InputSession&, const InputDeviceIdentity&, Clock&,
 		LogSink&, std::string idle_rbf, NativeTimeouts, CoreDriver* fes_gp_driver,
 		std::vector<std::string> package_roots = {},
 		IdleRecipe idle_recipe = SplashIdle(),
- MenuDisplayDriver* menu_display = nullptr,MenuWindow* menu_window = nullptr,
-		DiskWindow* disk_window = nullptr);
+ MenuDisplay* menu_display = nullptr,MenuMemory* menu_window = nullptr,
+		DiskWindow* disk_window = nullptr,
+		NativePlatform platform = NativePlatform::de10_nano,
+		CoreDriver* de25_driver = nullptr, CoreDriver* de25_menu_driver = nullptr);
 	~NativeHardware();
+	Error Shutdown();
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
  HardwareResult ConfigureMenuPackage(const std::string&,const std::string&) override;
@@ -140,15 +157,16 @@ private:
 		std::unique_ptr<AdmittedCorePackage>*);
 	HardwareResult LoadCoreInternal(std::unique_ptr<AdmittedCorePackage>,std::uint64_t,bool);
  HardwareResult LoadSplashIdle();
- void RevokeMenuWindow();
+ Error RevokeMenuWindow();
  void SetSessionDisplayInputFocus(bool launcher_focus);
  bool MenuReactivationAllowed();
  Error FailMenuPresent(const Error&);
  Error ReleaseControllers();
- MenuDisplayDriver* menu_display_;
- MenuWindow* menu_window_;
+ MenuDisplay* menu_display_;
+ MenuMemory* menu_window_;
  DiskWindow* disk_window_;
  MenuDisplayStatus menu_status_;
+ Error menu_revoke_error_;
  std::string menu_directory_,menu_package_id_;
  std::uint8_t menu_slot_=0;
  bool menu_unsafe_=false;
@@ -166,7 +184,7 @@ private:
 	ArtifactOpener& opener_;
 	FpgaManager& fpga_;
 	VideoBringup& idle_video_;
-	FixedVideoBringup& game_video_;
+	CoreVideoBringup& game_video_;
 	InputSession& input_;
 	const InputDeviceIdentity& input_identity_;
 	Clock& clock_;
@@ -174,6 +192,9 @@ private:
 	std::string idle_rbf_;
 	IdleRecipe idle_recipe_;
 	NativeTimeouts timeouts_;
+	NativePlatform platform_;
+	CoreDriver* de25_driver_;
+	CoreDriver* de25_menu_driver_;
 	CoreDriver* fes_gp_driver_;
 	ContainedCoreDriver contained_driver_;
 	CoreDriverRegistry driver_registry_;

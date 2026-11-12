@@ -1,0 +1,12 @@
+{
+  "first_frame": 36,
+  "second_frame": 70,
+  "region": [
+    570,
+    280,
+    620,
+    320
+  ],
+  "same_bytes": true,
+  "second_dark_pixels": 72
+}

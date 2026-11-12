@@ -1,0 +1,413 @@
+{
+  "archive_sha256": "c24644629aeff6371c5418a691869fb09524e2b13620f4a37a6e11d7d5d08d4d",
+  "archive_size": 1858016,
+  "archived_regular_files_verified": 62,
+  "classification": "Actual authenticated Make SDK cache/import and existing normal runtime build with five Cortex-A76 QEMU model tests; no factory bundle or native acceptance",
+  "completed_own_pids_pgids": [
+    2416115,
+    2416160,
+    2432889,
+    2432890,
+    2432891,
+    2432952,
+    2432955,
+    2432956,
+    2492791,
+    2492792,
+    2492835,
+    2492836,
+    2516116,
+    2516160,
+    2620230,
+    2620258,
+    2639733,
+    2639756
+  ],
+  "completion_job": {
+    "command": [
+      "/usr/bin/python3",
+      "/home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/retain-source.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-sdk-group-fix-3adbce466",
+    "elapsed_seconds": 1.6,
+    "hardware_access": "not-performed",
+    "heartbeat_utc": "2026-11-02T02:41:35.859761+00:00",
+    "pid": 2639756,
+    "returncode": 0,
+    "source_revision": "3adbce4660d58a9368d37d72ecfefda4efd0d7ae",
+    "started_utc": "2026-11-02T02:41:34.218431+00:00",
+    "state": "passed",
+    "time_cap_seconds": 180
+  },
+  "component_evidence_reuse": {
+    "scope": "Prior host/UI, runtime, contracts and standalone FPGA software suite; original aggregate timeout is unchanged. No new full14 native/AArch64, image, Quartus or physical qualification.",
+    "source_retention": "/home/deano/fes/out/artifacts/de25-image-entrypoints/c1152ba3c/retention.json",
+    "source_retention_sha256": "06ccc7559a125f441afbaa31c07e56791b2e26d60a020d6f2091e34a90290889",
+    "unchanged_git_objects": {
+      "boot-media.lock.toml": "23c6d1b428956d10e742f36825cecb0d3595439b",
+      "config": "c642a25ca5ba6968df98522217769ee16aca59a9",
+      "image/buildroot": "40caf6a85b4f96ac5ab59e25b52f4839e7f14fef",
+      "image/containers": "5d36384a5d69d4de4b5849954c538d2c6d58ba25",
+      "image/de25-nano": "8692c8845f57c3fb48e95132d081cfdeb0c0e976",
+      "image/kernel": "26dbf77c6867746334a7cf15ceb6cce510d8aefe",
+      "platform": "b2582a7f5f1e246b2a508503e867b4aee0cbc430",
+      "profiles": "77c6d028aeaa59d3d2d8757bdcb397ff527428ce",
+      "sources/FogCast": "0c5998dbc62380b4a885c268f48af2c079c91588",
+      "sources/libmister-runtime": "76fd790345deed71592c70bc373e76346c664707",
+      "sources/mister-packages": "ef006ed0adb1b60b596bf05fc8c5096252b65754",
+      "sources/misteross": "1dd9c9f56e5e9db7223e980ac28c62fa6bdc615f"
+    }
+  },
+  "current_parent_delta_status": "passed",
+  "factory_authority": "Managed-factory reader unit authority mocked; no actual factory produced. Real intermediate has no factory software directory and is refused.",
+  "files": {
+    "completion/retention-job-launch.json": {
+      "sha256": "6963a597aae3156535f170b0642c001a14b8163c7c4f2fab76f05aac986957de",
+      "size": 383
+    },
+    "completion/retention-job-supervisor.log": {
+      "sha256": "97ba3d7e7f11e0a8e30a94637da6f3627c40bf9aa5e85baab2d12b5615b7f6dd",
+      "size": 1012
+    },
+    "completion/retention-job/job.json": {
+      "sha256": "c78718e35852e4a179114177b59d58186666fca5fe396a8f1605dd69754787ad",
+      "size": 550
+    },
+    "completion/retention-job/stdout.log": {
+      "sha256": "e5fbf4cd4b75d10393a9a97c42535923d4c874f09911d8ff7420a4b7b00aea96",
+      "size": 5968
+    },
+    "proofs/actual-runtime-job-launch.json": {
+      "sha256": "7d9f589af7b652f47648070e15c2dfa13116b97c2e6c3c79d2108e5fca3e6506",
+      "size": 497
+    },
+    "proofs/actual-runtime-job-supervisor.log": {
+      "sha256": "e5f78fa00423580cb8e34a7a1c3e1501f68497afd8c9bd05a8c7733416602b0c",
+      "size": 1515
+    },
+    "proofs/actual-runtime-job/job.json": {
+      "sha256": "58ccb4ec1b41068e6db3b59fca73ec715443103608013d47218431c47505ccee",
+      "size": 552
+    },
+    "proofs/actual-runtime-job/stdout.log": {
+      "sha256": "962f82531253129c82c4fa94f957f2533b9d5fdff447ad320f95e14afd7ddbbb",
+      "size": 13758
+    },
+    "proofs/actual-runtime.py": {
+      "sha256": "8f9eecd9f19b015a9904c825689140bed15a830ac7dfe4e6dfb1fc4949ace7f4",
+      "size": 5396
+    },
+    "proofs/affected-plan.json": {
+      "sha256": "68c2589d823162b63d36086c37ba5486c276b7e2771b772b4b3819a446c04c4b",
+      "size": 7865
+    },
+    "proofs/committed-check-job-launch.json": {
+      "sha256": "6e980b9b0cdbf0a3ada0ebe38fa384915114a10cdb2042a9b6f5424fe1b818e9",
+      "size": 294
+    },
+    "proofs/committed-check-job-supervisor.log": {
+      "sha256": "4a6d2bdd881d30263c5f0472bc9cf4e80ac7625a3a36df5511f2db281d37d9b5",
+      "size": 834
+    },
+    "proofs/committed-check-job/job.json": {
+      "sha256": "03b7162dbc7efbaf3fc287a329c5957fd4102b995765836caaf8ba29bbf2262a",
+      "size": 461
+    },
+    "proofs/committed-check-job/stdout.log": {
+      "sha256": "8015336a883d42c83467aca55d2eaf22bdd1c0805c526f1b247c09f3f4571885",
+      "size": 137
+    },
+    "proofs/final-affected-plan.json": {
+      "sha256": "91e63b72c9abdeccea33f9bbbe5ca04f485b5183bbdef084adeb8c399824922d",
+      "size": 8464
+    },
+    "proofs/final-delta-job-launch.json": {
+      "sha256": "81c09939de65ba8c395b4257fa763716e9e7c01a78ccbb1cc9c77c67b611e9d0",
+      "size": 456
+    },
+    "proofs/final-delta-job-supervisor.log": {
+      "sha256": "7b9295e9c3ce40396276d731431ae739ef66b152f0c8604bfce3bb177f86b733",
+      "size": 1159
+    },
+    "proofs/final-delta-job/job.json": {
+      "sha256": "b1a0fde004284d0b0a55c1f18c56fa981e356994f17b283bb00e08f1fb44d462",
+      "size": 624
+    },
+    "proofs/final-delta-job/stdout.log": {
+      "sha256": "6965bad1945c8bb771177b0f7fc4f542005cc70551edbad2cfb5f7484b100b36",
+      "size": 36637
+    },
+    "proofs/final-delta.py": {
+      "sha256": "057605ad7f9fa56ad80f7c052f4b2f4fc969c36a164c1a568db33cfbc4eb4270",
+      "size": 5915
+    },
+    "proofs/final-result.json": {
+      "sha256": "8effbadf10931954dad426e8c16f417232a8abeb510436c219537ef3c201c2ba",
+      "size": 11048
+    },
+    "proofs/focused-job-launch.json": {
+      "sha256": "50961eaa3172dff618fce107b6b2530d4bbf8c9ac8b6dbe997244570ab96d834",
+      "size": 405
+    },
+    "proofs/focused-job-supervisor.log": {
+      "sha256": "649b3a580330b8c73d113651a5c9a34d02603e37cdbab693e0074b16d0a4eb13",
+      "size": 1078
+    },
+    "proofs/focused-job/job.json": {
+      "sha256": "6fe1904c324097f7c200fb7e147bc7d5625304ab45fa78b0dc148a1eae33ed3f",
+      "size": 603
+    },
+    "proofs/focused-job/stdout.log": {
+      "sha256": "52905cc9f61779d555db70349dc5963ed8a1f5a268fc4fb1d687341af3998003",
+      "size": 9832
+    },
+    "proofs/next-workflow-notes.json": {
+      "sha256": "b699ae210c887c21c2b7f3009c01c3d8835cc40f0ba07200a35d00724e65381c",
+      "size": 1804
+    },
+    "proofs/parent-job-launch.json": {
+      "sha256": "02f6cd6c3c348666e052b6a353265f109a2a07d5f18770c5ed3ed2e759656479",
+      "size": 455
+    },
+    "proofs/parent-job-supervisor.log": {
+      "sha256": "66d04ca649d39008eb2c0d5e7a9e7d778fdc9fce6917e1637a3e4b332127a5fd",
+      "size": 17171
+    },
+    "proofs/parent-job/job.json": {
+      "sha256": "a19254222dea851c943b0c4094bfdf70e2b177d7e131a47b0dc72fa72499d54c",
+      "size": 624
+    },
+    "proofs/parent-job/stdout.log": {
+      "sha256": "8d3ba98259d053980121d1726c12ed1b651e727cc8487226bb9399d7ff4910ed",
+      "size": 399192
+    },
+    "proofs/parent-result.json": {
+      "sha256": "c0db4e1a2275de66aa340d262acc2a959f54936a635dd44788629f7c76c1a5c4",
+      "size": 8146
+    },
+    "proofs/phase.json": {
+      "sha256": "cf8c94c52174b43c332ced36afbc5e758f43700e7e017ee0bc14e4b1a5c4dc99",
+      "size": 435
+    },
+    "proofs/prepare-doc-evidence.py": {
+      "sha256": "9e8d0644fcbf70de076e8b4f99c3c67af78ccc9a20a58007cb5726ee41e19e3a",
+      "size": 2365
+    },
+    "proofs/refusals-job-launch.json": {
+      "sha256": "3a1a8daa1684dc33dec7cdd8f803779eb22e2d15230d5c7e2ff48cd3c8cbf0f5",
+      "size": 377
+    },
+    "proofs/refusals-job-supervisor.log": {
+      "sha256": "75d9a0b080be6c76a8ebe239d2f59d8ab1b19d1bfb7cfe94999c4adf494add7b",
+      "size": 1000
+    },
+    "proofs/refusals-job/job.json": {
+      "sha256": "3f3ffb4c23b0cf05e2dcb28cb6d6639ae532fd9a95075e97a6b0f17bc63618fe",
+      "size": 544
+    },
+    "proofs/refusals-job/stdout.log": {
+      "sha256": "c02ea4a7caa6fc9696d678f914ec20b3f176fd6ddb8950d4ac51c534c991a507",
+      "size": 628
+    },
+    "proofs/refusals-retry-job-launch.json": {
+      "sha256": "ad996641114eca34851d3f2048724611b77d4b52cbc477d092ccf826518fe95c",
+      "size": 383
+    },
+    "proofs/refusals-retry-job-supervisor.log": {
+      "sha256": "a14d54e18a59f6303ff90db916ec439571d8b59b148abfa0ecfafefe2573bfb6",
+      "size": 1012
+    },
+    "proofs/refusals-retry-job/job.json": {
+      "sha256": "71467bc171235302294496d536c7acd223c85d72ccaf50600ef366701cd53024",
+      "size": 550
+    },
+    "proofs/refusals-retry-job/stdout.log": {
+      "sha256": "33fa7892e5f4cb1931d69da509b3745a1154a03aa6bff573c110f386476367da",
+      "size": 76
+    },
+    "proofs/refusals-retry.py": {
+      "sha256": "3e24b49af3c0f2a1a90108173b406571733d54093d52baf760dca6e779961f07",
+      "size": 5615
+    },
+    "proofs/refusals.json": {
+      "sha256": "3997f86496af9010ea9524137f9338b1d63709fe398034f5f7dff1722ee8ca0f",
+      "size": 11221
+    },
+    "proofs/refusals.py": {
+      "sha256": "cde52d88e3a0f2bf3d01b83473eba57418aaa984be85d9383a85d900e656e757",
+      "size": 5386
+    },
+    "proofs/retain-source.py": {
+      "sha256": "7df038d101384d13fe311503248640a50573eb68db207a2d7caadf903568e00d",
+      "size": 6849
+    },
+    "proofs/run-parent.py": {
+      "sha256": "18178f45c97ee975baf0955e2f63145f84fd097430c80586d42d4f303d76fc4f",
+      "size": 3142
+    },
+    "proofs/runtime-cpu-proof.py": {
+      "sha256": "14eb59f541a3256f7690a7e9bcaee794bd53f882f1f17262115f26c837b48123",
+      "size": 2166
+    },
+    "proofs/runtime-proof/cpu-tests/de25_computer_test.log": {
+      "sha256": "a1c8c8b34952107f7f8e4a3ab19b988a14df848410d3ebee0ddcc57facc5efa0",
+      "size": 81
+    },
+    "proofs/runtime-proof/cpu-tests/de25_fpga_manager_test.log": {
+      "sha256": "97de9135f03791a24c22148a57cf63737771c21282ce24ed06918e4e071a6407",
+      "size": 516
+    },
+    "proofs/runtime-proof/cpu-tests/de25_menu_test.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "proofs/runtime-proof/cpu-tests/de25_pr_control_test.log": {
+      "sha256": "59e0ae2b9dd07b4dddc656105a0b6336e374b202f2f6d746290fd73317ecb389",
+      "size": 90
+    },
+    "proofs/runtime-proof/cpu-tests/production_hardware_test.log": {
+      "sha256": "dcaea052ab312ad7776ab72a420c9cbc89706e5fe46a9f2f3b68ad48cfbd752f",
+      "size": 32
+    },
+    "proofs/runtime-proof/libmister-runtime.a": {
+      "sha256": "6750c403103fa0d67525b24d897821ada414fedd336c46b2debdbb4b46049435",
+      "size": 3481934
+    },
+    "proofs/runtime-proof/mister-runtime": {
+      "sha256": "92a90b2ab0ab41054d82bb58a7ebdc307b05c92f20b3a5cc965cac31aba03ead",
+      "size": 1646344
+    },
+    "proofs/runtime-proof/normal-builder.log": {
+      "sha256": "6c48d04493bebdae677e8217820ea5b9544912d01aec7b0888d177258a82ba33",
+      "size": 18156
+    },
+    "proofs/runtime-proof/receipt.json": {
+      "sha256": "e10eb248fdf56a9233a7d464bd1a9882b0845ed45b9542a8fb477b73fc2a44fd",
+      "size": 5023
+    },
+    "proofs/runtime-proof/runtime-proof.json": {
+      "sha256": "dad7ca83d45b8bd40cee7080be7d9c6ec36057885be1cc4b2c31bb0be6aa66f7",
+      "size": 1389
+    },
+    "proofs/sdk-actual.json": {
+      "sha256": "1ab73450220201872723d83a60dec98956812053845780ed1cde82562c385660",
+      "size": 2322
+    },
+    "proofs/sdk-first.log": {
+      "sha256": "8f9afb5e0a25b087ccc9d03c00ff0318b5066b422e8e8129582b681ce0d11526",
+      "size": 1266
+    },
+    "proofs/sdk-hit.log": {
+      "sha256": "8f9afb5e0a25b087ccc9d03c00ff0318b5066b422e8e8129582b681ce0d11526",
+      "size": 1266
+    },
+    "proofs/source-scope-job-launch.json": {
+      "sha256": "a0acee3c4c8b2720da2ee8dd890e87a9e6364c63cb78eeab9bbfeaeabb924d7f",
+      "size": 381
+    },
+    "proofs/source-scope-job-supervisor.log": {
+      "sha256": "e8bf9382966bb6876fb978853468ebe37cc7a29414ed4838fdcc700d59a7d790",
+      "size": 1008
+    },
+    "proofs/source-scope-job/job.json": {
+      "sha256": "28f2ce72ee6f9f4f5096469f87868601ec0a033e3d6270f40c89a5020434c1d2",
+      "size": 548
+    },
+    "proofs/source-scope-job/stdout.log": {
+      "sha256": "b65b4244cb1484d3b8721dddc046ce1f4266adc42bf80afd0cd8523315b378d7",
+      "size": 1785
+    },
+    "proofs/source-scope.json": {
+      "sha256": "76b64ec63ca062cbe2198b2420720f74614b8c1b56c7dc2400de0936d768a401",
+      "size": 1785
+    },
+    "proofs/source-scope.py": {
+      "sha256": "53322e7a0e29f603506caf1baa7130f969a69d3c68e4aa4a7e6850cc7923a571",
+      "size": 1758
+    },
+    "source.bundle": {
+      "sha256": "52f61e675cb200711db17dfd3581f218c5f4f4440b91dcaceb83d6948cfcaaf2",
+      "size": 15420
+    }
+  },
+  "hardware_access": "not-performed",
+  "live_completed_processes": [],
+  "named_runtime_volumes_absent": [
+    "fes-kit-software-runtime-source-1fdc544b6",
+    "fes-de25-sdk-cache-tests-1fdc544b6"
+  ],
+  "original_parent_failure": {
+    "failures": 1,
+    "job": {
+      "command": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/run-parent.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-sdk-workflow-1fdc544b6",
+      "elapsed_seconds": 858.6,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T02:38:40.419499+00:00",
+      "pid": 2432955,
+      "returncode": 1,
+      "source_revision": "1fdc544b61d934c31bffd18b38de39c925a94d53",
+      "started_utc": "2026-11-02T02:24:21.815415+00:00",
+      "state": "failed",
+      "time_cap_seconds": 1200
+    },
+    "parent_seconds": 857.182,
+    "scope": "Original failure retained; not relabelled as a full-suite pass",
+    "skips": 47,
+    "sole_failure": "test_real_plan_partitions_all_discovered_tests (test_parent_affected.ParentAffectedTests.test_real_plan_partitions_all_discovered_tests)",
+    "tests_run": 1399
+  },
+  "original_proof_failure": "refusals-job expected manifest filename; first factory gate actually refuses absent parent directory. Assertion-only retry passes; original failure retained.",
+  "previous_publication_retention_sha256": "954714eabf3efd060717516f2782903b092256fb598ab7f320b0e7599736b608",
+  "production_inputs_identical_to_actual_sdk_runtime_proof": {
+    "Makefile": "22830b8fd25bb4f55d68001c509012f3aeb845ea",
+    "boot-media.lock.toml": "23c6d1b428956d10e742f36825cecb0d3595439b",
+    "config": "c642a25ca5ba6968df98522217769ee16aca59a9",
+    "image/buildroot": "40caf6a85b4f96ac5ab59e25b52f4839e7f14fef",
+    "image/containers": "5d36384a5d69d4de4b5849954c538d2c6d58ba25",
+    "image/de25-nano": "8692c8845f57c3fb48e95132d081cfdeb0c0e976",
+    "image/kernel": "26dbf77c6867746334a7cf15ceb6cce510d8aefe",
+    "image/scripts/toolchain_cache.py": "772357a73ca0b263097fdfbddfd775495de9c229",
+    "platform": "b2582a7f5f1e246b2a508503e867b4aee0cbc430",
+    "profiles": "77c6d028aeaa59d3d2d8757bdcb397ff527428ce",
+    "scripts/build.py": "39cded6d8fd924ae97bbe8242831a3d8e3fac13f",
+    "scripts/kit_sdk.py": "d27e16d7ed554afaf1fad7aad882f6961e7ba981",
+    "scripts/kit_software.py": "eac63e98d4455ab44435245152db440a058199c6",
+    "sources": "42b3939aa638ecb660035edcf5a592b3fe1c13b3"
+  },
+  "restored_tree": "146dec86dee5bd06318ab5ede0d406b45360993d",
+  "runtime_artifacts": {
+    "libmister-runtime.a": {
+      "sha256": "6750c403103fa0d67525b24d897821ada414fedd336c46b2debdbb4b46049435",
+      "size": 3481934
+    },
+    "mister-runtime": {
+      "sha256": "92a90b2ab0ab41054d82bb58a7ebdc307b05c92f20b3a5cc965cac31aba03ead",
+      "size": 1646344
+    }
+  },
+  "sdk_runtime_tested_source": "1fdc544b61d934c31bffd18b38de39c925a94d53",
+  "sdk_selection": {
+    "architecture": "aarch64",
+    "archive_sha256": "d5bac20323fe6225b984e5a0f35ac087bfb4379dca2b40245e4eab97bd019bf7",
+    "board": "de25-nano",
+    "directory": "/home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/cache/toolchains/1c7a5a246e7e556262938555de179f49f94a3d425d6df546b873b624018faf0d",
+    "key": "1c7a5a246e7e556262938555de179f49f94a3d425d6df546b873b624018faf0d",
+    "source": {
+      "archive_root": "aarch64-buildroot-linux-gnu_sdk-buildroot",
+      "archive_sha256": "d5bac20323fe6225b984e5a0f35ac087bfb4379dca2b40245e4eab97bd019bf7",
+      "base_rootfs_sha256": "2bc0aaf4a0e6eb599b5278c12b8852a704daf010eb3c2178e63d44c0d7628d06",
+      "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+      "image_receipt_sha256": "70dc18e1fe4d45ea4c58825f046a287c4799d784caa65b63ae2287dc84e11e40",
+      "kernel_image_sha256": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b",
+      "key": "managed-7ce855a899c1e64c915e52d0ad11c85e63e29f20940e8ff87641bddba0e980eb",
+      "producer_revision": "dfaffa8696fb164bf30576a6f7a1d7cd1844dd48",
+      "profile": "managed-base"
+    }
+  },
+  "source_restored": true,
+  "source_revision": "3adbce4660d58a9368d37d72ecfefda4efd0d7ae"
+}

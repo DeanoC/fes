@@ -34,7 +34,10 @@ int main(int argc, char** argv) {
             const auto value = wire::decode(request.data() + 8);
             std::uint32_t status = 0, result = 0;
             if (op == wire::Read || op == wire::Write) {
-                wire::need(arg < 24 && arg % 4 == 0, "invalid register offset");
+                // Include the live video-readiness register, but not the
+                // padding at the end of the endpoint's resource span.
+                wire::need(arg <= regs::FesDe25ComputerVideoStatusOffset && arg % 4 == 0,
+                           "invalid register offset");
                 if (op == wire::Read) {
                     result = b.read(arg);
                     if (submitted && arg == regs::FesDe25ComputerGpiOffset) {
@@ -74,7 +77,7 @@ int main(int argc, char** argv) {
                 case wire::PictureFrames: result = b.picture_frames; break;
                 case wire::ELine: result = b.word(0x4014); break;
                 case wire::SourceInk: result = b.source_ink != 0; break;
-                case wire::BridgeFault: result = SIGNAL(faults); break;
+                case wire::BridgeFault: result = SIGNAL(transport__DOT__faults); break;
                 default: throw std::runtime_error("unknown observation");
                 }
             } else if (op == wire::PeekRam) {

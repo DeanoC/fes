@@ -59,6 +59,7 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import fes_build_common as board
+from scripts import yosys_netlist
 
 ROOT = Path(__file__).resolve().parents[1]
 RTL = Path('cores/fes-common/rtl/i386')
@@ -519,16 +520,16 @@ def main() -> int:
             top, _ = SPIKES[spike]
             work = output / spike
             work.mkdir(exist_ok=True)
-            files = ' '.join(str(snapshot / path) for path in sources(spike))
             synthesis = SPIKE_SYNTHESIS.get(spike, SYNTHESIS)
-            program = f'read_verilog -sv {files}; hierarchy -top {top}; {synthesis} -top {top}; stat; write_json synth.json'
-            (work / 'synth.ys').write_text(program + '\n')
+            program = yosys_netlist.synthesis_program(
+                top=top, sources=[snapshot / path for path in sources(spike)], synthesis=synthesis,
+                output='synth.json')
             started = time.monotonic()
-            with (work / 'yosys.log').open('w') as log:
-                result = board._run_command([str(yosys.path), '-s', 'synth.ys'], cwd=work,
-                                            stdout=log, stderr=log)
-            if result.returncode:
-                raise RuntimeError(f'synthesis failed; see {work / "yosys.log"}')
+            try:
+                yosys_netlist.run(yosys.path, program, cwd=work, program_file=work / 'synth.ys',
+                                  log=work / 'yosys.log')
+            except yosys_netlist.NetlistError as error:
+                raise RuntimeError(f'synthesis failed: {error}') from error
             netlist = json.loads((work / 'synth.json').read_text())
             cells = dict(sorted(Counter(cell['type'] for cell in netlist['modules'][top]['cells'].values()).items()))
             labels = register_labels(netlist, top, STAGES[spike])

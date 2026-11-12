@@ -1,0 +1,16 @@
+{
+  "source_revision": "f9b522b6c597cf66b900897f20f23d9bb7886dc1",
+  "command": [
+    "/usr/bin/python3",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-managed-media/shared-reconstruct-proof.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-managed-media-f9b522b6c",
+  "started_utc": "2026-11-01T23:47:20.444837+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 602997,
+  "state": "passed",
+  "elapsed_seconds": 14.1,
+  "heartbeat_utc": "2026-11-01T23:47:34.564446+00:00",
+  "returncode": 0
+}

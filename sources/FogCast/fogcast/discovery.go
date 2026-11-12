@@ -14,6 +14,7 @@ import (
 )
 
 const meshInventoryWindow = time.Second
+const meshInventoryInterval = 10 * time.Second
 
 // MeshNode is one discovered node advertisement. It is not a lease and it
 // does not make a title Ready.
@@ -182,7 +183,11 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	lookupCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	s.lookupCancel = cancel
 	state.connection = previous
-	state.connection.State = "connecting"
+	// Readers use the last completed observation while a same-identity active
+	// connection is refreshed. Probe progress is not a session transition.
+	if previous.State != "active" {
+		state.connection.State = "connecting"
+	}
 	if s.targetConnections == nil {
 		s.targetConnections = make(map[string]targetConnectionState)
 	}
@@ -216,6 +221,12 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 		s.targets = targets
 		selected.TargetID = health.TargetID
 	}
+	reboot := previous.BootID != "" && previous.BootID != health.BootID
+	if reboot {
+		connection := previous
+		connection.State = "connecting"
+		s.publishTargetConnection(name, connection, current)
+	}
 	// Address-only older agents need not expose the discovery/lease extensions.
 	if selected.TargetID == "" {
 		status, err := concrete.Status(lookupCtx)
@@ -231,7 +242,6 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 		return health, nil
 	}
 	base, _ := url.Parse(address)
-	reboot := previous.BootID != "" && previous.BootID != health.BootID
 	hadGrant := concrete.HasKitGrant()
 	if reboot {
 		s.invalidateTargetSession(concrete)
@@ -248,6 +258,9 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	// still our session. Only loss of our grant is a session boundary.
 	leaseChanged := (previous.leaseOwned || hadGrant) && !ownership.Owned
 	if !reboot && leaseChanged {
+		connection := previous
+		connection.State = "connecting"
+		s.publishTargetConnection(name, connection, current)
 		s.invalidateTargetSession(concrete)
 		s.resetTargetInputsOutsideTargetMu(name)
 		// Invalidation discards the stale grant, but also marks the lease lost.
@@ -368,26 +381,37 @@ func (s *Service) startTargetMonitor() {
 		defer close(s.monitorDone)
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
+		var nextInventory time.Time
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-
-				request, cancel := context.WithTimeout(ctx, 4*time.Second)
-				_, _ = s.Health(request)
-				cancel()
-				if ctx.Err() != nil {
-					return
-				}
-				// Inventory browsing is independent of the selected target's
-				// Phase 0 bind. Admission still checks discoveryEnabled.
-				observe, observeCancel := context.WithTimeout(ctx, meshInventoryWindow)
-				_, _ = s.ObserveMesh(observe)
-				observeCancel()
+				s.monitorTargetTick(ctx, &nextInventory, time.Now)
 			}
 		}
 	}()
+}
+
+// monitorTargetTick keeps the health retry tick separate from inventory's
+// slower browse cadence. The first tick also starts an inventory scan.
+func (s *Service) monitorTargetTick(ctx context.Context, nextInventory *time.Time, now func() time.Time) {
+	request, cancel := context.WithTimeout(ctx, 4*time.Second)
+	_, _ = s.Health(request)
+	cancel()
+	if ctx.Err() != nil {
+		return
+	}
+	current := now()
+	if current.Before(*nextInventory) {
+		return
+	}
+	*nextInventory = current.Add(meshInventoryInterval)
+	// Inventory browsing is independent of the selected target's Phase 0 bind.
+	// Admission still checks discoveryEnabled.
+	observe, observeCancel := context.WithTimeout(ctx, meshInventoryWindow)
+	_, _ = s.ObserveMesh(observe)
+	observeCancel()
 }
 
 func (s *Service) discoveryEnabled() bool {

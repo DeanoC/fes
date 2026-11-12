@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -10,14 +11,18 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 
 BOARD = Path(__file__).resolve().parent
+ROOT = BOARD.parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 DEFAULT_OUTPUT = BOARD.parents[1] / "build/diagnostic/de25nano"
 DEVICE = "A5EB013BB23BE4SCS"
 PROJECT = "de25nano_blinky"
-QUARTUS_VERSION = "26.3.0"
-SOURCES = ("blinky.v", "pins.qsf", "clocks.sdc", "reset_release.ip", "build.py")
+QUARTUS_LOCK = "boards/de25nano/quartus.lock"
+SOURCES = ("blinky.v", "pins.qsf", "clocks.sdc", "reset_release.ip", "build.py", "quartus.lock")
 
 
 class BuildError(ValueError):
@@ -25,6 +30,12 @@ class BuildError(ValueError):
 
 
 def prepare_project(output: Path | None = None) -> Path:
+    try:
+        with de25_quartus_tools() as quartus_tools:
+            lock = quartus_tools.load_quartus_lock(ROOT, QUARTUS_LOCK)
+            series, qsf_version, release, edition = lock.series, lock.qsf_version, lock.release, lock.edition_name
+    except quartus_tools.RebuildError as error:
+        raise BuildError(str(error)) from error
     if output is None:
         DEFAULT_OUTPUT.mkdir(parents=True, exist_ok=True)
         output = Path(tempfile.mkdtemp(prefix="run-", dir=DEFAULT_OUTPUT))
@@ -34,7 +45,7 @@ def prepare_project(output: Path | None = None) -> Path:
     for name in SOURCES:
         shutil.copyfile(BOARD / name, output / name)
     (output / f"{PROJECT}.qpf").write_text(
-        f'QUARTUS_VERSION = "{QUARTUS_VERSION}"\nPROJECT_REVISION = "{PROJECT}"\n',
+        f'QUARTUS_VERSION = "{series}"\nPROJECT_REVISION = "{PROJECT}"\n',
         encoding="utf-8",
     )
     (output / f"{PROJECT}.qsf").write_text(
@@ -42,7 +53,7 @@ def prepare_project(output: Path | None = None) -> Path:
         f'set_global_assignment -name DEVICE {DEVICE}\n'
         f'set_global_assignment -name TOP_LEVEL_ENTITY {PROJECT}\n'
         'set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files\n'
-        f'set_global_assignment -name LAST_QUARTUS_VERSION "{QUARTUS_VERSION} Pro Edition"\n'
+        f'set_global_assignment -name LAST_QUARTUS_VERSION "{qsf_version}"\n'
         'set_global_assignment -name SEED 1\n'
         'set_global_assignment -name NUM_PARALLEL_PROCESSORS 2\n'
         'set_global_assignment -name STRATIXV_CONFIGURATION_SCHEME "ACTIVE SERIAL X4"\n'
@@ -57,7 +68,7 @@ def prepare_project(output: Path | None = None) -> Path:
     )
     inputs = {
         "board": "de25_nano", "device": DEVICE, "diagnostic_only": True,
-        "quartus_version": QUARTUS_VERSION, "quartus_edition": "Pro Edition",
+        "quartus_version": release, "quartus_edition": f"{edition} Edition",
         "source_sha256": {name: hashlib.sha256((output / name).read_bytes()).hexdigest()
                           for name in SOURCES},
     }
@@ -66,20 +77,40 @@ def prepare_project(output: Path | None = None) -> Path:
 
 
 def locate_quartus(root: str) -> tuple[Path, str]:
-    if not root.strip():
-        raise BuildError(f"set QUARTUS_ROOTDIR to an explicit Quartus {QUARTUS_VERSION} Pro installation")
-    directory = Path(root).expanduser().resolve()
-    candidates = (directory / "bin/quartus_sh", directory / "quartus/bin/quartus_sh")
-    tool = next((path for path in candidates if path.is_file() and os.access(path, os.X_OK)), None)
-    if tool is None:
-        raise BuildError("QUARTUS_ROOTDIR has no executable bin/quartus_sh or quartus/bin/quartus_sh")
-    result = subprocess.run([str(tool), "--version"], text=True, stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT, check=False)
-    version = result.stdout.strip()
-    if (result.returncode or not re.search(r"\bVersion " + re.escape(QUARTUS_VERSION) + r"(?![0-9.])", version)
-            or "Pro Edition" not in version):
-        raise BuildError(f"requires Quartus {QUARTUS_VERSION} Pro Edition; reported: {version}")
+    try:
+        with de25_quartus_tools() as quartus_tools:
+            lock = quartus_tools.load_quartus_lock(ROOT, QUARTUS_LOCK)
+            _, tool, version = quartus_tools.locate_quartus(root, ROOT, lock)
+    except quartus_tools.RebuildError as error:
+        raise BuildError(str(error)) from error
     return tool, version
+
+
+@contextmanager
+def de25_quartus_tools():
+    # Quartus Pro 26.3 reports the `SC` edition marker. Keep the shared
+    # DE10 lock parser unchanged while letting its exact version/hash checks
+    # recognize both the existing `SJ` and current `SC` product markers.
+    from scripts import quartus_tools
+    previous = quartus_tools.VERSION_LINE_RE
+    quartus_tools.VERSION_LINE_RE = re.compile(
+        r"Version (?P<release>(?P<series>[0-9]+[.][0-9]+)[.][0-9]+) Build [0-9]+ \S+ S[JC] "
+        r"(?P<edition>Lite|Standard|Pro) Edition"
+    )
+    try:
+        yield quartus_tools
+    finally:
+        quartus_tools.VERSION_LINE_RE = previous
+
+
+def quartus_metadata():
+    try:
+        with de25_quartus_tools() as quartus_tools:
+            lock = quartus_tools.load_quartus_lock(ROOT, QUARTUS_LOCK)
+            return {"release": lock.release, "series": lock.series, "qsf_version": lock.qsf_version,
+                    "edition": lock.edition_name}
+    except quartus_tools.RebuildError as error:
+        raise BuildError(str(error)) from error
 
 
 def compile_project(output: Path, tool: Path, version: str) -> Path:

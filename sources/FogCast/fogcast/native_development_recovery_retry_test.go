@@ -41,7 +41,7 @@ func TestServiceRetriesNativeDevelopmentRecoveryAfterPendingStop(t *testing.T) {
 	control := &pendingDevelopmentRecoveryControl{bootIDPath: bootIDPath, state: "idle"}
 	runtime := misterruntime.NewRuntime(control, bootIDPath, time.Millisecond, 20*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(dir, "core.rbf")),
-		misterruntime.WithRebootCommand(rebootPath))
+		misterruntime.WithRecoveryReboot(testRecoveryReboot(rebootPath)))
 	coordinator := agent.New(runtime, 2*time.Second, 2*time.Second)
 	coordinator.Initialize(context.Background())
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))

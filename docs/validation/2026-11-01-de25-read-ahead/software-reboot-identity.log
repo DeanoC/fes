@@ -1,0 +1,7 @@
+BOOT_ID=469d5abb-2fab-425d-93bc-aa92aac8c32b
+CID=1234564153544300200000000a019300
+MAC=02:8e:2a:b1:d3:bd
+NOTES=e06e399b84032a473faba5ce14a57665dc5bd8fadb58f33af4372a9f596bdcd1  /sys/kernel/notes
+ROOT_RECEIPT=53a17111bcb06a0ce84513ff42ae26f7e3b025d2a3b856758ff0722e306efed2  /usr/share/fes/kernel-modules.json
+6.12.11-fes-de25-owner
+crw-------    1 0        0          10, 124 Jan  1 00:00 /dev/fes-de25-scanout

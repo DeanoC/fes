@@ -1,0 +1,22 @@
+{
+  "source_revision": "d8549cc79132f6d6a0752021552125c1220e337f",
+  "tree": "9a68df8779d0927898566b7afa8fedce68868579",
+  "classification": "complete source restored from untouched E7 full bundle plus final repair increment",
+  "base_full_source": {
+    "source_revision": "e7d7d4d64ffe052e463a77b35e5a793ad3452342",
+    "tree": "596c2ea8e32448ade0ce06065eca836627b33822",
+    "file": "full-source.bundle",
+    "bytes": 285999217,
+    "sha256": "dd950fcdb4d41bd4e1b78883de2164018e80aedfe7af396de36049505b4576c4",
+    "restored_revision_verified": true,
+    "failed_predecessor_producers_restorable": {
+      "ca767cf0d008382134f55a866ad4059d6a4ecc26": "00f5130635b5bfacf49a920eb16922f5fa5b5dc34276a04c7e742572fc9f828f",
+      "5399f9b91f752bc6f27329b772a91d07883f52da": "74f3c9d771fc999a3959fbf476da6ca27facad051b051608679dcb703ab4afa3",
+      "01ce2c1d16be1cf3d5b105f826617b37a2d1f2fc": "1eedaead2b3991369146a227f299cabbe2704b18a077564cd22145f9a7f4d4d8"
+    },
+    "hardware_access": "not-performed"
+  },
+  "increment_sha256": "9f38469efd89056b4ba29a673f58b13e37fe240735d5fd7b0dbca16661e66610",
+  "restored_revision_verified": true,
+  "hardware_access": "not-performed"
+}

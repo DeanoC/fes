@@ -1,0 +1,8 @@
+{
+  "checked_production_head": "a92247ffd8b3484464470c046a98ab67e26d901b",
+  "combined_proof_producer": "cb7b307ef4c3baad531adf8399f0fac101a7c2eb",
+  "unchanged_proof_inputs": {
+    "compiler_source_sha256": 59,
+    "test_runtime_source_sha256": 51
+  }
+}

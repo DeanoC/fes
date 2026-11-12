@@ -1,0 +1,59 @@
+{
+  "BASIC_audio_and_PR": "Not tested by this case",
+  "base_image": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+  "baseline_bundle": "a14a53cd33e2c51d7639701363bf95cc7781f62b8207c0e2bab1653276504700",
+  "case_receipt_sha256": "1d10289a33ceb8d4a7f9635534a5c5298f14e496168570f132606964181abf3b",
+  "collector_source": "dae5be8cb306ea29131ada4bf3da18e2c1ff937b",
+  "compiled_consumers_source": "5109333149cbb74d5ae4534e02a70866da94a058",
+  "consumer_source_comparison_sha256": "eb30d723693691359c75166c1767a5057216ce999b2cb4b16afd23385b8415c0",
+  "cycles": 10,
+  "displayed_sequences": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "final_receipt_sha256": "4408ed785b9b6082f79655000f424644c3fcc7baea99d5cebcda2967b3fdecdd",
+  "fresh_allocations": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "intermittent_fault_fixed": false,
+  "intermittent_fault_reproduced": false,
+  "original_host_and_catalog_restored": true,
+  "overall_goal_complete": false,
+  "passed": true,
+  "physical_input": "Virtual keyboardfixture, not a physicalUSB test",
+  "qualified_core_source": "a35f3207a668e87ac16a4edb6028ef554a2f8140",
+  "release_receipt_sha256": "e93b4b256acc14cf29519d4a86dd4c75f8051a1d30d8ce0e468dac7c4016af54",
+  "restored_and_released_utc": "2026-11-05T06:35:47.631425+00:00",
+  "same_boot": "e8d10b71-cb1e-4061-bc93-81e4dc51754b",
+  "scope": "Ten normal packaged-standard-ZX81 allocated MENU close/reopen cycles, ownedStop, visualHDMIchecks and full baseline/host/prefs/fixture restoration",
+  "seconds": 52.206,
+  "software_generation": 32,
+  "visual_observations": {
+    "closed-9.png": "Returned ZX81 K cursor, white native screen",
+    "initial-machine.png": "ZX81 K cursor, white native screen",
+    "opened-0.png": "FES Change media chooser"
+  },
+  "visual_sha256": {
+    "closed-9.png": "3edbbc6d2015d75d8a312d746df33ec38ee5bb822ba88c8a15147ecd58fa41af",
+    "initial-machine.png": "3edbbc6d2015d75d8a312d746df33ec38ee5bb822ba88c8a15147ecd58fa41af",
+    "opened-0.png": "3ab109474957378fd2f5aa67a91feda6164efd27da8ab010b99ba19804519006"
+  },
+  "zero_errors_and_underflows": true
+}

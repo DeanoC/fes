@@ -1,0 +1,113 @@
+{
+  "passed": true,
+  "source_revision": "413eba23868bb73b2e5b5f494274fa1231ce0d56",
+  "seconds": 1356.097,
+  "compiler_verifier_same_source": true,
+  "packaging_strategy": "shared-hps-first-linux-core",
+  "descriptor_sha256": "fcad3b5bb98cb82e97dee07c649ec5b3de8a6a1bdb254960789cd2b30224b6e3",
+  "build_receipt_sha256": "d5efbe012f482510928592210ff9743f8cf26a44fcb95733abfe2e6ca2b5cc20",
+  "revisions": {
+    "base": {
+      "rows": 49,
+      "partition_reuse_status": {
+        "root_preserved_core_logic_excluding_pr_subblocks": "0.00%",
+        "status": "not-applicable-base"
+      },
+      "unwaived_findings": [
+        {
+          "rule": "TMC-20012 - Missing Output Delay Constraint",
+          "severity": "High",
+          "violations": 33
+        },
+        {
+          "rule": "TMC-20011 - Missing Input Delay Constraint",
+          "severity": "High",
+          "violations": 2
+        },
+        {
+          "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+          "severity": "Low",
+          "violations": 1
+        },
+        {
+          "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+          "severity": "Low",
+          "violations": 1
+        }
+      ]
+    },
+    "persona_a": {
+      "rows": 49,
+      "partition_reuse_status": {
+        "root_preserved_core_logic_excluding_pr_subblocks": "100.00%",
+        "status": "passed"
+      },
+      "unwaived_findings": [
+        {
+          "rule": "TMC-20012 - Missing Output Delay Constraint",
+          "severity": "High",
+          "violations": 33
+        },
+        {
+          "rule": "TMC-20011 - Missing Input Delay Constraint",
+          "severity": "High",
+          "violations": 2
+        },
+        {
+          "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+          "severity": "Low",
+          "violations": 1
+        },
+        {
+          "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+          "severity": "Low",
+          "violations": 1
+        }
+      ]
+    },
+    "persona_b": {
+      "rows": 49,
+      "partition_reuse_status": {
+        "root_preserved_core_logic_excluding_pr_subblocks": "100.00%",
+        "status": "passed"
+      },
+      "unwaived_findings": [
+        {
+          "rule": "TMC-20012 - Missing Output Delay Constraint",
+          "severity": "High",
+          "violations": 33
+        },
+        {
+          "rule": "TMC-20011 - Missing Input Delay Constraint",
+          "severity": "High",
+          "violations": 2
+        },
+        {
+          "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+          "severity": "Low",
+          "violations": 1
+        },
+        {
+          "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+          "severity": "Low",
+          "violations": 1
+        }
+      ]
+    }
+  },
+  "medium_duplicate_clock_findings_absent_all3": true,
+  "whole_board_design_closure": "failed; all4rawfindingsremain",
+  "independent_rebuild": "not-run",
+  "package_admission": false,
+  "hardware_acceptance": false,
+  "canonical": {
+    "passed": true,
+    "source_revision": "3ccb0a5edb0675ddb4c8328dcfc80bbea69fc2c7",
+    "base": "a154f5a298d16ef3bfda6caa5031331ea7d2c696",
+    "source_frozen_throughout": true,
+    "commands": 7,
+    "seconds": 976.685,
+    "output_sha256": "f05846942c10d025201c7068f389883382289769fbb47b8e444cc68e8eb31a1e",
+    "scope": "Complete unmodified affected delta for source-bound exactEMIF duplicate retirement + real actual14fixture + audio model evidence. No hardware/admission claim."
+  }
+}

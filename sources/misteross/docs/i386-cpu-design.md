@@ -191,9 +191,16 @@ Programmer's Reference Manual (1986):
   and shutdown on triple fault;
 - DR0–DR3, DR6 and DR7 with instruction and data breakpoints, RF and single
   step. MOV to or from DR4 and DR5 follows the reference results.
-- TR6 and TR7 accept MOV without #UD. The TLB test function is not
-  implemented. This is a recorded deviation; no target software is known to
-  use it.
+- TR4-TR7 accept MOV without #UD, with a register or a memory ModRM, as
+  the 386's decoder routes them (TR0-TR3 are #UD); each keeps what is
+  written. The TLB test function of TR6 and TR7 is not implemented, and
+  what the 386's TR4 and TR5 hold is not known. This is a recorded
+  deviation; no target software is known to use it (#1730).
+- The 386's other undocumented instructions follow its decoder ROM and
+  microcode (#1730): ICEBP (F1h) is INT 1 delivered as an exception (no
+  IOPL or gate-DPL check, EXT set, DR7.GD cleared, no DR6 bit; DR7 bit 12's
+  break to an ICE is ignored), and UMOV (0F 10-0F 13) is MOV. LOADALL
+  (0F 07) stops the CPU as not built (Phase 7).
 
 The segment-cache contract for the completed CPU follows the 386:
 
@@ -273,7 +280,10 @@ relies on:
   486.
 - No CPUID.
 - No CR0.WP: supervisor accesses ignore page R/W protection.
-- BSWAP, XADD, CMPXCHG, INVD, WBINVD and INVLPG raise #UD.
+- BSWAP, XADD, CMPXCHG, INVD, WBINVD and INVLPG raise #UD, as does every
+  other encoding the 386's decoder rejects: XBTS and IBTS (0F A6, 0F A7),
+  which only the B-step 386 ran, and 0F 0D among them (#1701; the 386's
+  decoder ROM, reenigne/x86_microcode `80386/decoder23.txt`).
 - At reset, DX holds the profile's component and revision ID.
 
 An optional `i486-isa` profile, a later extension (Phase 7), adds those
@@ -1568,7 +1578,7 @@ below are the plan for the complete CPU and machine.
    length decoders through L1 and L2 exhaustively against Bochs `decode()`, for
    every accumulator variant. It samples the whole front end and checks D and
    AG cycle by cycle over every memory ModRM, SIB and address size. Every check
-   also runs on Yosys's netlist with `--yosys`. They do not constitute whole-CPU
+   also runs on the seal's Yosys netlist with `--netlist`. They do not constitute whole-CPU
    instruction lockstep; coverage and results are in the
    [simulation README](../cores/fes-common/sim/i386/README.md).
 4. **Routed diagnostics (implemented for isolated blocks and the current

@@ -196,6 +196,50 @@ Error ReadMenuSpans(const json::Value& value,std::vector<MenuSpan>* output)
  *output=std::move(spans);return {};
 }
 
+// Static selections use the existing composed-core operation with a distinct
+// two-image tuple. No linked payload path or live reconfiguration is accepted.
+Error ReadStaticComposition(const json::Value& root, const std::string& package_id,
+    CoreCompositionRequest* result)
+{
+    Error error;
+    const auto* tuple=Find(root,"composition");
+    const char* const fields[]={"composition_id","package_id","base_sha256","base_size",
+        "persona_sha256","persona_size","control_build_id","hardware_id","expansion_id"};
+    if (!tuple || tuple->type!=json::Type::object || !HasOnly(*tuple,fields,9,&error))
+        return Invalid("invalid static composition tuple");
+    auto& selected=result->static_selection;
+    auto& c=selected.composition;
+    std::string* strings[]={&c.id,&c.package_id,&c.base_sha256,&c.persona_sha256,&c.control_build_id};
+    const char* keys[]={"composition_id","package_id","base_sha256","persona_sha256","control_build_id"};
+    for (unsigned i=0;i<5;++i) {
+        const std::string* value=nullptr;
+        if (!StringMember(*tuple,keys[i],&value,&error)) return error;
+        if (i==4 ? (value->size()!=32 || !PackageID(*value+*value) || *value==std::string(32,'0')) : !PackageID(*value))
+            return Invalid("invalid static composition identity");
+        *strings[i]=*value;
+    }
+    const auto* base_size=Find(*tuple,"base_size");
+    const auto* persona_size=Find(*tuple,"persona_size");
+    const auto* hardware_id=Find(*tuple,"hardware_id");
+    if (!BoundedInteger(base_size,1,32*1024*1024) || !BoundedInteger(persona_size,1,32*1024*1024) ||
+        !BoundedInteger(hardware_id,0,0xffffffffLL) ||
+        (hardware_id->integer_value!=0xc001a001LL && hardware_id->integer_value!=0xc002b002LL) || c.package_id!=package_id)
+        return Invalid("invalid static composition size, persona or package binding");
+    c.base_size=base_size->integer_value;c.persona_size=persona_size->integer_value;
+    c.hardware_id=static_cast<std::uint32_t>(hardware_id->integer_value);
+    const auto* expansion=Find(*tuple,"expansion_id");
+    const auto* path=Find(root,"expansion_path");
+    if ((expansion!=nullptr)!=(path!=nullptr)) return Invalid("static expansion identity and path must occur together");
+    if (expansion) {
+        if (expansion->type!=json::Type::string || !PackageID(expansion->string_value) ||
+            path->type!=json::Type::string || !Path(path->string_value))
+            return Invalid("invalid selected static expansion");
+        c.expansion_id=expansion->string_value;selected.expansion_path=path->string_value;
+    } else if (c.hardware_id!=0xc001a001u) return Invalid("default static selection must be the empty persona");
+    result->has_static_selection=true;
+    return {};
+}
+
 // Closed video/CPU role list, shared by parts inspection and ROM activation.
 Error ReadPartsComposition(const json::Value& root, const std::string& package_id,
     CoreCompositionRequest* result)
@@ -485,6 +529,19 @@ void AppendDescriptor(BoundedOutput* output, const CoreDescriptor& descriptor)
 		output->Append(",\"sha256\":"); AppendQuoted(output, descriptor.rom_map.sha256);
 		output->Append("}");
 	}
+	if (descriptor.format == 5) {
+		const auto& s = descriptor.static_expansion;
+		output->Append(",\"static_expansion\":{\"file\":"); AppendQuoted(output, s.file);
+		output->Append(",\"size\":"); output->Append(std::to_string(s.size));
+		output->Append(",\"sha256\":"); AppendQuoted(output, s.sha256);
+		output->Append(",\"control_build_id\":"); AppendQuoted(output, s.control_build_id);
+		output->Append(",\"hardware_id\":"); output->Append(std::to_string(s.hardware_id));
+		output->Append(",\"root_qdb_sha256\":"); AppendQuoted(output, s.root_qdb_sha256);
+		output->Append(",\"interface_sha256\":"); AppendQuoted(output, s.interface_sha256);
+		output->Append(",\"clock_reset_sha256\":"); AppendQuoted(output, s.clock_reset_sha256);
+		output->Append(",\"pof0_hash\":"); AppendQuoted(output, s.pof0_hash);
+		output->Append("}");
+	}
 	output->Append(",\"abi\":");
 	AppendContract(output, descriptor.abi);
 	output->Append(",\"interfaces\":[");
@@ -542,6 +599,7 @@ void AppendError(BoundedOutput* output, const Error& error)
 bool TryEncodeV2Response(bool ok, const Status& status, const std::string& version,
 	const CorePackageInspection* inspection, const CoreData* core_data, const MenuFrameReply* menu_frame,std::string* response)
 {
+	if (!status.active_package.composition.id.empty() && !status.active_package.static_composition.id.empty()) return false;
 	BoundedOutput output(kMaximumResponsePayloadBytes);
 	output.Append("{\"protocol\":2,\"ok\":");
 	output.Append(ok ? "true" : "false");
@@ -669,8 +727,21 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 			output.Append(",\"programmed_size\":"); output.Append(std::to_string(links.programmed_size));
 			output.Append("}");
 		}
+		const auto& static_composition=status.active_package.static_composition;
+        if (!static_composition.id.empty()) {
+            const auto& c=static_composition;
+            output.Append(",\"composition\":{\"composition_id\":");AppendQuoted(&output,c.id);
+            output.Append(",\"package_id\":");AppendQuoted(&output,c.package_id);
+            if (!c.expansion_id.empty()) {output.Append(",\"expansion_id\":");AppendQuoted(&output,c.expansion_id);}
+            output.Append(",\"base_sha256\":");AppendQuoted(&output,c.base_sha256);
+            output.Append(",\"base_size\":");output.Append(std::to_string(c.base_size));
+            output.Append(",\"persona_sha256\":");AppendQuoted(&output,c.persona_sha256);
+            output.Append(",\"persona_size\":");output.Append(std::to_string(c.persona_size));
+            output.Append(",\"control_build_id\":");AppendQuoted(&output,c.control_build_id);
+            output.Append(",\"hardware_id\":");output.Append(std::to_string(c.hardware_id));output.Append("}");
+        }
 		const auto& composition=status.active_package.composition;
-		if (!composition.id.empty()) {
+		if (!composition.id.empty() && static_composition.id.empty()) {
 			output.Append(",\"composition\":");
 			output.Append("{\"composition_id\":");AppendQuoted(&output,composition.id);
 			output.Append(",\"package_id\":");AppendQuoted(&output,composition.package_id);
@@ -735,6 +806,7 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
   output.Append(",\"slot_bytes\":");output.Append(std::to_string(geometry.slot_bytes));
   output.Append(",\"slots\":");output.Append(std::to_string(native::generated::FesApplicationMenuSlotCount));
   output.Append(",\"format\":\"bgrx8888\",\"displayed_sequence\":");output.Append(std::to_string(menu.displayed_sequence));
+  if(menu.frame_mapping)output.Append(",\"frame_mapping\":true");
   output.Append(",\"underflows\":");output.Append(std::to_string(menu.underflows));
   output.Append(",\"error\":");AppendError(&output,menu.error);output.Append("}");
  }
@@ -744,6 +816,7 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
   if(menu_frame->kind==Kind::granted) {
    output.Append(",\"format\":\"bgrx8888\",\"slots\":");output.Append(std::to_string(native::generated::FesApplicationMenuSlotCount));
    output.Append(",\"slot_bytes\":");output.Append(std::to_string(native::generated::FesApplicationMenuSlotBytes));
+   if(menu_frame->frame_mapping)output.Append(",\"frame_mapping\":true");
    if(menu_frame->blitter) {
     output.Append(",\"blitter\":{\"minor\":");output.Append(std::to_string(menu_frame->blitter_minor));
     output.Append(",\"list_offset\":");output.Append(std::to_string(native::generated::FesApplicationMenuBlitListOffset));
@@ -873,8 +946,13 @@ Error ParseRequest(const std::string& line, Request* request)
    parsed.operation=Operation::session_display;parsed.expected_package_id=*id;
    parsed.visible=visible->boolean_value;parsed.launcher_focus=*focus=="launcher";
   } else if(operation->string_value=="menu_frame_grant"||operation->string_value=="menu_frame_begin") {
-   const char* const fields[]={"protocol","operation","expected_generation"};
-   if(!HasOnly(root,fields,3,&error))return error;
+   const bool grant=operation->string_value=="menu_frame_grant";
+   const char* const fields[]={"protocol","operation","expected_generation","frame_mapping"};
+   if(!HasOnly(root,fields,grant?4:3,&error))return error;
+   if(const auto* mapping=Find(root,"frame_mapping")) {
+    if(mapping->type!=json::Type::boolean)return Invalid("frame_mapping must be boolean");
+    parsed.frame_mapping=mapping->boolean_value;
+   }
    if(!Generation(Find(root,"expected_generation"),&parsed.expected_generation))
     return Invalid("menu frame needs a nonzero generation");
    parsed.operation=operation->string_value=="menu_frame_grant"?Operation::menu_frame_grant:Operation::menu_frame_begin;
@@ -929,6 +1007,16 @@ Error ParseRequest(const std::string& line, Request* request)
 			parsed.operation = library ? Operation::load_parts_library_core :
 				operation->string_value == "load_parts_core" ?
 				Operation::load_parts_core : Operation::inspect_parts_core;
+		} else if (operation->string_value == "load_composed_core" &&
+            Find(root,"composition") && Find(*Find(root,"composition"),"base_sha256")) {
+            const char* const fields[]={"protocol","operation","package_path","package_id","expansion_path","composition"};
+            if (!HasOnly(root,fields,6,&error)) return error;
+            const std::string *path=nullptr,*id=nullptr;
+            if (!StringMember(root,"package_path",&path,&error) || !StringMember(root,"package_id",&id,&error)) return error;
+            if (!Path(*path) || !PackageID(*id)) return Invalid("invalid static composition package");
+            error=ReadStaticComposition(root,*id,&parsed.composition_request);
+            if (!error.ok()) return error;
+            parsed.operation=Operation::load_composed_core;parsed.package_path=*path;parsed.package_id=*id;
 		} else if (operation->string_value == "load_composed_core" &&
 			Find(root, "expansions") != nullptr) {
 			const char* const fields[] = {"protocol", "operation", "package_path", "package_id",

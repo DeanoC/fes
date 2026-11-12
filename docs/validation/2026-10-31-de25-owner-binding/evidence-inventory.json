@@ -1,0 +1,276 @@
+{
+  "files": {
+    "README.md": {
+      "sha256": "9a0adfcd8f23c0dd2353b7112abc28052e675d43994626a255352a91acc39cee",
+      "size": 7370
+    },
+    "artifact-inventory.json": {
+      "sha256": "c07a4897e693d2a0d2f0eaac93c6dcc0c8bb295330427166c86f11880ac1f1d5",
+      "size": 5458
+    },
+    "bus-affected-job.json": {
+      "sha256": "51f3b72d19ec376cad667af663be892c6ed357fa55b22621c4f8083526c51648",
+      "size": 533
+    },
+    "bus-affected-result.json": {
+      "sha256": "9ad6cd4c47bb3cc36c9a2136dff75e792c8d4bb63e215e9f75b613f0b26935eb",
+      "size": 6060
+    },
+    "bus-boot-inspection.log": {
+      "sha256": "e585a18c43fbe0c2be7725c599c58ca420704b6942944c27b8c26bd0e3242955",
+      "size": 5429
+    },
+    "bus-boot-job.json": {
+      "sha256": "3465c9111063ab0a39c6a538b18e5c244e644e33198865aeee7964ae7d813e17",
+      "size": 226
+    },
+    "bus-boot-serial.log": {
+      "sha256": "d47b90808e7334a005e0e02212372470b63d65256dfc58bd6c140b2de142fa0b",
+      "size": 25313
+    },
+    "collection/expectation.json": {
+      "sha256": "920ab67f92076e47ffc9ec5e36fab5c8df37a650ff2f058617e2b5ed4a8d4e8f",
+      "size": 6046
+    },
+    "collection/known_hosts": {
+      "sha256": "cc2f8aeeb8d1cc544d761fddabf7bfdd3e841cb4199ffc7d5058fd2a4a57b1bc",
+      "size": 96
+    },
+    "collection/read-only.sh": {
+      "sha256": "3bb8f05277eca960e880a4f51f0f276e29eaf9d10ace40289e81cf187676a838",
+      "size": 1224
+    },
+    "collection/receipt.json": {
+      "sha256": "43b89591b1928cf27f4a6b0e7ea07e95a2693094279dd3922eafe7a22e2bfb2f",
+      "size": 4296
+    },
+    "collection/serial.log": {
+      "sha256": "3cd75ee12fe02b77d545b3dbc16948b67a1ad54e74b084d252c12e45419027b7",
+      "size": 25417
+    },
+    "collection/ssh.stderr": {
+      "sha256": "be95cfe13bf0d32b1de805ddaffce0a56151da5a0fb854f429ec4d60d23095e5",
+      "size": 2312
+    },
+    "collection/ssh.stdout": {
+      "sha256": "a283deb31596f5481000d397893edcac16793958be951536b664e57e629ae782",
+      "size": 6544
+    },
+    "expected-kernel-notes.json": {
+      "sha256": "4aafc0d8ef7e15062ea03c38c186f911b259af2503afbb9b5a3a1667ee48e255",
+      "size": 281
+    },
+    "failed-connection/expectation.json": {
+      "sha256": "920ab67f92076e47ffc9ec5e36fab5c8df37a650ff2f058617e2b5ed4a8d4e8f",
+      "size": 6046
+    },
+    "failed-connection/known_hosts": {
+      "sha256": "cc2f8aeeb8d1cc544d761fddabf7bfdd3e841cb4199ffc7d5058fd2a4a57b1bc",
+      "size": 96
+    },
+    "failed-connection/read-only.sh": {
+      "sha256": "3bb8f05277eca960e880a4f51f0f276e29eaf9d10ace40289e81cf187676a838",
+      "size": 1224
+    },
+    "failed-connection/serial.log": {
+      "sha256": "3cd75ee12fe02b77d545b3dbc16948b67a1ad54e74b084d252c12e45419027b7",
+      "size": 25417
+    },
+    "failed-connection/ssh.stderr": {
+      "sha256": "cf04da901c507e3142c3875780f0a36fbec19f928d4f7e62fbef5a5ce06fa0d2",
+      "size": 317
+    },
+    "failed-connection/ssh.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "failed-permissions-update-install.sh": {
+      "sha256": "7dc97fd5d6ca71a01ec7fb3575c03abe88e00bbfe63b1b55cbad62eeeb93525b",
+      "size": 2780
+    },
+    "failed-permissions-update-install.stderr": {
+      "sha256": "f7648a6a9cd79aecac9880f37a6418bee0bcf8078493fc850c6b8b9af348fe08",
+      "size": 2402
+    },
+    "failed-permissions-update-install.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "failed-permissions-update-plan.json": {
+      "sha256": "01c46818d4db6eace4d95350ddf90130d8f8e8c737c11b61c750d79e0972fe9d",
+      "size": 865
+    },
+    "failed-permissions-update-prepare.py": {
+      "sha256": "e35029f121667cf1d42bf6b93c4620bde795c21426ca7b32bc401e2c143778a8",
+      "size": 3068
+    },
+    "failed-permissions-update-receipt.json": {
+      "sha256": "2a43113404f5d6eddf77effcd84fbcacae96d5f92377df9e858759e03bfe6709",
+      "size": 444
+    },
+    "failed-permissions-update-run.py": {
+      "sha256": "c2b15564edbcab571f91bb2896e78b0c91540d2da7d52c224a869eb762dbfe4f",
+      "size": 2181
+    },
+    "identity.json": {
+      "sha256": "409d2c183ad06b60836885bf7889583c296d097c4ee66869d9afbc327d3d7861",
+      "size": 114
+    },
+    "image-boot-contract.json": {
+      "sha256": "94ec9b263d9f43fca9dabee2c5a41ab2b93a5c1b4b5958d143d84d32761e7b3f",
+      "size": 4640
+    },
+    "image-build-job.json": {
+      "sha256": "6808a134e5f66b7b45a80808b671c6712ae26573e52b77895ae52e3cacc92323",
+      "size": 226
+    },
+    "image-first-boot-expectation.json": {
+      "sha256": "920ab67f92076e47ffc9ec5e36fab5c8df37a650ff2f058617e2b5ed4a8d4e8f",
+      "size": 6046
+    },
+    "image-job.json": {
+      "sha256": "53c4b9b8dd3fa3c4607ee97681b00715be2e846a7b812807bb557decb8d625c8",
+      "size": 755
+    },
+    "image-owner-image.json": {
+      "sha256": "f6d3075a46142e0884d1363c42077cad49e32d1ebb825f8561696d9518601e3c",
+      "size": 9607
+    },
+    "image-tools.json": {
+      "sha256": "183bac4c2e57106d9d7ceb37f33fac4da0015a2286f8dfc89eb339af4bea525b",
+      "size": 134
+    },
+    "image-verify.json": {
+      "sha256": "7f2dd6b2fd4c1b13cd9f2a47a8274bff4b9cea823b5b293dfd1094adf1dac947",
+      "size": 275
+    },
+    "initial-kernel-job.json": {
+      "sha256": "efdcc7db530c07a77c8714873cc01abcc1587453a4e831d35c20596398d2e7f8",
+      "size": 801
+    },
+    "initial-kernel-stdout.log": {
+      "sha256": "d39c92bd9702266752c620a0c8dbbbbdb016d995e7cb0f0256fd9a57d80218d8",
+      "size": 4185
+    },
+    "kernel-build-job.json": {
+      "sha256": "1f3bdb53a68846b50a4977034c8c39fe181cc205a4a16d32fd6af29ff17924c3",
+      "size": 228
+    },
+    "kernel-config.diff": {
+      "sha256": "eaf220e36611d7cfde66cb8bb7e499e3277f11ef9fcbd9e3f8147627eadc4d8a",
+      "size": 2673
+    },
+    "kernel-inputs.json": {
+      "sha256": "470cc933d5fb420439dd41cf19e0fe7c677162750314abe53e8f4859eac01d10",
+      "size": 3358
+    },
+    "kernel-job.json": {
+      "sha256": "553fc0dd831060b686a26c940e22a6d980aa08cb57a033e22674d5588de6240b",
+      "size": 827
+    },
+    "kernel-kernel-build.json": {
+      "sha256": "e37713056075830c3e51445704e5637c195b056dce26b2f301e73bc6cc7debcd",
+      "size": 3089
+    },
+    "kernel-update-install.sh": {
+      "sha256": "2fbcaafcb1741518341ec36ce408b16214e90fc833f961084e6f88476aec9140",
+      "size": 3849
+    },
+    "kernel-update-install.stderr": {
+      "sha256": "b8a2aa1afdac211dcceff0cdd918dd8e5e8121fd5a6774e867a8e7e2856be872",
+      "size": 2337
+    },
+    "kernel-update-install.stdout": {
+      "sha256": "b2ec7a6ec93c18ac5ec3ef08d031059f6f7b6605b26d738c1e1e90da862d777f",
+      "size": 34
+    },
+    "kernel-update-plan.json": {
+      "sha256": "64d88c0fa30b1da5d37cb85865597b78d25bd2eb600471f3626a83b26f109285",
+      "size": 1357
+    },
+    "kernel-update-prepare.py": {
+      "sha256": "1bb11f1d20e75c9746678923acadcdcba99089014649777aa4a45a3d94488ae6",
+      "size": 4550
+    },
+    "kernel-update-receipt.json": {
+      "sha256": "aae9252a0ac0d6cdaf62c937ebecbbb6e48398b091ac7a4648c1bc33e20e6235",
+      "size": 657
+    },
+    "kernel-update-run.py": {
+      "sha256": "5230e774d658eea468f58b832f41b01c81fb496012afdeccfe0e700395279c64",
+      "size": 2150
+    },
+    "mdev-affected-job.json": {
+      "sha256": "c1ee386fe23ac663a12d9a1cec769961b4c53ff8d9a2344249dea173f17011d0",
+      "size": 638
+    },
+    "mdev-affected-result.json": {
+      "sha256": "698ac1f1bc0d7065df384db614925898e06ccc0df89293c40caabb61175cb192",
+      "size": 8319
+    },
+    "permissions-boot-inspection.log": {
+      "sha256": "99a693410453a5eac905fb9a1e16a1b71b95966d5dd1241bfee5878d7f967e39",
+      "size": 5429
+    },
+    "permissions-boot-job.json": {
+      "sha256": "bcfc0723e9b3c64c675db76d508763aaa6ef459f46a1d8bd02a0485bcaf884c0",
+      "size": 226
+    },
+    "permissions-boot-serial.log": {
+      "sha256": "3cd75ee12fe02b77d545b3dbc16948b67a1ad54e74b084d252c12e45419027b7",
+      "size": 25417
+    },
+    "permissions-update-install.sh": {
+      "sha256": "91d12bb6c885266709ca59ef98df6808135a5cc0965aca1a3a8d5a37bb1db325",
+      "size": 2794
+    },
+    "permissions-update-install.stderr": {
+      "sha256": "a02c1a0801ac1230a19fa0e042e09bfe053e61894babaab9a104eb5c91f0c4eb",
+      "size": 2335
+    },
+    "permissions-update-install.stdout": {
+      "sha256": "30cb942e018f2546970ecac4bfd97b377cee0a0857c44e2a9d45689699f5e735",
+      "size": 123
+    },
+    "permissions-update-plan.json": {
+      "sha256": "e1a4426c35d1ae6c3e09a3e3f20df459c8279128b61b4aa6913048cadd236916",
+      "size": 865
+    },
+    "permissions-update-prepare.py": {
+      "sha256": "6f3949450affbc6ba5163ffd2bcd6d31468aa3b971de31bf7360c1b1fd5d6674",
+      "size": 3083
+    },
+    "permissions-update-receipt.json": {
+      "sha256": "97ee7789be4564da1f7392c5f86aa57701354a1952d4914c966cb6076be9dbac",
+      "size": 588
+    },
+    "permissions-update-run.py": {
+      "sha256": "173cc21dfd01a81f6611148a1bd9c5c7fa17a0f49ef85a9c7769dc22de2442e5",
+      "size": 2061
+    },
+    "readiness.sh": {
+      "sha256": "39bb9a9fc00fad904a47d12c5dc7e66bb2eb49bf285a77aea202dd492e66137d",
+      "size": 1124
+    },
+    "readiness.stderr": {
+      "sha256": "11f3663867c8f8814d2851f6bc5ff67360f87060d5300640db6d601aa50a9f22",
+      "size": 2296
+    },
+    "readiness.stdout": {
+      "sha256": "f46d510627b7a3989a6326de1c3dced95e3d0940b2563945950ff80b6dcb9fbb",
+      "size": 907
+    },
+    "syscalls-after-boot.json": {
+      "sha256": "e38532381ecf585686910fccebadf6abe1df070c03198bf35b9101b7fbbe21f5",
+      "size": 270
+    },
+    "syscalls-after-boot.stderr": {
+      "sha256": "b78b81bc4d0cfd6ac5e3a6ce100ea48090383a8b2eefe742421c64a7e16613bf",
+      "size": 2300
+    },
+    "syscalls-after-boot.stdout": {
+      "sha256": "276b87a5ba01071e1528fb11ae9db9238e651e223b31a49b770da1aa3893aebf",
+      "size": 401
+    }
+  }
+}

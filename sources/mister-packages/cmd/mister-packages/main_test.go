@@ -71,8 +71,10 @@ func TestCommandsKeepFabricSeparateFromHostABI(t *testing.T) {
 	if err != nil || !strings.Contains(verilog, "`define FES_VIDEO_PART_REQUEST_BITS") {
 		t.Fatalf("emit-verilog fabric = %q, %v", verilog, err)
 	}
-	if _, err := emitGoPath(path); err == nil {
-		t.Fatal("fabric unexpectedly accepted as a host Go ABI")
+	goOutput, err := emitGoPath(path)
+	if err != nil || !strings.Contains(goOutput, "FesVideoPartRequestBits") ||
+		strings.Contains(goOutput, "ABIID") || strings.Contains(goOutput, "Capability") {
+		t.Fatalf("emit-go fabric must contain constants without a host ABI = %q, %v", goOutput, err)
 	}
 	// C++ carries the constants a runtime reads, never ABI identity or capabilities.
 	cpp, err := emitPath(path)

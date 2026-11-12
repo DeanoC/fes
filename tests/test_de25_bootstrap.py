@@ -21,6 +21,7 @@ class BootstrapTests(unittest.TestCase):
         self.vendor.mkdir()
         self.output = self.root / 'output'
         self.receipt = {'format': 1, 'hps_initialization': 'HPS FIRST',
+                        'classification': 'unadmitted-HPS-first-diagnostic',
                         'production_admission': False, 'fes_revision': 'a' * 40,
                         'computer_build_id': 'b' * 32, 'artifacts': {}}
         for name in boot.ARTIFACTS:
@@ -59,6 +60,39 @@ class BootstrapTests(unittest.TestCase):
                 self.prepare()
             run.assert_not_called()
         self.assertFalse(self.output.exists())
+
+    def test_menu_scanout_retains_its_own_identity_and_rejects_mixed_output(self):
+        self.receipt['classification'] = 'unadmitted-HPS-first-scanout'
+        self.receipt['scanout_build_id'] = self.receipt.pop('computer_build_id')
+        self.write_receipt()
+        with patch.object(boot.subprocess, 'run', side_effect=self.converter):
+            record = self.prepare()
+        self.assertEqual(record['scanout_build_id'], 'b' * 32)
+        self.assertNotIn('computer_build_id', record)
+        self.assertEqual(boot.verify(self.output), record)
+        record['computer_build_id'] = 'b' * 32
+        (self.output / 'bootstrap.json').write_text(json.dumps(record))
+        with self.assertRaisesRegex(ValueError, 'source identity differs'):
+            boot.verify(self.output)
+
+    def test_unknown_missing_mismatched_and_malformed_producer_identity_stop_before_conversion(self):
+        original = dict(self.receipt)
+        cases = [dict(original, classification='unknown'),
+                 dict(original, classification=[]),
+                 dict(original, classification='unadmitted-HPS-first-scanout'),
+                 dict(original, scanout_build_id='b' * 32),
+                 dict(original, computer_build_id='bad'),
+                 dict(original, fes_revision='bad'),
+                 {k: v for k, v in original.items() if k not in ('classification',)},
+                 {k: v for k, v in original.items() if k not in ('computer_build_id',)}]
+        with patch.object(boot.subprocess, 'run') as run:
+            for value in cases:
+                with self.subTest(value=value):
+                    self.receipt = value; self.write_receipt()
+                    with self.assertRaisesRegex(ValueError, 'producer identity'):
+                        self.prepare()
+                    self.assertFalse(self.output.exists())
+            run.assert_not_called()
 
     def test_fpga_first_and_wrong_rollback_refused(self):
         with patch.object(boot.subprocess, 'run') as run:

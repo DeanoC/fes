@@ -1,0 +1,265 @@
+{
+  "format": 1,
+  "board": "TRWU8J8G",
+  "evidence_class": "managed native integration diagnostic",
+  "overall_normal_kit_acceptance": false,
+  "producer_revision": "91625e74d9c1a6a63a7a8f026652ecef27f4c01b",
+  "base_image_sha256": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+  "kernel_receipt_sha256": "e737a9fe3d86931926535fab525278c5e703845ba8d3933103e37cdc3b720f4c",
+  "host_sha256": "8fcf05fc6f1b2c5c0a702d331a32eac58aae5d1bdc2d73317a234d8b9aa27730",
+  "bundle_id": "76ab2678962cd032fe12db1b12c7f7cd9e7035d199033346240eab63b4e694b1",
+  "bundle_archive": {
+    "sha256": "c8261334540b264079eb9bba2f1330ea0c673c54aac2c73d307a4a220df2c9fc",
+    "size": 36806144
+  },
+  "bundle_manifest": {
+    "architecture": "aarch64",
+    "base_contract": "fes-kit-base-v1-4d08af30f26132bab500672c0bd227576cdaf11e108617966690620b22f494a9",
+    "board": "de25-nano",
+    "files": [
+      {
+        "mode": 365,
+        "path": "bin/fogcast-kit",
+        "sha256": "9fc68ca14dfba7b07b7abe2b7cbaf2e7b39210e32b45a9bab28f78c1f67d4751",
+        "size": 1573026
+      },
+      {
+        "mode": 365,
+        "path": "bin/fogcast-tenfoot",
+        "sha256": "0151197241a98f02c39aeeeae0ed199a65423f096cf4a9babf459c843a4b1064",
+        "size": 23330978
+      },
+      {
+        "mode": 365,
+        "path": "bin/mister-agent",
+        "sha256": "3aa7bef68a25e004b9c1289804070ef3e7b0ae75d181761c6f2db4d3f992c73b",
+        "size": 10223778
+      },
+      {
+        "mode": 365,
+        "path": "bin/mister-runtime",
+        "sha256": "fff8cca46af7d98260d859ab89914c9e29c849dab826fb98fff4d7d5b1c39dd5",
+        "size": 1670960
+      },
+      {
+        "mode": 292,
+        "path": "share/fogcast/config.toml",
+        "sha256": "c8dae986367e7a4562446512d6133e6d687786b732b1bafc60420ef936323dbc",
+        "size": 432
+      }
+    ],
+    "format": 1,
+    "interfaces": {
+      "maintenance": "fes-kit-maintenance-v1",
+      "menu.fes.fabric.de25-scanout": "1.1",
+      "menu.fes.memory.hps-ddr": "1.0",
+      "menu.fes.video.fixed-720p60": "1.0",
+      "menu.fes.video.menu-blitter": "1.1",
+      "menu.fes.video.menu-display": "1.0",
+      "runtime-protocol": "2",
+      "software-admission": "fes-kit-software-v1"
+    },
+    "provenance": {
+      "fogcast": "91625e74d9c1a6a63a7a8f026652ecef27f4c01b",
+      "runtime": "91625e74d9c1a6a63a7a8f026652ecef27f4c01b"
+    },
+    "version": "0.2.0-de25.91625e74d"
+  },
+  "package_id": "05dfc7f7db974861f18df762fa61d6132d62fdb88d6c6cfbabafbc89a010907c",
+  "build_id": "a689d5a85cfe5b44c1c96501958f6516",
+  "media_id": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
+  "tape_unit": {
+    "unit": 0,
+    "interface": {
+      "id": "fes.media.zx81-tape",
+      "major": 1,
+      "minor": 0
+    },
+    "min_bytes": 1,
+    "max_bytes": 16375,
+    "chunk_bytes": 512,
+    "state": "ready",
+    "saveable": false
+  },
+  "passes": {
+    "software_api_seconds": 36.787,
+    "catalog_seconds": 7.284,
+    "basic_media_seconds": 29.993,
+    "basic_session": {
+      "id": "e5d91d27-2853-4436-9e87-0dddd48366b2",
+      "flight_id": "2cea3efe-2aec-40fc-849c-94fef502e4bf",
+      "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45"
+    },
+    "basic_package_generation": 3,
+    "ordinary_idle_reboot": {
+      "success": true,
+      "new_boot_id": "75300564-fbc0-49e9-bf36-181698edfcb9",
+      "elapsed_seconds": 48.262,
+      "stable_seconds": 10,
+      "scope": "One ordinary reboot after owned core Stop/MENU idle; no JTAG, watchdog injection or user power; no claim of reboot from running computer or uncertain state"
+    },
+    "retained_catalog_relaunch": {
+      "seconds": 27.804,
+      "boot_id": "75300564-fbc0-49e9-bf36-181698edfcb9",
+      "session_id": "21009b3b-a78a-45a0-b8fc-047db98ea9b8",
+      "generation": 2
+    }
+  },
+  "images": {
+    "basic7.png": {
+      "sha256": "73a1f1a4d0dbef9d72a3daccb5e54780a51b858e635e7e36ca68b7d10730e9d0",
+      "source": "de25-bram-limit-91625e74d/basic-media-v2/02-basic-print7.png"
+    },
+    "basic9.png": {
+      "sha256": "020aad847c1f7c0b0a81663d66f360fab1667ff4872a91b196b9b94f3c828ad3",
+      "source": "de25-bram-limit-91625e74d/basic-media-v2/03-basic-print9.png"
+    },
+    "reloaded7.png": {
+      "sha256": "73a1f1a4d0dbef9d72a3daccb5e54780a51b858e635e7e36ca68b7d10730e9d0",
+      "source": "de25-bram-limit-91625e74d/basic-media-v2/06-after-eject.png"
+    },
+    "relaunch7.png": {
+      "sha256": "73a1f1a4d0dbef9d72a3daccb5e54780a51b858e635e7e36ca68b7d10730e9d0",
+      "source": "de25-bram-limit-91625e74d/restarted-catalog-relaunch-v2/restarted-load-run7.png"
+    }
+  },
+  "known_failures": {
+    "active_session_reboot_source916": {
+      "job_seconds": 59.657,
+      "new_boot_id": "88c820c1-efa1-4bad-bbb8-4029a1c992fe",
+      "native_menu_errors": "0x44 response/unexpected-response",
+      "underflows": 0,
+      "outstanding": 0,
+      "cause": "main signal context cancels Coordinator operation context before leaseClose ownedStop",
+      "retry": "not replayed unchanged"
+    },
+    "operator_first_live_reply_assertion": "API reply omits execution; corrected check binds explicit id/package/generation plus canonical session GET; normal owned cleanup passed",
+    "operator_fast_cold_load_keys": "Incomplete LOAD command, nativeAPI/catalog/Stop passed; traced250ms key recipe plus initial-ROM/command captures subsequently passed",
+    "blank_or_partial_capture_opens": "Single-frame accepted7/9/7 inspected; no sustained video or blank pre-load preservation claim"
+  },
+  "shutdown_repair": {
+    "revision": "aa6ed6d01caabc6dcb9a3627fe15e50b13123ff4",
+    "before_regression_seconds": 0.666,
+    "after_command_agent_lease_tests_seconds": 1.578,
+    "focused_race_seconds": 1.022,
+    "bundle_id": "0b22eb82bb0d05fa7f7eac5cb2f42838fa12d6c8a51ae46532f308c059865a5c",
+    "bundle_archive": {
+      "sha256": "756a5c27bb2ad45bfdaf172099f1f67f941684fceaf3694cea67882d278950ca",
+      "size": 36806144
+    },
+    "bundle_manifest": {
+      "architecture": "aarch64",
+      "base_contract": "fes-kit-base-v1-4d08af30f26132bab500672c0bd227576cdaf11e108617966690620b22f494a9",
+      "board": "de25-nano",
+      "files": [
+        {
+          "mode": 365,
+          "path": "bin/fogcast-kit",
+          "sha256": "2dfc463ede5c90d5dbb771f12e69809ceeceaf1ee82b9977c56d56316ca7d212",
+          "size": 1573026
+        },
+        {
+          "mode": 365,
+          "path": "bin/fogcast-tenfoot",
+          "sha256": "ed18f8ed8054b5015f0d89557ae512a3b1df9f73cc769e5c89d00e64f72d1641",
+          "size": 23330978
+        },
+        {
+          "mode": 365,
+          "path": "bin/mister-agent",
+          "sha256": "11ee18d6d34dec0ab54faa323f8f00cd23c033dd3b1367f22f3692cc43c56bee",
+          "size": 10223778
+        },
+        {
+          "mode": 365,
+          "path": "bin/mister-runtime",
+          "sha256": "98f1ac9dd12950af38de2afc745547178e6b08a1308e407c67d4d8ab36113644",
+          "size": 1670960
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/config.toml",
+          "sha256": "c8dae986367e7a4562446512d6133e6d687786b732b1bafc60420ef936323dbc",
+          "size": 432
+        }
+      ],
+      "format": 1,
+      "interfaces": {
+        "maintenance": "fes-kit-maintenance-v1",
+        "menu.fes.fabric.de25-scanout": "1.1",
+        "menu.fes.memory.hps-ddr": "1.0",
+        "menu.fes.video.fixed-720p60": "1.0",
+        "menu.fes.video.menu-blitter": "1.1",
+        "menu.fes.video.menu-display": "1.0",
+        "runtime-protocol": "2",
+        "software-admission": "fes-kit-software-v1"
+      },
+      "provenance": {
+        "fogcast": "aa6ed6d01caabc6dcb9a3627fe15e50b13123ff4",
+        "runtime": "aa6ed6d01caabc6dcb9a3627fe15e50b13123ff4"
+      },
+      "version": "0.2.0-de25.aa6ed6d01"
+    },
+    "normal_bundle_build_seconds": 37.583,
+    "software_api_seconds": 43.154,
+    "software_generation": 5,
+    "active_reboot": {
+      "success": true,
+      "new_boot_id": "d66190d4-f024-4895-958a-43c5e4bb2b96",
+      "elapsed_seconds": 75.715,
+      "reboot_seconds": 47.447,
+      "scope": "One ordinary OS reboot from valid normal FES ZX81 session; normal service shutdown owns cleanup, no explicit session Stop sent by proof, JTAG or watchdog injection; exact base/software/kernel/card/probe and stable Ready/MENU idle/free verified"
+    },
+    "active_reboot_job_seconds": 75.815,
+    "post_reboot_catalog_seconds": 6.986,
+    "host_revision": "91625e74d9c1a6a63a7a8f026652ecef27f4c01b",
+    "host_unchanged_compatible": true,
+    "normal_operation_limits_unchanged": true,
+    "pre_reboot_single_frame": "blank; no BASIC picture claim for this active reboot case"
+  },
+  "recovery": {
+    "boot_id": "88c294ca-9142-4657-871f-b1b54d21f803",
+    "ready": true,
+    "idle": true,
+    "free": true,
+    "scope": "KnownMENUstockwatchdog afterexactidentity/normalstop/roremount; no arbitraryfaultacceptance"
+  },
+  "untested": [
+    "tape SAVE absentcapability",
+    "physical partial-reconfiguration",
+    "in-play allocated display plane on BRAM ZX81",
+    "unexpected process death/adoption",
+    "whole SDM/secure-call bounds",
+    "arbitrary failed programming/reset/DMA recovery"
+  ],
+  "current_native": {
+    "boot_id": "d66190d4-f024-4895-958a-43c5e4bb2b96",
+    "base_image_sha256": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+    "active_bundle": "0b22eb82bb0d05fa7f7eac5cb2f42838fa12d6c8a51ae46532f308c059865a5c",
+    "software_generation": 5,
+    "native_state": "Ready/MENU idle/free after post-reboot Play/Stop",
+    "baseline_promoted": false,
+    "claim_released": false
+  },
+  "software_checks": {
+    "source916": {
+      "canonical_affected_status": "terminated intentionally during generic FPGA aggregate; no all-plan PASS",
+      "elapsed_seconds": 901.986,
+      "completed_lanes": [
+        "planner",
+        "parent:1354 tests,6 skips,216.142seconds",
+        "generatedconsistency:41consumers/42fixtures/0copiedpins",
+        "host Go/UI",
+        "native runtime",
+        "contracts"
+      ],
+      "source_bound_proof_receipt": "16 real recipe/closure checks PASS0.365seconds; all14 actual native/AArch64 scenarios atf1, unchanged captured closure",
+      "rtl_changed": false
+    },
+    "source_aa6": {
+      "canonical_affected_status": "passed",
+      "seconds": 249.297,
+      "new_scope": "agent command lifetime and direct composition regression; parent, consistency and host lanes selected"
+    }
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "passed": true,
+  "source_head": "deb20fb1909a004afbd662c79191c759c95c7e96",
+  "stock_path": "/data/fes-de25-main-integration-20261105/current-headless-sdk-v3-job/image/vendor-boot/u-boot.itb",
+  "current_path": "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/partial-secure-trace/bundle/u-boot.itb",
+  "stock_sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+  "current_sha256": "e649e2c6ccf75fabc21b7086c75469601572cf4d2c4f0de46c9c627e20810763",
+  "roles": {
+    "firmware": [
+      "atf"
+    ],
+    "loadables": [
+      "uboot"
+    ],
+    "fdt": [
+      "fdt-0"
+    ]
+  },
+  "images": {
+    "uboot": {
+      "stock": {
+        "size": 928344,
+        "sha256": "a9735c5a3c1ba7c790fe7c0aa1f5ef2a2cfffec7eb43c386512f92a49da9116e",
+        "file_offset": 1216,
+        "type": "standalone",
+        "load": [
+          2149580800
+        ],
+        "entry": []
+      },
+      "current": {
+        "size": 928344,
+        "sha256": "a9735c5a3c1ba7c790fe7c0aa1f5ef2a2cfffec7eb43c386512f92a49da9116e",
+        "file_offset": 1216,
+        "type": "standalone",
+        "load": [
+          2149580800
+        ],
+        "entry": []
+      },
+      "payload_identical": true
+    },
+    "atf": {
+      "stock": {
+        "size": 61501,
+        "sha256": "0d29d7f1ff43afa267f63c1599657eea6d7fcdc8fd53addf8beb2d4f7089fb3c",
+        "file_offset": 929560,
+        "type": "firmware",
+        "load": [
+          2147483648
+        ],
+        "entry": [
+          2147483648
+        ]
+      },
+      "current": {
+        "size": 61501,
+        "sha256": "fd14ab178453469aec84df70f0ddd8e834fcc298dcdf7f2142c93a2723c05221",
+        "file_offset": 929560,
+        "type": "firmware",
+        "load": [
+          2147483648
+        ],
+        "entry": [
+          2147483648
+        ]
+      },
+      "payload_identical": false
+    },
+    "fdt-0": {
+      "stock": {
+        "size": 22768,
+        "sha256": "ff637eda305e47fb53feb24d1461728dcf55cc026e690da343a056cb7d2f75bb",
+        "file_offset": 991064,
+        "type": "flat_dt",
+        "load": [],
+        "entry": []
+      },
+      "current": {
+        "size": 22768,
+        "sha256": "ff637eda305e47fb53feb24d1461728dcf55cc026e690da343a056cb7d2f75bb",
+        "file_offset": 991064,
+        "type": "flat_dt",
+        "load": [],
+        "entry": []
+      },
+      "payload_identical": true
+    }
+  },
+  "normal_vendor_lock_exact": true,
+  "FIT_internal_hashes_verified": true,
+  "hardware_changed": false,
+  "hardware_stock_kernel9cec_acceptance": "not-run"
+}

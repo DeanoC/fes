@@ -1,0 +1,132 @@
+{
+  "overall": {
+    "success": true,
+    "source_head": "6c63f4335f1898cb90e57b9b0abf795cb1460608",
+    "kernel_software_source": "ecaefd4af2bf202b94b558e4f3545249c309712f",
+    "core_package_producer": "8af614f4d95e71a00e63974c73e3d8f80e1a681a",
+    "package_id": "3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776",
+    "core_build_id": "490c1ae5f0636db2c0ffdcda713c44c1",
+    "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+    "kernel_sha256": "9cec7e77f4cdb8b02d44acfd5bda5b1ee7b08801569648ab4f5ef12b6302d907",
+    "kernel_notes_sha256": "b0c2f6b1ec6f79bf12d1b1e724fd8a5f5ba36e7f32e302ddf5adda74124f1a8e",
+    "root_sha256": "0858eef044d2e4f1d3aab4ed8b88e439258075f097815eee942d70ae68222ec3",
+    "FIT_sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+    "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+    "software_generation": 1,
+    "runtime_sha256": "c681f166628ad39f00c89c7698e00d4c6995c97184e749b3504cae9025dd5844",
+    "ROM_SAVE_command": "SAVE \"C\"",
+    "SAVE_attempts": 1,
+    "normal_Stop_capture_persist_ack": true,
+    "saved_media_id": "0874cf797e6a5336d25c5a4ebb2206dc36249bfd7625e1428de2bb4bbad847c9",
+    "saved_bytes": 923,
+    "readonly_SQLite_and_API_metadata_match": true,
+    "private_host_restart_count": 1,
+    "old_host_pid": 1340690,
+    "new_host_pid": 1823444,
+    "host_binary_sha256": "0de3179fb68e007f60f0b606d8fee55d77df754a5d53a483e17397db9dd88af2",
+    "same_config_catalog_pairing": true,
+    "transient_proc_identity_observation_failure_retained": true,
+    "no_second_host_restart": true,
+    "host_reconnect_latency_not_measured": true,
+    "same_board_boot": true,
+    "fresh_saved_program_LOAD_RUN9": true,
+    "edit_RUN7_then_reload_RUN9": true,
+    "all_five_images_viewed": true,
+    "visual_review": true,
+    "original_entry_media_restored": "e506e8a76f15734516ef95dabdb0a8c7aa8ac1bb7cadcf70f741eac763446535",
+    "saved_program_retained_in_private_catalog": true,
+    "Stop_MENU_idle_free": true,
+    "claim_released": true,
+    "helper_or_UART_process_started": false,
+    "no_boot_image_kernel_firmware_software_card_QSPI_or_power_change": true,
+    "static_expansion_enabled": false,
+    "physical_keyboard_or_picker_acceptance": false,
+    "dirty_SAVE_crash_or_full_upload_failure_recovery_qualified": false,
+    "main_baseline_promoted": false
+  },
+  "save": {
+    "success": true,
+    "phase": "ROM SAVE and ordinary Stop persistence",
+    "source_head": "6c63f4335f1898cb90e57b9b0abf795cb1460608",
+    "kernel_software_source": "ecaefd4af2bf202b94b558e4f3545249c309712f",
+    "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+    "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+    "generation": 1,
+    "save_attempts": 1,
+    "media_id": "0874cf797e6a5336d25c5a4ebb2206dc36249bfd7625e1428de2bb4bbad847c9",
+    "saved_bytes": 923,
+    "durable_sha256": "0874cf797e6a5336d25c5a4ebb2206dc36249bfd7625e1428de2bb4bbad847c9",
+    "ordinary_Stop_capture_and_ack": true,
+    "read_only_SQLite_bytes_verified": true,
+    "Stop_MENU_idle_free": true,
+    "same_boot": true,
+    "no_image_card_or_software_change": true
+  },
+  "durable": {
+    "database": "library.sqlite3",
+    "media_id": "0874cf797e6a5336d25c5a4ebb2206dc36249bfd7625e1428de2bb4bbad847c9",
+    "bytes": 923,
+    "sha256": "0874cf797e6a5336d25c5a4ebb2206dc36249bfd7625e1428de2bb4bbad847c9",
+    "read_only_transaction": true,
+    "path": "saved-ROM-program.p (private evidence; unchanged 923-byte ROM output)"
+  },
+  "host_restart": {
+    "success": true,
+    "old_pid": 1340690,
+    "new_pid": 1823444,
+    "saved_media_id": "0874cf797e6a5336d25c5a4ebb2206dc36249bfd7625e1428de2bb4bbad847c9",
+    "saved_bytes_and_hash_retained": true,
+    "original_entry_retained": true,
+    "pairing_reconnected": true,
+    "same_native_boot": true,
+    "original_transient_proc_failure_preserved": true,
+    "only_one_restart": true,
+    "reconnection_latency_not_measured_across_observation_gap": true
+  },
+  "original_observation_failure": {
+    "error": "PermissionError: [Errno 13] Permission denied: '/proc/1823444/exe'",
+    "no_replay": true
+  },
+  "reload": {
+    "success": true,
+    "phase": "Fresh launch and saved program reload after own host restart",
+    "source_head": "6c63f4335f1898cb90e57b9b0abf795cb1460608",
+    "kernel_software_source": "ecaefd4af2bf202b94b558e4f3545249c309712f",
+    "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+    "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+    "generation": 1,
+    "saved_media_id": "0874cf797e6a5336d25c5a4ebb2206dc36249bfd7625e1428de2bb4bbad847c9",
+    "ROM_SAVE_bytes": 923,
+    "host_restart_retained_data": true,
+    "fresh_LOAD_RUN9": true,
+    "edit_RUN7_then_reload_RUN9": true,
+    "fresh_HDMI": true,
+    "normal_MEDIA_CAS": true,
+    "original_entry_media_restored": true,
+    "Stop_MENU_idle_free": true,
+    "no_boot_image_card_QSPI_or_software_change": true,
+    "physical_keyboard_or_picker_tested": false
+  },
+  "generation_bound_persisted_log": {
+    "lines": [
+      "2026/11/08 15:21:00 INFO ZX81 SAVE persisted game_id=fpga-zx81-ecf8e4ef20d1 play_system=fpga core_id=fes.zx81 play_execution=fpga_native expected_package_id=3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776 expected_generation=2 reason=saved observed_package_id=3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776 observed_generation=2 media_id=0874cf797e6a5336d25c5a4ebb2206dc36249bfd7625e1428de2bb4bbad847c9 captured_bytes=923"
+    ],
+    "scope": "Selected own private host, generation-bound capture/catalog persistence/ack succeeded before Stop"
+  },
+  "visual_review": {
+    "passed": true,
+    "images": {
+      "save-source-basic/basic7.png": "85192f6efd1cb54f76dc2c16aa8ca1f3b6dbb349b87763adefe44f255de37d2f",
+      "save-source-basic/basic9.png": "5b9937d4b36a874b495bccc2f3be6c4dc0a8d896c8626fe695860e5c566a84d3",
+      "saved-relaunch-basic/loaded9.png": "5b9937d4b36a874b495bccc2f3be6c4dc0a8d896c8626fe695860e5c566a84d3",
+      "saved-relaunch-basic/edited7.png": "85192f6efd1cb54f76dc2c16aa8ca1f3b6dbb349b87763adefe44f255de37d2f",
+      "saved-relaunch-basic/reloaded9.png": "5b9937d4b36a874b495bccc2f3be6c4dc0a8d896c8626fe695860e5c566a84d3"
+    },
+    "observations": "Actual viewed captures show original7, edited9 before SAVE, then after private-host restart fresh loaded9, edit7 and reloaded9; black text on white in FES frame."
+  },
+  "images": {
+    "stock-save-loaded9.png": "5b9937d4b36a874b495bccc2f3be6c4dc0a8d896c8626fe695860e5c566a84d3",
+    "stock-save-edited7.png": "85192f6efd1cb54f76dc2c16aa8ca1f3b6dbb349b87763adefe44f255de37d2f",
+    "stock-save-reloaded9.png": "5b9937d4b36a874b495bccc2f3be6c4dc0a8d896c8626fe695860e5c566a84d3"
+  }
+}

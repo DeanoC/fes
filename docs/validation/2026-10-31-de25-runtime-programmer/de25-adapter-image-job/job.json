@@ -1,0 +1,22 @@
+{
+  "source_revision": "14ea3760b016825d96aeacc3aeca8f22dc04000d",
+  "command": [
+    "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+    "scripts/de25_owner_image.py",
+    "--base",
+    "/home/deano/fes/out/artifacts/de25-kernel-modules/0da63d1044cc7ecf9908efba52af17b3e55e6271/linux-image",
+    "--kernel",
+    "/home/deano/fes/out/dev/de25-linux-platform/out/de25-retention-kernel",
+    "--output",
+    "/home/deano/fes/out/dev/de25-linux-platform/out/de25-adapter-image"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T19:34:43.881638+00:00",
+  "time_cap_seconds": 1800,
+  "hardware_access": "not-performed",
+  "pid": 1595867,
+  "state": "passed",
+  "elapsed_seconds": 36.5,
+  "heartbeat_utc": "2026-10-31T19:35:20.353878+00:00",
+  "returncode": 0
+}

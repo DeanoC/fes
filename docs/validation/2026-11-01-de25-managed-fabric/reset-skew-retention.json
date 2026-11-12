@@ -1,0 +1,199 @@
+{
+  "archive_sha256": "ff5e168f8b1890e03289a5def1ddedf70a45feb8f0ea49c858788565b2f31711",
+  "archive_size": 26706305,
+  "archived_regular_files_verified": 515,
+  "classification": "finite FIFO reset-release model; not physical/reset-epoch/Design Assistant acceptance",
+  "files": {
+    "derivation-check.json": {
+      "sha256": "9f2e18fb09bac89defe6318fb8cf7f61be655ed0a0033720e7a187959d7f6ff1",
+      "size": 24536
+    },
+    "metadata/de25-reset-skew-0ae1c7d40/launch.json": {
+      "sha256": "55f6d910af5af88a208df22ec99225d1eb671d895fe9baa06d6fb8d0c81b506d",
+      "size": 583
+    },
+    "metadata/de25-reset-skew-0ae1c7d40/prepare-remote.py": {
+      "sha256": "4ea7967faaf4daeee9f824ab3c15024cebff6b2018db4105382bd3784e3a1ed2",
+      "size": 1187
+    },
+    "metadata/de25-reset-skew-0ae1c7d40/run_job.py": {
+      "sha256": "c642e733645c6c49309582da049832e65ea2b4e868d90590d6e98c060d85bd5f",
+      "size": 1828
+    },
+    "metadata/de25-reset-skew-263a19e06/launch.json": {
+      "sha256": "9ce93651ecfe95c021ef726417e4f8ccf5fe7179378d108f6f69b32e4dec0580",
+      "size": 583
+    },
+    "metadata/de25-reset-skew-263a19e06/prepare-remote.py": {
+      "sha256": "314e00f371307eb8ab583e9cde666145df11c155dcd02d74ff61633589755365",
+      "size": 1187
+    },
+    "metadata/de25-reset-skew-263a19e06/run_job.py": {
+      "sha256": "c642e733645c6c49309582da049832e65ea2b4e868d90590d6e98c060d85bd5f",
+      "size": 1828
+    },
+    "metadata/de25-reset-skew-263a19e06/sdk-reset-query.json": {
+      "sha256": "b7f40c7d638140cd059aa4de9f83f51492fc0ad6b0304642b046f596f52b48d0",
+      "size": 7958
+    },
+    "metadata/de25-reset-skew-263a19e06/sdk-reset-query.py": {
+      "sha256": "e356250dd9d2cedcf9ca849485ad46356d02ef46d38150dbec5217a26f094e45",
+      "size": 1154
+    },
+    "metadata/de25-reset-skew-ebb12c489/focused.json": {
+      "sha256": "1f9ba44a7c0399a8551bd1f1425e8914ce01f61a030847e6611e0c32b68f6451",
+      "size": 539
+    },
+    "metadata/de25-reset-skew-ebb12c489/focused.stdout.log": {
+      "sha256": "6d5ed5f2f0ef3bea72e0de4540a1be4b146304c90f057b4715fae9a3732ed74a",
+      "size": 99
+    },
+    "metadata/de25-reset-skew-ebb12c489/launch.json": {
+      "sha256": "4cfd7372986b14291f5c230cc12ef6fdf1d42bcb981257ec1b5db2f49380e4f2",
+      "size": 554
+    },
+    "metadata/de25-reset-skew-ebb12c489/prepare-remote.py": {
+      "sha256": "a1b0f898331bb402e2617b86c8cd027e1fe9403ec341bc585b27d80c434ac236",
+      "size": 1160
+    },
+    "metadata/de25-reset-skew-ebb12c489/remote-retain-result.json": {
+      "sha256": "4b53afeac5039dbdfb865852b36c1b1dde2047f43f078912678fa085e54d31d5",
+      "size": 213
+    },
+    "metadata/de25-reset-skew-ebb12c489/remote-retain.py": {
+      "sha256": "d19a95814baae91731a13a8e36d2cf783edc7929be8f60f09c9a54bb7794c3e7",
+      "size": 1808
+    },
+    "metadata/de25-reset-skew-ebb12c489/research.json": {
+      "sha256": "753f536dae3b904711f9329d6ff8718f071e88f1e3f68ea4d3bbadbd61362eed",
+      "size": 1162
+    },
+    "metadata/de25-reset-skew-ebb12c489/retain.py": {
+      "sha256": "d5a43491a7df610a04f26020b9f89c31b58308658b49ccc17454f72fa2d1cd72",
+      "size": 5709
+    },
+    "metadata/de25-reset-skew-ebb12c489/retention-launch.json": {
+      "sha256": "7cbb16b6db778206bb1f1a63b308da5eab46b29c6fafc83e156fff529c9d58fa",
+      "size": 417
+    },
+    "metadata/de25-reset-skew-ebb12c489/retention-supervisor.log": {
+      "sha256": "a429fdcfa2bb5450c8b34e4cf5b4b2bf89b6069bc741106ec9b4f1e878602cb6",
+      "size": 452
+    },
+    "metadata/de25-reset-skew-ebb12c489/run_job.py": {
+      "sha256": "c642e733645c6c49309582da049832e65ea2b4e868d90590d6e98c060d85bd5f",
+      "size": 1828
+    },
+    "metadata/de25-reset-skew-ebb12c489/verify-derivation.py": {
+      "sha256": "f46d9a6d8d886d530fcc88a38422c513ecea8f8b24cdc6c73a2d85360f2cddb6",
+      "size": 1961
+    },
+    "proofs-members.json": {
+      "sha256": "f7f92e44d2f2de4b17b3f8a8dac7d2514ceb27e1810dff3f58ef0a6b6f13f3d5",
+      "size": 131936
+    },
+    "reset-skew-proofs.tar.gz": {
+      "sha256": "ff5e168f8b1890e03289a5def1ddedf70a45feb8f0ea49c858788565b2f31711",
+      "size": 26706305
+    },
+    "source-scope-equivalence.json": {
+      "sha256": "11a5ad4675dccb789c8821dfdbe87cdfb54acab33339b9bd4e2d3a88e0429dcf",
+      "size": 352
+    },
+    "source.bundle": {
+      "sha256": "b85c94328886fc06979e1225cbbad6f3fc2d180ebf32c7993b85597271d4a7f3",
+      "size": 286062917
+    },
+    "terminal/retention-job/job.json": {
+      "sha256": "61f4865d2dd61e419b57464a7391286100b1c4cdf38b3539ba849bbe98f7f148",
+      "size": 505
+    },
+    "terminal/retention-job/stdout.log": {
+      "sha256": "80da1a9a4756ec6bef53ec69971207cdbd086804f307e1af00f0e9fc80ae5d24",
+      "size": 1247
+    },
+    "terminal/retention-supervisor.log": {
+      "sha256": "292a888bcdb7b12e11a909ad36cb6fd2a0750eb0fc9e5f5974a43bc45f726684",
+      "size": 921
+    }
+  },
+  "hardware_access": "not-performed",
+  "jobs": [
+    {
+      "command": [
+        "python3",
+        "/data/de25-reset-skew-0ae1c7d40/source/sources/misteross/tests/de25_reset_skew.py",
+        "--startup-proof",
+        "/data/fes-de25-managed-fabric-d8549cc79/startup",
+        "--output",
+        "/data/de25-reset-skew-0ae1c7d40/proof"
+      ],
+      "cwd": "/data/de25-reset-skew-0ae1c7d40/source",
+      "elapsed_seconds": 0.6,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-01T20:21:55.410296+00:00",
+      "pid": 2142677,
+      "returncode": 1,
+      "source_revision": "0ae1c7d403fee3db054139fd0b7179481bf3fb8a",
+      "started_utc": "2026-11-01T20:21:54.856916+00:00",
+      "state": "failed",
+      "time_cap_seconds": 600
+    },
+    {
+      "command": [
+        "python3",
+        "/data/de25-reset-skew-263a19e06/source/sources/misteross/tests/de25_reset_skew.py",
+        "--startup-proof",
+        "/data/fes-de25-managed-fabric-d8549cc79/startup",
+        "--output",
+        "/data/de25-reset-skew-263a19e06/proof"
+      ],
+      "cwd": "/data/de25-reset-skew-263a19e06/source",
+      "elapsed_seconds": 72.8,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-01T20:23:51.970429+00:00",
+      "pid": 2143204,
+      "returncode": 0,
+      "source_revision": "263a19e063664423373654c715a80ca7249dc6ab",
+      "started_utc": "2026-11-01T20:22:39.201552+00:00",
+      "state": "passed",
+      "time_cap_seconds": 600
+    },
+    {
+      "command": [
+        "python3",
+        "/data/de25-reset-skew-ebb12c489/verify-derivation.py",
+        "--startup-proof",
+        "/data/fes-de25-managed-fabric-d8549cc79/startup",
+        "--output",
+        "/data/de25-reset-skew-ebb12c489/proof"
+      ],
+      "cwd": "/data/de25-reset-skew-ebb12c489/source",
+      "elapsed_seconds": 0.3,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-01T20:24:26.951764+00:00",
+      "pid": 2144164,
+      "returncode": 0,
+      "source_revision": "ebb12c489c6733e73205a685ae6538b8c6755b05",
+      "started_utc": "2026-11-01T20:24:26.631570+00:00",
+      "state": "passed",
+      "time_cap_seconds": 600
+    }
+  ],
+  "live_own_processes": [],
+  "local_live_own_processes": [],
+  "local_retention_pids_pgids": [
+    1913965,
+    1914012
+  ],
+  "source_restored": true,
+  "source_revision": "ebb12c489c6733e73205a685ae6538b8c6755b05",
+  "source_scope": {
+    "canonical_menu_inputs_verified": 374,
+    "compiler_source_sha256_verified": 59,
+    "restored_tree": "c0c94c50df179ef518f9c308f008a25d99548ad9",
+    "source_bundle_sha256": "b85c94328886fc06979e1225cbbad6f3fc2d180ebf32c7993b85597271d4a7f3",
+    "source_revision": "ebb12c489c6733e73205a685ae6538b8c6755b05",
+    "test_runtime_source_sha256_verified": 58
+  }
+}

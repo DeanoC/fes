@@ -1,0 +1,131 @@
+{
+  "source_delta_review": {
+    "passed": true,
+    "current_source": "0ff4b818cba67b5a1e408d0609de80d314bf4a32",
+    "original_reviewed_source": "5a42fa70621400d01b1bb109d544e794970e0c6b",
+    "changed_pins": {
+      "boards/de25nano/zx81-hps/fes_de25_zx81_standard.v": {
+        "old_sha256": "4b4f2704437b5106e9ac36e735e507dd60c0ee3373500847c7dcc1b27a691e78",
+        "new_sha256": "c6ac81675d1dd07a50bbc2660049ba62e0e79e34fb75a5aac0532340adfe1c97"
+      },
+      "boards/de25nano/zx81-hps/fes_de25_zx81_standard_hw.tcl": {
+        "old_sha256": "95066f6d5f443fe68393bd2d73206f2b203f27da590cd5f55de253e4ad8bcda1",
+        "new_sha256": "c08fc345f9196b85e9bb1c310759cebc79d85395631c8428717d95dbad0415a9"
+      },
+      "boards/de25nano/zx81-hps/build.py": {
+        "old_sha256": "5c6b9248502d7f16c26a3dfe491ddc36808a0c92fea5fa09d06b8efde52183e4",
+        "new_sha256": "5440a218f9d4d421e237ce2af7443f351d034e6d925099175b24c92d7c5b90d4"
+      }
+    },
+    "exact_inverse_of_only_full_reset_export_and_metadata_reproduces_all_three_reviewed_files": true,
+    "other_five_reviewed_sources_byte_identical": true,
+    "audio_logic_clocks_voltage_pins_serializer_pcm_hold_and_constraints_unchanged": true,
+    "exception_scope_unchanged": [
+      "HDMI_SCLK",
+      "HDMI_LRCLK"
+    ],
+    "profile_unchanged": "standard internal16K only, expansion_socket false",
+    "raw_warnings_numeric_checks_independent_repeat_hardware_gates_unchanged": true,
+    "fit_diagnostic_review": "Separate read-only fitted review PASS8.930s; no package admission"
+  },
+  "fitted_review": {
+    "source_revision": "b6559f38ee86f6fdd2a13dac2f979b9b4e2c97cf",
+    "receipt_sha256": "a38092d095dd63653c4c0a5e80564ce81aa25256bdc9a281b71e852eb7014b73",
+    "seconds": 8.93,
+    "fitted_corner_count": 4,
+    "fitted_path_count": 32,
+    "stock_audio": {
+      "derived_pll_sha256": "cb8aa1bb3910b7b50d86c25c4980a8be7267715c9505e727648056b6b0f28179",
+      "pins": {
+        "CLOCK1_50": {
+          "io_standard": "3.3-V LVCMOS",
+          "pin": "V16"
+        },
+        "HDMI_I2S": {
+          "io_standard": "3.3-V LVCMOS",
+          "pin": "CB2"
+        },
+        "HDMI_LRCLK": {
+          "io_standard": "3.3-V LVCMOS",
+          "pin": "BR6"
+        },
+        "HDMI_MCLK": {
+          "io_standard": "3.3-V LVCMOS",
+          "pin": "CF1"
+        },
+        "HDMI_SCLK": {
+          "io_standard": "3.3-V LVCMOS",
+          "pin": "BW1"
+        }
+      },
+      "vendor_archive_sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66"
+    },
+    "conditional_pin_budgets": [
+      {
+        "corner": "Fast fix4 0C Model",
+        "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.615",
+        "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.874"
+      },
+      {
+        "corner": "Slow fix4 0C Model",
+        "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.230",
+        "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.471"
+      },
+      {
+        "corner": "Slow fix4 100C Model",
+        "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.276",
+        "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.540"
+      },
+      {
+        "corner": "Slow fix4a 0C Model",
+        "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.285",
+        "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.574"
+      }
+    ],
+    "budget_excludes": [
+      "PCB differential trace delay",
+      "unaccounted master-clock jitter and uncertainty",
+      "signal-integrity behavior"
+    ],
+    "reports_sha256": {
+      "4_slow_fix4_0c_bit_clock_network_max.rpt": "c0767ce5d496ea402c2dfa245a5334f31ce7e453b6ec1b34bcea86b1b0a626b2",
+      "4_slow_fix4_0c_bit_clock_network_min.rpt": "393a2836cf65eda3db051557f1f0b37e88c9387b2a3c61127dadbde190c9c874",
+      "4_slow_fix4_0c_bit_clock_output_max.rpt": "ec05c510173c0b25a942ba2ff0aa8eea853c4355d287abea6c2085d49f1ebdd9",
+      "4_slow_fix4_0c_bit_clock_output_min.rpt": "0fd1d198791ef4e7893676ba08fa1fd8958394ee2f76f1739f1b3630b76a2b94",
+      "4_slow_fix4_0c_word_clock_network_max.rpt": "c9fdc1416303addddd84b622a186d5896401a86c6ca98da177a842461984228e",
+      "4_slow_fix4_0c_word_clock_network_min.rpt": "d4e45ca758fa55ba2ae9c0098525da5bd5ca9948e9369eaa5dfbaccc10daac36",
+      "4_slow_fix4_0c_word_clock_output_max.rpt": "857716f1aa57b3fb32e2d1046a300285f2053a0b44f59fc3bcde3b476479ef00",
+      "4_slow_fix4_0c_word_clock_output_min.rpt": "cfd95c954cb18d7ed894837f1db97a0a6bef9df8413b63b4627b487e9c6c58c6",
+      "4_slow_fix4_100c_bit_clock_network_max.rpt": "e902e804267f1c88df4a5a597a8ba39dd17b46bdb8ef6527fb0162044b7a34ad",
+      "4_slow_fix4_100c_bit_clock_network_min.rpt": "1e2d36e6e20a949cd3c7583ace7555eef402bf9632c38e0494b7710990a237e6",
+      "4_slow_fix4_100c_bit_clock_output_max.rpt": "df4f1005a1733653a9171a162f32a44b63c0002a845771aba4ff6913c1b4f725",
+      "4_slow_fix4_100c_bit_clock_output_min.rpt": "5289d8434828aaf7d32fc58912b4aa0ff3b2f93b2a982deb35bef25188dd554e",
+      "4_slow_fix4_100c_word_clock_network_max.rpt": "2396622e9e29e0335c08de0ef8c866f3ebf61436b122ff4a593f45720382d3fc",
+      "4_slow_fix4_100c_word_clock_network_min.rpt": "2cb5e7abe333257d40d006447b5d7e3f06f07ff94028269b6ed48f12b3a2008d",
+      "4_slow_fix4_100c_word_clock_output_max.rpt": "36975c8a93c228c1b1018ccb3e70245de4ec9e8ea49e78d468fe4037dd3797e0",
+      "4_slow_fix4_100c_word_clock_output_min.rpt": "13c29c757c45fb90d8f14028383dd3699a535531c0761b1638dce857233b1e63",
+      "4_slow_fix4a_0c_bit_clock_network_max.rpt": "da296bbbd52d6dbe2379c9700b8a0aea59cf8e73cc2e2cea9ea1abe16b7d365c",
+      "4_slow_fix4a_0c_bit_clock_network_min.rpt": "dd823445892776970c0e43007364ec672602f191d439a21a39b9fde2ad321272",
+      "4_slow_fix4a_0c_bit_clock_output_max.rpt": "bec3fca561e32c0bed472e8fa4dd80441ecdbf0a6e0cf7f5005109867b85cf1e",
+      "4_slow_fix4a_0c_bit_clock_output_min.rpt": "503c6b82302e89e76d5ec1a4634b9cdd918c471cff253af454e3af156d21e24d",
+      "4_slow_fix4a_0c_word_clock_network_max.rpt": "8d886a3a52a987b606295a77e4fdf34bcf05fc3c3e858240de71d740d0e490dc",
+      "4_slow_fix4a_0c_word_clock_network_min.rpt": "f7d9299837223fcda0aff0506ac2abfe051e5a7aa5af7691c0bec5b6a09e4d5a",
+      "4_slow_fix4a_0c_word_clock_output_max.rpt": "04f56cb8eda0656a6e16f3f767dc70cc1c5b422f39cd649566946a122d77575d",
+      "4_slow_fix4a_0c_word_clock_output_min.rpt": "32a0e080f38751cca4306446dc68444b8fe55a2fdea364993a6bf26bff2fa869",
+      "MIN_fast_fix4_0c_bit_clock_network_max.rpt": "6089fc2756166cc675f8c8e91fddf37266848e8acc2185a461ae36962257bcbd",
+      "MIN_fast_fix4_0c_bit_clock_network_min.rpt": "421373e83314c577538fcf80f276a4008c5f70008f633b2210d77009d2cf85b2",
+      "MIN_fast_fix4_0c_bit_clock_output_max.rpt": "adeab83c43ece29d48858ad2ef1466c143b819ebfbe1ddb23856ad476519c588",
+      "MIN_fast_fix4_0c_bit_clock_output_min.rpt": "5e2b4b41a89cb9c39ae09d82187afb0a2e3bbb5f12a1ee66b125129f5c180de2",
+      "MIN_fast_fix4_0c_word_clock_network_max.rpt": "8bc720850f496c8985c815b849b5dbbf345b5712360c69de40ed7a39a00a1862",
+      "MIN_fast_fix4_0c_word_clock_network_min.rpt": "083df3aa976efaa4fd0f3d85f6b998544835d9fb98c8fb573caacd257be531cc",
+      "MIN_fast_fix4_0c_word_clock_output_max.rpt": "1571d5ccbd6c93d0937f1478170f554a5090002f6a97aed7f765b0e046f17f6c",
+      "MIN_fast_fix4_0c_word_clock_output_min.rpt": "6f5414aac2283bd1d39069056ef4b60e8c504565a529f58e0e582c772d7bfa93",
+      "clocks.tsv": "cc47560339e62a533996b7b5d30c918784e86abf2e1ee9852b786497a8a6a196",
+      "paths.tsv": "0312a3348680b78b89bd03f9b84a74bb854c3bea543553bc5054c9420e2e6528"
+    }
+  },
+  "source_pin_update_only_three_literals_and_explanatory_comment": true,
+  "package_timing_admission": false,
+  "hardware_acceptance": false,
+  "fresh_normal_package_and_independent_rebuild_required": true
+}

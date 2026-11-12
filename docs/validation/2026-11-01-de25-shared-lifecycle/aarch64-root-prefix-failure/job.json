@@ -1,0 +1,16 @@
+{
+  "source_revision": "16838e82c8124f1a21910a6739ae6653dad3429a",
+  "command": [
+    "python3",
+    "out/platform-lifecycle-aarch64-hardware.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T21:55:26.437100+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 3002711,
+  "state": "failed",
+  "elapsed_seconds": 37.4,
+  "heartbeat_utc": "2026-10-31T21:56:03.846387+00:00",
+  "returncode": 1
+}

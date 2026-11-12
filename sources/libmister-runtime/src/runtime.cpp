@@ -115,6 +115,7 @@ bool DeclaresComputerInterface(const CoreDescriptor& descriptor, const char* id)
 } // namespace
 
 class Runtime::Impl final : public HardwareFaultSink {
+ enum class FailureScope { lifecycle, menu_frame };
 public:
 	Impl(Hardware& hardware, LogSink& log)
 		: mutex_(), condition_(), hardware_(hardware),
@@ -159,8 +160,11 @@ public:
 		log_.Write({operation, system, core, phase, error});
 	}
 
-	Error Start()
+	Error Start(const std::string& menu_directory, const std::string& menu_package_id)
 	{
+		if ((!menu_directory.empty() || !menu_package_id.empty()) &&
+			(!ValidAbsolutePath(menu_directory) || !ValidPackageId(menu_package_id)))
+			return Invalid("invalid startup menu package request");
 		LogRecord rejection;
 		bool rejected = false;
 		{
@@ -182,7 +186,14 @@ public:
 		}
 		Log("start", "", "", "validate");
 		Log("start", "", "", "starting");
-		const HardwareResult result = hardware_.LoadIdle();
+		HardwareResult result = menu_directory.empty() ? hardware_.LoadIdle() :
+			hardware_.ConfigureMenuPackage(menu_directory, menu_package_id);
+		if (!result.error.ok() && !menu_directory.empty()) {
+			Log("start", "", "", "menu-failed", result.error);
+			// The board owns splash admission. DE10 can retain a usable idle
+			// after a selected MENU failure; DE25 refuses this recipe before I/O.
+			result = hardware_.LoadIdle();
+		}
 		if (!result.error.ok()) {
 			const Error error = IdleFailure(result.error);
 			{
@@ -227,12 +238,16 @@ public:
   }
   condition_.notify_all();return {};
  }
- Error ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter,std::uint16_t* blitter_minor)
+ Error ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter,std::uint16_t* blitter_minor,
+  bool permit_frame_mapping,bool* frame_mapping)
  {
   if(!fd||!blitter||!blitter_minor)return Invalid("missing menu window output");
   std::lock_guard<std::mutex> lock(mutex_);
   Error error=AdmitMenuGeneration(generation);if(!error.ok())return error;
+  if(status_.menu_display.frame_mapping&&(!permit_frame_mapping||!frame_mapping||status_.menu_display.blitter))
+   return {ErrorCode::unsupported_interface,"menu grant requires per-frame unmapping before commit","menu"};
   *blitter=status_.menu_display.blitter;*blitter_minor=status_.menu_display.blitter_minor;
+  if(frame_mapping)*frame_mapping=status_.menu_display.frame_mapping;
   return hardware_.ShareMenuWindow(fd);
  }
  Error BeginMenuFrame(std::uint64_t generation,std::unique_ptr<MenuFrame>* output)
@@ -280,14 +295,18 @@ public:
    // Hardware keeps the menu package while a bounded reactivation is allowed
    // and clears it once that limit is exhausted. LoadIdle then reprograms the
    // package or the splash. The failure path revoked the window.
-   const Error failure=FinishLaunchFailure("menu_frame_commit","","fes.menu",{error,true,"fes.menu"});
+   const Error failure=FinishLaunchFailure("menu_frame_commit","","fes.menu",{error,true,"fes.menu"},
+    nullptr,nullptr,FailureScope::menu_frame);
    { std::lock_guard<std::mutex> lock(mutex_);menu_frame_busy_=false; }
    condition_.notify_all();return failure;
   }
   {
    std::lock_guard<std::mutex> lock(mutex_);
    status_.menu_display.displayed_sequence=info.displayed_sequence;
-   status_.menu_display.underflows=info.underflows;busy_=false;menu_frame_busy_=false;*output=info;
+   status_.menu_display.underflows=info.underflows;
+   // A new completed frame retires only the prior presentation error.
+   // Lifecycle failures remain independently visible in status_.error.
+   status_.menu_display.error={};busy_=false;menu_frame_busy_=false;*output=info;
    if(frame.draw_.blit)status_.menu_display.blitted=true;
   }
   condition_.notify_all();return {};
@@ -318,6 +337,9 @@ public:
    busy_=true;if(!visible||!shown)preparation_.reset();
   }
   const Error error=hardware_.SetSessionDisplay(visible,launcher_focus);
+  // A subsequent show can replace the status error from the first close.
+  // Preserve that boundary failure in the existing log before another request.
+  if(!error.ok())Log("session_display","","",visible?"show":"close",error);
   {
    std::lock_guard<std::mutex> lock(mutex_);
    // Hardware owns the focus gate. A close or failure that cannot prove the
@@ -373,6 +395,11 @@ public:
 		const CoreROMLinks* rom_links = nullptr, const InitialComputerMedia* initial_media = nullptr,
 		const std::string& game_id = "", const AtaDiskImage* disk = nullptr)
 	{
+		if (composition && composition->has_static_selection &&
+			(!programmed_path.empty() || rom_link || rom_links || initial_media || !game_id.empty() || disk ||
+             !composition->composition.id.empty() || !composition->expansion_path.empty() ||
+             !composition->payload_path.empty() || !composition->parts.empty() || !composition->expansions.empty()))
+			return Invalid("static selection cannot mix ROM or initialized machine inputs");
 		LogRecord rejection;
 		bool rejected = false;
 		bool replacing = false;
@@ -380,7 +407,7 @@ public:
 		{
 			std::unique_lock<std::mutex> lock(mutex_);
 			WaitForMenuFrame(lock);
-			if (busy_ || !started_ || status_.state == State::starting ||
+			if ((composition && composition->has_static_selection && status_.state != State::idle) || busy_ || !started_ || status_.state == State::starting ||
 				status_.state == State::reboot_required) {
 				rejection = {"load_core", "", "", "validate",
 					Busy("runtime mutation is busy")};
@@ -447,6 +474,7 @@ public:
 		}
 		const CorePackageInfo info = package->info();
 		const CoreComposition admitted_composition = package->composition();
+		const CoreStaticComposition admitted_static_composition = package->static_composition();
 		if (!programmed_path.empty() || rom_link || rom_links) {
 			const Error attached = rom_links ? hardware_.AttachROMsBitstream(package.get(), programmed_path, *rom_links) :
 				rom_link ? hardware_.AttachROMBitstream(package.get(), programmed_path, *rom_link) :
@@ -555,6 +583,7 @@ public:
 			activated.active_package.package_id = info.package_id;
 			activated.active_package.descriptor = info.descriptor;
 			activated.active_package.composition = admitted_composition;
+			activated.active_package.static_composition = admitted_static_composition;
 			if (rom_link) activated.active_package.rom_link = *rom_link;
 			if (rom_links) activated.active_package.rom_links = *rom_links;
 			if (info.descriptor.abi.id == "fes.simple-game" ||
@@ -940,8 +969,8 @@ public:
 			return Invalid("invalid media unit request");
 		std::string system, core;
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
-			const Error rejected = AdmitMediaUnit(package_id, generation, unit);
+			std::unique_lock<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(lock, package_id, generation, unit);
 			if (!rejected.ok()) return rejected;
 			for (const MediaUnitCapability& observed : status_.capabilities.media_units)
 				if (observed.unit == unit && (size < observed.min_bytes || size > observed.max_bytes))
@@ -971,8 +1000,8 @@ public:
 			return Invalid("invalid library media request");
 		std::string system, core;
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
-			const Error rejected = AdmitMediaUnit(package_id, generation, unit);
+			std::unique_lock<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(lock, package_id, generation, unit);
 			if (!rejected.ok()) return rejected;
 			busy_ = true; system = status_.system; core = status_.core;
 		}
@@ -990,8 +1019,8 @@ public:
 			return Invalid("invalid media save binding");
 		std::string system, core;
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
-			const Error rejected = AdmitMediaUnit(package_id, generation, unit);
+			std::unique_lock<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(lock, package_id, generation, unit);
 			if (!rejected.ok()) return rejected;
 			bool persistent = false;
 			for (const auto& media : status_.capabilities.media_units) {
@@ -1014,8 +1043,8 @@ public:
 			return Invalid("invalid ZX81 tape capture");
 		std::string system, core;
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
-			const Error rejected = AdmitMediaUnit(package_id, generation, 0);
+			std::unique_lock<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(lock, package_id, generation, 0);
 			if (!rejected.ok()) return rejected;
 			busy_ = true; system = status_.system; core = status_.core;
 		}
@@ -1031,8 +1060,8 @@ public:
 			return Invalid("invalid ZX81 tape acknowledgement");
 		std::string system, core;
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
-			const Error rejected = AdmitMediaUnit(package_id, generation, 0);
+			std::unique_lock<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(lock, package_id, generation, 0);
 			if (!rejected.ok()) return rejected;
 			busy_ = true; system = status_.system; core = status_.core;
 		}
@@ -1052,8 +1081,8 @@ public:
 			return Invalid("invalid media unit request");
 		std::string system, core;
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
-			const Error rejected = AdmitMediaUnit(package_id, generation, unit);
+			std::unique_lock<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(lock, package_id, generation, unit);
 			if (!rejected.ok()) return rejected;
 			busy_ = true;
 			system = status_.system;
@@ -1201,8 +1230,9 @@ public:
 	private:
  // Give one lifecycle operation a bounded chance to claim the runtime after
  // the current display transfer. New frames cannot enter while it waits.
- // Launch, core-data, Stop, development load, idle recovery and menu
- // configure share kMenuFrameMutationWait. The caller proceeds only after
+ // Launch, core-data, ZX81 SAVE capture/ack, Stop, development load,
+ // idle recovery and menu configure share kMenuFrameMutationWait.
+ // The caller proceeds only after
  // the frame fence drops, then applies its existing busy checks.
  void WaitForMenuFrame(std::unique_lock<std::mutex>& lock) {
   if(!MenuFrameOutstanding())return;
@@ -1230,9 +1260,10 @@ public:
  }
 	// Caller holds mutex_. Media units bind the exact active fes.computer
 	// generation and one of its declared, observed units.
-	Error AdmitMediaUnit(const std::string& package_id, std::uint64_t generation,
-		std::uint8_t unit) const
+	Error AdmitMediaUnit(std::unique_lock<std::mutex>& lock, const std::string& package_id,
+		std::uint64_t generation, std::uint8_t unit)
 	{
+		WaitForMenuFrame(lock);
 		if (busy_ || !started_ || pending_fault_generation_ != 0 ||
 			status_.state != State::running_development)
 			return Busy("FES computer is not available");
@@ -1339,10 +1370,12 @@ public:
 	Error FinishLaunchFailure(const std::string& operation,
 		const std::string& system, const std::string& core,
 		const HardwareResult& result,const Status* previous_status=nullptr,
-		const Status* retained_owner=nullptr)
+		const Status* retained_owner=nullptr,
+  FailureScope scope=FailureScope::lifecycle)
 	{
 		const Error primary = result.error;
 		Status retained;
+  Error retained_lifecycle_error;
 		if (result.bound_media_may_have_run) {
 			std::lock_guard<std::mutex> lock(mutex_);
 			retained = retained_owner ? *retained_owner : status_;
@@ -1352,6 +1385,7 @@ public:
 			std::lock_guard<std::mutex> lock(mutex_);
 			active_generation_ = 0;
 			pending_fault_generation_ = 0;
+   if(scope==FailureScope::menu_frame)retained_lifecycle_error=status_.error;
 		}
 		Log(operation, system, core, "failure", primary);
 		if (!result.mutation_attempted) {
@@ -1389,7 +1423,13 @@ public:
 			{
 				std::lock_guard<std::mutex> lock(mutex_);
 				status_ = FreshStatus(State::idle);
-				status_.error = primary;
+    if(scope==FailureScope::menu_frame&&status_.menu_display.available&&
+       status_.menu_display.error.ok()&&status_.error.ok()) {
+     // Cleanup authenticated a replacement MENU grant. Preserve the failed
+     // request/log, and keep its error local until a confirmed new frame.
+     status_.error=retained_lifecycle_error;
+     status_.menu_display.error=primary;
+    } else status_.error = primary;
 				busy_ = false;
 			}
 			condition_.notify_all();
@@ -1519,9 +1559,10 @@ Runtime::Runtime(Hardware& hardware, LogSink& log)
 
 Runtime::~Runtime() = default;
 
-Error Runtime::Start() { return impl_->Start(); }
+Error Runtime::Start(const std::string& directory, const std::string& id) { return impl_->Start(directory, id); }
 Error Runtime::ConfigureMenuPackage(const std::string& directory,const std::string& id) {return impl_->ConfigureMenuPackage(directory,id);}
-Error Runtime::ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter,std::uint16_t* blitter_minor) {return impl_->ShareMenuWindow(generation,fd,blitter,blitter_minor);}
+Error Runtime::ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter,std::uint16_t* blitter_minor,
+ bool permit_frame_mapping,bool* frame_mapping) {return impl_->ShareMenuWindow(generation,fd,blitter,blitter_minor,permit_frame_mapping,frame_mapping);}
 Error Runtime::BeginMenuFrame(std::uint64_t generation,std::unique_ptr<MenuFrame>* output) {return impl_->BeginMenuFrame(generation,output);}
 Error Runtime::SetSessionDisplay(const std::string& package_id,std::uint64_t generation,bool visible,bool launcher_focus) {return impl_->SetSessionDisplay(package_id,generation,visible,launcher_focus);}
 Error Runtime::PresentMenuFrame(std::uint64_t generation,MenuFrame& frame,MenuDisplayInfo* output) {return impl_->PresentMenuFrame(generation,frame,output);}

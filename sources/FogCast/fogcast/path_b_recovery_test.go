@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -25,7 +26,7 @@ import (
 
 // Path B is a development session that is already reboot_required, a second
 // LoadIdle that still fails, and only then a board reboot. These tests inject
-// that protocol result and substitute WithRebootCommand. They do not call
+// that protocol result and substitute a test-only command starter. They do not call
 // /sbin/reboot and they do not touch a kit.
 func TestPathBSecondLoadIdleFailureStartsTestRebootCommand(t *testing.T) {
 	harness := startPathB(t, "second-load-fails")
@@ -167,6 +168,22 @@ type pathBHarness struct {
 	token     string
 }
 
+// The target composition owns reboot backstops. Host lifecycle tests retain
+// their isolated script boundary and reap only the command they start.
+func testRecoveryReboot(path string) func(context.Context) error {
+	return func(ctx context.Context) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		command := exec.Command(path)
+		if err := command.Start(); err != nil {
+			return err
+		}
+		go func() { _ = command.Wait() }()
+		return nil
+	}
+}
+
 func startPathB(t *testing.T, scenario string) pathBHarness {
 	t.Helper()
 	dir := t.TempDir()
@@ -184,7 +201,7 @@ func startPathB(t *testing.T, scenario string) pathBHarness {
 	control := &pathBControl{scenario: scenario, bootIDPath: bootIDPath, markerPath: marker}
 	runtime := misterruntime.NewRuntime(control, bootIDPath, time.Millisecond, 20*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(dir, "core.rbf")),
-		misterruntime.WithRebootCommand(rebootPath))
+		misterruntime.WithRecoveryReboot(testRecoveryReboot(rebootPath)))
 	coordinator := agent.New(runtime, 2*time.Second, 2*time.Second)
 	coordinator.Initialize(context.Background())
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))

@@ -97,6 +97,7 @@ module fes_i386_oplen (
         f = form(1'b0, 1'b0, IMM_NONE);
         case (op)
             8'h00, 8'h01, 8'h02, 8'h03, 8'h0d, 8'hb9: f.modrm = 1'b1;
+            8'h10, 8'h11, 8'h12, 8'h13: f.modrm = 1'b1;  // UMOV
             8'h20, 8'h21, 8'h22, 8'h23, 8'h24, 8'h26: f = form(1'b1, 1'b1, IMM_NONE);
             8'h80, 8'h81, 8'h82, 8'h83, 8'h84, 8'h85, 8'h86, 8'h87,
             8'h88, 8'h89, 8'h8a, 8'h8b, 8'h8c, 8'h8d, 8'h8e, 8'h8f: f.imm = IMM_Z;

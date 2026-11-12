@@ -1,0 +1,48 @@
+{
+  "kit": "B",
+  "baseline_software": "7ddb0bfb",
+  "preset": "max (0)",
+  "title": "DOOM v1.9 -timedemo demo3, Phase 4 bench disk, twice per package after a memory scrub",
+  "runs": {
+    "u1": {
+      "package": "bcd0dcd09e155229f2d28c782b5b394f79e859f1a77779c9276456715e79720f",
+      "seal": "deano/i386-ud-1701 27decb7ad, chip CUDA seed 1",
+      "demo3": [
+        "3863 gametics in 3376 realtics",
+        "3863 gametics in 3376 realtics"
+      ],
+      "fps": 40.05
+    },
+    "m1": {
+      "package": "9174009c32e3efe5c0aabbf5eb048ed40f4b67f0dc4c18ea0ecdc71eb0bd57ee",
+      "seal": "main 78b7ee4b7, chip CUDA seed 1",
+      "demo3": [
+        "3863 gametics in 3373 realtics",
+        "3863 gametics in 3373 realtics"
+      ],
+      "fps": 40.08
+    },
+    "u2": {
+      "package": "54b2482136b713ff2723c394745cfbdb5c5844b56f75c9d4c36f11087300ae41",
+      "seal": "deano/i386-ud-1701 c6e8d95f8 (main merged), chip CUDA seed 1",
+      "demo3": [
+        "3863 gametics in 3374 realtics",
+        "3863 gametics in 3374 realtics"
+      ],
+      "fps": 40.07
+    },
+    "m2": {
+      "package": "8d165dc9f692ef4761f12c6e116e2117be9697f981d77156795b453dd220585c",
+      "seal": "main b9716fb05, chip CUDA seed 1",
+      "demo3": [
+        "3863 gametics in 3374 realtics",
+        "3863 gametics in 3373 realtics"
+      ],
+      "fps": [
+        40.07,
+        40.08
+      ]
+    }
+  },
+  "kit_state": "all four runs core-only (no install, image or host change); baseline verified after each; their FogCast data trees removed after; kit B FREE"
+}

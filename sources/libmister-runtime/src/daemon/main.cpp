@@ -3,6 +3,7 @@
 
 #include "daemon/controller.hpp"
 #include "daemon/server.hpp"
+#include "daemon/signal_shutdown.hpp"
 #include "linux/production_hardware.hpp"
 #include "linux/stderr_log.hpp"
 #include "native/diagnostic.hpp"
@@ -55,19 +56,33 @@ int main(int argc, char** argv)
 		hardware = mister::CreateUnavailableHardware(unavailable);
 	}
 
-	mister::Runtime runtime(*hardware, log);
-	const mister::Error startup = runtime.Start();
-	if (!startup.ok())
-		log.Write({"daemon_start", "", "", "failure", startup});
-	if (startup.ok() && argc == 4) {
-		const mister::Error menu = runtime.ConfigureMenuPackage(argv[2], argv[3]);
-		if (!menu.ok())
-			log.Write({"daemon_menu", "", "fes.menu", "failure", menu});
+	const bool clean_shutdown = mister::RequiresProductionShutdown(*hardware);
+	mister::daemon::ShutdownSignals signals(clean_shutdown);
+	if (!signals.error().ok()) {
+		log.Write({"daemon_start", "", "", "failure", signals.error()});
+		return 1;
 	}
+	mister::Error serving;
+	{
+		mister::Runtime runtime(*hardware, log);
+		const mister::Error startup = argc == 4 ? runtime.Start(argv[2], argv[3]) : runtime.Start();
+		if (!startup.ok())
+			log.Write({"daemon_start", "", "", "failure", startup});
 
-	mister::daemon::Controller controller(runtime, MISTER_RUNTIME_VERSION);
-	mister::daemon::Server server("/run/mister-runtime.sock", controller);
-	const mister::Error serving = server.Serve();
+		mister::daemon::Controller controller(runtime, MISTER_RUNTIME_VERSION);
+		mister::daemon::Server server("/run/mister-runtime.sock", controller);
+		mister::daemon::ShutdownWatch watch(signals, server);
+		serving = watch.start_error().ok() ? server.Serve() : watch.start_error();
+		const mister::Error waited = watch.Stop();
+		if (serving.ok() && !waited.ok()) serving = waited;
+	}
+	// All socket workers and Runtime frame peers have ended before retiring
+	// the owned FPGA context. An uncertain context remains for recovery.
+	const mister::Error released = clean_shutdown ? mister::ShutdownProductionHardware(*hardware) : mister::Error{};
+	if (!released.ok()) {
+		log.Write({"daemon_shutdown", "", "", "failure", released});
+		if (serving.ok()) serving = released;
+	}
 	mister::EmitDiagnostic(mister::kDiagnosticLayerRuntime,
 		mister::kDiagnosticKindMainExit, serving.ok() ? "ok" : "warn",
 		{

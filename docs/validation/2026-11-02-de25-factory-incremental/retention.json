@@ -1,0 +1,272 @@
+{
+  "archive_sha256": "18543257bdc65753e0bf1dba8e24c207aee83c307556f7a60e2507fef69596f8",
+  "archive_size": 2381539,
+  "archived_regular_files_verified": 48,
+  "classification": "Actual pinned Buildroot runtime refresh, stale-stamp and bad-hash controls with prerequisite reuse; no factory image or native acceptance",
+  "completed_own_pids_pgids": [
+    2661905,
+    2662032,
+    2663770,
+    2663793,
+    2669432,
+    2669467,
+    2685800,
+    2685822,
+    2687715,
+    2687741,
+    2710965,
+    2710989
+  ],
+  "completion_job": {
+    "command": [
+      "/usr/bin/python3",
+      "/home/deano/fes/out/dev/de25-managed-image/out/de25-factory-incremental/retain-source.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-factory-incremental",
+    "elapsed_seconds": 1.8,
+    "hardware_access": "not-performed",
+    "heartbeat_utc": "2026-11-02T02:56:46.442166+00:00",
+    "pid": 2710989,
+    "returncode": 0,
+    "source_revision": "35a29f752c6f0402f341350da56dd9742dc84cf5",
+    "started_utc": "2026-11-02T02:56:44.637058+00:00",
+    "state": "passed",
+    "time_cap_seconds": 180
+  },
+  "files": {
+    "completion/retention-job-launch.json": {
+      "sha256": "450e70d98a8047bbd282ccc5549539acabc65513c269050e59a027746bc2a312",
+      "size": 386
+    },
+    "completion/retention-job-supervisor.log": {
+      "sha256": "93485708e6234a5bb2ca4e5d92bc4f4c980cedc2da9096e67aa030bb3b05e683",
+      "size": 1018
+    },
+    "completion/retention-job/job.json": {
+      "sha256": "06d95c48db7a41d70c75fd5f70e1582a9c14d99ea8a5b6fe093ed507bc5bba95",
+      "size": 553
+    },
+    "completion/retention-job/stdout.log": {
+      "sha256": "94d53d0cf5c5fd7a8b1c41e277b2797c2f75fc61d25990b5d094a776c9629a31",
+      "size": 2038
+    },
+    "proofs/affected-plan.json": {
+      "sha256": "811e1c90c04993fac4e64a1f0ae0e1de67e28a50d61a3294e87d01fd2a25f76d",
+      "size": 4719
+    },
+    "proofs/dependencies.json": {
+      "sha256": "c05cf8f63280fad3fd0acacb54765b4075a319de69c773c54234754cc968c959",
+      "size": 579
+    },
+    "proofs/focused-job-launch.json": {
+      "sha256": "5743fb3841f67221cbcd18c302a8934533791c981b6dd4e592f8e6d2334388f2",
+      "size": 464
+    },
+    "proofs/focused-job-supervisor.log": {
+      "sha256": "fe3b6673fc80e7a9f6bfda8cc98b8599ec2e1d319cfe9596c8413e32bfcf5d85",
+      "size": 1126
+    },
+    "proofs/focused-job/job.json": {
+      "sha256": "debe7bd10f0b83c83ff9d0159517d0bf9db02969ab5ba57924d7f1f345fea490",
+      "size": 631
+    },
+    "proofs/focused-job/stdout.log": {
+      "sha256": "ff7f7afeea5434a28ff640b4e13bf391c8e5d473cb1eab23dc47edd721b4d710",
+      "size": 10441
+    },
+    "proofs/next-workflow-notes.json": {
+      "sha256": "b447dfa14e6b9084164a872b2aab82e43c22a3500090b14c15e25501b79819c8",
+      "size": 1922
+    },
+    "proofs/parent-job-launch.json": {
+      "sha256": "1f55f16512adec2c718a755aca504475a4888665ca37c03e06d075810155e804",
+      "size": 458
+    },
+    "proofs/parent-job-supervisor.log": {
+      "sha256": "3be1da361de9ed0711a018da8a94122250b21838cc62eb8a12a9d623585940fa",
+      "size": 4611
+    },
+    "proofs/parent-job/job.json": {
+      "sha256": "42cb22a8245ae2f373477ef49b6ff2b2b0879902209e84242089136a2c8fdbb4",
+      "size": 627
+    },
+    "proofs/parent-job/stdout.log": {
+      "sha256": "4e84b6c7aaf0ec7df30a9394fcedf24989a13d627d33af459410645e8b87b97f",
+      "size": 377795
+    },
+    "proofs/parent-result.json": {
+      "sha256": "28e341cb926a8dfb579be526584128c7efa465e19ddb2af71f7d09c1b9b989c7",
+      "size": 7115
+    },
+    "proofs/phase.json": {
+      "sha256": "e06c6edc89d13b94deb843dd1afa42ba910a33bc22c557fafea5c1a124d4a416",
+      "size": 517
+    },
+    "proofs/prepare-doc-evidence.py": {
+      "sha256": "2e3b67c05d75f4d349da9f2252bddd8ec6fd52a8e206fe88585a48aa2eb02232",
+      "size": 1862
+    },
+    "proofs/retain-source.py": {
+      "sha256": "293c1ac0c1add5ad251b1b53edef165f8cc3aa593366c57ebc9e5e70864c78c9",
+      "size": 5801
+    },
+    "proofs/run-parent.py": {
+      "sha256": "9cdb02f7969f226862556e9327851ef19b660d40cb12653821a57221dcd25b47",
+      "size": 2764
+    },
+    "proofs/source-scope-job-launch.json": {
+      "sha256": "33d40794a77b3f1ef5a4d345f26a1155e7a92a02a0db9988778a6d55809b5767",
+      "size": 385
+    },
+    "proofs/source-scope-job-supervisor.log": {
+      "sha256": "75d8e905131f2e6b45a3e6ed5c0f4da6cd73952022c158480500c3fe9d1f1cf3",
+      "size": 1016
+    },
+    "proofs/source-scope-job/job.json": {
+      "sha256": "bd1c50628a7fcc6da64a3a273866ad87e4a74b8e4bfc2f5e75b0f1d434a81433",
+      "size": 552
+    },
+    "proofs/source-scope-job/stdout.log": {
+      "sha256": "5bb02440bcfd236d44b2723c3a349342e88ad4b4f49365ba1b4190f8addba086",
+      "size": 353
+    },
+    "proofs/source-scope-retry-job-launch.json": {
+      "sha256": "bd7e0fe27e5995198f2b65f776fd2c0cb95d3633aee3e3322e2c4cfc9aec3401",
+      "size": 391
+    },
+    "proofs/source-scope-retry-job-supervisor.log": {
+      "sha256": "72c27ba23d3c55f2e4ad1c57764ca2be3953c9de946dc5f0d0fed51702456131",
+      "size": 1028
+    },
+    "proofs/source-scope-retry-job/job.json": {
+      "sha256": "ed655a1f68c650c1d08479aea2d02d297db53e2252521b9effa6054e4d6b63b3",
+      "size": 558
+    },
+    "proofs/source-scope-retry-job/stdout.log": {
+      "sha256": "42b95eee9e82806c1df077df043afca26d687064b7f5a1b3b0010f4686eabd6c",
+      "size": 539
+    },
+    "proofs/source-scope-retry.py": {
+      "sha256": "13f8517cc5f23c44358335679ea5f82648c46f102f670904f9ce5a43311b21b7",
+      "size": 2431
+    },
+    "proofs/source-scope.json": {
+      "sha256": "c51062fbae8059522ff4878d4a2a92029a01a2c9a7fe54c8cda2ab653bc9dc4b",
+      "size": 539
+    },
+    "proofs/source-scope.py": {
+      "sha256": "de23dfeab75a918dbf6fd924b0a80acf519214b824f7c8eb12e73d823de9097f",
+      "size": 1931
+    },
+    "proofs/warm-package-inside.py": {
+      "sha256": "352b4178d55c3c29c8705449944ff575cf94b3efadaa49ddfe6fb4140c394707",
+      "size": 4574
+    },
+    "proofs/warm-package-job-launch.json": {
+      "sha256": "eb8389314e4fc2582544ca182319ca35537d47ec7389e372fb44eb4af5aa1942",
+      "size": 385
+    },
+    "proofs/warm-package-job-supervisor.log": {
+      "sha256": "d138887937e895086d745f4a4119ff3db335891cf82bc22e1c8f842c3d3870ae",
+      "size": 1017
+    },
+    "proofs/warm-package-job/job.json": {
+      "sha256": "1bacc292edf101ed50f16e66ac5542051ebc72c73c70b5bd86613f9375c34c5c",
+      "size": 553
+    },
+    "proofs/warm-package-job/stdout.log": {
+      "sha256": "a2f69eab919f819acfa9cc0c07f6cb3a900d26807600837fe75aa1ebeda3e8c0",
+      "size": 534
+    },
+    "proofs/warm-package.py": {
+      "sha256": "e21909bfa80ff06b5d72094c79133f42c844e65dbfcf94f45915a1b14e2c1763",
+      "size": 4833
+    },
+    "proofs/warm-package/bad-hash-refusal.log": {
+      "sha256": "54dd48b2f47c36596a75e1fde48616ae1b6f69af5b6f7576b3f1dc99984c26df",
+      "size": 1286
+    },
+    "proofs/warm-package/bad-hash-runtime-refresh.log": {
+      "sha256": "627abb7e43b0dd50c1924e112544c62276b823820f456ecd741beeac26e752d5",
+      "size": 385
+    },
+    "proofs/warm-package/container.id": {
+      "sha256": "5b6d3d005594231c20dde2c49e898ab81320fa68ab74f0719a47f2bb4d795189",
+      "size": 64
+    },
+    "proofs/warm-package/container.log": {
+      "sha256": "70e708043f7fa78b7b6338563ae316a8cb6a7a46e1331a2805893d936a8601a2",
+      "size": 20522
+    },
+    "proofs/warm-package/first-install.log": {
+      "sha256": "18c88e3c71a209d768e9436d88101ead6be121a781219a16bf116f7c76a6adc0",
+      "size": 12833
+    },
+    "proofs/warm-package/first-runtime": {
+      "sha256": "05c25c74d9c53a073625d56c36e04ef63a407c71c823a25e4e50448c6325dffd",
+      "size": 1646344
+    },
+    "proofs/warm-package/inside.py": {
+      "sha256": "352b4178d55c3c29c8705449944ff575cf94b3efadaa49ddfe6fb4140c394707",
+      "size": 4574
+    },
+    "proofs/warm-package/installed-runtime": {
+      "sha256": "92a90b2ab0ab41054d82bb58a7ebdc307b05c92f20b3a5cc965cac31aba03ead",
+      "size": 1646344
+    },
+    "proofs/warm-package/receipt.json": {
+      "sha256": "e2a7042a624753d00117c1fcda2f5a8cac6860541efca7684733725a8ec7a6fc",
+      "size": 18835
+    },
+    "proofs/warm-package/runtime-refresh.log": {
+      "sha256": "627abb7e43b0dd50c1924e112544c62276b823820f456ecd741beeac26e752d5",
+      "size": 385
+    },
+    "proofs/warm-package/second-install.log": {
+      "sha256": "6f2c30aec5ccec6a0e57b9865a7842d3d7da5dedd374581c231d7843f2f3462c",
+      "size": 1446
+    },
+    "proofs/warm-package/second-runtime": {
+      "sha256": "92a90b2ab0ab41054d82bb58a7ebdc307b05c92f20b3a5cc965cac31aba03ead",
+      "size": 1646344
+    },
+    "proofs/warm-package/selection.json": {
+      "sha256": "e0c2206eaf7abc90e26d17c3273cdfd90324b10c0dcc684284ff8fe06e8ae12c",
+      "size": 1103
+    },
+    "proofs/warm-package/warm-package.json": {
+      "sha256": "fa7e66512def188158ce8f1982b777267baeb572bf113a5c4e852ba4b0bf17e2",
+      "size": 16478
+    },
+    "proofs/warm-package/without-runtime-refresh-control.log": {
+      "sha256": "f4c4247887a4bcede197bdfcaa1ebd4955209e8a35e5340e909fc7e03f96916e",
+      "size": 277
+    },
+    "source.bundle": {
+      "sha256": "e3c303cd1ff9e03a2d052787000f73908d23465cab53450b0a18e32b78cf0b6e",
+      "size": 4603
+    }
+  },
+  "hardware_access": "not-performed",
+  "live_completed_processes": [],
+  "original_guard_failure": "Expected seven Make stages, executed six; original preserved, retry verifies actual named stages and bad checksum log",
+  "owned_container_absent": "8eff14c5e764c265d966d132e0eaff45eeefc443bdb6389c31502dddf5bf8aaf",
+  "owned_volume_absent": "fes-de25-incremental-package-35a29f752",
+  "previous_publication_retention_sha256": "53a601874aca148e73ae83a94a9fef1256b682dc5554dc5e20026e7c74b924df",
+  "restored_tree": "122fb104635b6ba875bc7707d7986c3e122cec0d",
+  "source_restored": true,
+  "source_revision": "35a29f752c6f0402f341350da56dd9742dc84cf5",
+  "unchanged_production_components": {
+    "boot-media.lock.toml": "23c6d1b428956d10e742f36825cecb0d3595439b",
+    "config": "c642a25ca5ba6968df98522217769ee16aca59a9",
+    "image/buildroot": "40caf6a85b4f96ac5ab59e25b52f4839e7f14fef",
+    "image/containers": "5d36384a5d69d4de4b5849954c538d2c6d58ba25",
+    "image/kernel": "26dbf77c6867746334a7cf15ceb6cce510d8aefe",
+    "platform": "b2582a7f5f1e246b2a508503e867b4aee0cbc430",
+    "profiles": "77c6d028aeaa59d3d2d8757bdcb397ff527428ce",
+    "scripts/build.py": "39cded6d8fd924ae97bbe8242831a3d8e3fac13f",
+    "scripts/kit_sdk.py": "d27e16d7ed554afaf1fad7aad882f6961e7ba981",
+    "scripts/kit_software.py": "eac63e98d4455ab44435245152db440a058199c6",
+    "sources": "42b3939aa638ecb660035edcf5a592b3fe1c13b3"
+  }
+}
