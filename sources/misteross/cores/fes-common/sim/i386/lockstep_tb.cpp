@@ -397,6 +397,7 @@ public:
     uint64_t last_mem_wait = 0;      // the cycle of the last memory wait
     uint64_t last_fe_wait = 0;       // the last cycle D had no instruction from the front end
     std::set<uint32_t> step_writes;  // bytes written since the last next()
+    std::map<uint32_t, uint8_t> step_first_write_values;  // first value written to each byte this step
     std::set<uint32_t> written;      // bytes either side wrote since the run began, to clear after it
     uint64_t io_unstable = 0;        // I/O requests whose port, size or data changed before their ack
     // Self-modifying code: the bytes a retired store wrote into the blocks
@@ -472,6 +473,7 @@ public:
         top.inta_ack = 0;
         top.io_ack = 0;
         step_writes.clear();
+        step_first_write_values.clear();
         io.log.clear();
         mmio_log.clear();
         mmio_stores.clear();
@@ -663,6 +665,7 @@ public:
                 if (window && in_window(at)) mmio_stores.push_back({true, at, uint8_t(wdata >> (8 * i)), step});
                 if (at < RAM_BYTES && !(window && (in_rom(at) || in_hole(at)))) ram[at] = uint8_t(wdata >> (8 * i));
                 step_writes.insert(at);
+                step_first_write_values.emplace(at, uint8_t(wdata >> (8 * i)));
                 written.insert(at);
             }
         }
@@ -693,6 +696,7 @@ public:
     // runs before each cycle.
     Event next(const std::function<void()> &tick = {}) {
         step_writes.clear();
+        step_first_write_values.clear();
         io.log.clear();
         const uint64_t acks = pic.acks;
         for (int n = 0; n < event_cycles; ++n) {
@@ -1592,19 +1596,20 @@ struct Code {
 // overwrites the executing instruction. The 386 may already have the bytes in
 // its queue and complete the REP. Only stop early for an unplanned store to
 // those exact bytes; ordinary code stores still get their full comparison.
-bool rep_writes_own_instruction(const Code *own, const uint8_t *code, bool code32, const State &before,
-                                const fes_i386::StepResult &result, const fes_i386::Oracle &oracle) {
+std::set<uint32_t> rep_self_store_writes(const Code *own, const uint8_t *code, bool code32, const State &before,
+                                         const fes_i386::StepResult &result, const fes_i386::Oracle &oracle) {
+    std::set<uint32_t> overlaps;
     if (!own || result.writes.empty() || !result.events.empty() || (before.cr0 & 0x80000000u)
         || rep_count(code, code32, before) < 2)
-        return false;
+        return overlaps;
     const auto decoded = oracle.decode(code, 16, code32);
-    if (!decoded.complete || decoded.undefined || !decoded.length) return false;
+    if (!decoded.complete || decoded.undefined || !decoded.length) return overlaps;
     const auto &cs = before.seg[fes_i386::SEG_CS];
     const uint64_t last_offset = uint64_t(before.eip) + decoded.length - 1;
     // Do not infer a contiguous instruction across IP, CS-limit or linear
     // address wrap. Such a fetch remains under the normal comparison.
     if (last_offset > (code32 ? UINT32_MAX : UINT16_MAX) || last_offset > cs.limit
-        || uint64_t(cs.base) + last_offset > UINT32_MAX) return false;
+        || uint64_t(cs.base) + last_offset > UINT32_MAX) return overlaps;
     const uint32_t linear = cs.base + before.eip;
     for (const auto &w : result.writes)
         for (unsigned i = 0; i < w.length; ++i) {
@@ -1612,9 +1617,14 @@ bool rep_writes_own_instruction(const Code *own, const uint8_t *code, bool code3
             const uint32_t physical = write_key(w.physical + i);
             if (written - linear < decoded.length && physical == write_key(written)
                 && physical >= own->lo && physical < own->hi && !own->rewritten.count(physical))
-                return true;
+                overlaps.insert(physical);
         }
-    return false;
+    return overlaps;
+}
+
+bool rep_writes_own_instruction(const Code *own, const uint8_t *code, bool code32, const State &before,
+                                const fes_i386::StepResult &result, const fes_i386::Oracle &oracle) {
+    return !rep_self_store_writes(own, code, code32, before, result, oracle).empty();
 }
 
 // An ESC instruction's memory operand: its offset, wrapped by address size,
@@ -2120,11 +2130,32 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         rtl.stale.reset();
 
         // Do not compare the oracle's partial REP step with the RTL's
-        // completed one. Existing mismatches and RTL exceptions still fail.
-        if (event == Rtl::Event::Retired && !rtl.top.trace_exception && !rtl.top.trace_unimplemented
-            && rep_writes_own_instruction(own, code, code32, before, result, oracle)) {
+        // completed one. Check each overlapping byte that made Bochs stop
+        // before ending the run, so a missing, misaddressed or wrong-valued
+        // RTL self-store still fails.
+        const std::set<uint32_t> rep_self_writes =
+            event == Rtl::Event::Retired && !rtl.top.trace_exception && !rtl.top.trace_unimplemented
+                ? rep_self_store_writes(own, code, code32, before, result, oracle)
+                : std::set<uint32_t>{};
+        if (!rep_self_writes.empty()) {
             outcome.code_store = true;
             outcome.rep_self_store = true;
+            for (uint32_t address : rep_self_writes) {
+                if (!rtl.step_writes.count(address)) {
+                    out.add(at + "rep-self-write-address." + hex(address), 1, 0);
+                    continue;
+                }
+                if (address >= RAM_BYTES) {
+                    out.add(at + "rep-self-write-value." + hex(address), 1, 0);
+                    continue;
+                }
+                const auto write = rtl.step_first_write_values.find(address);
+                if (write == rtl.step_first_write_values.end()) {
+                    out.add(at + "rep-self-write-value." + hex(address), bus.ram[address], 0);
+                } else if (write->second != bus.ram[address]) {
+                    out.add(at + "rep-self-write-value." + hex(address), bus.ram[address], write->second);
+                }
+            }
             return outcome;
         }
 
