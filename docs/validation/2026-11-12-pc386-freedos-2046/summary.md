@@ -27,7 +27,13 @@ is the [WIN386 on FreeDOS record](../2026-11-12-pc386-freedos-win386/summary.md)
   bytes, because the FAT16 build has no FAT32 code.
 - **Kit A runs the fixture and three acceptance games** on a CUDA seal of
   this branch.
-- **Saving from Windows:** see [below](#saving-files-from-windows).
+- **Saving a new file from Windows fails under FreeDOS's SHARE, as
+  upstream reported.** Re-saving an existing file works, but Save As to a
+  new name stops with "This file is on a network drive with create but no
+  modify privileges" and leaves the new file at 0 bytes. The same keys on
+  MS-DOS 6.22 save both files. The games never load SHARE, so this does
+  not affect them; it limits Windows on entry 4
+  ([below](#saving-files-from-windows), issue [#1777](https://github.com/DeanoC/fes/issues/1777)).
 
 ## The lock
 
@@ -107,12 +113,12 @@ Each fixture-fed suite was rerun:
 | --- | --- | --- |
 | boot (boot image; VGA replay) | PASS: the banner reads "FreeDOS kernel 2046 … Kernel compatibility 6.22"; replay 0 mismatches | PASS: 0 oracle steps, no stops, 145.6M instructions |
 | boot, games image (`mem`, Serpent Isle and Frontier memory check) | PASS: 595,808 bytes | PASS (`dir`): 0 oracle steps, no stops; VGA replay 0 mismatches |
-| a20 | PASS | PENDING |
+| a20 | PASS | PASS |
 | c2xx | PASS | PASS |
 | ems | PASS | PASS |
-| wait | PASS | PENDING |
+| wait | PASS | PASS |
 | speaker | PASS | PASS |
-| scroll | PASS | PENDING |
+| scroll | PASS | PASS |
 | sound | PASS | — |
 | cpu-profile | PASS | — |
 | system (pc386_system, to the prompt and the input exercise) | PASS | — |
@@ -154,7 +160,10 @@ inspected:
 | Frontier: Elite 2 | 3 | PASS; its sound setup prompt, as before |
 | Master of Orion | 3 | PASS; back at the prompt at 4.6 s with its "reconfigure hardware options" message, as on kernel 2043 (4.7 s on the old `xms` drive). Its drive still lacks the `CONFIG.MOO` sidecar its own `INSTALL` writes ([EMS board record](../2026-11-08-pc386-ems-board/summary.md)), which is not a kernel matter |
 
-RTL game suite: PENDING.
+RTL game suite (`--cpu rtl`, `real` drive): Wolfenstein 3D runs 24 s with
+713.8M instructions, and Ultima VI runs 16 s with 448.0M. Both have 0
+oracle steps, and their OPL2 output matches Nuked-OPL3 sample for sample.
+Both PASS.
 
 ## Windows for Workgroups 3.11
 
@@ -174,7 +183,26 @@ it has no `VERSION=` line. The drive is commercial and stays in scratch.
 
 ### Saving files from Windows
 
-PENDING.
+Notepad, on the oracle, with the same keystrokes on entry 4 of the
+FreeDOS 2046 drive and on the Windows plan's MS-DOS 6.22 drive
+(`win-msdos`, Microsoft's SHARE-free setup with WfW's own VSHARE). The
+keys are spaced 6 to 12 s apart, frames every 0.5 s, and the disk is
+written back at the end (`machine_tb --disk-out`). This takes a scratch
+change to the bench, `<f10>`, `<esc>` and `<tab>` named keys, which is not
+committed. `win /3 notepad c:\save1.txt` (`SAVE1.TXT` holds `ORIGINAL`),
+type `EDITED` and Enter, then File Save, then File Save As `c:\save2.txt`:
+
+| Step | FreeDOS 2046 + SHARE | MS-DOS 6.22 |
+| --- | --- | --- |
+| File Save of the existing `SAVE1.TXT` | saved: `EDITED\r\nORIGINAL\r\n` on the disk | saved, the same bytes |
+| File Save As a new `SAVE2.TXT` | "c:\save2.txt — This file is on a network drive with create but no modify privileges. Ask the administrator of this network to change this condition." `SAVE2.TXT` is created with 0 bytes | saved: the same 18 bytes |
+| After | the message box stays up to the 92 s limit | Windows exits to `C:\>` at 78.7 s |
+
+That is the upstream report's failure. Notepad created the new file but
+could not write to it. Why SHARE refuses the write is not traced here. FreeDOS 1.4's SHARE (08/2006a) is the
+newest official SHARE. FDOS/share has made no release since, and its source
+has not changed since January 2025. The kernel 2046 source tree carries a
+newer SHARE source but no binary. Write: pending (a rerun with keys the bench can type; the first runs used `*`, which it cannot type).
 
 ## Kit
 
@@ -186,7 +214,8 @@ PENDING.
   Timing passed: setup +0.880 ns, hold +0.116 ns, recovery +6.703 ns,
   removal +0.261 ns, minimum pulse width +1.122 ns. 36,813 of 41,910 ALMs.
   [`seal-summary.json`](seal-summary.json) is its `build-summary.json`.
-  The branch changes no RTL, so this is main's core.
+  The branch changes no RTL, so this is the core of main at `df88b3ca8`, which
+  the branch was cut from. The simulations ran at that same commit.
 - **Kit A, run a1**, core-only on its baseline (image `179affbb…`, software
   `a2756499`), at max. The claim, restore check, cleanup and release are in
   Kit A's status file. The run staged the fixture and the `real` and
