@@ -1224,8 +1224,12 @@ established. The routines are `ucode.toml`'s `tsjg`, `tsgate`, `tsw`,
   delay slot of 673's branch to TASK_RETURN): when its first uop (`iret0`)
   reaches WB as the oldest, committing or faulting, once every instruction
   before it has completed (#1704). So an IRET whose task return then faults
-  has unblocked NMI too (`ts-nmi-iret-link-null`), and an NMI raised in an
-  NMI's handler waits for the handler's IRET (`nmi-in-nmi-handler`). The cycle
+  has unblocked NMI too (`ts-nmi-iret-link-null`). Directed lockstep also
+  checks a pending second NMI after ordinary IRET faults on the stack limit,
+  a not-present stack page, or a null return CS (`nmi-iret-stack-ss`,
+  `nmi-iret-stack-pf`, `nmi-iret-cs-gp`). An NMI raised in an NMI's handler
+  waits for the handler's IRET (`nmi-in-nmi-handler`). A CS-limit fault when
+  fetching IRET leaves NMI blocked (`nmi-iret-fetch-gp`). The cycle
   after, DC takes the new task's descriptor loads as it takes a fault's
   entry (`tsw_inj`, `dc_exc`): at the new EIP, length 0, so a fault there
   is the new task's, its frame the new CS:EIP. A delivery's exception stays

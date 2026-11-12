@@ -6830,7 +6830,7 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
                   std::vector<uint8_t> nmi_handler_bytes = {};
                   bool stop_at_exception = true, expect_halt = false; int expected_nmis = -1;
                   // past_db: the run goes on past each #DB (debug_programs).
-                  bool past_db = false; };
+                  bool past_db = false; int64_t expected_cr2 = -1; };
     const uint64_t absent = gate(0x08, 0x1800, 0x0e);  // a 386 interrupt gate, not present
     const uint64_t window_ss = desc(MMIO_LO, 0xffff, 0x93, false, false);  // 28h: a 16-bit stack in the window
     std::vector<Case> cases = {
@@ -7805,6 +7805,63 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         c.expected_nmis = 2;
         cases.push_back(c);
     }
+    // Raise a second NMI in the handler, then make its ordinary IRET fault.
+    // The first entry corrupts the IRET frame or stack; the second entry
+    // returns normally. Both NMIs must be delivered before the fault handler
+    // halts: IRET has started even though it never completed.
+    {
+        auto nmi_fault = [&](const char *label, std::vector<uint8_t> fault, int vector,
+                             std::vector<std::pair<unsigned, uint64_t>> descs, bool paging = false) {
+            std::vector<uint8_t> handler = {
+                0x90,                          // NOP: queue second NMI
+                0xff, 0x06, 0x00, 0x22,       // INC word [2200h]
+                0x83, 0x3e, 0x00, 0x22, 0x01, // CMP word [2200h], 1
+                0x75, uint8_t(fault.size())};  // JNE normal IRET
+            handler.insert(handler.end(), fault.begin(), fault.end());
+            handler.push_back(0xcf);           // second NMI: IRET
+            Case c{label, [paging](Asm &a) {
+                       if (paging) {
+                           a.op({0x66, 0xb8}); a.d(0x6000);         // MOV EAX, page directory
+                           a.op({0x0f, 0x22, 0xd8});                // MOV CR3,EAX
+                           a.op({0x0f, 0x20, 0xc0});                // MOV EAX,CR0
+                           a.op({0x66, 0x0d}); a.d(0x80000000);     // OR EAX,PG
+                           a.op({0x0f, 0x22, 0xc0});                // MOV CR0,EAX
+                       }
+                       a.op({0x90, 0x90, 0x90, 0x40});
+                   }, vector, 0,
+                   {{2, gate(0x08, 0x1b10, 0x86)}}, false};
+            c.descs = std::move(descs);
+            c.places = {{0x1b10, handler}, {0x2200, {0, 0}}};
+            if (paging) {
+                // Identity-map pages 0..8; the next page is not present.
+                // A return frame crossing 8FFFh faults, while the #PF and
+                // second NMI frames can be pushed into mapped page 8.
+                std::vector<uint8_t> directory(4096), table(4096);
+                const auto put32 = [](std::vector<uint8_t> &bytes, unsigned at, uint32_t value) {
+                    for (unsigned i = 0; i < 4; ++i) bytes[at + i] = uint8_t(value >> (8 * i));
+                };
+                put32(directory, 0, 0x7003);
+                for (unsigned i = 0; i <= 8; ++i) put32(table, 4 * i, i * 4096 | 3);
+                c.places.emplace_back(0x6000, std::move(directory));
+                c.places.emplace_back(0x7000, std::move(table));
+                c.expected_cr2 = 0x9000;
+            }
+            c.nmi_handler_bytes = handler;
+            c.nmi_pulses = {CODE + 44 + (paging ? 21u : 0u), 0x1b10};
+            c.stop_at_exception = false;
+            c.expect_halt = true;
+            c.expected_nmis = 2;
+            cases.push_back(std::move(c));
+        };
+        // MOV AX,28h; MOV SS,AX; MOV SP,0FFCh; IRET. The EFLAGS slot
+        // crosses the 0FFFh limit, but exception delivery can push below it.
+        nmi_fault("nmi-iret-stack-ss", {0xb8, 0x28, 0, 0x8e, 0xd0, 0xbc, 0xfc, 0x0f, 0xcf},
+                  12, {{5, desc(0, 0x0fff, 0x93, false, false)}});
+        // MOV BP,SP; MOV word [BP+2],0; IRET: a null CS is #GP(0).
+        nmi_fault("nmi-iret-cs-gp", {0x89, 0xe5, 0xc7, 0x46, 0x02, 0, 0, 0xcf}, 13, {});
+        // MOV SP,8FFCh; IRET reads the next, not-present page: #PF(0).
+        nmi_fault("nmi-iret-stack-pf", {0xbc, 0xfc, 0x8f, 0xcf}, 14, {}, true);
+    }
     // The same handler in a code segment (98h) whose limit, 1B10h, ends at
     // its NOP: the IRET's fetch is #GP(0) before the IRET starts, so the
     // NMI block stays and the second NMI waits through the #GP handler.
@@ -8320,6 +8377,8 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
             }
         }
         const State s = rtl.state();
+        if (c.expected_cr2 >= 0 && s.cr2 != uint32_t(c.expected_cr2))
+            out.add(label + ".cr2", uint32_t(c.expected_cr2), s.cr2);
         if (c.ending == -1) {
             if (!outcome.halted) out.add(label + ".halt", 1, 0);
             if (outcome.exception >= 0) out.add(label + ".exception", 0xff, uint32_t(outcome.exception));
