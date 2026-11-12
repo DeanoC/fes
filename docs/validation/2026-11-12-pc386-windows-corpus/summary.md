@@ -57,7 +57,29 @@ before and after, and logged the release.
 Every kit run is listed in Kit A's status file with its claim and release.
 The kit check on a seal of current main is below.
 
-Pending: a seal of main `7b33b38bf` on chip-30x0-ai-dev, then this check on it.
+**Seal of main.** Package `28441b4e6f8ea42581a4bc1ee597915232bb00b6837eb1d804ab4168498d5477`
+([`seal-summary.json`](seal-summary.json)):
+- a Quartus 17.0.2 seal (seed 1) of main `f793494f2`, from a clean clone, with
+  `scripts/build_fes_pc386_quartus.py --gpu-router CUDA` on chip-30x0-ai-dev
+  (`gpu_backend: cuda`), `build_id` `9171384593786428d7bb1ab7e479ec31`;
+- every analysis met: setup +0.821 ns, hold +0.091 ns, recovery +6.898 ns,
+  removal +0.297 ns, minimum pulse width +1.122 ns;
+- 36,864 of 41,910 ALMs, 269 of 553 RAM blocks, 38 DSP blocks.
+
+Main `f793494f2` changes nothing under `sources/misteross/cores` since
+`7b33b38bf`, the tree the simulation below runs.
+
+| Run | Kit | Result | `win` to detection | Pointer (target) | DOS window open / back | Notepad back | Read back |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `k1` | B (software `7ddb0bfb`, image `179affbb…`) | **pass** ([`kit-b-k1.json`](kit-b-k1.json)) | 5.3 s | (208, 64) for (203, 60) | 4.4 s / 3.9 s | 2.9 s | both nonces, 10 delta chunks |
+| `k2` | A (software `a2756499`, image `179affbb…`) | **pass** ([`kit-a-k2.json`](kit-a-k2.json)) | 6.0 s | (208, 65) for (203, 61) | 3.7 s / 3.7 s | 3.1 s | both nonces, 10 delta chunks |
+
+On both kits the pointer moved 0.25 counts per pixel, and each runner left
+no FogCast data tree behind. Afterwards the agent was idle with a free lease
+and had not rebooted, and the wrapper's baseline keys matched. The "`win` to
+detection" times include the grab cadence (about one grab a second, each
+taking about a second). They are not a measure of Windows' start-up: the
+#1760 record's frame-by-frame 2.0–2.5 s is.
 
 ## Simulation
 
