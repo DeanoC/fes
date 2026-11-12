@@ -11,6 +11,26 @@ from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
 
 
 class AffectedTests(unittest.TestCase):
+    def test_hil_inventory_selects_only_parent(self):
+        result = plan(['config/hil-go-consumers.json'])
+        self.assertEqual({name for name, enabled in result['lanes'].items() if enabled}, {'parent'})
+        self.assertEqual(result['cores'], [])
+
+    def test_go_source_under_docs_selects_host_and_inventory(self):
+        for name in ('execute.go', 'execute.s', 'execute.sx', 'execute.c', 'execute.hpp', 'execute.swigcxx', 'execute.syso'):
+            with self.subTest(name=name):
+                result = plan(['sources/FogCast/internal/session/docs/' + name])
+                self.assertTrue(result['lanes']['parent'])
+                self.assertTrue(result['lanes']['host'])
+
+    def test_embedded_readme_runs_inventory_and_host_checks(self):
+        embedded = 'sources/FogCast/ui/rooms/examples/hardware/assets/README.md'
+        result = plan([embedded])
+        self.assertTrue(result['lanes']['parent'])
+        self.assertTrue(result['lanes']['host'])
+        ordinary = plan(['sources/FogCast/README.md'])
+        self.assertFalse(any(ordinary['lanes'].values()))
+
     def test_de25_pr_control_tracks_generated_rtl_and_native_controller(self):
         definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml'
         result = plan([definition])

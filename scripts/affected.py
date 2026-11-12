@@ -1,8 +1,14 @@
 """Plan software CI from a merge-base diff; never claim FPGA builds or kit acceptance."""
 import argparse
+from functools import lru_cache
 import json
 from pathlib import Path
 import subprocess
+
+try:
+    from scripts.hil_plan import GO_SOURCE_SUFFIXES
+except ImportError:
+    from hil_plan import GO_SOURCE_SUFFIXES
 
 try:
     from scripts.test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, DE25_PR_CONTROL_DEFINITION, select_test_modes, validate_test_modes
@@ -250,9 +256,39 @@ def runtime_test_source(path):
                 for area in ('unit', 'integration', 'support')))
 
 
+@lru_cache(maxsize=1)
+def embedded_patterns():
+    # CI must check the generated inventory even when the only changed file
+    # is an embedded README. A broken inventory selects the lane, not a skip.
+    try:
+        try:
+            from scripts.hil_plan import read_go_inventory
+        except ImportError:
+            from hil_plan import read_go_inventory
+        return read_go_inventory()
+    except (OSError, ValueError):
+        return None
+
+
 def documentation(path):
     parts = Path(path).parts
-    return 'docs' in parts or path.endswith('.md')
+    if (path.startswith(('sources/FogCast/', 'sources/misteross/expansion/')) and
+            path.endswith(GO_SOURCE_SUFFIXES) and
+            not path.endswith('_test.go')):
+        return False
+    if 'docs' not in parts and not path.endswith('.md'):
+        return False
+    if path.startswith(('sources/FogCast/', 'sources/misteross/expansion/')):
+        inventory = embedded_patterns()
+        if inventory is None:
+            return False
+        try:
+            from scripts.hil_plan import matches_embed
+        except ImportError:
+            from hil_plan import matches_embed
+        if any(matches_embed(path, group) for entry in inventory.values() for group in entry['graphs']):
+            return False
+    return True
 
 
 def plan(paths):
@@ -282,6 +318,10 @@ def plan(paths):
         if path == 'config/core-recipes.toml':
             selected.update(('parent', 'fpga'))
             reasons.append(f'{path}: core recipe and producer tests; RTL unchanged')
+            continue
+        if path == 'config/hil-go-consumers.json':
+            selected.add('parent')
+            reasons.append(f'{path}: generated HIL planner inventory; component sources unchanged')
             continue
         if path == 'config/core-library.toml':
             selected.add('parent')
