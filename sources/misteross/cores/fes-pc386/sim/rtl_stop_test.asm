@@ -1,28 +1,21 @@
 ; SPDX-License-Identifier: MIT
-; pc386 RTL stop test disk: machine_tb --cpu rtl's stop path, through
-; instructions fes_i386_cpu had not built when this was written. One boot
-; sector; scripts/sim_fes_pc386.py --suite rtl-stops boots it on the oracle
-; and on the RTL and compares what each writes to port E9h.
+; pc386 RTL stop test disk: the machine bench runs defined-but-unimplemented
+; ICEBP on Bochs and restarts the RTL. Two real-mode ICEBPs use an INT1
+; handler and require two returns. A third runs with paging and a valid 16-bit
+; protected-mode gate; the oracle stays in charge until paging is cleared.
+; The same boot sector also runs on the oracle alone, and both emit port E9h
+; markers for the handler counts and final result.
 ;
-;   SMSW (0F 01 /4) at two sites: two stops, each run on the oracle, and the
-;   RTL restarted after it with the result. Between them MOV CR0 (0F 22)
-;   writes CR0 as on a 386, setting its reserved bits to one. The second SMSW
-;   feeds LMSW (0F 01 /6), which sets PE, so the oracle runs on in protected
-;   mode with the real-mode segment caches until MOV CR0 clears PE, and the
-;   RTL restarts in real mode
-;
-; The stops are on protected-mode instructions, which stay unbuilt until the
-; CPU's protected-mode phase; the real-mode instructions it used before were
-; built one by one.
-;
-; The first SMSW's result is "R <AL> <flags>" (FLAGS' low byte, as LAHF
-; reads it); the second logs "C <CR0>" before LMSW changes it; in hex.
-; "DONE" ends the run.
+; The first SMSW logs "R <AL> <flags>" at boot. Its reserved CR0 bits 5--7
+; differ between current RTL and Bochs and need a real-386 measurement (#1748); the
+; runner records both values and compares the other bits and flags. After a
+; CR0 write, SMSW logs "C <CR0>". "DONE" ends the run.
 
 bits 16
 cpu 386
 
 DEBUG_PORT equ 0xe9
+traps equ 0x0500             ; scratch, away from the boot sector's code page
 
 org 0x7c00
 start:
@@ -31,9 +24,24 @@ start:
     mov ds, ax
     mov ss, ax
     mov sp, 0x7c00
-    sti
+    ; ICEBP is defined by the 386 but not yet built in the RTL. Point the
+    ; real-mode debug trap at this sector so Bochs can deliver and IRET it.
+    mov word [0x0004], int1
+    mov word [0x0006], 0
+    mov byte [traps], 0
     smsw ax                 ; CR0's low word, PE clear
     call result
+    db 0xf1                 ; ICEBP: first real-mode unimplemented stop
+    db 0xf1                 ; second site proves restart after the first
+    mov al, 'X'
+    out DEBUG_PORT, al
+    mov al, ' '
+    out DEBUG_PORT, al
+    mov al, [traps]
+    add al, '0'
+    out DEBUG_PORT, al
+    mov al, 10
+    out DEBUG_PORT, al
     mov eax, 0x10
     mov cr0, eax             ; the 386 sets reserved CR0 bits on this write
     smsw ax
@@ -49,15 +57,54 @@ start:
     call hex
     mov al, 10
     out DEBUG_PORT, al
-    mov ax, bx
     pop bx
-    or al, 1
-    lmsw ax
+    ; Give #DB a valid 16-bit protected-mode gate before enabling paging.
+    lgdt [gdtr]
+    lidt [idtr]
     mov eax, cr0
-    and al, 0xfe
+    or al, 1
     mov cr0, eax
-    jmp short .real
+    jmp 0x08:.protected
+.protected:
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    ; Identity-map the first 4 MiB. The running program, exception stack and
+    ; both paging levels all fit in it. The CPU reaches ICEBP with PG set,
+    ; so its oracle fallback remains active until paging has been cleared.
+    xor eax, eax
+    mov di, 0x1000
+    mov cx, 4096
+    rep stosw
+    mov dword [0x1000], 0x2003
+    mov di, 0x2000
+    mov eax, 3
+    mov cx, 1024
+.pages:
+    stosd
+    add eax, 0x1000
+    loop .pages
+    mov eax, 0x1000
+    mov cr3, eax
+    mov eax, cr0
+    or eax, 0x80000000
+    mov cr0, eax
+    db 0xf1                 ; ICEBP: paged protected-mode oracle stretch
+    mov eax, cr0
+    and eax, 0x7ffffffe     ; disable paging and return to real mode
+    mov cr0, eax
+    jmp 0:.real
 .real:
+    mov al, 'P'
+    out DEBUG_PORT, al
+    mov al, ' '
+    out DEBUG_PORT, al
+    mov al, [traps]
+    add al, '0'
+    out DEBUG_PORT, al
+    mov al, 10
+    out DEBUG_PORT, al
     mov al, 0x55
     call result
     mov si, done
@@ -66,6 +113,10 @@ start:
     cli
     hlt
     jmp .halt
+
+int1:
+    inc byte [traps]
+    iret
 
 ; "R <AL> <flags>" and a newline.
 result:
@@ -115,6 +166,25 @@ print:
 
 done:
     db 'DONE', 10, 0
+
+align 8
+gdt:
+    dq 0
+    dq 0x00009a000000ffff   ; 16-bit ring-0 code, base 0
+    dq 0x000092000000ffff   ; 16-bit ring-0 data, base 0
+gdt_end:
+gdtr:
+    dw gdt_end - gdt - 1
+    dd gdt
+idt:
+    dq 0
+    dw int1, 0x08
+    db 0, 0x86              ; present 286 interrupt gate for #DB
+    dw 0
+idt_end:
+idtr:
+    dw idt_end - idt - 1
+    dd idt
 
     times 510 - ($ - $$) db 0
     dw 0xaa55
