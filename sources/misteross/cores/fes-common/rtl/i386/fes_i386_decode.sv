@@ -1743,7 +1743,7 @@ module fes_i386_decode (
                 8'h07, 8'b000100??: known = 1'b0;
                 8'h24, 8'h26: begin
                     known = !reg_f[2];
-                    undefined = 1'b1;
+                    undefined = !reg_f[2];
                 end
                 default: undefined = 1'b1;
             endcase
