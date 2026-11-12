@@ -12,34 +12,44 @@ area that is left, and orders the work into slices. It changes no RTL.
 Tracker: [#1768](https://github.com/DeanoC/fes/issues/1768).
 
 **Result.**
-- **Two titles measured so far need a 387: Quake and Screamer.** Quake's
+- **Two games need a 387: Quake and Screamer.** Quake's
   timedemo retires 45.8M x87 instructions in 25 simulated seconds, with 97%
-  of its arithmetic at 24-bit precision and 87% of its x87 instructions under round-to-zero.
-  Its mix is loads 23%, FXCH 20%, multiply 19%, add 18%, stores 11%,
-  compares 6%, divide 1.8%; FSIN and FCOS are 0.05% (21,137) and FSQRT
-  0.003%. Screamer retires 1.27M in 30 seconds, all at 53-bit precision,
-  with 61,006 FLDCWs (it switches rounding around its float-to-integer
-  conversions) and 0.76% transcendentals.
-- **Six only probe.** DOOM, Rise of the Triad, Descent, Duke Nukem 3D, One
-  Must Fall 2097 and U.S. Navy Fighters run FNINIT, FNSTSW, FNSTCW and the
-  287/387 infinity test (FLD1, FLDZ, FDIVP, FCHS, FCOMPP) and nothing else in
-  their runs. Duke Nukem 3D adds one FDIV of two 64-bit loads, the shape of a
-  Pentium FDIV-bug check. Descent's run ends at its input-device menu, so its
-  renderer is not in this count; the perspective mapper in its released 1.5
-  source divides with IDIV, one divide per 16 pixels
+  of its arithmetic at 24-bit precision and 87% of its x87 instructions
+  under round-to-zero. Its mix is loads 23%, FXCH 20%, multiply 19%, add
+  18%, stores 11%, compares 6%, divide 1.8%; FSIN and FCOS are 0.05%
+  (21,137) and FSQRT 0.003%. Screamer retires 1.27M in 30 seconds, all at
+  53-bit precision, with 61,006 FLDCWs (it switches rounding around its
+  float-to-integer conversions) and 0.76% transcendentals.
+- **Two benchmarks and one game use a 387 when there is one.** Chris's 3D
+  Benchmark retires 15.2M in 20 seconds at 64-bit precision, a tenth of
+  them FLDCW and FNSTCW; SpeedSys's FPU test retires 53.3M register-only
+  instructions in real mode; Terminal Velocity retires 6,850 at its menus,
+  7.5% of them FSIN and FCOS, and reached its main menu on #1533's
+  empty socket. Norton SI 8 identifies the 387 ("Math Co-Processor: 80387")
+  in 26 instructions.
+- **The rest only probe, or use none.** DOOM, Rise of the Triad, Descent,
+  Duke Nukem 3D, One Must Fall 2097, U.S. Navy Fighters, Frontier and
+  Falcon 3.0 run FNINIT, FNSTSW, FNSTCW and at most the 287/387 infinity test
+  (FLD1, FLDZ, FDIVP, FCHS, FCOMPP) in their runs. Duke Nukem 3D adds one
+  FDIV of two 64-bit loads, the shape of a Pentium FDIV-bug check. Strike
+  Commander, Serpent Isle and CHKCPU run no x87 instruction. Descent's runs
+  reach its main menu, not its renderer; the perspective mapper in its
+  released 1.5 source divides with IDIV, one divide per 16 pixels
   (`texmap/tmap_per.asm`, `NBITS equ 4`; the FDIV mappers in that tree were
   added by the 1998 d1x port).
-- **The hot path is short.** Loads, stores, FXCH, add and multiply are 90%
-  of Quake's x87 instructions and 80% of Screamer's; divide is under 2%,
-  transcendentals under 1%. That decides where area goes:
-  [Datapath options](#datapath-options).
+- **The hot path is short.** Across the four that compute in volume, loads,
+  stores, FXCH, add, multiply and compare are 86–96% of x87 instructions;
+  divide is at most 1.8%, square root 0.44%, transcendentals 0.76%. The
+  control-word and status-word forms are next: FLDCW, FNSTCW and FNSTSW AX
+  are 10% of Chris's benchmark and 9% of Screamer. That decides where area
+  goes: [Datapath options](#datapath-options).
 - **No run raises an unmasked exception or touches F0h/F1h.** Every run
   computes with all six exceptions masked (control word low byte 3Fh),
   except 139 of Quake's instructions, which run with invalid and
   divide-by-zero unmasked (3Ah) and raise neither. No run sets ES, and none
-  writes ports F0h or F1h. Quake's
-  CWSDPMI does lazy context switching: TS set by its task switches, 558
-  #NM.
+  writes ports F0h or F1h. CWSDPMI (Quake, Chris's benchmark) and WIN386
+  switch x87 context lazily, setting TS and taking #NM: 558, 164 and 1 of
+  them.
 - **The oracle hangs on an unmasked x87 exception,** and Linux 2.0.0 booted
   with its 387 hits one about 0.19 s into the kernel
   ([below](#the-oracles-error-path-is-not-the-ats)). Fixing the oracle is
@@ -48,10 +58,6 @@ Tracker: [#1768](https://github.com/DeanoC/fes/issues/1768).
   A lean, DSP-heavy unit is estimated at about 2,400 ALMs, 93.5% of the
   device, above the 92% working ceiling. A fit spike decides
   ([Area and timing budget](#area-and-timing-budget)).
-- **Still running** on the oracle at the time of writing: Terminal Velocity,
-  Ultima VII Part 2 (Serpent Isle), Falcon 3.0, Strike Commander, Frontier
-  with EMS, a longer Descent run, Chris's 3D Benchmark, SpeedSys, Norton SI
-  8, CHKCPU and WfW 3.11. Their rows are added when they finish.
 
 ## Method
 
@@ -86,11 +92,12 @@ Tracker: [#1768](https://github.com/DeanoC/fes/issues/1768).
   or put in the `fpu` bucket, the 32-bit titles most likely to compute in
   floating point, the DOSBench tools that report or time an FPU, Linux and
   WfW. Titles #1533 found x87-free were not rerun.
-- **What a run can miss.** A 20- or 30-second launch window covers start-up
-  and menus; a title that uses the 387 only in play is undercounted. Three
-  runs ended early for reasons outside the CPU: Grand Prix 2 needs its CD,
-  U.S. Navy Fighters asks for its CD, and Frontier needs EMS (rerun on the
-  EMS boot entry).
+- **What a run can miss.** A 20- to 45-second launch window covers start-up
+  and menus; a title that uses the 387 only in play is undercounted. Runs
+  that stopped short of play for reasons outside the CPU: Grand Prix 2 needs
+  its CD, U.S. Navy Fighters asks for its CD, Frontier needs EMS (rerun on
+  the EMS boot entry, where it waits at its sound prompt), and Descent
+  waits at its main menu without starting its demo.
 - **Static scan.** Each drive's executables were searched for emulator and
   coprocessor strings (`emu387`, `WEMU387`, "coprocessor required" and
   similar). Packed executables hide strings, so this is weak evidence. Hits:
@@ -113,16 +120,27 @@ instructions.
 
 | Title | Run (s) | x87 retired | load / store / FXCH | add / mul | div / sqrt | transc. | control | precision (arith.) | FWAIT |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |
+| SpeedSys 4.78 | 20.0 | 53,336,842 | 23.93% / 11.58% / 0.00% | 26.46% / 17.36% | 0.00% / 0.00% | 0.00% | 0.00% | 64-bit 100% | 3,087,243 |
 | Quake timedemo (DOSBench) | 25.0 | 45,787,636 | 22.53% / 11.12% / 19.73% | 17.60% / 19.16% | 1.83% / 0.00% | 0.05% | 1.76% | 24-bit 97%, 64-bit 3% | 28,023 |
+| Chris's 3D Benchmark | 20.0 | 15,236,311 | 27.90% / 22.66% / 0.61% | 10.16% / 8.17% | 1.48% / 0.44% | 0.02% | 10.23% | 64-bit 100% | 719 |
 | Screamer (1995) | 30 | 1,266,208 | 26.14% / 12.94% / 7.66% | 22.29% / 10.74% | 0.46% / 0.05% | 0.76% | 8.78% | 53-bit 100% | 137,449 |
+| Terminal Velocity (1995) | 30 | 6,850 | 15.74% / 15.58% / 7.52% | 7.96% / 15.05% | 0.06% / 0.01% | 7.50% | 22.98% | 53-bit 100% | 5,860 |
 | Duke Nukem 3D (1996) | 20.0 | 40 | 10 / 0 / 1 | 1 / 1 | 2 / 0 | 0 | 20 | 53-bit 75%, 64-bit 25% | 3,154 |
 | Descent (1995) | 20.0 | 31 | 7 / 0 / 0 | 0 / 0 | 1 / 0 | 0 | 20 | 64-bit 100% | 4,627 |
+| Descent (1995) | 45 | 31 | 7 / 0 / 0 | 0 / 0 | 1 / 0 | 0 | 20 | 64-bit 100% | 5,186 |
 | U.S. Navy Fighters (Gold) (1995) | 30 | 30 | 6 / 0 / 0 | 0 / 0 | 2 / 0 | 0 | 17 | 64-bit 100% | 10 |
+| Norton System Information 8 | 20.0 | 26 | 4 / 1 / 0 | 0 / 0 | 1 / 0 | 1 | 17 | 64-bit 100% | 22 |
 | One Must Fall 2097 (1994) | 20.0 | 23 | 3 / 0 / 0 | 0 / 0 | 1 / 0 | 0 | 16 | 64-bit 100% | 4,829 |
 | Grand Prix 2 (1995) | 30 | 15 | 0 / 0 / 0 | 0 / 0 | 0 / 0 | 0 | 15 | - | 4,876 |
 | DOOM (1993) | 20.0 | 11 | 0 / 0 / 0 | 0 / 0 | 0 / 0 | 0 | 11 | - | 6,167 |
 | Rise of the Triad - The Hunt Begins (Deluxe Edition) (1995) | 20.0 | 11 | 0 / 0 / 0 | 0 / 0 | 0 / 0 | 0 | 11 | - | 3,522 |
 | Frontier - Elite 2 (1993) | 20.0 | 10 | 3 / 0 / 0 | 0 / 0 | 1 / 0 | 0 | 4 | 64-bit 100% | 7 |
+| Frontier - Elite 2 (1993) (`frontier-e3`) | 25 | 10 | 3 / 0 / 0 | 0 / 0 | 1 / 0 | 0 | 4 | 64-bit 100% | 7 |
+| WfW 3.11, WIN (386 enhanced) | 20 | 8 | 0 / 0 / 0 | 0 / 0 | 0 / 0 | 0 | 8 | - | 3 |
+| Falcon 3.0 (1991) (`falcon3-e2`) | 20 | 3 | 0 / 0 / 0 | 0 / 0 | 0 / 0 | 0 | 3 | - | 3 |
+| CHKCPU | 12.0 | 0 | 0 / 0 / 0 | 0 / 0 | 0 / 0 | 0 | 0 | - | 0 |
+| Strike Commander (1993) | 20.0 | 0 | 0 / 0 / 0 | 0 / 0 | 0 / 0 | 0 | 0 | - | 0 |
+| Ultima VII Part 2 - Serpent Isle + The Silver Seed (1993) | 20.0 | 0 | 0 / 0 / 0 | 0 / 0 | 0 / 0 | 0 | 0 | - | 0 |
 
 ### Needs, probes, or emulates
 
@@ -130,24 +148,36 @@ instructions.
 | --- | --- | --- | --- |
 | Quake timedemo | 45.8M x87 | stopped by Phase 5 before reaching x87 | **needs a 387** (its manual: "absolutely must have a Math Co-Processor") |
 | Screamer | 1.27M x87 | black screen, last vector #NM | **needs a 387** |
+| Chris's 3D Benchmark | 15.2M x87 | stopped by Phase 5 | uses a 387; its executables carry DJGPP's `emu387` for when there is none |
+| SpeedSys | 53.3M x87 in its FPU test | stops at its ISA PnP probe (#1532) | times a 387 when there is one |
+| Terminal Velocity | 6,850 x87 at its menus, 7.5% FSIN/FCOS | main menu | uses a 387 when there is one; menus run without |
+| Norton SI 8 | identifies "80387" | system summary | reports it |
 | DOOM | probe, 11 | plays | probes |
 | Rise of the Triad | probe, 11 | sound setup | probes |
 | One Must Fall 2097 | probe, 23 | plays | probes |
 | Duke Nukem 3D | probe, 40 (with an FDIV-bug check) | stops at a 486 instruction | probes |
-| Descent | probe, 31, to its input menu | stopped by Phase 5 | probes so far; renderer is IDIV in its source |
+| Descent | probe, 31, to its main menu in 45 s | stopped by Phase 5 | probes; renderer is IDIV in its source |
 | U.S. Navy Fighters | probe, 30, then asks for its CD | stopped by Phase 5 | probes so far; needs its CD |
+| Frontier | probe, 10, to its sound prompt (EMS boot entry) | not enough base memory | probes so far |
+| Falcon 3.0 | probe, 3 (boot entry 2) | not enough free RAM | probes so far |
 | Grand Prix 2 | probe, 15, then "CD drive/MSCDEX not detected" | the same | blocked by CD-ROM |
-| Frontier | probe, 10, then "no EMS" | not enough base memory | rerun with EMS pending |
+| Strike Commander, Serpent Isle, CHKCPU | none | (see #1533) | no x87 |
 
 **Emulators.** No run executed an INT 34h–3Eh emulator fixup, so none of
 these titles was built with Borland's or Microsoft's fixup emulation (with
 a 387 fitted, each fixup still runs once and is patched to its ESC).
 DJGPP's `emu387` loads only when no 387 is found, so with one fitted it
 never runs; the static scan finds it in NetHack's directory and the
-DOSBench `MARKS` tree. The [Phase 5 plan](../2026-11-08-i386-phase5-plan/summary.md)
-counted 164 #NM in Chris's benchmark under CWSDPMI.
+DOSBench `MARKS` tree (Chris's benchmark's `BENCH.EXE` and `SVGABNCH.EXE`,
+and `QUAKE.EXE`). The [Phase 5 plan](../2026-11-08-i386-phase5-plan/summary.md)
+read Chris's benchmark's 164 #NM as x87 emulation; with CR0's bits in this
+census they are CWSDPMI's lazy context switch (TS set, 387 fitted).
 
-**Windows and Linux.** WfW 3.11's run is pending. Linux 2.0.0 with its 387
+**Windows and Linux.** WfW 3.11 in 386 enhanced mode runs 8 x87
+instructions in 20 seconds: FNINIT, FNCLEX, FLDCW, FNSTCW and FNSTSW. WIN386
+sets MP and TS, a ring-3 FNINIT takes #NM, and CLTS follows: lazy context
+switching between virtual machines, which the empty-socket design already
+supports (#NM on TS). Linux 2.0.0 with its 387
 hangs the oracle in boot (see the interface section), so its x87 use is
 not measured; the [early-Linux record](../2026-11-11-pc386-linux-plan/summary.md)'s
 kernels run with `no387` and the kernel's own math emulation.
@@ -338,16 +368,18 @@ the census shows them rare enough that their latency does not matter.
 the HPS as the fallback for the slow operations only if the fit spike says
 so:
 - **A fast path for what the titles run:** loads and stores with their
-  conversions, FXCH, add and multiply. Loads, stores, FXCH, add and multiply
-  are 80–90% of the x87 instructions in both titles that compute. Multiply
-  uses the DSP blocks. FXCH can be a swap in a small table of physical
+  conversions, FXCH, add, multiply and compare, which are 86–96% of the x87
+  instructions in the four runs that compute in volume. FLDCW, FNSTCW and
+  FNSTSW AX should be cheap register moves too: two titles spend about a
+  tenth of their x87 instructions on them. Multiply uses the DSP blocks. FXCH can be a swap in a small table of physical
   register numbers rather than a data move, since it is a fifth of Quake's
   x87 instructions.
 - **A slow path in microcode on the same datapath** for divide, square root,
   remainder, transcendentals and BCD: under 2% of the instructions. Divide
   and square root iterate on the multiplier (Goldschmidt or Newton with a
   final remainder check for exact rounding) and stop early at 24- or 53-bit
-  precision, which is what Quake's 809k divides and Screamer's use. The
+  precision, which is what Quake's 809k divides at 24 bits and Screamer's at
+  53 use. The
   transcendentals reuse the adder and multiplier with constants in M10K.
 - **Not the HPS by default.** Offload would save the slow path's few hundred
   ALMs at the cost of run-to-run timing, a second implementation and a

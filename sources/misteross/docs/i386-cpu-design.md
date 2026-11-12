@@ -1504,11 +1504,13 @@ The [x87 plan](../../../docs/validation/2026-11-12-i386-x87-plan/summary.md)
 measures which titles use a 387 and how, on the oracle with a 387 fitted,
 and orders the work into slices. From it:
 
-- Quake and Screamer need a 387; DOOM, Rise of the Triad, Descent, Duke
-  Nukem 3D, One Must Fall 2097 and U.S. Navy Fighters only probe for one in
-  their runs. In the two that compute, loads, stores, FXCH, add and multiply
-  are 80–90% of x87 instructions, divide under 2%, transcendentals under 1%;
-  Quake computes at 24-bit precision, Screamer at 53.
+- Quake and Screamer need a 387; Chris's 3D Benchmark, SpeedSys and
+  Terminal Velocity use one when present; DOOM, Rise of the Triad, Descent,
+  Duke Nukem 3D, One Must Fall 2097, U.S. Navy Fighters, Frontier and Falcon
+  3.0 only probe for one in their runs. In the four that compute in volume,
+  loads, stores, FXCH, add, multiply and compare are 86–96% of x87
+  instructions, divide at most 1.8%, transcendentals under 1%; Quake
+  computes at 24-bit precision, Screamer and Terminal Velocity at 53.
 - The unit is integrated, not a coprocessor bus, but keeps what software sees
   of a 387 on an AT board: an unmasked exception sets ES and raises IRQ 13
   through a latch that holds BUSY until a write to port F0h; F1h resets the
