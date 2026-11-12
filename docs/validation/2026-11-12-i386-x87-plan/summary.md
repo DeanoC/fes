@@ -393,12 +393,21 @@ order.
 
 ### Accuracy, and what lockstep can check
 
-- **Basic operations are exact.** Add, subtract, multiply, divide, square
-  root, FPREM, FPREM1, FRNDINT, FSCALE, FXTRACT, compares and conversions
-  are defined by IEEE 754 with x87 precision and rounding control. The 387
-  implements them correctly rounded, and Bochs uses Berkeley SoftFloat 3e
-  (BSD-3-Clause) for them. Lockstep compares these bit for bit, flags
-  included.
+- **Basic operations are exact.** Add, subtract, multiply, divide and
+  square root round as IEEE 754 under x87 precision and rounding control;
+  FRNDINT and the integer and BCD stores round under rounding control only;
+  loads, compares and FXTRACT are exact. The 387 implements these correctly
+  rounded, and Bochs uses Berkeley SoftFloat 3e (BSD-3-Clause) for them.
+  Lockstep compares them bit for bit, flags included.
+- **FPREM is not the IEEE remainder.** FPREM1 is: its quotient rounds to
+  nearest. FPREM truncates its quotient toward zero, the 8087/287 rule.
+  Both results are exact and ignore rounding and precision control. When
+  the operands' exponents differ by 64 or more, a step returns a partial
+  remainder with C2 set for software to loop on; a complete one clears C2
+  and reports the quotient's low three bits in C0, C3 and C1 (387 PRM,
+  FPREM and FPREM1; Intel SDM vol. 2). Bochs implements both in one routine, `cpu/fpu/fprem.cc`, with
+  round-to-zero and round-to-nearest quotients. TestFloat's `rem` checks
+  only FPREM1's IEEE remainder; FPREM needs its own directed cases.
 - **The 387's operand rules.** Pseudo-zero, pseudo-NaN, pseudo-infinity and
   unnormal operands raise invalid; pseudo-denormals are used with their
   exponent read as 1 and raise the denormal exception (387 PRM §3.1.7).
@@ -499,7 +508,8 @@ best settings, with DSP inference on. No nextpnr routes (#1235).
   underflow.
 - **TestFloat.** Berkeley TestFloat 3e (BSD-3-Clause) generates extF80
   vectors with `-precision32`, `-precision64` and `-precision80` for add,
-  subtract, multiply, divide, square root, remainder, round to integer,
+  subtract, multiply, divide, square root, remainder (FPREM1's, not
+  FPREM's), round to integer,
   conversions and compares, in every rounding mode. They run as guest
   programs on the RTL and the oracle. TestFloat has no transcendentals.
 - **QEMU's x87 tests** in `tests/tcg/i386` (fprem, fpatan, f2xm1, fyl2x,
@@ -568,7 +578,10 @@ FPU paths.
    exception and its flag. **Gate:** TestFloat add, sub, mul, compare and
    roundToInt in every precision and rounding mode; random programs.
 4. **Divide, square root and remainder.** FDIV/FDIVR and their forms, FSQRT,
-   FPREM, FPREM1. **Gate:** TestFloat div, sqrt and rem; QEMU's fprem test.
+   FPREM, FPREM1. **Gate:** TestFloat div and sqrt, and rem for FPREM1;
+   directed FPREM and FPREM1 cases over large exponent differences, checking
+   each partial step's C2 and the final C0, C3 and C1 quotient bits; QEMU's
+   fprem test.
    With slices 2–4, the identity can be switched on (Deano's call): the
    census says which titles then run.
 5. **Transcendentals.** FSIN, FCOS, FSINCOS, FPTAN, FPATAN, F2XM1, FYL2X,
