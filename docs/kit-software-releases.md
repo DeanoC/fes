@@ -253,8 +253,13 @@ shared host and dev hosts keep their priority. It lives in the bundle because
 the supervisor, `/usr/sbin/fes-kit-software`, ships in the base image, which a
 bundle install does not change. Linux keeps nice per thread and a new thread
 copies the nice of the thread that created it, so the service lowers every
-thread in `/proc/self/task` and repeats until a pass finds none left to lower;
-threads the Go runtime starts afterwards inherit nice 10. It only lowers, never
+thread in `/proc/self/task` and repeats until a pass finds none left to lower.
+Linux copies nice into a new thread before the thread shows in
+`/proc/self/task`, so a thread being cloned during a pass can be missed; the
+service therefore waits 10 ms and requires one more pass to find nothing before
+it stops. Threads the Go runtime starts after that pass inherit nice 10. A
+clone stalled in the kernel for longer than the wait can still escape, so this
+is best effort, not a guarantee. It only lowers, never
 raises, and needs no privilege. A failure is logged once and the service keeps
 its priority.
 

@@ -30,9 +30,12 @@ func managed(getenv func(string) string) bool {
 // in main. The launcher and the runtime never call it.
 //
 // Linux keeps nice per thread, and a new thread copies the nice of the thread
-// that created it. Background lowers every existing thread, so threads the Go
-// runtime starts later inherit Nice. A thread already at or above Nice is
-// left alone. A failure is logged once and the process keeps its priority.
+// that created it. Background lowers every existing thread until a pass after
+// a short settle wait finds none left, so threads the Go runtime starts after
+// that pass inherit Nice. A thread whose clone stays in the kernel longer than
+// the wait can still escape, so this is best effort. A thread already at or
+// above Nice is left alone. A failure is logged once and the process keeps
+// its priority.
 func Background() {
 	if !managed(os.Getenv) {
 		return
