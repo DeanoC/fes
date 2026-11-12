@@ -172,7 +172,7 @@ entry that no longer matches a failure.
 | `[[vectors]]` | 21 | all 325,091 failing SingleStepTests states |
 | `[[test386]]` | 9 | every failed test386 check (655 stepped over in one run) |
 | `[[corpora]]` | 0 | the corpora agree on all 8,695 overlapping states |
-| `[[lockstep]]` | 2 | the whole-CPU lockstep's rules where the FES CPU follows the 386 and Bochs does not (DR6's bits kept past a #DB, a #DB fault's image keeping RF) |
+| `[[lockstep]]` | 5 | whole-CPU rules where FES follows the 386 and Bochs does not: DR6, a #DB fault's RF image, two rejected encodings, and ARPL paging |
 
 Most entries are i386 undefined flags (BT* OF, MUL/IMUL/DIV flags, BSF/BSR,
 BCD adjusts, shift AF/OF/CF), where Bochs follows later Intel CPUs. The rest are
@@ -278,6 +278,10 @@ differs. Directed tests in later phases decide these, not the oracle:
   nothing; with ZF clear after ARPL the lockstep leaves that out (the
   divergence `arpl-no-write-no-fault` decides the write and the write
   check, and the generated programs give ARPL a writable flat FS).
+  Under paging Bochs also translates that initial read as a write. The
+  `arpl-page-read` directed cases run the RTL alone and check the read's
+  #PF error, PTE A/D bits, unchanged word and ZF when no adjustment is
+  needed, and the separate write's protection check and dirty bit when it is.
 - test386.asm enters protected mode with paging on (POST 08h sets PE and PG
   together), and paging is Phase 5: the RTL passes its real-mode part,
   POST 00h-06h, and stops there as not built.

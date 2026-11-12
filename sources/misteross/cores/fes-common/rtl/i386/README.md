@@ -1528,8 +1528,9 @@ as Bochs's `translate_linear_legacy` at CPU level 3.
   divide unit's LOAD and HI) translates nothing (`nx`): Bochs pushes and
   faults on the pushes, as the stores then do. ENTER's last check
   translates as a write (`wx`, Bochs's `tickle_write_virtual`), and so do
-  XCHG m's and ARPL m's loads of their operands; XCHG m's load also takes
-  its store's segment check, so a segment it cannot write raises #GP(0)
+  XCHG m's load of its operand. ARPL m's initial load translates as a read;
+  only an adjustment performs a separate write translation (#1665). XCHG m's
+  load also takes its store's segment check, so a segment it cannot write raises #GP(0)
   (#SS(0)) before the load's #PF (#1644). A uop whose fault is a later one
   than its pages' #PF (`dfl`: a st2 store's segment check) still
   translates, replaying when it is not the oldest, and its #PF comes first.
