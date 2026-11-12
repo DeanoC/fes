@@ -24,10 +24,10 @@ The PR's tools are the same commits as main's: Yosys `5391eeb1`, nextpnr `bec82e
 ## Against the D12 conditions
 
 1. **Netlist (not met).**
-   - **Not met.** With main's BUILD_ID, the PR's `synth.json` (`ce6b7aef…`) is not byte-identical to main's (`eb970f1f…`).
+   - With main's BUILD_ID, the PR's `synth.json` (`ce6b7aef…`) is not byte-identical to main's (`eb970f1f…`).
    - The only differences are the checkout path and the path of Yosys's own techlib files (`…/install/bin/../share/yosys/abc9_model.v`) in `src` attributes. Those paths now name the per-tool install instead of the slot.
    - With both paths normalized, both files are `bb7fd232…`.
-   - The own build's netlist differs from main's only through its BUILD_ID constant: the parameter itself, and the bits and nets that constant drives.
+   - After the same normalization, the own build's netlist differs from main's only through its BUILD_ID constant: the parameter itself, and the bits and nets that constant drives.
 2. **RBF.** The forced build's `core.rbf` is byte-identical to main's: `fbc2b284a93f021696621e3b3d8a333871cc026425986cd37d133b89695a7a87`.
 3. **Timing and seal.** The own build passes all three clocks. The producer's own route, timing, ROM-map, source and tool-identity checks pass, and it exported its package. The system clock met 52.225 MHz against a 52.2248 MHz constraint. The producer's placer QoR search chose seed 5 for this BUILD_ID; main's chose seed 3.
 
