@@ -194,8 +194,10 @@ class KitGoalTest(unittest.TestCase):
         after = wfw.program_manager(program_manager(maximized=True).frame())
         self.assertTrue(kit.maximized_by_click(before, after))
         self.assertFalse(kit.maximized_by_click(before, before))
+        self.assertTrue(kit.mouse_goal_passed(before, after, on_caption=True))
+        self.assertFalse(kit.mouse_goal_passed(before, after, on_caption=False))
 
-    def test_a_stop_that_needs_recovery_cleans_up_and_keeps_the_lease(self):
+    def test_a_stop_that_needs_recovery_preserves_data_and_keeps_the_lease(self):
         tree = '/media/fat/fogcast/disk-images/' + '0' * 64 + '.img'
         with tempfile.TemporaryDirectory() as directory:
             run = kit.Run.__new__(kit.Run)
@@ -206,7 +208,7 @@ class KitGoalTest(unittest.TestCase):
             answers = {'/v1/status': {'state': 'idle'}, '/v1/kit/lease': {'state': 'free'},
                        '/v1/health': {'boot_id': 'b'}, '/v1/stop': {'recovery': 'reboot_required'}}
             run.client = mock.Mock(request=lambda path, **_: answers[path])
-            listings = iter([[], [tree], []])
+            listings = iter([[], [tree], [tree]])
             run.kit_paths = lambda: next(listings)
             run.ssh = mock.Mock()
             session = mock.Mock(needs_stop=False)
@@ -221,9 +223,49 @@ class KitGoalTest(unittest.TestCase):
                 self.assertEqual(run.main(), 1)
             session.close.assert_not_called()
             session.done.set.assert_called_once()
-            run.ssh.assert_called_once_with(f"rm -r -- '{tree}'")
+            run.ssh.assert_not_called()
             self.assertTrue(run.result['after']['recovery_required'])
+            self.assertEqual(run.result['after']['left'], [tree])
             self.assertFalse(run.result['pass'])
+
+    def test_a_stop_timeout_preserves_data_and_keeps_the_lease(self):
+        tree = '/media/fat/fogcast/disk-images/' + '0' * 64 + '.img'
+        with tempfile.TemporaryDirectory() as directory:
+            run = kit.Run.__new__(kit.Run)
+            run.args = mock.Mock(status_file=Path(directory) / 'status', kit='A', owner='Claude')
+            run.out = Path(directory)
+            run.record, run.game, run.remote, run.recovery_required = {'sha256': '0' * 64}, 'g', None, False
+            run.result = {'goals': {}, 'events': []}
+
+            def request(path, **_):
+                if path == '/v1/stop':
+                    raise TimeoutError('stop timed out')
+                return {'/v1/status': {'state': 'idle'}, '/v1/kit/lease': {'state': 'free'},
+                        '/v1/health': {'boot_id': 'b'}}[path]
+
+            request_mock = mock.Mock(side_effect=request)
+            run.client = mock.Mock(request=request_mock)
+            listings = iter([[], [tree], [tree]])
+            run.kit_paths = lambda: next(listings)
+            run.ssh = mock.Mock()
+            session = mock.Mock(needs_stop=False)
+
+            def boot():
+                session.needs_stop = True
+                raise kit.AcceptanceError('Windows hung')
+
+            run.boot_dos = boot
+            with mock.patch.object(kit, 'check_claim', return_value='claim'), \
+                    mock.patch.object(kit.kitlib, 'Session', return_value=session), \
+                    mock.patch('sys.stdout'):
+                self.assertEqual(run.main(), 1)
+            stop_call = next(call for call in request_mock.call_args_list if call.args[0] == '/v1/stop')
+            self.assertEqual(stop_call.kwargs['timeout'], 180)
+            session.close.assert_not_called()
+            session.done.set.assert_called_once()
+            run.ssh.assert_not_called()
+            self.assertTrue(run.result['after']['recovery_required'])
+            self.assertEqual(run.result['after']['left'], [tree])
 
     def test_a_failed_lease_release_still_cleans_up(self):
         tree = '/media/fat/fogcast/disk-images/' + '0' * 64 + '.img'

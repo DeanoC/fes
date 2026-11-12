@@ -27,11 +27,10 @@ kit in its status file (the latest state line is an IN USE claim naming
 afterwards. This is a core-only run: nothing is installed and the image is not
 touched. The script takes the agent's kit lease, stages the drive by SHA-256,
 launches the package as a fresh library game, types and moves the mouse
-through the agent's input stream, grabs HDMI from --video, stops the machine
-and releases the lease on every exit path. It then removes the FogCast data
-trees the run created (its game records, disk delta and staged drive; never
-one that was there before), and checks that the agent is idle with a free
-lease and has not rebooted. It never prints a token.
+through the agent's input stream, and grabs HDMI from --video. It releases
+the lease and removes run-created FogCast data only after Stop is confirmed;
+otherwise it preserves both for recovery. It checks that the agent is idle
+with a free lease and has not rebooted. It never prints a token.
 
   python3 scripts/pc386_wfw_kit_acceptance.py --kit B --owner Claude \\
       --package fes.pc386.fcore --out runs/wfw-k1 --kit-ssh ~/fes-scratch/m5/kB/kb
@@ -108,6 +107,10 @@ def caption_target(found: dict) -> tuple[int, int]:
 
 def maximized_by_click(before: dict, after: dict) -> bool:
     return bool(before.get('found') and not before.get('maximized') and after.get('found') and after.get('maximized'))
+
+
+def mouse_goal_passed(before: dict, after: dict, on_caption: bool) -> bool:
+    return on_caption and maximized_by_click(before, after)
 
 
 def cursor_tip(before: wfw.Frame, after: wfw.Frame, away_from: tuple[int, int]) -> tuple[int, int] | None:
@@ -394,7 +397,13 @@ class Run:
 
     def stop(self):
         self.detach()
-        stopped = self.client.request('/v1/stop', token=self.session.token, timeout=180)
+        try:
+            stopped = self.client.request('/v1/stop', token=self.session.token, timeout=180)
+        except Exception:
+            # A failed or timed-out request does not tell us whether the core
+            # stopped. Keep the lease and its run data for operator recovery.
+            self.recovery_required = True
+            raise
         self.session.needs_stop = False
         if stopped.get('recovery') == 'reboot_required':
             self.recovery_required = True
@@ -449,7 +458,8 @@ class Run:
         remote.double_click()
         frame, seconds = self.wait_for('mouse-maximized', lambda frame: wfw.program_manager(frame)['maximized'], 10)
         after = wfw.program_manager(frame) if frame is not None else {}
-        self.goal('mouse', maximized_by_click(self.manager, after), counts_per_pixel=[round(1 / s, 3) for s in scale],
+        self.goal('mouse', mouse_goal_passed(self.manager, after, on_caption),
+                  counts_per_pixel=[round(1 / s, 3) for s in scale],
                   pointer=list(landed) if landed else None, target=list(target), on_caption=on_caption,
                   frame='frames/mouse-maximized.png')
         remote.tap('space', ('lalt',))  # the system menu, then Restore
@@ -585,10 +595,11 @@ class Run:
             self.log('FAILED', failure)
         finally:
             try:
-                if self.session.needs_stop:
+                if self.session.needs_stop and not self.recovery_required:
                     self.stop()
-            except (AcceptanceError, kitlib.KitError, OSError) as error:
+            except Exception as error:  # noqa: BLE001 - stop must be confirmed before release or cleanup
                 failure = failure or f'stop: {type(error).__name__}: {error}'
+                self.recovery_required = True
                 self.log('STOP FAILED', error)
             try:
                 self.detach()
@@ -622,11 +633,14 @@ class Run:
         except Exception as error:  # noqa: BLE001 - the kit is cleaned up whatever the read-back raised
             failure = f'read-back: {type(error).__name__}: {error}'
         finally:
-            for path in created:
-                try:
-                    self.ssh(f"rm -r -- '{path}'")
-                except (AcceptanceError, OSError, subprocess.SubprocessError) as error:
-                    failure = failure or f'removing {path}: {error}'  # the check below lists it as left
+            if self.recovery_required:
+                self.log('kit data kept: stop was not confirmed')
+            else:
+                for path in created:
+                    try:
+                        self.ssh(f"rm -r -- '{path}'")
+                    except (AcceptanceError, OSError, subprocess.SubprocessError) as error:
+                        failure = failure or f'removing {path}: {error}'  # the check below lists it as left
         try:
             left = [path for path in self.kit_paths() if path not in before]
         except (AcceptanceError, OSError, subprocess.SubprocessError) as error:
