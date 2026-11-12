@@ -62,5 +62,6 @@ DIFF insert_into_empty 8 rtl=[IN 3f7 ff] bochs=[IN 3f7 7f]
 CASE dma_gate DIFFER LISTED
 DIFF dma_gate 9 rtl=[INT low] bochs=[INT high]
 CASE pio_read_write RTL-ONLY
+CASE fence_and_swap RTL-ONLY
 CASE timing RTL-ONLY
-SUMMARY matched=20 differed=11 rtl_only=2 failures=0
+SUMMARY matched=20 differed=11 rtl_only=3 failures=0

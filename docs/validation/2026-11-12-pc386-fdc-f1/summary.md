@@ -12,27 +12,28 @@ This record covers slice F1 of the
   - The sector path to the window at `0x01800000` (A:) and `0x01C00000` (B:): 64-beat sector reads and whole-sector stores as a new storage client of port 2. Port 2's aux master and the FDC take turns.
   - Non-DMA (ND) transfers.
 - **Out, as the slice says.** CMOS still reports no floppy drives, and the storage endpoint is not connected: `pc386_system` ties both drives off until F3 commits disks. No BIOS patch, `machine_tb` units or suites (F2).
-- **Replay** (`sim_fes_pc386.py --suite fdc`, [log](fdc-replay.log)). 33 cases, each a guest's script run on `pc386_fdc` and on Bochs's `iodev/floppy.cc`:
+- **Replay** (`sim_fes_pc386.py --suite fdc` at `9cb6c331b`, [log](fdc-replay.log)). 34 cases, each a guest's script run on `pc386_fdc` and on Bochs's `iodev/floppy.cc`:
   - 20 match line for line.
   - The 11 that [`fdc_divergences.toml`](../../../sources/misteross/cores/fes-pc386/sim/fdc_divergences.toml) lists differ as listed.
-  - The 2 RTL-only cases (non-DMA, timing) pass their checks, and so does every case's own RTL check.
+  - The 3 RTL-only cases (non-DMA, the store fence and a disk swapped mid-write, timing) pass their checks, and so does every case's own RTL check.
 - **Existing suites.** `devices`, `boot` (oracle and `--cpu rtl`), `storage`, `system` and `benches` pass ([below](#suites)).
-- **Seal.** Quartus 17.0.2, seed 1, CUDA slot on chip-30x0-ai-dev, from a clean checkout of `191a71d8c`, meets every analysis: setup +0.780 ns, hold +0.095 ns.
-  - It uses 37,144 ALMs and 271 RAM blocks, against main `2f6829c2c` sealed on the same host the same way: 36,731 ALMs, 269 RAM blocks, setup +0.514 ns, hold +0.074 ns.
-  - That is +413 ALMs, +2 M10K and +1 DSP, at 88.6% of the device.
+- **Seal.** Quartus 17.0.2, seed 1, CUDA slot on chip-30x0-ai-dev, from a clean checkout of `9cb6c331b` (this PR's RTL head), meets every analysis: setup +0.564 ns, hold +0.070 ns.
+  - It uses 37,242 ALMs and 271 RAM blocks, against main `2f6829c2c` sealed on the same host the same way: 36,731 ALMs, 269 RAM blocks, setup +0.514 ns, hold +0.074 ns.
+  - That is +511 ALMs, +2 M10K and +1 DSP, at 88.9% of the device.
+  - Earlier seals of this branch: `149e6436f` (36,918 ALMs, 277 RAM blocks, setup +0.503 ns) and `191a71d8c` (37,144 ALMs, 271 RAM blocks, setup +0.780 ns, before the fence fixes). All three pass.
 
 ## Area
 
 | Build | ALMs | RAM blocks | DSP | Registers | Setup | Hold |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | main `2f6829c2c` ([summary](main-build-summary.json)) | 36,731 | 269 | 38 | 32,636 | +0.514 | +0.074 |
-| F1 seal `191a71d8c` ([summary](seal-build-summary.json)) | 37,144 | 271 | 39 | 33,109 | +0.780 | +0.095 |
-| Area experiment ([summary](area-experiment-build-summary.json)) | 37,431 | 271 | 40 | 33,265 | +0.494 | +0.083 |
+| F1 seal `9cb6c331b` ([summary](seal-build-summary.json)) | 37,242 | 271 | 39 | 33,077 | +0.564 | +0.070 |
+| Area experiment on `191a71d8c` ([summary](area-experiment-build-summary.json)) | 37,431 | 271 | 40 | 33,265 | +0.494 | +0.083 |
 | Doc's F1 estimate | +1,000 | +1 | 0 | | | |
 
 **The F1 seal is a floor.** With no drive fitted, every drive input is a constant in the shell, and Quartus removes logic that only a present disk reaches.
 
-**The area experiment** is not a package and is not in the branch. It is the same tree with the drive inputs taken from unused bits of the machine record's settings, so nothing can be pruned. It measures +700 ALMs, +2 M10K and +2 DSP: the controller's full cost, the figure F3 will pay once its endpoint drives those inputs. Fit noise is about ±200 ALMs ([area audit](../2026-11-08-i386-area-audit/summary.md)).
+**The area experiment** is not a package and is not in the branch. It is `191a71d8c`, before the fence fixes, with the drive inputs taken from unused bits of the machine record's settings, so nothing can be pruned. It measures +700 ALMs, +2 M10K and +2 DSP: the controller's full cost, the figure F3 will pay once its endpoint drives those inputs. Fit noise is about ±200 ALMs ([area audit](../2026-11-08-i386-area-audit/summary.md)).
 
 **Against the estimate:**
 - **ALMs** are under the doc's +1,000.
@@ -51,7 +52,7 @@ The two models keep different time. Bochs completes a sector in one timer period
 | --- | --- |
 | Match Bochs | registers, invalid, seek, seek_below_zero, recalibrate_no_drive, read_track, read_eot_no_tc, read_tc_mid_sector, write_read, write_eot, read_id, errors, format, disk_change, media_360_in_12, media_720_in_144, media_dmf, media_288, no_media, dsr_reset |
 | Listed divergences | soft_reset_lock, status_registers, fm_read, read_deleted, write_deleted, write_tc_mid_sector, write_protected, unsupported, format_bad_id, insert_into_empty, dma_gate |
-| RTL only | pio_read_write (non-DMA, which Bochs does not finish), timing |
+| RTL only | pio_read_write (non-DMA, which Bochs does not finish), fence_and_swap (the store fence, and a disk swapped in the middle of a write), timing |
 
 The divergences follow the design or the 82077AA datasheet, and each entry names its deciding case. In summary:
 - After a software reset, LOCK stays clear (Bochs sets it).
@@ -78,6 +79,8 @@ The list also records five deviations or cases the replay does not compare:
 - a 1.44M sector's 512 bytes come at 16 µs a byte.
 
 ## Suites
+
+`fdc` ran at `9cb6c331b`. The other suites ran at `f993998ff`; `9cb6c331b` changes only `fenced`, which `pc386_system` leaves unconnected until F3.
 
 | Suite | Result |
 | --- | --- |
