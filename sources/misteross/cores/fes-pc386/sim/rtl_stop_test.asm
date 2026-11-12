@@ -43,7 +43,7 @@ start:
     mov al, 10
     out DEBUG_PORT, al
     mov eax, 0x10
-    mov cr0, eax             ; the 386 sets reserved CR0 bits on this write
+    mov cr0, eax             ; RTL and Bochs both report fff0 on the next SMSW
     smsw ax
     push bx
     mov bx, ax
