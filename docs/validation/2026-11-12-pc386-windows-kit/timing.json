@@ -1,0 +1,11 @@
+{"capture": "Kit B HDMI, 1920x1080 at 60 fps, scaled to 480x270 gray; frame numbers count from the capture's start",
+ "enter_frame": "first frame after Enter that changes by more than a cursor blink (12 px): the prompt's cursor drops a line or the screen clears",
+ "pm_frame": "last frame that changes by more than 0.05% of the picture: Program Manager fully drawn, then the screen is still to the end of the capture",
+ "preset": 0,
+ "runs": [
+  {"run": "w1", "drive": "win-msdos", "boot": "first win after DOS boot", "enter_frame": 140, "pm_frame": 280, "seconds": 2.33},
+  {"run": "w1", "drive": "win-msdos", "boot": "second win, same DOS session", "enter_frame": 145, "pm_frame": 265, "seconds": 2.00},
+  {"run": "w2", "drive": "win-msdos-32bit", "boot": "first win after DOS boot, temporary swap file", "enter_frame": 148, "pm_frame": 297, "seconds": 2.48},
+  {"run": "w2", "drive": "win-msdos-32bit", "boot": "second win, same DOS session, temporary swap file", "enter_frame": 146, "pm_frame": 283, "seconds": 2.28},
+  {"run": "w3", "drive": "win-msdos-32bit", "boot": "win from DOS after the permanent swap file was made, 32-bit disk access in use", "enter_frame": 143, "pm_frame": 284, "seconds": 2.35}
+ ]}
