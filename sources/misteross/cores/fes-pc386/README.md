@@ -80,6 +80,12 @@ shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
 
 ## Running
 
+The simulation accepts the system Verilator or an explicitly selected binary
+through `--verilator` (or `VERILATOR`). Verilator 5.054 and newer use the
+pc386-specific lint controls for intentional FPGA power-on initializers and
+the imported OPL2; the controls are not passed to older tools that do not
+recognize `PROCASSINIT`. The runner does not select the toolchain lock itself.
+
 ```sh
 python3 scripts/build_pc386_firmware.py --download     # dev86, then both ROMs, checked against the lock
 python3 scripts/build_pc386_freedos_image.py --download  # the FreeDOS fixture in build/

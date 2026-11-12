@@ -23,7 +23,9 @@
     "phase_generator.sv: Key-on resets the phase accumulator to this sample's increment, not zero, as Nuked-OPL3 resets then adds.",
     "pipeline_sr.sv: The power-on value is an initial replication instead of a '{default: POR_VALUE} pattern on the output declaration, which the locked Yosys rejects on a packed array (DeanoC/yosys issue linked in the pc386 M4 record). Same registers and values.",
     "tremolo.sv: Tremolo rewritten to Nuked-OPL3's: position 0-209 stepping every 64 samples, depth shift 2 or 4, value for the next sample computed after the last operator.",
-    "vibrato.sv: Vibrato rewritten to Nuked-OPL3's: eight positions stepping every 1024 samples, giving a signed f-number offset."
+    "vibrato.sv: Vibrato rewritten to Nuked-OPL3's: eight positions stepping every 1024 samples, giving a signed f-number offset.",
+    "mem_simple_dual_port_async_read.sv: Verilator PROCASSINIT waiver preserves the RAM power-on value and synchronous writes.",
+    "pipeline_sr.sv: Verilator MULTIDRIVEN waiver preserves the power-on value and clocked shift."
   ],
   "files": [
     {
@@ -85,7 +87,8 @@
     {
       "path": "mem_simple_dual_port_async_read.sv",
       "upstream_path": "src/mem_simple_dual_port_async_read.sv",
-      "sha256": "d5a6346e04979f8560cca680ee5648b358a1dd7ca6736a56c19801d1486713d4"
+      "sha256": "3cb5512134e2e127ec793f274b8b7fad68738929910236eac1fd2803f25eb45a",
+      "upstream_sha256": "d5a6346e04979f8560cca680ee5648b358a1dd7ca6736a56c19801d1486713d4"
     },
     {
       "path": "mem_single_bank.sv",
@@ -129,7 +132,7 @@
     {
       "path": "pipeline_sr.sv",
       "upstream_path": "src/pipeline_sr.sv",
-      "sha256": "66626b1c730792d9231c6b3adda8a31199386c1b0fede1040db19ee492eeb7e4",
+      "sha256": "33771b3a1ba6fed4c4f78621c09bd9854690bad23cc1ded7e21642be64916f90",
       "upstream_sha256": "2b7d2b87b14644f45b354e2b8137054f85e86aabe1cf535b5036e74465e3af41"
     },
     {
