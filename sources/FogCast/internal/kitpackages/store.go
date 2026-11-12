@@ -20,6 +20,7 @@ import (
 	"sync/atomic"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -246,12 +247,17 @@ func (s *Store) recover(ctx context.Context, r *os.Root) error {
 	// those exact stat-bound results instead of hashing them again. A missing
 	// publication still takes the archive recovery path below.
 	if ids, err := installedIDs(r); err == nil {
+		// Two workers use both kit CPUs without retaining an unbounded number
+		// of payload buffers. Wait for all checks before publishing the store.
+		checks, checkContext := errgroup.WithContext(ctx)
+		checks.SetLimit(2)
 		for _, id := range ids {
-			if _, err := s.listingInspection(ctx, r, id); err != nil {
+			checks.Go(func() error {
+				_, err := s.listingInspection(checkContext, r, id)
 				return err
-			}
+			})
 		}
-		return nil
+		return checks.Wait()
 	}
 	list, err := s.archives.List(ctx)
 	if err != nil {
