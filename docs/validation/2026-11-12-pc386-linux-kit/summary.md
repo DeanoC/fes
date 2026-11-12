@@ -116,8 +116,9 @@ Frames (cropped to the text, 960 px wide, grey):
 [`kit-b-2.0.0-boot.png`](kit-b-2.0.0-boot.png) (2.0.0's boot messages,
 4.2 s after the load ack), [`kit-b-2.0.0-shell.png`](kit-b-2.0.0-shell.png),
 [`kit-b-1.2.13-shell.png`](kit-b-1.2.13-shell.png) and
-[`kit-b-0.99.15-shell.png`](kit-b-0.99.15-shell.png) (the shell after the
-last command).
+[`kit-b-0.99.15-shell.png`](kit-b-0.99.15-shell.png). The 1.2.13 shell frame
+is after the last command and visibly includes `dmesg | head` and the `for`
+loop, including the `not found` messages and loop output.
 
 ## Kit against the sim
 
