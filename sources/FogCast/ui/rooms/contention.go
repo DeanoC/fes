@@ -16,10 +16,13 @@ import (
 // Reading every process's CPU time around each callback would cost the
 // launcher thread far more than the callbacks it measures. Instead Step asks
 // the shared sampler for a baseline at most once per contentionInterval, and a
-// background goroutine reads it. Only a hard miss reads the system again, on
-// the launcher thread, and diffs that against a baseline taken before the
-// callback started. The miss is already fatal, so that read cannot change
-// the outcome. Platforms without a /proc reader report nothing.
+// background goroutine reads it at normal priority: a niced thread can hold a
+// Go P while starved, which would stall stop-the-world GC and the callbacks
+// waiting on it. Only a hard miss reads the system again, on the launcher
+// thread with its own reader so it never waits on the background read, and
+// diffs that against a baseline finished before the callback started. The
+// miss is already fatal, so that read cannot change the outcome. Platforms
+// without a /proc reader report nothing.
 
 const (
 	contentionInterval = time.Second
@@ -39,10 +42,13 @@ type procTicks struct {
 	ticks uint64
 }
 
-// contentionSnapshot is the system's load and per-process CPU at one time.
+// contentionSnapshot is the system's load and per-process CPU, read between
+// at and done.
 type contentionSnapshot struct {
-	at      time.Time
-	loadavg string // /proc/loadavg: 1, 5 and 15 minute averages, runnable/total
+	// at is when the read started and done when it finished; done is zero
+	// for a snapshot that was not timed (tests), meaning at.
+	at, done time.Time
+	loadavg  string // /proc/loadavg: 1, 5 and 15 minute averages, runnable/total
 	// cpuTotal and cpuIdle are all CPUs' ticks from /proc/stat; idle
 	// includes iowait. haveCPU is false when /proc/stat was unreadable.
 	cpuTotal, cpuIdle uint64
@@ -51,8 +57,22 @@ type contentionSnapshot struct {
 	procs             map[int]procTicks
 }
 
+// end is when the read finished.
+func (s contentionSnapshot) end() time.Time {
+	if s.done.IsZero() {
+		return s.at
+	}
+	return s.done
+}
+
+// mid is the read's midpoint, the best estimate of when its counters were
+// sampled. Windows run between midpoints.
+func (s contentionSnapshot) mid() time.Time {
+	return s.at.Add(s.end().Sub(s.at) / 2)
+}
+
 // contentionSampler keeps the two newest baselines, at least
-// contentionInterval apart. A miss diffs against the newest one taken before
+// contentionInterval apart. A miss diffs against the newest one finished before
 // the callback started and at least contentionMinWindow before the report, so
 // the window covers the callback and is long enough to measure.
 type contentionSampler struct {
@@ -90,10 +110,8 @@ func (s *contentionSampler) tick(now time.Time) {
 	go s.refresh()
 }
 
-// refresh runs on its own goroutine, which exits on a discarded, niced
-// thread.
+// refresh runs on its own goroutine at normal priority.
 func (s *contentionSampler) refresh() {
-	lowerContentionPriority()
 	snap, ok := s.read()
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -103,18 +121,18 @@ func (s *contentionSampler) refresh() {
 	}
 }
 
-// baseline is the newest snapshot taken no later than start and at least
-// contentionMinWindow before now, or failing that the newest no later than
-// start.
-func (s *contentionSampler) baseline(start, now time.Time) (contentionSnapshot, bool) {
+// baseline is the newest snapshot finished no later than start whose
+// midpoint is at least contentionMinWindow before now's, or failing that the
+// newest finished no later than start.
+func (s *contentionSampler) baseline(start time.Time, now contentionSnapshot) (contentionSnapshot, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var found contentionSnapshot
 	for _, snap := range []contentionSnapshot{s.last, s.prev} {
-		if snap.at.IsZero() || snap.at.After(start) {
+		if snap.at.IsZero() || snap.end().After(start) {
 			continue
 		}
-		if now.Sub(snap.at) >= contentionMinWindow {
+		if now.mid().Sub(snap.mid()) >= contentionMinWindow {
 			return snap, true
 		}
 		if found.at.IsZero() {
@@ -135,7 +153,7 @@ func (s *contentionSampler) report(start time.Time) (short, detail string, ok bo
 	if !ok {
 		return "", "", false
 	}
-	base, haveBase := s.baseline(start, now.at)
+	base, haveBase := s.baseline(start, now)
 	if !haveBase {
 		return contentionText(now, nil, s.clockTick, contentionPanelTop),
 			contentionText(now, nil, s.clockTick, contentionLogTop), true
@@ -160,7 +178,7 @@ func contentionText(now contentionSnapshot, base *contentionSnapshot, tick time.
 		b.WriteString("; no cpu baseline")
 		return b.String()
 	}
-	window := now.at.Sub(base.at)
+	window := now.mid().Sub(base.mid())
 	if window <= 0 {
 		b.WriteString("; no cpu baseline")
 		return b.String()

@@ -6,63 +6,61 @@ import (
 	"bytes"
 	"io"
 	"os"
-	"runtime"
 	"strconv"
-	"sync"
 	"time"
-
-	"golang.org/x/sys/unix"
 )
 
-// hostProc reads this machine's /proc for every room's sampler.
-var hostProc = &procReader{root: "/proc"}
-
-// readHostContention snapshots this machine's /proc.
+// readHostContention snapshots this machine's /proc. Each call has its own
+// reader, so the background baseline and a hard miss on the launcher thread
+// never wait on each other.
 func readHostContention() (contentionSnapshot, bool) {
-	return hostProc.read(time.Now())
-}
-
-// lowerContentionPriority makes the calling goroutine's thread the nicest on
-// the system, so a baseline read waits behind the launcher thread instead of
-// competing with it. The goroutine must exit without unlocking, which makes
-// the Go runtime discard that thread rather than reuse it at nice 19.
-func lowerContentionPriority() {
-	runtime.LockOSThread()
-	_ = unix.Setpriority(unix.PRIO_PROCESS, unix.Gettid(), 19)
+	return (&procReader{root: "/proc"}).read()
 }
 
 // procReader reads load, system CPU and per-process CPU from a /proc tree.
-// It reuses one read buffer and the previous scan's comm strings, so a
-// steady-state scan allocates little more than the snapshot's map.
+// It is not safe for concurrent use.
 type procReader struct {
-	root  string
-	mu    sync.Mutex
-	buf   []byte
-	comms map[int]string
+	root string
+	// now is the clock; nil means time.Now.
+	now func() time.Time
+	buf []byte
 }
 
-// read takes a snapshot at time at. A process that exits mid-scan is skipped.
-// ok is false only when loadavg is unreadable.
-func (p *procReader) read(at time.Time) (contentionSnapshot, bool) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+func (p *procReader) clock() time.Time {
+	if p.now == nil {
+		return time.Now()
+	}
+	return p.now()
+}
+
+// read takes a snapshot, stamped when the scan starts and ends. A process
+// that exits mid-scan is skipped. ok is false only when loadavg is
+// unreadable.
+func (p *procReader) read() (contentionSnapshot, bool) {
+	at := p.clock()
 	load, err := p.file("loadavg")
 	if err != nil {
 		return contentionSnapshot{}, false
 	}
 	fields := bytes.Fields(load)
 	snap := contentionSnapshot{at: at, loadavg: string(bytes.Join(fields[:min(4, len(fields))], []byte(" ")))}
+	p.scan(&snap)
+	snap.done = p.clock()
+	return snap, true
+}
+
+// scan fills system CPU and per-process CPU into snap.
+func (p *procReader) scan(snap *contentionSnapshot) {
 	if stat, err := p.file("stat"); err == nil {
 		snap.cpuTotal, snap.cpuIdle, snap.cpus, snap.haveCPU = parseProcStat(stat)
 	}
 	dir, err := os.Open(p.root)
 	if err != nil {
-		return snap, true
+		return
 	}
 	names, _ := dir.Readdirnames(-1)
 	dir.Close()
 	snap.procs = make(map[int]procTicks, len(names))
-	comms := make(map[int]string, len(names))
 	for _, name := range names {
 		pid, err := strconv.Atoi(name)
 		if err != nil || pid <= 0 {
@@ -76,15 +74,8 @@ func (p *procReader) read(at time.Time) (contentionSnapshot, bool) {
 		if !ok {
 			continue
 		}
-		s, seen := p.comms[pid]
-		if !seen || s != string(comm) {
-			s = string(comm)
-		}
-		comms[pid] = s
-		snap.procs[pid] = procTicks{comm: s, ticks: ticks}
+		snap.procs[pid] = procTicks{comm: string(comm), ticks: ticks}
 	}
-	p.comms = comms
-	return snap, true
 }
 
 // file reads root/name into the reused buffer. The result is valid until the

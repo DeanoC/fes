@@ -74,14 +74,35 @@ func TestContentionBaselineChoice(t *testing.T) {
 		{t0.Add(500 * time.Millisecond), t0.Add(1100 * time.Millisecond), t0, true},
 		{t0.Add(-time.Millisecond), t0.Add(10 * time.Millisecond), time.Time{}, false},
 	} {
-		got, ok := s.baseline(tc.start, tc.now)
+		got, ok := s.baseline(tc.start, contentionSnapshot{at: tc.now})
 		if ok != tc.ok || !got.at.Equal(tc.want) {
 			t.Fatalf("baseline(%s, %s) = %s %v, want %s %v", tc.start.Sub(t0), tc.now.Sub(t0), got.at, ok, tc.want, tc.ok)
 		}
 	}
 	s.prev = contentionSnapshot{}
-	if got, ok := s.baseline(t0.Add(1100*time.Millisecond), t0.Add(1200*time.Millisecond)); !ok || !got.at.Equal(t0.Add(time.Second)) {
+	if got, ok := s.baseline(t0.Add(1100*time.Millisecond), contentionSnapshot{at: t0.Add(1200 * time.Millisecond)}); !ok || !got.at.Equal(t0.Add(time.Second)) {
 		t.Fatalf("short-window fallback = %s %v", got.at, ok)
+	}
+}
+
+// A baseline read that started before the callback but finished after it
+// started counted part of the callback, so it is not a baseline. Windows
+// run between read midpoints.
+func TestContentionBaselineUsesReadEnd(t *testing.T) {
+	t0 := time.Unix(1000, 0)
+	s := newContentionSampler(nil)
+	s.prev = contentionSnapshot{at: t0, done: t0.Add(200 * time.Millisecond)}
+	s.last = contentionSnapshot{at: t0.Add(time.Second), done: t0.Add(1300 * time.Millisecond)}
+	now := contentionSnapshot{at: t0.Add(2 * time.Second), done: t0.Add(2100 * time.Millisecond)}
+	got, ok := s.baseline(t0.Add(1200*time.Millisecond), now)
+	if !ok || !got.at.Equal(t0) {
+		t.Fatalf("baseline = %s %v, want the read that finished first", got.at.Sub(t0), ok)
+	}
+	if got, want := contentionText(now, &got, 10*time.Millisecond, contentionPanelTop), "load ; over 1.95s"; got != want {
+		t.Fatalf("window %q, want %q", got, want)
+	}
+	if got, ok := s.baseline(t0.Add(1400*time.Millisecond), now); !ok || !got.at.Equal(t0.Add(time.Second)) {
+		t.Fatalf("baseline = %s %v, want the newer finished read", got.at.Sub(t0), ok)
 	}
 }
 

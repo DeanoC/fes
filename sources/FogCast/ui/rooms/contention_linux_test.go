@@ -48,7 +48,12 @@ func TestProcReaderSummarisesFakeProc(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "999"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	base, ok := (&procReader{root: root}).read(t0)
+	clock := t0
+	next := func() time.Time { c := clock; clock = clock.Add(100 * time.Millisecond); return c }
+	base, ok := (&procReader{root: root, now: next}).read()
+	if !base.at.Equal(t0) || !base.done.Equal(t0.Add(100*time.Millisecond)) {
+		t.Fatalf("read stamped %s..%s, want the scan's start and end", base.at.Sub(t0), base.done.Sub(t0))
+	}
 	if !ok || !base.haveCPU || base.cpus != 2 || base.cpuTotal != 1000 || base.cpuIdle != 400 || len(base.procs) != 4 {
 		t.Fatalf("baseline %+v", base)
 	}
@@ -65,7 +70,8 @@ func TestProcReaderSummarisesFakeProc(t *testing.T) {
 		212: {"odd) (name", "1", "0"},
 		300: {"kitLibraryScan", "30", "10"}, // new: 40
 	})
-	now, ok := (&procReader{root: root}).read(t0.Add(time.Second))
+	clock = t0.Add(time.Second)
+	now, ok := (&procReader{root: root, now: next}).read()
 	if !ok {
 		t.Fatal("second read failed")
 	}
@@ -81,7 +87,7 @@ func TestProcReaderSummarisesFakeProc(t *testing.T) {
 }
 
 func TestProcReaderNeedsLoadavg(t *testing.T) {
-	if _, ok := (&procReader{root: t.TempDir()}).read(time.Now()); ok {
+	if _, ok := (&procReader{root: t.TempDir()}).read(); ok {
 		t.Fatal("read succeeded without loadavg")
 	}
 }

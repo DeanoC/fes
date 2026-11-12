@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/internal/testwait"
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -39,6 +40,15 @@ func TestDeadlineErrorsNameTheirCallback(t *testing.T) {
 		run   func(r *Instance)
 	}
 	step := func(r *Instance) { r.Step(time.Now()) }
+	// stepUntilFailed steps until a result delivered from a goroutine has
+	// run its callback.
+	stepUntilFailed := func(r *Instance) {
+		deadline := time.Now().Add(testwait.Timeout)
+		for r.Err() == nil && time.Now().Before(deadline) {
+			r.Step(time.Now())
+			time.Sleep(time.Millisecond)
+		}
+	}
 	paths := []path{
 		{"main.lua chunk", "(CB)()", false, nil},
 		{"load callback", "function load() (CB)() end", false, nil},
@@ -55,6 +65,8 @@ func TestDeadlineErrorsNameTheirCallback(t *testing.T) {
 		{"async library.collections callback", "function load() library.collections(CB) end", true, step},
 		{"async library.game callback", "function load() library.game('g', CB) end", true, step},
 		{"async hardware.read callback", "function load() hardware.read(CB) end", true, step},
+		{"async hardware.select_expansion callback", "function load() hardware.select_expansion({}, CB) end", true, step},
+		{"async kit.cores callback", "function load() kit.cores(CB) end", true, stepUntilFailed},
 	}
 	for _, kind := range []struct {
 		name, cb string
@@ -70,7 +82,7 @@ func TestDeadlineErrorsNameTheirCallback(t *testing.T) {
 					want += hard.String() + " hard callback budget ("
 				}
 				src := strings.ReplaceAll(p.body, "CB", kind.cb)
-				r := newRoom(t, memPack(t, "names", src, nil), Options{Budget: Budget{Load: hard, Frame: budget, Input: budget}})
+				r := newRoom(t, memPack(t, "names", src, nil), Options{Budget: Budget{Load: hard, Frame: budget, Input: budget}, Local: &fakeLocalCores{}})
 				r.contention = fakeContention()
 				r.L.SetGlobal("stall", r.L.NewFunction(func(*lua.LState) int { time.Sleep(hard + 40*time.Millisecond); return 0 }))
 				err := r.Load()
