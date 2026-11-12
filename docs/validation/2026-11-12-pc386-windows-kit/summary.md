@@ -138,7 +138,10 @@ captures HDMI at 1920×1080 and 60 fps, so one frame is 16.7 ms.
 | `w3` | `win-msdos-32bit` | `win` with the permanent swap, 32-bit disk access in use | 143 → 284 | 2.35 |
 
 The second `win` of a DOS session is faster: SMARTDRV already holds what the
-first one read.
+first one read. Each time is good to about a frame, except `w1`'s second
+`win`: that capture delivered 1,793 of its 1,800 frames, so a few frames
+may be missing between its start and end, and its 2.00 s is good to about
+±0.1 s.
 
 Frames (640×480, cut from the 1080p capture, 64 colours):
 - [`kit-b-msdos-boot.png`](kit-b-msdos-boot.png): MS-DOS 6.22 boots.
@@ -174,18 +177,25 @@ Frames (640×480, cut from the 1080p capture, 64 colours):
   - after the swap file was made permanent, the dialog said "Using 32-bit
     Disk Access".
 
-  A temporary swap file is an ordinary DOS file that Windows reaches through
-  MS-DOS, so the line reads "Using MS-DOS" whatever the disk driver is. The sims never opened this dialog.
-- **32-bit file access is off on both drives.** The dialog shows "File
-  Access: Drive C: 16-Bit" with "Use 32-Bit File Access" unchecked, and
-  SYSTEM.INI has `device=ifsmgr.386` but no VFAT line. The plan record says
-  WfW's SETUP turned 32-bit file access on. On these drives it did not, so
-  that line of the plan record is wrong. This run did not try 32-bit file
-  access.
+  Observed: both drives read "Using MS-DOS" with the temporary swap file
+  that SETUP set up. The 32-bit drive read "Using 32-bit Disk Access" once
+  the swap file was permanent. No run had a permanent swap file with 32-bit
+  disk access off. The sims never opened this dialog.
+- **32-bit file access is off on both drives.** The Virtual Memory dialog
+  shows "File Access: Drive C: 16-Bit", and its "Use 32-Bit File Access" box
+  is unchecked. The plan record says WfW's SETUP turned 32-bit file access
+  on. For these drives, Windows' own dialog says it is off. This run did not
+  try 32-bit file access.
 - **The 386 Enhanced applet says "Unable to initialize ports."** It says
   this on every drive before opening, and its Device Contention list is
-  empty. pc386 has no serial or parallel ports, so this is expected. The
-  sims never opened the applet.
+  empty. That is what WfW does on a PC with no serial or parallel port, and
+  pc386 has neither (no UART or LPT in its RTL). A QEMU control on a
+  `-snapshot` of `win-msdos` showed this:
+  - with `-serial none -parallel none`, the same message;
+  - with a COM1 and an LPT1, no message, and the list shows `Com1` and
+    `LPT1`.
+
+  The sims never opened the applet.
 - **Time to Program Manager is not compared with the sim.** The oracle run
   had Program Manager by 6.0 simulated seconds with `win` at 3.3 s, about
   2.7 s. The kit takes 2.0–2.5 s. These are different clocks:
