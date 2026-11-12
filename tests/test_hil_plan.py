@@ -27,6 +27,11 @@ def run(*args, cwd=None):
                           cwd=cwd, text=True, capture_output=True)
 
 
+def deployment(data):
+    # An evidence-blocking decision preserves the underlying deployment plan.
+    return data.get('deployment_decision', data['decision'])
+
+
 class HilPlanTest(unittest.TestCase):
     def test_catalog_metadata_does_not_require_deployment(self):
         planner = hil_module()
@@ -40,8 +45,8 @@ class HilPlanTest(unittest.TestCase):
                                ('sources/FogCast/cmd/mister-agent/main.go',
                                 'OVERLAY mister-agent')):
             with self.subTest(path=path):
-                mixed = planner.plan([catalog, path], texts={})
-                self.assertEqual(mixed['decision'], decision)
+                mixed = planner.plan([catalog, path], texts={}, go_graph_changes=[])
+                self.assertEqual(deployment(mixed), decision)
 
     def test_de25_linux_requires_its_own_full_image_boot_check(self):
         planner = hil_module()
@@ -113,9 +118,10 @@ class HilPlanTest(unittest.TestCase):
         # #899's confirm, boot-ticket rewrite and storage gate run from the image
         # on a trial boot, so a bundle overlay cannot exercise them.
         result = run('classify', '--paths-file', FIXTURES / 'pr899.files', '--json')
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.returncode, 3, result.stderr)
         data = json.loads(result.stdout)
-        self.assertEqual(data['decision'], 'FULL_IMAGE')
+        self.assertEqual(data['decision'], 'COMMAND_EVIDENCE_REQUIRED')
+        self.assertEqual(deployment(data), 'FULL_IMAGE')
         by_path = {row['path']: row for row in data['rows']}
         for path in ('sources/FogCast/appliance/store/store.go',
                      'sources/FogCast/internal/appliancedata/gate.go',
@@ -129,9 +135,10 @@ class HilPlanTest(unittest.TestCase):
         # #902's FAT splash refresh, rollback-confirm publish and staged-splash
         # prune run in the image's mister-agent during an fes-update trial boot.
         result = run('classify', '--paths-file', FIXTURES / 'pr902.files', '--json')
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.returncode, 3, result.stderr)
         data = json.loads(result.stdout)
-        self.assertEqual(data['decision'], 'FULL_IMAGE')
+        self.assertEqual(data['decision'], 'COMMAND_EVIDENCE_REQUIRED')
+        self.assertEqual(deployment(data), 'FULL_IMAGE')
         by_path = {row['path']: row for row in data['rows']}
         for path in ('sources/FogCast/appliance/store/store.go',
                      'sources/FogCast/internal/appliancesplash/splash.go',
@@ -161,9 +168,9 @@ class HilPlanTest(unittest.TestCase):
         for filename, components in expected.items():
             with self.subTest(filename=filename):
                 result = run('classify', '--paths-file', FIXTURES / filename, '--json')
-                self.assertEqual(result.returncode, 0, result.stderr)
                 data = json.loads(result.stdout)
-                self.assertEqual(data['class'], 'overlay')
+                self.assertEqual(result.returncode, 3 if data['decision'] == 'COMMAND_EVIDENCE_REQUIRED' else 0, result.stderr)
+                self.assertEqual(data.get('deployment_class', data['class']), 'overlay')
                 for component in components:
                     self.assertIn(component, data['components'])
                 if filename == 'pr565.files':
@@ -189,7 +196,6 @@ class HilPlanTest(unittest.TestCase):
             'platform/internal/kitsoftware/engine.go': 'platform',
             'platform/cmd/fes-boot/main_linux.go': 'platform',
             'platform/internal/applianceboot/boot.go': 'platform',
-            'sources/FogCast/cmd/fes-update/main.go': 'fogcast-unmapped-command',
             'sources/FogCast/cmd/fes-kit-data/main.go': 'fogcast-unmapped-command',
         }
         for path, component in full.items():
@@ -219,8 +225,8 @@ class HilPlanTest(unittest.TestCase):
         for command in ('fes-spectrum-restore', 'fes-spectrum-disk'):
             row = plan.classify_path(f'sources/FogCast/cmd/{command}/main.go')
             self.assertEqual(row['class'], 'none', command)
-        # Other unmapped commands still fail closed as a full image.
-        self.assertEqual(plan.classify_path('sources/FogCast/cmd/fes-parts/main.go')['class'], 'full')
+        # Optional standalone tools are not installed by the image or bundle.
+        self.assertEqual(plan.classify_path('sources/FogCast/cmd/fes-parts/main.go')['class'], 'none')
 
     def test_ci_selection_scripts_are_none(self):
         plan = hil_module()
@@ -240,9 +246,10 @@ class HilPlanTest(unittest.TestCase):
         for filename, (path, component) in expected.items():
             with self.subTest(filename=filename):
                 result = run('classify', '--paths-file', FIXTURES / filename, '--json')
-                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.returncode, 3, result.stderr)
                 data = json.loads(result.stdout)
-                self.assertEqual(data['decision'], 'FULL_IMAGE')
+                self.assertEqual(data['decision'], 'COMMAND_EVIDENCE_REQUIRED')
+                self.assertEqual(deployment(data), 'FULL_IMAGE')
                 by_path = {row['path']: row for row in data['rows']}
                 self.assertEqual(by_path[path]['class'], 'full')
                 self.assertEqual(by_path[path]['component'], component)
@@ -259,9 +266,10 @@ class HilPlanTest(unittest.TestCase):
             'sources/FogCast/protocol/types.go',
         )) + '\n')
         result = run('classify', '--paths-file', mixed, '--json')
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.returncode, 3, result.stderr)
         data = json.loads(result.stdout)
-        self.assertEqual(data['decision'], 'FULL_IMAGE')
+        self.assertEqual(data['decision'], 'COMMAND_EVIDENCE_REQUIRED')
+        self.assertEqual(deployment(data), 'FULL_IMAGE')
         by_path = {row['path']: row for row in data['rows']}
         self.assertEqual(by_path['sources/FogCast/appliance/release.go']['class'], 'full')
         self.assertEqual(by_path['sources/FogCast/appliance/blockprobe/probe.go']['class'], 'full')
@@ -340,45 +348,30 @@ class HilPlanTest(unittest.TestCase):
         self.assertEqual(plan.classify_path(scripts + 'build_fes_ramtest_oss.py')['class'], 'overlay')
         self.assertEqual(plan.classify_path('docs/hil-plan.md')['class'], 'none')
 
-    @unittest.skipUnless(shutil.which('go'), 'go toolchain not installed')
-    def test_go_packages_used_only_by_unmapped_commands_force_full(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location('hil_plan_rules', SCRIPT)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        mapped = {pattern.split('/')[3] for pattern, kind, _ in module.RULES
-                  if pattern.startswith('sources/FogCast/cmd/') and kind == 'overlay'}
-        prefix = 'github.com/DeanoC/FogCast/'
-        listing = subprocess.run(['go', 'list', '-f', '{{.ImportPath}} {{join .Deps " "}}', './cmd/...'],
-                                 cwd=ROOT / 'sources/FogCast', text=True, capture_output=True)
-        if listing.returncode:
-            self.skipTest('go list failed: ' + listing.stderr[:200])
-        used = {}
-        for line in listing.stdout.splitlines():
-            command, *deps = line.split()
-            used[command.rsplit('/', 1)[1]] = {dep[len(prefix):] for dep in deps if dep.startswith(prefix)}
-        overlay = set().union(*(deps for command, deps in used.items() if command in mapped))
-        other = set().union(*(deps for command, deps in used.items() if command not in mapped))
-        for package in sorted(other - overlay):
-            with self.subTest(package=package):
-                result = run('classify', '--paths-file', self.path_file(f'sources/FogCast/{package}/x.go'), '--json')
-                self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
-        # Every overlay command that compiles a package must be in that package's plan.
-        component = {'fogcast-api': 'host:fogcast-api', 'fogcast': 'host:fogcast'}
-        kit_go = {'mister-agent', 'fogcast-kit', 'fogcast-tenfoot', 'host:fogcast-api', 'host:fogcast'}
-        paths = sorted(overlay)
-        for package in paths:
-            with self.subTest(package=package, check='consumers'):
-                data = json.loads(run('classify', '--paths-file',
-                                      self.path_file(f'sources/FogCast/{package}/x.go'), '--json').stdout)
-                if data['decision'] == 'FULL_IMAGE':
-                    continue
-                planned = set(data['components'])
-                if 'kit-go+host' in planned:
-                    planned |= kit_go
-                consumers = {component.get(command, command) for command, deps in used.items()
-                             if command in mapped and package in deps}
-                self.assertLessEqual(consumers, planned)
+    def test_inventory_exposes_all_shared_package_consumers(self):
+        planner = hil_module()
+        inventory = planner.read_go_inventory()
+        packages = {package for entry in inventory.values() for group in entry['graphs']
+                    for package in group['packages'] if package.startswith(planner.GO_ROOTS)}
+        for package in sorted(packages):
+            # Command directories themselves have lifecycle-specific rules; the
+            # shared-package graph is the gap this check protects.
+            if '/cmd/' in package:
+                continue
+            path = package + '/example.go'
+            row = planner.classify_path(path)
+            if row['class'] == 'none':
+                continue
+            expected = {name for name, entry in inventory.items() if any(
+                package in group['packages'] for group in entry['graphs'])}
+            actual, unknown = planner.go_commands([row], [inventory])
+            self.assertFalse(unknown, package)
+            self.assertEqual({item['command'] for item in actual}, expected, package)
+            data = planner.plan([path], texts={}, go_inventories=[inventory], go_graph_changes=[])
+            mandatory = {item['command'] for item in actual if item['role'] in ('image', 'host-tool', 'builder')}
+            if mandatory:
+                self.assertEqual(data['decision'], 'COMMAND_EVIDENCE_REQUIRED', package)
+                self.assertEqual({item['command'] for item in data['command_evidence']}, mandatory, package)
 
     def test_shared_core_rtl_expands_to_every_consuming_producer(self):
         plan = hil_module()
@@ -578,8 +571,6 @@ class HilPlanTest(unittest.TestCase):
 
     def test_full_image_unrecognised_and_docs_only(self):
         for path in ('image/buildroot/board/x/etc/init.d/S42x', 'unknown/file.bin',
-                     'sources/FogCast/cmd/fes-update/main.go',
-                     'sources/FogCast/cmd/mister-bridge/x.go',
                      'sources/misteross/sealed/fes-splash.rbf',
                      'sources/misteross/sealed/fes-splash.build-summary.json',
                      'sources/misteross/cores/fes-splash/rtl/top.v',
@@ -587,13 +578,23 @@ class HilPlanTest(unittest.TestCase):
                      'sources/misteross/scripts/build_atari_st_video_part.py',
                      'sources/misteross/scripts/build_video_part.py',
                      'sources/misteross/scripts/video_parts.py',
-                     'sources/FogCast/internal/targetimage/lock.go',
                      'sources/FogCast/appliance/software/manifest.go'):
             result = run('classify', '--paths-file', self.path_file(path), '--json')
-            self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
+            data = json.loads(result.stdout)
+            self.assertEqual(deployment(data), 'FULL_IMAGE')
+            self.assertEqual(result.returncode, 3 if data['decision'] == 'COMMAND_EVIDENCE_REQUIRED' else 0)
         for path in ('sources/FogCast/internal/example.go', 'sources/FogCast/catalog/example.go'):
             result = run('classify', '--paths-file', self.path_file(path), '--json')
-            self.assertEqual(json.loads(result.stdout)['decision'], 'OVERLAY kit-go+host')
+            data = json.loads(result.stdout)
+            self.assertEqual(result.returncode, 3)
+            self.assertEqual(data['decision'], 'COMMAND_EVIDENCE_REQUIRED')
+            self.assertEqual(deployment(data), 'OVERLAY kit-go+host')
+        result = run('classify', '--paths-file',
+                     self.path_file('sources/FogCast/internal/targetimage/lock.go'), '--json')
+        data = json.loads(result.stdout)
+        self.assertEqual(result.returncode, 3)
+        self.assertEqual(deployment(data), 'OVERLAY host:target-image-lock')
+        self.assertIn('target-image-lock', {item['command'] for item in data['command_evidence']})
         result = run('classify', '--paths-file', self.path_file('docs/guide.md'), '--json')
         self.assertEqual(json.loads(result.stdout)['decision'], 'NO_DEPLOY_CHANGE')
 
@@ -977,6 +978,153 @@ class HilPlanTest(unittest.TestCase):
                    '--head', head)
         self.assertIn('has diverged', text.stdout)
         self.assertIn('DECISION: OVERLAY', text.stdout)
+
+    def test_shared_package_preserves_base_consumers_removed_at_head(self):
+        planner = hil_module()
+        package = 'sources/FogCast/internal/example'
+        path = package + '/changed.go'
+        def entry(role, packages):
+            return {'role': role, 'graphs': [{'targets': ['linux-amd64'],
+                    'packages': packages, 'embedded': [], 'embed_patterns': []}]}
+        base = {'fes-update': entry('host-tool', [package])}
+        head = {'fes-update': entry('host-tool', [])}
+        result = planner.plan([path], texts={}, go_inventories=[base, head], go_graph_changes=[])
+        self.assertEqual(result['decision'], 'COMMAND_EVIDENCE_REQUIRED')
+        self.assertEqual(result['deployment_decision'], 'OVERLAY kit-go+host')
+        self.assertEqual([item['command'] for item in result['command_evidence']], ['fes-update'])
+        self.assertEqual(result['command_evidence'][0]['paths'], [path])
+
+    def test_embedded_docs_are_classified_by_actual_consumers(self):
+        planner = hil_module()
+        path = 'sources/FogCast/internal/example/README.md'
+        def entry(role):
+            return {'role': role, 'graphs': [{'targets': ['linux-armv7'],
+                    'packages': ['sources/FogCast/internal/example'],
+                    'embedded': [path], 'embed_patterns': []}]}
+        for role, name, deployment in (('kit', 'mister-agent', 'OVERLAY kit-go+host'),
+                                       ('image', 'fes-kit-data', 'NO_DEPLOY_CHANGE'),
+                                       ('host-tool', 'fes-update', 'NO_DEPLOY_CHANGE')):
+            with self.subTest(role=role):
+                result = planner.plan([path], texts={}, go_inventories=[{name: entry(role)}],
+                                      go_graph_changes=[])
+                if role == 'kit':
+                    self.assertEqual(result['decision'], deployment)
+                else:
+                    self.assertEqual(result['decision'], 'COMMAND_EVIDENCE_REQUIRED')
+                    self.assertEqual(result['deployment_decision'], deployment)
+                    self.assertEqual(result['command_evidence'][0]['embedded_paths'], [path])
+
+    def test_nested_appliance_module_affects_all_its_command_consumers(self):
+        planner = hil_module()
+        inventory = planner.read_go_inventory()
+        path = 'sources/FogCast/appliance/go.mod'
+        result = planner.plan([path], texts={}, go_inventories=[inventory], go_graph_changes=[])
+        self.assertEqual(result['decision'], 'COMMAND_EVIDENCE_REQUIRED')
+        required = {item['command'] for item in result['command_evidence']}
+        self.assertTrue({'fes-boot', 'fes-kit-software', 'fes-kit-data'} <= required, required)
+        self.assertNotIn('target-image-lock', required)
+        self.assertNotIn('mister-bridge', {item['command'] for item in result['advisory_commands']})
+        self.assertIn(path, result['go_graph_unverified'])
+
+    def test_go_source_under_docs_or_testdata_is_not_assumed_documentation(self):
+        planner = hil_module()
+        for directory, filename in (('docs/example', 'code.go'),
+                                    ('testdata/example', 'code.go'),
+                                    ('docs/example', 'asm.s')):
+            with self.subTest(directory=directory, filename=filename):
+                package = 'sources/FogCast/' + directory
+                path = package + '/' + filename
+                inventory = {'mister-agent': {'role': 'kit', 'graphs': [{
+                    'targets': ['linux-armv7'], 'packages': [package],
+                    'embedded': [], 'embed_patterns': []}]}}
+                known = planner.plan([path], texts={}, go_inventories=[inventory], go_graph_changes=[])
+                self.assertEqual(known['decision'], 'OVERLAY kit-go+host')
+                unknown = planner.plan([path], texts={}, go_inventories=[{}], go_graph_changes=[])
+                self.assertEqual(unknown['decision'], 'COMMAND_EVIDENCE_REQUIRED')
+                self.assertIn(path, unknown['go_graph_unverified'])
+
+    def test_direct_host_and_optional_developer_commands(self):
+        planner = hil_module()
+        for name in ('fes-update', 'fes-software'):
+            with self.subTest(command=name):
+                path = f'sources/FogCast/cmd/{name}/main.go'
+                result = planner.plan([path], texts={}, go_graph_changes=[])
+                self.assertEqual(result['decision'], 'COMMAND_EVIDENCE_REQUIRED')
+                self.assertIn(name, {item['command'] for item in result['command_evidence']})
+                self.assertNotEqual(result['deployment_decision'], 'FULL_IMAGE')
+        for name in ('mister-bridge', 'fes-parts', 'fes-spectrum-disk', 'fes-spectrum-restore'):
+            with self.subTest(command=name):
+                path = f'sources/FogCast/cmd/{name}/main.go'
+                result = planner.plan([path], texts={}, go_graph_changes=[])
+                self.assertEqual(result['decision'], 'NO_DEPLOY_CHANGE')
+                self.assertIn(name, {item['command'] for item in result['advisory_commands']})
+
+    def test_changed_imports_and_missing_historical_inventory_block(self):
+        planner = hil_module()
+        self.repo = self.work / 'repo'
+        self.repo.mkdir()
+        self.git('init', '-q')
+        self.git('config', 'user.email', 'test@example.com')
+        self.git('config', 'user.name', 'Test')
+        source = self.repo / 'sources/FogCast/internal/example/example.go'
+        source.parent.mkdir(parents=True)
+        source.write_text('package example\nimport "fmt"\nvar _ = fmt.Sprint\n')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'old source without inventory')
+        base = self.git('rev-parse', 'HEAD')
+        source.write_text('package example\nimport "strings"\nvar _ = strings.TrimSpace\n')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'changed import')
+        head = self.git('rev-parse', 'HEAD')
+        changed = planner.go_import_changes(self.repo, base, head,
+                                             ['sources/FogCast/internal/example/example.go'])
+        self.assertEqual(changed, ['sources/FogCast/internal/example/example.go'])
+        result = run('classify', '--repo', self.repo, '--base-image-commit', base,
+                     '--head', head, '--strict', '--json')
+        self.assertEqual(result.returncode, 3, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data['decision'], 'COMMAND_EVIDENCE_REQUIRED')
+        self.assertTrue(any('inventory' in reason for reason in data['go_graph_unverified']))
+
+    def test_git_classification_uses_both_revisions_for_embedded_assets(self):
+        planner = hil_module()
+        self.repo = self.work / 'repo'
+        self.repo.mkdir()
+        self.git('init', '-q')
+        self.git('config', 'user.email', 'test@example.com')
+        self.git('config', 'user.name', 'Test')
+        path = 'sources/FogCast/docs/planner-fixture.md'
+        asset = self.repo / path
+        asset.parent.mkdir(parents=True)
+        asset.write_text('base asset\n')
+        inventory_file = self.repo / planner.GO_INVENTORY
+        inventory_file.parent.mkdir(parents=True)
+        commands = planner.read_go_inventory()
+        commands['fes-update']['graphs'][0]['embedded'].append(path)
+        inventory_file.write_text(json.dumps({'version': 1, 'commands': commands}))
+        self.git('add', '.')
+        self.git('commit', '-qm', 'base inventory')
+        base = self.git('rev-parse', 'HEAD')
+
+        # The base-only host consumer and head-only image consumer must both
+        # appear, even though the executing checkout knows neither relationship.
+        commands['fes-update']['graphs'][0]['embedded'].remove(path)
+        commands['fes-kit-data']['graphs'][0]['embedded'].append(path)
+        inventory_file.write_text(json.dumps({'version': 1, 'commands': commands}))
+        asset.write_text('head asset\n')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'head inventory')
+        head = self.git('rev-parse', 'HEAD')
+
+        result = run('classify', '--repo', self.repo, '--base-image-commit', base,
+                     '--head', head, '--strict', '--json')
+        self.assertEqual(result.returncode, 3, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data['decision'], 'COMMAND_EVIDENCE_REQUIRED')
+        commands = {item['command'] for item in data['command_evidence']}
+        self.assertTrue({'fes-update', 'fes-kit-data'} <= commands, commands)
+        self.assertIn(path, data['go_graph_unverified'])
+        self.assertFalse(any('inventory missing' in reason for reason in data['go_graph_unverified']))
 
     def path_file(self, path):
         filename = self.work / 'paths.txt'

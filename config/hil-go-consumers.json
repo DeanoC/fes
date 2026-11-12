@@ -1,0 +1,978 @@
+{
+  "commands": {
+    "fes-bluetooth": {
+      "graphs": [
+        {
+          "embed_patterns": [],
+          "embedded": [],
+          "packages": [
+            "platform/cmd/fes-bluetooth",
+            "platform/internal/btagent"
+          ],
+          "targets": [
+            "linux-armv7"
+          ]
+        }
+      ],
+      "role": "image"
+    },
+    "fes-boot": {
+      "graphs": [
+        {
+          "embed_patterns": [],
+          "embedded": [],
+          "packages": [
+            "platform/cmd/fes-boot",
+            "platform/internal/applianceboot",
+            "platform/internal/bootlinux",
+            "sources/FogCast/appliance",
+            "sources/FogCast/appliance/blockprobe",
+            "sources/FogCast/appliance/store"
+          ],
+          "targets": [
+            "linux-armv7"
+          ]
+        }
+      ],
+      "role": "image"
+    },
+    "fes-kit-bundle": {
+      "graphs": [
+        {
+          "embed_patterns": [],
+          "embedded": [],
+          "packages": [
+            "sources/FogCast/appliance/blockprobe",
+            "sources/FogCast/appliance/software",
+            "sources/FogCast/cmd/fes-kit-bundle"
+          ],
+          "targets": [
+            "linux-amd64",
+            "linux-amd64-sdl3",
+            "linux-arm64",
+            "linux-arm64-sdl3",
+            "linux-armv7"
+          ]
+        },
+        {
+          "embed_patterns": [],
+          "embedded": [],
+          "packages": [
+            "sources/FogCast/appliance/software",
+            "sources/FogCast/cmd/fes-kit-bundle"
+          ],
+          "targets": [
+            "darwin-arm64",
+            "darwin-arm64-cgo",
+            "darwin-arm64-sdl3"
+          ]
+        }
+      ],
+      "role": "builder"
+    },
+    "fes-kit-data": {
+      "graphs": [
+        {
+          "embed_patterns": [],
+          "embedded": [],
+          "packages": [
+            "sources/FogCast/appliance",
+            "sources/FogCast/appliance/blockprobe",
+            "sources/FogCast/appliance/store",
+            "sources/FogCast/cmd/fes-kit-data",
+            "sources/FogCast/corepackage",
+            "sources/FogCast/corepackage/internal/generated",
+            "sources/FogCast/internal/agent",
+            "sources/FogCast/internal/appliancedata",
+            "sources/FogCast/internal/appliancesplash",
+            "sources/FogCast/internal/applianceupdate",
+            "sources/FogCast/internal/atomicwrite",
+            "sources/FogCast/internal/flightdiag",
+            "sources/FogCast/internal/misterruntime",
+            "sources/FogCast/internal/spectrumdisks",
+            "sources/FogCast/internal/spectrumsnapshots",
+            "sources/FogCast/internal/spectrumtapes",
+            "sources/FogCast/protocol",
+            "sources/FogCast/protocol/internal/generated",
+            "sources/misteross/expansion"
+          ],
+          "targets": [
+            "darwin-arm64",
+            "darwin-arm64-cgo",
+            "darwin-arm64-sdl3",
+            "linux-amd64",
+            "linux-amd64-sdl3",
+            "linux-arm64",
+            "linux-arm64-sdl3",
+            "linux-armv7"
+          ]
+        }
+      ],
+      "role": "image"
+    },
+    "fes-kit-software": {
+      "graphs": [
+        {
+          "embed_patterns": [],
+          "embedded": [],
+          "packages": [
+            "platform/cmd/fes-kit-software",
+            "platform/internal/kitsoftware",
+            "sources/FogCast/appliance/blockprobe",
+            "sources/FogCast/appliance/software",
+            "sources/FogCast/appliance/softwarecontrol"
+          ],
+          "targets": [
+            "linux-armv7"
+          ]
+        }
+      ],
+      "role": "image"
+    },
+    "fes-parts": {
+      "graphs": [
+        {
+          "embed_patterns": [],
+          "embedded": [],
+          "packages": [
+            "sources/FogCast/cmd/fes-parts",
+            "sources/FogCast/corepackage",
+            "sources/FogCast/corepackage/internal/generated",
+            "sources/misteross/expansion"
+          ],
+          "targets": [
+            "darwin-arm64",
+            "darwin-arm64-cgo",
+            "darwin-arm64-sdl3",
+            "linux-amd64",
+            "linux-amd64-sdl3",
+            "linux-arm64",
+            "linux-arm64-sdl3",
+            "linux-armv7"
+          ]
+        }
+      ],
+      "role": "standalone"
+    },
+    "fes-software": {
+      "graphs": [
+        {
+          "embed_patterns": [
+            "sources/FogCast/catalog/seeds/coleco-controllers.hex",
+            "sources/FogCast/internal/zx81tapes/assets/aritm.p",
+            "sources/FogCast/internal/zx81tapes/assets/character-display.p",
+            "sources/FogCast/internal/zx81tapes/assets/guess-number.p"
+          ],
+          "embedded": [
+            "sources/FogCast/catalog/seeds/coleco-controllers.hex",
+            "sources/FogCast/internal/zx81tapes/assets/aritm.p",
+            "sources/FogCast/internal/zx81tapes/assets/character-display.p",
+            "sources/FogCast/internal/zx81tapes/assets/guess-number.p"
+          ],
+          "packages": [
+            "sources/FogCast/appliance",
+            "sources/FogCast/appliance/blockprobe",
+            "sources/FogCast/appliance/software",
+            "sources/FogCast/appliance/softwarecontrol",
+            "sources/FogCast/appliance/store",
+            "sources/FogCast/atarist",
+            "sources/FogCast/catalog",
+            "sources/FogCast/cmd/fes-software",
+            "sources/FogCast/corecatalog",
+            "sources/FogCast/corepackage",
+            "sources/FogCast/corepackage/internal/generated",
+            "sources/FogCast/fogcast",
+            "sources/FogCast/internal/agent",
+            "sources/FogCast/internal/appliancedata",
+            "sources/FogCast/internal/appliancesplash",
+            "sources/FogCast/internal/applianceupdate",
+            "sources/FogCast/internal/atomicwrite",
+            "sources/FogCast/internal/bundledfirmware",
+            "sources/FogCast/internal/discovery",
+            "sources/FogCast/internal/flightdiag",
+            "sources/FogCast/internal/kitcontent",
+            "sources/FogCast/internal/kitpackages",
+            "sources/FogCast/internal/localcores",
+            "sources/FogCast/internal/meshcontent",
+            "sources/FogCast/internal/meshplace",
+            "sources/FogCast/internal/meshpref",
+            "sources/FogCast/internal/metadata",
+            "sources/FogCast/internal/misterruntime",
+            "sources/FogCast/internal/spectrumdisks",
+            "sources/FogCast/internal/spectrumsnapshots",
+            "sources/FogCast/internal/spectrumtapes",
+            "sources/FogCast/internal/systems",
+            "sources/FogCast/internal/zx81family",
+            "sources/FogCast/internal/zx81tapes",
+            "sources/FogCast/kitlease",
+            "sources/FogCast/librarymedia",
+            "sources/FogCast/libraryuser",
+            "sources/FogCast/protocol",
+            "sources/FogCast/protocol/internal/generated",
+            "sources/FogCast/romsource",
+            "sources/FogCast/targetclient",
+            "sources/misteross/expansion"
+          ],
+          "targets": [
+            "linux-amd64",
+            "linux-amd64-sdl3",
+            "linux-arm64",
+            "linux-arm64-sdl3",
+            "linux-armv7"
+          ]
+        },
+        {
+          "embed_patterns": [
+            "sources/FogCast/catalog/seeds/coleco-controllers.hex",
+            "sources/FogCast/internal/zx81tapes/assets/aritm.p",
+            "sources/FogCast/internal/zx81tapes/assets/character-display.p",
+            "sources/FogCast/internal/zx81tapes/assets/guess-number.p"
+          ],
+          "embedded": [
+            "sources/FogCast/catalog/seeds/coleco-controllers.hex",
+            "sources/FogCast/internal/zx81tapes/assets/aritm.p",
+            "sources/FogCast/internal/zx81tapes/assets/character-display.p",
+            "sources/FogCast/internal/zx81tapes/assets/guess-number.p"
+          ],
+          "packages": [
+            "sources/FogCast/appliance",
+            "sources/FogCast/appliance/blockprobe",
+            "sources/FogCast/appliance/software",
+            "sources/FogCast/appliance/softwarecontrol",
+            "sources/FogCast/atarist",
+            "sources/FogCast/catalog",
+            "sources/FogCast/cmd/fes-software",
+            "sources/FogCast/corecatalog",
+            "sources/FogCast/corepackage",
+            "sources/FogCast/corepackage/internal/generated",
+            "sources/FogCast/fogcast",
+            "sources/FogCast/internal/bundledfirmware",
+            "sources/FogCast/internal/discovery",
+            "sources/FogCast/internal/kitcontent",
+            "sources/FogCast/internal/kitpackages",
+            "sources/FogCast/internal/localcores",
+            "sources/FogCast/internal/meshcontent",
+            "sources/FogCast/internal/meshplace",
+            "sources/FogCast/internal/meshpref",
+            "sources/FogCast/internal/metadata",
+            "sources/FogCast/internal/spectrumdisks",
+            "sources/FogCast/internal/spectrumsnapshots",
+            "sources/FogCast/internal/spectrumtapes",
+            "sources/FogCast/internal/systems",
+            "sources/FogCast/internal/zx81family",
+            "sources/FogCast/internal/zx81tapes",
+            "sources/FogCast/kitlease",
+            "sources/FogCast/librarymedia",
+            "sources/FogCast/libraryuser",
+            "sources/FogCast/protocol",
+            "sources/FogCast/protocol/internal/generated",
+            "sources/FogCast/romsource",
+            "sources/FogCast/targetclient",
+            "sources/misteross/expansion"
+          ],
+          "targets": [
+            "darwin-arm64",
+            "darwin-arm64-cgo",
+            "darwin-arm64-sdl3"
+          ]
+        }
+      ],
+      "role": "host-tool"
+    },
+    "fes-spectrum-disk": {
+      "graphs": [
+        {
+          "embed_patterns": [],
+          "embedded": [],
+          "packages": [
+            "sources/FogCast/cmd/fes-spectrum-disk",
+            "sources/FogCast/internal/spectrumdisks"
+          ],
+          "targets": [
+            "darwin-arm64",
+            "darwin-arm64-cgo",
+            "darwin-arm64-sdl3",
+            "linux-amd64",
+            "linux-amd64-sdl3",
+            "linux-arm64",
+            "linux-arm64-sdl3",
+            "linux-armv7"
+          ]
+        }
+      ],
+      "role": "simulation"
+    },
+    "fes-spectrum-restore": {
+      "graphs": [
+        {
+          "embed_patterns": [],
+          "embedded": [],
+          "packages": [
+            "sources/FogCast/cmd/fes-spectrum-restore",
+            "sources/FogCast/internal/spectrumsnapshots"
+          ],
+          "targets": [
+            "darwin-arm64",
+            "darwin-arm64-cgo",
+            "darwin-arm64-sdl3",
+            "linux-amd64",
+            "linux-amd64-sdl3",
+            "linux-arm64",
+            "linux-arm64-sdl3",
+            "linux-armv7"
+          ]
+        }
+      ],
+      "role": "simulation"
+    },
+    "fes-update": {
+      "graphs": [
+        {
+          "embed_patterns": [
+            "sources/FogCast/catalog/seeds/coleco-controllers.hex",
+            "sources/FogCast/internal/zx81tapes/assets/aritm.p",
+            "sources/FogCast/internal/zx81tapes/assets/character-display.p",
+            "sources/FogCast/internal/zx81tapes/assets/guess-number.p"
+          ],
+          "embedded": [
+            "sources/FogCast/catalog/seeds/coleco-controllers.hex",
+            "sources/FogCast/internal/zx81tapes/assets/aritm.p",
+            "sources/FogCast/internal/zx81tapes/assets/character-display.p",
+            "sources/FogCast/internal/zx81tapes/assets/guess-number.p"
+          ],
+          "packages": [
+            "sources/FogCast/appliance",
+            "sources/FogCast/appliance/blockprobe",
+            "sources/FogCast/appliance/software",
+            "sources/FogCast/appliance/softwarecontrol",
+            "sources/FogCast/appliance/store",
+            "sources/FogCast/atarist",
+            "sources/FogCast/catalog",
+            "sources/FogCast/cmd/fes-update",
+            "sources/FogCast/corecatalog",
+            "sources/FogCast/corepackage",
+            "sources/FogCast/corepackage/internal/generated",
+            "sources/FogCast/fogcast",
+            "sources/FogCast/internal/agent",
+            "sources/FogCast/internal/appliancedata",
+            "sources/FogCast/internal/appliancesplash",
+            "sources/FogCast/internal/applianceupdate",
+            "sources/FogCast/internal/atomicwrite",
+            "sources/FogCast/internal/bundledfirmware",
+            "sources/FogCast/internal/discovery",
+            "sources/FogCast/internal/ext4image",
+            "sources/FogCast/internal/flightdiag",
+            "sources/FogCast/internal/kitcontent",
+            "sources/FogCast/internal/kitpackages",
+            "sources/FogCast/internal/localcores",
+            "sources/FogCast/internal/meshcontent",
+            "sources/FogCast/internal/meshplace",
+            "sources/FogCast/internal/meshpref",
+            "sources/FogCast/internal/metadata",
+            "sources/FogCast/internal/misterruntime",
+            "sources/FogCast/internal/spectrumdisks",
+            "sources/FogCast/internal/spectrumsnapshots",
+            "sources/FogCast/internal/spectrumtapes",
+            "sources/FogCast/internal/systems",
+            "sources/FogCast/internal/zx81family",
+            "sources/FogCast/internal/zx81tapes",
+            "sources/FogCast/kitlease",
+            "sources/FogCast/librarymedia",
+            "sources/FogCast/libraryuser",
+            "sources/FogCast/protocol",
+            "sources/FogCast/protocol/internal/generated",
+            "sources/FogCast/romsource",
+            "sources/FogCast/targetclient",
+            "sources/misteross/expansion"
+          ],
+          "targets": [
+            "linux-amd64",
+            "linux-amd64-sdl3",
+            "linux-arm64",
+            "linux-arm64-sdl3",
+            "linux-armv7"
+          ]
+        },
+        {
+          "embed_patterns": [
+            "sources/FogCast/catalog/seeds/coleco-controllers.hex",
+            "sources/FogCast/internal/zx81tapes/assets/aritm.p",
+            "sources/FogCast/internal/zx81tapes/assets/character-display.p",
+            "sources/FogCast/internal/zx81tapes/assets/guess-number.p"
+          ],
+          "embedded": [
+            "sources/FogCast/catalog/seeds/coleco-controllers.hex",
+            "sources/FogCast/internal/zx81tapes/assets/aritm.p",
+            "sources/FogCast/internal/zx81tapes/assets/character-display.p",
+            "sources/FogCast/internal/zx81tapes/assets/guess-number.p"
+          ],
+          "packages": [
+            "sources/FogCast/appliance",
+            "sources/FogCast/appliance/blockprobe",
+            "sources/FogCast/appliance/software",
+            "sources/FogCast/appliance/softwarecontrol",
+            "sources/FogCast/atarist",
+            "sources/FogCast/catalog",
+            "sources/FogCast/cmd/fes-update",
+            "sources/FogCast/corecatalog",
+            "sources/FogCast/corepackage",
+            "sources/FogCast/corepackage/internal/generated",
+            "sources/FogCast/fogcast",
+            "sources/FogCast/internal/bundledfirmware",
+            "sources/FogCast/internal/discovery",
+            "sources/FogCast/internal/ext4image",
+            "sources/FogCast/internal/kitcontent",
+            "sources/FogCast/internal/kitpackages",
+            "sources/FogCast/internal/localcores",
+            "sources/FogCast/internal/meshcontent",
+            "sources/FogCast/internal/meshplace",
+            "sources/FogCast/internal/meshpref",
+            "sources/FogCast/internal/metadata",
+            "sources/FogCast/internal/spectrumdisks",
+            "sources/FogCast/internal/spectrumsnapshots",
+            "sources/FogCast/internal/spectrumtapes",
+            "sources/FogCast/internal/systems",
+            "sources/FogCast/internal/zx81family",
+            "sources/FogCast/internal/zx81tapes",
+            "sources/FogCast/kitlease",
+            "sources/FogCast/librarymedia",
+            "sources/FogCast/libraryuser",
+            "sources/FogCast/protocol",
+            "sources/FogCast/protocol/internal/generated",
+            "sources/FogCast/romsource",
+            "sources/FogCast/targetclient",
+            "sources/misteross/expansion"
+          ],
+          "targets": [
+            "darwin-arm64",
+            "darwin-arm64-cgo",
+            "darwin-arm64-sdl3"
+          ]
+        }
+      ],
+      "role": "host-tool"
+    },
+    "fogcast": {
+      "graphs": [
+        {
+          "embed_patterns": [
+            "sources/FogCast/catalog/seeds/coleco-controllers.hex",
+            "sources/FogCast/internal/zx81tapes/assets/aritm.p",
+            "sources/FogCast/internal/zx81tapes/assets/character-display.p",
+            "sources/FogCast/internal/zx81tapes/assets/guess-number.p"
+          ],
+          "embedded": [
+            "sources/FogCast/catalog/seeds/coleco-controllers.hex",
+            "sources/FogCast/internal/zx81tapes/assets/aritm.p",
+            "sources/FogCast/internal/zx81tapes/assets/character-display.p",
+            "sources/FogCast/internal/zx81tapes/assets/guess-number.p"
+          ],
+          "packages": [
+            "sources/FogCast/appliance",
+            "sources/FogCast/appliance/blockprobe",
+            "sources/FogCast/appliance/software",
+            "sources/FogCast/appliance/softwarecontrol",
+            "sources/FogCast/appliance/store",
+            "sources/FogCast/atarist",
+            "sources/FogCast/catalog",
+            "sources/FogCast/cmd/fogcast",
+            "sources/FogCast/corecatalog",
+            "sources/FogCast/corepackage",
+            "sources/FogCast/corepackage/internal/generated",
+            "sources/FogCast/fogcast",
+            "sources/FogCast/host",
+            "sources/FogCast/hostclient",
+            "sources/FogCast/internal/agent",
+            "sources/FogCast/internal/appliancedata",
+            "sources/FogCast/internal/appliancesplash",
+            "sources/FogCast/internal/applianceupdate",
+            "sources/FogCast/internal/atomicwrite",
+            "sources/FogCast/internal/bundledfirmware",
+            "sources/FogCast/internal/discovery",
+            "sources/FogCast/internal/flightdiag",
+            "sources/FogCast/internal/fogcastcli",
+            "sources/FogCast/internal/hidkeys",
+            "sources/FogCast/internal/joymatrix",
+            "sources/FogCast/internal/kitcontent",
+            "sources/FogCast/internal/kitpackages",
+            "sources/FogCast/internal/localcores",
+            "sources/FogCast/internal/meshcontent",
+            "sources/FogCast/internal/meshplace",
+            "sources/FogCast/internal/meshpref",
+            "sources/FogCast/internal/metadata",
+            "sources/FogCast/internal/misterruntime",
+            "sources/FogCast/internal/spectrumdisks",
+            "sources/FogCast/internal/spectrumsnapshots",
+            "sources/FogCast/internal/spectrumtapes",
+            "sources/FogCast/internal/systems",
+            "sources/FogCast/internal/version",
+            "sources/FogCast/internal/zx81family",
+            "sources/FogCast/internal/zx81keys",
+            "sources/FogCast/internal/zx81tapes",
+            "sources/FogCast/kitlease",
+            "sources/FogCast/librarymedia",
+            "sources/FogCast/libraryuser",
+            "sources/FogCast/protocol",
+            "sources/FogCast/protocol/internal/generated",
+            "sources/FogCast/remoteinput",
+            "sources/FogCast/romsource",
+            "sources/FogCast/storage",
+            "sources/FogCast/targetclient",
+            "sources/misteross/expansion"
+          ],
+          "targets": [
+            "linux-amd64",
+            "linux-amd64-sdl3",
+            "linux-arm64",
+            "linux-arm64-sdl3",
+            "linux-armv7"
+          ]
+        },
+        {
+          "embed_patterns": [
+            "sources/FogCast/catalog/seeds/coleco-controllers.hex",
+            "sources/FogCast/internal/zx81tapes/assets/aritm.p",
+            "sources/FogCast/internal/zx81tapes/assets/character-display.p",
+            "sources/FogCast/internal/zx81tapes/assets/guess-number.p"
+          ],
+          "embedded": [
+            "sources/FogCast/catalog/seeds/coleco-controllers.hex",
+            "sources/FogCast/internal/zx81tapes/assets/aritm.p",
+            "sources/FogCast/internal/zx81tapes/assets/character-display.p",
+            "sources/FogCast/internal/zx81tapes/assets/guess-number.p"
+          ],
+          "packages": [
+            "sources/FogCast/appliance",
+            "sources/FogCast/appliance/blockprobe",
+            "sources/FogCast/appliance/software",
+            "sources/FogCast/appliance/softwarecontrol",
+            "sources/FogCast/atarist",
+            "sources/FogCast/catalog",
+            "sources/FogCast/cmd/fogcast",
+            "sources/FogCast/corecatalog",
+            "sources/FogCast/corepackage",
+            "sources/FogCast/corepackage/internal/generated",
+            "sources/FogCast/fogcast",
+            "sources/FogCast/host",
+            "sources/FogCast/hostclient",
+            "sources/FogCast/internal/bundledfirmware",
+            "sources/FogCast/internal/discovery",
+            "sources/FogCast/internal/fogcastcli",
+            "sources/FogCast/internal/hidkeys",
+            "sources/FogCast/internal/joymatrix",
+            "sources/FogCast/internal/kitcontent",
+            "sources/FogCast/internal/kitpackages",
+            "sources/FogCast/internal/localcores",
+            "sources/FogCast/internal/meshcontent",
+            "sources/FogCast/internal/meshplace",
+            "sources/FogCast/internal/meshpref",
+            "sources/FogCast/internal/metadata",
+            "sources/FogCast/internal/spectrumdisks",
+            "sources/FogCast/internal/spectrumsnapshots",
+            "sources/FogCast/internal/spectrumtapes",
+            "sources/FogCast/internal/systems",
+            "sources/FogCast/internal/version",
+            "sources/FogCast/internal/zx81family",
+            "sources/FogCast/internal/zx81keys",
+            "sources/FogCast/internal/zx81tapes",
+            "sources/FogCast/kitlease",
+            "sources/FogCast/librarymedia",
+            "sources/FogCast/libraryuser",
+            "sources/FogCast/protocol",
+            "sources/FogCast/protocol/internal/generated",
+            "sources/FogCast/remoteinput",
+            "sources/FogCast/romsource",
+            "sources/FogCast/storage",
+            "sources/FogCast/targetclient",
+            "sources/misteross/expansion"
+          ],
+          "targets": [
+            "darwin-arm64",
+            "darwin-arm64-cgo",
+            "darwin-arm64-sdl3"
+          ]
+        }
+      ],
+      "role": "host"
+    },
+    "fogcast-api": {
+      "graphs": [
+        {
+          "embed_patterns": [
+            "sources/FogCast/catalog/seeds/coleco-controllers.hex",
+            "sources/FogCast/internal/hostapi/ui.css",
+            "sources/FogCast/internal/hostapi/ui_app.js",
+            "sources/FogCast/internal/hostapi/ui_core_library.js",
+            "sources/FogCast/internal/hostapi/ui_metadata.js",
+            "sources/FogCast/internal/hostapi/ui_shell.html",
+            "sources/FogCast/internal/hostapi/ui_storage.js",
+            "sources/FogCast/internal/zx81tapes/assets/aritm.p",
+            "sources/FogCast/internal/zx81tapes/assets/character-display.p",
+            "sources/FogCast/internal/zx81tapes/assets/guess-number.p"
+          ],
+          "embedded": [
+            "sources/FogCast/catalog/seeds/coleco-controllers.hex",
+            "sources/FogCast/internal/hostapi/ui.css",
+            "sources/FogCast/internal/hostapi/ui_app.js",
+            "sources/FogCast/internal/hostapi/ui_core_library.js",
+            "sources/FogCast/internal/hostapi/ui_metadata.js",
+            "sources/FogCast/internal/hostapi/ui_shell.html",
+            "sources/FogCast/internal/hostapi/ui_storage.js",
+            "sources/FogCast/internal/zx81tapes/assets/aritm.p",
+            "sources/FogCast/internal/zx81tapes/assets/character-display.p",
+            "sources/FogCast/internal/zx81tapes/assets/guess-number.p"
+          ],
+          "packages": [
+            "sources/FogCast/appliance",
+            "sources/FogCast/appliance/blockprobe",
+            "sources/FogCast/appliance/software",
+            "sources/FogCast/appliance/softwarecontrol",
+            "sources/FogCast/appliance/store",
+            "sources/FogCast/atarist",
+            "sources/FogCast/catalog",
+            "sources/FogCast/cmd/fogcast-api",
+            "sources/FogCast/corecatalog",
+            "sources/FogCast/corepackage",
+            "sources/FogCast/corepackage/internal/generated",
+            "sources/FogCast/fogcast",
+            "sources/FogCast/host",
+            "sources/FogCast/internal/agent",
+            "sources/FogCast/internal/agentconfig",
+            "sources/FogCast/internal/appliancedata",
+            "sources/FogCast/internal/appliancesplash",
+            "sources/FogCast/internal/applianceupdate",
+            "sources/FogCast/internal/atomicwrite",
+            "sources/FogCast/internal/bundledfirmware",
+            "sources/FogCast/internal/catalogcheckpoint",
+            "sources/FogCast/internal/discovery",
+            "sources/FogCast/internal/flightdiag",
+            "sources/FogCast/internal/hidkeys",
+            "sources/FogCast/internal/hostapi",
+            "sources/FogCast/internal/joymatrix",
+            "sources/FogCast/internal/kitcontent",
+            "sources/FogCast/internal/kithost",
+            "sources/FogCast/internal/kitmemory",
+            "sources/FogCast/internal/kitpackages",
+            "sources/FogCast/internal/localcores",
+            "sources/FogCast/internal/mediasession",
+            "sources/FogCast/internal/meshcontent",
+            "sources/FogCast/internal/meshplace",
+            "sources/FogCast/internal/meshpref",
+            "sources/FogCast/internal/metadata",
+            "sources/FogCast/internal/misterruntime",
+            "sources/FogCast/internal/remotemedia",
+            "sources/FogCast/internal/spectrumdisks",
+            "sources/FogCast/internal/spectrumsnapshots",
+            "sources/FogCast/internal/spectrumtapes",
+            "sources/FogCast/internal/systems",
+            "sources/FogCast/internal/version",
+            "sources/FogCast/internal/zx81family",
+            "sources/FogCast/internal/zx81keys",
+            "sources/FogCast/internal/zx81tapes",
+            "sources/FogCast/kitlease",
+            "sources/FogCast/librarymedia",
+            "sources/FogCast/libraryuser",
+            "sources/FogCast/protocol",
+            "sources/FogCast/protocol/internal/generated",
+            "sources/FogCast/remoteinput",
+            "sources/FogCast/romsource",
+            "sources/FogCast/storage",
+            "sources/FogCast/targetclient",
+            "sources/misteross/expansion"
+          ],
+          "targets": [
+            "darwin-arm64",
+            "darwin-arm64-cgo",
+            "darwin-arm64-sdl3",
+            "linux-amd64",
+            "linux-amd64-sdl3",
+            "linux-arm64",
+            "linux-arm64-sdl3",
+            "linux-armv7"
+          ]
+        }
+      ],
+      "role": "kit-and-host"
+    },
+    "fogcast-tenfoot": {
+      "graphs": [
+        {
+          "embed_patterns": [
+            "sources/FogCast/ui/controller/gamecontrollerdb.txt",
+            "sources/FogCast/ui/rooms/examples",
+            "sources/FogCast/ui/rooms/stdlib"
+          ],
+          "embedded": [
+            "sources/FogCast/ui/controller/gamecontrollerdb.txt",
+            "sources/FogCast/ui/rooms/examples/coleco-arcade/main.lua",
+            "sources/FogCast/ui/rooms/examples/coleco-arcade/room.toml",
+            "sources/FogCast/ui/rooms/examples/computers/main.lua",
+            "sources/FogCast/ui/rooms/examples/computers/room.toml",
+            "sources/FogCast/ui/rooms/examples/fes-cores/main.lua",
+            "sources/FogCast/ui/rooms/examples/fes-cores/room.toml",
+            "sources/FogCast/ui/rooms/examples/hardware/assets/README.md",
+            "sources/FogCast/ui/rooms/examples/hardware/assets/zx81.png",
+            "sources/FogCast/ui/rooms/examples/hardware/main.lua",
+            "sources/FogCast/ui/rooms/examples/hardware/room.toml",
+            "sources/FogCast/ui/rooms/examples/setup-ready/main.lua",
+            "sources/FogCast/ui/rooms/examples/setup-ready/room.toml",
+            "sources/FogCast/ui/rooms/examples/system/main.lua",
+            "sources/FogCast/ui/rooms/examples/system/room.toml",
+            "sources/FogCast/ui/rooms/examples/welcome/main.lua",
+            "sources/FogCast/ui/rooms/examples/welcome/room.toml",
+            "sources/FogCast/ui/rooms/stdlib/families.lua",
+            "sources/FogCast/ui/rooms/stdlib/setup.lua",
+            "sources/FogCast/ui/rooms/stdlib/systems.lua",
+            "sources/FogCast/ui/rooms/stdlib/util/color.lua",
+            "sources/FogCast/ui/rooms/stdlib/util/ease.lua",
+            "sources/FogCast/ui/rooms/stdlib/widgets/grid.lua",
+            "sources/FogCast/ui/rooms/stdlib/widgets/list.lua",
+            "sources/FogCast/ui/rooms/stdlib/widgets/nodemap.lua",
+            "sources/FogCast/ui/rooms/stdlib/widgets/system_workbench.lua"
+          ],
+          "packages": [
+            "sources/FogCast/appliance/blockprobe",
+            "sources/FogCast/atarist",
+            "sources/FogCast/cmd/fogcast-tenfoot",
+            "sources/FogCast/corepackage",
+            "sources/FogCast/corepackage/internal/generated",
+            "sources/FogCast/hostclient",
+            "sources/FogCast/internal/corenames",
+            "sources/FogCast/internal/hidkeys",
+            "sources/FogCast/internal/kitmemory",
+            "sources/FogCast/internal/localcores",
+            "sources/FogCast/internal/playhid",
+            "sources/FogCast/internal/release",
+            "sources/FogCast/internal/spectrumdisks",
+            "sources/FogCast/internal/spectrumsnapshots",
+            "sources/FogCast/internal/spectrumtapes",
+            "sources/FogCast/internal/zx81family",
+            "sources/FogCast/internal/zx81keys",
+            "sources/FogCast/kitlease",
+            "sources/FogCast/libraryuser",
+            "sources/FogCast/protocol",
+            "sources/FogCast/protocol/internal/generated",
+            "sources/FogCast/remoteinput",
+            "sources/FogCast/storage",
+            "sources/FogCast/ui/controller",
+            "sources/FogCast/ui/gfx",
+            "sources/FogCast/ui/inputmap",
+            "sources/FogCast/ui/launcherconfig",
+            "sources/FogCast/ui/localfeed",
+            "sources/FogCast/ui/menudisplay",
+            "sources/FogCast/ui/rooms",
+            "sources/FogCast/ui/shared",
+            "sources/FogCast/ui/tenfoot",
+            "sources/FogCast/ui/tenfoot/attractvideo",
+            "sources/FogCast/ui/theme",
+            "sources/misteross/expansion"
+          ],
+          "targets": [
+            "linux-amd64",
+            "linux-amd64-sdl3",
+            "linux-arm64",
+            "linux-arm64-sdl3",
+            "linux-armv7"
+          ]
+        },
+        {
+          "embed_patterns": [
+            "sources/FogCast/ui/rooms/examples",
+            "sources/FogCast/ui/rooms/stdlib"
+          ],
+          "embedded": [
+            "sources/FogCast/ui/rooms/examples/coleco-arcade/main.lua",
+            "sources/FogCast/ui/rooms/examples/coleco-arcade/room.toml",
+            "sources/FogCast/ui/rooms/examples/computers/main.lua",
+            "sources/FogCast/ui/rooms/examples/computers/room.toml",
+            "sources/FogCast/ui/rooms/examples/fes-cores/main.lua",
+            "sources/FogCast/ui/rooms/examples/fes-cores/room.toml",
+            "sources/FogCast/ui/rooms/examples/hardware/assets/README.md",
+            "sources/FogCast/ui/rooms/examples/hardware/assets/zx81.png",
+            "sources/FogCast/ui/rooms/examples/hardware/main.lua",
+            "sources/FogCast/ui/rooms/examples/hardware/room.toml",
+            "sources/FogCast/ui/rooms/examples/setup-ready/main.lua",
+            "sources/FogCast/ui/rooms/examples/setup-ready/room.toml",
+            "sources/FogCast/ui/rooms/examples/system/main.lua",
+            "sources/FogCast/ui/rooms/examples/system/room.toml",
+            "sources/FogCast/ui/rooms/examples/welcome/main.lua",
+            "sources/FogCast/ui/rooms/examples/welcome/room.toml",
+            "sources/FogCast/ui/rooms/stdlib/families.lua",
+            "sources/FogCast/ui/rooms/stdlib/setup.lua",
+            "sources/FogCast/ui/rooms/stdlib/systems.lua",
+            "sources/FogCast/ui/rooms/stdlib/util/color.lua",
+            "sources/FogCast/ui/rooms/stdlib/util/ease.lua",
+            "sources/FogCast/ui/rooms/stdlib/widgets/grid.lua",
+            "sources/FogCast/ui/rooms/stdlib/widgets/list.lua",
+            "sources/FogCast/ui/rooms/stdlib/widgets/nodemap.lua",
+            "sources/FogCast/ui/rooms/stdlib/widgets/system_workbench.lua"
+          ],
+          "packages": [
+            "sources/FogCast/appliance/blockprobe",
+            "sources/FogCast/atarist",
+            "sources/FogCast/cmd/fogcast-tenfoot",
+            "sources/FogCast/corepackage",
+            "sources/FogCast/corepackage/internal/generated",
+            "sources/FogCast/hostclient",
+            "sources/FogCast/internal/corenames",
+            "sources/FogCast/internal/hidkeys",
+            "sources/FogCast/internal/kitmemory",
+            "sources/FogCast/internal/localcores",
+            "sources/FogCast/internal/playhid",
+            "sources/FogCast/internal/release",
+            "sources/FogCast/internal/spectrumdisks",
+            "sources/FogCast/internal/spectrumsnapshots",
+            "sources/FogCast/internal/spectrumtapes",
+            "sources/FogCast/internal/zx81family",
+            "sources/FogCast/internal/zx81keys",
+            "sources/FogCast/kitlease",
+            "sources/FogCast/libraryuser",
+            "sources/FogCast/protocol",
+            "sources/FogCast/protocol/internal/generated",
+            "sources/FogCast/remoteinput",
+            "sources/FogCast/storage",
+            "sources/FogCast/ui/gfx",
+            "sources/FogCast/ui/inputmap",
+            "sources/FogCast/ui/launcherconfig",
+            "sources/FogCast/ui/localfeed",
+            "sources/FogCast/ui/menudisplay",
+            "sources/FogCast/ui/rooms",
+            "sources/FogCast/ui/shared",
+            "sources/FogCast/ui/tenfoot",
+            "sources/FogCast/ui/tenfoot/attractvideo",
+            "sources/FogCast/ui/theme",
+            "sources/misteross/expansion"
+          ],
+          "targets": [
+            "darwin-arm64",
+            "darwin-arm64-cgo",
+            "darwin-arm64-sdl3"
+          ]
+        }
+      ],
+      "role": "kit-and-host"
+    },
+    "mister-agent": {
+      "graphs": [
+        {
+          "embed_patterns": [],
+          "embedded": [],
+          "packages": [
+            "sources/FogCast/appliance",
+            "sources/FogCast/appliance/blockprobe",
+            "sources/FogCast/appliance/software",
+            "sources/FogCast/appliance/store",
+            "sources/FogCast/cmd/mister-agent",
+            "sources/FogCast/corepackage",
+            "sources/FogCast/corepackage/internal/generated",
+            "sources/FogCast/internal/agent",
+            "sources/FogCast/internal/agentconfig",
+            "sources/FogCast/internal/appliancedata",
+            "sources/FogCast/internal/appliancesplash",
+            "sources/FogCast/internal/applianceupdate",
+            "sources/FogCast/internal/atomicwrite",
+            "sources/FogCast/internal/bridge",
+            "sources/FogCast/internal/buildinputs",
+            "sources/FogCast/internal/discovery",
+            "sources/FogCast/internal/flightdiag",
+            "sources/FogCast/internal/hidkeys",
+            "sources/FogCast/internal/httpapi",
+            "sources/FogCast/internal/input",
+            "sources/FogCast/internal/joymatrix",
+            "sources/FogCast/internal/kitcontent",
+            "sources/FogCast/internal/kitlease",
+            "sources/FogCast/internal/kitmemory",
+            "sources/FogCast/internal/kitpackages",
+            "sources/FogCast/internal/localcores",
+            "sources/FogCast/internal/meshcontent",
+            "sources/FogCast/internal/misterruntime",
+            "sources/FogCast/internal/playhid",
+            "sources/FogCast/internal/rebootguard",
+            "sources/FogCast/internal/softwareagent",
+            "sources/FogCast/internal/spectrumdisks",
+            "sources/FogCast/internal/spectrumsnapshots",
+            "sources/FogCast/internal/spectrumtapes",
+            "sources/FogCast/internal/systems",
+            "sources/FogCast/internal/targetcache",
+            "sources/FogCast/internal/version",
+            "sources/FogCast/internal/zx81keys",
+            "sources/FogCast/kitlease",
+            "sources/FogCast/protocol",
+            "sources/FogCast/protocol/internal/generated",
+            "sources/FogCast/remoteinput",
+            "sources/misteross/expansion"
+          ],
+          "targets": [
+            "darwin-arm64",
+            "darwin-arm64-cgo",
+            "darwin-arm64-sdl3",
+            "linux-amd64",
+            "linux-amd64-sdl3",
+            "linux-arm64",
+            "linux-arm64-sdl3",
+            "linux-armv7"
+          ]
+        }
+      ],
+      "role": "kit"
+    },
+    "mister-bridge": {
+      "graphs": [
+        {
+          "embed_patterns": [],
+          "embedded": [],
+          "packages": [
+            "sources/FogCast/cmd/mister-bridge",
+            "sources/FogCast/corepackage",
+            "sources/FogCast/corepackage/internal/generated",
+            "sources/FogCast/internal/bridge",
+            "sources/FogCast/internal/spectrumdisks",
+            "sources/FogCast/internal/spectrumsnapshots",
+            "sources/FogCast/internal/spectrumtapes",
+            "sources/FogCast/protocol",
+            "sources/FogCast/protocol/internal/generated",
+            "sources/misteross/expansion"
+          ],
+          "targets": [
+            "darwin-arm64",
+            "darwin-arm64-cgo",
+            "darwin-arm64-sdl3",
+            "linux-amd64",
+            "linux-amd64-sdl3",
+            "linux-arm64",
+            "linux-arm64-sdl3",
+            "linux-armv7"
+          ]
+        }
+      ],
+      "role": "standalone"
+    },
+    "target-image-lock": {
+      "graphs": [
+        {
+          "embed_patterns": [],
+          "embedded": [],
+          "packages": [
+            "sources/FogCast/cmd/target-image-lock",
+            "sources/FogCast/corepackage",
+            "sources/FogCast/corepackage/internal/generated",
+            "sources/FogCast/internal/targetimage",
+            "sources/misteross/expansion"
+          ],
+          "targets": [
+            "darwin-arm64",
+            "darwin-arm64-cgo",
+            "darwin-arm64-sdl3",
+            "linux-amd64",
+            "linux-amd64-sdl3",
+            "linux-arm64",
+            "linux-arm64-sdl3",
+            "linux-armv7"
+          ]
+        }
+      ],
+      "role": "builder"
+    }
+  },
+  "version": 1
+}

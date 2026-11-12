@@ -65,6 +65,9 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
              *(["--full"] if full else ["--paths-json", json.dumps(impact["paths"])])],
             tools=["sh"] + (["docker"] if modes["media"] else []),
             files=["scripts/parent_tests.py", "tests"])
+        add("parent", "Go command inventory", ".",
+            [sys.executable, "scripts/hil_go_inventory.py", "--check"],
+            tools=["go"], files=["scripts/hil_go_inventory.py", "config/hil-go-consumers.json"])
         add("parent", "working-tree generated consumer consistency", ".",
             [sys.executable, "-c", "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"],
             tools=["go"], files=["scripts/consistency.py"])

@@ -65,7 +65,8 @@ of a git range, and `--json` prints the plan as JSON.
 Each changed path gets a class and a component:
 
 - `none`: docs, tests, simulation inputs and explicitly listed CI/checking
-  tools (including `scripts/check_deadcode.py`). No hardware run is needed.
+  tools (including `scripts/check_deadcode.py`). Embedded assets and compiler
+  inputs within Go package directories are classified through their consumers.
 - `overlay`: the change ships without a new image, as a PR
   [kit software bundle](kit-software-releases.md) (`mister-runtime`,
   `mister-agent`, `fogcast-tenfoot`, other FogCast Go), a host binary
@@ -102,41 +103,46 @@ Each changed path gets a class and a component:
   The paths are `sources/FogCast/appliance/store/**` (release confirm,
   boot-ticket rewrite, and splash prune), `sources/FogCast/internal/applianceupdate/**`
   (the agent's reconcile and repair), `sources/FogCast/internal/appliancesplash/**`
-  (FAT `idle.rbf` refresh on confirm, and the restored image's splash on
-  rollback confirm) and `sources/FogCast/internal/appliancedata/**` (the
-  fes-kit-data gate). Packages under `appliance/` that an image-only binary
-  imports are full too, even when overlay code also imports them. A bundle
-  cannot replace those binaries, so an overlay install cannot exercise the
-  changed code. The set comes from `go list -deps`, not a guess. fes-boot
-  (`platform/cmd/fes-boot`) and the trial-startup supervisor
-  (`platform/cmd/fes-kit-software`) are listed from a workspace that replaces
-  `github.com/DeanoC/FogCast/appliance` with `sources/FogCast/appliance`.
-  fes-kit-data (`sources/FogCast/cmd/fes-kit-data`) is listed from the FogCast
-  module. Those three commands import:
+  (FAT `idle.rbf` refresh) and `sources/FogCast/internal/appliancedata/**`
+  (the fes-kit-data gate). The image also supplies `fes-boot`,
+  `fes-kit-software` and `fes-bluetooth` from the platform module.
 
-  - `github.com/DeanoC/FogCast/appliance` (`sources/FogCast/appliance/*.go`,
-    the release manifest; `release.go` is the only non-test file), from
-    fes-boot and fes-kit-data.
-  - `github.com/DeanoC/FogCast/appliance/blockprobe`, from all three.
-  - `github.com/DeanoC/FogCast/appliance/softwarecontrol`, from
-    fes-kit-software and from fes-kit-data through `internal/applianceupdate`
-    → `internal/agent` → `protocol`.
-  - `github.com/DeanoC/FogCast/appliance/store`, from fes-boot and fes-kit-data
-    (already `appliance/store/**`).
-  - `github.com/DeanoC/FogCast/appliance/software`, from fes-kit-software
-    (already `appliance/software/**`).
+The generated `config/hil-go-consumers.json` records package and embedded-asset
+candidates by command and target. The inventory covers the Linux ARMv7 kit,
+Linux amd64 and arm64 hosts (including SDL3), and Darwin arm64 hosts (including
+CGO and SDL3). Platform image commands use their ARMv7 build graph and the
+local appliance module. It records import reachability, **not** proof that a
+source edit changed executable bytes: linking and inlining affect that result.
 
-  The first three are `sources/FogCast/appliance/*.go` and
-  `sources/FogCast/appliance/blockprobe/**` (`appliance-trial`) and
-  `sources/FogCast/appliance/softwarecontrol/**` (`kit-software`). `*_test.go`
-  stays `none`. Importers outside those packages, including `cmd/mister-agent`,
-  `internal/httpapi`, `catalog` and `protocol`, stay on their own rules.
-  Trial startup (`platform/cmd/fes-kit-software`,
-  `platform/internal/kitsoftware`), trial boot (`platform/cmd/fes-boot`,
-  `platform/internal/applianceboot`) and the `fes-update` and `fes-kit-data`
-  commands are already full through the platform and unmapped-command rules.
-  `sources/FogCast/internal/ext4image/**`, which only `fes-update` imports, is
-  full with them.
+A shared change can also reach image-only commands, the supported host clients
+`fes-update` and `fes-software`, or the bundle and image-lock builders. When
+those candidates need analysis, `classify` returns `COMMAND_EVIDENCE_REQUIRED`
+(exit 3), with the ordinary deployment result in `deployment_decision` and
+per-command paths, roles and targets in `command_evidence`. Compare or build the
+exact base and head artifacts and record the relevant command's execution or
+other appropriate evidence; if an image binary changed, plan its image build
+and boot test. A full image alone does not build or test an independent host
+client or builder. Optional standalone `mister-bridge` and `fes-parts`, and
+simulation tools, appear as `advisory_commands`; they are not required kit
+artifacts. An embedded asset can select deployment even when it is a README.
+
+The planner reads inventories from the requested base and head revisions. A
+missing or malformed inventory, changed import/build/embed graph, unknown Go
+package, or a paths-only plan whose graph cannot be checked also returns the
+blocking decision and identifies what needs verification. In particular, a
+base image or merge base older than this inventory is not silently substituted
+with head data; use a baseline containing the inventory or independently
+establish the historical graph and affected artifacts. `--strict` applies the
+same rule to its image base. Regenerate with
+`python3 scripts/hil_go_inventory.py`; `make check` and the parent
+`make test-changed` lane reject a stale graph or failed discovery. The guard
+uses the configured Go proxy and module cache, so a cold cache needs normal Go
+module access; offline missing dependencies fail rather than silently passing.
+
+Lander's `~/lander-hilq/hilq.py` uses its own classifier and does not consume
+this planner's command-evidence fields. Carry the specific command and image
+requirements into the Lander handoff; a queue dispatch alone does not resolve
+them.
 
 A changed file under `cores/<name>/` also requires every `build_fes_*`
 producer that names the file or one of its directories, either in its own
