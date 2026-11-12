@@ -37,8 +37,14 @@ All runs were on Powerboat. The trees:
 | --- | --- | --- | --- | --- |
 | `e4d761ef…` | pc386 `294c8945…` | HIP | `be9f3be5…` (`e240a465`) | branch seals, lockstep `--netlist`, front end `--netlist` |
 | `0a4c6c2a…` | i386 `147746f7…` | OFF | `f61b478f…` (`e240a465`) | Verilator v5.054 for every i386 simulation |
-| `05416979…` | pc386 `2f08dd9b…` (main) | HIP | `1c1fb5cd…` (`0a7927bf`) | main seals |
+| `05416979…` | pc386 `2f08dd9b…` (main) | HIP | `1c1fb5cd…` (`0a7927bf`), then `7b10bc22…` | main seals: seed 1, then seeds 2 and 3 |
 | `6ec78306…` | PC/XT `quartus.lock` | — | `d45b5d6e…` (`3a5accbd`) | both PC/XT builds |
+
+Between main's seed 1 and its seeds 2 and 3, the shared cache lost most of its slots, `05416979…`
+included. That slot was rebuilt from main's lock under the same key. Slot builds aren't
+bit-reproducible, so main's seeds 2 and 3 ran a different binary of the same Yosys commit
+(`7b10bc22…`; each summary's `tools.yosys` names its binary). The CPU netlist is byte-identical
+across two such binaries of one commit (D2), so the seeds compare as one population.
 
 A first round of these runs is not used. Two copies of the evidence queue ran at once in the same
 build and simulation directories, so every result was discarded and the runs repeated once each.
@@ -105,6 +111,13 @@ The clocks are 61.44, 74.27 and 12.29 MHz in every build.
   structure is the same, so these differences are Quartus reacting to different names, as a
   BUILD_ID change does (#1660 moved removal slack by 0.3 ns and registers by 57). They are not a
   change in the design.
+- **S4's acceptance** asks for unchanged resources and timing. This record reads that as the
+  branch staying within main's seed-to-seed spread, with every analysis met. On these three seeds:
+  - the branch's setup range lies inside main's, and its hold is equal;
+  - its recovery spreads wider (6.448 to 7.443 ns, against main's 7.046 to 7.232), with over 6 ns
+    of margin in every fit;
+  - its removal slack is at main's lowest seed on every seed;
+  - ALMs and registers move by under 0.2%, and RAM and DSP counts don't change.
 - **No HIL:** pc386 has none (`AGENTS.md`). The seals stay development builds.
 
 ### 4. PC/XT (D12)
@@ -134,10 +147,10 @@ on it.
 
 ## Not covered
 
-- **The i386 front-end spike** no longer reads under the locked Yosys on main
-  (`spike_frontend.sv:107`, #1738). The oracle's labels were checked on the dag, m2 and cpu spikes:
-  `quartus_fes_i386.py`'s `register_names` and `node_label` give the same per-stage register counts
-  on main's escaped netlist as on the new `hdlname` one.
+- **The oracle's stage labels** were checked on the dag, m2 and cpu spikes, not the front-end
+  spike: that spike did not read under the locked Yosys when the check ran (#1738, since fixed on
+  main by #1741). `quartus_fes_i386.py`'s `register_names` and `node_label` give the same per-stage
+  register counts on main's escaped netlist as on the new `hdlname` one.
 - **`benchmark_fes_i386.py`** moved to `synthesis_program()` without a routed run. The i386 lock has
   no HIP slot for its nextpnr, and i386 routes are parked (#1235).
 

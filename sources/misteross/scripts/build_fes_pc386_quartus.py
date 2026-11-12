@@ -71,7 +71,6 @@ RECIPE = "scripts/build_fes_pc386_quartus.py"
 OUTPUT = Path("build/fes-pc386-quartus")
 LOCK = "cores/fes-pc386/toolchain.lock"
 QUARTUS_LOCK = "cores/fes-pc386/quartus.lock"
-TOOLCHAIN_ROOT = "build/toolchain/fes-pc386"
 QSF = "cores/fes-pc386/constraints-oss.qsf"
 SDC = "cores/fes-pc386/clocks.sdc"
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"

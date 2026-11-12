@@ -104,7 +104,9 @@ module spike_frontend (
     logic [31:0]  signature, fold;
     // Q's record, its valid bit and the held blocks' paging pages, padded
     // to whole dwords.
-    localparam int OW = $bits(fes_i386_pkg::fetched_t) + 1 + 63;
+    // Use the object rather than its typedef: Yosys cannot parse $bits(type)
+    // in a constant expression (DeanoC/yosys#64).
+    localparam int OW = $bits(q) + 1 + 63;
     localparam int ON = (OW + 31) / 32;
     logic [32 * ON - 1:0] observed;
     assign observed = (32 * ON)'({held_pk, held_pp, q_valid, q});

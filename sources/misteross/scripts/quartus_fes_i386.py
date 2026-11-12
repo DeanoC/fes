@@ -271,7 +271,8 @@ def main() -> int:
         netlist = base / f'{TOP}.v'
         if not reuse:
             yosys_netlist.run(yosys.path, yosys_netlist.program(
-                RECIPE, top=TOP, sources=sources, includes=yosys_netlist.PC386_INCLUDES, netlist=netlist.name),
+                RECIPE, top=TOP, sources=sources, includes=[ROOT / p for p in yosys_netlist.PC386_INCLUDES],
+                netlist=netlist.name),
                 cwd=base, program_file=base / f'{TOP}.ys', log=base / 'yosys.log')
         pins = (ROOT / benchmark.SPIKE / 'spike.qsf').read_text()
         (base / f'{TOP}.qpf').write_text(f'PROJECT_REVISION = "{TOP}"\n')

@@ -195,10 +195,16 @@ or both in one uop (read-modify-write), and stands for the register it
 replaces: no GPR is read or written for it. Its segment is the override, else
 SS for a BP-, EBP- or ESP-based address, else DS. LOCK on anything but a
 read-modify-write of ADD, OR, ADC, SBB, AND, SUB, XOR, NOT, NEG, INC, DEC,
-BTS, BTR or BTC, MOV to CS or to segment register 6 or 7, LEA of a register
-and C6h/C7h with reg != 0 raise #UD; over 15 bytes raises #GP(0). Every
-other encoding decodes as `FAULT_UNIMPLEMENTED`, which stops the CPU at WB,
-so no check can pass over one. An immediate after a ModRM's operand bytes is the instruction's last
+BTS, BTR or BTC raises #UD, and so does every encoding the 386 does not
+define, in every mode and at every CPL (#1701): those its decoder sends to
+its #UD entry (reenigne/x86_microcode `80386/decoder23.txt` and
+`decode2.txt`, entry 82B), the register forms of the memory-only
+instructions and the undefined ModRM reg fields included, and XBTS and IBTS
+(0F A6, 0F A7), which only the B-step 386 ran. Over 15 bytes raises #GP(0).
+The 386's instructions this build does not run, ICEBP (F1h), LOADALL
+(0F 07), UMOV (0F 10-0F 13) and MOV to and from TR4-TR7 (0F 24, 0F 26),
+decode as `FAULT_UNIMPLEMENTED`, which stops the CPU at WB, so no check can
+pass over one; with a LOCK they raise #UD, as any invalid LOCK does. An immediate after a ModRM's operand bytes is the instruction's last
 bytes, so DC takes it from the length, beside the decode. DC also registers
 the address registers and scale a memory ModRM names (`fes_i386_amode`), or
 ESP (EBP for LEAVE) for a stack operation.
@@ -1224,8 +1230,12 @@ established. The routines are `ucode.toml`'s `tsjg`, `tsgate`, `tsw`,
   delay slot of 673's branch to TASK_RETURN): when its first uop (`iret0`)
   reaches WB as the oldest, committing or faulting, once every instruction
   before it has completed (#1704). So an IRET whose task return then faults
-  has unblocked NMI too (`ts-nmi-iret-link-null`), and an NMI raised in an
-  NMI's handler waits for the handler's IRET (`nmi-in-nmi-handler`). The cycle
+  has unblocked NMI too (`ts-nmi-iret-link-null`). Directed lockstep also
+  checks a pending second NMI after ordinary IRET faults on the stack limit,
+  a not-present stack page, or a null return CS (`nmi-iret-stack-ss`,
+  `nmi-iret-stack-pf`, `nmi-iret-cs-gp`). An NMI raised in an NMI's handler
+  waits for the handler's IRET (`nmi-in-nmi-handler`). A CS-limit fault when
+  fetching IRET leaves NMI blocked (`nmi-iret-fetch-gp`). The cycle
   after, DC takes the new task's descriptor loads as it takes a fault's
   entry (`tsw_inj`, `dc_exc`): at the new EIP, length 0, so a fault there
   is the new task's, its frame the new CS:EIP. A delivery's exception stays
