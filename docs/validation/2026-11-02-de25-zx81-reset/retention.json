@@ -1,0 +1,36 @@
+{
+  "classification": "Independent archive/source restore plus actual public source, timing, topology, constraint, client and ELF readers; no hardware acceptance",
+  "client_cases": 34,
+  "clients": null,
+  "compiled": {
+    "archive_sha256": "75b633d47de7bb247c50fa3da0518ab367e1670922d8cece38ac5d8f13961805",
+    "archive_size": 1081921669,
+    "files": 6861
+  },
+  "hardware_access": "not-performed",
+  "initial_extraction_job_seconds": 16.4,
+  "internal_source_files": 104,
+  "original_reader_failure": "Original extraction/hash/source/combined checks completed; internal reader incorrectly passed the added architecture/SAVE-hash metadata to the raw-client schema. Failed original run and script retained.",
+  "reset_paths": 24,
+  "seconds": 20.102,
+  "source_restore": {
+    "independent_git_objects": true,
+    "seconds": 2.196,
+    "source_revision": "658c97ac41079b3f8ed0ac9e0cc45c1ece803b69",
+    "status": "passed"
+  },
+  "status": "passed",
+  "software": {
+    "status": "passed",
+    "classification": "Independent software archive restoration, complete case inventory and exact failure-set accounting; generic aggregate remains failed",
+    "source_revision": "77806a700679301cf10c746ff4372d1f72fc64c3",
+    "file_count": 28,
+    "archive_size": 268905,
+    "archive_sha256": "c94eba70e776623a14b3d34a69b006faef1f943dc8b238327b63d98deeec5458",
+    "passed_applicable": 1760,
+    "skipped_applicable": 19,
+    "not_applicable": 8,
+    "seconds": 0.026,
+    "hardware_access": "not-performed"
+  }
+}

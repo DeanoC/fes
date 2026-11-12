@@ -1,0 +1,11 @@
+{
+  "success": true,
+  "old_boot_id": "e008ed69-6faf-409d-ac75-f5543bfaa7f8",
+  "new_boot_id": "984ab93e-e420-4127-83a7-43c433474a8b",
+  "image": "d11a2284af6409c8963a5fb20ac29f60a3e39ecb2f2660732708182ea0fff1ea",
+  "bundle": "f4acdf5ba7781418ba3487b365912a56f061ca6848f57c54a347067abc40b364",
+  "generation": 0,
+  "source": "e212fd51c0de96bf660207bf0c96a0e1355eed4d",
+  "scope": "One ordinary software reboot after normal ZX81 Stop, stable ready MENU idle/free and fresh authenticated kernel/runtime/data identity. Post-reboot core launch remains separate. No forced reset, power cycle, physicalPR or whole-board acceptance.",
+  "elapsed_seconds": 49.567
+}

@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "merge_revision": "bde6a6000bdd3e0e49050a92c282325b6e7972ec",
+  "unchanged_subtrees_from_actual_producer": {
+    "sources/libmister-runtime": "739669eb46d67ebb6c8c62c0835598c36fbc7c3c",
+    "image/kernel/de25-dma": "9de85374d28a73b499673006e0aefacc15403d68",
+    "sources/FogCast": "9964f2aa9f26dee6c99a518e86135126ccc72e3b"
+  },
+  "strict_combined_source_gate": "16 recipe tests passed after all merges"
+}

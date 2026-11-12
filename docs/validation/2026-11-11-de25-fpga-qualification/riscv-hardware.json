@@ -1,0 +1,84 @@
+{
+  "kind": "DE10 sealed RISC-V package hardware lifecycle/display",
+  "package_producer": "e9981c96d1ecccda167fba161fff4a346eac4978",
+  "tested_checkout": "4acdbf15d13344f059c77da313775d7c26073722",
+  "package_id": "3df4dc23c0fb1789d581a0ac4f551f77d6a7ee53e0d23dc706186c0993796ec0",
+  "build_id": "c754f86e1ee1b23624f5baa8f55235b0",
+  "passed": [
+    "authenticated independent host catalog import",
+    "target compatibility",
+    "normal library launch with exact build/package/target identity",
+    "captured FES RV32I firmware scene",
+    "expected owned Stop to idle",
+    "baseline generation154, image179, bundlea275, boot unchanged",
+    "all four baseline executable hashes",
+    "original catalog and protected paths identical after removing only new empty SHA256(fes.riscv) directory",
+    "FES Home capture",
+    "private host/credential retired"
+  ],
+  "not_tested": [
+    "gamepad input",
+    "media",
+    "new OS boot",
+    "long-term animation or endurance"
+  ],
+  "restoration": {
+    "baseline_bundle": "a2756499ab07627e1b1fb7f00f3ebe334b6b564099c1b086d9c4f74eaf9aeb1e",
+    "image": "179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018",
+    "generation": 154,
+    "boot_id": "797c95b4-f20b-47cb-b41b-cbe92e78a289",
+    "ready": true,
+    "idle": true,
+    "lease": "free",
+    "catalog_listing_identical": true,
+    "protected_listing_identical": true,
+    "idle_launcher_boot_identical": true,
+    "four_baseline_process_hashes": {
+      "fogcast-kit": "2d6e2b71b2c2a09db8ed617599448d9704c9205afe57dd7e9a47579b849ba3dd",
+      "fogcast-tenfoot": "2f7652736cd1a4eecb6151de4e1d49ccb9d6b6f4fc33a2a3e9949a97f088c5e8",
+      "mister-agent": "1a7583f3011d0ab9db64e66a53ffd22424d38691e76bfa483124428c0b4310f7",
+      "mister-runtime": "d6cf73d4e643f41d7cf12e5bd460c728b238c06275b51af0f8543f7214efd94f"
+    },
+    "private_host_retired": true,
+    "private_credential_removed": true
+  },
+  "receipts": {
+    "acceptance-private.json": {
+      "sha256": "e5b79e6800d2085d0036e7ea46fbfe17c288845e046d0903434c9e0f187d4265",
+      "size": 3210
+    },
+    "active-session.json": {
+      "sha256": "fb2f8beae5358d56905c5752c64db4c76c7eb0cc5b91e44c8b677f00055d3775",
+      "size": 1082
+    },
+    "private-host.json": {
+      "sha256": "211c65ef82dc93c5d58ef0977a67da463a82d6fab4093e8b9c44161d2d346c7d",
+      "size": 416
+    },
+    "restoration.json": {
+      "sha256": "7ec9616ba81135caaf32f75967ba659add301d05bfd2c381eb9af86544fe066c",
+      "size": 879
+    },
+    "owned-empty-directory-cleanup.json": {
+      "sha256": "701b9ee6f410d3fb12551bffebcad0fd5c2db055648e6cfe9fa7d7f881fa3c9c",
+      "size": 214
+    },
+    "riscv-1.png": {
+      "sha256": "4c6d2c8d8bbb3756757eacd65f2e662ac9a6f56594ea0e34760218bc21f02037",
+      "size": 6154
+    },
+    "riscv-2.png": {
+      "sha256": "a5c730fc53b41ccd5c60779ec1f7d2b172ad6dcf53de382570a0d7b4bb3c0b0f",
+      "size": 35108
+    },
+    "baseline-home.png": {
+      "sha256": "4a6d3ccb536e2628d0dcf24fff9c354812d28c52f4bf681d2f030f2e1531e634",
+      "size": 298635
+    }
+  },
+  "initial_failed_preparations": [
+    "kit launcher proxy admission timeout; no FPGA load and no local catalog change",
+    "wrong host container rejected by UID/GID label gate before start",
+    "first restoration check detected one owned empty core-data directory; exact rmdir then full check passed"
+  ]
+}

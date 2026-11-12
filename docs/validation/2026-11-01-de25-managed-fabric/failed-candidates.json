@@ -1,0 +1,194 @@
+[
+  {
+    "archive_receipt": {
+      "source_revision": "01ce2c1d16be1cf3d5b105f826617b37a2d1f2fc",
+      "classification": "failed compile; no fit/RBF/conversion/native acceptance",
+      "compile": {
+        "source_revision": "01ce2c1d16be1cf3d5b105f826617b37a2d1f2fc",
+        "command": [
+          "python3",
+          "/data/fes-de25-managed-fabric-01ce2c1d1/source/sources/misteross/scripts/build_de25_menu_package.py",
+          "--quartus-root",
+          "/data/altera_pro/26.3",
+          "--vendor-archive",
+          "/data/fes-de25-1297-9b36e4729/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+          "--compile-only"
+        ],
+        "cwd": "/data/fes-de25-managed-fabric-01ce2c1d1/source",
+        "started_utc": "2026-11-01T19:01:43.605579+00:00",
+        "time_cap_seconds": 2400,
+        "hardware_access": "not-performed",
+        "pid": 2090377,
+        "state": "failed",
+        "elapsed_seconds": 82.3,
+        "heartbeat_utc": "2026-11-01T19:03:05.940987+00:00",
+        "returncode": 1
+      },
+      "archive": "failed-generation.tar.gz",
+      "bytes": 180294484,
+      "sha256": "a862748a17e21f07748d161c5454c3c53e7d896362ea3fa90a54c3949c4cc2c2",
+      "hardware_access": "not-performed"
+    },
+    "regular_files_verified": 227,
+    "software": {
+      "source_revision": "01ce2c1d16be1cf3d5b105f826617b37a2d1f2fc",
+      "command": [
+        "env",
+        "-u",
+        "PYTHON",
+        "-u",
+        "MAKEFLAGS",
+        "-u",
+        "MAKEOVERRIDES",
+        "-u",
+        "MFLAGS",
+        "-u",
+        "MAKELEVEL",
+        "-u",
+        "GNUMAKEFLAGS",
+        "PATH=/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin:/home/deano/.local/bin:/home/deano/.cargo/bin:/home/deano/.local/bin:/home/deano/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games",
+        "make",
+        "test-changed",
+        "TEST_CHANGED_ARGS=--base 11999b8969a00281f562616a1df05588bb3373c8"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-managed-fabric-01ce2c1d1",
+      "started_utc": "2026-11-01T19:01:43.605569+00:00",
+      "time_cap_seconds": 2400,
+      "hardware_access": "not-performed",
+      "pid": 1113263,
+      "state": "failed",
+      "elapsed_seconds": 119.0,
+      "heartbeat_utc": "2026-11-01T19:03:42.606348+00:00",
+      "returncode": -15
+    },
+    "classification": "failed producer attempts and deliberately superseded partial software runs; no aggregate software pass; no fit/RBF/conversion/native acceptance"
+  },
+  {
+    "archive_receipt": {
+      "source_revision": "5399f9b91f752bc6f27329b772a91d07883f52da",
+      "classification": "failed compile; no fit/RBF/conversion/native acceptance",
+      "compile": {
+        "source_revision": "5399f9b91f752bc6f27329b772a91d07883f52da",
+        "command": [
+          "python3",
+          "/data/fes-de25-managed-fabric-5399f9b91/source/sources/misteross/scripts/build_de25_menu_package.py",
+          "--quartus-root",
+          "/data/altera_pro/26.3",
+          "--vendor-archive",
+          "/data/fes-de25-1297-9b36e4729/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+          "--compile-only"
+        ],
+        "cwd": "/data/fes-de25-managed-fabric-5399f9b91/source",
+        "started_utc": "2026-11-01T18:50:30.685868+00:00",
+        "time_cap_seconds": 2400,
+        "hardware_access": "not-performed",
+        "pid": 2083145,
+        "state": "failed",
+        "elapsed_seconds": 229.5,
+        "heartbeat_utc": "2026-11-01T18:54:20.173415+00:00",
+        "returncode": 1
+      },
+      "archive": "failed-generation.tar.gz",
+      "bytes": 233747847,
+      "sha256": "23217bf642f51aae7e658d92ee31794ff8e586bacb9cd7228d5a562f50913b3c",
+      "hardware_access": "not-performed"
+    },
+    "regular_files_verified": 1327,
+    "software": {
+      "source_revision": "5399f9b91f752bc6f27329b772a91d07883f52da",
+      "command": [
+        "env",
+        "-u",
+        "PYTHON",
+        "-u",
+        "MAKEFLAGS",
+        "-u",
+        "MAKEOVERRIDES",
+        "-u",
+        "MFLAGS",
+        "-u",
+        "MAKELEVEL",
+        "-u",
+        "GNUMAKEFLAGS",
+        "PATH=/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin:/home/deano/.local/bin:/home/deano/.cargo/bin:/home/deano/.local/bin:/home/deano/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games",
+        "make",
+        "test-changed",
+        "TEST_CHANGED_ARGS=--base 11999b8969a00281f562616a1df05588bb3373c8"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-managed-fabric-5399f9b91",
+      "started_utc": "2026-11-01T18:50:27.836413+00:00",
+      "time_cap_seconds": 2400,
+      "hardware_access": "not-performed",
+      "pid": 1007358,
+      "state": "failed",
+      "elapsed_seconds": 443.7,
+      "heartbeat_utc": "2026-11-01T18:57:51.582802+00:00",
+      "returncode": -15
+    },
+    "classification": "failed producer attempts and deliberately superseded partial software runs; no aggregate software pass; no fit/RBF/conversion/native acceptance"
+  },
+  {
+    "archive_receipt": {
+      "source_revision": "ca767cf0d008382134f55a866ad4059d6a4ecc26",
+      "classification": "failed compile; no fit/RBF/conversion/native acceptance",
+      "compile": {
+        "source_revision": "ca767cf0d008382134f55a866ad4059d6a4ecc26",
+        "command": [
+          "python3",
+          "/data/fes-de25-managed-fabric-ca767cf0d/source/sources/misteross/scripts/build_de25_menu_package.py",
+          "--quartus-root",
+          "/data/altera_pro/26.3",
+          "--vendor-archive",
+          "/data/fes-de25-1297-9b36e4729/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+          "--compile-only"
+        ],
+        "cwd": "/data/fes-de25-managed-fabric-ca767cf0d/source",
+        "started_utc": "2026-11-01T18:34:12.410162+00:00",
+        "time_cap_seconds": 2400,
+        "hardware_access": "not-performed",
+        "pid": 2077343,
+        "state": "failed",
+        "elapsed_seconds": 158.8,
+        "heartbeat_utc": "2026-11-01T18:36:51.230134+00:00",
+        "returncode": 1
+      },
+      "archive": "failed-generation.tar.gz",
+      "bytes": 184324571,
+      "sha256": "c64d2d14d749047a49d3388b4c71f31b48add5246c45144f5b22ca067d051518",
+      "hardware_access": "not-performed"
+    },
+    "regular_files_verified": 1066,
+    "software": {
+      "source_revision": "ca767cf0d008382134f55a866ad4059d6a4ecc26",
+      "command": [
+        "env",
+        "-u",
+        "PYTHON",
+        "-u",
+        "MAKEFLAGS",
+        "-u",
+        "MAKEOVERRIDES",
+        "-u",
+        "MFLAGS",
+        "-u",
+        "MAKELEVEL",
+        "-u",
+        "GNUMAKEFLAGS",
+        "PATH=/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin:/home/deano/.local/bin:/home/deano/.cargo/bin:/home/deano/.local/bin:/home/deano/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games",
+        "make",
+        "test-changed",
+        "TEST_CHANGED_ARGS=--base 11999b8969a00281f562616a1df05588bb3373c8"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-managed-fabric-ca767cf0d",
+      "started_utc": "2026-11-01T18:34:09.900635+00:00",
+      "time_cap_seconds": 2400,
+      "hardware_access": "not-performed",
+      "pid": 619210,
+      "state": "failed",
+      "elapsed_seconds": 465.4,
+      "heartbeat_utc": "2026-11-01T18:41:55.314559+00:00",
+      "returncode": -15
+    },
+    "classification": "failed producer attempts and deliberately superseded partial software runs; no aggregate software pass; no fit/RBF/conversion/native acceptance"
+  }
+]

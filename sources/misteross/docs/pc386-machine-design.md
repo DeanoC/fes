@@ -34,7 +34,8 @@ comparison with Nuked-OPL3 and game start-up audio
 **Builds on:** the [i386 CPU design](i386-cpu-design.md). This page designs
 everything behind that CPU's [machine interface](i386-cpu-design.md#machine-interface)
 and uses its [first acceptance games](i386-cpu-design.md#first-acceptance-games)
-as the scope.
+as the scope. Windows for Workgroups 3.11 is a standing check beside them
+([Windows corpus](pc386-windows-corpus.md)).
 
 **Owners:** misteross for the machine RTL, firmware build and producer.
 mister-packages for the new interfaces and layouts. libmister-runtime for disk

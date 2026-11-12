@@ -8,6 +8,7 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/corenames"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/misteross/expansion"
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -189,9 +190,20 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 		// load: a matching composition, or a verified empty socket. It is
 		// never taken from the saved Next start setup.
 		known := false
+		expansionID := ""
 		if c := s.CorePackage; c != nil {
-			if c.Composition != nil {
+			if receipt := c.StaticComposition; receipt != nil {
+				id, err := expansion.StaticCompositionID(*receipt)
+				known = err == nil && id == receipt.ID && receipt.PackageID == c.PackageID &&
+					c.Composition == nil && c.PartsComposition == nil && c.ROMLink == nil && c.ROMLinks == nil && c.ExpansionSocket == ""
+				if known {
+					expansionID = receipt.ExpansionID
+				}
+			} else if c.Composition != nil {
 				known = c.Composition.PackageID == c.PackageID
+				if known {
+					expansionID = c.Composition.ExpansionID
+				}
 			} else {
 				known = c.ExpansionSocket == protocol.ExpansionSocketEmpty
 			}
@@ -203,11 +215,7 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 		if c := s.CorePackage; c != nil {
 			session.RawSetString("generation", lua.LString(strconv.FormatUint(c.Generation, 10)))
 			session.RawSetString("package_id", lua.LString(c.PackageID))
-			id := ""
-			if known && c.Composition != nil {
-				id = c.Composition.ExpansionID
-			}
-			session.RawSetString("expansion_id", lua.LString(id))
+			session.RawSetString("expansion_id", lua.LString(expansionID))
 		}
 		out.RawSetString("session", session)
 	}

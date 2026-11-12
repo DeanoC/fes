@@ -1,0 +1,14 @@
+{
+  "status": "diagnosed",
+  "classification": "Exact Buildroot strip-command reproduction on a private copy; no selected artifact or target changed",
+  "selected_sha256": "bc2b751968bc96b4a21aeb133ade5edf432ff95504502c7e7461e1588d4c8a2c",
+  "rootfs_sha256": "a08c12a1565499d9c7e5b3b1bbe97bdaaaa665bdda324fcfab0bacb122421b22",
+  "private_exact_strip_result_sha256": "a08c12a1565499d9c7e5b3b1bbe97bdaaaa665bdda324fcfab0bacb122421b22",
+  "strip_sha256_before_after": "10c6a714261b41f93a9310a05b182e2c2aca9f10efba25659b237d1416c0fb33",
+  "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+  "actual_rootfs_byte_identical_to_strip_reproduction": true,
+  "fault": "Buildroot global strip removes .comment from already selected prebuilt runtime before native post-build; factory identity verifier correctly refuses changed executable",
+  "repair": "Exclude exact mister-runtime filename from Buildroot global stripping in managed-factory configuration. Preserve selected bytes and strict post-assembly executable hash comparison; other stripping remains selected by stock configuration.",
+  "source_unchanged": true,
+  "hardware_access": false
+}

@@ -1,0 +1,11 @@
+{
+  "source_revision": "d8b23267cc8301361bdc5c2ef7db89593462f4a6",
+  "command": [
+    "make",
+    "check"
+  ],
+  "state": "passed",
+  "elapsed_seconds": 5.6,
+  "returncode": 0,
+  "hardware_access": "not-performed"
+}

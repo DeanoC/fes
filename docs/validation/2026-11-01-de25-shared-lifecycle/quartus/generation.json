@@ -1,0 +1,170 @@
+{
+  "clock_hz": 100000000,
+  "computer": {
+    "clock_hz": 100000000,
+    "instance": "subsys_periph.fes_computer",
+    "jtag_computer_base": 1114880,
+    "jtag_slave_map": [
+      {
+        "base": 262144,
+        "name": "ocm.axi_s1",
+        "span": 262144
+      },
+      {
+        "base": 1114112,
+        "name": "subsys_periph.sysid.control_slave",
+        "span": 8
+      },
+      {
+        "base": 1114208,
+        "name": "subsys_periph.button_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 1114224,
+        "name": "subsys_periph.dipsw_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 1114240,
+        "name": "subsys_periph.led_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 1114272,
+        "name": "subsys_periph.fes_mailbox.avs",
+        "span": 32
+      },
+      {
+        "base": 1114368,
+        "name": "subsys_periph.fes_ddr_probe.avs",
+        "span": 128
+      },
+      {
+        "base": 1114880,
+        "name": "subsys_periph.fes_computer.avs",
+        "span": 32
+      }
+    ],
+    "peripheral_slave_map": [
+      {
+        "base": 65536,
+        "name": "subsys_periph.sysid.control_slave",
+        "span": 8
+      },
+      {
+        "base": 65632,
+        "name": "subsys_periph.button_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65648,
+        "name": "subsys_periph.dipsw_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65664,
+        "name": "subsys_periph.led_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65696,
+        "name": "subsys_periph.fes_mailbox.avs",
+        "span": 32
+      },
+      {
+        "base": 65792,
+        "name": "subsys_periph.fes_ddr_probe.avs",
+        "span": 128
+      },
+      {
+        "base": 66304,
+        "name": "subsys_periph.fes_computer.avs",
+        "span": 32
+      }
+    ],
+    "physical_mmio": "not-established",
+    "pixel_hz": 74250000,
+    "pll_reviews": {
+      "pixel": {
+        "clock_hz": 74250000,
+        "counters": {
+          "fb_clk_fractional_div_den": 1,
+          "fb_clk_fractional_div_num": 1,
+          "fb_clk_fractional_div_value": 1,
+          "fb_clk_m_div": 297,
+          "out_clk_0_c_div": 40,
+          "ref_clk_n_div": 5
+        },
+        "hdl_sha256": "f53f0cb78d931e504fba954c0b2e3fb081edb4b6e1307c0fa0653bd93555978c",
+        "xml_sha256": "4508aed24c2f189ba28a6f171f0822a27c7e65a209f6d1056b15fddb86228352"
+      },
+      "system": {
+        "clock_hz": 100000000,
+        "counters": {
+          "fb_clk_fractional_div_den": 1,
+          "fb_clk_fractional_div_num": 1,
+          "fb_clk_fractional_div_value": 1,
+          "fb_clk_m_div": 64,
+          "out_clk_0_c_div": 32,
+          "ref_clk_n_div": 1
+        },
+        "hdl_sha256": "cf763293f0c822146318f52da4c176de8581357ffc5f2b8673e69d4255c2eb43",
+        "xml_sha256": "be73480ee1795b487d821e8a77792156c6a12da3ec0c8e7cb5b214fbf0158fab"
+      }
+    }
+  },
+  "ddr_probe": {
+    "clock_hz": 100000000,
+    "dma_address_bits": 32,
+    "dma_admission": "not-qualified",
+    "instance": "subsys_periph.fes_ddr_probe",
+    "peripheral_offset": 65792,
+    "peripheral_slave_map": [
+      {
+        "base": 65536,
+        "name": "subsys_periph.sysid.control_slave",
+        "span": 8
+      },
+      {
+        "base": 65632,
+        "name": "subsys_periph.button_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65648,
+        "name": "subsys_periph.dipsw_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65664,
+        "name": "subsys_periph.led_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65696,
+        "name": "subsys_periph.fes_mailbox.avs",
+        "span": 32
+      },
+      {
+        "base": 65792,
+        "name": "subsys_periph.fes_ddr_probe.avs",
+        "span": 128
+      },
+      {
+        "base": 66304,
+        "name": "subsys_periph.fes_computer.avs",
+        "span": 32
+      }
+    ],
+    "physical_ddr_address": "not-established",
+    "read_master_data_bits": 128,
+    "response_bits": 2,
+    "vendor_f2sdram_data_bits": 256
+  },
+  "mailbox_instance": "subsys_periph.fes_mailbox",
+  "peripheral_offset": 65696,
+  "physical_mailbox_address": "not-established",
+  "sha256": "fb86d66162e57f52f7052ab8f277572720d8634485781b876d80efe60c769a58",
+  "top_system_handoff": "qsys_top/qsys_top.sopcinfo"
+}

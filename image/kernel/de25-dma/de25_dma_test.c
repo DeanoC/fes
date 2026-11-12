@@ -3,14 +3,23 @@
 #include <kunit/device.h>
 #include <kunit/test.h>
 #include <linux/completion.h>
+#include <linux/capability.h>
+#include <linux/cred.h>
+#include <linux/fdtable.h>
+#include <linux/notifier.h>
 #include <linux/file.h>
 #include <linux/kthread.h>
+#include <linux/libfdt.h>
 #include <linux/mman.h>
 #include <linux/mm.h>
+#include <linux/of.h>
+#include <linux/platform_device.h>
 #include <linux/sched/mm.h>
 #include <linux/uaccess.h>
 
 #include "de25_dma_internal.h"
+#include "de25_dma_guard.h"
+#include "de25_dma_owner.h"
 
 #define TEST_ADDRESS 0x10000000UL
 
@@ -22,11 +31,18 @@ struct test_descriptor {
 	u32 span, sequence, slot;
 };
 struct test_transport {
+	atomic_t lease;
+	int acquire_error;
+	unsigned int acquired, released, unleased_access, reads, epochs, freed_at_release;
+	struct fes_de25_dma_test_observer *observer;
+	bool bad_version, zero_build_id, changed_build_id;
+	u32 first_fault_state, first_fault_occupancy, first_fault_gaps;
+	bool latch_first_fault_during_state, change_build_during_diagnostics;
+	bool change_epoch_during_diagnostics, fail_diagnostics;
+	int snapshot_read_error;
 	u64 epoch;
-	bool epoch_unknown, lose_epoch_after_start, freeze_serial, corrupt_serial;
-	bool fail_clear_verify_once, fail_next_snapshot;
+	bool epoch_unknown, lose_epoch_after_start, freeze_serial, corrupt_serial, change_epoch_on_clear;
 	int start_error, stop_error, drain_error;
-	unsigned int delayed_drain_snapshots;
 	unsigned int starts, stops, drains, clears, snapshots, writes, barriers;
 	u32 regs[32], live[13], frozen[13], serial;
 	u32 trace_offset[128], trace_value[128];
@@ -37,28 +53,92 @@ struct test_transport {
 };
 
 struct dma_fixture {
+	struct fes_de25_dma *owner;
 	struct device *dev;
 	struct file *file;
 	struct test_transport transport;
 	struct fes_de25_dma_test_observer observer;
 };
 
+static int transport_acquire(void *context)
+{
+	struct test_transport *t = context;
+
+	if (t->acquire_error)
+		return t->acquire_error;
+	if (atomic_cmpxchg(&t->lease, 0, 1))
+		return -EBUSY;
+	t->acquired++;
+	return 0;
+}
+
+static void transport_release(void *context)
+{
+	struct test_transport *t = context;
+
+	t->released++;
+	if (t->observer)
+		t->freed_at_release = t->observer->freed;
+	atomic_set(&t->lease, 0);
+}
+
+static bool transport_held(struct test_transport *t)
+{
+	if (atomic_read(&t->lease) == 1)
+		return true;
+	t->unleased_access++;
+	return false;
+}
+
 static u64 transport_epoch(void *context)
 {
 	struct test_transport *transport = context;
 
+	if (!transport_held(transport))
+		return 0;
+	transport->epochs++;
 	return transport->epoch_unknown ? 0 : transport->epoch;
 }
 
 static int transport_read(void *context, u32 offset, u32 *value)
 {
 	struct test_transport *t = context;
+	static const u32 build_id[] = { 0x76543210, 0xfedcba98, 0x89abcdef, 0x01234567 };
 
+	if (!transport_held(t))
+		return -EACCES;
+	t->reads++;
+	if (offset == FES_DE25_SCANOUT_SNAPSHOT_STATUS_OFFSET && t->snapshot_read_error)
+		return t->snapshot_read_error;
 	if (offset == FES_DE25_SCANOUT_ID_OFFSET)
 		*value = FES_DE25_SCANOUT_IDENTITY;
 	else if (offset == FES_DE25_SCANOUT_VERSION_OFFSET)
-		*value = FES_DE25_SCANOUT_VERSION;
-	else if (offset == FES_DE25_SCANOUT_SNAPSHOT_SERIAL_OFFSET)
+		*value = t->bad_version ? FES_DE25_SCANOUT_VERSION - 1 : FES_DE25_SCANOUT_VERSION;
+	else if (offset >= FES_DE25_SCANOUT_BUILD_ID0_OFFSET &&
+		 offset <= FES_DE25_SCANOUT_BUILD_ID3_OFFSET && IS_ALIGNED(offset, sizeof(u32))) {
+		*value = t->zero_build_id ? 0 : build_id[(offset - FES_DE25_SCANOUT_BUILD_ID0_OFFSET) / sizeof(u32)];
+		if (t->changed_build_id && offset == FES_DE25_SCANOUT_BUILD_ID0_OFFSET)
+			*value ^= 1;
+	}
+	else if (offset == FES_DE25_SCANOUT_FIRST_FAULT_STATE_OFFSET) {
+		if (t->fail_diagnostics)
+			return -ETIMEDOUT;
+		*value = t->first_fault_state;
+		if (t->latch_first_fault_during_state) {
+			t->latch_first_fault_during_state = false;
+			t->first_fault_state = FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK;
+			t->first_fault_occupancy = 0x100000;
+			t->first_fault_gaps = 0x286b;
+		}
+	} else if (offset == FES_DE25_SCANOUT_FIRST_FAULT_OCCUPANCY_OFFSET) {
+		*value = t->first_fault_occupancy;
+		if (t->change_build_during_diagnostics)
+			t->changed_build_id = true;
+	} else if (offset == FES_DE25_SCANOUT_FIRST_FAULT_GAPS_OFFSET) {
+		*value = t->first_fault_gaps;
+		if (t->change_epoch_during_diagnostics)
+			t->epoch++;
+	} else if (offset == FES_DE25_SCANOUT_SNAPSHOT_SERIAL_OFFSET)
 		*value = t->serial;
 	else if (offset >= FES_DE25_SCANOUT_SNAPSHOT_STATUS_OFFSET &&
 		 offset <= FES_DE25_SCANOUT_SNAPSHOT_GRANT_SPAN_OFFSET) {
@@ -75,6 +155,8 @@ static int transport_write(void *context, u32 offset, u32 value)
 	struct test_transport *t = context;
 	u32 test_value = 0x12345678;
 
+	if (!transport_held(t))
+		return -EACCES;
 	t->writes++;
 	if (t->trace_count < ARRAY_SIZE(t->trace_offset)) {
 		t->trace_offset[t->trace_count] = offset;
@@ -88,22 +170,12 @@ static int transport_write(void *context, u32 offset, u32 value)
 	}
 	if (value == FES_DE25_SCANOUT_COMMAND_SNAPSHOT) {
 		t->snapshots++;
-		if (t->stops && t->delayed_drain_snapshots && !t->drain_error) {
-			t->delayed_drain_snapshots--;
-			if (!t->delayed_drain_snapshots) {
-				t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] =
-					FES_DE25_SCANOUT_STATUS_CONFIGURED | FES_DE25_SCANOUT_STATUS_DRAINED;
-				t->live[9] = 0;
-			}
-		}
 		/* Explicit hardware tuple, atomically copied by CMD SNAPSHOT. */
 		t->live[0] = t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4];
 		t->live[1] = lower_32_bits(t->descriptor.generation);
 		t->live[2] = upper_32_bits(t->descriptor.generation);
 		memcpy(t->frozen, t->live, sizeof(t->frozen));
-		if (t->fail_next_snapshot)
-			t->fail_next_snapshot = false;
-		else if (!t->freeze_serial)
+		if (!t->freeze_serial)
 			t->serial++;
 		return 0;
 	}
@@ -135,26 +207,20 @@ static int transport_write(void *context, u32 offset, u32 value)
 		if (t->stop_error)
 			return t->stop_error;
 		t->drains++;
-		if (t->delayed_drain_snapshots && !t->drain_error) {
-			t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] =
-				FES_DE25_SCANOUT_STATUS_CONFIGURED | FES_DE25_SCANOUT_STATUS_RUNNING;
-			t->live[9] = 1;
-		} else {
-			t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_CONFIGURED |
-				(t->drain_error ? 0 : FES_DE25_SCANOUT_STATUS_DRAINED);
-			t->live[9] = t->drain_error ? 1 : 0;
-		}
+		t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_CONFIGURED |
+			(t->drain_error ? 0 : FES_DE25_SCANOUT_STATUS_DRAINED);
+		t->live[9] = t->drain_error ? 1 : 0;
 		return 0;
 	}
 	if (value == FES_DE25_SCANOUT_COMMAND_CLEAR) {
 		t->clears++;
-		if (t->fail_clear_verify_once) {
-			t->fail_clear_verify_once = false;
-			t->fail_next_snapshot = true;
-		}
+		t->first_fault_state = 0;
+		t->first_fault_occupancy = 0;
+		t->first_fault_gaps = 0;
 		memset(&t->descriptor, 0, sizeof(t->descriptor));
 		memset(t->live, 0, sizeof(t->live));
 		t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_DRAINED;
+		if (t->change_epoch_on_clear) t->epoch++;
 		return 0;
 	}
 	return -EINVAL;
@@ -164,12 +230,23 @@ static int transport_barrier(void *context)
 {
 	struct test_transport *t = context;
 
+	if (!transport_held(t))
+		return -EACCES;
 	t->barriers++;
 	if (t->trace_count < ARRAY_SIZE(t->trace_offset)) {
 		t->trace_offset[t->trace_count] = ~0U;
 		t->trace_value[t->trace_count++] = 0;
 	}
 	return 0;
+}
+
+static struct fes_de25_dma_backend transport_backend(struct test_transport *t)
+{
+	return (struct fes_de25_dma_backend) {
+		.acquire = transport_acquire, .release = transport_release,
+		.epoch = transport_epoch, .read32 = transport_read,
+		.write32 = transport_write, .io_fence = transport_barrier, .context = t,
+	};
 }
 
 static void transport_display(struct test_transport *t)
@@ -201,9 +278,22 @@ static void fixture_cleanup(void *context)
 		fixture->transport.corrupt_serial = false;
 		fixture->transport.epoch_unknown = false;
 		fixture->transport.epoch = 1;
+		fixture->transport.changed_build_id = false;
+		fixture->transport.change_build_during_diagnostics = false;
+		fixture->transport.change_epoch_during_diagnostics = false;
+		fixture->transport.fail_diagnostics = false;
+		fixture->transport.snapshot_read_error = 0;
 		fixture->observer.mmap_entered = NULL;
 		fixture->observer.revoked = NULL;
 		__fput_sync(fixture->file);
+	}
+	if (fixture->owner) {
+		fixture->transport.stop_error = 0;
+		fixture->transport.drain_error = 0;
+		fixture->transport.epoch_unknown = false;
+		fixture->transport.epoch = 1;
+		fes_de25_dma_revoke_owned(fixture->owner);
+		fes_de25_dma_put(fixture->owner);
 	}
 }
 
@@ -219,16 +309,14 @@ static int fixture_init(struct kunit *test)
 	if (IS_ERR(fixture->dev))
 		return PTR_ERR(fixture->dev);
 	fixture->transport.epoch = 1;
+	atomic_set(&fixture->transport.lease, 0);
 	fixture->transport.regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_DRAINED;
-	backend.epoch = transport_epoch;
-	backend.read32 = transport_read;
-	backend.write32 = transport_write;
-	backend.io_fence = transport_barrier;
-	backend.context = &fixture->transport;
+	backend = transport_backend(&fixture->transport);
 	fixture->file = fes_de25_dma_create(fixture->dev, &backend);
 	if (IS_ERR(fixture->file))
 		return PTR_ERR(fixture->file);
 	fes_de25_dma_test_observe(fixture->file, &fixture->observer);
+	fixture->transport.observer = &fixture->observer;
 	test->priv = fixture;
 	return kunit_add_action_or_reset(test, fixture_cleanup, fixture);
 }
@@ -262,6 +350,688 @@ static void binding_stays_closed(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, fixture->file->f_op->unlocked_ioctl(fixture->file, FES_DE25_DMA_PUBLISH, 0), -EFAULT);
 }
 
+static void build_identity_reports_hardware_words(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_info info;
+	unsigned int reads = f->transport.reads;
+
+	fes_de25_dma_info(f->file, &info);
+	KUNIT_EXPECT_EQ(test, info.version, 3U);
+	KUNIT_EXPECT_EQ(test, info.build_id[0], 0x76543210U);
+	KUNIT_EXPECT_EQ(test, info.build_id[1], 0xfedcba98U);
+	KUNIT_EXPECT_EQ(test, info.build_id[2], 0x89abcdefU);
+	KUNIT_EXPECT_EQ(test, info.build_id[3], 0x01234567U);
+	KUNIT_EXPECT_EQ(test, f->transport.reads, reads);
+}
+
+static int diagnostics_file(struct file *file, struct fes_de25_dma_diagnostics *diagnostics)
+{
+	struct fes_de25_dma_info info;
+
+	fes_de25_dma_info(file, &info);
+	memset(diagnostics, 0, sizeof(*diagnostics));
+	diagnostics->generation = info.generation;
+	diagnostics->version = FES_DE25_DMA_DIAGNOSTICS_VERSION;
+	return fes_de25_dma_diagnostics(file, diagnostics);
+}
+
+static int retirement_file(struct file *file, struct fes_de25_dma_retirement *r)
+{
+ struct fes_de25_dma_info info;
+ fes_de25_dma_info(file, &info);
+ memset(r, 0, sizeof(*r));r->generation = info.generation;
+ r->version = FES_DE25_DMA_RETIREMENT_VERSION;
+ return fes_de25_dma_retirement(file, r);
+}
+
+static void retirement_receipt_requires_success_and_is_cached(struct kunit *test)
+{
+ struct dma_fixture *f = test->priv;
+ struct fes_de25_dma_publish p = publish_for(f->file);
+ struct fes_de25_dma_retirement r;
+ unsigned int reads, writes, epochs;
+ KUNIT_EXPECT_EQ(test, retirement_file(f->file, &r), -ENODATA);
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+ KUNIT_EXPECT_EQ(test, retirement_file(f->file, &r), -ENODATA);
+ f->transport.drain_error = 1;
+ KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(f->file), -EAGAIN);
+ KUNIT_EXPECT_EQ(test, retirement_file(f->file, &r), -ENODATA);
+ f->transport.drain_error = 0;
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(f->file), 0);
+ reads = f->transport.reads;writes = f->transport.writes;epochs = f->transport.epochs;
+ KUNIT_ASSERT_EQ(test, retirement_file(f->file, &r), 0);
+ KUNIT_EXPECT_EQ(test, sizeof(r), (size_t)96);
+ KUNIT_EXPECT_EQ(test, r.flags, FES_DE25_DMA_RETIREMENT_VALID);
+ KUNIT_EXPECT_EQ(test, r.accepted_sequence, p.sequence);
+ KUNIT_EXPECT_EQ(test, r.displayed_sequence, 0U);
+ KUNIT_EXPECT_EQ(test, r.hardware_status, FES_DE25_SCANOUT_STATUS_CONFIGURED | FES_DE25_SCANOUT_STATUS_DRAINED);
+ KUNIT_EXPECT_EQ(test, r.hardware_errors | r.underflows | r.outstanding, 0U);
+ KUNIT_EXPECT_EQ(test, r.build_id[0], 0x76543210U);
+ r.generation++;KUNIT_EXPECT_EQ(test, fes_de25_dma_retirement(f->file, &r), -EINVAL);r.generation--;
+ r.version++;KUNIT_EXPECT_EQ(test, fes_de25_dma_retirement(f->file, &r), -EINVAL);r.version--;
+ r.reserved=1;KUNIT_EXPECT_EQ(test, fes_de25_dma_retirement(f->file, &r), -EINVAL);r.reserved=0;
+ r.flags=~0U;r.hardware_errors=~0U;
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_retirement(f->file, &r), 0);
+ KUNIT_EXPECT_EQ(test, r.flags, FES_DE25_DMA_RETIREMENT_VALID);
+ KUNIT_EXPECT_EQ(test, r.hardware_errors, 0U);
+ KUNIT_EXPECT_EQ(test, f->transport.reads, reads);
+ KUNIT_EXPECT_EQ(test, f->transport.writes, writes);
+ KUNIT_EXPECT_EQ(test, f->transport.epochs, epochs);
+ KUNIT_EXPECT_EQ(test, f->file->f_op->unlocked_ioctl(f->file, FES_DE25_DMA_RETIREMENT, 0), -EFAULT);
+ p.sequence++; /* A valid new request must still be refused after retirement. */
+ KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(f->file, &p), -EBUSY);
+}
+
+static void retirement_receipt_preserves_draining_error_before_clear(struct kunit *test)
+{
+ struct dma_fixture *f = test->priv;
+ struct fes_de25_dma_publish p = publish_for(f->file);
+ struct fes_de25_dma_retirement r;
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+ f->transport.live[7] = FES_DE25_SCANOUT_ERROR_UNDERFLOW;
+ f->transport.live[8] = 1;
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(f->file), 0);
+ KUNIT_ASSERT_EQ(test, retirement_file(f->file, &r), 0);
+ KUNIT_EXPECT_EQ(test, r.hardware_errors, FES_DE25_SCANOUT_ERROR_UNDERFLOW);
+ KUNIT_EXPECT_EQ(test, r.underflows, 1U);
+ KUNIT_EXPECT_EQ(test, f->transport.live[7] | f->transport.live[8], 0U);
+ KUNIT_EXPECT_EQ(test, r.flags, FES_DE25_DMA_RETIREMENT_VALID);
+}
+
+static void retirement_receipt_epoch_or_build_failure_is_unavailable(struct kunit *test)
+{
+ struct dma_fixture *f = test->priv;
+ struct fes_de25_dma_publish p = publish_for(f->file);
+ struct fes_de25_dma_retirement r;
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+ f->transport.epoch=2;
+ KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(f->file), -ESTALE);
+ KUNIT_EXPECT_EQ(test, retirement_file(f->file, &r), -ENODATA);
+ f->transport.epoch=1;f->transport.changed_build_id=true;
+ KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(f->file), -ESTALE);
+ KUNIT_EXPECT_EQ(test, retirement_file(f->file, &r), -ENODATA);
+ KUNIT_EXPECT_EQ(test, f->transport.clears, 0U);
+ f->transport.changed_build_id=false; /* Scripted cleanup, never native override. */
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(f->file), 0);
+}
+
+static void retirement_receipt_failed_post_clear_epoch_never_valid(struct kunit *test)
+{
+ struct dma_fixture *f = test->priv;
+ struct fes_de25_dma_publish p = publish_for(f->file);
+ struct fes_de25_dma_retirement r;
+ struct test_descriptor descriptor;
+ u32 live[13], regs[32];
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+ descriptor=f->transport.descriptor;
+ memcpy(live,f->transport.live,sizeof(live));memcpy(regs,f->transport.regs,sizeof(regs));
+ f->transport.change_epoch_on_clear=true;
+ KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(f->file), -ESTALE);
+ KUNIT_EXPECT_EQ(test, retirement_file(f->file, &r), -ENODATA);
+ KUNIT_EXPECT_EQ(test, f->transport.clears, 1U);
+ /* Restore only the scripted device to release the test fixture's storage.
+  * A native changed epoch has no such override and remains quarantined. */
+ f->transport.change_epoch_on_clear=false;f->transport.epoch=1;
+ f->transport.descriptor=descriptor;
+ memcpy(f->transport.live,live,sizeof(live));memcpy(f->transport.regs,regs,sizeof(regs));
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(f->file), 0);
+}
+
+static void retirement_receipt_new_grant_has_no_old_record(struct kunit *test)
+{
+ struct dma_fixture *f = test->priv;
+ struct fes_de25_dma_publish p = publish_for(f->file);
+ struct fes_de25_dma_retirement r;
+ struct fes_de25_dma_backend backend = transport_backend(&f->transport);
+ u64 old;
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+ KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(f->file), 0);
+ KUNIT_ASSERT_EQ(test, retirement_file(f->file, &r), 0);old=r.generation;
+ __fput_sync(f->file);f->file=NULL;
+ f->file=fes_de25_dma_create(f->dev, &backend);
+ KUNIT_ASSERT_FALSE(test, IS_ERR(f->file));
+ KUNIT_EXPECT_EQ(test, retirement_file(f->file, &r), -ENODATA);
+ KUNIT_EXPECT_NE(test, r.generation, old);
+ r.generation=old;KUNIT_EXPECT_EQ(test, fes_de25_dma_retirement(f->file, &r), -EINVAL);
+}
+
+static void diagnostics_cached_query_checks_request_without_mmio(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_diagnostics d;
+	unsigned int reads = f->transport.reads, writes = f->transport.writes;
+	unsigned int epochs = f->transport.epochs;
+
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, sizeof(d), (size_t)48);
+	KUNIT_EXPECT_EQ(test, d.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state, 0U);
+	KUNIT_EXPECT_EQ(test, d.build_id[0], 0x76543210U);
+	d.generation++;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_diagnostics(f->file, &d), -EINVAL);
+	d.generation--;
+	d.version++;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_diagnostics(f->file, &d), -EINVAL);
+	d.version--;
+	d.reserved = 1;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_diagnostics(f->file, &d), -EINVAL);
+	d.reserved = 0;
+	memset(d.build_id, 0xff, sizeof(d.build_id));
+	d.flags = ~0U;
+	d.first_fault_state = ~0U;
+	d.first_fault_occupancy = ~0U;
+	d.first_fault_gaps = ~0U;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_diagnostics(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, d.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state | d.first_fault_occupancy | d.first_fault_gaps, 0U);
+	KUNIT_EXPECT_EQ(test, d.build_id[0], 0x76543210U);
+	KUNIT_EXPECT_EQ(test, f->transport.reads, reads);
+	KUNIT_EXPECT_EQ(test, f->transport.writes, writes);
+	KUNIT_EXPECT_EQ(test, f->transport.epochs, epochs);
+	KUNIT_EXPECT_EQ(test, f->file->f_op->unlocked_ioctl(f->file,
+		FES_DE25_DMA_DIAGNOSTICS, 0), -EFAULT);
+}
+
+static void diagnostics_retains_fault_after_failed_poll_without_mmio(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct test_transport *t = &f->transport;
+	struct fes_de25_dma_publish p = publish_for(f->file);
+	struct fes_de25_dma_info info;
+	struct fes_de25_dma_diagnostics d;
+	unsigned int reads, writes, epochs;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+	t->first_fault_state = 0xbc003f38;
+	t->first_fault_occupancy = 0;
+	t->first_fault_gaps = 0x286c0000;
+	t->live[7] = FES_DE25_SCANOUT_ERROR_UNDERFLOW;
+	t->live[8] = 1;
+	t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] |= FES_DE25_SCANOUT_STATUS_FAULT;
+	KUNIT_ASSERT_EQ(test, poll_file(f->file, &info), -EIO);
+	reads = t->reads;
+	writes = t->writes;
+	epochs = t->epochs;
+	/* Hardware may no longer be readable. Diagnostics use the earlier proof. */
+	t->fail_diagnostics = true;
+	t->first_fault_state = 0;
+	t->first_fault_gaps = 0;
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, d.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state, 0xbc003f38U);
+	KUNIT_EXPECT_EQ(test, d.first_fault_gaps, 0x286c0000U);
+	KUNIT_EXPECT_EQ(test, poll_file(f->file, &info), -EBUSY);
+	KUNIT_EXPECT_EQ(test, t->reads, reads);
+	KUNIT_EXPECT_EQ(test, t->writes, writes);
+	KUNIT_EXPECT_EQ(test, t->epochs, epochs);
+}
+
+static void diagnostics_latch_after_frozen_snapshot_is_coherent(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_publish p = publish_for(f->file);
+	struct fes_de25_dma_info info;
+	struct fes_de25_dma_diagnostics d;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+	/* First state read sees zero; the record appears immediately afterwards. */
+	f->transport.latch_first_fault_during_state = true;
+	KUNIT_ASSERT_EQ(test, poll_file(f->file, &info), 0);
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, d.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state | d.first_fault_occupancy | d.first_fault_gaps, 0U);
+	KUNIT_ASSERT_EQ(test, poll_file(f->file, &info), 0);
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state, FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK);
+	KUNIT_EXPECT_EQ(test, d.first_fault_occupancy, 0x100000U);
+	KUNIT_EXPECT_EQ(test, d.first_fault_gaps, 0x286bU);
+	/* A later transport failure preserves this last authenticated record. */
+	f->transport.fail_diagnostics = true;
+	KUNIT_EXPECT_EQ(test, poll_file(f->file, &info), -ETIMEDOUT);
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, d.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+	KUNIT_EXPECT_EQ(test, d.first_fault_gaps, 0x286bU);
+}
+
+static void diagnostics_snapshot_transport_identity_loss_invalidates_cache(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct test_transport *t = &f->transport;
+	struct fes_de25_dma_backend backend = transport_backend(t);
+	const int errors[] = { -EIO, -ETIMEDOUT, -ESTALE };
+	struct fes_de25_dma_diagnostics d;
+	struct fes_de25_dma_info info;
+	unsigned int i, query, reads, writes, epochs;
+
+	for (i = 0; i < 3 * ARRAY_SIZE(errors); i++) {
+		int error = errors[i % ARRAY_SIZE(errors)];
+		unsigned int operation = i / ARRAY_SIZE(errors);
+		struct fes_de25_dma_publish p = publish_for(f->file);
+
+		KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+		transport_display(t);
+		t->first_fault_state = FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK;
+		t->first_fault_occupancy = 0x100000;
+		t->first_fault_gaps = 0x286b;
+		KUNIT_ASSERT_EQ(test, poll_file(f->file, &info), 0);
+		KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+		KUNIT_ASSERT_EQ(test, d.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+		KUNIT_ASSERT_EQ(test, d.first_fault_state, FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK);
+
+		/* The bounded transport fails before a complete frozen tuple exists.
+		 * Only ESTALE positively reports lost identity. Generic I/O/timeout
+		 * errors retain the prior observation, without trying more MMIO.
+		 */
+		t->snapshot_read_error = error;
+		if (operation == 0)
+			KUNIT_EXPECT_EQ(test, poll_file(f->file, &info), error);
+		else if (operation == 1) {
+			p.sequence = 2;
+			p.slot = 0;
+			KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(f->file, &p), error);
+		} else
+			KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(f->file), error);
+		reads = t->reads;
+		writes = t->writes;
+		epochs = t->epochs;
+		for (query = 0; query < 2; query++) {
+			KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+			KUNIT_EXPECT_EQ(test, d.flags, error == -ESTALE ?
+				0U : FES_DE25_DMA_DIAGNOSTICS_VALID);
+			KUNIT_EXPECT_EQ(test, d.first_fault_state, error == -ESTALE ?
+				0U : FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK);
+			KUNIT_EXPECT_EQ(test, d.first_fault_occupancy, error == -ESTALE ? 0U : 0x100000U);
+			KUNIT_EXPECT_EQ(test, d.first_fault_gaps, error == -ESTALE ? 0U : 0x286bU);
+			KUNIT_EXPECT_EQ(test, poll_file(f->file, &info), -EBUSY);
+		}
+		KUNIT_EXPECT_EQ(test, t->reads, reads);
+		KUNIT_EXPECT_EQ(test, t->writes, writes);
+		KUNIT_EXPECT_EQ(test, t->epochs, epochs);
+		fes_de25_dma_info(f->file, &info);
+		KUNIT_EXPECT_NE(test, info.state & FES_DE25_DMA_UNCERTAIN, 0U);
+		KUNIT_EXPECT_NE(test, info.state & FES_DE25_DMA_EXPOSED, 0U);
+		KUNIT_EXPECT_EQ(test, atomic_read(&t->lease), 1);
+
+		/* Fresh grants separate the failure cases; only checked drain/CLEAR
+		 * can release each exposed allocation in this scripted fixture.
+		 */
+		t->snapshot_read_error = 0;
+		KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(f->file), 0);
+		if (i + 1 < 3 * ARRAY_SIZE(errors)) {
+			struct file *next;
+
+			__fput_sync(f->file);
+			f->file = NULL;
+			next = fes_de25_dma_create(f->dev, &backend);
+			KUNIT_ASSERT_FALSE(test, IS_ERR(next));
+			f->file = next;
+		}
+	}
+}
+
+static void diagnostics_identity_loss_invalidates_cached_record(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_publish p = publish_for(f->file);
+	struct fes_de25_dma_info info;
+	struct fes_de25_dma_diagnostics d;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+	f->transport.first_fault_state = FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK;
+	f->transport.first_fault_gaps = 0xffff;
+	KUNIT_ASSERT_EQ(test, poll_file(f->file, &info), 0);
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_NE(test, d.first_fault_state, 0U);
+	/* Image identity changes during payload reads, before final build proof. */
+	f->transport.change_build_during_diagnostics = true;
+	KUNIT_EXPECT_EQ(test, poll_file(f->file, &info), -ESTALE);
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, d.flags, 0U);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state | d.first_fault_occupancy | d.first_fault_gaps, 0U);
+}
+
+static void diagnostics_reset_during_payload_is_not_current(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_publish p = publish_for(f->file);
+	struct fes_de25_dma_info info;
+	struct fes_de25_dma_diagnostics d;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+	f->transport.first_fault_state = FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK;
+	f->transport.change_epoch_during_diagnostics = true;
+	KUNIT_EXPECT_EQ(test, poll_file(f->file, &info), -ESTALE);
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, d.flags, 0U);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state, 0U);
+}
+
+static void diagnostics_clear_and_new_grant_have_no_stale_record(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_publish p = publish_for(f->file);
+	struct fes_de25_dma_info info;
+	struct fes_de25_dma_diagnostics d;
+	struct fes_de25_dma_backend backend = transport_backend(&f->transport);
+	u64 generation;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+	f->transport.first_fault_state = FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK;
+	f->transport.first_fault_gaps = 0xffffffff;
+	KUNIT_ASSERT_EQ(test, poll_file(f->file, &info), 0);
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	generation = d.generation;
+	KUNIT_EXPECT_NE(test, d.first_fault_state, 0U);
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(f->file), 0);
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_EQ(test, d.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state | d.first_fault_occupancy | d.first_fault_gaps, 0U);
+	__fput_sync(f->file);
+	f->file = fes_de25_dma_create(f->dev, &backend);
+	KUNIT_ASSERT_FALSE(test, IS_ERR(f->file));
+	KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+	KUNIT_EXPECT_NE(test, d.generation, generation);
+	KUNIT_EXPECT_EQ(test, d.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+	KUNIT_EXPECT_EQ(test, d.first_fault_state | d.first_fault_occupancy | d.first_fault_gaps, 0U);
+	d.generation = generation;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_diagnostics(f->file, &d), -EINVAL);
+}
+
+static void diagnostics_invalid_packing_preserves_original_fault(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_publish p = publish_for(f->file);
+	struct fes_de25_dma_info info;
+	struct fes_de25_dma_diagnostics d;
+	const u32 states[] = {
+		FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK |
+			3U << FES_DE25_SCANOUT_FIRST_FAULT_INDEX_RELATION_SHIFT,
+		FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK |
+			FES_DE25_DMA_WIDTH << FES_DE25_SCANOUT_FIRST_FAULT_HORIZONTAL_SHIFT,
+		FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK |
+			FES_DE25_DMA_HEIGHT << FES_DE25_SCANOUT_FIRST_FAULT_VERTICAL_SHIFT,
+		FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK,
+		1, /* Nonzero state without hardware valid. */
+	};
+	unsigned int i;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &p), 0);
+	f->transport.live[7] = FES_DE25_SCANOUT_ERROR_UNDERFLOW;
+	f->transport.live[8] = 1;
+	f->transport.regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] |= FES_DE25_SCANOUT_STATUS_FAULT;
+	for (i = 0; i < ARRAY_SIZE(states); i++) {
+		/* Revoke uses the same authenticated cache path before drain proof.
+		 * Refuse drain so each case retains its grant and original fault.
+		 */
+		f->transport.first_fault_state = states[i];
+		f->transport.first_fault_occupancy = i == 3 ?
+			~FES_DE25_SCANOUT_FIRST_FAULT_OCCUPANCY_MASK : 0;
+		if (!i)
+			KUNIT_EXPECT_EQ(test, poll_file(f->file, &info), -EIO);
+		else {
+			f->transport.drain_error = -EAGAIN;
+			KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(f->file), -EAGAIN);
+		}
+		KUNIT_ASSERT_EQ(test, diagnostics_file(f->file, &d), 0);
+		KUNIT_EXPECT_EQ(test, d.flags, 0U);
+		KUNIT_EXPECT_EQ(test, d.first_fault_state | d.first_fault_occupancy | d.first_fault_gaps, 0U);
+	}
+}
+
+static void cold_poll_observes_display_ready_without_submission(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_info info;
+
+	fes_de25_dma_info(f->file, &info);
+	KUNIT_EXPECT_EQ(test, info.hardware_status & FES_DE25_SCANOUT_STATUS_DISPLAY_READY, 0U);
+	f->transport.regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] |= FES_DE25_SCANOUT_STATUS_DISPLAY_READY;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_poll(f->file, &info), 0);
+	KUNIT_EXPECT_NE(test, info.hardware_status & FES_DE25_SCANOUT_STATUS_DISPLAY_READY, 0U);
+	KUNIT_EXPECT_EQ(test, info.state, 0U);
+	KUNIT_EXPECT_EQ(test, f->transport.starts, 0U);
+	f->transport.regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] &= ~FES_DE25_SCANOUT_STATUS_DISPLAY_READY;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_poll(f->file, &info), 0);
+	KUNIT_EXPECT_EQ(test, info.hardware_status & FES_DE25_SCANOUT_STATUS_DISPLAY_READY, 0U);
+	KUNIT_EXPECT_EQ(test, f->transport.starts, 0U);
+}
+
+static void zero_build_identity_refuses_allocation(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_backend backend = transport_backend(&f->transport);
+	struct file *other;
+
+	__fput_sync(f->file);
+	f->file = NULL;
+	f->transport.zero_build_id = true;
+	other = fes_de25_dma_create(f->dev, &backend);
+	f->transport.zero_build_id = false;
+	if (!IS_ERR(other))
+		__fput_sync(other);
+	KUNIT_ASSERT_TRUE(test, IS_ERR(other));
+	KUNIT_EXPECT_EQ(test, PTR_ERR(other), (long)-EPROTONOSUPPORT);
+	KUNIT_EXPECT_EQ(test, f->transport.acquired, f->transport.released);
+	KUNIT_EXPECT_EQ(test, f->transport.starts, 0U);
+	KUNIT_EXPECT_EQ(test, atomic_read(&f->transport.lease), 0);
+}
+
+static void changed_build_identity_retains_uncertain_lease(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_publish publish = publish_for(f->file);
+	struct fes_de25_dma_info info = {
+		.version = FES_DE25_DMA_ABI_VERSION, .generation = publish.generation,
+	};
+
+	/* The previous private ABI must fail before any descriptor submission. */
+	publish.version = 2;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(f->file, &publish), -EINVAL);
+	KUNIT_EXPECT_EQ(test, f->transport.starts, 0U);
+	publish.version = FES_DE25_DMA_ABI_VERSION;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &publish), 0);
+	f->transport.changed_build_id = true;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_poll(f->file, &info), -ESTALE);
+	fes_de25_dma_info(f->file, &info);
+	KUNIT_EXPECT_NE(test, info.state & FES_DE25_DMA_UNCERTAIN, 0U);
+	KUNIT_EXPECT_EQ(test, info.build_id[0], 0x76543210U);
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(f->file), -ESTALE);
+	KUNIT_EXPECT_EQ(test, f->observer.freed, 0U);
+	KUNIT_EXPECT_EQ(test, atomic_read(&f->transport.lease), 1);
+	/* Restore the scripted register fault for the fixture's checked drain. */
+	f->transport.changed_build_id = false;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(f->file), 0);
+}
+
+static void backend_lease_required_before_access(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct test_transport *t = &fixture->transport;
+	struct fes_de25_dma_backend backend = transport_backend(t);
+	unsigned int reads = t->reads, epochs = t->epochs;
+	struct file *other;
+
+	backend.release = NULL;
+	other = fes_de25_dma_create(fixture->dev, &backend);
+	if (!IS_ERR(other))
+		__fput_sync(other);
+	KUNIT_ASSERT_TRUE(test, IS_ERR(other));
+	KUNIT_EXPECT_EQ(test, PTR_ERR(other), (long)-EINVAL);
+	backend = transport_backend(t);
+	t->acquire_error = -ENODEV;
+	other = fes_de25_dma_create(fixture->dev, &backend);
+	t->acquire_error = 0;
+	if (!IS_ERR(other))
+		__fput_sync(other);
+	KUNIT_ASSERT_TRUE(test, IS_ERR(other));
+	KUNIT_EXPECT_EQ(test, PTR_ERR(other), (long)-ENODEV);
+	KUNIT_EXPECT_EQ(test, t->reads, reads);
+	KUNIT_EXPECT_EQ(test, t->epochs, epochs);
+	KUNIT_EXPECT_EQ(test, t->acquired, 1U);
+	KUNIT_EXPECT_EQ(test, t->released, 0U);
+	KUNIT_EXPECT_EQ(test, t->unleased_access, 0U);
+}
+
+static void unconfigured_engine_has_one_allocation_lease(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct test_transport *t = &fixture->transport;
+	struct fes_de25_dma_backend backend = transport_backend(t);
+	unsigned int reads = t->reads, epochs = t->epochs;
+	struct file *other = fes_de25_dma_create(fixture->dev, &backend);
+
+	if (!IS_ERR(other))
+		__fput_sync(other);
+	KUNIT_ASSERT_TRUE(test, IS_ERR(other));
+	KUNIT_EXPECT_EQ(test, PTR_ERR(other), (long)-EBUSY);
+	KUNIT_EXPECT_EQ(test, t->starts, 0U);
+	KUNIT_EXPECT_EQ(test, t->reads, reads);
+	KUNIT_EXPECT_EQ(test, t->epochs, epochs);
+	KUNIT_EXPECT_EQ(test, t->released, 0U);
+	KUNIT_EXPECT_EQ(test, t->unleased_access, 0U);
+}
+
+static void constructor_failure_releases_backend_lease(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct test_transport *t = &fixture->transport;
+	struct fes_de25_dma_backend backend = transport_backend(t);
+	struct file *other;
+
+	__fput_sync(fixture->file);
+	fixture->file = NULL;
+	KUNIT_ASSERT_EQ(test, t->released, 1U);
+	t->epoch_unknown = true;
+	other = fes_de25_dma_create(fixture->dev, &backend);
+	t->epoch_unknown = false;
+	if (!IS_ERR(other))
+		__fput_sync(other);
+	KUNIT_ASSERT_TRUE(test, IS_ERR(other));
+	KUNIT_EXPECT_EQ(test, PTR_ERR(other), (long)-EOPNOTSUPP);
+	KUNIT_EXPECT_EQ(test, t->acquired, 2U);
+	KUNIT_EXPECT_EQ(test, t->released, 2U);
+	t->bad_version = true;
+	other = fes_de25_dma_create(fixture->dev, &backend);
+	t->bad_version = false;
+	if (!IS_ERR(other))
+		__fput_sync(other);
+	KUNIT_ASSERT_TRUE(test, IS_ERR(other));
+	KUNIT_EXPECT_EQ(test, PTR_ERR(other), (long)-EPROTONOSUPPORT);
+	KUNIT_EXPECT_EQ(test, t->acquired, 3U);
+	KUNIT_EXPECT_EQ(test, t->released, 3U);
+	KUNIT_EXPECT_EQ(test, atomic_read(&t->lease), 0);
+	KUNIT_EXPECT_EQ(test, t->unleased_access, 0U);
+}
+
+static void uncertain_dma_retains_lease_until_storage_free(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct test_transport *t = &fixture->transport;
+	struct fes_de25_dma_publish publish = publish_for(fixture->file);
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), 0);
+	t->drain_error = -ETIMEDOUT;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), -EAGAIN);
+	KUNIT_EXPECT_EQ(test, t->released, 0U);
+	KUNIT_EXPECT_EQ(test, atomic_read(&t->lease), 1);
+	KUNIT_EXPECT_EQ(test, fixture->observer.freed, 0U);
+	t->drain_error = 0;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(fixture->file), 0);
+	KUNIT_EXPECT_EQ(test, t->released, 0U);
+	__fput_sync(fixture->file);
+	fixture->file = NULL;
+	KUNIT_EXPECT_EQ(test, t->released, 1U);
+	KUNIT_EXPECT_EQ(test, t->freed_at_release, 1U);
+	KUNIT_EXPECT_EQ(test, atomic_read(&t->lease), 0);
+	KUNIT_EXPECT_EQ(test, t->unleased_access, 0U);
+}
+
+/* Drop the actual last file, not just a model client's flag. Owner recovery
+ * must not dereference that dead struct file or free still-exposed storage.
+ */
+static void owner_recovers_drain_after_last_client_close(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct test_transport *t = &f->transport;
+	struct fes_de25_dma_publish publish = publish_for(f->file);
+	struct fes_de25_dma_backend backend = transport_backend(t);
+	struct file *replacement;
+
+	f->owner = fes_de25_dma_get(f->file);
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &publish), 0);
+	t->drain_error = -ETIMEDOUT;
+	__fput_sync(f->file);
+	f->file = NULL;
+	KUNIT_EXPECT_EQ(test, f->observer.freed, 0U);
+	KUNIT_EXPECT_EQ(test, t->released, 0U);
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke_owned(f->owner), -EAGAIN);
+	replacement = fes_de25_dma_create(f->dev, &backend);
+	KUNIT_EXPECT_TRUE(test, IS_ERR(replacement));
+	if (IS_ERR(replacement))
+		KUNIT_EXPECT_EQ(test, PTR_ERR(replacement), -EBUSY);
+	else
+		__fput_sync(replacement);
+	t->drain_error = 0;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke_owned(f->owner), 0);
+	KUNIT_EXPECT_EQ(test, f->observer.freed, 0U);
+	KUNIT_EXPECT_EQ(test, t->released, 0U);
+	fes_de25_dma_put(f->owner);
+	f->owner = NULL;
+	KUNIT_EXPECT_EQ(test, f->observer.freed, 1U);
+	KUNIT_EXPECT_EQ(test, t->released, 1U);
+	KUNIT_EXPECT_EQ(test, t->freed_at_release, 1U);
+	KUNIT_EXPECT_EQ(test, t->unleased_access, 0U);
+	replacement = fes_de25_dma_create(f->dev, &backend);
+	KUNIT_ASSERT_FALSE(test, IS_ERR(replacement));
+	__fput_sync(replacement);
+	KUNIT_EXPECT_EQ(test, t->released, 2U);
+}
+
+static void owner_recovery_cannot_use_reset_as_drain(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct test_transport *t = &f->transport;
+	struct fes_de25_dma_publish publish = publish_for(f->file);
+	unsigned int stops;
+
+	f->owner = fes_de25_dma_get(f->file);
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &publish), 0);
+	t->epoch_unknown = true;
+	__fput_sync(f->file);
+	f->file = NULL;
+	stops = t->stops;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke_owned(f->owner), -ESTALE);
+	t->epoch_unknown = false;
+	t->epoch = 2;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke_owned(f->owner), -ESTALE);
+	KUNIT_EXPECT_EQ(test, t->stops, stops);
+	KUNIT_EXPECT_EQ(test, t->clears, 0U);
+	KUNIT_EXPECT_EQ(test, t->released, 0U);
+	KUNIT_EXPECT_EQ(test, f->observer.freed, 0U);
+	/* Test-only restoration of the original scripted epoch. Production has
+	 * no override; a missing old proof retains storage and the backend lease.
+	 */
+	t->epoch = 1;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke_owned(f->owner), 0);
+	fes_de25_dma_put(f->owner);
+	f->owner = NULL;
+	KUNIT_EXPECT_EQ(test, f->observer.freed, 1U);
+}
+
+static void owner_reference_release_does_not_revoke_client(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma *owner = fes_de25_dma_get(f->file);
+	struct fes_de25_dma_publish publish = publish_for(f->file);
+
+	fes_de25_dma_put(owner);
+	KUNIT_EXPECT_EQ(test, f->observer.freed, 0U);
+	KUNIT_EXPECT_EQ(test, f->transport.stops, 0U);
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(f->file, &publish), 0);
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(f->file), 0);
+}
+
 static void rejects_bad_publish_before_effects(struct kunit *test)
 {
 	struct dma_fixture *fixture = test->priv;
@@ -293,6 +1063,7 @@ static void kernel_owns_descriptor_and_drain_lifetime(struct kunit *test)
 	struct fes_de25_dma_info info;
 	struct test_descriptor *descriptor = &fixture->transport.descriptor;
 	struct fes_de25_dma_backend competing = {
+		.acquire = transport_acquire, .release = transport_release,
 		.epoch = transport_epoch, .read32 = transport_read,
 		.write32 = transport_write, .io_fence = transport_barrier,
 		.context = &fixture->transport,
@@ -351,46 +1122,6 @@ static void failed_start_is_held_until_drain(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), 0);
 	fes_de25_dma_info(fixture->file, &info);
 	KUNIT_EXPECT_EQ(test, info.state, FES_DE25_DMA_REVOKED);
-}
-
-static void delayed_drain_releases_exposure(struct kunit *test)
-{
-	struct dma_fixture *fixture = test->priv;
-	struct fes_de25_dma_publish publish = publish_for(fixture->file);
-	struct fes_de25_dma_info info;
-	unsigned int snapshots_before;
-
-	fixture->transport.delayed_drain_snapshots = 3;
-	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), 0);
-	snapshots_before = fixture->transport.snapshots;
-	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), 0);
-	KUNIT_EXPECT_TRUE(test, fixture->transport.snapshots - snapshots_before >= 3);
-	KUNIT_EXPECT_EQ(test, fixture->transport.stops, 1U);
-	KUNIT_EXPECT_EQ(test, fixture->transport.clears, 1U);
-	fes_de25_dma_info(fixture->file, &info);
-	KUNIT_EXPECT_EQ(test, info.state, FES_DE25_DMA_REVOKED);
-}
-
-static void retry_after_clear_accepts_pristine_snapshot(struct kunit *test)
-{
-	struct dma_fixture *fixture = test->priv;
-	struct fes_de25_dma_publish publish = publish_for(fixture->file);
-	struct fes_de25_dma_info info;
-
-	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), 0);
-	fixture->transport.fail_clear_verify_once = true;
-	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), -ETIMEDOUT);
-	fes_de25_dma_info(fixture->file, &info);
-	KUNIT_EXPECT_TRUE(test, info.state & FES_DE25_DMA_EXPOSED);
-	KUNIT_EXPECT_TRUE(test, info.state & FES_DE25_DMA_UNCERTAIN);
-	KUNIT_EXPECT_EQ(test, fixture->transport.stops, 1U);
-	KUNIT_EXPECT_EQ(test, fixture->transport.clears, 1U);
-
-	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), 0);
-	fes_de25_dma_info(fixture->file, &info);
-	KUNIT_EXPECT_EQ(test, info.state, FES_DE25_DMA_REVOKED);
-	KUNIT_EXPECT_EQ(test, fixture->transport.stops, 1U);
-	KUNIT_EXPECT_EQ(test, fixture->transport.clears, 1U);
 }
 
 static void unreadable_epoch_retains_exposed_storage(struct kunit *test)
@@ -630,6 +1361,7 @@ static void coherent_mapping_uapi_and_revoke(struct kunit *test)
 	struct mm_struct *mm = test_mm(test);
 	struct fes_de25_dma_publish publish = publish_for(fixture->file);
 	struct fes_de25_dma_info info;
+	struct fes_de25_dma_diagnostics diagnostics;
 	struct vm_area_struct *vma;
 	struct page *pinned = NULL;
 	long pin_count;
@@ -670,12 +1402,88 @@ static void coherent_mapping_uapi_and_revoke(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, copy_from_user(&info, (void __user *)address, sizeof(info)), 0UL);
 	KUNIT_EXPECT_EQ(test, info.accepted_sequence, publish.sequence);
 	KUNIT_EXPECT_EQ(test, info.displayed_sequence, 0U);
+	KUNIT_EXPECT_EQ(test, diagnostics_file(fixture->file, &diagnostics), 0);
+	KUNIT_EXPECT_EQ(test, copy_to_user((void __user *)address, &diagnostics, sizeof(diagnostics)), 0UL);
+	KUNIT_EXPECT_EQ(test, fixture->file->f_op->unlocked_ioctl(fixture->file,
+		FES_DE25_DMA_DIAGNOSTICS, address), 0L);
+	KUNIT_EXPECT_EQ(test, copy_from_user(&diagnostics, (void __user *)address, sizeof(diagnostics)), 0UL);
+	KUNIT_EXPECT_EQ(test, diagnostics.flags, FES_DE25_DMA_DIAGNOSTICS_VALID);
+	KUNIT_EXPECT_EQ(test, diagnostics.generation, publish.generation);
+	KUNIT_EXPECT_EQ(test, diagnostics.first_fault_state, 0U);
 	fixture->transport.revoked_address = address;
 	KUNIT_EXPECT_EQ(test, fixture->file->f_op->unlocked_ioctl(fixture->file, FES_DE25_DMA_REVOKE, 0), 0L);
 	KUNIT_EXPECT_TRUE(test, fixture->transport.writes_revoked_before_stop);
 	KUNIT_EXPECT_NE(test, copy_from_user(&copy, (void __user *)address, sizeof(copy)), 0UL);
 	KUNIT_EXPECT_EQ(test, vm_mmap(fixture->file, TEST_ADDRESS + (16UL << 20), PAGE_SIZE,
 			PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, 0), (unsigned long)-EACCES);
+	KUNIT_EXPECT_EQ(test, vm_munmap(address, FES_DE25_DMA_ALLOCATION_BYTES), 0);
+out:
+	kthread_unuse_mm(mm);
+	mmput(mm);
+}
+
+static void contiguous_aliases_are_revoked(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct mm_struct *mm = test_mm(test);
+	struct vm_area_struct *vma;
+	unsigned long address, alias, first_pfn = 0, page;
+	u32 value = 0x7193ac5e, copy = 0;
+	int ret;
+
+	if (!mm)
+		return;
+	kthread_use_mm(mm);
+	address = vm_mmap(fixture->file, TEST_ADDRESS, FES_DE25_DMA_ALLOCATION_BYTES,
+			PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, 0);
+	KUNIT_EXPECT_EQ(test, address, TEST_ADDRESS);
+	if (IS_ERR_VALUE(address))
+		goto out;
+	alias = vm_mmap(fixture->file, TEST_ADDRESS + (16UL << 20), PAGE_SIZE,
+			PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, 3 * PAGE_SIZE);
+	KUNIT_EXPECT_FALSE(test, IS_ERR_VALUE(alias));
+	if (IS_ERR_VALUE(alias))
+		goto unmap;
+	mmap_read_lock(mm);
+	vma = find_vma(mm, address);
+	KUNIT_EXPECT_NOT_NULL(test, vma);
+	if (vma) {
+		for (page = 0; page < FES_DE25_DMA_ALLOCATION_BYTES / PAGE_SIZE; page++) {
+			struct follow_pfnmap_args args = {
+				.vma = vma, .address = address + page * PAGE_SIZE,
+			};
+
+			ret = follow_pfnmap_start(&args);
+			KUNIT_EXPECT_EQ(test, ret, 0);
+			if (ret)
+				break;
+			if (!page)
+				first_pfn = args.pfn;
+			KUNIT_EXPECT_EQ(test, args.pfn, first_pfn + page);
+			follow_pfnmap_end(&args);
+		}
+	}
+	vma = find_vma(mm, alias);
+	KUNIT_EXPECT_NOT_NULL(test, vma);
+	if (vma) {
+		struct follow_pfnmap_args args = { .vma = vma, .address = alias };
+
+		ret = follow_pfnmap_start(&args);
+		KUNIT_EXPECT_EQ(test, ret, 0);
+		if (!ret) {
+			KUNIT_EXPECT_EQ(test, args.pfn, first_pfn + 3);
+			follow_pfnmap_end(&args);
+		}
+	}
+	mmap_read_unlock(mm);
+	KUNIT_EXPECT_EQ(test, copy_to_user((void __user *)alias, &value, sizeof(value)), 0UL);
+	KUNIT_EXPECT_EQ(test, copy_from_user(&copy, (void __user *)(address + 3 * PAGE_SIZE), sizeof(copy)), 0UL);
+	KUNIT_EXPECT_EQ(test, copy, value);
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), 0);
+	KUNIT_EXPECT_NE(test, copy_from_user(&copy, (void __user *)alias, sizeof(copy)), 0UL);
+	KUNIT_EXPECT_NE(test, copy_from_user(&copy, (void __user *)(address + 3 * PAGE_SIZE), sizeof(copy)), 0UL);
+	KUNIT_EXPECT_EQ(test, vm_munmap(alias, PAGE_SIZE), 0);
+unmap:
 	KUNIT_EXPECT_EQ(test, vm_munmap(address, FES_DE25_DMA_ALLOCATION_BYTES), 0);
 out:
 	kthread_unuse_mm(mm);
@@ -817,13 +1625,1069 @@ out:
 	mmput(mm);
 }
 
+struct guard_test_device {
+	struct fes_de25_dma_guard guard;
+	u32 regs[FES_DE25_SCANOUT_CONTROL_SPAN / 4];
+	u32 reads, writes, endpoint_reads, endpoint_writes;
+	bool ignore_epoch, timeout_read, response_error, reset_read;
+	u32 mutate_guard_offset;
+	struct test_transport *endpoint;
+};
+
+static u32 guard_test_read(void *context, u32 offset)
+{
+	struct guard_test_device *device = context;
+	u32 value = device->regs[offset / 4];
+
+	device->reads++;
+	if (offset < FES_DE25_SCANOUT_SPAN) {
+		device->endpoint_reads++;
+		if (device->endpoint)
+			transport_read(device->endpoint, offset, &value);
+		if (device->timeout_read) {
+			device->regs[FES_DE25_SCANOUT_GUARD_FAULT_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_FAULT_TIMEOUT;
+			device->regs[FES_DE25_SCANOUT_GUARD_STATUS_OFFSET / 4] |= FES_DE25_SCANOUT_GUARD_STATUS_POISONED;
+			value = 0;
+		}
+		if (device->reset_read) {
+			device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4] = 0;
+			device->regs[FES_DE25_SCANOUT_GUARD_STATUS_OFFSET / 4] = 0;
+		}
+		if (device->mutate_guard_offset)
+			device->regs[device->mutate_guard_offset / 4] = 0;
+	}
+	return value;
+}
+
+static void guard_test_write(void *context, u32 offset, u32 value)
+{
+	struct guard_test_device *device = context;
+
+	device->writes++;
+	if (offset == FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET) {
+		if (!device->ignore_epoch) {
+			device->regs[offset / 4] = value;
+			device->regs[FES_DE25_SCANOUT_GUARD_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_STATUS_EPOCH_SET;
+		}
+	} else {
+		device->endpoint_writes++;
+		device->regs[offset / 4] = value;
+		if (device->endpoint)
+			transport_write(device->endpoint, offset, value);
+		if (device->response_error) {
+			device->regs[FES_DE25_SCANOUT_GUARD_FAULT_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_FAULT_RESPONSE;
+			device->regs[FES_DE25_SCANOUT_GUARD_STATUS_OFFSET / 4] |= FES_DE25_SCANOUT_GUARD_STATUS_POISONED;
+		}
+	}
+}
+
+static struct guard_test_device *guard_test_device(struct kunit *test, u32 epoch)
+{
+	struct guard_test_device *device = kunit_kzalloc(test, sizeof(*device), GFP_KERNEL);
+
+	if (!device)
+		return NULL;
+	device->regs[FES_DE25_SCANOUT_GUARD_ID_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_IDENTITY;
+	device->regs[FES_DE25_SCANOUT_GUARD_VERSION_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_VERSION;
+	device->regs[FES_DE25_SCANOUT_GUARD_TIMEOUT_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_TIMEOUT_CYCLES;
+	if (fes_de25_guard_init(&device->guard, (void __iomem *)device->regs, sizeof(device->regs)))
+		return NULL;
+	device->guard.test_read = guard_test_read;
+	device->guard.test_write = guard_test_write;
+	device->guard.test_context = device;
+	if (epoch && fes_de25_guard_claim(&device->guard, epoch))
+		return NULL;
+	return device;
+}
+
+static void guard_real_access_and_bounds(struct kunit *test)
+{
+	struct guard_test_device *device = guard_test_device(test, 7);
+	u32 value;
+
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	/* Exercise the real readl/writel path on kernel-owned test storage. This
+	 * is not a physical-device or AXI-completion model.
+	 */
+	device->guard.test_read = NULL;
+	device->guard.test_write = NULL;
+	device->regs[FES_DE25_SCANOUT_ID_OFFSET / 4] = FES_DE25_SCANOUT_IDENTITY;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_read(&device->guard, FES_DE25_SCANOUT_ID_OFFSET, &value), 0);
+	KUNIT_EXPECT_EQ(test, value, FES_DE25_SCANOUT_IDENTITY);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_write(&device->guard, FES_DE25_SCANOUT_GRANT_LO_OFFSET, 0x1000), 0);
+	KUNIT_EXPECT_EQ(test, device->regs[FES_DE25_SCANOUT_GRANT_LO_OFFSET / 4], 0x1000U);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_read(&device->guard, 1, &value), -EINVAL);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_write(&device->guard, FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET, 8), -EINVAL);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_fence(&device->guard), 0);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_epoch(&device->guard), 7ULL);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_claim(&device->guard, 8), -EBUSY);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_init(&device->guard, (void __iomem *)device->regs,
+			sizeof(device->regs)), -EBUSY);
+}
+
+static void guard_claim_rejects_wrong_or_existing_identity(struct kunit *test)
+{
+	u32 offsets[] = { FES_DE25_SCANOUT_GUARD_ID_OFFSET, FES_DE25_SCANOUT_GUARD_VERSION_OFFSET,
+		FES_DE25_SCANOUT_GUARD_TIMEOUT_OFFSET };
+	struct guard_test_device *device;
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(offsets); i++) {
+		device = guard_test_device(test, 0);
+		KUNIT_ASSERT_NOT_NULL(test, device);
+		device->regs[offsets[i] / 4] = 0;
+		KUNIT_EXPECT_EQ(test, fes_de25_guard_claim(&device->guard, 9), -EPROTONOSUPPORT);
+		KUNIT_EXPECT_EQ(test, device->writes, 0U);
+		KUNIT_EXPECT_EQ(test, fes_de25_guard_epoch(&device->guard), 0ULL);
+	}
+	device = guard_test_device(test, 0);
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4] = 123;
+	device->regs[FES_DE25_SCANOUT_GUARD_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_STATUS_EPOCH_SET;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_claim(&device->guard, 9), -ESTALE);
+	KUNIT_EXPECT_EQ(test, device->writes, 0U);
+	KUNIT_EXPECT_EQ(test, device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], 123U);
+	device = guard_test_device(test, 0);
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->ignore_epoch = true;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_claim(&device->guard, 9), -ESTALE);
+	KUNIT_EXPECT_EQ(test, device->writes, 1U);
+	KUNIT_EXPECT_EQ(test, device->endpoint_writes, 0U);
+}
+
+static void guard_dummy_zero_timeout_is_not_success(struct kunit *test)
+{
+	struct guard_test_device *device = guard_test_device(test, 7);
+	u32 value = 0x12345678, reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->timeout_read = true;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_read(&device->guard, FES_DE25_SCANOUT_SNAPSHOT_STATUS_OFFSET, &value), -EIO);
+	KUNIT_EXPECT_EQ(test, value, 0U);
+	KUNIT_EXPECT_EQ(test, device->endpoint_reads, 1U);
+	reads = device->reads;
+	/* Apparent recovery cannot rearm the poisoned software context. */
+	device->timeout_read = false;
+	device->regs[FES_DE25_SCANOUT_GUARD_FAULT_OFFSET / 4] = 0;
+	device->regs[FES_DE25_SCANOUT_GUARD_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_STATUS_EPOCH_SET;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_read(&device->guard, FES_DE25_SCANOUT_ID_OFFSET, &value), -EIO);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_write(&device->guard, FES_DE25_SCANOUT_COMMAND_OFFSET, 2), -EIO);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_fence(&device->guard), -EIO);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_epoch(&device->guard), 0ULL);
+	KUNIT_EXPECT_EQ(test, device->reads, reads);
+	KUNIT_EXPECT_EQ(test, device->endpoint_writes, 0U);
+}
+
+static void guard_post_access_fault_and_reset_reject_results(struct kunit *test)
+{
+	struct guard_test_device *device = guard_test_device(test, 7);
+	u32 value = 0x12345678;
+	u32 offsets[] = { FES_DE25_SCANOUT_GUARD_ID_OFFSET, FES_DE25_SCANOUT_GUARD_VERSION_OFFSET,
+		FES_DE25_SCANOUT_GUARD_TIMEOUT_OFFSET };
+	unsigned int i;
+
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->response_error = true;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_write(&device->guard, FES_DE25_SCANOUT_COMMAND_OFFSET, 8), -EIO);
+	KUNIT_EXPECT_EQ(test, device->endpoint_writes, 1U);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_epoch(&device->guard), 0ULL);
+	device = guard_test_device(test, 8);
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->regs[FES_DE25_SCANOUT_ID_OFFSET / 4] = FES_DE25_SCANOUT_IDENTITY;
+	device->reset_read = true;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_read(&device->guard, FES_DE25_SCANOUT_ID_OFFSET, &value), -ESTALE);
+	KUNIT_EXPECT_EQ(test, value, 0U);
+	KUNIT_EXPECT_EQ(test, device->endpoint_reads, 1U);
+	for (i = 0; i < ARRAY_SIZE(offsets); i++) {
+		device = guard_test_device(test, 9);
+		KUNIT_ASSERT_NOT_NULL(test, device);
+		device->mutate_guard_offset = offsets[i];
+		KUNIT_EXPECT_EQ(test, fes_de25_guard_read(&device->guard, FES_DE25_SCANOUT_ID_OFFSET,
+				&value), -EPROTONOSUPPORT);
+		KUNIT_EXPECT_EQ(test, value, 0U);
+		KUNIT_EXPECT_EQ(test, device->endpoint_reads, 1U);
+	}
+}
+
+static void guard_busy_or_unknown_status_prevents_access(struct kunit *test)
+{
+	struct guard_test_device *device = guard_test_device(test, 7);
+	u32 value;
+
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->regs[FES_DE25_SCANOUT_GUARD_STATUS_OFFSET / 4] |=
+		FES_DE25_SCANOUT_GUARD_STATUS_PENDING | FES_DE25_SCANOUT_GUARD_STATUS_ACCEPTED;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_read(&device->guard, FES_DE25_SCANOUT_ID_OFFSET, &value), -EBUSY);
+	KUNIT_EXPECT_EQ(test, device->endpoint_reads, 0U);
+	device = guard_test_device(test, 8);
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->regs[FES_DE25_SCANOUT_GUARD_STATUS_OFFSET / 4] |= 0x80000000;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_write(&device->guard, FES_DE25_SCANOUT_COMMAND_OFFSET, 1), -EPROTO);
+	KUNIT_EXPECT_EQ(test, device->endpoint_writes, 0U);
+	device = guard_test_device(test, 9);
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->regs[FES_DE25_SCANOUT_GUARD_FAULT_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_FAULT_ACCESS;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_fence(&device->guard), -EIO);
+	KUNIT_EXPECT_EQ(test, device->endpoint_reads, 0U);
+}
+
+static int guard_owner_acquire(void *context)
+{
+	struct guard_test_device *device = context;
+	int ret = transport_acquire(device->endpoint);
+
+	if (ret)
+		return ret;
+	ret = device->guard.claimed ? fes_de25_guard_fence(&device->guard) :
+		fes_de25_guard_claim(&device->guard, 7);
+	if (ret)
+		transport_release(device->endpoint);
+	return ret;
+}
+
+static void guard_owner_release(void *context)
+{
+	struct guard_test_device *device = context;
+
+	transport_release(device->endpoint);
+}
+
+static u64 guard_owner_epoch(void *context)
+{
+	return fes_de25_guard_epoch(&((struct guard_test_device *)context)->guard);
+}
+
+static int guard_owner_read(void *context, u32 offset, u32 *value)
+{
+	return fes_de25_guard_read(&((struct guard_test_device *)context)->guard, offset, value);
+}
+
+static int guard_owner_write(void *context, u32 offset, u32 value)
+{
+	return fes_de25_guard_write(&((struct guard_test_device *)context)->guard, offset, value);
+}
+
+static int guard_owner_fence(void *context)
+{
+	return fes_de25_guard_fence(&((struct guard_test_device *)context)->guard);
+}
+
+static void guarded_transport_constructs_real_dma_grant(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct guard_test_device *device = guard_test_device(test, 0);
+	struct fes_de25_dma_backend backend = {
+		.acquire = guard_owner_acquire, .release = guard_owner_release,
+		.epoch = guard_owner_epoch, .read32 = guard_owner_read,
+		.write32 = guard_owner_write, .io_fence = guard_owner_fence, .context = device,
+	};
+	struct file *file;
+
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->endpoint = kunit_kzalloc(test, sizeof(*device->endpoint), GFP_KERNEL);
+	KUNIT_ASSERT_NOT_NULL(test, device->endpoint);
+	atomic_set(&device->endpoint->lease, 0);
+	device->endpoint->epoch = 7;
+	device->endpoint->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_DRAINED;
+	file = fes_de25_dma_create(fixture->dev, &backend);
+	KUNIT_EXPECT_FALSE(test, IS_ERR(file));
+	if (!IS_ERR(file))
+		__fput_sync(file);
+	KUNIT_EXPECT_GT(test, device->endpoint_reads, 0U);
+	KUNIT_EXPECT_EQ(test, device->endpoint->acquired, 1U);
+	KUNIT_EXPECT_EQ(test, device->endpoint->released, 1U);
+	KUNIT_EXPECT_EQ(test, device->endpoint->unleased_access, 0U);
+}
+
+struct owner_fixture {
+	struct fes_de25_owner *owner;
+	struct guard_test_device *device;
+	struct file *file;
+	int fd, base_overlay, profile_overlay, persona_overlay, program_error;
+	struct device_node *region;
+	struct notifier_block programmer;
+	bool programmer_registered;
+	unsigned int programs, removes, persona_programs;
+	bool wrong_identity;
+	struct fes_de25_dma_test_observer control_observer;
+};
+
+static void owner_fixture_close_client(struct owner_fixture *f)
+{
+	struct file *file;
+
+	if (!IS_ERR_OR_NULL(f->file))
+		__fput_sync(f->file);
+	f->file = NULL;
+	if (f->fd >= 0) {
+		file = file_close_fd(f->fd);
+		f->fd = -1;
+		if (file)
+			__fput_sync(file);
+	}
+}
+
+static void owner_fixture_cleanup(void *context)
+{
+	struct owner_fixture *f = context;
+
+	f->device->endpoint->drain_error = 0;
+	f->device->endpoint->stop_error = 0;
+	fes_de25_owner_test_reap(f->owner);
+	owner_fixture_close_client(f);
+	if (f->persona_overlay)
+		of_overlay_remove(&f->persona_overlay);
+	if (f->profile_overlay)
+		of_overlay_remove(&f->profile_overlay);
+	if (f->programmer_registered)
+		of_overlay_notifier_unregister(&f->programmer);
+	fes_de25_owner_test_detach(f->owner);
+	of_node_put(f->region);
+	if (f->base_overlay)
+		of_overlay_remove(&f->base_overlay);
+	fes_de25_owner_test_destroy(f->owner);
+}
+
+static struct owner_fixture *owner_fixture_create(struct kunit *test, bool ready)
+{
+	struct dma_fixture *dma = test->priv;
+	struct owner_fixture *f = kunit_kzalloc(test, sizeof(*f), GFP_KERNEL);
+
+	if (!f)
+		return NULL;
+	f->fd = -1;
+	f->device = guard_test_device(test, 0);
+	if (!f->device)
+		return NULL;
+	f->device->endpoint = kunit_kzalloc(test, sizeof(*f->device->endpoint), GFP_KERNEL);
+	if (!f->device->endpoint)
+		return NULL;
+	/* The register script is hardware, not a second software owner. The real
+	 * provider's lease below gates every allocation and configuration event.
+	 */
+	atomic_set(&f->device->endpoint->lease, 1);
+	f->device->endpoint->epoch = 7;
+	f->device->endpoint->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_DRAINED;
+	if (ready && fes_de25_guard_claim(&f->device->guard, 7))
+		return NULL;
+	f->owner = fes_de25_owner_test_create(dma->dev, ready ? &f->device->guard : NULL);
+	if (!f->owner)
+		return NULL;
+	if (kunit_add_action_or_reset(test, owner_fixture_cleanup, f))
+		return NULL;
+	return f;
+}
+
+static void permanent_owner_blocks_configuration_before_first_submit(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, true);
+	struct file *second;
+	unsigned int reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	f->file = fes_de25_owner_test_allocate(f->owner);
+	KUNIT_ASSERT_FALSE(test, IS_ERR(f->file));
+	reads = f->device->endpoint_reads;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_APPLY), -EBUSY);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_REMOVE), -EBUSY);
+	KUNIT_EXPECT_EQ(test, f->device->endpoint_reads, reads);
+	second = fes_de25_owner_test_allocate(f->owner);
+	KUNIT_EXPECT_TRUE(test, IS_ERR(second));
+	if (IS_ERR(second))
+		KUNIT_EXPECT_EQ(test, PTR_ERR(second), -EBUSY);
+	else
+		__fput_sync(second);
+	/* Reaping the owner's reference is insufficient while the client storage
+	 * still exists, even though this engine has never submitted a frame.
+	 */
+	KUNIT_ASSERT_EQ(test, fes_de25_owner_test_reap(f->owner), 0);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_REMOVE), -EBUSY);
+	__fput_sync(f->file);
+	f->file = NULL;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_REMOVE), 0);
+}
+
+static void permanent_owner_retains_uncertain_closed_client(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, true);
+	struct fes_de25_dma_publish publish;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	f->file = fes_de25_owner_test_allocate(f->owner);
+	KUNIT_ASSERT_FALSE(test, IS_ERR(f->file));
+	publish = publish_for(f->file);
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &publish), 0);
+	f->device->endpoint->drain_error = -ETIMEDOUT;
+	__fput_sync(f->file);
+	f->file = NULL;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_reap(f->owner), -EAGAIN);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_APPLY), -EBUSY);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_REMOVE), -EBUSY);
+	f->device->endpoint->drain_error = 0;
+	KUNIT_ASSERT_EQ(test, fes_de25_owner_test_reap(f->owner), 0);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_APPLY), 0);
+	/* Replacement is reserved before any stock bridge-disable call. */
+	f->file = fes_de25_owner_test_allocate(f->owner);
+	KUNIT_EXPECT_TRUE(test, IS_ERR(f->file));
+	if (IS_ERR(f->file)) {
+		KUNIT_EXPECT_EQ(test, PTR_ERR(f->file), -ENODEV);
+		f->file = NULL;
+	}
+}
+
+static void permanent_owner_never_adopts_unknown_configuration(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	unsigned int reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	reads = f->device->reads;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_APPLY), 0);
+	/* POST_APPLY without a known firmware/profile is not admission. */
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_POST_APPLY), 0);
+	f->file = fes_de25_owner_test_allocate(f->owner);
+	KUNIT_EXPECT_TRUE(test, IS_ERR(f->file));
+	if (IS_ERR(f->file)) {
+		KUNIT_EXPECT_EQ(test, PTR_ERR(f->file), -ENODEV);
+		f->file = NULL;
+	}
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+}
+
+static void permanent_owner_rejects_topology_overrides(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	static const char * const names[] = {
+		"fpga-bridges", "fpga-mgr", "compatible", "status", "ranges",
+	};
+	unsigned int i, reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	reads = f->device->reads;
+	for (i = 0; i < ARRAY_SIZE(names); i++)
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_override(f->owner, names[i]), -EINVAL);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+}
+
+static void permanent_owner_rejects_ancestor_mutation(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ancestor(f->owner, OF_OVERLAY_PRE_APPLY), -EBUSY);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ancestor(f->owner, OF_OVERLAY_PRE_REMOVE), -EBUSY);
+}
+
+static void permanent_owner_probe_refuses_unbound_device(struct kunit *test)
+{
+	struct platform_device *pdev = platform_device_register_simple("de25-owner-refusal", -1, NULL, 0);
+
+	KUNIT_ASSERT_FALSE(test, IS_ERR(pdev));
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_probe(pdev), -EOPNOTSUPP);
+	platform_device_unregister(pdev);
+}
+
+static void permanent_owner_checks_real_supplier_links(struct kunit *test)
+{
+	struct platform_device *consumer, *supplier;
+	struct device_link *link;
+
+	consumer = platform_device_register_simple("de25-owner-consumer", -1, NULL, 0);
+	KUNIT_ASSERT_FALSE(test, IS_ERR(consumer));
+	supplier = platform_device_register_simple("de25-owner-supplier", -1, NULL, 0);
+	if (IS_ERR(supplier)) {
+		KUNIT_FAIL(test, "supplier registration failed");
+		platform_device_unregister(consumer);
+		return;
+	}
+	link = device_link_add(&consumer->dev, &supplier->dev, DL_FLAG_STATELESS);
+	KUNIT_EXPECT_NOT_NULL(test, link);
+	if (link) {
+		/* An actual unbound supplier cannot retain the consumer's resources,
+		 * even though its permanent consumer/parent objects still exist.
+		 */
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_dependencies(&consumer->dev), -EPROBE_DEFER);
+		device_link_del(link);
+	}
+	platform_device_unregister(supplier);
+	platform_device_unregister(consumer);
+}
+
+/* Actual OF apply/remove and owner ioctl/FD table. The priority-zero
+ * programmer models a completed firmware transfer and register reset; it is
+ * not the SDM manager, an RBF loader, an SMMU or physical FPGA hardware.
+ */
+extern u8 __dtbo_fes_de25_owner_base_begin[], __dtbo_fes_de25_owner_base_end[];
+extern u8 __dtbo_fes_de25_owner_profile_begin[], __dtbo_fes_de25_owner_profile_end[];
+extern u8 __dtbo_fes_de25_owner_static_begin[], __dtbo_fes_de25_owner_static_end[];
+extern u8 __dtbo_fes_de25_owner_persona_begin[], __dtbo_fes_de25_owner_persona_end[];
+
+static int owner_fixture_program(struct notifier_block *nb, unsigned long action, void *data)
+{
+	struct owner_fixture *f = container_of(nb, struct owner_fixture, programmer);
+	struct of_overlay_notify_data *nd = data;
+	struct guard_test_device *device = f->device;
+	struct test_transport *endpoint = device->endpoint;
+
+	if (nd->target->parent == f->region && of_node_name_eq(nd->target, "fes-expansion")) {
+		if (action != OF_OVERLAY_PRE_APPLY)
+			return NOTIFY_OK;
+		f->persona_programs++;
+		/* Partial programming preserves the static guard's register state. */
+		return notifier_from_errno(f->program_error);
+	}
+	if (nd->target != f->region)
+		return NOTIFY_OK;
+	if (action == OF_OVERLAY_PRE_REMOVE)
+		f->removes++;
+	if (action != OF_OVERLAY_PRE_APPLY)
+		return NOTIFY_OK;
+	f->programs++;
+	if (f->program_error)
+		return notifier_from_errno(f->program_error);
+	memset(device->regs, 0, sizeof(device->regs));
+	device->regs[FES_DE25_SCANOUT_GUARD_ID_OFFSET / 4] =
+		f->wrong_identity ? 0 : FES_DE25_SCANOUT_GUARD_IDENTITY;
+	device->regs[FES_DE25_SCANOUT_GUARD_VERSION_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_VERSION;
+	device->regs[FES_DE25_SCANOUT_GUARD_TIMEOUT_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_TIMEOUT_CYCLES;
+	memset(endpoint->regs, 0, sizeof(endpoint->regs));
+	memset(endpoint->live, 0, sizeof(endpoint->live));
+	memset(endpoint->frozen, 0, sizeof(endpoint->frozen));
+	endpoint->first_fault_state = 0;
+	endpoint->first_fault_occupancy = 0;
+	endpoint->first_fault_gaps = 0;
+	endpoint->serial = 0;
+	endpoint->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_DRAINED;
+	return NOTIFY_OK;
+}
+
+static int owner_fixture_overlay_setup(struct owner_fixture *f)
+{
+	int ret;
+
+	/* Descriptor mutations stay in this test task's own table. */
+	if (!current->files)
+		return -EINVAL;
+	ret = unshare_files();
+	if (ret)
+		return ret;
+	ret = of_overlay_fdt_apply(__dtbo_fes_de25_owner_base_begin,
+		__dtbo_fes_de25_owner_base_end - __dtbo_fes_de25_owner_base_begin,
+		&f->base_overlay, NULL);
+	if (ret)
+		return ret;
+	f->region = of_find_node_by_path("/fes-de25-kunit-region");
+	if (!f->region)
+		return -ENODEV;
+	ret = fes_de25_owner_test_attach(f->owner, f->region, &f->device->guard);
+	if (ret)
+		return ret;
+	f->programmer.notifier_call = owner_fixture_program;
+	f->programmer.priority = 0;
+	ret = of_overlay_notifier_register(&f->programmer);
+	if (!ret)
+		f->programmer_registered = true;
+	return ret;
+}
+
+static int owner_fixture_apply(struct owner_fixture *f)
+{
+	return of_overlay_fdt_apply(__dtbo_fes_de25_owner_profile_begin,
+		__dtbo_fes_de25_owner_profile_end - __dtbo_fes_de25_owner_profile_begin,
+		&f->profile_overlay, NULL);
+}
+
+static int owner_fixture_static(struct owner_fixture *f)
+{
+	return of_overlay_fdt_apply(__dtbo_fes_de25_owner_static_begin,
+		__dtbo_fes_de25_owner_static_end - __dtbo_fes_de25_owner_static_begin,
+		&f->profile_overlay, NULL);
+}
+
+#if IS_ENABLED(CONFIG_FES_DE25_STATIC_EXPANSION)
+static int owner_fixture_persona(struct owner_fixture *f)
+{
+	return of_overlay_fdt_apply(__dtbo_fes_de25_owner_persona_begin,
+		__dtbo_fes_de25_owner_persona_end - __dtbo_fes_de25_owner_persona_begin,
+		&f->persona_overlay, NULL);
+}
+
+static void owner_static_persona_precedes_epoch_and_allocation(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	struct fes_de25_dma_publish publish;
+	unsigned int cycle, reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	for (cycle = 1; cycle <= 2; cycle++) {
+		KUNIT_ASSERT_EQ(test, owner_fixture_static(f), 0);
+		KUNIT_EXPECT_EQ(test, f->programs, cycle);
+		KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], 0U);
+		reads = f->device->reads;
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+		KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+		KUNIT_ASSERT_EQ(test, owner_fixture_persona(f), 0);
+		KUNIT_EXPECT_EQ(test, f->persona_programs, cycle);
+		KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], cycle);
+		f->fd = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0);
+		KUNIT_ASSERT_GE(test, f->fd, 0);
+		f->file = fget(f->fd);
+		KUNIT_ASSERT_NOT_NULL(test, f->file);
+		publish = publish_for(f->file);
+		KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &publish), 0);
+		KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->persona_overlay), -EBUSY);
+		KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->profile_overlay), -EBUSY);
+		KUNIT_ASSERT_EQ(test, fes_de25_owner_test_reap(f->owner), 0);
+		KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->persona_overlay), -EBUSY);
+		owner_fixture_close_client(f);
+		KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->persona_overlay), 0);
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+		/* A changed selection is a new launch, never a live child reload. */
+		KUNIT_EXPECT_EQ(test, owner_fixture_persona(f), -EIO);
+		KUNIT_EXPECT_EQ(test, f->persona_programs, cycle);
+		if (f->persona_overlay)
+			KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->persona_overlay), 0);
+		KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->profile_overlay), 0);
+	}
+}
+
+static void owner_static_failed_persona_requires_fresh_base(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	unsigned int reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	KUNIT_ASSERT_EQ(test, owner_fixture_static(f), 0);
+	f->program_error = -EIO;
+	KUNIT_EXPECT_EQ(test, owner_fixture_persona(f), -EIO);
+	KUNIT_EXPECT_EQ(test, f->persona_programs, 1U);
+	reads = f->device->reads;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+	KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], 0U);
+	if (f->persona_overlay)
+		KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->persona_overlay), 0);
+	f->program_error = 0;
+	KUNIT_EXPECT_EQ(test, owner_fixture_persona(f), -EIO);
+	KUNIT_EXPECT_EQ(test, f->persona_programs, 1U);
+	if (f->persona_overlay)
+		KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->persona_overlay), 0);
+	KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->profile_overlay), 0);
+	KUNIT_ASSERT_EQ(test, owner_fixture_static(f), 0);
+	KUNIT_ASSERT_EQ(test, owner_fixture_persona(f), 0);
+	KUNIT_EXPECT_EQ(test, f->persona_programs, 2U);
+	KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], 1U);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
+}
+
+/* Mutate the actual embedded overlay, then enter the real OF transaction.
+ * Invalid flags/properties must be vetoed before the modeled programmer runs.
+ */
+static int owner_fixture_mutated(struct kunit *test, struct owner_fixture *f,
+		bool persona, const char *path, const char *property, const char *value)
+{
+	void *blob = kunit_kmalloc(test, 4096, GFP_KERNEL);
+	const void *original = persona ? __dtbo_fes_de25_owner_persona_begin : __dtbo_fes_de25_owner_static_begin;
+	int node, ret;
+
+	if (!blob)
+		return -ENOMEM;
+	ret = fdt_open_into(original, blob, 4096);
+	if (ret)
+		return ret;
+	node = fdt_path_offset(blob, path);
+	if (node < 0)
+		return node;
+	ret = value ? fdt_setprop(blob, node, property, value, strlen(value) + 1) :
+		fdt_delprop(blob, node, property);
+	if (ret)
+		return ret;
+	return of_overlay_fdt_apply(blob, fdt_totalsize(blob),
+		persona ? &f->persona_overlay : &f->profile_overlay, NULL);
+}
+
+static void owner_static_rejects_malformed_base_before_programming(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	static const struct { const char *path, *property, *value; } invalid[] = {
+		{ "/fragment@0/__overlay__", "firmware-name", NULL },
+		{ "/fragment@0/__overlay__", "firmware-name", "" },
+		{ "/fragment@0/__overlay__", "partial-fpga-config", "" },
+		{ "/fragment@0/__overlay__", "config-complete-timeout-us", "override" },
+		{ "/fragment@0/__overlay__/fes-expansion", "firmware-name", "bad.rbf" },
+		{ "/fragment@0/__overlay__/fes-expansion", "compatible", "other-region" },
+		{ "/fragment@0/__overlay__/fes-expansion", "external-fpga-config", "" },
+		{ "/fragment@0/__overlay__/fes-expansion", "fpga-bridges", "bad" },
+		{ "/fragment@0/__overlay__/fes-expansion", "ranges", "bad" },
+		{ "/fragment@0/__overlay__/fes-expansion", "status", "disabled" },
+		{ "/fragment@0/__overlay__/scanout", "firmware-name", "bad.rbf" },
+	};
+	unsigned int i, reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	reads = f->device->reads;
+	for (i = 0; i < ARRAY_SIZE(invalid); i++) {
+		KUNIT_EXPECT_EQ(test, owner_fixture_mutated(test, f, false, invalid[i].path,
+			invalid[i].property, invalid[i].value), -EINVAL);
+		KUNIT_EXPECT_EQ(test, f->programs, 0U);
+		if (f->profile_overlay)
+			KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->profile_overlay), 0);
+	}
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+	KUNIT_ASSERT_EQ(test, owner_fixture_static(f), 0);
+}
+
+static void owner_static_rejects_invalid_persona_before_programming(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	static const struct { const char *property, *value; } invalid[] = {
+		{ "partial-fpga-config", NULL }, { "partial-fpga-config", "yes" },
+		{ "firmware-name", NULL }, { "firmware-name", "" },
+		{ "external-fpga-config", "" }, { "authenticate-fpga-config", "" },
+		{ "encrypted-fpga-config", "" }, { "region-freeze-timeout-us", "override" },
+		{ "config-complete-timeout-us", "override" },
+		{ "fpga-mgr", "override" }, { "compatible", "fpga-region" },
+	};
+	unsigned int i, reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	KUNIT_ASSERT_EQ(test, owner_fixture_static(f), 0);
+	reads = f->device->reads;
+	for (i = 0; i < ARRAY_SIZE(invalid); i++) {
+		KUNIT_EXPECT_EQ(test, owner_fixture_mutated(test, f, true, "/fragment@0/__overlay__",
+			invalid[i].property, invalid[i].value), -EINVAL);
+		KUNIT_EXPECT_EQ(test, f->persona_programs, 0U);
+		if (f->persona_overlay)
+			KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->persona_overlay), 0);
+	}
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+	KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], 0U);
+	KUNIT_ASSERT_EQ(test, owner_fixture_persona(f), 0);
+}
+
+static void owner_static_failed_guard_never_admits_allocation(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	unsigned int reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	f->wrong_identity = true;
+	KUNIT_ASSERT_EQ(test, owner_fixture_static(f), 0);
+	KUNIT_EXPECT_EQ(test, owner_fixture_persona(f), -EPROTONOSUPPORT);
+	reads = f->device->reads;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+	if (f->persona_overlay)
+		KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->persona_overlay), 0);
+	KUNIT_EXPECT_EQ(test, owner_fixture_persona(f), -EIO);
+	KUNIT_EXPECT_EQ(test, f->persona_programs, 1U);
+}
+#else
+static void owner_static_disabled_refuses_base_before_programming(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	unsigned int reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	reads = f->device->reads;
+	KUNIT_EXPECT_EQ(test, owner_fixture_static(f), -EOPNOTSUPP);
+	KUNIT_EXPECT_EQ(test, f->programs, 0U);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+}
+#endif
+
+static void owner_overlay_and_control_fd_complete_two_cycles(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	struct fes_de25_dma_publish publish;
+	struct device_node *node;
+	u64 previous = 0;
+	unsigned int cycle;
+	bool cloexec;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), -ENODEV);
+	for (cycle = 1; cycle <= 2; cycle++) {
+		KUNIT_ASSERT_EQ(test, owner_fixture_apply(f), 0);
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
+		KUNIT_EXPECT_EQ(test, f->programs, cycle);
+		KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], cycle);
+		f->fd = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0);
+		KUNIT_ASSERT_GE(test, f->fd, 0);
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), -EBUSY);
+		spin_lock(&current->files->file_lock);
+		cloexec = close_on_exec(f->fd, current->files);
+		spin_unlock(&current->files->file_lock);
+		KUNIT_EXPECT_TRUE(test, cloexec);
+		f->file = fget(f->fd);
+		KUNIT_ASSERT_NOT_NULL(test, f->file);
+		fes_de25_dma_test_observe(f->file, &f->control_observer);
+		publish = publish_for(f->file);
+		KUNIT_EXPECT_GT(test, publish.generation, previous);
+		previous = publish.generation;
+		KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &publish), 0);
+		KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->profile_overlay), -EBUSY);
+		KUNIT_EXPECT_EQ(test, f->removes, cycle - 1);
+		node = of_find_node_by_path("/fes-de25-kunit-region/scanout");
+		KUNIT_EXPECT_NOT_NULL(test, node);
+		of_node_put(node);
+		KUNIT_ASSERT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_REAP, 0), 0);
+		/* Drained hardware does not retire a peer's storage reference. */
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), -EBUSY);
+		KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->profile_overlay), -EBUSY);
+		KUNIT_EXPECT_EQ(test, f->control_observer.freed, cycle - 1);
+		owner_fixture_close_client(f);
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
+		KUNIT_EXPECT_EQ(test, f->control_observer.freed, cycle);
+		KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->profile_overlay), 0);
+		KUNIT_EXPECT_EQ(test, f->removes, cycle);
+		KUNIT_EXPECT_EQ(test, f->profile_overlay, 0);
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), -ENODEV);
+	}
+}
+
+static void owner_overlay_refuses_remove_after_uncertain_last_close(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	struct fes_de25_dma_publish publish;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	KUNIT_ASSERT_EQ(test, owner_fixture_apply(f), 0);
+	f->fd = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0);
+	KUNIT_ASSERT_GE(test, f->fd, 0);
+	f->file = fget(f->fd);
+	KUNIT_ASSERT_NOT_NULL(test, f->file);
+	fes_de25_dma_test_observe(f->file, &f->control_observer);
+	publish = publish_for(f->file);
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &publish), 0);
+	f->device->endpoint->drain_error = -ETIMEDOUT;
+	owner_fixture_close_client(f);
+	KUNIT_EXPECT_EQ(test, f->control_observer.freed, 0U);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_REAP, 0), -EAGAIN);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), -EBUSY);
+	KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->profile_overlay), -EBUSY);
+	KUNIT_EXPECT_EQ(test, f->removes, 0U);
+	f->device->endpoint->drain_error = 0;
+	KUNIT_ASSERT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_REAP, 0), 0);
+	KUNIT_EXPECT_EQ(test, f->control_observer.freed, 1U);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
+	KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->profile_overlay), 0);
+}
+
+static void owner_overlay_failure_never_admits_a_guard(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	unsigned int reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	f->program_error = -EIO;
+	KUNIT_EXPECT_EQ(test, owner_fixture_apply(f), -EIO);
+	reads = f->device->reads;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+	KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->profile_overlay), 0);
+	f->program_error = 0;
+	f->wrong_identity = true;
+	KUNIT_EXPECT_EQ(test, owner_fixture_apply(f), -EPROTONOSUPPORT);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+	KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->profile_overlay), 0);
+	f->wrong_identity = false;
+	KUNIT_ASSERT_EQ(test, owner_fixture_apply(f), 0);
+	KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], 2U);
+}
+
+static void owner_idle_waits_for_last_client_mapping(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, true);
+	struct mm_struct *mm;
+	unsigned long address;
+	unsigned int reads, writes;
+	int ret;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	f->file = fes_de25_owner_test_allocate(f->owner);
+	KUNIT_ASSERT_FALSE(test, IS_ERR(f->file));
+	fes_de25_dma_test_observe(f->file, &f->control_observer);
+	mm = test_mm(test);
+	if (!mm)
+		return;
+	kthread_use_mm(mm);
+	address = vm_mmap(f->file, TEST_ADDRESS, PAGE_SIZE,
+			PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, 0);
+	KUNIT_EXPECT_EQ(test, address, TEST_ADDRESS);
+	if (IS_ERR_VALUE(address))
+		goto out;
+	ret = fes_de25_owner_test_reap(f->owner);
+	KUNIT_EXPECT_EQ(test, ret, 0);
+	if (ret)
+		goto unmap;
+	/* No descriptor remains, but the revoked VMA still owns its storage. */
+	owner_fixture_close_client(f);
+	KUNIT_EXPECT_EQ(test, f->control_observer.freed, 0U);
+	reads = f->device->reads;
+	writes = f->device->writes;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), -EBUSY);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+	KUNIT_EXPECT_EQ(test, f->device->writes, writes);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_REMOVE), -EBUSY);
+unmap:
+	KUNIT_EXPECT_EQ(test, vm_munmap(address, PAGE_SIZE), 0);
+out:
+	kthread_unuse_mm(mm);
+	mmput(mm);
+	/* KUnit is a kernel thread, so run the final VMA file's deferred fput. */
+	flush_delayed_fput();
+	if (!IS_ERR_VALUE(address) && !f->file) {
+		KUNIT_EXPECT_EQ(test, f->control_observer.freed, 1U);
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
+	}
+}
+
+static void owner_cached_info_has_no_hardware_or_lifetime_effect(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, true);
+	struct fes_de25_dma_info info;
+	struct mm_struct *mm;
+	unsigned long address;
+	unsigned int reads, writes;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_INFO, 0), -ENODATA);
+	f->file = fes_de25_owner_test_allocate(f->owner);
+	KUNIT_ASSERT_FALSE(test, IS_ERR(f->file));
+	mm = test_mm(test);
+	if (!mm)
+		return;
+	kthread_use_mm(mm);
+	address = vm_mmap(f->file, TEST_ADDRESS, PAGE_SIZE,
+			PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, 0);
+	KUNIT_EXPECT_EQ(test, address, TEST_ADDRESS);
+	if (IS_ERR_VALUE(address))
+		goto out;
+	reads = f->device->reads;
+	writes = f->device->writes;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_INFO, 0), -EFAULT);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_INFO, address), 0);
+	KUNIT_EXPECT_EQ(test, copy_from_user(&info, (void __user *)address, sizeof(info)), 0UL);
+	KUNIT_EXPECT_EQ(test, sizeof(info), (size_t)104);
+	KUNIT_EXPECT_EQ(test, info.version, 3U);
+	KUNIT_EXPECT_NE(test, info.generation, 0ULL);
+	KUNIT_EXPECT_EQ(test, info.build_id[0], 0x76543210U);
+	KUNIT_EXPECT_EQ(test, info.build_id[3], 0x01234567U);
+	KUNIT_EXPECT_EQ(test, info.state, 0U);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+	KUNIT_EXPECT_EQ(test, f->device->writes, writes);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), -EBUSY);
+	KUNIT_EXPECT_EQ(test, vm_munmap(address, PAGE_SIZE), 0);
+out:
+	kthread_unuse_mm(mm);
+	mmput(mm);
+}
+
+static void owner_control_checks_capability_and_command_before_effects(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	struct cred *denied;
+	const struct cred *saved;
+	unsigned int reads;
+	long ret, idle_ret, abi_ret, info_ret;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	KUNIT_ASSERT_EQ(test, owner_fixture_apply(f), 0);
+	reads = f->device->reads;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 1), -EINVAL);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ABI, 1), -EINVAL);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ABI, 0), 3);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 1), -EINVAL);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, 0, 0), -ENOTTY);
+	denied = prepare_creds();
+	KUNIT_ASSERT_NOT_NULL(test, denied);
+	cap_lower(denied->cap_effective, CAP_SYS_RAWIO);
+	saved = override_creds(denied);
+	ret = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0);
+	abi_ret = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ABI, 0);
+	info_ret = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_INFO, 0);
+	idle_ret = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0);
+	revert_creds(saved);
+	put_cred(denied);
+	KUNIT_EXPECT_EQ(test, ret, -EPERM);
+	KUNIT_EXPECT_EQ(test, idle_ret, -EPERM);
+	KUNIT_EXPECT_EQ(test, abi_ret, -EPERM);
+	KUNIT_EXPECT_EQ(test, info_ret, -EPERM);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+}
+
 static struct kunit_case fes_de25_dma_cases[] = {
+#if IS_ENABLED(CONFIG_FES_DE25_STATIC_EXPANSION)
+	KUNIT_CASE(owner_static_persona_precedes_epoch_and_allocation),
+	KUNIT_CASE(owner_static_failed_persona_requires_fresh_base),
+	KUNIT_CASE(owner_static_rejects_malformed_base_before_programming),
+	KUNIT_CASE(owner_static_rejects_invalid_persona_before_programming),
+	KUNIT_CASE(owner_static_failed_guard_never_admits_allocation),
+#else
+	KUNIT_CASE(owner_static_disabled_refuses_base_before_programming),
+#endif
+ KUNIT_CASE(retirement_receipt_requires_success_and_is_cached),
+ KUNIT_CASE(retirement_receipt_preserves_draining_error_before_clear),
+ KUNIT_CASE(retirement_receipt_epoch_or_build_failure_is_unavailable),
+ KUNIT_CASE(retirement_receipt_new_grant_has_no_old_record),
+ KUNIT_CASE(retirement_receipt_failed_post_clear_epoch_never_valid),
+	KUNIT_CASE(diagnostics_cached_query_checks_request_without_mmio),
+	KUNIT_CASE(diagnostics_retains_fault_after_failed_poll_without_mmio),
+	KUNIT_CASE(diagnostics_latch_after_frozen_snapshot_is_coherent),
+	KUNIT_CASE(diagnostics_snapshot_transport_identity_loss_invalidates_cache),
+	KUNIT_CASE(diagnostics_identity_loss_invalidates_cached_record),
+	KUNIT_CASE(diagnostics_reset_during_payload_is_not_current),
+	KUNIT_CASE(diagnostics_clear_and_new_grant_have_no_stale_record),
+	KUNIT_CASE(diagnostics_invalid_packing_preserves_original_fault),
+	KUNIT_CASE(cold_poll_observes_display_ready_without_submission),
+	KUNIT_CASE(owner_cached_info_has_no_hardware_or_lifetime_effect),
+	KUNIT_CASE(build_identity_reports_hardware_words),
+	KUNIT_CASE(zero_build_identity_refuses_allocation),
+	KUNIT_CASE(changed_build_identity_retains_uncertain_lease),
+	KUNIT_CASE(owner_idle_waits_for_last_client_mapping),
+	KUNIT_CASE(owner_overlay_and_control_fd_complete_two_cycles),
+	KUNIT_CASE(owner_overlay_refuses_remove_after_uncertain_last_close),
+	KUNIT_CASE(owner_overlay_failure_never_admits_a_guard),
+	KUNIT_CASE(owner_control_checks_capability_and_command_before_effects),
+	KUNIT_CASE(permanent_owner_checks_real_supplier_links),
+	KUNIT_CASE(permanent_owner_probe_refuses_unbound_device),
+	KUNIT_CASE(permanent_owner_rejects_topology_overrides),
+	KUNIT_CASE(permanent_owner_rejects_ancestor_mutation),
+	KUNIT_CASE(permanent_owner_blocks_configuration_before_first_submit),
+	KUNIT_CASE(permanent_owner_retains_uncertain_closed_client),
+	KUNIT_CASE(permanent_owner_never_adopts_unknown_configuration),
+	KUNIT_CASE(owner_recovers_drain_after_last_client_close),
+	KUNIT_CASE(owner_recovery_cannot_use_reset_as_drain),
+	KUNIT_CASE(owner_reference_release_does_not_revoke_client),
+	KUNIT_CASE(guard_real_access_and_bounds),
+	KUNIT_CASE(guard_claim_rejects_wrong_or_existing_identity),
+	KUNIT_CASE(guard_dummy_zero_timeout_is_not_success),
+	KUNIT_CASE(guard_post_access_fault_and_reset_reject_results),
+	KUNIT_CASE(guard_busy_or_unknown_status_prevents_access),
+	KUNIT_CASE(guarded_transport_constructs_real_dma_grant),
 	KUNIT_CASE(binding_stays_closed),
+	KUNIT_CASE(backend_lease_required_before_access),
+	KUNIT_CASE(unconfigured_engine_has_one_allocation_lease),
+	KUNIT_CASE(constructor_failure_releases_backend_lease),
+	KUNIT_CASE(uncertain_dma_retains_lease_until_storage_free),
 	KUNIT_CASE(rejects_bad_publish_before_effects),
 	KUNIT_CASE(kernel_owns_descriptor_and_drain_lifetime),
 	KUNIT_CASE(failed_start_is_held_until_drain),
-	KUNIT_CASE(delayed_drain_releases_exposure),
-	KUNIT_CASE(retry_after_clear_accepts_pristine_snapshot),
 	KUNIT_CASE(unreadable_epoch_retains_exposed_storage),
 	KUNIT_CASE(acceptance_is_not_display_and_slots_alternate),
 	KUNIT_CASE(ordered_descriptor_precedes_first_submit),
@@ -834,6 +2698,7 @@ static struct kunit_case fes_de25_dma_cases[] = {
 	KUNIT_CASE(sequence_and_generation_never_wrap),
 	KUNIT_CASE(poll_identity_rejects_before_register_effects),
 	KUNIT_CASE(coherent_mapping_uapi_and_revoke),
+	KUNIT_CASE(contiguous_aliases_are_revoked),
 	KUNIT_CASE(rejects_invalid_mapping_shapes),
 	KUNIT_CASE(refused_mapping_releases_new_mm_reference),
 	KUNIT_CASE(revoke_catches_inflight_mmap_link),

@@ -1,0 +1,37 @@
+{
+  "clock": "pll_inst|iopll_0_outclk0",
+  "files": {
+    "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "after_sha256": "8d68284058586b548882bd750bf5610b9798e24039f67d0d075623d430afd9d8",
+      "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+    },
+    "jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "after_sha256": "8d68284058586b548882bd750bf5610b9798e24039f67d0d075623d430afd9d8",
+      "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+    },
+    "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "after_sha256": "8d68284058586b548882bd750bf5610b9798e24039f67d0d075623d430afd9d8",
+      "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+    },
+    "jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "after_sha256": "8d68284058586b548882bd750bf5610b9798e24039f67d0d075623d430afd9d8",
+      "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+    },
+    "peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "after_sha256": "8d68284058586b548882bd750bf5610b9798e24039f67d0d075623d430afd9d8",
+      "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+    },
+    "qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "after_sha256": "8d68284058586b548882bd750bf5610b9798e24039f67d0d075623d430afd9d8",
+      "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+    }
+  },
+  "policy": "timed-system-reset-release-v2",
+  "timed_instances": [
+    "soc_inst|rst_controller",
+    "soc_inst|subsys_periph|rst_controller",
+    "soc_inst|rst_controller_002",
+    "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller",
+    "soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "source_revision": "ba43ac5aa5acc3ba14225849515eef9538b3e154",
+  "command": [
+    "go",
+    "-C",
+    "sources/FogCast",
+    "test",
+    "./ui/menudisplay",
+    "./ui/gfx",
+    "./cmd/fogcast-tenfoot"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-frame-client",
+  "started_utc": "2026-11-01T11:49:29.425458+00:00",
+  "time_cap_seconds": 300,
+  "hardware_access": "not-performed",
+  "pid": 3437606,
+  "state": "passed",
+  "elapsed_seconds": 2.8,
+  "heartbeat_utc": "2026-11-01T11:49:32.190747+00:00",
+  "returncode": 0
+}

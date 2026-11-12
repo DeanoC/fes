@@ -18,7 +18,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.compiler_read_audit import guard_functional_source
-from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts import fes_build_common as board
 from scripts import fes_de10nano_evidence as board_evidence
 from scripts.core_package import encode_manifest
@@ -160,7 +160,7 @@ def create_build_record(root, repository, revision, identities, *, identity_vers
         raise board.BuildError("unsupported build identity version")
     fields = record_fields(root, repository, revision, identities, single_seed=single_seed)
     return encode_build_record(functional_record_fields(root, fields,
-        source_roots_for_inputs(PINNED_INPUTS), execution, pinned_inputs=PINNED_INPUTS))
+        source_roots_for_producer(__name__, PINNED_INPUTS, root), execution, pinned_inputs=PINNED_INPUTS))
 
 
 def build_commands(build_id: str, tools: dict[str, Path], *, gpu_device: int = 0, single_seed=None):

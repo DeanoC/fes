@@ -1,0 +1,23 @@
+# Extracted PASS lines; full raw log retained independently. Raw SHA256 6ee915e06b7dc1812ebe9462d5d90b4c7d02368032f711959a1d0c084c3b5331
+PASS exact last-visible-pixel submit survives prior full-frame ACK and completes next frame
+PASS disabled_and_snapshot
+PASS display_readiness_loss_stops_without_releasing_traffic
+PASS raster_sync_runs_while_disabled_and_survives_reset
+PASS clock_fault_does_not_shorten_active_hsync
+PASS two_complete_frames_delayed
+PASS two_complete_frames_zero_latency
+PASS stop_keeps_stalled_command_and_accepted_responses
+PASS read_ahead_reserves_capacity_and_stop_drains_every_accepted_beat
+PASS reset_midburst_restores_idle_submit_and_clear
+PASS reset_cancels_a_stalled_command
+PASS boundaries_and_low_iova
+PASS invalid_descriptors_never_fetch
+PASS pending_and_sequence_errors
+PASS response_slverr
+PASS response_decerr
+PASS unexpected_response_is_terminal
+PASS underflow_never_completes_frame
+PASS clock_fault_cannot_clear_into_new_lease
+PASS DE25 scanout endpoint: 18 groups
+PASS board clock/lock simulation: pixel-synchronized HDMI gating changes only in horizontal porch; complete sync pulses preserved; modeled PLL boundary only
+PASS: bounded system-clock CSR guard, retained Avalon lifetime, late responses, permanent faults and epoch reset

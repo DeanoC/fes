@@ -42,6 +42,29 @@ blends with it as premultiplied alpha, so clients write 255 where a pixel is
 opaque. The client draws straight into the slots; the runtime copies no
 frame.
 
+### Mapping lifetime
+
+An allocation-backed adapter can report `menu_display.frame_mapping: true`.
+That generation requires a `menu_frame_grant` request with `frame_mapping: true`;
+the grant reply repeats the flag. The runtime refuses a missing agreement
+before duplicating a grant descriptor. This mode does not support the blitter.
+An absent flag keeps the existing persistent-window contract and request.
+
+For a frame mapping, the client closes its received descriptor and unmaps its
+view before sending `menu_frame_commit`, including before waiting for a failure
+reply. The runtime's own reference retains the allocation and submitted pixels.
+The next frame obtains a fresh descriptor for the same generation; slot and
+damage history remain valid across that remap. Merely inspecting a grant leaves
+no client mapping. A failed unmap refuses the commit and retains the mapping for
+explicit cleanup. The client must also release a mapping on preparation failure.
+
+This matters because frame failure can recover idle before replying. A peer VMA
+must not prevent the kernel from retiring allocation references during that
+recovery. Kernel exclusion remains authoritative; this agreement never permits
+discarding another peer's references. DE10 keeps its persistent cached window.
+The protocol and client implementation exist; the DE25 adapter and production
+factory remain unfinished, with no new hardware acceptance.
+
 ### Grant
 
 Each menu or session-plane activation grants both slots through fes-window and

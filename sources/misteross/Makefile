@@ -541,13 +541,14 @@ zx81-openrom:
 # runs the full check. Tapes made by other tools (the FogCast starter shelf,
 # when this checkout has it) then load on 1 KiB and 16 KiB.
 ZX81_TAPES ?= $(CURDIR)/../FogCast/internal/zx81tapes/assets
+# Keep objects built with the former size policy out of the speed build.
+ZX81_OPENROM_SIM_DIR := build/sim/fes-zx81-openrom-cxx-o3
 sim-fes-zx81-openrom: zx81-openrom
 	$(require_local_sim)
 	@for spec in 1:1: 0:0: ts1000:1:-DZX81_MODEL_TS1000; do \
 		name=$${spec%%:*}; rest=$${spec#*:}; ram=$${rest%%:*}; define=$${rest#*:}; \
-		dir=build/sim/fes-zx81-openrom-cxx-o3-$$name; mkdir -p $$dir; \
-		$(VERILATOR) --cc --exe --build -O3 --top-module zx81_machine -Wall \
-			-MAKEFLAGS 'OPT_FAST=-O3 OPT_GLOBAL=-O3' \
+		dir=$(ZX81_OPENROM_SIM_DIR)-$$name; mkdir -p $$dir; \
+		$(VERILATOR) --cc --exe --build -O3 -MAKEFLAGS 'OPT_FAST=-O3 OPT_GLOBAL=-O3' --top-module zx81_machine -Wall \
 			-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 			-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 			-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
@@ -560,14 +561,14 @@ sim-fes-zx81-openrom: zx81-openrom
 			cores/fes-zx81/rtl/zx81_dpram.v \
 			"$(CURDIR)/cores/fes-zx81/sim/openrom_tb.cpp" || exit 1; \
 	done
-	@build/sim/fes-zx81-openrom-cxx-o3-1/Vzx81_machine check & one=$$!; \
-		build/sim/fes-zx81-openrom-cxx-o3-ts1000/Vzx81_machine check & ntsc=$$!; \
-		build/sim/fes-zx81-openrom-cxx-o3-0/Vzx81_machine check; sixteen=$$?; \
+	@$(ZX81_OPENROM_SIM_DIR)-1/Vzx81_machine check & one=$$!; \
+		$(ZX81_OPENROM_SIM_DIR)-ts1000/Vzx81_machine check & ntsc=$$!; \
+		$(ZX81_OPENROM_SIM_DIR)-0/Vzx81_machine check; sixteen=$$?; \
 		wait $$one; one=$$?; wait $$ntsc; ntsc=$$?; \
 		test $$one = 0 && test $$ntsc = 0 && test $$sixteen = 0
 	@if [ -f "$(ZX81_TAPES)/guess-number.p" ]; then \
-		build/sim/fes-zx81-openrom-cxx-o3-1/Vzx81_machine load "$(ZX81_TAPES)/guess-number.p" && \
-		build/sim/fes-zx81-openrom-cxx-o3-0/Vzx81_machine load "$(ZX81_TAPES)/aritm.p"; \
+		$(ZX81_OPENROM_SIM_DIR)-1/Vzx81_machine load "$(ZX81_TAPES)/guess-number.p" && \
+		$(ZX81_OPENROM_SIM_DIR)-0/Vzx81_machine load "$(ZX81_TAPES)/aritm.p"; \
 	else echo "SKIP tape loads: no FogCast starter tapes at $(ZX81_TAPES)"; fi
 
 .PHONY: zx80-openrom sim-fes-zx80-openrom

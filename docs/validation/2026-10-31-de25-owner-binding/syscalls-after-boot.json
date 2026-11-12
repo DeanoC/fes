@@ -1,0 +1,7 @@
+{
+  "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+  "host": "192.168.10.129",
+  "binary_sha256": "b5db0fc187290073086714b94ccbdd6729011cd20c781e4e7730028f931d0032",
+  "actual_userspace_syscalls": "passed after second software reboot",
+  "physical_dma": "not-run"
+}

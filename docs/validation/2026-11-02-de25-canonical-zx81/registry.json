@@ -1,0 +1,30 @@
+{
+  "added_recipe": {
+    "authenticate": "_authenticate_tools",
+    "board": "de25-nano",
+    "core_id": "fes.zx81",
+    "identity_version": 2,
+    "lock_path": "boards/de25nano/hps/vendor.lock.toml",
+    "package_dir_env": "FES_ZX81_PACKAGE_DIR",
+    "package_selection_env": "FES_ZX81_PACKAGE_SELECTION",
+    "producer_module": "scripts.build_de25_zx81_package",
+    "producer_script": "scripts/build_de25_zx81_package.py",
+    "quartus": {
+      "seeds": [
+        1
+      ],
+      "threads": 2,
+      "version": "26.3.0"
+    },
+    "quartus_role": "primary DE25 BRAM ZX81 package producer",
+    "selection_filename": "fes-zx81.package-selection.toml",
+    "toolchain": "quartus"
+  },
+  "all_old_rows_equal": true,
+  "classification": "Actual registry rows compared with prior published head; existing rows unchanged",
+  "current_recipe_rows": 23,
+  "hardware_access": "not-performed",
+  "old_recipe_rows": 22,
+  "prior_source": "79a97fe79c24e910aa34b6062a3277a94ea3b790",
+  "producer_source": "6008eb094e53c0275cbff6b850c7826d0d35b152"
+}

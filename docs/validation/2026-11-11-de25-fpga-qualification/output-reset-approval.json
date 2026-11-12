@@ -1,0 +1,8 @@
+{
+  "approved": true,
+  "date": "2026-11-11",
+  "source": "direct user reply in this task",
+  "answer": "Approve the scoped reset review",
+  "policy": "de25-reviewed-terminal-hdmi-output-reset-v1",
+  "scope": "One RDC-50003 pixel domain, two exact reset heads, three exact sources, 26 terminal output/readiness loads; all208 local recovery/removal paths nonnegative in four models for each normal MENU/ordinary ZX81 fit. No static-persona, failed-programming recovery, numerical timing or physical acceptance waiver."
+}

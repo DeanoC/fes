@@ -1,0 +1,16 @@
+{
+  "source_revision": "3d9410e757a4d0603dcc9c96e09cb999f850ed5a",
+  "command": [
+    "python3",
+    "out/scanout-loader-checks/native.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-scanout-loader",
+  "started_utc": "2026-10-31T23:29:50.543556+00:00",
+  "time_cap_seconds": 900,
+  "hardware_access": "not-performed",
+  "pid": 3807903,
+  "state": "passed",
+  "elapsed_seconds": 195.3,
+  "heartbeat_utc": "2026-10-31T23:33:05.800466+00:00",
+  "returncode": 0
+}

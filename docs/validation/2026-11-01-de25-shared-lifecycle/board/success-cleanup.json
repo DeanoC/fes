@@ -1,0 +1,8 @@
+{
+  "host": "192.168.10.28",
+  "boot_id": "15e107d8-0ed1-4e5e-83d8-b27c8a49d853",
+  "command": "set -eu\n[ \"$(cat /proc/sys/kernel/random/boot_id)\" = 15e107d8-0ed1-4e5e-83d8-b27c8a49d853 ]\n[ \"$(cat /sys/block/mmcblk0/device/cid)\" = 275048534436344760702d33e0017c00 ]\nflock -n -x /run/fes-de25-computer.lock sh -c 'set -eu\ngrep -q '\"'\"'^DE25_SHARED_LIFECYCLE_PASS final_held=true owned_overlay_retained=true$'\"'\"' /tmp/fes-de25-shared-lifecycle-1cf/run.log\n[ \"$(cat /sys/kernel/config/device-tree/overlays/fes-runtime/status)\" = applied ]\n[ \"$(sha256sum /lib/firmware/fes-runtime-core.rbf | cut -d '\"'\"' '\"'\"' -f1)\" = 63eebb5f53f4254a4beaab3bfe1a3d695d3da20d71e4f8f445bab816e28fa5db ]\nrmdir /sys/kernel/config/device-tree/overlays/fes-runtime\n[ ! -d /sys/kernel/config/device-tree/overlays/fes-runtime ]\nrm /lib/firmware/fes-runtime-core.rbf\numount /sys/kernel/config\nrm -rf -- /tmp/fes-de25-shared-lifecycle-1cf\n[ ! -e /tmp/fes-de25-shared-lifecycle-1cf ]\n[ ! -e /lib/firmware/fes-runtime-core.rbf ]\nsha256sum /sys/kernel/notes /usr/share/fes/kernel-modules.json\nls -ln /dev/fes-de25-scanout\ncat /proc/sys/kernel/random/boot_id\necho SHARED_LIFECYCLE_SUCCESS_CLEANUP_PASS\n'",
+  "returncode": 0,
+  "elapsed_seconds": 0.28,
+  "stdin_sha256": null
+}

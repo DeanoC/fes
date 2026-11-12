@@ -1,0 +1,187 @@
+{
+  "classification": "actual serializer RTL against selected generated-clock edge lists",
+  "first_three_transitions": {
+    "bit_clock": [
+      [
+        3,
+        1
+      ],
+      [
+        7,
+        0
+      ],
+      [
+        11,
+        1
+      ]
+    ],
+    "word_clock": [
+      [
+        255,
+        1
+      ],
+      [
+        511,
+        0
+      ],
+      [
+        767,
+        1
+      ]
+    ]
+  },
+  "fitted_clock_output_paths": [
+    {
+      "bound": "min",
+      "clock": "bit_clock",
+      "corner": "Slow fix4 100C Model",
+      "count": "1",
+      "delay_ns": "5.062"
+    },
+    {
+      "bound": "max",
+      "clock": "bit_clock",
+      "corner": "Slow fix4 100C Model",
+      "count": "1",
+      "delay_ns": "5.978"
+    },
+    {
+      "bound": "min",
+      "clock": "word_clock",
+      "corner": "Slow fix4 100C Model",
+      "count": "1",
+      "delay_ns": "4.828"
+    },
+    {
+      "bound": "max",
+      "clock": "word_clock",
+      "corner": "Slow fix4 100C Model",
+      "count": "1",
+      "delay_ns": "5.947"
+    },
+    {
+      "bound": "min",
+      "clock": "bit_clock",
+      "corner": "Slow fix4 0C Model",
+      "count": "1",
+      "delay_ns": "4.737"
+    },
+    {
+      "bound": "max",
+      "clock": "bit_clock",
+      "corner": "Slow fix4 0C Model",
+      "count": "1",
+      "delay_ns": "5.629"
+    },
+    {
+      "bound": "min",
+      "clock": "word_clock",
+      "corner": "Slow fix4 0C Model",
+      "count": "1",
+      "delay_ns": "4.488"
+    },
+    {
+      "bound": "max",
+      "clock": "word_clock",
+      "corner": "Slow fix4 0C Model",
+      "count": "1",
+      "delay_ns": "5.638"
+    },
+    {
+      "bound": "min",
+      "clock": "bit_clock",
+      "corner": "Slow fix4a 0C Model",
+      "count": "1",
+      "delay_ns": "4.863"
+    },
+    {
+      "bound": "max",
+      "clock": "bit_clock",
+      "corner": "Slow fix4a 0C Model",
+      "count": "1",
+      "delay_ns": "5.700"
+    },
+    {
+      "bound": "min",
+      "clock": "word_clock",
+      "corner": "Slow fix4a 0C Model",
+      "count": "1",
+      "delay_ns": "4.616"
+    },
+    {
+      "bound": "max",
+      "clock": "word_clock",
+      "corner": "Slow fix4a 0C Model",
+      "count": "1",
+      "delay_ns": "5.659"
+    },
+    {
+      "bound": "min",
+      "clock": "bit_clock",
+      "corner": "Fast fix4 0C Model",
+      "count": "1",
+      "delay_ns": "3.047"
+    },
+    {
+      "bound": "max",
+      "clock": "bit_clock",
+      "corner": "Fast fix4 0C Model",
+      "count": "1",
+      "delay_ns": "3.771"
+    },
+    {
+      "bound": "min",
+      "clock": "word_clock",
+      "corner": "Fast fix4 0C Model",
+      "count": "1",
+      "delay_ns": "2.837"
+    },
+    {
+      "bound": "max",
+      "clock": "word_clock",
+      "corner": "Fast fix4 0C Model",
+      "count": "1",
+      "delay_ns": "3.723"
+    }
+  ],
+  "fitted_probe": {
+    "base_source_revision": "ea874ec412d44b9887da134667a166382840ba0a",
+    "classification": "private copy of ea874 fitted route with only standard-clocks.sdc phase model changed; not a rebuilt artifact",
+    "clock_waveforms_tsv": "de25_i2s_bit_clock\t325.516\t81.379 244.137 \t3 7 11 \nde25_i2s_bit_clock_output\t325.516\t81.379 244.137 \t\nde25_i2s_word_clock\t20833.024\t10335.133 20751.645 \t255 511 767 \nde25_i2s_word_clock_output\t20833.024\t10335.133 20751.645 \t\nfes_audio_inst|clock|iopll_0_refclk\t20.000\t0.000 10.000 \t\nfes_audio_inst|clock|iopll_0|tennm_ph2_iopll|ref_clk0\t20.000\t0.000 10.000 \t\nfes_audio_inst|clock|iopll_0_n_cnt_clk\t20.000\t0.000 10.000 \t\nfes_audio_inst|clock|iopll_0_m_cnt_clk\t20.000\t0.000 10.000 \t\nfes_audio_inst|clock|iopll_0_outclk0\t81.379\t0.000 40.689 \t\n",
+    "package_timing_admission": false,
+    "raw_missing_input_findings": 2,
+    "raw_missing_output_findings": 32,
+    "waivers": 0
+  },
+  "hardware_acceptance": false,
+  "lrclk_only_changes_on_sclk_falling": true,
+  "package_admission_changed": false,
+  "receiver_reference": {
+    "audio_input_hold_ns": 2,
+    "audio_input_setup_ns": 2,
+    "independent_pcb_timing_qualified": false,
+    "pages": [
+      12,
+      13
+    ],
+    "pcb_delays_available": false,
+    "rising_sclk_capture_bit": "R0x0B[6] = 0",
+    "url": "https://www.analog.com/media/en/technical-documentation/user-guides/adv7513_hardware_user_guide.pdf"
+  },
+  "reports_sha256": {
+    "clock-paths.tsv": "a1fbf6c1650ded6fd70ee77509f67499ff089373a57811a3c1cde5aad492ffbd",
+    "clock-waveforms.tsv": "435a9c6264937b2ce1adf655744497b202f83ec5515e1ad9806e4b8c31aa1760",
+    "clocks.rpt": "5e8458738581b10d45a6b04df08efcee8965674f425c5bb12745967cf16ba84d",
+    "signoff.rpt": "4581b51c66895ee826f8a29ec03e4e45e8d69abcf95a6e920127dd8a34329ff4"
+  },
+  "result": "passed",
+  "source_sha256": {
+    "sources/misteross/boards/de25nano/zx81-hps/standard-clocks.sdc": "b7a528ac1a1bf0b147c269e83078a405b523698cfd16c1fe62cf028858b431d0",
+    "sources/misteross/cores/fes-common/rtl/fes_audio_i2s.v": "14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4"
+  },
+  "test_sources": {
+    "audio_clocks_tb.cpp": "149f3b36bf5f8343ebb066c65e4b050a564ef95c56d8fbd97cbb23fce0333d45",
+    "test_audio_clocks.py": "0c868943cc778aecb9eb6fa543f2e46f1fe25f8fc032e23d2b801252087f9ea2"
+  },
+  "validation_command": "python3 -m unittest discover -s sources/misteross/boards/de25nano/zx81-hps -p test_audio_clocks.py"
+}

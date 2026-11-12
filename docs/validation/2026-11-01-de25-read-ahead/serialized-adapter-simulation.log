@@ -1,0 +1,5 @@
+{"case":"reset_disabled","status":"pass","axi_bursts":0,"axi_beats":0,"full_frames_slot0":0,"full_frames_slot1":0,"ar_stall_cycles":0,"r_stall_cycles":0,"endpoint128_beats":0,"endpoint_error_beats":0,"max_pending_axi":0,"ram_storage_self_test_passed":true}
+{"case":"atomic_snapshot","status":"pass","axi_bursts":13,"axi_beats":208,"full_frames_slot0":0,"full_frames_slot1":0,"ar_stall_cycles":0,"r_stall_cycles":0,"endpoint128_beats":208,"endpoint_error_beats":0,"max_pending_axi":1,"ram_storage_self_test_passed":false}
+{"case":"complete_frames_and_slot_reuse","status":"pass","axi_bursts":72021,"axi_beats":1152242,"full_frames_slot0":2,"full_frames_slot1":3,"ar_stall_cycles":4239,"r_stall_cycles":0,"endpoint128_beats":1152242,"endpoint_error_beats":0,"max_pending_axi":1,"ram_storage_self_test_passed":false}
+{"case":"linux_iova_last_8mib","status":"pass","axi_bursts":72016,"axi_beats":1152256,"full_frames_slot0":2,"full_frames_slot1":3,"ar_stall_cycles":4239,"r_stall_cycles":0,"endpoint128_beats":1152256,"endpoint_error_beats":0,"max_pending_axi":1,"ram_storage_self_test_passed":false}
+FAIL: wrong full-frame pixel/lane at index 1600

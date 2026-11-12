@@ -1,0 +1,142 @@
+{
+  "passed": true,
+  "classification": "stock watchdog control and expiry diagnostic on healthy system; not failed-upload recovery",
+  "source_head": "cdf0fa6094becd65477bb037595e7b3b34454c9f",
+  "old_boot_id": "5063fd73-c8db-4d83-a4ef-be8fabb774de",
+  "new_boot_id": "27d28fac-437b-47db-a8c7-44f38804df8e",
+  "control": {
+    "passed": true,
+    "events": [
+      {
+        "boot_id": "5063fd73-c8db-4d83-a4ef-be8fabb774de",
+        "event": "watchdog-open",
+        "identity": "Synopsys DesignWare Watchdog",
+        "mode": "ping-stop",
+        "options": 33664,
+        "pid": 15879,
+        "timeout_seconds": 30,
+        "utc": "2026-11-08T17:21:55.122099103Z"
+      },
+      {
+        "boot_id": "5063fd73-c8db-4d83-a4ef-be8fabb774de",
+        "event": "magic-close-completed",
+        "initial_hardware_timeleft_seconds": 21,
+        "timeleft_seconds": 19,
+        "timeout_seconds": 30,
+        "utc": "2026-11-08T17:21:57.123426022Z"
+      }
+    ],
+    "same_boot_survival_after_magic_close_seconds": 75,
+    "SD_readonly": true,
+    "software_stopped": true
+  },
+  "expiry": {
+    "events": [
+      {
+        "boot_id": "5063fd73-c8db-4d83-a4ef-be8fabb774de",
+        "event": "watchdog-open",
+        "identity": "Synopsys DesignWare Watchdog",
+        "mode": "expire",
+        "options": 33664,
+        "pid": 16038,
+        "timeout_seconds": 30,
+        "utc": "2026-11-08T17:23:12.599746869Z"
+      },
+      {
+        "boot_id": "5063fd73-c8db-4d83-a4ef-be8fabb774de",
+        "event": "expiry-armed-no-more-pings",
+        "software_reboot_calls": 0,
+        "timeout_seconds": 30,
+        "utc": "2026-11-08T17:23:12.599922031Z"
+      }
+    ],
+    "returncode": 255,
+    "elapsed_seconds": 130.119
+  },
+  "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+  "generation": 7,
+  "exact_files_and_three_processes_authenticated": true,
+  "writable_data_restored": true,
+  "original_catalog_saved923byte_program_verified": true,
+  "stable_MENU_idle_lease_free_seconds": 10,
+  "host_pid": 1823444,
+  "host_restarted": false,
+  "software_reboot_calls": 0,
+  "card_swap_or_power_or_USB_or_boot_image_QSPI_change": false,
+  "seconds": 181.96,
+  "ordinary_control": {
+    "passed": true,
+    "boot_id": "27d28fac-437b-47db-a8c7-44f38804df8e",
+    "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+    "generation": 7,
+    "one_ordinary_launch": true,
+    "observed_fresh_prompt_before_input": true,
+    "BASIC7_edit9_reload7_HDMI": true,
+    "Stop_MENU_idle_free": true,
+    "files_processes_catalog_saved_program_retained": true
+  },
+  "visual_review": {
+    "passed": true,
+    "method": "direct inspection of all three captured HDMI frames",
+    "black_text_on_white": true,
+    "observed_digits": [
+      "7",
+      "9",
+      "7"
+    ],
+    "capture_sha256": {
+      "basic7": "85192f6efd1cb54f76dc2c16aa8ca1f3b6dbb349b87763adefe44f255de37d2f",
+      "basic9": "5b9937d4b36a874b495bccc2f3be6c4dc0a8d896c8626fe695860e5c566a84d3",
+      "reload7": "85192f6efd1cb54f76dc2c16aa8ca1f3b6dbb349b87763adefe44f255de37d2f"
+    }
+  },
+  "watchdog_helper": {
+    "results": [
+      {
+        "stage": "all-mount-guards-tests",
+        "architecture": "amd64",
+        "returncode": 0
+      },
+      {
+        "stage": "all-mount-guards-arm-build",
+        "architecture": "arm64",
+        "returncode": 0
+      }
+    ],
+    "source_head": "cdf0fa6094becd65477bb037595e7b3b34454c9f",
+    "source_sha256": "2b955be5c52c3a61f57869a8c660ebb228fbc38b50abb18223ae82f838247156",
+    "binary_sha256": "5d78e74d89548b7489d4a4942c5eed0de91295de84f0c8a1afcc393a96ebb424"
+  },
+  "UART": {
+    "pid": 3755594,
+    "terminal_exit": 0,
+    "bytes": 29990,
+    "sha256": "14b57e61dda0492ef85909bc58ce8faaaac0f42fe40daa1bdcfd68e5d433fbf8",
+    "reset_state": "Cold",
+    "stock_ATF_banner": true,
+    "preexisting_Bluetooth_HCI_and_overlay_warnings_retained": true
+  },
+  "final_MENU_idle_lease_free": true,
+  "temporary_RAM_helper_gone": true,
+  "all_seven_normal_writable_SD_mounts_restored": true,
+  "claim_released": true,
+  "main_baseline_promoted": false,
+  "evidence_root": "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/stock-watchdog-reset-cdf0",
+  "published_helper_source": "stock-watchdog-reset/watchdog.go",
+  "published_guard_tests": "stock-watchdog-reset/watchdog_test.go",
+  "native_preparation_refusal": {
+    "watchdog_opened": false,
+    "services_stopped": false,
+    "reason": "Optional watchdog sysfs nowayout field absent because WATCHDOG_SYSFS is disabled; use running config and command line instead."
+  },
+  "guard_tests": {
+    "native_amd64_cases": 18,
+    "AArch64_build": true,
+    "running_config_NOWAYOUT_disabled": true,
+    "builtin_DW_watchdog": true,
+    "no_nowayout_boot_override": true,
+    "all_nine_SD_backed_mounts_readonly_before_open": true
+  },
+  "ready_observation_boundary": "An intermediate sample sees the lease in maintenance; the 10-second stable readiness window restarts. No readiness latency guarantee is claimed.",
+  "failed_upload_recovery_qualified": false
+}

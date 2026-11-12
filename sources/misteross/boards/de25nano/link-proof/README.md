@@ -102,3 +102,91 @@ binds the previous FPGA-only, 50 MHz source and its successful compiler/QEMU
 results. It does not qualify this changed HPS base. Physical CPU/SDM execution,
 firmware pairing, electrical timing, MTBF and exact-artifact board acceptance
 remain separate gates for the arriving board.
+
+
+## Standard ZX81 base (experimental)
+
+`build.py project --profile zx81-standard` uses the standard ZX81 machine and
+managed Linux DMA/display board, with the expansion socket explicitly enabled.
+It requires committed captured sources. Supply the same explicit vendor archive,
+placement/routing regions and fresh output as the other profiles. The project is
+`standard-base/combined/hps/project` below that output. `probe` and `build` use
+the existing PR compiler, partition and timing gates; they never program hardware.
+
+The static `zx81_bus` boundary consumes the standard component's public full
+machine reset and registers every packed request and response. The same module
+runs in `zx81-hps/standard_expansion_sim.py` with the actual FES clients. The
+hardware project ties the observational peek address to zero; the simulation
+can drive it to inspect RAM. All 46/20 boundary registers remain required in
+synthesis and all-corner setup/hold checks, including source-constant bits.
+
+The same model has an explicit real-ROM mode (run from the misteross root):
+
+```sh
+python3 boards/de25nano/zx81-hps/standard_expansion_sim.py \
+  --basic --output /fresh/standard-basic-proof
+```
+
+It boots empty/16K/empty through `De25PrControl` and reuses the common BASIC
+script through the actual `FesGpCoreDriver` keyboard, SAVE snapshot and media
+unit APIs. The actual ROM SAVE is stored and synced before acknowledgement;
+`ComputerMediaSnapshot` stages that absolute file through unit0's normal CRC
+and advertised512-byte chunks. The model observes loader writes into persona
+RAM, editor/RAMTOP, PRINT output, reload removal of an edit and complete raster
+frames. Seeds17/53 use separate output directories. The default short diagnostic
+program and freeze/failure cases remain selected without `--basic`. This mode
+uses behavioral memory and a selection mux; physical PR and Linux admission
+remain separate gates.
+
+The standard board verifier checks `EXPANSION_SOCKET=1`, both control/display
+slaves, managed initiators, read-only allocated memory path, separate system and
+pixel resets, preserved HPS/EMIF/boot inputs, and canonical reset repairs. The
+existing PR verifier independently checks its 100 MHz, 64-byte control endpoint
+at peripheral offset `0x10700`. This is an aperture in generated hardware, not
+an admitted Linux MMIO mapping. The current runtime owner does not expose it.
+
+The canonical playable package continues to select internal 16K and its verifier
+rejects an enabled socket. This experimental PR profile inherits no clock-input
+exception, package admission, native CPU/SDM programming or physical PR evidence.
+Its base and both personas require their own complete fit/timing and hardware
+acceptance. The standalone composer remains diagnostic; normal FES deployment
+of base-plus-persona output is still open.
+
+The normal `boards/de25nano/producers/build_zx81_package.py --static-expansion` frontend also
+selects this compiler with explicit `--placement` and `--routing` arguments.
+Before IP generation it binds a functional package/computer ID separately from
+the controller ID. `--compile-only` retains an unqualified candidate; export
+requires complete signoff for every revision and independent identical RBFs.
+Current raw findings block export, and partial-asset publication remains open.
+
+The standard PR shell retains live PCM even with an initially empty persona.
+It selects `pcm-clocks.sdc` in a guarded derivation of the standard shell SDC;
+the internal16K constant-PCM assertion remains unchanged. Actual mapped
+endpoints determine the eight-bit mono payload and three first-stage control
+cuts. The system-domain execution/fault mute is registered before entering
+the audio synchronizer. Both paths into that register remain timed. Data
+flight/skew/min/max bounds and paired all-corner physical payload and
+interstage coverage remain required. This does not supply an HDMI data
+output budget or inherit the internal16K audio-clock exception.
+
+The PR recipe explicitly identifies both registers of each PCM control
+synchronizer before fitting and requests a conservative 100 million transitions
+per second on each head. The fitted audit requires those actual rates, explicit
+identification, two stages, exclusive interstage fanin/fanout and inclusion in
+the worst-case MTBF calculation in every corner. It retains raw reports and
+rejects defaults or missing chains; assignments alone do not establish closure.
+
+The standard Linux profile uses the canonical HPS-first split converter and
+selects its `linux-boot.core.rbf` fabric phase for the base payload. A direct
+HPS-first SOF-to-RBF conversion emits boot sections and is unsuitable here.
+The compiler retains the HPS boot candidate separately without programming it,
+and still requires the fabric RBF's vendor-decoded POF0 identity and integrity
+to match the compiled base and both personas.
+
+The standard PR profile also retires the one exact manual `EMIF_REF_CLOCK`
+declaration that Quartus ignores because the generated memory IP already owns
+the LPDDR4A reference. The shared managed-constraint audit binds this opt-in
+derivation to the locked original and checks the complete resulting file and
+receipt. The ordinary internal16K derivation is unchanged. The actual generated
+6.000 ns clock remains mandatory in both SDC and all-corner boundary audits;
+this change adds no clock, timing exception or reviewed-warning exemption.

@@ -1,0 +1,27 @@
+{
+  "source_revision": "e7cacb2a2f9d2558f712d69c62b2a2cafa1c52a6",
+  "command": [
+    "python3",
+    "image/de25-nano/build.py",
+    "managed-base",
+    "--kernel",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-managed-base/kernel-usb-hid",
+    "--sdk",
+    "/home/deano/fes/out/artifacts/de25-kernel-modules/0da63d1044cc7ecf9908efba52af17b3e55e6271/linux-image/aarch64-sdk.tar.gz",
+    "--output",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-managed-base/linux-base-portable",
+    "--cache",
+    "/home/deano/fes/out/cache/de25-vendor",
+    "--jobs",
+    "4"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-managed-base-e7cacb2a2",
+  "started_utc": "2026-11-01T22:18:39.018083+00:00",
+  "time_cap_seconds": 5400,
+  "hardware_access": "not-performed",
+  "pid": 3199080,
+  "state": "passed",
+  "elapsed_seconds": 858.2,
+  "heartbeat_utc": "2026-11-01T22:32:57.243375+00:00",
+  "returncode": 0
+}

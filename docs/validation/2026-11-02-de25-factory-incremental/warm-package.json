@@ -1,0 +1,458 @@
+{
+  "bad_runtime_hash_left_no_install_stamp": true,
+  "bad_runtime_hash_refused_before_target_replacement": true,
+  "base_key": "factory-bf19aa8054a3203e1089db86a7cd78546f5387eedf1f39c0b0f73bd227d73673",
+  "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+  "classification": "Actual pinned Buildroot prebuilt-runtime package and retained compiler prerequisites only; no full factory or OS image build",
+  "container_id": "8eff14c5e764c265d966d132e0eaff45eeefc443bdb6389c31502dddf5bf8aaf",
+  "docker_command": [
+    "docker",
+    "run",
+    "--rm",
+    "--cidfile",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-factory-incremental/warm-package/container.id",
+    "--network",
+    "none",
+    "--platform",
+    "linux/amd64",
+    "--user",
+    "1000:1000",
+    "--ulimit",
+    "core=0:0",
+    "--ulimit",
+    "nofile=65536:65536",
+    "--volume",
+    "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-factory-incremental:/src:ro",
+    "--volume",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-factory-incremental/cache:/cache:ro",
+    "--volume",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-factory-incremental/warm-package:/proof",
+    "--volume",
+    "fes-de25-incremental-package-35a29f752:/build",
+    "--env",
+    "LC_ALL=C",
+    "--env",
+    "TZ=UTC",
+    "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+    "python3",
+    "/proof/inside.py"
+  ],
+  "first_full_input_key": "factory-522e11536676047b19c71e837aebb1c02b7016b2b8a1f1f6b8f06b149fceed14",
+  "first_runtime_sha256": "05c25c74d9c53a073625d56c36e04ef63a407c71c823a25e4e50448c6325dffd",
+  "full_factory_admission_or_boot": "not-run; sealed MENU remains required",
+  "hardware_access": "not-performed",
+  "installed_runtime_sha256": "92a90b2ab0ab41054d82bb58a7ebdc307b05c92f20b3a5cc965cac31aba03ead",
+  "original_inputs_unchanged": true,
+  "second_full_input_key": "factory-1626035ac7d3a9748ac34c4644aa2e814acb26815a4e9ee526553ca3d2cc9975",
+  "second_runtime_sha256": "92a90b2ab0ab41054d82bb58a7ebdc307b05c92f20b3a5cc965cac31aba03ead",
+  "selection": {
+    "buildroot_archive_sha256": "341dcdc196614c947103969b2354f18b001577994e17349756598091f232f561",
+    "first": {
+      "producer_source": "cad04bd65d82c98f0e375de927051d215dd63af1",
+      "receipt_path": "/home/deano/fes/out/dev/de25-managed-image/out/de25-managed-sdk-integration/runtime-proof/receipt.json",
+      "receipt_sha256": "a99ea196eb845f03f46d61e24f932a949aeab4d7e343e61c54c82211d6d153d5",
+      "sha256": "05c25c74d9c53a073625d56c36e04ef63a407c71c823a25e4e50448c6325dffd"
+    },
+    "kernel_image_sha256": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b",
+    "owner_sdk_sha256": "7912076c08d93c8d8c28c0ef81bd406abf6b1acb9e01ccac37d44307e39759a7",
+    "second": {
+      "producer_source": "1fdc544b61d934c31bffd18b38de39c925a94d53",
+      "receipt_path": "/home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/runtime-proof/receipt.json",
+      "receipt_sha256": "e10eb248fdf56a9233a7d464bd1a9882b0845ed45b9542a8fb477b73fc2a44fd",
+      "sha256": "92a90b2ab0ab41054d82bb58a7ebdc307b05c92f20b3a5cc965cac31aba03ead"
+    },
+    "source_revision": "35a29f752c6f0402f341350da56dd9742dc84cf5"
+  },
+  "source_revision": "35a29f752c6f0402f341350da56dd9742dc84cf5",
+  "stale_without_refresh_control": "observed old first runtime after selecting second runtime",
+  "steps": [
+    {
+      "command": [
+        "make",
+        "-C",
+        "/build/source-341dcdc196614c947103969b2354f18b001577994e17349756598091f232f561",
+        "O=/build/factory-bf19aa8054a3203e1089db86a7cd78546f5387eedf1f39c0b0f73bd227d73673",
+        "BR2_DEFCONFIG=/build/factory-bf19aa8054a3203e1089db86a7cd78546f5387eedf1f39c0b0f73bd227d73673/de25_defconfig",
+        "BR2_EXTERNAL=/src/image/buildroot",
+        "mister-runtime",
+        "-j2"
+      ],
+      "expected": "pass",
+      "name": "first-install",
+      "returncode": 0
+    },
+    {
+      "command": [
+        "make",
+        "-C",
+        "/build/source-341dcdc196614c947103969b2354f18b001577994e17349756598091f232f561",
+        "O=/build/factory-bf19aa8054a3203e1089db86a7cd78546f5387eedf1f39c0b0f73bd227d73673",
+        "BR2_DEFCONFIG=/build/factory-bf19aa8054a3203e1089db86a7cd78546f5387eedf1f39c0b0f73bd227d73673/de25_defconfig",
+        "BR2_EXTERNAL=/src/image/buildroot",
+        "mister-runtime",
+        "-j2"
+      ],
+      "expected": "pass",
+      "name": "without-runtime-refresh-control",
+      "returncode": 0
+    },
+    {
+      "command": [
+        "make",
+        "-C",
+        "/build/source-341dcdc196614c947103969b2354f18b001577994e17349756598091f232f561",
+        "O=/build/factory-bf19aa8054a3203e1089db86a7cd78546f5387eedf1f39c0b0f73bd227d73673",
+        "BR2_DEFCONFIG=/build/factory-bf19aa8054a3203e1089db86a7cd78546f5387eedf1f39c0b0f73bd227d73673/de25_defconfig",
+        "BR2_EXTERNAL=/src/image/buildroot",
+        "mister-runtime-dirclean",
+        "-j2"
+      ],
+      "expected": "pass",
+      "name": "runtime-refresh",
+      "returncode": 0
+    },
+    {
+      "command": [
+        "make",
+        "-C",
+        "/build/source-341dcdc196614c947103969b2354f18b001577994e17349756598091f232f561",
+        "O=/build/factory-bf19aa8054a3203e1089db86a7cd78546f5387eedf1f39c0b0f73bd227d73673",
+        "BR2_DEFCONFIG=/build/factory-bf19aa8054a3203e1089db86a7cd78546f5387eedf1f39c0b0f73bd227d73673/de25_defconfig",
+        "BR2_EXTERNAL=/src/image/buildroot",
+        "mister-runtime",
+        "-j2"
+      ],
+      "expected": "pass",
+      "name": "second-install",
+      "returncode": 0
+    },
+    {
+      "command": [
+        "make",
+        "-C",
+        "/build/source-341dcdc196614c947103969b2354f18b001577994e17349756598091f232f561",
+        "O=/build/factory-bf19aa8054a3203e1089db86a7cd78546f5387eedf1f39c0b0f73bd227d73673",
+        "BR2_DEFCONFIG=/build/factory-bf19aa8054a3203e1089db86a7cd78546f5387eedf1f39c0b0f73bd227d73673/de25_defconfig",
+        "BR2_EXTERNAL=/src/image/buildroot",
+        "mister-runtime-dirclean",
+        "-j2"
+      ],
+      "expected": "pass",
+      "name": "bad-hash-runtime-refresh",
+      "returncode": 0
+    },
+    {
+      "command": [
+        "make",
+        "-C",
+        "/build/source-341dcdc196614c947103969b2354f18b001577994e17349756598091f232f561",
+        "O=/build/factory-bf19aa8054a3203e1089db86a7cd78546f5387eedf1f39c0b0f73bd227d73673",
+        "BR2_DEFCONFIG=/build/factory-bf19aa8054a3203e1089db86a7cd78546f5387eedf1f39c0b0f73bd227d73673/de25_defconfig",
+        "BR2_EXTERNAL=/src/image/buildroot",
+        "mister-runtime",
+        "-j2"
+      ],
+      "expected": "refuse bad runtime hash",
+      "name": "bad-hash-refusal",
+      "returncode": 2
+    }
+  ],
+  "unchanged_prerequisite_stamps": {
+    "build/host-fakedate/.stamp_built": {
+      "inode": 36224401,
+      "mtime_ns": 1793587969745845203,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/host-fakedate/.stamp_configured": {
+      "inode": 36224400,
+      "mtime_ns": 1793587969721844237,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/host-fakedate/.stamp_downloaded": {
+      "inode": 36224393,
+      "mtime_ns": 1793587969609839729,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/host-fakedate/.stamp_extracted": {
+      "inode": 36224394,
+      "mtime_ns": 1793587969641841017,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/host-fakedate/.stamp_host_installed": {
+      "inode": 36224404,
+      "mtime_ns": 1793587969785846813,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/host-fakedate/.stamp_installed": {
+      "inode": 36224397,
+      "mtime_ns": 1793587969841849068,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/host-fakedate/.stamp_patched": {
+      "inode": 36224396,
+      "mtime_ns": 1793587969673842306,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/host-skeleton/.stamp_built": {
+      "inode": 36224385,
+      "mtime_ns": 1793587969505835541,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/host-skeleton/.stamp_configured": {
+      "inode": 36224384,
+      "mtime_ns": 1793587969485834736,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/host-skeleton/.stamp_downloaded": {
+      "inode": 36224373,
+      "mtime_ns": 1793587969385830712,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/host-skeleton/.stamp_extracted": {
+      "inode": 36224374,
+      "mtime_ns": 1793587969413831838,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/host-skeleton/.stamp_host_installed": {
+      "inode": 36224390,
+      "mtime_ns": 1793587969529836508,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/host-skeleton/.stamp_installed": {
+      "inode": 36224381,
+      "mtime_ns": 1793587969585838762,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/host-skeleton/.stamp_patched": {
+      "inode": 36224376,
+      "mtime_ns": 1793587969449833288,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton-init-common/.stamp_built": {
+      "inode": 36224415,
+      "mtime_ns": 1793587970009855833,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton-init-common/.stamp_configured": {
+      "inode": 36224414,
+      "mtime_ns": 1793587969985854866,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton-init-common/.stamp_downloaded": {
+      "inode": 36224407,
+      "mtime_ns": 1793587969861849873,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton-init-common/.stamp_extracted": {
+      "inode": 36224408,
+      "mtime_ns": 1793587969893851161,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton-init-common/.stamp_installed": {
+      "inode": 36224411,
+      "mtime_ns": 1793587970289867105,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton-init-common/.stamp_patched": {
+      "inode": 36224410,
+      "mtime_ns": 1793587969933852773,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton-init-common/.stamp_staging_installed": {
+      "inode": 36224451,
+      "mtime_ns": 1793587970105859697,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton-init-common/.stamp_target_installed": {
+      "inode": 36224487,
+      "mtime_ns": 1793587970197863400,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton-init-sysv/.stamp_built": {
+      "inode": 36224498,
+      "mtime_ns": 1793587970445873384,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton-init-sysv/.stamp_configured": {
+      "inode": 36224497,
+      "mtime_ns": 1793587970425872579,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton-init-sysv/.stamp_downloaded": {
+      "inode": 36224490,
+      "mtime_ns": 1793587970309867910,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton-init-sysv/.stamp_extracted": {
+      "inode": 36224491,
+      "mtime_ns": 1793587970337869036,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton-init-sysv/.stamp_installed": {
+      "inode": 36224494,
+      "mtime_ns": 1793587970605879827,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton-init-sysv/.stamp_patched": {
+      "inode": 36224493,
+      "mtime_ns": 1793587970373870486,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton-init-sysv/.stamp_target_installed": {
+      "inode": 36224512,
+      "mtime_ns": 1793587970525876606,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton/.stamp_built": {
+      "inode": 36224523,
+      "mtime_ns": 1793587970757885945,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton/.stamp_configured": {
+      "inode": 36224522,
+      "mtime_ns": 1793587970733884980,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton/.stamp_downloaded": {
+      "inode": 36224515,
+      "mtime_ns": 1793587970621880470,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton/.stamp_extracted": {
+      "inode": 36224516,
+      "mtime_ns": 1793587970645881437,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton/.stamp_installed": {
+      "inode": 36224519,
+      "mtime_ns": 1793587970841889328,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton/.stamp_patched": {
+      "inode": 36224518,
+      "mtime_ns": 1793587970685883047,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/skeleton/.stamp_target_installed": {
+      "inode": 36224524,
+      "mtime_ns": 1793587970789887233,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain-external-custom/.stamp_built": {
+      "inode": 36224535,
+      "mtime_ns": 1793587971121900600,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain-external-custom/.stamp_configured": {
+      "inode": 36224534,
+      "mtime_ns": 1793587971029896896,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain-external-custom/.stamp_downloaded": {
+      "inode": 36224527,
+      "mtime_ns": 1793587970857889971,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain-external-custom/.stamp_extracted": {
+      "inode": 36224528,
+      "mtime_ns": 1793587970877890776,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain-external-custom/.stamp_installed": {
+      "inode": 36224531,
+      "mtime_ns": 1793587972273946978,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain-external-custom/.stamp_patched": {
+      "inode": 36224530,
+      "mtime_ns": 1793587970901891743,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain-external-custom/.stamp_staging_installed": {
+      "inode": 36226950,
+      "mtime_ns": 1793587971773926848,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain-external-custom/.stamp_target_installed": {
+      "inode": 36226983,
+      "mtime_ns": 1793587972173942951,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain-external/.stamp_built": {
+      "inode": 36226995,
+      "mtime_ns": 1793587972441953741,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain-external/.stamp_configured": {
+      "inode": 36226994,
+      "mtime_ns": 1793587972417952776,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain-external/.stamp_downloaded": {
+      "inode": 36226987,
+      "mtime_ns": 1793587972293947783,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain-external/.stamp_extracted": {
+      "inode": 36226988,
+      "mtime_ns": 1793587972317948749,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain-external/.stamp_installed": {
+      "inode": 36226991,
+      "mtime_ns": 1793587972545957929,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain-external/.stamp_patched": {
+      "inode": 36226990,
+      "mtime_ns": 1793587972349950038,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain-external/.stamp_target_installed": {
+      "inode": 36226996,
+      "mtime_ns": 1793587972461954547,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain/.stamp_built": {
+      "inode": 36227007,
+      "mtime_ns": 1793587972713964691,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain/.stamp_configured": {
+      "inode": 36227006,
+      "mtime_ns": 1793587972693963886,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain/.stamp_downloaded": {
+      "inode": 36226999,
+      "mtime_ns": 1793587972569958895,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain/.stamp_extracted": {
+      "inode": 36227000,
+      "mtime_ns": 1793587972593959860,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain/.stamp_installed": {
+      "inode": 36227003,
+      "mtime_ns": 1793587972877971294,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain/.stamp_patched": {
+      "inode": 36227002,
+      "mtime_ns": 1793587972633961472,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain/.stamp_staging_installed": {
+      "inode": 36227015,
+      "mtime_ns": 1793587972773967108,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/toolchain/.stamp_target_installed": {
+      "inode": 36227017,
+      "mtime_ns": 1793587972801968234,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "volume": "fes-de25-incremental-package-35a29f752"
+}

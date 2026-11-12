@@ -1,0 +1,69 @@
+----------------
+; Command Info ;
+----------------
+Report Path: Found 1 paths. Longest delay is 5.947 
+
+Tcl Command:
+    report_path -file /data/fes-de25-main-bc36e7c45-20261105/audio-openrom-observation-job/observations/reports/4_slow_fix4_100c_word_clock_output_max.rpt -from [get_registers {fes_audio_inst|audio|serializer|phase[7]}] -to [get_ports {HDMI_LRCLK}] -npaths 1
+
+Options:
+    -from [get_registers {fes_audio_inst|audio|serializer|phase[7]}] 
+    -to [get_ports {HDMI_LRCLK}] 
+    -npaths 1 
+    -file_name "/data/fes-de25-main-bc36e7c45-20261105/audio-openrom-observation-job/observations/reports/4_slow_fix4_100c_word_clock_output_max.rpt" 
+
+Snapshot:
+    final
+
+Delay Model:
+    Slow fix4 100C Model
+
++---------------------------------------------------------------+
+; Summary of Paths                                              ;
++-------+------------------------------------------+------------+
+; Delay ; From Node                                ; To Node    ;
++-------+------------------------------------------+------------+
+; 5.947 ; fes_audio_inst|audio|serializer|phase[7] ; HDMI_LRCLK ;
++-------+------------------------------------------+------------+
+
+Path #1: Delay is 5.947
+===============================================================================
++----------------------------------------------------------------------------+
+; Path Summary                                                               ;
++---------------------------------+------------------------------------------+
+; Property                        ; Value                                    ;
++---------------------------------+------------------------------------------+
+; From Node                       ; fes_audio_inst|audio|serializer|phase[7] ;
+; To Node                         ; HDMI_LRCLK                               ;
+; Delay                           ; 5.947                                    ;
+; Worst-Case Operating Conditions ; Slow fix4 100C Model                     ;
++---------------------------------+------------------------------------------+
+
++-----------------------------------------------------------------------------------+
+; Statistics                                                                        ;
++------------------------+-------+-------+-------------+------------+-------+-------+
+; Property               ; Value ; Count ; Total Delay ; % of Total ; Min   ; Max   ;
++------------------------+-------+-------+-------------+------------+-------+-------+
+; Data Delay             ; 5.947 ;       ;             ;            ;       ;       ;
+; Number of Logic Levels ;       ; 0     ;             ;            ;       ;       ;
+; Physical Delays        ;       ;       ;             ;            ;       ;       ;
+;  IC                    ;       ; 1     ; 0.363       ; 6          ; 0.363 ; 0.363 ;
+;  Cell                  ;       ; 2     ; 5.302       ; 89         ; 0.000 ; 5.302 ;
+;  uTco                  ;       ; 1     ; 0.282       ; 5          ; 0.282 ; 0.282 ;
++------------------------+-------+-------+-------------+------------+-------+-------+
+Note: Negative delays are omitted from totals when calculating percentages
+
++------------------------------------------------------------------------------------------------------------+
+; Data Arrival Path                                                                                          ;
++---------+---------+----+------+--------+----------------------+--------------------------------------------+
+; Total   ; Incr    ; RF ; Type ; Fanout ; Location             ; Element                                    ;
++---------+---------+----+------+--------+----------------------+--------------------------------------------+
+; 5.947   ; 5.947   ;    ;      ;        ;                      ; data path                                  ;
+;   0.000 ;   0.000 ;    ;      ; 1      ; FF_X120_Y17_N50      ; fes_audio_inst|audio|serializer|phase[7]   ;
+;   0.282 ;   0.282 ; FF ; uTco ; 2      ; FF_X120_Y17_N50      ; fes_audio_inst|audio|serializer|phase[7]|q ;
+;   0.645 ;   0.363 ; FF ; IC   ; 1      ; IOOBUF_X121_Y7_N1525 ; HDMI_LRCLK~output|i                        ;
+;   5.947 ;   5.302 ; FF ; CELL ; 1      ; IOOBUF_X121_Y7_N1525 ; HDMI_LRCLK~output|o                        ;
+;   5.947 ;   0.000 ; FF ; CELL ; 0      ; PIN_BR6              ; HDMI_LRCLK                                 ;
++---------+---------+----+------+--------+----------------------+--------------------------------------------+
+
+

@@ -115,8 +115,11 @@ def write_private(path, data):
 
 
 @contextmanager
-def lease(root, profile):
-    require_profile(profile)
+def lease(root, profile, *, board='de10-nano'):
+    if board == 'de10-nano':
+        require_profile(profile)
+    elif board != 'de25-nano' or profile != 'de25-nano':
+        raise ValueError('media lease profile differs from selected board')
     directory = Path(root) / 'out/locks'
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / ('media-' + profile)
@@ -140,9 +143,9 @@ def lease(root, profile):
 
 
 @contextmanager
-def operation(root, profile):
+def operation(root, profile, *, board='de10-nano'):
     # The selected child checkout and cold evidence are shared with make verify.
-    with lease(root, profile):
+    with lease(root, profile, board=board):
         descriptor = os.open(Path(root) / 'out/build.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         try:
             try:
@@ -315,7 +318,8 @@ def resolve_launcher_config(agent_config, scratch, *, auto=False):
         endpoint = urlsplit(value['api'])
         validate_launcher_token(value['token'], agent.get('token'))
         if (set(value) != {'api', 'token', 'target_id'} or endpoint.scheme != 'http'
-                or endpoint.port != 8789 or endpoint.path or endpoint.query or endpoint.fragment
+                or endpoint.port is None or not 1 <= endpoint.port <= 65535
+                or endpoint.path or endpoint.query or endpoint.fragment
                 or endpoint.username or endpoint.password or not endpoint.hostname
                 or not value['target_id'] or value['target_id'] != agent.get('target_id')):
             raise ValueError()

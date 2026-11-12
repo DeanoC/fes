@@ -301,7 +301,7 @@ func (s Snapshot) HeaderHint() string {
 	}
 	if !s.Room.Open && s.BrowseActions.Visible {
 		if _, hasSecondary := browseActionLabels(s.DetailPlay); hasSecondary {
-			return browseActionsClosedHint(s)
+			return s.libraryBrowseHint(browseActionsClosedHint(s))
 		}
 	}
 	if s.Room.Open {
@@ -362,17 +362,21 @@ func (s Snapshot) HeaderHint() string {
 		}
 		return detailHintFor(kind, s.Detail.Count)
 	}
+	return s.libraryBrowseHint(browseHint(kind))
+}
+
+func (s Snapshot) libraryBrowseHint(hint string) string {
 	if to := strings.TrimSpace(s.LibraryBackTo); to != "" {
-		// Back replaces the Home shortcut in the prompt so it still fits at
-		// 1024 wide; Home itself still works.
-		hint := browseHint(kind)
+		// Replace the Home shortcut rather than adding another prompt;
+		// Home itself still works.
+		kind := s.Affinity
 		back := backWord(kind) + " back to " + to
 		if home := homeWord(kind) + " home"; strings.Contains(hint, home) {
 			return strings.Replace(hint, home, back, 1)
 		}
 		return back + "  " + hint
 	}
-	return browseHint(kind)
+	return hint
 }
 
 // libraryDetailHint offers A only for what Confirm will do on this title.

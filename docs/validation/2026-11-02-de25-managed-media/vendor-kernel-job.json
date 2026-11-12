@@ -1,0 +1,16 @@
+{
+  "source_revision": "f9b522b6c597cf66b900897f20f23d9bb7886dc1",
+  "command": [
+    "/usr/bin/python3",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-managed-media/vendor-kernel-fixture.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-managed-media-f9b522b6c",
+  "started_utc": "2026-11-01T23:45:53.916424+00:00",
+  "time_cap_seconds": 1200,
+  "hardware_access": "not-performed",
+  "pid": 544064,
+  "state": "passed",
+  "elapsed_seconds": 16.3,
+  "heartbeat_utc": "2026-11-01T23:46:10.247432+00:00",
+  "returncode": 0
+}

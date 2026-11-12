@@ -1,0 +1,24 @@
+{
+  "classification": "exact-artifact repeated physical diagnostic after ordinary software reboot; not normal-kit acceptance",
+  "source": "a82521947439e5773a1acee8f618c1bb824b6b95",
+  "rbf_sha256": "774798756c26480c37ea996c832b60343c61e312f4db41bb154e79eea1586f9c",
+  "boot_id": "469d5abb-2fab-425d-93bc-aa92aac8c32b",
+  "result": "passed",
+  "frames_submitted": 3,
+  "slot_sequence": [
+    1,
+    0,
+    1
+  ],
+  "generation": 1,
+  "client_pid": 265,
+  "iommu_map": "ff800000..100000000 -> physicalbcd00000..bd500000 8MiB",
+  "full_unmap_bytes": 8388608,
+  "trace_overruns_drops": 0,
+  "capture_frames": 450,
+  "capture_seconds": 15,
+  "content_check": "all9expectedcolour/markerprobes pass, body/panel match all3patterns",
+  "cleanup": "ownedfiles/overlay/firmware/configfs/tracefs removed under lock; same469d/MAC/owner600 verified. Allclientsclosed. SRAMstopped7747, nofactoryrestore/promotion/release.",
+  "power_cycle": false,
+  "limits": "Reboot after known quiescence and reload of the same diagnostic only; active-traffic/global-reset, normalMENU/factory/catalog/restart/SAVE and full timing gates remain."
+}

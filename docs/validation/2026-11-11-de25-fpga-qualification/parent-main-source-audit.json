@@ -1,0 +1,40 @@
+{
+  "a5b65ea89789fca7e6416bb0a8099ad76799016a074f021f1cccf2d4b557c559.build-inputs.json": {
+    "producer_revision": "25bc6ef78e4147497800a0e2b491f51d26902107",
+    "checked": 74,
+    "changed": []
+  },
+  "e873bc2e20097c6c3250b087cf9c522581ee4a0e4140ba2dcf1d1220e45aad0b.build-inputs.json": {
+    "producer_revision": "25bc6ef78e4147497800a0e2b491f51d26902107",
+    "checked": 143,
+    "changed": []
+  },
+  "compiler_source_sha256": {
+    "checked": 80,
+    "changed": []
+  },
+  "test_runtime_source_sha256": {
+    "checked": 61,
+    "changed": []
+  },
+  "riscv_source_inputs": {
+    "checked": 43,
+    "changed": []
+  },
+  "checkout_revision": "e0623c4dad217d38cecef334c5c3d09197155fc1",
+  "merged_main": "78b7ee4b75cec2a18055c0d23bbf92829e6d11d2",
+  "parent_1297_squash": "ea2a6deef70125f3f6c76d2e398140db92284a65",
+  "method": "SHA256 of every recorded source input against current checkout; original producer identities retained",
+  "image_inputs_vs_native_tested_4ac": "git diff --name-only 4acdbf15d HEAD -- image is empty",
+  "hardware_scope": "unchanged artifacts retain their original source evidence; newer merged FogCast userspace is not covered by previous bundle HIL",
+  "manual_resolutions": {
+    "original_parent": "ca4b1304712d515a0c966c112658372ee74a2274",
+    "main": "78b7ee4b75cec2a18055c0d23bbf92829e6d11d2",
+    "resolutions": {
+      "core_packages": "Preserve format5 sealed firmware refusal plus main removal of retired household firmware slot.",
+      "kit_lease_and_update": "Preserve PR launcher-pairing guards plus main removal of retired cast routes.",
+      "architecture": "Preserve Library Back readiness prompt plus main removal of host-only/local launch documentation; inventory matches current code."
+    }
+  },
+  "obsolete_parent_artifacts": "Three unused standalone claim patch/manifest/attributes files removed; platform patch remains sole algorithm and guard, matching existing documentation."
+}

@@ -1,0 +1,88 @@
+{
+  "cases": [
+    {
+      "case": "hdmi-inputs-nack-3",
+      "clock_cycles": 11897259,
+      "status": "pass",
+      "writes": 66
+    },
+    {
+      "case": "hdmi-inputs-nack-0",
+      "clock_cycles": 6119949,
+      "status": "pass",
+      "writes": 34
+    },
+    {
+      "case": "hdmi-inputs-nack-1",
+      "clock_cycles": 6119949,
+      "status": "pass",
+      "writes": 34
+    },
+    {
+      "case": "hdmi-inputs-nack-2",
+      "clock_cycles": 6119949,
+      "status": "pass",
+      "writes": 34
+    }
+  ],
+  "classification": "HDMI digital protocol and reset-modeled controller equivalence",
+  "compiled_source_sha256": {
+    "/data/fes-de25-menu-canonical-d8b23267c/source/sources/misteross/boards/de25nano/display/sim_models.v": "816d8abfff2b1bd03cd719a264dbbfbd494431e02231024409c0522eec1ef927",
+    "/data/fes-de25-menu-canonical-d8b23267c/source/sources/misteross/boards/de25nano/scanout/hdmi_inputs.py": "fdc043a63a277b797692ba399b1e43bbb438313cffdd50761cc2dd03d36edcb0",
+    "/data/fes-de25-menu-canonical-d8b23267c/source/sources/misteross/boards/de25nano/scanout/hdmi_io_tb.cpp": "34dc788fd4b627e8edce7f8b40a8e2c3e8afe800b71d0ba00b54cecdd31d375f",
+    "/data/fes-de25-menu-canonical-d8b23267c/source/sources/misteross/boards/de25nano/scanout/hdmi_io_tb.v": "428c81f1e073f420b34f15bae5d1d6d47a5a94dc0d8a6f4330123df688d46a14",
+    "/data/fes-de25-menu-canonical-d8b23267c/source/sources/misteross/build/de25-menu/4db01378ee1bdf8877a83e162fff93ce/attempt-n4cknshs/signoff/combined/hps/inputs.json": "2da2734013ad8036d814debc609b87b3400ab67a80e7690650c4c5dfae34c940",
+    "/data/fes-de25-menu-canonical-d8b23267c/source/sources/misteross/build/de25-menu/4db01378ee1bdf8877a83e162fff93ce/attempt-n4cknshs/signoff/combined/hps/project/fes_mailbox/fes_de25_scanout_board.v": "7bdaefcf9c9ecfa031519b941adb5ed24050121496ab3ee2de0e470a2c7a5e7c",
+    "/data/fes-de25-menu-canonical-d8b23267c/source/sources/misteross/build/de25-menu/4db01378ee1bdf8877a83e162fff93ce/attempt-n4cknshs/signoff/combined/hps/project/fes_mailbox/fes_de25_scanout_hdmi_config.v": "7c19cd75782206c63ce4b222653f1c3e2ae3cfd35731c6b40abbb36925f77434",
+    "/data/fes-de25-menu-canonical-d8b23267c/source/sources/misteross/build/de25-menu/4db01378ee1bdf8877a83e162fff93ce/attempt-n4cknshs/signoff/combined/hps/project/fes_mailbox/fes_de25_scanout_i2c_controller.v": "57dd988f8a8989008a33be7bbac04ea8ee77f579b66294502414f315bd35fd2a",
+    "/data/fes-de25-menu-canonical-d8b23267c/source/sources/misteross/build/de25-menu/4db01378ee1bdf8877a83e162fff93ce/attempt-n4cknshs/signoff/combined/hps/project/fes_mailbox/fes_de25_top_reset.v": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a",
+    "/data/fes-de25-menu-canonical-d8b23267c/source/sources/misteross/build/de25-menu/4db01378ee1bdf8877a83e162fff93ce/attempt-n4cknshs/signoff/hdmi-vendor-inputs/I2C_Controller.v": "4ac2feae20095dc7287dedec70bdeb8949b086ea6ce3c3a33583063e978003ab",
+    "/data/fes-de25-menu-canonical-d8b23267c/source/sources/misteross/build/de25-menu/4db01378ee1bdf8877a83e162fff93ce/attempt-n4cknshs/signoff/hdmi-vendor-inputs/I2C_HDMI_Config.v": "b9b7c477173fee9b6cb5e3d6a6ba1122c7a0b539f205d807b1d61b22048fd391"
+  },
+  "controller_equivalence": {
+    "equiv_cells": 40,
+    "gate_sha256": "91a3a7bcbd2624a7e3102eafa3f7dead6f26c7131f6b3a3ce854c2f53dcc2fdd",
+    "gold_sha256": "0b61cbf5839ed8d18c0c43f5c999c7ea001916afb37113eb76441db336d4e416",
+    "proof": "read_verilog gold.v gate.v; proc; opt; async2sync; opt; equiv_make gold gate equiv; hierarchy -top equiv; equiv_simple; equiv_induct -seq 2; equiv_status -assert",
+    "reset_model": "async2sync",
+    "unproven": 0,
+    "yosys_sha256": "88c0a12bb814a1a8716b1ae10b482e35d3005ed558e1f5f626b3dc983ea3abd0"
+  },
+  "divider_edges": 5002,
+  "elapsed_seconds": 5.552,
+  "executable_sha256": "534ef47abbb42e353216b00ee610af3ba5148b73c5bd9a809c8fc424d5235dad",
+  "hardware_acceptance": false,
+  "hardware_access": "not-performed",
+  "not_proven": [
+    "physical IO timing/electrical behavior",
+    "metastability/MTBF",
+    "asynchronous reset timing",
+    "PLL behavior",
+    "video capture",
+    "normal-kit acceptance"
+  ],
+  "slave_model": "open-drain ACK delayed 3.51 us within the low phase; no analog model",
+  "source_clock_hz": 50000000,
+  "status": "pass",
+  "vendor_inputs": {
+    "acknowledge_samples_redirected": [
+      "ACK1",
+      "ACK2",
+      "ACK3"
+    ],
+    "bus_clock_divider_and_register_values": "unchanged; every LUT row is issued",
+    "derived_source_sha256": {
+      "fes_de25_scanout_hdmi_config.v": "7c19cd75782206c63ce4b222653f1c3e2ae3cfd35731c6b40abbb36925f77434",
+      "fes_de25_scanout_i2c_controller.v": "57dd988f8a8989008a33be7bbac04ea8ee77f579b66294502414f315bd35fd2a"
+    },
+    "raw_sda_use": "open-drain output only; input sampled through board synchronizer",
+    "sequential_assignments_normalized": 53,
+    "start_handshake": "wait END low after GO before accepting END high",
+    "vendor_source_sha256": {
+      "I2C_Controller.v": "4ac2feae20095dc7287dedec70bdeb8949b086ea6ce3c3a33583063e978003ab",
+      "I2C_HDMI_Config.v": "b9b7c477173fee9b6cb5e3d6a6ba1122c7a0b539f205d807b1d61b22048fd391"
+    }
+  },
+  "verilator_version": "Verilator 5.020 2024-01-01 rev (Debian 5.020-1)",
+  "yosys_version": "Yosys 0.33 (git sha1 2584903a060)"
+}

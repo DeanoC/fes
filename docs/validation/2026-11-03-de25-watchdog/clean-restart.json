@@ -1,0 +1,290 @@
+{
+  "state": "passed",
+  "scope": "two isolated production-daemon contexts, not managed whole-kit acceptance",
+  "source_revision": "c1e9eaf2564b215f96e7ae19ede4aa91ab19369d",
+  "package_id": "a06df2be5758e85e45e5d3876a0c638cdac91b5f2846da804c520ad0e4aff0fb",
+  "rbf_sha256": "31919f1eb3871080c8676c1546f3a527853accc8d929685865d522ad5b5f5f64",
+  "return_boot": "79037402-2704-4f52-80b5-e8116460d859",
+  "return_verified": "fullpinnedkernel/CID/geometry/Good3b/newselectorinitandfactory/gates/probe; normalS40stop/noowners/nooverlays",
+  "runtime_sha256": "bf933608c63ae57a20572cfa65d9ce3ad1bff89506d0c35d0ef584fed7dc905a",
+  "client_sha256": "6338e1e32dd3e9e6b3c2595a92f3cce00923611c6443cf085065e2b797f1a8fb",
+  "kernel_notes_sha256": "47b21fcf0a7a63b0ed940efe53c6f39daea8eddd8299539d71ecb731c0adaf34",
+  "known_good_image": "3b985b15dd6bbc1e945ae67dfc892e048719e684a20aea48e96bb5a4fec784aa",
+  "build_id": "d2b70e3f45e7c8c9f74073040b615e71",
+  "native_events": [
+    {
+      "boot": "75872687-af6f-4927-89b2-57339a57655f",
+      "event": "bounded-watchdog-start",
+      "timeout_seconds": 30,
+      "utc": "2026-11-03T19:31:51.990289505Z"
+    },
+    {
+      "event": "production-menu-ready",
+      "pid": 2503,
+      "status": {
+        "available": true,
+        "frame_mapping": true,
+        "session": false,
+        "package_id": "a06df2be5758e85e45e5d3876a0c638cdac91b5f2846da804c520ad0e4aff0fb",
+        "core_generation": 0,
+        "generation": 1,
+        "width": 1280,
+        "height": 720,
+        "stride": 5120,
+        "byte_count": 3686400,
+        "slot_bytes": 4194304,
+        "slots": 2,
+        "format": "bgrx8888",
+        "displayed_sequence": 0,
+        "underflows": 0,
+        "picture": null
+      },
+      "utc": "2026-11-03T19:31:54.79993922Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 1,
+      "generation": 1,
+      "sequence": 1,
+      "underflows": 0,
+      "utc": "2026-11-03T19:31:56.881385046Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 11,
+      "generation": 1,
+      "sequence": 11,
+      "underflows": 0,
+      "utc": "2026-11-03T19:31:57.815398629Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 21,
+      "generation": 1,
+      "sequence": 21,
+      "underflows": 0,
+      "utc": "2026-11-03T19:31:58.732142191Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 31,
+      "generation": 1,
+      "sequence": 31,
+      "underflows": 0,
+      "utc": "2026-11-03T19:31:59.64897995Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 41,
+      "generation": 1,
+      "sequence": 41,
+      "underflows": 0,
+      "utc": "2026-11-03T19:32:00.531219482Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 51,
+      "generation": 1,
+      "sequence": 51,
+      "underflows": 0,
+      "utc": "2026-11-03T19:32:01.465026387Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 61,
+      "generation": 1,
+      "sequence": 61,
+      "underflows": 0,
+      "utc": "2026-11-03T19:32:02.348278907Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 71,
+      "generation": 1,
+      "sequence": 71,
+      "underflows": 0,
+      "utc": "2026-11-03T19:32:03.281583964Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 81,
+      "generation": 1,
+      "sequence": 81,
+      "underflows": 0,
+      "utc": "2026-11-03T19:32:04.164770369Z"
+    },
+    {
+      "event": "full-frame-test-complete",
+      "frames": 90,
+      "generation": 1,
+      "sequence": 90,
+      "underflows": 0,
+      "utc": "2026-11-03T19:32:04.998657922Z"
+    },
+    {
+      "cycle": 1,
+      "event": "clean-shutdown-requested",
+      "pid": 2503,
+      "utc": "2026-11-03T19:32:04.999027212Z"
+    },
+    {
+      "cycle": 1,
+      "event": "clean-shutdown-complete",
+      "firmware_removed": true,
+      "overlays": 0,
+      "same_boot": "75872687-af6f-4927-89b2-57339a57655f",
+      "seconds": 0.035778566,
+      "utc": "2026-11-03T19:32:05.034854563Z"
+    },
+    {
+      "event": "production-menu-ready",
+      "pid": 2692,
+      "status": {
+        "available": true,
+        "frame_mapping": true,
+        "session": false,
+        "package_id": "a06df2be5758e85e45e5d3876a0c638cdac91b5f2846da804c520ad0e4aff0fb",
+        "core_generation": 0,
+        "generation": 1,
+        "width": 1280,
+        "height": 720,
+        "stride": 5120,
+        "byte_count": 3686400,
+        "slot_bytes": 4194304,
+        "slots": 2,
+        "format": "bgrx8888",
+        "displayed_sequence": 0,
+        "underflows": 0,
+        "picture": null
+      },
+      "utc": "2026-11-03T19:32:07.643658493Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 1,
+      "generation": 1,
+      "sequence": 1,
+      "underflows": 0,
+      "utc": "2026-11-03T19:32:09.714686464Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 11,
+      "generation": 1,
+      "sequence": 11,
+      "underflows": 0,
+      "utc": "2026-11-03T19:32:10.564348105Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 21,
+      "generation": 1,
+      "sequence": 21,
+      "underflows": 0,
+      "utc": "2026-11-03T19:32:11.414249738Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 31,
+      "generation": 1,
+      "sequence": 31,
+      "underflows": 0,
+      "utc": "2026-11-03T19:32:12.248310921Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 41,
+      "generation": 1,
+      "sequence": 41,
+      "underflows": 0,
+      "utc": "2026-11-03T19:32:13.081420538Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 51,
+      "generation": 1,
+      "sequence": 51,
+      "underflows": 0,
+      "utc": "2026-11-03T19:32:13.915068352Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 61,
+      "generation": 1,
+      "sequence": 61,
+      "underflows": 0,
+      "utc": "2026-11-03T19:32:14.781218301Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 71,
+      "generation": 1,
+      "sequence": 71,
+      "underflows": 0,
+      "utc": "2026-11-03T19:32:15.781125559Z"
+    },
+    {
+      "event": "full-frame-completed",
+      "frames": 81,
+      "generation": 1,
+      "sequence": 81,
+      "underflows": 0,
+      "utc": "2026-11-03T19:32:16.714820764Z"
+    },
+    {
+      "event": "full-frame-test-complete",
+      "frames": 90,
+      "generation": 1,
+      "sequence": 90,
+      "underflows": 0,
+      "utc": "2026-11-03T19:32:17.59805951Z"
+    },
+    {
+      "cycle": 2,
+      "event": "clean-shutdown-requested",
+      "pid": 2692,
+      "utc": "2026-11-03T19:32:17.598507618Z"
+    },
+    {
+      "cycle": 2,
+      "event": "clean-shutdown-complete",
+      "firmware_removed": true,
+      "overlays": 0,
+      "same_boot": "75872687-af6f-4927-89b2-57339a57655f",
+      "seconds": 0.035364815,
+      "utc": "2026-11-03T19:32:17.633923908Z"
+    },
+    {
+      "clean_replacements_passed": true,
+      "error": "<nil>",
+      "event": "watchdog-recovery-armed",
+      "frame_test_passed": true,
+      "software_reboot_calls": 0,
+      "utc": "2026-11-03T19:32:17.634106917Z"
+    }
+  ],
+  "normal_kit_acceptance": false,
+  "managed_image_confirmation": false,
+  "normal_offboard_gates": {
+    "independent_package_pair": "passed, exact RBF and timing",
+    "models": "95 cases passed264.977s",
+    "paired_fitted_checks": "passed31.267s, both projects, four corners, no waived findings",
+    "factory_a4": "make dev final verification passed766.474s; not deployed",
+    "factory_c1": "make dev final verification passed303.232s; not deployed"
+  },
+  "preparation_refusals": [
+    "Image-status lock attempted after readonly remount; refused before watchdog/FPGA operation. Correct order checks gates first, then sync/remountro.",
+    "Unsupported optional watchdog sysfs state observation stopped collector; exclusive watchdog open and exact driver/device checks retained in test.",
+    "Initial return collector used an absent abbreviated service name; authenticated same Good image and gates, then correct S40fes-kit-software normal stop passed."
+  ],
+  "capture": {
+    "status": "passed",
+    "frames": 180,
+    "colored_frames": 67,
+    "distinct_colored_means": 9,
+    "scope": "ActualsharedMS2109stream showeddrawingchangesduringfirstcontext; secondcapturestartedafterbothcleanstops, noindependentvisualclaimforsecondcontext",
+    "published_frame_sha256": "219764f38ebb5ea3c4671347d24d39fca0d1a36a854bd063e4e7cb3357389a42"
+  },
+  "combined_proof": "actual two runtime controllers and machine/PR RTL, all14native/AArch64CortexA76 scenarios PASS697.022s; exact result copied to source fixture",
+  "software_bundle": "standard build e8afd3f3f84f12b718cbe6fe9df2f77d8e1f547f38cc7a6f7b6aa682f29e15cb PASS38.333s; not installed/queued"
+}

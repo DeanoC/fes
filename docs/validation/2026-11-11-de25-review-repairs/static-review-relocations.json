@@ -1,0 +1,31 @@
+{
+  "control": "e72dcbe7d7562424d2c5c4605f84cccff9fe525c",
+  "mapping": {
+    "cores/fes-zx81/rtl/zx81_machine.sv": "boards/de25nano/shared-rtl/zx81_machine.sv",
+    "cores/fes-zx81/rtl/fes_zx81_core.v": "boards/de25nano/shared-rtl/fes_zx81_core.v",
+    "cores/fes-common/rtl/fes_display_plane.v": "boards/de25nano/shared-rtl/fes_display_plane.v",
+    "cores/fes-zx81/rtl/zx81_machine_clock.v": "boards/de25nano/shared-rtl/zx81_machine_clock.v",
+    "cores/fes-menu/rtl/fes_menu_reader.v": "boards/de25nano/shared-rtl/fes_menu_reader.v",
+    "cores/fes-menu/rtl/fes_menu_video.v": "boards/de25nano/shared-rtl/fes_menu_video.v",
+    "cores/fes-menu/rtl/fes_menu_control.v": "boards/de25nano/shared-rtl/fes_menu_control.v",
+    "cores/fes-common/rtl/fes_computer_mailbox.v": "boards/de25nano/shared-rtl/fes_computer_mailbox.v"
+  },
+  "reviewed_hashes_preserved": true,
+  "old_manifest_sha256": "51d8e65979a42f224b7b8e41a4f74a929e9e0d7c718826767bd192d7f75c004d",
+  "new_manifest_sha256": "cd83ebf829dc82c57cecef25ec804799e149d27d60fd68fd5d2cd7eb86ca55d0",
+  "current_sources_outside_historical_review": {
+    "boards/de25nano/shared-rtl/fes_display_plane.v": {
+      "reviewed": "9eb6af53a624f402f43a28dd70259b7fe521324d6d14c851a22d2cc6d8c8691c",
+      "current": "e04cf833284d97390f67bd86dbdd6ff3da465ad13f672bd1ac879c7478367a68"
+    },
+    "boards/de25nano/shared-rtl/fes_menu_reader.v": {
+      "reviewed": "44fe0e15c4ab7ff2519483c496afa2565c2b1a20156feda5a9a5f5f9c0f10fe8",
+      "current": "a899916de3bb4499653f9b40f8ee5b9b78c7c572c65ecf6054434866c070aa50"
+    },
+    "boards/de25nano/shared-rtl/fes_menu_video.v": {
+      "reviewed": "cc940bc009045abbeccaf294a59449310bd7586ac24258088166c9226d457c4b",
+      "current": "6c47ab8a290cf12ae59b56bcce55f015bf7b045e4fb337ef24fc2667818ed33e"
+    }
+  },
+  "qualification": "Path relocation only; changed hardware still fails source-bound eligibility and requires fresh review/fit. No timing or physical acceptance."
+}

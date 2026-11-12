@@ -95,6 +95,34 @@ class AffectedTests(unittest.TestCase):
             with self.subTest(pattern=pattern):
                 self.assertTrue(list(root.glob(pattern)), pattern)
 
+    def test_package_contract_software_keeps_every_software_lane_without_rtl(self):
+        root = 'sources/mister-packages/'
+        for relative in ('Makefile', 'schema/core-bundle-v5.json',
+                         'scripts/core_bundle_v5_fixtures.py',
+                         'tests/test_core_bundle_v5_fixtures.py',
+                         'testdata/core-bundle-v5',
+                         'testdata/core-bundle-v5/manifests/valid-basic.toml',
+                         'testdata/core-bundle-v5/payloads/persona.rbf',
+                         'schema/core-bundle-v2.json',
+                         'scripts/core_bundle_fixtures.py'):
+            with self.subTest(path=relative):
+                result = plan([root + relative])
+                self.assertTrue(all(result['lanes'].values()))
+                self.assertEqual(result['cores'], [])
+        for relative in ('schema/core-bundle-v5.json-other',
+                         'schema/core-bundle-v50.json',
+                         'testdata/core-bundle-v5-other/fixture.rbf',
+                         'packages/abi/fes_computer.yaml',
+                         'packages/fabric/new.yaml'):
+            with self.subTest(unknown=relative):
+                self.assertEqual(set(plan([root + relative])['cores']), set(CORES))
+        mixed = plan([root + 'schema/core-bundle-v5.json',
+                      'sources/misteross/cores/fes-zx81/new.v'])
+        self.assertEqual(mixed['cores'], ['zx81'])
+        broad = plan([root + 'schema/core-bundle-v5.json',
+                      root + 'packages/abi/fes_computer.yaml'])
+        self.assertEqual(set(broad['cores']), set(CORES))
+
     def test_contracts_and_unknown_changes_close_over_every_lane(self):
         for path in ('sources/mister-packages', 'sources/mister-packages/packages/abi/new.yaml',
                      'unknown/new.bin'):
@@ -186,6 +214,7 @@ class AffectedTests(unittest.TestCase):
             ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'),
             ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.h'),
             ('FES', 'image/kernel/de25-dma/generated/fes_de25_scanout.h'),
+            ('libmister-runtime', 'src/native/generated/fes_de25_scanout.hpp'),
         })
         result = plan([definition])
         self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
@@ -460,6 +489,23 @@ class AffectedTests(unittest.TestCase):
                 self.assertTrue(result['lanes']['parent'])
                 self.assertEqual(result['cores'], [])
 
+    def test_de25_local_producers_select_only_their_package_consumers(self):
+        cases = {
+            'boards/de25nano/producers/build_menu_package.py': {'menu', 'zx81'},
+            'boards/de25nano/producers/build_zx81_package.py': {'zx81'},
+            'boards/de25nano/producers/build_zx81_static_package.py': {'zx81'},
+            'boards/de25nano/producers/export_static_persona.py': {'zx81'},
+            'boards/de25nano/producers/review_audio_clocks.py': {'zx81'},
+            'boards/de25nano/package/core_package.py': {'menu', 'zx81'},
+            'boards/de25nano/package/export_core_package.py': {'menu', 'zx81'},
+        }
+        for path, consumers in cases.items():
+            with self.subTest(path=path):
+                result = plan(['sources/misteross/' + path])
+                self.assertEqual(set(result['cores']), consumers)
+                self.assertTrue(result['lanes']['fpga'])
+                self.assertTrue(result['lanes']['parent'])
+
     def test_i386_software_inputs_do_not_select_core_simulations(self):
         for path in ('cores/fes-common/sim/i386/bochs_oracle.cpp', 'cores/fes-common/sim/i386/divergences.toml',
                      'cores/fes-common/sim/i386/bochs/instrument.h', 'cores/fes-common/sim/i386/frontend_tb.cpp',
@@ -504,6 +550,12 @@ class AffectedTests(unittest.TestCase):
         mixed = plan(['sources/misteross/scripts/pc386_cpu_profile.py',
                       'sources/misteross/scripts/new_helper.py'])
         self.assertEqual(set(mixed['cores']), set(CORES))
+
+    def test_pc386_windows_checks_select_only_what_reads_them(self):
+        result = plan(['sources/misteross/scripts/pc386_wfw.py'])
+        self.assertEqual(result['cores'], ['pc386'])
+        result = plan(['sources/misteross/scripts/pc386_wfw_kit_acceptance.py'])
+        self.assertEqual(result['cores'], [])
 
     def test_unclassified_fpga_inputs_fail_broad(self):
         for path in ('', 'Makefile', 'toolchain.lock',

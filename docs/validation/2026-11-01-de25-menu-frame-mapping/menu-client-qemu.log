@@ -1,0 +1,11 @@
+=== RUN   TestFrameMappingPreservesDamageAcrossRemap
+--- PASS: TestFrameMappingPreservesDamageAcrossRemap (0.13s)
+=== RUN   TestReleaseWindowAllowsSameGenerationRemap
+--- PASS: TestReleaseWindowAllowsSameGenerationRemap (0.01s)
+=== RUN   TestFrameMappingEndsBeforeCommitAndFailureReply
+--- PASS: TestFrameMappingEndsBeforeCommitAndFailureReply (0.15s)
+=== RUN   TestFrameMappingGrantMustMatchNegotiatedStatus
+--- PASS: TestFrameMappingGrantMustMatchNegotiatedStatus (0.03s)
+=== RUN   TestFrameMappingEndsBeforePreparationAbandonment
+--- PASS: TestFrameMappingEndsBeforePreparationAbandonment (0.02s)
+PASS

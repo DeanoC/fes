@@ -1,0 +1,38 @@
+{
+  "source": "2dfc5e2b3e6e8195dbc3d5ff7dee698214b9ef52",
+  "runtime_source": "791b47550ec191b128630c079a20ece075b244da",
+  "runtime_module_identical": true,
+  "go_version": "go version go1.26.5 linux/amd64",
+  "go_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
+  "platform_source_sha256": "a987e2d7cb5cb709e569503854ce7b0bd44f00dc1758616fc752b256dff37b30",
+  "appliance_source_sha256": "846b3120313a35382f7909cc39e7489e91fab8619fc815e299d34d67b0c76721",
+  "files": {
+    "payload/bin/fogcast-kit": {
+      "sha256": "a204db5b8e190c5839e6561fdc4274a8d6e89abdd5489020165f2442726d55e4",
+      "bytes": 1573026,
+      "build_info": "/home/deano/fes/out/dev/de25-managed-image/out/managed-software/payload/bin/fogcast-kit: go1.26.5\n\tpath\tgithub.com/DeanoC/FogCast/cmd/fogcast-kit\n\tmod\tgithub.com/DeanoC/FogCast\t(devel)\t\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\t-trimpath=true\n\tbuild\tCGO_ENABLED=0\n\tbuild\tGOARCH=arm64\n\tbuild\tGOOS=linux\n\tbuild\tGOARM64=v8.0\n\tbuild\tvcs=git\n\tbuild\tvcs.revision=7cc1eb2c63fc851a441bb6fe35eb0b59452873c4\n\tbuild\tvcs.time=2026-09-28T19:06:32Z\n\tbuild\tvcs.modified=true\n"
+    },
+    "payload/bin/fogcast-tenfoot": {
+      "sha256": "cfc1dec2c3fe22077c7f04733e8bf2e080b72573371a8cbefa5082b099869adf",
+      "bytes": 23330978,
+      "build_info": "/home/deano/fes/out/dev/de25-managed-image/out/managed-software/payload/bin/fogcast-tenfoot: go1.26.5\n\tpath\tgithub.com/DeanoC/FogCast/cmd/fogcast-tenfoot\n\tmod\tgithub.com/DeanoC/FogCast\t(devel)\t\n\tdep\tgithub.com/DeanoC/FogCast/appliance\tv0.0.0\n\t=>\t./appliance\t(devel)\t\n\t\n\tdep\tgithub.com/DeanoC/misteross/expansion\tv0.0.0\n\t=>\t../misteross/expansion\t(devel)\t\n\t\n\tdep\tgithub.com/brutella/dnssd\tv1.2.14\th1:qLpTnRTm5peo2jA30hqMIbCuWn8x3sFg3e9o9ODOobw=\n\tdep\tgithub.com/dustin/go-humanize\tv1.0.1\th1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=\n\tdep\tgithub.com/geoffgarside/ber\tv1.1.0\th1:qTmFG4jJbwiSzSXoNJeHcOprVzZ8Ulde2Rrrifu5U9w=\n\tdep\tgithub.com/google/uuid\tv1.6.0\th1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=\n\tdep\tgithub.com/hashicorp/mdns\tv1.0.6\th1:SV8UcjnQ/+C7KeJ/QeVD/mdN2EmzYfcGfufcuzxfCLQ=\n\tdep\tgithub.com/hirochachacha/go-smb2\tv1.1.0\th1:b6hs9qKIql9eVXAiN0M2wSFY5xnhbHAQoCwRKbaRTZI=\n\tdep\tgithub.com/miekg/dns\tv1.1.61\th1:nLxbwF3XxhwVSm8g9Dghm9MHPaUZuqhPiGL+675ZmEs=\n\tdep\tgithub.com/pelletier/go-toml/v2\tv2.4.3\th1:GTRvJQutkOSftxIFD5xw9aepkYNuPWmVJpffdDPYVpY=\n\tdep\tgithub.com/remyoudompheng/bigfft\tv0.0.0-20230129092748-24d4a6f8daec\th1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=\n\tdep\tgithub.com/vishvananda/netlink\tv1.2.1-beta.2\th1:Llsql0lnQEbHj0I1OuKyp8otXp0r3q0mPkuhwHfStVs=\n\tdep\tgithub.com/vishvananda/netns\tv0.0.0-20200728191858-db3c7e526aae\th1:4hwBBUfQCFe3Cym0ZtKyq7L16eZUtYKs+BaHDN6mAns=\n\tdep\tgithub.com/yuin/gopher-lua\tv1.1.2\th1:yF/FjE3hD65tBbt0VXLE13HWS9h34fdzJmrWRXwobGA=\n\tdep\tgolang.org/x/crypto\tv0.53.0\th1:QZ4Muo8THX6CizN2vPPd5fBGHyogrdK9fG4wLPFUsto=\n\tdep\tgolang.org/x/image\tv0.31.0\th1:mLChjE2MV6g1S7oqbXC0/UcKijjm5fnJLUYKIYrLESA=\n\tdep\tgolang.org/x/net\tv0.56.0\th1:Rw8j/hFzGvJUZwNBXnAtf5sVDVt+65SK2C7IxCxZt5o=\n\tdep\tgolang.org/x/sys\tv0.46.0\th1:noSf2Fq6F8DBgS+LysIkx7rIExoNHJsxOAtPp4rthXw=\n\tdep\tgolang.org/x/text\tv0.40.0\th1:Ub2Z6/xjgF1WrYQz2nuITOEegKFtiIy+rieRJ5lHZKs=\n\tdep\tgosqlite.org\tv0.14.0\th1:au2oEdf2FEKmNmUELdjX5SnxiCfZHNMRKYH1nG7XL28=\n\tdep\tmodernc.org/libc\tv1.74.1\th1:bdR4VTKFMC4966QSNZ05XLGI/VwzVa2kTUX51Dm0riQ=\n\tdep\tmodernc.org/mathutil\tv1.7.1\th1:GCZVGXdaN8gTqB1Mf/usp1Y/hSqgI2vAGGP4jZMCxOU=\n\tdep\tmodernc.org/memory\tv1.11.0\th1:o4QC8aMQzmcwCK3t3Ux/ZHmwFPzE6hf2Y5LbkRs+hbI=\n\tdep\tmodernc.org/sqlite\tv1.55.0\th1:hIFh0MCH0rGinQ/4KYb5/UbCkRkb+UP+OkLCVWa5MTM=\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\t-trimpath=true\n\tbuild\tCGO_ENABLED=0\n\tbuild\tGOARCH=arm64\n\tbuild\tGOOS=linux\n\tbuild\tGOARM64=v8.0\n\tbuild\tvcs=git\n\tbuild\tvcs.revision=7cc1eb2c63fc851a441bb6fe35eb0b59452873c4\n\tbuild\tvcs.time=2026-09-28T19:06:32Z\n\tbuild\tvcs.modified=true\n"
+    },
+    "payload/bin/mister-agent": {
+      "sha256": "47b704bdff56d016a2c53cb09b53fbafb605aed0886884bb8ae5598fab6e915f",
+      "bytes": 10223778,
+      "build_info": "/home/deano/fes/out/dev/de25-managed-image/out/managed-software/payload/bin/mister-agent: go1.26.5\n\tpath\tgithub.com/DeanoC/FogCast/cmd/mister-agent\n\tmod\tgithub.com/DeanoC/FogCast\t(devel)\t\n\tdep\tgithub.com/DeanoC/FogCast/appliance\tv0.0.0\n\t=>\t./appliance\t(devel)\t\n\t\n\tdep\tgithub.com/DeanoC/misteross/expansion\tv0.0.0\n\t=>\t../misteross/expansion\t(devel)\t\n\t\n\tdep\tgithub.com/brutella/dnssd\tv1.2.14\th1:qLpTnRTm5peo2jA30hqMIbCuWn8x3sFg3e9o9ODOobw=\n\tdep\tgithub.com/google/uuid\tv1.6.0\th1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=\n\tdep\tgithub.com/hashicorp/mdns\tv1.0.6\th1:SV8UcjnQ/+C7KeJ/QeVD/mdN2EmzYfcGfufcuzxfCLQ=\n\tdep\tgithub.com/miekg/dns\tv1.1.61\th1:nLxbwF3XxhwVSm8g9Dghm9MHPaUZuqhPiGL+675ZmEs=\n\tdep\tgithub.com/pelletier/go-toml/v2\tv2.4.3\th1:GTRvJQutkOSftxIFD5xw9aepkYNuPWmVJpffdDPYVpY=\n\tdep\tgithub.com/vishvananda/netlink\tv1.2.1-beta.2\th1:Llsql0lnQEbHj0I1OuKyp8otXp0r3q0mPkuhwHfStVs=\n\tdep\tgithub.com/vishvananda/netns\tv0.0.0-20200728191858-db3c7e526aae\th1:4hwBBUfQCFe3Cym0ZtKyq7L16eZUtYKs+BaHDN6mAns=\n\tdep\tgolang.org/x/net\tv0.56.0\th1:Rw8j/hFzGvJUZwNBXnAtf5sVDVt+65SK2C7IxCxZt5o=\n\tdep\tgolang.org/x/sys\tv0.46.0\th1:noSf2Fq6F8DBgS+LysIkx7rIExoNHJsxOAtPp4rthXw=\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\t-trimpath=true\n\tbuild\tCGO_ENABLED=0\n\tbuild\tGOARCH=arm64\n\tbuild\tGOOS=linux\n\tbuild\tGOARM64=v8.0\n\tbuild\tvcs=git\n\tbuild\tvcs.revision=7cc1eb2c63fc851a441bb6fe35eb0b59452873c4\n\tbuild\tvcs.time=2026-09-28T19:06:32Z\n\tbuild\tvcs.modified=true\n"
+    },
+    "payload/bin/mister-runtime": {
+      "sha256": "5f08a91bef7d984f43830b56d58717927387ea7b3f174de296ece95c3f45d342",
+      "bytes": 1913344,
+      "build_info": "C++ actualproducer791b47550ec191b128630c079a20ece075b244da"
+    },
+    "fes-kit-software": {
+      "sha256": "a7d1bcbe6cc8afecf1920ccee9ebcffcbd5617571f44683891fe38ed21190eb8",
+      "bytes": 7078014,
+      "build_info": "/home/deano/fes/out/dev/de25-managed-image/out/managed-software/fes-kit-software: go1.26.5\n\tpath\tgithub.com/DeanoC/fes/platform/cmd/fes-kit-software\n\tmod\tgithub.com/DeanoC/fes/platform\t(devel)\t\n\tdep\tgithub.com/DeanoC/FogCast/appliance\t(devel)\t\n\tdep\tgolang.org/x/sys\tv0.46.0\th1:noSf2Fq6F8DBgS+LysIkx7rIExoNHJsxOAtPp4rthXw=\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\t-trimpath=true\n\tbuild\tCGO_ENABLED=0\n\tbuild\tGOARCH=arm64\n\tbuild\tGOOS=linux\n\tbuild\tGOARM64=v8.0\n"
+    }
+  },
+  "scope": "build and actualELF64AArch64architecture only; existingplatformworkspace reused, no source/sum/limits changed, original3Go outputs unchanged; no kernel/menu/runtime/agent startup or bundle installation",
+  "state": "passed"
+}

@@ -1,0 +1,20 @@
+{
+  "source_revision": "262ee72db716f44b34018f43375672006c45d713",
+  "command": [
+    "python3",
+    "sources/misteross/boards/de25nano/scanout/interconnect_sim.py",
+    "--project",
+    "/data/fes-de25-menu-canonical-262ee72db/source/sources/misteross/build/de25-menu/6f64324f9f29e219d6bd6806228afec2/attempt-p4tqu_on/signoff/combined/hps/project",
+    "--output",
+    "/data/fes-de25-menu-canonical-262ee72db/model"
+  ],
+  "cwd": "/data/fes-de25-menu-canonical-262ee72db/source",
+  "started_utc": "2026-11-01T13:56:34.582792+00:00",
+  "time_cap_seconds": 300,
+  "hardware_access": "not-performed",
+  "pid": 1964377,
+  "state": "passed",
+  "elapsed_seconds": 69.8,
+  "heartbeat_utc": "2026-11-01T13:57:44.397170+00:00",
+  "returncode": 0
+}

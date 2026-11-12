@@ -1,0 +1,13 @@
+{
+  "source_revision": "1a05aca27b0d34bf391ec3d452b6ab203c6cd27a",
+  "command": [
+    "make",
+    "-C",
+    "sources/misteross",
+    "sim-fes-zx81-session"
+  ],
+  "scope": "Normal registered ZX81 session target: legacy52.224MHz, full computer100MHz default reader and full computer100MHz bounded16/read-ahead; exact current committed HDL and runner, no physical kit or allocation claim",
+  "state": "passed",
+  "elapsed_seconds": 200.549,
+  "returncode": 0
+}

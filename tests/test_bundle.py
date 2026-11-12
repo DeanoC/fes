@@ -25,12 +25,138 @@ class BundleTest(unittest.TestCase):
         module.ARTIFACT_CACHE_ROOT = Path(cache.name)
         return module
 
+    def test_de25_cached_package_uses_its_source_closed_board_reader(self):
+        module = self.module()
+        source = SCRIPT.parents[1] / 'sources/misteross'
+        # Parser fixture only: no synthesis, timing qualification or deployment.
+        program = '''
+import json, subprocess, sys
+from pathlib import Path
+from boards.de25nano.producers import build_menu_package as producer
+from boards.de25nano.package.core_package import package_identity
+root=Path.cwd(); output=Path(sys.argv[1]); revision=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+record=producer.create_build_record(root,'https://github.com/DeanoC/fes',revision,
+    {n:'parser-fixture' for n in ('quartus','qsys','ipgenerate','pfg')}, {'toolchain':'quartus'})
+payload=output/'fixture.rbf'; payload.write_bytes(b'parser fixture, not FPGA configuration')
+manifest=producer.manifest(record,payload); identity=package_identity(manifest,payload.read_bytes())
+package=output/identity; package.mkdir()
+for name,data in [('manifest.toml',manifest),('core.rbf',payload.read_bytes())]:
+    path=package/name; path.write_bytes(data); path.chmod(0o444)
+package.chmod(0o555); record_path=output/'build-inputs.json'; record_path.write_bytes(record); record_path.chmod(0o444)
+print(json.dumps({'package':str(package),'record':str(record_path)}))
+'''
+        with tempfile.TemporaryDirectory() as temp:
+            built = subprocess.run([sys.executable, '-c', program, temp], cwd=source,
+                                   capture_output=True, text=True, timeout=30)
+            self.assertEqual(built.returncode, 0, built.stderr)
+            artifact = json.loads(built.stdout)
+            inspected = module._inspect_package_candidate(source, Path(artifact['package']),
+                Path(artifact['record']), recipe=module.recipe_for('fes.menu', board='de25-nano'))
+            self.assertEqual(inspected['manifest']['target']['platform'], 'de25_nano')
+            with self.assertRaises(ValueError):
+                module._inspect_package_candidate(source, Path(artifact['package']),
+                    Path(artifact['record']), recipe=module.recipe_for('fes.menu', board='de10-nano'))
+
+    def test_de25_license_selection_matches_real_child_record_and_changes_key(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory(prefix="fes license ' space ") as temporary:
+            source = Path(temporary)
+            scripts = source / 'scripts'
+            scripts.mkdir()
+            (scripts / '__init__.py').write_text('')
+            (scripts / 'functional_execution.py').write_text('''
+def execution_environment(home, tools):
+    return {'HOME': str(home)}
+def execution_inputs(paths, env, device=0):
+    return {'toolchain': 'quartus', 'license_sha256': None}
+''')
+            (scripts / 'license_fixture.py').write_text('''
+import argparse, hashlib, json, sys, tempfile
+from pathlib import Path
+from types import SimpleNamespace
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.functional_execution import execution_environment as base_environment
+def _require_clean_source(root, **options):
+    return 'https://github.com/DeanoC/fes.git', 'a' * 40
+def _authenticate_tools(root, **options):
+    return {'quartus': SimpleNamespace(path=Path('/bin/true'), identity='fixture')}
+def execution_environment(home, tools, *, license_file=None):
+    env = base_environment(home, tools)
+    if license_file is not None:
+        private = home / 'license.dat'
+        private.write_bytes(Path(license_file).read_bytes())
+        env['LM_LICENSE_FILE'] = str(private)
+    return env
+def execution_inputs(paths, env, device=0):
+    selected = env.get('LM_LICENSE_FILE')
+    return {'toolchain': 'quartus', 'license_sha256':
+        hashlib.sha256(Path(selected).read_bytes()).hexdigest() if selected else None}
+def create_build_record(root, repository, revision, tools, execution, **options):
+    return (json.dumps({'format': 2, 'repository': repository, 'revision': revision,
+        'source_inputs': {'rtl/top.v': '1' * 64}, 'execution': execution},
+        sort_keys=True, separators=(',', ':')) + '\\n').encode()
+if __name__ == '__main__':
+    p = argparse.ArgumentParser()
+    p.add_argument('--root', type=Path)
+    p.add_argument('--package-output')
+    p.add_argument('--cache-root')
+    p.add_argument('--identity-version')
+    p.add_argument('--license-file', type=Path)
+    args = p.parse_args()
+    with tempfile.TemporaryDirectory() as home:
+        env = execution_environment(Path(home), {}, license_file=args.license_file)
+        record = create_build_record(args.root, *_require_clean_source(args.root),
+            {}, execution_inputs({}, env))
+    (args.root / 'built-inputs.json').write_bytes(record)
+''')
+            recipe = replace(module.recipe_for('fes.menu', board='de25-nano'),
+                             producer_script='scripts/license_fixture.py',
+                             producer_module='scripts.license_fixture')
+            license_file = source / "selected license ' marker.dat"
+            environment = dict(os.environ, FES_DE25_QUARTUS_LICENSE_FILE=str(license_file),
+                               LM_LICENSE_FILE='unselected-server')
+            records = []
+            with patch.object(module, 'authenticate_misteross_origin'):
+                for content in (b'first private marker\n', b'second private marker\n'):
+                    license_file.write_bytes(content)
+                    record = module.canonical_package_record(source, environment, recipe)
+                    module._build_package(source, recipe, environment)
+                    self.assertEqual(record, (source / 'built-inputs.json').read_bytes())
+                    self.assertEqual(json.loads(record)['execution']['license_sha256'],
+                                     hashlib.sha256(content).hexdigest())
+                    self.assertNotIn(content.strip(), record)
+                    records.append(record)
+                self.assertNotEqual(module.artifact_cache.functional_key(records[0]),
+                                    module.artifact_cache.functional_key(records[1]))
+                environment.pop('FES_DE25_QUARTUS_LICENSE_FILE')
+                record = module.canonical_package_record(source, environment, recipe)
+                module._build_package(source, recipe, environment)
+                self.assertEqual(record, (source / 'built-inputs.json').read_bytes())
+                self.assertIsNone(json.loads(record)['execution']['license_sha256'])
+                environment['FES_DE25_QUARTUS_LICENSE_FILE'] = str(license_file)
+                other_board = replace(recipe, board='de10-nano')
+                record = module.canonical_package_record(source, environment, other_board)
+                module._build_package(source, other_board, environment)
+                self.assertEqual(record, (source / 'built-inputs.json').read_bytes())
+                self.assertIsNone(json.loads(record)['execution']['license_sha256'])
+
+    def test_de25_license_path_requires_explicit_absolute_selection(self):
+        module = self.module()
+        recipe = module.recipe_for('fes.menu', board='de25-nano')
+        with patch.object(module, 'authenticate_misteross_origin'), \
+                patch.object(module.subprocess, 'check_output') as child:
+            with self.assertRaisesRegex(ValueError, 'must be absolute'):
+                module.canonical_package_record(Path('/unused'),
+                    {'FES_DE25_QUARTUS_LICENSE_FILE': 'relative.dat'}, recipe)
+            child.assert_not_called()
+
     def test_every_registered_producer_exposes_bundle_clean_source_check(self):
         module = self.module()
         source = Path(__file__).resolve().parents[1] / "sources/misteross"
         recipes = [
             (recipe.core_id, recipe.producer_module, dict(recipe.producer_options))
-            for recipe in module.FORMAT2_RECIPES.values()
+            for recipe in [*module.FORMAT2_RECIPES.values(),
+                           module.recipe_for('fes.menu', board='de25-nano')]
         ]
         probe = '''
 import importlib, inspect, json, sys
@@ -330,6 +456,9 @@ print(json.dumps({"package": str(package), "record": str(record_path), "rom_map_
             artifact = json.loads(built.stdout)
             inspected = module._inspect_package_candidate(
                 source, Path(artifact['package']), Path(artifact['record']), recipe=recipe)
+            with self.assertRaisesRegex(ValueError, 'independently selected board'):
+                module._inspect_package_candidate(source, Path(artifact['package']), Path(artifact['record']),
+                    recipe=module.recipe_for('fes.menu', board='de25-nano'))
 
         self.assertEqual(inspected['manifest']['format'], 4)
         self.assertEqual(inspected['manifest']['core']['id'], 'fes.coleco')

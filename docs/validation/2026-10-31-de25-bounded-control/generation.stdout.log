@@ -1,0 +1,5 @@
+Scanout diagnostic: /data/fes-de25-guard-b368f5e7b/output
++ /data/altera_pro/26.3/qsys/bin/qsys-script --quartus-project=golden_top --search-path=custom_ip/**/*,fes_mailbox,$ --script=integrate-mailbox.tcl
++ /data/altera_pro/26.3/quartus/bin/quartus_ipgenerate --clear_ip_generation_dirs golden_top
++ /data/altera_pro/26.3/quartus/bin/quartus_ipgenerate --generate_project_ip_files --synthesis=verilog golden_top
+de25-scanout: generated top scanout interconnect reset source differs

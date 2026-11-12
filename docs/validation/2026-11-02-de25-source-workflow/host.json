@@ -1,0 +1,67 @@
+{
+  "cache_hit_binaries_unchanged": {
+    "fogcast": {
+      "inode": 36609404,
+      "mtime_ns": 1793592936469889687,
+      "size": 13897890
+    },
+    "fogcast-api": {
+      "inode": 36609353,
+      "mtime_ns": 1793592937429925030,
+      "size": 19054754
+    }
+  },
+  "classification": "Actual public DE25 doctor/host build and verified unchanged-binary cache hit; host compilation only, no server/deployment/native qualification",
+  "commands": [
+    {
+      "command": [
+        "make",
+        "doctor",
+        "BOARD=de25-nano"
+      ],
+      "returncode": 0
+    },
+    {
+      "command": [
+        "make",
+        "host",
+        "BOARD=de25-nano"
+      ],
+      "returncode": 0
+    },
+    {
+      "command": [
+        "make",
+        "host",
+        "BOARD=de25-nano"
+      ],
+      "returncode": 0
+    }
+  ],
+  "hardware_access": "not-performed",
+  "host_inputs": {
+    "go": "go version go1.26.5 linux/amd64",
+    "profile": {
+      "host_arch": "amd64",
+      "host_os": "linux",
+      "version": "0.1.0"
+    },
+    "recipe": {
+      "scripts/build.py": "a0835587ce33fec44cd659e184999c16c0d8bc791e9a936fc3994eadcb147372",
+      "scripts/environment.py": "87e1ec8a25c30fed41f8b0c8f70fc3ab6e5f9568714c2053fdde20b8eaecc855"
+    },
+    "sources": {
+      "FogCast": "0c77fe27ffcba21202c5308e9642088704a49467"
+    }
+  },
+  "output": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-source-workflow-owned/out/de25-nano",
+  "source_revision": "0c77fe27ffcba21202c5308e9642088704a49467",
+  "verified_host": {
+    "arch": "amd64",
+    "fes_revision": "0c77fe27ffcba21202c5308e9642088704a49467",
+    "fogcast_api_sha256": "503cf5f52016f393c03a001a7c98e2e1689ac8db883b12021a823994bd98b799",
+    "fogcast_sha256": "681dc8e781a2c4b4f94197fc3e97c2676fdb3733f709096a58ff17cfe0950c95",
+    "host_receipt_sha256": "6389ce87c84c74afc1554d02b9c883eaf8d0ced43ee8707684556f4c271ce64a",
+    "os": "linux"
+  }
+}

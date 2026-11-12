@@ -1,0 +1,47 @@
+{
+  "source_revision": "21f50a8e2bb055560866ba86c0c4308276f2a453",
+  "results": [
+    {
+      "label": "source-matched composition recipe gates",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "sources/misteross/boards/de25nano/link-proof",
+        "-p",
+        "build_test.py",
+        "-v"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.38
+    },
+    {
+      "label": "scanout construction and constraint tests",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "sources/misteross/boards/de25nano/scanout",
+        "-p",
+        "test_build.py",
+        "-v"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.93
+    },
+    {
+      "label": "scanout RTL simulations",
+      "argv": [
+        "/usr/bin/python3",
+        "sources/misteross/boards/de25nano/scanout/sim.py"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 27.83
+    }
+  ],
+  "status": "passed"
+}

@@ -1,0 +1,3 @@
+FRAME_DISPLAYED sequence=1 slot=1 generation=2
+owner-scanout: PUBLISH (errno=5); no retry or owner REAP after uncertainty
+CACHED_FAILURE_INFO result=0 generation=2 state=6 status=25 errors=8 underflows=1 outstanding=0 accepted=1 displayed=1 pending=0

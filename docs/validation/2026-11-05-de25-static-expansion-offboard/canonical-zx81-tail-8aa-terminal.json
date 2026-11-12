@@ -1,0 +1,36 @@
+{
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "source_revision": "8aa493a80c35342dd222d5215bf1395fda71d84f",
+  "fpga_source_equal_to": "aaf5155eed2f77683742f96d1a95ee83dfd4b235",
+  "canonical_step": {
+    "lane": "fpga",
+    "label": "zx81 RTL simulation",
+    "cwd": "sources/misteross",
+    "argv": [
+      "make",
+      "sim-fes-zx81",
+      "PYTHON=/data/fes-de25-main-integration-20261105/test-venv/bin/python"
+    ],
+    "tools": [
+      "c++",
+      "make",
+      "verilator"
+    ],
+    "files": [
+      "Makefile"
+    ]
+  },
+  "command": [
+    "python3",
+    "/data/fes-de25-main-integration-20261105/platform-zx81-tail-8aa-job/run.py"
+  ],
+  "time_cap_seconds": 3600,
+  "scope": "Only final unfinished canonical ZX81 simulation step after original whole-plan10800s limit. All assertions, Makefile command and2CPU unchanged; isolated3600s bound below original aggregate cap. All misteross source bytes equal original aaf. Original terminated trace retained; earlier sequential steps reused only for identical relevant inputs. Not replaying ARM whole-standard-core BASIC, not changing any limits/assertions, hardware or deployment.",
+  "supervisor_pid": 1977946,
+  "state": "terminated",
+  "pid": 1978013,
+  "elapsed_seconds": 3600.117,
+  "heartbeat_utc": "2026-11-05T15:11:11.138238+00:00",
+  "returncode": -15,
+  "reason": ""
+}

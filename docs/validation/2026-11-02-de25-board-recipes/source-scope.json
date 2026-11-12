@@ -1,0 +1,25 @@
+{
+  "canonical_authentication_revision": "6909f1afdd6bcb72943e0f2f247d44740c2212f9",
+  "canonical_record_sha256": "df04c2a2a7e341b15bbb36f56ea8f15a6a40d1d24edcf83316bfa392bc931f06",
+  "canonical_source_files_verified": 374,
+  "changed_canonical_sources": {
+    "scripts/build_de25_menu_package.py": {
+      "after": "020c2b514a6126b0426ef766ce67295f802a37b92d9e94bdfe65adb89337b809",
+      "before": "d7ceb6db588cfab77b0bc25f7135163519e6090c6194063ddec05ab8ee3b6f22"
+    }
+  },
+  "combined_compiler_inputs_verified": 59,
+  "hardware_access": "not-performed",
+  "new_Quartus_compile": false,
+  "normal_kit_acceptance": false,
+  "previous_compiled_candidate_remains_historical": true,
+  "runtime_test_inputs_verified": 58,
+  "source_revision": "1a5a084650c4abb577017c7df120ffc67af44bad",
+  "unchanged_component_git_objects": {
+    "image": "6e72b57f121adeab848d78a21fb999db47c825f3",
+    "platform": "b2582a7f5f1e246b2a508503e867b4aee0cbc430",
+    "sources/FogCast": "0c5998dbc62380b4a885c268f48af2c079c91588",
+    "sources/libmister-runtime": "76fd790345deed71592c70bc373e76346c664707",
+    "sources/mister-packages": "ef006ed0adb1b60b596bf05fc8c5096252b65754"
+  }
+}

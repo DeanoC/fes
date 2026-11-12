@@ -1,0 +1,66 @@
+{
+  "baseline_release": {
+    "base_image": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+    "baseline_bundle": "a14a53cd33e2c51d7639701363bf95cc7781f62b8207c0e2bab1653276504700",
+    "baseline_verified": true,
+    "boot_id": "e8d10b71-cb1e-4061-bc93-81e4dc51754b",
+    "claim": "released",
+    "execution_lease": "free",
+    "maintenance": "none",
+    "no_fault_reproduction_or_repair_claim": true,
+    "original_host_and_state_restored": true,
+    "original_preferences_absent": true,
+    "owned_fixtures_absent": true,
+    "runtime": "idle",
+    "software_generation": 34,
+    "utc": "2026-11-05T07:19:37.842653+00:00"
+  },
+  "baseline_release_sha256": "1c9051cc84b1d0fe1a9247cb5d526027e3c115d45ba321f822283bc26f76642f",
+  "bundle": "4ecf08d8e0ff607b880c38da29271e8465f97ae3a1e3716336c3744c89962c3b",
+  "classification": "One real exposedallocatedchooser runtime crash plus separate completed post-crash observation/freshsession proof; original recorder remains failed",
+  "collector_source": "c51c8219541cd6a9c6360cc4d79a6e19baac91b2",
+  "compiled_consumers_source": "5109333149cbb74d5ae4534e02a70866da94a058",
+  "failure_budget": {
+    "compiled_consumers_source": "5109333149cbb74d5ae4534e02a70866da94a058",
+    "conservative_HIL_recorder_failures": 2,
+    "maximum": 2,
+    "no_further_HIL_until_source_fix": "Existing1 conservative failure plus original APIgap recorderfailure. Do not call it a demonstrated second productfault; no second crash. Subsequent observation completed sameoriginaloutcome and restoration."
+  },
+  "intermittent_display_retirement_fault_fixed": false,
+  "new_kernel_image_boot_flash_JTAG_or_FPGA_producer": "none",
+  "original_recorder": {
+    "error": "KitError: request outcome uncertain; inspect current state",
+    "passed": false,
+    "result_sha256": "c63d658b6a28af2c2a813510e6fa5a27d62006290e3244067de324327b66b094",
+    "seconds": 16.058
+  },
+  "overall_goal_complete": false,
+  "partially_drained_grant_case": "not forced/reproduced; Codex P1 remains open",
+  "physical_USB_audio_PR": "not-tested",
+  "post_observation": {
+    "fresh_BASIC_PRINT7_and_PRINT9_visually_checked": true,
+    "media_chooser_and_return_machine_focus": true,
+    "not_total_recovery_latency": true,
+    "owned_Stop_Home": true,
+    "passed": true,
+    "recovered_group_sha256": "52c0d946bfd1716d9e1b907a5bfc777e3565fe62666aec2e7b881de95e80cdf4",
+    "result_sha256": "f39e4c4665929d6b61aee156b7322bb49511f39a52837132536ab173b24c6eba",
+    "seconds": 45.905,
+    "stable_seconds_required": 10
+  },
+  "qualified_core_source": "a35f3207a668e87ac16a4edb6028ef554a2f8140",
+  "single_crash": {
+    "ack_sha256": "ab7e3c63a05114c711d25a6bdc4dd6539cb8fef470c0eb5a0c5e4046b9840539",
+    "allocation_generation": 19,
+    "owner_before_sha256": "f0af5c9688ce6ae8d827637fdba1d9050b8c6e6ce4412d76cc5d6facbee46dec",
+    "same_case_replayed": false,
+    "state_EXPOSED": true
+  },
+  "visual_sha256": {
+    "01-exposed-picker-before-crash.png": "3ab109474957378fd2f5aa67a91feda6164efd27da8ab010b99ba19804519006",
+    "02-fresh-relaunch7.png": "8ea2efef2dd5e146f3a97c78e6ee899d1b6f0e73c8f836717a148c2d7438db90",
+    "03-new-group-picker.png": "3ab109474957378fd2f5aa67a91feda6164efd27da8ab010b99ba19804519006",
+    "04-new-group-edit-run9.png": "76a8e9e45303644e46e2d1f7d661fbc3296b6a5284b1b6820b4eca98f5b4515f",
+    "05-returned-MENU.png": "8331395beeb2cf0dc3fbff78de84dd956b99987d5a3d4f76ba74cf810a485efb"
+  }
+}

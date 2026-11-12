@@ -1,0 +1,35 @@
+{
+  "baseline79-zx81d4": {
+    "different_bytes": 181,
+    "first": 434296,
+    "last": 720895,
+    "block_offsets": [
+      434176,
+      438272,
+      712704,
+      716800
+    ]
+  },
+  "baseline79-scanoutd4": {
+    "different_bytes": 182,
+    "first": 434296,
+    "last": 720895,
+    "block_offsets": [
+      434176,
+      438272,
+      712704,
+      716800
+    ]
+  },
+  "zx81d4-scanoutd4": {
+    "different_bytes": 181,
+    "first": 434296,
+    "last": 720895,
+    "block_offsets": [
+      434176,
+      438272,
+      712704,
+      716800
+    ]
+  }
+}

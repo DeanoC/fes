@@ -1,0 +1,20 @@
+{
+  "status": "passed",
+  "classification": "Independent software/source restoration and actual unpatched prepared-candidate reader; package fixture payload is test text and confers no FPGA or native admission",
+  "source_revision": "c1aa5e40bcb96a3e809bd40c32dd135e3e942a58",
+  "independent_git_objects": true,
+  "file_count": 33,
+  "archive_sha256": "c6e37069866b4926fbdaea12df454a9a10431299efa79d95776f8fb33ed52429",
+  "archive_size": 86794,
+  "source_bundle_sha256": "27ab2cbf8fb49d548404adf69155284b18e112a2241d94bd5258dd1705d9ceb2",
+  "unqualified_fixture_package_id": "041ac242968df826a8f6f6866bed7ef2f753c8f8a59bfdcb780773378577a2b2",
+  "matched_inputs": {
+    "ZX81": 577,
+    "MENU": 377,
+    "internal": 104,
+    "combined_compiler": 65,
+    "combined_runtime": 58
+  },
+  "seconds": 2.041,
+  "hardware_access": "not-performed"
+}

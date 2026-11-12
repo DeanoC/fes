@@ -1,0 +1,26 @@
+{
+  "source_revision": "5bf7346481ca2fad27c096da42962086c336177f",
+  "status": "passed",
+  "classification": "Native host production archive/daemon and programmer plus PR client unit suites",
+  "archive_audit": "passed, same production object/file-I/O boundaries",
+  "programmer_and_PR_suites": "passed",
+  "MMIO_adapter_suite": "passed8cases",
+  "static_kernel_contract_gate": "passed15preflightcases",
+  "four_overlay_formats_unchanged": true,
+  "files": {
+    "de25_fpga_manager_test.log": "d9b7e925ba2912af4f4f32e4974f6b8d7c381329afbbeb993da83f87917702bb",
+    "de25_pr_control_test.log": "59e0ae2b9dd07b4dddc656105a0b6336e374b202f2f6d746290fd73317ecb389",
+    "mmio_test.log": "1b3b19980235ae0284e1d5fbc486ed9a66f6f98bc69c5c1bcb8125f2c2b3cbc5",
+    "firmware.dtbo": "70b9d187c14899aed670d54d1f168a8f3490bb662bf825bbb6e53770bf27d445",
+    "allocated.dtbo": "6f23fc46db9ecaf90a78cf6a6d07b071c21e2ad51053ad524eee65b65c05a59d",
+    "static-base.dtbo": "6a94729f8be47b6d02ac0efbad1018e37dc36dc18c8ef9fdbf0361016b8f2423",
+    "static-persona.dtbo": "8e26d409e02a0b0e592a36877ef8d5ff9fe45bccecb93ae679dd995d0b22d667",
+    "build/tests/unit/de25_fpga_manager_test": "07f8ba9a59df0232351fe9a84f8ed06ea189deb8c2d77a0ee3d6300e00a185b8",
+    "build/tests/unit/de25_pr_control_test": "a41a467e41807f02fc9cfe72e3cbc8730c26b6a0496d91d0aba39d25a512c5a3",
+    "build/tests/unit/mmio_test": "4d6825ea76517e5d03af2682a44703f5050a090397e0969e42d7bde82b1e72b3",
+    "build/mister-runtime": "38ae5336f46ed301320b803592e31f7e437ecbd108ec2ad0c944bebb17c47c68",
+    "build/libmister-runtime.a": "61da9bd853fe8d027cd196505f0c86296d952141c7254ea0fd16a231eedabe73"
+  },
+  "hardware_acceptance": false,
+  "production_static_selection": false
+}

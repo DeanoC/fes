@@ -1,0 +1,21 @@
+{
+  "classification": "pinned Terasic source inspection, not runtime evidence",
+  "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "facts": {
+    "base_region_path": "/fpga-region",
+    "manager_compatible": "intel,agilex5-soc-fpga-mgr",
+    "base_region_has_linux_bridge_list": false,
+    "smmu_compatible": "arm,smmu-v3",
+    "smmu_cells": 1
+  },
+  "source_files": {
+    "arch/arm64/boot/dts/intel/socfpga_agilex5.dtsi": "5c2177194265f5833e73e6985bc137eca3843a925a374a5647db36ad9052761d",
+    "arch/arm64/boot/dts/intel/socfpga_agilex5_de25_nano.dts": "1f07dfec8c98952311b6fefd446c7e8a661adf904f7ae56df1a33fd1694d349c",
+    "drivers/base/base.h": "6c5d902c7df3c52c72a82c51ec06ae7b86734e961d45590db94da43a9189d0ef",
+    "drivers/base/core.c": "7c656fc75af9bbe5b35e79be87940a337caffd7033d48fed0670a69bd2aa8212",
+    "drivers/base/platform.c": "deb56bde49fca1e12ec4e81fb7107713db3d3e8e6a953ddc6d8218c3d6dfc1c8",
+    "drivers/iommu/iommu.c": "771454df61e485c4bee163976f5c7a8123b064cb684fa79cdab00352220dc49c",
+    "drivers/of/overlay.c": "d6cb78d501af879d08261d198bc596d3536c56f4fcf6be56cd8fa1ece26c531a",
+    "drivers/fpga/of-fpga-region.c": "5dbc8e9bf7a2eb30fdd9db3491455cdbf4ec95a93feec4ca73665e8dc702da52"
+  }
+}

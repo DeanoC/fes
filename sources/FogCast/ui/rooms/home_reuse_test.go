@@ -10,6 +10,34 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
+func TestHomeInitialPictureAddsOneFamilyPerStep(t *testing.T) {
+	r := newRoom(t, examplePack(t, "example.fes-cores"), Options{Width: 1280, Height: 720})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	previous := 0
+	for step := 0; step < 20; step++ {
+		frame := r.Step(time.Now())
+		if err := r.Err(); err != nil {
+			t.Fatal(err)
+		}
+		n := 0
+		for _, hit := range frame.Hits {
+			if strings.HasPrefix(hit.ID, "family:") {
+				n++
+			}
+		}
+		if n > previous+1 {
+			t.Fatalf("one draw added %d family tiles; want at most one", n-previous)
+		}
+		if n == 4 {
+			return
+		}
+		previous = n
+	}
+	t.Fatal("initial Home picture did not finish")
+}
+
 func TestHomeRestartsPartialPictureOnChanges(t *testing.T) {
 	held := blockingLocalCores{fakeLocalCores: &fakeLocalCores{cores: []localcores.Core{{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true}}}, release: make(chan struct{})}
 	t.Cleanup(func() {

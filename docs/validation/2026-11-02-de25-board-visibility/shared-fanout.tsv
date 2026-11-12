@@ -1,0 +1,17 @@
+kind	source	sink
+async_reset	soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[1]	soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[1]
+async_reset	soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[1]	soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[0]
+async_reset	soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[1]	soc_inst|subsys_periph|fes_computer|fes_computer|video|request_sync[1]
+async_reset	soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[1]	soc_inst|subsys_periph|fes_computer|fes_computer|video|acknowledge
+async_reset	soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[1]	soc_inst|subsys_periph|fes_computer|fes_computer|video|request_sync[0]
+sync_data	soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[1]	soc_inst|subsys_periph|fes_computer|fes_computer|video|display_valid
+sync_data	soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[1]	soc_inst|subsys_periph|fes_computer|fes_computer|video|front
+sync_data	soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[1]	soc_inst|subsys_periph|fes_computer|fes_computer|video|front_rows[8]
+sync_data	soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[1]	soc_inst|subsys_periph|fes_computer|fes_computer|video|front_rows[7]
+sync_data	soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[1]	soc_inst|subsys_periph|fes_computer|fes_computer|video|front_rows[6]
+sync_data	soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[1]	soc_inst|subsys_periph|fes_computer|fes_computer|video|front_rows[5]
+sync_data	soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[1]	soc_inst|subsys_periph|fes_computer|fes_computer|video|front_rows[4]
+sync_data	soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[1]	soc_inst|subsys_periph|fes_computer|fes_computer|video|front_rows[3]
+sync_data	soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[1]	soc_inst|subsys_periph|fes_computer|fes_computer|video|front_rows[2]
+sync_data	soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[1]	soc_inst|subsys_periph|fes_computer|fes_computer|video|front_rows[1]
+sync_data	soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[1]	soc_inst|subsys_periph|fes_computer|fes_computer|video|front_rows[0]

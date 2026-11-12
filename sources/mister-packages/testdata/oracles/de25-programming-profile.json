@@ -1,0 +1,44 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "runtime_base_commit": "419331f2331d27739bde99115fa1bcfb016b3da6",
+    "file": "sources/libmister-runtime/src/native/generated/de25_nano_programming.hpp",
+    "header_sha256": "8591d34ef1341599043d7b721793f1b269b087f9dc52d6c584d80c14e020d556",
+    "note": "New consumer is regenerated in the same FES change as this record; the base commit identifies the preceding runtime, not a hardware acceptance claim."
+  },
+  "platform": "de25_nano",
+  "device": "A5EB013BB23BE4SCS",
+  "production_factory_enabled": true,
+  "profiles": [
+    {
+      "id": "de25-hps-first-v1",
+      "abi": {
+        "id": "fes.computer",
+        "major": 1
+      }
+    },
+    {
+      "id": "de25-linux-menu-v1",
+      "abi": {
+        "id": "fes.application",
+        "major": 1
+      }
+    },
+    {
+      "id": "de25-linux-computer-v1",
+      "abi": {
+        "id": "fes.computer",
+        "major": 1
+      }
+    },
+    {
+      "id": "de25-linux-static-computer-v1",
+      "abi": {
+        "id": "fes.computer",
+        "major": 1
+      }
+    }
+  ],
+  "factory_admission": "exact AArch64 board, existing exclusive lease, matched owner kernel receipt and DMA ABI3; hardware acceptance pending",
+  "static_factory_admission": "default off; ENABLE_DE25_STATIC=1, exact standard ZX81 format5 contract and matched cold-start owner kernel are required; physical qualification pending"
+}

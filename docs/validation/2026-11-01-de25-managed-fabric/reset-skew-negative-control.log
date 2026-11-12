@@ -1,0 +1,2 @@
+{"case":"reset_skew_phase_1_delay_0_mask_0","status":"pass","axi_bursts":8,"axi_beats":114,"full_frames_slot0":0,"full_frames_slot1":0,"ar_stall_cycles":1,"r_stall_cycles":0,"endpoint128_beats":114,"endpoint_error_beats":0,"max_pending_axi":7,"ram_storage_self_test_passed":true}
+FIFO reset-release edge mismatch at chain 0

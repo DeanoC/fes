@@ -708,7 +708,7 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
   - lockstep on RTL and on the netlist, with identical trace hashes;
   - test386 to POST;
   - a pc386 Quartus seal with every analysis met;
-  - a kit run on that seal (DOOM `-timedemo demo3` and the acceptance games), as the slice's own evidence. The merge gate's HIL stays N/A for pc386 (`AGENTS.md:32`), as the i386 doc says.
+  - a kit run on that seal (DOOM `-timedemo demo3`, the acceptance games and the WfW 3.11 kit acceptance, `M/docs/pc386-windows-corpus.md`), as the slice's own evidence. The merge gate's HIL stays N/A for pc386 (`AGENTS.md:32`), as the i386 doc says.
 
   The map report has no 276007/276004 warning for `ras.stack`, and a reset test shows no stack write while reset is asserted. Until S4 lands, the netlist lockstep evidence carries the existing lockstep/seal mismatch, and the PR says so.
 - **Measurement:** pc386 fit ALMs and slack, before and after. If it saves under 150 ALMs or loses Fmax, the PR closes with the record.

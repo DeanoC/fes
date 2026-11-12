@@ -1,0 +1,61 @@
+{
+  "argv": [
+    "qemu-system-aarch64",
+    "-machine",
+    "virt,gic-version=2",
+    "-accel",
+    "tcg,thread=single",
+    "-cpu",
+    "cortex-a53",
+    "-m",
+    "512M",
+    "-nographic",
+    "-no-reboot",
+    "-nic",
+    "none",
+    "-monitor",
+    "none",
+    "-kernel",
+    "/export/kernel/Image",
+    "-drive",
+    "file=/export/.boot-smoke-zk0iujmm/rootfs.img,if=none,id=root,format=raw",
+    "-device",
+    "virtio-blk-device,drive=root",
+    "-append",
+    "root=/dev/vda ro rootwait console=ttyAMA0,115200 init=/sbin/init fogcast_target_smoke=1"
+  ],
+  "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+  "checks": {
+    "dbus_ready": true,
+    "init_smoke_ready": true,
+    "readonly_root": true,
+    "volatile_tmpfs": true
+  },
+  "classification": "aarch64-image-packaging-boot",
+  "format": 1,
+  "hardware_acceptance": "not-run",
+  "image": {
+    "architecture": "aarch64",
+    "board": "de25-nano",
+    "classification": "managed-factory-candidate",
+    "fes_revision": "e212fd51c0de96bf660207bf0c96a0e1355eed4d",
+    "inputs_sha256": "b316e0af7252677eec6007fb339b46c5c61dcf05a4c8a5c9f216a56d61631d85",
+    "kernel_sha256": "9ac6c330019fb77d853be835f82f7b9fe8e2e0187ce5610a7b4bae82cf2df91f",
+    "profile": "managed-factory",
+    "recipe_sha256": "1d5a254894b0a7c3f69372298f23ae2ea41aae05cd5f8bf2d3a07aaf312d6646",
+    "rootfs_sha256": "d11a2284af6409c8963a5fb20ac29f60a3e39ecb2f2660732708182ea0fff1ea"
+  },
+  "normal_runtime_admission": "closed",
+  "observation_seconds": 45,
+  "producer_revision": "e212fd51c0de96bf660207bf0c96a0e1355eed4d",
+  "qemu": {
+    "executable_sha256": "7148d1e6c8587f9b017dbcd2ab6d18eb9b84d20ef5284e0c4915b614c8a61b31",
+    "version": "QEMU emulator version 7.2.22 (Debian 1:7.2+dfsg-7+deb12u18+b3)"
+  },
+  "qemu_log_sha256": "d20b4eac9fcf953c055e2e1cac857e09d00e2ea357c5eddf228f543d7798b98c",
+  "recipe_sha256": "0e467102cf68a9ccf562f53b004ad0d3a2d54aed6aa84e77db0ec436ce994a12",
+  "termination": {
+    "reason": "observation-complete",
+    "returncode": 0
+  }
+}

@@ -4,13 +4,23 @@ Development lives in the FES repository under `sources/mister-packages`.
 The former standalone repository is archived.
 
 This module owns shared board/SoC/MMIO definitions, FES ABI contracts,
-programming-profile declarations, format-2/3/4 package schemas and conformance
+programming-profile declarations, format-2/3/4/5 package schemas and conformance
 fixtures. Go emitters generate C, C++14, Go and Verilog consumers. FES runs
 `make generate` and `make check-generated` across the tracked modules.
 
+Format5 describes a DE25 cold-start base plus its default empty partial persona.
+The three exact members, controller identity and frozen-root bindings are
+specified in [the schema guide](docs/schema.md#static-expansion-package-format-5).
+The shared Go/C++/Python structural fixtures do not qualify a physical partial
+configuration. The static programming pair is declared; runtime admission stays
+disabled by default and requires its explicit qualification build flag.
+
 Standalone board definitions support `validate` and `report`, independently of
 SoC and CPU definitions. DE25-Nano starts with descriptive FPGA bring-up pins;
-it has no platform, programming profile or runtime admission yet. Board metadata
+the DE25 programming registry declares the BRAM computer, allocated MENU and
+standard allocated-session and static-startup computer pairs. The standard profile is
+`de25-linux-computer-v1`; runtime admission requires its exact ZX81 contract,
+without a reserved HPS DDR window. These rows do not qualify a hardware package. Board metadata
 does not emit Quartus constraints. For example, from this module:
 
 ```sh
@@ -31,14 +41,18 @@ allocation. It adds no production runtime or GP interface.
 [`fes.fabric.de25-scanout`](packages/fabric/fes_fabric_de25_scanout.yaml) adds
 the separate allocated-buffer display diagnostic. [DE25 scanout](docs/de25-scanout.md)
 specifies coherent snapshots, accepted/current/displayed identities, slot
-ownership and cross-clock drain/reset limits. It grants no hardware admission.
+ownership and cross-clock drain/reset limits. Version1.3 retains the first
+underflow's raster, reader occupancy and maximum request/response gaps through
+STOP and drain. It grants no hardware admission.
 
 [`fes.fabric.de25-computer`](packages/fabric/fes_fabric_de25_computer.yaml)
 defines the standalone HPS-to-ZX81 command transport. [DE25 computer](docs/de25-computer.md)
 describes atomic GPO submission, retained ACK state, keyboard/tape delivery and
 permanent fault containment. Its generated C++ consumer also serves the
 scripted-register native runtime diagnostic client. It adds no runtime
-programming or MMIO admission.
+programming or MMIO admission. Its Go consumer gives FogCast the same exact
+16,375-byte BRAM tape limit; the agent binds that report to the DE25 target
+instead of applying another computer's 16,384-byte window.
 
 The fabric-only `emit-c` command supplies standalone constant headers for C
 consumers such as the DE25 kernel diagnostic. From this module:
@@ -69,11 +83,21 @@ MiSTer programming/ABI pair are retired. Format-2 structural fixtures may
 still describe arbitrary ABIs; syntax validity does not confer activation
 support. Historical oracle records remain provenance.
 
+The DE25 registry pairs `de25-hps-first-v1` with `fes.computer` major1 and
+`de25-linux-menu-v1` with `fes.application` major1 on the SCS board part.
+Runtime preflight requires explicit DE25 selection and either the exact BRAM
+computer contract or MENU's fixed-video/menu-display/scanout1.3 contract.
+The latter uses kernel-allocated coherent DMA, not a boot-latched HPS DDR window.
+Metadata never selects a hardware backend or establishes hardware acceptance.
+The production factory separately checks the board, lease, kernel receipt and
+owner ABI3. C++ profile row types include their platform prefix.
+
 The runtime owns physical programming and compatibility admission; FogCast
 owns library/session context; misteross owns source builds and RBF provenance.
 Shared persistence layouts and wire contracts remain here.
 
-Run `make test` with Python `jsonschema` available and Go installed.
+Run `make test` with Go and the Python dependencies from
+`requirements-test.txt` installed.
 Use `make fixtures` to regenerate canonical fixtures and `make check-fixtures`
 to verify them. See [schema](docs/schema.md),
 [application I/O](docs/application-io.md), [home-computer I/O](docs/computer-io.md)
@@ -117,3 +141,7 @@ seed, and the `fes.ata-disk.delta` chunk record in [media data](docs/media-data.
 [PC/XT ISA fabric](docs/pcxt-isa.md) defines the internal byte-transaction
 prepare/commit boundary for PC/XT expansion development. Its generated Verilog
 consumer adds no GP capability, physical layout or activation support.
+
+DE25 computer fabric1.1 exposes board-owned HDMI readiness at offset24. The
+single synchronized bit gates managed Start; it confers no physical video or
+production construction acceptance. See docs/de25-computer.md.

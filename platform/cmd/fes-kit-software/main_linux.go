@@ -553,6 +553,10 @@ func supervise(ctx context.Context, output io.Writer) error {
 				if err != nil {
 					server.StorageError = err.Error()
 				} else {
+					// Trial processes captured unavailable storage at startup. The
+					// admitted successor must reopen the agent library and kit host,
+					// including a held-back selection using the same factory.
+					engine.TrialStorageRefreshRequest = trialSuccessor.Request.ID
 					trialHold = nil
 					trialSuccessor = kitsoftware.SuccessorHold{}
 					server.StorageError = ""

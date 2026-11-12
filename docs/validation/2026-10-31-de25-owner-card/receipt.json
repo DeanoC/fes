@@ -1,0 +1,18 @@
+{
+  "board": "TRWU8J8G",
+  "device": "/dev/sda",
+  "expected_capacity": 62534975488,
+  "image_sha256": "de2a9a4ca35214ab75230d5807a0a8900d99f7869e1346c83f4e41bce0853138",
+  "image_bytes": 3984588800,
+  "started_utc": "2026-10-31T17:10:28.996845+00:00",
+  "time_cap_seconds": 1800,
+  "source_revision": "d64ced1eabf3e514626cd8563e6cb68dba68e3d0",
+  "backup": "/home/deano/kit-status/rollback/de25-TRWU8J8G-before-owner-20261031/baseline.img",
+  "flash_changed": false,
+  "state": "passed",
+  "elapsed_seconds": 779.5,
+  "bytes_done": 3984588800,
+  "baseline_sha256": "9daa6788aff7e07857e3e7a0c349b56b1ae8af1793437837c16169942f63ccfb",
+  "baseline_backup_verified": true,
+  "readback_sha256": "de2a9a4ca35214ab75230d5807a0a8900d99f7869e1346c83f4e41bce0853138"
+}

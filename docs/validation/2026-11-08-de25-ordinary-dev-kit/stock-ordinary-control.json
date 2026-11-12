@@ -1,0 +1,24 @@
+{
+  "success": true,
+  "kernel_software_source": "ecaefd4af2bf202b94b558e4f3545249c309712f",
+  "package_producer": "8af614f4d95e71a00e63974c73e3d8f80e1a681a",
+  "source_head": "deb20fb1909a004afbd662c79191c759c95c7e96",
+  "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+  "static_expansion": false,
+  "package_id": "3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776",
+  "core_build_id": "490c1ae5f0636db2c0ffdcda713c44c1",
+  "boot_id": "edf31a81-ffd7-4abd-80d2-3d3f89af59c4",
+  "steps": [
+    "entry",
+    "launch-intent",
+    "launch-response",
+    "active",
+    "ramtop128",
+    "basic7",
+    "basic9",
+    "reload7",
+    "stop",
+    "idle-after",
+    "complete"
+  ]
+}

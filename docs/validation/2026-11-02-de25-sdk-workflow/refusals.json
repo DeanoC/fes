@@ -1,0 +1,209 @@
+{
+  "cases": [
+    {
+      "command": [
+        "make",
+        "kit-sdk",
+        "BOARD=de25-nano"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-sdk-workflow-1fdc544b6",
+      "expected_refusal": "requires DE25_IMAGE=",
+      "name": "make-sdk-missing-image",
+      "returncode": 2,
+      "stderr": "Makefile:161: *** kit-sdk BOARD=de25-nano requires DE25_IMAGE=/absolute/verified-image.  Stop.\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "make",
+        "kit-sdk",
+        "BOARD=unknown-board"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-sdk-workflow-1fdc544b6",
+      "expected_refusal": "unsupported BOARD=",
+      "name": "make-sdk-foreign-board",
+      "returncode": 2,
+      "stderr": "Makefile:164: *** kit-sdk: unsupported BOARD=unknown-board.  Stop.\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "make",
+        "kit-sdk",
+        "DE25_IMAGE=/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-sdk-workflow-1fdc544b6",
+      "expected_refusal": "requires BOARD=de25-nano",
+      "name": "make-sdk-default-with-de25-image",
+      "returncode": 2,
+      "stderr": "Makefile:165: *** DE25_IMAGE/KIT_SDK_DE25_IMAGE requires BOARD=de25-nano.  Stop.\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/kit_sdk.py",
+        "--de25-image",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-sdk-workflow-1fdc544b6",
+      "expected_refusal": "requires --board de25-nano",
+      "name": "sdk-image-without-explicit-board",
+      "returncode": 1,
+      "stderr": "kit-sdk: DE25 SDK selection requires --board de25-nano and --de25-image together; use make kit-sdk for DE10\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/kit_sdk.py",
+        "--board",
+        "de25-nano",
+        "--de25-image",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/refusal-fixtures-retry/missing"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-sdk-workflow-1fdc544b6",
+      "expected_refusal": "missing or ambiguous image receipts",
+      "name": "sdk-missing-receipt",
+      "returncode": 1,
+      "stderr": "kit-sdk: DE25 SDK directory has missing or ambiguous image receipts\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/kit_sdk.py",
+        "--board",
+        "de25-nano",
+        "--de25-image",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/refusal-fixtures-retry/ambiguous"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-sdk-workflow-1fdc544b6",
+      "expected_refusal": "missing or ambiguous image receipts",
+      "name": "sdk-ambiguous-receipts",
+      "returncode": 1,
+      "stderr": "kit-sdk: DE25 SDK directory has missing or ambiguous image receipts\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "make",
+        "kit-software",
+        "DE25_IMAGE=/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base",
+        "KIT_SOFTWARE_BASE=/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base/rootfs.ext4",
+        "KIT_SOFTWARE_BASE_SHA256=2bc0aaf4a0e6eb599b5278c12b8852a704daf010eb3c2178e63d44c0d7628d06",
+        "KIT_SOFTWARE_VERSION=de25-sdk-refusal",
+        "KIT_SOFTWARE_OUTPUT=/home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/refused-software"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-sdk-workflow-1fdc544b6",
+      "expected_refusal": "requires --board de25-nano and --de25-image together",
+      "name": "software-foreign-board",
+      "returncode": 2,
+      "stderr": "kit-software: DE25 software requires --board de25-nano and --de25-image together\nmake: *** [Makefile:187: kit-software] Error 1\n",
+      "stdout": "python3 scripts/kit_software.py --base \"/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base/rootfs.ext4\" --base-sha256 \"2bc0aaf4a0e6eb599b5278c12b8852a704daf010eb3c2178e63d44c0d7628d06\" --version \"de25-sdk-refusal\" --output \"/home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/refused-software\" --board \"de10-nano\" --de25-image \"/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base\"\n"
+    },
+    {
+      "command": [
+        "make",
+        "kit-software",
+        "BOARD=de25-nano",
+        "KIT_SOFTWARE_BASE=/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base/rootfs.ext4",
+        "KIT_SOFTWARE_BASE_SHA256=2bc0aaf4a0e6eb599b5278c12b8852a704daf010eb3c2178e63d44c0d7628d06",
+        "KIT_SOFTWARE_VERSION=de25-sdk-refusal",
+        "KIT_SOFTWARE_OUTPUT=/home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/refused-software"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-sdk-workflow-1fdc544b6",
+      "expected_refusal": "requires --board de25-nano and --de25-image together",
+      "name": "software-missing-sdk-source",
+      "returncode": 2,
+      "stderr": "kit-software: DE25 software requires --board de25-nano and --de25-image together\nmake: *** [Makefile:187: kit-software] Error 1\n",
+      "stdout": "python3 scripts/kit_software.py --base \"/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base/rootfs.ext4\" --base-sha256 \"2bc0aaf4a0e6eb599b5278c12b8852a704daf010eb3c2178e63d44c0d7628d06\" --version \"de25-sdk-refusal\" --output \"/home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/refused-software\" --board \"de25-nano\" \n"
+    },
+    {
+      "command": [
+        "go",
+        "run",
+        "./cmd/fes-kit-bundle",
+        "verify-directory",
+        "--root",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/runtime-source-1fdc544b6/source/image/build/software/base/usr/share/fes/software",
+        "--base",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/runtime-source-1fdc544b6/source/image/build/software/base/etc/fes/software-base.json"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-sdk-workflow-1fdc544b6/sources/FogCast",
+      "expected_refusal": "missing factory software directory",
+      "name": "actual-intermediate-factory-admission",
+      "returncode": 1,
+      "scope": "Actual lower-level pack_update factory gate; complete public software build not run",
+      "stderr": "lstat /home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/runtime-source-1fdc544b6/source/image/build/software/base/usr/share/fes/software: no such file or directory\nexit status 1\n",
+      "stdout": ""
+    }
+  ],
+  "classification": "Actual independent selection/receipt refusals and real intermediate factory admission refusal; no complete bundle build",
+  "factory_manifest_present": false,
+  "first_attempt": {
+    "classification": "Proof assertion expected manifest path but actual first gate refused its absent parent software directory; application behavior unchanged",
+    "job": "refusals-job"
+  },
+  "hardware_access": "not-performed",
+  "make_dry_runs": [
+    {
+      "classification": "Make selection/forwarding only",
+      "command": [
+        "make",
+        "--dry-run",
+        "kit-sdk"
+      ],
+      "stdout": "set -eu; \\\n  TARGET_IMAGE_CONTAINER_RUNTIME=\"docker\"; \\\n  export TARGET_IMAGE_CONTAINER_RUNTIME; \\\n  output_volume=\"fogcast-kit-sdk-$(python3 -c 'import uuid; print(uuid.uuid4().hex)')\"; \\\n  cleanup() { \"$TARGET_IMAGE_CONTAINER_RUNTIME\" volume rm \"$output_volume\" >/dev/null 2>&1 || :; }; \\\n  cleanup_once() { trap - EXIT INT TERM; cleanup; }; \\\n  trap cleanup_once EXIT; \\\n  trap 'exit 130' INT; \\\n  trap 'exit 143' TERM; \\\n  TARGET_IMAGE_OUTPUT_VOLUME=\"$output_volume\" \\\n    sh image/scripts/build-target-image.sh --ensure-kit-sdk\n"
+    },
+    {
+      "classification": "Make selection/forwarding only",
+      "command": [
+        "make",
+        "--dry-run",
+        "kit-sdk",
+        "BOARD=de25-nano",
+        "DE25_IMAGE=/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base"
+      ],
+      "stdout": "python3 scripts/kit_sdk.py --board \"de25-nano\" --de25-image \"/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base\"\n"
+    },
+    {
+      "classification": "Make selection/forwarding only",
+      "command": [
+        "make",
+        "--dry-run",
+        "kit-software",
+        "BOARD=de25-nano",
+        "DE25_IMAGE=/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base",
+        "KIT_SOFTWARE_BASE=/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base/rootfs.ext4",
+        "KIT_SOFTWARE_BASE_SHA256=2bc0aaf4a0e6eb599b5278c12b8852a704daf010eb3c2178e63d44c0d7628d06",
+        "KIT_SOFTWARE_VERSION=de25-sdk-refusal",
+        "KIT_SOFTWARE_OUTPUT=/home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/refused-software"
+      ],
+      "stdout": "python3 scripts/kit_software.py --base \"/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base/rootfs.ext4\" --base-sha256 \"2bc0aaf4a0e6eb599b5278c12b8852a704daf010eb3c2178e63d44c0d7628d06\" --version \"de25-sdk-refusal\" --output \"/home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/refused-software\" --board \"de25-nano\" --de25-image \"/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base\"\n"
+    },
+    {
+      "classification": "Make selection/forwarding only",
+      "command": [
+        "make",
+        "--dry-run",
+        "kit-software",
+        "BOARD=de25-nano",
+        "KIT_SOFTWARE_BOARD=de10-nano",
+        "KIT_SOFTWARE_DE25_IMAGE=",
+        "KIT_SOFTWARE_BASE=/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base/rootfs.ext4",
+        "KIT_SOFTWARE_BASE_SHA256=2bc0aaf4a0e6eb599b5278c12b8852a704daf010eb3c2178e63d44c0d7628d06",
+        "KIT_SOFTWARE_VERSION=de25-sdk-refusal",
+        "KIT_SOFTWARE_OUTPUT=/home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/refused-software"
+      ],
+      "stdout": "python3 scripts/kit_software.py --base \"/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base/rootfs.ext4\" --base-sha256 \"2bc0aaf4a0e6eb599b5278c12b8852a704daf010eb3c2178e63d44c0d7628d06\" --version \"de25-sdk-refusal\" --output \"/home/deano/fes/out/dev/de25-managed-image/out/de25-sdk-workflow/refused-software\" --board \"de10-nano\" \n"
+    }
+  ],
+  "original_inputs_unchanged": {
+    "aarch64-sdk.tar.gz": "d5bac20323fe6225b984e5a0f35ac087bfb4379dca2b40245e4eab97bd019bf7",
+    "base.json": "70dc18e1fe4d45ea4c58825f046a287c4799d784caa65b63ae2287dc84e11e40",
+    "kernel/Image": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b",
+    "rootfs.ext4": "2bc0aaf4a0e6eb599b5278c12b8852a704daf010eb3c2178e63d44c0d7628d06"
+  },
+  "source_revision": "1fdc544b61d934c31bffd18b38de39c925a94d53"
+}

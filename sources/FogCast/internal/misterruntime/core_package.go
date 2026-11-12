@@ -44,18 +44,19 @@ type Protocol2Observed struct {
 }
 
 // Protocol2ActivePackage reports the running package. The runtime carries a
-// single-socket v1 tuple or a multi-slot v2 tuple under the same composition
-// key; SlotComposition holds the v2 form and Composition the v1 form.
+// single-socket, multi-slot, parts or static two-image tuple under the same
+// composition key. Exactly one typed receipt may be present.
 type Protocol2ActivePackage struct {
-	PartsComposition *expansion.PartsComposition   `json:"-"`
-	ROMLink          *corepackage.ROMLinkIdentity  `json:"rom_link,omitempty"`
-	ROMLinks         *corepackage.ROMLinksIdentity `json:"rom_links,omitempty"`
-	Composition      *expansion.Composition        `json:"composition,omitempty"`
-	SlotComposition  *expansion.SlotComposition    `json:"-"`
-	PersistenceMode  string                        `json:"persistence_mode,omitempty"`
-	PackageID        string                        `json:"package_id"`
-	Descriptor       corepackage.Descriptor        `json:"descriptor"`
-	Observed         Protocol2Observed             `json:"observed"`
+	StaticComposition *expansion.StaticComposition  `json:"-"`
+	PartsComposition  *expansion.PartsComposition   `json:"-"`
+	ROMLink           *corepackage.ROMLinkIdentity  `json:"rom_link,omitempty"`
+	ROMLinks          *corepackage.ROMLinksIdentity `json:"rom_links,omitempty"`
+	Composition       *expansion.Composition        `json:"composition,omitempty"`
+	SlotComposition   *expansion.SlotComposition    `json:"-"`
+	PersistenceMode   string                        `json:"persistence_mode,omitempty"`
+	PackageID         string                        `json:"package_id"`
+	Descriptor        corepackage.Descriptor        `json:"descriptor"`
+	Observed          Protocol2Observed             `json:"observed"`
 }
 
 type protocol2ActivePackageWire struct {
@@ -73,8 +74,10 @@ func (p Protocol2ActivePackage) MarshalJSON() ([]byte, error) {
 		PackageID: p.PackageID, Descriptor: p.Descriptor, Observed: p.Observed}
 	var err error
 	switch {
-	case (p.Composition != nil && p.SlotComposition != nil) || (p.PartsComposition != nil && (p.Composition != nil || p.SlotComposition != nil)):
+	case (p.StaticComposition != nil && (p.Composition != nil || p.SlotComposition != nil || p.PartsComposition != nil)) || (p.Composition != nil && p.SlotComposition != nil) || (p.PartsComposition != nil && (p.Composition != nil || p.SlotComposition != nil)):
 		return nil, errors.New("active package carries two composition forms")
+	case p.StaticComposition != nil:
+		wire.Composition, err = json.Marshal(p.StaticComposition)
 	case p.PartsComposition != nil:
 		wire.Composition, err = json.Marshal(p.PartsComposition)
 	case p.Composition != nil:
@@ -106,7 +109,13 @@ func (p *Protocol2ActivePackage) UnmarshalJSON(data []byte) error {
 		}
 		strict := json.NewDecoder(bytes.NewReader(wire.Composition))
 		strict.DisallowUnknownFields()
-		if _, parts := probe["parts"]; parts {
+		if _, static := probe["base_sha256"]; static {
+			var value expansion.StaticComposition
+			if err := strict.Decode(&value); err != nil {
+				return err
+			}
+			result.StaticComposition = &value
+		} else if _, parts := probe["parts"]; parts {
 			var value expansion.PartsComposition
 			if err := strict.Decode(&value); err != nil {
 				return err

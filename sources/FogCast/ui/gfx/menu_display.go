@@ -73,6 +73,10 @@ type MenuPresentTrace struct {
 	// Retried means a shortcut was refused and the frame went again with a
 	// fresh status and complete pixels.
 	Retried bool
+	// RetryFromError and RetryFromTiming retain the refused first attempt.
+	// Err, Timing and Presented still describe the final worker outcome.
+	RetryFromError  string
+	RetryFromTiming menudisplay.Timing
 	// Blitted means the blitter drew the frame from a command list.
 	Blitted bool
 }
@@ -509,7 +513,8 @@ func idleHandoffError(settled, presented bool, err error) error {
 
 // Pause prevents new submissions, discards queued frames, forgets the last
 // submitted frame, clears change-driven backoff, and waits for the current
-// runtime transaction to finish before a game mutation begins.
+// runtime transaction to finish before releasing the client's grant mapping.
+// A retained mapping can pin a kernel-owned allocation even after DMA drains.
 func (d *MenuDisplay) Pause(ctx context.Context) error {
 	return d.pause(ctx, false)
 }
@@ -543,14 +548,29 @@ func (d *MenuDisplay) pause(ctx context.Context, keepReadyWhileLaunchPending boo
 	flight := d.flight
 	d.mu.Unlock()
 	if flight == nil {
-		return nil
+		return d.releasePausedWindow()
 	}
 	select {
 	case <-flight:
-		return nil
+		return d.releasePausedWindow()
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func (d *MenuDisplay) releasePausedWindow() error {
+	release, ok := d.client.(interface{ ReleaseWindow() error })
+	if !ok {
+		return nil
+	}
+	// Keep Resume from starting a new frame between checking the paused state
+	// and releasing its mapping. The worker clears flight before signalling.
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if !d.paused || d.flight != nil || d.closed {
+		return errors.New("menu display resumed or closed before pause completed")
+	}
+	return release.ReleaseWindow()
 }
 
 // InvalidateSoftwareReady clears idle-launcher readiness after an accepted
@@ -616,6 +636,8 @@ func (d *MenuDisplay) run() {
 			var status menudisplay.Status
 			var err error
 			var result menudisplay.Result
+			var retryFromError string
+			var retryFromTiming menudisplay.Timing
 			var statusUS, presentUS int64
 			presented, genChanged, cached, retried, blitted := false, false, false, false, false
 			statusSkipped := false
@@ -657,6 +679,8 @@ func (d *MenuDisplay) run() {
 					// A shortcut's assumption no longer holds, for example a
 					// new generation or another frame on screen. Ask the
 					// runtime and send the complete frame once.
+					retryFromError, retryFromTiming = err.Error(), result.Timing
+					result = menudisplay.Result{}
 					d.mu.Lock()
 					d.dropShortcutsLocked()
 					d.mu.Unlock()
@@ -701,7 +725,8 @@ func (d *MenuDisplay) run() {
 				trace := MenuPresentTrace{Seq: frame.seq, Queued: frame.queuedAt, Presented: presented,
 					FrameCopyUS: frame.copyUS, QueueWaitUS: started.Sub(frame.queuedAt).Microseconds(),
 					StatusUS: statusUS, PresentUS: presentUS, Timing: result.Timing,
-					StatusSkipped: statusSkipped, DamageRects: damageRects, Retried: retried, Blitted: presented && blitted}
+					StatusSkipped: statusSkipped, DamageRects: damageRects, Retried: retried, Blitted: presented && blitted,
+					RetryFromError: retryFromError, RetryFromTiming: retryFromTiming}
 				if err != nil {
 					trace.Err = err.Error()
 				}

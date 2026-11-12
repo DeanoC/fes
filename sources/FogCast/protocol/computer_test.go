@@ -309,6 +309,26 @@ func TestZx81TapeProjection(t *testing.T) {
 	}
 }
 
+func TestDE25Zx81TapeProjectionAndReportedLimit(t *testing.T) {
+	descriptor := apple2Descriptor(corepackage.Interface{ID: "fes.media.zx81-tape", Major: 1, Required: true})
+	descriptor.Core.ID = "fes.zx81"
+	descriptor.Target = corepackage.Target{Platform: "de25_nano", Device: "A5EB013BB23BE4SCS", ProgrammingProfile: "de25-hps-first-v1"}
+	capabilities := DeclaredCoreMediaCapabilities(descriptor)
+	if len(capabilities) != 1 || capabilities[0].MaxBytes != 16375 {
+		t.Fatalf("DE25 library admission lost the BRAM limit: %+v", capabilities)
+	}
+	unit := MediaUnitStatus{Unit: Zx81TapeUnit, Interface: Zx81TapeInterface(), MinBytes: 1, MaxBytes: 16375, ChunkBytes: 512, State: MediaUnitReady}
+	if !unit.Valid() {
+		t.Fatal("known DE25 tape limit was rejected")
+	}
+	for _, size := range []uint32{16374, 16376, 16385} {
+		unit.MaxBytes = size
+		if unit.Valid() {
+			t.Fatalf("unknown tape capacity accepted: %d", size)
+		}
+	}
+}
+
 func TestZx80TapeProjection(t *testing.T) {
 	descriptor := apple2Descriptor(corepackage.Interface{ID: "fes.media.zx81-tape", Major: 1, Required: true})
 	descriptor.Core.ID = "fes.zx80"

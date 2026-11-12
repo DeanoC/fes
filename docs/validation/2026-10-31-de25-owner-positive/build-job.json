@@ -1,0 +1,9 @@
+{
+  "container": "fes-de25-owner-kernel-cb4f78bc5cf9ae8d",
+  "elapsed_seconds": 235.8,
+  "heartbeat_utc": "2026-10-31T16:23:31.754177+00:00",
+  "pid": 3610500,
+  "returncode": 0,
+  "state": "passed",
+  "time_cap_seconds": 7200
+}

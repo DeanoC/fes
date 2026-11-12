@@ -1,0 +1,109 @@
+{
+  "classification": "retained exact build and physical diagnostic evidence",
+  "files": {
+    "/home/deano/fes/out/artifacts/de25-owner-bus/8e7479d48/board-kernel/Image": {
+      "sha256": "01357da8a2f9971cb3bf9e7f99bd176bea46a893554d7b1c5364339310fe9b9b",
+      "size": 46701056
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/8e7479d48/board-kernel/System.map": {
+      "sha256": "b5be970af7e00a0a83bb11725b6b05f3d9de33dd4abcb7389efc6860fcad15f5",
+      "size": 7649154
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/8e7479d48/board-kernel/build-job.json": {
+      "sha256": "1f3bdb53a68846b50a4977034c8c39fe181cc205a4a16d32fd6af29ff17924c3",
+      "size": 228
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/8e7479d48/board-kernel/config.diff": {
+      "sha256": "eaf220e36611d7cfde66cb8bb7e499e3277f11ef9fcbd9e3f8147627eadc4d8a",
+      "size": 2673
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/8e7479d48/board-kernel/de25-owner.dtb": {
+      "sha256": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7",
+      "size": 28907
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/8e7479d48/board-kernel/inputs.json": {
+      "sha256": "470cc933d5fb420439dd41cf19e0fe7c677162750314abe53e8f4859eac01d10",
+      "size": 3358
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/8e7479d48/board-kernel/kernel-build.json": {
+      "sha256": "e37713056075830c3e51445704e5637c195b056dce26b2f301e73bc6cc7debcd",
+      "size": 3089
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/8e7479d48/board-kernel/kernel.config": {
+      "sha256": "cec5f0d7e0713a6cb7082402e4cbbfa9bd5893569d6893c076ea0766751d253e",
+      "size": 301866
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/8e7479d48/board-kernel/vmlinux.symvers": {
+      "sha256": "46c30ddfe0c980f2cf6bb1aa10b71362d9dcbec75a564e3df2590d3083e747a1",
+      "size": 793261
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/boot-contract.json": {
+      "sha256": "94ec9b263d9f43fca9dabee2c5a41ab2b93a5c1b4b5958d143d84d32761e7b3f",
+      "size": 4640
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/boot/Image": {
+      "sha256": "01357da8a2f9971cb3bf9e7f99bd176bea46a893554d7b1c5364339310fe9b9b",
+      "size": 46701056
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/boot/boot.scr.uimg": {
+      "sha256": "b38747a4b43abcc04d84b8f46ea514594e9cc59c8188633e4d24ba36da3728ef",
+      "size": 1783
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/boot/factory-boot/golden_top_hps.jic": {
+      "sha256": "e3d20c2d066761fd02897422ba361aa19faafcd0240dd2782965754cc61b38a4",
+      "size": 16777447
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/boot/factory-boot/resource-golden_top_hps.sof": {
+      "sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+      "size": 1480451
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/boot/factory-boot/vendor-readme.txt": {
+      "sha256": "bb81c63795a18a22f30001eed7a2bd4acea2704d1ebed20c4ad60092001eb5cc",
+      "size": 1127
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/boot/socfpga_agilex5_de25_nano.dtb": {
+      "sha256": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7",
+      "size": 28907
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/boot/u-boot.itb": {
+      "sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+      "size": 1013832
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/boot/vendor-boot-prefix.bin": {
+      "sha256": "1921be6517aa3b38dc4379b409f8d00ccd05c1c65aec0629796b57141b76f662",
+      "size": 315621888
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/build-job.json": {
+      "sha256": "6808a134e5f66b7b45a80808b671c6712ae26573e52b77895ae52e3cacc92323",
+      "size": 226
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/fes-de25-owner.img": {
+      "sha256": "4e54546fd81a2c5f054a14eac635900c56dea5baa2891434d19cb43bbbfafe37",
+      "size": 3984588800
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/first-boot-expectation.json": {
+      "sha256": "920ab67f92076e47ffc9ec5e36fab5c8df37a650ff2f058617e2b5ed4a8d4e8f",
+      "size": 6046
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/owner-image.json": {
+      "sha256": "f6d3075a46142e0884d1363c42077cad49e32d1ebb825f8561696d9518601e3c",
+      "size": 9607
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/rootfs.ext4": {
+      "sha256": "ac1f6fb0c39d3196a431a4383188a8cbf986b8b9144509ff9934632fd7f6bb2e",
+      "size": 134217728
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/rootfs.tar": {
+      "sha256": "74e3280f183235c3a25c62b07be1ebfafd8a444aab236cc46ac9e3e0ad40a996",
+      "size": 5908480
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/tools.json": {
+      "sha256": "183bac4c2e57106d9d7ceb37f33fac4da0015a2286f8dfc89eb339af4bea525b",
+      "size": 134
+    },
+    "/home/deano/fes/out/artifacts/de25-owner-bus/mdev-final/candidate/verify.json": {
+      "sha256": "7f2dd6b2fd4c1b13cd9f2a47a8274bff4b9cea823b5b293dfd1094adf1dac947",
+      "size": 275
+    }
+  }
+}

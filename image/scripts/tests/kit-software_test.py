@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import hashlib
 import importlib.util
 import json
 import os
@@ -84,6 +85,13 @@ class SoftwareABI(unittest.TestCase):
                     menu(root, bad)
                     with self.assertRaises(ValueError):
                         software.menu_requirements(root)
+            menu(root, [('fes.video.menu-display', 1, 0, True)])
+            selected = root / 'usr/share/mister-runtime/core-packages' / ('d' * 64) / 'manifest.toml'
+            original = selected.read_text()
+            for wrong in ('target = "de10_nano"', 'target = []'):
+                selected.write_text(original.replace('[target]\nplatform = "de10_nano"', wrong))
+                with self.assertRaisesRegex(ValueError, 'target differs'):
+                    software.menu_requirements(root)
             (root / software.MENU_SELECTION).write_text("package_id = '../escape'\n")
             with self.assertRaisesRegex(ValueError, 'invalid menu package selection'):
                 software.menu_requirements(root)
@@ -125,6 +133,59 @@ class SoftwareABI(unittest.TestCase):
         self.assertEqual(software.unmet(provides, {'menu.a': '1.3', 'menu.b': '1.0', 'menu.d': '1.0'}),
                          ['menu.a 1.3', 'menu.b 1.0', 'menu.d 1.0'])
 
+    def test_de25_scanout_requires_exact_minor(self):
+        key = 'menu.fes.fabric.de25-scanout'
+        self.assertEqual(software.unmet({key: '1.3'}, {key: '1.3'}), [])
+        for have, need in [('1.3', '1.2'), ('1.2', '1.3'), ('1.4', '1.3')]:
+            self.assertEqual(software.unmet({key: have}, {key: need}), [key + ' ' + need])
+        # Other MENU contracts retain their existing additive minor semantics.
+        self.assertEqual(software.unmet({'menu.fes.video.menu-display': '1.3'},
+                                       {'menu.fes.video.menu-display': '1.2'}), [])
+
+    def test_de25_scanout_cohort_changes_only_de25_base_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'etc').mkdir()
+            for board, architecture in [('de10-nano', 'arm-linux-gnueabihf'),
+                                        ('de25-nano', 'aarch64-linux-gnu')]:
+                (root / 'etc/fes-board').write_text(board + '\n')
+                architecture = software.TARGET_ABIS[board][3]
+                old = {'format': 2, 'architecture': architecture, 'libraries': [],
+                       'launcher_supervisor': 'local-host-v1'}
+                digest = lambda fields: 'fes-kit-base-v2-' + hashlib.sha256(
+                    json.dumps(fields, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+                actual = software.base_contract(root, [], board)['base_contract']
+                if board == 'de10-nano':
+                    self.assertEqual(actual, digest(old))
+                else:
+                    self.assertNotEqual(actual, digest(old))
+                    self.assertEqual(actual, digest({**old, 'de25_scanout': '1.3'}))
+
+    def test_de25_new_runtime_cannot_pack_against_old_base_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'etc/fes').mkdir(parents=True)
+            (root / 'etc/fes-board').write_text('de25-nano\n')
+            old = {'format': 2, 'architecture': software.TARGET_ABIS['de25-nano'][3],
+                   'libraries': [], 'launcher_supervisor': 'local-host-v1'}
+            recorded = software.base_contract(root, [], 'de25-nano')
+            recorded['base_contract'] = 'fes-kit-base-v2-' + hashlib.sha256(
+                json.dumps(old, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+            recorded['requires'] = {'menu.fes.fabric.de25-scanout': '1.2'}
+            (root / 'etc/fes/software-base.json').write_text(json.dumps(recorded))
+            payload = root / 'payload'
+            (payload / 'bin').mkdir(parents=True)
+            for name in software.BINARIES:
+                (payload / 'bin' / name).write_bytes(b'ELF inspection boundary fixture')
+            info = {'needed': [], 'soname': [], 'interpreter': [], 'defined': [], 'required': []}
+            with patch.object(software, 'run'), patch.object(software, 'elf', return_value=info), \
+                    patch.object(software, 'runtime_menu_interfaces') as interfaces:
+                with self.assertRaisesRegex(ValueError, 'retained base ELF contract differs'):
+                    software.pack_update(root, payload, root / 'new.tar', 'new', root, 'b' * 40)
+                interfaces.assert_not_called()
+            self.assertEqual(json.loads((root / 'etc/fes/software-base.json').read_text()), recorded)
+            self.assertFalse((root / 'new.tar').exists())
+
     def test_image_build_refuses_a_factory_runtime_that_rejects_its_menu(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -141,6 +202,16 @@ class SoftwareABI(unittest.TestCase):
                     software.assemble(root, root, 'a' * 40, root)
             self.assertFalse((root / 'etc/fes/software-base.json').exists())
             self.assertFalse((root / 'usr/share/fes/software').exists())
+
+    def test_factory_driver_choice_fails_before_inspecting_or_writing_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for board, driver in [('de10-nano', None), ('de25-nano', root), ('unknown', None)]:
+                with self.subTest(board=board), patch.object(software, 'base_contract') as inspect:
+                    with self.assertRaises(ValueError):
+                        software.assemble(root, root, 'a' * 40, driver, board)
+                    inspect.assert_not_called()
+                    self.assertEqual(list(root.iterdir()), [])
 
     def test_update_lists_runtime_menu_interfaces_and_covers_base_menu(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -278,6 +349,48 @@ class SoftwareABI(unittest.TestCase):
             self.assertEqual(contract['board'], 'de25-nano')
             self.assertEqual(contract['architecture'], 'aarch64')
             self.assertTrue(contract['base_contract'].startswith('fes-kit-base-v2-'))
+            # Exercise the real packer on an actual AArch64 factory payload.
+            # ELF section extraction has its own actual stripped-ELF test.
+            (root / 'usr/sbin').mkdir(parents=True)
+            for name in software.BINARIES:
+                shutil.copyfile(binary, root / 'usr/sbin' / name)
+            fogcast = root / 'fogcast'
+            (fogcast / 'bin').mkdir(parents=True)
+            (fogcast / 'bin/kit-software.revision').write_text('a' * 40 + '\n')
+            module = Path(__file__).resolve().parents[3] / 'sources/FogCast'
+            build_env = dict(os.environ, CGO_ENABLED='0', GOWORK='off', GOFLAGS='')
+            for key in ('GOOS', 'GOARCH', 'GOARM', 'GOARM64'):
+                build_env.pop(key, None)
+            subprocess.run(['go', 'build', '-buildvcs=false', '-o',
+                            str(fogcast / 'bin/fes-kit-bundle-linux-amd64'), './cmd/fes-kit-bundle'],
+                           cwd=module, env=build_env, check=True, timeout=120)
+            menu(root, [('fes.video.fixed-720p60', 1, 0, True),
+                        ('fes.video.menu-display', 1, 0, True), ('fes.fabric.de25-scanout', 1, 3, True)])
+            with patch.object(software, 'base_contract') as inspect:
+                with self.assertRaisesRegex(ValueError, 'target differs'):
+                    software.assemble(root, fogcast, 'b' * 40, board='de25-nano')
+                inspect.assert_not_called()
+            self.assertFalse((root / 'usr/share/fes/software').exists())
+            menu(root, [('fes.video.fixed-720p60', 1, 0, True),
+                        ('fes.video.menu-display', 1, 0, True), ('fes.fabric.de25-scanout', 1, 3, True)],
+                 board='de25-nano')
+            provides = {'menu.fes.video.fixed-720p60': '1.0', 'menu.fes.video.menu-display': '1.0',
+                        'menu.fes.fabric.de25-scanout': '1.3'}
+            with patch.object(software, 'runtime_menu_interfaces', return_value=provides):
+                software.assemble(root, fogcast, 'b' * 40, board='de25-nano')
+            bundle = root / 'usr/share/fes/software'
+            manifest = json.loads((bundle / 'manifest.json').read_text())
+            self.assertEqual(manifest['board'], 'de25-nano')
+            self.assertEqual(manifest['architecture'], 'aarch64')
+            self.assertEqual({row['path'] for row in manifest['files']},
+                             {'bin/' + name for name in software.BINARIES})
+            self.assertFalse((bundle / 'share/fes-window').exists())
+            for name in software.BINARIES:
+                self.assertEqual(os.readlink(root / 'usr/sbin' / name),
+                                 '/run/fogcast/software/current/bin/' + name)
+            subprocess.run([str(fogcast / 'bin/fes-kit-bundle-linux-amd64'), 'verify-directory',
+                            '--root', str(bundle), '--base', str(root / 'etc/fes/software-base.json')],
+                           check=True, capture_output=True, timeout=30)
             arm_root = root / 'arm'
             arm_root.mkdir()
             arm = software.base_contract(arm_root, [])
@@ -300,7 +413,7 @@ class SoftwareABI(unittest.TestCase):
                     software.base_contract(root, [binary], 'de25-nano')
 
 
-def menu(root, interfaces):
+def menu(root, interfaces, board='de10-nano'):
     """Write a sealed menu selection and its package manifest under root."""
     package = 'd' * 64
     selection = root / software.MENU_SELECTION
@@ -309,6 +422,7 @@ def menu(root, interfaces):
     manifest = root / 'usr/share/mister-runtime/core-packages' / package / 'manifest.toml'
     manifest.parent.mkdir(parents=True, exist_ok=True)
     lines = ['format = 2'] + ([] if interfaces else ['interfaces = []'])
+    lines += ['', '[target]', f'platform = "{board.replace("-", "_")}"']
     for name, major, minor, required in interfaces:
         lines += ['', '[[interfaces]]', f'id = "{name}"', f'major = {major}', f'minor = {minor}',
                   f'required = {str(required).lower()}']

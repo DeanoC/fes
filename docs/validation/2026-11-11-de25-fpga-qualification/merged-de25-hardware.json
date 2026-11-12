@@ -1,0 +1,233 @@
+{
+  "source_commit": "19cca55559e39f68e3fbc9b8ec6b8f86504134b1",
+  "board": "de25-nano bottom TRWU8J8G",
+  "physical_acceptance_scope": "normal managed source19 software and qualified ordinary ZX81/MENU; bounded tests listed here",
+  "producer_identity": {
+    "kernel": "93131814a2a27ea651dc9aa9d22f5be40ddae3e8",
+    "MENU_and_ZX81": "25bc6ef78e4147497800a0e2b491f51d26902107",
+    "software": "19cca55559e39f68e3fbc9b8ec6b8f86504134b1",
+    "qualification_bindings": "74 MENU and143 ZX81 unchanged at consumer19cca; original producers retained"
+  },
+  "final_native_state": {
+    "passed": true,
+    "source": "19cca55559e39f68e3fbc9b8ec6b8f86504134b1",
+    "boot_id": "23f484ed-9972-466a-9a46-fb9ae5cfaf2f",
+    "image": "8e4b57d125cf29c312c00ade7db355d7703199268612d8446af0e1d1f9b0b49e",
+    "bundle": "cbf468031a31e6af75f385ced40b03f7d255bdf580c44353fb5518bf9736a1f6",
+    "software_generation": 0,
+    "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+    "four_running_roles": {
+      "fogcast-kit": "7d716c11c3d21c3b9c8fa6f676837d9c8e1d3a2585b8bd69a313f9fd9ea6b46d",
+      "fogcast-tenfoot": "8490e7c160e20163acca72acb67ef9afce3131cb4d7d805b6901329f20b87756",
+      "mister-agent": "3b2b300e38e5431b8b3e57a6feb0d4b802a1cc107ec5e0e90498bf98137f765a",
+      "mister-runtime": "0d8f6a86b6b96fc58c06680b885f06411edac2d0999e8a2911f209413c1181b9"
+    },
+    "ready": true,
+    "runtime": "idle",
+    "lease": "free",
+    "kernel": "6.12.11-fes-de25-owner",
+    "kernel_file_sha256": "e4311f0582007a7420f44bd661e4ca0d6d093361d44b1320c215a2449f980368",
+    "stock_SD_FIT_sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+    "persistent_FESDATA3": "mounted rw",
+    "Ethernet_SSH_DBus": "pass",
+    "root": "read-only",
+    "SSH_pin": "same-boot UART",
+    "native_system_sha256": "93f42c609640193e6cffd1af0e299a623ada6a4448a4b0c656c2dcaa2224ea8e"
+  },
+  "card_preparation": {
+    "backup_raw_bytes": 31267487744,
+    "backup_compressed_bytes": 746581142,
+    "backup_raw_sha256": "fed6bf891ebdf71da8fcd56ebc5d3e8618f9068c076f5df89f6bc44167549b1b",
+    "backup_compressed_sha256": "9668a3032df476635a9479e42f27aef379602ed2540a070e06f18a2e64770a7f",
+    "full_decompression_verified": true,
+    "prefix_direct_readback_sha256": "eacf4686777e834b7948c1465e52431326064b8427436e43ad132ef41a1ffd25",
+    "data_partition_independently_verified": true,
+    "same_card_reader_round_trips": 1,
+    "reader_admission": "shared writer admitted actual stable by-id; private data-helper binding adapts only its two historical reader constants; all original geometry, mount, protected-byte and independent verification gates retained; no product-tool edit",
+    "data_layout": {
+      "board": "de25-nano",
+      "layout_id": "de25-nano-appliance-2g-v1",
+      "card_bytes": 31267487744,
+      "start_sector": 4261888,
+      "sector_count": 56807424,
+      "type": 131,
+      "label": "FESDATA3"
+    }
+  },
+  "ordinary_ZX81": {
+    "package": "e873bc2e20097c6c3250b087cf9c522581ee4a0e4140ba2dcf1d1220e45aad0b",
+    "archive_sha256": "a4c67c61703ef09fef8cab11087c16b769d408fea7fa23d00a44be12c9d2bb69",
+    "build_id": "487f23fd2e61913779123b435dc24e82",
+    "rbf_sha256": "8d0a46badd12d81c7685c87024a02cde35f2fea2f59f2288e12bdca3366d8332",
+    "normal_import_compatibility_live_identity_Stop_MENU": "pass",
+    "normal_hardware_catalog_ready": true,
+    "ROM": "embedded by qualified format2 package; no external named-ROM selection claim",
+    "BASIC": {
+      "passed": true,
+      "phases": [
+        "ramtop128",
+        "load7",
+        "run7",
+        "edit9",
+        "run9",
+        "reload7",
+        "rerun7"
+      ],
+      "display_observations": [
+        "128",
+        "7",
+        "1PRINT9",
+        "9",
+        "7"
+      ],
+      "same_session": {
+        "session_id": "93dce2fb-0901-46fc-bba6-afd49c12abe5",
+        "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+        "target_name": "kit",
+        "flight_id": "ffba6341-59b3-4c08-aff8-ceb8f962caf8",
+        "game_id": "fpga-pr1312-de25-native19-zx81-f76eefa33cd3",
+        "package_id": "e873bc2e20097c6c3250b087cf9c522581ee4a0e4140ba2dcf1d1220e45aad0b",
+        "generation": 2,
+        "parts_composition": ""
+      },
+      "each_capture_visually_reviewed": true,
+      "input": "Linux uinput, short key/chord transactions guarded before and after",
+      "historical_failures": "preserved in observed-core-attempt1, slow-guard-first-RAMTOP and R terminal receipts; no limit relaxed"
+    },
+    "input": "Linux uinput, short guarded key/chord transactions; F12 Change media and Escape same session pass",
+    "input_helper_retired": true,
+    "lifecycle_receipt": "lifecycle-only; combined with BASIC/input/capture receipts for this wider scoped result"
+  },
+  "HDMI_switcher": {
+    "ZX81": {
+      "passed": true,
+      "human": "60-second switch done;7 returned",
+      "post_capture_observed": "7, then changing F12 Change media popup",
+      "session": "unchanged owned session",
+      "time_since_cue_seconds": 138.02118349075317,
+      "return_capture_sha256": "742e51175c38ea8b3e8b14408ec31edd90e3c8fabe42506e33a005c892a8c809"
+    },
+    "MENU": {
+      "passed": true,
+      "human": "60-second switch done;FES returned",
+      "capture_observed": "FES Welcome screen returned",
+      "capture_sha256": "9064766349a7273a1cd96f4b663803cd2063986b0f2e4fb639029ba0a93ce7af",
+      "scope": "one60s MENU return, not repeated endurance"
+    },
+    "coverage": "one human-confirmed60s switch-away/back per role, paired captures inspected; not repeated endurance"
+  },
+  "healthy_software_reboots": {
+    "idle": {
+      "passed": true,
+      "mode": "idle",
+      "old_boot": "99864a39-573b-451e-8812-352de09ec90f",
+      "new_boot": "f54a0a23-f7ee-4296-9d0c-7b8cbbf1bc51",
+      "ready_after_seconds": 37.725077064940706,
+      "readiness_bound_seconds": 120,
+      "full_native_reverification_seconds": 43.95078648393974,
+      "image": "8e4b57d125cf29c312c00ade7db355d7703199268612d8446af0e1d1f9b0b49e",
+      "bundle": "cbf468031a31e6af75f385ced40b03f7d255bdf580c44353fb5518bf9736a1f6",
+      "four_running_hashes_kernel_FIT_data_Ethernet_SSH_DBus": "pass",
+      "healthy_return": true,
+      "software_reboot_only": true,
+      "card_swap_or_power_cycle": false
+    },
+    "active_ZX81": {
+      "passed": true,
+      "mode": "active",
+      "old_boot": "f54a0a23-f7ee-4296-9d0c-7b8cbbf1bc51",
+      "new_boot": "23f484ed-9972-466a-9a46-fb9ae5cfaf2f",
+      "ready_after_seconds": 40.49625213700347,
+      "readiness_bound_seconds": 120,
+      "full_native_reverification_seconds": 46.82918543997221,
+      "image": "8e4b57d125cf29c312c00ade7db355d7703199268612d8446af0e1d1f9b0b49e",
+      "bundle": "cbf468031a31e6af75f385ced40b03f7d255bdf580c44353fb5518bf9736a1f6",
+      "four_running_hashes_kernel_FIT_data_Ethernet_SSH_DBus": "pass",
+      "healthy_return": true,
+      "software_reboot_only": true,
+      "card_swap_or_power_cycle": false
+    }
+  },
+  "retention": "user-approved healthy development image remains installed; not a main baseline promotion; no headless rollback",
+  "ownership": {
+    "claim_released": true,
+    "UART_recorder_stopped": true,
+    "runtime_idle_lease_free": true,
+    "QSPI_JTAG": "unchanged",
+    "onboarding": "first-run Welcome screen preserved"
+  },
+  "limitations": [
+    "Late F12 black frame and transient SSH banner timeout retained; continuous display/popup endurance not established",
+    "#1642 broader display/endurance remains open",
+    "No fresh physical USB keyboard, gamepad, audio or Bluetooth acceptance; vendor HCI warnings retained",
+    "Static personas disabled; no partial-persona programming",
+    "#1298 failed-programming recovery remains development-only waived; uncertain programming requires full DC and USB power removal",
+    "Existing owner kernel retained; healthy reboot success does not qualify DMA retirement or safety across failed-load reset",
+    "Helper/setup failures and original900s incomplete observation retained separately; final515s bounded control passes without extending inner900s limit"
+  ],
+  "retained_failed_attempts": [
+    "DE10-style machine-rom selection refused400 before FPGA load; corrected to embedded-ROM package contract",
+    "Missing target timeout command refused input helper before input; corrected helper has built-in900s deadline and native/AArch64-QEMU negative probes",
+    "Per-edge SSH guard caused overlong key holds and BASIC2/0; fixed to short complete key/chord transactions with guards outside held keys",
+    "First manual observation reached original900s cap during helper preparation; owned Stop succeeded; original failed receipt retained; final prepared control completed515.886s under unchanged inner900s limit",
+    "Initial active-reboot guard incorrectly required idle-ready during active ZX81; refused before reboot intent; corrected exact owned active-session check, actual reboot passed",
+    "Late F12 capture black and one SSH banner timeout before Escape retained; serial health remained responsive and later same-session Escape restored7; no broad endurance claim"
+  ],
+  "private_terminal_receipts_root": "/data/fes-de25-pr1312-hil-19cca-20261112/de25/native-trial",
+  "receipt_sha256": {
+    "approval.json": "54b83d7e78382885cc84b7a794dfa5670330cf5b31cb3d3458cfbacc1ff640ce",
+    "backup-job.json": "2b2048f066a1fc654f012a67f2acf14945de62874e13b2b88c18409bbe83c6ff",
+    "write-job.json": "25af4594ece9acfb85a6e60ec5b7238639dd0d1384a2c6e7ddf8d9b1381952d9",
+    "data-reader-admission.json": "f894c4c67868dea7918d589386951da84ce827a5dd41cfcaeace9b1a9e29b841",
+    "data-apply.json": "33a723228a26b4e7d6c10a9393b12512d14698c68b37472a2624dfd774c61cb5",
+    "data-verify.json": "515bfc1e5ca98b5b794ece22278c5c8f8b28e7efabbe152b9ae4ff2192d1074e",
+    "first-boot-verified.json": "6dd8ffc86277f40c9031af713778654bcb427c52ee65600074347913e990cd61",
+    "ZX81-lifecycle-final.json": "8c2000f72a38d7eb0352ee62b2db1b66b360a92a0c1e286e18758fda457e9dc3",
+    "BASIC-proof.json": "0e1cec1153ebdb90995caaf5f23605d70af5b0eab65557149cc4dacf77240d5b",
+    "Escape.reviewed.json": "5bc42e38419a5122256cd6c80506a331e13159cebd6bb891883e649a2459d58b",
+    "switcher-active-result.json": "3690067ef6173d4c777cfb9bd2eb1089684f3754c884d42fe7ffb61ef01b6567",
+    "MENU-switcher-result.json": "4cfe62a708efc7b76358b063232ee913e3e989c77fbceffb4eb45f6fb2f3d0fb",
+    "reboot-idle-result.json": "ffe92da7574e37c5e52eb224c529d00486f05aedcb655a55c728ef5470d3386e",
+    "reboot-active-result.json": "b75f3142d7cb1805936c875b32699149a4c91b3e13b00b6f955568ff17940292",
+    "final-first-boot-verified.json": "14e019eda7fb95203756dc2f938d6b4bd8654a0186c262643c53fd06db1322b6",
+    "final-hardware-catalog.json": "11a2424b5a6ed9faf6d8d7108e167def19c9413f4f1c2d510d6e0c0fc8cf43e9",
+    "final-menu-reviewed.json": "1cabe353ca0cb278edf9bea94b0ae9afaf1f061600f9ce7d72fa26653734d05c",
+    "input-helper.json": "d4cf0ecf39fa9789dc963e8218fe2b5a52fe39d41f41d1c55bae7b668a032521",
+    "uart-final.json": "9cb49012267362cb8b1527055055984a06eef18921668694cf51d6fda4c226eb",
+    "trial-complete.json": "70102685f183f9dc63fbcb7a6b1172c8d0418a1c35e2067f57828a11ce4d374f",
+    "de25-TRWU8J8G-claim.json": "272b522699a665c32935de8385ed30acabcc0a7b4f5232226566743c678db212",
+    "de25-TRWU8J8G-release.json": "64743a92b4603d51c17a3b398ffbf547cc921ceb47117c5b10e569291d6d904b"
+  },
+  "terminal_checks": {
+    "merged-hil-DE25-first-boot": {
+      "receipt_sha256": "2e0c713e8ea1d69ec4d25167c52e10892d3a5163883d36cb08e151a7c05add19",
+      "exit": 0,
+      "seconds": 4.576155656017363
+    },
+    "merged-hil-DE25-ZX81-final": {
+      "receipt_sha256": "33bb84c51e23d56fad9fab0379048c4e28ef9545baa5e1e24cc454706b10dc27",
+      "exit": 0,
+      "seconds": 515.886909164954
+    },
+    "merged-hil-DE25-idle-reboot": {
+      "receipt_sha256": "ed688dda3284bf8bb5a8745606615235957aabf4127cc0f3241b57e94a254c99",
+      "exit": 0,
+      "seconds": 44.29833852709271
+    },
+    "merged-hil-DE25-active-reboot-state-bound": {
+      "receipt_sha256": "014f4209f23d9e25f67f672101fa5f1c4e5f62711b7f0e65363d48f291463274",
+      "exit": 0,
+      "seconds": 47.17010017391294
+    },
+    "merged-hil-DE25-final-retention": {
+      "receipt_sha256": "fdc107ab640c395f6ceb55cfb75a656f88a43744f0ca1ff30dee3911fccc719b",
+      "exit": 0,
+      "seconds": 5.678504255833104
+    },
+    "merged-hil-data-reader-guards": {
+      "receipt_sha256": "9fd86364201d96e0fda1c351c935163de604014132159bfa8b1d50d1f9ea4fd8",
+      "exit": 0,
+      "seconds": 0.3148701449390501
+    }
+  }
+}

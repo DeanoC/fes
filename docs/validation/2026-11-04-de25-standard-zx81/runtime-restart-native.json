@@ -1,0 +1,137 @@
+{
+  "source": "7688e73016b74f457fa3ca14ed2cbd46f80c6425",
+  "bundle": "33d40e58e3548c73c3a8b265189a845ac01c7b0c08a8a366001d22a1d7a03dbc",
+  "idle_runtime": {
+    "passed": true,
+    "source": "7688e73016b74f457fa3ca14ed2cbd46f80c6425",
+    "seconds": 65.78,
+    "group_recovery_seconds_including_10s_stability": 30.236,
+    "boot_unchanged": true,
+    "software_generation": 25,
+    "visuals": {
+      "02-fresh-relaunch7.png": "Visible7 and0/1",
+      "03-new-group-picker.png": "Actual Change media picker",
+      "04-new-group-edit-run9.png": "Visible9 and0/1",
+      "05-returned-MENU.png": "FES Home Ready to play"
+    },
+    "image_sha256": {
+      "02-fresh-relaunch7.png": "8ea2efef2dd5e146f3a97c78e6ee899d1b6f0e73c8f836717a148c2d7438db90",
+      "05-returned-MENU.png": "8331395beeb2cf0dc3fbff78de84dd956b99987d5a3d4f76ba74cf810a485efb",
+      "04-new-group-edit-run9.png": "76a8e9e45303644e46e2d1f7d661fbc3296b6a5284b1b6820b4eca98f5b4515f",
+      "03-new-group-picker.png": "3ab109474957378fd2f5aa67a91feda6164efd27da8ab010b99ba19804519006"
+    },
+    "native_supervisor_log": "reviewed, one exactselected runtime kill/fullgroup restart; normalMENU andfreshZX81 loads/capture/Stop errornone",
+    "scope": "Idle-runtime crash abandonment; no oldsessionresumption, audio/physicalUSB/personaclaim"
+  },
+  "active_runtime": {
+    "passed": true,
+    "source": "7688e73016b74f457fa3ca14ed2cbd46f80c6425",
+    "seconds": 85.767,
+    "group_recovery_seconds_including_10s_stability": 32.039,
+    "boot_unchanged": true,
+    "software_generation": 25,
+    "visuals": {
+      "01-running7-before-crash.png": "Visible7 in activeZX81 before singlekill",
+      "02-fresh-relaunch7.png": "Visible7 and0/1 onfreshsession",
+      "03-new-group-picker.png": "Actual Change media picker",
+      "04-new-group-edit-run9.png": "Visible9 and0/1",
+      "05-returned-MENU.png": "FES Home Ready to play"
+    },
+    "image_sha256": {
+      "02-fresh-relaunch7.png": "8ea2efef2dd5e146f3a97c78e6ee899d1b6f0e73c8f836717a148c2d7438db90",
+      "05-returned-MENU.png": "8331395beeb2cf0dc3fbff78de84dd956b99987d5a3d4f76ba74cf810a485efb",
+      "01-running7-before-crash.png": "c01ea574a96ae4a5a919e29c76bde9d4dbc2a575d21273d6763d6533c0e82ab9",
+      "04-new-group-edit-run9.png": "76a8e9e45303644e46e2d1f7d661fbc3296b6a5284b1b6820b4eca98f5b4515f",
+      "03-new-group-picker.png": "3ab109474957378fd2f5aa67a91feda6164efd27da8ab010b99ba19804519006"
+    },
+    "native_supervisor_log": "reviewed; exactruntimekill/groupreplacement, expectedtransientunavailable/old-agentcleanupwarning duringdeliberatekill; newstartMENU/freshZX81/capture/Stop errornone",
+    "scope": "ActiveZX81 runtime crash abandonment andfreshnormalrelaunch; retainedloadedcassette acceptedafterliveSAVEguard; no oldsessionresumption, reboot, audio/physicalUSB/personaclaim"
+  },
+  "active_agent": {
+    "single_agent_crash_observed": true,
+    "source": "7688e73016b74f457fa3ca14ed2cbd46f80c6425",
+    "before_image_sha256": "c01ea574a96ae4a5a919e29c76bde9d4dbc2a575d21273d6763d6533c0e82ab9",
+    "before_visual": "Visible7 and0/1 before selectedagentSIGKILL",
+    "original_recorder": {
+      "passed": false,
+      "seconds": 19.262,
+      "error": "ConnectionResetError: [Errno 104] Connection reset by peer",
+      "trace": "/home/deano/fes/out/artifacts/de25-vendor-reference/2ba9334c3/de25-retained-save-native-job/active-agent"
+    },
+    "post_recovery": {
+      "passed": true,
+      "seconds": 47.352,
+      "stable_seconds": 12.376,
+      "trace": "/home/deano/fes/out/artifacts/de25-vendor-reference/2ba9334c3/de25-retained-save-native-job/active-agent-post-recovery"
+    },
+    "second_crash": false,
+    "scope": "Two evidence scopes: original onecrash plus independentlyconfirmed samegroup recovery/freshUI, never one wholeoriginalrecorderPASS"
+  },
+  "same_boot": "bac7afb2-34d3-4997-9213-46f3dc0e6c7d",
+  "software_generation": 25,
+  "captures_visually_evaluated": 14,
+  "physical_usb_audio_personas": false,
+  "full_goal_complete": false,
+  "canonical_affected": {
+    "passed": true,
+    "source": "7688e73016b74f457fa3ca14ed2cbd46f80c6425",
+    "base": "eb1cc3cbf72e48bb81d199092057a51a933011a4",
+    "commands": 8,
+    "seconds": 641.854,
+    "output_sha256": "c070d718de79e11f183bf4bcc73cc724fc46fa58cb6c032103ed359631503270",
+    "scope": "Complete unmodified canonical affected delta for both publication and retained SAVE fixes; no native claim"
+  },
+  "bundle_artifact": {
+    "passed": true,
+    "source": "7688e73016b74f457fa3ca14ed2cbd46f80c6425",
+    "bundle": "33d40e58e3548c73c3a8b265189a845ac01c7b0c08a8a366001d22a1d7a03dbc",
+    "archive_sha256": "6a38005699635c8308249c1702e5b48433d6d8db7ab4a6e836777294f9ab37c3",
+    "files": {
+      "bin/fogcast-kit": "a2cbf2785a61274528a126cb8e57b41849a483441329d0a9527c89c5c693c52f",
+      "bin/fogcast-tenfoot": "481e272eed167b83b6bc6ece8f2ae88e9f4b08422b0875c81a05e63c67c8ba1f",
+      "bin/mister-agent": "2ae2697f80c71eeb3e96aea6f31601d3506d873b72151248c4d6498a528b71f0",
+      "bin/mister-runtime": "bdaab65ffed7343d42736d86ae19a05b86fa380bea80c71483d672fd6fbf1101",
+      "share/fogcast/config.toml": "c8dae986367e7a4562446512d6133e6d687786b732b1bafc60420ef936323dbc"
+    },
+    "seconds": 56.618,
+    "native_acceptance": "pending"
+  },
+  "baseline_restore": {
+    "success": true,
+    "utc": "2026-11-04T20:59:05.534594+00:00",
+    "board": "TRWU8J8G",
+    "claim": "released",
+    "boot_id": "bac7afb2-34d3-4997-9213-46f3dc0e6c7d",
+    "base_image": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+    "baseline_bundle": "a14a53cd33e2c51d7639701363bf95cc7781f62b8207c0e2bab1653276504700",
+    "software_generation": 26,
+    "runtime": "idle",
+    "execution_lease": "free",
+    "maintenance": "none",
+    "host_restored": true,
+    "main_baseline_promoted": false,
+    "native_cases": {
+      "idle-runtime": {
+        "success": true,
+        "seconds": 30.236,
+        "error": null
+      },
+      "active-runtime": {
+        "success": true,
+        "seconds": 32.039,
+        "error": null
+      },
+      "active-agent": {
+        "success": false,
+        "seconds": null,
+        "error": "ConnectionResetError: [Errno 104] Connection reset by peer"
+      },
+      "active-agent-post-recovery": {
+        "success": true,
+        "seconds": null,
+        "error": null
+      }
+    }
+  },
+  "evidence_boundary": "Native acceptance applies to the exact source7688/bundle33d40 and sealed5a core. This documentation update creates no new executable/core acceptance; current-head CI, independent review and remaining full-kit gates remain required."
+}
