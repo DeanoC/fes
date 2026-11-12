@@ -318,7 +318,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
         "core": {
             "id": "fes.zx81",
             "name": "Zx81",
-            "description": "Quartus bring-up ZX81 computer for the FES simple-computer ABI",
+            "description": "Quartus bring-up ZX81 computer for the FES computer ABI",
             "version": "1.2.0",
         },
         "target": {
@@ -327,15 +327,17 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
             "programming_profile": "fes-gp-v1",
         },
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},
-        "abi": {"id": "fes.simple-computer", "major": 1, "minor": 0},
+        "abi": {"id": "fes.computer", "major": 1, "minor": 0},
         "interfaces": [
-            {"id": "fes.keyboard", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.keyboard.hid", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.gamepad.ports", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.audio.pcm-s16-stereo-48k", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.media.zx81-tape", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.media.zx81-tape-write", "major": 1, "minor": 0, "required": True},
             {"id": "fes.memory.hps-ddr", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.session-display", "major": 1, "minor": 0, "required": True},
             {"id": "fes.fabric.video.display-plane", "major": 1, "minor": 0, "required": True},
-            {"id": "fes.media.blob", "major": 1, "minor": 0, "required": True},
-            {"id": "fes.audio.pcm-s16-stereo-48k", "major": 1, "minor": 0, "required": True},
         ],
         "build": {
             "id": build_identity(record),
