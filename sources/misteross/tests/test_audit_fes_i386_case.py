@@ -62,6 +62,8 @@ class CaseAuditTest(unittest.TestCase):
             audit.instrument_bench(src + 'other.eval();\n')
         with self.assertRaises(audit.AuditError):
             audit.instrument_bench(src + 'cpu->eval();\n')
+        with self.assertRaises(audit.AuditError):
+            audit.instrument_bench(src + 'cpu.eval_step(); cpu.eval_end_step();\n')
 
     def test_stops_must_match_sites_and_messages_exactly(self):
         with tempfile.TemporaryDirectory() as tmp:
