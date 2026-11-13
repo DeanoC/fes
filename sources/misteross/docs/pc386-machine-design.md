@@ -487,11 +487,21 @@ inside the 8042 ahead of its PS/2 keyboard):
   codes, and Microsoft's are taken. Usages with no set 2 code (the HID error
   codes, and Execute to Find at 74h–7Eh) are ignored.
 - The 1 ms is 1000 ticks of the 8042's microsecond enable. A change is
-  diffed one bit a clock, each group in usage order. The model tracks projected
-  and reported key state separately: a transition is projected when its final
-  byte enters the keyboard FIFO and committed when that byte reaches the 8042
-  output buffer. If F5, F6 or FF clears queued bytes, pending projections are
-  discarded and the complete transitions are reconciled again.
+  copied into a snapshot one bit a clock, then diffed against the projected
+  guest state one bit a clock, each group in usage order. A transition is
+  projected when its final byte enters the keyboard FIFO and committed when
+  that byte reaches the 8042 output buffer. If F5, F6 or FF clears queued
+  bytes, the projections still in the FIFO are rolled back, newest first, and
+  the complete transitions are reconciled again.
+- The snapshot and the projected state are 136-entry M10K tables, and the
+  transitions in the keyboard FIFO a 16-entry one; only the rows' last value is
+  in flip-flops (#1768: the four 136-bit flip-flop vectors cost 1,399 ALMs
+  alone, the tables' model 593). Two flags stand in for whole-vector compares
+  and err only towards a diff that finds nothing: the rows changed since the
+  snapshot, and the snapshot may differ from the projected state (after a
+  clear, or a diff position passed while scanning was disabled). A typematic
+  press takes effect the clock after its completion, once the tables are read
+  at its bit; a stop in the completion's own clock still wins over it.
 - While scanning is disabled, host bytes are discarded and do not change the
   guest-visible key state. Stable HID rows are reconciled against that state
   when scanning resumes: a release of a key the guest saw is delivered, while

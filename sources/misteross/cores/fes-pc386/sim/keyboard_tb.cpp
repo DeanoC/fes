@@ -15,6 +15,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <deque>
 #include <functional>
 #include <initializer_list>
 #include <string>
@@ -51,6 +52,10 @@ struct Byte {
     uint8_t value;
 };
 
+struct Completion {
+    uint8_t bit, make, repeat;
+};
+
 struct Bench {
     Vpc386_hid_keyboard top;
     uint64_t cycles = 0;
@@ -59,6 +64,11 @@ struct Bench {
     bool cancel = false, complete_pending = false;
     uint8_t complete_bit = 0, complete_make = 0, complete_repeat = 0;
     std::vector<Byte> bytes;
+    // With hold set, a sequence's completion waits in held, as its final
+    // byte would in the keyboard FIFO behind an unread 8042 byte, until
+    // deliver() hands it over.
+    bool hold = false;
+    std::deque<Completion> held;
 
     Bench() {
         top.reset = 1;
@@ -83,14 +93,28 @@ struct Bench {
         if (top.key_valid && top.key_ready && scanning) bytes.push_back({cycles, top.key_code});
         top.clk = 1; top.eval();
         top.clk = 0; top.eval();
-        complete_pending = completes;
-        if (completes) {
+        complete_pending = completes && !hold;
+        if (completes && hold) held.push_back({report_bit, report_make, report_repeat});
+        else if (completes) {
             complete_bit = report_bit;
             complete_make = report_make;
             complete_repeat = report_repeat;
         }
         cancel = false;
         ++cycles;
+    }
+    // The oldest held completion, in a clock of its own.
+    void deliver() {
+        const Completion next = held.front();
+        held.pop_front();
+        complete_pending = true;
+        complete_bit = next.bit;
+        complete_make = next.make;
+        complete_repeat = next.repeat;
+        clock();
+    }
+    void deliver_all() {
+        while (!held.empty()) deliver();
     }
     void run_us(uint64_t us) { for (uint64_t n = 0; n < us * US; ++n) clock(); }
     static unsigned bit(uint8_t usage) { return usage >= 0xe0 ? 128 + (usage - 0xe0) : usage; }
@@ -436,6 +460,57 @@ void scanning(Bench &b) {
           prefix_accepted && retried_break == std::vector<uint8_t>{0xf0, 0x1c}, hex(retried_break));
 }
 
+// Transitions whose final byte is still in the keyboard FIFO.
+void in_flight(Bench &b) {
+    // A repeats; B is tapped while the guest reads nothing, so B's break is
+    // projected before B's make completes. B never became the repeat key, so
+    // A carries on.
+    b.top.typematic = 0x00;  // 250 ms, 33.3 ms
+    b.key(A, true);
+    b.collect(1200 + 250000 + 10000);
+    b.hold = true;
+    b.key(B, true);
+    std::vector<uint8_t> tap = b.collect(1200);
+    b.key(B, false);
+    std::vector<uint8_t> tap_release = b.collect(1200);
+    b.deliver_all();
+    b.hold = false;
+    std::vector<uint8_t> after_tap = b.collect(3 * 33334);
+    bool a_repeats = after_tap.size() >= 2;
+    for (uint8_t value : after_tap) a_repeats &= value == 0x1c;
+    check("a tap whose break is queued before its make completes leaves the old key repeating",
+          tap.size() >= 1 && tap[0] == 0x32 && tap_release.size() >= 2 && a_repeats,
+          hex(tap) + " / " + hex(tap_release) + " / " + hex(after_tap));
+    b.key(A, false);
+    b.collect(1200);
+    b.top.typematic = 0x2b;
+
+    // A, B and C go down as one change; A's make reaches the 8042, then the
+    // keyboard is cleared with B's and C's still queued. Theirs are sent
+    // again, in usage order; A's is not.
+    b.hold = true;
+    b.keys({A, B, C}, true);
+    const size_t before_makes = b.bytes.size();
+    std::vector<uint8_t> makes = b.collect(1200);
+    b.deliver();
+    b.held.clear();
+    b.ready = false;
+    b.cancel = true;
+    b.top.typematic_clear = 1;
+    b.clock();
+    b.top.typematic_clear = 0;
+    b.bytes.resize(before_makes + 1);  // the keyboard FIFO was cleared with the command
+    b.ready = true;
+    b.hold = false;
+    std::vector<uint8_t> retried = b.collect(1200);
+    b.keys({A, B, C}, false);
+    std::vector<uint8_t> breaks = b.collect(1200);
+    check("a clear rolls back only the transitions still queued, which are sent again",
+          makes == std::vector<uint8_t>{0x1c, 0x32, 0x21} && retried == std::vector<uint8_t>{0x32, 0x21} &&
+              breaks == std::vector<uint8_t>{0xf0, 0x1c, 0xf0, 0x32, 0xf0, 0x21},
+          hex(makes) + " / " + hex(retried) + " / " + hex(breaks));
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -446,5 +521,6 @@ int main(int argc, char **argv) {
     stability(b);
     typematic(b);
     scanning(b);
+    in_flight(b);
     return failures ? 1 : 0;
 }
