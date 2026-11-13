@@ -12,8 +12,9 @@
 ;
 ; The program asks the bench for its own disk changes: it writes the line
 ; "SWAP 1" to port E9h, which the bench answers by swapping DISK2 into A:
-; write-protected, and later "SWAP 2", which puts DISK1 back writable. So the
-; checks never wait on a wall-clock guess.
+; write-protected, then "SWAP 2" (DISK1 back, writable), "SWAP 3" (a 360K
+; disk into B:) and "SWAP 4" (B:'s 1.2M disk again). So the checks never wait
+; on a wall-clock guess.
 ;
 ;   equip      INT 11h: a floppy is fitted (bit 0) and there are two drives
 ;              (bits 7-6 = 01), from CMOS 14h.
@@ -28,11 +29,19 @@
 ;   reread-a   the next read gets the new disk: volume label DISK2.
 ;   cleared-a  that read stepped the head, so AH=16h is clear again.
 ;   wp-a       DISK2 went in write-protected: AH=03h fails with AH=03h.
-;   write-b    a sector written to B:'s last track reads back; the bench
-;              writes B:'s image out and the suite finds it in the file.
+;   verify-a   INT 13h AH=04h verifies a track of A:.
+;   dma-boundary  a transfer whose buffer would cross a 64 KiB boundary is
+;              refused with AH=09h, as the AT BIOS refuses it.
 ;   dos-a1     DOS reads the new disk: FindFirst A:\*.TXT is DISK2.TXT.
 ;   dos-a2     after SWAP 2, DOS sees DISK1.TXT again, which it can only do
 ;              by taking the change line through INT 13h AH=16h.
+;   format-a   INT 13h AH=05h formats A:'s last track, which then reads back
+;              as one fill byte.
+;   label-b360 SWAP 3 puts a 360K disk in the 1.2M drive: its volume label is
+;              DISK360, so the drive reads the smaller medium.
+;   back-b     SWAP 4 puts B:'s 1.2M disk back.
+;   write-b    a sector written to B:'s last track reads back; the bench
+;              writes B:'s image out and the suite finds it in the file.
 ;
 ; Assemble: nasm -f bin -o FLOPTEST.COM floppy_test.asm.
 
@@ -142,7 +151,99 @@ start:  cld
         mov si, name_wp_a
         call check
 
-        ; ---- write-b: the last sector of B: is written and read back
+        ; ---- verify-a: INT 13h AH=04h over a track of A:
+        mov bx, sector
+        mov ax, 0x0409                  ; verify nine sectors
+        mov cx, 0x0001                  ; cylinder 0, sector 1
+        xor dx, dx                      ; head 0, drive 0
+        int 0x13
+        mov al, 0
+        jc .verify_done
+        mov al, 1
+.verify_done:
+        mov si, name_verify_a
+        call check
+
+        ; ---- dma-boundary: a transfer that would cross a 64 KiB boundary
+        ; must be refused with AH=09h, as the AT BIOS refuses it. ES:BX is
+        ; put at the last byte of the first 64 KiB the segment reaches, so
+        ; the 512-byte read would wrap.
+        push es
+        mov ax, cs
+        shl ax, 4
+        mov bx, 0xffff
+        sub bx, ax                      ; (ES << 4) + BX = 0FFFFh
+        push cs
+        pop es
+        mov ax, 0x0201
+        mov cx, 0x0001
+        xor dx, dx
+        int 0x13
+        pop es
+        mov al, 0
+        jnc .dma_done
+        cmp ah, 0x09                    ; DMA boundary error
+        jne .dma_done
+        mov al, 1
+.dma_done:
+        mov si, name_dma_boundary
+        call check
+
+        ; ---- dos-a1: DOS reads the disk that is in A: now
+        mov di, label_disk2
+        call find_txt
+        mov si, name_dos_a1
+        call check
+
+        ; ---- dos-a2: after SWAP 2, DOS sees DISK1.TXT through the change line
+        mov si, mark_swap2
+        call mark
+        mov di, label_disk1
+        call wait_txt
+        mov si, name_dos_a2
+        call check
+
+        ; ---- format-a: format A:'s last track, which must then read back as
+        ; one fill byte. DISK1 is writable again and the track is past its
+        ; files.
+        call fill_ids
+        mov bx, ids
+        mov ax, 0x0512                  ; format 18 sectors
+        mov cx, 0x4f01                  ; cylinder 79, sector 1
+        mov dx, 0x0100                  ; head 1, drive 0
+        int 0x13
+        mov al, 0
+        jc .format_done
+        mov bx, sector
+        mov ax, 0x0201
+        mov cx, 0x4f01
+        mov dx, 0x0100
+        int 0x13
+        mov al, 0
+        jc .format_done
+        call judge_filled               ; AL = 1 when all 512 bytes are equal
+.format_done:
+        mov si, name_format_a
+        call check
+
+        ; ---- label-b360: a 360K disk in the 1.2M drive
+        mov si, mark_swap3
+        call mark
+        mov di, label_disk360
+        call wait_label_b
+        mov si, name_label_b360
+        call check
+
+        ; ---- back-b: the 1.2M disk again
+        mov si, mark_swap4
+        call mark
+        mov di, label_bdisk
+        call wait_label_b
+        mov si, name_back_b
+        call check
+
+        ; ---- write-b: the last sector of B: is written and read back; the
+        ; bench writes the image out for the suite to check.
         call fill_pattern
         mov bx, sector
         mov ax, 0x0301
@@ -165,20 +266,6 @@ start:  cld
         call judge_pattern              ; AL = 1 when the bytes came back
 .write_b_done:
         mov si, name_write_b
-        call check
-
-        ; ---- dos-a1: DOS reads the disk that is in A: now
-        mov di, label_disk2
-        call find_txt
-        mov si, name_dos_a1
-        call check
-
-        ; ---- dos-a2: after SWAP 2, DOS sees DISK1.TXT through the change line
-        mov si, mark_swap2
-        call mark
-        mov di, label_disk1
-        call wait_txt
-        mov si, name_dos_a2
         call check
 
         ; ---- DONE
@@ -281,6 +368,60 @@ judge_pattern:
 .bad:   popa
         xor al, al
         ret
+
+; The 18 sector IDs of A:'s last track: cylinder 79, head 1, sectors 1-18,
+; 512 bytes each.
+fill_ids:
+        pusha
+        mov di, ids
+        mov cx, 18
+        mov al, 1
+.next:  mov byte [di], 79               ; C
+        mov byte [di + 1], 1            ; H
+        mov [di + 2], al                ; R
+        mov byte [di + 3], 2            ; N, 512 bytes
+        inc al
+        add di, 4
+        loop .next
+        popa
+        ret
+
+; AL = 1 when every byte of `sector` is the same, as a freshly formatted
+; sector reads.
+judge_filled:
+        pusha
+        mov si, sector
+        lodsb
+        mov ah, al
+        mov cx, 511
+.next:  lodsb
+        cmp al, ah
+        jne .bad
+        loop .next
+        popa
+        mov al, 1
+        ret
+.bad:   popa
+        xor al, al
+        ret
+
+; Poll B:'s boot sector until its volume label is the 5 characters at DI, for
+; WAIT_TICKS BIOS ticks. AL = 1 when it is.
+wait_label_b:
+        call tick_deadline
+.poll:  push di
+        mov dl, 1
+        call read_boot
+        pop di
+        push di
+        call judge_label
+        pop di
+        cmp al, 1
+        je .done
+        call tick_expired
+        jc .poll
+        xor al, al
+.done:  ret
 
 ; Poll INT 13h AH=16h on A: until it reports a change, for WAIT_TICKS BIOS
 ; ticks. AL = 1 when it did.
@@ -427,8 +568,11 @@ txt_pattern:    db 'A:\*.TXT', 0
 label_disk1:    db 'DISK1'
 label_disk2:    db 'DISK2'
 label_bdisk:    db 'BDISK'
+label_disk360:  db 'DISK3'
 mark_swap1:     db 'SWAP 1$'
 mark_swap2:     db 'SWAP 2$'
+mark_swap3:     db 'SWAP 3$'
+mark_swap4:     db 'SWAP 4$'
 msg_floppy:     db 'FLOPPY $'
 msg_ok:         db ' ok$'
 msg_fail:       db ' FAIL$'
@@ -443,6 +587,11 @@ name_change_a:  db 'change-a$'
 name_reread_a:  db 'reread-a$'
 name_cleared_a: db 'cleared-a$'
 name_wp_a:      db 'wp-a$'
+name_verify_a:  db 'verify-a$'
+name_dma_boundary: db 'dma-boundary$'
+name_format_a:  db 'format-a$'
+name_label_b360: db 'label-b360$'
+name_back_b:    db 'back-b$'
 name_write_b:   db 'write-b$'
 name_dos_a1:    db 'dos-a1$'
 name_dos_a2:    db 'dos-a2$'
@@ -450,4 +599,5 @@ name_done:      db 'DONE$'
 
                 align 4
 sector:         times 512 db 0
+ids:            times 18 * 4 db 0
 dta:            times 128 db 0

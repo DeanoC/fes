@@ -177,6 +177,11 @@ FLOPPIES = {
         'format': 1200, 'label': 'BDISK', 'bootable': False, 'packages': (),
         'files': {'BDISK.TXT': 'the drive B disk\r\n'},
     },
+    'floppy-b360': {
+        'image': ROOT / 'build/sim/fes-pc386/floppy-b360.img',
+        'format': 360, 'label': 'DISK360', 'bootable': False, 'packages': (),
+        'files': {'B360.TXT': 'a 360K disk in the 1.2M drive\r\n'},
+    },
 }
 for _name, _spec in FLOPPIES.items():
     _spec['bin'] = {}

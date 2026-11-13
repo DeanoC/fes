@@ -59,11 +59,11 @@ The scope is the CPU design's list and nothing more:
 
 | Area | In | Deferred until a title needs it |
 | --- | --- | --- |
-| AT core | Two 8259 PICs, an 8254 PIT, two 8237 DMA controllers, an 8042 with A20, reset and a PS/2 aux port, port 92h, an MC146818 RTC with CMOS, an 82077AA-subset floppy controller ([removable media](../../../docs/design/pc386-removable-media.md), slice F1) | Serial and parallel ports, game port |
+| AT core | Two 8259 PICs, an 8254 PIT, two 8237 DMA controllers, an 8042 with A20, reset and a PS/2 aux port, port 92h, an MC146818 RTC with CMOS, an 82077AA-subset floppy controller and its CMOS configuration ([removable media](../../../docs/design/pc386-removable-media.md), slices F1 and F2) | Serial and parallel ports, game port |
 | Video | Register-level VGA: text modes, mode 13h, unchained 256-colour | SVGA, VESA BIOS extensions |
 | Audio | PC speaker (PIT channel 2 and direct port 61h), OPL2, Sound Blaster 2.0-class DSP with 8-bit PCM and ADPCM DMA | OPL3 and Sound Blaster Pro, MT-32, CMS, Sound Source |
 | Input | HID keyboard through the 8042, PS/2 mouse from `fes.mouse.relative` | Joystick, wheel mouse |
-| Storage | One ATA hard-disk image in HPS DDR | Second disk, CD-ROM, floppy drives ([removable media](../../../docs/design/pc386-removable-media.md) slices F2–F4 and C1–C5) |
+| Storage | One ATA hard-disk image in HPS DDR; floppy drives in simulation (`machine_tb`) | Second disk, CD-ROM, floppy media on the kit ([removable media](../../../docs/design/pc386-removable-media.md) slices F3–F4 and C1–C5) |
 
 ## Block diagram
 
@@ -624,12 +624,21 @@ bank Bochs BIOS uses), on a 32.768 kHz fractional enable.
 ### Configuration bytes
 
 The machine owns the bytes that describe its hardware and writes them from its
-configuration at every Execution release: 10h (no floppy drives), 12h and
-19h–1Ah (disk type), 14h (equipment: 04h, VGA and the PS/2 port, no x87 or
-floppy), 15h–18h and 30h–31h (memory), 1Bh–23h (the disk's cylinders, heads
-and sectors), 34h–35h (memory above 16 MiB), 2Dh, 38h and 3Dh (boot from disk),
+configuration at every Execution release: 10h (the two floppy drives' types,
+A: in the high nibble), 12h and
+19h–1Ah (disk type), 14h (equipment: VGA and the PS/2 port, the x87 as fitted,
+and the floppy fields — bit 0 set when a drive exists and bits 7–6 the drive
+count less one, so two drives give 45h), 15h–18h and 30h–31h (memory),
+1Bh–23h (the disk's cylinders, heads
+and sectors), 34h–35h (memory above 16 MiB), 2Dh, 38h and 3Dh (the boot
+device and the order behind it: a hard-disk launch writes 3Dh = 12h and
+38h = 30h, an A: launch 21h and 30h, a CD launch 23h and 10h, so a device
+that does not boot falls back instead of stopping),
 39h–3Ah (ATA translation: none) and 3Fh (bit 0: no F12 boot menu, which would
-wait three seconds for a key). It recomputes the checksum in 2Eh–2Fh over
+wait three seconds for a key). The floppy drive types and the boot device are
+inputs of `pc386_system` ([removable media](../../../docs/design/pc386-removable-media.md),
+slice F2); until slice F3 reads them from the `fes.pc386.machine` record they
+are no drives and a hard-disk launch, and only `machine_tb` sets them. It recomputes the checksum in 2Eh–2Fh over
 10h–2Dh. The Bochs emulator writes these same bytes before its BIOS runs; the
 BIOS's ATA driver reads disk geometry from ATA IDENTIFY, and its POST copies
 1Bh–23h into the INT 41h fixed-disk table.
@@ -1518,10 +1527,16 @@ Local patches, as made in M1 ([firmware](../cores/fes-pc386/firmware/README.md))
 INT 16h AH=03h; the PCI BIOS, APM and PnP options off (the legacy build leaves
 `BX_PCIBIOS` on, and its probe of CF8h/CFCh would only find FFh), which also
 needs the PAM-register call in POST built only with the PCI BIOS. The boot
-order and disk-only boot need no patch: the machine writes CMOS 2Dh, 38h, 3Dh
-and 3Fh. The floppy probe is harmless: CMOS 10h says no drives, so POST and INT 13h
-never touch the floppy controller, and no POST step needed a Bochs emulator
-port.
+order and the boot device need no patch: the machine writes CMOS 2Dh, 38h,
+3Dh and 3Fh. The floppy needs one, from slice F2 of
+[removable media](../../../docs/design/pc386-removable-media.md): INT 13h
+AH=15h reports a change line for a drive whose CMOS type is 2–5, AH=16h
+answers from the controller's DIR and clears the drive's media state on a
+change, and `floppy_drive_recal` steps the head in one cylinder first when
+the change line is active, since a drive clears that line only on a step
+pulse and Recalibrate issues none at cylinder 0. With no drive fitted
+(CMOS 10h = 0) POST and INT 13h never reach the floppy controller, and no
+POST step needed a Bochs emulator port.
 Bochs's debug ports (400h–403h) and VGABIOS's (500h) stay as the machine's
 debug sink.
 

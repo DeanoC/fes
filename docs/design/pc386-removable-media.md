@@ -1,6 +1,6 @@
 # pc386 removable media: floppy drives and a CD-ROM
 
-Status: design and slice plan, 11 November 2026. Refs [#1694](https://github.com/DeanoC/fes/issues/1694). Slice F1 (`pc386_fdc` and its replay) is implemented; nothing else is. Decisions are marked **D*n*** and listed at the end; Deano accepted every recommendation on 11 November 2026.
+Status: design and slice plan, 11 November 2026. Refs [#1694](https://github.com/DeanoC/fes/issues/1694). Slices F1 (`pc386_fdc` and its replay) and F2 (the CMOS configuration, the BIOS change line, `machine_tb`'s floppy units and the `floppy` and `floppy-boot` suites) are implemented; nothing else is. Decisions are marked **D*n*** and listed at the end; Deano accepted every recommendation on 11 November 2026.
 
 Path convention: `M/` is `sources/misteross/`, `MP/` is `sources/mister-packages/`, `RT/` is `sources/libmister-runtime/`, `FC/` is `sources/FogCast/`. `docs/`, `scripts/` and `AGENTS.md` are at the repo root.
 
@@ -680,6 +680,7 @@ Each slice is one PR with its own `Closes` issue under the tracker, [#1694](http
 ### F2. Floppy in the machine: CMOS, BIOS patch, `machine_tb` units (RTL + firmware, sim)
 
 - **Builds:** CMOS rows from configuration inputs, driven by `machine_tb` until F3 adds the record words; the INT 13h AH=15h/16h patch; file-backed units and `--swap` in `machine_tb`; the `floppy` and `floppy-boot` suites; FLOPTEST.COM.
+- **Built as well:** the drive select a command names runs on the drive DOR selects ([#1796](https://github.com/DeanoC/fes/issues/1796)), with the Bochs and QEMU behaviour recorded as the `dor-mismatch` divergence and its replay case. The BIOS also steps the head once in `floppy_drive_recal` when the change line is active, because a drive clears that line only on a step pulse and Recalibrate issues none at cylinder 0.
 - **Gates:**
   - both suites on the oracle and `--cpu rtl`;
   - the lockstep check;

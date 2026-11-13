@@ -21,12 +21,15 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            F2): A: a 1.44M disk labelled DISK1, B: a 1.2M disk labelled
            BDISK. It checks the CMOS equipment word and INT 13h AH=15h
            against the drive types, reads each disk's boot sector, and takes
-           the change line across two swaps the program asks for through the
+           the change line across the swaps the program asks for through the
            debug port: a write-protected DISK2 (AH=16h reports the change,
            the next read gets the new disk and clears the line, and a write
            fails with "write protected"), then DISK1 again, which DOS must
-           see by itself. A sector written to B: must be in the image the
-           bench writes back. Every check must print ok. With --cpu rtl the
+           see by itself, then a 360K disk in the 1.2M drive and the 1.2M
+           disk again. It also verifies a track, has a transfer that would
+           cross a 64 KiB boundary refused, and formats A:'s last track. A
+           sector written to B: must be in the image the bench writes back.
+           Every check must print ok. With --cpu rtl the
            oracle boots and fes_i386_cpu runs from the prompt, so the INT 13h
            transfers, DMA channel 2 and IRQ 6 are its; writes floppy-rtl/.
   floppy-boot
@@ -985,15 +988,17 @@ def run_ems(args, linked: list[Path]) -> dict:
 # sector it writes to B: (cylinder 79, head 1, sector 15 of a 1.2M disk) and
 # the 16 bytes it fills it with.
 FLOPPY_CHECKS = ('equip', 'type-a', 'type-b', 'label-a', 'label-b', 'nochange-a', 'change-a', 'reread-a',
-                 'cleared-a', 'wp-a', 'write-b', 'dos-a1', 'dos-a2', 'DONE')
+                 'cleared-a', 'wp-a', 'verify-a', 'dma-boundary', 'dos-a1', 'dos-a2', 'format-a',
+                 'label-b360', 'back-b', 'write-b', 'DONE')
 FLOPPY_WRITE_LBA = (79 * 2 + 1) * 15 + 15 - 1
 FLOPPY_WRITE_PATTERN = b'FES FLOPPY WRITE'
 
 
 def run_floppy(args, linked: list[Path]) -> dict:
     """FLOPTEST.COM at the FreeDOS prompt with both drives fitted: the CMOS
-    configuration, the BIOS change line across two swaps, a write-protected
-    disk and a write to B: that must reach the image."""
+    configuration, the BIOS change line across four swaps, a write-protected
+    disk, a 360K medium in the 1.2M drive, a format, and a write to B: that
+    must reach the image."""
     images = firmware.images(args.download, args.jobs)
     testbench = machine_testbench(args, linked)
     rtl = '-rtl' if args.cpu == 'rtl' else ''
@@ -1002,6 +1007,7 @@ def run_floppy(args, linked: list[Path]) -> dict:
     disk1 = freedos.image(args.download, args.jobs, 'floppy-a')
     disk2 = freedos.image(args.download, args.jobs, 'floppy-a2')
     disk_b = freedos.image(args.download, args.jobs, 'floppy-b')
+    disk_b360 = freedos.image(args.download, args.jobs, 'floppy-b360')
     written = OUTPUT / suite / 'floppy-b-out.img'
     print(f'Running FLOPTEST.COM with A: and B: fitted on the {args.cpu} CPU', flush=True)
     run = run_machine(testbench, suite,
@@ -1009,6 +1015,7 @@ def run_floppy(args, linked: list[Path]) -> dict:
                        '--floppy', f'A:{disk1}', '--floppy', f'B:{disk_b}',
                        '--floppy-out', f'B:{written}',
                        '--swap', f'SWAP 1:A:{disk2}:ro', '--swap', f'SWAP 2:A:{disk1}',
+                       '--swap', f'SWAP 3:B:{disk_b360}', '--swap', f'SWAP 4:B:{disk_b}',
                        '--type', 'floptest|', '--expect', 'FLOPPY DONE ok', '--cpu', args.cpu,
                        # The boot is the oracle's; the RTL takes over at the
                        # prompt, so FLOPTEST.COM's INT 13h, the DMA transfers
@@ -1022,8 +1029,8 @@ def run_floppy(args, linked: list[Path]) -> dict:
     if names != list(FLOPPY_CHECKS):
         failures.append(f'FLOPTEST.COM ran {names}, expected {list(FLOPPY_CHECKS)}')
     swaps = [line for line in run['floppy'] if line.startswith('swap ')]
-    if len(swaps) != 2:
-        failures.append(f'expected two swaps, the bench made {len(swaps)}: {swaps}')
+    if len(swaps) != 4:
+        failures.append(f'expected four swaps, the bench made {len(swaps)}: {swaps}')
     # The sector FLOPTEST.COM wrote must be in the image the bench wrote back.
     try:
         bytes_written = written.read_bytes()
@@ -1042,6 +1049,9 @@ def run_floppy(args, linked: list[Path]) -> dict:
                             f'not {disk_b.stat().st_size}')
         if bytes_written[:512] != disk_b.read_bytes()[:512]:
             failures.append('the written B: image\'s boot sector changed')
+    for source in (disk1, disk2, disk_b, disk_b360):
+        if not source.is_file():
+            failures.append(f'missing floppy fixture {source}')
     if rtl:
         failures += rtl_failures(run, 'floppy run')
     return {'run': run, 'checks': checks + run['floppy'], 'failures': failures}
