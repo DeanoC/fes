@@ -2729,6 +2729,17 @@ void TestIdleDisplayHealthPublishesWhenItStopsRecovering()
  assert(hardware.CheckIdleDisplayHealth().ok());
  assert(hardware.menu_display().live.recovery_abandoned&&fpga.calls==latched);
 
+ // A check that cannot read the registers at all measures nothing and so
+ // replaces nothing: the latch is still in force, and the sample that named
+ // it stays on the wire. Dropping the live member here would leave the
+ // client with no live reads, its own cached sequence unchanged, and every
+ // reason to call the display healthy and present into the loss again.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.toggle=!script.toggle;PushFesGpResponse(&mmio,script.toggle,0,true);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.read&&hardware.menu_display().live.recovery_abandoned);
+ assert(fpga.calls==latched&&hardware.menu_display().available);
+
  // A healthy read clears the latch, and the flag goes with it.
  clock.now_+=kMenuHealthIntervalMs;
  script.Info(3,0);

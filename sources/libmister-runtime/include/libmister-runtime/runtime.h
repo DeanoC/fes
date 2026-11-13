@@ -397,9 +397,15 @@ struct MenuDisplayLive {
  // reason and did not clear it, or the bounded reactivation budget is
  // spent. It is false on a healthy display, false while a transmitter loss
  // is still settling, and false while a loss is still eligible for a
- // reactivation. A client that sees it must not present to force recovery
- // the runtime has deliberately given up on, and must not call the display
- // healthy either: the picture is gone and stays gone.
+ // reactivation. A check that cannot read the registers at all leaves the
+ // verdict standing, because the latch behind it is still in force.
+ // A client that sees it must not present to force recovery the runtime has
+ // deliberately given up on. It must not pull a supervised readiness marker
+ // down over it either: that marker drives process and bundle supervision,
+ // so withdrawing it stops and restarts the kit's software group every few
+ // minutes, and each restart reprograms the same dead display -- the
+ // reprogram loop this whole policy exists to avoid. The kit log names the
+ // loss; the picture stays gone until the hardware changes.
  bool recovery_abandoned=false;
 };
 struct MenuDisplayStatus {

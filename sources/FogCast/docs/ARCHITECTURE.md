@@ -696,8 +696,12 @@ is the runtime's per-present delta. The kit painter and the Linux menu
 client accept a delta of at most one 720p scanline and refuse a larger one.
 The decoder also defines the optional `menu_display.live`: the runtime's
 periodic re-read of the idle display, with `enabled`, `faulted`, `quiesced`,
-`displayed_sequence` and `underflows_total`, plus a nested `transmitter`
-object carrying `hot_plug`, `rx_sense`, `pll_lock` and `vic`. The ADV7513
+`displayed_sequence`, `underflows_total` and `recovery_abandoned`, plus a
+nested `transmitter` object carrying `hot_plug`, `rx_sense`, `pll_lock` and
+`vic`. `recovery_abandoned` is the runtime's verdict rather than a read: it
+says this loss gets no further reactivation, so a client neither presents to
+force recovery nor withdraws managed readiness over it. It is optional, so a
+runtime that does not send it decodes as willing to reactivate. The ADV7513
 reads succeed or fail together, so `transmitter` is one all-or-nothing object
 rather than four optional members that a re-encode could split. Unlike the
 sibling `underflows`, `live.underflows_total` is the absolute hardware

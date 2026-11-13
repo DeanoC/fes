@@ -231,7 +231,10 @@ once and the display is left exactly as it is; nothing retries in a loop, and
 nothing is reprogrammed while a core session owns the display. A register
 that could not be read is not evidence of a loss and only logs; a display
 that cannot be read at all is logged on the first such sample and again when
-it becomes readable, not on every tick in between.
+it becomes readable, not on every tick in between. Such a check also
+publishes nothing: `live` keeps whatever the registers last answered, because
+an unmeasured sample would otherwise overwrite a measured one and retract a
+give-up that is still in force.
 
 That budget window slides, so a condition a reprogram cannot clear would
 otherwise interrupt the idle Home twice every ten minutes forever. A
@@ -248,9 +251,13 @@ and with it the flag. The field exists because a client that sees a lost
 picture and nothing else would present to force recovery, and that present
 would spend from the present path exactly the budget the idle check withheld,
 or clear the menu package and drop the kit to splash. A client must therefore
-neither present to recover an abandoned loss nor call the display healthy
-while it is set: the kit log names the loss, and the picture stays gone until
-something changes.
+not present to recover an abandoned loss while it is set. It must not pull a
+supervised readiness marker down over it either: that marker is what stops
+and restarts the kit's software group, so withdrawing it would restart agent,
+runtime and launcher every few minutes, reprogram the same dead display on
+every restart, and block the bundle activation that could ship a fix -- the
+reprogram loop this policy gives the loss up to avoid. The kit log names the
+loss, and the picture stays gone until the hardware changes.
 
 FogCast's probe of an unchanged frame requires `live.enabled`, no
 `live.faulted` or `live.quiesced`, and `live.displayed_sequence` equal to the
@@ -259,10 +266,15 @@ sequence its own last present returned. The runtime sets the cached
 present, so only the live read can disagree; an older runtime reports no
 `live` at all, and the probe falls back to the cached field there. Anything
 else sends a complete frame instead of acknowledging one -- unless
-`live.recovery_abandoned` is set, where the probe sends nothing, reports the
-launcher's managed software as not ready, and keeps probing on its interval
-so ordinary presenting resumes on the first status that clears the flag. An
-older runtime never sends the field, so it behaves exactly as before.
+`live.recovery_abandoned` is set, where it sends nothing at all and keeps
+probing on its interval, so ordinary presenting resumes on the first status
+that clears the flag. The recovery present FogCast sends when a backoff
+expires carries an unchanged frame too, and it is refused the same way, on
+the status read for that present rather than on an older one: the failure
+that armed the backoff is also what can have hidden the verdict until then.
+A frame whose pixels actually changed is still presented, and readiness is
+deliberately left where it was. An older runtime never sends the field, so it
+behaves exactly as before.
 
 ### Lifecycle
 

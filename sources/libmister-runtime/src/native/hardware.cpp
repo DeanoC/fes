@@ -2021,7 +2021,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
    // taken now would call a healthy bring-up lost and spend the bounded
    // reactivation budget at exactly the moment a kit needs it.
    menu_health_checked_=true;menu_health_checked_at_=clock_.NowMs();
-   menu_health_sampled_=false;
+   menu_health_sampled_=false;menu_health_read_failed_=false;
    menu_health_sequence_mismatch_=false;menu_health_settling_.clear();
    menu_status_.geometry=info.geometry;menu_status_.blitter=blitter;menu_status_.frame_mapping=menu_window_->FrameMapping();menu_slot_=0;
    menu_status_.blitter_minor=blitter?MenuBlitterMinor(admitted->opened_.descriptor):0;
@@ -2287,37 +2287,46 @@ Error NativeHardware::CheckIdleDisplayHealth()
  if(!IdleDisplayHealthDue())return {};
  menu_health_checked_=true;menu_health_checked_at_=clock_.NowMs();
  MenuDisplayLive live;
- const bool read=ReadIdleDisplayLive(&live);
- std::string lost;
- if(read) {
-  if(!live.enabled)lost="menu scanout is disabled";
-  else if(live.faulted)lost="menu scanout reports a fault";
-  else if(live.quiesced)lost="menu scanout is quiesced";
-  else if(live.displayed_sequence!=menu_status_.displayed_sequence)
-   lost="menu scanout no longer shows the committed frame";
-  else if(live.link&&!live.pll_lock)lost="menu pixel PLL is unlocked";
-  else if(live.link&&!live.rx_sense)lost="menu HDMI sink sense is lost";
-  else if(live.link&&live.vic!=adv7513::kVic720p60)lost="menu HDMI mode is not 720p60";
+ // A register that could not be read is not evidence of a lost scanout.
+ // Reprogramming the menu because a bus call failed would be its own fault
+ // loop, so an unreadable display or transmitter only logs, once per streak.
+ // It changes nothing published either: the live member stays what the
+ // registers last answered, because overwriting a measured sample with an
+ // unmeasured one would also retract a give-up that is still in force. A
+ // client that had stopped presenting into an abandoned loss would then see
+ // no live reads at all, find its own cached sequence unchanged, call that
+ // healthy and start presenting again -- into the loss the runtime gave up
+ // on.
+ if(!ReadIdleDisplayLive(&live)) {
+  if(!menu_health_read_failed_){menu_health_read_failed_=true;LogIdleDisplayLive(live);}
+  return {};
  }
+ menu_health_read_failed_=false;
+ std::string lost;
+ if(!live.enabled)lost="menu scanout is disabled";
+ else if(live.faulted)lost="menu scanout reports a fault";
+ else if(live.quiesced)lost="menu scanout is quiesced";
+ else if(live.displayed_sequence!=menu_status_.displayed_sequence)
+  lost="menu scanout no longer shows the committed frame";
+ else if(live.link&&!live.pll_lock)lost="menu pixel PLL is unlocked";
+ else if(live.link&&!live.rx_sense)lost="menu HDMI sink sense is lost";
+ else if(live.link&&live.vic!=adv7513::kVic720p60)lost="menu HDMI mode is not 720p60";
  // The displayed sequence advances with every present, so including it here
  // would emit a line on every tick of an animating menu. The log records it;
  // only a health transition, or the verdict that it no longer matches the
  // committed frame, is a change worth a line.
  const bool mismatch=lost=="menu scanout no longer shows the committed frame";
- // The first sample after programming is always worth a line: the reset
- // baseline is all-zero, so an unreadable first read matches it exactly and
- // would otherwise be logged neither now nor on any identical later tick.
- const bool changed=!menu_health_sampled_||live.read!=menu_status_.live.read||live.link!=menu_status_.live.link||
+ // The first measured sample after programming is always worth a line: the
+ // reset baseline is all-zero, so a display that reads back all-zero matches
+ // it exactly and would otherwise be logged neither now nor on any identical
+ // later tick.
+ const bool changed=!menu_health_sampled_||live.link!=menu_status_.live.link||
   live.enabled!=menu_status_.live.enabled||live.faulted!=menu_status_.live.faulted||
   live.quiesced!=menu_status_.live.quiesced||live.rx_sense!=menu_status_.live.rx_sense||
   live.hot_plug!=menu_status_.live.hot_plug||live.pll_lock!=menu_status_.live.pll_lock||
   live.vic!=menu_status_.live.vic||mismatch!=menu_health_sequence_mismatch_;
  menu_status_.live=live;menu_health_sequence_mismatch_=mismatch;menu_health_sampled_=true;
  if(changed)LogIdleDisplayLive(live);
- // A register that could not be read is not evidence of a lost scanout.
- // Reprogramming the menu because a bus call failed would be its own fault
- // loop, so an unreadable display or transmitter only logs.
- if(!read)return {};
  if(lost.empty()) {
   // A healthy read ends every streak and clears the latch, so a loss that
   // really does come back is treated as new.

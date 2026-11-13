@@ -189,6 +189,11 @@ private:
  // the freshly reset baseline, and an unreadable display would never be
  // logged at all.
  bool menu_health_sampled_=false;
+ // Whether the last check could not read the display at all. An unreadable
+ // sample measures nothing, so it neither replaces the published sample nor
+ // repeats its own line once a second; this is the streak that line is
+ // logged once for.
+ bool menu_health_read_failed_=false;
  bool menu_health_budget_logged_=false;
  // The previous tick's sequence-mismatch verdict, so the health line is
  // logged on a transition rather than on every present.

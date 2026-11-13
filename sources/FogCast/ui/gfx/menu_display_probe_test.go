@@ -870,9 +870,12 @@ func TestMenuDisplayDiscardKeepsInFlightProbe(t *testing.T) {
 // alone. A probe that answered that sample with a complete present would
 // spend from the present path the very budget the runtime withheld, or clear
 // the menu package and drop the kit to splash. So the probe sends nothing
-// while the flag is set -- and must not call the display healthy either,
-// which is why this cannot be an early "not lost" verdict in
-// scanoutLostLocked: that routes the probe into the acknowledging fast path.
+// while the flag is set. It must not answer "not lost" in scanoutLostLocked
+// instead: that routes the probe into the fast path that acknowledges the
+// handoff. What it must not do either is pull managed readiness down, which
+// would restart the kit's software group every few minutes and reprogram the
+// same dead display on each restart -- the loop the runtime gave the loss up
+// to avoid.
 func TestMenuDisplayProbeSendsNothingWhileRecoveryIsAbandoned(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "ready.json")
 	t.Setenv("FES_SOFTWARE_READY_FILE", path)
@@ -900,7 +903,9 @@ func TestMenuDisplayProbeSendsNothingWhileRecoveryIsAbandoned(t *testing.T) {
 		if client.statusCount() != statusBefore+1 {
 			t.Fatalf("probe %d stopped reading status: %d, want %d", i, client.statusCount(), statusBefore+1)
 		}
-		requireSoftwareReady(t, path, false)
+		// The frame the runtime acknowledged is still acknowledged, so the
+		// supervisor's marker stays exactly where it was.
+		requireSoftwareReady(t, path, true)
 	}
 
 	// The next budget window reopens: the loss is eligible for recovery
@@ -909,6 +914,84 @@ func TestMenuDisplayProbeSendsNothingWhileRecoveryIsAbandoned(t *testing.T) {
 	client.live = &menudisplay.Live{}
 	client.mu.Unlock()
 	clock.Advance(menuProbeInterval)
+	d.Present()
+	presentMenuWait(t, client)
+	waitMenuIdle(t, d, client, 2)
+	if calls, _, n, _ := client.snapshot(); calls != 2 || n != menudisplay.FrameBytes {
+		t.Fatalf("cleared flag did not resume presenting, calls=%d bytes=%d", calls, n)
+	}
+}
+
+// An unchanged frame reaches the runtime as a probe only while no backoff is
+// armed. The present after a backoff expires is a whole frame, and the
+// failure that armed that backoff is also what can hide the abandoned verdict
+// from the launcher until the socket answers again -- so the verdict has to
+// be read from that present's own status, in the worker, rather than from
+// whatever the launcher last heard. Without that, a failing present re-arms
+// the backoff and the launcher sends the whole idle frame into the abandoned
+// loss once per backoff cap, forever.
+func TestMenuDisplayRecoveryPresentStopsAtAnAbandonedLoss(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+
+	// A socket hiccup fails the probe and arms the backoff. The launcher
+	// hears nothing about the display while it lasts.
+	client.mu.Lock()
+	client.statusErr = errors.New("socket missing")
+	client.mu.Unlock()
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	waitMenuIdle(t, d, client, 1)
+	d.mu.Lock()
+	until := d.backoffUntil
+	d.mu.Unlock()
+	if until.IsZero() {
+		t.Fatal("failed probe armed no backoff")
+	}
+
+	// The socket comes back, and by then the runtime has given the loss up.
+	client.mu.Lock()
+	client.statusErr = nil
+	client.live = &menudisplay.Live{RecoveryAbandoned: true}
+	client.mu.Unlock()
+	for i := 0; i < 3; i++ {
+		statusBefore := client.statusCount()
+		clock.Set(until)
+		d.Present()
+		// The whole frame is queued and the worker reads status for it; the
+		// refusal is this present's own verdict on that status, so wait for
+		// the read rather than for a submission count that does not move.
+		waitMenuStatus(t, d, client, statusBefore+1)
+		if calls, _, _, _ := client.snapshot(); calls != 1 {
+			t.Fatalf("recovery %d presented into an abandoned loss, calls=%d", i, calls)
+		}
+		if client.statusCount() != statusBefore+1 {
+			t.Fatalf("recovery %d read status %d times, want one", i, client.statusCount()-statusBefore)
+		}
+		// Refusing to send is not a failure, so nothing arms a new backoff:
+		// the launcher falls back to the probe interval it keeps running on.
+		d.mu.Lock()
+		armed, probeDue := !d.backoffUntil.IsZero(), d.probeDueLocked(clock.Now())
+		d.mu.Unlock()
+		if armed {
+			t.Fatalf("recovery %d armed a backoff", i)
+		}
+		if probeDue {
+			t.Fatalf("recovery %d left a probe due immediately", i)
+		}
+		until = clock.Now().Add(menuProbeInterval)
+	}
+
+	// The display comes back and ordinary presenting resumes with a complete
+	// frame, which is the only thing that was waiting on the flag.
+	client.mu.Lock()
+	client.live = &menudisplay.Live{}
+	client.mu.Unlock()
+	clock.Set(until)
 	d.Present()
 	presentMenuWait(t, client)
 	waitMenuIdle(t, d, client, 2)

@@ -42,8 +42,13 @@ type queuedMenuFrame struct {
 	known      bool
 	seq        uint64
 	probe      bool
-	binding    menuSessionBinding
-	epoch      uint64
+	// unchanged marks a frame whose pixels the runtime already has. Only the
+	// recovery present after a backoff sends one as a whole frame instead of
+	// a probe, and it is the one present that must stop when the runtime has
+	// given up recovering this display.
+	unchanged bool
+	binding   menuSessionBinding
+	epoch     uint64
 	// queuedAt and copyUS feed the frame trace.
 	queuedAt time.Time
 	copyUS   int64
@@ -235,8 +240,9 @@ type MenuDisplay struct {
 }
 
 // MenuReadinessDiagnostic is a snapshot of the facts used by managed software
-// readiness. It is intended for startup diagnostics; it does not relax the
-// readiness predicate.
+// readiness, plus the one display fact that stops this client presenting
+// without stopping readiness. It is intended for startup diagnostics; it does
+// not relax the readiness predicate.
 type MenuReadinessDiagnostic struct {
 	HasPresented bool
 	Paused       bool
@@ -247,7 +253,12 @@ type MenuReadinessDiagnostic struct {
 	PresentedGen uint64
 	Underflows   uint64
 	LastErr      string
-	Ready        bool
+	// RecoveryAbandoned is the runtime's verdict that it has stopped
+	// recovering this display. Nothing is presented to it while it holds, so
+	// a diagnostic that showed only healthy facts would leave an operator
+	// with no sign of why the screen is black and nothing is retrying.
+	RecoveryAbandoned bool
+	Ready             bool
 }
 
 func NewMenuDisplay(socketPath string) (*MenuDisplay, error) {
@@ -375,7 +386,7 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 	if !isList {
 		pix = d.Software.Framebuffer().Pix
 	}
-	probe := false
+	probe, unchanged := false, false
 	if d.changeDriven {
 		now := d.clock()
 		if !d.backoffUntil.IsZero() && now.Before(d.backoffUntil) {
@@ -385,7 +396,6 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 		if recover {
 			d.backoffUntil = time.Time{}
 		}
-		unchanged := false
 		if previous := d.submitted; previous != nil && d.generation == previous.generation {
 			if revisionKnown && previous.revisionKnown {
 				unchanged = revision == previous.revision
@@ -430,7 +440,7 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 		buffer = d.takeFrameLocked()
 		copyUS = time.Since(copyStart).Microseconds()
 	}
-	frame := queuedMenuFrame{buffer: buffer, list: list, isList: isList, generation: d.generation, known: d.known, seq: seq, probe: probe, binding: d.binding, epoch: d.bindingEpoch, queuedAt: time.Now(), copyUS: copyUS}
+	frame := queuedMenuFrame{buffer: buffer, list: list, isList: isList, generation: d.generation, known: d.known, seq: seq, probe: probe, unchanged: unchanged, binding: d.binding, epoch: d.bindingEpoch, queuedAt: time.Now(), copyUS: copyUS}
 	if buffer != nil {
 		frame.pixels = buffer.pixels
 	}
@@ -647,6 +657,7 @@ func (d *MenuDisplay) run() {
 			var retryFromTiming menudisplay.Timing
 			var statusUS, presentUS int64
 			presented, genChanged, cached, retried, blitted := false, false, false, false, false
+			abandoned := false
 			statusSkipped := false
 			damageRects := 0
 			for attempt := 0; ; attempt++ {
@@ -669,6 +680,21 @@ func (d *MenuDisplay) run() {
 					d.mu.Unlock()
 				}
 				damaged := 0
+				if err == nil && frame.unchanged && recoveryAbandoned(status) {
+					// The recovery present after a backoff is the only
+					// unchanged frame that gets this far, and the runtime has
+					// deliberately stopped recovering this loss: sending it
+					// spends from the present path the reactivation the idle
+					// check withheld, or clears the menu package and drops
+					// the kit to splash. The verdict is read from this
+					// attempt's own status, not from an older one, because
+					// the failure that armed the backoff is also what can
+					// have hidden the verdict until now. An unchanged frame
+					// never reaches here on a cached status: the cache is
+					// dropped by the failure that arms a backoff.
+					abandoned = true
+					break
+				}
 				if err == nil && status.Available {
 					if status.Underflows > menudisplay.TransientUnderflowCap {
 						err = errors.New("menu scanout underflow")
@@ -711,16 +737,28 @@ func (d *MenuDisplay) run() {
 				d.mu.Unlock()
 				continue
 			}
-			d.lastErr = err
-			d.noteSettledLocked(presented, err)
-			if !presented {
-				d.forgetLocked(frame.seq)
+			if abandoned {
+				// Nothing was sent and nothing failed, so the acknowledged
+				// frame and the settled outcome both stand. The submission
+				// stays too, which keeps the next Present an unchanged frame
+				// that goes no further than a probe, and pacing comes from
+				// the probe interval rather than a backoff that would only
+				// count down to the same refusal.
+				d.lastProbe = d.clock()
 				d.dropShortcutsLocked()
+				d.reportSoftwareReadyLocked(status)
 			} else {
-				d.rememberShownLocked(frame, status, result, cached, blitted)
-			}
-			if d.changeDriven {
-				d.notePresentResultLocked(presented, genChanged, err, status, frame.seq, result.DisplayedSequence)
+				d.lastErr = err
+				d.noteSettledLocked(presented, err)
+				if !presented {
+					d.forgetLocked(frame.seq)
+					d.dropShortcutsLocked()
+				} else {
+					d.rememberShownLocked(frame, status, result, cached, blitted)
+				}
+				if d.changeDriven {
+					d.notePresentResultLocked(presented, genChanged, err, status, frame.seq, result.DisplayedSequence)
+				}
 			}
 			d.releaseBufferLocked(frame.buffer)
 			d.pending--
@@ -783,10 +821,15 @@ func (d *MenuDisplay) runProbe(frame queuedMenuFrame) {
 		// Presenting is the only recovery a probe has, and the runtime has
 		// deliberately stopped recovering this loss: a present here spends a
 		// reactivation it withheld, or clears the menu package and drops the
-		// kit to splash. So this probe ends with no frame and no claim of
-		// health -- reportSoftwareReadyLocked reads the same flag -- while
-		// the probe interval keeps running, which is how the launcher sees
-		// the loss clear and resumes ordinary presenting.
+		// kit to splash. So this probe ends with no frame, and it is also
+		// where the recovery present after a backoff ends up, since an
+		// unchanged frame only ever reaches the runtime as a probe. The
+		// interval keeps running, which is how the launcher sees the loss
+		// clear and resumes ordinary presenting. It does not touch the
+		// acknowledged frame or the settled outcome: the frame that was
+		// accepted stays accepted, and reportSoftwareReadyLocked keeps the
+		// supervisor's marker where it was rather than restarting the kit's
+		// software over a display nothing can fix.
 		d.clearProbeQueuedLocked(frame.epoch)
 		d.lastProbe = d.clock()
 		d.reportSoftwareReadyLocked(status)
@@ -939,9 +982,16 @@ func (d *MenuDisplay) reportSoftwareReadyLocked(status menudisplay.Status) {
 	if d.paused && d.keepReadyWhileLaunchPending {
 		return
 	}
-	// A display the runtime has given up recovering is not ready however
-	// available the rest of the status looks: there is no picture on it.
-	reportSoftwareReady(!d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap && !recoveryAbandoned(status))
+	// A display the runtime has given up recovering is deliberately not
+	// counted here, however black the screen is. This marker is what the kit
+	// software supervisor reads: withdrawing it leaves the group unready,
+	// which stops and restarts agent, runtime and launcher every few minutes
+	// and reprograms the same dead display on every restart, and it blocks
+	// the bundle activation that could ship a fix. That is the reprogram loop
+	// the runtime's policy gives the loss up to avoid. Readiness follows the
+	// acknowledged frame, as its own contract says; the runtime's kit log
+	// names the loss, and ReadinessDiagnostic carries it for the launcher's.
+	reportSoftwareReady(!d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap)
 }
 
 // ReadinessDiagnostic returns the last runtime status and exact display facts
@@ -962,8 +1012,9 @@ func (d *MenuDisplay) ReadinessDiagnostic() MenuReadinessDiagnostic {
 		StatusKnown: d.statusKnown,
 		Available:   status.Available, Generation: status.Generation,
 		PresentedGen: d.presentedGen, Underflows: status.Underflows,
-		LastErr: lastErr,
-		Ready:   !d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap && !recoveryAbandoned(status),
+		LastErr:           lastErr,
+		RecoveryAbandoned: recoveryAbandoned(status),
+		Ready:             !d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap,
 	}
 }
 

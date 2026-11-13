@@ -820,10 +820,11 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
    // The absolute hardware counter, not the per-present delta that the
    // sibling "underflows" carries, so it takes its own name.
    output.Append(",\"underflows_total\":");output.Append(std::to_string(live.underflows_total));
-   // Not a register read but the runtime's own verdict on it: this loss has
-   // used up the recovery it is allowed, so a client that presents to force
-   // recovery would only spend a budget that is already spent, and must not
-   // read "available" as a picture either.
+   // Not a register read but the runtime's own verdict on it: this loss gets
+   // no further reactivation, either because one already ran for it and did
+   // not clear it or because the bounded budget is spent. A client that
+   // presents to force recovery only spends from the present path the budget
+   // this policy kept, and must not read "available" as a picture either.
    output.Append(",\"recovery_abandoned\":");output.Append(live.recovery_abandoned?"true":"false");
    // The transmitter reads succeed or fail together, so they are one
    // object: a client cannot see two of the four and guess at the rest.
