@@ -28,10 +28,11 @@ is the [WIN386 on FreeDOS record](../2026-11-12-pc386-freedos-win386/summary.md)
 - **Kit A runs the fixture and three acceptance games** on a CUDA seal of
   this branch.
 - **Saving a new file from Windows fails under FreeDOS's SHARE, as
-  upstream reported.** Re-saving an existing file works, but Save As to a
-  new name stops with "This file is on a network drive with create but no
-  modify privileges" and leaves the new file at 0 bytes. The same keys on
-  MS-DOS 6.22 save both files. The games never load SHARE, so this does
+  upstream reported.** In Notepad, re-saving an existing file works, but
+  Save As to a new name stops with "This file is on a network drive with
+  create but no modify privileges" and leaves the new file at 0 bytes.
+  Write's Save As leaves its new file at 0 bytes too, with no message. The
+  same keys on MS-DOS 6.22 save every file. The games never load SHARE, so this does
   not affect them; it limits Windows on entry 4
   ([below](#saving-files-from-windows), issue [#1777](https://github.com/DeanoC/fes/issues/1777)).
 
@@ -202,7 +203,22 @@ That is the upstream report's failure. Notepad created the new file but
 could not write to it. Why SHARE refuses the write is not traced here. FreeDOS 1.4's SHARE (08/2006a) is the
 newest official SHARE. FDOS/share has made no release since, and its source
 has not changed since January 2025. The kernel 2046 source tree carries a
-newer SHARE source but no binary. Write: pending (a rerun with keys the bench can type; the first runs used `*`, which it cannot type).
+newer SHARE source but no binary.
+
+Write, the same way: `win /3 write`, type `HELLO`, File Save As
+`c:\doc1.wri` and Enter, then type ` AGAIN` and File Save. (The first
+Write runs ended early in the bench, not in Windows: their last keys used
+`*`, which `machine_tb` cannot type.)
+
+| Step | FreeDOS 2046 + SHARE | MS-DOS 6.22 |
+| --- | --- | --- |
+| File Save As a new `DOC1.WRI` | no message; the Save As dialog stays up and the title stays "(Untitled)". `DOC1.WRI` is created with 0 bytes, and Write's temporary `C:\WINDOWS\~WRI0905.TMP` is left with 0 bytes | saved |
+| Then File Save | not reached: the later keys land in the open dialog | saved: `DOC1.WRI` is 640 bytes and holds `HELLO AGAIN` |
+
+The MS-DOS drive's frames stay on the text-mode boot screen (the bench
+showed none of its Windows frames), so its column comes from the disk
+written back at the end. Write fails the same way as Notepad's Save As:
+the new file is created but never written.
 
 ## Kit
 
