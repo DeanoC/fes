@@ -4,7 +4,7 @@ from pathlib import Path
 HERE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('fes_input_arena',HERE/'nano_sdm_probe_profile.py');arena=importlib.util.module_from_spec(spec);spec.loader.exec_module(arena)
 fit_spec=importlib.util.spec_from_file_location('fes_input_fit',HERE.parent/'nano/fit_layout.py');fit=importlib.util.module_from_spec(fit_spec);fit_spec.loader.exec_module(fit)
-CONTRACT=dict(format=12,scope='nano-SID10-full-input-retained-continuation-v12',mode='input-transfer-retire-retained-continue',attempts=1,
+CONTRACT=dict(format=13,scope='nano-SID10-retained-native-control-v13',mode='input-transfer-retire-retained-continue',attempts=1,
  source_base=0x94800000,wire_base=0x14800000,payload_max=0x7ff000,page_bytes=4096,metadata_page=0x94fff000,
  arena_base=0x94000000,arena_bytes=0x10000,root_offset=0x4000,command_offset=0x8000,event_offset=0x9000,
  prepared_control=12,armed_control=13,source_stream=10,source_access='read-only-XN',other_streams='abort',
@@ -14,6 +14,12 @@ CONTRACT=dict(format=12,scope='nano-SID10-full-input-retained-continuation-v12',
  reply_selection='fixed-ATF-expected-submission-job',DATA_reply_words=0,job_ids=14,
  status='IDLE-NSTATUS-CONF_DONE-INIT_DONE',continuation_before_configuration_commit=True,
  continuation_attempts=1,continuation_replay=False,
+ postconfiguration_control='explicit-live-retained-completed-native-owner',
+ control_command=4,control_client=1,control_job=15,control_reply_words=6,
+ control_inflight=1,control_tables='full-before-and-after-query',
+ control_view='fresh-fixed-disabled-24-registers-and-owner',
+ control_mailbox='stable-empty-parser-descriptors-bitmap-and-FIFOs-no-ACK',
+ control_bound='existing-vendor-bounded-sync-parser',control_DATA_reopen=False,
  continuation_scope='live-engine-and-fresh-final-view-under-original-retirement-bound',
  buffers='retained-on-every-outcome',mapping_retirement='abort-invalidate-disable-retained',automatic_reset=False,replay=False,
  physical_qualification=False,ordinary_runtime_activation=False,build_tag='cold-chain-prefix-16-hex',boot_fit=dict(fit.CONTRACT),compiler_stack_records='selected-units',final_counter_owner_scope='fresh-after-read',pretransfer_mailbox='vendor-parser-until-preparation-attempt',retirement_bound_us=1000000,retirement_controls=[13,12,8,0],retirement_queue_pointers=[6,12],retirement_abort=0x100000,retirement_allow_bypass=False,retirement_memory_reuse=False,retirement_timing='existing-guard-samples-v1',retirement_timing_phases=7,retirement_timing_added_clock_reads=0,retirement_register_batch_rows=24,retirement_table_guard_bytes=4096,retirement_fresh_prewrite_registers=24,retirement_command_snapshot='owned-fixed-24-register-superset',retirement_command_snapshot_rows=24)
@@ -30,9 +36,9 @@ CONTRACT.update(retirement_command_clock='fresh-counter-monotonic-source-and-ret
                 retirement_final_validation_policy='retained-final-snapshots-only')
 FILES=('nano_sdm_input_profile.py','sdm_input_vendor_service.c','sdm_input_vendor_mailbox.c','sdm_input_mailbox.h',
  'nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','input_tables.c','input_tables.h','input_transfer.c','input_transfer.h',
- 'input_transfer_service.c','input_transfer_service.h','sdm_input_probe_setup.c','sdm_input_probe_setup.h','command_queue.c','command_queue.h','source_retire.c','source_retire.h','nano_sdm_retire_platform.inc')
+ 'input_transfer_service.c','input_transfer_service.h','sdm_input_probe_setup.c','sdm_input_probe_setup.h','command_queue.c','command_queue.h','source_retire.c','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc')
 C_FILES=('input_tables.c','input_transfer.c','input_transfer_service.c','probe_setup.c','command_queue.c','source_retire.c')
-H_FILES=('input_tables.h','input_transfer.h','input_transfer_service.h','probe_setup.h','command_queue.h','nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','source_retire.h','nano_sdm_retire_platform.inc')
+H_FILES=('input_tables.h','input_transfer.h','input_transfer_service.h','probe_setup.h','command_queue.h','nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc')
 SERVICE=Path('plat/intel/soc/common/socfpga_sip_svc.c');MAILBOX=Path('plat/intel/soc/common/soc/socfpga_mailbox.c');MAILBOX_HEADER=Path('plat/intel/soc/common/include/socfpga_mailbox.h')
 PLATFORM=Path('plat/intel/soc/common/nano_cold_platform.c');LD=Path('bl31/bl31.ld.S');MK=Path('plat/intel/soc/agilex5/platform.mk');HEADER=Path('plat/intel/soc/common/include/fes_nano_cold_profile.h')
 NAMES=tuple('plat/intel/soc/common/'+n for n in C_FILES)+tuple('plat/intel/soc/common/include/'+n for n in H_FILES)+tuple(map(str,(SERVICE,MAILBOX,MAILBOX_HEADER,PLATFORM,LD,MK,HEADER)))
@@ -131,7 +137,7 @@ def verify_image(image,profile):
  import nano_firmware_ram as ram
  symbols=ram.symbols(image);retire_scope=private_function(image,'retire_owned');retire_tables=private_function(image,'retire_valid');private_scope=private_function(image,'sdm_input_final_scope')
  fixed={'__FES_SMMU_PROBE_START__':0x94000000,'__FES_SMMU_STREAMS__':0x94000000,'__FES_SMMU_SDM_ROOT__':0x94004000,'__FES_SMMU_CMDQ__':0x94008000,'__FES_SMMU_EVTQ__':0x94009000,'__FES_SMMU_PROBE_END__':0x94010000}
- roots=('fes_nano_sdm_source_prepare','fes_nano_sdm_source_start_ready','fes_nano_sdm_source_validate','fes_nano_sdm_source_finish','fes_nano_sdm_transfer_result','nano_probe_arm','nano_sdm_transfer_before','nano_sdm_transfer_response','nano_sdm_transfer_status_result','mailbox_read_response_async_expected','nano_source_retire','nano_source_continue','nano_cmdq_submit')
+ roots=('fes_nano_sdm_source_prepare','fes_nano_sdm_source_start_ready','fes_nano_sdm_source_validate','fes_nano_sdm_source_finish','fes_nano_sdm_transfer_result','nano_probe_arm','nano_sdm_transfer_before','nano_sdm_transfer_response','nano_sdm_transfer_status_result','mailbox_read_response_async_expected','nano_source_retire','nano_source_continue','nano_cmdq_submit','fes_nano_sdm_transfer_control_begin','fes_nano_sdm_transfer_control_finish','fes_nano_sdm_source_control_ready','fes_nano_sdm_control_mailbox_idle')
  if any(symbols.get(n,(0,))[0]!=v for n,v in fixed.items()) or any(n not in symbols for n in roots) or any(n in symbols for n in ('fes_nano_sdm_fault64_arm','fes_nano_sdm_probe_arm_park','fes_nano_sdm_input_arm_park')):
   raise ValueError('input arena/hooks absent or conflicting diagnostic installed')
  if any(marker not in image for marker in (profile['chain_sha256'][:16].encode(),b'FES_NANO_INPUT_RESULT build=',b'FES_NANO_RETIRE_RESULT build=',b'FES_NANO_RETIRE_TIMING build=',b'FES_NANO_RETIRE_QUEUE build=',b'FES_NANO_INPUT_CONTINUE build=',b'FES_NANO_INPUT_PARK retained=1 resume=0 activated=0')):raise ValueError('input build/terminal markers absent')

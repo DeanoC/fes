@@ -1655,3 +1655,5 @@ out:
     spin_unlock(&mbox_write_lock);
     spin_unlock(&mbox_read_lock);
 }
+
+#include "nano_sdm_control_mailbox.inc"

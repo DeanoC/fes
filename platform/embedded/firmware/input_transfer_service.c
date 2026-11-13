@@ -7,7 +7,7 @@ static struct nano_sdm_input_binding captured;
 static struct nano_sdm_transfer_io captured_io;
 static uint64_t captured_start;
 static uint32_t accepted_bytes;
-static unsigned prepare_attempted,prepared;
+static unsigned prepare_attempted,prepared,control_pending,control_header_seen;
 static int service_error;
 static int stop(int error)
 {if(!service_error)service_error=error<0 ? error:-5;return service_error;}
@@ -63,9 +63,53 @@ int fes_nano_sdm_transfer_posted(int status,uint32_t job)
  if(active())return service_error;
  int e=nano_sdm_transfer_posted(&transfer,status,job);return e ? stop(e):0;
 }
+/* Completion remains immutable while one separately selected control reply
+ * is parsed. In particular, no successful control call clears configured,
+ * prepare_attempted, source ownership, queue history or any sticky error. */
+static int completed(void)
+{
+ return prepared==1 && transfer.initialized==1 && transfer.configured==1 && !transfer.failed &&
+  !transfer.first_error && !service_error && !nano_sdm_input_validate(&captured) &&
+  nano_sdm_input_same(&captured,&transfer.binding) && accepted_bytes==captured.bytes &&
+  transfer.io.context==captured_io.context && transfer.io.owns==captured_io.owns &&
+  transfer.io.time_us==captured_io.time_us && transfer.start==captured_start &&
+  transfer.posted_bytes==captured.bytes && transfer.acknowledged_bytes==captured.bytes &&
+  transfer.completed_buffer_bytes==captured.bytes && !transfer.pending && !transfer.count &&
+  !transfer.status_pending && !transfer.status_seen && transfer.status_polls &&
+  transfer.posts && transfer.intents==transfer.posts && transfer.acks==transfer.posts &&
+  transfer.headers==transfer.posts+transfer.status_polls &&
+  transfer.buffer_reports==(captured.bytes+captured.chunk-1U)/captured.chunk;
+}
+int fes_nano_sdm_transfer_control_begin(void)
+{
+ if(service_error)return service_error;
+ if(control_pending || !completed())return stop(-13);
+ /* Consume the in-flight slot before invoking platform code. Reentrancy or a
+  * changed ledger during the callback fails the outer operation too. */
+ control_pending=1;control_header_seen=0;
+ if(fes_nano_sdm_source_control_ready(&captured,1)!=1 || !completed() ||
+    !fes_nano_sdm_control_mailbox_idle() ||
+    fes_nano_sdm_source_control_ready(&captured,0)!=1 || !completed())return stop(-13);
+ return 0;
+}
+int fes_nano_sdm_transfer_control_finish(int status,unsigned words)
+{
+ if(service_error)return service_error;
+ if(!control_pending || control_header_seen!=1 || status || words!=6 || !completed() ||
+    fes_nano_sdm_source_control_ready(&captured,1)!=1 || !completed() ||
+    !fes_nano_sdm_control_mailbox_idle() ||
+    fes_nano_sdm_source_control_ready(&captured,0)!=1 || !completed())return stop(-13);
+ control_pending=0;return 0;
+}
 int fes_nano_sdm_transfer_peek_header(uint32_t header)
 {
  if(service_error)return service_error;
+ if(control_pending){
+  if(control_header_seen || header!=NANO_SDM_CONTROL_HEADER || !completed() ||
+     fes_nano_sdm_source_control_ready(&captured,0)!=1 || !completed())return stop(-13);
+  control_header_seen=1;
+  return 0;
+ }
  /* Vendor cold startup sends HPS_STAGE_NOTIFY before this one-attempt
   * transfer has admitted source memory. Preserve that parser phase. Once
   * preparation is attempted every failure remains sticky, including a

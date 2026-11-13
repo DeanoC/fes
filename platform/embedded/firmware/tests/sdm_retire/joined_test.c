@@ -509,7 +509,7 @@ static void commit_command(void){
   sdm_bytes+=command[3];data_posts++;assert(pending_count<14);pending[pending_count++]=job;
  }else if(cmd==MBOX_RECONFIG){
   assert(job==15 && command_words==1);control_posts++;packet(job,2);push(fixture_credits,0);push(fixture_block,0);
- }else if(cmd==MBOX_RECONFIG_STATUS){
+ }else if(cmd==MBOX_RECONFIG_STATUS || cmd==MBOX_CONFIG_STATUS){
   assert(job==15 && command_words==1);control_posts++;packet(job,fixture_status_words);
   for(unsigned n=0;n<fixture_status_words;n++)push(n==RECONFIG_STATUS_STATE ? fixture_state:n==RECONFIG_STATUS_PIN_STATUS ? fixture_pin:n==RECONFIG_STATUS_SOFTFUNC_STATUS ? fixture_soft:0,0);
  }else if(cmd==MBOX_HPS_STAGE_NOTIFY){
@@ -1935,6 +1935,7 @@ static uint32_t intel_fpga_config_write(uint64_t mem, uint64_t size)
 
 	return INTEL_SIP_SMC_STATUS_OK;
 }
+#include "nano_sdm_control_mailbox.inc"
 #include "input_transfer_service.c"
 /* SPDX-License-Identifier: BSD-3-Clause */
 #include <unistd.h>

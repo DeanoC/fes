@@ -66,8 +66,14 @@ retirement scope, with total retirement 403.340 ms. Memory reuse, ordinary
 runtime activation and general core-load acceptance remain open. The
 [format-12 retained-continuation prototype](../../docs/validation/2026-11-13-de25-retained-continuation/README.md)
 returns a successful retirement to native configuration checks while an
-explicitly retained arena blocks source overwrite. Its software checks do not
-qualify a new hardware image.
+explicitly retained arena blocks source overwrite. Its
+[physical trial](../../docs/validation/2026-11-13-de25-retained-continuation-physical/README.md)
+passes continuation and fails the subsequent FPGA-status reply. Format 13 adds
+a separately admitted status transaction, with live retained-source ownership,
+empty-mailbox checks and an exact bounded reply. The existing MENU reader gate
+still rejects the retained abort state; its separate reader-memory handoff is
+required before another native-menu trial. These changes do not qualify memory
+reuse or general core-load acceptance.
 
 This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
 launcher integration, while bounded Nano CPU/SD/package diagnostics now run on

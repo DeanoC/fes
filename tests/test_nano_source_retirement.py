@@ -33,6 +33,19 @@ class SourceRetirementTests(unittest.TestCase):
         for suffix in ("c", "h"):
             shutil.copyfile(FW / ("sdm_input_probe_setup." + suffix), cls.output / ("probe_setup." + suffix))
         shutil.copyfile(FW / "nano_sdm_source_platform.inc", cls.output / "nano_sdm_source_platform.inc")
+        # Compile the real readiness caller, not only configuration_after's
+        # completion callback: that was the missing boundary in format 12.
+        source = (FW / "nano_cold_platform.c").read_text()
+        for signature, filename in (("static int identity_configured(void *context)", "identity_configured_test.inc"),
+                                    ("static int window_gate(void)", "window_gate_test.inc")):
+            start = source.index(signature)
+            at = source.index("{", start)
+            depth, end = 1, at + 1
+            while depth:
+                depth += (source[end] == "{") - (source[end] == "}")
+                end += 1
+            (cls.output / filename).write_text(source[start:end])
+
 
     @classmethod
     def tearDownClass(cls):
@@ -41,6 +54,8 @@ class SourceRetirementTests(unittest.TestCase):
     def run_model(self, name, joined=False, arguments=()):
         binary = self.output / name
         sources = [FIXTURE / (name + ".c"), FW / "source_retire.c", FW / "command_queue.c", FW / "input_tables.c"]
+        if name == "retained_window_gate_test":
+            sources += [FW / "nano_smmu.c"]
         if joined:
             sources += [self.output / "probe_setup.c", FW / "input_transfer.c"]
             sources += [FW / (n + ".c") for n in ("nano_cold", "nano_hps_io", "nano_bridges", "nano_boot", "nano_sd", "nano_sd_platform", "nano_usb_platform", "nano_usb_board", "nano_mac", "nano_usb_service", "nano_usb_composition", "nano_configuration")]
@@ -72,6 +87,12 @@ class SourceRetirementTests(unittest.TestCase):
 
     def test_retained_continuation_requires_live_retired_state(self):
         self.run_model("continue_test")
+
+    def test_reader_gate_stays_closed_after_retained_source_abort(self):
+        self.run_model("retained_window_gate_test")
+
+    def test_retained_configuration_control_reply_and_native_readiness(self):
+        self.run_model("control_return_test", joined=True)
 
     def test_native_configuration_checks_still_gate_continuation(self):
         self.run_model("continue_return_test", joined=True)

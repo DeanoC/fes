@@ -59,11 +59,11 @@ static int sdm_probe_geometry(void)
         FES_PROBE_TABLE(fes_nano_mmu_root,2)==(FES_PROBE_SYMBOL(fes_nano_mmu_ddr)|3U) &&
         FES_PROBE_TABLE(fes_nano_mmu_ddr,160)==UINT64_C(0x0040000094000669);
 }
-static int sdm_probe_owns(void *context,const struct nano_probe_binding *binding)
+static int sdm_probe_owns_mode(void *context,const struct nano_probe_binding *binding,unsigned completed)
 {
     struct fes_nano_bridges *b=&fes_nano_owned_bridges;
     sdm_probe_scope_reason=0;
-    if(context!=&sdm_arm_probe || !binding)return sdm_probe_reject(1);
+    if(context!=&sdm_arm_probe || !binding || completed>1)return sdm_probe_reject(1);
     if(!FES_PROBE_CPU() || FES_PROBE_FREQUENCY()!=400000000U)return sdm_probe_reject(2);
     if(!fes_nano_mmu_platform_scope())return sdm_probe_reject(3);
     if(!sdm_probe_geometry())return sdm_probe_reject(4);
@@ -85,7 +85,7 @@ static int sdm_probe_owns(void *context,const struct nano_probe_binding *binding
     if(fes_nano_owned_mac.attempted || fes_nano_owned_mac.initialized || fes_nano_owned_mac.failed)
         return sdm_probe_reject(7);
     if(!configuration.initialized || configuration.failed || !configuration.prepared ||
-       !configuration.started || configuration.finished || configuration.rearmed ||
+       !configuration.started || configuration.finished!=completed || configuration.rearmed ||
        configuration.bridges!=b ||
        configuration.owner!=binding->owner || configuration.generation!=binding->generation ||
        !configuration.bytes || !configuration.chunk || (configuration.chunk&63U) ||
@@ -94,21 +94,25 @@ static int sdm_probe_owns(void *context,const struct nano_probe_binding *binding
        configuration.pending>(uint64_t)configuration.chunk*FES_NANO_CONFIG_BUFFERS ||
        (configuration.completed!=configuration.bytes && configuration.completed%configuration.chunk) ||
        (configuration.completed+configuration.pending!=configuration.bytes && configuration.pending%configuration.chunk) ||
-       !((configuration.issued==FES_NANO_CONFIG_START && configuration.stage==FES_CONFIG_START &&
+       !((completed && !configuration.issued && configuration.stage==FES_CONFIG_COMPLETE &&
+          !configuration.pending && configuration.completed==configuration.bytes) ||
+         (!completed && ((configuration.issued==FES_NANO_CONFIG_START && configuration.stage==FES_CONFIG_START &&
           !configuration.completed && !configuration.pending) ||
          (sdm_input_phase==2 && (
           ((configuration.issued==FES_NANO_CONFIG_WRITE && configuration.stage==FES_CONFIG_WRITE) ||
            (configuration.issued==FES_NANO_CONFIG_COMPLETED && configuration.stage==FES_CONFIG_POLL)) ?
             configuration.pending!=0 :
           (configuration.issued==FES_NANO_CONFIG_ISDONE && configuration.stage==FES_CONFIG_STATUS &&
-           !configuration.pending && configuration.completed==configuration.bytes)))) ||
+           !configuration.pending && configuration.completed==configuration.bytes)))))) ||
        configuration.base!=FES_NANO_CONFIG_BASE)return sdm_probe_reject(9);
     if(!configuration_program.initialized || !configuration_program.bound || configuration_program.failed ||
        configuration_program.owner!=binding->owner || configuration_program.generation!=binding->generation ||
        configuration_program.bytes!=configuration.bytes || configuration_program.chunk!=configuration.chunk ||
        configuration_program.mixed_roles!=1 || configuration_program.role!=FES_NANO_PROGRAM_ROLE_MENU ||
        configuration_program.control_abi!=FES_NANO_PROGRAM_MENU_ABI)return sdm_probe_reject(10);
-    if(fabric_configuration_generation || fabric_generation || fabric_stop.attempted || fabric_stop.failed)
+    if(fabric_configuration_generation!=(completed ? binding->generation:0) || fabric_generation ||
+       fabric_stop.attempted || fabric_stop.failed ||
+       (completed && (fabric_stop.qualified!=1 || fabric_stop.done || fabric_stop.first_error)))
         return sdm_probe_reject(11);
     /* Cold ownership calls the pinned shared-device containment callback for
      * active USB: DMA/IRQ disabled and AHB master idle under stable clocks,
@@ -125,6 +129,8 @@ static int sdm_probe_owns(void *context,const struct nano_probe_binding *binding
     if(fes_nano_cold_owns(&provider,binding->owner,binding->epoch)!=1)return sdm_probe_reject(12);
     return FES_PROBE_CPU() && fes_nano_mmu_platform_scope() ? 1 : sdm_probe_reject(14);
 }
+static int sdm_probe_owns(void *context,const struct nano_probe_binding *binding)
+{return sdm_probe_owns_mode(context,binding,0);}
 static int sdm_probe_time(void *context,uint64_t *value)
 {
     if (context!=&sdm_arm_probe || !value || FES_PROBE_FREQUENCY()!=400000000U) return -1;
@@ -345,3 +351,5 @@ int fes_nano_sdm_source_start_ready(void)
 }
 
 #include "nano_sdm_input_finish.inc"
+
+#include "nano_sdm_control_platform.inc"

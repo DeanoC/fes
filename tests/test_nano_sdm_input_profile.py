@@ -68,7 +68,8 @@ class InputProfileTests(unittest.TestCase):
                               (8, "2026-11-13-de25-command-guard/matched-result.json"),
                               (9, "2026-11-13-de25-command-progress/matched-result.json"),
                               (10, "2026-11-13-de25-command-observe/matched-result.json"),
-                              (11, "2026-11-13-de25-command-completion/matched-chain.json")):
+                              (11, "2026-11-13-de25-command-completion/matched-chain.json"),
+                              (12, "2026-11-13-de25-retained-continuation/matched-chain.json")):
             record = json.loads((ROOT / "docs/validation" / name).read_text())
             previous = record["sdm_input_contract"]
             self.assertEqual(previous["format"], version)

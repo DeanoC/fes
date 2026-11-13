@@ -13,6 +13,9 @@
 #include "nano_program.h"
 #include "generated/fes_de25_ddr_probe.h"
 #include "fes_nano_cold_profile.h"
+#if defined(FES_NANO_SDM_INPUT_TRANSFER) && FES_NANO_SDM_INPUT_TRANSFER
+#include "input_transfer_service.h"
+#endif
 #if defined(FES_NANO_CAPABILITY_DIAGNOSTIC) && FES_NANO_CAPABILITY_DIAGNOSTIC
 #include "nano_capability.h"
 #endif
@@ -681,7 +684,15 @@ static int identity_configured(void *context)
     /* CONFIG_STATUS only. The legacy ISDONE frontend can mutate bridge state.
      * Keep the response on the secure stack and require its complete shape. */
     NOTICE("FES_NANO_CONFIG_QUERY command=4 words=6\n");
+#if defined(FES_NANO_SDM_INPUT_TRANSFER) && FES_NANO_SDM_INPUT_TRANSFER
+    if(fes_nano_sdm_transfer_control_begin())return -5;
+#endif
     int status=mailbox_send_cmd(MBOX_JOB_ID,MBOX_CONFIG_STATUS,0,0,CMD_CASUAL,response,&words);
+#if defined(FES_NANO_SDM_INPUT_TRANSFER) && FES_NANO_SDM_INPUT_TRANSFER
+    if(fes_nano_sdm_transfer_control_finish(status,words)){
+        status=-1;words=0;memset(response,0,sizeof(response));
+    }
+#endif
     unsigned valid=status==0 && words==6;
     unsigned ready=valid && response[0]==0 && (response[2]&PIN_STATUS_NSTATUS) &&
         (response[3]&(SOFTFUNC_STATUS_CONF_DONE|SOFTFUNC_STATUS_INIT_DONE))==

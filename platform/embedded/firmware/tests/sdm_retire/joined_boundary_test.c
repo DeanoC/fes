@@ -1934,6 +1934,7 @@ static uint32_t intel_fpga_config_write(uint64_t mem, uint64_t size)
 
 	return INTEL_SIP_SMC_STATUS_OK;
 }
+#include "nano_sdm_control_mailbox.inc"
 #include "input_transfer_service.c"
 /* SPDX-License-Identifier: BSD-3-Clause */
 #include <unistd.h>

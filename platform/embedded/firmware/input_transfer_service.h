@@ -15,6 +15,15 @@ int fes_nano_sdm_transfer_accept(uint64_t,uint64_t);
 int fes_nano_sdm_transfer_before(uint32_t,uint32_t,uint32_t,uint32_t);
 int fes_nano_sdm_transfer_posted(int,uint32_t);
 int fes_nano_sdm_transfer_peek_header(uint32_t);
+/* A distinct synchronous CONFIG_STATUS transaction after native completion.
+ * These entry points never reopen DATA, release storage or reset the transfer.
+ * The strong platform hook checks the live retained engine and current closed
+ * native owner; begin also checks every retained translation-table word. */
+#define NANO_SDM_CONTROL_HEADER UINT32_C(0x1f006000)
+int fes_nano_sdm_source_control_ready(const struct nano_sdm_input_binding *,unsigned tables);
+int fes_nano_sdm_control_mailbox_idle(void);
+int fes_nano_sdm_transfer_control_begin(void);
+int fes_nano_sdm_transfer_control_finish(int status,unsigned words);
 int fes_nano_sdm_transfer_read(unsigned int *,uint32_t *,uint32_t *,unsigned int *);
 int fes_nano_sdm_transfer_response(int,uint32_t,uint32_t,uint32_t);
 int fes_nano_sdm_transfer_buffer(uint32_t,uint32_t);

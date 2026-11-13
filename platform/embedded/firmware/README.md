@@ -6,7 +6,7 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
-The current format-12 source-continuation prototype returns to the native
+The format-13 source-continuation prototype returns to the native
 configuration checks only after one successful retirement and a fresh live
 engine/source/table/disabled-register check under the original one-second
 retirement origin. It consumes continuation once and keeps all buffers. The
@@ -16,10 +16,30 @@ parks with the source retained; later configuration checks retain their existing
 error path.
 `--retain-configuration` selects a native arena that rejects a second program
 reservation and initial-tape overwrite after success or failure. The SDK, entry
-and cold profile bind that selection; format 12 rejects an unretained arena.
-The model/wire/portable compile checks are separate from a matched build and
-physical continuation. The preceding format-11 retained retirement hardware
-proof remains artifact-specific; it does not qualify the new return path.
+and cold profile bind that selection; format 13 rejects an unretained arena.
+The [format-12 physical trial](../../../docs/validation/2026-11-13-de25-retained-continuation-physical/README.md)
+passes retained continuation, then fails the later synchronous FPGA status
+reply: the transfer header guard is still configured and correctly rejects
+unselected replies. Format 13 adds an explicit `CONFIG_STATUS` transaction.
+It requires the actual retained/continued engine, completed native configuration,
+the same closed CPU/device/source owner and fresh disabled-register views.
+Every retained table word is checked before and after the query. A read-only
+mailbox check requires stable empty FIFOs, parser, descriptors and response
+bitmap. Exactly one ATF/job-15, six-word successful reply may pass while that
+transaction is pending; foreign, duplicate or late DATA replies fail before
+payload consumption. Finish consumes the slot; new queries need fresh
+admission. Transfer history, sticky failures and retained storage never reset.
+The existing bounded synchronous parser and all independent readiness checks
+remain in use. No ordinary DATA operation is enabled.
+
+The joined model compiles the production readiness caller and vendor parser,
+covering valid repeated control queries and ownership/table/parser failures.
+A second regression compiles the production MENU window gate with the actual
+SMMU observer. That gate still denies the retained `GBPA.ABORT` state. The
+mailbox fix does not qualify a reader route, initial MENU, safe source reuse or
+repeatable core loading. A separate owned reader-memory handoff remains needed
+before a new native-menu hardware trial. Model/build results and prior physical
+retirement/continuation proofs retain their exact source boundaries.
 
 The selected full-input retirement profile uses a bounded, read-only command
 snapshot callback. Each queue snapshot checks the same 24-register superset as
