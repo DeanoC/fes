@@ -1,5 +1,6 @@
 """Decode bounded configuration-engine observations without granting boot authority."""
 import re
+from remap_trace import extract as extract_remap
 
 H=r'[0-9a-f]{1,16}'
 START_PHASES=(0,1,2,3,4,12,13,14,5,6,7,8,9,10,11)
@@ -15,6 +16,7 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
     if not isinstance(raw,(bytes,bytearray)) or len(raw)>1<<20:
         raise ValueError('bounded configuration bytes required')
     raw=bytes(raw)
+    raw,remap_observation=extract_remap(raw,configuration_scope=True)
     if (type(generation) is not int or not 0<generation<(1<<64)-2 or
         type(previous) is not int or not 0<=previous<generation or
         any(type(flag) is not bool for flag in (rearm,require_activation,require_programmed)) or
@@ -214,7 +216,7 @@ def extract(raw, configuration, *, generation, previous=0, rearm=False, require_
     if expected_owner is not None and owner is not None:require(owner==expected_owner,'configuration owner differs from matched boot')
     if not require_programmed:require(programmed_row is None,'unexpected fixed-probe programmed marker')
     if complete and start_rows:require(start_observed(),'completed transfer has incomplete or failed START observations')
-    return {'parts':parts,'records':extra,'errors':errors,'complete':complete,
+    return {'remap_observation':remap_observation,'parts':parts,'records':extra,'errors':errors,'complete':complete,
             'programmed':programmed_row,'activation':activation_row,'owner':owner,'offset':offset,
             'start_observation':{'records':start_rows,'complete':start_observed(),'isolation':isolation_result,
                                  'isolation_io':isolation_io,

@@ -14,13 +14,13 @@ class Records:
                 continue
             matches = [(name, pattern.fullmatch(line)) for name, pattern in RULES]
             matches += [(name, PATTERNS[name].fullmatch(line)) for name in
-                        ('scope', 'gate', 'master', 'closure', 'reader_drain')]
+                        ('scope', 'gate', 'master', 'closure', 'reader_drain', 'reader_route')]
             matches = [(name, match) for name, match in matches if match]
             require(len(matches) == 1, 'unknown or ambiguous paired firmware record: '+line[:120])
             name, match = matches[0]
             values = {}
             for key, value in match.groupdict().items():
-                if name in ('scope', 'gate', 'master', 'closure', 'reader_drain'):
+                if name in ('scope', 'gate', 'master', 'closure', 'reader_drain', 'reader_route'):
                     values[key] = value if key in TEXT else int(value, 16 if
                         key in HEX or name == 'reader_drain' and key == 'status' else 10)
                 else:
@@ -59,7 +59,7 @@ def configuration(data, descriptor, owner, source, previous):
     return parsed, Records(b'\n'.join(parsed['parts']))
 
 
-def menu_opening(data, descriptor, owner, source, previous, memory):
+def menu_opening(data, descriptor, owner, source, previous, memory, *, retained_reader=None):
     parsed, records = configuration(data, descriptor, owner, source, previous)
     # RULES currently matches the literal command/word count without captures.
     query = records.take('fpga_query')
@@ -73,7 +73,7 @@ def menu_opening(data, descriptor, owner, source, previous, memory):
             'menu FPGA is not ready')
     def route(generation, reset, gate):
         check_route(records.take, require, owner=owner, generation=generation,
-                    reset=reset, memory=memory, with_gate=gate)
+                    reset=reset, memory=memory, with_gate=gate, retained_reader=retained_reader)
     route(source, 15, False)
     require(records.take('scope') == dict(phase='control', owner=owner, generation=source+1, reset=13),
             'menu control opening differs')

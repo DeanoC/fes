@@ -5,6 +5,7 @@ artifacts before construction. UART evidence alone grants no memory mapping,
 device control, electrical qualification or general appliance acceptance.
 """
 import copy
+from remap_trace import extract as extract_remap, MARKERS as REMAP_MARKERS
 import json
 import re
 import threading
@@ -14,11 +15,12 @@ import hps_context
 import tenfoot_trace as app
 import installer_trace as installer_view
 from menu_service_trace import MenuTrace, PREFIX as MENU
-from native_trace import decode_native_boot
+from native_trace import decode_native_boot, RULES
 from paired_firmware_trace import configuration, menu_closed, menu_opening
 from service_trace import closed, opening, number, require
 from shared_input_trace import SharedInput, PREFIX as USB, record as usb_record
 from input_action_trace import PREFIX as INPUT_ACTION, record as input_action, validate as validate_actions
+from window_trace import reader_route
 
 BEGIN = b'FES_NATIVE_TENFOOT_BEGIN display=fpga-menu input='
 EXIT = re.compile(rb'FES_NATIVE_TENFOOT_EXIT state=parked generation=([0-9]{1,20})')
@@ -147,7 +149,8 @@ class PairedTenfootClient(app.TenfootClient):
     def __init__(self, initial, *, build_record, build_id, owner_seed, atf, package,
                  programs, exchange, owns, now=time.monotonic, record=lambda _: None,
                  shared_usb=None, firmware_ram_trace=False, firmware_mmu=None,
-                 installer=False, initial_titles=None, boot_startup=None):
+                 installer=False, initial_titles=None, boot_startup=None, capability_observe=False,
+                 remap_observe=False, retained_reader_route=None):
         require(all(callable(f) for f in (exchange, owns, now, record)), 'owned exchange hooks required')
         require(type(installer) is bool, 'explicit paired observer mode required')
         require(type(programs) is list and (1 <= len(programs) <= 32 if installer else len(programs) == 2),
@@ -160,6 +163,18 @@ class PairedTenfootClient(app.TenfootClient):
                     type(title) is str and 0 < len(title) <= 256 for title in initial_titles)
                 if installer else initial_titles is None,
                 'explicit bounded initial installer catalogue required')
+        require(type(capability_observe) is type(remap_observe) is bool and
+                (not remap_observe or capability_observe),
+                'explicit remap/capability diagnostic selection required')
+        self.retained_reader_route = None
+        if retained_reader_route is not None:
+            require(build_record.get('configuration_retained') is True and
+                    build_record.get('sdm_reader_route') == retained_reader_route,
+                    'retained reader requires its explicitly selected build')
+            self.retained_reader_route = copy.deepcopy(reader_route.checked(build_record))
+        _, self.remap_observation = extract_remap(initial,required=remap_observe)
+        require((self.remap_observation is not None) == remap_observe,
+                'unexpected remap diagnostic outside selected boot')
         self.installer = installer
         self.generation_origin = 0
         self.catalogue_titles = list(initial_titles) if installer else [p['title'] for p in programs]
@@ -180,7 +195,7 @@ class PairedTenfootClient(app.TenfootClient):
         prefix = rows[:first_arm]
         require(all(r['kind'] in ('firmware', 'usb') for r in prefix), 'App/menu preceded native boot')
         boot_data = b''.join(r['value'] for r in prefix if r['kind'] == 'firmware')
-        options = dict(firmware_ram_trace=firmware_ram_trace)
+        options = dict(firmware_ram_trace=firmware_ram_trace,capability_observe=capability_observe)
         if boot_startup is not None:options['boot_startup']=boot_startup
         if firmware_mmu is not None:options['firmware_mmu']=firmware_mmu
         if self.usb is not None:
@@ -235,6 +250,9 @@ class PairedTenfootClient(app.TenfootClient):
         require(self.view is not None and self._ready(self.view), 'paired App is not initially Ready')
 
     def _observations(self, data, *, startup=False):
+        if not startup:
+            require(not any(marker in data for marker in REMAP_MARKERS),
+                    'remap diagnostic repeated after initial configuration')
         return observations(data, self.input_mode, startup=startup, installer=self.installer,
                             generation_origin=self.generation_origin)
 
@@ -264,6 +282,17 @@ class PairedTenfootClient(app.TenfootClient):
         self.previous_configuration = result['configuration_generation']
 
     def _consume(self, rows, op, generation, selected, input_source='uart'):
+        initial_smmu=self.boot.get('capability_boot_smmu')
+        if initial_smmu is not None:
+            smmu_pattern=dict(RULES)['smmu']
+            for row in rows:
+                if row['kind']!='firmware':continue
+                value=row['value'].decode('utf-8').rstrip('\r\n')
+                require('FES_NANO_CAPABILITY' not in value,'capability observation repeated after boot')
+                match=smmu_pattern.fullmatch(value)
+                if match is not None:
+                    require(all(int(match[key],16)==initial_smmu[key] for key in ('idr0','idr1','aidr','s_idr1')),
+                            'paired SMMU identity changed after boot')
         firmware = b''
         states, menus, usb_rows, fetches = [], [], [], []
         input_actions = []
@@ -335,7 +364,8 @@ class PairedTenfootClient(app.TenfootClient):
                         source = self.bridge_generation+3
                         require(observed['source_generation'] == source, 'menu skipped owned core/SD return')
                         result = menu_opening(firmware, self.companion['configuration'], self.owner,
-                                              source, self.previous_configuration, self.companion['memory'])
+                                              source, self.previous_configuration, self.companion['memory'],
+                                              retained_reader=self.retained_reader_route)
                         self._configured(result)
                         self.menu_source = source
                         self.bridge_generation = source+2
@@ -498,6 +528,8 @@ class PairedTenfootClient(app.TenfootClient):
         return self._key('focus',None,selected,payload,5,'uart')
 
     def _key(self, op, selection, selected, payload, bound, input_source):
+        require(self.retained_reader_route is None or op == 'focus',
+                'retained source permits only the first menu; another configuration is unavailable')
         generation = self.view['native']['Generation']
         if input_source != 'uart':
             payload = b''

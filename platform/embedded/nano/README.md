@@ -1,5 +1,14 @@
 # Nano recovery uploads and cold serial boot
 
+The paired launcher auditor accepts an explicit `retained_reader_route` only
+when the complete compiled boot and MENU roles match its sealed route binding
+and `configuration_retained` is selected. The first MENU opening must supply
+both fresh reader proofs with the original source still aborted. Another core
+configuration rejects before any input is sent. This prepares a bounded initial
+MENU handback; it does not qualify memory reuse or repeatable core loading.
+The separately selected capability/remapper observers retain raw diagnostic
+values, reject repeated startup records, and grant no DMA or device authority.
+
 The host-only [boot-flash trial preparation](../../../docs/validation/2026-11-11-de25-bootflash-trial-preparation/README.md)
 adds explicit plan/role authorization and a one-use `flash_trial.FlashTrial`
 around the existing fresh-scan gate. Programmer success and boot acceptance

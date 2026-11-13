@@ -6,6 +6,7 @@ No device, programmer, firmware or filesystem operations are performed here.
 import hashlib
 import json
 import re
+import capability_trace
 import fault_status
 import runtime_startup
 import loader_progress
@@ -54,6 +55,7 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('spl_atf_step', r'FES_NANO_SPL ATF_STEP phase=(?P<phase>entry|hash-before|hash-after)'),
     ('spl_atf', rf'FES_NANO_SPL ATF target=(?P<target>{H}) bl32=(?P<bl32>{H}) bl33=(?P<bl33>{H}) fdt=(?P<fdt>{H}) params=(?P<params>{H}) cold=(?P<cold>{H}) cookie=(?P<cookie>{H}) el=(?P<el>[0-3]) mpidr=(?P<mpidr>{H}) sctlr=(?P<sctlr>{H}) scr=(?P<scr>{H}) daif=(?P<daif>{H}) bytes=(?P<bytes>[0-9]{{1,10}}) sha256=(?P<sha256>[0-9a-f]{{64}})'),
     ('el3_capture', rf'(?:NOTICE:[ \t]+)?FES_NANO_EL3_CAPTURE phase=(?P<phase>before|after) pointer=(?P<pointer>{H}) cookie=(?P<cookie>{H})'),
+    ('capability', capability_trace.PATTERN),
     ('smmu', r'(?:NOTICE:[ \t]+)?FES_NANO_SMMU status=(?P<status>-?[0-9]{1,10}) reads=(?P<reads>[0-9]{1,3}) '+
         ' '.join(key+r'=(?P<'+key+r'>[0-9a-f]{1,8})' for key in
                  ('idr0','idr1','aidr','s_idr1','cr0','ack','gbpa','agbpa','s_cr0','s_ack','s_init','s_gbpa','s_agbpa'))+
@@ -150,7 +152,7 @@ def checked_scratch_plan(p):
 
 def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_inspect=False, scratch_write=None, fat_file=None, sd_transfer_clock=0, package=None, hps_context=None, hps_io=None, fpga_identity=None,
                        fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False,
-                       smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, usb_control=False, usb_shared=False, firmware_ram_trace=False, firmware_mmu=None, boot_startup=None, _continuation=None, _window_prefix=False, _menu_prefix=False):
+                       smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, usb_control=False, usb_shared=False, firmware_ram_trace=False, firmware_mmu=None, boot_startup=None, capability_observe=False, _continuation=None, _window_prefix=False, _menu_prefix=False):
     """Retain partial progress, but qualify only one ordered, coherent boot.
 
     A bare prompt need not end in a newline. Other incomplete lines are held
@@ -170,6 +172,9 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
         raise ValueError('MMU trace requires the complete first cold RAM boot')
     if type(firmware_ram_trace) is not bool or firmware_ram_trace and (atf is None or not capture_trace or _continuation is not None):
         raise ValueError('firmware RAM trace requires an explicit cold ATF descriptor')
+    if type(capability_observe) is not bool or capability_observe and (
+            atf is None or not capture_trace or not firmware_ram_trace or mmu_expected is None or smmu_observe):
+        raise ValueError('capability observation requires its explicit cold mapped boot selection')
     if type(capture_trace) is not bool:
         raise ValueError('secure capture trace selection must come from the checked build')
     if type(scratch_inspect) is not bool or scratch_inspect and storage is None:
@@ -352,6 +357,9 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
         index=stages.index('hps_context');stages=stages[:index]+('cpu_mapping',)+stages[index:]
     if usb_control:
         index=stages.index('provider');stages=stages[:index]+('usb_setup',)+stages[index:]
+    if capability_observe:
+        index=stages.index('usb_setup' if usb_control else 'provider')
+        stages=stages[:index]+('capability_smmu','capability')+stages[index:]
     loader_stages=() if continued else stages[:stages.index(startup_stage)+1]
     report = {'records': [], 'errors': [], 'loader_ready': False, 'complete': False,
               'last_checkpoint': None, 'core_load_acceptance': False,
@@ -543,6 +551,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
                     report['errors'].append(f'incomplete loader progress before owned observation at line {number}')
                 if name=='after-remove' and not (progress['valid'] and progress['complete']):
                     report['errors'].append(f'incomplete loader progress before late handoff at line {number}')
+            if name=='smmu' and capability_observe and 'provider' not in observed:
+                name='capability_smmu'
             if name=='identity_transition':name='identity_'+values['phase']
             if name=='el3_capture':name+='_'+values['phase']
             if name=='spl_barrier':name+='_'+values['phase']
@@ -568,6 +578,10 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
                 report['errors'].append(f'out-of-order or duplicate {name} at line {number}')
             if 'id' in values and (values['id'] != build_id or line.count('-fes-nano-') > 1):
                 report['errors'].append(f'build identity mismatch at line {number}')
+            if name in ('capability','capability_smmu') and name in observed:
+                report['errors'].append('duplicate boot capability observation at line '+str(number))
+            if name=='smmu' and capability_observe and 'smmu' not in stages:
+                report['errors'].append('unexpected post-boot SMMU observation at line '+str(number))
             row = {'stage': name, 'line': number, 'values': values}
             report['records'].append(row)
             observed.setdefault(name, values)
@@ -633,8 +647,9 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
         provider = observed['provider']
         require(provider['provider'] == 1 and provider['result'] == 0 and provider['bridge'] & BRIDGES == BRIDGES,
                 'secure provider proof rejected')
-    if 'smmu' in observed:
-        v=observed['smmu'];secure=bool(v['s_idr1']&(1<<31))
+    for smmu_stage,smmu_report in (('capability_smmu','capability_boot_smmu'),('smmu','smmu_observation')):
+        if smmu_stage not in observed:continue
+        v=observed[smmu_stage];secure=bool(v['s_idr1']&(1<<31))
         identified=bool(v['idr0'] and v['idr0']!=0xffffffff and
                         all(v[key]!=0xffffffff for key in ('idr1','aidr','s_idr1')))
         settled=(v['cr0']==v['ack'] and not v['gbpa']&(1<<31) and
@@ -646,7 +661,14 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
                 'SMMU observation accessed an absent secure control bank')
         require(v['identified']==int(identified) and v['settled']==int(settled) and
                 v['bypass_controls_clear']==int(clear), 'SMMU control interpretation differs from its raw registers')
-        report['smmu_observation']=dict(v,secure_implemented=secure,access_qualified=False)
+        report[smmu_report]=dict(v,secure_implemented=secure,access_qualified=False)
+    if capability_observe and 'smmu' in observed and 'capability_smmu' in observed:
+        require(all(observed['smmu'][key]==observed['capability_smmu'][key] for key in ('idr0','idr1','aidr','s_idr1')),'SMMU identity changed after boot')
+    if 'capability' in observed:
+        require(capability_observe,'unexpected capability observation')
+        v=observed['capability']
+        report['errors'].extend(capability_trace.errors(v,observed.get('capability_smmu'),matched_owner,seal['epoch'] if seal is not None else None))
+        report['capability_observation']=dict(v,access_qualified=False,SDM_remap_stage_resolved=False,DMA_access_granted=False)
     for phase in ('before-entry', 'after-remove'):
         if phase in observed:
             value = observed[phase]
