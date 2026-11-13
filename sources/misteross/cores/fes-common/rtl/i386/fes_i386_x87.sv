@@ -374,27 +374,31 @@ module fes_i386_x87 (
         for (int n = 0; n < 64; n++) if (v[n]) clz64 = 7'(63 - n);
     endfunction
 
-    // Rounding under the control word's RC field (387 PRM section 2.3.2):
-    // the magnitude `m` rounded at bit position `p`, with `sticky` already
-    // holding the bits a shift dropped. Round to nearest breaks a tie to
-    // even; round down and round up go by the result's sign.
-    function automatic logic [64:0] round_at(input logic [64:0] m, input logic [6:0] p,
-                                             input logic sticky, input logic sign, input logic [1:0] mode);
-        logic        r, s, inc;
+    // Rounding under the control word's RC field (387 PRM section 2.3.2).
+    // The position is one of four, so the shift is a mux: 0 and 1 for an
+    // integer store, 11 for a 64-bit real and 40 for a 32-bit one. `sticky`
+    // already holds the bits an earlier shift dropped. Round to nearest
+    // breaks a tie to even; round down and round up go by the sign.
+    localparam logic [1:0] P_0 = 2'd0, P_1 = 2'd1, P_11 = 2'd2, P_40 = 2'd3;
+    function automatic logic [66:0] round_sel(input logic [64:0] m, input logic [1:0] sel,
+                                              input logic sticky, input logic sign, input logic [1:0] mode);
         logic [64:0] q;
-        q = p == 7'd0 ? m : 65'(m >> p);
-        r = p == 7'd0 ? 1'b0 : m[p - 1];
-        s = sticky || (p >= 7'd2 ? |(m & ((65'd1 << (p - 1)) - 65'd1)) : 1'b0);
+        logic        r, s, inc;
+        case (sel)
+            P_0: begin q = m; r = 1'b0; s = sticky; end
+            P_1: begin q = {1'b0, m[64:1]}; r = m[0]; s = sticky; end
+            P_11: begin q = {11'd0, m[64:11]}; r = m[10]; s = sticky || |m[9:0]; end
+            default: begin q = {40'd0, m[64:40]}; r = m[39]; s = sticky || |m[38:0]; end
+        endcase
         case (mode)
             2'd0: inc = r && (s || q[0]);
             2'd1: inc = sign && (r || s);
             2'd2: inc = !sign && (r || s);
             default: inc = 1'b0;
         endcase
-        round_at = inc ? q + 65'd1 : q;
-    endfunction
-    function automatic logic round_inexact(input logic [64:0] m, input logic [6:0] p, input logic sticky);
-        round_inexact = sticky || (p != 7'd0 && |(m & ((65'd1 << p) - 65'd1)));
+        // The rounded magnitude, whether it is inexact, and whether the
+        // rounding took it away from zero (C1).
+        round_sel = {inc, r || s, inc ? q + 65'd1 : q};
     endfunction
 
     // ---- The instruction in flight. ----
@@ -403,7 +407,7 @@ module fes_i386_x87 (
     // it stays set until the operation finishes, which for a load is after
     // the instruction has retired, as a real 387's does.
     typedef enum logic [3:0] {
-        S_IDLE, S_ARG, S_PRE, S_MUL, S_POST, S_RDY, S_SAVE_RD, S_APPLY, S_APPLY2
+        S_IDLE, S_ARG, S_PRE, S_MUL, S_POST, S_POST2, S_RDY, S_SAVE_RD, S_APPLY, S_APPLY2
     } seq_e;
     seq_e        seq;
     op_e         cur;
@@ -574,7 +578,7 @@ module fes_i386_x87 (
     logic        st_sign;
     logic signed [17:0] st_e;     // the unbiased exponent, a pseudo-denormal's read as -16382
     logic [6:0]  st_k;            // the right shift
-    logic [6:0]  st_p;            // the rounding position
+    logic [1:0]  st_p;            // the rounding position (P_*)
     logic        st_shift, st_direct, st_big;
     logic [79:0] st_v;            // the value a class that needs no rounding stores
     logic [5:0]  st_fl;
@@ -583,26 +587,26 @@ module fes_i386_x87 (
     assign st_exp = ra_val[78:64];
     assign st_sig = ra_val[63:0];
     assign st_e = st_exp == 15'd0 ? -18'sd16382 : $signed({3'b0, st_exp}) - 18'sd16383;
-    // The target format's width: the significand's bits with its leading
-    // one (nbits), the bits the rounding drops (st_p), the largest exponent
-    // field and the exponent bias.
-    logic [6:0]  f_nbits;
-    logic [10:0] f_emax;
+    // The target format, as selectors rather than widths, so every shift in
+    // the rounding and packing below is a mux: f64 says which real format,
+    // and iw which integer width (0 is 16 bits, 1 is 32, 2 is 64).
+    logic       f_f64, f_int;
+    logic [1:0] f_iw;
     logic [14:0] f_bias;
-    always_comb begin
-        f_nbits = cur_fmt == FMT_F32 ? 7'd24 : 7'd53;
-        f_emax = cur_fmt == FMT_F32 ? 11'd254 : 11'd2046;
-        f_bias = cur_fmt == FMT_F32 ? 15'd127 : 15'd1023;
-    end
+    assign f_f64 = cur_fmt == FMT_F64;
+    assign f_int = cur_fmt == FMT_I16 || cur_fmt == FMT_I32 || cur_fmt == FMT_I64;
+    assign f_iw = cur_fmt == FMT_I16 ? 2'd0 : cur_fmt == FMT_I32 ? 2'd1 : 2'd2;
+    assign f_bias = f_f64 ? 15'd1023 : 15'd127;
     logic signed [17:0] st_te;
     assign st_te = st_e + $signed({3'b0, f_bias});
-    // The integer store's width and the value a masked invalid operation
-    // stores there, "integer indefinite" (387 PRM Table 3.4).
-    logic [6:0] i_w;
-    assign i_w = cur_fmt == FMT_I16 ? 7'd16 : cur_fmt == FMT_I32 ? 7'd32 : 7'd64;
+    // The value a masked invalid operation stores at an integer destination,
+    // "integer indefinite" (387 PRM Table 3.4).
+    function automatic logic [63:0] int_indefinite(input logic [1:0] iw);
+        int_indefinite = iw == 2'd0 ? 64'h8000 : iw == 2'd1 ? 64'h8000_0000 : 64'h8000_0000_0000_0000;
+    endfunction
     always_comb begin
         st_k = 7'd0;
-        st_p = 7'd0;
+        st_p = P_0;
         st_shift = 1'b0;
         st_direct = 1'b1;
         st_big = 1'b0;
@@ -616,27 +620,23 @@ module fes_i386_x87 (
                 st_fl = st_cls == C_EMPTY ? 6'b000001 : 6'd0;
             end
             FMT_F32, FMT_F64: begin
-                st_p = 7'd64 - f_nbits;
+                st_p = f_f64 ? P_11 : P_40;
                 case (st_cls)
-                    C_EMPTY: begin
-                        st_v = cur_fmt == FMT_F32 ? 80'hffc0_0000 : 80'hfff8_0000_0000_0000;
+                    C_EMPTY, C_UNSUP: begin
+                        st_v = f_f64 ? 80'hfff8_0000_0000_0000 : 80'hffc0_0000;
                         st_fl = 6'b000001;
                     end
-                    C_ZERO: st_v = cur_fmt == FMT_F32 ? {48'd0, st_sign, 31'd0} : {16'd0, st_sign, 63'd0};
-                    C_INF: st_v = cur_fmt == FMT_F32 ? {48'd0, st_sign, 8'hff, 23'd0}
-                                                     : {16'd0, st_sign, 11'h7ff, 52'd0};
+                    C_ZERO: st_v = f_f64 ? {16'd0, st_sign, 63'd0} : {48'd0, st_sign, 31'd0};
+                    C_INF: st_v = f_f64 ? {16'd0, st_sign, 11'h7ff, 52'd0}
+                                        : {48'd0, st_sign, 8'hff, 23'd0};
                     C_QNAN, C_SNAN: begin
                         // The significand's top bits, with a signalling NaN
                         // quieted and invalid raised.
                         logic [63:0] q;
                         q = st_cls == C_SNAN ? {2'b11, st_sig[61:0]} : st_sig;
-                        st_v = cur_fmt == FMT_F32 ? {48'd0, st_sign, 8'hff, q[62:40]}
-                                                  : {16'd0, st_sign, 11'h7ff, q[62:11]};
+                        st_v = f_f64 ? {16'd0, st_sign, 11'h7ff, q[62:11]}
+                                     : {48'd0, st_sign, 8'hff, q[62:40]};
                         if (st_cls == C_SNAN) st_fl = 6'b000001;
-                    end
-                    C_UNSUP: begin
-                        st_v = cur_fmt == FMT_F32 ? 80'hffc0_0000 : 80'hfff8_0000_0000_0000;
-                        st_fl = 6'b000001;
                     end
                     default: begin
                         // A finite number: round it, after a right shift
@@ -655,19 +655,19 @@ module fes_i386_x87 (
                     C_EMPTY, C_QNAN, C_SNAN, C_INF, C_UNSUP: begin
                         st_big = 1'b1;
                         st_fl = 6'b000001;
-                        st_v = {16'd0, 64'd1 << (i_w - 7'd1)};
+                        st_v = {16'd0, int_indefinite(f_iw)};
                     end
                     default: begin
                         st_direct = 1'b0;
+                        st_p = P_1;
                         if (st_e > 18'sd63) begin
                             st_big = 1'b1;
                             st_direct = 1'b1;
                             st_fl = 6'b000001;
-                            st_v = {16'd0, 64'd1 << (i_w - 7'd1)};
+                            st_v = {16'd0, int_indefinite(f_iw)};
                         end else if (st_e == 18'sd63) begin
-                            st_p = 7'd0;
+                            st_p = P_0;
                         end else begin
-                            st_p = 7'd1;
                             st_k = (18'sd62 - st_e) > 18'sd64 ? 7'd64 : 7'((18'sd62 - st_e));
                             st_shift = st_k != 7'd0;
                         end
@@ -677,10 +677,14 @@ module fes_i386_x87 (
         endcase
     end
 
-    // ---- The shifted magnitude, and the rounded result. ----
+    // ---- The shifted magnitude, and the rounding. ----
     // `shm` is the significand after the shift the conversion asked for and
     // `shs` the bits it dropped; with no shift they are the significand
     // itself. A shift of 64 or more leaves nothing but the sticky bit.
+    // The conversion's own state is registered as the sequencer leaves
+    // S_PRE, so the rounding and the packing below start from registers:
+    // the one combinational path from the register stack to the stored
+    // value was 18 levels of logic and missed the clock by 7.5 ns.
     logic [63:0] shm;
     logic        shs;
     logic [6:0]  sh_k;        // the shift the sequencer started
@@ -688,38 +692,48 @@ module fes_i386_x87 (
     logic [14:0] sh_exp;      // a normalising load's exponent after the shift
     assign shm = sh_k == 7'd0 ? sh_in : sh_k >= 7'd64 ? 64'd0 : mul_p[127:64];
     assign shs = sh_k == 7'd0 ? 1'b0 : sh_k >= 7'd64 ? sh_in != 64'd0 : mul_p[63:0] != 64'd0;
-    logic [64:0] rnd;
-    logic        rnd_inex, rnd_up;
-    assign rnd = round_at({1'b0, shm}, st_p, shs, st_sign, rc);
-    assign rnd_inex = round_inexact({1'b0, shm}, st_p, shs);
-    assign rnd_up = rnd_inex && rnd != 65'((65'd0 + shm) >> st_p);
+    logic               c_sign, c_f64, c_int;
+    logic [1:0]         c_p, c_iw;
+    logic signed [17:0] c_te;
+    logic [66:0]        rnd_w;
+    logic [64:0]        rnd_q;
+    logic               rnd_inex_q, rnd_up_q;
+    assign rnd_w = round_sel({1'b0, shm}, c_p, shs, c_sign, rc);
 
     // The real result, packed. A normal target's exponent field goes below
     // the rounded significand's leading one; the rounding's carry into that
     // one raises the exponent by itself. A denormal target's rounded value
     // is the pattern already, and a carry into its leading one makes it the
-    // smallest normal, which is the next pattern up.
-    logic [63:0] real_bits;
+    // smallest normal, which is the next pattern up. Both shifts are fixed,
+    // so they are wires.
+    logic [63:0]        real_bits;
     logic signed [17:0] real_te;
-    logic        real_ovf, real_unf, real_carry;
+    logic               real_ovf, real_unf, real_carry;
     always_comb begin
-        real_carry = rnd[f_nbits];
-        real_te = st_te + 18'(real_carry);
-        real_ovf = st_te > 18'sd0 && real_te > $signed({7'b0, f_emax});
-        real_unf = st_te <= 18'sd0 && rnd_inex;
-        real_bits = st_te > 18'sd0
-            ? (64'(18'(real_te)) << (f_nbits - 7'd1)) | 64'(rnd & ((65'd1 << (f_nbits - 7'd1)) - 65'd1))
-            : rnd[63:0];
+        real_carry = c_f64 ? rnd_q[53] : rnd_q[24];
+        real_te = c_te + 18'(real_carry);
+        real_ovf = c_te > 18'sd0 && real_te > (c_f64 ? 18'sd2046 : 18'sd254);
+        real_unf = c_te <= 18'sd0 && rnd_inex_q;
+        // The exponent field sits below the rounded significand's leading
+        // one, so the rounding's carry into that one raises the exponent by
+        // itself: the base takes the exponent before the carry and the sum
+        // takes the whole rounded value.
+        if (c_te > 18'sd0)
+            real_bits = c_f64 ? {1'b0, 11'(c_te - 18'sd1), 52'd0} + {10'd0, rnd_q[53:0]}
+                              : {33'd0, 8'(c_te - 18'sd1), 23'd0} + {39'd0, rnd_q[24:0]};
+        else
+            real_bits = rnd_q[63:0];
     end
-    // The integer result and its range check: a signed value of i_w bits
-    // takes -2^(i_w-1) to 2^(i_w-1)-1.
+    // The integer result and its range check: a signed value of 16, 32 or 64
+    // bits takes -2^(n-1) to 2^(n-1)-1.
     logic        int_oor;
     logic [63:0] int_bits;
     always_comb begin
         logic [64:0] lim;
-        lim = (65'd1 << (i_w - 7'd1)) - (st_sign ? 65'd0 : 65'd1);
-        int_oor = rnd > lim;
-        int_bits = st_sign ? (~rnd[63:0] + 64'd1) : rnd[63:0];
+        lim = c_iw == 2'd0 ? 65'h8000 : c_iw == 2'd1 ? 65'h8000_0000 : 65'h8000_0000_0000_0000;
+        if (!c_sign) lim = lim - 65'd1;
+        int_oor = rnd_q > lim;
+        int_bits = c_sign ? (~rnd_q[63:0] + 64'd1) : rnd_q[63:0];
     end
 
     // ---- The value the CPU stores. ----
@@ -728,7 +742,6 @@ module fes_i386_x87 (
     // CPU builds fields 3 to 6, the x87 pointers, itself); and a save
     // image's chunk of the register the unit has read.
     always_comb begin
-        sval = 32'd0;
         if (iss_dec == OP_STCW) sval = {16'd0, cw};
         else if (iss_dec == OP_STSW) sval = {16'd0, sw_o};
         else if (iss_dec == OP_STENV || iss_dec == OP_SAVE) begin
@@ -915,6 +928,12 @@ module fes_i386_x87 (
                     sh_k <= st_shift ? st_k : 7'd0;
                     pfl <= st_fl;
                     psf <= st_cls == C_EMPTY;
+                    c_sign <= st_sign;
+                    c_p <= st_p;
+                    c_te <= st_te;
+                    c_f64 <= f_f64;
+                    c_int <= f_int;
+                    c_iw <= f_iw;
                     if (st_direct) begin
                         sres <= st_v;
                         pnx <= unmasked(st_fl, cw);
@@ -929,47 +948,51 @@ module fes_i386_x87 (
                 end
                 S_MUL: if (mul_done) seq <= mul_store ? S_POST : S_APPLY;
                 S_POST: begin
+                    rnd_q <= rnd_w[64:0];
+                    rnd_inex_q <= rnd_w[65];
+                    rnd_up_q <= rnd_w[66];
+                    seq <= S_POST2;
+                end
+                S_POST2: begin
                     // The rounded result, its flags, and whether an unmasked
                     // exception means the CPU must make no access.
                     logic [5:0] f;
                     logic       c1v;
                     f = pfl;
-                    c1v = rnd_up;
-                    if (cur_fmt == FMT_I16 || cur_fmt == FMT_I32 || cur_fmt == FMT_I64) begin
+                    c1v = rnd_up_q;
+                    if (c_int) begin
                         if (int_oor) begin
                             f[0] = 1'b1;
                             c1v = 1'b0;
-                            sres <= {16'd0, 64'd1 << (i_w - 7'd1)};
+                            sres <= {16'd0, int_indefinite(c_iw)};
                         end else begin
-                            if (rnd_inex) f[5] = 1'b1;
+                            if (rnd_inex_q) f[5] = 1'b1;
                             sres <= {16'd0, int_bits};
                         end
                     end else begin
                         if (real_ovf) begin
                             // Masked overflow stores infinity, or the
                             // format's largest finite value when the
-                            // rounding is toward it (387 PRM section 3.1.7).
+                            // rounding is toward zero (387 PRM 3.1.7); C1
+                            // says which way the rounding went.
                             logic inf;
-                            inf = rc == 2'd0 || (rc == 2'd1 && st_sign) || (rc == 2'd2 && !st_sign);
+                            inf = rc == 2'd0 || (rc == 2'd1 && c_sign) || (rc == 2'd2 && !c_sign);
                             f[3] = 1'b1;
                             f[5] = 1'b1;
                             c1v = inf;
-                            sres <= cur_fmt == FMT_F32
-                                ? (inf ? {48'd0, st_sign, 8'hff, 23'd0}
-                                       : {48'd0, st_sign, 8'hfe, 23'h7fffff})
-                                : (inf ? {16'd0, st_sign, 11'h7ff, 52'd0}
-                                       : {16'd0, st_sign, 11'h7fe, 52'hfffffffffffff});
+                            sres <= c_f64
+                                ? (inf ? {16'd0, c_sign, 11'h7ff, 52'd0}
+                                       : {16'd0, c_sign, 11'h7fe, 52'hfffffffffffff})
+                                : (inf ? {48'd0, c_sign, 8'hff, 23'd0}
+                                       : {48'd0, c_sign, 8'hfe, 23'h7fffff});
                         end else begin
                             if (real_unf) f[4] = 1'b1;
-                            if (rnd_inex) f[5] = 1'b1;
-                            sres <= cur_fmt == FMT_F32 ? {48'd0, st_sign, real_bits[30:0]}
-                                                       : {16'd0, st_sign, real_bits[62:0]};
+                            if (rnd_inex_q) f[5] = 1'b1;
+                            sres <= c_f64 ? {16'd0, c_sign, real_bits[62:0]}
+                                          : {48'd0, c_sign, real_bits[30:0]};
                         end
                     end
                     pfl <= f;
-                    // C1 is the rounding's direction: away from zero for a
-                    // masked overflow's infinity, and 0 for a masked invalid
-                    // operation, whose result is not a rounding.
                     pc1 <= c1v;
                     pnx <= unmasked(f, cw);
                     seq <= S_RDY;
