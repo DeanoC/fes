@@ -65,8 +65,6 @@ static void run(bool attached) {
     dut.controller_buttons = 0; dut.controller_keypad = 0;
     dut.media_ready = 1; dut.media_size = program.size();
     dut.media_data = 0; dut.peek_addr = 0;
-    dut.firmware_we_a = 0; dut.firmware_we_b = 0;
-    dut.firmware_addr = 0; dut.firmware_data = 0;
     dut.bus_response = 0;
     dut.eval();
     uint8_t registered_data = 0;

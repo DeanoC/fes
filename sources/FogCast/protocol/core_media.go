@@ -11,7 +11,6 @@ type CoreMediaCapabilities struct {
 	Compatibility  string                `json:"compatibility"`
 	ImportMaxBytes int64                 `json:"import_max_bytes"`
 	Media          []CoreMediaCapability `json:"media"`
-	Firmware       []CoreMediaCapability `json:"firmware,omitempty"`
 }
 
 type CoreMediaCapability struct {

@@ -274,6 +274,8 @@ chains of small rects (see `widgets.nodemap`).
 `image.load("assets/x.png") -> img` decodes a pack PNG/JPEG on a background
 goroutine. `image.cover(game_id) -> img` asks the launcher for the catalog
 cover. Handles expose `ready`, `w`, `h`, `err`. Draw nothing until `ready`.
+While a room is open the launcher does not prefetch covers for the hidden
+library grid; grid cover decodes already started when the room opened finish.
 
 ### `library` (asynchronous; callbacks run on a later tick)
 
@@ -635,13 +637,18 @@ bin/fogcast-tenfoot -api http://127.0.0.1:8787 -home rooms
 | games per `library.query` | 2000 |
 
 Exceeding a deadline or the op cap fails the room with a message naming the
-budget. Budgets are `rooms.Budget` in Go and can be tuned by the launcher.
-A failure caused by time (a callback deadline, a callback that returned past
-its hard limit, or retirement after consecutive soft overruns) is
+budget; deadline errors also name the callback that missed it, such as
+`draw callback`, `on_input callback` or `async library.query callback` (the API
+whose result was being delivered). On Linux a hard deadline miss also lists
+the load average, how busy the CPUs were and the three busiest processes over the
+second or so before the miss; the launcher log has a longer list. A time
+failure (a callback deadline, a callback that returned past its hard limit,
+or retirement after consecutive soft overruns) is
 `errors.Is(inst.Err(), rooms.ErrBudget)`; Lua, load, compile and API errors,
 including the op cap, are not. The launcher reopens a root Home room that
 failed with `ErrBudget` after a backoff, a bounded number of times, and never
 reopens one that failed with a script error (see `docs/ARCHITECTURE.md`).
+Budgets are `rooms.Budget` in Go and can be tuned by the launcher.
 
 ## Testing rooms without a display
 

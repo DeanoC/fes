@@ -192,6 +192,9 @@ type Instance struct {
 	// work, when set, counts each callback's Lua instructions and draw
 	// ops. Tests use it. Production leaves it nil.
 	work *workMeter
+	// contention summarises system load on a hard deadline miss. New sets
+	// the launcher's shared sampler; tests replace it.
+	contention *contentionSampler
 	// frameStreak and inputStreak describe the current run of consecutive
 	// soft overruns, reported when that run retires the room.
 	frameStreak     overrunStreak
@@ -231,6 +234,21 @@ type asyncResult struct {
 	cores        []localcores.Core
 	hardwareRead bool
 	hardwareSave bool
+	// api is the room API whose result this is, such as library.platforms,
+	// named in callback errors. library.query results carry libraryQuery.
+	api string
+}
+
+// source names the API that produced an async result for callback errors.
+func (res asyncResult) source() string {
+	switch {
+	case res.api != "":
+		return res.api
+	case res.libraryQuery:
+		return "library.query"
+	default:
+		return "result"
+	}
 }
 
 // New creates the VM and installs the API. Load runs the script.
@@ -253,16 +271,17 @@ func New(pack Pack, opts Options) (*Instance, error) {
 	opts.Theme = opts.Theme.Complete()
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &Instance{
-		pack:    pack,
-		opts:    opts,
-		budget:  opts.Budget.complete(),
-		ctx:     ctx,
-		cancel:  cancel,
-		modules: map[string]lua.LValue{},
-		loading: map[string]bool{},
-		games:   map[string]hostclient.Game{},
-		images:  map[string]*Image{},
-		store:   newStore(opts.StorePath, opts.Stderr),
+		pack:       pack,
+		opts:       opts,
+		budget:     opts.Budget.complete(),
+		ctx:        ctx,
+		cancel:     cancel,
+		modules:    map[string]lua.LValue{},
+		loading:    map[string]bool{},
+		games:      map[string]hostclient.Game{},
+		images:     map[string]*Image{},
+		store:      newStore(opts.StorePath, opts.Stderr),
+		contention: hostContention,
 	}
 	r.L = lua.NewState(lua.Options{
 		SkipOpenLibs:        true,
@@ -316,7 +335,9 @@ func (r *Instance) Close() {
 		return
 	}
 	if r.loaded && r.fatal == nil {
-		r.callGlobal("unload", r.budget.Input)
+		if err := r.callGlobal("unload", r.budget.Input); err != nil {
+			fmt.Fprintf(r.opts.Stderr, "rooms: room %s: %v\n", r.pack.ID, err)
+		}
 	}
 	r.cancel()
 	r.store.flush()
@@ -367,7 +388,7 @@ func (r *Instance) Load() error {
 	r.last = r.started
 	r.workKind("main")
 	if _, err := r.call(fn, r.budget.Load, 0); err != nil {
-		return r.fail(err)
+		return r.fail(fmt.Errorf("%s chunk: %w", r.pack.Main, err))
 	}
 	r.loaded = true
 	if err := r.callGlobal("load", r.budget.Load); err != nil {
@@ -392,6 +413,7 @@ func (r *Instance) Step(now time.Time) Frame {
 	}
 	r.last = now
 	r.elapsed += dt
+	r.contention.tick(time.Now())
 	r.roomTable.RawSetString("time", lua.LNumber(r.elapsed))
 	r.lastStep = StepTiming{}
 	asyncStart := time.Now()
@@ -516,7 +538,7 @@ func (r *Instance) Input(cmd string) bool {
 	}
 	r.noteInputBaseline()
 	r.workKind("on_input")
-	handled, err := r.callRetSoft(fn, r.budget.Input, lua.LString(cmd))
+	handled, err := r.callRetSoft("on_input", fn, r.budget.Input, lua.LString(cmd))
 	if err != nil {
 		if errors.Is(err, errSoftOverrun) {
 			r.overrunInput(err)
@@ -609,43 +631,58 @@ func (r *Instance) callGlobalSoft(name string, budget time.Duration, args ...lua
 	}
 	r.noteFrameBaseline()
 	r.workKind(name)
-	if err := r.callSoft(fn, budget, 0, args...); err != nil {
-		return fmt.Errorf("%s callback: %w", name, err)
-	}
-	return nil
+	return r.callSoft(name, fn, budget, 0, args...)
 }
 
-func (r *Instance) callRetSoft(fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
+// callRetSoft runs the callback called name with one return value. Every
+// error it returns, soft or hard, names that callback.
+func (r *Instance) callRetSoft(name string, fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
 	top := r.L.GetTop()
 	defer r.L.SetTop(top)
-	hardBudget := budget * callbackHardLimitFactor
-	timing, err := r.call(fn, hardBudget, 1, args...)
+	timing, err := r.call(fn, budget*callbackHardLimitFactor, 1, args...)
 	if err != nil {
-		return lua.LNil, err
+		return lua.LNil, callbackError(name, err)
 	}
 	v := r.L.Get(-1)
 	r.L.Pop(1)
-	if timing.elapsed > hardBudget {
-		return lua.LNil, budgetErrorf("script exceeded %s hard callback budget (%s)", hardBudget, timing)
-	}
-	if timing.elapsed > budget {
-		return v, softOverrun{budget: budget, timing: timing}
+	if err := r.checkElapsed(budget, timing); err != nil {
+		if !errors.Is(err, errSoftOverrun) {
+			v = lua.LNil
+		}
+		return v, callbackError(name, err)
 	}
 	return v, nil
 }
 
-func (r *Instance) callSoft(fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) error {
+// callSoft runs the callback called name. Every error it returns, soft or
+// hard, names that callback.
+func (r *Instance) callSoft(name string, fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) error {
 	timing, err := r.call(fn, budget*callbackHardLimitFactor, nret, args...)
-	if err != nil {
-		return err
+	if err == nil {
+		err = r.checkElapsed(budget, timing)
 	}
-	if timing.elapsed > budget*callbackHardLimitFactor {
-		return budgetErrorf("script exceeded %s hard callback budget (%s)", budget*callbackHardLimitFactor, timing)
+	if err != nil {
+		return callbackError(name, err)
+	}
+	return nil
+}
+
+// checkElapsed compares a callback that returned against its soft budget and
+// its hard deadline. gopher-lua checks cancellation only between Lua
+// instructions, so a Go call can return after the deadline has passed.
+func (r *Instance) checkElapsed(budget time.Duration, timing callTiming) error {
+	hard := budget * callbackHardLimitFactor
+	if timing.elapsed > hard {
+		return r.deadlineMiss(budgetErrorf("script exceeded %s hard callback budget (%s)", hard, timing), timing)
 	}
 	if timing.elapsed > budget {
 		return softOverrun{budget: budget, timing: timing}
 	}
 	return nil
+}
+
+func callbackError(name string, err error) error {
+	return fmt.Errorf("%s callback: %w", name, err)
 }
 
 // callOptionalInput runs a named input callback when the script defines it.
@@ -657,7 +694,7 @@ func (r *Instance) callOptionalInput(name string, args ...lua.LValue) {
 	}
 	r.noteInputBaseline()
 	r.workKind(name)
-	if err := r.callSoft(fn, r.budget.Input, 0, args...); err != nil {
+	if err := r.callSoft(name, fn, r.budget.Input, 0, args...); err != nil {
 		r.handleInputCallbackError(err)
 		return
 	}
@@ -893,7 +930,7 @@ func (r *Instance) callGlobal(name string, budget time.Duration, args ...lua.LVa
 	}
 	r.workKind(name)
 	if _, err := r.call(fn, budget, 0, args...); err != nil {
-		return fmt.Errorf("%s callback: %w", name, err)
+		return callbackError(name, err)
 	}
 	return nil
 }
@@ -952,7 +989,7 @@ func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args 
 	timing.elapsed = time.Since(start)
 	if err != nil {
 		if expired {
-			return timing, budgetErrorf("script exceeded %s budget (%s)", budget, timing)
+			return timing, r.deadlineMiss(budgetErrorf("script exceeded %s budget (%s)", budget, timing), timing)
 		}
 		return timing, errors.New(strings.TrimSpace(err.Error()))
 	}
@@ -1131,8 +1168,7 @@ func (r *Instance) applyResult(res asyncResult) {
 		args = append(args, lua.LBool(res.transient))
 		args = append(args, lua.LBool(res.more))
 	}
-	if err := r.callSoft(res.cb, r.budget.Frame, 0, args...); err != nil {
-		err = fmt.Errorf("async callback: %w", err)
+	if err := r.callSoft("async "+res.source(), res.cb, r.budget.Frame, 0, args...); err != nil {
 		if errors.Is(err, errSoftOverrun) {
 			r.overrunInput(err)
 		} else {

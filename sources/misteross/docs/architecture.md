@@ -1530,9 +1530,9 @@ as a system reference, but is a reduced Verilog-first adapter around the
 shared `fes.application` 1.0 ABI. The factory recipe selects the v2 native-video
 producer and seals a format-4 package with an exact 8 KiB `coleco-bios` and
 16 KiB `coleco-cart` in one ROM map. It does not advertise blob-media,
-blob-stream or firmware-mailbox interfaces; native video parts are required,
+blob-stream interfaces; native video parts are required,
 and the Coleco expansion bus is optional. The RTL and mailbox simulations also
-retain the older media and firmware paths described below. A/B map to Fire 1/2;
+retain the older media path described below. A/B map to Fire 1/2;
 the twelve keypad bits represent 0..9, *, #. Each active-high full-state write
 addresses port 0 or 1. HOLD neutralizes both controllers. The machine contains
 a TV80 Z80-compatible CPU, Coleco reset/cartridge/RAM map, shared TMS9918-style
@@ -1587,11 +1587,7 @@ not a Coleco BIOS. The factory format-4 package instead seals a ROM map with an
 exact 8192-byte `coleco-bios` source at `0x0000–0x1fff` and an exact 16384-byte
 `coleco-cart` source mapped to `0x8000–0xbfff` and mirrored at
 `0xc000–0xffff`; the target links both before download.
-The package removes the firmware and media-mailbox interfaces. Quartus and
-mailbox simulations retain the `ENABLE_FIRMWARE` overlay for diagnostics, with
-an exact 8192-byte begin/data/commit while reset is held; it is not cartridge
-media and does not release execution. Firmware mailbox behavior is
-software-tested, but it is not the selected factory package contract. The OSS
+The package removes the media-mailbox interfaces. The OSS
 producer's explicit `--bios PATH` option remains a separate private build-time
 path using a read-only binary/HEX snapshot in ignored build output. Identity v2
 binds both digests and the BIOS mode, and the producer rechecks the snapshot

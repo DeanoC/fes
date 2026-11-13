@@ -109,7 +109,7 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str,
     fields["format"] = 4
     fields["core"]["version"] = "1.3.0"
     fields["core"]["description"] = "ColecoVision MegaCart with download-time linked BIOS and cartridge"
-    fields["interfaces"] = [item for item in fields["interfaces"] if not item["id"].startswith(("fes.media.", "fes.firmware."))]
+    fields["interfaces"] = [item for item in fields["interfaces"] if not item["id"].startswith("fes.media.")]
     fields["interfaces"].append({"id": "fes.expansion.coleco-bus", "major": 2, "minor": 0, "required": False})
     fields["roms"] = [
         {"id": "coleco-bios", "role": "firmware", "source_size": 8192, "source_offset": 0},
