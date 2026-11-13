@@ -58,6 +58,52 @@ func TestOpenRoomDoesNotPrefetchHiddenGridCovers(t *testing.T) {
 // Grid cover work queued before a room opens must not keep the workers busy
 // behind the room. Opening the room drops those queued jobs and their inflight
 // markers, keeps other queued work, and the grid asks again when it returns.
+func TestReturnFromLibraryDropsQueuedGridCoverWork(t *testing.T) {
+	h := newRoomHost(t)
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	app.SetRooms(rooms.NewIndex(rooms.Examples()), "")
+	app.ctx = t.Context()
+	mario := availableGame("snes-mario", "Mario", "snes")
+	app.mu.Lock()
+	app.replaceLoadContextLocked()
+	app.games = []hostclient.Game{mario}
+	app.grid.SetCount(1)
+	app.covers[mario.ID] = &coverSlot{phase: coverArtwork, handle: strings.Repeat("ab", 32)}
+	app.openRoomLocked("example.computers")
+	if app.room == nil {
+		app.mu.Unlock()
+		t.Fatalf("room did not open: %s", app.roomErr)
+	}
+	app.suspendRoomsForLibraryLocked()
+	app.mu.Unlock()
+	t.Cleanup(func() {
+		app.mu.Lock()
+		app.closeAllRoomsLocked()
+		app.mu.Unlock()
+	})
+
+	// The Library is showing: its grid queues the cover.
+	app.queueVisibleWork(time.Now())
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if _, busy := app.inflight[mario.ID]; !busy {
+		t.Fatal("library grid did not queue its cover")
+	}
+	if !app.returnFromLibraryLocked() {
+		t.Fatal("Back from the Library did not resume the room")
+	}
+	// The grid cover is gone before the resumed room's callbacks ran, not
+	// one frame later.
+	if _, busy := app.inflight[mario.ID]; busy {
+		t.Fatal("resuming the room kept the hidden grid cover inflight")
+	}
+	select {
+	case item := <-app.jobs:
+		t.Fatalf("resumed room left hidden grid work %+v queued", item)
+	default:
+	}
+}
+
 func TestOpenRoomDropsQueuedGridCoverWork(t *testing.T) {
 	h := newRoomHost(t)
 	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)

@@ -2663,8 +2663,9 @@ FogCast host ([kit mode](#kit-mode)), and `--print-kit-ui` still prints
 
 The DE10-Nano has two CPUs, and room callbacks run against a wall-clock
 budget, so while a room is open the launcher stops library grid cover work:
-the hidden grid queues no new cover requests, and opening a room drops grid
-cover jobs still queued, so they are requested again when the grid returns.
+the hidden grid queues no new cover requests, and opening a room or resuming
+one suspended for the Library drops grid cover jobs still queued (before the
+room's callbacks run), so they are requested again when the grid returns.
 Each frame with a room on screen repeats that drop, which covers the other
 paths that show a room. Decodes a worker already started finish and are kept.
 Room covers use their own workers and are unaffected.
