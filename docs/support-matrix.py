@@ -406,8 +406,9 @@ def validate(root: Path, data: dict) -> list[str]:
             for field in ('edition', 'device_family'):
                 if descriptor.get(field) != recipe['quartus'].get(field):
                     errors.append(f'{core_id} Quartus {field} differs from its lock')
-            if FRONT_ENDS.get(recipe.get('front_end')) != (recipe['quartus'].get('edition'),
-                                                           recipe['quartus'].get('device_family')):
+            front_end = recipe.get('front_end')
+            pair = (recipe['quartus'].get('edition'), recipe['quartus'].get('device_family'))
+            if not isinstance(front_end, str) or FRONT_ENDS.get(front_end) != pair:
                 errors.append(f'{core_id} front end does not match its Quartus edition and device family')
         elif lock.is_file():
             pins = _pins(lock)

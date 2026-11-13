@@ -380,6 +380,10 @@ class RecipeDataTest(unittest.TestCase):
             {'front_end': 'quartus-standard', 'quartus': {}},
             {'front_end': 'yosys', 'quartus': {'edition': 'standard'}},
             {'front_end': None, 'quartus': {}},
+            # front_end is optional in the schema, so it escapes the generic
+            # string check and needs a type guard of its own.
+            {'front_end': ['yosys'], 'quartus': {}},
+            {'front_end': True, 'quartus': {}},
         )
         for index, case in enumerate(cases):
             with self.subTest(case=index):

@@ -11,7 +11,9 @@ import re
 import shutil
 import subprocess
 
-from scripts.export_core_package import build_identity
+# The DE25 producers encode their records with this board's exporter, so read
+# them back with the same one. Both derive a format-2 identity identically.
+from boards.de25nano.package.export_core_package import build_identity
 from boards.de25nano.scanout import vendor_reference, video_outputs, output_reset
 from scripts.fes_build_common import BuildError
 

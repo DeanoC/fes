@@ -193,7 +193,9 @@ def load_recipes(path=REGISTRY_PATH, *, board=DEFAULT_BOARD):
                 raise ValueError("invalid Quartus recipe")
             # The front end selects the edition and device family; the core's
             # quartus.lock holds the same pair and a producer checks them against it.
-            if entry.get("front_end") not in FRONT_ENDS:
+            # front_end is optional in the schema, so the string check at the
+            # end of this block does not reach it.
+            if not isinstance(entry.get("front_end"), str) or entry["front_end"] not in FRONT_ENDS:
                 raise ValueError("unknown recipe front end")
             if FRONT_ENDS[entry["front_end"]] != (q["edition"], q["device_family"]):
                 raise ValueError("front end, Quartus edition and device family disagree")
