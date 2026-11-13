@@ -24,7 +24,9 @@ It does four things:
   reset.
 - **It found a BIOS bug.** pc386's INT 75h handler clobbered AX, and with
   FreeDOS's interrupt stacks that corrupted DOS's memory chain
-  ([below](#the-bios-int-75h-handler)).
+  ([below](#the-bios-int-75h-handler)). The fix is its own PR,
+  [#1785](https://github.com/DeanoC/fes/pull/1785)
+  ([#1784](https://github.com/DeanoC/fes/issues/1784)).
 - **With the identity off, nothing changes.** The lockstep matches main on
   every architectural result, max and preset 3, and test386 reaches POST FFh.
   The census reruns of the plan's titles give the plan's files key for key.
@@ -88,7 +90,8 @@ Links are in the [plan's sources](../2026-11-12-i386-x87-plan/summary.md#sources
   build's RTL has no 387, so a run ends as not built (`unbuilt` 387) at its
   first ESC or WAIT, which neither side steps. The comparison of `X87State`
   at each retirement joins this rule when the RTL has a 387 (slice 2).
-  Unset, nothing changes.
+  Unset, nothing changes. The testbench reads the variable itself; the
+  Python runner does not set it, and the no387 mode refuses it.
 - **The census keys** (`census.h`) are the plan's scratch patch,
   `x87_words()` replaced by the accessor, plus `x87held` for held steps.
   They are documented in
@@ -99,9 +102,18 @@ Links are in the [plan's sources](../2026-11-12-i386-x87-plan/summary.md#sources
   - `cpu-reset-387-state`, which stays open: Bochs's CPU reset leaves its
     387 at CW 0040h with every tag valid. Whether an AT's CPU-only resets
     reach the 387 is not settled by these sources.
-- **The BIOS** ([below](#the-bios-int-75h-handler)).
 
 ## Checks
+
+The checks ran on this branch's commits as they landed:
+
+- `b2776a065` (the coupling, the accessor and the census keys): the boot
+  suite, the Linux run and the census reruns, from its machine_tb build;
+- `9c62ab2e1` (with the lockstep identity and X87TEST.COM): the lockstep,
+  test386 and the X87TEST.COM runs;
+- `c2dcd299a` (`9c62ab2e1` with #1785's BIOS, a local tree): the X87TEST.COM
+  pass;
+- the head: the unit tests and the boot runs listed last.
 
 | Check | Where | Result |
 | --- | --- | --- |
@@ -109,11 +121,12 @@ Links are in the [plan's sources](../2026-11-12-i386-x87-plan/summary.md#sources
 | The same with OUT F0h made a no-op | Powerboat | 7 fail (no HLT: the latch never clears) |
 | The same with the hold removed | Powerboat | hangs inside `step()`: main's bug |
 | `sim_fes_pc386.py --suite boot` (FreeDOS on the oracle, coupling on) | chip | PASS, prompt at 3.75 s |
-| `sim_fes_pc386.py --suite x87` (X87TEST.COM) | chip | every check ok; with the BIOS fix, PASS (below) |
+| `sim_fes_pc386.py --suite x87` (X87TEST.COM) | chip | every check ok, then FreeDOS halts ("MCB chain corrupted"); with #1785's BIOS, PASS (below) |
 | Linux 2.0.0 with its 387 on the oracle, 40 s | chip | logs in at 24 s; see below |
 | Lockstep, main `e27d6af8f` and this branch, same arguments (corpus 40 per file, 8 × 200 random, 8 × 100 protected-mode, 50 task, debug and undefined programs), `--same-as` main | chip | "every architectural result" |
 | The same at governor preset 3, `--same-as` this branch's max | chip | "every architectural result" |
 | test386.asm on the oracle | chip | POST … E0 EE FF, 0 EE differences, cross-check agrees |
+| The lockstep testbench with `FES_I386_X87=387`: random (300 programs), directed, no387 | chip | random and directed pass unchanged (their programs run no ESC); no387 stops all 1,933 cases as `unbuilt` 387 at their first ESC, so that mode now refuses the identity |
 | `tests.test_pc386_machine` (72 tests), `tests.test_fes_i386_oracle` | Powerboat | OK |
 
 The x87_tb cases:
@@ -201,14 +214,16 @@ int 2; iret`, and `eoi_both_pics` loads 20h into AL. IBM's `INT_287` saves
 and restores AX around the same steps. The fix makes the handler keep AX
 and write 00h, as IBM's does (`firmware/README.md`, `firmware.lock`).
 
-**Scope.** This changes `pc386-bios.bin`, which is in the sealed ROM. On a
-kit it matters only once IRQ 13 can rise, which is slice 2. Whether it ships
-in this PR or its own is Deano's call (see Open). With it, X87TEST.COM
-passes to the prompt.
+**Scope.** This changes `pc386-bios.bin`, which is in the sealed ROM, so it
+is its own PR, [#1785](https://github.com/DeanoC/fes/pull/1785). On a kit it
+matters only once IRQ 13 can rise, which is slice 2. With it, X87TEST.COM
+passes to the prompt (this branch at `c2dcd299a`, a local tree with the fix,
+on chip). Without it, the suite fails here until #1785 merges.
 
-**A second BIOS difference.** rombios's default INT 02h still prints "NMI
-Handler called" and halts, where IBM's NMI handler returns when no parity
-error is flagged. A DOS program that unmasks an exception without hooking
+**A second BIOS difference.** rombios's default INT 02h prints "NMI Handler
+called" and halts on any NMI, its own comment says it should return when
+called from INT 75h, and an AT BIOS's NMI handler looks for a parity error
+first; what IBM's does without one is not checked here. A DOS program that unmasks an exception without hooking
 INT 02h now stops there on the oracle; on main it hung inside `step()`.
 That is a follow-up for the firmware, not this slice.
 
@@ -222,7 +237,6 @@ That is a follow-up for the firmware, not this slice.
   - **A.** A `pc386_machine` input that sets bit 1, tied 0 in
     `pc386_system`, with a machine_tb flag.
   - **B.** A new record word now.
-- **The BIOS fix's place**, as above.
 - **The 387's state after a CPU reset**, and **FNSTCW's ERROR# behaviour**,
   stay for real hardware or a later slice (the plan's open questions).
 - **The ESC forms Bochs's level 3 rejects as #UD** (the P6 forms in D8–DF)

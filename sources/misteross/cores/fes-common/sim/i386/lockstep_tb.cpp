@@ -118,7 +118,9 @@
 //             detection routines, under the no-387 rule (EscStep).
 // FES_I386_X87=387 fits the oracle's 387 as on an AT (x87_fitted): the no-387
 // rule is off and a run stops as not built (unbuilt 387) at its first ESC or
-// WAIT. Unset or "none", the CPU has an empty socket.
+// WAIT. Unset or "none", the CPU has an empty socket. The testbench reads it
+// directly (scripts/test_fes_i386_lockstep.py does not set it), and the no387
+// mode refuses it.
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
 #include "Vfes_i386_cpu.h"
@@ -10904,6 +10906,9 @@ int main(int argc, char **argv) {
             throw std::runtime_error("FES_I386_X87 is 387 or none");
         x87_fitted = std::string(x87) == "387";
     }
+    // The directed no-387 cases check the empty socket; with the 387 fitted
+    // each would stop at its first ESC.
+    if (x87_fitted && mode == "no387") throw std::runtime_error("FES_I386_MODE=no387 does not run with FES_I386_X87=387");
     oracle->set_at_coprocessor(x87_fitted);
     VerilatedContext context;
     Rtl rtl(context);
