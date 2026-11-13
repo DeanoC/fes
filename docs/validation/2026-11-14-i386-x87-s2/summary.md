@@ -113,8 +113,15 @@ unit goes wrong:
 | --- | --- | --- |
 | `test_fes_i386_x87_unit.py` (70 cases: loads, stores, FXAM, FTST, the constants, the state forms, the protocol) | chip, lock's Verilator | 70 passed, 0 failed |
 | the same with `--netlist` (the seal's Yosys netlist of the unit) | chip | 70 passed, 0 failed |
-| `tests.test_fes_i386_x87_unit` | Powerboat | OK |
-| Verilator `-Wall` lint | Powerboat and chip | clean |
+| the lockstep with the identity off, a short run (16 x 40 random, 16 x 500 protected-mode, 16 x 250 task, debug and undefined programs) | chip | every bucket 0 fail; the unbuilt sweep 53,008 encodings, 0 wrong |
+| `tests.test_fes_i386_x87_unit`, `tests.test_fes_i386_ucode` | Powerboat | OK |
+| Verilator `-Wall` lint (the lock's 5.054) | Powerboat and chip | clean |
+
+The identity-off run is the regression this slice turns on: with the
+identity clear the CPU must be the empty socket it was, and the short run
+says it is, across the random, protected-mode, task, debug and undefined
+programs and the per-encoding unbuilt sweep. The full run, the netlist run
+and test386 are in flight.
 
 ## Area and timing
 
@@ -215,8 +222,29 @@ empty socket's exactly as before.
 
 ## What is left
 
-- the identity's record word and FogCast setting, which slice 0 left to
-  this slice, so a title can select the 387;
+- **The lockstep needs x87 programs.** The 387-present rule is in (the
+  state accessor, the wait on BUSY#, the per-form not-built rule and the
+  comparison at every retirement), but the lockstep's random programs
+  contain no ESC instruction, as slice 0's record notes, so with the
+  identity on the comparison runs over programs that leave the 387 alone.
+  The coverage has to come from the generator emitting the slice's forms,
+  or from the no-387 directed cases (`run_no387_cases`) run again with the
+  identity on, where the expectation comes from the oracle rather than the
+  socket's hand-computed image. Two things come with it: the 387's state
+  after a CPU reset, which is the open `cpu-reset-387-state` divergence
+  (Bochs leaves CW 0040h with every tag valid; this unit resets as FINIT
+  does, 037Fh with every tag empty), so either the bench starts each
+  program with FNINIT on both sides or it adopts one side's reset state;
+  and TestFloat's conversion vectors, which the plan's gate names.
+- **The identity's record word and FogCast setting**, which slice 0 left to
+  this slice. It is not in this PR on purpose: the setting words 0-6 are a
+  seven-decimal wire format in `FogCast/protocol/pc386.go` with generated
+  constants, a `fes.pc386.machine` contract, a parser, the kit software and
+  the mister-packages document behind it, so adding one is a cross-stack
+  contract change and its own scope, not part of an RTL slice. Until it
+  lands a kit can only run the sealed package with the identity off, which
+  is what this slice's kit run checks; the 387's own behaviour is covered
+  by the unit's bench and, once it has programs, the lockstep.
 - exception 9, for a coprocessor operand whose middle part crosses into a
   protected or not-present page or segment;
 - CR0.ET following the identity at reset;
