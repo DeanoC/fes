@@ -911,7 +911,9 @@ func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.
 // are the kernel giving its core to other work. Major faults and blocks read
 // are waits for storage. GC cycles and pause time are Go stopping the world or
 // collecting alongside the script. Run-queue wait is a woken thread waiting
-// for a core, which involuntary switches do not count.
+// for a core, which involuntary switches do not count. Go sched wait is the
+// longest sampled wait of any goroutine for a Go scheduler slot. Unaccounted
+// is script minus thread CPU, run-queue wait and GC stop-the-world.
 type callTiming struct {
 	elapsed  time.Duration
 	script   time.Duration
@@ -927,9 +929,14 @@ func (t callTiming) String() string {
 	return s
 }
 
-// scriptRun labels the thread usage with the run it covers.
+// scriptRun labels the thread usage with the run it covers and ends with
+// the part of the run it does not explain.
 func (t callTiming) scriptRun() string {
-	return "script run " + t.script.Round(10*time.Microsecond).String() + ": " + t.thread.String()
+	s := "script run " + t.script.Round(10*time.Microsecond).String() + ": " + t.thread.String()
+	if left, ok := t.thread.unaccounted(t.script); ok {
+		s += ", unaccounted " + left.Round(10*time.Microsecond).String()
+	}
+	return s
 }
 
 // call runs fn under a deadline budget after the call starts. elapsed is

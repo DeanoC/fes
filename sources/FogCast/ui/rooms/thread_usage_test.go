@@ -16,17 +16,17 @@ func TestThreadUsageSinceAndString(t *testing.T) {
 	before := threadUsage{cpu: time.Millisecond, voluntary: 2, involuntary: 1, majorFaults: 1, minorFaults: 10, blocksRead: 8,
 		runDelay: time.Millisecond, haveRunDelay: true, gcCycles: 40, gcPause: 3 * time.Millisecond}
 	after := threadUsage{cpu: 4110 * time.Microsecond, voluntary: 17, involuntary: 3, majorFaults: 13, minorFaults: 350, blocksRead: 104,
-		runDelay: 2500 * time.Microsecond, haveRunDelay: true, gcCycles: 41, gcPause: 5100 * time.Microsecond}
+		runDelay: 2500 * time.Microsecond, haveRunDelay: true, gcCycles: 41, gcPause: 5100 * time.Microsecond, goSchedWait: 2 * time.Millisecond}
 	d := after.since(before)
 	want := threadUsage{cpu: 3110 * time.Microsecond, voluntary: 15, involuntary: 2, majorFaults: 12, minorFaults: 340, blocksRead: 96,
-		runDelay: 1500 * time.Microsecond, haveRunDelay: true, gcCycles: 1, gcPause: 2100 * time.Microsecond}
+		runDelay: 1500 * time.Microsecond, haveRunDelay: true, gcCycles: 1, gcPause: 2100 * time.Microsecond, goSchedWait: 2 * time.Millisecond}
 	if d != want {
 		t.Fatalf("since = %+v, want %+v", d, want)
 	}
-	if got, w := d.String(), "thread cpu 3.11ms, 15 voluntary/2 involuntary switches, runnable 1.5ms, 12 major/340 minor faults, 48 KiB read, 1 GC cycles, GC stop-the-world 2.1ms"; got != w {
+	if got, w := d.String(), "thread cpu 3.11ms, 15 voluntary/2 involuntary switches, runnable 1.5ms, 12 major/340 minor faults, 48 KiB read, 1 GC cycles, GC stop-the-world 2.1ms, Go sched wait >=2ms"; got != w {
 		t.Fatalf("String = %q, want %q", got, w)
 	}
-	quiet := threadUsage{cpu: 2 * time.Millisecond, voluntary: 1, involuntary: 9}
+	quiet := threadUsage{cpu: 2 * time.Millisecond, voluntary: 1, involuntary: 9, goSchedWait: goSchedWaitShown - 1}
 	if got, w := quiet.String(), "thread cpu 2ms, 1 voluntary/9 involuntary switches"; got != w {
 		t.Fatalf("quiet String = %q, want %q", got, w)
 	}
@@ -52,7 +52,7 @@ func TestOverrunMessageNamesCauses(t *testing.T) {
 	samples := []threadUsage{
 		{cpu: time.Millisecond, voluntary: 4, minorFaults: 100, runDelay: time.Millisecond, haveRunDelay: true, gcCycles: 7},
 		{cpu: 2 * time.Millisecond, voluntary: 9, involuntary: 1, majorFaults: 3, minorFaults: 120, blocksRead: 24,
-			runDelay: 41 * time.Millisecond, haveRunDelay: true, gcCycles: 8, gcPause: 350 * time.Microsecond},
+			runDelay: 41 * time.Millisecond, haveRunDelay: true, gcCycles: 8, gcPause: 350 * time.Microsecond, goSchedWait: 1500 * time.Microsecond},
 	}
 	r.threadSample = func() (threadUsage, bool) {
 		u := samples[0]
@@ -67,7 +67,7 @@ func TestOverrunMessageNamesCauses(t *testing.T) {
 	if err == nil {
 		t.Fatal("callback past its budget did not fail")
 	}
-	want := ": thread cpu 1ms, 5 voluntary/1 involuntary switches, runnable 40ms, 3 major/20 minor faults, 12 KiB read, 1 GC cycles, GC stop-the-world 350µs)"
+	want := ": thread cpu 1ms, 5 voluntary/1 involuntary switches, runnable 40ms, 3 major/20 minor faults, 12 KiB read, 1 GC cycles, GC stop-the-world 350µs, Go sched wait >=1.5ms, unaccounted 0s)"
 	if msg := err.Error(); !strings.HasPrefix(msg, "script exceeded 1ms budget (elapsed ") || !strings.HasSuffix(msg, want) {
 		t.Fatalf("overrun %q lacks %q", msg, want)
 	}
@@ -75,7 +75,8 @@ func TestOverrunMessageNamesCauses(t *testing.T) {
 
 // The GC metrics exist in the toolchain with the kinds runtimeUsage reads.
 func TestRuntimeUsageMetricsExist(t *testing.T) {
-	kinds := map[string]metrics.ValueKind{gcCyclesMetric: metrics.KindUint64, gcPauseMetric: metrics.KindFloat64Histogram}
+	kinds := map[string]metrics.ValueKind{gcCyclesMetric: metrics.KindUint64, gcPauseMetric: metrics.KindFloat64Histogram,
+		goSchedMetric: metrics.KindFloat64Histogram}
 	for _, d := range metrics.All() {
 		if k, ok := kinds[d.Name]; ok {
 			if d.Kind != k || !d.Cumulative {
@@ -100,13 +101,67 @@ func TestHistogramSum(t *testing.T) {
 	}
 }
 
-// The GC read allocates nothing after its first.
+// A partial KiB rounds up, so a single 512-byte read still shows.
+func TestBlocksReadText(t *testing.T) {
+	if got := (threadUsage{blocksRead: 1}).String(); !strings.HasSuffix(got, ", 1 KiB read") {
+		t.Fatalf("one 512-byte block: %q", got)
+	}
+	if got := (threadUsage{blocksRead: 4096}).String(); !strings.HasSuffix(got, ", 2048 KiB read") {
+		t.Fatalf("2 MiB: %q", got)
+	}
+}
+
+// The longest new scheduler wait is the lower bound of the highest bucket
+// that grew; nothing new, an open lower bucket or a changed layout give 0.
+func TestLongestNewWait(t *testing.T) {
+	h := &metrics.Float64Histogram{
+		Counts:  []uint64{5, 3, 2, 7},
+		Buckets: []float64{math.Inf(-1), 0.001, 0.004, 0.016, math.Inf(1)},
+	}
+	if got, want := longestNewWait(h, []uint64{5, 2, 2, 7}), time.Millisecond; got != want {
+		t.Fatalf("one new 1-4ms wait = %s, want %s", got, want)
+	}
+	if got, want := longestNewWait(h, []uint64{4, 3, 1, 6}), 16*time.Millisecond; got != want {
+		t.Fatalf("new waits up to the open bucket = %s, want %s", got, want)
+	}
+	for _, before := range [][]uint64{{5, 3, 2, 7}, {4, 3, 2, 7}, {5, 3, 2}} {
+		if got := longestNewWait(h, before); got != 0 {
+			t.Fatalf("longestNewWait(%v) = %s, want 0", before, got)
+		}
+	}
+}
+
+// Unaccounted time is the script run less thread CPU, run-queue wait and GC
+// stop-the-world, floored at zero, and shown only with run-queue wait.
+func TestScriptRunUnaccounted(t *testing.T) {
+	timing := callTiming{script: 10 * time.Millisecond, measured: true,
+		thread: threadUsage{cpu: 3 * time.Millisecond, voluntary: 4, runDelay: time.Millisecond, haveRunDelay: true,
+			gcCycles: 1, gcPause: 500 * time.Microsecond}}
+	want := "script run 10ms: thread cpu 3ms, 4 voluntary/0 involuntary switches, runnable 1ms, 1 GC cycles, GC stop-the-world 500µs, unaccounted 5.5ms"
+	if got := timing.scriptRun(); got != want {
+		t.Fatalf("scriptRun = %q, want %q", got, want)
+	}
+	timing.thread.runDelay = 20 * time.Millisecond
+	if got := timing.scriptRun(); !strings.HasSuffix(got, ", unaccounted 0s") {
+		t.Fatalf("over-explained run: %q", got)
+	}
+	timing.thread.haveRunDelay = false
+	if got := timing.scriptRun(); strings.Contains(got, "unaccounted") {
+		t.Fatalf("unaccounted without run-queue wait: %q", got)
+	}
+}
+
+// The runtime read allocates nothing after its first pair. A callback makes
+// one before-script and one after-script read.
 func BenchmarkRuntimeUsageRead(b *testing.B) {
 	var g runtimeUsage
 	var u threadUsage
-	g.read(&u)
+	g.read(&u, true)
+	g.read(&u, false)
 	b.ReportAllocs()
+	before := true
 	for b.Loop() {
-		g.read(&u)
+		g.read(&u, before)
+		before = !before
 	}
 }

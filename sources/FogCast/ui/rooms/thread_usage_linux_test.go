@@ -161,8 +161,10 @@ func BenchmarkReadUsage(b *testing.B) {
 	var r Instance
 	defer r.schedstat.close()
 	b.ReportAllocs()
+	before := true
 	for b.Loop() {
-		r.readUsage(true)
+		r.readUsage(before)
+		before = !before
 	}
 }
 

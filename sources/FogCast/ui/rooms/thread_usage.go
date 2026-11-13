@@ -12,8 +12,8 @@ import (
 // block reads, plus the process-wide Go GC counters read with them. A
 // difference of two samples (since) says why a script run took longer than
 // its thread CPU: blocked on I/O (major faults, blocks read), runnable but
-// waiting for a core (runDelay), or parked across a Go GC (gcCycles,
-// gcPause).
+// waiting for a core (runDelay), parked across a Go GC (gcCycles, gcPause),
+// or Go goroutines waiting for the scheduler (goSchedWait).
 type threadUsage struct {
 	cpu         time.Duration
 	voluntary   int64
@@ -36,6 +36,14 @@ type threadUsage struct {
 	// pause histogram (each pause counted at its bucket's midpoint).
 	gcCycles uint64
 	gcPause  time.Duration
+	// goSchedWait is the longest time a Go goroutine, any in the process,
+	// was runnable before it ran, among waits that ended between the
+	// before-script and after-script samples: the lower bound of the highest
+	// /sched/latencies:seconds bucket that grew. Only an after-script sample
+	// carries it, and since keeps it as is. The runtime records about one in
+	// eight goroutine wakeups, so a long wait of the script goroutine itself
+	// (a locked-thread handoff) can be missed.
+	goSchedWait time.Duration
 }
 
 // sampleThread reads the calling OS thread's usage. beforeScript says which
@@ -54,26 +62,27 @@ func (r *Instance) sampleThread(beforeScript bool) (threadUsage, bool) {
 func (r *Instance) readUsage(beforeScript bool) (threadUsage, bool) {
 	var u threadUsage
 	if beforeScript {
-		r.readOuter(&u)
+		r.readOuter(&u, beforeScript)
 	}
 	if !readThreadUsage(&u) {
 		return threadUsage{}, false
 	}
 	if !beforeScript {
-		r.readOuter(&u)
+		r.readOuter(&u, beforeScript)
 	}
 	return u, true
 }
 
 // readOuter fills the fields read around the thread's own counters.
-func (r *Instance) readOuter(u *threadUsage) {
+func (r *Instance) readOuter(u *threadUsage, beforeScript bool) {
 	u.runDelay, u.haveRunDelay = r.schedstat.runDelay()
-	r.runtimeUsage.read(u)
+	r.runtimeUsage.read(u, beforeScript)
 }
 
 const (
 	gcCyclesMetric = "/gc/cycles/total:gc-cycles"
 	gcPauseMetric  = "/sched/pauses/total/gc:seconds"
+	goSchedMetric  = "/sched/latencies:seconds"
 )
 
 // runtimeUsage reads the Go GC counters into a sample slice it keeps, so a
@@ -82,11 +91,15 @@ const (
 // shared.
 type runtimeUsage struct {
 	samples []metrics.Sample
+	// schedBefore is the scheduler-latency bucket counts at the last
+	// before-script read, kept to difference at the after-script read.
+	schedBefore []uint64
+	haveBefore  bool
 }
 
-func (g *runtimeUsage) read(u *threadUsage) {
+func (g *runtimeUsage) read(u *threadUsage, beforeScript bool) {
 	if g.samples == nil {
-		g.samples = []metrics.Sample{{Name: gcCyclesMetric}, {Name: gcPauseMetric}}
+		g.samples = []metrics.Sample{{Name: gcCyclesMetric}, {Name: gcPauseMetric}, {Name: goSchedMetric}}
 	}
 	metrics.Read(g.samples)
 	if v := g.samples[0].Value; v.Kind() == metrics.KindUint64 {
@@ -95,6 +108,39 @@ func (g *runtimeUsage) read(u *threadUsage) {
 	if v := g.samples[1].Value; v.Kind() == metrics.KindFloat64Histogram {
 		u.gcPause = histogramSum(v.Float64Histogram())
 	}
+	v := g.samples[2].Value
+	if v.Kind() != metrics.KindFloat64Histogram {
+		g.haveBefore = false
+		return
+	}
+	h := v.Float64Histogram()
+	if beforeScript {
+		g.schedBefore = append(g.schedBefore[:0], h.Counts...)
+		g.haveBefore = true
+		return
+	}
+	if g.haveBefore {
+		u.goSchedWait = longestNewWait(h, g.schedBefore)
+	}
+	g.haveBefore = false
+}
+
+// longestNewWait is the lower bound of the highest bucket of h whose count
+// grew since before, or 0 when none grew or the layout changed.
+func longestNewWait(h *metrics.Float64Histogram, before []uint64) time.Duration {
+	if len(before) != len(h.Counts) {
+		return 0
+	}
+	for i := len(h.Counts) - 1; i >= 0; i-- {
+		if h.Counts[i] > before[i] {
+			lo := h.Buckets[i]
+			if math.IsInf(lo, -1) || lo <= 0 {
+				return 0
+			}
+			return time.Duration(lo * float64(time.Second))
+		}
+	}
+	return 0
 }
 
 // histogramSum estimates the total of a seconds histogram, counting each
@@ -134,12 +180,14 @@ func (u threadUsage) since(before threadUsage) threadUsage {
 		haveRunDelay: u.haveRunDelay && before.haveRunDelay,
 		gcCycles:     u.gcCycles - before.gcCycles,
 		gcPause:      u.gcPause - before.gcPause,
+		goSchedWait:  u.goSchedWait,
 	}
 }
 
 // String always gives CPU time and switches. Runnable wait appears where the
-// kernel reports it. Faults, block reads and GC appear only when non-zero, so
-// a run that did none of them keeps the short form.
+// kernel reports it. Faults, block reads and GC appear only when non-zero,
+// and a Go scheduler wait only from goSchedWaitShown up, so a run that did
+// none of them keeps the short form.
 func (u threadUsage) String() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "thread cpu %s, %d voluntary/%d involuntary switches",
@@ -157,5 +205,23 @@ func (u threadUsage) String() string {
 	if u.gcCycles != 0 || u.gcPause != 0 {
 		fmt.Fprintf(&b, ", %d GC cycles, GC stop-the-world %s", u.gcCycles, u.gcPause.Round(10*time.Microsecond))
 	}
+	if u.goSchedWait >= goSchedWaitShown {
+		fmt.Fprintf(&b, ", Go sched wait >=%s", u.goSchedWait.Round(10*time.Microsecond))
+	}
 	return b.String()
+}
+
+// goSchedWaitShown is the shortest Go scheduler wait the text names. Shorter
+// waits are routine and would lengthen every message.
+const goSchedWaitShown = time.Millisecond
+
+// unaccounted is the script run's wall time not explained by its thread CPU,
+// run-queue wait or GC stop-the-world time, floored at zero: time the thread
+// slept for another reason, such as storage, a lock, a Go mark assist or a
+// locked-thread handoff. It is known only where run-queue wait is.
+func (u threadUsage) unaccounted(script time.Duration) (time.Duration, bool) {
+	if !u.haveRunDelay {
+		return 0, false
+	}
+	return max(script-u.cpu-u.runDelay-u.gcPause, 0), true
 }

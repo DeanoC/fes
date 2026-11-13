@@ -627,12 +627,24 @@ script run's wall time and, over that run, the callback thread's CPU time and
 voluntary/involuntary switches, its run-queue wait (`runnable`, when the
 kernel has `/proc/thread-self/schedstat`), its major/minor page faults and
 the KiB it read from storage (`ru_inblock`, counted by the kernel in 512-byte
-units; only when non-zero), and the Go GC cycles and GC stop-the-world
-time across the process (only when non-zero), for example
+units; only when non-zero), the Go GC cycles and GC stop-the-world time
+across the process (only when non-zero), the longest Go scheduler wait of any
+goroutine that ended in the run (`Go sched wait`, from 1ms up), and the
+`unaccounted` rest of the run: wall time minus thread CPU, runnable and GC
+stop-the-world (shown with `runnable`). For example
 `script run 235.61ms: thread cpu 3.11ms, 15 voluntary/2 involuntary switches,
-runnable 1.2ms, 41 major/380 minor faults, 480 KiB read`. Faults and block
-reads point at storage, GC at the Go runtime, and runnable time at a CPU that
-was busy elsewhere.
+runnable 1.2ms, 41 major/380 minor faults, 480 KiB read, unaccounted 231.3ms`.
+Faults and KiB read point at storage, GC at the Go runtime, runnable time at a
+CPU that was busy elsewhere, and Go sched wait at goroutines waiting for a Go
+scheduler slot.
+
+`Go sched wait` is process-wide, its value is the lower bound of a histogram
+bucket, and the runtime records only about one goroutine wakeup in eight, so
+its absence does not rule out a Go scheduler wait by the script itself.
+Unaccounted time with voluntary switches and no faults, KiB read or GC beside
+it means the thread slept for a reason this data cannot name: a Go
+locked-thread handoff, a GC mark assist whose cycle ended outside the run, or
+a lock.
 
 ## Testing rooms without a display
 
