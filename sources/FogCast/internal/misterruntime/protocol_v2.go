@@ -37,6 +37,21 @@ type Protocol2Error struct {
 	Observed *string `json:"observed,omitempty"`
 }
 
+// Protocol2MenuDisplayLive is what the idle display and the ADV7513 last
+// reported about themselves, rather than what the last present set up.
+type Protocol2MenuDisplayLive struct {
+	Enabled           bool   `json:"enabled"`
+	Faulted           bool   `json:"faulted"`
+	Quiesced          bool   `json:"quiesced"`
+	DisplayedSequence uint64 `json:"displayed_sequence"`
+	Underflows        uint64 `json:"underflows"`
+	// Transmitter reads, present only when the runtime owns the ADV7513.
+	HotPlug bool   `json:"hot_plug,omitempty"`
+	RxSense bool   `json:"rx_sense,omitempty"`
+	PLLLock bool   `json:"pll_lock,omitempty"`
+	VIC     uint64 `json:"vic,omitempty"`
+}
+
 type Protocol2MenuDisplay struct {
 	Available      bool   `json:"available"`
 	FrameMapping   bool   `json:"frame_mapping,omitempty"`
@@ -57,10 +72,13 @@ type Protocol2MenuDisplay struct {
 	SlotBytes  uint64     `json:"slot_bytes"`
 	Slots      uint64     `json:"slots"`
 	// Format is the pixel layout of the granted slots the client draws into.
-	Format            string          `json:"format"`
-	DisplayedSequence uint64          `json:"displayed_sequence"`
-	Underflows        uint64          `json:"underflows"`
-	Error             *Protocol2Error `json:"error"`
+	Format            string `json:"format"`
+	DisplayedSequence uint64 `json:"displayed_sequence"`
+	Underflows        uint64 `json:"underflows"`
+	// Live is the runtime's periodic re-read of the idle display and its
+	// HDMI transmitter. Absent from runtimes that perform no such read.
+	Live  *Protocol2MenuDisplayLive `json:"live,omitempty"`
+	Error *Protocol2Error           `json:"error"`
 }
 
 type Protocol2Response struct {
@@ -670,7 +688,7 @@ func validateProtocol2Shape(line []byte) error {
 }
 
 func validateMenuDisplayShape(raw json.RawMessage) error {
-	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "slots", "format", "displayed_sequence", "underflows", "error"}, []string{"session", "core_generation", "focus", "picture", "frame_mapping"})
+	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "slots", "format", "displayed_sequence", "underflows", "error"}, []string{"session", "core_generation", "focus", "picture", "frame_mapping", "live"})
 	if err != nil {
 		return err
 	}
@@ -714,6 +732,34 @@ func validateMenuDisplayShape(raw json.RawMessage) error {
 			json.Unmarshal(menu["height"], &height) != nil || picture[2] == 0 || picture[3] == 0 ||
 			uint64(picture[0])+uint64(picture[2]) > width || uint64(picture[1])+uint64(picture[3]) > height {
 			return errInvalidRuntimeResponse
+		}
+	}
+	if raw, present := menu["live"]; present {
+		live, err := exactRawObject(raw, []string{"enabled", "faulted", "quiesced", "displayed_sequence", "underflows"}, []string{"hot_plug", "rx_sense", "pll_lock", "vic"})
+		if err != nil {
+			return err
+		}
+		if err := requireRawKinds(live, map[string]rawKind{
+			"enabled": rawBoolean, "faulted": rawBoolean, "quiesced": rawBoolean,
+			"displayed_sequence": rawUnsigned, "underflows": rawUnsigned,
+		}); err != nil {
+			return err
+		}
+		// The transmitter reads arrive together or not at all.
+		transmitter := map[string]rawKind{"hot_plug": rawBoolean, "rx_sense": rawBoolean, "pll_lock": rawBoolean, "vic": rawUnsigned}
+		reads := 0
+		for name := range transmitter {
+			if _, ok := live[name]; ok {
+				reads++
+			}
+		}
+		if reads != 0 {
+			if reads != len(transmitter) {
+				return errInvalidRuntimeResponse
+			}
+			if err := requireRawKinds(live, transmitter); err != nil {
+				return err
+			}
 		}
 	}
 	if !isNull(menu["error"]) {

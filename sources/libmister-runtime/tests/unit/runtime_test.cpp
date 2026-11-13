@@ -1307,6 +1307,46 @@ void TestComputerMediaUnitsStayLiveAndReportUnitState()
 	assert(game.hardware.insert_media_calls == 0);
 }
 
+
+// Nothing re-read the live display after the first confirmed present, so an
+// idle Home that stopped being scanned out stayed invisible. The health
+// check reprograms it through the ordinary bounded menu failure path.
+void TestIdleDisplayHealthReprogramsLostMenuScanout()
+{
+ Fixture f;const std::string id(64,'a');
+ assert(f.runtime.Start().ok());
+ assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
+ const auto menu=f.runtime.status().menu_display;
+ assert(menu.available&&!menu.live.read);
+ // A healthy re-read publishes what the display reported and nothing else.
+ assert(f.runtime.CheckIdleDisplayHealth().ok());
+ assert(f.hardware.check_idle_display_calls==1);
+ auto status=f.runtime.status();
+ assert(status.state==State::idle&&status.menu_display.available&&status.menu_display.live.read);
+ assert(status.menu_display.generation==menu.generation);
+ const auto idles=f.hardware.idle_calls;
+ // A lost scanout retires the menu and reprograms idle, which republishes
+ // the grant under a new generation.
+ f.hardware.check_idle_display_result={ErrorCode::io_failed,"menu scanout is disabled","menu"};
+ const auto lost=f.runtime.CheckIdleDisplayHealth();
+ assert(!lost.ok()&&lost.message=="menu scanout is disabled");
+ assert(f.hardware.idle_calls==idles+1);
+ status=f.runtime.status();
+ assert(status.state==State::idle&&status.menu_display.available);
+ assert(status.menu_display.generation>menu.generation);
+ assert(status.menu_display.error.message=="menu scanout is disabled");
+ // A running core owns the display: the check is not even asked.
+ f.hardware.check_idle_display_result={};
+ assert(f.runtime.LoadCore("/game",id).ok());
+ const auto asked=f.hardware.check_idle_display_calls;
+ assert(f.runtime.CheckIdleDisplayHealth().ok());
+ assert(f.hardware.check_idle_display_calls==asked);
+ assert(f.runtime.status().state==State::running_development);
+ assert(f.runtime.Stop().ok());
+ assert(f.runtime.CheckIdleDisplayHealth().ok());
+ assert(f.hardware.check_idle_display_calls==asked+1);
+}
+
 void TestMenuGenerationAndPreparationFencing()
 {
  Fixture f;const std::string id(64,'a');
@@ -2041,6 +2081,7 @@ int main()
  TestMenuFrameYieldsToCoreDataAndLaunch();
  TestMenuFrameWaitIsBounded();
  TestMenuGenerationAndPreparationFencing();
+ TestIdleDisplayHealthReprogramsLostMenuScanout();
  TestMenuFrameMappingRequiresExplicitClientAgreement();
  TestMenuFramesAlternateSlots();
  TestMenuBlitterGrantTakesCpuFramesUntilAList();

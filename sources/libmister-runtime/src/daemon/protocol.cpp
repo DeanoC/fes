@@ -807,6 +807,25 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
   output.Append(",\"slots\":");output.Append(std::to_string(native::generated::FesApplicationMenuSlotCount));
   output.Append(",\"format\":\"bgrx8888\",\"displayed_sequence\":");output.Append(std::to_string(menu.displayed_sequence));
   if(menu.frame_mapping)output.Append(",\"frame_mapping\":true");
+  // What the display and transmitter reported the last time they were read,
+  // present only once a health check has measured them. A client that does
+  // not know the member leaves it alone; a client that does must not accept
+  // an unchanged frame while it says scanout is gone.
+  if(menu.live.read) {
+   const auto& live=menu.live;
+   output.Append(",\"live\":{\"enabled\":");output.Append(live.enabled?"true":"false");
+   output.Append(",\"faulted\":");output.Append(live.faulted?"true":"false");
+   output.Append(",\"quiesced\":");output.Append(live.quiesced?"true":"false");
+   output.Append(",\"displayed_sequence\":");output.Append(std::to_string(live.displayed_sequence));
+   output.Append(",\"underflows\":");output.Append(std::to_string(live.underflows));
+   if(live.link) {
+    output.Append(",\"hot_plug\":");output.Append(live.hot_plug?"true":"false");
+    output.Append(",\"rx_sense\":");output.Append(live.rx_sense?"true":"false");
+    output.Append(",\"pll_lock\":");output.Append(live.pll_lock?"true":"false");
+    output.Append(",\"vic\":");output.Append(std::to_string(live.vic));
+   }
+   output.Append("}");
+  }
   output.Append(",\"underflows\":");output.Append(std::to_string(menu.underflows));
   output.Append(",\"error\":");AppendError(&output,menu.error);output.Append("}");
  }

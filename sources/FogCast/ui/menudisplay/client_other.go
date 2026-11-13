@@ -29,6 +29,16 @@ type Status struct {
 	Format                                      string
 	DisplayedSequence, Underflows               uint64
 	Picture                                     []int
+	Live                                        *Live
+}
+
+// Live is what the runtime last measured on the display registers and the
+// HDMI transmitter themselves. It is absent when nothing was measured.
+type Live struct {
+	Enabled, Faulted, Quiesced    bool
+	DisplayedSequence, Underflows uint64
+	HotPlug, RxSense, PLLLock     bool
+	VIC                           int
 }
 type Result struct {
 	Generation, DisplayedSequence, Underflows uint64

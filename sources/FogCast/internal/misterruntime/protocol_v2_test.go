@@ -397,6 +397,32 @@ func TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle(t *testing.T) {
 			t.Fatalf("nonboolean mapping lifetime accepted: %s, %v", value, err)
 		}
 	}
+	// The idle display's live re-read: optional, and with the transmitter
+	// reads present together or not at all.
+	display := `,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows":0}`
+	link := `,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows":0,"hot_plug":true,"rx_sense":true,"pll_lock":true,"vic":4}`
+	for _, live := range []string{display, link} {
+		carried := strings.Replace(withMenu, `"underflows":0,"error"`, `"underflows":0`+live+`,"error"`, 1)
+		decoded, err := decodeProtocol2Response([]byte(carried))
+		if err != nil || decoded.MenuDisplay == nil || decoded.MenuDisplay.Live == nil ||
+			!decoded.MenuDisplay.Live.Enabled || decoded.MenuDisplay.Live.DisplayedSequence != 4 {
+			t.Fatalf("live display evidence lost: %#v, %v", decoded.MenuDisplay, err)
+		}
+		if (decoded.MenuDisplay.Live.PLLLock || decoded.MenuDisplay.Live.VIC != 0) != (live == link) {
+			t.Fatalf("transmitter reads mismatched their presence: %#v", decoded.MenuDisplay.Live)
+		}
+	}
+	for _, live := range []string{
+		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4}`,
+		`,"live":{"enabled":1,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows":0}`,
+		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows":0,"pll_lock":true}`,
+		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows":0,"surprise":true}`,
+	} {
+		carried := strings.Replace(withMenu, `"underflows":0,"error"`, `"underflows":0`+live+`,"error"`, 1)
+		if _, err := decodeProtocol2Response([]byte(carried)); !errors.Is(err, errInvalidRuntimeResponse) {
+			t.Fatalf("malformed live display evidence accepted: %s, %v", live, err)
+		}
+	}
 	// Clients draw into granted slots; the staging format and damage
 	// capability of the copying runtime are no longer status fields.
 	for _, stale := range []string{

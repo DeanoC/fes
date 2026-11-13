@@ -238,6 +238,38 @@ public:
   }
   condition_.notify_all();return {};
  }
+ // The idle display's periodic liveness re-read. Status requests pace it,
+ // so a menu frame never pays for it; the hardware caps the rate again.
+ // Lost scanout takes the ordinary bounded menu reactivation path, which is
+ // the only thing that can put an idle picture back on the wire.
+ Error CheckIdleDisplayHealth()
+ {
+  {
+   std::lock_guard<std::mutex> lock(mutex_);
+   if(busy_||menu_frame_busy_||!started_||stopping_||pending_fault_generation_!=0||
+    status_.state!=State::idle||!status_.menu_display.available||status_.menu_display.session)
+    return {};
+   // A health read owns the display registers exactly as a frame does, so
+   // no present, grant or mutation can interleave with it.
+   busy_=true;menu_frame_busy_=true;
+  }
+  const Error error=hardware_.CheckIdleDisplayHealth();
+  if(error.ok()) {
+   {
+    std::lock_guard<std::mutex> lock(mutex_);
+    status_.menu_display.live=hardware_.menu_display().live;
+    busy_=false;menu_frame_busy_=false;
+   }
+   condition_.notify_all();return {};
+  }
+  // Hardware kept the menu package while its bounded reactivation budget
+  // allowed one; LoadIdle reprograms that package, or the splash once the
+  // budget is gone. The failure path already revoked the window.
+  const Error failure=FinishLaunchFailure("menu_display_health","","fes.menu",
+   {error,true,"fes.menu"},nullptr,nullptr,FailureScope::menu_frame);
+  { std::lock_guard<std::mutex> lock(mutex_);menu_frame_busy_=false; }
+  condition_.notify_all();return failure;
+ }
  Error ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter,std::uint16_t* blitter_minor,
   bool permit_frame_mapping,bool* frame_mapping)
  {
@@ -1561,6 +1593,7 @@ Runtime::~Runtime() = default;
 
 Error Runtime::Start(const std::string& directory, const std::string& id) { return impl_->Start(directory, id); }
 Error Runtime::ConfigureMenuPackage(const std::string& directory,const std::string& id) {return impl_->ConfigureMenuPackage(directory,id);}
+Error Runtime::CheckIdleDisplayHealth() {return impl_->CheckIdleDisplayHealth();}
 Error Runtime::ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter,std::uint16_t* blitter_minor,
  bool permit_frame_mapping,bool* frame_mapping) {return impl_->ShareMenuWindow(generation,fd,blitter,blitter_minor,permit_frame_mapping,frame_mapping);}
 Error Runtime::BeginMenuFrame(std::uint64_t generation,std::unique_ptr<MenuFrame>* output) {return impl_->BeginMenuFrame(generation,output);}

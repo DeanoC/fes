@@ -111,6 +111,83 @@ func TestMenuDisplayProbeSameGenerationPresentsNothing(t *testing.T) {
 	}
 }
 
+// An available status is not evidence that anything is on the wire: before
+// the runtime's idle health check nothing re-read the display after the
+// first confirmed present. A probe may only acknowledge an unchanged frame
+// while the live reads still describe this client's frame being scanned out.
+func TestMenuDisplayProbeAcceptsHealthyLiveState(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+	client.mu.Lock()
+	client.live = &menudisplay.Live{Enabled: true, DisplayedSequence: client.displayed}
+	client.mu.Unlock()
+
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	waitMenuIdle(t, d, client, 1)
+	if calls, _, _, _ := client.snapshot(); calls != 1 {
+		t.Fatalf("healthy live state forced a present, calls=%d", calls)
+	}
+	if err := d.LastError(); err != nil {
+		t.Fatalf("healthy probe reported %v", err)
+	}
+}
+
+func TestMenuDisplayProbeForcesPresentWhenScanoutIsLost(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		live *menudisplay.Live
+	}{
+		{"disabled", &menudisplay.Live{Enabled: false}},
+		{"faulted", &menudisplay.Live{Enabled: true, Faulted: true}},
+		{"quiesced", &menudisplay.Live{Enabled: true, Quiesced: true}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			d, client := newChangeDrivenMenu(t, 3, true)
+			clock := newMenuClock()
+			d.now = clock.Now
+			d.Clear(RGB(1, 2, 3))
+			presentMenu(t, d, client)
+			waitMenuIdle(t, d, client, 1)
+			client.mu.Lock()
+			client.live = test.live
+			client.mu.Unlock()
+
+			clock.Advance(menuProbeInterval)
+			d.Present()
+			waitMenuIdle(t, d, client, 2)
+			if calls, _, n, _ := client.snapshot(); calls != 2 || n != menudisplay.FrameBytes {
+				t.Fatalf("lost scanout was acknowledged, calls=%d bytes=%d", calls, n)
+			}
+		})
+	}
+}
+
+// The runtime showing another sequence than this client's last present is
+// the same loss, and is the only form of it an older runtime reports.
+func TestMenuDisplayProbeForcesPresentOnStaleDisplayedSequence(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+	client.mu.Lock()
+	client.displayed += 4
+	client.mu.Unlock()
+
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	waitMenuIdle(t, d, client, 2)
+	if calls, _, n, _ := client.snapshot(); calls != 2 || n != menudisplay.FrameBytes {
+		t.Fatalf("stale sequence was acknowledged, calls=%d bytes=%d", calls, n)
+	}
+}
+
 func TestMenuDisplayQueuedProbeClearsTransientPresentError(t *testing.T) {
 	d, client := newChangeDrivenMenu(t, 3, true)
 	clock := newMenuClock()
@@ -368,7 +445,7 @@ func TestMenuDisplaySameEpochProbeResultApplies(t *testing.T) {
 	d.probeQueued = true
 	d.probeEpoch = epoch
 	d.mu.Unlock()
-	d.finishProbeLocked(frame, menudisplay.Status{Available: true, Generation: 12}, nil, true)
+	d.finishProbeLocked(frame, menudisplay.Status{Available: true, Generation: 12}, 7, nil, true)
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.probeQueued || !d.known || d.generation != 12 || !d.hasPresented || d.presentedGen != 12 || d.lastErr != nil || d.backoff != 0 || !d.backoffUntil.IsZero() {

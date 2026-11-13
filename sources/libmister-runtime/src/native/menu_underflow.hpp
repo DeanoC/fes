@@ -13,6 +13,11 @@ constexpr unsigned kMenuUnderflowSustainPresents=3;
 // Programming reloads the bitstream (the counter's initial value is 0) and
 // port reset clears it again. Two such reactivations per 10 minutes, then splash.
 constexpr unsigned kMenuReactivationLimit=2;
+// The idle display and its transmitter are re-read no more often than this,
+// and only while the idle menu owns the screen. It matches the launcher's
+// probe interval: slow enough to cost nothing, fast enough that a kit
+// capture at 60 s already shows the loss.
+constexpr std::uint64_t kMenuHealthIntervalMs=1000;
 constexpr std::uint64_t kMenuReactivationWindowMs=10ull*60ull*1000ull;
 }
 }

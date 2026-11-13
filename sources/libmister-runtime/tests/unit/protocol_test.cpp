@@ -1393,6 +1393,24 @@ void TestMenuProtocolRequestsAndStatus()
  assert(blitter.find("\"menu_frame\":{\"generation\":1,\"format\":\"bgrx8888\",\"slots\":2,\"slot_bytes\":4194304,"
   "\"blitter\":{\"minor\":1,\"list_offset\":8388608,\"commands\":32768,\"command_bytes\":32,\"heap_offset\":16777216,\"heap_bytes\":67108864}}")!=std::string::npos);
 
+ // The live re-read is absent until a health check has measured something,
+ // so a client cannot mistake "not measured" for a healthy display. The
+ // transmitter reads are present only when the board owns the ADV7513.
+ assert(listed.find("\"live\"")==std::string::npos);
+ mister::Status live_status=status;
+ live_status.menu_display.live.read=true;live_status.menu_display.live.enabled=true;
+ live_status.menu_display.live.displayed_sequence=9;live_status.menu_display.live.underflows=3;
+ const auto display_only=mister::daemon::EncodeResponse(2,true,live_status,"test",nullptr,nullptr,nullptr);
+ assert(display_only.find("\"live\":{\"enabled\":true,\"faulted\":false,\"quiesced\":false,"
+  "\"displayed_sequence\":9,\"underflows\":3}")!=std::string::npos);
+ live_status.menu_display.live.link=true;live_status.menu_display.live.hot_plug=true;
+ live_status.menu_display.live.rx_sense=true;live_status.menu_display.live.pll_lock=true;
+ live_status.menu_display.live.vic=4;
+ const auto with_link=mister::daemon::EncodeResponse(2,true,live_status,"test",nullptr,nullptr,nullptr);
+ assert(with_link.find("\"live\":{\"enabled\":true,\"faulted\":false,\"quiesced\":false,"
+  "\"displayed_sequence\":9,\"underflows\":3,\"hot_plug\":true,\"rx_sense\":true,"
+  "\"pll_lock\":true,\"vic\":4}")!=std::string::npos);
+
  status.menu_display.frame_mapping=true;granted.frame_mapping=true;granted.blitter=false;
  const auto frame_mapping=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&granted);
  const auto marker=frame_mapping.find("\"frame_mapping\":true");

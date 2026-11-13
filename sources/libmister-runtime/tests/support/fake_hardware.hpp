@@ -30,6 +30,16 @@ public:
   menu_status.geometry={1280,720,5120,3686400,4194304};return {{},true,"fes.menu"};
  }
  mister::MenuDisplayStatus menu_display() const override {return menu_status;}
+ // The live re-read of the idle display. A scripted loss retires the menu
+ // exactly as the native hardware's bounded failure path does.
+ mister::Error CheckIdleDisplayHealth() override {
+  ++check_idle_display_calls;
+  if(check_idle_display_result.ok()){menu_status.live.read=true;menu_status.live.enabled=true;return {};}
+  menu_status.available=false;menu_status.error=check_idle_display_result;
+  return check_idle_display_result;
+ }
+ unsigned check_idle_display_calls=0;
+ mister::Error check_idle_display_result;
  // The grant is ordinary memory here: both 4 MiB slots, plus the lists and
  // heap with a blitter, mappable by clients.
  mister::Error ShareMenuWindow(int* fd) override {

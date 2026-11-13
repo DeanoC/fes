@@ -378,6 +378,13 @@ public:
 			*value = 0x10;
 			return {};
 		}
+		// The live transmitter registers a health check reads: 0x9e bit 4 is
+		// pixel PLL lock and 0x3e>>2 is the detected VIC (4 = 720p60).
+		if (address == 0x9e || address == 0x3e) {
+			if (!detail_read_error.ok()) return detail_read_error;
+			*value = address == 0x9e ? pll_status : vic_status;
+			return {};
+		}
 		assert(address == 0x42);
 		events_.push_back("video.link.ready");
 		if (on_link_ready) on_link_ready();
@@ -426,6 +433,9 @@ public:
 		timing_seen_ = false;
 		mode_seen_ = false;
 	}
+	std::uint8_t pll_status = 0x12;
+	std::uint8_t vic_status = 0x10;
+	mister::Error detail_read_error;
 	std::vector<std::uint64_t> deadlines;
 	mister::Error select_error;
 	std::string fail_event;
@@ -1916,6 +1926,14 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure(bool frame_mapping
   assert(hardware.menu_display().launcher_focus);
  };
  open_plane();
+ // The plane belongs to the running machine. The idle health check never
+ // reads a session display and can never reprogram one out from under it.
+ {
+  const auto owned=mmio.writes.size();
+  assert(hardware.CheckIdleDisplayHealth().ok());
+  assert(mmio.writes.size()==owned&&hardware.menu_display().available);
+  assert(!hardware.menu_display().live.read&&fpga.calls==1);
+ }
  const auto focused=mmio.writes.size();assert(hardware.SetComputerKeyboard(0).ok()&&mmio.writes.size()==focused);
  script.Present(0,0,0);mister::MenuDisplayInfo info;assert(PresentBackSlot(hardware,&info).ok());
  script.Reply();script.Info(9,1);assert(hardware.SetSessionDisplay(false,false).ok());
@@ -2464,6 +2482,138 @@ void TestNativeMenuBlitterPresent(std::uint16_t declared_minor)
  assert(operations.Granted()&&operations.granted.back()==83886080&&!hardware.menu_display().blitted);
  gp_script.Present(0,0,0);
  assert(PresentBackSlot(hardware,&displayed).ok()&&displayed.displayed_sequence==1&&operations.cleans==6);
+}
+
+// A confirmed present proves one frame reached scanout. These tests cover
+// the periodic re-read that notices when it stops, and the bounded
+// reactivation it is allowed to spend.
+void TestIdleDisplayHealthDetectsLostScanoutWithinBudget()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;OpenedCorePackage opened;PopulateHpsDdrApplication(&package,true,&opened);
+ std::string manifest=ReadText(package.path+"/manifest.toml");ReplaceAll(&manifest,"fes.pong","fes.menu");
+ manifest+="\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ {std::ofstream output(package.path+"/manifest.toml",std::ios::trunc);output<<manifest;assert(output.good());}
+ assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ MenuGpScript script{&mmio};script.BringUp();
+ assert(hardware.ConfigureMenuPackage(package.path,opened.package_id).error.ok());
+ mister::MenuDisplayInfo displayed;
+ script.Present(0,0,0);
+ assert(PresentBackSlot(hardware,&displayed).ok()&&hardware.menu_display().displayed_sequence==1);
+ const auto links=[&]{
+  std::size_t count=0;for(const auto& event:events)if(event=="video.link.ready")++count;return count;
+ };
+ // A present never reads the transmitter, and the health check is the only
+ // thing that does. The scripted GP exchanges would desync on an extra read.
+ const auto present_links=links();
+ script.Present(1,0,0);assert(PresentBackSlot(hardware,&displayed).ok());
+ assert(links()==present_links&&hardware.menu_display().displayed_sequence==2);
+ assert(!hardware.menu_display().live.read);
+
+ // A healthy re-read records what the display and the ADV7513 report.
+ script.Info(3,2);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ const auto healthy=hardware.menu_display().live;
+ assert(healthy.read&&healthy.link&&healthy.enabled&&!healthy.faulted&&!healthy.quiesced);
+ assert(healthy.displayed_sequence==2&&healthy.pll_lock&&healthy.rx_sense&&healthy.hot_plug);
+ assert(healthy.vic==4&&hardware.menu_display().available);
+ assert(links()==present_links+1);
+ // Paced: a second call inside the interval reads nothing at all.
+ const auto writes=mmio.writes.size();
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(mmio.writes.size()==writes&&links()==present_links+1);
+
+ const auto reactivate=[&]{
+  script.QuiesceRunningMenu();script.BringUp();
+  assert(hardware.LoadIdle().error.ok());
+  assert(hardware.menu_display().available&&fpga.programmed.back()=="core.rbf");
+ };
+ // A latched pixel-PLL fault gates video off until the core is reprogrammed.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(19,2);
+ const auto faulted=hardware.CheckIdleDisplayHealth();
+ assert(!faulted.ok()&&faulted.message=="menu scanout reports a fault");
+ assert(!hardware.menu_display().available&&!operations.Granted());
+ assert(hardware.menu_display().error.message=="menu scanout reports a fault");
+ reactivate();
+
+ // A disabled scanout is the same invisible loss, and spends the last of
+ // the budget.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(1,0);
+ const auto disabled=hardware.CheckIdleDisplayHealth();
+ assert(!disabled.ok()&&disabled.message=="menu scanout is disabled");
+ reactivate();
+
+ // Budget exhausted: the loss is reported once and nothing is reprogrammed.
+ clock.now_+=kMenuHealthIntervalMs;
+ const auto programs=fpga.calls;
+ script.Info(3,9);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().available&&fpga.calls==programs&&operations.Granted());
+ bool budget_logged=false;
+ for(const auto& record:log.records())
+  if(record.operation=="menu_display_health"&&record.phase=="budget")budget_logged=true;
+ assert(budget_logged);
+ // It stays reported once: the second refusal does not log again.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,9);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ std::size_t budget_records=0;
+ for(const auto& record:log.records())
+  if(record.operation=="menu_display_health"&&record.phase=="budget")++budget_records;
+ assert(budget_records==1);
+
+ // Once the window passes the budget is whole again, and a scanout showing
+ // another sequence than the committed frame is a loss like any other.
+ clock.now_+=kMenuReactivationWindowMs;
+ script.Info(3,9);
+ const auto stale=hardware.CheckIdleDisplayHealth();
+ assert(!stale.ok()&&stale.message=="menu scanout no longer shows the committed frame");
+ reactivate();
+
+ // An unreadable transmitter is not evidence of anything: it degrades to a
+ // display-only check and never reactivates on its own.
+ clock.now_+=kMenuHealthIntervalMs;
+ i2c.detail_read_error={mister::ErrorCode::io_failed,"scripted ADV read failure"};
+ const auto before_adv=fpga.calls;
+ script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.read&&!hardware.menu_display().live.link);
+ assert(hardware.menu_display().available&&fpga.calls==before_adv);
+ // Repeated failures stay quiet rather than storming the reactivation path.
+ for(unsigned i=0;i<4;++i) {
+  clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
+  assert(hardware.CheckIdleDisplayHealth().ok());
+ }
+ assert(fpga.calls==before_adv&&hardware.menu_display().available);
+ i2c.detail_read_error={};
+
+ // A sink that stopped reporting Rx sense, or a mode that is no longer
+ // 720p60, is the same lost picture.
+ clock.now_+=kMenuHealthIntervalMs;
+ i2c.pll_status=0x02;
+ script.Info(3,0);
+ const auto unlocked=hardware.CheckIdleDisplayHealth();
+ assert(!unlocked.ok()&&unlocked.message=="menu pixel PLL is unlocked");
+ i2c.pll_status=0x12;
+ reactivate();
+ // A fresh window, so this loss is judged on its own evidence.
+ clock.now_+=kMenuReactivationWindowMs;
+ i2c.vic_status=0x04;
+ script.Info(3,0);
+ const auto mode=hardware.CheckIdleDisplayHealth();
+ assert(!mode.ok()&&mode.message=="menu HDMI mode is not 720p60");
+ i2c.vic_status=0x10;
 }
 
 void TestMenuUnderflowPolicyReactivatesThenSplashes()
@@ -5628,6 +5778,7 @@ int main(int argc,char** argv)
  TestNativeMenuBlitterPresent(0);
  TestNativeMenuBlitterPresent(1);
  TestMenuUnderflowPolicyReactivatesThenSplashes();
+ TestIdleDisplayHealthDetectsLostScanoutWithinBudget();
 	TestComputerLiveMediaLifecycleThroughRuntime();
 	TestPcxtFloppyLifecycleThroughRuntime();
 	TestPcxtDosPackageInspectionAcceptsRuntimeFloppyContract();

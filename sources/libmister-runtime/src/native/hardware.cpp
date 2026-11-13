@@ -30,6 +30,7 @@
 #include <unistd.h>
 #include <chrono>
 #include "native/video.hpp"
+#include "native/adv7513.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -2127,6 +2128,7 @@ HardwareResult NativeHardware::ConfigureMenuPackage(const std::string& directory
  if(result.error.ok()){
   menu_directory_=directory;menu_package_id_=id;
   menu_underflow_streak_=0;menu_reactivations_=0;menu_reactivation_window_start_=0;
+  menu_health_checked_=false;menu_health_budget_logged_=false;
  }
  else if(result.mutation_attempted){menu_directory_.clear();menu_package_id_.clear();menu_status_.available=false;menu_status_.error=result.error;}
  return result;
@@ -2228,6 +2230,94 @@ void NativeHardware::SetSessionDisplayInputFocus(bool launcher_focus)
   input_delivery_enabled_->store(enabled);
   input_.SetButtonDeliveryEnabled(enabled);
  }
+}
+// Reads the live display registers and, when the board owns the
+// transmitter, the ADV7513's link, PLL lock and detected mode. Returns
+// whether the display registers were read at all; a transmitter that cannot
+// be read leaves live->link false and is not evidence of anything.
+bool NativeHardware::ReadIdleDisplayLive(MenuDisplayLive* live)
+{
+ const auto deadline=Deadline(clock_,timeouts_.core_io_ms);
+ MenuDisplayInfo info;
+ if(!menu_display_->ReadInfo(deadline,&info).ok())return false;
+ live->read=true;
+ live->enabled=info.enabled&&info.configured;
+ live->faulted=info.faulted;live->quiesced=info.quiesced;
+ live->displayed_sequence=info.displayed_sequence;live->underflows=info.underflows;
+ VideoLinkHealth link;
+ if(!game_video_.ReadLinkHealth(deadline,&link).ok())return true;
+ live->link=true;
+ live->hot_plug=(link.status&adv7513::kStatusHpd)!=0;
+ live->rx_sense=(link.status&adv7513::kStatusMonitorSense)!=0;
+ live->pll_lock=(link.pll&adv7513::kPllLocked)!=0;
+ live->vic=std::uint8_t(link.vic_raw>>adv7513::kVicShift);
+ return true;
+}
+void NativeHardware::LogIdleDisplayLive(const MenuDisplayLive& live)
+{
+ log_.Write({"menu_display_health","","fes.menu","scanout",
+  {ErrorCode::none,std::string("read=")+(live.read?"1":"0")+
+   " enabled="+(live.enabled?"1":"0")+" faulted="+(live.faulted?"1":"0")+
+   " quiesced="+(live.quiesced?"1":"0")+
+   " displayed_sequence="+std::to_string(live.displayed_sequence)+
+   " underflows="+std::to_string(live.underflows)+
+   " link="+(live.link?"1":"0")+" hpd="+(live.hot_plug?"1":"0")+
+   " rx_sense="+(live.rx_sense?"1":"0")+" pll_lock="+(live.pll_lock?"1":"0")+
+   " vic="+std::to_string(live.vic)}});
+}
+// A confirmed present proves only that one frame reached scanout. Nothing
+// re-read the display or the transmitter afterwards, so an idle Home that
+// stopped being scanned out stayed invisible to every log. This is that
+// missing re-read, paced to about once a second and never on a present.
+Error NativeHardware::CheckIdleDisplayHealth()
+{
+ // The idle menu only. A session plane belongs to a running machine: its
+ // display is owned by that session and is never reprogrammed from here.
+ if(!menu_display_||!menu_status_.available||menu_status_.session||menu_unsafe_||
+  menu_directory_.empty()||active_package_==nullptr)
+  return {};
+ const auto now=clock_.NowMs();
+ if(menu_health_checked_&&now-menu_health_checked_at_<kMenuHealthIntervalMs)return {};
+ menu_health_checked_=true;menu_health_checked_at_=now;
+ MenuDisplayLive live;
+ const bool read=ReadIdleDisplayLive(&live);
+ const bool changed=live.read!=menu_status_.live.read||live.link!=menu_status_.live.link||
+  live.enabled!=menu_status_.live.enabled||live.faulted!=menu_status_.live.faulted||
+  live.quiesced!=menu_status_.live.quiesced||live.rx_sense!=menu_status_.live.rx_sense||
+  live.hot_plug!=menu_status_.live.hot_plug||live.pll_lock!=menu_status_.live.pll_lock||
+  live.vic!=menu_status_.live.vic||
+  live.displayed_sequence!=menu_status_.live.displayed_sequence;
+ menu_status_.live=live;
+ if(changed)LogIdleDisplayLive(live);
+ // A register that could not be read is not evidence of a lost scanout.
+ // Reprogramming the menu because a bus call failed would be its own fault
+ // loop, so an unreadable display or transmitter only logs.
+ if(!read)return {};
+ std::string lost;
+ if(!live.enabled)lost="menu scanout is disabled";
+ else if(live.faulted)lost="menu scanout reports a fault";
+ else if(live.quiesced)lost="menu scanout is quiesced";
+ else if(live.displayed_sequence!=menu_status_.displayed_sequence)
+  lost="menu scanout no longer shows the committed frame";
+ else if(live.link&&!live.pll_lock)lost="menu pixel PLL is unlocked";
+ else if(live.link&&!live.rx_sense)lost="menu HDMI sink sense is lost";
+ else if(live.link&&live.vic!=adv7513::kVic720p60)lost="menu HDMI mode is not 720p60";
+ if(lost.empty()){menu_health_budget_logged_=false;return {};}
+ const Error failure={ErrorCode::io_failed,lost,"menu"};
+ // The bounded budget is the whole recovery policy. Exhausted, the display
+ // stays exactly as it is: a reprogram loop is worse than a black screen
+ // that the kit log now names.
+ if(!MenuReactivationAllowed()) {
+  if(!menu_health_budget_logged_) {
+   menu_health_budget_logged_=true;
+   log_.Write({"menu_display_health","","fes.menu","budget",
+    {ErrorCode::none,"idle display reactivation budget is exhausted: "+lost}});
+  }
+  return {};
+ }
+ menu_health_budget_logged_=false;
+ log_.Write({"menu_display_health","","fes.menu","present",failure});
+ return FailMenuPresent(failure);
 }
 bool NativeHardware::MenuReactivationAllowed()
 {

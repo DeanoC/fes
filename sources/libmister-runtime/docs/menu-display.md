@@ -184,6 +184,38 @@ bytes after a request or commit newline are rejected rather than silently
 consumed. Split JSON and ancillary delivery remain in their request phase.
 Multiple, misplaced or truncated descriptors are rejected and closed.
 
+### Idle display health
+
+A confirmed present proves that one frame reached scanout. It says nothing
+about the next minute. While the idle menu is what is on screen, and no core
+session owns the display, a status request paces a live re-read of the
+display registers and, where the runtime owns the transmitter, three
+read-only ADV7513 registers: `0x42` (hot plug and Rx sense), `0x9e` (bit 4,
+pixel PLL lock) and `0x3e` (the detected VIC in bits 7:2; 720p60 is 4). The
+re-read happens at most once a second, never on the present path, and writes
+nothing.
+
+Status then carries `menu_display.live` with `enabled`, `faulted`,
+`quiesced`, `displayed_sequence` and `underflows`, plus `hot_plug`,
+`rx_sense`, `pll_lock` and `vic` when the transmitter was read. The member is
+absent until a check has measured something: absent is "not measured", not
+"healthy". A change in any of these values is logged once, under operation
+`menu_display_health`.
+
+A scanout that is disabled, faulted, unexpectedly quiesced, showing a
+sequence other than the committed frame, or behind an unlocked PLL, a lost
+Rx sense or a mode that is not 720p60, is a lost picture. It takes the same
+bounded reactivation as a failed present: at most two menu reprograms in ten
+minutes. Once that budget is spent the loss is logged once and the display is
+left exactly as it is; nothing retries in a loop, and nothing is reprogrammed
+while a core session owns the display. A register that could not be read is
+not evidence of a loss and only logs.
+
+FogCast's probe of an unchanged frame requires `live.enabled`, no
+`live.faulted` or `live.quiesced`, and `displayed_sequence` equal to the
+sequence its own last present returned. Anything else sends a complete frame
+instead of acknowledging one.
+
 ### Lifecycle
 
 Game launch, contained diagnostics and Stop revoke old menu generations.

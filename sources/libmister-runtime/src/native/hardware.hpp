@@ -100,6 +100,7 @@ public:
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
  HardwareResult ConfigureMenuPackage(const std::string&,const std::string&) override;
+ Error CheckIdleDisplayHealth() override;
  MenuDisplayStatus menu_display() const override {
   MenuDisplayStatus status=menu_status_;status.launcher_focus=session_display_focused_;return status;
  }
@@ -160,6 +161,8 @@ private:
  Error RevokeMenuWindow();
  void SetSessionDisplayInputFocus(bool launcher_focus);
  bool MenuReactivationAllowed();
+ bool ReadIdleDisplayLive(MenuDisplayLive*);
+ void LogIdleDisplayLive(const MenuDisplayLive&);
  Error FailMenuPresent(const Error&);
  Error ReleaseControllers();
  MenuDisplay* menu_display_;
@@ -174,6 +177,11 @@ private:
  unsigned menu_underflow_streak_=0;
  unsigned menu_reactivations_=0;
  std::uint64_t menu_reactivation_window_start_=0;
+ // The last idle health check, and whether one has run since this image was
+ // programmed. The check is paced from here, never from a present.
+ std::uint64_t menu_health_checked_at_=0;
+ bool menu_health_checked_=false;
+ bool menu_health_budget_logged_=false;
  Error PrepareCoreDataInternal(AdmittedCorePackage*, const std::string&, const std::string&, CoreData*, bool);
 	Error StopInput(std::uint64_t absolute_deadline_ms);
 	HardwareResult QuiesceForReplacement(const char* operation,

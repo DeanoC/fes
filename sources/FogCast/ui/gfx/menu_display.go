@@ -188,8 +188,14 @@ type MenuDisplay struct {
 	// presentedSeq is the submission sequence last shown on this binding.
 	// Zero means none. A status probe may acknowledge only this sequence.
 	presentedSeq uint64
-	binding      menuSessionBinding
-	bindingEpoch uint64
+	// presentedDisplayed is the runtime's displayed sequence that the last
+	// present returned, and presentedDisplayedKnown whether one has. A probe
+	// that sees the runtime showing anything else is not looking at the
+	// frame this client put up, however healthy the rest of the status is.
+	presentedDisplayed      uint64
+	presentedDisplayedKnown bool
+	binding                 menuSessionBinding
+	bindingEpoch            uint64
 	// picture is the bound session's machine picture from its latest status.
 	picture image.Rectangle
 	// Change-driven worker shortcuts. statusCache is the runtime status as of
@@ -297,6 +303,7 @@ func (d *MenuDisplay) setBindingLocked(binding menuSessionBinding) {
 	d.generation = 0
 	d.hasPresented = false
 	d.presentedSeq = 0
+	d.presentedDisplayed, d.presentedDisplayedKnown = 0, false
 	d.lastErr = nil
 	d.clearSettledLocked()
 	d.forgetSubmissionLocked()
@@ -713,7 +720,7 @@ func (d *MenuDisplay) run() {
 				d.rememberShownLocked(frame, status, result, cached, blitted)
 			}
 			if d.changeDriven {
-				d.notePresentResultLocked(presented, genChanged, err, status, frame.seq)
+				d.notePresentResultLocked(presented, genChanged, err, status, frame.seq, result.DisplayedSequence)
 			}
 			d.releaseBufferLocked(frame.buffer)
 			d.pending--
@@ -736,16 +743,28 @@ func (d *MenuDisplay) run() {
 	}
 }
 
+// scanoutLostLocked reports whether the runtime's own live reads, or the
+// sequence it is showing, say this client's frame is no longer on the wire.
+// An available status is not evidence of scanout: the runtime confirmed one
+// present and, before the idle health check, never looked again. Status
+// without live fields is an older runtime, where only the sequence is known.
+func (d *MenuDisplay) scanoutLostLocked(status menudisplay.Status) bool {
+	if live := status.Live; live != nil && (!live.Enabled || live.Faulted || live.Quiesced) {
+		return true
+	}
+	return d.presentedDisplayedKnown && status.DisplayedSequence != d.presentedDisplayed
+}
+
 func (d *MenuDisplay) runProbe(frame queuedMenuFrame) {
 	status, err := d.client.Status(d.ctx)
 	if err != nil {
-		d.finishProbeLocked(frame, status, err, false)
+		d.finishProbeLocked(frame, status, 0, err, false)
 		return
 	}
 	d.mu.Lock()
 	err = d.acceptStatusLocked(frame, status)
 	if err == nil && status.Available && status.Underflows <= menudisplay.TransientUnderflowCap &&
-		d.hasPresented && status.Generation == d.presentedGen {
+		d.hasPresented && status.Generation == d.presentedGen && !d.scanoutLostLocked(status) {
 		// Validate the binding and clear recovered pacing under one lock: an
 		// old probe must not clear an error after a new binding is installed.
 		// A healthy status at this generation only acknowledges the handoff
@@ -765,18 +784,20 @@ func (d *MenuDisplay) runProbe(frame queuedMenuFrame) {
 	}
 	d.mu.Unlock()
 	if err != nil {
-		d.finishProbeLocked(frame, status, err, false)
+		d.finishProbeLocked(frame, status, 0, err, false)
 		return
 	}
 	if !status.Available || status.Underflows > menudisplay.TransientUnderflowCap {
 		if status.Underflows > menudisplay.TransientUnderflowCap {
 			err = errors.New("menu scanout underflow")
 		}
-		d.finishProbeLocked(frame, status, err, false)
+		d.finishProbeLocked(frame, status, 0, err, false)
 		return
 	}
-	_, _, _, err = d.presentFrame(frame, status, false)
-	d.finishProbeLocked(frame, status, err, err == nil)
+	// Either the frame changed or the live state says scanout is gone. Both
+	// go up as a complete present, never as an acknowledgment.
+	result, _, _, err := d.presentFrame(frame, status, false)
+	d.finishProbeLocked(frame, status, result.DisplayedSequence, err, err == nil)
 }
 
 func (d *MenuDisplay) acceptStatusLocked(frame queuedMenuFrame, status menudisplay.Status) error {
@@ -822,7 +843,7 @@ func sessionPicture(status menudisplay.Status) image.Rectangle {
 	return picture
 }
 
-func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudisplay.Status, err error, presented bool) {
+func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudisplay.Status, displayed uint64, err error, presented bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if frame.epoch != d.bindingEpoch {
@@ -844,6 +865,7 @@ func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudispla
 		d.hasPresented = true
 		d.presentedGen = status.Generation
 		d.presentedSeq = frame.seq
+		d.presentedDisplayed, d.presentedDisplayedKnown = displayed, true
 		d.lastProbe = d.clock()
 		d.resetBackoffLocked()
 		d.noteGenerationLocked(frame.seq, status.Generation)
@@ -913,12 +935,13 @@ func (d *MenuDisplay) ReadinessDiagnostic() MenuReadinessDiagnostic {
 	}
 }
 
-func (d *MenuDisplay) notePresentResultLocked(presented, genChanged bool, err error, status menudisplay.Status, seq uint64) {
+func (d *MenuDisplay) notePresentResultLocked(presented, genChanged bool, err error, status menudisplay.Status, seq, displayed uint64) {
 	defer func() { d.reportSoftwareReadyLocked(status) }()
 	if presented {
 		d.hasPresented = true
 		d.presentedGen = status.Generation
 		d.presentedSeq = seq
+		d.presentedDisplayed, d.presentedDisplayedKnown = displayed, true
 		d.lastProbe = d.clock()
 		d.resetBackoffLocked()
 		return

@@ -374,6 +374,22 @@ struct MenuDisplayInfo {
  // that drew it. Zero when not measured.
  std::uint32_t clean_us=0,blit_us=0,submit_us=0,scanout_wait_us=0;
 };
+// What the idle display and its HDMI transmitter actually report, re-read
+// about once a second while the idle menu owns the screen. A confirmed
+// present is not evidence that scanout is still running: everything here is
+// measured after the fact, never cached from the present that set it up.
+struct MenuDisplayLive {
+ // read is true once a health check has read the display registers, and
+ // link once the ADV7513 reads of that check also succeeded. Both false
+ // means nothing was measured, not that the display is healthy.
+ bool read=false,link=false;
+ bool enabled=false,faulted=false,quiesced=false;
+ std::uint32_t displayed_sequence=0,underflows=0;
+ // ADV7513 0x42 (HPD and Rx sense), 0x9e bit 4 (pixel PLL lock) and the
+ // detected VIC from 0x3e>>2. A 720p60 link reports VIC 4.
+ bool hot_plug=false,rx_sense=false,pll_lock=false;
+ std::uint8_t vic=0;
+};
 struct MenuDisplayStatus {
  bool available=false;
  // A running-core plane binds both its independent display generation and
@@ -400,6 +416,8 @@ struct MenuDisplayStatus {
  // A list frame has run on this blitter grant. The grant takes CPU frames
  // until then and only lists after. Not reported.
  bool blitted=false;
+ // The last idle health check's live reads. Session planes never carry it.
+ MenuDisplayLive live;
  Error error;
 };
 constexpr std::size_t kMenuWrittenMaxRects=16;
@@ -512,6 +530,13 @@ public:
   return {{ErrorCode::unsupported_interface,"menu display unavailable"},false,""};
  }
  virtual MenuDisplayStatus menu_display() const {return {};}
+ // Re-reads the live idle display and its HDMI transmitter, at most about
+ // once a second, and records what they report in menu_display().live.
+ // A non-ok result is positive evidence that the idle menu is no longer
+ // being scanned out, and the caller reprograms it through LoadIdle. The
+ // implementation spends the bounded reactivation budget before reporting
+ // one, so an exhausted budget reports ok and leaves the display alone.
+ virtual Error CheckIdleDisplayHealth() {return {};}
  virtual Error SetSessionDisplay(bool,bool) {
   return {ErrorCode::unsupported_interface,"session display unavailable","menu"};
  }
@@ -747,6 +772,11 @@ public:
 	Error Stop();
 	// Programs idle again after reboot_required. Stop does not.
 	Error RecoverIdle();
+	// Re-reads the live idle display about once a second and reprograms the
+	// idle menu, within its existing bounded budget, when scanout is gone.
+	// Does nothing while a core session owns the display. Status requests
+	// pace it, so no menu frame pays for the reads.
+	Error CheckIdleDisplayHealth();
 
 private:
 	class Impl;

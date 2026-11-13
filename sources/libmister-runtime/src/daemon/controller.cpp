@@ -35,6 +35,10 @@ std::string Controller::Handle(const std::string& line)
  case Operation::menu_frame_commit:
   result={ErrorCode::invalid_request,"menu frame requires its own connection exchange","request"};break;
 	case Operation::status:
+		// Every status request paces the idle display's liveness re-read, so
+		// the reply already describes what scanout is doing now. Menu frames
+		// run on their own connection exchange and never reach this.
+		runtime_.CheckIdleDisplayHealth();
 		break;
 	case Operation::inspect_core:
 		result = runtime_.InspectCore(request.package_path,

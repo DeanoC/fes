@@ -78,7 +78,28 @@ type Status struct {
 	Underflows        uint64 `json:"underflows"`
 	// Picture is a session plane's machine picture as x, y, width and height.
 	Picture []int `json:"picture"`
+	// Live is the runtime's periodic re-read of the idle display, absent
+	// from runtimes that do not perform one.
+	Live *Live `json:"live"`
 }
+
+// Live is what the runtime last measured on the display registers and the
+// HDMI transmitter themselves, rather than what the last present set up. It
+// is absent when the runtime has measured nothing, which is not the same as
+// a healthy display.
+type Live struct {
+	Enabled           bool   `json:"enabled"`
+	Faulted           bool   `json:"faulted"`
+	Quiesced          bool   `json:"quiesced"`
+	DisplayedSequence uint64 `json:"displayed_sequence"`
+	Underflows        uint64 `json:"underflows"`
+	// Transmitter reads, present only when the runtime owns the ADV7513.
+	HotPlug bool `json:"hot_plug"`
+	RxSense bool `json:"rx_sense"`
+	PLLLock bool `json:"pll_lock"`
+	VIC     int  `json:"vic"`
+}
+
 type Result struct {
 	Generation        uint64 `json:"generation"`
 	DisplayedSequence uint64 `json:"displayed_sequence"`
