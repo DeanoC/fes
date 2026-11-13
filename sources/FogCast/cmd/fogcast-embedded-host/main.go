@@ -1,3 +1,5 @@
+//go:build !wasip1 && !tamago
+
 // Command fogcast-embedded-host serves a private, scanned FogCast catalog for
 // the native embedded prototype. It uses the installed host's service and HTTP
 // handlers. The prototype runner supplies a configuration with targets disabled.
@@ -6,6 +8,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -14,10 +17,9 @@ import (
 	"syscall"
 
 	"github.com/DeanoC/FogCast/fogcast"
-	"github.com/DeanoC/FogCast/internal/hostapi"
 )
 
-func run() error {
+func run() (result error) {
 	if os.Getenv("FES_EXPERIMENTAL_DE25_EMBEDDED") != "1" {
 		return fmt.Errorf("embedded catalog fixture requires FES_EXPERIMENTAL_DE25_EMBEDDED=1")
 	}
@@ -33,11 +35,11 @@ func run() error {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	host, err := hostapi.ServeLocal(ctx, paths)
+	host, err := serveCatalog(ctx, paths)
 	if err != nil {
 		return err
 	}
-	defer host.Close()
+	defer func() { result = errors.Join(result, host.Close()) }()
 	data, err := json.Marshal(struct {
 		Base string `json:"base"`
 	}{host.Base})
@@ -47,8 +49,15 @@ func run() error {
 	if err := publishReady(*readyFile, append(data, '\n')); err != nil {
 		return err
 	}
-	<-ctx.Done()
-	return nil
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-host.errors:
+		if err == nil {
+			return fmt.Errorf("embedded catalog listener stopped")
+		}
+		return err
+	}
 }
 
 func publishReady(path string, data []byte) error {

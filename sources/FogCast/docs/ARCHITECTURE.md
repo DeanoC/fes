@@ -85,7 +85,10 @@ This boundary supports the experimental
 [Linux-free base](../../../platform/embedded/README.md). Its native QEMU image
 uses real VirtIO networking to a private FogCast host, FAT32 preferences, live
 USB boot-keyboard input and ramfb scanout. `cmd/fogcast-embedded-host` boots
-the existing scanner/catalog/API on loopback for this experiment. It is not a hardware
+the current `fogcast.Open`/`Service.Scan` and HTTP handlers on a private loopback
+listener. It requires `FES_EXPERIMENTAL_DE25_EMBEDDED=1`, owns its listener and
+service cleanup, and does not depend on the removed local-kit server helpers.
+It is not a hardware
 runtime or full standalone appliance. USB input, physical scanout and FPGA
 lifecycle still need board implementations. The existing Linux launch path and
 package/session contracts are unchanged.
@@ -111,8 +114,8 @@ remain unqualified.
 `corepackage.RetainArchive` validates an exact-length reader using the existing
 canonical archive, manifest, payload and ROM-map rules. It retains private
 bytes and exposes copied inspection metadata and a copying payload reader.
-The OS-backed `Stage` path uses that same reader/validation boundary before
-its existing rooted private publication. No separate embedded validator,
+The OS-backed `Stage`/`StageBytes` paths share the canonical decoder with the
+retaining reader before their existing rooted private publication. No separate embedded validator,
 package identity domain, ABI allowlist or hardware admission is introduced.
 The native `packages` diagnostic reads shared conformance archives from FAT32;
 inspection does not authorize a Cyclone V package on an Agilex board. The

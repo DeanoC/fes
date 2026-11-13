@@ -84,15 +84,19 @@ class Model(SingleModel):
             if self.fail_focus:raw=raw.replace(b'"Owner":'+str(int(OWNER,16)).encode(),b'"Owner":1')
         else:
             self.keys.append(key);raw=b''
-            if key==b'o':self.panels['settings']=dict(open=True,index=0,rows=['layout','systems'],busy=False,status='')
+            if key==b'o':self.panels['settings']=dict(open=True,index=0,rows=['section-display','section-updates'],busy=False,status='')
             elif key==b'\x1b[B':
                 panel=self.panels['systems'] if self.panels['systems']['open'] else self.panels['settings']
                 panel['index']=(panel['index']+1)%len(panel['rows'])
             elif not self.panels['settings']['open'] and not self.panels['systems']['open']:
                 raw=self.launch_wire()
             elif self.panels['settings']['open']:
-                self.panels['settings']=closed_panel()
-                self.panels['systems']=dict(open=True,index=0,rows=['refresh','system','system'],busy=False,status='')
+                panel=self.panels['settings']
+                if panel['rows'][panel['index']]=='section-updates':
+                    panel.update(index=0,rows=['systems'])
+                else:
+                    self.panels['settings']=closed_panel()
+                    self.panels['systems']=dict(open=True,index=0,rows=['refresh','system','system'],busy=False,status='')
             else:
                 panel=self.panels['systems'];kind=panel['rows'][panel['index']]
                 if kind=='system':
