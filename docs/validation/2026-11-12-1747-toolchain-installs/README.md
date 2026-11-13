@@ -135,6 +135,26 @@ and any identity change can trip it. No seal or timing check was relaxed.
 The registered native-video shell. Its record is in
 [coleco.md](coleco.md).
 
+## What revision this evidence is against
+
+Everything here was measured against main `2d895034c`, which was the merge base
+when the campaign ran. The branch has since merged main `53681975f`, and that
+merge touches a closure file of every core in the table — `compiler_read_audit.py`
+reaches all fifteen OSS cores, and `cores/fes-common/generated/fes_application.vh`
+reaches most of them. So the BUILD_IDs recorded here are not the ones the
+post-merge tree produces.
+
+That does not weaken what the campaign demonstrates. The claim under test is
+that **relocating a toolchain install changes nothing but file paths**, and that
+claim is not a property of any one main revision: at `2d895034c` it held for
+seventeen cores, with byte-identical RBFs in every case. Re-running the campaign
+after each merge would not test anything further, and main moves faster than a
+seventeen-core route campaign completes.
+
+What the merge does mean is that the three non-closing cores above were measured
+on the pre-merge tree. Their closures moved, so their placement dice have been
+rerolled again — in either direction.
+
 ## Not covered here
 
 - pc386 is still in progress; its next sealing PR covers the tree.
