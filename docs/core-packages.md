@@ -36,7 +36,7 @@ The selected FPGA sources are the tracked
 `sources/misteross` module at the selected FES commit. Each registered
 producer selects the per-core lock in its `config/core-recipes.toml` entry.
 The locks currently contain the same nextpnr and Mistral commits. Coleco's
-Yosys pin is `5391eeb1` and uses its own slot. Use the matching
+Yosys pin is `5391eeb1`, which has its own Yosys install. Use the matching
 `make toolchain-fes-<core>` target when provisioning a selected core. Inspect
 `config/core-recipes.toml` for each registered producer's current lock and HIP
 settings. Freeze-scaffold
@@ -220,8 +220,8 @@ make dev
 is not a substitute for it. The generic `toolchain-fes` target selects the
 repository-level lock; registered package builds use their corresponding
 `toolchain-fes-<core>` target. The image build authenticates every selected
-core against its own lock's slot, and its error names the lock whose slot is
-missing. The cache holds one install per tool and commit, so after a core's
+core against the installs its own lock pins, and its error names the lock
+whose install is missing. The cache holds one install per tool and commit, so after a core's
 lock moves, provision that core's target to build the newly pinned tool. The
 ZX81 and Coleco examples above compile the authenticated HIP nextpnr their
 locks pin. `make toolchain` may compile the pinned tools into the shared

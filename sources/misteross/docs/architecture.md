@@ -3738,7 +3738,8 @@ retain their original SPDX notices. Core-specific machines, reset ROMs, diagnost
 and constraints remain in their existing directories. The old Coleco producer
 selects the repository-level `toolchain.lock`. Registered Coleco, SMS and
 SG-1000 producers select per-core locks. SMS and SG-1000 match the repository
-lock and share its slot. Coleco pins Yosys `5391eeb1` and uses its own slot.
+lock and share its installs. Coleco pins Yosys `5391eeb1`, which has its own
+Yosys install.
 Per-core generated simple-computer headers remain checked against mister-packages;
 consumers use their own generated include directory.
 
