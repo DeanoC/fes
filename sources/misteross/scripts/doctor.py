@@ -307,7 +307,8 @@ def oss_checks(
             make_check(
                 "Shared toolchain cache",
                 "OK",
-                f"verified key {manifest.key}; install {manifest.install}; evidence {manifest.evidence}",
+                "verified installs: " + "; ".join(
+                    f"{tool} {install.key}" for tool, install in sorted(manifest.tools.items())),
                 True,
             )
         )

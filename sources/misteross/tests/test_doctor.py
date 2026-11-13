@@ -170,6 +170,15 @@ class DoctorTests(unittest.TestCase):
             capture_output=True,
         )
 
+    def test_shared_cache_summary_lists_each_verified_install(self):
+        resolution = doctor.toolchain_cache.ToolchainResolution(tools={
+            "yosys": mock.Mock(key="a" * 64), "nextpnr": mock.Mock(key="b" * 64)})
+        with mock.patch.object(doctor, "_local_tool_check", return_value={}) as local:
+            checks = doctor.oss_checks({}, manifest=resolution)
+        self.assertEqual(checks[0]["status"], "OK")
+        self.assertIn(f"nextpnr {'b' * 64}; yosys {'a' * 64}", checks[0]["detail"])
+        self.assertIs(local.call_args.kwargs["manifest"], resolution)
+
     def test_general_report_is_successful_and_quartus_is_optional(self):
         result = self._run()
 
