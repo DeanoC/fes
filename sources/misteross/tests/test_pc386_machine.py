@@ -658,7 +658,7 @@ class X87TestTest(unittest.TestCase):
             return sim.run_x87(args, [])['failures']
 
     PASSING = ['X87 equip 0002h ok', 'X87 bios 1 calls ok', 'X87 bios-sw 0084h ok', 'X87 raw 1 calls ok', 'X87 raw-ip 0150h ok',
-               'X87 raw-sw 0084h ok', 'X87 held 01A0h ok', 'X87 f1-cw 037Eh ok', 'X87 f1-sw 0081h ok', 'X87 DONE ok']
+               'X87 raw-sw 0084h ok', 'X87 held 01A0h ok', 'X87 f1-cw 037Eh ok', 'X87 f1-sw 8081h ok', 'X87 DONE ok']
 
     def test_every_check_must_print_ok(self):
         self.assertEqual(self.suite(self.PASSING), [])

@@ -26,7 +26,8 @@
 ;           timer interrupt is taken while it holds, and its frame must
 ;           return to that FSTP. The hooked INT 08h writes F0h and FSTP runs.
 ;   f1      OUT F1h resets the 387: FNSTCW must give 037Eh and FNSTSW AX
-;           0081h, a 387's state after RESET, ERROR# active.
+;           8081h, a 387's state after RESET: IE, ES and B (bit 15,
+;           ES's mirror; 387 PRM 231917-001, 2.1.2 and 6-5), ERROR# active.
 ;
 ; Assemble: nasm -f bin -o X87TEST.COM x87_test.asm.
 
@@ -162,8 +163,8 @@ held_fstp:
         call check
         movzx eax, word [f1_sw]
         mov si, name_f1_sw
-        mov ecx, 0x0081
-        mov edx, 0x0081
+        mov ecx, 0x8081
+        mov edx, 0x8081
         mov di, unit_hex
         call check
         in al, 0xa1                     ; unmask IRQ 13
