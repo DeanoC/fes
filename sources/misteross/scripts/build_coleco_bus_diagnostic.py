@@ -222,7 +222,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     recipe = {"inputs": closure, "tools": identities, "slot_clock": "system_clock.clocks[0]", "map": "fes.coleco-bus.socket/1",
               "placer_seed": PLACER_SEED, "required_clocks_mhz": REQUIRED_CLOCKS_MHZ,
               "cram_region": CRAM_REGION,
-              "scaffold_metadata_repair": "coleco-dual-pll-output-reload-v2",
+              "scaffold_validation": "coleco-dual-pll-clock-wiring-v1",
               "clock_constraints_sha256": digest(clock_constraints)}
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
     output = root / "build/coleco-bus-diagnostic" / recipe_sha
