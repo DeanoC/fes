@@ -121,6 +121,31 @@ class SealProgramTest(unittest.TestCase):
         self.assertIn("scripts/yosys_netlist.py", quartus.PINNED_INPUTS)
 
 
+class ToolchainFailureTest(unittest.TestCase):
+    def test_missing_shared_slot_says_how_to_provision_the_locked_toolchain(self):
+        cache_root = Path("/tmp/fes-toolchains")
+        missing = yosys_netlist.NetlistError(
+            "cores/fes-pc386/toolchain.lock Yosys (HIP): shared toolchain verification failed: "
+            "missing path component: /tmp/fes-toolchains/slots/missing"
+        )
+        with mock.patch.object(yosys_netlist, "authenticate", side_effect=missing):
+            with self.assertRaisesRegex(
+                board.BuildError,
+                r"make toolchain-fes-pc386 CACHE_ROOT=/tmp/fes-toolchains GPU_ROUTER=HIP",
+            ):
+                quartus._authenticate_tools(ROOT, cache_root=cache_root, gpu_router="HIP")
+
+    def test_non_missing_toolchain_errors_do_not_suggest_reprovisioning(self):
+        failure = (
+            "cores/fes-pc386/toolchain.lock Yosys (HIP): shared toolchain verification failed: "
+            "ready manifest key does not match"
+        )
+        with mock.patch.object(yosys_netlist, "authenticate", side_effect=yosys_netlist.NetlistError(failure)):
+            with self.assertRaisesRegex(board.BuildError, "ready manifest key does not match") as raised:
+                quartus._authenticate_tools(ROOT, cache_root=Path("/tmp/fes-toolchains"), gpu_router="HIP")
+        self.assertNotIn("toolchain-fes-pc386", str(raised.exception))
+
+
 class ProjectTest(unittest.TestCase):
     def test_project_reads_the_netlist_and_the_shell(self):
         with tempfile.TemporaryDirectory() as temporary:
