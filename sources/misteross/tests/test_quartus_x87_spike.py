@@ -1,7 +1,11 @@
 # SPDX-License-Identifier: MIT
 """The x87 fit spike runner's overlay and report parsing. No Quartus or Yosys needed."""
+import contextlib
+import io
+import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from scripts import quartus_x87_spike as spike
@@ -82,6 +86,31 @@ class ReportTest(unittest.TestCase):
                 'point\tworst\t1\tic\t0.3\tn1\n'
                 'point\tworst\t1\tcell\t0.2\tn2\n')
         self.assertEqual(spike.paths(text)['worst'][0]['cells'], ['n2'])
+
+
+class JobTest(unittest.TestCase):
+    def test_run_stops_a_tool_at_its_cap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err), self.assertRaisesRegex(spike.SpikeError, 'cap'):
+                spike.run([sys.executable, '-c', 'import time; time.sleep(60)'], Path(tmp), Path(tmp) / 'log',
+                          {}, cap_s=0.5, heartbeat_s=0.1)
+        self.assertIn('heartbeat: ', err.getvalue())
+
+    def test_run_reports_a_failed_tool(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(spike.SpikeError, r'exit 3'):
+                spike.run([sys.executable, '-c', 'raise SystemExit(3)'], Path(tmp), Path(tmp) / 'log', {})
+
+    def test_free_space_below_30_gib_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            usage = mock.Mock(free=29 * 1024**3)
+            with mock.patch.object(spike.shutil, 'disk_usage', return_value=usage) as disk:
+                with self.assertRaisesRegex(spike.SpikeError, '30 GiB'):
+                    spike.check_free_space(Path(tmp) / 'new' / 'out')
+            disk.assert_called_once_with(Path(tmp))
+            with mock.patch.object(spike.shutil, 'disk_usage', return_value=mock.Mock(free=31 * 1024**3)):
+                spike.check_free_space(Path(tmp) / 'new')
 
 
 if __name__ == '__main__':

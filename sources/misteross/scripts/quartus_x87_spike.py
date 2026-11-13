@@ -29,6 +29,10 @@ critical paths in full (overall, and for the machine those into and out of
 the x87). Writes <output>/summary.json and keeps the fit and timing reports;
 --keep keeps Quartus's databases too.
 
+Each Quartus process runs in its own process group with a heartbeat on
+stderr every minute and a 4-hour cap; the run is refused when the output's
+filesystem has under 30 GiB free (AGENTS.md's ops rules).
+
   QUARTUS_ROOTDIR=/abs/<the Quartus install quartus.lock names>/quartus \\
     python3 scripts/quartus_x87_spike.py --cache-root /abs/toolchains --gpu-router CUDA \\
       --mode machine --variant a --seed 1 --output /abs/scratch/x87s1/machine-a-s1
@@ -43,8 +47,10 @@ import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import subprocess
 import sys
+import time
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -216,11 +222,56 @@ def paths(text: str) -> dict[str, list[dict]]:
     return {label: [ranks[rank] for rank in sorted(ranks)] for label, ranks in found.items()}
 
 
-def run(command: list[str], cwd: Path, log: Path, env: dict) -> None:
+QUARTUS_CAP_S = 4 * 60 * 60  # A machine compile took 16-45 minutes on chip-30x0-ai-dev.
+HEARTBEAT_S = 60
+MIN_FREE_BYTES = 30 * 1024**3  # AGENTS.md: refuse a job under 30G free.
+
+
+def check_free_space(output: Path) -> None:
+    """Refuse the run when the filesystem that will hold output has under 30 GiB free."""
+    where = output
+    while not where.exists():
+        where = where.parent
+    free = shutil.disk_usage(where).free
+    if free < MIN_FREE_BYTES:
+        raise SpikeError(f'{where} has {free / 1024**3:.1f} GiB free; a fit needs at least 30 GiB')
+
+
+def run(command: list[str], cwd: Path, log: Path, env: dict, *, cap_s: float = QUARTUS_CAP_S,
+        heartbeat_s: float = HEARTBEAT_S) -> None:
+    """Run one tool into log, printing a heartbeat to stderr and killing its process group at the cap."""
+    name = Path(command[0]).name
+    start = time.monotonic()
     with log.open('w') as stream:
-        result = subprocess.run(command, cwd=cwd, env=env, stdout=stream, stderr=subprocess.STDOUT, check=False)
-    if result.returncode:
-        raise SpikeError(f'{Path(command[0]).name} failed (exit {result.returncode}); see {log}')
+        process = subprocess.Popen(command, cwd=cwd, env=env, stdout=stream, stderr=subprocess.STDOUT,
+                                   start_new_session=True)
+        while True:
+            elapsed = time.monotonic() - start
+            try:
+                process.wait(timeout=max(0.01, min(heartbeat_s, cap_s - elapsed)))
+                break
+            except subprocess.TimeoutExpired:
+                elapsed = time.monotonic() - start
+                if elapsed >= cap_s:
+                    stop(process)
+                    raise SpikeError(f'{name} passed its {cap_s:.0f} s cap and was stopped; see {log}') from None
+                print(f'heartbeat: {name} running {elapsed:.0f} s', file=sys.stderr, flush=True)
+    if process.returncode:
+        raise SpikeError(f'{name} failed (exit {process.returncode}); see {log}')
+
+
+def stop(process: subprocess.Popen) -> None:
+    """Stop the tool's own process group (it was started in a new session), TERM then KILL."""
+    for sig, grace in ((signal.SIGTERM, 10), (signal.SIGKILL, None)):
+        try:
+            os.killpg(process.pid, sig)
+        except ProcessLookupError:
+            return
+        try:
+            process.wait(timeout=grace)
+            return
+        except subprocess.TimeoutExpired:
+            continue
 
 
 def flatten(program: str, hierarchy: bool) -> str:
@@ -293,7 +344,8 @@ def machine(args, tools: dict, output: Path) -> tuple[Path, str]:
                       program_file=output / 'machine.ys', log=output / 'yosys.log')
     if args.hierarchy:
         plain_module_names(project / sealer.MACHINE_NETLIST)
-    sealer.run_quartus(tools['quartus_sh'], tools['quartus_root'], project, output / 'quartus.log')
+    run([str(tools['quartus_sh']), '--flow', 'compile', sealer.board.TOP], project, output / 'quartus.log',
+        dict(os.environ, QUARTUS_ROOTDIR=str(tools['quartus_root'])))
     return project, sealer.board.TOP
 
 
@@ -319,6 +371,7 @@ def main() -> int:
             raise ValueError('the base variant is the machine without the spike')
         sealer._check_seed(args.seed)
         output = args.output
+        check_free_space(output)
         output.mkdir(parents=True)
         if args.mode == 'machine':
             tools = sealer._authenticate_tools(ROOT, cache_root=args.cache_root, gpu_router=args.gpu_router)
