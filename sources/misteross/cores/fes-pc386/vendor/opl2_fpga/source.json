@@ -26,8 +26,10 @@
     "vibrato.sv: Vibrato rewritten to Nuked-OPL3's: eight positions stepping every 1024 samples, giving a signed f-number offset.",
     "mem_simple_dual_port_async_read.sv: Verilator PROCASSINIT waiver preserves the RAM power-on value and synchronous writes.",
     "pipeline_sr.sv: Verilator MULTIDRIVEN waiver preserves the power-on value and clocked shift.",
-    "mem_simple_dual_port_async_read.sv, mem_single_bank.sv: a RAMSTYLE_MLAB parameter puts Quartus's ramstyle \"MLAB, no_rw_check\" on the array (upstream's syn_ramstyle comment, which the Yosys netlist drops, is gone). Quartus 17.0.2 infers an asynchronous-read MLAB only with no_rw_check; the RTL's read and write are unchanged.",
-    "control_operators.sv, envelope_generator.sv: RAMSTYLE_MLAB(1) on the six asynchronous-read register memories Quartus left as logic (am_vib_egt_ksr_mult, ar_dr, sl_rr, fnum_low, block_fnum_high, the envelope state); the 9x1 cnt and kon memories stay registers."
+    "mem_simple_dual_port_async_read.sv: a RAMSTYLE_MLAB parameter puts Quartus's ramstyle \"MLAB, no_rw_check\" on the array, the only form Quartus 17.0.2 infers as an asynchronous-read MLAB (276009 without no_rw_check); upstream's syn_ramstyle comment, which the Yosys netlist drops, is gone. The read and write are unchanged.",
+    "mem_single_bank.sv: passes RAMSTYLE_MLAB to the asynchronous-read memory.",
+    "control_operators.sv: RAMSTYLE_MLAB(1) on the asynchronous-read register memories Quartus left as logic (am_vib_egt_ksr_mult, ar_dr, sl_rr, fnum_low, block_fnum_high); the 9x1 kon memory stays registers.",
+    "envelope_generator.sv: RAMSTYLE_MLAB(1) on the envelope state memory, which Quartus left as logic."
   ],
   "files": [
     {
