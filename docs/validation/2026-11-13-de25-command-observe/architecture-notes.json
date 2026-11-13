@@ -1,0 +1,31 @@
+{
+  "classification": "primary architecture context; no device qualification or new grant",
+  "source": "https://documentation-service.arm.com/static/608145045e70d934bc69f149",
+  "document": "Arm IHI0070C SMMUv3.0/3.1/3.2",
+  "sections": [
+    "3.21.1",
+    "4.1.4",
+    "4.6.3",
+    "6.3.9.3",
+    "6.3.9.6"
+  ],
+  "observations": [
+    "Commands remain operational with SMMUEN clear when CMDQEN remains enabled. Disabling translation alone therefore does not explain the observed command timeout.",
+    "Consumption of a synchronization command orders completion of earlier commands in its own queue; generic command consumption has weaker semantics.",
+    "Translation-invalidation completion covers relevant translated accesses reaching their shareability domain. That scope does not identify arbitrary bypass or other-security traffic.",
+    "SMMUEN acknowledgement does not guarantee already stalled transactions have terminated. Device/interconnect-specific completion remains necessary; buffering upstream can outlive the control transition."
+  ],
+  "inference": "Next raw stage/consumer samples should locate the stopping operation before changing any sequence or bound.",
+  "consumer_locations": {
+    "6": "before first new command",
+    "7": "after CFGI_ALL consumption",
+    "8": "after first SYNC consumption",
+    "9": "after EL2 invalidation consumption",
+    "10": "after second SYNC consumption",
+    "11": "after NSNH invalidation consumption",
+    "12": "after final SYNC consumption"
+  },
+  "raw_observation_is_qualified_completion": false,
+  "memory_reuse_authorized": false,
+  "hardware_actions": false
+}

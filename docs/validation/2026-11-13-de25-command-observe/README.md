@@ -47,3 +47,53 @@ compile with pinned tools and strict firmware flags. The largest individual
 frame remains 384 bytes; this is not a whole EL3 stack or matched firmware proof.
 No new candidate has been loaded onto hardware. Physical retirement, independent
 interconnect drain, source reuse and ordinary activation remain unqualified.
+
+
+## Complete matched build and affected checks
+
+The full [affected campaign](checks.json) passes on committed source
+`c6b29e7358a6261e945d9c5a37f4ac866a4aea7b`: 2,660 parent tests (15 skips),
+native runtime/firmware and producer integration, and 2,181 FPGA software tests
+(88 skips). It completes in 1,588.816 seconds within the host cap. Generated
+consistency verifies 69 consumers and 45 fixture copies. The separate focused
+and cross-build results above retain their own scope.
+
+The [matched result](matched-result.json) and [terminal build checks](matched-checks.json)
+bind a complete fresh selected-program SDK, compressed CPU entry, BL31,
+SPL/U-Boot and locked FPGA composition to that production source. Full native
+file admission passes. Chain
+`c7520b2b78fece39db6be54e4c72bed63e50cd1f0371eeba24bfbaa9480ed810`,
+boot ID `6cd9cbad7f11f633`, FIT SHA-256
+`ce69c0dd29856f5ec22ce20c01d8076ad88be7d2408801df4bbdf1463f56f790`.
+The 8,514,256-byte FIT stays within the 16 MiB contract. The largest selected
+BL31 stack-usage record remains 928 bytes (finish), not a whole-stack bound.
+The sealed FPGA payloads are unchanged. Composition holds the shared Quartus
+Pro lock and performs no synthesis, fitting or device access.
+
+The [new archive](retention-result.json) preserves 1,367 files with independent
+byte/hash readback, SHA-256
+`b4cd8a6f46c326917e947b4250dc1bdab449d4ffeaebe7ecafd72d47db248413`.
+It includes the actual failed prototype/check logs, paired baseline/controller
+sources, cross-build objects, all successful software checks and source ROM.
+The first retention check stops before creating an archive: its evidence list
+included the still-running collector's own log. The corrected selection excludes
+that live job; its predecessor manifest/helper and failed check are retained.
+Neither compiled artifacts nor passing tests changed for this repair.
+
+Both complete unchanged sealed projects remain in the
+[separate verified archive](reused-project-archive.json)
+`9587828cdddfd72ab618154a1bb73bb1ccaaa7b3bbcfff8ebfb369991f4247eb`;
+complete project membership and hashes are checked. Both archives are required.
+The [architecture notes](architecture-notes.json) refer to the primary
+[Arm SMMUv3 specification](https://documentation-service.arm.com/static/608145045e70d934bc69f149)
+and remain context, not device qualification or a new drain grant.
+
+This is a complete off-board candidate. No UART, JTAG, card or network action
+occurs during this change/build turn. TRWU8CBL's last verified physical state
+remains original native baseline final Park after the format-9 trial's exact-FIT
+rollback and all 51 baseline commands; test card installed, owned handles closed,
+top-only claim held. The next bounded trial must use a fresh one-use procedure,
+new complete admissions and a prerequisite replay of that latest actual
+four-role restoration. Previous attempts remain consumed. Standing user trial
+approval persists; a failed diagnostic permits restoration-only recovery.
+Memory reuse, independent interconnect drain and ordinary activation remain open.

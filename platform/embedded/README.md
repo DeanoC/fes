@@ -46,8 +46,8 @@ baseline commands/final Park pass without another physical reset. No retirement,
 ordinary activation or source-memory reuse is qualified. The
 [format-10 observation successor](../../docs/validation/2026-11-13-de25-command-observe/README.md)
 retains existing raw consumer reads, operation stages and counter samples in a
-separate informational record. Its focused models and AArch64 compile pass;
-it has no physical result.
+separate informational record. Its focused models, full affected checks, AArch64 compilation and complete
+matched chain/native admission pass; it has no physical result.
 
 This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
 launcher integration, while bounded Nano CPU/SD/package diagnostics now run on

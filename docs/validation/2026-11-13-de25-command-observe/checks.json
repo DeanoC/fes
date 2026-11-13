@@ -39,5 +39,39 @@
     "timed_out": false,
     "elapsed": 1.0009315928909928,
     "log_sha256": "06e4303b59c4b12988b84b1e5e0a2ab85a4c4a4bacc2204eb5e461dfd266df8e"
+  },
+  "queue-observe-affected": {
+    "argv": [
+      "make",
+      "test-changed",
+      "TEST_CHANGED_ARGS=--base d50144f35e446e432fe33a630bad12308bc4b4bb --jobs 2"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1588.81553526083,
+    "log_sha256": "a4b61525eeade09084b4b8e35d2479ef02ae755f75494c1323dee01f8c83a352"
+  },
+  "queue-observe-consistency": {
+    "argv": [
+      "make",
+      "check"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 10.80547760007903,
+    "log_sha256": "04b7d0133f86510765e0c9fdb3bd8a9269cfc9a03e91c02efd8cf2f5866bac79"
+  },
+  "queue-observe-doc-links": {
+    "argv": [
+      "python3",
+      "scripts/check_doc_links.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.6009449111297727,
+    "log_sha256": "112ab742576d07de470e5efa97b5e38a5efe2f0f6adabfdaeec5618439afe125"
   }
 }
