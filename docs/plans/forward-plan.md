@@ -427,15 +427,21 @@ is right. Do not widen it. What stands between the tree and a release:
   `main` is forbidden by default. **Deano approved a one-off history rewrite
   for this on 13 November 2026.** It is a planned operation with its own
   procedure, not a routine push, because the scope is wide:
-  - The capture archive entered `main` on 30 October (#979), but the same
-    ROMs were committed directly from 20 September until #1381 and #1379
-    removed them (`zx8x.hex`, `zx8x.mif`, `zx81machine/machine.rom`). The
-    rewrite therefore reaches most of `main`'s roughly 2,900 commits, and
-    every commit hash after the first affected one changes.
-  - Scan all history for known ROM digests first, across every family, so
-    the rewrite happens once.
-  - About 850 branches and every open PR must be rewritten or rebuilt on
-    the new history; worktrees and kit scripts re-clone.
+  - A scan of every blob in every ref on 13 November found the full ZX81
+    and ZX80 ROMs in six blobs. Three are archives still at the tip of
+    `main`: `2026-10-22-pcxt-commit-timing/capture.tar.gz` and the two
+    `2026-10-29-de25-zx81-ram-pr/failed/*/sources.tar.gz`. Three were
+    deleted from the tree but remain in history: `zx8x.hex`, `zx8x.mif` and
+    `zx81machine/machine.rom`.
+  - The earliest of them dates from 10 September, about 2,640 commits back
+    on `main`'s 2,920. Every commit hash after that point changes.
+  - 792 of 850 branches, 949 pull-request refs and all 15 open PRs contain
+    them. Branches and open PRs must be rewritten or rebuilt on the new
+    history; worktrees and kit scripts re-clone.
+  - The scan found no Spectrum, Commodore, Atari, IBM or other system ROMs.
+    It cannot see a ROM baked into a bitstream, so the DE25 ZX81 `.sof` and
+    `.rbf` files in `2026-10-29-de25-zx81-pr-computer/compiler-reports.tar.gz`
+    need a decision of their own.
   - GitHub keeps old commits reachable through closed pull-request refs and
     caches. Removing those needs a GitHub Support request after the push;
     a force-push alone does not make the bytes unreachable.
