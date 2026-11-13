@@ -326,6 +326,10 @@ module fes_i386_x87 (
     // The tag word: the empty bit a register's own writes keep, and the two
     // class bits the write stored with it, so the word costs no read of the
     // stack (fes_i386_x87's header, "The tag word is derived").
+    // Reset leaves them at 01, zero, which is the class of the zeroed
+    // memory the stack powers up with, so an FLDENV whose tag word marks a
+    // register that has never been written reads back a settled tag rather
+    // than whatever the block held.
     logic [1:0] cls_bits [0:7];
     always_comb begin
         tw_o = 16'd0;
@@ -346,7 +350,9 @@ module fes_i386_x87 (
     always_ff @(posedge clk) begin
         ra_val <= rf_a[ra_idx];
         rb_val <= rf_b[rb_idx];
-        if (rw_en) begin
+        if (reset)
+            for (int n = 0; n < 8; n++) cls_bits[n] <= 2'b01;
+        else if (rw_en) begin
             rf_a[rw_idx] <= rw_val;
             rf_b[rw_idx] <= rw_val;
             cls_bits[rw_idx] <= tag_of(class_of(rw_val, 1'b0));
@@ -407,7 +413,7 @@ module fes_i386_x87 (
     // it stays set until the operation finishes, which for a load is after
     // the instruction has retired, as a real 387's does.
     typedef enum logic [3:0] {
-        S_IDLE, S_ARG, S_PRE, S_MUL, S_POST, S_POST2, S_RDY, S_SAVE_RD, S_APPLY, S_APPLY2
+        S_IDLE, S_ARG, S_PRE, S_SHIFT, S_MUL, S_POST, S_POST2, S_RDY, S_SAVE_RD, S_APPLY, S_APPLY2
     } seq_e;
     seq_e        seq;
     op_e         cur;
@@ -690,6 +696,13 @@ module fes_i386_x87 (
     logic [6:0]  sh_k;        // the shift the sequencer started
     logic [63:0] sh_in;
     logic [14:0] sh_exp;      // a normalising load's exponent after the shift
+    // The shift's operands, registered so the multiplier's one-hot
+    // multiplicand is a decode of a register and not the end of the
+    // exponent arithmetic: that chain, from the register stack through the
+    // exponent subtract and the shift amount into the decoder, was the
+    // critical path once the rounding was split.
+    logic [63:0] sh_src;
+    logic [5:0]  sh_pow;      // the shift is a multiply by 2^sh_pow
     assign shm = sh_k == 7'd0 ? sh_in : sh_k >= 7'd64 ? 64'd0 : mul_p[127:64];
     assign shs = sh_k == 7'd0 ? 1'b0 : sh_k >= 7'd64 ? sh_in != 64'd0 : mul_p[63:0] != 64'd0;
     logic               c_sign, c_f64, c_int;
@@ -915,11 +928,10 @@ module fes_i386_x87 (
                     if (ld_shift) begin
                         sh_in <= ld_mag;
                         sh_k <= 7'd0;
-                        ua_mul <= ld_mag;
-                        ub_mul <= 64'd1 << clz64(ld_mag);
+                        sh_src <= ld_mag;
+                        sh_pow <= 6'(clz64(ld_mag));
                         sh_exp <= 15'(ld_expb - 17'(clz64(ld_mag)));
-                        mul_start <= 1'b1;
-                        seq <= S_MUL;
+                        seq <= S_SHIFT;
                     end else
                         seq <= S_APPLY;
                 end else if (cur != OP_ST_M && cur != OP_STP_M) seq <= S_APPLY;
@@ -939,12 +951,17 @@ module fes_i386_x87 (
                         pnx <= unmasked(st_fl, cw);
                         seq <= S_RDY;
                     end else if (st_shift && st_k < 7'd64) begin
-                        ua_mul <= st_sig;
-                        ub_mul <= 64'd1 << (7'd64 - st_k);
-                        mul_start <= 1'b1;
-                        seq <= S_MUL;
+                        sh_src <= st_sig;
+                        sh_pow <= 6'(7'd64 - st_k);
+                        seq <= S_SHIFT;
                     end else
                         seq <= S_POST;
+                end
+                S_SHIFT: begin
+                    ua_mul <= sh_src;
+                    ub_mul <= 64'd1 << sh_pow;
+                    mul_start <= 1'b1;
+                    seq <= S_MUL;
                 end
                 S_MUL: if (mul_done) seq <= mul_store ? S_POST : S_APPLY;
                 S_POST: begin
