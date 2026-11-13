@@ -515,7 +515,12 @@ static int window_gate(void)
     int status=-1;
     if(provider.control_expected!=1 || provider.ddr_expected || smmu_owns(&provider)!=1)goto out;
     if(smmu_report(&provider,&translation) || firewall_report(&provider,&firewall)) { status=-5;goto out; }
-    if(!translation.bypass_controls_clear || !translation.secure_implemented ||
+#if defined(FES_NANO_SDM_INPUT_TRANSFER) && FES_NANO_SDM_INPUT_TRANSFER
+    if(!nano_sdm_reader_observed(&translation) || fes_nano_sdm_source_reader_ready()!=1)goto out;
+#else
+    if(!translation.bypass_controls_clear)goto out;
+#endif
+    if(!translation.secure_implemented ||
        translation.registers.idr0!=0x080f7e3f || translation.registers.idr1!=0x0e739d18 ||
        translation.registers.aidr!=1 || translation.registers.s_idr1!=0x80000018 ||
        !firewall.layout_known || !firewall.window_covered)goto out;

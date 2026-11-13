@@ -16,7 +16,7 @@ import fit_layout
 
 
 def profile():
-    return dict(chain_sha256="1" * 64, firmware_mmu={}, firmware_ram={},
+    p = dict(chain_sha256="1" * 64, firmware_mmu={}, firmware_ram={},
                 usb_shared=True, sd_pio=True, configuration_retained=True, capability_observation={"format": 2},
                 hps_menu_program={"fixture": True}, hps_program_platform={"fixture": True},
                 cpu_mapping=dict(ram_base=0x84000000, ram_bytes=0x10000000,
@@ -24,6 +24,18 @@ def profile():
                                  reader_base=0x95000000, reader_bytes=0x800000),
                 hps_configuration={"base": 0x94800000}, boot_fit=dict(fit_layout.CONTRACT),
                 sdm_input_transfer=dict(mode.CONTRACT))
+    platform = dict(platform='de25_nano', device='A5EB013BB23BE4SCS', hps_io_hash='c'*64,
+                    pfg_identity='fixture-Quartus-identity', hps_parameters_sha256='d'*64,
+                    hps_configuration_sha256='e'*64)
+    p['hps_context'] = dict(programming_profile='de25-native-computer-v1', package_id='a'*64)
+    p['hps_program_platform'] = dict(platform=dict(platform))
+    p['hps_menu_program'] = dict(context=dict(programming_profile='de25-embedded-hps-first-menu-prototype-v1',
+                                            control_abi=0x10203043, package_id='b'*64),
+                                 platform=dict(platform=dict(platform)),
+                                 memory=dict(bus_base=0x95000000,bytes=0x800000),
+                                 access=dict(aruser=224,arprot=3,arcache=2))
+    p['sdm_reader_route'] = mode.reader._expected(p)
+    return p
 
 
 class InputProfileTests(unittest.TestCase):
@@ -45,7 +57,7 @@ class InputProfileTests(unittest.TestCase):
             with self.subTest(contract=name), self.assertRaises(ValueError):
                 mode.checked(p)
         for name in ("firmware_mmu", "firmware_ram", "usb_shared", "sd_pio",
-                     "capability_observation", "configuration_retained", "hps_menu_program", "hps_program_platform", "boot_fit"):
+                     "capability_observation", "configuration_retained", "hps_menu_program", "hps_program_platform", "boot_fit", "sdm_reader_route"):
             p = profile()
             del p[name]
             with self.subTest(missing=name), self.assertRaises(ValueError):
@@ -69,7 +81,8 @@ class InputProfileTests(unittest.TestCase):
                               (9, "2026-11-13-de25-command-progress/matched-result.json"),
                               (10, "2026-11-13-de25-command-observe/matched-result.json"),
                               (11, "2026-11-13-de25-command-completion/matched-chain.json"),
-                              (12, "2026-11-13-de25-retained-continuation/matched-chain.json")):
+                              (12, "2026-11-13-de25-retained-continuation/matched-chain.json"),
+                              (13, "2026-11-13-de25-retained-native-control/matched-build.json")):
             record = json.loads((ROOT / "docs/validation" / name).read_text())
             previous = record["sdm_input_contract"]
             self.assertEqual(previous["format"], version)

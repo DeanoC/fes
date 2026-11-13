@@ -2,6 +2,7 @@
 #ifndef NANO_SDM_INPUT_TRANSFER_SERVICE_H
 #define NANO_SDM_INPUT_TRANSFER_SERVICE_H
 #include "input_transfer.h"
+#include "nano_sdm_reader.h"
 /* Required strong platform implementation. Success captures a verified,
  * immutable source epoch, read-only map, CPU/master/config ownership and the
  * original preparation clock. No weak/default implementation is provided. */
@@ -24,6 +25,8 @@ int fes_nano_sdm_source_control_ready(const struct nano_sdm_input_binding *,unsi
 int fes_nano_sdm_control_mailbox_idle(void);
 int fes_nano_sdm_transfer_control_begin(void);
 int fes_nano_sdm_transfer_control_finish(int status,unsigned words);
+/* Live immutable transfer state, no copied receipt or mutation. */
+int fes_nano_sdm_transfer_reader_ready(void);
 int fes_nano_sdm_transfer_read(unsigned int *,uint32_t *,uint32_t *,unsigned int *);
 int fes_nano_sdm_transfer_response(int,uint32_t,uint32_t,uint32_t);
 int fes_nano_sdm_transfer_buffer(uint32_t,uint32_t);

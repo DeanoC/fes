@@ -6,7 +6,7 @@ This decoder performs no device operations and grants no runtime admission.
 import re
 
 from hps_context import MENU_PROFILE, digest, validate_menu_read
-from window_trace import PATTERNS as WINDOW_PATTERNS, HEX, TEXT, check_route
+from window_trace import PATTERNS as WINDOW_PATTERNS, HEX, TEXT, check_route, reader_route
 
 D = r'[0-9]{1,20}'
 H = r'[0-9a-f]{1,16}'
@@ -32,8 +32,12 @@ def checked_contract(identity, memory, contract):
     return validate_menu_read(context, memory, identity['map_sha256'], contract)
 
 
-def decode(data, *, identity, memory, contract, base_decode, rules):
+def decode(data, *, identity, memory, contract, base_decode, rules, retained_reader_route=None):
     checked_contract(identity, memory, contract)
+    if retained_reader_route is not None:
+        reader_route.checked_binding(retained_reader_route)
+        if retained_reader_route['menu_context_sha256']!=identity['sha256'] or retained_reader_route['menu_access_sha256']!=digest(contract):
+            raise ValueError('retained reader differs from the selected MENU context/access')
     if not isinstance(data, (str,bytes,bytearray,memoryview)):
         raise TypeError('serial bytes or text required')
     raw = data.encode() if isinstance(data,str) else bytes(data)
@@ -101,7 +105,7 @@ def decode(data, *, identity, memory, contract, base_decode, rules):
         # Readiness runs inside the firmware's first control-opening request.
         # Validate these real records before expecting an opened control scope.
         take('fpga_query'); take('fpga_status')
-        check_route(take,require,owner=owner,generation=4,reset=15,memory=memory,with_gate=False)
+        check_route(take,require,owner=owner,generation=4,reset=15,memory=memory,with_gate=False,retained_reader=retained_reader_route)
         # Keep the original line numbers by replacing only the already checked
         # native progress line with a blank. All actual secure records retain
         # their order in the shared boot/configuration decoder.
@@ -114,7 +118,7 @@ def decode(data, *, identity, memory, contract, base_decode, rules):
         require(prefix_complete, 'menu presentation preceded a complete owned boot/configuration prefix')
         scope('control',5,13)
         for _ in range(2):
-            check_route(take,require,owner=owner,generation=5,reset=13,memory=memory,with_gate=True)
+            check_route(take,require,owner=owner,generation=5,reset=13,memory=memory,with_gate=True,retained_reader=retained_reader_route)
         scope('data',6,5)
         step(1,'open_end')
         for index in range(1,4):

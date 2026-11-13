@@ -267,6 +267,7 @@ typedef struct mailbox_service {
 #include "nano_configuration.h"
 #include "nano_program.h"
 #include "nano_fabric_stop.h"
+#include "reader_profile_fixture.h"
 struct fes_nano_mac fes_nano_owned_mac;
 static struct fes_nano_configuration configuration;
 static struct fes_nano_program configuration_program;

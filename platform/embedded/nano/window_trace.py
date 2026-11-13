@@ -1,5 +1,9 @@
 """Audit source-bound native full-window sessions; grant no admission."""
 import re
+import importlib.util
+from pathlib import Path
+_route_spec=importlib.util.spec_from_file_location('fes_observed_sdm_reader',Path(__file__).resolve().parent.parent/'firmware/nano_sdm_reader_profile.py')
+reader_route=importlib.util.module_from_spec(_route_spec);_route_spec.loader.exec_module(reader_route)
 
 from hps_context import validate_window_read
 
@@ -7,6 +11,7 @@ H=r'[0-9a-f]{1,16}'
 D=r'[0-9]{1,20}'
 P=r'(?:NOTICE:[ \t]+)?'
 PATTERNS={
+    'reader_route':re.compile(P+rf'FES_NANO_READER_ROUTE status=(?P<status>-?{D}) owner=(?P<owner>{H}) stream=(?P<stream>{D}) secure=(?P<secure>[01]) aruser=(?P<aruser>{H}) arprot=(?P<arprot>{H}) bank=(?P<bank>secure) ns_abort=(?P<ns_abort>[01]) source_retained=(?P<source_retained>[01]) source_generation=(?P<source_generation>{D}) generation=(?P<generation>{D}) binding=(?P<binding>[0-9a-f]{{64}})'),
     'step':re.compile(rf'FES_NATIVE_FPGA_WINDOW_PRESENT STEP index=(?P<index>{D}) phase=(?P<phase>render_begin|render_end|present_begin|present_end|return_begin|return_end) elapsed_us=(?P<elapsed_us>{D})'),
     'scope':re.compile(P+rf'FES_NANO_WINDOW_SCOPE phase=(?P<phase>control|data|close) owner=(?P<owner>{H}) generation=(?P<generation>{D}) reset=(?P<reset>{H})'),
     'gate':re.compile(P+rf'FES_NANO_WINDOW_GATE status=(?P<status>-?{D}) owner=(?P<owner>{H}) generation=(?P<generation>{D}) reset=(?P<reset>{H}) bytes=(?P<bytes>{D}) permit=(?P<permit>owned-read|denied)'),
@@ -18,8 +23,8 @@ PATTERNS={
     'present_receipt':re.compile(rf'FES_NATIVE_FPGA_WINDOW_PRESENT PASS package_id=(?P<package_id>[0-9a-f]{{64}}) build_id=(?P<build_id>[0-9a-f]{{32}}) owner=(?P<owner>{H}) source_generation=(?P<source_generation>{D}) closed_generation=(?P<closed_generation>{D}) frames=(?P<frames>{D}) last_reader_generation=(?P<last_reader_generation>{D}) last_cookie=(?P<last_cookie>{D}) bytes=(?P<bytes>{D}) crc32=(?P<crc32>[0-9a-f]{{8}}) frame_sha256=(?P<frame_sha256>[0-9a-f]{{64}}) access_map_sha256=(?P<access_map_sha256>[0-9a-f]{{64}}) data_closed=1 memory_retained=1 runtime_admission=unavailable'),
 }
 HEX={'owner','reset','crc32','hardware_drained','idr0','idr1','aidr','s_idr1','cr0','ack','gbpa','agbpa',
-     's_cr0','s_ack','s_init','s_gbpa','s_agbpa','enable','base','baseext','limit','limitext','published_crc32','read_crc32','pending','state','version','pins','soft','error_location','error_details'}
-TEXT={'permit','phase','package_id','build_id','frame_sha256','access_map_sha256'}
+     'aruser','arprot','s_cr0','s_ack','s_init','s_gbpa','s_agbpa','enable','base','baseext','limit','limitext','published_crc32','read_crc32','pending','state','version','pins','soft','error_location','error_details'}
+TEXT={'binding','bank','permit','phase','package_id','build_id','frame_sha256','access_map_sha256'}
 
 
 class _Incomplete(Exception):pass
@@ -38,15 +43,19 @@ def checked_contract(identity,memory,contract):
     return validate_window_read(context,memory,identity['map_sha256'],contract)
 
 
-def check_route(take,require,*,owner,generation,reset,memory,with_gate):
+def check_route(take,require,*,owner,generation,reset,memory,with_gate,retained_reader=None):
     """Check the same sealed route for bounded probes and request services."""
     def owned(value,generation,reset):
         require(value['owner']==owner and value['generation']==generation and value['reset']==reset,
                 'window route changed owner, generation or reset')
+    if retained_reader is not None:
+        reader_route.checked_binding(retained_reader)
+        require(memory['bytes']==0x800000 and memory['bus_base']==0x95000000 and
+                (generation,reset)==((5,13) if with_gate else (4,15)), 'retained reader is outside its first sealed MENU phase')
     translation=take('smmu')
     require(translation==dict(status=0,reads=26,idr0=0x080f7e3f,idr1=0x0e739d18,aidr=1,s_idr1=0x80000018,
-        cr0=0,ack=0,gbpa=0,agbpa=0,s_cr0=0,s_ack=0,s_init=0,s_gbpa=0,s_agbpa=0,
-        identified=1,settled=1,bypass_controls_clear=1),'window use-point translation is not the sealed bypass route')
+        cr0=0,ack=0,gbpa=0x100000 if retained_reader is not None else 0,agbpa=0,s_cr0=0,s_ack=0,s_init=0,s_gbpa=0,s_agbpa=0,
+        identified=1,settled=1,bypass_controls_clear=0 if retained_reader is not None else 1),'window use-point translation is not the selected sealed route')
     firewall=take('ddr_firewall');owned(firewall,generation,reset)
     require(firewall['status']==0 and firewall['reads']==66 and firewall['mpfe_reset']==0 and
             firewall['base']==memory['bus_base'] and firewall['bytes']==memory['bytes'] and not firewall['enable']&~255,
@@ -63,6 +72,11 @@ def check_route(take,require,*,owner,generation,reset,memory,with_gate):
     require(take('ddr_firewall_end')==dict(layout_known=1,window_covered=1) and covered,
             'firewall does not cover the complete window')
     if with_gate:
+        if retained_reader is not None:
+            route=take('reader_route')
+            require(route==dict(status=0,owner=owner,stream=1,secure=1,aruser=0x3e0,arprot=3,bank='secure',
+                    ns_abort=1,source_retained=1,source_generation=4,generation=generation,
+                    binding=reader_route.digest(retained_reader)), 'sealed retained reader route proof differs')
         gate=take('gate');owned(gate,generation,reset)
         require(gate['status']==0 and gate['bytes']==memory['bytes'] and gate['permit']=='owned-read','window gate denied access')
 

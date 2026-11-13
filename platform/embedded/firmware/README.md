@@ -6,7 +6,7 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
-The format-13 source-continuation prototype returns to the native
+The selected format-14 source-continuation prototype returns to the native
 configuration checks only after one successful retirement and a fresh live
 engine/source/table/disabled-register check under the original one-second
 retirement origin. It consumes continuation once and keeps all buffers. The
@@ -16,7 +16,7 @@ parks with the source retained; later configuration checks retain their existing
 error path.
 `--retain-configuration` selects a native arena that rejects a second program
 reservation and initial-tape overwrite after success or failure. The SDK, entry
-and cold profile bind that selection; format 13 rejects an unretained arena.
+and cold profile bind that selection; format 14 rejects an unretained arena.
 The [format-12 physical trial](../../../docs/validation/2026-11-13-de25-retained-continuation-physical/README.md)
 passes retained continuation, then fails the later synchronous FPGA status
 reply: the transfer header guard is still configured and correctly rejects
@@ -32,14 +32,33 @@ admission. Transfer history, sticky failures and retained storage never reset.
 The existing bounded synchronous parser and all independent readiness checks
 remain in use. No ordinary DATA operation is enabled.
 
-The joined model compiles the production readiness caller and vendor parser,
-covering valid repeated control queries and ownership/table/parser failures.
-A second regression compiles the production MENU window gate with the actual
-SMMU observer. That gate still denies the retained `GBPA.ABORT` state. The
-mailbox fix does not qualify a reader route, initial MENU, safe source reuse or
-repeatable core loading. A separate owned reader-memory handoff remains needed
-before a new native-menu hardware trial. Model/build results and prior physical
-retirement/continuation proofs retain their exact source boundaries.
+Format 14 adds a source-bound reader handoff. The complete reviewed HPS IP
+and generated MPFE wrapper bytes bind both compiled roles to Secure stream 1;
+the existing complete vendor adapter binds `ARUSER=0xE0`, `ARPROT=3` and
+`ARCACHE=2`. Quartus maps upper AXI user bits to `AxMMUSECSID=1` and
+`AxMMUSID=1`; the Non-secure transaction attribute does not change that stream
+namespace. With both SMMUEN controls clear, Arm SMMUv3 selects the Secure bank
+for that stream. Fresh Secure controls must remain zero while the retired
+Non-secure controller keeps `GBPA.ABORT` set. No bypass control is cleared and
+no SMMU register or translation table is written by the handoff.
+
+The actual completed transfer, successful separately admitted control query,
+retired/continued private engine, retained source/table binding and current
+control-only MENU owner must all remain valid. The first preparation and
+release stages each check complete retained tables and fresh register views,
+with a second Secure/Non-secure observation after the last table scan. Changed
+ownership, callbacks, source, phase, data containment or either bank rejects.
+The unselected legacy reader gate continues to require its original all-zero
+bypass state. The new serial observer requires the exact compiled route digest
+and both ordered reader-use records; a bare abort snapshot supplies no grant.
+
+The joined sanitizer model compiles the production readiness caller, mailbox,
+reader gate, bank observer and retained-source hooks. It exercises successful
+control/query/reader preparation and release, plus ownership, namespace,
+register, table and late-change failures. These are injected software checks.
+The route is not hardware-qualified yet, and memory remains retained on every
+outcome. Initial MENU on this source, independent interconnect drain, source
+reuse and repeatable core loading still need their separately matched proofs.
 
 The selected full-input retirement profile uses a bounded, read-only command
 snapshot callback. Each queue snapshot checks the same 24-register superset as

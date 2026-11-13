@@ -63,16 +63,16 @@ static int sdm_probe_owns_mode(void *context,const struct nano_probe_binding *bi
 {
     struct fes_nano_bridges *b=&fes_nano_owned_bridges;
     sdm_probe_scope_reason=0;
-    if(context!=&sdm_arm_probe || !binding || completed>1)return sdm_probe_reject(1);
+    if(context!=&sdm_arm_probe || !binding || completed>2)return sdm_probe_reject(1);
     if(!FES_PROBE_CPU() || FES_PROBE_FREQUENCY()!=400000000U)return sdm_probe_reject(2);
     if(!fes_nano_mmu_platform_scope())return sdm_probe_reject(3);
     if(!sdm_probe_geometry())return sdm_probe_reject(4);
     if(!provider.valid || provider.failed ||
        binding->owner!=provider.record.boot.owner || binding->epoch!=provider.record.boot.epoch ||
-       provider.control_expected || provider.ddr_expected)return sdm_probe_reject(5);
+       provider.control_expected!=(completed==2) || provider.ddr_expected)return sdm_probe_reject(5);
     if(!b->initialized || b->failed || b->device_lease || b->epoch!=binding->epoch ||
-       b->state.owner!=binding->owner || b->state.generation!=binding->generation ||
-       b->state.reset!=15 || b->state.masters_contained!=1 || b->state.never_enabled!=1)
+       b->state.owner!=binding->owner || b->state.generation!=binding->generation+(completed==2) ||
+       b->state.reset!=(completed==2 ? 13U:15U) || b->state.masters_contained!=1 || b->state.never_enabled!=(completed!=2))
         return sdm_probe_reject(6);
     if(!provider.devices_attempted || !provider.devices_bound ||
        !sd_platform.initialized || sd_platform.failed || sd_platform.active || sd_platform.prepared)
@@ -85,7 +85,7 @@ static int sdm_probe_owns_mode(void *context,const struct nano_probe_binding *bi
     if(fes_nano_owned_mac.attempted || fes_nano_owned_mac.initialized || fes_nano_owned_mac.failed)
         return sdm_probe_reject(7);
     if(!configuration.initialized || configuration.failed || !configuration.prepared ||
-       !configuration.started || configuration.finished!=completed || configuration.rearmed ||
+       !configuration.started || configuration.finished!=(completed!=0) || configuration.rearmed ||
        configuration.bridges!=b ||
        configuration.owner!=binding->owner || configuration.generation!=binding->generation ||
        !configuration.bytes || !configuration.chunk || (configuration.chunk&63U) ||
@@ -110,10 +110,18 @@ static int sdm_probe_owns_mode(void *context,const struct nano_probe_binding *bi
        configuration_program.bytes!=configuration.bytes || configuration_program.chunk!=configuration.chunk ||
        configuration_program.mixed_roles!=1 || configuration_program.role!=FES_NANO_PROGRAM_ROLE_MENU ||
        configuration_program.control_abi!=FES_NANO_PROGRAM_MENU_ABI)return sdm_probe_reject(10);
-    if(fabric_configuration_generation!=(completed ? binding->generation:0) || fabric_generation ||
+    if(fabric_configuration_generation!=(completed ? binding->generation:0) ||
+       fabric_generation!=(completed==2 ? binding->generation+1:0) ||
        fabric_stop.attempted || fabric_stop.failed ||
        (completed && (fabric_stop.qualified!=1 || fabric_stop.done || fabric_stop.first_error)))
         return sdm_probe_reject(11);
+    if(completed==2 && (!identity_probe.initialized || !identity_probe.attempted || identity_probe.active!=1 ||
+       identity_probe.failed || identity_probe.first_error || identity_probe.cleanup_error ||
+       identity_probe.bridges!=b || identity_probe.reader!=FES_NANO_READER_WINDOW ||
+       identity_probe.abi!=0x10203043U || identity_probe.io.context!=&provider ||
+       !((identity_probe.stage==FES_ID_DDR_PREPARE && !window_prepared && !window_issued) ||
+         (identity_probe.stage==FES_ID_DDR_RELEASE && !window_prepared && window_issued==1))))
+        return sdm_probe_reject(33);
     /* Cold ownership calls the pinned shared-device containment callback for
      * active USB: DMA/IRQ disabled and AHB master idle under stable clocks,
      * CPU/reset/owner and generation. Ready flags alone never qualify it.
@@ -353,3 +361,4 @@ int fes_nano_sdm_source_start_ready(void)
 #include "nano_sdm_input_finish.inc"
 
 #include "nano_sdm_control_platform.inc"
+#include "nano_sdm_reader_platform.inc"

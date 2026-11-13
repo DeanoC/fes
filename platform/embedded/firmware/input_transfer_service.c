@@ -80,6 +80,8 @@ static int completed(void)
   transfer.headers==transfer.posts+transfer.status_polls &&
   transfer.buffer_reports==(captured.bytes+captured.chunk-1U)/captured.chunk;
 }
+int fes_nano_sdm_transfer_reader_ready(void)
+{return !control_pending && control_header_seen==1 && completed();}
 int fes_nano_sdm_transfer_control_begin(void)
 {
  if(service_error)return service_error;

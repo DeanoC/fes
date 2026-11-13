@@ -4,7 +4,8 @@ from pathlib import Path
 HERE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('fes_input_arena',HERE/'nano_sdm_probe_profile.py');arena=importlib.util.module_from_spec(spec);spec.loader.exec_module(arena)
 fit_spec=importlib.util.spec_from_file_location('fes_input_fit',HERE.parent/'nano/fit_layout.py');fit=importlib.util.module_from_spec(fit_spec);fit_spec.loader.exec_module(fit)
-CONTRACT=dict(format=13,scope='nano-SID10-retained-native-control-v13',mode='input-transfer-retire-retained-continue',attempts=1,
+reader_spec=importlib.util.spec_from_file_location('fes_sdm_reader_profile',HERE/'nano_sdm_reader_profile.py');reader=importlib.util.module_from_spec(reader_spec);reader_spec.loader.exec_module(reader)
+CONTRACT=dict(format=14,scope='nano-retained-source-secure-reader-v14',mode='input-transfer-retire-retained-continue',attempts=1,
  source_base=0x94800000,wire_base=0x14800000,payload_max=0x7ff000,page_bytes=4096,metadata_page=0x94fff000,
  arena_base=0x94000000,arena_bytes=0x10000,root_offset=0x4000,command_offset=0x8000,event_offset=0x9000,
  prepared_control=12,armed_control=13,source_stream=10,source_access='read-only-XN',other_streams='abort',
@@ -19,7 +20,7 @@ CONTRACT=dict(format=13,scope='nano-SID10-retained-native-control-v13',mode='inp
  control_inflight=1,control_tables='full-before-and-after-query',
  control_view='fresh-fixed-disabled-24-registers-and-owner',
  control_mailbox='stable-empty-parser-descriptors-bitmap-and-FIFOs-no-ACK',
- control_bound='existing-vendor-bounded-sync-parser',control_DATA_reopen=False,
+ control_bound='existing-vendor-bounded-sync-parser',control_DATA_reopen=False,reader_route=dict(reader.CONTRACT),
  continuation_scope='live-engine-and-fresh-final-view-under-original-retirement-bound',
  buffers='retained-on-every-outcome',mapping_retirement='abort-invalidate-disable-retained',automatic_reset=False,replay=False,
  physical_qualification=False,ordinary_runtime_activation=False,build_tag='cold-chain-prefix-16-hex',boot_fit=dict(fit.CONTRACT),compiler_stack_records='selected-units',final_counter_owner_scope='fresh-after-read',pretransfer_mailbox='vendor-parser-until-preparation-attempt',retirement_bound_us=1000000,retirement_controls=[13,12,8,0],retirement_queue_pointers=[6,12],retirement_abort=0x100000,retirement_allow_bypass=False,retirement_memory_reuse=False,retirement_timing='existing-guard-samples-v1',retirement_timing_phases=7,retirement_timing_added_clock_reads=0,retirement_register_batch_rows=24,retirement_table_guard_bytes=4096,retirement_fresh_prewrite_registers=24,retirement_command_snapshot='owned-fixed-24-register-superset',retirement_command_snapshot_rows=24)
@@ -36,9 +37,9 @@ CONTRACT.update(retirement_command_clock='fresh-counter-monotonic-source-and-ret
                 retirement_final_validation_policy='retained-final-snapshots-only')
 FILES=('nano_sdm_input_profile.py','sdm_input_vendor_service.c','sdm_input_vendor_mailbox.c','sdm_input_mailbox.h',
  'nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','input_tables.c','input_tables.h','input_transfer.c','input_transfer.h',
- 'input_transfer_service.c','input_transfer_service.h','sdm_input_probe_setup.c','sdm_input_probe_setup.h','command_queue.c','command_queue.h','source_retire.c','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc')
-C_FILES=('input_tables.c','input_transfer.c','input_transfer_service.c','probe_setup.c','command_queue.c','source_retire.c')
-H_FILES=('input_tables.h','input_transfer.h','input_transfer_service.h','probe_setup.h','command_queue.h','nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc')
+ 'input_transfer_service.c','input_transfer_service.h','sdm_input_probe_setup.c','sdm_input_probe_setup.h','command_queue.c','command_queue.h','source_retire.c','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc','nano_sdm_reader_profile.py','nano_sdm_reader.h','nano_sdm_reader.c','nano_sdm_reader_platform.inc')
+C_FILES=('input_tables.c','input_transfer.c','input_transfer_service.c','probe_setup.c','command_queue.c','source_retire.c','nano_sdm_reader.c')
+H_FILES=('input_tables.h','input_transfer.h','input_transfer_service.h','probe_setup.h','command_queue.h','nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc','nano_sdm_reader.h','nano_sdm_reader_platform.inc')
 SERVICE=Path('plat/intel/soc/common/socfpga_sip_svc.c');MAILBOX=Path('plat/intel/soc/common/soc/socfpga_mailbox.c');MAILBOX_HEADER=Path('plat/intel/soc/common/include/socfpga_mailbox.h')
 PLATFORM=Path('plat/intel/soc/common/nano_cold_platform.c');LD=Path('bl31/bl31.ld.S');MK=Path('plat/intel/soc/agilex5/platform.mk');HEADER=Path('plat/intel/soc/common/include/fes_nano_cold_profile.h')
 NAMES=tuple('plat/intel/soc/common/'+n for n in C_FILES)+tuple('plat/intel/soc/common/include/'+n for n in H_FILES)+tuple(map(str,(SERVICE,MAILBOX,MAILBOX_HEADER,PLATFORM,LD,MK,HEADER)))
@@ -60,17 +61,19 @@ def selected(profile,enabled):
  if tuple(mapping.get(k) for k in ('ram_base','ram_bytes','dma_base','dma_bytes','reader_base','reader_bytes'))!=(0x84000000,0x10000000,0x94800000,0x800000,0x95000000,0x800000) or configuration.get('base')!=0x94800000:
   raise ValueError('SDM input transfer requires pinned heap/source/reader exclusions')
  fit.checked(profile.get('boot_fit'))
- return dict(CONTRACT)
+ reader.checked(profile)
+ return json.loads(json.dumps(CONTRACT))
 def checked(profile):
  v=profile.get('sdm_input_transfer') if isinstance(profile,dict) else None
  if v is None:return None
  if json.dumps(v,sort_keys=True)!=json.dumps(CONTRACT,sort_keys=True):raise ValueError('unsupported SDM input transfer contract')
  return selected(profile,True)
 def header(profile):
- if checked(profile) is None:return '#define FES_NANO_SDM_INPUT_TRANSFER 0\n#define FES_NANO_SDM_SOURCE_LEASE 0\n#define FES_NANO_SDM_RETIRE_SOURCE 0\n#define FES_NANO_RETIRE_TIMING 0\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 0\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 0\n'
+ if checked(profile) is None:return '#define FES_NANO_RETAINED_READER_ROUTE 0\n#define FES_NANO_SDM_INPUT_TRANSFER 0\n#define FES_NANO_SDM_SOURCE_LEASE 0\n#define FES_NANO_SDM_RETIRE_SOURCE 0\n#define FES_NANO_RETIRE_TIMING 0\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 0\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 0\n'
  chain=profile.get('chain_sha256','')
  if len(chain)!=64 or any(c not in '0123456789abcdef' for c in chain):raise ValueError('complete input transfer chain required')
  return ('#define FES_NANO_SDM_INPUT_TRANSFER 1\n#define FES_NANO_SDM_SOURCE_LEASE 1\n#define FES_NANO_SDM_RETIRE_SOURCE 1\n#define FES_NANO_RETIRE_TIMING 1\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 1\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 1\n#define FES_NANO_INPUT_BUILD "'+chain[:16]+'"\n'
+  '#define FES_NANO_RETAINED_READER_ROUTE 1\n#define FES_NANO_READER_ROUTE_SHA '+chr(34)+reader.digest(reader.checked(profile))+chr(34)+'\n'
   '#define FES_NANO_PROBE_HEAP_FIRST 0x84000000ULL\n#define FES_NANO_PROBE_HEAP_LAST 0x94000000ULL\n')
 def install(source,profile,start,mmu,ram,mailbox):
  if checked(profile) is None:return None
@@ -137,7 +140,7 @@ def verify_image(image,profile):
  import nano_firmware_ram as ram
  symbols=ram.symbols(image);retire_scope=private_function(image,'retire_owned');retire_tables=private_function(image,'retire_valid');private_scope=private_function(image,'sdm_input_final_scope')
  fixed={'__FES_SMMU_PROBE_START__':0x94000000,'__FES_SMMU_STREAMS__':0x94000000,'__FES_SMMU_SDM_ROOT__':0x94004000,'__FES_SMMU_CMDQ__':0x94008000,'__FES_SMMU_EVTQ__':0x94009000,'__FES_SMMU_PROBE_END__':0x94010000}
- roots=('fes_nano_sdm_source_prepare','fes_nano_sdm_source_start_ready','fes_nano_sdm_source_validate','fes_nano_sdm_source_finish','fes_nano_sdm_transfer_result','nano_probe_arm','nano_sdm_transfer_before','nano_sdm_transfer_response','nano_sdm_transfer_status_result','mailbox_read_response_async_expected','nano_source_retire','nano_source_continue','nano_cmdq_submit','fes_nano_sdm_transfer_control_begin','fes_nano_sdm_transfer_control_finish','fes_nano_sdm_source_control_ready','fes_nano_sdm_control_mailbox_idle')
+ roots=('fes_nano_sdm_source_prepare','fes_nano_sdm_source_start_ready','fes_nano_sdm_source_validate','fes_nano_sdm_source_finish','fes_nano_sdm_transfer_result','nano_probe_arm','nano_sdm_transfer_before','nano_sdm_transfer_response','nano_sdm_transfer_status_result','mailbox_read_response_async_expected','nano_source_retire','nano_source_continue','nano_cmdq_submit','fes_nano_sdm_transfer_control_begin','fes_nano_sdm_transfer_control_finish','fes_nano_sdm_source_control_ready','fes_nano_sdm_control_mailbox_idle','fes_nano_sdm_source_reader_ready','fes_nano_sdm_transfer_reader_ready','nano_sdm_reader_observed')
  if any(symbols.get(n,(0,))[0]!=v for n,v in fixed.items()) or any(n not in symbols for n in roots) or any(n in symbols for n in ('fes_nano_sdm_fault64_arm','fes_nano_sdm_probe_arm_park','fes_nano_sdm_input_arm_park')):
   raise ValueError('input arena/hooks absent or conflicting diagnostic installed')
  if any(marker not in image for marker in (profile['chain_sha256'][:16].encode(),b'FES_NANO_INPUT_RESULT build=',b'FES_NANO_RETIRE_RESULT build=',b'FES_NANO_RETIRE_TIMING build=',b'FES_NANO_RETIRE_QUEUE build=',b'FES_NANO_INPUT_CONTINUE build=',b'FES_NANO_INPUT_PARK retained=1 resume=0 activated=0')):raise ValueError('input build/terminal markers absent')

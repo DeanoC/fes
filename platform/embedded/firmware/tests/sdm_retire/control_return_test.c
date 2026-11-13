@@ -2,10 +2,12 @@
 #define FES_TEST_JOINED_MAIN joined_fixture_main
 #include "joined_test.c"
 static unsigned smmu_queries,firewall_queries;
+#ifndef FES_TEST_CONTROL_REPORTS
 static int smmu_report(struct fes_nano_cold *s,void *out)
 {assert(s==&provider && !out);smmu_queries++;return 0;}
 static int firewall_report(struct fes_nano_cold *s,void *out)
 {assert(s==&provider && !out);firewall_queries++;return 0;}
+#endif
 #define FES_NANO_SDM_INPUT_TRANSFER 1
 /* Extracted from the current production file by the Python test driver. */
 #include "identity_configured_test.inc"
@@ -120,7 +122,10 @@ static void case_run(unsigned fault)
  assert(!mbox_db_lock && !mbox_read_lock && !mbox_write_lock);
  if(fault && fault!=48)assert(fes_nano_sdm_transfer_control_begin());
 }
-int main(void)
+#ifndef FES_TEST_CONTROL_MAIN
+#define FES_TEST_CONTROL_MAIN main
+#endif
+int FES_TEST_CONTROL_MAIN(void)
 {
  for(unsigned n=0;n<49;n++){
   pid_t p=fork();assert(p>=0);if(!p){case_run(n);_exit(0);}int status;

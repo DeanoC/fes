@@ -18,6 +18,11 @@ class SourceRetirementTests(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
         cls.output = Path(cls.tmp.name)
+        from test_nano_sdm_input_profile import profile as input_profile, mode as input_mode
+        selected_header = input_mode.header(input_profile())
+        (cls.output / "reader_bound_profile.h").write_text(''.join(
+            row + '\n' for row in selected_header.splitlines()
+            if row.startswith(("#define FES_NANO_RETAINED_READER_ROUTE ", "#define FES_NANO_READER_ROUTE_SHA "))))
         sys.path.insert(0, str(ROOT / "platform/embedded/nano"))
         import usb_readiness
         project = cls.output / "project"
@@ -55,9 +60,9 @@ class SourceRetirementTests(unittest.TestCase):
         binary = self.output / name
         sources = [FIXTURE / (name + ".c"), FW / "source_retire.c", FW / "command_queue.c", FW / "input_tables.c"]
         if name == "retained_window_gate_test":
-            sources += [FW / "nano_smmu.c"]
+            sources += [FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
         if joined:
-            sources += [self.output / "probe_setup.c", FW / "input_transfer.c"]
+            sources += [self.output / "probe_setup.c", FW / "input_transfer.c", FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
             sources += [FW / (n + ".c") for n in ("nano_cold", "nano_hps_io", "nano_bridges", "nano_boot", "nano_sd", "nano_sd_platform", "nano_usb_platform", "nano_usb_board", "nano_mac", "nano_usb_service", "nano_usb_composition", "nano_configuration")]
         command = [shutil.which("cc") or "cc", "-std=c11", "-O1", "-g", "-Wall", "-Wextra", "-Werror",
                    "-Wno-misleading-indentation", "-Wno-unused-function", "-Wno-unused-variable", "-Wno-sign-compare",
@@ -87,6 +92,9 @@ class SourceRetirementTests(unittest.TestCase):
 
     def test_retained_continuation_requires_live_retired_state(self):
         self.run_model("continue_test")
+
+    def test_sealed_secure_reader_handoff_and_live_failures(self):
+        self.run_model("reader_route_test", joined=True)
 
     def test_reader_gate_stays_closed_after_retained_source_abort(self):
         self.run_model("retained_window_gate_test")

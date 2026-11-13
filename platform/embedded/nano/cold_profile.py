@@ -240,6 +240,8 @@ def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obs
     if probe is not None:identity['sdm_arm_probe']=probe
     fault=sdm_fault.selected(identity,sdm_fault64)
     if fault is not None:identity['sdm_fault64']=fault
+    if sdm_input_transfer:
+        identity['sdm_reader_route']=sdm_input.reader.derive(build.get('hps_project'),build.get('hps_menu_project'),identity)
     transfer=sdm_input.selected(identity,sdm_input_transfer)
     if transfer is not None:identity['sdm_input_transfer']=transfer
     identity['chain_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()

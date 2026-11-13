@@ -920,7 +920,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, scratch_insp
 
 
 def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, configuration, from_storage=False, reader_memory=None, ddr_read=None, computer=None, computer_activity=False, cpu_mapping=None, atf=None,
-                                computer_reload=False, computer_storage_return=False, window_read=None, window_present=False, menu_read=None, _continuation=None, _require_activation=False, _window_prefix=False, _menu_prefix=False):
+                                computer_reload=False, computer_storage_return=False, window_read=None, window_present=False, menu_read=None, retained_reader_route=None, _continuation=None, _require_activation=False, _window_prefix=False, _menu_prefix=False):
     """Observe a contained transfer followed by the selected reclosed probe.
 
     The maps come from independently checked build receipts. Variable-length
@@ -936,11 +936,13 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
         raise ValueError('window presentation requires the explicitly selected read path')
     if type(computer_storage_return) is not bool or computer_storage_return and not computer_reload:
         raise ValueError('computer storage return requires the selected two-load diagnostic')
+    if retained_reader_route is not None and menu_read is None:
+        raise ValueError('retained reader route requires its explicit MENU selection')
     if menu_read is not None:
         if (type(computer_activity) is not bool or from_storage is not True or reader_memory is None or cpu_mapping is None or ddr_read is not None or computer is not None or computer_activity or
                 computer_reload or computer_storage_return or window_read is not None or window_present or _continuation is not None or _require_activation or _window_prefix or _menu_prefix):
             raise ValueError('menu presentation requires its separate complete stored configuration path')
-        return decode_menu_trace(data,identity=fpga_identity,memory=reader_memory,contract=menu_read,rules=dict(RULES),
+        return decode_menu_trace(data,identity=fpga_identity,memory=reader_memory,contract=menu_read,rules=dict(RULES),retained_reader_route=retained_reader_route,
             base_decode=lambda prefix:decode_native_configuration(prefix,build_id,owner_seed,fpga_identity=fpga_identity,
                 configuration=configuration,from_storage=True,reader_memory=reader_memory,cpu_mapping=cpu_mapping,atf=atf,_menu_prefix=True))
     if window_read is not None:

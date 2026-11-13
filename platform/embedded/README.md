@@ -70,10 +70,13 @@ explicitly retained arena blocks source overwrite. Its
 [physical trial](../../docs/validation/2026-11-13-de25-retained-continuation-physical/README.md)
 passes continuation and fails the subsequent FPGA-status reply. Format 13 adds
 a separately admitted status transaction, with live retained-source ownership,
-empty-mailbox checks and an exact bounded reply. The existing MENU reader gate
-still rejects the retained abort state; its separate reader-memory handoff is
-required before another native-menu trial. These changes do not qualify memory
-reuse or general core-load acceptance.
+empty-mailbox checks and an exact bounded reply. Format 14 adds a separately
+bound reader handoff for the sealed Secure stream 1 route, requiring fresh
+Secure-bank bypass controls while keeping the retired Non-secure source
+aborted. It changes no SMMU register and retains all source storage. Injected
+reader and serial-audit tests pass; the new route still needs a matched native
+hardware trial. These changes do not qualify memory reuse or general core-load
+acceptance.
 
 This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
 launcher integration, while bounded Nano CPU/SD/package diagnostics now run on

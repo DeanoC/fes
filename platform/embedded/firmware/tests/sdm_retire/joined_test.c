@@ -267,6 +267,7 @@ typedef struct mailbox_service {
 #include "nano_configuration.h"
 #include "nano_program.h"
 #include "nano_fabric_stop.h"
+#include "reader_profile_fixture.h"
 struct fes_nano_mac fes_nano_owned_mac;
 static struct fes_nano_configuration configuration;
 static struct fes_nano_program configuration_program;
@@ -274,7 +275,7 @@ static struct fes_nano_fabric_stop fabric_stop;
 static uint64_t fabric_configuration_generation,fabric_generation;
 static unsigned mode,smmu_reads,smmu_writes,slots,parks;
 static uint64_t ticks,arena[8192];
-static uint32_t registers[48],route_remap;
+static uint32_t registers[64],route_remap;
 static unsigned retire_fault,retire_armed;
 static unsigned source_hash_checks,hash_failure,source_hash_delay,live_mutation,mutation_at,live_owner_checks;
 static uint32_t live_bad_register=UINT32_MAX;
@@ -304,6 +305,9 @@ static uint64_t table_word(const char *name,unsigned index){
 }
 static unsigned smmu_index(uint64_t address){
  assert(address>=0x16000000 && address<=0x160100ac);unsigned offset=(unsigned)(address-0x16000000);
+ if(offset==0x8004)return 48;
+ const unsigned secure[]={0x8020,0x8024,0x803c,0x8044,0x8048};
+ for(unsigned n=0;n<5;n++)if(offset==secure[n])return 49+n;
  if(offset==0x100a8)return 44;if(offset==0x100ac)return 45;assert(offset<=0xb4 && !(offset&3));return offset/4;
 }
 static uint32_t probe_read(uint64_t address){
@@ -429,7 +433,7 @@ static void source_setup(unsigned selected){mode=selected;
  for(unsigned n=0;n<48;n++)configuration_program.header[FES_NANO_PROGRAM_SHA384+n]=(uint8_t)(n+1);
  if(mode==29)configuration.bytes=configuration_program.bytes=NANO_SDM_INPUT_MAX+4;
  if(mode==30)memset(configuration_program.header+FES_NANO_PROGRAM_SHA384,0,48);
- registers[0]=0x080f7e3f;registers[1]=0x0e739d18;registers[5]=0x400075;registers[0x2c/4]=4;
+ registers[0]=0x080f7e3f;registers[1]=0x0e739d18;registers[5]=0x400075;registers[0x2c/4]=4;registers[7]=1;registers[48]=0x80000018;
  unsigned usb_writes=model.base.h.usb_writes,physical_accesses=model.accesses,phy_requests=model.requests;
  if(mode==2)model.base.h.usb[8/4]|=1U<<5;
  if(mode==3)model.base.h.usb[24/4]=1;

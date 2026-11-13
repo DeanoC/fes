@@ -27,8 +27,8 @@ int main(void)
  fes_nano_owned_bridges.state.generation=5;fes_nano_owned_bridges.state.reset=13;
  values[0]=0x080f7e3f;values[1]=0x0e739d18;values[2]=1;values[3]=0x80000018;
  assert(!window_gate() && reads==26);
- /* The format13 control handoff does not make an aborted source route a
-  * qualified reader route. The unchanged production gate must still deny it. */
+ /* The unselected legacy gate has no sealed secure-stream binding. It must
+  * still deny the aborted state; selected handoff coverage is separate. */
  values[6]=FES_NANO_SMMU_ABORT;assert(window_gate()==-1 && reads==52);
  values[6]=0;covered=0;assert(window_gate()==-1 && reads==78);
  covered=1;values[0]^=1;assert(window_gate()==-1 && reads==104);
