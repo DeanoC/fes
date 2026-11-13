@@ -192,6 +192,16 @@ static int test_qs(Vexpansion_bus_harness &dut) {
     if (!dut.bus_dsel || !dut.bus_romcs) return fail("QS window read did not assert DSEL/ROMCS");
     idle(dut);
     settle(dut, 2);
+    // Writes outside the window, like the ROM's RAM check, and I/O writes to
+    // a window-shaped port leave characters off.
+    mem_write(dut, 0x4000, 0x11);
+    mem_write(dut, 0x83ff, 0x22);
+    mem_write(dut, 0x8800, 0x33);
+    io_write(dut, 0x8400, 0x44);
+    rfsh_fetch(dut, 0x8400 + (28 * 8) + 1);
+    if (dut.bus_romcs) return fail("QS turned characters on after a write outside its window");
+    idle(dut);
+    settle(dut, 2);
     mem_write(dut, 0x8400, 0xa5);
     mem_write(dut, 0x87ff, 0x5a);
     mem_write(dut, 0x4000, 0x11);
@@ -226,6 +236,11 @@ static int test_qs(Vexpansion_bus_harness &dut) {
     if (mem_read(dut, 0x8400) != 0xa5) return fail("CPU reset cleared QS memory");
     rfsh_fetch(dut, 0x8400);
     if (dut.bus_romcs) return fail("QS turned characters on after a read");
+    idle(dut);
+    settle(dut, 2);
+    mem_write(dut, 0x4000, 0x11);
+    rfsh_fetch(dut, 0x8400);
+    if (dut.bus_romcs) return fail("QS turned characters on after a write outside its window");
     idle(dut);
     settle(dut, 2);
     std::cout << "ZX81 QS character window passed\n";

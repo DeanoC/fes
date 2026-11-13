@@ -60,6 +60,7 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
         self.assertIn("GPL-2.0-or-later", state)
         self.assertIn("#387", state)
         self.assertIn("Both files were removed", state)
+        self.assertNotIn("remains as ROM-derived content", DOC)
         self.assertIn("qs_chrs.hex", evidence)
         self.assertIn("remains in Git history", evidence)
         expansions = ROOT / "sources/misteross/cores/fes-zx81/expansions"
