@@ -320,7 +320,11 @@ def guard_functional_source(function):
                 video_socket=bound.arguments.get('video_socket', False),
                 native_video=bound.arguments.get('native_video', False))[2]
         roots = source_roots_for_producer(function.__module__, inputs, bound.arguments['root'])
-        _settle_import_root(bound.arguments['root'])
+        # An outer producer has already settled its import root. Repeating the
+        # lookup inside its guard can itself list the source root after an
+        # unrelated mtime change; that listing correctly fails the audit.
+        if _ACTIVE.get() is None:
+            _settle_import_root(bound.arguments['root'])
         with python_source_guard(bound.arguments['root'], roots):
             return function(*args, **kwargs)
     return guarded
@@ -331,11 +335,11 @@ def _settle_import_root(root):
 
     Producers put the source root on sys.path. importlib's FileFinder lists a
     sys.path directory again on the first lookup after that directory's mtime
-    changes. The only change a producer makes in the root is creating build/,
-    which a fresh checkout does not have yet. Create it here, before the guard,
-    and let each FileFinder for the root refill its cache now. Otherwise the
-    next import that misses sys.modules lists the root inside the guard:
-    "source list outside audited closure: .".
+    changes. A fresh checkout may not have build/ yet, so create it here before
+    the guard and let each FileFinder for the root refill its cache. Otherwise
+    the next import that misses sys.modules can list the root inside the guard:
+    "source list outside audited closure: .". This preflight must not run
+    inside an existing guard; ordinary reads and listings remain audited there.
     """
     import importlib.machinery
     root = Path(root).resolve()
