@@ -123,6 +123,18 @@ def matrix(root):
                 changed["interfaces"] += [interface(ident, major=2 if ident == "fes.media.spectrum-tape" else 1) for ident, enabled in zip(names, bits) if enabled]
                 add(name + "/" + group + "-" + "".join(str(int(b)) for b in bits), changed)
         if name == "computer":
+            # Shared ABI semantics remain separate from native driver admission.
+            for minor in (0, 1):
+                for group, names in (("ata", ["fes.media.ata-disk", "fes.memory.hps-ddr"]),
+                                     ("pcxt", ["fes.media.pcxt-floppy", "fes.media.pcxt-floppy-write"]),
+                                     ("persistence", ["fes.persistence.words", "fes.pc386.machine"]),
+                                     ("rtc", ["fes.rtc.wall-clock"])):
+                    for bits in itertools.product((False, True), repeat=len(names)):
+                        changed = copy.deepcopy(d)
+                        changed["abi"]["minor"] = minor
+                        changed["interfaces"] += [interface(ident) for ident, enabled in zip(names, bits) if enabled]
+                        add(name + f"/minor-{minor}/" + group + "-" + "".join(str(int(b)) for b in bits), changed)
+        if name == "computer":
             for group, names in (("media", ["fes.media.apple2-floppy", "fes.media.c64-disk", "fes.media.atari-st-floppy", "fes.media.spectrum-tape", "fes.media.zx81-tape"]),
                                  ("bus", ["fes.expansion.apple2-bus", "fes.expansion.c64-bus", "fes.expansion.atari-st-bus", "fes.expansion.spectrum-bus"])):
                 for pair in itertools.combinations(names, 2):

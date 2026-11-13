@@ -16,6 +16,33 @@ func fixtureDrivers() []Driver {
 	}}}
 }
 
+func TestComputerMinorSemanticsDoNotInventNativeDriverSupport(t *testing.T) {
+	a := fixture(t, func(s string) string {
+		s = strings.ReplaceAll(s, "fes.simple-game", "fes.computer")
+		s = strings.ReplaceAll(s, "fes.gamepad", "fes.keyboard.hid")
+		return strings.Replace(s, "[abi]\nid = \"fes.computer\"\nmajor = 1\nminor = 0",
+			"[abi]\nid = \"fes.computer\"\nmajor = 1\nminor = 1", 1)
+	})
+	semantic, err := NewDE10Compatibility()
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := a.Inspection().PackageID
+	if err = semantic.CheckArchive(a, id); err != nil {
+		t.Fatal("shared ABI 1.1 semantics rejected", err)
+	}
+	runtime, err := NewRuntimeCompatibility(semantic, []Driver{{Profile: "fes-gp-v1",
+		ABI: Contract{"fes.computer", 1, 0}, Interfaces: []Contract{
+			{"fes.keyboard.hid", 1, 0}, {"fes.video.fixed-720p60", 1, 0},
+		}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ErrorCode(runtime.CheckArchive(a, id)); got != "unsupported_abi" {
+		t.Fatalf("minor-0 driver admitted minor-1 package: %s", got)
+	}
+}
+
 func runtimeFixture(t *testing.T, target Target, drivers []Driver) (*RuntimeCompatibility, error) {
 	t.Helper()
 	registry, err := NewCompatibility(target, []ProgrammingProfile{{Profile: "fes-gp-v1", ABI: "fes.simple-game", Major: 1}, {Profile: "development-contained-v1", DiagnosticOnly: true}})

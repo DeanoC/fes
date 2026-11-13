@@ -37,6 +37,12 @@ Interfaces from another driver or ABI minor cannot fill a gap. Unknown optional
 interfaces remain optional; semantic dependencies still use the existing FES
 checker. A matching driver cannot override a diagnostic-only registry entry.
 
+The semantic computer checker follows the shared ABI 1.1 rules, including the
+second capability word, ATA/PC-XT media dependencies and paired persistence
+transport/layout. This does not extend the native driver: a package at minor
+1 still fails admission when the selected driver implements only minor 0.
+The paired C++/Go corpus checks these decisions independently.
+
 The contained Nano `ProgramLoader` now uses the same `DriverSupport` check
 before storage containment. Its compiled inventory provides only embedded
 control and, on its explicit ROM personality, the held-ROM interface. This

@@ -12,9 +12,9 @@ func isComputer(d corepackage.Descriptor) bool {
 }
 
 func computerContract(d corepackage.Descriptor) error {
-	// Match the implemented C++ driver, which reads identity words 0..15.
-	// The shared ABI already describes 1.1; that does not implement its driver.
-	if d.ABI.Minor > 0 || d.Core.System != "" {
+	// Semantic checking follows the shared ABI. DriverSupport separately
+	// rejects a minor or interface that the selected native driver lacks.
+	if d.ABI.Minor > int64(c.FesComputerABIMinor) || d.Core.System != "" {
 		return reject("unsupported_abi", "unsupported computer ABI or system declaration")
 	}
 	if d.Format == 4 || d.Format == 3 && d.ROM.Role != "firmware" {
@@ -32,7 +32,8 @@ func computerContract(d corepackage.Descriptor) error {
 		bus := i.ID == apple2Bus || i.ID == c64Bus || i.ID == atariBus || i.ID == spectrumBus
 		media := i.ID == c.FesComputerInterfaceMediaApple2FloppyID || i.ID == c.FesComputerInterfaceMediaC64DiskID ||
 			i.ID == c.FesComputerInterfaceMediaAtariStFloppyID || i.ID == c.FesComputerInterfaceMediaSpectrumTapeID ||
-			i.ID == c.FesComputerInterfaceMediaZx81TapeID
+			i.ID == c.FesComputerInterfaceMediaZx81TapeID || i.ID == c.FesComputerInterfaceMediaAtaDiskID ||
+			i.ID == c.FesComputerInterfaceMediaPcxtFloppyID
 		known := media || bus
 		switch i.ID {
 		case c.FesComputerInterfaceVideoFixed720p60ID, c.FesComputerInterfaceKeyboardHidID,
@@ -40,7 +41,9 @@ func computerContract(d corepackage.Descriptor) error {
 			c.FesComputerInterfaceMediaZx81TapeWriteID, c.FesComputerInterfaceMediaSpectrumDiskID,
 			c.FesComputerInterfaceMediaAtariStFloppyGeometryID, c.FesComputerInterfaceGamepadPortsID,
 			c.FesComputerInterfaceAudioPcmS16Stereo48kID, c.FesComputerInterfaceMemoryHpsDdrID,
-			c.FesComputerInterfaceVideoSessionDisplayID, displayPlane:
+			c.FesComputerInterfaceVideoSessionDisplayID, displayPlane,
+			c.FesComputerInterfaceMediaPcxtFloppyWriteID, c.FesComputerInterfacePersistenceWordsID,
+			c.FesComputerInterfacePc386MachineID, c.FesComputerInterfaceRtcWallClockID:
 			known = true
 		}
 		version := current(i)
@@ -69,6 +72,13 @@ func computerContract(d corepackage.Descriptor) error {
 			mediaUnits++
 		}
 	}
+	for _, id := range []string{c.FesComputerInterfaceMediaAtaDiskID, c.FesComputerInterfaceMediaPcxtFloppyID,
+		c.FesComputerInterfaceMediaPcxtFloppyWriteID, c.FesComputerInterfacePersistenceWordsID,
+		c.FesComputerInterfacePc386MachineID, c.FesComputerInterfaceRtcWallClockID} {
+		if present[id] && d.ABI.Minor < 1 {
+			return reject("unsupported_abi", "computer capability bits 16..31 require ABI 1.1")
+		}
+	}
 	display, ddr := present[c.FesComputerInterfaceVideoSessionDisplayID], present[c.FesComputerInterfaceMemoryHpsDdrID]
 	if display && !ddr {
 		return incompatible("session display requires HPS DDR")
@@ -80,17 +90,37 @@ func computerContract(d corepackage.Descriptor) error {
 		!present[c.FesComputerInterfaceMediaAtariStFloppyID] {
 		return incompatible("Atari ST media extensions require the base floppy interface")
 	}
+	if present[c.FesComputerInterfaceMediaPcxtFloppyWriteID] && !present[c.FesComputerInterfaceMediaPcxtFloppyID] {
+		return incompatible("PC/XT write requires the base floppy interface")
+	}
 	if present[c.FesComputerInterfaceMediaZx81TapeWriteID] && !present[c.FesComputerInterfaceMediaZx81TapeID] {
 		return incompatible("ZX81 tape write requires the base tape interface")
 	}
 	if present[c.FesComputerInterfaceMediaSpectrumDiskID] && (!present[c.FesComputerInterfaceMediaSpectrumTapeID] || !ddr) {
 		return incompatible("Spectrum disk requires Spectrum tape and HPS DDR")
 	}
+	if present[c.FesComputerInterfaceMediaAtaDiskID] && !ddr {
+		return incompatible("ATA disk requires HPS DDR")
+	}
 	if mediaUnits > 1 || buses > 1 {
 		return incompatible("computer declares more than one unit-0 medium or expansion bus")
 	}
 	if !present[c.FesComputerInterfaceVideoFixed720p60ID] {
 		return incompatible("computer requires fixed video")
+	}
+	words, layout := false, false
+	for _, i := range d.Interfaces {
+		if i.ID != c.FesComputerInterfacePersistenceWordsID && i.ID != c.FesComputerInterfacePc386MachineID {
+			continue
+		}
+		if !i.Required || !current(i) {
+			return incompatible("unsupported persistence transport or layout declaration")
+		}
+		words = words || i.ID == c.FesComputerInterfacePersistenceWordsID
+		layout = layout || i.ID == c.FesComputerInterfacePc386MachineID
+	}
+	if words != layout {
+		return incompatible("persistence requires exactly one registered layout")
 	}
 	return nil
 }
