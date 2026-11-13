@@ -628,11 +628,6 @@ public:
 		return {ErrorCode::unsupported_interface,
 			"clear computer media is unavailable", "request"};
 	}
-	virtual Error LoadComputerFirmware(const std::string&)
-	{
-		return {ErrorCode::unsupported_interface,
-			"firmware slot is unavailable", "request"};
-	}
 	virtual Error LoadComputerMediaStream(const std::string&, std::uint32_t)
 	{
 		return {ErrorCode::unsupported_interface, "computer media stream is unavailable", "request"};
@@ -724,7 +719,6 @@ public:
 		const std::string& expected_package_id, std::uint64_t expected_generation);
 	Error ClearComputerMedia(const std::string& expected_package_id,
 		std::uint64_t expected_generation);
-	Error LoadComputerFirmware(const std::string& path);
 	Error LoadComputerMediaStream(const std::string& path,
 		const std::string& expected_package_id, std::uint64_t expected_generation,
 		std::uint32_t size);

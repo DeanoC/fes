@@ -110,3 +110,10 @@ func TestDevelopmentMediaBindingMatchesLive(t *testing.T) {
 		t.Fatal("generation mismatch must fail closed")
 	}
 }
+
+func TestDevelopmentMediaRejectsFirmwareRole(t *testing.T) {
+	binding := DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 1, Role: FirmwareRole}
+	if binding.Valid() {
+		t.Fatal("retired firmware mailbox accepted as development media")
+	}
+}

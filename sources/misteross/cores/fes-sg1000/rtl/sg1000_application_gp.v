@@ -27,7 +27,6 @@ module sg1000_application_gp (
         .media_write_addr(write_addr), .media_write_data(write_data),
         .media_write_enable(write_enable), .media_ready(media_ready), .media_size(media_size),
         .media_byte0(), .media_byte1(), .media_byte2(),
-        .firmware_write_addr(), .firmware_write_data(), .firmware_write_enable(), .firmware_ready(),
         .menu_request(), .menu_opcode(), .menu_index(), .menu_argument(),
         .menu_response_valid(1'b0), .menu_response_error(1'b0), .menu_quiesced(1'b1),
         .menu_response_data(16'd0)

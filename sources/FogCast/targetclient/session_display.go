@@ -10,7 +10,7 @@ import (
 )
 
 func (c *Client) SetSessionDisplay(ctx context.Context, display protocol.SessionDisplay, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
-	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole || !display.Valid() {
+	if !b.Valid() || b.Stream || !display.Valid() {
 		return protocol.Status{}, protocol.SessionDisplayRequestError()
 	}
 	if c.kitLease == nil {

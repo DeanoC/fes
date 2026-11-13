@@ -3143,9 +3143,8 @@ normal library launch path. Format-4 Coleco titles bind their BIOS and cartridge
 independently by manifest ROM name. Readiness and launch require both exact-size
 objects, and the target links them before programming. Schema 23 preserves
 existing named ROM selections and media, removes the household BIOS pointer,
-and requires titles that used it to select the BIOS again. The shared legacy
-`fes.firmware.blob` mailbox definitions remain a separate removal follow-up;
-current format-4 Coleco packages do not use that interface. Expansion selection
+and requires titles that used it to select the BIOS again. Current format-4
+Coleco packages link the BIOS as a named ROM. Expansion selection
 binds an independently linked pack to the exact shell package. See
 [removable disks](#removable-disks-fescomputer-media-units).
 

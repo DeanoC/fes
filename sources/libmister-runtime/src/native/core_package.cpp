@@ -912,19 +912,17 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 			"native video fabric socket requires a Coleco application shell");
 	// Linked cartridges arrive in CRAM and have no later media commit. These
 	// mailbox contracts keep Start reset-held, so accepting them would publish
-	// a running session whose core never executes. Firmware delivery also holds
-	// reset until a later media commit. Firmware ROMs may still use
+	// a running session whose core never executes. Firmware ROMs may still use
 	// a separate cartridge/tape/disk delivery and retain their normal lifecycle.
 	if ((descriptor.format == 3 && descriptor.rom.role == "cartridge") ||
 		descriptor.format == 4) {
 		for (const auto& interface : descriptor.interfaces) {
 			if (interface.major == 1 && interface.minor == 0 &&
 				(interface.id == FesApplicationInterfaceMediaBlobStreamID ||
-				 interface.id == FesApplicationInterfaceFirmwareBlobID ||
 				 (descriptor.abi.id == FesApplicationABIID &&
 				  descriptor.abi.major == 1 && interface.id == FesApplicationInterfaceMediaBlobID)))
 				return CompatibilityError(ErrorCode::unsupported_interface,
-					"linked cartridge cannot declare a reset-held media or firmware mailbox");
+					"linked cartridge cannot declare a reset-held media mailbox");
 		}
 	}
 	if (descriptor.abi.id == FesApplicationABIID &&
@@ -951,7 +949,6 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 			}
 			if (interface.id == "fes.expansion.coleco-bus" && interface.major == 2 &&
 				interface.minor == 0 && !interface.required) coleco_bus = true;
-			const bool firmware = interface.id == FesApplicationInterfaceFirmwareBlobID;
 			const bool known = interface.id == FesApplicationInterfaceGamepadID ||
 				interface.id == FesApplicationInterfaceGamepadPortsID ||
 				interface.id == FesApplicationInterfaceKeypadPortsID ||
@@ -962,8 +959,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 				interface.id == FesApplicationInterfaceMemoryHpsDdrID ||
 				interface.id == FesApplicationInterfaceVideoMenuDisplayID ||
 				interface.id == FesApplicationInterfaceVideoMenuBlitterID ||
-				interface.id == FesApplicationInterfaceVideoSessionDisplayID ||
-				firmware;
+				interface.id == FesApplicationInterfaceVideoSessionDisplayID;
 			// The blitter's minors add ops, so a menu may declare any of them.
 			const bool supported = known && interface.major == 1 && (interface.minor == 0 ||
 				(interface.id == FesApplicationInterfaceVideoMenuBlitterID &&
@@ -972,7 +968,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"required application interface is unsupported");
 			if (!supported) continue;
-			if (!interface.required && !firmware)
+			if (!interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"application operational interfaces must be required when declared");
 			if (interface.id == FesApplicationInterfaceVideoFixed720p60ID)

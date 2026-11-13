@@ -98,9 +98,7 @@ module top #(
         .buttons(app_buttons), .controller_buttons(), .controller_keypad(),
         .media_ready(), .media_size(),
         .media_byte0(), .media_byte1(), .media_byte2(),
-        .media_write_addr(), .media_write_data(), .media_write_enable(),
-        .firmware_write_addr(), .firmware_write_data(), .firmware_write_enable(),
-        .firmware_ready()
+        .media_write_addr(), .media_write_data(), .media_write_enable()
     );
 
     pixel_pll video_clock (

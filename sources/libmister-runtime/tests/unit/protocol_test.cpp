@@ -534,11 +534,8 @@ void TestPersistenceRequestsAndResponseFixtures()
 		&request)
 				.ok());
 	assert(!Parse(R"({"protocol":2,"operation":"clear_media"})", &request).ok());
-	assert(Parse(R"({"protocol":2,"operation":"load_firmware","path":"/tmp/bios.bin"})",
-		&request)
-			   .ok());
-	assert(request.operation == Operation::load_firmware &&
-		request.media_path == "/tmp/bios.bin");
+	assert(!Parse(R"({"protocol":2,"operation":"load_firmware","path":"/tmp/bios.bin"})",
+		&request).ok());
 	assert(!Parse(R"({"protocol":2,"operation":"set_keyboard","matrix":1099511627776})",
 		&request)
 				.ok());
@@ -700,7 +697,6 @@ std::vector<std::string> ApplicationResponseFixtures()
 	status.capabilities.programming_profiles = {"development-contained-v1", "fes-gp-v1"};
 	status.capabilities.abis = {
 		{"fes.application", 1, 0, {{"fes.audio.pcm-s16-stereo-48k", 1, 0},
-			{"fes.firmware.blob", 1, 0},
 			{"fes.gamepad", 1, 0}, {"fes.gamepad.ports", 1, 0},
 			{"fes.keypad.ports", 1, 0}, {"fes.media.blob", 1, 0},
 			{"fes.media.blob-stream", 1, 0}, {"fes.memory.hps-ddr", 1, 0},
@@ -730,7 +726,6 @@ std::vector<std::string> ApplicationResponseFixtures()
 			descriptor.interfaces.push_back({"fes.keypad.ports", 1, 0, true});
 		}
 		if (mode == 5) {
-			descriptor.interfaces.push_back({"fes.firmware.blob", 1, 0, false});
 			descriptor.interfaces.push_back({"fes.media.blob", 1, 0, true});
 			descriptor.interfaces.push_back({"fes.media.blob-stream", 1, 0, true});
 			status.capabilities.media_stream = {{"fes.media.blob-stream", 1, 0}, 1, 32768, 512};
@@ -1190,7 +1185,7 @@ std::vector<std::string> ComputerResponseFixtures()
 	status.capabilities.rom_linking = 1;
 	status.capabilities.abis = {
 		{"fes.application", 1, 0, {{"fes.audio.pcm-s16-stereo-48k", 1, 0},
-			{"fes.expansion.coleco-bus", 1, 0}, {"fes.firmware.blob", 1, 0},
+			{"fes.expansion.coleco-bus", 1, 0},
 			{"fes.gamepad", 1, 0}, {"fes.gamepad.ports", 1, 0}, {"fes.keypad.ports", 1, 0},
 			{"fes.media.blob", 1, 0}, {"fes.media.blob-stream", 1, 0},
 			{"fes.memory.hps-ddr", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}},
