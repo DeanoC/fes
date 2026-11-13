@@ -1169,6 +1169,11 @@ The `core_ids` catalog filter resolves installed entries through their
 candidates and grouped editions before selecting a representative; recents
 also applies it before the page limit.
 
+Local game IDs combine the system, a title slug capped at 48 ASCII characters,
+and a digest of the source identity. A separator at the truncation boundary is
+removed so the appended digest keeps the ID valid; existing valid IDs are
+unchanged.
+
 `DELETE /api/v1/library/core-entries/{game_id}` removes one core title and
 clears its recents, favorite, collection memberships and edition choices while
 retaining core data, media bytes, and saved-tape names and timestamps. Recreating
