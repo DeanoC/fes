@@ -1,6 +1,7 @@
 package tenfoot
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -100,6 +101,48 @@ func TestReturnFromLibraryDropsQueuedGridCoverWork(t *testing.T) {
 	select {
 	case item := <-app.jobs:
 		t.Fatalf("resumed room left hidden grid work %+v queued", item)
+	default:
+	}
+}
+
+func TestOpenInstalledRoomDropsQueuedGridCoverWork(t *testing.T) {
+	root := t.TempDir()
+	pack := installedTestRoom(t, root, "inst", "Installed", "function draw() gfx.text('x', 1, 1) end")
+	h := newRoomHost(t)
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{pack}), root)
+	app.ctx = t.Context()
+	mario := availableGame("snes-mario", "Mario", "snes")
+	app.mu.Lock()
+	app.replaceLoadContextLocked()
+	app.games = []hostclient.Game{mario}
+	app.grid.SetCount(1)
+	app.covers[mario.ID] = &coverSlot{phase: coverArtwork, handle: strings.Repeat("ab", 32)}
+	app.mu.Unlock()
+	t.Cleanup(func() {
+		app.mu.Lock()
+		app.closeAllRoomsLocked()
+		app.mu.Unlock()
+	})
+
+	app.queueVisibleWork(time.Now())
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if _, busy := app.inflight[mario.ID]; !busy {
+		t.Fatal("library grid did not queue its cover")
+	}
+	// An installed pack opens through the update trial, not openValidRoomLocked.
+	app.openRoomLocked("inst")
+	if app.room == nil {
+		t.Fatalf("installed room did not open: %s", app.roomErr)
+	}
+	if _, busy := app.inflight[mario.ID]; busy {
+		t.Fatal("opening an installed room kept the hidden grid cover inflight")
+	}
+	select {
+	case item := <-app.jobs:
+		t.Fatalf("installed room left hidden grid work %+v queued", item)
 	default:
 	}
 }
