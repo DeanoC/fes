@@ -90,9 +90,91 @@
       "timed_out": false,
       "elapsed": 3.202337267808616,
       "log_sha256": "cad4487701bbc0b18ef259fc4d014d80c2a56042c5fc327b895ec758832338cf"
+    },
+    "command-guard-affected": {
+      "argv": [
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "56ae956505e3d3a499174b71d2ea9d955244725b",
+        "--jobs",
+        "2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 1797.3613712599035,
+      "log_sha256": "fa516cbc90002979b09bd4e07e84e6f284bae232580653bc67c66fc927c9e6bc"
+    },
+    "command-guard-compiler-cleanup-test": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "sources/misteross/tests",
+        "-p",
+        "test_de25_bounded_compile.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.416951766004786,
+      "log_sha256": "9e9a418ebdefb301e263dd8157bd0130baa44cbbfd4302020378cd02a9fc4b60"
+    },
+    "command-guard-committed-check": {
+      "argv": [
+        "make",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 12.808857110096142,
+      "log_sha256": "04b7d0133f86510765e0c9fdb3bd8a9269cfc9a03e91c02efd8cf2f5866bac79"
+    },
+    "command-guard-doc-links": {
+      "argv": [
+        "python3",
+        "scripts/check_doc_links.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4035897778812796,
+      "log_sha256": "112ab742576d07de470e5efa97b5e38a5efe2f0f6adabfdaeec5618439afe125"
+    },
+    "command-guard-sdk": {
+      "argv": [
+        "python3",
+        "out/command-guard-boot/build-native.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 119.6262899870053,
+      "log_sha256": "d45531f35f6b9ec6f1cee3a08bb55341c1ca8141d887f9390ffb5c0be73ec497"
+    },
+    "command-guard-entry": {
+      "argv": [
+        "python3",
+        "out/command-guard-boot/build-chain.py",
+        "entry"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 75.25043703219853,
+      "log_sha256": "293915c64088ac96a2d289cad947a3c73beb601c8feeaf02fd2b272d6af4c79a"
     }
   },
-  "affected_check_pending": true,
+  "affected_check_pending": false,
   "affected_check_label": "command-guard-affected",
-  "hardware_actions": false
+  "hardware_actions": false,
+  "affected_check_original_result": "failed-one-exited-worker-proc-read-race",
+  "cleanup_module_recheck": "nine-tests-passed",
+  "broad_run_retried": false,
+  "matched_boot_chain_complete": false
 }

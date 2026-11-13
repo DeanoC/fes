@@ -202,7 +202,7 @@ if task=='assembler':
             until=time.monotonic()+1
             while status.exists():
                 try:state=status.read_text().split(') ',1)[1][0]
-                except FileNotFoundError:break
+                except (FileNotFoundError,ProcessLookupError):break
                 if state=='Z':break
                 self.assertLess(time.monotonic(),until,'owned compiler worker survived failure')
                 time.sleep(.01)

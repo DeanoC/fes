@@ -34,10 +34,19 @@ frame remains 368 bytes. This is not a complete BL31 or whole EL3 stack proof.
 Current FPGA validators separately accept copied, byte-checked computer and
 menu projects; this performs no fitting or board operation.
 
-The broad affected check is still running at the initial source commit. Its
-parent partition passes 2,649 tests with 15 skips; remaining FPGA software and
-RTL checks must reach their own terminal result. The next step is a fresh
-matched SDK/entry/BL31/SPL/U-Boot/composition and complete native file admission.
+The broad affected check completes its parent partition with 2,649 tests and
+15 skips, plus the runtime/firmware/RTL and producer integration commands.
+Its 2,181-test FPGA software suite records one cleanup-test error and 88 skips:
+an already exiting compiler worker disappears between the `/proc` existence
+check and read, raising `ProcessLookupError`. The test now accepts that same
+exited-worker condition alongside `FileNotFoundError`; all nine bounded-compiler
+tests pass afterward. Compiler behavior is unchanged. The original broad-run
+failure remains recorded; this is a targeted repair and recheck of its only
+failing module, not a rerun or relabelling of the original result.
+
+The selected-program native SDK and CPU entry now build from the committed
+production sources. Complete BL31, SPL/U-Boot, composition and native file
+admission remain the next gates.
 TRWU8CBL remains at its separately restored original baseline Park. This change
 has no physical retirement acceptance and grants no ordinary activation or
 source-memory reuse.
