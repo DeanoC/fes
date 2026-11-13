@@ -22,7 +22,7 @@ It does five things:
   `fpu_exception: no`, which means IRQ 13, not exception 16, and
   `/proc/interrupts` counts one "math error" on IRQ 13. Main's oracle
   stopped 0.19 s into this kernel.
-- **The error path follows the AT.** Eleven directed cases on the oracle alone
+- **The error path follows the AT.** Twelve directed cases on the oracle alone
   (`x87_tb.cpp`) pass, and fail under two mutations of the adapter. X87TEST.COM
   takes the path at the FreeDOS prompt: IRQ 13 through the BIOS's INT 75h to
   INT 02h, a raw IRQ 13 frame, an ESC held until a write to F0h, and the F1h
@@ -165,7 +165,7 @@ The checks ran on this branch's commits as they landed:
 
 | Check | Where | Result |
 | --- | --- | --- |
-| `x87_tb.cpp`: if1, held-nmi, no-wait, fnstsw, nm-first, wait-mp0, wait-mp1, f1-reset, accessor, off; fresh (after review) | Powerboat, `tests/test_fes_i386_oracle.py` | 11 of 11 |
+| `x87_tb.cpp`: if1, held-nmi, no-wait, fnstsw, nm-first, wait-mp0, wait-mp1, f1-reset, accessor, off; fresh and fsetpm (after review) | Powerboat, `tests/test_fes_i386_oracle.py` | 12 of 12 |
 | The same with OUT F0h made a no-op | Powerboat | 7 fail (no HLT: the latch never clears) |
 | The same with the hold removed | Powerboat | hangs inside `step()`: main's bug |
 | `sim_fes_pc386.py --suite boot` (FreeDOS on the oracle, coupling on) | chip | PASS, prompt at 3.75 s |
@@ -195,6 +195,9 @@ The x87_tb cases:
 - **no-wait:** FNCLEX and FNINIT run past the latch, and FNCLEX drops
   IRQ 13; FLD1 then holds.
 - **fnstsw:** FNSTSW AX holds.
+- **fsetpm:** FSETPM holds too. A 387 treats it as FNOP, and the 386 waits
+  for BUSY# before every ESC but FNINIT and FNCLEX (HRM 5.1). The 387 PRM's
+  Appendix F.1 list with FSETPM is the 286/287 AT's.
 - **nm-first:** TS raises #NM before the hold.
 - **wait-mp0, wait-mp1:** WAIT with TS holds when MP is clear, and raises
   #NM when MP is set.

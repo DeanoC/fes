@@ -618,10 +618,10 @@ follow = "386"
 id = "no-wait-forms-wait-busy"
 title = "FNSTSW, FNSTCW, FNSTENV and FNSAVE wait for BUSY#"
 rule = "set_at_coprocessor"
-cases = ["fnstsw", "no-wait"]
+cases = ["fnstsw", "fsetpm", "no-wait"]
 oracle = "Bochs's no-wait forms never wait (they skip FPU_check_pending_exceptions); FNINIT and FNCLEX likewise."
 i386 = "The 386 waits for BUSY# before every ESC but FNINIT and FNCLEX; the no-wait forms skip only the ERROR# check. So with the AT's latch set they hold too, and FNINIT and FNCLEX run (FNCLEX drops ERROR# and IRQ 13; the latch stays until F0h)."
-source = "80386 Hardware Reference Manual 5.1 ('When the 80386 encounters any coprocessor instruction except FNINIT and FNCLEX, the BUSY# input must be inactive'); 80387 Programmer's Reference Manual 231917-001, Appendix F.1 (FINIT, FSETPM and FCLEX pass the latch)."
+source = "80386 Hardware Reference Manual 5.1 ('When the 80386 encounters any coprocessor instruction except FNINIT and FNCLEX, the BUSY# input must be inactive'); 80387 Programmer's Reference Manual 231917-001, 6.1.1 and Appendix C (the 80387 treats FSETPM as FNOP). Appendix F.1's list of FINIT, FSETPM and FCLEX passing the latch is the 80286/80287 AT's, where FSETPM is a real 80287 instruction; on a 386 FSETPM is an ESC like any other and waits for BUSY#, so it holds on the latch."
 follow = "386"
 
 [[x87]]

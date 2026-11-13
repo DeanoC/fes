@@ -105,7 +105,7 @@ implements it and supplies the platform objects the Bochs CPU links against.
   default: the lockstep without `FES_I386_X87=387` and the corpus runners run
   as before.
   [`x87_tb.cpp`](x87_tb.cpp) checks it on the oracle alone (if1, held-nmi,
-  no-wait, fnstsw, nm-first, wait-mp0, wait-mp1, f1-reset, accessor, off, fresh),
+  no-wait, fnstsw, nm-first, wait-mp0, wait-mp1, f1-reset, accessor, off, fresh, fsetpm),
   from `tests/test_fes_i386_oracle.py`.
 
 Bochs pauses a REP string instruction whenever it stores near code it has

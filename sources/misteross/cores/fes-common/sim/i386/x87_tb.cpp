@@ -18,6 +18,7 @@
 //   no-wait     with the latch set, FNCLEX and FNINIT run (they skip BUSY#),
 //               FNCLEX dropping IRQ 13, and the next FLD1 holds.
 //   fnstsw      FNSTSW AX holds too: it skips the error check but not BUSY#.
+//   fsetpm      FSETPM, a 387's FNOP, holds too: only FNINIT and FNCLEX pass.
 //   nm-first    with TS set, FLD1 raises #NM before it holds; after CLTS it
 //               holds.
 //   wait-mp0    WAIT with TS set and MP clear holds; with MP and TS set
@@ -257,6 +258,20 @@ void cases(Bench &b) {
         b.check(r.held >= 4 && b.held_only_at(r, fnstsw), "held " + std::to_string(r.held) + " not at FNSTSW");
         b.check((b.ax() & 0x8084) == 0x8084, "FNSTSW AX " + std::to_string(b.ax()));
         b.done("fnstsw");
+    }
+    {
+        // FSETPM (DB E4) is an FNOP to a 387, and the 386 waits for BUSY#
+        // before it as before any ESC but FNINIT and FNCLEX (80386 HRM 5.1).
+        Code c;
+        c.op({0xfa});
+        c.prologue();
+        const uint16_t fsetpm = c.op({0xdb, 0xe4});
+        c.op({0xf4});
+        unsigned holds = 0;
+        Run r = b.run(c, true, b.nmi_after_holds(holds));
+        b.check(r.held >= 4 && b.held_only_at(r, fsetpm), "held " + std::to_string(r.held) + " not at FSETPM");
+        b.check(b.bus.word(0x60a) == fsetpm, "NMI frame IP");
+        b.done("fsetpm");
     }
     {
         Code c;
