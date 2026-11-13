@@ -87,7 +87,7 @@ type Status struct {
 // committed. Only ScanoutFrameMismatched is a loss: ScanoutFrameUnknown
 // costs at most one more probe interval before the next health check speaks,
 // and that is the direction to err in, because the other direction is a
-// complete frame every second for the rest of the kit's uptime.
+// complete frame uploaded to recover a display that was never lost.
 const (
 	ScanoutFrameUnknown    = "unknown"
 	ScanoutFrameMatching   = "matching"

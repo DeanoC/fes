@@ -796,12 +796,15 @@ func (d *MenuDisplay) scanoutLostLocked(status menudisplay.Status) bool {
 		// DisplayedSequence was read up to a probe interval ago and a present
 		// has moved the committed frame since, so comparing it with what that
 		// present returned straddles two instants: it reads as a loss after
-		// every ordinary present, sends a complete frame to "recover", and
-		// that present moves the sequence again. One UI change would upload a
-		// whole frame every second from then on. The verdict is made inside
-		// the health check, where both numbers are read together, and a
-		// present drops it rather than leaving a stale one to speak for a
-		// frame it never saw.
+		// an ordinary present, sends a complete frame to "recover", and that
+		// present moves the sequence again. How often that repeats is timing
+		// nothing here controls -- the sample is refreshed only by the check
+		// that follows a status reply, paced to once a second -- so the cost
+		// is one unnecessary 3.7 MB upload per UI change where the phases
+		// miss, and one a second for as long as they line up. The verdict is
+		// made inside the health check, where both numbers are read together,
+		// and a present drops it rather than leaving a stale one to speak for
+		// a frame it never saw.
 		if live.ScanoutFrame != "" {
 			return live.ScanoutFrame == menudisplay.ScanoutFrameMismatched
 		}

@@ -220,9 +220,32 @@ kept for the kit log and for diagnostics. It is not something a client
 compares against the sequence its own present returned. The check runs about
 once a second and a present happens whenever the UI changes, so after any
 present the published sample is one behind the committed frame until the
-next check; a client subtracting the two would call a healthy display lost on
-every frame, upload a complete frame to "recover", advance the sequence with
-that present, and go round again every second.
+next check; a client subtracting the two calls a healthy display lost,
+uploads a complete frame to "recover", and advances the sequence with that
+present.
+
+How often that repeats is timing this code does not control. The sample is
+refreshed only by the check that follows a status reply, and that check is
+paced to one per second whoever asks for it, so a client whose own status
+stream is effectively the sole driver of the check measures before every
+present it provokes and can stay one behind indefinitely. Any other status
+traffic at another phase refreshes the sample after the present instead and
+ends it. A separate path has no phase condition at all: a check whose
+register reads fail consumes its pacing slot and deliberately publishes
+nothing, so the sample stays frozen while presents keep moving the committed
+sequence, and a client subtracting the two is wrong on every probe until the
+reads come back.
+
+What was measured, on Kit B against image `179affbb`: two activations each of
+the pre-verdict head and this one, with a UI change driven by injected key
+presses and the committed sequence sampled once a second for twenty seconds
+either side. The one-behind sample is real and was observed directly on this
+head -- `live.displayed_sequence` 67 against a committed 68, converging on
+the next sample, with the verdict reading `unknown` at that moment. No extra
+presents appeared on the pre-verdict head in that configuration. That run
+does not bound the cost either way: a client sampling status is itself what
+drives the check, so the instrument is in the causal path and the measurement
+cannot say how often the phases line up on a kit nobody is polling.
 
 `live.scanout_frame` is that comparison, made inside the check where
 `live.displayed_sequence` and the committed sequence are read in the same
