@@ -1,0 +1,13 @@
+{
+  "status": "scoped-deletion-complete",
+  "authorization": "human resumed cleanup of our retained obsolete outputs",
+  "free_before": 27539382272,
+  "current_matched_build_preserved": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/retained-control-boot",
+  "all_matched_images_and_receipts_preserved": true,
+  "hardware_actions": false,
+  "free_after": 34675097600,
+  "removed_source_snapshots": 4,
+  "removed_duplicate_project_copies": 10,
+  "recovered_bytes": 7135715328,
+  "receipt": "out/publication/retained-control-cleanup/result.json"
+}
