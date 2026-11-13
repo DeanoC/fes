@@ -72,43 +72,6 @@
 // significand * 2^(exponent - 16383 - 63) with the significand's bit 63 set
 // for a normal number.
 
-// The 64x64 significand multiply: nine 22x22 products in DSP blocks, summed
-// over four clocks. `done` pulses with `p`. Slice 2 uses it for the shifts;
-// slice 3's FMUL takes the same block.
-module fes_i386_x87_mul (
-    input  logic         clk,
-    input  logic         reset,
-    input  logic         start,
-    input  logic [63:0]  a,
-    input  logic [63:0]  b,
-    output logic         done,
-    output logic [127:0] p
-);
-    logic [63:0] ar, br;
-    logic [43:0] p00, p01, p02, p10, p11, p12, p20, p21, p22;
-    logic [87:0] r0, r1, r2;
-    logic [3:0]  v;
-    always_ff @(posedge clk) begin
-        v <= reset ? 4'd0 : {v[2:0], start};
-        ar <= a;
-        br <= b;
-        p00 <= ar[21:0] * br[21:0];
-        p01 <= ar[21:0] * br[43:22];
-        p02 <= ar[21:0] * {2'b0, br[63:44]};
-        p10 <= ar[43:22] * br[21:0];
-        p11 <= ar[43:22] * br[43:22];
-        p12 <= ar[43:22] * {2'b0, br[63:44]};
-        p20 <= {2'b0, ar[63:44]} * br[21:0];
-        p21 <= {2'b0, ar[63:44]} * br[43:22];
-        p22 <= {2'b0, ar[63:44]} * {2'b0, br[63:44]};
-        r0 <= {44'd0, p00} + {22'd0, p01, 22'd0} + {p02, 44'd0};
-        r1 <= {44'd0, p10} + {22'd0, p11, 22'd0} + {p12, 44'd0};
-        r2 <= {44'd0, p20} + {22'd0, p21, 22'd0} + {p22, 44'd0};
-        p <= {40'd0, r0} + {18'd0, r1, 22'd0} + {r2[83:0], 44'd0};
-    end
-    assign done = v[3];
-endmodule
-
 // The unit. Its interface to the CPU is per-uop, because an ESC instruction
 // with a memory operand is several uops (fes_i386_decode and the microcode
 // loops the no-387 forms already use):
@@ -257,7 +220,7 @@ module fes_i386_x87 (
                 {3'b001, 3'd3}, {3'b101, 3'd3}, {3'b011, 3'd7},   // FSTP m32, m64, m80
                 {3'b011, 3'd3}, {3'b111, 3'd3}, {3'b111, 3'd7}:   // FISTP m32, m16, m64
                     decode_op = OP_STP_M;
-                {3'b001, 3'd5}: decode_op = OP_LDCW;
+                {3'b001, 3'd5}: decode_op = OP_LDCW;  // FLDCW, a word like any other
                 {3'b001, 3'd7}: decode_op = OP_STCW;
                 {3'b101, 3'd7}: decode_op = OP_STSW;
                 {3'b001, 3'd6}: decode_op = OP_STENV;
@@ -266,7 +229,11 @@ module fes_i386_x87 (
                 {3'b101, 3'd4}: decode_op = OP_RSTOR;
                 default: decode_op = OP_UNIMPL;  // FBLD, FBSTP and the arithmetic forms
             endcase
+            // A memory form needs its operand's format, and the four
+            // environment and save forms the environment's.
             if (fmt == FMT_NONE) decode_op = OP_UNIMPL;
+            if ((decode_op == OP_STENV || decode_op == OP_LDENV || decode_op == OP_SAVE
+                 || decode_op == OP_RSTOR) != (fmt == FMT_ENV)) decode_op = OP_UNIMPL;
         end else begin
             case (esc)
                 3'b001: begin  // D9
@@ -457,7 +424,6 @@ module fes_i386_x87 (
     logic [1:0]  nw;            // a no-wait form waiting to commit: 1 FNINIT, 2 FNCLEX
     logic [10:0] cur_op_raw;    // its 387 opcode, which commit stores
     logic        cur_ctrl;      // ... and whether it is a control form
-    logic        c1_wr;         // the operation writes C1
     assign busy_o = busy;
 
     // ---- The board's BUSY# latch (387 PRM Appendix F.2). ----
@@ -1022,7 +988,7 @@ module fes_i386_x87 (
                 // raises ERROR# and latches BUSY#, as a 387 on an AT does.
                 S_APPLY: begin
                     logic [5:0]  f;
-                    logic        stk, um, c1, ccw, wr, pop, push;
+                    logic        stk, um, c1, ccw, wr, pop, push, c1_wr;
                     logic [79:0] v;
                     logic [3:0]  nc;
                     cls_e        c0cls, cicls;

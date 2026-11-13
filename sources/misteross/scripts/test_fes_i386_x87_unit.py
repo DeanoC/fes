@@ -57,7 +57,7 @@ RTL = ROOT / 'cores/fes-common/rtl/i386'
 SIM = ROOT / 'cores/fes-common/sim/i386'
 OUTPUT = ROOT / 'build/sim/fes-i386-x87-unit'
 TOP = 'fes_i386_x87'
-RTL_SOURCES = ('fes_i386_pkg.sv', 'fes_i386_x87.sv')
+RTL_SOURCES = ('fes_i386_pkg.sv', 'fes_i386_x87_mul.sv', 'fes_i386_x87.sv')
 # Verilator on a Yosys netlist: the lint warnings its flat output raises by
 # construction, as the other i386 benches pass them
 # (scripts/test_fes_i386_frontend.py).
