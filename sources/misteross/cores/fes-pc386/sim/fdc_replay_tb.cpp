@@ -626,6 +626,10 @@ std::vector<Case> cases() {
         seek(g, 1, 0, 2);                                    // a step clears drive 1's change
         g.show(0x3f2);
         g.show(0x3f7);
+        g.out(0x3f2, 0x3c);                                  // drive 0 again in Bochs
+        read_back(g, 1, 2, 0, 1, 1, 15, Guest::original(B12, 2, 0, 1, 1), "drive 1's read under DOR's drive 0");
+        g.show(0x3f2);
+        g.show(0x3f7);
     }});
     list.push_back({"status_registers", 4, 2, false, [](Guest &g) {
         g.check(g.show(0x3f0) == 0xff, "3F0h reads FFh");

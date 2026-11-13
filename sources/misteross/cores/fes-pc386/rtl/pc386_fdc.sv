@@ -19,18 +19,19 @@
 // select is ignored, as on a two-drive AT adapter (and in Bochs): drives 2
 // and 3 alias 0 and 1. INT (irq6) and DRQ (DMA channel 2) are gated by DOR
 // bit 3, as in the 82077AA's AT mode. A command runs on the drive it names,
-// and DOR keeps the select the guest wrote: on the 82077AA the drive select
-// pins come only from DOR, and a command's DS bits "are used internally only.
-// They are not reflected in the Drive Select pins. It is the users
-// responsibility to maintain correspondence between these bits and the Drive
-// Select pins (DOR)" (datasheet 290166-007, Table 5-1 note; section 9.1.1).
-// So 3F2h reads back what the guest wrote, and DIR's disk change, which comes
-// from the DSKCHG pin of the drive DOR selects, follows DOR. Bochs and QEMU
-// move DOR's select to the drive a seek, recalibrate or transfer names
-// (sim/fdc_divergences.toml, dor-select). On the chip, a command naming a
-// drive DOR does not select still drives the selected drive's cable; here
-// it runs on the drive it names. Software selects the drive in DOR first,
-// as the datasheet's section 8.3 has it.
+// and DOR keeps the select the guest wrote. On the 82077AA the drive select
+// pins "are decoded from the select bits in the Digital Output Register"
+// (datasheet 290166-007, DS0-3 pin description and 2.1.3); on the PC/AT
+// "drive selects on the 8272A are not utilized. This places drive selection
+// and motor speed-up control responsibility with the software" (9.1.1), and
+// "a write to the DOR will need to precede the RECALIBRATE or SEEK command"
+// (8.3). Nothing there has a command write DOR, so 3F2h reads back what the
+// guest wrote, and DIR's disk change, from the DSKCHG pin of the drive DOR
+// selects, follows DOR. Bochs and QEMU move DOR's select to the drive a
+// seek, recalibrate or transfer names (sim/fdc_divergences.toml,
+// dor-select). On the chip, a command naming a drive DOR does not select
+// acts on the selected drive's cable; here, as in Bochs, it runs on the
+// drive it names (dor-mismatch).
 //
 // Commands are decoded on the whole byte, so a command takes only the
 // modifier bits (MT, MFM, SK) the 82077AA gives it: Specify, Sense Drive
