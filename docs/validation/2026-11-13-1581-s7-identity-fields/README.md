@@ -71,6 +71,27 @@ every BUILD_ID as well and is still open, so evidence gathered against today's m
 survive it. The campaign runs once main is settled, and this record gains its results before the PR
 leaves draft.
 
+## Review fixes
+
+A review of the first two commits found one real defect, fixed in `1a314bde3`.
+
+**DE25 builds would have aborted after the fit.** DE25's producers encode their records with
+`boards/de25nano/package/export_core_package.py`, but `boards/de25nano/scanout/async_inputs.py`
+read them back through the shared exporter's `build_identity`. A DE25 record is format 2 with
+`toolchain = "quartus"` and none of the new parameters, so the new rule rejected it, and both
+`build_menu_package.py` and `build_zx81_package.py` call that review on every fit.
+`tests.test_build_de25_menu_package` failed with two errors. DE25 now reads its records with the
+exporter that wrote them. The two exporters derive a format-2 identity identically, so no DE25
+value changes, and nothing else under `boards/de25nano` uses the shared exporter.
+
+**A non-string `front_end` crashed the loader.** `front_end` is optional in the recipe schema, so
+the generic non-empty-string check does not reach it, and a TOML array or table raised `TypeError`
+from the membership test instead of the loader's own error. Both the loader and the support matrix
+now check the type first, and the reject cases cover an array and a Boolean.
+
+A third finding, that the matrix's new cross-check never reaches the two DE25 rows, was refuted:
+`validate()` filters the registry to `de10-nano` by design.
+
 ## Tests
 
 No core was built for this commit. The new tests:
@@ -90,7 +111,8 @@ No core was built for this commit. The new tests:
 - a recipe row's front end must fit its edition and device family, in six rejected shapes, and an
   OSS row cannot name one.
 
-Suites run on this tree: `tests.test_recipes` (35), `tests.test_support_matrix` (14),
-`tests.test_build_fes_pcxt_quartus` (23, 1 skipped), `tests.test_export_core_package` (23),
-`tests.test_pnr_recipes` and `tests.test_core_package`. All pass, and `docs/support-matrix.py`
-reports ok.
+The whole repository suite passes on this tree: `python3 -m unittest discover -s tests` is 1,830
+tests, 47 skipped, no failure, in 1,019 s, and `docs/support-matrix.py --check` reports ok. In
+`sources/misteross`, `tests.test_build_fes_pcxt_quartus` (23, 1 skipped),
+`tests.test_export_core_package` (23), `tests.test_build_de25_menu_package` (20),
+`tests.test_pnr_recipes` and `tests.test_core_package` pass.
