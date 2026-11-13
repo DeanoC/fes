@@ -283,8 +283,8 @@ and write 00h, as IBM's does (`firmware/README.md`, `firmware.lock`).
 **Scope.** Deano chose to keep the fix in this PR as its own commit
 (`2d889b671`). It changes `pc386-bios.bin`, whose digest `firmware.lock`
 pins and every pc386 seal summary records (`bios`: `37a1b6ba…` before,
-`d11a805e…` now). So the current seal's firmware identity no longer matches
-the tree; nothing is resealed here, and the next sealing PR covers it. On a
+`d11a805e…` now). This PR's own seal of its head carries the new digest
+([`2026-11-13-pr1780-pc386-seal`](../2026-11-13-pr1780-pc386-seal/summary.md)). On a
 kit the change matters only once IRQ 13 can rise, which is slice 2. With it,
 X87TEST.COM passes to the prompt. The same commit was first opened alone as
 [#1785](https://github.com/DeanoC/fes/pull/1785), now superseded.
