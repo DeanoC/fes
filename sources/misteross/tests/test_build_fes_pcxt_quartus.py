@@ -178,6 +178,10 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                                                 cache_root=Path(directory) / 'cache', gpu_router='OFF',
                                                 tool='yosys')
                 resolve.assert_called_once_with('request', 'yosys')
+                # An install whose binary is not the one quartus.lock pins is refused.
+                hashes[yosys.resolve()] = 'e' * 64
+                with self.assertRaisesRegex(producer.BuildError, f"sha256 {'e' * 64}, but quartus.lock pins"):
+                    producer.authenticate_tools(producer.ROOT, cache_root=Path(directory) / 'cache')
                 resolve.side_effect = toolchain_cache.CacheError('yosys install is not ready')
                 with self.assertRaisesRegex(producer.BuildError, 'PC/XT Yosys install is not ready'):
                     producer.authenticate_tools(producer.ROOT, cache_root=Path(directory) / 'cache')

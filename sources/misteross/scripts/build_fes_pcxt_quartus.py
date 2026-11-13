@@ -102,10 +102,14 @@ def authenticate_tools(root, *, cache_root=None, core_id='fes.pcxt'):
             request = toolchain_cache.request_from_environment(
                 root, root / TOOLCHAIN_LOCK, cache_root=Path(cache_root),
                 gpu_router='OFF', tool='yosys')
-            candidates = [toolchain_cache.resolve_install(request, 'yosys').binary]
+            installed = toolchain_cache.resolve_install(request, 'yosys').binary
         except toolchain_cache.CacheError as error:
             raise BuildError(f'the PC/XT Yosys install is not ready: {error}; provision it with '
                              '`make toolchain-fes-pcxt CACHE_ROOT=...`') from error
+        if sha(installed) != lock.yosys_sha256:
+            raise BuildError(f'the PC/XT Yosys install {installed} has sha256 {sha(installed)}, '
+                             f'but quartus.lock pins {lock.yosys_sha256}')
+        candidates = [installed]
     else:
         candidates = []
     yosys = next((p for p in candidates if p.is_file() and not p.is_symlink()
