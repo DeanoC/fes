@@ -45,6 +45,9 @@ func (a *App) openInstalledRoomLocked(pack rooms.Pack, root bool, initialGameID 
 		}
 	}
 	if err != nil {
+		if a.retainFailedStartupHomeLocked(root, pack, candidate, err) {
+			return true
+		}
 		if candidate != nil {
 			candidate.Discard()
 		}

@@ -203,8 +203,8 @@ func TestUIEventIngestAndPoll(t *testing.T) {
 
 func TestUIEventAcceptsHomeRoomAndLauncherAction(t *testing.T) {
 	handler := hostapi.New(&fakeService{status: protocol.Status{State: protocol.StateIdle}})
-	for _, kind := range []string{"ui.home_room_fallback", "ui.launcher_action"} {
-		body := `{"ts_utc":"2026-09-09T12:00:00Z","kind":"` + kind + `","detail":{"room":"main-menu","reason":"missing","action":"shell","result":"rejected"}}`
+	for _, kind := range []string{"ui.home_room_fallback", "ui.home_room_reopen", "ui.launcher_action"} {
+		body := `{"ts_utc":"2026-09-09T12:00:00Z","kind":"` + kind + `","detail":{"room":"main-menu","reason":"missing","action":"shell","result":"rejected","attempt":"1","error":"script exceeded 32ms hard callback budget"}}`
 		post := httptest.NewRequest(http.MethodPost, "/api/v1/debug/ui-events", strings.NewReader(body))
 		post.Host = "127.0.0.1"
 		response := httptest.NewRecorder()

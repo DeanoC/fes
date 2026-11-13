@@ -51,6 +51,10 @@ type RoomSnapshot struct {
 	// HeroDetail shows the selected installed package's or family's Details
 	// in the hero.
 	HeroDetail bool
+	// ErrHome means the failed room is the root Home, so Back reopens Home.
+	ErrHome bool
+	// HomeRetry is the 1-based automatic Home reopen waiting, or 0.
+	HomeRetry int
 }
 
 // RoomPickerRow is one entry of the Home overlay.
@@ -503,7 +507,8 @@ func (a *App) closeAllRoomsLocked() {
 }
 
 // leaveRoomLocked resumes the suspended parent room or, at the root
-// (including a home_room root), returns to the picker.
+// (including a home_room root), returns to the picker. A failed root Home
+// is reopened as a fresh instance instead.
 func (a *App) leaveRoomLocked() {
 	a.closeRoomOverlaysLocked()
 	if n := len(a.roomStack); n > 0 {
@@ -523,6 +528,10 @@ func (a *App) leaveRoomLocked() {
 	// open, or when Show all cores restores the full navigation routes.
 	if a.room != nil && a.room.ID() == installedCoresHomeID &&
 		a.room.ReleaseOnly() && a.room.Err() == nil {
+		return
+	}
+	if a.failedRootHomeLocked() {
+		a.reopenHomeLocked()
 		return
 	}
 	a.closeRoomLocked()
@@ -737,6 +746,7 @@ func (a *App) tickRoomLocked(now time.Time) {
 	}
 	if a.room.Err() != nil {
 		a.roomErr = a.room.Err().Error()
+		a.recoverHomeLocked(now)
 		return
 	}
 	a.roomFrame = a.room.Step(now)
@@ -757,8 +767,10 @@ func (a *App) tickRoomLocked(now time.Time) {
 	if err := a.room.Err(); err != nil {
 		a.roomErr = err.Error()
 		a.roomFrame = rooms.Frame{}
+		a.recoverHomeLocked(now)
 		return
 	}
+	a.noteHomeHealthyLocked(now)
 	for _, id := range a.room.TakeCoverRequests() {
 		a.requestRoomCoverLocked(a.room, id)
 	}
@@ -838,6 +850,8 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 		_, snap.Hero = rooms.HeroPanel(w, h)
 	}
 	snap.NoPanel = a.room.NoPanel()
+	snap.ErrHome = a.failedRootHomeLocked()
+	snap.HomeRetry = a.homeRetryPendingLocked()
 	snap.WaitAck = a.roomWaitAck && snap.Destination.Confirm() == rooms.ConfirmWait
 	snap.HeroDetail = snap.Hero && a.roomHeroDetail != "" && heroDetailKey(snap.Destination) == a.roomHeroDetail
 	if withImages {
