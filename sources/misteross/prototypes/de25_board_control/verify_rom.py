@@ -48,14 +48,12 @@ def main():
         'rom_board_probe.cpp', 'fes_de25_rom_hw.tcl', 'rom_transport.py', 'generated/fes_de25_computer.vh')]
     board_sources += [fpga/name for name in ('cores/fes-common/rtl/fes_computer_mailbox.v',
         'cores/fes-common/generated/fes_computer.vh', 'cores/fes-zx81/rtl/zx81_keyboard.v',
-        'cores/fes-zx81/rtl/zx81_tape_store.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh',
-        'cores/fes-zx81/rtl/zx8x.hex')]
+        'cores/fes-zx81/rtl/zx81_tape_store.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh')]
     inputs += board_sources
     video_path = HERE/'video.v'
     inputs += [video_path]
     video = video_path.read_bytes()
     (output/'video.v').write_bytes(video)
-    (output/'zx8x.hex').write_bytes((fpga/'cores/fes-zx81/rtl/zx8x.hex').read_bytes())
     sources = {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
     commands = []
 

@@ -18,6 +18,11 @@ Generation and verification compare both installed and actual generated HDL
 against them. The GP ABI, aperture size, clocks, master inventory and execution
 commands retain their existing contracts.
 
+The standalone ROM verifier feeds its synthetic Z80 program through the owned
+ROM transport into the real machine's external-ROM input. It requires no
+bundled firmware image; the internal ROM remains blank. Its CRC, held-CPU,
+execution and return checks cover that explicit synthetic image only.
+
 Read-only offsets 24/28 observe actual Z80 fetch bus cycles and their sampled
 last address. The count uses M1/MREQ/RD and the CPU bus clock; GP acknowledgements
 do not advance or reset it. Reading the count captures a coherent address while

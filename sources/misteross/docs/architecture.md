@@ -292,7 +292,9 @@ retires the image until reset. The portable ZX81 machine's explicit
 internal and linked-ROM paths retain their existing source and address decode.
 The simulation wrapper holds the real ZX80/ZX81 CPU through image admission,
 then checks a streamed program's RAM write and HALT. No physical producer
-selects that wrapper. A relative ROM CSR wrapper now joins the receiver to an
+selects that wrapper. The standalone verifier supplies only its synthetic
+streamed image; it requires no bundled ZX81 firmware file, and the internal ROM
+stays blank. A relative ROM CSR wrapper now joins the receiver to a
 freestanding C firmware transfer. The shared fabric definition supplies
 its C/Verilog offsets, identity, FIFO and status constants. Secure code must
 supply owned, bounded MMIO hooks under its lifecycle lock; the transfer copies
