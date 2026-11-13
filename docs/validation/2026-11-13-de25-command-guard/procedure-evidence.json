@@ -1,0 +1,62 @@
+{
+  "source_commit": "3caa3e3cfd870b109516dddba6a87c847a4c4133",
+  "native_profile_format": 8,
+  "trial": {
+    "path": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-guard-trial/procedure.json",
+    "sha256": "b9b5dd09388b86fc89c5462bfd260da1cd8fd4069a23581f5a913f6996fd7099",
+    "files": 30668,
+    "nested_native_closures_reloaded_before_freeze": true,
+    "hardware_actions": false,
+    "authorized_for_execution": false
+  },
+  "trial_prepared_retention": {
+    "status": "passed-prepared-format8-four-role-command-guard-trial",
+    "procedure_sha256": "b9b5dd09388b86fc89c5462bfd260da1cd8fd4069a23581f5a913f6996fd7099",
+    "archive": "/home/deano/fes-retained/de25-command-guard-procedure-prepared-20261113-r1/prepared-procedure.tar.gz",
+    "archive_sha256": "116e22c514c49bff58053e5c18381f8120e466153bb47424bcd988a1fb1e2182",
+    "archive_bytes": 29463082,
+    "reused_archive": "/home/deano/fes-retained/de25-command-snapshot-procedure-prepared-20261113-r1/prepared-procedure.tar.gz",
+    "reused_archive_sha256": "1b5b82ea534a6af428682a59cad431042173292d3269735fc3b8215dff1bc793",
+    "reused_blobs_verified": 5385,
+    "new_blobs_verified": 119,
+    "both_archives_required": true,
+    "hardware_actions": false,
+    "attempt_not_reserved": true,
+    "diagnostic_retried": false
+  },
+  "trial_fixture_tests": 72,
+  "actual_dual_root_boundary_checks": 8,
+  "trial_standing_human_authorization": {
+    "human_quote": "you have approval of any of these trial",
+    "source_sha256": "23d011ab3eeb0dfb170ea1006264679db305a4a8327ca38617675cc2716d372f",
+    "procedure_sha256": "b9b5dd09388b86fc89c5462bfd260da1cd8fd4069a23581f5a913f6996fd7099",
+    "approval_sha256": "fd0e0f3e4244f2dc7add22c7837aaadf59c60f1c125959b3e201ef3064c9e7f7",
+    "standing_authorization_applied": true,
+    "new_human_approval_requested": false
+  },
+  "restoration": {
+    "sha256": "f5076e75e481df2ed1887bfd4703ddbff3dbe8ff8b8191404556e392d8d0cabe",
+    "files": 31875,
+    "hardware_actions": false
+  },
+  "restoration_prepared_retention": {
+    "status": "passed-prepared-format8-original-FIT-restoration-only",
+    "procedure_sha256": "f5076e75e481df2ed1887bfd4703ddbff3dbe8ff8b8191404556e392d8d0cabe",
+    "archive": "/home/deano/fes-retained/de25-command-guard-restoration-prepared-20261113-r1/prepared-procedure.tar.gz",
+    "archive_sha256": "646b5862d0dd34fa9436b2a36db3c817a33053da8341524d14703a1eaf51209e",
+    "archive_bytes": 32116715,
+    "reused_archive": "/home/deano/fes-retained/de25-command-snapshot-procedure-prepared-20261113-r1/prepared-procedure.tar.gz",
+    "reused_archive_sha256": "1b5b82ea534a6af428682a59cad431042173292d3269735fc3b8215dff1bc793",
+    "reused_blobs_verified": 5380,
+    "new_blobs_verified": 173,
+    "both_archives_required": true,
+    "hardware_actions": false,
+    "attempt_not_reserved": true,
+    "diagnostic_retried": false
+  },
+  "restoration_scope_tests": 7,
+  "after_fresh_human_confirmed_physical_reset": true,
+  "hardware_attempts_per_procedure": 1,
+  "diagnostic_retried": false,
+  "default_file_only_checks_user_and_root": true
+}

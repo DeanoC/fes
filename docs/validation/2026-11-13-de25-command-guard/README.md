@@ -68,10 +68,66 @@ native file/tree snapshot still matches after retention.
 The SDK and entry build at production source `5ef4a7f25`; the later cleanup-test
 repair changes no selected runtime/firmware source. The complete verification
 binds source `2310ff5ffceda292d1d7f1f3fde019a3e3ef883d` and rechecks all producer
-source maps against the actual files. These artifacts have no hardware
-acceptance. A new frozen one-use procedure with current kit, transport and card
-admission is required before the next bounded trial.
+source maps against the actual files. The later bounded trial checks this exact
+candidate; it does not establish ordinary runtime activation or memory reuse.
 
-TRWU8CBL remains at its separately restored original baseline Park. This change
-has no physical retirement acceptance and grants no ordinary activation or
-source-memory reuse.
+## Bounded physical trial and restoration
+
+The [physical result](hardware-result.json) independently replays procedure
+`b9b5dd09388b86fc89c5462bfd260da1cd8fd4069a23581f5a913f6996fd7099`,
+executed once at source `3caa3e3cfd870b109516dddba6a87c847a4c4133`
+under standing human trial approval. The [procedure evidence](procedure-evidence.json)
+records full candidate/baseline admissions, 72 operator fixture tests, eight real
+dual-root rejection/reload checks, user/root default preflights and retained
+frozen inputs. Source transfer passes all 1,708,032 bytes in two posts and two
+acknowledgements, in 11,666,020 us, with the expected SHA-384.
+
+Retirement still fails in phase 4 with command error `-3`. Four control writes
+are observed, so the producer publication is reached. The command phase is
+observed for 106,877 us against its unchanged 100,000 us bound; the complete
+retirement observation is 286,203 us. This is progress beyond format 7's stop
+before publication, but it proves neither queue completion nor translation
+retirement. Source memory, tables and queues remain retained; there is no reuse
+or activation grant. The two attempts do different amounts of work, so their
+whole-stage times are not a matched latency comparison.
+
+The rollback recovery programmer then reports `JTAG chain broken`. Its UART is
+closed with no recovery prompt or SD write commands. The attempt stops without
+retry, leaving the candidate FIT on the spare card. All three transport roles
+clean up their owned processes, UART, JTAG clock and USB permissions. The
+[failure archive](hardware-retention.json) independently reads back as SHA-256
+`d60dc7e3249f83cfca1cadfc2fd529f903212fd335e5e1b2caea8d0d730a8e33`.
+An offline collector initially used unavailable `fuser`; that failure and script
+are retained. Its corrected `/proc` descriptor scan passes without rerunning
+hardware.
+
+After a separate human-confirmed physical reset, restoration-only procedure
+`f5076e75e481df2ed1887bfd4703ddbff3dbe8ff8b8191404556e392d8d0cabe`
+passes recovery, the read-only SMMU reset gate, exact original-FIT rollback and
+17 protected-file readbacks both before and after the write. All 13 staged
+sources and three installed records are preserved. The [restoration result](restoration-result.json)
+independently verifies original boot, all 51 ZX81/ZX80 launch/return commands,
+final Park at generation 5, raw programming/UART witnesses and complete host
+cleanup. The [restoration archive](restoration-retention.json) independently reads
+back as `af5ee64d9f8277fa23926009854d0e18aa95ec59e49a4c5256a7f6866acc55dd`.
+Restoration scope checks also catch a copied diagnostic-only worker-context
+requirement before hardware; the corrected context passes seven tests and a
+fresh file admission. The preceding admission and failed offline checks remain
+retained. No candidate diagnostic is retried.
+
+TRWU8CBL is left at the original native baseline's final Park with its test card
+installed and all owned handles closed. QSPI, the factory card and bottom kit
+are untouched. The baseline restoration does not qualify format-8 retirement,
+ordinary activation, source-memory reuse, warm recovery or general core loading.
+The next firmware work is to measure and reduce repeated read-only queue-progress
+observations while preserving the existing ownership/write gates and deadlines.
+Consumer completion remains unproven; a new source-bound candidate and procedure
+would be required for another diagnostic.
+
+## CI boundary
+
+[CI run 43428861389](ci-result.json) passes every job except the media partition.
+`TestTrialStorageRefreshReopensHeldBackFactory` in the Linux `kitsoftware`
+package fails with `bootstrap agent unexpectedly opened durable packages <nil>`.
+That package is unchanged from base `daac138c7c9eb5d40009314fd8dbd797dffd2c3f`.
+The failure is recorded without waiver or a flaky-test diagnosis; CI is not green.

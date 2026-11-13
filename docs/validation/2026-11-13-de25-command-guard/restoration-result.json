@@ -1,0 +1,123 @@
+{
+  "status": "passed-original-FIT-and-baseline-restoration-after-format8-JTAG-failure",
+  "restoration_procedure_sha256": "f5076e75e481df2ed1887bfd4703ddbff3dbe8ff8b8191404556e392d8d0cabe",
+  "failed_trial_procedure_sha256": "b9b5dd09388b86fc89c5462bfd260da1cd8fd4069a23581f5a913f6996fd7099",
+  "failed_trial_archive_sha256": "d60dc7e3249f83cfca1cadfc2fd529f903212fd335e5e1b2caea8d0d730a8e33",
+  "elapsed_seconds": 576.2498037829064,
+  "original_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+  "original_phase1_sha256": "c01c97dde2fe75ce7e6145ccce2a52b6fa8449f43731ba0bd2ce94cbfc3d91d4",
+  "original_FIT_verified_by_sealed_SPL": true,
+  "fresh_SD_file_readbacks_claimed": true,
+  "SD_refresh_attempted": true,
+  "exact_original_FIT_rollback": {
+    "status": "verified-reversible-fit-refresh",
+    "direction": "rollback",
+    "plan_sha256": "abd1c1fe576647c62a982605423b5a52fa7fa1a179969e9149b0eb256d6d5e60",
+    "previous_boot_sha256": "60e3b255ca02a4f5462d6ccc75a74750fe9efb9fdf05014f132799b09242ea33",
+    "boot_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+    "preserved_files": 16,
+    "readbacks_before": 17,
+    "readbacks_after": 17,
+    "session": "5e7069c0041fde3114b15f5ad5c03ed9",
+    "physical_boot_accepted": false
+  },
+  "read_only_reset_gate": {
+    "status": "passed-read-only-NS-SMMU-reset-gate",
+    "commands": [
+      {
+        "command": "md.l 16000020 4",
+        "words": {
+          "369098784": 0,
+          "369098788": 0,
+          "369098792": 0,
+          "369098796": 4
+        }
+      },
+      {
+        "command": "md.l 16000044 2",
+        "words": {
+          "369098820": 0,
+          "369098824": 0
+        }
+      },
+      {
+        "command": "md.l 16000060 2",
+        "words": {
+          "369098848": 0,
+          "369098852": 0
+        }
+      },
+      {
+        "command": "md.l 16000080 3",
+        "words": {
+          "369098880": 0,
+          "369098884": 0,
+          "369098888": 0
+        }
+      },
+      {
+        "command": "md.l 16000090 4",
+        "words": {
+          "369098896": 0,
+          "369098900": 0,
+          "369098904": 0,
+          "369098908": 0
+        }
+      },
+      {
+        "command": "md.l 160000a0 2",
+        "words": {
+          "369098912": 0,
+          "369098916": 0
+        }
+      },
+      {
+        "command": "md.l 160100a8 2",
+        "words": {
+          "369164456": 0,
+          "369164460": 0
+        }
+      }
+    ],
+    "reads": 19,
+    "elapsed_seconds": 0.7801181329414248,
+    "register_writes": 0,
+    "network_commands": 0,
+    "SD_writes": 0,
+    "secure_bank_examined": false,
+    "reset_domain_qualified": false,
+    "DMA_authority": false
+  },
+  "baseline_boot_verified": true,
+  "baseline_cycle_commands": 51,
+  "baseline_exit_generation": 5,
+  "baseline_final_Park_verified": true,
+  "independent_saved_wire_replay": {
+    "status": "passed-saved-installer-wire-and-poll-times",
+    "discovered": true,
+    "commands": 51,
+    "polling_offers": 483,
+    "hardware_actions": false,
+    "live_authority": false,
+    "persistence_verified": false
+  },
+  "program_and_wire_witness": {
+    "boot_boundary_verified": true,
+    "console_sha256": "72fa317bcba060eec5faffc6e43ab42cfd90f5648e62fadfc1aeb469a6871830",
+    "all_wire_sha256": "508fed8b2e05aba47855f5d117369fd10045bb1c124ac139332c7a261fe7eb7b",
+    "completed_program_epoch": "2592183:160786561"
+  },
+  "UART_closed_and_free": true,
+  "USB_identity_inode_permissions_restored": true,
+  "JTAG_auto_1_15M": true,
+  "after_fresh_human_confirmed_power_cycle": true,
+  "failed_candidate_retried": false,
+  "failed_candidate_retirement_qualified": false,
+  "baseline_drain_root_cause_fixed": false,
+  "last_verified_board_state": "original native baseline final Park",
+  "general_core_load_acceptance": false,
+  "permanent_QSPI_written": false,
+  "factory_card_changed": false,
+  "bottom_kit_touched": false,
+  "owned_processes_verified_stopped": 8
+}
