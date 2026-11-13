@@ -94,19 +94,22 @@ func TestTenfootLaunchBlockReasonMapsHostclientOnly(t *testing.T) {
 	if !ok {
 		t.Fatal("runtime.Caller failed")
 	}
-	path := filepath.Join(filepath.Dir(filename), "app.go")
-	source, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(source)
-	if !strings.Contains(text, "game.LaunchBlock()") {
-		t.Error("tenfoot launchBlockReason must map hostclient.Game.LaunchBlock")
-	}
-	for _, needle := range []string{"game.Launchable", "game.RootOnline", "game.State"} {
-		if strings.Contains(text, needle) {
-			t.Errorf("tenfoot app.go still inspects %s for launch admission", needle)
+	foundLaunchBlock := false
+	for _, name := range []string{"app.go", "app_session.go"} {
+		source, err := os.ReadFile(filepath.Join(filepath.Dir(filename), name))
+		if err != nil {
+			t.Fatal(err)
 		}
+		text := string(source)
+		foundLaunchBlock = foundLaunchBlock || strings.Contains(text, "game.LaunchBlock()")
+		for _, needle := range []string{"game.Launchable", "game.RootOnline", "game.State"} {
+			if strings.Contains(text, needle) {
+				t.Errorf("tenfoot %s still inspects %s for launch admission", name, needle)
+			}
+		}
+	}
+	if !foundLaunchBlock {
+		t.Error("tenfoot launchBlockReason must map hostclient.Game.LaunchBlock")
 	}
 }
 
