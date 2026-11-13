@@ -447,12 +447,12 @@ is right. Do not widen it. What stands between the tree and a release:
   - [#1799](https://github.com/DeanoC/fes/pull/1799), merged 13 November,
     removed those four archives from the tip. That alone does not make the
     tip clean.
-  - The tip still holds 512 bytes of the ZX81 character set, copied from
+  - The tip also held 512 bytes of the ZX81 character set, copied from
     the ROM, in `sources/misteross/cores/fes-zx81/expansions/qs_chrs.hex`
-    and `qs_chrs_init.vh`. Their GPL label has no verified basis
-    ([v1 firmware licensing](v1-firmware-licensing.md)). Before the
-    snapshot is taken, replace them with a redrawn glyph set, load them
-    from the user's ROM, or get permission.
+    and `qs_chrs_init.vh`, under a GPL label with no verified basis
+    ([v1 firmware licensing](v1-firmware-licensing.md)). They were removed
+    on 13 November: the QS Character Board cart now starts empty and uses
+    the user's ROM glyphs until software loads its own.
   - The snapshot that seeds the new repository is taken only when the scan
     is clean on that exact tree, with the glyph bytes added to its
     signatures, and the #387 audit has no open ROM finding.

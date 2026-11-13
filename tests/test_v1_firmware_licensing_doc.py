@@ -59,6 +59,12 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
         self.assertIn("qs_chrs_init.vh", state)
         self.assertIn("GPL-2.0-or-later", state)
         self.assertIn("#387", state)
+        self.assertIn("Both files were removed", state)
+        self.assertIn("qs_chrs.hex", evidence)
+        self.assertIn("remains in Git history", evidence)
+        expansions = ROOT / "sources/misteross/cores/fes-zx81/expansions"
+        self.assertFalse((expansions / "qs_chrs.hex").exists())
+        self.assertFalse((expansions / "qs_chrs_init.vh").exists())
         self.assertIn("zx8x.mif", evidence)
         self.assertIn("#1379", evidence)
         self.assertIn("#1381", evidence)

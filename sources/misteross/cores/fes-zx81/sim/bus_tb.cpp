@@ -167,12 +167,31 @@ static int test_zonx(Vexpansion_bus_harness &dut) {
     return EXIT_SUCCESS;
 }
 
+// Present a ULA /RFSH character fetch; the window address is char*8+row.
+static void rfsh_fetch(Vexpansion_bus_harness &dut, uint16_t addr) {
+    dut.cpu_addr = addr;
+    dut.cpu_mreq_n = 0;
+    dut.cpu_iorq_n = 1;
+    dut.cpu_rd_n = 1;
+    dut.cpu_wr_n = 1;
+    dut.cpu_m1_n = 1;
+    dut.cpu_rfsh_n = 0;
+    settle(dut);
+}
+
 static int test_qs(Vexpansion_bus_harness &dut) {
     settle(dut, 8);
     if (dut.bus_ram_present) return fail("QS asserted RAM_PRESENT");
-    // Sinclair '0' is code 28; ROM 1E00 row 1 is 0x3c.
-    if (mem_read(dut, 0x8400 + (28 * 8) + 1) != 0x3c)
-        return fail("QS charset preload missed Sinclair glyph 0");
+    // Characters start off: a fetch is left to the machine's own ROM.
+    rfsh_fetch(dut, 0x8400 + (28 * 8) + 1);
+    if (dut.bus_romcs || dut.bus_dsel) return fail("QS claimed a /RFSH fetch before any write");
+    idle(dut);
+    settle(dut, 2);
+    // CPU reads of the window are always the board's.
+    mem_read(dut, 0x8500, false);
+    if (!dut.bus_dsel || !dut.bus_romcs) return fail("QS window read did not assert DSEL/ROMCS");
+    idle(dut);
+    settle(dut, 2);
     mem_write(dut, 0x8400, 0xa5);
     mem_write(dut, 0x87ff, 0x5a);
     mem_write(dut, 0x4000, 0x11);
@@ -189,16 +208,26 @@ static int test_qs(Vexpansion_bus_harness &dut) {
     settle(dut);
     if (dut.bus_romcs || dut.bus_dsel) return fail("QS decoded outside 8400-87FF");
     idle(dut);
-    dut.cpu_addr = 0x8400;
-    dut.cpu_mreq_n = 0;
-    dut.cpu_iorq_n = 1;
-    dut.cpu_rd_n = 1;
-    dut.cpu_wr_n = 1;
-    dut.cpu_rfsh_n = 0;
-    settle(dut);
+    rfsh_fetch(dut, 0x8400);
     if (!dut.bus_romcs) return fail("QS /RFSH fetch did not assert ROMCS");
+    if (dut.bus_dsel) return fail("QS /RFSH fetch asserted DSEL");
     if (dut.bus_rdata != 0xa5) return fail("QS /RFSH fetch missed character memory");
     idle(dut);
+    settle(dut, 2);
+    // CPU reset turns characters off again; the RAM keeps its contents.
+    dut.cpu_reset_n = 0;
+    settle(dut, 8);
+    dut.cpu_reset_n = 1;
+    settle(dut, 8);
+    rfsh_fetch(dut, 0x8400);
+    if (dut.bus_romcs) return fail("QS kept characters on across CPU reset");
+    idle(dut);
+    settle(dut, 2);
+    if (mem_read(dut, 0x8400) != 0xa5) return fail("CPU reset cleared QS memory");
+    rfsh_fetch(dut, 0x8400);
+    if (dut.bus_romcs) return fail("QS turned characters on after a read");
+    idle(dut);
+    settle(dut, 2);
     std::cout << "ZX81 QS character window passed\n";
     return EXIT_SUCCESS;
 }

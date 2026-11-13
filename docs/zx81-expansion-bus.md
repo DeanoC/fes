@@ -22,9 +22,10 @@ inferred IB onto the transport clock. Zon X returns summed digital audio on
 `peek_d`; the shell converts it to mono on both HDMI I2S channels.
 During ULA
 `/RFSH` the shell presents `{6'h21, char[6:0], row[2:0]}` on the edge so QS
-`8400–87FF` can supply glyphs. That window power-up copies Sinclair glyphs
-0–63 from ROM `1E00–1FFF` so the board boots with readable text; `POKE`
-still replaces rows. The shifter keeps the first socket `ROMCS`
+`8400–87FF` can supply glyphs. The board RAM starts empty. Like the real
+board's character switch at power-up, QS leaves `ROMCS` low on those
+fetches, so the shell uses its own ROM glyphs, until the CPU first writes
+to the window; CPU reset turns the characters off again. The shifter keeps the first socket `ROMCS`
 byte in `rfsh_chr`. `/RFSH` is not muxed into `cpu_din`. The normal library launch composes a frozen shell and a selected bus cart;
 it does no synthesis, placement or routing. An unset selection loads the original sealed
 shell.
