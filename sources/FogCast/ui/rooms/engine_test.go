@@ -392,7 +392,7 @@ func TestDeadlineStopsRunawayScript(t *testing.T) {
 		if time.Since(start) > 2*time.Second {
 			t.Fatalf("deadline not enforced: %v", time.Since(start))
 		}
-		if len(f.Ops) != 0 || r.Err() == nil || !strings.Contains(r.Err().Error(), "budget") {
+		if len(f.Ops) != 0 || r.Err() == nil || !strings.Contains(r.Err().Error(), "budget") || !errors.Is(r.Err(), ErrBudget) {
 			t.Fatalf("frame %+v err %v", f, r.Err())
 		}
 		if got := r.Step(time.Unix(2, 0)); len(got.Ops) != 0 {
@@ -817,6 +817,47 @@ func TestSyntaxAndRuntimeErrors(t *testing.T) {
 	r.Step(time.Unix(1, 0))
 	if r.Err() == nil {
 		t.Fatal("expected runtime error")
+	}
+	if errors.Is(r.Err(), ErrBudget) {
+		t.Fatalf("runtime error is ErrBudget: %v", r.Err())
+	}
+}
+
+// ErrBudget separates time failures from script errors, so the launcher can
+// retry the first and never the second.
+func TestErrBudgetOnlyMarksTimeFailures(t *testing.T) {
+	short := Budget{Load: 30 * time.Millisecond, Frame: 10 * time.Millisecond, Input: 10 * time.Millisecond, MaxOps: 16}
+	for _, tc := range []struct {
+		name, src string
+		input     bool
+		budget    bool
+	}{
+		{name: "load body deadline", src: "while true do end", budget: true},
+		{name: "load() deadline", src: "function load() while true do end end", budget: true},
+		{name: "input deadline", src: "function on_input(cmd) while true do end end", input: true, budget: true},
+		{name: "lua error", src: "function draw() error('boom') end"},
+		{name: "load error", src: "function load() error('boom') end"},
+		{name: "compile error", src: "function draw( end"},
+		{name: "bad api use", src: "function draw() gfx.rect('x') end"},
+		{name: "op cap", src: "function draw() for i = 1, 100 do gfx.rect(0, 0, 1, 1, '#fff') end end"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newRoom(t, memPack(t, "classify", tc.src, nil), Options{Budget: short})
+			if err := r.Load(); err == nil {
+				if tc.input {
+					r.Input("left")
+				} else {
+					r.Step(time.Unix(1, 0))
+				}
+			}
+			err := r.Err()
+			if err == nil {
+				t.Fatal("room did not fail")
+			}
+			if got := errors.Is(err, ErrBudget); got != tc.budget {
+				t.Fatalf("errors.Is(%v, ErrBudget) = %v, want %v", err, got, tc.budget)
+			}
+		})
 	}
 }
 
@@ -1776,7 +1817,7 @@ func TestHardOverrunReportsElapsed(t *testing.T) {
 
 func assertHardOverrunElapsed(t *testing.T, err error, name string, hard time.Duration) {
 	t.Helper()
-	if err == nil || errors.Is(err, errSoftOverrun) {
+	if err == nil || errors.Is(err, errSoftOverrun) || !errors.Is(err, ErrBudget) {
 		t.Fatalf("hard overrun: %v", err)
 	}
 	prefix := name + " callback: script exceeded " + hard.String() + " hard callback budget (elapsed "
@@ -1888,5 +1929,8 @@ func TestSoftOverrunRetirementReportsTimings(t *testing.T) {
 	}
 	if !errors.Is(softOverrun{}, errSoftOverrun) {
 		t.Fatal("softOverrun is not errSoftOverrun")
+	}
+	if !errors.Is(err, ErrBudget) {
+		t.Fatalf("soft-overrun retirement is not ErrBudget: %v", err)
 	}
 }

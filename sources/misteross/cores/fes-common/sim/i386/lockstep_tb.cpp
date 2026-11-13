@@ -397,6 +397,7 @@ public:
     uint64_t last_mem_wait = 0;      // the cycle of the last memory wait
     uint64_t last_fe_wait = 0;       // the last cycle D had no instruction from the front end
     std::set<uint32_t> step_writes;  // bytes written since the last next()
+    std::map<uint32_t, uint8_t> step_first_write_values;  // first value written to each byte this step
     std::set<uint32_t> written;      // bytes either side wrote since the run began, to clear after it
     uint64_t io_unstable = 0;        // I/O requests whose port, size or data changed before their ack
     // Self-modifying code: the bytes a retired store wrote into the blocks
@@ -472,6 +473,7 @@ public:
         top.inta_ack = 0;
         top.io_ack = 0;
         step_writes.clear();
+        step_first_write_values.clear();
         io.log.clear();
         mmio_log.clear();
         mmio_stores.clear();
@@ -663,6 +665,7 @@ public:
                 if (window && in_window(at)) mmio_stores.push_back({true, at, uint8_t(wdata >> (8 * i)), step});
                 if (at < RAM_BYTES && !(window && (in_rom(at) || in_hole(at)))) ram[at] = uint8_t(wdata >> (8 * i));
                 step_writes.insert(at);
+                step_first_write_values.emplace(at, uint8_t(wdata >> (8 * i)));
                 written.insert(at);
             }
         }
@@ -693,6 +696,7 @@ public:
     // runs before each cycle.
     Event next(const std::function<void()> &tick = {}) {
         step_writes.clear();
+        step_first_write_values.clear();
         io.log.clear();
         const uint64_t acks = pic.acks;
         for (int n = 0; n < event_cycles; ++n) {
@@ -1528,6 +1532,7 @@ struct Outcome {
     bool vector_moved = false;  // stopped at an injected interrupt whose vector entry or handler the program rewrote
     bool window_code = false;   // stopped at code in the MMIO window, which neither side fetches
     bool code_store = false;    // stopped at a store into its code that it did not plan
+    bool rep_self_store = false;  // the oracle stopped inside REP after overwriting its own bytes
     // With mixed memory, stopped at code outside the program (own) and the
     // injected interrupts' handlers (the real-mode one and the protected-mode
     // IDT's), at code other than the 16 bytes from the
@@ -1586,6 +1591,41 @@ struct Code {
     uint32_t lo = 0, hi = 0;
     std::set<uint32_t> rewritten;
 };
+
+// Bochs can end a REP step after its first element when that element
+// overwrites the executing instruction. The 386 may already have the bytes in
+// its queue and complete the REP. Only stop early for an unplanned store to
+// those exact bytes; ordinary code stores still get their full comparison.
+std::set<uint32_t> rep_self_store_writes(const Code *own, const uint8_t *code, bool code32, const State &before,
+                                         const fes_i386::StepResult &result, const fes_i386::Oracle &oracle) {
+    std::set<uint32_t> overlaps;
+    if (!own || result.writes.empty() || !result.events.empty() || (before.cr0 & 0x80000000u)
+        || rep_count(code, code32, before) < 2)
+        return overlaps;
+    const auto decoded = oracle.decode(code, 16, code32);
+    if (!decoded.complete || decoded.undefined || !decoded.length) return overlaps;
+    const auto &cs = before.seg[fes_i386::SEG_CS];
+    const uint64_t last_offset = uint64_t(before.eip) + decoded.length - 1;
+    // Do not infer a contiguous instruction across IP, CS-limit or linear
+    // address wrap. Such a fetch remains under the normal comparison.
+    if (last_offset > (code32 ? UINT32_MAX : UINT16_MAX) || last_offset > cs.limit
+        || uint64_t(cs.base) + last_offset > UINT32_MAX) return overlaps;
+    const uint32_t linear = cs.base + before.eip;
+    for (const auto &w : result.writes)
+        for (unsigned i = 0; i < w.length; ++i) {
+            const uint32_t written = w.linear + i;
+            const uint32_t physical = write_key(w.physical + i);
+            if (written - linear < decoded.length && physical == write_key(written)
+                && physical >= own->lo && physical < own->hi && !own->rewritten.count(physical))
+                overlaps.insert(physical);
+        }
+    return overlaps;
+}
+
+bool rep_writes_own_instruction(const Code *own, const uint8_t *code, bool code32, const State &before,
+                                const fes_i386::StepResult &result, const fes_i386::Oracle &oracle) {
+    return !rep_self_store_writes(own, code, code32, before, result, oracle).empty();
+}
 
 // An ESC instruction's memory operand: its offset, wrapped by address size,
 // and its segment (fes_i386::SEG_*), from the bytes at code and the state.
@@ -2088,6 +2128,36 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // Under queue16 an instruction may run bytes from before a store.
         if (rtl.stale && !rtl.top.queue16) out.add(at + "stale-fetch." + hex(*rtl.stale), 0, 1);
         rtl.stale.reset();
+
+        // Do not compare the oracle's partial REP step with the RTL's
+        // completed one. Check each overlapping byte that made Bochs stop
+        // before ending the run, so a missing, misaddressed or wrong-valued
+        // RTL self-store still fails.
+        const std::set<uint32_t> rep_self_writes =
+            event == Rtl::Event::Retired && !rtl.top.trace_exception && !rtl.top.trace_unimplemented
+                ? rep_self_store_writes(own, code, code32, before, result, oracle)
+                : std::set<uint32_t>{};
+        if (!rep_self_writes.empty()) {
+            outcome.code_store = true;
+            outcome.rep_self_store = true;
+            for (uint32_t address : rep_self_writes) {
+                if (!rtl.step_writes.count(address)) {
+                    out.add(at + "rep-self-write-address." + hex(address), 1, 0);
+                    continue;
+                }
+                if (address >= RAM_BYTES) {
+                    out.add(at + "rep-self-write-value." + hex(address), 1, 0);
+                    continue;
+                }
+                const auto write = rtl.step_first_write_values.find(address);
+                if (write == rtl.step_first_write_values.end()) {
+                    out.add(at + "rep-self-write-value." + hex(address), bus.ram[address], 0);
+                } else if (write->second != bus.ram[address]) {
+                    out.add(at + "rep-self-write-value." + hex(address), bus.ram[address], write->second);
+                }
+            }
+            return outcome;
+        }
 
         // The oracle's first exception, and the vector the step takes: that,
         // or a software interrupt's. external: an INTR's or NMI's, which the
@@ -3046,6 +3116,98 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, c
     rep_zero_es.seg[fes_i386::SEG_ES].ar = 0x96;
     rep_zero_es.seg[fes_i386::SEG_ES].limit = 0x0f;
     run_nop_case(oracle, bus, rtl, entries, summary, "rep-movs-zero-expand-down-es", {0xf3, 0xa4}, rep_zero_es);
+}
+
+// A random program ends at an unplanned store into its code. A REP MOVSB
+// that overwrites its own encoding makes Bochs stop mid-REP; compare only
+// the completed earlier instructions, not the two different partial steps.
+void run_rep_self_store_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl,
+                              const std::vector<Entry> &entries, Summary &summary) {
+    struct Case { const char *label; uint16_t destination, count; bool mismatch, planned, stop, halt; };
+    const Case cases[] = {
+        {"rep-self", 1, 8, false, false, true, false},
+        {"rep-next", 4, 1, false, false, true, false},
+        {"rep-data", 0x0200, 2, false, false, false, true},
+        {"rep-prior-mismatch", 1, 8, true, false, false, false},
+        {"rep-planned", 1, 8, false, true, false, false},
+    };
+    const uint32_t base = 0x1000, source = 0x3000;
+    // NOP first so the negative control can detect an earlier state mismatch.
+    const std::vector<uint8_t> code{0x90, 0x2e, 0xf3, 0xa4, 0xf4};
+    for (const auto &c : cases) {
+        State state;
+        for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
+        state.seg[fes_i386::SEG_CS] = fes_i386::real_mode_segment(0x100);
+        state.seg[fes_i386::SEG_ES] = fes_i386::real_mode_segment(0x100);
+        state.gpr[fes_i386::REG_ESP] = 0x8000;
+        state.eflags |= 0x400;  // DF, matching #1425's backwards copy.
+        state.gpr[fes_i386::REG_ESI] = source - base;  // CS override
+        state.gpr[fes_i386::REG_EDI] = c.destination;
+        state.gpr[fes_i386::REG_ECX] = c.count;
+        for (unsigned i = 0; i < code.size(); ++i) bus.ram[base + i] = rtl.poke(base + i, code[i]);
+        for (unsigned i = 0; i < 8; ++i) bus.ram[source + i] = rtl.poke(source + i, uint8_t(0x90 + i));
+        oracle.invalidate(base, code.size());
+        oracle.set_state(state);
+        State actual = state;
+        if (c.mismatch) actual.gpr[fes_i386::REG_EAX] = 1;
+        rtl.start(actual);
+        Mismatches out;
+        Outcome outcome;
+        const Code own{base, base + uint32_t(code.size()), c.planned ? std::set<uint32_t>{base, base + 1, base + 2, base + 3, base + 4} : std::set<uint32_t>{}};
+        try {
+            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 64, false, summary, out,
+                               base + uint32_t(code.size()), nullptr, &own);
+        } catch (const std::exception &error) {
+            out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
+            oracle.reset();
+        }
+        Mismatches memory;
+        end_run(bus, rtl, outcome.halted, memory);
+        const bool expected_mismatch = c.mismatch || c.planned;
+        const bool ok = outcome.code_store == c.stop && outcome.halted == c.halt
+                     && outcome.rep_self_store == (!c.mismatch && !c.planned && c.destination == 1)
+                     && memory.items.empty() && (expected_mismatch ? !out.items.empty() : out.items.empty());
+        ++summary.runs;
+        if (ok) ++summary.passed;
+        else {
+            ++summary.failed;
+            std::cout << "FAIL directed:" << c.label << " stop " << outcome.code_store << " halt " << outcome.halted;
+            for (const auto &item : out.items) std::cout << ' ' << item;
+            for (const auto &item : memory.items) std::cout << ' ' << item;
+            std::cout << '\n';
+        }
+        summary.cycles += rtl.cycles;
+        rtl.cycles = 0;
+        for (unsigned i = 0; i < code.size(); ++i) bus.ram[base + i] = rtl.poke(base + i, 0);
+        for (unsigned i = 0; i < 8; ++i) bus.ram[source + i] = rtl.poke(source + i, 0);
+        for (uint32_t address : rtl.written) {
+            if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        oracle.invalidate(base, code.size());
+        rtl.written.clear();
+    }
+    // These synthetic oracle writes resemble self-overlap only if the
+    // instruction's bytes are incorrectly treated as a contiguous range.
+    // Reject 16-bit IP wrap and 32-bit linear-address overflow separately.
+    for (int boundary = 0; boundary < 2; ++boundary) {
+        State state;
+        state.seg[fes_i386::SEG_CS] = fes_i386::real_mode_segment(0);
+        state.gpr[fes_i386::REG_ECX] = 8;
+        state.eip = boundary ? 0x10 : 0xffff;
+        state.seg[fes_i386::SEG_CS].base = boundary ? 0xfffffff0u : 0x1000u;
+        const uint32_t written = boundary ? 0 : 0x11000;
+        const uint8_t bytes[16] = {0x2e, 0xf3, 0xa4};
+        const Code own{written, written + 8, {}};
+        fes_i386::StepResult result;
+        result.writes.push_back({written, written, 1});
+        ++summary.runs;
+        if (!rep_writes_own_instruction(&own, bytes, false, state, result, oracle)) ++summary.passed;
+        else {
+            ++summary.failed;
+            std::cout << "FAIL directed:rep-" << (boundary ? "linear-overflow" : "ip-wrap") << '\n';
+        }
+    }
 }
 
 // Self-modifying code, from CS:0 at linear 1000h. The coherent cases run in
@@ -10745,8 +10907,11 @@ int main(int argc, char **argv) {
             ++summary.failed;
             std::cout << "FAIL reset-store reset-edge-write 0 1\n";
         }
+    } else if (mode == "self-store") {
+        run_rep_self_store_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "directed") {
         run_fault_regressions(*oracle, bus, rtl, entries, summary);
+        run_rep_self_store_cases(*oracle, bus, rtl, entries, summary);
         run_smc_cases(*oracle, bus, rtl, entries, summary);
         run_btb_cases(*oracle, bus, rtl, entries, summary);
         run_ras_cases(*oracle, bus, rtl, entries, summary);

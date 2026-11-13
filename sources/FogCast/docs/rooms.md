@@ -99,7 +99,8 @@ missing or invalid, or the room cannot be created, the Home picker is
 shown. The id and reason are written to stderr and posted once per
 start or Home attempt as `ui.home_room_fallback` (`room`, `reason`).
 They are not shown on the TV. Back inside a nested room pops as usual.
-Back at the home-room root opens Menu. While a session is
+Back at the home-room root opens Menu, except on a failed root Home,
+where Back or Confirm reopens a fresh Home (see Budgets). While a session is
 active, Home keeps the playing-view path and does not substitute
 `home_room`.
 
@@ -613,11 +614,18 @@ bin/fogcast-tenfoot -api http://127.0.0.1:8787 -home rooms
 | games per `library.query` | 2000 |
 
 Exceeding a deadline or the op cap fails the room with a message naming the
-budget and the callback that missed it, such as `draw callback`,
-`on_input callback` or `async library.query callback` (the API whose result
-was being delivered). On Linux a hard deadline miss also lists the load
-average, how busy the CPUs were and the three busiest processes over the
-second or so before the miss; the launcher log has a longer list. Budgets are `rooms.Budget` in Go and can be tuned by the launcher.
+budget; deadline errors also name the callback that missed it, such as
+`draw callback`, `on_input callback` or `async library.query callback` (the API
+whose result was being delivered). On Linux a hard deadline miss also lists
+the load average, how busy the CPUs were and the three busiest processes over the
+second or so before the miss; the launcher log has a longer list. A time
+failure (a callback deadline, a callback that returned past its hard limit,
+or retirement after consecutive soft overruns) is
+`errors.Is(inst.Err(), rooms.ErrBudget)`; Lua, load, compile and API errors,
+including the op cap, are not. The launcher reopens a root Home room that
+failed with `ErrBudget` after a backoff, a bounded number of times, and never
+reopens one that failed with a script error (see `docs/ARCHITECTURE.md`).
+Budgets are `rooms.Budget` in Go and can be tuned by the launcher.
 
 ## Testing rooms without a display
 

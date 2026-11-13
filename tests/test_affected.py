@@ -512,7 +512,8 @@ class AffectedTests(unittest.TestCase):
                      'scripts/audit_fes_i386_case.py', 'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
                      'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
                      'scripts/test_fes_i386_lockstep.py', 'scripts/test_fes_i386_latency.py',
-                     'scripts/quartus_fes_i386.py',
+                     'scripts/quartus_fes_i386.py', 'scripts/quartus_x87_spike.py',
+                     'cores/fes-common/sim/i386/spike/spike_x87.sv',
                      'scripts/benchmark_fes_i386.py', 'scripts/fes_i386_ucode.py', 'scripts/i386_verilator.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
@@ -549,6 +550,12 @@ class AffectedTests(unittest.TestCase):
         mixed = plan(['sources/misteross/scripts/pc386_cpu_profile.py',
                       'sources/misteross/scripts/new_helper.py'])
         self.assertEqual(set(mixed['cores']), set(CORES))
+
+    def test_pc386_windows_checks_select_only_what_reads_them(self):
+        result = plan(['sources/misteross/scripts/pc386_wfw.py'])
+        self.assertEqual(result['cores'], ['pc386'])
+        result = plan(['sources/misteross/scripts/pc386_wfw_kit_acceptance.py'])
+        self.assertEqual(result['cores'], [])
 
     def test_unclassified_fpga_inputs_fail_broad(self):
         for path in ('', 'Makefile', 'toolchain.lock',

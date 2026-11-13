@@ -113,7 +113,7 @@ ATARI_ST_SCRIPTS = frozenset({'atari_st_slot.py', 'build_atari_st_slot_card.py',
 # classified separately below because its machine simulation consumes the report.
 I386_SCRIPTS = frozenset({'audit_fes_i386_case.py', 'fes_i386_oracle.py', 'test_fes_i386_vectors.py', 'test_fes_i386_test386.py',
                           'test_fes_i386_frontend.py', 'test_fes_i386_lockstep.py', 'test_fes_i386_governor.py',
-                          'test_fes_i386_latency.py', 'benchmark_fes_i386.py', 'quartus_fes_i386.py',
+                          'test_fes_i386_latency.py', 'benchmark_fes_i386.py', 'quartus_fes_i386.py', 'quartus_x87_spike.py',
                           'fes_i386_ucode.py', 'i386_verilator.py'})
 
 
@@ -248,6 +248,10 @@ def fpga_cores(path):
             return (), 'pc386 machine synthesis recipe; no simulation reads it'
         if parts[1] == 'pc386_cpu_profile.py':
             return ('pc386',), 'pc386 CPU profiling is consumed by its cpu-profile simulation'
+        if parts[1] == 'pc386_wfw.py':
+            return ('pc386',), "pc386 Windows screen checks are consumed by its wfw simulation"
+        if parts[1] == 'pc386_wfw_kit_acceptance.py':
+            return (), 'pc386 Windows kit acceptance runner; no simulation reads it'
         if parts[1] in I386_SCRIPTS:
             return (), 'i386 audit, oracle, corpus runners, RTL checks and timing harness; FPGA software classification'
     if parts and parts[0] == 'tests':

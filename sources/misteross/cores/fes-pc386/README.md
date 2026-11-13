@@ -70,7 +70,7 @@ Quartus 17.0.2.
 | [`sim/capture_tb.cpp`](sim/capture_tb.cpp), [`sim/vga_capture_top.sv`](sim/vga_capture_top.sv) | Forces capture FIFO overflow and checks that the damaged frame is discarded and a later frame completes |
 | [`sim/plane_tb.cpp`](sim/plane_tb.cpp), [`sim/plane_top.sv`](sim/plane_top.sv) | The plane through the bridge and the port 2 arbiter beside the presenter and capture traffic |
 | [`sim/pc386_ddr_model.h`](sim/pc386_ddr_model.h) | The DDR window and 64-bit port model with the measured latency |
-| [`sim/freedos.lock`](sim/freedos.lock) | The FreeDOS 1.4 package commits and file hashes of the simulation and games disks |
+| [`sim/freedos.lock`](sim/freedos.lock) | The FreeDOS kernel 2046 release archives, the FreeDOS 1.4 package commits and the file hashes of the simulation and games disks |
 | [`sim/fesenv.asm`](sim/fesenv.asm) | FESENV.COM: the games disk's `BLASTER` line from CMOS 60h-62h |
 | [`sim/mousedef.asm`](sim/mousedef.asm) | MOUSEDEF.COM: the games disk's default CuteMouse event handler, run after `LH CTMOUSE` |
 | [`sim/game-drives.toml`](sim/game-drives.toml) | The game drives' titles: source zips and their SHA-256, folders, launch commands and keys |
@@ -110,6 +110,7 @@ python3 scripts/sim_fes_pc386.py --suite speaker --download  # SPKTEST.COM: PIT 
 python3 scripts/sim_fes_pc386.py --suite cpu-profile --download  # CPUPROF.COM on the oracle, then a 20 ms machine_tb --cpu-profile window on the RTL
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
+python3 scripts/sim_fes_pc386.py --suite wfw --cpu rtl    # WfW 3.11 from the DOS prompt to Program Manager on the RTL; 1-2 hours, periodic (skips without the drive)
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
 python3 scripts/sim_fes_pc386.py --suite system         # M5: FreeDOS to the prompt on pc386_system, about an hour
 make toolchain-fes-pc386 CACHE_ROOT=/abs/out/cache/misteross-toolchains GPU_ROUTER=HIP  # once per lock
@@ -478,10 +479,10 @@ The games image is what the acceptance games run in on a kit, as the FogCast
 disk builder's image will be
 ([FreeDOS in the builder](../../docs/pc386-machine-design.md#freedos-in-the-fogcast-disk-builder)).
 `build_pc386_freedos_image.py --profile games` writes
-`build/sim/fes-pc386/freedos-games.img`: the boot fixture's kernel and FreeCOM,
-with HIMEMX 3.38, UMBM from Jemm 5.85, CuteMouse 2.1b4 and MEM 1.12 from their
-FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
-[`sim/freedos.lock`](sim/freedos.lock).
+`build/sim/fes-pc386/freedos-games.img`: the boot fixture's kernel (2046's
+386 FAT12/FAT16 build) and FreeCOM, with HIMEMX 3.38, UMBM from Jemm 5.85,
+CuteMouse 2.1b4, MEM 1.12 and SHARE 08/2006a from their FreeDOS 1.4 package
+archives in `C:\FDOS\BIN`, pinned in [`sim/freedos.lock`](sim/freedos.lock).
 - `FDCONFIG.SYS` loads UMBM with `/I=C800-DFFF`, `DOS=UMB`, then HIMEMX high
   with all extended memory as XMS (15,360K on a 16 MiB machine). UMBM hands
   the machine's upper RAM to DOS as upper memory blocks without V86 and then
@@ -498,25 +499,33 @@ FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
   if it is not 0:0. After CuteMouse's 0:0 it left its own handler installed,
   and the next program was called at a stale address on every mouse event
   (#1485).
-- `FDCONFIG.SYS` has a boot menu of three entries. It takes entry 1 after 3 seconds, so kit
+- `FDCONFIG.SYS` has a boot menu of four entries. It takes entry 1 after 3 seconds, so kit
   and simulation runs that press nothing get it (#1526):
   - **Entry 1, the default.** The kernel stays in conventional memory (below).
     `DOSDATA=UMB` moves its data, stacks and LASTDRIVE to upper memory, and
     `FILESHIGH=30`, `BUFFERSHIGH=16` and `SHELLHIGH` move the file handles,
-    buffers and FreeCOM there too. MEM shows 580K (594,256 bytes) free. That
+    buffers and FreeCOM there too. MEM shows 582K (595,808 bytes) free. That
     is enough for Frontier: Elite 2 (about 594,000) and Serpent Isle's
     published 573K (586,752 bytes). `FILES=30` covers Strike Commander's 25
     (#1525). The games-image MEM simulation requires Serpent Isle's figure
     plus 1,024 bytes, and Frontier's.
   - **Entry 2, more memory.** `DOS=HIGH,UMB`, `FILES=30`, `BUFFERS=16`, for
     programs that need more conventional memory, such as Falcon 3.0
-    (614,400 bytes). MEM shows 622K (637,104 bytes). It is not for Ultima
+    (614,400 bytes). MEM shows 622K (637,152 bytes). It is not for Ultima
     VII; the next item says why.
   - **Entry 3, EMS.** Entry 1 with the [EMS driver](#ems-driver) high, for
     the titles that need expanded memory (Ultima Underworld, Master of Orion,
-    Darklands, Frontier: Elite 2). MEM shows 580K (594,256 bytes), 2,048K
+    Darklands, Frontier: Elite 2). MEM shows 582K (595,808 bytes), 2,048K
     of EMS and 16K of upper memory used. It is not for Ultima VII, whose menu
     refuses to run while an expanded memory manager is resident.
+  - **Entry 4, Windows 3.x.** Entry 2 with FreeDOS's SHARE loaded high
+    (`INSTALLHIGH`, 9K of upper memory). WIN386's DOSMGR runs on FreeDOS
+    only with a SHARE resident (#1725). MEM shows 622K (637,152 bytes). The
+    games' entries leave SHARE out, so their file opens do not pass through
+    its sharing checks. Windows also needs `InDOSPolling=TRUE`, and no
+    `device=ifsmgr.386`, `vcache.386` or `vshare.386` lines, in `[386Enh]`
+    of the user's own `SYSTEM.INI`
+    ([record](../../../../docs/validation/2026-11-12-pc386-freedos-2046/summary.md)).
 - HIMEMX picks its A20 method by itself. POST hands DOS a machine with A20
   off ([A20 and CPU reset](../../docs/pc386-machine-design.md#a20-and-cpu-reset)),
   so HIMEMX takes port 92h ("Fast A20 method used"), and XMS function 04h
@@ -542,6 +551,12 @@ The images are test fixtures and are never distributed. The games
 themselves are user-supplied and go onto the reusable game drives, which stay
 outside the repository ([game drives](../../docs/pc386-game-drives.md)). The [games record](../../../../docs/validation/2026-11-01-pc386-m5-games/summary.md)
 has the kit runs.
+
+Windows for Workgroups 3.11 is a standing check beside the acceptance games:
+a kit acceptance (`scripts/pc386_wfw_kit_acceptance.py`: Program Manager, a
+mouse click, a DOS window and a Notepad save read back from the disk) on each
+CPU slice's or machine change's seal, and the periodic `--suite wfw`
+simulation ([Windows corpus](../../docs/pc386-windows-corpus.md)).
 
 ## EMS driver
 

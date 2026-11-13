@@ -533,10 +533,29 @@ func (r *Instance) Input(cmd string) bool {
 	return lua.LVAsBool(handled)
 }
 
+// ErrBudget marks a room failure caused by time rather than by the script's
+// logic: a callback deadline that expired, a callback that finished past its
+// hard limit, or a room retired after consecutive soft overruns. Test it with
+// errors.Is on Instance.Err. Lua errors, load and compile errors and API
+// misuse (including the draw-op cap) are not ErrBudget.
+var ErrBudget = errors.New("room script exceeded its time budget")
+
+// budgetError is a deadline or hard-limit failure. It is ErrBudget.
+type budgetError struct{ msg string }
+
+func (e budgetError) Error() string { return e.msg }
+
+func (e budgetError) Is(target error) bool { return target == ErrBudget }
+
+func budgetErrorf(format string, args ...any) error {
+	return budgetError{msg: fmt.Sprintf(format, args...)}
+}
+
 var errSoftOverrun = errors.New("script exceeded soft callback budget")
 
 // softOverrun is a callback that finished inside its hard deadline but
-// over its soft budget. It is errSoftOverrun and also carries the timing.
+// over its soft budget. It is errSoftOverrun and ErrBudget, and also
+// carries the timing.
 type softOverrun struct {
 	budget time.Duration
 	timing callTiming
@@ -546,7 +565,7 @@ func (e softOverrun) Error() string {
 	return fmt.Sprintf("script exceeded %s soft callback budget (%s)", e.budget, e.timing)
 }
 
-func (e softOverrun) Is(target error) bool { return target == errSoftOverrun }
+func (e softOverrun) Is(target error) bool { return target == errSoftOverrun || target == ErrBudget }
 
 func (r *Instance) overrun(err error) {
 	r.recordFrameOverrun(err)
@@ -634,7 +653,7 @@ func (r *Instance) callSoft(name string, fn *lua.LFunction, budget time.Duration
 func (r *Instance) checkElapsed(budget time.Duration, timing callTiming) error {
 	hard := budget * callbackHardLimitFactor
 	if timing.elapsed > hard {
-		return r.deadlineMiss(fmt.Errorf("script exceeded %s hard callback budget (%s)", hard, timing), timing)
+		return r.deadlineMiss(budgetErrorf("script exceeded %s hard callback budget (%s)", hard, timing), timing)
 	}
 	if timing.elapsed > budget {
 		return softOverrun{budget: budget, timing: timing}
@@ -946,7 +965,7 @@ func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args 
 	timing.elapsed = time.Since(start)
 	if err != nil {
 		if expired {
-			return timing, r.deadlineMiss(fmt.Errorf("script exceeded %s budget (%s)", budget, timing), timing)
+			return timing, r.deadlineMiss(budgetErrorf("script exceeded %s budget (%s)", budget, timing), timing)
 		}
 		return timing, errors.New(strings.TrimSpace(err.Error()))
 	}

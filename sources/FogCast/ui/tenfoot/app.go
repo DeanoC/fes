@@ -504,6 +504,7 @@ type App struct {
 	roomStack           []*rooms.Instance
 	roomFrame           rooms.Frame
 	roomErr             string
+	homeRecovery        homeRecovery
 	roomWasParked       bool
 	roomDuringPlay      bool
 	mediaControlsDirect bool
