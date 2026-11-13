@@ -146,9 +146,11 @@ and TTL, and last launch/stop error. It is off by default and uses the active
 theme's status/caption tokens. Launch, stop, focus, and nav actions send
 client wall + monotonic clocks on the existing host session path and to
 `POST /api/v1/debug/ui-events`. A rejected launcher action
-(`ui.launcher_action`) and a `home_room` picker fallback
-(`ui.home_room_fallback`) use that same debug ingest. The fallback
-carries the room id and reason for the host only; the TV does not.
+(`ui.launcher_action`), a `home_room` picker fallback
+(`ui.home_room_fallback`) and an automatic reopen of a root Home that
+failed on its time budget (`ui.home_room_reopen`) use that same debug
+ingest. The fallback carries the room id and reason, and the reopen the
+room id, attempt and error, for the host only; the TV does not.
 
 Look tokens live in `ui/theme`. `-theme`
 selects a built-in or pack name (`default`/`classic`, `arcade`/`neon`,

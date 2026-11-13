@@ -195,7 +195,7 @@ class LockstepRunTest(unittest.TestCase):
                                 cwd=lockstep.ROOT, env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(', 0 fail;', result.stdout)
-        self.assertIn('directed cases: 77 pass, 0 fail', result.stdout)
+        self.assertIn('directed cases: 84 pass, 0 fail', result.stdout)
         self.assertIn('unreal-mode cases: 7 pass, 0 fail', result.stdout)
         self.assertRegex(result.stdout, r'protected mode: 2 seeds x 100 programs .*: 200 pass, 0 fail;')
         self.assertIn('memory cases (DMA, FLUSH): 27 pass, 0 fail', result.stdout)

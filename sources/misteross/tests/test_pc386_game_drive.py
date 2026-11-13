@@ -29,10 +29,15 @@ class ManifestTest(unittest.TestCase):
         ids = []
         for name, drive in data['drives'].items():
             self.assertLessEqual(drive['cylinders'] * freedos.HEADS * freedos.SPT * 512, 128 * 1024 * 1024, name)
+            if drive.get('kind') == 'image':
+                self.assertRegex(drive['sha256'], r'^[0-9a-f]{64}$', name)
             for title in drive['titles']:
                 ids.append(title['id'])
-                self.assertRegex(title['sha256'], r'^[0-9a-f]{64}$', title['id'])
                 self.assertTrue(title['launch'].endswith('|'), title['id'])
+                if drive.get('kind') == 'image':
+                    self.assertNotIn('copy', title, title['id'])
+                    continue
+                self.assertRegex(title['sha256'], r'^[0-9a-f]{64}$', title['id'])
                 for copy in title['copy']:
                     for part in copy['to'].split('\\'):
                         self.assertEqual(drives.dos_name(part), part, title['id'])
@@ -64,6 +69,84 @@ class ManifestTest(unittest.TestCase):
             path.write_text(text)
             with self.assertRaisesRegex(drives.DriveError, 'is on drives'):
                 drives.manifest(path)
+
+
+    def test_the_windows_drive_is_an_image_drive(self):
+        drive = drives.manifest()['drives']['wfw-msdos']
+        self.assertEqual(drive['kind'], 'image')
+        self.assertEqual([title['id'] for title in drive['titles']], [sim.WFW_TITLE])
+        self.assertEqual(sim.WFW_DRIVE, 'wfw-msdos')
+
+    def test_an_image_drive_needs_its_hash(self):
+        text = drives.MANIFEST.read_text().replace(
+            'sha256 = "a2afd3c7689526eba919cfbfe77810f4751525dea1827d0c196dd81e0c8d0c6c"', 'sha256 = "x"')
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'drives.toml'
+            path.write_text(text)
+            with self.assertRaisesRegex(drives.DriveError, 'pins its image'):
+                drives.manifest(path)
+
+
+class ImageDriveTest(unittest.TestCase):
+    """A stand-in image drive of one cylinder: registered, refused, skipped."""
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        root = Path(self.directory.name)
+        self.store = root / 'store'
+        self.image = root / 'supplied.img'
+        self.image.write_bytes(bytes(range(256)) * (freedos.HEADS * freedos.SPT * 2))
+        self.data = {'buckets': {'program': ''}, 'sources': {}, 'drives': {'win': {
+            'kind': 'image', 'cylinders': 1, 'sha256': drives.sha256(self.image),
+            'titles': [{'id': 'win', 'title': 'Windows', 'bucket': 'program', 'launch': 'win|', 'limit': 12.0}]}}}
+
+    def tearDown(self):
+        self.directory.cleanup()
+
+    def register(self, source=None):
+        with mock.patch.object(drives, 'STORE', self.store):
+            return drives.register_image('win', self.data, source)
+
+    def test_an_imported_image_is_stored_by_its_hash_with_a_record(self):
+        image = self.register(self.image)
+        digest = self.data['drives']['win']['sha256']
+        self.assertEqual(image, self.store.resolve() / f'{digest}.img')
+        self.assertEqual(image.stat().st_mode & 0o777, 0o600)
+        found, record = drives.resolve('win', self.store)
+        self.assertEqual(found, image)
+        self.assertEqual(record['base']['kind'], 'image')
+        self.assertEqual(drives.title_of(record, 'win')['sha256'], digest)
+        self.assertEqual(drives.geometry(record), '1/16/63')
+        self.assertEqual(self.register(), image)  # already stored: no source needed
+
+    def test_a_missing_image_is_reported_as_missing(self):
+        with self.assertRaises(drives.DriveMissing):
+            self.register()
+
+    def test_an_image_with_other_bytes_is_refused(self):
+        self.data['drives']['win']['sha256'] = '0' * 64
+        with self.assertRaisesRegex(drives.DriveError, 'the manifest pins'):
+            self.register(self.image)
+
+    def test_an_image_of_another_size_is_refused(self):
+        self.data['drives']['win']['cylinders'] = 2
+        with self.assertRaisesRegex(drives.DriveError, 'cylinders are'):
+            self.register(self.image)
+
+    def test_a_full_build_skips_a_missing_image_drive(self):
+        manifest = Path(self.directory.name) / 'drives.toml'
+        manifest.write_text('[buckets]\nprogram = ""\n[drives.win]\nkind = "image"\ncylinders = 1\n'
+                            f'sha256 = "{"0" * 64}"\n[[drives.win.titles]]\nid = "win"\ntitle = "W"\n'
+                            'bucket = "program"\nlaunch = "win|"\n')
+        with mock.patch.object(drives, 'STORE', self.store), \
+                mock.patch.dict(os.environ, {'FES_PC386_DRIVES': str(self.store)}), \
+                mock.patch('sys.stdout', new_callable=io.StringIO) as out:
+            self.assertEqual(drives.main(['--manifest', str(manifest)]), 0)
+            self.assertIn('win: skipped', out.getvalue())
+        with mock.patch.object(drives, 'STORE', self.store), \
+                mock.patch.dict(os.environ, {'FES_PC386_DRIVES': str(self.store)}), \
+                mock.patch('sys.stderr', new_callable=io.StringIO):
+            self.assertEqual(drives.main(['--manifest', str(manifest), 'win']), 1)
 
 
 class GamePassTest(unittest.TestCase):

@@ -1169,6 +1169,11 @@ The `core_ids` catalog filter resolves installed entries through their
 candidates and grouped editions before selecting a representative; recents
 also applies it before the page limit.
 
+Local game IDs combine the system, a title slug capped at 48 ASCII characters,
+and a digest of the source identity. A separator at the truncation boundary is
+removed so the appended digest keeps the ID valid; existing valid IDs are
+unchanged.
+
 `DELETE /api/v1/library/core-entries/{game_id}` removes one core title and
 clears its recents, favorite, collection memberships and edition choices while
 retaining core data, media bytes, and saved-tape names and timestamps. Recreating
@@ -1455,11 +1460,14 @@ Invalid client clocks are ignored and do not fail the mutation. The current
 `flight_id` is also additive on `GET /api/v1/session` and on launch/stop
 responses. Focus and nav stamps, plus a copy of launch/stop actions, go to
 `POST /api/v1/debug/ui-events` (`layer=ui`, kinds `ui.launch` / `ui.stop` /
-`ui.focus` / `ui.nav` / `ui.launcher_action` / `ui.home_room_fallback`); fog-flight joins those rows to host and target events
+`ui.focus` / `ui.nav` / `ui.launcher_action` / `ui.home_room_fallback` /
+`ui.home_room_reopen`); fog-flight joins those rows to host and target events
 by `flight_id` when it is present. Token-like detail keys are dropped.
 `ui.home_room_fallback` carries `room` and `reason` for a `home_room` that
-could not be opened. `ui.launcher_action` records an id the allowlist
-rejected. Neither is a kit mutation.
+could not be opened. `ui.home_room_reopen` carries `room`, `attempt` and
+`error` for an automatic reopen of a root Home room that failed on its time
+budget. `ui.launcher_action` records an id the allowlist rejected. None is a
+kit mutation.
 
 TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), the local
 attract on/off gate, reduced motion, the look name, the optional debug HUD, and
@@ -1468,7 +1476,24 @@ local to the tenfoot process (CLI `-safe-area` / `-layout` / `-no-attract` /
 `-theme` / `-debug-hud` / `-home` / `-home-room` and optional `tenfoot.json`
 prefs). When `home` is `rooms` and `home_room` names an openable pack, start and
 Home open it as the root. If the selected Home room cannot open, the room
-picker is the fallback. A library or recents read that fails in the network
+picker is the fallback. A root Home room that fails on its time budget
+(`rooms.ErrBudget`: a callback deadline, a hard-limit miss, or retirement
+after consecutive soft overruns) keeps the red failed-room panel, which says
+it will retry, and is replaced by a fresh instance after 2 s, then 10 s, then
+30 s (`ui/tenfoot/home_recover.go`). The budgets and checks are unchanged. At
+most three automatic reopens run per launcher process, which is one kit boot
+unless the supervisor restarts the launcher; the count returns only after a
+Home instance has run for 10 minutes without failing, so a Home that keeps
+failing stops at the panel instead of looping. A reopen waits while the room
+picker or Settings is open. If an installed root Home misses its initial trial
+on `rooms.ErrBudget`, tenfoot keeps that selected snapshot and sends the failed
+instance through the same retry policy instead of rolling it back. Other
+script, load and API errors are never reopened automatically. Back or Confirm
+on a failed root Home reopens Home, at any time and without using an automatic
+reopen. A reopen, automatic or by hand, opens
+the selected Home pack directly: it is not an update, so it never trials the
+pack or rolls back or deletes an installed Home selection; on any other failed room Back returns to
+the parent room or, at the root, opens the picker. A library or recents read that fails in the network
 stack shows the temporary unreachable copy and retries with the presentation
 backoff, from 400 ms up to 8 s, until the host answers or the load is replaced.
 A host API error is not retried. An empty catalog stays the empty-library copy.
@@ -4400,8 +4425,11 @@ a failed first installation is deselected, allowing the embedded room of that ID
 to remain available. A concurrent newer install is not undone by an older
 failure. Home and Rooms navigation refresh the index from embedded defaults and
 the current rooms directory. Home trials a changed installed selection before
-replacing an open instance. Room replacement is refused while a game is running
-or launching, including when the selected pack is loose.
+replacing an open instance. A startup trial for the selected root Home that
+fails specifically on `rooms.ErrBudget` keeps that selection and failed room
+for the normal automatic reopen path; other startup trial failures still use
+the rollback and fallback behavior. Room replacement is refused while a game
+is running or launching, including when the selected pack is loose.
 Nested rooms retain their parents and persistent state stays outside the pack.
 
 Errors in later callbacks retain the normal room error handling. Explicit
