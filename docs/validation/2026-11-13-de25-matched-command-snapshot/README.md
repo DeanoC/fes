@@ -53,3 +53,30 @@ a subsequent bounded stop test can distinguish local polling failure from
 native receipt/source rejection. Then rebuild the affected matched chain and
 prepare a trial with fresh kit, transport, card and artifact admission. No
 board was programmed, rebooted or written during this preparation.
+
+## Rebuilt candidate with preserved failure cause
+
+The [updated result](matched-with-cause-result.json) binds the complete rebuilt
+SDK/entry/BL31/SPL/U-Boot/FPGA chain to selected source at
+`16e8cbde849ea2557e16c4dbd0d75a9928b5e06d`, including the cached native
+failure-cause repair. Its chain is
+`78d9472a2d7218dbdfbfbc3bc8aea3ea432f789c6436937fef649ca5a28b1c20`,
+boot ID `bc40ecb6064165fa`, and FIT SHA-256
+`5176ea7b074dd15e1414df0a39296f3b3c4579507b9a71f08e465b0584cb2486`.
+The FIT remains 8,497,872 bytes. Complete producer source maps, component
+metadata and a new full native file admission pass. The entry guide now states
+the actual explicit 16 MiB FIT contract.
+
+The [updated commands](commands-with-cause.json) retain the same pinned tools
+and shared PFG lock. The [updated archive](retention-with-cause-result.json)
+independently reads back 793 new source/artifact/receipt/evidence files. The
+unchanged complete sealed project trees remain in the
+[preceding verified archive](reused-project-archive.json); their complete current
+membership and hashes are rechecked, and that archive's bytes are hashed again.
+Both archives are required to recover this build context. External Quartus
+binaries remain digest-only dependencies.
+
+This rebuilt candidate has no physical acceptance. Prepare a fresh one-use
+bounded procedure with current transport/card admission before using it on
+TRWU8CBL. Retirement still retains all source memory and stops before ordinary
+activation; the separate native warm-stop failure still needs fresh evidence.

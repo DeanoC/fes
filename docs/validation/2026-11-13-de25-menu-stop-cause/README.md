@@ -19,9 +19,9 @@ The test fails on the old code at presentation, then passes with the repair.
 
 The [result](result.json) binds source hashes and supervised checks. The full
 native Go module race suite passes in 139 seconds; generated/source checks
-pass. The complete selected-program TamaGo SDK also cross-builds. A newly
-matched entry/BL31/SPL/U-Boot/FPGA composition is still required for these
-changed native source bytes. The earlier matched candidate remains separately
+pass. The complete selected-program TamaGo SDK also cross-builds. A [newly matched chain](../2026-11-13-de25-matched-command-snapshot/README.md#rebuilt-candidate-with-preserved-failure-cause)
+now rebuilds entry, complete BL31, SPL/U-Boot and FPGA composition for the
+changed native source bytes; full file admission and archive readback pass. The earlier matched candidate remains separately
 bound to its previous source, with no physical acceptance. The historical
 warm-return attempt remains failed and its root cause remains unproven until
 a fresh bounded trial captures the preserved error or verifies the repair path.
