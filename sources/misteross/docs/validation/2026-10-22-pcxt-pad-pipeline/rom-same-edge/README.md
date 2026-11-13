@@ -47,14 +47,20 @@ The first route charges 303.2311640176922 seconds and the second
 
 ## Capture contents
 
-Extract the three archives into one empty directory. Their paths retain the
-original task-relative `out/` layout. Every archive contains a manifest with
-all member hashes and sizes. `capture-readback.json` binds the compressed
-archives and records complete member readback; no samples are used.
+This is now a partial record. The capture was three archives; `host.tar.gz`
+has been removed (see [Removed archive](#removed-archive)), so the source,
+CPU, formal and synthesis evidence it held cannot be read back from this
+tree, and the capture can no longer be replayed from here.
 
-- `host.tar.gz`: 93 evidence files and its manifest, including both complete
-  source archives, source/CPU/formal/synthesis receipts, raw synthesis and
-  explicitly bound original-source dependencies.
+Extract the two remaining archives into one empty directory. Their paths
+retain the original task-relative `out/` layout. Each contains a manifest
+with all member hashes and sizes. `capture-readback.json` records the
+compressed-archive hashes and complete member readback made when all three
+existed; its `host` entry describes the removed file and cannot be checked.
+
+- `host.tar.gz` (removed): held 93 evidence files and its manifest, including
+  both complete source archives, source/CPU/formal/synthesis receipts, raw
+  synthesis and explicitly bound original-source dependencies.
 - `window-route.tar.gz`: 52 evidence files and its manifest, including original
   and candidate final artifacts, complete analysis, failed overflow preflight
   and exact same-binary native preparation.
