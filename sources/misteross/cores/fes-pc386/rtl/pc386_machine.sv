@@ -85,6 +85,7 @@ module pc386_machine #(
     input wire wall_valid,
     input wire [15:0] wall_year,
     input wire [7:0] wall_month, wall_day, wall_hour, wall_minute, wall_second, wall_weekday,
+    input wire x87_present,                 // the i386dx+387 identity: CMOS 14h bit 1
     input wire disk_present,
     input wire [31:0] disk_sectors,
     input wire [15:0] disk_cylinders,
@@ -211,7 +212,7 @@ module pc386_machine #(
         .base_kib(base_kib), .extended_kib(extended_kib), .above16m_64k(above16m_64k),
         .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma), .ems_pages(ems_pages),
         .ems_reg_write(ems_reg_write), .ems_reg_index(ems_reg_index), .ems_reg_wdata(ems_reg_wdata),
-        .cmos_busy(cmos_busy),
+        .cmos_busy(cmos_busy), .x87_present(x87_present),
         .wall_valid(wall_valid), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
         .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second), .wall_weekday(wall_weekday),
         .disk_present(disk_present), .disk_sectors(disk_sectors), .disk_cylinders(disk_cylinders),
