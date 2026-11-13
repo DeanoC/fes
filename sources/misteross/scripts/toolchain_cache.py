@@ -1861,6 +1861,16 @@ def referenced_pins(root: Path, ref: str) -> set[tuple[str, bytes]]:
     return result
 
 
+def referenced_recipe(root: Path, ref: str) -> str:
+    """Return the recipe digest installs built from *ref*'s bootstrap.sh carry."""
+
+    root = Path(root).resolve()
+    top = Path(_git(root, "rev-parse", "--show-toplevel").strip())
+    prefix = root.relative_to(top).as_posix()
+    name = f"{prefix}/scripts/bootstrap.sh" if prefix and prefix != "." else "scripts/bootstrap.sh"
+    return _sha256_bytes(_git(top, "show", f"{ref}:{name}").encode("utf-8"))
+
+
 def _install_pins(tool: str, pins: Mapping[str, Mapping[str, str]]) -> dict[str, Any]:
     return {
         "pin": dict(pins[tool]),
@@ -1890,7 +1900,8 @@ def prune(
     """Remove installs that no lock on *ref* needs and nobody used lately.
 
     An install is kept when its pins appear in a ``toolchain.lock`` at *ref*
-    and it was built on this host with this compiler inventory, or when its
+    and it was built from *ref*'s bootstrap.sh on this host with this
+    compiler inventory, or when its
     lock file (stamped by every consumer and build) is younger than
     *keep_days*. A held lock always keeps it. A directory without ready.json
     whose lock is free is a failed build and is removed. Legacy per-lock
@@ -1912,6 +1923,7 @@ def prune(
     now = time.time() if now is None else now
     horizon = now - keep_days * 86400
     references = referenced_pins(root, ref)
+    recipe = referenced_recipe(root, ref)
     host = host_identity() if host is None else host
     compiler = _base_compiler(compiler_inventory(DEFAULT_GPU_ROUTER) if compiler is None else compiler)
     report: dict[str, list[str]] = {"kept": [], "removed": [], "busy": []}
@@ -1967,6 +1979,7 @@ def prune(
                 continue
             if (
                 (tool, _manifest_pins(manifest)) in references
+                and manifest.build.get("recipe") == recipe
                 and manifest.build.get("host") == dict(host)
                 and manifest.build.get("compiler") == compiler
             ):

@@ -852,6 +852,13 @@ class ToolchainCachePruneTests(unittest.TestCase):
         other_host = self.request(host_identity={**HOST, "libc": "glibc-old"})
         other_install = _publish(other_host, "openfpgaloader")
         os.utime(toolchain_cache.lock_path(other_host, "openfpgaloader"), (old, old))
+        # A pinned install built by an older bootstrap.sh is no longer referenced.
+        older_bootstrap = self.base / "older-bootstrap.sh"
+        older_bootstrap.write_text("# older\n" + (self.root / "scripts" / "bootstrap.sh").read_text(), encoding="utf-8")
+        older = self.request(bootstrap_path=older_bootstrap)
+        older_install = _publish(older, "mistral")
+        self.assertNotEqual(older_install.key, toolchain_cache.tool_key(pinned, "mistral"))
+        os.utime(toolchain_cache.lock_path(older, "mistral"), (old, old))
         # A failed build: no ready.json.
         partial = self.cache / "tools" / "mistral" / ("f" * 64)
         (partial / "build").mkdir(parents=True)
@@ -859,6 +866,7 @@ class ToolchainCachePruneTests(unittest.TestCase):
         report, output = self.prune()
         self.assertIn(f"tools/yosys/{stale_install.key}", report["removed"])
         self.assertIn(f"tools/openfpgaloader/{other_install.key}", report["removed"])
+        self.assertIn(f"tools/mistral/{older_install.key}", report["removed"])
         self.assertIn(f"tools/mistral/{'f' * 64}", report["removed"])
         self.assertIn("dry run", output)
         self.assertTrue(stale_install.directory.exists(), "a dry run removes nothing")
