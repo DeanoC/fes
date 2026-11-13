@@ -1807,26 +1807,27 @@ func TestHardOverrunReportsElapsed(t *testing.T) {
 		L.Push(lua.LTrue)
 		return 1
 	})
-	assertHardOverrunElapsed(t, r.callSoft(block, budget, 0), hard)
-	value, err := r.callRetSoft(block, budget)
+	assertHardOverrunElapsed(t, r.callSoft("draw", block, budget, 0), "draw", hard)
+	value, err := r.callRetSoft("on_input", block, budget)
 	if value != lua.LNil {
 		t.Fatalf("hard return overrun value: %v", value)
 	}
-	assertHardOverrunElapsed(t, err, hard)
+	assertHardOverrunElapsed(t, err, "on_input", hard)
 }
 
-func assertHardOverrunElapsed(t *testing.T, err error, hard time.Duration) {
+func assertHardOverrunElapsed(t *testing.T, err error, name string, hard time.Duration) {
 	t.Helper()
 	if err == nil || errors.Is(err, errSoftOverrun) || !errors.Is(err, ErrBudget) {
 		t.Fatalf("hard overrun: %v", err)
 	}
-	prefix := "script exceeded " + hard.String() + " hard callback budget (elapsed "
+	prefix := name + " callback: script exceeded " + hard.String() + " hard callback budget (elapsed "
 	msg := err.Error()
 	i := strings.Index(msg, prefix)
-	if i < 0 || !strings.HasSuffix(msg, ")") {
+	end := strings.Index(msg[max(i, 0):], ")")
+	if i < 0 || end < 0 {
 		t.Fatalf("hard overrun diagnostic: %v", err)
 	}
-	rest := strings.TrimSuffix(msg[i+len(prefix):], ")")
+	rest := msg[i+len(prefix) : i+end]
 	if end := strings.Index(rest, ";"); end >= 0 {
 		rest = rest[:end]
 	}

@@ -106,7 +106,6 @@ def build_commands(root: Path, output: Path, build_id: str,
         "-DFES_COLECO_EXPANSION_DEV=1 "
         f"-I cores/fes-common/generated -I cores/fes-coleco/rtl {' '.join(RTL_SOURCES)}; "
         f"chparam -set BUILD_ID 128'h{build_id} top; "
-        "chparam -set ENABLE_FIRMWARE 1 coleco_application_gp; "
         "synth_intel_alm -nolutram -nodsp -top top; stat; "
         f"write_json {OUTPUT_RELATIVE.as_posix()}/synth.json"
     )

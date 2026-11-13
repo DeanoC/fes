@@ -900,6 +900,11 @@ func roomPickerHint(kind InputKind) string {
 }
 
 func (a *App) newRoomInstanceLocked(pack rooms.Pack, initialGameID string, initialCoreID ...string) (*rooms.Instance, error) {
+	// Every room instance, including an installed room's update trial, is
+	// created here. Drop queued grid covers before its scripts load, so
+	// workers do not decode hidden covers during its first callbacks.
+	// queueVisibleWork repeats this each frame while a room is on screen.
+	a.dropHiddenGridWorkLocked()
 	w, h := a.roomContentSizeLocked(pack.ID)
 	coreID := ""
 	if len(initialCoreID) > 0 {

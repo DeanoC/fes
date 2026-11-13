@@ -84,39 +84,45 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 def prepare_scaffold(source: Path, destination: Path) -> bytes:
-    """Drop unconnected PLL aliases rejected by the frozen-pin loader.
-
-    The producer's routed JSON omits the second PLL output connection while
-    retaining its physical pin map and routed net. Reattach that exact net to
-    the existing physical `outclk[1]` pin. `outclk[0]` is an obsolete alias
-    of `outclk` after packing and is the only pin-map entry removed.
-    """
+    """Validate the frozen PLL connections and socket boundary before routing."""
     design = json.loads(source.read_text())
     top = design["modules"]["top"]
     cell = top["cells"]["system_clock.pll"]
-    if cell["type"] != "altera_pll" or set(cell["connections"]) != {"outclk", "refclk", "locked"} \
-            or any(len(bits) != 1 for bits in cell["connections"].values()):
+    ports = {"refclk": "input", "locked": "output", "outclk": "output", "outclk[1]": "output"}
+    if cell["type"] != "altera_pll" or cell["port_directions"] != ports or \
+            set(cell["connections"]) != set(ports) or \
+            any(len(bits) != 1 for bits in cell["connections"].values()):
         raise ValueError("Coleco PLL connection contract changed")
-    attr = cell["attributes"]["FES_PINMAP_V1"]
-    mapping = json.loads(bytes.fromhex(attr).decode())
-    aliases = {f"outclk[{bit}]": [0, f"outclk[{bit}]"] for bit in range(2)}
-    if mapping.get("count") != 6 or set(mapping.get("pins", {})) != {
-            "locked", "outclk", "refclk", "rst", *aliases} or any(
-            mapping["pins"].get(name) != value for name, value in aliases.items()):
+    mapping = json.loads(bytes.fromhex(cell["attributes"]["FES_PINMAP_V1"]).decode())
+    expected_pins = {"locked": [0, "locked"], "outclk": [0, "C6"],
+                     "outclk[1]": [0, "C7"], "refclk": [0, "refclk"], "rst": [0, "rst"]}
+    if mapping != {"count": 5, "pins": expected_pins}:
         raise ValueError("Coleco PLL frozen pin map changed")
-    output1 = top["netnames"].get("system_clock.pll_outclk_1", {}).get("bits")
-    clock1 = top["cells"].get("system_clock.clocks_MISTRAL_CLKBUF_Q_1", {})
-    if not isinstance(output1, list) or len(output1) != 1 or \
-            clock1.get("type") != "MISTRAL_CLKBUF" or \
-            clock1.get("connections", {}).get("A") != output1 or \
-            cell.get("port_directions", {}).get("outclk") != "output":
-        raise ValueError("Coleco frozen audio PLL net changed")
-    cell["connections"]["outclk[1]"] = output1
-    cell["port_directions"]["outclk[1]"] = "output"
-    del mapping["pins"]["outclk[0]"]
-    mapping["count"] = len(mapping["pins"])
-    # json11 validates its own canonical dump, including spaces after tokens.
-    cell["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping, sort_keys=True).encode().hex()
+    input_port = top.get("ports", {}).get("FPGA_CLK1_50", {})
+    input_net = top["netnames"].get("FPGA_CLK1_50", {}).get("bits")
+    input_buffer = top["cells"].get("system_clock.refclk_MISTRAL_IB_O", {})
+    if input_port.get("direction") != "input" or not isinstance(input_net, list) or len(input_net) != 1 or \
+            input_port.get("bits") != input_net or input_buffer.get("type") != "MISTRAL_IB" or \
+            input_buffer.get("connections", {}).get("PAD") != input_net or \
+            input_buffer.get("connections", {}).get("O") != cell["connections"]["refclk"] or \
+            input_buffer.get("attributes", {}).get("NEXTPNR_BEL") != "MISTRAL_IO.32.0.0" or \
+            input_buffer.get("attributes", {}).get("LOC") != "PIN_V11":
+        raise ValueError("Coleco frozen reference clock input changed")
+    for port, net, output in (
+        ("outclk", "system_clock.pll_outclk", "system_clock.clocks[0]"),
+        ("outclk[1]", "system_clock.pll_outclk_1", "system_clock.clocks[1]"),
+    ):
+        pll_net = top["netnames"].get(net, {}).get("bits")
+        clock_net = top["netnames"].get(output, {}).get("bits")
+        clocks = [clock for name, clock in top["cells"].items()
+                  if name.startswith(coleco_expansion.SOCKET_CLOCK) and
+                  clock.get("type") == "MISTRAL_CLKBUF" and
+                  clock.get("connections", {}).get("A") == pll_net and
+                  clock.get("connections", {}).get("Q") == clock_net]
+        if not isinstance(pll_net, list) or len(pll_net) != 1 or \
+                not isinstance(clock_net, list) or len(clock_net) != 1 or \
+                cell["connections"][port] != pll_net or len(clocks) != 1:
+            raise ValueError("Coleco frozen PLL clock net changed")
     for name, bel in coleco_expansion.socket_bels().items():
         boundary = design["modules"]["top"]["cells"].get(name)
         if not isinstance(boundary, dict) or boundary.get("type") != "MISTRAL_FF" or \
@@ -129,7 +135,14 @@ def prepare_scaffold(source: Path, destination: Path) -> bytes:
 def cart_clock_constraints(root: Path) -> bytes:
     # --no-pack restores the routed nets but does not derive PLL constraints.
     # These are the declared shell frequencies, never its achieved Fmax.
-    text = (root / factory.SDC).read_text() + "\n# Frozen Coleco PLL output clocks.\n"
+    # Routed-scaffold loading keeps the physical input net but does not expose
+    # a top-level port to SDC. Target that same validated net at 50 MHz.
+    text = (root / factory.SDC).read_text()
+    port_target = "[get_ports {FPGA_CLK1_50}]"
+    if text.count(port_target) != 1:
+        raise ValueError("Coleco reference clock SDC target changed")
+    text = text.replace(port_target, "[get_nets {FPGA_CLK1_50}]")
+    text += "\n# Frozen Coleco PLL output clocks.\n"
     for name, frequency in REQUIRED_CLOCKS_MHZ.items():
         text += f"create_clock -name {{{name}}} -period {1000 / frequency:.12f} [get_nets {{{name}}}]\n"
     return text.encode()
@@ -226,7 +239,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     recipe = {"inputs": closure, "tools": identities, "slot_clock": "system_clock.clocks[0]", "map": "fes.coleco-bus.socket/1",
               "placer_seed": PLACER_SEED, "required_clocks_mhz": REQUIRED_CLOCKS_MHZ,
               "cram_region": CRAM_REGION,
-              "scaffold_metadata_repair": "coleco-dual-pll-output-reload-v2",
+              "scaffold_validation": "coleco-dual-pll-clock-wiring-v1",
               "clock_constraints_sha256": digest(clock_constraints)}
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
     output = root / "build/coleco-bus-diagnostic" / recipe_sha

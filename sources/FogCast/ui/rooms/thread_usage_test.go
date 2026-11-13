@@ -83,6 +83,9 @@ func TestOverrunMessageNamesCauses(t *testing.T) {
 	if err := r.Load(); err != nil {
 		t.Fatal(err)
 	}
+	// A live hostContention sampler would append /proc load after the
+	// closing paren and make this message host-dependent.
+	r.contention = nil
 	samples := []threadUsage{
 		{cpu: time.Millisecond, voluntary: 4, minorFaults: 100},
 		{cpu: 2 * time.Millisecond, voluntary: 9, involuntary: 1, majorFaults: 3, minorFaults: 120, blocksRead: 24},
@@ -332,14 +335,14 @@ func TestUsageWindowAfterOnlyWhenTimingIsReported(t *testing.T) {
 	if c.after != 0 || timing.haveWindow {
 		t.Fatalf("call past its unreported budget read %d after points", c.after)
 	}
-	if err := r.callSoft(fn("boom"), budget, 0); err == nil || !strings.Contains(err.Error(), "boom") {
+	if err := r.callSoft("boom", fn("boom"), budget, 0); err == nil || !strings.Contains(err.Error(), "boom") {
 		t.Fatalf("script error: %v", err)
 	}
 	if c.after != 0 {
 		t.Fatalf("script error past soft read %d after points", c.after)
 	}
 	var over softOverrun
-	if err := r.callSoft(fn("ok"), budget, 0); !errors.As(err, &over) {
+	if err := r.callSoft("ok", fn("ok"), budget, 0); !errors.As(err, &over) {
 		t.Fatalf("soft overrun: %v", err)
 	}
 	if c.after != 1 || !over.timing.haveWindow {

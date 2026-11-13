@@ -37,41 +37,84 @@ class ColecoBusDiagnosticTest(unittest.TestCase):
         encoded = diagnostic.cart_clock_constraints(diagnostic.ROOT).decode()
         self.assertIn("-name {system_clock.clocks[0]}", encoded)
         self.assertIn("[get_nets {system_clock.clocks[1]}]", encoded)
+        self.assertIn("-period 20.000 [get_nets {FPGA_CLK1_50}]", encoded)
+        self.assertNotIn("[get_ports {FPGA_CLK1_50}]", encoded)
+        with tempfile.TemporaryDirectory() as temporary, patch.object(diagnostic.factory, "SDC", "test.sdc"):
+            root = Path(temporary)
+            original = 'create_clock -name FPGA_CLK1_50 -period 20.000 [get_ports {FPGA_CLK1_50}]\n'
+            other = 'create_clock -name EXTRA -period 10.000 [get_ports {EXTRA}]\n'
+            (root / "test.sdc").write_text(original + other)
+            result = diagnostic.cart_clock_constraints(root).decode()
+            self.assertIn(other, result)
+            for changed in ("", original + original):
+                (root / "test.sdc").write_text(changed)
+                with self.assertRaises(ValueError):
+                    diagnostic.cart_clock_constraints(root)
 
-    def test_scaffold_removes_only_unused_dual_pll_pin_aliases(self):
+    def test_scaffold_validates_both_frozen_pll_clocks_and_pin_map(self):
         with tempfile.TemporaryDirectory() as temporary:
             source, dest = (Path(temporary) / name for name in ("routed.json", "scaffold.json"))
-            pins = {"locked": [0, "locked"], "outclk": [0, "outclk"],
-                    "outclk[0]": [0, "outclk[0]"], "outclk[1]": [0, "outclk[1]"],
-                    "refclk": [0, "refclk"], "rst": [0, "rst"]}
-            cell = {"type": "altera_pll", "connections": {"outclk": [4],
+            pins = {"locked": [0, "locked"], "outclk": [0, "C6"],
+                    "outclk[1]": [0, "C7"], "refclk": [0, "refclk"], "rst": [0, "rst"]}
+            cell = {"type": "altera_pll", "connections": {"outclk": [4], "outclk[1]": [5],
                     "refclk": [2], "locked": [6]},
-                    "port_directions": {"outclk": "output", "refclk": "input", "locked": "output"},
-                    "attributes": {"FES_PINMAP_V1": json.dumps({"count": 6, "pins": pins}).encode().hex()}}
-            cells = {"system_clock.pll": cell, "system_clock.clocks_MISTRAL_CLKBUF_Q_1":
-                     {"type": "MISTRAL_CLKBUF", "connections": {"A": [5]}}}
+                    "port_directions": {"outclk": "output", "outclk[1]": "output",
+                                        "refclk": "input", "locked": "output"},
+                    "attributes": {"FES_PINMAP_V1": json.dumps({"count": 5, "pins": pins}).encode().hex()}}
+            cells = {"system_clock.pll": cell,
+                     "system_clock.refclk_MISTRAL_IB_O":
+                     {"type": "MISTRAL_IB", "connections": {"PAD": [1], "O": [2]},
+                      "attributes": {"NEXTPNR_BEL": "MISTRAL_IO.32.0.0", "LOC": "PIN_V11"}},
+                     "system_clock.clocks_MISTRAL_CLKBUF_Q_1":
+                     {"type": "MISTRAL_CLKBUF", "connections": {"A": [4], "Q": [7]}},
+                     "system_clock.clocks_MISTRAL_CLKBUF_Q":
+                     {"type": "MISTRAL_CLKBUF", "connections": {"A": [5], "Q": [8]}}}
             for name, bel in coleco_expansion.socket_bels().items():
                 cells[name] = {"type": "MISTRAL_FF", "attributes": {"NEXTPNR_BEL": bel}}
-            source.write_text(json.dumps({"modules": {"top": {"cells": cells,
-                "netnames": {"system_clock.pll_outclk_1": {"bits": [5]}}}}}))
+            nets = {"FPGA_CLK1_50": {"bits": [1]}, "system_clock.pll_outclk": {"bits": [4]}, "system_clock.pll_outclk_1": {"bits": [5]},
+                    "system_clock.clocks[0]": {"bits": [7]}, "system_clock.clocks[1]": {"bits": [8]}}
+            design = {"modules": {"top": {"cells": cells, "netnames": nets,
+                      "ports": {"FPGA_CLK1_50": {"direction": "input", "bits": [1]}}}}}
+            original = json.dumps(design)
+            source.write_text(original)
             diagnostic.prepare_scaffold(source, dest)
-            self.assertEqual(json.loads(source.read_text())["modules"]["top"]["cells"]["system_clock.pll"], cell)
-            updated = json.loads(dest.read_text())["modules"]["top"]["cells"]
-            got = updated["system_clock.pll"]
-            for name, bel in coleco_expansion.socket_bels().items():
-                self.assertEqual(updated[name]["attributes"]["NEXTPNR_BEL"], bel)
-                self.assertNotIn("BEL", updated[name]["attributes"])
-            mapped = json.loads(bytes.fromhex(got["attributes"]["FES_PINMAP_V1"]).decode())
-            self.assertEqual(mapped, {"count": 5, "pins": {k: pins[k] for k in
-                ("locked", "outclk", "outclk[1]", "refclk", "rst")}})
-            self.assertEqual(got["connections"]["outclk[1]"], [5])
-            self.assertEqual(bytes.fromhex(got["attributes"]["FES_PINMAP_V1"]).decode(),
-                             json.dumps(mapped, sort_keys=True))
-            cell["connections"]["outclk[0]"] = [4]
-            source.write_text(json.dumps({"modules": {"top": {"cells": cells,
-                "netnames": {"system_clock.pll_outclk_1": {"bits": [5]}}}}}))
-            with self.assertRaises(ValueError):
-                diagnostic.prepare_scaffold(source, dest)
+            self.assertEqual(json.loads(dest.read_text()), design)
+            self.assertEqual(source.read_text(), original)
+            swapped = json.loads(original)
+            changed = swapped["modules"]["top"]["cells"]
+            first, second = "system_clock.clocks_MISTRAL_CLKBUF_Q", "system_clock.clocks_MISTRAL_CLKBUF_Q_1"
+            changed[first], changed[second] = changed[second], changed[first]
+            source.write_text(json.dumps(swapped))
+            diagnostic.prepare_scaffold(source, dest)
+            self.assertEqual(json.loads(dest.read_text()), swapped)
+
+            for case in ("wrong-pin", "wrong-connection", "wrong-direction", "wrong-buffer", "wrong-output", "wrong-boundary", "wrong-input-net", "wrong-input-pin"):
+                with self.subTest(case=case):
+                    bad = json.loads(original)
+                    top = bad["modules"]["top"]
+                    pll = top["cells"]["system_clock.pll"]
+                    if case == "wrong-pin":
+                        mapping = json.loads(bytes.fromhex(pll["attributes"]["FES_PINMAP_V1"]))
+                        mapping["pins"]["outclk[1]"] = [0, "C6"]
+                        pll["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping).encode().hex()
+                    elif case == "wrong-connection":
+                        pll["connections"]["outclk[1]"] = [4]
+                    elif case == "wrong-direction":
+                        pll["port_directions"]["outclk[1]"] = "input"
+                    elif case == "wrong-buffer":
+                        top["cells"]["system_clock.clocks_MISTRAL_CLKBUF_Q"]["connections"]["A"] = [4]
+                    elif case == "wrong-output":
+                        top["netnames"]["system_clock.clocks[1]"]["bits"] = [7]
+                    elif case == "wrong-input-net":
+                        top["cells"]["system_clock.refclk_MISTRAL_IB_O"]["connections"]["O"] = [4]
+                    elif case == "wrong-input-pin":
+                        top["cells"]["system_clock.refclk_MISTRAL_IB_O"]["attributes"]["LOC"] = "wrong"
+                    else:
+                        name = next(iter(coleco_expansion.socket_bels()))
+                        top["cells"][name]["attributes"]["NEXTPNR_BEL"] = "wrong"
+                    source.write_text(json.dumps(bad))
+                    with self.assertRaises(ValueError):
+                        diagnostic.prepare_scaffold(source, dest)
 
     def test_cart_placement_keeps_full_shell_rectangle(self):
         shell = coleco_expansion.shell_qsf("pin constraints\n").encode()

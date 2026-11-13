@@ -28,9 +28,14 @@ which FreeDOS configuration runs it. Issue:
   Microsoft DOS component:
   - FreeDOS 1.4's `SHARE.COM`, run before `win`;
   - `InDOSPolling=TRUE` in SYSTEM.INI's `[386Enh]`;
-  - WfW's 32-bit file access off: no `ifsmgr.386`, `vcache.386` or
-    `vshare.386` in `[386Enh]`. WfW's SETUP turns it on, and its IFSMGR
-    relies on MS-DOS's IFSHLP.SYS, which FreeDOS does not load;
+  - no `device=ifsmgr.386`, `device=vcache.386` or `device=vshare.386`
+    lines in `[386Enh]`. WfW's SETUP writes them, and IFSMGR relies on
+    MS-DOS's IFSHLP.SYS, which FreeDOS does not load. (Correction, #1729:
+    an earlier version of this record called removing these lines turning
+    32-bit file access off. Control Panel's dialog on these drives already
+    shows "16-Bit" with the 32-bit box unchecked while the lines are
+    present (PR [#1760](https://github.com/DeanoC/fes/pull/1760)), so the
+    setting is the three lines, not the dialog's 32-bit file access.);
   - `win /3`, to start in enhanced mode.
 
   This matches a July 2026 FreeDOS report that Windows 3.11 runs on the
@@ -43,17 +48,17 @@ which FreeDOS configuration runs it. Issue:
   Every run below is kernel 2046 with WfW 3.11. Each row that leaves out one
   of the settings fails:
 
-  | Configuration | SHARE | `InDOSPolling` | 32-bit file access | Result |
+  | Configuration | SHARE | `InDOSPolling` | `ifsmgr`/`vcache`/`vshare` lines | Result |
   | --- | --- | --- | --- | --- |
-  | games entry 1 (`DOS=UMB`, `DOSDATA=UMB`, UMBM, HimemX) | no | no | on | "ERROR: Unsupported data configuration." |
-  | games entry 2 (`DOS=HIGH,UMB`, UMBM, HimemX) | no | no | on | exits to the prompt, no message |
-  | games entry 2 | no | yes | on | "Either memory is insufficient to run KRNL386.EXE or the value of the WindowMemSize entry in the SYSTEM.INI file is too large." |
-  | bare `FDCONFIG.SYS` (`FILES=30`, `BUFFERS=16`, HimemX only) | no | yes | on | the same insufficient-memory message |
-  | bare | yes | yes | on | the same insufficient-memory message |
-  | games entry 2 | yes | yes | on | the same insufficient-memory message |
-  | bare | no | yes | off | exits to the prompt, no message |
-  | bare | yes | yes | off | **Program Manager** by 8 s simulated; runs to the 16 s limit |
-  | games entry 2 | yes | yes | off | **Program Manager**; runs to the 12 s limit |
+  | games entry 1 (`DOS=UMB`, `DOSDATA=UMB`, UMBM, HimemX) | no | no | present | "ERROR: Unsupported data configuration." |
+  | games entry 2 (`DOS=HIGH,UMB`, UMBM, HimemX) | no | no | present | exits to the prompt, no message |
+  | games entry 2 | no | yes | present | "Either memory is insufficient to run KRNL386.EXE or the value of the WindowMemSize entry in the SYSTEM.INI file is too large." |
+  | bare `FDCONFIG.SYS` (`FILES=30`, `BUFFERS=16`, HimemX only) | no | yes | present | the same insufficient-memory message |
+  | bare | yes | yes | present | the same insufficient-memory message |
+  | games entry 2 | yes | yes | present | the same insufficient-memory message |
+  | bare | no | yes | removed | exits to the prompt, no message |
+  | bare | yes | yes | removed | **Program Manager** by 8 s simulated; runs to the 16 s limit |
+  | games entry 2 | yes | yes | removed | **Program Manager**; runs to the 12 s limit |
 
 - **Decision: fixable in pc386's FreeDOS configuration, with a kernel
   move.** Nothing needs patching in FreeDOS, but kernel 2043, which pc386
@@ -105,7 +110,7 @@ calls, while it starts:
 - **SHARE and SYSTEM.INI.** `SHARE.COM` from FreeDOS 1.4's `share`
   package (version 08/2006a, GPL), copied to `C:\FDOS\BIN` on the scratch
   drives and typed at the prompt before `cd \windows` and `win /3`. The
-  32-bit file access runs drop `device=ifsmgr.386`, `device=vcache.386` and
+  runs without the `ifsmgr`/`vcache`/`vshare` lines drop `device=ifsmgr.386`, `device=vcache.386` and
   `device=vshare.386` from `[386Enh]`; the `InDOSPolling` runs add
   `InDOSPolling=TRUE` there.
 - **The 3306h test.** A 57-byte TSR that answered INT 21h AX=3306h with

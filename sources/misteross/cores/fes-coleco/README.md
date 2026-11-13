@@ -1,7 +1,7 @@
 # FES ColecoVision first slice
 
 The development MegaCart lane is `scripts/build_fes_coleco_megacart.py`. Its
-`FES_COLECO_MEGACART_LINK` build removes the media and firmware mailboxes and
+`FES_COLECO_MEGACART_LINK` build removes the media mailbox and
 seals 8 KiB BIOS plus eight 16 KiB cartridge banks as one format-4 ROM map.
 The final cartridge bank is fixed at `0x8000–0xbfff`; reads at
 `0xffc0–0xffff` select the low three address bits for the banked window and
@@ -34,8 +34,7 @@ retail-game compatibility.
   The factory shell does not advertise `fes.media.blob` or `fes.media.blob-stream`.
 - The open 8 KiB reset shim at `0x0000–0x1fff` is used by host simulations and
   mailbox diagnostics. The factory format-4 package instead links its required
-  `coleco-bios` source through the ROM map and does not advertise
-  `fes.firmware.blob`.
+  `coleco-bios` source through the ROM map.
 - 1 KiB CPU RAM at `0x6000–0x63ff`, mirrored through `0x7fff`.
 - TMS9918-style VDP ports `0xbe` (data) and `0xbf` (control/status), 16 KiB
   VRAM, Graphics I, Graphics II, Text and Multicolor rendering on a fixed
@@ -76,8 +75,8 @@ frozen cells at their original BELs. It declares optional `fes.expansion.coleco-
 1.0 and left the former factory Coleco producer unchanged. The diagnostic module
 recipe `scripts/build_coleco_bus_diagnostic.py` routes against that frozen
 shell and checks its CRAM diff before publishing an expansion archive. The
-builder reconstructs the system PLL's second output from the exact frozen net
-metadata. Request bit 23 uses the vacant third-row boundary FF so the cart can
+builder verifies both PLL outputs, their physical pin map and frozen clock
+buffers before routing. Request bit 23 uses the vacant third-row boundary FF so the cart can
 route. The full-response diagnostic route completes and passes all three clock
 gates. The final integrated shell/cart changes no bits outside the declared
 region. An earlier route against the same RTL changed two bits outside at
@@ -186,33 +185,6 @@ it is not the default FES image selection. BIOS bytes and BIOS-bearing artifacts
 must stay outside source control. The BIOS is embedded at build time; the
 existing cartridge media interface does not load a BIOS at runtime.
 
-## Runtime firmware overlay
-
-The RTL retains this overlay for Quartus and mailbox diagnostics. It is not the
-selected factory package contract: the format-4 package requires `coleco-bios`
-through its sealed ROM map and removes `fes.firmware.blob` from its manifest.
-
-Quartus and OSS producers set `ENABLE_FIRMWARE=1` on `coleco_application_gp`.
-The shared mailbox then advertises capability bit 7 and accepts opcodes 15–17
-for an exact 8192-byte overlay while reset is held. Writes land in the machine's
-firmware dual-port RAM at `0x0000–0x1fff`. Firmware commit does not release
-execution; cartridge media still owns release. Existing video board simulations leave
-`ENABLE_FIRMWARE` at its RTL default 0, so they keep the open shim and do not
-advertise firmware. `make sim-fes-coleco-firmware` and its `-oss` variant
-enable the production endpoint and connect it to the real machine RAM/CPU.
-They check every uploaded byte, malformed and incomplete transfers, reset
-ordering, and execution of an open test firmware that writes CPU RAM and
-halts. Both run with the normal Coleco unit suites; they use no private BIOS.
-The factory format-4 package requires an exact 8 KiB BIOS source and does not
-declare `fes.firmware.blob`. Firmware mailbox behavior is software-tested but
-does not qualify the factory package; `--bios` remains the separate private
-build-time embed path above.
-
-For mailbox diagnostics, use the BIOS-free diagnostic as a hardware control
-before diagnosing a retail cartridge. Private BIOS boot and per-game
-rendering/input checks are separate from that control and from general
-ColecoVision compatibility.
-
 ## Memory and host interfaces
 
 | Address or port | Function |
@@ -226,9 +198,8 @@ ColecoVision compatibility.
 | I/O reads `0xe0–0xff` | controller 1 when A1=0, controller 2 when A1=1 (including FC/FF) |
 
 The older Quartus and mailbox-diagnostic manifest advertises fixed video, blob
-media, blob-stream media, `fes.gamepad.ports` 1.0, `fes.keypad.ports` 1.0 and
-optional `fes.firmware.blob` 1.0. The selected factory manifest removes blob
-media and firmware, adds the sealed format-4 ROM map, and requires the linked
+media, blob-stream media, `fes.gamepad.ports` 1.0 and `fes.keypad.ports` 1.0.
+The selected factory manifest removes blob media, adds the sealed format-4 ROM map, and requires the linked
 native video interfaces. Neither manifest advertises keyboard or legacy gamepad.
 The common endpoint supplies accepted writes to a console-owned 32 KiB staging
 RAM; `coleco_application_gp` preserves the machine's registered cartridge-copy path.

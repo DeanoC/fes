@@ -79,6 +79,7 @@ int main(int argc, char** argv) {
     for(unsigned i=0;i<16;++i) require(m.command(1,i,0)==identity[i], "identity mismatch");
     m.error(1,16,0,2); m.error(1,0,1,3); m.error(127,0,0,1);
     m.error(7,0,0,1); // Stream is independently unimplemented, never advertised.
+    for (unsigned opcode : {15u, 16u, 17u}) m.error(opcode,0,0,1); // Retired firmware operations remain unassigned.
     if (GAMEPAD) {
         m.ok(3,0,0xa5); require(m.dut.buttons==0xa5,"buttons");
         m.error(3,1,0,2); m.error(3,0,256,3);
