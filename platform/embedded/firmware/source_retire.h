@@ -20,6 +20,10 @@ struct nano_retire_io {
  int (*write32)(void *,uint32_t,uint32_t);
  int (*store_command)(void *,unsigned,const uint8_t[16]);
  void (*barrier)(void *);
+ /* The private, successfully completed setup engine, retained unchanged.
+  * Its owned empty cursor supplies the starting point, including wrap. A
+  * copied command receipt or a hardware pointer alone is not authority. */
+ const struct nano_cmdq *prepared;
 };
 struct nano_retire_receipt {
  uint64_t owner,epoch,generation,elapsed_us;
@@ -32,6 +36,9 @@ struct nano_retire {
  struct nano_retire_io io;
  struct nano_cmdq commands;
  struct nano_cmdq_receipt command_receipt;
+ const struct nano_cmdq *prepared_engine;
+ struct nano_cmdq prepared_snapshot;
+ uint32_t queue_baseline,queue_target;
  uint64_t start,last;
  /* Observation only: every value comes from an existing guard clock read. */
  uint64_t observed,phase_first[7],phase_last[7];

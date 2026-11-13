@@ -90,6 +90,17 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertFalse(report["hardware_actions"])
         return report
 
+    def test_repeated_queue_generations_wrap_and_pin_callback_ownership(self):
+        report = self.run_model("queue_generation_test")
+        self.assertEqual(report["completed_generations"], 384)
+        self.assertGreater(report["wraps"], 0)
+
+    def test_retirement_uses_live_setup_cursor_across_generations(self):
+        report = self.run_model("retire_generation_test")
+        self.assertEqual(report["completed_generations"], 256)
+        self.assertGreater(report["wraps"], 0)
+        self.assertEqual(report["negative_cases"], 132)
+
     def test_retained_continuation_requires_live_retired_state(self):
         self.run_model("continue_test")
 

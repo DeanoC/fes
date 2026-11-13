@@ -21,7 +21,7 @@ int main(int argc,char **argv)
 {
  assert(argc==2);elapsed=strtoull(argv[1],0,10);assert(elapsed<=1000001);
  struct model m;setup(&m);struct nano_retire s={0};m.current=&s;
- struct nano_retire_receipt r={0};struct nano_retire_io io={&m,owns,source,time_us,read32,write32,store,barrier};
+ struct nano_retire_receipt r={0};struct nano_retire_io io={&m,owns,source,time_us,read32,write32,store,barrier,prepared_queue()};
  int error=nano_source_retire(&s,binding(),io,&r);
  assert(s.retired!=s.failed && r.memory_retained && !r.source_reuse_authorized && !r.ordinary_activation && !r.interconnect_drained);
  if(elapsed)assert(injected);

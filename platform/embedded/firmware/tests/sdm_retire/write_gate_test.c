@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include "prepared_queue.h"
 struct model {uint32_t reg[48],writes[8][2];uint64_t now;unsigned owners,times,reads,written,stores,source;
  struct nano_retire *current;unsigned inject_next,inject_offset,injected,last_read;
  unsigned fail_owner,fail_time,fail_read,fail_write,fail_store,late_write,back_time;};
@@ -25,7 +26,7 @@ static struct nano_sdm_input_binding binding(void){struct nano_sdm_input_binding
 static unsigned cases;
 static struct model run(unsigned kind,unsigned at){struct model m;setup(&m);struct nano_retire s={0};struct nano_retire_receipt r={0};
  if(kind==1)m.fail_read=at;if(kind==2)m.fail_write=at;if(kind==3){m.fail_write=at;m.late_write=1;}if(kind==4)m.fail_store=at;if(kind==5)m.fail_owner=at;if(kind==6)m.fail_time=at;if(kind==7)m.back_time=at;
- struct nano_retire_io io={&m,owns,source,time_us,read32,write32,store,barrier};int e=nano_source_retire(&s,binding(),io,&r);
+ struct nano_retire_io io={&m,owns,source,time_us,read32,write32,store,barrier,prepared_queue()};int e=nano_source_retire(&s,binding(),io,&r);
  if(!kind || (kind==7 && at==1)){assert(!e && s.retired && r.translation_retired && r.memory_retained && !r.source_reuse_authorized && !r.interconnect_drained && !r.ordinary_activation);assert(m.written==5 && m.stores==6);
  static const uint32_t expected[5][2]={{0x44,0x80100000},{0x20,12},{0x20,8},{0x98,12},{0x20,0}};assert(!memcmp(m.writes,expected,sizeof(expected)));}
  else {if(!e || !s.failed)fprintf(stderr,"kind=%u at=%u e=%d failed=%u retired=%u\n",kind,at,e,s.failed,s.retired);assert(e && s.failed && !s.retired && !r.translation_retired && r.memory_retained && !r.source_reuse_authorized && !r.ordinary_activation);}
@@ -37,7 +38,7 @@ int main(void){
  for(unsigned next=1;next<=5;next++)for(unsigned i=0;i<sizeof(offsets)/sizeof(offsets[0]);i++){
   struct model m;setup(&m);struct nano_retire s={0};struct nano_retire_receipt r={0};
   m.current=&s;m.inject_next=next;m.inject_offset=offsets[i];
-  struct nano_retire_io io={&m,owns,source,time_us,read32,write32,store,barrier};
+  struct nano_retire_io io={&m,owns,source,time_us,read32,write32,store,barrier,prepared_queue()};
   int error=nano_source_retire(&s,binding(),io,&r);
   if(!error || !m.injected || m.written!=next-1)fprintf(stderr,"WRITE_GATE next=%u offset=%x injected=%u writes=%u error=%d phase=%u first=%d\n",next,offsets[i],m.injected,m.written,error,s.phase,s.first_error);
   assert(error && m.injected && m.written==next-1 && s.writes==next-1 && s.failed && !s.retired);

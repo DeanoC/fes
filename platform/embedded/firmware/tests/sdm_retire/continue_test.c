@@ -45,7 +45,7 @@ static int continued_store(void *p,unsigned slot,const uint8_t b[16])
 static void continued_barrier(void *p){step(p);}
 static struct nano_retire_io io_for(struct continuation_model *m)
 {return (struct nano_retire_io){m,continued_owner,continued_source,continued_time,
- continued_read,continued_write,continued_store,continued_barrier};}
+ continued_read,continued_write,continued_store,continued_barrier,prepared_queue()};}
 static void ready(struct continuation_model *m)
 {
  memset(m,0,sizeof(*m));setup(&m->base);m->base.current=&m->state;

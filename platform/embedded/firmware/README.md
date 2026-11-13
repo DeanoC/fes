@@ -62,6 +62,20 @@ original-FIT restoration and the full baseline cycle. Memory remains retained
 on every outcome. Independent interconnect drain, source reuse and repeatable
 retirement-path core loading remain open.
 
+The retirement controller now takes its empty command cursor from the actual
+completed setup engine, supplied through the private platform hooks. It pins
+that engine and its callback table through retirement and continuation, binds
+the owner/epoch/generation, and preserves the queue wrap bit. It rejects an
+incomplete, failed, stale or changed setup before using it. Queue and retirement
+callbacks also reject changes to their source binding or supplier before the
+next operation. The joined cold supplier still admits its existing first-load
+profile; this change does not reopen a source reservation or reset any engine.
+Sanitizer models execute 384 queue generations and 256 setup/retirement/
+continuation generations, with cursor wrap and injected callback failures.
+These are software checks for subsequent rearm integration, not repeated core
+loads on hardware. The physical format-14 record above applies to its frozen
+earlier firmware, not these changed producer bytes.
+
 The selected full-input retirement profile uses a bounded, read-only command
 snapshot callback. Each queue snapshot checks the same 24-register superset as
 the outer retirement engine, with fresh source/owner/callback validation before

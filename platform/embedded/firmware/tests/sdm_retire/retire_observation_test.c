@@ -41,7 +41,7 @@ int main(void)
  for(mode=0;mode<=10;mode++)for(unsigned i=0;i<sizeof(values)/sizeof(values[0]);i++){
   consumer=values[i];injected=consumer_calls=0;
   struct model m;setup(&m);struct nano_retire s={0};m.current=&s;
-  struct nano_retire_receipt r={0};struct nano_retire_io io={&m,owns,source,time_us,read32,write32,store,barrier};
+  struct nano_retire_receipt r={0};struct nano_retire_io io={&m,owns,source,time_us,read32,write32,store,barrier,prepared_queue()};
   int error=nano_source_retire(&s,binding(),io,&r);
   assert(consumer_calls && s.observed_reads<=s.reads && s.consumer_samples && s.consumer_read<=s.reads);
   if((!mode || (mode>=5 && mode<=7)) && consumer<=12){

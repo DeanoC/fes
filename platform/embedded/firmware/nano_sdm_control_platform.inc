@@ -16,6 +16,8 @@ static int retained_source_owned(const struct nano_sdm_input_binding *binding,un
   i->context==r && i->owns==retire_owned && i->source_valid==retire_valid &&
   i->time_us==retire_time && i->read32==retire_read && i->write32==retire_write &&
   i->store_command==retire_store && i->barrier==retire_barrier &&
+  i->prepared==&sdm_arm_probe.command && r->prepared_engine==i->prepared &&
+  !memcmp(i->prepared,&r->prepared_snapshot,sizeof(r->prepared_snapshot)) &&
   sdm_input_source(&sdm_arm_probe,&sdm_arm_probe.input)==1 &&
   sdm_probe_owns_mode(&sdm_arm_probe,&sdm_arm_probe.binding,reader ? 2:1)==1;
 }

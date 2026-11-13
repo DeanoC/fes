@@ -20,17 +20,26 @@ static int io_same(const struct nano_cmdq_io *a,const struct nano_cmdq_io *b)
         a->read32==b->read32 && a->write32==b->write32 && a->store==b->store &&
         a->barrier==b->barrier && a->snapshot==b->snapshot && a->progress==b->progress;
 }
+static int unchanged(const struct nano_cmdq *s,const struct nano_cmdq_io *io,
+                     const struct nano_cmdq_binding *binding)
+{
+    const struct nano_cmdq_binding *b=&s->binding;
+    return io_same(io,&s->io) && b->owner==binding->owner && b->epoch==binding->epoch &&
+        b->generation==binding->generation && b->queue==binding->queue &&
+        b->baseline==binding->baseline;
+}
 static int guard_bound(struct nano_cmdq *s,uint64_t bound)
 {
     uint64_t now=0;
     if (s->failed) return -1;
     struct nano_cmdq_io io=s->io;
+    const struct nano_cmdq_binding binding=s->binding;
     if (!io.time_us || !io.owns) return fail(s,-22);
     if (io.time_us(io.context,&now)) return fail(s,-2);
     s->observed=now;s->clock_samples++;
-    if (!io_same(&io,&s->io)) return fail(s,-13);
+    if (!unchanged(s,&io,&binding)) return fail(s,-13);
     if (io.owns(io.context,&s->binding)!=1) return fail(s,-1);
-    if (!io_same(&io,&s->io)) return fail(s,-13);
+    if (!unchanged(s,&io,&binding)) return fail(s,-13);
     if (!s->timed) {s->start=s->last=now;s->timed=1;}
     if (now<s->last || now-s->start>bound) return fail(s,-3);
     s->last=now;
@@ -41,14 +50,15 @@ static int guard(struct nano_cmdq *s)
 static int read_bound(struct nano_cmdq *s,uint32_t offset,uint32_t *value,uint64_t bound)
 {
     struct nano_cmdq_io io=s->io;
-    if (guard_bound(s,bound) || !io_same(&io,&s->io)) return fail(s,-13);
+    const struct nano_cmdq_binding binding=s->binding;
+    if (guard_bound(s,bound) || !unchanged(s,&io,&binding)) return fail(s,-13);
     io.barrier(io.context);
-    if (!io_same(&io,&s->io)) return fail(s,-13);
+    if (!unchanged(s,&io,&binding)) return fail(s,-13);
     s->reads++;
     int error=io.read32(io.context,offset,value);
-    if (!io_same(&io,&s->io)) return fail(s,-13);
+    if (!unchanged(s,&io,&binding)) return fail(s,-13);
     io.barrier(io.context);
-    if (!io_same(&io,&s->io)) return fail(s,-13);
+    if (!unchanged(s,&io,&binding)) return fail(s,-13);
     if (error) return fail(s,error);
     return guard_bound(s,bound);
 }
@@ -65,10 +75,11 @@ static int snapshot(struct nano_cmdq *s,uint32_t pointer,uint64_t bound)
 {
     if (s->io.snapshot) {
         struct nano_cmdq_io io=s->io;
-        if (guard_bound(s,bound) || !io_same(&io,&s->io)) return fail(s,-13);
+        const struct nano_cmdq_binding binding=s->binding;
+        if (guard_bound(s,bound) || !unchanged(s,&io,&binding)) return fail(s,-13);
         int error=io.snapshot(io.context,pointer);
         if (error) return fail(s,error);
-        if (!io_same(&io,&s->io)) return fail(s,-13);
+        if (!unchanged(s,&io,&binding)) return fail(s,-13);
         return guard_bound(s,bound);
     }
     return checked_bound(s,CR0,8,bound) || checked_bound(s,CR0ACK,8,bound) ||
@@ -81,11 +92,12 @@ static int progress(struct nano_cmdq *s,uint32_t target,uint32_t *consumer)
 {
     if (s->io.progress) {
         struct nano_cmdq_io io=s->io;
-        if (guard(s) || !io_same(&io,&s->io)) return fail(s,-13);
+        const struct nano_cmdq_binding binding=s->binding;
+        if (guard(s) || !unchanged(s,&io,&binding)) return fail(s,-13);
         uint32_t value=0;
         int error=io.progress(io.context,target,&value);
         if (error) return fail(s,error);
-        if (!io_same(&io,&s->io)) return fail(s,-13);
+        if (!unchanged(s,&io,&binding)) return fail(s,-13);
         if (guard(s)) return -1;
         *consumer=value;
         return 0;
@@ -137,11 +149,12 @@ int nano_cmdq_submit(struct nano_cmdq *s,struct nano_cmdq_receipt *out,enum nano
         uint8_t bytes[16];
         if (nano_cmdq_encode(n,bytes) || guard(s)) return -1;
         struct nano_cmdq_io io=s->io;
+        const struct nano_cmdq_binding binding=s->binding;
         s->slots_attempted++;
         int error=io.store(io.context,(s->binding.baseline+n)&7U,bytes);
-        if (!io_same(&io,&s->io)) return fail(s,-13);
+        if (!unchanged(s,&io,&binding)) return fail(s,-13);
         io.barrier(io.context);
-        if (!io_same(&io,&s->io)) return fail(s,-13);
+        if (!unchanged(s,&io,&binding)) return fail(s,-13);
         if (error) return fail(s,error);
         if (guard(s)) return -1;
     }
@@ -150,13 +163,14 @@ int nano_cmdq_submit(struct nano_cmdq *s,struct nano_cmdq_receipt *out,enum nano
     uint32_t target=(s->binding.baseline+NANO_CMDQ_COMMANDS)&15U;
     s->stage=CMDQ_PUBLICATION;
     struct nano_cmdq_io io=s->io;
+    const struct nano_cmdq_binding binding=s->binding;
     io.barrier(io.context);
-    if (!io_same(&io,&s->io)) return fail(s,-13);
+    if (!unchanged(s,&io,&binding)) return fail(s,-13);
     s->publish_attempted=1;
     int error=io.write32(io.context,PROD,target);
-    if (!io_same(&io,&s->io)) return fail(s,-13);
+    if (!unchanged(s,&io,&binding)) return fail(s,-13);
     io.barrier(io.context);
-    if (!io_same(&io,&s->io)) return fail(s,-13);
+    if (!unchanged(s,&io,&binding)) return fail(s,-13);
     if (error) return fail(s,error);
     if (guard(s)) return -1;
     unsigned previous=0;
