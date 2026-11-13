@@ -37,22 +37,37 @@ type threadUsage struct {
 	gcPause  time.Duration
 }
 
-// sampleThread reads the calling OS thread's usage.
-func (r *Instance) sampleThread() (threadUsage, bool) {
+// sampleThread reads the calling OS thread's usage. beforeScript says which
+// side of the script run the sample is on (see readUsage).
+func (r *Instance) sampleThread(beforeScript bool) (threadUsage, bool) {
 	if r.threadSample != nil {
 		return r.threadSample()
 	}
-	return r.readUsage()
+	return r.readUsage(beforeScript)
 }
 
-// readUsage is the OS thread read plus the Go runtime counters.
-func (r *Instance) readUsage() (threadUsage, bool) {
-	u, ok := readThreadUsage(&r.schedstat)
-	if !ok {
+// readUsage is the OS thread read plus the run-queue wait and the Go runtime
+// counters. Thread CPU time and rusage are read innermost: after the other
+// reads before the script, and before them after it, so the script run's CPU,
+// switches and faults hold the script alone and not the sampling.
+func (r *Instance) readUsage(beforeScript bool) (threadUsage, bool) {
+	var u threadUsage
+	if beforeScript {
+		r.readOuter(&u)
+	}
+	if !readThreadUsage(&u) {
 		return threadUsage{}, false
 	}
-	r.runtimeUsage.read(&u)
+	if !beforeScript {
+		r.readOuter(&u)
+	}
 	return u, true
+}
+
+// readOuter fills the fields read around the thread's own counters.
+func (r *Instance) readOuter(u *threadUsage) {
+	u.runDelay, u.haveRunDelay = r.schedstat.runDelay()
+	r.runtimeUsage.read(u)
 }
 
 const (

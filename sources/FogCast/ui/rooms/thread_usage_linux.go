@@ -9,27 +9,25 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// readThreadUsage samples the calling OS thread. The caller keeps its
-// goroutine locked to that thread between samples.
-func readThreadUsage(sched *schedstatReader) (threadUsage, bool) {
+// readThreadUsage reads the calling OS thread's CPU time, switches, faults
+// and block reads into u. The caller keeps its goroutine locked to that
+// thread between samples.
+func readThreadUsage(u *threadUsage) bool {
 	var ts unix.Timespec
 	if unix.ClockGettime(unix.CLOCK_THREAD_CPUTIME_ID, &ts) != nil {
-		return threadUsage{}, false
+		return false
 	}
 	var ru unix.Rusage
 	if unix.Getrusage(unix.RUSAGE_THREAD, &ru) != nil {
-		return threadUsage{}, false
+		return false
 	}
-	u := threadUsage{
-		cpu:         time.Duration(ts.Nano()),
-		voluntary:   int64(ru.Nvcsw),
-		involuntary: int64(ru.Nivcsw),
-		majorFaults: int64(ru.Majflt),
-		minorFaults: int64(ru.Minflt),
-		blocksRead:  int64(ru.Inblock),
-	}
-	u.runDelay, u.haveRunDelay = sched.runDelay()
-	return u, true
+	u.cpu = time.Duration(ts.Nano())
+	u.voluntary = int64(ru.Nvcsw)
+	u.involuntary = int64(ru.Nivcsw)
+	u.majorFaults = int64(ru.Majflt)
+	u.minorFaults = int64(ru.Minflt)
+	u.blocksRead = int64(ru.Inblock)
+	return true
 }
 
 // schedstatReader reads the calling thread's run-queue wait from
@@ -41,10 +39,13 @@ func readThreadUsage(sched *schedstatReader) (threadUsage, bool) {
 // keeps it open for the thread that opened it and reopens only when a callback
 // runs on another thread. A cached file whose thread has exited fails its read
 // (even if the thread id is reused), and the reader opens the current one.
-// os.File closes a file the Instance drops without Close.
+// os.File closes a file the Instance drops without Close. A read is one
+// pread on its descriptor: os.File.ReadAt would pread again at the end of the
+// short line to fill the buffer, which costs a second syscall for EOF.
 type schedstatReader struct {
 	tid int
 	f   *os.File
+	fd  int
 	buf [96]byte
 }
 
@@ -57,9 +58,9 @@ func (s *schedstatReader) runDelay() (time.Duration, bool) {
 			if err != nil {
 				return 0, false
 			}
-			s.f, s.tid = f, tid
+			s.f, s.fd, s.tid = f, int(f.Fd()), tid
 		}
-		if n, _ := s.f.ReadAt(s.buf[:], 0); n > 0 {
+		if n, err := unix.Pread(s.fd, s.buf[:], 0); err == nil && n > 0 {
 			return parseRunDelay(s.buf[:n])
 		}
 	}

@@ -34,7 +34,7 @@ type overrunStreak struct {
 
 // gcCycles is the process-wide count of completed GC cycles.
 func gcCycles() uint64 {
-	sample := []metrics.Sample{{Name: "/gc/cycles/total:gc-cycles"}}
+	sample := []metrics.Sample{{Name: gcCyclesMetric}}
 	metrics.Read(sample)
 	if sample[0].Value.Kind() != metrics.KindUint64 {
 		return 0

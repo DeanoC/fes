@@ -964,9 +964,9 @@ func (r *Instance) runPinned(fn *lua.LFunction, deadline time.Time, nret int, ar
 		L.Push(a)
 	}
 	scriptStart := time.Now()
-	before, measured := r.sampleThread()
+	before, measured := r.sampleThread(true)
 	err = L.PCall(len(args), nret, nil)
-	after, ok := r.sampleThread()
+	after, ok := r.sampleThread(false)
 	timing.script = time.Since(scriptStart)
 	if ok && measured {
 		timing.thread, timing.measured = after.since(before), true
