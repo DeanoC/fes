@@ -184,9 +184,15 @@ type Instance struct {
 	inputOverruns int
 	// lastStep is the Lua time of the most recent Step, for frame traces.
 	lastStep StepTiming
-	// threadSample, when set, replaces the OS read of the callback thread's
-	// CPU time and switches. Tests use it. Production leaves it nil.
+	// threadSample, when set, replaces the read of the callback thread's
+	// usage and the GC counters (readUsage). Tests use it. Production leaves
+	// it nil.
 	threadSample func() (threadUsage, bool)
+	// runtimeUsage holds the GC metric samples reused by every readUsage.
+	runtimeUsage runtimeUsage
+	// schedstat keeps the callback thread's schedstat file open between
+	// samples. Close closes it.
+	schedstat schedstatReader
 	// frameStreak and inputStreak describe the current run of consecutive
 	// soft overruns, reported when that run retires the room.
 	frameStreak     overrunStreak
@@ -317,6 +323,7 @@ func (r *Instance) Close() {
 	r.store.flush()
 	r.L.Close()
 	r.L = nil
+	r.schedstat.close()
 }
 
 func (r *Instance) installSandbox() {
@@ -893,13 +900,18 @@ func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.
 // starts with it and the soft and hard checks compare it, so a stall
 // anywhere in the call counts against the room.
 //
-// Where the OS reports it (measured), thread is the script thread's own CPU
-// time and context switches between the samples taken just before and just
-// after the script. script is the wall time of that run, from before the
-// first sample to after the second, so thread cpu <= script <= elapsed and
-// elapsed minus script was spent outside the script run. Voluntary switches
-// are the thread parking (Go descheduling, GC, a blocking call); involuntary
-// switches are the kernel giving its core to other work.
+// Where the OS reports it (measured), thread covers the script run alone,
+// between samples taken just before and just after the script: the script
+// thread's own CPU time, context switches, page faults, block reads and
+// run-queue wait, with the process-wide Go GC cycles and GC stop-the-world
+// pause time. script is the wall time of that run, from before the first
+// sample to after the second, so thread cpu <= script <= elapsed and elapsed
+// minus script was spent outside the script run. Voluntary switches are the
+// thread parking (Go descheduling, GC, a blocking call); involuntary switches
+// are the kernel giving its core to other work. Major faults and blocks read
+// are waits for storage. GC cycles and pause time are Go stopping the world or
+// collecting alongside the script. Run-queue wait is a woken thread waiting
+// for a core, which involuntary switches do not count.
 type callTiming struct {
 	elapsed  time.Duration
 	script   time.Duration

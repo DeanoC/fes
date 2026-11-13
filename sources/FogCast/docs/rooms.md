@@ -622,6 +622,17 @@ including the op cap, are not. The launcher reopens a root Home room that
 failed with `ErrBudget` after a backoff, a bounded number of times, and never
 reopens one that failed with a script error (see `docs/ARCHITECTURE.md`).
 
+A time failure says where the time went. On Linux the message gives the
+script run's wall time and, over that run, the callback thread's CPU time and
+voluntary/involuntary switches, its run-queue wait (`runnable`, when the
+kernel has `/proc/thread-self/schedstat`), its major/minor page faults and
+blocks read (only when non-zero), and the Go GC cycles and GC stop-the-world
+time across the process (only when non-zero), for example
+`script run 235.61ms: thread cpu 3.11ms, 15 voluntary/2 involuntary switches,
+runnable 1.2ms, 41 major/380 minor faults, 960 blocks read`. Faults and block
+reads point at storage, GC at the Go runtime, and runnable time at a CPU that
+was busy elsewhere.
+
 ## Testing rooms without a display
 
 `ui/rooms` tests build packs in memory with `testing/fstest.MapFS` and drive

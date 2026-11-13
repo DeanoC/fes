@@ -1888,7 +1888,7 @@ func sampleStallRoom(t *testing.T, budget time.Duration, which int, stall time.D
 			time.Sleep(stall)
 		}
 		samples++
-		return readThreadUsage()
+		return r.readUsage()
 	}
 	return r
 }

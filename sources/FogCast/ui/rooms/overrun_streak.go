@@ -17,7 +17,8 @@ import (
 //
 // The GC figure is process-wide cycles between the sample taken before the
 // callback that starts the streak and the sample taken at retirement. It is
-// context for the elapsed times, not pause time inside those callbacks.
+// context for the elapsed times. GC cycles and stop-the-world time inside one
+// callback's script run are in that callback's own usage (threadUsage).
 // Frame and input streaks keep separate baselines. Each read uses its own
 // sample slice so two rooms can overrun at once without racing.
 type overrunStreak struct {
