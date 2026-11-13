@@ -30,6 +30,11 @@ The [matched command-snapshot candidate](../../docs/validation/2026-11-13-de25-m
 now builds the selected-program native SDK, entry, complete BL31, U-Boot/SPL
 and FPGA composition from the published source. Its source/file admission and
 retained archive readback pass; it has no physical retirement acceptance.
+The [format-8 command-guard candidate](../../docs/validation/2026-11-13-de25-command-guard/README.md)
+removes two duplicate platform observations per queue guard while preserving
+the original deadlines and live checks around each register batch. Its complete
+matched chain and native file admission pass; it still needs a fresh bounded
+hardware trial.
 
 This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
 launcher integration, while bounded Nano CPU/SD/package diagnostics now run on
