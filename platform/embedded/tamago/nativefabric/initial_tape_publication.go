@@ -49,7 +49,7 @@ func (a *ConfigurationArena) PublishInitialTape(ctx context.Context, caller Firm
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.failed || a.address != 0x94800000 || len(a.memory) != MaxProgramBytes || len(a.metadata) != ProgramMetadataBytes ||
+	if a.failed || a.retained || a.address != 0x94800000 || len(a.memory) != MaxProgramBytes || len(a.metadata) != ProgramMetadataBytes ||
 		a.active == nil || a.active == a.tapeRegion || !a.ready || a.tapeGeneration != 0 && (scope.Owner != a.tapeOwner || scope.Generation <= a.tapeGeneration) {
 		return out, errors.New("native fabric: initial tape arena unavailable, outstanding or consumed")
 	}

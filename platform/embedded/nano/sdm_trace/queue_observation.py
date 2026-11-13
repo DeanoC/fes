@@ -97,7 +97,7 @@ def queue_errors(q, timing):
     return errors
 
 
-def decode(raw, *, boot, build, configuration):
+def decode(raw, *, boot, build, configuration, _terminal=None):
     require(type(raw) is bytes and 0 < len(raw) <= 1 << 20 and raw.endswith(b"\n") and b"\0" not in raw, "complete bounded queue capture required")
     parts = raw.splitlines(keepends=True)
     lines = [re.sub(rb"^NOTICE:[ \t]+", b"", v.rstrip(b"\r\n")) for v in parts]
@@ -106,7 +106,7 @@ def decode(raw, *, boot, build, configuration):
     at = rows[0]
     require(at >= 1 and at == len(parts) - 2 and lines[at - 1].startswith(b"FES_NANO_RETIRE_TIMING "), "queue must follow timing before final Park")
     q = parse_queue(lines[at])
-    timing = _timing.decode(b"".join(parts[:at] + parts[at + 1:]), boot=boot, build=build, configuration=configuration)
+    timing = _timing.decode(b"".join(parts[:at] + parts[at + 1:]), boot=boot, build=build, configuration=configuration, _terminal=_terminal)
     errors = queue_errors(q, timing)
     valid = timing["timing_validated"] and not errors
     return dict(timing, passed=timing["passed"] and valid, retirement_verified=timing["retirement_verified"] and valid,

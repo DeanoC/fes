@@ -2555,7 +2555,7 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
             status = intel_mailbox_fpga_config_isdone(&detail);
             r[1] = fes_contained_isdone_detail(status, detail);
             if(status==INTEL_SIP_SMC_STATUS_OK)
-                fes_nano_sdm_source_finish((uint32_t)status,(uint32_t)r[1]);
+                status=fes_nano_sdm_source_finish((uint32_t)status,(uint32_t)r[1]);
             break;
         default: goto out;
         }

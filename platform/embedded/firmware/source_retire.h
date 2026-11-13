@@ -37,6 +37,9 @@ struct nano_retire {
  uint64_t observed,phase_first[7],phase_last[7];
  unsigned guard_calls,clock_samples,owner_checks,source_checks,source_passes,phase_seen;
  unsigned attempted,timed,phase,failed,retired,reads,writes,polls;
+ /* One private continuation attempt. These clocks never replace retirement observations. */
+ unsigned continuation_attempted,continued;
+ uint64_t continuation_last,continuation_observed;
  uint32_t bad_offset,bad_value;
  int first_error;
  /* Last successfully returned raw read, before later guards can reject it.
@@ -49,4 +52,9 @@ struct nano_retire {
  * base replacement, bypass, free or activation interface exists. */
 int nano_source_retire(struct nano_retire *,struct nano_sdm_input_binding,
  struct nano_retire_io,struct nano_retire_receipt *);
+/* Recheck the actual retired engine under the same original deadline and
+ * freshly supplied platform binding. Success permits return to the existing
+ * configuration checks only; it grants no activation, drain or memory reuse. */
+int nano_source_continue(struct nano_retire *,struct nano_sdm_input_binding,
+ struct nano_retire_io);
 #endif

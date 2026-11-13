@@ -111,3 +111,12 @@ static int fes_nano_sdm_retire_source(struct nano_retire_receipt *out)
   retire_read,retire_write,retire_store,retire_barrier};
  return nano_source_retire(&source_retirement,sdm_arm_probe.input,io,out);
 }
+
+static int fes_nano_sdm_continue_source(void)
+{
+ /* Construct the trusted callbacks again; do not accept a copied receipt or
+  * the engine's mutable callback table as the continuation's input authority. */
+ struct nano_retire_io io={&source_retirement,retire_owned,retire_valid,retire_time,
+  retire_read,retire_write,retire_store,retire_barrier};
+ return nano_source_continue(&source_retirement,sdm_arm_probe.input,io);
+}

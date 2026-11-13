@@ -16,12 +16,12 @@
  * in the final ELF. It observes only; it never acknowledges an event. */
 __attribute__((noinline)) static int sdm_input_final_scope(void)
 {return sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)==1;}
-/* Always called under the existing owned dispatcher lock. No success reaches
- * configuration_after/activation, and no failure retries or releases memory. */
-__attribute__((noreturn)) void fes_nano_sdm_source_finish(uint32_t status,uint32_t detail)
+/* Called under the existing owned dispatcher lock. Only a live retired engine
+ * may return to configuration_after; all memory stays held on every outcome. */
+int fes_nano_sdm_source_finish(uint32_t status,uint32_t detail)
 {
  struct nano_sdm_transfer_result r;fes_nano_sdm_transfer_result(&r);
- uint64_t final_now=0;unsigned proof=0;
+ uint64_t final_now=0;unsigned proof=0;int continuation=-1;
  if(status==0 && detail==0 && !nano_sdm_input_validate(&r.binding) && r.prepared==1 && r.initialized==1 && !r.failed && r.configured==1 &&
     !r.first_error && !r.service_error && !r.pending && !r.outstanding &&
     r.accepted==r.binding.bytes && r.posted==r.binding.bytes && r.acknowledged==r.binding.bytes &&
@@ -71,7 +71,21 @@ __attribute__((noreturn)) void fes_nano_sdm_source_finish(uint32_t status,uint32
    source_retirement.observed_reads,source_retirement.observed_offset,source_retirement.observed_value,
    source_retirement.consumer_samples,source_retirement.observed_consumer,source_retirement.consumer_read,
    source_retirement.consumer_phase,source_retirement.consumer_stage,source_retirement.consumer_poll);
+  if(!error)continuation=fes_nano_sdm_continue_source();
  }
+ if(!continuation){
+  NOTICE("FES_NANO_INPUT_CONTINUE build=%s owner=%llx epoch=%llx generation=%llu ready=1 elapsed_us=%llu retained=1 reuse=0 activated=0\n",
+   FES_NANO_INPUT_BUILD,(unsigned long long)r.binding.owner,(unsigned long long)r.binding.epoch,
+   (unsigned long long)r.binding.generation,
+   (unsigned long long)(source_retirement.continuation_last-source_retirement.start));
+  return 0;
+ }
+ if(source_retirement.continuation_attempted)
+  NOTICE("FES_NANO_CONTINUATION_STOP build=%s error=%d last_us=%llu observed_us=%llu bad_offset=%x bad_value=%x retained=1 reuse=0 activated=0\n",
+   FES_NANO_INPUT_BUILD,source_retirement.first_error,
+   (unsigned long long)source_retirement.continuation_last,
+   (unsigned long long)source_retirement.continuation_observed,
+   source_retirement.bad_offset,source_retirement.bad_value);
  NOTICE("FES_NANO_INPUT_PARK retained=1 resume=0 activated=0\n");
  for(;;)FES_PROBE_WAIT();
 }

@@ -2030,14 +2030,21 @@ static void joined_case(void){
  if(trial_case==7)fixture_state=7;
  if(trial_case==8)fixture_soft|=SOFTFUNC_STATUS_SEU_ERROR;
  if(trial_case==9)fixture_pin=0;
- if(!setjmp(terminal)){transfer_cycle();assert(0);}
- assert(parks==1 && !complete_calls && !configuration.finished);
- assert(strstr(terminal_log,"FES_NANO_INPUT_PARK retained=1 resume=0 activated=0"));
+ volatile unsigned returned=0;
+ if(!setjmp(terminal)){assert(!transfer_cycle());returned=1;}
+ if(returned){
+  assert(!parks && complete_calls==1 && configuration.finished && source_retirement.continued);
+  assert(strstr(terminal_log,"FES_NANO_INPUT_CONTINUE build="));
+  assert(!strstr(terminal_log,"FES_NANO_INPUT_PARK"));
+ }else{
+  assert(parks==1 && !complete_calls && !configuration.finished && !source_retirement.continued);
+  assert(strstr(terminal_log,"FES_NANO_INPUT_PARK retained=1 resume=0 activated=0"));
+ }
  char *line=strstr(terminal_log,"FES_NANO_INPUT_RESULT build=0000000000000000 ");assert(line);
  struct nano_sdm_transfer_result observed;fes_nano_sdm_transfer_result(&observed);
  if(!trial_case){
   assert(strstr(line," status=0 detail=0 proof=1 "));
-  assert(transfer.configured && !configuration.failed && !configuration.finished && configuration.issued==FES_NANO_CONFIG_ISDONE);
+  assert(transfer.configured && !configuration.failed && (returned ? (configuration.finished && !configuration.issued) : (!configuration.finished && configuration.issued==FES_NANO_CONFIG_ISDONE)));
   assert(observed.completed==configuration.bytes && observed.acknowledged==configuration.bytes && !observed.outstanding && !observed.pending);
  }else{
   if(trial_case==123)fprintf(stderr,"FINAL_SCOPE_COUNTEREXAMPLE event_producer=%u %s",registers[44],line);
@@ -2045,7 +2052,7 @@ static void joined_case(void){
  }
  if(!trial_case){
   if(!retire_fault && !(FES_TEST_RETIRE_COST_MODE && source_retirement.failed)){assert(source_retirement.retired && source_retirement.command_receipt.commands_completed && source_retirement.command_receipt.producer==12);assert(smmu_writes==17 && registers[0x20/4]==0 && registers[0x44/4]==0x100000);}
-  else {if(!source_retirement.failed || source_retirement.retired)fprintf(stderr,"RETIRE_CASE %u attempted=%u failed=%u retired=%u scope=%u source_failed=%u\n%s",retire_fault,source_retirement.attempted,source_retirement.failed,source_retirement.retired,sdm_probe_scope_reason,sdm_source_failed,terminal_log);assert(source_retirement.failed && !source_retirement.retired);}
+  else {if(!source_retirement.failed || source_retirement.retired)fprintf(stderr,"RETIRE_CASE %u attempted=%u failed=%u retired=%u scope=%u source_failed=%u\n%s",retire_fault,source_retirement.attempted,source_retirement.failed,source_retirement.retired,sdm_probe_scope_reason,sdm_source_failed,terminal_log);assert(source_retirement.failed && !source_retirement.continued && (!source_retirement.retired || FES_TEST_RETIRE_COST_MODE));}
   unsigned before=smmu_writes;struct nano_retire_receipt again={0};assert(fes_nano_sdm_retire_source(&again));assert(smmu_writes==before && !again.translation_retired);
  }else assert(smmu_writes==12 || trial_case==4);
  assert(usb_writes==model.base.h.usb_writes && physical_requests==model.requests);

@@ -8,7 +8,7 @@ HEX={'owner','epoch','abort','bad_offset','bad_value'}
 SIGNED={'status','first_error'}
 def require(v,message):
  if not v:raise ValueError(message)
-def decode(raw,*,boot,build,configuration):
+def decode(raw,*,boot,build,configuration,_terminal=None):
  require(type(raw) is bytes and 0<len(raw)<=1<<20 and raw.endswith(b'\n') and b'\0' not in raw,'complete bounded retirement capture required')
  parts=raw.splitlines(keepends=True);lines=[re.sub(rb'^NOTICE:[ \t]+',b'',v.rstrip(b'\r\n')) for v in parts]
  rows=[(i,v) for i,v in enumerate(lines) if b'FES_NANO_RETIRE_RESULT' in v];require(len(rows)==1,'one complete retirement result required')
@@ -24,7 +24,7 @@ def decode(raw,*,boot,build,configuration):
    pattern='[0-9a-f]{1,16}' if key in HEX else '-?[0-9]{1,11}' if key in SIGNED else '[0-9]{1,20}'
    require(re.fullmatch(pattern,value) is not None,'bounded retirement field '+key);r[key]=int(value,16 if key in HEX else 10)
    require(-(1<<31)<=r[key]<(1<<64),'retirement integer overflow')
- source=_input.decode(b''.join(parts[:at]+parts[at+1:]),boot=boot,build=build,configuration=configuration)
+ source=_input.decode(b''.join(parts[:at]+parts[at+1:]),boot=boot,build=build,configuration=configuration,_terminal=_terminal)
  errors=list(source['errors']);s=source['result']
  for k in ('build','owner','epoch','generation','bytes','sha384'):
   if r[k]!=s[k]:errors.append('retirement/source '+k+' differs')

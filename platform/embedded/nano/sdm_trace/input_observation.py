@@ -12,7 +12,7 @@ START=re.compile(r'FES_NANO_START phase=([0-9]+) status=(-?[0-9]+)')
 PHASES=(0,1,2,3,4,12,13,14,5,6,7,8,9,10,11)
 def require(ok,message):
  if not ok:raise ValueError(message)
-def decode(raw,*,boot,build,configuration):
+def decode(raw,*,boot,build,configuration,_terminal=None):
  require(type(raw) is bytes and 0<len(raw)<=1<<20 and raw.endswith(b'\n') and b'\0' not in raw,'complete bounded input capture required')
  require(boot.get('loader_ready') is True and boot.get('errors')==[],'independently checked native boot required')
  cap=boot.get('capability_observation') or {};require(cap.get('status')==0 and cap.get('reads')==26,'complete boot capability observation required')
@@ -20,7 +20,9 @@ def decode(raw,*,boot,build,configuration):
  require(type(configuration) is dict and type(configuration.get('core_size')) is int and type(configuration.get('chunk_bytes')) is int and re.fullmatch('[0-9a-f]{96}',configuration.get('core_sha384','')) is not None,'checked complete MENU configuration required')
  total,chunk=configuration['core_size'],configuration['chunk_bytes'];require(64<total<=0x7ff000 and total%4==0 and 64<=chunk<=0xffff0 and chunk%64==0,'bounded exact source layout required')
  lines=[re.sub(rb'^NOTICE:[ \t]+',b'',v) for v in raw.splitlines()]
- require(lines[-1]==PARK and sum(v==PARK for v in lines)==1,'one last terminal input Park required')
+ terminal=PARK if _terminal is None else _terminal
+ require(type(terminal) is bytes and 0<len(terminal)<=512 and b'\n' not in terminal,'bounded terminal line required')
+ require(lines[-1]==terminal and sum(v==terminal for v in lines)==1,'one last terminal input Park required')
  forbidden=(b'FES_NATIVE_PROGRAM_REPLY ',b'FES_NATIVE_FPGA_PROGRAMMED ',b'FES_NANO_FABRIC_ACTIVATION ',b'FES_NATIVE_INPUT_ACTION ',b'FES_NANO_FAULT64 ')
  require(not any(any(t in v for t in forbidden) for v in lines),'unexpected application/activation/other diagnostic')
  rows=[(i,v) for i,v in enumerate(lines) if b'FES_NANO_INPUT_RESULT' in v];require(len(rows)==1,'one terminal input result required')

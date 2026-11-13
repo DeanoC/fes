@@ -63,7 +63,11 @@ now verifies retained-source retirement, exact original-FIT rollback and the
 full baseline launch/return/Park cycle. Command consumption passes at 97.359 ms;
 mandatory final checks complete at 118.481 ms under the existing one-second
 retirement scope, with total retirement 403.340 ms. Memory reuse, ordinary
-runtime activation and general core-load acceptance remain open.
+runtime activation and general core-load acceptance remain open. The
+[format-12 retained-continuation prototype](../../docs/validation/2026-11-13-de25-retained-continuation/README.md)
+returns a successful retirement to native configuration checks while an
+explicitly retained arena blocks source overwrite. Its software checks do not
+qualify a new hardware image.
 
 This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
 launcher integration, while bounded Nano CPU/SD/package diagnostics now run on

@@ -30,6 +30,7 @@ struct nano_sdm_transfer_result {
  int first_error,service_error;
 };
 void fes_nano_sdm_transfer_result(struct nano_sdm_transfer_result *);
-__attribute__((noreturn)) void fes_nano_sdm_source_finish(uint32_t status,uint32_t detail);
+/* Success returns only to existing native configuration checks; failure parks. */
+int fes_nano_sdm_source_finish(uint32_t status,uint32_t detail);
 
 #endif

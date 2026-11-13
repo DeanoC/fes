@@ -17,7 +17,7 @@ import fit_layout
 
 def profile():
     return dict(chain_sha256="1" * 64, firmware_mmu={}, firmware_ram={},
-                usb_shared=True, sd_pio=True, capability_observation={"format": 2},
+                usb_shared=True, sd_pio=True, configuration_retained=True, capability_observation={"format": 2},
                 hps_menu_program={"fixture": True}, hps_program_platform={"fixture": True},
                 cpu_mapping=dict(ram_base=0x84000000, ram_bytes=0x10000000,
                                  dma_base=0x94800000, dma_bytes=0x800000,
@@ -45,7 +45,7 @@ class InputProfileTests(unittest.TestCase):
             with self.subTest(contract=name), self.assertRaises(ValueError):
                 mode.checked(p)
         for name in ("firmware_mmu", "firmware_ram", "usb_shared", "sd_pio",
-                     "capability_observation", "hps_menu_program", "hps_program_platform", "boot_fit"):
+                     "capability_observation", "configuration_retained", "hps_menu_program", "hps_program_platform", "boot_fit"):
             p = profile()
             del p[name]
             with self.subTest(missing=name), self.assertRaises(ValueError):
@@ -67,7 +67,8 @@ class InputProfileTests(unittest.TestCase):
         for version, name in ((7, "2026-11-13-de25-matched-command-snapshot/matched-with-cause-result.json"),
                               (8, "2026-11-13-de25-command-guard/matched-result.json"),
                               (9, "2026-11-13-de25-command-progress/matched-result.json"),
-                              (10, "2026-11-13-de25-command-observe/matched-result.json")):
+                              (10, "2026-11-13-de25-command-observe/matched-result.json"),
+                              (11, "2026-11-13-de25-command-completion/matched-chain.json")):
             record = json.loads((ROOT / "docs/validation" / name).read_text())
             previous = record["sdm_input_contract"]
             self.assertEqual(previous["format"], version)

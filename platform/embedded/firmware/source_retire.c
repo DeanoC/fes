@@ -258,3 +258,69 @@ int nano_source_retire(struct nano_retire *s,struct nano_sdm_input_binding bindi
  .translation_retired=1,.memory_retained=1};
  return 0;
 }
+
+/* Continuation is separate from the immutable retirement observation. The
+ * caller supplies its private engine and freshly constructed platform binding,
+ * never a copied host/retirement receipt. No write/store callback is called. */
+static int continuation_state(struct nano_retire *s,const struct nano_sdm_input_binding *b,
+ const struct nano_retire_io *io)
+{
+ const struct nano_cmdq_receipt *r=&s->command_receipt;
+ return s->attempted==1 && s->timed==1 && s->retired==1 && !s->failed && !s->first_error &&
+  s->phase==RET_COMPLETE && s->continuation_attempted==1 && !s->continued &&
+  nano_sdm_input_same(&s->binding,b) && io_same(&s->io,io) &&
+  s->commands.initialized==1 && s->commands.submitted==1 && !s->commands.failed &&
+  !s->commands.first_error && r->owner==b->owner && r->epoch==b->epoch &&
+  r->generation==b->generation && r->baseline==6 && r->producer==12 && r->consumer==12 &&
+  r->commands_completed==1 && !r->interconnect_drained && !r->DMA_access_granted;
+}
+static int continuation_guard(struct nano_retire *s,const struct nano_sdm_input_binding *b,
+ const struct nano_retire_io *io)
+{
+ uint64_t now=0;
+ if(!continuation_state(s,b,io))return fail(s,-13);
+ int error=io->time_us(io->context,&now);s->continuation_observed=now;
+ if(error)return fail(s,error);
+ if(!continuation_state(s,b,io))return fail(s,-13);
+ if(io->owns(io->context,b)!=1)return fail(s,-13);
+ if(!continuation_state(s,b,io))return fail(s,-13);
+ if(now<s->continuation_last || now<s->start || now-s->start>=NANO_RETIRE_US)return fail(s,-110);
+ s->continuation_last=now;return 0;
+}
+int nano_source_continue(struct nano_retire *s,struct nano_sdm_input_binding b,
+ struct nano_retire_io io)
+{
+ if(!s || s->continuation_attempted)return -1;
+ s->continuation_attempted=1;
+ if(nano_sdm_input_validate(&b) || b.generation!=4 || !io.context || !io.owns ||
+    !io.source_valid || !io.time_us || !io.read32 || !io.write32 ||
+    !io.store_command || !io.barrier || !continuation_state(s,&b,&io))return fail(s,-22);
+ s->continuation_last=s->last;
+ if(continuation_guard(s,&b,&io))return -1;
+ int error=io.source_valid(io.context,&b);
+ if(error!=1 || !continuation_state(s,&b,&io))return fail(s,-13);
+ if(continuation_guard(s,&b,&io))return -1;
+ static const uint32_t rows[][2]={
+  {0,0x080f7e3f},{4,0x0e739d18},{0x14,0x00400075},{0x28,0x820},{0x2c,4},
+  {0x48,0},{0x50,0},{0x54,0},{0x60,0},{0x64,0},
+  {0x80,0x94000000},{0x84,0},{0x88,8},{0x90,0x94008003},{0x94,0},
+  {0xa0,0x94009003},{0xa4,0},{0x100a8,0},{0x100ac,0},
+  {GBPA,ABORT},{0x20,0},{0x24,0},{0x98,12},{0x9c,12}};
+ for(unsigned pass=0;pass<2;pass++){
+  if(continuation_guard(s,&b,&io))return -1;
+  for(unsigned n=0;n<sizeof(rows)/sizeof(rows[0]);n++){
+   if(!continuation_state(s,&b,&io))return fail(s,-13);
+   io.barrier(io.context);
+   if(!continuation_state(s,&b,&io))return fail(s,-13);
+   uint32_t got=0;error=io.read32(io.context,rows[n][0],&got);
+   if(error)return fail(s,error);
+   if(!continuation_state(s,&b,&io))return fail(s,-13);
+   io.barrier(io.context);
+   if(!continuation_state(s,&b,&io))return fail(s,-13);
+   if(got!=rows[n][1]){s->bad_offset=rows[n][0];s->bad_value=got;return fail(s,-5);}
+  }
+  if(continuation_guard(s,&b,&io))return -1;
+ }
+ if(continuation_guard(s,&b,&io))return -1;
+ s->continued=1;return 0;
+}

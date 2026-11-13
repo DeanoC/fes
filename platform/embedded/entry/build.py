@@ -558,6 +558,7 @@ def main():
               "native_build_sha256": sha(receipt_bytes) if receipt_bytes is not None else None,
               "native_build_sources": native_sources,
               "native_program":receipt['program'] if receipt_bytes is not None else None,
+              "configuration_retained":receipt.get("configuration_retained",False) if args.target=='de25-nano' else False,
               "usb_control":native_usb_control,"usb_shared":receipt.get("usb_shared",False) if args.target=='de25-nano' else False,"usb_input":receipt.get('usb_input') if args.target=='de25-nano' else None,
               "hps_context":native_context,
               "hps_context_sha256":hps.digest(native_context) if native_context is not None else None,

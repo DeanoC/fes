@@ -1,10 +1,10 @@
-"""Explicit full-source read-only SDM transfer diagnostic; retained terminal."""
+"""Explicit full-source SDM transfer and one retained native continuation."""
 import hashlib,importlib.util,json
 from pathlib import Path
 HERE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('fes_input_arena',HERE/'nano_sdm_probe_profile.py');arena=importlib.util.module_from_spec(spec);spec.loader.exec_module(arena)
 fit_spec=importlib.util.spec_from_file_location('fes_input_fit',HERE.parent/'nano/fit_layout.py');fit=importlib.util.module_from_spec(fit_spec);fit_spec.loader.exec_module(fit)
-CONTRACT=dict(format=11,scope='nano-SID10-full-input-command-completion-v11-retained-scope',mode='input-transfer-retire-command-completion-park',attempts=1,
+CONTRACT=dict(format=12,scope='nano-SID10-full-input-retained-continuation-v12',mode='input-transfer-retire-retained-continue',attempts=1,
  source_base=0x94800000,wire_base=0x14800000,payload_max=0x7ff000,page_bytes=4096,metadata_page=0x94fff000,
  arena_base=0x94000000,arena_bytes=0x10000,root_offset=0x4000,command_offset=0x8000,event_offset=0x9000,
  prepared_control=12,armed_control=13,source_stream=10,source_access='read-only-XN',other_streams='abort',
@@ -12,7 +12,9 @@ CONTRACT=dict(format=11,scope='nano-SID10-full-input-command-completion-v11-reta
  clock_origin='before-additional-source-SHA384',table_recheck_words=5120,callback_bytes=256,
  source_digest='full-SHA384-before-preparation-and-existing-SMC-chunk-full-checks',
  reply_selection='fixed-ATF-expected-submission-job',DATA_reply_words=0,job_ids=14,
- status='IDLE-NSTATUS-CONF_DONE-INIT_DONE',terminal_before_activation=True,
+ status='IDLE-NSTATUS-CONF_DONE-INIT_DONE',continuation_before_configuration_commit=True,
+ continuation_attempts=1,continuation_replay=False,
+ continuation_scope='live-engine-and-fresh-final-view-under-original-retirement-bound',
  buffers='retained-on-every-outcome',mapping_retirement='abort-invalidate-disable-retained',automatic_reset=False,replay=False,
  physical_qualification=False,ordinary_runtime_activation=False,build_tag='cold-chain-prefix-16-hex',boot_fit=dict(fit.CONTRACT),compiler_stack_records='selected-units',final_counter_owner_scope='fresh-after-read',pretransfer_mailbox='vendor-parser-until-preparation-attempt',retirement_bound_us=1000000,retirement_controls=[13,12,8,0],retirement_queue_pointers=[6,12],retirement_abort=0x100000,retirement_allow_bypass=False,retirement_memory_reuse=False,retirement_timing='existing-guard-samples-v1',retirement_timing_phases=7,retirement_timing_added_clock_reads=0,retirement_register_batch_rows=24,retirement_table_guard_bytes=4096,retirement_fresh_prewrite_registers=24,retirement_command_snapshot='owned-fixed-24-register-superset',retirement_command_snapshot_rows=24)
 CONTRACT.update(retirement_command_clock='fresh-counter-monotonic-source-and-retirement-bounds',
@@ -45,9 +47,9 @@ def selected(profile,enabled):
  if not isinstance(profile,dict) or profile.get('sdm_arm_probe') is not None or profile.get('sdm_fault64') is not None:
   raise ValueError('SDM input, fault64 and arm-only modes are mutually exclusive')
  if (profile.get('firmware_mmu') is None or profile.get('firmware_ram') is None or profile.get('usb_shared') is not True or
-     profile.get('sd_pio') is not True or profile.get('capability_observation',{}).get('format')!=2 or
+     profile.get('sd_pio') is not True or profile.get('configuration_retained') is not True or profile.get('capability_observation',{}).get('format')!=2 or
      not profile.get('hps_menu_program') or not profile.get('hps_program_platform')):
-  raise ValueError('SDM input transfer requires complete mapped shared-device capability/MENU profile')
+  raise ValueError('SDM input transfer requires complete retained-source mapped shared-device capability/MENU profile')
  mapping=profile.get('cpu_mapping') or {};configuration=profile.get('hps_configuration') or {}
  if tuple(mapping.get(k) for k in ('ram_base','ram_bytes','dma_base','dma_bytes','reader_base','reader_bytes'))!=(0x84000000,0x10000000,0x94800000,0x800000,0x95000000,0x800000) or configuration.get('base')!=0x94800000:
   raise ValueError('SDM input transfer requires pinned heap/source/reader exclusions')
@@ -129,8 +131,8 @@ def verify_image(image,profile):
  import nano_firmware_ram as ram
  symbols=ram.symbols(image);retire_scope=private_function(image,'retire_owned');retire_tables=private_function(image,'retire_valid');private_scope=private_function(image,'sdm_input_final_scope')
  fixed={'__FES_SMMU_PROBE_START__':0x94000000,'__FES_SMMU_STREAMS__':0x94000000,'__FES_SMMU_SDM_ROOT__':0x94004000,'__FES_SMMU_CMDQ__':0x94008000,'__FES_SMMU_EVTQ__':0x94009000,'__FES_SMMU_PROBE_END__':0x94010000}
- roots=('fes_nano_sdm_source_prepare','fes_nano_sdm_source_start_ready','fes_nano_sdm_source_validate','fes_nano_sdm_source_finish','fes_nano_sdm_transfer_result','nano_probe_arm','nano_sdm_transfer_before','nano_sdm_transfer_response','nano_sdm_transfer_status_result','mailbox_read_response_async_expected','nano_source_retire','nano_cmdq_submit')
+ roots=('fes_nano_sdm_source_prepare','fes_nano_sdm_source_start_ready','fes_nano_sdm_source_validate','fes_nano_sdm_source_finish','fes_nano_sdm_transfer_result','nano_probe_arm','nano_sdm_transfer_before','nano_sdm_transfer_response','nano_sdm_transfer_status_result','mailbox_read_response_async_expected','nano_source_retire','nano_source_continue','nano_cmdq_submit')
  if any(symbols.get(n,(0,))[0]!=v for n,v in fixed.items()) or any(n not in symbols for n in roots) or any(n in symbols for n in ('fes_nano_sdm_fault64_arm','fes_nano_sdm_probe_arm_park','fes_nano_sdm_input_arm_park')):
   raise ValueError('input arena/hooks absent or conflicting diagnostic installed')
- if any(marker not in image for marker in (profile['chain_sha256'][:16].encode(),b'FES_NANO_INPUT_RESULT build=',b'FES_NANO_RETIRE_RESULT build=',b'FES_NANO_RETIRE_TIMING build=',b'FES_NANO_RETIRE_QUEUE build=',b'FES_NANO_INPUT_PARK retained=1 resume=0 activated=0')):raise ValueError('input build/terminal markers absent')
+ if any(marker not in image for marker in (profile['chain_sha256'][:16].encode(),b'FES_NANO_INPUT_RESULT build=',b'FES_NANO_RETIRE_RESULT build=',b'FES_NANO_RETIRE_TIMING build=',b'FES_NANO_RETIRE_QUEUE build=',b'FES_NANO_INPUT_CONTINUE build=',b'FES_NANO_INPUT_PARK retained=1 resume=0 activated=0')):raise ValueError('input build/terminal markers absent')
  return dict(contract=dict(CONTRACT),symbols=fixed,private_final_scope=private_scope,private_retire_scope=retire_scope,private_retire_tables=retire_tables,build_tag=profile['chain_sha256'][:16],image_sha256=hashlib.sha256(image).hexdigest(),hardware_accepted=False,physical_programming_admission=False)

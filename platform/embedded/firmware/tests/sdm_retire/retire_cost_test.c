@@ -11,7 +11,7 @@ static void retire_meter(unsigned kind)
 {
  if(!source_retirement.attempted)return;
  assert(source_retirement.phase<7 && kind<6);
- counts[source_retirement.phase][kind]++;
+ if(!source_retirement.continuation_attempted)counts[source_retirement.phase][kind]++;
  if(kind==0)ticks+=read_cost;
  if(kind==5)ticks+=counter_cost;
 }
@@ -21,8 +21,8 @@ int main(int argc,char **argv)
  read_cost=strtoul(argv[1],0,10);counter_cost=strtoul(argv[2],0,10);
  assert(read_cost<=1000 && counter_cost<=1000);
  trial_case=0;fixture_credits=4;joined_case();
- assert(source_retirement.retired != source_retirement.failed);
- if(source_retirement.failed){
+ assert(!source_retirement.continued || (source_retirement.retired && !source_retirement.failed));
+ if(source_retirement.failed && !source_retirement.retired){
   assert(source_retirement.first_error==-110 ||
    (source_retirement.phase==RET_INVALIDATE && source_retirement.first_error==-3));
   assert(!source_retirement.retired);

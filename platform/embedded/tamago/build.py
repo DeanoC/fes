@@ -399,6 +399,9 @@ def build(args):
     tenfoot_serial=getattr(args,'tenfoot_serial',False)
     if type(tenfoot_serial) is not bool or tenfoot_serial and not selected_programs:
         raise ValueError('--tenfoot-serial requires the selected native program service')
+    configuration_retained=getattr(args,'retain_configuration',False)
+    if type(configuration_retained) is not bool or (configuration_retained and not (selected_programs and tenfoot_serial)):
+        raise ValueError('--retain-configuration requires selected serial Tenfoot programs')
     shared_input=getattr(args,'shared_usb_input',None)
     usb_shared=shared_input is not None
     if usb_shared:
@@ -508,7 +511,7 @@ def build(args):
                          f"profileFPGAProbeEnabled = {str(fpga is not None).lower()}\nprofileFPGAProbeBase = {fpga['base'] if fpga else 0}\nprofileFPGAProbeBytes = {fpga['size'] if fpga else 0}\n)\n")
     with generated.open('a') as stream:
         stream.write('const profileInitialTapeEnabled = '+str(initial_tape).lower()+'\n')
-        stream.write('const (\nprofileConfigurationBase = '+str(configuration_map['base'] if configuration_map else 0)+'\nprofileConfigurationBytes = '+str(configuration_map['size'] if configuration_map else 0)+'\n)\n')
+        stream.write('const (\nprofileConfigurationBase = '+str(configuration_map['base'] if configuration_map else 0)+'\nprofileConfigurationBytes = '+str(configuration_map['size'] if configuration_map else 0)+'\nprofileConfigurationRetained = '+str(configuration_retained).lower()+'\n)\n')
         stream.write('const (\nprofileFabricControlBase = '+str(control_map['cpu_base'] if control_map else 0)+'\nprofileFabricControlBytes = '+str(control_map['span'] if control_map else 0)+'\n)\n')
         stream.write('const (\nprofileReaderMemoryBase = '+str(cpu_map['reader_base'] if cpu_map else 0)+'\nprofileReaderMemoryArenaBytes = '+str(cpu_map['reader_bytes'] if cpu_map else 0)+'\n)\n')
     network_constants = {"profileNetworkEnabled": net is not None,
@@ -667,6 +670,7 @@ def build(args):
               "writable_storage_plan":writable_storage_plan,
               "sd_scratch_inspect":sd_scratch_inspect,
               "arm64_features":arm64_features,"cpu_feature_overlay":cpu_feature_overlay,
+              "configuration_retained":configuration_retained,
               "expected_package_id":expected_package_id,"usb_control":usb_control,"usb_shared":usb_shared,"usb_input":usb_input,
               "hps_context":context,"hps_context_sha256":hps.digest(context) if context else None,
               "hps_io":io_map,"hps_io_sha256":hps.digest(io_map) if io_map else None,

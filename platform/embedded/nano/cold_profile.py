@@ -193,6 +193,7 @@ def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obs
     identity={'format':1,'profile':'cold-smmu-preloaded' if profile.name=='smmu-profile.json' else 'cold-sd-pio-preloaded' if profile.name=='sd-profile.json' else 'cold-serial-preloaded',
               'sd_pio':profile.name=='sd-profile.json','usb_pio':build.get('usb_control',False),'firmware_profile_sha256':sha(profile),
               'usb_input':build.get('usb_input'),'usb_shared':build.get('usb_shared',False),
+              'configuration_retained':build.get('configuration_retained',False),
               'usb_probe':hps_context.usb_selection.contained_probe(build,program_key='native_program'),
               'smmu_observe':profile.name=='smmu-profile.json',
               'secure_capture_trace':True,

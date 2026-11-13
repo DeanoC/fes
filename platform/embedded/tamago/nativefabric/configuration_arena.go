@@ -21,6 +21,7 @@ type ConfigurationArena struct {
 	active                    *Region
 	ready                     bool
 	failed                    bool
+	retained                  bool
 	tapeOwner, tapeGeneration uint64
 	tapeRegion                *Region
 }
@@ -41,6 +42,18 @@ func NewProgramArena(address uint64, memory []byte, barrier func() error) (*Conf
 	return a, nil
 }
 
+// NewRetainedProgramArena permits one program reservation. Successful transfer
+// completion does not permit overwriting source or metadata, including through
+// initial-tape publication. No runtime/device permission is implied.
+func NewRetainedProgramArena(address uint64, memory []byte, barrier func() error) (*ConfigurationArena, error) {
+	a, err := NewProgramArena(address, memory, barrier)
+	if err != nil {
+		return nil, err
+	}
+	a.retained = true
+	return a, nil
+}
+
 func NewConfigurationArena(address uint64, memory []byte, barrier func() error) (*ConfigurationArena, error) {
 	if address < 0x82000000 || address%64 != 0 || len(memory) == 0 || len(memory) > 8<<20 ||
 		address > 0xc0000000-uint64(len(memory)) || barrier == nil {
@@ -57,7 +70,7 @@ func (a *ConfigurationArena) Reserve(source []byte) (*Region, error) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.failed || (a.active != nil && !a.ready) || len(source) == 0 || len(source) > len(a.memory) {
+	if a.failed || (a.retained && a.active != nil) || (a.active != nil && !a.ready) || len(source) == 0 || len(source) > len(a.memory) {
 		return nil, errors.New("native fabric: configuration arena lease unavailable")
 	}
 	// The board's ordering hook also validates its live mapping. Reject a

@@ -35,7 +35,13 @@ func ReserveConfiguration(source []byte) (*nativefabric.Region, error) {
 			return nil, err
 		}
 		data := unsafe.Slice((*byte)(unsafe.Pointer(uintptr(profileConfigurationBase))), profileConfigurationBytes)
-		arena, err := nativefabric.NewProgramArena(profileConfigurationBase, data, configurationPublication)
+		var arena *nativefabric.ConfigurationArena
+		var err error
+		if profileConfigurationRetained {
+			arena, err = nativefabric.NewRetainedProgramArena(profileConfigurationBase, data, configurationPublication)
+		} else {
+			arena, err = nativefabric.NewProgramArena(profileConfigurationBase, data, configurationPublication)
+		}
 		if err != nil {
 			return nil, err
 		}

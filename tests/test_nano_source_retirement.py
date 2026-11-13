@@ -70,6 +70,12 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertFalse(report["hardware_actions"])
         return report
 
+    def test_retained_continuation_requires_live_retired_state(self):
+        self.run_model("continue_test")
+
+    def test_native_configuration_checks_still_gate_continuation(self):
+        self.run_model("continue_return_test", joined=True)
+
     def test_portable_failures(self):
         self.run_model("retire_test")
 
@@ -129,7 +135,11 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertLess(zero["phase_counts"][4][5], snapshot_baseline["phase_counts"][4][5])
         self.assertLess(zero["phase_counts"][4][0], guard_baseline["phase_counts"][4][0])
         self.assertLess(zero["phase_counts"][4][5], guard_baseline["phase_counts"][4][5])
-        for phase in (0, 1, 2, 3, 5, 6):
+        # Phase 6 previously included the fixture's post-terminal retry probe.
+        # A native return clears issued/finishes configuration before that
+        # probe, so compare earlier phases and the full final table scan.
+        self.assertEqual(zero["phase_counts"][6][2], 5120)
+        for phase in (0, 1, 2, 3, 5):
             self.assertEqual(zero["phase_counts"][phase], snapshot_baseline["phase_counts"][phase])
             self.assertEqual(zero["phase_counts"][phase], guard_baseline["phase_counts"][phase])
         self.assertFalse(baseline["eight_us_read_cost_retired"])

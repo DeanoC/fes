@@ -1152,3 +1152,11 @@ existing exclusivity checks. No PHY, VBUS, hub, combined SD/USB permission or
 input-ready advertisement is granted by this connection. Host tests run actual
 Tenfoot USB-menu launch/core-key/return cycles and source/closure failures through
 the modeled firmware transport; they supply no physical USB acceptance.
+
+
+The explicit retained-continuation prototype uses `NewRetainedProgramArena`.
+It permits one program reservation, validates completion normally, and retains
+both source and metadata after release. A later program reservation or initial
+tape publication fails before a write, barrier or firmware call. The Nano SDK
+selects this with `--retain-configuration`; its receipt propagates through the
+entry and cold-profile identity. It is not a source-reuse or device grant.

@@ -1,0 +1,105 @@
+{
+  "retained-continue-final-focused": {
+    "argv": [
+      "env",
+      "PYTHONPATH=tests",
+      "python3",
+      "-m",
+      "unittest",
+      "test_nano_source_retirement",
+      "test_nano_sdm_input_profile",
+      "test_nano_sdm_continuation",
+      "test_nano_sdm_queue_observation",
+      "test_nano_sdm_timing",
+      "-v"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 38.22325193998404,
+    "log_sha256": "716e71e02cb8da0463441b1d92031f09e67321868dceb1bee3171285d265d274"
+  },
+  "retained-continue-portable-final": {
+    "argv": [
+      "env",
+      "PYTHONPATH=tests",
+      "python3",
+      "-m",
+      "unittest",
+      "test_nano_source_retirement.SourceRetirementTests.test_retained_continuation_requires_live_retired_state",
+      "-v"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1.203858190914616,
+    "log_sha256": "3ff223ea68abcb0da6388be7ebf2aadc580ada9360bd9b6cf258b34ecfd33c98"
+  },
+  "retained-continue-native-race": {
+    "argv": [
+      "go",
+      "-C",
+      "platform/embedded/tamago",
+      "test",
+      "-race",
+      "./nativefabric",
+      "-count=1"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 162.407148309052,
+    "log_sha256": "82c9373f7a654e95568921c758e92cd7f3135f22c08da92b58d67bf14570477e"
+  },
+  "retained-continue-arena": {
+    "argv": [
+      "go",
+      "-C",
+      "platform/embedded/tamago",
+      "test",
+      "-race",
+      "./nativefabric",
+      "-run",
+      "TestRetainedProgramNeverReusesCompletedOrFailedSource",
+      "-count=1"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 6.827996225096285,
+    "log_sha256": "afb1fc180d171d044840ae247e9bd849445f2fa169c944a57ebe0cfb6563d252"
+  },
+  "retained-continue-arm64": {
+    "argv": [
+      "python3",
+      "out/publication/cross-retained-continue.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1.0012722560204566,
+    "log_sha256": "06e4303b59c4b12988b84b1e5e0a2ab85a4c4a4bacc2204eb5e461dfd266df8e"
+  },
+  "retained-continue-parent-check": {
+    "argv": [
+      "make",
+      "check"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 19.264344944851473,
+    "log_sha256": "04b7d0133f86510765e0c9fdb3bd8a9269cfc9a03e91c02efd8cf2f5866bac79"
+  },
+  "retained-continue-cli-final": {
+    "argv": [
+      "python3",
+      "out/publication/check-retained-native-cli.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.200703171081841,
+    "log_sha256": "2be6ca532feeb937f9b146f52793aa66462e68101fdf17b736386aac31b9847d"
+  }
+}
