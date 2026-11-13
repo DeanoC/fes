@@ -340,7 +340,7 @@ class LockstepGateTest(unittest.TestCase):
         self.netlist = b"module fes_i386_cpu(); endmodule\n"
         verilator = lockfile.load_lock(ROOT / quartus.I386_LOCK)["verilator"].commit
         self.report = {
-            "run": {"passed": True, "default_suite": True, "arguments": {}},
+            "run": {"passed": True, "default_suite": True, "complete_corpus": True, "arguments": {}},
             "verilator": {"lock": quartus.I386_LOCK, "commit": verilator, "sha256": "v", "version": "V",
                           "slot": "s"},
             "netlist": {"program_sha256": yosys_netlist.program_sha256(yosys_netlist.SEAL),
@@ -388,9 +388,17 @@ class LockstepGateTest(unittest.TestCase):
             quartus.check_lockstep_report(ROOT, b"{", self.yosys, "HIP", self.output)
         self.refused({**self.report, "run": {"passed": False, "default_suite": True}}, "did not pass")
         self.refused({key: value for key, value in self.report.items() if key != "run"}, "did not pass")
-        self.refused({**self.report, "run": {"passed": True, "default_suite": False, "arguments": {"opcode": "x"}}},
+        self.refused({**self.report, "run": {"passed": True, "default_suite": False, "complete_corpus": True,
+                                             "arguments": {"opcode": "x"}}},
                      "not the default suite")
         self.refused({key: value for key, value in self.report.items() if key != "netlist"}, "not a --netlist run")
+
+    def test_a_default_suite_report_must_prove_a_complete_corpus(self):
+        legacy = {**self.report["run"]}
+        del legacy["complete_corpus"]
+        self.refused({**self.report, "run": legacy}, "does not prove a complete corpus")
+        self.refused({**self.report, "run": {**self.report["run"], "complete_corpus": False}},
+                     "does not prove a complete corpus")
 
     def test_each_input_identity_must_match(self):
         for key, value in (("program_sha256", "0" * 64), ("cpu_source_sha256", "0" * 64),

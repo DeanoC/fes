@@ -507,6 +507,8 @@ def check_lockstep_report(root: Path, data: bytes, yosys: board.AuthenticatedToo
     run = report.get("run") if isinstance(report, dict) else None
     if not isinstance(run, dict) or run.get("passed") is not True:
         raise board.BuildError("lockstep report did not pass")
+    if run.get("complete_corpus") is not True:
+        raise board.BuildError("lockstep report does not prove a complete corpus; use the current lockstep runner")
     if run.get("default_suite") is not True:
         raise board.BuildError(f"lockstep report is not the default suite: {run.get('arguments')}")
     netlist = report.get("netlist")
