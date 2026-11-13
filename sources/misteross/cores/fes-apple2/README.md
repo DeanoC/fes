@@ -167,10 +167,11 @@ to the normal diagnostic.
 ## Simulation
 
 ```sh
-make sim-fes-apple2            # all three below
+make sim-fes-apple2            # all four below
 make sim-fes-apple2-mailbox    # fes.computer golden exchanges on fes_computer_mailbox
 make sim-fes-apple2-machine    # diagnostic boot, screens, held RESET/LC vector and disk
 make sim-fes-apple2-board      # top.v through the mailbox: HID keys, live disk, eject, reset
+make sim-fes-apple2-cpu        # motherboard CPU enable, slot IRQ, JSR and RMW bus cycles
 ```
 
 The board simulation releases execution with an empty drive, checks nine key
@@ -178,6 +179,11 @@ translations and speaker audio, inserts the synthetic disk into unit 0 while
 the machine runs (71,680 data transactions), boots it, ejects it without
 stopping the machine and warm-resets with Control+F12. These are host
 simulations, not an RBF, timing or kit result.
+
+The CPU simulation runs a synthetic ROM on the motherboard with the real
+fractional RDY enable. It checks JSR's dummy read and stack order against the
+transistor-reference bus sequence, both writes of an INC, and a slot IRQ through
+its vector, handler and RTI. The synthetic ROM is private to that simulation.
 
 ## OSS seal
 
