@@ -59,3 +59,12 @@ local diagnostic invocation paths; these are not registered producers.
 No hardware ran. Neither this candidate nor nextpnr PR266 is promoted by this
 record. Next work is the remaining storage and CPU control paths, followed by a
 complete paired routed check and the existing seed/producer/hardware gates.
+
+## Removed archive
+
+`capture.tar.gz` was removed from the repository on 13 November 2026. Its source export held the full ZX81 and ZX80 ROM images in `zx8x.hex` and `zx8x.mif`.
+FES has no verified permission to redistribute those ROMs (see the
+[v1 firmware licensing record](../../../../../docs/plans/v1-firmware-licensing.md#evidence), Z0). The removed file was
+11054008 bytes with SHA-256 `735086ccc42b20840cf1ee269ee95fdd4a135190988afd5c2c11804f0ceaa4fb`. Nothing else in this record changed, so
+hashes and member counts quoted here still describe the original archive,
+which can no longer be read back from this tree.

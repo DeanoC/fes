@@ -74,3 +74,15 @@ The next timing work keeps the original source and separately evaluates guarded
 local repairs. Neither this source experiment nor a positive local margin
 inherits complete timing, multi-seed, producer or exact-artifact hardware
 acceptance.
+
+## Removed archive
+
+`host.tar.gz` was removed from the repository on 13 November 2026. Its two nested source archives held the full ZX81 and ZX80 ROM images in `zx8x.hex` and `zx8x.mif`.
+FES has no verified permission to redistribute those ROMs (see the
+[v1 firmware licensing record](../../../../../../docs/plans/v1-firmware-licensing.md#evidence), Z0). The removed file was
+43281524 bytes with SHA-256 `b7eb123902ff8b6c7a422f0846cc431607fc2e5ddb9f6eda06ed2fd507e8537c`. Nothing else in this record changed, so
+hashes and member counts quoted here still describe the original archive,
+which can no longer be read back from this tree.
+
+`timing-cost-route.tar.gz` and `window-route.tar.gz` are unchanged. The `host` entry in
+`capture-readback.json` describes the removed file.
