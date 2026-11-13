@@ -18,7 +18,9 @@
 // an AT, and 3F6h is the ATA device control register. Bit 1 of a drive
 // select is ignored, as on a two-drive AT adapter (and in Bochs): drives 2
 // and 3 alias 0 and 1. INT (irq6) and DRQ (DMA channel 2) are gated by DOR
-// bit 3, as in the 82077AA's AT mode.
+// bit 3, as in the 82077AA's AT mode. A command that names a drive moves
+// DOR's select bit to it, as Bochs and QEMU do, so DOR reads back and DIR
+// reports that drive afterwards.
 //
 // Commands are decoded on the whole byte, so a command takes only the
 // modifier bits (MT, MFM, SK) the 82077AA gives it: Specify, Sense Drive
@@ -57,8 +59,10 @@
 // format; a sector or ID the guest has started runs to its end and is
 // stored. fenced reports that the fence is up and that the controller holds
 // no write: none is being collected, waiting or on its way to the image. A
-// disk that leaves its drive during a command ends it at its next sector
-// with ST0 IC=01 and NR, so a write never lands on the disk that replaced it.
+// disk that leaves its drive at any time from a command's first byte to its
+// result ends it with ST0 IC=01 and NR, and no later sector or ID starts. A
+// store already queued still lands on the image it was aimed at, which is
+// why an endpoint swaps an image only while busy is low.
 //
 // Times count microseconds from a rational enable of clk (US_N/US_D, the AT
 // core's 1 MHz), so the governor's presets leave floppy speed alone.
@@ -628,8 +632,10 @@ module pc386_fdc #(
                 // A command that touches the disk waits for its drive; if
                 // the disk it started with leaves (during spin-up, say), it
                 // ends rather than carry on with another.
+                // A store still running (one a reset cut into) finishes
+                // before the next command uses the drive or the fill byte.
                 X_READY: if (disk_left) not_ready();
-                else if (ready) begin
+                else if (ready && !storing && !store_due) begin
                     if (base == C_READ_ID) begin
                         if (!mfm || head[d] && !two_sided[d] || cyl[d] >= tracks) begin
                             st0 <= {5'b01000, head[d], 1'b0, d}; st1 <= 8'h01;
@@ -687,7 +693,7 @@ module pc386_fdc #(
                 end
                 // A byte, offered once its byte time has passed.
                 X_BYTE_WAIT: if (disk_left) not_ready();
-                else if (waited && !storing && !fence_closed) begin
+                else if (waited && !storing && !store_due && !fence_closed) begin
                     ex <= X_BYTE;
                     if (pio) begin
                         msr <= writing ? 8'hb0 : 8'hf0;
@@ -756,7 +762,8 @@ module pc386_fdc #(
                 end
                 // Write and format: the sector's store, queued with its last
                 // byte, has landed.
-                X_STORE_WAIT: if (!storing && !store_due) begin
+                X_STORE_WAIT: if (disk_left) not_ready();
+                else if (!storing && !store_due) begin
                     if (formatting) begin
                         id_byte <= 0;
                         if (format_left <= 8'd1 || tc_seen) begin

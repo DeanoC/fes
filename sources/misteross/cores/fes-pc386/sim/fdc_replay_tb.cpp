@@ -141,14 +141,14 @@ public:
     bool fenced() const { return top->fenced; }
     void set_frozen(bool frozen) { top->frozen = frozen; cycle(); }
     void step(uint64_t n) { for (uint64_t i = 0; i < n; ++i) cycle(); }
-    // A write's byte by DACK, then a port write `after` clocks after the
-    // DACK completes.
-    void dack_then_out(uint8_t value, unsigned after, uint16_t port, uint8_t data) {
+    // A write's byte by DACK, then `then` `after` clocks after the DACK
+    // completes.
+    void dack_then(uint8_t value, unsigned after, const std::function<void()> &then) {
         top->dack_valid = 1; top->dack_tc = 0; top->dack_wdata = value;
         for (int i = 0; i < 64; ++i) { cycle(); if (top->dack_done) break; }
         top->dack_valid = 0;
         for (unsigned i = 0; i < after; ++i) cycle();
-        out(port, data);
+        then();
     }
     int eject_with_write = -1;            // a drive whose disk leaves with the next port write
 
@@ -878,12 +878,78 @@ std::vector<Case> cases() {
             g.command(rw(0x45, 0, 8, 0, 1, 1));
             g.dma_out(std::vector<uint8_t>(sector.begin(), sector.end() - 1));
             g.wait([&] { return g.f.drq(); }, 100000, "write's last byte offered");
-            rtl.dack_then_out(sector.back(), after, 0x3f2, 0x18);
+            rtl.dack_then(sector.back(), after, [&] { rtl.out(0x3f2, 0x18); });
             g.out(0x3f2, 0x1c);
             g.irq();
             for (int i = 0; i < 4; ++i) g.sense();
             read_back(g, 0, 8, 0, 1, 1, 1, sector,
-                      strf("a sector finished %u clocks before a controller reset", after).c_str());
+                      strf("a sector finished %u clocks before a DOR reset", after).c_str());
+        }
+        // The same for a DSR reset (which also turns the motor off), and for a
+        // format's ID whose fourth byte comes just before a DOR reset.
+        for (unsigned after = 0; after < 2; ++after) {
+            std::vector<uint8_t> sector(512);
+            for (size_t i = 0; i < sector.size(); ++i) sector[i] = uint8_t(i * 3 + after * 29 + 7);
+            g.command(rw(0x45, 0, 8, 0, 2, 2));
+            g.dma_out(std::vector<uint8_t>(sector.begin(), sector.end() - 1));
+            g.wait([&] { return g.f.drq(); }, 100000, "write's last byte offered");
+            rtl.dack_then(sector.back(), after, [&] { rtl.out(0x3f4, 0x80); });
+            g.irq();
+            for (int i = 0; i < 4; ++i) g.sense();
+            g.out(0x3f2, 0x1c);
+            read_back(g, 0, 8, 0, 2, 1, 2, sector,
+                      strf("a sector finished %u clocks before a DSR reset", after).c_str());
+            g.command({0x4d, 0x00, 0x02, 18, 0x54, uint8_t(0xa0 + after)});
+            g.dma_out({8, 0, 1});
+            g.wait([&] { return g.f.drq(); }, 100000, "format's fourth ID byte offered");
+            rtl.dack_then(2, after, [&] { rtl.out(0x3f2, 0x18); });
+            g.out(0x3f2, 0x1c);
+            g.irq();
+            for (int i = 0; i < 4; ++i) g.sense();
+            read_back(g, 0, 8, 0, 1, 1, 1, std::vector<uint8_t>(512, uint8_t(0xa0 + after)),
+                      strf("a format ID finished %u clocks before a DOR reset", after).c_str());
+        }
+        // A format sent at once after a reset that cut into another's store:
+        // the store keeps its own fill byte.
+        {
+            g.command({0x4d, 0x00, 0x02, 18, 0x54, 0xc1});
+            g.dma_out({8, 0, 1});
+            g.wait([&] { return g.f.drq(); }, 100000, "format's fourth ID byte offered");
+            bool overlapped = false;
+            rtl.dack_then(2, 0, [&] {
+                rtl.out(0x3f2, 0x18);
+                rtl.out(0x3f2, 0x1c);
+                rtl.step(48);                                // past the reset's 10 us
+                for (uint8_t b : {0x4d, 0x00, 0x02, 18, 0x54, 0xc2}) rtl.out(0x3f5, b);
+                rtl.step(4);
+                overlapped = rtl.busy();
+            });
+            g.check(overlapped, "the second format reached its drive while the first's store ran");
+            g.controller_reset(0x1c);
+            read_back(g, 0, 8, 0, 1, 1, 1, std::vector<uint8_t>(512, 0xc1), "a store's fill byte across a new format");
+        }
+        // A TC on a write's fourth byte: the store's first word is the last
+        // one written.
+        {
+            const std::vector<uint8_t> four{0x11, 0x22, 0x33, 0x44};
+            g.command(rw(0x45, 0, 8, 0, 3, 3));
+            g.dma_out(four, 3);
+            g.results();
+            auto expect = four;
+            expect.resize(512, 0x00);
+            read_back(g, 0, 8, 0, 3, 1, 3, expect, "a write with TC in its first word");
+        }
+        // A disk that leaves while a write's last sector is stored ends it
+        // not ready; the store still lands on the image it was aimed at.
+        {
+            g.command(rw(0x45, 0, 8, 0, 4, 4));
+            g.dma_out(std::vector<uint8_t>(511, 0x5a));
+            g.wait([&] { return g.f.drq(); }, 100000, "write's last byte offered");
+            rtl.dack_then(0x5a, 2, [&] { g.f.eject(0); });
+            g.wait([&] { return !rtl.busy(); }, 100000, "store landed");
+            g.insert(0, Disk{G144, 19});
+            r = g.results(1000000);
+            g.check(r.size() == 7 && r[0] == 0x48, "a disk that left during the last store ends the write: NR");
         }
     }});
     list.push_back({"timing", 4, 2, true, [](Guest &g) {
