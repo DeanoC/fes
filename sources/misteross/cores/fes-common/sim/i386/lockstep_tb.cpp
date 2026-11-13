@@ -772,7 +772,8 @@ public:
         return s;
     }
     // The unit works on past the instruction that started it, as a 387 does
-    // with BUSY# still active, so its state is compared once it is idle.
+    // with BUSY# still active. A caller may wait for it once its program has
+    // halted, where the extra cycles cannot run another instruction.
     void settle_x87() {
         for (int n = 0; n < 64 && top.trace_x87_busy; ++n) clock();
     }
@@ -2906,14 +2907,16 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         if (before.eflags & 0x100) ++summary.debug_kinds["tf-steps"];
         if (before.dr7 & 0xff) ++summary.debug_kinds["armed-steps"];
         compare(oracle_state, rtl_state, skip, at, out);
-        // The 387's state, once the unit is idle: a load's work finishes
+        // The 387's state, when the unit is idle. A load's work finishes
         // after the instruction has retired, as a real 387's does with BUSY#
-        // still active.
-        if (x87_fitted) {
-            rtl.settle_x87();
-            const fes_i386::X87State want = oracle.x87_state();
-            const fes_i386::X87State got = rtl.x87_state();
-            for (const std::string &field : fes_i386::x87_differences(want, got))
+        // still active, so a retirement that leaves it working is not a
+        // comparison point: waiting here would clock the CPU on past the
+        // next instruction. The next retirement compares instead, because
+        // the next ESC holds in D until the unit is idle and no other
+        // instruction touches the 387; a run that ends while it is working
+        // is compared by its caller, where more cycles are harmless.
+        if (x87_fitted && !rtl.top.trace_x87_busy) {
+            for (const std::string &field : fes_i386::x87_differences(oracle.x87_state(), rtl.x87_state()))
                 out.add(at + "x87." + field, 0, 1);
             ++summary.x87_compared;
         }
@@ -10187,6 +10190,206 @@ int run_no387_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     return 0;
 }
 
+
+// ---- The ESC instructions with a 387 (directed) ------------------------------
+// The forms this slice builds, run through the CPU with the i386dx+387
+// identity on (#1768 slice 2). The lockstep compares every retirement as
+// usual, and with the identity on it compares the 387's whole state too, so
+// these programs are what exercises the unit inside the CPU; the random and
+// corpus programs run no ESC at all.
+//
+// Each program starts with FNINIT, so the comparison does not depend on the
+// 387's state after a CPU reset, which is the open cpu-reset-387-state
+// divergence (Bochs leaves CW 0040h with every tag valid; the unit resets as
+// FINIT does). Real mode at 0000:1000, data at 7000h, every vector a HLT.
+//   const       FNINIT, the seven constants, FXCH, FINCSTP, FDECSTP, FFREE
+//   loads       FLD m32, m64 and m80, FILD m16, m32 and m64, from the data
+//               pattern, then FXAM and FTST on each
+//   stores      the same values stored back as m32, m64, m80 and as 16-,
+//               32- and 64-bit integers, which the lockstep compares as
+//               writes and the bytes left behind
+//   words       FLDCW, FNSTCW, FNSTSW AX, FNSTSW m16, FNCLEX
+//   env         FNSTENV and FLDENV in both operand sizes
+//   save        FNSAVE and FRSTOR in both operand sizes, with TOP moved
+//   stack       eight pushes then a ninth (overflow), and FSTP from empty
+//               (underflow), with the exceptions masked
+//   wait        WAIT with a 387 fitted, which waits for BUSY# and no more
+int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                  Summary &summary) {
+    struct Asm {
+        std::vector<uint8_t> b;
+        void op(std::initializer_list<uint8_t> bytes) { b.insert(b.end(), bytes); }
+        void w(uint16_t v) { b.push_back(uint8_t(v)); b.push_back(uint8_t(v >> 8)); }
+        void m(unsigned reg, uint16_t off) { b.push_back(uint8_t(reg << 3 | 6)); w(off); }
+        void esc(uint8_t opcode, unsigned reg, uint16_t off) { b.push_back(opcode); m(reg, off); }
+        void o32() { b.push_back(0x66); }
+    };
+    constexpr uint32_t CODE = 0x1000, HANDLER = 0x1800, DS = 0x7000;
+    struct Case { const char *label; std::function<void(Asm &)> body; };
+    const Case cases[] = {
+        {"const", [](Asm &a) {
+            a.op({0xdb, 0xe3});                                    // FNINIT
+            for (uint8_t n = 0xe8; n <= 0xee; ++n) a.op({0xd9, n}); // FLD1 .. FLDZ
+            a.op({0xd9, 0xc9});                                    // FXCH ST(1)
+            a.op({0xd9, 0xf7});                                    // FINCSTP
+            a.op({0xd9, 0xf6});                                    // FDECSTP
+            a.op({0xdd, 0xc2});                                    // FFREE ST(2)
+            a.op({0xd9, 0xd0});                                    // FNOP
+        }},
+        {"loads", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32
+            a.op({0xd9, 0xe5}); a.op({0xd9, 0xe4});                // FXAM, FTST
+            a.esc(0xdd, 0, 0x108);                                 // FLD m64
+            a.op({0xd9, 0xe5}); a.op({0xd9, 0xe4});
+            a.esc(0xdb, 5, 0x110);                                 // FLD m80
+            a.op({0xd9, 0xe5});
+            a.op({0xdb, 0xe3});
+            a.esc(0xdf, 0, 0x120);                                 // FILD m16
+            a.esc(0xdb, 0, 0x124);                                 // FILD m32
+            a.esc(0xdf, 5, 0x128);                                 // FILD m64
+            a.op({0xd9, 0xe0}); a.op({0xd9, 0xe1});                // FCHS, FABS
+        }},
+        {"stores", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32
+            a.esc(0xd9, 2, 0x300);                                 // FST m32
+            a.esc(0xdd, 2, 0x304);                                 // FST m64
+            a.esc(0xdf, 2, 0x30c);                                 // FIST m16
+            a.esc(0xdb, 2, 0x310);                                 // FIST m32
+            a.esc(0xdb, 7, 0x314);                                 // FSTP m80
+            a.esc(0xdb, 0, 0x124);                                 // FILD m32
+            a.esc(0xdf, 7, 0x320);                                 // FISTP m64
+            a.esc(0xd9, 0, 0x104);                                 // FLD m32
+            a.esc(0xd9, 3, 0x328);                                 // FSTP m32
+        }},
+        {"words", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 5, 0x130);                                 // FLDCW
+            a.esc(0xd9, 7, 0x330);                                 // FNSTCW
+            a.op({0xdf, 0xe0});                                    // FNSTSW AX
+            a.esc(0xdd, 7, 0x332);                                 // FNSTSW m16
+            a.op({0xdb, 0xe2});                                    // FNCLEX
+            a.op({0xdb, 0xe1}); a.op({0xdb, 0xe4});                // FDISI, FSETPM
+        }},
+        {"env", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);
+            a.esc(0xd9, 6, 0x340);                                 // FNSTENV (16-bit)
+            a.esc(0xd9, 4, 0x340);                                 // FLDENV
+            a.o32(); a.esc(0xd9, 6, 0x360);                        // FNSTENV (32-bit)
+            a.o32(); a.esc(0xd9, 4, 0x360);                        // FLDENV
+        }},
+        {"save", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);
+            a.esc(0xdd, 0, 0x108);
+            a.esc(0xdd, 6, 0x380);                                 // FNSAVE (16-bit)
+            a.esc(0xdd, 4, 0x380);                                 // FRSTOR
+            a.o32(); a.esc(0xdd, 6, 0x400);                        // FNSAVE (32-bit)
+            a.o32(); a.esc(0xdd, 4, 0x400);                        // FRSTOR
+        }},
+        {"stack", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            for (int n = 0; n < 9; ++n) a.esc(0xd9, 0, 0x100);     // eight fit, the ninth overflows
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 3, 0x330);                                 // FSTP m32 from empty
+            a.op({0xd9, 0xe0});                                    // FCHS from empty
+        }},
+        {"wait", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.op({0x9b});                                          // WAIT
+            a.esc(0xd9, 0, 0x100);
+            a.op({0x9b});
+            a.op({0xdf, 0xe0});
+        }},
+    };
+
+    const bool was_fitted = x87_fitted;
+    x87_fitted = true;
+    oracle.set_at_coprocessor(true);
+    for (const Case &c : cases) {
+        Asm a;
+        c.body(a);
+        a.op({0xf4});
+        std::vector<std::pair<uint32_t, uint8_t>> image;
+        for (size_t i = 0; i < a.b.size(); ++i) image.emplace_back(CODE + uint32_t(i), a.b[i]);
+        for (unsigned v = 0; v < 32; ++v) {
+            image.emplace_back(v * 4, uint8_t(HANDLER)); image.emplace_back(v * 4 + 1, uint8_t(HANDLER >> 8));
+            image.emplace_back(v * 4 + 2, 0); image.emplace_back(v * 4 + 3, 0);
+        }
+        image.emplace_back(HANDLER, 0xf4);
+        // The operands: a 32-bit real 1.5, a 64-bit real -2.25, an 80-bit
+        // real 3.0, the integers 1234h, 12345678h and a 64-bit one, and a
+        // control word with every exception masked and round to nearest.
+        const uint8_t data[] = {
+            0x00, 0x00, 0xc0, 0x3f, 0x00, 0x00, 0x80, 0xbf,                           // 100h: 1.5, -1.0
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xc0, 0, 0,                      // 108h: -2.25
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x40, 0, 0, 0, 0, 0, 0,  // 110h: 3.0
+            0x34, 0x12, 0, 0, 0x78, 0x56, 0x34, 0x12,                                  // 120h, 124h
+            0x21, 0x43, 0x65, 0x87, 0x09, 0x00, 0x00, 0x00,                            // 128h
+            0x7f, 0x03,                                                                 // 130h: the control word
+        };
+        for (unsigned i = 0; i < sizeof data; ++i) image.emplace_back(DS + 0x100 + i, data[i]);
+        for (uint32_t i = 0x300; i < 0x460; ++i) image.emplace_back(DS + i, 0xcc);
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, value);
+            oracle.invalidate(address, 1);
+        }
+        State state;
+        for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
+        state.seg[fes_i386::SEG_DS] = fes_i386::real_mode_segment(uint16_t(DS >> 4));
+        state.eip = CODE;
+        state.gpr[fes_i386::REG_ESP] = 0x0f00;
+        // ET, as a 386 leaves it with a 387 that drives ERROR# low after
+        // RESET (fes_i386_cpu's x87_present and pc386_system's reset CR0).
+        state.cr0 = 0x7ffffff0 | 0x10;
+        oracle.reset();
+        oracle.set_state(state);
+        rtl.start(state);
+        Mismatches out;
+        Outcome outcome;
+        try {
+            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 400, true, summary, out,
+                               CODE + uint32_t(a.b.size()));
+        } catch (const std::exception &error) {
+            out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
+            oracle.reset();
+        }
+        if (!outcome.halted) out.add(std::string(c.label) + ".halt", 1, 0);
+        if (outcome.exception >= 0) out.add(std::string(c.label) + ".exception", 0xff, uint32_t(outcome.exception));
+        // The program has halted, so waiting for the unit cannot run another
+        // instruction: its last operation's state is compared here.
+        rtl.settle_x87();
+        for (const std::string &field : fes_i386::x87_differences(oracle.x87_state(), rtl.x87_state()))
+            out.add(std::string(c.label) + ".x87." + field, 0, 1);
+        end_run(bus, rtl, outcome.halted, out);
+        summary.cycles += rtl.cycles;
+        rtl.cycles = 0;
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        for (uint32_t address : rtl.written) {
+            if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        rtl.written.clear();
+        ++summary.runs;
+        if (out.items.empty()) {
+            ++summary.passed;
+        } else {
+            ++summary.failed;
+            std::cout << "FAIL x87:" << c.label;
+            for (const auto &item : out.items) std::cout << ' ' << item;
+            std::cout << '\n';
+        }
+    }
+    x87_fitted = was_fitted;
+    oracle.set_at_coprocessor(was_fitted);
+    return 0;
+}
+
 // 0000:1000 in real mode with a GDT at 2000h (LGDT's pointer at 2100h):
 //   08h code, 16-bit, base 0, 64K      18h data, base 0, 64K
 //   10h data, base 0, 4 GiB (G)        20h code, 16-bit, base 0, 4 GiB (G)
@@ -11068,6 +11271,8 @@ int main(int argc, char **argv) {
         run_paging_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "no387") {
         run_no387_cases(*oracle, bus, rtl, entries, summary);
+    } else if (mode == "x87") {
+        run_x87_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "test386") {
         return run_test386(*oracle, rtl);
     } else if (mode == "unbuilt") {
