@@ -29,7 +29,7 @@
 namespace {
 
 constexpr unsigned FMT_F32 = 1, FMT_F64 = 2, FMT_F80 = 3;
-constexpr unsigned FMT_I16 = 4, FMT_I32 = 5, FMT_I64 = 6;
+constexpr unsigned FMT_I16 = 4, FMT_I32 = 5, FMT_I64 = 6, FMT_ENV = 7;
 
 std::string hex(uint64_t v, int digits) {
     char buf[32];
@@ -140,7 +140,7 @@ struct Unit {
         top.reset = 1;
         top.present = 1;
         top.f0 = top.f1 = 0;
-        top.iss = top.iss_wait = top.iss_first = top.iss_last = 0;
+        top.iss = top.iss_wait = top.iss_first = top.iss_last = top.iss_fire = 0;
         top.iss_op = 0;
         top.iss_fmt = 0;
         top.iss_part = 0;
@@ -171,11 +171,15 @@ struct Unit {
         top.iss_first = first;
         top.iss_last = last;
         top.iss_part = part;
+        top.iss_fire = 0;
         top.eval();
         for (int n = 0; n < 64 && top.hold; ++n) tick();
         const uint32_t v = top.sval;
+        top.iss_fire = 1;   // the uop issues on this edge, as the CPU's does
+        top.eval();
         tick();
         top.iss = 0;
+        top.iss_fire = 0;
         top.eval();
         return v;
     }
@@ -245,6 +249,50 @@ struct Unit {
         }
     }
     void st0(uint8_t out[10]) const { reg(unsigned((top.sw_o >> 11) & 7), out); }
+    unsigned top_of() const { return unsigned((top.sw_o >> 11) & 7); }
+    // ST(i), which is the physical register (TOP + i) & 7.
+    void sti(unsigned i, uint8_t out[10]) const { reg((top_of() + i) & 7, out); }
+
+    // FNSTENV or FNSAVE: the environment's first three fields (the CPU
+    // builds fields 3 to 6, the x87 pointers) and, for FNSAVE, each
+    // register's two dwords and its top word, which is how the CPU's
+    // microcode moves the image.
+    void save(bool image, uint16_t &cw_out, uint16_t &sw_out, uint16_t &tw_out, uint8_t regs[8][10]) {
+        const unsigned op = image ? (5u << 8) | 0x35 : (1u << 8) | 0x35;  // DD /6, D9 /6
+        const unsigned fields = 7, chunks = image ? 24u : 0u;
+        for (unsigned f = 0; f < fields; ++f) {
+            const uint32_t v = present(op, FMT_ENV, f == 0, !image && f == fields - 1, f);
+            if (f == 0) cw_out = uint16_t(v);
+            if (f == 1) sw_out = uint16_t(v);
+            if (f == 2) tw_out = uint16_t(v);
+            commit(f, 0, !image && f == fields - 1);
+        }
+        for (unsigned c = 0; c < chunks; ++c) {
+            const unsigned part = 0x20u | (c / 3) << 2 | (c % 3);
+            const uint32_t v = present(op, FMT_ENV, false, c == chunks - 1, part);
+            std::memcpy(regs[c / 3] + 4 * (c % 3), &v, (c % 3) == 2 ? 2 : 4);
+            commit(part, 0, c == chunks - 1);
+        }
+        settle();
+    }
+    // FLDENV or FRSTOR, from the words and image a save left.
+    void restore(bool image, uint16_t cw_in, uint16_t sw_in, uint16_t tw_in, const uint8_t regs[8][10]) {
+        const unsigned op = image ? (5u << 8) | 0x25 : (1u << 8) | 0x25;  // DD /4, D9 /4
+        const unsigned fields = 7, chunks = image ? 24u : 0u;
+        for (unsigned f = 0; f < fields; ++f) {
+            present(op, FMT_ENV, f == 0, !image && f == fields - 1, f);
+            const uint32_t v = f == 0 ? cw_in : f == 1 ? sw_in : f == 2 ? tw_in : 0;
+            commit(f, v, !image && f == fields - 1);
+        }
+        for (unsigned c = 0; c < chunks; ++c) {
+            const unsigned part = 0x20u | (c / 3) << 2 | (c % 3);
+            present(op, FMT_ENV, false, c == chunks - 1, part);
+            uint32_t v = 0;
+            std::memcpy(&v, regs[c / 3] + 4 * (c % 3), (c % 3) == 2 ? 2 : 4);
+            commit(part, v, c == chunks - 1);
+        }
+        settle();
+    }
 };
 
 // The opcodes this bench issues: {ESC's low three bits, the ModRM byte}.
@@ -626,6 +674,72 @@ int main(int argc, char **argv) {
         u.idle(2);                            // ERROR# latches BUSY# a cycle later
         if (u.top.error && (u.sw() & 0x80) && u.top.latched) ok("unmasked-error");
         else bad("unmasked-error", "sw=" + hex(u.sw(), 4));
+    }
+
+    // ---- The environment and the save image. ----
+    // The layouts the CPU's microcode moves: FNSTENV's and FLDENV's three
+    // words, and FNSAVE's and FRSTOR's image, which holds ST(0) to ST(7)
+    // (387 PRM, the FSAVE image) and so follows TOP.
+    {
+        Unit u;
+        u.clear_latch();
+        uint8_t one[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0x3f};
+        uint8_t two[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0x00, 0x40};
+        uint8_t four[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0x01, 0x40};
+
+        // Three pushes, so TOP is 5 and the image's ST(0) is physical 5:
+        // the round trip must bring the same stack back.
+        u.reg_form(OP_FNINIT);
+        u.load(OP_FLD_M80, FMT_F80, one);
+        u.load(OP_FLD_M80, FMT_F80, two);
+        u.load(OP_FLD_M80, FMT_F80, four);
+        uint16_t cw0 = 0, sw0 = 0, tw0 = 0;
+        uint8_t image[8][10] = {{0}};
+        u.save(true, cw0, sw0, tw0, image);
+        // FNSAVE leaves the unit as FNINIT does.
+        if (u.cw() != 0x037f || u.sw() != 0 || u.tw() != 0xffff)
+            bad("fnsave-reinit", "cw=" + hex(u.cw(), 4) + " sw=" + hex(u.sw(), 4) + " tw=" + hex(u.tw(), 4));
+        else if (sw0 != 0x2800 || tw0 != 0x03ff || cw0 != 0x037f)
+            bad("fnsave-words", "cw=" + hex(cw0, 4) + " sw=" + hex(sw0, 4) + " tw=" + hex(tw0, 4));
+        else if (std::memcmp(image[0], four, 10) || std::memcmp(image[1], two, 10) ||
+                 std::memcmp(image[2], one, 10))
+            bad("fnsave-image", "st0=" + hex80(image[0]) + " st1=" + hex80(image[1]) +
+                                " st2=" + hex80(image[2]));
+        else ok("fnsave");
+
+        u.restore(true, cw0, sw0, tw0, image);
+        uint8_t got0[10], got1[10], got2[10];
+        u.sti(0, got0);
+        u.sti(1, got1);
+        u.sti(2, got2);
+        if (u.cw() != cw0 || u.sw() != sw0 || u.tw() != tw0)
+            bad("frstor-words", "cw=" + hex(u.cw(), 4) + " sw=" + hex(u.sw(), 4) + " tw=" + hex(u.tw(), 4));
+        else if (std::memcmp(got0, four, 10) || std::memcmp(got1, two, 10) || std::memcmp(got2, one, 10))
+            bad("frstor-image", "st0=" + hex80(got0) + " st1=" + hex80(got1) + " st2=" + hex80(got2));
+        else ok("frstor");
+
+        // FNSTENV stores the same three words and then masks every
+        // exception; FLDENV takes them back and leaves the registers.
+        u.reg_form(OP_FNINIT);
+        u.load(OP_FLD_M80, FMT_F80, one);
+        u.reg_form(OP_FCHS);
+        uint16_t cw1 = 0, sw1 = 0, tw1 = 0;
+        uint8_t none[8][10] = {{0}};
+        u.save(false, cw1, sw1, tw1, none);
+        const bool masked = (u.cw() & 0x3f) == 0x3f;
+        uint8_t kept[10], minus_one[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0xbf};
+        u.sti(0, kept);
+        if (!masked) bad("fnstenv-masks", "cw=" + hex(u.cw(), 4));
+        else if (std::memcmp(kept, minus_one, 10) != 0) bad("fnstenv-keeps", hex80(kept));
+        else if (sw1 != 0x3800 || cw1 != 0x037f || tw1 != 0x3fff)
+            bad("fnstenv-words", "cw=" + hex(cw1, 4) + " sw=" + hex(sw1, 4) + " tw=" + hex(tw1, 4));
+        else ok("fnstenv");
+
+        u.reg_form(OP_FNINIT);
+        u.restore(false, 0x0b7f, 0x3800, 0xf3ff, none);
+        if (u.cw() == 0x0b7f && u.sw() == 0x3800 && ((u.tw() >> 10) & 3) != 3 && ((u.tw() >> 12) & 3) == 3)
+            ok("fldenv");
+        else bad("fldenv", "cw=" + hex(u.cw(), 4) + " sw=" + hex(u.sw(), 4) + " tw=" + hex(u.tw(), 4));
     }
 
     // ---- The protocol. ----

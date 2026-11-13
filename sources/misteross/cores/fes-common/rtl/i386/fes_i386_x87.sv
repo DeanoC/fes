@@ -109,6 +109,7 @@ module fes_i386_x87 (
     input  logic [10:0] iss_op,      // {ESC's low three bits, the ModRM byte}
     input  logic [2:0]  iss_fmt,     // the memory operand's format (FMT_*)
     input  logic        iss_first,
+    input  logic        iss_fire,    // ... and the uop issues this cycle (the CPU's issue)
     input  logic        iss_last,
     input  logic [5:0]  iss_part,
     output logic        hold,
@@ -202,12 +203,14 @@ module fes_i386_x87 (
     logic [79:0] rf_b [0:7];
     logic [79:0] rf_q [0:7];   // the values the tag word and the bench read
     logic [2:0]  ra_idx, rb_idx, rw_idx;
+    logic [2:0]  ra_live;     // the index ra_val holds, a cycle behind ra_idx
     logic        rw_en;
     logic [79:0] rw_val;
     logic [79:0] ra_val, rb_val;
     always_ff @(posedge clk) begin
         ra_val <= rf_a[ra_idx];
         rb_val <= rf_b[rb_idx];
+        ra_live <= ra_idx;
         if (reset)
             for (int n = 0; n < 8; n++) cls_bits[n] <= 2'b01;
         else if (rw_en) begin
@@ -315,9 +318,10 @@ module fes_i386_x87 (
     // instruction's first uop waits in D. FNSTCW, FNSTSW, FNSTENV and
     // FNSAVE answer out of state, FNSAVE after a register read apiece.
     logic started;             // the unit has taken the instruction at D's head
+    logic fired;               // ... and that instruction's first uop has issued
     logic val_form, take, iss_save_rd;
     assign val_form = iss_dec == X87_ST_M || iss_dec == X87_STP_M;
-    assign iss_save_rd = iss && !iss_wait && iss_dec == X87_SAVE && iss_part[5] && iss_part[1:0] == 2'd0;
+    assign iss_save_rd = iss && !iss_wait && iss_dec == X87_SAVE && iss_part[5];
     // A form a later slice builds never reaches the unit: fes_i386_decode
     // stops the instruction as not built, through the same x87_decode.
     logic unbuilt;
@@ -325,10 +329,16 @@ module fes_i386_x87 (
     // The hold (BUSY#): a new instruction waits for the board's latch and
     // for the unit, and one the unit has taken waits for its own value.
     // FNINIT and FNCLEX wait for neither (HRM section 5.1).
+    // The hold (BUSY#): a new instruction's first uop waits for the board's
+    // latch and for the unit, which owns the instruction before it until its
+    // work is done -- `fired` says that instruction's first uop has gone, so
+    // a first uop now is a new instruction's. An instruction the unit has
+    // taken waits only for its own value. FNINIT and FNCLEX wait for
+    // neither (HRM section 5.1).
     assign hold = present && iss && !iss_nowait && !unbuilt
-               && (iss_first && (!started || committed) && (latched || busy)
+               && (iss_first && (fired || busy || latched)
                    || val_form && seq != S_RDY
-                   || iss_save_rd && seq != S_SAVE_RD);
+                   || iss_save_rd && iss_part[4:2] + top != ra_live);
     // FNINIT and FNCLEX wait for neither the latch nor the unit, so they are
     // taken on their own, beside whatever the unit is working on: FNINIT
     // resets it, which is why it needs no wait, and FNCLEX only clears the
@@ -663,6 +673,7 @@ module fes_i386_x87 (
             empty <= 8'hff;
             seq <= S_IDLE;
             started <= 1'b0;
+            fired <= 1'b0;
             committed <= 1'b0;
             nw <= 2'd0;
             latched <= 1'b0;
@@ -683,6 +694,7 @@ module fes_i386_x87 (
             empty <= 8'hff;
             seq <= S_IDLE;
             started <= 1'b0;
+            fired <= 1'b0;
             committed <= 1'b0;
             nw <= 2'd0;
             rw_en <= 1'b0;
@@ -695,14 +707,18 @@ module fes_i386_x87 (
             // A squashed instruction leaves nothing behind, but one that has
             // retired runs on: its work finishes after it, as a 387's does
             // with BUSY# still active.
+            // A wrong-path FNINIT or FNCLEX never commits, so its pending
+            // apply goes with the flush whatever else is in flight.
+            if (flush) nw <= 2'd0;
             if (flush && started && !committed) begin
                 started <= 1'b0;
+                fired <= 1'b0;
                 committed <= 1'b0;
-                nw <= 2'd0;
                 pnx <= 1'b0;
                 seq <= S_IDLE;
             end else begin
             if (take_nw) nw <= iss_dec == X87_INIT ? 2'd1 : 2'd2;
+            if (iss_fire && iss_first && !iss_wait) fired <= 1'b1;
             if (wb && wb_last && started) committed <= 1'b1;
             // A load uop's value, and an environment's or a save image's
             // fields, as each commits.
@@ -731,7 +747,12 @@ module fes_i386_x87 (
                             2'd0: rimg[31:0] <= wb_val;
                             2'd1: rimg[63:32] <= wb_val;
                             default: begin
-                                rw_idx <= wb_part[4:2];
+                                // The image holds ST(0) to ST(7), so the
+                                // register is TOP plus the image's index
+                                // (387 PRM, the FRSTOR image). FRSTOR has
+                                // loaded the status word, and TOP with it,
+                                // before the image's chunks arrive.
+                                rw_idx <= top + wb_part[4:2];
                                 rw_val <= {wb_val[15:0], rimg[63:0]};
                                 rw_en <= 1'b1;
                             end
@@ -765,6 +786,7 @@ module fes_i386_x87 (
                     cur_op_raw <= iss_op;
                     cur_ctrl <= ctrl_form;
                     started <= 1'b1;
+                    fired <= 1'b0;
                     committed <= 1'b0;
                     pnx <= 1'b0;
                     pfl <= 6'd0;
@@ -776,7 +798,7 @@ module fes_i386_x87 (
                         mul_store <= 1'b1;
                         seq <= S_ARG;
                     end else if (iss_dec == X87_SAVE) begin
-                        ra_idx <= iss_part[4:2];
+                        ra_idx <= top + iss_part[4:2];
                         seq <= S_SAVE_RD;
                     end
                 end
@@ -882,7 +904,7 @@ module fes_i386_x87 (
                 S_SAVE_RD: begin
                     if (flush) seq <= S_IDLE;
                     else if (wb && wb_last) seq <= S_APPLY;
-                    else if (iss && iss_part[5] && iss_part[4:2] != ra_idx) ra_idx <= iss_part[4:2];
+                    else if (iss && iss_part[5]) ra_idx <= top + iss_part[4:2];
                 end
                 // Every architectural change the operation makes, at the
                 // instruction's commit. An unmasked exception leaves the
@@ -912,6 +934,9 @@ module fes_i386_x87 (
                     cicls = class_of(rb_val, empty[top + cur_i]);
                     seq <= S_IDLE;
                     started <= 1'b0;
+                    fired <= 1'b0;
+                    committed <= 1'b0;
+                    pnx <= 1'b0;
                     case (cur)
                         X87_LD_M, X87_LD_ST, X87_CONST: begin
                             // A push: an occupied destination is a stack
@@ -1134,6 +1159,7 @@ module fes_i386_x87 (
                     opcode <= 11'd0;
                     seq <= S_IDLE;
                     started <= 1'b0;
+                    fired <= 1'b0;
                     committed <= 1'b0;
                 end else begin
                     fl <= 6'd0;
