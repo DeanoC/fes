@@ -59,8 +59,8 @@ does not infer ROM or media inputs or replace the existing catalog system.
 ## ROM linking transition
 
 Format 4 adds two ordered, required ROM sources to the existing download-time
-linker. The development Coleco MegaCart shell uses the household `firmware`
-slot for an exact 8,192-byte BIOS and the title's named `coleco-cart` selection
+linker. The development Coleco MegaCart shell uses the title's named `coleco-bios`
+selection for an exact 8,192-byte BIOS and its named `coleco-cart` selection
 for an exact 131,072-byte cartridge. The source-only `rom-link-v2.json`
 archive carries both original objects and an optional exact-shell SGM archive;
 the target verifies each digest, composes the expansion and patches the sealed
@@ -125,8 +125,7 @@ and `fes.ts1500` an 8192-byte `ts1500-firmware`. All four keep
 a raw image at `$4000`.
 Hardware evidence is tied to the exact tested package and software; rebuilding
 a package does not inherit earlier acceptance. Cartridge ROM packages must remove redundant reset-held application
-blob/stream and firmware mailboxes; firmware ROM packages may retain separate
-tape/disk input.
+blob/stream mailboxes; firmware ROM packages may retain separate tape/disk input.
 
 ## Durable target installation
 

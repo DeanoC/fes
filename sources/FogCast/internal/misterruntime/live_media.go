@@ -78,7 +78,7 @@ func (r *Runtime) ReplaceLiveMedia(ctx context.Context, size int64, body io.Read
 			apiErr.NoChange = true
 		}
 	}()
-	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole {
+	if !b.Valid() || b.Stream {
 		return protocol.LiveMediaRequestError()
 	}
 	data, err := protocol.ReadDevelopmentMedia(size, body)
@@ -160,7 +160,7 @@ func (r *Runtime) ClearLiveMedia(ctx context.Context, b protocol.DevelopmentMedi
 			apiErr.NoChange = true
 		}
 	}()
-	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole {
+	if !b.Valid() || b.Stream {
 		return protocol.LiveMediaRequestError()
 	}
 	control, ok := r.control.(protocol2LiveMediaControl)

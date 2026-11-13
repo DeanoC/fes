@@ -432,11 +432,6 @@ Application audio `fes.audio.pcm-s16-stereo-48k` 1.0 is an additive required-whe
 present interface using capability bit 4. It needs no manifest-schema change;
 older runtimes reject its required declaration through normal registry admission.
 
-Application firmware `fes.firmware.blob` 1.0 is capability bit 7 with opcodes
-15–17 and exact length `FesApplicationFirmwareBytes` (8192). It may be required
-or optional. See [application I/O](application-io.md). The in-tree runtime
-consumer revision is recorded in `testdata/oracles/fes-application-firmware.json`.
-
 Application HPS DDR `fes.memory.hps-ddr` 1.0 is capability bit 8. Its
 `FesApplicationHpsDdr*` constants give the FPGA-owned DDR3 window and the
 fpga2sdram `cfg_*` layout; `registers/cyclone_v/sdram.yaml` names the SDR

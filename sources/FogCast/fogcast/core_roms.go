@@ -437,7 +437,7 @@ func validateROMMediaContract(descriptor corepackage.Descriptor) error {
 	}
 	application := descriptor.ABI.ID == "fes.application" && descriptor.ABI.Major == 1
 	for _, endpoint := range descriptor.Interfaces {
-		if endpoint.Major == 1 && endpoint.Minor == 0 && (endpoint.ID == "fes.media.blob-stream" || endpoint.ID == "fes.firmware.blob" || application && endpoint.ID == "fes.media.blob") {
+		if endpoint.Major == 1 && endpoint.Minor == 0 && (endpoint.ID == "fes.media.blob-stream" || application && endpoint.ID == "fes.media.blob") {
 			return &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Phase: "compatibility", Message: "linked cartridge packages must omit media endpoints that wait for a separate startup upload"}
 		}
 	}

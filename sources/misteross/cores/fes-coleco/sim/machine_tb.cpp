@@ -121,8 +121,6 @@ void controller_reads(uint64_t matrix) {
     dut.clk_sys = 0; dut.reset = 1; set_controller_state(dut, matrix);
     dut.media_ready = 1; dut.media_size = program.size();
     dut.media_data = 0; dut.peek_addr = 0;
-    dut.firmware_we_a = 0; dut.firmware_we_b = 0;
-    dut.firmware_addr = 0; dut.firmware_data = 0;
     dut.bus_response = 0;
     dut.eval();
     uint8_t registered_media_data = 0;
@@ -181,10 +179,6 @@ int main(int argc, char **argv) {
     dut.media_size = uint16_t(cartridge.size());
     dut.media_data = 0;
     dut.peek_addr = 0x8000;
-    dut.firmware_we_a = 0;
-    dut.firmware_we_b = 0;
-    dut.firmware_addr = 0;
-    dut.firmware_data = 0;
     dut.bus_response = 0;
     dut.eval();
     uint8_t registered_media_data = 0;
