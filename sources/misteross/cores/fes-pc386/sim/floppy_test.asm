@@ -41,7 +41,12 @@
 ;              as one fill byte.
 ;   label-b360 SWAP 3 puts a 360K disk in the 1.2M drive: its volume label is
 ;              DISK360, so the drive reads the smaller medium.
+;   write-b360 a sector written to the 360K disk's last track reads back,
+;              and format-b360 formats that track to one fill byte, both
+;              through the 1.2M drive.
 ;   back-b     SWAP 4 puts B:'s 1.2M disk back.
+;   verify-b   INT 13h AH=04h verifies a track of the 1.2M disk, and
+;              format-b formats one of its tracks to one fill byte.
 ;   write-b    a sector written to B:'s last track reads back; the bench
 ;              writes B:'s image out and the suite finds it in the file.
 ;
@@ -234,6 +239,8 @@ start:  cld
         ; ---- format-a: format A:'s last track, which must then read back as
         ; one fill byte. DISK1 is writable again and the track is past its
         ; files.
+        mov byte [id_cylinder], 79
+        mov byte [id_count], 18
         call fill_ids
         mov bx, ids
         mov ax, 0x0512                  ; format 18 sectors
@@ -262,12 +269,98 @@ start:  cld
         mov si, name_label_b360
         call check
 
+        ; ---- write-b360: a sector of the 360K disk's last track, written
+        ; and read back through the 1.2M drive.
+        call fill_pattern
+        mov bx, sector
+        mov ax, 0x0301
+        mov cx, 0x2709                  ; cylinder 39, sector 9
+        mov dx, 0x0101                  ; head 1, drive 1
+        int 0x13
+        mov al, 0
+        jc .write_b360_done
+        mov di, sector
+        mov cx, 512
+        xor al, al
+        rep stosb
+        mov bx, sector
+        mov ax, 0x0201
+        mov cx, 0x2709
+        mov dx, 0x0101
+        int 0x13
+        mov al, 0
+        jc .write_b360_done
+        call judge_pattern
+.write_b360_done:
+        mov si, name_write_b360
+        call check
+
+        ; ---- format-b360: that track formats to one fill byte
+        mov byte [id_cylinder], 39
+        mov byte [id_count], 9
+        call fill_ids
+        mov bx, ids
+        mov ax, 0x0509                  ; format nine sectors
+        mov cx, 0x2701                  ; cylinder 39, sector 1
+        mov dx, 0x0101                  ; head 1, drive 1
+        int 0x13
+        mov al, 0
+        jc .format_b360_done
+        mov bx, sector
+        mov ax, 0x0201
+        mov cx, 0x2701
+        mov dx, 0x0101
+        int 0x13
+        mov al, 0
+        jc .format_b360_done
+        call judge_filled
+.format_b360_done:
+        mov si, name_format_b360
+        call check
+
         ; ---- back-b: the 1.2M disk again
         mov si, mark_swap4
         call mark
         mov di, label_bdisk
         call wait_label_b
         mov si, name_back_b
+        call check
+
+        ; ---- verify-b: INT 13h AH=04h over a track of the 1.2M disk
+        mov bx, sector
+        mov ax, 0x040f                  ; verify fifteen sectors
+        mov cx, 0x0001                  ; cylinder 0, sector 1
+        mov dx, 0x0001                  ; head 0, drive 1
+        int 0x13
+        mov al, 0
+        jc .verify_b_done
+        mov al, 1
+.verify_b_done:
+        mov si, name_verify_b
+        call check
+
+        ; ---- format-b: the 1.2M disk's second-to-last track formats to one
+        ; fill byte. The last track is the write check's.
+        mov byte [id_cylinder], 78
+        mov byte [id_count], 15
+        call fill_ids
+        mov bx, ids
+        mov ax, 0x050f                  ; format fifteen sectors
+        mov cx, 0x4e01                  ; cylinder 78, sector 1
+        mov dx, 0x0101                  ; head 1, drive 1
+        int 0x13
+        mov al, 0
+        jc .format_b_done
+        mov bx, sector
+        mov ax, 0x0201
+        mov cx, 0x4e01
+        mov dx, 0x0101
+        int 0x13
+        mov al, 0
+        jc .format_b_done
+        call judge_filled
+.format_b_done:
+        mov si, name_format_b
         call check
 
         ; ---- write-b: the last sector of B: is written and read back; the
@@ -397,14 +490,15 @@ judge_pattern:
         xor al, al
         ret
 
-; The 18 sector IDs of A:'s last track: cylinder 79, head 1, sectors 1-18,
-; 512 bytes each.
+; The sector IDs of one track: id_count sectors of cylinder id_cylinder,
+; head 1, numbered from 1, 512 bytes each.
 fill_ids:
         pusha
         mov di, ids
-        mov cx, 18
+        movzx cx, byte [id_count]
+        mov ah, [id_cylinder]
         mov al, 1
-.next:  mov byte [di], 79               ; C
+.next:  mov [di], ah                    ; C
         mov byte [di + 1], 1            ; H
         mov [di + 2], al                ; R
         mov byte [di + 3], 2            ; N, 512 bytes
@@ -591,6 +685,8 @@ say:    push ax
 failed:         db 0
 tries:          db 0
 started:        dw 0
+id_cylinder:    db 0
+id_count:       db 0
 pattern:        db 'FES FLOPPY WRITE'
 txt_pattern:    db 'A:\*.TXT', 0
 label_disk1:    db 'DISK1'
@@ -619,6 +715,10 @@ name_verify_a:  db 'verify-a$'
 name_dma_boundary: db 'dma-boundary$'
 name_write_a:   db 'write-a$'
 name_format_a:  db 'format-a$'
+name_write_b360: db 'write-b360$'
+name_format_b360: db 'format-b360$'
+name_verify_b:  db 'verify-b$'
+name_format_b:  db 'format-b$'
 name_label_b360: db 'label-b360$'
 name_back_b:    db 'back-b$'
 name_write_b:   db 'write-b$'
@@ -628,5 +728,5 @@ name_done:      db 'DONE$'
 
                 align 4
 sector:         times 512 db 0
-ids:            times 18 * 4 db 0
+ids:            times 18 * 4 db 0       ; a track's sector IDs, C H R N each
 dta:            times 128 db 0
