@@ -514,7 +514,8 @@ void in_flight(Bench &b) {
     // no bytes, reported at once); then the make reaches the 8042, then F5.
     // The make's completion is the last report, so the clear leaves Pause
     // reported down. Pressed again while scanning is disabled, it is already
-    // down when scanning resumes, so nothing is sent until a release.
+    // down when scanning resumes, so nothing is sent until a release. That is
+    // the model's behaviour since M5, kept as is; #1800 tracks fixing it.
     b.hold = true;
     b.key(PAUSE, true);
     std::vector<uint8_t> pause_make = b.collect(1200);
