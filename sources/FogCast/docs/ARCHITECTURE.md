@@ -914,6 +914,11 @@ launch-time `POST /api/v1/session/development-media` (`load_media`). See the FES
 
 ### Coleco title selector and cartridge swap
 
+Creating a title with `media_role: "cartridge"` and an imported media digest
+binds that exact-size binary to the package's named cartridge ROM in the same
+catalog transaction as the title. Format-4 titles still need their separately
+selected BIOS; cartridge ROMs are not live media units.
+
 Factory Coleco format-4 packages link the 8 KiB BIOS and 16 KiB cartridge into
 the RBF at launch and do not expose a live media unit. Home and F12 during
 Coleco play open the `example.coleco-arcade` title selector over the running

@@ -148,6 +148,11 @@ Coleco BIOS and cartridge bytes are imported into the core-media store and
 selected separately for each title against the package's named ROM requirements.
 The current two-ROM packages require an exact 8192-byte BIOS and an exact-size
 cartridge. Importing bytes alone does not select them or affect another title.
+To create a title with its cartridge already bound, use
+`fogcast core-entry TITLE PACKAGE_ID cartridge MEDIA_ID`. The title and named
+cartridge selection are committed together; a two-ROM package still requires
+its separately selected BIOS. The `cartridge` role is for entry creation, not
+the live-media selection endpoint.
 The private `--bios` producer is a separate build-time path.
 
 `core-media-capabilities PACKAGE_ID` works offline and returns:
