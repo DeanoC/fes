@@ -57,8 +57,13 @@ the USB root cause remains unresolved. The failed diagnostic is consumed. The
 keeps the 100 ms check through validated command consumption and retains all
 final snapshots under the enclosing one-second retirement limit. Its focused
 models, full affected checks, portable compilation, complete matched chain and
-fresh native file admission pass. Its artifacts are retained/read back; it has
-no new hardware qualification.
+fresh native file admission pass. Its artifacts are retained/read back. A
+[bounded physical trial](../../docs/validation/2026-11-13-de25-command-completion-physical/README.md)
+now verifies retained-source retirement, exact original-FIT rollback and the
+full baseline launch/return/Park cycle. Command consumption passes at 97.359 ms;
+mandatory final checks complete at 118.481 ms under the existing one-second
+retirement scope, with total retirement 403.340 ms. Memory reuse, ordinary
+runtime activation and general core-load acceptance remain open.
 
 This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
 launcher integration, while bounded Nano CPU/SD/package diagnostics now run on

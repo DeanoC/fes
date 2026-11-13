@@ -77,7 +77,9 @@ both archives are required. Compiled/model evidence remains bound to source
 `494ffcf5136123ab5abf0b804faa39a7afd95761`; later evidence publication changes
 only documentation. The [post-publication file check](publication-files.json)
 confirms current native file/tree membership and all referenced archive hashes.
-This candidate has not been programmed or booted on the kit.
+The subsequent [physical trial](../2026-11-13-de25-command-completion-physical/README.md)
+passes retained-source retirement and full original-baseline restoration.
+Its hardware evidence is recorded separately from this matched-build proof.
 
 After the actual human confirmation “TRWU8CBL power-cycled; test card stays in”,
 new original-baseline-only procedure
@@ -98,8 +100,9 @@ failed-trial dependencies. Current verified kit state is the original native
 baseline at final Park, test card installed, host handles closed, top claim
 held. QSPI, factory card and bottom kit are untouched. The format-10 failure
 remains consumed and failed. A cold-reset restoration does not establish a USB
-root-cause repair or general warm recovery. No new mapping retirement,
-interconnect drain, memory reuse or ordinary activation is qualified. The next
-integration step is a fresh source-bound one-attempt format-11 trial under the
-standing authorization; it must stop on a failed gate and restore the original
-baseline.
+root-cause repair or general warm recovery. This baseline-restoration proof
+alone qualifies no new mapping retirement,
+interconnect drain, memory reuse or ordinary activation. A subsequent
+[one-attempt format-11 trial](../2026-11-13-de25-command-completion-physical/README.md)
+now passes the selected retirement diagnostic and full baseline restoration.
+Normal activation, independent interconnect drain and memory reuse remain open.

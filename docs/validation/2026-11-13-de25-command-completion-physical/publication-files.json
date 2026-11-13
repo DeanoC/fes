@@ -1,0 +1,12 @@
+{
+  "physical_trial_archive_sha256": "40d5e4b65f2933ec51f3b4073b00237e2673c06374b3245b2b3a78d0e673f1fd",
+  "status": "passed-current-native-file-tree-and-archive-identities",
+  "compiled_source": "494ffcf5136123ab5abf0b804faa39a7afd95761",
+  "checkout_head": "f26b3626b3655fae686fb8987e9a38db60e3a2de",
+  "native_file_and_tree_membership_unchanged": true,
+  "matched_archive_sha256": "5603f21edb7ba4fdcca7a36666ffbe2f1826e6da28fa2a050da75eb6af0e8e15",
+  "sealed_projects_archive_sha256": "9587828cdddfd72ab618154a1bb73bb1ccaaa7b3bbcfff8ebfb369991f4247eb",
+  "baseline_restoration_archive_sha256": "ef37c9e7e5995eb9cd5b1640a0f995114e838b231188f1d0e7013ad961a9d5b5",
+  "hardware_actions": false,
+  "candidate_hardware_accepted": false
+}
