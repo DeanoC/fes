@@ -15,13 +15,14 @@ about 92.8%, over the 92% ceiling of 38,557 ALMs). The
 - **The module alone: 618 ALMs against 1,399, −781**, fitted alone at the seal's settings
   (method below).
 - **The byte stream is unchanged.** A differential bench drives the old and new models
-  side by side, each behind the real `pc386_ps2_keyboard`. Every gated run matched byte
-  for byte: SEEDS_GATED runs, BYTES_GATED bytes. The only differences found are races
-  where a host row change or a keyboard command lands inside the new model's 137-clock
-  lag (2.2 µs at 61.44 MHz); see [Timing](#timing).
+  side by side, each behind the real `pc386_ps2_keyboard`. 109 of 112 gated runs (645,199
+  bytes) match byte for byte. The three others, and every ungated difference traced, are
+  races where a host row change or a keyboard command lands inside the new model's
+  137-clock lag (2.2 µs at 61.44 MHz); see [Timing](#timing).
 - **The suites that type keys pass**: the devices suite with the keyboard bench (151
-  checks, 3 of them new), the system suite (typed echo, INPUT.COM's keys and mouse),
-  BOOT_LINE and WOLF_LINE.
+  checks, 3 of them new), the system suite (typed echo, INPUT.COM's keys and mouse), the
+  boot suite (a command typed at the prompt) and the Wolfenstein 3D game suite (launch
+  typed, then played from keys: its final frame is in the level with ammo spent).
 - **Kit A, run k1**: the sealed package and main's typed the same text at the DOS
   prompt, gave the same typematic count and drove Commander Keen 4's menus the same.
 
@@ -108,8 +109,19 @@ for up to 400 ms. The microsecond enable is every 10 clocks, so the model's lag 
 µs of bench time. Mode 1 packs rows changes and commands closely. Each run is 120 s of
 bench time.
 - **Gated** (commands only while both sides are quiet, and no row change within 50 µs of
-  a sequence ending): SEEDS_GATED runs, all PASS, BYTES_GATED bytes, max skew 15 µs.
-- **Ungated race census**: UNGATED_LINE
+  a sequence ending): 112 runs, seeds 1–56 in both modes, 645,199 bytes. 109 match byte
+  for byte with at most 15 µs of skew. Seeds 9, 46 and 49 (mode 1) differ, and each trace
+  shows the same race: a row change 55–68 clocks into the new model's snapshot copy,
+  whose detection the copy delays, then the next change 1.000–1.002 ms later, inside the
+  shifted 1 ms window.
+- **Ungated race census** (commands at any time): 56 runs, seeds 1–28 in both modes,
+  316,241 bytes. 32 match; 24 differ, 22 of them in mode 1, which sends about 2,400
+  commands a run. The ones traced (seeds 5 and 14, mode 0) are a command racing a key
+  byte. The others were not traced one by one.
+- Two real differences were found and fixed before these runs. The differential bench
+  found the roll-back missing Pause's report (seed 8, above). The keyboard bench's
+  stability check (first byte within 400 clocks of the 1 ms mark) failed a first version
+  whose diff took two clocks a position; the diff now prefetches the next position.
 
 ## Timing
 
@@ -119,9 +131,13 @@ millisecond granularity. Behaviour can differ only when an outside event lands i
 that window:
 - **a row change** just after one diff ends and before the next take: the old model
   snapshots without it, the new one with it, so two changes are sent as one diff (in usage
-  order) instead of two (seed 4);
+  order) instead of two (seed 4 of an earlier round);
+- **a row change during the snapshot copy**, which pauses the rows' compare: the change
+  is seen up to 136 clocks late, so a second change about 1 ms later can fall either side
+  of the stability window (gated seeds 9, 46, 49);
 - **a keyboard command** while a sequence starts: the ACK and a key byte trade places, or
-  FF flushes a half-sent break that the other model had not begun (seeds 5 and 14).
+  FF flushes a half-sent break that the other model had not begun (ungated seeds 5 and
+  14).
 
 Each is the outcome the old model gives when the event comes 2.2 µs later. A
 typematic press starts a clock later, so its delay counts from a clock later.
