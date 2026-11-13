@@ -244,17 +244,18 @@ func (sinceBaseline) haveCPUSource() bool { return threadCPUSupported }
 const goSchedWaitShown = time.Millisecond
 
 // unaccounted is the window's wall time not explained by the same thread's
-// CPU time and run-queue wait or by GC stop-the-world over that same window,
-// floored at zero: time the thread slept for another reason, such as
-// storage, a lock, a Go mark assist or a locked-thread handoff. The
-// stop-the-world estimate can read a little low (see runtimeUsage), so
-// unaccounted can read a little high. It is known only where one thread was
-// read at both ends and run-queue wait is.
+// CPU time and run-queue wait over that same window, floored at zero: time
+// the thread slept, for storage, a lock, a GC stop-the-world, a Go mark
+// assist or a locked-thread handoff. GC stop-the-world is process-wide and
+// can overlap this thread's CPU or run-queue time (the thread may be doing
+// GC work, or waiting to run, during a pause), so it is reported beside
+// unaccounted as context and never subtracted from it. It is known only
+// where one thread was read at both ends and run-queue wait is.
 func (w sinceBaseline) unaccounted() (time.Duration, bool) {
 	if !w.haveRunDelay {
 		return 0, false
 	}
-	return max(w.span-w.cpu-w.runDelay-w.gcPause, 0), true
+	return max(w.span-w.cpu-w.runDelay, 0), true
 }
 
 const (

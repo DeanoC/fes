@@ -39,8 +39,9 @@ func TestSinceBaselineString(t *testing.T) {
 	after := usagePoint{wall: t0.Add(20 * time.Millisecond), tid: 7, cpu: 5 * time.Millisecond, haveCPU: true,
 		runDelay: 3500 * time.Microsecond, haveRunDelay: true, gcCycles: 41, gcPause: 3500 * time.Microsecond, goSchedWait: 2 * time.Millisecond}
 	w := after.since(base, baseStepStart)
-	// 20ms - 4ms cpu - 2.5ms runnable - 0.5ms GC stop-the-world.
-	if got, want := w.String(), "since step start 20ms: thread cpu 4ms, runnable 2.5ms, 1 GC cycles, GC stop-the-world 500µs, Go sched wait >=2ms, unaccounted 13ms"; got != want {
+	// 20ms - 4ms cpu - 2.5ms runnable. GC stop-the-world is context only:
+	// it can overlap the thread's own CPU or run-queue time.
+	if got, want := w.String(), "since step start 20ms: thread cpu 4ms, runnable 2.5ms, 1 GC cycles, GC stop-the-world 500µs, Go sched wait >=2ms, unaccounted 13.5ms"; got != want {
 		t.Fatalf("String = %q, want %q", got, want)
 	}
 	// Over-explained windows floor at zero.
@@ -108,7 +109,7 @@ func TestOverrunMessageNamesCauses(t *testing.T) {
 		t.Fatal("callback past its budget did not fail")
 	}
 	want := ": thread cpu 1ms, 5 voluntary/1 involuntary switches, 3 major/20 minor faults, 12 KiB read; " +
-		"since callback start 50ms: thread cpu 2ms, runnable 40ms, 1 GC cycles, GC stop-the-world 350µs, Go sched wait >=1.5ms, unaccounted 7.65ms)"
+		"since callback start 50ms: thread cpu 2ms, runnable 40ms, 1 GC cycles, GC stop-the-world 350µs, Go sched wait >=1.5ms, unaccounted 8ms)"
 	if msg := err.Error(); !strings.HasPrefix(msg, "script exceeded 1ms budget (elapsed ") || !strings.HasSuffix(msg, want) {
 		t.Fatalf("overrun %q lacks %q", msg, want)
 	}

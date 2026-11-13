@@ -641,8 +641,10 @@ time and run-queue wait (`runnable`, when the kernel has
 `/proc/thread-self/schedstat`), the Go GC cycles and GC stop-the-world time
 across the process (only when non-zero), the longest Go scheduler wait of any
 goroutine that ended in it (`Go sched wait`, from 1ms up), and the
-`unaccounted` rest of the window: its wall time minus that thread CPU,
-runnable and GC stop-the-world (shown with `runnable`). If the callback ran on
+`unaccounted` rest of the window: its wall time minus that thread CPU and
+runnable (shown with `runnable`). GC stop-the-world is process-wide and can
+overlap the thread's own CPU or run-queue time, so it is shown beside
+`unaccounted` as context, not subtracted from it. If the callback ran on
 another OS thread than the baseline read, the window says `thread changed`
 and keeps only the process-wide fields. For example
 `script run 235.61ms: thread cpu 3.11ms, 15 voluntary/2 involuntary switches,
@@ -653,8 +655,7 @@ elsewhere, and Go sched wait at goroutines waiting for a Go scheduler slot.
 
 GC stop-the-world time is a close estimate, the runtime's GC pause CPU time
 divided by GOMAXPROCS. The runtime does not scale the stopping phase of a
-pause by GOMAXPROCS, so the estimate can be a little low and `unaccounted` a
-little high. `Go sched wait` is process-wide, its value is the lower bound of
+pause by GOMAXPROCS, so the estimate can be a little low. `Go sched wait` is process-wide, its value is the lower bound of
 a histogram bucket, and the runtime records only about one goroutine wakeup
 in eight, so its absence does not rule out a Go scheduler wait by the script itself.
 Unaccounted time with voluntary switches and no faults, KiB read or GC beside
