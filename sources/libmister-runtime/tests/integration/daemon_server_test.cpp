@@ -102,6 +102,15 @@ private:
 	std::vector<mister::LogRecord> records_;
 };
 
+// Controller::Handle hands deferred work back to whoever called it. Tests
+// that only read the reply still have to take it, which is what keeps the
+// server from quietly dropping the idle display's pacing.
+std::string HandleRequest(mister::daemon::Controller& controller, const std::string& line)
+{
+	mister::daemon::Controller::Deferred deferred = mister::daemon::Controller::Deferred::none;
+	return controller.Handle(line, deferred);
+}
+
 struct Fixture {
 	Fixture() : hardware(), log(), runtime(hardware, log) {}
 	void Start() { assert(runtime.Start().ok()); }
@@ -448,11 +457,11 @@ void TestIdleStopAcknowledgesSaveAdmissionFailure()
 	fixture.Start();
 	fixture.hardware.core_result = {{mister::ErrorCode::save_failed, "wrong save size"}, false, ""};
 	mister::daemon::Controller controller(fixture.runtime, "save-test");
-	const auto rejected = controller.Handle(kLoad);
+	const auto rejected = HandleRequest(controller, kLoad);
 	Contains(rejected, "\"ok\":false");
 	Contains(rejected, "\"state\":\"idle\"");
 	Contains(rejected, "\"code\":\"save_failed\"");
-	const auto acknowledged = controller.Handle(kStop);
+	const auto acknowledged = HandleRequest(controller, kStop);
 	Contains(acknowledged, "\"ok\":true");
 	Contains(acknowledged, "\"state\":\"idle\"");
 	Contains(acknowledged, "\"error\":null");
@@ -472,10 +481,10 @@ void TestPersistenceMutationsEmitFifoCompletionOnRejection()
 	for (const std::string operation : {"load_library_core", "update_core_settings"}) {
 		const std::string settings = operation == "update_core_settings" ?
 			",\"expected_revision\":\"absent\",\"paddle_speed\":1" : "";
-		Contains(controller.Handle("{\"protocol\":2,\"operation\":\"" + operation +
+		Contains(HandleRequest(controller, "{\"protocol\":2,\"operation\":\"" + operation +
 			"\"" + fields + settings + "}"), "\"ok\":false");
 	}
-	Contains(controller.Handle("{\"protocol\":2,\"operation\":\"inspect_core_data\"" +
+	Contains(HandleRequest(controller, "{\"protocol\":2,\"operation\":\"inspect_core_data\"" +
 		fields + "}"), "\"ok\":false");
 	assert(capture.Count("fifo.consume") == 2);
 	bool load = false, update = false;
@@ -496,12 +505,12 @@ void TestMutationRequestsEmitFifoConsumeAndOptionalDump()
 	Fixture fixture;
 	fixture.Start();
 	mister::daemon::Controller controller(fixture.runtime, "test-version");
-	Contains(controller.Handle(kDevelopment), "\"state\":\"running_development\"");
-	Contains(controller.Handle(
+	Contains(HandleRequest(controller, kDevelopment), "\"state\":\"running_development\"");
+	Contains(HandleRequest(controller, 
 		std::string("{\"protocol\":2,\"operation\":\"load_core\",\"package_path\":\"/packages/custom\",\"package_id\":\"") +
 		kPackageId + "\"}"),
 		"\"ok\":true");
-	Contains(controller.Handle(kStop), "\"state\":\"idle\"");
+	Contains(HandleRequest(controller, kStop), "\"state\":\"idle\"");
 	assert(capture.Count("fifo.consume") >= 3);
 	bool launch = false, load_core = false, stop = false;
 	for (const auto& event : capture.events()) {
@@ -602,7 +611,7 @@ void TestProtocol2InspectionActivationDiagnosticAndBothStops()
 	const std::string inspect = std::string(
 		"{\"protocol\":2,\"operation\":\"inspect_core\",\"package_path\":\"") +
 		path + "\",\"package_id\":\"" + kPackageId + "\"}";
-	std::string response = controller.Handle(inspect);
+	std::string response = HandleRequest(controller, inspect);
 	Contains(response, "\"protocol\":2");
 	Contains(response, "\"inspected_package\":{\"package_id\":\"");
 	Contains(response, "\"compatible\":true");
@@ -613,24 +622,24 @@ void TestProtocol2InspectionActivationDiagnosticAndBothStops()
 	const std::string load = std::string(
 		"{\"protocol\":2,\"operation\":\"load_core\",\"package_path\":\"") +
 		path + "\",\"package_id\":\"" + kPackageId + "\"}";
-	response = controller.Handle(load);
+	response = HandleRequest(controller, load);
 	Contains(response, "\"active_package\":{\"package_id\":\"");
 	Contains(response, "\"build_id\":\"cccccccccccccccccccccccccccccccc\"");
 	Contains(response, "\"active_interfaces\":[{\"id\":\"fes.gamepad\",\"major\":1,\"minor\":0},{\"id\":\"fes.video.fixed-720p60\",\"major\":1,\"minor\":0}]");
 	Contains(response, "\"generation\":1");
 	assert(fixture.hardware.core_generations == std::vector<std::uint64_t>({1}));
 
-	response = controller.Handle(kStatus);
+	response = HandleRequest(controller, kStatus);
 	Contains(response, "\"protocol\":2");
 	Contains(response, "\"state\":\"running_development\"");
 	Contains(response, "\"system\":null");
 	Contains(response, "\"active_package\":{");
 	Contains(response, "\"generation\":1");
 
-	response = controller.Handle("{\"protocol\":2,\"operation\":\"stop\"}");
+	response = HandleRequest(controller, "{\"protocol\":2,\"operation\":\"stop\"}");
 	Contains(response, "\"state\":\"idle\"");
 	Contains(response, "\"generation\":null");
-	response = controller.Handle(
+	response = HandleRequest(controller, 
 		"{\"protocol\":2,\"operation\":\"load_development_rbf\","
 		"\"rbf\":\"/tmp/fogcast-development/core.rbf\","
 		"\"programming_profile\":\"development-contained-v1\"}");
@@ -638,7 +647,7 @@ void TestProtocol2InspectionActivationDiagnosticAndBothStops()
 	Contains(response, "\"active_interfaces\":[]");
 	Contains(response, "\"generation\":2");
 	assert(fixture.hardware.contained_development_calls == 1);
-	response = controller.Handle("{\"protocol\":2,\"operation\":\"stop\"}");
+	response = HandleRequest(controller, "{\"protocol\":2,\"operation\":\"stop\"}");
 	Contains(response, "\"protocol\":2");
 	Contains(response, "\"state\":\"idle\"");
 }
@@ -657,25 +666,25 @@ void TestComputerOperationsDispatchThroughController()
 	fixture.hardware.supported.media_units = {unit};
 	fixture.Start();
 	mister::daemon::Controller controller(fixture.runtime, "test-version");
-	std::string response = controller.Handle(kLoad);
+	std::string response = HandleRequest(controller, kLoad);
 	Contains(response, "\"media_units\":[{\"unit\":0,\"interface\":{\"id\":\"fes.media.apple2-floppy\","
 		"\"major\":1,\"minor\":0},\"min_bytes\":143360,\"max_bytes\":143360,\"chunk_bytes\":512,"
 		"\"state\":\"empty\"}]");
-	response = controller.Handle(std::string("{\"protocol\":2,\"operation\":\"set_keyboard_hid\","
+	response = HandleRequest(controller, std::string("{\"protocol\":2,\"operation\":\"set_keyboard_hid\","
 		"\"package_id\":\"") + kPackageId + "\",\"expected_generation\":1,\"rows\":[16,0,0,0,0,0,0,0,2]}");
 	Contains(response, "\"ok\":true");
 	assert(fixture.hardware.keyboard_hid_calls == 1 && fixture.hardware.keyboard_hid_rows[8] == 2);
 	fixture.hardware.on_insert_media = [&] {
 		fixture.hardware.supported.media_units[0].state = mister::MediaUnitState::ready;
 	};
-	response = controller.Handle(std::string("{\"protocol\":2,\"operation\":\"insert_media\","
+	response = HandleRequest(controller, std::string("{\"protocol\":2,\"operation\":\"insert_media\","
 		"\"path\":\"/tmp/fogcast-development/media/dos33.dsk\",\"expected_package_id\":\"") + kPackageId +
 		"\",\"expected_generation\":1,\"unit\":0,\"size\":143360}");
 	Contains(response, "\"ok\":true");
 	Contains(response, "\"state\":\"ready\"");
 	assert(fixture.hardware.insert_media_path == "/tmp/fogcast-development/media/dos33.dsk");
 	fixture.hardware.eject_media_result = {mister::ErrorCode::io_failed, "eject failed", "input"};
-	response = controller.Handle(std::string("{\"protocol\":2,\"operation\":\"eject_media\","
+	response = HandleRequest(controller, std::string("{\"protocol\":2,\"operation\":\"eject_media\","
 		"\"expected_package_id\":\"") + kPackageId + "\",\"expected_generation\":1,\"unit\":0}");
 	Contains(response, "\"ok\":false");
 	Contains(response, "\"error\":{\"code\":\"io_failed\",\"message\":\"eject failed\",\"phase\":\"input\"}");
@@ -688,9 +697,9 @@ void TestProtocol1RequestsAreRejectedWithoutMutation()
 	Fixture fixture;
 	fixture.Start();
 	mister::daemon::Controller controller(fixture.runtime, "test-version");
-	Contains(controller.Handle(kLoad), "\"generation\":1");
+	Contains(HandleRequest(controller, kLoad), "\"generation\":1");
 	for (const std::string operation : {"status", "stop", "launch", "load_development_rbf"}) {
-		const std::string response = controller.Handle(
+		const std::string response = HandleRequest(controller, 
 			"{\"protocol\":1,\"operation\":\"" + operation + "\"}");
 		Contains(response, "\"protocol\":2");
 		Contains(response, "\"code\":\"unsupported_protocol\"");
@@ -707,7 +716,7 @@ void TestInvalidProtocol2RequestKeepsTheNegotiatedEnvelope()
 	Fixture fixture;
 	fixture.Start();
 	mister::daemon::Controller controller(fixture.runtime, "test-version");
-	const std::string response = controller.Handle(
+	const std::string response = HandleRequest(controller, 
 		"{\"protocol\":2,\"operation\":\"load_core\","
 		"\"package_path\":\"relative\",\"package_id\":\"bad\"}");
 	Contains(response, "\"protocol\":2");
@@ -716,7 +725,7 @@ void TestInvalidProtocol2RequestKeepsTheNegotiatedEnvelope()
 	Contains(response, "\"phase\":\"request\"");
 	Contains(response, "\"inspected_package\":null");
 	assert(fixture.hardware.admission_calls == 0);
-	const std::string missing_operation = controller.Handle("{\"protocol\":2}");
+	const std::string missing_operation = HandleRequest(controller, "{\"protocol\":2}");
 	Contains(missing_operation, "\"protocol\":2");
 	Contains(missing_operation, "\"phase\":\"request\"");
 }
@@ -730,7 +739,7 @@ void TestIncompatibleInspectionIsSuccessfulAndDoesNotMutate()
 		mister::ErrorCode::unsupported_abi, "future ABI", "compatibility",
 		"fes.simple-game@1.0", "vendor.future@2.0"};
 	mister::daemon::Controller controller(fixture.runtime, "test-version");
-	const std::string response = controller.Handle(std::string(
+	const std::string response = HandleRequest(controller, std::string(
 		"{\"protocol\":2,\"operation\":\"inspect_core\","
 		"\"package_path\":\"/tmp/fogcast-development/core-packages/test\","
 		"\"package_id\":\"") + kPackageId + "\"}");
@@ -821,7 +830,7 @@ void TestProtocol2PublishesRuntimeRecoveryPhase()
 		{mister::ErrorCode::program_failed, "cleanup failed", "programming",
 			"MENU", "OTHER"}, true, ""};
 	mister::daemon::Controller controller(fixture.runtime, "test-version");
-	const std::string response = controller.Handle(std::string(
+	const std::string response = HandleRequest(controller, std::string(
 		"{\"protocol\":2,\"operation\":\"load_core\","
 		"\"package_path\":\"/tmp/fogcast-development/core-packages/test\","
 		"\"package_id\":\"") + kPackageId + "\"}");
@@ -829,7 +838,7 @@ void TestProtocol2PublishesRuntimeRecoveryPhase()
 	Contains(response, "\"phase\":\"recovery\"");
 	Contains(response, "\"expected\":\"MENU\"");
 	Contains(response, "\"observed\":\"OTHER\"");
-	const std::string stopped = controller.Handle(
+	const std::string stopped = HandleRequest(controller, 
 		"{\"protocol\":2,\"operation\":\"stop\"}");
 	Contains(stopped, "\"code\":\"idle_failed\"");
 	Contains(stopped, "\"phase\":\"recovery\"");
@@ -898,12 +907,12 @@ void TestRetiredLaunchAndUnprofiledRBFDoNotReplacePackage()
 	Fixture fixture;
 	fixture.Start();
 	mister::daemon::Controller controller(fixture.runtime, "test-version");
-	Contains(controller.Handle(kLoad), "\"generation\":1");
+	Contains(HandleRequest(controller, kLoad), "\"generation\":1");
 	for (const std::string request : {
 		"{\"protocol\":2,\"operation\":\"launch\",\"system\":\"pong\"}",
 		"{\"protocol\":2,\"operation\":\"load_development_rbf\",\"rbf\":\"/tmp/fogcast-development/core.rbf\"}",
 		"{\"protocol\":2,\"operation\":\"load_development_rbf\",\"rbf\":\"/tmp/fogcast-development/core.rbf\",\"programming_profile\":\"mister-v1\"}"}) {
-		const std::string response = controller.Handle(request);
+		const std::string response = HandleRequest(controller, request);
 		Contains(response, "\"code\":\"invalid_request\"");
 		Contains(response, "\"generation\":1");
 		Contains(response, "\"core\":\"custom-core\"");
@@ -1512,48 +1521,43 @@ void TestStatusReplyIsSentBeforeIdleDisplayHealth()
  using namespace mister::daemon;
  TempDirectory temporary;Fixture fixture;fixture.Start();
  assert(fixture.runtime.ConfigureMenuPackage("/menu",kPackageId).ok());
+ // The expensive case, and the one the latency argument is really about: the
+ // check reports a lost scanout, which reprograms idle through the bounded
+ // menu failure path. It is armed before any connection exists, so no
+ // hardware field is written while a connection thread reads it.
+ fixture.hardware.check_idle_display_result=
+  {mister::ErrorCode::io_failed,"menu scanout is disabled","menu"};
  std::mutex mutex;std::condition_variable condition;
- unsigned entered=0,released=0;
+ unsigned entered=0;bool released=false;
  // A health call that does not return until this test lets it: a reply that
  // waits for the check never arrives at all, which is the latency fenced off
  // here in its clearest form.
- // The second check fails, which is the expensive case: it reprograms idle
- // through the bounded menu failure path. Arming it from inside the call
- // keeps every hardware field on the connection threads that own it.
  fixture.hardware.on_check_idle_display=[&]() {
   std::unique_lock<std::mutex> lock(mutex);
-  const unsigned mine=++entered;
-  if(mine==1)fixture.hardware.check_idle_display_result=
-   {mister::ErrorCode::io_failed,"menu scanout is disabled","menu"};
-  condition.notify_all();
-  condition.wait(lock,[&]() {return released>=mine;});
+  ++entered;condition.notify_all();
+  condition.wait(lock,[&]() {return released;});
  };
  const auto path=temporary.Entry("runtime.sock");RunningServer server(fixture.runtime,path);
- const auto exchange=[&](unsigned expected_call) {
-  const int socket=Connect(path);
-  const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
-  assert(SendFrame(socket,kStatus,-1,deadline).ok());
-  ReceivedFrame reply;const auto sent=std::chrono::steady_clock::now();
-  // On a build that runs the check before the send, nothing arrives here:
-  // the blocked check holds the reply until this deadline expires.
-  assert(ReceiveFrame(socket,deadline,&reply).ok());
-  assert(std::chrono::steady_clock::now()-sent<std::chrono::seconds(1));
-  {
-   std::unique_lock<std::mutex> lock(mutex);
-   assert(condition.wait_for(lock,std::chrono::seconds(2),
-    [&]() {return entered>=expected_call;}));
-   assert(entered==expected_call);
-   released=expected_call;
-  }
-  condition.notify_all();
-  assert(close(socket)==0);
-  return reply.line;
- };
- Contains(exchange(1),"\"ok\":true");
- // The status that paced the failing check was answered before any of the
- // reprogram it costs, exactly as the healthy one was.
- Contains(exchange(2),"\"ok\":true");
+ const int socket=Connect(path);
+ const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
+ assert(SendFrame(socket,kStatus,-1,deadline).ok());
+ ReceivedFrame reply;const auto sent=std::chrono::steady_clock::now();
+ // On a build that runs the check before the send, nothing arrives here:
+ // the blocked check holds the reply until this deadline expires.
+ assert(ReceiveFrame(socket,deadline,&reply).ok());
+ assert(std::chrono::steady_clock::now()-sent<std::chrono::seconds(1));
+ Contains(reply.line,"\"ok\":true");
+ // The reply was answered with the check still inside the hardware, before
+ // any of the reprogram it costs. Only one status is ever in flight here, so
+ // nothing else can have paced this call or be fenced out by it.
+ {
+  std::unique_lock<std::mutex> lock(mutex);
+  assert(condition.wait_for(lock,std::chrono::seconds(2),[&]() {return entered>=1;}));
+  released=true;
+ }
+ condition.notify_all();
  assert(fixture.log.WaitFor("menu_display_health","failure"));
+ assert(close(socket)==0);
 }
 
 int main()

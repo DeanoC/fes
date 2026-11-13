@@ -298,11 +298,14 @@ void Server::HandleConnection(int descriptor)
     }
     (void)SendFrame(descriptor,response,-1,Deadline());return;
    }
-  } else response=controller_.Handle(incoming.line,&deferred);
+  } else response=controller_.Handle(incoming.line,deferred);
  }
  // Deferred work runs only after the reply is on the socket, and only when
  // it got there: a send that failed means nobody is waiting for a status,
  // and the idle display's re-read can wait for the next request.
+ // The reply is complete at its newline, which is where a client's round
+ // trip ends; this connection's close follows the deferred work, so a client
+ // that read to EOF instead would still wait out the whole check.
  if(!SendFrame(descriptor,response,-1,Deadline()).ok())return;
  controller_.RunDeferred(deferred);
 }

@@ -195,7 +195,10 @@ pixel PLL lock) and `0x3e` (the detected VIC in bits 7:2; 720p60 is 4). The
 re-read happens at most once a second, never on the present path, and writes
 nothing. It also runs after that status reply has been sent, never before:
 the caller waits on neither the reads nor the recovery a lost picture takes,
-and the next status carries the result.
+and the next status carries the result. A reply is complete at its newline,
+which is where a client's round trip ends; the daemon closes that connection
+only after the deferred check, so a client that read to end of file instead
+would wait the check out.
 
 Status then carries `menu_display.live` with `enabled`, `faulted`,
 `quiesced`, `displayed_sequence` and `underflows_total`, plus a nested

@@ -14,9 +14,9 @@ namespace daemon {
 Controller::Controller(Runtime& runtime, std::string version)
 	: runtime_(runtime), version_(std::move(version)) {}
 
-std::string Controller::Handle(const std::string& line, Deferred* deferred)
+std::string Controller::Handle(const std::string& line, Deferred& deferred)
 {
-	if (deferred != nullptr) *deferred = Deferred::none;
+	deferred = Deferred::none;
 	Request request;
 	const Error parsed = ParseRequest(line, &request);
 	if (!parsed.ok()) return Respond(request.protocol, parsed);
@@ -195,8 +195,7 @@ std::string Controller::Handle(const std::string& line, Deferred* deferred)
 	}
 	// Composing the reply is not sending it: the health work is handed back
 	// to the server, which runs it after the bytes are on the socket.
-	if (idle_display_health && deferred != nullptr)
-		*deferred = Deferred::idle_display_health;
+	if (idle_display_health) deferred = Deferred::idle_display_health;
 	return Respond(request.protocol, result, inspected, core_data);
 }
 

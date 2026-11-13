@@ -21,9 +21,12 @@ public:
 	enum class Deferred { none, idle_display_health };
 
 	Controller(Runtime& runtime, std::string version);
-	// Any deferred work is reported in *deferred and belongs to the caller:
-	// run it with RunDeferred only after the response has been sent.
-	std::string Handle(const std::string& line, Deferred* deferred = nullptr);
+	// Any deferred work is reported in deferred and belongs to the caller:
+	// run it with RunDeferred only once the response has been sent. Every
+	// caller has to take it -- there is no default and nothing to pass that
+	// discards it -- so the idle display's pacing cannot be dropped by
+	// leaving an argument out.
+	std::string Handle(const std::string& line, Deferred& deferred);
 	void RunDeferred(Deferred deferred);
  // The response, and in *fd a window descriptor the caller sends and closes.
  std::string GrantMenuWindow(const Request&,int* fd);
