@@ -275,8 +275,8 @@ public:
 
     // The x87 keys, for every step: ESC forms by mode, the control word each
     // arithmetic class ran under, exception flags raised and unmasked, ES
-    // going high, steps held by the BUSY# latch, #NM and #MF with CR0's x87
-    // bits, CR0.MP/EM/TS/ET changes, WAIT, the emulator fixup interrupts (INT
+    // going high, steps held by the BUSY# latch, #NM and #MF with CR0's MP, EM,
+    // TS and bit 5, changes to those bits, WAIT, the emulator fixup interrupts (INT
     // 34h-3Eh) and I/O to the AT's coprocessor ports F0h-FFh. before and
     // after are the 387's state around the step.
     void x87(const fes_i386::State &before, const fes_i386::State &after, const fes_i386::StepResult &result,
@@ -342,8 +342,9 @@ public:
         count("x87cw:" + cls + ':' + hex(cw0 & 0x1f3f, 4));
         const unsigned raised = sw1 & ~sw0 & 0x7f;
         if (raised) count("x87exc:" + form + ":raised=" + hex(raised, 2) + ":unmasked=" + hex(raised & ~cw0 & 0x3f, 2));
-        // ne= is CR0 bit 5, which a 386 does not have: always 0 here, kept
-        // so that rows compare with the plan record's.
+        // ne= is CR0 bit 5, a reserved bit on a 386, which Bochs at CPU level
+        // 3 reads as 1 once CR0 is written; kept so that rows compare with
+        // the plan record's.
         if ((sw1 & 0x80) && !(sw0 & 0x80)) count("x87es:" + form + mode + ":ne=" + std::to_string((after.cr0 >> 5) & 1));
     }
 

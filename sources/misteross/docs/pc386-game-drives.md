@@ -168,11 +168,11 @@ titles each one unlocks.
 | `x87op:<form>:<mode>` | Retired ESC instructions by form ([x87 keys](#x87-keys)). |
 | `x87cw:<class>:<cw>` | The control word (`cw & 1F3Fh`, four hex digits) each retired ESC ran under, by class: `add`, `mul`, `div`, `sqrt`, `trans` (FSIN, FCOS, FPTAN, FPATAN, F2XM1, FYL2X, FYL2XP1, FSINCOS) or `other`. |
 | `x87exc:<form>:raised=<flags>:unmasked=<flags>` | Retired ESC instructions that set exception flags (status bits 6-0) that were clear, with those of them the control word left unmasked. |
-| `x87es:<form>:<mode>:ne=0` | Retired ESC instructions that set ES. `ne` is CR0 bit 5, which a 386 does not have; it stays for comparison with the [x87 plan](../../../docs/validation/2026-11-12-i386-x87-plan/summary.md)'s rows. |
+| `x87es:<form>:<mode>:ne=<0\|1>` | Retired ESC instructions that set ES. `ne` is CR0 bit 5, reserved on a 386, which Bochs at CPU level 3 reads as 1 once CR0 is written; it stays for comparison with the [x87 plan](../../../docs/validation/2026-11-12-i386-x87-plan/summary.md)'s rows. |
 | `x87fault:<form>:<mode>[:v<vector>]` | ESC instructions that did not retire, with the step's first event. |
 | `x87held:<form\|9b>[:es]:<mode>` | Steps that ended held on the AT's BUSY# latch at an ESC or WAIT (`9b`), one per step held. |
 | `x87wait[:es]:<mode>` | Retired WAIT (9Bh), with `:es` when ES was set before it. |
-| `x87ev:<7\|16>:cr0=<bits>:<stem>` | #NM and #MF, with CR0's MP, EM, TS, ET and bit 5 (`cr0 & 2Eh`) before the step. |
+| `x87ev:<7\|16>:cr0=<bits>:<stem>` | #NM and #MF, with CR0's MP, EM, TS and bit 5 (`cr0 & 2Eh`) before the step. |
 | `x87cr0:<before>><after>:<stem>` | Changes to those CR0 bits. |
 | `x87emuint:<vector>:<mode>` | INT 34h-3Eh: the Borland and Microsoft emulator fixups. |
 | `x87io:<port>:<in\|out>:<mode>` | IN and OUT with an immediate or DX port F0h-FFh: the AT's coprocessor ports. |

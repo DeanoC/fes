@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: MIT
 ; X87TEST.COM: a 387's unmasked exception on the AT error path (#1768 slice
-; 0; docs/validation/2026-11-13-i386-x87-s0/summary.md). scripts/sim_fes_pc386.py
+; 0; docs/validation/2026-11-12-i386-x87-s0/summary.md). scripts/sim_fes_pc386.py
 ; --suite x87 runs it at the FreeDOS prompt on the oracle, whose 387 is wired
 ; as on an AT (Oracle::set_at_coprocessor). Each check prints
 ;   X87 <name> <measured> ok
