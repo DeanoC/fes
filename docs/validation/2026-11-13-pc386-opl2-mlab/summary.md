@@ -140,16 +140,18 @@ Verilator ignores `ramstyle`, and the generate branch only renames the
 array (`mem_bank.mlab.ram`), so the simulated logic is the same as main's.
 Every machine run compares each OPL2 sample with Nuked-OPL3 and fails on
 any difference (`exact` must equal `samples`). These runs were on
-Powerboat at d4b659cda:
+Powerboat, on 13 November. The RTL is the same at every commit of this
+branch from d8aae9759 on; the later commits change only `source.json` and
+this record:
 
 | Run | Result |
 | --- | --- |
 | `tests/test_pc386_machine.py` (73 tests, including the import manifest checks) | pass |
 | `sim_fes_pc386.py --suite opl2` (register sequences, three random sequences, the log replay; all sample-exact against Nuked-OPL3) | pass |
 | `--suite sound --download` (Sound Blaster DSP and mixer) | pass (SB single-cycle and auto-init 1 kHz sections, 9,000 DMA bytes, 6 IRQs) |
-| `--suite speaker` | running |
-| `--suite game --game ultima6 --cpu rtl` | running |
-| `--suite game --game wolf3d --cpu rtl` | running |
+| `--suite speaker` (SPKTEST.COM: port 61h, rise, carrier) | pass |
+| `--suite game --game ultima6 --cpu rtl` (16 guest seconds of the intro, 0 oracle steps) | pass: OPL2 exact 795,454 of 795,454 samples, 3,055 register writes |
+| `--suite game --game wolf3d --cpu rtl` (24 guest seconds, 0 oracle steps) | pass: OPL2 exact 1,193,181 of 1,193,181 samples, 2,327 register writes; SB 12,829 DMA bytes |
 
 ## Kit check
 
