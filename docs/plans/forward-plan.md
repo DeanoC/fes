@@ -424,10 +424,24 @@ is right. Do not widen it. What stands between the tree and a release:
   and deal with the ZX81/ZX80 ROM bytes inside a committed capture archive.
   Deleting that file at the tip is not enough, because the bytes stay in
   history that any clone of the public repository can fetch, and rewriting
-  `main` is forbidden. This needs Deano's explicit choice of one route:
-  confirmed redistribution permission, a one-off approved history clean with
-  its own procedure, or publishing the release from a fresh repository whose
-  history never held them.
+  `main` is forbidden by default. **Deano approved a one-off history rewrite
+  for this on 13 November 2026.** It is a planned operation with its own
+  procedure, not a routine push, because the scope is wide:
+  - The capture archive entered `main` on 30 October (#979), but the same
+    ROMs were committed directly from 20 September until #1381 and #1379
+    removed them (`zx8x.hex`, `zx8x.mif`, `zx81machine/machine.rom`). The
+    rewrite therefore reaches most of `main`'s roughly 2,900 commits, and
+    every commit hash after the first affected one changes.
+  - Scan all history for known ROM digests first, across every family, so
+    the rewrite happens once.
+  - About 850 branches and every open PR must be rewritten or rebuilt on
+    the new history; worktrees and kit scripts re-clone.
+  - GitHub keeps old commits reachable through closed pull-request refs and
+    caches. Removing those needs a GitHub Support request after the push;
+    a force-push alone does not make the bytes unreachable.
+  - Commit hashes quoted in validation records stop resolving. Keep a
+    private mirror of the old history and an old-to-new hash map.
+  - Freeze merges and agent pushes for the duration.
 - **Signing** for images, bundles and packages, with the key kept off the
   build hosts.
 - **Menu frame time.** Budget overruns on DE10 are a product defect, and the
@@ -553,5 +567,6 @@ Decided by Deano on 13 November 2026.
    it lives.
 
 Still open: which licence file text and headers to apply once #387 reports,
-the signing approach for v1, and the route for the committed ROM bytes
-described under v1.
+and the signing approach for v1. The route for the committed ROM bytes is
+decided (an approved one-off history rewrite, described under v1); its
+procedure and date are not.
