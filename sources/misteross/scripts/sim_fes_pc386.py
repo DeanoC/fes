@@ -26,10 +26,10 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            the next read gets the new disk and clears the line, and a write
            fails with "write protected"), then DISK1 again, which DOS must
            see by itself, then a 360K disk in the 1.2M drive and the 1.2M
-           disk again. It also verifies a track, has a transfer that would
-           cross a 64 KiB boundary refused, and formats A:'s last track. A
-           sector written to B: must be in the image the bench writes back.
-           Every check must print ok. With --cpu rtl the
+           disk again. It reads, writes, verifies and formats on A: at 1.44M
+           and on B: at 1.2M and 360K, and has a transfer that would cross a
+           64 KiB boundary refused. A sector written to B: must be in the
+           image the bench writes back. Every check must print ok. With --cpu rtl the
            oracle boots and fes_i386_cpu runs from the prompt, so the INT 13h
            transfers, DMA channel 2 and IRQ 6 are its; writes floppy-rtl/.
   floppy-boot
@@ -1018,7 +1018,7 @@ def run_ems(args, linked: list[Path]) -> dict:
 # the 16 bytes it fills it with.
 FLOPPY_CHECKS = ('equip', 'type-a', 'type-b', 'label-a', 'label-b', 'nochange-a', 'change-a', 'reread-a',
                  'cleared-a', 'wp-a', 'verify-a', 'dma-boundary', 'dos-a1', 'dos-a2', 'write-a', 'format-a',
-                 'label-b360', 'back-b', 'write-b', 'DONE')
+                 'label-b360', 'write-b360', 'format-b360', 'back-b', 'verify-b', 'format-b', 'write-b', 'DONE')
 FLOPPY_WRITE_LBA = (79 * 2 + 1) * 15 + 15 - 1
 FLOPPY_WRITE_PATTERN = b'FES FLOPPY WRITE'
 
