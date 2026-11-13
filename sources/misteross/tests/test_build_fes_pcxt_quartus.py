@@ -193,7 +193,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertEqual(lock.version, 'Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition')
         self.assertEqual(lock.yosys_commit, '3a5accbd78c526ab7bae32640044a2e062a3cfc9')
         self.assertEqual(lock.yosys_sha256,
-                         'd45b5d6ec2bf8311211015d5aee40e3fcf5af117a48ed0c473dce548dec0e271')
+                         'a17b4c8aeac5373dba86faa67124456834c585924503457387631408f84549f8')
         with tempfile.TemporaryDirectory() as directory:
             tools, quartus_sh, yosys = self.authenticate_with_fakes(directory)
         self.assertEqual(tools['quartus'], producer.Tool(
