@@ -11,6 +11,15 @@
 #define UPDATE 0x80000000U
 static int fail(struct nano_retire *s,int error)
 {s->failed=1;if(!s->first_error)s->first_error=error ? error:-1;return -1;}
+static void observed_read(struct nano_retire *s,uint32_t offset,uint32_t value)
+{
+ s->observed_offset=offset;s->observed_value=value;s->observed_reads++;
+ if(offset==0x9c){
+  s->observed_consumer=value;s->consumer_samples++;s->consumer_read=s->reads;
+  s->consumer_phase=s->phase;s->consumer_stage=s->commands.stage;
+  s->consumer_poll=s->commands.polls;
+ }
+}
 static int guard(struct nano_retire *s)
 {
  uint64_t now=0;
@@ -33,7 +42,9 @@ static int read32(struct nano_retire *s,uint32_t offset,uint32_t *value)
 {
  if(guard(s))return -1;
  s->io.barrier(s->io.context);s->reads++;
- int e=s->io.read32(s->io.context,offset,value);s->io.barrier(s->io.context);
+ int e=s->io.read32(s->io.context,offset,value);
+ if(!e)observed_read(s,offset,*value);
+ s->io.barrier(s->io.context);
  if(e)return fail(s,e);
  return guard(s);
 }
@@ -78,7 +89,9 @@ static int observe(struct nano_retire *s,const uint32_t (*rows)[2],unsigned coun
   if(s->failed || !io_same(&io,&s->io))return fail(s,-13);
   uint32_t got=0;io.barrier(io.context);
   if(!io_same(&io,&s->io))return fail(s,-13);
-  s->reads++;int e=io.read32(io.context,row ? row[0]:0x9c,&got);io.barrier(io.context);
+  s->reads++;int e=io.read32(io.context,row ? row[0]:0x9c,&got);
+  if(!e)observed_read(s,row ? row[0]:0x9c,got);
+  io.barrier(io.context);
   if(e)return fail(s,e);
   if(!io_same(&io,&s->io))return fail(s,-13);
   if(row && got!=row[1]){s->bad_offset=row[0];s->bad_value=got;return fail(s,-5);}

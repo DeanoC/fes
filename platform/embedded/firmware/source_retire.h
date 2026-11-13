@@ -39,6 +39,11 @@ struct nano_retire {
  unsigned attempted,timed,phase,failed,retired,reads,writes,polls;
  uint32_t bad_offset,bad_value;
  int first_error;
+ /* Last successfully returned raw read, before later guards can reject it.
+  * A consumer value is not a completion receipt or a validated queue pointer. */
+ uint32_t observed_offset,observed_value,observed_consumer;
+ unsigned observed_reads,consumer_samples,consumer_read,consumer_phase;
+ unsigned consumer_stage,consumer_poll;
 };
 /* One consumed attempt. No allocator, reset, error acknowledgement, queue
  * base replacement, bypass, free or activation interface exists. */

@@ -57,15 +57,16 @@ class InputProfileTests(unittest.TestCase):
                 mode.selected(p, True)
 
     def test_disabled_headers_keep_diagnostics_off(self):
-        for name in ("FES_NANO_SDM_INPUT_TRANSFER", "FES_NANO_RETIRE_TIMING", "FES_NANO_RETIRE_BATCHED_OBSERVE"):
+        for name in ("FES_NANO_SDM_INPUT_TRANSFER", "FES_NANO_RETIRE_TIMING", "FES_NANO_RETIRE_QUEUE_OBSERVE", "FES_NANO_RETIRE_BATCHED_OBSERVE"):
             self.assertIn("#define " + name + " 0\n", mode.header(None))
             self.assertIn("#define " + name + " 1\n", mode.header(profile()))
         self.assertEqual(mode.CONTRACT["retirement_bound_us"], 1000000)
         self.assertFalse(mode.CONTRACT["retirement_memory_reuse"])
 
-    def test_previous_snapshot_and_guard_contracts_cannot_admit_progress_candidate(self):
+    def test_previous_contracts_cannot_admit_queue_observation_candidate(self):
         for version, name in ((7, "2026-11-13-de25-matched-command-snapshot/matched-with-cause-result.json"),
-                              (8, "2026-11-13-de25-command-guard/matched-result.json")):
+                              (8, "2026-11-13-de25-command-guard/matched-result.json"),
+                              (9, "2026-11-13-de25-command-progress/matched-result.json")):
             record = json.loads((ROOT / "docs/validation" / name).read_text())
             previous = record["sdm_input_contract"]
             self.assertEqual(previous["format"], version)

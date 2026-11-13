@@ -48,7 +48,7 @@ class SourceRetirementTests(unittest.TestCase):
                    "-Wno-misleading-indentation", "-Wno-unused-function", "-Wno-unused-variable", "-Wno-sign-compare",
                    "-fsanitize=address,undefined", "-fno-sanitize-recover=all", "-DFES_NANO_RETIRE_BATCHED_OBSERVE=1"]
         if joined:
-            command += ["-DFES_NANO_RETIRE_TIMING=1", "-DFES_NANO_SDM_RETIRE_SOURCE=1"]
+            command += ["-DFES_NANO_RETIRE_TIMING=1", "-DFES_NANO_RETIRE_QUEUE_OBSERVE=1", "-DFES_NANO_SDM_RETIRE_SOURCE=1"]
         command += ["-I" + str(p) for p in (self.output, FW, FW / "tests")]
         if not binary.exists():
             compiled = subprocess.run(command + [str(p) for p in sources] + ["-o", str(binary)], timeout=90, capture_output=True, text=True)
@@ -56,6 +56,15 @@ class SourceRetirementTests(unittest.TestCase):
         result = subprocess.run([str(binary), *map(str, arguments)], timeout=180, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         report = json.loads(result.stdout.splitlines()[-1])
+        if name == "queue_wire_test":
+            sys.path.insert(0, str(ROOT / "platform/embedded/nano/sdm_trace"))
+            from queue_observation import parse_queue
+            line = next(v for v in result.stdout.splitlines() if v.startswith("FES_NANO_RETIRE_QUEUE "))
+            queue = parse_queue(line.encode())
+            self.assertEqual((queue["stage"], queue["consumer"], queue["consumer_phase"], queue["consumer_stage"]), (10, 12, 6, 10))
+            self.assertEqual((queue["slots"], queue["published"], queue["failed"], queue["error"]), (6, 1, 0, 0))
+            self.assertEqual((queue["retained"], queue["reuse"], queue["activated"]), (1, 0, 0))
+            self.assertGreater(queue["samples"], 0)
         expected = "passed-startup-then-owned-full-transfer" if name == "joined_test" else "passed"
         self.assertEqual(report["status"], expected)
         self.assertFalse(report["hardware_actions"])
@@ -84,6 +93,12 @@ class SourceRetirementTests(unittest.TestCase):
 
     def test_retirement_poll_supplier_faults(self):
         self.run_model("retire_progress_faults")
+
+    def test_raw_observations_survive_rejected_guards_without_authority(self):
+        self.run_model("retire_observation_test")
+
+    def test_actual_finish_queue_wire_record(self):
+        self.run_model("queue_wire_test", joined=True)
 
     def test_command_snapshot_cost_and_unchanged_deadlines(self):
         baseline = json.loads((ROOT / "tests/fixtures/nano-sdm-input/retirement-cost-v6.json").read_text())

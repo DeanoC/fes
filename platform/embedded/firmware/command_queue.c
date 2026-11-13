@@ -27,6 +27,7 @@ static int guard(struct nano_cmdq *s)
     struct nano_cmdq_io io=s->io;
     if (!io.time_us || !io.owns) return fail(s,-22);
     if (io.time_us(io.context,&now)) return fail(s,-2);
+    s->observed=now;s->clock_samples++;
     if (!io_same(&io,&s->io)) return fail(s,-13);
     if (io.owns(io.context,&s->binding)!=1) return fail(s,-1);
     if (!io_same(&io,&s->io)) return fail(s,-13);
@@ -116,7 +117,11 @@ int nano_cmdq_submit(struct nano_cmdq *s,struct nano_cmdq_receipt *out)
     uintptr_t a=(uintptr_t)s,b=(uintptr_t)out;
     if (a>UINTPTR_MAX-sizeof(*s) || b>UINTPTR_MAX-sizeof(*out) ||
         (a<b+sizeof(*out) && b<a+sizeof(*s))) return fail(s,-22);
-    if (snapshot(s,s->binding.baseline) || snapshot(s,s->binding.baseline)) return -1;
+    s->stage=CMDQ_INITIAL_FIRST;
+    if (snapshot(s,s->binding.baseline)) return -1;
+    s->stage=CMDQ_INITIAL_SECOND;
+    if (snapshot(s,s->binding.baseline)) return -1;
+    s->stage=CMDQ_STORE;
     for (unsigned n=0;n<NANO_CMDQ_COMMANDS;n++) {
         uint8_t bytes[16];
         if (nano_cmdq_encode(n,bytes) || guard(s)) return -1;
@@ -126,8 +131,10 @@ int nano_cmdq_submit(struct nano_cmdq *s,struct nano_cmdq_receipt *out)
         if (error) return fail(s,error);
         if (guard(s)) return -1;
     }
+    s->stage=CMDQ_PREPUBLICATION;
     if (snapshot(s,s->binding.baseline) || guard(s)) return -1;
     uint32_t target=(s->binding.baseline+NANO_CMDQ_COMMANDS)&15U;
+    s->stage=CMDQ_PUBLICATION;
     s->io.barrier(s->io.context);s->publish_attempted=1;
     int error=s->io.write32(s->io.context,PROD,target);
     s->io.barrier(s->io.context);
@@ -135,18 +142,25 @@ int nano_cmdq_submit(struct nano_cmdq *s,struct nano_cmdq_receipt *out)
     if (guard(s)) return -1;
     unsigned previous=0;
     for (unsigned i=0;i<NANO_CMDQ_POLLS;i++) {
+        s->stage=CMDQ_PROGRESS;
         uint32_t cons=0;s->polls++;
         if (progress(s,target,&cons)) return -1;
         unsigned count=(cons-s->binding.baseline)&15U;
         if ((cons&~15U) || count>NANO_CMDQ_COMMANDS || count<previous) return fail(s,-5);
         previous=count;
         if (cons==target) {
-            if (snapshot(s,target) || snapshot(s,target) || guard(s)) return -1;
+            s->stage=CMDQ_FINAL_FIRST;
+            if (snapshot(s,target)) return -1;
+            s->stage=CMDQ_FINAL_SECOND;
+            if (snapshot(s,target)) return -1;
+            s->stage=CMDQ_FINAL_GUARD;
+            if (guard(s)) return -1;
             struct nano_cmdq_receipt receipt={
                 .owner=s->binding.owner,.epoch=s->binding.epoch,.generation=s->binding.generation,
                 .baseline=s->binding.baseline,.producer=target,.consumer=cons,.polls=s->polls,
                 .commands_completed=1,.interconnect_drained=0,.DMA_access_granted=0};
             *out=receipt;
+            s->stage=CMDQ_COMPLETE;
             return 0;
         }
     }

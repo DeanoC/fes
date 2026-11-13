@@ -40,6 +40,12 @@ struct nano_cmdq_receipt {
     uint32_t baseline,producer,consumer,polls;
     unsigned commands_completed,interconnect_drained,DMA_access_granted;
 };
+/* Informational location of the existing operation; never an admission gate. */
+enum nano_cmdq_stage {
+    CMDQ_IDLE, CMDQ_INITIAL_FIRST, CMDQ_INITIAL_SECOND, CMDQ_STORE,
+    CMDQ_PREPUBLICATION, CMDQ_PUBLICATION, CMDQ_PROGRESS,
+    CMDQ_FINAL_FIRST, CMDQ_FINAL_SECOND, CMDQ_FINAL_GUARD, CMDQ_COMPLETE
+};
 struct nano_cmdq {
     struct nano_cmdq_binding binding;
     struct nano_cmdq_io io;
@@ -47,6 +53,10 @@ struct nano_cmdq {
     unsigned attempted,initialized,submitted,failed,timed,slots_attempted;
     unsigned publish_attempted,reads,polls;
     int first_error;
+    /* Existing counter samples, including a subsequently rejected sample.
+     * These are observations only; last remains the accepted clock value. */
+    uint64_t observed;
+    unsigned clock_samples,stage;
 };
 /* Owns no allocator/reset/queue-enable/table/SMMU-enable/error-ack interface.
  * A throwing or failed publish retains the reservation and forbids retry.

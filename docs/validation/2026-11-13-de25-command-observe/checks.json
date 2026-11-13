@@ -1,0 +1,43 @@
+{
+  "queue-observe-focused": {
+    "argv": [
+      "env",
+      "PYTHONPATH=tests",
+      "python3",
+      "-m",
+      "unittest",
+      "test_nano_source_retirement",
+      "test_nano_sdm_timing",
+      "test_nano_sdm_input_profile",
+      "test_nano_sdm_queue_observation",
+      "-v"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 34.82377396686934,
+    "log_sha256": "30591973fa0a1686b238b7ac2ac962f99d9221f0898d30c451e2a1a714ae71c6"
+  },
+  "queue-observe-paired-model": {
+    "argv": [
+      "python3",
+      "out/queue-observe-model/compare.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 7.205679131904617,
+    "log_sha256": "e8c23f1a7664869f66eb3e1a78be07640b77b5054e2359d9f4072eedc3aa5e26"
+  },
+  "queue-observe-aarch64": {
+    "argv": [
+      "python3",
+      "out/publication/cross-queue-observe.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1.0009315928909928,
+    "log_sha256": "06e4303b59c4b12988b84b1e5e0a2ab85a4c4a4bacc2204eb5e461dfd266df8e"
+  }
+}

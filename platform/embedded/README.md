@@ -40,8 +40,14 @@ reset, exact original-FIT rollback and the full 51-command baseline cycle/Park
 are independently verified. The [format-9 successor](../../docs/validation/2026-11-13-de25-command-progress/README.md)
 adds one guarded read-only queue-progress batch per poll, preserving all write
 gates and deadlines. Its full matched chain and native file admission pass.
-A new frozen bounded trial is still required; it has no hardware retirement,
-ordinary activation or source-memory reuse acceptance.
+Its bounded trial completes the full source transfer but still reaches the
+command deadline after publication. Exact original-FIT rollback and all 51
+baseline commands/final Park pass without another physical reset. No retirement,
+ordinary activation or source-memory reuse is qualified. The
+[format-10 observation successor](../../docs/validation/2026-11-13-de25-command-observe/README.md)
+retains existing raw consumer reads, operation stages and counter samples in a
+separate informational record. Its focused models and AArch64 compile pass;
+it has no physical result.
 
 This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
 launcher integration, while bounded Nano CPU/SD/package diagnostics now run on
