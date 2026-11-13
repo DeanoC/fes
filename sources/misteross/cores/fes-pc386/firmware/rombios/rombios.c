@@ -11599,9 +11599,16 @@ nmi:
   call _nmi_handler_msg
   iret
 
+// FES 2026-11-13: keep AX, as the IBM PC/AT BIOS's INT_287 does (PUSH AX
+// ... POP AX around the F0h write and the EOIs). An interrupt-stack switcher
+// that keeps a value in AX across the handler (FreeDOS's irqstack.asm keeps
+// its stack size) lost it to eoi_both_pics.
 int75_handler:
+  push ax
+  xor  al, al
   out  0xf0, al         // clear irq13
   call eoi_both_pics    // clear interrupt
+  pop  ax
   int  2                // legacy nmi call
   iret
 
