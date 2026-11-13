@@ -4335,7 +4335,15 @@ func (a *App) queueVisibleWork(now time.Time) {
 		a.mu.Unlock()
 		return
 	}
-	start, end := a.prefetchSpanLocked()
+	// An open room replaces the library grid on screen, so the grid's covers
+	// are not visible work. The room requests its own covers. Prefetching the
+	// hidden grid would only take the CPU from the room's Lua callbacks.
+	start, end := 0, 0
+	if a.room == nil {
+		start, end = a.prefetchSpanLocked()
+	} else {
+		a.dropHiddenGridWorkLocked()
+	}
 	var queue []pendingWork
 	order := make([]int, 0, end-start)
 	if a.grid.Focus >= start && a.grid.Focus < end {
@@ -4402,6 +4410,38 @@ func (a *App) queueVisibleWork(now time.Time) {
 			a.mu.Lock()
 			delete(a.inflight, item.key)
 			a.mu.Unlock()
+		}
+	}
+}
+
+// dropHiddenGridWorkLocked removes library-grid cover work that was queued
+// before a room opened. Workers have not started these jobs, so clearing their
+// inflight markers lets the grid request them again once it is back on screen.
+// Decodes that a worker already started cannot be cancelled; their results are
+// applied as usual. Room detail and screenshot work stays queued, and the
+// room's own covers use requestRoomCoverLocked, not this queue.
+func (a *App) dropHiddenGridWorkLocked() {
+	var keep []workItem
+	for drained := false; !drained; {
+		select {
+		case item := <-a.jobs:
+			switch {
+			case item.gen != a.loadGen:
+				// Stale generation: workers would drop it anyway.
+			case item.kind == workScreenshot || (a.detailOpen && a.roomDetail.ID != "" && item.gameID == a.roomDetail.ID):
+				keep = append(keep, item)
+			default:
+				delete(a.inflight, item.key())
+			}
+		default:
+			drained = true
+		}
+	}
+	for _, item := range keep {
+		select {
+		case a.jobs <- item:
+		default:
+			delete(a.inflight, item.key())
 		}
 	}
 }

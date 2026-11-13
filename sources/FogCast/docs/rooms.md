@@ -253,6 +253,8 @@ chains of small rects (see `widgets.nodemap`).
 `image.load("assets/x.png") -> img` decodes a pack PNG/JPEG on a background
 goroutine. `image.cover(game_id) -> img` asks the launcher for the catalog
 cover. Handles expose `ready`, `w`, `h`, `err`. Draw nothing until `ready`.
+While a room is open the launcher does not prefetch covers for the hidden
+library grid; grid cover decodes already started when the room opened finish.
 
 ### `library` (asynchronous; callbacks run on a later tick)
 

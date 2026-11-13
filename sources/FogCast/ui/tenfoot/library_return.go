@@ -62,6 +62,9 @@ func (a *App) restoreLibraryOriginLocked() bool {
 	a.room = o.room
 	a.roomStack = o.stack
 	a.roomWasParked = a.gpuParked
+	// The Library may have just queued grid covers; drop them before the
+	// restored room's resize and resume callbacks run.
+	a.dropHiddenGridWorkLocked()
 	a.resizeRoomsLocked()
 	return true
 }
