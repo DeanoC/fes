@@ -47,7 +47,11 @@ ordinary activation or source-memory reuse is qualified. The
 [format-10 observation successor](../../docs/validation/2026-11-13-de25-command-observe/README.md)
 retains existing raw consumer reads, operation stages and counter samples in a
 separate informational record. Its focused models, full affected checks, AArch64 compilation and complete
-matched chain/native admission pass; it has no physical result.
+matched chain/native admission pass. Its physical trace reaches consumer 12 on
+the first poll, then fails the first final snapshot at the command deadline.
+Original-FIT rollback/readback passes, but the baseline final Quit/Park panics
+with USB ownership uncertainty; a physical reset and fresh restoration-only
+verification remain pending. The failed diagnostic is consumed.
 
 This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
 launcher integration, while bounded Nano CPU/SD/package diagnostics now run on

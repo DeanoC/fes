@@ -1,0 +1,12 @@
+{
+  "status": "passed-exact-terminal-physical-trial-byte-hash-mode-retention",
+  "physical_verdict": "stopped",
+  "archive": "/home/deano/fes-retained/de25-command-observe-physical-20261113-r1/physical-trial.tar.gz",
+  "archive_sha256": "33aad38f38771f032baa5b2bcad5d7233bc9963bd8d483e292b1331ffafce19c",
+  "dependencies": {
+    "/home/deano/fes-retained/de25-command-observe-procedure-prepared-20261113-r1/prepared-procedure.tar.gz": "776b5e6b41819b94d05c0bb0d4d1b96143670b1b2e131e3674341f64bf535695",
+    "/home/deano/fes-retained/de25-command-snapshot-procedure-prepared-20261113-r1/prepared-procedure.tar.gz": "1b5b82ea534a6af428682a59cad431042173292d3269735fc3b8215dff1bc793"
+  },
+  "baseline_restored": false,
+  "general_core_load_acceptance": false
+}
