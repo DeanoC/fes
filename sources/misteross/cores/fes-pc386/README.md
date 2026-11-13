@@ -51,6 +51,8 @@ Quartus 17.0.2.
 | [`sim/system_tb.cpp`](sim/system_tb.cpp) | `pc386_system` with all three DDR ports on one window model, and a host that launches and stops it as libmister-runtime does, through the mailbox and the window |
 | [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk for `--cpu rtl`: what the RTL still stops on (#1721), LOADALL in real mode and a far JMP through a call gate in protected mode and under paging from an aliased linear address (#1722), whose bytes the bench reads through the page tables; also compares full-AX SMSW and the LAHF flags byte after BIOS and checks SMSW after a CR0 write (#1748) |
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
+| [`sim/fdc_reference.cpp`](sim/fdc_reference.cpp), [`sim/fdc_replay_tb.cpp`](sim/fdc_replay_tb.cpp), [`sim/fdc_divergences.toml`](sim/fdc_divergences.toml) | `pc386_fdc` against Bochs's `iodev/floppy.cc`, case by case, with every recorded difference (`fdc` suite) |
+| [`sim/floppy_test.asm`](sim/floppy_test.asm) | FLOPTEST.COM, the `floppy` suite's check of the drives, the CMOS configuration and the BIOS change line across four swaps |
 | [`sim/ems_tb.cpp`](sim/ems_tb.cpp) | The EMS board alone on the port 2 model: directed cases, DMA cycles and a random run against a reference board (`benches` suite) |
 | [`sim/fesems.asm`](sim/fesems.asm) | FESEMS.SYS, the EMS board's LIM 4.0 driver ([EMS driver](#ems-driver)) |
 | [`sim/ems_test.asm`](sim/ems_test.asm) | EMSTEST.COM, the `ems` suite's check of the board and driver through INT 67h on boot menu entry 3 |
@@ -101,6 +103,10 @@ python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl   # the RTL must reach t
 python3 scripts/sim_fes_pc386.py --suite boot --image games --cpu rtl --type 'mem|' --expect 'high memory area'  # the games image
 python3 scripts/sim_fes_pc386.py --suite boot --image games --type 'set|' --expect 'BLASTER=A220 I7 D1 T3'  # FESENV from CMOS
 python3 scripts/sim_fes_pc386.py --suite rtl-stops        # the RTL's stop path on the stop test disk, against the oracle
+python3 scripts/sim_fes_pc386.py --suite fdc --download    # pc386_fdc against Bochs's floppy controller, case by case
+python3 scripts/sim_fes_pc386.py --suite floppy --download     # FLOPTEST.COM: the drives, their CMOS bytes and the BIOS change line across four swaps
+python3 scripts/sim_fes_pc386.py --suite floppy --cpu rtl      # the same from the prompt on fes_i386_cpu
+python3 scripts/sim_fes_pc386.py --suite floppy-boot --download  # boot the FreeDOS floppy in A: with the launch's boot device set to A:
 python3 scripts/sim_fes_pc386.py --suite a20 --download   # A20TEST.COM: A20 off at boot, INT 15h 24xx/87h, a shutdown resume, HIMEMX's method and XMS 03h-06h
 python3 scripts/sim_fes_pc386.py --suite c2xx --download  # C2TEST.COM: INT 15h C205h with key and aux bytes at the 8042, and while keys are typed
 python3 scripts/sim_fes_pc386.py --suite ems --download   # EMSTEST.COM on boot menu entry 3: the EMS board through FESEMS.SYS's INT 67h
@@ -274,10 +280,14 @@ as wires would; the machine top level will instantiate both.
 ## Recorded behaviour and deviations
 
 - **CMOS.** Besides the bytes the design lists, the machine writes what the
-  Bochs emulator writes and this BIOS reads: 14h = 04h (VGA, PS/2 port, no
-  x87 or floppy), the fixed-disk geometry at 1Bh-23h (the BIOS copies it into
-  the INT 41h table) and 3Fh bit 0 (no F12 boot menu, which would wait three
-  seconds for a key).
+  Bochs emulator writes and this BIOS reads: 14h (VGA, the PS/2 port, the x87
+  and the floppy drives as fitted), the fixed-disk geometry at 1Bh-23h (the
+  BIOS copies it into the INT 41h table) and 3Fh bit 0 (no F12 boot menu,
+  which would wait three seconds for a key). The floppy drive types (10h and
+  14h) and the launch's boot device (2Dh, 38h and 3Dh) are inputs of
+  `pc386_system`, no drives and a hard-disk launch until slice F3 of
+  [removable media](../../../docs/design/pc386-removable-media.md) reads them
+  from the `fes.pc386.machine` record.
 - **ATA writes complete into the buffer.** The Bochs BIOS reads status right
   after its `outsw` and requires DRDY with BSY clear, so a sector is reported
   done once it is whole in the buffer; the store to the image follows, and the
