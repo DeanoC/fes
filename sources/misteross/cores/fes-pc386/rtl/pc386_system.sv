@@ -470,12 +470,17 @@ module pc386_system #(
         .arch_x87_ip(), .arch_x87_cs(), .arch_x87_dp(), .arch_x87_ds(),
         // The reset state, Bochs's: CS F000h at FFFF0000h, EIP FFF0h, every
         // limit FFFFh and every attribute a present read/write data segment;
-        // CR0 clear (ET too: no 387), CR2 and CR3 0, GDTR and IDTR at 0
+        // CR0 clear but for ET, which follows the identity (a 386 samples
+        // ERROR# after RESET and sets ET when a 387 drives it low: 80386
+        // Hardware Reference Manual 3.7.2, 80387 Programmer's Reference
+        // Manual Appendix C.1; Bochs sets ET whenever its x87 is built, and
+        // the lockstep compares CR0); CR2 and CR3 0, GDTR and IDTR at 0
         // with limit FFFFh, LDTR an LDT and TR a busy 386 TSS at 0 with limit
         // FFFFh. The GPRs' zero is sized: an unsized '0 on a
         // parameterised cell's port asserts in the lock's Yosys under
         // hierarchy -chparam (DeanoC/yosys#71).
-        .init_gpr(256'd0), .init_eflags(32'h2), .init_cr0(32'h0), .init_cr2(32'h0), .init_cr3(32'h0),
+        .init_gpr(256'd0), .init_eflags(32'h2), .init_cr0(x87_present ? 32'h10 : 32'h0),
+        .init_cr2(32'h0), .init_cr3(32'h0),
         .init_dr(128'd0), .init_dr6(32'hffff1ff0), .init_dr7(32'h400),
         .init_gdtr_base(32'h0), .init_gdtr_limit(16'hffff), .init_idtr_base(32'h0), .init_idtr_limit(16'hffff),
         .init_eip(32'hfff0),
