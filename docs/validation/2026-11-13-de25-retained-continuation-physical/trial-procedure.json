@@ -1,0 +1,8 @@
+{
+  "path": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/retained-continuation-trial/procedure.json",
+  "sha256": "13fd4da8431cf9e05085482e3d5df26e9192f81918dd81104ace3b65a2b402aa",
+  "files": 30703,
+  "nested_native_closures_reloaded_before_freeze": true,
+  "hardware_actions": false,
+  "authorized_for_execution": false
+}

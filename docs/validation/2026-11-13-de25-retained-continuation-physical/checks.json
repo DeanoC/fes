@@ -1,0 +1,125 @@
+{
+  "retained-trial-binding": {
+    "argv": [
+      "python3",
+      "out/retained-continuation-trial/test_binding.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 2.2017281111329794,
+    "log_sha256": "7391c273381a637fb831b37eaebb367d97053f281546ff9e5f5ca74fddd2efbe"
+  },
+  "retained-trial-controller-final": {
+    "argv": [
+      "python3",
+      "out/retained-continuation-trial/test_controller.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 22.63696409901604,
+    "log_sha256": "5a04933c2eb7f6d053bd82264328b845da383ee2b8ad1fb2e215cf8e976d6065"
+  },
+  "retained-trial-restoration-model": {
+    "argv": [
+      "python3",
+      "out/retained-continuation-trial/test_restoration_gate.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 3.4037222038023174,
+    "log_sha256": "b1c9a7e7878c07321fb5ac2340d55b890555b559ee2d2a32216951b0aa7ebc62"
+  },
+  "retained-trial-preflight": {
+    "argv": [
+      "python3",
+      "out/retained-continuation-trial/test_native_preflight.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 3.8021816960535944,
+    "log_sha256": "32b3fb0ec5f838c54aa1194342216c3a2e3b53a46ddd8b99969378a9c5a33693"
+  },
+  "retained-trial-admission-roots-final": {
+    "argv": [
+      "python3",
+      "out/retained-continuation-trial/test_admission_roots.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 6.003987121861428,
+    "log_sha256": "ef1092f8013a20203c522f0a26f6123114e7430df7ed9feffdda97cc7b2367a2"
+  },
+  "retained-trial-session-model": {
+    "argv": [
+      "python3",
+      "out/retained-continuation-trial/test_continuation_session.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 14.207725672982633,
+    "log_sha256": "722b3b16b30c7155ea69b98c0c7f88778f6a50ebee8abafe5a4994883410777d"
+  },
+  "retained-trial-recovery-safety": {
+    "argv": [
+      "python3",
+      "out/retained-continuation-trial/test_recovery_safety.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.20345863210968673,
+    "log_sha256": "24b74e4ce4daaf5f123e7889b8db826f707414e9a29d012c2546ae45995052b1"
+  },
+  "retained-restore-scope": {
+    "argv": [
+      "python3",
+      "out/retained-continuation-restore/test_restore_scope.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.2011516341008246,
+    "log_sha256": "bb316c7043f91838b0d7f3837cc759bc00c2edf9029f2eb64aa89243bf50c5ef"
+  },
+  "retained-restore-default-user": {
+    "argv": [
+      "python3",
+      "out/retained-continuation-restore/check_restoration.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 6.404302835930139,
+    "log_sha256": "33fb829da23da296aac637d95c2b192dae6e440bd2bf14ceeec10b6743901deb"
+  },
+  "retained-restore-default-root": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/retained-continuation-restore/check_restoration.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 6.805206890916452,
+    "log_sha256": "33fb829da23da296aac637d95c2b192dae6e440bd2bf14ceeec10b6743901deb"
+  },
+  "retained-status-reproduction": {
+    "argv": [
+      "python3",
+      "out/retained-native-status-repro/run.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 3.0025813849642873,
+    "log_sha256": "ba5267904c513e0db664d9021530a5d2dc6a7eabc77663f50112ef550e525ec9"
+  }
+}

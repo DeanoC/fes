@@ -4,8 +4,10 @@ The preceding [format-11 hardware trial](../2026-11-13-de25-command-completion-p
 qualifies retained-source retirement for its selected artifact. It deliberately
 parks before native configuration completion. Format 12 connects a successful
 retirement to the existing native return path; this is a new software prototype,
-with a complete matched build and full fresh file admission, but without
-physical continuation acceptance.
+with a complete matched build and full fresh file admission. A later
+[physical trial](../2026-11-13-de25-retained-continuation-physical/README.md)
+passes retained continuation but fails the subsequent FPGA readiness query;
+initial MENU and normal native acceptance remain unqualified.
 
 `nano_source_continue` consumes one attempt on the private retired engine and
 checks its actual source binding, trusted callback table, completed command
@@ -75,10 +77,10 @@ Both unchanged complete sealed projects remain in the
 both archives are required. A [current file check](publication-files.json) verifies
 unchanged native source/artifact membership and both archive hashes after
 documentation edits. Later evidence publication changes documentation
-only. Physical continuation must separately establish normal native
-completion and the selected menu/endpoint before it can count as a hardware
-pass. The latest verified kit state remains the original baseline at final
-Park from the format-11 trial; this work makes no board/device/card changes.
+only. The later physical trial separately establishes retained continuation,
+then fails normal readiness before MENU. Following the actual human reset,
+exact original-FIT rollback/readback and the fresh 51-command baseline/Park
+pass. See the linked physical record for precise source and restoration scopes.
 
 This one-generation prototype retains all memory. Repeatable core loading,
 independent interconnect drain, safe arena reuse, broader devices/packages and
