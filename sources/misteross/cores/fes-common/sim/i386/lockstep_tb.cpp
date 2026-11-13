@@ -485,6 +485,11 @@ public:
         top.nmi = 0;
         top.inta_ack = 0;
         top.io_ack = 0;
+        // The i386dx+387 identity, and the AT board's coprocessor controls,
+        // which this bench drives in the machine's place.
+        top.x87_present = x87_fitted;
+        top.x87_f0 = 0;
+        top.x87_f1 = 0;
         step_writes.clear();
         step_first_write_values.clear();
         io.log.clear();
@@ -526,6 +531,9 @@ public:
     void check_memory(Mismatches &out);
 
     void clock() {
+        // Ports F0h and F1h pulse for one cycle, as the machine's write
+        // strobe does: whatever this cycle set is cleared after it.
+        const bool f0 = top.x87_f0, f1 = top.x87_f1;
         top.clk = 0;
         top.eval();
         if (!top.reset) quiet = false;
@@ -624,8 +632,17 @@ public:
             }
             if (port.ready()) {
                 io_waiting = false;
-                if (now.write) io.out(now.port, now.length, now.data);
-                else top.io_rdata = io.in(now.port, now.length);
+                if (now.write) {
+                    io.out(now.port, now.length, now.data);
+                    // Ports F0h and F1h: the AT board's coprocessor
+                    // controls, by byte, which the machine decodes without
+                    // claiming the cycle (pc386_at_core).
+                    for (unsigned n = 0; n < now.length; ++n) {
+                        if (now.port + n == 0xf0) top.x87_f0 = 1;
+                        if (now.port + n == 0xf1) top.x87_f1 = 1;
+                    }
+                } else
+                    top.io_rdata = io.in(now.port, now.length);
                 top.io_ack = 1;
             }
         } else {
@@ -725,6 +742,40 @@ public:
     }
 
     bool stopped() const { return top.trace_halt; }
+
+    // The 387's state, which the CPU reports through arch_x87_* and the
+    // oracle's accessor gives the same way (i386_oracle.h X87State). The
+    // registers are eight 80-bit words, little-endian in 32-bit lanes.
+    fes_i386::X87State x87_state() const {
+        fes_i386::X87State s;
+        s.control = uint16_t(top.arch_x87_cw);
+        s.status = uint16_t(top.arch_x87_sw);
+        s.tag = uint16_t(top.arch_x87_tw);
+        s.opcode = uint16_t(top.arch_x87_opcode);
+        s.pointers.ip = top.arch_x87_ip;
+        s.pointers.dp = top.arch_x87_dp;
+        s.pointers.cs = uint16_t(top.arch_x87_cs);
+        s.pointers.ds = uint16_t(top.arch_x87_ds);
+        for (int n = 0; n < 8; ++n) {
+            uint64_t significand = 0;
+            uint16_t sign_exponent = 0;
+            for (int b = 0; b < 10; ++b) {
+                const unsigned bit = 80 * unsigned(n) + 8 * unsigned(b);
+                uint64_t lane = top.arch_x87_regs[bit / 32];
+                if (bit % 32 > 24) lane |= uint64_t(top.arch_x87_regs[bit / 32 + 1]) << 32;
+                const uint8_t byte = uint8_t(lane >> (bit % 32));
+                if (b < 8) significand |= uint64_t(byte) << (8 * b);
+                else sign_exponent |= uint16_t(uint16_t(byte) << (8 * (b - 8)));
+            }
+            s.r[n] = {significand, sign_exponent};
+        }
+        return s;
+    }
+    // The unit works on past the instruction that started it, as a 387 does
+    // with BUSY# still active, so its state is compared once it is idle.
+    void settle_x87() {
+        for (int n = 0; n < 64 && top.trace_x87_busy; ++n) clock();
+    }
 
     State state() const {
         State s;
@@ -1310,6 +1361,8 @@ struct Summary {
     // no387_rule: ESC instructions stepped under the no-387 rule, and those
     // of them the oracle moved past without stepping (EscStep).
     uint64_t no387_rule = 0, no387_skips = 0;
+    // The retirements the 387-present rule compared the unit's state at.
+    uint64_t x87_compared = 0;
 };
 
 void hash_state(Summary &summary, const State &s) {
@@ -1644,6 +1697,47 @@ bool rep_writes_own_instruction(const Code *own, const uint8_t *code, bool code3
 // and its segment (fes_i386::SEG_*), from the bytes at code and the state.
 // The 386EX's scaled base for a SIB index of 100b (the divergence
 // invalid-sib-scales-base) is not modelled: no case here uses one.
+// The ESC forms the RTL's x87 unit builds in this slice, which must track
+// fes_i386_pkg::x87_decode and x87_format (#1768 slice 2: the interface, the
+// state, the loads, the stores and the register forms; the arithmetic is
+// slices 3 to 5). A form it does not build stops the RTL as not built, which
+// is how the lockstep cannot pass over an instruction the build does not run.
+bool x87_slice2_form(uint8_t esc, uint8_t modrm) {
+    const unsigned low = esc & 7u;
+    const unsigned rf = (modrm >> 3) & 7u;
+    if ((modrm >> 6) != 3) {
+        switch (low << 3 | rf) {
+            case 1 << 3 | 0: case 5 << 3 | 0: case 3 << 3 | 5:           // FLD m32, m64, m80
+            case 3 << 3 | 0: case 7 << 3 | 0: case 7 << 3 | 5:           // FILD m32, m16, m64
+            case 1 << 3 | 2: case 5 << 3 | 2: case 3 << 3 | 2: case 7 << 3 | 2:   // FST, FIST
+            case 1 << 3 | 3: case 5 << 3 | 3: case 3 << 3 | 7:           // FSTP m32, m64, m80
+            case 3 << 3 | 3: case 7 << 3 | 3: case 7 << 3 | 7:           // FISTP m32, m16, m64
+            case 1 << 3 | 5: case 1 << 3 | 7: case 5 << 3 | 7:           // FLDCW, FNSTCW, FNSTSW m16
+            case 1 << 3 | 6: case 5 << 3 | 6:                            // FNSTENV, FNSAVE
+            case 1 << 3 | 4: case 5 << 3 | 4:                            // FLDENV, FRSTOR
+                return true;
+            default:
+                return false;   // the arithmetic forms, FBLD and FBSTP
+        }
+    }
+    switch (low) {
+        case 1:  // D9
+            if (modrm == 0xd0 || modrm == 0xe0 || modrm == 0xe1 || modrm == 0xe4 || modrm == 0xe5
+                || modrm == 0xf6 || modrm == 0xf7)
+                return true;                                     // FNOP, FCHS, FABS, FTST, FXAM, FDECSTP, FINCSTP
+            if ((modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8) return true;  // FLD ST(i), FXCH
+            return modrm >= 0xe8 && modrm <= 0xee;               // the constants
+        case 3:  // DB
+            return modrm == 0xe0 || modrm == 0xe1 || modrm == 0xe2 || modrm == 0xe3 || modrm == 0xe4;
+        case 5:  // DD
+            return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xd0 || (modrm & 0xf8) == 0xd8;
+        case 7:  // DF
+            return modrm == 0xe0;                                // FNSTSW AX
+        default:
+            return false;
+    }
+}
+
 struct EscOperand {
     uint32_t offset = 0;
     int seg = fes_i386::SEG_DS;
@@ -1860,10 +1954,14 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                          before.eip, outcome.code.c_str(), before.gpr[fes_i386::REG_ESP], before.gpr[fes_i386::REG_EBP],
                          before.seg[fes_i386::SEG_SS].base, before.cr0, before.gdtr.base, before.gdtr.limit);
         const bool code32 = before.seg[fes_i386::SEG_CS].ar & 0x4000;
+        // The 387-present rule: with the identity on, the RTL runs the forms
+        // this slice builds and the comparison below adds the 387's state at
+        // each retirement. A form a later slice builds stops the run as not
+        // built, per form rather than at the first ESC.
         if (x87_fitted) {
             unsigned k = 0;
             while (k < 15 && is_prefix(code[k])) ++k;
-            if (k < 15 && ((code[k] & 0xf8) == 0xd8 || code[k] == 0x9b)) {
+            if (k < 15 && (code[k] & 0xf8) == 0xd8 && !x87_slice2_form(code[k], code[k + 1])) {
                 ++summary.unbuilt[UNBUILT_X87];
                 outcome.unbuilt = UNBUILT_X87;
                 return outcome;
@@ -2808,6 +2906,17 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         if (before.eflags & 0x100) ++summary.debug_kinds["tf-steps"];
         if (before.dr7 & 0xff) ++summary.debug_kinds["armed-steps"];
         compare(oracle_state, rtl_state, skip, at, out);
+        // The 387's state, once the unit is idle: a load's work finishes
+        // after the instruction has retired, as a real 387's does with BUSY#
+        // still active.
+        if (x87_fitted) {
+            rtl.settle_x87();
+            const fes_i386::X87State want = oracle.x87_state();
+            const fes_i386::X87State got = rtl.x87_state();
+            for (const std::string &field : fes_i386::x87_differences(want, got))
+                out.add(at + "x87." + field, 0, 1);
+            ++summary.x87_compared;
+        }
         hash_state(summary, rtl_state);
         if (!out.items.empty()) return outcome;
         if (!skip.empty()) {
@@ -11021,7 +11130,8 @@ int main(int argc, char **argv) {
                 "\"pm_retirements\": %llu, \"cs_rule\": %llu, \"ss_error_rule\": %llu, \"fetch_rule\": %llu, "
                 "\"iret_save_rule\": %llu, \"pm_deliveries\": {%s}, "
                 "\"unbuilt_stops\": {%s}, \"pm_kinds\": {%s}, \"cs_limit\": {%s}, "
-                "\"no387_rule\": %llu, \"no387_skips\": %llu, \"dr6_rule\": %llu, \"db_rf_rule\": %llu, "
+                "\"no387_rule\": %llu, \"no387_skips\": %llu, \"x87_compared\": %llu, "
+                "\"dr6_rule\": %llu, \"db_rf_rule\": %llu, "
                 "\"debug_kinds\": {%s}}\n",
                 mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
@@ -11057,7 +11167,8 @@ int main(int argc, char **argv) {
                 (unsigned long long)summary.iret_save_rule, pm_deliveries.c_str(),
                 unbuilt.c_str(), pm_kinds.c_str(), cs_limit.c_str(),
                 (unsigned long long)summary.no387_rule,
-                (unsigned long long)summary.no387_skips, (unsigned long long)summary.dr6_rule,
+                (unsigned long long)summary.no387_skips, (unsigned long long)summary.x87_compared,
+                (unsigned long long)summary.dr6_rule,
                 (unsigned long long)summary.db_rf_rule, named(summary.debug_kinds).c_str());
     return summary.failed ? 1 : 0;
 }

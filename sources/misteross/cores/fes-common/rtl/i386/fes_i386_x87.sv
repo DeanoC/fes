@@ -78,8 +78,9 @@
 //   - `iss` is an ESC uop at the head of D, with `iss_first` on the
 //     instruction's first and `iss_last` on its last, and `iss_part` the part
 //     or field it moves. `hold` keeps it in D: the board's latch is set, or
-//     the unit is not ready to answer. `unimpl` says the form is a later
-//     slice's.
+//     the unit is not ready to answer. A form a later slice builds never
+//     reaches the unit, because fes_i386_decode stops the instruction as not
+//     built through the same x87_decode.
 //   - a store uop takes its value from `sval` in EX, which the unit holds
 //     stable until the instruction commits; `nx` says an unmasked exception
 //     means the access must not be made.
@@ -111,7 +112,6 @@ module fes_i386_x87 (
     input  logic        iss_last,
     input  logic [5:0]  iss_part,
     output logic        hold,
-    output logic        unimpl,
     output logic [31:0] sval,
     output logic        nx,
     // Commit, at WB.
@@ -318,11 +318,14 @@ module fes_i386_x87 (
     logic val_form, take, iss_save_rd;
     assign val_form = iss_dec == X87_ST_M || iss_dec == X87_STP_M;
     assign iss_save_rd = iss && !iss_wait && iss_dec == X87_SAVE && iss_part[5] && iss_part[1:0] == 2'd0;
-    assign unimpl = present && iss && !iss_wait && iss_first && iss_dec == X87_UNIMPL;
+    // A form a later slice builds never reaches the unit: fes_i386_decode
+    // stops the instruction as not built, through the same x87_decode.
+    logic unbuilt;
+    assign unbuilt = iss_dec == X87_UNIMPL;
     // The hold (BUSY#): a new instruction waits for the board's latch and
     // for the unit, and one the unit has taken waits for its own value.
     // FNINIT and FNCLEX wait for neither (HRM section 5.1).
-    assign hold = present && iss && !iss_nowait && !unimpl
+    assign hold = present && iss && !iss_nowait && !unbuilt
                && (iss_first && (!started || committed) && (latched || busy)
                    || val_form && seq != S_RDY
                    || iss_save_rd && seq != S_SAVE_RD);

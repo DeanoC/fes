@@ -264,6 +264,11 @@ module fes_i386_cpu #(
     input  logic             x87_f0,       // a write to port F0h: clear the board's BUSY# latch
     input  logic             x87_f1,       // a write to port F1h: reset the coprocessor
     output logic             x87_irq13,    // the 387's ERROR#, IRQ 13's level on an AT board
+    // BUSY#, for the bench: a load's work finishes after the instruction
+    // has retired, so the lockstep compares the 387's state once this is
+    // clear, as a program would after WAIT.
+    output logic             trace_x87_busy,
+    output logic             trace_x87_latched,  // ... and the board's BUSY# latch
     output logic [15:0]      arch_x87_cw,
     output logic [15:0]      arch_x87_sw,
     output logic [15:0]      arch_x87_tw,
@@ -847,14 +852,14 @@ module fes_i386_cpu #(
     assign x87_iss = cur_valid && dc.x87;
     fes_i386_x87 x87 (
         .clk, .reset, .present(x87_present), .f0(x87_f0), .f1(x87_f1),
-        .error(x87_irq13), .latched(),
+        .error(x87_irq13), .latched(trace_x87_latched),
         .iss(x87_iss), .iss_wait(dc.x87_wait), .iss_op(dc.x87_op), .iss_fmt(dc.x87_fmt),
         .iss_first(d_first), .iss_last(dc.uop.ctl.end_of_instruction), .iss_part(dc.x87_part),
-        .hold(x87_hold), .unimpl(), .sval(x87_sval), .nx(x87_nx),
+        .hold(x87_hold), .sval(x87_sval), .nx(x87_nx),
         .wb(wb_commit && wb_s.x87), .wb_last(wb_commit && wb_s.x87 && wb_s.uop.ctl.end_of_instruction),
         .wb_val(wb_s.result), .wb_part(wb_s.x87_part), .flush(wb_flush),
         .cw_o(arch_x87_cw), .sw_o(arch_x87_sw), .tw_o(arch_x87_tw), .opcode_o(arch_x87_opcode),
-        .busy_o(), .regs_o(arch_x87_regs)
+        .busy_o(trace_x87_busy), .regs_o(arch_x87_regs)
     );
     assign arch_x87_ip = fpu_ip;
     assign arch_x87_cs = fpu_cs;
