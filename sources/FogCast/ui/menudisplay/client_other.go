@@ -37,7 +37,10 @@ type Status struct {
 type Live struct {
 	Enabled, Faulted, Quiesced         bool
 	DisplayedSequence, UnderflowsTotal uint64
-	Transmitter                        *Transmitter
+	// RecoveryAbandoned says the runtime has stopped trying to recover this
+	// loss. Older runtimes never send it.
+	RecoveryAbandoned bool
+	Transmitter       *Transmitter
 }
 
 // Transmitter is one set of ADV7513 reads taken by the same health check.

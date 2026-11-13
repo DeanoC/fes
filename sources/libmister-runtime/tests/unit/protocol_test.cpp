@@ -1402,13 +1402,19 @@ void TestMenuProtocolRequestsAndStatus()
  live_status.menu_display.live.displayed_sequence=9;live_status.menu_display.live.underflows_total=3;
  const auto display_only=mister::daemon::EncodeResponse(2,true,live_status,"test",nullptr,nullptr,nullptr);
  assert(display_only.find("\"live\":{\"enabled\":true,\"faulted\":false,\"quiesced\":false,"
-  "\"displayed_sequence\":9,\"underflows_total\":3}")!=std::string::npos);
+  "\"displayed_sequence\":9,\"underflows_total\":3,\"recovery_abandoned\":false}")!=std::string::npos);
+ // A loss the runtime has stopped recovering travels with the sample that
+ // describes it: a client must not present to force recovery it withheld.
+ live_status.menu_display.live.recovery_abandoned=true;
+ const auto abandoned=mister::daemon::EncodeResponse(2,true,live_status,"test",nullptr,nullptr,nullptr);
+ assert(abandoned.find("\"underflows_total\":3,\"recovery_abandoned\":true}")!=std::string::npos);
+ live_status.menu_display.live.recovery_abandoned=false;
  live_status.menu_display.live.link=true;live_status.menu_display.live.hot_plug=true;
  live_status.menu_display.live.rx_sense=true;live_status.menu_display.live.pll_lock=true;
  live_status.menu_display.live.vic=4;
  const auto with_link=mister::daemon::EncodeResponse(2,true,live_status,"test",nullptr,nullptr,nullptr);
  assert(with_link.find("\"live\":{\"enabled\":true,\"faulted\":false,\"quiesced\":false,"
-  "\"displayed_sequence\":9,\"underflows_total\":3,"
+  "\"displayed_sequence\":9,\"underflows_total\":3,\"recovery_abandoned\":false,"
   "\"transmitter\":{\"hot_plug\":true,\"rx_sense\":true,"
   "\"pll_lock\":true,\"vic\":4}}")!=std::string::npos);
 

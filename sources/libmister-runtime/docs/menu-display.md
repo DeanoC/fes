@@ -201,7 +201,8 @@ only after the deferred check, so a client that read to end of file instead
 would wait the check out.
 
 Status then carries `menu_display.live` with `enabled`, `faulted`,
-`quiesced`, `displayed_sequence` and `underflows_total`, plus a nested
+`quiesced`, `displayed_sequence`, `underflows_total` and
+`recovery_abandoned`, plus a nested
 `transmitter` object with `hot_plug`, `rx_sense`, `pll_lock` and `vic` when
 the transmitter was read. Those four reads succeed or fail together, so they
 are one object rather than four optional members. `live.underflows_total` is
@@ -238,13 +239,30 @@ reactivation records the reason it was spent on; if the next check reports
 the same reason, it is latched, logged once under phase `latched`, and spends
 no further budget until a healthy read clears it.
 
+Both give-ups -- a latched reason and a spent budget -- publish themselves as
+`live.recovery_abandoned`. It is the runtime's verdict rather than a register
+read: true once this loss will get no further reactivation, false on a
+healthy display, false while a transmitter loss is still settling, and false
+while the loss is still eligible for one. A healthy read clears every latch
+and with it the flag. The field exists because a client that sees a lost
+picture and nothing else would present to force recovery, and that present
+would spend from the present path exactly the budget the idle check withheld,
+or clear the menu package and drop the kit to splash. A client must therefore
+neither present to recover an abandoned loss nor call the display healthy
+while it is set: the kit log names the loss, and the picture stays gone until
+something changes.
+
 FogCast's probe of an unchanged frame requires `live.enabled`, no
 `live.faulted` or `live.quiesced`, and `live.displayed_sequence` equal to the
 sequence its own last present returned. The runtime sets the cached
 `menu_display.displayed_sequence` from the same value it returned to that
 present, so only the live read can disagree; an older runtime reports no
 `live` at all, and the probe falls back to the cached field there. Anything
-else sends a complete frame instead of acknowledging one.
+else sends a complete frame instead of acknowledging one -- unless
+`live.recovery_abandoned` is set, where the probe sends nothing, reports the
+launcher's managed software as not ready, and keeps probing on its interval
+so ordinary presenting resumes on the first status that clears the flag. An
+older runtime never sends the field, so it behaves exactly as before.
 
 ### Lifecycle
 

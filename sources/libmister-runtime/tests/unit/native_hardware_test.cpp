@@ -2668,6 +2668,100 @@ void TestIdleDisplayHealthDetectsLostScanoutWithinBudget()
  i2c.vic_status=0x10;
 }
 
+// Both give-ups -- a latched reason and a spent budget -- leave the display
+// exactly as it is, so status is the only place a client can learn that the
+// runtime has stopped recovering. Without that the launcher reads an
+// unhealthy sample it is still expected to act on and presents a whole frame
+// every probe, spending from the present path the budget this policy kept.
+void TestIdleDisplayHealthPublishesWhenItStopsRecovering()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;OpenedCorePackage opened;PopulateHpsDdrApplication(&package,true,&opened);
+ std::string manifest=ReadText(package.path+"/manifest.toml");ReplaceAll(&manifest,"fes.pong","fes.menu");
+ manifest+="\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ {std::ofstream output(package.path+"/manifest.toml",std::ios::trunc);output<<manifest;assert(output.good());}
+ assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ MenuGpScript script{&mmio};script.BringUp();
+ assert(hardware.ConfigureMenuPackage(package.path,opened.package_id).error.ok());
+ mister::MenuDisplayInfo displayed;
+ script.Present(0,0,0);
+ assert(PresentBackSlot(hardware,&displayed).ok()&&hardware.menu_display().displayed_sequence==1);
+ const auto reactivate=[&]{
+  script.QuiesceRunningMenu();script.BringUp();
+  assert(hardware.LoadIdle().error.ok()&&hardware.menu_display().available);
+ };
+
+ // A healthy display has given nothing up.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,1);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.read&&!hardware.menu_display().live.recovery_abandoned);
+
+ // The first confirmed loss is reactivated, so the runtime is still trying
+ // and the launcher's own present is still the right answer.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(1,0);
+ const auto disabled=hardware.CheckIdleDisplayHealth();
+ assert(!disabled.ok()&&disabled.message=="menu scanout is disabled");
+ assert(!hardware.menu_display().live.recovery_abandoned);
+ reactivate();
+
+ // The same reason, after the reactivation that was meant to clear it, is
+ // latched. Nothing is reprogrammed, and status says why.
+ clock.now_+=kMenuHealthIntervalMs;
+ const auto latched=fpga.calls;
+ script.Info(1,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.recovery_abandoned&&fpga.calls==latched);
+ assert(hardware.menu_display().available);
+ // Every later sample of that latched loss keeps saying it.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(1,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.recovery_abandoned&&fpga.calls==latched);
+
+ // A healthy read clears the latch, and the flag goes with it.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(!hardware.menu_display().live.recovery_abandoned);
+
+ // A second reason inside the same window spends the last reactivation.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,9);
+ const auto stale=hardware.CheckIdleDisplayHealth();
+ assert(!stale.ok()&&stale.message=="menu scanout no longer shows the committed frame");
+ assert(!hardware.menu_display().live.recovery_abandoned);
+ reactivate();
+
+ // With the budget spent, a new reason is left exactly as it is -- and that
+ // give-up is published too, not only written to the kit log.
+ clock.now_+=kMenuHealthIntervalMs;
+ const auto spent=fpga.calls;
+ script.Info(1,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.recovery_abandoned&&fpga.calls==spent);
+ bool budget_logged=false;
+ for(const auto& record:log.records())
+  if(record.operation=="menu_display_health"&&record.phase=="budget")budget_logged=true;
+ assert(budget_logged&&hardware.menu_display().available);
+
+ // And a display that comes back is a healthy sample like any other.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(!hardware.menu_display().live.recovery_abandoned);
+}
+
 // An unreadable display is never recovered from -- a failed bus call is no
 // evidence of a lost scanout -- but the policy says it is logged. A reset
 // baseline is all-zero, so the first unreadable sample matched it exactly and
@@ -5896,6 +5990,7 @@ int main(int argc,char** argv)
  TestNativeMenuBlitterPresent(1);
  TestMenuUnderflowPolicyReactivatesThenSplashes();
  TestIdleDisplayHealthDetectsLostScanoutWithinBudget();
+ TestIdleDisplayHealthPublishesWhenItStopsRecovering();
  TestIdleDisplayHealthLogsTheFirstUnreadableSample();
 	TestComputerLiveMediaLifecycleThroughRuntime();
 	TestPcxtFloppyLifecycleThroughRuntime();

@@ -399,8 +399,8 @@ func TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle(t *testing.T) {
 	}
 	// The idle display's live re-read: optional, and with the transmitter
 	// reads carried as their own all-or-nothing object.
-	display := `,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":7}`
-	link := `,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":7,"transmitter":{"hot_plug":true,"rx_sense":true,"pll_lock":true,"vic":4}}`
+	display := `,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":7,"recovery_abandoned":false}`
+	link := `,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":7,"recovery_abandoned":true,"transmitter":{"hot_plug":true,"rx_sense":true,"pll_lock":true,"vic":4}}`
 	for _, live := range []string{display, link} {
 		carried := strings.Replace(withMenu, `"underflows":0,"error"`, `"underflows":0`+live+`,"error"`, 1)
 		decoded, err := decodeProtocol2Response([]byte(carried))
@@ -412,6 +412,11 @@ func TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle(t *testing.T) {
 		// one-scanline cap says nothing about it.
 		if decoded.MenuDisplay.Live.UnderflowsTotal != 7 || decoded.MenuDisplay.Underflows != 0 {
 			t.Fatalf("live counter confused with the present delta: %#v", decoded.MenuDisplay)
+		}
+		// Whether the runtime has stopped recovering this loss travels with
+		// the sample: a client must not present to force recovery it withheld.
+		if decoded.MenuDisplay.Live.RecoveryAbandoned != (live == link) {
+			t.Fatalf("abandoned recovery lost: %#v", decoded.MenuDisplay.Live)
 		}
 		if (decoded.MenuDisplay.Live.Transmitter != nil) != (live == link) {
 			t.Fatalf("transmitter reads mismatched their presence: %#v", decoded.MenuDisplay.Live)

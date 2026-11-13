@@ -47,6 +47,11 @@ type Protocol2MenuDisplayLive struct {
 	// UnderflowsTotal is the absolute hardware counter since the display was
 	// programmed, not the per-present delta the sibling Underflows carries.
 	UnderflowsTotal uint64 `json:"underflows_total"`
+	// RecoveryAbandoned says the runtime has stopped trying to recover the
+	// loss this sample describes, because a reactivation already failed for
+	// this reason or the bounded budget is spent. It is false on a healthy
+	// display and false while a loss may still be reactivated.
+	RecoveryAbandoned bool `json:"recovery_abandoned"`
 	// Transmitter is the ADV7513 reads, present only when the runtime owns
 	// the transmitter. The four arrive together or not at all, which a
 	// pointer keeps true on encode as well as on decode.
@@ -744,13 +749,16 @@ func validateMenuDisplayShape(raw json.RawMessage) error {
 		}
 	}
 	if raw, present := menu["live"]; present {
-		live, err := exactRawObject(raw, []string{"enabled", "faulted", "quiesced", "displayed_sequence", "underflows_total"}, []string{"transmitter"})
+		// recovery_abandoned is optional: a runtime that measures the display
+		// but never says it gave up is read as still willing to recover.
+		live, err := exactRawObject(raw, []string{"enabled", "faulted", "quiesced", "displayed_sequence", "underflows_total"}, []string{"recovery_abandoned", "transmitter"})
 		if err != nil {
 			return err
 		}
 		if err := requireRawKinds(live, map[string]rawKind{
 			"enabled": rawBoolean, "faulted": rawBoolean, "quiesced": rawBoolean,
 			"displayed_sequence": rawUnsigned, "underflows_total": rawUnsigned,
+			"recovery_abandoned": rawBoolean,
 		}); err != nil {
 			return err
 		}

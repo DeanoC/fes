@@ -392,6 +392,15 @@ struct MenuDisplayLive {
  // detected VIC from 0x3e>>2. A 720p60 link reports VIC 4.
  bool hot_plug=false,rx_sense=false,pll_lock=false;
  std::uint8_t vic=0;
+ // recovery_abandoned says the runtime has stopped trying to recover the
+ // loss this sample describes: either a reactivation already ran for this
+ // reason and did not clear it, or the bounded reactivation budget is
+ // spent. It is false on a healthy display, false while a transmitter loss
+ // is still settling, and false while a loss is still eligible for a
+ // reactivation. A client that sees it must not present to force recovery
+ // the runtime has deliberately given up on, and must not call the display
+ // healthy either: the picture is gone and stays gone.
+ bool recovery_abandoned=false;
 };
 struct MenuDisplayStatus {
  bool available=false;

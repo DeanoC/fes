@@ -95,6 +95,10 @@ type Live struct {
 	// UnderflowsTotal is the absolute hardware counter since the display was
 	// programmed. The per-present one-scanline cap does not apply to it.
 	UnderflowsTotal uint64 `json:"underflows_total"`
+	// RecoveryAbandoned says the runtime has given this loss up: a
+	// reactivation already failed for this reason, or its bounded budget is
+	// spent. Older runtimes never send it, so false also means "not said".
+	RecoveryAbandoned bool `json:"recovery_abandoned"`
 	// Transmitter is present only when the runtime owns the ADV7513, and
 	// carries all four reads or none.
 	Transmitter *Transmitter `json:"transmitter"`

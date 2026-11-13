@@ -763,6 +763,14 @@ func (d *MenuDisplay) scanoutLostLocked(status menudisplay.Status) bool {
 	return d.presentedDisplayedKnown && status.DisplayedSequence != d.presentedDisplayed
 }
 
+// recoveryAbandoned reports that the runtime has stopped trying to recover
+// the loss its live sample describes. An older runtime sends no live reads
+// at all, and a runtime that sends them without this flag is still willing
+// to reactivate, so both read as false and behave exactly as before.
+func recoveryAbandoned(status menudisplay.Status) bool {
+	return status.Live != nil && status.Live.RecoveryAbandoned
+}
+
 func (d *MenuDisplay) runProbe(frame queuedMenuFrame) {
 	status, err := d.client.Status(d.ctx)
 	if err != nil {
@@ -771,6 +779,20 @@ func (d *MenuDisplay) runProbe(frame queuedMenuFrame) {
 	}
 	d.mu.Lock()
 	err = d.acceptStatusLocked(frame, status)
+	if err == nil && recoveryAbandoned(status) {
+		// Presenting is the only recovery a probe has, and the runtime has
+		// deliberately stopped recovering this loss: a present here spends a
+		// reactivation it withheld, or clears the menu package and drops the
+		// kit to splash. So this probe ends with no frame and no claim of
+		// health -- reportSoftwareReadyLocked reads the same flag -- while
+		// the probe interval keeps running, which is how the launcher sees
+		// the loss clear and resumes ordinary presenting.
+		d.clearProbeQueuedLocked(frame.epoch)
+		d.lastProbe = d.clock()
+		d.reportSoftwareReadyLocked(status)
+		d.mu.Unlock()
+		return
+	}
 	if err == nil && status.Available && status.Underflows <= menudisplay.TransientUnderflowCap &&
 		d.hasPresented && status.Generation == d.presentedGen && !d.scanoutLostLocked(status) {
 		// Validate the binding and clear recovered pacing under one lock: an
@@ -917,7 +939,9 @@ func (d *MenuDisplay) reportSoftwareReadyLocked(status menudisplay.Status) {
 	if d.paused && d.keepReadyWhileLaunchPending {
 		return
 	}
-	reportSoftwareReady(!d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap)
+	// A display the runtime has given up recovering is not ready however
+	// available the rest of the status looks: there is no picture on it.
+	reportSoftwareReady(!d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap && !recoveryAbandoned(status))
 }
 
 // ReadinessDiagnostic returns the last runtime status and exact display facts
@@ -939,7 +963,7 @@ func (d *MenuDisplay) ReadinessDiagnostic() MenuReadinessDiagnostic {
 		Available:   status.Available, Generation: status.Generation,
 		PresentedGen: d.presentedGen, Underflows: status.Underflows,
 		LastErr: lastErr,
-		Ready:   !d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap,
+		Ready:   !d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap && !recoveryAbandoned(status),
 	}
 }
 

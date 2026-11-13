@@ -3,6 +3,7 @@ package gfx
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -862,6 +863,58 @@ func TestMenuDisplayDiscardKeepsInFlightProbe(t *testing.T) {
 	closed = true
 	close(gate)
 	block.Store(false)
+}
+
+// The runtime gives a loss up after a reactivation that did not clear it, or
+// once its bounded budget is spent, and then deliberately leaves the display
+// alone. A probe that answered that sample with a complete present would
+// spend from the present path the very budget the runtime withheld, or clear
+// the menu package and drop the kit to splash. So the probe sends nothing
+// while the flag is set -- and must not call the display healthy either,
+// which is why this cannot be an early "not lost" verdict in
+// scanoutLostLocked: that routes the probe into the acknowledging fast path.
+func TestMenuDisplayProbeSendsNothingWhileRecoveryIsAbandoned(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ready.json")
+	t.Setenv("FES_SOFTWARE_READY_FILE", path)
+	t.Setenv("FES_SOFTWARE_BUNDLE_ID", "bundle")
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+	requireSoftwareReady(t, path, true)
+
+	// Scanout is gone and the runtime has stopped trying to bring it back.
+	client.mu.Lock()
+	client.live = &menudisplay.Live{RecoveryAbandoned: true}
+	client.mu.Unlock()
+	for i := 0; i < 2; i++ {
+		statusBefore := client.statusCount()
+		clock.Advance(menuProbeInterval)
+		d.Present()
+		waitMenuIdle(t, d, client, 1)
+		if calls, _, _, _ := client.snapshot(); calls != 1 {
+			t.Fatalf("probe %d presented into an abandoned loss, calls=%d", i, calls)
+		}
+		if client.statusCount() != statusBefore+1 {
+			t.Fatalf("probe %d stopped reading status: %d, want %d", i, client.statusCount(), statusBefore+1)
+		}
+		requireSoftwareReady(t, path, false)
+	}
+
+	// The next budget window reopens: the loss is eligible for recovery
+	// again, the flag clears, and ordinary presenting resumes at once.
+	client.mu.Lock()
+	client.live = &menudisplay.Live{}
+	client.mu.Unlock()
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	presentMenuWait(t, client)
+	waitMenuIdle(t, d, client, 2)
+	if calls, _, n, _ := client.snapshot(); calls != 2 || n != menudisplay.FrameBytes {
+		t.Fatalf("cleared flag did not resume presenting, calls=%d bytes=%d", calls, n)
+	}
 }
 
 func TestMenuDisplayChangeDrivenOffIgnoresBackoff(t *testing.T) {

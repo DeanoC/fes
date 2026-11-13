@@ -2336,9 +2336,14 @@ Error NativeHardware::CheckIdleDisplayHealth()
  // A reactivation that did not clear its own reason will not clear it next
  // time either. Latch it once rather than reprogramming the idle Home twice
  // every ten minutes for the rest of the kit's uptime.
- if(lost==menu_health_unrecoverable_)return {};
+ // Every give-up below publishes itself in the live sample. A client that
+ // sees an unhealthy display and no such flag may present to force recovery;
+ // once the runtime has stopped trying, presenting only spends the budget
+ // this policy is protecting, so the status has to say so.
+ if(lost==menu_health_unrecoverable_){menu_status_.live.recovery_abandoned=true;return {};}
  if(lost==menu_health_reactivated_for_) {
   menu_health_unrecoverable_=lost;menu_health_reactivated_for_.clear();
+  menu_status_.live.recovery_abandoned=true;
   log_.Write({"menu_display_health","","fes.menu","latched",
    {ErrorCode::none,"reactivation did not clear it, so no further reactivation for: "+lost}});
   return {};
@@ -2348,6 +2353,7 @@ Error NativeHardware::CheckIdleDisplayHealth()
  // stays exactly as it is: a reprogram loop is worse than a black screen
  // that the kit log now names.
  if(!MenuReactivationAllowed()) {
+  menu_status_.live.recovery_abandoned=true;
   if(!menu_health_budget_logged_) {
    menu_health_budget_logged_=true;
    log_.Write({"menu_display_health","","fes.menu","budget",
