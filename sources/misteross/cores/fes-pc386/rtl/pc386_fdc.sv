@@ -18,9 +18,19 @@
 // an AT, and 3F6h is the ATA device control register. Bit 1 of a drive
 // select is ignored, as on a two-drive AT adapter (and in Bochs): drives 2
 // and 3 alias 0 and 1. INT (irq6) and DRQ (DMA channel 2) are gated by DOR
-// bit 3, as in the 82077AA's AT mode. A command that names a drive moves
-// DOR's select bit to it, as Bochs and QEMU do, so DOR reads back and DIR
-// reports that drive afterwards.
+// bit 3, as in the 82077AA's AT mode. A command runs on the drive it names,
+// and DOR keeps the select the guest wrote: on the 82077AA the drive select
+// pins come only from DOR, and a command's DS bits "are used internally only.
+// They are not reflected in the Drive Select pins. It is the users
+// responsibility to maintain correspondence between these bits and the Drive
+// Select pins (DOR)" (datasheet 290166-007, Table 5-1 note; section 9.1.1).
+// So 3F2h reads back what the guest wrote, and DIR's disk change, which comes
+// from the DSKCHG pin of the drive DOR selects, follows DOR. Bochs and QEMU
+// move DOR's select to the drive a seek, recalibrate or transfer names
+// (sim/fdc_divergences.toml, dor-select). On the chip, a command naming a
+// drive DOR does not select still drives the selected drive's cable; here
+// it runs on the drive it names. Software selects the drive in DOR first,
+// as the datasheet's section 8.3 has it.
 //
 // Commands are decoded on the whole byte, so a command takes only the
 // modifier bits (MT, MFM, SK) the 82077AA gives it: Specify, Sense Drive
@@ -130,6 +140,7 @@ module pc386_fdc #(
                      X_FETCH = 4'd5, X_FETCH_WAIT = 4'd6, X_BYTE_WAIT = 4'd7, X_BYTE = 4'd8,
                      X_STORE_WAIT = 4'd9;
     reg [7:0] dor, msr;
+    reg xd;                                        // the drive the last command named
     reg [1:0] rate;                                // DSR/CCR: 500, 300, 250, 1000 kbit/s
     reg nd, lock;
     reg [3:0] srt, hut;
@@ -159,7 +170,7 @@ module pc386_fdc #(
     wire disk_left = left[d] || present_q[d] && !present[d];
     reg [8:0] index;                               // byte within the sector
 
-    wire d = dor[0];                               // the selected drive
+    wire d = xd;                                   // the command's drive
     wire [7:0] op = command[0];
     wire [4:0] base = op[4:0];
     wire mt = op[7], mfm = op[6], sk = op[5];
@@ -168,7 +179,7 @@ module pc386_fdc #(
     wire [7:0] tracks = {1'b0, cylinders[d]};
     wire [7:0] sectors_per_track = {2'b00, spt[d]};
     wire ready = drive_type[d] != 3'd0 && present[d] && dor[{2'b10, d}] && spun[d];
-    // Microseconds per byte of the medium in the selected drive.
+    // Microseconds per byte of the medium in the command's drive.
     wire [5:0] byte_us = spt[d] >= 6'd30 ? 6'd8 : spt[d] >= 6'd15 ? 6'd16 : 6'd32;
     wire [23:0] byte_wait = {18'd0, byte_us};
 
@@ -265,7 +276,7 @@ module pc386_fdc #(
     wire cylinder_step = wrap && (!mt || head[d]);
     wire [7:0] stepped_cyl = cyl[d] + 8'd1;
     wire end_of_track = sector[d] == eot[d] && (!mt || head[d] == two_sided[d]);
-    // LBA of the selected drive's current sector, and of a format ID's.
+    // LBA of the command's drive's current sector, and of a format ID's.
     wire [7:0] lba_cyl = formatting ? format_cyl : cyl[d];
     wire [8:0] lba_track = ({lba_cyl, 1'b0} >> !two_sided[d]) + {8'd0, head[d] & two_sided[d]};
     wire [12:0] lba = 13'({4'd0, lba_track} * {5'd0, sectors_per_track}) + 13'(sector[d]) - 13'd1;
@@ -325,7 +336,7 @@ module pc386_fdc #(
             3'd2: rdata = dor;
             3'd4: rdata = msr;
             3'd5: rdata = phase == P_RESULT ? result_byte : pio_take ? buffer_byte : last_result;
-            3'd7: rdata = {changed[d] && dor[{2'b10, d}], 7'h7f};
+            3'd7: rdata = {changed[dor[0]] && dor[{2'b10, dor[0]}], 7'h7f};
             default: rdata = 8'hff;
         endcase
     end
@@ -435,7 +446,7 @@ module pc386_fdc #(
         if (us && !waited) wait_us <= wait_us - 24'd1;
         if (aux_readdatavalid && owed != 8'd0) owed <= owed - 8'd1;
         if (reset) begin
-            dor <= 8'h0c; msr <= 8'h80; rate <= 2'd2; nd <= 0; lock <= 0;
+            dor <= 8'h0c; xd <= 0; msr <= 8'h80; rate <= 2'd2; nd <= 0; lock <= 0;
             srt <= 0; hut <= 0; hlt <= 0; config_byte <= 0; pretrk <= 0; perp <= 0;
             cyl <= 0; head <= 0; sector <= {8'd1, 8'd1}; eot <= 0;
             changed <= 0; present_q <= present;
@@ -564,7 +575,7 @@ module pc386_fdc #(
                         8'h07, 8'h0f, 8'h8f, 8'hcf: begin
                             // Recalibrate and the seeks: the cylinder moves now
                             // and the steps take their time.
-                            dor[0] <= command_drive;
+                            xd <= command_drive;
                             recalibrating <= op == 8'h07;
                             if (op != 8'h07) begin
                                 head[command_drive] <= command[1][2];
@@ -599,7 +610,7 @@ module pc386_fdc #(
                         8'h12: begin perp <= command[1]; enter_idle(); end
                         default: begin
                             // Read ID, Format Track, and the reads and writes.
-                            dor[0] <= command_drive;
+                            xd <= command_drive;
                             msr <= 8'h10;
                             writing <= base == C_WRITE || base == C_WRITE_DELETED || formatting;
                             if (base == C_READ_ID || formatting) begin

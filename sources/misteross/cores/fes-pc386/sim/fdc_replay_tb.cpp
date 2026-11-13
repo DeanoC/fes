@@ -615,6 +615,18 @@ std::vector<Case> cases() {
         g.show(0x3f4);
     }});
     // ---- Cases fdc_divergences.toml lists
+    list.push_back({"dor_select", 4, 2, false, [](Guest &g) {
+        { const Disk a = A144, b = B12; g.boot(&a, &b); }
+        start(g);
+        g.out(0x3f2, 0x3c);                                  // both motors, drive 0 selected
+        g.f.eject(0); g.tick();                              // drive 0's change is set
+        g.command({0x04, 0x01}); g.results();                // Sense Drive Status names drive 1
+        g.show(0x3f2);
+        g.show(0x3f7);
+        seek(g, 1, 0, 2);                                    // a step clears drive 1's change
+        g.show(0x3f2);
+        g.show(0x3f7);
+    }});
     list.push_back({"status_registers", 4, 2, false, [](Guest &g) {
         g.check(g.show(0x3f0) == 0xff, "3F0h reads FFh");
         g.check(g.show(0x3f1) == 0xff, "3F1h reads FFh");
