@@ -1,12 +1,12 @@
 {
-  "build_id": "8295bebf93eb90e7c7b9846231de7c07",
+  "build_id": "a939617cb48be3efdf5eb7ac7eb38537",
   "device": "5CSEBA6U23I7",
   "firmware": {
     "bios": "d11a805ed1cbbb00e8d764035f467c60c4fd22a941fa09ece51cf4095ba8541a",
     "rom_hex": "774e1c37e6b7e7fb22a6e52bfa6fd0d7689025984bc3352f0eaca36a37ae0177",
     "vgabios": "8522568e32a33b2f5649109260fec70b0b2cd0d80a6216ac7af6a1041c102e02"
   },
-  "gpu_backend": "hip",
+  "gpu_backend": "cuda",
   "guest_rates": {
     "ATA_RESET_CLOCKS": 615,
     "AUDIO_D": 1280,
@@ -31,7 +31,7 @@
     "US_N": 25
   },
   "inputs": {
-    "cores/fes-common/generated/fes_application.vh": "9c6e659e8c96eb3ffa0e0f42d46250b1de93acdaf03ec562ba6ee0b3a39ddf6c",
+    "cores/fes-common/generated/fes_application.vh": "e460d17b0dabc1b55ab16712e9239aadcef3800861b3c049a83e5046a25b9d19",
     "cores/fes-common/generated/fes_computer.vh": "2238e03a42939f2f5485d9ea15b77088ab1c229bb47d3130a703624d7fa5297c",
     "cores/fes-common/generated/fes_display_plane.vh": "7c2ea5e7a113c5e9fb5ba419cc61ca272d6accd2fb97e73db50ef350caa4a9a3",
     "cores/fes-common/rtl/fes_audio_i2s.v": "14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4",
@@ -150,23 +150,23 @@
   },
   "netlist": {
     "cpu_source_sha256": "51903bb2f8b4bf6ed7212942b6127d8337446d01b7c279f549fd7404501db40f",
-    "machine_netlist_sha256": "8c183e851053bde3f21250fc2fb59666119301f0e052d8e2661ed06b7c056957",
+    "machine_netlist_sha256": "7394832a2ee0c71a728d6ad240f5fc756c90651178b3ad9e2aa6d1bdf9fcbf1c",
     "program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
     "yosys": {
-      "gpu_router": "HIP",
+      "gpu_router": "CUDA",
       "lock": "cores/fes-pc386/toolchain.lock",
       "lock_sha256": "294c89450c6c719f649cd4f248d0d844dd431df1138d44d6a26e4a1219ac579c",
-      "tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=196849025ca247091047806f5fe9b63dd71e5fed8d95978bec0cccf7ceeabdf3"
+      "tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=470eb6f6e306b175f50a97fa815c17b2816af5284fa09fda59b16fe77532e263"
     }
   },
   "rbf": {
-    "sha256": "96faa87d9570e720e86c1a9b2dc7a92bb501d8bd42acefa51244b85166167156",
-    "size": 3911628
+    "sha256": "d3ef2c5dc3e4cacb8b76e3737b553130d7ccf9c28decabb8b733e4d9f0aa8c8d",
+    "size": 3884556
   },
   "resources": {
     "alms": {
       "available": 41910,
-      "used": 36928
+      "used": 36940
     },
     "block_memory_bits": {
       "available": 5662720,
@@ -181,7 +181,7 @@
       "used": 269
     },
     "registers": {
-      "used": 32875
+      "used": 32835
     }
   },
   "seed": 1,
@@ -190,7 +190,7 @@
     "analyses": {
       "hold": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.107
+        "worst_slack_ns": 0.022
       },
       "minimum_pulse_width": {
         "tns_ns": 0.0,
@@ -198,15 +198,15 @@
       },
       "recovery": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 7.664
+        "worst_slack_ns": 6.463
       },
       "removal": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.496
+        "worst_slack_ns": 0.396
       },
       "setup": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.977
+        "worst_slack_ns": 0.446
       }
     },
     "clocks": {
@@ -225,10 +225,10 @@
     },
     "status": "pass"
   },
-  "toolchain": "Quartus Prime Lite 17.0.2 (version=17.0.2; sha256=71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93); machine elaborated by Yosys (commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=196849025ca247091047806f5fe9b63dd71e5fed8d95978bec0cccf7ceeabdf3)",
+  "toolchain": "Quartus Prime Lite 17.0.2 (version=17.0.2; sha256=71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93); machine elaborated by Yosys (commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=470eb6f6e306b175f50a97fa815c17b2816af5284fa09fda59b16fe77532e263)",
   "tools": {
     "quartus_sh": "version=17.0.2; sha256=71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93",
-    "yosys": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=196849025ca247091047806f5fe9b63dd71e5fed8d95978bec0cccf7ceeabdf3"
+    "yosys": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=470eb6f6e306b175f50a97fa815c17b2816af5284fa09fda59b16fe77532e263"
   },
   "top": "top"
 }
