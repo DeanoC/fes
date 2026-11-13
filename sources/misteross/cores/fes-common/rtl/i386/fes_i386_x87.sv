@@ -133,148 +133,6 @@ module fes_i386_x87 (
 );
     import fes_i386_pkg::*;
 
-    // ---- The operand formats, as fes_i386_pkg names them. ----
-    localparam logic [2:0] FMT_NONE = 3'd0;  // a register form: no operand
-    localparam logic [2:0] FMT_F32  = 3'd1;
-    localparam logic [2:0] FMT_F64  = 3'd2;
-    localparam logic [2:0] FMT_F80  = 3'd3;
-    localparam logic [2:0] FMT_I16  = 3'd4;
-    localparam logic [2:0] FMT_I32  = 3'd5;
-    localparam logic [2:0] FMT_I64  = 3'd6;
-    localparam logic [2:0] FMT_ENV  = 3'd7;  // an environment or save image's field
-
-    // ---- The operations this slice builds. ----
-    typedef enum logic [4:0] {
-        OP_UNIMPL,   // a later slice's form
-        OP_NOP,      // FNOP, FENI, FDISI, FSETPM
-        OP_LD_M,     // FLD or FILD of a memory operand: push
-        OP_ST_M,     // FST, FIST: store ST(0)
-        OP_STP_M,    // FSTP, FISTP: store ST(0) and pop
-        OP_LDCW,
-        OP_STCW,
-        OP_STSW,
-        OP_STENV,
-        OP_LDENV,
-        OP_SAVE,
-        OP_RSTOR,
-        OP_LD_ST,    // FLD ST(i)
-        OP_ST_ST,    // FST ST(i)
-        OP_STP_ST,   // FSTP ST(i)
-        OP_XCH,
-        OP_FREE,
-        OP_INCSTP,
-        OP_DECSTP,
-        OP_INIT,
-        OP_CLEX,
-        OP_CONST,
-        OP_CHS,
-        OP_ABS,
-        OP_TST,
-        OP_XAM
-    } op_e;
-
-    // The eight constants FLD1 to FLDZ push, in the 387's order (D9 E8-EE),
-    // and the significand each rounding mode gives for the ones that are not
-    // exact in 64 bits (387 PRM, "FLDPI and the other constants"; the 387
-    // rounds a constant under RC, so round down and round to zero give the
-    // significand one less).
-    function automatic logic [79:0] constant_of(input logic [2:0] i, input logic [1:0] rc);
-        logic [63:0] sig;
-        logic [14:0] exp;
-        logic        near_up;   // rounding to nearest takes the significand above
-        logic        inexact;
-        case (i)
-            3'd0: begin sig = 64'h8000000000000000; exp = 15'h3fff; near_up = 1'b0; inexact = 1'b0; end  // 1.0
-            3'd1: begin sig = 64'hd49a784bcd1b8afe; exp = 15'h4000; near_up = 1'b0; inexact = 1'b1; end  // log2(10)
-            3'd2: begin sig = 64'hb8aa3b295c17f0bb; exp = 15'h3fff; near_up = 1'b1; inexact = 1'b1; end  // log2(e)
-            3'd3: begin sig = 64'hc90fdaa22168c234; exp = 15'h4000; near_up = 1'b1; inexact = 1'b1; end  // pi
-            3'd4: begin sig = 64'h9a209a84fbcff798; exp = 15'h3ffd; near_up = 1'b1; inexact = 1'b1; end  // log10(2)
-            3'd5: begin sig = 64'hb17217f7d1cf79ab; exp = 15'h3ffe; near_up = 1'b1; inexact = 1'b1; end  // ln(2)
-            default: begin sig = 64'd0; exp = 15'd0; near_up = 1'b0; inexact = 1'b0; end                 // +0.0
-        endcase
-        // Every constant is positive, so round down and round to zero keep
-        // the truncated significand and round up takes the next one.
-        if (inexact && (rc == 2'd0 && near_up || rc == 2'd2)) sig = sig + 64'd1;
-        constant_of = {1'b0, exp, sig};
-    endfunction
-
-    // ---- Decode: the 387 opcode to an operation. ----
-    // op[10:8] is ESC's low three bits (D8h-DFh), op[7:0] the ModRM byte.
-    function automatic op_e decode_op(input logic [10:0] o, input logic [2:0] fmt);
-        logic [2:0] esc, rf;
-        logic       regform;
-        esc = o[10:8];
-        rf = o[5:3];
-        regform = o[7:6] == 2'b11;
-        decode_op = OP_UNIMPL;
-        if (!regform) begin
-            // The memory forms. Every arithmetic form (D8, DA, DC, DE, and
-            // D9/D8 with a memory operand) is a later slice's.
-            case ({esc, rf})
-                {3'b001, 3'd0}, {3'b101, 3'd0}, {3'b011, 3'd5},   // FLD m32, m64, m80
-                {3'b011, 3'd0}, {3'b111, 3'd0}, {3'b111, 3'd5}:   // FILD m32, m16, m64
-                    decode_op = OP_LD_M;
-                {3'b001, 3'd2}, {3'b101, 3'd2},                   // FST m32, m64
-                {3'b011, 3'd2}, {3'b111, 3'd2}:                   // FIST m32, m16
-                    decode_op = OP_ST_M;
-                {3'b001, 3'd3}, {3'b101, 3'd3}, {3'b011, 3'd7},   // FSTP m32, m64, m80
-                {3'b011, 3'd3}, {3'b111, 3'd3}, {3'b111, 3'd7}:   // FISTP m32, m16, m64
-                    decode_op = OP_STP_M;
-                {3'b001, 3'd5}: decode_op = OP_LDCW;  // FLDCW, a word like any other
-                {3'b001, 3'd7}: decode_op = OP_STCW;
-                {3'b101, 3'd7}: decode_op = OP_STSW;
-                {3'b001, 3'd6}: decode_op = OP_STENV;
-                {3'b001, 3'd4}: decode_op = OP_LDENV;
-                {3'b101, 3'd6}: decode_op = OP_SAVE;
-                {3'b101, 3'd4}: decode_op = OP_RSTOR;
-                default: decode_op = OP_UNIMPL;  // FBLD, FBSTP and the arithmetic forms
-            endcase
-            // A memory form needs its operand's format, and the four
-            // environment and save forms the environment's.
-            if (fmt == FMT_NONE) decode_op = OP_UNIMPL;
-            if ((decode_op == OP_STENV || decode_op == OP_LDENV || decode_op == OP_SAVE
-                 || decode_op == OP_RSTOR) != (fmt == FMT_ENV)) decode_op = OP_UNIMPL;
-        end else begin
-            case (esc)
-                3'b001: begin  // D9
-                    case (o[7:0])
-                        8'hd0: decode_op = OP_NOP;   // FNOP
-                        8'he0: decode_op = OP_CHS;
-                        8'he1: decode_op = OP_ABS;
-                        8'he4: decode_op = OP_TST;
-                        8'he5: decode_op = OP_XAM;
-                        8'hf6: decode_op = OP_DECSTP;
-                        8'hf7: decode_op = OP_INCSTP;
-                        default: begin
-                            if (o[7:3] == 5'b11000) decode_op = OP_LD_ST;        // D9 C0+i
-                            else if (o[7:3] == 5'b11001) decode_op = OP_XCH;     // D9 C8+i
-                            else if (o[7:0] >= 8'he8 && o[7:0] <= 8'hee) decode_op = OP_CONST;
-                            else decode_op = OP_UNIMPL;
-                        end
-                    endcase
-                end
-                3'b011: begin  // DB
-                    // FENI, FDISI and FSETPM are a 387's FNOPs; FNCLEX and
-                    // FNINIT are the two forms that do not wait for BUSY#.
-                    case (o[7:0])
-                        8'he0, 8'he1, 8'he4: decode_op = OP_NOP;
-                        8'he2: decode_op = OP_CLEX;
-                        8'he3: decode_op = OP_INIT;
-                        default: decode_op = OP_UNIMPL;
-                    endcase
-                end
-                3'b101: begin  // DD
-                    if (o[7:3] == 5'b11000) decode_op = OP_FREE;         // DD C0+i
-                    else if (o[7:3] == 5'b11010) decode_op = OP_ST_ST;   // DD D0+i
-                    else if (o[7:3] == 5'b11011) decode_op = OP_STP_ST;  // DD D8+i
-                    else decode_op = OP_UNIMPL;
-                end
-                3'b111: decode_op = o[7:0] == 8'he0 ? OP_STSW : OP_UNIMPL;  // DF E0
-                default: decode_op = OP_UNIMPL;
-            endcase
-        end
-    endfunction
-
     // ---- The value classes (387 PRM section 3.1.7). ----
     // A pseudo-denormal (exponent 0 with the significand's bit 63 set) is a
     // denormal whose exponent reads as 1; an unnormal (a non-zero exponent
@@ -416,7 +274,7 @@ module fes_i386_x87 (
         S_IDLE, S_ARG, S_PRE, S_SHIFT, S_MUL, S_POST, S_POST2, S_RDY, S_SAVE_RD, S_APPLY, S_APPLY2
     } seq_e;
     seq_e        seq;
-    op_e         cur;
+    x87_op_e     cur;
     logic [2:0]  cur_fmt;
     logic        cur_pop;       // the form pops ST(0) after it stores
     logic [2:0]  cur_i;         // the form's ST(i) index
@@ -448,19 +306,19 @@ module fes_i386_x87 (
     // FNINIT and FNCLEX are the two forms that do not wait for BUSY# (HRM
     // section 5.1), so they pass the latch and the unit's own work; every
     // other ESC, and WAIT, holds.
-    op_e  iss_dec;
+    x87_op_e iss_dec;
     logic iss_nowait;
-    assign iss_dec = decode_op(iss_op, iss_fmt);
-    assign iss_nowait = !iss_wait && (iss_dec == OP_INIT || iss_dec == OP_CLEX);
+    assign iss_dec = x87_decode(iss_op, iss_fmt);
+    assign iss_nowait = !iss_wait && (iss_dec == X87_INIT || iss_dec == X87_CLEX);
     // The forms whose value the CPU needs before the instruction retires:
     // a real or integer store, whose conversion the unit runs as the
     // instruction's first uop waits in D. FNSTCW, FNSTSW, FNSTENV and
     // FNSAVE answer out of state, FNSAVE after a register read apiece.
     logic started;             // the unit has taken the instruction at D's head
     logic val_form, take, iss_save_rd;
-    assign val_form = iss_dec == OP_ST_M || iss_dec == OP_STP_M;
-    assign iss_save_rd = iss && !iss_wait && iss_dec == OP_SAVE && iss_part[5] && iss_part[1:0] == 2'd0;
-    assign unimpl = present && iss && !iss_wait && iss_first && iss_dec == OP_UNIMPL;
+    assign val_form = iss_dec == X87_ST_M || iss_dec == X87_STP_M;
+    assign iss_save_rd = iss && !iss_wait && iss_dec == X87_SAVE && iss_part[5] && iss_part[1:0] == 2'd0;
+    assign unimpl = present && iss && !iss_wait && iss_first && iss_dec == X87_UNIMPL;
     // The hold (BUSY#): a new instruction waits for the board's latch and
     // for the unit, and one the unit has taken waits for its own value.
     // FNINIT and FNCLEX wait for neither (HRM section 5.1).
@@ -474,16 +332,16 @@ module fes_i386_x87 (
     // flags, the hazard Intel's note about FWAIT before FNCLEX describes.
     logic take_nw;
     assign take = present && iss && iss_first && !started && !busy && !latched
-               && !iss_wait && !iss_nowait && iss_dec != OP_UNIMPL;
+               && !iss_wait && !iss_nowait && iss_dec != X87_UNIMPL;
     assign take_nw = present && iss && iss_first && iss_nowait && nw == 2'd0;
     // The control forms, which leave the x87 pointers and the opcode as they
     // are: the same list fes_i386_decode gives X87P_NONE. FNOP (D9 D0) is
     // not one of them; FENI, FDISI and FSETPM (DB E0, E1, E4) are.
     logic ctrl_form;
-    assign ctrl_form = iss_dec == OP_INIT || iss_dec == OP_CLEX || iss_dec == OP_STSW
-                    || iss_dec == OP_STCW || iss_dec == OP_LDCW || iss_dec == OP_STENV
-                    || iss_dec == OP_LDENV || iss_dec == OP_SAVE || iss_dec == OP_RSTOR
-                    || iss_dec == OP_NOP && iss_op[10:8] == 3'b011;
+    assign ctrl_form = iss_dec == X87_INIT || iss_dec == X87_CLEX || iss_dec == X87_STSW
+                    || iss_dec == X87_STCW || iss_dec == X87_LDCW || iss_dec == X87_STENV
+                    || iss_dec == X87_LDENV || iss_dec == X87_SAVE || iss_dec == X87_RSTOR
+                    || iss_dec == X87_NOP && iss_op[10:8] == 3'b011;
 
     // ---- The load conversions (387 PRM section 2.2 and Table 3.4). ----
     // A load of a 32- or 64-bit real, or of a 16-, 32- or 64-bit integer, to
@@ -519,8 +377,8 @@ module fes_i386_x87 (
         f64 = mval[51:0];
         e64 = mval[62:52];
         case (cur_fmt)
-            FMT_F80: ld_v = mval;
-            FMT_F32: begin
+            X87F_F80: ld_v = mval;
+            X87F_F32: begin
                 ld_sign = mval[31];
                 if (e32 == 8'd0 && f32 == 23'd0) ld_v = {mval[31], 79'd0};
                 else if (e32 == 8'd0) begin
@@ -537,7 +395,7 @@ module fes_i386_x87 (
                 end else
                     ld_v = {mval[31], 15'(17'(e32) + 17'd16256), 1'b1, f32, 40'd0};
             end
-            FMT_F64: begin
+            X87F_F64: begin
                 ld_sign = mval[63];
                 if (e64 == 11'd0 && f64 == 52'd0) ld_v = {mval[63], 79'd0};
                 else if (e64 == 11'd0) begin
@@ -556,8 +414,8 @@ module fes_i386_x87 (
                 // FILD of a 16-, 32- or 64-bit integer, sign-extended, which
                 // is exact: the magnitude normalised, or +0.0 for zero (a
                 // zero integer loads as positive).
-                iv = cur_fmt == FMT_I16 ? {{48{mval[15]}}, mval[15:0]}
-                   : cur_fmt == FMT_I32 ? {{32{mval[31]}}, mval[31:0]} : mval[63:0];
+                iv = cur_fmt == X87F_I16 ? {{48{mval[15]}}, mval[15:0]}
+                   : cur_fmt == X87F_I32 ? {{32{mval[31]}}, mval[31:0]} : mval[63:0];
                 ld_sign = iv[63];
                 if (iv == 64'd0) ld_v = 80'd0;
                 else begin
@@ -599,9 +457,9 @@ module fes_i386_x87 (
     logic       f_f64, f_int;
     logic [1:0] f_iw;
     logic [14:0] f_bias;
-    assign f_f64 = cur_fmt == FMT_F64;
-    assign f_int = cur_fmt == FMT_I16 || cur_fmt == FMT_I32 || cur_fmt == FMT_I64;
-    assign f_iw = cur_fmt == FMT_I16 ? 2'd0 : cur_fmt == FMT_I32 ? 2'd1 : 2'd2;
+    assign f_f64 = cur_fmt == X87F_F64;
+    assign f_int = cur_fmt == X87F_I16 || cur_fmt == X87F_I32 || cur_fmt == X87F_I64;
+    assign f_iw = cur_fmt == X87F_I16 ? 2'd0 : cur_fmt == X87F_I32 ? 2'd1 : 2'd2;
     assign f_bias = f_f64 ? 15'd1023 : 15'd127;
     logic signed [17:0] st_te;
     assign st_te = st_e + $signed({3'b0, f_bias});
@@ -619,13 +477,13 @@ module fes_i386_x87 (
         st_v = 80'd0;
         st_fl = 6'd0;
         case (cur_fmt)
-            FMT_F80: begin
+            X87F_F80: begin
                 // FSTP m80 is a bit copy, so no operand raises anything but
                 // the stack fault of an empty ST(0).
                 st_v = st_cls == C_EMPTY ? INDEFINITE : ra_val;
                 st_fl = st_cls == C_EMPTY ? 6'b000001 : 6'd0;
             end
-            FMT_F32, FMT_F64: begin
+            X87F_F32, X87F_F64: begin
                 st_p = f_f64 ? P_11 : P_40;
                 case (st_cls)
                     C_EMPTY, C_UNSUP: begin
@@ -755,9 +613,9 @@ module fes_i386_x87 (
     // CPU builds fields 3 to 6, the x87 pointers, itself); and a save
     // image's chunk of the register the unit has read.
     always_comb begin
-        if (iss_dec == OP_STCW) sval = {16'd0, cw};
-        else if (iss_dec == OP_STSW) sval = {16'd0, sw_o};
-        else if (iss_dec == OP_STENV || iss_dec == OP_SAVE) begin
+        if (iss_dec == X87_STCW) sval = {16'd0, cw};
+        else if (iss_dec == X87_STSW) sval = {16'd0, sw_o};
+        else if (iss_dec == X87_STENV || iss_dec == X87_SAVE) begin
             if (iss_part[5])
                 sval = iss_part[1:0] == 2'd0 ? ra_val[31:0]
                      : iss_part[1:0] == 2'd1 ? ra_val[63:32] : {16'd0, ra_val[79:64]};
@@ -841,12 +699,12 @@ module fes_i386_x87 (
                 pnx <= 1'b0;
                 seq <= S_IDLE;
             end else begin
-            if (take_nw) nw <= iss_dec == OP_INIT ? 2'd1 : 2'd2;
+            if (take_nw) nw <= iss_dec == X87_INIT ? 2'd1 : 2'd2;
             if (wb && wb_last && started) committed <= 1'b1;
             // A load uop's value, and an environment's or a save image's
             // fields, as each commits.
             if (wb && started) begin
-                if (cur == OP_LDENV || cur == OP_RSTOR) begin
+                if (cur == X87_LDENV || cur == X87_RSTOR) begin
                     if (!wb_part[5]) begin
                         case (wb_part[2:0])
                             3'd0: cw <= wb_val[15:0];
@@ -876,7 +734,7 @@ module fes_i386_x87 (
                             end
                         endcase
                     end
-                end else if (cur == OP_LD_M || cur == OP_LDCW) begin
+                end else if (cur == X87_LD_M || cur == X87_LDCW) begin
                     case (wb_part[1:0])
                         2'd0: mval[31:0] <= wb_val;
                         2'd1: mval[63:32] <= wb_val;
@@ -900,7 +758,7 @@ module fes_i386_x87 (
                     cur <= iss_dec;
                     cur_fmt <= iss_fmt;
                     cur_i <= iss_op[2:0];
-                    cur_pop <= iss_dec == OP_STP_M || iss_dec == OP_STP_ST;
+                    cur_pop <= iss_dec == X87_STP_M || iss_dec == X87_STP_ST;
                     cur_op_raw <= iss_op;
                     cur_ctrl <= ctrl_form;
                     started <= 1'b1;
@@ -914,7 +772,7 @@ module fes_i386_x87 (
                         ra_idx <= top;
                         mul_store <= 1'b1;
                         seq <= S_ARG;
-                    end else if (iss_dec == OP_SAVE) begin
+                    end else if (iss_dec == X87_SAVE) begin
                         ra_idx <= iss_part[4:2];
                         seq <= S_SAVE_RD;
                     end
@@ -923,7 +781,7 @@ module fes_i386_x87 (
                 // shift (a multiply) when the result is a denormal of the
                 // target or an integer, then the rounding.
                 S_ARG: seq <= S_PRE;
-                S_PRE: if (cur == OP_LD_M) begin
+                S_PRE: if (cur == X87_LD_M) begin
                     // A load's normalising left shift, a multiply by 2^lz.
                     if (ld_shift) begin
                         sh_in <= ld_mag;
@@ -934,7 +792,7 @@ module fes_i386_x87 (
                         seq <= S_SHIFT;
                     end else
                         seq <= S_APPLY;
-                end else if (cur != OP_ST_M && cur != OP_STP_M) seq <= S_APPLY;
+                end else if (cur != X87_ST_M && cur != X87_STP_M) seq <= S_APPLY;
                        else begin
                     sh_in <= st_sig;
                     sh_k <= st_shift ? st_k : 7'd0;
@@ -1039,9 +897,9 @@ module fes_i386_x87 (
                     ccw = 1'b0;
                     // The control forms, FNOP and FFREE leave the condition
                     // codes as they are; every other form writes C1.
-                    c1_wr = !(cur == OP_NOP || cur == OP_STCW || cur == OP_STSW || cur == OP_STENV
-                              || cur == OP_LDENV || cur == OP_SAVE || cur == OP_RSTOR
-                              || cur == OP_FREE || cur == OP_LDCW);
+                    c1_wr = !(cur == X87_NOP || cur == X87_STCW || cur == X87_STSW || cur == X87_STENV
+                              || cur == X87_LDENV || cur == X87_SAVE || cur == X87_RSTOR
+                              || cur == X87_FREE || cur == X87_LDCW);
                     nc = cc;
                     v = 80'd0;
                     wr = 1'b0;
@@ -1052,19 +910,19 @@ module fes_i386_x87 (
                     seq <= S_IDLE;
                     started <= 1'b0;
                     case (cur)
-                        OP_LD_M, OP_LD_ST, OP_CONST: begin
+                        X87_LD_M, X87_LD_ST, X87_CONST: begin
                             // A push: an occupied destination is a stack
                             // overflow, whose masked result is the real
                             // indefinite (387 PRM section 3.1.7).
                             push = 1'b1;
-                            v = cur == OP_CONST ? constant_of(cur_i, rc)
-                              : cur == OP_LD_ST ? rb_val
+                            v = cur == X87_CONST ? constant_of(cur_i, rc)
+                              : cur == X87_LD_ST ? rb_val
                               : (sh_k != 7'd0 || mul_store ? 80'd0 : 80'd0);
-                            if (cur == OP_LD_M) begin
+                            if (cur == X87_LD_M) begin
                                 f = ld_fl;
                                 v = ld_shift ? {ld_sign, sh_exp, mul_p[63:0]} : ld_v;
                             end
-                            if (cur == OP_LD_ST && cicls == C_EMPTY) begin
+                            if (cur == X87_LD_ST && cicls == C_EMPTY) begin
                                 f[0] = 1'b1;
                                 stk = 1'b1;
                                 c1 = 1'b0;
@@ -1078,7 +936,7 @@ module fes_i386_x87 (
                             end
                             wr = 1'b1;
                         end
-                        OP_ST_ST, OP_STP_ST: begin
+                        X87_ST_ST, X87_STP_ST: begin
                             // FST and FSTP of ST(i): an empty ST(0) is a
                             // stack underflow.
                             v = ra_val;
@@ -1089,9 +947,9 @@ module fes_i386_x87 (
                                 v = INDEFINITE;
                             end
                             wr = 1'b1;
-                            pop = cur == OP_STP_ST;
+                            pop = cur == X87_STP_ST;
                         end
-                        OP_XCH: begin
+                        X87_XCH: begin
                             // FXCH: an empty register at either end is a
                             // stack underflow, and the masked result puts
                             // the real indefinite in both.
@@ -1102,8 +960,8 @@ module fes_i386_x87 (
                             end
                             wr = 1'b1;
                         end
-                        OP_CHS, OP_ABS: begin
-                            v = {cur == OP_CHS ? ~ra_val[79] : 1'b0, ra_val[78:0]};
+                        X87_CHS, X87_ABS: begin
+                            v = {cur == X87_CHS ? ~ra_val[79] : 1'b0, ra_val[78:0]};
                             if (c0cls == C_EMPTY) begin
                                 f[0] = 1'b1;
                                 stk = 1'b1;
@@ -1112,7 +970,7 @@ module fes_i386_x87 (
                             c1 = 1'b0;
                             wr = 1'b1;
                         end
-                        OP_TST: begin
+                        X87_TST: begin
                             // FTST compares ST(0) with +0.0: C3 C2 C0 are
                             // 0 0 0 above, 0 0 1 below, 1 0 0 equal, and
                             // 1 1 1 when the two are not comparable, which
@@ -1136,7 +994,7 @@ module fes_i386_x87 (
                                 end
                             endcase
                         end
-                        OP_XAM: begin
+                        X87_XAM: begin
                             // FXAM's classes (387 PRM, Table 3.6): C1 is the
                             // sign, and C3 C2 C0 name the class, with the
                             // unsupported formats 0 0 0.
@@ -1152,16 +1010,16 @@ module fes_i386_x87 (
                                 default: nc = {1'b1, 1'b1, 1'b0, 1'b0};  // denormal
                             endcase
                         end
-                        OP_FREE: empty[top + cur_i] <= 1'b1;
-                        OP_INCSTP: begin
+                        X87_FREE: empty[top + cur_i] <= 1'b1;
+                        X87_INCSTP: begin
                             top <= top + 3'd1;
                             c1 = 1'b0;
                         end
-                        OP_DECSTP: begin
+                        X87_DECSTP: begin
                             top <= top - 3'd1;
                             c1 = 1'b0;
                         end
-                        OP_INIT, OP_SAVE: begin
+                        X87_INIT, X87_SAVE: begin
                             // FNINIT, and FNSAVE once its image is stored,
                             // leave the unit as FINIT does (387 PRM section
                             // 4.8.1): control 037Fh, no flags, every tag
@@ -1175,7 +1033,7 @@ module fes_i386_x87 (
                             empty <= 8'hff;
                             opcode <= 11'd0;
                         end
-                        OP_CLEX: begin
+                        X87_CLEX: begin
                             // FNCLEX clears the exception flags, the stack
                             // flag and ES, and keeps the condition codes and
                             // TOP (387 PRM, FCLEX).
@@ -1183,21 +1041,21 @@ module fes_i386_x87 (
                             sf <= 1'b0;
                             es <= 1'b0;
                         end
-                        OP_LDCW: begin
+                        X87_LDCW: begin
                             cw <= mval[15:0];
                             // Unmasking an exception that is already pending
                             // makes it due at the next waiting ESC, so ES
                             // goes active now.
                             if (unmasked(fl, mval[15:0])) es <= 1'b1;
                         end
-                        OP_STENV: cw[5:0] <= 6'h3f;  // FNSTENV masks every exception
-                        OP_ST_M, OP_STP_M: pop = cur_pop;
+                        X87_STENV: cw[5:0] <= 6'h3f;  // FNSTENV masks every exception
+                        X87_ST_M, X87_STP_M: pop = cur_pop;
                         default: ;  // FNOP, FNSTCW, FNSTSW, FLDENV, FRSTOR
                     endcase
                     um = unmasked(f, cw);
                     // The flags and the stack flag are sticky; ES stays set
                     // until FNCLEX, FNINIT or the F1h reset clears it.
-                    if (cur != OP_INIT && cur != OP_SAVE && cur != OP_CLEX) begin
+                    if (cur != X87_INIT && cur != X87_SAVE && cur != X87_CLEX) begin
                         fl <= fl | f;
                         if (stk) sf <= 1'b1;
                         if (um) begin
@@ -1220,18 +1078,18 @@ module fes_i386_x87 (
                             empty[top] <= 1'b1;
                             top <= top + 3'd1;
                         end
-                        if (cur == OP_ST_ST || cur == OP_STP_ST) begin
+                        if (cur == X87_ST_ST || cur == X87_STP_ST) begin
                             rw_idx <= top + cur_i;
                             rw_val <= v;
                             rw_en <= 1'b1;
                             if (empty[top + cur_i]) empty[top + cur_i] <= 1'b0;
                         end
-                        if (cur == OP_CHS || cur == OP_ABS) begin
+                        if (cur == X87_CHS || cur == X87_ABS) begin
                             rw_idx <= top;
                             rw_val <= v;
                             rw_en <= 1'b1;
                         end
-                        if (cur == OP_XCH) begin
+                        if (cur == X87_XCH) begin
                             // Two writes, so two cycles: ST(0) now and
                             // ST(i) next.
                             rw_idx <= top;
