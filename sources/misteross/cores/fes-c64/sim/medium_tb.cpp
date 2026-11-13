@@ -64,14 +64,19 @@ int main(int argc,char**argv){
  step(1);if(expected.halftrack!=70)throw std::runtime_error("upper head limit failed");
  seek(1);step(-1);if(expected.halftrack!=2)throw std::runtime_error("lower head limit failed");
  t.drive_pins=(t.drive_pins&~3)|(expected.halftrack&3);
- // Remove and replace all bytes while the motor continues running.
+ // Remove and replace all bytes while the motor continues running and the
+ // head is parked between tracks. A finished rebuild is still invisible
+ // until the head returns to a full track.
+ step(1);if(expected.halftrack!=3)throw std::runtime_error("odd-track replacement seek failed");
  t.disk_ready=0;for(unsigned i=0;i<100;++i)tick();
  std::ifstream in(argv[3],std::ios::binary);std::vector<unsigned char>replacement((std::istreambuf_iterator<char>(in)),{});
  if(replacement.size()!=174848)return 2;
  for(unsigned i=0;i<replacement.size();i+=2){t.write_addr=i;t.write_data=replacement[i]|(replacement[i+1]<<8);t.write_enable=3;tick();}
  t.write_enable=0;tick();
  RotatingDisk replacement_disk(argv[2]);expected.tracks=std::move(replacement_disk.tracks);
- t.disk_ready=1;build();
+ t.disk_ready=1;for(unsigned i=0;i<50000;++i)tick();
+ if(t.cache_ready || t.flux)throw std::runtime_error("replacement visible on half-track");
+ step(-1);build();
  for(auto track:{1u,18u,25u,31u}){seek(track);t.drive_pins^=0x60;revolution();}
  std::printf("PASS: %llu reference ticks, %llu flux pulses, max build%u system clocks (%.3fms at52.224MHz), all35 tracks plus four replacement tracks\n",(unsigned long long)compared,(unsigned long long)fluxes,worst_build,worst_build/52224.0);
 }
