@@ -7501,12 +7501,12 @@ floppy_drive_recal(drive)
 
   // FES 2026-11-13: a drive resets its change line when it sees a step pulse
   // with a disk in it, and RECALIBRATE issues step pulses only "as long as
-  // the TRKO pin is low" (82077AA/82077SL datasheet, RECALIBRATE). So a
-  // recalibration of a head already at cylinder 0 leaves the line active,
-  // and every later access would be told the disk had changed again. Step
-  // the head in one cylinder first when the line is active; the Recalibrate
-  // below brings it back. SENSE INTERRUPT STATUS ends the seek, as the
-  // datasheet requires of a command with no result phase.
+  // the TRKO pin is low" (82077SL datasheet 290410-001, RECALIBRATE; the
+  // 82077AA's superset). So a recalibration of a head already at cylinder 0
+  // leaves the line active, and every later access would be told the disk
+  // had changed again. Step the head in one cylinder first when the line is
+  // active; the Recalibrate below brings it back. INT 0Eh ends the seek with
+  // its own SENSE INTERRUPT STATUS, as it does for the Recalibrate.
   if (inb(PORT_FD_DIR) & 0x80) {
     outb(PORT_FD_DATA, 0x0f);  // 0f: Seek
     outb(PORT_FD_DATA, drive);
@@ -7524,12 +7524,6 @@ ASM_END
     val8 = read_byte_DS(0x003e);
     val8 &= 0x7f;
     write_byte_DS(0x003e, val8);
-    outb(PORT_FD_DATA, 0x08);  // 08: Sense Interrupt Status
-    val8 = inb(PORT_FD_DATA);
-    val8 = inb(PORT_FD_DATA);
-    do {
-      val8 = inb(PORT_FD_STATUS);
-    } while ( (val8 & 0xc0) != 0x80 );
   }
 
   // send Recalibrate command (2 bytes) to controller

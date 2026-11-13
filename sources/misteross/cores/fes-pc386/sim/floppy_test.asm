@@ -35,6 +35,8 @@
 ;   dos-a1     DOS reads the new disk: FindFirst A:\*.TXT is DISK2.TXT.
 ;   dos-a2     after SWAP 2, DOS sees DISK1.TXT again, which it can only do
 ;              by taking the change line through INT 13h AH=16h.
+;   write-a    a sector written to A:'s last track reads back, on the 1.44M
+;              disk that is writable again.
 ;   format-a   INT 13h AH=05h formats A:'s last track, which then reads back
 ;              as one fill byte.
 ;   label-b360 SWAP 3 puts a 360K disk in the 1.2M drive: its volume label is
@@ -201,6 +203,32 @@ start:  cld
         mov di, label_disk1
         call wait_txt
         mov si, name_dos_a2
+        call check
+
+        ; ---- write-a: a sector of A:'s last track, written and read back on
+        ; the 1.44M disk that is writable again.
+        call fill_pattern
+        mov bx, sector
+        mov ax, 0x0301
+        mov cx, 0x4f12                  ; cylinder 79, sector 18
+        mov dx, 0x0100                  ; head 1, drive 0
+        int 0x13
+        mov al, 0
+        jc .write_a_done
+        mov di, sector
+        mov cx, 512
+        xor al, al
+        rep stosb
+        mov bx, sector
+        mov ax, 0x0201
+        mov cx, 0x4f12
+        mov dx, 0x0100
+        int 0x13
+        mov al, 0
+        jc .write_a_done
+        call judge_pattern
+.write_a_done:
+        mov si, name_write_a
         call check
 
         ; ---- format-a: format A:'s last track, which must then read back as
@@ -589,6 +617,7 @@ name_cleared_a: db 'cleared-a$'
 name_wp_a:      db 'wp-a$'
 name_verify_a:  db 'verify-a$'
 name_dma_boundary: db 'dma-boundary$'
+name_write_a:   db 'write-a$'
 name_format_a:  db 'format-a$'
 name_label_b360: db 'label-b360$'
 name_back_b:    db 'back-b$'

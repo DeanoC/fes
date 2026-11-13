@@ -163,7 +163,7 @@ module pc386_rtc #(
             // exists and bits 7-6 the drive count less one. Two drives give
             // 45h.
             7'd2: begin config_address = 8'h14;
-                      config_value = {floppy_count - 2'd1 & {2{floppy_any}}, 4'b0001, x87_present, floppy_any}; end
+                      config_value = {(floppy_count - 2'd1) & {2{floppy_any}}, 4'b0001, x87_present, floppy_any}; end
             7'd3: begin config_address = 8'h15; config_value = base_kib[7:0]; end
             7'd4: begin config_address = 8'h16; config_value = base_kib[15:8]; end
             7'd5: begin config_address = 8'h17; config_value = extended_kib[7:0]; end

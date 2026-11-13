@@ -586,7 +586,7 @@ Bochs's own device models are the oracle, as `vga_reference.cpp` wraps `vgacore.
 
 - floppy units backed by host files (copies, never the originals);
 - a CD unit backed by the MMC library with a configurable completion latency, deterministic in simulation;
-- a `--swap UNIT:FILE@MARKER` option that swaps at a debug-port marker.
+- a `--swap WHEN:DRIVE[:FILE[:ro]]` option, where WHEN is a simulated time or the text of a debug-port line, so a program can ask for its own swap.
 
 New `sim_fes_pc386.py` suites:
 

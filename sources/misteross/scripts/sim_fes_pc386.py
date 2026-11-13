@@ -988,7 +988,7 @@ def run_ems(args, linked: list[Path]) -> dict:
 # sector it writes to B: (cylinder 79, head 1, sector 15 of a 1.2M disk) and
 # the 16 bytes it fills it with.
 FLOPPY_CHECKS = ('equip', 'type-a', 'type-b', 'label-a', 'label-b', 'nochange-a', 'change-a', 'reread-a',
-                 'cleared-a', 'wp-a', 'verify-a', 'dma-boundary', 'dos-a1', 'dos-a2', 'format-a',
+                 'cleared-a', 'wp-a', 'verify-a', 'dma-boundary', 'dos-a1', 'dos-a2', 'write-a', 'format-a',
                  'label-b360', 'back-b', 'write-b', 'DONE')
 FLOPPY_WRITE_LBA = (79 * 2 + 1) * 15 + 15 - 1
 FLOPPY_WRITE_PATTERN = b'FES FLOPPY WRITE'

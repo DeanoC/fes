@@ -65,9 +65,12 @@
 // CMOS 14h bit 1 (INT 11h's coprocessor bit) is set. The oracle's 387 is
 // fitted, as on an AT, either way (Oracle::set_at_coprocessor).
 // The floppy drives (docs/design/pc386-removable-media.md, slice F2) stand
-// in for slice F3's record and media endpoint. --floppy-type gives a drive
-// its CMOS 10h type (0 none, 1 360K, 2 1.2M, 3 720K, 4 1.44M, 5 2.88M; A: is
-// 1.44M and B: 1.2M by default), which the RTC writes into CMOS 10h and 14h.
+// in for slice F3's record and media endpoint. No drive is fitted unless the
+// run names one, so a run that says nothing about the floppy is the machine
+// the seal builds. --floppy-type gives a drive its CMOS 10h type (0 none,
+// 1 360K, 2 1.2M, 3 720K, 4 1.44M, 5 2.88M), which the RTC writes into CMOS
+// 10h and 14h; a drive given a disk and no type is 1.44M as A: and 1.2M as
+// B:, the design's defaults.
 // --floppy puts a raw image in a drive at launch: its format is its exact
 // size, from 160K to 2.88M, and a drive that cannot read that format is an
 // error. --floppy-read-only inserts it write-protected, and --floppy-out
@@ -226,11 +229,20 @@ const FloppyFormat FLOPPY_FORMATS[] = {
 const char *const FLOPPY_DRIVE_NAMES[] = {"none", "360K", "1.2M", "720K", "1.44M", "2.88M"};
 
 // A drive as the run asks for it: its CMOS type, the disk it holds at launch,
-// where to write that image back, and whether it is write-protected.
+// where to write that image back, and whether it is write-protected. No drive
+// is fitted unless the run names one, so a run that says nothing about the
+// floppy is the machine the seal builds; a drive given a disk and no type is
+// 1.44M as A: and 1.2M as B:, the design's defaults.
 struct FloppyUnit {
-    unsigned type;
+    unsigned type = 0;
+    bool type_given = false;
     std::string path, out;
     bool write_protected = false;
+
+    unsigned fitted(unsigned drive) const {
+        if (type_given) return type;
+        return path.empty() ? 0 : drive == 0 ? 4 : 2;
+    }
 };
 
 const FloppyFormat &floppy_format(size_t bytes) {
@@ -350,7 +362,7 @@ public:
         top.boot_device = uint8_t(boot_device);
         for (unsigned drive = 0; drive < 2; ++drive) {
             if (floppy[drive].type > 5) throw std::runtime_error("a floppy drive type is 0 to 5");
-            floppy_type[drive] = floppy[drive].type;
+            floppy_type[drive] = floppy[drive].fitted(drive);
             floppy_out[drive] = floppy[drive].out;
         }
         drive_inputs();
@@ -1448,7 +1460,7 @@ struct Options {
     // disk it holds at launch, where to write it back, and the disks that
     // arrive while the machine runs.
     using Floppy = FloppyUnit;
-    Floppy floppy[2] = {{4, "", "", false}, {2, "", "", false}};
+    Floppy floppy[2];
     // A swap at a simulated time, or when a debug line carries its mark.
     struct Swap { double at; std::string mark; unsigned drive; std::string path; bool write_protected; };
     std::vector<Swap> swaps;
@@ -1579,7 +1591,10 @@ Options parse(int argc, char **argv) {
             std::string rest = value.substr(2);
             if (flag == "--floppy") options.floppy[drive].path = rest;
             else if (flag == "--floppy-out") options.floppy[drive].out = rest;
-            else options.floppy[drive].type = unsigned(std::stoul(rest));
+            else {
+                options.floppy[drive].type = unsigned(std::stoul(rest));
+                options.floppy[drive].type_given = true;
+            }
         } else if (flag == "--floppy-read-only") options.floppy[floppy_drive(value[0])].write_protected = true;
         else if (flag == "--swap") {
             std::vector<std::string> parts;
