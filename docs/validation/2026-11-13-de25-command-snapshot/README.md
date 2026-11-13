@@ -2,8 +2,10 @@
 
 The preceding v6 physical trial remains failed: its full source transfer
 completed, then the command phase exceeded its 100 ms bound before queue
-publication. Its later warm baseline return also lacked the fabric drain
-acknowledgement. Neither failure is reclassified by these host results.
+publication. Its later warm baseline menu stop also failed. A fresh inspection
+of that saved trace finds completed independent firmware reader/bridge closure
+before the native panic; the original missing-acknowledgement diagnosis is not
+established. Neither attempt becomes a pass through these host results.
 
 The selected input-retirement profile now supplies an optional fixed snapshot
 to the command-queue engine. It checks the same 24-register superset already
@@ -49,6 +51,6 @@ objects. The largest individual static frame is 368 bytes. This is neither a
 linked BL31 nor a whole EL3 stack bound.
 
 A new matched AArch64 firmware/boot build, physical retirement evidence and
-the separate warm fabric-drain investigation remain required before ordinary
+the separate warm menu-stop investigation remain required before ordinary
 native core-load acceptance. No board was programmed or rebooted for this
 change. Historical baseline restoration evidence remains separately bound.

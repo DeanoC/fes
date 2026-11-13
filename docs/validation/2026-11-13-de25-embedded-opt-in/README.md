@@ -37,8 +37,14 @@ queue publication. The sampled phase lasted 109,542 us, beyond the existing
 and activation/reuse were not authorized.
 
 After restoring the exact original FIT, warm baseline stop command 47 failed
-because the fabric drain acknowledgement was absent. Firmware retained
-resources and required a reboot. A separate physical reset and baseline-only
+and the native runtime panicked with resources retained. The initial failure
+summary attributed this to a missing fabric drain acknowledgement. Inspection
+of the complete saved trace instead finds a successful independent firmware
+reader drain and bridge closure immediately before that panic. The zero fabric
+handshake flag is expected for the selected absent-handshake profile; it is not
+evidence of a missing reader acknowledgement. The underlying native failure
+is not preserved by the final generic panic and remains unproven.
+A separate physical reset and baseline-only
 restoration completed a fresh 51-command ZX81/ZX80 launch/return/Park cycle,
 generation 5. This does not qualify warm recovery from the diagnostic.
 
@@ -67,13 +73,18 @@ them on a device.
 The [retirement snapshot model](../2026-11-13-de25-command-snapshot/README.md)
 reduces command-phase supplier reads while preserving all deadlines and
 pre-publication checks. Portable AArch64 compilation also passes. Physical
-retirement and warm fabric-drain acceptance remain open.
+retirement and warm menu-stop acceptance remain open. A subsequent
+[complete matched candidate](../2026-11-13-de25-matched-command-snapshot/README.md)
+now passes native SDK, entry, BL31, U-Boot/SPL, FPGA composition and fresh
+native file admission. Its retained archive readback passes. It has no board
+acceptance; the generic warm-return panic still needs its original error cause
+preserved before the next diagnostic.
 
 ## Remaining work
 
-Resolve source retirement and the post-diagnostic fabric drain failure before
-attempting ordinary package activation through this experimental path. Then
-rebuild a complete matched chain from the published source and qualify its
+Resolve source retirement and the post-diagnostic warm menu-stop failure before
+attempting ordinary package activation through this experimental path. Preserve
+the native failure cause, rebuild the affected matched chain and qualify its
 launch/return and recovery on TRWU8CBL. Broader core/device support, controller
 and Bluetooth support, durable updates, multicore startup, signed secure boot
 and appliance-level failure recovery remain incomplete. Neither passing host
