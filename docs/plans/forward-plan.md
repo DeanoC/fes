@@ -440,8 +440,16 @@ is right. Do not widen it. What stands between the tree and a release:
     10 September, and 792 of 850 branches contain them. No Spectrum,
     Commodore, Atari, IBM or other system ROM was found.
   - [#1799](https://github.com/DeanoC/fes/pull/1799) removes those four
-    archives from the tip, so the snapshot that seeds the new repository is
-    clean.
+    archives from the tip. That alone does not make the tip clean.
+  - The tip still holds 512 bytes of the ZX81 character set, copied from
+    the ROM, in `sources/misteross/cores/fes-zx81/expansions/qs_chrs.hex`
+    and `qs_chrs_init.vh`. Their GPL label has no verified basis
+    ([v1 firmware licensing](v1-firmware-licensing.md)). Before the
+    snapshot is taken, replace them with a redrawn glyph set, load them
+    from the user's ROM, or get permission.
+  - The snapshot that seeds the new repository is taken only when the scan
+    is clean on that exact tree, with the glyph bytes added to its
+    signatures, and the #387 audit has no open ROM finding.
   - The scan cannot see a ROM built into a bitstream. The one archive of
     DE25 ZX81 `.sof` and `.rbf` files built with the ROMs is removed by
     #1799 as well.
@@ -575,5 +583,5 @@ Decided by Deano on 13 November 2026.
    it lives.
 
 Still open: which licence file text and headers to apply once #387 reports,
-the signing approach for v1, and the plan for moving to the fresh
-repository described under v1.
+the signing approach for v1, how to replace the ZX81 character-set bytes,
+and the plan for moving to the fresh repository described under v1.
