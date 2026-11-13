@@ -15,7 +15,8 @@ It does four things:
 - **The hang is gone.** Linux 2.0.0, booted on the oracle without `no387`,
   prints "Checking 386/387 coupling... Ok, fpu using old IRQ13 error
   reporting" and logs in. Its `/proc/cpuinfo` shows `fpu: yes` and
-  `fpu_exception: no`, which means IRQ 13, not exception 16. Main's oracle
+  `fpu_exception: no`, which means IRQ 13, not exception 16, and
+  `/proc/interrupts` counts one "math error" on IRQ 13. Main's oracle
   stopped 0.19 s into this kernel.
 - **The error path follows the AT.** Ten directed cases on the oracle alone
   (`x87_tb.cpp`) pass, and fail under two mutations of the adapter. X87TEST.COM
@@ -116,7 +117,9 @@ The checks ran on this branch's commits as they landed:
   test386 and the X87TEST.COM runs;
 - `c2dcd299a` (`9c62ab2e1` with #1785's BIOS, a local tree): the X87TEST.COM
   pass;
-- the head: the unit tests and the boot runs listed last.
+- the head after merging main (`48944e175`): the runs listed last.
+  `ffd030220` after it changes only the census classes, documentation and
+  this record.
 
 | Check | Where | Result |
 | --- | --- | --- |
@@ -131,6 +134,11 @@ The checks ran on this branch's commits as they landed:
 | test386.asm on the oracle | chip | POST … E0 EE FF, 0 EE differences, cross-check agrees |
 | The lockstep testbench with `FES_I386_X87=387`: random (300 programs), directed, no387 | chip | random and directed pass unchanged (their programs run no ESC); no387 stops all 1,933 cases as `unbuilt` 387 at their first ESC, so that mode now refuses the identity |
 | `tests.test_pc386_machine` (72 tests), `tests.test_fes_i386_oracle` | Powerboat | OK |
+| Head `48944e175`, after merging main: `--suite boot` | chip | PASS |
+| Head `48944e175`: `--suite boot --cpu rtl` | chip | PASS |
+| Head `48944e175`: `--suite x87` | chip | every check ok, then the FreeDOS panic #1785 fixes |
+| Head `48944e175`: lockstep as above, `--same-as` main | chip | "every architectural result" |
+| Head `48944e175`: the no387 mode with `FES_I386_X87=387` | chip | refused |
 
 The x87_tb cases:
 
@@ -160,7 +168,9 @@ simulated seconds. These are the plan's runner's settings
   old IRQ13 error reporting", then boots to a login.
 - **Commands.** `uname -a` gives "Linux slackware 2.0.0 #1 Mon Jun 10
   21:11:56 CDT 1996 i386". `/proc/cpuinfo` gives `fpu: yes`,
-  `fpu_exception: no`, `hlt_bug: no`. The plan's run had stopped at 4.19 s.
+  `fpu_exception: no`, `hlt_bug: no`. A second run to 48 s reached
+  `cat /proc/interrupts`: `13: 1 math error`, beside the timer, keyboard,
+  cascade and ide0. The plan's run had stopped at 4.19 s.
 - **What the census saw:**
   - 109 x87 instructions.
   - The coupling check's FDIV by zero: `x87exc:dc.r6:raised=04:unmasked=04`,
@@ -186,9 +196,10 @@ plan's.
 | Norton SI 8 | 26 | 26 of 26 | 0 of 394 |
 | Chris's 3D Benchmark | 15,236,311 | 113 of 113 | 0 of 812 |
 | Quake timedemo (25 s) | 45,787,636 | 160 of 160 | 0 of 905 |
+| Screamer (30 s) | 1,266,208 | 77 of 77 | 0 of 827 |
 
 Chris's benchmark is the one that runs with invalid and divide-by-zero
-unmasked (control word 3Ah). None of the five raises an unmasked exception,
+unmasked (control word 3Ah). None of the six raises an unmasked exception,
 so the coupling changes nothing they do, and none reads INT 11h's
 coprocessor bit in a way that shows.
 
