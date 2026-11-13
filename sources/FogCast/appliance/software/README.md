@@ -12,7 +12,10 @@ provided interface versions, source provenance, and each file's path, mode,
 size and SHA-256. Provided interfaces include `menu.<interface>` keys with the
 `major.minor` versions the bundle's runtime admits in an idle menu package.
 `Compatibility.Requires` holds the menu interfaces a base image needs. A release
-accepts a requirement at the same major and at least the required minor. When
+accepts a requirement at the same major and at least the required minor, except
+`menu.fes.fabric.de25-scanout`, whose exact minor binds the hardware/kernel
+cohort. Scanout1.3 also changes the DE25 base ABI identity so older immutable
+supervisors refuse that runtime on an older base; DE10 identity is unchanged. When
 it does not, or its base contract differs, `Compatible` returns an error
 wrapping `ErrIncompatible`, so the supervisor can hold that release back. Its SHA-256 is the release ID. Source revisions are provenance,
 not a same-commit compatibility gate. The deterministic uncompressed tar starts

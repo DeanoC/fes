@@ -1,0 +1,119 @@
+{
+  "all_substantive_inputs_equivalent": true,
+  "classification": "Independent clean3revision constrained-internal rebuild matches all primary RBF bytes and numerical summaries; not board/PR admission",
+  "descriptors_and_QDB_provenance_remain_build_specific": true,
+  "hardware_acceptance": false,
+  "images": [
+    {
+      "bytes": 1769472,
+      "independently_identical": true,
+      "path": "artifacts/base.rbf",
+      "sha256": "85730a1f6c3bb6a04e08e49f524e79c52c8ef80bd7206b743d7949fbbf516bab"
+    },
+    {
+      "bytes": 483328,
+      "independently_identical": true,
+      "path": "artifacts/zx81_empty.rbf",
+      "sha256": "f8a50bd00637c3e9ad482c9475fb03129219e437c0f6dd82a7a90e22605971dd"
+    },
+    {
+      "bytes": 532480,
+      "independently_identical": true,
+      "path": "artifacts/zx81_ram16k.rbf",
+      "sha256": "6a1e0119cb0ad9d00f49f2db14fe0b86731b7a6fdae575a02d34a441302da403"
+    }
+  ],
+  "independent_PCM_control_corner_checks": 36,
+  "independent_receipt_sha256": "7d10d1c9bcc10661ac3c2c9954c33bc74df9b1f530a0d1a3aa943968f93c6272",
+  "independent_seconds": 1356.946,
+  "initial_strict_comparison": "Retained failure: raw source-closure hashes differ. External comparison v2 bounds only actual build-root paths and timestamp/path cache metadata; production seals remain distinct and unmodified.",
+  "input_equivalence": {
+    "Python_cache_audit_sha256": "68bdd0bae3fc1f6fa2d870cf7cba9ebe8716ea304473818716ea0a344cab52dd",
+    "all_669_selected_generated_source_and_constraint_hashes_identical": true,
+    "all_other_compiler_input_values_and_hashes_identical": true,
+    "both_cache_programs_match_identical_recompiled_source": true,
+    "both_raw_source_closures_independently_valid": true,
+    "cache_audit": {
+      "all_explicit_code_fields_and_constants_equal_after_filename_relocation": true,
+      "both_cache_programs_match_recompiled_source": true,
+      "checked_code_objects": 69,
+      "normalized_reference_marshal_sha256": "428d706c217c9a5c44a0d8435631e706948887b65d58256d700939e452a53de6",
+      "passed": true,
+      "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+      "raw_records_mutated": false,
+      "source_sha256": "9a5e6579e44f5fffd4aefc1de719acfe93bc1bfb4de0cf5b34ca16fb2a4e3179"
+    },
+    "integration_Tcl_all_other_bytes_identical": true,
+    "integration_Tcl_exactly_seven_matching_Qsys_paths_relocated": [
+      [
+        "load_system",
+        "hps_subsys/hps_subsys.qsys"
+      ],
+      [
+        "save_system",
+        "hps_subsys/hps_subsys.qsys"
+      ],
+      [
+        "load_system",
+        "jtag_subsys/jtag_subsys.qsys"
+      ],
+      [
+        "save_system",
+        "jtag_subsys/jtag_subsys.qsys"
+      ],
+      [
+        "set peripheral_system",
+        "peripheral_subsys/peripheral_subsys.qsys"
+      ],
+      [
+        "load_system",
+        "qsys_top.qsys"
+      ],
+      [
+        "save_system",
+        "qsys_top.qsys"
+      ]
+    ],
+    "paired_boundary_path_row_multisets_identical": {
+      "base": 984,
+      "persona_a": 984,
+      "persona_b": 1008
+    },
+    "passed": true,
+    "producer_or_timing_seal_modified": false,
+    "raw_records_mutated": false,
+    "raw_source_closure_hashes": {
+      "independent": "f9a2b6eaf02b1ef25c44fa46a135bfca2ddc2773f92ab501b9ef192ea9b69c5e",
+      "primary": "86b3bf4035101fbdf45f78a027df74ccd0f779c79cf1ada6b368b8523623fffb"
+    },
+    "scope": "Independent comparison only: bounded output-root relocation and timestamp/path-only Python cache; original production seals/records remain untouched",
+    "standard_base_inputs_only_difference_is_actual_integration_Tcl_digest": true
+  },
+  "input_equivalence_receipt_sha256": "b08be56a78829449d7fb25c68f708256fe450c1b366a3c3bee5ad1db3b9033e7",
+  "package_admission": false,
+  "per_build_raw_descriptors": {
+    "independent": {
+      "descriptor_sha256": "506d83ae33d277c2af61f894ac5dd5ac04637a8ad8dfae0df1886d5db4505d89",
+      "root_qdb_sha256": "f6d8eb50c8d24dbcc54142986898d7d6c974eccbc14342a20cf1aa988d3c3a5e"
+    },
+    "primary": {
+      "descriptor_sha256": "23708a2c203cbc70d59d659c326f85ba80599d8f6e96b894d0603bcb1dff4cdf",
+      "root_qdb_sha256": "9831ed7ceedac623e38471d817c258520008ce898dedb9bc29d9eacf7b04b722"
+    }
+  },
+  "physical_PR": "not-run",
+  "primary_receipt_sha256": "82ff658f4bc7ada823fccd968b6b06052e1f1aa9afaf2f030691c6f3847882cc",
+  "primary_seconds": 1373.275,
+  "raw_comparison_receipt_sha256": "eca3c5f3b7836608937e16974ece7e97b2091428d25ff7a82abe35b7fd589254",
+  "raw_finding_groups_unchanged": true,
+  "raw_per_build_source_closure_hashes": {
+    "independent": "f9a2b6eaf02b1ef25c44fa46a135bfca2ddc2773f92ab501b9ef192ea9b69c5e",
+    "primary": "86b3bf4035101fbdf45f78a027df74ccd0f779c79cf1ada6b368b8523623fffb"
+  },
+  "raw_production_seals_modified": false,
+  "same_all49_summary_rows_per_revision": true,
+  "same_source_recipe_toolchain_clock_reset_interface_and_control_build": true,
+  "source_revision": "c053cdf031b9d0070273c34abf55689237f5d7d0",
+  "status": "passed",
+  "whole_board_design_closure": "failed"
+}

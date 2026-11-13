@@ -8,6 +8,7 @@
 int main(int argc,char**argv){
     try{
         wire::need(argc>=2,"expected socket path");Verilated::commandArgs(argc,argv);
+        Verilated::threadContextp()->threads(1);
         std::setvbuf(stdout,nullptr,_IOLBF,0);
         Computer b;auto& t=b.t;
         sockaddr_un address{};address.sun_family=AF_UNIX;
@@ -46,7 +47,7 @@ int main(int argc,char**argv){
                 case wire::Frames:result=b.complete_frames;break;
                 case wire::PictureFrames:result=b.picture_frames;break;
                 case wire::ELine:result=b.word(0x4014);break;
-                case wire::BridgeFault:result=C(faults);break;
+                case wire::BridgeFault:result=C(transport__DOT__faults);break;
                 case combined::Ramtop:result=b.ramtop;break;
                 case combined::RamtopWrites:result=b.ramtop_writes;break;
                 case combined::Frozen:result=t.frozen;break;

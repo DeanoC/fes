@@ -9,6 +9,13 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            DMA registers, pages and a transfer, 8042 commands, A20 and reset,
            RTC update and interrupts, the ATA command set, and the I/O timing
            classes. Needs only Verilator.
+  fdc      cores/fes-pc386/sim/fdc_replay_tb.cpp replays a guest's floppy
+           scripts on pc386_fdc and on Bochs's floppy controller
+           (iodev/floppy.cc, from the oracle's Bochs build) and compares what
+           each guest reads; the cases sim/fdc_divergences.toml lists must
+           differ, every other case must match, and the RTL meets each case's
+           own checks, including the non-DMA and timing cases Bochs does not
+           model. Needs Verilator and the oracle's Bochs (--download).
   audio    cores/fes-pc386/sim/audio_tb.cpp checks the speaker, Sound Blaster
            DSP commands and DMA, OPL2 timers and the 48 kHz mixer.
   opl2     cores/fes-pc386/sim/opl2_tb.cpp compares the OPL2 sample for sample
@@ -27,9 +34,17 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            --image games boots the games image (HIMEMX, CuteMouse, MEM and
            BLASTER; build_pc386_freedos_image.py) and writes boot-games/.
   rtl-stops
-           boots cores/fes-pc386/sim/rtl_stop_test.asm on the oracle and RTL.
-           Three defined-but-unbuilt ICEBP instructions must stop and restart
-           the RTL, including one paged protected-mode oracle stretch.
+           boots cores/fes-pc386/sim/rtl_stop_test.asm on the oracle and on
+           the RTL: what the RTL still stops on as not built (#1721), LOADALL
+           in real mode and a far JMP through a call gate in protected mode,
+           then that JMP under paging from an aliased linear address, whose
+           bytes the bench reads through the page tables and after which the
+           oracle runs until paging is off. The RTL run must stop on each,
+           record the two protected-mode stretches, and write what the
+           oracle run writes. It also checks three ICEBP oracle handoffs and
+           restarts, the initial full-AX SMSW result, and SMSW after a CR0
+           write; only CR0 bits 5--7 remain unmeasured on a physical 386
+           (#1748).
   a20      runs cores/fes-pc386/sim/a20_test.asm (A20TEST.COM) at the FreeDOS
            prompt (#1386). On the boot image, which has no XMS driver, A20
            must be off at the prompt, INT 15h AH=24h and 87h must turn it on,
@@ -95,6 +110,19 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            and hands over at the prompt. Writes game-<name>[-rtl]/. Runs share
            machine/'s build, so start a second run only once the first has
            built it.
+  wfw      Windows for Workgroups 3.11 to Program Manager on the RTL
+           (docs/pc386-windows-corpus.md): boots the user-supplied wfw-msdos
+           drive (build_pc386_game_drive.py; MS-DOS 6.22, WfW 3.11, 32-bit
+           disk access and a permanent swap file) on the oracle, hands over to
+           fes_i386_cpu at the DOS prompt and types `win`. It writes a frame
+           every --frame-every seconds (0.25 by default), reads each with
+           scripts/pc386_wfw.py and ends the run (machine_tb --stop-file) once
+           two frames in a row show Program Manager with its group window. It
+           passes only then, with the RTL retiring all of Windows itself: no
+           stop and no oracle step after the handover. --cpu oracle runs it all
+           on Bochs. Without the drive in the store it prints SKIP and passes,
+           as CI does. One to two hours of wall time: a periodic check, not a
+           per-PR gate. Writes wfw[-rtl]/.
   system   boots FreeDOS on pc386_system (everything below top.sv) at the
            sealed clock, with a host that does the runtime's launch and Stop
            through the mailbox and runs INPUT.COM to test keyboard and mouse.
@@ -128,6 +156,7 @@ that governor preset; each report uses `<suite>-preset<n>`, with
 
 Examples:
   python3 scripts/sim_fes_pc386.py --suite devices
+  python3 scripts/sim_fes_pc386.py --suite fdc --download
   python3 scripts/sim_fes_pc386.py --suite opl2
   python3 scripts/sim_fes_pc386.py --suite boot --download
   python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl
@@ -142,6 +171,7 @@ Examples:
   python3 scripts/sim_fes_pc386.py --suite sound --download
   python3 scripts/sim_fes_pc386.py --suite game --game ultima6
   python3 scripts/sim_fes_pc386.py --suite game --game wolf3d --cpu rtl
+  python3 scripts/sim_fes_pc386.py --suite wfw --cpu rtl
   python3 scripts/sim_fes_pc386.py --suite vga
   python3 scripts/sim_fes_pc386.py --suite governor
   python3 scripts/sim_fes_pc386.py --suite system --preset 1
@@ -150,6 +180,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import functools
 import json
 import math
 import os
@@ -159,6 +190,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import tomllib
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -167,6 +199,7 @@ from scripts import build_pc386_firmware as firmware
 from scripts import build_pc386_freedos_image as freedos
 from scripts import build_pc386_game_drive as drives
 from scripts import fes_i386_oracle as oracle
+from scripts import pc386_wfw as wfw
 from scripts import test_fes_i386_lockstep as lockstep
 from scripts import test_fes_i386_test386 as test386
 
@@ -197,6 +230,7 @@ AT_RTL = (
     CORE / 'rtl/pc386_rtc.sv',
     CORE / 'rtl/pc386_ram.sv',
     CORE / 'rtl/pc386_ata.sv',
+    CORE / 'rtl/pc386_fdc.sv',
     CORE / 'rtl/pc386_at_core.sv',
 )
 OPL2_RTL = (
@@ -255,6 +289,10 @@ EXPECTED_IO = {
 VGA_READ_MINIMUM = {1: 6, 2: 11, 4: 21}
 VGA_READ_BOUND = 200
 EXPECTED_INTA = 2 * ISA8 + OVERHEAD
+# The floppy controller alone, for its replay (US_D=4: a microsecond is four
+# clocks, so the bench's drive times stay short).
+FDC_RTL = (CORE / 'rtl/pc386_rate.sv', CORE / 'rtl/pc386_ram.sv', CORE / 'rtl/pc386_fdc.sv')
+FDC_DIVERGENCES = CORE / 'sim/fdc_divergences.toml'
 VGA_RTL = (
     CORE / 'rtl/pc386_rate.sv',
     CORE / 'rtl/pc386_io.sv',
@@ -292,15 +330,37 @@ class SimError(RuntimeError):
     pass
 
 
+@functools.lru_cache(maxsize=None)
+def verilator_supports_procassinit(verilator: str) -> bool:
+    """Whether this Verilator recognizes PROCASSINIT lint controls."""
+    try:
+        version = subprocess.run([verilator, '--version'], capture_output=True,
+                                 text=True, timeout=30, check=False)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise SimError(f'cannot determine Verilator version: {error}') from error
+    if version.returncode or not re.search(r'\bVerilator\s+\d+\.\d+', version.stdout):
+        raise SimError('cannot determine Verilator version')
+    try:
+        result = subprocess.run([verilator, '-Wno-PROCASSINIT', '--version'],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                timeout=30, check=False)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise SimError(f'cannot probe Verilator PROCASSINIT support: {error}') from error
+    return result.returncode == 0
+
+
 def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testbench: Path | None,
              linked: list[Path], jobs: int, parameters: dict[str, int] | None = None,
              include: tuple[Path, ...] = (), flags: tuple[str, ...] = (), defines: tuple[str, ...] = ()) -> Path:
     output = OUTPUT / name / ('obj' if testbench else f'obj-{top}')
     output.mkdir(parents=True, exist_ok=True)
     includes = ' '.join(f'-I{path}' for path in (COMMON / 'sim/i386', CORE / 'sim', NUKED, *include))
+    procassinit_supported = verilator_supports_procassinit(verilator)
     command = [verilator, '--cc', *(['--exe'] if testbench else []), '--build', '-j', str(jobs), '-O3', '--top-module', top,
                '-Wall', '-Wno-UNUSEDSIGNAL', '-Wno-DECLFILENAME', *flags,
                *(str(CORE / 'sim' / name) for name in ('pc386.vlt', 'pc386_audio.vlt', 'pc386_vga.vlt')),
+               *(['-DFES_PC386_VERILATOR_5054', str(CORE / 'sim/pc386_verilator_5054.vlt')]
+                 if procassinit_supported else []),
                f'-I{COMMON / "vendor/kf8259"}', f'-I{COMMON / "vendor/kf8253"}', f'-I{COMMON / "generated"}',
                *(f'-G{key}={value}' for key, value in (parameters or {}).items()), *(f'-D{name}' for name in defines),
                '--Mdir', str(output), '-MAKEFLAGS', 'OPT_FAST=-O3',
@@ -486,11 +546,32 @@ def verilate_with_audio(args, name: str, testbench: Path, linked: list[Path],
                     [*linked, audio, NUKED / 'opl3.c'], args.jobs, parameters, (audio.parent, *include))
 
 
-def run_machine(testbench: Path, suite: str, arguments: list[str], images: dict) -> dict:
+def run_machine(testbench: Path, suite: str, arguments: list[str], images: dict, watch=None) -> dict:
+    """Run machine_tb; watch, if given, is called every few seconds while it runs."""
     directory = OUTPUT / suite
     directory.mkdir(parents=True, exist_ok=True)
     command = [str(testbench), '--bios', str(images['bios']), '--vgabios', str(images['vgabios']), *arguments]
-    result = subprocess.run(command, cwd=directory, capture_output=True, text=True)
+    if watch is None:
+        result = subprocess.run(command, cwd=directory, capture_output=True, text=True)
+    else:
+        out, err = directory / 'machine.stdout', directory / 'machine.stderr'
+        with out.open('w') as stdout, err.open('w') as stderr:
+            process = subprocess.Popen(command, cwd=directory, stdout=stdout, stderr=stderr, text=True)
+            try:
+                while process.poll() is None:
+                    watch()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        pass
+                watch()
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait()
+        result = subprocess.CompletedProcess(command, process.returncode, out.read_text(), err.read_text())
+        out.unlink()
+        err.unlink()
     (directory / 'machine.log').write_text(result.stdout + result.stderr)
     report = parse_boot(result.stdout)
     report['command'] = [str(Path(arg).relative_to(ROOT)) if arg.startswith(str(ROOT)) else arg for arg in command]
@@ -718,51 +799,73 @@ def vga_test_disk(args) -> Path:
     return disk
 
 
-# What the RTL must stop on in rtl_stop_test.asm: stem -> (stops, sites).
-RTL_STOPS = {'F1': (3, 3)}
+# What the RTL must stop on in rtl_stop_test.asm, in order: (stem, CS, the
+# instruction's first bytes). The first two ICEBPs are in real mode; LOADALL
+# raises #UD on the oracle; the call gates are in protected mode, first
+# without paging and then through CS 20h's aliased linear address. The last
+# ICEBP is paged too, with the oracle taking the #DB and the following stretch.
+RTL_STOPS = (('F1', '0000', 'f1'), ('F1', '0000', 'f1'), ('0F07', '0000', '0f07'),
+             ('EA', '0008', 'ea00001800'), ('EA', '0020', 'ea00002800'), ('F1', '0020', 'f1'))
+# Port E9h lines after the initial SMSW result. Both CPUs must agree on them.
+RTL_STOP_LINES = ['X 2', 'C fff0', 'U', 'G', 'P', 'P 3', 'DONE']
+# The first two protected-mode stretches are main's call-gate checks. The final
+# stretch covers the PR's ICEBP handoff while paging remains enabled.
+RTL_STOP_STRETCHES = (1, 10)
+SMSW_IGNORED_MASK = 0x00e0
+SMSW_COMPARE_MASK = 0xffff ^ SMSW_IGNORED_MASK
 
 
 def rtl_stop_failures(lines: dict, rtl: dict) -> list[str]:
-    """Check real stops and outputs without assuming unmeasured CR0 bits."""
+    """Check main's stop cases and the PR's SMSW/oracle-handoff regression."""
     failures = []
     oracle = lines.get('oracle', [])
     actual = lines.get('rtl', [])
     if not oracle or oracle[-1] != 'DONE':
         failures.append(f'the oracle run did not finish: {oracle}')
-    for marker in ('X 2', 'C fff0', 'P 3', 'DONE'):
-        if marker not in oracle or marker not in actual:
-            failures.append(f'both CPUs must emit {marker}: oracle {oracle}, RTL {actual}')
+    for cpu, output in (('oracle', oracle), ('RTL', actual)):
+        if output[1:] != RTL_STOP_LINES:
+            failures.append(f'the {cpu} run wrote {output}, expected an initial SMSW then {RTL_STOP_LINES}')
 
-    # The first SMSW occurs after the BIOS. Bochs and RTL disagree on bits
-    # 5--7 there; no real 386 measurement establishes which value is correct
-    # (#1748).
-    # Keep the raw lines in the report and compare every other bit and FLAGS.
-    pattern = r'R ([0-9a-f]{2}) ([0-9a-f]{2})'
+    # The first SMSW occurs after the BIOS. Only bits 5--7 lack a physical
+    # 386 measurement (#1748); compare all other bits of the complete AX and
+    # FLAGS, and keep both raw results in the report.
+    pattern = r'R ([0-9a-f]{4}) ([0-9a-f]{2})'
     first_oracle = re.fullmatch(pattern, oracle[0]) if oracle else None
     first_actual = re.fullmatch(pattern, actual[0]) if actual else None
     if not first_oracle or not first_actual:
         failures.append(f'missing initial SMSW result: oracle {oracle}, RTL {actual}')
-    elif (int(first_oracle[1], 16) & 0x1f, first_oracle[2]) != (int(first_actual[1], 16) & 0x1f, first_actual[2]):
-        failures.append(f'initial SMSW differs beyond unverified bits 5--7: oracle {oracle[0]}, RTL {actual[0]}')
+    elif (((int(first_oracle[1], 16) ^ int(first_actual[1], 16)) & SMSW_COMPARE_MASK) or
+          first_oracle[2] != first_actual[2]):
+        failures.append(f'initial SMSW differs outside ignored mask 0x{SMSW_IGNORED_MASK:04x}: '
+                        f'oracle {oracle[0]}, RTL {actual[0]}')
     if oracle[1:] != actual[1:]:
         failures.append(f'the RTL run wrote {actual[1:]}, the oracle run {oracle[1:]}')
 
-    gaps = {(gap['kind'], gap['stem']): gap for gap in rtl.get('gaps', [])}
-    for stem, (stops, sites) in RTL_STOPS.items():
-        gap = gaps.get(('unimplemented', stem))
-        if not gap or (gap['stops'], gap['sites'], gap['executed']) != (stops, sites, stops):
-            failures.append(f'stem {stem}: expected {stops} unimplemented stops at {sites} sites, '
-                            f'each run on the oracle: {gap}')
-    if set(gaps) != {('unimplemented', stem) for stem in RTL_STOPS}:
-        failures.append(f'the RTL stopped on {sorted(gaps)}, expected unimplemented {sorted(RTL_STOPS)}')
+    stops = [(stop['stem'], stop['site'].partition(':')[0], (stop['bytes'] or '')[:len(want)])
+             for stop, (_, _, want) in zip(rtl.get('stops', []), RTL_STOPS)]
+    if len(rtl.get('stops', [])) != len(RTL_STOPS) or stops != list(RTL_STOPS):
+        failures.append(f'the RTL stopped at {[(s["stem"], s["site"], s["bytes"]) for s in rtl.get("stops", [])]}, '
+                        f'expected {list(RTL_STOPS)}')
+    # LOADALL raises #UD on the oracle and does not retire; ICEBP and the two
+    # call-gate JMPs execute there before the RTL restarts.
+    expected_gaps = {'F1': ('unimplemented', 3, 3, 3), '0F07': ('unimplemented', 1, 1, 0),
+                     'EA': ('unimplemented', 2, 2, 2)}
+    gaps = {gap['stem']: (gap['kind'], gap['stops'], gap['sites'], gap['executed'])
+            for gap in rtl.get('gaps', [])}
+    if gaps != expected_gaps:
+        failures.append(f'expected ICEBP handoffs and LOADALL/call-gate stops {expected_gaps}, got {gaps}')
     pmode = rtl.get('pmode', [])
-    if len(pmode) != 1 or pmode[0]['steps'] < 3:
-        failures.append(f'expected one multi-instruction protected-mode oracle stretch: {pmode}')
+    pmode_steps = tuple(stretch['steps'] for stretch in pmode)
+    if len(pmode_steps) < 3 or pmode_steps[:2] != RTL_STOP_STRETCHES:
+        failures.append(f'expected main protected-mode stretches {RTL_STOP_STRETCHES} before the paged ICEBP stretch: '
+                        f'{pmode_steps}')
+    elif pmode_steps[-1] < 3:
+        failures.append(f'expected a multi-instruction paged ICEBP oracle stretch: {pmode}')
     return failures
 
 
 def run_rtl_stops(args, linked: list[Path]) -> dict:
-    """Boot real unimplemented stops and check oracle handoff and restart."""
+    """Boot current RTL stops and check SMSW, oracle handoff and restart."""
     nasm = test386.nasm(args.download, args.jobs)
     directory = OUTPUT / 'rtl-stops'
     directory.mkdir(parents=True, exist_ok=True)
@@ -783,7 +886,7 @@ def run_rtl_stops(args, linked: list[Path]) -> dict:
                                                                 '--cpu', cpu], images)
     lines = {cpu: [entry['text'] for entry in run['debug'] if entry['port'] == '0e9'] for cpu, run in runs.items()}
     failures = [f'{cpu}: {failure}' for cpu, run in runs.items() for failure in run['failures']]
-    rtl = runs['rtl'].get('rtl') or {'gaps': [], 'pmode': []}
+    rtl = runs['rtl'].get('rtl') or {'stops': [], 'gaps': [], 'pmode': []}
     failures += rtl_stop_failures(lines, rtl)
     return {'lines': lines, 'runs': runs, 'failures': failures,
             'checks': [f'{cpu}: {" | ".join(lines[cpu])}' for cpu in runs] + [f'RTL {gap}' for gap in rtl['gaps']]}
@@ -1490,6 +1593,83 @@ def run_storage(args) -> dict:
     return {'checks': checks, 'failures': failures}
 
 
+def fdc_reference_objects(args) -> list[Path]:
+    """Bochs's floppy controller from the oracle's configured checkout, and the adapter."""
+    bochs = oracle.build_bochs(oracle.bochs_source(args.download), args.jobs)
+    # Keyed on the Bochs build: its tree's name carries the oracle's input
+    # key (revision, configuration, compiler), so a new build compiles anew.
+    output = OUTPUT / 'fdc-reference' / bochs.name
+    if output.parent.is_dir():
+        for stale in output.parent.iterdir():
+            if stale != output:
+                shutil.rmtree(stale) if stale.is_dir() else stale.unlink()
+    output.mkdir(parents=True, exist_ok=True)
+    flags = ['-std=c++17', '-O2', f'-I{bochs}', f'-I{bochs}/instrument/fes', f'-I{bochs}/gui', f'-I{bochs}/iodev',
+             f'-I{CORE / "sim"}']
+    sources = {'floppy.o': bochs / 'iodev/floppy.cc', 'fdc_reference.o': CORE / 'sim/fdc_reference.cpp'}
+    inputs = [CORE / 'sim/fdc_reference.h', bochs / 'iodev/floppy.h', bochs / 'config.h']
+    objects = []
+    for name, source in sources.items():
+        target = output / name
+        newest = max(path.stat().st_mtime for path in (source, *inputs))
+        if not target.is_file() or target.stat().st_mtime < newest:
+            log = output / (name + '.log')
+            with log.open('w') as stream:
+                result = subprocess.run([oracle._compiler(), *flags, '-c', str(source), '-o', str(target)],
+                                        cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
+            if result.returncode:
+                raise SimError(f'compiling {source.name} failed; see {log}')
+        objects.append(target)
+    return objects + [bochs / 'fes-paramtree.o']
+
+
+def fdc_divergent_cases() -> list[str]:
+    """The replay cases fdc_divergences.toml lists as differing from Bochs."""
+    entries = tomllib.loads(FDC_DIVERGENCES.read_text())['divergence']
+    return sorted({case for entry in entries for case in entry['cases']})
+
+
+def parse_fdc(stdout: str, listed: list[str]) -> dict:
+    report = {'cases': {}, 'checks': [], 'diffs': [], 'summary': None, 'failures': []}
+    for line in stdout.splitlines():
+        kind, _, rest = line.partition(' ')
+        if kind == 'CASE':
+            name, verdict, *_ = rest.split()
+            report['cases'][name] = verdict
+            report['checks'].append(f'CASE {rest}')
+        elif kind == 'CHECK':
+            report['failures'].append(rest)
+        elif kind == 'DIFF':
+            report['diffs'].append(rest)
+        elif kind == 'SUMMARY':
+            report['summary'] = rest
+    for name in listed:
+        if name not in report['cases']:
+            report['failures'].append(f'fdc_divergences.toml lists {name}, which the replay has no case for')
+    if not report['cases']:
+        report['failures'].append('the floppy replay ran no case')
+    return report
+
+
+def run_fdc(args) -> dict:
+    testbench = verilate(args.verilator, 'fdc-replay', 'pc386_fdc', FDC_RTL, CORE / 'sim/fdc_replay_tb.cpp',
+                         fdc_reference_objects(args), args.jobs, {'US_N': 1, 'US_D': 4},
+                         defines=('PC386_RAM_COLLISION',))
+    listed = fdc_divergent_cases()
+    directory = OUTPUT / 'fdc'
+    shutil.rmtree(directory / 'cases', ignore_errors=True)
+    directory.mkdir(parents=True, exist_ok=True)
+    print('Replaying the floppy cases on pc386_fdc and Bochs\'s controller', flush=True)
+    result = subprocess.run([str(testbench), '--dir', str(directory / 'cases'), '--divergent', ','.join(listed)],
+                            cwd=directory, capture_output=True, text=True)
+    (directory / 'replay.log').write_text(result.stdout + result.stderr)
+    report = parse_fdc(result.stdout, listed)
+    report['exit'] = result.returncode
+    if result.returncode and not report['failures']:
+        report['failures'].append(f'fdc_replay_tb exited {result.returncode}: {result.stderr.strip()}')
+    return report
+
+
 def run_devices(args) -> dict:
     # A fast RTC (one guest second is 2^19 clocks) keeps the update test short.
     # The RAMs poison a read of the word being written, as M10K leaves it.
@@ -1697,11 +1877,139 @@ def game_suite(args) -> str:
     return f'game-{args.game}' + ('-rtl' if args.cpu == 'rtl' else '') + suffix(args)
 
 
+WFW_DRIVE, WFW_TITLE = 'wfw-msdos', 'wfw'
+WFW_FRAMES_IN_A_ROW = 2
+
+
+def wfw_suite(args) -> str:
+    return 'wfw' + ('-rtl' if args.cpu == 'rtl' else '') + suffix(args)
+
+
+def wfw_drive(args) -> tuple[Path, dict, dict] | str:
+    """The WfW drive and its title, or why the suite skips: the drive is
+    user-supplied, so a host without it (CI) skips rather than fails."""
+    if not args.drive and not (drives.configured_store() / 'by-name' / f'{WFW_DRIVE}.img').exists():
+        return f'no WfW drive: {WFW_DRIVE} is not in {drives.STORE}/by-name (docs/pc386-windows-corpus.md)'
+    # A present drive that fails its checks, or a named one that does not resolve, fails.
+    try:
+        image, record = drives.resolve(args.drive or WFW_DRIVE)
+    except drives.DriveError as error:
+        raise SimError(str(error)) from None
+    try:
+        return image, record, drives.title_of(record, WFW_TITLE)
+    except drives.DriveError as error:
+        raise SimError(str(error)) from None
+
+
+class ProgramManagerWatch:
+    """Reads machine_tb's frames as they are written and creates the stop
+    file once WFW_FRAMES_IN_A_ROW frames in a row show Program Manager;
+    found is the first frame of that streak."""
+
+    def __init__(self, frames: Path, stop: Path):
+        self.frames, self.stop = frames, stop
+        self.seen: set[str] = set()
+        self.results: list[dict] = []
+        self.streak: list[dict] = []
+        self.found = None
+
+    def __call__(self):
+        if self.found:
+            return
+        for path in sorted(self.frames.glob('t*.ppm')):
+            if path.name in self.seen:
+                continue
+            try:
+                frame = wfw.parse_ppm(path.read_bytes())
+            except (OSError, wfw.FrameError):
+                return  # still being written: read it next time
+            self.seen.add(path.name)
+            seconds = float(path.stem[1:])
+            found = wfw.program_manager(frame)
+            self.results.append({'frame': path.name, 'seconds': seconds, 'program_manager': found['found'],
+                                 'reason': found['reason']})
+            if not found['found']:
+                self.streak = []
+                continue
+            self.streak.append({'frame': path.name, 'seconds': seconds, 'caption': found['caption'],
+                                'group': found['group']})
+            if len(self.streak) >= WFW_FRAMES_IN_A_ROW:
+                self.found = self.streak[0]
+                self.stop.touch()
+                return
+
+
+def run_wfw(args, linked: list[Path], disk: Path, record: dict, title: dict) -> dict:
+    """WfW 3.11 from the DOS prompt to Program Manager (docs/pc386-windows-corpus.md)."""
+    suite = wfw_suite(args)
+    work = OUTPUT / suite
+    work.mkdir(parents=True, exist_ok=True)
+    args.limit_seconds = args.limit_seconds_given or title.get('limit', 12.0)
+    args.type, args.expect = title['launch'], ''
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    frames, stop = work / 'frames', work / 'stop'
+    shutil.rmtree(frames, ignore_errors=True)
+    frames.mkdir(parents=True)
+    stop.unlink(missing_ok=True)
+    every = args.frame_every or 0.25
+    extra = ['--rtl-at-prompt', '1'] if args.cpu == 'rtl' else []
+    watch = ProgramManagerWatch(frames, stop)
+    print(f'Running WfW 3.11 on drive {record.get("drive")} ({record["sha256"][:16]}) to Program Manager on the '
+          f'{args.cpu} CPU; frames every {every} s, limit {args.limit_seconds} s', flush=True)
+    report = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                            '--type', args.type, '--keys-after-type', '1',
+                                            '--frames', str(frames), '--frame-every', str(every),
+                                            '--stop-file', str(stop), *extra, '--cpu', args.cpu,
+                                            '--game-launch', '1', *governor_arguments(args)], images, watch)
+    stop.unlink(missing_ok=True)
+    launch = (report.get('game_launch') or {}).get('seconds')
+    report['wfw'] = {'drive': record.get('drive'), 'drive_sha256': record['sha256'], 'title': title['title'],
+                     'launch_seconds': launch, 'program_manager': watch.found, 'frames': watch.results}
+    if watch.found and launch is not None:
+        report['wfw']['program_manager_after_win'] = round(watch.found['seconds'] - launch, 3)
+    report['work'] = str(work)
+    report['failures'] = wfw_failures(report, args.cpu)
+    report['checks'] = wfw_checks(report)
+    return report
+
+
+def wfw_failures(report: dict, cpu: str) -> list[str]:
+    """Program Manager seen, the run ended for it, and on the RTL no stop or oracle step."""
+    failures = [failure for failure in report['failures'] if not failure.startswith('OPL2 against')]
+    end = (report.get('end') or {}).get('reason')
+    if not report.get('game_launch'):
+        failures.append('`win` made no visible progress at the DOS prompt')
+    if not report['wfw'].get('program_manager'):
+        seen = report['wfw']['frames'][-1] if report['wfw']['frames'] else None
+        failures.append(f'Program Manager did not appear by {(report.get("end") or {}).get("seconds")} simulated '
+                        f'seconds (last frame: {seen})')
+    elif end != 'stop-file':
+        failures.append(f'the run ended as {end}, not at Program Manager')
+    if cpu == 'rtl':
+        failures += rtl_failures(report, 'wfw')
+    return failures
+
+
+def wfw_checks(report: dict) -> list[str]:
+    found = report['wfw'].get('program_manager')
+    checks = [f'WIN typed at {report["wfw"]["launch_seconds"]} s']
+    if found:
+        checks.append(f'Program Manager at {found["seconds"]} s ({report["wfw"].get("program_manager_after_win")} s '
+                      f'after win), frame {found["frame"]}')
+    rtl = (report.get('rtl') or {}).get('counters')
+    if rtl:
+        checks.append(f'RTL retired {rtl.get("retired")} ({rtl.get("pe_retired")} with PE set), '
+                      f'oracle steps {rtl.get("oracle_steps")}')
+    checks.append(f'END {report.get("end")}')
+    return checks
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--suite', choices=('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
+    parser.add_argument('--suite', choices=('devices', 'fdc', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
                                             'a20', 'c2xx', 'ems', 'wait', 'speaker', 'scroll', 'cpu-profile',
-                                            'sound', 'game', 'vga', 'system', 'governor', 'all'),
+                                            'sound', 'game', 'wfw', 'vga', 'system', 'governor', 'all'),
                         default='all',
                         help='simulation suite to run')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
@@ -1711,18 +2019,20 @@ def main() -> int:
     parser.add_argument('--limit-seconds', type=float, default=None, help='simulated seconds before giving up')
     parser.add_argument('--game', default='wolf3d', help="game: the title to start, by its id in the drive's record")
     parser.add_argument('--drive', default=None,
-                        help='game: the prebuilt drive (build_pc386_game_drive.py) by path, SHA-256 or name; '
-                             'default: the drive in the store that holds --game')
+                        help='game and wfw: the prebuilt drive (build_pc386_game_drive.py) by path, SHA-256 or '
+                             'name; default: the drive in the store that holds --game, or wfw-msdos')
     parser.add_argument('--frame-every', type=float, default=0,
-                        help='game: write the captured frame every this many simulated seconds')
+                        help='game and wfw: write the captured frame every this many simulated seconds '
+                             '(wfw: 0.25 by default)')
     parser.add_argument('--rtl-at-prompt', action='store_true',
                         help='game --cpu rtl: boot on the oracle and hand over to the RTL at the prompt')
     parser.add_argument('--instruction-census', action='store_true',
                         help="game: write the oracle's instruction census (machine_tb --census) to census.txt")
     parser.add_argument('--game-keys', action='append', default=[], metavar='SECONDS:TEXT',
                         help="game: keys after the launch in place of the drive record's ('|' is Enter); repeat")
-    parser.add_argument('--boot-entry', type=int, default=1, choices=(1, 2, 3),
-                        help="game: the games image's boot menu entry (3: with the EMS board's driver)")
+    parser.add_argument('--boot-entry', type=int, default=1, choices=(1, 2, 3, 4),
+                        help="game: the games image's boot menu entry (3: with the EMS board's driver; "
+                             '4: DOS=HIGH with SHARE, for Windows 3.x)')
     parser.add_argument('--oracle-profile', action='store_true',
                         help="game --cpu oracle: write machine_tb's profile (each real-mode INT by AH, such as "
                              'int67.4f for EMS) to profile.txt')
@@ -1741,8 +2051,9 @@ def main() -> int:
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
-    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'c2xx', 'ems', 'wait', 'speaker', 'scroll'):
-        parser.error('--cpu rtl runs the boot, game, a20, c2xx, ems, wait, speaker and scroll suites only')
+    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'wfw', 'a20', 'c2xx', 'ems', 'wait', 'speaker',
+                                                'scroll'):
+        parser.error('--cpu rtl runs the boot, game, wfw, a20, c2xx, ems, wait, speaker and scroll suites only')
     if args.oracle_profile and not (args.suite == 'game' and args.cpu == 'oracle'):
         parser.error('--oracle-profile is for the game suite with --cpu oracle')
     if args.rtl_at_prompt and not (args.suite == 'game' and args.cpu == 'rtl'):
@@ -1750,8 +2061,8 @@ def main() -> int:
     if args.image != 'boot' and args.suite != 'boot':
         parser.error('--image is supported by the boot suite only')
     if (args.preset or args.frequency or args.turbo) and not (
-            args.suite in ('system', 'governor') or args.suite in ('boot', 'game') and args.cpu == 'rtl'):
-        parser.error('the governor runs on the RTL CPU: system, governor, or boot and game with --cpu rtl')
+            args.suite in ('system', 'governor') or args.suite in ('boot', 'game', 'wfw') and args.cpu == 'rtl'):
+        parser.error('the governor runs on the RTL CPU: system, governor, or boot, game and wfw with --cpu rtl')
     if (args.frequency or args.turbo) and not args.preset:
         parser.error('--frequency and --turbo set a preset: give --preset too')
     if args.frequency and not 10 <= args.frequency <= 1000:
@@ -1763,7 +2074,8 @@ def main() -> int:
         return 2
     failed = False
     try:
-        suites = ('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'vga', 'sound') if args.suite == 'all' \
+        suites = ('devices', 'fdc', 'storage', 'audio', 'opl2', 'benches', 'boot', 'vga', 'sound') \
+            if args.suite == 'all' \
             else (args.suite,)
         for suite in suites:
             args.limit_seconds = limit_seconds or default_limit_seconds(suite)
@@ -1771,6 +2083,8 @@ def main() -> int:
             args.expect = expect or ('SOUND DONE' if suite == 'sound' else 'bytes free')
             if suite == 'devices':
                 report = run_devices(args)
+            elif suite == 'fdc':
+                report = run_fdc(args)
             elif suite == 'storage':
                 report = run_storage(args)
             elif suite == 'audio':
@@ -1787,6 +2101,12 @@ def main() -> int:
                 report = run_sound(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'game':
                 report = run_game(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'wfw':
+                found = wfw_drive(args)
+                if isinstance(found, str):
+                    print(f'SKIP wfw: {found}', flush=True)
+                    continue
+                report = run_wfw(args, oracle.link_inputs(args.jobs, args.download), *found)
             elif suite == 'rtl-stops':
                 report = run_rtl_stops(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'a20':
@@ -1806,7 +2126,7 @@ def main() -> int:
             else:
                 run = run_boot if suite == 'boot' else run_vga
                 report = run(args, oracle.link_inputs(args.jobs, args.download))
-            name = (game_suite(args) if suite == 'game' else
+            name = (game_suite(args) if suite == 'game' else wfw_suite(args) if suite == 'wfw' else
                     boot_suite(args) if suite == 'boot' else suite + ('-rtl' if args.cpu == 'rtl' else '') + suffix(args))
             (OUTPUT / name).mkdir(parents=True, exist_ok=True)
             (OUTPUT / name / 'report.json').write_text(json.dumps(report, indent=2) + '\n')

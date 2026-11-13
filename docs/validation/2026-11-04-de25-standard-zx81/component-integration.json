@@ -1,0 +1,31 @@
+{
+  "component_revision": "f77738c50948494007227e211836c9939cdae35b",
+  "qsys": {
+    "state": "passed",
+    "seconds": 18.922,
+    "scope": "actual Pro26.3 component validation and Verilog generation only"
+  },
+  "current_wrapper": {
+    "state": "passed",
+    "seconds": 48.867,
+    "source_revision": "f77738c50948494007227e211836c9939cdae35b"
+  },
+  "full_wrapper_regression": {
+    "state": "passed",
+    "seconds": 207.599,
+    "source_revision": "83e89341b818a3d37a321b2221ffbf7a2e37f293"
+  },
+  "combined_client_proof": {
+    "state": "passed",
+    "seconds": 730.866,
+    "source_revision": "2c8395296a43a1e4a4f19423585954eaea1fa507",
+    "cases": 14,
+    "architectures": [
+      "aarch64-cortex-a76",
+      "native"
+    ],
+    "proof_sha256": "a4069fcf1057196cc93b669375ec8f2b48df92b5ab729d5c9bd58118537dadc4"
+  },
+  "hardware_acceptance": false,
+  "remaining": "canonical board recipe, runtime/profile, physical clocks/audio and expansion/ROM integration; Quartus fit/timing and native acceptance"
+}

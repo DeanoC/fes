@@ -13,10 +13,12 @@ GENERATED = (
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_computer.yaml', 'misteross', 'boards/de25nano/zx81-hps/generated/fes_de25_computer.vh'),
     ('emit-cpp', 'packages/fabric/fes_fabric_de25_computer.yaml', 'misteross', 'boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp'),
     ('emit-cpp', 'packages/fabric/fes_fabric_de25_computer.yaml', 'libmister-runtime', 'src/native/generated/fes_de25_computer.hpp'),
+    ('emit-go', 'packages/fabric/fes_fabric_de25_computer.yaml', 'FogCast', 'protocol/internal/generated/fes_de25_computer.go'),
     ('emit-verilog', 'packages/abi/fes_computer.yaml', 'misteross', 'boards/de25nano/zx81-hps/generated/fes_computer.vh'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'),
     ('emit-c', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.h'),
     ('emit-c', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'FES', 'image/kernel/de25-dma/generated/fes_de25_scanout.h'),
+    ('emit-cpp', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'libmister-runtime', 'src/native/generated/fes_de25_scanout.hpp'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.vh'),
     ('emit-cpp', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_hps_mailbox.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_mailbox.vh'),
@@ -36,9 +38,9 @@ GENERATED = (
     ('emit-go', 'packages/abi/fes_simple_computer.yaml', 'FogCast', 'protocol/internal/generated/fes_simple_computer.go'),
     ('emit-verilog', 'packages/abi/fes_simple_computer.yaml', 'misteross', 'cores/fes-zx81/generated/fes_simple_computer.vh'),
     ('emit-verilog', 'packages/abi/fes_simple_computer.yaml', 'misteross', 'cores/fes-coleco/generated/fes_simple_computer.vh'),
-    ('emit-verilog', 'packages/abi/fes_simple_computer.yaml', 'misteross', 'cores/fes-sg1000/generated/fes_simple_computer.vh'),
     ('emit-verilog', 'packages/abi/fes_simple_computer.yaml', 'misteross', 'cores/fes-sms/generated/fes_simple_computer.vh'),
     ('emit-cpp', 'packages/programming/de10_nano.yaml', 'libmister-runtime', 'src/native/generated/de10_nano_programming.hpp'),
+    ('emit-cpp', 'packages/programming/de25_nano.yaml', 'libmister-runtime', 'src/native/generated/de25_nano_programming.hpp'),
     ('emit-cpp', 'packages/abi/fes_computer.yaml', 'libmister-runtime', 'src/native/generated/fes_computer.hpp'),
     ('emit-go', 'packages/abi/fes_computer.yaml', 'FogCast', 'protocol/internal/generated/fes_computer.go'),
     ('emit-go', 'packages/abi/fes_computer.yaml', 'FogCast', 'corepackage/internal/generated/fes_computer.go'),
@@ -54,6 +56,9 @@ COPIED_TREES = (
     ('testdata/core-bundle-v4', 'FogCast', 'corepackage/testdata/core-bundle-v4'),
     ('testdata/core-bundle-v4', 'libmister-runtime', 'tests/fixtures/core-bundle-v4'),
     ('testdata/core-bundle-v4', 'misteross', 'tests/fixtures/core-bundle-v4'),
+    ('testdata/core-bundle-v5', 'FogCast', 'corepackage/testdata/core-bundle-v5'),
+    ('testdata/core-bundle-v5', 'libmister-runtime', 'tests/fixtures/core-bundle-v5'),
+    ('testdata/core-bundle-v5', 'misteross', 'tests/fixtures/core-bundle-v5'),
     ('testdata/core-persistence-v1', 'libmister-runtime', 'tests/fixtures/core-persistence-v1'),
     ('testdata/media-data-v1', 'libmister-runtime', 'tests/fixtures/media-data-v1'),
 )
@@ -80,6 +85,9 @@ COPIED_FILES = (
     ('testdata/core-persistence-v1/records.json', 'FogCast', 'internal/misterruntime/testdata/core-persistence-v1/records.json'),
 )
 COMPONENT_FIXTURES = (
+    # The kernel owns the UAPI; runtime keeps an exact self-contained consumer.
+    ('FES', 'image/kernel/de25-dma/de25_dma.h',
+     'libmister-runtime', 'src/native/linux/de25_dma.h'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-parts-responses.jsonl',
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-parts-responses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-rom-package-responses.jsonl',

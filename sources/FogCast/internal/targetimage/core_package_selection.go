@@ -316,6 +316,9 @@ func copyClosedPackage(source, destination string) error {
 		if err == nil {
 			_, err = io.Copy(output, input)
 		}
+		if err == nil {
+			err = output.Chmod(0o444)
+		}
 		closeOutput := error(nil)
 		if output != nil {
 			closeOutput = output.Close()

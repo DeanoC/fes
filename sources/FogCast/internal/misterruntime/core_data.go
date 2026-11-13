@@ -155,7 +155,9 @@ func (r *Runtime) coreDataOperation(ctx context.Context, size int64, body io.Rea
 	if err != nil {
 		return result, unavailableError()
 	}
-	if !response.OK || response.Error != nil {
+	// Successful data operations may carry a retained runtime status error.
+	// Keep that diagnostic in status without turning this result into failure.
+	if !response.OK {
 		return result, mapCoreDataError(response.Error)
 	}
 	if response.CoreData == nil {

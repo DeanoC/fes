@@ -11,12 +11,25 @@ from scripts import build_fes_riscv as riscv
 from scripts import fes_build_common as board
 from scripts import search_placer_qor as placer
 from scripts.export_core_package import build_identity
-from tests.producer_fixture import EXECUTION
+from tests.producer_fixture import EXECUTION, de10_copy_ignore
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class RiscvProducerTests(unittest.TestCase):
+    def test_real_module_record_stays_bounded_and_excludes_de25(self):
+        revision = subprocess.check_output(
+            ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip()
+        record = riscv.create_build_record(ROOT, "https://example.invalid/fes", revision,
+                                           {"yosys": "test"}, execution=EXECUTION)
+        fields = json.loads(record)
+        self.assertLessEqual(len(record), 65536)
+        self.assertEqual("audited-v1", fields["parameters"]["source_closure_mode"])
+        self.assertTrue(set(riscv.PINNED_INPUTS).issubset(fields["source_inputs"]))
+        self.assertFalse(any(path.startswith("boards/de25nano/")
+                             for path in fields["source_inputs"]))
+        self.assertIn("cores/fes-common/rtl/riscv/fes_rv32_cpu.sv", fields["source_inputs"])
+
     def test_cli_accepts_standard_package_resolver_arguments(self):
         with patch("sys.argv", ["build_fes_riscv.py", "--root", str(ROOT),
                 "--package-output", str(ROOT / "build/packages"), "--cache-root", "/tmp/cache",
@@ -140,7 +153,7 @@ class RiscvProducerTests(unittest.TestCase):
         repo = Path(temporary.name)
         root = repo / "sources/misteross"
         for relative in ("scripts", "boards", "cores/fes-riscv", "cores/fes-common", "cores/fes-pong"):
-            shutil.copytree(ROOT / relative, root / relative, ignore=shutil.ignore_patterns("__pycache__"))
+            shutil.copytree(ROOT / relative, root / relative, ignore=de10_copy_ignore(ROOT))
         shutil.copy(ROOT / "toolchain.lock", root / "toolchain.lock")
         def git(*args):
             return subprocess.check_output(["git", "-C", str(repo), *args], text=True).strip()

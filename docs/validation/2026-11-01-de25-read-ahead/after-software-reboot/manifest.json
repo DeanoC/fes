@@ -1,0 +1,12 @@
+{
+  "source": "a82521947439e5773a1acee8f618c1bb824b6b95",
+  "boot_id": "469d5abb-2fab-425d-93bc-aa92aac8c32b",
+  "files": {
+    "program-scanout": "4d2d7e031cdda897bc287326cd65233d187b630396d55a18597732c3823cbd5d",
+    "owner-scanout": "ad0b7ad30b40999cc5e874a3e588fe22d18eea00a0f04d8b9a336fda409c3efe",
+    "reap-owned": "a165693fdb5cfda2cc5ed5aa4129237803bbab0d13f594f264d8eea54a262b40",
+    "scanout.rbf": "774798756c26480c37ea996c832b60343c61e312f4db41bb154e79eea1586f9c",
+    "observe-mapping.sh": "faf1d6f217e8d27d8e786dff20803569820f71cc559a437c3f236c18f2c25c3a"
+  },
+  "purpose": "fresh reload and3frame/bothslots after ordinary software reboot, same artifact; no automatic retries"
+}

@@ -16,6 +16,23 @@ def git(root, *args):
 
 
 class TestChangedTest(unittest.TestCase):
+    def test_large_selection_executes_through_a_file_without_changing_the_plan(self):
+        root = Path(test_changed.__file__).resolve().parents[1]
+        paths = ['sources/libmister-runtime/tests/unit/' + str(n) + '-' + 'x' * 90 + '.cpp'
+                 for n in range(2500)]
+        argv = [sys.executable, 'scripts/runtime_tests.py', '--plan-only', '--paths-json', json.dumps(paths)]
+        result = {'root': str(root), 'head': 'fixed', 'checkout_head': 'fixed', 'commands': [
+            {'cwd': '.', 'argv': argv, 'tools': [sys.executable], 'files': ['scripts/runtime_tests.py'],
+             'lane': 'runtime', 'label': 'large selector fixture'}]}
+        with tempfile.TemporaryFile(mode='w+') as output, \
+                patch.object(test_changed, 'revision', return_value='fixed'), \
+                patch.object(test_changed.sys, 'stderr', output):
+            self.assertTrue(test_changed.execute(result))
+            output.seek(0)
+            selected = json.load(output)
+        self.assertEqual(selected['command'], test_changed.runtime_tests.command(paths))
+        self.assertEqual(result['commands'][0]['argv'], argv)
+
     def test_native_video_changes_run_frame_cdc_and_actual_vdp_oracles(self):
         self.change("sources/misteross/cores/fes-common/rtl/fes_native_video.v")
         result = self.plan()

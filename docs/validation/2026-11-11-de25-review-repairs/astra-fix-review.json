@@ -1,0 +1,61 @@
+{
+  "head": "62e1a9da982234c44062a9244bd7487e127d2337",
+  "verdict": "NOT CLEAN",
+  "scope": "Fix-only review of 47ea60b20c7a017209a13fb008d084840dd03c60, merge 387d92388affba5dff5b0a8855540b7b0e7cbe0c, de083ca6276099fab3c099461c8d9f4181c3f980 and necessary merge resolutions in 62e1a9da982234c44062a9244bd7487e127d2337. Not a full feature review or physical acceptance.",
+  "findings": [
+    {
+      "priority": "P2",
+      "file": "sources/misteross/boards/de25nano/producers/build_menu_package.py",
+      "start": 210,
+      "end": 219,
+      "title": "Include relocated producer dependencies in the ZX81 functional source closure",
+      "detail": "After relocation, scripts-only import traversal is skipped for board-local recipes. The actual standard ZX81 create_build_record produces 134 source entries but omits boards/de25nano/producers/build_menu_package.py, which supplies authentication, execution setup, timing admission, and closure construction. Static records also need their board-local producer helper covered. A subsequent committed helper-only change can retain BUILD_ID because functional identity excludes revision. Add the complete board-local producer dependency closure and regression coverage that changes helper bytes."
+    }
+  ],
+  "p3_followups": [
+    {
+      "file": "sources/FogCast/docs/ARCHITECTURE.md",
+      "start": 3491,
+      "end": 3496,
+      "detail": "Merge retains removed hostless launch/status/stop documentation. Main and the current localcores handler expose inventory only; retain main inventory wording and applicable new DE25 documentation. Nonblocking."
+    }
+  ],
+  "independent_checks": [
+    "Read original findings and prior M2 authorization/proof.",
+    "Compared current and main own producer closure inventories and verified current mapped hashes against files: all non-RISC-V maps match; RISC-V has 204 differing board paths only and equal explicit pins.",
+    "Only shared cores/scripts difference against main is test-only Coleco audio_output_tb.cpp.",
+    "Constructed MENU and ZX81 records with explicit fixture tool/execution metadata without invoking compilers; confirmed missing common DE25 producer in ZX81 source_inputs.",
+    "Verified seven audio hashes and six integration ASTs after specified path relocation; referenced tracked audio records exist.",
+    "Traced C1, K1-K3, G3, R1, S2/S3 repairs and board-aware capacity merge; no additional P1/P2 code finding in that scope.",
+    "Read S1 rootfs contract additions and remaining image/kit gate documentation.",
+    "Scoped git diff --check passed."
+  ],
+  "not_run": [
+    "Quartus",
+    "image builds",
+    "QEMU",
+    "hardware",
+    "duplicate broad unit suites"
+  ],
+  "remaining_evidence": [
+    "S1 DE10 QEMU smoke and kit boot",
+    "exact-bundle DE10 hardware acceptance",
+    "fresh independent DE25 fitted audio/package qualification as applicable"
+  ],
+  "workspace_note": "Review checkout HEAD stayed fixed. Parent-owned uncommitted test/fixture and validation-record changes appeared during review; they are excluded from this exact-head verdict. No repository files edited by reviewer.",
+  "reviewer": {
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "speed": "standard",
+    "authorization": "Explicit user approval in this task"
+  },
+  "owner_resolution": {
+    "finding": "P2 relocated producer closure",
+    "fix_commit": "a8dc9b595e2e9f81fb148bcdde2679bfc10c5e48",
+    "before": "Both ordinary/static helper-byte regressions fail before fix.",
+    "after": "All seven actual production identity tests pass after fix.",
+    "review_verdict_unchanged": true,
+    "new_head_independently_reviewed": false,
+    "review_budget": "Original Fable full review plus this fix-only review use the two rounds. No third review launched."
+  }
+}

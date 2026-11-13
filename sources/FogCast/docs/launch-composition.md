@@ -31,9 +31,8 @@ the source bytes and validates the result before programming.
 
 Schema 23 preserves saved named ROM bindings and imported media, and removes
 the old household BIOS selection. Titles that relied on that selection need an
-explicit per-title BIOS choice. The shared legacy `fes.firmware.blob` mailbox
-interface remains a separate cleanup; current format-4 Coleco packages do not
-use it. A missing, corrupt or stale selection blocks the title until repaired.
+explicit per-title BIOS choice. A missing, corrupt or stale selection blocks
+the title until repaired.
 The default image does not include a private BIOS.
 
 Removable media is a separate selection. Some packages accept media at launch

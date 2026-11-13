@@ -59,7 +59,11 @@ actual consumers. Simulation matrix/compiler changes select the FPGA lane and
 all core simulations. The parent Makefile, workflow and shared software test runner select all
 software lanes without RTL simulations. Host runner changes select parent and
 host checks. Contract Go tooling and core recipe/provisioning changes also skip
-unchanged RTL; contract definitions retain consumer coverage.
+unchanged RTL. Closed core-bundle schemas, their fixture generators/corpora and
+the contract software-test Makefile keep every software lane, including producer
+tests, without selecting unrelated RTL simulations. ABI/fabric/register
+definitions, changed generated outputs and unknown contract inputs retain their
+consumer coverage.
 
 Platform provisioning, platform Go tests and image shell tests run only when
 `media` is selected, including scheduled/manual runs. A room, host or core edit
@@ -259,6 +263,13 @@ fixtures and source copies. It does **not** replace `make check`'s committed-sou
 selection gate. Parent platform/image packaging suites and the required browser
 integration lane are outside this focused command. Individual tests may report
 their own skips; a passing command does not turn a skipped test into coverage.
+CI runs the same selected parent cases in disjoint `software` and `media`
+partitions, each retaining the 45-minute job cap. The media partition exists
+only when requested and owns container provisioning and platform/image checks.
+The software partition retains all other cases, including selected video tests,
+so snapshot download retries cannot consume their test budget. The integration
+gate requires the exact planned partition matrix and every partition to pass.
+Local parent commands keep the combined `all` partition by default.
 The recipe tests access bundle helpers through a module import (`from tests
 import test_bundle`) so discovery does not re-run the imported bundle suite.
 The regression suite also executes FogCast's contained-development diagnostic

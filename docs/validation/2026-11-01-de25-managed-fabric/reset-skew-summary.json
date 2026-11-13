@@ -1,0 +1,91 @@
+{
+  "RDC_50003_closed": false,
+  "canonical_build_inputs_sha256": "79f2a0eaaf7248716ea2ccd5b33861f2b4ba0bf04529f88f3186307e444fff76",
+  "case_count": 2304,
+  "classification": "finite-independent-fifo-reset-release-delay-model",
+  "clock_phases": [
+    1,
+    17,
+    296,
+    297,
+    399,
+    400,
+    593,
+    799
+  ],
+  "executable_job": {
+    "command": [
+      "python3",
+      "/data/de25-reset-skew-263a19e06/source/sources/misteross/tests/de25_reset_skew.py",
+      "--startup-proof",
+      "/data/fes-de25-managed-fabric-d8549cc79/startup",
+      "--output",
+      "/data/de25-reset-skew-263a19e06/proof"
+    ],
+    "cwd": "/data/de25-reset-skew-263a19e06/source",
+    "elapsed_seconds": 72.8,
+    "hardware_access": "not-performed",
+    "heartbeat_utc": "2026-11-01T20:23:51.970429+00:00",
+    "pid": 2143204,
+    "returncode": 0,
+    "source_revision": "263a19e063664423373654c715a80ca7249dc6ab",
+    "started_utc": "2026-11-01T20:22:39.201552+00:00",
+    "state": "passed",
+    "time_cap_seconds": 600
+  },
+  "executable_sha256": "bc422b7d0640fd257c63a2b7084e794cf91c85faa30e378056bef1ed48225a92",
+  "executed_helper_revision": "263a19e063664423373654c715a80ca7249dc6ab",
+  "format": 1,
+  "guard_delays_system_cycles": [
+    0,
+    100512
+  ],
+  "hardware_access": "not-performed",
+  "healthy_cases": 2048,
+  "independent_fifo_chains": 8,
+  "late_timeout_cases": 256,
+  "log_sha256": {
+    "build.log": "336022729ce85862813a00055145e8025e710c4fe766a37c91909199f118080d",
+    "elaboration.log": "19db59093fd8a1b0c6598c40106a990951cf3786e74b9352515e88f067a1e1b7",
+    "negative-control.log": "6ae27797dfd41138ec154452c661b32d48718f7dcc61a6e19c8d553bc4aacbff",
+    "simulation.log": "80127668c37f14be0848459cddf672098a6699f0df7f7064e0839df3e055045d"
+  },
+  "model_helper_sha256": "b739f9a26859a0df848e4934aed1a784369a50f73d4412d66bd05c98119c22f3",
+  "negative_release_monitor": "pass: missing delay rejected",
+  "original_compiler_revision": "d8549cc79132f6d6a0752021552125c1220e337f",
+  "original_failed_harness": {
+    "command": [
+      "python3",
+      "/data/de25-reset-skew-0ae1c7d40/source/sources/misteross/tests/de25_reset_skew.py",
+      "--startup-proof",
+      "/data/fes-de25-managed-fabric-d8549cc79/startup",
+      "--output",
+      "/data/de25-reset-skew-0ae1c7d40/proof"
+    ],
+    "cwd": "/data/de25-reset-skew-0ae1c7d40/source",
+    "elapsed_seconds": 0.6,
+    "hardware_access": "not-performed",
+    "heartbeat_utc": "2026-11-01T20:21:55.410296+00:00",
+    "pid": 2142677,
+    "returncode": 1,
+    "source_revision": "0ae1c7d403fee3db054139fd0b7179481bf3fb8a",
+    "started_utc": "2026-11-01T20:21:54.856916+00:00",
+    "state": "failed",
+    "time_cap_seconds": 600
+  },
+  "original_rbf_sha256": "b6eab6805067050a69cb66b40f5708543e868a9d898250662b78eda77eba3eb2",
+  "parent_receipt_sha256": "04e956ad0bb176698c7b970647e29e1827369f62c574bb47142ef0d02dcaa3d1",
+  "physical_metastability_model": false,
+  "ram_model": "modeled M20K storage; no vendor primitive/physical proof",
+  "raw_cases_location": "de25-reset-skew-263a19e06/proof/receipt.json in retained archive",
+  "raw_receipt_sha256": "f96a227684b3da2f4df0ea1a6a5656c0e9f11bccee56e762e8c32a8949b75333",
+  "reset_delay_choices_cycles": [
+    0,
+    1
+  ],
+  "status": "pass",
+  "timeout_cases": 256,
+  "total_accepted_axi_bursts": 16896,
+  "total_completed_axi_beats": 241664,
+  "whole_reset_boot_epoch_acceptance": false
+}

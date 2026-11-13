@@ -71,7 +71,9 @@ func (s *sessionCoordinator) replaceLiveMedia(ctx context.Context, id, mediaID, 
 	}
 	ctx = s.scoped(ctx)
 	if !s.begin() {
-		return sessionResult{}, busyError()
+		rejected := busyError()
+		rejected.NoChange = true
+		return sessionResult{}, rejected
 	}
 	defer s.end()
 	s.observationMu.Lock()
@@ -107,7 +109,9 @@ func (s *sessionCoordinator) clearLiveMedia(ctx context.Context, id string, b pr
 	}
 	ctx = s.scoped(ctx)
 	if !s.begin() {
-		return sessionResult{}, busyError()
+		rejected := busyError()
+		rejected.NoChange = true
+		return sessionResult{}, rejected
 	}
 	defer s.end()
 	s.observationMu.Lock()

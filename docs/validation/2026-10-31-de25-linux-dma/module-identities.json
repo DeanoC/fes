@@ -1,0 +1,34 @@
+{
+  "classification": "host ELF and module identity checks; no module loaded",
+  "kernel_receipt_sha256": "243e27fdf1f00628ade62df3b2696636eb69eb57c519b02c71b6ab5b8d90b1a7",
+  "architecture": "AArch64",
+  "ELF_type": "REL",
+  "byte_order": "little",
+  "modules": {
+    "fpga-region.ko": {
+      "depends": "fpga-bridge",
+      "name": "fpga_region",
+      "vermagic": "6.12.11-fes-de25-platform SMP preempt mod_unload aarch64"
+    },
+    "fpga-bridge.ko": {
+      "depends": "",
+      "name": "fpga_bridge",
+      "vermagic": "6.12.11-fes-de25-platform SMP preempt mod_unload aarch64"
+    },
+    "stratix10-soc.ko": {
+      "depends": "",
+      "name": "stratix10_soc",
+      "vermagic": "6.12.11-fes-de25-platform SMP preempt mod_unload aarch64"
+    },
+    "of-fpga-region.ko": {
+      "depends": "fpga-region,fpga-bridge",
+      "name": "of_fpga_region",
+      "vermagic": "6.12.11-fes-de25-platform SMP preempt mod_unload aarch64"
+    },
+    "fes_de25_dma.ko": {
+      "depends": "",
+      "name": "fes_de25_dma",
+      "vermagic": "6.12.11-fes-de25-platform SMP preempt mod_unload aarch64"
+    }
+  }
+}

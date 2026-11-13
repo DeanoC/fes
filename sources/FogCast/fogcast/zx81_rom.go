@@ -71,8 +71,12 @@ func (s *Service) SetMachineROMLinker(linker MachineROMLinker) {
 	s.machineROM = linker
 }
 
-func (s *Service) applyZX81MachineROM(ctx context.Context, coreID string, archive []byte, composed *corepackage.CompositionBundle) ([]byte, string, error) {
-	if coreID != "fes.zx81" {
+func zx81MachineROMLinkRequired(descriptor corepackage.Descriptor) bool {
+	return descriptor.Core.ID == "fes.zx81" && descriptor.Target.Platform == "de10_nano"
+}
+
+func (s *Service) applyZX81MachineROM(ctx context.Context, descriptor corepackage.Descriptor, archive []byte, composed *corepackage.CompositionBundle) ([]byte, string, error) {
+	if !zx81MachineROMLinkRequired(descriptor) {
 		return nil, "", nil
 	}
 	if s.machineROM == nil {

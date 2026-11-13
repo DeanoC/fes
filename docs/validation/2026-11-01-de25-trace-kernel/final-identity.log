@@ -1,0 +1,8 @@
+e5e896ba-e01e-4ab4-9b2f-a236045b7d39
+02:8e:2a:b1:d3:bd
+crw-------    1 0        0          10, 124 Jan  1 00:00 /dev/fes-de25-scanout
+[    1.962249] fpga_manager fpga0: Stratix10 SOC FPGA Manager registered
+[  310.945806] fpga_manager fpga0: writing fes-runtime-core.rbf to Stratix10 SOC FPGA Manager
+[  313.048203] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[  313.058494] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us
+TRACE_ALLOCATION_BASELINE_FILES_CLEAN

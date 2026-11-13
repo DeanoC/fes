@@ -1002,6 +1002,20 @@ void TestInitialDeadlineIsNotAttempted()
 	EXPECT(!result.mutation_attempted);
 }
 
+void TestDe25ProfileNeverEntersCycloneV()
+{
+    TempArtifact input(4);
+    mister_test::FakeMmio mmio;
+    FixedClock clock(0);
+    mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
+    const auto result = manager.Program(input.artifact,
+        mister::native::ProgrammingProfile::de25_hps_first_v1, 100);
+    EXPECT(!result.error.ok());
+    EXPECT(!result.mutation_attempted);
+    EXPECT(mmio.reads.empty());
+    EXPECT(mmio.writes.empty());
+}
+
 template <typename Function>
 void Run(const char* name, Function function, int* count)
 {
@@ -1015,6 +1029,7 @@ void Run(const char* name, Function function, int* count)
 int main()
 {
 	int count = 0;
+    Run("DE25 profile refused before Cyclone V access", TestDe25ProfileNeverEntersCycloneV, &count);
 	Run("fpga_manager diagnostic state",
 		TestProgramEmitsFpgaManagerStateAndFailure, &count);
 	Run("exact containment/configuration/release order",

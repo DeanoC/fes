@@ -106,7 +106,9 @@ func titleSlug(title string) string {
 	}
 	slug := builder.String()
 	if len(slug) > 48 {
-		slug = slug[:48]
+		// The boundary can land on a separator. Remove it before GameID
+		// appends the digest separator, so the ID stays a valid slug.
+		slug = strings.TrimRight(slug[:48], "-")
 	}
 	if slug == "" {
 		return "game"

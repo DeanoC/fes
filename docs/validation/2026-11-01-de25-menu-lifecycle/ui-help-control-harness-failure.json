@@ -1,0 +1,16 @@
+{
+  "source_revision": "9964f2aa9f26dee6c99a518e86135126ccc72e3b",
+  "command": [
+    "python3",
+    "out/menu-client-aarch64.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-menu-client-release",
+  "started_utc": "2026-11-01T10:39:05.113371+00:00",
+  "time_cap_seconds": 900,
+  "hardware_access": "not-performed",
+  "pid": 2817837,
+  "state": "failed",
+  "elapsed_seconds": 37.3,
+  "heartbeat_utc": "2026-11-01T10:39:42.391204+00:00",
+  "returncode": 1
+}

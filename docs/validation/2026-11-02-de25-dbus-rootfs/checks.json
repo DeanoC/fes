@@ -1,0 +1,220 @@
+{
+  "actual_sdk_authenticated": true,
+  "affected_parent_seconds": 248.638,
+  "affected_parent_skips": 45,
+  "affected_parent_tests": 1325,
+  "base_abi_contract_unchanged": true,
+  "canonical_menu_inputs_unchanged": 374,
+  "check_source_revision": "620fd59b0d14803a61d5553dc2686fb4afcc5ac4",
+  "classification": "fresh real managed intermediate/kernel virtual boot with responsive D-Bus; no factory/native acceptance",
+  "combined_compiler_inputs_unchanged": 59,
+  "fixture_copies": 42,
+  "focused_python_tests": 25,
+  "generated_consumers": 40,
+  "goal": "active; incomplete",
+  "hardware_access": "not-performed",
+  "image_producer_revision": "dfaffa8696fb164bf30576a6f7a1d7cd1844dd48",
+  "jobs": {
+    "affected-job": {
+      "command": [
+        "make",
+        "test-changed",
+        "TEST_CHANGED_ARGS=--base 831d55e633f51932521f2802c455420309f64fb7 --jobs 2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-dbus-rootfs-dfaffa869",
+      "elapsed_seconds": 247.0,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T00:18:06.378815+00:00",
+      "pid": 865177,
+      "returncode": 2,
+      "source_revision": "dfaffa8696fb164bf30576a6f7a1d7cd1844dd48",
+      "started_utc": "2026-11-02T00:13:59.421809+00:00",
+      "state": "failed",
+      "time_cap_seconds": 1800
+    },
+    "audit-job": {
+      "command": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/audit.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-dbus-checks-620fd59b0",
+      "elapsed_seconds": 2.7,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T00:24:51.079141+00:00",
+      "pid": 1376585,
+      "returncode": 0,
+      "source_revision": "620fd59b0d14803a61d5553dc2686fb4afcc5ac4",
+      "started_utc": "2026-11-02T00:24:48.336779+00:00",
+      "state": "passed",
+      "time_cap_seconds": 600
+    },
+    "base-build-job": {
+      "command": [
+        "/usr/bin/python3",
+        "image/de25-nano/build.py",
+        "managed-base",
+        "--kernel",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-managed-sdk-integration/linux-base-bootstrap/kernel",
+        "--sdk",
+        "/home/deano/fes/out/artifacts/de25-kernel-modules/0da63d1044cc7ecf9908efba52af17b3e55e6271/linux-image/aarch64-sdk.tar.gz",
+        "--output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base",
+        "--cache",
+        "/home/deano/fes/out/cache/de25-vendor",
+        "--jobs",
+        "4"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-dbus-rootfs-dfaffa869",
+      "elapsed_seconds": 561.9,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T00:23:21.283332+00:00",
+      "pid": 865174,
+      "returncode": 0,
+      "source_revision": "dfaffa8696fb164bf30576a6f7a1d7cd1844dd48",
+      "started_utc": "2026-11-02T00:13:59.418828+00:00",
+      "state": "passed",
+      "time_cap_seconds": 5400
+    },
+    "corrected-affected-job": {
+      "command": [
+        "make",
+        "test-changed",
+        "TEST_CHANGED_ARGS=--base 831d55e633f51932521f2802c455420309f64fb7 --jobs 2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-dbus-checks-620fd59b0",
+      "elapsed_seconds": 255.3,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T00:23:16.269961+00:00",
+      "pid": 1132124,
+      "returncode": 0,
+      "source_revision": "620fd59b0d14803a61d5553dc2686fb4afcc5ac4",
+      "started_utc": "2026-11-02T00:19:00.941552+00:00",
+      "state": "passed",
+      "time_cap_seconds": 1800
+    },
+    "focused-job": {
+      "command": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/focused.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-dbus-rootfs-dfaffa869",
+      "elapsed_seconds": 6.6,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T00:13:30.999903+00:00",
+      "pid": 857852,
+      "returncode": 0,
+      "source_revision": "dfaffa8696fb164bf30576a6f7a1d7cd1844dd48",
+      "started_utc": "2026-11-02T00:13:24.401999+00:00",
+      "state": "passed",
+      "time_cap_seconds": 600
+    },
+    "new-boot-job": {
+      "command": [
+        "/usr/bin/python3",
+        "image/de25-nano/build.py",
+        "boot-smoke",
+        "--image-profile",
+        "managed-base",
+        "--output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base",
+        "--boot-output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/new-base-boot"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-dbus-checks-620fd59b0",
+      "elapsed_seconds": 47.4,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T00:24:40.444816+00:00",
+      "pid": 1374641,
+      "returncode": 0,
+      "source_revision": "620fd59b0d14803a61d5553dc2686fb4afcc5ac4",
+      "started_utc": "2026-11-02T00:23:52.996885+00:00",
+      "state": "passed",
+      "time_cap_seconds": 600
+    },
+    "old-control-job": {
+      "command": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/old-control.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-dbus-rootfs-dfaffa869",
+      "elapsed_seconds": 48.7,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T00:14:13.077953+00:00",
+      "pid": 857851,
+      "returncode": 0,
+      "source_revision": "dfaffa8696fb164bf30576a6f7a1d7cd1844dd48",
+      "started_utc": "2026-11-02T00:13:24.391892+00:00",
+      "state": "passed",
+      "time_cap_seconds": 600
+    },
+    "public-verify-job": {
+      "command": [
+        "/usr/bin/python3",
+        "image/de25-nano/build.py",
+        "verify-base",
+        "--output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base",
+        "--cache",
+        "/home/deano/fes/out/cache/de25-vendor"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-dbus-checks-620fd59b0",
+      "elapsed_seconds": 3.5,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T00:23:48.266340+00:00",
+      "pid": 1373125,
+      "returncode": 0,
+      "source_revision": "620fd59b0d14803a61d5553dc2686fb4afcc5ac4",
+      "started_utc": "2026-11-02T00:23:44.764556+00:00",
+      "state": "passed",
+      "time_cap_seconds": 600
+    },
+    "rounding-regression-job": {
+      "command": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "tests.test_parent_affected.ParentAffectedTests.test_real_plan_partitions_all_discovered_tests",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-dbus-checks-620fd59b0",
+      "elapsed_seconds": 1.8,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T00:19:02.691118+00:00",
+      "pid": 1132123,
+      "returncode": 0,
+      "source_revision": "620fd59b0d14803a61d5553dc2686fb4afcc5ac4",
+      "started_utc": "2026-11-02T00:19:00.931479+00:00",
+      "state": "passed",
+      "time_cap_seconds": 1800
+    },
+    "source-retention-job": {
+      "command": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/retain-source.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-dbus-checks-620fd59b0",
+      "elapsed_seconds": 7.5,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T00:25:48.910226+00:00",
+      "pid": 1388765,
+      "returncode": 0,
+      "source_revision": "620fd59b0d14803a61d5553dc2686fb4afcc5ac4",
+      "started_utc": "2026-11-02T00:25:41.447865+00:00",
+      "state": "passed",
+      "time_cap_seconds": 900
+    }
+  },
+  "kernel_files_unchanged": 6,
+  "normal_runtime_admission": "closed",
+  "retention": {
+    "archive_sha256": "02975444e2bec446afc81e8d2a899d0bb4921232e547357ffc06a97a491787c7",
+    "archive_size": 258852561,
+    "archived_regular_files_verified": 57,
+    "path": "/home/deano/fes/out/artifacts/de25-dbus-rootfs/620fd59b0/retention.json",
+    "restored_tree": "bea3e8ace423eaf3a0b173f2d75b18200bd9aad9",
+    "sha256": "feffb5f974d15746cd9c1e46c0a5568ad311c5e56d89bd9f8b25aedf251ba70a"
+  },
+  "runtime_test_inputs_unchanged": 58,
+  "shared_library_payloads_changed": 2,
+  "shared_library_payloads_identical": 52
+}

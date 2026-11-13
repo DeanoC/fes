@@ -304,6 +304,8 @@ fields. `validate` accepts fabric packages and `emit-verilog` emits guarded
 constant includes using the existing naming rules. `emit-cpp` emits the same
 constants for a fabric contract the runtime also reads, such as
 [`fes.fabric.video.display-plane`](../packages/fabric/fes_fabric_video_display_plane.yaml).
+`emit-go` emits the fabric's typed `uint32` constants for host consumers, using
+the same YAML values without declaring a host ABI or capability bits.
 `emit-c` accepts only fabric packages and emits standalone guarded C headers,
 with no system includes. Constant names use the existing uppercase Verilog
 macro naming rule; each value is an unsigned 32-bit hexadecimal literal such
@@ -332,6 +334,74 @@ defines `fes.fabric.video.raster-rgb888` 1.0. See
 markers, HOLD and the fixed 720p mode bounds. The source/socket package marker
 remains separate from operational GP capabilities and programming profiles.
 
+## Static expansion package format 5
+
+`schema/core-bundle-v5.json` describes the DE25 cold-start package. Its closed
+restricted-ustar archive contains exactly `manifest.toml`, `core.rbf` and
+`persona.rbf`, in that order; a directory contains the same three regular,
+non-symlink files. Each RBF is independently bounded to 32 MiB. The full base
+uses the ordinary payload table. A required `static_expansion` table binds the
+default empty persona's filename, exact size and SHA256, its hardware ID
+`0xc001a001`, the controller's nonzero 32-hex build ID, and four nonzero 64-hex
+frozen-root identities: `root_qdb_sha256`, `interface_sha256`,
+`clock_reset_sha256` and `pof0_hash`. Numbers are exact integers; floats and
+booleans do not substitute for them. No ROM-map fields are accepted.
+
+The target is exactly `de25_nano`, device `A5EB013BB23BE4SCS`, profile
+`de25-linux-static-computer-v1`. This profile is not registered for activation
+yet. Structural parsing never proves vendor payload compatibility, timing or
+physical acceptance. An alternate expansion requires its own sealed binding
+to this package and these frozen identities before structural runtime admission.
+
+Package identity is SHA256 over `FES-CORE-PACKAGE-5\n`, followed by each of the
+three exact member byte strings, in archive order, prefixed by its unsigned
+64-bit little-endian length. Unlike CycloneV static composition, no payload bit
+editing or monolithic RBF construction is implied. The default persona belongs
+to the package so an empty selection also has a complete cold-start artifact.
+`testdata/core-bundle-v5` is the shared Go/C++/Python structural corpus; its opaque
+synthetic payloads must never be deployed.
+
+## Static partial expansion assets and composition
+
+The Go expansion library reads an explicit format2 asset for the DE25 target
+above. The existing two-file expansion archive contains canonical
+`manifest.json` and opaque `cart.rbf`. Its target is `A5EB013BB23BE4SCS`, bus
+`fes.expansion.zx81-bus` 2.0, map `fes.de25-zx81-bus.partial/1`, with no slot index
+or CRAM boundary patch. The manifest retains the ordinary cart size/SHA256,
+recipe/revision and exact shell package/build/base bindings. A required `partial`
+object adds `control_build_id`, `hardware_id`, `root_qdb_sha256`,
+`interface_sha256`, `clock_reset_sha256` and `pof0_hash`. The current controller
+admits hardware IDs `0xc001a001` and `0xc002b002`. Payloads are 1 through 32 MiB;
+they are not decoded as CycloneV frames. Format1 refuses this partial object.
+
+The asset ID is SHA256 over `fes-expansion-v2\0` and the canonical manifest
+bytes. The Go reader's field order is normative, including the leading partial
+object; all unknown or duplicate fields fail canonical reconstruction. Its
+partial object is copied before publishing an owned asset. This asset format
+does not assert that a vendor payload actually implements its declared ID.
+Producer validation and runtime identity checks remain separate requirements.
+
+The cold composition ID hashes `fes-de25-static-composition-v1\0`, followed by
+these NUL-separated strings in order: package ID, selected expansion ID (empty
+for the packaged default), base SHA256, decimal base size, persona SHA256,
+decimal persona size, controller build ID and decimal hardware ID. Digests are
+lowercase hex and decimal integers have no leading zeroes. Selecting an asset
+requires equality of package ID, guest build, base hash and every frozen-root
+identity; an empty choice uses the sealed default persona. Both images remain
+unchanged. `StaticCompositionID` also validates and hashes these exact receipt
+fields for client/status checks; it does not admit payload bytes.
+
+The static composition transport places canonical `static-composition.json`
+first, followed by `package.tar` and optional `expansion.tar`; no linked RBF is
+carried. Target staging and C++ admission independently validate the components.
+The existing `load_composed_core` operation carries this two-image tuple instead
+of the full-chip tuple. Only a selected expansion has `expansion_id` and
+`expansion_path`; no `payload_path` is accepted. Active status echoes the same
+shape under `composition`. Static load requires Stop/idle and a fresh base;
+there is no live expansion command. The static programming profile remains
+unregistered, the physical backend is unavailable, and normal library
+production plus exact-artifact physical qualification remain required.
+
 ## programming_profiles
 
 `packages/abi/fes_application.yaml` adds ABI `fes.application` 1.0, tag 3,
@@ -343,11 +413,6 @@ the legacy ABI definitions or the manifest schema.
 Application audio `fes.audio.pcm-s16-stereo-48k` 1.0 is an additive required-when-
 present interface using capability bit 4. It needs no manifest-schema change;
 older runtimes reject its required declaration through normal registry admission.
-
-Application firmware `fes.firmware.blob` 1.0 is capability bit 7 with opcodes
-15–17 and exact length `FesApplicationFirmwareBytes` (8192). It may be required
-or optional. See [application I/O](application-io.md). The in-tree runtime
-consumer revision is recorded in `testdata/oracles/fes-application-firmware.json`.
 
 Application HPS DDR `fes.memory.hps-ddr` 1.0 is capability bit 8. Its
 `FesApplicationHpsDdr*` constants give the FPGA-owned DDR3 window and the
@@ -410,7 +475,7 @@ contains `fes-gp-v1` paired with `fes.simple-game`, `fes.simple-computer`,
 `development-contained-v1` is explicitly diagnostic-only and has no ABI
 fallback. MiSTer ABI packages are not activatable.
 
-`emit-cpp` represents every row as `GeneratedProgrammingProfilePair` with
+`emit-cpp` represents every row as `Generated<Platform>ProgrammingProfilePair` with
 `profile`, `abi`, `major`, and `diagnostic_only`; a diagnostic row uses
 `nullptr`, zero, and `true`. `emit-go` emits the equivalent
 `ProgrammingProfilePair`. Runtime consumers combine a matching profile/ABI
@@ -482,3 +547,27 @@ manifest schema or ABI-major change is needed. Fixed geometry, bounded slot
 selection, coherent counters and drain/sequence semantics are defined in
 [application I/O](application-io.md#menu-display-10). The golden menu fixture
 is copied into RTL and runtime consumers by FES generation.
+
+DE25 `packages/programming/de25_nano.yaml` pairs `de25-hps-first-v1` with
+`fes.computer` major1 and `de25-linux-menu-v1` with `fes.application` major1
+on `A5EB013BB23BE4SCS`. Runtime selects the board explicitly and restricts each
+contract: BRAM computer1.0/video/HID/tape, or MENU application1.0 with fixed
+video1.0, menu-display1.0 and `fes.fabric.de25-scanout`1.1. MENU uses kernel DMA
+ABI3 and no `fes.memory.hps-ddr` declaration. Registry rows describe package
+pairings; physical factory/kernel/lease admission and hardware acceptance are
+separate.
+
+`de25-linux-computer-v1` pairs the standard format2 `fes.zx81` base with
+`fes.computer`1.0. Runtime requires fixed video, HID, controller ports, fixed
+PCM48k, ZX81 tape, tape-write, session-display and shared display-plane1.0 plus
+allocated `fes.fabric.de25-scanout`1.1. The kernel owns publication; GP controls
+visibility. This profile grants neither `fes.memory.hps-ddr` nor general ROM/PR
+composition admission. Source/runtime admission and exact-artifact hardware
+acceptance remain separate.
+
+The declared `de25-linux-static-computer-v1` programming pair uses `fes.computer`
+1.0 with the exact standard ZX81 allocated-display contract and format5. The
+runtime defaults this unfinished feature off. A qualification build explicitly
+sets `ENABLE_DE25_STATIC=1`; native admission additionally requires the matched
+kernel cold-start contract and an independently checked two-image composition.
+The declaration alone neither enables a deployed image nor qualifies PR timing.

@@ -1,0 +1,16 @@
+{
+  "source_revision": "d8b23267cc8301361bdc5c2ef7db89593462f4a6",
+  "command": [
+    "python3",
+    "/data/fes-de25-reset-path-review-20261101-1604/strengthen-and-analyze.py"
+  ],
+  "cwd": "/data/fes-de25-menu-canonical-d8b23267c/source",
+  "started_utc": "2026-11-01T16:11:24.830163+00:00",
+  "time_cap_seconds": 240,
+  "hardware_access": "not-performed",
+  "pid": 1998829,
+  "state": "passed",
+  "elapsed_seconds": 13.7,
+  "heartbeat_utc": "2026-11-01T16:11:38.488701+00:00",
+  "returncode": 0
+}

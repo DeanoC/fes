@@ -1,0 +1,24 @@
+{
+  "source_revision": "9964f2aa9f26dee6c99a518e86135126ccc72e3b",
+  "command": [
+    "go",
+    "-C",
+    "sources/FogCast",
+    "test",
+    "-race",
+    "-count=20",
+    "-run",
+    "Test(MenuPause|CancelledMenuPause|ResumedMenuPause|ReleaseWindow)",
+    "./ui/gfx",
+    "./ui/menudisplay"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-menu-client-release",
+  "started_utc": "2026-11-01T10:32:14.106753+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 2744173,
+  "state": "passed",
+  "elapsed_seconds": 4.8,
+  "heartbeat_utc": "2026-11-01T10:32:18.873820+00:00",
+  "returncode": 0
+}

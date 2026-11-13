@@ -1,0 +1,50 @@
+{
+  "classification": "custom kernel build preparation only; not booted",
+  "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "fes_module_source": "a8c87794095a0cb594774021ffe8d9a4fbe86ec1",
+  "sdk_sha256": "7912076c08d93c8d8c28c0ef81bd406abf6b1acb9e01ccac37d44307e39759a7",
+  "release": "6.12.11-fes-de25-platform",
+  "service_recovery_patch": "not applied; bounded error return alone is not DMA quiescence",
+  "DMA_production_binding": "closed",
+  "hardware_acceptance": "not-run",
+  "compiler": "aarch64-buildroot-linux-gnu-gcc.br_real (Buildroot 2021.02.4) 9.4.0",
+  "files": {
+    "Image": {
+      "sha256": "d2486081f30a03c2f9cac67b2d3fb5a67974f6f713db5cc577c207bc242a0968",
+      "size": 46699008
+    },
+    "kernel.config": {
+      "sha256": "cc0db8152ce13909ebc8202502e465e4d984bdbe2222db57c117874db699d98d",
+      "size": 301815
+    },
+    "Module.symvers": {
+      "sha256": "fa0787119ea100145802399767256f4bbd33460c1d64585ecdf8bce191398ee6",
+      "size": 792248
+    },
+    "fes_de25_dma.ko": {
+      "sha256": "dbdb12712d2d238835cf4910c702b3b0a2e9aec801d3df875862ffc8ca04b25d",
+      "size": 214432
+    },
+    "stratix10-soc.ko": {
+      "sha256": "41853fedc0fd80ad8a362f5f408cc8756a75a8101a1289fa52a3beef9b07f66d",
+      "size": 182328
+    },
+    "fpga-bridge.ko": {
+      "sha256": "6513e9633ca14ec88ec45def18e234a28d69ceb604607047ac5feff3ead59a8a",
+      "size": 134384
+    },
+    "fpga-region.ko": {
+      "sha256": "7e89b00fd32abf1634bcc513763b81f243db2ece9b7b053a1b11d8133396264c",
+      "size": 118200
+    },
+    "of-fpga-region.ko": {
+      "sha256": "a681d96c57affa83cd40e7ef4a5806da6c5180ce729170170046144cbb154aa8",
+      "size": 123088
+    },
+    "socfpga_agilex5_de25_nano.dtb": {
+      "sha256": "4698fbcab78c283b6228e9ec870b076fc10e4881d3fbc7b0824a8c30057baa06",
+      "size": 28690
+    }
+  },
+  "device_tree_symbols": "actual SMMU label exported for overlays"
+}

@@ -1,0 +1,44 @@
+{
+  "source_revision": "451f853c7",
+  "source_sha256": {
+    "sources/misteross/boards/de25nano/zx81-hps/fes_de25_audio.v": "9f2d1436b75ef1fe489a55ea4139b2f5dcd922072528b6f68d344d851cca6f33",
+    "sources/misteross/cores/fes-common/rtl/fes_audio_output.v": "e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd",
+    "sources/misteross/cores/fes-common/rtl/fes_audio_i2s.v": "14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4"
+  },
+  "vendor_archive_sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66",
+  "vendor_members_sha256": {
+    "av_pll.ip": "bea39af022e0f25a74bd522df5a63239469c4a850319c53e8c65608fd36abb95",
+    "golden_top.v": "0d8cb2fcda2a77457ca9d27fd1bd3baf879e6bf4b9f0659993f6a9b3d8b5c6df",
+    "golden_top.qsf": "73dac113e3914d4b34fb1642525bbf8467e4e339cedcd1e4fcec2b5eed0eda45",
+    "AUDIO_IF.v": "022604fab42812e1a14fe2864103a85861f91c464920379b43574650a07cca2a",
+    "HDMI_I2C/I2C_HDMI_Config.v": "b9b7c477173fee9b6cb5e3d6a6ba1122c7a0b539f205d807b1d61b22048fd391"
+  },
+  "reference_clock": "CLOCK1_50",
+  "reference_pin": "V16",
+  "reference_io_standard": "3.3-V LVCMOS",
+  "pll_parameters_checked": 259,
+  "clock_parameters_unchanged": true,
+  "generated_pll_fields": {
+    "out_clk_0_freq": 12288135,
+    "pfd_clk_freq": 50000000,
+    "ref_clk_0_freq": 50000000,
+    "fb_clk_m_div": 58,
+    "out_clk_0_c_div": 236
+  },
+  "nominal_sample_hz": 48000,
+  "stock_sample_hz": 48000.529661016946,
+  "analysis_and_elaboration": {
+    "state": "passed",
+    "seconds": 32.824,
+    "context": "isolated audio wrapper plus Terasic Reset Release IP, NINIT gates PLL reset/hold",
+    "errors": 0,
+    "warnings": 0
+  },
+  "pcm_model": {
+    "state": "passed",
+    "seconds": 3.074,
+    "coverage": "atomic stereo, independent clocks, I2S padding, hold and clock loss"
+  },
+  "hardware_acceptance": false,
+  "remaining": "complete-board recipe/clock/reset/HDMI integration, fitted timing and native capture"
+}

@@ -1,0 +1,67 @@
+----------------
+; Command Info ;
+----------------
+Report Path: Found 1 paths. Shortest delay is 2.176 
+
+Tcl Command:
+    report_path -min_path -file /data/fes-de25-main-bc36e7c45-20261105/audio-openrom-observation-job/observations/reports/4_slow_fix4_0c_word_clock_network_min.rpt -from [get_pins {fes_audio_inst|clock|iopll_0|tennm_ph2_iopll|out_clk[0]}] -to [get_pins -nocase -compatibility_mode {fes_audio_inst|audio|serializer|phase[7]|clk}] -npaths 1
+
+Options:
+    -from [get_pins {fes_audio_inst|clock|iopll_0|tennm_ph2_iopll|out_clk[0]}] 
+    -to [get_pins -nocase -compatibility_mode {fes_audio_inst|audio|serializer|phase[7]|clk}] 
+    -npaths 1 
+    -min_path 
+    -file_name "/data/fes-de25-main-bc36e7c45-20261105/audio-openrom-observation-job/observations/reports/4_slow_fix4_0c_word_clock_network_min.rpt" 
+
+Snapshot:
+    final
+
+Delay Model:
+    Slow fix4 0C Model
+
++----------------------------------------------------------------------------------------------------------------+
+; Summary of Paths                                                                                               ;
++-------+---------------------------------------------------------+----------------------------------------------+
+; Delay ; From Node                                               ; To Node                                      ;
++-------+---------------------------------------------------------+----------------------------------------------+
+; 2.176 ; fes_audio_inst|clock|iopll_0|tennm_ph2_iopll|out_clk[0] ; fes_audio_inst|audio|serializer|phase[7]|clk ;
++-------+---------------------------------------------------------+----------------------------------------------+
+
+Path #1: Delay is 2.176
+===============================================================================
++-------------------------------------------------------------------------------------------+
+; Path Summary                                                                              ;
++---------------------------------+---------------------------------------------------------+
+; Property                        ; Value                                                   ;
++---------------------------------+---------------------------------------------------------+
+; From Node                       ; fes_audio_inst|clock|iopll_0|tennm_ph2_iopll|out_clk[0] ;
+; To Node                         ; fes_audio_inst|audio|serializer|phase[7]|clk            ;
+; Delay                           ; 2.176                                                   ;
+; Worst-Case Operating Conditions ; Slow fix4 0C Model                                      ;
++---------------------------------+---------------------------------------------------------+
+
++-----------------------------------------------------------------------------------+
+; Statistics                                                                        ;
++------------------------+-------+-------+-------------+------------+-------+-------+
+; Property               ; Value ; Count ; Total Delay ; % of Total ; Min   ; Max   ;
++------------------------+-------+-------+-------------+------------+-------+-------+
+; Data Delay             ; 2.176 ;       ;             ;            ;       ;       ;
+; Number of Logic Levels ;       ; 0     ;             ;            ;       ;       ;
+; Physical Delays        ;       ;       ;             ;            ;       ;       ;
+;  IC                    ;       ; 1     ; 1.485       ; 68         ; 1.485 ; 1.485 ;
+;  Cell                  ;       ; 1     ; 0.691       ; 32         ; 0.691 ; 0.691 ;
++------------------------+-------+-------+-------------+------------+-------+-------+
+Note: Negative delays are omitted from totals when calculating percentages
+
++---------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Data Arrival Path                                                                                                                                                   ;
++---------+---------+----+------+--------+---------------------+------------------------------------------------------------------------------------------------------+
+; Total   ; Incr    ; RF ; Type ; Fanout ; Location            ; Element                                                                                              ;
++---------+---------+----+------+--------+---------------------+------------------------------------------------------------------------------------------------------+
+; 2.176   ; 2.176   ;    ;      ;        ;                     ; data path                                                                                            ;
+;   0.000 ;   0.000 ;    ;      ; 1      ; IOPLL_X106_Y53_N346 ; fes_audio_inst|clock|iopll_0|tennm_ph2_iopll|out_clk[0]                                              ;
+;   0.691 ;   0.691 ; RR ; CELL ; 11     ; IOPLL_X106_Y53_N346 ; fes_audio_inst|clock|iopll_0|tennm_ph2_iopll~hviowr/s414_0_1__hvioc_core_periphery__clock_to_core[0] ;
+;   2.176 ;   1.485 ; RR ; IC   ; 1      ; FF_X120_Y17_N50     ; fes_audio_inst|audio|serializer|phase[7]|clk                                                         ;
++---------+---------+----+------+--------+---------------------+------------------------------------------------------------------------------------------------------+
+
+

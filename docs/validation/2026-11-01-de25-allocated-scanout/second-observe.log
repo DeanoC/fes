@@ -1,0 +1,40 @@
+LOCAL offset=80 value=44324744
+LOCAL offset=84 value=00010000
+LOCAL offset=88 value=00000008
+LOCAL offset=8c value=00000000
+LOCAL offset=90 value=00000002
+LOCAL offset=94 value=000186a0
+EXISTING_SNAPSHOT offset=2c value=00000006
+EXISTING_SNAPSHOT offset=30 value=00000008
+EXISTING_SNAPSHOT offset=34 value=00000000
+EXISTING_SNAPSHOT offset=38 value=00000000
+EXISTING_SNAPSHOT offset=3c value=00000000
+EXISTING_SNAPSHOT offset=40 value=00000000
+EXISTING_SNAPSHOT offset=44 value=00000000
+EXISTING_SNAPSHOT offset=48 value=00000000
+EXISTING_SNAPSHOT offset=4c value=00000000
+EXISTING_SNAPSHOT offset=50 value=00000000
+EXISTING_SNAPSHOT offset=54 value=00000000
+EXISTING_SNAPSHOT offset=58 value=00000000
+EXISTING_SNAPSHOT offset=5c value=00000000
+EXISTING_SNAPSHOT offset=60 value=00000000
+owner-scanout: POLL identity or hardware fault (errno=5); no retry or owner REAP after uncertainty
+CACHED_FAILURE_INFO result=0 generation=2 state=14 status=25 errors=4 underflows=0 outstanding=0 accepted=1 displayed=0 pending=1
+[    3.448271] socfpga-dwmac 10810000.ethernet eth0: PHY [stmmac-0:01] driver [Micrel KSZ9031 Gigabit PHY] (irq=POLL)
+[    3.458706] socfpga-dwmac 10810000.ethernet eth0: No Safety Features support found
+[    3.466303] socfpga-dwmac 10810000.ethernet eth0: IEEE 1588-2008 Advanced Timestamp supported
+[    3.475267] socfpga-dwmac 10810000.ethernet eth0: registered PTP clock
+[    3.481865] socfpga-dwmac 10810000.ethernet eth0: configuring for phy/rgmii link mode
+[    7.586529] socfpga-dwmac 10810000.ethernet eth0: Link is Up - 1Gbps/Full - flow control rx/tx
+[ 2701.946689] fpga_manager fpga0: writing fes-runtime-core.rbf to Stratix10 SOC FPGA Manager
+[ 2704.051024] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[ 2704.061321] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us
+[ 2716.743329] fpga_manager fpga0: writing fes-runtime-core.rbf to Stratix10 SOC FPGA Manager
+[ 2718.847749] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[ 2718.858010] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us
+[ 3917.029950] fpga_manager fpga0: writing fes-runtime-core.rbf to Stratix10 SOC FPGA Manager
+[ 3919.133210] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[ 3919.143506] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us
+[ 4435.836655] fpga_manager fpga0: writing fes-runtime-core.rbf to Stratix10 SOC FPGA Manager
+[ 4437.943010] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[ 4437.953340] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us

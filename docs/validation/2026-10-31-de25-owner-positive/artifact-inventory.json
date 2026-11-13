@@ -1,0 +1,89 @@
+{
+  "root": "/home/deano/fes/out/artifacts/de25-owner-positive/e6bdd35973cec91ee3ef93b92862680de3b7988f",
+  "files": {
+    "board-kernel/Image": {
+      "size": 46701056,
+      "sha256": "b5a68fa8c0fef8679931af008811676b608f13214e5afb863cbd3626d43c1769"
+    },
+    "board-kernel/SHA256SUMS": {
+      "size": 713,
+      "sha256": "def147ddff66f5bfafa9c7d50e327d3811821a4c082f1e1cc40a121df24f7a00"
+    },
+    "board-kernel/System.map": {
+      "size": 7649154,
+      "sha256": "535c3b403ea1d7adc1e3314e30449e05c50393bfb841e6ca098c1980184a8a98"
+    },
+    "board-kernel/build-job.json": {
+      "size": 229,
+      "sha256": "8ecf5ea43ae60a0f2bccb674c60f2df2c45958bc95731a5cea99e73ca595facc"
+    },
+    "board-kernel/config.diff": {
+      "size": 2673,
+      "sha256": "eaf220e36611d7cfde66cb8bb7e499e3277f11ef9fcbd9e3f8147627eadc4d8a"
+    },
+    "board-kernel/de25-owner.dtb": {
+      "size": 28907,
+      "sha256": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7"
+    },
+    "board-kernel/inputs.json": {
+      "size": 3125,
+      "sha256": "3c6f47f53378ad24af126c32a77c1db603dea6213f5b62d34a5adbda8388b668"
+    },
+    "board-kernel/kernel-build.json": {
+      "size": 2857,
+      "sha256": "79a5b90d613526f23c23e9729822a6650b8965d768975e8e651adcf33f6e654f"
+    },
+    "board-kernel/kernel.config": {
+      "size": 301866,
+      "sha256": "cec5f0d7e0713a6cb7082402e4cbbfa9bd5893569d6893c076ea0766751d253e"
+    },
+    "board-kernel/vmlinux.symvers": {
+      "size": 793261,
+      "sha256": "46c30ddfe0c980f2cf6bb1aa10b71362d9dcbec75a564e3df2590d3083e747a1"
+    },
+    "kunit/SHA256SUMS": {
+      "size": 789,
+      "sha256": "fd60283bd62b217ac73fdb5a63ac273778392fef687aa17813b4736a5d706354"
+    },
+    "kunit/checks.json": {
+      "size": 3887,
+      "sha256": "789b7bdb1018b10fc2ba727c345721bd58f538621c60c6d8f1f359a017b47077"
+    },
+    "kunit/de25_dma.o": {
+      "size": 18328,
+      "sha256": "1bf513c3e9029685589970353badc6033a0d33c8f82211dc1131c0472a8c7dd0"
+    },
+    "kunit/de25_dma_test.o": {
+      "size": 219224,
+      "sha256": "89efb84cb0b980a9c088c5d92f82b88e7c6adc3f7f3b7ba07957740f467b6f7b"
+    },
+    "kunit/inputs.json": {
+      "size": 2670,
+      "sha256": "0c59d020fd578d9620ee2edadd288e888f384c8ceb9b02131bff42720e1eb5a9"
+    },
+    "kunit/kunit-Image": {
+      "size": 5859840,
+      "sha256": "e5b22344ccffcb3b86835b082758c663aa92c27b70c085e3af3f51b885823857"
+    },
+    "kunit/kunit-raw.log": {
+      "size": 8368,
+      "sha256": "7ff14ec99585adf4850c16c67f9cee9ad8a20c93e271d5968232037e17899f85"
+    },
+    "kunit/kunit-run.log": {
+      "size": 3974,
+      "sha256": "5f05aca69db72827d4e667347583bb904fd25b0ccad79d00f6d8c6fa657d985a"
+    },
+    "kunit/kunit.config": {
+      "size": 50896,
+      "sha256": "334c7b09a262877a0f7601030018051c98cbc3291095b91a4bba4d0df2f596cc"
+    },
+    "kunit/kunit.json": {
+      "size": 6825,
+      "sha256": "f6b7581dd986099b228406d66517df10f2f637385b1ea4d8b12d3ce6cb6a8ddd"
+    },
+    "kunit/vendor.config": {
+      "size": 301969,
+      "sha256": "3ec2812cffb3c37bf677941283c9b65c3f5620b519cb58a4ded5f230cadbcdf7"
+    }
+  }
+}

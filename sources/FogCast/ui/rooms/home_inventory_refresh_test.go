@@ -110,13 +110,17 @@ func (s *heldSecondInventory) List(context.Context) ([]localcores.Core, error) {
 	return []localcores.Core{}, nil
 }
 func TestHomeFailedRefreshDoesNotShowOldKitWhileReadIsPending(t *testing.T) {
-	svc := &homeServices{fakeServices: fakeServices{games: []hostclient.Game{machineEntry("old-machine", "fes.zx81", "")}}}
+	svc := &homeServices{computers: []hostclient.ShelfComputer{computerEntry("old-machine", "fes.zx81", "")}, fakeServices: fakeServices{games: []hostclient.Game{machineEntry("old-machine", "fes.zx81", "")}}}
 	local := &heldSecondInventory{started: make(chan struct{}), release: make(chan struct{})}
 	var once sync.Once
 	t.Cleanup(func() { once.Do(func() { close(local.release) }) })
 	r := loadHome(t, Options{Services: svc, Local: local, ReleaseOnly: true})
 	stepUntil(t, r, func(Frame) bool { return homeSettled(r) && r.Destination().GameID == "old-machine" })
 	svc.setLibraryError(errors.New("host offline"))
+	svc.mu.Lock()
+	svc.computers = nil
+	svc.hardwareErr = errors.New("host offline")
+	svc.mu.Unlock()
 	r.Resume()
 	select {
 	case <-local.started:
@@ -154,8 +158,8 @@ func TestHomeUnavailableInventoryIsNotReportedAsNotInstalled(t *testing.T) {
 	}
 }
 
-func TestHomeUsesFreshLibraryMachineWhenKitInventoryFails(t *testing.T) {
-	svc := &homeServices{fakeServices: fakeServices{games: []hostclient.Game{machineEntry("fresh-machine", "fes.zx81", "")}}}
+func TestHomeUsesFreshAdmittedComputerWhenKitInventoryFails(t *testing.T) {
+	svc := &homeServices{computers: []hostclient.ShelfComputer{computerEntry("fresh-machine", "fes.zx81", "")}, fakeServices: fakeServices{games: []hostclient.Game{machineEntry("fresh-machine", "fes.zx81", "")}}}
 	local := &fakeLocalCores{listErr: errors.New("kit offline")}
 	r := loadHome(t, Options{Services: svc, Local: local, ReleaseOnly: true})
 	stepUntil(t, r, func(Frame) bool { return homeSettled(r) && r.Destination().GameID == "fresh-machine" })
@@ -174,6 +178,21 @@ type heldFamilyRefresh struct {
 	started     chan struct{}
 	startedOnce sync.Once
 	release     chan struct{}
+}
+
+func (s *heldFamilyRefresh) Hardware(ctx context.Context) (hostclient.HardwareSnapshot, error) {
+	s.holdMu.Lock()
+	held := s.hold
+	s.holdMu.Unlock()
+	if held {
+		select {
+		case <-s.release:
+			return hostclient.HardwareSnapshot{}, errors.New("host offline")
+		case <-ctx.Done():
+			return hostclient.HardwareSnapshot{}, ctx.Err()
+		}
+	}
+	return s.homeServices.Hardware(ctx)
 }
 
 func (s *heldFamilyRefresh) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, bool, error) {
@@ -212,8 +231,8 @@ func (s *failedSecondInventory) List(context.Context) ([]localcores.Core, error)
 	return nil, errors.New("kit offline")
 }
 
-func TestHomeRefreshDoesNotShowOldLibraryWhileNewReadsPending(t *testing.T) {
-	svc := &heldFamilyRefresh{homeServices: homeServices{fakeServices: fakeServices{games: []hostclient.Game{machineEntry("old-machine", "fes.zx81", "")}}}, started: make(chan struct{}), release: make(chan struct{})}
+func TestHomeRefreshDoesNotShowOldMachineWhileNewReadsPending(t *testing.T) {
+	svc := &heldFamilyRefresh{homeServices: homeServices{computers: []hostclient.ShelfComputer{computerEntry("old-machine", "fes.zx81", "")}, fakeServices: fakeServices{games: []hostclient.Game{machineEntry("old-machine", "fes.zx81", "")}}}, started: make(chan struct{}), release: make(chan struct{})}
 	local := &failedSecondInventory{done: make(chan struct{})}
 	var release sync.Once
 	t.Cleanup(func() { release.Do(func() { close(svc.release) }) })

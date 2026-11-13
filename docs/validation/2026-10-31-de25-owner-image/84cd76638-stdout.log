@@ -1,0 +1,4 @@
++ git worktree add --detach /home/deano/fes/out/dev/de25-linux-platform/out/work/de25-linux-84cd76638697df01b222b34dcec954b510af3fdc 84cd76638697df01b222b34dcec954b510af3fdc
+Preparing worktree (detached HEAD 84cd76638)
+HEAD is now at 84cd76638 Prepare reproducible offline DE25 owner kernel SD images
+de25-owner-image: [Errno 2] No such file or directory: '/home/deano/fes/out/artifacts/de25-owner-image/84cd76638'

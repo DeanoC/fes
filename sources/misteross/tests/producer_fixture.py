@@ -42,10 +42,21 @@ class SourceTree:
         raise last
 
 
+def de10_copy_ignore(source):
+    """DE10 fixtures retain their own boards, not unrelated DE25 inputs."""
+    source = Path(source).resolve()
+    def ignore(directory, names):
+        ignored = {'build', '__pycache__', '.git'}.intersection(names)
+        if Path(directory).resolve() == source / 'boards':
+            ignored.add('de25nano')
+        return ignored
+    return ignore
+
+
 def clean_module(source):
     temporary = SourceTree(tempfile.mkdtemp())
     root = Path(temporary.name) / 'sources/misteross'
-    shutil.copytree(source, root, ignore=shutil.ignore_patterns('build', '__pycache__', '.git'))
+    shutil.copytree(source, root, ignore=de10_copy_ignore(source))
     init_source(root)
     return temporary, root
 

@@ -62,12 +62,18 @@ def snapshot(source, destination=None, *, limit=None, expected=None, sealed=Fals
 def inspect_archive(source, archive, directory, recipe):
     """Use the selected producer's parser, not a second package implementation."""
     program = '''
-import hashlib, json, sys
+import hashlib, importlib, json, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from scripts.core_package import read_package
+board = sys.argv[4]
+if board not in ('de10-nano', 'de25-nano'):
+    raise ValueError('unsupported selected package board')
+namespace = 'boards.de25nano.package' if board == 'de25-nano' else 'scripts'
+read_package = importlib.import_module(namespace + '.core_package').read_package
 def identity(path):
     package = read_package(Path(path))
+    if package.fields['target']['platform'] != board.replace('-', '_'):
+        raise ValueError('snapshot package target differs from selected board')
     return dict(package_id=package.package_id, core_id=package.fields['core']['id'],
                 manifest_sha256=hashlib.sha256(package.manifest_bytes).hexdigest(),
                 payload_sha256=hashlib.sha256(package.payload_bytes).hexdigest())
@@ -77,7 +83,7 @@ if archive != directory:
 print(json.dumps(archive))
 '''
     return json.loads(subprocess.check_output(
-        [sys.executable, "-I", "-c", program, str(source), str(archive), str(directory)],
+        [sys.executable, "-I", "-c", program, str(source), str(archive), str(directory), recipe.board],
         cwd=source, env=recipes.producer_environment(recipe=recipe), text=True))
 
 
@@ -99,12 +105,18 @@ def reconstruct_archive(source, directory, destination, recipe, record):
                  expected=record["rom_map_sha256"])
     temporary = destination.with_name("." + destination.name + ".tmp")
     program = '''
-import os, sys
+import importlib, os, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from scripts.core_package import read_package
-from scripts.export_core_package import _archive_bytes
+board = sys.argv[5]
+if board not in ('de10-nano', 'de25-nano'):
+    raise ValueError('unsupported selected package board')
+namespace = 'boards.de25nano.package' if board == 'de25-nano' else 'scripts'
+read_package = importlib.import_module(namespace + '.core_package').read_package
+_archive_bytes = importlib.import_module(namespace + '.export_core_package')._archive_bytes
 package = read_package(Path(sys.argv[2]))
+if package.fields['target']['platform'] != board.replace('-', '_'):
+    raise ValueError('cached package target differs from selected board')
 data = _archive_bytes(package.manifest_bytes, package.payload_bytes, package.rom_map_bytes)
 if not 1 <= len(data) <= int(sys.argv[4]):
     raise ValueError('reconstructed archive exceeds size bound')
@@ -115,7 +127,7 @@ with open(sys.argv[3], 'xb') as stream:
 '''
     try:
         subprocess.run([sys.executable, "-I", "-c", program, str(source), str(directory),
-                        str(temporary), str(MAX_ARCHIVE_BYTES)], cwd=source,
+                        str(temporary), str(MAX_ARCHIVE_BYTES), recipe.board], cwd=source,
                        env=recipes.producer_environment(recipe=recipe), check=True)
         archive = snapshot(temporary, limit=MAX_ARCHIVE_BYTES)
         temporary.chmod(0o444)
@@ -125,8 +137,9 @@ with open(sys.argv[3], 'xb') as stream:
         temporary.unlink(missing_ok=True)
 
 
-def prepare(core_id, output, library_media=None, expected_media_sha256=None):
-    recipe = recipes.recipe_for(core_id)
+def prepare(core_id, output, library_media=None, expected_media_sha256=None, *,
+            board=recipes.DEFAULT_BOARD):
+    recipe = recipes.recipe_for(core_id, board=board)
     output = Path(output).absolute()
     if output.exists() or output.is_symlink():
         raise ValueError("output must be a new directory")
@@ -228,13 +241,15 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     command = commands.add_parser("prepare")
+    command.add_argument("--board", choices=recipes.BOARDS, default=recipes.DEFAULT_BOARD)
     command.add_argument("--core", required=True)
     command.add_argument("--output", required=True)
     command.add_argument("--library-media")
     command.add_argument("--expected-media-sha256")
     args = parser.parse_args(argv)
     try:
-        prepare(args.core, args.output, args.library_media, args.expected_media_sha256)
+        prepare(args.core, args.output, args.library_media, args.expected_media_sha256,
+                board=args.board)
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f"core prepare: {error}", file=sys.stderr)
         return 1

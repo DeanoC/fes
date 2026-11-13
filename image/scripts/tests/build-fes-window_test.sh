@@ -66,6 +66,9 @@ image=$fixture/image
 board=$image/buildroot/board/fogcast-target
 mkdir -p "$board" "$image/scripts" "$image/kernel" "$image/build/cache/target-image"
 cp "$repo/buildroot/board/fogcast-target/native-post-build.sh" "$board/"
+mkdir -p "$board/native-rootfs-overlay/etc/init.d"
+cp "$repo/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S40fes-kit-software" \
+  "$board/native-rootfs-overlay/etc/init.d/"
 cp "$repo/scripts/build-fes-window.sh" "$image/scripts/"
 cp -R "$repo/kernel/fes-window" "$image/kernel/"
 cat >"$image/scripts/native-extra-cores.sh" <<'EOF'
@@ -134,3 +137,5 @@ MAKEFLAGS=w MAKELEVEL=1 BUILD_DIR=$fixture/buildroot-build HOST_DIR=$fixture/bui
 # and the module is the same.
 cmp "$fixture/output/version" "$target/window-driver/version"
 cmp "$fixture/output/fes_window.ko" "$target/window-driver/fes_window.ko"
+cmp "$board/native-rootfs-overlay/etc/init.d/S40fes-kit-software" \
+  "$target/etc/init.d/S40fes-kit-software"

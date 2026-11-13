@@ -2,9 +2,16 @@
 // Registers, ownership and video/reader state all use the pixel clock. Platform
 // Designer bridges own both memory/control crossings; no split-word CDC here.
 `include "generated/fes_de25_scanout.vh"
-module fes_de25_scanout (
+module fes_de25_scanout #(
+    parameter [127:0] BUILD_ID = 128'd0,
+    parameter [0:0] EXTERNAL_RASTER = 1'b0,
+    parameter [7:0] MAX_BURST_BEATS = 8'd64,
+    parameter [8:0] MAX_OUTSTANDING_BEATS = 9'd511
+) (
     input wire clk, reset_n,
-    input wire clock_fault,
+    input wire clock_fault, display_ready, stream_ready,
+    input wire [10:0] raster_h,
+    input wire [9:0] raster_v,
     input wire [6:0] address,
     input wire read, write,
     input wire [3:0] byteenable,
@@ -14,7 +21,7 @@ module fes_de25_scanout (
     output wire [1:0] response,
     output wire waitrequest,
     output wire [31:0] avm_address,
-    output wire [4:0] avm_burstcount,
+    output wire [6:0] avm_burstcount,
     output wire avm_read,
     output wire [15:0] avm_byteenable,
     input wire avm_waitrequest,
@@ -22,7 +29,10 @@ module fes_de25_scanout (
     input wire avm_readdatavalid,
     input wire [1:0] avm_response,
     output wire [23:0] video_rgb,
-    output wire video_de, video_hs, video_vs
+    output wire video_de, video_hs, video_vs,
+    output wire [7:0] video_alpha,
+    output wire scanout_running, scanout_drained, scanout_pending,
+    output wire [31:0] scanout_sequence, scanout_underflows, scanout_errors
 );
     reg [31:0] staged [0:6];
     reg configured, running, pending, queued_submit, pending_slot, displayed_slot;
@@ -41,10 +51,13 @@ module fes_de25_scanout (
     wire [7:0] reader_burstcount;
     wire video_submit_ready, video_quiesced;
     wire [31:0] video_displayed_sequence, current_sequence, underflows;
+    wire video_frame_presented;
+    wire [31:0] first_fault_state, first_fault_occupancy, first_fault_gaps;
     wire current_slot;
     wire [1:0] memory_errors;
     wire [8:0] outstanding_beats;
     wire [23:0] rgb;
+    wire [7:0] alpha;
     wire de, hs, vs;
     wire [31:0] byte_address = {25'd0, address};
     wire [31:0] enabled_command = writedata & {{8{byteenable[3]}}, {8{byteenable[2]}},
@@ -72,6 +85,7 @@ module fes_de25_scanout (
     always @* begin
         new_errors = 32'd0;
         if (clock_failed) new_errors = new_errors | `FES_DE25_SCANOUT_ERROR_CLOCK;
+        if (running && !stream_ready) new_errors = new_errors | `FES_DE25_SCANOUT_ERROR_DISPLAY;
         // A legal CLEAR resets the local reader/video on the following edge.
         // Suppress only their old sticky errors through that reset cycle.
         if (!legal_clear && !local_clear) begin
@@ -99,7 +113,8 @@ module fes_de25_scanout (
         (pending ? `FES_DE25_SCANOUT_STATUS_PENDING : 32'd0) |
         (drained ? `FES_DE25_SCANOUT_STATUS_DRAINED : 32'd0) |
         (live_errors != 32'd0 ? `FES_DE25_SCANOUT_STATUS_FAULT : 32'd0) |
-        (clock_failed ? `FES_DE25_SCANOUT_STATUS_CLOCK_FAULT : 32'd0);
+        (clock_failed ? `FES_DE25_SCANOUT_STATUS_CLOCK_FAULT : 32'd0) |
+        (display_ready ? `FES_DE25_SCANOUT_STATUS_DISPLAY_READY : 32'd0);
     reg stage_write;
     reg [2:0] stage_index;
     always @* begin
@@ -119,31 +134,44 @@ module fes_de25_scanout (
     assign response = 2'b00;
     assign waitrequest = !reset_n;
     assign avm_address = {reader_address, 4'd0};
-    assign avm_burstcount = reader_burstcount[4:0];
+    assign avm_burstcount = reader_burstcount[6:0];
     assign avm_byteenable = 16'hffff;
     // Keep command validation independent of quiesce/clear combinationally.
     // Registered command faults stop on their acceptance edge; data/clock
     // faults also blank immediately without withdrawing any existing read.
     wire video_enable = configured && running && errors == 32'd0 &&
-        !clock_failed && memory_errors == 2'b00 && underflows == 32'd0 && !local_clear;
+        !clock_failed && stream_ready && memory_errors == 2'b00 && underflows == 32'd0 && !local_clear;
     assign video_rgb = video_enable ? rgb : 24'd0;
+    assign video_alpha = video_enable ? alpha : 8'd0;
+    assign scanout_running = video_enable;
+    assign scanout_drained = drained;
+    assign scanout_pending = pending;
+    assign scanout_sequence = displayed_sequence;
+    assign scanout_underflows = underflows;
+    assign scanout_errors = live_errors;
     assign video_de = video_enable && de;
     // HS/VS are board timing, not scanout visibility. Keep them continuous
     // while stopped, faulted or reset so the HDMI shell can finish each pulse.
     assign video_hs = hs;
     assign video_vs = vs;
 
-    fes_menu_video #(.DYNAMIC_BASE(1'b1), .MAX_BURST_BEATS(8'd16),
-        .CHECK_RESPONSE(1'b1), .RESET_ABORTS_TRAFFIC(1'b1), .COMPLETE_FRAME_ACK(1'b1),
+    fes_menu_video #(.DYNAMIC_BASE(1'b1), .MAX_BURST_BEATS(MAX_BURST_BEATS),
+        .MAX_OUTSTANDING_BEATS(MAX_OUTSTANDING_BEATS),
+        .EXTERNAL_RASTER(EXTERNAL_RASTER),
+        .CHECK_RESPONSE(1'b1), .READ_AHEAD(1'b1), .RESET_ABORTS_TRAFFIC(1'b1), .COMPLETE_FRAME_ACK(1'b1), .CHECK_PRESENTATION(1'b1),
+        .FIFO_ADDR_BITS(11),
         .PRESERVE_RASTER_ON_RESET(1'b1)) video (
-        .clk(clk), .rst(!reset_n || local_clear), .enable(video_enable), .quiesce(!running),
+        .presentation_ready(display_ready), .clk(clk), .rst(!reset_n || local_clear), .enable(video_enable), .quiesce(!running),
         .window_base(grant_base), .window_base_valid(configured),
-        .raster_h(11'd0), .raster_v(10'd0),
+        .raster_h(raster_h), .raster_v(raster_v),
         .submit_valid(queued_submit), .submit_slot(pending_slot), .submit_sequence(accepted_sequence),
         .submit_ready(video_submit_ready), .displayed_sequence(video_displayed_sequence),
+        .frame_presented(video_frame_presented),
         .current_sequence(current_sequence), .current_slot(current_slot),
         .memory_errors(memory_errors), .outstanding_beats(outstanding_beats),
-        .underflows(underflows), .quiesced(video_quiesced), .rgb(rgb), .alpha(), .de(de), .hs(hs), .vs(vs),
+        .first_fault_state(first_fault_state), .first_fault_occupancy(first_fault_occupancy),
+        .first_fault_gaps(first_fault_gaps),
+        .underflows(underflows), .quiesced(video_quiesced), .rgb(rgb), .alpha(alpha), .de(de), .hs(hs), .vs(vs),
         .address(reader_address), .burstcount(reader_burstcount), .read(avm_read),
         .waitrequest(avm_waitrequest), .readdata(avm_readdata),
         .readdatavalid(avm_readdatavalid), .response(avm_response));
@@ -197,6 +225,13 @@ module fes_de25_scanout (
                     `FES_DE25_SCANOUT_SNAPSHOT_GRANT_LO_OFFSET: readdata <= frozen[10];
                     `FES_DE25_SCANOUT_SNAPSHOT_GRANT_HI_OFFSET: readdata <= frozen[11];
                     `FES_DE25_SCANOUT_SNAPSHOT_GRANT_SPAN_OFFSET: readdata <= frozen[12];
+                    `FES_DE25_SCANOUT_BUILD_ID0_OFFSET: readdata <= BUILD_ID[31:0];
+                    `FES_DE25_SCANOUT_BUILD_ID1_OFFSET: readdata <= BUILD_ID[63:32];
+                    `FES_DE25_SCANOUT_BUILD_ID2_OFFSET: readdata <= BUILD_ID[95:64];
+                    `FES_DE25_SCANOUT_BUILD_ID3_OFFSET: readdata <= BUILD_ID[127:96];
+                    `FES_DE25_SCANOUT_FIRST_FAULT_STATE_OFFSET: readdata <= first_fault_state;
+                    `FES_DE25_SCANOUT_FIRST_FAULT_OCCUPANCY_OFFSET: readdata <= first_fault_occupancy;
+                    `FES_DE25_SCANOUT_FIRST_FAULT_GAPS_OFFSET: readdata <= first_fault_gaps;
                     default: readdata <= 32'd0;
                 endcase
             end
@@ -204,7 +239,8 @@ module fes_de25_scanout (
                 for (lane = 0; lane < 4; lane = lane + 1)
                     if (byteenable[lane]) staged[stage_index][8*lane +: 8] <= writedata[8*lane +: 8];
             if (queued_submit && video_submit_ready) queued_submit <= 1'b0;
-            if (pending && running && live_errors == 32'd0 && video_displayed_sequence == accepted_sequence) begin
+            if (pending && running && live_errors == 32'd0 && display_ready && video_frame_presented &&
+                video_displayed_sequence == accepted_sequence) begin
                 displayed_sequence <= video_displayed_sequence;
                 displayed_slot <= pending_slot;
                 pending <= 1'b0;

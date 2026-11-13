@@ -172,7 +172,7 @@ entry that no longer matches a failure.
 | `[[vectors]]` | 21 | all 325,091 failing SingleStepTests states |
 | `[[test386]]` | 9 | every failed test386 check (655 stepped over in one run) |
 | `[[corpora]]` | 0 | the corpora agree on all 8,695 overlapping states |
-| `[[lockstep]]` | 2 | the whole-CPU lockstep's rules where the FES CPU follows the 386 and Bochs does not (DR6's bits kept past a #DB, a #DB fault's image keeping RF) |
+| `[[lockstep]]` | 5 | whole-CPU rules where FES follows the 386 and Bochs does not: DR6, a #DB fault's RF image, two rejected encodings, and ARPL paging |
 
 Most entries are i386 undefined flags (BT* OF, MUL/IMUL/DIV flags, BSF/BSR,
 BCD adjusts, shift AF/OF/CF), where Bochs follows later Intel CPUs. The rest are
@@ -220,8 +220,6 @@ differs. Directed tests in later phases decide these, not the oracle:
   register image as a qword, the FES CPU as two dwords, each wrapped at
   64 KiB under a 16-bit address size: where such a qword straddles the
   wrap the two differ, so no case puts one there.
-- MOV to or from TR6 and TR7 (0F 24, 0F 26) raises #UD in Bochs; the design
-  accepts them.
 - LOADALL is not modelled.
 - Bochs below CPU level 6 keeps the 0F 38 and 0F 3A three-byte escapes in its
   decoder table without an opcode table and dereferences null decoding them.
@@ -258,11 +256,24 @@ differs. Directed tests in later phases decide these, not the oracle:
   opcode table, and its step dereferences null on them (the adapter's
   decode reports them as #UD). Both are #UD on the 386; the unbuilt sweep
   checks them on the RTL alone, and the random programs leave them out.
-- The 386 defines ICEBP (F1h, INT 1), LOADALL (0F 07), UMOV (0F 10-0F 13)
-  and MOV to and from TR4-TR7 (0F 24, 0F 26; the manual documents TR6 and
-  TR7, and the decoder ROM routes TR4-TR7 alike), all of which Bochs at CPU
-  level 3 rejects but ICEBP. The FES CPU does not build them: each stops as
-  not built, so no lockstep compares them.
+- The 386's undocumented instructions (`[[lockstep]]` icebp-gd, umov,
+  mov-tr; #1730), which the FES CPU builds:
+  - ICEBP (F1h): Bochs runs INT1 as the 386 does, an exception's delivery
+    of vector 1 with no IOPL or gate-DPL check and EXT set, but leaves
+    DR7.GD, which the 386 clears (`microcode_notes.txt` 94C). After the
+    oracle's step of an ICEBP that began its delivery, the lockstep clears
+    GD on the oracle (`icebp-gd` counts them).
+  - UMOV (0F 10-0F 13): Bochs at CPU level 3 raises #UD; the 386's decoder
+    runs MOV's entries. The oracle steps the MOV (88h-8Bh) with a REP prefix
+    in the 0Fh's place, the same length (`umov`).
+  - MOV to and from TR4-TR7 (0F 24, 0F 26, either ModRM form): Bochs raises
+    #UD. At CPL 0 the oracle steps a MOV of the r/m register to itself
+    (F3 89 /r) and the testbench's copy of TR4-TR7 gives a read's result or
+    takes a write's value; above CPL 0 it steps MOV r32, CR0 (0F 20 /r),
+    whose #GP(0) matches the 386's (`mov-tr`). TR6's TLB test is not built
+    on either side (the design's recorded deviation).
+  LOADALL (0F 07) is the one encoding the 386 defines that the FES CPU does
+  not build: it stops as not built, so no lockstep compares it.
 - Bochs's 386 reads CR0's bits 30-5 as ones and forces ET with its 387; the
   corpus's 386EX reads bit 16 as 0. The lockstep compares PE, MP, EM, TS and
   PG, and the random programs start from Bochs's reset CR0 and write ET set.
@@ -278,6 +289,10 @@ differs. Directed tests in later phases decide these, not the oracle:
   nothing; with ZF clear after ARPL the lockstep leaves that out (the
   divergence `arpl-no-write-no-fault` decides the write and the write
   check, and the generated programs give ARPL a writable flat FS).
+  Under paging Bochs also translates that initial read as a write. The
+  `arpl-page-read` directed cases run the RTL alone and check the read's
+  #PF error, PTE A/D bits, unchanged word and ZF when no adjustment is
+  needed, and the separate write's protection check and dirty bit when it is.
 - test386.asm enters protected mode with paging on (POST 08h sets PE and PG
   together), and paging is Phase 5: the RTL passes its real-mode part,
   POST 00h-06h, and stops there as not built.
@@ -352,13 +367,46 @@ unit tests below read the same variable. Each report records the Verilator
 commit, digest and version under `verilator`.
 
 The RTL builds run with `-Wall -Wno-UNUSEDSIGNAL` and fail on any other
-warning. Builds of a Yosys netlist (`--yosys`) also waive the lint classes
+warning. Builds of a Yosys netlist (`--netlist`) also waive the lint classes
 that Yosys's flat output raises by construction: `CASEOVERLAP`, `UNDRIVEN`,
 `UNOPTFLAT`, `WIDTHEXPAND` and `WIDTHTRUNC`. They also pass `--no-assert-case`.
 Yosys marks every `$pmux` `parallel_case`. Verilator 5.054 checks that by
-default, and the 5.032 runs before it never did. The one site that fired has
-selects that are equalities on the same field
+default, and the 5.032 runs before it never did. The first site observed in
+the original run had selects that were equalities on the same field
 ([S3 record](../../../../../../docs/validation/2026-11-10-1581-verilator-lock/README.md#warnings)).
+
+`scripts/audit_fes_i386_case.py` builds a **diagnostic-only** CPU netlist with
+the locked Yosys and Verilator and case assertions enabled. It adds probes for
+the exact one-hot selectors, counts each assertion non-fatally, and compares
+the selector after the same testbench evaluation returns. The ordinary
+`--yosys` lockstep flags and CPU RTL do not change. The report lists all fired
+sites, their assertion-event counts and their transient/settled evaluation
+counts, as well as unobserved sites and the modes exercised. A selector still
+multi-hot at the sampled boundary fails the audit. This is sampled simulation,
+not proof about unseen inputs; the added probes can affect simulator scheduling.
+Before simulation, a separate two-state SAT check cuts every generated pmux
+output to an unconstrained value, leaves register and memory outputs free, and
+proves the selectors one-hot-or-zero over that combinational overapproximation.
+It also requires the unmodified model to be satisfiable, an injected multi-hot
+selector to refute the proof, and free-register and free-memory controls to
+produce counterexamples. This proof covers the generated netlist and toolchain
+in the report, not a later source, four-state behavior or hardware.
+
+```sh
+timeout 1800s python3 scripts/audit_fes_i386_case.py \
+  --cache-root /abs/out/cache/misteross-toolchains --output /abs/new-audit --jobs 4
+```
+
+The audit runs the reset, directed, unreal, protected, paging, no-387 and
+memory modes and 100 programs for each listed random variant. Add `--unbuilt`
+for the exhaustive unbuilt-encoding sweep and `--corpus /abs/pinned-corpus`
+for every in-scope MOO file in a receipt-backed pinned corpus. Without these
+options those inputs are not exercised; `--limit-per-file` further bounds
+the corpus and is recorded in the report.
+`--negative-control SITE` forces that pmux selector multi-hot and runs the
+reset-store diagnostic; it succeeds only if the sampled selector remains
+multi-hot. Both the output directory and Bochs build must be task-private;
+`--download` fetches the pinned Bochs if absent.
 
 ## Front-end and address checks
 
@@ -392,14 +440,16 @@ the test verifies that it does not issue until block 2 arrives.
 ```sh
 python3 scripts/test_fes_i386_frontend.py --download
 python3 scripts/test_fes_i386_frontend.py --bench frontend --instructions 50000 --seed 7
-python3 scripts/test_fes_i386_frontend.py --yosys /abs/path/to/i386-locked/yosys
+python3 scripts/test_fes_i386_frontend.py --netlist
 ```
 
-`--yosys` runs every check on the netlist that Yosys writes from the RTL
-instead of the RTL itself. The spikes are built from Yosys's reading of the
-SystemVerilog, and Yosys has misread constructs without an error. Use the
-Yosys of the i386 lock ([`rtl/i386/toolchain.lock`](../../rtl/i386/toolchain.lock));
-the repository lock's older Yosys misreads the RTL's per-byte records.
+`--netlist` runs every check on the netlist the seal's Yosys program
+(`scripts/yosys_netlist.py`) writes from the RTL, with the pc386 lock's Yosys
+from the `--cache-root` slot, instead of the RTL itself. The seal and the spikes
+are built from Yosys's reading of the SystemVerilog, and Yosys has misread
+constructs without an error. The pc386 and i386 locks pin the same Yosys
+(#1581 D2); the repository lock's older Yosys misreads the RTL's per-byte
+records.
 
 ## Whole-CPU lockstep
 
@@ -568,10 +618,22 @@ fields may also differ when the delivery then faults (a double fault).
 | Undefined encodings (`--undefined-programs`, seeds from 7001, `FES_I386_UNDEFINED`) | Protected-mode programs as above, in which now and then (from the generator's side stream) an encoding the 386's decoder rejects stands in for an instruction (#1701): undefined 0Fh opcodes, XBTS and IBTS among them; FE /2-/7, FF /7, 0F BA /0-/3, 8F, C6h and C7h with reg not 0; LEA, LES, LDS, BOUND, LSS, LFS and LGS of a register; group 7's /5, its /7 and /0-/3 by register; MOV of CR1, CR4-CR7 and TR0-TR3; MOV of segment registers 6 and 7 and to CS; group 6's /6 and /7; with prefixes, now and then LOCK, and operand bytes. Not 0F 0D, 0F 01 /7 with memory, 0F 38 or 0F 3A (below) | As the protected-mode programs: the #UD is delivered, from real mode, either CPL or V86 mode, and compared as any delivery is; the program ends there |
 | Protected mode, directed (`FES_I386_MODE=pmode`, run_pmode_cases) | From 0000:1000: CLI, LGDT, LIDT, PE set, JMP to 16-bit code, flat-enough segments; then #UD; #NP(sel), #GP(sel) past the GDT, #GP(sel) and #SS(sel) for SS; #GP(0) and #SS(0) at FFFFh; #DE through a 386 and a 286 gate; INT n past the IDT's limit, through a not-present gate, a data descriptor, a null CS, a data CS, a not-present CS and an offset past CS's limit; a hardware exception's gate not present (EXT), a contributory fault in a contributory delivery (#DF), and one in the double fault's (shutdown); INT n through a 286 interrupt gate and a 386 trap gate whose handlers IRET and IRETD back, INTO, INT3, a trap gate keeping IF; an IRETD that sets RF returning to a 16-bit IRET (Bochs clears RF as the IRET is fetched, so it ends clear); far CALL ptr16:16, ptr16:32 and m16:16 to a RETF or RETF imm16, past CS's limit, to a not-present CS and with SP 2 (no wrap); RETF to data, IRET to a not-present CS; IRET, IRETD, RETF and RETF (32-bit) whose frame runs past a 16-bit stack's limit at 10000h, the stack in the MMIO window (#SS(0) before any read: Bochs reads IRET's slots from EFLAGS down and RETF's from CS down); CPL 3, entered by IRET from LTR of a 386 or 286 TSS (`to_r3`): HLT, CLI, STI, LGDT, MOV from CR0 and LTR (#GP(0)); INT n through 386 and 286 gates at DPL 3 whose handlers IRETD and IRET back (the stack switch both ways), and through gates at DPL 0 (INT n, INT3, INTO: #GP with the IDT entry); near CALL rel32, CALL EBX and CALL DWORD [BP] to a target past CS's limit (the slot written on the ring-3 stack, then #GP(0) with ESP as it was: #1510); POPF and POPFD of IF and IOPL, which do not change; the nulled DS (#GP(0)), PUSH ES and FS (selector 0); loads of DS and ES at DPL 0 (#GP(sel)), DPL 3 and RPL 0, and conforming code, and of SS with RPL 0 or DPL 0 (#GP(sel)); LAR and VERR of DPL 0 and 3; IN through the I/O permission bitmap (a TSS's own bytes under a base of 0, allowed ports, a denied one, a word whose second port is denied, a port past TR's limit, a 286 TSS: #GP(0)) and INS (not built); the TSS's SS0 null, not present, at DPL 3 or read-only (#TS or #SS, then shutdown), an ESP0 whose pushes wrap a 16-bit stack, a small limit (#SS(SS0)), a 32-bit SS0; far CALL and RETF at CPL 3; a far JMP to conforming DPL-0 code (CPL stays 3) and to DPL-0 code (#GP(sel)); IRET to CPL 3 of IF and IOPL; from CPL 0, IRET to CPL 3 with SS RPL 0 (#GP(sel)), SS not present (#SS(sel)), CS DPL 0 at RPL 3 (#GP(sel)), CS not present (#NP(sel)), IRETD to CPL 3, IRET with IOPL 3 (CLI, STI and IN run), RETF to CPL 3 (not built); IRET from CPL 3 to CS RPL 0 (#GP(sel)); LLDT and LDT loads, a not-present LDT descriptor, a TI=1 load after a null LLDT, LLDT of a data descriptor; LTR with STR, LTR of a busy TSS, LTR of a null selector; LAR, LSL, VERR and VERW of code, data, a TSS and a selector past the GDT; ARPL by memory (raising RPL and not) and register; LLDT and ARPL in real mode (#UD); CS's limit (a far jump to code under 16- and 32-bit descriptors of limit 0Fh, and 32- and 16-bit ones of limit 1FFFh by G): off the end, an instruction or a prefix across it, to the last byte; JMP, a Jcc taken and not, LOOP, CALL rel16 and rel32, CALL and JMP r/m, RET and RET imm16 to the last byte and past it, JMP rel16 in 32-bit code; a far jump to an offset past it; 16-bit code under a 4 GiB limit running on past offset FFFFh; 32-bit code under a 4 GiB limit to its last byte, FFFFFFFFh, and an instruction straddling 2^32 (#GP(0), the RTL alone: fetch-past-4g); and, after LIDT of the real-mode table and PE clear under a limit of 1Fh, off the end, INT n past the limit and under it, JMP rel8, and far JMP, CALL, RETF and IRET past it; task switches (Phase 5's fourth slice; the GDT runs on with a 386 TSS, a 286 TSS, task gates and a DPL-3 386 TSS): JMP and CALL to a 386 and a 286 TSS from a 386 and a 286 task, through a task gate, INT n and INT3 through one, a CALL chain of three tasks, #UD, #GP(0) and #NP through task gates (the error code on the new task's stack, at its TSS's size), IRET with NT back each time, NT kept from a JMP's new image, CR3 kept with paging off, a 286 TSS's null FS and GS, a new task's LDT; a busy TSS, not present, RPL above its DPL, a limit short of 67h or 2Bh, the old TSS's short of 5Fh, a task gate not present, RPL above its DPL, to a busy TSS, a TI=1, null or data selector, a TSS not present, an IDT task gate not present or to a busy TSS; IRET with NT to a busy TSS and to each back link that faults (null, TI=1, not busy, not present, past the GDT); after the commit, each fault of the new task's LDT, SS, CS, DS, ES, FS and GS (in the new task, its frame there), one in an exception's switch (#DF) and in an INT n's, EIP past the new CS's limit; a V86 task with selectors that name no descriptor, entered by JMP and by CALL, an INT n from it through a task gate and the IRET back; CPL 3 and back through a DPL-3 TSS and task gate (CWSDPMI's); and, the RTL alone (Bochs differs): CS null and DS not present (#TS(0), CS first), SS not present with RPL not CS's (#TS), an exception into a task whose EIP is past CS's limit (#GP(0) at its fetch, EXT clear) | Bochs throughout, the divergence list applying: each case's ending (HLT, after the software interrupt it names; the exception its handler halts in, with its error code from the frame; shutdown; or the stop as not built) |
 | Paging, directed (`FES_I386_MODE=paging`, run_paging_cases) | From 0000:1000: LGDT, LIDT, CR3 at a page directory (8000h; pages 0-0Fh identity-mapped user pages), PE set (with PG in one MOV CR0 for `pg-pe-pg-together`), a far jump to 32-bit flat code, PG set; at CPL 0, or at CPL 3 entered by IRETD after LTR and LLDT: walks setting A in the PDE and PTE and D on a write, D by the first write through a read's entry and by a read-modify-write; #PF for a PTE and a PDE not present, read, write and read-modify-write; CPL 0 writing a read-only supervisor page; at CPL 3 every PDE and PTE combination of U/S and R/W, read and write; CPL 3 running from a supervisor page the ITLB holds; descriptor reads at CPL 3 from a supervisor GDT page, and a TI=1 load whose LDT page is not present (#PF without U/S); page-crossing reads and writes in non-adjacent frames and their #PF on the second page (nothing of a crossing write made); page-crossing instructions, their #PF on the second page, and at CPL 3 a supervisor or not-present tail; a fetch from a page not present; self-modifying code through an alias, into an instruction past the fetch buffer and into a crossing instruction's second page; a load meeting a store through an alias; a CR3 write's flush after a PTE store; a wrong path's load (no A); #PF inside REP MOVS and STOS, a MOVSW whose destination faults, REP MOVSD across three pages each side, a MOVSB whose source faults with its destination past ES's limit; frames past guest RAM, in the reset shadow and at 1 MiB under A20M; a #PF whose delivery's gate CS is null (#DF), a stack not present (#PF, #DF, shutdown), a #GP delivered onto a stack whose first push faults and fourth slot wraps; XCHG m through a code or read-only DS on a page not present (#GP(0), the store's segment check, before the load's #PF) and through a writable one (#PF, W/R set); at CPL 3 in 16-bit code (GDT 50h), CALL rel32 and CALL EBX to a target past CS's limit whose push's page is not present or read-only (#PF, before the target's #GP(0)) or present and writable (the slot written, then #GP(0): #1510); paging off around a far jump and on again; task switches: #PF through a task gate to a handler task that maps the page and IRETs back, twice (DOS/4GW Professional's, as Descent runs it), a new CR3 that maps the GDT's page elsewhere (the new task's descriptors from there), a new TSS on a page not present and running into one (#PF before anything is written), an IRETD right after the POPFD that sets NT with ESP on a page no access has walked (the task return reads no stack: the new task reads the PTE's A) | Bochs throughout, CR2 included: each case's ending (HLT, after the software interrupt it names; the exception its handler halts in, with its error code from the frame and CR2; or shutdown), and A and D through the PTEs the case reads back into registers |
-| Encodings the 386 rejects and the unbuilt ones (`FES_I386_MODE=unbuilt`, run_unbuilt) | Every one-byte and 0Fh opcode with every following byte that the runner's `i386_class` (from the 386's decoder ROMs, reenigne/x86_microcode `80386/decoder23.txt`) classes as rejected or as defined but outside `SCOPE`, from 1000:0100 in real mode, 16 bytes with zeros after | Rejected: #UD against the oracle (`ud`), its delivery and pushed IP; where the oracle cannot step it (0F 38, 0F 3A) or runs it (the `[[lockstep]]` `ud_rtl` entries: 0F 0D, 0F 01 /7 with memory), the RTL alone (`ud-rtl`, `ud-rtl-runs`, the latter also checking the oracle's decode still runs it): #UD first, nothing retired, the handler's HLT. Defined but not built (ICEBP, LOADALL, UMOV, MOV of TR4-TR7): FAULT_UNIMPLEMENTED before anything retires; each with a LOCK prefix too, as `ud` (an invalid LOCK is #UD whatever the instruction) |
+| Encodings the 386 rejects and the unbuilt ones (`FES_I386_MODE=unbuilt`, run_unbuilt) | Every one-byte and 0Fh opcode with every following byte that the runner's `i386_class` (from the 386's decoder ROMs, reenigne/x86_microcode `80386/decoder23.txt`) classes as rejected or as defined but outside `SCOPE`, from 1000:0100 in real mode, 16 bytes with zeros after | Rejected: #UD against the oracle (`ud`), its delivery and pushed IP; where the oracle cannot step it (0F 38, 0F 3A) or runs it (the `[[lockstep]]` `ud_rtl` entries: 0F 0D, 0F 01 /7 with memory), the RTL alone (`ud-rtl`, `ud-rtl-runs`, the latter also checking the oracle's decode still runs it): #UD first, nothing retired, the handler's HLT. Defined but not built (LOADALL): FAULT_UNIMPLEMENTED before anything retires. It, ICEBP, UMOV and MOV TRn each with a LOCK prefix too, as `ud` (an invalid LOCK is #UD whatever the instruction) |
 | test386.asm on the RTL (`test_fes_i386_test386.py --cpu rtl`) | The ROM on the RTL alone (lockstep_tb.cpp's `test386` mode): RAM below E0000h, the ROM read-only at E0000h, every port all ones, the checks the divergence list names stepped over as on the oracle | How far it gets: its POST codes, the error routine's entries, and what stops it (`rtl-report.json`) |
 | No 387, directed (`FES_I386_MODE=no387`, run_no387_cases) | In real mode (CS 0FF0h, so the linear instruction pointer has bit 16 set), 16-bit and 32-bit protected mode: every ESC ModRM (the register forms by byte, the memory forms by reg field at [100h]) after an FLD that sets the x87 pointers and before an FNSTENV that stores them; every memory form at DS:FFFFh in real mode, four at SS:FFFFh, and in 16-bit protected mode a read-only DS and one of 256 bytes, with FNSAVE's register image past it; a 32-bit FNSTENV that wraps at 64 KiB; FNINIT, FNSTSW AX, FNOP, FCMOVB (DA C0), DB E7, FLD, FST, D9 /1, FNSTENV, FNSAVE, FRSTOR and WAIT under each combination of EM, MP and TS; LOCK on FNINIT and FLD, with EM clear and set, and before ES on FLD; FNSTENV and FNSAVE in both operand sizes in each mode after a load through ES, through a SIB address, and through a 32-bit address in real mode; FPU detection routines (Intel's FNSTSW and FNSTCW 103Fh test, the FNSTCW high byte, the WAIT forms FINIT and FSTSW, FNSTSW AX, DOS/4GW's FNINIT, FNSTSW and FNSTCW) in real and 32-bit protected mode | Bochs throughout under the no-387 rule, and apart from it the bytes the bench works out: each form's stores (FFFFh; the layouts) and nothing else at its operand, AX, the x87 pointers FNSTENV stores after it (the form's unless it is a control form), each case's ending (HLT, or the exception: #GP(0) or #SS(0) for a form that accesses memory, none for one that does not; #NM on EM or TS, WAIT's on MP and TS; #UD for LOCK), and BL 0 (no coprocessor) after each detection routine |
 | Unreal mode (directed) | From 0000:1000: enter protected mode, far-jump to a 16-bit code descriptor, load DS, ES, FS, GS and SS, clear PE, far-jump in real mode, reload them in real mode, and read and write at 2 MiB through each; the same with GS or SS loaded with a 64K descriptor and a word at FFFFh; the same through a 4 GiB code descriptor, reading at CS:10000h with PE clear and then a word at CS:FFFFh after the real-mode far jump; one that halts after that jump; one that raises #GP(0) after a real-mode 32-bit far jump to 0000:00012345h, reaches the handler, and checks pushed IP 2345h; and, in protected mode, MOV ES reading its selector from the last word of a 64K DS | Against Bochs throughout: the accesses at 2 MiB pass and the RTL's DS, ES, FS, GS and SS keep limit FFFFFFFFh; the 64K GS and SS raise #GP(0) and #SS(0) at FFFFh; the real-mode far jump sets the RTL's CS to limit FFFFh and access rights 93h where Bochs kept the 4 GiB descriptor's (taken into the oracle, `cs_rule`), so the word at CS:FFFFh raises #GP(0); the out-of-limit far target delivers #GP(0) through the IVT, reaches the handler, and pushes IP 2345h; MOV ES, [FFFEh] reads a word and loads ES without a fault |
+
+When a random program's unplanned REP store overlaps the bytes of its own
+instruction, Bochs can stop the REP after one element while the 386 retains
+the decoded instruction and the RTL completes it. For a non-paged, directly
+mapped instruction, the runner stops that run as a code store before comparing
+the two different partial steps. It still compares earlier instructions and
+does not take this exit on exceptions, interrupts, planned rewrites or stores
+that do not overlap the active instruction. Paged or physically aliased cases
+are not covered by this early-stop rule, nor are fetches crossing a 16-bit IP,
+CS-limit or linear-address boundary. Seven directed cases exercise the
+self-write, adjacent-code and ordinary-data paths, a prior mismatch, and a
+planned rewrite, plus IP-wrap and linear-overflow guards.
 
 The latency-free reruns also give the cycles between retirements: in
 sequence, after an instruction with more than one prefix, after a taken
@@ -613,11 +675,14 @@ and the divergence handling stay.
 ```sh
 python3 scripts/test_fes_i386_lockstep.py --download
 python3 scripts/test_fes_i386_lockstep.py --opcode 00 --opcode D3.4 --random-programs 0
-python3 scripts/test_fes_i386_lockstep.py --yosys /abs/path/to/i386-locked/yosys
+python3 scripts/test_fes_i386_lockstep.py --netlist
 ```
 
-`--yosys` simulates the netlist the i386 lock's Yosys writes from the CPU
-(after `proc -norom; flatten; opt -purge`) instead of the RTL.
+`--netlist` simulates the netlist the pc386 seal's Yosys program writes from
+the CPU (`scripts/yosys_netlist.py`, top `fes_i386_cpu`), with the pc386
+lock's Yosys from the `--cache-root` slot, instead of the RTL. The report's
+`netlist` records the same program, CPU source and Yosys identity as the seal
+summary.
 
 `--preset N` runs every mode under that governor preset
 ([speed governor](../../rtl/i386/README.md#speed-governor)), which only holds
@@ -712,9 +777,9 @@ already in `build/`. `tests/test_fes_i386_frontend.py` covers the runner and
 the spike harness's report reading; it lints the spikes and runs the D and AG
 check when `FES_TOOLCHAIN_CACHE_ROOT` names a cache holding the
 [locked Verilator](#verilator), runs the oracle-backed front-end checks when
-the pinned Bochs checkout is present too, and runs the D and AG check on
-Yosys's netlist when `FES_I386_YOSYS` names a Yosys.
+the pinned Bochs checkout is present too, and runs the D and AG check on the
+seal's netlist when the same cache holds the pc386 lock's slot.
 `tests/test_fes_i386_lockstep.py` covers the lockstep runner's scope,
 divergence and output handling, and runs a short lockstep when the locked Verilator, the
-pinned Bochs checkout and the pinned corpus are present (and on Yosys's
-netlist when `FES_I386_YOSYS` names a Yosys).
+pinned Bochs checkout and the pinned corpus are present (and on the seal's
+netlist when the same cache holds the pc386 lock's slot).

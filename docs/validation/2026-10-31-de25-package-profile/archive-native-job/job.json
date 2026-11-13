@@ -1,0 +1,17 @@
+{
+  "source_revision": "769bbeda6f57f68f1149465a6b88e38db4e55406",
+  "command": [
+    "bash",
+    "-c",
+    "make -C sources/libmister-runtime -j2 all archive-audit build/tests/unit/production_hardware_test && (cd sources/libmister-runtime && build/tests/unit/production_hardware_test) && make -C sources/libmister-runtime -j2 active-tree-test hardware-support-truth-test"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-archive-completion",
+  "started_utc": "2026-10-31T21:16:05.559397+00:00",
+  "time_cap_seconds": 900,
+  "hardware_access": "not-performed",
+  "pid": 2787789,
+  "state": "passed",
+  "elapsed_seconds": 126.1,
+  "heartbeat_utc": "2026-10-31T21:18:11.674633+00:00",
+  "returncode": 0
+}

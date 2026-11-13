@@ -70,7 +70,7 @@ ROM_DATABASE_SHA256 = {
     "libmistral/cyclonev.h": "185c24e2b75385d8e62a7144f12488eb68f7d8159af0a8a603cc4a3de1749ee9",
 }
 RECIPE = "scripts/build_fes_sg1000_oss.py"
-ABI_DEFINITION = "cores/fes-sg1000/generated/fes_simple_computer.vh"
+ABI_DEFINITION = "cores/fes-common/generated/fes_application.vh"
 QSF = "cores/fes-sg1000/constraints-oss.qsf"
 SDC = "cores/fes-sg1000/clocks-oss.sdc"
 RTL_SOURCES = (
@@ -80,7 +80,8 @@ RTL_SOURCES = (
     "cores/fes-common/rtl/fes_audio_i2s.v",
     "cores/fes-common/rtl/fes_audio_output.v",
     "cores/fes-common/rtl/fes_sn76489.sv",
-    "cores/fes-common/rtl/fes_computer_gp.v",
+    "cores/fes-common/rtl/fes_application_gp.v",
+    "cores/fes-sg1000/rtl/sg1000_application_gp.v",
     "cores/fes-common/rtl/coleco_dpram.v",
     "cores/fes-common/rtl/coleco_video_dpram.v",
     "cores/fes-common/rtl/coleco_vdp.sv",
@@ -263,7 +264,7 @@ def build_commands(
     sources = " ".join(RTL_SOURCES)
     yosys_program = (
         f"read_verilog -sv -DFES_SG1000_OSS=1 -DFES_SG1000_ROM_LINK=1 -DFES_COLECO_OSS=1 "
-        f"-I cores/fes-sg1000/generated {sources}; "
+        f"-I cores/fes-common/generated {sources}; "
         f"chparam -set BUILD_ID 128'h{build_id} {TOP}; "
         f"synth_intel_alm -nolutram -nodsp -top {TOP}; "
         f"stat; write_json {OUTPUT_RELATIVE.as_posix()}/synth.json"
@@ -474,7 +475,7 @@ def _manifest(
             "id": "fes.sg1000",
             "name": "FES SG-1000",
             "description": "Fixed-map SG-1000 with a linked 16 KiB cartridge ROM",
-            "version": "1.3.0",
+            "version": "1.4.0",
         },
         "target": {
             "platform": "de10_nano",
@@ -482,9 +483,9 @@ def _manifest(
             "programming_profile": "fes-gp-v1",
         },
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},
-        "abi": {"id": "fes.simple-computer", "major": 1, "minor": 0},
+        "abi": {"id": "fes.application", "major": 1, "minor": 0},
         "interfaces": [
-            {"id": "fes.keyboard", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.gamepad.ports", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
             {"id": "fes.audio.pcm-s16-stereo-48k", "major": 1, "minor": 0, "required": True},
         ],

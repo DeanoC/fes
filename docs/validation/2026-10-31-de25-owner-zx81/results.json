@@ -1,0 +1,455 @@
+{
+  "classification": "physical Linux FPGA/ZX81 diagnostic; not normal runtime admission",
+  "board": "TRWU8J8G",
+  "source_revision": "d2012e3ac6df0d66a8525bd2558735f7ec0a565b",
+  "kernel_producer": "8e7479d48d87a8b1977cc4040438cf378d35746c",
+  "root_metadata_producer": "8281d03a1a7c91004af34461bb3a1b300bccc7c8",
+  "fpga_producer": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+  "rbf_sha256": "7130375986bd59633d856beb6cf69db238432a06b84fa0ba1900ffd556ca180a",
+  "core_build_id": "06ee047f143317df0fd1d98717b2b991",
+  "boot_before": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+  "boot_after": "9191e320-2d97-41a2-8e28-735ab8695f7c",
+  "host_after": "192.168.10.69",
+  "core_loads": 2,
+  "load_results": {
+    "load-first": {
+      "host": "192.168.10.129",
+      "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+      "command": "sh -s",
+      "returncode": 0,
+      "elapsed_seconds": 2.54,
+      "stdin_sha256": "eaef931bad51e464793cf1cf4397aa6593149ff1b5a9792ca8651668f9e14665"
+    },
+    "load-second": {
+      "host": "192.168.10.129",
+      "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+      "command": "sh -s",
+      "returncode": 0,
+      "elapsed_seconds": 2.31,
+      "stdin_sha256": "04aab20e1cbc7c5f7597eb396eeef2db761b4efd5f9ba5fff34ec092f93043fe"
+    }
+  },
+  "client_operations": [
+    {
+      "label": "client-probe",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.15,
+        "stdin_sha256": "96e490d12690b5ea197fc27981189487a8c82fd4d51148e8b106f93575d7588a"
+      },
+      "client": {
+        "command": "probe",
+        "status": "passed",
+        "register_reads": 2,
+        "register_writes": 0,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-reset",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.14,
+        "stdin_sha256": "2d7e53bbec9c38aa2e96cf64fc8e3079e4a5ea498b48aad9f15cfa9391008552"
+      },
+      "client": {
+        "command": "reset",
+        "status": "passed",
+        "register_reads": 364,
+        "register_writes": 24,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-media-_tmp_fes-owner-zx81_seven.p",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.15,
+        "stdin_sha256": "66d29aec768e2f4f2ddc9fbdc7cb948642d7ba6ca12757a7f8edd6b53912a061"
+      },
+      "client": {
+        "command": "media",
+        "status": "passed",
+        "register_reads": 7519,
+        "register_writes": 501,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-keys-0d,13s,13s",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 1.06,
+        "stdin_sha256": "9191b59c0181d13c1dc82891e9499487246ec999cc2dba502dddbaa6739a3089"
+      },
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1684,
+        "register_writes": 112,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-keys-28",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.44,
+        "stdin_sha256": "c6145f0335eee2237c0172d839c169b53c0c1c67bafb967951c3b3cff8ebb014"
+      },
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 604,
+        "register_writes": 40,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-keys-15,28",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.74,
+        "stdin_sha256": "a682200ad8b9fe4193933f6be086e15a3eae9d6ac1417f6f37b8ee438b723123"
+      },
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-007-keys-1e,13,26,28",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 1.36,
+        "stdin_sha256": "d27e48aede74d7a84fb9469fa5dfa0a9921e1e5c2143c272da144d7f5c46b134"
+      },
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1414,
+        "register_writes": 94,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-008-keys-15,28",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.75,
+        "stdin_sha256": "a682200ad8b9fe4193933f6be086e15a3eae9d6ac1417f6f37b8ee438b723123"
+      },
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-009-keys-15,28",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.75,
+        "stdin_sha256": "a682200ad8b9fe4193933f6be086e15a3eae9d6ac1417f6f37b8ee438b723123"
+      },
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-010-media-_tmp_fes-owner-zx81_seven.p",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.15,
+        "stdin_sha256": "66d29aec768e2f4f2ddc9fbdc7cb948642d7ba6ca12757a7f8edd6b53912a061"
+      },
+      "client": {
+        "command": "media",
+        "status": "passed",
+        "register_reads": 7519,
+        "register_writes": 501,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-011-keys-0d,13s,13s",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 1.06,
+        "stdin_sha256": "9191b59c0181d13c1dc82891e9499487246ec999cc2dba502dddbaa6739a3089"
+      },
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1684,
+        "register_writes": 112,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-012-keys-28",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.45,
+        "stdin_sha256": "c6145f0335eee2237c0172d839c169b53c0c1c67bafb967951c3b3cff8ebb014"
+      },
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 604,
+        "register_writes": 40,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-013-keys-15,28",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.74,
+        "stdin_sha256": "a682200ad8b9fe4193933f6be086e15a3eae9d6ac1417f6f37b8ee438b723123"
+      },
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-014-hold",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.13,
+        "stdin_sha256": "7786d98d7d6025372835fa0782c7b46ef248a5e5b0b6037d4de1066ed2fa90c9"
+      },
+      "client": {
+        "command": "hold",
+        "status": "passed",
+        "register_reads": 349,
+        "register_writes": 23,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-015-probe",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.16,
+        "stdin_sha256": "96e490d12690b5ea197fc27981189487a8c82fd4d51148e8b106f93575d7588a"
+      },
+      "client": {
+        "command": "probe",
+        "status": "passed",
+        "register_reads": 2,
+        "register_writes": 0,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-016-reset",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.15,
+        "stdin_sha256": "2d7e53bbec9c38aa2e96cf64fc8e3079e4a5ea498b48aad9f15cfa9391008552"
+      },
+      "client": {
+        "command": "reset",
+        "status": "passed",
+        "register_reads": 364,
+        "register_writes": 24,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-017-media-_tmp_fes-owner-zx81_seven.p",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.15,
+        "stdin_sha256": "66d29aec768e2f4f2ddc9fbdc7cb948642d7ba6ca12757a7f8edd6b53912a061"
+      },
+      "client": {
+        "command": "media",
+        "status": "passed",
+        "register_reads": 7519,
+        "register_writes": 501,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-018-keys-0d,13s,13s",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 1.06,
+        "stdin_sha256": "9191b59c0181d13c1dc82891e9499487246ec999cc2dba502dddbaa6739a3089"
+      },
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1684,
+        "register_writes": 112,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-019-keys-28",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.44,
+        "stdin_sha256": "c6145f0335eee2237c0172d839c169b53c0c1c67bafb967951c3b3cff8ebb014"
+      },
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 604,
+        "register_writes": 40,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-020-keys-15,28",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.74,
+        "stdin_sha256": "a682200ad8b9fe4193933f6be086e15a3eae9d6ac1417f6f37b8ee438b723123"
+      },
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "client-021-hold",
+      "operation": {
+        "host": "192.168.10.129",
+        "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+        "command": "sh -s",
+        "returncode": 0,
+        "elapsed_seconds": 0.14,
+        "stdin_sha256": "7786d98d7d6025372835fa0782c7b46ef248a5e5b0b6037d4de1066ed2fa90c9"
+      },
+      "client": {
+        "command": "hold",
+        "status": "passed",
+        "register_reads": 349,
+        "register_writes": 23,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    }
+  ],
+  "visual_observations": {
+    "rom.png": "K prompt",
+    "loaded.png": "LOAD completed, 0/0",
+    "run.png": "7 and 0/1",
+    "edited-run.png": "listing 1 PRINT 9, K prompt; first RUN did not establish picture readiness",
+    "edited-run-confirmed.png": "9 and 0/1 after explicit RUN at observed editor",
+    "reloaded.png": "LOAD completed, 0/0",
+    "reloaded-run.png": "7 and 0/1 after reload without reset/reconfiguration",
+    "second-rom.png": "K prompt after second FPGA programming/reset",
+    "second-loaded.png": "LOAD completed, 0/0",
+    "second-run.png": "7 and 0/1 after second FPGA load"
+  },
+  "post_reboot_owner_syscalls": {
+    "boot_id": "9191e320-2d97-41a2-8e28-735ab8695f7c",
+    "host": "192.168.10.69",
+    "binary_sha256": "b5db0fc187290073086714b94ccbdd6729011cd20c781e4e7730028f931d0032",
+    "actual_userspace_syscalls": "passed after ZX81 load, cleanup and software reboot",
+    "physical_dma": "not-run"
+  },
+  "normal_runtime_admission": "closed",
+  "physical_dma": "not-tested",
+  "warning_scope": "four retained standard OF overlay-property memory-leak warnings; no clean-kernel-log claim"
+}

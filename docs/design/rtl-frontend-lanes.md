@@ -528,15 +528,15 @@ Each lane PR names its check. An i386-style lockstep is not assumed for any othe
 
 ### Close the yosys-lane gap first
 
-- **Lockstep today:** `read_verilog -sv; hierarchy -top fes_i386_cpu; proc -norom; flatten; opt -purge; write_verilog -noattr`, with the i386 lock's Yosys 0a7927bf (238eac9a before D2) and no `-I` or `-D` (`M/scripts/test_fes_i386_frontend.py:93-97`; `M/cores/fes-common/rtl/i386/toolchain.lock:1-5`).
-- **The seal:** the pc386 lock's Yosys 0a7927bf on `pc386_system`, with `-chparam` rates, `flatten`, `opt -purge`, `memory_collect`, `memory_map`, `attrmap` and a Python identifier rewrite (`build_fes_pc386_quartus.py:60`, `:236-275`, `:369-382`).
+- **Lockstep before S4:** `read_verilog -sv; hierarchy -top fes_i386_cpu; proc -norom; flatten; opt -purge; write_verilog -noattr`, with the i386 lock's Yosys 0a7927bf (238eac9a before D2) and no `-I` or `-D` (`M/scripts/test_fes_i386_frontend.py:93-97`; `M/cores/fes-common/rtl/i386/toolchain.lock:1-5`).
+- **The seal before S4:** the pc386 lock's Yosys 0a7927bf on `pc386_system`, with `-chparam` rates, `flatten`, `opt -purge`, `memory_collect`, `memory_map`, `attrmap` and a Python identifier rewrite (`build_fes_pc386_quartus.py:60`, `:236-275`, `:369-382`).
 - **Port trimming:** the sealed machine leaves the CPU's trace and arch ports unconnected (`M/cores/fes-pc386/rtl/pc386_system.sv:476-483`). So a whole-machine netlist cannot drive lockstep, and no CPU sub-netlist can be digested out of it.
 
 **Fix:** one function, `yosys_netlist(top, sources, lane, chparams, memory_policy, attr_mode, lock)`, in `M/scripts/yosys_netlist.py` (new). The pc386 sealer, `quartus_fes_pcxt.py`, `quartus_fes_i386.py`, `benchmark_fes_i386.py` and `test_fes_i386_frontend.synthesize_netlist` all call it.
 
 - **Lockstep** calls it with `top = fes_i386_cpu`, using the sealing producer's lock and passes. That is the honest definition: the same tool identity, the same passes, a different top.
-- **Binding to the seal:** the seal records the `yosys_netlist()` program (its pass list minus `top` and `chparam`), the Yosys lock identity, and the digest of the CPU source closure. The lockstep report records the same three items plus the digest of the CPU-top netlist it simulated (`lockstep.netlist_sha256`). The S5 gate checks two things. First, the program, lock and CPU source digests are equal. Second, the report's netlist digest equals a CPU-top netlist that the sealer regenerates with the same call. It never compares against the sealed machine netlist.
-- **Escaped names:** one mechanism, `rename -unescape`, in the same Yosys run. A JSON round trip loses the signed PLL parameters (`quartus_fes_pcxt.py:136-139`). pc386's `plain_identifiers` (`:251-275`) is deleted once the pc386 netlist is shown to be identical, or is resealed.
+- **Binding to the seal:** the seal records the `yosys_netlist()` program (its pass list minus `top` and `chparam`), the Yosys lock identity, and the digest of the CPU source closure. The lockstep report records the same three items plus the digest of the CPU-top netlist it simulated (S4 records these under the report's and the seal summary's `netlist`, `netlist.netlist_sha256` for the CPU netlist). The S5 gate checks two things. First, the program, lock and CPU source digests are equal. Second, the report's netlist digest equals a CPU-top netlist that the sealer regenerates with the same call. It never compares against the sealed machine netlist.
+- **Escaped names:** one mechanism, `rename -unescape`, in the same Yosys run. A JSON round trip loses the signed PLL parameters (`quartus_fes_pcxt.py:136-139`). At 0a7927bf the pass asserted on the pc386 machine (`cpu.ex_out` and `cpu.ex.out` both map to `cpu_ex_out`) and left memories escaped; DeanoC/yosys#75 fixed both, and S4 moves the i386 and pc386 locks to that fix and deletes pc386's `plain_identifiers`.
 - **Memory policies:** each producer's rule stays a named argument until P4 deletes it.
 - **Attribute mode:** a named argument. pc386 keeps attributes, PC/XT uses `-noattr`.
 
@@ -708,7 +708,7 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
   - lockstep on RTL and on the netlist, with identical trace hashes;
   - test386 to POST;
   - a pc386 Quartus seal with every analysis met;
-  - a kit run on that seal (DOOM `-timedemo demo3` and the acceptance games), as the slice's own evidence. The merge gate's HIL stays N/A for pc386 (`AGENTS.md:32`), as the i386 doc says.
+  - a kit run on that seal (DOOM `-timedemo demo3`, the acceptance games and the WfW 3.11 kit acceptance, `M/docs/pc386-windows-corpus.md`), as the slice's own evidence. The merge gate's HIL stays N/A for pc386 (`AGENTS.md:32`), as the i386 doc says.
 
   The map report has no 276007/276004 warning for `ras.stack`, and a reset test shows no stack write while reset is asserted. Until S4 lands, the netlist lockstep evidence carries the existing lockstep/seal mismatch, and the PR says so.
 - **Measurement:** pc386 fit ALMs and slack, before and after. If it saves under 150 ALMs or loses Fmax, the PR closes with the record.
@@ -724,20 +724,21 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
 ### S4. Shared Yosys netlist helper; lockstep uses the seal's Yosys program
 
 - **Files:**
-  - new `M/scripts/yosys_netlist.py`;
-  - `build_fes_pc386_quartus.py`, `quartus_fes_pcxt.py`, `quartus_fes_i386.py` (which now authenticates Yosys from a lock), `benchmark_fes_i386.py`, `test_fes_i386_frontend.py`, `test_fes_i386_lockstep.py`;
-  - the seal-summary `lockstep` object.
-- **Deleted:** the inline Yosys scripts, and `plain_identifiers` in favour of `rename -unescape`.
+  - new `M/scripts/yosys_netlist.py`: the recipes (the pc386 seal's, PC/XT's), `program()` and its `canonical()` form, one `run()` invocation, Yosys authentication from the pc386 lock's slot, and the CPU source list and digest;
+  - `build_fes_pc386_quartus.py`, `quartus_fes_pcxt.py`, `quartus_fes_i386.py` (which now authenticates Yosys from the pc386 lock), `benchmark_fes_i386.py` (its synthesis program, through `synthesis_program()`), `test_fes_i386_frontend.py`, `test_fes_i386_lockstep.py`, and the lockstep's other netlist users, `test_fes_i386_governor.py` and `test_fes_i386_latency.py`;
+  - the i386 and pc386 locks, moved to the DeanoC/yosys commit with the #75 fix;
+  - the seal summary's `netlist` record (program, CPU source and netlist digests, Yosys identity), which the lockstep report's `netlist` repeats. S5 adds the gate and the `lockstep` object.
+- **Deleted:** the inline Yosys scripts, the free `--yosys` paths (now `--netlist`, with the Yosys from the slot), and `plain_identifiers` in favour of `rename -unescape`.
 - **Acceptance** (against main before S8; S8 then compares against post-S4 main):
-  - the PC/XT `elaborated.v` is byte-identical, and its repeat RBF is byte-identical;
-  - the pc386 `pc386_system.v` is identical apart from identifier spelling, and the reseal shows unchanged resources and timing;
-  - lockstep on the new CPU netlist gives identical trace hashes;
-  - the lockstep report and the seal summary record the same Yosys program, lock and CPU source digests, and the recorded `lockstep.netlist_sha256` reproduces from them.
-- **Dependencies:** D2 (which Yosys lock the CPU uses). **Kit:** PC/XT bundle smoke on a claimed free kit. pc386 is N/A.
+  - the PC/XT `elaborated.v` is byte-identical, and its repeat RBF is byte-identical (PC/XT keeps its own Yosys lock; its programs are byte-identical to main's);
+  - the pc386 `pc386_system.v` is identical apart from identifier spelling and Yosys's auto-numbered names, and the reseal shows unchanged resources and timing;
+  - lockstep on the new CPU netlist gives the RTL's trace hashes;
+  - the lockstep report and the seal summary record the same Yosys program, lock and CPU source digests, and the recorded netlist digest reproduces from them (`yosys_netlist.py cpu`).
+- **Dependencies:** D2 (which Yosys lock the CPU uses) and DeanoC/yosys#75. **Kit:** none. PC/XT's change is closure-only, so D12 replaces its bundle smoke; pc386 is N/A ([record](../validation/2026-11-12-1581-s4-netlist-helper/README.md)).
 
 ### S5. pc386 lockstep producer gate
 
-- **Files:** `build_fes_pc386_quartus.py` (`--lockstep-report`, input-identity matching, CPU-top netlist regeneration) and its tests.
+- **Files:** `build_fes_pc386_quartus.py` (`--lockstep-report`, input-identity matching, CPU-top netlist regeneration, the summary's `lockstep` object), `test_fes_i386_lockstep.py` (the report's `run` record: passed, and whether it was the default suite over the full corpus), the `build-fes-pc386-quartus` target's `LOCKSTEP_REPORT`, and their tests.
 - **Acceptance:** the sealer refuses a missing or mismatched report, and seals with a matching one.
 - **Dependencies:** S3, S4. **Kit:** no.
 
@@ -899,13 +900,13 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
 - **MLAB timing.** An MLAB in the front end's return path may cost Fmax. S2 makes timing part of acceptance.
 - **The raised signoff bar may fail cores that seal today**: Z80 cores on extra seeds, RAM Tester on hold or MPW. Each core's PR stops and reports on its own, which can block that package until it is fixed.
 - **Phase 5 area pressure.** The working ceiling is about 92% (38,500 ALMs), and Quartus has never been run above 88% (`summary.md:39-47`). S2 and S12 touch the pc386 fit and must not block Phase 5 slices.
-- **Two Yosys locks for one CPU** (0a7927bf and 238eac9a). Closed by D2: the i386 lock now pins 0a7927bf.
+- **Two Yosys locks for one CPU** (0a7927bf and 238eac9a). Closed by D2: the i386 lock pinned 0a7927bf, and S4 moved both locks to e240a465.
 - **The docs disagree** on whether Pro is installed and licensed, and on whether Quartus is primary or oracle-only for pc386 (`quartus-cores.md` and `getting-started.md:12-18` against `AGENTS.md:73-76`). S1b, S6a and S6b settle it.
 
 ## Open decisions for Deano
 
 1. **D1. Is a native Quartus front end wanted, or only if forced?** Recommendation: only if forced. Yosys stays the front end for i386, pc386 and PC/XT. The existing native-Lite Z80 sealers keep their route, now labelled. Native Pro is built if S1b shows that Pro rejects the Yosys netlist, or when a core specialises for DE25 and a measured Pro fit favours the native read. The audit shows no area reason for native Lite.
-2. **D2. Which Yosys lock does the CPU use?** Recommendation: one lock. Move the i386 lock to the sealing producer's lock (pc386 0a7927bf), or move both forward together, with RTL and netlist trace hashes as evidence. Do this before S4. Agreed and done: the i386 lock pins 0a7927bf (`docs/validation/2026-11-10-1581-d2-yosys-lock/`).
+2. **D2. Which Yosys lock does the CPU use?** Recommendation: one lock. Move the i386 lock to the sealing producer's lock (pc386 0a7927bf), or move both forward together, with RTL and netlist trace hashes as evidence. Do this before S4. Agreed and done: the i386 lock pinned 0a7927bf, and S4 moved both locks to e240a465 (DeanoC/yosys#76) (`docs/validation/2026-11-10-1581-d2-yosys-lock/`).
 3. **D3. Allow yosys → Quartus Pro for DE25?** Recommendation: yes, if S1b shows the Yosys netlist goes through Pro. It is the cheapest DE25 bring-up path and needs no native Pro lane on day one. It is not the end state for a core tuned to DE25: such a core moves to native Pro on a measured fit (Device specialisation, rule 3).
 4. **D4. Quartus locks per core or shared?** Recommendation: per core, in PC/XT's shape plus `edition` and `device_family`, so each core's last known good moves on its own.
 5. **D5. May FES edit vendored OPL2 beyond today's local changes** (the `signed'()` sites, `carrier_delay`, MLAB memories)? Recommendation: yes, one PR per change with a measurement, recorded in `source.json` `local_changes`. Without that, those memories stay FFs and the pc386 `WR_PORTS>1` rule cannot be deleted.

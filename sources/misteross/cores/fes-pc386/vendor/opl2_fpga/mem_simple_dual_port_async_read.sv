@@ -58,7 +58,14 @@ module mem_simple_dual_port_async_read #(
     output logic [DATA_WIDTH-1:0] dob
 );
     /* synthesis syn_ramstyle = "MLAB, no_rw_check" */
+    // Preserve the RAM's configuration value along with its synchronous writes.
+`ifdef FES_PC386_VERILATOR_5054
+    /* verilator lint_off PROCASSINIT */
+`endif
     logic [DATA_WIDTH-1:0] ram [DEPTH-1:0] = '{default: DEFAULT_VALUE};
+`ifdef FES_PC386_VERILATOR_5054
+    /* verilator lint_on PROCASSINIT */
+`endif
 
     always_ff @(posedge clka)
         if (wea)

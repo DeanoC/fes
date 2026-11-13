@@ -8,13 +8,13 @@ import (
 	"net"
 
 	"errors"
+	"fmt"
 	"io"
 
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -1226,105 +1226,53 @@ func TestRuntimeSocketOpenIsFalseWhenDialFails(t *testing.T) {
 	}
 }
 
-func TestNativeDevelopmentRecoveryRequiresConfiguredExecutable(t *testing.T) {
+func TestNativeDevelopmentRecoveryRequiresConfiguredStarter(t *testing.T) {
 	t.Parallel()
-	for _, test := range []struct {
-		name string
-		path func(string) string
-	}{
-		{name: "missing", path: func(dir string) string { return filepath.Join(dir, "missing-reboot") }},
-		{name: "directory", path: func(dir string) string { return dir }},
-		{name: "not executable", path: func(dir string) string { return filepath.Join(dir, "reboot") }},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			dir := t.TempDir()
-			path := test.path(dir)
-			if test.name == "not executable" {
-				if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o600); err != nil {
-					t.Fatal(err)
-				}
-			}
-			runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
-				misterruntime.WithRebootCommand(path))
+	for _, option := range []misterruntime.RuntimeOption{nil, misterruntime.WithRecoveryReboot(nil)} {
+		runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second, option)
+		if _, err := runtime.RecoverDevelopment(context.Background()); err == nil || err.Code != protocol.CodeMiSTerUnavailable {
+			t.Fatalf("unconfigured recovery = %v", err)
+		}
+	}
+}
 
-			_, apiErr := runtime.RecoverDevelopment(context.Background())
-			if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
-				t.Fatalf("recovery error = %#v", apiErr)
+func TestNativeDevelopmentRecoveryHonorsCanceledContextBeforeDispatch(t *testing.T) {
+	t.Parallel()
+	calls := 0
+	runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
+		misterruntime.WithRecoveryReboot(func(context.Context) error { calls++; return nil }))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := runtime.RecoverDevelopment(ctx); err == nil || err.Code != protocol.CodeMiSTerUnavailable || calls != 0 {
+		t.Fatalf("canceled recovery = %v, calls=%d", err, calls)
+	}
+}
+
+func TestNativeDevelopmentRecoveryUsesConfiguredStarter(t *testing.T) {
+	t.Parallel()
+	for _, failed := range []bool{false, true} {
+		t.Run(fmt.Sprint(failed), func(t *testing.T) {
+			calls := 0
+			ctx := context.WithValue(context.Background(), struct{}{}, "request")
+			runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
+				misterruntime.WithRecoveryReboot(func(got context.Context) error {
+					calls++
+					if got != ctx {
+						t.Fatal("starter lost caller admission context")
+					}
+					if failed {
+						return errors.New("private command detail")
+					}
+					return nil
+				}))
+			observed, err := runtime.RecoverDevelopment(ctx)
+			if observed != "" || calls != 1 || (err != nil) != failed {
+				t.Fatalf("observed=%q err=%v calls=%d", observed, err, calls)
+			}
+			if err != nil && (err.Code != protocol.CodeMiSTerUnavailable || strings.Contains(err.Message, "private command detail")) {
+				t.Fatalf("mapped error=%v", err)
 			}
 		})
-	}
-}
-
-func TestNativeDevelopmentRecoveryHonorsCanceledContextBeforeStartingCommand(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	marker := filepath.Join(dir, "started")
-	reboot := filepath.Join(dir, "reboot")
-	script := "#!/bin/sh\n: > '" + marker + "'\n"
-	writeRecoveryScript(t, reboot, script)
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
-		misterruntime.WithRebootCommand(reboot))
-
-	_, apiErr := runtime.RecoverDevelopment(ctx)
-	if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
-		t.Fatalf("canceled recovery error = %#v", apiErr)
-	}
-	if _, err := os.Stat(marker); !os.IsNotExist(err) {
-		t.Fatalf("canceled recovery started command: %v", err)
-	}
-}
-
-func TestNativeDevelopmentRecoveryStartsConfiguredCommand(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	marker := filepath.Join(dir, "started")
-	reboot := filepath.Join(dir, "reboot")
-	script := "#!/bin/sh\n: > '" + marker + "'\n"
-	writeRecoveryScript(t, reboot, script)
-	runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
-		misterruntime.WithRebootCommand(reboot))
-
-	observed, apiErr := runtime.RecoverDevelopment(context.Background())
-	if observed != "" || apiErr != nil {
-		t.Fatalf("recovery = observed:%q error:%#v", observed, apiErr)
-	}
-	deadline := time.Now().Add(recoveryScriptStartBudget)
-	for {
-		if _, err := os.Stat(marker); err == nil {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("configured recovery command was not started")
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-}
-
-func TestNativeDevelopmentRecoverySurvivesCallerCancellationAfterStart(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	marker := filepath.Join(dir, "finished")
-	reboot := filepath.Join(dir, "reboot")
-	script := "#!/bin/sh\nsleep 0.05\n: > '" + marker + "'\n"
-	writeRecoveryScript(t, reboot, script)
-	ctx, cancel := context.WithCancel(context.Background())
-	runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
-		misterruntime.WithRebootCommand(reboot))
-	if _, apiErr := runtime.RecoverDevelopment(ctx); apiErr != nil {
-		t.Fatalf("recovery error = %#v", apiErr)
-	}
-	cancel()
-	deadline := time.Now().Add(recoveryScriptStartBudget)
-	for {
-		if _, err := os.Stat(marker); err == nil {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("recovery command did not survive caller cancellation")
-		}
-		time.Sleep(5 * time.Millisecond)
 	}
 }
 
@@ -1530,27 +1478,5 @@ func TestStartupReconciliationUsesCallerBudgetBeyondHealthPoll(t *testing.T) {
 	defer cancel()
 	if status := runtime.Reconcile(ctx); status.State != protocol.StateIdle {
 		t.Fatalf("startup cut short by health timeout: %+v", status)
-	}
-}
-
-// recoveryScriptStartBudget bounds the wait for a recovery script's marker.
-// The wait polls and returns as soon as the marker appears. On macOS, the
-// first exec of a newly written script includes a policy scan that takes
-// about 300 ms. The old 250 ms budget therefore failed every run there.
-const recoveryScriptStartBudget = 5 * time.Second
-
-// writeRecoveryScript creates an executable script while holding
-// syscall.ForkLock, so no fork can happen while the file is open for writing.
-// Without the lock, on Linux a parallel test that forks during os.WriteFile
-// inherits the writable descriptor until its exec. Executing the script then
-// fails with ETXTBSY ("text file busy"), which RecoverDevelopment reports as
-// MISTER_UNAVAILABLE. os/exec takes ForkLock for every fork.
-func writeRecoveryScript(t *testing.T, path, script string) {
-	t.Helper()
-	syscall.ForkLock.Lock()
-	err := os.WriteFile(path, []byte(script), 0o700)
-	syscall.ForkLock.Unlock()
-	if err != nil {
-		t.Fatal(err)
 	}
 }

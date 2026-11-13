@@ -1,0 +1,95 @@
+1cdac9ba-52eb-4268-87c0-d6533ec445f6
+Stratix10 SOC FPGA Manager
+unknown
+FIRMWARE SEARCH: 
+/dev/root / ext4 rw,relatime 0 0
+devtmpfs /dev devtmpfs rw,relatime,size=457048k,nr_inodes=114262,mode=755 0 0
+proc /proc proc rw,relatime 0 0
+devpts /dev/pts devpts rw,relatime,gid=5,mode=620,ptmxmode=666 0 0
+tmpfs /dev/shm tmpfs rw,relatime,mode=777 0 0
+tmpfs /tmp tmpfs rw,relatime 0 0
+tmpfs /run tmpfs rw,nosuid,nodev,relatime,mode=755 0 0
+sysfs /sys sysfs rw,relatime 0 0
+crw-------    1 0        0          10, 124 Jan  1 00:00 /dev/fes-de25-scanout
+PID   USER     COMMAND
+    1 root     init
+    2 root     [kthreadd]
+    3 root     [pool_workqueue_]
+    4 root     [kworker/R-rcu_g]
+    5 root     [kworker/R-sync_]
+    6 root     [kworker/R-slub_]
+    7 root     [kworker/R-netns]
+    9 root     [kworker/0:0H-mm]
+   10 root     [kworker/0:1-mm_]
+   11 root     [kworker/u16:0-e]
+   12 root     [kworker/R-mm_pe]
+   13 root     [rcu_tasks_kthre]
+   14 root     [rcu_tasks_trace]
+   15 root     [ksoftirqd/0]
+   16 root     [rcu_preempt]
+   17 root     [rcu_exp_par_gp_]
+   18 root     [rcu_exp_gp_kthr]
+   19 root     [migration/0]
+   20 root     [cpuhp/0]
+   21 root     [cpuhp/1]
+   22 root     [migration/1]
+   23 root     [ksoftirqd/1]
+   25 root     [kworker/1:0H-ev]
+   26 root     [cpuhp/2]
+   27 root     [migration/2]
+   28 root     [ksoftirqd/2]
+   30 root     [kworker/2:0H-ev]
+   31 root     [cpuhp/3]
+   32 root     [migration/3]
+   33 root     [ksoftirqd/3]
+   34 root     [kworker/3:0-eve]
+   35 root     [kworker/3:0H-ev]
+   36 root     [kdevtmpfs]
+   37 root     [kworker/R-inet_]
+   38 root     [kworker/u16:1-e]
+   39 root     [kauditd]
+   40 root     [oom_reaper]
+   41 root     [kworker/R-write]
+   42 root     [kcompactd0]
+   43 root     [ksmd]
+   44 root     [khugepaged]
+   45 root     [kworker/R-kinte]
+   46 root     [kworker/R-kbloc]
+   47 root     [kworker/R-blkcg]
+   48 root     [kworker/R-tpm_d]
+   49 root     [kworker/R-ata_s]
+   50 root     [kworker/R-edac-]
+   51 root     [kworker/R-devfr]
+   52 root     [watchdogd]
+   53 root     [kworker/3:1-mm_]
+   54 root     [kworker/2:1H-kb]
+   55 root     [kworker/R-rpcio]
+   56 root     [kworker/R-xprti]
+   57 root     [kswapd0]
+   58 root     [kworker/R-nfsio]
+   59 root     [kworker/0:2]
+   61 root     [kworker/1:1H-kb]
+   62 root     [kworker/2:1-mm_]
+   63 root     [kworker/1:1-mm_]
+   64 root     [irq/19-arm-smmu]
+   65 root     [kworker/R-stmma]
+   67 root     [kworker/u17:0]
+   68 root     [kworker/R-sdhci]
+   69 root     [irq/45-mmc0]
+   70 root     [kworker/u16:2-e]
+   72 root     [kworker/2:2-pm]
+   73 root     [kworker/R-mmc_c]
+   74 root     [kworker/0:1H-mm]
+   76 root     [kworker/1:2-eve]
+   78 root     [jbd2/mmcblk0p2-]
+   79 root     [kworker/R-ext4-]
+   95 root     /sbin/syslogd -n
+   99 root     /sbin/klogd -n
+  111 root     /sbin/mdev -df
+  113 root     [kworker/3:1H-kb]
+  164 root     udhcpc -R -n -O search -p /var/run/udhcpc.eth0.pid -i eth0 -b
+  171 root     /usr/sbin/dropbear -R
+  189 root     /sbin/getty -L ttyS0 115200 vt100
+  273 root     /usr/sbin/dropbear -R
+  274 root     sh -s
+  283 root     ps

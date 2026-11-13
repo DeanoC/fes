@@ -1,0 +1,72 @@
+{
+  "passed": true,
+  "classification": "independent Powerboat regular-file readback and physical-card preparation; subsequent native acceptance recorded separately",
+  "card_sha256": "eacf4686777e834b7948c1465e52431326064b8427436e43ad132ef41a1ffd25",
+  "card_bytes": 2182086656,
+  "source": "19cca55559e39f68e3fbc9b8ec6b8f86504134b1",
+  "rootfs_sha256": "8e4b57d125cf29c312c00ade7db355d7703199268612d8446af0e1d1f9b0b49e",
+  "native_four_roles": {
+    "bin/fogcast-kit": "7d716c11c3d21c3b9c8fa6f676837d9c8e1d3a2585b8bd69a313f9fd9ea6b46d",
+    "bin/fogcast-tenfoot": "8490e7c160e20163acca72acb67ef9afce3131cb4d7d805b6901329f20b87756",
+    "bin/mister-agent": "3b2b300e38e5431b8b3e57a6feb0d4b802a1cc107ec5e0e90498bf98137f765a",
+    "bin/mister-runtime": "0d8f6a86b6b96fc58c06680b885f06411edac2d0999e8a2911f209413c1181b9"
+  },
+  "factory_bundle": "cbf468031a31e6af75f385ced40b03f7d255bdf580c44353fb5518bf9736a1f6",
+  "software_archive_sha256": "d933d9146ee667e1f58b50a94590894b528387cb9129046e72c8e57ff428b954",
+  "base_contract": "fes-kit-base-v2-2582493f60d7663b97a544040af9cf7b5eafd9992222764012094a43152716ae",
+  "FAT_files": {
+    "Image": "e4311f0582007a7420f44bd661e4ca0d6d093361d44b1320c215a2449f980368",
+    "socfpga_agilex5_de25_nano.dtb": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7",
+    "idle.rbf": "3df0d23fcdc252d9edb8d27071e32d737c4a2b99c6e68eea3a45dbadfa938dd5",
+    "fogcast/agent.toml": "373ca97fcc2efb8c5e1a56fa82e95f062a564f076f59ecb7475b4ff88117a1d1",
+    "fogcast/launcher.json": "ea2bad32257340ab63cf75a2dd784306d77f5d9dd394e80bf9c7a3c04a19342c",
+    "u-boot.itb": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+    "fogcast/releases/images/8e4b57d125cf29c312c00ade7db355d7703199268612d8446af0e1d1f9b0b49e.img": "8e4b57d125cf29c312c00ade7db355d7703199268612d8446af0e1d1f9b0b49e"
+  },
+  "bootstrap": {
+    "sha256": "d313ab8c3bac7423a3ad1e537c5ae9eb4a6248c092b021774a49502e3e78b784",
+    "normalized_sha256": "ef0906f5cca791dd94c25cefd94b8d57e542049b0c36163af040d140eedcb67e",
+    "rule": "ext4-mount-read-bookkeeping-v1"
+  },
+  "data_partition_plan": {
+    "board": "de25-nano",
+    "layout_id": "de25-nano-appliance-2g-v1",
+    "card_bytes": 31267487744,
+    "start_sector": 4261888,
+    "sector_count": 56807424,
+    "type": 131,
+    "label": "FESDATA3"
+  },
+  "e2fsck_readonly": "pass",
+  "private_pairing_values": "not-recorded",
+  "hardware_acceptance": "bounded native acceptance in merged-de25-hardware.json",
+  "physical_card_written": true,
+  "producer_receipts": {
+    "release-release.json": "910710d2d77c561fa6d4a360ca906e9b906cf0fe2d74bf137b731cad31b306b2",
+    "make-verify.json": "2efd863803e561301205677265f7d70e8825d58adea93341201f88e85d3021eb",
+    "factory.json": "101aa56210cd101e19d8e0f382df247d910bc27dd06833141187c2f818bf3034",
+    "managed-card-build.json": "83a6fbf4bed2cc400b3917931a86bd50024011275dbf11f5764c4b388ace65bf",
+    "managed-card-verify.json": "949f9910571a586fc5c6ed7b0bff8cdbfd23d3b045d5e4926fce66e05a23f024",
+    "preparation.json": "af936ec9b6b4b1b94b6f2ccca4ab99a6a3b9b6e4e56eaddb1acf6eab2d31e366",
+    "boot.json": "91064c31b569ba2f3b9e81621de966da56c0e78606cc9dd47dd955492530a606",
+    "release-evidence.json": "181b92ccc3b781ffc31f1e91485242c18d542951ba254600592bc00c78bb99fd",
+    "qemu-smoke.log": "e57bf8f404b471c10260b82dd5793e8a0e0467ccb9ec9bf5d67cefa7875bd065",
+    "bootstrap-build-in-checkout.json": "a015c07d1d0fb264f619010114a0ab711491e684f3fc0ef1ee25fc0841666c0e",
+    "make-dev.json": "53325021c2eeba62d3b8c18c26d34d1e2e48de22bf34e5a8c4af46dfb39b5a66",
+    "factory-verify.json": "a777055ef082e07268de0527d7e31a19f0536fa0129e714ee32a8cef5a3c6a2b",
+    "release-export.json": "281a61a552b7fa35f3fffea5b19235fd15655c4f25c3d813d923e5b0faa29f2e",
+    "development-inputs.json": "523bd37350b2126fdbe10c55bd39adebc9a04ff788b0dfb111e232c1a0dbcff8"
+  },
+  "kernel_producer": "93131814a2a27ea651dc9aa9d22f5be40ddae3e8",
+  "MENU_producer": "25bc6ef78e4147497800a0e2b491f51d26902107",
+  "build_mode": "normal incremental development, one rootfs pass; normal media independently reconstructed twice per operation",
+  "native_trial": {
+    "approved": true,
+    "state": "completed: approved managed image retained healthy; owner released",
+    "QSPI": "unchanged",
+    "static_personas": "disabled",
+    "plan_sha256": "980d6532931570a5cffc63ac992a28c9df21fba759d212f241223d632940ab91",
+    "result": "merged-de25-hardware.json"
+  },
+  "private_receipts_root": "/data/fes-de25-pr1312-hil-19cca-20261112/de25"
+}

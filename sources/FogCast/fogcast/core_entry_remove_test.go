@@ -178,6 +178,33 @@ func TestRecreatingRetainedEntryClearsInterruptedUserCleanup(t *testing.T) {
 	}
 }
 
+func TestCreateCoreEntryWithTruncatedSlugSeparator(t *testing.T) {
+	ctx := context.Background()
+	s, _, _, inspection := newCoreEntryLaunchFixture(t, libraryPackageFixture(t, "0.1.0"), "Existing Pong")
+	users, err := libraryuser.Open(filepath.Join(t.TempDir(), "user.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = users.Close() })
+	s.users = users
+
+	const title = "SG-1000 controller diagnostic codex-sg1000-1755-dc0aca159c6e-1872748"
+	entry, err := s.CreateCoreEntry(ctx, title, inspection.PackageID)
+	if err != nil {
+		t.Fatalf("create entry with truncated slug: %v", err)
+	}
+	if err := protocol.ValidateGameID(entry.GameID); err != nil {
+		t.Fatalf("created invalid game ID %q: %v", entry.GameID, err)
+	}
+	if entry.Title != title || entry.PackageID != inspection.PackageID {
+		t.Fatalf("unexpected entry: %+v", entry)
+	}
+	got, err := s.catalog.(*catalog.Store).CoreEntry(ctx, entry.GameID)
+	if err != nil || got != entry {
+		t.Fatalf("stored entry = %+v, %v; want %+v", got, err, entry)
+	}
+}
+
 func TestRemoveCoreEntrySerializesWithUserWrites(t *testing.T) {
 	ctx := context.Background()
 	s, store, userPath, id := removeEntryFixture(t)

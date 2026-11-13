@@ -13,6 +13,7 @@ from scripts.export_core_package import build_identity, PackageExportError
 from scripts.functional_execution import _gpu_machine_files, execution_environment, execution_digest
 from scripts.fes_build_common import _run_tool
 from scripts.search_placer_qor import route_after_synth, SearchError
+from tests.producer_fixture import de10_copy_ignore
 
 
 class FunctionalColecoTests(unittest.TestCase):
@@ -76,7 +77,7 @@ class FunctionalColecoTests(unittest.TestCase):
                 source_path = source / relative
                 # The private-lock directory is absent once the last dedicated lock is deleted.
                 if source_path.is_dir():
-                    shutil.copytree(source_path, root / relative, ignore=shutil.ignore_patterns("__pycache__"))
+                    shutil.copytree(source_path, root / relative, ignore=de10_copy_ignore(source))
             shutil.copy2(source / "toolchain.lock", root / "toolchain.lock")
             def git(*args):
                 return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()

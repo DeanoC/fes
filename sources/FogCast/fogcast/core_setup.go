@@ -128,7 +128,7 @@ func (s *Service) CreateCoreSetupEntry(parent context.Context, req CoreSetupRequ
 		}
 	}
 	firmwareRequired := req.FirmwareRequired || len(setup.Descriptor.ROMs) > 0
-	if req.FirmwareRequired && setup.Descriptor.Format != 4 && len(setup.Capabilities.Firmware) == 0 {
+	if req.FirmwareRequired && setup.Descriptor.Format != 4 {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
 	var entry catalog.CoreEntry

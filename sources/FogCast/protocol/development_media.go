@@ -28,10 +28,7 @@ func (b DevelopmentMediaBinding) Valid() bool {
 	if len(b.PackageID) != 64 || b.Generation == 0 {
 		return false
 	}
-	if b.Role != "" && b.Role != "blob" && b.Role != FirmwareRole {
-		return false
-	}
-	if b.Role == FirmwareRole && b.Stream {
+	if b.Role != "" && b.Role != "blob" {
 		return false
 	}
 	for _, c := range b.PackageID {
@@ -45,9 +42,6 @@ func (b DevelopmentMediaBinding) Matches(s Status) bool {
 	if !b.Valid() || s.State != StateActive || !s.Development || s.Recovery != "" || s.LastError != nil ||
 		s.CorePackage == nil || s.CorePackage.PackageID != b.PackageID || s.CorePackage.Generation != b.Generation {
 		return false
-	}
-	if b.Role == FirmwareRole {
-		return FirmwareCapable(s.CorePackage)
 	}
 	return DevelopmentMediaCapable(s.CorePackage) && (!b.Stream || MediaStreamCapable(s.CorePackage))
 }
@@ -83,9 +77,6 @@ func DevelopmentMediaHeaders(h http.Header) (DevelopmentMediaBinding, bool) {
 }
 func DevelopmentMediaRequestError() *APIError {
 	return &APIError{Code: CodeBadRequest, Message: "development media requires 1..16384 bytes and a package generation", Phase: "request"}
-}
-func DevelopmentFirmwareRequestError() *APIError {
-	return &APIError{Code: CodeBadRequest, Message: "development firmware requires exactly 8192 bytes and a firmware-capable package generation", Phase: "request"}
 }
 func DevelopmentMediaIdentityError() *APIError {
 	return &APIError{Code: CodeBusy, Message: "development media requires the current active media-capable package generation", Phase: "admission"}

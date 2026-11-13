@@ -1,0 +1,16 @@
+{
+  "source_revision": "fd98d8f6c9d0d947cec351faf11df918e4a7102c",
+  "command": [
+    "make",
+    "check"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-reviewed-async-fd98d8f6c",
+  "started_utc": "2026-11-01T16:25:07.890685+00:00",
+  "time_cap_seconds": 300,
+  "hardware_access": "not-performed",
+  "pid": 3032891,
+  "state": "passed",
+  "elapsed_seconds": 5.1,
+  "heartbeat_utc": "2026-11-01T16:25:13.039402+00:00",
+  "returncode": 0
+}

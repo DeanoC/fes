@@ -1,0 +1,68 @@
+[
+  {
+    "frame": 1,
+    "center_gray": 255,
+    "bright_pixels": 794545,
+    "sha256": "73a1f1a4d0dbef9d72a3daccb5e54780a51b858e635e7e36ca68b7d10730e9d0"
+  },
+  {
+    "frame": 10,
+    "center_gray": 255,
+    "bright_pixels": 794545,
+    "sha256": "73a1f1a4d0dbef9d72a3daccb5e54780a51b858e635e7e36ca68b7d10730e9d0"
+  },
+  {
+    "frame": 20,
+    "center_gray": 255,
+    "bright_pixels": 795072,
+    "sha256": "4a5d3fbba02ee44b3c63978f7d8ebd7a38755ab3058faed4fc40ad1cf58ae224"
+  },
+  {
+    "frame": 25,
+    "center_gray": 255,
+    "bright_pixels": 794570,
+    "sha256": "0e54cad9cdd8952b83aaf803a5499ed142912edeaa0f9f0be3e007c5a7ccd42a"
+  },
+  {
+    "frame": 30,
+    "center_gray": 255,
+    "bright_pixels": 794586,
+    "sha256": "2a3d5fc8390061890562c6dd46422e02b4133d3a0210273ac91f34d89bcb0b92"
+  },
+  {
+    "frame": 36,
+    "center_gray": 255,
+    "bright_pixels": 794946,
+    "sha256": "7918f683322ea355509f1843bba3c77abdd07e82ce4fcc852cc96c020447f30c"
+  },
+  {
+    "frame": 40,
+    "center_gray": 255,
+    "bright_pixels": 794545,
+    "sha256": "73a1f1a4d0dbef9d72a3daccb5e54780a51b858e635e7e36ca68b7d10730e9d0"
+  },
+  {
+    "frame": 50,
+    "center_gray": 255,
+    "bright_pixels": 795072,
+    "sha256": "4a5d3fbba02ee44b3c63978f7d8ebd7a38755ab3058faed4fc40ad1cf58ae224"
+  },
+  {
+    "frame": 60,
+    "center_gray": 255,
+    "bright_pixels": 794586,
+    "sha256": "2a3d5fc8390061890562c6dd46422e02b4133d3a0210273ac91f34d89bcb0b92"
+  },
+  {
+    "frame": 65,
+    "center_gray": 255,
+    "bright_pixels": 795072,
+    "sha256": "4a5d3fbba02ee44b3c63978f7d8ebd7a38755ab3058faed4fc40ad1cf58ae224"
+  },
+  {
+    "frame": 70,
+    "center_gray": 255,
+    "bright_pixels": 794545,
+    "sha256": "73a1f1a4d0dbef9d72a3daccb5e54780a51b858e635e7e36ca68b7d10730e9d0"
+  }
+]

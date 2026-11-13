@@ -73,6 +73,22 @@ Each changed path gets a class and a component:
   (`host:fogcast-api`, `host:fogcast`) or a core package (`core:<name>`,
   `core:ALL`). `cmd/fogcast-api` is `kit-go+host`: the bundle ships it as
   `bin/fogcast-kit`, the kit's FogCast host.
+- DE25 packages use `core:de25-menu`, `core:de25-zx81` and
+  `core:de25-ALL` (both packages). These require a claimed DE25 and the
+  corresponding Quartus package. A DE10 test cannot satisfy them; an executor
+  without a DE25 route must stop for that hardware check. Shared DE25 board
+  code selects both packages, while computer-specific code selects ZX81.
+  The captured ZX81 firmware generator also selects the ZX81 hardware check.
+  Package changes alone remain `overlay` and do not require rebuilding Linux.
+  Standalone LED, RAM-test and link-proof diagnostics remain separate from
+  deployed-package testing. The regression checks the actual MENU and standard
+  ZX81 board-source closures so deployed inputs cannot silently become `none`.
+- The DE25 permanent-owner kernel includes `image/kernel/de25-dma/` in native
+  builds as well as QEMU tests. Driver changes and its native kernel/image
+  recipe helpers require `FULL_IMAGE` and a DE25 boot test. Their original
+  diagnostic names do not exempt them. The disabled KUnit test source itself
+  remains software-only. Tests check the actual driver directory and owner-image
+  recipe inputs against this classification.
 - `full`: image, boot media, platform, profile, splash, video-part or kit
   software-format or expansion-archive changes. The decision is `FULL_IMAGE`: stop and build a
   full image. A full image swap or reimage still needs Deano's explicit OK.

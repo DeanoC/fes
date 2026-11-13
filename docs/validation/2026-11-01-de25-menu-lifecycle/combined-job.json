@@ -1,0 +1,29 @@
+{
+  "source_revision": "739669eb46d67ebb6c8c62c0835598c36fbc7c3c",
+  "command": [
+    "taskset",
+    "--cpu-list",
+    "0,1",
+    "python3",
+    "sources/misteross/boards/de25nano/link-proof/zx81-computer/proof.py",
+    "--output",
+    "/data/fes-de25-menu-boundary-739669eb4/proof",
+    "--builder-image",
+    "sha256:5105c04336c362cf47cf7ae4b83d079d5f9b848e08e5f53c38ad2cd0be94bf8a",
+    "--sdk-volume",
+    "fes-de25-pure-proof-b118-copy-20261101",
+    "--sdk-cxx",
+    "/build/sdk/bin/aarch64-buildroot-linux-gnu-g++",
+    "--qemu",
+    "/data/fes-de25-proof-tools-20261101/qemu-aarch64"
+  ],
+  "cwd": "/data/fes-de25-menu-boundary-739669eb4/source",
+  "started_utc": "2026-11-01T10:13:34.209602+00:00",
+  "time_cap_seconds": 1800,
+  "hardware_access": "not-performed",
+  "pid": 1912871,
+  "state": "passed",
+  "elapsed_seconds": 1661.5,
+  "heartbeat_utc": "2026-11-01T10:41:15.698835+00:00",
+  "returncode": 0
+}

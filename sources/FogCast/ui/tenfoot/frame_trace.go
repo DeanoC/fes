@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/menudisplay"
 )
 
 // frameTraceCap bounds the ring. At the 30 Hz loop it holds several
@@ -64,6 +65,33 @@ type frameTraceRecord struct {
 	Retried       bool   `json:"retried,omitempty"`
 	Presented     bool   `json:"presented,omitempty"`
 	Err           string `json:"err,omitempty"`
+	// A refused shortcut's first attempt, before the final outcome above.
+	RetryFromError  string            `json:"retry_from_error,omitempty"`
+	RetryFromTiming *frameTraceTiming `json:"retry_from_timing,omitempty"`
+}
+
+// frameTraceTiming uses the same units and keys as a present record for
+// the first attempt of a retried frame.
+type frameTraceTiming struct {
+	BeginUS              int64 `json:"begin_us,omitempty"`
+	StageUS              int64 `json:"stage_us,omitempty"`
+	CommitUS             int64 `json:"commit_us,omitempty"`
+	RuntimeCleanUS       int64 `json:"runtime_clean_us,omitempty"`
+	RuntimeBlitUS        int64 `json:"runtime_blit_us,omitempty"`
+	RuntimeSubmitUS      int64 `json:"runtime_submit_us,omitempty"`
+	RuntimeScanoutWaitUS int64 `json:"runtime_scanout_wait_us,omitempty"`
+	StagedPixels         int64 `json:"staged_pixels,omitempty"`
+	Commands             int64 `json:"commands,omitempty"`
+	UploadBytes          int64 `json:"upload_bytes,omitempty"`
+}
+
+func traceTiming(t menudisplay.Timing) *frameTraceTiming {
+	return &frameTraceTiming{
+		BeginUS: t.BeginUS, StageUS: t.StageUS, CommitUS: t.CommitUS,
+		RuntimeCleanUS: t.RuntimeCleanUS, RuntimeBlitUS: t.RuntimeBlitUS,
+		RuntimeSubmitUS: t.RuntimeSubmitUS, RuntimeScanoutWaitUS: t.RuntimeScanoutWaitUS,
+		StagedPixels: t.StagedPixels, Commands: t.Commands, UploadBytes: t.UploadBytes,
+	}
 }
 
 // frameTrace is an always-on ring of recent frame timings for the kit
@@ -102,6 +130,10 @@ func (f *frameTrace) input(cmd Command, now time.Time) {
 
 // present is the gfx.MenuDisplay trace sink.
 func (f *frameTrace) present(p gfx.MenuPresentTrace) {
+	var retryFromTiming *frameTraceTiming
+	if p.RetryFromError != "" {
+		retryFromTiming = traceTiming(p.RetryFromTiming)
+	}
 	f.add(frameTraceRecord{
 		T: time.Now().UnixMicro(), Kind: "present", Seq: p.Seq, QueuedT: p.Queued.UnixMicro(),
 		FrameCopyUS: p.FrameCopyUS, QueueWaitUS: p.QueueWaitUS, StatusUS: p.StatusUS, PresentUS: p.PresentUS,
@@ -111,6 +143,7 @@ func (f *frameTrace) present(p gfx.MenuPresentTrace) {
 		Blitted: p.Blitted, Commands: p.Timing.Commands, UploadBytes: p.Timing.UploadBytes,
 		DamageRects: p.DamageRects, StatusSkipped: p.StatusSkipped, Retried: p.Retried,
 		Presented: p.Presented, Err: p.Err,
+		RetryFromError: p.RetryFromError, RetryFromTiming: retryFromTiming,
 	})
 }
 

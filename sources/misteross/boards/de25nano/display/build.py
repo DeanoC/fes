@@ -104,7 +104,7 @@ def retarget_reset(source):
 
 
 def retarget_menu_ram(source):
-    before = b'(* ramstyle = "M10K" *) reg [127:0] fifo [0:255];'
+    before = b'(* ramstyle = "M10K" *) reg [127:0] fifo [0:(1 << FIFO_ADDR_BITS)-1];'
     after = before.replace(b'"M10K"', b'"M20K"')
     if source.count(before) != 1:
         raise ValueError("menu reader FIFO RAM hint/declaration changed")

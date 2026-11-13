@@ -476,7 +476,6 @@ class NativeSessionDisplayTest(unittest.TestCase):
         self.assertTrue(required["fes.fabric.video.display-plane"])
         self.assertFalse(required["fes.fabric.video.native-pixels"])
         self.assertNotIn("fes.media.blob", required)
-        self.assertNotIn("fes.firmware.blob", required)
         plain_ids = {row["id"] for row in plain["interfaces"]}
         self.assertNotIn("fes.video.session-display", plain_ids)
 

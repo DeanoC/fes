@@ -1,0 +1,41 @@
+{
+  "all_reported_timing_pass": true,
+  "classification": "routed diagnostic; not package admission or physical acceptance",
+  "fit_and_sta_seconds": 306.128,
+  "followed_clock_constraint_check": {
+    "elapsed_seconds": 10.882,
+    "fresh_source_fit": false,
+    "mode": "normal Timing Analyzer on separate existing routed-project copy",
+    "raw_input_findings": 2,
+    "raw_output_findings": 32
+  },
+  "hardware_changed": false,
+  "host": "fes-build-3090",
+  "package_timing_admission": false,
+  "raw_rules": [
+    {
+      "id": "TMC-20012",
+      "severity": "High",
+      "violations": 32,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20011",
+      "severity": "High",
+      "violations": 2,
+      "waived": 0
+    }
+  ],
+  "reports_sha256": {
+    "golden_top.sta.summary": "7a6a698015459826f60695d4bb5f4974421c5c48fb3b302d3a6d99f2bfd59e11",
+    "golden_top.tq.drc.signoff.rpt": "7d7604e393bcd6d6b19853a91d15692d6b1a76196282a1b3e1f5b62d7c204d3a"
+  },
+  "resource": {
+    "alm_total": 46800,
+    "alm_used": 8758,
+    "ram_blocks_total": 358,
+    "ram_blocks_used": 301
+  },
+  "source_revision": "2ce959057",
+  "tool": "Quartus Prime Pro 26.3"
+}

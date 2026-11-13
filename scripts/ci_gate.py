@@ -7,6 +7,7 @@ from pathlib import Path
 from scripts.affected import CORES, LANES
 from scripts.ci_simulations import TIERS, simulation_matrix, tier_for_event
 from scripts.test_policy import validate_test_modes
+from scripts.parent_tests import parent_partitions
 
 JOB_LANES = {
     'parent-tests': 'parent', 'consistency': 'parent', 'host': 'host',
@@ -39,6 +40,8 @@ def require_success(results, event=None):
     validate_plan(lanes, cores)
     modes = json.loads(outputs.get('test_modes', 'null'))
     validate_test_modes(modes, lanes)
+    if json.loads(outputs.get('parent_partitions', 'null')) != parent_partitions(modes['media']):
+        raise ValueError('Parent matrix does not cover the selected software/media partitions exactly')
     tier = outputs.get('sim_tier', 'full')
     if tier not in TIERS:
         raise ValueError('Unknown simulation tier')

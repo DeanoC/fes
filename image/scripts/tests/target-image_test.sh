@@ -194,6 +194,28 @@ done
 # Only image pass 1 and make dev may use the shared ccache; kernel builds after the passes must not.
 grep -Fq 'export CCACHE_DISABLE=1' "$repo/scripts/build-target-kernel.sh"
 grep -Fq 'export CCACHE_DISABLE=1' "$repo/scripts/qemu-smoke-target-image.sh"
+
+# Exercise the real parser with Unix and serial-console line endings. Missing
+# or embellished D-Bus sentinels must remain failures.
+for endings in lf crlf; do
+  if [ "$endings" = lf ]; then line_format='%s\n'; else line_format='%s\r\n'; fi
+  printf "$line_format" \
+    'TARGET_IMAGE_SMOKE_ROOT options=ro,noatime' \
+    'TARGET_IMAGE_SMOKE_VOLATILE /run /tmp /var/log writable tmpfs' \
+    'TARGET_IMAGE_SMOKE_DBUS machine-id and system bus ready' \
+    'TARGET_IMAGE_SMOKE_READY' > "$fixture/smoke-$endings.log"
+  TARGET_IMAGE_TEST_MODE=1 sh "$repo/scripts/qemu-smoke-target-image.sh" \
+    --verify-log native-dev "$fixture/smoke-$endings.log"
+done
+sed '/TARGET_IMAGE_SMOKE_DBUS/d' "$fixture/smoke-lf.log" > "$fixture/smoke-missing-dbus.log"
+sed 's/system bus ready/system bus ready extra/' "$fixture/smoke-crlf.log" > "$fixture/smoke-malformed-dbus.log"
+for invalid in missing malformed; do
+  if TARGET_IMAGE_TEST_MODE=1 sh "$repo/scripts/qemu-smoke-target-image.sh" \
+    --verify-log native-dev "$fixture/smoke-$invalid-dbus.log"; then
+    printf 'QEMU smoke accepted %s D-Bus sentinel\n' "$invalid" >&2
+    exit 1
+  fi
+done
 ! grep -Fq 'FES_IMAGE_WORK = ' "$repo/Makefile"
 cat > "$fixture/fake-container-runtime" <<'RUNTIME'
 #!/bin/sh
@@ -233,6 +255,7 @@ if env -u TARGET_IMAGE_BUILD_ONCE -u TARGET_IMAGE_TOOLCHAIN_BUILD_ONCE \
     TARGET_IMAGE_TEST_CONTAINER=1 \
     TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/fake-sdk-runtime" \
     SDK_CONTAINER_LOG="$fixture/sdk-container.log" \
+    TARGET_IMAGE_CACHE="$fixture/sdk-container-source-cache" \
     FES_TARGET_IMAGE_SHARED_CACHE="$fixture/sdk-container-cache" \
     LIBMISTER_RUNTIME_DIR=/no/such/runtime \
     NATIVE_RUNTIME_INPUT_LOCK=/no/such.lock \

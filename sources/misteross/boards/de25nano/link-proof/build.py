@@ -93,12 +93,61 @@ def verify_project(directory: Path, inputs: dict) -> None:
     verify_source_closure(inputs)
 
 
+def bind_package_identity(project: Path, build_id: str) -> None:
+    """Bind the computer identity before generation, retaining the PR identity.
+
+    The functional package record contains the independently derived controller
+    ID. Making both IDs equal would make that record self-referential.
+    """
+    if (PROFILE is None or PROFILE.identity != "fes.de25-standard-zx81-empty-ram16k.v1"
+            or re.fullmatch(r"[0-9a-f]{32}", build_id) is None):
+        raise BuildError("package identity requires the standard PR profile and a canonical build ID")
+    inputs = json.loads((project / "inputs.json").read_bytes())
+    verify_project(project, inputs)
+    if (inputs.get("source_committed") is not True or "package_build_id" in inputs
+            or any((project / name).exists() for name in
+                   ("generated-inputs.json", "tools.json", "compile-complete.json", "build.json"))):
+        raise BuildError("package identity must bind committed inputs exactly once before generation")
+    allowed = {"integrate-mailbox.tcl", "fes_link/standard-base-inputs.json"}
+    if not allowed <= inputs["project_sha256"].keys():
+        raise BuildError("package identity lost its sealed preparation inputs")
+    PROFILE.bind_identity(project, build_id)
+    verify_files(project, {n: h for n, h in inputs["project_sha256"].items() if n not in allowed})
+    for name in allowed:
+        inputs["project_sha256"][name] = sha((project / name).read_bytes())
+    inputs["package_build_id"] = build_id
+    reseal_source_closure(inputs)
+    (project / "inputs.json").write_bytes(canonical(inputs) + b"\n")
+    verify_project(project, inputs)
+
+
+def proof_root(project: Path) -> Path:
+    """The selected base recipe owns its layout; all share one frozen source set."""
+    if PROFILE is not None and hasattr(PROFILE, "proof_root"):
+        return PROFILE.proof_root(project)
+    return project.parent.parent
+
+
 def verify_hps_inputs(project: Path) -> None:
-    hps = load_hps(project.parent.parent / "functional-source/sources/misteross/boards/de25nano/hps/build.py")
+    hps = load_hps(proof_root(project) / "functional-source/sources/misteross/boards/de25nano/hps/build.py")
     preserved = json.loads((project.parent / "inputs.json").read_bytes())
+    additions = getattr(PROFILE, "generated_hps_parameters", {})
+    if set(additions) - set(preserved["vendor_hps_emif_parameters"]):
+        raise BuildError("generated HPS parameter policy names an unknown module")
+    changes = {}
     for name, expected in preserved["vendor_hps_emif_parameters"].items():
-        if hps.module_parameters(project / name) != expected:
-            raise BuildError("changed preserved HPS/EMIF module parameters: " + name)
+        actual = hps.module_parameters(project / name)
+        delta = {key: {"before": value, "after": actual.get(key)}
+                 for key, value in expected.items() if actual.get(key) != value}
+        if delta:
+            changes[name] = delta
+        extra = {key: actual[key] for key in actual.keys() - expected.keys()}
+        if extra != additions.get(name, {}) or expected.keys() - actual.keys():
+            raise BuildError("changed preserved HPS/EMIF parameter inventory: " + name)
+    # Reuse the existing closed canonical Linux policy. Legacy bases still
+    # require an empty delta; this does not introduce a new parameter waiver.
+    if changes != hps.reviewed_hps_parameter_changes(preserved):
+        raise BuildError("changed preserved HPS/EMIF module parameters")
     vendor = json.loads((project.parent / "vendor-inputs.json").read_bytes())
     for name, expected in vendor["source_sha256"].items():
         if name.startswith("software/") and sha((project / name).read_bytes()) != expected:
@@ -261,6 +310,28 @@ def design_assistant_findings(output: Path, revision: str) -> list[dict]:
     return failures
 
 
+def convert_base_rbf(output: Path, directory: Path, enriched: Path,
+                     tools: dict[str, Path], packaging: dict) -> tuple[str, ...]:
+    if PROFILE is None or not hasattr(PROFILE, "linux_base_artifacts"):
+        run([str(tools["quartus_pfg"]), "-c", str(enriched), str(directory / "base.rbf")],
+            output, "base-convert.log")
+        return ("base-convert.log",)
+    conversion = PROFILE.linux_base_artifacts(output, tools)
+    source = output.parent / "linux-boot.core.rbf"
+    selected = conversion.get("artifacts", {}).get(source.name, {})
+    if (conversion.get("hps_initialization") != "HPS FIRST" or
+            conversion.get("compiled_sof_sha256") != packaging["compiled_sof"]["sha256"] or
+            conversion.get("bootloader_sha256") != packaging["bootloader"]["sha256"] or
+            selected.get("role") != "Linux-fabric-configuration-candidate" or
+            source.is_symlink() or not source.is_file() or not source.stat().st_size or
+            selected.get("size") != source.stat().st_size or
+            selected.get("sha256") != sha(source.read_bytes())):
+        raise BuildError("selected Linux fabric artifact differs from its shared HPS-first conversion")
+    shutil.copyfile(source, directory / "base.rbf")
+    packaging.update(strategy="shared-hps-first-linux-core", linux_phase_conversion=conversion)
+    return ("../linux-enrich.log", "../linux-split.log")
+
+
 def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     verifier = capture()
     if not verifier["committed"]:
@@ -312,8 +383,7 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     packaging["enriched_sof"] = blob(output, enriched)
     run([str(tools["quartus_pfg"]), "-i", str(enriched)], output, "base-enriched-info.log")
     packaging["enriched_sof_pof"] = vendor_pof(output / "base-enriched-info.log")
-    run([str(tools["quartus_pfg"]), "-c", str(enriched), str(directory / "base.rbf")],
-        output, "base-convert.log")
+    conversion_logs = convert_base_rbf(output, directory, enriched, tools, packaging)
     run([str(tools["quartus_pfg"]), "-i", str(directory / "base.rbf")], output, "base-info.log")
     base_pof = vendor_pof(output / "base-info.log")
     for previous in (packaging["compiled_sof_inspection"]["vendor_pof"], packaging["enriched_sof_pof"]):
@@ -383,7 +453,7 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     if PROFILE is not None and getattr(PROFILE, "audit_path", None) is not None:
         repository = Path(subprocess.check_output(
             ["git", "rev-parse", "--show-toplevel"], cwd=BOARD, text=True).strip())
-        frozen_audit = output.parent.parent / "functional-source" / PROFILE.audit_path.resolve().relative_to(repository)
+        frozen_audit = proof_root(output) / "functional-source" / PROFILE.audit_path.resolve().relative_to(repository)
         if not frozen_audit.is_file():
             raise BuildError("profile audit source is missing from the frozen source set")
         audit = load_hps(frozen_audit)
@@ -452,7 +522,8 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
         "source_sha256": {name: sha(data) for name, data in verifier["files"].items()},
         "snapshot": str(verification.relative_to(output)), "timing_script": blob(output, timing_script)}
     packaging["logs_sha256"] = {name: sha((output / name).read_bytes()) for name in
-        ("base-compiled-info.log", "base-enrich.log", "base-enriched-info.log", "base-convert.log", "base-info.log", "base-integrity.log")}
+        ("base-compiled-info.log", "base-enrich.log", "base-enriched-info.log",
+         "base-info.log", "base-integrity.log", *conversion_logs)}
     build["packaging"] = packaging
     (output / "build.json").write_bytes(canonical(build) + b"\n")
     return manifest
@@ -635,7 +706,8 @@ def prepare(output: Path, placement: str, routing: str, archive: Path | None = N
     else:
         hps_output = hps.prepare_project(retained, output / "hps")
     project = hps_output / "project"
-    emif_reference_clock = remove_duplicate_emif_clock(project)
+    emif_reference_clock = (PROFILE.emif_reference_clock(project)
+        if PROFILE is not None and hasattr(PROFILE, "emif_reference_clock") else remove_duplicate_emif_clock(project))
     local = project / "fes_link"
     local.mkdir()
     for name in SOURCE_NAMES:
@@ -706,7 +778,7 @@ set_interface_property fes_pr_diagnostic EXPORT_OF subsys_periph.fes_pr_diagnost
     inputs = {"diagnostic_only": True, "source_revision": frozen["revision"],
               "source_committed": frozen["committed"], "device": DEVICE,
               "source_sha256": {name: sha(data) for name, data in frozen["files"].items()},
-              "source_snapshot": str(snapshot.relative_to(project.parent.parent)),
+              "source_snapshot": str(snapshot.relative_to(proof_root(project))),
               "vendor_archive_sha256": sha(retained.read_bytes()),
               "emif_reference_clock": emif_reference_clock,
               "control_peripheral_offset": control_offset,
@@ -735,7 +807,7 @@ set_interface_property fes_pr_diagnostic EXPORT_OF subsys_periph.fes_pr_diagnost
 
 
 def generate_hps(project: Path, tools: dict[str, Path], version: str) -> None:
-    snapshot = project.parent.parent / "functional-source"
+    snapshot = proof_root(project) / "functional-source"
     hps = load_hps(snapshot / "sources/misteross/boards/de25nano/hps/build.py")
     install = tools["quartus_sh"].parents[2]
     qsys = install / "qsys/bin/qsys-script"
@@ -745,16 +817,12 @@ def generate_hps(project: Path, tools: dict[str, Path], version: str) -> None:
     run([str(tools["quartus_ipgenerate"]), "--clear_ip_generation_dirs", "golden_top"], project, "hps-clear.log")
     run([str(tools["quartus_ipgenerate"]), "--generate_project_ip_files", "--synthesis=verilog", "golden_top"],
         project, "hps-generation.log")
-    preserved = json.loads((project.parent / "inputs.json").read_bytes())
-    for name, expected in preserved["vendor_hps_emif_parameters"].items():
-        if hps.module_parameters(project / name) != expected:
-            raise BuildError("generation changed preserved HPS/EMIF module parameters: " + name)
-    vendor = json.loads((project.parent / "vendor-inputs.json").read_bytes())
-    for name, expected in vendor["source_sha256"].items():
-        if name.startswith("software/") and sha((project / name).read_bytes()) != expected:
-            raise BuildError("generation changed preserved vendor boot data: " + name)
+    verify_hps_inputs(project)
     handoff = hps.verify_mailbox_handoff(project)
-    handoff["ddr_probe"] = hps.verify_probe_handoff(project)
+    if PROFILE is not None and hasattr(PROFILE, "verify_memory_handoff"):
+        memory = handoff["managed_memory"] = PROFILE.verify_memory_handoff(project, hps)
+    else:
+        memory = handoff["ddr_probe"] = hps.verify_probe_handoff(project)
     inputs = json.loads((project / "inputs.json").read_bytes())
     tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
     modules = [item for item in tree.findall("module") if item.get("path") == "subsys_periph.fes_pr_control"]
@@ -772,7 +840,7 @@ def generate_hps(project: Path, tools: dict[str, Path], version: str) -> None:
                       "writeresponsevalid": ("Output", 1), "response": ("Output", 2)}
     if hps.component_ports(modules[0], "avs") != expected_ports:
         raise BuildError("generated PR control byte/address/response interface differs")
-    regions = [r for r in handoff["ddr_probe"]["peripheral_slave_map"] if r["name"] == "subsys_periph.fes_pr_control.avs"]
+    regions = [r for r in memory["peripheral_slave_map"] if r["name"] == "subsys_periph.fes_pr_control.avs"]
     if len(regions) != 1 or regions[0]["base"] != inputs["control_peripheral_offset"] or regions[0]["span"] != 64:
         raise BuildError("actual HPS bridge PR control aperture differs")
     handoff["pr_control"] = {"module": modules[0].get("path"), "peripheral_offset": inputs["control_peripheral_offset"],
@@ -833,7 +901,7 @@ def compile_project(output: Path, tools: dict[str, Path], version: str, only: st
         elif root_qdb_hash != actual_root_hash:
             raise BuildError("implementation changed the exported base root QDB")
         if revision == "base" and PROFILE is not None:
-            script = output.parent.parent / "functional-source" / PROFILE.timing_path
+            script = proof_root(output) / "functional-source" / PROFILE.timing_path
             report_hashes = {path.relative_to(output).as_posix(): sha(path.read_bytes())
                 for path in (output / "output_files").glob("base.*") if path.is_file()}
             report_hashes["root_partition.qdb"] = root_qdb_hash
@@ -892,7 +960,7 @@ def main() -> int:
     parser.add_argument("--placement")
     parser.add_argument("--routing")
     parser.add_argument("--only", choices=("base",))
-    parser.add_argument("--profile", choices=("zx81-ram", "zx81-computer"))
+    parser.add_argument("--profile", choices=("zx81-ram", "zx81-computer", "zx81-standard"))
     args = parser.parse_args()
     if args.profile:
         global PROFILE

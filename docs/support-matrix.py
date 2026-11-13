@@ -49,7 +49,7 @@ HIGHLIGHTS = {
     'fes.ts1500': 'tape, keys, HDMI',
     'fes.coleco': 'cart, pad, HDMI',
     'fes.sms': 'cart, keys, HDMI',
-    'fes.sg1000': 'cart, keys, HDMI',
+    'fes.sg1000': 'cart, pad, HDMI',
     'fes.apple2': 'disk, keys, HDMI',
     'fes.c64': 'disk, keys, HDMI',
     'fes.spectrum': 'tape, keys, HDMI',
@@ -341,6 +341,7 @@ def validate(root: Path, data: dict) -> list[str]:
     recipes = {
         row['core_id']: row
         for row in tomllib.loads((root / ROOT_FILES['recipes']).read_text())['recipes']
+        if row.get('board', 'de10-nano') == 'de10-nano'
     }
     library = {
         row['core_id']: row['standing']

@@ -1,0 +1,29 @@
+{
+  "fes_revision": "17662d5106afd8aa94ee519f26b69c3b510e231d",
+  "format": 1,
+  "kernel": {
+    "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+    "format": 1,
+    "repository": "https://github.com/terasic/linux-socfpga.git",
+    "revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+    "sdk_sha256": "7912076c08d93c8d8c28c0ef81bd406abf6b1acb9e01ccac37d44307e39759a7",
+    "vendor_config_sha256": "3ec2812cffb3c37bf677941283c9b65c3f5620b519cb58a4ded5f230cadbcdf7",
+    "vendor_image_sha256": "874f75d81f6452406f0f0ea5e0849ea269e92599fe728eb02b1bdbb56ada1aa8"
+  },
+  "runner_sha256": "9464cd782e5cba0a3afad93b401277d118bf674ca4a428590f75a630e823c473",
+  "source_sha256": {
+    "image/kernel/de25-dma/.kunitconfig": "16eb3ccfc929a326dbe53fd4003d5fea1ad076b52c45e8bd17274012c3b66682",
+    "image/kernel/de25-dma/Kconfig": "b22cb29d2c345becdfd0e03aaa5f174ce110c4c6922b8e6120dc88e096d60956",
+    "image/kernel/de25-dma/Makefile": "7f0d4e3731931151bae02ab2a1410117348ad9f4abcfb87ab49847b5765394b0",
+    "image/kernel/de25-dma/README.md": "427bca124cc4d91f34a66e0d7837e48dec19bae29c1c7867c6c80e0a71c7fbff",
+    "image/kernel/de25-dma/de25_dma.c": "399f16b7cbea2eec5b6904c7af42ba0ef4a99782b0e81cfb264dd31b8e20213d",
+    "image/kernel/de25-dma/de25_dma.h": "add29742c88700838d54eb6ade32b6a5e7cc7da010d41fa535d18b92dbfb97d2",
+    "image/kernel/de25-dma/de25_dma_guard.c": "1d5302911fa20670d2f6665644d9cb3d3f4c2c43342635472a548a01d187939b",
+    "image/kernel/de25-dma/de25_dma_guard.h": "51ae21561cd9aceabd18277ec76e1bac6227f60ed045b38614a4cbb5df6bc87f",
+    "image/kernel/de25-dma/de25_dma_internal.h": "ef17ddbbf16bc447b2abd6dc54691650236925fdc47a22ba9f0a1a40de41cf43",
+    "image/kernel/de25-dma/de25_dma_test.c": "b5da32e4ed651006d28b57dc32388cbf7939e42deb023b768cf78987b8f12c6b",
+    "image/kernel/de25-dma/generated/fes_de25_ddr_probe.h": "ab89732c139512edbdd0610783f1001dfd2ede9839d92ef767b1d5a34f2fc5cf",
+    "image/kernel/de25-dma/generated/fes_de25_scanout.h": "ad72ed75e8a859766b71b37d03adaba453ab94a4393a9454b9b14b41879999b5",
+    "image/kernel/de25-dma/linux.lock.toml": "44e15dea10c976f62d8c06bdf6d75f1094058353236295876d82e59c4ca3633c"
+  }
+}

@@ -3,11 +3,11 @@
 and (when the tools are present) a short lockstep run of the RTL. No network
 access. The run needs the i386 lock's Verilator slot (FES_TOOLCHAIN_CACHE_ROOT
 names its cache), the pinned Bochs checkout and the pinned
-SingleStepTests corpus already in build/; the netlist run also needs a Yosys
-named by FES_I386_YOSYS."""
+SingleStepTests corpus already in build/; the netlist run also needs the pc386
+lock's slot in the same cache (its Yosys writes the netlist)."""
+import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -16,6 +16,7 @@ from pathlib import Path
 
 from scripts import fes_i386_oracle as oracle
 from scripts import i386_verilator
+from scripts import yosys_netlist
 from scripts import test_fes_i386_lockstep as lockstep
 from scripts import test_fes_i386_vectors as vectors
 
@@ -32,14 +33,69 @@ def _locked_verilator():
         return None, str(error)
 
 
+def _seal_yosys():
+    """The pc386 lock's Yosys from FES_TOOLCHAIN_CACHE_ROOT (its HIP slot),
+    which --netlist reads, else None."""
+    cache = os.environ.get(i386_verilator.CACHE_ENVIRONMENT)
+    if not cache:
+        return None
+    try:
+        return yosys_netlist.authenticate(cache_root=Path(cache))
+    except yosys_netlist.NetlistError:
+        return None
+
+
 VERILATOR, VERILATOR_ABSENT = _locked_verilator()
-YOSYS = shutil.which(os.environ.get('FES_I386_YOSYS', '')) if os.environ.get('FES_I386_YOSYS') else None
+SEAL_YOSYS = _seal_yosys()
 BOCHS = (oracle.BUILD / ('bochs-' + oracle.BOCHS_REVISION) / '.git').is_dir()
 CORPUS = (vectors.OUTPUT / 'corpus' / vectors.REVISION / '00.MOO.gz').is_file()
 
 
 def moo_test(instruction: bytes, index: int = 0) -> vectors.MooTest:
     return vectors.MooTest(index, 'test', instruction, [0] * len(vectors.REGISTERS), [], 0, {}, [], None, '0' * 40)
+
+
+class RunRecordTest(unittest.TestCase):
+    def test_every_suite_argument_is_an_option(self):
+        # report["run"]["default_suite"] compares these with the parser's defaults (#1581 S5).
+        text = Path(lockstep.__file__).read_text()
+        for name in lockstep.SUITE_ARGUMENTS:
+            self.assertIn(f"parser.add_argument('--{name.replace('_', '-')}'", text)
+        self.assertNotIn('jobs', lockstep.SUITE_ARGUMENTS)
+        self.assertNotIn('netlist', lockstep.SUITE_ARGUMENTS)
+
+
+class FullCorpusTest(unittest.TestCase):
+    """report["run"]["default_suite"] needs a full download of the pinned
+    corpus (#1581 S5): a receipt from an --opcode download is not one."""
+
+    def write(self, directory, files, revision=None):
+        receipt = {'revision': revision or vectors.REVISION, 'files': files}
+        (Path(directory) / 'fes-i386-corpus.json').write_text(json.dumps(receipt))
+
+    def test_only_the_pinned_full_receipt_counts(self):
+        files = {'00.MOO.gz': 'a' * 40, 'README.md': 'b' * 40}
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertIsNone(vectors.full_corpus(Path(directory)))
+            self.write(directory, files)
+            self.assertIsNone(vectors.full_corpus(Path(directory)))
+            original = vectors.FULL_CORPUS_SHA256
+            try:
+                vectors.FULL_CORPUS_SHA256 = vectors.receipt_digest(files)
+                self.assertEqual(vectors.full_corpus(Path(directory)), files)
+                self.write(directory, files, revision='0' * 40)
+                self.assertIsNone(vectors.full_corpus(Path(directory)))
+            finally:
+                vectors.FULL_CORPUS_SHA256 = original
+
+    def test_pinned_digest_covers_every_in_scope_file(self):
+        # The pinned revision's full receipt holds 941 MOO files and the metadata.
+        corpus = vectors.OUTPUT / 'corpus' / vectors.REVISION
+        files = vectors.full_corpus(corpus) if corpus.is_dir() else None
+        if files is None:
+            self.skipTest('no full download of the pinned corpus in build/')
+        self.assertEqual(sorted(name for name in files if not name.endswith('.MOO.gz')), sorted(vectors.METADATA))
+        self.assertEqual(sum(name.endswith('.MOO.gz') for name in files), 941)
 
 
 class ScopeTest(unittest.TestCase):
@@ -71,9 +127,9 @@ class ScopeTest(unittest.TestCase):
                                ('0fa700', 'ud'), ('0fff00', 'ud'), ('0f2400', 'ud'), ('0f01f8', 'ud'),
                                ('62c0', 'ud'), ('fed0', 'ud'), ('fff8', 'ud'), ('8fc8', 'ud'), ('0f3800', 'ud-rtl'),
                                ('0f3a10', 'ud-rtl'), ('0f0d00', 'ud-rtl-runs'), ('0f0138', 'ud-rtl-runs'),
-                               ('0f0700', 'stop'), ('0f1000', 'stop'), ('0f2420', 'ud'), ('0f2668', 'ud'),
-                               ('0f24e0', 'stop'), ('0f26f8', 'stop'), ('f100', 'stop'),
-                               ('f00f0700', 'ud'), ('f00f24e0', 'ud'), ('f0f100', 'ud')):
+                               ('0f0700', 'stop'), ('0f2418', 'ud'), ('0f2650', 'ud'),
+                               ('f00f0700', 'ud'), ('f00f24e0', 'ud'), ('f00f2620', 'ud'), ('f0f100', 'ud'),
+                               ('f00f1000', 'ud'), ('f00f1307', 'ud')):
             with self.subTest(encoding=encoding):
                 self.assertEqual(kinds.get(encoding), kind)
         for encoding in ('00c0', '0000', '04ff', '8d00', '0fa4c0', '0fa400', 'f4c0', '06c0', 'ff20', '0fa1c0',
@@ -81,7 +137,9 @@ class ScopeTest(unittest.TestCase):
                          'f6e0', 'f7f8', '0fafc0', '69c0', '6b00', 'd40a', 'd500', 'a400', 'afff', 'c800',
                          'e4c0', 'ef00', '6c00', '6fff', '0fbae0', '0fba20', '0fbcc0', '0fbd00', '0fa3c0', '0fbb00',
                          '0fabc0', '0fb3c0', '0fbbc0', '27c0', '2f00', '37ff', '3f90', '6200',
-                         '0f0600', '9bc0', '9bff', '9b90', '0f0110', '0f01e0', '0f20c0', '0f22d8', 'd6c0', 'fe08'):
+                         '0f0600', '9bc0', '9bff', '9b90', '0f0110', '0f01e0', '0f20c0', '0f22d8', 'd6c0', 'fe08',
+                         # #1730: ICEBP, UMOV, MOV TR4-TR7 by either ModRM form.
+                         'f100', 'f1ff', '0f1000', '0f13c0', '0f24e0', '0f2420', '0f2668', '0f26f8'):
             with self.subTest(encoding=encoding):
                 self.assertNotIn(encoding, kinds)
 
@@ -181,7 +239,7 @@ class LockstepRunTest(unittest.TestCase):
                                 cwd=lockstep.ROOT, env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(', 0 fail;', result.stdout)
-        self.assertIn('directed cases: 77 pass, 0 fail', result.stdout)
+        self.assertIn('directed cases: 84 pass, 0 fail', result.stdout)
         self.assertIn('unreal-mode cases: 7 pass, 0 fail', result.stdout)
         self.assertRegex(result.stdout, r'protected mode: 2 seeds x 100 programs .*: 200 pass, 0 fail;')
         self.assertIn('memory cases (DMA, FLUSH): 27 pass, 0 fail', result.stdout)
@@ -191,9 +249,9 @@ class LockstepRunTest(unittest.TestCase):
     def test_rtl_retires_in_lockstep(self):
         self.assertIn('corpus: 5 files, 5 opcodes', self.run_lockstep())
 
-    @unittest.skipUnless(YOSYS, 'FES_I386_YOSYS names no Yosys')
+    @unittest.skipUnless(SEAL_YOSYS, "no pc386 lock slot under FES_TOOLCHAIN_CACHE_ROOT")
     def test_yosys_netlist_retires_in_lockstep(self):
-        self.run_lockstep('--yosys', YOSYS)
+        self.run_lockstep('--netlist')
 
 
 if __name__ == '__main__':

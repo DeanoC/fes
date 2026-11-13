@@ -1,0 +1,10 @@
+{
+  "owner": "deano/codex/de25-linux-platform",
+  "pid": 2818033,
+  "container": "fes-de25-guard-module-0cb546843",
+  "time_cap_seconds": 600,
+  "heartbeat_utc": "2026-10-31T14:44:13.748817+00:00",
+  "elapsed_seconds": 27.5,
+  "state": "passed",
+  "returncode": 0
+}

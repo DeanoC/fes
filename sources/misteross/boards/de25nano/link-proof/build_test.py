@@ -2,8 +2,12 @@
 import importlib.util
 import json
 from pathlib import Path
+import shutil
+import subprocess
 import tempfile
+import types
 import unittest
+from unittest import mock
 
 SPEC = importlib.util.spec_from_file_location("de25_link_build", Path(__file__).with_name("build.py"))
 build = importlib.util.module_from_spec(SPEC)
@@ -11,6 +15,202 @@ SPEC.loader.exec_module(build)
 
 
 class RecipeTests(unittest.TestCase):
+    def test_package_identity_binds_only_committed_pre_generation_computer_inputs(self):
+        previous = build.PROFILE
+        self.addCleanup(setattr, build, 'PROFILE', previous)
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            names = ('integrate-mailbox.tcl', 'fes_link/standard-base-inputs.json', 'unrelated.v')
+            for name in names:
+                path = project / name; path.parent.mkdir(exist_ok=True)
+                path.write_text('original ' + name)
+            (project / 'fes_link_proof.qpf').write_text('QUARTUS_VERSION = "26.3"\n'
+                'PROJECT_REVISION = "base"\nPROJECT_REVISION = "persona_a"\nPROJECT_REVISION = "persona_b"\n')
+            inputs = dict(source_committed=True, control_build_id='1' * 32,
+                project_sha256={n: build.sha((project / n).read_bytes()) for n in names})
+            def save():
+                build.reseal_source_closure(inputs)
+                (project / 'inputs.json').write_bytes(build.canonical(inputs))
+            save()
+            def bind(p, value):
+                (p / 'integrate-mailbox.tcl').write_text('computer ' + value)
+                (p / 'fes_link/standard-base-inputs.json').write_text('receipt ' + value)
+            build.PROFILE = types.SimpleNamespace(identity='fes.de25-standard-zx81-empty-ram16k.v1', bind_identity=bind)
+            original = (project / 'inputs.json').read_bytes()
+            (project / 'generated-inputs.json').write_text('{}')
+            with self.assertRaisesRegex(build.BuildError, 'before generation'):
+                build.bind_package_identity(project, '2' * 32)
+            self.assertEqual((project / 'inputs.json').read_bytes(), original)
+            (project / 'generated-inputs.json').unlink()
+            inputs['source_committed'] = False; save()
+            with self.assertRaisesRegex(build.BuildError, 'committed inputs'):
+                build.bind_package_identity(project, '2' * 32)
+            inputs['source_committed'] = True; save()
+            build.bind_package_identity(project, '2' * 32)
+            result = json.loads((project / 'inputs.json').read_bytes())
+            self.assertEqual(result['control_build_id'], '1' * 32)
+            self.assertEqual(result['package_build_id'], '2' * 32)
+            build.verify_project(project, result)
+            with self.assertRaisesRegex(build.BuildError, 'exactly once'):
+                build.bind_package_identity(project, '3' * 32)
+            self.assertEqual((project / 'unrelated.v').read_text(), 'original unrelated.v')
+
+    @unittest.skipUnless(shutil.which("tclsh"), "requires Tcl")
+    def test_standard_pcm_mtbf_audit_rejects_defaults_and_missing_coverage(self):
+        source = (build.BOARD / "zx81-standard/pcm-timing.tcl").read_text()
+        # Execute the actual report validator, without emulating Quartus paths.
+        validator = source[source.index("proc pcm_mtbf_controls "):
+                           source.index("proc pcm_path_record ")]
+        chains = []
+        for index, head in enumerate(("request_meta", "ack_meta", "hold_meta")):
+            chains.append(f"Synchronizer Chain #{index}:\n" + "\n".join(
+                f"; {key} ; {value} ;" for key, value in (
+                    ("Synchronization Node", "fes_audio_inst|audio|" + head),
+                    ("Method of Synchronizer Identification", "Forced If Asynchronous"),
+                    ("Included in Design MTBF", "Yes"),
+                    ("Number of Synchronization Registers in Chain", "2"),
+                    ("Worst-Case MTBF (years)", "Greater than 1 Billion"),
+                    ("Data Toggle Rate Used in MTBF Calculation - Fd (millions of transitions / sec)", "100.000"),
+                    # Source/capture clocks can legitimately have different periods.
+                    ("Clock Period (ns)", "10.000"), ("Clock Period (ns)", "81.379"))))
+        report = "\n".join(chains)
+        cases = {"qualified": report,
+                 "default_rate": report.replace("100.000", "12.500", 1),
+                 "excluded": report.replace("; Yes ;", "; No ;", 1),
+                 "automatic": report.replace("Forced If Asynchronous", "Automatically", 1),
+                 "one_stage": report.replace("Chain ; 2 ;", "Chain ; 1 ;", 1),
+                 "missing_chain": "\n".join(chains[:2]),
+                 "duplicate_chain": report + "\n" + chains[0],
+                 "empty": ""}
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            script = directory / "audit.tcl"
+            script.write_text(validator + '\nset f [open [lindex $argv 0] r]\n'
+                'set text [read $f]\nclose $f\n'
+                'if {[catch {pcm_mtbf_controls $text} result]} {puts stderr $result; exit 1}\n'
+                'puts [dict size $result]\n')
+            for name, text in cases.items():
+                with self.subTest(name=name):
+                    path = directory / "report.rpt"
+                    path.write_text(text)
+                    result = subprocess.run(["tclsh", str(script), str(path)],
+                                            capture_output=True, text=True, timeout=10)
+                    if name == "qualified":
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(result.stdout.strip(), "3")
+                    else:
+                        self.assertNotEqual(result.returncode, 0, name)
+
+    def test_linux_base_selection_rejects_boot_phase_and_changed_payload(self):
+        previous = build.PROFILE
+        self.addCleanup(setattr, build, "PROFILE", previous)
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "project"; output.mkdir()
+            directory = output / "artifacts"; directory.mkdir()
+            source = output.parent / "linux-boot.core.rbf"
+            source.write_bytes(b"fabric payload")
+            selected = {"role": "Linux-fabric-configuration-candidate", "size": source.stat().st_size,
+                        "sha256": build.sha(source.read_bytes())}
+            conversion = {"hps_initialization": "HPS FIRST", "compiled_sof_sha256": "a" * 64,
+                          "bootloader_sha256": "b" * 64, "artifacts": {source.name: selected}}
+            packaging = {"compiled_sof": {"sha256": "a" * 64}, "bootloader": {"sha256": "b" * 64}}
+            build.PROFILE = types.SimpleNamespace(linux_base_artifacts=lambda *_: conversion)
+            with mock.patch.object(build, "run") as run:
+                selected["role"] = "HPS-first-QSPI-candidate-not-programmed"
+                with self.assertRaisesRegex(build.BuildError, "selected Linux fabric"):
+                    build.convert_base_rbf(output, directory, output / "base_hps.sof", {}, packaging)
+                self.assertFalse((directory / "base.rbf").exists())
+                selected["role"] = "Linux-fabric-configuration-candidate"
+                source.write_bytes(b"changed payload")
+                with self.assertRaisesRegex(build.BuildError, "selected Linux fabric"):
+                    build.convert_base_rbf(output, directory, output / "base_hps.sof", {}, packaging)
+                self.assertFalse((directory / "base.rbf").exists())
+                source.write_bytes(b"fabric payload")
+                for name in ("linux-enrich.log", "linux-split.log"):
+                    (output.parent / name).write_text(name + " actual conversion\n")
+                logs = build.convert_base_rbf(output, directory, output / "base_hps.sof", {}, packaging)
+                self.assertFalse((output / "base-convert.log").exists())
+                self.assertEqual({name: (output / name).read_text() for name in logs},
+                    {"../" + name: name + " actual conversion\n"
+                     for name in ("linux-enrich.log", "linux-split.log")})
+                self.assertEqual((directory / "base.rbf").read_bytes(), b"fabric payload")
+                self.assertEqual(packaging["strategy"], "shared-hps-first-linux-core")
+                run.assert_not_called()
+            build.PROFILE = None
+            with mock.patch.object(build, "run") as run:
+                logs = build.convert_base_rbf(output, directory, output / "base_hps.sof",
+                                             {"quartus_pfg": Path("quartus_pfg")}, packaging)
+                self.assertEqual(logs, ("base-convert.log",))
+                self.assertEqual(run.call_args.args[0],
+                    ["quartus_pfg", "-c", str(output / "base_hps.sof"), str(directory / "base.rbf")])
+
+    def test_standard_linux_base_uses_captured_shared_phase_converter(self):
+        profile = build.load_profile(build.BOARD / "zx81-standard/profile.py")
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "standard-base/combined/hps/project"
+            hps = mock.Mock()
+            tools = {"quartus_sh": Path("quartus_sh")}
+            with mock.patch.object(profile, "load", return_value=hps) as load:
+                self.assertIs(profile.linux_base_artifacts(project, tools),
+                              hps.linux_configuration_artifacts.return_value)
+            self.assertEqual(load.call_args.args[0], Path(tmp) /
+                "functional-source/sources/misteross/boards/de25nano/hps/build.py")
+            hps.linux_configuration_artifacts.assert_called_once_with(project.parent, tools["quartus_sh"],
+                project / "output_files/base.sof", hps_initialization="HPS FIRST")
+
+    def test_standard_pr_pcm_selection_does_not_change_internal16k_timing_source(self):
+        profile = build.load_profile(build.BOARD / "zx81-standard/profile.py")
+        path = build.BOARD.parent / "zx81-hps/standard-clocks.sdc"
+        original = path.read_bytes()
+        selected = profile.pcm_timing_source(original)
+        self.assertIn(b'DE25 standard base unexpectedly contains a live PCM crossing', original)
+        self.assertNotIn(b'DE25 standard base unexpectedly contains a live PCM crossing', selected)
+        self.assertIn(b'.. fes_link pcm-clocks.sdc', selected)
+        self.assertEqual(path.read_bytes(), original)
+        for changed in (original + original, original.replace(b'set audio_payload', b'set changed_audio_payload', 1)):
+            with self.assertRaisesRegex(ValueError, "PCM timing selection changed"):
+                profile.pcm_timing_source(changed)
+
+    def test_standard_pr_hps_defaults_are_exact_and_cannot_extend_legacy_policy(self):
+        old_profile = build.PROFILE
+        self.addCleanup(setattr, build, "PROFILE", old_profile)
+        build.PROFILE = build.load_profile(build.BOARD / "zx81-standard/profile.py")
+        hps = build.load_hps(build.BOARD.parent / "hps/build.py")
+        name = "hps_subsys/ip/hps_subsys/agilex_hps.ip"
+        additions = {"ED_en_sim_gen": "true", "FPGA_EMAC0_tx_clk_en": "true",
+            "FPGA_EMAC1_tx_clk_en": "true", "FPGA_EMAC2_tx_clk_en": "true", "FPGA_EMAC_PTP_clk_en": "true"}
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "standard-base/combined/hps/project"
+            path = project / name; path.parent.mkdir(parents=True)
+            selected = {"vendor_hps_emif_parameters": {name: {"f2sdram_SMMU": "false", "f2s_data_width": "256"}},
+                "allowed_hps_parameter_changes": {name: {"f2sdram_SMMU": {"before": "false", "after": "true"},
+                    "f2s_data_width": {"before": "256", "after": "0"}}}, "f2sdram_master_profile": "scanout-only",
+                "scanout": {"managed_fabric": "managed-scanout-initiators-v3", "hps_initialization": "HPS FIRST",
+                    "build_identity_scheme": "standard-pr-computer-v1", "build_id": "1" * 32},
+                "standard_zx81": {"scope": "standard-core-board-integration", "runtime_admission": "not-qualified",
+                    "computer_offset": 0x10300, "expansion_socket": True, "build_id": "1" * 32}}
+            (project.parent / "inputs.json").write_text(json.dumps(selected))
+            (project.parent / "vendor-inputs.json").write_text(json.dumps({"source_sha256": {}}))
+            def write(parameters):
+                body = ''.join(f'<ip:parameter parameterId="{key}"><ip:value>{value}</ip:value></ip:parameter>'
+                               for key,value in parameters.items())
+                path.write_text('<ip:component xmlns:ip="http://www.accellera.org/XMLSchema/IPXACT/1685-2014" '
+                    'xmlns:altera="http://www.altera.com/XMLSchema/IPXact2014/extensions"><ip:vendorExtensions>'
+                    '<altera:altera_module_parameters><ip:parameters>' + body + '</ip:parameters>'
+                    '</altera:altera_module_parameters></ip:vendorExtensions></ip:component>')
+            actual = {**additions, "f2sdram_SMMU": "true", "f2s_data_width": "0"}
+            with mock.patch.object(build, "load_hps", return_value=hps):
+                write(actual); build.verify_hps_inputs(project)
+                for change in ({**actual, "ED_en_sim_gen": "false"},
+                               {k:v for k,v in actual.items() if k != "FPGA_EMAC0_tx_clk_en"},
+                               {**actual, "unreviewed_clock": "true"}):
+                    write(change)
+                    with self.assertRaisesRegex(build.BuildError, "parameter inventory"):
+                        build.verify_hps_inputs(project)
+                write(actual); build.PROFILE = None
+                with self.assertRaisesRegex(build.BuildError, "parameter inventory"):
+                    build.verify_hps_inputs(project)
+
     def test_combined_client_proof_receipt_matches_captured_sources(self):
         combined = build.BOARD / "zx81-computer"
         build.PROFILE = build.load_profile(combined / "profile.py")

@@ -1,0 +1,16 @@
+{
+  "source_revision": "c147cdc8c7b666c4d315d3ec69cd410613736336",
+  "command": [
+    "make",
+    "check"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T20:16:01.236534+00:00",
+  "time_cap_seconds": 180,
+  "hardware_access": "not-performed",
+  "pid": 2138909,
+  "state": "passed",
+  "elapsed_seconds": 7.0,
+  "heartbeat_utc": "2026-10-31T20:16:08.195309+00:00",
+  "returncode": 0
+}

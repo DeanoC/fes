@@ -1,0 +1,4 @@
+{
+  "status": "passed",
+  "scope": "unchanged complete native runtime make -j2 test after missing native_hardware_test link source repair"
+}

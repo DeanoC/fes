@@ -364,6 +364,14 @@ func (s *Service) readTwoROMFirmware(ctx context.Context, entry catalog.CoreEntr
 // The target computes linked and composed identities. The host binds the
 // returned receipt to its selected source identities, not a host-built image.
 func (s coreLoadSource) matchesLoadedIdentity(status *protocol.CorePackageStatus) bool {
+	if !reflect.DeepEqual(status.StaticComposition, s.staticComposition) {
+		return false
+	}
+	if s.staticComposition != nil {
+		return status.PackageID == s.staticComposition.PackageID &&
+			status.Composition == nil && status.SlotComposition == nil && status.PartsComposition == nil &&
+			status.ROMLink == nil && status.ROMLinks == nil
+	}
 	if s.initialMedia != nil {
 		u, ok := protocol.MediaUnit(status, s.initialMedia.Unit)
 		expected, core := protocol.AtariStFloppyInterface(), "fes.atari-st"
@@ -429,7 +437,7 @@ func validateROMMediaContract(descriptor corepackage.Descriptor) error {
 	}
 	application := descriptor.ABI.ID == "fes.application" && descriptor.ABI.Major == 1
 	for _, endpoint := range descriptor.Interfaces {
-		if endpoint.Major == 1 && endpoint.Minor == 0 && (endpoint.ID == "fes.media.blob-stream" || endpoint.ID == "fes.firmware.blob" || application && endpoint.ID == "fes.media.blob") {
+		if endpoint.Major == 1 && endpoint.Minor == 0 && (endpoint.ID == "fes.media.blob-stream" || application && endpoint.ID == "fes.media.blob") {
 			return &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Phase: "compatibility", Message: "linked cartridge packages must omit media endpoints that wait for a separate startup upload"}
 		}
 	}

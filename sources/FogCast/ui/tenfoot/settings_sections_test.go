@@ -14,6 +14,7 @@ import (
 
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/storage"
+	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
 func settingsLabels(snap Snapshot) string {
@@ -276,13 +277,22 @@ func TestSettingsSectionsNativeRender(t *testing.T) {
 			if err := saveTenfootPrefs(filepath.Join(dir, "tenfoot.json"), tenfootPrefs{SafeAreaPct: DefaultSafeAreaPct, SetupDone: true}); err != nil {
 				t.Fatal(err)
 			}
-			app := startFirstRun(t, dir, size.w, size.h)
+			host := newRoomHost(t)
+			client := NewClient(host.server.URL, host.server.Client())
+			// Pair the fixture before Start publishes the client to pollSession.
+			// Settings asks this paired host for no library settings.
+			client.paired = true
+			app := NewApp(client, size.w, size.h, 50)
+			app.SetPrefsPath(filepath.Join(dir, "tenfoot.json"))
+			app.SetRooms(rooms.NewIndex(rooms.Examples()), t.TempDir())
+			app.SetHomeRooms(true)
+			app.SetHomeRoom(installedCoresHomeID)
+			app.SetKitLocal(&fakeLocalCores{cores: homeFixtureCores()}, &fakePadFeed{})
+			app.SetFirstRun(true)
+			app.Start(t.Context())
+			t.Cleanup(app.Stop)
 			app.SetKitDisplay("kit-a")
 			app.SetSafeAreaPct(DefaultSafeAreaPct)
-			// The kit is paired, so Settings asks its host for no library settings.
-			app.mu.Lock()
-			app.client.paired = true
-			app.mu.Unlock()
 			waitFor(t, app, "Home", func(s Snapshot) bool { return homeFamilySettled(s) })
 			now := time.Now()
 			app.HandleCommand(CmdSettings, now)

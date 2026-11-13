@@ -1,0 +1,6 @@
+clock	period_ns	waveform	edges	master
+fes_audio_inst|clock|iopll_0_outclk0	81.379	0.000 40.689 		fes_audio_inst|clock|iopll_0|tennm_ph2_iopll|ref_clk0
+de25_i2s_bit_clock	325.516	81.379 244.137 	3 7 11 	fes_audio_inst|clock|iopll_0_outclk0
+de25_i2s_bit_clock_output	325.516	81.379 244.137 		de25_i2s_bit_clock
+de25_i2s_word_clock	20833.024	10335.133 20751.645 	255 511 767 	fes_audio_inst|clock|iopll_0_outclk0
+de25_i2s_word_clock_output	20833.024	10335.133 20751.645 		de25_i2s_word_clock

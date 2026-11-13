@@ -39,6 +39,13 @@ FreeDOS lock give the same bytes. The store holds, for each built drive:
   by-name/<drive>.img     symlinks to the latest build of each drive
   by-name/<drive>.json
 
+A drive of kind "image" is not built: it is a user-supplied installed system
+(MS-DOS 6.22 and Windows for Workgroups 3.11, docs/pc386-windows-corpus.md),
+pinned by the manifest's SHA-256 and made by the recipe its docs give. For one,
+the builder checks the image in the store, or copies one given with --import
+after checking its hash and size, and writes its record and by-name links. A
+run without --import skips an image drive the store lacks.
+
 The store is FES_PC386_DRIVES, default ~/fes-drives/pc386 (on Powerboat;
 docs/pc386-game-drives.md). sim_fes_pc386.py --drive and the kit runners
 take a drive by path, SHA-256 (or a unique prefix of 8 or more digits) or
@@ -48,6 +55,7 @@ Examples:
   python3 scripts/build_pc386_game_drive.py --download real
   python3 scripts/build_pc386_game_drive.py --list
   python3 scripts/build_pc386_game_drive.py --resolve real
+  python3 scripts/build_pc386_game_drive.py --import /path/to/wfw-msdos.img wfw-msdos
 """
 from __future__ import annotations
 
@@ -81,6 +89,10 @@ HEX = re.compile(r'^[0-9a-f]{8,64}$')
 
 class DriveError(RuntimeError):
     pass
+
+
+class DriveMissing(DriveError):
+    """An image drive whose user-supplied image is not in the store."""
 
 
 def checked_store(path: Path) -> Path:
@@ -120,8 +132,15 @@ def manifest(path: Path = MANIFEST) -> dict:
             raise DriveError(f'drive name {name!r} is not lower-case letters, digits and hyphens')
         if not 1 <= drive.get('cylinders', 0) <= freedos.MAX_CYLINDERS:
             raise DriveError(f'drive {name}: cylinders must be 1-{freedos.MAX_CYLINDERS}')
+        image = drive.get('kind', 'freedos') == 'image'
+        if drive.get('kind', 'freedos') not in ('freedos', 'image'):
+            raise DriveError(f'drive {name}: kind must be freedos or image')
+        if image and not re.fullmatch(r'[0-9a-f]{64}', drive.get('sha256', '')):
+            raise DriveError(f'drive {name}: an image drive pins its image by a 64-digit sha256')
         for title in drive.get('titles', []):
-            for field in ('id', 'title', 'bucket', 'path', 'sha256', 'copy', 'launch'):
+            fields = ('id', 'title', 'bucket', 'launch') if image else (
+                'id', 'title', 'bucket', 'path', 'sha256', 'copy', 'launch')
+            for field in fields:
                 if field not in title:
                     raise DriveError(f'drive {name}: a title has no {field}: {title.get("id")}')
             if title['id'] in seen:
@@ -129,7 +148,7 @@ def manifest(path: Path = MANIFEST) -> dict:
             seen[title['id']] = name
             if title['bucket'] not in data.get('buckets', {}):
                 raise DriveError(f'title {title["id"]}: bucket {title["bucket"]} is not in [buckets]')
-            if title.get('source', 'exodos') not in data.get('sources', {}):
+            if not image and title.get('source', 'exodos') not in data.get('sources', {}):
                 raise DriveError(f'title {title["id"]}: source {title.get("source")} is not in [sources]')
     return data
 
@@ -140,7 +159,8 @@ def drive_inputs(data: dict, name: str) -> str:
     builder's profile inputs and the sidecar hashes."""
     digest = hashlib.sha256(json.dumps(data['drives'][name], sort_keys=True).encode())
     digest.update(Path(__file__).read_bytes())
-    digest.update(freedos.inputs_key(PROFILE).encode())
+    if data['drives'][name].get('kind') != 'image':
+        digest.update(freedos.inputs_key(PROFILE).encode())
     return digest.hexdigest()
 
 
@@ -305,12 +325,75 @@ def free_bytes(volume: str, env: dict) -> int:
     return int(match.group(1).replace(' ', ''))
 
 
-def build(name: str, data: dict, download: bool = False, jobs: int = 4) -> Path:
-    drive = data['drives'][name]
+def private_store() -> Path:
     store = checked_store(STORE)
     # The store holds user-supplied commercial programs: private to the account.
     store.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(store, 0o700)
+    return store
+
+
+def link(store: Path, name: str, digest: str) -> None:
+    links = store / 'by-name'
+    links.mkdir(exist_ok=True)
+    for suffix in ('.img', '.json'):
+        target = links / f'{name}{suffix}'
+        target.unlink(missing_ok=True)
+        target.symlink_to(Path('..') / f'{digest}{suffix}')
+
+
+def register_image(name: str, data: dict, source: Path | None = None) -> Path:
+    """An image drive: the pinned image in the store (copied from source when
+    given, after its hash and size are checked), its record and its links."""
+    drive = data['drives'][name]
+    digest = drive['sha256']
+    size = drive['cylinders'] * freedos.HEADS * freedos.SPT * 512
+    store = private_store()
+    image = store / f'{digest}.img'
+    if source is not None:
+        source = Path(source).expanduser()
+        if not source.is_file():
+            raise DriveError(f'{source} not found')
+        got = sha256(source)
+        if got != digest:
+            raise DriveError(f'drive {name}: {source} hashes to {got}, the manifest pins {digest}')
+        if not image.is_file():
+            partial = image.with_suffix('.partial')
+            shutil.copyfile(source, partial)
+            os.chmod(partial, 0o600)
+            partial.rename(image)
+    if not image.is_file():
+        raise DriveMissing(f'drive {name}: {image.name} is not in {store}; make it by the recipe in '
+                           'docs/pc386-windows-corpus.md and pass it with --import')
+    got = sha256(image)
+    if got != digest:
+        raise DriveError(f'drive {name}: {image} hashes to {got}, the manifest pins {digest}')
+    if image.stat().st_size != size:
+        raise DriveError(f'drive {name}: {image} is {image.stat().st_size} bytes, '
+                         f'{drive["cylinders"]} cylinders are {size}')
+    titles = [{key: title[key] for key in title} | {'source': 'image', 'sha256': digest}
+              for title in drive.get('titles', [])]
+    record = {
+        'drive': name,
+        'sha256': digest,
+        'bytes': size,
+        'geometry': {'cylinders': drive['cylinders'], 'heads': freedos.HEADS, 'sectors_per_track': freedos.SPT},
+        'base': {'kind': 'image', 'recipe': 'docs/pc386-windows-corpus.md'},
+        'inputs': drive_inputs(data, name),
+        'description': drive.get('description', ''),
+        'titles': titles,
+        'distribution': 'user-supplied programs: never commit, upload or distribute',
+    }
+    image.with_suffix('.json').write_text(json.dumps(record, indent=1) + '\n')
+    link(store, name, digest)
+    return image
+
+
+def build(name: str, data: dict, download: bool = False, jobs: int = 4) -> Path:
+    drive = data['drives'][name]
+    if drive.get('kind') == 'image':
+        return register_image(name, data)
+    store = private_store()
     work = store / '.work' / name
     work.parent.mkdir(mode=0o700, exist_ok=True)
     os.chmod(work.parent, 0o700)
@@ -345,7 +428,7 @@ def build(name: str, data: dict, download: bool = False, jobs: int = 4) -> Path:
             'sha256': digest,
             'bytes': image.stat().st_size,
             'geometry': {'cylinders': drive['cylinders'], 'heads': freedos.HEADS, 'sectors_per_track': freedos.SPT},
-            'base': {'profile': PROFILE, 'packages': {package: pins['commit'] for package, pins in packages.items()},
+            'base': {'profile': PROFILE, 'packages': {package: freedos.source(pins) for package, pins in packages.items()},
                      'freedos_inputs': freedos.inputs_key(PROFILE)},
             'inputs': drive_inputs(data, name),
             'description': drive.get('description', ''),
@@ -354,12 +437,7 @@ def build(name: str, data: dict, download: bool = False, jobs: int = 4) -> Path:
             'distribution': 'user-supplied programs: never commit, upload or distribute',
         }
         image.with_suffix('.json').write_text(json.dumps(record, indent=1) + '\n')
-        links = store / 'by-name'
-        links.mkdir(exist_ok=True)
-        for suffix in ('.img', '.json'):
-            link = links / f'{name}{suffix}'
-            link.unlink(missing_ok=True)
-            link.symlink_to(Path('..') / f'{digest}{suffix}')
+        link(store, name, digest)
         return image
     finally:
         shutil.rmtree(work, ignore_errors=True)
@@ -413,6 +491,9 @@ def main(argv=None) -> int:
     parser.add_argument('--jobs', type=int, default=os.cpu_count() or 4)
     parser.add_argument('--list', action='store_true', help="print each drive's titles and the store's builds")
     parser.add_argument('--resolve', metavar='DRIVE', help='print the image path and record of a drive')
+    parser.add_argument('--import', dest='import_image', type=Path, metavar='IMAGE',
+                        help='an image drive: copy IMAGE into the store after checking it against the manifest '
+                             '(name the one drive)')
     args = parser.parse_args(argv)
     try:
         store = configured_store()
@@ -427,12 +508,25 @@ def main(argv=None) -> int:
                 print(f'{name}: {len(drive.get("titles", []))} titles, {drive["cylinders"]} cylinders, '
                       f'built {built.resolve().stem if built.exists() else "never"}')
             return 0
+        if args.import_image is not None:
+            if len(args.drives) != 1 or data['drives'].get(args.drives[0], {}).get('kind') != 'image':
+                raise DriveError('--import takes exactly one image drive')
+            image = register_image(args.drives[0], data, args.import_image)
+            print(f'{args.drives[0]} {image} imported')
+            return 0
         for name in args.drives or list(data['drives']):
             if name not in data['drives']:
                 raise DriveError(f'no drive {name} in {args.manifest}')
-            image = build(name, data, args.download, args.jobs)
+            try:
+                image = build(name, data, args.download, args.jobs)
+            except DriveMissing as missing:
+                if args.drives:
+                    raise
+                print(f'{name}: skipped: {missing}', flush=True)
+                continue
             record = json.loads(image.with_suffix('.json').read_text())
-            print(f'{name} {image} {record["free_bytes"]:,} bytes free')
+            print(f'{name} {image} ' + (f'{record["free_bytes"]:,} bytes free' if 'free_bytes' in record
+                                         else 'image drive registered'))
     except (DriveError, freedos.ImageError, test386.Test386Error, OSError) as error:
         print(f'build_pc386_game_drive: {error}', file=sys.stderr)
         return 1

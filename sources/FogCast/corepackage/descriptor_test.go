@@ -37,6 +37,57 @@ func TestValidateDescriptorSharesPayloadIndependentManifestRules(t *testing.T) {
 	}
 }
 
+func TestKnownBoardTargetsThroughArchiveStore(t *testing.T) {
+	manifest, payload := fixtureBytes(t, loadCases(t)[0])
+	for _, tc := range []struct {
+		name, platform, device, profile string
+		valid                           bool
+	}{
+		{"de10", "de10_nano", "5CSEBA6U23I7", "fes-gp-v1", true},
+		{"de25-computer", "de25_nano", "A5EB013BB23BE4SCS", "de25-hps-first-v1", true},
+		{"de25-menu", "de25_nano", "A5EB013BB23BE4SCS", "de25-linux-menu-v1", true},
+		{"de25-standard-computer", "de25_nano", "A5EB013BB23BE4SCS", "de25-linux-computer-v1", true},
+		{"de10-with-agilex", "de10_nano", "A5EB013BB23BE4SCS", "fes-gp-v1", false},
+		{"de25-with-cyclone", "de25_nano", "5CSEBA6U23I7", "de25-hps-first-v1", false},
+		{"unknown-agilex-part", "de25_nano", "A5EB013BB23BE4R1", "de25-hps-first-v1", false},
+		{"unknown-board", "other_nano", "A5EB013BB23BE4SCS", "de25-hps-first-v1", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			selected := bytes.ReplaceAll(manifest, []byte("de10_nano"), []byte(tc.platform))
+			selected = bytes.ReplaceAll(selected, []byte("5CSEBA6U23I7"), []byte(tc.device))
+			selected = bytes.ReplaceAll(selected, []byte("fes-gp-v1"), []byte(tc.profile))
+			archive := canonicalArchive(selected, payload)
+			root := t.TempDir()
+			if err := os.Chmod(root, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			store, err := NewStore(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			value, created, err := store.Import(context.Background(), int64(len(archive)), bytes.NewReader(archive))
+			if !tc.valid {
+				if err == nil || created {
+					t.Fatalf("unsupported target imported: created=%v err=%v", created, err)
+				}
+				files, err := os.ReadDir(root)
+				if err != nil || len(files) != 0 {
+					t.Fatalf("rejected import left files: %v, %v", files, err)
+				}
+				return
+			}
+			if err != nil || !created {
+				t.Fatalf("known target import: created=%v err=%v", created, err)
+			}
+			got, err := store.Inspect(context.Background(), value.PackageID)
+			if err != nil || !reflect.DeepEqual(got, value) ||
+				got.Descriptor.Target != (Target{Platform: tc.platform, Device: tc.device, ProgrammingProfile: tc.profile}) {
+				t.Fatalf("known target readback: %#v, %v", got, err)
+			}
+		})
+	}
+}
+
 func TestAdoptRetainsOnlyMatchingRootedPublicationsForCleanup(t *testing.T) {
 	root := t.TempDir()
 	base := filepath.Join("testdata", "core-bundle-v2")

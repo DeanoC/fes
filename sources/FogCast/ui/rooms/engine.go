@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	lua "github.com/yuin/gopher-lua"
@@ -164,11 +165,15 @@ type Instance struct {
 	// extendCopied is set once gfx.extend has copied the presented frame
 	// into this draw. A later extend appends without copying it again.
 	extendCopied bool
-	actions      []Action
+	// seg holds gfx.segment runs of the presented and the building frame.
+	seg     segments
+	actions []Action
 	// firmwareInfo is the latest first-use firmware request, kept apart from
 	// actions: a workbench repeats it on every load.
 	firmwareInfo *Action
 	games        map[string]hostclient.Game
+	gameVersion  map[string]uint64
+	gameEpoch    uint64
 	images       map[string]*Image
 	store        *store
 	logs         []string
@@ -184,6 +189,12 @@ type Instance struct {
 	// threadSample, when set, replaces the OS read of the callback thread's
 	// CPU time and switches. Tests use it. Production leaves it nil.
 	threadSample func() (threadUsage, bool)
+	// work, when set, counts each callback's Lua instructions and draw
+	// ops. Tests use it. Production leaves it nil.
+	work *workMeter
+	// contention summarises system load on a hard deadline miss. New sets
+	// the launcher's shared sampler; tests replace it.
+	contention *contentionSampler
 	// frameStreak and inputStreak describe the current run of consecutive
 	// soft overruns, reported when that run retires the room.
 	frameStreak     overrunStreak
@@ -204,6 +215,15 @@ type asyncResult struct {
 	transient    bool
 	more         bool
 	games        []hostclient.Game
+	homeFamily   bool
+	cancelled    *atomic.Bool
+	gameTable    *lua.LTable
+	gameIndex    int
+	partialGame  *lua.LTable
+	partialList  *lua.LTable
+	variantIndex int
+	queryEpoch   uint64
+	variants     []hostclient.Game
 	platforms    []hostclient.Platform
 	collections  []hostclient.Collection
 	game         *hostclient.Game
@@ -214,6 +234,21 @@ type asyncResult struct {
 	cores        []localcores.Core
 	hardwareRead bool
 	hardwareSave bool
+	// api is the room API whose result this is, such as library.platforms,
+	// named in callback errors. library.query results carry libraryQuery.
+	api string
+}
+
+// source names the API that produced an async result for callback errors.
+func (res asyncResult) source() string {
+	switch {
+	case res.api != "":
+		return res.api
+	case res.libraryQuery:
+		return "library.query"
+	default:
+		return "result"
+	}
 }
 
 // New creates the VM and installs the API. Load runs the script.
@@ -236,16 +271,17 @@ func New(pack Pack, opts Options) (*Instance, error) {
 	opts.Theme = opts.Theme.Complete()
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &Instance{
-		pack:    pack,
-		opts:    opts,
-		budget:  opts.Budget.complete(),
-		ctx:     ctx,
-		cancel:  cancel,
-		modules: map[string]lua.LValue{},
-		loading: map[string]bool{},
-		games:   map[string]hostclient.Game{},
-		images:  map[string]*Image{},
-		store:   newStore(opts.StorePath, opts.Stderr),
+		pack:       pack,
+		opts:       opts,
+		budget:     opts.Budget.complete(),
+		ctx:        ctx,
+		cancel:     cancel,
+		modules:    map[string]lua.LValue{},
+		loading:    map[string]bool{},
+		games:      map[string]hostclient.Game{},
+		images:     map[string]*Image{},
+		store:      newStore(opts.StorePath, opts.Stderr),
+		contention: hostContention,
 	}
 	r.L = lua.NewState(lua.Options{
 		SkipOpenLibs:        true,
@@ -299,7 +335,9 @@ func (r *Instance) Close() {
 		return
 	}
 	if r.loaded && r.fatal == nil {
-		r.callGlobal("unload", r.budget.Input)
+		if err := r.callGlobal("unload", r.budget.Input); err != nil {
+			fmt.Fprintf(r.opts.Stderr, "rooms: room %s: %v\n", r.pack.ID, err)
+		}
 	}
 	r.cancel()
 	r.store.flush()
@@ -348,8 +386,9 @@ func (r *Instance) Load() error {
 	}
 	r.started = r.opts.Now()
 	r.last = r.started
+	r.workKind("main")
 	if _, err := r.call(fn, r.budget.Load, 0); err != nil {
-		return r.fail(err)
+		return r.fail(fmt.Errorf("%s chunk: %w", r.pack.Main, err))
 	}
 	r.loaded = true
 	if err := r.callGlobal("load", r.budget.Load); err != nil {
@@ -374,9 +413,11 @@ func (r *Instance) Step(now time.Time) Frame {
 	}
 	r.last = now
 	r.elapsed += dt
+	r.contention.tick(time.Now())
 	r.roomTable.RawSetString("time", lua.LNumber(r.elapsed))
 	r.lastStep = StepTiming{}
 	asyncStart := time.Now()
+	r.workKind("async")
 	r.drainResults()
 	updateStart := time.Now()
 	r.lastStep.Async = updateStart.Sub(asyncStart)
@@ -399,12 +440,16 @@ func (r *Instance) Step(now time.Time) Frame {
 	r.reuseFrame = false
 	r.keepSlowFrame = false
 	r.extendCopied = false
+	r.seg.begin()
 	drawStart := time.Now()
 	err = r.callGlobalSoft("draw", r.budget.Frame)
 	r.lastStep.Draw = time.Since(drawStart)
 	r.inDraw = false
 	built := r.building
 	r.building = nil
+	if r.work != nil {
+		r.work.drew(built, r.seg.copied, r.seg.replayed)
+	}
 	// gfx.reuse() asks to keep the frame already presented. A slow check
 	// still counts, and the next unchanged draw can try again.
 	if r.reuseFrame {
@@ -429,6 +474,7 @@ func (r *Instance) Step(now time.Time) Frame {
 		r.keepSlowFrame = false
 		r.frame = *built
 		r.frameReady = true
+		r.seg.present()
 		r.presentFrame(true)
 		r.recordFrameOverrun(err)
 		if r.fatal != nil {
@@ -449,12 +495,18 @@ func (r *Instance) Step(now time.Time) Frame {
 	r.frame = frame
 	r.frameReady = true
 	r.frameOverruns = 0
+	r.seg.present()
 	r.presentFrame(true)
 	r.store.maybeFlush(now)
 	return frame
 }
 
+// presentFrame tells the script whether its last draw is on screen. A draw
+// that is not presented drops every gfx.segment run.
 func (r *Instance) presentFrame(ok bool) {
+	if !ok {
+		r.seg.drop()
+	}
 	if r.roomTable != nil {
 		r.roomTable.RawSetString("presented", lua.LBool(ok))
 	}
@@ -485,7 +537,8 @@ func (r *Instance) Input(cmd string) bool {
 		return false
 	}
 	r.noteInputBaseline()
-	handled, err := r.callRetSoft(fn, r.budget.Input, lua.LString(cmd))
+	r.workKind("on_input")
+	handled, err := r.callRetSoft("on_input", fn, r.budget.Input, lua.LString(cmd))
 	if err != nil {
 		if errors.Is(err, errSoftOverrun) {
 			r.overrunInput(err)
@@ -499,10 +552,29 @@ func (r *Instance) Input(cmd string) bool {
 	return lua.LVAsBool(handled)
 }
 
+// ErrBudget marks a room failure caused by time rather than by the script's
+// logic: a callback deadline that expired, a callback that finished past its
+// hard limit, or a room retired after consecutive soft overruns. Test it with
+// errors.Is on Instance.Err. Lua errors, load and compile errors and API
+// misuse (including the draw-op cap) are not ErrBudget.
+var ErrBudget = errors.New("room script exceeded its time budget")
+
+// budgetError is a deadline or hard-limit failure. It is ErrBudget.
+type budgetError struct{ msg string }
+
+func (e budgetError) Error() string { return e.msg }
+
+func (e budgetError) Is(target error) bool { return target == ErrBudget }
+
+func budgetErrorf(format string, args ...any) error {
+	return budgetError{msg: fmt.Sprintf(format, args...)}
+}
+
 var errSoftOverrun = errors.New("script exceeded soft callback budget")
 
 // softOverrun is a callback that finished inside its hard deadline but
-// over its soft budget. It is errSoftOverrun and also carries the timing.
+// over its soft budget. It is errSoftOverrun and ErrBudget, and also
+// carries the timing.
 type softOverrun struct {
 	budget time.Duration
 	timing callTiming
@@ -512,7 +584,7 @@ func (e softOverrun) Error() string {
 	return fmt.Sprintf("script exceeded %s soft callback budget (%s)", e.budget, e.timing)
 }
 
-func (e softOverrun) Is(target error) bool { return target == errSoftOverrun }
+func (e softOverrun) Is(target error) bool { return target == errSoftOverrun || target == ErrBudget }
 
 func (r *Instance) overrun(err error) {
 	r.recordFrameOverrun(err)
@@ -558,43 +630,59 @@ func (r *Instance) callGlobalSoft(name string, budget time.Duration, args ...lua
 		return nil
 	}
 	r.noteFrameBaseline()
-	if err := r.callSoft(fn, budget, 0, args...); err != nil {
-		return fmt.Errorf("%s callback: %w", name, err)
-	}
-	return nil
+	r.workKind(name)
+	return r.callSoft(name, fn, budget, 0, args...)
 }
 
-func (r *Instance) callRetSoft(fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
+// callRetSoft runs the callback called name with one return value. Every
+// error it returns, soft or hard, names that callback.
+func (r *Instance) callRetSoft(name string, fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
 	top := r.L.GetTop()
 	defer r.L.SetTop(top)
-	hardBudget := budget * callbackHardLimitFactor
-	timing, err := r.call(fn, hardBudget, 1, args...)
+	timing, err := r.call(fn, budget*callbackHardLimitFactor, 1, args...)
 	if err != nil {
-		return lua.LNil, err
+		return lua.LNil, callbackError(name, err)
 	}
 	v := r.L.Get(-1)
 	r.L.Pop(1)
-	if timing.elapsed > hardBudget {
-		return lua.LNil, fmt.Errorf("script exceeded %s hard callback budget (%s)", hardBudget, timing)
-	}
-	if timing.elapsed > budget {
-		return v, softOverrun{budget: budget, timing: timing}
+	if err := r.checkElapsed(budget, timing); err != nil {
+		if !errors.Is(err, errSoftOverrun) {
+			v = lua.LNil
+		}
+		return v, callbackError(name, err)
 	}
 	return v, nil
 }
 
-func (r *Instance) callSoft(fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) error {
+// callSoft runs the callback called name. Every error it returns, soft or
+// hard, names that callback.
+func (r *Instance) callSoft(name string, fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) error {
 	timing, err := r.call(fn, budget*callbackHardLimitFactor, nret, args...)
-	if err != nil {
-		return err
+	if err == nil {
+		err = r.checkElapsed(budget, timing)
 	}
-	if timing.elapsed > budget*callbackHardLimitFactor {
-		return fmt.Errorf("script exceeded %s hard callback budget (%s)", budget*callbackHardLimitFactor, timing)
+	if err != nil {
+		return callbackError(name, err)
+	}
+	return nil
+}
+
+// checkElapsed compares a callback that returned against its soft budget and
+// its hard deadline. gopher-lua checks cancellation only between Lua
+// instructions, so a Go call can return after the deadline has passed.
+func (r *Instance) checkElapsed(budget time.Duration, timing callTiming) error {
+	hard := budget * callbackHardLimitFactor
+	if timing.elapsed > hard {
+		return r.deadlineMiss(budgetErrorf("script exceeded %s hard callback budget (%s)", hard, timing), timing)
 	}
 	if timing.elapsed > budget {
 		return softOverrun{budget: budget, timing: timing}
 	}
 	return nil
+}
+
+func callbackError(name string, err error) error {
+	return fmt.Errorf("%s callback: %w", name, err)
 }
 
 // callOptionalInput runs a named input callback when the script defines it.
@@ -605,7 +693,8 @@ func (r *Instance) callOptionalInput(name string, args ...lua.LValue) {
 		return
 	}
 	r.noteInputBaseline()
-	if err := r.callSoft(fn, r.budget.Input, 0, args...); err != nil {
+	r.workKind(name)
+	if err := r.callSoft(name, fn, r.budget.Input, 0, args...); err != nil {
 		r.handleInputCallbackError(err)
 		return
 	}
@@ -647,6 +736,7 @@ func (r *Instance) Resize(width, height int) {
 		return
 	}
 	r.opts.Width, r.opts.Height = width, height
+	r.seg.drop()
 	r.roomTable.RawSetString("width", lua.LNumber(width))
 	r.roomTable.RawSetString("height", lua.LNumber(height))
 	r.setHeroTable()
@@ -726,6 +816,7 @@ func (r *Instance) CheckGlobal(expr string) error {
 	if err != nil {
 		return err
 	}
+	r.workKind("check")
 	v, err := r.callRet(fn, r.budget.Input)
 	if err != nil {
 		return err
@@ -751,6 +842,20 @@ func (r *Instance) CachedGame(id string) (hostclient.Game, bool) {
 	return g, ok
 }
 
+// Record cache writes so an older query being converted across frames cannot
+// replace a newer refresh or detail result for the same entry.
+func (r *Instance) cacheGame(id string, game hostclient.Game) {
+	if r.games == nil {
+		r.games = make(map[string]hostclient.Game)
+	}
+	if r.gameVersion == nil {
+		r.gameVersion = make(map[string]uint64)
+	}
+	r.gameEpoch++
+	r.games[id] = game
+	r.gameVersion[id] = r.gameEpoch
+}
+
 // RefreshCachedGames updates host catalog rows the script already saw and
 // reclassifies the published destination from its retained candidate set.
 // A blocked sibling stays in that set, so a row that becomes viable is
@@ -767,7 +872,7 @@ func (r *Instance) RefreshCachedGames(games []hostclient.Game) {
 		if id == "" {
 			continue
 		}
-		r.games[id] = g
+		r.cacheGame(id, g)
 	}
 	if r.dest.Kind != KindGame {
 		return
@@ -823,8 +928,9 @@ func (r *Instance) callGlobal(name string, budget time.Duration, args ...lua.LVa
 	if !ok {
 		return nil
 	}
+	r.workKind(name)
 	if _, err := r.call(fn, budget, 0, args...); err != nil {
-		return fmt.Errorf("%s callback: %w", name, err)
+		return callbackError(name, err)
 	}
 	return nil
 }
@@ -883,7 +989,7 @@ func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args 
 	timing.elapsed = time.Since(start)
 	if err != nil {
 		if expired {
-			return timing, fmt.Errorf("script exceeded %s budget (%s)", budget, timing)
+			return timing, r.deadlineMiss(budgetErrorf("script exceeded %s budget (%s)", budget, timing), timing)
 		}
 		return timing, errors.New(strings.TrimSpace(err.Error()))
 	}
@@ -900,7 +1006,12 @@ func (r *Instance) runPinned(fn *lua.LFunction, deadline time.Time, nret int, ar
 	top := L.GetTop()
 	ctx, cancel := context.WithDeadline(r.ctx, deadline)
 	defer cancel()
-	L.SetContext(ctx)
+	if r.work != nil {
+		L.SetContext(r.work.count(ctx))
+		defer r.work.finish()
+	} else {
+		L.SetContext(ctx)
+	}
 	defer L.RemoveContext()
 	L.Push(fn)
 	for _, a := range args {
@@ -926,10 +1037,83 @@ func (r *Instance) drainResults() {
 	queued := r.pending
 	r.pending = nil
 	r.pendingMu.Unlock()
+	// Conversion runs on the Lua/UI thread. A full Home family response may
+	// contain 2,000 rows, so convert at most one batch per Step even when
+	// several family responses arrive together. Other results may still run.
+	converted := false
+	var deferred []asyncResult
 	for _, res := range queued {
+		if res.homeFamily && res.err == nil && res.games != nil {
+			if res.cancelled != nil && res.cancelled.Load() {
+				continue
+			}
+			if converted {
+				deferred = append(deferred, res)
+				continue
+			}
+			converted = true
+			if res.gameTable == nil {
+				res.gameTable = r.L.NewTable()
+			}
+			r.convertFamilyBatch(&res)
+			if res.gameIndex < len(res.games) {
+				deferred = append(deferred, res)
+				continue
+			}
+			// A cancelled partial answer never changes the shared game cache.
+			accepted := make(map[string]bool)
+			for _, g := range res.games {
+				if accepted[g.ID] || r.gameVersion[g.ID] <= res.queryEpoch {
+					r.cacheGame(g.ID, g)
+					accepted[g.ID] = true
+				}
+			}
+		}
 		r.applyResult(res)
 		if r.fatal != nil {
 			return
+		}
+	}
+	if len(deferred) != 0 {
+		r.pendingMu.Lock()
+		r.pending = append(deferred, r.pending...)
+		r.pendingMu.Unlock()
+	}
+}
+
+const familyResultBatch = 128
+
+// Build at most familyResultBatch rows or nested editions per Step. Keep the
+// partially built table private until every row is ready for the callback.
+func (r *Instance) convertFamilyBatch(res *asyncResult) {
+	for work := 0; work < familyResultBatch && res.gameIndex < len(res.games); work++ {
+		game := res.games[res.gameIndex]
+		if res.partialGame == nil {
+			variants := game.Variants
+			if len(variants) == 0 {
+				variants = game.Editions
+			}
+			row := r.gameRow(game, false)
+			if len(variants) == 0 {
+				res.gameTable.Append(row)
+				res.gameIndex++
+				continue
+			}
+			res.partialGame = row
+			res.partialList = r.L.NewTable()
+			res.variants = variants
+			row.RawSetString("variants", res.partialList)
+			res.variantIndex = 0
+			continue
+		}
+		res.partialList.Append(r.gameRow(res.variants[res.variantIndex], false))
+		res.variantIndex++
+		if res.variantIndex == len(res.variants) {
+			res.gameTable.Append(res.partialGame)
+			res.partialGame = nil
+			res.partialList = nil
+			res.variants = nil
+			res.gameIndex++
 		}
 	}
 }
@@ -959,13 +1143,17 @@ func (r *Instance) applyResult(res asyncResult) {
 		t.RawSetString("expansion_id", lua.LString(res.selection.ExpansionID))
 		payload = t
 	case res.games != nil:
-		payload = r.gamesTable(res.games)
+		if res.gameTable != nil {
+			payload = res.gameTable
+		} else {
+			payload = r.gamesTable(res.games)
+		}
 	case res.platforms != nil:
 		payload = r.platformsTable(res.platforms)
 	case res.collections != nil:
 		payload = r.collectionsTable(res.collections)
 	case res.game != nil:
-		r.games[res.game.ID] = *res.game
+		r.cacheGame(res.game.ID, *res.game)
 		payload = r.gameTable(*res.game)
 	case res.cores != nil:
 		payload = r.coresTable(res.cores)
@@ -980,8 +1168,7 @@ func (r *Instance) applyResult(res asyncResult) {
 		args = append(args, lua.LBool(res.transient))
 		args = append(args, lua.LBool(res.more))
 	}
-	if err := r.callSoft(res.cb, r.budget.Frame, 0, args...); err != nil {
-		err = fmt.Errorf("async callback: %w", err)
+	if err := r.callSoft("async "+res.source(), res.cb, r.budget.Frame, 0, args...); err != nil {
 		if errors.Is(err, errSoftOverrun) {
 			r.overrunInput(err)
 		} else {

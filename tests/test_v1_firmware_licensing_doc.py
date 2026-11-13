@@ -1,7 +1,6 @@
 """Guard the source corrections in the v1 firmware licensing research note."""
 from pathlib import Path
 import re
-import tarfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,22 +72,23 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
         self.assertIn("user-supplied in v1", summary)
         self.assertIn("Pentagon's entire 48 KiB image", DOC)
 
-    def test_committed_validation_capture_roms_are_recorded(self):
+    def test_removed_validation_archives_with_roms_are_recorded(self):
         evidence = evidence_line("- **Z0. Existing committed ROM bytes.")
         decision = evidence_line("5. **ZX81 family. Agreed.")
-        capture_path = (
-            "sources/misteross/docs/validation/2026-10-22-pcxt-commit-timing/"
-            "capture.tar.gz"
+        validation = "sources/misteross/docs/validation/"
+        removed = (
+            validation + "2026-10-22-pcxt-commit-timing/capture.tar.gz",
+            validation + "2026-10-22-pcxt-pad-pipeline/rom-same-edge/host.tar.gz",
+            validation + "2026-10-29-de25-zx81-ram-pr/failed/diagnostic-phase/sources.tar.gz",
+            validation + "2026-10-29-de25-zx81-ram-pr/failed/late-read-response/sources.tar.gz",
+            "docs/validation/2026-10-29-de25-zx81-pr-computer/compiler-reports.tar.gz",
         )
-        hex_member = "source/sources/misteross/cores/fes-zx81/rtl/zx8x.hex"
-        mif_member = "source/sources/misteross/cores/fes-zx81/rtl/zx8x.mif"
-
-        with tarfile.open(ROOT / capture_path, "r:gz") as capture:
-            members = {member.name for member in capture.getmembers()}
-        self.assertIn(hex_member, members)
-        self.assertIn(mif_member, members)
-        self.assertIn(capture_path, evidence)
+        for path in removed:
+            self.assertFalse((ROOT / path).exists(), path)
+            self.assertIn(path, evidence)
         self.assertIn("full ZX81 and ZX80 ROM images", evidence)
+        self.assertIn("remain in Git history", evidence)
+        self.assertIn("fresh repository", evidence)
         self.assertIn("outside the current RTL source tree", evidence)
         self.assertIn("full ZX81 and ZX80 images", decision)
 

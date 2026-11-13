@@ -1,0 +1,43 @@
+{
+  "source_revision": "fdbbab3547c96886135e071b728bfbc8cbe86eb8",
+  "unit_programmer_tests": "passed",
+  "old_firmware_and_allocated_overlay_bytes": "identical to prior committed actual C++ generator",
+  "DTC_fixture_equivalence": "exact sorted decompilation equality after only modeled region path and test firmware filename substitutions",
+  "kernel_fixture_source": "fcf2c6dbc376dda29c9f07344015ad92f01a9829",
+  "files": {
+    "base-reference.dts": "c711a970b026b85d1d9fbea7f14438840f9459a1f8139780b3ab2f37ae7eb252",
+    "static-persona.dtbo": "8e26d409e02a0b0e592a36877ef8d5ff9fe45bccecb93ae679dd995d0b22d667",
+    "static-persona.dts": "10b3b10ef150860d9945349b22e8493d8908346ffaf2589fbee03ef96d440356",
+    "persona-reference.dtbo": "f4c227b01d5cfac70449010186a2a713147f55f193bc3fac3df01bc0a7dfa899",
+    "firmware.dtbo": "70b9d187c14899aed670d54d1f168a8f3490bb662bf825bbb6e53770bf27d445",
+    "static-base.dtbo": "6a94729f8be47b6d02ac0efbad1018e37dc36dc18c8ef9fdbf0361016b8f2423",
+    "job.json": "f893207afecb491126dd97044b22bcb4e0b271285b971aac3afe0c8134ecedb8",
+    "allocated.dtbo": "6f23fc46db9ecaf90a78cf6a6d07b071c21e2ad51053ad524eee65b65c05a59d",
+    "compare.sh": "2da809856c6c22b117cdbb9f5475cffeadcaf16e3f67cd189bd99ad6d6ecc54d",
+    "persona-reference.dts": "b2f6dabeba0d4135b11c602c68e124c9df76efb1043a5dfe5cbe5b304e18a74b",
+    "spec.json": "e702c4da0e059b4dae0a33e5bb63e0e24d62890db9bc862fbaac33325d484cd4",
+    "static-base.dts": "1ca4afc55e946bb3d945deabe8737df14d3cf951d908df58c5ebf59d6e93b27f",
+    "base-reference.dtbo": "38497068d164f824666b70e0f27a18ec5b3058c57e95baa511dc953c64b4a7b4",
+    "output.log": "ac87b394a05ad301b5f988a7624422bf122789eef6fc768a4adfe3eae06b85c8",
+    "run.py": "358c9fc3c6c5945a558110c21807a36e3e64b4df223e82b7a6d55105788947c4"
+  },
+  "kernel_fixture_sha256": {
+    "fes_de25_owner_base.dtso": "8931c2216e56ee7f9f720daf4cdc1bbe1a83ed0422d9732e2e5f44d5e4bd0729",
+    "fes_de25_owner_static.dtso": "3df603e5677a105ead6fba86c7929d3245b857c638d35a042827087101d708be",
+    "fes_de25_owner_persona.dtso": "1c3f52036bd0e3ff05907b2ebafe50b860039157d500461f85c544927240046e",
+    "fes_de25_owner_profile.dtso": "3dbc17f94e685a56bc953170a910740cd5a455cd998f48397c005ee1180ca44d"
+  },
+  "production_selection_enabled": false,
+  "hardware_acceptance": false,
+  "original_receipt_sha256": "884e7c2733331b9c9fb76b97e0bd5d315ec636e37ead59948b62a62bde56be04",
+  "original_precompletion_metadata_changed": [
+    "job.json",
+    "output.log"
+  ],
+  "finalized_utc": "2026-11-05T12:33:21.483503+00:00",
+  "supervisor": {
+    "state": "passed",
+    "elapsed_seconds": 29.652
+  },
+  "finalization_scope": "Original runner receipt retained. Verify immutable files unchanged, then refresh only job/output metadata hashes after supervisor is terminal."
+}

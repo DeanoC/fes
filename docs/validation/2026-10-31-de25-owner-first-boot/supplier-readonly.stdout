@@ -1,0 +1,25 @@
+
+DEVICE /sys/devices/platform/20010200.dma-owner
+/sys/devices/platform/20010200.dma-owner/driver
+
+DEVICE /sys/devices/platform/soc@0/16000000.iommu
+/sys/bus/platform/drivers/arm-smmu-v3
+
+DEVICE /sys/devices/platform/soc@0
+/sys/bus/platform/drivers/simple-pm-bus
+--w-------    1 root     root          4096 Jan  1 00:00 /sys/devices/platform/soc@0/driver/unbind
+
+DEVICE /sys/devices/platform/firmware:svc
+/sys/bus/platform/drivers/stratix10-svc
+
+DEVICE /sys/devices/platform/firmware:svc:fpga-mgr
+/sys/bus/platform/drivers/Stratix10 SoC FPGA manager
+
+DEVICE /sys/devices/platform/fpga-region
+/sys/bus/platform/drivers/of-fpga-region
+
+DEFERRED
+
+MODULE LOAD CALLERS
+/etc/init.d/S10mdev:		xargs -0 modprobe -abq
+/etc/mdev.conf:$MODALIAS=.*	root:root 660 @modprobe "$MODALIAS"

@@ -1,0 +1,47 @@
+DE25_OWNER_UNCONFIGURED_USERSPACE_PASS
+FES_OWNER_ZX81_PROGRAM_START
+applied
+operating
+3678ada3-13a3-42a7-9266-ddfbca4e50b1
+DE25_OWNER_UNCONFIGURED_USERSPACE_PASS
+[    2.016281] of_cfs_init
+[    2.018779] of_cfs_init: OK
+[    2.021675] clk: Disabling unused clocks
+[    2.025632] PM: genpd: Disabling unused power domains
+[    2.030669] ALSA device list:
+[    2.033628]   No soundcards found.
+[    2.037209] dw-apb-uart 10c02100.serial: forbid DMA for kernel console
+[    2.052118] EXT4-fs (mmcblk0p2): mounted filesystem dc1b5512-2da9-40ce-ae48-5c62b7e4f0c0 r/w with ordered data mode. Quota mode: none.
+[    2.064286] VFS: Mounted root (ext4 filesystem) on device 179:2.
+[    2.070322] usb 1-1: new high-speed USB device number 2 using dwc2
+[    2.071415] devtmpfs: mounted
+[    2.085706] Freeing unused kernel memory: 10496K
+[    2.090542] Run /sbin/init as init process
+[    2.094658]   with arguments:
+[    2.094666]     /sbin/init
+[    2.094673]   with environment:
+[    2.094679]     HOME=/
+[    2.094686]     TERM=linux
+[    2.253587] EXT4-fs (mmcblk0p2): re-mounted dc1b5512-2da9-40ce-ae48-5c62b7e4f0c0 r/w. Quota mode: none.
+[    2.270353] hub 1-1:1.0: USB hub found
+[    2.274240] hub 1-1:1.0: 4 ports detected
+[    2.561442] usb 1-1.3: new full-speed USB device number 3 using dwc2
+[    3.841416] random: crng init done
+[    3.891624] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-0
+[    3.900228] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-1
+[    3.908846] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-2
+[    3.917366] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-3
+[    3.925965] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-4
+[    3.934576] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-5
+[    3.943152] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-6
+[    3.951793] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-7
+[    4.023674] socfpga-dwmac 10810000.ethernet eth0: PHY [stmmac-0:01] driver [Micrel KSZ9031 Gigabit PHY] (irq=POLL)
+[    4.034053] socfpga-dwmac 10810000.ethernet eth0: No Safety Features support found
+[    4.041614] socfpga-dwmac 10810000.ethernet eth0: IEEE 1588-2008 Advanced Timestamp supported
+[    4.050480] socfpga-dwmac 10810000.ethernet eth0: registered PTP clock
+[    4.057040] socfpga-dwmac 10810000.ethernet eth0: configuring for phy/rgmii link mode
+[    8.162330] socfpga-dwmac 10810000.ethernet eth0: Link is Up - 1Gbps/Full - flow control rx/tx
+[  129.903319] fpga_manager fpga0: writing fes-owner-zx81-71303759.rbf to Stratix10 SOC FPGA Manager
+[  132.013434] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[  132.023755] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us
+FES_OWNER_ZX81_PROGRAM_PASS

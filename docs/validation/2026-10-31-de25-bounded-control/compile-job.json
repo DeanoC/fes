@@ -1,0 +1,17 @@
+{
+  "owner": "deano/codex/de25-linux-platform",
+  "source_revision": "43f04021d7d5e676a238dd0bb7e886149fac3f4e",
+  "command": [
+    "python3",
+    "/data/fes-de25-guard-b368f5e7b/compile.py"
+  ],
+  "started_utc": "2026-10-31T11:28:58.978557+00:00",
+  "time_cap_seconds": 7200,
+  "heartbeat_seconds": 30,
+  "hardware_programming": "not-performed",
+  "pid": 1703410,
+  "state": "passed",
+  "heartbeat_utc": "2026-10-31T11:36:13.776791+00:00",
+  "elapsed_seconds": 434.8,
+  "returncode": 0
+}

@@ -35,6 +35,7 @@ var allowedUIKinds = map[string]struct{}{
 	"ui.nav":                {},
 	"ui.launcher_action":    {},
 	"ui.home_room_fallback": {},
+	"ui.home_room_reopen":   {},
 }
 
 var droppedUIDetailKeys = map[string]struct{}{

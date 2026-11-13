@@ -1,0 +1,10 @@
+{
+  "source_revision": "d8549cc79132f6d6a0752021552125c1220e337f",
+  "changed_compiler_inputs": {
+    "sources/misteross/boards/de25nano/hps/build.py": {
+      "old": "f6fe7bb29870b1e132671cb09c70a5f5a9fd3df8e0d027ed708ddf11301e4bbb",
+      "new": "984a18cab69c4a1178f74d88c0ba61524c037aa2a5922a61a659a09ae8565030"
+    }
+  },
+  "original_receipt_source": "09d0be9e2b17141562029866cfaa5ac6ca5d209a"
+}

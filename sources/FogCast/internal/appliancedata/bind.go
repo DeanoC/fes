@@ -140,6 +140,7 @@ func ProductionConfig() Config {
 		BootIDPath:      "/proc/sys/kernel/random/boot_id",
 		ReleaseRoot:     appliance.DefaultRoot,
 		Mounter:         platformMounter(),
+		EvaluateGate:    ReadProductionUpdateGate,
 	}
 }
 

@@ -1,0 +1,21 @@
+{
+  "source_revision": "791b47550ec191b128630c079a20ece075b244da",
+  "command": [
+    "make",
+    "-C",
+    "sources/libmister-runtime",
+    "-j2",
+    "BUILD_DIR=build/menu-profile",
+    "test-routine",
+    "archive-audit"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-11-01T12:48:53.293597+00:00",
+  "time_cap_seconds": 900,
+  "hardware_access": "not-performed",
+  "pid": 238892,
+  "state": "failed",
+  "elapsed_seconds": 212.5,
+  "heartbeat_utc": "2026-11-01T12:52:25.744531+00:00",
+  "returncode": 2
+}

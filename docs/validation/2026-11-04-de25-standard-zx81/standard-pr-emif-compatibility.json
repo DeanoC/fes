@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "source_revision": "413eba23868bb73b2e5b5f494274fa1231ce0d56",
+  "compiler_inputs": 65,
+  "runtime_test_inputs": 59,
+  "cases": 14,
+  "seconds": 668.244,
+  "exact_actual_fixture": true,
+  "proof_sha256": "e00833efb3d385159076567a9f31afdc8f3096d3eee62c4e3ed176f3cb127069"
+}

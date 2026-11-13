@@ -1,0 +1,144 @@
+{
+  "source_revision": "aa6ed6d01caabc6dcb9a3627fe15e50b13123ff4",
+  "host_revision": "91625e74d9c1a6a63a7a8f026652ecef27f4c01b",
+  "bundle_id": "0b22eb82bb0d05fa7f7eac5cb2f42838fa12d6c8a51ae46532f308c059865a5c",
+  "success": true,
+  "new_boot_id": "d66190d4-f024-4895-958a-43c5e4bb2b96",
+  "elapsed_seconds": 75.715,
+  "reboot_seconds": 47.447,
+  "scope": "One ordinary OS reboot from valid normal FES ZX81 session; normal service shutdown owns cleanup, no explicit session Stop sent by proof, JTAG or watchdog injection; exact base/software/kernel/card/probe and stable Ready/MENU idle/free verified",
+  "reboot_from_owned_session": {
+    "session_id": "21009b3b-a78a-45a0-b8fc-047db98ea9b8",
+    "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+    "target_name": "de25-bottom",
+    "flight_id": "9a389309-9158-4597-8351-bd90e4ab2959",
+    "game_id": "fpga-zx81-ecf8e4ef20d1",
+    "package_id": "05dfc7f7db974861f18df762fa61d6132d62fdb88d6c6cfbabafbc89a010907c",
+    "generation": 1,
+    "parts_composition": ""
+  },
+  "after": {
+    "health": {
+      "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+      "api_version": "v1",
+      "agent_version": "0.2.0-de25.aa6ed6d01",
+      "ready": true,
+      "boot_id": "d66190d4-f024-4895-958a-43c5e4bb2b96",
+      "artifacts": {
+        "record_sha256": "5ccf9a9cf32bb7d9259c7e0d348302edc18959d683dfa8e5a68460a50d63a76d",
+        "runtime_commit": "5cd8d0007990223ab9704eee1e2e4a06d16cf72c",
+        "agent_sha256": "98461cdf77cbc1b6ccec0bef61967760ac5f702ffb062785b85a7465c896c43f",
+        "agent_revision": "aa6ed6d01caabc6dcb9a3627fe15e50b13123ff4",
+        "kit_sha256": "4245adf3f1b390d23ce0231d7bb39ab925597ad58c030617e85f936535b9533e",
+        "image_sha256": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+        "idle_sha256": "31919f1eb3871080c8676c1546f3a527853accc8d929685865d522ad5b5f5f64"
+      },
+      "software": {
+        "version": 1,
+        "generation": 5,
+        "selected": "0b22eb82bb0d05fa7f7eac5cb2f42838fa12d6c8a51ae46532f308c059865a5c",
+        "previous": "76ab2678962cd032fe12db1b12c7f7cd9e7035d199033346240eab63b4e694b1",
+        "receipts": {
+          "2369c84f13f23ad377f91276262dae5f678560b67e91336ed53ff2deee65dfa2": {
+            "id": "2369c84f13f23ad377f91276262dae5f678560b67e91336ed53ff2deee65dfa2",
+            "candidate": "e79a319329d1e6ae0ea70dbba96e8a7a095958e9914acf3172fdcdd69281daca",
+            "requester": "software-accept-c467178563c4",
+            "expected_generation": 1,
+            "result": "cancelled"
+          },
+          "72b15742723e59c5b313258554aeef8e737b1104deb60a9e50d986b6888e398e": {
+            "id": "72b15742723e59c5b313258554aeef8e737b1104deb60a9e50d986b6888e398e",
+            "candidate": "3e71f56055e480bd6d433fe13370937c42748a4b15d43263ea25cd20b06eb680",
+            "requester": "software-accept-a32b4cc35568",
+            "expected_generation": 2,
+            "result": "cancelled"
+          },
+          "88c585f2241dee23a5a84e6c6934d00786bab5076068594c95134e537428db37": {
+            "id": "88c585f2241dee23a5a84e6c6934d00786bab5076068594c95134e537428db37",
+            "candidate": "0b22eb82bb0d05fa7f7eac5cb2f42838fa12d6c8a51ae46532f308c059865a5c",
+            "requester": "software-accept-6dfa95b73e9f",
+            "expected_generation": 4,
+            "result": "accepted"
+          },
+          "9bc6af25036aa2aa5a8480c03c76590de189ce164ace6c42bb8623fe9a158576": {
+            "id": "9bc6af25036aa2aa5a8480c03c76590de189ce164ace6c42bb8623fe9a158576",
+            "candidate": "e79a319329d1e6ae0ea70dbba96e8a7a095958e9914acf3172fdcdd69281daca",
+            "requester": "software-accept-c467178563c4",
+            "expected_generation": 1,
+            "result": "accepted"
+          },
+          "c22a2b66a4ebc6c3cfd7d7e982ec4d7e0eff948816e8d4d622264c7944cb943a": {
+            "id": "c22a2b66a4ebc6c3cfd7d7e982ec4d7e0eff948816e8d4d622264c7944cb943a",
+            "candidate": "0b22eb82bb0d05fa7f7eac5cb2f42838fa12d6c8a51ae46532f308c059865a5c",
+            "requester": "software-accept-6dfa95b73e9f",
+            "expected_generation": 4,
+            "result": "cancelled"
+          },
+          "cab2f675e888a55342eb50321cde94bdad85167e398acb72cd1db6f05062fa94": {
+            "id": "cab2f675e888a55342eb50321cde94bdad85167e398acb72cd1db6f05062fa94",
+            "candidate": "76ab2678962cd032fe12db1b12c7f7cd9e7035d199033346240eab63b4e694b1",
+            "requester": "software-accept-6abc3611a897",
+            "expected_generation": 3,
+            "result": "accepted"
+          },
+          "f82c0f5af8ffdab1d3fc3619505091604839327905101be4604f3467053b969c": {
+            "id": "f82c0f5af8ffdab1d3fc3619505091604839327905101be4604f3467053b969c",
+            "candidate": "76ab2678962cd032fe12db1b12c7f7cd9e7035d199033346240eab63b4e694b1",
+            "requester": "software-accept-6abc3611a897",
+            "expected_generation": 3,
+            "result": "cancelled"
+          },
+          "f9085944c5a4438de906c5748e52c44c84f1708eb1f6d1bafeb827b973771da3": {
+            "id": "f9085944c5a4438de906c5748e52c44c84f1708eb1f6d1bafeb827b973771da3",
+            "candidate": "66324262dbb3899b085066d573128b13d88afdff1d25328982dce9f5de72df27",
+            "requester": "Codex DE25 approved platform bringup",
+            "expected_generation": 0,
+            "result": "accepted"
+          },
+          "fb18b0a79b738a54b1f676b7a86aaba8ac7b4dcfb4a56ef928f43812c2c7617e": {
+            "id": "fb18b0a79b738a54b1f676b7a86aaba8ac7b4dcfb4a56ef928f43812c2c7617e",
+            "candidate": "3e71f56055e480bd6d433fe13370937c42748a4b15d43263ea25cd20b06eb680",
+            "requester": "software-accept-a32b4cc35568",
+            "expected_generation": 2,
+            "result": "accepted"
+          },
+          "fcf7495aa2aedaec3774bcea87618ec0820745c937f5bc56059bc75d2f98f0b3": {
+            "id": "fcf7495aa2aedaec3774bcea87618ec0820745c937f5bc56059bc75d2f98f0b3",
+            "candidate": "e8afd3f3f84f12b718cbe6fe9df2f77d8e1f547f38cc7a6f7b6aa682f29e15cb",
+            "requester": "Codex DE25 approved platform bringup",
+            "expected_generation": 0,
+            "result": "cancelled"
+          }
+        },
+        "active_bundle": "0b22eb82bb0d05fa7f7eac5cb2f42838fa12d6c8a51ae46532f308c059865a5c",
+        "base_identity": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076"
+      }
+    },
+    "status": {
+      "state": "idle",
+      "game_id": null,
+      "system": null,
+      "expected_core": null,
+      "observed_core": null,
+      "last_error": null
+    },
+    "lease": {
+      "expires_in_ms": 0,
+      "state": "free",
+      "generation": "b749a7294bf1e88d6de40f82e8b0cd075ad7b93605b6e98cc32dc8ebedbaff73",
+      "expires_at": "0001-01-01T00:00:00Z"
+    },
+    "update": {
+      "good": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+      "previous": "3b985b15dd6bbc1e945ae67dfc892e048719e684a20aea48e96bb5a4fec784aa",
+      "corrupt": false,
+      "boot_id": "d66190d4-f024-4895-958a-43c5e4bb2b96",
+      "image_sha256": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+      "trial": false,
+      "board": "de25-nano",
+      "raw_idle_ready": true,
+      "fat_idle_sha256": "31919f1eb3871080c8676c1546f3a527853accc8d929685865d522ad5b5f5f64",
+      "idle_sha256": "31919f1eb3871080c8676c1546f3a527853accc8d929685865d522ad5b5f5f64"
+    }
+  }
+}

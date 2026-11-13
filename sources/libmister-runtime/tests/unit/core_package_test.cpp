@@ -1,7 +1,10 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "de25_standard_descriptor.hpp"
 #include "native/core_package.hpp"
+#include "native/core_driver.hpp"
+#include "native/de25_core_contract.hpp"
 #include "native/sha256.hpp"
 
 #include <algorithm>
@@ -302,17 +305,10 @@ void TestLinkedCartridgeRejectsResetHeldMediaContracts()
 	descriptor.abi = {"fes.application", 1, 0};
 	descriptor.interfaces = {{"fes.video.fixed-720p60", 1, 0, true}};
 	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
-	for (bool required : {false, true}) {
-		auto firmware_mailbox = descriptor;
-		firmware_mailbox.interfaces.push_back({"fes.firmware.blob", 1, 0, required});
-		assert(mister::native::CheckCoreCompatibility(firmware_mailbox).code == mister::ErrorCode::unsupported_interface);
-		firmware_mailbox.rom.role = "firmware";
-		assert(mister::native::CheckCoreCompatibility(firmware_mailbox).ok());
-	}
 	auto game = descriptor;
 	game.abi = {"fes.simple-game", 1, 0};
 	game.interfaces.push_back({"fes.gamepad", 1, 0, true});
-	game.interfaces.push_back({"fes.firmware.blob", 1, 0, false});
+	game.interfaces.push_back({"fes.firmware.blob", 1, 0, true});
 	assert(mister::native::CheckCoreCompatibility(game).code == mister::ErrorCode::unsupported_interface);
 	descriptor.interfaces.push_back({"fes.media.blob", 1, 0, true});
 	assert(mister::native::CheckCoreCompatibility(descriptor).code == mister::ErrorCode::unsupported_interface);
@@ -450,12 +446,12 @@ void TestApplicationCompatibilityComposesInterfaces()
 	firmware.interfaces.push_back({"fes.firmware.blob", 1, 0, false});
 	assert(mister::native::CheckCoreCompatibility(firmware).ok());
 	firmware.interfaces.back().required = true;
-	assert(mister::native::CheckCoreCompatibility(firmware).ok());
+	assert(!mister::native::CheckCoreCompatibility(firmware).ok());
 	firmware.interfaces.back().minor = 1;
 	assert(!mister::native::CheckCoreCompatibility(firmware).ok());
 	firmware.interfaces.back().required = false;
 	assert(mister::native::CheckCoreCompatibility(firmware).ok());
-	// HPS DDR is operational: required when declared, like every non-firmware interface.
+	// HPS DDR is operational: required when declared, like every other operational interface.
 	auto memory = descriptor;
 	memory.interfaces.push_back({"fes.memory.hps-ddr", 1, 0, true});
 	assert(mister::native::CheckCoreCompatibility(memory).ok());
@@ -1128,10 +1124,149 @@ void TestComputerFirmwarePackageAdmission()
 		mister::ErrorCode::unsupported_abi);
 }
 
+void TestDe25StandardProfileBindsSharedDriverAndRejectsOtherMemory() {
+ using namespace mister;using namespace mister::native;
+ auto d=mister_test::De25StandardDescriptor();
+ ContainedCoreDriver shared,contained,bram;
+ CoreDriverRegistry selected(&shared,contained,&bram,NativePlatform::de25_nano);
+ CoreDriverRegistry missing(nullptr,contained,&bram,NativePlatform::de25_nano);
+ ProgrammingProfile profile;CoreDriver* driver=nullptr;
+ assert(selected.Resolve(d,&profile,&driver).ok()&&profile==ProgrammingProfile::de25_linux_computer_v1&&driver==&shared);
+ assert(!missing.Resolve(d,&profile,&driver).ok()&&!driver);
+ assert(!CheckCoreCompatibility(d).ok());
+ for(unsigned failure=0;failure<9;++failure) {
+  auto bad=d;
+  if(failure==0)bad.interfaces[8]={"fes.memory.hps-ddr",1,0,true};
+  if(failure==1)bad.interfaces[8].minor=0;
+  if(failure==2)bad.interfaces[2].required=false;
+  if(failure==3)bad.interfaces[3]=bad.interfaces[0];
+  if(failure==4)bad.target.programming_profile="de25-hps-first-v1";
+  if(failure==5)bad.abi.minor=1;
+  if(failure==6)bad.core.id="fes.c64";
+  if(failure==7)bad.build.id.assign(32,'0');
+  if(failure==8)bad.format=3;
+  assert(!selected.Resolve(bad,&profile,&driver).ok()&&!driver);
+ }
+}
+
+void TestDe25StaticProfileRequiresOptionalVersionTwoSocket()
+{
+ using namespace mister;using namespace mister::native;
+ auto d=mister_test::De25StandardDescriptor();
+ d.format=5;d.target.programming_profile="de25-linux-static-computer-v1";
+ d.interfaces.push_back({"fes.expansion.zx81-bus",2,0,false});
+ if(!De25StaticEnabled()) {
+  assert(!CheckDe25StandardComputerContract(d).ok());return;
+ }
+ assert(CheckDe25StandardComputerContract(d).ok());
+ ContainedCoreDriver shared,contained,bram;
+ CoreDriverRegistry registry(&shared,contained,&bram,NativePlatform::de25_nano);
+ ProgrammingProfile profile;CoreDriver* driver=nullptr;
+ assert(registry.Resolve(d,&profile,&driver).ok()&&
+  profile==ProgrammingProfile::de25_linux_static_computer_v1&&driver==&shared);
+ for(unsigned variant=0;variant<9;++variant) {
+  auto bad=d;
+  if(variant==0)bad.interfaces.pop_back();
+  if(variant==1)bad.interfaces.back().major=1;
+  if(variant==2)bad.interfaces.back().minor=1;
+  if(variant==3)bad.interfaces.back().required=true;
+  if(variant==4)bad.interfaces.back().id="fes.memory.hps-ddr";
+  if(variant==5)bad.interfaces.back()=bad.interfaces.front();
+  if(variant==6)bad.interfaces.push_back(bad.interfaces.back());
+  if(variant==7)bad.interfaces.front().required=false;
+  if(variant==8)bad.target.programming_profile="de25-linux-computer-v1";
+  assert(!CheckDe25StandardComputerContract(bad).ok());
+ }
+}
+
+void TestExplicitDe25ProfileAndDriverBinding()
+{
+	using namespace mister; using namespace mister::native;
+	TempDirectory package;
+	std::string manifest = ReadFile(std::string(kFixtures) + "/manifests/valid-basic.toml");
+	auto replace = [&](const std::string& before, const std::string& after) {
+		auto at = manifest.find(before); assert(at != std::string::npos);
+		manifest.replace(at, before.size(), after);
+	};
+	replace("de10_nano", "de25_nano"); replace("5CSEBA6U23I7", "A5EB013BB23BE4SCS");
+	replace("fes-gp-v1", "de25-hps-first-v1"); replace("fes.simple-game", "fes.computer");
+	replace("fes.gamepad", "fes.keyboard.hid");
+	manifest += "\n[[interfaces]]\nid = \"fes.media.zx81-tape\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	package.Add("manifest.toml", manifest);
+	package.Add("core.rbf", ReadFile(std::string(kFixtures) + "/payloads/fes-fixture.rbf"));
+	OpenedCorePackage opened; assert(OpenCorePackage(package.path, "", &opened).ok());
+	const auto& descriptor = opened.descriptor;
+	assert(CheckCoreCompatibility(descriptor).code == ErrorCode::unsupported_target);
+	assert(CheckCoreCompatibility(descriptor, NativePlatform::de25_nano).ok());
+	ContainedCoreDriver gp, contained, de25;
+	CoreDriverRegistry normal(&gp, contained, &de25);
+	CoreDriverRegistry selected(&gp, contained, &de25, NativePlatform::de25_nano);
+	CoreDriverRegistry missing(&gp, contained, nullptr, NativePlatform::de25_nano);
+	ProgrammingProfile profile; CoreDriver* driver = &gp;
+	assert(!normal.Resolve(descriptor, &profile, &driver).ok() && driver == nullptr);
+	assert(selected.Resolve(descriptor, &profile, &driver).ok());
+	assert(profile == ProgrammingProfile::de25_hps_first_v1 && driver == &de25);
+	assert(!missing.Resolve(descriptor, &profile, &driver).ok() && driver == nullptr);
+	assert(!normal.Resolve(ProgrammingProfile::de25_hps_first_v1));
+	assert(!selected.Resolve(ProgrammingProfile::fes_gp_v1));
+	assert(!selected.Resolve(ProgrammingProfile::development_contained_v1));
+	for (unsigned variant = 0; variant < 11; ++variant) {
+		auto bad = descriptor;
+		if (variant == 0) bad.target.device = "A5EB013BB23BE4R1";
+		if (variant == 1) bad.target.platform = "de10_nano";
+		if (variant == 2) bad.target.programming_profile = "fes-gp-v1";
+		if (variant == 3) bad.target.programming_profile = "development-contained-v1";
+		if (variant == 4) bad.abi.minor = 1;
+		if (variant == 5) bad.interfaces[0].required = false;
+		if (variant == 6) bad.interfaces.push_back({"fes.memory.hps-ddr", 1, 0, true});
+		if (variant == 7) bad.interfaces[1] = bad.interfaces[0];
+		if (variant == 8) bad.build.id.assign(32, '0');
+		if (variant == 9) bad.format = 3;
+		if (variant == 10) bad.core.system = "legacy";
+		driver = &de25;
+		assert(!selected.Resolve(bad, &profile, &driver).ok() && driver == nullptr);
+	}
+	assert(!CheckCoreCompatibility(descriptor, static_cast<NativePlatform>(255)).ok());
+}
+
+void TestStaticPackageSharedStructuralCorpus()
+{
+ const std::string root = "tests/fixtures/core-bundle-v5/";
+ const char* names[] = {"valid-basic", "invalid-platform", "invalid-device", "invalid-profile", "invalid-filename", "invalid-default-id", "invalid-float-id", "invalid-float-size", "invalid-empty-size", "invalid-size-binding", "invalid-hash-binding", "invalid-zero-controller", "invalid-zero-root", "invalid-zero-interface", "invalid-zero-clock", "invalid-zero-pof", "invalid-unknown-field", "invalid-mixed-rom", "invalid-missing-static"};
+ std::string identity = ReadFile(root + "identities/valid-basic.sha256");
+ assert(identity.size() == 65 && identity.back() == '\n'); identity.pop_back();
+ for (const auto* name : names) {
+  TempDirectory package;
+  package.Add("manifest.toml", ReadFile(root + "manifests/" + name + ".toml"));
+  package.Add("core.rbf", ReadFile(root + "payloads/base.rbf"));
+  package.Add("persona.rbf", ReadFile(root + "payloads/persona.rbf"));
+  mister::native::OpenedCorePackage opened;
+  const bool valid = std::string(name) == "valid-basic";
+  const auto result = mister::native::OpenCorePackage(package.path, valid ? identity : "", &opened);
+  if (result.ok() != valid) fprintf(stderr, "static fixture %s: %s\n", name, result.message.c_str());
+  assert(result.ok() == valid);
+  if (valid) {
+   assert(opened.package_id == identity && opened.persona.size() == opened.descriptor.static_expansion.size);
+   assert(mister::native::RecheckCorePackage(opened).ok());
+   // This structural two-interface fixture is insufficient for the exact
+   // standard-computer contract even in a qualification build.
+   assert(mister::native::CheckCoreCompatibility(opened.descriptor, mister::native::NativePlatform::de25_nano).code ==
+    (mister::native::De25StaticEnabled() ? mister::ErrorCode::unsupported_abi : mister::ErrorCode::unsupported_programming_profile));
+   const int fd = open((package.path + "/persona.rbf").c_str(), O_WRONLY);
+   assert(fd >= 0); const char changed = 'x'; assert(pwrite(fd, &changed, 1, 0) == 1); assert(close(fd) == 0);
+   assert(!mister::native::RecheckCorePackage(opened).ok());
+  }
+ }
+}
+
 } // namespace
 
 int main()
 {
+ TestStaticPackageSharedStructuralCorpus();
+	TestExplicitDe25ProfileAndDriverBinding();
+ TestDe25StandardProfileBindsSharedDriverAndRejectsOtherMemory();
+ TestDe25StaticProfileRequiresOptionalVersionTwoSocket();
 	TestComputerCompatibilityComposesRecognizedInterfaces();
 	TestComputerFirmwarePackageAdmission();
 	TestSharedFormat4TwoSourceFixture();
@@ -1150,6 +1285,6 @@ int main()
 	TestRepositoryMatchesSharedRfc3986Contract();
 	TestCoreSystemPresenceIsValidatedAndFesGpRequiresOmission();
 	TestMissingOrNonTableCoreIsRejectedWithoutChangingResult();
-	puts("core_package_test: 13 groups passed");
+	puts("core_package_test: all groups passed");
 	return 0;
 }

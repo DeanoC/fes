@@ -1,0 +1,21 @@
+{
+  "source": "ba43ac5aa5acc3ba14225849515eef9538b3e154",
+  "classification": "compiler metadata correction only; original receipt and binary bytes unchanged",
+  "old_go_version_field": "go version go1.24.4 linux/amd64",
+  "old_field_origin": "go version ran outside sources/FogCast and reported the outer Go launcher",
+  "actual_module_go_version": "go version go1.26.5 linux/amd64",
+  "binary_build_info": {
+    "fogcast-tenfoot-linux-arm64": {
+      "sha256": "a0049831017d1ef350b4ed7c542d07340820eca441a8959336f41241215a9dc7",
+      "binary_go_version": "go1.26.5"
+    },
+    "gfx-tests-arm64": {
+      "sha256": "1e2144e1731fed7b770cc22dca792e04432fa63b5c0c7a283de97c459da564d4",
+      "binary_go_version": "go1.26.5"
+    },
+    "menudisplay-tests-arm64": {
+      "sha256": "24d3ce6ed11366d61dada7088f062f8de5499cbc915ef1fc6e8b1226fed1cea5",
+      "binary_go_version": "go1.26.5"
+    }
+  }
+}
