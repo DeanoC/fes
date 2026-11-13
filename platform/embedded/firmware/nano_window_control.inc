@@ -56,7 +56,8 @@ static int fes_nano_window_control(uint32_t fid,uint64_t operation,uint64_t owne
         storage=fid==FES_EMBEDDED_SD_CALL && cookie==FES_EMBEDDED_SD_COOKIE && !busy &&
                 fes_nano_platform_window_return(&returned)==1;
 #endif
-        return !(context || storage);
+        unsigned source=bridge && operation==FES_EMBEDDED_BRIDGE_RELEASE_SOURCE && !busy;
+        return !(context || storage || source);
     }
     if(fes_nano_window_phase==FES_WINDOW_RECONFIGURING && !control) {
         unsigned transfer=c && c->rearmed && c->prepared && !c->finished && !c->failed &&

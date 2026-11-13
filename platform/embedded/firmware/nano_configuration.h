@@ -36,6 +36,8 @@ struct fes_nano_configuration {
     unsigned initialized, attempted, prepared, started, finished, failed, rearmed;
     unsigned stage, issued;
     int first_error;
+    uint64_t source_release_source,source_release_generation;
+    unsigned source_release_attempted,source_released;
 };
 #ifdef __cplusplus
 extern "C" {
@@ -49,6 +51,12 @@ void fes_nano_configuration_prepare(struct fes_nano_configuration *, uint64_t ow
  * owned all-master close. This never recovers a failed/ambiguous transaction. */
 void fes_nano_configuration_rearm(struct fes_nano_configuration *, uint64_t owner,
                                    uint64_t generation, unsigned configuring, uint64_t result[4]);
+/* Release the previous source under the same owned call lock, before CPU
+ * overwrite. The strong provider must prove completed mailbox/parser/SMMU,
+ * actual session return and stopped devices. No default permission exists. */
+void fes_nano_configuration_release_source(struct fes_nano_configuration *, uint64_t owner,
+                                            uint64_t generation, unsigned configuring, uint64_t result[4]);
+int fes_nano_platform_release_source(struct fes_nano_configuration *, uint64_t owner, uint64_t generation);
 int fes_nano_configuration_before(struct fes_nano_configuration *, uint32_t fid,
                                     uint64_t address, uint64_t bytes, unsigned configuring);
 void fes_nano_configuration_after(struct fes_nano_configuration *, uint32_t fid, uint64_t result[4]);

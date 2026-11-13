@@ -120,6 +120,8 @@ type HPSContextVerifier struct {
 	computerReturn         BridgeSnapshot
 	computerSDResumed      bool
 	rom                    *romControlMap
+	configurationMu        sync.Mutex
+	completedConfiguration *ConfigurationTransfer
 }
 
 func NewHPSContextVerifier(cpu FirmwareCaller, source []byte) (*HPSContextVerifier, error) {

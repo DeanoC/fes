@@ -1,9 +1,35 @@
 # Experimental owned firmware bridge channel
 
-`fes.fabric.embedded.bridges` 1.10 supplies generated C/Go constants for the
+`fes.fabric.embedded.bridges` 1.11 supplies generated C/Go constants for the
 Linux-free Nano firmware experiment. It adds no programming profile, package
 ABI, register mapping or production compatibility entry. The FPGA endpoint
 contract and its generated inputs are unchanged.
+
+Operation 14, `ReleaseSource`, is the private pre-overwrite source-release
+request for the retained programming arena. It carries only the expected owner,
+cookie and current closed generation, using the ordinary request positions.
+Success is exactly `x0=0`, `x1=0x46535231 << 32`, `x2=owner`, `x3=generation`.
+There are no success flags, addresses, lengths, digests or caller-supplied drain
+receipts. A rearm or retirement tag cannot acknowledge source release.
+
+The selected full-input dispatcher recognizes this request only after its
+session policy permits return; open sessions and initial mixed-role boot deny
+it. The configuration gate requires the actual completed transfer, no pending
+or issued work, the same owner and a newer all-master closed generation. It
+consumes one attempt for that source generation before calling a strong secure
+platform supplier. The entire configuration controller and fresh closed bridge
+scope must remain unchanged around that callback. Busy or invalid scope grants
+nothing. A failed or uncertain attempt cannot be replayed or bypassed by rearm.
+Success authorizes overwriting that old source; it does not arm the next SDM
+transfer, reopen a reader or assert whole-interconnect drain.
+
+The current weak supplier returns no permission (status 5 in the selected
+service). Nonselected cold services may reject the operation before this gate.
+The real retained-source release supplier is still to be connected to the
+mailbox/parser, SMMU and actual reader/ROM return state. Thus this contract and
+the CPU reservation hook currently grant no physical buffer reuse. Software
+models inject the supplier and exercise atomic release/copy, ownership changes,
+malformed replies and failure retention; they are not hardware acceptance.
 
 The private SiP call `0xc2000301` uses an opt-in `x3=0x46455342` cookie.
 The number is unused in the inspected pins and outside their v2/v3 ranges.

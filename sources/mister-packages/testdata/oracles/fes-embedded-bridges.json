@@ -1,14 +1,14 @@
 {
   "source": {
     "repository": "DeanoC/fes",
-    "commit": "2b3dca63b3d6e6ae04b863dbf8891ad883c0862e",
+    "commit": "71bcb5d49ff248e14007ef35a4ac4fd922851f11",
     "file": "platform/embedded/firmware/generated/fes_embedded_bridges.h",
-    "note": "Source base for read-only, owner/generation-bound verification of the sealed Agilex 5 pinmux handoff. Two complete CSR samples precede digest part0; part1 consumes the same scoped observation. No address, value, boot grant, bridge opening or configuration permission is supplied by the caller."
+    "note": "Source base for private generation-bound source release before copying a successor configuration. Default platform denies permission; a successful reply is neither SMMU rearm nor whole-interconnect drain."
   },
   "fabric": {
     "id": "fes.fabric.embedded.bridges",
     "major": 1,
-    "minor": 10
+    "minor": 11
   },
   "constants": {
     "FesEmbeddedBridgeCall": 3254780673,
@@ -52,6 +52,8 @@
     "FesEmbeddedBridgeRearmTag": 1180127793,
     "FesEmbeddedBridgeHpsIoPart0": 12,
     "FesEmbeddedBridgeHpsIoPart1": 13,
-    "FesEmbeddedBridgeHpsIoTag": 1179142449
+    "FesEmbeddedBridgeHpsIoTag": 1179142449,
+    "FesEmbeddedBridgeReleaseSource": 14,
+    "FesEmbeddedBridgeSourceReleaseTag": 1179865649
   }
 }

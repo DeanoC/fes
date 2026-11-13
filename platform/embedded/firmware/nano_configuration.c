@@ -1,10 +1,13 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 #include "nano_configuration.h"
 #include "nano_program.h"
+#include <string.h>
 
 __attribute__((weak)) struct fes_nano_configuration *fes_nano_platform_configuration(void) { return 0; }
 __attribute__((weak)) int fes_nano_platform_configuration_setup(void) { return 0; }
 __attribute__((weak)) int fes_nano_platform_configuration_diagnostic_ready(void) { return 0; }
+__attribute__((weak)) int fes_nano_platform_release_source(struct fes_nano_configuration *s,uint64_t owner,uint64_t generation)
+{ (void)s;(void)owner;(void)generation;return 0; }
 
 static void trace(struct fes_nano_configuration *s, unsigned stage)
 {
@@ -111,6 +114,8 @@ void fes_nano_configuration_rearm(struct fes_nano_configuration *s, uint64_t own
     if(configuring || (s && s->bridges && s->bridges->device_lease)){result[0]=1;return;}
     if(!s || !s->initialized){result[0]=FES_EMBEDDED_BRIDGE_NOT_READY;return;}
     if(s->failed){result[0]=4;return;}
+    if(s->source_release_attempted && (s->source_release_source!=s->generation ||
+       !s->source_released || s->source_release_generation!=generation))return;
     if(!owner || owner!=s->owner || !generation || generation>UINT64_MAX-2 || generation<=s->generation ||
        !s->attempted || !s->prepared || !s->started || !s->finished || s->issued ||
        s->pending || s->completed!=s->bytes || !s->bytes)return;
@@ -126,6 +131,39 @@ void fes_nano_configuration_rearm(struct fes_nano_configuration *s, uint64_t own
     if(!bind(s) || !check(s,1)){result[0]=fail(s,-1);return;}
     s->prepared=1;trace(s,FES_CONFIG_ARM);
     result[0]=0;result[1]|=s->bytes|(s->io.bind ? FES_NANO_PROGRAM_BOUND_REPLY : 0U);result[2]=s->owner;result[3]=s->generation;
+}
+static int release_scope(struct fes_nano_configuration *s,uint64_t owner,uint64_t generation)
+{
+    struct fes_nano_bridge_snapshot b;
+    return s && s->initialized && !s->failed && s->attempted && s->prepared && s->started &&
+        s->finished && !s->issued && !s->pending && s->bytes && s->completed==s->bytes &&
+        s->owner==owner && owner && generation>s->generation && generation<=UINT64_MAX-2 && s->bridges &&
+        !s->bridges->device_lease && !fes_nano_bridges_observe(s->bridges,&b) &&
+        b.owner==owner && b.generation==generation && !b.never_enabled &&
+        b.reset==FES_NANO_BRIDGES_ALL && b.masters_contained;
+}
+void fes_nano_configuration_release_source(struct fes_nano_configuration *s,uint64_t owner,
+                                            uint64_t generation,unsigned configuring,uint64_t r[4])
+{
+    r[0]=2;r[1]=(uint64_t)FES_EMBEDDED_BRIDGE_SOURCE_RELEASE_TAG<<32;r[2]=r[3]=0;
+    if(configuring || (s && s->bridges && s->bridges->device_lease)){r[0]=1;return;}
+    if(!s || !s->initialized){r[0]=FES_EMBEDDED_BRIDGE_NOT_READY;return;}
+    if(s->failed){r[0]=4;return;}
+    if((s->source_release_attempted && s->source_release_source==s->generation) ||
+       !release_scope(s,owner,generation))return;
+    const uint64_t source=s->generation,base=s->base;
+    const uint32_t bytes=s->bytes,chunk=s->chunk;
+    s->source_release_attempted=1;s->source_released=0;
+    s->source_release_source=source;s->source_release_generation=generation;
+    struct fes_nano_configuration pinned;memcpy(&pinned,s,sizeof(pinned));
+    int status=fes_nano_platform_release_source(s,owner,generation);
+    if(status!=1){r[0]=status ? (uint64_t)fail(s,status):FES_EMBEDDED_BRIDGE_NOT_READY;return;}
+    if(memcmp(&pinned,s,sizeof(pinned)) || !release_scope(s,owner,generation) || s->generation!=source || s->base!=base ||
+       s->bytes!=bytes || s->chunk!=chunk || s->source_release_attempted!=1 ||
+       s->source_released || s->source_release_source!=source || s->source_release_generation!=generation) {
+        r[0]=fail(s,-1);return;
+    }
+    s->source_released=1;r[0]=0;r[2]=owner;r[3]=generation;
 }
 int fes_nano_configuration_before(struct fes_nano_configuration *s, uint32_t fid,
                                     uint64_t address, uint64_t bytes, unsigned configuring)

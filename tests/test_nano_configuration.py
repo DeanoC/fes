@@ -18,6 +18,19 @@ spec.loader.exec_module(digest)
 
 
 class NanoConfigurationTests(unittest.TestCase):
+    def test_source_release_requires_closed_completed_private_provider(self):
+        with tempfile.TemporaryDirectory() as directory:
+            binary = Path(directory) / 'source-release'
+            sources = ['nano_configuration.c', 'nano_program.c', 'nano_bridges.c', 'tests/nano_source_release_test.c']
+            compiled = subprocess.run(['cc', '-std=c11', '-O1', '-g', '-Wall', '-Wextra', '-Werror',
+                                       '-fsanitize=address,undefined', '-fno-sanitize-recover=all',
+                                       '-I' + str(FW), *[str(FW / name) for name in sources], '-o', str(binary)],
+                                      timeout=60, capture_output=True, text=True)
+            self.assertEqual(compiled.returncode, 0, compiled.stderr)
+            result = subprocess.run([str(binary)], timeout=30, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('PASS 25 source release cases', result.stdout)
+
     def test_digest_specialization_rejects_unreviewed_inputs_and_is_explicit(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)

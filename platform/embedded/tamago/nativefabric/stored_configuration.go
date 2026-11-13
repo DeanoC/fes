@@ -150,7 +150,7 @@ func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, 
 	if !held || !generation || receipt.Active || receipt.Prepared || receipt.Owner != source.Bridges.Owner {
 		return nil, HPSBootObservation{}, errors.New("native fabric: retained storage or verified return differs from live ownership")
 	}
-	region, err := reserve(p.payload)
+	region, err := v.reserveStoredSource(p.payload, source, rearm, reserve)
 	p.region = region // Retain even a reservation returned together with an error.
 	if err != nil {
 		return nil, HPSBootObservation{}, err

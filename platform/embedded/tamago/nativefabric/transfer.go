@@ -49,6 +49,7 @@ type configurationBinding struct {
 	menuReturn   *MenuSession
 	windowOpened bool
 	menuOpened   bool
+	sourceRegion *Region
 }
 
 // The pinned SiP engine has four buffer descriptors. BUSY accepts the latest
@@ -257,10 +258,18 @@ func (t *ConfigurationTransfer) Advance() (done, busy bool, err error) {
 		if err := t.region.Release(); err != nil {
 			return fail(err)
 		}
+		completedRegion := t.region
 		t.region = nil
 		t.chunks = nil
 		t.done = true
 		t.phase = "complete"
+		if t.binding != nil && t.binding.verifier != nil {
+			v := t.binding.verifier
+			v.configurationMu.Lock()
+			t.binding.sourceRegion = completedRegion
+			v.completedConfiguration = t
+			v.configurationMu.Unlock()
+		}
 		return true, false, nil
 	default:
 		return fail(errors.New("native fabric: invalid configuration phase"))

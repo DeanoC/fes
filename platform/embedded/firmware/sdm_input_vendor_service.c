@@ -2479,6 +2479,10 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
             fes_nano_configuration_prepare(configuration,x2,x4,request_type != NO_REQUEST,r);
             goto out;
         }
+        if (x1 == FES_EMBEDDED_BRIDGE_RELEASE_SOURCE) {
+            fes_nano_configuration_release_source(configuration,x2,x4,request_type != NO_REQUEST,r);
+            goto out;
+        }
         if (x1 == FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION) {
             fes_nano_configuration_rearm(configuration,x2,x4,request_type != NO_REQUEST,r);
             goto out;

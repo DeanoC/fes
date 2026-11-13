@@ -38,6 +38,10 @@ func (c *menuStorageCPU) Invoke(a [7]uint64) ([4]uint64, error) {
 
 // Join actual retained packages, transfers and menu sessions with modeled platform I/O.
 func storedMenu(t *testing.T) (*menuFixture, *packagestore.Store, *packagestore.Handoff, *windowStorageLease, *windowStorageFiles, packagestore.Request) {
+	return storedMenuArena(t, false)
+}
+
+func storedMenuArena(t *testing.T, retained bool) (*menuFixture, *packagestore.Store, *packagestore.Handoff, *windowStorageLease, *windowStorageFiles, packagestore.Request) {
 	t.Helper()
 	f := newMenuFixture(t)
 	identity := f.v.context
@@ -152,7 +156,11 @@ toolchain = "synthetic software fixture"
 	if err != nil {
 		t.Fatal(err)
 	}
-	arena, err := NewProgramArena(0x94800000, make([]byte, ProgramMetadataBytes+256), func() error { return nil })
+	makeArena := NewProgramArena
+	if retained {
+		makeArena = NewRetainedProgramArena
+	}
+	arena, err := makeArena(0x94800000, make([]byte, ProgramMetadataBytes+256), func() error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}

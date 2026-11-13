@@ -115,7 +115,10 @@ drivers, held-ROM delivery and trusted firmware integration.
 The experimental [embedded identity/drain contract](docs/embedded-control.md)
 generates constants for a standalone FPGA endpoint and FES firmware adapter.
 It registers no production ABI or Nano programming profile.
-The separate [owned firmware bridge channel](docs/embedded-bridges.md) generates
+The separate [owned firmware bridge channel](docs/embedded-bridges.md) includes
+the private generation-bound pre-overwrite source-release request. Its default
+platform denies permission; the CPU's atomic successor reservation does not
+itself qualify source reuse or SMMU rearming. The channel generates
 C/Go constants for an opt-in Nano SiP experiment. It supplies no boot proof or
 physical admission and does not change FPGA endpoint build inputs.
 Version 1.10 adds two read-only digest operations for a fixed, source-bound

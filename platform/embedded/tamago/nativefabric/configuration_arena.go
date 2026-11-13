@@ -11,7 +11,7 @@ import (
 // ConfigurationArena leases a platform-owned, uncached mapping that remains
 // pinned until reboot. The platform supplies the mapping and ordering hook;
 // this type establishes neither physical ownership nor bridge permission.
-// Only a successful transfer's Release permits overwriting the previous lease.
+// A retained program additionally needs secure source release before overwrite.
 type ConfigurationArena struct {
 	mu                        sync.Mutex
 	address                   uint64
@@ -42,9 +42,9 @@ func NewProgramArena(address uint64, memory []byte, barrier func() error) (*Conf
 	return a, nil
 }
 
-// NewRetainedProgramArena permits one program reservation. Successful transfer
-// completion does not permit overwriting source or metadata, including through
-// initial-tape publication. No runtime/device permission is implied.
+// NewRetainedProgramArena keeps completed source and metadata pinned. Reserve
+// and initial-tape publication cannot overwrite them. Only the native owner can
+// request the next reservation through a successful secure source-release call.
 func NewRetainedProgramArena(address uint64, memory []byte, barrier func() error) (*ConfigurationArena, error) {
 	a, err := NewProgramArena(address, memory, barrier)
 	if err != nil {
@@ -70,7 +70,13 @@ func (a *ConfigurationArena) Reserve(source []byte) (*Region, error) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.failed || (a.retained && a.active != nil) || (a.active != nil && !a.ready) || len(source) == 0 || len(source) > len(a.memory) {
+	return a.reserveLocked(source, false)
+}
+
+// reclaimed is private to the exact old region's locked successor callback;
+// neither a public Region copy nor a firmware observation supplies this grant.
+func (a *ConfigurationArena) reserveLocked(source []byte, reclaimed bool) (*Region, error) {
+	if a.failed || (a.retained && a.active != nil && !reclaimed) || (a.active != nil && !a.ready) || len(source) == 0 || len(source) > len(a.memory) {
 		return nil, errors.New("native fabric: configuration arena lease unavailable")
 	}
 	// The board's ordering hook also validates its live mapping. Reject a
@@ -186,6 +192,45 @@ func (a *ConfigurationArena) Reserve(source []byte) (*Region, error) {
 		}
 		a.ready = true
 		return nil
+	}
+	if a.retained {
+		attempted := false
+		region.reserveNext = func(next []byte, release func() error) (*Region, error) {
+			a.mu.Lock()
+			defer a.mu.Unlock()
+			if a.failed || a.active != region || !a.ready || attempted || release == nil || len(next) == 0 || len(next) > len(a.memory) {
+				return nil, errors.New("native fabric: retained source release stale or unavailable")
+			}
+			attempted = true
+			// Clone before calling trusted firmware: callers cannot change which
+			// bytes this atomic successor reservation will copy during the call.
+			next = bytes.Clone(next)
+			unchanged := func() bool {
+				return a.active == region && a.ready && bytes.Equal(region.Bytes, owned) &&
+					(a.metadata == nil || published && bytes.Equal(a.metadata[:len(header)], header) && romUnchanged())
+			}
+			if err := a.barrier(); err != nil {
+				a.failed = true
+				return nil, err
+			}
+			if !unchanged() {
+				a.failed = true
+				return nil, errors.New("native fabric: retained source changed before secure release")
+			}
+			if err := release(); err != nil {
+				a.failed = true
+				return nil, err
+			}
+			if err := a.barrier(); err != nil {
+				a.failed = true
+				return nil, err
+			}
+			if !unchanged() {
+				a.failed = true
+				return nil, errors.New("native fabric: retained source changed during secure release")
+			}
+			return a.reserveLocked(next, true)
+		}
 	}
 	clear(a.metadata)
 	copy(region.Bytes, owned)

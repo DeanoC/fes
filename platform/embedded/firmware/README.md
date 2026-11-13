@@ -76,6 +76,17 @@ These are software checks for subsequent rearm integration, not repeated core
 loads on hardware. The physical format-14 record above applies to its frozen
 earlier firmware, not these changed producer bytes.
 
+The selected full-input service also recognizes the private `ReleaseSource`
+request before CPU overwrite. The configuration gate requires its actual
+completed transfer and a newer closed owner, consumes one source-generation
+attempt, and checks the complete controller and fresh bridge scope around the
+secure platform callback. An attempted failed release cannot be bypassed by
+configuration rearm. The default callback grants no permission; connecting the
+real retained mailbox/SMMU/reader-return proof remains open. The native runtime
+uses this gate inside its original arena's atomic successor reservation. Host
+models exercise that order and its failure paths; no hardware source reuse or
+new-generation SMMU arm follows from these checks.
+
 The selected full-input retirement profile uses a bounded, read-only command
 snapshot callback. Each queue snapshot checks the same 24-register superset as
 the outer retirement engine, with fresh source/owner/callback validation before

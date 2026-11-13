@@ -31,6 +31,8 @@ const (
 	FesEmbeddedBridgeHpsIoPart0           uint32 = 0xc
 	FesEmbeddedBridgeHpsIoPart1           uint32 = 0xd
 	FesEmbeddedBridgeHpsIoTag             uint32 = 0x46484931
+	FesEmbeddedBridgeReleaseSource        uint32 = 0xe
+	FesEmbeddedBridgeSourceReleaseTag     uint32 = 0x46535231
 	FesEmbeddedBridgeRequestFabric        uint32 = 0x100
 	FesEmbeddedBridgeRequestHeld          uint32 = 0x200
 	FesEmbeddedBridgeNotReady             uint32 = 0x5

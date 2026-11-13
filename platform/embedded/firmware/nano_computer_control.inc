@@ -37,7 +37,8 @@ static int fes_nano_computer_control(uint32_t fid, uint64_t operation,
         unsigned transfer = c && c->rearmed && c->prepared && !c->finished && !c->failed &&
             (fid == FES_NANO_CONFIG_START || fid == FES_NANO_CONFIG_WRITE ||
              fid == FES_NANO_CONFIG_COMPLETED || fid == FES_NANO_CONFIG_ISDONE);
-        return !(snapshot || context || rearm || transfer || storage);
+        unsigned source=bridge && operation==FES_EMBEDDED_BRIDGE_RELEASE_SOURCE && !busy;
+        return !(snapshot || context || rearm || transfer || storage || source);
     }
     if (fes_nano_computer_phase == 1) {
         if (snapshot) return 0;

@@ -1156,7 +1156,20 @@ the modeled firmware transport; they supply no physical USB acceptance.
 
 The explicit retained-continuation prototype uses `NewRetainedProgramArena`.
 It permits one program reservation, validates completion normally, and retains
-both source and metadata after release. A later program reservation or initial
-tape publication fails before a write, barrier or firmware call. The Nano SDK
+both source and metadata after release. A later public program reservation or
+initial tape publication fails before a write, barrier or firmware call. A
+privately retained completed transfer can request an atomic successor through
+its original arena after the actual session return and fresh stopped-SD handoff.
+The arena validates the old source, metadata, ROM and mapping, asks firmware for
+the dedicated generation-bound source release, then rechecks ownership and
+memory before copying any successor bytes. These steps hold the arena lock;
+no reusable host receipt or stale completion can release a newer lease.
+Rejection, uncertainty or changed state pins the arena and forbids retry.
+
+The firmware's default source-release supplier denies permission. Its actual
+retained-source mailbox/SMMU/return supplier and next-generation rearm remain
+unconnected, so this CPU hook does not yet enable repeated hardware loads.
+Models run actual menu/SD return and transfer controllers with injected SMC
+responses, including three successor launches and failure paths. The Nano SDK
 selects this with `--retain-configuration`; its receipt propagates through the
 entry and cold-profile identity. It is not a source-reuse or device grant.

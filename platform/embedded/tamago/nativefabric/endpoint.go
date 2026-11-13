@@ -38,6 +38,9 @@ type Region struct {
 	// Stages one separately retained firmware ROM after the aligned FPGA
 	// payload. It does not extend Bytes or the SDM transfer, and grants no I/O.
 	StageROM func([]byte) error
+	// Only native configuration ownership can reserve the next retained lease.
+	// The arena runs release under its lock before copying any next-source byte.
+	reserveNext func([]byte, func() error) (*Region, error)
 }
 
 // Hooks are trusted, serialized, synchronous and bounded-return operations.
