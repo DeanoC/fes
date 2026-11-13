@@ -135,6 +135,7 @@ public:
         auto vector = [&](unsigned n, uint16_t ip) { bus.put(n * 4, {uint8_t(ip), uint8_t(ip >> 8), 0, 0}); };
         vector(0x75, 0x2000);
         vector(2, 0x2100);
+        vector(6, 0x2300);
         vector(7, 0x2200);
         // PUSH BP; MOV BP, SP; PUSH AX; MOV AX, [BP+2]; MOV [frame], AX; POP AX;
         // POP BP; INC WORD [count]; then the handler's own instruction; IRET.
@@ -147,6 +148,7 @@ public:
         handler(0x2000, 0x00, 0x08, {0xe6, 0xf0});  // OUT F0h, AL
         handler(0x2100, 0x02, 0x0a, {0xe6, 0xf0});
         handler(0x2200, 0x04, 0x0c, {0x0f, 0x06});  // CLTS
+        bus.put(0x2300, {0xf4});                    // #UD stops here
         bus.put(0x500, {0x7b, 0x03});               // control word 037Bh: ZM unmasked
         // A denormal for FLD m80 at 0520h: significand 1, exponent 0.
         bus.put(0x520, {1, 0, 0, 0, 0, 0, 0, 0, 0, 0});
@@ -299,6 +301,26 @@ void cases(Bench &b) {
         b.check(b.bus.word(0x604) == unsigned(mp), "#NM calls " + std::to_string(b.bus.word(0x604)));
         b.check(r.held >= 4 && b.held_only_at(r, wait), "held " + std::to_string(r.held) + " not at WAIT");
         b.done(mp ? "wait-mp1" : "wait-mp0");
+    }
+    {
+        // LOCK FWAIT is #UD before the AT BUSY# latch can hold the 386.
+        Code c;
+        c.op({0xfa});
+        c.prologue();
+        const uint16_t lock_wait = c.op({0xf0, 0x9b});
+        c.op({0xf4});
+        Run r = b.run(c);
+        bool ud_at_lock_wait = false;
+        for (const StepResult &step : r.steps) {
+            if (step.eip_before == lock_wait && !step.retired && step.events.size() == 1 &&
+                step.events[0].vector == 6) {
+                ud_at_lock_wait = true;
+            }
+        }
+        b.check(ud_at_lock_wait, "LOCK FWAIT did not raise #UD at its first byte");
+        b.check(r.held == 0, "LOCK FWAIT held on BUSY# " + std::to_string(r.held) + " times");
+        b.check(b.oracle->x87_busy_latched(), "#UD cleared the AT BUSY# latch");
+        b.done("lock-fwait-ud");
     }
     {
         Code c;

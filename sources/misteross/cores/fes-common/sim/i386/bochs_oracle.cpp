@@ -86,11 +86,11 @@ void sample_error() {
 // and FNCLEX, and WAIT (80386 Hardware Reference Manual, 5.1: "When the 80386
 // encounters any coprocessor instruction except FNINIT and FNCLEX, the BUSY#
 // input must be inactive"), unless #NM or #UD comes first: EM or TS for an
-// ESC, MP and TS for WAIT, LOCK for an ESC.
+// ESC, MP and TS for WAIT, LOCK for an ESC or WAIT.
 bool waits_for_busy(const bxInstruction_c *i) {
     const unsigned op = i->getIaOpcode();
     const Bit32u cr0 = bx_cpu.cr0.get32();
-    if (op == BX_IA_FWAIT) return (cr0 & 0xa) != 0xa;
+    if (op == BX_IA_FWAIT) return (cr0 & 0xa) != 0xa && !i->getLock();
     if (!(BxOpcodesTable[op].opflags & BX_PREPARE_FPU) || op == BX_IA_FNINIT || op == BX_IA_FNCLEX) return false;
     return !(cr0 & 0xc) && !i->getLock();
 }
