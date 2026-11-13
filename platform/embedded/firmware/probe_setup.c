@@ -223,7 +223,7 @@ int nano_probe_prepare(struct nano_probe_setup *s,struct nano_probe_receipt *out
         equal(s,0x88,8) || equal(s,0x90,(uint32_t)(NANO_PROBE_BASE+NANO_PROBE_CMDQ)|3U) ||
         equal(s,0x94,0) || control(s,8)) return s->first_error;
     struct nano_cmdq_binding b={s->binding.owner,s->binding.epoch,s->binding.generation,NANO_PROBE_BASE+NANO_PROBE_CMDQ,0};
-    struct nano_cmdq_io io={s,cmd_owns,cmd_time,cmd_read,cmd_write,cmd_store,cmd_barrier,0};
+    struct nano_cmdq_io io={s,cmd_owns,cmd_time,cmd_read,cmd_write,cmd_store,cmd_barrier,0,0};
     if (nano_cmdq_init(&s->command,b,io) || nano_cmdq_submit(&s->command,&s->command_receipt)) return fail(s,-5);
     if (wr(s,0xa0,(uint32_t)(NANO_PROBE_BASE+NANO_PROBE_EVTQ)|3U) || wr(s,0xa4,0) ||
         equal(s,0x100a8,0) || equal(s,0x100ac,0) || control(s,12) ||

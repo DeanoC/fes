@@ -17,7 +17,7 @@ status register. Shared archive inspection grants no hardware activation.
 
 The [publication record](../../docs/validation/2026-11-13-de25-embedded-opt-in/README.md)
 separates historical hardware results from validation of the merged sources.
-The latest [command-snapshot hardware diagnostic](../../docs/validation/2026-11-13-de25-command-snapshot-physical/README.md)
+The earlier [command-snapshot hardware diagnostic](../../docs/validation/2026-11-13-de25-command-snapshot-physical/README.md)
 completes full input transfer, but SMMU retirement still fails closed before
 queue publication. Its exact original FIT is restored; warm baseline startup
 then fails with a USB packet error and requires a physical reset. Independent
@@ -33,8 +33,13 @@ retained archive readback pass; it has no physical retirement acceptance.
 The [format-8 command-guard candidate](../../docs/validation/2026-11-13-de25-command-guard/README.md)
 removes two duplicate platform observations per queue guard while preserving
 the original deadlines and live checks around each register batch. Its complete
-matched chain and native file admission pass; it still needs a fresh bounded
-hardware trial.
+matched chain and native file admission pass. Its bounded hardware trial
+completes input transfer and reaches queue publication, then stops at the command
+deadline; recovery programming reports a broken JTAG chain. After a physical
+reset, exact original-FIT rollback and the full 51-command baseline cycle/Park
+are independently verified. The format-9 successor adds one guarded read-only
+queue-progress batch per poll, preserving all write gates and deadlines. It has
+no matched-chain or hardware acceptance yet.
 
 This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
 launcher integration, while bounded Nano CPU/SD/package diagnostics now run on

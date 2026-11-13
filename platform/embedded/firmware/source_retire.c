@@ -66,33 +66,38 @@ static int io_same(const struct nano_retire_io *a,const struct nano_retire_io *b
 {return a->context==b->context && a->owns==b->owns && a->source_valid==b->source_valid &&
  a->time_us==b->time_us && a->read32==b->read32 && a->write32==b->write32 &&
  a->store_command==b->store_command && a->barrier==b->barrier;}
-static int observe(struct nano_retire *s,const uint32_t (*rows)[2],unsigned count,const uint32_t (*tail)[2],unsigned extra)
+static int observe(struct nano_retire *s,const uint32_t (*rows)[2],unsigned count,const uint32_t (*tail)[2],unsigned extra,uint32_t *consumer)
 {
- if(!rows || !count || count>NANO_RETIRE_OBSERVE_MAX || extra>NANO_RETIRE_OBSERVE_MAX-count || (extra && !tail))return fail(s,-22);
+ if(!rows || !count || count>NANO_RETIRE_OBSERVE_MAX || extra>NANO_RETIRE_OBSERVE_MAX-count ||
+    (extra && !tail) || (consumer && count+extra==NANO_RETIRE_OBSERVE_MAX))return fail(s,-22);
  struct nano_retire_io io=s->io;
  if(guard(s))return -1;
- for(unsigned n=0;n<count+extra;n++){
-  const uint32_t *row=n<count ? rows[n]:tail[n-count];
+ uint32_t observed=0;
+ for(unsigned n=0;n<count+extra+(consumer!=0);n++){
+  const uint32_t *row=n==count+extra ? 0:n<count ? rows[n]:tail[n-count];
   if(s->failed || !io_same(&io,&s->io))return fail(s,-13);
   uint32_t got=0;io.barrier(io.context);
   if(!io_same(&io,&s->io))return fail(s,-13);
-  s->reads++;int e=io.read32(io.context,row[0],&got);io.barrier(io.context);
+  s->reads++;int e=io.read32(io.context,row ? row[0]:0x9c,&got);io.barrier(io.context);
   if(e)return fail(s,e);
   if(!io_same(&io,&s->io))return fail(s,-13);
-  if(got!=row[1]){s->bad_offset=row[0];s->bad_value=got;return fail(s,-5);}
+  if(row && got!=row[1]){s->bad_offset=row[0];s->bad_value=got;return fail(s,-5);}
+  if(!row)observed=got;
  }
- return guard(s);
+ if(guard(s))return -1;
+ if(consumer)*consumer=observed;
+ return 0;
 }
-static int fixed_view(struct nano_retire *s,const uint32_t (*tail)[2],unsigned extra)
+static int fixed_view(struct nano_retire *s,const uint32_t (*tail)[2],unsigned extra,uint32_t *consumer)
 {
  static const uint32_t rows[][2]={
  {0,0x080f7e3f},{4,0x0e739d18},{0x14,0x00400075},{0x28,0x820},{0x2c,4},
  {0x48,0},{0x50,0},{0x54,0},{0x60,0},{0x64,0},
  {0x80,0x94000000},{0x84,0},{0x88,8},{0x90,0x94008003},{0x94,0},
  {0xa0,0x94009003},{0xa4,0},{0x100a8,0},{0x100ac,0}};
- return observe(s,rows,sizeof(rows)/sizeof(rows[0]),tail,extra);
+ return observe(s,rows,sizeof(rows)/sizeof(rows[0]),tail,extra,consumer);
 }
-static int fixed(struct nano_retire *s){return fixed_view(s,0,0);}
+static int fixed(struct nano_retire *s){return fixed_view(s,0,0,0);}
 /* No control/publication write uses a cached observation. The original
  * pre/post-write ownership gates remain, with an additional fresh register
  * view immediately before each of the same five allowed writes. */
@@ -108,11 +113,11 @@ static int write_ready(struct nano_retire *s,uint32_t offset,uint32_t value)
  default:return fail(s,-22);
  }
  const uint32_t rows[][2]={{GBPA,abort},{0x20,control},{0x24,control},{0x98,pointer},{0x9c,pointer}};
- return fixed_view(s,rows,sizeof(rows)/sizeof(rows[0]));
+ return fixed_view(s,rows,sizeof(rows)/sizeof(rows[0]),0);
 }
 static int snapshot(struct nano_retire *s,uint32_t control,uint32_t pointer,uint32_t abort)
 {const uint32_t tail[][2]={{GBPA,abort},{0x20,control},{0x24,control},{0x98,pointer},{0x9c,pointer}};
- return fixed_view(s,tail,sizeof(tail)/sizeof(tail[0]));}
+ return fixed_view(s,tail,sizeof(tail)/sizeof(tail[0]),0);}
 static int transition(struct nano_retire *s,uint32_t before,uint32_t after)
 {
  if(source(s) || snapshot(s,before,12,ABORT))return -1;
@@ -137,15 +142,19 @@ static int initial_transition(struct nano_retire *s,uint32_t before,uint32_t aft
  }
  return fail(s,-110);
 }
+static int cmd_binding(const struct nano_retire *s,const struct nano_cmdq_binding *b)
+{
+ return s->phase==RET_INVALIDATE && b->owner==s->binding.owner && b->epoch==s->binding.epoch &&
+    b->generation==s->binding.generation && b->queue==0x94008000 && b->baseline==6;
+}
 static int cmd_owns(void *context,const struct nano_cmdq_binding *b)
 {
  struct nano_retire *s=context;
- if(s->phase!=RET_INVALIDATE || b->owner!=s->binding.owner || b->epoch!=s->binding.epoch ||
-    b->generation!=s->binding.generation || b->queue!=0x94008000 || b->baseline!=6)return 0;
+ if(!cmd_binding(s,b))return 0;
  const uint32_t tail[][2]={{GBPA,ABORT},{0x20,8},{0x24,8}};
  /* fixed_view already checks fresh retirement ownership/time on both sides
   * of this exact read-only batch. No device access precedes its first guard. */
- return !fixed_view(s,tail,sizeof(tail)/sizeof(tail[0]));
+ return !fixed_view(s,tail,sizeof(tail)/sizeof(tail[0]),0) && cmd_binding(s,b);
 }
 static int cmd_time(void *context,uint64_t *out)
 {
@@ -183,6 +192,16 @@ static int cmd_snapshot(void *context,uint32_t pointer)
   * Queue slot stores and the producer write keep their per-operation gates. */
  return snapshot(s,8,pointer,ABORT);
 }
+static int cmd_progress(void *context,uint32_t target,uint32_t *consumer)
+{
+ struct nano_retire *s=context;
+ if(!s || !consumer || s->phase!=RET_INVALIDATE || target!=12)return -22;
+ /* Exactly 24 read-only registers: the same fixed capabilities, error/event,
+  * queue bases, abort/control state and producer, then a fresh consumer.
+  * The result stays private until fresh post-batch ownership/time passes. */
+ const uint32_t tail[][2]={{GBPA,ABORT},{0x20,8},{0x24,8},{0x98,target}};
+ return fixed_view(s,tail,sizeof(tail)/sizeof(tail[0]),consumer);
+}
 int nano_source_retire(struct nano_retire *s,struct nano_sdm_input_binding binding,
  struct nano_retire_io io,struct nano_retire_receipt *out)
 {
@@ -210,7 +229,7 @@ int nano_source_retire(struct nano_retire *s,struct nano_sdm_input_binding bindi
  s->phase=RET_COMMAND_ONLY;if(initial_transition(s,12,8))return -1;
  s->phase=RET_INVALIDATE;
  struct nano_cmdq_binding cb={binding.owner,binding.epoch,binding.generation,0x94008000,6};
- struct nano_cmdq_io ci={s,cmd_owns,cmd_time,cmd_read,cmd_write,cmd_store,cmd_barrier,cmd_snapshot};
+ struct nano_cmdq_io ci={s,cmd_owns,cmd_time,cmd_read,cmd_write,cmd_store,cmd_barrier,cmd_snapshot,cmd_progress};
  if(nano_cmdq_init(&s->commands,cb,ci) || nano_cmdq_submit(&s->commands,&s->command_receipt))return fail(s,s->commands.first_error);
  struct nano_cmdq_receipt *r=&s->command_receipt;
  if(r->owner!=binding.owner || r->epoch!=binding.epoch || r->generation!=binding.generation ||

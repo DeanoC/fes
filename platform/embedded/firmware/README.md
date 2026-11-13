@@ -15,16 +15,25 @@ individual register reads. The command, retirement and source deadlines remain
 100 ms, one second and 20 seconds. Cost injection and mutation tests are host
 models; they do not qualify SMMU retirement or warm fabric drain on the board.
 
-The format-8 input profile removes two duplicate whole-platform observations
-from each retirement command guard. The command counter callback now reads the
-existing source clock, rejects callback-table changes and checks monotonicity
-against the current retirement clock and its original one-second origin. The
-queue still starts its unchanged 100 ms bound before the ownership view. That
-view retains fresh ownership/time checks immediately before and after its
-fixed register batch. Slot stores, control/publication writes, all five complete
-table scans and the final source checks keep their existing guards. A previous
-format-7 build cannot supply this contract. The changed profile requires a new
-matched chain and physical test before any retirement or reuse qualification.
+The format-9 input profile also supplies one bounded read-only progress batch
+per completion poll. It checks the same 19 fixed capability/error/event/queue
+registers, abort, both control values and the producer before sampling a fresh
+consumer as the 24th register. Both the batch and its caller require fresh
+ownership/time checks before and after; the caller rejects supplier substitution
+and validates consumer range, wrap and monotonic progress before accepting it.
+Command ownership also rechecks the phase and binding after its register view,
+so a late changed phase cannot reach the next write. Slot stores, publication,
+all five complete table scans, final snapshots and the original 100 ms/one
+second/20 second origins and bounds are unchanged. Arm-only and fault setup
+leave the progress callback unselected and retain their individual queue reads.
+
+The previous format-8 hardware trial completes all input bytes, then fails the
+command deadline after producer publication. A fresh physical reset is needed
+when recovery programming stops with a broken JTAG chain; the original FIT and
+full baseline cycle/Park are subsequently restored and independently verified.
+Format 9 rejects the older profile contracts and needs a new matched chain and
+bounded physical test. Host mutation/cost tests cannot establish hardware
+completion, independent drain, ordinary activation or source-memory reuse.
 
 `nano_mac` supplies a portable fixed MAC/window lease engine with an independent
 peripheral generation. Trusted scope, grant, confirmation and independent drain

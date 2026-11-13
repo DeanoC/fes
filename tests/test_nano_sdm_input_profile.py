@@ -63,14 +63,16 @@ class InputProfileTests(unittest.TestCase):
         self.assertEqual(mode.CONTRACT["retirement_bound_us"], 1000000)
         self.assertFalse(mode.CONTRACT["retirement_memory_reuse"])
 
-    def test_previous_command_snapshot_contract_cannot_admit_guard_candidate(self):
-        record = json.loads((ROOT / "docs/validation/2026-11-13-de25-matched-command-snapshot/matched-with-cause-result.json").read_text())
-        previous = record["sdm_input_contract"]
-        self.assertEqual(previous["format"], 7)
-        p = profile()
-        p["sdm_input_transfer"] = previous
-        with self.assertRaisesRegex(ValueError, "unsupported SDM input"):
-            mode.checked(p)
+    def test_previous_snapshot_and_guard_contracts_cannot_admit_progress_candidate(self):
+        for version, name in ((7, "2026-11-13-de25-matched-command-snapshot/matched-with-cause-result.json"),
+                              (8, "2026-11-13-de25-command-guard/matched-result.json")):
+            record = json.loads((ROOT / "docs/validation" / name).read_text())
+            previous = record["sdm_input_contract"]
+            self.assertEqual(previous["format"], version)
+            p = profile()
+            p["sdm_input_transfer"] = previous
+            with self.subTest(version=version), self.assertRaisesRegex(ValueError, "unsupported SDM input"):
+                mode.checked(p)
 
     def fixture(self, path):
         names = (mode.SERVICE, mode.MAILBOX, mode.MAILBOX_HEADER, mode.PLATFORM,

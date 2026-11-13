@@ -29,6 +29,11 @@ struct nano_cmdq_io {
      * for pointer, or a strict superset, with fresh ownership around the
      * bounded batch. It cannot store, publish, acknowledge or grant DMA. */
     int (*snapshot)(void *,uint32_t pointer);
+    /* Optional fixed read-only progress batch. Check GERROR/GERRORN zero,
+     * producer == target and the same owned register superset as snapshot;
+     * return a fresh consumer only after the bounded batch passes. This
+     * cannot store, publish, acknowledge, reset or grant DMA. */
+    int (*progress)(void *,uint32_t target,uint32_t *consumer);
 };
 struct nano_cmdq_receipt {
     uint64_t owner,epoch,generation;

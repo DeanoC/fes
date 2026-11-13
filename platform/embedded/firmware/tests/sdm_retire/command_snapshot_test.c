@@ -65,7 +65,7 @@ int main(void)
  for(unsigned mode=0;mode<=5;mode++)for(unsigned at=1;at<=5;at++){
   struct model m={.mode=mode,.at=at,.owned=1,.producer=6,.consumer=6};
   struct nano_cmdq_binding b={17,7,4,0x94008000,6};
-  struct nano_cmdq_io io={&m,owns,clock_us,read32,write32,store,barrier,snapshot};
+  struct nano_cmdq_io io={&m,owns,clock_us,read32,write32,store,barrier,snapshot,0};
   assert(!nano_cmdq_init(&m.queue,b,io));
   struct nano_cmdq_receipt r={0};int e=nano_cmdq_submit(&m.queue,&r);
   if(!mode){assert(!e && m.snapshots==5 && m.stores==6 && m.writes==1 && r.commands_completed);}

@@ -18,7 +18,7 @@ static int io_same(const struct nano_cmdq_io *a,const struct nano_cmdq_io *b)
 {
     return a->context==b->context && a->owns==b->owns && a->time_us==b->time_us &&
         a->read32==b->read32 && a->write32==b->write32 && a->store==b->store &&
-        a->barrier==b->barrier && a->snapshot==b->snapshot;
+        a->barrier==b->barrier && a->snapshot==b->snapshot && a->progress==b->progress;
 }
 static int guard(struct nano_cmdq *s)
 {
@@ -65,6 +65,22 @@ static int snapshot(struct nano_cmdq *s,uint32_t pointer)
         checked(s,BASEHI,(uint32_t)(s->binding.queue>>32)) ||
         checked(s,GERROR,0) || checked(s,GERRORN,0) ||
         checked(s,PROD,pointer) || checked(s,CONS,pointer);
+}
+static int progress(struct nano_cmdq *s,uint32_t target,uint32_t *consumer)
+{
+    if (s->io.progress) {
+        struct nano_cmdq_io io=s->io;
+        if (guard(s) || !io_same(&io,&s->io)) return fail(s,-13);
+        uint32_t value=0;
+        int error=io.progress(io.context,target,&value);
+        if (error) return fail(s,error);
+        if (!io_same(&io,&s->io)) return fail(s,-13);
+        if (guard(s)) return -1;
+        *consumer=value;
+        return 0;
+    }
+    return checked(s,GERROR,0) || checked(s,GERRORN,0) ||
+        checked(s,PROD,target) || read32(s,CONS,consumer);
 }
 int nano_cmdq_encode(unsigned index,uint8_t bytes[16])
 {
@@ -120,8 +136,7 @@ int nano_cmdq_submit(struct nano_cmdq *s,struct nano_cmdq_receipt *out)
     unsigned previous=0;
     for (unsigned i=0;i<NANO_CMDQ_POLLS;i++) {
         uint32_t cons=0;s->polls++;
-        if (checked(s,GERROR,0) || checked(s,GERRORN,0) ||
-            checked(s,PROD,target) || read32(s,CONS,&cons)) return -1;
+        if (progress(s,target,&cons)) return -1;
         unsigned count=(cons-s->binding.baseline)&15U;
         if ((cons&~15U) || count>NANO_CMDQ_COMMANDS || count<previous) return fail(s,-5);
         previous=count;
