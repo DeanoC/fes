@@ -346,6 +346,16 @@ public:
    std::lock_guard<std::mutex> lock(mutex_);
    status_.menu_display.displayed_sequence=info.displayed_sequence;
    status_.menu_display.underflows=info.underflows;
+   // Hardware dropped its own verdict on the commit, but clients read this
+   // copy, and the only thing that otherwise refreshes it is a health check
+   // up to a second away. Without this store the reply after a present still
+   // carries a verdict measured against the frame before it -- exactly the
+   // sample speaking for a frame it never saw that the drop exists to
+   // prevent. Only the verdict moves: recovery_abandoned and the
+   // enabled, faulted and quiesced facts stay published, because a client
+   // that sees no live evidence at all presents into a loss the runtime has
+   // given up on.
+   status_.menu_display.live.scanout_frame=hardware_.menu_display().live.scanout_frame;
    // A new completed frame retires only the prior presentation error.
    // Lifecycle failures remain independently visible in status_.error.
    status_.menu_display.error={};busy_=false;menu_frame_busy_=false;*output=info;

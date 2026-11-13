@@ -2315,17 +2315,24 @@ Error NativeHardware::CheckIdleDisplayHealth()
  else if(live.link&&!live.pll_lock)lost="menu pixel PLL is unlocked";
  else if(live.link&&!live.rx_sense)lost="menu HDMI sink sense is lost";
  else if(live.link&&live.vic!=adv7513::kVic720p60)lost="menu HDMI mode is not 720p60";
- // The displayed sequence advances with every present, so including it here
- // would emit a line on every tick of an animating menu. The log records it;
- // only a health transition, or the verdict that it no longer matches the
- // committed frame, is a change worth a line.
- const bool mismatch=lost=="menu scanout no longer shows the committed frame";
  // The verdict, published where it was made. live.displayed_sequence and
  // menu_status_.displayed_sequence were both read inside this one check, so
  // this is the only place the two can honestly be compared; a client holding
  // a sample from up to a second ago and its own newest present is comparing
  // two instants and would call every present a loss.
+ //
+ // It is the comparison itself, not which reason won the chain above. A
+ // disabled, faulted or quiesced display is tested first and would otherwise
+ // publish "matching" -- "scanout is showing the committed frame" -- beside a
+ // sample that says the plane is off, which is false in the log and false to
+ // anything that reads the member. The chain decides recovery; this decides
+ // only what the two sequence numbers said.
+ const bool mismatch=live.displayed_sequence!=menu_status_.displayed_sequence;
  live.scanout_frame=mismatch?MenuScanoutFrame::mismatched:MenuScanoutFrame::matching;
+ // The raw displayed sequence advances with every present, so including it
+ // here would emit a line on every tick of an animating menu. The log records
+ // it; only a health transition, or the verdict flipping, is a change worth a
+ // line.
  // The first measured sample after programming is always worth a line: the
  // reset baseline is all-zero, so a display that reads back all-zero matches
  // it exactly and would otherwise be logged neither now nor on any identical

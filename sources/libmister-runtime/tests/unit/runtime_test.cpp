@@ -1380,6 +1380,45 @@ void TestIdleDisplayHealthReprogramsLostMenuScanout()
  assert(f.hardware.check_idle_display_calls==drawing+1);
 }
 
+// There are two copies of the live sample: the one hardware keeps and the one
+// the runtime publishes in status, which is what a client actually receives.
+// Only a health check refreshes the published copy, so a present that moves
+// the committed sequence has to drop the verdict there as well; otherwise the
+// reply a probe reads up to a second later still says the frame it just sent
+// is the one on the wire, which is a verdict about the previous frame.
+void TestPublishedScanoutVerdictDropsOnAPresent()
+{
+ Fixture f;const std::string id(64,'a');
+ assert(f.runtime.Start().ok());
+ assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
+ const auto generation=f.runtime.status().menu_display.generation;
+ // A give-up already in force rides on the sample and must survive a present:
+ // a client that stops seeing live evidence presents into the loss again.
+ f.hardware.menu_status.live.recovery_abandoned=true;
+ assert(f.runtime.CheckIdleDisplayHealth().ok());
+ auto published=f.runtime.status().menu_display.live;
+ assert(published.read&&published.enabled&&published.recovery_abandoned);
+ assert(published.scanout_frame==mister::MenuScanoutFrame::matching);
+
+ // The present commits a new frame. The verdict no longer speaks for what is
+ // on the wire, and the published copy has to say so, not the hardware copy
+ // alone.
+ std::unique_ptr<mister::MenuFrame> frame;mister::MenuDisplayInfo info;
+ assert(f.runtime.BeginMenuFrame(generation,&frame).ok());
+ assert(f.runtime.PresentMenuFrame(generation,*frame,&info).ok());
+ frame.reset();
+ assert(f.hardware.menu_display().live.scanout_frame==mister::MenuScanoutFrame::unknown);
+ published=f.runtime.status().menu_display.live;
+ assert(published.scanout_frame==mister::MenuScanoutFrame::unknown);
+ // Only the verdict moved.
+ assert(published.read&&published.enabled&&published.recovery_abandoned);
+ assert(f.runtime.status().menu_display.displayed_sequence==info.displayed_sequence);
+
+ // The next check measures the frame that is now committed and says so again.
+ assert(f.runtime.CheckIdleDisplayHealth().ok());
+ assert(f.runtime.status().menu_display.live.scanout_frame==mister::MenuScanoutFrame::matching);
+}
+
 void TestMenuGenerationAndPreparationFencing()
 {
  Fixture f;const std::string id(64,'a');
@@ -2115,6 +2154,7 @@ int main()
  TestMenuFrameWaitIsBounded();
  TestMenuGenerationAndPreparationFencing();
  TestIdleDisplayHealthReprogramsLostMenuScanout();
+ TestPublishedScanoutVerdictDropsOnAPresent();
  TestMenuFrameMappingRequiresExplicitClientAgreement();
  TestMenuFramesAlternateSlots();
  TestMenuBlitterGrantTakesCpuFramesUntilAList();

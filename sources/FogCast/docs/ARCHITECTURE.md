@@ -705,7 +705,10 @@ client does not compare it with the sequence its own present returned.
 `scanout_frame` is that comparison, made by the runtime where both numbers
 are read together: `"matching"`, `"mismatched"`, or `"unknown"` when no
 measurement describes the frame now on the wire, which a present makes true
-until the next check. Only `"mismatched"` is a loss. It is optional, so a
+until the next check. It reports that comparison alone: a display that is
+disabled, faulted or quiesced says so in those members, and a transmitter
+fault is still scanning out the committed frame, so neither shows up here.
+Only `"mismatched"` is a loss. It is optional, so a
 runtime older than the verdict decodes as having said nothing, and any
 string passes the shape check because a name this client does not know must
 cost a probe interval rather than manufacture a loss.

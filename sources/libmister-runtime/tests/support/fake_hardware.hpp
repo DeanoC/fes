@@ -37,7 +37,14 @@ public:
   // A test hook for the work this call stands for: GP and I2C reads, and,
   // on a loss, a whole reprogram. Nothing may wait on it.
   if(on_check_idle_display)on_check_idle_display();
-  if(check_idle_display_result.ok()){menu_status.live.read=true;menu_status.live.enabled=true;return {};}
+  // Native hardware compares the sample it just read against the committed
+  // sequence and publishes the answer here, so the fake publishes one too:
+  // a healthy check always finds the frame it committed.
+  if(check_idle_display_result.ok()){
+   menu_status.live.read=true;menu_status.live.enabled=true;
+   menu_status.live.scanout_frame=mister::MenuScanoutFrame::matching;
+   return {};
+  }
   menu_status.available=false;menu_status.error=check_idle_display_result;
   return check_idle_display_result;
  }
@@ -71,7 +78,11 @@ public:
    if(menu_status.session){menu_status.available=false;menu_status.error=menu_present_result;}
    return menu_present_result;
   }
-  menu_slot=slot;info->geometry=menu_status.geometry;info->displayed_sequence=++menu_status.displayed_sequence;return {};
+  // The commit moves the committed sequence, so the last verdict no longer
+  // describes what is on the wire -- native hardware drops it here too.
+  menu_slot=slot;info->geometry=menu_status.geometry;info->displayed_sequence=++menu_status.displayed_sequence;
+  menu_status.live.scanout_frame=mister::MenuScanoutFrame::unknown;
+  return {};
  }
  std::uint8_t menu_slot=0;
  std::vector<std::uint8_t> menu_present_slots;

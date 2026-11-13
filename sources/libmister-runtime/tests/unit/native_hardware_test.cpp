@@ -2846,6 +2846,47 @@ void TestIdleDisplayHealthPublishesTheCommittedFrameVerdict()
  assert(!hardware.menu_display().available&&fpga.calls==before);
 }
 
+// The verdict is the comparison of the two sequence numbers, not a report of
+// which reason won the loss chain. A quiesced plane is tested before the
+// sequence, so deriving the verdict from the chain published "scanout is
+// showing the committed frame" next to a sample saying the plane is down --
+// false in the kit log and false to anything reading the member.
+void TestIdleDisplayHealthVerdictFollowsTheSequenceNotTheLossReason()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;OpenedCorePackage opened;PopulateHpsDdrApplication(&package,true,&opened);
+ std::string manifest=ReadText(package.path+"/manifest.toml");ReplaceAll(&manifest,"fes.pong","fes.menu");
+ manifest+="\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ {std::ofstream output(package.path+"/manifest.toml",std::ios::trunc);output<<manifest;assert(output.good());}
+ assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ MenuGpScript script{&mmio};script.BringUp();
+ assert(hardware.ConfigureMenuPackage(package.path,opened.package_id).error.ok());
+ mister::MenuDisplayInfo displayed;
+ script.Present(0,0,0);
+ assert(PresentBackSlot(hardware,&displayed).ok()&&hardware.menu_display().displayed_sequence==1);
+
+ // Configured and enabled, but quiesced, and showing a frame that is not the
+ // committed one. Quiesced wins the chain and drives the recovery; the
+ // verdict still reports what the two sequence numbers said.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(FesApplicationMenuStateConfigured|FesApplicationMenuStateEnabled|
+  FesApplicationMenuStateQuiesced,9);
+ const auto lost=hardware.CheckIdleDisplayHealth();
+ assert(!lost.ok()&&lost.message=="menu scanout is quiesced");
+ const auto live=hardware.menu_display().live;
+ assert(live.quiesced&&live.displayed_sequence==9);
+ assert(live.scanout_frame==mister::MenuScanoutFrame::mismatched);
+}
+
 // An unreadable display is never recovered from -- a failed bus call is no
 // evidence of a lost scanout -- but the policy says it is logged. A reset
 // baseline is all-zero, so the first unreadable sample matched it exactly and
@@ -6076,6 +6117,7 @@ int main(int argc,char** argv)
  TestIdleDisplayHealthDetectsLostScanoutWithinBudget();
  TestIdleDisplayHealthPublishesWhenItStopsRecovering();
  TestIdleDisplayHealthPublishesTheCommittedFrameVerdict();
+ TestIdleDisplayHealthVerdictFollowsTheSequenceNotTheLossReason();
  TestIdleDisplayHealthLogsTheFirstUnreadableSample();
 	TestComputerLiveMediaLifecycleThroughRuntime();
 	TestPcxtFloppyLifecycleThroughRuntime();

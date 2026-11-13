@@ -228,16 +228,37 @@ that present, and go round again every second.
 `live.displayed_sequence` and the committed sequence are read in the same
 breath. It is `"matching"` when scanout is showing the committed frame,
 `"mismatched"` when it is not, and `"unknown"` when no measurement describes
-the frame now on the wire. A present sets it to `"unknown"`, because the
-committed frame has moved and the last check never saw the new one; so does
-hiding a session plane, which moves the committed sequence the same way.
-Only the verdict is dropped there -- the rest of the sample, `enabled`,
+the frame now on the wire. It reports that comparison and nothing else. A
+display that is down for another reason is first disabled, faulted or
+quiesced, and the check tests those before the sequence; those facts are on
+the sample in their own right, and the verdict does not restate them. It also
+does not speak for the transmitter: a display whose pixel PLL is unlocked, whose
+sink sense is gone or whose mode is not 720p60 is still scanning out the frame
+the runtime committed, so the verdict stays `"matching"` while the runtime
+recovers that loss itself through the bounded reactivation below.
+
+Every write that moves the committed sequence sets the verdict to `"unknown"`,
+because the committed frame has moved and the last check never saw the new
+one: the present commit, hiding a session plane, and the quiesce inside the
+session-plane failure path. The published status copy is dropped on the
+present path too, not only the runtime's internal one -- a check is what
+refreshes that copy, it is up to a second away, and without the drop a reply
+read after a present would carry a verdict measured against the frame before
+it. Only the verdict is dropped -- the rest of the sample, `enabled`,
 `faulted`, `quiesced` and `recovery_abandoned` above all, stays published,
 since a client that sees no live reads at all goes back to presenting into a
-loss the runtime gave up on. A client treats only `"mismatched"` as a loss:
-an unknown verdict costs at most one more probe interval before the next
-check speaks, and that is the direction to err in. The member is absent from
-a runtime older than the verdict, which reads the same way.
+loss the runtime gave up on.
+
+A client treats only `"mismatched"` as a loss: an unknown verdict costs at
+most one more probe interval before the next check speaks, and that is the
+direction to err in. That bound assumes the checks keep reading. A check whose
+register reads fail publishes nothing at all, deliberately, so that it cannot
+retract a give-up that is still in force, and the verdict then stands at
+whatever the last successful check or the last present left it for as long as
+the reads keep failing. The same failure fails presents, so a client learns of
+it through `available` and present errors rather than through this member. The
+member is absent from a runtime older than the verdict, which reads the same
+way.
 
 The read is paced at most once a second, and a successful menu program starts
 that interval, so the first read of a freshly programmed display is one whole
