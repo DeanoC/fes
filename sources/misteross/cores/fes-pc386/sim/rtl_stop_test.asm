@@ -16,6 +16,9 @@
 ;   tables (#1722). The oracle runs on until paging is off, the stretch the
 ;   RTL does not restart in, and the RTL restarts in protected mode.
 ;
+; Initial SMSW reports full AX and the LAHF flags byte, and SMSW is checked after a CR0
+; write. The models' post-BIOS CR0 reserved bits 15--5 differ; their physical
+; 386 behavior remains unmeasured (#1748).
 ; Each part writes a line: "U" from the #UD handler, "G" and "P" at the two
 ; gates' targets; "DONE" back in real mode ends the run. If the RTL comes to
 ; build LOADALL or far JMP through a call gate, this sector needs another
@@ -40,6 +43,12 @@ start:
     mov sp, 0x7c00
     mov word [6 * 4], ud
     mov word [6 * 4 + 2], 0
+    smsw ax
+    call result
+    mov eax, 0x10
+    mov cr0, eax
+    smsw ax
+    call cr0_result
     sti
     db 0x0f, 0x07           ; LOADALL: the first stop
 
@@ -121,6 +130,64 @@ ud:
     mov al, 'U'
     call line
     iret
+
+; "R <AX> <LAHF flags byte>" and newline. Preserve SMSW's high byte before LAHF.
+result:
+    push bx
+    push dx
+    mov bx, ax
+    lahf
+    mov dl, ah
+    mov al, 'R'
+    out DEBUG_PORT, al
+    mov al, ' '
+    out DEBUG_PORT, al
+    mov al, bh
+    call hex
+    mov al, bl
+    call hex
+    mov al, ' '
+    out DEBUG_PORT, al
+    mov al, dl
+    call hex
+    mov al, 10
+    out DEBUG_PORT, al
+    pop dx
+    pop bx
+    ret
+
+; "C <AX>" after the explicit CR0 write.
+cr0_result:
+    push bx
+    mov bx, ax
+    mov al, 'C'
+    out DEBUG_PORT, al
+    mov al, ' '
+    out DEBUG_PORT, al
+    mov al, bh
+    call hex
+    mov al, bl
+    call hex
+    mov al, 10
+    out DEBUG_PORT, al
+    pop bx
+    ret
+
+; AL as two hex digits.
+hex:
+    push ax
+    shr al, 4
+    call digit
+    pop ax
+    and al, 0x0f
+digit:
+    add al, '0'
+    cmp al, '9'
+    jbe .out
+    add al, 'a' - '9' - 1
+.out:
+    out DEBUG_PORT, al
+    ret
 
 ; AL and a newline.
 line:
