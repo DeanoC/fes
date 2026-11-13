@@ -201,8 +201,8 @@ func TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission(t *tes
 		t.Fatal(err)
 	}
 	for key, value := range map[string]interface{}{"format": 2, "scope": "trusted", "package_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		"build_id": "dddddddddddddddddddddddddddddddd", "cpu_base": 0x94000000, "bus_base": 0x15000000, "bytes": 4096,
-		"arena_base": 0x94000000, "arena_bytes": 8192, "cpu_attributes": "cached", "lifetime": "until-drained",
+		"build_id": "dddddddddddddddddddddddddddddddd", "cpu_base": uint64(0x94000000), "bus_base": 0x15000000, "bytes": 4096,
+		"arena_base": uint64(0x94000000), "arena_bytes": 8192, "cpu_attributes": "cached", "lifetime": "until-drained",
 		"fpga_addressing": "qualified", "pattern": "zero", "pattern_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "extra": true} {
 		t.Run(key, func(t *testing.T) {
 			var fields map[string]interface{}

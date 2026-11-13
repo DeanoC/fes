@@ -39,7 +39,7 @@ func menuMaps(t *testing.T) (source, control, memory, access []byte) {
 	ctrl["fabric_stop"].(map[string]any)["scope"] = "sealed-menu-master-stop-v1"
 	control = encode(ctrl)
 	memory = encode(map[string]any{"format": 1, "scope": "sealed-cold-menu-reader-memory-v1", "package_id": ctx["package_id"], "build_id": ctx["build_id"],
-		"cpu_base": 0x95000000, "bus_base": 0x95000000, "bytes": 8 << 20, "arena_base": 0x95000000, "arena_bytes": 8 << 20,
+		"cpu_base": uint64(0x95000000), "bus_base": uint64(0x95000000), "bytes": 8 << 20, "arena_base": uint64(0x95000000), "arena_bytes": 8 << 20,
 		"cpu_attributes": "normal-uncached", "lifetime": "until-reboot", "fpga_addressing": "physical-identity-unqualified",
 		"row_bytes": 5120, "stride": 5120, "rows": 720, "frame_bytes": 3686400, "pixel_format": "xrgb8888", "slots": 2, "slot_bytes": 4 << 20})
 	ch, mh := sha256.Sum256(control), sha256.Sum256(memory)

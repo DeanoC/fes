@@ -84,6 +84,10 @@ original FIT is restored and read back. Warm baseline startup then fails with a
 DWC2 USB packet error before any App command; its complete cause is truncated
 by the collector. Independent firmware reader drain and bridge closure succeed.
 There is no final Park or accepted baseline restoration for this attempt.
+After the operator's separate physical reset, a
+[baseline-only restoration](../2026-11-13-de25-command-snapshot-physical/README.md#separate-post-reset-baseline-restoration)
+now independently passes the original 51-command launch/return/Park cycle.
+The failed candidate remains unqualified.
 
 ## Integration refresh
 
@@ -115,6 +119,18 @@ one producer process-cleanup test while reading a newly created empty PID file.
 All nine tests in that producer module pass locally without modifying it.
 The previous CI failure remains recorded; a fresh CI result is required.
 
+The fresh CI run 43419138591 passes generated-source consistency, then exposes
+five address literals in two native test fixtures defaulting to 32-bit `int`
+during ARM dead-code analysis. Those values now explicitly use `uint64`, with
+unchanged JSON address bytes. This changes tests only; the production source
+validated by the build and compatibility checks above is unchanged.
+The [follow-up checks](arm-fixture-checks.json) pass: complete dead-code/U1000
+analysis for Linux amd64 and ARM (104.1 seconds), ARM native-fabric test
+compilation, and the two exact fixture mutation/JSON regressions under the race
+detector. An earlier broad `TestMenu` selection exceeded its host wrapper's
+90-second observation cap; its failed log is retained and is not a passing
+result. The narrower checks exercise the changed fixture construction directly.
+
 ## Remaining work
 
 Resolve source retirement and the post-diagnostic warm USB failure before
@@ -126,7 +142,7 @@ and appliance-level failure recovery remain incomplete. Neither passing host
 tests nor source-bound receipts establish those properties.
 
 Publication itself does not program or reboot a board. Following the separately
-authorized physical trial, the original FIT is restored but the native baseline
-is stopped after panic and requires a physical reset. All owned host handles
-are closed. The test card remains installed. Factory media, QSPI and the bottom
-kit are outside this change.
+authorized physical trial and post-reset restoration, the last verified board
+state is the original native baseline at final Park. All owned host handles are
+closed. The test card remains installed. Factory media, QSPI and the bottom kit
+are outside this change.

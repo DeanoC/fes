@@ -54,3 +54,25 @@ The independently read-back failure archive is retained as
 SHA-256 `45dc2a12dd713ef92cd56b7c54eef9e670b03dcd12139c7f0dba6218b2eb694d`.
 The prepared source/procedure archive remains separate. No machine-local
 execution approval or generated boot image is included in this publication.
+
+## Separate post-reset baseline restoration
+
+After a fresh operator-confirmed physical power cycle, the baseline-only
+procedure `ecdaae0038d56d5652775c9e63e197743187db9b95573984578402a54072b7fa`
+passes in 345.94 seconds. Its [independent receipt](baseline-restoration.json)
+checks the original FIT and phase-one identities, sealed SPL verification,
+fresh 51-command ZX81/ZX80 launch/return cycle, final Park at generation 5,
+raw UART/programming witnesses and saved-wire replay. Owned workers are stopped,
+UART is closed/free, USB identity/inode/permissions are restored, and JTAG is
+back at auto 1/15M. The test card remains installed.
+
+This restoration uses the original baseline at source
+`d580a60d93ad5dad87f0c311b762d0df2bd2beb5`. It performs no SD refresh and
+claims no fresh recovery-mode SD file readbacks. It does not retry or qualify
+the failed candidate, fix the USB root cause, or accept the refreshed public
+source on hardware.
+
+The separate, independently read-back restoration archive SHA-256 is
+`57131fb0fef6fda4bd989141b4b6fe3d493d4d28d0b06c58546fe25bd5593ebc`.
+The failed trial archive and failed result above remain unchanged. The last
+verified board state is the original native baseline at final Park.
