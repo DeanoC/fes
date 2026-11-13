@@ -37,7 +37,10 @@ sha256.
 
 ## Registered OSS producers
 
-**Fifteen cores meet D12 in full.** For every one of them:
+**Fifteen cores met every D12 condition when measured, against main
+`2d895034c`.** That is not the same as meeting D12 at this head: see [what
+revision this evidence is against](#what-revision-this-evidence-is-against)
+below, which states the gap. For every one of them, at `2d895034c`:
 
 - the forced `core.rbf` is byte-identical to main's;
 - the forced `synth.json` equals main's once the checkout path and the tool
@@ -111,9 +114,10 @@ candidate found".
 | `fes.pcxt` (diagnostic) | `f1a07fda62bdc50c76e7994fbc6a7de9` | `55614ec1156ad80c…` | `a2e52a8f8fbfe80dd426facbb5f0598c` | pass, seeds 1–3 plus the repeat build |
 | `fes.pcxt-dos` | `e162041bf1ed5fbe1a54ff08b3f84e55` | `9db8fb89a0c25940…` | `1385062da52b2d69a32e7d6b281cfbe6` | **fails an audio seal check** |
 
-Both profiles meet the netlist and RBF conditions: the forced builds reproduce
-main's RBF byte for byte, and the Yosys netlists are identical for all three
-seeds on both profiles once the build path is normalized. (The PC/XT net names
+Against `2d895034c`, both profiles met the netlist and RBF conditions: the
+forced builds reproduced main's RBF byte for byte, and the Yosys netlists are
+identical for all three seeds on both profiles once the build path is
+normalized. As everywhere in this record, that is unverified at this head. (The PC/XT net names
 embed the absolute build directory mangled into identifiers, so that
 normalization covers `…/build/fes-pcxt-quartus/<build-id>/attempt-<id>/` as well
 as the checkout and install paths.)
@@ -125,10 +129,14 @@ stops at
 Error (332000): Audio endpoint binding failed: speaker_output_audio_output_stage_acknowledge: 2
 ```
 
-This is **not** caused by this PR. Running main's own code at the PR's BUILD_ID
-`1385062d…` fails identically, which is the control recorded on issue #1611: the
-`audio.sdc` acknowledge-register check is fragile against the BUILD_ID constant,
-and any identity change can trip it. No seal or timing check was relaxed.
+The conclusion is stronger than "pre-existing failure", and it is worth stating
+precisely. Main's tree passes at main's BUILD_ID `e162041b…` and fails at
+`1385062d…`; this PR's tree does the same. Both trees pass and both trees fail,
+decided by nothing but which BUILD_ID constant is compiled in. Main is not
+broken, and this PR does not break it — **the BUILD_ID constant alone decides
+whether this fit closes.** That control is recorded on issue #1611, and it is
+the same single cause as #1803 on a different core and a different toolchain.
+No seal or timing check was relaxed.
 
 ## fes.coleco
 
@@ -137,23 +145,45 @@ The registered native-video shell. Its record is in
 
 ## What revision this evidence is against
 
-Everything here was measured against main `2d895034c`, which was the merge base
-when the campaign ran. The branch has since merged main `53681975f`, and that
-merge touches a closure file of every core in the table — `compiler_read_audit.py`
-reaches all fifteen OSS cores, and `cores/fes-common/generated/fes_application.vh`
-reaches most of them. So the BUILD_IDs recorded here are not the ones the
-post-merge tree produces.
+Everything above was measured against main `2d895034c`, which was the merge base
+when the campaign ran. The branch has since merged main `53681975f`.
 
-That does not weaken what the campaign demonstrates. The claim under test is
-that **relocating a toolchain install changes nothing but file paths**, and that
-claim is not a property of any one main revision: at `2d895034c` it held for
-seventeen cores, with byte-identical RBFs in every case. Re-running the campaign
-after each merge would not test anything further, and main moves faster than a
-seventeen-core route campaign completes.
+**The gap, stated as a gap.** D12's second condition is that a forced-BUILD_ID
+build reproduces main's `core.rbf` byte for byte. Every forced build here did
+that against `2d895034c`. **None of it has been verified at this head**, because
+the merge touches a closure file of every core in the table —
+`scripts/compiler_read_audit.py` reaches all fifteen OSS cores, and
+`cores/fes-common/generated/fes_application.vh` reaches most of them — so the
+BUILD_IDs recorded here are not the ones the post-merge tree produces. This
+record does not claim that condition is met at `02beac79b`, and it is not
+claiming the condition does not apply. Whether the campaign must be rerun
+against the new base before this PR merges is an open call, not something this
+record settles.
 
-What the merge does mean is that the three non-closing cores above were measured
-on the pre-merge tree. Their closures moved, so their placement dice have been
-rerolled again — in either direction.
+**One core's comparison is void, not merely stale.** It would be convenient to
+argue that relocating an install changes nothing but file paths, so the evidence
+holds whatever main does. The merge itself is a counterexample. Main commit
+`090144ced` (#1767, "Discard DDR latency windows after data faults") changed
+**fes.ramtest's RTL**: `rtl/ddr_channel.v`, `rtl/lat_monitor.v`, `rtl/top.v` and
+its simulation. That is a design change, not install-path churn. fes.ramtest's
+main reference RBF has therefore moved, and its forced-build comparison is void
+on its own terms rather than out of date. Any core the next merge touches can go
+the same way, so the argument cannot be assumed to carry across merges — it has
+to be checked per merge.
+
+The three non-closing cores below were also measured on the pre-merge tree.
+Their closures moved, so their placement outcomes have been rerolled, in either
+direction, and they are being re-measured at `02beac79b`.
+
+## Why CI appeared not to run on this branch
+
+Worth its own line, because it cost two hours. For a `pull_request` event GitHub
+builds `refs/pull/<N>/merge` first; while the PR conflicts with its base that ref
+cannot be created, and **no Actions check suite is created at all**. Querying
+`actions/runs?head_sha=…` returns `total_count: 0`, which reads exactly like a
+workflow that never fired. It is a conflict symptom, not a workflow bug, and
+pushing an empty commit does not fix it. Merging the base does: the run started
+as soon as `877dd3360` landed.
 
 ## Not covered here
 

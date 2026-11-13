@@ -5,7 +5,11 @@ The registered native-video shell, `build_fes_coleco_socket_v2.py
 `2d895034c`. Coleco is the core whose main tool slot (`slots/9c81e35d…`, Coleco
 lock, HIP) still exists and still authenticates with main's code.
 
-**This meets AGENTS.md D12, so fes.coleco needs no reseal or HIL.**
+**Against `2d895034c`, fes.coleco met every AGENTS.md D12 condition.** Whether
+that clears it of a reseal at this head is not settled here: the branch has
+since merged main `53681975f`, which moves this core's closure, so the second
+condition is unverified at `02beac79b`. See [What revision this evidence is
+against](README.md#what-revision-this-evidence-is-against).
 
 ## Builds
 
