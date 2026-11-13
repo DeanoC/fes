@@ -3,9 +3,12 @@ package fogcast
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestCreateCoreEntryWithCartridge(t *testing.T) {
@@ -66,7 +69,7 @@ func TestCreateCoreEntryWithCartridge(t *testing.T) {
 	}
 }
 
-func TestCreateCartridgeRejectsFirmwareRequirement(t *testing.T) {
+func TestCreateCartridgeRejectsFirmwareROM(t *testing.T) {
 	ctx := context.Background()
 	s, _, _, inspection := newCoreEntryLaunchFixture(t, libraryROMPackageFixture(t, "firmware"), "Existing firmware", time.Minute)
 	rom := bytes.Repeat([]byte{0x5a}, 1024)
@@ -76,5 +79,28 @@ func TestCreateCartridgeRejectsFirmwareRequirement(t *testing.T) {
 	}
 	if _, err := s.CreateCoreMediaEntry(ctx, "Not a cartridge", inspection.PackageID, "cartridge", media.MediaID); err == nil {
 		t.Fatal("accepted firmware as cartridge")
+	}
+}
+
+func TestCreateCartridgeRejectsFirmwareRequirement(t *testing.T) {
+	ctx := context.Background()
+	s, _, _, inspection := newCoreEntryLaunchFixture(t, libraryROMPackageFixture(t, "cartridge"), "Existing cartridge", time.Minute)
+	rom := bytes.Repeat([]byte{0x5a}, 1024)
+	media, _, err := s.ImportCoreMedia(ctx, int64(len(rom)), bytes.NewReader(rom))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := s.CoreEntries(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.CreateCoreEntryWithFirmware(ctx, "Unready cartridge", inspection.PackageID, "cartridge", media.MediaID, true)
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBadRequest {
+		t.Fatalf("firmware-required cartridge error = %v, want BAD_REQUEST", err)
+	}
+	after, err := s.CoreEntries(ctx)
+	if err != nil || len(after) != len(before) {
+		t.Fatalf("firmware-required cartridge left a title: before=%+v after=%+v err=%v", before, after, err)
 	}
 }

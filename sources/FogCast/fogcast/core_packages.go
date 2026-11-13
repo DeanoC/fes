@@ -493,6 +493,9 @@ func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected
 	if check.Descriptor.Format == 4 {
 		firmwareRequired = true
 	}
+	if firmwareRequired && check.Descriptor.Format == 3 && check.Descriptor.ROM != nil && check.Descriptor.ROM.Role == "cartridge" {
+		return catalog.CoreEntry{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
 	var cartridge *corepackage.ROM
 	if gameID == "" && kit == nil && role == "cartridge" {
 		if protocol.ValidateDigest(mediaID) != nil || !linkedCartridge(check.Descriptor) {
