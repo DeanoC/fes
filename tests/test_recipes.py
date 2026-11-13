@@ -57,7 +57,9 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(selected.producer_module, 'boards.de25nano.producers.build_menu_package')
         self.assertEqual(selected.board, 'de25-nano')
         self.assertEqual(selected.toolchain, 'quartus')
-        self.assertEqual(selected.quartus, {'version': '26.3.0', 'seeds': [1], 'threads': 2})
+        self.assertEqual(selected.quartus, {'version': '26.3.0', 'edition': 'pro',
+                                            'device_family': 'agilex5', 'seeds': [1], 'threads': 2})
+        self.assertEqual(selected.front_end, 'quartus-pro')
         self.assertIsNone(selected.pnr)
         with patch.dict(os.environ, {'BOARD': 'de25-nano', 'FES_TARGET_BOARD': 'de25-nano'}):
             self.assertIs(recipes.recipe_for('fes.menu'), default)
@@ -357,6 +359,48 @@ class RecipeDataTest(unittest.TestCase):
     def document(self):
         import tomllib
         return tomllib.loads(recipes.REGISTRY_PATH.read_text())
+
+    def test_a_quartus_row_names_a_front_end_that_fits_its_edition_and_device(self):
+        # The front end selects the Quartus edition and device family, and the
+        # core's quartus.lock holds the same pair (#1581 S7).
+        for front_end, (edition, family) in recipes.FRONT_ENDS.items():
+            with self.subTest(front_end=front_end):
+                document = self.document()
+                row = next(r for r in document['recipes'] if r['core_id'] == 'fes.pcxt')
+                row['front_end'] = front_end
+                row['quartus'] = dict(row['quartus'], edition=edition, device_family=family)
+                self.assertEqual(self.load_document(document)['fes.pcxt'].front_end, front_end)
+
+    def test_a_quartus_row_that_misstates_its_front_end_is_rejected(self):
+        cases = (
+            # Yosys on Pro/Agilex 5 is design decision D3 and is not taken.
+            {'front_end': 'yosys', 'quartus': {'edition': 'pro', 'device_family': 'agilex5'}},
+            {'front_end': 'quartus-pro', 'quartus': {'edition': 'lite', 'device_family': 'cyclonev'}},
+            {'front_end': 'quartus-lite', 'quartus': {'device_family': 'agilex5'}},
+            {'front_end': 'quartus-standard', 'quartus': {}},
+            {'front_end': 'yosys', 'quartus': {'edition': 'standard'}},
+            {'front_end': None, 'quartus': {}},
+        )
+        for index, case in enumerate(cases):
+            with self.subTest(case=index):
+                document = self.document()
+                row = next(r for r in document['recipes'] if r['core_id'] == 'fes.pcxt')
+                if case['front_end'] is None:
+                    del row['front_end']
+                else:
+                    row['front_end'] = case['front_end']
+                row['quartus'] = dict(row['quartus'], **case['quartus'])
+                with self.assertRaises(ValueError):
+                    self.load_document(document)
+
+    def test_an_oss_row_elaborates_with_yosys_by_omission(self):
+        document = self.document()
+        row = next(r for r in document['recipes'] if r.get('toolchain', 'oss') == 'oss')
+        self.assertNotIn('front_end', row)
+        self.assertEqual(self.load_document(document)[row['core_id']].front_end, 'yosys')
+        row['front_end'] = 'yosys'
+        with self.assertRaisesRegex(ValueError, 'cannot name a front end'):
+            self.load_document(document)
 
     def test_fifth_recipe_is_only_data(self):
         document = self.document()
