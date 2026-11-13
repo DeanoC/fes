@@ -62,6 +62,7 @@ import math
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -242,7 +243,14 @@ def _authenticate_tools(root: Path, *, cache_root: Path | None = None, gpu_route
     try:
         yosys = yosys_netlist.authenticate(root, cache_root=cache_root, gpu_router=gpu_router, lock=LOCK)
     except yosys_netlist.NetlistError as exc:
-        raise board.BuildError(str(exc)) from exc
+        message = str(exc)
+        if "missing path component:" in message or "ready manifest is missing:" in message:
+            command = ["make", "toolchain-fes-pc386"]
+            if cache_root is not None:
+                command.append(f"CACHE_ROOT={cache_root}")
+            command.append(f"GPU_ROUTER={gpu_router}")
+            message += f"; provision the locked toolchain with `{shlex.join(command)}`"
+        raise board.BuildError(message) from exc
     lock = quartus_lock(root)
     try:
         quartus_root, quartus_sh, version = locate_quartus(os.environ.get("QUARTUS_ROOTDIR", ""), root, lock)

@@ -318,6 +318,9 @@ module pc386_system #(
         // 640 KiB and 15 MiB of extended memory: 16 MiB of RAM, ram_top below.
         .base_kib(16'd640), .extended_kib(16'd15360), .above16m_64k(16'd0),
         .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma), .ems_pages(EMS_PAGES), .cmos_busy(cmos_busy),
+        // No 387 until the x87 lands (#1768): the record word and FogCast
+        // setting for the i386dx+387 identity come with it.
+        .x87_present(1'b0),
         .wall_valid(wall_valid), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
         .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second), .wall_weekday(wall_weekday),
         .disk_present(disk_present), .disk_sectors(disk_sectors), .disk_cylinders(disk_cylinders),

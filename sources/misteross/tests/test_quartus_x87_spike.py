@@ -2,6 +2,7 @@
 """The x87 fit spike runner's overlay and report parsing. No Quartus or Yosys needed."""
 import contextlib
 import io
+import re
 import subprocess
 import sys
 import tempfile
@@ -47,7 +48,10 @@ class OverlayTest(unittest.TestCase):
         self.assertIn("{24'd0, x87_io_rdata[7:0]}", overlaid)
         # Declared before the IN data uses it.
         self.assertLess(overlaid.index('wire [31:0] x87_io_rdata'), overlaid.index('io_result <= cpu_io_size'))
-        self.assertNotIn('x87', text)
+        # The machine has none of the overlay's own names before it: its wires
+        # and the port instance. pc386_system's x87_present tie-off (the
+        # i386dx+387 identity, #1780) is not one of them.
+        self.assertIsNone(re.search(r'\b(x87_hit|x87_rdata|x87_io_rdata|x87s_port)\b|\bx87 \(', text))
 
     def test_overlay_refuses_a_moved_anchor(self):
         with self.assertRaises(spike.SpikeError):

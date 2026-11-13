@@ -87,6 +87,27 @@ implements it and supplies the platform objects the Bochs CPU links against.
   whether it ends within 15 bytes, its length, and whether the configured CPU
   raises #UD for it. It touches no CPU state.
 
+- `x87_state()` returns the whole coprocessor as FNSAVE stores it
+  (`X87State`): control, status with TOP, the tag word FNSTENV computes,
+  the last opcode, the x87 pointers and the eight physical registers.
+  `x87_differences()` names the fields two states differ in.
+- `set_at_coprocessor(true)` fits the 387 as on an AT board (#1768 slice 0;
+  the `[[x87]]` entries of [`divergences.toml`](divergences.toml)). The
+  CPU's ERROR# input is tied inactive, so no ESC or WAIT raises exception 16
+  or sleeps for IGNNE# inside a step. `x87_irq13()` is the 387's ERROR#
+  (ES), for the bench to drive into the slave PIC as IRQ 13. ERROR# going
+  active latches BUSY#. While the latch is set, every ESC except FNINIT and
+  FNCLEX, and WAIT, holds before it starts unless #NM or #UD comes first.
+  The step retires nothing and sets `StepResult::x87_held`, and an NMI or
+  INTR taken while held returns to that instruction. A byte written to
+  port F0h clears the latch; one to F1h resets the 387 to control word 037Eh
+  and status word 8081h, with B mirroring ES and every tag empty. Off by
+  default: the lockstep without `FES_I386_X87=387` and the corpus runners run
+  as before.
+  [`x87_tb.cpp`](x87_tb.cpp) checks it on the oracle alone (if1, held-nmi,
+  no-wait, fnstsw, nm-first, wait-mp0, wait-mp1, f1-reset, accessor, off, fresh, fsetpm),
+  from `tests/test_fes_i386_oracle.py`.
+
 Bochs pauses a REP string instruction whenever it stores near code it has
 decoded; the adapter continues it within the step. A REP that overwrites its
 own encoding is re-decoded by Bochs, which is one of the listed divergences.
@@ -191,8 +212,13 @@ is not CPU behaviour.
 Behaviour the design specifies that no corpus covers yet, where the oracle
 differs. Directed tests in later phases decide these, not the oracle:
 
-- Bochs models a 387: MOV CR0 forces ET to 1, ESC instructions return 387
-  results and FERR is not routed. The FES CPU models an empty socket. For
+- Bochs models a 387: MOV CR0 forces ET to 1 and ESC instructions return 387
+  results. Its FERR# is routed only with `set_at_coprocessor` (the AT's
+  IRQ 13, [Adapter](#adapter)). The FES CPU models an empty socket. With
+  `FES_I386_X87=387` (the i386dx+387 identity) the lockstep fits the 387 as
+  on an AT, drops the no-387 rule, and ends a run as not built (`unbuilt`
+  387) at its first ESC or WAIT, since this build's RTL has no 387; the
+  comparison of `X87State` at each retirement comes with the RTL's 387. For
   an ESC instruction with EM and TS clear and no LOCK the lockstep applies
   the no-387 rule (`EscStep`, counted as `no387_rule`):
   - before the step the adapter makes Bochs's 387 read as an empty socket

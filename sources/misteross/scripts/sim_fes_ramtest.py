@@ -3,6 +3,7 @@
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -109,6 +110,10 @@ def main() -> None:
                       ("+define+RAM_RATE_SWEEP", "+define+RAM_130_ONLY", "+define+RAM_OSS_HIGH_SPEED"), False),)
     for build, defines, negative in variants:
         build.mkdir(parents=True, exist_ok=True)
+        test_env = os.environ.copy()
+        test_env.pop("RAMTEST_DDR_FAULT_CASES", None)
+        if "+define+RAM_OSS_HIGH_SPEED" in defines and "+define+RAM_100_ONLY" in defines and not negative:
+            test_env["RAMTEST_DDR_FAULT_CASES"] = "1"
         build_sources = sources
         if negative:
             controller = CORE / "rtl" / "sdram_addon_port.v"
@@ -135,12 +140,12 @@ def main() -> None:
             check=True,
         )
         if negative:
-            result = subprocess.run([str(build / "sim")], capture_output=True, text=True)
+            result = subprocess.run([str(build / "sim")], capture_output=True, text=True, env=test_env)
             if result.returncode == 0 or "RAMTEST_BYTE_PREFLIGHT_READ_MISMATCH" not in result.stderr:
                 raise RuntimeError(f"capture-shift negative control did not fail as expected: {result.stderr}")
             print("PASS: 100 MHz OSS functional model rejects missing read-capture shift", flush=True)
         elif "+define+RAM_130_ONLY" in defines:
-            result = subprocess.run([str(build / "sim")], capture_output=True, text=True)
+            result = subprocess.run([str(build / "sim")], capture_output=True, text=True, env=test_env)
             print(result.stdout, end="", flush=True)
             print(result.stderr, end="", flush=True)
             raise SystemExit(
@@ -148,8 +153,15 @@ def main() -> None:
                 f"the DQ valid window (simulation exit {result.returncode}); "
                 "this diagnostic cannot pass without a bounded timing model"
             )
+        elif "RAMTEST_DDR_FAULT_CASES" in test_env:
+            result = subprocess.run([str(build / "sim")], capture_output=True, text=True, env=test_env)
+            print(result.stdout, end="", flush=True)
+            print(result.stderr, end="", file=sys.stderr, flush=True)
+            result.check_returncode()
+            if "PASS: twelve DDR latency fault and stop cases" not in result.stdout:
+                raise RuntimeError("OSS-100 simulation did not run the DDR fault cases")
         else:
-            subprocess.run([str(build / "sim")], check=True)
+            subprocess.run([str(build / "sim")], check=True, env=test_env)
 
 
 if __name__ == "__main__":

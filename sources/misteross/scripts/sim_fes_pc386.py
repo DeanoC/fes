@@ -41,7 +41,10 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            bytes the bench reads through the page tables and after which the
            oracle runs until paging is off. The RTL run must stop on each,
            record the two protected-mode stretches, and write what the
-           oracle run writes.
+           oracle run writes. It also checks the initial full-AX SMSW result
+           and the LAHF flags byte, and SMSW after a CR0 write; the models'
+           post-BIOS CR0 reserved-bit values remain unmeasured on a physical 386
+           (#1748).
   a20      runs cores/fes-pc386/sim/a20_test.asm (A20TEST.COM) at the FreeDOS
            prompt (#1386). On the boot image, which has no XMS driver, A20
            must be off at the prompt, INT 15h AH=24h and 87h must turn it on,
@@ -75,6 +78,15 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            with the gate held. Every check must print ok. With --cpu rtl,
            the RTL must run it without an oracle step or a stop; writes
            speaker-rtl/.
+  x87      runs cores/fes-pc386/sim/x87_test.asm (X87TEST.COM) at the FreeDOS
+           prompt on the oracle, whose 387 is wired as on an AT, with the
+           i386dx+387 identity on (machine_tb --x87 1; #1768): INT 11h must
+           report the 387, an
+           unmasked divide by zero must reach the BIOS's INT 75h and INT 02h,
+           this program's own INT 75h with a frame that returns to the next
+           ESC, and, with IRQ 13 masked, hold that ESC until the timer's
+           handler writes port F0h; OUT F1h must leave a 387's RESET state.
+           Every check must print ok. Oracle only.
   scroll   runs cores/fes-pc386/sim/scroll_test.asm (SCROLLT.COM) at the
            FreeDOS prompt. INT 10h AH=00h for modes 13h, 93h and 03h must keep
            BX, CX, DX, SI, DI, BP, DS and ES, and AH=0Fh must return the mode
@@ -796,21 +808,61 @@ def vga_test_disk(args) -> Path:
     return disk
 
 
-# What the RTL must stop on in rtl_stop_test.asm, in order: (stem, CS, the
-# instruction's first bytes). LOADALL in real mode, which the oracle runs as
-# #UD (Bochs at CPU level 3); far JMP through call gate 18h at CPL 0; through
-# gate 28h under paging, from CS 20h, whose base maps to the sector through
-# a second page table.
+# LOADALL in real mode, followed by call-gate JMPs without and with paging.
 RTL_STOPS = (('0F07', '0000', '0f07'), ('EA', '0008', 'ea00001800'), ('EA', '0020', 'ea00002800'))
-# The lines both runs write to port E9h.
-RTL_STOP_LINES = ['U', 'G', 'P', 'DONE']
-# The stretches the oracle runs with PE set: the JMP through gate 18h alone,
-# then from the JMP through gate 28h until paging is off.
+RTL_STOP_LINES = ['C fff0', 'U', 'G', 'P', 'DONE']
 RTL_STOP_STRETCHES = (1, 10)
+# Software baselines after this BIOS, not physical 386 conformance claims.
+SMSW_POST_BIOS = {'oracle': 0x0010, 'rtl': 0xfff0}
+
+
+def rtl_stop_failures(lines: dict, rtl: dict) -> list[str]:
+    """Check the stop cases and SMSW results."""
+    failures = []
+    oracle = lines.get('oracle', [])
+    actual = lines.get('rtl', [])
+    if not oracle or oracle[-1] != 'DONE':
+        failures.append(f'the oracle run did not finish: {oracle}')
+    for cpu, output in (('oracle', oracle), ('RTL', actual)):
+        if output[1:] != RTL_STOP_LINES:
+            failures.append(f'the {cpu} run wrote {output}, expected an initial SMSW then {RTL_STOP_LINES}')
+
+    # The first SMSW occurs after the BIOS. Compare each complete AX against
+    # its observed software baseline, without asserting which model is right
+    # for reserved bits 15--5 (#1748). Compare the LAHF flags byte as well.
+    pattern = r'R ([0-9a-f]{4}) ([0-9a-f]{2})'
+    first_oracle = re.fullmatch(pattern, oracle[0]) if oracle else None
+    first_actual = re.fullmatch(pattern, actual[0]) if actual else None
+    if not first_oracle or not first_actual:
+        failures.append(f'missing initial SMSW result: oracle {oracle}, RTL {actual}')
+    else:
+        for cpu, result in (('oracle', first_oracle), ('rtl', first_actual)):
+            if int(result[1], 16) != SMSW_POST_BIOS[cpu]:
+                failures.append(f'{cpu} initial SMSW differs from its post-BIOS software baseline: {result[0]}')
+        if first_oracle[2] != first_actual[2]:
+            failures.append(f'initial LAHF flags differ: oracle {oracle[0]}, RTL {actual[0]}')
+    if oracle[1:] != actual[1:]:
+        failures.append(f'the RTL run wrote {actual[1:]}, the oracle run {oracle[1:]}')
+
+    stops = [(stop['stem'], stop['site'].partition(':')[0], (stop['bytes'] or '')[:len(want)])
+             for stop, (_, _, want) in zip(rtl.get('stops', []), RTL_STOPS)]
+    if len(rtl.get('stops', [])) != len(RTL_STOPS) or stops != list(RTL_STOPS):
+        failures.append(f'the RTL stopped at {[(s["stem"], s["site"], s["bytes"]) for s in rtl.get("stops", [])]}, '
+                        f'expected {list(RTL_STOPS)}')
+    # LOADALL raises #UD and does not retire. Both call-gate jumps execute.
+    expected_gaps = {'0F07': (1, 1, 0), 'EA': (2, 2, 2)}
+    gaps = {gap['stem']: (gap['stops'], gap['sites'], gap['executed'])
+            for gap in rtl.get('gaps', [])}
+    if gaps != expected_gaps:
+        failures.append(f'expected LOADALL and call-gate stops {expected_gaps}, got {gaps}')
+    pmode = rtl.get('pmode', [])
+    if tuple(stretch['steps'] for stretch in pmode) != RTL_STOP_STRETCHES:
+        failures.append(f'expected protected-mode stretches of {RTL_STOP_STRETCHES} steps: {pmode}')
+    return failures
 
 
 def run_rtl_stops(args, linked: list[Path]) -> dict:
-    """The stop path of --cpu rtl, on a boot sector of what the RTL still does not build."""
+    """Boot current RTL stops and check SMSW, oracle handoff and restart."""
     nasm = test386.nasm(args.download, args.jobs)
     directory = OUTPUT / 'rtl-stops'
     directory.mkdir(parents=True, exist_ok=True)
@@ -831,22 +883,8 @@ def run_rtl_stops(args, linked: list[Path]) -> dict:
                                                                 '--cpu', cpu], images)
     lines = {cpu: [entry['text'] for entry in run['debug'] if entry['port'] == '0e9'] for cpu, run in runs.items()}
     failures = [f'{cpu}: {failure}' for cpu, run in runs.items() for failure in run['failures']]
-    for cpu in runs:
-        if lines[cpu] != RTL_STOP_LINES:
-            failures.append(f'the {cpu} run wrote {lines[cpu]}, expected {RTL_STOP_LINES}')
     rtl = runs['rtl'].get('rtl') or {'stops': [], 'gaps': [], 'pmode': []}
-    stops = [(stop['stem'], stop['site'].partition(':')[0], (stop['bytes'] or '')[:len(want)])
-             for stop, (_, _, want) in zip(rtl['stops'], RTL_STOPS)]
-    if len(rtl['stops']) != len(RTL_STOPS) or stops != list(RTL_STOPS):
-        failures.append(f'the RTL stopped at {[(s["stem"], s["site"], s["bytes"]) for s in rtl["stops"]]}, '
-                        f'expected {list(RTL_STOPS)}')
-    # Each stop's instruction runs on the oracle; LOADALL raises #UD there,
-    # so it does not retire.
-    gaps = {gap['stem']: (gap['stops'], gap['sites'], gap['executed']) for gap in rtl['gaps']}
-    if gaps != {'0F07': (1, 1, 0), 'EA': (2, 2, 2)}:
-        failures.append(f'expected LOADALL once (not retired on the oracle) and EA twice, each at its own site: {gaps}')
-    if tuple(stretch['steps'] for stretch in rtl['pmode']) != RTL_STOP_STRETCHES:
-        failures.append(f'expected protected-mode stretches of {RTL_STOP_STRETCHES} steps: {rtl["pmode"]}')
+    failures += rtl_stop_failures(lines, rtl)
     return {'lines': lines, 'runs': runs, 'failures': failures,
             'checks': [f'{cpu}: {" | ".join(lines[cpu])}' for cpu in runs] + [f'RTL {gap}' for gap in rtl['gaps']]}
 
@@ -977,7 +1015,7 @@ def default_limit_seconds(suite: str) -> int:
     """Return the suite's default simulated-time hang guard."""
     if suite == 'sound':
         return 14
-    if suite in ('boot', 'governor', 'wait', 'speaker', 'scroll', 'cpu-profile'):
+    if suite in ('boot', 'governor', 'wait', 'speaker', 'x87', 'scroll', 'cpu-profile'):
         return 8
     if suite == 'rtl-stops':
         return 2
@@ -1029,6 +1067,29 @@ def run_speaker(args, linked: list[Path]) -> dict:
         failures.append(f'SPKTEST.COM ran {names}, expected {list(SPEAKER_CHECKS)}')
     if args.cpu == 'rtl':
         failures += rtl_failures(run, 'speaker run')
+    return {'run': run, 'checks': lines, 'failures': failures}
+
+
+# X87TEST.COM's checks, in the order it runs them.
+X87_CHECKS = ('equip', 'bios', 'bios-sw', 'raw', 'raw-ip', 'raw-sw', 'held', 'f1-cw', 'f1-sw', 'DONE')
+
+
+def run_x87(args, linked: list[Path]) -> dict:
+    """X87TEST.COM at the FreeDOS prompt: the AT error path of the oracle's 387 (IRQ 13, ports F0h and F1h)."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    disk = fixture_with(args, 'x87', 'x87_test.asm', 'X87TEST.COM')
+    print('Running X87TEST.COM on the oracle CPU', flush=True)
+    run = run_machine(testbench, 'x87', ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                        '--type', 'x87test|', '--expect', 'X87 DONE ok', '--cpu', 'oracle',
+                                        '--x87', '1'],
+                      images)
+    lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
+    run['lines'] = lines
+    failures = run['failures'] + [line for line in lines if not line.endswith(' ok')]
+    names = [line.split()[1] for line in lines if line.startswith('X87 ')]
+    if names != list(X87_CHECKS):
+        failures.append(f'X87TEST.COM ran {names}, expected {list(X87_CHECKS)}')
     return {'run': run, 'checks': lines, 'failures': failures}
 
 
@@ -1967,7 +2028,7 @@ def wfw_checks(report: dict) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'fdc', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
-                                            'a20', 'c2xx', 'ems', 'wait', 'speaker', 'scroll', 'cpu-profile',
+                                            'a20', 'c2xx', 'ems', 'wait', 'speaker', 'x87', 'scroll', 'cpu-profile',
                                             'sound', 'game', 'wfw', 'vga', 'system', 'governor', 'all'),
                         default='all',
                         help='simulation suite to run')
@@ -2078,6 +2139,8 @@ def main() -> int:
                 report = run_wait(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'speaker':
                 report = run_speaker(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'x87':
+                report = run_x87(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'scroll':
                 report = run_scroll(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'cpu-profile':

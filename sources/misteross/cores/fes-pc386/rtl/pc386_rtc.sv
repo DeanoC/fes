@@ -51,6 +51,9 @@ module pc386_rtc #(
     input wire [7:0] disk_heads, disk_spt,
     input wire [7:0] sb_base_high, sb_irq, sb_dma,
     input wire [7:0] ems_pages,
+    // The i386dx+387 identity: a 387 is fitted (CMOS 14h bit 1, which INT 11h
+    // reports in AX bit 1; IBM PC AT Technical Reference, CMOS equipment byte).
+    input wire x87_present,
     // fes.rtc.wall-clock: binary fields, taken when valid pulses.
     input wire wall_valid,
     input wire [15:0] wall_year,
@@ -145,7 +148,7 @@ module pc386_rtc #(
         case (step)
             7'd0: begin config_address = 8'h10; config_value = 8'h00; end          // no floppy drives
             7'd1: begin config_address = 8'h12; config_value = disk_present ? 8'hf0 : 8'h00; end
-            7'd2: begin config_address = 8'h14; config_value = 8'h04; end          // VGA, PS/2 port, no x87 or floppy
+            7'd2: begin config_address = 8'h14; config_value = {6'b000001, x87_present, 1'b0}; end  // VGA, PS/2 port, x87 as fitted, no floppy
             7'd3: begin config_address = 8'h15; config_value = base_kib[7:0]; end
             7'd4: begin config_address = 8'h16; config_value = base_kib[15:8]; end
             7'd5: begin config_address = 8'h17; config_value = extended_kib[7:0]; end

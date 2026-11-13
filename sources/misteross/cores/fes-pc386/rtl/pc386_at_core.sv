@@ -90,6 +90,7 @@ module pc386_at_core #(
     input wire wall_valid,
     input wire [15:0] wall_year,
     input wire [7:0] wall_month, wall_day, wall_hour, wall_minute, wall_second, wall_weekday,
+    input wire x87_present,                 // the i386dx+387 identity (pc386_rtc)
     // Disk
     input wire disk_present,
     input wire [31:0] disk_sectors,
@@ -356,6 +357,7 @@ module pc386_at_core #(
         .disk_present(disk_present), .disk_cylinders(disk_cylinders),
         .disk_heads({3'b000, disk_heads}), .disk_spt({2'b00, disk_spt}),
         .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma), .ems_pages(ems_pages),
+        .x87_present(x87_present),
         .wall_valid(wall_valid), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
         .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second), .wall_weekday(wall_weekday),
         .record_write(record_write), .record_index(record_index), .record_byte(record_byte),
