@@ -40,6 +40,8 @@ On Powerboat, 12–13 Nov 2026. Each core had three builds:
 
 All routes ran through `gpu-run` on HIP.
 
+fes.riscv's closure includes `scripts/doctor.py`, which `1e9d4ad83` edits, so its forced and own builds were rerun at `1e9d4ad83` (row below). No other core's closure includes a file changed after `55ee0b659`.
+
 **Sixteen cores meet D12.** For every one of them:
 
 - the forced `core.rbf` is byte-identical to main's;
@@ -62,7 +64,7 @@ All routes ran through `gpu-run` on HIP.
 | `fes.spectrum128` | `fca07479` | `a6762b063ebf` | `f09163e9` | 5 | pass | audio 180.018 (12.288) / pixel 95.402 (74.250) / system 64.292 (52.225) |
 | `fes.spectrum-plus3` | `69603f6b` | `7b6b76aa4a11` | `db543d3c` | 4 | pass | audio 199.283 (12.288) / pixel 88.215 (74.250) / system 54.183 (52.225) |
 | `fes.pentagon` | `aa5e405b` | `38a105912281` | `f4837144` | 5 | pass | audio 215.146 (12.288) / pixel 84.739 (74.250) / system 58.792 (52.225) |
-| `fes.riscv` | `bb19551b` | `b52dd2ee1dbf` | `878afcf5` | 1 | pass | pixel 79.026 (74.250) |
+| `fes.riscv` | `bb19551b` | `b52dd2ee1dbf` | `490b78a3` | 1 | pass | pixel 78.493 (74.250) |
 | `fes.atari-st` | `c4e94b20` | `9b8090fe7371` | `14a4878c` | 5 | pass | audio 164.908 (12.288) / pixel 87.002 (74.250) / system 56.980 (52.225) |
 
 ## fes.ramtest misses timing
