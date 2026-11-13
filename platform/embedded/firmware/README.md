@@ -6,6 +6,15 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+The selected full-input retirement profile uses a bounded, read-only command
+snapshot callback. Each queue snapshot checks the same 24-register superset as
+the outer retirement engine, with fresh source/owner/callback validation before
+and after the batch. Slot stores and producer publication retain their separate
+guards and fresh pre-write view. Arm-only and fault profiles use the original
+individual register reads. The command, retirement and source deadlines remain
+100 ms, one second and 20 seconds. Cost injection and mutation tests are host
+models; they do not qualify SMMU retirement or warm fabric drain on the board.
+
 `nano_mac` supplies a portable fixed MAC/window lease engine with an independent
 peripheral generation. Trusted scope, grant, confirmation and independent drain
 callbacks are mandatory. Failed mutations retain the reservation and retire;

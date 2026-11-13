@@ -160,6 +160,16 @@ static int cmd_store(void *context,unsigned slot,const uint8_t data[16])
 }
 static void cmd_barrier(void *context)
 {struct nano_retire *s=context;s->io.barrier(s->io.context);}
+static int cmd_snapshot(void *context,uint32_t pointer)
+{
+ struct nano_retire *s=context;
+ if(!s || s->phase!=RET_INVALIDATE || (pointer!=6 && pointer!=12))return -22;
+ /* The existing 24-register snapshot contains every queue register plus
+  * fixed capability, abort, event and error state. It already checks the
+  * exact source/owner and callback table before and after a read-only batch.
+  * Queue slot stores and the producer write keep their per-operation gates. */
+ return snapshot(s,8,pointer,ABORT);
+}
 int nano_source_retire(struct nano_retire *s,struct nano_sdm_input_binding binding,
  struct nano_retire_io io,struct nano_retire_receipt *out)
 {
@@ -187,7 +197,7 @@ int nano_source_retire(struct nano_retire *s,struct nano_sdm_input_binding bindi
  s->phase=RET_COMMAND_ONLY;if(initial_transition(s,12,8))return -1;
  s->phase=RET_INVALIDATE;
  struct nano_cmdq_binding cb={binding.owner,binding.epoch,binding.generation,0x94008000,6};
- struct nano_cmdq_io ci={s,cmd_owns,cmd_time,cmd_read,cmd_write,cmd_store,cmd_barrier};
+ struct nano_cmdq_io ci={s,cmd_owns,cmd_time,cmd_read,cmd_write,cmd_store,cmd_barrier,cmd_snapshot};
  if(nano_cmdq_init(&s->commands,cb,ci) || nano_cmdq_submit(&s->commands,&s->command_receipt))return fail(s,s->commands.first_error);
  struct nano_cmdq_receipt *r=&s->command_receipt;
  if(r->owner!=binding.owner || r->epoch!=binding.epoch || r->generation!=binding.generation ||

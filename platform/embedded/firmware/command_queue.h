@@ -25,6 +25,10 @@ struct nano_cmdq_io {
     int (*write32)(void *,uint32_t offset,uint32_t value);
     int (*store)(void *,unsigned slot,const uint8_t bytes[16]);
     void (*barrier)(void *);
+    /* Optional fixed read-only snapshot. Validate all eight queue registers
+     * for pointer, or a strict superset, with fresh ownership around the
+     * bounded batch. It cannot store, publish, acknowledge or grant DMA. */
+    int (*snapshot)(void *,uint32_t pointer);
 };
 struct nano_cmdq_receipt {
     uint64_t owner,epoch,generation;

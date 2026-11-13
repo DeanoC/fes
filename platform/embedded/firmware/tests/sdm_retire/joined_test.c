@@ -348,11 +348,17 @@ static void park(void){parks++;longjmp(terminal,1);}
 #define FES_PROBE_COUNTER() counter()
 #define FES_PROBE_SYMBOL(name) address_of(#name)
 #define FES_PROBE_TABLE(name,index) table_word(#name,index)
-#define FES_PROBE_READ32(address) probe_read(address)
-#define FES_PROBE_WRITE32(address,value) probe_write(address,value)
-#define FES_PROBE_LOAD64(address) load_word(address)
-#define FES_PROBE_STORE64(address,value) store_word(address,value)
-#define FES_PROBE_BARRIER() ((void)0)
+#ifndef FES_TEST_RETIRE_METER
+#define FES_TEST_RETIRE_METER(kind) ((void)0)
+#endif
+#ifndef FES_TEST_RETIRE_COST_MODE
+#define FES_TEST_RETIRE_COST_MODE 0
+#endif
+#define FES_PROBE_READ32(address) (FES_TEST_RETIRE_METER(0),probe_read(address))
+#define FES_PROBE_WRITE32(address,value) (FES_TEST_RETIRE_METER(1),probe_write(address,value))
+#define FES_PROBE_LOAD64(address) (FES_TEST_RETIRE_METER(2),load_word(address))
+#define FES_PROBE_STORE64(address,value) (FES_TEST_RETIRE_METER(3),store_word(address,value))
+#define FES_PROBE_BARRIER() FES_TEST_RETIRE_METER(4)
 #define FES_PROBE_WAIT() park()
 #undef NOTICE
 #define NOTICE(...) ((void)0)
@@ -372,6 +378,7 @@ static void terminal_notice(const char *format,...){
 #define NOTICE(...) terminal_notice(__VA_ARGS__)
 #include "nano_sdm_source_platform.inc"
 static uint64_t counter(void){
+ FES_TEST_RETIRE_METER(5);
  if(retire_armed && source_retirement.phase==RET_COMPLETE){
   if(retire_fault==10)registers[44]=1;
   if(retire_fault==11)registers[0x20/4]=13;
@@ -2037,7 +2044,7 @@ static void joined_case(void){
   assert(strstr(line," proof=0 ") && !strstr(line," status=0 "));
  }
  if(!trial_case){
-  if(!retire_fault){assert(source_retirement.retired && source_retirement.command_receipt.commands_completed && source_retirement.command_receipt.producer==12);assert(smmu_writes==17 && registers[0x20/4]==0 && registers[0x44/4]==0x100000);}
+  if(!retire_fault && !(FES_TEST_RETIRE_COST_MODE && source_retirement.failed)){assert(source_retirement.retired && source_retirement.command_receipt.commands_completed && source_retirement.command_receipt.producer==12);assert(smmu_writes==17 && registers[0x20/4]==0 && registers[0x44/4]==0x100000);}
   else {if(!source_retirement.failed || source_retirement.retired)fprintf(stderr,"RETIRE_CASE %u attempted=%u failed=%u retired=%u scope=%u source_failed=%u\n%s",retire_fault,source_retirement.attempted,source_retirement.failed,source_retirement.retired,sdm_probe_scope_reason,sdm_source_failed,terminal_log);assert(source_retirement.failed && !source_retirement.retired);}
   unsigned before=smmu_writes;struct nano_retire_receipt again={0};assert(fes_nano_sdm_retire_source(&again));assert(smmu_writes==before && !again.translation_retired);
  }else assert(smmu_writes==12 || trial_case==4);
@@ -2068,7 +2075,10 @@ static void lifecycle_case(unsigned kind){
  else{assert(status && service_error && consumed==0 && stream_words==1);}
  assert(!sdm_arm_entered && !smmu_writes && !data_posts);
 }
-int main(void){
+#ifndef FES_TEST_JOINED_MAIN
+#define FES_TEST_JOINED_MAIN main
+#endif
+int FES_TEST_JOINED_MAIN(void){
  for(retire_fault=1;retire_fault<=14;retire_fault++){trial_case=0;fixture_credits=4;run_joined();}
  retire_fault=0;
  for(unsigned kind=0;kind<4;kind++){
@@ -2080,4 +2090,5 @@ int main(void){
   for(trial_case=100;trial_case<=123;trial_case++)run_joined();
  }
  printf("{\"status\":\"passed-startup-then-owned-full-transfer\",\"joined_cases\":%u,\"lifecycle_cases\":4,\"startup_notification_precedes_every_transfer\":true,\"actual_vendor_functions\":36,\"hardware_actions\":false}\n",joined_cases);
+ return 0;
 }

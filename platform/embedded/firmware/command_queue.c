@@ -14,12 +14,22 @@ static int fail(struct nano_cmdq *s,int error)
     if (!s->first_error) s->first_error=error ? error : -1;
     return -1;
 }
+static int io_same(const struct nano_cmdq_io *a,const struct nano_cmdq_io *b)
+{
+    return a->context==b->context && a->owns==b->owns && a->time_us==b->time_us &&
+        a->read32==b->read32 && a->write32==b->write32 && a->store==b->store &&
+        a->barrier==b->barrier && a->snapshot==b->snapshot;
+}
 static int guard(struct nano_cmdq *s)
 {
     uint64_t now=0;
     if (s->failed) return -1;
-    if (s->io.time_us(s->io.context,&now)) return fail(s,-2);
-    if (s->io.owns(s->io.context,&s->binding)!=1) return fail(s,-1);
+    struct nano_cmdq_io io=s->io;
+    if (!io.time_us || !io.owns) return fail(s,-22);
+    if (io.time_us(io.context,&now)) return fail(s,-2);
+    if (!io_same(&io,&s->io)) return fail(s,-13);
+    if (io.owns(io.context,&s->binding)!=1) return fail(s,-1);
+    if (!io_same(&io,&s->io)) return fail(s,-13);
     if (!s->timed) {s->start=s->last=now;s->timed=1;}
     if (now<s->last || now-s->start>NANO_CMDQ_BOUND_US) return fail(s,-3);
     s->last=now;
@@ -42,6 +52,14 @@ static int checked(struct nano_cmdq *s,uint32_t offset,uint32_t want)
 }
 static int snapshot(struct nano_cmdq *s,uint32_t pointer)
 {
+    if (s->io.snapshot) {
+        struct nano_cmdq_io io=s->io;
+        if (guard(s) || !io_same(&io,&s->io)) return fail(s,-13);
+        int error=io.snapshot(io.context,pointer);
+        if (error) return fail(s,error);
+        if (!io_same(&io,&s->io)) return fail(s,-13);
+        return guard(s);
+    }
     return checked(s,CR0,8) || checked(s,CR0ACK,8) ||
         checked(s,BASE,(uint32_t)s->binding.queue|3U) ||
         checked(s,BASEHI,(uint32_t)(s->binding.queue>>32)) ||
