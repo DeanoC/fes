@@ -781,20 +781,32 @@ func (d *MenuDisplay) run() {
 	}
 }
 
-// scanoutLostLocked reports whether the runtime's own live reads, or the
-// sequence it is showing, say this client's frame is no longer on the wire.
-// An available status is not evidence of scanout: the runtime confirmed one
-// present and, before the idle health check, never looked again. Status
-// without live fields is an older runtime, where only the sequence is known.
+// scanoutLostLocked reports whether the runtime's own live reads say this
+// client's frame is no longer on the wire. An available status is not
+// evidence of scanout: the runtime confirmed one present and, before the
+// idle health check, never looked again. Status without live fields is an
+// older runtime, where only the sequence is known.
 func (d *MenuDisplay) scanoutLostLocked(status menudisplay.Status) bool {
 	if live := status.Live; live != nil {
 		if !live.Enabled || live.Faulted || live.Quiesced {
 			return true
 		}
-		// The runtime sets status.DisplayedSequence from the same value it
-		// returned to this client's present, so those two can never disagree.
-		// Only the live register read can, and it is the one that says what
-		// scanout is doing now.
+		// Whether scanout is still showing the committed frame is the
+		// runtime's verdict, not this client's subtraction. The sample's own
+		// DisplayedSequence was read up to a probe interval ago and a present
+		// has moved the committed frame since, so comparing it with what that
+		// present returned straddles two instants: it reads as a loss after
+		// every ordinary present, sends a complete frame to "recover", and
+		// that present moves the sequence again. One UI change would upload a
+		// whole frame every second from then on. The verdict is made inside
+		// the health check, where both numbers are read together, and a
+		// present drops it rather than leaving a stale one to speak for a
+		// frame it never saw.
+		if live.ScanoutFrame != "" {
+			return live.ScanoutFrame == menudisplay.ScanoutFrameMismatched
+		}
+		// A runtime that measures the display but publishes no verdict is
+		// older than this comparison, and the sample is all it has to offer.
 		return d.presentedDisplayedKnown && live.DisplayedSequence != d.presentedDisplayed
 	}
 	// An older runtime measures nothing, leaving only the cached sequence.

@@ -201,7 +201,7 @@ only after the deferred check, so a client that read to end of file instead
 would wait the check out.
 
 Status then carries `menu_display.live` with `enabled`, `faulted`,
-`quiesced`, `displayed_sequence`, `underflows_total` and
+`quiesced`, `displayed_sequence`, `scanout_frame`, `underflows_total` and
 `recovery_abandoned`, plus a nested
 `transmitter` object with `hot_plug`, `rx_sense`, `pll_lock` and `vic` when
 the transmitter was read. Those four reads succeed or fail together, so they
@@ -214,6 +214,30 @@ absent until a check has measured something: absent is "not measured", not
 `menu_display_health`. The displayed sequence advances with every present and
 is logged but is not itself a transition; the verdict that it no longer
 matches the committed frame is.
+
+`live.displayed_sequence` is a sample: the register as that check read it,
+kept for the kit log and for diagnostics. It is not something a client
+compares against the sequence its own present returned. The check runs about
+once a second and a present happens whenever the UI changes, so after any
+present the published sample is one behind the committed frame until the
+next check; a client subtracting the two would call a healthy display lost on
+every frame, upload a complete frame to "recover", advance the sequence with
+that present, and go round again every second.
+
+`live.scanout_frame` is that comparison, made inside the check where
+`live.displayed_sequence` and the committed sequence are read in the same
+breath. It is `"matching"` when scanout is showing the committed frame,
+`"mismatched"` when it is not, and `"unknown"` when no measurement describes
+the frame now on the wire. A present sets it to `"unknown"`, because the
+committed frame has moved and the last check never saw the new one; so does
+hiding a session plane, which moves the committed sequence the same way.
+Only the verdict is dropped there -- the rest of the sample, `enabled`,
+`faulted`, `quiesced` and `recovery_abandoned` above all, stays published,
+since a client that sees no live reads at all goes back to presenting into a
+loss the runtime gave up on. A client treats only `"mismatched"` as a loss:
+an unknown verdict costs at most one more probe interval before the next
+check speaks, and that is the direction to err in. The member is absent from
+a runtime older than the verdict, which reads the same way.
 
 The read is paced at most once a second, and a successful menu program starts
 that interval, so the first read of a freshly programmed display is one whole
@@ -260,12 +284,13 @@ reprogram loop this policy gives the loss up to avoid. The kit log names the
 loss, and the picture stays gone until the hardware changes.
 
 FogCast's probe of an unchanged frame requires `live.enabled`, no
-`live.faulted` or `live.quiesced`, and `live.displayed_sequence` equal to the
-sequence its own last present returned. The runtime sets the cached
-`menu_display.displayed_sequence` from the same value it returned to that
-present, so only the live read can disagree; an older runtime reports no
-`live` at all, and the probe falls back to the cached field there. Anything
-else sends a complete frame instead of acknowledging one -- unless
+`live.faulted` or `live.quiesced`, and `live.scanout_frame` not
+`"mismatched"`. It does not compare `live.displayed_sequence` with anything
+of its own. A runtime that measures the display but publishes no
+`scanout_frame` is older than the verdict, and the probe falls back to the
+sampled sequence there, as it does to the cached
+`menu_display.displayed_sequence` against a runtime that reports no `live`
+at all. Anything else sends a complete frame instead of acknowledging one -- unless
 `live.recovery_abandoned` is set, where it sends nothing at all and keeps
 probing on its interval, so ordinary presenting resumes on the first status
 that clears the flag. The recovery present FogCast sends when a backoff

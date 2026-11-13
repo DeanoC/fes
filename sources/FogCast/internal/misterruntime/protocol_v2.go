@@ -40,10 +40,19 @@ type Protocol2Error struct {
 // Protocol2MenuDisplayLive is what the idle display and the ADV7513 last
 // reported about themselves, rather than what the last present set up.
 type Protocol2MenuDisplayLive struct {
-	Enabled           bool   `json:"enabled"`
-	Faulted           bool   `json:"faulted"`
-	Quiesced          bool   `json:"quiesced"`
+	Enabled  bool `json:"enabled"`
+	Faulted  bool `json:"faulted"`
+	Quiesced bool `json:"quiesced"`
+	// DisplayedSequence is the register as the check read it, kept for logs
+	// and diagnostics. A client does not compare it with the sequence its own
+	// present returned: those are two different instants. ScanoutFrame is the
+	// comparison, made where both numbers are read together.
 	DisplayedSequence uint64 `json:"displayed_sequence"`
+	// ScanoutFrame is the runtime's verdict on whether scanout shows the
+	// committed frame: "matching", "mismatched", or "unknown" when no
+	// measurement describes the frame now on the wire. Empty from a runtime
+	// that publishes no verdict.
+	ScanoutFrame string `json:"scanout_frame,omitempty"`
 	// UnderflowsTotal is the absolute hardware counter since the display was
 	// programmed, not the per-present delta the sibling Underflows carries.
 	UnderflowsTotal uint64 `json:"underflows_total"`
@@ -751,7 +760,13 @@ func validateMenuDisplayShape(raw json.RawMessage) error {
 	if raw, present := menu["live"]; present {
 		// recovery_abandoned is optional: a runtime that measures the display
 		// but never says it gave up is read as still willing to recover.
-		live, err := exactRawObject(raw, []string{"enabled", "faulted", "quiesced", "displayed_sequence", "underflows_total"}, []string{"recovery_abandoned", "transmitter"})
+		// scanout_frame is optional for the same reason: a runtime older than
+		// the verdict publishes none, and must keep validating exactly as it
+		// does today rather than being refused for a member it never had. Any
+		// string passes the shape check; a reader acts only on "mismatched",
+		// so a name this client does not know costs a probe interval instead
+		// of manufacturing a loss.
+		live, err := exactRawObject(raw, []string{"enabled", "faulted", "quiesced", "displayed_sequence", "underflows_total"}, []string{"recovery_abandoned", "scanout_frame", "transmitter"})
 		if err != nil {
 			return err
 		}
@@ -761,6 +776,13 @@ func validateMenuDisplayShape(raw json.RawMessage) error {
 			"recovery_abandoned": rawBoolean,
 		}); err != nil {
 			return err
+		}
+		// Checked only when it is there: requireRawKinds also requires the
+		// member, and a runtime older than the verdict sends none.
+		if verdict, present := live["scanout_frame"]; present {
+			if err := requireRawKind(verdict, rawString); err != nil {
+				return err
+			}
 		}
 		// The transmitter reads arrive together or not at all, so they are
 		// their own object rather than four optional members that a re-encode

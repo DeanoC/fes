@@ -2122,7 +2122,10 @@ Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
   menu_status_.error=revoked.ok()?error:revoked;
   SetSessionDisplayInputFocus(true);return menu_status_.error;
  }
+ // Hiding the plane moves the committed sequence too, so the verdict stops
+ // describing it here just as it does on a present.
  menu_status_.displayed_sequence=info.displayed_sequence;
+ menu_status_.live.scanout_frame=MenuScanoutFrame::unknown;
  SetSessionDisplayInputFocus(false);menu_underflow_streak_=0;
  return {};
 }
@@ -2271,6 +2274,7 @@ void NativeHardware::LogIdleDisplayLive(const MenuDisplayLive& live)
    " enabled="+(live.enabled?"1":"0")+" faulted="+(live.faulted?"1":"0")+
    " quiesced="+(live.quiesced?"1":"0")+
    " displayed_sequence="+std::to_string(live.displayed_sequence)+
+   " scanout_frame="+MenuScanoutFrameName(live.scanout_frame)+
    " underflows_total="+std::to_string(live.underflows_total)+
    " link="+(live.link?"1":"0")+" hpd="+(live.hot_plug?"1":"0")+
    " rx_sense="+(live.rx_sense?"1":"0")+" pll_lock="+(live.pll_lock?"1":"0")+
@@ -2316,6 +2320,12 @@ Error NativeHardware::CheckIdleDisplayHealth()
  // only a health transition, or the verdict that it no longer matches the
  // committed frame, is a change worth a line.
  const bool mismatch=lost=="menu scanout no longer shows the committed frame";
+ // The verdict, published where it was made. live.displayed_sequence and
+ // menu_status_.displayed_sequence were both read inside this one check, so
+ // this is the only place the two can honestly be compared; a client holding
+ // a sample from up to a second ago and its own newest present is comparing
+ // two instants and would call every present a loss.
+ live.scanout_frame=mismatch?MenuScanoutFrame::mismatched:MenuScanoutFrame::matching;
  // The first measured sample after programming is always worth a line: the
  // reset baseline is all-zero, so a display that reads back all-zero matches
  // it exactly and would otherwise be logged neither now nor on any identical
@@ -2407,7 +2417,10 @@ Error NativeHardware::FailMenuPresent(const Error& error)
   const Error drained=menu_display_->Quiesce(Deadline(clock_,timeouts_.core_io_ms),
    active_package_?&active_package_->info().descriptor:nullptr,&info);
   SetSessionDisplayInputFocus(!drained.ok());
-  if(drained.ok())menu_status_.displayed_sequence=info.displayed_sequence;
+  if(drained.ok()){
+   menu_status_.displayed_sequence=info.displayed_sequence;
+   menu_status_.live.scanout_frame=MenuScanoutFrame::unknown;
+  }
   if(!drained.ok())menu_status_.error={menu_status_.error.code,menu_status_.error.message+"; session display quiesce failed: "+drained.message,"menu"};
   return menu_status_.error;
  }
@@ -2510,7 +2523,15 @@ Error NativeHardware::PresentMenuSlot(std::uint8_t slot,const MenuDraw& draw,Men
    if(baseline==saturated||info.underflows==saturated||delta>kMenuUnderflowPresentCap){error={ErrorCode::io_failed,"menu underflow exceeded the per-present cap","menu"};break;}
    if(delta>0){if(++menu_underflow_streak_>=kMenuUnderflowSustainPresents){error={ErrorCode::io_failed,"menu underflow persisted across presents","menu"};break;}}
    else menu_underflow_streak_=0;
+   // The committed frame has moved, so the last health check's verdict no
+   // longer speaks to what is on the wire. Dropping it to unknown is one
+   // store next to the one that moves the sequence -- nothing on this path
+   // reads a register or takes a lock for it -- and it drops only the
+   // verdict: the abandoned flag and the enabled/faulted/quiesced facts
+   // stay published, because a client that sees no live reads at all goes
+   // back to presenting into a loss the runtime gave up on.
    menu_slot_=slot;menu_status_.displayed_sequence=sequence;menu_status_.underflows=delta;info.underflows=delta;
+   menu_status_.live.scanout_frame=MenuScanoutFrame::unknown;
    if(draw.blit)menu_status_.blitted=true;
    info.clean_us=micros(clean_start,blit_start);info.blit_us=micros(blit_start,submit_start);
    info.submit_us=micros(submit_start,wait_start);

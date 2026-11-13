@@ -1401,8 +1401,19 @@ void TestMenuProtocolRequestsAndStatus()
  live_status.menu_display.live.read=true;live_status.menu_display.live.enabled=true;
  live_status.menu_display.live.displayed_sequence=9;live_status.menu_display.live.underflows_total=3;
  const auto display_only=mister::daemon::EncodeResponse(2,true,live_status,"test",nullptr,nullptr,nullptr);
+ // An unmeasured verdict says so rather than leaving the client to compare
+ // the sampled sequence with its own present, which are two instants apart.
  assert(display_only.find("\"live\":{\"enabled\":true,\"faulted\":false,\"quiesced\":false,"
-  "\"displayed_sequence\":9,\"underflows_total\":3,\"recovery_abandoned\":false}")!=std::string::npos);
+  "\"displayed_sequence\":9,\"scanout_frame\":\"unknown\",\"underflows_total\":3,"
+  "\"recovery_abandoned\":false}")!=std::string::npos);
+ // The two measured verdicts travel beside the sample they were made from.
+ live_status.menu_display.live.scanout_frame=mister::MenuScanoutFrame::matching;
+ const auto matching=mister::daemon::EncodeResponse(2,true,live_status,"test",nullptr,nullptr,nullptr);
+ assert(matching.find("\"displayed_sequence\":9,\"scanout_frame\":\"matching\",")!=std::string::npos);
+ live_status.menu_display.live.scanout_frame=mister::MenuScanoutFrame::mismatched;
+ const auto mismatched=mister::daemon::EncodeResponse(2,true,live_status,"test",nullptr,nullptr,nullptr);
+ assert(mismatched.find("\"displayed_sequence\":9,\"scanout_frame\":\"mismatched\",")!=std::string::npos);
+ live_status.menu_display.live.scanout_frame=mister::MenuScanoutFrame::unknown;
  // A loss the runtime has stopped recovering travels with the sample that
  // describes it: a client must not present to force recovery it withheld.
  live_status.menu_display.live.recovery_abandoned=true;
@@ -1414,7 +1425,7 @@ void TestMenuProtocolRequestsAndStatus()
  live_status.menu_display.live.vic=4;
  const auto with_link=mister::daemon::EncodeResponse(2,true,live_status,"test",nullptr,nullptr,nullptr);
  assert(with_link.find("\"live\":{\"enabled\":true,\"faulted\":false,\"quiesced\":false,"
-  "\"displayed_sequence\":9,\"underflows_total\":3,\"recovery_abandoned\":false,"
+  "\"displayed_sequence\":9,\"scanout_frame\":\"unknown\",\"underflows_total\":3,\"recovery_abandoned\":false,"
   "\"transmitter\":{\"hot_plug\":true,\"rx_sense\":true,"
   "\"pll_lock\":true,\"vic\":4}}")!=std::string::npos);
 

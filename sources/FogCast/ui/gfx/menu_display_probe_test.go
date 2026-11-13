@@ -1013,3 +1013,75 @@ func TestMenuDisplayChangeDrivenOffIgnoresBackoff(t *testing.T) {
 		t.Fatalf("present calls %d", calls)
 	}
 }
+
+// The live sample and this client's newest present describe two different
+// instants. The runtime reads the display about once a second; a present
+// happens whenever the UI changes, and it moves the committed frame on. So
+// the sample a probe reads after any present carries the sequence from
+// before it, and subtracting the two here called a perfectly healthy display
+// lost: the probe sent a complete frame to recover from it, that present
+// moved the sequence again, and the next probe was behind once more. One
+// ordinary UI change and the menu uploaded a whole frame every second for
+// the rest of the kit's uptime. The verdict is the runtime's, made where
+// both numbers are read together, and a present drops it rather than letting
+// a stale one speak for a frame it never saw. Three probes in a row, because
+// one proves nothing about a loop that feeds itself: each turn rebuilds the
+// sample from whatever is committed now, so a probe that did present would
+// leave the next one behind again.
+func TestMenuDisplayProbeDoesNotLoopOnAPrePresentLiveSample(t *testing.T) {
+	for _, verdict := range []string{menudisplay.ScanoutFrameUnknown, menudisplay.ScanoutFrameMatching} {
+		t.Run(verdict, func(t *testing.T) {
+			d, client := newChangeDrivenMenu(t, 3, true)
+			clock := newMenuClock()
+			d.now = clock.Now
+			d.Clear(RGB(1, 2, 3))
+			presentMenu(t, d, client)
+			waitMenuIdle(t, d, client, 1)
+
+			for probe := 0; probe < 3; probe++ {
+				client.mu.Lock()
+				// What the runtime published before the committed frame
+				// moved: the register as the last health check read it, one
+				// behind, and either no verdict for the frame now on the
+				// wire or the verdict that check made for the one before it.
+				client.live = &menudisplay.Live{Enabled: true,
+					DisplayedSequence: client.displayed - 1, ScanoutFrame: verdict}
+				client.mu.Unlock()
+
+				clock.Advance(menuProbeInterval)
+				d.Present()
+				// A present here would advance the sequence, leave the next
+				// turn's sample behind again, and never stop.
+				waitMenuIdle(t, d, client, 1)
+			}
+			if err := d.LastError(); err != nil {
+				t.Fatalf("a lagging sample reported %v", err)
+			}
+		})
+	}
+}
+
+// The verdict is still how a genuine loss reaches the launcher: scanout is
+// not showing the committed frame, the runtime says so, and the probe sends
+// a complete frame rather than acknowledging an unchanged one.
+func TestMenuDisplayProbeForcesPresentOnAMismatchedVerdict(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+	client.mu.Lock()
+	// Healthy in every other respect, and the sampled sequence even agrees
+	// with what this client's present returned. The verdict is the loss.
+	client.live = &menudisplay.Live{Enabled: true, DisplayedSequence: client.displayed,
+		ScanoutFrame: menudisplay.ScanoutFrameMismatched}
+	client.mu.Unlock()
+
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	waitMenuIdle(t, d, client, 2)
+	if calls, _, n, _ := client.snapshot(); calls != 2 || n != menudisplay.FrameBytes {
+		t.Fatalf("a mismatched verdict was acknowledged, calls=%d bytes=%d", calls, n)
+	}
+}

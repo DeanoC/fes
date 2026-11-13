@@ -435,8 +435,41 @@ func TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle(t *testing.T) {
 			t.Fatalf("re-encoded live display evidence rejected: %s, %v", encoded, err)
 		}
 	}
+	// The runtime's verdict on whether scanout is showing the committed
+	// frame, made where both numbers are read in one breath. The sampled
+	// displayed_sequence beside it is a diagnostic, not the comparison. The
+	// verdict is optional: the two samples above carry none, as a runtime
+	// older than it does, and that must decode as "unsaid" rather than be
+	// refused or read as a loss.
+	for _, live := range []string{display, link} {
+		carried := strings.Replace(withMenu, `"underflows":0,"error"`, `"underflows":0`+live+`,"error"`, 1)
+		decoded, err := decodeProtocol2Response([]byte(carried))
+		if err != nil || decoded.MenuDisplay == nil || decoded.MenuDisplay.Live == nil ||
+			decoded.MenuDisplay.Live.ScanoutFrame != "" {
+			t.Fatalf("an absent verdict was not decoded as unsaid: %#v, %v", decoded.MenuDisplay, err)
+		}
+	}
+	for _, verdict := range []string{"unknown", "matching", "mismatched"} {
+		live := `,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,` +
+			`"scanout_frame":"` + verdict + `","underflows_total":7,"recovery_abandoned":false}`
+		carried := strings.Replace(withMenu, `"underflows":0,"error"`, `"underflows":0`+live+`,"error"`, 1)
+		decoded, err := decodeProtocol2Response([]byte(carried))
+		if err != nil || decoded.MenuDisplay == nil || decoded.MenuDisplay.Live == nil ||
+			decoded.MenuDisplay.Live.ScanoutFrame != verdict {
+			t.Fatalf("committed-frame verdict lost: %#v, %v", decoded.MenuDisplay, err)
+		}
+		encoded, err := json.Marshal(decoded)
+		if err != nil {
+			t.Fatalf("committed-frame verdict does not re-encode: %v", err)
+		}
+		if _, err := decodeProtocol2Response(encoded); err != nil {
+			t.Fatalf("re-encoded committed-frame verdict rejected: %s, %v", encoded, err)
+		}
+	}
 	for _, live := range []string{
 		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4}`,
+		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":0,"scanout_frame":true}`,
+		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":0,"scanout_frame":2}`,
 		`,"live":{"enabled":1,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":0}`,
 		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":0,"pll_lock":true}`,
 		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":0,"transmitter":{"hot_plug":true,"rx_sense":true,"pll_lock":true}}`,

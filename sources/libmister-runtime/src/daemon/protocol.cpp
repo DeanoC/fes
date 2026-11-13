@@ -816,7 +816,17 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
    output.Append(",\"live\":{\"enabled\":");output.Append(live.enabled?"true":"false");
    output.Append(",\"faulted\":");output.Append(live.faulted?"true":"false");
    output.Append(",\"quiesced\":");output.Append(live.quiesced?"true":"false");
+   // A sample of the register, for logs and diagnostics. It is not what a
+   // client compares against the sequence its own present returned: this
+   // was read when the check ran, the present happened afterwards, and the
+   // two instants disagree by design. "scanout_frame" is the comparison.
    output.Append(",\"displayed_sequence\":");output.Append(std::to_string(live.displayed_sequence));
+   // The runtime's own verdict on whether scanout is showing the committed
+   // frame, made where both numbers are read together. "unknown" means no
+   // measurement describes the frame now on the wire, which a present makes
+   // true until the next check; only "mismatched" is a loss.
+   output.Append(",\"scanout_frame\":\"");output.Append(MenuScanoutFrameName(live.scanout_frame));
+   output.Append("\"");
    // The absolute hardware counter, not the per-present delta that the
    // sibling "underflows" carries, so it takes its own name.
    output.Append(",\"underflows_total\":");output.Append(std::to_string(live.underflows_total));

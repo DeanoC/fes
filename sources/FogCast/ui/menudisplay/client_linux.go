@@ -83,15 +83,38 @@ type Status struct {
 	Live *Live `json:"live"`
 }
 
+// The runtime's verdicts on whether scanout is showing the frame it has
+// committed. Only ScanoutFrameMismatched is a loss: ScanoutFrameUnknown
+// costs at most one more probe interval before the next health check speaks,
+// and that is the direction to err in, because the other direction is a
+// complete frame every second for the rest of the kit's uptime.
+const (
+	ScanoutFrameUnknown    = "unknown"
+	ScanoutFrameMatching   = "matching"
+	ScanoutFrameMismatched = "mismatched"
+)
+
 // Live is what the runtime last measured on the display registers and the
 // HDMI transmitter themselves, rather than what the last present set up. It
 // is absent when the runtime has measured nothing, which is not the same as
 // a healthy display.
 type Live struct {
-	Enabled           bool   `json:"enabled"`
-	Faulted           bool   `json:"faulted"`
-	Quiesced          bool   `json:"quiesced"`
+	Enabled  bool `json:"enabled"`
+	Faulted  bool `json:"faulted"`
+	Quiesced bool `json:"quiesced"`
+	// DisplayedSequence is the register as that check read it, for logs and
+	// diagnostics. It is a sample, not something to compare against the
+	// sequence this client's own present returned: the present happens after
+	// the check, so the two describe different instants and a healthy display
+	// would read as lost on every frame. ScanoutFrame is that comparison,
+	// made by the runtime where both numbers are read together.
 	DisplayedSequence uint64 `json:"displayed_sequence"`
+	// ScanoutFrame is the runtime's verdict on whether scanout is showing the
+	// committed frame: ScanoutFrameMatching, ScanoutFrameMismatched, or
+	// ScanoutFrameUnknown when no measurement describes the frame now on the
+	// wire, which every present makes true until the next check. Empty from a
+	// runtime that does not publish a verdict at all.
+	ScanoutFrame string `json:"scanout_frame"`
 	// UnderflowsTotal is the absolute hardware counter since the display was
 	// programmed. The per-present one-scanline cap does not apply to it.
 	UnderflowsTotal uint64 `json:"underflows_total"`

@@ -696,9 +696,20 @@ is the runtime's per-present delta. The kit painter and the Linux menu
 client accept a delta of at most one 720p scanline and refuse a larger one.
 The decoder also defines the optional `menu_display.live`: the runtime's
 periodic re-read of the idle display, with `enabled`, `faulted`, `quiesced`,
-`displayed_sequence`, `underflows_total` and `recovery_abandoned`, plus a
+`displayed_sequence`, `scanout_frame`, `underflows_total` and
+`recovery_abandoned`, plus a
 nested `transmitter` object carrying `hot_plug`, `rx_sense`, `pll_lock` and
-`vic`. `recovery_abandoned` is the runtime's verdict rather than a read: it
+`vic`. `displayed_sequence` is a sample for logs and diagnostics, taken when
+the check ran and so one behind the committed frame after every present; a
+client does not compare it with the sequence its own present returned.
+`scanout_frame` is that comparison, made by the runtime where both numbers
+are read together: `"matching"`, `"mismatched"`, or `"unknown"` when no
+measurement describes the frame now on the wire, which a present makes true
+until the next check. Only `"mismatched"` is a loss. It is optional, so a
+runtime older than the verdict decodes as having said nothing, and any
+string passes the shape check because a name this client does not know must
+cost a probe interval rather than manufacture a loss.
+`recovery_abandoned` is the runtime's verdict rather than a read: it
 says this loss gets no further reactivation, so a client neither presents to
 force recovery nor withdraws managed readiness over it. It is optional, so a
 runtime that does not send it decodes as willing to reactivate. The ADV7513
@@ -1639,8 +1650,9 @@ still reads menu status. A new menu generation is submitted in full; the
 same generation presents nothing.
 That skip acknowledges the unchanged frame only while the status reports
 `live.enabled`, not `live.faulted`, not `live.quiesced`, and a
-`live.displayed_sequence` still equal to the sequence this client's last
-present returned; against a runtime that reports no `live` it falls back to
+`live.scanout_frame` that is not `"mismatched"`; against a runtime that
+measures the display but publishes no verdict it falls back to
+`live.displayed_sequence`, and against one that reports no `live` at all to
 the cached `displayed_sequence`. Anything else sends a complete frame rather
 than acknowledging one. The first frame is submitted because nothing has been queued yet. Status
 errors, scanout underflow, and present failures wait 250ms, doubling up to
@@ -1697,7 +1709,7 @@ is separate from the broader SDL smoke.
 | FPGA | `gfx.NewFPGA` (`ui/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. |
 | FPGA stub | `gfx.NewFPGAStub` (`ui/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. Used by `fogcast-tenfoot -gfx linuxfb`. Look tokens live in `ui/theme` and are consumed by the sofa `Clear` sites. Chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
-| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status, and acknowledges the unchanged frame only while that status reports `live.enabled`, not `live.faulted`, not `live.quiesced` and a `live.displayed_sequence` still equal to the sequence its own last present returned (falling back to the cached `displayed_sequence` against a runtime that reports no `live`); otherwise it sends a complete frame. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The base-image supervisor starts `fogcast-tenfoot` on this socket. On this backend tenfoot submits one room launch overlay frame with
+| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status, and acknowledges the unchanged frame only while that status reports `live.enabled`, not `live.faulted`, not `live.quiesced` and a `live.scanout_frame` that is not `"mismatched"` (falling back to the sampled `live.displayed_sequence` against a runtime that publishes no verdict, and to the cached `displayed_sequence` against one that reports no `live`); otherwise it sends a complete frame. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The base-image supervisor starts `fogcast-tenfoot` on this socket. On this backend tenfoot submits one room launch overlay frame with
 phase and elapsed time. Dispatch waits until that frame has been presented,
 then pauses presents and dispatches the host session launch. A completed pause
 also releases the menu client's grant mapping after its last frame transaction

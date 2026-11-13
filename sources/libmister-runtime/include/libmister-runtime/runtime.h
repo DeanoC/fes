@@ -374,6 +374,27 @@ struct MenuDisplayInfo {
  // that drew it. Zero when not measured.
  std::uint32_t clean_us=0,blit_us=0,submit_us=0,scanout_wait_us=0;
 };
+// Whether scanout was found showing the frame the runtime has committed.
+// Both halves of that comparison are read in the same breath by the health
+// check, so it is the runtime's verdict and not something a client can
+// reconstruct from a sample it received up to a second late.
+// unknown is the honest answer whenever no measurement describes the frame
+// now on the wire -- before the first health check of a programming, and
+// after a present has moved the committed frame on. Only mismatched is a
+// loss; unknown costs at most one more second before the next check
+// re-establishes the verdict, and that is the direction to err in.
+enum class MenuScanoutFrame : std::uint8_t { unknown=0, matching=1, mismatched=2 };
+// The wire and log spelling of that verdict. One name for both, so a kit log
+// line and a status reply never disagree about which verdict was published.
+constexpr const char* MenuScanoutFrameName(MenuScanoutFrame frame)
+{
+ switch(frame) {
+  case MenuScanoutFrame::matching: return "matching";
+  case MenuScanoutFrame::mismatched: return "mismatched";
+  case MenuScanoutFrame::unknown: break;
+ }
+ return "unknown";
+}
 // What the idle display and its HDMI transmitter actually report, re-read
 // about once a second while the idle menu owns the screen. A confirmed
 // present is not evidence that scanout is still running: everything here is
@@ -387,7 +408,14 @@ struct MenuDisplayLive {
  // underflows_total is the hardware's absolute counter since this image was
  // programmed, not the per-present delta that MenuDisplayStatus::underflows
  // carries. The one-scanline per-present cap does not apply to it.
+ // displayed_sequence is what the register read answered at that moment,
+ // kept for the log and for diagnostics. It is a sample: a client that
+ // compares it with the sequence its own present returned is comparing two
+ // different instants, and after every present it is one behind until the
+ // next check. scanout_frame is the comparison, made where both numbers are
+ // read together.
  std::uint32_t displayed_sequence=0,underflows_total=0;
+ MenuScanoutFrame scanout_frame=MenuScanoutFrame::unknown;
  // ADV7513 0x42 (HPD and Rx sense), 0x9e bit 4 (pixel PLL lock) and the
  // detected VIC from 0x3e>>2. A 720p60 link reports VIC 4.
  bool hot_plug=false,rx_sense=false,pll_lock=false;

@@ -2773,6 +2773,79 @@ void TestIdleDisplayHealthPublishesWhenItStopsRecovering()
  assert(!hardware.menu_display().live.recovery_abandoned);
 }
 
+// Whether scanout still shows the committed frame is a comparison of two
+// numbers read in the same breath, so the runtime makes it and publishes the
+// answer. A client cannot: the sample it holds was taken up to a second ago
+// and its own present has moved the committed frame since, so comparing them
+// calls every ordinary present a loss and sends a whole frame to "recover"
+// from it, which moves the sequence again. A present therefore drops the
+// verdict to unknown rather than leaving a stale one to speak for a frame it
+// never saw.
+void TestIdleDisplayHealthPublishesTheCommittedFrameVerdict()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;OpenedCorePackage opened;PopulateHpsDdrApplication(&package,true,&opened);
+ std::string manifest=ReadText(package.path+"/manifest.toml");ReplaceAll(&manifest,"fes.pong","fes.menu");
+ manifest+="\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ {std::ofstream output(package.path+"/manifest.toml",std::ios::trunc);output<<manifest;assert(output.good());}
+ assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ MenuGpScript script{&mmio};script.BringUp();
+ assert(hardware.ConfigureMenuPackage(package.path,opened.package_id).error.ok());
+ mister::MenuDisplayInfo displayed;
+
+ // Nothing has been measured yet, so there is no verdict to publish.
+ assert(hardware.menu_display().live.scanout_frame==mister::MenuScanoutFrame::unknown);
+ script.Present(0,0,0);
+ assert(PresentBackSlot(hardware,&displayed).ok()&&hardware.menu_display().displayed_sequence==1);
+
+ // A check that finds scanout on the committed frame says so.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,1);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.scanout_frame==mister::MenuScanoutFrame::matching);
+ assert(hardware.menu_display().live.displayed_sequence==1);
+
+ // The next present commits a new frame. The sample is now one behind the
+ // committed sequence -- which is exactly the pair a client would have
+ // subtracted -- so the verdict goes with it rather than reading as a loss.
+ // Only the verdict: the sample itself stays on the wire.
+ script.Present(1,0,0);
+ assert(PresentBackSlot(hardware,&displayed).ok()&&hardware.menu_display().displayed_sequence==2);
+ const auto stale=hardware.menu_display().live;
+ assert(stale.scanout_frame==mister::MenuScanoutFrame::unknown);
+ assert(stale.read&&stale.enabled&&stale.displayed_sequence==1);
+ // A present never reads a register for this, so the pacing is untouched and
+ // the verdict stays unknown until the next check is due.
+ assert(!hardware.IdleDisplayHealthDue());
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.scanout_frame==mister::MenuScanoutFrame::unknown);
+
+ // The next check re-establishes it against the frame that is now committed.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,2);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.scanout_frame==mister::MenuScanoutFrame::matching);
+
+ // And a genuine loss is still a loss: the verdict says mismatched and the
+ // bounded recovery runs for it exactly as before.
+ clock.now_+=kMenuHealthIntervalMs;
+ const auto before=fpga.calls;
+ script.Info(3,9);
+ const auto lost=hardware.CheckIdleDisplayHealth();
+ assert(!lost.ok()&&lost.message=="menu scanout no longer shows the committed frame");
+ assert(hardware.menu_display().live.scanout_frame==mister::MenuScanoutFrame::mismatched);
+ assert(!hardware.menu_display().available&&fpga.calls==before);
+}
+
 // An unreadable display is never recovered from -- a failed bus call is no
 // evidence of a lost scanout -- but the policy says it is logged. A reset
 // baseline is all-zero, so the first unreadable sample matched it exactly and
@@ -6002,6 +6075,7 @@ int main(int argc,char** argv)
  TestMenuUnderflowPolicyReactivatesThenSplashes();
  TestIdleDisplayHealthDetectsLostScanoutWithinBudget();
  TestIdleDisplayHealthPublishesWhenItStopsRecovering();
+ TestIdleDisplayHealthPublishesTheCommittedFrameVerdict();
  TestIdleDisplayHealthLogsTheFirstUnreadableSample();
 	TestComputerLiveMediaLifecycleThroughRuntime();
 	TestPcxtFloppyLifecycleThroughRuntime();

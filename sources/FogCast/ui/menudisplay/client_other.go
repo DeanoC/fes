@@ -32,11 +32,24 @@ type Status struct {
 	Live                                        *Live
 }
 
+// The runtime's verdicts on whether scanout is showing the frame it has
+// committed. Only ScanoutFrameMismatched is a loss.
+const (
+	ScanoutFrameUnknown    = "unknown"
+	ScanoutFrameMatching   = "matching"
+	ScanoutFrameMismatched = "mismatched"
+)
+
 // Live is what the runtime last measured on the display registers and the
 // HDMI transmitter themselves. It is absent when nothing was measured.
 type Live struct {
 	Enabled, Faulted, Quiesced         bool
 	DisplayedSequence, UnderflowsTotal uint64
+	// ScanoutFrame is the runtime's verdict on whether scanout shows the
+	// committed frame. DisplayedSequence beside it is a sample, not something
+	// to compare with this client's own present. Empty from a runtime that
+	// publishes no verdict.
+	ScanoutFrame string
 	// RecoveryAbandoned says the runtime has stopped trying to recover this
 	// loss. Older runtimes never send it.
 	RecoveryAbandoned bool
