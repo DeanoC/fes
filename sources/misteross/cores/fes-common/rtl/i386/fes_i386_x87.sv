@@ -356,9 +356,13 @@ module fes_i386_x87 (
     assign sw_o = {es, cc[3], top, cc[2], cc[1], cc[0], es, sf, fl};
     assign cw_o = cw;
     assign opcode_o = opcode;
+    // The tag word: the empty bit a register's own writes keep, and the two
+    // class bits the write stored with it, so the word costs no read of the
+    // stack (fes_i386_x87's header, "The tag word is derived").
+    logic [1:0] cls_bits [0:7];
     always_comb begin
         tw_o = 16'd0;
-        for (int n = 0; n < 8; n++) tw_o[2*n +: 2] = tag_of(class_of(rf_q[n], empty[n]));
+        for (int n = 0; n < 8; n++) tw_o[2*n +: 2] = empty[n] ? 2'b11 : cls_bits[n];
     end
     assign error = present && es;
 
@@ -378,6 +382,7 @@ module fes_i386_x87 (
         if (rw_en) begin
             rf_a[rw_idx] <= rw_val;
             rf_b[rw_idx] <= rw_val;
+            cls_bits[rw_idx] <= tag_of(class_of(rw_val, 1'b0));
         end
     end
     always_comb for (int n = 0; n < 8; n++) rf_q[n] = rf_a[n];
@@ -448,24 +453,20 @@ module fes_i386_x87 (
     logic        pnx;           // an unmasked exception: make no access
     logic [2:0]  save_reg;      // the register FNSAVE or FRSTOR is moving
     logic        busy;
+    logic        committed;     // the instruction in flight has retired
+    logic [1:0]  nw;            // a no-wait form waiting to commit: 1 FNINIT, 2 FNCLEX
+    logic [10:0] cur_op_raw;    // its 387 opcode, which commit stores
+    logic        cur_ctrl;      // ... and whether it is a control form
+    logic        c1_wr;         // the operation writes C1
     assign busy_o = busy;
 
     // ---- The board's BUSY# latch (387 PRM Appendix F.2). ----
-    // ERROR# going active latches BUSY# active, which holds the next
-    // waiting ESC or WAIT until a write to port F0h clears it. A write to
-    // F1h resets the unit and leaves the latch as it is, as slice 0's
-    // oracle case has it.
-    logic error_q;
-    always_ff @(posedge clk) begin
-        if (reset) begin
-            latched <= 1'b0;
-            error_q <= 1'b0;
-        end else begin
-            error_q <= error;
-            if (f0) latched <= 1'b0;
-            else if (error && !error_q) latched <= 1'b1;
-        end
-    end
+    // ERROR# going active latches BUSY#, which holds the next waiting ESC or
+    // WAIT until a write to port F0h clears it. A write to F1h resets the
+    // unit with ERROR# active and leaves the latch as it is, as the oracle's
+    // adapter does (bochs_oracle.cpp, the F1h case). The latch is set in the
+    // same cycle as ES, below, so an ESC already waiting in D cannot slip
+    // past it.
 
     // ---- Issue. ----
     // FNINIT and FNCLEX are the two forms that do not wait for BUSY# (HRM
@@ -488,11 +489,17 @@ module fes_i386_x87 (
     // for the unit, and one the unit has taken waits for its own value.
     // FNINIT and FNCLEX wait for neither (HRM section 5.1).
     assign hold = present && iss && !iss_nowait && !unimpl
-               && (iss_first && !started && (latched || busy)
+               && (iss_first && (!started || committed) && (latched || busy)
                    || val_form && seq != S_RDY
                    || iss_save_rd && seq != S_SAVE_RD);
+    // FNINIT and FNCLEX wait for neither the latch nor the unit, so they are
+    // taken on their own, beside whatever the unit is working on: FNINIT
+    // resets it, which is why it needs no wait, and FNCLEX only clears the
+    // flags, the hazard Intel's note about FWAIT before FNCLEX describes.
+    logic take_nw;
     assign take = present && iss && iss_first && !started && !busy && !latched
-               && !iss_wait && iss_dec != OP_UNIMPL;
+               && !iss_wait && !iss_nowait && iss_dec != OP_UNIMPL;
+    assign take_nw = present && iss && iss_first && iss_nowait && nw == 2'd0;
     // The control forms, which leave the x87 pointers and the opcode as they
     // are: the same list fes_i386_decode gives X87P_NONE. FNOP (D9 D0) is
     // not one of them; FENI, FDISI and FSETPM (DB E0, E1, E4) are.
@@ -802,6 +809,9 @@ module fes_i386_x87 (
             empty <= 8'hff;
             seq <= S_IDLE;
             started <= 1'b0;
+            committed <= 1'b0;
+            nw <= 2'd0;
+            latched <= 1'b0;
             rw_en <= 1'b0;
             pnx <= 1'b0;
         end else if (f1) begin
@@ -819,18 +829,30 @@ module fes_i386_x87 (
             empty <= 8'hff;
             seq <= S_IDLE;
             started <= 1'b0;
+            committed <= 1'b0;
+            nw <= 2'd0;
             rw_en <= 1'b0;
             pnx <= 1'b0;
         end else begin
+            logic es_now;   // ES goes active this cycle, which latches BUSY#
+            es_now = 1'b0;
             rw_en <= 1'b0;
-            if (flush) begin
+            if (f0) latched <= 1'b0;
+            // A squashed instruction leaves nothing behind, but one that has
+            // retired runs on: its work finishes after it, as a 387's does
+            // with BUSY# still active.
+            if (flush && started && !committed) begin
                 started <= 1'b0;
-                if (seq != S_SAVE_RD) seq <= S_IDLE;
+                committed <= 1'b0;
+                nw <= 2'd0;
                 pnx <= 1'b0;
-            end
+                seq <= S_IDLE;
+            end else begin
+            if (take_nw) nw <= iss_dec == OP_INIT ? 2'd1 : 2'd2;
+            if (wb && wb_last && started) committed <= 1'b1;
             // A load uop's value, and an environment's or a save image's
             // fields, as each commits.
-            if (wb && !flush) begin
+            if (wb && started) begin
                 if (cur == OP_LDENV || cur == OP_RSTOR) begin
                     if (!wb_part[5]) begin
                         case (wb_part[2:0])
@@ -841,6 +863,7 @@ module fes_i386_x87 (
                                 fl <= wb_val[5:0];
                                 sf <= wb_val[6];
                                 es <= wb_val[7];
+                                if (wb_val[7]) es_now = 1'b1;
                                 cc <= {wb_val[14], wb_val[10], wb_val[9], wb_val[8]};
                                 top <= wb_val[13:11];
                             end
@@ -885,7 +908,10 @@ module fes_i386_x87 (
                     cur_fmt <= iss_fmt;
                     cur_i <= iss_op[2:0];
                     cur_pop <= iss_dec == OP_STP_M || iss_dec == OP_STP_ST;
+                    cur_op_raw <= iss_op;
+                    cur_ctrl <= ctrl_form;
                     started <= 1'b1;
+                    committed <= 1'b0;
                     pnx <= 1'b0;
                     pfl <= 6'd0;
                     psf <= 1'b0;
@@ -939,10 +965,13 @@ module fes_i386_x87 (
                     // The rounded result, its flags, and whether an unmasked
                     // exception means the CPU must make no access.
                     logic [5:0] f;
+                    logic       c1v;
                     f = pfl;
+                    c1v = rnd_up;
                     if (cur_fmt == FMT_I16 || cur_fmt == FMT_I32 || cur_fmt == FMT_I64) begin
                         if (int_oor) begin
                             f[0] = 1'b1;
+                            c1v = 1'b0;
                             sres <= {16'd0, 64'd1 << (i_w - 7'd1)};
                         end else begin
                             if (rnd_inex) f[5] = 1'b1;
@@ -957,6 +986,7 @@ module fes_i386_x87 (
                             inf = rc == 2'd0 || (rc == 2'd1 && st_sign) || (rc == 2'd2 && !st_sign);
                             f[3] = 1'b1;
                             f[5] = 1'b1;
+                            c1v = inf;
                             sres <= cur_fmt == FMT_F32
                                 ? (inf ? {48'd0, st_sign, 8'hff, 23'd0}
                                        : {48'd0, st_sign, 8'hfe, 23'h7fffff})
@@ -970,7 +1000,10 @@ module fes_i386_x87 (
                         end
                     end
                     pfl <= f;
-                    pc1 <= rnd_up;
+                    // C1 is the rounding's direction: away from zero for a
+                    // masked overflow's infinity, and 0 for a masked invalid
+                    // operation, whose result is not a rounding.
+                    pc1 <= c1v;
                     pnx <= unmasked(f, cw);
                     seq <= S_RDY;
                 end
@@ -997,6 +1030,11 @@ module fes_i386_x87 (
                     stk = psf;
                     c1 = pc1;
                     ccw = 1'b0;
+                    // The control forms, FNOP and FFREE leave the condition
+                    // codes as they are; every other form writes C1.
+                    c1_wr = !(cur == OP_NOP || cur == OP_STCW || cur == OP_STSW || cur == OP_STENV
+                              || cur == OP_LDENV || cur == OP_SAVE || cur == OP_RSTOR
+                              || cur == OP_FREE || cur == OP_LDCW);
                     nc = cc;
                     v = 80'd0;
                     wr = 1'b0;
@@ -1155,8 +1193,11 @@ module fes_i386_x87 (
                     if (cur != OP_INIT && cur != OP_SAVE && cur != OP_CLEX) begin
                         fl <= fl | f;
                         if (stk) sf <= 1'b1;
-                        if (um) es <= 1'b1;
-                        cc[1] <= c1;
+                        if (um) begin
+                            es <= 1'b1;
+                            es_now = 1'b1;
+                        end
+                        if (c1_wr) cc[1] <= c1;
                         if (ccw) cc <= {nc[3], nc[2], c1, nc[0]};
                     end
                     // An unmasked exception leaves the registers and TOP as
@@ -1206,8 +1247,34 @@ module fes_i386_x87 (
             endcase
             // The opcode a non-control ESC instruction leaves behind, which
             // FNSTENV and FNSAVE store: the forms fes_i386_decode gives
-            // X87P_NONE leave it, as a 387 does.
-            if (take && !ctrl_form) opcode <= iss_op;
+            // X87P_NONE leave it, as a 387 does. It is written at the
+            // instruction's commit, with the x87 pointers, so one that
+            // faults or is squashed leaves it alone.
+            if (wb && wb_last && started && !cur_ctrl) opcode <= cur_op_raw;
+            // FNINIT and FNCLEX, at their own commit, after the case above
+            // so FNINIT's reset wins over an operation finishing with it.
+            if (wb && wb_last && nw != 2'd0) begin
+                nw <= 2'd0;
+                if (nw == 2'd1) begin
+                    cw <= 16'h037f;
+                    fl <= 6'd0;
+                    sf <= 1'b0;
+                    es <= 1'b0;
+                    cc <= 4'd0;
+                    top <= 3'd0;
+                    empty <= 8'hff;
+                    opcode <= 11'd0;
+                    seq <= S_IDLE;
+                    started <= 1'b0;
+                    committed <= 1'b0;
+                end else begin
+                    fl <= 6'd0;
+                    sf <= 1'b0;
+                    es <= 1'b0;
+                end
+            end
+            end
+            if (es_now && !es) latched <= 1'b1;
         end
     end
 endmodule

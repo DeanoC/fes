@@ -189,6 +189,15 @@ struct Unit {
         top.wb_last = 0;
         top.eval();
     }
+    // A write to port F0h, which clears the board's BUSY# latch.
+    void clear_latch() {
+        top.f0 = 1;
+        tick();
+        top.f0 = 0;
+        tick();
+    }
+    // Unmask the invalid-operation exception and raise one, which sets ES
+    // and latches BUSY#.
     void settle() {
         for (int n = 0; n < 64 && top.busy_o; ++n) tick();
     }
@@ -274,9 +283,11 @@ void bad(const std::string &name, const std::string &what) {
     std::printf("FAIL %s %s\n", name.c_str(), what.c_str());
     ++failed;
 }
-// The status-word bits a conversion sets: the six exception flags and the
-// stack flag, which is what the host's masked run reports too.
-uint16_t flags_of(uint16_t sw) { return uint16_t(sw & 0x00ff); }
+// The status-word bits a load or a store defines: the six exception flags,
+// the stack flag, ES, and C1, which says a rounding went up or which way a
+// stack fault went. C0, C2 and C3 are undefined for these forms, so the
+// host's are no reference.
+uint16_t flags_of(uint16_t sw) { return uint16_t(sw & 0x02ff); }
 
 // Set the unit's rounding mode with FLDCW.
 void set_rc(Unit &u, unsigned rc) {
@@ -487,8 +498,16 @@ int main(int argc, char **argv) {
         if (u.cw() != 0x037e || u.sw() != 0x8081 || u.tw() != 0xffff) bad("f1-reset", "cw=" + hex(u.cw(), 4) +
                                                                           " sw=" + hex(u.sw(), 4));
         else if (!u.top.error) bad("f1-reset", "ERROR# not active");
+        else if (u.top.latched) bad("f1-reset", "the latch was set");
         else ok("f1-reset");
-        // ERROR# latched BUSY#, so the next ESC holds until a write to F0h.
+        // An unmasked exception sets ES, which latches BUSY#: the next ESC
+        // then holds until a write to F0h, and FNCLEX and FNINIT do not.
+        u.reg_form(OP_FNINIT);
+        u.present(OP_FLDCW, FMT_F32, true, true, 0);
+        u.commit(0, 0x037e, true);
+        u.settle();
+        u.reg_form(OP_FCHS);  // an empty ST(0): an unmasked stack fault
+        u.idle(2);
         u.top.iss = 1;
         u.top.iss_wait = 0;
         u.top.iss_op = OP_FLD_M32;
@@ -515,6 +534,7 @@ int main(int argc, char **argv) {
                 else ok("busy-latch");
             }
         }
+        u.clear_latch();
         u.reg_form(OP_FNINIT);
 
         // FINCSTP and FDECSTP move TOP and leave the tags.
@@ -606,6 +626,123 @@ int main(int argc, char **argv) {
         u.idle(2);                            // ERROR# latches BUSY# a cycle later
         if (u.top.error && (u.sw() & 0x80) && u.top.latched) ok("unmasked-error");
         else bad("unmasked-error", "sw=" + hex(u.sw(), 4));
+    }
+
+    // ---- The protocol. ----
+    {
+        Unit u;
+        u.clear_latch();
+        // FNINIT and FNCLEX run while the board's latch holds BUSY#, which
+        // is slice 0's no-wait case: FNCLEX drops IRQ 13 and FNINIT resets.
+        u.reg_form(OP_FNINIT);
+        u.top.f1 = 1;
+        u.tick();
+        u.top.f1 = 0;
+        u.tick();
+        const bool latch_clear_after_f1 = !u.top.latched;
+        // ERROR# is active, so the next waiting ESC latches nothing by
+        // itself: the latch is the board's, set when ERROR# goes active.
+        u.reg_form(OP_FNCLEX);
+        if (!latch_clear_after_f1) bad("f1-keeps-latch", "F1h set the latch");
+        else if (u.sw() != 0x037e - 0x037e) {  // FNCLEX left the flags and ES clear
+            if ((u.sw() & 0x80ff) != 0) bad("nowait-fnclex", "sw=" + hex(u.sw(), 4));
+            else ok("nowait-fnclex");
+        } else ok("nowait-fnclex");
+        if (u.top.error) bad("nowait-fnclex-error", "ERROR# still active");
+        else ok("nowait-fnclex-error");
+
+        // FNINIT runs under the latch too, and resets the unit.
+        u.reg_form(OP_FNINIT);
+        u.present(OP_FLDCW, FMT_F32, true, true, 0);
+        u.commit(0, 0x037e, true);   // invalid unmasked
+        u.settle();
+        u.reg_form(OP_FCHS);         // an empty ST(0): an unmasked stack fault
+        u.idle(1);
+        const bool latched_now = u.top.latched;
+        u.reg_form(OP_FNINIT);
+        if (!latched_now) bad("nowait-fninit", "the latch did not set");
+        else if (u.cw() != 0x037f || u.sw() != 0) bad("nowait-fninit", "cw=" + hex(u.cw(), 4) +
+                                                      " sw=" + hex(u.sw(), 4));
+        else ok("nowait-fninit");
+        u.top.f0 = 1;
+        u.tick();
+        u.top.f0 = 0;
+        u.tick();
+
+        // The latch sets in the same cycle as ES, so an ESC waiting in D
+        // cannot slip past it: with the unmasked exception's commit, the
+        // next cycle's hold is already up.
+        u.reg_form(OP_FNINIT);
+        u.present(OP_FLDCW, FMT_F32, true, true, 0);
+        u.commit(0, 0x037e, true);
+        u.settle();
+        u.present(OP_FCHS, 0, true, true, 0);
+        u.commit(0, 0, true);        // the apply sets ES and the latch
+        u.top.iss = 1;
+        u.top.iss_op = OP_FCHS;
+        u.top.iss_fmt = 0;
+        u.top.iss_first = 1;
+        u.top.eval();
+        if (!u.top.hold) bad("latch-no-gap", "an ESC was free the cycle after ES");
+        else ok("latch-no-gap");
+        u.top.iss = u.top.iss_first = 0;
+        u.top.eval();
+        u.settle();
+        u.reg_form(OP_FNINIT);   // clears ES and masks every exception again
+        u.clear_latch();
+
+        // A squashed store leaves the unit idle and the stack as it was; a
+        // load that has retired finishes, as a 387 does with BUSY# active.
+        u.clear_latch();
+        uint8_t one[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0x3f};
+        u.reg_form(OP_FNINIT);
+        u.load(OP_FLD_M80, FMT_F80, one);
+        const uint16_t top_before = uint16_t((u.sw() >> 11) & 7);
+        u.present(OP_FSTP_M32, FMT_F32, true, true, 0);
+        u.top.flush = 1;
+        u.tick();
+        u.top.flush = 0;
+        u.tick();
+        u.settle();
+        if (u.top.busy_o) bad("flush-store", "the unit stayed busy");
+        else if (((u.sw() >> 11) & 7) != top_before) bad("flush-store", "the stack moved");
+        else ok("flush-store");
+        // The unit takes the next instruction after the squash.
+        u.reg_form(OP_FCHS);
+        uint8_t got[10];
+        u.st0(got);
+        if (got[9] == 0xbf) ok("flush-store-next");
+        else bad("flush-store-next", hex80(got));
+
+        // A flush after the load's commit must not lose it.
+        u.reg_form(OP_FNINIT);
+        u.present(OP_FLD_M80, FMT_F80, true, false, 2);
+        u.commit(2, 0x3fff, false);
+        u.present(OP_FLD_M80, FMT_F80, false, false, 1);
+        u.commit(1, 0x80000000u, false);
+        u.present(OP_FLD_M80, FMT_F80, false, true, 0);
+        u.commit(0, 0, true);
+        u.top.flush = 1;
+        u.tick();
+        u.top.flush = 0;
+        u.settle();
+        u.st0(got);
+        if (std::memcmp(got, one, 10) == 0) ok("flush-after-commit");
+        else bad("flush-after-commit", hex80(got));
+
+        // A control form leaves C1 and the other condition codes alone.
+        u.clear_latch();
+        u.reg_form(OP_FNINIT);
+        u.load(OP_FLD_M80, FMT_F80, one);
+        u.reg_form(OP_FXAM);
+        const uint16_t cc_after_fxam = uint16_t(u.sw() & 0x4700);
+        u.present(OP_FLDCW, FMT_F32, true, true, 0);
+        u.commit(0, 0x037f, true);
+        u.settle();
+        uint8_t out2[10];
+        u.store((1u << 8) | 0x3d, FMT_F32, out2);  // FNSTCW (D9 /7)
+        if ((u.sw() & 0x4700) == cc_after_fxam) ok("control-keeps-cc");
+        else bad("control-keeps-cc", "was=" + hex(cc_after_fxam, 4) + " now=" + hex(u.sw() & 0x4700, 4));
     }
 
     std::printf("SUMMARY %d %d\n", passed, failed);
