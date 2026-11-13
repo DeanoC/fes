@@ -2,8 +2,10 @@
 """The x87 fit spike runner's overlay and report parsing. No Quartus or Yosys needed."""
 import contextlib
 import io
+import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 from pathlib import Path
@@ -88,6 +90,13 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(spike.paths(text)['worst'][0]['cells'], ['n2'])
 
 
+def state(pid: int) -> str:
+    try:
+        return Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[0]
+    except FileNotFoundError:
+        return 'gone'
+
+
 class JobTest(unittest.TestCase):
     def test_run_stops_a_tool_at_its_cap(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -96,6 +105,23 @@ class JobTest(unittest.TestCase):
                 spike.run([sys.executable, '-c', 'import time; time.sleep(60)'], Path(tmp), Path(tmp) / 'log',
                           {}, cap_s=0.5, heartbeat_s=0.1)
         self.assertIn('heartbeat: ', err.getvalue())
+
+    def test_stop_kills_a_child_that_ignores_term_after_the_leader_exits(self):
+        child = ('import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); '
+                 'print("ready", flush=True); time.sleep(60)')
+        leader = ('import subprocess, sys, time; '
+                  f'c = subprocess.Popen([sys.executable, "-c", {child!r}], stdout=subprocess.PIPE); '
+                  'c.stdout.readline(); print(c.pid, flush=True); time.sleep(60)')
+        process = subprocess.Popen([sys.executable, '-c', leader], stdout=subprocess.PIPE, text=True,
+                                   start_new_session=True)
+        pid = int(process.stdout.readline())
+        spike.stop(process, grace_s=0.5)
+        process.stdout.close()
+        # Killed; it may linger as a zombie until its new parent reaps it.
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and state(pid) not in ('gone', 'Z'):
+            time.sleep(0.05)
+        self.assertIn(state(pid), ('gone', 'Z'))
 
     def test_run_reports_a_failed_tool(self):
         with tempfile.TemporaryDirectory() as tmp:

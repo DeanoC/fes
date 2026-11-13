@@ -260,18 +260,32 @@ def run(command: list[str], cwd: Path, log: Path, env: dict, *, cap_s: float = Q
         raise SpikeError(f'{name} failed (exit {process.returncode}); see {log}')
 
 
-def stop(process: subprocess.Popen) -> None:
-    """Stop the tool's own process group (it was started in a new session), TERM then KILL."""
-    for sig, grace in ((signal.SIGTERM, 10), (signal.SIGKILL, None)):
+def stop(process: subprocess.Popen, grace_s: float = 10) -> None:
+    """Stop the tool's whole process group (it was started in a new session): TERM, then KILL
+    whatever is left of the group after the grace period, even if the leader already exited."""
+    group = process.pid
+    try:
+        os.killpg(group, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    deadline = time.monotonic() + grace_s
+    while time.monotonic() < deadline and group_alive(group):
+        time.sleep(0.05)
+        process.poll()
+    if group_alive(group):
         try:
-            os.killpg(process.pid, sig)
+            os.killpg(group, signal.SIGKILL)
         except ProcessLookupError:
-            return
-        try:
-            process.wait(timeout=grace)
-            return
-        except subprocess.TimeoutExpired:
-            continue
+            pass
+    process.wait()
+
+
+def group_alive(group: int) -> bool:
+    try:
+        os.killpg(group, 0)
+    except ProcessLookupError:
+        return False
+    return True
 
 
 def flatten(program: str, hierarchy: bool) -> str:
