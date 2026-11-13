@@ -524,6 +524,29 @@ void kbc(Bench &b) {
     check("Pause arrives as E1 1D 45 E1 9D C5, with nothing at its release",
           pause_make == std::vector<uint8_t>{0xe1, 0x1d, 0x45, 0xe1, 0x9d, 0xc5} && pause_break.empty(),
           hex_bytes(pause_make) + " / " + hex_bytes(pause_break));
+
+    // Keep the 8042 output full until Pause's silent release has been
+    // observed, then let its older make finish. After F5/F4, a new press
+    // made while scanning was disabled still needs a complete sequence.
+    b.key(0x48, true);
+    b.run(200000);
+    b.key(0x48, false);
+    b.run(200000);
+    const auto old_pause = b.drain();
+    b.out(0x60, 0xf5);
+    const auto disabled_ack = b.drain();
+    b.key(0x48, true);
+    b.run(200000);
+    b.out(0x60, 0xf4);
+    const auto reenabled = b.drain();
+    b.key(0x48, false);
+    b.drain();
+    check("Pause pressed during F5 is sent after F4 despite an older late completion",
+          old_pause == std::vector<uint8_t>{0xe1, 0x1d, 0x45, 0xe1, 0x9d, 0xc5} &&
+              disabled_ack == std::vector<uint8_t>{0xfa} &&
+              reenabled == std::vector<uint8_t>{0xfa, 0xe1, 0x1d, 0x45, 0xe1, 0x9d, 0xc5},
+          hex_bytes(old_pause) + " / " + hex_bytes(disabled_ack) + " / " + hex_bytes(reenabled));
+
     b.key(0xe1, true);
     b.key(0x1e, true);
     std::vector<uint8_t> shifted = b.drain();

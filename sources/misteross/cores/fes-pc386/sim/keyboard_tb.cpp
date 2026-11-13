@@ -512,10 +512,8 @@ void in_flight(Bench &b) {
 
     // Pause's make waits in the FIFO while Pause is released (a release with
     // no bytes, reported at once); then the make reaches the 8042, then F5.
-    // The make's completion is the last report, so the clear leaves Pause
-    // reported down. Pressed again while scanning is disabled, it is already
-    // down when scanning resumes, so nothing is sent until a release. That is
-    // the model's behaviour since M5, kept as is; #1800 tracks fixing it.
+    // Its late completion must not undo the silent release. A press while
+    // scanning is disabled must be sent when scanning resumes.
     b.hold = true;
     b.key(PAUSE, true);
     std::vector<uint8_t> pause_make = b.collect(1200);
@@ -539,9 +537,55 @@ void in_flight(Bench &b) {
     b.key(PAUSE, false);
     b.collect(1200);
     const std::vector<uint8_t> pause_bytes{0xe1, 0x14, 0x77, 0xe1, 0xf0, 0x14, 0xf0, 0x77};
-    check("a clear restores Pause's last report: its make's completion after its silent release",
-          pause_make == pause_bytes && swallowed.empty() && again == pause_bytes,
+    check("a stale Pause make completion cannot swallow a press after clear",
+          pause_make == pause_bytes && swallowed == pause_bytes && again == pause_bytes,
           hex(pause_make) + " / " + hex(swallowed) + " / " + hex(again));
+
+    // Two makes can be in the FIFO on opposite sides of a silent release.
+    // Taking only the older one before clearing the FIFO must not make the
+    // still-held newer press look delivered.
+    Bench pending;
+    pending.hold = true;
+    pending.key(PAUSE, true);
+    const auto old_make = pending.collect(1200);
+    pending.key(PAUSE, false);
+    pending.collect(1200);
+    pending.key(PAUSE, true);
+    const auto new_make = pending.collect(1200);
+    pending.deliver();
+    pending.held.clear();
+    pending.scanning = false;
+    pending.cancel = true;
+    pending.clock();
+    pending.collect(1200);
+    pending.hold = false;
+    pending.scanning = true;
+    const auto retried_pause = pending.collect(1200);
+    check("clearing a newer queued Pause retries it after an older completion",
+          old_make == pause_bytes && new_make == pause_bytes && retried_pause == pause_bytes,
+          hex(old_make) + " / " + hex(new_make) + " / " + hex(retried_pause));
+
+    // If both makes did reach the guest, the newer completion remains valid:
+    // clearing the FIFO while that press is still held must not duplicate it.
+    Bench delivered;
+    delivered.hold = true;
+    delivered.key(PAUSE, true);
+    delivered.collect(1200);
+    delivered.key(PAUSE, false);
+    delivered.collect(1200);
+    delivered.key(PAUSE, true);
+    delivered.collect(1200);
+    delivered.deliver_all();
+    delivered.hold = false;
+    delivered.cancel = true;
+    delivered.clock();
+    const auto duplicate = delivered.collect(1200);
+    delivered.key(PAUSE, false);
+    delivered.collect(1200);
+    delivered.key(PAUSE, true);
+    const auto next_pause = delivered.collect(1200);
+    check("a newer delivered Pause remains down across a clear",
+          duplicate.empty() && next_pause == pause_bytes, hex(duplicate) + " / " + hex(next_pause));
 }
 
 }  // namespace
